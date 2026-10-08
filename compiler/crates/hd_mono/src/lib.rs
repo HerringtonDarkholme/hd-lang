@@ -140,13 +140,14 @@ impl DefIdOrd {
 }
 
 /// Substitutes an instance's arguments for its item's parameters: the
-/// owner's (impl or trait) first, then the item's own.
+/// owner's (impl or trait) first, then the item's own. A projection whose
+/// base becomes concrete resolves to the impl's binding (codegen.md §13).
 #[must_use]
 pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList, t: Ty) -> Ty {
     let a = pool.list_items(args);
     let parent = env.parent(item);
     let n = parent.map_or(0, |p| p.1);
-    pool.subst(t, &|p: ParamRef| {
+    let s = pool.subst(t, &|p: ParamRef| {
         if p.owner == item {
             a.get(n + p.index as usize).copied()
         } else if parent.is_some_and(|(o, _)| o == p.owner) {
@@ -154,7 +155,12 @@ pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList,
         } else {
             None
         }
-    })
+    });
+    if pool.has_assoc(s) {
+        hd_types::solver::normalize_concrete(pool, &env.impl_tables(), s)
+    } else {
+        s
+    }
 }
 
 fn key_args(pool: &InternPool, args: TyList) -> Vec<KeyArg> {
@@ -403,6 +409,16 @@ impl Cx<'_> {
             .zip(self.pool.list_items(trait_args))
         {
             unify(self.pool, impl_, x, y, &mut out);
+        }
+        // Parameters that a bound's binding fixes (`Bind` steps).
+        if out.iter().any(Option::is_none)
+            && let Some((t, row)) = self
+                .tables
+                .iter()
+                .find_map(|(_, t)| t.def.iter().position(|d| *d == impl_).map(|row| (*t, row)))
+        {
+            out.resize(out.len().max(n), None);
+            hd_types::solver::apply_binds(self.pool, &self.tables, t, row, &mut out);
         }
         let mut args = Vec::new();
         for a in out.into_iter().take(n) {

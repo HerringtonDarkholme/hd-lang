@@ -109,10 +109,19 @@ impl Ck<'_, '_> {
         let segs = self.segments(n);
         let mut args = Vec::new();
         let mut row = None;
+        // A trait value's associated-type bindings (`dyn Supplier[Item = i32]`).
+        let mut bound = Vec::new();
         if let Some(al) = Src::child(n, SyntaxKind::TypeArgumentList) {
             for a in al.children() {
                 if a.kind() == SyntaxKind::RequirementRow {
                     row = Some(self.row_of(a)?);
+                } else if a.kind() == SyntaxKind::AssociatedTypeBinding {
+                    if let (Some(t), Some(ty)) =
+                        (a.name(&self.cx.src.parse.tokens), Src::type_child(a))
+                    {
+                        let name = self.cx.src.text(t).to_owned();
+                        bound.push((name, self.ty_node(ty)?));
+                    }
                 } else if a.kind().is_type() {
                     args.push(self.ty_node(a)?);
                 }
@@ -155,10 +164,14 @@ impl Ck<'_, '_> {
             }
         }
         if self.kind_of_item(def) == Some(HeadKind::Trait) {
+            let bindings = bound
+                .into_iter()
+                .map(|(name, t)| (self.cx.names.member(def, PathKind::Member, &name), t))
+                .collect();
             return Ok(pool.intern_ty(&TyData::TraitValue {
                 def,
                 args: pool.list(&args),
-                bindings: vec![],
+                bindings,
             }));
         }
         if self.cx.names.path(def) == "std/core/Map"

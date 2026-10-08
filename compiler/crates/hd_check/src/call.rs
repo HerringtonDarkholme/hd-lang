@@ -657,6 +657,13 @@ impl Ck<'_, '_> {
                         }
                     }
                 }
+                for (i, g) in sig.generics.iter().enumerate() {
+                    for b in &g.bounds {
+                        self.check_bindings(vars[i], inst(*b), n)?;
+                    }
+                }
+                // The arguments fixed the parameters a projection waited on.
+                let ret = self.norm_ty(ret);
                 let row = self.call_row(def, &sig, &vars, 0);
                 self.check_row(row, n);
                 // A checked `assert_equal` call runs std's `check_equal`
@@ -1305,6 +1312,11 @@ impl Ck<'_, '_> {
                 self.check_mut_bound(vars[i], n);
             }
         }
+        for (i, g) in sig.generics.iter().enumerate() {
+            for b in &g.bounds {
+                self.check_bindings(vars[i], inst(*b), n)?;
+            }
+        }
         Ok(())
     }
 
@@ -1558,6 +1570,7 @@ impl Ck<'_, '_> {
         bang: bool,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.cx.names.pool;
+        let rt = self.norm_ty(rt);
         // A receiver whose type an earlier error left unknown adds nothing.
         if matches!(self.strip_mut(rt), Ty::NEVER | Ty::POISON) {
             for e in &args.positional {
@@ -1937,8 +1950,136 @@ impl Ck<'_, '_> {
             .map(|i| (self.env.clause_trait[i], self.env.clause_args[i]))
     }
 
+    /// A bound's associated-type bindings at a use site
+    /// (`trait.binding.use-site`): each projection of the argument
+    /// normalizes and unifies with the bound type, which infers a
+    /// parameter named there (`trait.binding.inference`). A projection
+    /// still waiting on inference is skipped.
+    pub(crate) fn check_bindings(
+        &mut self,
+        self_ty: Ty,
+        bound: Ty,
+        n: NodeRef<'_>,
+    ) -> StageResult<()> {
+        let pool = self.cx.names.pool;
+        let TyData::TraitValue {
+            def,
+            args,
+            bindings,
+        } = pool.get(bound)
+        else {
+            return Ok(());
+        };
+        let st = self.strip_mut(self.infer.resolve(pool, self_ty));
+        if matches!(st, Ty::NEVER | Ty::POISON) {
+            return Ok(());
+        }
+        for (key, want) in bindings {
+            let proj = pool.intern_ty(&TyData::Assoc {
+                assoc: key,
+                trait_: def,
+                self_ty: st,
+                args,
+            });
+            let got = self.normalize_deep(proj)?;
+            if matches!(pool.get(got), TyData::Assoc { self_ty, .. } if pool.has_infer(self_ty))
+                || pool.has_poison(got)
+            {
+                continue;
+            }
+            let snap = self.infer.snapshot();
+            if self.infer.unify(pool, got, want).is_err() {
+                self.infer.rollback(snap);
+                let msg = format!(
+                    "{} does not satisfy {}: its `{}` is {}, not {}",
+                    self.show(st),
+                    self.cx.names.path(def),
+                    self.assoc_name(key),
+                    self.show(got),
+                    self.show(want)
+                );
+                self.err(Code::UnsatisfiedTraitBound, n, &msg);
+            }
+        }
+        Ok(())
+    }
+
+    /// The name of an associated item or binding key.
+    fn assoc_name(&self, d: DefId) -> &str {
+        self.cx
+            .names
+            .paths
+            .segment(hd_base::PathId::from_raw(d.raw()))
+    }
+
+    /// The trait that declares the associated type `name`: `trait_` or
+    /// one of its supertraits, with its arguments over `self_ty`, and the
+    /// associated item (`trait.binding.name-reach`).
+    fn assoc_decl(
+        &self,
+        trait_: DefId,
+        self_ty: Ty,
+        args: TyList,
+        name: &str,
+        depth: u32,
+    ) -> Option<(DefId, TyList, DefId)> {
+        let pool = self.cx.names.pool;
+        let Some(ItemData::Trait(t)) = self.cx.lookup.item(trait_).map(|i| &i.data) else {
+            return None;
+        };
+        if let Some(&(_, d)) = t.assoc.iter().find(|(s, _)| self.cx.names.text(*s) == name) {
+            return Some((trait_, args, d));
+        }
+        if depth > 16 {
+            return None;
+        }
+        let known = pool.list_items(args);
+        for s in &t.supers {
+            let s = pool.subst(*s, &|p: ParamRef| {
+                if p.owner != trait_ {
+                    None
+                } else if p.index == 0 {
+                    Some(self_ty)
+                } else {
+                    known.get(p.index as usize - 1).copied()
+                }
+            });
+            if let TyData::TraitValue { def, args, .. } = pool.get(s)
+                && let Some(x) = self.assoc_decl(def, self_ty, args, name, depth + 1)
+            {
+                return Some(x);
+            }
+        }
+        None
+    }
+
+    /// A projection's normal form, itself normalized once more; a cycle of
+    /// bindings stops at the depth limit.
+    fn normalized(&mut self, x: Ty) -> StageResult<Ty> {
+        if self.norm_depth > 32 {
+            return Ok(x);
+        }
+        self.norm_depth += 1;
+        let r = self.normalize_deep(x);
+        self.norm_depth -= 1;
+        r
+    }
+
+    /// `t` with its projections normalized as far as inference allows;
+    /// a type without projections is returned as is.
+    pub(crate) fn norm_ty(&mut self, t: Ty) -> Ty {
+        let pool = self.cx.names.pool;
+        let r = self.infer.resolve(pool, t);
+        if !pool.has_assoc(r) {
+            return t;
+        }
+        self.normalize_deep(r).unwrap_or(r)
+    }
+
     /// Normalizes projections whose self type is known (trait-solver.md
-    /// §4): an impl's binding, or a bound's binding.
+    /// §4.3): a bound's binding, a trait value's binding, or an impl's
+    /// binding. A projection on a parameter with no binding stays rigid,
+    /// named by the trait that declares it.
     pub(crate) fn normalize(&mut self, t: Ty) -> StageResult<Ty> {
         let pool = self.cx.names.pool;
         let t = self.infer.resolve(pool, t);
@@ -1955,18 +2096,40 @@ impl Ck<'_, '_> {
             TyData::Mut(i) => i,
             _ => self_ty,
         };
-        if let TyData::Param(_) = pool.get(st) {
-            for i in 0..self.env.clause_self.len() {
-                if self.env.clause_self[i] == st
-                    && self.env.clause_trait[i] == trait_
-                    && let Some((_, b)) = self.env.clause_bindings[i]
-                        .iter()
-                        .find(|(d, _)| *d == assoc)
-                {
-                    return Ok(*b);
+        let name = self.assoc_name(assoc).to_owned();
+        let (trait_, args, assoc) = self
+            .assoc_decl(trait_, st, args, &name, 0)
+            .unwrap_or((trait_, args, assoc));
+        let bound = |bs: &[(DefId, Ty)], me: &Self| {
+            bs.iter()
+                .find(|(d, _)| me.assoc_name(*d) == name)
+                .map(|(_, b)| *b)
+        };
+        match pool.get(st) {
+            TyData::Param(_) => {
+                // A binding on the parameter's bound or on a supertrait
+                // clause it reaches (`trait.binding.inside`).
+                let found = (0..self.env.clause_self.len())
+                    .filter(|&i| self.env.clause_self[i] == st)
+                    .find_map(|i| bound(&self.env.clause_bindings[i], self));
+                if let Some(b) = found {
+                    return self.normalized(b);
                 }
+                return Ok(pool.intern_ty(&TyData::Assoc {
+                    assoc,
+                    trait_,
+                    self_ty: st,
+                    args,
+                }));
             }
-            return Ok(t);
+            // `trait.dyn.bound.projection`: the trait value's binding.
+            TyData::TraitValue { bindings, .. } => {
+                return match bound(&bindings, self) {
+                    Some(b) => self.normalized(b),
+                    None => Ok(t),
+                };
+            }
+            _ => {}
         }
         if pool.has_infer(st) {
             return Ok(t);
@@ -1997,7 +2160,8 @@ impl Ck<'_, '_> {
             let impl_def = table.def[r];
             if let Some((_, b)) = table.assoc[r].iter().find(|(d, _)| *d == assoc) {
                 let ia = pool.list_items(impl_args);
-                return Ok(subst_owner(pool, impl_def, &ia, *b));
+                let x = subst_owner(pool, impl_def, &ia, *b);
+                return self.normalized(x);
             }
         }
         // A trait's default for the associated type.
@@ -2005,9 +2169,10 @@ impl Ck<'_, '_> {
             default: Some(d), ..
         }) = self.cx.lookup.item(assoc).map(|i| &i.data)
         {
-            return Ok(pool.subst(*d, &|p: ParamRef| {
+            let x = pool.subst(*d, &|p: ParamRef| {
                 (p.owner == trait_ && p.index == 0).then_some(st)
-            }));
+            });
+            return self.normalized(x);
         }
         Ok(t)
     }

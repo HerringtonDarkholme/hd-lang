@@ -206,13 +206,69 @@ pub enum PlanStep {
         args: TyList,
         mut_: bool,
     },
+    /// `P < Tr[A, Name = Q]` with `Q` a bare impl parameter: `Q` is the
+    /// normal form of `<P as Tr[A]>::Name` (`trait.overlap.constrained-binding`).
     Bind {
         param: u8,
         trait_: DefId,
         args: TyList,
-        name: Symbol,
+        assoc: DefId,
         target: u8,
     },
+}
+
+/// Fills the impl parameters that `Bind` steps fix from the projections
+/// of parameters the head fixed; a projection that is not concrete yet
+/// leaves its target as it was.
+pub fn apply_binds(
+    pool: &InternPool,
+    tables: &[(ModuleId, &ImplTable)],
+    t: &ImplTable,
+    row: usize,
+    args: &mut [Option<Ty>],
+) {
+    let owner = t.def[row];
+    for _ in 0..t.plan[row].len() {
+        let mut changed = false;
+        for step in &t.plan[row] {
+            let PlanStep::Bind {
+                param,
+                trait_,
+                args: targs,
+                assoc,
+                target,
+            } = step
+            else {
+                continue;
+            };
+            let (Some(Some(base)), Some(None)) =
+                (args.get(*param as usize), args.get(*target as usize))
+            else {
+                continue;
+            };
+            let known: Vec<Ty> = args.iter().map(|a| a.unwrap_or(Ty::POISON)).collect();
+            let ta = pool.list(
+                &pool
+                    .list_items(*targs)
+                    .into_iter()
+                    .map(|x| {
+                        pool.subst(x, &|p: ParamRef| {
+                            (p.owner == owner)
+                                .then(|| known.get(p.index as usize).copied())
+                                .flatten()
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+            );
+            if let Some(x) = project_concrete(pool, tables, *assoc, *trait_, *base, ta) {
+                args[*target as usize] = Some(normalize_concrete(pool, tables, x));
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
 }
 
 /// The solver's per-module impl table (§3.3), rows sorted by content rank.
@@ -440,13 +496,13 @@ pub trait Solver: Sync {
         tables: &[(ModuleId, &ImplTable)],
         tref: ConcreteTraitRef,
     ) -> StageResult<Selection>;
+    /// Codegen's entry for associated types at an instance: every
+    /// projection in `t` with a concrete base, normalized.
     fn normalize_concrete(
         &self,
         pool: &InternPool,
-        base: Ty,
-        trait_: DefId,
-        args: TyList,
-        name: Symbol,
+        tables: &[(ModuleId, &ImplTable)],
+        t: Ty,
     ) -> StageResult<Ty>;
 }
 
@@ -741,9 +797,11 @@ impl TableSolver {
                 match both(a, b) {
                     M::Yes => {
                         let n = usize::from(t.n_params[r]).max(binds.len());
-                        let args: Vec<Ty> = (0..n)
-                            .map(|i| binds.get(i).copied().flatten().unwrap_or(Ty::POISON))
-                            .collect();
+                        let mut fixed: Vec<Option<Ty>> =
+                            (0..n).map(|i| binds.get(i).copied().flatten()).collect();
+                        apply_binds(pool, cx.tables, t, r, &mut fixed);
+                        let args: Vec<Ty> =
+                            fixed.into_iter().map(|a| a.unwrap_or(Ty::POISON)).collect();
                         yes.push((ImplRef { module: *m, row }, args, t));
                     }
                     M::Maybe => maybe = true,
@@ -905,17 +963,141 @@ impl Solver for TableSolver {
     fn normalize_concrete(
         &self,
         pool: &InternPool,
-        base: Ty,
-        trait_: DefId,
-        args: TyList,
-        _name: Symbol,
+        tables: &[(ModuleId, &ImplTable)],
+        t: Ty,
     ) -> StageResult<Ty> {
-        let _ = (pool, base, trait_, args);
-        Err(NotImplemented::new(
-            Stage::Collect,
-            "associated type normalization",
-        ))
+        Ok(normalize_concrete(pool, tables, t))
     }
+}
+
+/// Replaces every projection in `t` whose base is concrete by the binding
+/// of the impl whose head matches it (§4.3, codegen's mode): the checker
+/// has proven the goal, so a head match is enough. A projection on a
+/// parameter or a variable, or one no impl binds, is kept.
+#[must_use]
+pub fn normalize_concrete(pool: &InternPool, tables: &[(ModuleId, &ImplTable)], t: Ty) -> Ty {
+    norm_concrete(pool, tables, t, 0)
+}
+
+fn norm_concrete(pool: &InternPool, tables: &[(ModuleId, &ImplTable)], t: Ty, depth: u32) -> Ty {
+    if !pool.has_assoc(t) || depth > 64 {
+        return t;
+    }
+    let go = |x: Ty| norm_concrete(pool, tables, x, depth);
+    let list = |l: TyList| {
+        pool.list(
+            &pool
+                .list_items(l)
+                .into_iter()
+                .map(|x| norm_concrete(pool, tables, x, depth))
+                .collect::<Vec<_>>(),
+        )
+    };
+    let d = match pool.get(t) {
+        TyData::Assoc {
+            assoc,
+            trait_,
+            self_ty,
+            args,
+        } => {
+            let (s, a) = (go(self_ty), list(args));
+            if let Some(x) = project_concrete(pool, tables, assoc, trait_, s, a) {
+                return norm_concrete(pool, tables, x, depth + 1);
+            }
+            TyData::Assoc {
+                assoc,
+                trait_,
+                self_ty: s,
+                args: a,
+            }
+        }
+        TyData::Adt { def, args } => TyData::Adt {
+            def,
+            args: list(args),
+        },
+        TyData::Tuple { elems, rest } => TyData::Tuple {
+            elems: list(elems),
+            rest: rest.map(go),
+        },
+        TyData::Option(i) => TyData::Option(go(i)),
+        TyData::Mut(i) => TyData::Mut(go(i)),
+        TyData::Fn {
+            params,
+            result,
+            row,
+            suspends,
+        } => TyData::Fn {
+            params: list(params),
+            result: go(result),
+            row,
+            suspends,
+        },
+        TyData::TraitValue {
+            def,
+            args,
+            bindings,
+        } => TyData::TraitValue {
+            def,
+            args: list(args),
+            bindings: bindings.into_iter().map(|(k, b)| (k, go(b))).collect(),
+        },
+        _ => return t,
+    };
+    pool.intern_ty(&d)
+}
+
+/// One projection step on a concrete base: a trait value's binding, or
+/// the binding of the impl whose head matches.
+fn project_concrete(
+    pool: &InternPool,
+    tables: &[(ModuleId, &ImplTable)],
+    assoc: DefId,
+    trait_: DefId,
+    self_ty: Ty,
+    args: TyList,
+) -> Option<Ty> {
+    let base = match pool.get(self_ty) {
+        TyData::Mut(i) => i,
+        _ => self_ty,
+    };
+    if pool.has_param(base) || pool.has_infer(base) || pool.has_assoc(base) {
+        return None;
+    }
+    if let TyData::TraitValue { bindings, .. } = pool.get(base) {
+        return bindings.iter().find(|(k, _)| *k == assoc).map(|(_, b)| *b);
+    }
+    let key = HeadKey::of(pool, base);
+    let goal_args = pool.list_items(args);
+    for (_, t) in tables {
+        for row in t.candidates(trait_, key) {
+            let r = row as usize;
+            let Some((_, b)) = t.assoc[r].iter().find(|(k, _)| *k == assoc) else {
+                continue;
+            };
+            let owner = t.def[r];
+            let mut binds = Vec::new();
+            if match_ty(pool, owner, t.head_self[r], base, &mut binds) != M::Yes {
+                continue;
+            }
+            // `Self::Out` may leave the trait's arguments implicit.
+            let head_args = pool.list_items(t.head_args[r]);
+            if !goal_args.is_empty()
+                && (goal_args.len() != head_args.len()
+                    || head_args
+                        .iter()
+                        .zip(&goal_args)
+                        .any(|(h, g)| match_ty(pool, owner, *h, *g, &mut binds) != M::Yes))
+            {
+                continue;
+            }
+            return Some(pool.subst(*b, &|p: ParamRef| {
+                (p.owner == owner)
+                    .then(|| binds.get(p.index as usize).copied().flatten())
+                    .flatten()
+            }));
+        }
+    }
+    None
 }
 
 #[cfg(test)]

@@ -1057,13 +1057,33 @@ pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
             .enumerate()
         {
             for b in &g.bounds {
-                if let TyData::TraitValue { def: tr, args, .. } = names.pool.get(*b) {
+                if let TyData::TraitValue {
+                    def: tr,
+                    args,
+                    bindings,
+                } = names.pool.get(*b)
+                {
+                    let param = u8::try_from(gi).unwrap_or(u8::MAX);
                     plan.push(PlanStep::Bound {
-                        param: u8::try_from(gi).unwrap_or(u8::MAX),
+                        param,
                         trait_: tr,
                         args,
                         mut_: false,
                     });
+                    // A binding to a bare impl parameter fixes it.
+                    for (assoc, bt) in bindings {
+                        if let TyData::Param(p) = names.pool.get(bt)
+                            && p.owner == def
+                        {
+                            plan.push(PlanStep::Bind {
+                                param,
+                                trait_: tr,
+                                args,
+                                assoc,
+                                target: u8::try_from(p.index).unwrap_or(u8::MAX),
+                            });
+                        }
+                    }
                 }
             }
         }

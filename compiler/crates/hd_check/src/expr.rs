@@ -124,7 +124,10 @@ pub(crate) fn literal_text(src: &hd_resolve::Src<'_>, n: NodeRef<'_>) -> Option<
 impl Ck<'_, '_> {
     pub(crate) fn expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         let span = self.cx.src.span(n);
-        self.expr_node(n, want).map_err(|e| e.at(span))
+        let (r, t) = self.expr_node(n, want).map_err(|e| e.at(span))?;
+        // A projection whose base inference has since fixed (a generic
+        // call's `S::Item`) is used by its normal form.
+        Ok((r, self.norm_ty(t)))
     }
 
     fn expr_node(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {

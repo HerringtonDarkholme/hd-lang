@@ -125,6 +125,8 @@ pub(crate) struct Ck<'a, 'c> {
     pub let_view: Option<bool>,
     /// The locals the source binds by name, for `unused-local-binding`.
     pub user_locals: Vec<LocalId>,
+    /// Nested projection normalizations, against binding cycles.
+    pub norm_depth: u32,
 }
 
 /// A node index kept for a later diagnostic.
@@ -178,6 +180,7 @@ pub(crate) fn new_ck<'a, 'c>(
         fn_body: None,
         let_view: None,
         user_locals: Vec::new(),
+        norm_depth: 0,
     };
     let Some(it) = cx.lookup.item(env) else {
         return ck;
@@ -248,14 +251,19 @@ pub fn check_fn(
     ck.check_row_patterns(&sig, node);
     ck.suspends = vec![sig.suspends];
     let blk = ck.b.open_block();
+    // Projections in the signature normalize under the bounds, so
+    // `I::Item` and `T` are one type under `I < Supplier[Item = T]`
+    // (`trait.binding.interchangeable`).
     for (name, ty) in sig.params.clone() {
+        let ty = ck.norm_ty(ty);
         let l = ck.b.local(ty, name, local_flags::PARAM, node.index());
         ck.scopes[0].insert(name, l);
     }
     let Some(body) = Src::child(node, SyntaxKind::Block) else {
         return unsupported("a function without a body");
     };
-    let ret = sig.ret;
+    let ret = ck.norm_ty(sig.ret);
+    ck.rets[0] = ret;
     ck.fn_body = Some(body.index());
     let (tail, _) = ck.block_value(body, Some(ret))?;
     let root = ck.b.close_block(blk, tail, ret, body.index());
@@ -460,6 +468,28 @@ impl Ck<'_, '_> {
         else {
             return;
         };
+        // A defaulted trait argument left out (`Add[Out = Self]` is
+        // `Add[Self, Out = Self]`), so the clause matches its goals.
+        let args = match self.cx.lookup.item(def) {
+            Some(it) if it.generics.len() > pool.list_items(args).len() => {
+                let mut v = pool.list_items(args);
+                for g in it.generics.iter().skip(v.len()) {
+                    let Some(d) = g.default else { break };
+                    let known = v.clone();
+                    v.push(pool.subst(d, &|p: ParamRef| {
+                        if p.owner != def {
+                            None
+                        } else if p.index == 0 {
+                            Some(self_ty)
+                        } else {
+                            known.get(p.index as usize - 1).copied()
+                        }
+                    }));
+                }
+                pool.list(&v)
+            }
+            _ => args,
+        };
         if depth > 16
             || (0..self.env.clause_self.len()).any(|i| {
                 self.env.clause_self[i] == self_ty
@@ -478,7 +508,7 @@ impl Ck<'_, '_> {
             .clause_origin
             .push(u16::try_from(self.env.clause_origin.len()).unwrap_or(u16::MAX));
         if let Some(ItemData::Trait(t)) = self.cx.lookup.item(def).map(|i| &i.data) {
-            let argv = pool.list_items(args);
+            let known = pool.list_items(args);
             for s in t.supers.clone() {
                 let s = pool.subst(s, &|p: ParamRef| {
                     if p.owner != def {
@@ -487,7 +517,7 @@ impl Ck<'_, '_> {
                     if p.index == 0 {
                         Some(self_ty)
                     } else {
-                        argv.get(p.index as usize - 1).copied()
+                        known.get(p.index as usize - 1).copied()
                     }
                 });
                 self.add_bound(self_ty, s, depth + 1);
@@ -567,6 +597,7 @@ impl Ck<'_, '_> {
     /// type-checking.md §4.2 (`never`, `.Some` wrapping, trait values).
     pub(crate) fn coerce(&mut self, r: Ref, got: Ty, want: Ty, n: NodeRef<'_>, what: &str) -> Ref {
         let pool = self.cx.names.pool;
+        let (got, want) = (self.norm_ty(got), self.norm_ty(want));
         let g = self.infer.shallow(pool, got);
         let w = self.infer.shallow(pool, want);
         if g == Ty::NEVER || w == Ty::NEVER || g == w {
@@ -645,6 +676,7 @@ impl Ck<'_, '_> {
         if got == Ty::NEVER || want == Ty::NEVER {
             return;
         }
+        let (got, want) = (self.norm_ty(got), self.norm_ty(want));
         let snap = self.infer.snapshot();
         if self.infer.unify(pool, got, want).is_err() {
             self.infer.rollback(snap);
@@ -700,6 +732,7 @@ impl Ck<'_, '_> {
 
     /// Whether two types can unify, with no lasting effect.
     pub(crate) fn can_unify(&mut self, a: Ty, b: Ty) -> bool {
+        let (a, b) = (self.norm_ty(a), self.norm_ty(b));
         let snap = self.infer.snapshot();
         let ok = self.infer.unify(self.cx.names.pool, a, b).is_ok();
         self.infer.rollback(snap);
@@ -714,14 +747,19 @@ impl Ck<'_, '_> {
         at: NodeRef<'_>,
     ) -> StageResult<Option<hd_types::solver::Evidence>> {
         let pool = self.cx.names.pool;
+        // Projections with a known base normalize before the goal is
+        // solved (trait-solver.md §4.3, point 3).
         let tref = TraitRef {
             trait_: tref.trait_,
-            self_ty: self.infer.resolve(pool, tref.self_ty),
+            self_ty: self.norm_ty(self.infer.resolve(pool, tref.self_ty)),
             args: pool.list(
                 &pool
                     .list_items(tref.args)
                     .into_iter()
-                    .map(|a| self.infer.resolve(pool, a))
+                    .map(|a| {
+                        let a = self.infer.resolve(pool, a);
+                        self.norm_ty(a)
+                    })
                     .collect::<Vec<_>>(),
             ),
         };
@@ -1327,7 +1365,11 @@ impl Ck<'_, '_> {
         let pool = self.cx.names.pool;
         let r = self.infer.resolve(pool, t);
         if !pool.has_infer(r) {
-            return r;
+            return if pool.has_assoc(r) {
+                self.normalize_deep(r).unwrap_or(r)
+            } else {
+                r
+            };
         }
         match pool.get(r) {
             TyData::Infer(_) => {
@@ -1398,12 +1440,13 @@ impl Ck<'_, '_> {
             } => {
                 let s = self.zonk(self_ty);
                 let a = self.zonk_list(args);
-                pool.intern_ty(&TyData::Assoc {
+                let x = pool.intern_ty(&TyData::Assoc {
                     assoc,
                     trait_,
                     self_ty: s,
                     args: a,
-                })
+                });
+                self.normalize(x).unwrap_or(x)
             }
             _ => Ty::POISON,
         }

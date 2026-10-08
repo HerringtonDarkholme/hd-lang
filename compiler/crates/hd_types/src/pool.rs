@@ -485,6 +485,10 @@ impl InternPool {
         self.meta_of(t) & meta::HAS_PARAM != 0
     }
     #[must_use]
+    pub fn has_assoc(&self, t: Ty) -> bool {
+        self.meta_of(t) & meta::HAS_ASSOC != 0
+    }
+    #[must_use]
     pub fn len(&self) -> u32 {
         self.tag.len()
     }
