@@ -62,7 +62,8 @@ fn clean_package_exits_zero() {
     let dir = package("hd-check-clean", CLEAN);
     let r = check(&dir, "hd-check-cache-clean", &[]);
     assert_eq!(r.code, Some(0), "{}", r.err);
-    assert_eq!(r.err, "");
+    assert_eq!(r.err, "check result: ok. errors: 0; warnings: 0\n");
+    assert_eq!(r.out, "");
     assert!(!dir.join("build").exists(), "check writes no build output");
 }
 
@@ -185,4 +186,106 @@ fn second_run_is_warm() {
     assert_eq!(warm.code, Some(0), "{}", warm.err);
     assert!(modules_checked(&cold.out) > 0, "{}", cold.out);
     assert_eq!(modules_checked(&warm.out), 0, "{}", warm.out);
+}
+
+/// A library package with one clean module and three modules with problems:
+/// `a.hd` has two `unknown-name` errors and a warning, `b.hd` a
+/// `type-mismatch` error, and `c.hd` an `unknown-name` error.
+fn broken_library(name: &str) -> PathBuf {
+    let dir = scratch(name);
+    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"lib\"\n").expect("write");
+    std::fs::create_dir_all(dir.join("src")).expect("dir");
+    let files = [
+        ("util.hd", "pub fn double(v: i32) -> i32:\n    v * 2\n"),
+        (
+            "a.hd",
+            "pub fn f() -> i32:\n    unused := +1\n    one\n\npub fn g() -> i32:\n    two\n",
+        ),
+        ("b.hd", "pub fn h() -> i32:\n    \"text\"\n"),
+        ("c.hd", "pub fn k() -> i32:\n    three\n"),
+    ];
+    for (file, text) in files {
+        std::fs::write(dir.join("src").join(file), text).expect("write");
+    }
+    dir
+}
+
+#[test]
+fn text_summary_line_says_ok_or_failed_with_both_counts() {
+    let dir = broken_library("hd-check-line");
+    let bad = check(&dir, "hd-check-cache-line", &[]);
+    assert_eq!(bad.code, Some(101), "{}", bad.err);
+    assert_eq!(bad.out, "");
+    assert_eq!(
+        bad.err.lines().last(),
+        Some("check result: FAILED. errors: 4; warnings: 1"),
+        "{}",
+        bad.err
+    );
+    let ok = check(&dir, "hd-check-cache-line", &["src/util.hd"]);
+    assert_eq!(ok.code, Some(0), "{}", ok.err);
+    assert_eq!(ok.err, "check result: ok. errors: 0; warnings: 0\n");
+}
+
+#[test]
+fn summary_mode_counts_per_file_and_code_in_path_then_code_order() {
+    let dir = broken_library("hd-check-summary");
+    let r = check(&dir, "hd-check-cache-summary", &["--summary"]);
+    assert_eq!(r.code, Some(101), "{}", r.err);
+    assert_eq!(r.out, "");
+    assert_eq!(
+        r.err,
+        "error: src/a.hd: unknown-name: 2\n\
+         warning: src/a.hd: unused-local-binding: 1\n\
+         error: src/b.hd: type-mismatch: 1\n\
+         error: src/c.hd: unknown-name: 1\n\
+         check result: FAILED. errors: 4; warnings: 1\n"
+    );
+}
+
+#[test]
+fn max_errors_stops_printing_but_not_counting_or_the_status() {
+    let dir = broken_library("hd-check-max");
+    let all = check(&dir, "hd-check-cache-max", &[]);
+    let two = check(&dir, "hd-check-cache-max", &["--max-errors", "2"]);
+    assert_eq!(two.code, all.code);
+    assert_eq!(two.code, Some(101));
+    let shown = two.err.lines().filter(|l| l.contains(": src/")).count();
+    let errors = two.err.lines().filter(|l| l.starts_with("error: ")).count();
+    assert_eq!(errors, 2, "{}", two.err);
+    assert!(shown < all.err.lines().filter(|l| l.contains(": src/")).count());
+    assert_eq!(
+        two.err.lines().last(),
+        Some("check result: FAILED. errors: 4; warnings: 1")
+    );
+    let eq = check(&dir, "hd-check-cache-max", &["--max-errors=2"]);
+    assert_eq!(eq.err, two.err);
+    let big = check(&dir, "hd-check-cache-max", &["--max-errors", "9"]);
+    assert_eq!(big.err, all.err);
+}
+
+#[test]
+fn max_errors_rejects_zero_and_text() {
+    let dir = broken_library("hd-check-max-bad");
+    for bad in ["0", "many"] {
+        let r = check(&dir, "hd-check-cache-max-bad", &["--max-errors", bad]);
+        assert_eq!(r.code, Some(101), "{}", r.err);
+        assert!(r.err.contains("--max-errors"), "{}", r.err);
+    }
+}
+
+#[test]
+fn json_ignores_summary_and_max_errors() {
+    let dir = broken_library("hd-check-json-opts");
+    let plain = check(&dir, "hd-check-cache-json-opts", &["--format", "json"]);
+    let opts = check(
+        &dir,
+        "hd-check-cache-json-opts",
+        &["--format", "json", "--summary", "--max-errors", "1"],
+    );
+    assert_eq!(plain.out.lines().count(), 6, "{}", plain.out);
+    assert_eq!(
+        plain.out.lines().take(5).collect::<Vec<_>>(),
+        opts.out.lines().take(5).collect::<Vec<_>>()
+    );
 }
