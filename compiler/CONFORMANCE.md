@@ -8,14 +8,14 @@ fixture and CLI case; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1435 | 851 | 657 | 2943 |
+| 1451 | 835 | 657 | 2943 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
 | `cli/command-line.md` | 0 | 0 | 101 | 101 |
-| `lang/01-lexical-structure.md` | 125 | 18 | 2 | 145 |
+| `lang/01-lexical-structure.md` | 127 | 16 | 2 | 145 |
 | `lang/02-grammar.md` | 179 | 15 | 20 | 214 |
 | `lang/03-names-and-scopes.md` | 64 | 20 | 17 | 101 |
 | `lang/04-type-system.md` | 230 | 89 | 32 | 351 |
@@ -24,7 +24,7 @@ fixture and CLI case; unsupported surface records progress without failing.
 | `lang/07-functions.md` | 50 | 34 | 46 | 130 |
 | `lang/08-data-and-enums.md` | 52 | 43 | 28 | 123 |
 | `lang/09-traits.md` | 152 | 153 | 53 | 358 |
-| `lang/10-modules.md` | 93 | 127 | 38 | 258 |
+| `lang/10-modules.md` | 97 | 123 | 38 | 258 |
 | `lang/11-requirements-and-suspension.md` | 104 | 55 | 100 | 259 |
 | `lang/14-annotations.md` | 59 | 74 | 20 | 153 |
 | `std/cli.md` | 1 | 0 | 4 | 5 |
@@ -32,7 +32,7 @@ fixture and CLI case; unsupported surface records progress without failing.
 | `std/collections.md` | 13 | 6 | 10 | 29 |
 | `std/console.md` | 6 | 1 | 0 | 7 |
 | `std/digest.md` | 0 | 2 | 0 | 2 |
-| `std/encoding.md` | 1 | 2 | 0 | 3 |
+| `std/encoding.md` | 3 | 0 | 0 | 3 |
 | `std/error.md` | 1 | 11 | 2 | 14 |
 | `std/format.md` | 6 | 1 | 1 | 8 |
 | `std/fs.md` | 1 | 1 | 2 | 4 |
@@ -54,7 +54,7 @@ fixture and CLI case; unsupported surface records progress without failing.
 | `std/sys.md` | 0 | 1 | 0 | 1 |
 | `std/task.md` | 1 | 1 | 5 | 7 |
 | `std/testing.md` | 14 | 23 | 2 | 39 |
-| `std/text.md` | 19 | 13 | 3 | 35 |
+| `std/text.md` | 27 | 5 | 3 | 35 |
 | `std/time.md` | 10 | 4 | 3 | 17 |
 
 ## By Directory
@@ -64,8 +64,8 @@ fixture and CLI case; unsupported surface records progress without failing.
 | `cli` | 0 | 0 | 101 | 101 |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 28 | 56 | 21 | 105 |
-| `runtime/valid` | 308 | 243 | 378 | 929 |
+| `runtime/panic` | 31 | 53 | 21 | 105 |
+| `runtime/valid` | 321 | 230 | 378 | 929 |
 | `typing/invalid` | 482 | 480 | 110 | 1072 |
 | `typing/valid` | 324 | 44 | 47 | 415 |
 | `typing/warnings` | 6 | 14 | 0 | 20 |
@@ -104,8 +104,8 @@ compiler stage that first declined the case.
 | `fail:pattern-arity` | 2 |
 | `fail:pipe-step-needs-placeholder` | 5 |
 | `fail:placeholder-outside-pipe` | 1 |
-| `fail:runtime-exit` | 97 |
-| `fail:stdout` | 9 |
+| `fail:runtime-exit` | 80 |
+| `fail:stdout` | 10 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
@@ -662,7 +662,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (97)</summary>
+<details><summary><code>fail:runtime-exit</code> (80)</summary>
 
 - `runtime/panic/for-loop-iterator-invalidated.hd`
 - `runtime/panic/integer-add-overflow.hd`
@@ -672,14 +672,10 @@ compiler stage that first declined the case.
 - `runtime/panic/integer-divide-by-zero.hd`
 - `runtime/panic/signed-min-division-overflow.hd`
 - `runtime/panic/defer-block-on-indirect.hd`
-- `runtime/panic/assert-equal-char-unequal.hd`
-- `runtime/panic/assert-equal-result-unequal.hd`
-- `runtime/panic/assert-equal-string-unequal.hd`
 - `runtime/valid/nested-closure-captures.hd`
 - `runtime/valid/map-lookup-and-duplicate-keys.hd`
 - `runtime/panic/i32-add-overflow-in-function.hd`
 - `runtime/panic/i32-min-divided-by-minus-one.hd`
-- `runtime/valid/string-interpolation-built-ins.hd`
 - `runtime/valid/literal-patterns.hd`
 - `runtime/valid/string-trim-and-lower.hd`
 - `runtime/valid/bounded-blanket-supertraits.hd`
@@ -699,7 +695,6 @@ compiler stage that first declined the case.
 - `runtime/panic/num-from-i64-overflow.hd`
 - `runtime/valid/pipe-nested-placeholder.hd`
 - `runtime/panic/compound-assign-map-missing-key.hd`
-- `runtime/valid/string-byte-methods.hd`
 - `runtime/panic/string-slice-inside-scalar.hd`
 - `runtime/panic/string-slice-past-end.hd`
 - `runtime/panic/string-slice-reversed.hd`
@@ -721,21 +716,11 @@ compiler stage that first declined the case.
 - `runtime/valid/num-every-width.hd`
 - `runtime/valid/num-bit-counts.hd`
 - `runtime/valid/seeded-random.hd`
-- `runtime/valid/encoding-hex-vectors.hd`
-- `runtime/valid/encoding-base64-vectors.hd`
 - `runtime/valid/digest-sha256-vectors.hd`
 - `runtime/valid/digest-sha256-long.hd`
 - `runtime/panic/deque-invalidated.hd`
 - `runtime/valid/list-pop.hd`
 - `runtime/valid/list-insert-remove-clear.hd`
-- `runtime/valid/char-ascii-classes.hd`
-- `runtime/valid/char-unicode-letters.hd`
-- `runtime/valid/char-unicode-digits.hd`
-- `runtime/valid/char-unicode-whitespace.hd`
-- `runtime/valid/char-to-digit.hd`
-- `runtime/valid/utf8-valid-text.hd`
-- `runtime/valid/utf8-overlong.hd`
-- `runtime/valid/string-pad.hd`
 - `runtime/valid/num-to-fixed.hd`
 - `runtime/panic/list-index-underflow.hd`
 - `runtime/panic/usize-len-underflow.hd`
@@ -759,15 +744,14 @@ compiler stage that first declined the case.
 - `runtime/panic/unbounded-recursion.hd`
 - `runtime/panic/usize-max-overflow-wasm32.hd`
 - `runtime/valid/console-error-line-override.hd`
-- `runtime/valid/comments-hide-code-from-the-parser.hd`
-- `runtime/valid/string-and-char-literal-contents.hd`
 
 </details>
 
-<details><summary><code>fail:stdout</code> (9)</summary>
+<details><summary><code>fail:stdout</code> (10)</summary>
 
 - `runtime/valid/crlf-line-endings.hd`
 - `runtime/valid/tab-only-as-content.hd`
+- `runtime/valid/string-and-char-literal-contents.hd`
 - `runtime/valid/multiline-string-literals.hd`
 - `runtime/valid/interpolation-forms.hd`
 - `runtime/valid/interpolation-expression-spacing.hd`
@@ -2216,10 +2200,13 @@ parse/valid/utf8-bom.hd
 parse/valid/vararg-and-spread.hd
 parse/valid/while-else.hd
 runtime/panic/assert-equal-bool-unequal.hd
+runtime/panic/assert-equal-char-unequal.hd
 runtime/panic/assert-equal-generic-primitive-unequal.hd
 runtime/panic/assert-equal-i32-unequal.hd
 runtime/panic/assert-equal-list-unequal.hd
 runtime/panic/assert-equal-lists-in-main.hd
+runtime/panic/assert-equal-result-unequal.hd
+runtime/panic/assert-equal-string-unequal.hd
 runtime/panic/assert-failure-in-main.hd
 runtime/panic/block-on-completed-suspension.hd
 runtime/panic/char-to-digit-radix-high.hd
@@ -2273,6 +2260,11 @@ runtime/valid/buffer-console-error-lines.hd
 runtime/valid/buffer-console.hd
 runtime/valid/buffered-println-program-console.hd
 runtime/valid/callee-and-operand-evaluation-order.hd
+runtime/valid/char-ascii-classes.hd
+runtime/valid/char-to-digit.hd
+runtime/valid/char-unicode-digits.hd
+runtime/valid/char-unicode-letters.hd
+runtime/valid/char-unicode-whitespace.hd
 runtime/valid/character-literals.hd
 runtime/valid/closure-as-function-argument.hd
 runtime/valid/closure-body-name-before-comma.hd
@@ -2285,6 +2277,7 @@ runtime/valid/closure-inferred-requirement-row.hd
 runtime/valid/closure-mutable-capture-runtime.hd
 runtime/valid/closure-parameter-inference.hd
 runtime/valid/closure-result-inference.hd
+runtime/valid/comments-hide-code-from-the-parser.hd
 runtime/valid/compound-assign-index-once.hd
 runtime/valid/compound-assign-map-run.hd
 runtime/valid/compound-assignment-run.hd
@@ -2324,7 +2317,9 @@ runtime/valid/else-if-chain.hd
 runtime/valid/embedded-field-satisfies-trait.hd
 runtime/valid/embedded-part-mut-alias.hd
 runtime/valid/embedded-trait-method-via-part.hd
+runtime/valid/encoding-base64-vectors.hd
 runtime/valid/encoding-decode-errors.hd
+runtime/valid/encoding-hex-vectors.hd
 runtime/valid/entry-suspending-main.hd
 runtime/valid/enum-payload-match.hd
 runtime/valid/enum-payload-mut-shallow.hd
@@ -2494,10 +2489,13 @@ runtime/valid/split-empty-input-nonempty-separator.hd
 runtime/valid/static-and-dynamic-trait-dispatch.hd
 runtime/valid/stored-suspension-parameter.hd
 runtime/valid/stored-suspension-single-drive.hd
+runtime/valid/string-byte-methods.hd
 runtime/valid/string-count.hd
+runtime/valid/string-interpolation-built-ins.hd
 runtime/valid/string-length-counts-bytes.hd
 runtime/valid/string-lines.hd
 runtime/valid/string-ordering.hd
+runtime/valid/string-pad.hd
 runtime/valid/string-prefix-plain-dollar-digit.hd
 runtime/valid/string-prefix-template.hd
 runtime/valid/string-repeat.hd
@@ -2547,7 +2545,9 @@ runtime/valid/user-iterable-for-loop.hd
 runtime/valid/usize-width-wasm32.hd
 runtime/valid/utf8-error-traits.hd
 runtime/valid/utf8-invalid-bytes.hd
+runtime/valid/utf8-overlong.hd
 runtime/valid/utf8-truncated.hd
+runtime/valid/utf8-valid-text.hd
 runtime/valid/while-break-and-continue.hd
 runtime/valid/while-else-break-value.hd
 runtime/valid/while-else-exhaustion-value.hd

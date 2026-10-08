@@ -1584,6 +1584,13 @@ impl Em<'_> {
             }
             "bytes_at" => self.str_at(i, args[0], args[1]),
             "bytes_slice" => self.str_slice(i, args[0], args[1], args[2]),
+            "bytes_concat" => self.concat(i, args),
+            "string_from_bytes" => self.string_from_list(i, args[0]),
+            "char_scalar" => {
+                self.comp(args[0], 0, &VT::I32)?;
+                self.store(i)
+            }
+            "char_from_scalar" => self.char_from_scalar(i, args[0]),
             "task_race_frame" => {
                 let Shape::Suspend { base, poll, result } = self.lay.shape(ty)? else {
                     return unsupported("a `race!` frame of a type that is not a suspension");
@@ -1908,6 +1915,80 @@ impl Em<'_> {
         self.a.get(ix);
         self.a.s().i32_add();
         self.a.array_get(&WTy::Bytes);
+        self.store(i)
+    }
+
+    /// `string_from_bytes(bytes)`: a new array of the list's `len` bytes,
+    /// viewed from 0. The caller has checked that they are UTF-8.
+    fn string_from_list(&mut self, i: u32, list: u32) -> StageResult<()> {
+        let (elem, lt) = self.list_parts(self.ty_of(list))?;
+        let [ev] = elem.as_slice() else {
+            return unsupported("a list of bytes whose elements are not one word");
+        };
+        let st = storage(ev).dflt();
+        let l = self.a.local(VT::r(lt.clone()));
+        let (n, k) = (self.a.local(VT::I32), self.a.local(VT::I32));
+        let arr = self.a.local(VT::r(WTy::Bytes));
+        self.comp(list, 0, &VT::r(lt.clone()))?;
+        self.a.set(l);
+        self.a.get(l);
+        self.a.struct_get(&lt, 0);
+        self.a.set(n);
+        self.a.get(n);
+        self.a.array_new_default(&WTy::Bytes);
+        self.a.set(arr);
+        self.a.i32(0);
+        self.a.set(k);
+        self.a.block();
+        self.a.loop_();
+        self.a.get(k);
+        self.a.get(n);
+        self.a.s().i32_ge_u();
+        self.a.br_if(1);
+        self.a.get(arr);
+        self.a.get(k);
+        self.a.get(l);
+        self.a.struct_get(&lt, 1);
+        self.a.get(k);
+        self.a.array_get(&WTy::Array(st));
+        self.a.array_set(&WTy::Bytes);
+        self.a.get(k);
+        self.a.i32(1);
+        self.a.s().i32_add();
+        self.a.set(k);
+        self.a.br(0);
+        self.a.end();
+        self.a.end();
+        self.a.get(arr);
+        self.a.get(n);
+        self.a.s().i64_extend_i32_u();
+        self.a.i64(32);
+        self.a.s().i64_shl();
+        self.store(i)
+    }
+
+    /// `char_from_scalar(point)`: `.Some(point)` when `point` is a scalar
+    /// value (at most `0x10FFFF`, not a surrogate), else `.None`. The
+    /// payload is `point * valid`, so `.None` carries zero.
+    fn char_from_scalar(&mut self, i: u32, point: u32) -> StageResult<()> {
+        let p = self.a.local(VT::I32);
+        let ok = self.a.local(VT::I32);
+        self.comp(point, 0, &VT::I32)?;
+        self.a.set(p);
+        self.a.get(p);
+        self.a.i32(0x10_FFFF);
+        self.a.s().i32_le_u();
+        self.a.get(p);
+        self.a.i32(0xD800);
+        self.a.s().i32_sub();
+        self.a.i32(0x7FF);
+        self.a.s().i32_gt_u();
+        self.a.s().i32_and();
+        self.a.set(ok);
+        self.a.get(ok);
+        self.a.get(p);
+        self.a.get(ok);
+        self.a.s().i32_mul();
         self.store(i)
     }
 

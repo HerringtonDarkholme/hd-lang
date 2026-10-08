@@ -337,6 +337,10 @@ impl Cx<'_> {
                     | "bytes_len"
                     | "bytes_at"
                     | "bytes_slice"
+                    | "bytes_concat"
+                    | "string_from_bytes"
+                    | "char_scalar"
+                    | "char_from_scalar"
             )
         }) {
             return Ok(CallTarget {

@@ -558,7 +558,6 @@ fn shared_cells_outlive_their_function_and_renew_per_iteration() {
 
 /// `chars` is built on a mutably capturing closure (`Iterator::from_fn`).
 #[test]
-#[ignore = "blocked on the char_from_scalar and char_scalar intrinsics, which emit does not lower"]
 fn chars_walks_a_non_ascii_string() {
     let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-chars");
     std::fs::create_dir_all(&dir).expect("dir");
@@ -603,6 +602,60 @@ fn bytes_walks_a_non_ascii_string() {
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
         "104\n195\n169\n121\n",
+        "{err}"
+    );
+}
+
+/// `join` concatenates a list of strings through `bytes_concat`.
+#[test]
+fn join_list_of_strings() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-join");
+    std::fs::create_dir_all(&dir).expect("dir");
+    let file = dir.join("join.hd");
+    std::fs::write(
+        &file,
+        "fn main() -> void $ Console:\n\
+         \x20   let parts: List[string] = [\"ab\", \"c\u{e9}\", \"d\"]\n\
+         \x20   println(parts.join(\"-\"))\n",
+    )
+    .expect("write");
+    let output = hd(&cache("hd-cache-join"))
+        .arg(&file)
+        .output()
+        .expect("run hd");
+    let err = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "ab-c\u{e9}-d\n",
+        "{err}"
+    );
+}
+
+/// `to_utf8` builds a byte list and `string::from_utf8` builds the string
+/// back through `string_from_bytes`.
+#[test]
+fn utf8_bytes_round_trip() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-utf8");
+    std::fs::create_dir_all(&dir).expect("dir");
+    let file = dir.join("utf8.hd");
+    std::fs::write(
+        &file,
+        "fn main() -> void $ Console:\n\
+         \x20   let bytes = \"h\u{e9}llo\".to_utf8()\n\
+         \x20   println(\"${bytes.len()}\")\n\
+         \x20   match string::from_utf8(bytes):\n\
+         \x20       .Ok(text) => println(text)\n\
+         \x20       .Err(_) => println(\"invalid\")\n",
+    )
+    .expect("write");
+    let output = hd(&cache("hd-cache-utf8"))
+        .arg(&file)
+        .output()
+        .expect("run hd");
+    let err = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "6\nh\u{e9}llo\n",
         "{err}"
     );
 }
