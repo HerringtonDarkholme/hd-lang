@@ -671,6 +671,13 @@ change; it makes today's `StringBuilder` O(n) and the builder-vs-`+`
 benchmark then sizes the rope payoff. No owner questions: no new
 user-visible names, no observable change.
 
+**Owner decision, 2026-10-08: builder now, rope later.** Strings stay
+flat, as Go and Rust ship them. Now: make `join` and `std.text`'s
+`StringBuilder` single-pass O(n), so programs that build large strings
+have a linear path. The rope above is revisited in phase 3 ("make it
+wonderful") with measurements: hello-world size, and real programs
+against the builder-vs-`+` benchmark.
+
 ## 7. Collections
 
 ### 7.1 `List[T]`
