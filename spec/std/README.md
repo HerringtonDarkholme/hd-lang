@@ -169,7 +169,7 @@ file of its own.
 
 | File | Module | Rule ID prefix | Scope |
 | --- | --- | --- | --- |
-| [`testing.md`](testing.md) | `std.testing` | `std-testing` | what `it_each`, `it_prop`, and `it_prop_with` cases do when they run, property tests, the draw budget, derived `Arbitrary`, table-test rows, snapshot files, the `timeout` option, `hd_run!`, the runner capabilities |
+| [`testing.md`](testing.md) | `std.testing` | `std-testing` | what `it_each`, `it_prop`, and `it_prop_with` cases do when they run, property tests, the draw limit, derived `Arbitrary`, table-test rows, snapshot files, the `timeout` option, `hd_run!`, the runner capabilities |
 | [`iter.md`](iter.md) | `std.iter` | `std-iter` | iterator adapters, including `skip`, `take_while`, `zip`, `chain`, `flat_map`, `any`, `all`, `find`, and `count`; collect targets, `FromIterator` and its impls, `map` on a list or an optional |
 | [`text.md`](text.md) | `std.text` | `std-text` | string methods above the intrinsics, including `lines` and `repeat`; `split_once`, `split_whitespace`, padding, and `count`; the `r` prefix |
 | [`format.md`](format.md) | `std.format` | `std-format` | the text `debug` returns, `Debug` builders and layout, derived builder calls, `Debug` for the public std types |
@@ -209,7 +209,7 @@ the [language glossary](../README.md#glossary).
 | --- | --- |
 | **collect target** | The collection that `collect` builds, named by the expected type. See [Collect Targets](iter.md#collect-targets). |
 | **Debug builders** | The `DebugWriter` methods that describe a value as a struct, tuple, list, or map. See [Debug Builders](format.md#debug-builders). |
-| **draw budget** | The per-case limit on draws from `Choices`; once it is spent, every draw returns its simplest value. See [`std-testing.budget`](testing.md#r-std-testing.budget). |
+| **draw limit** | The per-case limit on draws from `Choices`; once it is spent, every draw returns its simplest value. See [`std-testing.limit`](testing.md#r-std-testing.limit). |
 | **flag** | A command-line argument that `std.cli` reads as set or not set; it takes no value. See [`std-cli.cli.flag`](cli.md#r-std-cli.cli.flag). |
 | **iterator adapters** | Methods of the prelude `Iterator[T]` that wrap an iterator in a new one, or drain it. See [Iterator Adapters](iter.md#iterator-adapters). |
 | **option** | A command-line argument that `std.cli` reads with one value. See [`std-cli.cli.option`](cli.md#r-std-cli.cli.option). |

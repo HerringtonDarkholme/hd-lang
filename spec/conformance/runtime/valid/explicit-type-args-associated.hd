@@ -1,5 +1,5 @@
 # test: explicit associated type arguments select the candidate per trial
-# Spec 09 Traits: trait.resolve.many-fit (a trait-qualified call with type arguments resolves ambiguity).
+# Spec 09 Traits: trait.resolve.many-apply (a trait-qualified call with type arguments resolves ambiguity).
 use std.testing.assert_equal
 
 trait Choose[T]:

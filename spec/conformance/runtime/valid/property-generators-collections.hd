@@ -1,6 +1,6 @@
 # test: it_prop_with runs generated cases whose list, map, and recursive draws obey their bounds
 # Spec std/testing Choices And Arbitrary: std-testing.choices.list-max, std-testing.choices.map-max,
-# std-testing.choices.map.duplicate, std-testing.budget.every-draw.
+# std-testing.choices.map.duplicate, std-testing.limit.every-draw.
 use std.testing.{assert, Choices, it_prop_with}
 
 fn pair(c: mut Choices) -> List[i64]:
@@ -9,7 +9,7 @@ fn pair(c: mut Choices) -> List[i64]:
 fn stock(c: mut Choices) -> Map[string, i32]:
     c.map(3, key=fn(inner: mut Choices) -> string: inner.string(max_chars=1), value=fn(inner: mut Choices) -> i32: inner.int(0, 9))
 
-# A leaf-first recursive generator ends once the draw budget is spent.
+# A leaf-first recursive generator ends once the draw limit is spent.
 fn depth(c: mut Choices) -> i32:
     match c.int(0, 3):
         0 => 0

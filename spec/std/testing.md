@@ -6,7 +6,7 @@ This chapter defines the part of `std.testing` that `lib/std` and the test
 runner implement over the language tier:
 
 - how a property test draws, discards, reports, and replays its inputs;
-- the draw budget;
+- the draw limit;
 - how `@derive(Arbitrary)` builds a type's default generator;
 - what the `timeout` option does;
 - how an `it_each` call expands and names its rows;
@@ -37,7 +37,7 @@ This chapter defines what their test cases do when they run.
 
 See also: [Table-Test Rows](#table-test-rows), for how an `it_each` call
 expands and names its rows. [Property Tests](#property-tests),
-[Draw Budget](#draw-budget), and [Derived Arbitrary](#derived-arbitrary)
+[Draw Limit](#draw-limit), and [Derived Arbitrary](#derived-arbitrary)
 show how the runner generates a property's inputs.
 
 ## Property Tests
@@ -126,22 +126,22 @@ so the example above is an error.
 > draw may depend on an earlier one. The runner shrinks the recorded draws,
 > not the value, so it needs no size.
 
-## Draw Budget
+## Draw Limit
 
-1. r[std-testing.budget] Each case has a draw budget. Once the case's draws have spent it, every draw returns its simplest value.
-2. r[std-testing.budget.no-api] No member of `Choices` reads or changes the budget.
-3. r[std-testing.budget.every-draw] The budget applies to every draw from the case's `Choices`, including a hand-written generator's. So a recursive generator whose simplest draws choose a leaf ends.
+1. r[std-testing.limit] Each case has a draw limit. Once the case's draws have spent it, every draw returns its simplest value.
+2. r[std-testing.limit.no-api] No member of `Choices` reads or changes the limit.
+3. r[std-testing.limit.every-draw] The limit applies to every draw from the case's `Choices`, including a hand-written generator's. So a recursive generator whose simplest draws choose a leaf ends.
 
 | Rule | Draw | Simplest value |
 | --- | --- | --- |
-| r[std-testing.budget.simplest.int] Integer | `int` and the default integer generators | `0`, or the bound nearest `0` when `0` is out of range |
-| r[std-testing.budget.simplest.float] Float | `float` and the default `f32` and `f64` generators | `0.0`, or the bound nearest `0.0` when `0.0` is out of range |
-| r[std-testing.budget.simplest.bool] Boolean | `bool` | `false` |
-| r[std-testing.budget.simplest.choose] Choose | `choose` | the first item |
-| r[std-testing.budget.simplest.empty] Collections | `list`, `map`, and `string` | an empty list, map, or string |
-| r[std-testing.budget.simplest.optional] Optional | the default `T?` generator | `.None` |
-| r[std-testing.budget.simplest.result] Result | the default `Result[T, E]` generator | `.Ok` of `T`'s simplest value |
-| r[std-testing.budget.simplest.tuple] Tuple | the default tuple generators | each element's simplest value |
+| r[std-testing.limit.simplest.int] Integer | `int` and the default integer generators | `0`, or the bound nearest `0` when `0` is out of range |
+| r[std-testing.limit.simplest.float] Float | `float` and the default `f32` and `f64` generators | `0.0`, or the bound nearest `0.0` when `0.0` is out of range |
+| r[std-testing.limit.simplest.bool] Boolean | `bool` | `false` |
+| r[std-testing.limit.simplest.choose] Choose | `choose` | the first item |
+| r[std-testing.limit.simplest.empty] Collections | `list`, `map`, and `string` | an empty list, map, or string |
+| r[std-testing.limit.simplest.optional] Optional | the default `T?` generator | `.None` |
+| r[std-testing.limit.simplest.result] Result | the default `Result[T, E]` generator | `.Ok` of `T`'s simplest value |
+| r[std-testing.limit.simplest.tuple] Tuple | the default tuple generators | each element's simplest value |
 
 ```text
 use std.testing.Choices
@@ -156,7 +156,7 @@ fn tree(c: mut Choices) -> Tree:
         _ => .Node(tree(c), tree(c))
 ```
 
-Once the budget is spent, `c.int(0, 2)` returns `0`, so `tree` returns
+Once the limit is spent, `c.int(0, 2)` returns `0`, so `tree` returns
 `.Leaf`.
 
 ## Edge Values
@@ -178,7 +178,7 @@ one edge, which its seed picks:
 3. r[std-testing.edge.replay] An edge changes fresh draws only. A replayed draw returns its recorded value, by [`std-testing.runner.replay`](#r-std-testing.runner.replay).
 4. r[std-testing.edge.coverage] When a run discards no case, its first four generated cases take the low, high, zero, and no edge once each. This holds because their seeds are consecutive.
 5. r[std-testing.edge.int-type] A default generator of an integer type returns every value from the type's smallest to its largest. So the low and high edges reach the type's own bounds. For `i32`, `i64`, `u32`, `u64`, and `usize` they may reach them outside an edge case as well.
-6. r[std-testing.edge.budget] A spent draw budget still returns the simplest value, by [`std-testing.budget.simplest.int`](#r-std-testing.budget.simplest.int), whatever the edge.
+6. r[std-testing.edge.limit] A spent draw limit still returns the simplest value, by [`std-testing.limit.simplest.int`](#r-std-testing.limit.simplest.int), whatever the edge.
 
 ```text
 use std.testing.{assert, Choices, it_prop_with}

@@ -1,5 +1,5 @@
-# test: a contextually typed closure selects the fitting candidate whatever the declaration order
-# Spec 09 Traits: trait.resolve.one-fit (exactly one fitting candidate is selected).
+# test: a contextually typed closure selects the applicable candidate whatever the declaration order
+# Spec 09 Traits: trait.resolve.one-applies (exactly one applicable candidate is selected).
 use std.testing.assert_equal
 
 trait Apply[T]:

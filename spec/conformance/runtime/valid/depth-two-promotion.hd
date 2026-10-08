@@ -1,6 +1,6 @@
 # test: promotion reaches fields and inherent methods two embedding levels down
 # Spec 03 Promotion: names.part.definition, names.part.depth,
-# names.promote.member, names.take-part.definition,
+# names.promote.member, names.members.considered,
 # names.field-lookup.select, names.method-lookup.inherent,
 # names.method-lookup.inherent.by-name, names.method-lookup.candidates,
 # names.method-lookup.promoted-candidate, names.method-lookup.one,

@@ -1,5 +1,5 @@
 # test: a bare literal argument keeps its usize default, which fits neither Combine[i32] nor Combine[i64]
-# Spec 09 Instantiations Of One Generic Trait: trait.resolve.literal-arg.no-fit (SIGN-FALLBACK, batch 83).
+# Spec 09 Instantiations Of One Generic Trait: trait.resolve.literal-arg.no-apply (SIGN-FALLBACK, batch 83).
 
 trait Combine[T]:
     fn combine(self, other: T) -> string

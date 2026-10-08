@@ -1,5 +1,5 @@
-# test: a derived Hash beside a hand-written Eq mixes law partners
-# Spec 09 Traits: trait.derive.partners.hash, trait.derive.partners.error.
+# test: a derived Hash beside a hand-written Eq mixes related traits
+# Spec 09 Traits: trait.derive.related.hash, trait.derive.related.error.
 
 @derive(Hash)  # diagnostic: mixed-derived-law
 data Session:

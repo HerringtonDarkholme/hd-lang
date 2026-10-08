@@ -1,5 +1,5 @@
-# test: X::from with an argument that fits no From instantiation of X is a type mismatch
-# Spec 09 Conversion Implementations: trait.from.instantiations, trait.from.candidates, trait.from.no-fit.
+# test: X::from with an argument that applies to no From instantiation of X is a type mismatch
+# Spec 09 Conversion Implementations: trait.from.instantiations, trait.from.candidates, trait.from.no-apply.
 use std.convert.From
 
 enum FsError:

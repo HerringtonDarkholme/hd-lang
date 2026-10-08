@@ -1,5 +1,5 @@
 # test: deriving Hash requires Eq in the same derive list
-# Spec 09 Traits: trait.derive.partners.hash, trait.derive.partners.error.
+# Spec 09 Traits: trait.derive.related.hash, trait.derive.related.error.
 
 @derive(Hash)  # diagnostic: mixed-derived-law
 data Key:

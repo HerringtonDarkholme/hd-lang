@@ -1,5 +1,5 @@
-# test: no fitting candidate lists the available instantiations
-# Spec 09 Traits: trait.resolve.no-fit (the call is an error listing the instantiations).
+# test: no applicable candidate lists the available instantiations
+# Spec 09 Traits: trait.resolve.no-apply (the call is an error listing the instantiations).
 trait Build[T]:
     fn build(value: T) -> Item
 

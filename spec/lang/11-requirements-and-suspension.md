@@ -810,7 +810,7 @@ See also: [Omitted Requirement Clauses](#omitted-requirement-clauses),
 6. r[req.with.collision.exact] An exact replacement written with the same key expression remains the ordinary nested-scope override described above.
 7. r[req.with.collision.before-erasure] This check is performed before erasure or specialization, so compilation strategy cannot change which provider a lookup selects.
 8. r[req.with.collision.concrete] Distinct concrete keys such as `Repo[User]` and `Repo[Post]` remain valid.
-9. r[req.with.collision.bindings] A key's bindings take part in the comparison as its type arguments do, so `Store[Item = T]` and `Store[Item = User]` collide.
+9. r[req.with.collision.bindings] A key's bindings participate in the comparison as its type arguments do, so `Store[Item = T]` and `Store[Item = User]` collide.
 
 For example, a generic body must not make `Repo[T]` and `Repo[U]` concurrently
 visible, because an instantiation can choose `T = U`. It likewise must not

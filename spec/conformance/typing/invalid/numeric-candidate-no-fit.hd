@@ -1,5 +1,5 @@
-# test: a bare literal fits no numeric candidate, so selection fails
-# Spec 09 Traits: trait.resolve.literal-arg.no-fit (no candidate takes usize).
+# test: a bare literal applies to no numeric candidate, so selection fails
+# Spec 09 Traits: trait.resolve.literal-arg.no-apply (no candidate takes usize).
 trait Build[T]:
     fn build(value: T) -> Item
 

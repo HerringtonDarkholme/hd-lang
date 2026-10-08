@@ -18,7 +18,7 @@ fn stock(c: mut Choices) -> Map[string, i32]:
 fn byte(c: mut Choices) -> u8:
     c.int(250, 255)
 
-# A leaf-first recursive generator ends once the draw budget is spent.
+# A leaf-first recursive generator ends once the draw limit is spent.
 fn depth(c: mut Choices) -> i32:
     match c.int(0, 3):
         0 => 0

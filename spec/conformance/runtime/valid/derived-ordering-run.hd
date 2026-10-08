@@ -1,7 +1,7 @@
 # test: derived ordering is lexicographic in field order, variants compare by declaration order, and a float field makes it partial
 # Spec std/cmp Derived Ordering: std-cmp.derive.ord.data, std-cmp.derive.ord.variants,
 # std-cmp.derive.ord.same-variant, std-cmp.derive.ord.partial, std-cmp.derive.ord.ord.
-# Spec 09 Traits: trait.derive.partners.partial-ord, trait.derive.partners.ord, trait.cmp.ordering.
+# Spec 09 Traits: trait.derive.related.partial-ord, trait.derive.related.ord, trait.cmp.ordering.
 use std.testing.{assert, assert_equal}
 
 @derive(Eq, PartialOrd, Ord)

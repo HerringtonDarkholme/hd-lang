@@ -188,7 +188,6 @@ The stdlib chapters' terms are in the
 | **call place** | A call `v()` whose callee's type implements `Update`, so `v() = x` and `v() op= x` store through it. See [Callable Values](lang/05-expressions.md#callable-values). |
 | **callable value** | A value whose type implements `Apply`, read by calling it with no arguments, as in `count()`. See [Callable Values](lang/05-expressions.md#callable-values). |
 | **capability grant** | What a program's host capability traits may touch at run time: for each trait, no limit, a total deny, or a list of scope entries. See [Capability Grants](cli/command-line.md#capability-grants). |
-| **coherence slot** | One `(trait, concrete target)` pair over the resolved package graph. See [Terminology](lang/14-annotations.md#terminology). |
 | **compatibility line** | The versions of a package that must stay compatible: one major number, or `0.MINOR` below 1.0. See [`module.version.line`](lang/10-modules.md#r-module.version.line). |
 | **compound assignment** | A statement `place op= value`, such as `total += x`, that combines an operator with a store. See [Compound Assignment](lang/05-expressions.md#compound-assignment). |
 | **conflict** | Two or more members with one name at the smallest depth where that name occurs, including one member reached through two paths. See [`names.conflict.definition`](lang/03-names-and-scopes.md#r-names.conflict.definition). |
@@ -215,7 +214,6 @@ The stdlib chapters' terms are in the
 | **fact** | An ordinary value attached to a type, member, or variant for derivations to read. See [Facts](lang/14-annotations.md#facts). |
 | **field lookup** | The steps that resolve `x.name` to one field from a module. See [Field Lookup](lang/03-names-and-scopes.md#field-lookup). |
 | **fixed elements** | The elements of a tuple type other than its rest element. See [`types.tuple.rest.form`](lang/04-type-system.md#r-types.tuple.rest.form). |
-| **fits** | A candidate implementation fits a call when the call's arguments check against its method's parameter types. See [`trait.resolve.fits`](lang/09-traits.md#r-trait.resolve.fits). |
 | **folder** | The directory that holds a source file, or for a file `x.hd` with child modules, the directory `x/` that holds them; nested directories are separate folders. See [`module.folder.holder`](lang/10-modules.md#r-module.folder.holder). |
 | **folder graph** | A package's folders, with an edge where a file in one folder uses a module in another. It must be acyclic. See [`module.cycle.folder-edge`](lang/10-modules.md#r-module.cycle.folder-edge). |
 | **generic field** | A field whose declared type is a generic parameter; reading it yields the substituted type unchanged. See [`types.path.field.generic`](lang/04-type-system.md#r-types.path.field.generic). |
@@ -235,7 +233,6 @@ The stdlib chapters' terms are in the
 | **iterator** | A value of the prelude type `Iterator[T]`. It stores one traversal's progress and is single-pass: a second traversal calls `iter()` on the source again. See [`flow.for.iterator-type`](lang/06-control-flow.md#r-flow.for.iterator-type). |
 | **iterator adapters** | A stdlib term, in the [Standard Library glossary](std/README.md#glossary). |
 | **known implementation** | An implementation in the program's dependency graph whose target matches a type; a local one counts only where its methods are available. See [`names.member.known-impl`](lang/03-names-and-scopes.md#r-names.member.known-impl). |
-| **law partners** | Comparison and hash traits whose laws relate them, such as `Hash` and `Eq`. See [Law Partners](lang/09-traits.md#law-partners). |
 | **let-else** | A `let` statement with a refutable pattern and an `else` block, which runs when the pattern does not match and must diverge. See [Let-Else Statements](lang/02-grammar.md#let-else-statements). |
 | **lexical provider** | A provider a closure fixes where it is written, by capturing the value of `$.use`. See [Lexical And Dynamic Providers](lang/11-requirements-and-suspension.md#lexical-and-dynamic-providers). |
 | **literal function** | A function marked `@num_suffix` or `@str_prefix`, which a suffixed literal or prefixed string calls. See [Literal Suffixes](lang/05-expressions.md#literal-suffixes). |
@@ -269,7 +266,7 @@ The stdlib chapters' terms are in the
 | **prelude** | The implicit scope of public standard-library names that every module has. See [Prelude](lang/10-modules.md#prelude). |
 | **primitive types** | `bool`, the integer types `i8` to `i64` and `u8` to `u64`, `f32`, `f64`, `char`, and `string`. See [Primitive Types](lang/04-type-system.md#primitive-types). |
 | **program instance** | One instantiated Wasm module graph with its module storage, provider bindings, and execution state. See [`module.init.program-instance`](lang/10-modules.md#r-module.init.program-instance). |
-| **promoted candidate** | Among the promoted inherent methods that take part, the one with the called name at the smallest depth. See [`names.method-lookup.promoted-candidate`](lang/03-names-and-scopes.md#r-names.method-lookup.promoted-candidate). |
+| **promoted candidate** | Among the promoted inherent methods that lookup considers, the one with the called name at the smallest depth. See [`names.method-lookup.promoted-candidate`](lang/03-names-and-scopes.md#r-names.method-lookup.promoted-candidate). |
 | **promoted member** | A `pub` field or `pub` inherent method of a part's type, reached from the outer type through the part's path. See [`names.promote.member`](lang/03-names-and-scopes.md#r-names.promote.member). |
 | **pseudo-version** | A version that names one untagged commit by a base version, its time, and its hash. See [`module.version.pseudo`](lang/10-modules.md#r-module.version.pseudo). |
 | **readonly edge** | A field declared `field: U` with a composite `U`, which gives readonly access through any container. See [`types.path.field.readonly-edge`](lang/04-type-system.md#r-types.path.field.readonly-edge). |
@@ -300,7 +297,6 @@ The stdlib chapters' terms are in the
 | **substitution step** | A pipe step that contains `_`. See [`expr.pipe.step-kinds`](lang/05-expressions.md#r-expr.pipe.step-kinds). |
 | **suffix function** | A literal function marked `@num_suffix`, which a suffixed literal calls. See [`expr.literal-fn.marker`](lang/05-expressions.md#r-expr.literal-fn.marker). |
 | **suffixed literal** | A numeric literal with a literal suffix, such as `250ms`, which calls the suffix function, as `ms(250)`. See [Literal Suffixes](lang/05-expressions.md#literal-suffixes). |
-| **take part** | The members of a type that lookup considers: its own fields and inherent methods, whatever their visibility, and its promoted members. See [`names.take-part.definition`](lang/03-names-and-scopes.md#r-names.take-part.definition). |
 | **task** | A development program of a package, a file `tasks/NAME.hd` that `hd run NAME` runs and the package never ships. See [Tasks](cli/command-line.md#tasks). |
 | **template** | A trait's one derived implementation, written `impl[T] Trait for T by Structure:` in the trait's module. See [Templates](lang/14-annotations.md#templates). |
 | **template helper** | A private item that a template body names; it follows the signature rules of a public declaration. See [`module.package.template-helper`](lang/10-modules.md#r-module.package.template-helper). |

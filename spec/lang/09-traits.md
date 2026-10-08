@@ -327,19 +327,19 @@ impl Eq for Badge:
 > compiler. It moves them to the templates once its template lowering no
 > longer re-checks generated source. Programs see no difference.
 
-#### Law Partners
+#### Related Traits
 
-The comparison and hash traits whose laws relate them are **law partners**:
+The comparison and hash traits whose laws relate them are related traits:
 
-| Rule | Trait | Law partners |
+| Rule | Trait | Related traits |
 | --- | --- | --- |
-| r[trait.derive.partners.hash] Hash | `Hash` | `Eq` |
-| r[trait.derive.partners.partial-ord] Partial ordering | `PartialOrd` | `Eq` |
-| r[trait.derive.partners.ord] Ordering | `Ord` | `Eq` and `PartialOrd` |
+| r[trait.derive.related.hash] Hash | `Hash` | `Eq` |
+| r[trait.derive.related.partial-ord] Partial ordering | `PartialOrd` | `Eq` |
+| r[trait.derive.related.ord] Ordering | `Ord` | `Eq` and `PartialOrd` |
 
-1. r[trait.derive.partners.same-list] Deriving `Hash`, `PartialOrd`, or `Ord` requires each of its law partners to be derived in the same `@derive` list.
-2. r[trait.derive.partners.no-mix] One type's law partners must be all derived or all hand-written: a derived implementation and a hand-written implementation of two law partners never coexist.
-3. r[trait.derive.partners.error] A derivation that breaks either rule is an error, reported on its `@derive` line. Error: `mixed-derived-law`.
+1. r[trait.derive.related.same-list] Deriving `Hash`, `PartialOrd`, or `Ord` requires each of its related traits to be derived in the same `@derive` list.
+2. r[trait.derive.related.no-mix] One type's related traits must be all derived or all hand-written: a derived implementation and a hand-written implementation of two related traits never coexist.
+3. r[trait.derive.related.error] A derivation that breaks either rule is an error, reported on its `@derive` line. Error: `mixed-derived-law`.
 
 ```text
 @derive(Hash)  # error: mixed-derived-law
@@ -451,8 +451,8 @@ See also: [Requirement Rows](11-requirements-and-suspension.md#requirement-rows)
 4. r[trait.from.reflexive] A reflexive `impl[T] From[T] for T` is an error. Error: `bare-parameter-impl-target`.
 5. r[trait.from.trait-value] A trait value type is never a target, so `impl From[FsError] for Error` is an error. Error: `trait-value-impl-target`.
 6. r[trait.from.instantiations] When `X` implements `From` at several instantiations, `X::from(value)` chooses among them by the rule for instantiations of one generic trait in [Method Resolution](#method-resolution).
-7. r[trait.from.candidates] Each instantiation is a candidate, and the one whose parameter the argument fits is selected.
-8. r[trait.from.no-fit] When no instantiation fits, the call is an error. Error: `type-mismatch`.
+7. r[trait.from.candidates] Each instantiation is a candidate, and the one that applies to the call is selected.
+8. r[trait.from.no-apply] When no instantiation applies, the call is an error. Error: `type-mismatch`.
 
 ```hd
 use std.convert.From
@@ -1228,14 +1228,14 @@ each supply the method, as with `impl Add[i32] for Money` and
 
 1. r[trait.resolve.instantiation] When the receiver implements one generic trait at several instantiations that each supply the method, the call chooses the instantiation.
 2. r[trait.resolve.instantiation.candidate] Each instantiation is a candidate.
-3. r[trait.resolve.fits] A candidate **fits** when the call's arguments check against its method's parameter types, with that instantiation's trait arguments substituted.
-4. r[trait.resolve.fits.expected] When the call has an expected type, a candidate fits only if, in addition, the method's result type is assignable to it.
-5. r[trait.resolve.one-fit] Exactly one fitting candidate is selected, so `price.add(5)` calls the `Add[i32]` method.
-6. r[trait.resolve.literal-arg] Suppose two or more candidates fit only because an unsuffixed literal argument could take several widths. The literal then has its [default type](04-type-system.md#r-types.literal.local.default), by [`types.literal.local.instantiation`](04-type-system.md#r-types.literal.local.instantiation), and the candidate for that type is selected.
+3. r[trait.resolve.applies] A candidate applies when the call's arguments check against its method's parameter types, with that instantiation's trait arguments substituted.
+4. r[trait.resolve.applies.expected] When the call has an expected type, a candidate applies only if, in addition, the method's result type is assignable to it.
+5. r[trait.resolve.one-applies] Exactly one applicable candidate is selected, so `price.add(5)` calls the `Add[i32]` method.
+6. r[trait.resolve.literal-arg] Suppose two or more candidates apply only because an unsuffixed literal argument could take several widths. The literal then has its [default type](04-type-system.md#r-types.literal.local.default), by [`types.literal.local.instantiation`](04-type-system.md#r-types.literal.local.instantiation), and the candidate for that type is selected.
 7. r[trait.resolve.literal-arg.example] With `impl Add[i32] for Money` and `impl Add[i64] for Money`, `price.add(-5)` calls the `Add[i32]` method.
-8. r[trait.resolve.literal-arg.no-fit] With the same two implementations, `price.add(5)` is an error, because no candidate takes `usize`; write `+5`. Error: `type-mismatch`.
-10. r[trait.resolve.many-fit] Otherwise two or more fitting candidates are an error, and a trait-qualified call such as `Add::[i64]::add(price, 5)` resolves it. Error: `ambiguous-method`.
-11. r[trait.resolve.no-fit] When no candidate fits, the call is an error whose message lists the available instantiations. Error: `type-mismatch`.
+8. r[trait.resolve.literal-arg.no-apply] With the same two implementations, `price.add(5)` is an error, because no candidate takes `usize`; write `+5`. Error: `type-mismatch`.
+10. r[trait.resolve.many-apply] Otherwise two or more applicable candidates are an error, and a trait-qualified call such as `Add::[i64]::add(price, 5)` resolves it. Error: `ambiguous-method`.
+11. r[trait.resolve.no-apply] When no candidate applies, the call is an error whose message lists the available instantiations. Error: `type-mismatch`.
 12. r[trait.resolve.one-trait-only] This choice applies only among instantiations of one trait. Methods of two different traits stay ambiguous whatever the argument types. Error: `ambiguous-method`.
 
 > **Note.** When the receiver is a literal, the call's arguments and
@@ -1493,7 +1493,7 @@ impl[T < Display, I < Supplier[Item = T]] Display for Feed[I]:
 4. r[trait.binding.inside] Inside the declaration, `I::Item` remains a valid projection and denotes the same type as `T`.
 5. r[trait.binding.interchangeable] The two spellings are interchangeable in parameter, result, and body types.
 6. r[trait.binding.use-site] At a use site, after substitution, the argument's implementation of the trait must bind the associated type to the bound type.
-7. r[trait.binding.inference] The constraint takes part in generic argument inference, so `T` above is inferred from the `Supplier` implementation of the argument passed for `I`.
+7. r[trait.binding.inference] The constraint participates in generic argument inference, so `T` above is inferred from the `Supplier` implementation of the argument passed for `I`.
 8. r[trait.binding.mismatch] An argument whose implementation binds a different type is an error. Error: `unsatisfied-trait-bound`.
 9. r[trait.binding.reachable] A binding counts as a bound reachable from its parameter.
 10. r[trait.binding.reachable.example] In the implementation above, `T` is therefore constrained through `I`. The implementation satisfies the rule that every generic implementation parameter be constrained.

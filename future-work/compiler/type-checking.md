@@ -666,7 +666,7 @@ The solver returns the candidates in content order. The checker then:
    as ordinary obligations of the real check, so a residual bound that
    fails later is still reported. So `let n: i32 = money.pick()` picks `Pick[i32]`
    when `Money` implements `Pick[i32]` and `Pick[string]`, as
-   [`trait.resolve.fits.expected`](../../spec/lang/09-traits.md#r-trait.resolve.fits.expected)
+   [`trait.resolve.fits.expected`](../../spec/lang/09-traits.md#r-trait.resolve.applies.expected)
    requires. Methods of two different traits are still `ambiguous-method`
    whatever the expected type.
 3. **Chooses:**

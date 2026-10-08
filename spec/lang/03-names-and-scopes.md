@@ -331,7 +331,7 @@ fn retry_after(s: i32) -> i32:
 ```
 
 1. r[names.literal-fn.bare-in-scope] A literal suffix or a string prefix is a bare name, resolved as a module name. That is a module-scope declaration, or a name that a use declaration or the prelude introduces. Ordinary rules apply, so it is brought in, renamed with `as`, or found in conflict as other used names are.
-2. r[names.literal-fn.no-local] Parameters, local bindings, and local type declarations never take part, so a local named `s` or `r` does not change what `5s` or `r"..."` calls.
+2. r[names.literal-fn.no-local] Parameters, local bindings, and local type declarations never participate, so a local named `s` or `r` does not change what `5s` or `r"..."` calls.
 3. r[names.literal-fn.unknown-name] A suffix or prefix that names nothing in module scope is an error. Error: `unknown-name`.
 
 ```text
@@ -695,7 +695,7 @@ select.
 3. r[names.member.methods] Its **methods** are found by method lookup.
 4. r[names.member.trait-methods] A type's **trait methods** are the methods of every trait that a known implementation implements for the type.
 5. r[names.member.known-impl] A **known implementation** is any implementation in the program's dependency graph whose target matches the type. The exception is a local implementation, which counts only where its methods are available for lookup.
-6. r[names.member.trait-available] A trait method takes part in method lookup only where its trait is available.
+6. r[names.member.trait-available] A trait method is a lookup candidate in method lookup only where its trait is available.
 7. r[names.member.associated] Associated functions are not dot-call members; they are reached through `Type::function` or `Trait::function`.
 8. r[names.member.shared-name] A field and a method may share a name, whether the method is inherent or a trait method.
 9. r[names.member.no-hiding] Neither hides the other, because no use looks in both namespaces.
@@ -766,10 +766,10 @@ fn invalid(record: Record) -> string:
     record.secret  # error: unknown-data-field
 ```
 
-### Members That Take Part
+### Members Lookup Considers
 
-1. r[names.take-part.definition] The members of `S` that **take part** in lookup are its own fields and inherent methods, whatever their visibility, and its promoted members.
-2. r[names.take-part.uniform] They are the same for every use, in every module. A type has a single view of its members, and each name resolves to the same member for every caller. Visibility decides only whether a caller may use the member that lookup finds.
+1. r[names.members.considered] The members of `S` that lookup considers are its own fields and inherent methods, whatever their visibility, and its promoted members.
+2. r[names.members.uniform] They are the same for every use, in every module. A type has a single view of its members, and each name resolves to the same member for every caller. Visibility decides only whether a caller may use the member that lookup finds.
 
 ```hd
 data Point:
@@ -850,9 +850,9 @@ data Record:
 
 **Field lookup** of `x.name` from a module `M` proceeds as follows:
 
-1. r[names.field-lookup.select] **Selection.** Among the fields of `S` that take part, the field named `name` at the smallest depth is selected. There is at most one, because a conflict is a declaration error.
+1. r[names.field-lookup.select] **Selection.** Among the fields of `S` that lookup considers, the field named `name` at the smallest depth is selected. There is at most one, because a conflict is a declaration error.
 2. r[names.field-lookup.private] **Visibility.** When the selected field is an own field of `S` that is not visible from `M`, the use is an error. Error: `private-member`.
-3. r[names.field-lookup.unknown] **Not found.** If no field named `name` takes part, the use is an error. Error: `unknown-data-field`.
+3. r[names.field-lookup.unknown] **Not found.** If lookup considers no field named `name`, the use is an error. Error: `unknown-data-field`.
 
 ```hd
 data User:
@@ -886,7 +886,7 @@ fn demo(c: Counter) -> i32:
 #### Method Candidates
 
 1. r[names.method-lookup.candidates] Otherwise the candidates are the promoted candidate and the trait candidates.
-2. r[names.method-lookup.promoted-candidate] The **promoted candidate** is, among the promoted inherent methods that take part, the one named `name` at the smallest depth, if any.
+2. r[names.method-lookup.promoted-candidate] The **promoted candidate** is, among the promoted inherent methods that lookup considers, the one named `name` at the smallest depth, if any.
 3. r[names.method-lookup.trait-candidates] The **trait candidates** are the trait methods of `S` named `name` whose trait is available at the call, wherever their implementations are declared.
 4. r[names.method-lookup.unavailable] A trait method whose trait is not available is not a candidate and has no effect on the lookup.
 5. r[names.method-lookup.one] Exactly one candidate is selected; a single candidate with the wrong signature is still selected, and the call is then checked against it.

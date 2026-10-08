@@ -6,7 +6,7 @@ Status: language specification draft.
 
 - **Member metadata** is the ordered list of values attached to a data
   field, an enum variant, or a parameter.
-- A **coherence slot** is one `(trait, concrete target)` pair over the
+- Coherence works one `(trait, concrete target)` pair at a time over the
   resolved package graph.
 
 Annotations attach typed values to declarations. They do not alter a declaration's name, type,
@@ -871,7 +871,7 @@ impl[T] Encode for T by Structure:
 ```
 
 1. r[annot.template.form] `impl[T] Trait for T by Structure:` declares the **template** of `Trait`.
-2. r[annot.template.not-impl] A template is not an implementation. It never applies by itself and occupies no coherence slot, so it never overlaps a hand-written implementation.
+2. r[annot.template.not-impl] A template is not an implementation. It never applies by itself and claims no `(trait, concrete target)` pair, so it never overlaps a hand-written implementation.
 3. r[annot.template.module] A template must be declared in the module that declares its trait. One declared elsewhere is an error. Error: `misplaced-derivation`.
 4. r[annot.template.unique] A trait has at most one template. A second one is an error. Error: `overlapping-impl`.
 5. r[annot.template.structure] Inside a template, `T` implements `Structure`. Its bodies may call `Structure::walk(self, w)`, `T::describe(d)`, `T::build(s)`, and `T::facts()`.

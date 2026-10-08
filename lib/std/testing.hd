@@ -83,8 +83,8 @@ pub trait PropertyRunner:
 # r-std-testing.runner.random). Each draw is recorded through the case's
 # `PropertyRunner` before it is used (r-std-testing.runner.record-every), so
 # the runner can replay and shrink the case. Once a case's draws have spent
-# the draw budget, every member returns its simplest value without drawing
-# (spec/std/testing.md#draw-budget). The fresh draws of the first generated
+# the draw limit, every member returns its simplest value without drawing
+# (spec/std/testing.md#draw-limit). The fresh draws of the first generated
 # cases take edge values (spec/std/testing.md#edge-values).
 ## The source of one case's drawn values, which the runner records so it can replay and shrink the case.
 ## See [std-testing.choices.declare](../../spec/std/testing.md#r-std-testing.choices.declare).
@@ -99,8 +99,8 @@ pub data Choices:
     edge: i64
 
 impl Choices:
-    # Whether the draw budget of 256 draws is spent. No public member reads
-    # it (r-std-testing.budget.no-api).
+    # Whether the draw limit of 256 draws is spent. No public member reads
+    # it (r-std-testing.limit.no-api).
     fn spent(self) -> bool:
         self.draws >= 256
 
@@ -339,7 +339,7 @@ impl[S] Source[S] for ArbitrarySource[S]:
 
     # The simplest choice is the first variant whose `self_ref` is not
     # `.Required`; the others follow in declaration order, and the drawn
-    # index picks one, so a spent draw budget picks the simplest
+    # index picks one, so a spent draw limit picks the simplest
     # (r-std-testing.arbitrary.derive.simplest). With no such variant the
     # type has no finite value (r-std-testing.arbitrary.derive.no-finite,
     # .no-finite.data).
@@ -478,12 +478,12 @@ impl[K < Arbitrary & Eq & Hash, V < Arbitrary] Arbitrary for Map[K, V]:
     fn arbitrary(c: mut Choices) -> Map[K, V]:
         c.map_of::[K, V](8)
 
-# The simplest is `.None` (r-std-testing.budget.simplest.optional).
+# The simplest is `.None` (r-std-testing.limit.simplest.optional).
 impl[T < Arbitrary] Arbitrary for T?:
     fn arbitrary(c: mut Choices) -> T?:
         if c.bool(): .Some(T::arbitrary(c)) else: .None
 
-# The simplest is `.Ok` of `T`'s simplest (r-std-testing.budget.simplest.result).
+# The simplest is `.Ok` of `T`'s simplest (r-std-testing.limit.simplest.result).
 impl[T < Arbitrary, E < Arbitrary] Arbitrary for Result[T, E]:
     fn arbitrary(c: mut Choices) -> Result[T, E]:
         if c.bool(): .Err(E::arbitrary(c)) else: .Ok(T::arbitrary(c))

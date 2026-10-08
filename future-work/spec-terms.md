@@ -16,12 +16,13 @@ None: every hd-only concept below keeps an established or plain word.
 
 ## Verdicts
 
-**keep 186, replace 1, owner 0.** The 186 glossary rows all keep; the one replacement is `ghost
-entry` → `stale entry` (added as a manual row below: it is not bold in
-the chapter, so `spec glossary` misses it). Everyday
-"ghost" means a haunting, which says nothing about an unreachable map
-entry, and the verification sense (Dafny ghost state, erased at
-runtime) means something related but different. Stale is the cache
+**keep 181, replace 6, owner 0.** Five S11c replacements (below) plus the
+S11b `ghost entry` → `stale entry` row. The 181 keeping rows hold with
+their evidence; the glossary-hygiene duplicate note stands. S11b's
+`ghost entry` reasoning stands: everyday "ghost" means a haunting,
+which says nothing about an unreachable map entry, and the verification
+sense (Dafny ghost state, erased at runtime) means something related
+but different. Stale is the cache
 literature's word for present-but-no-longer-valid. Glossary hygiene
 note (not a term verdict): `same compiled program` and `the same
 compiled program` duplicate one rule and should merge when that
@@ -43,7 +44,7 @@ section is next touched (S12's lane).
 | call place | lang/05-expressions.md#callable-values | A call `v()` whose callee's type implements `Update`, so `v() = x` and `v() op= x` store through it. | keep | R: Place Expressions — an addressable location |
 | callable value | lang/05-expressions.md#callable-values | A value whose type implements `Apply`, read by calling it with no arguments, as in `count()`. | keep | Python docs, callable objects: a value used as a function |
 | capability grant | cli/command-line.md#capability-grants | What a program's host capability traits may touch at run time: for each trait, no limit, a total deny, or a list of scope entries. | keep | object-capability literature (Dennis–Van Horn): what a capability permits |
-| coherence slot | lang/14-annotations.md#terminology | One `(trait, concrete target)` pair over the resolved package graph. | keep | P: a position in a table |
+| coherence slot | lang/14-annotations.md#terminology | One `(trait, concrete target)` pair over the resolved package graph. | replace | (trait, type) pair — S11c; term dropped from the spec |
 | collect target | std/iter.md#collect-targets | The collection that `collect` builds, named by the expected type. | keep | P: what an operation builds toward |
 | compatibility line | lang/10-modules.md#r-module.version.line | The versions of a package that must stay compatible: one major number, or `0.MINOR` below 1.0. | keep | P: a line of mutually compatible versions |
 | compiled entries | cli/command-line.md#r-cli.cache.obj | `hd` stores its **compiled entries** in the directory `obj` of the cache directory. | keep | P: entries already compiled |
@@ -62,7 +63,7 @@ section is next touched (S12's lane).
 | derived variance | lang/04-type-system.md#r-types.variance.target.derived | The variance an inherent `impl` parameter has in the implementation's target type, by which its methods are checked. | keep | TAPL §19 (subtyping): variance of constructors |
 | dev dependency | lang/10-modules.md#r-module.test.dev-dependency | A dependency that the manifest declares in `[dev-dependencies]`, which test code and tasks may use and a dependent never sees. | keep | Cargo book, dev-dependencies |
 | doc test | lang/10-modules.md#r-module.test.doc.block | A fenced `hd` block in a documentation comment of a module under the source root, compiled as its own program with one test case. | keep | rustdoc book: tests in documentation |
-| draw budget | std/testing.md#r-std-testing.budget | The per-case limit on draws from `Choices`; once it is spent, every draw returns its simplest value. | keep | H docs, data.draw(): values drawn from strategies; budget is P: an allowance |
+| draw budget | std/testing.md#r-std-testing.limit | The per-case limit on draws from `Choices`; once it is spent, every draw returns its simplest value. | replace | draw limit — S11c; rule IDs std-testing.limit.* |
 | driver context | lang/11-requirements-and-suspension.md#r-req.bang.driver-contexts | Where a bang call is valid: a suspending function or closure body, or the host executor driving `main!`. | keep | P: the context doing the driving |
 | dynamic provider | lang/11-requirements-and-suspension.md#lexical-and-dynamic-providers | A provider a closure gets at each call, because its row keeps the key. | keep | Guice docs, Providers: values supplying a capability; dynamic is P |
 | embedded field | lang/08-data-and-enums.md#data-embedding | A bare type-name member of a data declaration, which embeds another data type. | keep | P: a field embedded in another type |
@@ -79,7 +80,7 @@ section is next touched (S12's lane).
 | field shorthand | lang/02-grammar.md#r-grammar.primary.field-shorthand | A `data_field_item` that is a bare `identifier` is **field shorthand**: `x` means `x: x`, as in `Point { x, y }`. | keep | P: abbreviated field syntax |
 | fields | lang/03-names-and-scopes.md#r-names.member.fields | Its **fields**, including embedded fields named by their embedded type name, are found by field lookup. | keep | P: named members holding data |
 | fingerprint | cli/command-line.md#r-cli.test.fingerprint | A test program's **fingerprint** changes whenever a change could change its outcome: a source file it reads, a dependency, a manifest setting, the `hd` version, or a test option such as `--seed`. | keep | Git docs, object hashes; OpenSSH key fingerprints: a content hash |
-| fits | lang/09-traits.md#r-trait.resolve.fits | A candidate implementation fits a call when the call's arguments check against its method's parameter types. | keep | P: be the right shape for |
+| fits | lang/09-traits.md#r-trait.resolve.applies | A candidate implementation fits a call when the call's arguments check against its method's parameter types. | replace | applies / applicable candidate — S11c; rule IDs trait.resolve.applies etc. |
 | fixed elements | lang/04-type-system.md#r-types.tuple.rest.form | The elements of a tuple type other than its rest element. | keep | P: elements fixed in place |
 | flag | std/cli.md#r-std-cli.cli.flag | A command-line argument that `std.cli` reads as set or not set; it takes no value. | keep | POSIX Utility Conventions: command-line flags |
 | folder | lang/10-modules.md#r-module.folder.holder | The directory that holds a source file, or for a file `x.hd` with child modules, the directory `x/` that holds them; nested directories are separate folders. | keep | P: a directory of sources |
@@ -101,7 +102,7 @@ section is next touched (S12's lane).
 | iterator | lang/06-control-flow.md#r-flow.for.iterator-type | A value of the prelude type `Iterator[T]`. It stores one traversal's progress and is single-pass: a second traversal calls `iter()` on the source again. | keep | GoF Iterator pattern; R Iterator trait |
 | iterator adapters | std/iter.md#iterator-adapters | Methods of the prelude `Iterator[T]` that wrap an iterator in a new one, or drain it. | keep | R Iterator trait: adapter methods |
 | known implementation | lang/03-names-and-scopes.md#r-names.member.known-impl | An implementation in the program's dependency graph whose target matches a type; a local one counts only where its methods are available. | keep | P: an implementation already known |
-| law partners | lang/09-traits.md#law-partners | Comparison and hash traits whose laws relate them, such as `Hash` and `Eq`. | keep | P: a pair engaged together (traits whose laws relate them) |
+| law partners | lang/09-traits.md#related-traits | Comparison and hash traits whose laws relate them, such as `Hash` and `Eq`. | replace | related traits — S11c; rule IDs trait.derive.related.* |
 | let-else | lang/02-grammar.md#let-else-statements | A `let` statement with a refutable pattern and an `else` block, which runs when the pattern does not match and must diverge. | keep | R, let-else statements (RFC 3137) |
 | lexical provider | lang/11-requirements-and-suspension.md#lexical-and-dynamic-providers | A provider a closure fixes where it is written, by capturing the value of `$.use`. | keep | Guice docs, Providers; lexical is PL scoping vocabulary |
 | literal class | lang/04-type-system.md#r-types.literal.local.class | Unsuffixed literals with no expected type that meet one another; they take one width. | keep | P: a class of literal spellings |
@@ -178,7 +179,7 @@ section is next touched (S12's lane).
 | suffix function | lang/05-expressions.md#r-expr.literal-fn.marker | A literal function marked `@num_suffix`, which a suffixed literal calls. | keep | P: a function named by a suffix |
 | suffixed literal | lang/05-expressions.md#literal-suffixes | A numeric literal with a literal suffix, such as `250ms`, which calls the suffix function, as `ms(250)`. | keep | P: a literal with a suffix |
 | summary | cli/command-line.md#r-cli.doc.summary | An item's **summary** is the first sentence of its documentation, or empty when it has none. | keep | P: a brief account |
-| take part | lang/03-names-and-scopes.md#r-names.take-part.definition | The members of a type that lookup considers: its own fields and inherent methods, whatever their visibility, and its promoted members. | keep | P: participate in |
+| take part | lang/03-names-and-scopes.md#r-names.members.considered | The members of a type that lookup considers: its own fields and inherent methods, whatever their visibility, and its promoted members. | replace | lookup candidates / members lookup considers — S11c; rule ID names.members.considered |
 | target parameter | lang/14-annotations.md#r-annot.typed-fact.pattern.trivial | That parameter is the fact type's **target parameter**, and it is inferred as the target's whole type. | keep | P: the parameter aimed at |
 | task | cli/command-line.md#tasks | A development program of a package, a file `tasks/NAME.hd` that `hd run NAME` runs and the package never ships. | keep | P: a unit of scheduled work |
 | template | lang/14-annotations.md#templates | A trait's one derived implementation, written `impl[T] Trait for T by Structure:` in the trait's module. | keep | C++ standard, templates: an outline stamped per use |

@@ -2658,7 +2658,7 @@ span, which the shrinker deletes or simplifies whole. It also keeps the
 closure from capturing the outer `mut c` while `list` is using it. A named
 generator needs no closure, as in `c.list(50, digit)`.
 
-A recursive generator puts its leaf first. Each case has a draw budget, and
+A recursive generator puts its leaf first. Each case has a draw limit, and
 once it is spent, every draw returns its simplest value: `0`, `false`, or
 an empty list, map, or string. So `c.int(0, 5)` returns `0` and the
 generator ends:

@@ -18,7 +18,7 @@ The language tier keeps what the compiler knows by name
 | Item | Why it stays in the language tier |
 | --- | --- |
 | `Eq`, `PartialOrd`, `Ord`, `Ordering` | lang items that `==` and the relational operators call |
-| `@derive` and its checks | `derive-field-missing-trait`, `missing-derived-bound`, and `mixed-derived-law` are compiler diagnostics ([Derived Implementations](../lang/09-traits.md#derived-implementations), [Law Partners](../lang/09-traits.md#law-partners)) |
+| `@derive` and its checks | `derive-field-missing-trait`, `missing-derived-bound`, and `mixed-derived-law` are compiler diagnostics ([Derived Implementations](../lang/09-traits.md#derived-implementations), [Related Traits](../lang/09-traits.md#related-traits)) |
 | templates and tuple templates | [Typed Derivation](../lang/14-annotations.md#typed-derivation) |
 
 ## Derived Equality

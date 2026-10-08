@@ -1,5 +1,5 @@
-# test: a literal that fits several instantiations waits, falls back to usize, and then fits none
-# Spec: trait.resolve.literal-arg.no-fit
+# test: a literal that applies to several instantiations waits, falls back to usize, and then applies to none
+# Spec: trait.resolve.literal-arg.no-apply
 trait Combine[T]:
     fn combine(self, other: T) -> string
 

@@ -1,5 +1,5 @@
 # test: a suspending argument is checked per candidate without ambiguity
-# Spec 09 Traits: trait.resolve.one-fit (exactly one fitting candidate is selected).
+# Spec 09 Traits: trait.resolve.one-applies (exactly one applicable candidate is selected).
 use std.testing.assert_equal
 
 trait Pick[T]:

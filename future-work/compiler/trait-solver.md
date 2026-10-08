@@ -1548,7 +1548,7 @@ With `--verbose`, a note lists the chain: "`impl[T < Eq] Eq for Box[T]`
 enum or newtype of the user's own package, and `Tr` has a
 template, the fix-it inserts `@derive(Tr)` or extends an existing list. It
 adds missing law partners, since `@derive(Hash)` alone is
-`mixed-derived-law` ([Law Partners](../../spec/lang/09-traits.md#law-partners)),
+`mixed-derived-law` ([Law Partners](../../spec/lang/09-traits.md#related-traits)),
 and gives none when `X` has a hand-written partner impl.
 
 | Near miss | Message |
@@ -1813,7 +1813,7 @@ and data-structures.md.
    expected-type-dependent calls cost sites × candidates (section 7.6).
 9. **§2.5 fits (review T4):** a candidate fits only if, when the call has
    an expected type, the method's result is assignable to it
-   ([`trait.resolve.fits.expected`](../../spec/lang/09-traits.md#r-trait.resolve.fits.expected)).
+   ([`trait.resolve.fits.expected`](../../spec/lang/09-traits.md#r-trait.resolve.applies.expected)).
    Each trial runs `coerce(result, want)` inside its rollback before the
    fits are counted, so `let n: i32 = money.pick()` picks `Pick[i32]`.
 10. **§2.5 `Methods`:** the answer also carries the unavailable traits
@@ -1882,6 +1882,6 @@ before it was accepted.
 | Blocker 5: dynamically safe generic methods lack a codegen strategy | **Accepted, fixed** for the solver's part. Verified against [`types.trait.safe.method-type-arg`](../../spec/lang/04-type-system.md#r-types.trait.safe.method-type-arg): an erased slot instance with one vtable parameter per bound | section 9.2; changes 16, 19 |
 | Blocker 8: memo entries are not functions of their keys | **Accepted, fixed.** Keys now hold the environment, visible local impls, availability, and a per-run memo; depth is a stored height with lower-bound entries; fuel and depth exhaustion are never cached as failures; completion before publication is the SCC rule. Not needed: a key for coinductive assumptions, since none exist | sections 6.3, 7.1, 7.3; change 2 |
 | T1: projections cannot represent their inputs or return outputs | **Accepted, fixed.** Verified: D1's `Assoc` drops the trait arguments, and §1.6's answers had no normalized type. Projections now name the associated item and the instantiated trait reference; `Project` answers `Normalized`; normalization cycles, the occurs check and aliases are specified | sections 2.1, 4.3; changes 1, 4, 11, 15 |
-| T4: candidate trials omit expected-result filtering | **Accepted.** Verified: [`trait.resolve.fits.expected`](../../spec/lang/09-traits.md#r-trait.resolve.fits.expected). The trial is the checker's; the change is stated for type-checking.md | change 9 |
+| T4: candidate trials omit expected-result filtering | **Accepted.** Verified: [`trait.resolve.fits.expected`](../../spec/lang/09-traits.md#r-trait.resolve.applies.expected). The trial is the checker's; the change is stated for type-checking.md | change 9 |
 | T6: fuel bounds work but does not make it near-linear | **Accepted, fixed** for the solver and coherence: the algorithms of section 7.6, the discrimination-tree overlap check, and the doubling test. The trial multiplication and obligation waking belong to the checker; changes 8 and 11 state them | sections 5.2, 7.6, 14.2; changes 7, 8, 11, 14 |
 | A5: synthetic impls need dependency and coherence rules | **Accepted, fixed.** Verified: any trait may have a tuple template ([`annot.template.tuple.form`](../../spec/lang/14-annotations.md#r-annot.template.tuple.form)), and a written tuple impl beside it is an overlap ([`annot.template.tuple.overlap`](../../spec/lang/14-annotations.md#r-annot.template.tuple.overlap)) | section 3.11; change 13 |
