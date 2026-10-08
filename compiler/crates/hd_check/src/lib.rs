@@ -8,11 +8,13 @@
 mod access;
 pub mod body;
 mod call;
+pub mod conflicts;
 mod conform;
 mod expr;
 pub mod init;
 mod literals;
 mod pat;
+mod promote;
 mod render;
 pub mod stages;
 pub mod tests;

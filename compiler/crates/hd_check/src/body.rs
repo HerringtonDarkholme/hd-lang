@@ -1155,12 +1155,14 @@ impl Ck<'_, '_> {
                 };
                 let (br, bt) = self.expr(base, None)?;
                 let fname = self.cx.src.text(self.cx.src.last(*lhs)).to_owned();
-                let Some((idx, ft)) = self.field_of(bt, &fname) else {
+                let (pr, pt) = self.promote_base(br, bt, &fname, *lhs);
+                let Some((idx, ft)) = self.field_of(pt, &fname) else {
                     let msg = format!("unknown-data-field `{fname}` on {}", self.show(bt));
                     self.err(Code::UnknownDataField, *lhs, &msg);
                     return Ok(());
                 };
                 self.check_store_target(base, (br, bt), *lhs);
+                let br = pr;
                 let v = match compound {
                     None => {
                         let (r, t) = self.expr(*rhs, Some(ft))?;

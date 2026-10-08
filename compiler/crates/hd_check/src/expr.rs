@@ -917,6 +917,7 @@ impl Ck<'_, '_> {
             let idx = u32::try_from(i).unwrap_or(0);
             return Ok((self.b.emit(Tag::TupleGet, r.0, idx, t, n.index()), t));
         }
+        let (r, bt) = self.promote_base(r, bt, &name, n);
         if let Some((idx, ft)) = self.field_of(bt, &name) {
             let ft = self.field_access(bt, &name, ft);
             return Ok((self.b.emit(Tag::Field, r.0, idx, ft, n.index()), ft));

@@ -1408,7 +1408,46 @@ impl Run<'_> {
                 diags.error(Code::MissingTraitMethod, src.span(h.node), &msg);
             }
         }
-        for (def, node) in hd_resolve::body_nodes(&names, &src, &heads) {
+        // Member promotion conflicts are declaration errors (spec 03
+        // `names.conflict.error`), reported on the embedded field or on the
+        // private member.
+        let methods = hd_resolve::body_nodes(&names, &src, &heads);
+        let mut inherent = None;
+        for h in heads
+            .iter()
+            .filter(|h| h.kind == hd_resolve::HeadKind::Data)
+        {
+            let Some(item) = lookup.item(h.def) else {
+                continue;
+            };
+            let embeds =
+                matches!(&item.data, ItemData::Data(fields) if fields.iter().any(|f| f.embedded));
+            if !embeds {
+                continue;
+            }
+            let inherent = inherent
+                .get_or_insert_with(|| hd_check::conflicts::inherent_methods(&names, &lookup));
+            for c in hd_check::conflicts::promotion_conflicts(&names, &lookup, inherent, item) {
+                let node = match c.field {
+                    Some(i) => hd_resolve::Src::child(h.node, hd_syntax::SyntaxKind::Block)
+                        .into_iter()
+                        .flat_map(hd_syntax::NodeRef::children)
+                        .filter(|f| {
+                            matches!(
+                                f.kind(),
+                                hd_syntax::SyntaxKind::DataField
+                                    | hd_syntax::SyntaxKind::EmbeddedField
+                            )
+                        })
+                        .nth(i),
+                    None => methods.iter().find(|(d, _)| *d == c.item).map(|(_, n)| *n),
+                };
+                if let Some(node) = node {
+                    diags.error(Code::AmbiguousPromotedMember, src.span(node), &c.message);
+                }
+            }
+        }
+        for (def, node) in methods {
             // A body-less method of a built-in family (`impl[N < Num] Add
             // for N`) is the compiler's: there is no source to check.
             if hd_resolve::Src::child(node, hd_syntax::SyntaxKind::Block).is_none() {

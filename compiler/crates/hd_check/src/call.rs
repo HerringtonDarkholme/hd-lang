@@ -1329,7 +1329,7 @@ impl Ck<'_, '_> {
     }
 
     /// An inherent method of a type: (method, impl, impl arguments).
-    fn find_inherent(&mut self, t: Ty, name: &str) -> Option<(DefId, DefId, Vec<Ty>)> {
+    pub(crate) fn find_inherent(&mut self, t: Ty, name: &str) -> Option<(DefId, DefId, Vec<Ty>)> {
         let pool = self.cx.names.pool;
         let sym = self.cx.names.syms.intern(name);
         let cands = self.method_index().inherent.get(&sym).cloned()?;
@@ -1588,6 +1588,23 @@ impl Ck<'_, '_> {
         // A field holding a function: `(x.f)(...)` is written `x.f(...)` only
         // when no method of that name exists.
         let hit = self.resolve_method(rt, name)?;
+        if matches!(hit, None | Some(Hit::Trait { .. }))
+            && let Some(path) = self.promoted_method_path(rt, name)
+        {
+            // A trait candidate beside the promoted one: neither wins
+            // (names.method-lookup.ambiguous).
+            if hit.is_some() {
+                let msg = format!(
+                    "ambiguous-method `{name}` on {}: a trait method and the promoted method `{}.{name}`; write `Trait::{name}(..)` or the explicit path",
+                    self.show(rt),
+                    path.join(".")
+                );
+                self.err(Code::AmbiguousMethod, n, &msg);
+                return Ok((Ref(NONE), Ty::NEVER));
+            }
+            let (recv, rt) = self.walk_path(recv, rt, &path, n);
+            return self.method_on(recv, rt, name, args, n, bang);
+        }
         match hit {
             Some(Hit::Inherent {
                 method,
