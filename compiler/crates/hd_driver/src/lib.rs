@@ -1356,6 +1356,21 @@ impl Run<'_> {
                 }
             }
         }
+        // A written implementation writes every required trait method
+        // (spec 09 `trait.impl.required`), reported at its header.
+        for h in heads
+            .iter()
+            .filter(|h| h.kind == hd_resolve::HeadKind::Impl)
+        {
+            let missing = hd_check::omitted_trait_methods(&names, &lookup, h.def);
+            if !missing.is_empty() {
+                let msg = format!(
+                    "missing-trait-method: the implementation does not write `{}`",
+                    missing.join("`, `")
+                );
+                diags.error(Code::MissingTraitMethod, src.span(h.node), &msg);
+            }
+        }
         for (def, node) in hd_resolve::body_nodes(&names, &src, &heads) {
             // A body-less method of a built-in family (`impl[N < Num] Add
             // for N`) is the compiler's: there is no source to check.

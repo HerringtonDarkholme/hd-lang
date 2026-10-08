@@ -276,6 +276,25 @@ fn a_missing_requirement_is_an_error() {
 }
 
 #[test]
+fn an_impl_must_write_every_required_trait_method() {
+    let missing = "trait Named:\n    fn name(self) -> string\n    fn id(self) -> i32\n\ndata User: pass\n\nimpl Named for User:\n    fn name(self) -> string:\n        \"u\"\n\nfn main() -> void $ Console:\n    println(1)\n";
+    let out = program(missing);
+    assert!(
+        codes(&out).contains(&Code::MissingTraitMethod),
+        "{}",
+        out.render()
+    );
+    // A method with a default body need not be written.
+    let defaulted = "trait Named:\n    fn name(self) -> string:\n        \"named\"\n\ndata User: pass\n\nimpl Named for User\n\nfn main() -> void $ Console:\n    println(1)\n";
+    let out = program(defaulted);
+    assert!(
+        !codes(&out).contains(&Code::MissingTraitMethod),
+        "{}",
+        out.render()
+    );
+}
+
+#[test]
 fn a_match_must_cover_every_variant() {
     let src = "enum Color:\n    Red\n    Green\n    Blue\n\nfn code(c: Color) -> i32:\n    match c:\n        .Red => 1\n        .Green => 2\n\nfn main() -> void $ Console:\n    println(code(.Red))\n";
     let out = program(src);

@@ -5,7 +5,7 @@
 
 use hd_base::DefId;
 use hd_diag::Code;
-use hd_resolve::{FnSig, ImplKind, ItemData};
+use hd_resolve::{FnSig, ImplKind, ItemData, Lookup, Names};
 use hd_syntax::NodeRef;
 use hd_types::{InternPool, ParamRef, Ty, TyData};
 
@@ -49,6 +49,48 @@ fn has_assoc(pool: &InternPool, t: Ty, depth: u32) -> bool {
         }
         _ => false,
     }
+}
+
+/// The names of the trait methods that the written implementation `imp`
+/// omits: a trait method with no default body that the impl does not write
+/// (spec 09 `trait.impl.required`). Delegated, derived and template
+/// implementations supply their methods another way and yield none.
+#[must_use]
+pub fn omitted_trait_methods(names: &Names<'_>, lookup: &Lookup<'_>, imp: DefId) -> Vec<String> {
+    let Some(ItemData::Impl {
+        trait_,
+        methods,
+        kind,
+        ..
+    }) = lookup.item(imp).map(|i| &i.data)
+    else {
+        return Vec::new();
+    };
+    if *trait_ == DefId::NONE || *kind != ImplKind::Written {
+        return Vec::new();
+    }
+    // A written implementation of a sealed trait is already
+    // `sealed-trait-implementation`; its methods are the compiler's.
+    if hd_resolve::SEALED_TRAIT_PATHS.contains(&names.path(*trait_).as_str()) {
+        return Vec::new();
+    }
+    let Some(ItemData::Trait(td)) = lookup.item(*trait_).map(|t| &t.data) else {
+        return Vec::new();
+    };
+    td.methods
+        .iter()
+        .filter(|(name, def)| {
+            !methods.iter().any(|(w, _)| w == name)
+                && matches!(
+                    lookup.item(*def).map(|m| &m.data),
+                    Some(ItemData::Method {
+                        has_body: false,
+                        ..
+                    })
+                )
+        })
+        .map(|(name, _)| names.text(*name).to_owned())
+        .collect()
 }
 
 impl Ck<'_, '_> {

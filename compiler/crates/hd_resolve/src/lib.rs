@@ -24,6 +24,7 @@ pub use iface::{
     TraitData, Variant, decode_items, deep_hash, encode_items, folder_iface, impl_table,
     interface_items, mentioned_defs, show_ty,
 };
+pub use lower::SEALED_TRAIT_PATHS;
 pub use lower::{
     Cx, FolderOut, Head, Kinds, ModIn, ModOut, PRELUDE, UseDecl, World, body_nodes, build_folder,
     heads, prelude_modules, use_decls,

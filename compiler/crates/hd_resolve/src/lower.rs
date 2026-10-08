@@ -14,6 +14,15 @@ use std::sync::Arc;
 
 use hd_base::{DefId, NotImplemented, PathId, Span, Stage, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
+
+/// The compiler-implemented sealed traits: a written implementation of one
+/// is `sealed-trait-implementation`, and its methods are the compiler's.
+pub const SEALED_TRAIT_PATHS: [&str; 4] = [
+    "std/core/AnyVal",
+    "std/core/AnyRef",
+    "std/structure/Structure",
+    "std/function/Tuple",
+];
 use hd_intern::PathKind;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_types::{ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList};
@@ -1522,13 +1531,7 @@ impl Lower<'_, '_, '_> {
         // implementation (types.sealed.no-impl).
         if self.r.frozen.is_none()
             && by.is_none()
-            && matches!(
-                self.names.path(trait_).as_str(),
-                "std/core/AnyVal"
-                    | "std/core/AnyRef"
-                    | "std/structure/Structure"
-                    | "std/function/Tuple"
-            )
+            && SEALED_TRAIT_PATHS.contains(&self.names.path(trait_).as_str())
         {
             let msg = format!(
                 "sealed-trait-implementation: `{}` is implemented by the compiler only",

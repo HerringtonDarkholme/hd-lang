@@ -8,7 +8,7 @@ fixture and CLI case; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1188 | 932 | 823 | 2943 |
+| 1190 | 930 | 823 | 2943 |
 
 ## By Chapter
 
@@ -20,12 +20,12 @@ fixture and CLI case; unsupported surface records progress without failing.
 | `lang/03-names-and-scopes.md` | 33 | 41 | 27 | 101 |
 | `lang/04-type-system.md` | 196 | 102 | 53 | 351 |
 | `lang/05-expressions.md` | 84 | 91 | 102 | 277 |
-| `lang/06-control-flow.md` | 93 | 33 | 30 | 156 |
+| `lang/06-control-flow.md` | 93 | 34 | 30 | 157 |
 | `lang/07-functions.md` | 45 | 35 | 50 | 130 |
 | `lang/08-data-and-enums.md` | 42 | 52 | 29 | 123 |
-| `lang/09-traits.md` | 131 | 168 | 59 | 358 |
+| `lang/09-traits.md` | 134 | 165 | 59 | 358 |
 | `lang/10-modules.md` | 82 | 123 | 53 | 258 |
-| `lang/11-requirements-and-suspension.md` | 87 | 70 | 103 | 260 |
+| `lang/11-requirements-and-suspension.md` | 86 | 70 | 103 | 259 |
 | `lang/14-annotations.md` | 38 | 93 | 22 | 153 |
 | `std/cli.md` | 1 | 0 | 4 | 5 |
 | `std/cmp.md` | 2 | 0 | 12 | 14 |
@@ -66,9 +66,9 @@ fixture and CLI case; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 26 | 50 | 29 | 105 |
 | `runtime/valid` | 182 | 241 | 506 | 929 |
-| `typing/invalid` | 394 | 554 | 123 | 1071 |
+| `typing/invalid` | 397 | 552 | 123 | 1072 |
 | `typing/valid` | 292 | 59 | 64 | 415 |
-| `typing/warnings` | 7 | 14 | 0 | 21 |
+| `typing/warnings` | 6 | 14 | 0 | 20 |
 
 ## Failure Buckets
 
@@ -95,7 +95,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 9 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 352 |
+| `fail:no-diagnostic` | 349 |
 | `fail:nonexhaustive-match` | 16 |
 | `fail:not-callable` | 2 |
 | `fail:orphan-impl` | 2 |
@@ -122,7 +122,7 @@ compiler stage that first declined the case.
 | `fail:unknown-type` | 2 |
 | `fail:unknown-variant` | 1 |
 | `fail:unsatisfied-trait-bound` | 35 |
-| `fail:unused-local-binding` | 18 |
+| `fail:unused-local-binding` | 19 |
 | `unsupported:Body` | 264 |
 | `unsupported:CLI` | 101 |
 | `unsupported:Collect` | 99 |
@@ -302,7 +302,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (352)</summary>
+<details><summary><code>fail:no-diagnostic</code> (349)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -332,7 +332,6 @@ compiler stage that first declined the case.
 - `typing/invalid/generic-requirement-key-collision.hd`
 - `typing/invalid/assert-equal-non-eq.hd`
 - `typing/invalid/supertrait-cycle.hd`
-- `typing/invalid/missing-trait-method.hd`
 - `typing/invalid/duplicate-inherent-member.hd`
 - `typing/invalid/suspension-forbidden-context.hd`
 - `typing/invalid/nondisplay-entry-error.hd`
@@ -345,7 +344,6 @@ compiler stage that first declined the case.
 - `typing/invalid/row-inference-conflict.hd`
 - `typing/invalid/row-inference-unavailable-provider.hd`
 - `typing/invalid/row-extension-without-provider.hd`
-- `typing/invalid/trait-impl-missing-method.hd`
 - `typing/invalid/nonfinal-vararg-then-parameter.hd`
 - `typing/invalid/prelude-shadow-console-parameter.hd`
 - `typing/invalid/prelude-shadow-hash-local.hd`
@@ -365,7 +363,6 @@ compiler stage that first declined the case.
 - `typing/invalid/incompatible-identity-operands.hd`
 - `typing/invalid/trait-method-beside-promoted-method.hd`
 - `typing/invalid/same-depth-promotion-conflict.hd`
-- `typing/invalid/bodyless-impl-via-promotion.hd`
 - `typing/invalid/function-typed-field-method-call.hd`
 - `typing/invalid/generic-trait-literal-without-default.hd`
 - `typing/invalid/trait-value-impl-target.hd`
@@ -1272,10 +1269,11 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unused-local-binding</code> (18)</summary>
+<details><summary><code>fail:unused-local-binding</code> (19)</summary>
 
 - `typing/invalid/least-type-weakening-variance.hd`
 - `runtime/valid/map-iteration-order.hd`
+- `typing/invalid/unused-cold-suspension.hd`
 - `typing/invalid/closure-parameter-without-type.hd`
 - `typing/invalid/generic-trait-instantiations-ambiguous.hd`
 - `typing/invalid/readonly-embedded-source-with-mutable-edge.hd`
@@ -2693,6 +2691,7 @@ typing/invalid/binding-expression-redeclaration.hd
 typing/invalid/bitwise-and-bool.hd
 typing/invalid/bitwise-or-float.hd
 typing/invalid/bitwise-xor-string.hd
+typing/invalid/bodyless-impl-via-promotion.hd
 typing/invalid/bool-match-missing-false.hd
 typing/invalid/bool-ordering.hd
 typing/invalid/bound-argument-bare-trait.hd
@@ -2882,6 +2881,7 @@ typing/invalid/missing-mutable-edge.hd
 typing/invalid/missing-required-data-field.hd
 typing/invalid/missing-requirement.hd
 typing/invalid/missing-return-value.hd
+typing/invalid/missing-trait-method.hd
 typing/invalid/module-qualified-without-use.hd
 typing/invalid/mut-any-bound-readonly-argument.hd
 typing/invalid/mut-iterator-iterable-bound.hd
@@ -3016,6 +3016,7 @@ typing/invalid/tests-block-item-outside.hd
 typing/invalid/top-level-defer.hd
 typing/invalid/top-level-let-annotation-type-mismatch.hd
 typing/invalid/top-level-return.hd
+typing/invalid/trait-impl-missing-method.hd
 typing/invalid/trait-method-bare-trait.hd
 typing/invalid/trait-method-receiver-mismatch.hd
 typing/invalid/trait-method-result-type-mismatch.hd
