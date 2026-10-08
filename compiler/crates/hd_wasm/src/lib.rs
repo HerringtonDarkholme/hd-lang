@@ -28,7 +28,7 @@ use wasm_encoder::{
     Module, RefType, StorageType, StructType, SubType, TypeSection, ValType,
 };
 
-pub use emit::{emit, entry, test_entry};
+pub use emit::{emit, entry, script_entry, test_entry};
 pub use rt::Helper;
 
 /// A Wasm value type, with references to structural type descriptors.

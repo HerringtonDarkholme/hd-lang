@@ -146,3 +146,14 @@ fn run_reports_check_errors() {
     let err = String::from_utf8_lossy(&output.stderr);
     assert!(err.contains("unknown-name `missing`"), "{err}");
 }
+
+/// A script is an entry module with top-level statements and no `main`:
+/// its statements are the whole program (module.init.script).
+#[test]
+fn script_runs_its_top_level_statements() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-script");
+    std::fs::create_dir_all(&dir).expect("dir");
+    let file = dir.join("hello.hd");
+    std::fs::write(&file, "x := 40 + 2\nprintln(x)\n").expect("write");
+    assert_eq!(hd_run(&cache("hd-cache-script"), &file), "42\n");
+}

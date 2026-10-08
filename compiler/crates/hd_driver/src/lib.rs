@@ -295,6 +295,9 @@ enum Roots {
         key: Hash128,
         report: Option<Hash128>,
     },
+    /// A script: its init, which runs its top-level statements after the
+    /// other inits it reaches.
+    Script { def: DefId, key: Hash128 },
     /// Each running case (item, instance, report), and per test module
     /// the inits it reaches.
     Tests {
@@ -1625,7 +1628,12 @@ impl Run<'_> {
             );
             return;
         };
-        let (root, _) = roots[0];
+        let init_of = |m: &str| hd_check::default_body_def(&names, names.item(m, "init"), "init");
+        // A script has no `main`: its top-level statements are its module
+        // initialization, and that is the whole entry behavior.
+        let (main, _) = roots[0];
+        let script = matches!(self.goal, Goal::Program { .. }) && !p.bodies.contains_key(&main);
+        let root = if script { init_of(&entry_key) } else { main };
         if !p.bodies.contains_key(&root) {
             let span = Span {
                 file: FileId::from_raw(u32::MAX),
@@ -1635,12 +1643,13 @@ impl Run<'_> {
             lock(&self.diags).error(
                 Code::MissingEntryPoint,
                 span,
-                &format!("missing-entry-point: `{entry_key}` has no `fn main`"),
+                &format!(
+                    "missing-entry-point: `{entry_key}` has no `fn main` or top-level statements"
+                ),
             );
             return;
         }
         let env = Env { run: self, p };
-        let init_of = |m: &str| hd_check::default_body_def(&names, names.item(m, "init"), "init");
         let has_init = |m: &str| p.bodies.contains_key(&init_of(m));
         // The init groups each root module reaches, in order, and their union.
         let mut root_modules: Vec<String> = Vec::new();
@@ -1709,6 +1718,10 @@ impl Run<'_> {
                 .and_then(|i| collected.inits.get(i).copied())
         };
         let plan = match &self.goal {
+            Goal::Program { .. } if script => Roots::Script {
+                def: root,
+                key: collected.table.key[0],
+            },
             Goal::Program { .. } => Roots::Main {
                 def: root,
                 key: collected.table.key[0],
@@ -2077,6 +2090,9 @@ impl Run<'_> {
                 &c.collected.inits,
                 *report,
             ),
+            Roots::Script { def, key } => {
+                hd_wasm::script_entry(&self.pool, &env, &path, *def, *key, &c.collected.inits)
+            }
             Roots::Tests { cases, inits } => {
                 hd_wasm::test_entry(&self.pool, &env, &path, cases, inits)
             }
@@ -2240,6 +2256,35 @@ impl Env<'_> {
     fn sig(&self, def: DefId) -> Option<&hd_resolve::FnSig> {
         self.p.items.get(&def)?.sig()
     }
+
+    /// The row keys of a module init, which has no signature. An entry
+    /// module's init has an inferred entry row (`module.init.script-row`),
+    /// so its keys are those of the callees its top level calls.
+    fn init_keys(&self, def: DefId) -> Vec<DefId> {
+        let Some((b, _)) = self.p.bodies.get(&def) else {
+            return Vec::new();
+        };
+        if b.kind != hd_tir::BodyKind::Init {
+            return Vec::new();
+        }
+        let mut keys: Vec<DefId> = Vec::new();
+        for (i, tag) in b.tags.iter().enumerate() {
+            if *tag != hd_tir::Tag::Call {
+                continue;
+            }
+            let Some(hd_tir::Callee::Item { def: callee, .. }) =
+                hd_tir::Callee::from_words(b.record(b.data[i][0]))
+            else {
+                continue;
+            };
+            for k in self.row_keys(callee) {
+                if !keys.contains(&k) {
+                    keys.push(k);
+                }
+            }
+        }
+        keys
+    }
 }
 
 impl ProgramEnv for Env<'_> {
@@ -2262,7 +2307,7 @@ impl ProgramEnv for Env<'_> {
     }
     fn row_keys(&self, def: DefId) -> Vec<DefId> {
         let Some(s) = self.sig(def) else {
-            return Vec::new();
+            return self.init_keys(def);
         };
         let mut keys: Vec<DefId> = self
             .run

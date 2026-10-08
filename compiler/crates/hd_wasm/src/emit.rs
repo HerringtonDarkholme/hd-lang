@@ -3210,6 +3210,29 @@ pub fn entry(
     ])
 }
 
+/// The entry exports of a script (module.init.script): `hd.init` runs the
+/// reachable groups' inits except the script's own, which is last, since
+/// every reachable group is a dependency of it. `hd.poll` runs that init
+/// with its entry providers, then exits with 0 as `main` with no result.
+pub fn script_entry(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    path: &dyn Fn(DefId) -> String,
+    init: DefId,
+    key: hd_base::Hash128,
+    inits: &[hd_base::Hash128],
+) -> StageResult<Vec<(String, Helper)>> {
+    let others: Vec<hd_base::Hash128> = inits.iter().copied().filter(|k| *k != key).collect();
+    Ok(vec![
+        ("hd.init".into(), Helper::EntryInit { inits: others }),
+        (
+            "hd.poll".into(),
+            root_poll(pool, env, path, init, key, None)?,
+        ),
+        ("hd.wake".into(), Helper::EntryWake),
+    ])
+}
+
 /// The exports of a test program (engines-and-test-runner.md §19.1):
 /// `hd.init.j`, the init groups that test module `j` reaches; `hd.test.i`,
 /// which polls case `i` as `hd.poll` polls `main`; and `hd.wake`.
