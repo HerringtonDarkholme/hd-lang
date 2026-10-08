@@ -24,6 +24,7 @@ use crate::iface::{
     Export, Field, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item, ItemData, Names,
     TraitData, Variant, fill_trait_args,
 };
+use crate::known::KnownItems;
 use crate::variance::{self, Seen};
 use crate::view::Src;
 
@@ -1448,28 +1449,10 @@ impl Lower<'_, '_, '_> {
     }
 
     fn decorators(&self, n: NodeRef<'_>) -> Vec<(String, Vec<String>)> {
-        let mut out = Vec::new();
-        for d in n.children().filter(|c| c.kind() == SyntaxKind::Decorator) {
-            let Some(e) = d.children().next() else {
-                continue;
-            };
-            let (name_node, args) = match e.kind() {
-                SyntaxKind::CallExpr => {
-                    (e.children().next(), Src::child(e, SyntaxKind::ArgumentList))
-                }
-                _ => (Some(e), None),
-            };
-            let Some(name) = name_node.and_then(|x| self.src.first_ident(x)) else {
-                continue;
-            };
-            let mut list = Vec::new();
-            for a in args.iter().flat_map(|l| l.children()) {
-                let text: String = self.src.tokens(a).map(|t| self.src.text(t)).collect();
-                list.push(text.trim_matches('"').to_owned());
-            }
-            out.push((self.src.text(name).to_owned(), list));
-        }
-        out
+        n.children()
+            .filter(|c| c.kind() == SyntaxKind::Decorator)
+            .filter_map(|d| decorator_line(&self.src, d))
+            .collect()
     }
 
     fn members(
@@ -2081,6 +2064,119 @@ pub fn misplaced_block(
     None
 }
 
+/// One decorator line as its name and its argument texts (`@derive(Eq, Hash)`
+/// gives `derive` and `Eq`, `Hash`). `None` for a form with no name.
+fn decorator_line(src: &Src<'_>, d: NodeRef<'_>) -> Option<(String, Vec<String>)> {
+    let e = d.children().next()?;
+    let (name_node, args) = match e.kind() {
+        SyntaxKind::CallExpr => (e.children().next(), Src::child(e, SyntaxKind::ArgumentList)),
+        _ => (Some(e), None),
+    };
+    let name = name_node.and_then(|x| src.first_ident(x))?;
+    let mut list = Vec::new();
+    for a in args.iter().flat_map(|l| l.children()) {
+        let text: String = src.tokens(a).map(|t| src.text(t)).collect();
+        list.push(text.trim_matches('"').to_owned());
+    }
+    Some((src.text(name).to_owned(), list))
+}
+
+/// The traits that a derived trait needs in the same `@derive` list
+/// (`trait.derive.related.same-list`): `Hash` and `PartialOrd` need `Eq`, and
+/// `Ord` needs `Eq` and `PartialOrd`.
+fn needed_traits(known: &KnownItems, tr: DefId) -> Vec<DefId> {
+    if tr == known.hash || tr == known.partial_ord {
+        vec![known.eq]
+    } else if tr == known.ord {
+        vec![known.eq, known.partial_ord]
+    } else {
+        Vec::new()
+    }
+}
+
+/// Whether two traits are related (`trait.derive.related`): `Hash`,
+/// `PartialOrd` and `Ord` each relate to `Eq`, and `Ord` also to `PartialOrd`.
+fn related_traits(known: &KnownItems, a: DefId, b: DefId) -> bool {
+    let pair = |x: DefId, y: DefId| (a == x && b == y) || (a == y && b == x);
+    pair(known.hash, known.eq)
+        || pair(known.partial_ord, known.eq)
+        || pair(known.ord, known.eq)
+        || pair(known.ord, known.partial_ord)
+}
+
+/// The related-trait rules of derivation (`trait.derive.related.same-list`,
+/// `trait.derive.related.no-mix`), each `@derive` line reported once. A line
+/// breaks a rule when it lacks a needed trait, or when one of its traits is
+/// related to a trait the module hand-writes for the same type. A line with
+/// an unresolved name is skipped: its name already has an error.
+fn related_derives(
+    names: &Names<'_>,
+    items: &[Item],
+    heads: &[Head<'_>],
+    scope: &ModuleScope,
+    src: &Src<'_>,
+    diags: &mut DiagBuf,
+) {
+    let pool = names.pool;
+    let known = names.known;
+    for h in heads {
+        let written: Vec<DefId> = items
+            .iter()
+            .filter_map(|i| match &i.data {
+                ItemData::Impl {
+                    trait_,
+                    self_ty,
+                    kind: ImplKind::Written | ImplKind::Delegated,
+                    ..
+                } if *trait_ != DefId::NONE
+                    && matches!(pool.get(*self_ty), TyData::Adt { def, .. } if def == h.def) =>
+                {
+                    Some(*trait_)
+                }
+                _ => None,
+            })
+            .collect();
+        for d in h
+            .node
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::Decorator)
+        {
+            let Some((name, args)) = decorator_line(src, d) else {
+                continue;
+            };
+            if name != "derive" {
+                continue;
+            }
+            let traits: Option<Vec<DefId>> = args
+                .iter()
+                .map(|a| match scope.lookup(names.syms.intern(a)) {
+                    Some(Binding {
+                        kind: BindingKind::Item,
+                        value,
+                    }) => Some(DefId::from_raw(value)),
+                    _ => None,
+                })
+                .collect();
+            let Some(traits) = traits else {
+                continue;
+            };
+            let short = traits
+                .iter()
+                .any(|&t| needed_traits(known, t).iter().any(|n| !traits.contains(n)));
+            let mixed = traits
+                .iter()
+                .any(|&t| written.iter().any(|&w| related_traits(known, t, w)));
+            if short || mixed {
+                diags.error(
+                    Code::MixedDerivedLaw,
+                    src.span(d),
+                    "`@derive` must list the traits a derived trait needs, and cannot mix with hand-written related traits",
+                );
+            }
+        }
+    }
+}
+
 /// The placement rules of derivation syntax (`annot.template.module`,
 /// `annot.block.module`, `annot.block.newtype.error`,
 /// `annot.line.placement-blocks`, `annot.no-trait.*`), each reported once on
@@ -2312,6 +2408,7 @@ pub fn build_folder(
         ownership(names, &m.path, &items, hs, &m.src, diags);
         if r.frozen.is_none() {
             placement(names, &m.path, &items, hs, &m.src, diags);
+            related_derives(names, &items, hs, &scope, &m.src, diags);
         }
         let anchors = crate::anchor::collect(names, &m.src, hs, &items);
         out.modules.push(ModOut {

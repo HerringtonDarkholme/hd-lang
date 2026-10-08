@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1611 | 688 | 544 | 2843 |
+| 1614 | 685 | 544 | 2843 |
 
 ## By Chapter
 
@@ -22,7 +22,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/06-control-flow.md` | 97 | 34 | 26 | 157 |
 | `lang/07-functions.md` | 51 | 34 | 45 | 130 |
 | `lang/08-data-and-enums.md` | 52 | 40 | 31 | 123 |
-| `lang/09-traits.md` | 189 | 120 | 49 | 358 |
+| `lang/09-traits.md` | 192 | 117 | 49 | 358 |
 | `lang/10-modules.md` | 119 | 86 | 53 | 258 |
 | `lang/11-requirements-and-suspension.md` | 104 | 54 | 101 | 259 |
 | `lang/14-annotations.md` | 78 | 57 | 18 | 153 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 52 | 33 | 20 | 105 |
 | `runtime/valid` | 386 | 174 | 369 | 929 |
-| `typing/invalid` | 544 | 420 | 109 | 1073 |
+| `typing/invalid` | 547 | 417 | 109 | 1073 |
 | `typing/valid` | 335 | 34 | 46 | 415 |
 | `typing/warnings` | 7 | 13 | 0 | 20 |
 
@@ -94,7 +94,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 9 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 270 |
+| `fail:no-diagnostic` | 267 |
 | `fail:nonexhaustive-match` | 16 |
 | `fail:not-callable` | 1 |
 | `fail:orphan-impl` | 1 |
@@ -301,7 +301,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (270)</summary>
+<details><summary><code>fail:no-diagnostic</code> (267)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -372,9 +372,6 @@ compiler stage that first declined the case.
 - `typing/invalid/embedded-non-data.hd`
 - `typing/invalid/embedded-collection-type.hd`
 - `typing/invalid/embedded-type-parameter.hd`
-- `typing/invalid/mixed-derived-law.hd`
-- `typing/invalid/derived-hash-without-eq.hd`
-- `typing/invalid/hand-written-hash-beside-derived-eq.hd`
 - `typing/invalid/inherent-member-unifying-targets.hd`
 - `typing/invalid/trait-resolution-depth.hd`
 - `typing/invalid/function-type-non-tuple-inputs.hd`
@@ -2499,6 +2496,7 @@ typing/invalid/derived-arbitrary-tuned-member-not-arbitrary.hd
 typing/invalid/derived-default-member-not-default.hd
 typing/invalid/derived-eq-enum-payload-missing-trait.hd
 typing/invalid/derived-hash-field-not-hash.hd
+typing/invalid/derived-hash-without-eq.hd
 typing/invalid/derived-total-order-float.hd
 typing/invalid/diamond-same-depth-conflict.hd
 typing/invalid/discarded-optional-result.hd
@@ -2575,6 +2573,7 @@ typing/invalid/generic-trait-literal-without-default.hd
 typing/invalid/grammar-mutable-field-modifier.hd
 typing/invalid/guarded-catch-all-not-exhaustive.hd
 typing/invalid/guarded-match-not-exhaustive.hd
+typing/invalid/hand-written-hash-beside-derived-eq.hd
 typing/invalid/hd-run-requires-process.hd
 typing/invalid/if-branch-misses-expected-type.hd
 typing/invalid/impl-bound-bare-trait.hd
@@ -2675,6 +2674,7 @@ typing/invalid/missing-required-data-field.hd
 typing/invalid/missing-requirement.hd
 typing/invalid/missing-return-value.hd
 typing/invalid/missing-trait-method.hd
+typing/invalid/mixed-derived-law.hd
 typing/invalid/module-qualified-without-use.hd
 typing/invalid/mut-any-bound-readonly-argument.hd
 typing/invalid/mut-iterator-iterable-bound.hd
