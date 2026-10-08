@@ -90,32 +90,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### D2i. Reconcile P2-1b And Fix Two Fixtures
-
-P2-1b landed (53563951): the access-permission model (`hd_check/src/access.rs`),
-variance checking (`hd_resolve/src/variance.rs`), trait-signature
-conformance (`hd_check/src/conform.rs`), severities in the check cache
-(layout 3), code keys including a hash of the program's data layouts
-(fixes cross-fixture code reuse). Record these in the owning design
-docs (type-checking.md, cache.md, codegen.md), citing the commit. Then
-the fixtures it found contradicting the spec:
-
-1. `typing/invalid/orphan-impl-nested-trait-argument.hd` contradicts
-   `types.fresh.element-permission` and `types.fresh.element-no-weaken`
-   (`[[Word { ... }]].iter()` is `mut Iterator[mut List[mut Word]]`;
-   returning it as `mut Iterator[List[Word]]` is a second error). Fix
-   the fixture so it tests only the orphan rule; then tell the
-   orchestrator in the commit message so the checker's readonly-element
-   fallback in `list_expr` can be removed.
-2. `typing/warnings/unused-cold-suspension.hd` expects only the
-   `unused-local-binding` warning, but `flow.unused.must-use` makes an
-   unread must-use binding (`mut Suspend[T]`) a `discarded-must-use-value`
-   error. Decide from the spec which is right, fix the fixture or the
-   rule text, and say which.
-
-Docs and fixtures only; `bash spec/check.sh` and `cargo test -p
-hd_syntax --test corpus` green. Timebox 45 minutes; push.
-
 ### S11b. Terminology Sweep, Redone With Evidence (Owner, Next)
 
 S11 kept all 186 terms with "ordinary English" / "standard vocabulary"

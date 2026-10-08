@@ -68,7 +68,7 @@ fn save_all(values: List[i32]) -> void:
 
 1. r[flow.unused.warning] The compiler emits an `unused-local-binding` warning when an ordinary local binding is never read.
 2. r[flow.unused.underscore] Names beginning with `_` suppress that warning.
-3. r[flow.unused.must-use] The exception is an unread binding of a must-use value, which is an error. Error: `discarded-must-use-value`.
+3. r[flow.unused.must-use] The exception is an unread binding of a must-use value, which is an error. A suspension counts however it is bound: the readonly view of `:=` and `let` does not lift the obligation. Error: `discarded-must-use-value`.
 4. r[flow.unused.discard-forms] The two discard forms, `_ := expression` and `let _ = expression`, each explicitly discard a must-use value without binding it. No other form discards one.
 
 ```hd

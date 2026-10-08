@@ -26,7 +26,7 @@ so `obj/` needs a spec change, which the owner accepted (open question
 | Kind | Content | Written by | Read by |
 | --- | --- | --- | --- |
 | `iface` | a folder interface blob (§4.11); its header carries `api_hash`, `deep_hash`, `heads_hash` | `FolderIface` | dependents' key computation, resolution, coherence, `hd doc` |
-| `check` | one module and role, in sections: diagnostics, init summary, row results, fact records, the read list (§5.3), the file's declaration table (`locs`), headers, and, only when the module has no error, its TIR with per-item TIR hashes and dependency lists (§4.13.11); role `test` also holds synthesized test items and registrations | `ModuleFinish` | output, `InitOrder`, D2, `hd check --tests`, `hd test` |
+| `check` | one module and role, in sections: diagnostics with severities (layout 3 keeps warnings as warnings, so a cached warning no longer fails the CLI), init summary, row results, fact records, the read list (§5.3), the file's declaration table (`locs`), headers, and, only when the module has no error, its TIR with per-item TIR hashes and dependency lists (§4.13.11); role `test` also holds synthesized test items and registrations | `ModuleFinish` | output, `InitOrder`, D2, `hd check --tests`, `hd test` |
 | `graph` | every package-wide part in one entry: each folder's stage-B header diagnostics ([resolution-and-interfaces.md §4.10.1](resolution-and-interfaces.md#4101-header-validation-stages)), each trait's overlap diagnostics, each folder's statement order and its diagnostics | `HeaderCheck`, `Coherence` and `InitOrder`, gathered at `PackageResult` | output, D2 |
 | `pkgres` | the package's sorted diagnostics and summary counts | `PackageResult` | the warm fast path |
 | `depfiles` | a fetched dependency's file list with content and api text hashes | first use of the dependency | every later run (§5.5) |
@@ -326,7 +326,7 @@ reaches; the review's Mac costs):
 
 ```text
 obj/
-  LAYOUT                      "hd-obj 1 xxh3-128"
+  LAYOUT                      "hd-obj 3 xxh3-128"
   <kind>/<2 hex>/<32 hex>     one file per key; the 2 hex digits name the shard
   stats                       256 approximate shard sizes, for eviction (§5.7)
 ```

@@ -47,7 +47,9 @@ test("generic suspension frames retain trait dictionaries across child polls", a
 });
 
 test("ordinary suspending calls are cold values and bang calls need a driver", () => {
-  const cold = analyze(conformance("typing/warnings/unused-cold-suspension"));
+  const cold = analyze(conformance("typing/invalid/unused-cold-suspension"));
+  // F-626: the prototype still warns here where flow.unused.must-use wants
+  // discarded-must-use-value; what this test pins is the cold value type.
   assert.equal(cold.diagnostics[0]?.code, "unused-local-binding");
   assert.equal(cold.hir?.functions[1]?.locals[0]?.type, "suspend(0):i32");
   assert.equal(

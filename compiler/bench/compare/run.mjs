@@ -176,7 +176,7 @@ function main() {
   console.log(``);
 
   // Run.
-  console.log(`## hd run (`hd FILE`; same sources)\n`);
+  console.log(`## hd run (bare FILE; same sources)\n`);
   console.log(`| Input | TS cold | TS warm | new cold | new warm |`);
   console.log(`| --- | ---: | ---: | ---: | ---: |`);
   for (const [name, src] of [

@@ -595,7 +595,7 @@ runtime/valid/generic-suspending-function.hd	runtime	accept	lang/11-requirements
 runtime/valid/generic-suspending-function-bound.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspending-functions
 typing/invalid/bang-call-in-plain-function.hd	type	reject:bang-call-outside-suspension	lang/11-requirements-and-suspension.md#suspending-functions
 typing/invalid/drive-readonly-suspension.hd	type	reject:mutable-receiver-required	lang/11-requirements-and-suspension.md#suspending-functions
-typing/warnings/unused-cold-suspension.hd	type	warn:unused-local-binding	lang/11-requirements-and-suspension.md#suspending-functions
+typing/invalid/unused-cold-suspension.hd	type	reject:discarded-must-use-value	lang/06-control-flow.md#r-flow.unused.must-use
 runtime/panic/second-drive-of-completed-suspension.hd	runtime	panic:suspension-invalid-state	lang/11-requirements-and-suspension.md#suspendt-protocol
 runtime/valid/stored-suspension-single-drive.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspendt-protocol
 runtime/valid/cold-suspension-cancel-idempotent.hd	runtime	accept	lang/11-requirements-and-suspension.md#cancellation

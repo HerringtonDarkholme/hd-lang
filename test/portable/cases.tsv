@@ -441,7 +441,6 @@ runtime/valid/generic-suspending-function.hd	runtime
 runtime/valid/generic-suspending-function-bound.hd	runtime
 typing/invalid/bang-call-in-plain-function.hd	type
 typing/invalid/drive-readonly-suspension.hd	type
-typing/warnings/unused-cold-suspension.hd	type
 runtime/panic/second-drive-of-completed-suspension.hd	runtime
 runtime/valid/stored-suspension-single-drive.hd	runtime
 runtime/valid/cold-suspension-cancel-idempotent.hd	runtime

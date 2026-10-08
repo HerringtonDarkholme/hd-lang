@@ -1104,10 +1104,12 @@ pipeline_hash        = H(pipeline name, each pass's name, version and parameters
                          emit options, engine options)   (tiering.md §6.4)
 ```
 
-**M4b key gap (M4b gap 4).** The implementation currently hashes only
-the pipeline, instance key, item TIR hash, toolchain key and aggregate
-callee representation summary. It omits the per-item interface hashes,
-layout hashes, selected-impl interface hashes, callee inline summaries,
+**M4b key gap (M4b gap 4), narrowed by P2-1b `53563951`.** The
+implementation now hashes the layout hashes with the pipeline, instance
+key, item TIR hash, toolchain key and aggregate callee representation
+summary, so two fixtures declaring one path with different fields no
+longer share emitted code. It still omits the per-item interface
+hashes, selected-impl interface hashes, callee inline summaries,
 inlined-item TIR hashes and literal numbers listed above. Those inputs
 remain part of the required code key; a hit is not sound until every
 emission read is represented.

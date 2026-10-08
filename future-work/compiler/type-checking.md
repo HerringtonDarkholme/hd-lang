@@ -731,6 +731,10 @@ only for the `use` fix-it of `unknown-method` (section 10.5).
 4. The emitted TIR is the trait `Call` (or a `Prim`), with the
    evaluation order left, right, call.
 
+**Trait-method conformance (P2-1b `53563951`,
+`hd_check/src/conform.rs`).** Each impl method's signature is checked
+against its trait's; a mismatch is `trait-method-signature`.
+
 ### 2.6 Closures
 
 1. With `Expect::Fn`, unannotated parameters take the expected parameter
@@ -1156,6 +1160,10 @@ its position expects) holds only because of this rule.
 | `ToTraitValue` | `S` → `Tr`, `mut S` → `mut Tr`; `Any` included | to trait value, to `Any` | box with its dispatch table; the impl choice is in the record |
 | `Supertrait` | child trait value → parent trait value | supertrait (checking-and-tir.md catalog) | re-table: load the parent's vtable from the child's |
 | `SuspendFnToCtor` | `fn!` type → constructor type | suspending function to constructor | none, or a thin adapter |
+
+**Declared variance (P2-1b `53563951`, `hd_resolve/src/variance.rs`).**
+Variance markers are declared, not inferred, and the `Variance` step
+above applies them; anything else is `invalid-variance`.
 
 The error conversion of `?` is not a coercion: it is a `Call` of the
 resolved `From` method on the failing path (section 4.4). Literal widths
@@ -1615,6 +1623,16 @@ When the target is a local, `mutable-receiver-required` and
 declaration, `x := e` or `let x = e`, to `let mut x = e`. When the
 initializer is readonly, which `let mut` would reject, the fix-it is a
 `Suggestion` that names the fresh-copy form instead (section 10.5).
+
+**Access implementation (P2-1b `53563951`, `hd_check/src/access.rs`).**
+Fresh data, list and map literals are `mut T`, except when a readonly
+value sits in a direct `mut U` field; a newtype carries its base value's
+permission. Inference binds `T = mut U` and joins several arguments at
+the readonly view; `T < mut Trait` bounds give mutable access and reject
+readonly arguments, and mutable requirement traits need `mut` providers.
+Field reads follow the edge kind; `mut self` calls, loops over an
+iterator, and driving a suspension need mutable receivers. Nested
+permissions convert only by declared variance, else `type-mismatch`.
 
 ### 8.3 Local Flags
 

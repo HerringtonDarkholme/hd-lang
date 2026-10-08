@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-08 the suite has
-2,831 cases: 2,760 selected in `test/portable/cases.tsv` and 71 known
-failures. The selected cases are 2,372 language tier, 312 stdlib tier, and 76
-CLI tier; the known failures are 48 language tier, 4 stdlib tier, and 19
+2,831 cases: 2,759 selected in `test/portable/cases.tsv` and 72 known
+failures. The selected cases are 2,371 language tier, 312 stdlib tier, and 76
+CLI tier; the known failures are 49 language tier, 4 stdlib tier, and 19
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -30,6 +30,7 @@ CLI tier.
 | F-623 | 3 | the package graph is not modeled, so no `package-cycle` and no dependency back on the root |
 | F-624 | 1 | the checker reports `syntax-error` for a `mut`-target alias used as a requirement key instead of `mut-alias-key` |
 | F-625 | 1 | a `use` inside a `tests:` block leaks to module scope: main's two-argument call resolves to std `assert_equal` and misses its reason parameter, where the block import should win only inside the block |
+| F-626 | 1 | an unread binding of a cold suspension only warns instead of erroring with `discarded-must-use-value` |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
 | S1A | 5 | indirect `block_on` and `println` panic at run time instead of a transitive ban; no instantiation depth limit; impl-head projections accepted |
 | S1B | 4 | `hd fmt` and two JSON report fields are missing |
@@ -107,6 +108,10 @@ Correctness and diagnostics:
   `argument-count`. By `names.tests.shadow`, the block import wins only
   inside the block, as a nested scope. `runtime/valid/tests-block-use-shadow.hd`
   shows it.
+- **F-626**: an unread binding of a cold suspension only warns
+  `unused-local-binding` instead of erroring `discarded-must-use-value`.
+  By `flow.unused.must-use`, the readonly view of `:=` does not lift the
+  must-use obligation. `typing/invalid/unused-cold-suspension.hd` shows it.
 
 Runtime cost:
 

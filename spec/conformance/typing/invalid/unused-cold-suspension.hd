@@ -1,0 +1,7 @@
+# test: an unread binding of a cold suspension is an error even though := binds the readonly view
+# Spec 06 Unused Bindings: flow.unused.must-use.
+# Spec 11 Suspending Calls: req.suspend.type.plain-call.
+
+fn work!() -> i32: 42
+fn main() -> void:
+    pending := work()  # diagnostic: discarded-must-use-value
