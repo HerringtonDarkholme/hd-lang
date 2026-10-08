@@ -450,6 +450,41 @@ fn checker_errors_are_reported() {
     }
 }
 
+/// `mut T` over an unconstrained parameter reports `mut-on-type-parameter`
+/// alone, also in a method of a covariant impl (`types.generic.no-mut-t`).
+#[test]
+fn mut_on_unconstrained_type_parameter() {
+    let ok = program(
+        "fn keep[T < mut Any](value: mut T) -> void:\n    pass\n\nfn main() -> void:\n    pass\n",
+    );
+    assert!(
+        !codes(&ok).contains(&Code::MutOnTypeParameter),
+        "{}",
+        ok.render()
+    );
+    let bad =
+        program("fn reset[T](value: mut T) -> void:\n    pass\n\nfn main() -> void:\n    pass\n");
+    assert!(
+        codes(&bad).contains(&Code::MutOnTypeParameter),
+        "{}",
+        bad.render()
+    );
+    let method = program(
+        "data Feed[T]:\n    latest: T\n\nimpl[T] Feed[T]:\n    pub fn swap(self, other: mut T) -> void:\n        pass\n\nfn main() -> void:\n    pass\n",
+    );
+    let found = codes(&method);
+    assert!(
+        found.contains(&Code::MutOnTypeParameter),
+        "{}",
+        method.render()
+    );
+    assert!(
+        !found.contains(&Code::InvalidVariance),
+        "{}",
+        method.render()
+    );
+}
+
 const LIMITED_FACT: &str = "use std.annotation.annotate\n\n@annotate(.Field)\ndata MaxLen:\n    value: i32\n\nfn max_len(value: i32) -> MaxLen:\n    MaxLen { value: value }\n\ndata Profile:\n    @max_len(80)\n    name: string\n\n";
 
 /// A fact type limited to `.Field` is accepted on a field and rejected

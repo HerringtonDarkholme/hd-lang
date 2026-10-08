@@ -582,6 +582,8 @@ struct Gen {
     rows: Vec<(Symbol, RowParamRef)>,
     self_ty: Option<Ty>,
     self_trait: Option<DefId>,
+    /// Type parameters written with a bound list (types.generic.no-mut-t).
+    bounded: Vec<Ty>,
 }
 
 struct Lower<'a, 'r, 'x> {
@@ -910,6 +912,14 @@ impl Lower<'_, '_, '_> {
                         );
                         t
                     }
+                    TyData::Param(_) if !gn.bounded.contains(&t) => {
+                        self.diags.error(
+                            Code::MutOnTypeParameter,
+                            self.src.span(n),
+                            "`mut` on an unconstrained type parameter; use a `< mut Any` bound",
+                        );
+                        t
+                    }
                     _ => pool.intern_ty(&TyData::Mut(t)),
                 }
             }
@@ -1081,6 +1091,13 @@ impl Lower<'_, '_, '_> {
                         bounds.push(t);
                     }
                 }
+            }
+            if !row
+                && Src::child(node, SyntaxKind::BoundList).is_some()
+                && let Some((_, t, _)) = gn.tys[start..].iter().find(|(s, _, _)| *s == g.name)
+            {
+                let t = *t;
+                gn.bounded.push(t);
             }
             g.bound = bounds.first().and_then(|b| self.trait_of(*b));
             if !row && let Some(slot) = gn.tys[start..].iter_mut().find(|(s, _, _)| *s == g.name) {

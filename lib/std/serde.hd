@@ -91,7 +91,7 @@ impl[T] Serialize for T by Structure:
 
 # The fields are public because the prototype checks the instantiated
 # walker in the deriving module.
-data SerializeWalker[S, W]:
+data SerializeWalker[S, W < mut Serializer]:
     pub out: mut W
     pub facts: Facts
 
@@ -117,7 +117,7 @@ impl[T] Deserialize for T by Structure:
 
 # The fields are public because the prototype checks the instantiated
 # source in the deriving module.
-data DeserializeSource[S, R]:
+data DeserializeSource[S, R < mut Deserializer]:
     pub input: mut R
     pub facts: Facts
     pub at: usize
