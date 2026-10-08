@@ -3354,7 +3354,6 @@ typing/warnings/let-list-redundant-mut.hd
 typing/warnings/let-mut-optional-payload.hd
 typing/warnings/redundant-let-mut.hd
 typing/warnings/same-line-let-list-unused.hd
-typing/warnings/unused-cold-suspension.hd
 typing/warnings/unused-local-binding.hd
 typing/warnings/unused-nested-optional-binding.hd
 ```
