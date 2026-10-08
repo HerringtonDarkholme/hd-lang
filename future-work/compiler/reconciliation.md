@@ -75,6 +75,73 @@ Ranked by how much each blocks the next working language slice.
     `analyze_package` as one slice, while `SteppingScheduler` counts tasks,
     not body cursors. The CLI also lacks a check-only path.
 
+## Open Backlog
+
+This is the single backlog for open reconciliation, skeleton, and milestone
+findings. It was checked against `compiler/crates` at `b824c3cf`. No surviving
+gap is phase 1: the vertical slice moves. Phase 2 completes behavior; phase 3
+improves the working implementation.
+
+Sizes are relative: S is a contained change, M crosses several components, and
+L is a substantial part of its absorbing job. A row naming two jobs requires
+their shared boundary, not duplicate implementations.
+
+| Gap | Owning design section | Phase | Size | Absorbed by |
+| --- | --- | --- | --- | --- |
+| Interners still use global locks, and type interning allocates a key before lookup. | data-structures.md §3.3 | 3 — wonderful | M | none: add a phase-3 interning job |
+| Inference variables use the global type pool; the body-local pool and bit-31 identity are absent. | data-structures.md §3.4 | 3 — wonderful | M | none: add a phase-3 checker-storage job |
+| `hd.ungram`, generated named Rust views, generated JavaScript views, and the JS wire decoder are absent. | data-structures.md §3.13; syntax.md §4.4 | 2 — work | L | P2-12 |
+| Skim lexes whole files, has no header tree, and initially over-collects identifier-led body lines as uses. | data-structures.md §3.14; syntax.md §4.3 | 2 — work | M | P2-5 |
+| Interface and check invalidation still include broader use and source hashes than their semantic dependencies require. | resolution-and-interfaces.md §4.11.3; cache.md §5.3 | 3 — wonderful | M | none: add a phase-3 incremental-precision job |
+| Location-only shifts and header edits do not yet provide the designed per-body reuse. | checking-and-tir.md §4.13.1, §4.13.11; cache.md §5.3 | 3 — wonderful | M | none: add a phase-3 incremental-precision job |
+| Check entries omit init summaries, row results, facts, reads, and locations. | data-structures.md §3.20.4; cache.md §5.2 | 2 — work | M | P2-5 |
+| The task graph lacks the designed atomic concurrent storage. | data-structures.md §3.21 | 3 — wonderful | L | none: add a phase-3 scheduler job |
+| The pool drains a locked FIFO queue and does not preserve task priority. | scheduler.md §6.2, §6.3 | 3 — wonderful | M | none: add a phase-3 scheduler job |
+| Browser stepping advances whole tasks, and `hd_web` does not use the stepping scheduler. | scheduler.md §6.2; engines-and-test-runner.md §18.4 | 2 — work | M | P2-11 |
+| A task panic can unwind the build instead of becoming one internal diagnostic. | scheduler.md §6.4 | 2 — work | S | P2-10 |
+| Emit tasks and disk entries are per instance instead of per missed folder-group codepack. | scheduler.md §6.2; codegen.md §11.1, §11.3; cache.md §5.2 | 3 — wonderful | L | none: add a phase-3 codepack job |
+| Frozen interfaces cannot distinguish a private declaration from an absent cross-folder name. | resolution-and-interfaces.md §4.9 | 2 — work | M | P2-5 |
+| Header lowering does not apply declared trait defaults or complete all derived heads. | resolution-and-interfaces.md §4.10, §4.10.1 | 2 — work | M | P2-3 |
+| Interfaces decode into owned copies and have no indexed, zero-copy reader. | resolution-and-interfaces.md §4.11 | 3 — wonderful | M | none: add a phase-3 interface-storage job |
+| Interfaces omit declaration anchors, so stage-B, coherence, and package diagnostics can fall back to byte zero. | resolution-and-interfaces.md §4.11; checking-and-tir.md §4.14 | 2 — work | M | P2-5 |
+| Coherence compares trait heads pairwise rather than through the designed ground and generic tries. | resolution-and-interfaces.md §4.12; trait-solver.md §5.2 | 3 — wonderful | M | none: add a phase-3 solver-index job |
+| The standard-library pack has no writer. | design-overview.md §2.1; std-bootstrap.md §3 | 2 — work | M | P2-5 |
+| Omitted private result inference and omitted-row solving are incomplete. | checking-and-tir.md §4.13.1; type-checking.md §1.4–§1.6 | 2 — work | L | P2-2 |
+| Bodies are checked serially inside one module task instead of through the designed batched parallel iterator. | checking-and-tir.md §4.13.1 | 3 — wonderful | M | none: add a phase-3 checker-parallelism job |
+| Mutability checking omits receiver, argument, upgrade, and redundant-`let mut` results. | type-checking.md §8; checking-and-tir.md §4.13 | 2 — work | M | P2-2 |
+| Closure requirement rows are not inferred. | type-checking.md §6; checking-and-tir.md §4.13 | 2 — work | M | P2-2 |
+| The checker does not populate suspension side records. | checking-and-tir.md §4.13; suspension.md §14.2 | 2 — work | M | P2-7 |
+| Projection, `Instantiations`, and `Methods` goals remain checker-local shortcuts rather than table-solver goals. | trait-solver.md §3.1–§3.6 | 2 — work | L | P2-3 |
+| Checker and solver fuel exhaustion reports internal `unsupported` instead of the specified limit diagnostic. | checking-and-tir.md §4.15; trait-solver.md §7.4 | 2 — work | S | P2-2 |
+| Many type, pattern, expression, call, assignment, and recovery forms still stop with structured `NotImplemented`. | type-checking.md §§2–10; checking-and-tir.md §4.13 | 2 — work | L | P2-1 and P2-2 |
+| Seven designed cache-key families and several toolchain-key fields remain absent. | cache.md §5.3 | 2 — work | L | P2-5 |
+| `ManifestRecord` exists, but no stat manifest is read or written. | cache.md §5.5 | 3 — wonderful | M | none: add a phase-3 cache-I/O job |
+| A program miss keys and decodes every package module instead of the root's reachable closure. | codegen.md §11.2, §11.3 | 3 — wonderful | M | none: add a phase-3 reachability-cache job |
+| Code keys omit interface, layout, selected-impl, inline, inlined-body, and literal dependencies. | codegen.md §13.8; cache.md §5.3 | 2 — work | M | P2-6 |
+| Multi-module initialization groups still stop, and shared enum constructor data is not initialized with its module. | codegen.md §12.3 | 2 — work | L | P2-4 and P2-6 |
+| Top-level string interpolation fails during checking instead of producing initialization TIR. | type-checking.md §1.7; codegen.md §12.3 | 2 — work | S | P2-4 |
+| Counted loops never reach emission as the designed `For` tags. | codegen.md §12.5 | 2 — work | M | P2-1 and P2-6 |
+| A `.Err` entry result maps to status 0 instead of the specified nonzero outcome. | runtime-and-host.md §16.2 | 2 — work | S | P2-8 |
+| Entry-module initialization lacks its inferred providers, and reusable contexts are absent. | codegen.md §12.4 | 2 — work | M | P2-8 |
+| Synchronous emission still lacks `ItemRef`, `Is`, `DefaultCall`, `CopyData`, `SwitchStr`, several collection operations, f32 arithmetic, and wider conversions. | codegen.md §12.1, §12.2; wasm-layout.md §15.1, §15.2 | 2 — work | L | P2-6 |
+| `ToAny`, supertrait coercions, generic methods through `dyn`, and constant supertrait-aware vtables are incomplete. | codegen.md §13.5; wasm-layout.md §15.3 | 2 — work | L | P2-3 and P2-6 |
+| Shared captures and suspending closure values are not emitted. | codegen.md §12.2; suspension.md §14.1–§14.3 | 2 — work | L | P2-7 |
+| Recursive type layouts still stop emission. | representation-runtime.md §§2–6; wasm-layout.md §15.2 | 2 — work | M | P2-6 |
+| Emission has no designed verifier assertions for substituted types, selections, suspension cases, and relocations. | codegen.md §12.7 | 2 — work | M | P2-6 |
+| Wasm locals are retained per value instead of reusing dead single-use slots. | codegen.md §12.1 | 3 — wonderful | M | none: add a phase-3 emitter-allocation job |
+| Scalar erasure always boxes, reference locals default nullable, and coercions allocate vtables repeatedly. | wasm-layout.md §15.1–§15.3 | 3 — wonderful | L | none: add a phase-3 representation job |
+| Link omits `hd.sites`, `hd.lines`, `hd.folds`, and `hd.runtime`; panic sites therefore lose category and location. | codegen.md §13.10; runtime-and-host.md §16.2, §16.4 | 2 — work | L | P2-6 and P2-8 |
+| Constant globals and folding are absent, and the measured hello module remains above the 2 KB target. | wasm-layout.md §15.4–§15.6 | 3 — wonderful | M | none: add a phase-3 size job |
+| Suspension frames save every local, keep dead references, and resume through guarded lists rather than one `br_table`. | suspension.md §14.2, §14.3 | 3 — wonderful | L | none: add a phase-3 suspension-optimization job |
+| Wake tracking lacks waker objects, wake masks, generation-tagged handles, and reusable slots. | suspension.md §14.4, §14.5; codegen.md §13.6 | 2 — work | L | P2-7 |
+| External abort, competing-driver checks, forbidden-context guards, hooks, and debug wait-tree reports are incomplete. | suspension.md §14.6–§14.9 | 2 — work | L | P2-7 and P2-8 |
+| Generated host stubs, full structured-value codecs, capability enforcement, and host limits are incomplete. | runtime-and-host.md §§16–17 | 2 — work | L | P2-8 |
+| The browser Engine and worker glue are incomplete. | engines-and-test-runner.md §18.4; build-order.md §22 | 2 — work | L | P2-8 |
+| The wasmtime crate remains a stub without the approved-later dependency. | runtime-and-host.md §17.9; engines-and-test-runner.md §18.1 | 3 — wonderful | L | none: add a native-engine job after approval |
+| Test overlays and the unit, integration, property, panic, timeout, and snapshot runner remain unimplemented. | engines-and-test-runner.md §§19.1–§19.6 | 2 — work | L | P2-9 |
+| `hd check` and most command, package, dependency, query, formatting, documentation, and cache flows are absent. | commands.md §§7, 20 | 2 — work | L | P2-10 and P2-12 |
+| Text diagnostics use byte spans and repeated labels; required JSON Lines, summaries, fixes, paths, and status 101 are absent. | checking-and-tir.md §4.14; commands.md §20.1 | 2 — work | M | P2-10 |
+
 ## Findings
 
 Verdicts: **gap** (the design has it, the code does not, or only as a

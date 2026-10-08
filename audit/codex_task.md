@@ -83,16 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q20. One Known-Gaps Backlog
-
-Merge every open gap from `reconciliation.md` (D2a–D2f findings),
-`skeleton-findings.md` and the M-reports' "still unsupported" lists into
-one backlog table in `reconciliation.md`: gap, owning design section,
-phase (1 move / 2 work / 3 wonderful), size (S/M/L), and which
-`phase2-jobs.md` job absorbs it (or "none: add a job"). Remove items
-already fixed on main (check the code). Docs only. Timebox 45 minutes;
-push.
-
 ### T1. CI: The New Compiler's Gates (After Q18)
 
 Edit `.github/workflows/test.yml` (never trigger workflows; a push runs
