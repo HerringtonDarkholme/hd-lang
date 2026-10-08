@@ -3,7 +3,9 @@
 //! integer compare. Storage is a one-byte tag, a `u32` data word, a `u32`
 //! meta word (flags and node count) and variable parts in `extra`.
 
+use std::cell::RefCell;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use hd_base::{AppendVec, DefId, InferVar};
 
@@ -249,11 +251,14 @@ impl Cols {
 
     /// The `extra` record of item `i` (empty for an inline item).
     fn record(&self, i: u32) -> &[u32] {
-        let tag = self.tag[i];
+        self.record_of(self.tag[i], self.data[i])
+    }
+
+    /// The record of an item with this tag and `data` word.
+    fn record_of(&self, tag: PoolTag, off: u32) -> &[u32] {
         if !tag.has_record() {
             return &[];
         }
-        let off = self.data[i];
         let x = |k: u32| self.extra[off + k];
         let len = match tag {
             PoolTag::Adt | PoolTag::TupleRest | PoolTag::Param => 2,
@@ -388,18 +393,44 @@ impl IdTable {
     }
 }
 
-/// The global pool. Columns are append-only; a mutex guards the dedup
-/// index and appends.
+/// Dedup shards, selected by the content hash's top bits (§3.3).
+const SHARDS: usize = 64;
+/// Slots of each thread's read-through table (§3.3 item 6).
+const READ_THROUGH_SLOTS: usize = 4096;
+
+/// One shard on its own cache lines, so two shards' locks never share one.
+#[repr(align(128))]
+#[derive(Default)]
+struct Shard(Mutex<IdTable>);
+
+/// Numbers pools, so a thread's read-through table knows whose ids it holds.
+static NEXT_POOL: AtomicU64 = AtomicU64::new(1);
+
+thread_local! {
+    /// This thread's read-through table (§3.3 item 6): the pool it serves
+    /// and direct-mapped `hash << 32 | (id + 1)` slots. An interned item
+    /// never changes, so a slot is never stale; a hit is still checked
+    /// against the item's content, because slots are shared by hashes.
+    static READ_THROUGH: RefCell<(u64, Vec<u64>)> = const { RefCell::new((0, Vec::new())) };
+}
+
+/// The global pool. Columns are append-only. Dedup goes through a
+/// thread's read-through table, then one of 64 locked shards; a miss
+/// appends under one append lock, which keeps the columns row-aligned.
 pub struct InternPool {
     cols: Cols,
-    index: Mutex<IdTable>,
+    append: Mutex<()>,
+    shards: Box<[Shard]>,
+    uid: u64,
 }
 
 impl Default for InternPool {
     fn default() -> Self {
         let p = Self {
             cols: Cols::default(),
-            index: Mutex::new(IdTable::default()),
+            append: Mutex::new(()),
+            shards: (0..SHARDS).map(|_| Shard::default()).collect(),
+            uid: NEXT_POOL.fetch_add(1, Ordering::Relaxed),
         };
         // Pre-seeding (§3.3 item 5): primitives first, so `Ty::I32` etc. are constants.
         for prim in Prim::ALL {
@@ -450,13 +481,51 @@ impl InternPool {
             head,
             tys,
         };
-        let h32 = low(c.hash());
-        let mut idx = self.index.lock().expect("pool index");
-        if let Some(i) = idx.find(h32, |i| c.matches(&self.cols, i)) {
+        let h = c.hash();
+        let h32 = low(h);
+        let slot = h32 as usize % READ_THROUGH_SLOTS;
+        let cached = READ_THROUGH.with(|rt| {
+            let rt = rt.borrow();
+            if rt.0 != self.uid {
+                return None;
+            }
+            let w = rt.1[slot];
+            if w == 0 {
+                return None;
+            }
+            let (sh, id) = split(w);
+            (sh == h32 && c.matches(&self.cols, id)).then_some(id)
+        });
+        if let Some(i) = cached {
             return i;
         }
-        let i = self.cols.push(&c, meta);
-        idx.insert(h32, i);
+        let shard = &self.shards[usize::try_from(h >> 58).expect("shard")].0;
+        let mut idx = shard
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let found = idx.find(h32, |i| c.matches(&self.cols, i));
+        let i = found.unwrap_or_else(|| {
+            // A miss: append, publish, then index (§3.3 item 2).
+            let i = {
+                let _a = self
+                    .append
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                self.cols.push(&c, meta)
+            };
+            idx.insert(h32, i);
+            i
+        });
+        drop(idx);
+        READ_THROUGH.with(|rt| {
+            let mut rt = rt.borrow_mut();
+            if rt.0 != self.uid {
+                rt.0 = self.uid;
+                rt.1.clear();
+                rt.1.resize(READ_THROUGH_SLOTS, 0);
+            }
+            rt.1[slot] = u64::from(h32) << 32 | (u64::from(i) + 1);
+        });
         i
     }
 
@@ -630,9 +699,9 @@ impl InternPool {
     /// Decodes a type (§3.4 `TyView`).
     #[must_use]
     pub fn get(&self, t: Ty) -> TyData {
-        let d = self.cols.data[t.0];
-        let x = self.cols.record(t.0);
-        match self.cols.tag[t.0] {
+        let (tag, d) = (self.cols.tag[t.0], self.cols.data[t.0]);
+        let x = self.cols.record_of(tag, d);
+        match tag {
             PoolTag::Prim => TyData::Prim(Prim::ALL[d as usize]),
             PoolTag::Never => TyData::Never,
             PoolTag::Poison => TyData::Poison,
@@ -867,6 +936,36 @@ mod tests {
         assert_eq!(p.get(Ty::POISON), TyData::Poison);
         assert_eq!(p.list(&[]), TyList::EMPTY);
         assert_eq!(p.row(&RowData::default()), RowId::EMPTY);
+    }
+
+    /// Threads racing on the same content get one item, through the
+    /// shards and each thread's read-through table; two pools on one
+    /// thread never share a read-through hit.
+    #[test]
+    fn concurrent_interning_dedups() {
+        let p = InternPool::new();
+        let ids: Vec<Vec<TyList>> = std::thread::scope(|s| {
+            let hs: Vec<_> = (0..4)
+                .map(|_| {
+                    s.spawn(|| {
+                        (0..2000u32)
+                            .map(|n| {
+                                let o = p.intern_ty(&TyData::Option(Ty::prim(
+                                    Prim::ALL[(n % 15) as usize],
+                                )));
+                                p.list(&[o, Ty::prim(Prim::ALL[(n / 15 % 15) as usize])])
+                            })
+                            .collect()
+                    })
+                })
+                .collect();
+            hs.into_iter().map(|h| h.join().expect("join")).collect()
+        });
+        assert!(ids.windows(2).all(|w| w[0] == w[1]));
+        let q = InternPool::new();
+        let a = q.list(&[Ty::BOOL, Ty::I32]);
+        let b = p.list(&[Ty::BOOL, Ty::I32]);
+        assert_eq!(q.list_items(a), p.list_items(b));
     }
 
     #[test]
