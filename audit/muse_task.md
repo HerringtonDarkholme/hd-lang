@@ -102,44 +102,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### R1. Triage The 290 `fail:no-diagnostic` Cases
-
-`compiler/CONFORMANCE.md` lists 290 cases where the new compiler accepts a
-program the fixture expects it to reject. Group them by the expected
-diagnostic code (the fixture's `# diagnostic:` marker, or `cases.tsv`'s
-`reject:CODE`) and the spec rule each fixture cites. For each code: the
-count, the rule IDs, two or three fixture paths, and a one-line guess at
-where the check belongs (resolution, header check, body checker, flow
-analysis). Sort by count. Mark codes that the compiler never constructs
-anywhere (`grep` `Code::Name` under `compiler/crates/`) as "check missing"
-versus "check exists but misses this case". Write
-`audit/compiler/no-diagnostic-triage-<short hash>.md`. Report only.
-Timebox 60 minutes; push.
-
-### R2. Triage The `unsupported:Body`, `Emit` And `Collect` Cases
-
-From the same report (194 Body, 137 Emit, 88 Collect), group the cases by
-the unsupported message the runner records (run `cargo test -q --release
--p hd_driver --test conformance` from `compiler/` with
-`HD_CONFORMANCE_ONLY` on a sample, or read the runner's reason strings),
-normalized to the construct (e.g. "ItemRef", "DefaultCall", "f32
-arithmetic", "a call that collection did not resolve"). For each
-construct: count, stage, two or three fixture paths, and the spec rule.
-Sort by count. Write `audit/compiler/unsupported-triage-<short hash>.md`.
-Report only. Timebox 60 minutes; push.
-
-### R3. Triage The CLI Tier's 84 Failing Cases
-
-`compiler/crates/hd_cli/tests/cli_conformance.rs` runs the spec's CLI
-cases against `hd` (18 of 102 pass; section "CLI Conformance" at the end
-of `compiler/CONFORMANCE.md`). Run it with `HD_CONFORMANCE_ONLY=<case>`
-per case (or all) and record each failing case's first failed assertion.
-Group by cause (command missing, flag missing, manifest section missing,
-module resolution, compiler gap, wrong exit code, message difference) with
-the case names and the `cli.*` rules they check. Write
-`audit/compiler/cli-triage-<short hash>.md`. Report only. Timebox 45
-minutes; push.
-
 ### D2l. Design Text After The Afternoon's Compiler Work
 
 Update `future-work/compiler/*.md` (and `reconciliation.md` rows) for
