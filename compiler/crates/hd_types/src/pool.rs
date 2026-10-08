@@ -3,7 +3,6 @@
 //! integer compare. Storage is a one-byte tag, a `u32` data word, a `u32`
 //! meta word (flags and node count) and variable parts in `extra`.
 
-use std::collections::HashMap;
 use std::sync::Mutex;
 
 use hd_base::{AppendVec, DefId, InferVar};
@@ -202,26 +201,205 @@ pub mod meta {
     pub const HAS_CANON: u32 = 16;
 }
 
-type Key = (PoolTag, u32, Vec<u32>);
+impl PoolTag {
+    /// Whether `data` is an offset into `extra` (§3.9.2's table); the other
+    /// tags keep their whole payload inline in `data`.
+    const fn has_record(self) -> bool {
+        matches!(
+            self,
+            PoolTag::Adt
+                | PoolTag::TupleRest
+                | PoolTag::Fn
+                | PoolTag::TraitValue
+                | PoolTag::Param
+                | PoolTag::Assoc
+                | PoolTag::List
+                | PoolTag::Row
+        )
+    }
+}
 
-/// The global pool. Columns are append-only; a mutex guards only the dedup
-/// index and appends (the design's 64 shards come with the pool scheduler).
-pub struct InternPool {
+/// The pool's columns (§3.9.2): one fixed-size row per item, and the
+/// variable parts of every item in one flat `extra` column. An item with
+/// a record keeps the record's first `extra` word in `data`; the record's
+/// length follows from its tag and, for lists, rows and trait values,
+/// from a count word inside it.
+#[derive(Default)]
+struct Cols {
     tag: AppendVec<PoolTag>,
     data: AppendVec<u32>,
     meta: AppendVec<u32>,
-    extra: AppendVec<Box<[u32]>>,
-    index: Mutex<HashMap<Key, u32>>,
+    extra: AppendVec<u32>,
+}
+
+impl Cols {
+    /// Appends one item. The caller serializes appends, so the columns
+    /// stay row-aligned.
+    fn push(&self, c: &Content<'_>, meta: u32) -> u32 {
+        let data = if c.tag.has_record() {
+            self.extra.push_run(c.rec_len(), c.rec_words())
+        } else {
+            c.data
+        };
+        let i = self.tag.push(c.tag);
+        self.data.push(data);
+        self.meta.push(meta);
+        i
+    }
+
+    /// The `extra` record of item `i` (empty for an inline item).
+    fn record(&self, i: u32) -> &[u32] {
+        let tag = self.tag[i];
+        if !tag.has_record() {
+            return &[];
+        }
+        let off = self.data[i];
+        let x = |k: u32| self.extra[off + k];
+        let len = match tag {
+            PoolTag::Adt | PoolTag::TupleRest | PoolTag::Param => 2,
+            PoolTag::Fn | PoolTag::Assoc => 4,
+            PoolTag::TraitValue => 3 + 2 * x(2),
+            PoolTag::List => 1 + x(0),
+            PoolTag::Row => {
+                let n = x(0);
+                2 + n + 2 * x(1 + n)
+            }
+            _ => unreachable!("inline tag"),
+        };
+        self.extra.run(off, len)
+    }
+}
+
+/// An item's content as the interner sees it: the tag, the inline `data`
+/// word (inline tags only) and the record, given as leading words and
+/// then types, so a list is hashed and compared where it lies.
+#[derive(Clone, Copy)]
+struct Content<'a> {
+    tag: PoolTag,
+    data: u32,
+    head: &'a [u32],
+    tys: &'a [Ty],
+}
+
+impl Content<'_> {
+    fn rec_len(&self) -> u32 {
+        u32::try_from(self.head.len() + self.tys.len()).expect("record")
+    }
+
+    fn rec_words(&self) -> impl Iterator<Item = u32> + '_ {
+        self.head
+            .iter()
+            .copied()
+            .chain(self.tys.iter().map(|t| t.0))
+    }
+
+    /// A 64-bit content hash (Fx-style word mixing with a final fold). It
+    /// picks shards and probe slots only; nothing hashed or printed reads it.
+    fn hash(&self) -> u64 {
+        const K: u64 = 0x517c_c1b7_2722_0a95;
+        let mix = |h: u64, w: u32| (h.rotate_left(5) ^ u64::from(w)).wrapping_mul(K);
+        let mut h = mix(0, self.tag as u32);
+        if self.tag.has_record() {
+            h = self.rec_words().fold(h, mix);
+        } else {
+            h = mix(h, self.data);
+        }
+        h ^= h >> 29;
+        h = h.wrapping_mul(K);
+        h ^ (h >> 32)
+    }
+
+    /// Whether item `i` of `cols` has this content.
+    fn matches(&self, cols: &Cols, i: u32) -> bool {
+        if cols.tag[i] != self.tag {
+            return false;
+        }
+        if !self.tag.has_record() {
+            return cols.data[i] == self.data;
+        }
+        let stored = cols.record(i);
+        let h = self.head.len();
+        stored.len() == h + self.tys.len()
+            && stored[..h] == *self.head
+            && stored[h..].iter().zip(self.tys).all(|(w, t)| *w == t.0)
+    }
+}
+
+/// A slot word's hash and id.
+fn split(w: u64) -> (u32, u32) {
+    (low(w >> 32), low(w) - 1)
+}
+
+/// The low 32 bits of a word.
+fn low(w: u64) -> u32 {
+    u32::try_from(w & 0xFFFF_FFFF).expect("low word")
+}
+
+/// A hash-to-index table (§3.9.4: hash maps are only indexes): open
+/// addressing over `(hash, id)` words. Content lives in the columns; a
+/// probe compares the stored hash, then the item.
+#[derive(Default)]
+struct IdTable {
+    /// `hash << 32 | (id + 1)`; 0 is an empty slot.
+    slots: Vec<u64>,
+    len: usize,
+}
+
+impl IdTable {
+    fn find(&self, hash: u32, eq: impl Fn(u32) -> bool) -> Option<u32> {
+        if self.slots.is_empty() {
+            return None;
+        }
+        let mask = self.slots.len() - 1;
+        let mut s = hash as usize & mask;
+        loop {
+            let w = self.slots[s];
+            if w == 0 {
+                return None;
+            }
+            let (h, id) = split(w);
+            if h == hash && eq(id) {
+                return Some(id);
+            }
+            s = (s + 1) & mask;
+        }
+    }
+
+    /// Inserts an id whose content `find` just missed.
+    fn insert(&mut self, hash: u32, id: u32) {
+        if (self.len + 1) * 4 > self.slots.len() * 3 {
+            let old = std::mem::take(&mut self.slots);
+            self.slots = vec![0; (old.len() * 2).max(64)];
+            for w in old.into_iter().filter(|w| *w != 0) {
+                self.place(w);
+            }
+        }
+        self.place(u64::from(hash) << 32 | (u64::from(id) + 1));
+        self.len += 1;
+    }
+
+    fn place(&mut self, w: u64) {
+        let mask = self.slots.len() - 1;
+        let mut s = split(w).0 as usize & mask;
+        while self.slots[s] != 0 {
+            s = (s + 1) & mask;
+        }
+        self.slots[s] = w;
+    }
+}
+
+/// The global pool. Columns are append-only; a mutex guards the dedup
+/// index and appends.
+pub struct InternPool {
+    cols: Cols,
+    index: Mutex<IdTable>,
 }
 
 impl Default for InternPool {
     fn default() -> Self {
         let p = Self {
-            tag: AppendVec::new(),
-            data: AppendVec::new(),
-            meta: AppendVec::new(),
-            extra: AppendVec::new(),
-            index: Mutex::new(HashMap::new()),
+            cols: Cols::default(),
+            index: Mutex::new(IdTable::default()),
         };
         // Pre-seeding (§3.3 item 5): primitives first, so `Ty::I32` etc. are constants.
         for prim in Prim::ALL {
@@ -262,36 +440,43 @@ impl InternPool {
         Self::default()
     }
 
-    fn intern(&self, tag: PoolTag, data: u32, extra: Vec<u32>, meta: u32) -> u32 {
-        let key = (tag, data, extra);
+    /// Interns `tag` with an inline `data` word or with the record `head`
+    /// then `tys`. A hit allocates nothing: the content is hashed and
+    /// compared where it lies.
+    fn intern(&self, tag: PoolTag, data: u32, (head, tys): (&[u32], &[Ty]), meta: u32) -> u32 {
+        let c = Content {
+            tag,
+            data,
+            head,
+            tys,
+        };
+        let h32 = low(c.hash());
         let mut idx = self.index.lock().expect("pool index");
-        if let Some(&i) = idx.get(&key) {
+        if let Some(i) = idx.find(h32, |i| c.matches(&self.cols, i)) {
             return i;
         }
-        let i = self.tag.push(tag);
-        self.data.push(data);
-        self.meta.push(meta);
-        self.extra.push(key.2.clone().into_boxed_slice());
-        idx.insert(key, i);
+        let i = self.cols.push(&c, meta);
+        idx.insert(h32, i);
         i
     }
 
     fn meta_of(&self, t: Ty) -> u32 {
-        self.meta[t.0]
+        self.cols.meta[t.0]
     }
 
     fn list_meta(&self, l: TyList) -> u32 {
-        self.meta[l.0]
+        self.cols.meta[l.0]
     }
 
     pub fn list(&self, tys: &[Ty]) -> TyList {
         let meta = tys.iter().fold(0, |m, t| m | self.meta_of(*t));
-        TyList(self.intern(PoolTag::List, 0, tys.iter().map(|t| t.0).collect(), meta))
+        let len = [u32::try_from(tys.len()).expect("list")];
+        TyList(self.intern(PoolTag::List, 0, (&len, tys), meta))
     }
 
     #[must_use]
     pub fn list_items(&self, l: TyList) -> Vec<Ty> {
-        self.extra[l.0].iter().map(|&w| Ty(w)).collect()
+        self.cols.record(l.0)[1..].iter().map(|&w| Ty(w)).collect()
     }
 
     /// Interns a row. A key that is itself a row (`TyData::Row`, a solved
@@ -318,23 +503,24 @@ impl InternPool {
         }
         let mut words: Vec<u32> = vec![u32::try_from(keys.len()).expect("row keys")];
         words.extend(keys.iter().map(|t| t.0));
+        words.push(u32::try_from(params.len()).expect("row params"));
         for p in &params {
             words.push(p.owner.raw());
             words.push(u32::from(p.index));
         }
-        RowId(self.intern(PoolTag::Row, 0, words, meta))
+        RowId(self.intern(PoolTag::Row, 0, (&words, &[]), meta))
     }
 
     fn row_meta(&self, r: RowId) -> u32 {
-        self.meta[r.0]
+        self.cols.meta[r.0]
     }
 
     #[must_use]
     pub fn row_data(&self, r: RowId) -> RowData {
-        let w = &self.extra[r.0];
+        let w = self.cols.record(r.0);
         let n = w[0] as usize;
         let keys = w[1..=n].iter().map(|&k| Ty(k)).collect();
-        let params = w[n + 1..]
+        let params = w[n + 2..]
             .chunks(2)
             .map(|c| RowParamRef {
                 owner: DefId::from_raw(c[0]),
@@ -348,121 +534,144 @@ impl InternPool {
     /// this skeleton; the design keeps them in a body-local pool (§3.4).
     pub fn intern_ty(&self, t: &TyData) -> Ty {
         use PoolTag as T;
-        let (tag, data, extra, meta) = match t {
-            TyData::Prim(p) => (T::Prim, *p as u32, vec![], 0),
-            TyData::Never => (T::Never, 0, vec![], 0),
-            TyData::Poison => (T::Poison, 0, vec![], meta::HAS_POISON),
-            TyData::Adt { def, args } => (T::Adt, def.raw(), vec![args.0], self.list_meta(*args)),
-            TyData::Tuple { elems, rest: None } => {
-                (T::Tuple, elems.0, vec![], self.list_meta(*elems))
+        let (tag, data, meta): (PoolTag, u32, u32) = match t {
+            TyData::Prim(p) => (T::Prim, *p as u32, 0),
+            TyData::Never => (T::Never, 0, 0),
+            TyData::Poison => (T::Poison, 0, meta::HAS_POISON),
+            TyData::Adt { args, .. } => (T::Adt, 0, self.list_meta(*args)),
+            TyData::Tuple { elems, rest: None } => (T::Tuple, elems.0, self.list_meta(*elems)),
+            TyData::Tuple {
+                elems,
+                rest: Some(r),
+            } => (T::TupleRest, 0, self.list_meta(*elems) | self.meta_of(*r)),
+            TyData::Option(inner) => (T::Option, inner.0, self.meta_of(*inner)),
+            TyData::Fn {
+                params,
+                result,
+                row,
+                ..
+            } => (
+                T::Fn,
+                0,
+                self.list_meta(*params) | self.meta_of(*result) | self.row_meta(*row),
+            ),
+            TyData::TraitValue { args, bindings, .. } => (
+                T::TraitValue,
+                0,
+                bindings
+                    .iter()
+                    .fold(self.list_meta(*args), |m, (_, t)| m | self.meta_of(*t)),
+            ),
+            TyData::Param(_) => (T::Param, 0, meta::HAS_PARAM),
+            TyData::Assoc { self_ty, args, .. } => (
+                T::Assoc,
+                0,
+                meta::HAS_ASSOC | self.meta_of(*self_ty) | self.list_meta(*args),
+            ),
+            TyData::Mut(inner) => (T::Mut, inner.0, self.meta_of(*inner)),
+            TyData::Infer(v) => (T::Infer, v.raw(), meta::HAS_INFER),
+            TyData::Canon(i) => (T::Canon, u32::from(*i), meta::HAS_CANON),
+            TyData::Row(r) => (T::RowTy, r.0, self.row_meta(*r)),
+        };
+        let mut buf = [0u32; 4];
+        let rec: &[u32] = match t {
+            TyData::Adt { def, args } => {
+                buf[..2].copy_from_slice(&[def.raw(), args.0]);
+                &buf[..2]
             }
             TyData::Tuple {
                 elems,
                 rest: Some(r),
-            } => (
-                T::TupleRest,
-                elems.0,
-                vec![r.0],
-                self.list_meta(*elems) | self.meta_of(*r),
-            ),
-            TyData::Option(inner) => (T::Option, inner.0, vec![], self.meta_of(*inner)),
+            } => {
+                buf[..2].copy_from_slice(&[elems.0, r.0]);
+                &buf[..2]
+            }
             TyData::Fn {
                 params,
                 result,
                 row,
                 suspends,
-            } => (
-                T::Fn,
-                params.0,
-                vec![result.0, row.0, u32::from(*suspends)],
-                self.list_meta(*params) | self.meta_of(*result) | self.row_meta(*row),
-            ),
-            TyData::TraitValue {
-                def,
-                args,
-                bindings,
             } => {
-                let mut w = vec![args.0];
-                let mut m = self.list_meta(*args);
-                let mut b = bindings.clone();
-                b.sort_by_key(|(d, _)| d.raw());
-                for (d, t) in b {
-                    w.push(d.raw());
-                    w.push(t.0);
-                    m |= self.meta_of(t);
-                }
-                (T::TraitValue, def.raw(), w, m)
+                buf = [params.0, result.0, row.0, u32::from(*suspends)];
+                &buf
             }
-            TyData::Param(p) => (
-                T::Param,
-                p.owner.raw(),
-                vec![u32::from(p.index)],
-                meta::HAS_PARAM,
-            ),
+            TyData::Param(p) => {
+                buf[..2].copy_from_slice(&[p.owner.raw(), u32::from(p.index)]);
+                &buf[..2]
+            }
             TyData::Assoc {
                 assoc,
                 trait_,
                 self_ty,
                 args,
-            } => (
-                T::Assoc,
-                assoc.raw(),
-                vec![trait_.raw(), self_ty.0, args.0],
-                meta::HAS_ASSOC | self.meta_of(*self_ty) | self.list_meta(*args),
-            ),
-            TyData::Mut(inner) => (T::Mut, inner.0, vec![], self.meta_of(*inner)),
-            TyData::Infer(v) => (T::Infer, v.raw(), vec![], meta::HAS_INFER),
-            TyData::Canon(i) => (T::Canon, u32::from(*i), vec![], meta::HAS_CANON),
-            TyData::Row(r) => (T::RowTy, r.0, vec![], self.row_meta(*r)),
+            } => {
+                buf = [assoc.raw(), trait_.raw(), self_ty.0, args.0];
+                &buf
+            }
+            TyData::TraitValue {
+                def,
+                args,
+                bindings,
+            } => {
+                let mut b = bindings.clone();
+                b.sort_by_key(|(d, _)| d.raw());
+                let mut w = vec![def.raw(), args.0, u32::try_from(b.len()).expect("bindings")];
+                for (d, t) in b {
+                    w.push(d.raw());
+                    w.push(t.0);
+                }
+                return Ty(self.intern(tag, data, (&w, &[]), meta));
+            }
+            _ => &[],
         };
-        Ty(self.intern(tag, data, extra, meta))
+        Ty(self.intern(tag, data, (rec, &[]), meta))
     }
 
     /// Decodes a type (§3.4 `TyView`).
     #[must_use]
     pub fn get(&self, t: Ty) -> TyData {
-        let d = self.data[t.0];
-        let x = &self.extra[t.0];
-        match self.tag[t.0] {
+        let d = self.cols.data[t.0];
+        let x = self.cols.record(t.0);
+        match self.cols.tag[t.0] {
             PoolTag::Prim => TyData::Prim(Prim::ALL[d as usize]),
             PoolTag::Never => TyData::Never,
             PoolTag::Poison => TyData::Poison,
             PoolTag::Adt => TyData::Adt {
-                def: DefId::from_raw(d),
-                args: TyList(x[0]),
+                def: DefId::from_raw(x[0]),
+                args: TyList(x[1]),
             },
             PoolTag::Tuple => TyData::Tuple {
                 elems: TyList(d),
                 rest: None,
             },
             PoolTag::TupleRest => TyData::Tuple {
-                elems: TyList(d),
-                rest: Some(Ty(x[0])),
+                elems: TyList(x[0]),
+                rest: Some(Ty(x[1])),
             },
             PoolTag::Option => TyData::Option(Ty(d)),
             PoolTag::Fn => TyData::Fn {
-                params: TyList(d),
-                result: Ty(x[0]),
-                row: RowId(x[1]),
-                suspends: x[2] != 0,
+                params: TyList(x[0]),
+                result: Ty(x[1]),
+                row: RowId(x[2]),
+                suspends: x[3] != 0,
             },
             PoolTag::TraitValue => TyData::TraitValue {
-                def: DefId::from_raw(d),
-                args: TyList(x[0]),
-                bindings: x[1..]
+                def: DefId::from_raw(x[0]),
+                args: TyList(x[1]),
+                bindings: x[3..]
                     .chunks(2)
                     .map(|c| (DefId::from_raw(c[0]), Ty(c[1])))
                     .collect(),
             },
             PoolTag::Param => TyData::Param(ParamRef {
-                owner: DefId::from_raw(d),
-                index: u16::try_from(x[0]).expect("param"),
+                owner: DefId::from_raw(x[0]),
+                index: u16::try_from(x[1]).expect("param"),
             }),
             PoolTag::Assoc => TyData::Assoc {
-                assoc: DefId::from_raw(d),
-                trait_: DefId::from_raw(x[0]),
-                self_ty: Ty(x[1]),
-                args: TyList(x[2]),
+                assoc: DefId::from_raw(x[0]),
+                trait_: DefId::from_raw(x[1]),
+                self_ty: Ty(x[2]),
+                args: TyList(x[3]),
             },
             PoolTag::Mut => TyData::Mut(Ty(d)),
             PoolTag::Infer => TyData::Infer(InferVar::from_raw(d)),
@@ -490,11 +699,11 @@ impl InternPool {
     }
     #[must_use]
     pub fn len(&self) -> u32 {
-        self.tag.len()
+        self.cols.tag.len()
     }
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.tag.is_empty()
+        self.cols.tag.is_empty()
     }
 
     /// Replaces declared parameters: `f` maps a parameter to its argument,

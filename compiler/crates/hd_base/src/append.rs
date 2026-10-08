@@ -154,6 +154,98 @@ impl<T> AppendVec<T> {
     }
 }
 
+impl<T: Copy + Default> AppendVec<T> {
+    /// Appends `len` items from `items` as one run inside a single chunk
+    /// and returns the run's first index, so [`AppendVec::run`] can lend
+    /// the run as one slice. A run that does not fit in the rest of the
+    /// current chunk starts at the next chunk; the skipped slots hold
+    /// `T::default()`. `items` must yield exactly `len` items and must not
+    /// push to this column (the writer lock is held while it runs).
+    pub fn push_run(&self, len: u32, items: impl IntoIterator<Item = T>) -> u32 {
+        let _w = self
+            .writer
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut start = self.len.load(Ordering::Relaxed);
+        if len == 0 {
+            return start;
+        }
+        // Pad to the first chunk boundary from which the run fits.
+        loop {
+            let (k, off) = locate(start);
+            assert!(k < CHUNKS, "AppendVec over capacity");
+            if off + len as usize <= chunk_cap(k) {
+                break;
+            }
+            let next = u32::try_from((1u64 << (k + 1 + BASE_BITS as usize)) - (1 << BASE_BITS))
+                .expect("AppendVec over capacity");
+            for i in start..next {
+                self.write_unpublished(i, T::default());
+            }
+            start = next;
+        }
+        let mut n = 0u32;
+        for item in items {
+            assert!(n < len, "push_run: more items than `len`");
+            self.write_unpublished(start + n, item);
+            n += 1;
+        }
+        assert_eq!(n, len, "push_run: fewer items than `len`");
+        // Every slot below `start + len` is now written (padding, then the
+        // run): publish them together (invariant 3).
+        self.len.store(start + len, Ordering::Release);
+        start
+    }
+
+    /// Writes slot `i` at or above the published length. The caller holds
+    /// `writer` and publishes the slot later.
+    fn write_unpublished(&self, i: u32, value: T) {
+        let (k, off) = locate(i);
+        assert!(k < CHUNKS, "AppendVec over capacity");
+        let mut chunk = self.chunks[k].load(Ordering::Acquire);
+        if chunk.is_null() {
+            let fresh: Box<[MaybeUninit<T>]> =
+                (0..chunk_cap(k)).map(|_| MaybeUninit::uninit()).collect();
+            chunk = Box::into_raw(fresh).cast::<MaybeUninit<T>>();
+            self.chunks[k].store(chunk, Ordering::Release);
+        }
+        // SAFETY: as in `push`: `chunk` points at `chunk_cap(k)` slots that
+        // live until drop and `off < chunk_cap(k)` by `locate`. Slot `i` is
+        // at or above the published `len`, so no reader looks at it, and
+        // the caller holds `writer` (invariant 1). `T: Copy` has no drop,
+        // so overwriting a slot left by a panicked run leaks nothing.
+        unsafe { chunk.add(off).write(MaybeUninit::new(value)) };
+    }
+
+    /// The `len` items from `start`, as one slice. They must be published
+    /// and lie in one chunk, as every run from [`AppendVec::push_run`] does.
+    #[must_use]
+    pub fn run(&self, start: u32, len: u32) -> &[T] {
+        if len == 0 {
+            return &[];
+        }
+        let end = u64::from(start) + u64::from(len);
+        assert!(
+            end <= u64::from(self.len.load(Ordering::Acquire)),
+            "AppendVec run out of range"
+        );
+        let (k, off) = locate(start);
+        assert!(
+            off + len as usize <= chunk_cap(k),
+            "AppendVec run crosses a chunk"
+        );
+        let chunk = self.chunks[k].load(Ordering::Acquire);
+        // SAFETY: every slot of the run is below the published `len`
+        // (Acquire), so each was written and its chunk pointer stored before
+        // `len` was raised (invariants 2, 3); the run lies inside chunk `k`
+        // (checked above), so the `len` slots are contiguous and in bounds.
+        // `MaybeUninit<T>` has `T`'s layout and every slot is initialized.
+        // Published slots are never written again, so the slice lives as
+        // long as `&self`.
+        unsafe { std::slice::from_raw_parts(chunk.add(off).cast::<T>(), len as usize) }
+    }
+}
+
 impl<T> Drop for AppendVec<T> {
     fn drop(&mut self) {
         let len = *self.len.get_mut();
@@ -209,6 +301,25 @@ mod tests {
         assert!(core::ptr::eq(first, &raw const v[0]));
         assert_eq!(v[4999], 9998);
         assert_eq!(v.len(), 5001);
+    }
+
+    #[test]
+    fn runs_stay_in_one_chunk() {
+        let v: AppendVec<u32> = AppendVec::new();
+        for i in 0..1020u32 {
+            v.push(i);
+        }
+        // Six words do not fit in the four slots left in chunk 0.
+        let s = v.push_run(6, 10..16);
+        assert_eq!(s, 1024);
+        assert_eq!(v.run(s, 6), &[10, 11, 12, 13, 14, 15]);
+        assert_eq!(v[1021], 0, "padding");
+        assert_eq!(v.push_run(0, std::iter::empty()), 1030);
+        assert!(v.run(1030, 0).is_empty());
+        // A run longer than chunk 1 skips to chunk 2.
+        let big = v.push_run(3000, 0..3000);
+        assert_eq!(big, 1024 + 2048);
+        assert_eq!(v.run(big, 3000)[2999], 2999);
     }
 
     /// Std-threads stress test (loom is not a dependency): four writers and

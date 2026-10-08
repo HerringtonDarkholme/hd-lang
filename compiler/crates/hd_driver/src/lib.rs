@@ -225,6 +225,8 @@ pub struct Output {
     pub tir_text: std::collections::BTreeMap<String, String>,
     /// A test run's selected cases, in content order.
     pub tests: Vec<TestCase>,
+    /// Items in the run's global `InternPool` at the end (a size counter).
+    pub pool_items: u32,
 }
 
 impl Output {
@@ -505,6 +507,7 @@ pub fn build(host: &Host<'_>, package: &str, goal: &Goal) -> Output {
         report,
         ifaces,
         tir_text: std::mem::take(&mut *lock(&run.tir_text)),
+        pool_items: run.pool.len(),
     }
 }
 
