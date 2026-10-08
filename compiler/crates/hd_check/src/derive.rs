@@ -17,7 +17,10 @@
 //! helper that builds the walker counts as one written in place.
 //!
 //! A failing member is one `member-not-derivable` at the opt-in, naming
-//! the member (`annot.walker.obligation.error`). Every other diagnostic of
+//! the member (`annot.walker.obligation.error`); for `Eq`, `PartialOrd`,
+//! `Ord` and `Hash` the driver reports it as `derive-field-missing-trait`
+//! at the field instead (`trait.derive.field-missing-trait.template`),
+//! using the member's `slot`. Every other diagnostic of
 //! the instance check is dropped: the template's module reports the
 //! template's own mistakes.
 
@@ -41,6 +44,9 @@ pub struct OptInMember {
     pub ty: Ty,
     /// Whether it declares a default (`data.default`).
     pub has_default: bool,
+    /// Its written type position in the data type or enum (`anchor`
+    /// slots), where a diagnostic about it points.
+    pub slot: u32,
 }
 
 /// One derivation opt-in: a derived implementation or a derivation block,
@@ -51,6 +57,8 @@ pub struct OptIn {
     pub impl_: DefId,
     pub template: DefId,
     pub trait_: DefId,
+    /// The data type or enum the opt-in derives for.
+    pub data: DefId,
     /// The target, over the opt-in's parameters.
     pub target: Ty,
     pub members: Vec<OptInMember>,
@@ -97,12 +105,13 @@ impl OptIn {
                 n.to_owned()
             }
         };
+        let slot_of = |i: usize| u32::try_from(i + 1).unwrap_or(0);
         let mut members = Vec::new();
         match &lookup.item(def)?.data {
             // A data type's members are its fields, embedded ones included
             // (`data.derive.members`).
             ItemData::Data(fields) => {
-                for f in fields {
+                for (i, f) in fields.iter().enumerate() {
                     let l = label(f);
                     if omitted.contains(&l) {
                         continue;
@@ -111,19 +120,24 @@ impl OptIn {
                         label: l,
                         ty: ty(f.ty),
                         has_default: f.has_default,
+                        slot: slot_of(i),
                     });
                 }
             }
             // An enum's members are each variant's payload parameters;
             // shared constructor data is not a member (`data.derive.shared`).
-            ItemData::Enum { variants, .. } => {
+            ItemData::Enum { shared, variants } => {
+                // The shared fields' positions come first.
+                let mut at = shared.len();
                 for v in variants {
                     for f in &v.fields {
                         members.push(OptInMember {
                             label: format!("{}.{}", names.text(v.name), label(f)),
                             ty: ty(f.ty),
                             has_default: f.has_default,
+                            slot: slot_of(at),
                         });
+                        at += 1;
                     }
                 }
             }
@@ -133,6 +147,7 @@ impl OptIn {
             impl_: it.def,
             template,
             trait_: *trait_,
+            data: def,
             target: *self_ty,
             members,
             failed: RefCell::new(Vec::new()),
@@ -171,14 +186,15 @@ pub fn omitted_members(src: &hd_resolve::Src<'_>, block: NodeRef<'_>) -> Vec<Str
 }
 
 /// Checks the template `methods` (their `DefId` and syntax) as `opt`'s
-/// instance and returns one message per failing member, in member order.
+/// instance and returns one message per failing member, with the member's
+/// index in `opt.members`, in member order.
 /// `cx` sees the template's module. Diagnostics of the bodies themselves
 /// are dropped.
 pub fn check_opt_in(
     cx: &BodyCx<'_>,
     opt: &OptIn,
     methods: &[(DefId, NodeRef<'_>)],
-) -> StageResult<Vec<String>> {
+) -> StageResult<Vec<(usize, String)>> {
     for &(def, node) in methods {
         let mut scratch = DiagBuf::default();
         check_fn_in(cx, def, node, &mut scratch, Some(opt))?;
@@ -192,13 +208,14 @@ pub fn check_opt_in(
         .into_iter()
         .map(|(i, bound)| {
             let m = &opt.members[i];
-            format!(
+            let msg = format!(
                 "the member `{}` of type {} does not implement {}, so {target} cannot derive {}",
                 m.label,
                 hd_resolve::show_ty(names, m.ty),
                 hd_resolve::show_ty(names, bound),
                 names.path(opt.trait_)
-            )
+            );
+            (i, msg)
         })
         .collect())
 }
@@ -350,17 +367,6 @@ impl<'c> Ck<'_, 'c> {
             k.inspectable,
         ]
         .contains(&def)
-        {
-            return Ok(false);
-        }
-        // A member whose type is a newtype: derived newtypes have no
-        // implementation head yet (`trait.derive.newtype`), so it cannot
-        // be judged.
-        if let TyData::Adt { def: d, .. } = pool.get(self.strip_mut(ty))
-            && matches!(
-                self.cx.lookup.item(d).map(|i| &i.data),
-                Some(ItemData::Newtype(_))
-            )
         {
             return Ok(false);
         }

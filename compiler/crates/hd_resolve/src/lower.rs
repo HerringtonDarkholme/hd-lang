@@ -1908,6 +1908,9 @@ impl Lower<'_, '_, '_> {
                         .insert(h.def, (generics.len(), t));
                     ItemData::Alias(t)
                 } else {
+                    // `@derive` on a newtype names implementations
+                    // from the base type's (`trait.derive.newtype`).
+                    self.derived(h, &generics, out);
                     ItemData::Newtype(t)
                 };
                 let mut it = Item::new(h.def, h.name, h.public, data);

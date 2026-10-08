@@ -637,6 +637,20 @@ fn spans_of(
         .collect()
 }
 
+/// A failing member of a derivation opt-in.
+struct OptInFinding {
+    /// The opt-in's index among its module's own items.
+    item: usize,
+    /// The data type or enum the member belongs to, and the member's
+    /// written type position in it.
+    data: DefId,
+    slot: u32,
+    /// Whether the opt-in derives `Eq`, `PartialOrd`, `Ord` or `Hash`, whose
+    /// failing member is `derive-field-missing-trait`.
+    compare: bool,
+    message: String,
+}
+
 impl Run<'_> {
     fn names(&self) -> Names<'_> {
         Names {
@@ -1842,7 +1856,6 @@ impl Run<'_> {
         diags: &mut DiagBuf,
     ) {
         let names = self.names();
-        let k = &self.known;
         // Per template module, in module order: (item index, opt-in, the
         // template methods it checks).
         let mut groups: std::collections::BTreeMap<usize, Vec<(usize, hd_check::derive::OptIn)>> =
@@ -1855,10 +1868,6 @@ impl Run<'_> {
                 kind,
                 hd_resolve::ImplKind::Derived | hd_resolve::ImplKind::Derivation
             ) || *trait_ == DefId::NONE
-                // A comparison derivation reports a field that misses the
-                // trait as `derive-field-missing-trait` instead (spec 09
-                // `trait.derive.field-missing-trait.template`).
-                || [k.eq, k.partial_ord, k.ord, k.hash].contains(trait_)
             {
                 continue;
             }
@@ -1879,7 +1888,7 @@ impl Run<'_> {
                 groups.entry(tm.idx()).or_default().push((i, opt));
             }
         }
-        let mut found: Vec<(usize, String)> = Vec::new();
+        let mut found: Vec<OptInFinding> = Vec::new();
         for (tm, opts) in groups {
             if tm == m {
                 found.extend(self.check_opt_ins(cx, heads, &opts));
@@ -1929,10 +1938,40 @@ impl Run<'_> {
             };
             found.extend(self.check_opt_ins(&tcx, &theads, &opts));
         }
-        found.sort_by_key(|f| f.0);
-        for (i, msg) in found {
-            let def = cx.lookup.own[i].def;
-            diags.error(Code::MemberNotDerivable, self.item_span(def, 0), &msg);
+        // A derived newtype's base type must implement the trait.
+        let hcx = hd_check::header::HeaderCx {
+            names: cx.names,
+            lookup: cx.lookup,
+            impls: cx.impls,
+            global: cx.global,
+            solver: cx.solver,
+        };
+        if let Ok(fs) = hd_check::header::derived_newtypes(&hcx, cx.lookup.own) {
+            for f in fs {
+                diags.error(f.code, self.item_span(f.item, f.slot), &f.message);
+            }
+        }
+        found.sort_by_key(|f| (f.item, f.slot));
+        // A field that misses several derived comparison traits is one
+        // error at the field, for the first trait (spec 09
+        // `trait.derive.field-missing-trait`).
+        let mut seen: Vec<(DefId, u32)> = Vec::new();
+        for f in found {
+            if f.compare {
+                if seen.contains(&(f.data, f.slot)) {
+                    continue;
+                }
+                seen.push((f.data, f.slot));
+                let def = cx.lookup.own[f.item].def;
+                diags.error(
+                    Code::DeriveFieldMissingTrait,
+                    self.item_span(def, f.slot),
+                    &f.message,
+                );
+            } else {
+                let def = cx.lookup.own[f.item].def;
+                diags.error(Code::MemberNotDerivable, self.item_span(def, 0), &f.message);
+            }
         }
     }
 
@@ -1943,8 +1982,9 @@ impl Run<'_> {
         tcx: &BodyCx<'_>,
         theads: &[hd_resolve::Head<'_>],
         opts: &[(usize, hd_check::derive::OptIn)],
-    ) -> Vec<(usize, String)> {
+    ) -> Vec<OptInFinding> {
         let names = self.names();
+        let k = &self.known;
         let bodies = hd_resolve::body_nodes(&names, &tcx.src, theads);
         let mut out = Vec::new();
         for (i, opt) in opts {
@@ -1961,7 +2001,14 @@ impl Run<'_> {
                 .collect();
             // A template the checker cannot carry yet decides nothing.
             if let Ok(msgs) = hd_check::derive::check_opt_in(tcx, opt, &methods) {
-                out.extend(msgs.into_iter().map(|msg| (*i, msg)));
+                let compare = [k.eq, k.partial_ord, k.ord, k.hash].contains(&opt.trait_);
+                out.extend(msgs.into_iter().map(|(member, message)| OptInFinding {
+                    item: *i,
+                    data: opt.data,
+                    slot: opt.members[member].slot,
+                    compare,
+                    message,
+                }));
             }
         }
         out

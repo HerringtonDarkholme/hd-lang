@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1593 | 710 | 540 | 2843 |
+| 1597 | 701 | 545 | 2843 |
 
 ## By Chapter
 
@@ -21,8 +21,8 @@ fixture; unsupported surface records progress without failing.
 | `lang/05-expressions.md` | 136 | 77 | 64 | 277 |
 | `lang/06-control-flow.md` | 97 | 34 | 26 | 157 |
 | `lang/07-functions.md` | 51 | 34 | 45 | 130 |
-| `lang/08-data-and-enums.md` | 52 | 41 | 30 | 123 |
-| `lang/09-traits.md` | 185 | 126 | 47 | 358 |
+| `lang/08-data-and-enums.md` | 52 | 40 | 31 | 123 |
+| `lang/09-traits.md` | 189 | 120 | 49 | 358 |
 | `lang/10-modules.md` | 119 | 86 | 53 | 258 |
 | `lang/11-requirements-and-suspension.md` | 104 | 54 | 101 | 259 |
 | `lang/14-annotations.md` | 64 | 70 | 19 | 153 |
@@ -39,7 +39,7 @@ fixture; unsupported surface records progress without failing.
 | `std/host.md` | 0 | 0 | 2 | 2 |
 | `std/http.md` | 0 | 0 | 2 | 2 |
 | `std/iter.md` | 15 | 7 | 3 | 25 |
-| `std/json.md` | 2 | 1 | 16 | 19 |
+| `std/json.md` | 2 | 0 | 17 | 19 |
 | `std/net.md` | 0 | 1 | 0 | 1 |
 | `std/num.md` | 8 | 10 | 0 | 18 |
 | `std/ops.md` | 2 | 3 | 8 | 13 |
@@ -49,7 +49,7 @@ fixture; unsupported surface records progress without failing.
 | `std/random.md` | 8 | 0 | 0 | 8 |
 | `std/regex.md` | 0 | 0 | 13 | 13 |
 | `std/result.md` | 4 | 1 | 0 | 5 |
-| `std/serde.md` | 2 | 1 | 5 | 8 |
+| `std/serde.md` | 2 | 0 | 6 | 8 |
 | `std/sys.md` | 0 | 1 | 0 | 1 |
 | `std/task.md` | 1 | 1 | 5 | 7 |
 | `std/testing.md` | 17 | 19 | 3 | 39 |
@@ -63,8 +63,8 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 52 | 33 | 20 | 105 |
-| `runtime/valid` | 386 | 179 | 364 | 929 |
-| `typing/invalid` | 526 | 437 | 110 | 1073 |
+| `runtime/valid` | 386 | 174 | 369 | 929 |
+| `typing/invalid` | 530 | 433 | 110 | 1073 |
 | `typing/valid` | 335 | 34 | 46 | 415 |
 | `typing/warnings` | 7 | 13 | 0 | 20 |
 
@@ -94,7 +94,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 9 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 287 |
+| `fail:no-diagnostic` | 283 |
 | `fail:nonexhaustive-match` | 16 |
 | `fail:not-callable` | 1 |
 | `fail:orphan-impl` | 1 |
@@ -110,7 +110,7 @@ compiler stage that first declined the case.
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-method-signature` | 1 |
 | `fail:trait-used-as-type` | 2 |
-| `fail:type-mismatch` | 87 |
+| `fail:type-mismatch` | 86 |
 | `fail:type-used-as-value` | 2 |
 | `fail:unknown-data-field` | 13 |
 | `fail:unknown-import` | 26 |
@@ -121,10 +121,10 @@ compiler stage that first declined the case.
 | `fail:unknown-trait` | 9 |
 | `fail:unknown-type` | 4 |
 | `fail:unknown-variant` | 1 |
-| `fail:unsatisfied-trait-bound` | 34 |
+| `fail:unsatisfied-trait-bound` | 30 |
 | `fail:unused-local-binding` | 11 |
 | `unsupported:Body` | 202 |
-| `unsupported:Collect` | 88 |
+| `unsupported:Collect` | 93 |
 | `unsupported:Discover` | 13 |
 | `unsupported:Emit` | 138 |
 | `unsupported:FolderIface` | 35 |
@@ -301,7 +301,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (287)</summary>
+<details><summary><code>fail:no-diagnostic</code> (283)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -315,8 +315,6 @@ compiler stage that first declined the case.
 - `typing/invalid/private-type-embedded-in-public-data.hd`
 - `typing/warnings/unreachable-code.hd`
 - `typing/invalid/duplicate-field.hd`
-- `typing/invalid/derived-hash-field-not-hash.hd`
-- `typing/invalid/derived-total-order-float.hd`
 - `typing/invalid/unknown-annotation-member.hd`
 - `typing/invalid/partial-generic-arguments.hd`
 - `typing/invalid/bare-parameter-impl-target.hd`
@@ -436,7 +434,6 @@ compiler stage that first declined the case.
 - `typing/invalid/row-union-list-no-convert.hd`
 - `typing/invalid/row-union-missing-requirement.hd`
 - `typing/invalid/public-method-missing-result-type.hd`
-- `typing/invalid/derive-newtype-base-missing-trait.hd`
 - `typing/invalid/intrinsic-method-user.hd`
 - `typing/invalid/supertrait-binding-mismatch.hd`
 - `typing/invalid/supertrait-binding-unknown.hd`
@@ -558,7 +555,6 @@ compiler stage that first declined the case.
 - `typing/invalid/assoc-call-parameter-two-bounds.hd`
 - `typing/invalid/duplicate-associated-binding-two-bounds.hd`
 - `typing/invalid/dyn-self-parameter-unavailable.hd`
-- `typing/invalid/derived-eq-enum-payload-missing-trait.hd`
 - `typing/invalid/child-trait-redeclares-associated-type.hd`
 - `typing/invalid/child-trait-redeclares-associated-function.hd`
 - `typing/invalid/from-trait-value-target.hd`
@@ -778,7 +774,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (87)</summary>
+<details><summary><code>fail:type-mismatch</code> (86)</summary>
 
 - `runtime/valid/structural-equality.hd`
 - `runtime/valid/structural-ordering.hd`
@@ -821,7 +817,6 @@ compiler stage that first declined the case.
 - `runtime/valid/none-with-expected-list-type.hd`
 - `runtime/valid/optional-erased-to-any.hd`
 - `runtime/valid/dynamic-trait-value-satisfies-own-bound.hd`
-- `runtime/valid/derived-newtype.hd`
 - `typing/invalid/least-common-type-supertrait-widening.hd`
 - `typing/invalid/function-result-representation-change.hd`
 - `typing/valid/debug-standard-types.hd`
@@ -1027,7 +1022,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unsatisfied-trait-bound</code> (34)</summary>
+<details><summary><code>fail:unsatisfied-trait-bound</code> (30)</summary>
 
 - `typing/invalid/provider-value-type-mismatch.hd`
 - `runtime/valid/private-function-inferred-result.hd`
@@ -1054,15 +1049,11 @@ compiler stage that first declined the case.
 - `runtime/valid/iterator-chain-iterable.hd`
 - `runtime/valid/iterator-flat-map.hd`
 - `typing/invalid/list-slice-negative-literal.hd`
-- `runtime/valid/derived-debug-newtype.hd`
 - `runtime/valid/error-chain-derived-causes.hd`
-- `runtime/valid/serde-std-writes.hd`
-- `runtime/valid/json-typed-members.hd`
 - `typing/invalid/trait-generic-instantiations-unrelated.hd`
 - `typing/invalid/inspectable-child-trait-without-impl.hd`
 - `typing/invalid/error-find-concrete-receiver.hd`
 - `runtime/valid/error-chain-method.hd`
-- `runtime/valid/derive-members-of-data-and-enums.hd`
 
 </details>
 
@@ -1289,7 +1280,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Collect</code> (88)</summary>
+<details><summary><code>unsupported:Collect</code> (93)</summary>
 
 - `runtime/valid/partial-equality-dispatch.hd`
 - `runtime/valid/partial-ordering-dispatch.hd`
@@ -1309,6 +1300,7 @@ compiler stage that first declined the case.
 - `runtime/valid/binding-expression-tuple-value.hd`
 - `runtime/valid/trait-delegation-forwards.hd`
 - `runtime/valid/trait-delegation-as-written.hd`
+- `runtime/valid/derived-newtype.hd`
 - `runtime/valid/typed-derivation-walk.hd`
 - `runtime/panic/structure-variant-mismatch.hd`
 - `runtime/valid/data-variant-facts-empty.hd`
@@ -1356,6 +1348,7 @@ compiler stage that first declined the case.
 - `runtime/valid/typed-derivation-embedded-generic-walk.hd`
 - `runtime/valid/typed-derivation-build-defaults.hd`
 - `runtime/valid/derived-equality-members.hd`
+- `runtime/valid/derived-debug-newtype.hd`
 - `runtime/valid/derived-ordering-run.hd`
 - `runtime/valid/handle-fact-exact-type.hd`
 - `runtime/valid/derived-equality-generic.hd`
@@ -1366,10 +1359,12 @@ compiler stage that first declined the case.
 - `runtime/valid/debug-derive-variants.hd`
 - `runtime/valid/u8-checked-add.hd`
 - `runtime/valid/closure-result-keeps-requirement-row.hd`
+- `runtime/valid/serde-std-writes.hd`
 - `runtime/valid/serde-std-reads.hd`
 - `runtime/valid/serde-derive-read-order.hd`
 - `runtime/valid/serde-variant-member-facts.hd`
 - `runtime/valid/serde-writer-first-error.hd`
+- `runtime/valid/json-typed-members.hd`
 - `runtime/valid/json-typed-missing-key-ignores-default.hd`
 - `runtime/valid/derived-eq-every-member.hd`
 - `runtime/valid/delegation-associated-function-written.hd`
@@ -1378,6 +1373,7 @@ compiler stage that first declined the case.
 - `runtime/valid/http-scripted-unknown-url.hd`
 - `runtime/valid/trait-value-generic-method-value-args.hd`
 - `runtime/panic/fact-evaluation-panics-on-read.hd`
+- `runtime/valid/derive-members-of-data-and-enums.hd`
 - `runtime/valid/trait-and-impl-declaration-forms.hd`
 
 </details>
@@ -2509,11 +2505,15 @@ typing/invalid/derive-before-function.hd
 typing/invalid/derive-before-trait.hd
 typing/invalid/derive-beside-written-impl.hd
 typing/invalid/derive-member-not-derivable.hd
+typing/invalid/derive-newtype-base-missing-trait.hd
 typing/invalid/derive-unknown-trait.hd
 typing/invalid/derived-arbitrary-function-member.hd
 typing/invalid/derived-arbitrary-generic-bound.hd
 typing/invalid/derived-arbitrary-tuned-member-not-arbitrary.hd
 typing/invalid/derived-default-member-not-default.hd
+typing/invalid/derived-eq-enum-payload-missing-trait.hd
+typing/invalid/derived-hash-field-not-hash.hd
+typing/invalid/derived-total-order-float.hd
 typing/invalid/diamond-same-depth-conflict.hd
 typing/invalid/discarded-optional-result.hd
 typing/invalid/discarded-result.hd

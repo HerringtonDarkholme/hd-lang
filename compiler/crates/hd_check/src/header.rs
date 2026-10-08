@@ -62,6 +62,45 @@ pub fn stage_b(cx: &HeaderCx<'_>, items: &[Item]) -> StageResult<Vec<Finding>> {
     Ok(out)
 }
 
+/// The derived implementations of `items` whose type is a newtype: the base
+/// type must implement the derived trait
+/// (`trait.derive.newtype.requires`); one that does not is an error at the
+/// base type, slot 1 of the derived implementation
+/// (`trait.derive.newtype.requires.error`). `items` are a module's own
+/// items, private ones included: a body check's view, not an interface's.
+pub fn derived_newtypes(cx: &HeaderCx<'_>, items: &[Item]) -> StageResult<Vec<Finding>> {
+    let mut out = Vec::new();
+    for it in items {
+        let ItemData::Impl {
+            trait_,
+            trait_args,
+            self_ty,
+            kind: ImplKind::Derived,
+            ..
+        } = &it.data
+        else {
+            continue;
+        };
+        let mut env = environment(cx, it);
+        env.key = Some(cx.global.env_key(&env));
+        let mut hc = ItemCheck {
+            cx,
+            env,
+            memo: BodyMemo::default(),
+            fuel: Fuel::new(Fuel::BODY_DEFAULT),
+            item: it.def,
+            out: &mut out,
+        };
+        let tv = hc.pool().intern_ty(&TyData::TraitValue {
+            def: *trait_,
+            args: *trait_args,
+            bindings: vec![],
+        });
+        hc.derived_newtype(*self_ty, tv)?;
+    }
+    Ok(out)
+}
+
 /// The parameter environment of an item: its own parameters' bounds,
 /// after its owner's (an impl's parameters, or a trait's `Self` bounded
 /// by the trait and the trait's parameters).
@@ -162,7 +201,11 @@ impl<'a> ItemCheck<'_, 'a> {
         // enums have their own (`anchor`).
         let positional = matches!(
             it.data,
-            ItemData::Fn(_) | ItemData::Method { .. } | ItemData::Data(_) | ItemData::Enum { .. }
+            ItemData::Fn(_)
+                | ItemData::Method { .. }
+                | ItemData::Data(_)
+                | ItemData::Enum { .. }
+                | ItemData::Newtype(_)
         );
         for (i, t) in tys.into_iter().enumerate() {
             let slot = if positional {
@@ -208,6 +251,39 @@ impl<'a> ItemCheck<'_, 'a> {
         {
             self.delegation(*self_ty, tv, *by)?;
         }
+        Ok(())
+    }
+
+    /// A derived newtype's base type must implement the derived trait
+    /// (`trait.derive.newtype.requires`); one that does not is an error at
+    /// the base type (`trait.derive.newtype.requires.error`).
+    fn derived_newtype(&mut self, self_ty: Ty, tv: Ty) -> StageResult<()> {
+        let pool = self.pool();
+        let TyData::Adt { def, args } = pool.get(self_ty) else {
+            return Ok(());
+        };
+        let Some(ItemData::Newtype(inner)) = self.cx.lookup.item(def).map(|i| &i.data) else {
+            return Ok(());
+        };
+        let args = pool.list_items(args);
+        let base = pool.subst(*inner, &|p: ParamRef| {
+            (p.owner == def).then(|| args.get(usize::from(p.index)).copied())?
+        });
+        if !self.fails(base, tv)? {
+            return Ok(());
+        }
+        let TyData::TraitValue { def: trait_, .. } = pool.get(tv) else {
+            return Ok(());
+        };
+        let message = format!(
+            "the base type {} of {} does not implement {}, so {} cannot derive it",
+            self.show(base),
+            self.show(self_ty),
+            self.cx.names.path(trait_),
+            self.show(self_ty)
+        );
+        // The derived implementation's slot 1 is the base type.
+        self.report(1, Code::DeriveFieldMissingTrait, message);
         Ok(())
     }
 

@@ -10,7 +10,8 @@
 //!
 //! Slots: 0 is the item's header; for functions, methods, data and enum
 //! items slot `1 + i` is the `i`-th written type position, in the order
-//! stage B checks them (parameters then result, or fields in order).
+//! stage B checks them (parameters then result, or fields in order); a
+//! newtype's slot 1 is its base type.
 
 use std::collections::HashMap;
 
@@ -145,6 +146,12 @@ pub fn collect(names: &Names<'_>, src: &Src<'_>, heads: &[Head<'_>], items: &[It
                 let mut slot = 1;
                 cx.fields(h.def, Src::child(n, SyntaxKind::Block), &mut slot, n);
             }
+            HeadKind::Newtype => {
+                if let Some(base) = n.children().find(|c| c.kind().is_type()) {
+                    let a = cx.at(n, 0, base, false);
+                    cx.push(h.def, 1, a);
+                }
+            }
             HeadKind::Enum => {
                 let mut slot = 1;
                 cx.fields(
@@ -186,16 +193,17 @@ pub fn collect(names: &Names<'_>, src: &Src<'_>, heads: &[Head<'_>], items: &[It
                     cx.sig(def, f, f, member);
                 }
             }
-            _ => {}
+            HeadKind::Alias => {}
         }
-        if matches!(h.kind, HeadKind::Data | HeadKind::Enum) {
+        if matches!(h.kind, HeadKind::Data | HeadKind::Enum | HeadKind::Newtype) {
             derived(&mut cx, names, h, items);
         }
     }
     cx.out
 }
 
-/// A derived implementation sits at the `@derive` argument list that names it.
+/// A derived implementation sits at the `@derive` argument list that names
+/// it; its slots repeat those of the type it derives for.
 fn derived(cx: &mut Ctx<'_, '_>, names: &Names<'_>, h: &Head<'_>, items: &[Item]) {
     let src = cx.src;
     for it in items {
@@ -225,6 +233,19 @@ fn derived(cx: &mut Ctx<'_, '_>, names: &Names<'_>, h: &Head<'_>, items: &[Item]
         if let Some(d) = node {
             let a = cx.at(h.node, 0, d, false);
             cx.push(it.def, 0, a);
+            // The derived implementation also carries the positions of the
+            // type's fields (or a newtype's base type), where a derived
+            // trait's missing field implementation is reported even
+            // when the private type itself has no interface item.
+            let fields: Vec<(u32, Anchor)> = cx
+                .out
+                .iter()
+                .filter(|(def, slot, _)| *def == h.def && *slot > 0)
+                .map(|(_, slot, a)| (*slot, *a))
+                .collect();
+            for (slot, a) in fields {
+                cx.push(it.def, slot, Some(a));
+            }
         }
     }
 }
