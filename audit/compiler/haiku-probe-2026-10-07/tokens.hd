@@ -1,0 +1,32 @@
+# An enum of tokens, a function that turns a string into tokens, and a match that prints each one.
+
+use std.num.parse_i32
+
+enum Token:
+    Number(value: i32)
+    Plus
+    Minus
+    Word(text: string)
+
+fn tokenize(input: string) -> List[Token]:
+    let tokens: mut List[Token] = []
+    for piece in input.split_whitespace():
+        if piece == "+":
+            tokens.push(.Plus)
+        else if piece == "-":
+            tokens.push(.Minus)
+        else:
+            match parse_i32(piece):
+                .Ok(value) => tokens.push(.Number(value))
+                .Err(_) => tokens.push(.Word(piece))
+    tokens
+
+fn describe(token: Token) -> string:
+    match token:
+        .Number(value) => "number $value"
+        .Plus => "plus"
+        .Minus => "minus"
+        .Word(text) => "word $text"
+
+for token in tokenize("12 + apple - 7 pears"):
+    println(describe(token))

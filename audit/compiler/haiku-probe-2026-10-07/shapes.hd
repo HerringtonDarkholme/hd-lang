@@ -1,0 +1,36 @@
+# A trait with two implementations, a list of shapes, and the total area.
+
+trait Shape:
+    fn area(self) -> f64
+
+data Circle:
+    radius: f64
+
+data Rectangle:
+    width: f64
+    height: f64
+
+impl Shape for Circle:
+    fn area(self) -> f64:
+        3.14159 * self.radius * self.radius
+
+impl Shape for Rectangle:
+    fn area(self) -> f64:
+        self.width * self.height
+
+fn total_area(shapes: List[dyn Shape]) -> f64:
+    let total: f64 = 0.0
+    for shape in shapes:
+        total = total + shape.area()
+    total
+
+let shapes: List[dyn Shape] = [
+    Circle { radius: 1.0 },
+    Rectangle { width: 3.0, height: 4.0 },
+    Circle { radius: 2.5 },
+]
+
+for shape in shapes:
+    println("area: ${shape.area()}")
+
+println("total area: ${total_area(shapes)}")

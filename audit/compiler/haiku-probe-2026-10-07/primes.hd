@@ -1,0 +1,27 @@
+# Count the primes below 200000 with a sieve of Eratosthenes.
+
+fn count_primes(limit: usize) -> usize:
+    let is_prime: mut List[bool] = []
+    let i: usize = 0
+    while i < limit:
+        is_prime.push(true)
+        i = i + 1
+    is_prime[0] = false
+    is_prime[1] = false
+
+    let p: usize = 2
+    while p * p < limit:
+        if is_prime[p]:
+            let m: usize = p * p
+            while m < limit:
+                is_prime[m] = false
+                m = m + p
+        p = p + 1
+
+    let count: usize = 0
+    for flag in is_prime:
+        if flag:
+            count = count + 1
+    count
+
+println("primes below 200000: ${count_primes(200000)}")

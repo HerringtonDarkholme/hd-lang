@@ -1,0 +1,37 @@
+# A bank account with deposit and withdraw that return a Result.
+
+enum BankError:
+    Insufficient(needed: i32, available: i32)
+    InvalidAmount(amount: i32)
+
+data Account:
+    owner: string
+    balance: i32
+
+fn deposit(account: Account, amount: i32) -> Result[Account, BankError]:
+    if amount <= 0:
+        return .Err(BankError.InvalidAmount(amount))
+    .Ok(Account { ...account, balance: account.balance + amount })
+
+fn withdraw(account: Account, amount: i32) -> Result[Account, BankError]:
+    if amount <= 0:
+        return .Err(BankError.InvalidAmount(amount))
+    if amount > account.balance:
+        return .Err(BankError.Insufficient(amount, account.balance))
+    .Ok(Account { ...account, balance: account.balance - amount })
+
+fn describe_error(error: BankError) -> string:
+    match error:
+        .Insufficient(needed, available) => "need $needed but only $available available"
+        .InvalidAmount(amount) => "invalid amount $amount"
+
+fn show(result: Result[Account, BankError]) -> void:
+    match result:
+        .Ok(account) => println("ok: ${account.owner} has ${account.balance}")
+        .Err(error) => println("error: ${describe_error(error)}")
+
+start := Account { owner: "Ada", balance: +100 }
+show(deposit(start, +50))
+show(withdraw(start, +30))
+show(withdraw(start, +500))
+show(deposit(start, -5))
