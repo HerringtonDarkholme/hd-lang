@@ -157,3 +157,15 @@ fn script_runs_its_top_level_statements() {
     std::fs::write(&file, "x := 40 + 2\nprintln(x)\n").expect("write");
     assert_eq!(hd_run(&cache("hd-cache-script"), &file), "42\n");
 }
+
+/// Outside any package, `hd run FILE` builds FILE alone: a broken sibling
+/// in the same directory is not part of the program (cli.file.run).
+#[test]
+fn run_file_ignores_broken_siblings() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-sibling");
+    std::fs::create_dir_all(&dir).expect("dir");
+    let file = dir.join("good.hd");
+    std::fs::write(&file, "println(\"fine\")\n").expect("write");
+    std::fs::write(dir.join("broken.hd"), "fn broken( :\n").expect("write");
+    assert_eq!(hd_run(&cache("hd-cache-sibling"), &file), "fine\n");
+}

@@ -135,8 +135,19 @@ pub fn load(target: &Path) -> Result<Program, String> {
         }
         Err(_) => default_name(&root),
     };
+    // A FILE with no `hd.toml` above it is a one-file program (cli.file.run):
+    // only FILE is its source, not its siblings.
     let mut files = Vec::new();
-    walk(&root, &root, &mut files)?;
+    match &entry_file {
+        Some(name) if package_root(&root).is_none() => {
+            let size = std::fs::metadata(target).map_or(0, |m| m.len());
+            files.push(SourceEntry {
+                path: name.clone(),
+                size,
+            });
+        }
+        _ => walk(&root, &root, &mut files)?,
+    }
     let sources = DiskSources {
         root: root.clone(),
         files,
