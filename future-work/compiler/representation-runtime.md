@@ -620,6 +620,57 @@ Measure the eager variant in E10; it wins if instantiation stays under
 to an import (`println` of a literal) skips the array altogether.
 Type-only: not a type question.
 
+### 6.6 Append: From Quadratic `+` To A Rope (Proposal, Not Accepted)
+
+Q26 measured `out = out + "abcdefgh"` at 40k appends: ~6.4 GB copied
+for a 320 KB result, 84x vs Node, scaling 1 : 3.8 : 15.3 at
+10k/20k/40k. Every `+` allocates one flat array and copies both sides,
+so any loop over `+` is O(n²) in total bytes moved. The spec fixes the
+observables — immutable values, valid UTF-8, O(1) `len`, byte equality,
+flat UTF-8 bytes at the host boundary — but not the heap shape, so the
+fix can be invisible to the language. One hd-specific constraint shapes
+every option: S2 slices share their source's bytes, and strings have no
+identity (`AnyVal`), so reusing a buffer in place is unsound wherever
+a slice may alias it. Only a uniqueness proof (which hd has no machinery
+for) or a shape that shares safely can fix `+` itself.
+
+| | V8 cons-string (lazy tree, flatten on demand) | Java/Go builder (explicit type, amortized buffer) | Rust `String` (move reuses the left buffer) | Swift/Koka COW (in-place append on unique reference) |
+| --- | --- | --- | --- | --- |
+| how the append avoids O(n²) | `+` returns a node, no copy; flatten walks or copies on demand | appends go to a spare-capacity buffer; `build` copies once | `a + b` moves `a`, pushes into its spare capacity when present | append mutates the buffer iff the reference is unique, else copies |
+| heap under Wasm GC | two string shapes: flat `(ref, span)` plus nodes of two child strings and a total length | one growable byte array beside the existing strings | over-allocated arrays plus a length word; same as a builder buffer | a uniqueness word on every string plus the buffer when unique |
+| ops that must flatten | host boundary (flat UTF-8 bytes, no conversion allowed); equality and hashing either walk the tree or flatten first | none: the buffer is flat by construction; `build` copies once | none, same as a builder | none when unique; the copy path is flat |
+| hashing / equality cost | same byte loops once flat; an unflattened tree costs a walk per compare unless flattened eagerly | unchanged from today | unchanged from today | unchanged from today |
+| host boundary | flatten to one array first (one copy, amortized over the appends that built the tree) | already flat | already flat | already flat when unique |
+| hello-world code size | flatten + node-shape branches ship in every binary that touches strings; measure with `wasm-size.mjs` on a hello-string before/after | nothing: `StringBuilder` already exists in `std.text` | the growth policy + spare-capacity branches in string code | the uniqueness word, checks, and both paths in string code |
+| language needs | none visible: same `string`, same `+`, same observables (`len` stays O(1) from the stored total) | none new: `StringBuilder` exists; only programs that opt in improve | move semantics hd does not have; proving the left buffer unaliased through S2 slices needs new analysis | a uniqueness notion hd does not have; Wasm GC provides no refcounts |
+| what stays quadratic | deep trees degrade walks until flattened; needs a depth cap with eager flatten | every bare `+` loop; `join` is O(n log n) halves today | n/a (needs the missing uniqueness proof) | n/a (needs the missing uniqueness word) |
+
+Notes on the table:
+
+- The std `StringBuilder` (parts list + `build` via divide-and-conquer
+  `join`) is already sub-quadratic, but only for opt-in code, and
+  `join` copies O(n log n). A single-pass `join` (measure total
+  length, copy once) would make it O(n) in `lib/std` alone.
+- Rust-style reuse is unsound here without more: `out = out + x` cannot
+  reuse `out`'s array because an S2 slice may share those bytes, and hd
+  has no move to prove otherwise. Same for naive COW: there is nothing
+  to count.
+- A rope shares safely for the same reason slices do: nodes are
+  immutable, so aliasing is unobservable. Slices of ropes stay free
+  (a node is already a view), and pinning is the accepted S2 risk.
+
+**Recommendation (medium; owner decision).** A rope: `+` returns a lazy
+concat node, flattening happens at the host boundary and inside
+equality/hashing, everything else in the spec reads unchanged. It is
+the only option that fixes bare `+` loops — including unchangeable user
+code — with no new names and no spec change.
+
+**Smallest first step.** Single-pass `join` in `lib/std`: measure total
+length, allocate once, copy once. No compiler, spec, or representation
+change; it makes today's `StringBuilder` O(n) and the builder-vs-`+`
+benchmark then sizes the rope payoff. No owner questions: no new
+user-visible names, no observable change.
+
 ## 7. Collections
 
 ### 7.1 `List[T]`

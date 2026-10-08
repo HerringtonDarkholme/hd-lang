@@ -102,28 +102,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Y1. String Appends: Design Options For A Rope Or Builder (Research)
-
-Q26 (`audit/compiler/runtime-hotspots-efc99933.md`) found string append
-is O(n²): 40k appends copy ~6.4 GB for a 320 KB result (84x vs Node).
-Read `future-work/compiler/representation-runtime.md` §6 Strings (and
-what `lib/std` and the spec promise about `string`: immutability, UTF-8,
-O(1) `len`, slicing/indexing on views, hashing, equality, boundary
-crossing to the host). Then compare how three or four real systems avoid
-the quadratic append — V8 cons-strings flattened on demand, Java/Go
-builders (`StringBuilder`, `strings.Builder`), Rust `String` with
-amortized growth plus `+=` reusing the left buffer when it is uniquely
-owned, Swift/Koka-style in-place append on a unique reference — and for
-each: what it costs hd (heap layout under Wasm GC, every string op that
-must flatten, hashing/equality cost, host boundary, code size in a
-hello-world), and what it needs from the language (a builder type in
-std, or nothing visible). End with a recommendation and the smallest
-first step. Write it as a proposal section appended to
-`future-work/compiler/representation-runtime.md` §6 (clearly marked
-"Proposal, not accepted") — no spec edits, no new user-visible names
-without listing them as owner questions in this file's Questions
-section. Timebox 60 minutes; push.
-
 ### L1. Std Inventory: Spec'd Items Missing From `lib/std`
 
 Some fixtures fail because a std module the spec defines does not exist
