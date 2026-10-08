@@ -2,7 +2,8 @@
 
 Part of the [compiler design](README.md).
 
-Status: report, 2026-10-07, after M4c (`4c4b3b92`). Phase 1, "make it
+Status: report, 2026-10-08, after the overnight compiler work
+(`97ef2c30`). Phase 1, "make it
 move", is complete. This footprint records
 implementation coverage, not accepted language behavior. One row per
 design-doc section: where its code is and how far it goes. **Real**: the
@@ -20,18 +21,22 @@ M4a checks all 37 std modules and 1,080 bodies to verified TIR. M4b
 collects std, emits layout-driven Wasm and runs a representative program
 on V8. M4d runs module initialization, suspension and `defer` programs.
 M4c adds shared enum initialization, range loops, entry-error reporting
-and end-to-end unit tests. A row is still only real for the implemented
-subset: the known M4a through M4c gaps keep affected sections partial.
+and end-to-end unit tests. The overnight work of 2026-10-08 adds closure-row
+inference, the closure provider context, projections, embedded member
+promotion, declaration anchors, `hd check`, `StrIndex`, shared cells and
+the designed pool and unifier storage. A row is still only real for the
+implemented subset: the known M4a through M4c gaps keep affected sections
+partial.
 
 ## Totals
 
 | Doc | Real | Skeleton | Missing | Sections |
 | --- | --- | --- | --- | --- |
-| [data-structures.md](data-structures.md) | 8 | 14 | 3 | 25 |
+| [data-structures.md](data-structures.md) | 11 | 11 | 3 | 25 |
 | [syntax.md](syntax.md) | 5 | 1 | 0 | 6 |
 | [resolution-and-interfaces.md](resolution-and-interfaces.md) | 1 | 5 | 0 | 6 |
 | [checking-and-tir.md](checking-and-tir.md) | 1 | 2 | 0 | 3 |
-| [type-checking.md](type-checking.md) | 27 | 17 | 17 | 61 |
+| [type-checking.md](type-checking.md) | 30 | 14 | 17 | 61 |
 | [trait-solver.md](trait-solver.md) | 14 | 10 | 34 | 58 |
 | [cache.md](cache.md) | 4 | 4 | 1 | 9 |
 | [scheduler.md](scheduler.md) | 2 | 3 | 0 | 5 |
@@ -40,10 +45,10 @@ subset: the known M4a through M4c gaps keep affected sections partial.
 | [wasm-layout.md](wasm-layout.md) | 5 | 3 | 0 | 8 |
 | [runtime-and-host.md](runtime-and-host.md) | 3 | 9 | 2 | 14 |
 | [engines-and-test-runner.md](engines-and-test-runner.md) | 5 | 2 | 5 | 12 |
-| [commands.md](commands.md) | 5 | 5 | 5 | 15 |
+| [commands.md](commands.md) | 7 | 4 | 4 | 15 |
 | [live-execution.md](live-execution.md) | 3 | 2 | 35 | 40 |
 | [tiering.md](tiering.md) | 3 | 2 | 26 | 31 |
-| all | 97 | 95 | 132 | 324 |
+| all | 105 | 88 | 131 | 324 |
 
 ### M3 Corrections
 
@@ -117,14 +122,47 @@ Commands.md §§7.3 and 20.1 move from missing to real for `hd test`, FILE,
 filter, jobs, ordered reports and exit statuses. Per-root build-error
 isolation, `hd.runtime` case metadata and the rest of P2-9 remain gaps.
 
+### Overnight Corrections (D2j)
+
+The overnight work (`c20e4ca6` to `97ef2c30`) moves eight sections and
+extends several others without a category change.
+
+Data-structures.md §3.3 Interners, §3.4 Types and §3.19 Per-Body Checker
+Scratch move from skeleton to real: the pool has its 64 dedup shards,
+per-thread read-through table and flat extra column; inference variables
+live in a body-local hash-consed `LocalPool` with bit-31 identity; the
+unifier has its rank column and trail-exact rollback. The local pool's
+hash-consing and the typed list-items column are recorded deviations from
+the design text.
+
+Type-checking.md §2.6 Closures, §5.1 Representation and §5.4 Closure Rows
+move from skeleton to real: the checker infers closure rows, splices row
+parameters through call type arguments, solves least rows and checks row
+subsumption.
+
+Commands.md §7.1 `hd check` (Package Mode) moves from skeleton to real
+and §7.2 `hd check FILE` from missing to real: `hd check` runs the one
+driver through checking and coherence, with text and JSON output and
+status 101 on failure.
+
+Extended without a category change: resolution-and-interfaces.md §4.10 to
+§4.12 (declaration anchors in a third interface section; coherence skips
+orphan-rejected impls), checking-and-tir.md §4.14 (header-stage and
+coherence findings resolve real spans), type-checking.md §3.6 (literal
+suffixes, prefixes, ranges and per-spec defaults), codegen.md §12.2
+(shared-cell captures, `StrIndex`, char and byte-string intrinsics) and
+§12.4 (the closure provider context). Totals: real rises from 97 to 105,
+skeleton falls from 95 to 88, missing falls from 132 to 131, for 324
+sections.
+
 ## Sections
 
 | Section | Code path | Status |
 | --- | --- | --- |
 | data-structures.md §3.1 IDs And Their Scopes | hd_base (`id!`, IDs, `NONE`) | real |
 | data-structures.md §3.2 Stable Paths And Stable Hashing | hd_intern::paths (`PathTable`), hd_base::stable | real |
-| data-structures.md §3.3 Interners | hd_intern (`ShardedInterner`, `PathTable`) | skeleton |
-| data-structures.md §3.4 Types | hd_types::pool (`TyData`, `InternPool`, rows), used by all std body checks; no body-local pool, and inference variables use the global pool and one global mutex | skeleton |
+| data-structures.md §3.3 Interners | hd_intern (`ShardedInterner`, `PathTable`), hd_types::pool (64 dedup shards, per-thread read-through table, allocation-free probe) | real |
+| data-structures.md §3.4 Types | hd_types::pool (`TyData`, `InternPool`, rows) plus body-local `LocalPool` with bit-31 indices and a 4-bit generation, hash-consed (a recorded deviation); the global pool rejects `HAS_INFER` | real |
 | data-structures.md §3.5 Arenas And Lifetimes | none | missing |
 | data-structures.md §3.6 The Poison Type | hd_types (`Ty::POISON`, `HAS_POISON`, unifier) | real |
 | data-structures.md §3.7 Spans And Files | hd_base (`Span`) | real |
@@ -136,10 +174,10 @@ isolation, `hd.runtime` case metadata and the rest of P2-9 remain gaps.
 | data-structures.md §3.13 The Green Tree, Its Wire Format And The JS Decoder | hd_syntax::green (`GreenTree`, wire form, generic `NodeRef`); no generated named Rust views or JS decoder | skeleton |
 | data-structures.md §3.14 The Header Skeleton And The Item Index | hd_syntax::skim, parser (`ItemIndex`); no header tree, use list holds body lines | skeleton |
 | data-structures.md §3.15 Name-Resolution Tables | hd_resolve (`ModuleScope`, `Binding`, `FolderExports`), used by the one driver but incomplete | skeleton |
-| data-structures.md §3.16 The Folder Interface: In Memory And As A Blob | hd_resolve::iface (`FolderIface`, canonical codec, deep hash); decoded copies remain, with no zero-copy reader, private-name index or declaration anchors | skeleton |
+| data-structures.md §3.16 The Folder Interface: In Memory And As A Blob | hd_resolve::iface (`FolderIface`, canonical codec, deep hash, declaration anchors in a third blob section outside every hash); decoded copies remain, with no zero-copy reader or private-name index | skeleton |
 | data-structures.md §3.17 Impl Tables | hd_types::solver (`ImplTable`, `HeadKey`) | skeleton |
 | data-structures.md §3.18 TIR | hd_tir::ir (`Body` columns), verifier and `wire` codec with stable TIR hash; the running path uses it | real |
-| data-structures.md §3.19 Per-Body Checker Scratch | hd_types::unify (`InferTable`) | skeleton |
+| data-structures.md §3.19 Per-Body Checker Scratch | hd_types::unify (`InferTable` with the rank column, union by rank, trail-exact rollback) | real |
 | data-structures.md §3.20 Cache Entries And The Manifest | the driver uses `encode_entry` and `decode_entry` for interface, check, code and link entries; the stat manifest and several sections remain absent | skeleton |
 | data-structures.md §3.21 The Scheduler's Task Graph | hd_sched (`TaskGraph`, `TaskKind`, `Spawn`, creation guards), used by serial, stepping and rayon executors | real |
 | data-structures.md §3.22 Codegen: The Instance Table And Code Entries | hd_mono::layout and collection, used by the driver for per-instance code entries | real |
@@ -155,11 +193,11 @@ isolation, `hd.runtime` case metadata and the rest of P2-9 remain gaps.
 | resolution-and-interfaces.md §4.7 Discovery, Module Identity And Folders | hd_project (`ModuleTable::discover`, `SourceSet`, manifest), used by the one driver | skeleton |
 | resolution-and-interfaces.md §4.8 Folder Graph | hd_project (`FolderGraph`: order, cycles, closures, heights), used by the one driver | real |
 | resolution-and-interfaces.md §4.9 Name Resolution | hd_resolve (`ModuleScope`, use worklist, prelude bindings and lookups) resolves every std header; cross-folder private names remain indistinguishable from absent names | skeleton |
-| resolution-and-interfaces.md §4.10 Folder Interface Construction | hd_resolve lowers every std header and `Universe::stage_b` runs; the checker completes implicit projection arguments, while derived heads and declared generic defaults remain incomplete | skeleton |
-| resolution-and-interfaces.md §4.11 The Interface Blob | hd_resolve::iface codec round-trips canonical bytes across fresh runs and shuffled orders; no zero-copy reader, private-name index or declaration anchors | skeleton |
-| resolution-and-interfaces.md §4.12 Traits, Impls And Coherence | hd_resolve::Universe runs stage B and generic-head overlap; coherence is pairwise rather than trie-based | skeleton |
+| resolution-and-interfaces.md §4.10 Folder Interface Construction | hd_resolve lowers every std header, `Universe::stage_b` runs and header findings carry declaration anchors; the checker completes implicit projection arguments, while derived heads and declared generic defaults remain incomplete | skeleton |
+| resolution-and-interfaces.md §4.11 The Interface Blob | hd_resolve::iface codec round-trips canonical bytes across fresh runs and shuffled orders; anchors sit in a third blob section; no zero-copy reader or private-name index | skeleton |
+| resolution-and-interfaces.md §4.12 Traits, Impls And Coherence | hd_resolve::Universe runs stage B and generic-head overlap, skipping orphan-rejected impls; coherence is pairwise rather than trie-based | skeleton |
 | checking-and-tir.md §4.13 Body Checking | hd_check::BodyCx checks all 38 current std modules and more than 1,000 bodies through inference, rows, usefulness, initialization and verified hd_tir::Body output; non-std forms can remain unsupported | real |
-| checking-and-tir.md §4.14 Diagnostics | every running stage uses hd_diag::DiagBuf and the generated complete Code enum; interface and package findings still use placeholder spans | skeleton |
+| checking-and-tir.md §4.14 Diagnostics | every running stage uses hd_diag::DiagBuf and the generated complete Code enum; header-stage and coherence findings resolve real spans through declaration anchors; package-level paths still use placeholder spans | skeleton |
 | checking-and-tir.md §4.15 Limits | hd_base::Fuel is charged by the checker and solver; limit diagnostics remain incomplete | skeleton |
 | type-checking.md §1.1 Who Owns What | hd_check owns checking, hd_types owns inference and solving, and hd_tir owns construction and verification on the full std corpus | real |
 | type-checking.md §1.2 Inputs | hd_check::BodyCx reads hd_resolve items and the full green tree incompletely | skeleton |
@@ -173,7 +211,7 @@ isolation, `hd.runtime` case metadata and the rest of P2-9 remain gaps.
 | type-checking.md §2.3 Statements And Blocks | hd_check::body carries std statements, structured exits, scopes and defer | real |
 | type-checking.md §2.4 Calls And Use-Site Type Arguments | hd_check::call handles generic, default, named, vararg, suspending and function-value calls | real |
 | type-checking.md §2.5 Methods And Operators | hd_check::call resolves inherent, trait and built-in methods and operators for std | real |
-| type-checking.md §2.6 Closures | hd_check checks closure bodies and captures; closure requirement rows are not inferred | skeleton |
+| type-checking.md §2.6 Closures | hd_check checks closure bodies and captures and infers closure requirement rows | real |
 | type-checking.md §2.7 When Variables Are Resolved | hd_check postpones calls and bounds, defaults literal classes, then zonks body types once | real |
 | type-checking.md §2.8 Empty Collections | hd_check::expr creates typed empty list and map values, including comprehension lowering | real |
 | type-checking.md §3.1 Variables | hd_types::unify (`VarKind`) | real |
@@ -186,10 +224,10 @@ isolation, `hd.runtime` case metadata and the rest of P2-9 remain gaps.
 | type-checking.md §4.2 Coercion Instructions | hd_check emits hd_tir::ir::Coercion records explicitly | real |
 | type-checking.md §4.3 Least Common Type | hd_check joins branch and arm values for the supported forms | real |
 | type-checking.md §4.4 Propagation | hd_check lowers `?` to variant switches, conversion and return | real |
-| type-checking.md §5.1 Representation | hd_types::pool (`RowData`) | skeleton |
+| type-checking.md §5.1 Representation | hd_types::pool (`RowData`); row parameters ride call type arguments as `TyData::Row`, with substitution and resolution splicing | real |
 | type-checking.md §5.2 Available Keys, Providers And `$.use` | hd_check::call and expr track available providers and emit `ProviderGet`/`With` | real |
 | type-checking.md §5.3 Call Checking | hd_check checks written rows and reports `missing-requirement` | real |
-| type-checking.md §5.4 Closure Rows | closure bodies carry rows, but the checker does not infer closure rows | skeleton |
+| type-checking.md §5.4 Closure Rows | a closure without a clause infers its row from its body; calls solve the least row and function values check row subsumption | real |
 | type-checking.md §5.5 Private Rows And The M3 Fixpoint | none | missing |
 | type-checking.md §5.6 Row Patterns And Least Solutions | none | missing |
 | type-checking.md §5.7 Suspension | hd_check checks bang calls and emits await tags, but writes no `SuspRow` side records | skeleton |
@@ -299,9 +337,9 @@ isolation, `hd.runtime` case metadata and the rest of P2-9 remain gaps.
 | codegen.md §11.3 Tasks | hd_sched (`ExtTask`), hd_cache::prog_key | real |
 | codegen.md §11.4 Crates | crates hd_mono, hd_host_abi, hd_wasm, hd_run, hd_run_wasmtime, hd_web | skeleton |
 | codegen.md §12.1 Analysis, Then One Emission Walk | hd_wasm emits each supported body in one walk using collection results and structural layouts | real |
-| codegen.md §12.2 Lowering Rules | hd_wasm::emit covers data, value enums, lists, maps, closures, trait calls, matches, interpolation and std println | real |
+| codegen.md §12.2 Lowering Rules | hd_wasm::emit covers data, value enums, lists, maps, closures with shared-cell captures, trait calls, matches, interpolation, string indexing and std println | real |
 | codegen.md §12.3 Facts, Defaults, Derives And Tests | hd_wasm links bindings, shared enum constructors, synthesized test bodies and module init functions; facts, defaults, derives and multi-module statement ordering remain partial | skeleton |
-| codegen.md §12.4 Rows And Providers | provider arguments, host-provider vtables and lexical `With` scopes emit; reusable contexts and entry-top-level providers remain unsupported | skeleton |
+| codegen.md §12.4 Rows And Providers | provider arguments, host-provider vtables, lexical `With` scopes and per-closure provider contexts emit; entry-top-level providers remain unsupported | skeleton |
 | codegen.md §12.5 Counted Loops And Checks | `ForRange`, checks and the `defer` exit ladder emit; `ForMap` remains blocked on `MapIter` | skeleton |
 | codegen.md §12.6 Tiers And Optimizations | hd_mono::passes | skeleton |
 | codegen.md §12.7 Emission-Time Checks | the emitter consumes verified TIR but trusts record indexes and does not run the designed debug assertions | skeleton |
@@ -359,8 +397,8 @@ isolation, `hd.runtime` case metadata and the rest of P2-9 remain gaps.
 | engines-and-test-runner.md §19.4 Property Tests, Panics And Timeouts | `expect_panic` is judged from stderr categories; properties and timeouts remain unsupported | skeleton |
 | engines-and-test-runner.md §19.5 Reports | hd_cli `Report` and hd_run::tests_model `CaseResult`, tested cold, warm and across job counts | real |
 | engines-and-test-runner.md §19.6 Tests In The Browser | none | missing |
-| commands.md §7.1 `hd check` (Package Mode) | hd_driver::architecture (stage report; no `hd check` command yet) | skeleton |
-| commands.md §7.2 `hd check FILE` | none | missing |
+| commands.md §7.1 `hd check` (Package Mode) | hd_cli::check_cmd over the one driver, text and `--format json`, status 101 on failure | real |
+| commands.md §7.2 `hd check FILE` | hd_cli::check_cmd checks one FILE as a single-file program | real |
 | commands.md §7.3 `hd test` (Up To D2) | hd_cli `test_cmd` over the one driver, with FILE, filter and jobs | real |
 | commands.md §7.4 `hd test --affected` | none | missing |
 | commands.md §7.5 `hd run`, `hd build` | hd_cli on the one driver, Node Engine and persistent DiskStore; language coverage and std remain incomplete | real |

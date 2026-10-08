@@ -90,25 +90,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### D2j. Reconcile The Overnight Compiler Work
-
-Since 21aee16d's neighbours, main gained (titles in `git log` since
-c20e4ca6): item spans for header findings, missing-trait-method,
-coherence skipping orphan impls, decorator target checking, literal
-suffixes/prefixes/ranges, literal default types (bare usize, signed
-i32), diagnostic rendering and messages, embedded member promotion, row
-polymorphism (with per-row specialization — a known deviation from
-`req.poly.one-body`), row and generics determinism, associated-type
-projections, StrIndex and byte intrinsics, shared cells for mutable
-captures, char intrinsics, and `hd check`. Run D2 for all of it:
-update `reconciliation.md` (mark fixed rows fixed; add each commit's
-"not fixed" findings to the backlog with its task number from the
-orchestrator's list where the commit message or report names one) and
-`footprint.md` counts; record design decisions the code made where the
-design was silent (e.g. anchors for header spans in a third Iface
-section; shared cells; the closure provider context). Docs only;
-timebox 60 minutes; push.
-
 ### Q22. Runtime Versus Node (Goal `runtime`)
 
 Under `compiler/bench/runtime/`: six small user-style programs the new
