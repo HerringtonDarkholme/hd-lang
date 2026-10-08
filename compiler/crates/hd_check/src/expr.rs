@@ -2121,7 +2121,7 @@ impl Ck<'_, '_> {
             if self.trait_is_mutable(def, 0) && self.is_composite(t) && !self.has_mut_access(t) {
                 let msg = format!(
                     "`{}` has `mut self` methods, so its provider needs `mut` access, but this is a readonly {}",
-                    self.cx.names.path(def),
+                    self.cx.names.display_name(def),
                     self.show(t)
                 );
                 self.err(Code::MutableUpgrade, *vn, &msg);

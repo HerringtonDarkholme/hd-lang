@@ -878,7 +878,7 @@ impl Ck<'_, '_> {
                 let msg = format!(
                     "{} does not implement {}",
                     self.show(tref.self_ty),
-                    self.cx.names.path(tref.trait_)
+                    self.cx.names.display_name(tref.trait_)
                 );
                 self.err(Code::UnsatisfiedTraitBound, at, &msg);
                 Ok(None)
@@ -1632,7 +1632,7 @@ impl Ck<'_, '_> {
                 let msg = format!(
                     "{} does not implement {}",
                     self.show(tref.self_ty),
-                    self.cx.names.path(tref.trait_)
+                    self.cx.names.display_name(tref.trait_)
                 );
                 let node = self.cx.src.parse.tree.node(at);
                 self.err(Code::UnsatisfiedTraitBound, node, &msg);

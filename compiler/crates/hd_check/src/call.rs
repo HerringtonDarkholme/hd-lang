@@ -1251,9 +1251,12 @@ impl Ck<'_, '_> {
         if !is_param {
             match self.trait_part(t, sym, &traits)? {
                 Some(Hit::Ambiguous(found)) => {
-                    let names: Vec<String> = found
+                    let names: Vec<String> = self
+                        .cx
+                        .names
+                        .display_names(&found)
                         .iter()
-                        .map(|d| format!("`{}`", self.cx.names.path(*d)))
+                        .map(|d| format!("`{d}`"))
                         .collect();
                     let msg = format!(
                         "`{}::{name}` is ambiguous: the traits {} each supply it; write `Trait::{name}(..)`",
@@ -1353,7 +1356,10 @@ impl Ck<'_, '_> {
         };
         let sym = self.cx.names.syms.intern(name);
         let Some(&(_, m)) = td.methods.iter().find(|(s, _)| *s == sym) else {
-            let msg = format!("no method `{name}` on trait {}", self.cx.names.path(tr));
+            let msg = format!(
+                "no method `{name}` on trait {}",
+                self.cx.names.display_name(tr)
+            );
             self.err(Code::UnknownMethod, n, &msg);
             return Ok((Ref(NONE), Ty::NEVER));
         };
@@ -1731,9 +1737,12 @@ impl Ck<'_, '_> {
         }
         match hit {
             Some(Hit::Ambiguous(traits)) => {
-                let names: Vec<String> = traits
+                let names: Vec<String> = self
+                    .cx
+                    .names
+                    .display_names(&traits)
                     .iter()
-                    .map(|t| format!("`{}`", self.cx.names.path(*t)))
+                    .map(|t| format!("`{t}`"))
                     .collect();
                 let msg = format!(
                     "`{name}` on {} is ambiguous: the traits {} each supply it; write `Trait::{name}(..)`",
@@ -2167,7 +2176,7 @@ impl Ck<'_, '_> {
                 let msg = format!(
                     "{} does not satisfy {}: its `{}` is {}, not {}",
                     self.show(st),
-                    self.cx.names.path(def),
+                    self.cx.names.display_name(def),
                     self.assoc_name(key),
                     self.show(got),
                     self.show(want)

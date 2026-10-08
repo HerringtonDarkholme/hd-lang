@@ -240,7 +240,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 let message = format!(
                     "{} implements {} but not {}",
                     self.show(*self_ty),
-                    self.cx.names.path(*trait_),
+                    self.cx.names.display_name(*trait_),
                     self.show(s)
                 );
                 self.report(0, Code::MissingSupertraitImplementation, message);
@@ -279,7 +279,7 @@ impl<'a> ItemCheck<'_, 'a> {
             "the base type {} of {} does not implement {}, so {} cannot derive it",
             self.show(base),
             self.show(self_ty),
-            self.cx.names.path(trait_),
+            self.cx.names.display_name(trait_),
             self.show(self_ty)
         );
         // The derived implementation's slot 1 is the base type.
@@ -385,7 +385,7 @@ impl<'a> ItemCheck<'_, 'a> {
                                     "{} does not implement {} in `{}`",
                                     self.show(a),
                                     self.show(b),
-                                    self.cx.names.path(self.item)
+                                    self.cx.names.display_name(self.item)
                                 );
                                 self.report(slot, Code::UnsatisfiedTraitBound, message);
                             }

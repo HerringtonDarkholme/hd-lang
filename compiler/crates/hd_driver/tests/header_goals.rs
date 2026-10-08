@@ -72,7 +72,7 @@ fn a_supertrait_holds_through_a_blanket_impl_and_fails_on_its_bound() {
     assert_eq!(lines.len(), 1, "{lines:#?}");
     assert!(
         lines[0].contains(
-            "missing-supertrait-implementation: Box[string] implements app/a.defs/Tagged but not Named"
+            "missing-supertrait-implementation: Box[string] implements Tagged but not Named"
         ),
         "{lines:#?}"
     );

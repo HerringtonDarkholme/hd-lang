@@ -889,12 +889,15 @@ impl Lower<'_, '_, '_> {
                 args: pool.list(args),
             }),
             HeadKind::Trait => {
-                let msg = format!("`{}` is a trait, not a type", self.names.path(def));
+                let msg = format!("`{}` is a trait, not a type", self.names.display_name(def));
                 self.diags.error(Code::TraitUsedAsType, span, &msg);
                 Ty::POISON
             }
             HeadKind::Fn | HeadKind::Impl => {
-                let msg = format!("no type named `{}`: not a type", self.names.path(def));
+                let msg = format!(
+                    "no type named `{}`: not a type",
+                    self.names.display_name(def)
+                );
                 self.diags.error(Code::UnknownType, span, &msg);
                 Ty::POISON
             }
@@ -1609,7 +1612,7 @@ impl Lower<'_, '_, '_> {
         if self.r.frozen.is_none() && by.is_none() && self.names.known.is_sealed(trait_) {
             let msg = format!(
                 "`{}` is implemented by the compiler only",
-                self.names.path(trait_)
+                self.names.display_name(trait_)
             );
             self.diags
                 .error(Code::SealedTraitImplementation, self.src.span(n), &msg);
@@ -2265,7 +2268,7 @@ fn ownership(
         };
         let msg = format!(
             "{what}: `{}` belongs in the module of its trait or target",
-            names.path(it.def)
+            names.display_name(it.def)
         );
         diags.error(code, span, &msg);
     }

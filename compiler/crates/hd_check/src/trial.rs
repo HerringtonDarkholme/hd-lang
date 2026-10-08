@@ -166,7 +166,7 @@ impl Ck<'_, '_> {
             [] => {
                 let msg = format!(
                     "no instantiation of {} fits this call; it has {}",
-                    self.cx.names.path(trait_),
+                    self.cx.names.display_name(trait_),
                     self.instantiations_text(
                         trait_,
                         self_ty,
@@ -181,7 +181,7 @@ impl Ck<'_, '_> {
                 let msg = format!(
                     "{} fit this call: write `{}::[..]::{}(..)` to choose one",
                     self.instantiations_text(trait_, self_ty, cands, several),
-                    self.cx.names.path(trait_),
+                    self.cx.names.display_name(trait_),
                     self.cx.names.text(
                         self.cx
                             .lookup

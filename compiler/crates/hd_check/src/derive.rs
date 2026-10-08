@@ -213,7 +213,7 @@ pub fn check_opt_in(
                 m.label,
                 hd_resolve::show_ty(names, m.ty),
                 hd_resolve::show_ty(names, bound),
-                names.path(opt.trait_)
+                names.display_name(opt.trait_)
             );
             (i, msg)
         })

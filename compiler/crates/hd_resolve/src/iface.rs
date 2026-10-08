@@ -88,6 +88,28 @@ impl Names<'_> {
     pub fn path(&self, d: DefId) -> String {
         self.paths.display(PathId::from_raw(d.raw())).to_string()
     }
+    /// An item as its user writes it: its declared name (`Eq`). Every
+    /// user-facing message and [`show_ty`] name items this way.
+    #[must_use]
+    pub fn display_name(&self, d: DefId) -> &str {
+        self.paths.segment(PathId::from_raw(d.raw()))
+    }
+    /// [`Self::display_name`] of each item of one message; items that would
+    /// print the same name are qualified by their module (`std.cmp.Eq`).
+    #[must_use]
+    pub fn display_names(&self, ds: &[DefId]) -> Vec<String> {
+        ds.iter()
+            .map(|&d| {
+                let name = self.display_name(d);
+                let clash = ds.iter().any(|&o| o != d && self.display_name(o) == name);
+                if clash {
+                    format!("{}.{name}", self.module_of(d))
+                } else {
+                    name.to_owned()
+                }
+            })
+            .collect()
+    }
     #[must_use]
     pub fn path_hash(&self, d: DefId) -> Hash128 {
         self.paths.hash(PathId::from_raw(d.raw()))
@@ -1180,7 +1202,7 @@ pub fn show_ty(names: &Names<'_>, t: Ty) -> String {
 /// [`show_ty`] for a type that may live in a body's local pool.
 #[must_use]
 pub fn show_ty_in(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty) -> String {
-    let seg = |d: DefId| names.paths.segment(PathId::from_raw(d.raw())).to_owned();
+    let seg = |d: DefId| names.display_name(d).to_owned();
     let list = |l: TyList| {
         pool.list_items(l)
             .iter()
