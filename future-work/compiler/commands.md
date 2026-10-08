@@ -32,10 +32,15 @@ Part of the [compiler design](README.md).
    `InitOrder` for folders whose `init_key` changed. Unchanged parts are
    copied from the previous `graph` entry.
 9. Print diagnostics in content order once every task that can add one
-   is done (§6.5), then the summary. Then the I/O thread finishes
-   publishing: the `check` entries, the `graph` and `pkgres` entries, and
-   the manifest with its last-run record (§5.4, "Print, then publish").
-   Eviction, if a shard is over budget, runs last.
+   is done (§6.5), then the summary. Text output ends with
+   `check result: ok|FAILED. errors: E; warnings: W`. `--summary`
+   prints one line per severity, file and code instead, in path then
+   code order. `--max-errors N` stops printing after the Nth error;
+   the counts and the exit status still cover everything. Then the I/O
+   thread finishes publishing: the `check` entries, the `graph` and
+   `pkgres` entries, and the manifest with its last-run record (§5.4,
+   "Print, then publish"). Eviction, if a shard is over budget, runs
+   last.
 
 Touched: `iface`, `check`, `graph`, `pkgres`, and the manifest. Reads
 are proportional to what changed (§5.9). Dependency bodies are never
@@ -51,6 +56,9 @@ research's "dependency bodies skipped" now holds cold as well as warm.
 3. Coherence runs only for traits with an impl in FILE.
 4. Output: FILE's diagnostics, plus one note per used folder whose
    interface has errors ("src/shop has 2 errors; run hd check").
+   A FILE inside a package reports only that file's module
+   (`cli.package.file`). JSON output keeps its contract: each
+   diagnostic, then the summary.
 5. A FILE under no root is a single-file program
    ([`cli.package.no-root`](../../spec/cli/command-line.md#r-cli.package.no-root)):
    one module, std only, no manifest.

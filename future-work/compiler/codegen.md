@@ -226,6 +226,7 @@ instance.
 | `Match` and its switches | `br_table` on a tag or a dense range; a binary search of `if`s for a sparse range of more than 8 cases; length then the viewed bytes for strings; each arm once, in nested blocks that leaves branch to |
 | `Call` with an `Item` callee | `call`, relocated to the callee instance |
 | `Call` with a `TraitMethod` callee | an `Impl` choice: a direct `call` of that impl's method. A `Bound` choice: the impl that `select` picks at the instance's types (§13.2); a direct `call`. A `TraitValue` choice: as `CallDyn`. A `Builtin` choice: the generated body (§13.6) |
+| `Prim` | one `prim_value` lowering, shared with the intrinsic std operator and comparison methods (`add`..`rem`, `neg`, bitwise, `not`, `shl`, `shr`, `eq` map to their `PrimOp`): overflow checks, division rules and panics have one source. `cmp` and `partial_cmp` build the `Ordering` tag as 1 + (a > b) − (a < b); float `partial_cmp` answers `.None` on NaN. A shift count keeps its own width and is extended or wrapped to the value's width |
 | `CallDyn` | `struct.get` of the vtable slot, then `call_ref`; a generic method also gets its witness global (§13.5.1). When the vtable is a known constant global after inlining, a direct `call` of the slot's function, which the inliner may then inline (§12.6) |
 | `CallValue` | `struct.get` of the closure's code, then `call_ref` with the closure as the first argument |
 | `CallHost` | an import call with the exchange-buffer codecs (§17.2) |
@@ -405,6 +406,12 @@ pipelines, and the pipeline is separate from the profile:
 - The **profile** is observable: checked (debug, test) or wrapping
   (release). It decides overflow and shift checks and the debug-only
   checks ([`cli.profile.test`](../../spec/cli/command-line.md#r-cli.profile.test)).
+- **Gap: `--release` currently changes no code.** `hd build --release`
+  selects only the output folder (`build/release`); the emitter takes no
+  profile, so release Wasm is identical to debug, checks included (Q24
+  measured equal ratios). The checked-vs-wrapping table above and the
+  S17 release-mode rules describe the intended profile, not the built
+  one.
 - The **pipeline** is not observable: dev or optimized. It decides which
   optimization passes run and the Cranelift setting. A program's output,
   panic categories and sites, effect order, `is` and type ids are the

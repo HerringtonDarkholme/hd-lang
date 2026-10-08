@@ -144,6 +144,11 @@ are frozen:
    type in a bound, or the target type in an impl head. Thus a bound or
    head written `Add` lowers as `Add[Self]` for the declared
    `Rhs = Self` default ([M3 gap 4](#410-folder-interface-construction)).
+   While lowering a `mut T` type, a type parameter with no written bound
+   list is `mut-on-type-parameter` (`types.generic.no-mut-t`), checked
+   here in lowering beside the primitive and tuple `no-mut` errors; a
+   parameter with any bound list is constrained and passes, and `mut
+   Self` is exempt (it names no declared type parameter).
 4. Build derived heads. For `@derive(X)`, the impl of `X` with `T < X` for
    each type parameter in a walked member
    ([Derived Bounds](../../spec/lang/14-annotations.md#derived-bounds)). For

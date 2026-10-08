@@ -27,7 +27,7 @@ so `obj/` needs a spec change, which the owner accepted (open question
 | --- | --- | --- | --- |
 | `iface` | a folder interface blob (§4.11); its header carries `api_hash`, `deep_hash`, `heads_hash` | `FolderIface` | dependents' key computation, resolution, coherence, `hd doc` |
 | `check` | one module and role, in sections: diagnostics with severities (layout 3 keeps warnings as warnings, so a cached warning no longer fails the CLI), init summary, row results, fact records, the read list (§5.3), the file's declaration table (`locs`), headers, and, only when the module has no error, its TIR with per-item TIR hashes and dependency lists (§4.13.11); role `test` also holds synthesized test items and registrations | `ModuleFinish` | output, `InitOrder`, D2, `hd check --tests`, `hd test` |
-| `graph` | every package-wide part in one entry: each folder's stage-B header diagnostics ([resolution-and-interfaces.md §4.10.1](resolution-and-interfaces.md#4101-header-validation-stages)), each trait's overlap diagnostics, each folder's statement order and its diagnostics | `HeaderCheck`, `Coherence` and `InitOrder`, gathered at `PackageResult` | output, D2 |
+| `graph` | one entry per folder for stage-B header diagnostics, keyed by `hdr_key` ([resolution-and-interfaces.md §4.10.1](resolution-and-interfaces.md#4101-header-validation-stages)); each trait's overlap diagnostics and each folder's statement order and its diagnostics as package-wide parts | `HeaderCheck` (per folder), `Coherence` and `InitOrder`, gathered at `PackageResult` | output, D2 |
 | `pkgres` | the package's sorted diagnostics and summary counts | `PackageResult` | the warm fast path |
 | `depfiles` | a fetched dependency's file list with content and api text hashes | first use of the dependency | every later run (§5.5) |
 | `codepack` | the code entries (§13.8) of one program's instances whose items live in one folder, with an index by code key | `Link` | `Link` of any program that maps it |
@@ -60,7 +60,9 @@ invalidation, never a smaller one:
   needs only those is right with either, and verify mode compares the
   sections both hold.
 - Coherence, header checks and init order are one `graph` entry per
-  package run, keyed by the sorted keys of its parts (§5.3). A part whose
+  package run for the `coh`/`init` parts, keyed by the sorted keys of
+  their parts (§5.3). Header findings are the exception: one `graph`
+  entry per folder, keyed by `hdr_key`. A part whose
   result is empty stores nothing; its key in the list is enough. An edit
   that changes one part copies the others from the previous `graph`
   entry, which the last-run record names (§5.5.1).
@@ -95,8 +97,8 @@ iface_key(F)  = H("iface", toolchain_key, package key, folder path,
 check_key(m)  = H("check", toolchain_key, package key, module path, role, source_hash(m),
                   sorted [(folder path, deep_hash) for each folder in closure(m)])
 
-hdr_key(F)    = H("hdr", iface_key(F),
-                  sorted [(folder path, deep_hash) for each folder in closure(F)])
+hdr_key(F)    = H("hdr", toolchain_key, package key, folder path F,
+                  own deep_hash, sorted [(folder path, deep_hash) for each folder in closure(F)])
 
 coh_key(T)    = H("coh", toolchain_key, stable path of T, sorted head hashes of T's impls)
 init_key(F)   = H("init", toolchain_key, folder path, sorted [(module path, init summary hash)])
@@ -162,9 +164,11 @@ fast_key      = H("fast", toolchain_key, package key, sorted [(path, source_hash
   recorded reads (below) turns most of those misses back into reuse. The
   `recheck-precision` metric counts both
   ([testing-the-compiler.md §8.2](testing-the-compiler.md#82-incremental-soundness)).
-- **Part keys.** `hdr_key`, `coh_key` and `init_key` name parts of the
-  one `graph` entry; no file has them as its name. Coherence runs as one
-  task over the sorted list of traits whose `coh_key` changed.
+- **Part keys.** `coh_key` and `init_key` name parts of the one
+  package-wide `graph` entry; no file has them as its name. `hdr_key`
+  is instead a full entry key: one `graph` entry per folder.
+  Coherence runs as one task over the sorted list of traits whose
+  `coh_key` changed.
 - **The solver memo is never persisted** and is never part of a key. It
   lives for one run (trait-solver.md §7.1). A `check` entry is a
   function of its key because the memo's answers are functions of
@@ -174,8 +178,11 @@ fast_key      = H("fast", toolchain_key, package key, sorted [(path, source_hash
 - **Header checks (stage B).** `HeaderCheck(F)` runs the solver over
   F's frozen impl tables and its dependencies'. Its inputs are F's
   interface and the interfaces of `closure(F)`, their `arg_impls`
-  sections included, which `hdr_key` names by deep hash. Its entry
-  holds only diagnostics.
+  sections included, which `hdr_key` names by deep hash: the toolchain,
+  the package, F's path, F's own deep hash, and every closure folder's
+  deep hash. Its entry holds only diagnostics. Stage B reads interfaces
+  only — no bodies — so a future check that reads private items must
+  widen the key beyond interface hashes.
 - **Head hashes (Codex re-review N-D1).** A head hash in `coh_key` is
   `H(canonical head, rank)`. The canonical head is the impl's
   parameters, target and trait arguments. The rank is its content rank

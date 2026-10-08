@@ -574,10 +574,10 @@ impl tables only, so a dependency's impls are checked even when its bodies
 are not (review T7). It lives in `hd_check::header`: each item asks its
 supertrait `Implements` goals through `TableSolver` under the item's
 environment, with the folder's closure universe and no own table, and
-resolution keeps only the overlap check. Not done: supertrait bindings
-are not asked as `Project` (the solver has no `Project` path; the checker
-normalizes); there is no fuel diagnostic per item (§4.10.1); the header
-result is not cached in the graph entry.
+resolution keeps only the overlap check. The findings are cached in one
+`graph` entry per folder keyed by `hdr_key` (#95). Not done: supertrait
+bindings are not asked as `Project` (the solver has no `Project` path;
+the checker normalizes); there is no fuel diagnostic per item (§4.10.1).
 
 ### 3.8 What A Goal May Teach The Checker
 

@@ -97,6 +97,12 @@ edits in a scripted session that recheck more than one module.
   contract (`hd parse`, `hd check`, `hd test`, exit codes, `code:` in
   diagnostics; [portable README](../../test/portable/README.md)). Its own
   `KNOWN_FAILURES.tsv` is the spec sync, as the prototype's is.
+- **CLI tier against the binary.** The CLI cases (`cli-cases.tsv`) run
+  in `hd_cli/tests/cli_conformance.rs` against the built `hd` binary
+  (`CARGO_BIN_EXE_hd`), with their own pass list in the last section of
+  `compiler/CONFORMANCE.md` (`## CLI Conformance`). The driver suite no
+  longer lists CLI cases and keeps that section when it rewrites the
+  report.
 - **Against the frozen prototype.** Run both on the conformance suite and
   on generated programs; compare accept or reject and the set of
   diagnostic codes per file, not messages. Each disagreement is triaged as

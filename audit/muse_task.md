@@ -102,30 +102,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### D2l. Design Text After The Afternoon's Compiler Work
-
-Update `future-work/compiler/*.md` (and `reconciliation.md` rows) for
-these commits, docs only:
-- "check: HeaderCheck findings are cached by hdr_key (#95)": the key's
-  inputs (toolchain, package, folder path, own deep hash, every closure
-  folder's deep hash), one `Graph` entry per folder (the design has one
-  package-wide `graph` entry), and that header checks read only the
-  interface (a future check of private items must widen the key).
-- "emit: the primitives' intrinsic operator and comparison methods share
-  the operator lowering (#91)": the intrinsic methods lower through the
-  operator code in the emitter; `cmp`/`partial_cmp` build `Ordering` from
-  the comparisons; f64 NaN gives `.None`.
-- "resolve: mut over an unconstrained type parameter … (#70)": where the
-  check runs (lowering, beside `mut-on-primitive`), "unconstrained" means
-  no bound list, `mut Self` is exempt.
-- "hd check: summary line, --summary, --max-errors (#85)" and
-  "Conformance: run the CLI tier against the hd binary (#103)": the
-  `commands.md` / `testing-the-compiler.md` text for the summary output
-  and the CLI-tier runner (where it lives, its pass list section).
-- `hd build --release` currently selects only the output folder; codegen
-  takes no profile (record as a gap; Q24 found it).
-Timebox 45 minutes; push.
-
 ### Q26. Where The Time Goes In map-count And string-build
 
 Q22/Q24 found map-count 60x and string-build 84x slower than Node. Profile

@@ -101,7 +101,7 @@ bodies remain the logical units for determinism, fuel, cache keys and TIR
 | Full parse | file bytes | `TokenBuf`, `GreenTree` | file | yes | no | none |
 | Folder graph | use lists of every file | folder DAG, `folder-cycle` | package | serial (tiny) | inside `pkgres` | none |
 | Folder interface | skeletons of the folder, deep interfaces of used folders | `FolderIface`, blob, deep hash, header diagnostics | folder | yes, in DAG order | `iface` | [§5.3](cache.md#53-key-composition) |
-| Header check (stage B) | a folder's interface, its dependencies' interfaces and impl tables | header bound, supertrait, newtype-base and delegation diagnostics | folder | yes | `hdr` part of `graph` | [§5.3](cache.md#53-key-composition) |
+| Header check (stage B) | a folder's interface, its dependencies' interfaces and impl tables | header bound, supertrait, newtype-base and delegation diagnostics | folder | yes | one `Graph` entry per folder (`hdr_key`) | [§5.3](cache.md#53-key-composition) |
 | Module prep | module CST, own folder interface, used interfaces | module scope, private signatures, inferred results, the closure bit set and `ImplUniverseId` | module | yes, across modules | inside `check` | none |
 | Body check | body CST, frozen tables | TIR (§4.13.11), diagnostics, facts | body | yes | inside `check`; TIR in `tir` | none |
 | Module finish | the module's body results | `ModuleResult` | module | yes, across modules | `check` | [§5.3](cache.md#53-key-composition) |

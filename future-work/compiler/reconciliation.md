@@ -163,6 +163,7 @@ their shared boundary, not duplicate implementations.
 | Test build errors stop the whole run; integration, property, timeout and snapshot execution remain incomplete. | engines-and-test-runner.md §§19.1–§19.6 | 2 — work | L | P2-9 |
 | ~~`hd check` and most command, package, dependency, query, formatting, documentation, and cache flows are absent.~~ `hd check` landed per spec: package mode and single file, text and `--format json` output, status 101 on failure (`9330c6ce`). The other flows remain absent. | commands.md §§7, 20 | 2 — work | L | P2-10 and P2-12 |
 | ~~Text diagnostics use byte spans and repeated labels; required JSON Lines, summaries, fixes, paths, and status 101 are absent.~~ Severity, `line:column` and code render per spec, messages no longer repeat their code, `hd check` prints JSON diagnostics, and failure exits 101 (`0116cd37`, `1e3342d4`, `9330c6ce`). Summaries (S14) and fixes remain. | checking-and-tir.md §4.14; commands.md §20.1 | 2 — work | M | P2-10 |
+| `hd build --release` selects only the output folder; the emitter takes no profile, so release Wasm is identical to debug (Q24 measured equal ratios). | codegen.md §12.6 | 2 — work | S | none: needs a profile-codegen job (S17 records the spec side) |
 
 ## Findings
 
@@ -315,7 +316,7 @@ verdict by itself.
 | --- | --- | --- | --- | --- |
 | design-overview.md §1.1 to §1.3 | `TaskKind::Body(u32)`, one slot per module | The overview and M1 now agree on one scheduled body task per module | both ok | None |
 | design-overview.md §1.2 (Coherence row), SK-12 | `TaskKind::Coherence`, `Run::coherence`, `Universe::overlaps` | Unit per trait in the overview; one task per run in scheduler.md §6.1 and cache.md §5.3. The code has one task, with no key | design wrong | Overview row: "traits whose `coh_key` changed, one task" |
-| design-overview.md §1.2 (Cached column) | none | The overview names `hdr`, `coh` and `init` entries; cache.md §5.2 makes them parts of one `graph` entry | design wrong | Overview: "part of `graph`" in those three rows and in the §1.1 diagram |
+| design-overview.md §1.2 (Cached column) | none | The overview named `hdr`, `coh` and `init` entries; header findings are now one `graph` entry per folder keyed by `hdr_key` (#95) while `coh`/`init` stay parts of one package-wide entry | design wrong | Overview hdr row: one `Graph` entry per folder; `coh`/`init` rows stay "part of `graph`" |
 | design-overview.md §1.3 (diagram), SK-4 | `Run::module_prep` creates parse and downstream tasks after misses | The dynamic graph now follows the corrected diagram | both ok | None |
 | design-overview.md §2.1 (D2 crates row) | `hd_driver` depends downward on `hd_mono` and `hd_wasm` | The dependency direction now matches the corrected row | both ok | None |
 | design-overview.md §2.1 (`hd_check`) | `BodyCx` uses `hd_types`, `hd_diag` and `hd_tir` | The duplicate `World` checker was deleted | both ok | None |
