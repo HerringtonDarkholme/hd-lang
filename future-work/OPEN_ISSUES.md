@@ -305,32 +305,6 @@ Revisit: a public `ContextError::new(message, cause)` and
 `message(self) -> string`, keeping the layout private, if users need to
 wrap by hand or match on it.
 
-### GADTs
-
-**Removed 2026-10-07; revisit only if a real need appears** (owner). A
-variant cannot declare its own result type or type parameters
-([`grammar.enum.no-result-type`](../spec/lang/02-grammar.md#r-grammar.enum.no-result-type)).
-A typed request and its response pair through a trait with an associated
-type:
-
-```text
-trait Request:
-    type Response
-
-data GetUser:
-    id: i64
-
-impl Request for GetUser:
-    type Response = User
-
-fn send[R < Request](request: R) -> R::Response: ...
-```
-
-A typed interpreter uses a runtime value enum (`enum Value: Int(i64);
-Bool(bool)`) or a trait per node type. Revisit with a motivating program
-that neither form handles; the removed chapter is in git history
-(`git show f0e4b2b1:spec/lang/13-gadts.md`).
-
 ### API Compatibility Checking (from the deleted PACKAGES.md)
 
 **Deferred.** Whether the checker is an `hd` command or a third-party
