@@ -110,6 +110,15 @@ and skip every invariant (the Java-deserialization class of bug). Change
    in `14-annotations.md` "Serialization" too, with a one-line why:
    Java's gadget chains).
 
+5. **Drop the word "consent"** (owner: a bad term; it was ours, not the
+   owner's). Everywhere in `spec/` (about 37 places: 10-modules, 14-annotations,
+   std/json, std/serde, std/time, std/README), say what it means:
+   "implements `Serialize`" / "implements `Deserialize`" / "implements
+   both", or "opts into serialization" where a noun is unavoidable. Rule
+   IDs containing `consent` get new IDs (retire the old ones per
+   `spec/STYLE.md`); fix every citation (`pnpm run spec refs` finds
+   them). Fixtures and guide text too.
+
 Retire `module.boundary.consent.tree` (new IDs for the new rules), fix the
 "Why" and the Note, remove the OPEN_ISSUES row "Boundary encoding through
 the consent" (decided), add one fixture per new rule where a program can
