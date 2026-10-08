@@ -83,19 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### T1. CI: The New Compiler's Gates (After Q18)
-
-Edit `.github/workflows/test.yml` (never trigger workflows; a push runs
-it): in the Rust job, add the conformance cargo test from Q18 (it fails
-only on a regression), cache `~/.cargo` and `compiler/target` keyed on
-`compiler/Cargo.lock` and the toolchain, make sure Node is installed
-for the runtime tests (`hd run` uses Node), and build the `hd` release
-binary once so the CLI tests reuse it. Keep job names stable. Check the
-YAML locally with a parser (e.g. `node -e` with a YAML lib already in
-node_modules, or `python3 -c 'import yaml'` if available). Timebox 30
-minutes; push, then read the run's result with `gh run list` (read
-only) and fix if red.
-
 ### T2. Fixture Phase-Tag Audit
 
 `spec/conformance/cases.tsv` tags each case with a phase (parse, type,

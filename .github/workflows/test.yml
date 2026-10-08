@@ -31,6 +31,24 @@ jobs:
       - name: Check out
         uses: actions/checkout@v5
 
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: package.json
+
+      - name: Cache Rust build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            compiler/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('compiler/Cargo.lock', 'compiler/rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
       - name: Install browser target
         run: rustup target add wasm32-unknown-unknown
 
@@ -40,8 +58,15 @@ jobs:
       - name: Lint
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      # Release tests reuse this binary for the hd_cli integration tests.
+      - name: Build release compiler
+        run: cargo build --release --bin hd
+
       - name: Test
-        run: cargo test --workspace
+        run: cargo test --release --workspace -- --skip specification_conformance_does_not_regress
+
+      - name: New compiler conformance gate
+        run: cargo test --release -p hd_driver --test conformance
 
       - name: Build browser-safe syntax crate
         run: cargo build -p hd_syntax --target wasm32-unknown-unknown
