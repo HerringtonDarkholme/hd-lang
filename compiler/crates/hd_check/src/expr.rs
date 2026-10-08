@@ -898,6 +898,10 @@ impl Ck<'_, '_> {
             TyData::Mut(i) => i,
             _ => bt,
         };
+        // A base whose type an earlier error left unknown adds nothing.
+        if matches!(inner, Ty::NEVER | Ty::POISON) {
+            return Ok((Ref(NONE), Ty::NEVER));
+        }
         if let TyData::Tuple { elems, .. } = pool.get(inner)
             && let Ok(i) = name.trim_start_matches('_').parse::<usize>()
         {

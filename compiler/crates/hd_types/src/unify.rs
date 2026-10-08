@@ -50,6 +50,15 @@ pub struct InferTable {
 #[derive(Clone, Copy, Debug)]
 pub struct Snapshot(usize);
 
+/// A trial's rollback point: the trail and the variable count. Rolling
+/// back to it also drops the variables the trial made, so a failed trial
+/// leaves no variable behind (type-checking.md §3.5, §2.5).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TrialMark {
+    trail: usize,
+    vars: usize,
+}
+
 impl InferTable {
     pub fn fresh(&mut self, pool: Types<'_>, kind: VarKind) -> Ty {
         let v = u32::try_from(self.parent.len()).expect("vars");
@@ -82,6 +91,25 @@ impl InferTable {
                 Undo::Rebind(v, old) => self.binding[v as usize] = old,
             }
         }
+    }
+
+    #[must_use]
+    pub fn trial_mark(&self) -> TrialMark {
+        TrialMark {
+            trail: self.trail.len(),
+            vars: self.parent.len(),
+        }
+    }
+
+    /// Undoes everything since `m` and drops the variables made since.
+    /// After the trail is undone no older variable links to or binds a
+    /// newer one, so the newer ones are unreachable.
+    pub fn rollback_trial(&mut self, m: TrialMark) {
+        self.rollback(Snapshot(m.trail));
+        self.parent.truncate(m.vars);
+        self.rank.truncate(m.vars);
+        self.binding.truncate(m.vars);
+        self.kind.truncate(m.vars);
     }
 
     /// Replaces a bound variable's solution with `t`, undoably: the
@@ -479,5 +507,33 @@ mod tests {
         assert!(t.rank.iter().all(|r| *r == 0));
         assert_eq!(t.kind_of(p, vars[3]), Some(VarKind::General));
         assert_eq!(t.kind_of(p, lit), Some(VarKind::IntLit));
+    }
+
+    /// A failed trial leaves no inference trace: older variables that the
+    /// trial linked to, bound through, or re-kinded with its own new
+    /// variables come back exactly, and the new variables are gone.
+    #[test]
+    fn a_trial_rollback_drops_its_variables_and_undoes_every_link() {
+        let (gp, lp) = (InternPool::new(), LocalPool::new());
+        let p = Types::with_local(&gp, &lp);
+        let mut t = InferTable::default();
+        let old: Vec<Ty> = (0..4).map(|_| t.fresh(p, VarKind::General)).collect();
+        t.unify(p, old[0], old[1]).expect("before the trial");
+        let before = format!("{t:?}");
+        let mark = t.trial_mark();
+        let new = t.fresh(p, VarKind::General);
+        let lit = t.fresh(p, VarKind::IntLit);
+        t.unify(p, old[2], new)
+            .expect("an old variable joins a new one");
+        t.unify(p, new, lit).expect("the class becomes a literal");
+        t.unify(p, old[0], p.intern_ty(&TyData::Option(new)))
+            .expect("an old class binds through a new variable");
+        t.mark_signed(p, lit);
+        assert_eq!(t.kind_of(p, old[2]), Some(VarKind::SignedIntLit));
+        t.rollback_trial(mark);
+        assert_eq!(format!("{t:?}"), before, "every column as before");
+        assert_eq!(t.var_count(), 4);
+        assert_eq!(t.kind_of(p, old[2]), Some(VarKind::General));
+        assert_eq!(t.resolve(p, old[0]), t.shallow(p, old[1]));
     }
 }

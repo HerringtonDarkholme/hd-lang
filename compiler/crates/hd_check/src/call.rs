@@ -11,7 +11,7 @@ use hd_intern::PathKind;
 use hd_resolve::{FnSig, HeadKind, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::ir::{Callee, ChoiceKind, IntrinsicOp, NONE, PrimOp, Providers, Ref, Tag, TirSink};
-use hd_types::solver::{Evidence, TraitRef};
+use hd_types::solver::{Answer, Candidate, Evidence, Goal, TraitRef};
 use hd_types::{ParamRef, Prim, Ty, TyData, TyList, VarKind};
 
 use crate::body::{Ck, unsupported};
@@ -84,14 +84,23 @@ enum Hit {
         args: Vec<Ty>,
         choice: (ChoiceKind, u32),
     },
+    /// A method of one trait that the receiver implements through these
+    /// impl candidates (an `Instantiations` answer, in content order).
+    Choice {
+        trait_: DefId,
+        method: DefId,
+        cands: Vec<Candidate>,
+    },
+    /// Methods of two or more traits (`trait.resolve.ambiguous`).
+    Ambiguous(Vec<DefId>),
 }
 
 /// A trait method with its `Self` and the trait's arguments.
-struct TraitTarget {
-    trait_: DefId,
-    method: DefId,
-    self_ty: Ty,
-    args: Vec<Ty>,
+pub(crate) struct TraitTarget {
+    pub trait_: DefId,
+    pub method: DefId,
+    pub self_ty: Ty,
+    pub args: Vec<Ty>,
 }
 
 /// Argument nodes of a call: positional values, then named ones.
@@ -503,7 +512,7 @@ impl Ck<'_, '_> {
                 Some(p) => Some(self.normalize_deep(p.1)?),
                 None => None,
             };
-            let (r, t) = self.expr(*e, w)?;
+            let (r, t) = self.arg_value(*e, w)?;
             if let Some(p) = rest.get(i)
                 && open.get(i).copied().unwrap_or(false)
                 && self.join_down(p.1, t)
@@ -546,7 +555,7 @@ impl Ck<'_, '_> {
                 continue;
             }
             let mut w = self.normalize_deep(rest[i].1)?;
-            let (r, t) = self.expr(*e, Some(w))?;
+            let (r, t) = self.arg_value(*e, Some(w))?;
             if open[i] && self.join_down(rest[i].1, t) {
                 w = self.normalize_deep(rest[i].1)?;
             }
@@ -638,11 +647,19 @@ impl Ck<'_, '_> {
                 }
                 self.default_owner = Some((def, pool.list(&vars), vec![]));
                 let refs = self.check_args(&params, &sig.defaults, 0, args, n, &name)?;
+                // Parameters named only in bounds, then defaults (§2.4
+                // steps 7 and 8); a bound naming one still open waits.
+                let open = self.infer_through_bounds(def, &sig, &vars, n)?;
+                let waits = |b: Ty| {
+                    open.iter()
+                        .any(|&k| crate::trial::names_param(pool, b, def, k))
+                };
                 for (i, g) in sig.generics.iter().enumerate() {
                     if g.mut_bound {
                         self.check_mut_bound(vars[i], n);
                     }
                     for b in &g.bounds {
+                        let waiting = waits(*b);
                         let b = inst(*b);
                         if let TyData::TraitValue {
                             def: tr, args: ta, ..
@@ -653,7 +670,11 @@ impl Ck<'_, '_> {
                                 self_ty: vars[i],
                                 args: ta,
                             };
-                            self.require_ref(tref, n)?;
+                            if waiting {
+                                self.pending.push((tref, n.index()));
+                            } else {
+                                self.require_ref(tref, n)?;
+                            }
                         }
                     }
                 }
@@ -1110,11 +1131,11 @@ impl Ck<'_, '_> {
             let text = self.cx.src.text(self.cx.src.first(bnode)).to_owned();
             if let Some(p) = self.type_param(&text) {
                 self.method_targs = method_targs;
-                return self.static_on_type(p, &name, args, n, bang, true);
+                return self.static_on_type(p, &name, args, (n, bang), true, want);
             }
             if let Some(p) = Prim::ALL.iter().find(|p| p.name() == text) {
                 self.method_targs = method_targs;
-                return self.static_on_type(Ty::prim(*p), &name, args, n, bang, false);
+                return self.static_on_type(Ty::prim(*p), &name, args, (n, bang), false, want);
             }
             match self.scope_name(&text) {
                 Some(Named::Module(m)) => {
@@ -1149,7 +1170,7 @@ impl Ck<'_, '_> {
                     Some(k) if k.is_type() => {
                         let t = self.ctor(def, &explicit)?;
                         self.method_targs = method_targs;
-                        return self.static_on_type(t, &name, args, n, bang, false);
+                        return self.static_on_type(t, &name, args, (n, bang), false, want);
                     }
                     _ => {}
                 },
@@ -1158,7 +1179,7 @@ impl Ck<'_, '_> {
         }
         let (recv, rt) = self.expr(base, None)?;
         self.method_targs = method_targs;
-        self.method_on(recv, rt, &name, args, n, bang)
+        self.method_on(recv, rt, &name, args, (n, bang), want)
     }
 
     /// `T.name(args)` on a type: an inherent associated function, or a
@@ -1168,9 +1189,9 @@ impl Ck<'_, '_> {
         t: Ty,
         name: &str,
         args: &Args<'_>,
-        n: NodeRef<'_>,
-        bang: bool,
+        (n, bang): (NodeRef<'_>, bool),
         is_param: bool,
+        want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         if !is_param && let Some((method, impl_def, impl_args)) = self.find_inherent(t, name) {
@@ -1203,12 +1224,71 @@ impl Ck<'_, '_> {
             return Ok(self.emit_call(&c, &refs, ret, sig.suspends, bang, n));
         }
         // A trait method with no receiver through a bound (`N::zero()`).
+        let sym = self.cx.names.syms.intern(name);
         let traits: Vec<(DefId, DefId)> = self
             .method_index()
             .traits
-            .get(&self.cx.names.syms.intern(name))
+            .get(&sym)
             .cloned()
             .unwrap_or_default();
+        // Through a type, the trait part of `Methods`
+        // (`trait.assoc-call.type.traits`): `X::from(v)` chooses among
+        // `X`'s instantiations of `From` like a dot call.
+        if !is_param {
+            match self.trait_part(t, sym, &traits)? {
+                Some(Hit::Ambiguous(found)) => {
+                    let names: Vec<String> = found
+                        .iter()
+                        .map(|d| format!("`{}`", self.cx.names.path(*d)))
+                        .collect();
+                    let msg = format!(
+                        "`{}::{name}` is ambiguous: the traits {} each supply it; write `Trait::{name}(..)`",
+                        self.show(t),
+                        names.join(" and ")
+                    );
+                    self.err(Code::AmbiguousMethod, n, &msg);
+                    return Ok((Ref(NONE), Ty::NEVER));
+                }
+                Some(Hit::Choice {
+                    trait_,
+                    method,
+                    cands,
+                }) => {
+                    return self.choose_method(
+                        (trait_, method, t),
+                        &cands,
+                        None,
+                        args,
+                        (n, bang),
+                        want,
+                    );
+                }
+                Some(Hit::Trait {
+                    trait_,
+                    method,
+                    args: targs,
+                    ..
+                }) => {
+                    return self.trait_method_call(
+                        TraitTarget {
+                            trait_,
+                            method,
+                            self_ty: t,
+                            args: targs,
+                        },
+                        None,
+                        args,
+                        n,
+                        bang,
+                    );
+                }
+                _ => {
+                    let msg = format!("no method `{name}` on {}", self.show(t));
+                    self.err(Code::UnknownMethod, n, &msg);
+                    return Ok((Ref(NONE), Ty::NEVER));
+                }
+            }
+        }
         for (tr, m) in traits {
             let tref = TraitRef {
                 trait_: tr,
@@ -1512,9 +1592,23 @@ impl Ck<'_, '_> {
                 "a method on a value whose type is not yet known",
             ));
         }
-        // A concrete type: the traits with this method that it implements.
-        let mut hits = Vec::new();
-        for (tr, m) in traits {
+        self.trait_part(t, sym, &traits)
+    }
+
+    /// The trait methods named `sym` of a concrete type: the
+    /// compiler-answered traits, then the trait part of `Methods`
+    /// (trait-solver.md §6.5), each other trait with the method by the
+    /// impl candidates the type has. Two traits are ambiguous.
+    fn trait_part(
+        &mut self,
+        t: Ty,
+        sym: Symbol,
+        traits: &[(DefId, DefId)],
+    ) -> StageResult<Option<Hit>> {
+        let pool = self.pool();
+        let mut builtin = Vec::new();
+        let mut asked = Vec::new();
+        for &(tr, m) in traits {
             let n_args = self.cx.lookup.item(tr).map_or(0, |i| i.generics.len());
             let fresh: Vec<Ty> = (0..n_args)
                 .map(|_| self.infer.fresh(pool, VarKind::General))
@@ -1524,48 +1618,60 @@ impl Ck<'_, '_> {
                 self_ty: t,
                 args: pool.list(&fresh),
             };
-            if let Some(ev) = self.builtin_holds(tref) {
-                let _ = ev;
-                hits.push((tr, m, fresh, (ChoiceKind::Builtin, 0)));
+            if self.builtin_holds(tref).is_some() {
+                builtin.push((tr, m, fresh));
+            } else {
+                asked.push(tr);
+            }
+        }
+        let goal = Goal::Methods {
+            receiver: t,
+            name: sym,
+            traits: asked,
+        };
+        let cands = match self.solve_goal(&goal)? {
+            Answer::Candidates(c) => c,
+            Answer::Stalled { .. } => {
+                return unsupported("a trait method whose impl waits for inference");
+            }
+            Answer::OutOfFuel => {
+                return unsupported("the solver's fuel ran out (limit diagnostic)");
+            }
+            other => return unsupported(format!("solver answer {other:?} to a method lookup")),
+        };
+        // The candidates by trait, in content order of their first one.
+        let mut groups: Vec<(DefId, Vec<Candidate>)> = Vec::new();
+        for c in cands {
+            let Some(table) = self.cx.impl_table(c.row.module) else {
                 continue;
-            }
-            match self.solve(tref)? {
-                hd_types::solver::Answer::Holds { evidence, learned } => {
-                    for (v, x) in learned {
-                        let var = pool.intern_ty(&TyData::Infer(v));
-                        let _ = self.infer.unify(pool, var, x);
-                    }
-                    let choice = match evidence {
-                        Evidence::Impl { row, .. } => {
-                            let def = self
-                                .cx
-                                .impl_table(row.module)
-                                .map_or(DefId::NONE, |t| t.def[row.row as usize]);
-                            (ChoiceKind::Impl, def.raw())
-                        }
-                        _ => (ChoiceKind::Builtin, 0),
-                    };
-                    hits.push((tr, m, fresh, choice));
-                }
-                hd_types::solver::Answer::Stalled { .. } => {
-                    return unsupported("a trait method whose impl waits for inference");
-                }
-                _ => {}
+            };
+            let tr = table.trait_[c.row.row as usize];
+            match groups.iter_mut().find(|g| g.0 == tr) {
+                Some(g) => g.1.push(c),
+                None => groups.push((tr, vec![c])),
             }
         }
-        match hits.len() {
-            0 => Ok(None),
-            1 => {
-                let (found, m, targs, choice) = hits.remove(0);
-                Ok(Some(Hit::Trait {
-                    trait_: found,
-                    method: m,
-                    args: targs,
-                    choice,
-                }))
-            }
-            _ => unsupported("method selection among several traits"),
+        if builtin.len() + groups.len() > 1 {
+            let mut found: Vec<DefId> = builtin.iter().map(|b| b.0).collect();
+            found.extend(groups.iter().map(|g| g.0));
+            return Ok(Some(Hit::Ambiguous(found)));
         }
+        if let Some((tr, m, args)) = builtin.pop() {
+            return Ok(Some(Hit::Trait {
+                trait_: tr,
+                method: m,
+                args,
+                choice: (ChoiceKind::Builtin, 0),
+            }));
+        }
+        Ok(groups.pop().and_then(|(tr, cands)| {
+            let &(_, method) = traits.iter().find(|(x, _)| *x == tr)?;
+            Some(Hit::Choice {
+                trait_: tr,
+                method,
+                cands,
+            })
+        }))
     }
 
     /// `recv.name(args)`.
@@ -1575,8 +1681,8 @@ impl Ck<'_, '_> {
         rt: Ty,
         name: &str,
         args: &Args<'_>,
-        n: NodeRef<'_>,
-        bang: bool,
+        (n, bang): (NodeRef<'_>, bool),
+        want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let rt = self.norm_ty(rt);
@@ -1590,8 +1696,10 @@ impl Ck<'_, '_> {
         // A field holding a function: `(x.f)(...)` is written `x.f(...)` only
         // when no method of that name exists.
         let hit = self.resolve_method(rt, name)?;
-        if matches!(hit, None | Some(Hit::Trait { .. }))
-            && let Some(path) = self.promoted_method_path(rt, name)
+        if matches!(
+            hit,
+            None | Some(Hit::Trait { .. } | Hit::Choice { .. } | Hit::Ambiguous(_))
+        ) && let Some(path) = self.promoted_method_path(rt, name)
         {
             // A trait candidate beside the promoted one: neither wins
             // (names.method-lookup.ambiguous).
@@ -1605,9 +1713,42 @@ impl Ck<'_, '_> {
                 return Ok((Ref(NONE), Ty::NEVER));
             }
             let (recv, rt) = self.walk_path(recv, rt, &path, n);
-            return self.method_on(recv, rt, name, args, n, bang);
+            return self.method_on(recv, rt, name, args, (n, bang), want);
         }
         match hit {
+            Some(Hit::Ambiguous(traits)) => {
+                let names: Vec<String> = traits
+                    .iter()
+                    .map(|t| format!("`{}`", self.cx.names.path(*t)))
+                    .collect();
+                let msg = format!(
+                    "`{name}` on {} is ambiguous: the traits {} each supply it; write `Trait::{name}(..)`",
+                    self.show(rt),
+                    names.join(" and ")
+                );
+                self.err(Code::AmbiguousMethod, n, &msg);
+                Ok((Ref(NONE), Ty::NEVER))
+            }
+            Some(Hit::Choice {
+                trait_,
+                method,
+                cands,
+            }) => {
+                let t = self.strip_mut(self.infer.resolve(pool, rt));
+                if let Some(&(s, st)) = self.sig_of(method)?.params.first()
+                    && self.cx.names.text(s) == "self"
+                {
+                    self.check_receiver(st, rt, n);
+                }
+                self.choose_method(
+                    (trait_, method, t),
+                    &cands,
+                    Some(recv),
+                    args,
+                    (n, bang),
+                    want,
+                )
+            }
             Some(Hit::Inherent {
                 method,
                 impl_def,
@@ -1727,7 +1868,7 @@ impl Ck<'_, '_> {
 
     /// A trait method call: `Self` is `self_ty`, the trait's parameters
     /// are `targs` (fresh when empty), the receiver is `recv` when given.
-    fn trait_method_call(
+    pub(crate) fn trait_method_call(
         &mut self,
         target: TraitTarget,
         recv: Option<(Ref, (ChoiceKind, u32))>,

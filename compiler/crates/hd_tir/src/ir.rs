@@ -497,6 +497,11 @@ pub struct TirCheckpoint {
     pub subs: u32,
     pub labels: u32,
     pub susp: u32,
+    /// The constant, string and closed-capture columns: a trial's
+    /// literals and closures leave no row behind.
+    pub consts: u32,
+    pub strings: u32,
+    pub cap_local: u32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -821,6 +826,9 @@ impl TirSink for TirBuilder {
             subs: n(self.body.sub_root.len()),
             labels: n(self.body.label_inst.len()),
             susp: n(self.body.susp.len()),
+            consts: n(self.body.consts.len()),
+            strings: n(self.body.strings.len()),
+            cap_local: n(self.body.cap_local.len()),
         }
     }
     fn rollback(&mut self, c: TirCheckpoint) {
@@ -840,6 +848,9 @@ impl TirSink for TirBuilder {
         b.sub_flags.truncate(c.subs as usize);
         b.label_inst.truncate(c.labels as usize);
         b.susp.truncate(c.susp as usize);
+        b.consts.truncate(c.consts as usize);
+        b.strings.truncate(c.strings as usize);
+        b.cap_local.truncate(c.cap_local as usize);
         self.scratch.truncate(c.scratch as usize);
         self.open_caps.truncate(c.captures as usize);
     }
@@ -1227,7 +1238,9 @@ mod tests {
             Ty::NEVER,
             NodeIdx::NONE,
         );
+        let _ = b.const_str("trial");
         b.rollback(cp);
+        assert_eq!(b.checkpoint(), cp, "constants and strings too");
         let root = b.close_block(blk, Some(Ref::konst(1)), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);

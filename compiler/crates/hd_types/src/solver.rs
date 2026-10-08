@@ -1,8 +1,9 @@
 //! The trait solver's types and entry points (trait-solver.md §1.3, §2,
 //! §3, §6, §7, §8, §10, §12). The goal, candidate, memo, evidence and
 //! failure records are real definitions; `solve` and `select` are the
-//! table solver: impl heads matched with their bound plans; projection,
-//! `Instantiations` and `Methods` goals are still not implemented.
+//! table solver: impl heads matched with their bound plans, and the
+//! `Instantiations` and `Methods` goals' candidate schemes (§6.5); the
+//! projection goal is still not implemented (the checker normalizes).
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex};
@@ -47,9 +48,14 @@ pub enum Goal {
         trait_: DefId,
         mut_: bool,
     },
+    /// The trait part of method lookup (§6.5): `traits` are the
+    /// available traits that declare `name`, from the asking module's
+    /// method index (what the memo key's availability part stands for),
+    /// in content order. Inherent methods are the checker's.
     Methods {
         receiver: Ty,
         name: Symbol,
+        traits: Vec<DefId>,
     },
 }
 
@@ -419,11 +425,17 @@ pub enum MatchResult {
     Maybe(Vec<u8>),
 }
 
-/// A candidate of an `Instantiations` goal (§6.5).
+/// A candidate of an `Instantiations` goal (§6.5): a scheme over the
+/// impl's parameters. `impl_args` holds each impl parameter: the type the
+/// target fixed, or the parameter itself when it is fresh (`n_fresh` of
+/// them). `args` is the trait arguments over the same. `residual` lists
+/// the plan steps the solver did not decide: those that read a fresh
+/// parameter, and those that stalled on a variable of the target.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Candidate {
     pub row: ImplRef,
     pub n_fresh: u8,
+    pub impl_args: TyList,
     pub args: TyList,
     pub residual: Vec<u16>,
 }
@@ -860,14 +872,16 @@ fn family_excludes(
 /// The table solver: poison holds; a parameter's bound is found in the
 /// elaborated environment; otherwise impl heads are matched (§3.4) with
 /// their bound plans (§3.6) solved recursively. A goal whose type is still
-/// open where a head needs structure stalls. Projection, `Instantiations`
-/// and `Methods` goals are not implemented.
+/// open where a head needs structure stalls. `Instantiations` and
+/// `Methods` answer candidate schemes (§6.5); the projection goal is not
+/// implemented.
 #[derive(Default)]
 pub struct TableSolver;
 
 /// The impl arguments a head match bound, then the plan's bound steps
 /// substituted with them, each with its step index in the plan.
-fn plan_goals(pool: Types<'_>, t: &ImplTable, row: usize, args: &[Ty]) -> Vec<(u16, TraitRef)> {
+#[must_use]
+pub fn plan_goals(pool: Types<'_>, t: &ImplTable, row: usize, args: &[Ty]) -> Vec<(u16, TraitRef)> {
     let owner = t.def[row];
     let s = |x: Ty| {
         pool.subst(x, &|p: ParamRef| {
@@ -1144,15 +1158,231 @@ fn learned_from(pool: Types<'_>, head: TyList, goal: TyList) -> Vec<(InferVar, T
         .collect()
 }
 
-impl Solver for TableSolver {
-    fn solve(&self, cx: &mut SolveCx<'_>, goal: &Goal, fuel: &mut Fuel) -> StageResult<Answer> {
-        let Goal::Implements { tref, .. } = goal else {
+/// Whether `t` names an impl parameter of `owner` that `fixed` leaves open.
+fn reads_fresh(pool: Types<'_>, owner: DefId, t: Ty, fixed: &[Option<Ty>]) -> bool {
+    let hit = std::cell::Cell::new(false);
+    let _ = pool.subst(t, &|p: ParamRef| {
+        if p.owner == owner && fixed.get(p.index as usize).copied().flatten().is_none() {
+            hit.set(true);
+        }
+        None
+    });
+    hit.get()
+}
+
+impl TableSolver {
+    /// `Instantiations { S, Tr }` (§6.5): every impl head of `Tr` that
+    /// matches `S` with all trait arguments open, as schemes in content
+    /// order. The target fixes some impl parameters; the plan steps over
+    /// those alone are solved here, and a candidate whose step fails is
+    /// dropped. Steps that read a fresh parameter, or that stall on a
+    /// variable of `S`, are the candidate's residual obligations.
+    fn instantiations(
+        cx: &mut SolveCx<'_>,
+        self_ty: Ty,
+        trait_: DefId,
+        fuel: &mut Fuel,
+        depth: u32,
+    ) -> StageResult<Answer> {
+        let pool = cx.pool;
+        if !fuel.charge(1) {
+            return Ok(Answer::OutOfFuel);
+        }
+        if depth > 64 {
+            return Ok(Answer::Overflow);
+        }
+        let self_ty = match pool.get(self_ty) {
+            TyData::Mut(i) => i,
+            _ => self_ty,
+        };
+        match pool.get(self_ty) {
+            TyData::Poison => {
+                return Ok(Answer::Holds {
+                    evidence: Evidence::Poison,
+                    learned: vec![],
+                });
+            }
+            TyData::Infer(v) => return Ok(Answer::Stalled { on: vec![v] }),
+            TyData::Param(_) | TyData::TraitValue { .. } => {
+                return Err(NotImplemented::new(
+                    Stage::Body,
+                    "Instantiations of a parameter or a trait value (the checker reads its clauses)",
+                ));
+            }
+            _ => {}
+        }
+        let mut read_dir = false;
+        let mut out = Vec::new();
+        let mut maybe = false;
+        let cands = cx
+            .impls
+            .candidates(pool, trait_, self_ty, &[], true, &mut read_dir);
+        for (at, t) in cands {
+            let r = at.row as usize;
+            if t.origin[r] == ImplOrigin::TupleTemplate {
+                if matches!(pool.get(self_ty), TyData::Tuple { .. }) {
+                    out.push(Candidate {
+                        row: at,
+                        n_fresh: 0,
+                        impl_args: TyList::EMPTY,
+                        args: t.head_args[r],
+                        residual: vec![],
+                    });
+                }
+                continue;
+            }
+            if family_excludes(pool, cx.impls, t, r, self_ty, &mut read_dir) {
+                continue;
+            }
+            let owner = t.def[r];
+            let mut binds = Vec::new();
+            match match_ty(pool, owner, t.head_self[r], self_ty, &mut binds) {
+                M::No => continue,
+                M::Maybe => {
+                    maybe = true;
+                    continue;
+                }
+                M::Yes => {}
+            }
+            let n = usize::from(t.n_params[r]).max(binds.len());
+            let mut fixed: Vec<Option<Ty>> =
+                (0..n).map(|i| binds.get(i).copied().flatten()).collect();
+            apply_binds_in(pool, cx.impls, t, r, &mut fixed, &mut read_dir);
+            let impl_args: Vec<Ty> = (0u16..)
+                .zip(&fixed)
+                .map(|(index, a)| {
+                    a.unwrap_or_else(|| pool.intern_ty(&TyData::Param(ParamRef { owner, index })))
+                })
+                .collect();
+            let goals = plan_goals(pool, t, r, &impl_args);
+            let mut residual = Vec::new();
+            let mut dropped = false;
+            for (i, step) in (0u16..).zip(&t.plan[r]) {
+                let PlanStep::Bound {
+                    param, args: sargs, ..
+                } = step
+                else {
+                    continue;
+                };
+                let open = fixed.get(usize::from(*param)).copied().flatten().is_none()
+                    || pool
+                        .list_items(*sargs)
+                        .iter()
+                        .any(|a| reads_fresh(pool, owner, *a, &fixed));
+                if open {
+                    residual.push(i);
+                    continue;
+                }
+                let Some(&(_, sub)) = goals.iter().find(|(k, _)| *k == i) else {
+                    continue;
+                };
+                match Self::implements(cx, sub, fuel, depth + 1)? {
+                    Answer::Holds { .. } => {}
+                    Answer::Fails(_) => {
+                        dropped = true;
+                        break;
+                    }
+                    Answer::Stalled { .. } => residual.push(i),
+                    other => return Ok(other),
+                }
+            }
+            if dropped {
+                continue;
+            }
+            let args: Vec<Ty> = pool
+                .list_items(t.head_args[r])
+                .iter()
+                .map(|a| {
+                    pool.subst(*a, &|p: ParamRef| {
+                        (p.owner == owner)
+                            .then(|| impl_args.get(p.index as usize).copied())
+                            .flatten()
+                    })
+                })
+                .collect();
+            out.push(Candidate {
+                row: at,
+                n_fresh: u8::try_from(fixed.iter().filter(|a| a.is_none()).count())
+                    .unwrap_or(u8::MAX),
+                impl_args: pool.list(&impl_args),
+                args: pool.list(&args),
+                residual,
+            });
+        }
+        if read_dir
+            && MemoKey::universe_for(pool, GoalKind::Instantiations, TyList::EMPTY, cx.universe)
+                .is_none()
+        {
             return Err(NotImplemented::new(
                 Stage::Body,
-                "solver goals other than Implements",
+                "internal error: an Instantiations frame read the directory without a universe",
             ));
-        };
-        Self::implements(cx, *tref, fuel, 0)
+        }
+        if maybe {
+            let mut on = Vec::new();
+            collect_vars(pool, self_ty, &mut on);
+            let mut seen = Vec::with_capacity(on.len());
+            on.retain(|v| {
+                let first = !seen.contains(v);
+                seen.push(*v);
+                first
+            });
+            return Ok(Answer::Stalled { on });
+        }
+        if out.is_empty() {
+            let tref = TraitRef {
+                trait_,
+                self_ty,
+                args: TyList::EMPTY,
+            };
+            let (leaf, _) = canonicalize(pool, GoalKind::Instantiations, tref, false);
+            return Ok(Answer::Fails(Box::new(FailInfo {
+                leaf,
+                chain: vec![],
+                reason: FailReason::NoImpl,
+                near: vec![],
+            })));
+        }
+        Ok(Answer::Candidates(out))
+    }
+
+    /// The trait part of `Methods` (§6.5 step 3): one `Instantiations`
+    /// goal per trait, in the given order; a trait the receiver does not
+    /// implement adds nothing. The answer lists every candidate (its
+    /// row's trait tells them apart); none at all is an empty list.
+    fn methods(
+        cx: &mut SolveCx<'_>,
+        receiver: Ty,
+        traits: &[DefId],
+        fuel: &mut Fuel,
+    ) -> StageResult<Answer> {
+        let mut all = Vec::new();
+        for tr in traits {
+            match Self::instantiations(cx, receiver, *tr, fuel, 0)? {
+                Answer::Candidates(c) => all.extend(c),
+                Answer::Fails(_) => {}
+                other => return Ok(other),
+            }
+        }
+        Ok(Answer::Candidates(all))
+    }
+}
+
+impl Solver for TableSolver {
+    fn solve(&self, cx: &mut SolveCx<'_>, goal: &Goal, fuel: &mut Fuel) -> StageResult<Answer> {
+        match goal {
+            Goal::Implements { tref, .. } => Self::implements(cx, *tref, fuel, 0),
+            Goal::Instantiations {
+                self_ty, trait_, ..
+            } => Self::instantiations(cx, *self_ty, *trait_, fuel, 0),
+            Goal::Methods {
+                receiver, traits, ..
+            } => Self::methods(cx, *receiver, traits, fuel),
+            Goal::Project { .. } => Err(NotImplemented::new(
+                Stage::Body,
+                "the Project goal (the checker normalizes)",
+            )),
+        }
     }
 
     fn elaborate(&self, bounds: &[DeclaredBound], out: &mut ParamEnvBuilder) -> EnvKey {
@@ -2182,5 +2412,133 @@ mod tests {
             panic!("bool is no member");
         };
         assert!(info.chain.is_empty(), "no head matched: {info:?}");
+    }
+
+    fn ask(p: Types<'_>, t: &ImplTable, goal: &Goal) -> super::Answer {
+        let env = ParamEnv::default();
+        let global = GlobalMemo::default();
+        let mut body = BodyMemo::default();
+        let (universe, _) = ImplUniverses::default().intern(&[]);
+        let tables = [(ModuleId::from_raw(0), t)];
+        let mut cx = SolveCx {
+            pool: p,
+            env: &env,
+            universe,
+            impls: super::Impls::All(&tables),
+            body_memo: &mut body,
+            global: &global,
+        };
+        TableSolver
+            .solve(&mut cx, goal, &mut Fuel::new(100))
+            .expect("solves")
+    }
+
+    /// `Pick` over `Family` and `Box`, and `Show` over `Family`:
+    /// row 0 `impl Pick[i32] for Family`, row 1 `impl[U < Show] Pick[U]
+    /// for Family`, row 2 `impl[T < Missing] Pick[T] for Box[T]`, row 3
+    /// `impl Show for Family`.
+    fn pick_table(p: Types<'_>) -> (ImplTable, [DefId; 7]) {
+        let ids = [10, 11, 12, 13, 14, 15, 16].map(DefId::from_raw);
+        let [pick, show, missing, family, boxed, imp1, imp2] = ids;
+        let fam = adt(p, family, &[]);
+        let mut t = ImplTable::default();
+        push_row(
+            &mut t,
+            p,
+            (pick, DefId::from_raw(17)),
+            fam,
+            p.list(&[Ty::I32]),
+            (0, vec![]),
+        );
+        push_row(
+            &mut t,
+            p,
+            (pick, imp1),
+            fam,
+            p.list(&[param(p, imp1, 0)]),
+            (1, bound(0, show)),
+        );
+        push_row(
+            &mut t,
+            p,
+            (pick, imp2),
+            adt(p, boxed, &[param(p, imp2, 0)]),
+            p.list(&[param(p, imp2, 0)]),
+            (1, bound(0, missing)),
+        );
+        push_row(
+            &mut t,
+            p,
+            (show, DefId::from_raw(18)),
+            fam,
+            TyList::EMPTY,
+            (0, vec![]),
+        );
+        t.index();
+        (t, ids)
+    }
+
+    /// §6.5: the candidates are schemes in content order. A parameter the
+    /// target does not fix stays fresh and its bound is a residual step;
+    /// a step over fixed parameters runs, and one that fails drops its
+    /// candidate; one that stalls on the target's variable is residual.
+    #[test]
+    fn instantiations_are_schemes_with_residual_bounds_in_content_order() {
+        use super::{Answer, Candidate};
+        let gp = InternPool::new();
+        let local = LocalPool::new();
+        let p = Types::with_local(&gp, &local);
+        let (t, [pick, _, _, family, boxed, imp1, _]) = pick_table(p);
+        let inst = |self_ty| Goal::Instantiations {
+            self_ty,
+            trait_: pick,
+            mut_: false,
+        };
+        let Answer::Candidates(c) = ask(p, &t, &inst(adt(p, family, &[]))) else {
+            panic!("Family has two instantiations");
+        };
+        let u = param(p, imp1, 0);
+        assert_eq!(
+            c.iter()
+                .map(|c: &Candidate| (c.row.row, c.n_fresh, c.args, c.residual.clone()))
+                .collect::<Vec<_>>(),
+            [
+                (0, 0, p.list(&[Ty::I32]), vec![]),
+                (1, 1, p.list(&[u]), vec![0]),
+            ]
+        );
+        assert_eq!(c[1].impl_args, p.list(&[u]), "U is fresh");
+        // `Box[Family]`: T is fixed, `Family: Missing` fails.
+        let plain = adt(p, boxed, &[adt(p, family, &[])]);
+        assert!(matches!(ask(p, &t, &inst(plain)), Answer::Fails(_)));
+        // `Box[?0]`: T is `?0`, and `?0: Missing` waits.
+        let mut infer = InferTable::default();
+        let v = infer.fresh(p, VarKind::General);
+        let Answer::Candidates(c) = ask(p, &t, &inst(adt(p, boxed, &[v]))) else {
+            panic!("one candidate with a residual");
+        };
+        assert_eq!((c.len(), c[0].residual.clone()), (1, vec![0]));
+        assert_eq!(c[0].args, p.list(&[v]));
+        // A variable self type stalls.
+        assert!(matches!(ask(p, &t, &inst(v)), Answer::Stalled { .. }));
+    }
+
+    /// §6.5 `Methods`, trait part: each trait's candidates in the given
+    /// order; a trait the receiver does not implement adds none.
+    #[test]
+    fn methods_lists_the_candidates_of_each_trait() {
+        use super::Answer;
+        let gp = InternPool::new();
+        let p = gp.types();
+        let (t, [pick, show, missing, family, ..]) = pick_table(p);
+        let goal = Goal::Methods {
+            receiver: adt(p, family, &[]),
+            name: hd_base::Symbol::from_raw(0),
+            traits: vec![show, missing, pick],
+        };
+        let Answer::Candidates(c) = ask(p, &t, &goal) else {
+            panic!("candidates");
+        };
+        assert_eq!(c.iter().map(|c| c.row.row).collect::<Vec<_>>(), [3, 0, 1]);
     }
 }

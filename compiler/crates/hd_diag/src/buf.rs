@@ -33,6 +33,16 @@ pub struct RootKey {
     pub value: u32,
 }
 
+/// A `DiagBuf` rollback point: its columns' lengths.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DiagMark {
+    rows: u32,
+    label_span: u32,
+    fix_title: u32,
+    edits: u32,
+    text: u32,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FixEdit {
     pub span: Span,
@@ -113,6 +123,46 @@ impl DiagBuf {
                 other.root[i],
             );
         }
+    }
+
+    /// A rollback point: every column's length (type-checking.md §3.5).
+    #[must_use]
+    pub fn mark(&self) -> DiagMark {
+        let n = |v: usize| u32::try_from(v).expect("diags");
+        DiagMark {
+            rows: n(self.code.len()),
+            label_span: n(self.label_span.len()),
+            fix_title: n(self.fix_title.len()),
+            edits: n(self.edits.len()),
+            text: n(self.text.len()),
+        }
+    }
+
+    /// Drops every diagnostic pushed since `m`.
+    pub fn truncate(&mut self, m: DiagMark) {
+        let rows = m.rows as usize;
+        self.code.truncate(rows);
+        self.severity.truncate(rows);
+        self.primary.truncate(rows);
+        self.message.truncate(rows);
+        self.labels.truncate(rows);
+        self.fixes.truncate(rows);
+        self.root.truncate(rows);
+        self.label_span.truncate(m.label_span as usize);
+        self.label_msg.truncate(m.label_span as usize);
+        self.fix_title.truncate(m.fix_title as usize);
+        self.fix_safety.truncate(m.fix_title as usize);
+        self.fix_edits.truncate(m.fix_title as usize);
+        self.edits.truncate(m.edits as usize);
+        self.text.truncate(m.text as usize);
+    }
+
+    /// The error-severity diagnostics pushed since `m`.
+    #[must_use]
+    pub fn errors_since(&self, m: DiagMark) -> usize {
+        self.severity
+            .get(m.rows as usize..)
+            .map_or(0, |s| s.iter().filter(|x| **x == Severity::Error).count())
     }
 
     #[must_use]

@@ -56,6 +56,7 @@ pub(crate) fn unsupported<T>(what: impl Into<String>) -> StageResult<T> {
 /// An open closure: its builder mark, the scope depth at its start, its
 /// result type.
 /// One level of the available-keys stack (type-checking.md §5.2).
+#[derive(Clone)]
 pub(crate) enum RowFrame {
     /// A function's declared row: the bottom of a body's stack.
     Declared(RowId),
@@ -137,6 +138,13 @@ pub(crate) struct Ck<'a, 'c> {
     pub user_locals: Vec<LocalId>,
     /// Nested projection normalizations, against binding cycles.
     pub norm_depth: u32,
+    /// Arguments of an instantiation choice inferred once, before its
+    /// trials (type-checking.md §2.5 "Trial cost"): node, value, type.
+    pub pre_args: Vec<(NodeRefIdx, Ref, Ty)>,
+    /// Call parameters named only in bounds that call inference left
+    /// unsolved (§2.4 step 9): variable, call, and whether a bound allows
+    /// several instantiations. Decided at the end of the statement.
+    pub open_params: Vec<(Ty, NodeRefIdx, bool)>,
 }
 
 /// A node index kept for a later diagnostic.
@@ -193,6 +201,8 @@ pub(crate) fn new_ck<'a, 'c>(
         let_view: None,
         user_locals: Vec::new(),
         norm_depth: 0,
+        pre_args: Vec::new(),
+        open_params: Vec::new(),
     };
     let Some(it) = cx.lookup.item(env) else {
         return ck;
@@ -830,11 +840,14 @@ impl Ck<'_, '_> {
     }
 
     pub(crate) fn solve(&mut self, tref: TraitRef) -> StageResult<Answer> {
-        let goal = Goal::Implements {
+        self.solve_goal(&Goal::Implements {
             tref,
             bindings: vec![],
             mut_: false,
-        };
+        })
+    }
+
+    pub(crate) fn solve_goal(&mut self, goal: &Goal) -> StageResult<Answer> {
         let mut scx = SolveCx {
             pool: self.pool(),
             env: &self.env,
@@ -843,7 +856,7 @@ impl Ck<'_, '_> {
             body_memo: &mut self.memo,
             global: self.cx.global,
         };
-        self.cx.solver.solve(&mut scx, &goal, &mut self.fuel)
+        self.cx.solver.solve(&mut scx, goal, &mut self.fuel)
     }
 
     /// Compiler-answered traits (trait-solver.md §3.8): `Any` and its
@@ -1066,12 +1079,14 @@ impl Ck<'_, '_> {
     pub(crate) fn stmt(&mut self, s: NodeRef<'_>) -> StageResult<Ty> {
         let span = self.cx.src.span(s);
         let start = self.infer.var_count();
+        let open = self.open_params.len();
         let r = self.stmt_node(s).map_err(|e| e.at(span));
         // A `break` value joins with the loop's other values, so its class
         // stays open until the join (`types.literal.local.form.join-open`).
         if s.kind() != SyntaxKind::BreakStmt {
             self.close_literals(start);
         }
+        self.close_open_params(open);
         r
     }
 
@@ -1542,6 +1557,8 @@ impl Ck<'_, '_> {
             let z = self.zonk(t);
             self.b.body_mut().consts[i].0 = z;
         }
+        // A tail expression's call parameters are decided here.
+        self.close_open_params(0);
         // Bounds that waited for inference.
         let pending = std::mem::take(&mut self.pending);
         for (tref, at) in pending {

@@ -3,7 +3,7 @@
 use hd_base::Span;
 
 pub mod buf;
-pub use buf::{CauseKind, DiagBuf, FixEdit, FixSafety, RootKey};
+pub use buf::{CauseKind, DiagBuf, DiagMark, FixEdit, FixSafety, RootKey};
 
 mod codes;
 pub use codes::{Code, Phase};
