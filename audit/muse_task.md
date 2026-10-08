@@ -103,34 +103,6 @@ consistent with `hd test`'s summary from S6), and add CLI cases to
 `spec/conformance/cli-cases.tsv` where it has none. Timebox 30 minutes;
 push.
 
-### S15. Error Code For `mut T` On An Unconstrained Generic
-
-Owner decision, 2026-10-08: `types.generic.no-mut-t` (spec 04 Mutable
-Bounds) gets an error code, `mut-on-type-parameter`, after
-`mut-on-primitive` and `mut-on-tuple`. A program that writes `mut T` for
-an unconstrained `T` reports that code and not `invalid-variance` too.
-
-- In 04, add `Error: \`mut-on-type-parameter\`` to the rule, naming where
-  it points (the `mut T` type) the way `mut-on-tuple` does. Add the code
-  wherever the other codes are listed (README code table, any phase or
-  glossary list), following `spec/STYLE.md`.
-- New fixture `spec/conformance/typing/invalid/mut-on-type-parameter.hd`
-  citing the rule, with the `# diagnostic:` marker; register it in
-  `cases.tsv` and `examples.tsv` as the other fixtures are.
-- Rewrite `typing/invalid/covariant-mut-method-parameter.hd` so it still
-  tests a covariant parameter beneath `mut` but is legal under
-  `types.generic.no-mut-t`: `other: mut List[T]` in place of
-  `other: mut T`, still expecting `invalid-variance`.
-- Regenerate `compiler/crates/hd_diag/src/codes.rs` with
-  `node --experimental-strip-types spec/tools/diagnostic-codes.ts` (the
-  only `compiler/` file you may touch; it is generated).
-- Checks: `bash spec/check.sh`; `cargo test -q --release -p hd_driver
-  --test conformance` from `compiler/` must stay green (the new fixture
-  is expected to fail until the checker implements it; if the gate
-  breaks, report instead of editing the pass list).
-
-Spec, fixtures and the generated file only. Timebox 30 minutes; push.
-
 ### D2k. Design Text After The Pool And Solver-Lookup Work
 
 Two architecture commits landed: "pool: …" (#61, ends at 97ef2c30) and
