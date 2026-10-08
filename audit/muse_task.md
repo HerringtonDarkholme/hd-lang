@@ -102,21 +102,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### S17. Spec: What A Release Build Changes
-
-Q24 found `hd build --release` emits the same code as debug. Before the
-compiler changes, the spec must say what release changes. Collect every
-rule in `spec/` that differs by build mode (debug, test, release): e.g.
-`types.arith.checked` ("in a debug or test build"), `dbg-in-release`,
-`instantiation-too-deep`, any `--release` rule in
-`spec/cli/command-line.md`. If the spec already says, for every one, what
-release does (e.g. integer overflow wraps), write a short table of them
-into `future-work/compiler/commands.md` (or the design doc that owns build
-profiles) and stop. If any is unstated (e.g. what an overflowing `+`
-gives in release), don't decide: add each to this file's Questions
-section with options and a recommendation, citing the rule. Timebox 30
-minutes; push.
-
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,

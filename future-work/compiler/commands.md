@@ -228,6 +228,29 @@ fixture (`fmt(fmt(x)) == fmt(x)`).
    survives (mine).
 6. After each run the worker drains new cache entries to IndexedDB.
 
+### 7.10 Build Profiles: What Release Changes
+
+Every rule in `spec/` that differs by build mode already says what
+release does (S17 audit, 2026-10-08), so the compiler change needs no
+spec decision. The full table:
+
+| Rule | Debug / test | Release |
+| --- | --- | --- |
+| `types.arith.checked` / `types.arith.release` | `+`, `-`, `*`, `**`, unary `-` overflow panics (`integer-overflow`) | wraps two's complement |
+| `types.arith.failure`, `types.arith.shift-count.debug` / `shift-count.release` | invalid shift panics (`invalid-shift`) | count masked to the value width |
+| `types.arith.always` (division by zero, `MIN / -1`, OOB index, conversions, `checked_*`/`wrapping_*`/`saturating_*`) | same in every build | same in every build |
+| `expr.arith.int.checked` | defers to `types.arith.checked` | defers to `types.arith.release` |
+| `flow.for.range.from-overflow` | panics, as `a + 1` does | wraps, as `a + 1` does |
+| `flow.panic.sources` | summary: overflow and invalid shifts panic in debug/test only | same summary |
+| `module.dbg.release` / `release.debug-build` | `dbg` accepted, no warning | `dbg` is an error (`dbg-in-release`) |
+| `module.test.code`, `cli.check.default`, `cli.check.tests` | test code compiles only in test builds (`hd test`); `hd check` skips it unless `--tests` | same: release builds compile executables/library, no test code |
+| `cli.profile.default` / `release` / `release.file` | `hd FILE/run/build/test`, REPL: debug (checked) | `--release` on `hd FILE/run/build`: wrapping profile |
+| `cli.profile.test` / `test.release` | `hd test`: always checked; `--release` keeps checks, selects pipeline only | n/a (test stays checked) |
+| `cli.profile.release.commands` | — | only `hd FILE/run/build/test` take `--release` |
+| `cli.profile.pipeline.*` | dev pipeline (fast builds) | optimized pipeline; unobservable except speed, memory, stack/heap depth, backtraces |
+| `cli.build.output` | `build/debug/` | `build/release/` |
+| `types.generic.instantiation-depth` / `cli.build.depth-error` | `instantiation-too-deep`: limit is implementation-defined, same in every build | same in every build |
+
 ## 20. Command Flows Completed
 
 ### 20.1 `hd test`
