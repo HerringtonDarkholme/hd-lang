@@ -2,19 +2,18 @@
 
 Status: measured 2026-10-07 against `103dd1e3`. This is implementation
 coverage, not accepted language behavior. The Cargo test runs every indexed
-fixture and CLI case; unsupported surface records progress without failing.
+fixture; unsupported surface records progress without failing.
 
 ## Summary
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1560 | 768 | 617 | 2945 |
+| 1560 | 768 | 515 | 2843 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
-| `cli/command-line.md` | 0 | 0 | 102 | 102 |
 | `lang/01-lexical-structure.md` | 127 | 16 | 2 | 145 |
 | `lang/02-grammar.md` | 183 | 14 | 17 | 214 |
 | `lang/03-names-and-scopes.md` | 65 | 20 | 16 | 101 |
@@ -61,7 +60,6 @@ fixture and CLI case; unsupported surface records progress without failing.
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
-| `cli` | 0 | 0 | 102 | 102 |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 52 | 34 | 19 | 105 |
@@ -125,7 +123,6 @@ compiler stage that first declined the case.
 | `fail:unsatisfied-trait-bound` | 34 |
 | `fail:unused-local-binding` | 11 |
 | `unsupported:Body` | 194 |
-| `unsupported:CLI` | 102 |
 | `unsupported:Collect` | 88 |
 | `unsupported:Discover` | 13 |
 | `unsupported:Emit` | 137 |
@@ -1333,113 +1330,6 @@ compiler stage that first declined the case.
 - `typing/invalid/grammar-assignment-nonplace.hd`
 - `runtime/valid/local-declarations-in-block-suites.hd`
 - `runtime/valid/bang-call-and-prefix-not.hd`
-
-</details>
-
-<details><summary><code>unsupported:CLI</code> (102)</summary>
-
-- `cli/exit-program-status`
-- `cli/exit-test-failure`
-- `cli/exit-hd-failure`
-- `cli/exit-package-check`
-- `cli/exit-package-file`
-- `cli/exit-usage-error`
-- `cli/command-help`
-- `cli/exit-test-empty`
-- `cli/exit-outside-package`
-- `cli/json-check-error`
-- `cli/json-check-clean`
-- `cli/json-check-warning`
-- `cli/json-test-pass`
-- `cli/json-test-fail`
-- `cli/json-test-ignored`
-- `cli/json-file-location`
-- `cli/json-run`
-- `cli/new-app`
-- `cli/new-lib`
-- `cli/new-path`
-- `cli/new-vcs`
-- `cli/new-existing`
-- `cli/new-no-kind`
-- `cli/doc-out`
-- `cli/doc-outside-package`
-- `cli/doc-check-error`
-- `cli/doc-name`
-- `cli/doc-private`
-- `cli/new-pages`
-- `cli/new-no-pages`
-- `cli/new-pages-existing`
-- `cli/doc-main-page`
-- `cli/json-test-order`
-- `cli/exe-missing-module`
-- `cli/exe-unselected-main`
-- `cli/doc-broken-link`
-- `cli/doc-index-module`
-- `cli/json-file-single`
-- `cli/release-wraps`
-- `cli/release-test-checked`
-- `cli/dep-missing-sum`
-- `cli/dep-invalid-add`
-- `cli/dep-invalid-manifest`
-- `cli/dep-outside-package`
-- `cli/exe-main-unlisted`
-- `cli/task-name-clash`
-- `cli/manifest-unknown-key`
-- `cli/build-output`
-- `cli/dep-path-local`
-- `cli/dep-workspace-fetch`
-- `cli/member-unlisted`
-- `cli/ambiguous-import`
-- `cli/test-unit-fakes`
-- `cli/test-integration-env`
-- `cli/test-tasks`
-- `cli/dbg-release`
-- `cli/test-snapshot-file`
-- `cli/test-timeout`
-- `cli/dbg-values`
-- `cli/dbg-uses`
-- `cli/clean-build`
-- `cli/clean-outside-package`
-- `cli/clean-workspace`
-- `cli/dep-dev-invalid-add`
-- `cli/dep-dev-remove`
-- `cli/test-every-case`
-- `cli/dep-key-collision`
-- `cli/dep-one-key-per-line`
-- `cli/dep-no-library`
-- `cli/dep-package-cycle`
-- `cli/dev-dependency-integration`
-- `cli/dev-dependency-non-test`
-- `cli/dev-dependency-cyclic-unit`
-- `cli/test-outcomes`
-- `cli/test-report`
-- `cli/dbg-value-forms`
-- `cli/derivation-lines-agree`
-- `cli/dev-dependency-cyclic-integration`
-- `cli/dev-dependency-tests-block`
-- `cli/entry-err-display`
-- `cli/entry-err-chain`
-- `cli/task-beside-dir`
-- `cli/dep-path-no-package`
-- `cli/exe-unselected-main-used`
-- `cli/typeid-package-name`
-- `cli/typeid-single-file`
-- `cli/test-err-report`
-- `cli/cap-total-deny`
-- `cli/cap-flag-overrides-table`
-- `cli/cap-partial-deny`
-- `cli/cap-env-notice`
-- `cli/wasm-run-built`
-- `cli/wasm-cap-flags-only`
-- `cli/toolchain-too-old`
-- `cli/wasm-invalid`
-- `cli/build-library-only`
-- `cli/build-instantiation-too-deep`
-- `cli/json-check-modules-checked`
-- `cli/json-diagnostic-fixes`
-- `cli/fmt-check`
-- `cli/fmt-syntax-error`
-- `cli/check-summary`
 
 </details>
 
@@ -3367,3 +3257,37 @@ typing/warnings/unused-local-binding.hd
 typing/warnings/unused-nested-optional-binding.hd
 ```
 <!-- pass-list-end -->
+
+## CLI Conformance
+
+The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
+`hd_cli/tests/cli_conformance.rs` against the `hd` binary.
+
+| Pass | Fail | Unsupported | Total |
+| ---: | ---: | ---: | ---: |
+| 18 | 84 | 0 | 102 |
+
+`HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
+
+<!-- cli-pass-list-start -->
+```text
+cli/build-output
+cli/check-summary
+cli/clean-outside-package
+cli/dep-outside-package
+cli/derivation-lines-agree
+cli/entry-err-display
+cli/exit-hd-failure
+cli/exit-outside-package
+cli/exit-package-check
+cli/exit-program-status
+cli/exit-test-empty
+cli/exit-usage-error
+cli/json-check-clean
+cli/json-check-error
+cli/json-check-modules-checked
+cli/json-check-warning
+cli/json-file-single
+cli/wasm-invalid
+```
+<!-- cli-pass-list-end -->

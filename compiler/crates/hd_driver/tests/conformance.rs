@@ -3,7 +3,9 @@
 //! Unsupported language surface is progress data, not a failing test.
 //! Crashes always fail. Cases recorded as passing in `CONFORMANCE.md`
 //! may not regress. Set `HD_UPDATE_CONFORMANCE=1` to replace the report
-//! and its embedded pass list with the current result.
+//! and its embedded pass list with the current result. The CLI tier runs in
+//! `hd_cli/tests/cli_conformance.rs`, which owns the last section of the
+//! report; this test keeps that section when it rewrites the file.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -22,13 +24,13 @@ use hd_syntax::parse;
 const START_COMMIT: &str = "103dd1e3";
 const PASS_START: &str = "<!-- pass-list-start -->";
 const PASS_END: &str = "<!-- pass-list-end -->";
+const CLI_HEADING: &str = "\n## CLI Conformance\n";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Phase {
     Parse,
     Type,
     Runtime,
-    Cli,
 }
 
 #[derive(Clone, Debug)]
@@ -90,18 +92,6 @@ fn cases() -> Vec<Case> {
             phase,
             expectation: fields[2].to_owned(),
             specification: fields[3].to_owned(),
-        });
-    }
-    let cli = std::fs::read_to_string(suite_root().join("cli-cases.tsv")).expect("cli-cases.tsv");
-    for line in cli.lines().skip(1) {
-        let Some((name, rules)) = line.split_once('\t') else {
-            panic!("bad cli-cases.tsv row: {line}");
-        };
-        out.push(Case {
-            path: format!("cli/{name}"),
-            phase: Phase::Cli,
-            expectation: "accept".to_owned(),
-            specification: format!("cli/{rules}"),
         });
     }
     out
@@ -503,9 +493,6 @@ fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usi
 }
 
 fn run_case(case: &Case, store: &MemoryStore, serial: usize) -> Verdict {
-    if case.phase == Phase::Cli {
-        return Verdict::Unsupported("CLI".to_owned());
-    }
     let fixture = match fixture(case) {
         Ok(fixture) => fixture,
         Err(stage) => return Verdict::Unsupported(stage),
@@ -514,14 +501,10 @@ fn run_case(case: &Case, store: &MemoryStore, serial: usize) -> Verdict {
         Phase::Parse => parse_case(case, &fixture.text),
         Phase::Type => type_case(case, &fixture, store),
         Phase::Runtime => runtime_case(case, &fixture, store, serial),
-        Phase::Cli => unreachable!(),
     }
 }
 
 fn chapter(case: &Case) -> String {
-    if case.phase == Phase::Cli {
-        return "cli/command-line.md".to_owned();
-    }
     case.specification
         .split('#')
         .next()
@@ -585,7 +568,7 @@ fn render_report(cases: &[Case], results: &[Verdict]) -> String {
     }
     passed.sort_unstable();
     let mut out = format!(
-        "# New Compiler Conformance\n\nStatus: measured 2026-10-07 against `{START_COMMIT}`. This is implementation\ncoverage, not accepted language behavior. The Cargo test runs every indexed\nfixture and CLI case; unsupported surface records progress without failing.\n\n## Summary\n\n| Pass | Fail | Unsupported | Total |\n| ---: | ---: | ---: | ---: |\n| {} | {} | {} | {} |\n\n## By Chapter\n\n",
+        "# New Compiler Conformance\n\nStatus: measured 2026-10-07 against `{START_COMMIT}`. This is implementation\ncoverage, not accepted language behavior. The Cargo test runs every indexed\nfixture; unsupported surface records progress without failing.\n\n## Summary\n\n| Pass | Fail | Unsupported | Total |\n| ---: | ---: | ---: | ---: |\n| {} | {} | {} | {} |\n\n## By Chapter\n\n",
         total.pass,
         total.fail,
         total.unsupported,
@@ -661,7 +644,7 @@ fn detail(case: &Case, store: &MemoryStore) -> String {
     let Ok(fixture) = fixture(case) else {
         return String::new();
     };
-    if case.phase == Phase::Parse || case.phase == Phase::Cli {
+    if case.phase == Phase::Parse {
         return String::new();
     }
     let mut output = build_fixture(&fixture, store, &Goal::Analyze);
@@ -771,7 +754,14 @@ fn specification_conformance_does_not_regress() {
         return;
     }
     if std::env::var_os("HD_UPDATE_CONFORMANCE").is_some() {
-        std::fs::write(report_path(), render_report(&cases, &results)).expect("write report");
+        let mut report = render_report(&cases, &results);
+        if let Ok(old) = std::fs::read_to_string(report_path())
+            && let Some((_, cli)) = old.split_once(CLI_HEADING)
+        {
+            report.push_str(CLI_HEADING);
+            report.push_str(cli);
+        }
+        std::fs::write(report_path(), report).expect("write report");
         return;
     }
     let report = std::fs::read_to_string(report_path())
