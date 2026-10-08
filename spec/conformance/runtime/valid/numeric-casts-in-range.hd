@@ -1,8 +1,8 @@
 # test: numeric casts convert in-range values exactly, a float-to-integer cast truncates, and f32 arithmetic keeps f32 width
 # Spec 04 Numeric Casts: types.cast.int-int-wrap, types.cast.float-int-saturate, types.cast.f32-f64, types.cast.f64-f32; Display: types.display.width.
-use std.testing.{assert, assert_equal}
-
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("numeric casts convert in range"):
         let wide: i64 = 300
         assert_equal("${i16(wide)}", "300", reason="in range")

@@ -1,7 +1,5 @@
 # test: suspension calls evaluate callee arguments before the child body runs
 # expect: test
-use std.testing.assert_equal
-
 data Log:
     text: string
 
@@ -14,6 +12,8 @@ fn work!(log: mut Log, first: i32, second: i32) -> i32:
     first + second
 
 tests:
+    use std.testing.assert_equal
+
     it("cold construction evaluates arguments but not the body"):
         let mut log = Log { text: "" }
         let pending: mut Suspend[i32] = work(log, note(log, "a", 1), note(log, "b", 2))

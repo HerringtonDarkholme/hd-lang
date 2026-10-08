@@ -1,7 +1,5 @@
 # test: Repo[A] + Repo[B] with A and B both User is the one-key row Repo[User]
 # Spec 11 Row Sets: req.row.set.once; a key occurs at most once after normalization, so a Repo[User] callable fits the field.
-use std.testing.assert_equal
-
 trait Repo[T]:
     fn count(self) -> i32
 
@@ -18,6 +16,8 @@ fn count_users() -> i32 $ Repo[User]:
     $.use(Repo[User]).count()
 
 tests:
+    use std.testing.assert_equal
+
     it("Job[User, User] holds a callable that needs only Repo[User]"):
         $.with(Repo[User]=UserRepo {}):
             let job: Job[User, User] = Job { callback: count_users }

@@ -1,7 +1,5 @@
 # test: cancelling a cold or completed suspension performs no cleanup
 # expect: test
-use std.testing.assert_equal
-
 data Log:
     text: string
 
@@ -12,6 +10,8 @@ fn work!(log: mut Log) -> i32:
     7
 
 tests:
+    use std.testing.assert_equal
+
     it("cancelling a cold suspension runs neither body nor cleanup"):
         let mut log = Log { text: "" }
         let pending: mut Suspend[i32] = work(log)

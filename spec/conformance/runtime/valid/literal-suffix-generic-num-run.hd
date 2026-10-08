@@ -2,8 +2,6 @@
 # Spec 14 Member-Typed Facts: annot.typed-fact.monomorphic; spec 09 Numeric Traits: trait.num.from-i64-checked (Operator Traits OP9, OP10).
 use std.num.Num
 use std.ops.num_suffix
-use std.testing.assert_equal
-
 @num_suffix
 fn k[N < Num](n: N) -> N:
     n * N::from_i64(1000)
@@ -13,6 +11,8 @@ fn wide() -> i64:
     limit
 
 tests:
+    use std.testing.assert_equal
+
     it("scales the literal"):
         assert_equal(wide(), 5000, reason="N is i64 from the expected type")
         assert_equal(2k, 2000, reason="N is usize, the literal's fallback type")

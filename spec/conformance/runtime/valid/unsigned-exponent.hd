@@ -1,9 +1,9 @@
-use std.testing.assert_equal
-
 fn power(base: i32, exponent: u32) -> i32:
     base ** exponent
 
 tests:
+    use std.testing.assert_equal
+
     it("an unsuffixed literal exponent is typed u32"):
         assert_equal(2 ** 3, 8, reason="an integer base accepts a literal exponent")
         let base: i64 = 10

@@ -1,7 +1,5 @@
 # test: a for pattern destructures each yielded value as a let pattern would, over lists, maps, and iterators
 # Spec 06 For Loops: flow.for.pattern (owner decision LP-for, batch 30, 2026-09-30).
-use std.testing.assert_equal
-
 data Point:
     x: i32
     y: i32
@@ -27,6 +25,8 @@ fn nested(pairs: List[(Point, i32)]) -> i32:
     sum
 
 tests:
+    use std.testing.assert_equal
+
     it("a data pattern binds each element's fields"):
         assert_equal(total([Point { x: 2, y: 3 }, Point { x: 4, y: 5 }]), 26, reason="2 * 3 + 4 * 5")
 

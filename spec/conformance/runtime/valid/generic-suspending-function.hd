@@ -1,7 +1,5 @@
 # test: generic suspending function
 
-use std.testing.assert_equal
-
 fn echo![T](value: T) -> T: value
 
 fn main!() -> i32:
@@ -11,5 +9,7 @@ fn main!() -> i32:
     left + right
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main!(), 42, reason="generic suspending function")

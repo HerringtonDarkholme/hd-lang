@@ -1,8 +1,6 @@
 # test: the fix the fallback hint suggests: a signed literal or an annotation picks among several instantiations
 # Spec 04 One Fitting Candidate: types.literal.local.hint, types.literal.local.class.once (ONE-FIT).
 use std.ops.Add
-use std.testing.assert_equal
-
 data Money:
     cents: i64
 
@@ -17,6 +15,8 @@ impl Add[i64] for Money:
         "i64"
 
 tests:
+    use std.testing.assert_equal
+
     it("a signed literal falls back to i32"):
         price := Money { cents: 100 }
         assert_equal(price.add(+5), "i32", reason="+5 is a signed literal, so it falls back to i32")

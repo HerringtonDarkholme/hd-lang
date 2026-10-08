@@ -1,8 +1,6 @@
 # test: List[T] with T = mut Named has the identity of List[mut Named], not List[Named]
 # Spec 09 Runtime Identity: trait.identity.inner-mut; a mut inside a type argument stays, and a trait value type is its trait applied to its arguments.
 use std.inspect.{Inspectable, TypeId}
-use std.testing.assert
-
 trait Named < Inspectable & AnyRef:
     fn name(self) -> string
 
@@ -10,6 +8,8 @@ fn roster_type[T < AnyRef & Inspectable]() -> TypeId:
     TypeId::of::[List[T]]()
 
 tests:
+    use std.testing.assert
+
     it("the inner mut of a trait value argument is kept"):
         assert(roster_type::[mut dyn Named]() == TypeId::of::[List[mut dyn Named]](), reason="T = mut Named")
         assert(roster_type::[mut dyn Named]() != TypeId::of::[List[dyn Named]](), reason="the inner mut is part of the identity")

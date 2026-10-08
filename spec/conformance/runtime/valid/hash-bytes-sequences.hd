@@ -1,8 +1,6 @@
 # test: strings and lists write a u64 length first, tuples write only their elements, optionals a tag byte
 # Spec std Hash, Bytes Written: std-hash.bytes.string, std-hash.bytes.list,
 # std-hash.bytes.tuple, std-hash.bytes.optional (batch 65, HASH-BYTES).
-use std.testing.{assert, assert_equal}
-
 data Recorder:
     bytes: mut List[u8]
 
@@ -17,6 +15,8 @@ fn bytes_of[T < Hash](value: T) -> List[u8]:
     recorder.bytes
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("a string writes its UTF-8 length as a u64, then its UTF-8 bytes"):
         assert_equal(bytes_of("hd"), [2, 0, 0, 0, 0, 0, 0, 0, 104, 100], reason="two bytes")
         assert_equal(bytes_of("\u{E9}"), [2, 0, 0, 0, 0, 0, 0, 0, 195, 169], reason="the length counts bytes, not chars")

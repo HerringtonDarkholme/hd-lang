@@ -2,8 +2,6 @@
 # Spec std/cli Declaring Arguments and Parsing: std-cli.cli.decl, std-cli.cli.new, std-cli.cli.flag, std-cli.cli.option, std-cli.cli.positional, std-cli.cli.builder, std-cli.parse.decl, std-cli.parse-args, std-cli.parsed.decl (task #242).
 use std.cli.{Cli, CliError, Parsed}
 use std.host.{Args, MapArgs}
-use std.testing.assert_equal
-
 fn tool() -> Cli:
     Cli::new("count").flag("verbose", 'v', "print each file").option("out", 'o', "write the total here").positional("pattern", "the files to count")
 
@@ -13,6 +11,8 @@ fn target() -> string $ Args:
         .Err(error) => "$error"
 
 tests:
+    use std.testing.assert_equal
+
     it("parse_args reads the provider's arguments"):
         given := MapArgs::new("count", ["-o", "total.txt", "*.txt"])
         $.with(Args=given):

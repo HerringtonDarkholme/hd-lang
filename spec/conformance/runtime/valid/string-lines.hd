@@ -1,9 +1,9 @@
 # test: lines splits at each \n, drops a \r before it, and a final \n starts no empty line
 # Spec std/text String Methods: std-text.string.lines and std-text.string.lines.final
 # (STDLIB questions 14-22, 2026-09-29; batch 64, STD-1).
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("splits at each newline"):
         assert_equal("a\nb".lines(), ["a", "b"], reason="two lines")
         assert_equal("a\n\nb".lines(), ["a", "", "b"], reason="an empty line in the middle stays")

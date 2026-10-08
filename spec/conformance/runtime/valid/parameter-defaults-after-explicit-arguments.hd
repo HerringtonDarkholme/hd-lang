@@ -2,8 +2,6 @@
 # Spec 07 Defaults: fn.default.allowed, fn.default.omit, fn.default.eval,
 # fn.default.scope.
 
-use std.testing.assert_equal
-
 fn combine(first: i32 = 10, second: i32 = first + 1, third: i32 = second + 1) -> i32:
     first * 100 + second * 10 + third
 
@@ -15,5 +13,7 @@ fn main!() -> i32:
     combine() + combine(third=4, first=2) + choose(40) + load!(40)
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 1438"):
         assert_equal(main!(), 1438, reason="function parameter defaults evaluate after explicit arguments")

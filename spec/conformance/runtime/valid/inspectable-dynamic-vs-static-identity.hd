@@ -1,8 +1,6 @@
 # test: through a generic parameter instantiated with a trait value type, runtime_type is the erased concrete type, not T
 # Spec 09 Inspectable And TypeId: trait.inspect.dynamic; a dynamic value's recorded type is the concrete type, never the trait.
 use std.inspect.{Inspectable, TypeId}
-use std.testing.{assert, assert_equal}
-
 trait Named < Inspectable & AnyRef:
     fn name(self) -> string
 
@@ -22,6 +20,8 @@ fn display_name[T < Named](value: T) -> string:
     value.name()
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("T = Named records User, not Named"):
         let author: dyn Named = User { name: "Ada" }
         assert(!recorded_is_static(author), reason="TypeId of T is Named; the recorded type is User")

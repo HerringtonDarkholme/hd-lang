@@ -2,8 +2,6 @@
 # Spec 07 Function Values: fn.type.values, fn.type.form, fn.type.positional,
 # fn.type.parts, fn.type.no-permission, fn.type.named-value.
 
-use std.testing.assert_equal
-
 fn increment(value: i32) -> i32: value + 1
 
 fn apply(value: i32, transform: fn(i32) -> i32) -> i32:
@@ -12,5 +10,7 @@ fn apply(value: i32, transform: fn(i32) -> i32) -> i32:
 fn main() -> i32: apply(41, increment)
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="callbacks / function values")

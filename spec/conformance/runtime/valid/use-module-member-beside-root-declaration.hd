@@ -4,9 +4,9 @@
 # fixture-package-tree: ambiguous-words/src/report.hd
 use pkg.words.{first_word}
 use pkg.{words}
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("reaches the module's function and the root's function"):
         assert_equal(first_word("ship it now"), "ship", reason="pkg.words.first_word is in src/words.hd")
         assert_equal(words("ship"), 1, reason="pkg.{words} is the root declaration")

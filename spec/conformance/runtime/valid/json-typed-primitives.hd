@@ -4,8 +4,6 @@
 # Spec std/serde Reading, Standard Implementations: std-serde.read.expected, std-serde.std.range.
 use std.json.{encode, decode, from_json, Json, JsonError, Number}
 use std.serde.Deserialize
-use std.testing.assert_equal
-
 fn read[T < Deserialize](value: Json) -> Result[T, JsonError]:
     from_json::[T](value)
 
@@ -15,6 +13,8 @@ fn number(value: f64) -> Json:
         .None => Json.Null
 
 tests:
+    use std.testing.assert_equal
+
     it("every integer type encodes exactly"):
         assert_equal(encode::[i8](-128), "-128", reason="i8")
         assert_equal(encode::[u16](65535), "65535", reason="u16")

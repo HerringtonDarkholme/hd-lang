@@ -1,5 +1,3 @@
-use std.testing.assert
-
 data User:
     name: string
 
@@ -7,6 +5,8 @@ fn same(view: List[User], owner: mut List[mut User]) -> bool:
     view is owner
 
 tests:
+    use std.testing.assert
+
     it("is compares a readonly view and a mutable alias by identity"):
         let users: mut List[mut User] = [User { name: "Ada" }]
         let others: mut List[mut User] = [User { name: "Ada" }]

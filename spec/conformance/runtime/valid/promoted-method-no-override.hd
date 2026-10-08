@@ -1,6 +1,4 @@
 # test: a promoted method runs as the embedded type's method, so self calls inside it stay on the embedded type
-use std.testing.assert_equal
-
 data Base:
     name: string
 
@@ -19,6 +17,8 @@ impl Page:
         "page"
 
 tests:
+    use std.testing.assert_equal
+
     it("no overriding through embedding"):
         page := Page { Base: ...Base { name: "home" } }
         assert_equal(page.kind(), "page", reason="own inherent method")

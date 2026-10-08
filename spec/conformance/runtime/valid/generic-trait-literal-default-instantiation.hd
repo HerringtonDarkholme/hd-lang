@@ -1,7 +1,5 @@
 # test: when instantiations fit only through a numeric literal, the literal's fallback type wins: usize, i32 for a signed literal, or f64
 # Spec 09 Traits: trait.resolve.literal-arg.example.
-use std.testing.assert_equal
-
 trait Combine[T]:
     fn combine(self, other: T) -> string
 
@@ -29,6 +27,8 @@ impl Combine[f64] for Money:
         "f64"
 
 tests:
+    use std.testing.assert_equal
+
     it("integer literals fall back to usize or, when signed, i32, and float literals to f64"):
         price := Money { cents: 10 }
         let wide: i64 = 5

@@ -1,11 +1,11 @@
 # test: skip drops leading items, and take_while stops at the first rejected item, which it consumes
 # Spec std/iter More Adapters: std-iter.adapter.skip-first, .skip.first-next, .take-while, .take-while.stop, and .lazy.more.
-use std.testing.assert_equal
-
 fn body(lines: List[string]) -> List[string]:
     lines.iter().skip(1).take_while(fn(line: string) -> bool: line != "").collect()
 
 tests:
+    use std.testing.assert_equal
+
     it("skips and stops"):
         assert_equal(body(["head", "a", "b", "", "c"]), ["a", "b"], reason="between header and blank")
         assert_equal([1, 2].iter().skip(5).collect(), [], reason="skip past the end")

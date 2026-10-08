@@ -2,8 +2,6 @@
 # Spec 08 Data Literals: data.literal.eval-explicit, data.literal.eval-defaults; Field Defaults: data.default.scope.
 # Spec 05 Data Literals: expr.data.required, expr.data.once,
 # expr.data.eval.
-use std.testing.assert_equal
-
 let trace = +0
 
 fn step(n: i32) -> i32:
@@ -17,6 +15,8 @@ data Invoice:
     total: i32 = step(4)
 
 tests:
+    use std.testing.assert_equal
+
     it("explicit fields in source order, then defaults in declaration order"):
         invoice := Invoice { customer: step(1), id: step(2) }
         assert_equal(trace, 1234, reason="customer, id, then currency and total defaults")

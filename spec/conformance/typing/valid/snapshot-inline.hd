@@ -2,11 +2,11 @@
 # Spec 10 Snapshots: a literal or omitted expect is accepted.
 # Spec std/testing Snapshots: std-testing.snapshot,
 # std-testing.snapshot.import.
-use std.testing.snapshot
-
 fn greeting(name: string) -> string: "hello, " + name
 
 tests:
+    use std.testing.snapshot
+
     it("greets by name"):
         snapshot(greeting("Ada"), expect="hello, Ada")
 

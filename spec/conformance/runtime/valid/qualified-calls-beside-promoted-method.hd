@@ -1,6 +1,4 @@
 # test: a trait method of the outer type and a promoted method of the same name are reached by qualified calls
-use std.testing.assert_equal
-
 trait Describe:
     fn describe(self) -> string
 
@@ -19,6 +17,8 @@ impl Describe for Page:
         "page " + self.Base.name
 
 tests:
+    use std.testing.assert_equal
+
     it("trait-qualified and path-qualified calls"):
         page := Page { Base: ...Base { name: "home" } }
         assert_equal(Describe::describe(page), "page home", reason="trait-qualified call")

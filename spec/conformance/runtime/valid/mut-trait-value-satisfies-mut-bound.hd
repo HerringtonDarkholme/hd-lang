@@ -1,7 +1,5 @@
 # test: a mut trait value satisfies a mut bound, and the bounded call reaches the erased object
 # Spec 09 Trait Values As Bounds: trait.dyn.bound, trait.dyn.bound.dispatch, trait.dyn.bound.mut; Conversion To Trait Values: trait.dyn.mut.
-use std.testing.assert_equal
-
 trait Counter:
     fn bump(mut self) -> void
     fn current(self) -> i32
@@ -21,6 +19,8 @@ fn bump_twice[C < mut Counter](counter: C) -> void:
     counter.bump()
 
 tests:
+    use std.testing.assert_equal
+
     it("mut Counter satisfies C < mut Counter"):
         let visits: mut Visits = Visits { total: 1 }
         let counter: mut dyn Counter = visits

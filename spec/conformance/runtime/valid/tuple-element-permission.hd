@@ -1,7 +1,5 @@
 # test: a tuple element keeps its own mut permission
 # Spec 04 Tuple Types: types.tuple.element-permission and types.fresh.tuple (owner decision TU2, batch 27, 2026-09-30).
-use std.testing.assert_equal
-
 data User:
     name: string
 
@@ -9,6 +7,8 @@ fn rename(pair: (mut User, i32)) -> void:
     pair._0.name = "Grace"  # valid: the element has mutable access
 
 tests:
+    use std.testing.assert_equal
+
     it("a mut element of a tuple can be mutated"):
         let mut user = User { name: "Ada" }
         rename((user, 1))

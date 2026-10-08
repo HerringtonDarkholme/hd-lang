@@ -1,7 +1,5 @@
 # test: direct mutation paths through a readonly root whose generic argument is mut
 # expect: test
-use std.testing.assert_equal
-
 data User:
     name: string
 
@@ -9,6 +7,8 @@ data Box[T]:
     value: T
 
 tests:
+    use std.testing.assert_equal
+
     it("readonly List[mut User] permits element mutation on the path"):
         let mut user = User { name: "a" }
         let users: List[mut User] = [user]

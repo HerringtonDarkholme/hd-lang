@@ -4,8 +4,6 @@
 # req.poly.body, req.poly.one-body, req.poly.no-subtraction,
 # req.poly.rows-only.
 # expect: test
-use std.testing.assert_equal
-
 trait Db:
     fn name(self) -> string
 
@@ -43,6 +41,8 @@ fn only_log() -> string $ Log:
     $.use(Log).tag()
 
 tests:
+    use std.testing.assert_equal
+
     it("the installer provides the stack and the caller provides the rest"):
         $.with(Clock=FixedClock {}):
             text := with_stack():

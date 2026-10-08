@@ -1,6 +1,4 @@
 # test: a call evaluates the callable first, then arguments left to right; binary operands evaluate left to right
-use std.testing.assert_equal
-
 data Log:
     text: string
 
@@ -16,6 +14,8 @@ fn pick(log: mut Log) -> fn(i32) -> i32:
     fn(value: i32) -> i32: value
 
 tests:
+    use std.testing.assert_equal
+
     it("positional arguments evaluate left to right"):
         let mut log = Log { text: "" }
         total := combine(note(log, "a", 1), note(log, "b", 2), note(log, "c", 3))

@@ -6,9 +6,9 @@
 use pkg.beta.{beta}
 use pkg.alpha.{alpha}
 use pkg.log.{recorded}
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("alpha initializes before beta"):
         assert_equal(recorded(), ["alpha", "beta"], reason="pkg.alpha orders before pkg.beta")
         assert_equal("${alpha()}${beta()}", "ab", reason="both modules are in use")

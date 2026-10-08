@@ -1,7 +1,5 @@
 # test: suspending function values
 
-use std.testing.assert_equal
-
 fn add_one!(value: i32) -> i32:
     value + 1
 
@@ -17,6 +15,8 @@ fn drive_lowered!(constructor: fn(i32) -> mut Suspend[i32]) -> i32:
     pending!()
 
 tests:
+    use std.testing.assert_equal
+
     it("suspending function values preserve constructor and bang-call behavior"):
         assert_equal(drive_stored!(add_one), 42, reason="ordinary call constructs a suspension")
         assert_equal(drive_direct!(add_one), 42, reason="bang call constructs and drives a suspension")

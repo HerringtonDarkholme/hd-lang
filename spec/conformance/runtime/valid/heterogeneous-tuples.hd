@@ -1,7 +1,5 @@
 # test: heterogeneous tuples
 
-use std.testing.assert_equal
-
 fn load!() -> i32: 36
 fn pair[T](left: T, right: i32) -> (T, i32): (left, right)
 
@@ -17,5 +15,7 @@ fn main!() -> i32:
     loaded + 1 + nested._0._0 + single._0 + generic._1 + first + second - second
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main!(), 42, reason="heterogeneous tuples")

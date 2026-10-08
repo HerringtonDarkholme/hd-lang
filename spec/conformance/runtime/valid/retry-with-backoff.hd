@@ -1,7 +1,6 @@
 # test: retry_with! sleeps on the Clock between attempts, growing each delay by factor up to max
 # Spec std/task Retry With Backoff: std-task.retry-with.loop, .last-error, .sleep, and .delay (batch 64, STD-5).
 use std.task.{Backoff, retry_with}
-use std.testing.assert_equal
 use std.time.{Clock, Duration, Instant, Timestamp, ms}
 
 data RecordingClock:
@@ -34,6 +33,8 @@ fn connect!(server: mut Server) -> Result[string, string] $ Clock:
         ask!(server)
 
 tests:
+    use std.testing.assert_equal
+
     it("sleeps between calls and returns the first .Ok"):
         let mut clock = RecordingClock { slept: [] }
         let mut server = Server { busy_for: 2, calls: 0 }

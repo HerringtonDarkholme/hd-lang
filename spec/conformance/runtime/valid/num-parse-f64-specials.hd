@@ -1,8 +1,6 @@
 # test: parse_f64 reads nan, inf, and infinity in either case, with a sign, without the host hook
 # Spec std/num Float Parsing: std-num.parse-f64.special, .special-value, .round-trip, and .hook (owner decision PARSE-F64-GRAMMAR, 2026-10-03).
 use std.num.parse_f64
-use std.testing.assert
-
 fn infinity() -> f64:
     1.0 / 0.0
 
@@ -17,6 +15,8 @@ fn parses_to(source: string, expected: f64) -> bool:
         .Err(_) => false
 
 tests:
+    use std.testing.assert
+
     it("nan in any case, with any sign, is a NaN"):
         for source in ["NaN", "nan", "NAN", "-nan", "+NaN"]:
             assert(parses_to_nan(source), reason=source)

@@ -3,8 +3,6 @@
 # type T is instantiated with, so List[T] with T = mut User records List[mut User].
 # Spec 09 Traits: trait.erase.parameter, trait.erase.built.
 use std.inspect.Inspectable
-use std.testing.assert
-
 data User:
     name: string
 
@@ -17,6 +15,8 @@ fn is_owner_list(value: dyn Inspectable) -> bool:
         .None => false
 
 tests:
+    use std.testing.assert
+
     it("List[T] with T = mut User records List[mut User]"):
         let owners: List[mut User] = [User { name: "Ada" }]
         assert(is_owner_list(erase_list(owners)), reason="the instantiation keeps the inner mut")

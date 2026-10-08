@@ -3,8 +3,6 @@
 # value type counts as inspectable as a type argument, matched exactly.
 # Spec 09 Traits: trait.inspectable.declared, trait.inspectable.fields, trait.inspectable.argument-only, trait.inspectable.argument-examples.
 use std.inspect.Inspectable
-use std.testing.assert_equal
-
 data Handler:
     run: fn() -> i32
 
@@ -29,6 +27,8 @@ fn joined(value: dyn Inspectable) -> string:
         .None => "no match"
 
 tests:
+    use std.testing.assert_equal
+
     it("a recovered handler is callable"):
         run := fn() -> i32: 7
         handler := Handler { run: run }

@@ -1,7 +1,5 @@
 # test: a method may share a field's name, and a dot call selects the method, never the field
 # Spec 09 Method Resolution: trait.resolve.lookup, trait.resolve.lookup.kinds, trait.resolve.no-field; Inherent Member Names: trait.inherent.field-names.
-use std.testing.assert_equal
-
 trait Priced:
     fn total(self) -> i32
 
@@ -19,6 +17,8 @@ impl Priced for Ticket:
         self.total - self.discount
 
 tests:
+    use std.testing.assert_equal
+
     it("the field and the method of one name are separate"):
         ticket := Ticket { label: "A1", total: 120, discount: 20 }
         assert_equal(ticket.label, "A1", reason="field access reads the field")

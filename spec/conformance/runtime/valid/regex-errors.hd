@@ -1,7 +1,6 @@
 # test: each RegexErrorKind with its position and Display text, the first error winning, and the size limit
 # Spec std/regex Pattern Errors: std-regex.error.declared, std-regex.error.position, std-regex.error.first, std-regex.error.size-last, std-regex.error.traits, std-regex.error.display, std-regex.error.kind.missing-paren, std-regex.error.kind.unmatched-paren, std-regex.error.kind.missing-bracket, std-regex.error.kind.bad-escape, std-regex.error.kind.bad-range, std-regex.error.kind.nothing-to-repeat, std-regex.error.kind.bad-repeat, std-regex.error.kind.unsupported-group, std-regex.error.kind.bad-group-name, std-regex.error.kind.duplicate-group-name, std-regex.error.kind.too-large, std-regex.syntax.escape.other, std-regex.syntax.class.unclosed, std-regex.syntax.class.bad-range, std-regex.syntax.group.unsupported, std-regex.syntax.group.bad-name, std-regex.syntax.group.duplicate-name, std-regex.syntax.group.unclosed, std-regex.syntax.group.unopened, std-regex.repeat.bad-count, std-regex.repeat.nothing, std-regex.time.size, std-regex.error.too-large (tasks #243, #244).
 use std.regex.{Regex, RegexError, RegexErrorKind}
-use std.testing.assert_equal
 use std.text.r
 
 fn error_of(pattern: string) -> RegexError?:
@@ -11,6 +10,8 @@ fn at(kind: RegexErrorKind, position: usize) -> RegexError?:
     .Some(RegexError { kind: kind, position: position })
 
 tests:
+    use std.testing.assert_equal
+
     it("parens"):
         assert_equal(error_of("a(b"), at(.MissingParen, 1), reason="unclosed, at the (")
         assert_equal(error_of("a(b(c)"), at(.MissingParen, 1), reason="the outer group")

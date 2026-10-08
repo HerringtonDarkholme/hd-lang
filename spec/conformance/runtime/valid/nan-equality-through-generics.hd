@@ -1,7 +1,5 @@
 # test: NaN stays unequal to itself through generics, optionals, lists, tuples, maps, and Result
 # expect: test
-use std.testing.assert
-
 fn same[T < Eq](left: T, right: T) -> bool:
     left == right
 
@@ -9,6 +7,8 @@ fn pass_through[T](value: T) -> T:
     value
 
 tests:
+    use std.testing.assert
+
     it("NaN is unequal to itself directly and through a bound"):
         nan := 0.0 / 0.0
         assert(nan != nan, reason="IEEE equality")

@@ -2,8 +2,6 @@
 # Spec 03 Conditional Scopes: names.cond.child, names.cond.no-leak,
 # names.scope.lexical, names.scope.start.
 
-use std.testing.assert_equal
-
 fn main() -> i32:
     if true:
         value := +1
@@ -13,5 +11,7 @@ fn main() -> i32:
         value
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 1"):
         assert_equal(main(), 1, reason="branch scopes shadow")

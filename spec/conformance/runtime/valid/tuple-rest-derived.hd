@@ -1,9 +1,9 @@
 # test: a tuple with a rest element derives Eq, PartialOrd, and Ord, comparing the rest element as its list
 # expect: test
 # std Cmp and Hash, tuple templates: std-cmp.tuple.rest and std-hash.tuple.rest-list (owner decisions Q5, batch 34, and Q5-hash, batch 51).
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("rest tuples compare element by element, the rest as a list"):
         let a: (i32, List[i32]...) = (1, 2, 3)
         let b: (i32, List[i32]...) = (1, 2, 3)

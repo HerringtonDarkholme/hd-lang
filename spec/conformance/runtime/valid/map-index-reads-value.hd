@@ -1,7 +1,5 @@
 # test: m[k] reads V for a present key; m.get(k) reads V?
 # Spec 05 Map Indexing: expr.index.map.read-value, expr.index.map.get (owner decision SSC Q8, batch 26, 2026-09-30).
-use std.testing.assert_equal
-
 fn score(scores: Map[string, i32], name: string) -> i32:
     match scores.get(name):
         .Some(value) => value
@@ -11,6 +9,8 @@ fn strict(scores: Map[string, i32], name: string) -> i32:
     scores[name]
 
 tests:
+    use std.testing.assert_equal
+
     it("reads present and missing keys"):
         scores := {"ada": +36}
         assert_equal(strict(scores, "ada"), 36, reason="m[k] reads V")

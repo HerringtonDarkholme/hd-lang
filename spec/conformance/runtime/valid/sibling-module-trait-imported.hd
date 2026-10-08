@@ -3,11 +3,11 @@
 # module declares Priced and implements it for Cart.
 # fixture-package-tree: module-members/src/checkout.hd
 use pkg.cart.{Cart, Priced}
-use std.testing.assert_equal
-
 fn charge(cart: Cart) -> i32:
     cart.price()
 
 tests:
+    use std.testing.assert_equal
+
     it("calls an imported trait's method"):
         assert_equal(charge(Cart::open("ana", 250)), 250, reason="Priced is imported")

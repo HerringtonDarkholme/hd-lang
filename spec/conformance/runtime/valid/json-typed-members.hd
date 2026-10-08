@@ -4,8 +4,6 @@
 # Spec 09 Derived Newtypes: trait.derive.newtype.templated, trait.derive.newtype.self-positions.
 use std.json.{encode, decode, from_json, parse, Json, JsonError}
 use std.serde.{Serialize, Deserialize}
-use std.testing.assert_equal
-
 @derive(Serialize, Deserialize)
 type OrderId(u64)
 
@@ -43,6 +41,8 @@ fn read[T < Deserialize](text: string) -> T:
         .Err(error) => panic("decode failed: $error")
 
 tests:
+    use std.testing.assert_equal
+
     it("an embedded member is one key named by its type, not flattened"):
         assert_equal(encode(order()), order_text(), reason="Audit is a nested object")
         back := read::[Order](order_text())

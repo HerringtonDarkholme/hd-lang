@@ -6,12 +6,12 @@
 # fixture-package-tree: shared-enum-init/src/app.hd
 use pkg.shipping.{Shipping}
 use pkg.trace.{recorded}
-use std.testing.assert_equal
-
 fn main() -> List[string]:
     recorded()
 
 tests:
+    use std.testing.assert_equal
+
     it("initializes shared data before main reads the trace"):
         assert_equal(main(), ["dependency", "base", "tax", "handling"], reason="dependency and shared data initialized before main")
         assert_equal(Shipping.Standard.base, 10, reason="the explicit argument initialized the variant")

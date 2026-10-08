@@ -1,7 +1,5 @@
 # test: dynamic suspending method
 
-use std.testing.assert_equal
-
 trait Reader:
     fn read!(self, value: i32) -> i32
 
@@ -18,5 +16,7 @@ fn main!() -> i32:
     combine!(FixedReader { offset: 0 })
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main!(), 42, reason="dynamic suspending method")

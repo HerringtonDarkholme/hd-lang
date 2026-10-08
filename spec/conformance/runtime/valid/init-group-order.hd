@@ -3,13 +3,13 @@
 # Spec 10 Order Inside A Cycle: module.init.cycle.step (Dependency Cycles DC7, DC11).
 # fixture-package-tree: init-group/src/shop/catalog.hd
 use pkg.shop.prices.{price_of}
-use std.testing.assert_equal
-
 let featured = price_of("tea")
 
 pub fn base_price(sku: string) -> i32:
     if sku == "tea": 10 else: 20
 
 tests:
+    use std.testing.assert_equal
+
     it("runs after markup"):
         assert_equal(featured, 15, reason="10 + markup 5")

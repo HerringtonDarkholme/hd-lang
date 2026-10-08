@@ -2,12 +2,12 @@
 # Spec 03 Test Blocks: names.tests.module-items,
 # names.tests.sees-module.
 # Spec 03 Tests Blocks: naming a tests-block item outside the block is unknown-name.
-use std.testing.assert_equal
-
 fn late_fee(days: i32) -> i32:
     if days > 30: 5 else: 0
 
 tests:
+    use std.testing.assert_equal
+
     fn overdue() -> i32: 31
 
     it("uses a private function"):

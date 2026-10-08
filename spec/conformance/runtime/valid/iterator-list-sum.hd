@@ -1,7 +1,5 @@
 # test: sum adds a numeric iterator or list in order from zero, and an empty one gives zero
 # Spec std/iter More Adapters: std-iter.adapter.sum, .sum.order, .sum.drain; std/collections List Helpers: std-collections.helper.sum, .sum.iterator.
-use std.testing.assert_equal
-
 fn total(readings: List[i32]) -> i32:
     readings.sum()
 
@@ -9,6 +7,8 @@ fn doubled_total(readings: List[usize]) -> usize:
     readings.iter().map(fn(n: usize) -> usize: n * 2).sum()
 
 tests:
+    use std.testing.assert_equal
+
     it("sums a list"):
         assert_equal([1, 2, 3].sum(), 6, reason="a list of usize")
         assert_equal(total([-5, 2, 4]), 1, reason="signed values")

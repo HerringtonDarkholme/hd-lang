@@ -1,8 +1,6 @@
 # test: a derived enum default is its @default variant, with each payload member's default
 # std Ops, Derived Default: std-ops.default.derive.enum and .derive.payload (owner decision Q6-default-derive, batch 51, 2026-10-02).
 use std.ops.{Default, default}
-use std.testing.assert_equal
-
 @derive(Default, Eq, Debug)
 enum Shape:
     Circle(radius: f64)
@@ -17,6 +15,8 @@ enum Level:
     High
 
 tests:
+    use std.testing.assert_equal
+
     it("the marked variant is the default"):
         assert_equal(Shape::default(), Shape.Square(0.0, ""), reason="payload members take their defaults")
         assert_equal(Level::default(), Level.Mid, reason="a payload-free marked variant")

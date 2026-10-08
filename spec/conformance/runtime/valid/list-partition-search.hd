@@ -1,8 +1,8 @@
 # test: partition, any, all, find, contains, and index_of, including an empty list
 # Spec std/collections List Helpers: std-collections.helper.partition, .any-all, .find, .short-circuit, and .contains.
-use std.testing.{assert, assert_equal}
-
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("partitions in list order"):
         let (big, small) = [3, 1, 2].partition(fn(n: i32) -> bool: n > 1)
         assert_equal(big, [3, 2], reason="kept")

@@ -6,8 +6,6 @@
 # expr.place.receiver, expr.place.call-update, expr.assign.statement,
 # expr.assign.target, expr.assign.order, expr.assign.order.field,
 # expr.assign.order.index, expr.assign.order.call.
-use std.testing.assert_equal
-
 data Log:
     text: string
 
@@ -39,6 +37,8 @@ fn counter_of(log: mut Log, target: mut Counter) -> mut Counter:
     target
 
 tests:
+    use std.testing.assert_equal
+
     it("indexed list assignment: receiver, index, value"):
         let mut log = Log { text: "" }
         let values: mut List[i32] = [0, 0]

@@ -1,7 +1,5 @@
 # test: generic suspending function bound
 
-use std.testing.assert_equal
-
 trait Score:
     fn score(self) -> i32
 
@@ -21,5 +19,7 @@ fn main!() -> i32:
     read!(Value { amount: 42 })
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main!(), 42, reason="generic suspending function bound")

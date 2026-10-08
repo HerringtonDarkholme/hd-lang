@@ -2,8 +2,6 @@
 # Spec 07 Captures: "Captured `let` storage is shared with its defining scope and other closures that
 # capture the same binding."
 # expect: test
-use std.testing.assert_equal
-
 fn counter() -> fn() -> i32:
     let count = +0
     fn() -> i32:
@@ -11,6 +9,8 @@ fn counter() -> fn() -> i32:
         count
 
 tests:
+    use std.testing.assert_equal
+
     it("a closure reads a later assignment to a captured let"):
         let value = +1
         read := fn() -> i32: value

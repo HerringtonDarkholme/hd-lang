@@ -3,8 +3,6 @@
 # types.map.replace.in-place, types.map.semantics, types.map.key-view,
 # types.map.no-reindex, types.map.stale, types.map.no-repair.
 
-use std.testing.assert_equal
-
 fn main() -> i32:
     let values: mut Map[string, i32] = {}
     values["a"] = 1
@@ -26,5 +24,7 @@ fn main() -> i32:
     removed + missing + remaining
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="map grow and remove")

@@ -2,8 +2,6 @@
 # Spec 05 Propagation, step 1: an error assignable to the enclosing error type by one
 # assignability rule, here construction of a dynamic trait value, is returned converted.
 use std.error.Error
-use std.testing.assert_equal
-
 enum FsError:
     NotFound(path: string)
 
@@ -30,6 +28,8 @@ fn describe(result: Result[string, dyn Error]) -> string:
         .Err(error) => "error: " + error.to_string()
 
 tests:
+    use std.testing.assert_equal
+
     it("the success value continues"):
         assert_equal(describe(load("a.txt", true)), "https://example.test", reason="Ok passes through ?")
 

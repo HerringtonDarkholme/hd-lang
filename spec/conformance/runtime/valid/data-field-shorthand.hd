@@ -2,8 +2,6 @@
 # Spec 08 Field Shorthand: data.literal.shorthand, data.literal.shorthand.mixed, data.update.shorthand, data.update.replace.
 # Spec 05 Data Literals: expr.data.shorthand.
 
-use std.testing.assert_equal
-
 data Point:
     x: i32
     y: i32
@@ -24,5 +22,7 @@ fn main() -> i32:
     a.x + a.y + b.x + b.y + c.x + c.y
 
 tests:
+    use std.testing.assert_equal
+
     it("shorthand fills fields from bindings of the same name"):
         assert_equal(main(), 18, reason="1 + 2 + 3 + 0 + 10 + 2")

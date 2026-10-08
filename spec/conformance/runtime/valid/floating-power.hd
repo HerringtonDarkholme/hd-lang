@@ -1,9 +1,9 @@
 # test: floating power
 
-use std.testing.assert_equal
-
 fn main() -> f64: 9.0 ** 0.5
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 3.0"):
         assert_equal(main(), 3.0, reason="floating power")

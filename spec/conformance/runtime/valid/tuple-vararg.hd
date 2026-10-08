@@ -1,10 +1,10 @@
 # test: a tuple-typed vararg collects one argument per element
 # expect: test
-use std.testing.assert_equal
-
 fn label(parts...: (i32, string)) -> string: "${parts._0}${parts._1}"
 
 tests:
+    use std.testing.assert_equal
+
     it("the arguments fill the tuple in order"):
         assert_equal(label(1, "a"), "1a", reason="separate arguments")
         pair := (+2, "b")

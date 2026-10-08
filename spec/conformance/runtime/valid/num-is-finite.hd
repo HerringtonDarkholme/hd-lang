@@ -1,7 +1,5 @@
 # test: f64 is_finite is false exactly for NaN and the infinities
 # Spec std/num Floating-Point Classification: std-num.is-finite (batch 68, STD-HELPERS-KEEP; task #219).
-use std.testing.assert
-
 fn usable(ratio: f64) -> bool:
     !ratio.is_nan()
 
@@ -9,6 +7,8 @@ fn bounded(ratio: f64) -> bool:
     ratio.is_finite()
 
 tests:
+    use std.testing.assert
+
     it("is_finite tells NaN and infinity apart"):
         nan := 0.0 / 0.0
         assert(!bounded(nan) && !usable(nan), reason="NaN")

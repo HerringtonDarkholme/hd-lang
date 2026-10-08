@@ -1,7 +1,5 @@
 # test: a default method body calls its trait's and supertraits' members
 
-use std.testing.assert_equal
-
 trait Named:
     fn name(self) -> string
 
@@ -21,5 +19,7 @@ impl Greeter for User:
     fn greeting(self) -> string: "hi"
 
 tests:
+    use std.testing.assert_equal
+
     it("a default body reaches the supertrait method"):
         assert_equal(User { value: "Ada" }.greet(), "hi Ada", reason="default uses trait members")

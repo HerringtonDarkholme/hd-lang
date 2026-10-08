@@ -1,8 +1,6 @@
 # test: context wraps an .Err in a ContextError whose message comes first in chain and report_of, and passes .Ok through
 # Spec std/error Error Context: std-error.context.ok, std-error.context.err, std-error.context.display, std-error.context.cause, std-error.context.chain (ERR-CONTEXT; task #223).
 use std.error.{ContextError, Error, chain, report_of}
-use std.testing.{assert, assert_equal}
-
 @error("not found: $path")
 data NotFound:
     path: string
@@ -17,6 +15,8 @@ fn load(path: string) -> Result[string, dyn Error]:
     .Ok(text)
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("an .Err gets the message, with the error as its cause"):
         match load("app.toml"):
             .Ok(_) => assert(false, reason="the read fails")

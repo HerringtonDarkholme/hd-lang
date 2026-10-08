@@ -1,7 +1,5 @@
 # test: mutable list and map roots support indexed replacement
 
-use std.testing.assert_equal
-
 fn main() -> i32:
     let values: mut List[i32] = [1, 2]
     let scores: mut Map[string, i32] = {"x": 1}
@@ -13,5 +11,7 @@ fn main() -> i32:
     values[0] + score
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="mutable list and map roots support indexed replacement")

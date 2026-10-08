@@ -1,11 +1,11 @@
 # test: to_fixed writes correctly rounded fixed-point text, ties to even, with the sign bit and the special values
 # Spec std/num Fixed-Point Text: std-num.to-fixed.value, .ties, .form, .no-exponent, .sign, and .special (hook FIXED-HOOK).
-use std.testing.assert_equal
-
 fn price(amount: f64) -> string:
     amount.to_fixed(2)
 
 tests:
+    use std.testing.assert_equal
+
     it("rounds to the digits"):
         assert_equal(price(3.14159), "3.14", reason="two digits")
         assert_equal(7.0.to_fixed(0), "7", reason="no point at 0 digits")

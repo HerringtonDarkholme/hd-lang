@@ -1,12 +1,12 @@
 # test: counts tallies each distinct element, one key per distinct element
 # Spec std/collections Counts: std-collections.counts.decl, std-collections.counts.value, and .empty.
 use std.collections.counts
-use std.testing.assert_equal
-
 fn tally(words: List[string]) -> Map[string, usize]:
     counts(words)
 
 tests:
+    use std.testing.assert_equal
+
     it("tallies elements"):
         found := tally(["a", "b", "a"])
         assert_equal(found.get("a"), .Some(2), reason="a twice")

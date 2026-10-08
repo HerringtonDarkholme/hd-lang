@@ -2,8 +2,6 @@
 # Spec Modules, Processes: module.process.not-granted, module.process.os-denied.
 # expect: test
 use std.process.{Process, ProcessError, ProcessOutput}
-use std.testing.assert_equal
-
 data GrantedProcess: pass
 
 impl Process for GrantedProcess:
@@ -17,6 +15,8 @@ fn start!(program: string) -> Result[ProcessOutput, ProcessError] $ Process:
     $.use(Process).run!(program, [], "")
 
 tests:
+    use std.testing.assert_equal
+
     it("a program outside the grant is NotGranted"):
         let mut process = GrantedProcess {}
         $.with(Process=process):

@@ -2,8 +2,6 @@
 # Spec 11 Lowering: req.lowering.sugar, req.lowering.frame,
 # req.lowering.poll, req.lowering.representation.
 
-use std.testing.assert_equal
-
 fn child!() -> i32: 2
 fn main!() -> i32:
     base := +40
@@ -11,5 +9,7 @@ fn main!() -> i32:
     base + value
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main!(), 42, reason="suspending call preserves locals")

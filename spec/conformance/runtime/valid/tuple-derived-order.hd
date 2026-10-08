@@ -1,8 +1,8 @@
 # test: derived tuple equality, order, and hashing work element by element
 # expect: test
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("tuples compare element by element"):
         assert_equal((1, "a") == (1, "a"), true, reason="equal elements")
         assert_equal((1, "b") < (2, "a"), true, reason="the first element decides")

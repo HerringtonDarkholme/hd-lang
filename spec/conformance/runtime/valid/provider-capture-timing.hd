@@ -1,7 +1,5 @@
 # test: closures fix a provider only by capturing its value; other closures keep the key in their row
 # expect: test
-use std.testing.assert_equal
-
 trait Tag:
     fn name(self) -> string
 
@@ -19,6 +17,8 @@ fn later!() -> string $ Tag:
     current()
 
 tests:
+    use std.testing.assert_equal
+
     it("closure that captured a provider value keeps that provider"):
         let reader: fn() -> string = $.with(Tag=FixedTag { value: "created" }):
             tag := $.use(Tag)

@@ -1,13 +1,13 @@
 # test: a mutable optional supplies mutable payload access through inference and matching
 # Spec 04 Optional Types: types.option.invariant (a mutable payload annotation grants payload access).
-use std.testing.assert_equal
-
 data User:
     name: i32
 
 fn find() -> mut User?: .Some(User { name: 40 })
 
 tests:
+    use std.testing.assert_equal
+
     it("matching a mutable optional exposes its payload"):
         let mut found = find()
         match found:

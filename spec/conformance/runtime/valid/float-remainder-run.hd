@@ -1,12 +1,12 @@
 # test: floating % truncates, as C fmod does, and keeps the dividend's sign
 # Spec 05 Floating-Point Arithmetic: expr.float.remainder-truncated, expr.float.remainder-special (Operator Traits OP9).
-use std.testing.{assert, assert_equal}
-
 fn nan_remainder(x: f64) -> bool:
     r := x % 0.0
     r != r
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("truncates toward zero"):
         assert_equal(5.5 % 2.0, 1.5, reason="5.5 = 2 * 2.0 + 1.5")
         assert_equal(-5.5 % 2.0, -1.5, reason="the sign follows the dividend")

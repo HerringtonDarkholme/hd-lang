@@ -1,8 +1,8 @@
 # test: trim removes exactly the Unicode White_Space property at both ends
 # expect: test
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("trim removes non-ASCII White_Space"):
         assert_equal("\u{3000}x\u{85}\u{2029}".trim(), "x", reason="ideographic space, NEL, paragraph separator")
         assert_equal(" \t\n x y \r\n".trim(), "x y", reason="ASCII whitespace; inner space kept")

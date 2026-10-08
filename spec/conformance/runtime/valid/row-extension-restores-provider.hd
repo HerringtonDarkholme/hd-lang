@@ -1,7 +1,5 @@
 # test: a provider removed by row extension is visible to the callback only, then the outer one returns
 # expect: test
-use std.testing.assert_equal
-
 trait Tag:
     fn name(self) -> string
 
@@ -20,6 +18,8 @@ fn provide_inner[$R](callback: fn() -> string $ R + Tag) -> string $ R:
         callback()
 
 tests:
+    use std.testing.assert_equal
+
     it("callback sees the local provider, caller sees its own afterwards"):
         $.with(Tag=FixedTag { value: "outer" }):
             seen := provide_inner(current)

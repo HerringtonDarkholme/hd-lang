@@ -1,7 +1,5 @@
 # test: suspending result propagation
 
-use std.testing.assert_equal
-
 data ParseError:
     code: i32
 
@@ -24,5 +22,7 @@ fn main!() -> i32:
     inspect(lifted!(true)) + inspect(lifted!(false))
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 35"):
         assert_equal(main!(), 35, reason="suspending result propagation")

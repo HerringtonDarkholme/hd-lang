@@ -1,12 +1,12 @@
 # test: the usage text lists the positionals, then the flags and options, with each help in one column
 # Spec std/cli Usage Text: std-cli.usage.decl, std-cli.usage.line, std-cli.usage.arguments, std-cli.usage.options, std-cli.usage.term, std-cli.usage.entry, std-cli.usage.no-help, std-cli.usage.no-help-flag, std-cli.error.help (task #242).
 use std.cli.{Cli, CliError}
-use std.testing.assert_equal
-
 fn tool() -> Cli:
     Cli::new("count").flag("verbose", 'v', "print each file").option("out", 'o', "write the total here").flag("dry-run", .None, "").positional("pattern", "the files to count")
 
 tests:
+    use std.testing.assert_equal
+
     it("a full usage text"):
         expected := "usage: count [options] <pattern>\n\narguments:\n  pattern            the files to count\n\noptions:\n  -v, --verbose      print each file\n  -o, --out <value>  write the total here\n      --dry-run"
         assert_equal(tool().usage(), expected, reason="every section")

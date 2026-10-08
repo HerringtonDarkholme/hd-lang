@@ -1,8 +1,6 @@
 # test: traits / defaults / override
 # Spec 09 Traits: trait.impl.override.
 
-use std.testing.assert_equal
-
 trait Named:
     fn name(self) -> i32
     fn label(self) -> i32:
@@ -22,5 +20,7 @@ fn main() -> i32:
     show(Number { value: 40 })
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 41"):
         assert_equal(main(), 41, reason="traits / defaults / override")

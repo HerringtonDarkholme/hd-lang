@@ -1,7 +1,5 @@
 # test: traits / suspending dispatch
 
-use std.testing.assert_equal
-
 trait Read:
     fn read!(self, delta: i32) -> i32
 
@@ -25,5 +23,7 @@ fn main!() -> i32:
     static + stored + direct + generic
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main!(), 42, reason="traits / suspending dispatch")

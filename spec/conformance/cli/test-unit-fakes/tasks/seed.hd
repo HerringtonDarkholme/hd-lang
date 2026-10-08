@@ -1,4 +1,3 @@
-use std.testing.assert_equal
 use std.time.{Clock, now}
 
 fn stamp() -> i64 $ Clock:
@@ -8,6 +7,8 @@ pub fn main() -> void $ Console + Clock:
     println("seeded at ${stamp()}")
 
 tests:
+    use std.testing.assert_equal
+
     it("stamps with the host clock"):
         assert_equal(stamp() > 0, true, reason="a clock after 1970")
 

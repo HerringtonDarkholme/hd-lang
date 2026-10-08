@@ -1,7 +1,5 @@
 # test: a trait that is not dynamically safe is still implemented and used as a static bound
 # Spec 09 Dynamic Safety: trait.dyn.member.self, trait.dyn.any-trait.
-use std.testing.assert_equal
-
 trait Versioned:
     fn newer_than(self, other: Self) -> bool
 
@@ -20,6 +18,8 @@ fn latest[T < Versioned](first: T, rest: List[T]) -> T:
     best
 
 tests:
+    use std.testing.assert_equal
+
     it("the bound dispatches statically"):
         newest := latest(Release { version: 3 }, [Release { version: 7 }, Release { version: 5 }])
         assert_equal(newest.version, 7, reason="the newest release")

@@ -1,8 +1,6 @@
 # test: args() and env(name) are plain calls on the covering Args and Env providers
 # Spec std/host: std-host.args.helper, std-host.env.helper, and std-host.plain-reads (batch 64, STD-2 and STD-3).
 use std.host.{Args, Env, args, env}
-use std.testing.assert_equal
-
 data FixedArgs:
     values: List[string]
 
@@ -32,6 +30,8 @@ fn greeting() -> string $ Args + Env:
         .None => "none"
 
 tests:
+    use std.testing.assert_equal
+
     it("the helpers read the covering providers"):
         given := FixedArgs { values: ["a", "b"] }
         vars := FixedEnv { values: {"GREETING": "hi"} }

@@ -1,11 +1,11 @@
 # test: Ordering implements Eq by case and Debug by qualified case name
 # Spec std/cmp Ordering Values: std-cmp.ordering.eq, std-cmp.ordering.debug-text (spec pass 89, audit item 1).
-use std.testing.{assert, assert_equal}
-
 fn is_before(a: string, b: string) -> bool:
     a.cmp(b) == Ordering.Less
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("compares cases"):
         assert(is_before("abc", "abd"), reason="abc sorts first")
         assert((1).cmp(2) == Ordering.Less, reason="less")

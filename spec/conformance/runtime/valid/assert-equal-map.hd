@@ -1,6 +1,6 @@
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("equal maps pass assert_equal"):
         assert_equal({"ada": 1, "grace": 2}, {"ada": 1, "grace": 2}, reason="same entries in the same order")
 

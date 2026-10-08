@@ -1,8 +1,6 @@
 # test: a live cell reads through apply and stores through update, and a child reads a readonly view
 # Spec 05 Callable Values: expr.call.apply.read, expr.call.apply.write, expr.assign.compound.call-once (Call Indexing D1, D2, D4).
 use std.ops.{Apply, Update}
-use std.testing.assert_equal
-
 data Cell[T]:
     value: T
 
@@ -34,6 +32,8 @@ fn bump(panel: mut Panel) -> i32:
     (panel.count)()
 
 tests:
+    use std.testing.assert_equal
+
     it("stores through the cell"):
         assert_equal(parent(), "clicked 3", reason="1 then += 2")
     it("reaches a cell in a field"):

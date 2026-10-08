@@ -4,8 +4,6 @@
 # fn.generic.qualified, fn.generic.qualified.member-list,
 # fn.generic.method-inference.
 
-use std.testing.assert_equal
-
 data Identity: pass
 
 data Label:
@@ -38,6 +36,8 @@ fn bounded_display() -> i32:
     else: 0
 
 tests:
+    use std.testing.assert_equal
+
     it("explicit_right returns 42"):
         assert_equal(explicit_right(), 42, reason="generic methods")
 

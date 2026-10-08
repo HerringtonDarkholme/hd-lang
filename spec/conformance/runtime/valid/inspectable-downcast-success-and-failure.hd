@@ -3,8 +3,6 @@
 # a value without identity is unboxed, and a different type yields .None.
 # Spec 09 Traits: trait.erase.expected, trait.inspect.supplied, trait.downcast.some, trait.downcast.val, trait.downcast.same-reference, trait.downcast.unboxed.
 use std.inspect.{Inspectable, downcast_val}
-use std.testing.{assert, assert_equal}
-
 data User:
     name: string
 
@@ -27,6 +25,8 @@ fn number(value: dyn Inspectable) -> i32:
         .None => -1
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("a data value comes back as itself"):
         user := User { name: "Ada" }
         let erased: dyn Inspectable = user

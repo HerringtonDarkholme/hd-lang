@@ -4,8 +4,6 @@
 # expr.logic.bool, expr.logic.short-circuit, expr.op.precedence,
 # expr.op.not, expr.op.not.position, expr.op.not.combine,
 # expr.op.not-equal, expr.op.not.grouping.
-use std.testing.assert_equal
-
 data Log:
     text: string
 
@@ -14,6 +12,8 @@ fn flag(log: mut Log, tag: string, value: bool) -> bool:
     value
 
 tests:
+    use std.testing.assert_equal
+
     it("and skips its right operand when the left is false"):
         let mut log = Log { text: "" }
         result := flag(log, "a", false) && flag(log, "b", true)

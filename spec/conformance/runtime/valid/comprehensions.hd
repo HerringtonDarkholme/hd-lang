@@ -1,7 +1,5 @@
 # test: comprehensions
 
-use std.testing.assert_equal
-
 fn main() -> i32:
     pairs := [for left in [+1, 2, 3] for right in [+10, 20] if left != 2 => left + right]
     by_left := {for left in [+1, 2] for right in [+10, 20] => left: left + right}
@@ -14,5 +12,7 @@ fn main() -> i32:
         0
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="comprehensions")

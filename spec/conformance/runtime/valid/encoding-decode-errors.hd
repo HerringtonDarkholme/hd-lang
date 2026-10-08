@@ -6,9 +6,9 @@
 # std-encoding.base64.decode.pad-bits, std-encoding.error.position-bytes,
 # and std-encoding.error.traits.
 use std.encoding.{base64_decode, hex_decode, DecodeError}
-use std.testing.{assert, assert_equal}
-
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("hex errors"):
         assert_equal(hex_decode("abc"), .Err(DecodeError.InvalidLength(3)), reason="odd length")
         assert_equal(hex_decode("0g"), .Err(DecodeError.InvalidCharacter(1)), reason="not a hex digit")

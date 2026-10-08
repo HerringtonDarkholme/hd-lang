@@ -1,11 +1,11 @@
 # test: integer-to-integer casts wrap to the target width
 
-use std.testing.assert_equal
-
 fn narrow(wide: i64) -> u8:
     u8(wide)
 
 tests:
+    use std.testing.assert_equal
+
     it("narrowing casts keep the low bits"):
         assert_equal(narrow(300), 44, reason="300 wraps to 44 in u8")
         let big: i32 = 200

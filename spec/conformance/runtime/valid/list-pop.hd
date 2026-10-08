@@ -1,8 +1,6 @@
 # test: list pop removes the last element, and gives .None when empty
 # Spec 10 Built-In Methods: module.method.list-pop, module.method.list-pop.empty.
 
-use std.testing.assert_equal
-
 fn drain() -> i32:
     let values: mut List[i32] = [1, 2]
     values.push(3)
@@ -13,6 +11,8 @@ fn drain() -> i32:
             .None => return total
 
 tests:
+    use std.testing.assert_equal
+
     it("pop takes the last element first"):
         assert_equal(drain(), 321, reason="3, 2, 1, then .None on the empty list")
     it("pop on an empty list leaves it empty"):

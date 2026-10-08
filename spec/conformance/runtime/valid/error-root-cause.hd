@@ -1,8 +1,6 @@
 # test: root_cause returns the last error of the chain, and an error without a cause is its own root cause
 # Spec std/error Root Cause And Find: std-error.root-cause (ERR-HELPERS; task #223).
 use std.error.Error
-use std.testing.assert_equal
-
 @error("disk full")
 data DiskError:
     free: i64
@@ -18,6 +16,8 @@ enum SyncError:
     Save(@from error: SaveError)
 
 tests:
+    use std.testing.assert_equal
+
     it("the last error of a two-level chain"):
         let failure: dyn Error = SyncError.Save(SaveError.Write("notes.txt", DiskError { free: 0 }))
         assert_equal(failure.root_cause().to_string(), "disk full", reason="the innermost cause")

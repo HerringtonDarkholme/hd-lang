@@ -1,8 +1,8 @@
 # test: flat_map yields the elements of each returned list, in order, lazily
 # Spec std/iter More Adapters: std-iter.adapter.flat-map and .lazy.more.
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("flattens in order"):
         assert_equal([1, 2].iter().flat_map(fn(n: i32) -> List[i32]: [n, n * 10]).collect(), [1, 10, 2, 20], reason="in order")
         assert_equal([1, 2].iter().flat_map(fn(n: i32) -> List[i32]: []).collect(), [], reason="empty parts")

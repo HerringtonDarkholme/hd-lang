@@ -2,9 +2,9 @@
 # Spec std/collections Heap: std-collections.heap.min; std/cmp Reverse: std-cmp.reverse.order (COLLECTIONS-DATES-SURFACE; task #225).
 use std.cmp.Reverse
 use std.collections.Heap
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("smallest first"):
         let heap: mut Heap[Reverse[i32]] = Heap::new()
         for value in [+5, 1, 8, 3]:

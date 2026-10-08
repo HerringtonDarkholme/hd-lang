@@ -3,8 +3,6 @@
 # names.loop.per-iteration, names.capture.resolve, names.capture.definition.
 # Spec 03 Loops: "Each iteration creates the body bindings for that iteration; a closure that escapes
 # an iteration captures that iteration's binding rather than one shared loop variable."
-use std.testing.assert_equal
-
 fn make_readers(values: List[i32]) -> List[fn() -> i32]:
     let readers: mut List[fn() -> i32] = []
     for value in values:
@@ -13,6 +11,8 @@ fn make_readers(values: List[i32]) -> List[fn() -> i32]:
     readers
 
 tests:
+    use std.testing.assert_equal
+
     it("each closure observes its own iteration"):
         readers := make_readers([1, 2, 3])
         first := readers[0]

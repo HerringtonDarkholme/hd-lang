@@ -1,7 +1,5 @@
 # test: i32 minimum and maximum survive generics, optionals, lists, and maps
 # expect: test
-use std.testing.{assert, assert_equal}
-
 fn pass_through[T](value: T) -> T:
     value
 
@@ -11,6 +9,8 @@ fn first[T](values: List[T]) -> T?:
     .None
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("extremes round-trip through erased positions"):
         let maximum: i32 = 2147483647
         let minimum: i32 = -2147483648

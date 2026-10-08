@@ -1,8 +1,8 @@
 # test: a 64-bit product with a zero operand is zero, not an overflow or a trap
 # expect: test
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("zero times anything is zero"):
         let a: u64 = 0
         let b: i64 = 0

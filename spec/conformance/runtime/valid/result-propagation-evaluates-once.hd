@@ -5,8 +5,6 @@
 # expr.try.convert.assignable, expr.try.convert.none,
 # expr.try.convert.assignable.covers, expr.try.convert.one-step,
 # expr.try.convert.single-rule, expr.try.convert.only-try.
-use std.testing.assert_equal
-
 data Log:
     text: string
 
@@ -23,6 +21,8 @@ fn doubled(log: mut Log, value: i32) -> Result[i32, string]:
     .Ok(checked * 2)
 
 tests:
+    use std.testing.assert_equal
+
     it("Ok continues with the payload"):
         let mut log = Log { text: "" }
         let expected: Result[i32, string] = .Ok(42)

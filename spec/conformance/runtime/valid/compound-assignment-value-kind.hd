@@ -2,8 +2,6 @@
 # Spec 05 Compound Assignment: expr.assign.compound.meaning, expr.assign.compound.operator (Operator Traits OP10, OP13).
 use std.num.Num
 use std.ops.Add
-use std.testing.assert_equal
-
 type Meters(i64)
 
 impl Add[Meters] for Meters:
@@ -30,6 +28,8 @@ fn alias() -> i64:
     i64(second)
 
 tests:
+    use std.testing.assert_equal
+
     it("rebinds a newtype place"):
         assert_equal(walk([2, 3, 4]), 9, reason="2 + 3 + 4")
     it("rebinds a generic Num place"):

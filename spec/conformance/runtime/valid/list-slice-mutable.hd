@@ -1,7 +1,5 @@
 # test: a list slice is a new list with mutable access, through the Out type of its Index implementation
 # Spec 05 Slicing: expr.index.slice.list.type, expr.index.std.list.range.unsigned, expr.index.std.list.full (owner decision SLICE-MUT, batch 54).
-use std.testing.assert_equal
-
 fn grow(items: List[i32]) -> List[i32]:
     let mut part = items[0..2]
     part.push(9)
@@ -10,6 +8,8 @@ fn grow(items: List[i32]) -> List[i32]:
     part
 
 tests:
+    use std.testing.assert_equal
+
     it("a slice can be changed, and the source list stays the same"):
         items := [+1, 2, 3]
         assert_equal(grow(items), [1, 2, 9], reason="the slice grows")

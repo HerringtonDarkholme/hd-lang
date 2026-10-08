@@ -3,8 +3,6 @@
 # Availability: trait.avail.module (task P1a). The tree's cart module declares
 # its own Priced trait and Cart type.
 # fixture-package-tree: module-members/src/ledger.hd
-use std.testing.assert_equal
-
 trait Priced:
     fn price(self) -> i32
 
@@ -21,6 +19,8 @@ impl Priced for Entry:
         self.cents
 
 tests:
+    use std.testing.assert_equal
+
     it("uses its own private members and trait"):
         entry := Entry { label: "tea", cents: 300 }
         assert_equal(entry.cents, 300, reason="private field read in its module")

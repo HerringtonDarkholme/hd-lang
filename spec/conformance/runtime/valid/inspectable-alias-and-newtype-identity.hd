@@ -3,8 +3,6 @@
 # one over a function type, is its own inspectable declaration.
 # Spec 09 Traits: trait.identity.normalize, trait.identity.alias, trait.identity.newtype, trait.inspectable.fields, trait.downcast.val.
 use std.inspect.{Inspectable, TypeId, downcast_val}
-use std.testing.assert
-
 type Name = string
 
 type Mile(i32)
@@ -27,6 +25,8 @@ fn is_action(value: dyn Inspectable) -> bool:
         .None => false
 
 tests:
+    use std.testing.assert
+
     it("an alias has its target's identity"):
         let text: string = "ada"
         assert(is_name(text), reason="Name is an alias of string")

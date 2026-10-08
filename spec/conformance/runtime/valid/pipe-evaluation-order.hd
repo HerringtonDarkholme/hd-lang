@@ -4,8 +4,6 @@
 # expr.pipe.value, expr.pipe.slot.one, expr.pipe.bare.form,
 # expr.pipe.single-line.inline, expr.pipe.placeholder-only,
 # and expr.pipe.no-partial.
-use std.testing.assert_equal
-
 data Log:
     text: string
 
@@ -21,6 +19,8 @@ fn twice(n: i32) -> i32:
     n * 2
 
 tests:
+    use std.testing.assert_equal
+
     it("the piped value comes before the callee"):
         let mut log = Log { text: "" }
         value := note(log, "v", 7) |> pick(log)(_)

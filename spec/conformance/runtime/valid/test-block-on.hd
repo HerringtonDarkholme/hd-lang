@@ -1,7 +1,5 @@
 # test: a test body is an active driver, and block_on under it drives its own suspension
 use std.task.block_on
-use std.testing.assert_equal
-
 fn ready!() -> i32: 42
 
 fn helper() -> i32:
@@ -9,5 +7,7 @@ fn helper() -> i32:
     block_on(pending)
 
 tests:
+    use std.testing.assert_equal
+
     it("block_on runs under the test driver"):
         assert_equal(helper(), 42, reason="the inner suspension completes")

@@ -1,8 +1,6 @@
 # test: map literals evaluate key then value; comprehension filters run in place
 # expect: test
 # Spec 05 Map Iteration: expr.map.iteration.order.
-use std.testing.assert_equal
-
 data Log:
     text: string
 
@@ -26,6 +24,8 @@ fn keys(values: Map[string, i32]) -> List[string]:
     result
 
 tests:
+    use std.testing.assert_equal
+
     it("map literal evaluates each key before its value"):
         let mut log = Log { text: "" }
         values := {key(log, "k1", "a"): note(log, "v1", 1), key(log, "k2", "b"): note(log, "v2", 2)}

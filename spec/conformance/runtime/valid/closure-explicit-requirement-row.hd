@@ -1,7 +1,5 @@
 # test: closures / requirements
 
-use std.testing.assert_equal
-
 fn invoke(callback: fn() -> i32 $ Clock) -> i32 $ Clock:
     callback()
 
@@ -18,6 +16,8 @@ data FixedClock: pass
 impl Clock for FixedClock
 
 tests:
+    use std.testing.assert_equal
+
     it("run returns 42 with its providers"):
         $.with(Clock=FixedClock {}):
             assert_equal(run(), 42, reason="closures / requirements")

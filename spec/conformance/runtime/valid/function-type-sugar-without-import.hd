@@ -1,8 +1,6 @@
 # test: the function type sugar fn(...) -> T needs no import, while Fn is imported from std.function
 # Spec 10 Standard Names Outside The Prelude: module.prelude.function-items, module.prelude.function-sugar.
 use std.function.Fn
-use std.testing.assert_equal
-
 fn apply_discount(prices: List[i32], rule: fn(i32) -> i32) -> List[i32]:
     [for price in prices => rule(price)]
 
@@ -10,6 +8,8 @@ fn apply_markup(prices: List[i32], rule: Fn[(i32,), i32, $()]) -> List[i32]:
     [for price in prices => rule(price)]
 
 tests:
+    use std.testing.assert_equal
+
     it("calls a rule through the sugar and through Fn"):
         assert_equal(apply_discount([100, 200], fn(price: i32) -> i32: price - 10), [90, 190], reason="ten off")
         assert_equal(apply_markup([100, 200], fn(price: i32) -> i32: price + 5), [105, 205], reason="five on")

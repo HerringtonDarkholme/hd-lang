@@ -3,8 +3,6 @@
 # Spec std/json Standard Implementations: std-json.std.json.impls.
 use std.json.{encode, decode, Json}
 use std.serde.{Serialize, Deserialize}
-use std.testing.{assert, assert_equal}
-
 @derive(Serialize, Deserialize)
 data Profile:
     name: string
@@ -17,6 +15,8 @@ fn read(text: string) -> Profile:
         .Err(error) => panic("decode failed: $error")
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it(".None encodes as null, and the key is kept"):
         profile := Profile { name: "Ada", nickname: .None, extra: Json.Null }
         assert_equal(encode(profile), "{\"name\":\"Ada\",\"nickname\":null,\"extra\":null}", reason="null members")

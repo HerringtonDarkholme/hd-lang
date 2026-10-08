@@ -1,7 +1,6 @@
 # test: the anchors ^ and $, capture and plain groups, alternation, the empty pattern, and precedence
 # Spec std/regex Anchors, Groups, And Alternation: std-regex.syntax.begin, std-regex.syntax.end, std-regex.syntax.anchor.text, std-regex.syntax.group, std-regex.syntax.group.plain, std-regex.syntax.group.number, std-regex.syntax.alternation, std-regex.syntax.empty, std-regex.syntax.precedence, std-regex.regex.pattern (tasks #243, #244).
 use std.regex.{Regex, Match}
-use std.testing.assert_equal
 use std.text.r
 
 fn found(pattern: string, text: string) -> string?:
@@ -15,6 +14,8 @@ fn whole_number(line: string) -> bool:
         .Err(_) => false
 
 tests:
+    use std.testing.assert_equal
+
     it("a raw pattern keeps a final $ as the end anchor"):
         assert_equal(whole_number("123"), true, reason="digits only")
         assert_equal(whole_number("12a"), false, reason="a letter at the end")

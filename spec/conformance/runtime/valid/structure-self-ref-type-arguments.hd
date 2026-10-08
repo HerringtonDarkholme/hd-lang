@@ -2,8 +2,6 @@
 # Spec 14 Self References: annot.self-ref.enclosing.arguments, .needs.self, and .member
 # (SIMPLE, owner decision 2026-09-30). Nest[List[T]] inside enum Nest[T] makes Deep required.
 use std.structure.{Structure, Field, Variant, Describer, SelfRef}
-use std.testing.assert_equal
-
 trait Shape:
     fn shape() -> string
 
@@ -43,6 +41,8 @@ enum Nest[T]:
     Deep(next: Nest[List[T]])
 
 tests:
+    use std.testing.assert_equal
+
     it("the enclosing type with other type arguments is still the enclosing type"):
         expected := "Leaf=absent;value=absent;Deep=required;next=required;"
         assert_equal(Nest::[Tag]::shape(), expected, reason="Nest[List[T]] is the enclosing type")

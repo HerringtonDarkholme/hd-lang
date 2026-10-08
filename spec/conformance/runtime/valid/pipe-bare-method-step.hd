@@ -1,8 +1,6 @@
 # test: a dotted bare step whose prefix is a value calls the method on that value
 # Spec 05 Bare Steps: expr.pipe.bare.method (Pipe PL16).
 
-use std.testing.assert_equal
-
 data User:
     name: string
 
@@ -14,6 +12,8 @@ fn welcome(user: User, greeting: string) -> string:
     greeting |> user.greet
 
 tests:
+    use std.testing.assert_equal
+
     it("x |> user.greet means user.greet(x)"):
         user := User { name: "Ada" }
         assert_equal(welcome(user, "Hi"), "Hi, Ada", reason="user is the receiver and the piped value the argument")

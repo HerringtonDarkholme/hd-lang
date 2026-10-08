@@ -1,12 +1,13 @@
 # test: Duration implements Neg, so a minus before a duration suffix negates the duration
 # Spec std/time Duration: `-5s` is -(s(5)), minus five seconds.
-use std.testing.assert_equal
 use std.time.{Duration, ms, s}
 
 fn rewind() -> Duration:
     -5s
 
 tests:
+    use std.testing.assert_equal
+
     it("negates the duration"):
         assert_equal(rewind().as_milliseconds(), -5000, reason="-5s is minus five seconds")
         assert_equal((-250ms).as_milliseconds(), -250, reason="the minus applies to ms(250)")

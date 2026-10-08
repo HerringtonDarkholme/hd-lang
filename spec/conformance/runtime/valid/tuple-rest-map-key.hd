@@ -1,11 +1,11 @@
 # test: a rest element hashes as its list, so a rest tuple of hashable parts is a map key
 # std Hash, Tuple Hashing: std-hash.tuple.rest-list (owner decision Q5-hash, batch 51, 2026-10-02).
-use std.testing.assert_equal
-
 fn lookup(counts: Map[(i32, List[i32]...), i32]) -> i32:
     counts[(1, 2, 3)]
 
 tests:
+    use std.testing.assert_equal
+
     it("a rest tuple key finds its entry"):
         let counts: Map[(i32, List[i32]...), i32] = {(1, 2, 3): 7}
         assert_equal(lookup(counts), 7, reason="an equal rest tuple hashes the same")

@@ -1,7 +1,5 @@
 # test: reading a part out of a mut value yields a mut alias; mutation through it is seen in the container
 # Spec 08 Access Through Parts: data.part.access; Part Ownership: data.part.aliases-untracked.
-use std.testing.assert_equal
-
 data Timestamps:
     created_at: i32
     pub updated_at: i32
@@ -16,6 +14,8 @@ data Post:
     title: string
 
 tests:
+    use std.testing.assert_equal
+
     it("mut alias"):
         let mut post = Post { Timestamps: ...Timestamps { created_at: 1, updated_at: 1 }, id: "p", title: "t" }
         let mut stamps = post.Timestamps

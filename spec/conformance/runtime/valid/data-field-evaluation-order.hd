@@ -1,7 +1,5 @@
 # test: data field initializers preserve source evaluation order
 
-use std.testing.assert_equal
-
 data Pair[T]:
     first: T
     second: T
@@ -13,5 +11,7 @@ fn main!() -> i32:
     pair.first * 10 + pair.second
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 21"):
         assert_equal(main!(), 21, reason="data field initializers preserve source evaluation order")

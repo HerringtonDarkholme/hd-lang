@@ -2,8 +2,6 @@
 # Spec std/process Exit Data: std-process.exit-code.eq, std-process.output.eq.
 # expect: test
 use std.process.{ExitCode, ProcessOutput}
-use std.testing.assert_equal
-
 fn clean(output: ProcessOutput) -> bool:
     output == ProcessOutput { stdout: "", stderr: "", status: 0 }
 
@@ -11,6 +9,8 @@ fn same(left: ExitCode, right: ExitCode) -> bool:
     left == right
 
 tests:
+    use std.testing.assert_equal
+
     it("exit codes compare by value"):
         assert_equal(same(ExitCode(3), ExitCode(3)), true, reason="equal codes")
         assert_equal(same(ExitCode(0), ExitCode(1)), false, reason="different codes")

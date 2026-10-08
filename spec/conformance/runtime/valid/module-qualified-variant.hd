@@ -1,6 +1,5 @@
 # test: after use std.cmp, cmp.Ordering.Equal in an expression selects the variant through the module and the enum
 # Spec Expressions, Names: expr.name.qualified; a qualified name selects an enum variant through a module, then a type namespace.
-use std.testing.assert
 use std.cmp
 
 data Version:
@@ -14,6 +13,8 @@ fn compare_versions(a: Version, b: Version) -> Ordering:
     a.minor.cmp(b.minor)
 
 tests:
+    use std.testing.assert
+
     it("compares the minor parts when the major parts match"):
         order := compare_versions(Version { major: 1, minor: 4 }, Version { major: 1, minor: 9 })
         assert(order == Ordering.Less, reason="1.4 comes before 1.9")

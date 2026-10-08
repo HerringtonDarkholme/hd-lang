@@ -1,8 +1,6 @@
 # test: a receiverless impl member is an associated function called with Type::function(...)
 # Spec 07 Methods And Receivers: "Receiverless members are associated functions and are called with
 # qualified `Type::function(...)` or `Trait::function(...)` syntax."
-use std.testing.assert_equal
-
 data Point:
     x: i32
     y: i32
@@ -18,6 +16,8 @@ impl Point:
         self.x + self.y
 
 tests:
+    use std.testing.assert_equal
+
     it("associated functions construct values"):
         assert_equal(Point::origin().sum(), 0, reason="zero-argument associated function")
         assert_equal(Point::at(40, 2).sum(), 42, reason="associated function with arguments")

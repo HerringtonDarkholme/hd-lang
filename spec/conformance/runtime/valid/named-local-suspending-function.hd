@@ -1,7 +1,5 @@
 # test: named local suspending functions capture, recurse, and forward requirements
 
-use std.testing.assert_equal
-
 trait Increment:
     fn next!(self, value: i32) -> i32
 
@@ -23,6 +21,8 @@ fn drive_local!() -> i32:
         count!(2)
 
 tests:
+    use std.testing.assert_equal
+
     it("a named local suspending function keeps its environment through recursion"):
         assert_equal(
             drive_local!(),

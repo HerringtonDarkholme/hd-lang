@@ -1,12 +1,12 @@
 # test: find returns the leftmost match and, among those, the one the pattern prefers; is_match agrees with find; Match has Eq
 # Spec std/regex Searching: std-regex.find, std-regex.find.leftmost, std-regex.find.leftmost-first, std-regex.find.empty, std-regex.is-match, std-regex.is-match.find, std-regex.match.decl, std-regex.match.offsets, std-regex.match.text, std-regex.match.traits (task #243).
 use std.regex.{Regex, Match}
-use std.testing.assert_equal
-
 fn compiled(pattern: string) -> Regex:
     Regex::new(pattern).expect("the pattern compiles")
 
 tests:
+    use std.testing.assert_equal
+
     it("the left side of | wins over a longer right side"):
         assert_equal(compiled("a|ab").find("ab"), .Some(Match { start: 0, end: 1, text: "a" }), reason="leftmost-first, not longest")
         assert_equal(compiled("ab|a").find("ab"), .Some(Match { start: 0, end: 2, text: "ab" }), reason="the left side")

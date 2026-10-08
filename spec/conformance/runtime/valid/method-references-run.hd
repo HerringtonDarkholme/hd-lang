@@ -1,7 +1,5 @@
 # test: a bound reference keeps the receiver it was made with; an unbound reference takes the receiver first
 # Spec 07 Method References: fn.ref.bound.capture, fn.ref.unbound.receiver, fn.ref.call (Method References MR1).
-use std.testing.assert_equal
-
 data Counter:
     value: i32
 
@@ -19,6 +17,8 @@ fn apply_all[T, U](items: List[T], transform: fn(T) -> U) -> List[U]:
     [for item in items => transform(item)]
 
 tests:
+    use std.testing.assert_equal
+
     it("a bound reference keeps its receiver"):
         let mut counter = Counter { value: 1 }
         first := counter

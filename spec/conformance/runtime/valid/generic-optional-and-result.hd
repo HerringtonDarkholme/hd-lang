@@ -1,7 +1,5 @@
 # test: generics / option result
 
-use std.testing.assert_equal
-
 data Failure:
     code: i32
 
@@ -25,5 +23,7 @@ fn main() -> i32:
     inspect_optional(keep_optional(optional)) + inspect_result(keep_result(result))
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="generics / option result")

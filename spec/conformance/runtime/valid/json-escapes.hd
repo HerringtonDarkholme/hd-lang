@@ -1,14 +1,14 @@
 # test: string escapes decode, including \uXXXX and surrogate pairs, and encode as the writer spells them
 # Spec std/json Parsing, Writing: std-json.parse.string.escapes, std-json.parse.string.surrogates, std-json.display.text (JSON-SURFACE; task #226).
 use std.json.{parse, Json, JsonError}
-use std.testing.{assert_equal}
-
 fn read(text: string) -> Json:
     match parse(text):
         .Ok(value) => value
         .Err(_) => panic("parse failed for $text")
 
 tests:
+    use std.testing.{assert_equal}
+
     it("the two-character escapes decode"):
         assert_equal(read("\"\\\" \\\\ \\/ \\b \\f \\n \\r \\t\""), Json.Text("\" \\ / \u{8} \u{c} \n \u{d} \t"), reason="all eight")
 

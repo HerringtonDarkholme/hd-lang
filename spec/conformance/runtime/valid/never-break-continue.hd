@@ -1,8 +1,6 @@
 # test: break and continue have type never, so they fit any expected type in a value-producing branch
 # Spec 04 The never Type: types.never.forms, types.never.fits (spec follow-ups, 2026-09-27).
 # expect: test
-use std.testing.assert_equal
-
 fn total(entries: List[i32?]) -> i32:
     let sum = +0
     for entry in entries:
@@ -20,6 +18,8 @@ fn first_negative(values: List[i32]) -> i32:
     found
 
 tests:
+    use std.testing.assert_equal
+
     it("continue skips a missing entry"):
         assert_equal(total([1, .None, 2]), 3, reason="continue has type never")
 

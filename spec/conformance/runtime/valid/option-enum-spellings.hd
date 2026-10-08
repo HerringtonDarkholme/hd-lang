@@ -4,8 +4,6 @@
 # types.option.some, types.option.construction, types.option.none-context,
 # types.option.wrap, types.option.wrap.sites, types.option.wrap.once,
 # types.option.wrap.one-layer, types.option.ordinary.
-use std.testing.{assert, assert_equal}
-
 fn absent() -> Option[i32]:
     .None
 
@@ -22,6 +20,8 @@ fn wrapped(value: i32) -> i32?:
     value
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("Option[T] and T? are one type"):
         let spelled: Option[i32] = wrapped(3)
         let sugared: i32? = spelled

@@ -1,7 +1,5 @@
 # test: iterator adapters are lazy, take stops pulling at its count, and collect, map, and fold work
 # std Iterators, Iterator Adapters: std-iter.adapter.lazy, std-iter.adapter.lazy.map, std-iter.adapter.lazy.next, std-iter.adapter.take.limit, std-iter.collect.drain, std-iter.adapter.enumerate-usize, std-iter.adapter.map, std-iter.adapter.fold (STDLIB question 14, Chaining Study CS7).
-use std.testing.assert_equal
-
 data Tally:
     pulled: i32
 
@@ -13,6 +11,8 @@ fn first_evens(values: List[i32]) -> List[(usize, i32)]:
     values.iter().filter(fn(value): value % 2 == 0).enumerate().take(2).collect()
 
 tests:
+    use std.testing.assert_equal
+
     it("filters, numbers, and limits"):
         assert_equal(first_evens([1, 2, 3, 4, 5, 6]), [(0, 2), (1, 4)], reason="two evens with indices")
 

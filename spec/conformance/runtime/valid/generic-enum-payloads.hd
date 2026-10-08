@@ -1,8 +1,6 @@
 # test: generic enum payloads
 # Spec 08 Generic And Recursive Enums: data.enum.generic, data.enum.generic.instance.
 
-use std.testing.assert_equal
-
 enum Maybe[T]:
     Some(value: T)
     None
@@ -30,5 +28,7 @@ fn main() -> i32:
     unwrap(keep(some)) + unwrap(none) + sum(tree)
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="generic enum payloads")

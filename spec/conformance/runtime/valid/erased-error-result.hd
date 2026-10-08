@@ -1,8 +1,6 @@
 # test: Result[T, Error] holds any Error, ? reaches it by assignability, and the default cause is .None
 # Spec 09 Error Trait: trait.error.module, trait.error.import, trait.error.cause; Erased Errors: trait.error.erased, trait.error.result.
 use std.error.Error
-use std.testing.{assert, assert_equal}
-
 enum FsError:
     NotFound(path: string)
 
@@ -44,6 +42,8 @@ fn message(result: Result[i32, dyn Error]) -> string:
         .Err(error) => error.to_string()
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("each domain error reaches the erased result"):
         assert_equal(message(load_port("app.conf")), "port 80", reason="no error")
         assert_equal(message(load_port("other.conf")), "not found: other.conf", reason="an FsError")

@@ -1,7 +1,5 @@
 # test: prelude traits, module traits, and traits declared in an enclosing scope are available to dot calls
 # Spec 09 Trait Availability: trait.avail.concrete, trait.avail.module, trait.avail.scope, trait.avail.prelude.
-use std.testing.assert_equal
-
 trait Labeled:
     fn label(self) -> string
 
@@ -30,6 +28,8 @@ fn label_of(value: dyn Labeled) -> string:
     value.label()
 
 tests:
+    use std.testing.assert_equal
+
     it("each kind of available trait reaches its method"):
         order := Order { id: 7 }
         assert_equal(order.to_string(), "order 7", reason="Display comes from the prelude")

@@ -5,9 +5,9 @@
 use pkg.left
 use pkg.right
 use std.inspect.TypeId
-use std.testing.{assert, assert_equal}
-
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("a left Item does not downcast to a right Item"):
         value := left.erased("pen")
         match value.downcast::[right.Item]():

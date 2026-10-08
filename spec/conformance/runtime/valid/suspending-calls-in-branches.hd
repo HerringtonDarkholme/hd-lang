@@ -1,7 +1,5 @@
 # test: suspending calls in branches
 
-use std.testing.assert_equal
-
 fn value!(input: i32) -> i32: input
 
 fn choose!(flag: bool) -> i32:
@@ -13,5 +11,7 @@ fn choose!(flag: bool) -> i32:
 fn main!() -> i32: choose!(true)
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main!(), 42, reason="suspending calls in branches")

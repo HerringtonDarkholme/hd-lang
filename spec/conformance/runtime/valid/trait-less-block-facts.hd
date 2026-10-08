@@ -1,8 +1,6 @@
 # test: the lines of a block with no trait apply after the decorators, and a derivation block's lines after both
 # Spec 14 Derivation Blocks With No Trait: += appends after decorator values, = replaces them.
 use std.structure.{Structure, Field, Variant, Walker}
-use std.testing.assert_equal
-
 data Tag:
     text: string
 
@@ -59,5 +57,7 @@ impl Probe for Point by Structure:
     z += [note("p")]
 
 tests:
+    use std.testing.assert_equal
+
     it("combines decorator, trait-less, and derivation block facts in order"):
         assert_equal(Point { x: 1, y: 2, z: 3 }.probe(), "x=a/n;y=-/m;z=c/p;", reason="decorators, then the trait-less block, then the derivation block")

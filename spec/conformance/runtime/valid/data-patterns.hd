@@ -6,8 +6,6 @@
 # flow.match.data.bind-composite, flow.match.nested.
 # Spec 08 Data Patterns: data.pattern.form, data.pattern.subset, data.pattern.fields.
 
-use std.testing.assert_equal
-
 data User:
     age: i32
     active: bool
@@ -28,5 +26,7 @@ fn main() -> i32:
     label(User { age: 40, active: true }) + label(User { age: 1, active: false }) + nested(Envelope { user: User { age: 1, active: false } })
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="data patterns destructure nested fields and test literals")

@@ -3,8 +3,6 @@
 # Spec 14 Structure: annot.structure.per-derivation.
 use std.serde.{Serialize, Serializer}
 use std.structure.{Structure, Facts, VariantInfo, Member}
-use std.testing.assert_equal
-
 data Topic:
     name: string
 
@@ -107,6 +105,8 @@ impl Serialize for Refund by Structure:
     amount_cents = [rename("amount")]
 
 tests:
+    use std.testing.assert_equal
+
     it("a data value is its type's one variant, with of_data true and the type's facts"):
         assert_equal(send(Invoiced { id: 81, total_cents: 1999 }), "<billing Invoiced#0 data=true> invoice_id@0: 81 total_cents@1: 1999 </>", reason="type fact and member fact")
 

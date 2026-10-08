@@ -1,8 +1,8 @@
 # test: a property body that panics with the discard message fails instead of discarding its case
 # Spec std Testing, Discarding A Case: std-testing.runner.discard-after-show.
-use std.testing.it_prop
-
 tests:
+    use std.testing.it_prop
+
     it_prop("a body cannot discard", expect_panic="explicit-panic", prop=fn!(value: i32):
         panic("std.testing: case discarded")
     )

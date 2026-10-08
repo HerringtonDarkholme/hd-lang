@@ -2,8 +2,6 @@
 # Spec std Hash, Default Hasher: std-hash.default.algorithm, std-hash.default.write,
 # std-hash.default.finish, std-hash.hash-of (batch 64, DEFAULT-HASHER).
 use std.hash.{DefaultHasher, hash_of}
-use std.testing.assert_equal
-
 fn digest(bytes: List[u8]) -> u64:
     let mut hasher = DefaultHasher::new()
     hasher.write(bytes)
@@ -15,6 +13,8 @@ fn by_hand(value: string) -> u64:
     hasher.finish()
 
 tests:
+    use std.testing.assert_equal
+
     it("a new hasher finishes with the FNV offset basis"):
         let basis: u64 = 14695981039346656037
         assert_equal(DefaultHasher::new().finish(), basis, reason="no bytes written")

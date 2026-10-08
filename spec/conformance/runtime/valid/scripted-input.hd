@@ -1,8 +1,6 @@
 # test: ScriptedInput returns its lines in order, then .None on every later read
 # Spec std/console Scripted Input: std-console.scripted.new, std-console.scripted.read, std-console.scripted.end (spec pass 89, audit item 8).
 use std.console.{ConsoleInput, ScriptedInput}
-use std.testing.{assert, assert_equal}
-
 fn first_line!() -> string $ ConsoleInput:
     let mut input = $.use(ConsoleInput)
     match input.read_line!():
@@ -18,6 +16,8 @@ fn count_lines!() -> i32 $ ConsoleInput:
             _ => return count
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("reads the scripted line"):
         let mut input = ScriptedInput::new(["yes"])
         $.with(ConsoleInput=input):

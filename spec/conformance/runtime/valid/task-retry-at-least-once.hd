@@ -2,8 +2,6 @@
 # Spec std/task Retry: std-task.combinator.retry.zero-once (owner decision RETRY-zero, batch 33, 2026-10-01;
 # times is a usize since spec pass 89).
 use std.task.retry
-use std.testing.assert_equal
-
 data Server:
     busy_for: i32
     calls: i32
@@ -20,6 +18,8 @@ fn connect!(server: mut Server, times: usize) -> Result[string, string]:
         ask!(server)
 
 tests:
+    use std.testing.assert_equal
+
     it("zero tries makes one call"):
         let mut server = Server { busy_for: 5, calls: 0 }
         assert_equal(connect!(server, 0), .Err("busy 1"), reason="the one error is returned")

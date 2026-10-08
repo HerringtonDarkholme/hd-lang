@@ -1,7 +1,5 @@
 # test: a data literal and a call infer T from the requirement key of a callable argument
 # Spec 04 Generic Arguments: types.generic.infer; Repo[T] matched against Repo[User] solves T = User.
-use std.testing.assert_equal
-
 trait Repo[T]:
     fn count(self) -> i32
 
@@ -21,6 +19,8 @@ fn run_job[T](callback: fn() -> i32 $ Repo[T]) -> i32 $ Repo[T]:
     callback()
 
 tests:
+    use std.testing.assert_equal
+
     it("a data literal infers Job[User]"):
         $.with(Repo[User]=UserRepo {}):
             job := Job { callback: count_users }

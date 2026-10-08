@@ -1,7 +1,6 @@
 # test: bracketed classes, negated classes, ranges, a leading ] or -, and \d \w \s inside a class
 # Spec std/regex Classes: std-regex.syntax.class, std-regex.syntax.class.negated, std-regex.syntax.class.item, std-regex.syntax.class.char, std-regex.syntax.class.range, std-regex.syntax.class.close-first, std-regex.syntax.class.dash (task #243).
 use std.regex.{Regex, Match}
-use std.testing.assert_equal
 use std.text.r
 
 fn found(pattern: string, text: string) -> string?:
@@ -10,6 +9,8 @@ fn found(pattern: string, text: string) -> string?:
         .Err(error) => .Some("error ${error}")
 
 tests:
+    use std.testing.assert_equal
+
     it("a class matches one character of its items"):
         assert_equal(found("[abc]+", "xxbcaz"), .Some("2-5:bca"), reason="characters")
         assert_equal(found("[a-c]+", "xxbcaz"), .Some("2-5:bca"), reason="a range")

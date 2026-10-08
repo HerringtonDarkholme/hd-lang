@@ -2,8 +2,6 @@
 # Spec 14 Self References: annot.self-ref.needs.enum, .needs.self, and .member (SIMPLE, owner decision
 # 2026-09-30). Choice's Skip needs no Expr, so Pick and choice are only optional.
 use std.structure.{Structure, Field, Variant, Describer, SelfRef}
-use std.testing.assert_equal
-
 trait Shape:
     fn shape() -> string
 
@@ -47,6 +45,8 @@ enum Expr:
     Pick(choice: Choice)
 
 tests:
+    use std.testing.assert_equal
+
     it("an enum whose every variant needs the enclosing type makes a member required"):
         expected := "Num=absent;value=absent;Wrap=required;inner=required;Pick=optional;choice=optional;"
         assert_equal(Expr::shape(), expected, reason="Inner always needs an Expr, and Choice can Skip")

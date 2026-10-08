@@ -1,8 +1,6 @@
 # test: Result ok, err, is_ok, is_err, and expect test the variant or turn it into a value
 # Spec std/result Variant Tests And Conversions: std-result.ok, std-result.err, std-result.is-ok, std-result.is-err, std-result.expect (batch 68, STD-HELPERS-KEEP; task #219).
 use std.num.parse_i32
-use std.testing.{assert, assert_equal}
-
 fn port(text: string) -> i32?:
     parse_i32(text).ok()
 
@@ -13,6 +11,8 @@ fn configured_port(text: string) -> i32:
     parse_i32(text).expect("the configured port is a number")
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("ok and err keep one side"):
         assert_equal(port("8080"), .Some(8080), reason="ok keeps the value")
         assert_equal(port("x"), .None, reason="ok drops the error")

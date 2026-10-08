@@ -7,8 +7,6 @@
 # flow.loop.else.exhaustion, flow.loop.else.plain-break,
 # flow.loop.else.continue.
 
-use std.testing.assert_equal
-
 fn load!() -> List[i32]: [1, 2, 3]
 
 fn first_or(values: List[i32]) -> i32:
@@ -42,5 +40,7 @@ fn main!() -> i32:
         0
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main!(), 42, reason="for loops iterate lists and maps with continue, destructuring, and else values")

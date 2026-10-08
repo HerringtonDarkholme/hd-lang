@@ -1,9 +1,10 @@
 # test: a Duration displays as Go's time.Duration does, in h, min, s, and ms, with zero 0s and a leading minus
 # Spec std/time Duration Display: std-time.duration.text, std-time.duration.text.components, std-time.duration.text.first, std-time.duration.text.lower, std-time.duration.text.fraction, std-time.duration.text.sub-second, std-time.duration.text.zero, std-time.duration.text.negative, std-time.duration.text.min-value (DURATION-DISPLAY; task #223).
-use std.testing.assert_equal
 use std.time.{Duration, h, min, ms, s}
 
 tests:
+    use std.testing.assert_equal
+
     it("components from the largest unit down to seconds"):
         assert_equal((2s).to_string(), "2s", reason="whole seconds")
         assert_equal((90s).to_string(), "1min30s", reason="minutes, then seconds")

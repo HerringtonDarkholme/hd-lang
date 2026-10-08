@@ -1,7 +1,5 @@
 # test: reference cycles are ordinary values, so a program may build many without freeing anything by hand
 # Spec 08 Representation: data.repr.gc.
-use std.testing.assert_equal
-
 data Stop:
     name: string
     next: mut Stop?
@@ -23,5 +21,7 @@ fn ring(size: i32) -> i32:
     visited
 
 tests:
+    use std.testing.assert_equal
+
     it("every cycle can be walked and none needs freeing"):
         assert_equal(ring(2000), 2000, reason="each of 2000 rings reaches its second stop")

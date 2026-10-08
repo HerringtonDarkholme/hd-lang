@@ -1,7 +1,5 @@
 # test: closures mutate captured storage and captured mutable objects; readers observe later writes
 # expect: test
-use std.testing.assert_equal
-
 data User:
     name: string
 
@@ -9,6 +7,8 @@ fn rename(user: mut User) -> void:
     user.name = "renamed"
 
 tests:
+    use std.testing.assert_equal
+
     it("a closure updates captured let storage shared with its scope"):
         let count = +0
         let next: fn() -> i32 = fn() -> i32:

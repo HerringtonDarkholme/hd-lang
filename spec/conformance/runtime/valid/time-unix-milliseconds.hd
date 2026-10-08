@@ -1,10 +1,11 @@
 # test: Timestamp.unix_milliseconds and Instant.as_milliseconds return the milliseconds their constructors took, and a Timestamp displays as RFC 3339
 # Spec std/time Timestamps And Instants: std-time.timestamp.unix-milliseconds, std-time.timestamp.api-milliseconds,
 # std-time.instant.api-milliseconds, std-time.instant.as-milliseconds, std-time.timestamp.display (spec pass 89, audit Q2).
-use std.testing.{assert, assert_equal}
 use std.time.{Instant, Timestamp, s}
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("round trip"):
         let values: List[i64] = [0, 1, -1, 1700000000500, -86400000, 9223372036854775807, -9223372036854775807]
         for millis in values:

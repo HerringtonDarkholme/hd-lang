@@ -1,6 +1,6 @@
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("equal f64 literals pass assert_equal"):
         assert_equal(1.5, 1.5, reason="identical literals are equal")
 

@@ -1,12 +1,12 @@
 # test: a let tuple pattern destructures a tuple of the same arity
 # Spec 06 Let Patterns: flow.let.tuple-arity. Destructuring uses let
 # (owner decision LP1-one, batch 26, 2026-09-30), so the tuple is kept by binding it first.
-use std.testing.assert_equal
-
 fn pair() -> (i32, string):
     (42, "answer")
 
 tests:
+    use std.testing.assert_equal
+
     it("the binding statement destructures the tuple"):
         whole := pair()
         let (number, word) = whole

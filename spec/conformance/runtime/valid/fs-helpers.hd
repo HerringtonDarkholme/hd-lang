@@ -9,8 +9,6 @@
 # std-fs.suspends, and std-fs.helper.suspends.
 use std.fs.{Entry, FsError, FsRead, FsWrite, read_text, write_text}
 use std.path.Path
-use std.testing.assert_equal
-
 data MapFs:
     files: mut Map[string, string]
 
@@ -54,6 +52,8 @@ fn copy_notes!() -> Result[void, FsError] $ FsRead + FsWrite:
     write_text!(Path("notes.bak"), text)
 
 tests:
+    use std.testing.assert_equal
+
     it("copies through the helpers"):
         reader := MapFs { files: {"notes.txt": "tea"} }
         let mut writer = MapFs { files: {} }

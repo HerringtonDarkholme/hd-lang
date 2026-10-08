@@ -1,7 +1,5 @@
 # test: among several instantiations, a literal argument keeps its default type
 # Spec 04 Open Literal Width: types.literal.local.instantiation.
-use std.testing.assert_equal
-
 trait Combine[T]:
     fn combine(self, other: T) -> string
 
@@ -21,6 +19,8 @@ impl Combine[usize] for Money:
         "usize"
 
 tests:
+    use std.testing.assert_equal
+
     it("a bare literal argument chooses the usize instantiation"):
         price := Money { cents: 10 }
         assert_equal(price.combine(5), "usize", reason="5 has no sign, so it is a usize")

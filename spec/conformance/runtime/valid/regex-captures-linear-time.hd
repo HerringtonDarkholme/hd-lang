@@ -1,9 +1,9 @@
 # test: captures, find_all, and replace_all stay fast on a long run of a with patterns that are slow when backtracking
 # Spec std/regex Time Bound: std-regex.time.linear, std-regex.time.linear.groups, std-regex.time.all (task #244).
 use std.regex.Regex
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("captures with nested loops on 20,000 a"):
         text := "a".repeat(20000)
         assert_equal(Regex::new("(a*)*b").expect("compiles").captures(text).is_none(), true, reason="no b")

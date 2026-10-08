@@ -2,8 +2,6 @@
 # Spec 10 Registration Calls: module.testing.reg.body-result.
 # Spec Modules, Registration Calls: module.testing.reg.body-closure-result; a row body without a written result follows the test body rule.
 use std.error.Error
-use std.testing.{assert_equal, it_each}
-
 data DigitError:
     text: string
 
@@ -16,6 +14,8 @@ fn parse_digit(text: string) -> Result[i32, DigitError]:
     if text == "7": .Ok(7) else: .Err(DigitError { text: text })
 
 tests:
+    use std.testing.{assert_equal, it_each}
+
     it_each("parses", ["7"], body=fn!(text: string):
         digit := parse_digit(text)?
         assert_equal(digit, 7, reason="the digit parses")

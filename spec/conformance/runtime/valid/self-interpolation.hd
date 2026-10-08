@@ -3,8 +3,6 @@
 # Spec 05 Interpolation: expr.interp.self, expr.interp.user.
 # expect: test
 
-use std.testing.assert_equal
-
 data Money:
     cents: i32
 
@@ -17,5 +15,7 @@ impl Money:
         "value: $self"
 
 tests:
+    use std.testing.assert_equal
+
     it("self interpolates through Display"):
         assert_equal(Money { cents: 5 }.label(), "value: 5c", reason="the receiver's Display")

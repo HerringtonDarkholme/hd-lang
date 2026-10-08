@@ -3,8 +3,6 @@
 # names.member.trait-available, names.lookup.method-form,
 # names.lookup.stored-fn, names.visible.trait,
 # names.method-lookup.trait-candidates, names.method-lookup.one.
-use std.testing.assert_equal
-
 trait Named:
     fn name(self) -> string
 
@@ -18,6 +16,8 @@ impl Named for User:
 fn field_value() -> string: "field"
 
 tests:
+    use std.testing.assert_equal
+
     it("method call and parenthesized field call"):
         user := User { name: field_value }
         assert_equal(user.name(), "trait", reason="x.name() is a method call")

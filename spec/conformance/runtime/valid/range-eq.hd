@@ -2,12 +2,12 @@
 # Spec std/ops Range Equality: std-ops.range.eq.range, std-ops.range.eq.from, std-ops.range.eq.to, std-ops.range.eq.full, std-ops.range.eq.inclusive.
 # expect: test
 use std.ops.{Range, RangeFrom, RangeTo, RangeFull}
-use std.testing.assert_equal
-
 fn same_span(left: Range[i32], right: Range[i32]) -> bool:
     left == right
 
 tests:
+    use std.testing.assert_equal
+
     it("a range equals one with the same fields"):
         assert_equal(same_span(0..3, 0..3), true, reason="same bounds")
         assert_equal(same_span(0..3, 0..=2), false, reason="inclusive differs")

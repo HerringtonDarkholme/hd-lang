@@ -1,6 +1,6 @@
-use std.testing.assert
-
 tests:
+    use std.testing.assert
+
     it("tuples and lists compare lexicographically"):
         assert(("ada", 2) < ("grace", 0), reason="the first unequal tuple field decides")
         assert(("ada", 1) < ("ada", 2), reason="later tuple fields break ties")

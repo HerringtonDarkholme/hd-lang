@@ -3,8 +3,6 @@
 use std.json.{encode, decode, JsonError}
 use std.serde.{Serialize, Deserialize}
 use std.time.{Duration, Timestamp, Instant}
-use std.testing.assert_equal
-
 @derive(Serialize, Deserialize)
 data Lease:
     holder: string
@@ -19,6 +17,8 @@ fn stamp() -> Timestamp:
     Timestamp::from_unix_milliseconds(1700000000000)
 
 tests:
+    use std.testing.assert_equal
+
     it("durations and instants write milliseconds, timestamps RFC 3339 text"):
         assert_equal(encode(lease()), "{\"holder\":\"ada\",\"granted_at\":\"2023-11-14T22:13:20Z\",\"term\":30000,\"checked\":5}", reason="forms")
         assert_equal(encode(Duration::milliseconds(-1500)), "-1500", reason="a negative duration")

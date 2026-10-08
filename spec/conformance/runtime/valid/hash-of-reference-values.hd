@@ -3,8 +3,6 @@
 # std-hash.hash-of (batch 65, HASH-BYTES). Each expected value is 64-bit FNV-1a over the bytes in
 # its reason, computed outside any hd implementation.
 use std.hash.hash_of
-use std.testing.assert_equal
-
 @derive(Eq, Hash)
 enum Light:
     Red
@@ -20,6 +18,8 @@ fn digest() -> u64:
     hash_of(key)
 
 tests:
+    use std.testing.assert_equal
+
     it("scalars"):
         let small: i32 = 42
         let negative: i64 = -2

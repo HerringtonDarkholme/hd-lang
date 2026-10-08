@@ -1,6 +1,4 @@
 # Spec 10 Definite Initialization: module.init.definite.dispatch, module.init.binding.
-use std.testing.assert_equal
-
 data Box:
     value: i32
 
@@ -20,6 +18,8 @@ impl Reader for Box:
         later + self.value
 
 tests:
+    use std.testing.assert_equal
+
     it("trait dispatch during module initialization reads initialized bindings"):
         assert_equal(bounded, 7, reason="the bounded generic call read later after it was initialized")
         assert_equal(dynamic, 8, reason="the trait value call read later after it was initialized")

@@ -1,7 +1,6 @@
 # test: literals, the dot, escaped punctuation, control escapes, and the \d \w \s classes with their negations
 # Spec std/regex Literals And Escapes: std-regex.syntax.literal, std-regex.syntax.dot, std-regex.syntax.escape.meta, std-regex.syntax.escape.control, std-regex.syntax.escape.digit, std-regex.syntax.escape.word, std-regex.syntax.escape.space, std-regex.syntax.brace-literal, std-regex.find.chars (task #243).
 use std.regex.{Regex, Match}
-use std.testing.assert_equal
 use std.text.r
 
 fn found(pattern: string, text: string) -> string?:
@@ -10,6 +9,8 @@ fn found(pattern: string, text: string) -> string?:
         .Err(error) => .Some("error ${error}")
 
 tests:
+    use std.testing.assert_equal
+
     it("a literal matches itself, by character"):
         assert_equal(found("abc", "xxabcxx"), .Some("2-5:abc"), reason="ASCII")
         assert_equal(found("é", "aéb"), .Some("1-3:é"), reason="offsets are bytes")

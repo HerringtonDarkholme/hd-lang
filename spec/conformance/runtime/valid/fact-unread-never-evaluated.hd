@@ -1,7 +1,5 @@
 # test: a fact that no code reads is never evaluated, so its panic never happens
 # Spec 14 Facts: annot.fact.eval.unread.
-use std.testing.assert_equal
-
 data Style:
     prefix: string = ""
 
@@ -16,5 +14,7 @@ data Point:
     x: i64
 
 tests:
+    use std.testing.assert_equal
+
     it("the unread fact never runs"):
         assert_equal(Point { x: 2 }.x, 2, reason="building and reading a value never evaluates the type's facts")

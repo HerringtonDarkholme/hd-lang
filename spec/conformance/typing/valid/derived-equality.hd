@@ -1,5 +1,3 @@
-use std.testing.assert_equal
-
 @derive(Eq)
 data Revision:
     number: i32
@@ -16,6 +14,8 @@ enum State:
     Paused(code: i32)
 
 tests:
+    use std.testing.assert_equal
+
     it("derived equality includes every member"):
         left := User { Revision: ...Revision { number: 1 }, id: 1, name: "Ada" }
         same := User { Revision: ...Revision { number: 1 }, id: 1, name: "Ada" }

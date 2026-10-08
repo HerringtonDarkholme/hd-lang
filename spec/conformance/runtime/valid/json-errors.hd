@@ -2,14 +2,14 @@
 # Spec std/json JSON Errors: std-json.error.variants, std-json.error.position-bytes, std-json.error.traits (JSON-SURFACE; task #226).
 use std.json.{parse, Json, JsonError}
 use std.format.debug
-use std.testing.{assert, assert_equal}
-
 fn failure(text: string) -> JsonError:
     match parse(text):
         .Ok(_) => panic("expected an error for $text")
         .Err(error) => error
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("UnexpectedEnd reports the length of the text"):
         assert_equal(failure(""), JsonError.UnexpectedEnd(0), reason="empty")
         assert_equal(failure("  "), JsonError.UnexpectedEnd(2), reason="only space")

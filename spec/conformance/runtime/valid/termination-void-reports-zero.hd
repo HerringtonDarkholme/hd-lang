@@ -1,8 +1,6 @@
 # test: void implements Termination, and its report is ExitCode(0)
 # Spec 10 Exit Status: module.entry.termination.void.
 use std.process.Termination
-use std.testing.assert_equal
-
 fn code_of[T < Termination](value: T) -> u8:
     u8(value.report())
 
@@ -10,5 +8,7 @@ fn log_order(id: i32) -> void:
     pass
 
 tests:
+    use std.testing.assert_equal
+
     it("a void result reports success"):
         assert_equal(code_of(log_order(7)), 0, reason="void reports ExitCode(0)")

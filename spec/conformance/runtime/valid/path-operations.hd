@@ -1,8 +1,6 @@
 # test: Path join, parent, file_name, and extension split the text at slashes as Rust's Path does on Unix
 # Spec std/path Path Operations: std-path.join, std-path.parent, std-path.file-name, std-path.extension, and their rules.
 use std.path.Path
-use std.testing.assert_equal
-
 fn config_file(home: Path) -> Path:
     home.join(".config").join("hd.toml")
 
@@ -27,6 +25,8 @@ fn name(value: string?) -> string:
         .None => "none"
 
 tests:
+    use std.testing.assert_equal
+
     it("the documented examples"):
         assert_equal(config_file(Path("/home/ada")), Path("/home/ada/.config/hd.toml"), reason="join twice")
         assert_equal(sibling(Path("/srv/a.txt"), "b.txt"), Path("/srv/b.txt"), reason="a sibling")

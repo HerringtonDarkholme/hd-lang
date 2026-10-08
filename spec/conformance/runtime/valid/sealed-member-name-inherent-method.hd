@@ -1,8 +1,6 @@
 # test: an inherent method may take a sealed trait member's name, and the supplied implementation still reports the type
 # Spec 09 Compiler-Supplied Implementations: trait.sealed.inherent-ok, trait.sealed.inherent-lookup, trait.sealed.no-replace.
 use std.inspect.{Inspectable, TypeId}
-use std.testing.{assert, assert_equal}
-
 data Shipment:
     carrier: string
 
@@ -14,6 +12,8 @@ fn recorded(value: dyn Inspectable) -> TypeId:
     value.runtime_type()
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("the inherent method answers a dot call on the concrete type"):
         shipment := Shipment { carrier: "ups" }
         assert_equal(shipment.runtime_type(), "shipment by ups", reason="ordinary lookup finds the inherent method")

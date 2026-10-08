@@ -5,8 +5,6 @@
 # names.lookup.method-form, names.visible.field-method, names.part.definition,
 # names.part.depth, names.promote.member, names.field-lookup.select,
 # names.promoted.explicit.
-use std.testing.assert_equal
-
 data Base:
     pub label: string
 
@@ -23,6 +21,8 @@ impl Wrapper:
         "wrapper"
 
 tests:
+    use std.testing.assert_equal
+
     it("direct field hides promoted field"):
         wrapper := Wrapper { Base: ...Base { label: "inner" }, label: "outer" }
         assert_equal(wrapper.label, "outer", reason="direct field wins")

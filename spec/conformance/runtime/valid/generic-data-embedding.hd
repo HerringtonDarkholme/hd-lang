@@ -1,5 +1,3 @@
-use std.testing.assert_equal
-
 data Box[T]:
     pub value: T
 
@@ -8,6 +6,8 @@ data Shipment[T]:
     id: string
 
 tests:
+    use std.testing.assert_equal
+
     it("explicit generic construction promotes embedded fields"):
         shipment := Shipment::[i32] {
             Box: ...Box::[i32] { value: 40 },

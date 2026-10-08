@@ -1,7 +1,5 @@
 # test: candidate selection does not depend on implementation declaration order
 # Spec 09 Traits: trait.resolve.one-applies (exactly one applicable candidate is selected).
-use std.testing.assert_equal
-
 trait Apply[T]:
     fn apply(self, run: fn(T) -> T) -> i32
 
@@ -22,5 +20,7 @@ fn main() -> i32:
     item.apply(fn(value): value + offset)
 
 tests:
+    use std.testing.assert_equal
+
     it("the closure candidate runs and captures once"):
         assert_equal(main(), 42, reason="the i32 candidate fits the closure")

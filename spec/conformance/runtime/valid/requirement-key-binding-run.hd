@@ -1,7 +1,5 @@
 # test: a provider installed for a bound key is the value $.use returns, with the bound item type
 # Spec 11 Bound Requirement Keys: req.key.binding.value; Provider Scopes: req.with.type.binding (owner decision AT5).
-use std.testing.assert_equal
-
 trait Store:
     type Item
     fn load(self, id: string) -> Self::Item
@@ -24,5 +22,7 @@ fn serve(id: string) -> string:
         find(id).name
 
 tests:
+    use std.testing.assert_equal
+
     it("loads through the bound key"):
         assert_equal(serve("7"), "user-7", reason="the provider's load returns a User")

@@ -2,8 +2,6 @@
 # Spec std/error Error Context: std-error.context.debug, std-error.context.debug.fields, and std/format std-format.debug.std-types.context-error (CONTEXT-DEBUG, batch 72; task #229).
 use std.error.{ContextError, Error}
 use std.format.DebugWriter
-use std.testing.{assert, assert_equal}
-
 @error("not found: $path")
 data NotFound:
     path: string
@@ -28,6 +26,8 @@ fn shown[T < Debug](value: T) -> string:
     debug(value)
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("the message, then the cause's Display text"):
         match load("app.toml"):
             .Ok(_) => assert(false, reason="the read fails")

@@ -1,7 +1,5 @@
 # test: Option and Result values and patterns take both the qualified and the contextual spellings
 # Spec 08 Option And Result: data.prelude.option, data.prelude.result, data.prelude.values.
-use std.testing.assert_equal
-
 enum ParseError:
     Empty
     NotANumber(text: string)
@@ -33,6 +31,8 @@ fn greeting(name: string) -> string:
         Option.None => name
 
 tests:
+    use std.testing.assert_equal
+
     it("T? is Option[T]"):
         let explicit: Option[string] = nickname("Margaret")
         let sugared: string? = Option.None

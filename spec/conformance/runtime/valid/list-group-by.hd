@@ -1,11 +1,11 @@
 # test: group_by maps each key to its elements in list order, one key per distinct result
 # Spec std/collections List Helpers: std-collections.helper.group-by.
-use std.testing.assert_equal
-
 fn by_initial(words: List[string]) -> Map[string, List[string]]:
     words.group_by(fn(word: string) -> string: word.slice(0, 1))
 
 tests:
+    use std.testing.assert_equal
+
     it("groups in list order"):
         groups := by_initial(["bean", "apple", "beet", "avocado"])
         assert_equal(groups.get("a"), .Some(["apple", "avocado"]), reason="group a")

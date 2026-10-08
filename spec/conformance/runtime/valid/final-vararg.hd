@@ -1,7 +1,5 @@
 # Spec 07 Varargs: fn.vararg.form, fn.vararg.type, fn.vararg.collect,
 # fn.vararg.collect.list, fn.vararg.final, fn.vararg.named.
-use std.testing.assert_equal
-
 fn scaled(factor: i32, values...: List[i32]) -> i32:
     let total = +0
     for value in values:
@@ -12,6 +10,8 @@ fn apply(callback: fn(i32, List[i32]...) -> i32) -> i32:
     callback(2, 1, 2, 3)
 
 tests:
+    use std.testing.assert_equal
+
     it("a final vararg collects the remaining positional arguments"):
         assert_equal(scaled(3), 0, reason="an empty vararg is an empty list")
         assert_equal(scaled(2, 1, 2), 6, reason="each element is scaled")

@@ -1,8 +1,6 @@
 # test: a literal erased to Inspectable records its fallback type: usize, or i32 for a signed literal
 # Spec 04 Neutral Uses: types.literal.local.erased (ONE-FIT).
 use std.inspect.{Inspectable, downcast_val}
-use std.testing.assert_equal
-
 fn width(value: dyn Inspectable) -> string:
     match downcast_val::[usize](value):
         .Some(_) => return "usize"
@@ -13,6 +11,8 @@ fn width(value: dyn Inspectable) -> string:
     "other"
 
 tests:
+    use std.testing.assert_equal
+
     it("a bare literal is a usize"):
         let p: dyn Inspectable = 42
         assert_equal(width(p), "usize", reason="no use fixes 42, so it falls back to usize")

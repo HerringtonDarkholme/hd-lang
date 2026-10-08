@@ -1,6 +1,5 @@
 # test: string::from_utf8 reports InvalidSequence at the byte offset where the first ill-formed sequence starts
 # Spec std/text UTF-8 Conversion: std-text.utf8.error.first, std-text.utf8.error.invalid, std-text.utf8.well-formed (UTF8-API, batch 72; task #229).
-use std.testing.assert_equal
 use std.text.Utf8Error
 
 fn failure(bytes: List[u8]) -> Utf8Error?:
@@ -9,6 +8,8 @@ fn failure(bytes: List[u8]) -> Utf8Error?:
         .Err(error) => .Some(error)
 
 tests:
+    use std.testing.assert_equal
+
     it("bytes that start no sequence"):
         assert_equal(failure([128]), .Some(Utf8Error.InvalidSequence(0)), reason="a continuation byte alone")
         assert_equal(failure([255]), .Some(Utf8Error.InvalidSequence(0)), reason="0xFF never appears in UTF-8")

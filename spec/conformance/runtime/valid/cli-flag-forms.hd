@@ -1,8 +1,6 @@
 # test: every flag and option form, -- ending the options, a lone - as a positional, and repeated flags and options
 # Spec std/cli Argument Forms: std-cli.form.long-flag, std-cli.form.short-flag, std-cli.form.long-option, std-cli.form.attached, std-cli.form.short-option, std-cli.form.end, std-cli.form.dash, std-cli.form.positional, std-cli.form.interleaved, std-cli.form.repeat-flag, std-cli.form.repeat-option, std-cli.form.value-dash; Parsed Arguments (task #242).
 use std.cli.{Cli, CliError, Parsed}
-use std.testing.{assert, assert_equal}
-
 fn tool() -> Cli:
     Cli::new("count").flag("verbose", 'v', "print each file").option("out", 'o', "write the total here").positional("pattern", "the files to count")
 
@@ -12,6 +10,8 @@ fn read(arguments: List[string]) -> Parsed:
         .Err(error) => panic("parse failed: $error")
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("long and short flags"):
         assert(read(["--verbose", "*.txt"]).flag("verbose"), reason="--verbose")
         assert(read(["-v", "*.txt"]).flag("verbose"), reason="-v")

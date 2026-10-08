@@ -4,11 +4,11 @@
 # fixture-package-tree: user-modules/src/report.hd
 use pkg.user
 use pkg.user.types
-use std.testing.assert_equal
-
 fn welcome(owner: types.User) -> string:
     user.greeting(owner.name)
 
 tests:
+    use std.testing.assert_equal
+
     it("reaches the directory module and its child"):
         assert_equal(welcome(types.User { name: "Ada" }), "hello, Ada", reason="user and user.types are two modules")

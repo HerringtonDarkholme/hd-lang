@@ -1,8 +1,6 @@
 # test: a generic downcast helper recovers the same reference for a concrete target and never matches a trait value target
 # Spec 09 Ordinary Rules For Recovery: trait.downcast.pass-on; the helper's bound passes T on, and the ordinary downcast rules apply.
 use std.inspect.Inspectable
-use std.testing.assert
-
 trait Named < Inspectable & AnyRef:
     fn name(self) -> string
 
@@ -16,6 +14,8 @@ fn recover[T < AnyRef & Inspectable](value: dyn Inspectable) -> T?:
     value.downcast::[T]()
 
 tests:
+    use std.testing.assert
+
     it("a concrete target recovers the same reference"):
         author := User { name: "Ada" }
         let erased: dyn Inspectable = author

@@ -1,8 +1,6 @@
 # test: List get, is_empty, first, last, take, filter, reversed, sorted_by, zip, and extend
 # Spec std/collections List Access And Building: std-collections.access.get, .is-empty, .first-last, .take,
 # .filter, .reversed, .sorted-by, .zip, .extend, .extend.self (spec pass 89, audit items 5 and 6).
-use std.testing.{assert, assert_equal}
-
 fn second(items: List[string]) -> string?:
     items.get(1)
 
@@ -18,6 +16,8 @@ fn merged(head: List[i32], tail: List[i32]) -> List[i32]:
     all.sorted_by(fn(a: i32, b: i32) -> Ordering: b.cmp(a))
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("reads one element safely"):
         assert_equal(second(["a", "b"]), .Some("b"), reason="in range")
         assert_equal(second(["a"]), .None, reason="past the end")

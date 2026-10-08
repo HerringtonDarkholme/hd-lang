@@ -8,8 +8,6 @@
 # parameter fee here names only itself, since cart's fee is not in scope.
 # fixture-package-tree: module-names/src/checkout.hd
 use pkg.cart.{Cart, Cents, Priced, total}
-use std.testing.assert_equal
-
 data Basket:
     carts: List[Cart]
 
@@ -24,6 +22,8 @@ fn sum(carts: List[Cart], fee: i32) -> Cents:
     acc
 
 tests:
+    use std.testing.assert_equal
+
     it("uses imported and own names"):
         basket := Basket { carts: [Cart { items: 2 }, Cart { items: 1 }] }
         assert_equal(basket.price(), 310, reason="two carts with their fees")

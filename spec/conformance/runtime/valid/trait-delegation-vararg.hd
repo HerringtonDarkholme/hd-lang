@@ -1,7 +1,5 @@
 # test: a delegated method's inputs follow the trait method's inputs tuple, a rest element included
 # expect: test
-use std.testing.assert_equal
-
 trait Tally:
     fn tally(self, values...: List[i32]) -> usize
 
@@ -18,6 +16,8 @@ data Service:
 impl Tally for Service by Counter
 
 tests:
+    use std.testing.assert_equal
+
     it("the forwarding method passes the vararg on"):
         service := Service { Counter: ...Counter { base: 10 } }
         assert_equal(Tally::tally(service, 1, 2, 3), 13, reason="three collected arguments")

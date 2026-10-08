@@ -1,8 +1,6 @@
 # test: an inherent method wins a dot call; a trait-qualified call reaches the trait method
 # Spec 09 Traits: trait.resolve.inherent-first, trait.qualified.form, trait.qualified.bypass.
 
-use std.testing.assert_equal
-
 trait Named:
     fn label(self) -> string
 
@@ -18,6 +16,8 @@ impl Named for User:
         "trait " + self.name
 
 tests:
+    use std.testing.assert_equal
+
     it("the inherent method wins and Trait::m selects the trait method"):
         user := User { name: "ada" }
         assert_equal(user.label(), "inherent ada", reason="the inherent method wins")

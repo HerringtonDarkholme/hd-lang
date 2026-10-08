@@ -1,8 +1,6 @@
 # test: min and max return the first argument when two distinguishable values compare equal
 # Spec std/cmp Min And Max: std-cmp.min-max.tie, std-cmp.min-max.result; lists order lexicographically (expr.ord.std.sequences).
 use std.cmp.{max, min}
-use std.testing.assert_equal
-
 # Ordered by `rank` only, so two entries can be equal and still differ.
 data Entry:
     rank: i32
@@ -21,6 +19,8 @@ impl Ord for Entry:
         self.rank.cmp(other.rank)
 
 tests:
+    use std.testing.assert_equal
+
     it("the first of two equal values is the result"):
         first := Entry { rank: 1, label: "first" }
         second := Entry { rank: 1, label: "second" }

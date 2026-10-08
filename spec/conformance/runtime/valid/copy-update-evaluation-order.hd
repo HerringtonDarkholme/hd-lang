@@ -1,7 +1,5 @@
 # test: data copy-update evaluates its source before replacements
 
-use std.testing.assert_equal
-
 data Pair[T]:
     first: T
     second: T
@@ -13,5 +11,7 @@ fn main!() -> i32:
     pair.first + pair.second
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main!(), 42, reason="data copy-update evaluates its source before replacements")

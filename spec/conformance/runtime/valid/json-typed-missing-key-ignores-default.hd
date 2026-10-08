@@ -4,8 +4,6 @@
 # Spec 14 Build: annot.build.member.
 use std.json.{decode, JsonError}
 use std.serde.{Serialize, Deserialize}
-use std.testing.assert_equal
-
 @derive(Serialize, Deserialize)
 data ServerConfig:
     host: string
@@ -13,6 +11,8 @@ data ServerConfig:
     banner: string? = .Some("welcome")
 
 tests:
+    use std.testing.assert_equal
+
     it("a missing key for a member with a default is a MissingField"):
         assert_equal(decode::[ServerConfig]("{\"host\":\"db1\"}").map(fn(found): found.port), .Err(JsonError.MissingField("$.port")), reason="port declares 8080")
 

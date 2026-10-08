@@ -3,9 +3,9 @@
 # module declares Cart with the pub field owner and the pub method summary.
 # fixture-package-tree: module-members/src/checkout.hd
 use pkg.cart.{Cart}
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("reads pub members"):
         cart := Cart::open("ana", 250)
         assert_equal(cart.owner, "ana", reason="owner is pub")

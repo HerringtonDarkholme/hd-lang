@@ -1,7 +1,5 @@
 # test: generated methods call the part's implementation, defaults included, and a body method replaces one
 # Spec 09 Traits: trait.by.form, trait.by.written.
-use std.testing.assert_equal
-
 trait Describe:
     fn describe(self) -> string
     fn headline(self) -> string:
@@ -31,6 +29,8 @@ fn show(value: dyn Describe) -> string:
     value.headline()
 
 tests:
+    use std.testing.assert_equal
+
     it("delegation forwards to the part"):
         service := Service { Logger: ...Logger { name: "api" }, port: 80 }
         worker := Worker { Logger: ...Logger { name: "job" } }

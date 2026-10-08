@@ -1,8 +1,6 @@
 # test: Result map transforms the Ok value, once, and keeps an Err
 # Spec std/result Mapping The Value: std-result.map, std-result.map.once (batch 68, STD-HELPERS-KEEP; task #219).
 use std.num.{parse_i32, ParseNumberError}
-use std.testing.assert_equal
-
 fn doubled(text: string) -> Result[i32, ParseNumberError]:
     parse_i32(text).map(fn(value: i32) -> i32: value * 2)
 
@@ -12,6 +10,8 @@ fn describe(result: Result[i32, ParseNumberError]) -> string:
         .Err(error) => "error: ${error}"
 
 tests:
+    use std.testing.assert_equal
+
     it("map transforms Ok and keeps Err"):
         assert_equal(describe(doubled("21")), "ok 42", reason="Ok")
         assert_equal(describe(doubled("")), "error: ${ParseNumberError.Empty}", reason="Err passes through")

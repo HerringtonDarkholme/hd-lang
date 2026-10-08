@@ -1,8 +1,6 @@
 # test: data field defaults run per construction after explicit fields
 # Spec 08 Field Defaults: data.default.allowed, data.literal.defaulted.
 
-use std.testing.assert_equal
-
 fn default_name() -> string: "anonymous"
 
 data User:
@@ -19,5 +17,7 @@ fn main() -> i32:
         0
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 12"):
         assert_equal(main(), 12, reason="data field defaults run per construction after explicit fields")

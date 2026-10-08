@@ -1,8 +1,6 @@
 # test: the package of Money implements a std trait for Money, and Add[Money] for the std type i32
 # Spec 09 Implementation Ownership: trait.own.rule, trait.own.target, trait.own.argument, trait.own.argument.example.
 use std.ops.Add
-use std.testing.assert_equal
-
 data Money:
     cents: i32
 
@@ -16,6 +14,8 @@ impl Add[Money] for i32:
         Money { cents: self + rhs.cents }
 
 tests:
+    use std.testing.assert_equal
+
     it("the owner of the target implements a foreign trait"):
         price := Money { cents: 250 }
         assert_equal(price.to_string(), "250c", reason="Display for Money")

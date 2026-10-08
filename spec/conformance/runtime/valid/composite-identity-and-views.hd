@@ -1,7 +1,5 @@
 # test: composite identity ignores permission and survives trait-value conversion
 # expect: test
-use std.testing.assert
-
 data User:
     name: string
 
@@ -13,6 +11,8 @@ fn same_ref[T < AnyRef](left: T, right: T) -> bool:
     left is right
 
 tests:
+    use std.testing.assert
+
     it("mut and readonly views of one object are identical"):
         let mut mutable = User { name: "Ada" }
         let readonly: User = mutable

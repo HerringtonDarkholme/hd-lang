@@ -1,8 +1,6 @@
 # test: every primitive satisfies a Display bound and converts to a Display trait value
 # expect: test
 # Spec 09 Traits: trait.dyn.convert.any-type.
-use std.testing.assert_equal
-
 fn render[T < Display](value: T) -> string:
     "$value"
 
@@ -10,6 +8,8 @@ fn boxed(value: i32) -> dyn Display:
     value
 
 tests:
+    use std.testing.assert_equal
+
     it("primitives satisfy a Display bound"):
         assert_equal(render(1), "1", reason="i32")
         assert_equal(render(1.5), "1.5", reason="f64")

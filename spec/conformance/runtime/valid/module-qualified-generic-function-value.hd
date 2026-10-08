@@ -1,12 +1,12 @@
 # test: a generic module member used as a value is instantiated from the expected type or from explicit type arguments
 # Spec 07 Generic Function Values: fn.type.generic.instantiate-from; cmp.min with T = i32 is a fn(i32, i32) -> i32.
 use std.cmp
-use std.testing.assert_equal
-
 fn pick_price(choose: fn(i32, i32) -> i32) -> i32:
     choose(42, 50)
 
 tests:
+    use std.testing.assert_equal
+
     it("the expected function type instantiates cmp.min"):
         assert_equal(pick_price(cmp.min), 42, reason="T is solved as i32")
 

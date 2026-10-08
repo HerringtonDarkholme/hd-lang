@@ -1,8 +1,6 @@
 # Spec 06 Deferred Cleanup: flow.defer.register, flow.defer.run,
 # flow.defer.result-saved, flow.defer.operands, flow.defer.captures,
 # flow.defer.scopes, flow.defer.void.
-use std.testing.assert_equal
-
 data Trace:
     text: string
 
@@ -14,6 +12,8 @@ fn observed_value(trace: mut Trace) -> string:
     trace.text
 
 tests:
+    use std.testing.assert_equal
+
     it("defer preserves the result and runs LIFO"):
         let mut trace = Trace { text: "start" }
         observed := observed_value(trace)

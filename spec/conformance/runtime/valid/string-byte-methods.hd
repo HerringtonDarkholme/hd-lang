@@ -2,8 +2,6 @@
 # Spec 10 String Methods: module.string.utf8, module.string.byte-offsets, module.string.chars, module.string.char-indices, module.string.bytes, module.string.slice.
 # Spec 04 Strings, 05 String Indexing, 10 String Methods (Strings STR1-STR6).
 # expect: test
-use std.testing.{assert, assert_equal}
-
 fn first_word(text: string) -> string:
     for (offset, letter) in text.char_indices():
         if letter == ' ':
@@ -11,6 +9,8 @@ fn first_word(text: string) -> string:
     text
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("len and index count bytes"):
         let lead: u8 = 195
         let second: u8 = 169

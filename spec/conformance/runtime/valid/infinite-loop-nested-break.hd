@@ -1,8 +1,6 @@
 # test: a break in a nested loop targets that loop, so the outer infinite loop still has type never
 # Spec 06 Infinite Loops: flow.while.infinite.exit, flow.break.
 # expect: test
-use std.testing.assert_equal
-
 fn first_row_total(rows: List[List[i32]], limit: i32) -> i32:
     let row = 0
     while true:
@@ -27,6 +25,8 @@ fn countdown(start: i32) -> i32:
         return steps
 
 tests:
+    use std.testing.assert_equal
+
     it("an inner break leaves the outer loop running"):
         assert_equal(first_row_total([[1, -1, 9], [5, 6]], 10), 11, reason="the second row reaches the limit")
 

@@ -1,7 +1,5 @@
 # test: two bounds that name one parameter and allow the same single instantiation solve it
 # Spec 04 Inference Through A Bound: types.generic.infer.bound.agree (owner decision BOUND-INFER-TWO-BOUNDS, batch 78, 2026-10-03).
-use std.testing.assert_equal
-
 trait Source[T]:
     fn take(self) -> T
 
@@ -27,5 +25,7 @@ fn titles(label: Label, note: Note) -> List[string]:
     found
 
 tests:
+    use std.testing.assert_equal
+
     it("both bounds allow only U = string"):
         assert_equal(titles(Label { text: "a" }, Note { text: "b" }), ["a", "b"], reason="U is string")

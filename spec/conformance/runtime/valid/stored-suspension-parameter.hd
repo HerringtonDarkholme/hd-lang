@@ -1,7 +1,5 @@
 # test: stored suspension crosses a function boundary
 
-use std.testing.assert_equal
-
 fn ready!() -> i32:
     42
 
@@ -9,6 +7,8 @@ fn forward![T](task: mut Suspend[T]) -> T:
     task!()
 
 tests:
+    use std.testing.assert_equal
+
     it("stored suspension result survives parameter passing"):
         let pending: mut Suspend[i32] = ready()
         assert_equal(

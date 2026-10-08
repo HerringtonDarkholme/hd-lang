@@ -1,11 +1,11 @@
 # test: to_digit gives ASCII digits and letters their values below the radix, at radix 2, 10, 16, and 36
 # Spec std/text Character Classification: std-text.char.to-digit, std-text.char.to-digit.value, std-text.char.to-digit.result, std-text.char.to-digit.ascii-only (CHAR-CLASSIFY, batch 72; task #229).
-use std.testing.assert_equal
-
 fn hex_value(c: char) -> u32?:
     c.to_digit(16)
 
 tests:
+    use std.testing.assert_equal
+
     it("radix 2, the smallest"):
         assert_equal('0'.to_digit(2), .Some(0), reason="0")
         assert_equal('1'.to_digit(2), .Some(1), reason="1")

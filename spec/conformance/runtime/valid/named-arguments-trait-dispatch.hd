@@ -1,7 +1,5 @@
 # test: named arguments work through static and dynamic trait dispatch
 
-use std.testing.assert_equal
-
 trait Mixer:
     fn blend(self, left: i32, right: i32) -> i32
     fn load!(self, left: i32, right: i32) -> i32
@@ -21,5 +19,7 @@ fn main!() -> i32:
     static + direct + suspended
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main!(), 42, reason="named arguments work through static and dynamic trait dispatch")

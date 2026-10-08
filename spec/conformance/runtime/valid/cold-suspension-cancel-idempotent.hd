@@ -2,8 +2,6 @@
 # Spec 11 Cancellation Checks: req.check.cancel-idempotent,
 # req.cancel.synchronous, req.cancel.steps.
 
-use std.testing.assert_equal
-
 fn ready!() -> i32: 42
 fn main() -> i32:
     let pending: mut Suspend[i32] = ready()
@@ -12,5 +10,7 @@ fn main() -> i32:
     42
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="cold suspension cancellation is synchronous and idempotent")

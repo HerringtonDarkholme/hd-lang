@@ -1,12 +1,13 @@
 # test: Timestamp.date() gives the UTC day in the proleptic Gregorian calendar, across leap years, before 1970, and at year 0
 # Spec std/time Dates: std-time.date.of-timestamp, std-time.date.calendar, std-time.date.year, std-time.date.before-epoch, std-time.date.traits (COLLECTIONS-DATES-SURFACE; task #225).
-use std.testing.{assert, assert_equal}
 use std.time.{Date, Timestamp}
 
 fn day_of(millis: i64) -> Date:
     Timestamp::from_unix_milliseconds(millis).date()
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("the epoch and the days around it"):
         assert_equal(day_of(0), Date { year: 1970, month: 1, day: 1 }, reason="the epoch")
         assert_equal(day_of(86399999), Date { year: 1970, month: 1, day: 1 }, reason="the last millisecond of the first day")

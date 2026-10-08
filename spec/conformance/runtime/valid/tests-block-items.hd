@@ -4,12 +4,12 @@
 # grammar.inline.nested-if; an indented function body may begin with `if`.
 # Spec 02 Test Blocks and 03 Tests Blocks: the block's items are module items visible
 # only inside it, and code inside sees every module name.
-use std.testing.assert_equal
-
 fn late_fee(days: i32) -> i32:
     if days > 30: 5 else: 0
 
 tests:
+    use std.testing.assert_equal
+
     fn overdue() -> i32: 31
 
     it("charges a fee after 30 days"):

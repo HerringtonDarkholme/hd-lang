@@ -1,8 +1,8 @@
 # test: the checked, wrapping, saturating, and abs_diff methods exist on every integer width
 # Spec std/num Checked Arithmetic: std-num.methods.every-width, with std-num.abs-diff.i8 to std-num.abs-diff.u64 (batch 68, INT-WIDTHS; task #219).
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("i8"):
         let low: i8 = -128
         assert_equal(low.checked_sub(1), .None, reason="checked_sub overflows")

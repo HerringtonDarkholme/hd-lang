@@ -1,8 +1,6 @@
 # test: module bindings are shared with declared functions
 # Spec 10 Top-Level Statements: module.init.binding, module.init.storage.
 
-use std.testing.assert_equal
-
 let count = +0
 label := "requests"
 
@@ -15,6 +13,8 @@ fn value() -> i32:
 increment()
 
 tests:
+    use std.testing.assert_equal
+
     it("initialization and later calls update one module binding"):
         assert_equal(value(), 1, reason="module initialization ran increment once")
         increment()

@@ -1,7 +1,5 @@
 # test: a function returned from a closure whose result takes the union row runs with the providers of its own row
 # expect: test
-use std.testing.assert_equal
-
 trait Db:
     fn name(self) -> string
 
@@ -33,6 +31,8 @@ fn by_closure(admin: bool) -> string $ Db + Clock:
     handler()
 
 tests:
+    use std.testing.assert_equal
+
     it("each returned handler sees its own providers"):
         $.with(Db=MemoryDb {}, Clock=FixedClock {}):
             assert_equal(by_closure(true) + by_closure(false), "dbnoon", reason="closure results")

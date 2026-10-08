@@ -1,11 +1,11 @@
 # test: pad_start and pad_end fill with a space when no fill is given
 # Spec std/text Splitting And Padding: std-text.pad.fill-default.
-use std.testing.assert_equal
-
 fn cell(text: string) -> string:
     text.pad_start(6)
 
 tests:
+    use std.testing.assert_equal
+
     it("fills with spaces by default"):
         assert_equal(cell("42"), "    42", reason="pad_start")
         assert_equal("7".pad_end(3), "7  ", reason="pad_end")

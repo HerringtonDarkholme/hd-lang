@@ -1,10 +1,11 @@
 # fixture-package-role: root-application
 # test: an imported trait's method is selected wherever its impl is declared; public embedded members promote
 # Spec 09 Traits: trait.avail.module, trait.qualified.form.
-use std.testing.assert_equal
 use dep.members.{Stamped, Tagged, make_outer}
 
 tests:
+    use std.testing.assert_equal
+
     it("imported trait methods and promoted public members"):
         outer := make_outer()
         assert_equal(outer.mark(), "outer mark", reason="imported trait method")

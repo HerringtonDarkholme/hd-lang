@@ -1,11 +1,11 @@
 # test: split_whitespace returns the runs between Unicode White_Space, with no empty piece
 # Spec std/text Splitting And Padding: std-text.split-whitespace and .no-empty.
-use std.testing.assert_equal
-
 fn word_count(text: string) -> usize:
     text.split_whitespace().len()
 
 tests:
+    use std.testing.assert_equal
+
     it("splits at runs of whitespace"):
         assert_equal(" a  b ".split_whitespace(), ["a", "b"], reason="runs and both ends")
         assert_equal("a\tb\nc".split_whitespace(), ["a", "b", "c"], reason="tab and newline")

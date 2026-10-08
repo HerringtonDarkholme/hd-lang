@@ -1,13 +1,13 @@
 # test: a function value keeps a List vararg, so it collects separate arguments or takes a list spread
 # expect: test
-use std.testing.assert_equal
-
 fn g(a: usize, b: usize, xs...: List[i32]) -> usize: a + b + xs.len()
 
 fn apply(callback: fn(usize, usize, List[i32]...) -> usize) -> usize:
     callback(1, 2, 3, 4)
 
 tests:
+    use std.testing.assert_equal
+
     it("a function value is called with varargs"):
         f := g
         xs := [+5, 6, 7]

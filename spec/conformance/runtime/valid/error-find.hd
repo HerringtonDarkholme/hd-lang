@@ -1,8 +1,6 @@
 # test: find walks the cause chain in order and returns the first error of the target type, an equal enum value or the same data reference, or .None
 # Spec std/error Root Cause And Find: std-error.find.first, std-error.find.value, std-error.find.reference.
 use std.error.Error
-use std.testing.{assert, assert_equal}
-
 @error
 enum FsError:
     @error("not found: $path")
@@ -28,6 +26,8 @@ enum SaveError:
     Write(path: string, @source error: DiskError)
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("finds an error two levels down"):
         let failure: dyn Error = AppError.Start(ConfigError.Load("app", FsError.NotFound("app.toml")))
         match failure.find::[FsError]():

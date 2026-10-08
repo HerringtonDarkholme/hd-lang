@@ -1,11 +1,12 @@
 # test: after use std.text as strings, strings.join is the function value text.join
 # Spec 03 Use Declarations: names.use.introduces; a module use with as binds the module namespace under the alias.
-use std.testing.assert_equal
 use std.text as strings
 
 fn render_row(cells: List[string], join_row: fn(List[string], string) -> string) -> string:
     join_row(cells, ",")
 
 tests:
+    use std.testing.assert_equal
+
     it("the alias reaches the module's members"):
         assert_equal(render_row(["id", "name"], strings.join), "id,name", reason="strings.join is text.join")

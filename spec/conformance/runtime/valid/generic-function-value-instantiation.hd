@@ -2,8 +2,6 @@
 # Spec 07 Generic Function Values: "Referring to one as a value must instantiate every generic
 # parameter." The type arguments come from an expected monomorphic function type, a complete
 # explicit type-argument list, or the call the value is an argument of.
-use std.testing.assert_equal
-
 fn identity[T](value: T) -> T:
     value
 
@@ -11,6 +9,8 @@ fn apply(f: fn(i32) -> i32, value: i32) -> i32:
     f(value)
 
 tests:
+    use std.testing.assert_equal
+
     it("instantiated from the expected type"):
         let f: fn(string) -> string = identity
         assert_equal(f("hi"), "hi", reason="T solved as string")

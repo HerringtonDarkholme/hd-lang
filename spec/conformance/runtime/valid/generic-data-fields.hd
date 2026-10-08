@@ -4,8 +4,6 @@
 # types.generic.sharing, types.generic.interfaces,
 # types.generic.identity.primitive.
 
-use std.testing.assert_equal
-
 data Box[T]:
     value: T
 
@@ -20,6 +18,8 @@ fn main() -> Pair[Box[i32], string]:
     Pair { first: keep(box), second: "hd" }
 
 tests:
+    use std.testing.assert_equal
+
     it("fields keep their instantiated types"):
         pair := main()
         assert_equal(pair.first.value + 2, 42, reason="generic data fields")

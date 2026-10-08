@@ -1,8 +1,6 @@
 # test: contextual variant expressions
 # Spec 08 Enum Declarations and Matching Enums: data.enum.shorthand, data.match.shorthand.
 
-use std.testing.assert_equal
-
 enum Status:
     Queued
     Ready(value: i32)
@@ -17,5 +15,7 @@ fn accept(status: Status) -> i32: unwrap(status)
 fn main() -> i32: unwrap(queued()) + accept(.Ready(42))
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="contextual variant expressions")

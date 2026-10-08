@@ -1,7 +1,5 @@
 # test: interpolation calls Display left to right at each segment position
 # expect: test
-use std.testing.assert_equal
-
 let order: string = ""
 
 data Tagged:
@@ -22,6 +20,8 @@ fn render[T < Display](value: T) -> string:
     "$value"
 
 tests:
+    use std.testing.assert_equal
+
     it("segments render in order and call Display once each"):
         reset()
         first := Tagged { label: "a" }

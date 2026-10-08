@@ -1,6 +1,4 @@
 # Spec 10 Standard Testing: module.testing.uses-eq.
-use std.testing.assert_equal
-
 @derive(Debug)
 data User:
     id: string
@@ -11,6 +9,8 @@ impl Eq for User:
         self.id == other.id
 
 tests:
+    use std.testing.assert_equal
+
     it("values equal under an explicit Eq pass assert_equal"):
         ada := User { id: "ada", display_name: "Ada" }
         same_ada := User { id: "ada", display_name: "Ada" }

@@ -1,7 +1,5 @@
 # test: trait value types with the same bindings in another order are one type, and a matching implementation converts
 # Spec 09 Bound Associated Types: trait.dyn.binding.complete, trait.dyn.binding.convert, trait.dyn.binding.identity.
-use std.testing.assert_equal
-
 trait Lookup:
     type Key
     type Value
@@ -27,6 +25,8 @@ fn forward(book: dyn Lookup[Value = i32, Key = string], name: string) -> i32?:
     find_number(book, name)
 
 tests:
+    use std.testing.assert_equal
+
     it("binding order does not change the trait value type"):
         book := PhoneBook { names: ["ada", "alan"], numbers: [100, 200] }
         let erased: dyn Lookup[Value = i32, Key = string] = book

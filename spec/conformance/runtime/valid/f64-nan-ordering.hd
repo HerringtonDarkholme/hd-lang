@@ -1,7 +1,7 @@
 # test: an unordered comparison makes all four relational operators false
-use std.testing.assert
-
 tests:
+    use std.testing.assert
+
     it("NaN is unordered against a number"):
         let nan: f64 = 0.0 / 0.0
         assert(!(nan < 1.0), reason="NaN < 1.0 is false")

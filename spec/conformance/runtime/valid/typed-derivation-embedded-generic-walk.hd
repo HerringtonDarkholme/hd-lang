@@ -2,8 +2,6 @@
 # Spec 14 Members: annot.member.embedded; an embedded field is one member, named by its embedded type's final name.
 # Derived Bounds: annot.bound.params.
 use std.structure.{Structure, Field, Variant, Walker}
-use std.testing.assert_equal
-
 trait Show:
     fn show(self) -> string
 
@@ -50,6 +48,8 @@ data Range[A]:
     high: A
 
 tests:
+    use std.testing.assert_equal
+
     it("an embedded field is one member named by its type"):
         post := Post { Timestamp: ...Timestamp { seconds: 3 }, title: "Launch" }
         assert_equal(post.show(), "Post(Timestamp=Timestamp(seconds=3;);title=Launch;)", reason="the embedded part is walked as one value")

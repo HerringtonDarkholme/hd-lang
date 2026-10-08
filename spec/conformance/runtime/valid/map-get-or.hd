@@ -1,11 +1,11 @@
 # test: get_or returns the entry's value, or the fallback when there is none
 # Spec std/collections Map Methods: std-collections.map.get-or.
-use std.testing.assert_equal
-
 fn stock_of(stock: Map[string, i32], item: string) -> i32:
     stock.get_or(item, 0)
 
 tests:
+    use std.testing.assert_equal
+
     it("returns the value or the fallback"):
         stock := {"tea": +3}
         assert_equal(stock_of(stock, "tea"), 3, reason="present")

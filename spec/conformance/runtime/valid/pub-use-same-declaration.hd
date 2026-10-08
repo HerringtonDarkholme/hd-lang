@@ -4,8 +4,6 @@
 # fixture-package-tree: facade-identity/src/checkout.hd
 use pkg.shop.{Cart, empty_cart}
 use pkg.shop.cart.{Cart as StoredCart}
-use std.testing.assert_equal
-
 fn item_count(cart: StoredCart) -> i32:
     cart.items
 
@@ -13,6 +11,8 @@ fn restock(cart: Cart) -> StoredCart:
     StoredCart { items: cart.items + 3 }
 
 tests:
+    use std.testing.assert_equal
+
     it("a cart from the facade is a cart from its defining module"):
         let cart: Cart = empty_cart()
         assert_equal(item_count(cart), 0, reason="pkg.shop.Cart is pkg.shop.cart.Cart")

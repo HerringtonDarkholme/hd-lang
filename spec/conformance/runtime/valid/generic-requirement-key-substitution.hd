@@ -1,7 +1,5 @@
 # test: a generic key Repo[T] in a stored callable's type becomes Repo[User] once T is User
 # Spec 11 Entailment: req.row.entail.generic; after substitution, the key Repo[User] is entailed by the provider of Repo[User].
-use std.testing.assert_equal
-
 trait Repo[T]:
     fn count(self) -> i32
 
@@ -27,6 +25,8 @@ fn keep_later![T](callback: fn() -> i32 $ Repo[T]) -> (fn() -> i32 $ Repo[T]):
     callback
 
 tests:
+    use std.testing.assert_equal
+
     it("a field of Job[User] calls with the Repo[User] provider"):
         $.with(Repo[User]=UserRepo {}):
             let job: Job[User] = Job { callback: count_users }

@@ -1,8 +1,6 @@
 # test: retry! calls its attempt until the first .Ok, or returns the last .Err
 # Spec std/task Retry: std-task.combinator.retry.decl-usize, .loop, and .last-error (owner decision RETRY, batch 29, 2026-09-30).
 use std.task.retry
-use std.testing.assert_equal
-
 data Server:
     busy_for: i32
     calls: i32
@@ -19,6 +17,8 @@ fn connect!(server: mut Server) -> Result[string, string]:
         ask!(server)
 
 tests:
+    use std.testing.assert_equal
+
     it("returns the first .Ok without another call"):
         let mut server = Server { busy_for: 1, calls: 0 }
         assert_equal(connect!(server), .Ok("ready"), reason="the second call succeeds")

@@ -1,8 +1,6 @@
 # test: a trailing block may follow =, _ :=, return, and break
 # expect: test
 
-use std.testing.assert_equal
-
 fn twice(action: fn() -> i32) -> i32:
     action() + action()
 
@@ -29,6 +27,8 @@ fn via_break(values: List[i32]) -> i32:
         0
 
 tests:
+    use std.testing.assert_equal
+
     it("trailing blocks complete each right-hand side"):
         assert_equal(via_return(), 20, reason="return")
         assert_equal(via_assignment(), 6, reason="assignment")

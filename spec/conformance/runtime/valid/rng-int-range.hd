@@ -1,9 +1,9 @@
 # test: int draws from a half-open or an inclusive Range, unbiased by rejection, over the whole i64 range too
 # Spec std/random Integer Ranges: std-random.rng.int, std-random.rng.int.count, std-random.rng.int.offset, std-random.rng.below, std-random.rng.below.full (task #242).
 use std.random.Rng
-use std.testing.{assert, assert_equal}
-
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("a half-open range excludes its end"):
         let mut dice = Rng::new(7)
         let draws: mut List[i64] = []

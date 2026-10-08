@@ -1,7 +1,5 @@
 # test: literal patterns
 
-use std.testing.assert_equal
-
 fn integer(value: i32) -> i32:
     match value:
         -1 => 10
@@ -26,5 +24,7 @@ fn text(value: string) -> i32:
 fn main() -> i32: integer(42) + floating(-1.5) + character('😀') + text("hd") + integer(0)
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 32"):
         assert_equal(main(), 32, reason="literal patterns")

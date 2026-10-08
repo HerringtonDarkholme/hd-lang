@@ -3,8 +3,6 @@
 # req.suspend.closure.requirements, req.suspend.closure.row-inference,
 # req.bind.construction, req.bind.captured, req.bind.caller.
 
-use std.testing.assert_equal
-
 trait Increment:
     fn next!(self, value: i32) -> i32
 
@@ -22,6 +20,8 @@ fn drive_required_closure!() -> i32:
         operation!(41)
 
 tests:
+    use std.testing.assert_equal
+
     it("the closure receives its provider when its suspension is constructed"):
         assert_equal(
             drive_required_closure!(),

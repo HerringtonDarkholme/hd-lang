@@ -1,8 +1,6 @@
 # test: multiple bounds dispatch
 # Spec 09 Traits: trait.bound.compose-and, trait.avail.generic.
 
-use std.testing.assert_equal
-
 trait Describe:
     fn describe(self) -> i32
 
@@ -36,5 +34,7 @@ fn main() -> i32:
     inspect(number) + inspect_first([Number { value: 20, extra: 0 }])
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="multiple bounds dispatch")

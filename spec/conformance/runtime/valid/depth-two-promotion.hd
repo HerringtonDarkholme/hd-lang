@@ -5,8 +5,6 @@
 # names.method-lookup.inherent.by-name, names.method-lookup.candidates,
 # names.method-lookup.promoted-candidate, names.method-lookup.one,
 # names.promoted.path.
-use std.testing.assert_equal
-
 data Core:
     pub value: i32
 
@@ -21,6 +19,8 @@ data Outer:
     Middle
 
 tests:
+    use std.testing.assert_equal
+
     it("depth-two field and method"):
         outer := Outer { Middle: ...Middle { Core: ...Core { value: 21 } } }
         assert_equal(outer.value, 21, reason="depth-two field")

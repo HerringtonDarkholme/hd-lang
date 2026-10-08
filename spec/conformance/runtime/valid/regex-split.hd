@@ -1,7 +1,6 @@
 # test: split returns the pieces around each match, with an empty piece for a match at either end
 # Spec std/regex Replacing And Splitting: std-regex.split, std-regex.split.pieces, std-regex.split.ends (task #244).
 use std.regex.Regex
-use std.testing.assert_equal
 use std.text.r
 
 fn pieces(pattern: string, text: string) -> List[string]:
@@ -11,6 +10,8 @@ fn fields(line: string) -> List[string]:
     Regex::new(r"\s*,\s*").expect("compiles").split(line)
 
 tests:
+    use std.testing.assert_equal
+
     it("a leading separator"):
         assert_equal(fields(",a , b"), ["", "a", "b"], reason="an empty first piece")
 

@@ -1,7 +1,5 @@
 # test: each function in a list or map with the union row runs with the providers of its own row
 # expect: test
-use std.testing.assert_equal
-
 trait Db:
     fn name(self) -> string
 
@@ -39,6 +37,8 @@ fn from_map() -> string $ Db + Clock:
     text
 
 tests:
+    use std.testing.assert_equal
+
     it("each handler sees its own providers"):
         $.with(Db=MemoryDb {}, Clock=FixedClock {}):
             assert_equal(from_list(), "noon;db;", reason="a list with the union row")

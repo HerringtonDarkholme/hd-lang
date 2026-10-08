@@ -1,12 +1,12 @@
 # test: tuple Debug covers a rest tuple, writing the rest element's items inline after the fixed elements
 # expect: test
 # Spec 09 Debug Trait: trait.debug.tuples.rest (owner decision Q5, batch 34; tuple templates, batch 36).
-use std.testing.assert_equal
-
 fn show(t: (i32, i32, List[i32]...)) -> string:
     debug(t)
 
 tests:
+    use std.testing.assert_equal
+
     it("writes the rest inline"):
         let t: (i32, i32, List[i32]...) = (1, 2, 3, 4)
         assert_equal(show(t), debug((1, 2, 3, 4)), reason="the rest member's items are fields of the tuple")

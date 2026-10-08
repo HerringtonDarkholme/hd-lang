@@ -2,7 +2,6 @@
 # Spec Functions, Methods: fn.method.associated, fn.generic.qualified;
 # the Type of Type::function(...) is a
 # qualified name, here selected through a module namespace.
-use std.testing.assert_equal
 use std.text
 
 fn bullet_list(items: List[string]) -> string:
@@ -12,5 +11,7 @@ fn bullet_list(items: List[string]) -> string:
     out.build()
 
 tests:
+    use std.testing.assert_equal
+
     it("builds a bullet list"):
         assert_equal(bullet_list(["milk", "eggs"]), "- milk\n- eggs\n", reason="one line per item")

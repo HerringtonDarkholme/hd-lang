@@ -1,9 +1,9 @@
 # test: an operator on primitive operands of one type calls its trait method
 # Spec 05 Operator Traits: expr.op.primitive.types, expr.op.primitive.call.
 use std.ops.Add
-use std.testing.{assert, assert_equal}
-
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("calls the method on the operands"):
         small := i16(300)
         large := i64(5000000000)

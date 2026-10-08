@@ -1,6 +1,4 @@
 # Spec 10 Standard Testing: module.testing.exports.
-use std.testing.{assert, assert_equal}
-
 @derive(Debug)
 enum Shape:
     Circle(radius: i32)
@@ -36,6 +34,8 @@ fn is_present(value: i32?) -> bool:
         _ => true
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("list equality agrees with length and element checks"):
         left := [1, 2, 3]
         right := [1, 2, 3]

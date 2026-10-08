@@ -1,8 +1,6 @@
 # test: a number with a fraction or an exponent, or an integer past i64 and u64, is the float parse_f64 gives, and a float past the f64 range is NumberOutOfRange
 # Spec std/json Numbers: std-json.parse.number.float, std-json.parse.number.out-of-range, std-json.error.kind.range (owner decision FLOAT-PARSE, batch 71, 2026-10-03).
 use std.json.{parse, Json, JsonError, Number}
-use std.testing.{assert, assert_equal}
-
 fn number(text: string) -> Number:
     match parse(text):
         .Ok(.Number(value)) => value
@@ -19,6 +17,8 @@ fn failure(text: string) -> JsonError:
         .Err(error) => error
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("valid float text from the JSONTestSuite parses to the nearest f64"):
         cases := [
             ("y_number_real_capital_e", "[1E22]", 1e22),

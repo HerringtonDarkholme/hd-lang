@@ -3,8 +3,6 @@
 # mutable view provides, and returns mut T?; the recovered value is the same object.
 # Spec 09 Traits: trait.erase.mut, trait.downcast.mut.
 use std.inspect.Inspectable
-use std.testing.assert_equal
-
 data Counter:
     count: i32
 
@@ -16,6 +14,8 @@ fn bump(value: mut dyn Inspectable) -> bool:
         .None => false
 
 tests:
+    use std.testing.assert_equal
+
     it("a mutable erased counter is bumped in place"):
         let mut counter = Counter { count: 1 }
         assert_equal(bump(counter), true, reason="the exact type matches")

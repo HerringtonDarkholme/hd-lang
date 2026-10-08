@@ -1,7 +1,5 @@
 # test: after a local implementation, its methods are found in the suite, in closures written there, in its own methods, and in later local defaults
 # Spec 09 Local Implementations: trait.impl.local.lookup; lookup runs from the impl declaration point through its enclosing suite and child scopes.
-use std.testing.assert_equal
-
 fn trait_label(number: string) -> string:
     data Invoice:
         number: string
@@ -86,6 +84,8 @@ fn render_page() -> string:
     Page {}.title(Heading { text: "Release notes" })
 
 tests:
+    use std.testing.assert_equal
+
     it("a local trait method after its impl"):
         assert_equal(trait_label("7"), "INV-7", reason="found after the declaration point")
 

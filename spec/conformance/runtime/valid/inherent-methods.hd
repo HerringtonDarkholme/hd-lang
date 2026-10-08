@@ -1,8 +1,6 @@
 # test: traits / inherent methods
 # Spec 09 Traits: trait.inherent.decl, trait.inherent.members.
 
-use std.testing.assert_equal
-
 data Counter:
     value: i32
 
@@ -18,5 +16,7 @@ fn main!() -> i32:
     counter.load!(20)
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main!(), 42, reason="traits / inherent methods")

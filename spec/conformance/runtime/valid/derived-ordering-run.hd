@@ -2,8 +2,6 @@
 # Spec std/cmp Derived Ordering: std-cmp.derive.ord.data, std-cmp.derive.ord.variants,
 # std-cmp.derive.ord.same-variant, std-cmp.derive.ord.partial, std-cmp.derive.ord.ord.
 # Spec 09 Traits: trait.derive.related.partial-ord, trait.derive.related.ord, trait.cmp.ordering.
-use std.testing.{assert, assert_equal}
-
 @derive(Eq, PartialOrd, Ord)
 data Key:
     first: i32
@@ -26,6 +24,8 @@ fn total[T < Ord](left: T, right: T) -> string:
         .Greater => "greater"
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("data fields compare in declaration order"):
         assert(Key { first: 1, second: "z" } < Key { first: 2, second: "a" }, reason="the first field decides")
         assert(Key { first: 1, second: "a" } < Key { first: 1, second: "b" }, reason="the second field breaks a tie")

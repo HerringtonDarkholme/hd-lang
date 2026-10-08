@@ -1,9 +1,9 @@
 # test: shuffle is a seeded Fisher-Yates permutation, choose returns .None on an empty list, and sample takes distinct positions
 # Spec std/random Lists: std-random.rng.choose.index, std-random.rng.choose.empty, std-random.rng.shuffle.order, std-random.rng.shuffle.permutation, std-random.rng.shuffle.short, std-random.rng.sample.order, std-random.rng.sample.result, std-random.rng.sample.input (task #242).
 use std.random.Rng
-use std.testing.{assert, assert_equal}
-
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("shuffle swaps from the back and keeps every item"):
         let mut deck = Rng::new(7)
         let cards: mut List[i32] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]

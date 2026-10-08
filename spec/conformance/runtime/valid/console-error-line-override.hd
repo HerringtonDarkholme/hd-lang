@@ -1,7 +1,5 @@
 # test: a Console provider that overrides write_error_line! keeps error lines apart from ordinary lines
 # Spec 10 Console: module.console.write-error-line, module.console.write-line-mut.
-use std.testing.assert_equal
-
 data SplitConsole:
     lines: mut List[string]
     errors: mut List[string]
@@ -22,6 +20,8 @@ fn report!(failed: i32) -> void $ Console:
         _ := console.write_error_line!("${failed} orders failed")
 
 tests:
+    use std.testing.assert_equal
+
     it("records error lines separately"):
         let mut console = SplitConsole { lines: [], errors: [] }
         $.with(Console=console):

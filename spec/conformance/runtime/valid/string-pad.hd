@@ -1,8 +1,8 @@
 # test: pad_start and pad_end fill to a width counted in scalar values, and a short width changes nothing
 # Spec std/text Splitting And Padding: std-text.pad.length, .start, .end, and .width-at-most-length.
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("pads to the width"):
         assert_equal("42".pad_start(5, '0'), "00042", reason="pad_start")
         assert_equal("ab".pad_end(4, '.'), "ab..", reason="pad_end")

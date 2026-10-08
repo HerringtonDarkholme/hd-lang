@@ -1,7 +1,5 @@
 # test: an explicit list of one argument binds S, and the later U is then inferred through S's bound
 # Spec Type System, Bound Order: types.generic.bound.any-order; Inference Through A Bound: types.generic.infer.bound.one.
-use std.testing.assert_equal
-
 trait Source[T]:
     fn take(self) -> T
 
@@ -16,6 +14,8 @@ fn read[S < Source[U], U = string](s: S) -> U:
     s.take()
 
 tests:
+    use std.testing.assert_equal
+
     it("read::[Fixed] binds S"):
         x := Fixed { text: "fixed" }
         assert_equal(read::[Fixed](x), "fixed", reason="U comes from Fixed's one Source")

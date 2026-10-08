@@ -1,7 +1,5 @@
 # test: a nested provider scope overrides a key and the outer provider returns after it
 # expect: test
-use std.testing.assert_equal
-
 trait Tag:
     fn name(self) -> string
 
@@ -16,6 +14,8 @@ fn current() -> string $ Tag:
     $.use(Tag).name()
 
 tests:
+    use std.testing.assert_equal
+
     it("nested scope override is lexical"):
         $.with(Tag=FixedTag { value: "outer" }):
             before := current()

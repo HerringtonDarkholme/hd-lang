@@ -1,7 +1,5 @@
 # test: operands and elements straddling bang calls evaluate left to right
 # expect: test
-use std.testing.assert_equal
-
 data Log:
     text: string
 
@@ -22,6 +20,8 @@ fn outer!(log: mut Log) -> i32:
     first + second
 
 tests:
+    use std.testing.assert_equal
+
     it("binary operands around a bang call"):
         let mut log = Log { text: "" }
         result := note(log, "L", 1) + child!(log, "C", 20) * note(log, "R", 3)

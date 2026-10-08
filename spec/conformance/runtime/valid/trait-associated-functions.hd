@@ -1,8 +1,6 @@
 # test: trait associated functions use implementing type qualification
 # Spec 09 Traits: trait.decl.associated-fn, trait.assoc-call.type.traits.
 
-use std.testing.assert_equal
-
 trait Factory:
     fn create() -> string
 
@@ -36,6 +34,8 @@ fn converted_value() -> i32:
     IntConverter::convert(42)
 
 tests:
+    use std.testing.assert_equal
+
     it("guest_length returns 5"):
         assert_equal(guest_length(), 5, reason="trait associated functions use implementing type qualification")
 

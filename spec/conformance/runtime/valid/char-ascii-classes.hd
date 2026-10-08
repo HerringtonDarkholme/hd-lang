@@ -1,11 +1,11 @@
 # test: the char classification methods on ASCII letters, digits, spaces, and punctuation
 # Spec std/text Character Classification: std-text.char.ascii-digit, std-text.char.alphabetic, std-text.char.alphanumeric, std-text.char.whitespace (CHAR-CLASSIFY, batch 72; task #229).
-use std.testing.assert
-
 fn word_start(c: char) -> bool:
     c.is_alphabetic() || c == '_'
 
 tests:
+    use std.testing.assert
+
     it("digits"):
         assert('0'.is_ascii_digit() && '9'.is_ascii_digit(), reason="0 to 9 are ASCII digits")
         assert(!'a'.is_ascii_digit() && !'/'.is_ascii_digit() && !':'.is_ascii_digit(), reason="the neighbors of 0 to 9 are not")

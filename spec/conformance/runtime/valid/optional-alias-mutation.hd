@@ -1,7 +1,5 @@
 # test: mutation through generic aliases, nested optionals, propagation, and matches
 # Spec 04 Optional Types: types.option.invariant (mutable payload access survives the invariant composite).
-use std.testing.assert_equal
-
 data User:
     name: i32
 
@@ -15,6 +13,8 @@ fn change(value: Maybe[mut User]) -> Maybe[mut User]:
 fn keep[T](value: T) -> T: value
 
 tests:
+    use std.testing.assert_equal
+
     it("mutation through aliases and matches reaches the payload"):
         let mut item = User { name: 40 }
         let present: Option[mut User] = keep(item)

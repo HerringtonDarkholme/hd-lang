@@ -1,9 +1,9 @@
 # test: patterns that take exponential time in a backtracking engine finish quickly on a long run of a
 # Spec std/regex Time Bound: std-regex.time.linear, std-regex.time.no-backrefs (task #243).
 use std.regex.Regex
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("(a*)*b on 20,000 a"):
         text := "a".repeat(20000)
         assert_equal(Regex::new("(a*)*b").expect("compiles").is_match(text), false, reason="no b")

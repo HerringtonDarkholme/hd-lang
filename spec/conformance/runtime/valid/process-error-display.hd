@@ -3,8 +3,6 @@
 # expect: test
 use std.process.ProcessError
 use std.error.Error
-use std.testing.assert_equal
-
 fn explain(error: ProcessError) -> string:
     "cannot run the tool: ${error}"
 
@@ -14,6 +12,8 @@ fn erased(error: ProcessError) -> Result[i32, dyn Error]:
     .Ok(value)
 
 tests:
+    use std.testing.assert_equal
+
     it("each variant has its text"):
         assert_equal(explain(.NotFound), "cannot run the tool: program not found", reason="NotFound")
         assert_equal(explain(.PermissionDenied), "cannot run the tool: permission denied", reason="PermissionDenied")

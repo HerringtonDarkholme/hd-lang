@@ -1,8 +1,6 @@
 # test: rng() seeds an Rng from one next_u64 draw of the Random provider that covers the call
 # Spec std/random Rng: std-random.rng.decl, std-random.rng.new, std-random.rng.from-random, std-random.rng.plain (task #242).
 use std.random.{Random, Rng, SeededRandom, rng}
-use std.testing.assert_equal
-
 fn roll() -> i64 $ Random:
     let mut dice = rng()
     dice.int(1..=6)
@@ -14,6 +12,8 @@ fn deal(seed: u64) -> List[string]:
     cards
 
 tests:
+    use std.testing.assert_equal
+
     it("rng draws its seed from the provider"):
         let mut source = SeededRandom::new(5)
         let mut copy = SeededRandom::new(5)

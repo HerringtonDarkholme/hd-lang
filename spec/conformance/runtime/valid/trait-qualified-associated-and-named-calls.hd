@@ -1,7 +1,5 @@
 # test: T::f goes through T's bound, and a trait-qualified call takes named arguments in normal order
 # Spec 09 Associated Function Calls: trait.assoc-call.parameter, trait.assoc-call.parameter.static; Trait-Qualified Calls: trait.qualified.arguments.
-use std.testing.assert_equal
-
 trait Factory:
     fn create() -> Self
 
@@ -23,6 +21,8 @@ fn fresh[T < Factory]() -> T:
     T::create()
 
 tests:
+    use std.testing.assert_equal
+
     it("T::create goes through the bound"):
         assert_equal(fresh::[Invoice]().total, 100, reason="the bound's evidence supplies create")
 

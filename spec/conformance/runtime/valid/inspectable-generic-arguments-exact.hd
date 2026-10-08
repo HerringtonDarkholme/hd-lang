@@ -3,8 +3,6 @@
 # and no optional unwrapping takes place.
 # Spec 09 Traits: trait.identity.arguments, trait.downcast.exact, trait.downcast.no-conversion, trait.downcast.optional.
 use std.inspect.{Inspectable, downcast_val}
-use std.testing.assert
-
 data Box[T]:
     value: T
 
@@ -32,6 +30,8 @@ fn is_optional_user(value: dyn Inspectable) -> bool:
         .None => false
 
 tests:
+    use std.testing.assert
+
     it("generic arguments must match"):
         let ints: Box[i32] = Box { value: 1 }
         let texts: Box[string] = Box { value: "one" }

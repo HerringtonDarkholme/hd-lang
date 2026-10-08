@@ -1,6 +1,4 @@
 # test: filling or storing an embedded part stores the copy-update of the supplied value
-use std.testing.assert_equal
-
 data Timestamps:
     pub created_at: i64
     pub updated_at: i64
@@ -21,6 +19,8 @@ fn build_written(ts: Timestamps) -> Post:
     post
 
 tests:
+    use std.testing.assert_equal
+
     it("a part copy is a copy-update"):
         let mut ts = Timestamps { created_at: 1, updated_at: 2 }
         post := build(ts)

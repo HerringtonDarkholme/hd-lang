@@ -1,7 +1,5 @@
 # test: a part is copied when its field expression is evaluated, so a later field's side effect on the source is not seen
 # Spec 08 When Copies Are Made: data.part.copy-time.
-use std.testing.assert_equal
-
 data Stamp:
     pub at: i32
 
@@ -18,6 +16,8 @@ data Holder:
     note: string
 
 tests:
+    use std.testing.assert_equal
+
     it("copy happens at the field position"):
         let mut stamp = Stamp { at: 1 }
         post := Post { Stamp: ...stamp, label: bump(stamp) }

@@ -1,8 +1,6 @@
 # test: string is_empty, ends_with, contains, find, trim_start, trim_end, upper, strip_prefix, and strip_suffix
 # Spec std/text More String Methods: std-text.more.is-empty, .ends-with, .contains, .find, .trim-ends, .upper, .strip
 # (spec pass 89, audit item 6).
-use std.testing.{assert, assert_equal}
-
 fn header(line: string) -> string?:
     if line.is_empty() || !line.contains(":"):
         return .None
@@ -11,6 +9,8 @@ fn header(line: string) -> string?:
         .None => .None
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("tests and searches"):
         assert("".is_empty(), reason="empty")
         assert(!"a".is_empty(), reason="not empty")

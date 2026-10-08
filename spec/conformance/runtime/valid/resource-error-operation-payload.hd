@@ -1,8 +1,6 @@
 # test: resource error operation payload
 # Spec 10 Closable Handles: module.resource.error.
 
-use std.testing.assert_equal
-
 use std.resource.ResourceError
 
 data Failure:
@@ -17,5 +15,7 @@ fn main() -> i32:
         ResourceError.Disposed => 0
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="resource error operation payload")

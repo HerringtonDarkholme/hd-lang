@@ -1,7 +1,5 @@
 # test: provider from suspending call
 
-use std.testing.assert_equal
-
 trait Clock
 
 data MockClock:
@@ -21,5 +19,7 @@ fn main!() -> i32:
         read()
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main!(), 42, reason="provider from suspending call")

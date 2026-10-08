@@ -4,8 +4,6 @@
 # Spec 07 Methods And Receivers: "Method-call syntax evaluates the receiver first and then ordinary
 # arguments. It is semantically equivalent to selecting the resolved method and supplying the receiver
 # as its first argument".
-use std.testing.assert_equal
-
 data Log:
     text: string
 
@@ -25,6 +23,8 @@ fn note(log: mut Log, label: string, value: i32) -> i32:
     value
 
 tests:
+    use std.testing.assert_equal
+
     it("receiver, then arguments left to right"):
         let mut log = Log { text: "" }
         total := counter(log).plus(note(log, "a", 10), note(log, "b", 1))

@@ -1,6 +1,4 @@
 # Spec 09 Traits: trait.cmp.ordering, trait.cmp.operators-comparison, trait.bound.static.
-use std.testing.assert
-
 data Score:
     value: i32
 
@@ -24,6 +22,8 @@ fn lower_list[T < PartialOrd](left: List[T], right: List[T]) -> bool:
     left < right
 
 tests:
+    use std.testing.assert
+
     it("PartialOrd dispatches for concrete and bounded values"):
         low := Score { value: 1 }
         same := Score { value: 1 }

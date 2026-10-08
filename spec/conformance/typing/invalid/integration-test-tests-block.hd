@@ -1,8 +1,8 @@
 # fixture-test-layout: integration
 # test: an integration test module holds its test cases at top level, so a tests block in it is misplaced
 # Spec 10 Test Modules: module.test.no-tests-block (Testing T45, T53).
-use std.testing.assert
-
 tests:  # diagnostic: misplaced-tests-block
+    use std.testing.assert
+
     it("adds"):
         assert(1 + 1 == 2, reason="one plus one")

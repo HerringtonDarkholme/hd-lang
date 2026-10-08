@@ -1,6 +1,4 @@
 # test: a delegating implementation behaves as the written forwarding methods Trait::m(self.E, ...)
-use std.testing.assert_equal
-
 trait Describe:
     fn describe(self) -> string
     fn headline(self) -> string:
@@ -29,6 +27,8 @@ impl Describe for Written:
         Describe::headline(self.Logger)
 
 tests:
+    use std.testing.assert_equal
+
     it("delegation is written forwarding"):
         service := Service { Logger: ...Logger { name: "api" } }
         written := Written { Logger: ...Logger { name: "api" } }

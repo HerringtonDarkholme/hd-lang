@@ -1,7 +1,5 @@
 # test: suspending blanket impls
 
-use std.testing.assert_equal
-
 trait Read[T]:
     fn read!(self) -> T
 
@@ -33,6 +31,8 @@ fn score_bound![T < AsyncScore](value: T) -> i32:
     value.score!()
 
 tests:
+    use std.testing.assert_equal
+
     it("blanket dictionaries retain their erased suspending ABI"):
         let dynamic: dyn Read[i32] = Box::[i32] { value: 20 }
         direct := dynamic.read!()

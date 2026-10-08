@@ -3,8 +3,6 @@
 # Structure::name() and Structure::facts() take no argument, so no inference gives their Self.
 # The derived trait declares its own receiverless `name`; Structure::name() is the generated one.
 use std.structure.{Structure, Field, Variant, Describer}
-use std.testing.assert_equal
-
 data Style:
     prefix: string = ""
 
@@ -46,6 +44,8 @@ enum Shape:
     Dot
 
 tests:
+    use std.testing.assert_equal
+
     it("Structure::name() is the target's declared name"):
         assert_equal(Shape::name(), "Shape", reason="Self is the template's T")
 

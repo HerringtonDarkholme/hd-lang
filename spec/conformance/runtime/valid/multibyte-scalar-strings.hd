@@ -1,8 +1,8 @@
 # test: length counts bytes; ordering, split, and replace keep Unicode scalars whole
 # expect: test
-use std.testing.{assert, assert_equal}
-
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("len counts bytes"):
         assert_equal("\u{4F60}\u{597D}".len(), 6, reason="two BMP scalars of three bytes")
         assert_equal("\u{1F600}".len(), 4, reason="one astral scalar of four bytes")

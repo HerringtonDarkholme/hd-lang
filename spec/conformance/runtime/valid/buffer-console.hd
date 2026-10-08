@@ -1,12 +1,12 @@
 # test: BufferConsole records each write_line! text in call order
 # Spec std/console Buffer Console: std-console.buffer.new, std-console.buffer.output (spec pass 89, audit item 6).
 use std.console.BufferConsole
-use std.testing.assert_equal
-
 fn greet(name: string) -> void $ Console:
     println("hello, ${name}")
 
 tests:
+    use std.testing.assert_equal
+
     it("records the line"):
         let mut console = BufferConsole::new()
         $.with(Console=console):

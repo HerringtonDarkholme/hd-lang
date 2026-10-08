@@ -1,7 +1,5 @@
 # test: suspending generic methods preserve explicit type arguments through bang calls
 
-use std.testing.assert_equal
-
 data Identity: pass
 
 impl Identity:
@@ -9,6 +7,8 @@ impl Identity:
         value
 
 tests:
+    use std.testing.assert_equal
+
     it("a generic method constructs and drives its erased suspension frame"):
         identity := Identity {}
         assert_equal(

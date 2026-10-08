@@ -1,8 +1,6 @@
 # test: a _ belongs to the innermost pipe step that contains it
 # Spec 05 Substitution Steps: expr.pipe.slot.nested (Pipe PL14).
 
-use std.testing.assert_equal
-
 fn add(left: i32, right: i32) -> i32:
     left + right
 
@@ -13,5 +11,7 @@ fn combine(x: i32, y: i32) -> i32:
     x |> add(_, y |> double(_))
 
 tests:
+    use std.testing.assert_equal
+
     it("the inner _ is the slot of the inner step"):
         assert_equal(combine(1, 5), 11, reason="the outer step is add(1, double(5))")

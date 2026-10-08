@@ -1,12 +1,13 @@
 # test: Duration adds and subtracts milliseconds, and a Timestamp plus a Duration is a later Timestamp
 # Spec std/time Duration Arithmetic: std-time.duration.add, std-time.duration.sub, std-time.timestamp.add (DURATION-OPS; task #221).
-use std.testing.assert_equal
 use std.time.{Duration, Timestamp, ms, s, min}
 
 fn total(first: Duration, second: Duration) -> Duration:
     first + second
 
 tests:
+    use std.testing.assert_equal
+
     it("adds and subtracts milliseconds"):
         assert_equal(total(1s, 500ms).as_milliseconds(), 1500, reason="one and a half seconds")
         assert_equal((1min - 30s).as_milliseconds(), 30000, reason="thirty seconds left")

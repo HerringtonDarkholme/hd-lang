@@ -1,6 +1,4 @@
 # test: construction stores a copy of the part; ordinary fields of the part are copied shallowly
-use std.testing.{assert, assert_equal}
-
 data Owner:
     name: string
 
@@ -21,6 +19,8 @@ impl Stamp:
         self.at = self.at + 1
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("construction copies the part"):
         let mut stamp = Stamp { at: 1, owner: Owner { name: "ada" } }
         let mut note = Note { Tagged: ...Tagged { Stamp: ...stamp, label: "l" }, text: "t" }

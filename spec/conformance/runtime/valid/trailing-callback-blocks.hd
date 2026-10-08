@@ -3,8 +3,6 @@
 # fn.trailing.empty-parentheses, fn.trailing.closure, fn.trailing.position,
 # fn.trailing.parameterized.
 
-use std.testing.assert_equal
-
 fn apply(callback: fn() -> i32) -> i32: callback()
 fn add(base: i32, callback: fn() -> i32) -> i32: base + callback()
 fn main() -> i32:
@@ -14,5 +12,7 @@ fn main() -> i32:
         2
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="callbacks / trailing")

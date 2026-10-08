@@ -1,8 +1,6 @@
 # test: eprintln writes through write_error_line! of the covering Console provider
 # Spec std/console Standard Error: std-console.eprintln.write (batch 64, STD-4).
 use std.console.eprintln
-use std.testing.assert_equal
-
 data SplitConsole:
     out: mut List[string]
     err: mut List[string]
@@ -24,6 +22,8 @@ fn report(count: i32) -> void $ Console:
     warn("${count} skipped")
 
 tests:
+    use std.testing.assert_equal
+
     it("eprintln and println reach different methods"):
         let mut console = SplitConsole { out: [], err: [] }
         $.with(Console=console):

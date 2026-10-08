@@ -1,6 +1,4 @@
 # Spec 09 Traits: trait.derive.related.partial-ord, trait.derive.related.ord.
-use std.testing.assert_equal
-
 @derive(Eq, PartialOrd, Ord)
 data Key:
     first: i32
@@ -16,6 +14,8 @@ data Measurement:
     value: f64
 
 tests:
+    use std.testing.assert_equal
+
     it("derived ordering follows declaration order"):
         a := Key { first: 1, second: 9 }
         b := Key { first: 2, second: 0 }

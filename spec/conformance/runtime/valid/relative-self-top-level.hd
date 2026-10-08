@@ -3,9 +3,9 @@
 # fixture-package-tree: self-current/src/a.hd
 use self.x.{origin as child}
 use super.b.{origin as sibling}
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("self.x is a child and super.b a sibling"):
         assert_equal(child(), "a.x", reason="self.x is src/a/x.hd")
         assert_equal(sibling(), "b", reason="super.b is src/b.hd")

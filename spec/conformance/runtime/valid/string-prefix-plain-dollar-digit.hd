@@ -1,8 +1,6 @@
 # test: in a prefixed string, a $ before a character that cannot start an identifier is text
 # Spec 01 Interpolation: lex.interp.dollar-text (Small Follow-Ups 2026-09-29; SSC Q3, batch 26, 2026-09-30).
 use std.ops.{Template, str_prefix}
-use std.testing.assert_equal
-
 # A local raw-text prefix: the pieces joined with the values, no escape processed.
 @str_prefix
 fn raw(t: Template[string]) -> string:
@@ -12,6 +10,8 @@ fn raw(t: Template[string]) -> string:
     joined
 
 tests:
+    use std.testing.assert_equal
+
     it("keeps a dollar before a digit as text"):
         name := "Ada"
         assert_equal(raw"costs $5", "costs \$5", reason="5 cannot start an identifier")

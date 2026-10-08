@@ -1,8 +1,6 @@
 # test: parse_f64 gives the correctly rounded f64 of decimal number text, ties to even, with the sign read by std
 # Spec std/num Float Parsing: std-num.parse-f64.decimal, .exponent, .decimal-value, .sign, .range, and .hook.total (owner decisions FLOAT-PARSE, batch 71, F64-BOUNDARY, batch 74, and PARSE-F64-GRAMMAR, 2026-10-03).
 use std.num.parse_f64
-use std.testing.{assert, assert_equal}
-
 fn text(source: string) -> string:
     match parse_f64(source):
         .Ok(value) => "$value"
@@ -14,6 +12,8 @@ fn negative_zero(source: string) -> bool:
         .Err(_) => false
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("decimal number text gives its nearest f64"):
         cases := [
             ("1.5", "1.5"),

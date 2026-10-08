@@ -1,8 +1,6 @@
 # test: generated walk and describe visit members in declaration order with their facts
 
 use std.structure.{Structure, Facts, Member, Field, Variant, Walker, Describer}
-use std.testing.assert_equal
-
 data Style:
     prefix: string = ""
     tag: string = "type"
@@ -110,6 +108,8 @@ impl Encode for Order by Structure:
     cache = pass
 
 tests:
+    use std.testing.assert_equal
+
     it("walk passes each member in declaration order with its facts"):
         user := User { id: 7, email: "ada@x" }
         assert_equal(user.encode(), "user_id=7;mail='ada@x';user_nickname='';", reason="type-level and member facts")

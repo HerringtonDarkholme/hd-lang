@@ -1,8 +1,6 @@
 # test: generic supertraits substitute parent arguments across every dispatch path
 # Spec 09 Traits: trait.super.satisfy, trait.dyn.supertrait-methods, trait.dyn.widen.
 
-use std.testing.assert_equal
-
 trait Source[Output]:
     fn source(self) -> Output
 
@@ -52,6 +50,8 @@ fn concrete_child_uses_blanket_parent() -> i32:
     child.source()[0]
 
 tests:
+    use std.testing.assert_equal
+
     it("generic_supertrait_direct returns 42"):
         assert_equal(generic_supertrait_direct(), 42, reason="generic supertraits substitute parent arguments across every dispatch path")
 

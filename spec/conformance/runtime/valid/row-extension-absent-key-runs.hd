@@ -1,7 +1,5 @@
 # test: a callback whose row lacks the discharged key runs with its own providers
 # expect: test
-use std.testing.assert_equal
-
 trait Logger:
     fn prefix(self) -> string
 
@@ -30,6 +28,8 @@ fn logged_tag() -> string $ Tag + Logger:
     $.use(Logger).prefix() + $.use(Tag).name()
 
 tests:
+    use std.testing.assert_equal
+
     it("R is the callback's own row when the callback lacks Logger"):
         $.with(Tag=FixedTag { value: "t" }):
             assert_equal(provide_logger(tag_only), "t", reason="R is Tag")

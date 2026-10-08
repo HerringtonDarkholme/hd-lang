@@ -1,6 +1,6 @@
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("equal bool values pass assert_equal"):
         assert_equal(true, true, reason="true equals true")
         assert_equal(false, false, reason="false equals false")

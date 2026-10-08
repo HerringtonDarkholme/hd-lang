@@ -17,8 +17,6 @@
 # returns the @from or @source member, and a transparent error forwards both.
 # $_0 names an unnamed payload member even beside unnamed shared data.
 use std.error.Error
-use std.testing.assert_equal
-
 @error
 enum FsError:
     @error("not found: $path")
@@ -79,6 +77,8 @@ fn publish_text(result: Result[i64, PublicError]) -> string:
         .Err(error) => error.to_string() + " / " + cause_text(error)
 
 tests:
+    use std.testing.assert_equal
+
     it("a message interpolates named and unnamed payload members"):
         assert_equal(FsError.NotFound("a.txt").to_string(), "not found: a.txt", reason="a named member")
         assert_equal(FsError.Denied("b.txt").to_string(), "permission denied: b.txt", reason="_0")

@@ -1,6 +1,5 @@
 # test: to_utf8 copies a string's bytes, and string::from_utf8 turns well-formed bytes back into the same string
 # Spec std/text UTF-8 Conversion: std-text.utf8.to-utf8, std-text.utf8.from-utf8, std-text.utf8.round-trip (UTF8-API, batch 72; task #229).
-use std.testing.{assert, assert_equal}
 use std.text.Utf8Error
 
 fn decode(bytes: List[u8]) -> string:
@@ -10,6 +9,8 @@ fn decode(bytes: List[u8]) -> string:
         .Err(Utf8Error.Truncated) => "cut short"
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("to_utf8 gives the bytes in order"):
         assert_equal("hé".to_utf8(), [104, 195, 169], reason="h, then the two bytes of é")
         assert_equal("".to_utf8(), [], reason="no bytes")

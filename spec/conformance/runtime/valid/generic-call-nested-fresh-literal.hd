@@ -1,7 +1,5 @@
 # test: a fresh literal nested in a generic call's argument weakens where the formal is readonly
 # Spec 04 Bindings And Fresh Values: types.fresh.weaken; the inner Box literal meets the readonly Box[T] of b: Box[Box[T]].
-use std.testing.assert_equal
-
 data Box[T]:
     item: T
 
@@ -9,5 +7,7 @@ fn nested[T](b: Box[Box[T]]) -> T:
     b.item.item
 
 tests:
+    use std.testing.assert_equal
+
     it("passes a nested literal straight to the call"):
         assert_equal(nested(Box { item: Box { item: 2.25 } }), 2.25, reason="T is f64 and the inner literal weakened")

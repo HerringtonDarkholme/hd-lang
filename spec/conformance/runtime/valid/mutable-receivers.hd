@@ -1,8 +1,6 @@
 # test: traits / mutable receivers
 # Spec 09 Traits: trait.decl.mut-receiver, trait.dyn.mut.
 
-use std.testing.assert_equal
-
 trait Add:
     fn add(mut self, value: i32) -> void
     fn twice(mut self, value: i32) -> void:
@@ -28,5 +26,7 @@ fn main() -> i32:
     counter.value
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="traits / mutable receivers")

@@ -1,8 +1,6 @@
 # test: join, as a function and a List[string] method, puts the separator between parts, and StringBuilder joins pushed text in order
 # Spec std/text Joining And Building: std-text.join.result, std-text.join.method, std-text.builder.new, .push, .build.
 use std.text.{StringBuilder, join}
-use std.testing.assert_equal
-
 fn csv(cells: List[string]) -> string:
     cells.join(",")
 
@@ -16,6 +14,8 @@ fn report(names: List[string]) -> string:
     out.build()
 
 tests:
+    use std.testing.assert_equal
+
     it("joins"):
         assert_equal(csv(["a", "b", "c"]), "a,b,c", reason="between each two")
         assert_equal(csv(["a"]), "a", reason="one part")

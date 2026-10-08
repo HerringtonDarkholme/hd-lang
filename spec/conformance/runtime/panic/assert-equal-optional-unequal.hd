@@ -1,7 +1,7 @@
 # Spec 10 Standard Testing: module.testing.assert-panic.
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("a present optional and .None fail assert_equal"):
         let present: i32? = 42
         let absent: i32? = .None

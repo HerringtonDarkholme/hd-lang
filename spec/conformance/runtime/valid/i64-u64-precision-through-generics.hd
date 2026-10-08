@@ -1,11 +1,11 @@
 # test: i64 and u64 values beyond 2^53 survive erasure exactly
 # expect: test
-use std.testing.{assert, assert_equal}
-
 fn pass_through[T](value: T) -> T:
     value
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("large 64-bit integers keep every digit"):
         let largest: i64 = 9223372036854775807
         let smallest: i64 = -9223372036854775808

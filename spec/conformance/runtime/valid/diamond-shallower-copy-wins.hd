@@ -1,6 +1,4 @@
 # test: with one type embedded at depths 1 and 2, promoted members reach the depth-1 copy
-use std.testing.assert_equal
-
 data Base:
     pub id: string
 
@@ -16,6 +14,8 @@ data Outer:
     Middle
 
 tests:
+    use std.testing.assert_equal
+
     it("the shallower copy wins"):
         outer := Outer { Base: ...Base { id: "near" }, Middle: ...Middle { Base: ...Base { id: "far" } } }
         assert_equal(outer.id, "near", reason="depth-1 field")

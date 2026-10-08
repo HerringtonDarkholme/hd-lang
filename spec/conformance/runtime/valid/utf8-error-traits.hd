@@ -1,12 +1,13 @@
 # test: Utf8Error implements Eq, Debug, and Display, with the specified Display text
 # Spec std/text UTF-8 Conversion: std-text.utf8.error.traits, std-text.utf8.error.display.invalid, std-text.utf8.error.display.truncated (UTF8-API, batch 72; task #229).
-use std.testing.{assert, assert_equal}
 use std.text.Utf8Error
 
 fn shown[T < Debug](value: T) -> string:
     debug(value)
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("Eq compares the variant and the position"):
         assert(Utf8Error.InvalidSequence(3) == Utf8Error.InvalidSequence(3), reason="same variant, same position")
         assert(Utf8Error.InvalidSequence(3) != Utf8Error.InvalidSequence(4), reason="another position")

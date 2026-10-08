@@ -1,6 +1,5 @@
 # test: parse_rfc3339 accepts Z, z, t, and numeric offsets, truncates the fraction to milliseconds, and round-trips to_rfc3339
 # Spec std/time Parsing RFC 3339: std-time.rfc3339.parse, std-time.rfc3339.parse.case, std-time.rfc3339.parse.offset, std-time.rfc3339.parse.fraction, std-time.rfc3339.parse.leap-day, std-time.rfc3339.parse.round-trip (COLLECTIONS-DATES-SURFACE; task #225).
-use std.testing.assert_equal
 use std.time.{TimeParseError, Timestamp}
 
 fn at(millis: i64) -> Timestamp:
@@ -10,6 +9,8 @@ fn parsed(text: string) -> Result[Timestamp, TimeParseError]:
     Timestamp::parse_rfc3339(text)
 
 tests:
+    use std.testing.assert_equal
+
     it("UTC"):
         assert_equal(parsed("1970-01-01T00:00:00Z"), .Ok(at(0)), reason="the epoch")
         assert_equal(parsed("2000-02-29t00:00:00z"), .Ok(at(951782400000)), reason="lowercase t and z")

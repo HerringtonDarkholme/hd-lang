@@ -3,9 +3,9 @@
 # fixture-package-tree: self-current/src/user/service.hd
 use self.types.{origin as nested}
 use super.types.{origin as sibling}
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("self is the current module and super its parent"):
         assert_equal(nested(), "user.service.types", reason="self.types is a child of user.service")
         assert_equal(sibling(), "user.types", reason="super.types is a sibling of user.service")

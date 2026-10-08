@@ -1,8 +1,6 @@
 # test: chain yields the error itself, then each cause in order, until a cause is .None
 # Spec std/error Cause Chain: std-error.chain.order (task #221).
 use std.error.{Error, chain}
-use std.testing.assert_equal
-
 @error("disk full")
 data DiskError:
     free: i64
@@ -21,6 +19,8 @@ fn messages(errors: List[dyn Error]) -> List[string]:
     errors.map(fn(error: dyn Error) -> string: error.to_string())
 
 tests:
+    use std.testing.assert_equal
+
     it("a two-level cause chain"):
         failure := SyncError.Save(SaveError.Write("notes.txt", DiskError { free: 0 }))
         errors := chain(failure)

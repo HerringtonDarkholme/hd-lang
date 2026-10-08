@@ -1,8 +1,6 @@
 # test: parse_f64 gives back every f64 from its Display text, NaN, the infinities, and negative zero included
 # Spec std/num Float Parsing: std-num.parse-f64.round-trip (owner decision PARSE-F64-GRAMMAR, 2026-10-03).
 use std.num.parse_f64
-use std.testing.assert
-
 # Equal with the same sign, since 1.0 / -0.0 is -inf; or both NaN.
 fn same(found: f64, value: f64) -> bool:
     if value.is_nan():
@@ -15,6 +13,8 @@ fn round_trips(value: f64) -> bool:
         .Err(_) => false
 
 tests:
+    use std.testing.assert
+
     it("finite values come back exactly"):
         cases := [
             ("0.1", 0.1),

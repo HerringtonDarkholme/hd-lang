@@ -1,8 +1,8 @@
-use std.testing.assert_equal
-
 pub fn double(count: i32) -> i32:
     count * 2
 
 tests:
+    use std.testing.assert_equal
+
     it("doubles the count"):
         assert_equal(double(+3), 6, reason="three twice")

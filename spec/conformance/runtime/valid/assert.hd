@@ -1,6 +1,4 @@
 # Spec 10 Standard Testing: module.testing.exports, module.testing.reason.
-use std.testing.assert
-
 let order = +0
 
 fn ordered_condition() -> bool:
@@ -12,6 +10,8 @@ fn ordered_reason() -> string:
     "condition should run after this named reason"
 
 tests:
+    use std.testing.assert
+
     it("assert accepts a true condition"):
         assert(1 + 1 == 2, reason="integer addition remains consistent")
 

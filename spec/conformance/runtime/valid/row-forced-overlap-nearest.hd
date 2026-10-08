@@ -1,7 +1,5 @@
 # test: when a forced row parameter lists a key the callee installs, the callback sees the callee's nearer provider
 # expect: test
-use std.testing.assert_equal
-
 trait Tag:
     fn name(self) -> string
 
@@ -27,6 +25,8 @@ fn run() -> string:
         with_tag::[$ Tag](read_tag)
 
 tests:
+    use std.testing.assert_equal
+
     it("an explicit type argument forces R to list Tag"):
         assert_equal(run(), "inner", reason="the callee's Tag is nearer")
     it("another argument fixes R to list Tag"):

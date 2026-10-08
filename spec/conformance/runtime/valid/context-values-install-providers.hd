@@ -4,8 +4,6 @@
 # req.context.one-per-key, req.context.grammar.categories,
 # req.context.ordinary-values, req.context.no-handler.
 
-use std.testing.assert_equal
-
 fn make_context() -> $.Context[$ Clock + Backup] $ Clock + Backup:
     $.context(Clock=$.use(Clock), Backup=$.use(Backup))
 
@@ -33,6 +31,8 @@ impl Backup for FixedBackup:
     fn label(self) -> i32: 0
 
 tests:
+    use std.testing.assert_equal
+
     it("run returns 42 with its providers"):
         $.with(Clock=FixedClock {}, Backup=FixedBackup {}):
             assert_equal(run(), 42, reason="requirements / contexts")

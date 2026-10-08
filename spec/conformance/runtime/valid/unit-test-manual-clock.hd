@@ -1,12 +1,13 @@
 # test: a unit test binds the std fake ManualClock with $.with in place of the host clock
 # Spec std Testing, Unit Test Providers: std-testing.unit.hint; Modules: module.testing.unit-row.test-runner (task #321).
-use std.testing.assert_equal
 use std.time.{Clock, ManualClock, Timestamp, now}
 
 fn receipt_header(store: string) -> string $ Clock:
     "${store} at ${now().to_rfc3339()}"
 
 tests:
+    use std.testing.assert_equal
+
     it("stamps the receipt with the clock's time"):
         $.with(Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0))):
             assert_equal(receipt_header("Main St"), "Main St at 1970-01-01T00:00:00Z", reason="a fixed clock")

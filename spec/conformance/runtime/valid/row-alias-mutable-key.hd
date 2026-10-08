@@ -1,7 +1,5 @@
 # test: a key reached through an alias keeps its trait's mutable access
 # expect: test
-use std.testing.assert_equal
-
 trait Counter:
     fn count(self) -> i32
     fn bump(mut self) -> void
@@ -25,6 +23,8 @@ fn tick() -> i32 $ Tally:
     $.use(Counter).count()
 
 tests:
+    use std.testing.assert_equal
+
     it("the alias key is the mutable Counter"):
         let mut counter = MemoryCounter { value: 0 }
         $.with(Store=counter):

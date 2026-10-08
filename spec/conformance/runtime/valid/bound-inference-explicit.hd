@@ -1,7 +1,5 @@
 # test: an explicit type argument or an expected type picks among several instantiations of the bound's trait
 # Spec 04 Inference Through A Bound: types.generic.infer.bound.precedence and .placeholder (owner decision BOUND-INFERENCE, batch 77, 2026-10-03).
-use std.testing.assert_equal
-
 trait Source[T]:
     fn take(self) -> T
 
@@ -28,6 +26,8 @@ fn count(both: Both) -> i32:
     total
 
 tests:
+    use std.testing.assert_equal
+
     it("the explicit argument and the expected type each choose one instantiation"):
         assert_equal(label(Both { count: 3 }), "both", reason="U is string, written")
         assert_equal(count(Both { count: 3 }), 3, reason="U is i32, from the expected type")

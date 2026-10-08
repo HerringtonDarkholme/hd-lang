@@ -2,8 +2,6 @@
 # Spec 08 Typed Derivation Of Data And Enums: data.derive.members, data.derive.payload-names, data.derive.shared, data.derive.newtype.
 use std.serde.{Serialize, Serializer}
 use std.structure.{Facts, VariantInfo, Member}
-use std.testing.assert_equal
-
 # Records every serializer call so a test can read the member sequence.
 data Log:
     pub text: string
@@ -86,6 +84,8 @@ enum Shipment(days: i32):
 type Mile(i32)
 
 tests:
+    use std.testing.assert_equal
+
     it("a data type's members are its fields in declaration order, an embedded field first"):
         post := Post { Stamp: ...Stamp { at: 7 }, id: "p1", views: 3 }
         assert_equal(send(post), "<Post> Stamp@0: <Stamp> at@0: 7 </> id@1: p1 views@2: 3 </>", reason="embedded field is member 0")

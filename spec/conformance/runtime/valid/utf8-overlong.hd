@@ -1,6 +1,5 @@
 # test: string::from_utf8 rejects overlong encodings as InvalidSequence at the start of the sequence
 # Spec std/text UTF-8 Conversion: std-text.utf8.well-formed, std-text.utf8.error.invalid (UTF8-API, batch 72; task #229).
-use std.testing.assert_equal
 use std.text.Utf8Error
 
 fn failure(bytes: List[u8]) -> Utf8Error?:
@@ -9,6 +8,8 @@ fn failure(bytes: List[u8]) -> Utf8Error?:
         .Err(error) => .Some(error)
 
 tests:
+    use std.testing.assert_equal
+
     it("overlong forms of /"):
         assert_equal(failure([192, 175]), .Some(Utf8Error.InvalidSequence(0)), reason="two bytes")
         assert_equal(failure([224, 128, 175]), .Some(Utf8Error.InvalidSequence(0)), reason="three bytes")

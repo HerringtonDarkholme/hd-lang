@@ -1,14 +1,14 @@
 # test: contains_key, keys, and values; keys and values are snapshots in one deterministic order
 # Spec std/collections Map Methods: std-collections.map.contains-key, .keys.order, .values, and .snapshot
 # (STDLIB question 16, 2026-09-29; batch 64, STD-1).
-use std.testing.{assert, assert_equal}
-
 fn summary(stock: Map[string, i32]) -> string:
     if stock.contains_key("tea"):
         return "${stock.keys().len()} items"
     "no tea"
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("contains_key finds an entry by key"):
         stock := {"tea": +3, "milk": 1}
         assert(stock.contains_key("tea"), reason="present key")

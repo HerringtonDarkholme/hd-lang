@@ -8,8 +8,6 @@
 # and std-http.scripted.no-host.
 # expect: test
 use std.http.{Http, HttpError, Method, Request, Response, ScriptedHttp, get, send}
-use std.testing.assert_equal
-
 fn status!(url: string) -> u16 $ Http:
     match get!(url):
         .Ok(response) => response.status
@@ -22,6 +20,8 @@ fn latest_release!(repo: string) -> Result[string, HttpError] $ Http:
     .Ok(response.text())
 
 tests:
+    use std.testing.assert_equal
+
     it("reads the scripted status"):
         let mut http = ScriptedHttp::new({"https://example.com/": Response { status: 204, headers: [], body: [] }})
         $.with(Http=http):

@@ -1,7 +1,5 @@
 # test: homogeneous varargs
 
-use std.testing.assert_equal
-
 fn count(values...: List[i32]) -> i32:
     let total = +0
     for _ in values:
@@ -19,5 +17,7 @@ fn main() -> i32:
     count() + count(1, 2, 3) + first_or() + first_or(items...) + generic_first(6) + tagged([2]..., tag=1)
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 34"):
         assert_equal(main(), 34, reason="homogeneous varargs")

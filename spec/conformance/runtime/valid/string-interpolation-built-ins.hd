@@ -3,8 +3,6 @@
 # expr.interp.display, expr.interp.append,
 # expr.interp.no-fallback, expr.interp.std, expr.interp.constant.
 
-use std.testing.assert_equal
-
 fn main() -> i32:
     text := "${-2147483648}|${0}|${42}|${true}|${false}|${'😀'}"
     if text == "-2147483648|0|42|true|false|😀":
@@ -13,5 +11,7 @@ fn main() -> i32:
         0
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="string interpolation displays built-ins from left to right")

@@ -2,8 +2,6 @@
 # Spec std/json Numbers: std-json.number.constructors, std-json.number.accessors, std-json.number.eq, std-json.number.display (JSON-SURFACE; task #226).
 use std.format.debug
 use std.json.{parse, Json, Number}
-use std.testing.{assert, assert_equal}
-
 fn read(text: string) -> Number:
     match parse(text):
         .Ok(.Number(found)) => found
@@ -15,6 +13,8 @@ fn float(value: f64) -> Number:
         .None => panic("not finite")
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("the i64 limits stay exact"):
         let max: i64 = 9223372036854775807
         let min: i64 = -9223372036854775808

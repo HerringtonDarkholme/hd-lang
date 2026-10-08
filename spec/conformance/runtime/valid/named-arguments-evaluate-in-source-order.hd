@@ -1,7 +1,5 @@
 # test: named arguments evaluate in source order, not parameter order
 # expect: test
-use std.testing.assert_equal
-
 data Log:
     text: string
 
@@ -24,6 +22,8 @@ fn scaler(log: mut Log, factor: i32) -> Scaler:
     Scaler { factor: factor }
 
 tests:
+    use std.testing.assert_equal
+
     it("mixed positional and named arguments follow source order"):
         let mut log = Log { text: "" }
         result := combine(note(log, "a", 1), third=note(log, "c", 3), second=note(log, "b", 2))

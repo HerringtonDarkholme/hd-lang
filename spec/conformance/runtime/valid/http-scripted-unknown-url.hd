@@ -3,8 +3,6 @@
 # Also covers std-http.error.not-granted, std-http.error.connect.
 # expect: test
 use std.http.{Http, HttpError, Request, Response, ScriptedHttp, get}
-use std.testing.assert_equal
-
 fn ping!(url: string) -> string $ Http:
     match get!(url):
         .Ok(response) => "status ${response.status}"
@@ -13,6 +11,8 @@ fn ping!(url: string) -> string $ Http:
         .Err(error) => "${error}"
 
 tests:
+    use std.testing.assert_equal
+
     it("an unknown URL is a Connect error that names it"):
         let mut http = ScriptedHttp::new({"https://example.com/": Response { status: 200, headers: [], body: [] }})
         $.with(Http=http):

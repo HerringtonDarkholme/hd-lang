@@ -1,8 +1,6 @@
 # test: named enum payloads preserve source evaluation order
 # Spec 08 Variant Construction: data.enum.construct.call.
 
-use std.testing.assert_equal
-
 enum Pair[T]:
     Value(first: T, second: T)
 
@@ -14,5 +12,7 @@ fn main!() -> i32:
         Pair.Value(first, second) => first * 10 + second
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 21"):
         assert_equal(main!(), 21, reason="named enum payloads preserve source evaluation order")

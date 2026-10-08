@@ -5,9 +5,9 @@
 # expr.list.spread.insert, expr.list.spread.position,
 # expr.list.spread.expected, expr.list.spread.inferred.
 
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("list spreads expand in order"):
         xs := [1, 2]
         ys := [0, xs...]

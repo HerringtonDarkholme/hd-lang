@@ -1,8 +1,6 @@
 # test: parse_f64 rejects text outside its grammar, at the first position no continuation allows, or at the text's end
 # Spec std/num Float Parsing: std-num.parse-f64.excluded, .empty, .invalid-digit, and .text-end (owner decisions FLOAT-PARSE, batch 71, PARSE-EARLY-END, batch 73, and PARSE-F64-GRAMMAR, 2026-10-03).
 use std.num.{parse_f64, ParseNumberError}
-use std.testing.assert_equal
-
 fn failure(text: string) -> ParseNumberError?:
     match parse_f64(text):
         .Ok(_) => .None
@@ -15,6 +13,8 @@ fn ratio(text: string) -> f64:
 
 
 tests:
+    use std.testing.assert_equal
+
     it("empty text is Empty"):
         assert_equal(ratio(""), 0.0, reason="an error falls back")
         assert_equal(failure(""), .Some(ParseNumberError.Empty), reason="no text")

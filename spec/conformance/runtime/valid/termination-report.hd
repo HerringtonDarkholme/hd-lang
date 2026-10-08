@@ -5,12 +5,12 @@
 # when it is an explicit closure (Spec 05: expr.try.test.explicit-closure); a
 # trailing block's result type is void (expr.try.test.fixed-result).
 use std.process.{ExitCode, Termination}
-use std.testing.assert_equal
-
 fn code_of[T < Termination](value: T) -> u8:
     u8(value.report())
 
 tests:
+    use std.testing.assert_equal
+
     it("an ExitCode reports itself"):
         assert_equal(code_of(ExitCode(3)), 3, reason="ExitCode reports its own code")
 

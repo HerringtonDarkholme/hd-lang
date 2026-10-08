@@ -1,7 +1,5 @@
 # test: a float literal converted to a trait value takes its f64 fallback, which implements the trait
 # Spec 04 One Fitting Candidate: types.literal.local.erased; Neutral Uses: types.literal.local.erased (ONE-FIT).
-use std.testing.assert_equal
-
 trait Gauge:
     fn level(self) -> f64
 
@@ -14,5 +12,7 @@ fn idle_sensor() -> f64:
     reading.level()
 
 tests:
+    use std.testing.assert_equal
+
     it("an idle sensor reads zero"):
         assert_equal(idle_sensor(), 0.0, reason="0.0 falls back to f64, which implements Gauge")

@@ -1,7 +1,5 @@
 # test: a parameter named only in bounds that several instantiations leave open takes its type-argument default
 # Spec 04 Inference Through A Bound: types.generic.infer.bound.default; Bound Order: types.generic.bound.any-order lets S's bound name the later, defaulted U.
-use std.testing.assert_equal
-
 trait Source[T]:
     fn take(self) -> T
 
@@ -28,6 +26,8 @@ fn label_of_both(both: Both) -> string:
     text
 
 tests:
+    use std.testing.assert_equal
+
     it("U is open, so its default string fills it"):
         assert_equal(label_of(Both { count: 3 }), "both", reason="the Source[string] implementation")
         assert_equal(label_of_both(Both { count: 3 }), "both", reason="the list binds S only")

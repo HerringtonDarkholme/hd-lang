@@ -1,8 +1,6 @@
 # test: Iterator::from_fn builds an iterator from a closure, and calls step again after .None
 # Spec 06 Iteration Protocols: flow.for.iterator-from-fn, flow.for.iterator-from-fn.no-fuse (Chaining Study CS9, CS11).
 
-use std.testing.{assert, assert_equal}
-
 fn countdown(start: i32) -> mut Iterator[i32]:
     let left: i32 = start
     Iterator::from_fn(fn() -> i32?:
@@ -18,6 +16,8 @@ fn gappy() -> mut Iterator[i32]:
     )
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("from_fn yields the items of its closure"):
         items := [for item in countdown(3) => item]
         assert_equal(items, [3, 2, 1], reason="the iterator yields until step returns .None")

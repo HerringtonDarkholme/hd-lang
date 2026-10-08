@@ -1,7 +1,5 @@
 # test: a user type implements Iterable and drives a for loop
 
-use std.testing.assert_equal
-
 data Bag:
     items: List[i32]
 
@@ -19,6 +17,8 @@ fn doubled(bag: Bag) -> List[i32]:
     [for value in bag => value * 2]
 
 tests:
+    use std.testing.assert_equal
+
     it("a user Iterable drives loops and comprehensions"):
         bag := Bag { items: [1, 2, 3] }
         assert_equal(sum(bag), 6, reason="each loop obtains a fresh iterator")

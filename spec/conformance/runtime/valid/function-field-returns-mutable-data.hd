@@ -1,7 +1,5 @@
 # test: callbacks / readonly result
 
-use std.testing.assert_equal
-
 data Child:
     value: i32
 data Holder:
@@ -13,5 +11,7 @@ fn main() -> i32:
     child.value
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="callbacks / readonly result")

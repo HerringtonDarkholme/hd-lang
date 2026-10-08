@@ -1,8 +1,6 @@
 # test: min gives the first smallest element and max the first largest, and an empty list gives .None
 # Spec std/collections List Helpers: std-collections.helper.min-max.first.
 use std.cmp.Ordering
-use std.testing.assert_equal
-
 data Entry:
     rank: i32
     label: string
@@ -25,6 +23,8 @@ fn label(entry: Entry?) -> string:
         .None => "none"
 
 tests:
+    use std.testing.assert_equal
+
     it("min and max"):
         assert_equal([2, 9, 4].max(), .Some(9), reason="max")
         assert_equal([2, 9, 4].min(), .Some(2), reason="min")

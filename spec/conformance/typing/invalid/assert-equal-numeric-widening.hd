@@ -2,8 +2,6 @@
 # Spec 04 Inference From Several Arguments: types.generic.infer.join.other-conflict, through
 # assert_equal[T < Eq & Debug](actual: T, expected: T, reason: string) of Spec 10 (INF-mut,
 # owner decision 2026-09-30). An i64 actual and an i32 expected value are a type-mismatch.
-use std.testing.assert_equal
-
 fn large() -> i64:
     7
 
@@ -11,5 +9,7 @@ fn small() -> i32:
     7
 
 tests:
+    use std.testing.assert_equal
+
     it("mixed widths need a cast"):
         assert_equal(large(), small(), reason="no widening")  # diagnostic: type-mismatch

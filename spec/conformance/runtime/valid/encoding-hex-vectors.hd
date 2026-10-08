@@ -2,8 +2,6 @@
 # Spec std/encoding Hex: std-encoding.hex.encode.digits, std-encoding.hex.decode.case (ENCODING-SURFACE; task #224).
 # Also covers std-encoding.hex.encode and std-encoding.hex.decode.
 use std.encoding.{hex_decode, hex_encode}
-use std.testing.assert_equal
-
 fn bytes_of(text: string) -> List[u8]:
     text.bytes().collect()
 
@@ -16,6 +14,8 @@ fn key(text: string) -> List[u8]:
         .Err(_) => []
 
 tests:
+    use std.testing.assert_equal
+
     it("encodes in lowercase"):
         assert_equal(fingerprint(""), "", reason="empty")
         assert_equal(fingerprint("f"), "66", reason="f")

@@ -2,8 +2,6 @@
 # Spec 09 Extending A Sealed Trait: trait.sealed.extend, trait.sealed.extend.members; Compiler-Supplied Implementations: trait.sealed.supplied, trait.sealed.behaves.
 # Spec 09 Supertrait Widening: trait.dyn.widen, trait.dyn.recover; Erasure To Inspectable: trait.erase.child-impl, trait.erase.widen, trait.erase.keeps.
 use std.inspect.{Inspectable, TypeId}
-use std.testing.{assert, assert_equal}
-
 trait Plugin < Inspectable:
     fn name(self) -> string
 
@@ -30,6 +28,8 @@ fn format_of(value: dyn Inspectable) -> string:
         .None => "none"
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("the child trait's own members dispatch"):
         let plugins: List[dyn Plugin] = [Exporter { format: "csv" }, Importer { source: "s3" }]
         assert_equal(plugins[0].name(), "export csv", reason="Exporter's name")

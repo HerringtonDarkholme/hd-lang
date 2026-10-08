@@ -3,8 +3,6 @@
 # Spec 14 Serialization: annot.serde.by-hand.
 use std.serde.{Deserialize, Deserializer, ValueKind}
 use std.structure.{Structure, Facts, VariantInfo, Member}
-use std.testing.assert_equal
-
 
 # One scripted value or step of a sensor feed.
 enum Tok:
@@ -187,6 +185,8 @@ impl Deserialize for Limit:
             _ => .Ok(Limit.Max(input.int("Limit")?))
 
 tests:
+    use std.testing.assert_equal
+
     it("an enum offers every variant in declaration order, then reads the chosen one's members"):
         card := read::[Payment]([Tok.Pick(1), Tok.Text("4242"), Tok.Uint(1999)])
         assert_equal(card._1, "variant:Cash|Card|Voucher member:last4 text:string member:amount uint:u32 end-variant", reason="calls")

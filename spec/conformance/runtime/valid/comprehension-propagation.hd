@@ -1,7 +1,5 @@
 # test: ? inside a comprehension propagates from the enclosing function, and the comprehension stops
 # Spec 05 Comprehension Restrictions: the Note on `?` (Collect CO4; SSC Q2, batch 26, 2026-09-30).
-use std.testing.assert_equal
-
 data Tally:
     seen: i32
 
@@ -15,6 +13,8 @@ fn parse_all(tally: mut Tally, lines: List[string]) -> Result[List[usize], strin
     .Ok([for line in lines => parse(tally, line)?])
 
 tests:
+    use std.testing.assert_equal
+
     it("the first error returns from the function"):
         let mut tally = Tally { seen: 0 }
         assert_equal(parse_all(tally, ["a", "x", "bb"]), .Err("bad: x"), reason="propagated")

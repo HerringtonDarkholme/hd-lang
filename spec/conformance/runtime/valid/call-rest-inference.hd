@@ -1,8 +1,6 @@
 # test: when f solves Args, the collected arguments are checked against it, so call(g, 1, 2, 3, 4) gives Args = (usize, usize, List[i32]...)
 # expect: test
 use std.function.{Fn, Tuple}
-use std.testing.assert_equal
-
 fn add2(a: i32, b: i32) -> i32: a + b
 fn g(a: usize, b: usize, xs...: List[i32]) -> usize: a + b + xs.len()
 
@@ -10,6 +8,8 @@ fn call[Args < Tuple, O, $R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
     f(args...)
 
 tests:
+    use std.testing.assert_equal
+
     it("Args comes from f"):
         assert_equal(call(g, 1, 2, 3, 4), 5, reason="3 and 4 are collected into the rest")
         assert_equal(call(g, 1, 2), 3, reason="an empty rest")

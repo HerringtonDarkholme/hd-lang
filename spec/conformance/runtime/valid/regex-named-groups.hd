@@ -1,7 +1,6 @@
 # test: named groups in both spellings take numbers in order, and name finds them
 # Spec std/regex Captures: std-regex.syntax.group.named, std-regex.syntax.group.name, std-regex.syntax.group.number, std-regex.captures.name, std-regex.captures.name.absent (task #244).
 use std.regex.{Regex, Match}
-use std.testing.assert_equal
 use std.text.r
 
 fn show(found: Match?) -> string:
@@ -10,6 +9,8 @@ fn show(found: Match?) -> string:
         .None => "none"
 
 tests:
+    use std.testing.assert_equal
+
     it("(?P<name>...) and (?<name>...) are named groups"):
         date := Regex::new(r"(?P<year>\d{4})-(?<month>\d\d)(-(?<day>\d\d))?").expect("compiles")
         found := date.captures("on 2026-10 and").expect("matches")

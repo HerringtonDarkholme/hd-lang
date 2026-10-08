@@ -4,8 +4,6 @@ use std.cli.Cli
 use std.encoding.hex_decode
 use std.error.Error
 use std.regex.Regex
-use std.testing.assert
-
 fn bytes(text: string) -> Result[List[u8], dyn Error]:
     value := hex_decode(text)?
     .Ok(value)
@@ -19,6 +17,8 @@ fn verbose(arguments: List[string]) -> Result[bool, dyn Error]:
     .Ok(parsed.flag("verbose"))
 
 tests:
+    use std.testing.assert
+
     it("converts with ?"):
         assert(bytes("zz").is_err(), reason="DecodeError")
         assert(pattern("(").is_err(), reason="RegexError")

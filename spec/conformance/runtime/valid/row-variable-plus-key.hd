@@ -1,7 +1,5 @@
 # test: requirements / row union
 
-use std.testing.assert_equal
-
 fn invoke[$R](callback: fn() -> i32 $ R + Logger) -> i32 $ R + Logger:
     callback()
 fn logged() -> i32 $ Logger: 42
@@ -14,6 +12,8 @@ data FixedLogger: pass
 impl Logger for FixedLogger
 
 tests:
+    use std.testing.assert_equal
+
     it("run returns 42 with its providers"):
         $.with(Logger=FixedLogger {}):
             assert_equal(run(), 42, reason="requirements / row union")

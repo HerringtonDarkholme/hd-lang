@@ -3,8 +3,6 @@
 # annot.facts-of.result. The returned value follows annot.structure.facts-contents
 # and annot.structure.find-lookup.
 use std.annotation.facts_of
-use std.testing.assert_equal
-
 data Route:
     path: string
 
@@ -21,5 +19,7 @@ fn users_path() -> string:
         .None => ""
 
 tests:
+    use std.testing.assert_equal
+
     it("reads the attached route"):
         assert_equal(users_path(), "/users", reason="the decorator value is one of the function's facts")

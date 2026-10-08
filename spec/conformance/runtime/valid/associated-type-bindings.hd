@@ -1,7 +1,5 @@
 # test: an associated type binding fixes a projection and drives inference
 # Spec 09 Traits: trait.assoc.declare, trait.binding.use-site, trait.binding.inference, trait.binding.interchangeable, trait.binding.reachable.example.
-use std.testing.assert_equal
-
 trait Supplier:
     type Item
     fn get(self) -> Self::Item
@@ -42,6 +40,8 @@ fn show[X < Display](value: X) -> string:
     value.to_string()
 
 tests:
+    use std.testing.assert_equal
+
     it("the bound type is inferred from the implementation"):
         assert_equal(describe(Constant { value: "Ada" }), "Ada", reason="T is string")
         assert_equal(describe(Counter { start: 7 }), "7", reason="T is i32")

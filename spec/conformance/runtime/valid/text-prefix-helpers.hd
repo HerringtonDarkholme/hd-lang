@@ -2,8 +2,6 @@
 # Spec std/text Prefix Helpers: std-text.prefix-helper.interpolate, .escapes, .escape-error, .final-backslash (spec pass 89, audit item 6).
 use std.ops.{Template, str_prefix}
 use std.text.{EscapeError, interpolate, process_escapes}
-use std.testing.assert_equal
-
 @str_prefix
 fn cooked(t: Template[i32]) -> string:
     let pieces: mut List[string] = []
@@ -19,6 +17,8 @@ fn position(text: string) -> usize?:
         .Err(error) => .Some(error.position)
 
 tests:
+    use std.testing.assert_equal
+
     it("joins and processes"):
         assert_equal(interpolate(Template { raw_parts: ["a", "b", "c"], values: [1, 2] }), "a1b2c", reason="alternating")
         n := +7

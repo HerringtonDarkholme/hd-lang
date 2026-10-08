@@ -2,8 +2,6 @@
 # Spec 08 Variant Constructors As Function Values: TaskError.Failed passed to wrap_error on a
 # Result[string, FsError] is instantiated as fn(FsError) -> TaskError[FsError].
 # Spec 08 Variant Constructors As Function Values: data.enum.fn-value.generic-rule, data.enum.fn-value.generic-argument.
-use std.testing.assert
-
 enum FsError:
     NotFound(path: string)
 
@@ -26,6 +24,8 @@ fn failed_path(result: Result[string, TaskError[FsError]]) -> string:
         .Err(TaskError.Cancelled) => "cancelled"
 
 tests:
+    use std.testing.assert
+
     it("the constructor's type argument comes from the call"):
         wrapped := wrap_error(read("a.txt"), TaskError.Failed)
         assert(failed_path(wrapped) == "a.txt", reason="the error is wrapped in TaskError.Failed")

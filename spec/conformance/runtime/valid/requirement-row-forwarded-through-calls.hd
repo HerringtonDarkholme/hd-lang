@@ -1,7 +1,5 @@
 # test: requirement row forwarded through calls
 
-use std.testing.assert_equal
-
 fn read() -> i32 $ Clock: 40
 fn middle() -> i32 $ Clock: read() + 1
 fn run() -> i32 $ Clock: middle() + 1
@@ -13,6 +11,8 @@ data FixedClock: pass
 impl Clock for FixedClock
 
 tests:
+    use std.testing.assert_equal
+
     it("run returns 42 with its providers"):
         $.with(Clock=FixedClock {}):
             assert_equal(run(), 42, reason="requirement row forwarded through calls")

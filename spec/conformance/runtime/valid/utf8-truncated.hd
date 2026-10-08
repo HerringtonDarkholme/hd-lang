@@ -1,6 +1,5 @@
 # test: string::from_utf8 reports Truncated when the bytes end inside a sequence whose present bytes continue it
 # Spec std/text UTF-8 Conversion: std-text.utf8.error.truncated (UTF8-API, batch 72; task #229).
-use std.testing.assert_equal
 use std.text.Utf8Error
 
 fn failure(bytes: List[u8]) -> Utf8Error?:
@@ -9,6 +8,8 @@ fn failure(bytes: List[u8]) -> Utf8Error?:
         .Err(error) => .Some(error)
 
 tests:
+    use std.testing.assert_equal
+
     it("each sequence length, cut short"):
         assert_equal(failure([195]), .Some(Utf8Error.Truncated), reason="the first of two bytes")
         assert_equal(failure([226, 130]), .Some(Utf8Error.Truncated), reason="two of three bytes")

@@ -1,7 +1,5 @@
 # test: checked methods return None where the operator would panic, and wrapping methods keep the low bits
 # Spec std/num Checked Arithmetic and Wrapping Arithmetic: std-num.checked.add, std-num.checked.div.cases, std-num.wrapping.result (task #218).
-use std.testing.{assert, assert_equal}
-
 fn total(prices: List[i64]) -> i64?:
     let sum: i64 = 0
     for price in prices:
@@ -12,6 +10,8 @@ fn next_ticket(counter: i32) -> i32:
     counter.wrapping_add(1)
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("checked methods"):
         let largest: i64 = 9223372036854775807
         assert_equal(total([1, 2, 3]), .Some(6), reason="the sum fits")

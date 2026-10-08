@@ -1,8 +1,6 @@
 # test: for iterates a..b, a..=b, and a.., and each loop over a range starts from its start bound
 # Spec 06 Range Iteration: flow.for.range.iterable-two, flow.for.range.half-open, flow.for.range.inclusive, flow.for.range.from, flow.for.range.fresh (batch 48).
 use std.ops.Range
-use std.testing.assert_equal
-
 fn total(n: i32) -> i32:
     let sum = +0
     for i in 0..n:
@@ -33,6 +31,8 @@ fn top_bytes() -> i32:
     seen
 
 tests:
+    use std.testing.assert_equal
+
     it("half-open, inclusive, and open ranges"):
         assert_equal(total(4), 12, reason="0 + 1 + 2 + 3, then 1 + 2 + 3")
         assert_equal(first_square_over(10), 4, reason="4 * 4 is the first square over 10")

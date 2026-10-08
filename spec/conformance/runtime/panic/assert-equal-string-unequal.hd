@@ -1,6 +1,6 @@
 # Spec 10 Standard Testing: module.testing.assert-panic.
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("unequal string values fail assert_equal"):
         assert_equal("ada", "Ada", reason="deliberately unequal strings")  # panic: assertion-failed

@@ -1,8 +1,6 @@
 # test: a newtype derives Eq, Hash, and ordering from its base type
 # Spec 09 Traits: trait.derive.newtype.base, trait.derive.newtype.requires, trait.hash.map-key.
 
-use std.testing.assert_equal
-
 @derive(Eq, Hash)
 type Mile(i32)
 
@@ -13,6 +11,8 @@ fn same(left: Mile, right: Mile) -> bool:
     left == right
 
 tests:
+    use std.testing.assert_equal
+
     it("derived newtype equality compares base values"):
         assert_equal(same(Mile(1), Mile(1)), true, reason="equal base values")
         assert_equal(same(Mile(1), Mile(2)), false, reason="different base values")

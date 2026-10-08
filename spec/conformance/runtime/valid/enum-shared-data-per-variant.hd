@@ -2,13 +2,13 @@
 # Spec 08 Shared Fields: data.shared.value-read; Variant Constructors As Function Values: data.enum.fn-value.payload-free.
 # Spec 08 Shared Enum Constructor Data: data.shared.constructor, data.shared.per-variant.
 
-use std.testing.assert_equal
-
 enum HttpStatus(code: i32, phrase: string):
     Ok -> HttpStatus(200, phrase="OK")
     Moved(target: string) -> HttpStatus(301, phrase="Moved")
 
 tests:
+    use std.testing.assert_equal
+
     it("values of one variant share their data"):
         first := HttpStatus.Moved(target="/a")
         second := HttpStatus.Moved(target="/b")

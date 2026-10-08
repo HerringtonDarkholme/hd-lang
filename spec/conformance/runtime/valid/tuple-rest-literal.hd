@@ -2,12 +2,12 @@
 # expect: test
 # Spec 05 Tuple Expressions: expr.tuple.comma, expr.tuple.order,
 # expr.tuple.rest.spread, expr.tuple.rest.value.
-use std.testing.assert_equal
-
 fn total(values: (usize, usize, List[i32]...)) -> usize:
     values._0 + values._1 + values._2.len()
 
 tests:
+    use std.testing.assert_equal
+
     it("a tuple expression collects the tail"):
         let t: (usize, usize, List[i32]...) = (1, 2, 3, 4)
         assert_equal(t._2, [3, 4], reason="the rest element holds the trailing values")

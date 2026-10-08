@@ -1,12 +1,12 @@
 # test: all_list! of an empty list returns an empty list
 # Spec std/task All List: std-task.all-list.empty (owner decision ALL-LIST, batch 71, 2026-10-03).
 use std.task.all_list
-use std.testing.assert_equal
-
 fn none!() -> List[string]:
     let tasks: List[fn!() -> string] = []
     all_list!(tasks)
 
 tests:
+    use std.testing.assert_equal
+
     it("no task gives no result"):
         assert_equal(none!(), [], reason="an empty list in, an empty list out")

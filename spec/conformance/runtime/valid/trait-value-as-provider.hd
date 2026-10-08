@@ -1,7 +1,5 @@
 # test: traits / providers
 
-use std.testing.assert_equal
-
 trait Logger:
     fn adjust(self, value: i32) -> i32
 
@@ -22,5 +20,7 @@ fn main() -> i32:
     provide_logger(read, OffsetLogger { offset: 2 })
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="traits / providers")

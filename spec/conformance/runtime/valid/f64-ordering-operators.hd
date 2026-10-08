@@ -1,12 +1,12 @@
 # test: the four relational operators order f64 values numerically
-use std.testing.assert
-
 fn less(left: f64, right: f64) -> bool: left < right
 fn less_equal(left: f64, right: f64) -> bool: left <= right
 fn greater(left: f64, right: f64) -> bool: left > right
 fn greater_equal(left: f64, right: f64) -> bool: left >= right
 
 tests:
+    use std.testing.assert
+
     it("less than"):
         assert(less(1.0, 2.0), reason="1.0 < 2.0")
         assert(!less(2.0, 1.0), reason="not 2.0 < 1.0")

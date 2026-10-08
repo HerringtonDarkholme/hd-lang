@@ -1,9 +1,9 @@
 # test: an expected optional element type lets .None sit beside present values
 # expect: test
 
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("an expected type types .None"):
         let values: List[i32?] = [1, .None]
         assert_equal(values.len(), 2, reason="two elements")

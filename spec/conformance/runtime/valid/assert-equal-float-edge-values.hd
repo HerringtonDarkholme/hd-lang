@@ -1,6 +1,6 @@
-use std.testing.{assert, assert_equal}
-
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("NaN is unequal to itself"):
         let nan: f64 = 0.0 / 0.0
         assert(nan != nan, reason="IEEE 754 equality makes NaN unequal to itself")

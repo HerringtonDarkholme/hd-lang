@@ -1,7 +1,5 @@
 # test: Option[T] is an ordinary implementation target; string? and i32? do not overlap
 # Spec 09 Traits: trait.target.option, trait.own.optional.
-use std.testing.assert_equal
-
 trait Validation:
     fn check(self) -> string
 
@@ -18,6 +16,8 @@ impl Validation for Option[i32]:
             .None => "no number"
 
 tests:
+    use std.testing.assert_equal
+
     it("impls for different Option instantiations dispatch separately"):
         let name: string? = "ada"
         let missing: Option[string] = .None

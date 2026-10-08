@@ -2,8 +2,6 @@
 # Spec 09 Any: "`Any` is the universal empty trait. Every value type, including an optional
 # type, implements it automatically." runtime/valid/optional-erased-to-any.hd covers optionals.
 # Spec 09 Traits: trait.any.universal, trait.any.all.
-use std.testing.assert_equal
-
 data User:
     name: string
 
@@ -12,6 +10,8 @@ enum Status:
     Blocked
 
 tests:
+    use std.testing.assert_equal
+
     it("primitive, string, data, enum, tuple, and list values convert to Any"):
         let values: List[dyn Any] = [1, "text", User { name: "Ada" }, Status.Active, (1, 2), [true]]
         assert_equal(values.len(), 6, reason="six erased values")

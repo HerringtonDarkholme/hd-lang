@@ -1,13 +1,13 @@
 # test: fieldless data argument
 # Spec 08 Fieldless Data Types: data.empty.pass.
 
-use std.testing.assert_equal
-
 data Unit: pass
 
 fn consume(value: Unit) -> i32: 42
 fn main() -> i32: consume(Unit {})
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="fieldless data argument")

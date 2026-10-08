@@ -1,8 +1,6 @@
 # test: associated types specialize Self projections in generic implementations
 # Spec 09 Traits: trait.assoc.declare, trait.assoc.self, trait.assoc.projection.
 
-use std.testing.assert_equal
-
 trait Source:
     type Item
     fn get(self) -> Self::Item
@@ -38,6 +36,8 @@ fn generic_bounded_projected_value() -> i32:
     read_source(Box::[i32] { value: 42 })
 
 tests:
+    use std.testing.assert_equal
+
     it("projected_value returns 42"):
         assert_equal(projected_value(), 42, reason="associated types specialize Self projections in generic implementations")
 

@@ -1,10 +1,10 @@
 # test: a tuple-typed vararg is one ordinary input of its function's type, which takes the collected tuple
 # expect: test
-use std.testing.assert_equal
-
 fn label(parts...: (i32, string)) -> string: "${parts._0}${parts._1}"
 
 tests:
+    use std.testing.assert_equal
+
     it("the function value takes the tuple"):
         let f: fn((i32, string)) -> string = label
         assert_equal(f((1, "a")), "1a", reason="one tuple input")

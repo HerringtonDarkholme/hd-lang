@@ -1,7 +1,5 @@
 # test: generic method substitutions stay local to the winning candidate
 # Spec 09 Traits: trait.resolve.one-applies (exactly one applicable candidate is selected).
-use std.testing.assert_equal
-
 trait Apply[T]:
     fn apply[U](self, run: fn(T) -> U) -> U
 
@@ -18,5 +16,7 @@ fn main() -> i32:
     Item { value: 40 }.apply(fn(value): value + 2)
 
 tests:
+    use std.testing.assert_equal
+
     it("the generic candidate infers the closure result"):
         assert_equal(main(), 42, reason="the i32 candidate fits the closure")

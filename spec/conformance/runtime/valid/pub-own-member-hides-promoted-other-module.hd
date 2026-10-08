@@ -1,9 +1,10 @@
 # fixture-package-role: root-application
 # test: in another module, a pub own member still hides the promoted members of its name, and the part's members stay reachable by their path
-use std.testing.assert_equal
 use dep.members.{make_draft}
 
 tests:
+    use std.testing.assert_equal
+
     it("the pub own member wins in every module"):
         draft := make_draft()
         assert_equal(draft.id, "draft", reason="the pub own field hides the promoted one")

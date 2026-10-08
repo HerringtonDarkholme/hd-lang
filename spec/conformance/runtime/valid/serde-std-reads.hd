@@ -2,8 +2,6 @@
 # Spec std/serde Reading, Standard Implementations: std-serde.read.scalar, std-serde.read.expected, std-serde.read.invalid, std-serde.read.is-null, std-serde.read.list, std-serde.read.map, std-serde.read.one-value, std-serde.std.bool, std-serde.std.text, std-serde.std.char, std-serde.std.signed, std-serde.std.unsigned, std-serde.std.float, std-serde.std.optional, std-serde.std.list, std-serde.std.map-entries, std-serde.std.range, std-serde.std.float-read.
 use std.serde.{Deserialize, Deserializer, ValueKind}
 use std.structure.{Facts, VariantInfo, Member}
-use std.testing.assert_equal
-
 # One scripted value or step of a sensor feed.
 enum Tok:
     Absent
@@ -143,6 +141,8 @@ fn read[T < Deserialize](toks: List[Tok]) -> (Result[T, string], string, usize):
     (result, input.log, input.at)
 
 tests:
+    use std.testing.assert_equal
+
     it("each scalar type reads with its own call and its name as expected"):
         assert_equal(read::[bool]([Tok.Bool(true)]), (.Ok(true), "bool:bool", 1), reason="bool")
         assert_equal(read::[string]([Tok.Text("north")]), (.Ok("north"), "text:string", 1), reason="string")

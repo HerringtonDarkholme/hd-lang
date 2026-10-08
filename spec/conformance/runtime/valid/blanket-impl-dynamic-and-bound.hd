@@ -1,8 +1,6 @@
 # test: blanket impl dynamic and bound
 # Spec 09 Traits: trait.target.arguments, trait.dyn.generic-trait.
 
-use std.testing.assert_equal
-
 trait Value[T]:
     fn value(self) -> T
 
@@ -35,6 +33,8 @@ fn trait_argument_only_blanket() -> i32:
     dynamic.accept("ignored")
 
 tests:
+    use std.testing.assert_equal
+
     it("blanket_dynamic returns 42"):
         assert_equal(blanket_dynamic(), 42, reason="blanket impl dynamic and bound")
 

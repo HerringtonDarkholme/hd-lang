@@ -3,8 +3,6 @@
 # flow.loop.else.break-value, flow.loop.else.type,
 # flow.loop.else.skipped.
 
-use std.testing.assert_equal
-
 fn main() -> i32:
     let cleanup = +0
     value := while true:
@@ -16,5 +14,7 @@ fn main() -> i32:
     value + cleanup
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="while else break value")

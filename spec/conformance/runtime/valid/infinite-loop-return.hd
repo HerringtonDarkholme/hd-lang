@@ -1,8 +1,6 @@
 # test: a function returns from inside an infinite loop with no value after it
 # Spec 06 Infinite Loops: flow.while.infinite, flow.while.infinite.never; Spec 07 fn.body.infinite-loop.
 # expect: test
-use std.testing.assert_equal
-
 fn try_connect(attempt: i32) -> bool:
     attempt >= 3
 
@@ -21,6 +19,8 @@ fn parenthesized(limit: i32) -> i32:
             return count
 
 tests:
+    use std.testing.assert_equal
+
     it("connect retries until an attempt succeeds"):
         assert_equal(connect(), 3, reason="the third attempt connects")
 

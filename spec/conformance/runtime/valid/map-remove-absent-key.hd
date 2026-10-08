@@ -1,9 +1,9 @@
 # test: removing an absent key returns .None and leaves the map's entries unchanged
 # Spec 10 Built-In Methods: module.method.normative.
 # expect: test
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("absent removal yields .None"):
         let values: mut Map[string, i32] = {"a": 1, "b": 2}
         let absent: i32? = .None

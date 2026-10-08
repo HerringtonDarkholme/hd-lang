@@ -1,8 +1,6 @@
 # test: a row alias in headers, function types, and context types runs with its providers
 # expect: test
 use std.function.Fn
-use std.testing.assert_equal
-
 trait Db:
     fn name(self) -> string
 
@@ -39,6 +37,8 @@ fn call(handler: Fn[(), string, $ AppRow + Clock]) -> string $ AppRow + Clock:
     handler()
 
 tests:
+    use std.testing.assert_equal
+
     it("the alias names the keys a context provides"):
         $.with(app_context()..., Clock=FixedClock {}):
             assert_equal(describe(), "db log 3", reason="AppRow is Db and Log")

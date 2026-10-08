@@ -1,7 +1,5 @@
 # test: a value of a mut-bounded type parameter has mutable access, so it may be passed on to another mut bound, and the caller sees the mutation
 # Spec 04 Mutation Checks: types.path.access.mut-bound; Spec 09 Generic Bounds: trait.bound.mut, trait.bound.mut-any.
-use std.testing.assert_equal
-
 trait Clear:
     fn clear(mut self) -> void
 
@@ -26,6 +24,8 @@ fn clear_any[T < mut Clear & Any](value: T) -> void:
     value.clear()
 
 tests:
+    use std.testing.assert_equal
+
     it("a mut Clear value is cleared two levels down"):
         let mut counter = Counter { value: 42 }
         clear_outer(counter)

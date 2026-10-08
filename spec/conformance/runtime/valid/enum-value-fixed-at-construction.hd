@@ -1,7 +1,5 @@
 # test: an enum value never changes once built, so a copy taken earlier keeps its variant and payload
 # Spec 08 Variant Payloads: data.enum.immutable, data.enum.immutable.shallow.
-use std.testing.assert_equal
-
 data Worker:
     name: string
     done: i32
@@ -18,6 +16,8 @@ fn describe(job: Job) -> string:
         .Finished => "finished"
 
 tests:
+    use std.testing.assert_equal
+
     it("replacing a binding builds a new value and leaves earlier copies alone"):
         let current = Job.Queued(attempts=1)
         before := current

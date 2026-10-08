@@ -2,8 +2,6 @@
 # Spec std/serde Data Model: std-serde.model.errors, std-serde.model.one-value.
 use std.serde.{Serialize, Serializer}
 use std.structure.{Facts, VariantInfo, Member}
-use std.testing.assert_equal
-
 # A log sink with room for a fixed number of calls; the call past it fails.
 data Sink:
     pub room: i32
@@ -82,6 +80,8 @@ enum Event:
     Added(line: Line)
 
 tests:
+    use std.testing.assert_equal
+
     it("a write with room for every call succeeds"):
         assert_equal(write(["pen", "ink"], +4), (.Ok(()), "list:2 text:pen text:ink end-list"), reason="four calls")
 

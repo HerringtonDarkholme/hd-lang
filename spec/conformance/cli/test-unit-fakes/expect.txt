@@ -6,4 +6,4 @@ exit: 101
 stdout-json: [{"kind":"diagnostic","code":"missing-requirement","severity":"error","message":null,"file":"src/late.hd","line":8},{"kind":"summary","errors":1,"status":101}]
 run: hd test --format json tasks/seed.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"missing-requirement","severity":"error","message":null,"file":"tasks/seed.hd","line":12},{"kind":"summary","errors":1,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"missing-requirement","severity":"error","message":null,"file":"tasks/seed.hd","line":13},{"kind":"summary","errors":1,"status":101}]

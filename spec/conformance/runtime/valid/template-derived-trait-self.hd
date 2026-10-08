@@ -6,8 +6,6 @@
 # Named::name() takes no argument, so no inference gives its Self; the template's T does.
 # Named declares its own receiverless `name`, so Structure::name() and Named::name() are different calls.
 use std.structure.{Structure, Field, Variant, Describer}
-use std.testing.assert_equal
-
 trait Named:
     fn name() -> string
     fn title() -> string
@@ -40,5 +38,7 @@ data Point:
     y: i32
 
 tests:
+    use std.testing.assert_equal
+
     it("Named::name() in the template is Named's name for T"):
         assert_equal(Point::title(), "The Point/2", reason="Self is the template's T")

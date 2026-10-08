@@ -1,8 +1,6 @@
 # test: Result and_then chains fallible steps, map_err maps the error, and unwrap_or supplies a fallback
 # Spec std/result Result Methods: std-result.and-then, std-result.map-err, std-result.unwrap-or (STDLIB question 15, 2026-09-29; task #218).
 use std.num.{parse_i32, ParseNumberError}
-use std.testing.{assert, assert_equal}
-
 enum ConfigError:
     Missing
     Number(error: ParseNumberError)
@@ -29,6 +27,8 @@ fn bad_digit(result: Result[i32, ConfigError]) -> bool:
         _ => false
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("and_then runs the step on Ok"):
         assert_equal(port({"port": "9000"}), 9000, reason="both steps succeed")
         assert_equal(port({"host": "local"}), 8080, reason="the first step fails")

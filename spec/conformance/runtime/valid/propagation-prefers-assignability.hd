@@ -2,8 +2,6 @@
 # Spec 05 Propagation: the error becomes the returned error by the first step that applies;
 # an identical error type is assignable, so a reflexive From implementation is not called.
 use std.convert.From
-use std.testing.assert_equal
-
 enum Failure:
     Original(code: i32)
     Converted
@@ -29,6 +27,8 @@ fn code(result: Result[i32, Failure]) -> i32:
         .Err(failure) => failure_code(failure)
 
 tests:
+    use std.testing.assert_equal
+
     it("the identical error type propagates unchanged"):
         assert_equal(code(relay()), 7, reason="step 1 applies, so from is not called")
 

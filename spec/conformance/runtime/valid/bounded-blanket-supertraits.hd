@@ -1,8 +1,6 @@
 # test: bounded blanket supertraits
 # Spec 09 Traits: trait.super.satisfy, trait.dyn.supertrait-methods.
 
-use std.testing.assert_equal
-
 trait Score:
     fn score(self) -> i32
 
@@ -37,6 +35,8 @@ fn bounded_parent_dictionary() -> i32:
     read_parent(points)
 
 tests:
+    use std.testing.assert_equal
+
     it("dynamic_parent_dictionary returns 42"):
         assert_equal(dynamic_parent_dictionary(), 42, reason="bounded blanket supertraits")
 

@@ -1,7 +1,5 @@
 # test: stored suspensions built with the keys in either order give a callable that reads each provider by its key
 # Spec 11 Row Sets: req.row.set.order; Repo[A] + Repo[B] with A = Post, B = User is the row Repo[User] + Repo[Post].
-use std.testing.assert_equal
-
 trait Repo[T]:
     fn count(self) -> i32
 
@@ -30,6 +28,8 @@ fn choose!(reverse: bool) -> (fn() -> i32 $ Repo[User] + Repo[Post]):
     pending!()
 
 tests:
+    use std.testing.assert_equal
+
     it("both orders read Repo[User] as 20 and Repo[Post] as 1"):
         $.with(Repo[User]=UserRepo {}, Repo[Post]=PostRepo {}):
             forward := choose!(false)

@@ -5,8 +5,6 @@
 # flow.match.optional.nested, flow.match.contextual,
 # flow.match.payload.parentheses, flow.match.payload.required,
 # flow.match.literal-payload.
-use std.testing.assert_equal
-
 fn describe(value: i32?) -> string:
     match value:
         .Some(0) => "zero"
@@ -19,6 +17,8 @@ fn qualified(value: Option[string]) -> string:
         Option.None => "missing"
 
 tests:
+    use std.testing.assert_equal
+
     it("contextual and qualified variant patterns"):
         assert_equal(describe(0), "zero", reason="a literal payload pattern")
         assert_equal(describe(7), "some 7", reason="a binding payload pattern")

@@ -4,8 +4,6 @@
 # Spec std/serde Data Model, Derived Implementations: std-serde.model.map, std-serde.model.len, std-serde.model.null, std-serde.model.bool, std-serde.model.int, std-serde.model.uint, std-serde.model.member-args, std-serde.derive.serialize.template.
 use std.serde.{Serialize, Serializer}
 use std.structure.{Structure, Facts, VariantInfo, Member}
-use std.testing.assert_equal
-
 # Records each call as a word, so the test reads the call order.
 data Calls:
     pub log: string
@@ -86,6 +84,8 @@ fn calls[T < Serialize](value: T) -> string:
     out.log
 
 tests:
+    use std.testing.assert_equal
+
     it("a data value is one variant of its members, in declaration order"):
         order := Order { id: 7, lines: [1, -2], note: .None }
         assert_equal(calls(order), "variant:Order member:id uint:7 member:lines list:2 int:1 int:-2 end-list member:note null end-variant", reason="omitted cache is not written")

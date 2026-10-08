@@ -1,7 +1,5 @@
 # test: readonly collections and covariant data weaken mut U to U without copying
 # expect: test
-use std.testing.{assert, assert_equal}
-
 data User:
     name: string
 
@@ -24,6 +22,8 @@ fn as_readonly(users: List[User]) -> List[User]:
     users
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("readonly List[mut User] weakens to List[User] and aliases the same list"):
         let users: mut List[mut User] = [User { name: "ab" }]
         let view: List[mut User] = users

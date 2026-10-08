@@ -2,9 +2,9 @@
 # std Text, Raw Text Prefix: r keeps every backslash and processes no escape.
 # expect: test
 use std.text.r
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("r keeps backslashes and interpolates Display text"):
         name := "Ada"
         count := 3

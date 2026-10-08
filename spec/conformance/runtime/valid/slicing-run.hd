@@ -1,11 +1,11 @@
 # test: string slices select byte offsets, and a list slice is a new list
 # Spec 05 Slicing: expr.index.slice.half-open, expr.index.slice.from, expr.index.slice.to, expr.index.slice.inclusive, expr.index.slice.string, expr.index.slice.list (batch 48).
-use std.testing.assert_equal
-
 fn parts(text: string, items: List[i32]) -> (string, string, List[i32], List[i32]):
     (text[0..3], text[2..], items[..2], items[1..=2])
 
 tests:
+    use std.testing.assert_equal
+
     it("slices a string by byte offsets"):
         assert_equal(parts("hello", [1, 2, 3])._0, "hel", reason="a..b")
         assert_equal(parts("hello", [1, 2, 3])._1, "llo", reason="a..")

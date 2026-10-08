@@ -1,11 +1,11 @@
 # test: format.debug selects the debug function that the prelude also binds
 # Spec 05 Names: expr.name.qualified; the module path selects the declaration whether or not the prelude binds the same name.
 use std.format
-use std.testing.assert_equal
-
 fn render_count(render: fn(i32) -> string, count: i32) -> string:
     render(count)
 
 tests:
+    use std.testing.assert_equal
+
     it("format.debug and the prelude debug render alike"):
         assert_equal(render_count(format.debug, 42), debug(42), reason="the same declaration as the prelude name")

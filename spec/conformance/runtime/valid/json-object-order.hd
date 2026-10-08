@@ -1,8 +1,6 @@
 # test: an object keeps its members in insertion order, a duplicate key keeps its first place with the last value, and parse then print keeps the text's key order
 # Spec std/json Values, Json Objects, Parsing, Writing: std-json.value.object-type, std-json.object.order, std-json.object.set, std-json.parse.object.source-order, std-json.parse.object.duplicate-last, std-json.display.object-order (JSON-SURFACE; task #226).
 use std.json.{parse, Json, JsonObject}
-use std.testing.{assert_equal}
-
 fn read(text: string) -> Json:
     match parse(text):
         .Ok(value) => value
@@ -18,6 +16,8 @@ fn keys(value: Json) -> List[string]:
         _ => panic("not an object")
 
 tests:
+    use std.testing.{assert_equal}
+
     it("keys come back in the order the text wrote them"):
         assert_equal(keys(read("{\"b\":1,\"a\":2,\"c\":3}")), ["b", "a", "c"], reason="parse order")
         assert_equal("${read("{\"b\":1,\"a\":2,\"c\":3}")}", "{\"b\":1,\"a\":2,\"c\":3}", reason="Display order")

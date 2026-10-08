@@ -1,7 +1,5 @@
 # test: sized integers stay in range, overflow panics at their own width, unsigned values compare and display as unsigned, and shifts keep the width
 # Spec 04 Integer Arithmetic: types.arith.checked, types.arith.failure, types.arith.division, types.arith.shift-right, types.arith.min-division.
-use std.testing.{assert, assert_equal}
-
 fn widen_signed(value: i8) -> i64:
     i64(value)
 
@@ -9,6 +7,8 @@ fn widen_unsigned(value: u16) -> u64:
     u64(value)
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("narrow signed arithmetic stays in range"):
         let small: i8 = 100
         let other: i8 = 27

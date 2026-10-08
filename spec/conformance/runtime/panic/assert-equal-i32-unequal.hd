@@ -1,7 +1,7 @@
 # Spec 10 Standard Testing: module.testing.assert-panic.
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("an earlier passing test does not mask a later failure"):
         assert_equal(1, 1, reason="equal values pass")
 

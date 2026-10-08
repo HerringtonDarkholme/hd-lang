@@ -1,8 +1,8 @@
 # test: empty-string operations follow the prelude string contract
 # expect: test
-use std.testing.{assert, assert_equal}
-
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("empty string basics"):
         empty := ""
         assert_equal(empty.len(), 0, reason="no bytes")

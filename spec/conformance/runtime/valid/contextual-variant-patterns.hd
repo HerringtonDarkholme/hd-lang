@@ -1,8 +1,6 @@
 # test: contextual variant patterns
 # Spec 08 Matching Enums: data.match.variant-patterns.
 
-use std.testing.assert_equal
-
 enum Flag:
     On(value: i32)
     Off
@@ -15,5 +13,7 @@ fn read(flag: Flag) -> i32:
 fn main() -> i32: read(Flag.On(42))
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="contextual variant patterns")

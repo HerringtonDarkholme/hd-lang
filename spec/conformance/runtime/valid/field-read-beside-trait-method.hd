@@ -1,6 +1,4 @@
 # test: a bare field read selects the field even when a trait method has the same name
-use std.testing.assert_equal
-
 trait Named:
     fn name(self) -> string
 
@@ -12,6 +10,8 @@ impl Named for User:
         "user " + self.name
 
 tests:
+    use std.testing.assert_equal
+
     it("field read and trait-qualified call"):
         user := User { name: "ada" }
         assert_equal(user.name, "ada", reason="bare access reads the field")

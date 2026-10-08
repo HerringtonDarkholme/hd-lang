@@ -1,6 +1,6 @@
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("equal i32 literals pass assert_equal"):
         assert_equal(42, 42, reason="identical literals are equal")
 

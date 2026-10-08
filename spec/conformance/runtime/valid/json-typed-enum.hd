@@ -3,8 +3,6 @@
 # Spec std/json Derived Serialize: std-json.derive.to-json.positional.
 use std.json.{encode, decode}
 use std.serde.{Serialize, Deserialize}
-use std.testing.assert_equal
-
 @derive(Serialize, Deserialize)
 enum Shape:
     Circle(radius: u32)
@@ -26,6 +24,8 @@ fn read(text: string) -> Shape:
         .Err(error) => panic("decode failed: $error")
 
 tests:
+    use std.testing.assert_equal
+
     it("each variant shape encodes in the externally tagged form"):
         assert_equal(encode(Shape.Empty), "\"Empty\"", reason="no members")
         assert_equal(encode(Shape.Circle(7)), "{\"Circle\":{\"radius\":7}}", reason="one member")

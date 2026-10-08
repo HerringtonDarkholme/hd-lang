@@ -1,8 +1,8 @@
 # test: a .. index selects the whole string or a copy of the whole list, and ..=b selects through b
 # Spec 05 Slicing: expr.index.slice.full, expr.index.slice.to-inclusive, expr.index.slice.list (batch 49).
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("slices the whole string"):
         assert_equal("hello"[..], "hello", reason="..")
         assert_equal("hello"[..=1], "he", reason="..=b")

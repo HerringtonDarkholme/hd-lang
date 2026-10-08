@@ -1,8 +1,6 @@
 # test: a module's own declarations, its uses, and the prelude are in scope in the whole module, and a top-level statement may call a function declared below it
 # Spec 10 Top-Level Statements: module.init.declarations, module.init.uses, module.init.source-order-single;
 # Use Forms: module.use.whole-module; Prelude: module.prelude.fixed-uses.
-use std.testing.assert_equal
-
 let receipts: mut List[string] = []
 record("opened")
 total := sum_cents([125, 250])
@@ -18,5 +16,7 @@ fn sum_cents(items: List[i32]) -> i32:
     sum
 
 tests:
+    use std.testing.assert_equal
+
     it("runs top-level statements in source order"):
         assert_equal(receipts, ["opened", "total 375"], reason="record ran before and after the total")

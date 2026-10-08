@@ -2,12 +2,12 @@
 # expect: test
 # Spec std/ops Standard Implementations: std-ops.default.std.integer and the other rows (owner decision Q6-default, batch 35, 2026-10-01).
 use std.ops.Default
-use std.testing.assert_equal
-
 fn fresh[T < Default]() -> T:
     T::default()
 
 tests:
+    use std.testing.assert_equal
+
     it("gives each standard type its default"):
         let n: i32 = fresh()
         assert_equal(n, 0, reason="integers default to 0")

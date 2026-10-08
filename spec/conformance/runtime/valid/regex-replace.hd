@@ -1,7 +1,6 @@
 # test: replace and replace_all expand $1, ${1}, ${name}, and $$ in the replacement
 # Spec std/regex Replacing And Splitting: std-regex.replace, std-regex.replace-all, std-regex.replace.none, std-regex.replace.expand, std-regex.replace.syntax.dollar, std-regex.replace.syntax.number, std-regex.replace.syntax.braced, std-regex.replace.syntax.name, std-regex.replace.longest, std-regex.replace.absent, std-regex.replace.literal, std-regex.replace.once (task #244).
 use std.regex.Regex
-use std.testing.assert_equal
 use std.text.r
 
 fn swap(pattern: string, text: string, replacement: string) -> string:
@@ -12,6 +11,8 @@ fn iso(dates: string) -> string:
     us.replace_all(dates, "$3-\${month}-\${day}")
 
 tests:
+    use std.testing.assert_equal
+
     it("numbers and names mix"):
         assert_equal(iso("12/31/2025 and 01/02/2024"), "2025-12-31 and 2024-01-02", reason="two dates")
 

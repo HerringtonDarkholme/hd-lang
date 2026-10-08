@@ -1,7 +1,5 @@
 # test: a callable stored in a list keeps its requirement row through a row-polymorphic function
 # Spec 11 Requirement Polymorphism: req.poly.row-parameter; R is the stored callback's row, and the caller's provider reaches it.
-use std.testing.assert_equal
-
 trait Inventory:
     fn stock(self) -> i32
 
@@ -18,6 +16,8 @@ fn run_first[T, $R](jobs: List[fn() -> T $ R]) -> T $ R:
     job()
 
 tests:
+    use std.testing.assert_equal
+
     it("the stored callback reads the caller's provider"):
         $.with(Inventory=Warehouse {}):
             assert_equal(run_first([count_stock]), 42, reason="R is Inventory")

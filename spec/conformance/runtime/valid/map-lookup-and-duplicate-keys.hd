@@ -3,8 +3,6 @@
 # expr.map.keys, expr.collection.expected,
 # expr.collection.inferred, expr.collection.inferred.rows.
 
-use std.testing.assert_equal
-
 fn lookup[T](values: Map[string, T], key: string) -> T?:
     values.get(key)
 
@@ -14,6 +12,8 @@ fn unwrap(value: i32?) -> i32:
         .None => 0
 
 tests:
+    use std.testing.assert_equal
+
     it("a later duplicate key replaces the value"):
         scores := {"answer": +20, "other": 2, "answer": 40}
         assert_equal(unwrap(lookup(scores, "answer")), 40, reason="the later value wins")

@@ -1,6 +1,6 @@
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("equal string values pass assert_equal"):
         assert_equal("ada", "ada", reason="identical literals are equal")
         assert_equal("", "", reason="empty strings are equal")

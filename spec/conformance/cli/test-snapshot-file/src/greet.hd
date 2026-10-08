@@ -1,5 +1,5 @@
-use std.testing.snapshot_file
-
 tests:
+    use std.testing.snapshot_file
+
     it("Greets Ada"):
         snapshot_file("hello, Ada")

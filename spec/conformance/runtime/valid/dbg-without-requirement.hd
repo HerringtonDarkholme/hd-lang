@@ -3,8 +3,6 @@
 # module.dbg.body.site, module.dbg.body.value.
 # Account implements no Debug, and dbg shows its private field; what dbg
 # prints is not judged.
-use std.testing.assert_equal
-
 data Account:
     owner: string
     balance: i32
@@ -31,6 +29,8 @@ fn show_all(pair: (i32, string)) -> void:
     show(pair)
 
 tests:
+    use std.testing.assert_equal
+
     it("dbg works in a pure function, generic code, and a unit test"):
         assert_equal(total([1, 2, 3]), 6, reason="dbg changes no sum")
         assert_equal(audit(Account { owner: "Ada", balance: 120 }), "Ada", reason="dbg changes no account")

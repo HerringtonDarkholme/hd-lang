@@ -2,8 +2,6 @@
 # Spec std/digest SHA-256: std-digest.sha256.fips (ENCODING-SURFACE; task #224).
 # The expected digest is Node's crypto.createHash("sha256") of the same bytes.
 use std.digest.sha256_hex
-use std.testing.assert_equal
-
 fn counting(size: i32) -> List[u8]:
     let bytes: mut List[u8] = []
     for index in 0..size:
@@ -11,5 +9,7 @@ fn counting(size: i32) -> List[u8]:
     bytes
 
 tests:
+    use std.testing.assert_equal
+
     it("sixteen blocks"):
         assert_equal(sha256_hex(counting(1000)), "a8af099bf2e878609558dbf69d8f88f4a31040a8cf84b549a0cfa912f12ffc3f", reason="Node crypto")

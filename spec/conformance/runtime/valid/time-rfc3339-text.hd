@@ -1,12 +1,13 @@
 # test: to_rfc3339 writes UTC with a Z, a three-digit fraction only when the milliseconds are not zero, and at least four year digits
 # Spec std/time RFC 3339 Text: std-time.rfc3339.text, std-time.rfc3339.text.fraction, std-time.rfc3339.text.year, std-time.rfc3339.text.no-panic (COLLECTIONS-DATES-SURFACE; task #225).
-use std.testing.assert_equal
 use std.time.Timestamp
 
 fn text_of(millis: i64) -> string:
     Timestamp::from_unix_milliseconds(millis).to_rfc3339()
 
 tests:
+    use std.testing.assert_equal
+
     it("whole seconds have no fraction"):
         assert_equal(text_of(0), "1970-01-01T00:00:00Z", reason="the epoch")
         assert_equal(text_of(951782400000), "2000-02-29T00:00:00Z", reason="a leap day")

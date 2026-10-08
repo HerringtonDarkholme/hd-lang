@@ -1,7 +1,5 @@
 # test: copy-update copies embedded parts, so the copy never shares a part with its original
 # Spec 08 Parts And Copies: data.part.copy-update.
-use std.testing.assert_equal
-
 data Timestamps:
     created_at: i32
     pub updated_at: i32
@@ -16,6 +14,8 @@ data Post:
     title: string
 
 tests:
+    use std.testing.assert_equal
+
     it("copy-update independence"):
         let mut post = Post { Timestamps: ...Timestamps { created_at: 1, updated_at: 1 }, id: "p", title: "t" }
         let mut copy = Post { ...post, id: "copy" }

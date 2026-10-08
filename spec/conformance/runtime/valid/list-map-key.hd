@@ -1,7 +1,5 @@
 # test: a list of hashable items is a map key
 # Spec 04 Map Key Types: types.map-key.builtin-hash (owner decision Q5-hash, batch 51, 2026-10-02).
-use std.testing.assert_equal
-
 fn count(words: List[List[string]]) -> Map[List[string], i32]:
     let counts: mut Map[List[string], i32] = {}
     for key in words:
@@ -11,6 +9,8 @@ fn count(words: List[List[string]]) -> Map[List[string], i32]:
     counts
 
 tests:
+    use std.testing.assert_equal
+
     it("equal lists find the same entry"):
         counts := count([["a", "b"], ["a"], ["a", "b"]])
         assert_equal(counts.len(), 2, reason="two distinct keys")

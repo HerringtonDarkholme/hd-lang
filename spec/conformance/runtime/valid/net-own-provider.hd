@@ -6,8 +6,6 @@
 # std-net.bind-udp, std-net.mut, and std-net.handles.decl.
 # expect: test
 use std.net.{Net, NetError, TcpListener, TcpStream, UdpSocket}
-use std.testing.assert_equal
-
 data NoNetwork: pass
 
 impl Net for NoNetwork:
@@ -31,6 +29,8 @@ fn reach!(host: string, port: u16) -> bool $ Net:
         .Err(error) => error != NetError.Refused("${host}:${port}")
 
 tests:
+    use std.testing.assert_equal
+
     it("finds no address without a network"):
         let mut net = NoNetwork {}
         $.with(Net=net):

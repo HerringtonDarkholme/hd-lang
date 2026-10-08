@@ -1,8 +1,6 @@
 # test: copy update skips defaults
 # Spec 08 Copy-Update Literals: data.update.supplies-all, data.update.no-defaults.
 
-use std.testing.assert_equal
-
 data Counter:
     value: i32 = panic("copy-update evaluated a default")
 
@@ -12,5 +10,7 @@ fn main() -> i32:
     copied.value
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="copy update skips defaults")

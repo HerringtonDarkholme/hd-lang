@@ -1,6 +1,5 @@
 # test: ManualClock's sleep! returns at once and advances now() and monotonic(), through $.with and directly; a zero sleep leaves the time
 # Spec std/time Manual Clock: std-time.manual.new, std-time.manual.now, std-time.manual.monotonic, std-time.manual.sleep, std-time.manual.sleep.zero, and std-time.manual.reads (STDLIB decisions 4 and 10; task #220; SLEEP-NEGATIVE, task #223).
-use std.testing.{assert, assert_equal}
 use std.time.{Clock, Duration, Instant, ManualClock, Timestamp, ms, s}
 
 fn wait_twice!() -> Timestamp $ Clock:
@@ -10,6 +9,8 @@ fn wait_twice!() -> Timestamp $ Clock:
     clock.now()
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("sleeps in virtual time"):
         let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=clock):

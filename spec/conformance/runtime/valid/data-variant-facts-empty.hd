@@ -1,8 +1,6 @@
 # test: a data type's one variant has no facts of its own
 # Spec 14 Members And Variants: a template reads type-level facts through T::facts().
 use std.structure.{Structure, Field, Variant, Walker}
-use std.testing.assert_equal
-
 data Style:
     prefix: string = ""
 
@@ -43,5 +41,7 @@ data Point:
     x: i64
 
 tests:
+    use std.testing.assert_equal
+
     it("the data variant's facts are empty"):
         assert_equal(Point { x: 1 }.probe(), "variant:none;type:p_", reason="type-level facts come from T::facts()")

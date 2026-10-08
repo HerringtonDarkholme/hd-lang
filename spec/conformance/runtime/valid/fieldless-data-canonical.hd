@@ -1,6 +1,4 @@
 # Spec 08 Fieldless Data Types: data.empty.pass, data.empty.canonical.
-use std.testing.assert
-
 data Unit: pass
 
 data Box:
@@ -10,6 +8,8 @@ fn make() -> Unit:
     Unit {}
 
 tests:
+    use std.testing.assert
+
     it("fieldless data values are canonical"):
         first := Unit {}
         second := Unit {}

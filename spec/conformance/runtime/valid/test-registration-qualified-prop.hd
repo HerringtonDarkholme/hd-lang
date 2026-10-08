@@ -1,8 +1,8 @@
 # test: a module-qualified call of it_prop registers a property test case
 # Spec Modules, Registration Calls: module.testing.reg.identity.all; testing.it_prop is it_prop.
-use std.testing
-
 tests:
+    use std.testing
+
     testing.it_prop("a value equals itself", prop=fn!(value: i32):
         testing.assert(value == value, reason="equality is reflexive")
     )

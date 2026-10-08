@@ -1,7 +1,5 @@
 # test: explicit method type arguments select the candidate per trial
 # Spec 09 Traits: trait.resolve.many-apply (a trait-qualified call with type arguments resolves ambiguity).
-use std.testing.assert_equal
-
 trait Choose[T]:
     fn choose[U](self, run: fn(T) -> U) -> U
 
@@ -17,5 +15,7 @@ fn main() -> i32:
     Item {}.choose::[i32](run=fn(value): value + 2)
 
 tests:
+    use std.testing.assert_equal
+
     it("the named candidate runs"):
         assert_equal(main(), 42, reason="explicit arguments select the i32 candidate")

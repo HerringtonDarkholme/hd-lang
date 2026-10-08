@@ -1,7 +1,5 @@
 # test: the spread evaluates first, then explicit fields in source order
 # expect: test
-use std.testing.assert_equal
-
 data Log:
     text: string
 
@@ -19,6 +17,8 @@ fn source(log: mut Log, value: Record) -> Record:
     value
 
 tests:
+    use std.testing.assert_equal
+
     it("copy-update order"):
         let mut log = Log { text: "" }
         original := Record { first: 1, second: 2, third: 3 }

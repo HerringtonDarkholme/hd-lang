@@ -1,7 +1,5 @@
 # test: optional functions and tuples keep mutable optional arguments through closures
 # Spec 04 Optional Types: types.option.invariant (permission constructors survive calls and matches).
-use std.testing.assert_equal
-
 data User:
     name: i32
 
@@ -15,6 +13,8 @@ fn apply(callback: (fn((mut User)?) -> (mut User)?)?, value: (mut User)?) -> (mu
     function(value)
 
 tests:
+    use std.testing.assert_equal
+
     it("closures keep mutable optional arguments"):
         let mut item = User { name: 40 }
         let pair: ((mut User)?, (fn((mut User)?) -> (mut User)?)?) = (item, .Some(change))

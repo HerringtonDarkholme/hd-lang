@@ -1,11 +1,11 @@
 # test: floats implement Eq with IEEE semantics, so NaN is unequal to itself
 
-use std.testing.assert_equal
-
 fn same[T < Eq](left: T, right: T) -> bool:
     left == right
 
 tests:
+    use std.testing.assert_equal
+
     it("floats satisfy an Eq bound"):
         assert_equal(same(1.5, 1.5), true, reason="equal floats")
         assert_equal(same(1.5, 2.5), false, reason="different floats")

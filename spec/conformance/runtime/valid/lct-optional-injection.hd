@@ -4,8 +4,6 @@
 # types.lct.contextual, types.lct.contextual.expected,
 # types.infer.sites, types.infer.body-result.private,
 # and types.infer.named-fn.
-use std.testing.assert_equal
-
 fn pick(flag: bool, count: i32, found: i32?):
     if flag: count else: found
 
@@ -16,6 +14,8 @@ fn choose(key: i32, count: i32, found: i32?) -> i32?:
     value
 
 tests:
+    use std.testing.assert_equal
+
     it("joins i32 and i32? to i32?"):
         let count: i32 = 3
         let found: i32? = .None

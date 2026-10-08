@@ -3,8 +3,6 @@
 # Result[void, Error], so an error type that implements Error converts by the
 # ordinary rules. A body without ? is void.
 use std.error.Error
-use std.testing.assert_equal
-
 enum DigitError:
     NotDigit(text: string)
 
@@ -19,6 +17,8 @@ fn parse_digit(text: string) -> Result[i32, DigitError]:
     if text == "7": .Ok(7) else: .Err(DigitError.NotDigit(text))
 
 tests:
+    use std.testing.assert_equal
+
     it("parses a digit"):
         digit := parse_digit("7")?
         assert_equal(digit, 7, reason="the digit parses")

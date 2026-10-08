@@ -1,12 +1,12 @@
 # test: each CliError variant, its Display text, and the first error in argument order winning
 # Spec std/cli Parse Errors: std-cli.error.decl, std-cli.error.traits, std-cli.error.unknown, std-cli.error.missing-value, std-cli.error.unexpected-value, std-cli.error.missing-positional, std-cli.error.first, std-cli.form.no-clusters (task #242).
 use std.cli.{Cli, CliError}
-use std.testing.assert_equal
-
 fn tool() -> Cli:
     Cli::new("count").flag("verbose", 'v', "print each file").option("out", 'o', "write the total here").positional("pattern", "the files to count").positional("root", "where to start")
 
 tests:
+    use std.testing.assert_equal
+
     it("an unknown option names the argument as written"):
         assert_equal(tool().parse(["--colour", "a", "b"]), .Err(CliError.UnknownOption("--colour")), reason="a long name")
         assert_equal(tool().parse(["--colour=red", "a", "b"]), .Err(CliError.UnknownOption("--colour")), reason="up to the =")

@@ -2,8 +2,8 @@
 # Spec std/testing Snapshot Files: std-testing.snapshot-file.missing-panic (Testing T54).
 # No snapshot file is ever recorded for this case, and the run is not an
 # update run.
-use std.testing.snapshot_file
-
 tests:
+    use std.testing.snapshot_file
+
     it("has no recorded snapshot file"):
         snapshot_file("hello, Ada")  # panic: assertion-failed

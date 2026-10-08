@@ -1,7 +1,5 @@
 # test: enum payload match
 
-use std.testing.assert_equal
-
 enum Outcome:
     Value(value: i32)
     Failure(code: i32)
@@ -16,5 +14,7 @@ fn read(outcome: Outcome) -> i32:
 fn main() -> i32: read(Outcome.Value(42))
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="enum payload match")

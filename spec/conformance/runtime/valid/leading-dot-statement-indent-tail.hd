@@ -1,7 +1,5 @@
 # test: a '.Ok(...)' line at statement indentation after a ':=' chain is a new statement, the tail value
 # Spec Lexical Structure, Leading-Dot Continuation: lex.dot.statement-indent and lex.dot.contextual-statement.
-use std.testing.assert_equal
-
 data Step:
     size: i32
 
@@ -15,6 +13,8 @@ fn measure(start: Step) -> Result[Step, string]:
     .Ok(Step { size: size })
 
 tests:
+    use std.testing.assert_equal
+
     it("the tail is the contextual variant"):
         let size: i32 = match measure(Step { size: 1 }):
             .Ok(step) => step.size

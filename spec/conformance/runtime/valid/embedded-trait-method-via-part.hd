@@ -1,6 +1,4 @@
 # test: an embedded type's trait method is reached from its part; through the outer value it is ignored
-use std.testing.assert_equal
-
 data Base:
     pub name: string
 
@@ -19,6 +17,8 @@ data Page:
     Label
 
 tests:
+    use std.testing.assert_equal
+
     it("the part reaches the trait method and the deeper inherent method"):
         page := Page { Label: ...Label { Base: ...Base { name: "home" } } }
         assert_equal(Display::to_string(page.Label), "label", reason="Label's own Display method, trait-qualified because Base's to_string is promoted into Label")

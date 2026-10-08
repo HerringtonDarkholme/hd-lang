@@ -7,8 +7,6 @@
 # The std.structure Module: annot.structure.self-ref-enum,
 # annot.structure.self-ref-field (SR1, owner decision 2026-09-30).
 use std.structure.{Structure, Field, Variant, Describer, SelfRef}
-use std.testing.assert_equal
-
 trait Shape:
     fn shape() -> string
 
@@ -51,6 +49,8 @@ data Node:
     parent: Node?
 
 tests:
+    use std.testing.assert_equal
+
     it("an enum's variants and members report their self references"):
         expected := "Num=absent;value=absent;Add=required;left=required;right=required;Block=optional;items=optional;Empty=absent;"
         assert_equal(Expr::shape(), expected, reason="direct, list, and no self references")

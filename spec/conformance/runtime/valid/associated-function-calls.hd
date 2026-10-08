@@ -1,8 +1,6 @@
 # test: associated functions resolve through types, inherent members first, and bounds
 # Spec 09 Traits: trait.assoc-call.type, trait.assoc-call.type.traits, trait.assoc-call.parameter, trait.assoc-call.parameter.static.
 
-use std.testing.assert_equal
-
 trait Factory:
     fn create() -> Self
 
@@ -26,6 +24,8 @@ fn make[T < Factory]() -> T:
     T::create()
 
 tests:
+    use std.testing.assert_equal
+
     it("a type finds a trait associated function"):
         assert_equal(User::create().name, "made", reason="trait function through the type")
 

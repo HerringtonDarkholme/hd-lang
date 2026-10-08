@@ -1,8 +1,6 @@
 # test: a mut argument and a readonly argument of one type parameter meet at the readonly type
 # Spec 04 Inference From Several Arguments: types.generic.infer.join (INF-mut, owner decision
 # 2026-09-30). T is User in both argument orders.
-use std.testing.assert_equal
-
 data User:
     name: string
 
@@ -16,6 +14,8 @@ fn second(owned: mut User, shared: User) -> User:
     pick(shared, owned)
 
 tests:
+    use std.testing.assert_equal
+
     it("mut User and User meet at User"):
         let owned: mut User = User { name: "ada" }
         shared := User { name: "grace" }

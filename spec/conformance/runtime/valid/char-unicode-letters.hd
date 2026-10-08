@@ -1,8 +1,8 @@
 # test: is_alphabetic follows the Unicode Alphabetic property beyond ASCII, and is_ascii_digit stays ASCII
 # Spec std/text Character Classification: std-text.char.alphabetic, std-text.char.unicode-version (CHAR-CLASSIFY, batch 72; task #229).
-use std.testing.assert
-
 tests:
+    use std.testing.assert
+
     it("letters of other scripts"):
         assert('é'.is_alphabetic() && 'ß'.is_alphabetic(), reason="a Latin letter with a diacritic and the sharp s")
         assert('中'.is_alphabetic() && 'Ж'.is_alphabetic() && 'λ'.is_alphabetic(), reason="Han, Cyrillic, and Greek letters")

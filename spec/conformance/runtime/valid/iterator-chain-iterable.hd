@@ -1,8 +1,6 @@
 # test: chain takes any Iterable, takes its iterator once when called, and reads self, then other
 # Spec std/iter More Adapters: std-iter.adapter.chain-iterable, .iterable-arg, and .chain-iterable.order.
 use std.collections.Set
-use std.testing.assert_equal
-
 # An iterable whose `iter` and whose iterator's pulls run given closures.
 data Probe:
     start: fn() -> void
@@ -14,6 +12,8 @@ impl Iterable[i32] for Probe:
         Iterator::from_fn(self.pull)
 
 tests:
+    use std.testing.assert_equal
+
     it("chain"):
         assert_equal([1].iter().chain([2, 3]).collect(), [1, 2, 3], reason="a list")
         assert_equal([1].iter().chain(2..4).collect(), [1, 2, 3], reason="a range")

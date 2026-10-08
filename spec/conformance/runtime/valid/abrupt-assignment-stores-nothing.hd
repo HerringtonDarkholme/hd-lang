@@ -1,8 +1,6 @@
 # test: an assignment whose right-hand side completes abruptly performs no store
 # Spec 05 Expression Categories: "Assignment evaluates the place before the right-hand side, then
 # performs one store. ... If any step completes abruptly, no store occurs."
-use std.testing.assert_equal
-
 data Box:
     value: i32
 
@@ -18,6 +16,8 @@ fn set_element(target: mut List[i32], value: i32?) -> i32?:
     target[0]
 
 tests:
+    use std.testing.assert_equal
+
     it("field assignment with a propagating right side stores nothing"):
         let mut target = Box { value: 7 }
         let absent: i32? = .None

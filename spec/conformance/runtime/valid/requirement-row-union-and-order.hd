@@ -8,8 +8,6 @@
 # req.row.least.one-unknown.
 # Spec 02 Requirements And Provider Contexts: grammar.row.sets, grammar.type.row.plus-keys.
 # expect: test
-use std.testing.assert_equal
-
 trait Tag:
     fn name(self) -> string
 
@@ -52,6 +50,8 @@ fn relay[$R](callback: fn() -> string $ R + Tag) -> string $ R + Tag:
     callback()
 
 tests:
+    use std.testing.assert_equal
+
     it("union row satisfied by an outer and a local provider"):
         $.with(Tag=FixedTag { value: "t" }):
             assert_equal(provide_clock(both), "t@7", reason="Tag from outside, Clock from the callee")

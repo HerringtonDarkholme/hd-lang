@@ -5,8 +5,6 @@
 # expr.update.spread-first, expr.update.exact-type, expr.update.access-view,
 # expr.update.readonly-source, expr.update.readonly-fill,
 # expr.update.mutable-source, expr.update.shallow, expr.update.no-upgrade.
-use std.testing.{assert, assert_equal}
-
 data Child:
     name: string
 
@@ -16,6 +14,8 @@ data Parent:
     tags: List[string] = []
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("a copied composite field is shared with the source"):
         let mut original = Parent { child: Child { name: "a" }, label: "x" }
         let mut copy = Parent { ...original, label: "y" }

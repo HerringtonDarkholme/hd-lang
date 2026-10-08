@@ -1,9 +1,9 @@
 # test: tuple Display covers a rest tuple, writing the rest element's items inline after the fixed elements
 # expect: test
 # Spec 05 Interpolated Strings: expr.interp.std.tuple.rest-inline (owner decision Q5, batch 34, 2026-10-01).
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("displays the rest inline"):
         xs := [3, 4]
         t := (1, 2, xs...)

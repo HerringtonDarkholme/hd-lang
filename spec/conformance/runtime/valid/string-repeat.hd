@@ -1,8 +1,8 @@
 # test: repeat joins count copies of a string, and a count of 0 gives the empty string
 # Spec std/text String Methods: std-text.string.repeat (STDLIB question 18, 2026-09-29; batch 64, STD-1).
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("joins count copies"):
         assert_equal("ab".repeat(3), "ababab", reason="three copies")
         assert_equal("ab".repeat(0), "", reason="no copies")

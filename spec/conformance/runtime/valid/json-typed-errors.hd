@@ -3,8 +3,6 @@
 # Spec std/json Derived Deserialize, Decode Errors, Standard Implementations: std-json.derive.from-json.data, std-json.derive.from-json.member, std-json.derive.from-json.unknown-variant, std-json.derive.from-json.payload, std-json.error.path.index, std-json.error.path.key, std-json.error.display.path, std-json.error.expected.scalar, std-json.error.expected.array, std-json.error.expected.object, std-json.error.expected.variant, std-json.std.item-path, std-json.std.wrong-kind, std-json.from-json.root.
 use std.json.{decode, JsonError}
 use std.serde.{Serialize, Deserialize}
-use std.testing.{assert, assert_equal}
-
 @derive(Serialize, Deserialize)
 data User:
     name: string
@@ -26,6 +24,8 @@ fn failure[T < Deserialize](text: string) -> JsonError:
         .Err(error) => error
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("a wrong type names what the decoder reads, at its path"):
         assert_equal(failure::[User]("[]"), JsonError.WrongType("$", "object"), reason="data from an array")
         assert_equal(failure::[User]("{\"name\":1,\"age\":2}"), JsonError.WrongType("$.name", "string"), reason="member")

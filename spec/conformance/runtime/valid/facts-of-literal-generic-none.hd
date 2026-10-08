@@ -1,8 +1,6 @@
 # test: facts_of finds a data value, a literal value, and a bare-marker value by type, on a generic function, and finds none on an undecorated one
 # Spec 14 Function Facts: annot.facts-of.result, annot.decorator.facts-of, annot.decorator.bare-call, annot.target.limit.
 use std.annotation.{annotate, facts_of}
-use std.testing.{assert, assert_equal}
-
 @annotate(.Fn)
 data Route:
     path: string
@@ -35,6 +33,8 @@ fn path_of(found: Route?) -> string:
         .None => ""
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("finds each attached value by its type"):
         assert_equal(path_of(facts_of(list_users).find::[Route]()), "/users", reason="a data value")
         assert_equal(facts_of(list_users).find::[string](), "lists users", reason="a literal value")

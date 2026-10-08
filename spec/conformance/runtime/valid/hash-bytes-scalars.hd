@@ -1,8 +1,6 @@
 # test: integers, bool, and char write their fixed-width little-endian bytes to the Hasher
 # Spec std Hash, Bytes Written: std-hash.bytes.integer, std-hash.bytes.bool,
 # std-hash.bytes.char (batch 65, HASH-BYTES).
-use std.testing.assert_equal
-
 data Recorder:
     bytes: mut List[u8]
 
@@ -17,6 +15,8 @@ fn bytes_of[T < Hash](value: T) -> List[u8]:
     recorder.bytes
 
 tests:
+    use std.testing.assert_equal
+
     it("an integer writes its bytes at its own width, least significant first"):
         let small: i32 = 42
         let negative: i64 = -2

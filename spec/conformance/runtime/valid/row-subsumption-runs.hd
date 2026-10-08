@@ -1,7 +1,5 @@
 # test: handlers with narrower rows run through a wider function type with their own providers
 # expect: test
-use std.testing.assert_equal
-
 trait Db:
     fn name(self) -> string
 
@@ -37,6 +35,8 @@ fn serve_all(handlers: List[fn() -> string $ Db + Clock]) -> string $ Db + Clock
     text
 
 tests:
+    use std.testing.assert_equal
+
     it("each handler sees the providers of its own row"):
         $.with(Db=MemoryDb {}, Clock=FixedClock {}):
             assert_equal(serve(health), "ok 7", reason="Clock only")

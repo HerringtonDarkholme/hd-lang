@@ -2,8 +2,6 @@
 # expect: test
 # Spec 04 Primitive Types: types.prim.no-mut.self-type (owner decision LM-c, batch 16, 2026-09-30).
 
-use std.testing.assert_equal
-
 trait Step:
     fn next(mut self) -> i32
 
@@ -14,5 +12,7 @@ fn advance(start: i32) -> i32:
     start.next()
 
 tests:
+    use std.testing.assert_equal
+
     it("arithmetic on a primitive mut self receiver"):
         assert_equal(advance(41), 42, reason="next")

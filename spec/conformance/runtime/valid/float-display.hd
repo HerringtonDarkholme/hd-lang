@@ -1,6 +1,6 @@
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("float display follows the canonical text format"):
         assert_equal("${1.0}", "1.0", reason="integral floats retain a decimal point")
         assert_equal("${-0.0}", "-0.0", reason="negative zero retains its sign")

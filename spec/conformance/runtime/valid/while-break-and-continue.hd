@@ -2,8 +2,6 @@
 # Spec 06 While Loops: flow.while.condition, flow.continue,
 # flow.break.boundary, flow.loop.void.type, flow.loop.void.break.
 
-use std.testing.assert_equal
-
 fn main() -> i32:
     let value = +0
     while value < 10:
@@ -15,5 +13,7 @@ fn main() -> i32:
     value
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 7"):
         assert_equal(main(), 7, reason="while break and continue")

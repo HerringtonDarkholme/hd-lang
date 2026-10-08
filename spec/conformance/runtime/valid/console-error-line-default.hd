@@ -1,7 +1,5 @@
 # test: a Console provider that does not override write_error_line! records error lines with write_line!
 # Spec 10 Console: module.console.write-error-line.default (batch 64, STD-4).
-use std.testing.{assert, assert_equal}
-
 data BufferConsole:
     lines: mut List[string]
 
@@ -16,6 +14,8 @@ fn warn!() -> Result[void, ConsoleError] $ Console:
     console.write_error_line!("err")
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("the default body calls write_line!"):
         let mut console = BufferConsole { lines: [] }
         $.with(Console=console):

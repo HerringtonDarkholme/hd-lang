@@ -3,8 +3,6 @@
 # Spec 07 Generic Functions: fn.generic.qualified,
 # fn.generic.qualified.owner-list.
 
-use std.testing.assert_equal
-
 trait Add[T]:
     fn add(self, other: T) -> T
 
@@ -43,6 +41,8 @@ fn add_blanket() -> i32:
     20 + Add::[i32]::add(Keep::[i32] { value: 0 }, 22)
 
 tests:
+    use std.testing.assert_equal
+
     it("add_qualified returns 42"):
         assert_equal(add_qualified(), 42, reason="generic trait-qualified calls select one instantiated implementation")
 

@@ -1,7 +1,7 @@
 # test: a list of unsigned literals that nothing decides holds usize values, so a difference below zero overflows
-use std.testing.assert
-
 tests:
+    use std.testing.assert
+
     it("the fallback element type is usize"):
         let xs = [1, 2]
         let difference = xs[0] - xs[1]  # panic: integer-overflow

@@ -2,8 +2,6 @@
 # expect: test
 # Spec 09 Traits: trait.impl.generics, trait.qualified.type-arguments.
 
-use std.testing.assert_equal
-
 trait Identity:
     fn select[T](self, value: T) -> T
 
@@ -13,6 +11,8 @@ impl Identity for Picker:
     fn select[T](self, value: T) -> T: value
 
 tests:
+    use std.testing.assert_equal
+
     it("dot and trait-qualified calls with explicit type arguments"):
         assert_equal(Picker {}.select::[i32](42), 42, reason="dot call with explicit type argument")
         assert_equal(Identity::select::[i32](Picker {}, 42), 42, reason="trait-qualified call with explicit type argument")

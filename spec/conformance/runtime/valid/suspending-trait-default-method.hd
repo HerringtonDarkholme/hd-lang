@@ -1,7 +1,5 @@
 # test: traits / suspending defaults
 
-use std.testing.assert_equal
-
 trait Named:
     fn value(self) -> i32
     fn load!(self) -> i32:
@@ -18,5 +16,7 @@ fn main!() -> i32:
     named.load!()
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main!(), 42, reason="traits / suspending defaults")

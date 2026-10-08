@@ -1,7 +1,5 @@
 # test: literals take their width from the typed parts of their own expression: ranges, lists, enums, and generic data
 # Spec 04 Open Literal Width: types.literal.local.class.meet and its expression forms.
-use std.testing.assert
-
 data Pair[T]:
     first: T
     second: T
@@ -13,6 +11,8 @@ fn widen(value: u64) -> u64:
     value
 
 tests:
+    use std.testing.assert
+
     it("an index use reads a range of usize literals"):
         let items: List[i32] = [10, 20, 30]
         let sum: i32 = 0

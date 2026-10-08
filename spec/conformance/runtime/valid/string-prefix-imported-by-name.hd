@@ -1,9 +1,10 @@
 # test: a prefix function that another module declares is used by importing its bare name
 # Spec Names, Literal Suffix Names: names.literal-fn.bare-in-scope.
 # fixture-package-tree: qualified-prefix/src/main.hd
-use std.testing.assert_equal
 use pkg.marks.tag
 
 tests:
+    use std.testing.assert_equal
+
     it("tag gets the raw text"):
         assert_equal(tag"item\n", "item\\n", reason="the imported prefix gets the raw piece")

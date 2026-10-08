@@ -1,7 +1,5 @@
 # test: rotate_left and rotate_right turn the two's-complement bits of every integer width, with the count modulo the width
 # Spec std/num Rotation: std-num.rotate.left, std-num.rotate.right, std-num.rotate.widths, std-num.rotate.count-modulo, std-num.rotate.signed, std-num.rotate.inverse.
-use std.testing.assert_equal
-
 fn next_state(state: u32) -> u32:
     state.rotate_left(5) ^ state
 
@@ -9,6 +7,8 @@ fn swap_nibbles(byte: u8) -> u8:
     byte.rotate_left(4)
 
 tests:
+    use std.testing.assert_equal
+
     it("unsigned values"):
         let byte: u8 = 150
         assert_equal(byte.rotate_left(1), 45, reason="10010110 turned left by one")

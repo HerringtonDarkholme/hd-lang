@@ -1,9 +1,9 @@
 # test: replace with an empty old string inserts the replacement at every scalar boundary
 # Spec 10 Prelude: "an empty `old` inserts the replacement at scalar boundaries".
 # expect: test
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("empty old inserts at scalar boundaries"):
         assert_equal("abc".replace("", "-"), "-a-b-c-", reason="both ends and between scalars")
         assert_equal("".replace("", "x"), "x", reason="an empty string has one boundary")

@@ -4,8 +4,6 @@
 # Spec 09 Traits: trait.error.defaults, trait.error.complete, trait.error.import, trait.error.no-inspect-import, trait.error.erased, trait.error.downcast, trait.downcast.ordinary.
 use std.error.Error
 use std.inspect.downcast_val
-use std.testing.assert_equal
-
 enum FsError:
     NotFound(path: string)
 
@@ -39,6 +37,8 @@ fn is_error_target(error: dyn Error) -> bool:
         .None => false
 
 tests:
+    use std.testing.assert_equal
+
     it("an erased FsError is recovered"):
         let error: dyn Error = FsError.NotFound("a.txt")
         assert_equal(missing_path(error), "a.txt", reason="the concrete error type matches")

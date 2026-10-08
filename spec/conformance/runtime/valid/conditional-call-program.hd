@@ -1,7 +1,5 @@
 # test: case
 
-use std.testing.assert_equal
-
 fn choose(flag: bool, left: i32, right: i32) -> i32:
     if flag:
         left + 1
@@ -13,5 +11,7 @@ fn main() -> i32:
     choose(base < 30, base, 0) * 2
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="case")

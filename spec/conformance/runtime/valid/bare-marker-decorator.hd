@@ -3,8 +3,6 @@
 # annot.decorator.bare-call.only. `@hidden` calls the function, while a bare
 # `hidden` expression outside a decorator remains a function value.
 use std.annotation.facts_of
-use std.testing.assert_equal
-
 data Hidden: pass
 
 fn hidden() -> Hidden:
@@ -21,6 +19,8 @@ marked := facts_of(internal_check).find::[Hidden]()
 let hidden_factory: fn() -> Hidden = hidden
 
 tests:
+    use std.testing.assert_equal
+
     it("attaches the marker's result"):
         assert_equal(marked.is_some(), true, reason="the marker was called")
         assert_equal(facts_of(plain).find::[Hidden]().is_some(), false, reason="an undecorated function holds none")

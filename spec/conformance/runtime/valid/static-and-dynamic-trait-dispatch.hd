@@ -1,8 +1,6 @@
 # test: traits / dispatch
 # Spec 09 Traits: trait.dyn.form, trait.dyn.contents, trait.dyn.convert.
 
-use std.testing.assert_equal
-
 trait Describe:
     fn describe(self) -> i32
 
@@ -20,5 +18,7 @@ fn main() -> i32:
     user.describe() + dynamic_show(user)
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="traits / dispatch")

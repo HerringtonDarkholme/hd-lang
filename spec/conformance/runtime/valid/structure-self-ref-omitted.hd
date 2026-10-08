@@ -1,8 +1,6 @@
 # test: a variant's self_ref counts a member that the derivation block omits
 # Spec 14 Self References: annot.self-ref.variant.omitted (owner decision SR-omit, batch 51, 2026-10-02).
 use std.structure.{Structure, Field, Variant, Describer, SelfRef}
-use std.testing.assert_equal
-
 trait Shape:
     fn shape() -> string
 
@@ -40,5 +38,7 @@ impl Shape for Node by Structure:
     parent = pass
 
 tests:
+    use std.testing.assert_equal
+
     it("the omitted parent still makes the variant optional"):
         assert_equal(Node::shape(), "Node=optional;label=absent;", reason="parent is omitted but counted")

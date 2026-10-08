@@ -1,9 +1,10 @@
 # test: Duration is whole milliseconds, built with milliseconds or seconds and read with as_milliseconds
 # Spec std/time Duration: std-time.suffix.std.duration-api (Literal Suffixes L17, L18).
-use std.testing.assert_equal
 use std.time.{Duration, ms, s, min}
 
 tests:
+    use std.testing.assert_equal
+
     it("builds and reads milliseconds"):
         assert_equal(Duration::milliseconds(250).as_milliseconds(), 250, reason="milliseconds")
         assert_equal(Duration::seconds(2).as_milliseconds(), 2000, reason="seconds scale by 1000")

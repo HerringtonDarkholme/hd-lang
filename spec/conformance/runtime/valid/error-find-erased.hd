@@ -1,8 +1,6 @@
 # test: an erased Error value calls find, so Error stays dynamically safe with its method-level T < Error
 # Spec std/error Root Cause And Find: std-error.find.first; Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param (ERR-HELPERS; task #223).
 use std.error.Error
-use std.testing.{assert, assert_equal}
-
 @error("disk full")
 data DiskError:
     free: i64
@@ -21,6 +19,8 @@ fn free_space(failure: dyn Error) -> i64?:
         .None => .None
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("find through an erased Error"):
         match load():
             .Ok(_) => assert(false, reason="load fails")

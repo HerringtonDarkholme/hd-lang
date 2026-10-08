@@ -1,7 +1,5 @@
 # test: closures / provider captures
 
-use std.testing.assert_equal
-
 fn make_reader() -> (fn() -> i32) $ Backup:
     $.with(Clock=$.use(Backup)):
         clock := $.use(Clock)
@@ -26,6 +24,8 @@ impl Backup for FixedBackup:
     fn label(self) -> i32: 0
 
 tests:
+    use std.testing.assert_equal
+
     it("run returns 42 with its providers"):
         $.with(Backup=FixedBackup {}):
             assert_equal(run(), 42, reason="closures / provider captures")

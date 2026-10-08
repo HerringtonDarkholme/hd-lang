@@ -2,8 +2,6 @@
 # Spec std/fs Memory File System: std-fs.memory.new, std-fs.memory.keys, and std-fs.memory.error.not-found (STDLIB decision 4, PROVIDER-SHAPES; task #220).
 use std.fs.{FsError, FsRead, FsWrite, MemoryFs, read_text, write_text}
 use std.path.Path
-use std.testing.assert
-
 fn copy_notes!() -> Result[void, FsError] $ FsRead + FsWrite:
     text := read_text!(Path("notes.txt"))?
     write_text!(Path("notes.bak"), text)
@@ -14,6 +12,8 @@ fn read_error!(files: MemoryFs, path: Path) -> FsError?:
         .Err(error) => .Some(error)
 
 tests:
+    use std.testing.assert
+
     it("copies in memory"):
         let mut files = MemoryFs::new()
         assert(files.write_text!(Path("notes.txt"), "tea").is_ok(), reason="seeded")

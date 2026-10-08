@@ -1,7 +1,5 @@
 # test: a type parameter named only in another parameter's bound is solved from the one implementation
 # Spec 04 Inference Through A Bound: types.generic.infer.bound.one (owner decision BOUND-INFERENCE, batch 77, 2026-10-03).
-use std.testing.assert_equal
-
 trait Source[T]:
     fn take(self) -> T
 
@@ -20,5 +18,7 @@ fn name(label: Label) -> string:
     text
 
 tests:
+    use std.testing.assert_equal
+
     it("S is Label, then U is string"):
         assert_equal(name(Label { text: "box" }), "box", reason="the one Source instantiation")

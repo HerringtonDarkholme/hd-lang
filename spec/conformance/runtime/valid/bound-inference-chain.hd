@@ -1,7 +1,5 @@
 # test: parameters named only in bounds are solved to a fixed point, so a chain of bounds is solved in dependency order
 # Spec 04 Inference Through A Bound: types.generic.infer.bound.fixed-point (owner decision BOUND-INFERENCE, batch 77, 2026-10-03).
-use std.testing.assert_equal
-
 fn first_item[T, Inner < Iterable[T], Outer < Iterable[Inner]](groups: Outer) -> T?:
     for group in groups:
         for item in group:
@@ -13,5 +11,7 @@ fn first_name(teams: List[List[string]]) -> string?:
     found
 
 tests:
+    use std.testing.assert_equal
+
     it("Outer, then Inner, then T"):
         assert_equal(first_name([[], ["ada", "bob"]]), .Some("ada"), reason="the first item of the first nonempty group")

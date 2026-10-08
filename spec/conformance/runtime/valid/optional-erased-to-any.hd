@@ -2,9 +2,9 @@
 # expect: test
 # Spec 09 Traits: trait.any.all, trait.any.optional.
 
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("optionals convert to Any"):
         let present: i32? = 1
         let absent: i32? = .None

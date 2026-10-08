@@ -1,12 +1,12 @@
 # test: a suspending call is written as a substitution step with its bang
 # Spec 05 Substitution Steps: expr.pipe.slot.suffix (Chaining Study CS2).
-use std.testing.assert_equal
-
 fn fetch!(id: i32) -> i32: id + 1
 
 fn loaded!(n: i32) -> i32:
     n |> fetch!(_) |> _ * 2
 
 tests:
+    use std.testing.assert_equal
+
     it("the bang call runs as a step"):
         assert_equal(loaded!(2), 6, reason="(2 + 1) * 2")

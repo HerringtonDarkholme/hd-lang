@@ -1,8 +1,6 @@
 # test: a member line's right side may be any list-typed expression, in a block with no trait and a derivation block
 # Spec 14 Member Lines: annot.line.right-typed (M28).
 use std.structure.{Structure, Field, Variant, Walker}
-use std.testing.assert_equal
-
 data Tag:
     text: string
 
@@ -62,5 +60,7 @@ impl Probe for Point by Structure:
     y = noted_m
 
 tests:
+    use std.testing.assert_equal
+
     it("applies named lists as member lines"):
         assert_equal(Point { x: 1, y: 2, z: 3 }.probe(), "x=a/n;y=-/m;z=c/-;", reason="a named list extends or replaces facts like a list literal")

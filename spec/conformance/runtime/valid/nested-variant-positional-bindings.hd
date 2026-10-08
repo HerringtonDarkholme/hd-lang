@@ -1,7 +1,5 @@
 # test: nested variant patterns preserve every positional binding in the arm
 
-use std.testing.assert_equal
-
 enum Plain:
     Lit(i64)
     Add(Plain, Plain)
@@ -38,5 +36,7 @@ fn main() -> i64:
     nested_first(Triple.Items(Plain.Lit(0), Plain.Lit(4), Plain.Lit(2))) + nested_middle(Triple.Items(Plain.Lit(4), Plain.Lit(0), Plain.Lit(2))) + nested_last(Triple.Items(Plain.Lit(4), Plain.Lit(2), Plain.Lit(0))) + nested_twice(Triple.Items(Plain.Lit(0), Plain.Lit(42), Plain.Lit(2)))
 
 tests:
+    use std.testing.assert_equal
+
     it("nested patterns keep every positional binding"):
         assert_equal(main(), 168, reason="nested variant positional bindings")

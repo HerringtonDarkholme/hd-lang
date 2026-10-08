@@ -3,11 +3,11 @@
 # label module also writes use std.testing.assert_equal.
 # fixture-package-tree: module-names/src/receipt.hd
 use pkg.label.{double}
-use std.testing.assert_equal
-
 fn quadruple(count: i32) -> i32:
     double(double(count))
 
 tests:
+    use std.testing.assert_equal
+
     it("quadruples the count"):
         assert_equal(quadruple(+2), 8, reason="two four times")

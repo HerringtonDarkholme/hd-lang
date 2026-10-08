@@ -1,7 +1,5 @@
 # test: generic arguments instantiated with mut User keep mutable access through readonly roots
 # expect: test
-use std.testing.assert_equal
-
 data User:
     name: string
 
@@ -12,6 +10,8 @@ fn keep[T](value: T) -> T:
     value
 
 tests:
+    use std.testing.assert_equal
+
     it("a generic function returns the mutable access it was given"):
         let mut user = User { name: "Ada" }
         let kept: mut User = keep(user)

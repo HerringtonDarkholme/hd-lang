@@ -2,8 +2,6 @@
 # Spec 09 Inspectable Types: trait.inspectable.primitive, trait.inspectable.collections, trait.inspectable.option, trait.inspectable.exact.
 # Spec 09 Recovering A Concrete Type: trait.downcast.val, trait.downcast.exact, trait.downcast.optional; Ordinary Rules: trait.downcast.val-ordinary.
 use std.inspect.{Inspectable, downcast_val}
-use std.testing.assert_equal
-
 data Sku:
     code: string
 
@@ -31,6 +29,8 @@ fn sku_of(value: dyn Inspectable) -> string:
         .None => "not an optional sku"
 
 tests:
+    use std.testing.assert_equal
+
     it("a map and a tuple come back with their exact types"):
         let stock: Map[string, i32] = {"apple": 12}
         assert_equal(stock_of(stock), 12, reason="Map[string, i32]")

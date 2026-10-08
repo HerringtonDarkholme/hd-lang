@@ -1,7 +1,5 @@
 # test: the operand of ? gets an expected type as a hint, which solves a call's open type argument
 # Spec 05 Propagation: expr.try.expected, expr.try.expected.result, expr.try.expected.option, expr.try.expected.hint-only (owner decision Q-?, batch 15, 2026-09-30).
-use std.testing.assert_equal
-
 fn empty_ok[T]() -> Result[List[T], string]:
     .Ok([])
 
@@ -31,6 +29,8 @@ fn not_found() -> i32?:
     .Some(found)
 
 tests:
+    use std.testing.assert_equal
+
     it("a Result hint solves the type argument of an Ok producer"):
         let none: List[i32] = []
         assert_equal(no_ports(), .Ok(none), reason="the Ok payload continues")

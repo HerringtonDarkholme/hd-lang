@@ -1,8 +1,6 @@
 # test: collections / trait lists
 # Spec 09 Traits: trait.dyn.form, trait.dyn.convert.
 
-use std.testing.assert_equal
-
 trait Value:
     fn get(self) -> i32
 
@@ -17,5 +15,7 @@ fn main() -> i32:
     values[0].get() + values[1].get()
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="collections / trait lists")

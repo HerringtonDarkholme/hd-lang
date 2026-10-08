@@ -1,10 +1,10 @@
 # fixture-test-layout: test-module
 # test: a test module holds its test cases at top level, so a tests block in it is misplaced
 # Spec 10 Test Modules: module.test.no-tests-block (Testing T45, T53).
-use std.testing.assert
-
 fn double(value: i32) -> i32: value * 2
 
 tests:  # diagnostic: misplaced-tests-block
+    use std.testing.assert
+
     it("doubles"):
         assert(double(2) == 4, reason="two doubled")

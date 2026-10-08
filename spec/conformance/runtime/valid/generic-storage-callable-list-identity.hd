@@ -1,7 +1,5 @@
 # test: a mutable list of callables passed through generic code is the same list afterwards
 # Spec 04 Generic Representation: types.generic.unobservable; generic storage of function values keeps the list's identity.
-use std.testing.{assert, assert_equal}
-
 fn load_orders() -> i32: 40
 fn load_refunds() -> i32: 2
 
@@ -10,6 +8,8 @@ fn schedule[T](jobs: mut List[fn() -> T], job: fn() -> T) -> mut List[fn() -> T]
     jobs
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("the returned list is the argument list"):
         let jobs: mut List[fn() -> i32] = [load_orders]
         returned := schedule(jobs, load_refunds)

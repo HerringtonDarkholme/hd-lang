@@ -1,8 +1,6 @@
 # test: tuple elements and unnamed shared enum parameters are read as _0, _1, and so on
 # Spec 05 Tuple Selection: expr.tuple.select-underscore.identifier.
 
-use std.testing.assert_equal
-
 enum StatusCode(i32):
     NotFound -> StatusCode(404)
 
@@ -15,6 +13,8 @@ fn continued(nested: ((i32, i32), i32)) -> i32:
     value._1
 
 tests:
+    use std.testing.assert_equal
+
     it("underscore members select tuple elements and shared parameters"):
         nested := ((+1, +2), +3)
         assert_equal(nested._0._1, 2, reason="nested selection")

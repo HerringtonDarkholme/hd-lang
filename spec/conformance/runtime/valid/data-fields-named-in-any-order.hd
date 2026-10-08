@@ -1,8 +1,6 @@
 # test: data fields named in any order
 # Spec 08 Data Literals: data.literal.any-order.
 
-use std.testing.assert_equal
-
 data Point:
     x: i32
     y: i32
@@ -14,5 +12,7 @@ fn main() -> i32:
     sum(point)
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="data fields named in any order")

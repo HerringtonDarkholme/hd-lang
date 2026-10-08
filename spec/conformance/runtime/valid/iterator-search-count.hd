@@ -1,11 +1,11 @@
 # test: any, all, and find stop at the deciding item; count drains; an exhausted iterator gives the empty results
 # Spec std/iter More Adapters: std-iter.adapter.any, .all, .find, .count, .stop-early, .exhausted, and .count.drain.
-use std.testing.{assert, assert_equal}
-
 fn has_blank(lines: List[string]) -> bool:
     lines.iter().any(fn(line: string) -> bool: line.trim() == "")
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("search"):
         assert(has_blank(["a", " "]) && !has_blank(["a"]), reason="any")
         assert([1, 2].iter().all(fn(n: i32) -> bool: n > 0), reason="all")

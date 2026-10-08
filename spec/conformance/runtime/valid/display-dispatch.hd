@@ -1,5 +1,3 @@
-use std.testing.assert_equal
-
 data Label:
     value: string
 
@@ -13,6 +11,8 @@ fn render_dynamic(value: dyn Display) -> string:
     "dynamic=$value"
 
 tests:
+    use std.testing.assert_equal
+
     it("display dispatches for concrete generic and dynamic values"):
         label := Label { value: "Ada" }
         assert_equal("label=$label", "label=Ada", reason="concrete Display implementation")

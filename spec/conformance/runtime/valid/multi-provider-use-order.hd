@@ -1,7 +1,5 @@
 # test: multi provider use order
 
-use std.testing.assert_equal
-
 trait Left:
     fn value(self) -> i32
 
@@ -23,5 +21,7 @@ fn main() -> i32:
         left.value() + right.value()
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="multi provider use order")

@@ -1,7 +1,5 @@
 # test: requirements / inferred rows / private function infers its row
 
-use std.testing.assert_equal
-
 trait Clock
 
 data FixedClock: pass
@@ -13,6 +11,8 @@ fn read_clock() -> i32:
     42
 
 tests:
+    use std.testing.assert_equal
+
     it("inferred row is satisfied by the provider scope"):
         $.with(Clock=FixedClock {}):
             assert_equal(read_clock(), 42, reason="private function infers its row")

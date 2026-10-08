@@ -1,7 +1,7 @@
 # Spec 10 Standard Testing: module.testing.assert-panic.
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("Ok and Err with the same payload shape fail assert_equal"):
         let ok: Result[string, string] = .Ok("same")
         let error: Result[string, string] = .Err("same")

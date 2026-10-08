@@ -1,8 +1,6 @@
 # test: a suffixed literal calls its suffix function with the literal, and a minus negates the result
 # Spec 05 Literal Suffixes: `12px` calls px(12), and `-12px` is -(px(12)), not px(-12).
 use std.ops.{Neg, num_suffix}
-use std.testing.assert_equal
-
 data Pixels:
     count: i32
 
@@ -19,6 +17,8 @@ fn indent() -> Pixels:
     -12px
 
 tests:
+    use std.testing.assert_equal
+
     it("calls the suffix function"):
         assert_equal(12px.count, 25, reason="px doubles the literal and adds one")
         assert_equal(indent().count, -25, reason="the minus negates px(12), so it is not px(-12)")

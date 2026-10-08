@@ -1,7 +1,5 @@
 # test: data types may be directly and mutually recursive, with an optional or list base case
 # Spec 08 Recursive Data Types: data.recursive.direct, data.recursive.mutual.
-use std.testing.assert_equal
-
 data Comment:
     body: string
     replies: List[Comment]
@@ -26,6 +24,8 @@ fn head_name(employee: Employee) -> string:
         .None => "vacant"
 
 tests:
+    use std.testing.assert_equal
+
     it("a directly recursive comment thread"):
         thread := Comment {
             body: "release notes?",

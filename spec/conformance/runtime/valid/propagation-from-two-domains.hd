@@ -2,8 +2,6 @@
 # Spec 05 Propagation, step 2: when the error is not assignable to the enclosing error
 # type, ? returns the result of the target's From[E] implementation.
 use std.convert.From
-use std.testing.assert_equal
-
 enum FsError:
     NotFound(path: string)
 
@@ -56,6 +54,8 @@ fn describe(result: Result[string, SyncError]) -> string:
         .Err(error) => label(error)
 
 tests:
+    use std.testing.assert_equal
+
     it("both steps succeed"):
         assert_equal(describe(sync("config.txt", true)), "body of https://example.test", reason="no error")
 

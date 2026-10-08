@@ -1,6 +1,4 @@
 # test: && and || combine bools, prefix ! negates, and != stays one token
-use std.testing.assert
-
 fn fetch!(id: i32) -> bool: id > 0
 
 fn missing!(id: i32) -> bool:
@@ -10,6 +8,8 @@ fn pick(a: bool, b: bool, c: bool) -> bool:
     a && !b || c
 
 tests:
+    use std.testing.assert
+
     it("prefix ! negates a bool"):
         ready := false
         assert(!ready, reason="!false is true")

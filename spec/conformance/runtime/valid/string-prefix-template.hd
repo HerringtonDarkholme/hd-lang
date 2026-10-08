@@ -2,8 +2,6 @@
 # Spec 05 Prefixed Strings: n values, n + 1 pieces, and every backslash kept.
 # expect: test
 use std.ops.{Template, str_prefix}
-use std.testing.assert_equal
-
 data Parts:
     pieces: List[string]
     values: List[i32]
@@ -13,6 +11,8 @@ fn parts(t: Template[i32]) -> Parts:
     Parts { pieces: t.raw_parts, values: t.values }
 
 tests:
+    use std.testing.assert_equal
+
     it("splits the text around one value"):
         b := +2
         found := parts"a $b c"

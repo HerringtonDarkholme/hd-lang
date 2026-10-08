@@ -2,8 +2,6 @@
 # Spec std/iter More Adapters: std-iter.adapter.zip-iterable, .iterable-arg, and .zip-iterable.order.
 # `.zip(names)` has no type arguments: `U` is solved through the bound (types.generic.infer.bound.one).
 use std.collections.Set
-use std.testing.assert_equal
-
 # An iterable whose `iter` and whose iterator's pulls run given closures.
 data Probe:
     start: fn() -> void
@@ -18,6 +16,8 @@ fn labeled(names: List[string]) -> List[(i32, string)]:
     [+1, 2, 3].iter().zip(names).collect()
 
 tests:
+    use std.testing.assert_equal
+
     it("zip stops at the shorter"):
         assert_equal(labeled(["a", "b"]), [(1, "a"), (2, "b")], reason="names end first")
         assert_equal(labeled(["a", "b", "c", "d"]).len(), 3, reason="numbers end first")

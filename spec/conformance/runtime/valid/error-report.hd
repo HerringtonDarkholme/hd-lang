@@ -1,8 +1,6 @@
 # test: report_of snapshots an error's message and its causes' messages, and the report displays as an entry point prints it
 # Spec std/error Error Reports: std-error.report.of, std-error.report.display (task #221).
 use std.error.{ErrorReport, report_of}
-use std.testing.assert_equal
-
 @error("disk full")
 data DiskError:
     free: i64
@@ -18,6 +16,8 @@ enum SyncError:
     Save(@from error: SaveError)
 
 tests:
+    use std.testing.assert_equal
+
     it("report_of keeps the message and each cause"):
         report := report_of(SyncError.Save(SaveError.Write("notes.txt", DiskError { free: 0 })))
         assert_equal(report.message, "sync failed", reason="the error's own message")

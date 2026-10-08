@@ -1,7 +1,5 @@
 # test: after a local implementation, its target converts to the trait value type and satisfies a later child-trait impl
 # Spec 03 Members: names.member.known-impl; a local implementation is known from where its methods are available.
-use std.testing.assert_equal
-
 fn erased_label(number: string) -> string:
     data Invoice:
         number: string
@@ -32,6 +30,8 @@ fn shipping_cost() -> i32:
     Parcel {}.cost()
 
 tests:
+    use std.testing.assert_equal
+
     it("the target converts to the trait value after the impl"):
         assert_equal(erased_label("7"), "INV-7", reason="the local impl is known here")
 

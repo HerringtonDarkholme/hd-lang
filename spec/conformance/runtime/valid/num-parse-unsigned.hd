@@ -1,8 +1,6 @@
 # test: parse_u32, parse_u64, and parse_usize read an optional plus and digits, and reject a minus as an invalid digit
 # Spec std/num Integer Parsing: std-num.parse.u32, .u64, .usize, std-num.parse.unsigned, std-num.parse.unsigned.minus, std-num.parse.usize-range.
 use std.num.{parse_u32, parse_u64, parse_usize, ParseNumberError}
-use std.testing.assert_equal
-
 fn describe[T < Display](result: Result[T, ParseNumberError]) -> string:
     match result:
         .Ok(value) => "ok $value"
@@ -11,6 +9,8 @@ fn describe[T < Display](result: Result[T, ParseNumberError]) -> string:
         .Err(.OutOfRange) => "out of range"
 
 tests:
+    use std.testing.assert_equal
+
     it("accepted text"):
         assert_equal(describe(parse_u32("42")), "ok 42", reason="digits")
         assert_equal(describe(parse_u32("+42")), "ok 42", reason="a plus sign")

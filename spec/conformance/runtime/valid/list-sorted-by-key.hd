@@ -1,7 +1,5 @@
 # test: sorted_by_key and sorted sort stably and leave the list unchanged
 # Spec std/collections List Helpers: std-collections.helper.sorted-by-key, .sorted, .stable, and .unchanged.
-use std.testing.assert_equal
-
 data Task:
     name: string
     hours: i32
@@ -10,6 +8,8 @@ fn names(tasks: List[Task]) -> List[string]:
     tasks.map(fn(task: Task) -> string: task.name)
 
 tests:
+    use std.testing.assert_equal
+
     it("sorts by key, keeping equal keys in order"):
         let tasks: List[Task] = [Task { name: "b", hours: 3 }, Task { name: "a", hours: 1 }, Task { name: "c", hours: 3 }]
         plan := tasks.sorted_by_key(fn(task: Task) -> i32: task.hours)

@@ -6,8 +6,6 @@
 # types.any.erase, types.any.one-way, types.sealed.decl,
 # types.sealed.markers, types.sealed.anyref-values,
 # types.sealed.type-parameter, types.sealed.bounds.
-use std.testing.assert_equal
-
 data User:
     name: string
 
@@ -39,6 +37,8 @@ fn through_labeler(labeler: dyn Labeler, user: User) -> string:
     labeler.label(user)
 
 tests:
+    use std.testing.assert_equal
+
     it("an AnyRef-bounded method generic is callable through a trait value"):
         tagger := Tagger { tag: "tag:" }
         user := User { name: "Ada" }

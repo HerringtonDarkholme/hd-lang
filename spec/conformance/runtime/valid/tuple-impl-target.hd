@@ -1,7 +1,5 @@
 # test: tuple types are implementation targets, one constructor per arity
 # Spec 09 Traits: trait.target.tuple, trait.target.tuple.valid, trait.target.tuple.arity.
-use std.testing.assert_equal
-
 trait Describe:
     fn describe(self) -> string
 
@@ -14,6 +12,8 @@ impl Describe for (i32, i32, i32):
         "triple"
 
 tests:
+    use std.testing.assert_equal
+
     it("tuple targets dispatch by arity and element types"):
         assert_equal((+1, "a").describe(), "pair a", reason="two-element tuple")
         assert_equal((+1, +2, +3).describe(), "triple", reason="three-element tuple")

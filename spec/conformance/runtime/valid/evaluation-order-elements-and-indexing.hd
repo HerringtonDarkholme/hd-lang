@@ -2,8 +2,6 @@
 # Spec 05 Evaluation Order: "subexpressions are evaluated from left to right and exactly once. This rule
 # applies to tuple and collection elements, data fields, call arguments, operands, and indexing expressions."
 # Spec 05 Indexing: "`receiver[index]` evaluates the receiver, then the index".
-use std.testing.assert_equal
-
 data Log:
     text: string
 
@@ -20,6 +18,8 @@ fn items(log: mut Log) -> List[i32]:
     [10, 20, 30]
 
 tests:
+    use std.testing.assert_equal
+
     it("tuple elements evaluate left to right"):
         let mut log = Log { text: "" }
         triple := (note(log, "a", 1), note(log, "b", 2), note(log, "c", 3))

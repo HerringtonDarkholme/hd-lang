@@ -2,8 +2,6 @@
 # Spec std/console Console Input: std-console.input.read-line, std-console.input.mut, and
 # std-console.input.helper (batch 64, STD-2 and STD-3; INPUT-MUT).
 use std.console.{ConsoleInput, read_line}
-use std.testing.assert_equal
-
 data ScriptedInput:
     lines: List[string]
     at: usize
@@ -28,6 +26,8 @@ fn next_line!() -> string $ ConsoleInput:
         .Err(_) => "error"
 
 tests:
+    use std.testing.assert_equal
+
     it("reads each line in turn, then .None at the end of input"):
         let mut input = ScriptedInput { lines: ["hi", "there"], at: 0 }
         $.with(ConsoleInput=input):

@@ -1,7 +1,5 @@
 # test: a test body runs under a driver, and println called from it writes through the covering provider
 # Spec 10 Console: module.console.println-block-on.under-driver (batch 44).
-use std.testing.assert_equal
-
 data BufferConsole:
     lines: mut List[string]
 
@@ -14,6 +12,8 @@ fn greet(name: string) -> void $ Console:
     println("hello, ${name}")
 
 tests:
+    use std.testing.assert_equal
+
     it("println writes under the test driver"):
         let mut console = BufferConsole { lines: [] }
         $.with(Console=console):

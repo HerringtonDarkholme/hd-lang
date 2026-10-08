@@ -1,6 +1,4 @@
 # test: a field and an inherent method may share a name, including an embedded field's name
-use std.testing.assert_equal
-
 data Base:
     id: string
 
@@ -16,6 +14,8 @@ impl User:
         "base " + self.Base.id
 
 tests:
+    use std.testing.assert_equal
+
     it("bare access reads the field and a call reaches the method"):
         user := User { Base: ...Base { id: "7" }, name: "ada" }
         assert_equal(user.name, "ada", reason="field lookup")

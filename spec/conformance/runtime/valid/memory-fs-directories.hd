@@ -5,8 +5,6 @@
 # std-fs.memory.error.not-directory, and std-fs.memory.error.not-empty.
 use std.fs.{Entry, EntryKind, FsError, MemoryFs}
 use std.path.Path
-use std.testing.{assert, assert_equal}
-
 fn listed!(files: MemoryFs, path: string) -> List[Entry]:
     match files.list_dir!(Path(path)):
         .Ok(entries) => entries
@@ -39,6 +37,8 @@ fn is_other(found: FsError?) -> bool:
         .None => false
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("a file makes the directories above it"):
         let mut files = MemoryFs::new()
         assert(files.write_text!(Path("notes/b.txt"), "bb").is_ok(), reason="b")

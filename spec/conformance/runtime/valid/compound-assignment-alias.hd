@@ -1,8 +1,6 @@
 # test: += on a data place stores a new value, so another reference keeps the old one
 # Spec 05 Compound Assignment: expr.assign.compound.fresh-value (Operator Traits OP13).
 use std.ops.Add
-use std.testing.assert_equal
-
 data Score:
     points: i64
 
@@ -18,5 +16,7 @@ fn alias() -> (i64, i64):
     (a.points, b.points)
 
 tests:
+    use std.testing.assert_equal
+
     it("replaces the value in the place"):
         assert_equal(alias(), (3, 1), reason="a holds the sum, b keeps the old Score")

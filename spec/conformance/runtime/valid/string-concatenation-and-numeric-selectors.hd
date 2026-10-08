@@ -1,7 +1,5 @@
 # test: strings concatenate and unnamed enum fields use underscore selectors
 
-use std.testing.assert_equal
-
 enum StatusCode(i32):
     Answer -> StatusCode(38)
 
@@ -11,5 +9,7 @@ fn main() -> i32:
     status._0 + i32(message.len())
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="strings concatenate and unnamed enum fields use underscore selectors")

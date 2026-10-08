@@ -1,5 +1,3 @@
-use std.testing.assert_equal
-
 data User:
     name: string
 
@@ -9,6 +7,8 @@ fn display_name(user: User?) -> string:
         .Some(value) => value.name
 
 tests:
+    use std.testing.assert_equal
+
     it("plain values construct optionals and patterns extract them"):
         let user: User? = .None
         assert_equal(display_name(user), "unknown", reason=".None case")

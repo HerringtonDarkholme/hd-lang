@@ -1,7 +1,5 @@
 # test: a block suite may declare an inherent implementation of its own type and a trait implementation for it
 # Spec 09 Local Implementations: trait.impl.local, trait.impl.local.trait, trait.impl.local.inherent.
-use std.testing.assert_equal
-
 trait Priced:
     fn price(self) -> i32
 
@@ -22,5 +20,7 @@ fn receipt(quantity: i32) -> string:
     "${line.total()} + fee = ${line.price()}"
 
 tests:
+    use std.testing.assert_equal
+
     it("local implementations are found inside their suite"):
         assert_equal(receipt(3), "60 + fee = 65", reason="inherent and trait methods of a local type")

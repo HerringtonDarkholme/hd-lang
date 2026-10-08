@@ -1,6 +1,6 @@
-use std.testing.assert
-
 tests:
+    use std.testing.assert
+
     it("map iterator yields each entry once"):
         let values: mut Map[string, i32] = {"first": 1, "second": 2}
         let iterator: mut Iterator[(string, i32)] = values.iter()

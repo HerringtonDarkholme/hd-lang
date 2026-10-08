@@ -1,7 +1,5 @@
 # test: the unit pattern () matches a void success, as .Ok(()) builds one
 # expect: test
-use std.testing.assert_equal
-
 fn save(ready: bool) -> Result[void, string]:
     if ready:
         return .Ok(())
@@ -13,6 +11,8 @@ fn report(ready: bool) -> string:
         .Err(message) => message
 
 tests:
+    use std.testing.assert_equal
+
     it("matches .Ok(()) and .Err"):
         assert_equal(report(true), "saved", reason="a void success matches .Ok(())")
         assert_equal(report(false), "not ready", reason="an error still matches .Err")

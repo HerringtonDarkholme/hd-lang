@@ -1,8 +1,6 @@
 # test: supertraits require and expose parent implementations
 # Spec 09 Traits: trait.super.satisfy, trait.dyn.value-methods, trait.dyn.supertrait-methods, trait.dyn.widen.
 
-use std.testing.assert_equal
-
 trait Describe:
     fn describe(self) -> string
 
@@ -42,6 +40,8 @@ fn widened_parent_length() -> usize:
     parent_dynamic(value)
 
 tests:
+    use std.testing.assert_equal
+
     it("formatted_length returns 5"):
         assert_equal(formatted_length(), 5, reason="supertraits require and expose parent implementations")
 

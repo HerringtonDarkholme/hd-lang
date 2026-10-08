@@ -1,8 +1,8 @@
 # test: value replacement keeps iterators valid; an iterator taken after removal and reinsertion sees the new shape
 # expect: test
-use std.testing.{assert, assert_equal}
-
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("replacing a later map value during for is observed"):
         let values: mut Map[string, i32] = {"a": 1, "b": 2, "c": 3}
         let seen: mut List[i32] = []

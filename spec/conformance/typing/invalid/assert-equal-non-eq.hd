@@ -1,11 +1,11 @@
 # Spec 10 Standard Testing: module.testing.no-implicit-eq.
-use std.testing.assert_equal
-
 @derive(Debug)
 data Error:
     message: string
 
 tests:
+    use std.testing.assert_equal
+
     it("result equality needs Eq"):
         let actual: Result[i32, Error] = .Ok(1)
         assert_equal(actual, .Ok(1), reason="values match")  # diagnostic: unsatisfied-trait-bound

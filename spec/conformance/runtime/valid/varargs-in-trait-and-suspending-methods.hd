@@ -1,7 +1,5 @@
 # test: varargs work in suspending and trait method calls
 
-use std.testing.assert_equal
-
 data Box:
     base: i32
 
@@ -22,5 +20,7 @@ fn main!() -> i32:
     value.add(items...) + use_dynamic(value) + use_dynamic_async!(value)
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 108"):
         assert_equal(main!(), 108, reason="varargs work in suspending and trait method calls")

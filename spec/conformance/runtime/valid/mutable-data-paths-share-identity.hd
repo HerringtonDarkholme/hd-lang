@@ -1,8 +1,6 @@
 # test: mutable data paths share identity
 # Spec 08 Reference Semantics: data.kind.data, data.ref.shared.
 
-use std.testing.assert_equal
-
 data Child:
     name: string
 
@@ -25,5 +23,7 @@ fn main() -> i32:
         0
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="mutable data paths share identity")

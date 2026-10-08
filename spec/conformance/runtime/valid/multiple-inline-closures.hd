@@ -4,8 +4,6 @@
 # fn.closure.result-expected.
 # Spec 07 Multiple Inline Closures: "Multiple multiline closures may be passed by parenthesizing each
 # closure expression and separating the arguments with commas".
-use std.testing.assert_equal
-
 fn choice(flag: bool, on_true: fn(i32) -> i32, on_false: fn(i32) -> i32) -> i32:
     if flag:
         on_true(10)
@@ -28,6 +26,8 @@ fn pick(flag: bool) -> i32:
     )
 
 tests:
+    use std.testing.assert_equal
+
     it("the first closure runs when the flag is true"):
         assert_equal(pick(true), 42, reason="first multiline closure")
 

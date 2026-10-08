@@ -1,8 +1,6 @@
 # test: generic bound dispatch
 # Spec 09 Traits: trait.bound.static.
 
-use std.testing.assert_equal
-
 trait Describe:
     fn describe(self) -> i32
 
@@ -23,5 +21,7 @@ fn main() -> i32:
     show(Number { value: 20 }) + returned.value
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="generic bound dispatch")

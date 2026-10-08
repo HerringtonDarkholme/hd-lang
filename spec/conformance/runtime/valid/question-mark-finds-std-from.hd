@@ -3,8 +3,6 @@
 # The tree's src/errors.hd imports std.convert.From and implements From[ParseError] for ImportError.
 # fixture-package-tree: errors-from/src/importer.hd
 use pkg.errors.{ImportError, ParseError}
-use std.testing.assert_equal
-
 fn parse_row(row: string) -> Result[i32, ParseError]:
     if row == "": .Err(ParseError { line: 4 }) else: .Ok(1)
 
@@ -20,6 +18,8 @@ fn outcome(rows: List[string]) -> string:
         .Err(error) => error.message
 
 tests:
+    use std.testing.assert_equal
+
     it("converts a parse error to an import error"):
         assert_equal(outcome(["a", "b"]), "2 rows", reason="no error")
         assert_equal(outcome(["a", ""]), "bad row on line 4", reason="From[ParseError] ran")

@@ -1,8 +1,6 @@
 # test: the primitive operations are trait methods that code may call directly
 # Spec 05 Primitive Implementations: expr.op.std.intrinsic-method; Equality: expr.eq.std.intrinsic; Ordering: expr.ord.std.intrinsic; 09 Intrinsic Methods: trait.impl.intrinsic.
 use std.ops.{Add, Div, Neg, Not, Shl, Shr, BitXor}
-use std.testing.{assert, assert_equal}
-
 fn is_less(order: Ordering) -> bool:
     match order:
         .Less => true
@@ -14,6 +12,8 @@ fn is_unordered(order: Ordering?) -> bool:
         _ => false
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("calls the arithmetic and bit methods"):
         assert_equal(Add::[i8]::add(i8(100), i8(27)), i8(127), reason="i8 addition")
         assert_equal(Div::[i32]::div(-7, 2), -3, reason="integer division truncates")

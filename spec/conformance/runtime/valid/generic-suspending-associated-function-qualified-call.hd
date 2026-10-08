@@ -1,8 +1,6 @@
 # test: suspending associated functions preserve generic results through qualified bang calls
 # expect: test
 
-use std.testing.assert_equal
-
 data Identity: pass
 
 impl Identity:
@@ -10,6 +8,8 @@ impl Identity:
         value
 
 tests:
+    use std.testing.assert_equal
+
     it("a qualified generic suspension returns its concrete value"):
         assert_equal(
             Identity::echo!::[i32](42),

@@ -1,5 +1,3 @@
-use std.testing.{assert, assert_equal}
-
 @derive(Debug)
 data User:
     id: string
@@ -15,6 +13,8 @@ fn same_list[T < Eq](left: List[T], right: List[T]) -> bool:
     left == right
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("Eq dispatches for concrete and bounded values"):
         ada := User { id: "ada" }
         same_ada := User { id: "ada" }

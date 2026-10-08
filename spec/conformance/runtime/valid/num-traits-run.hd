@@ -1,8 +1,6 @@
 # test: Num's functions and operators behave as the primitive ones
 # Spec 09 Numeric Traits: trait.num.zero-one, trait.num.from-i64-checked, trait.num.division (Operator Traits OP9, OP10).
 use std.num.Num
-use std.testing.assert_equal
-
 fn sum[T < Num](items: List[T]) -> T:
     let total = T::zero()
     for item in items:
@@ -16,6 +14,8 @@ fn convert[T < Num](n: i64) -> T:
     T::from_i64(n)
 
 tests:
+    use std.testing.assert_equal
+
     it("computes generically"):
         assert_equal(sum([1, 2, 3]), 6, reason="i32 is Num")
         assert_equal(half(7), 3, reason="integer division truncates")

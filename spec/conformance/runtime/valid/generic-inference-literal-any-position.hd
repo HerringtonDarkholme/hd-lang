@@ -1,7 +1,5 @@
 # test: an integer literal argument takes the type solved from the other arguments, in any position
 # Spec 04 Inference From Several Arguments: types.generic.infer.join.literal (owner decision INF-lit, batch 51, 2026-10-02).
-use std.testing.assert_equal
-
 fn pick[T](left: T, right: T) -> T:
     left
 
@@ -12,6 +10,8 @@ fn last(large: i64) -> i64:
     pick(large, 1)
 
 tests:
+    use std.testing.assert_equal
+
     it("the literal takes i64 before and after the solving argument"):
         assert_equal(first(5_000_000_000), 1, reason="T is i64 from the second argument")
         assert_equal(last(5_000_000_000), 5_000_000_000, reason="T is i64 from the first argument")

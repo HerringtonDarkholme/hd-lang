@@ -1,7 +1,5 @@
 # test: defer is LIFO and runs on loop continue and break
 
-use std.testing.assert_equal
-
 fn main() -> i32:
     let value = +0
     if true:
@@ -23,5 +21,7 @@ fn main() -> i32:
     value
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 1221"):
         assert_equal(main(), 1221, reason="defer is LIFO and runs on loop continue and break")

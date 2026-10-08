@@ -1,9 +1,9 @@
 # test: a snapshot expectation must be a string literal
 # Spec 10 Snapshots: a computed expect is non-literal-test-argument.
-use std.testing.snapshot
-
 fn greeting(name: string) -> string: "hello, " + name
 
 tests:
+    use std.testing.snapshot
+
     it("computes the expectation"):
         snapshot(greeting("Ada"), expect=greeting("Ada"))  # diagnostic: non-literal-test-argument

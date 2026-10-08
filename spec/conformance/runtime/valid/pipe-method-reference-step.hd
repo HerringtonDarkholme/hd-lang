@@ -1,7 +1,5 @@
 # test: a method reference is a bare pipe step
 # Spec 05 Bare Steps: expr.pipe.bare.method-reference (Method References MR4).
-use std.testing.assert_equal
-
 data Config:
     size: usize
 
@@ -16,5 +14,7 @@ fn load(raw: string) -> usize:
     raw |> Config::parse |> Config::doubled
 
 tests:
+    use std.testing.assert_equal
+
     it("each reference is called with the piped value"):
         assert_equal(load("8080"), 8, reason="parse then doubled")

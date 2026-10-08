@@ -1,7 +1,5 @@
 # test: postfix ? evaluates its operand once and propagates before cleanup runs
 # expect: test
-use std.testing.assert_equal
-
 data Log:
     text: string
 
@@ -17,6 +15,8 @@ fn chain(log: mut Log, value: i32?) -> i32?:
     found + 1
 
 tests:
+    use std.testing.assert_equal
+
     it(".None propagates after one evaluation and runs cleanup"):
         let mut log = Log { text: "" }
         let absent: i32? = .None

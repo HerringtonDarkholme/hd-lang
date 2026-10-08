@@ -1,12 +1,12 @@
 # test: every width change is an explicit conversion, and widening keeps the value
 # Spec 04 Numeric Conversions: types.num.no-implicit; Numeric Casts: types.cast.f32-f64
 # (task #204, NO-WIDENING).
-use std.testing.assert_equal
-
 fn to_millis(seconds: i64) -> i64:
     seconds * 1000
 
 tests:
+    use std.testing.assert_equal
+
     it("an explicit conversion widens before the operator or call"):
         small := i16(-300)
         large := i64(5000000000)

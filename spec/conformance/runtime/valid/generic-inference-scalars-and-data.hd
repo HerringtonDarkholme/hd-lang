@@ -1,7 +1,5 @@
 # test: generic inference scalars and data
 
-use std.testing.assert_equal
-
 data Box:
     value: i32
 
@@ -18,6 +16,8 @@ fn main() -> i32:
     if text == "hd": choose(number + box.value, 42) else: 0
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="generic inference scalars and data")
 

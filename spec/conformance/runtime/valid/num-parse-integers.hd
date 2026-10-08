@@ -1,8 +1,6 @@
 # test: integer parsing takes an optional sign and decimal digits only, and reports the first error
 # Spec std/num Integer Parsing: std-num.parse.grammar, std-num.parse.order (STDLIB question 20, 2026-09-29; task #218), and std-num.parse.end-of-text-bytes (owner decision PARSE-EARLY-END, batch 73, 2026-10-03).
 use std.num.{parse_i32, parse_i64, ParseNumberError}
-use std.testing.{assert, assert_equal}
-
 fn port(text: string) -> i32:
     match parse_i32(text):
         .Ok(value) => value
@@ -17,6 +15,8 @@ fn describe[T < Display](result: Result[T, ParseNumberError]) -> string:
         .Err(.OutOfRange) => "out of range"
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("accepted text"):
         assert_equal(port("443"), 443, reason="digits")
         assert_equal(describe(parse_i32("42")), "ok 42", reason="digits")

@@ -3,8 +3,6 @@
 # Spec 09 Derived Newtypes: trait.derive.newtype.templated.
 use std.serde.{Serialize, Serializer}
 use std.structure.{Facts, VariantInfo, Member}
-use std.testing.{assert, assert_equal}
-
 # Records each call as a word, so a test reads what a value writes.
 data Calls:
     pub log: string
@@ -74,6 +72,8 @@ type Sku(string)
 type Cents(i64)
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("a scalar writes one call"):
         assert_equal(calls(true), "bool:true", reason="bool")
         assert_equal(calls("in stock"), "text:in stock", reason="string")

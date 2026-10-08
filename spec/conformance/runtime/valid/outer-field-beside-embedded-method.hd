@@ -1,6 +1,4 @@
 # test: an outer field does not hide an embedded method, because a call looks up methods only
-use std.testing.assert_equal
-
 data Base:
     note: string
 
@@ -13,6 +11,8 @@ data Page:
     label: string
 
 tests:
+    use std.testing.assert_equal
+
     it("the outer field is read and the call reaches the promoted method"):
         page := Page { Base: ...Base { note: "x" }, label: "outer" }
         assert_equal(page.label, "outer", reason="own field")

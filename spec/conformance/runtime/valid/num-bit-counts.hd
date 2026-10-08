@@ -1,7 +1,5 @@
 # test: count_ones and leading_zeros read the two's-complement bits of every integer width and return u32
 # Spec std/num Bit Counts: std-num.bits.count-ones-u32, std-num.bits.leading-zeros-u32, std-num.bits.signed (batch 68, STD-HELPERS-KEEP and INT-WIDTHS; BIT-COUNT-U32, task #220).
-use std.testing.assert_equal
-
 fn flags_set(flags: u8) -> u32:
     flags.count_ones()
 
@@ -12,6 +10,8 @@ fn drop_flagged(value: u64, flags: u8) -> u64:
     value >> flags.count_ones()
 
 tests:
+    use std.testing.assert_equal
+
     it("count_ones"):
         assert_equal(flags_set(0), 0, reason="no bits")
         assert_equal(flags_set(255), 8, reason="every u8 bit")

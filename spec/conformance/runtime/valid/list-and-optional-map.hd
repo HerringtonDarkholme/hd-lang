@@ -1,12 +1,12 @@
 # test: List.map and optional map apply the transform in source order, and optional map keeps .None
 # Spec std/iter List And Optional Map: std-iter.method.map.
-use std.testing.assert_equal
-
 fn tag(trace: mut List[i32], value: i32) -> string:
     trace.push(value)
     "<$value>"
 
 tests:
+    use std.testing.assert_equal
+
     it("List.map transforms each element in order"):
         items := [+3, 1, 2]
         assert_equal(items.map(fn(value: i32) -> string: "<$value>"), ["<3>", "<1>", "<2>"], reason="mapped")

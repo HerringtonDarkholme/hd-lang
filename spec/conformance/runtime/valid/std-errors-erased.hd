@@ -6,7 +6,6 @@ use std.json.{Json, parse}
 use std.num.{ParseNumberError, parse_i32}
 use std.path.Path
 use std.resource.ResourceError
-use std.testing.{assert, assert_equal}
 use std.time.Timestamp
 
 fn count(text: string) -> Result[i32, dyn Error]:
@@ -55,6 +54,8 @@ fn message(result: Result[i32, dyn Error]) -> string:
         .Err(error) => error.to_string()
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("converts with ?"):
         assert(count("x").is_err(), reason="ParseNumberError")
         assert_equal(message(width("x")), "reading the width", reason="context")

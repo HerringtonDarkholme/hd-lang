@@ -3,8 +3,6 @@
 # types.result.prelude-name, types.result.construction,
 # types.result.ok-context, types.result.bare-variant,
 # types.result.patterns, types.result.unit-pattern.
-use std.testing.assert_equal
-
 fn contextual_ok(value: i32) -> Result[i32, string]:
     .Ok(value)
 
@@ -36,6 +34,8 @@ fn finished(result: Result[void, string]) -> bool:
         _ => true
 
 tests:
+    use std.testing.assert_equal
+
     it("contextual and qualified spellings build the same values"):
         assert_equal(contextual_ok(1), qualified_ok(1), reason=".Ok and Result.Ok agree")
         assert_equal(contextual_err("x"), qualified_err("x"), reason=".Err and Result.Err agree")

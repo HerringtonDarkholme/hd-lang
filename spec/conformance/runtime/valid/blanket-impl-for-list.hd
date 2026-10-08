@@ -1,8 +1,6 @@
 # test: blanket impl for list
 # Spec 09 Traits: trait.target.builtin, trait.target.arguments.
 
-use std.testing.assert_equal
-
 trait Score:
     fn score(self) -> i32
 
@@ -24,5 +22,7 @@ fn total_score() -> i32:
     [Point { value: 20 }, Point { value: 22 }].score()
 
 tests:
+    use std.testing.assert_equal
+
     it("total_score returns 42"):
         assert_equal(total_score(), 42, reason="blanket impl for list")

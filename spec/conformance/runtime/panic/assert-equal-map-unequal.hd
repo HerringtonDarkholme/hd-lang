@@ -1,6 +1,6 @@
 # Spec 10 Standard Testing: module.testing.assert-panic.
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("maps differing in one value fail assert_equal"):
         assert_equal({"ada": 1, "grace": 2}, {"ada": 1, "grace": 3}, reason="deliberately unequal value")  # panic: assertion-failed

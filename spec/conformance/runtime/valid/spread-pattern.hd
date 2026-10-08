@@ -4,8 +4,6 @@
 # Also exercises flow.match.spread.rest, flow.match.spread.cover,
 # flow.match.literal-payload.rest, flow.match.bind.primitive,
 # flow.match.bind.composite, flow.match.bind.tuple, and flow.match.nested.
-use std.testing.assert_equal
-
 fn total(t: (usize, usize, List[i32]...)) -> usize:
     let (a, b, xs...) = t
     a + b + xs.len()
@@ -19,6 +17,8 @@ fn describe(t: (i32, List[i32]...)) -> string:
         (n, xs...) => "$n and ${xs.len()} more"
 
 tests:
+    use std.testing.assert_equal
+
     it("let binds the rest as a list"):
         assert_equal(total((1, 2, 3, 4)), 5, reason="xs is [3, 4]")
         assert_equal(total((1, 2)), 3, reason="xs is empty")

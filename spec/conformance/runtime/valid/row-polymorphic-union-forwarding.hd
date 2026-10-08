@@ -1,7 +1,5 @@
 # test: requirements / row multi forwarding
 
-use std.testing.assert_equal
-
 fn invoke[$R](callback: fn() -> i32 $ R) -> i32 $ R:
     callback()
 
@@ -30,6 +28,8 @@ data FixedLogger: pass
 impl Logger for FixedLogger
 
 tests:
+    use std.testing.assert_equal
+
     it("run returns 45 with its providers"):
         $.with(Clock=FixedClock {}, Logger=FixedLogger {}):
             assert_equal(run(), 45, reason="requirements / row multi forwarding")

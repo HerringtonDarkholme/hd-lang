@@ -2,8 +2,6 @@
 # expect: test
 # Spec std/ops Standard Implementations: std-ops.default.std.tuple.rest-empty (owner decision Q6-default, batch 35; tuple templates, batch 36).
 use std.ops.Default
-use std.testing.assert_equal
-
 data Secret:
     value: i32
 
@@ -11,6 +9,8 @@ fn fresh[T < Default]() -> T:
     T::default()
 
 tests:
+    use std.testing.assert_equal
+
     it("defaults the fixed elements and empties the rest"):
         let t: (i32, string, List[i32]...) = fresh()
         let (n, s, xs...) = t

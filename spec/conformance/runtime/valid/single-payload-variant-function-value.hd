@@ -2,8 +2,6 @@
 # Spec 08 Enum Declarations: `SyncError.Fs` has type `fn(FsError) -> SyncError` and may be
 # passed wherever that function type is expected.
 # Spec 08 Variant Constructors As Function Values: data.enum.fn-value, data.enum.fn-value.type, data.enum.fn-value.use, data.enum.fn-value.call, data.enum.fn-value.closure, data.enum.fn-value.positional.
-use std.testing.assert_equal
-
 enum FsError:
     NotFound(path: string)
 
@@ -41,6 +39,8 @@ fn wrap_all(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[SyncE
     [for error in errors => wrap(error)]
 
 tests:
+    use std.testing.assert_equal
+
     it("a constructor passed to a higher-order function"):
         assert_equal(label(load("a.txt")), "fs: a.txt", reason="map_err applies SyncError.Fs")
 

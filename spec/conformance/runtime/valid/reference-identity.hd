@@ -3,8 +3,6 @@
 # expr.is.conversion, expr.is.no-wrapper, expr.is.canonical-data,
 # expr.is.canonical.same, expr.is.compatible, expr.is.permissions.
 
-use std.testing.assert_equal
-
 data Box:
     value: i32
 
@@ -34,5 +32,7 @@ fn main() -> i32:
         0
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 42"):
         assert_equal(main(), 42, reason="reference identity")

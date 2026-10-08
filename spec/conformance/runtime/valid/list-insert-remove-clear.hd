@@ -1,9 +1,9 @@
 # test: list insert moves later elements up and appends at len(), remove_at returns the element it removes, and clear empties the list
 # Spec lang/10 Built-In Methods: module.method.list-insert, module.method.list-insert.end, module.method.list-remove-at, and module.method.list-clear.
 
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("insert"):
         let values: mut List[i32] = [1, 2, 3]
         values.insert(1, 9)

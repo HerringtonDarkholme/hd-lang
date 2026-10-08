@@ -1,9 +1,10 @@
 # test: a module-qualified multiline prefixed string in a call argument is qualified-string-prefix
 # Spec Grammar, Prefixed Strings: grammar.primary.prefix-after-dot.
 # fixture-package-tree: qualified-prefix/src/main.hd
-use std.testing.assert_equal
 use pkg.marks
 
 tests:
+    use std.testing.assert_equal
+
     it("marks.tag is not a prefix"):
         assert_equal(marks.tag"""item""", "item", reason="a prefix must be a bare name")  # diagnostic: qualified-string-prefix

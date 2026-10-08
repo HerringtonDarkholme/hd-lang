@@ -5,8 +5,6 @@
 # req.poly.least, req.poly.least.example, req.poly.body, req.poly.one-body,
 # req.poly.no-subtraction, req.poly.rows-only.
 
-use std.testing.assert_equal
-
 fn invoke[$R](callback: fn() -> i32 $ R) -> i32 $ R:
     callback()
 
@@ -34,6 +32,8 @@ data FixedLogger: pass
 impl Logger for FixedLogger
 
 tests:
+    use std.testing.assert_equal
+
     it("run returns 42 with its providers"):
         $.with(Clock=FixedClock {}, Logger=FixedLogger {}):
             assert_equal(run(), 42, reason="requirements / row forwarding")

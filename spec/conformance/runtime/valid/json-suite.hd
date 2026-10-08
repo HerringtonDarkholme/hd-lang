@@ -1,9 +1,9 @@
 # test: cases from the JSONTestSuite (github.com/nst/JSONTestSuite) that RFC 8259 fixes, y_ files parse and n_ files fail
 # Spec std/json Parsing: std-json.parse.grammar, std-json.parse.whitespace, std-json.parse.string.control, std-json.parse.end (JSON-SURFACE; task #226).
 use std.json.{parse, Json}
-use std.testing.{assert, assert_equal}
-
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("y_ files parse and print as the expected compact text"):
         cases := [
             ("y_array_empty", "[]", "[]"),

@@ -3,8 +3,6 @@
 # Spec 14 Serialization: annot.serde.definition, annot.serde.private.
 use std.json.{encode, decode, to_json, from_json, Json, JsonError}
 use std.serde.{Serialize, Deserialize}
-use std.testing.assert_equal
-
 @derive(Serialize, Deserialize)
 data Session:
     pub user: string
@@ -24,6 +22,8 @@ fn load(text: string) -> Result[Session, JsonError]:
     decode::[Session](text)
 
 tests:
+    use std.testing.assert_equal
+
     it("private members are written like public ones"):
         assert_equal(save(open("ada")), "{\"user\":\"ada\",\"token\":\"t-81f2\",\"expires_at\":1700000000}", reason="every member")
 

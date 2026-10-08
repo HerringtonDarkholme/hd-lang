@@ -2,8 +2,6 @@
 # Spec Modules, Processes: module.process.nonzero-ok, module.process.os-denied, module.process.other, module.process.error-traits.
 # expect: test
 use std.process.{Process, ProcessError, ProcessOutput}
-use std.testing.assert_equal
-
 data RefusingProcess: pass
 
 impl Process for RefusingProcess:
@@ -17,6 +15,8 @@ fn start!(program: string) -> Result[ProcessOutput, ProcessError] $ Process:
     $.use(Process).run!(program, [], "")
 
 tests:
+    use std.testing.assert_equal
+
     it("a non-zero exit status is .Ok"):
         let mut refusing = RefusingProcess {}
         $.with(Process=refusing):

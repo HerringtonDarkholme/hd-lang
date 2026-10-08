@@ -1,9 +1,9 @@
 # test: Rng's generator is fixed, so a seed gives these draws in every implementation
 # Spec std/random Rng Generator, Floats And Booleans: std-random.rng.generator, std-random.rng.seeding, std-random.rng.next-u64, std-random.rng.float.bits, std-random.rng.bool.bit (task #242).
 use std.random.Rng
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("next_u64 follows xoshiro128** from the folded seed"):
         let mut answer = Rng::new(42)
         assert_equal(answer.next_u64(), 12186209167316039401, reason="seed 42, first draw")

@@ -2,8 +2,6 @@
 # Spec 05 Built-In Implementations: expr.index.std.list.usize, expr.index.std.map, expr.index.std.map-store, expr.index.std.string.usize (Strings STR8).
 # expect: test
 use std.ops.{Index, IndexSet}
-use std.testing.assert_equal
-
 fn first[C < Index[usize]](items: C) -> C::Out:
     items[0]
 
@@ -14,6 +12,8 @@ fn put[K, V, C < mut IndexSet[K, V]](target: C, key: K, value: V) -> void:
     target[key] = value
 
 tests:
+    use std.testing.assert_equal
+
     it("a list reads and stores through the bounds"):
         let numbers: mut List[i32] = [4, 5]
         put(numbers, 1, 9)

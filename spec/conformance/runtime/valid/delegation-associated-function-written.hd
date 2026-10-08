@@ -1,7 +1,5 @@
 # test: a delegating implementation writes the associated function, or takes the trait's default, while methods still forward
 # Spec 09 Delegated Associated Items: trait.by.assoc-fn; Generated Methods: trait.by.generated.
-use std.testing.assert_equal
-
 trait Named:
     fn name(self) -> string
     fn kind() -> string
@@ -27,6 +25,8 @@ impl Named for Service by Logger:
         "service"
 
 tests:
+    use std.testing.assert_equal
+
     it("the written associated function and the default are the service's own"):
         assert_equal(Service::kind(), "service", reason="written in the body")
         assert_equal(Service::scope(), "global", reason="the trait default")

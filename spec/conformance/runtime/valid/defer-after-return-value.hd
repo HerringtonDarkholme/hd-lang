@@ -3,8 +3,6 @@
 # flow.defer.register, flow.defer.run, flow.defer.result-saved,
 # flow.defer.operands.
 
-use std.testing.assert_equal
-
 fn main() -> i32:
     let value = +1
     defer:
@@ -12,5 +10,7 @@ fn main() -> i32:
     return value
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 1"):
         assert_equal(main(), 1, reason="defer runs after a return value is evaluated")

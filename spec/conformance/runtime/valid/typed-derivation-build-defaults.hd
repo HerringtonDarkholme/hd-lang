@@ -5,8 +5,6 @@
 # annot.structure.members-api. Handles: annot.handle.declared-type,
 # annot.handle.default.
 use std.structure.{Structure, Field, Variant, Members, Key, Source}
-use std.testing.assert_equal
-
 trait Defaults:
     fn defaults() -> Self
 
@@ -42,6 +40,8 @@ data RetryPolicy:
     label: string = "standard"
 
 tests:
+    use std.testing.assert_equal
+
     it("every member takes its default"):
         policy := RetryPolicy::defaults()
         assert_equal(policy.attempts, 7, reason="attempts default")

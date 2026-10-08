@@ -1,6 +1,6 @@
 # Spec 10 Standard Testing: module.testing.assert-panic.
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("tuples differing in one element fail assert_equal"):
         assert_equal((1, "one", true), (1, "one", false), reason="deliberately unequal last element")  # panic: assertion-failed

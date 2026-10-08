@@ -1,7 +1,5 @@
 # test: parameter defaults may use earlier parameters and are evaluated per call
 # expect: test
-use std.testing.{assert, assert_equal}
-
 fn area(width: i32, height: i32 = width) -> i32:
     width * height
 
@@ -12,6 +10,8 @@ fn fresh(items: List[i32] = []) -> List[i32]:
     items
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("a default reads an earlier explicit parameter"):
         assert_equal(area(3), 9, reason="height defaults to width")
         assert_equal(area(3, 4), 12, reason="explicit height")

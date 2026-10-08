@@ -1,8 +1,6 @@
 # test: a Set keeps distinct elements in a deterministic order; insert and remove report a change
 # Spec std/collections Set: std-collections.set.decl, .distinct, .len, .contains, .insert, .remove, .iter, and .eq.
 use std.collections.Set
-use std.testing.{assert, assert_equal}
-
 fn unique(words: List[string]) -> List[string]:
     let seen: mut Set[string] = Set::new()
     let kept: mut List[string] = []
@@ -18,6 +16,8 @@ fn listed(set: Set[string]) -> List[string]:
     items
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("insert skips duplicates"):
         assert_equal(unique(["b", "a", "b"]), ["b", "a"], reason="first occurrences")
     it("len, contains, and remove"):

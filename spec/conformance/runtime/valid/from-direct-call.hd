@@ -3,8 +3,6 @@
 # several instantiations, the one whose parameter the argument fits is selected.
 # Spec 09 Traits: trait.from.meaning, trait.from.import, trait.from.direct, trait.from.no-overlap, trait.from.instantiations, trait.from.candidates.
 use std.convert.From
-use std.testing.assert_equal
-
 enum FsError:
     NotFound(path: string)
 
@@ -35,6 +33,8 @@ fn label(error: SyncError) -> string:
         SyncError.Http(inner) => "http: " + http_url(inner)
 
 tests:
+    use std.testing.assert_equal
+
     it("a file error selects From[FsError]"):
         assert_equal(label(SyncError::from(FsError.NotFound("a.txt"))), "fs: a.txt", reason="argument type FsError")
 

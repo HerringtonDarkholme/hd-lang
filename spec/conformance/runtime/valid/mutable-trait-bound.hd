@@ -1,8 +1,6 @@
 # test: mutable trait bound
 # Spec 09 Traits: trait.bound.mut.
 
-use std.testing.assert_equal
-
 trait Clear:
     fn clear(mut self) -> void
 
@@ -22,5 +20,7 @@ fn cleared_value() -> i32:
     counter.value
 
 tests:
+    use std.testing.assert_equal
+
     it("cleared_value returns 0"):
         assert_equal(cleared_value(), 0, reason="mutable trait bound")

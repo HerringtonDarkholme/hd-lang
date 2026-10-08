@@ -2,8 +2,6 @@
 # Spec 10 Processes: module.process.declares, module.process.ok-output, module.process.mut, module.process.import.names.
 # expect: test
 use std.process.{Process, ProcessError, ProcessOutput}
-use std.testing.assert_equal
-
 data ScriptedProcess:
     outputs: Map[string, ProcessOutput]
 
@@ -20,6 +18,8 @@ fn version!() -> string $ Process:
         .Err(error) => "git did not start: ${error}"
 
 tests:
+    use std.testing.assert_equal
+
     it("answers a scripted program"):
         let mut scripted = ScriptedProcess { outputs: {"git": ProcessOutput { stdout: "git 2.0", stderr: "", status: 0 }} }
         $.with(Process=scripted):

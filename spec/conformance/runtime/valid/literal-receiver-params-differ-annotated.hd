@@ -1,7 +1,5 @@
 # test: annotating the literal receiver selects the one scale method its type provides
 # Spec 04 One Fitting Candidate: types.literal.local.form.receiver (ONE-FIT).
-use std.testing.assert_equal
-
 trait ScaleBy:
     fn scale(self, by: i64) -> Self
 
@@ -21,5 +19,7 @@ fn quote() -> i64:
     cents.scale(4)
 
 tests:
+    use std.testing.assert_equal
+
     it("four items at 250 cents"):
         assert_equal(quote(), 1000, reason="cents is an i64, so scale is the ScaleBy method")

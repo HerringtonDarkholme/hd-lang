@@ -5,8 +5,6 @@
 # Spec 11 Mutable Providers: a requirement trait with a mut self method is always provided
 # with mutable access, so $.use(Counter) yields mut Counter.
 
-use std.testing.assert_equal
-
 fn tick() -> i32 $ Counter:
     $.use(Counter).bump()
     $.use(Counter).count()
@@ -31,6 +29,8 @@ impl Counter for MemoryCounter:
         self.value = self.value + 1
 
 tests:
+    use std.testing.assert_equal
+
     it("a mutable provider changes its own state"):
         let mut counter = MemoryCounter { value: 0 }
         $.with(Counter=counter):

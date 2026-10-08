@@ -4,8 +4,6 @@
 # annot.structure.name, annot.structure.name.constant (ST8, owner decision 2026-09-30).
 # The name has no module path and no type arguments.
 use std.structure.{Structure, Field, Variant, Describer}
-use std.testing.assert_equal
-
 trait Named:
     fn type_name() -> string
 
@@ -43,6 +41,8 @@ data Box[T]:
     value: T
 
 tests:
+    use std.testing.assert_equal
+
     it("a data type's name"):
         assert_equal(Point::type_name(), "Point", reason="the declared name")
 

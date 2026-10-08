@@ -1,7 +1,5 @@
 # test: -0.0 and infinities keep their values and signs through erasure
 # expect: test
-use std.testing.{assert, assert_equal}
-
 fn same[T < Eq](left: T, right: T) -> bool:
     left == right
 
@@ -12,6 +10,8 @@ fn render[T < Display](value: T) -> string:
     "$value"
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("negative zero equals zero but keeps its sign"):
         negative := -0.0
         assert(negative == 0.0, reason="IEEE -0 == +0")

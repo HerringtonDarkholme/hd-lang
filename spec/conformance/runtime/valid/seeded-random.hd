@@ -1,12 +1,12 @@
 # test: SeededRandom gives the same draws for the same seed, directly and through $.with
 # Spec std/random Seeded Random: std-random.seeded.decl, std-random.seeded.new, and std-random.seeded.same-seed (STDLIB decision 4, PROVIDER-SHAPES; task #220).
 use std.random.{Random, SeededRandom}
-use std.testing.{assert, assert_equal}
-
 fn roll() -> u64 $ Random:
     $.use(Random).next_u64() % 6 + 1
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("one seed, one sequence"):
         let mut first = SeededRandom::new(7)
         let mut again = SeededRandom::new(7)

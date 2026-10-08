@@ -1,8 +1,6 @@
 # test: a Heap pops its largest element first, peeks without removing, and copies its elements in ascending order
 # Spec std/collections Heap: std-collections.heap.len, std-collections.heap.push, std-collections.heap.pop, std-collections.heap.peek, std-collections.heap.sorted (COLLECTIONS-DATES-SURFACE; task #225).
 use std.collections.Heap
-use std.testing.{assert, assert_equal}
-
 fn drained(heap: mut Heap[i32]) -> List[i32]:
     let popped: mut List[i32] = []
     while true:
@@ -11,6 +9,8 @@ fn drained(heap: mut Heap[i32]) -> List[i32]:
             .None => return popped
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("largest first"):
         let heap: mut Heap[i32] = Heap::new()
         assert(heap.is_empty(), reason="new is empty")

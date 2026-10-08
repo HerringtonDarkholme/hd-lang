@@ -1,8 +1,6 @@
 # test: literal payload patterns
 # Spec 08 Payload Patterns: data.match.payload.constrain.
 
-use std.testing.assert_equal
-
 data Point:
     x: i32
     y: i32
@@ -50,5 +48,7 @@ fn main!() -> i32:
     evaluate!(Expr.Scale(20, 2)) + evaluate!(Expr.Scale(10, 3)) + inspect(Box.Value(42)) + inspect_shape!(Shape.Point(Point { x: 0, y: 9 })) + inspect_shape!(Shape.Point(Point { x: 3, y: 4 })) + inspect_nested!(Outer.Wrap(Inner.Some(42))) + inspect_nested!(Outer.Wrap(Inner.Some(7))) + inspect_nested!(Outer.Wrap(Inner.None))
 
 tests:
+    use std.testing.assert_equal
+
     it("main returns 138"):
         assert_equal(main!(), 138, reason="literal payload patterns")

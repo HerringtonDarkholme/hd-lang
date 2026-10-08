@@ -2,8 +2,6 @@
 # Spec 01 Raw Identifiers: lex.raw.form, lex.raw.token, lex.raw.name, lex.raw.reserved.
 # expect: test
 
-use std.testing.assert_equal
-
 data Token:
     `type`: string
     text: string
@@ -16,6 +14,8 @@ fn label(token: Token, `if`: bool) -> string:
     if `if`: token.`type` else: token.text
 
 tests:
+    use std.testing.assert_equal
+
     it("raw identifiers read and write like plain names"):
         token := Token { `type`: "word", text: "hi" }
         assert_equal(token.`type`, "word", reason="a field named type")

@@ -1,7 +1,5 @@
 # test: collect finds its target from the expected type that ? gives its operand
 # std Iterators, What Collect Builds: std-iter.collect.expected, std-iter.collect.result, std-iter.collect.option, with Spec 05 expr.try.expected (owner decision Q-?, batch 15, 2026-09-30).
-use std.testing.assert_equal
-
 fn parse_port(text: string) -> Result[usize, string]:
     if text == "x":
         return .Err("bad")
@@ -21,6 +19,8 @@ fn all_found(lines: List[string]) -> List[usize]?:
     .Some(found)
 
 tests:
+    use std.testing.assert_equal
+
     it("a Result hint collects every Ok payload"):
         assert_equal(all_ports(["a", "bb"]), .Ok([1, 2]), reason="all payloads")
 

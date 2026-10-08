@@ -2,8 +2,6 @@
 # Spec 05 Propagation: "Postfix `?` is invalid when there is no enclosing named function or closure
 # with the required optional or `Result` return type." and "for `T?`, `.Some(value)` produces
 # `value` as `T`; `.None` immediately returns `.None` from the nearest function".
-use std.testing.assert_equal
-
 fn outer(input: i32?) -> i32:
     inner := fn(value: i32?) -> i32?:
         present := value?
@@ -14,6 +12,8 @@ fn outer(input: i32?) -> i32:
         .None => -1
 
 tests:
+    use std.testing.assert_equal
+
     it(".None propagates out of the closure only"):
         assert_equal(outer(.None), -1, reason="the enclosing function continues after the closure returns .None")
 

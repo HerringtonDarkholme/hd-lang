@@ -2,8 +2,6 @@
 # Spec 07 Result Inference: fn.decl.result-inferred,
 # fn.decl.result-inferred.common, fn.body.final-value, fn.body.paths.
 
-use std.testing.assert_equal
-
 fn double(x: i32):
     x * 2
 
@@ -21,6 +19,8 @@ pub fn total() -> i32:
     double(3) + Counter { start: 4 }.next()
 
 tests:
+    use std.testing.assert_equal
+
     it("inferred results flow to callers"):
         assert_equal(total(), 11, reason="private function infers its result")
         assert_equal(describe(5), "value 10", reason="inferred string result")

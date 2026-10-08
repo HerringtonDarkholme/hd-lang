@@ -1,10 +1,10 @@
 # test: primitives satisfy a user-declared Eq bound; == dispatches to their standard implementations
-use std.testing.assert
-
 fn same[T < Eq](left: T, right: T) -> bool:
     left == right
 
 tests:
+    use std.testing.assert
+
     it("primitive equality through a generic bound"):
         assert(same(1, 1), reason="equal i32")
         assert(!same(1, 2), reason="unequal i32")

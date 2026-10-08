@@ -1,7 +1,7 @@
 # test: hd_run! in a tests block, outside an integration test module, is test-only-use
 # Spec std Testing, Running Executables: std-testing.hd-run.integration-only (batch 55).
-use std.testing.hd_run
-
 tests:
+    use std.testing.hd_run
+
     it("runs the binary"):
         _ := hd_run!("hello")  # diagnostic: test-only-use

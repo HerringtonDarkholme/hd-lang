@@ -1,9 +1,9 @@
 # test: a TypeId prints an inner mut before its argument and never the outer mut
 # Spec 09 Stability And Printing: trait.typeid.name.inner-mut, trait.typeid.name.outer-mut; Runtime Identity: trait.identity.definition, trait.identity.outer-mut.
 use std.inspect.TypeId
-use std.testing.{assert, assert_equal}
-
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("an inner mut is written before its argument and the outer mut is dropped"):
         assert_equal(TypeId::of::[List[mut List[i32]]]().to_string(), "List[mut List[i32]]", reason="inner mut")
         assert_equal(TypeId::of::[mut List[i32]]().to_string(), "List[i32]", reason="outer mut")
