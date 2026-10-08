@@ -383,6 +383,39 @@ impl Resolver<'_, '_> {
         iface.item(d).cloned()
     }
 
+    /// An impl head's trait arguments with the trait's omitted trailing
+    /// arguments filled from their defaults (`types.type-args.default`):
+    /// `impl Add for Money` implements `Add[Money]`
+    /// (`expr.op.trait.rhs-self`). Parameter 0 is `Self`.
+    fn default_trait_args(&self, tr: DefId, args: TyList, self_ty: Ty) -> TyList {
+        let pool = self.cx.names.pool;
+        let Some(item) = self.item(tr) else {
+            return args;
+        };
+        let mut v = pool.list_items(args);
+        if v.len() >= item.generics.len() {
+            return args;
+        }
+        for g in &item.generics[v.len()..] {
+            let Some(d) = g.default else {
+                return args;
+            };
+            let known = v.clone();
+            let t = pool.subst(d, &|p: ParamRef| {
+                if p.owner != tr {
+                    return None;
+                }
+                if p.index == 0 {
+                    Some(self_ty)
+                } else {
+                    known.get(p.index as usize - 1).copied()
+                }
+            });
+            v.push(t);
+        }
+        pool.list(&v)
+    }
+
     fn trait_has_assoc(&self, tr: DefId, name: Symbol) -> bool {
         if let Some(v) = self.trait_assoc.get(&tr) {
             return v.contains(&name);
@@ -1245,7 +1278,7 @@ impl Lower<'_, '_, '_> {
                         def,
                         args,
                         bindings,
-                    } => (def, args, bindings),
+                    } => (def, self.r.default_trait_args(def, args, self_ty), bindings),
                     _ => return,
                 },
                 None => return,

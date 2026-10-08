@@ -45,7 +45,7 @@ fn find(xs: List[i32], want: i32) -> i32?:
 
 fn main() -> void $ Console:
     xs := [3, 1, 4, 1, 5]
-    total := +0
+    let total = +0
     for x in xs:
         total = total + x
     println("total $total of ${xs.len()}")

@@ -94,6 +94,10 @@ pub(crate) struct Ck<'a, 'c> {
     pub facts: crate::init::InitFacts,
     /// A pipe's value while its step is checked (`_`).
     pub placeholder: Option<(Ref, Ty)>,
+    /// The next `for` loop's `else` suite and the loop's result type.
+    pub loop_else: Option<(NodeRefIdx, Ty)>,
+    /// The function body block, for `missing-return-value`.
+    pub fn_body: Option<NodeRefIdx>,
 }
 
 /// A node index kept for a later diagnostic.
@@ -135,6 +139,8 @@ pub(crate) fn new_ck<'a, 'c>(
         init_stmt: 0,
         facts: crate::init::InitFacts::default(),
         placeholder: None,
+        loop_else: None,
+        fn_body: None,
     };
     let Some(it) = cx.lookup.item(env) else {
         return ck;
@@ -210,6 +216,7 @@ pub fn check_fn(
         return unsupported("a function without a body");
     };
     let ret = sig.ret;
+    ck.fn_body = Some(body.index());
     let (tail, _) = ck.block_value(body, Some(ret))?;
     let root = ck.b.close_block(blk, tail, ret, body.index());
     ck.finish(root)
@@ -435,6 +442,15 @@ impl Ck<'_, '_> {
     }
 
     pub(crate) fn bind_local(&mut self, name: Symbol, t: Ty, at: NodeRef<'_>) -> LocalId {
+        // `names.type-param.no-redeclare`: a local value must not reuse an
+        // enclosing type parameter's name.
+        if self.gens.iter().any(|(g, _)| *g == name) {
+            let msg = format!(
+                "duplicate-binding: `{}` is a type parameter in scope",
+                self.cx.names.text(name)
+            );
+            self.err(Code::DuplicateBinding, at, &msg);
+        }
         let l = self.b.local(t, name, local_flags::ASSIGNED, at.index());
         self.scopes.last_mut().expect("scope").insert(name, l);
         l
@@ -703,6 +719,24 @@ impl Ck<'_, '_> {
                     diverged = true;
                     continue;
                 }
+                // `fn.body.value-less-fallthrough`: a body that ends in a
+                // value-less statement such as an `if` without `else`.
+                if let Some(w) = want
+                    && self.fn_body == Some(block.index())
+                    && self.infer.shallow(self.cx.names.pool, t) == Ty::VOID
+                    && !matches!(
+                        self.pool().get(self.infer.shallow(self.cx.names.pool, w)),
+                        TyData::Infer(_) | TyData::Prim(hd_types::Prim::Void)
+                    )
+                {
+                    let msg = format!(
+                        "missing-return-value: this path ends without a {} value",
+                        self.show(w)
+                    );
+                    self.err(Code::MissingReturnValue, s, &msg);
+                    diverged = true;
+                    continue;
+                }
                 let r = match want {
                     Some(w) => self.coerce(r, t, w, e, "result"),
                     None => r,
@@ -728,7 +762,16 @@ impl Ck<'_, '_> {
                 if matches!(self.pool().get(w), TyData::Infer(_)) {
                     snap_ok = self.infer.unify(self.cx.names.pool, w, Ty::VOID).is_ok();
                 }
-                if !snap_ok && !Self::ends_in_return(block) {
+                if !snap_ok && self.fn_body == Some(block.index()) {
+                    // `fn.body.value-less-fallthrough`, at the statement
+                    // the body falls through from.
+                    let at = stmts.last().copied().unwrap_or(block);
+                    let msg = format!(
+                        "missing-return-value: this path ends without a {} value",
+                        self.show(w)
+                    );
+                    self.err(Code::MissingReturnValue, at, &msg);
+                } else if !snap_ok && !Self::ends_in_return(block) {
                     let msg = format!(
                         "type-mismatch in result: expected {}, found void",
                         self.show(w)
@@ -754,6 +797,24 @@ impl Ck<'_, '_> {
         })
     }
 
+    /// `flow.must-use.discard`: `Result[T, E]`, `T?` and `mut Suspend[T]`.
+    pub(crate) fn must_use(&self, t: Ty) -> bool {
+        let pool = self.cx.names.pool;
+        let t = self.infer.resolve(pool, t);
+        let (inner, is_mut) = match pool.get(t) {
+            TyData::Mut(i) => (self.infer.resolve(pool, i), true),
+            _ => (t, false),
+        };
+        match pool.get(inner) {
+            TyData::Option(_) => true,
+            TyData::Adt { def, .. } => match self.cx.names.path(def).as_str() {
+                "std/core/Result" => true,
+                p => is_mut && p.ends_with("/Suspend"),
+            },
+            _ => false,
+        }
+    }
+
     /// One statement; its type is `never` when it cannot complete.
     pub(crate) fn stmt(&mut self, s: NodeRef<'_>) -> StageResult<Ty> {
         self.charge()?;
@@ -765,6 +826,13 @@ impl Ck<'_, '_> {
                 };
                 let (_, t) = self.expr(*e, Some(Ty::VOID))?;
                 let t = self.infer.shallow(self.pool(), t);
+                if self.must_use(t) {
+                    let msg = format!(
+                        "discarded-must-use-value: a {} value is discarded; handle it or write `_ := ...`",
+                        self.show(t)
+                    );
+                    self.err(Code::DiscardedMustUseValue, *e, &msg);
+                }
                 return Ok(if t == Ty::NEVER { Ty::NEVER } else { Ty::VOID });
             }
             SyntaxKind::LetStmt => self.let_stmt(s, &kids)?,
@@ -818,11 +886,19 @@ impl Ck<'_, '_> {
                         self.err(
                             Code::BreakValueContext,
                             *e,
-                            "break-value-context: only a `loop` takes a `break` value",
+                            "break-value-context: only a loop with `else` takes a `break` value",
                         );
                         NONE
                     }
-                    (None, _) => NONE,
+                    (None, Some(_)) => {
+                        self.err(
+                            Code::BreakValueContext,
+                            s,
+                            "break-value-context: a loop with `else` needs a `break` value",
+                        );
+                        NONE
+                    }
+                    (None, None) => NONE,
                 };
                 self.b.emit(Tag::Break, lp.0.raw(), v, Ty::NEVER, s.index());
                 return Ok(Ty::NEVER);
@@ -877,6 +953,20 @@ impl Ck<'_, '_> {
                     self.err(Code::UnknownName, *lhs, &msg);
                     return Ok(());
                 };
+                let flags = self.b.body_mut().local_flags[l.idx()];
+                if flags & local_flags::SHORT != 0 {
+                    let msg = format!(
+                        "non-reassignable-binding: `{}` is bound with `:=`; use `let` to reassign it",
+                        self.cx.names.text(name)
+                    );
+                    self.err(Code::NonReassignableBinding, *lhs, &msg);
+                } else if flags & local_flags::PARAM != 0 {
+                    let msg = format!(
+                        "non-reassignable-parameter-binding: parameter `{}` cannot be reassigned",
+                        self.cx.names.text(name)
+                    );
+                    self.err(Code::NonReassignableParameterBinding, *lhs, &msg);
+                }
                 let lt = self.b.local_ty(l);
                 let v = match compound {
                     None => {
@@ -921,11 +1011,20 @@ impl Ck<'_, '_> {
                     return unsupported("an index target shape");
                 };
                 let (br, bt) = self.expr(*base, None)?;
+                // `expr.index.trait.place`: a string is not a place, nor is
+                // a slice.
+                if key.kind() == SyntaxKind::RangeExpr || self.strip_mut(bt) == Ty::STRING {
+                    self.err(
+                        Code::InvalidAssignmentTarget,
+                        *lhs,
+                        "invalid-assignment-target: this index cannot be assigned",
+                    );
+                    return Ok(());
+                }
                 let Some((op_get, op_set, kt, vt)) = self.index_kind(bt) else {
-                    return unsupported("`r[k] = v` through `IndexSet`");
+                    return self.index_set((br, bt), *key, *rhs, compound, (*lhs, s));
                 };
-                let (kr, ktt) = self.expr(*key, Some(kt))?;
-                let kr = self.coerce(kr, ktt, kt, *key, "index");
+                let kr = self.index_key(*key, kt)?;
                 let v = match compound {
                     None => {
                         let (r, t) = self.expr(*rhs, Some(vt))?;
@@ -948,6 +1047,53 @@ impl Ck<'_, '_> {
         Ok(())
     }
 
+    /// `r[k] = v` and `r[k] op= v` on a receiver without built-in
+    /// indexing: `IndexSet::[K, V]::index_set(r, k, v)`, after
+    /// `Index::[K]::index(r, k)` for a compound one
+    /// (`expr.index.trait.write`).
+    fn index_set(
+        &mut self,
+        (br, bt): (Ref, Ty),
+        key: NodeRef<'_>,
+        rhs: NodeRef<'_>,
+        compound: Option<TokenKind>,
+        (lhs, s): (NodeRef<'_>, NodeRef<'_>),
+    ) -> StageResult<()> {
+        let (kr, kt) = self.expr(key, None)?;
+        let set = self.cx.names.item("std.ops", "IndexSet");
+        if !self.op_fits(set, bt, Some(kt))? {
+            self.err(
+                Code::InvalidAssignmentTarget,
+                lhs,
+                &format!(
+                    "invalid-assignment-target: {} does not implement `IndexSet`",
+                    self.show(bt)
+                ),
+            );
+            return Ok(());
+        }
+        let (vr, vt) = match compound {
+            None => self.expr(rhs, None)?,
+            Some(k) => {
+                let index = self.cx.names.item("std.ops", "Index");
+                if !self.op_fits(index, bt, Some(kt))? {
+                    let msg = format!(
+                        "type-mismatch: {} has no `Index` implementation for this key",
+                        self.show(bt)
+                    );
+                    self.err(Code::TypeMismatch, lhs, &msg);
+                    return Ok(());
+                }
+                let (cur, ct) =
+                    self.trait_call_args(index, "index", br, bt, &[(kr, kt, key)], lhs)?;
+                let v = self.compound(k, cur, ct, rhs, s)?;
+                (v, self.b.ty_of(v))
+            }
+        };
+        self.trait_call_args(set, "index_set", br, bt, &[(kr, kt, key), (vr, vt, rhs)], s)?;
+        Ok(())
+    }
+
     /// `cur op rhs` for a compound assignment.
     fn compound(
         &mut self,
@@ -963,10 +1109,15 @@ impl Ck<'_, '_> {
             TokenKind::StarEq => TokenKind::Star,
             TokenKind::SlashEq => TokenKind::Slash,
             TokenKind::PercentEq => TokenKind::Percent,
+            TokenKind::AmpEq => TokenKind::Amp,
+            TokenKind::PipeEq => TokenKind::Pipe,
+            TokenKind::CaretEq => TokenKind::Caret,
+            TokenKind::ShlEq => TokenKind::Shl,
+            TokenKind::ShrEq => TokenKind::Shr,
             _ => return unsupported("this compound assignment operator"),
         };
-        let (r, rt) = self.expr(rhs, Some(t))?;
-        let _ = k;
+        let want = (!matches!(op, TokenKind::Shl | TokenKind::Shr)).then_some(t);
+        let (r, rt) = self.expr(rhs, want)?;
         self.binary_values(op, (cur, t), (r, rt), at, rhs)
     }
 

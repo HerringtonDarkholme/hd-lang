@@ -4,12 +4,14 @@
 
 use std::collections::HashMap;
 
+use hd_base::DefId;
 use hd_base::StageResult;
 use hd_diag::Code;
 use hd_intern::PathKind;
 use hd_resolve::{ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
-use hd_tir::ir::{IntrinsicOp, NONE, PrimOp, Ref, Tag, TirSink};
+use hd_tir::ir::{IntrinsicOp, NONE, PrimOp, Ref, Tag, TirSink, local_flags};
+use hd_types::solver::{Answer, TraitRef};
 use hd_types::{ParamRef, Prim, Ty, TyData, TyList, VarKind};
 
 use crate::body::{Ck, OpenSub, unsupported};
@@ -185,8 +187,8 @@ impl Ck<'_, '_> {
             SyntaxKind::ListExpr => self.list_expr(n, &kids, want)?,
             SyntaxKind::MapExpr => self.map_expr(n, &kids, want)?,
             SyntaxKind::IfExpr => self.if_expr(n, want)?,
-            SyntaxKind::WhileExpr => self.while_expr(n)?,
-            SyntaxKind::ForExpr => self.for_expr(n)?,
+            SyntaxKind::WhileExpr => self.while_expr(n, want)?,
+            SyntaxKind::ForExpr => self.for_expr(n, want)?,
             SyntaxKind::MatchExpr => self.match_expr(n, want)?,
             SyntaxKind::ClosureExpr => self.closure(n, want)?,
             SyntaxKind::PipeExpr => self.pipe(&kids, want)?,
@@ -202,8 +204,32 @@ impl Ck<'_, '_> {
                 if rhs.kind() == SyntaxKind::BindingExpr {
                     return unsupported("a binding chain");
                 }
+                // `names.bind.no-redeclare`, `names.scope.duplicate`.
+                let name = (pat.kind() == SyntaxKind::BindingPattern).then(|| self.sym_of(*pat));
+                if let Some(name) = name
+                    && self.scopes.last().is_some_and(|s| s.contains_key(&name))
+                {
+                    let msg = format!(
+                        "duplicate-binding: `{}` is already bound in this scope",
+                        self.cx.names.text(name)
+                    );
+                    self.err(Code::DuplicateBinding, *pat, &msg);
+                }
                 self.let_pattern(*pat, None, *rhs, None, n)?;
-                (Ref(NONE), Ty::VOID)
+                // `expr.bind.one-name`: the binding is not reassignable,
+                // and the expression's value is the initializer's.
+                match name.and_then(|name| self.find_local(name)) {
+                    Some((l, _)) => {
+                        self.b.body_mut().local_flags[l.idx()] |= local_flags::SHORT;
+                        if want == Some(Ty::VOID) {
+                            (Ref(NONE), Ty::VOID)
+                        } else {
+                            let t = self.b.local_ty(l);
+                            (self.b.get(l, t, n.index()), t)
+                        }
+                    }
+                    None => (Ref(NONE), Ty::VOID),
+                }
             }
             SyntaxKind::TypeArgsExpr => self.explicit_item_value(n)?,
             SyntaxKind::PathExpr => return self.gap(n, "a path used as a value"),
@@ -365,6 +391,48 @@ impl Ck<'_, '_> {
             return unsupported("an operand-less unary");
         };
         let (r, t) = self.expr(*e, want)?;
+        let pool = self.cx.names.pool;
+        let st = self.strip_mut(t);
+        let numeric = self.numeric(t);
+        let prim = match pool.get(st) {
+            TyData::Prim(p) => Some(p),
+            _ => None,
+        };
+        // `expr.arith.unary-plus`, `expr.arith.unary-minus`: unary `+` on
+        // numbers only, `-` on signed numbers; `-` and `~` on other types
+        // are the `Neg` and `Not` traits (`expr.op.desugar`).
+        let mismatch = |me: &mut Self, what: &str| {
+            let msg = format!("type-mismatch: {what} does not apply to {}", me.show(t));
+            me.err(Code::TypeMismatch, n, &msg);
+            Ok((
+                me.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()),
+                Ty::POISON,
+            ))
+        };
+        match op {
+            Some(TokenKind::Plus) if !numeric || prim == Some(Prim::Char) => {
+                return mismatch(self, "unary `+`");
+            }
+            Some(TokenKind::Minus) if prim.is_some_and(Prim::is_unsigned) => {
+                return mismatch(self, "unary `-`");
+            }
+            Some(TokenKind::Tilde) if prim.is_some_and(|p| p.is_float() || p == Prim::Char) => {
+                return mismatch(self, "`~`");
+            }
+            Some(TokenKind::Minus | TokenKind::Tilde) if !numeric => {
+                let (trait_name, method) = if op == Some(TokenKind::Minus) {
+                    ("Neg", "neg")
+                } else {
+                    ("Not", "not")
+                };
+                let tr = self.cx.names.item("std.ops", trait_name);
+                if !self.op_fits(tr, t, None)? {
+                    return mismatch(self, &format!("`{trait_name}`"));
+                }
+                return self.trait_call_args(tr, method, r, t, &[], n);
+            }
+            _ => {}
+        }
         Ok(match op {
             Some(TokenKind::Plus) => (r, t),
             Some(TokenKind::Minus) => {
@@ -498,10 +566,8 @@ impl Ck<'_, '_> {
             PrimOp::Eq | PrimOp::Ne | PrimOp::Lt | PrimOp::Le | PrimOp::Gt | PrimOp::Ge
         );
         let shift = matches!(prim, PrimOp::Shl | PrimOp::Shr);
-        let bool_ops = matches!(
-            prim,
-            PrimOp::Eq | PrimOp::Ne | PrimOp::BitAnd | PrimOp::BitOr | PrimOp::BitXor
-        );
+        let bitwise = matches!(prim, PrimOp::BitAnd | PrimOp::BitOr | PrimOp::BitXor);
+        let bool_ops = matches!(prim, PrimOp::Eq | PrimOp::Ne);
         let ats = self.infer.shallow(pool, at);
         let ats = match pool.get(ats) {
             TyData::Mut(i) => self.infer.shallow(pool, i),
@@ -516,8 +582,19 @@ impl Ck<'_, '_> {
             self.expect(at, ct, n, "operand");
         }
         if self.numeric(at) || (ats == Ty::BOOL && bool_ops) {
-            if !shift {
+            if shift {
+                self.shift_count(ct, rn);
+            } else {
                 self.expect(ct, at, rn, "operand");
+            }
+            // `expr.bit.non-integer-no-impl`: bitwise operators and shifts
+            // take integers.
+            if (bitwise || shift) && self.float_like(at) {
+                let msg = format!(
+                    "type-mismatch: bitwise operators take integers, not {}",
+                    self.show(at)
+                );
+                self.err(Code::TypeMismatch, n, &msg);
             }
             let result = if cmp { Ty::BOOL } else { at };
             return Ok(self.b.prim(prim as u32, &[a, c], result, n.index()));
@@ -554,7 +631,15 @@ impl Ck<'_, '_> {
         };
         let tr = self.cx.names.item(module, trait_name);
         if matches!(prim, PrimOp::Lt | PrimOp::Le | PrimOp::Gt | PrimOp::Ge) {
-            return unsupported("ordering operators through `PartialOrd`");
+            return self.ordering((a, at), (c, ct), prim, n, rn);
+        }
+        if !self.op_fits(tr, at, Some(ct))? {
+            let msg = format!(
+                "type-mismatch: {} does not implement `{trait_name}` for this operand",
+                self.show(at)
+            );
+            self.err(Code::TypeMismatch, n, &msg);
+            return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()));
         }
         let (v, t) = self.trait_call_args(tr, method, a, at, &[(c, ct, rn)], n)?;
         if prim == PrimOp::Ne {
@@ -562,6 +647,130 @@ impl Ck<'_, '_> {
         }
         let _ = t;
         Ok(v)
+    }
+
+    /// Whether a type is floating-point, or a floating literal's variable.
+    fn float_like(&self, t: Ty) -> bool {
+        let pool = self.cx.names.pool;
+        let t = self.strip_mut(t);
+        match pool.get(t) {
+            TyData::Prim(p) => p.is_float(),
+            TyData::Infer(_) => self.infer.kind_of(pool, t) == Some(VarKind::FloatLit),
+            _ => false,
+        }
+    }
+
+    /// A shift count (`expr.shift.count-unsigned`): any unsigned integer
+    /// type; an unsuffixed literal takes `u32`.
+    fn shift_count(&mut self, ct: Ty, rn: NodeRef<'_>) {
+        let pool = self.cx.names.pool;
+        let c = self.strip_mut(ct);
+        let ok = match pool.get(c) {
+            TyData::Infer(_) if self.infer.kind_of(pool, c) == Some(VarKind::IntLit) => {
+                self.infer.unify(pool, c, Ty::prim(Prim::U32)).is_ok()
+            }
+            TyData::Prim(p) => p.is_unsigned(),
+            TyData::Never | TyData::Poison => true,
+            _ => false,
+        };
+        if !ok {
+            let msg = format!(
+                "type-mismatch: a shift count must be unsigned, found {}",
+                self.show(ct)
+            );
+            self.err(Code::TypeMismatch, rn, &msg);
+        }
+    }
+
+    /// Whether some implementation of operator trait `tr` fits a left
+    /// operand of type `at` and a right operand of type `ct`
+    /// (`expr.op.no-impl`).
+    pub(crate) fn op_fits(&mut self, tr: DefId, at: Ty, ct: Option<Ty>) -> StageResult<bool> {
+        let pool = self.cx.names.pool;
+        let t = self.strip_mut(at);
+        if matches!(
+            pool.get(t),
+            TyData::Infer(_) | TyData::Poison | TyData::Never
+        ) {
+            return Ok(true);
+        }
+        let n_trait = self.cx.lookup.item(tr).map_or(0, |i| i.generics.len());
+        let mut args: Vec<Ty> = (0..n_trait)
+            .map(|_| self.infer.fresh(pool, VarKind::General))
+            .collect();
+        if let (Some(first), Some(c)) = (args.first_mut(), ct) {
+            let c = self.strip_mut(c);
+            if !matches!(pool.get(c), TyData::Infer(_)) {
+                *first = c;
+            }
+        }
+        let tref = TraitRef {
+            trait_: tr,
+            self_ty: t,
+            args: pool.list(&args),
+        };
+        if self.builtin_holds(tref).is_some() {
+            return Ok(true);
+        }
+        Ok(!matches!(self.solve(tref)?, Answer::Fails(_)))
+    }
+
+    /// `a < b` and the other relational operators on non-primitive
+    /// operands: `PartialOrd.partial_cmp`, then a test of its answer
+    /// (`expr.ord.partial-cmp`; an unordered answer makes all four false).
+    fn ordering(
+        &mut self,
+        (a, at): (Ref, Ty),
+        (c, ct): (Ref, Ty),
+        prim: PrimOp,
+        n: NodeRef<'_>,
+        rn: NodeRef<'_>,
+    ) -> StageResult<Ref> {
+        let pool = self.cx.names.pool;
+        let tr = self.cx.names.item("std.cmp", "PartialOrd");
+        if !self.op_fits(tr, at, Some(ct))? {
+            let msg = format!(
+                "type-mismatch: {} does not implement `PartialOrd`",
+                self.show(at)
+            );
+            self.err(Code::TypeMismatch, n, &msg);
+            return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()));
+        }
+        let (v, vt) = self.trait_call_args(tr, "partial_cmp", a, at, &[(c, ct, rn)], n)?;
+        let ord = self.cx.names.item("std.cmp", "Ordering");
+        let ord_ty = pool.intern_ty(&TyData::Adt {
+            def: ord,
+            args: hd_types::TyList::EMPTY,
+        });
+        let sym = self.cx.names.syms.intern("order");
+        let l = self.b.local(vt, sym, local_flags::ASSIGNED, n.index());
+        self.b.set(l, v, n.index());
+        let eq = self.cx.names.item("std.cmp", "Eq");
+        // Ordering's variants: Less, Equal, Greater.
+        let (first, second) = match prim {
+            PrimOp::Lt => (0, None),
+            PrimOp::Le => (0, Some(1)),
+            PrimOp::Gt => (2, None),
+            _ => (2, Some(1)),
+        };
+        let is = |me: &mut Self, k: u32| -> StageResult<Ref> {
+            let cur = me.b.get(l, vt, n.index());
+            let empty = me.b_empty_rec();
+            let o = me.b.emit(Tag::NewVariant, k, empty, ord_ty, n.index());
+            let some =
+                me.b.coerce(hd_tir::ir::Coercion::WrapSome, NONE, o, vt, n.index());
+            Ok(me
+                .trait_call_args(eq, "eq", cur, vt, &[(some, vt, rn)], n)?
+                .0)
+        };
+        let x = is(self, first)?;
+        let Some(k) = second else {
+            return Ok(x);
+        };
+        let m = self.b.open_block();
+        let y = is(self, k)?;
+        let blk = self.b.close_block(m, Some(y), Ty::BOOL, n.index());
+        Ok(self.b.emit(Tag::Or, x.0, blk.0, Ty::BOOL, n.index()))
     }
 
     /// Whether a type's values have identity (`AnyRef`): data, lists,
@@ -708,8 +917,7 @@ impl Ck<'_, '_> {
         if key.kind() != SyntaxKind::RangeExpr
             && let Some((get, _, kt, vt)) = self.index_kind(bt)
         {
-            let (kr, ktt) = self.expr(*key, Some(kt))?;
-            let kr = self.coerce(kr, ktt, kt, *key, "index");
+            let kr = self.index_key(*key, kt)?;
             let rec = self.b.refs_record(&[br, kr]);
             return Ok((
                 self.b.emit(Tag::Intrinsic, get as u32, rec, vt, n.index()),
@@ -718,7 +926,52 @@ impl Ck<'_, '_> {
         }
         let (kr, kt) = self.expr(*key, None)?;
         let index = self.cx.names.item("std.ops", "Index");
+        // `expr.index.trait.no-read`.
+        if !self.op_fits(index, bt, Some(kt))? {
+            let msg = format!(
+                "type-mismatch: {} has no `Index` implementation for this key",
+                self.show(bt)
+            );
+            self.err(Code::TypeMismatch, n, &msg);
+            return Ok((
+                self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()),
+                Ty::POISON,
+            ));
+        }
         self.trait_call_args(index, "index", br, bt, &[(kr, kt, *key)], n)
+    }
+
+    /// A built-in index key of type `kt`. A `usize` key
+    /// (`expr.index.list.unsigned`) admits every unsigned type: a narrower
+    /// one widens, and a `u64` beyond the `usize` range saturates, so it
+    /// fails the bounds check (`expr.index.list.range`).
+    pub(crate) fn index_key(&mut self, key: NodeRef<'_>, kt: Ty) -> StageResult<Ref> {
+        let pool = self.cx.names.pool;
+        let usize_t = Ty::prim(Prim::Usize);
+        if kt != usize_t {
+            let (kr, ktt) = self.expr(key, Some(kt))?;
+            return Ok(self.coerce(kr, ktt, kt, key, "index"));
+        }
+        let (kr, ktt) = self.expr(key, Some(kt))?;
+        let got = self.strip_mut(ktt);
+        let p = match pool.get(got) {
+            TyData::Prim(p) if p.is_unsigned() && p != Prim::Usize => p,
+            _ => return Ok(self.coerce(kr, ktt, kt, key, "index")),
+        };
+        let at = key.index();
+        if p != Prim::U64 {
+            return Ok(self.b.prim(PrimOp::Conv as u32, &[kr], usize_t, at));
+        }
+        let max = self.b.const_value(got, u64::from(u32::MAX));
+        let over = self.b.prim(PrimOp::Gt as u32, &[kr, max], Ty::BOOL, at);
+        let tb = self.b.open_block();
+        let big = self.b.const_value(usize_t, u64::from(u32::MAX));
+        let then = self.b.close_block(tb, Some(big), usize_t, at);
+        let eb = self.b.open_block();
+        let small = self.b.prim(PrimOp::Conv as u32, &[kr], usize_t, at);
+        let els = self.b.close_block(eb, Some(small), usize_t, at);
+        let rec = self.b.refs_record(&[then, els]);
+        Ok(self.b.emit(Tag::If, over.0, rec, usize_t, at))
     }
 
     fn list_expr(
@@ -981,37 +1234,98 @@ impl Ck<'_, '_> {
     }
 
     /// `while c: body` is `Loop { Block { if c { body } else { break } } }`.
-    fn while_expr(&mut self, e: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
-        if Src::child(e, SyntaxKind::ElseClause).is_some() {
-            return unsupported("a `while` with an `else` suite");
-        }
+    fn while_expr(&mut self, e: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         let Some(cond) = e.children().next() else {
             return unsupported("a `while` without a condition");
         };
         let Some(body) = Src::child(e, SyntaxKind::Block) else {
             return unsupported("a `while` without a block");
         };
+        let els = self.loop_else_of(e, want)?;
+        let result = els.map(|(_, t)| t);
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
         let (c, ct) = self.expr(cond, Some(Ty::BOOL))?;
         self.expect(ct, Ty::BOOL, cond, "condition");
-        self.loops.push((lp, None));
+        self.loops.push((lp, result));
         let tb = self.b.open_block();
         self.block_value(body, Some(Ty::VOID))?;
         let then = self.b.close_block(tb, None, Ty::VOID, body.index());
         self.loops.pop();
         let eb = self.b.open_block();
-        self.b
-            .emit(Tag::Break, lp.0.raw(), NONE, Ty::NEVER, e.index());
-        let els = self.b.close_block(eb, None, Ty::VOID, e.index());
-        let rec = self.b.refs_record(&[then, els]);
+        self.loop_exit(lp, els, e.index())?;
+        let exit = self.b.close_block(eb, None, Ty::VOID, e.index());
+        let rec = self.b.refs_record(&[then, exit]);
         self.b.emit(Tag::If, c.0, rec, Ty::VOID, e.index());
         let lbody = self.b.close_block(lb, None, Ty::VOID, e.index());
-        // `while true` without a `break` never completes.
-        let infinite = self.cx.src.tkind(self.cx.src.first(cond)) == Some(TokenKind::KwTrue)
+        // `flow.while.infinite`: `while true`, or `while (true)`, without
+        // a `break` never completes.
+        let mut lit = cond;
+        while lit.kind() == SyntaxKind::ParenExpr
+            && let Some(inner) = lit.children().next()
+        {
+            lit = inner;
+        }
+        let infinite = lit.kind() == SyntaxKind::LiteralExpr
+            && self.cx.src.tkind(self.cx.src.first(lit)) == Some(TokenKind::KwTrue)
             && !Self::has_break(body);
-        let ty = if infinite { Ty::NEVER } else { Ty::VOID };
+        let ty = if infinite {
+            Ty::NEVER
+        } else {
+            result.unwrap_or(Ty::VOID)
+        };
         Ok((self.b.close_loop(lp, lbody, ty, e.index()), ty))
+    }
+
+    /// A loop's `else` suite (`flow.loop.else.value`) and the loop's
+    /// result type.
+    fn loop_else_of(
+        &mut self,
+        e: NodeRef<'_>,
+        want: Option<Ty>,
+    ) -> StageResult<Option<(hd_base::NodeIdx, Ty)>> {
+        let Some(clause) = Src::child(e, SyntaxKind::ElseClause) else {
+            return Ok(None);
+        };
+        let Some(blk) = Src::child(clause, SyntaxKind::Block) else {
+            return unsupported("a loop `else` without a block");
+        };
+        let pool = self.cx.names.pool;
+        let t = match want {
+            Some(w) => w,
+            None => self.infer.fresh(pool, VarKind::General),
+        };
+        Ok(Some((blk.index(), t)))
+    }
+
+    /// `flow.for.pattern.irrefutable`: a `for` pattern must always match.
+    fn irrefutable_loop_pattern(&mut self, pat: NodeRef<'_>, t: Ty) {
+        if self.refutable(pat, t) {
+            self.err(
+                Code::RefutableLetPattern,
+                pat,
+                "refutable-let-pattern: a `for` pattern must match every item",
+            );
+        }
+    }
+
+    /// A loop's normal exit: its `else` suite's value, then `break`.
+    pub(crate) fn loop_exit(
+        &mut self,
+        lp: hd_tir::ir::LoopMark,
+        els: Option<(hd_base::NodeIdx, Ty)>,
+        at: hd_base::NodeIdx,
+    ) -> StageResult<()> {
+        let v = match els {
+            None => NONE,
+            Some((blk, t)) => {
+                let node = self.cx.src.parse.tree.node(blk);
+                let (tail, _) = self.block_value(node, Some(t))?;
+                tail.map_or(NONE, |r| r.0)
+            }
+        };
+        self.b.emit(Tag::Break, lp.0.raw(), v, Ty::NEVER, at);
+        Ok(())
     }
 
     fn has_break(n: NodeRef<'_>) -> bool {
@@ -1025,10 +1339,8 @@ impl Ck<'_, '_> {
     /// `for p in e: body` over the iterator protocol: `iter` (unless `e`
     /// is already an `Iterator`), then a loop around `next` and a match on
     /// its option (checking-and-tir.md "What The Checker Desugars").
-    fn for_expr(&mut self, e: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
-        if Src::child(e, SyntaxKind::ElseClause).is_some() {
-            return unsupported("a `for` with an `else` suite");
-        }
+    fn for_expr(&mut self, e: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
+        self.loop_else = self.loop_else_of(e, want)?;
         let kids: Vec<NodeRef<'_>> = e.children().collect();
         let (Some(pat), Some(src), Some(body)) =
             (kids.first(), kids.get(1), Src::child(e, SyntaxKind::Block))
@@ -1050,6 +1362,7 @@ impl Ck<'_, '_> {
         body: &mut dyn FnMut(&mut Self) -> StageResult<()>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.cx.names.pool;
+        let els = self.loop_else.take();
         let (sr, st) = self.expr(src, None)?;
         let iterator = self.cx.names.item("std.iter", "Iterator");
         let st_r = self.infer.resolve(pool, st);
@@ -1066,7 +1379,7 @@ impl Ck<'_, '_> {
         {
             let et = pool.list_items(args).first().copied().unwrap_or(Ty::POISON);
             if self.numeric(et) {
-                return self.range_loop(pat, sr, et, e, body);
+                return self.range_loop(pat, (sr, et), els, e, body);
             }
         }
         let (it, item_ty) = match pool.get(st_i) {
@@ -1143,18 +1456,19 @@ impl Ck<'_, '_> {
         let (next, nt) = self.inherent_call(it_ty, "next", cur, &[], e)?;
         let _ = nt;
         let opt = pool.intern_ty(&TyData::Option(item_ty));
-        self.loops.push((lp, None));
+        let result = els.map(|(_, t)| t);
+        self.loops.push((lp, result));
         self.scopes.push(HashMap::new());
         let mut binds = Vec::new();
         self.declare_pattern(pat, item_ty, &mut binds)?;
+        self.irrefutable_loop_pattern(pat, item_ty);
         let ab = self.b.open_block();
         body(self)?;
         let arm0 = self.b.close_block(ab, None, Ty::VOID, e.index());
         self.scopes.pop();
         self.loops.pop();
         let bb = self.b.open_block();
-        self.b
-            .emit(Tag::Break, lp.0.raw(), NONE, Ty::NEVER, e.index());
+        self.loop_exit(lp, els, e.index())?;
         let arm1 = self.b.close_block(bb, None, Ty::VOID, e.index());
         // Decision: `.Some(p)` to arm 0, `.None` to arm 1.
         let rows = vec![crate::pat::Row::some(pat, binds), crate::pat::Row::rest()];
@@ -1164,7 +1478,8 @@ impl Ck<'_, '_> {
         let rec = self.b.refs_record(&[dec, arm0, arm1]);
         self.b.emit(Tag::Match, next.0, rec, Ty::VOID, e.index());
         let lbody = self.b.close_block(lb, None, Ty::VOID, e.index());
-        Ok((self.b.close_loop(lp, lbody, Ty::VOID, e.index()), Ty::VOID))
+        let ty = result.unwrap_or(Ty::VOID);
+        Ok((self.b.close_loop(lp, lbody, ty, e.index()), ty))
     }
 
     /// A `for` over a numeric `Range` as a counting loop (lowering-catalog
@@ -1176,12 +1491,13 @@ impl Ck<'_, '_> {
     fn range_loop(
         &mut self,
         pat: NodeRef<'_>,
-        sr: Ref,
-        et: Ty,
+        (sr, et): (Ref, Ty),
+        loop_else: Option<(hd_base::NodeIdx, Ty)>,
         e: NodeRef<'_>,
         body: &mut dyn FnMut(&mut Self) -> StageResult<()>,
     ) -> StageResult<(Ref, Ty)> {
         use hd_tir::ir::local_flags::ASSIGNED;
+        let result = loop_else.map(|(_, t)| t);
         let at = e.index();
         let sym = |me: &Self, s: &str| me.cx.names.syms.intern(s);
         let (cur_s, end_s, inc_s) = (sym(self, "$cur"), sym(self, "$end"), sym(self, "$incl"));
@@ -1211,7 +1527,7 @@ impl Ck<'_, '_> {
         let go = self.b.emit(Tag::Or, below.0, oblk.0, Ty::BOOL, at);
         // The round: bind, advance, then the body.
         let tb = self.b.open_block();
-        self.loops.push((lp, None));
+        self.loops.push((lp, result));
         self.scopes.push(HashMap::new());
         let item = self.b.get(cur_l, et, at);
         let mut binds = Vec::new();
@@ -1238,12 +1554,13 @@ impl Ck<'_, '_> {
         self.loops.pop();
         let then = self.b.close_block(tb, None, Ty::VOID, at);
         let eb = self.b.open_block();
-        self.b.emit(Tag::Break, lp.0.raw(), NONE, Ty::NEVER, at);
+        self.loop_exit(lp, loop_else, at)?;
         let els = self.b.close_block(eb, None, Ty::VOID, at);
         let rec = self.b.refs_record(&[then, els]);
         self.b.emit(Tag::If, go.0, rec, Ty::VOID, at);
         let lbody = self.b.close_block(lb, None, Ty::VOID, at);
-        Ok((self.b.close_loop(lp, lbody, Ty::VOID, at), Ty::VOID))
+        let ty = result.unwrap_or(Ty::VOID);
+        Ok((self.b.close_loop(lp, lbody, ty, at), ty))
     }
 
     /// `_` in a pipe step: the piped value.

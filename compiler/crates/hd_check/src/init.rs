@@ -53,6 +53,10 @@ pub fn init_statements(root: NodeRef<'_>) -> Vec<NodeRef<'_>> {
                     | SyntaxKind::ExprStmt
                     | SyntaxKind::AssignmentStmt
                     | SyntaxKind::DiscardStmt
+                    | SyntaxKind::ReturnStmt
+                    | SyntaxKind::DeferStmt
+                    | SyntaxKind::BreakStmt
+                    | SyntaxKind::ContinueStmt
             ) || (c.kind() == SyntaxKind::EnumDecl
                 && c.descendants()
                     .any(|d| d.kind() == SyntaxKind::VariantSharedData))
@@ -121,8 +125,26 @@ pub fn check_init(
 impl Ck<'_, '_> {
     /// A top-level statement: a simple binding becomes a global.
     fn top_level(&mut self, s: NodeRef<'_>) -> StageResult<()> {
-        if s.kind() == SyntaxKind::EnumDecl {
-            return self.shared_init(s);
+        match s.kind() {
+            SyntaxKind::EnumDecl => return self.shared_init(s),
+            // `flow.return.outside`, `flow.defer.outside`.
+            SyntaxKind::ReturnStmt => {
+                self.err(
+                    Code::ReturnOutsideFunction,
+                    s,
+                    "return-outside-function: `return` needs a function or closure",
+                );
+                return Ok(());
+            }
+            SyntaxKind::DeferStmt => {
+                self.err(
+                    Code::DeferOutsideCleanupScope,
+                    s,
+                    "defer-outside-cleanup-scope: a module's top level is not a cleanup scope",
+                );
+                return Ok(());
+            }
+            _ => {}
         }
         let kids: Vec<NodeRef<'_>> = s.children().collect();
         let binding = match s.kind() {

@@ -666,7 +666,14 @@ impl Ck<'_, '_> {
                 "not-suspending: a bang call of a function that does not suspend",
             );
         }
-        if !self.suspends.last().copied().unwrap_or(false) {
+        if self.defer_base.is_some() {
+            // `flow.defer.suspend`: a `defer` suite cannot suspend.
+            self.err(
+                Code::SuspensionForbiddenContext,
+                n,
+                "suspension-forbidden-context: a `defer` suite cannot suspend",
+            );
+        } else if !self.suspends.last().copied().unwrap_or(false) {
             self.err(
                 Code::BangCallOutsideSuspension,
                 n,

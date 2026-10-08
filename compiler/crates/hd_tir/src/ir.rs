@@ -398,6 +398,8 @@ pub mod local_flags {
     pub const CAPTURED: u8 = 8;
     pub const CAPTURED_ASSIGNED: u8 = 16;
     pub const PARAM: u8 = 32;
+    /// A `:=` binding, which `=` cannot reassign.
+    pub const SHORT: u8 = 64;
 }
 
 /// A suspension point's side record (16 bytes).

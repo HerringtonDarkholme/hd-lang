@@ -94,6 +94,13 @@ impl Prim {
         )
     }
     #[must_use]
+    pub const fn is_unsigned(self) -> bool {
+        matches!(
+            self,
+            Prim::U8 | Prim::U16 | Prim::U32 | Prim::U64 | Prim::Usize
+        )
+    }
+    #[must_use]
     pub const fn is_float(self) -> bool {
         matches!(self, Prim::F32 | Prim::F64)
     }

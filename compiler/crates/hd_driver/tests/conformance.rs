@@ -169,13 +169,18 @@ fn fixture(case: &Case) -> Result<Fixture, String> {
     })
 }
 
-fn first_unsupported(report: &PipelineReport) -> Option<String> {
+fn first_unsupported(report: &PipelineReport, back_half: bool) -> Option<String> {
     if report.body_failed > 0 {
         return Some("Body".to_owned());
     }
-    Stage::ALL.into_iter().find_map(|stage| {
-        (report.tally(stage).not_implemented > 0).then(|| stage.name().to_owned())
-    })
+    // `Goal::Analyze` checks a package without a program root, so it never
+    // collects: the back half is judged by the `Goal::Program` build.
+    Stage::ALL
+        .into_iter()
+        .take_while(|stage| back_half || *stage != Stage::Collect)
+        .find_map(|stage| {
+            (report.tally(stage).not_implemented > 0).then(|| stage.name().to_owned())
+        })
 }
 
 fn build_fixture(fixture: &Fixture, store: &MemoryStore, goal: &Goal) -> Output {
@@ -291,8 +296,11 @@ fn type_case(case: &Case, fixture: &Fixture, store: &MemoryStore) -> Verdict {
     if let Some(verdict) = diagnostic_verdict(case, fixture, &output) {
         return verdict;
     }
-    if let Some(stage) = first_unsupported(&output.report) {
+    if let Some(stage) = first_unsupported(&output.report, false) {
         return Verdict::Unsupported(stage);
+    }
+    if case.expectation == "accept" {
+        return Verdict::Pass;
     }
     Verdict::Fail("no-diagnostic".to_owned())
 }
@@ -330,17 +338,129 @@ fn run_wasm(wasm: &[u8], serial: usize) -> std::io::Result<std::process::Output>
     result
 }
 
+/// A fixture whose only harness is a single-file `tests:` block.
+fn plain_tests(text: &str) -> bool {
+    text.lines().any(|line| line.starts_with("tests:"))
+        && !text.lines().any(|line| line.starts_with("## "))
+        && [
+            "fixture-runtime-profile",
+            "fixture-runtime-scenario",
+            "fixture-runtime-pending-function",
+            "fixture-test-layout",
+            "fixture-package-tree",
+        ]
+        .iter()
+        .all(|name| directive(text, name).is_none())
+}
+
+/// Whether a test host result line reports panic category `code`.
+fn reports_panic(line: &str, code: &str) -> bool {
+    [":", "\\n", "\""]
+        .iter()
+        .any(|end| line.contains(&format!("panic: {code}{end}")))
+}
+
+/// `test FILE`: each case of the fixture's `tests:` block in its own
+/// instance (spec/conformance/README.md, Runtime Execution steps 2 and 3).
+fn tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize) -> Verdict {
+    let built = build_fixture(
+        fixture,
+        store,
+        &Goal::Tests {
+            module: None,
+            filter: None,
+        },
+    );
+    if built.diags.has_errors() {
+        let index = built.diags.content_order()[0];
+        if built.diags.code[index].as_str() == "unsupported" {
+            return Verdict::Unsupported(
+                first_unsupported(&built.report, true).unwrap_or_else(|| "Build".to_owned()),
+            );
+        }
+        return Verdict::Fail(built.diags.code[index].as_str().to_owned());
+    }
+    if built.tests.is_empty() {
+        return Verdict::Unsupported("TestPlan".to_owned());
+    }
+    if built.tests.iter().any(|test| test.unsupported.is_some()) {
+        return Verdict::Unsupported("TestCase".to_owned());
+    }
+    let runs: Vec<_> = built
+        .tests
+        .iter()
+        .filter(|test| test.ignore.is_none())
+        .filter_map(|test| test.run.map(|run| (test, run)))
+        .collect();
+    let Some(wasm) = built.wasm else {
+        return Verdict::Unsupported("Link".to_owned());
+    };
+    let path =
+        PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("conformance-{serial}.wasm"));
+    if let Err(error) = std::fs::write(&path, &wasm) {
+        return Verdict::Crash(error.to_string());
+    }
+    let list: Vec<String> = runs
+        .iter()
+        .map(|(_, (test, init))| format!("{test}:{init}"))
+        .collect();
+    let result = Command::new("node")
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/test.mjs"))
+        .arg(&path)
+        .arg(list.join(","))
+        .output();
+    let _ = std::fs::remove_file(path);
+    let run = match result {
+        Ok(run) => run,
+        Err(error) => return Verdict::Crash(error.to_string()),
+    };
+    let stdout = String::from_utf8_lossy(&run.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    if lines.len() != runs.len() {
+        return Verdict::Fail("runtime-exit".to_owned());
+    }
+    let mut panicked = Vec::new();
+    let mut failed = false;
+    for ((test, _), line) in runs.iter().zip(&lines) {
+        if line.contains("\"trapped\":true") {
+            match &test.expect_panic {
+                Some(code) if reports_panic(line, code) => {}
+                _ => panicked.push(*line),
+            }
+        } else if test.expect_panic.is_some() || !line.contains("\"status\":0,") {
+            failed = true;
+        }
+    }
+    if let Some(code) = case.expectation.strip_prefix("panic:") {
+        if panicked.iter().any(|line| reports_panic(line, code)) {
+            Verdict::Pass
+        } else {
+            Verdict::Fail("runtime-exit".to_owned())
+        }
+    } else if failed || !panicked.is_empty() {
+        Verdict::Fail("runtime-exit".to_owned())
+    } else {
+        Verdict::Pass
+    }
+}
+
 fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize) -> Verdict {
     let checked = build_fixture(fixture, store, &Goal::Analyze);
     if checked.diags.has_errors() {
         let index = checked.diags.content_order()[0];
         return Verdict::Fail(checked.diags.code[index].as_str().to_owned());
     }
-    if let Some(stage) = first_unsupported(&checked.report) {
+    if let Some(stage) = first_unsupported(&checked.report, false) {
         return Verdict::Unsupported(stage);
     }
     if has_runtime_harness(&fixture.text) {
-        return Verdict::Unsupported("RunCase".to_owned());
+        if !plain_tests(&fixture.text) {
+            return Verdict::Unsupported("RunCase".to_owned());
+        }
+        let verdict = tests_case(case, fixture, store, serial);
+        if verdict != Verdict::Pass || expected_stdout(&fixture.text).is_none() {
+            return verdict;
+        }
     }
     let built = build_fixture(
         fixture,
@@ -353,7 +473,7 @@ fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usi
         let index = built.diags.content_order()[0];
         if built.diags.code[index].as_str() == "unsupported" {
             return Verdict::Unsupported(
-                first_unsupported(&built.report).unwrap_or_else(|| "Build".to_owned()),
+                first_unsupported(&built.report, true).unwrap_or_else(|| "Build".to_owned()),
             );
         }
         return Verdict::Fail(built.diags.code[index].as_str().to_owned());
@@ -519,9 +639,109 @@ fn pass_list(report: &str) -> BTreeSet<String> {
         .collect()
 }
 
+/// `HD_CONFORMANCE_ONLY=a,b`: run only the cases whose path or rule
+/// contains one of the comma-separated parts, print each verdict with the
+/// first diagnostic or unsupported reason, and skip the pass-list check.
+fn filtered(cases: Vec<Case>) -> Option<Vec<Case>> {
+    let only = std::env::var("HD_CONFORMANCE_ONLY").ok()?;
+    let parts: Vec<&str> = only.split(',').filter(|part| !part.is_empty()).collect();
+    Some(
+        cases
+            .into_iter()
+            .filter(|case| {
+                parts
+                    .iter()
+                    .any(|part| case.path.contains(part) || case.specification.contains(part))
+            })
+            .collect(),
+    )
+}
+
+fn detail(case: &Case, store: &MemoryStore) -> String {
+    let Ok(fixture) = fixture(case) else {
+        return String::new();
+    };
+    if case.phase == Phase::Parse || case.phase == Phase::Cli {
+        return String::new();
+    }
+    let mut output = build_fixture(&fixture, store, &Goal::Analyze);
+    if case.phase == Phase::Runtime && !output.diags.has_errors() {
+        let goal = if plain_tests(&fixture.text) {
+            Goal::Tests {
+                module: None,
+                filter: None,
+            }
+        } else {
+            Goal::Program {
+                entry: "main".to_owned(),
+            }
+        };
+        output = build_fixture(&fixture, store, &goal);
+        if let Some(test) = output.tests.iter().find(|test| test.unsupported.is_some()) {
+            return format!(
+                "test case: {}",
+                test.unsupported.clone().unwrap_or_default()
+            );
+        }
+    }
+    let mut out = String::new();
+    if let Some(line) = output.render().lines().next() {
+        out.push_str(line);
+    }
+    let mut reasons: Vec<_> = output.report.body_failures.iter().take(1).collect();
+    if reasons.is_empty() {
+        reasons = output
+            .report
+            .reasons
+            .keys()
+            .filter(|reason| !reason.starts_with("Collect"))
+            .take(1)
+            .collect();
+    }
+    for reason in reasons {
+        out.push_str(" | ");
+        out.push_str(reason);
+    }
+    out
+}
+
+fn print_filtered(cases: &[Case], results: &[Verdict], store: &MemoryStore) {
+    let mut chapters: BTreeMap<String, Counts> = BTreeMap::new();
+    let mut buckets: BTreeMap<String, usize> = BTreeMap::new();
+    for (case, verdict) in cases.iter().zip(results) {
+        add_count(chapters.entry(chapter(case)).or_default(), verdict);
+        let bucket = match verdict {
+            Verdict::Pass => continue,
+            Verdict::Fail(code) => format!("fail:{code}"),
+            Verdict::Unsupported(stage) => format!("unsupported:{stage}"),
+            Verdict::Crash(message) => format!("crash:{message}"),
+        };
+        *buckets.entry(bucket.clone()).or_default() += 1;
+        println!(
+            "{bucket}\t{}\t{}\t{}",
+            case.path,
+            case.expectation,
+            detail(case, store)
+        );
+    }
+    let mut sorted: Vec<_> = buckets.into_iter().collect();
+    sorted.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    for (bucket, count) in sorted {
+        println!("{count:>5} {bucket}");
+    }
+    for (name, counts) in &chapters {
+        println!(
+            "{name}: pass {} fail {} unsupported {}",
+            counts.pass, counts.fail, counts.unsupported
+        );
+    }
+}
+
 #[test]
 fn specification_conformance_does_not_regress() {
-    let cases = cases();
+    let all = cases();
+    let only = filtered(all.clone());
+    let cases = only.clone().unwrap_or(all);
     let store = MemoryStore::default();
     let mut results = Vec::with_capacity(cases.len());
     for (serial, case) in cases.iter().enumerate() {
@@ -546,6 +766,10 @@ fn specification_conformance_does_not_regress() {
         crashes.join("\n")
     );
 
+    if only.is_some() {
+        print_filtered(&cases, &results, &store);
+        return;
+    }
     if std::env::var_os("HD_UPDATE_CONFORMANCE").is_some() {
         std::fs::write(report_path(), render_report(&cases, &results)).expect("write report");
         return;

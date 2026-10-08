@@ -243,6 +243,18 @@ struct Cx<'a> {
     work: Vec<InstId>,
 }
 
+/// The type of a value operand: an instruction's, or a constant's when
+/// the word has `Ref::CONST_BIT`.
+fn value_ty(body: &Body, word: u32) -> Ty {
+    let c = hd_tir::ir::Ref::CONST_BIT;
+    let t = if word & c == 0 {
+        body.ty.get(word as usize).copied()
+    } else {
+        body.consts.get((word & !c) as usize).map(|k| k.0)
+    };
+    t.unwrap_or(Ty::POISON)
+}
+
 fn err<T>(what: &str) -> StageResult<T> {
     Err(NotImplemented::new(Stage::Collect, what))
 }
@@ -546,7 +558,7 @@ impl Cx<'_> {
                     if rec.first().copied() != Some(Coercion::ToTraitValue as u32) {
                         continue;
                     }
-                    let from = s(body.ty[a as usize]);
+                    let from = s(value_ty(body, a));
                     let from = match pool.get(from) {
                         TyData::Mut(x) => x,
                         _ => from,
@@ -587,7 +599,7 @@ impl Cx<'_> {
                         else {
                             return err("a `$.with` key that is not a trait");
                         };
-                        let from = s(body.ty[*v as usize]);
+                        let from = s(value_ty(body, *v));
                         let from = match pool.get(from) {
                             TyData::Mut(x) => x,
                             _ => from,

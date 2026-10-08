@@ -86,6 +86,16 @@ impl Ck<'_, '_> {
                     return unsupported("a binding pattern without a name");
                 };
                 let name = self.cx.names.syms.intern(self.cx.src.text(nt));
+                // `flow.match.bare-variant`: a bare name of a variant of
+                // the subject's enum is not a catch-all binding.
+                if self.variant_fields(t, self.cx.src.text(nt)).is_some() {
+                    let msg = format!(
+                        "bare-variant-pattern: write `.{}` or a qualified name",
+                        self.cx.src.text(nt)
+                    );
+                    self.err(Code::BareVariantPattern, p, &msg);
+                    return Ok(());
+                }
                 if binds
                     .iter()
                     .any(|(_, l)| self.b.body_mut().local_name[l.idx()] == name)
@@ -157,6 +167,15 @@ impl Ck<'_, '_> {
             }
             SyntaxKind::VariantPattern => {
                 let name = self.variant_pattern_name(p);
+                // `flow.match.bare-payload`: `Some(x)` for `.Some(x)`.
+                if !p
+                    .direct_tokens()
+                    .any(|t| self.cx.src.tkind(t) == Some(TokenKind::Dot))
+                {
+                    let msg = format!("bare-variant-pattern: write `.{name}` or a qualified name");
+                    self.err(Code::BareVariantPattern, p, &msg);
+                    return Ok(());
+                }
                 let Some((_, fields)) = self.variant_fields(t, &name) else {
                     if matches!(pool.get(inner), TyData::Infer(_)) {
                         return unsupported("a variant pattern on a value whose type is not known");
@@ -166,7 +185,7 @@ impl Ck<'_, '_> {
                     return Ok(());
                 };
                 let subs = self.variant_subpatterns(p, t, &name)?;
-                if subs.len() != fields.len() && !subs.is_empty() {
+                if subs.len() != fields.len() {
                     self.err(
                         Code::PatternArity,
                         p,
@@ -181,11 +200,20 @@ impl Ck<'_, '_> {
                 }
             }
             SyntaxKind::DataPattern => {
+                let mut seen: Vec<String> = Vec::new();
                 for f in p
                     .children()
                     .filter(|c| c.kind() == SyntaxKind::DataPatternField)
                 {
                     let fname = self.cx.src.text(self.cx.src.first(f)).to_owned();
+                    if seen.contains(&fname) {
+                        let msg = format!(
+                            "duplicate-data-pattern-field: `{fname}` appears twice in this pattern"
+                        );
+                        self.err(Code::DuplicateDataPatternField, f, &msg);
+                        continue;
+                    }
+                    seen.push(fname.clone());
                     let Some((_, ft)) = self.field_of(t, &fname) else {
                         let msg = format!("unknown-data-field `{fname}` on {}", self.show(t));
                         self.err(Code::UnknownDataField, f, &msg);
@@ -392,7 +420,23 @@ impl Ck<'_, '_> {
         // A pattern: a two-arm (or one-arm) match whose bindings stay in
         // scope after it.
         let mut binds = Vec::new();
+        let outer = self.scopes.last().cloned().unwrap_or_default();
         self.declare_pattern(pat, t, &mut binds)?;
+        // `flow.let.refutable.else`, `flow.let.else.unreachable`.
+        let refutable = self.refutable(pat, t);
+        match els {
+            None if refutable => self.err(
+                Code::RefutableLetPattern,
+                pat,
+                "refutable-let-pattern: this pattern can fail to match; add an `else` block",
+            ),
+            Some(e) if !refutable => self.err(
+                Code::UnreachableMatchArm,
+                e,
+                "unreachable-match-arm: the pattern always matches, so `else` never runs",
+            ),
+            _ => {}
+        }
         let open = self.b.open_block();
         let first = self.b.close_block(open, None, Ty::VOID, pat.index());
         let mut arms = vec![first];
@@ -408,7 +452,14 @@ impl Ck<'_, '_> {
                 return unsupported("a `let ... else` without a suite");
             };
             let eb = self.b.open_block();
-            let (_, ety) = self.block_value(blk, Some(Ty::VOID))?;
+            // `names.let-else.not-in-else`: the pattern's names are not
+            // visible in the `else` block.
+            let inner = self.scopes.pop().unwrap_or_default();
+            self.scopes.push(outer);
+            let checked = self.block_value(blk, Some(Ty::VOID));
+            self.scopes.pop();
+            self.scopes.push(inner);
+            let (_, ety) = checked?;
             if ety != Ty::NEVER {
                 self.err(
                     Code::LetElseFallsThrough,
@@ -934,6 +985,12 @@ impl Ck<'_, '_> {
 
     /// `unreachable-match-arm` for an arm whose values the unguarded arms
     /// before it already match.
+    /// Whether some value of `t` fails to match `pat`.
+    pub(crate) fn refutable(&mut self, pat: NodeRef<'_>, t: Ty) -> bool {
+        let p = self.to_p(Some(pat), t);
+        self.useful(&[vec![p]], &[P::Wild], &[t], 0)
+    }
+
     fn check_reachable(&mut self, rows: &[Row<'_>], t: Ty) {
         let mut before: Vec<Vec<P>> = Vec::new();
         for r in rows {

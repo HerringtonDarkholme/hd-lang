@@ -10,13 +10,13 @@ fn add_item(count: i32) -> i32:
     items_added
 
 fn total(prices: List[i32]) -> i32:
-    sum := +0
+    let sum = +0
     for p in prices:
         sum += p
     sum
 
 fn cheapest(prices: List[i32]) -> i32:
-    best := prices[0]
+    let best = prices[0]
     for p in prices:
         if p < best:
             best = p

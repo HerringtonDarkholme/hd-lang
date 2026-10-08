@@ -21,7 +21,7 @@ fn main() -> void $ Console:
     println("$greeting")
     for i in 0..3:
         println("$i")
-    total := +0
+    let total = +0
     for i in 1..=10:
         if i == 3:
             continue
