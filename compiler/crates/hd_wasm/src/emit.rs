@@ -1841,7 +1841,11 @@ impl Em<'_> {
             OptShape::Tagged(_) => OptForm::Tagged,
             OptShape::Boxed(b, _) => OptForm::Boxed(b),
         };
-        let code = WTy::Func(vec![VT::Eq], self.vts(ot)?);
+        // The closure ABI: environment, then the (unused) context.
+        let code = WTy::Func(
+            vec![VT::Eq, VT::rn(ctx_keys()), VT::rn(ctx_provs())],
+            self.vts(ot)?,
+        );
         let base = crate::layout::closure_base(&code);
         let env = WTy::Struct {
             fields: vec![VT::r(code.clone()), VT::r(lt.clone()), VT::I32],

@@ -728,10 +728,10 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             elem,
             opt,
         } => {
-            let WTy::Func(_, results) = code else {
+            let WTy::Func(params, results) = code else {
                 return unsupported("a list cursor without a code type");
             };
-            let mut a = Asm::new(vec![VT::Eq]);
+            let mut a = Asm::new(params.clone());
             let e = a.local(VT::r(env.clone()));
             let l = a.local(VT::r(list.clone()));
             let i = a.local(VT::I32);
