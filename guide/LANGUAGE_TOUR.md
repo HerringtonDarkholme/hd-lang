@@ -2532,8 +2532,6 @@ fake. Use ordinary provider scopes for mocks and `std.testing` for
 assertions:
 
 ```text
-use std.testing.assert_equal
-
 @derive(Eq, Debug)
 data DbError:
     message: string
@@ -2547,6 +2545,8 @@ impl Database for MockDatabase:
     fn count!(self) -> Result[i32, DbError]: .Ok(3)
 
 tests:
+    use std.testing.assert_equal
+
     it("loads the count"):
         $.with(Database=MockDatabase {}):
             result := $.use(Database).count!()
@@ -2566,8 +2566,6 @@ with its cause chain:
 
 ```text
 use std.error.Error
-use std.testing.assert_equal
-
 data DigitError:
     text: string
 
@@ -2580,6 +2578,8 @@ fn parse_digit(text: string) -> Result[i32, DigitError]:
     if text == "7": .Ok(7) else: .Err(DigitError { text: text })
 
 tests:
+    use std.testing.assert_equal
+
     it("parses a digit"):
         digit := parse_digit("7")?
         assert_equal(digit, 7, reason="the digit parses")
@@ -2595,13 +2595,13 @@ table tests, `std.testing.it_each` registers one test case per row, named
 explicit `fn!` closure passed as `body=`:
 
 ```text
-use std.testing.{assert_equal, it_each}
-
 fn double(value: i32) -> i32: value * 2
 
 fn first(items: List[i32]) -> i32: items[0]
 
 tests:
+    use std.testing.{assert_equal, it_each}
+
     it("an empty list has no first item", expect_panic="index-out-of-bounds"):
         _ := first([])
 

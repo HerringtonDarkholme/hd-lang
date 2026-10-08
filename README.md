@@ -26,7 +26,6 @@ test installs a fake mailer and a fixed clock for one block. Forgetting a
 provider is a `missing-requirement` compile error, not a runtime surprise.
 
 ```hd
-use std.testing.assert_equal
 use std.time.{Clock, ManualClock, Timestamp}
 
 trait Mailer:
@@ -45,6 +44,8 @@ impl Mailer for Outbox:
         self.sent.push("$to: $body")
 
 tests:
+    use std.testing.assert_equal
+
     it("welcome sends one mail at the fixed time"):
         let outbox: mut Outbox = Outbox { sent: [] }
         let clock: mut ManualClock = ManualClock::new(Timestamp::from_unix_milliseconds(0))

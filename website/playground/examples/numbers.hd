@@ -2,6 +2,8 @@
 fn to_millis(seconds: i32) -> i64: i64(seconds) * 1000  # ← widening is written out
 
 tests:
+    use std.testing.assert_equal
+
     it("a year of milliseconds does not fit i32, so it is an i64"):
         assert_equal(to_millis(31_536_000), 31_536_000_000, reason="fits i64")
 
@@ -10,8 +12,6 @@ tests:
         _ := volume + 6  # ← 256 does not fit
 
 # ── plumbing ──────────
-use std.testing.assert_equal
-
 pub fn main() -> void $ Console:
     println(to_millis(31_536_000))
     let volume: u8 = 250

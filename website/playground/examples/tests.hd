@@ -1,5 +1,7 @@
 # Tests live next to the code. Run `hd test`: nothing to install.
 tests:
+    use std.testing.{assert_equal, it_each, snapshot}
+
     it("lowers and joins words"):
         assert_equal(slug(" Hello World "), "hello-world", reason="trimmed and joined")
 
@@ -14,8 +16,6 @@ tests:
         _ := first([])
 
 # ── plumbing ──────────
-use std.testing.{assert_equal, it_each, snapshot}
-
 fn slug(title: string) -> string:
     title.trim().lower().replace(" ", "-")
 

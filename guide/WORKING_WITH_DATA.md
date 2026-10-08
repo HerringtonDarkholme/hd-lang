@@ -21,8 +21,6 @@ is needed. The exact rules are in
 ```hd
 use std.json.{decode, JsonError}
 use std.serde.{Deserialize, Serialize}
-use std.testing.assert_equal
-
 @derive(Serialize, Deserialize)
 data Limits:
     retries: i32
@@ -37,6 +35,8 @@ fn load(text: string) -> Result[Config, JsonError]:
     decode::[Config](text)
 
 tests:
+    use std.testing.assert_equal
+
     it("reads a nested config"):
         text := "{\"name\": \"shop\", \"limits\": {\"retries\": 3, \"timeout_ms\": 250}}"
         match load(text):
@@ -122,7 +122,6 @@ which of two sleeps finishes first.
 
 ```hd
 use std.task.{all, race}
-use std.testing.{assert_equal, it}
 use std.time.{Clock, ManualClock, Timestamp, s, sleep}
 
 trait Store:
@@ -155,6 +154,8 @@ impl Store for FakeStore:
         "fake-$key"
 
 tests:
+    use std.testing.{assert_equal, it}
+
     it("loads all three at once"):
         $.with(Store=FakeStore { tag: "t" }):
             assert_equal(load_page!(), ("fake-user", "fake-orders", "fake-profile"), reason="all three")
@@ -175,8 +176,6 @@ unit test binds `MemoryFs` for both. The exact rules are in
 ```hd
 use std.fs.{FsRead, FsWrite, MemoryFs, read_text, write_text}
 use std.path.Path
-use std.testing.{assert_equal, it}
-
 fn save_report!(name: string, total: i32) -> void $ FsWrite:
     _ := write_text!(Path("reports/$name.txt"), "total: $total")
 
@@ -184,6 +183,8 @@ fn read_report!(name: string) -> string $ FsRead:
     read_text!(Path("reports/$name.txt")).expect("the report exists")
 
 tests:
+    use std.testing.{assert_equal, it}
+
     it("writes and reads back a report"):
         let mut fs = MemoryFs::new()
         $.with(FsWrite=fs, FsRead=fs):
@@ -207,8 +208,6 @@ stall the scan. The exact rules are in [Regex](../spec/std/regex.md):
 use std.num.parse_i32
 use std.regex.Regex
 use std.text.r
-use std.testing.{assert_equal, it}
-
 fn status_of(line: string) -> i32?:
     match Regex::new(r"\"[A-Z]+ /[^ ]*\" (\d\d\d)"):
         .Ok(pattern) =>
@@ -227,6 +226,8 @@ fn errors_by_status(lines: List[string]) -> Map[i32, usize]:
     counts
 
 tests:
+    use std.testing.{assert_equal, it}
+
     it("counts server errors by status"):
         lines := ["\"GET /ok\" 200", "\"POST /x\" 500", "\"GET /y\" 502", "\"GET /z\" 500"]
         assert_equal(errors_by_status(lines).get(500), .Some(2), reason="two 500s")
@@ -321,8 +322,6 @@ rules are in [Collections](../spec/std/collections.md) and
 
 ```hd
 use std.collections.Set
-use std.testing.{assert_equal, it}
-
 data Item:
     name: string
     price: i32
@@ -334,6 +333,8 @@ fn sample() -> List[Item]:
      Item { name: "cheese", price: 8, tags: ["dairy", "fresh"] }]
 
 tests:
+    use std.testing.{assert_equal, it}
+
     it("groups by tag and sorts by price"):
         items := sample()
         by_tag := items.group_by(fn(item: Item) -> string: item.tags[0])
@@ -364,7 +365,6 @@ monotonic reading for measuring intervals, never a wall time. The exact
 rules are in [Time](../spec/std/time.md):
 
 ```hd
-use std.testing.{assert_equal, it}
 use std.time.{Duration, Instant, Timestamp, min, s}
 
 fn deadline(now: Timestamp) -> Timestamp:
@@ -374,6 +374,8 @@ fn elapsed(start: Instant, end: Instant) -> Duration:
     end.since(start)
 
 tests:
+    use std.testing.{assert_equal, it}
+
     it("reads and writes RFC 3339 text"):
         at := Timestamp::parse_rfc3339("2026-10-06T12:00:00Z").expect("valid")
         assert_equal(at.to_rfc3339(), "2026-10-06T12:00:00Z", reason="round trip")
@@ -396,7 +398,6 @@ appends, and `repeat` for padding. `chars` and `bytes` walk a string by
 character or by byte. The exact rules are in [Text](../spec/std/text.md):
 
 ```hd
-use std.testing.{assert_equal, it}
 use std.text.StringBuilder
 
 fn csv_row(cells: List[string]) -> string:
@@ -412,6 +413,8 @@ fn banner(text: string) -> string:
     out.build()
 
 tests:
+    use std.testing.{assert_equal, it}
+
     it("joins and builds"):
         assert_equal(csv_row(["a", "b", "c"]), "a,b,c", reason="joined")
         assert_equal(banner("SALE"), "==== SALE ====", reason="built")

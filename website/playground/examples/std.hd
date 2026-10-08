@@ -5,13 +5,14 @@ fn score(line: string) -> i32?:
         .Err(_) => .None  # ← ...a value to handle
 
 tests:
+    use std.testing.assert_equal
+
     it("a bad row is None, not a crash"):
         assert_equal(score("ada 36"), .Some(36), reason="good row")
         assert_equal(score("bob x"), .None, reason="bad row")
 
 # ── plumbing ──────────
 use std.num.parse_i32
-use std.testing.assert_equal
 use std.text.join
 
 pub fn main() -> void $ Console:

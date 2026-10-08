@@ -6,13 +6,13 @@ fn find(items: List[Item], sku: string) -> Item?:  # ← the type says it may be
     .None
 
 tests:
+    use std.testing.assert_equal
+
     it("a missing sku is .None, never null"):
         assert_equal(find(stock(), "sofa"), .None, reason="no sofa")
         assert_equal(find(stock(), "lamp"), .Some(Item { sku: "lamp", on_hand: 3 }), reason="lamp")
 
 # ── plumbing ──────────
-use std.testing.assert_equal
-
 @derive(Debug, Eq)
 data Item:
     sku: string

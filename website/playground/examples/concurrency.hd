@@ -4,6 +4,8 @@ fn page!(id: i32) -> string $ Clock:
     "${profile.name} has ${orders.len()} orders"
 
 tests:
+    use std.testing.assert_equal
+
     it("both results arrive together, on a fake clock"):
         let clock: mut ManualClock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=clock):
@@ -11,7 +13,6 @@ tests:
 
 # ── plumbing ──────────
 use std.task.all
-use std.testing.assert_equal
 use std.time.{Clock, ManualClock, Timestamp, ms}
 
 data Profile:

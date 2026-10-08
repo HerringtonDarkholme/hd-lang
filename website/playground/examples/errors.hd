@@ -9,6 +9,8 @@ fn start(config: string) -> Result[string, dyn Error]:
 #   caused by: invalid digit at position 0
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("a missing key is a typed error callers can match"):
         match port("host = local"):
             .Err(ConfigError.Missing(key)) => assert_equal(key, "port", reason="the key")
@@ -17,8 +19,6 @@ tests:
 # ── plumbing ──────────
 use std.error.{Error, report_of}
 use std.num.{ParseNumberError, parse_i32}
-use std.testing.{assert, assert_equal}
-
 @error
 enum ConfigError:
     @error("missing key '$key'")

@@ -7,6 +7,8 @@ fn can_cancel(status: OrderStatus) -> bool:
         .Cancelled => false
 
 tests:
+    use std.testing.assert_equal
+
     it("shipped orders cannot be cancelled"):
         assert_equal(can_cancel(.Shipped("DHL")), false, reason="too late")
 
@@ -16,8 +18,6 @@ tests:
 # A `_ =>` arm would have hidden both.
 
 # ── plumbing ──────────
-use std.testing.assert_equal
-
 enum OrderStatus:
     Pending
     Paid(cents: i32)

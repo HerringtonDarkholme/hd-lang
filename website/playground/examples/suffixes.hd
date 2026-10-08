@@ -2,6 +2,8 @@
 fn backoff() -> List[Duration]: [250ms, 1s, 5s]  # ← a retry schedule reads as data
 
 tests:
+    use std.testing.assert_equal
+
     it("pixels add as pixels"):
         assert_equal(add(12px, 4px).count, 16, reason="sum")
 
@@ -11,7 +13,6 @@ tests:
 
 # ── plumbing ──────────
 use std.ops.num_suffix
-use std.testing.assert_equal
 use std.time.{Duration, ms, s}
 
 data Pixels:

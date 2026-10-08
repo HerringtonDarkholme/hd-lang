@@ -4,6 +4,8 @@ fn welcome!(email: string) -> void $ Mailer + Clock:  # ← sends mail, reads th
     mailer.send!(email, "Welcome at ${$.use(Clock).now()}")
 
 tests:
+    use std.testing.assert_equal
+
     it("welcome mails the user at a fixed time, no mocks"):
         let outbox: mut Outbox = Outbox { sent: [] }
         $.with(Mailer=outbox, Clock=epoch()):  # ← fakes, for this block only
@@ -11,7 +13,6 @@ tests:
         assert_equal(outbox.sent[0], "ada@example.com|Welcome at 1970-01-01T00:00:00Z", reason="body")
 
 # ── plumbing ──────────
-use std.testing.assert_equal
 use std.time.{Clock, ManualClock, Timestamp}
 
 trait Mailer:

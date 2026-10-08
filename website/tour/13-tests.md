@@ -16,6 +16,8 @@ fn shipping_cents(weight_grams: i32) -> i32:  # ← private, and still testable
     if weight_grams <= 1000: 499 else: 499 + (weight_grams - 1000) / 500 * 150
 
 tests:
+    use std.testing.{assert_equal, it_each}
+
     it("a parcel up to 1 kg pays the base rate"):
         assert_equal(shipping_cents(800), 499, reason="base rate")
 
@@ -29,7 +31,6 @@ tests:
 #     assertion-failed: base rate: actual 450, expected 499
 
 # ── plumbing ──
-use std.testing.{assert_equal, it_each}
 ```
 
 ```edit

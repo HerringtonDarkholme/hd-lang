@@ -534,9 +534,9 @@ may call suspending functions directly. Unit tests get no host providers, so
 provider scopes supply every dependency as a fake.
 
 ```hd
-use std.testing.assert_equal
-
 tests:
+    use std.testing.assert_equal
+
     it("stamps with the fixed clock"):
         $.with(Clock=FixedClock { at: 1 }):
             assert_equal(stamp("go"), "1: go", reason="uses the provider")
