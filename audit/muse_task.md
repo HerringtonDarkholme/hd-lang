@@ -90,16 +90,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### T4. Conformance Triage For Phase 2
-
-From `compiler/CONFORMANCE.md` (Q18) at the current main, map every
-failure bucket (first diagnostic code or `unsupported` stage) to the
-`future-work/compiler/phase2-jobs.md` job that fixes it (P2-1 to
-P2-10), with the number of cases each bucket holds. Write the result as
-a table at the top of `phase2-jobs.md` and reorder the jobs by cases
-unblocked per estimated job size, respecting dependencies. Docs only.
-Timebox 30 minutes; push.
-
 ### P2. Side-By-Side: TS Prototype Versus New Compiler
 
 The owner wants a real comparison, not separate numbers. Under

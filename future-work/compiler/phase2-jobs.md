@@ -1,5 +1,82 @@
 # New Compiler: Phase-2 Job Briefs
 
+## Triage: Conformance Buckets To Jobs (T4, 2026-10-08)
+
+Source: the Failure Buckets of `compiler/CONFORMANCE.md` at `561efcfb`
+(497 pass, 1,114 fail, 1,327 unsupported of 2,938). Each `fail:` bucket is
+the first diagnostic code; each `unsupported:` bucket is the pipeline
+stage that first declined the case. The counts below sum to those
+totals. A case can need more than one job; the table names the primary
+fixing job, and shared reach is noted per job below.
+
+| Bucket | Cases | Fixing job | Why |
+| --- | ---: | --- | --- |
+| `fail:unknown-import` | 777 | P2-5 | imports resolve only through package interfaces |
+| `fail:type-mismatch` | 87 | P2-2 | unification, joins, and call checking |
+| `fail:unknown-module` | 64 | P2-5 | module discovery and paths, chapters 10 and 03 |
+| `fail:unsatisfied-trait-bound` | 31 | P2-3 | trait solving and evidence |
+| `fail:unknown-method` | 29 | P2-2 | method and call resolution |
+| `fail:unknown-data-field` | 19 | P2-4 | aggregate member lookup |
+| `fail:syntax-error` | 10 | — | phase-1 parser gap: old syntax the new parser still accepts |
+| `fail:argument-count` | 9 | P2-2 | call and constructor arity |
+| `fail:identity-requires-references` | 9 | P2-1 | identity and reference rules in bodies |
+| `fail:overlapping-impl` | 9 | P2-3 | coherence |
+| `fail:unknown-name` | 9 | P2-1 | locals, closures, and defaults; 2 module-path cases also need P2-5 |
+| `fail:missing-requirement` | 8 | P2-2 | requirement rows, mostly chapter 11 |
+| `fail:nonexhaustive-match` | 8 | P2-1 | exhaustiveness |
+| `fail:unknown-trait` | 8 | P2-3 | trait resolution, mostly chapter 11 |
+| `fail:cannot-infer-type` | 7 | P2-2 | inference |
+| `fail:missing-supertrait-implementation` | 4 | P2-3 | supertrait bounds |
+| `fail:pipe-step-needs-placeholder` | 3 | P2-1 | pipe expressions |
+| `fail:bang-call-outside-suspension` | 2 | P2-1 | suspension context in defaults |
+| `fail:invalid-token` | 2 | — | phase-1 lexer gap |
+| `fail:missing-required-field` | 2 | P2-4 | aggregate construction |
+| `fail:orphan-impl` | 2 | P2-3 | coherence |
+| `fail:pattern-arity` | 2 | P2-1 | patterns |
+| `fail:tab-whitespace` | 2 | — | phase-1 lexer gap |
+| `fail:trait-used-as-type` | 2 | P2-3 | trait positions |
+| `fail:unknown-type` | 2 | P2-2 | type positions; 1 case also needs a P2-5 import |
+| `fail:integer-literal-range` | 1 | P2-2 | literals |
+| `fail:let-else-falls-through` | 1 | P2-1 | control flow |
+| `fail:not-callable` | 1 | P2-2 | calls |
+| `fail:placeholder-outside-pipe` | 1 | P2-1 | pipe expressions |
+| `fail:type-used-as-value` | 1 | P2-4 | chapter 14 positions |
+| `fail:unknown-variant` | 1 | P2-4 | enum variant resolution |
+| `fail:unreachable-match-arm` | 1 | P2-1 | exhaustiveness |
+| `unsupported:Collect` | 879 | P2-6 | collection into the emit pipeline; 83 chapter-11 cases also need P2-7, 85 harness cases also need P2-9 |
+| `unsupported:Body` | 200 | P2-1 | body checking, chapters 05, 09, and 04 |
+| `unsupported:TestOverlay` | 101 | P2-9 | test overlay and runner |
+| `unsupported:CLI` | 99 | P2-10 | all CLI cases |
+| `unsupported:FolderIface` | 35 | P2-5 | folder interfaces |
+| `unsupported:Discover` | 13 | P2-5 | package discovery |
+
+### Reach Per Job
+
+Exclusive cases per primary job, with shared reach noted. Density uses
+the midpoint of the size estimate below.
+
+| Job | Exclusive cases | Also shares | kLOC | Cases per kLOC |
+| --- | ---: | --- | ---: | ---: |
+| P2-5 | 889 | — | 6.5 | 137 |
+| P2-6 | 879 | — | 7.5 | 117 |
+| P2-1 | 236 | — | 6.0 | 39 |
+| P2-2 | 144 | — | 6.0 | 24 |
+| P2-9 | 101 | 85 of Collect | 5.0 | 20 |
+| P2-10 | 99 | — | 10.0 | 10 |
+| P2-3 | 56 | — | 6.5 | 9 |
+| P2-4 | 23 | — | 6.0 | 4 |
+| P2-7 | 0 | 83 of Collect | 7.5 | shared |
+| P2-8 | 0 | host runtime rows inside other buckets | 5.5 | shared |
+| P2-11 | 0 | no REPL rows exist yet | 5.5 | 0 |
+| P2-12 | 0 | — | 4.0 | 0 |
+| Unowned | 14 | phase-1 parser and lexer gaps, no P2 brief covers them | — | — |
+
+### Order Verdict
+
+The dependency chain forces the sequence 1-2-3-4-5-6-7-8-9-10-11-12:
+every job's prerequisites precede it, and no independent pair is
+density-inverted. The order table below is unchanged; confirmed 2026-10-08.
+
 Phase 2 is the "make it work" pass after the compiler skeleton. The order
 below is the ordered list from [the work estimate](work-estimate.md), refined
 so that prerequisites come first and, among independent jobs, the job that
