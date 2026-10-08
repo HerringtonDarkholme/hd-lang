@@ -14,7 +14,7 @@ use std::time::Instant;
 
 use hd_cache::DiskStore;
 use hd_check::tests::PANIC_CATEGORIES;
-use hd_driver::{Executor, Goal, Host, TestCase, build};
+use hd_driver::{Executor, Goal, Host, TestCase, build_packages};
 use hd_run::tests_model::{
     Case, CaseKey, CaseKind, CaseResult, ProgramKey, ReleaseCursor, TestPlan,
 };
@@ -73,7 +73,7 @@ fn parse(args: &[OsString]) -> Result<Options, String> {
     Ok(o)
 }
 
-/// The package root and, with a FILE, its module path below the package.
+/// The package root and, with a FILE, its path relative to that root.
 fn target(file: Option<&Path>) -> Result<(PathBuf, Option<String>), String> {
     let Some(f) = file else {
         let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
@@ -99,7 +99,7 @@ fn target(file: Option<&Path>) -> Result<(PathBuf, Option<String>), String> {
         .map_err(|e| e.to_string())?
         .to_string_lossy()
         .replace('\\', "/");
-    Ok((root, Some(rel.trim_end_matches(".hd").replace('/', "."))))
+    Ok((root, Some(rel)))
 }
 
 pub fn command(args: &[OsString]) -> ExitCode {
@@ -107,19 +107,20 @@ pub fn command(args: &[OsString]) -> ExitCode {
         Ok(o) => o,
         Err(e) => return fail(&e),
     };
-    let (root, file_module) = match target(o.file.as_deref()) {
+    let (root, file) = match target(o.file.as_deref()) {
         Ok(t) => t,
         Err(e) => return fail(&e),
     };
-    let (sources, package) = match disk::sources_of(&root) {
-        Ok(s) => s,
+    let program = match disk::load_package(&root, "main") {
+        Ok(p) => p,
         Err(e) => return fail(&e),
     };
+    let (sources, package) = (&program.sources, &program.package);
     let store = DiskStore { root: cache_dir() };
     let clock = Wall(Instant::now());
     let host = Host {
         render_tir: &[],
-        sources: &sources,
+        sources,
         store: &store,
         clock: &clock,
         executor: if o.jobs == 1 {
@@ -129,12 +130,12 @@ pub fn command(args: &[OsString]) -> ExitCode {
         },
     };
     let goal = Goal::Tests {
-        module: file_module.as_ref().map(|m| format!("{package}.{m}")),
+        module: file.as_ref().map(|f| hd_project::module_path(package, f)),
         filter: o.filter.clone(),
     };
-    let out = build(&host, &package, &goal);
+    let out = build_packages(&host, package, &program.packages(), &goal);
     // Warnings are shown; only errors stop the command.
-    eprint!("{}", out.render_located(&sources));
+    eprint!("{}", out.render_located(sources));
     if out.diags.has_errors() {
         return ExitCode::from(HD_FAILURE);
     }

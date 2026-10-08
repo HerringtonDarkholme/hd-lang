@@ -16,6 +16,7 @@ use hd_base::{DefId, NotImplemented, PathId, Span, Stage, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
 
 use hd_intern::PathKind;
+use hd_project::{UseRootError, UseRoots};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_types::{ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList};
 
@@ -60,6 +61,9 @@ pub fn prelude_modules() -> Vec<&'static str> {
 /// interfaces of other folders.
 pub trait World {
     fn module_folder(&self, module: &str) -> Option<u32>;
+    /// Whether a `use` may name the module: it exists and is not its own
+    /// program (`module.path.main-no-use`).
+    fn usable(&self, module: &str) -> bool;
     fn iface(&self, folder: u32) -> Option<Arc<FolderIface>>;
 }
 
@@ -71,8 +75,8 @@ pub struct UseName {
     pub span: Span,
 }
 
-/// A use declaration with `pkg`, `self` and `super` rewritten to absolute
-/// segments.
+/// A use declaration with its root (`pkg`, `std`, `dep.NAME`, `self`,
+/// `super`) rewritten to absolute module path segments.
 #[derive(Clone, Debug)]
 pub struct UseDecl {
     pub public: bool,
@@ -81,8 +85,8 @@ pub struct UseDecl {
     pub group: Option<Vec<UseName>>,
     pub alias: Option<String>,
     pub span: Span,
-    /// A relative path that moved above its root.
-    pub bad_root: bool,
+    /// Why the path's root names no module path; `path` is then as written.
+    pub root_error: Option<UseRootError>,
 }
 
 impl UseDecl {
@@ -94,7 +98,7 @@ impl UseDecl {
 
 /// The use declarations of a file, in order.
 #[must_use]
-pub fn use_decls(src: &Src<'_>, package: &str, module: &str) -> Vec<UseDecl> {
+pub fn use_decls(src: &Src<'_>, roots: &UseRoots) -> Vec<UseDecl> {
     let mut out = Vec::new();
     // A `tests:` block's uses join the module's scope (a phase-1
     // simplification: the spec scopes them to the block).
@@ -153,36 +157,17 @@ pub fn use_decls(src: &Src<'_>, package: &str, module: &str) -> Vec<UseDecl> {
                 })
                 .collect()
         });
-        let mut bad_root = false;
-        match path.first().map(String::as_str) {
-            Some("pkg") => package.clone_into(&mut path[0]),
-            Some("self") => {
-                let mut abs: Vec<String> = module.split('.').map(str::to_owned).collect();
-                abs.extend(path.drain(1..));
-                path = abs;
-            }
-            Some("super") => {
-                let mut abs: Vec<String> = module.split('.').map(str::to_owned).collect();
-                let mut rest = path.drain(..).peekable();
-                while rest.peek().map(String::as_str) == Some("super") {
-                    rest.next();
-                    abs.pop();
-                    if abs.is_empty() {
-                        bad_root = true;
-                    }
-                }
-                abs.extend(rest);
-                path = abs;
-            }
-            _ => {}
-        }
+        let (path, root_error) = match roots.absolute(&path) {
+            Ok(abs) => (abs, None),
+            Err(e) => (path, Some(e)),
+        };
         out.push(UseDecl {
             public,
             path,
             group,
             alias,
             span: src.span(item),
-            bad_root,
+            root_error,
         });
     }
     out
@@ -284,6 +269,8 @@ pub type Kinds = HashMap<DefId, HeadKind>;
 /// One module of the folder being resolved.
 pub struct ModIn<'t> {
     pub path: String,
+    /// What the roots of its use paths name.
+    pub roots: UseRoots,
     pub src: Src<'t>,
     /// Compiler-supplied items of this module (`seed`).
     pub seeds: Vec<Item>,
@@ -307,7 +294,6 @@ pub struct FolderOut {
 /// What one resolution needs from the run.
 pub struct Cx<'a> {
     pub names: Names<'a>,
-    pub package: &'a str,
     pub folder: u32,
     pub world: &'a dyn World,
 }
@@ -337,11 +323,16 @@ struct Resolver<'a, 'b> {
 
 impl Resolver<'_, '_> {
     fn module_exists(&self, module: &str) -> bool {
-        self.cx.world.module_folder(module).is_some()
+        self.cx.world.usable(module)
     }
 
     fn export(&self, module: &str, name: Symbol) -> Res {
-        let Some(f) = self.cx.world.module_folder(module) else {
+        let Some(f) = self
+            .cx
+            .world
+            .module_folder(module)
+            .filter(|_| self.cx.world.usable(module))
+        else {
             return Err(Code::UnknownModule);
         };
         if f != self.cx.folder {
@@ -461,8 +452,19 @@ fn scope_of(
     for (row, u) in uses.iter().enumerate() {
         let row = u32::try_from(row).unwrap_or(u32::MAX);
         let module = u.module();
-        if u.bad_root {
-            diags.error(Code::UnknownModule, u.span, "the path goes above the root");
+        if let Some(e) = u.root_error {
+            let msg = match e {
+                UseRootError::AboveRoot => "the path goes above the root".to_owned(),
+                UseRootError::UnknownDependency => format!(
+                    "`{}` names no dependency of this package",
+                    u.path.iter().take(2).cloned().collect::<Vec<_>>().join(".")
+                ),
+                UseRootError::UnknownRoot => format!(
+                    "`{}` is no use root; a path starts with `pkg`, `std`, `dep`, `self` or `super`",
+                    u.path.first().map_or("", String::as_str)
+                ),
+            };
+            diags.error(Code::UnknownModule, u.span, &msg);
             continue;
         }
         if let Some(group) = &u.group {
@@ -1959,10 +1961,7 @@ pub fn build_folder(
     let names = &cx.names;
     let all_heads: Vec<Vec<Head<'_>>> =
         mods.iter().map(|m| heads(names, &m.src, &m.path)).collect();
-    let all_uses: Vec<Vec<UseDecl>> = mods
-        .iter()
-        .map(|m| use_decls(&m.src, cx.package, &m.path))
-        .collect();
+    let all_uses: Vec<Vec<UseDecl>> = mods.iter().map(|m| use_decls(&m.src, &m.roots)).collect();
     let mut r = Resolver {
         cx,
         frozen,

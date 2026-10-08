@@ -11,7 +11,7 @@ use std::time::Instant;
 
 use hd_cache::DiskStore;
 use hd_diag::Severity;
-use hd_driver::{Goal, Host, Output, build};
+use hd_driver::{Goal, Host, Output, build_packages};
 
 use crate::{HD_FAILURE, Wall, cache_dir, disk, executor, fail, package_of_cwd};
 
@@ -143,7 +143,12 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
         clock: &clock,
         executor: executor(),
     };
-    let out = build(&host, &t.program.package, &Goal::Analyze);
+    let out = build_packages(
+        &host,
+        &t.program.package,
+        &t.program.packages(),
+        &Goal::Analyze,
+    );
     let order = shown(&out, &t);
     let failed = order
         .iter()

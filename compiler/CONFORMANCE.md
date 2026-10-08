@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1560 | 768 | 515 | 2843 |
+| 1575 | 729 | 539 | 2843 |
 
 ## By Chapter
 
@@ -16,15 +16,15 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `lang/01-lexical-structure.md` | 127 | 16 | 2 | 145 |
 | `lang/02-grammar.md` | 183 | 14 | 17 | 214 |
-| `lang/03-names-and-scopes.md` | 65 | 20 | 16 | 101 |
+| `lang/03-names-and-scopes.md` | 70 | 12 | 19 | 101 |
 | `lang/04-type-system.md` | 251 | 72 | 29 | 352 |
 | `lang/05-expressions.md` | 136 | 77 | 64 | 277 |
 | `lang/06-control-flow.md` | 97 | 34 | 26 | 157 |
 | `lang/07-functions.md` | 51 | 34 | 45 | 130 |
-| `lang/08-data-and-enums.md` | 52 | 43 | 28 | 123 |
-| `lang/09-traits.md` | 184 | 129 | 45 | 358 |
-| `lang/10-modules.md` | 99 | 122 | 37 | 258 |
-| `lang/11-requirements-and-suspension.md` | 104 | 55 | 100 | 259 |
+| `lang/08-data-and-enums.md` | 52 | 41 | 30 | 123 |
+| `lang/09-traits.md` | 185 | 126 | 47 | 358 |
+| `lang/10-modules.md` | 108 | 97 | 53 | 258 |
+| `lang/11-requirements-and-suspension.md` | 104 | 54 | 101 | 259 |
 | `lang/14-annotations.md` | 61 | 73 | 19 | 153 |
 | `std/cli.md` | 1 | 0 | 4 | 5 |
 | `std/cmp.md` | 8 | 0 | 6 | 14 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 52 | 34 | 19 | 105 |
-| `runtime/valid` | 386 | 198 | 345 | 929 |
-| `typing/invalid` | 500 | 468 | 105 | 1073 |
-| `typing/valid` | 328 | 41 | 46 | 415 |
+| `runtime/valid` | 386 | 179 | 364 | 929 |
+| `typing/invalid` | 508 | 455 | 110 | 1073 |
+| `typing/valid` | 335 | 34 | 46 | 415 |
 | `typing/warnings` | 7 | 13 | 0 | 20 |
 
 ## Failure Buckets
@@ -94,7 +94,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 9 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 290 |
+| `fail:no-diagnostic` | 294 |
 | `fail:nonexhaustive-match` | 16 |
 | `fail:not-callable` | 1 |
 | `fail:orphan-impl` | 1 |
@@ -102,6 +102,8 @@ compiler stage that first declined the case.
 | `fail:pattern-arity` | 2 |
 | `fail:pipe-step-needs-placeholder` | 5 |
 | `fail:placeholder-outside-pipe` | 1 |
+| `fail:private-import` | 1 |
+| `fail:re-export-loop` | 1 |
 | `fail:runtime-exit` | 56 |
 | `fail:stdout` | 10 |
 | `fail:suspension-forbidden-context` | 1 |
@@ -112,23 +114,23 @@ compiler stage that first declined the case.
 | `fail:type-mismatch` | 87 |
 | `fail:type-used-as-value` | 2 |
 | `fail:unknown-data-field` | 13 |
-| `fail:unknown-import` | 24 |
+| `fail:unknown-import` | 27 |
 | `fail:unknown-method` | 33 |
-| `fail:unknown-module` | 67 |
-| `fail:unknown-name` | 10 |
+| `fail:unknown-module` | 14 |
+| `fail:unknown-name` | 12 |
 | `fail:unknown-named-argument` | 3 |
-| `fail:unknown-trait` | 8 |
-| `fail:unknown-type` | 2 |
+| `fail:unknown-trait` | 9 |
+| `fail:unknown-type` | 4 |
 | `fail:unknown-variant` | 1 |
 | `fail:unsatisfied-trait-bound` | 34 |
 | `fail:unused-local-binding` | 11 |
-| `unsupported:Body` | 194 |
+| `unsupported:Body` | 202 |
 | `unsupported:Collect` | 88 |
 | `unsupported:Discover` | 13 |
 | `unsupported:Emit` | 137 |
 | `unsupported:FolderIface` | 35 |
 | `unsupported:Link` | 1 |
-| `unsupported:RunCase` | 41 |
+| `unsupported:RunCase` | 57 |
 | `unsupported:TestCase` | 6 |
 
 <details><summary><code>fail:argument-count</code> (16)</summary>
@@ -300,7 +302,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (290)</summary>
+<details><summary><code>fail:no-diagnostic</code> (294)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -440,6 +442,7 @@ compiler stage that first declined the case.
 - `typing/invalid/intrinsic-method-user.hd`
 - `typing/invalid/supertrait-binding-mismatch.hd`
 - `typing/invalid/supertrait-binding-unknown.hd`
+- `typing/invalid/init-group-cycle.hd`
 - `typing/warnings/derivation-block-decorator.hd`
 - `typing/invalid/operator-function-left-exact.hd`
 - `typing/invalid/pipe-placeholder-in-closure.hd`
@@ -506,8 +509,6 @@ compiler stage that first declined the case.
 - `typing/invalid/typed-fact-fn-pattern-bound.hd`
 - `typing/invalid/typed-fact-fn-pattern-suspending.hd`
 - `typing/invalid/typed-fact-concrete-pattern-mismatch.hd`
-- `typing/invalid/integration-super-above-test-root.hd`
-- `typing/invalid/root-file-super.hd`
 - `typing/invalid/generic-inference-variance-conflict.hd`
 - `typing/invalid/generic-inference-optional-conflict.hd`
 - `typing/invalid/list-float-map-key.hd`
@@ -544,7 +545,6 @@ compiler stage that first declined the case.
 - `typing/invalid/contravariant-inferred-invariant-result.hd`
 - `typing/invalid/ambiguous-requirement-key-solution.hd`
 - `typing/invalid/method-type-parameter-reuses-impl-parameter.hd`
-- `typing/invalid/root-file-lib-super.hd`
 - `typing/invalid/module-named-pkg.hd`
 - `typing/invalid/duplicate-variant.hd`
 - `typing/warnings/mixed-script-identifier.hd`
@@ -554,6 +554,9 @@ compiler stage that first declined the case.
 - `typing/invalid/script-test-init-requirement.hd`
 - `typing/invalid/unit-test-real-clock.hd`
 - `typing/warnings/unused-debug-text.hd`
+- `typing/invalid/sibling-module-trait-not-imported.hd`
+- `typing/invalid/sibling-module-private-field.hd`
+- `typing/invalid/sibling-module-std-name-not-imported.hd`
 - `typing/invalid/duplicate-field-declaration.hd`
 - `typing/invalid/data-field-shorthand-duplicate.hd`
 - `typing/invalid/serde-derive-member-not-deserialize.hd`
@@ -567,6 +570,7 @@ compiler stage that first declined the case.
 - `typing/invalid/child-trait-redeclares-associated-type.hd`
 - `typing/invalid/child-trait-redeclares-associated-function.hd`
 - `typing/invalid/from-trait-value-target.hd`
+- `typing/invalid/child-module-not-in-parent.hd`
 - `typing/invalid/anyref-rejects-primitive.hd`
 - `typing/invalid/private-type-leak-data-field.hd`
 - `typing/invalid/private-type-leak-enum-payload.hd`
@@ -579,6 +583,7 @@ compiler stage that first declined the case.
 - `typing/invalid/trait-assoc-call-self-undetermined.hd`
 - `typing/invalid/concrete-value-binding-mismatch.hd`
 - `typing/invalid/shared-enum-payload-name-duplicate.hd`
+- `typing/invalid/data-literal-private-field-other-module.hd`
 - `typing/invalid/entry-point-parameters.hd`
 - `typing/invalid/generic-entry-point.hd`
 - `typing/invalid/root-mod-file.hd`
@@ -586,6 +591,7 @@ compiler stage that first declined the case.
 - `typing/invalid/integration-file-beside-directory.hd`
 - `typing/invalid/module-path-not-identifier.hd`
 - `typing/invalid/impl-head-projection.hd`
+- `typing/invalid/dyn-inherent-nonlocal.hd`
 - `typing/invalid/template-names-binding.hd`
 - `typing/invalid/supertrait-binding-conflict.hd`
 - `typing/invalid/impl-target-row-extension.hd`
@@ -654,6 +660,18 @@ compiler stage that first declined the case.
 <details><summary><code>fail:placeholder-outside-pipe</code> (1)</summary>
 
 - `typing/invalid/pipe-duplicate-placeholder.hd`
+
+</details>
+
+<details><summary><code>fail:private-import</code> (1)</summary>
+
+- `typing/invalid/sibling-module-private-function-import.hd`
+
+</details>
+
+<details><summary><code>fail:re-export-loop</code> (1)</summary>
+
+- `typing/invalid/pub-use-loop.hd`
 
 </details>
 
@@ -891,7 +909,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-import</code> (24)</summary>
+<details><summary><code>fail:unknown-import</code> (27)</summary>
 
 - `runtime/valid/it-each-rows.hd`
 - `typing/invalid/it-each-outside-test-position.hd`
@@ -902,6 +920,7 @@ compiler stage that first declined the case.
 - `typing/invalid/snapshot-non-literal-expect.hd`
 - `typing/invalid/property-input-not-debug.hd`
 - `runtime/valid/property-assume-discards.hd`
+- `typing/invalid/use-through-pub-use-loop.hd`
 - `runtime/valid/property-draw-budget.hd`
 - `runtime/valid/derived-arbitrary-with.hd`
 - `typing/invalid/property-examples-wrong-type.hd`
@@ -917,6 +936,8 @@ compiler stage that first declined the case.
 - `typing/valid/test-runner-every-registration-form.hd`
 - `runtime/valid/property-generators-scalars.hd`
 - `runtime/valid/property-generators-collections.hd`
+- `typing/invalid/unknown-package-name.hd`
+- `typing/invalid/integration-test-private-name.hd`
 
 </details>
 
@@ -958,79 +979,26 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-module</code> (67)</summary>
+<details><summary><code>fail:unknown-module</code> (14)</summary>
 
 - `typing/invalid/folder-cycle-facade.hd`
-- `typing/valid/folder-cycle-leaf-folder.hd`
-- `typing/valid/folder-loop-within-folder.hd`
 - `typing/invalid/folder-cycle-nested.hd`
 - `runtime/valid/folder-graph-test-edges.hd`
-- `typing/valid/pub-use-chain.hd`
-- `typing/invalid/pub-use-loop.hd`
-- `runtime/valid/init-group-order.hd`
-- `typing/invalid/init-group-cycle.hd`
-- `typing/invalid/use-through-pub-use-loop.hd`
-- `runtime/valid/integration-shared-use.hd`
+- `typing/invalid/integration-super-above-test-root.hd`
 - `typing/invalid/integration-program-use.hd`
-- `typing/valid/relative-self-main.hd`
-- `typing/valid/relative-self-lib.hd`
-- `typing/valid/lib-root-pkg.hd`
+- `typing/invalid/root-file-super.hd`
 - `typing/invalid/main-not-importable.hd`
-- `typing/valid/folder-parent-file.hd`
 - `typing/invalid/unknown-pkg-module.hd`
 - `typing/invalid/unknown-dep-module.hd`
-- `typing/invalid/private-package-name.hd`
-- `runtime/valid/string-prefix-imported-by-name.hd`
-- `typing/invalid/module-path-private-member.hd`
-- `typing/invalid/module-path-missing-member.hd`
 - `typing/invalid/relative-shared-test-above-test-root.hd`
-- `typing/valid/use-path-only-declaration.hd`
-- `typing/invalid/unknown-package-name.hd`
-- `typing/invalid/nonlocal-impl.hd`
-- `typing/invalid/sibling-module-trait-not-imported.hd`
-- `runtime/valid/sibling-module-trait-imported.hd`
-- `typing/invalid/sibling-module-private-field.hd`
-- `typing/invalid/sibling-module-private-method.hd`
-- `runtime/valid/sibling-module-pub-members.hd`
-- `typing/invalid/sibling-module-function-not-imported.hd`
-- `typing/invalid/sibling-module-private-function-bare.hd`
-- `typing/invalid/sibling-module-private-function-import.hd`
-- `typing/invalid/sibling-module-binding-not-visible.hd`
-- `typing/invalid/sibling-module-type-not-imported.hd`
-- `typing/invalid/sibling-module-alias-not-imported.hd`
-- `typing/invalid/sibling-module-trait-name-not-imported.hd`
-- `runtime/valid/sibling-module-names-imported.hd`
-- `typing/invalid/sibling-module-std-name-not-imported.hd`
-- `runtime/valid/sibling-module-std-name-imported.hd`
-- `typing/invalid/sibling-module-requirement-key-not-imported.hd`
-- `typing/invalid/test-module-name-not-imported.hd`
-- `runtime/valid/typeid-same-name-modules.hd`
-- `typing/invalid/use-module-and-root-declaration.hd`
-- `runtime/valid/use-module-member-beside-root-declaration.hd`
-- `runtime/valid/pub-use-same-declaration.hd`
-- `typing/invalid/pub-use-private-declaration.hd`
-- `runtime/valid/sibling-module-enum-and-trait.hd`
-- `runtime/valid/init-ready-groups-by-identity.hd`
-- `runtime/valid/init-group-statements-by-identity.hd`
-- `typing/invalid/child-module-not-in-parent.hd`
-- `runtime/valid/directory-module-and-child.hd`
-- `runtime/valid/integration-test-public-view.hd`
-- `typing/invalid/integration-test-private-name.hd`
-- `typing/invalid/non-test-code-uses-test-module.hd`
-- `runtime/valid/test-module-uses-test-module.hd`
-- `runtime/valid/question-mark-finds-std-from.hd`
-- `runtime/valid/operator-syntax-without-import.hd`
-- `typing/invalid/data-literal-private-field-other-module.hd`
-- `typing/invalid/copy-update-private-field-other-module.hd`
+- `typing/invalid/root-file-lib-super.hd`
 - `typing/invalid/relative-above-package-root.hd`
 - `runtime/valid/map-sys.hd`
 - `runtime/valid/net-own-provider.hd`
-- `typing/invalid/dyn-inherent-nonlocal.hd`
-- `runtime/valid/shared-enum-fact-evaluation.hd`
 
 </details>
 
-<details><summary><code>fail:unknown-name</code> (10)</summary>
+<details><summary><code>fail:unknown-name</code> (12)</summary>
 
 - `typing/valid/recursive-local-closure.hd`
 - `typing/invalid/recursive-closure-inferred-result.hd`
@@ -1041,6 +1009,8 @@ compiler stage that first declined the case.
 - `typing/invalid/default-later-parameter-earlier-twin.hd`
 - `typing/invalid/variant-pattern-unknown-field.hd`
 - `runtime/panic/snapshot-mismatch.hd`
+- `typing/invalid/module-path-private-member.hd`
+- `typing/invalid/module-path-missing-member.hd`
 - `typing/invalid/module-path-private-std-function.hd`
 
 </details>
@@ -1053,7 +1023,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-trait</code> (8)</summary>
+<details><summary><code>fail:unknown-trait</code> (9)</summary>
 
 - `typing/invalid/user-suspend-implementation.hd`
 - `typing/invalid/reference-trait-name-unknown.hd`
@@ -1061,14 +1031,17 @@ compiler stage that first declined the case.
 - `typing/invalid/row-parameter-on-trait.hd`
 - `typing/valid/row-alias-one-key.hd`
 - `typing/invalid/row-alias-mut-key.hd`
+- `typing/valid/folder-cycle-leaf-folder.hd`
 - `typing/invalid/row-parameter-on-newtype.hd`
 - `typing/invalid/row-parameter-unmarked.hd`
 
 </details>
 
-<details><summary><code>fail:unknown-type</code> (2)</summary>
+<details><summary><code>fail:unknown-type</code> (4)</summary>
 
 - `typing/invalid/row-parameter-as-type.hd`
+- `typing/invalid/sibling-module-type-not-imported.hd`
+- `typing/invalid/sibling-module-alias-not-imported.hd`
 - `typing/invalid/fn-constructor-needs-import.hd`
 
 </details>
@@ -1134,7 +1107,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (194)</summary>
+<details><summary><code>unsupported:Body</code> (202)</summary>
 
 - `typing/invalid/nonfinal-spread.hd`
 - `typing/valid/enums.hd`
@@ -1260,6 +1233,7 @@ compiler stage that first declined the case.
 - `typing/invalid/spread-pattern-fixed-tuple.hd`
 - `typing/invalid/spread-pattern-arity.hd`
 - `runtime/valid/default-tuple-rest.hd`
+- `runtime/valid/integration-shared-use.hd`
 - `typing/valid/range-types.hd`
 - `typing/invalid/range-full-not-iterable.hd`
 - `typing/valid/slice-full-types.hd`
@@ -1303,16 +1277,23 @@ compiler stage that first declined the case.
 - `typing/valid/temp-dir-integration.hd`
 - `runtime/valid/dbg-without-requirement.hd`
 - `runtime/valid/iterator-list-sum.hd`
+- `typing/invalid/sibling-module-private-method.hd`
+- `typing/invalid/sibling-module-requirement-key-not-imported.hd`
+- `typing/invalid/test-module-name-not-imported.hd`
 - `typing/valid/local-recursive-data.hd`
 - `typing/invalid/local-data-later-declaration.hd`
 - `runtime/valid/trait-availability-prelude-and-scope.hd`
 - `runtime/valid/local-inherent-and-trait-impls.hd`
 - `typing/invalid/local-impl-second-pair.hd`
+- `runtime/valid/integration-test-public-view.hd`
+- `typing/invalid/non-test-code-uses-test-module.hd`
+- `runtime/valid/test-module-uses-test-module.hd`
 - `typing/invalid/set-type-not-prelude.hd`
 - `runtime/valid/trait-associated-function-reference.hd`
 - `typing/invalid/trait-associated-reference-unsolved-self.hd`
 - `typing/invalid/local-inherent-impl-nonlocal-target.hd`
 - `typing/invalid/local-method-captures-local.hd`
+- `typing/invalid/copy-update-private-field-other-module.hd`
 - `typing/invalid/trait-qualified-supertrait-reference.hd`
 - `typing/valid/trait-qualified-declaring-trait.hd`
 - `typing/invalid/copy-update-readonly-source-mut-field.hd`
@@ -1632,7 +1613,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:RunCase</code> (41)</summary>
+<details><summary><code>unsupported:RunCase</code> (57)</summary>
 
 - `runtime/valid/cancellation-unwinds-nested-frames.hd`
 - `runtime/valid/cancellation-unwinds-suspending-closure.hd`
@@ -1646,6 +1627,7 @@ compiler stage that first declined the case.
 - `runtime/valid/cancellation-lifo-across-three-frames.hd`
 - `runtime/valid/cancellation-loop-and-branch-scopes.hd`
 - `runtime/valid/cancellation-provider-scope-cleanup.hd`
+- `runtime/valid/init-group-order.hd`
 - `runtime/valid/relative-self-current.hd`
 - `runtime/valid/relative-self-top-level.hd`
 - `runtime/panic/host-result-out-of-range.hd`
@@ -1653,6 +1635,7 @@ compiler stage that first declined the case.
 - `runtime/valid/block-on-pending-write.hd`
 - `runtime/valid/boundary-derived-round-trip.hd`
 - `runtime/valid/host-result-special-floats.hd`
+- `runtime/valid/string-prefix-imported-by-name.hd`
 - `runtime/valid/doc-test-passes.hd`
 - `runtime/panic/doc-test-failing-assert.hd`
 - `runtime/valid/doc-test-compile-fail.hd`
@@ -1671,10 +1654,24 @@ compiler stage that first declined the case.
 - `runtime/valid/pending-first-poll-return-wide-result.hd`
 - `runtime/valid/pending-first-poll-void-return-operand.hd`
 - `runtime/valid/pending-first-poll-void-return.hd`
+- `runtime/valid/sibling-module-trait-imported.hd`
+- `runtime/valid/sibling-module-pub-members.hd`
 - `runtime/valid/own-module-private-members.hd`
+- `runtime/valid/sibling-module-names-imported.hd`
+- `runtime/valid/sibling-module-std-name-imported.hd`
 - `runtime/panic/boundary-deserialize-error.hd`
 - `runtime/valid/boundary-public-fields-cross.hd`
 - `runtime/valid/boundary-redacted-round-trip.hd`
+- `runtime/valid/typeid-same-name-modules.hd`
+- `runtime/valid/use-module-member-beside-root-declaration.hd`
+- `runtime/valid/pub-use-same-declaration.hd`
+- `runtime/valid/sibling-module-enum-and-trait.hd`
+- `runtime/valid/init-ready-groups-by-identity.hd`
+- `runtime/valid/init-group-statements-by-identity.hd`
+- `runtime/valid/directory-module-and-child.hd`
+- `runtime/valid/question-mark-finds-std-from.hd`
+- `runtime/valid/operator-syntax-without-import.hd`
+- `runtime/valid/shared-enum-fact-evaluation.hd`
 
 </details>
 
@@ -2730,6 +2727,7 @@ typing/invalid/nominal-map-key.hd
 typing/invalid/non-entry-top-level-println.hd
 typing/invalid/nonexhaustive-bool-match.hd
 typing/invalid/nonexhaustive-match.hd
+typing/invalid/nonlocal-impl.hd
 typing/invalid/nonnumeric-unary-plus.hd
 typing/invalid/num-bound-newtype.hd
 typing/invalid/num-suffix-before-data.hd
@@ -2772,6 +2770,7 @@ typing/invalid/private-own-field-beside-deep-promoted.hd
 typing/invalid/private-own-field-beside-promoted.hd
 typing/invalid/private-own-field-needs-another-name.hd
 typing/invalid/private-own-method-beside-promoted.hd
+typing/invalid/private-package-name.hd
 typing/invalid/promoted-field-assignment-readonly.hd
 typing/invalid/promoted-field-conflict-at-declaration.hd
 typing/invalid/promoted-method-conflict-at-declaration.hd
@@ -2780,6 +2779,7 @@ typing/invalid/promoted-mut-self-method.hd
 typing/invalid/propagation-nearest-function-target.hd
 typing/invalid/propagation-operand-not-optional.hd
 typing/invalid/propagation-without-target.hd
+typing/invalid/pub-use-private-declaration.hd
 typing/invalid/public-method-without-requirement-clause.hd
 typing/invalid/qualified-string-prefix-call.hd
 typing/invalid/qualified-string-prefix.hd
@@ -2847,6 +2847,10 @@ typing/invalid/shared-enum-readonly-collection.hd
 typing/invalid/shared-enum-variant-without-constructor.hd
 typing/invalid/shift-count-signed.hd
 typing/invalid/short-binding-readonly-root.hd
+typing/invalid/sibling-module-binding-not-visible.hd
+typing/invalid/sibling-module-function-not-imported.hd
+typing/invalid/sibling-module-private-function-bare.hd
+typing/invalid/sibling-module-trait-name-not-imported.hd
 typing/invalid/sign-fallback-no-instantiation.hd
 typing/invalid/single-file-self-use.hd
 typing/invalid/slice-assignment.hd
@@ -2909,6 +2913,7 @@ typing/invalid/unknown-value-name.hd
 typing/invalid/unknown-variant.hd
 typing/invalid/unsigned-negation.hd
 typing/invalid/use-alias-original-name-unbound.hd
+typing/invalid/use-module-and-root-declaration.hd
 typing/invalid/use-without-provider.hd
 typing/invalid/user-anyref-implementation.hd
 typing/invalid/user-anyval-implementation.hd
@@ -3005,6 +3010,8 @@ typing/valid/explicit-generic-method.hd
 typing/valid/expression-type-arguments.hd
 typing/valid/facts-find-generic-key.hd
 typing/valid/float-remainder.hd
+typing/valid/folder-loop-within-folder.hd
+typing/valid/folder-parent-file.hd
 typing/valid/for-over-mut-iterator.hd
 typing/valid/fresh-mutable-values.hd
 typing/valid/from-iterator-imported.hd
@@ -3056,6 +3063,7 @@ typing/valid/let-nested-pattern.hd
 typing/valid/let-pattern-read.hd
 typing/valid/let-readonly-rebind.hd
 typing/valid/let-underscore-discard.hd
+typing/valid/lib-root-pkg.hd
 typing/valid/list-literal-compares-with-readonly-binding.hd
 typing/valid/literal-classes-separate-widths.hd
 typing/valid/literal-dependent-join.hd
@@ -3138,6 +3146,7 @@ typing/valid/private-type-in-public-body.hd
 typing/valid/property-runner-capabilities.hd
 typing/valid/provider-capturing-closure.hd
 typing/valid/pub-own-member-shadows-promoted.hd
+typing/valid/pub-use-chain.hd
 typing/valid/public-requirement-row.hd
 typing/valid/random-trait.hd
 typing/valid/raw-identifiers.hd
@@ -3151,6 +3160,8 @@ typing/valid/readonly-value-direct-mut-field.hd
 typing/valid/reference-generic-identity.hd
 typing/valid/reimport-prelude-name.hd
 typing/valid/relative-repeated-super.hd
+typing/valid/relative-self-lib.hd
+typing/valid/relative-self-main.hd
 typing/valid/relative-self-mod-file.hd
 typing/valid/relative-shared-test-module.hd
 typing/valid/requirement-key-any-trait.hd
@@ -3236,6 +3247,7 @@ typing/valid/typed-fact.hd
 typing/valid/unsigned-comparison-signed-countdown.hd
 typing/valid/untyped-fact-default.hd
 typing/valid/unused-underscore-bindings.hd
+typing/valid/use-path-only-declaration.hd
 typing/valid/user-defined-all.hd
 typing/valid/user-trait-for-standard-type.hd
 typing/valid/usize-positions.hd
@@ -3265,7 +3277,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 18 | 84 | 0 | 102 |
+| 19 | 83 | 0 | 102 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3275,6 +3287,7 @@ cli/build-output
 cli/check-summary
 cli/clean-outside-package
 cli/dep-outside-package
+cli/dep-package-cycle
 cli/derivation-lines-agree
 cli/entry-err-display
 cli/exit-hd-failure

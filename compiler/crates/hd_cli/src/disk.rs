@@ -4,7 +4,8 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use hd_project::{SourceEntry, SourceSet, parse_manifest};
+use hd_driver::{Dependency, Packages};
+use hd_project::{Manifest, SourceEntry, SourceSet, module_below, parse_manifest};
 
 /// Every `.hd` file under a root, read on demand.
 pub struct DiskSources {
@@ -48,11 +49,106 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<SourceEntry>) -> Result<(), Strin
     Ok(())
 }
 
+/// A package's requirements: each dependency name and its package index,
+/// 0 for the root and `i + 1` for `Program::deps[i]`.
+pub type Requires = Vec<(String, u16)>;
+
 pub struct Program {
     pub sources: DiskSources,
     pub package: String,
     /// The entry module below the package, as `main`.
     pub entry: String,
+    /// The root's requirements, as `Packages::requires` indexes them.
+    pub requires: Requires,
+    /// The packages its path requirements reach.
+    pub deps: Vec<DiskPackage>,
+}
+
+/// A package that a path requirement reaches.
+pub struct DiskPackage {
+    pub name: String,
+    pub sources: DiskSources,
+    pub requires: Requires,
+}
+
+impl Program {
+    /// The packages around the root, as the driver takes them.
+    pub fn packages(&self) -> Packages<'_> {
+        Packages {
+            requires: self.requires.clone(),
+            deps: self
+                .deps
+                .iter()
+                .map(|d| Dependency {
+                    name: d.name.clone(),
+                    sources: &d.sources,
+                    requires: d.requires.clone(),
+                })
+                .collect(),
+        }
+    }
+}
+
+/// A package directory's manifest, if it has one.
+fn manifest_of(dir: &Path) -> Result<Option<Manifest>, String> {
+    match std::fs::read_to_string(dir.join("hd.toml")) {
+        Ok(text) => parse_manifest(&text)
+            .map(Some)
+            .map_err(|e| format!("{}: {e}", dir.join("hd.toml").display())),
+        Err(_) => Ok(None),
+    }
+}
+
+/// The packages a root's path requirements reach, transitively
+/// (`module.path-dep.form`), in the order they are first reached. One
+/// directory is one package, so a requirement that reaches a package read
+/// before names it again: a cycle stays finite, and the build reports it
+/// (`module.cycle.package`). A host requirement needs a fetch, and a path
+/// with no manifest is no package; neither is read here.
+fn dependencies(root: &Path) -> Result<(Requires, Vec<DiskPackage>), String> {
+    let Some(manifest) = manifest_of(root)? else {
+        return Ok((Vec::new(), Vec::new()));
+    };
+    let mut dirs: Vec<PathBuf> = vec![std::fs::canonicalize(root).map_err(|e| e.to_string())?];
+    let mut requires: Vec<Requires> = Vec::new();
+    let mut manifests = vec![manifest];
+    let mut deps: Vec<DiskPackage> = Vec::new();
+    let mut next = 0;
+    while next < dirs.len() {
+        let mut own = Vec::new();
+        let reqs = manifests[next].dependencies.clone();
+        for r in &reqs {
+            let Some(path) = &r.path else { continue };
+            let Ok(dir) = std::fs::canonicalize(dirs[next].join(path)) else {
+                continue;
+            };
+            let index = if let Some(i) = dirs.iter().position(|d| *d == dir) {
+                i
+            } else {
+                let Some(m) = manifest_of(&dir)? else {
+                    continue;
+                };
+                let (sources, name) = sources_of(&dir)?;
+                deps.push(DiskPackage {
+                    name,
+                    sources,
+                    requires: Vec::new(),
+                });
+                dirs.push(dir);
+                manifests.push(m);
+                dirs.len() - 1
+            };
+            own.push((r.name(), u16::try_from(index).map_err(|e| e.to_string())?));
+        }
+        requires.push(own);
+        next += 1;
+    }
+    let mut requires = requires.into_iter();
+    let root_requires = requires.next().unwrap_or_default();
+    for (d, r) in deps.iter_mut().zip(requires) {
+        d.requires = r;
+    }
+    Ok((root_requires, deps))
 }
 
 /// A package name for a root without `hd.toml`: its directory's name.
@@ -97,11 +193,23 @@ pub fn package_name(root: &Path) -> Result<String, String> {
     }
 }
 
-/// The sources and the package name of a root directory.
+/// The sources and the package name of a root directory. A package with a
+/// source root has the files under it, its test root and `tasks`
+/// (`module.manifest.source-root`, `cli.task.file`), so a path dependency
+/// in a directory of its own is no part of it. A directory without that
+/// layout has every file under it.
 pub fn sources_of(root: &Path) -> Result<(DiskSources, String), String> {
     let package = package_name(root)?;
     let mut files = Vec::new();
-    walk(root, root, &mut files)?;
+    if root.join("hd.toml").is_file() && root.join("src").is_dir() {
+        for dir in ["src", "tasks", "tests"] {
+            if root.join(dir).is_dir() {
+                walk(root, &root.join(dir), &mut files)?;
+            }
+        }
+    } else {
+        walk(root, root, &mut files)?;
+    }
     Ok((
         DiskSources {
             root: root.to_path_buf(),
@@ -109,12 +217,6 @@ pub fn sources_of(root: &Path) -> Result<(DiskSources, String), String> {
         },
         package,
     ))
-}
-
-/// The entry module path of a package-relative file: `src/main.hd` is
-/// `src.main`.
-fn module_of(rel: &str) -> String {
-    rel.trim_end_matches(".hd").replace('/', ".")
 }
 
 /// A single-file program, or a module of the package that holds FILE:
@@ -149,18 +251,23 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
             files,
         },
         package,
-        entry: module_of(&name),
+        entry: module_below(&name),
+        requires: Vec::new(),
+        deps: Vec::new(),
     })
 }
 
-/// The whole package at `root`, with the package-relative file `entry` as
-/// its entry module.
+/// The whole package at `root`, with the packages it requires, and the
+/// package-relative file `entry` as its entry module.
 pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
     let (sources, package) = sources_of(root)?;
+    let (requires, deps) = dependencies(root)?;
     Ok(Program {
         sources,
         package,
-        entry: module_of(entry),
+        entry: module_below(entry),
+        requires,
+        deps,
     })
 }
 

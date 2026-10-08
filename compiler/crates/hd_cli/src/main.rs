@@ -14,7 +14,7 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 use hd_cache::DiskStore;
-use hd_driver::{Clock, Executor, Goal, Host, Output, build};
+use hd_driver::{Clock, Executor, Goal, Host, Output, build_packages};
 use hd_run::{Grants, HostSetup, Limits, Outcome, run_program};
 
 const USAGE: &str = "usage:
@@ -116,7 +116,7 @@ fn build_goal(program: &disk::Program, goal: &Goal) -> Result<Output, ExitCode> 
         clock: &clock,
         executor: executor(),
     };
-    let out: Output = build(&host, &program.package, goal);
+    let out: Output = build_packages(&host, &program.package, &program.packages(), goal);
     eprint!("{}", out.render_located(&program.sources));
     if out.diags.has_errors() {
         return Err(ExitCode::from(HD_FAILURE));

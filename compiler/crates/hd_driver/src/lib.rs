@@ -19,7 +19,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use hd_base::wire::{Reader, Writer};
-use hd_base::{DefId, FileId, FolderId, Hash128, NotImplemented, Span, Stage, StageResult};
+use hd_base::{
+    DefId, FileId, FolderId, Hash128, ModuleId, NotImplemented, Span, Stage, StageResult,
+};
 use hd_cache::{
     CacheStore, EntryKind, FileApi, MemoryStore, check_key, code_key, hdr_key, iface_key, prog_key,
     toolchain_key,
@@ -30,7 +32,7 @@ use hd_diag::{Code, DiagBuf, Severity};
 use hd_intern::{PathTable, ShardedInterner};
 use hd_mono::layout::{LayoutEnv, StdKind};
 use hd_mono::{Collected, ProgramEnv};
-use hd_project::{FolderGraph, MemorySources, ModuleTable, SourceSet};
+use hd_project::{FolderGraph, MemorySources, ModuleTable, PackageIn, Scope, SourceSet};
 use hd_resolve::{FolderIface, Item, ItemData, Lookup, ModOut, Names, Src};
 use hd_sched::{ExtTask, SerialOrder, SerialScheduler, Spawn, TaskGraph, TaskId, TaskKind};
 use hd_syntax::{HeaderKind, Parse, parse, skim};
@@ -406,28 +408,75 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
+/// A package the root package reaches through its requirements (§4.7).
+pub struct Dependency<'a> {
+    /// Its manifest name; its module paths start with its identifier form.
+    pub name: String,
+    /// Its files, package-relative; only its library is built.
+    pub sources: &'a dyn SourceSet,
+    /// Its own requirements, as in [`Packages::requires`].
+    pub requires: Vec<(String, u16)>,
+}
+
+/// The packages around a build's root package.
+#[derive(Default)]
+pub struct Packages<'a> {
+    /// The root's requirements: each dependency name, as source writes it
+    /// after `dep.`, and its package index: 0 is the root, `i + 1` is
+    /// `deps[i]`.
+    pub requires: Vec<(String, u16)>,
+    pub deps: Vec<Dependency<'a>>,
+}
+
 /// One run with the caller's sources, store, executor and clock.
 #[must_use]
 pub fn build(host: &Host<'_>, package: &str, goal: &Goal) -> Output {
+    build_packages(host, package, &Packages::default(), goal)
+}
+
+/// `build`, for a root package with dependencies.
+#[must_use]
+pub fn build_packages(
+    host: &Host<'_>,
+    package: &str,
+    packages: &Packages<'_>,
+    goal: &Goal,
+) -> Output {
     let std = if package == "std" {
         with_core(host.sources)
     } else {
         std_sources()
     };
-    let table = if package == "std" {
-        ModuleTable::discover_all(&[("std", &std)])
-    } else {
-        ModuleTable::discover_all(&[(package, host.sources), ("std", &std)])
+    let std_in = PackageIn {
+        name: "std",
+        sources: &std,
+        scope: Scope::All,
+        requires: Vec::new(),
     };
+    let ins: Vec<PackageIn<'_>> = if package == "std" {
+        vec![std_in]
+    } else {
+        std::iter::once(PackageIn {
+            name: package,
+            sources: host.sources,
+            scope: Scope::All,
+            requires: packages.requires.clone(),
+        })
+        .chain(packages.deps.iter().map(|d| PackageIn {
+            name: &d.name,
+            sources: d.sources,
+            scope: Scope::Library,
+            requires: d.requires.clone(),
+        }))
+        .chain(std::iter::once(std_in))
+        .collect()
+    };
+    let table = ModuleTable::discover_all(&ins);
     let texts: Vec<Arc<str>> = table
         .sources
         .iter()
         .map(|(pi, p)| {
-            let set: &dyn SourceSet = if *pi == 0 && package != "std" {
-                host.sources
-            } else {
-                &std
-            };
+            let set = ins[usize::from(*pi)].sources;
             Arc::from(
                 set.read(p)
                     .map(|b| String::from_utf8_lossy(&b).into_owned())
@@ -483,6 +532,23 @@ pub fn build(host: &Host<'_>, package: &str, goal: &Goal) -> Output {
         table,
     };
     lock(&run.report).ok(Stage::Discover);
+    for cycle in run.table.package_cycles() {
+        let names: Vec<&str> = cycle
+            .iter()
+            .chain(cycle.first())
+            .map(|p| run.table.packages[usize::from(*p)].as_str())
+            .collect();
+        let span = Span {
+            file: FileId::from_raw(u32::MAX),
+            lo: 0,
+            hi: 0,
+        };
+        lock(&run.diags).error(
+            Code::PackageCycle,
+            span,
+            &format!("packages depend on each other: {}", names.join(" -> ")),
+        );
+    }
     let mut g = TaskGraph::default();
     let mut skims = Vec::new();
     for i in 0..n {
@@ -679,7 +745,7 @@ impl Run<'_> {
         let text = &self.texts[m];
         let sk = skim(text.as_bytes());
         let module = &self.table.modules[m].path;
-        let package = &self.table.packages[usize::from(self.table.modules[m].package)];
+        let roots = self.table.use_roots(ModuleId::from_raw(u32_of(m)));
         let mut uses = Vec::new();
         for &(lo, hi) in &sk.uses {
             let line = text.get(lo as usize..hi as usize).unwrap_or("").trim();
@@ -687,7 +753,12 @@ impl Run<'_> {
             if let Some(rest) = rest.strip_prefix("use ") {
                 let path = rest.split(".{").next().unwrap_or(rest);
                 let path = path.split(" as ").next().unwrap_or(path).trim();
-                uses.push(absolute_use(path, package, module));
+                let segs: Vec<&str> = path.split('.').collect();
+                // A path whose root names nothing makes no edge; resolution
+                // reports it.
+                if let Ok(abs) = roots.absolute(&segs) {
+                    uses.push(abs.join("."));
+                }
             }
         }
         // The prelude's fixed uses (`module.prelude.fixed-uses`).
@@ -982,7 +1053,6 @@ impl Run<'_> {
             .collect();
         let cx = hd_resolve::Cx {
             names,
-            package: &self.table.packages[usize::from(folder.package)],
             folder: fid.raw(),
             world: self,
         };
@@ -1085,6 +1155,7 @@ impl Run<'_> {
         let seeds = hd_resolve::seed::items(&self.names(), &path);
         hd_resolve::ModIn {
             path,
+            roots: self.table.use_roots(ModuleId::from_raw(u32_of(m))),
             src: self.src(m),
             seeds,
         }
@@ -1105,7 +1176,6 @@ impl Run<'_> {
         };
         let cx = hd_resolve::Cx {
             names: self.names(),
-            package: &self.table.packages[usize::from(module.package)],
             folder: module.folder.raw(),
             world: self,
         };
@@ -1501,7 +1571,9 @@ impl Run<'_> {
                 Goal::Analyze => Some("main"),
             };
             let entry = module.package == 0
-                && entry_name.is_some_and(|e| module.path == format!("{}.{e}", self.package));
+                && entry_name.is_some_and(|e| {
+                    module.path == format!("{}.{e}", hd_project::package_ident(&self.package))
+                });
             let item = hd_check::default_body_def(&names, names.item(&module.path, "init"), "init");
             match hd_check::init::check_init(&cx, item, &module.path, &stmts, entry, &mut diags) {
                 Ok((b, facts)) => {
@@ -1933,7 +2005,7 @@ impl Run<'_> {
         let names = self.names();
         let (entry_key, roots) = match &self.goal {
             Goal::Program { entry } => {
-                let entry_module = format!("{}.{entry}", self.package);
+                let entry_module = format!("{}.{entry}", hd_project::package_ident(&self.package));
                 let root = names.item(&entry_module, "main");
                 (entry_module, vec![(root, String::new())])
             }
@@ -1960,15 +2032,19 @@ impl Run<'_> {
             Goal::Analyze => return,
         };
         let mut modules: Vec<(&str, Hash128)> = Vec::new();
+        // std's content is in the toolchain key; a dependency's reached
+        // modules count as the root's do.
+        let std = self.table.packages.len() - 1;
         for (m, module) in self.table.modules.iter().enumerate() {
-            if module.package != 0 {
-                continue;
+            let counted = module.package == 0 || usize::from(module.package) != std;
+            match self.check[m].get() {
+                Some(Some(c)) if counted => modules.push((module.path.as_str(), c.content)),
+                _ if module.package == 0 => {
+                    self.blocked(Stage::Collect);
+                    return;
+                }
+                _ => {}
             }
-            let Some(Some(c)) = self.check[m].get() else {
-                self.blocked(Stage::Collect);
-                return;
-            };
-            modules.push((module.path.as_str(), c.content));
         }
         let pkey = prog_key(self.toolchain, self.pipeline, &entry_key, &modules);
         if let Some(sections) = self.lookup(EntryKind::Link, pkey)
@@ -2507,36 +2583,11 @@ impl hd_resolve::World for Run<'_> {
     fn module_folder(&self, module: &str) -> Option<u32> {
         self.table.folder_of_module(module).map(FolderId::raw)
     }
+    fn usable(&self, module: &str) -> bool {
+        self.table.usable(module)
+    }
     fn iface(&self, folder: u32) -> Option<Arc<FolderIface>> {
         self.iface_of(FolderId::from_raw(folder))
-    }
-}
-
-/// A use path made absolute: `pkg` is the package, `self` the module,
-/// each leading `super` its parent.
-fn absolute_use(path: &str, package: &str, module: &str) -> String {
-    let mut segs = path.split('.');
-    match segs.next() {
-        Some("pkg") => std::iter::once(package)
-            .chain(segs)
-            .collect::<Vec<_>>()
-            .join("."),
-        Some("self") => std::iter::once(module)
-            .chain(segs)
-            .collect::<Vec<_>>()
-            .join("."),
-        Some("super") => {
-            let mut base: Vec<&str> = module.split('.').collect();
-            base.pop();
-            let mut rest: Vec<&str> = segs.collect();
-            while rest.first() == Some(&"super") {
-                rest.remove(0);
-                base.pop();
-            }
-            base.extend(rest);
-            base.join(".")
-        }
-        _ => path.to_owned(),
     }
 }
 

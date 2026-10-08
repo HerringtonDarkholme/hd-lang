@@ -9,7 +9,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use hd_base::{FileId, FolderId, Hash128, ModuleId, NotImplemented, Stage, StageResult};
+use hd_base::{FileId, FolderId, ModuleId, NotImplemented, Stage, StageResult};
 
 /// One file of a source set: its package-relative path with `/`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -58,11 +58,48 @@ impl SourceSet for MemorySources {
 pub struct Manifest {
     pub name: String,
     pub version: Option<String>,
-    pub dependencies: Vec<(String, String)>,
+    pub dependencies: Vec<Requirement>,
+    pub dev_dependencies: Vec<Requirement>,
 }
 
-/// Parses `hd.toml`. Sections other than `[package]` and `[dependencies]`
-/// are not implemented yet.
+/// One dependency requirement of a manifest (`module.dep.*`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Requirement {
+    /// The manifest key, as written.
+    pub key: String,
+    /// The directory of a path requirement, relative to the requiring
+    /// manifest's directory (`module.path-dep.form`).
+    pub path: Option<String>,
+    /// The requirement as written: `PATH@VERSION`, or the inline table.
+    pub text: String,
+}
+
+impl Requirement {
+    /// The name source writes after `dep.`: the key with each `-` as `_`
+    /// (`module.dep.key-name`).
+    #[must_use]
+    pub fn name(&self) -> String {
+        self.key.replace('-', "_")
+    }
+}
+
+fn requirements(table: &toml::Table) -> Vec<Requirement> {
+    table
+        .iter()
+        .map(|(k, v)| Requirement {
+            key: k.clone(),
+            path: v
+                .as_table()
+                .and_then(|t| t.get("path"))
+                .and_then(toml::Value::as_str)
+                .map(str::to_owned),
+            text: v.as_str().map_or_else(|| v.to_string(), str::to_owned),
+        })
+        .collect()
+}
+
+/// Parses `hd.toml`. Sections other than `[package]`, `[dependencies]` and
+/// `[dev-dependencies]` are not implemented yet.
 pub fn parse_manifest(text: &str) -> StageResult<Manifest> {
     let table: toml::Table = text.parse().map_err(|e: toml::de::Error| {
         NotImplemented::new(Stage::Discover, format!("manifest: {}", e.message()))
@@ -78,14 +115,8 @@ pub fn parse_manifest(text: &str) -> StageResult<Manifest> {
                     m.version = Some(v.clone());
                 }
             }
-            ("dependencies", toml::Value::Table(d)) => {
-                for (k, v) in d {
-                    m.dependencies.push((
-                        k.clone(),
-                        v.as_str().map_or_else(|| v.to_string(), str::to_owned),
-                    ));
-                }
-            }
+            ("dependencies", toml::Value::Table(d)) => m.dependencies = requirements(d),
+            ("dev-dependencies", toml::Value::Table(d)) => m.dev_dependencies = requirements(d),
             (other, _) => {
                 return Err(NotImplemented::new(
                     Stage::Discover,
@@ -106,6 +137,124 @@ pub enum Role {
     Task,
 }
 
+/// The root a file's module path and its relative uses start from (§4.7).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Root {
+    /// `src`, the source root: the package root module that `pkg` names
+    /// (`module.manifest.source-root`).
+    Source,
+    /// `tests`, the test root (`module.test.integration`).
+    Test,
+    /// `tasks` (`cli.task.file`).
+    Task,
+    /// A package without that layout, as std or a single-file program:
+    /// its files sit directly under the package directory.
+    Flat,
+}
+
+impl Root {
+    /// The root of a package-relative file, and the file's path below it.
+    #[must_use]
+    pub fn of(file: &str) -> (Root, &str) {
+        if let Some(rest) = file.strip_prefix("src/") {
+            (Root::Source, rest)
+        } else if let Some(rest) = file.strip_prefix("tests/") {
+            (Root::Test, rest)
+        } else if let Some(rest) = file.strip_prefix("tasks/") {
+            (Root::Task, rest)
+        } else {
+            (Root::Flat, file)
+        }
+    }
+
+    /// This root's namespace below the package root module. The test and
+    /// task roots get a segment no source path spells, so `pkg` never
+    /// reaches them (`module.test.no-tests-root`) and a module under
+    /// `src/tests/` stays a different module.
+    fn segment(self) -> Option<&'static str> {
+        match self {
+            Root::Test => Some("$tests"),
+            Root::Task => Some("$tasks"),
+            Root::Source | Root::Flat => None,
+        }
+    }
+}
+
+/// The identifier form of a package name, which module paths start with:
+/// each `-` written `_` (`trait.typeid.name.package`).
+#[must_use]
+pub fn package_ident(name: &str) -> String {
+    name.replace('-', "_")
+}
+
+/// A package-relative file's module path below its package root module
+/// (`module.path.*`): `src/user/types.hd` is `user.types`,
+/// `src/user/mod.hd` is `user`, `src/lib.hd` is the root itself (empty),
+/// `tests/checkout.hd` is `$tests.checkout`, and a flat `main.hd` is
+/// `main`.
+#[must_use]
+pub fn module_below(file: &str) -> String {
+    let (root, rest) = Root::of(file);
+    let stem = rest.strip_suffix(".hd").unwrap_or(rest);
+    let mut segs: Vec<&str> = root.segment().into_iter().collect();
+    if !(root == Root::Source && stem == "lib") {
+        segs.extend(stem.split('/'));
+        if segs.last() == Some(&"mod") {
+            segs.pop();
+        }
+    }
+    segs.join(".")
+}
+
+/// Whether a file is a root file (`module.relative.root-file`,
+/// `cli.task.root-file`): `src/lib.hd`, `src/main.hd`, or a file directly
+/// under the test root or `tasks`. Its relative lookup starts at its root.
+fn is_root_file(file: &str) -> bool {
+    match Root::of(file) {
+        (Root::Source, rest) => rest == "lib.hd" || rest == "main.hd",
+        (Root::Test | Root::Task, rest) => !rest.contains('/'),
+        (Root::Flat, _) => false,
+    }
+}
+
+/// Whether a file is its own program, which no other module may use
+/// (`module.path.main-no-use`, `module.test.integration.program-use`).
+fn is_entry(file: &str) -> bool {
+    is_root_file(file) && file != "src/lib.hd"
+}
+
+fn role_of(file: &str) -> Role {
+    match Root::of(file) {
+        (Root::Source, "main.hd") => Role::Exe,
+        (Root::Test, _) => Role::Test,
+        (Root::Task, _) => Role::Task,
+        _ if file.ends_with("_test.hd") => Role::Test,
+        _ => Role::Lib,
+    }
+}
+
+/// Which files of a package are its modules.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Scope {
+    /// Every file: the package being built, std, a single file.
+    All,
+    /// Only its library under the source root: a dependency, whose test
+    /// code and executables are never built (`module.test.code`,
+    /// `module.path.main-file`).
+    Library,
+}
+
+/// One package as discovery reads it.
+pub struct PackageIn<'a> {
+    /// The manifest name; module paths start with its `package_ident`.
+    pub name: &'a str,
+    pub sources: &'a dyn SourceSet,
+    pub scope: Scope,
+    /// Each dependency, by the name source writes after `dep.`, and the
+    /// index of its package in the discovery list.
+    pub requires: Vec<(String, u16)>,
+}
+
 /// One module: a file. Dense IDs; stable form is the module path.
 #[derive(Clone, Debug)]
 pub struct Module {
@@ -116,6 +265,80 @@ pub struct Module {
     pub role: Role,
     /// Index into `ModuleTable::packages`: 0 is the root package.
     pub package: u16,
+    /// The module path relative lookup starts at, which `self` names: the
+    /// module itself, or for a root file its root.
+    pub base: String,
+    /// The root `super` must not move above: the package root module, or
+    /// the test or task root.
+    pub floor: String,
+    /// Its own program, which no `use` reaches.
+    pub entry: bool,
+}
+
+/// What the roots of one module's use paths name (`module.root.*`,
+/// `module.relative.*`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct UseRoots {
+    /// The package root module, which `pkg` names.
+    pub pkg: String,
+    /// Where relative lookup starts, which `self` names.
+    pub base: String,
+    /// The root `super` must not move above.
+    pub floor: String,
+    /// Each dependency name and its package root module (`dep.NAME`).
+    pub deps: Vec<(String, String)>,
+}
+
+/// Why a use path names no module path.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UseRootError {
+    /// Its first segment is no use root (`module.root.absolute`).
+    UnknownRoot,
+    /// `dep.NAME` names no dependency of the package.
+    UnknownDependency,
+    /// A `super` moves above the root (`module.relative.above-root`,
+    /// `module.relative.root-file.super`).
+    AboveRoot,
+}
+
+impl UseRoots {
+    /// A use path with its root replaced by the module path it names.
+    pub fn absolute<S: AsRef<str>>(&self, path: &[S]) -> Result<Vec<String>, UseRootError> {
+        let segs = |p: &str| -> Vec<String> { p.split('.').map(str::to_owned).collect() };
+        let Some((first, mut rest)) = path.split_first() else {
+            return Err(UseRootError::UnknownRoot);
+        };
+        let mut out = match first.as_ref() {
+            "std" => vec!["std".to_owned()],
+            "pkg" => segs(&self.pkg),
+            "self" => segs(&self.base),
+            "dep" => {
+                let (name, after) = rest.split_first().ok_or(UseRootError::UnknownDependency)?;
+                rest = after;
+                let (_, root) = self
+                    .deps
+                    .iter()
+                    .find(|(n, _)| n == name.as_ref())
+                    .ok_or(UseRootError::UnknownDependency)?;
+                segs(root)
+            }
+            "super" => {
+                let mut out = segs(&self.base);
+                out.pop();
+                while rest.first().is_some_and(|s| s.as_ref() == "super") {
+                    rest = &rest[1..];
+                    out.pop();
+                }
+                if out.len() < self.floor.split('.').count() {
+                    return Err(UseRootError::AboveRoot);
+                }
+                out
+            }
+            _ => return Err(UseRootError::UnknownRoot),
+        };
+        out.extend(rest.iter().map(|s| s.as_ref().to_owned()));
+        Ok(out)
+    }
 }
 
 /// One folder: the interface unit.
@@ -134,6 +357,8 @@ pub struct ModuleTable {
     pub package: String,
     /// Package names: the root, then each dependency.
     pub packages: Vec<String>,
+    /// Per package: each dependency name and its package index.
+    pub requires: Vec<Vec<(String, u16)>>,
     /// Display paths by `FileId`: package-relative for the root package,
     /// `<pkg>/path` for a dependency.
     pub files: Vec<String>,
@@ -144,13 +369,17 @@ pub struct ModuleTable {
     by_path: BTreeMap<String, ModuleId>,
 }
 
-/// The module path of a file: `package.` plus its path, `/` as `.`.
+/// A package-relative file's module path: its package's identifier, then
+/// `module_below`.
 #[must_use]
 pub fn module_path(package: &str, file: &str) -> String {
-    format!(
-        "{package}.{}",
-        file.trim_end_matches(".hd").replace('/', ".")
-    )
+    let below = module_below(file);
+    let ident = package_ident(package);
+    if below.is_empty() {
+        ident
+    } else {
+        format!("{ident}.{below}")
+    }
 }
 
 /// The folder path of a module path: everything before its last segment.
@@ -165,25 +394,38 @@ impl ModuleTable {
     /// Discovery (§4.7) of one package.
     #[must_use]
     pub fn discover(package: &str, sources: &dyn SourceSet) -> Self {
-        Self::discover_all(&[(package, sources)])
+        Self::discover_all(&[PackageIn {
+            name: package,
+            sources,
+            scope: Scope::All,
+            requires: Vec::new(),
+        }])
     }
 
-    /// Discovery (§4.7) of the root package (first) and its dependencies:
-    /// every `.hd` file is a module; its directory is its folder, except
-    /// that `x.hd` beside a directory `x/` of source files is in folder `x/`
+    /// Discovery (§4.7) of the root package (first) and the packages it
+    /// reaches: every file in a package's scope is a module, its path from
+    /// `module_path`. Its directory is its folder, except that `x.hd`
+    /// beside a directory `x/` of source files is in folder `x/`
     /// (`module.folder.parent-file`), and `x/mod.hd` is module `x`.
     #[must_use]
-    pub fn discover_all(packages: &[(&str, &dyn SourceSet)]) -> Self {
+    pub fn discover_all(packages: &[PackageIn<'_>]) -> Self {
         let mut t = ModuleTable {
-            package: packages.first().map_or("", |p| p.0).to_owned(),
-            packages: packages.iter().map(|p| p.0.to_owned()).collect(),
+            package: packages.first().map_or("", |p| p.name).to_owned(),
+            packages: packages.iter().map(|p| p.name.to_owned()).collect(),
+            requires: packages.iter().map(|p| p.requires.clone()).collect(),
             ..Self::default()
         };
         let mut folders: BTreeMap<String, (u16, Vec<ModuleId>)> = BTreeMap::new();
-        for (pi, (package, sources)) in packages.iter().enumerate() {
+        for (pi, p) in packages.iter().enumerate() {
             let pi = u16::try_from(pi).expect("packages");
-            let mut entries = sources.list();
+            let mut entries = p.sources.list();
             entries.sort_by(|a, b| a.path.cmp(&b.path));
+            if p.scope == Scope::Library {
+                entries.retain(|e| {
+                    matches!(Root::of(&e.path), (Root::Source, rest) if rest != "main.hd")
+                        && !e.path.ends_with("_test.hd")
+                });
+            }
             let mut dirs = std::collections::BTreeSet::new();
             for e in &entries {
                 let mut d = e.path.as_str();
@@ -192,38 +434,43 @@ impl ModuleTable {
                     d = parent;
                 }
             }
+            let root = package_ident(p.name);
             for e in &entries {
-                let raw = module_path(package, &e.path);
+                let path = module_path(p.name, &e.path);
                 let id = ModuleId::from_raw(u32::try_from(t.modules.len()).expect("modules"));
                 let stem = e.path.trim_end_matches(".hd");
-                let (path, folder) = if let Some(m) = raw.strip_suffix(".mod") {
-                    (m.to_owned(), m.to_owned())
-                } else if dirs.contains(stem) {
-                    (raw.clone(), raw)
+                let mod_file = e.path == "mod.hd" || e.path.ends_with("/mod.hd");
+                let folder = if mod_file || dirs.contains(stem) {
+                    path.clone()
                 } else {
-                    let f = folder_of(&raw).to_owned();
-                    (raw, f)
+                    folder_of(&path).to_owned()
                 };
                 folders.entry(folder).or_insert((pi, Vec::new())).1.push(id);
                 t.by_path.insert(path.clone(), id);
                 t.files.push(if pi == 0 {
                     e.path.clone()
                 } else {
-                    format!("<{package}>/{}", e.path)
+                    format!("<{}>/{}", p.name, e.path)
                 });
                 t.sources.push((pi, e.path.clone()));
-                let role = if e.path.ends_with("_test.hd") {
-                    Role::Test
-                } else {
-                    Role::Lib
+                let floor = match Root::of(&e.path).0.segment() {
+                    Some(seg) => format!("{root}.{seg}"),
+                    None => root.clone(),
                 };
                 t.modules.push(Module {
                     id,
                     file: FileId::from_raw(id.raw()),
+                    base: if is_root_file(&e.path) {
+                        floor.clone()
+                    } else {
+                        path.clone()
+                    },
                     path,
                     folder: FolderId::NONE,
-                    role,
+                    role: role_of(&e.path),
                     package: pi,
+                    floor,
+                    entry: is_entry(&e.path),
                 });
             }
         }
@@ -245,6 +492,77 @@ impl ModuleTable {
     #[must_use]
     pub fn module(&self, path: &str) -> Option<ModuleId> {
         self.by_path.get(path).copied()
+    }
+
+    /// Whether a `use` may name the module at `path`: it exists and is not
+    /// its own program (`module.path.main-no-use`,
+    /// `module.test.integration.program-use`).
+    #[must_use]
+    pub fn usable(&self, path: &str) -> bool {
+        self.module(path)
+            .is_some_and(|m| !self.modules[m.idx()].entry)
+    }
+
+    /// What the use roots of module `m` name.
+    #[must_use]
+    pub fn use_roots(&self, m: ModuleId) -> UseRoots {
+        let module = &self.modules[m.idx()];
+        let package = usize::from(module.package);
+        UseRoots {
+            pkg: package_ident(&self.packages[package]),
+            base: module.base.clone(),
+            floor: module.floor.clone(),
+            deps: self.requires[package]
+                .iter()
+                .map(|(name, p)| (name.clone(), package_ident(&self.packages[usize::from(*p)])))
+                .collect(),
+        }
+    }
+
+    /// Each cycle of the package graph (`module.cycle.package`): package
+    /// indices from its least member, found depth-first in package order.
+    #[must_use]
+    pub fn package_cycles(&self) -> Vec<Vec<u16>> {
+        fn visit(
+            p: u16,
+            requires: &[Vec<(String, u16)>],
+            state: &mut [u8],
+            path: &mut Vec<u16>,
+            out: &mut Vec<Vec<u16>>,
+        ) {
+            match state[usize::from(p)] {
+                2 => return,
+                1 => {
+                    let start = path.iter().position(|&q| q == p).unwrap_or(0);
+                    let mut cycle = path[start..].to_vec();
+                    let least = cycle
+                        .iter()
+                        .enumerate()
+                        .min_by_key(|(_, q)| **q)
+                        .map_or(0, |(i, _)| i);
+                    cycle.rotate_left(least);
+                    if !out.contains(&cycle) {
+                        out.push(cycle);
+                    }
+                    return;
+                }
+                _ => {}
+            }
+            state[usize::from(p)] = 1;
+            path.push(p);
+            for (_, q) in &requires[usize::from(p)] {
+                visit(*q, requires, state, path, out);
+            }
+            path.pop();
+            state[usize::from(p)] = 2;
+        }
+        let mut state = vec![0u8; self.packages.len()];
+        let mut out = Vec::new();
+        for p in 0..self.packages.len() {
+            let p = u16::try_from(p).expect("packages");
+            visit(p, &self.requires, &mut state, &mut Vec::new(), &mut out);
+        }
+        out
     }
 
     /// The folder of a module path, if the module exists.
@@ -410,29 +728,11 @@ impl FolderGraph {
     }
 }
 
-/// The package graph: the root package and its resolved dependencies. The
-/// first release resolves path and host dependencies (§4.7); this skeleton
-/// holds only the root.
-#[derive(Clone, Debug, Default)]
-pub struct PackageGraph {
-    pub root: String,
-    pub dependencies: Vec<(String, Hash128)>,
-}
-
-pub fn resolve_packages(manifest: &Manifest) -> StageResult<PackageGraph> {
-    if manifest.dependencies.is_empty() {
-        Ok(PackageGraph {
-            root: manifest.name.clone(),
-            dependencies: Vec::new(),
-        })
-    } else {
-        Err(NotImplemented::new(Stage::Discover, "package dependencies"))
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{FolderGraph, MemorySources, ModuleTable, parse_manifest};
+    use super::{
+        FolderGraph, MemorySources, ModuleTable, PackageIn, Scope, UseRootError, parse_manifest,
+    };
 
     #[test]
     fn folders_order_closure_and_cycles() {
@@ -500,5 +800,152 @@ mod tests {
             parse_manifest("[package]\nname = \"shop\"\nversion = \"1.0\"\n").expect("manifest");
         assert_eq!(m.name, "shop");
         assert!(parse_manifest("[workspace]\nx = 1\n").is_err());
+    }
+
+    #[test]
+    fn manifest_requirements() {
+        let m = parse_manifest(
+            "[package]\nname = \"shop\"\n[dependencies]\nmy-money = { path = \"money\" }\njson = \"github.com/acme/json@2.1.0\"\n[dev-dependencies]\nfx = \"github.com/acme/fx@1.0.0\"\n",
+        )
+        .expect("manifest");
+        let deps: Vec<(String, Option<&str>)> = m
+            .dependencies
+            .iter()
+            .map(|r| (r.name(), r.path.as_deref()))
+            .collect();
+        assert_eq!(
+            deps,
+            [
+                ("json".to_owned(), None),
+                ("my_money".to_owned(), Some("money"))
+            ]
+        );
+        assert_eq!(m.dev_dependencies[0].key, "fx");
+    }
+
+    /// Module paths under the source and test roots, and what each root of
+    /// a use names from them (`module.path.*`, `module.relative.*`).
+    #[test]
+    fn module_paths_and_use_roots() {
+        let mut shop = MemorySources::default();
+        for f in [
+            "src/lib.hd",
+            "src/main.hd",
+            "src/user/mod.hd",
+            "src/user/service.hd",
+            "src/a.hd",
+            "tests/checkout.hd",
+            "tests/common/mod.hd",
+            "tasks/seed.hd",
+        ] {
+            shop.insert(f, "");
+        }
+        let mut money = MemorySources::default();
+        money.insert("src/lib.hd", "");
+        money.insert("src/main.hd", "");
+        money.insert("tests/t.hd", "");
+        let t = ModuleTable::discover_all(&[
+            PackageIn {
+                name: "acme-shop",
+                sources: &shop,
+                scope: Scope::All,
+                requires: vec![("cash".to_owned(), 1)],
+            },
+            PackageIn {
+                name: "money",
+                sources: &money,
+                scope: Scope::Library,
+                requires: Vec::new(),
+            },
+        ]);
+        let paths: Vec<&str> = t.modules.iter().map(|m| m.path.as_str()).collect();
+        assert_eq!(
+            paths,
+            [
+                "acme_shop.a",
+                "acme_shop",
+                "acme_shop.main",
+                "acme_shop.user",
+                "acme_shop.user.service",
+                "acme_shop.$tasks.seed",
+                "acme_shop.$tests.checkout",
+                "acme_shop.$tests.common",
+                "money",
+            ]
+        );
+        assert!(t.usable("acme_shop.user") && t.usable("acme_shop.$tests.common"));
+        assert!(!t.usable("acme_shop.main") && !t.usable("acme_shop.$tests.checkout"));
+        let roots = |m: &str| t.use_roots(t.module(m).expect(m));
+        let abs = |m: &str, p: &str| {
+            roots(m)
+                .absolute(&p.split('.').collect::<Vec<_>>())
+                .map(|v| v.join("."))
+        };
+        assert_eq!(
+            abs("acme_shop.main", "self.user"),
+            Ok("acme_shop.user".into())
+        );
+        assert_eq!(abs("acme_shop", "pkg.a"), Ok("acme_shop.a".into()));
+        assert_eq!(
+            abs("acme_shop.main", "super.a"),
+            Err(UseRootError::AboveRoot)
+        );
+        assert_eq!(abs("acme_shop.a", "self.x"), Ok("acme_shop.a.x".into()));
+        assert_eq!(
+            abs("acme_shop.a", "super.user"),
+            Ok("acme_shop.user".into())
+        );
+        assert_eq!(
+            abs("acme_shop.a", "super.super.b"),
+            Err(UseRootError::AboveRoot)
+        );
+        assert_eq!(
+            abs("acme_shop.user.service", "super.super.a"),
+            Ok("acme_shop.a".into())
+        );
+        assert_eq!(abs("acme_shop.user", "super.a"), Ok("acme_shop.a".into()));
+        assert_eq!(
+            abs("acme_shop.$tests.checkout", "self.common"),
+            Ok("acme_shop.$tests.common".into())
+        );
+        assert_eq!(
+            abs("acme_shop.$tests.checkout", "super.common"),
+            Err(UseRootError::AboveRoot)
+        );
+        assert_eq!(
+            abs("acme_shop.$tests.common", "super.checkout"),
+            Ok("acme_shop.$tests.checkout".into())
+        );
+        assert_eq!(abs("acme_shop.a", "dep.cash"), Ok("money".into()));
+        assert_eq!(
+            abs("acme_shop.a", "dep.nope.x"),
+            Err(UseRootError::UnknownDependency)
+        );
+        assert_eq!(abs("acme_shop.a", "std.text"), Ok("std.text".into()));
+        assert_eq!(
+            abs("acme_shop.a", "acme_shop.a"),
+            Err(UseRootError::UnknownRoot)
+        );
+        assert_eq!(
+            abs("acme_shop.a", "tests.common"),
+            Err(UseRootError::UnknownRoot)
+        );
+    }
+
+    #[test]
+    fn package_cycles_are_found_once() {
+        let s = MemorySources::default();
+        let p = |name, requires| PackageIn {
+            name,
+            sources: &s,
+            scope: Scope::Library,
+            requires,
+        };
+        let t = ModuleTable::discover_all(&[
+            p("shop", vec![("money".to_owned(), 1)]),
+            p("money", vec![("shop".to_owned(), 0), ("fx".to_owned(), 2)]),
+            p("fx", Vec::new()),
+        ]);
+        assert_eq!(t.package_cycles(), [vec![0, 1]]);
     }
 }
