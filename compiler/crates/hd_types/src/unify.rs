@@ -27,14 +27,20 @@ pub enum UnifyError {
 enum Undo {
     Bind(u32),
     Parent(u32, u32),
+    Rank(u32, u8),
     Kind(u32, VarKind),
     Rebind(u32, Option<Ty>),
 }
 
-/// The body's inference table: union-find with path halving and a trail.
+/// The body's inference table: union-find with union by rank and a trail
+/// (data-structures.md §3.19's `parent`, `rank`, `kind` and `value`
+/// columns). Union by rank keeps every path at most log2(n) links long
+/// without writing during a lookup, so `root` stays a read and a rollback
+/// undoes each link and rank change exactly.
 #[derive(Default, Debug, Clone)]
 pub struct InferTable {
     parent: Vec<u32>,
+    rank: Vec<u8>,
     binding: Vec<Option<Ty>>,
     kind: Vec<VarKind>,
     trail: Vec<Undo>,
@@ -48,6 +54,7 @@ impl InferTable {
     pub fn fresh(&mut self, pool: &InternPool, kind: VarKind) -> Ty {
         let v = u32::try_from(self.parent.len()).expect("vars");
         self.parent.push(v);
+        self.rank.push(0);
         self.binding.push(None);
         self.kind.push(kind);
         pool.intern_ty(&TyData::Infer(InferVar::from_raw(v)))
@@ -70,6 +77,7 @@ impl InferTable {
             match self.trail.pop().expect("trail") {
                 Undo::Bind(v) => self.binding[v as usize] = None,
                 Undo::Parent(v, old) => self.parent[v as usize] = old,
+                Undo::Rank(v, old) => self.rank[v as usize] = old,
                 Undo::Kind(v, k) => self.kind[v as usize] = k,
                 Undo::Rebind(v, old) => self.binding[v as usize] = old,
             }
@@ -295,11 +303,24 @@ impl InferTable {
                     }
                     _ => VarKind::IntLit,
                 };
-                self.trail.push(Undo::Parent(x, self.parent[x as usize]));
-                self.parent[x as usize] = y;
-                if merged != ky {
-                    self.trail.push(Undo::Kind(y, ky));
-                    self.kind[y as usize] = merged;
+                if x == y {
+                    return Ok(());
+                }
+                // Union by rank: the lower-ranked root joins the other; on
+                // a tie `x` joins `y` and `y`'s rank grows.
+                let (rx, ry) = (self.rank[x as usize], self.rank[y as usize]);
+                let (child, root) = if rx > ry { (y, x) } else { (x, y) };
+                self.trail
+                    .push(Undo::Parent(child, self.parent[child as usize]));
+                self.parent[child as usize] = root;
+                if rx == ry {
+                    self.trail.push(Undo::Rank(root, ry));
+                    self.rank[root as usize] = ry + 1;
+                }
+                let kr = self.kind[root as usize];
+                if merged != kr {
+                    self.trail.push(Undo::Kind(root, kr));
+                    self.kind[root as usize] = merged;
                 }
                 Ok(())
             }
@@ -417,5 +438,33 @@ mod tests {
             Err(UnifyError::Kind { .. })
         ));
         assert!(t.unify(&p, lit, Ty::POISON).is_ok());
+    }
+
+    /// Union by rank: unions keep classes shallow, kinds merge at the
+    /// root, and a rollback restores every link, rank and kind exactly.
+    #[test]
+    fn union_by_rank_rolls_back_exactly() {
+        let p = InternPool::new();
+        let mut t = InferTable::default();
+        let vars: Vec<Ty> = (0..16).map(|_| t.fresh(&p, VarKind::General)).collect();
+        let lit = t.fresh(&p, VarKind::IntLit);
+        let before: Vec<Ty> = vars.iter().map(|v| t.shallow(&p, *v)).collect();
+        let snap = t.snapshot();
+        for w in vars.windows(2) {
+            t.unify(&p, w[0], w[1]).expect("unify vars");
+        }
+        t.unify(&p, vars[7], lit).expect("unify literal");
+        let root = t.shallow(&p, vars[0]);
+        assert!(vars.iter().all(|v| t.shallow(&p, *v) == root));
+        assert_eq!(t.kind_of(&p, vars[3]), Some(VarKind::IntLit));
+        assert!(t.rank.iter().all(|r| *r <= 5), "log2(17) bounds the rank");
+        t.unify(&p, vars[0], Ty::I32).expect("bind");
+        assert_eq!(t.resolve(&p, vars[15]), Ty::I32);
+        t.rollback(snap);
+        let after: Vec<Ty> = vars.iter().map(|v| t.shallow(&p, *v)).collect();
+        assert_eq!(before, after);
+        assert!(t.rank.iter().all(|r| *r == 0));
+        assert_eq!(t.kind_of(&p, vars[3]), Some(VarKind::General));
+        assert_eq!(t.kind_of(&p, lit), Some(VarKind::IntLit));
     }
 }
