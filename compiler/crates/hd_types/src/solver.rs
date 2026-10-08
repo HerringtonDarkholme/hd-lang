@@ -17,8 +17,8 @@ use hd_base::{
 };
 
 pub use crate::lookup::{
-    FolderImpls, ImplView, Impls, OWN_TABLE, OwnerMap, RefTable, UniverseImpls, folder_table,
-    open_arg,
+    FolderImpls, ImplView, Impls, OWN_TABLE, OwnerMap, RefTable, UniverseImpls, UniverseReads,
+    folder_table, open_arg,
 };
 use crate::pool::{ParamRef, Prim, Ty, TyData, TyList, Types};
 use crate::unify::VarKind;
@@ -562,6 +562,9 @@ pub enum CanonAnswer {
 /// probes of its subtree.
 #[derive(Debug)]
 pub struct MemoRecord {
+    /// The goal's key as its context asked it. A global entry whose
+    /// subtree is `scoped` is published under this key with the
+    /// context's universe filled in.
     pub key: MemoKey,
     pub answer: CanonAnswer,
     pub children: Box<[u32]>,
@@ -570,6 +573,29 @@ pub struct MemoRecord {
     /// rows first and names them by its own table (lookup.rs
     /// `OWN_TABLE`), so the entry is not that module's answer.
     pub reads: Box<[(DefId, HeadKey)]>,
+    /// Some frame of the subtree read rows the impl universe decides: the
+    /// candidate directory, or unowned rows (§3.2). The answer then holds
+    /// for its universe only.
+    pub scoped: bool,
+}
+
+impl MemoRecord {
+    /// The key a global entry computed in `universe` is published under
+    /// (§3.2, §7.1): a scoped answer's key names the universe that
+    /// decided it, even for a goal whose own key leaves it out. Any other
+    /// answer is the same in every universe whose own and unowned rows
+    /// add nothing to its probes, and keeps the asked key.
+    #[must_use]
+    pub fn global_key(&self, universe: ImplUniverseId) -> MemoKey {
+        if self.scoped {
+            MemoKey {
+                universe: Some(universe),
+                ..self.key
+            }
+        } else {
+            self.key
+        }
+    }
 }
 
 /// Memo hits and misses of a run, over every eligible goal asked.
@@ -632,11 +658,12 @@ impl GlobalMemo {
         self.records.get(self.entry(i).answer).expect("memo record")
     }
 
-    /// Publishes an entry and returns the index that holds `rec.key`: the
-    /// first writer wins. Two writers of one key computed one answer
-    /// (rule TS-1); debug builds check it.
-    pub fn publish(&self, rec: MemoRecord, mut e: MemoEntry) -> u32 {
-        let key = rec.key;
+    /// Publishes an entry computed in `universe` under its global key and
+    /// returns the index that holds that key: the first writer wins. Two
+    /// writers of one key computed one answer (rule TS-1); debug builds
+    /// check it.
+    pub fn publish(&self, rec: MemoRecord, mut e: MemoEntry, universe: ImplUniverseId) -> u32 {
+        let key = rec.global_key(universe);
         let mut shard = self.shard(&key).lock().expect("memo");
         if let Some(&i) = shard.get(&key) {
             debug_assert!(
@@ -1321,10 +1348,11 @@ pub fn plan_goals(pool: Types<'_>, t: &ImplTable, row: usize, args: &[Ty]) -> Ve
 }
 
 /// The impl probes of one frame (§3.2, §7.1): whether it read the
-/// candidate directory, and which `(trait, head key)` buckets it probed.
+/// candidate directory or unowned rows, and which `(trait, head key)`
+/// buckets it probed.
 #[derive(Default)]
 struct Reads {
-    dir: bool,
+    seen: UniverseReads,
     keys: Vec<(DefId, HeadKey)>,
 }
 
@@ -1339,7 +1367,7 @@ impl Reads {
         open: bool,
     ) -> Vec<(ImplRef, &'a ImplTable)> {
         self.keys.push((trait_, HeadKey::of(pool, self_ty)));
-        impls.candidates(pool, trait_, self_ty, args, open, &mut self.dir)
+        impls.candidates(pool, trait_, self_ty, args, open, &mut self.seen)
     }
 }
 
@@ -1390,6 +1418,10 @@ struct Search<'s, 'a> {
     stack: Vec<MemoKey>,
     children: Vec<u32>,
     reads: Vec<(DefId, HeadKey)>,
+    /// How many frames so far read rows the impl universe decides, or
+    /// reused an entry that did: a goal whose subtree changed it is
+    /// `scoped`.
+    scoped: u32,
     walk: Vec<u32>,
 }
 
@@ -1409,7 +1441,16 @@ impl<'s, 'a> Search<'s, 'a> {
             stack: Vec::new(),
             children: Vec::new(),
             reads: Vec::new(),
+            scoped: 0,
             walk: Vec::new(),
+        }
+    }
+
+    /// Adds a frame's probes to its goal's subtree.
+    fn read(&mut self, reads: &Reads) {
+        self.reads.extend_from_slice(&reads.keys);
+        if reads.seen.dir || reads.seen.unowned {
+            self.scoped += 1;
         }
     }
 
@@ -1465,7 +1506,7 @@ impl<'s, 'a> Search<'s, 'a> {
             }
             self.cx.global.count(false);
         }
-        let (cstart, rstart) = (self.children.len(), self.reads.len());
+        let (cstart, rstart, sstart) = (self.children.len(), self.reads.len(), self.scoped);
         self.stack.push(key);
         let r = match ask {
             Ask::Implements(t, _) => self.implements(&key, cg, t, depth, root),
@@ -1510,9 +1551,10 @@ impl<'s, 'a> Search<'s, 'a> {
             answer,
             children: children.into(),
             reads: reads.into(),
+            scoped: self.scoped != sstart,
         };
         let slot = if to_global {
-            self.cx.global.publish(rec, entry)
+            self.cx.global.publish(rec, entry, self.cx.universe)
         } else {
             let bm = &mut *self.cx.body_memo;
             bm.entries.push(MemoEntry {
@@ -1529,7 +1571,11 @@ impl<'s, 'a> Search<'s, 'a> {
 
     /// The slot that answers `key` here: the body's table, then, for a goal
     /// with no placeholder, the global memo, whose entry serves only when
-    /// this module's own table has no row for its probes.
+    /// this module's own table has no row for its probes. A key without a
+    /// universe finds an unscoped entry, which serves only when this
+    /// universe's unowned rows have none for its probes either (an answer
+    /// that read none is the same in every such universe), else the entry
+    /// scoped to this universe (`MemoRecord::global_key`).
     fn find(&mut self, key: &MemoKey, global: bool) -> Option<u32> {
         if let Some(s) = self.cx.body_memo.table.get(key) {
             return Some(*s);
@@ -1538,12 +1584,31 @@ impl<'s, 'a> Search<'s, 'a> {
             return None;
         }
         let memo = self.cx.global;
-        let i = memo.lookup(key)?;
-        if !self.own_free(&memo.record(i).reads) {
-            return None;
-        }
+        let unscoped = key.universe.is_none();
+        let serves = |i: u32| {
+            let rec = memo.record(i);
+            debug_assert!(!unscoped || !rec.scoped, "a scoped entry under {key:?}");
+            self.own_free(&rec.reads) && (!unscoped || self.unowned_free(&rec.reads))
+        };
+        let i = match memo.lookup(key) {
+            Some(i) if serves(i) => i,
+            _ if unscoped => {
+                let scoped = MemoKey {
+                    universe: Some(self.cx.universe),
+                    ..*key
+                };
+                memo.lookup(&scoped)
+                    .filter(|i| self.own_free(&memo.record(*i).reads))?
+            }
+            _ => return None,
+        };
         self.cx.body_memo.table.insert(*key, i);
         Some(i)
+    }
+
+    /// Whether this universe's unowned rows have none for any of `reads`.
+    fn unowned_free(&self, reads: &[(DefId, HeadKey)]) -> bool {
+        reads.iter().all(|(t, k)| !self.cx.impls.unowned_at(*t, *k))
     }
 
     /// Whether this module's own table has no row for any of `reads`: then
@@ -1586,6 +1651,9 @@ impl<'s, 'a> Search<'s, 'a> {
             },
         };
         self.reads.extend_from_slice(&rec.reads);
+        if rec.scoped {
+            self.scoped += 1;
+        }
         self.children.push(slot);
         if !self.charge_dag(slot, root) {
             return Some(Outcome::leaf(Answer::OutOfFuel));
@@ -1739,13 +1807,13 @@ impl<'s, 'a> Search<'s, 'a> {
                 M::No => {}
             }
         }
-        if reads.dir && key.universe.is_none() {
+        if reads.seen.dir && key.universe.is_none() {
             return Err(NotImplemented::new(
                 Stage::Body,
                 "internal error: a solver frame read the candidate directory, but its memo key has no impl universe",
             ));
         }
-        self.reads.extend_from_slice(&reads.keys);
+        self.read(&reads);
         if !self.charge(key, heads, root) {
             return Ok((Outcome::leaf(Answer::OutOfFuel), heads));
         }
@@ -1977,13 +2045,13 @@ impl Search<'_, '_> {
             apply_binds_in(pool, impls, t, r, &mut fixed, &mut reads);
             matched.push((at, t, Some(fixed)));
         }
-        if reads.dir && key.universe.is_none() {
+        if reads.seen.dir && key.universe.is_none() {
             return Err(NotImplemented::new(
                 Stage::Body,
                 "internal error: an Instantiations frame read the directory without a universe",
             ));
         }
-        self.reads.extend_from_slice(&reads.keys);
+        self.read(&reads);
         if !self.charge(key, heads, root) {
             return Ok((Outcome::leaf(Answer::OutOfFuel), heads));
         }
@@ -2528,9 +2596,10 @@ mod tests {
             answer: global.record(i).answer.clone(),
             children: Box::new([]),
             reads: Box::new([]),
+            scoped: false,
         };
         let e2 = MemoEntry { children: 7, ..e };
-        assert_eq!(global.publish(again, e2), i, "first writer wins");
+        assert_eq!(global.publish(again, e2, u), i, "first writer wins");
         assert_eq!(global.entry(i).children, e.children);
     }
 
@@ -2711,6 +2780,165 @@ mod tests {
                 });
             }
         });
+    }
+
+    /// A goal with known arguments keys without the universe, but its
+    /// proof may read unowned rows: here the misplaced `impl Tag for i32`
+    /// in `prod`, visible only where the closure holds `prod`. `with` and
+    /// `without` each get their own answer in both orders and on several
+    /// threads; `with`'s is published under its universe. A goal whose
+    /// probes meet no unowned row (`Thing: Tag`, owned by `lib`) keeps
+    /// one entry for every universe.
+    #[test]
+    fn a_known_goal_that_read_unowned_rows_is_scoped_to_its_universe() {
+        use super::{Answer, EnvKey, FolderImpls, ImplView, Impls, OwnerMap};
+        use hd_base::PathId;
+        use hd_intern::{PathKind, PathTable};
+
+        let gp = InternPool::new();
+        let g = gp.types();
+        let paths = PathTable::new();
+        let pkg = paths.intern(PathId::NONE, PathKind::Package, "pkg");
+        let mods =
+            ["lib", "prod", "with", "without"].map(|m| paths.intern(pkg, PathKind::Module, m));
+        let item =
+            |m: PathId, name: &str| DefId::from_raw(paths.intern(m, PathKind::Item, name).raw());
+        let (tag, thing) = (item(mods[0], "Tag"), item(mods[0], "Thing"));
+        let f = FolderId::from_raw;
+        let mut owners = OwnerMap::default();
+        for (i, m) in (0u32..).zip(mods) {
+            owners.insert(m, f(i));
+        }
+        let thing_ty = g.intern_ty(&TyData::Adt {
+            def: thing,
+            args: TyList::EMPTY,
+        });
+        let row = |m: PathId, self_ty: Ty| {
+            let mut t = ImplTable::default();
+            let def = DefId::from_raw(paths.intern(m, PathKind::Impl, "Tag").raw());
+            push_row(&mut t, g, (tag, def), self_ty, TyList::EMPTY, (0, vec![]));
+            t.index();
+            t
+        };
+        let lib = FolderImpls::new(f(0), row(mods[0], thing_ty), g, &paths, &owners);
+        assert!(!lib.in_universe(), "`lib` owns `impl Tag for Thing`");
+        let prod = FolderImpls::new(f(1), row(mods[1], Ty::I32), g, &paths, &owners);
+        assert_eq!(prod.unowned, [0], "`prod` owns neither `Tag` nor `i32`");
+        let empty = FolderImpls::default();
+        let universes = ImplUniverses::default();
+        let global = GlobalMemo::default();
+
+        let ask = |closure: &[u32], self_ty: Ty| -> (Answer, MemoKey, super::ImplUniverseId) {
+            let mut folders: Vec<Option<&FolderImpls>> = vec![None; 4];
+            let mut members = Vec::new();
+            for &c in closure {
+                let fi = match c {
+                    0 => &lib,
+                    1 => &prod,
+                    _ => &empty,
+                };
+                folders[c as usize] = Some(fi);
+                if fi.in_universe() {
+                    members.push((f(c), fi));
+                }
+            }
+            let (universe, extra) = universes.intern(&members);
+            let arity = |_: DefId| 0;
+            let view = ImplView {
+                paths: &paths,
+                owners: &owners,
+                own: None,
+                folders: &folders,
+                universe,
+                extra: &extra,
+                arity: &arity,
+            };
+            let local = LocalPool::new();
+            let p = Types::with_local(&gp, &local);
+            let tref = TraitRef {
+                trait_: tag,
+                self_ty,
+                args: TyList::EMPTY,
+            };
+            let env = ParamEnv::default();
+            let mut body = BodyMemo::default();
+            let mut cx = SolveCx {
+                pool: p,
+                env: &env,
+                universe,
+                impls: Impls::Owned(&view),
+                body_memo: &mut body,
+                global: &global,
+            };
+            let goal = Goal::Implements {
+                tref,
+                bindings: vec![],
+                mut_: false,
+            };
+            let answer = TableSolver
+                .solve(&mut cx, &goal, &mut Fuel::new(100))
+                .expect("solves");
+            let (cg, _) = canonicalize(p, GoalKind::Implements, tref, false);
+            (
+                answer,
+                MemoKey::new(p, cg, EnvKey::EMPTY, universe, 0),
+                universe,
+            )
+        };
+        let with = || match ask(&[0, 1, 2], Ty::I32) {
+            (Answer::Holds { .. }, key, u) => (key, u),
+            other => panic!("`with` sees the misplaced impl: {other:?}"),
+        };
+        let without = || match ask(&[0, 3], Ty::I32) {
+            (Answer::Fails(_), key, u) => (key, u),
+            other => panic!("`without` does not: {other:?}"),
+        };
+        let (kw, ko) = (without(), with());
+        assert_eq!((with(), without()), (ko, kw), "the other order");
+        let (key, uw, uo) = (kw.0, kw.1, ko.1);
+        assert_eq!(
+            (key, key.universe),
+            (ko.0, None),
+            "the asked key has no universe"
+        );
+        assert_ne!(uw, uo);
+        // `without` read no unowned row: its answer is every such
+        // universe's, under the asked key. `with` read one: its answer is
+        // scoped to its universe.
+        let scoped = |u| MemoKey {
+            universe: Some(u),
+            ..key
+        };
+        let i = global.lookup(&key).expect("the unscoped entry");
+        assert!(!global.record(i).scoped);
+        assert_eq!(global.entry(i).kind, MemoKind::Fails);
+        assert!(global.lookup(&scoped(uw)).is_none());
+        let i = global.lookup(&scoped(uo)).expect("the scoped entry");
+        assert!(global.record(i).scoped);
+        assert_eq!(global.entry(i).kind, MemoKind::Holds);
+        std::thread::scope(|s| {
+            for i in 0..8 {
+                let (with, without) = (&with, &without);
+                s.spawn(move || {
+                    if i % 2 == 0 {
+                        assert_eq!((with(), without()), (ko, kw));
+                    } else {
+                        let o = without();
+                        assert_eq!((with(), o), (ko, kw));
+                    }
+                });
+            }
+        });
+        // Sharing is kept for a goal that read no unowned row.
+        let (a, ka, _) = ask(&[0, 3], thing_ty);
+        let (b, kb, _) = ask(&[0, 1, 2], thing_ty);
+        assert!(matches!(
+            (&a, &b),
+            (Answer::Holds { .. }, Answer::Holds { .. })
+        ));
+        assert_eq!((ka, ka.universe), (kb, None));
+        let i = global.lookup(&ka).expect("one unscoped entry");
+        assert!(!global.record(i).scoped);
     }
 
     /// §3.2's debug check: a goal whose arguments are all known keys

@@ -172,27 +172,40 @@ impl RefTable {
         &rows[lo..hi]
     }
 
-    /// The rows of one trait whose head key can match `key` (the buckets
-    /// of `ImplTable::candidates`), appended unordered.
-    pub fn candidates(&self, trait_: DefId, key: HeadKey, out: &mut Vec<ImplRef>) {
+    /// The buckets of one trait whose head key can match `key` (those of
+    /// `ImplTable::candidates`); a bucket that does not apply is empty.
+    fn buckets(&self, trait_: DefId, key: HeadKey) -> [&[(u32, u64, ImplRef)]; 3] {
         let Some(&(s, e)) = self.by_trait.get(&trait_.raw()) else {
-            return;
+            return [&[], &[], &[]];
         };
         if key == HeadKey::Any {
-            out.extend(self.rows[s as usize..e as usize].iter().map(|r| r.2));
-            return;
+            return [&self.rows[s as usize..e as usize], &[], &[]];
         }
-        out.extend(self.bucket(s, e, key.code()).iter().map(|r| r.2));
-        if key != HeadKey::Param {
-            out.extend(self.bucket(s, e, HeadKey::Param.code()).iter().map(|r| r.2));
+        let param = if key == HeadKey::Param {
+            &[][..]
+        } else {
+            self.bucket(s, e, HeadKey::Param.code())
+        };
+        let tuple = if matches!(key, HeadKey::Tuple(_)) {
+            self.bucket(s, e, HeadKey::TupleAny.code())
+        } else {
+            &[]
+        };
+        [self.bucket(s, e, key.code()), param, tuple]
+    }
+
+    /// The rows of one trait whose head key can match `key`, appended
+    /// unordered.
+    pub fn candidates(&self, trait_: DefId, key: HeadKey, out: &mut Vec<ImplRef>) {
+        for b in self.buckets(trait_, key) {
+            out.extend(b.iter().map(|r| r.2));
         }
-        if matches!(key, HeadKey::Tuple(_)) {
-            out.extend(
-                self.bucket(s, e, HeadKey::TupleAny.code())
-                    .iter()
-                    .map(|r| r.2),
-            );
-        }
+    }
+
+    /// Whether a probe of `(trait_, key)` finds any row here.
+    #[must_use]
+    pub fn has(&self, trait_: DefId, key: HeadKey) -> bool {
+        self.buckets(trait_, key).iter().any(|b| !b.is_empty())
     }
 }
 
@@ -232,6 +245,17 @@ impl UniverseImpls {
             directory: RefTable::build(directory),
         }
     }
+}
+
+/// The rows a probe read whose visibility the impl universe decides
+/// (§3.2): the candidate directory, and the unowned rows. An answer that
+/// read neither is the same in every universe.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct UniverseReads {
+    /// The probe read the candidate directory.
+    pub dir: bool,
+    /// The universe's unowned rows had some for the probe.
+    pub unowned: bool,
 }
 
 /// A solving context's view of the impls (§3.2): its own module's table,
@@ -291,11 +315,21 @@ impl<'a> Impls<'a> {
         }
     }
 
+    /// Whether the universe's unowned rows answer a probe of
+    /// `(trait_, key)`: then what the probe sees depends on the universe.
+    #[must_use]
+    pub fn unowned_at(self, trait_: DefId, key: HeadKey) -> bool {
+        match self {
+            Impls::All(_) => false,
+            Impls::Owned(v) => v.extra.unowned.has(trait_, key),
+        }
+    }
+
     /// The candidate rows of `self_ty: trait_[args]` in content order (§3.2,
     /// §3.3): the head-index buckets of the owner folders' tables (the
     /// trait's, the self type's, each known argument's), the unowned
     /// rows and, when `open` (an argument's owner is unknown), the
-    /// directory. `read_dir` records a directory read.
+    /// directory. `seen` records which universe-decided rows the probe read.
     pub fn candidates(
         self,
         pool: Types<'_>,
@@ -303,7 +337,7 @@ impl<'a> Impls<'a> {
         self_ty: Ty,
         args: &[Ty],
         open: bool,
-        read_dir: &mut bool,
+        seen: &mut UniverseReads,
     ) -> Vec<(ImplRef, &'a ImplTable)> {
         let key = HeadKey::of(pool, self_ty);
         let v = match self {
@@ -343,9 +377,11 @@ impl<'a> Impls<'a> {
                 }));
             }
         }
+        let before = refs.len();
         v.extra.unowned.candidates(trait_, key, &mut refs);
+        seen.unowned |= refs.len() > before;
         if open {
-            *read_dir = true;
+            seen.dir = true;
             v.extra.directory.candidates(trait_, key, &mut refs);
         }
         refs.sort_unstable_by_key(|r| (position(r.module), r.row));
