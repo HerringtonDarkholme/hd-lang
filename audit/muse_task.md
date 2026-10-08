@@ -144,6 +144,43 @@ consistent with `hd test`'s summary from S6), and add CLI cases to
 `spec/conformance/cli-cases.tsv` where it has none. Timebox 30 minutes;
 push.
 
+### D2k. Design Text After The Pool And Solver-Lookup Work
+
+Two architecture commits landed: "pool: …" (#61, ends at 97ef2c30) and
+"solver: owner lookup, candidate directory and impl universes" (#62a).
+Their implementers listed where the design text was wrong or vague.
+Update `future-work/compiler/data-structures.md` and
+`future-work/compiler/trait-solver.md` so the text matches the code, and
+mark any matching `reconciliation.md` rows fixed:
+
+- Pool (§3.3, §3.9): list items live in a typed `tys` column with an
+  `[start, len]` record in `extra` (lending `&[Ty]` from `u32` words
+  would need unsafe outside `AppendVec`); the body-local pool is
+  hash-consed (the checker compares variable-holding types with `==`)
+  and is not truncated on rollback; one fresh local pool per body, not
+  one per worker; local index bits 27..30 hold a 4-bit pool generation
+  (overlaps the carry/module tier bits 29..30 — record as an open
+  layout decision); per-owner columns, the static pre-seed table and the
+  node count in `meta` are not built yet.
+- Union-find (§3.19): union by rank with trailed link/rank/kind changes,
+  no path compression (`root` stays a read).
+- Solver lookup (§3.2, §3.3): tables are per folder, not per module;
+  the directory is merged once per impl universe from that universe's
+  folders (no barrier, so scheduler.md §6.1's "universes add no edge"
+  holds) rather than one global directory frozen before bodies;
+  `STD_BUILTIN_TABLE` became an "unowned" table that also holds impls
+  rejected as `nonlocal-impl`/`orphan-impl`, and a folder joins a
+  universe if it has `arg_impls` or unowned rows; the universe is in the
+  key of every goal with an open argument (the checker asks
+  instantiations and method traits as `Implements` with fresh
+  variables); a `Bind` step whose bound leaves trait arguments implicit
+  does read the directory; no `arg_impls` section hash (nothing persists
+  the directory); `HeaderCheck(F)` has no universe because header checks
+  run a separate solver; the memo is not consulted yet; the head index
+  is a per-trait permutation, and the `arg_key` fast reject is not done.
+
+Docs only; no spec edits. Timebox 45 minutes; push.
+
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
