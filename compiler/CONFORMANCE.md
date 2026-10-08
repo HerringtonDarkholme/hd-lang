@@ -8,7 +8,7 @@ fixture and CLI case; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1191 | 929 | 823 | 2943 |
+| 1204 | 916 | 823 | 2943 |
 
 ## By Chapter
 
@@ -19,14 +19,14 @@ fixture and CLI case; unsupported surface records progress without failing.
 | `lang/02-grammar.md` | 178 | 16 | 20 | 214 |
 | `lang/03-names-and-scopes.md` | 33 | 41 | 27 | 101 |
 | `lang/04-type-system.md` | 196 | 102 | 53 | 351 |
-| `lang/05-expressions.md` | 84 | 91 | 102 | 277 |
+| `lang/05-expressions.md` | 86 | 89 | 102 | 277 |
 | `lang/06-control-flow.md` | 93 | 34 | 30 | 157 |
 | `lang/07-functions.md` | 45 | 35 | 50 | 130 |
 | `lang/08-data-and-enums.md` | 42 | 52 | 29 | 123 |
 | `lang/09-traits.md` | 135 | 164 | 59 | 358 |
 | `lang/10-modules.md` | 82 | 123 | 53 | 258 |
 | `lang/11-requirements-and-suspension.md` | 86 | 70 | 103 | 259 |
-| `lang/14-annotations.md` | 38 | 93 | 22 | 153 |
+| `lang/14-annotations.md` | 49 | 82 | 22 | 153 |
 | `std/cli.md` | 1 | 0 | 4 | 5 |
 | `std/cmp.md` | 2 | 0 | 12 | 14 |
 | `std/collections.md` | 8 | 6 | 15 | 29 |
@@ -66,7 +66,7 @@ fixture and CLI case; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 26 | 50 | 29 | 105 |
 | `runtime/valid` | 182 | 241 | 506 | 929 |
-| `typing/invalid` | 398 | 551 | 123 | 1072 |
+| `typing/invalid` | 411 | 538 | 123 | 1072 |
 | `typing/valid` | 292 | 59 | 64 | 415 |
 | `typing/warnings` | 6 | 14 | 0 | 20 |
 
@@ -95,7 +95,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 9 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 349 |
+| `fail:no-diagnostic` | 336 |
 | `fail:nonexhaustive-match` | 16 |
 | `fail:not-callable` | 2 |
 | `fail:orphan-impl` | 1 |
@@ -302,7 +302,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (349)</summary>
+<details><summary><code>fail:no-diagnostic</code> (336)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -436,7 +436,6 @@ compiler stage that first declined the case.
 - `typing/invalid/test-timeout-string.hd`
 - `typing/invalid/block-on-in-fact.hd`
 - `typing/invalid/block-on-in-metadata.hd`
-- `typing/invalid/derive-before-function.hd`
 - `typing/invalid/duplicate-declaration-fact.hd`
 - `typing/invalid/trait-less-block-omit.hd`
 - `typing/invalid/trait-less-block-method.hd`
@@ -452,22 +451,15 @@ compiler stage that first declined the case.
 - `typing/invalid/println-in-defer.hd`
 - `typing/invalid/test-module-tests-block.hd`
 - `typing/invalid/integration-test-tests-block.hd`
-- `typing/invalid/derive-before-trait.hd`
 - `typing/invalid/duplicate-function-fact.hd`
 - `typing/invalid/facts-of-closure.hd`
 - `typing/invalid/facts-of-local-binding.hd`
-- `typing/invalid/decorator-target-kind.hd`
-- `typing/invalid/decorator-target-newtype.hd`
-- `typing/invalid/annotate-before-function.hd`
-- `typing/invalid/decorator-target-member-line.hd`
 - `typing/invalid/literal-suffix-parameter-type.hd`
 - `typing/invalid/literal-suffix-extra-parameter.hd`
 - `typing/invalid/literal-suffix-suspending.hd`
-- `typing/invalid/num-suffix-before-data.hd`
 - `typing/invalid/string-prefix-parameter-type.hd`
 - `typing/invalid/string-prefix-extra-parameter.hd`
 - `typing/invalid/string-prefix-suspending.hd`
-- `typing/invalid/str-prefix-before-data.hd`
 - `typing/invalid/ambiguous-row-pattern.hd`
 - `typing/invalid/row-subsumption-missing-key.hd`
 - `typing/invalid/literal-suffix-no-parameter.hd`
@@ -510,10 +502,6 @@ compiler stage that first declined the case.
 - `typing/invalid/error-message-unknown-name.hd`
 - `typing/invalid/error-message-not-display.hd`
 - `typing/invalid/error-from-same-type.hd`
-- `typing/invalid/error-before-function.hd`
-- `typing/invalid/error-bare-before-data.hd`
-- `typing/invalid/error-message-before-enum.hd`
-- `typing/invalid/error-from-beside-other-member.hd`
 - `typing/invalid/error-second-cause.hd`
 - `typing/invalid/error-from-type-parameter.hd`
 - `typing/invalid/error-cause-not-error.hd`
@@ -542,7 +530,6 @@ compiler stage that first declined the case.
 - `typing/invalid/display-tuple-element-without-display.hd`
 - `typing/invalid/default-tuple-element-without-default.hd`
 - `typing/invalid/typed-fact-mismatch.hd`
-- `typing/invalid/typed-fact-not-field.hd`
 - `typing/invalid/typed-fact-expected-mismatch.hd`
 - `typing/invalid/tuple-template-overlap.hd`
 - `typing/invalid/arbitrary-with-wrong-generator.hd`
@@ -2665,6 +2652,7 @@ typing/invalid/alias-bound-bare-trait.hd
 typing/invalid/alias-unknown-target.hd
 typing/invalid/all-bang-child.hd
 typing/invalid/all-non-suspend-argument.hd
+typing/invalid/annotate-before-function.hd
 typing/invalid/any-exposes-no-methods.hd
 typing/invalid/anyref-rejects-enum.hd
 typing/invalid/anyref-rejects-tuple.hd
@@ -2748,10 +2736,15 @@ typing/invalid/data-pattern-unknown-field.hd
 typing/invalid/dbg-void-binding.hd
 typing/invalid/debug-missing-derive.hd
 typing/invalid/declaration-requirement-not-on-result.hd
+typing/invalid/decorator-target-kind.hd
+typing/invalid/decorator-target-member-line.hd
+typing/invalid/decorator-target-newtype.hd
 typing/invalid/default-body-inherent-method.hd
 typing/invalid/defer-return.hd
 typing/invalid/defer-suspends.hd
 typing/invalid/derive-and-block-overlap.hd
+typing/invalid/derive-before-function.hd
+typing/invalid/derive-before-trait.hd
 typing/invalid/derive-beside-written-impl.hd
 typing/invalid/derive-unknown-trait.hd
 typing/invalid/derived-arbitrary-generic-bound.hd
@@ -2775,7 +2768,11 @@ typing/invalid/enum-payload-bare-trait.hd
 typing/invalid/enum-shared-constructor-payload.hd
 typing/invalid/eprintln-without-console.hd
 typing/invalid/erase-readonly-to-mut-inspectable.hd
+typing/invalid/error-bare-before-data.hd
+typing/invalid/error-before-function.hd
 typing/invalid/error-find-non-error.hd
+typing/invalid/error-from-beside-other-member.hd
+typing/invalid/error-message-before-enum.hd
 typing/invalid/facts-find-unbounded-key.hd
 typing/invalid/facts-of-without-import.hd
 typing/invalid/float-literal-map-key.hd
@@ -2911,6 +2908,7 @@ typing/invalid/nonexhaustive-bool-match.hd
 typing/invalid/nonexhaustive-match.hd
 typing/invalid/nonnumeric-unary-plus.hd
 typing/invalid/num-bound-newtype.hd
+typing/invalid/num-suffix-before-data.hd
 typing/invalid/num-trait-needs-import.hd
 typing/invalid/operator-newtype-no-inherit.hd
 typing/invalid/operator-rhs-default-mismatch.hd
@@ -3005,6 +3003,7 @@ typing/invalid/short-binding-readonly-root.hd
 typing/invalid/single-file-self-use.hd
 typing/invalid/slice-assignment.hd
 typing/invalid/snapshot-file-needs-test-runner.hd
+typing/invalid/str-prefix-before-data.hd
 typing/invalid/strengthened-missing-bound.hd
 typing/invalid/string-index-assignment.hd
 typing/invalid/string-index-signed.hd
@@ -3037,6 +3036,7 @@ typing/invalid/tuple-trait-user-impl.hd
 typing/invalid/tuple-vararg-arity.hd
 typing/invalid/type-default-impl-mismatch.hd
 typing/invalid/type-name-as-value.hd
+typing/invalid/typed-fact-not-field.hd
 typing/invalid/u32-to-usize-binding.hd
 typing/invalid/unary-minus-string.hd
 typing/invalid/unary-plus-i32-literal-range.hd

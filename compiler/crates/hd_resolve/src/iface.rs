@@ -248,6 +248,10 @@ pub struct Item {
     pub generics: Vec<Generic>,
     /// `@intrinsic("key")`: the body is the compiler's.
     pub intrinsic: Option<Symbol>,
+    /// The target kinds a fact type's `@annotate(...)` line allows, as the
+    /// bits of `crate::lower::kind` (`annot.target.limit`); `None` limits
+    /// nothing.
+    pub targets: Option<u16>,
     pub data: ItemData,
 }
 
@@ -260,6 +264,7 @@ impl Item {
             public,
             generics: Vec::new(),
             intrinsic: None,
+            targets: None,
             data,
         }
     }
@@ -574,6 +579,7 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
     w.u8(u8::from(it.public));
     put_generics(w, t, &it.generics)?;
     w.u32(it.intrinsic.map_or(u32::MAX, |s| t.sym(s)));
+    w.u32(it.targets.map_or(u32::MAX, u32::from));
     match &it.data {
         ItemData::Fn(s) => {
             w.u8(0);
@@ -664,6 +670,10 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
     let generics = get_generics(r, t)?;
     let i = r.u32();
     let intrinsic = if i == u32::MAX { None } else { Some(t.sym(i)?) };
+    let targets = match r.u32() {
+        u32::MAX => None,
+        m => Some(u16::try_from(m).ok()?),
+    };
     let data = match r.u8() {
         0 => ItemData::Fn(get_sig(r, t)?),
         1 => ItemData::Data(get_fields(r, t)?),
@@ -742,6 +752,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         public,
         generics,
         intrinsic,
+        targets,
         data,
     })
 }

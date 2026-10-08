@@ -416,3 +416,25 @@ fn checker_errors_are_reported() {
         assert!(codes(&out).contains(code), "{src}\n{}", out.render());
     }
 }
+
+const LIMITED_FACT: &str = "use std.annotation.annotate\n\n@annotate(.Field)\ndata MaxLen:\n    value: i32\n\nfn max_len(value: i32) -> MaxLen:\n    MaxLen { value: value }\n\ndata Profile:\n    @max_len(80)\n    name: string\n\n";
+
+/// A fact type limited to `.Field` is accepted on a field and rejected
+/// before a function (`annot.target.limit.kind-error`).
+#[test]
+fn decorator_target_kind_is_checked() {
+    let ok = program(&format!("{LIMITED_FACT}fn main() -> void:\n    pass\n"));
+    assert!(
+        !codes(&ok).contains(&Code::DecoratorTargetKind),
+        "{}",
+        ok.render()
+    );
+    let bad = program(&format!(
+        "{LIMITED_FACT}@max_len(3)\nfn greet() -> string:\n    \"hi\"\n\nfn main() -> void:\n    pass\n"
+    ));
+    let hits = codes(&bad)
+        .into_iter()
+        .filter(|c| *c == Code::DecoratorTargetKind)
+        .count();
+    assert_eq!(hits, 1, "{}", bad.render());
+}

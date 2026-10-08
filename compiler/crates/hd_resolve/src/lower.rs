@@ -33,6 +33,8 @@ use crate::iface::{
 };
 use crate::variance::{self, Seen};
 use crate::view::Src;
+
+mod decorators;
 use crate::{Binding, BindingKind, ModuleScope, Origin};
 
 /// The prelude (spec/lang/10-modules.md#prelude) as fixed uses: origin
@@ -1684,6 +1686,7 @@ impl Lower<'_, '_, '_> {
                 self.derived(h, &generics, out);
                 let mut it = Item::new(h.def, h.name, h.public, ItemData::Data(fields));
                 it.generics = generics;
+                it.targets = self.annotate_mask(n);
                 out.push(it);
             }
             HeadKind::Enum => {
@@ -1720,6 +1723,7 @@ impl Lower<'_, '_, '_> {
                 let mut it =
                     Item::new(h.def, h.name, h.public, ItemData::Enum { shared, variants });
                 it.generics = generics;
+                it.targets = self.annotate_mask(n);
                 out.push(it);
             }
             HeadKind::Trait => {
@@ -2044,6 +2048,25 @@ pub fn build_folder(
         });
     }
     if r.frozen.is_none() {
+        let items: HashMap<DefId, &Item> = out
+            .modules
+            .iter()
+            .flat_map(|m| m.items.iter())
+            .map(|i| (i.def, i))
+            .collect();
+        for (m, o) in mods.iter().zip(&out.modules) {
+            let mut low = Lower {
+                r: &r,
+                names: cx.names,
+                src: m.src,
+                module: &m.path,
+                scope: &o.scope,
+                kinds: &o.kinds,
+                diags,
+                unsupported: None,
+            };
+            low.check_module_decorators(&items);
+        }
         let mut seen = HashSet::new();
         for (m, us) in mods.iter().zip(&all_uses) {
             let mut publics: Vec<Symbol> = r
