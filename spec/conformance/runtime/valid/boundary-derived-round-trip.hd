@@ -1,6 +1,6 @@
 # test: a type with a private field crosses a host call out of hd and back in when it implements both traits, private field included, since derived serialize writes every member
 # Spec Modules, Private Fields At A Boundary: module.boundary.out, module.boundary.in, module.boundary.direction, module.boundary.serialize.exact (task #320).
-# fixture-runtime-profile: consent-vault
+# fixture-runtime-profile: serde-vault
 use std.serde.{Serialize, Deserialize}
 use std.testing.assert_equal
 

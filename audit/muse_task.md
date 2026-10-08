@@ -90,45 +90,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### S11. Spec Terminology Sweep: No Invented Words (Owner, After S10)
-
-Owner, 2026-10-07: "don't invent unnecessary new words". The spec has
-coined terms where a plain or established one exists ("consent" was one;
-S10 removes it). Sweep `spec/lang/`, `spec/std/`, `spec/cli/`,
-`spec/README.md` and `spec/STYLE.md`:
-
-1. **Inventory.** List every term the spec defines or uses as a term of
-   art: bold first uses (`**term**`), glossary entries
-   (`pnpm run spec glossary` if it exists; `spec/tools/spec-glossary.ts`),
-   and nouns repeated across chapters that are not ordinary English or
-   standard PL vocabulary.
-2. **Classify each** in `future-work/spec-terms.md` (a table: term,
-   where defined, meaning in plain words, verdict, replacement):
-   - **keep** — a standard term (Rust/Go/Swift/Kotlin/Haskell or PL
-     textbook vocabulary: trait, impl, monomorphization, variance,
-     row, suspension, closure, capture, ...) or a name the language
-     itself spells (`tests:`, `defer`, `dyn`);
-   - **replace** — coined or jargon where a plain phrase or the
-     established term says the same (give the replacement);
-   - **owner** — a coined term that names a real hd-only concept with no
-     established word: leave it, flag it for the owner with one plain
-     alternative.
-3. **Apply the "replace" rows** across spec text, rule IDs (new IDs,
-   old ones retired per `spec/STYLE.md`; fix citations with `pnpm run
-   spec refs`), fixtures' comments, `guide/` and `lib/std` doc comments.
-   Do not change behaviour or rule meaning; one commit per group of
-   related terms is fine.
-   Leftover from S10: the runtime test profile `consent-vault` (7
-   fixtures' `fixture-runtime-profile:` lines, `spec/conformance/README.md`,
-   and the runner code that defines it under `test/`) — rename it, e.g.
-   `serde-vault`.
-4. Add a short rule to `spec/STYLE.md`: a new term needs a reason no
-   existing word serves; prefer the trait name or the established term.
-
-`bash spec/check.sh` green after each commit. Report the table's counts
-(keep / replace / owner) and list the "owner" rows. Timebox 60 minutes;
-push.
-
 ### D2i. Reconcile P2-1b And Fix Two Fixtures
 
 P2-1b landed (53563951): the access-permission model (`hd_check/src/access.rs`),

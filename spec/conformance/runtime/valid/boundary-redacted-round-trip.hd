@@ -1,7 +1,7 @@
 # test: a hand-written Serialize that redacts a private field keeps it from the host: the value crosses as exactly what serialize writes
 # Spec Modules, Private Fields At A Boundary: module.boundary.serialize.exact, module.boundary.deserialize.exact.
 # Spec 14 Serialization: annot.serde.by-hand, annot.serde.definition.
-# fixture-runtime-profile: consent-vault
+# fixture-runtime-profile: serde-vault
 use std.serde.{Serialize, Serializer, Deserialize, Deserializer}
 use std.testing.assert_equal
 

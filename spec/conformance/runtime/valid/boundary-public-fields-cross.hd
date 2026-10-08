@@ -1,6 +1,6 @@
 # test: a data type whose fields are all pub crosses a host call both ways without Serialize or Deserialize, and an enum payload needs neither trait
 # Spec Modules, Private Fields At A Boundary: module.boundary.public, module.boundary.direction.
-# fixture-runtime-profile: consent-vault
+# fixture-runtime-profile: serde-vault
 use std.testing.assert_equal
 
 pub enum Scope:

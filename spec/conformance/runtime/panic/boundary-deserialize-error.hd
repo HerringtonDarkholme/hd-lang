@@ -1,6 +1,6 @@
 # test: a deserialize failure at the boundary is a host-contract panic the caller sees
 # Spec Modules, Private Fields At A Boundary: module.boundary.deserialize.exact.
-# fixture-runtime-profile: consent-vault
+# fixture-runtime-profile: serde-vault
 use std.serde.{Serialize, Serializer, Deserialize, Deserializer}
 
 pub data Token:

@@ -69,6 +69,11 @@ Prefer these forms:
 A restyle keeps the original verb when changing it could change the meaning.
 For example, the pilot keeps "cannot" in three rules.
 
+A new term needs a reason no existing word serves: prefer the trait name
+or the established term (Rust, Go, Swift, Kotlin, Haskell, or PL textbook
+vocabulary, or a name the language itself spells) over a coined one. When
+several existing words fit, use the plainest that says what it means.
+
 ## Rule IDs
 
 Every normative rule in a restyled chapter carries a **rule ID**: a stable,

@@ -1,6 +1,6 @@
 # test: a host capability method's result crosses into hd, so a type with a private field that only implements Serialize cannot be its result
 # Spec Modules, Private Fields At A Boundary: module.boundary.in, module.boundary.direction, module.boundary.error.
-# fixture-runtime-profile: consent-vault
+# fixture-runtime-profile: serde-vault
 use std.serde.Serialize
 
 @derive(Serialize)
