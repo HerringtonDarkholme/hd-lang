@@ -1375,7 +1375,7 @@ impl Em<'_> {
             self.a.s().i64_gt_s().i32_or();
         }
         self.a.if_();
-        self.panic("arithmetic-overflow: integer overflow");
+        self.panic("integer-overflow: integer overflow");
         self.a.end();
         self.a.get(r);
         if !wide {

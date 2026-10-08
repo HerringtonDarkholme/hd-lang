@@ -8,7 +8,7 @@ fixture and CLI case; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1540 | 789 | 616 | 2945 |
+| 1559 | 770 | 616 | 2945 |
 
 ## By Chapter
 
@@ -18,18 +18,18 @@ fixture and CLI case; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 127 | 16 | 2 | 145 |
 | `lang/02-grammar.md` | 183 | 14 | 17 | 214 |
 | `lang/03-names-and-scopes.md` | 65 | 20 | 16 | 101 |
-| `lang/04-type-system.md` | 239 | 84 | 29 | 352 |
-| `lang/05-expressions.md` | 134 | 79 | 64 | 277 |
-| `lang/06-control-flow.md` | 96 | 35 | 26 | 157 |
+| `lang/04-type-system.md` | 250 | 73 | 29 | 352 |
+| `lang/05-expressions.md` | 136 | 77 | 64 | 277 |
+| `lang/06-control-flow.md` | 97 | 34 | 26 | 157 |
 | `lang/07-functions.md` | 51 | 34 | 45 | 130 |
 | `lang/08-data-and-enums.md` | 52 | 43 | 28 | 123 |
-| `lang/09-traits.md` | 182 | 131 | 45 | 358 |
+| `lang/09-traits.md` | 184 | 129 | 45 | 358 |
 | `lang/10-modules.md` | 99 | 123 | 36 | 258 |
 | `lang/11-requirements-and-suspension.md` | 104 | 55 | 100 | 259 |
 | `lang/14-annotations.md` | 61 | 73 | 19 | 153 |
 | `std/cli.md` | 1 | 0 | 4 | 5 |
 | `std/cmp.md` | 8 | 0 | 6 | 14 |
-| `std/collections.md` | 17 | 6 | 6 | 29 |
+| `std/collections.md` | 18 | 5 | 6 | 29 |
 | `std/console.md` | 6 | 1 | 0 | 7 |
 | `std/digest.md` | 0 | 2 | 0 | 2 |
 | `std/encoding.md` | 3 | 0 | 0 | 3 |
@@ -39,7 +39,7 @@ fixture and CLI case; unsupported surface records progress without failing.
 | `std/hash.md` | 3 | 2 | 4 | 9 |
 | `std/host.md` | 0 | 0 | 2 | 2 |
 | `std/http.md` | 0 | 0 | 2 | 2 |
-| `std/iter.md` | 14 | 8 | 3 | 25 |
+| `std/iter.md` | 15 | 7 | 3 | 25 |
 | `std/json.md` | 2 | 1 | 16 | 19 |
 | `std/net.md` | 0 | 1 | 0 | 1 |
 | `std/num.md` | 8 | 10 | 0 | 18 |
@@ -55,7 +55,7 @@ fixture and CLI case; unsupported surface records progress without failing.
 | `std/task.md` | 1 | 1 | 5 | 7 |
 | `std/testing.md` | 14 | 23 | 2 | 39 |
 | `std/text.md` | 27 | 5 | 3 | 35 |
-| `std/time.md` | 14 | 2 | 1 | 17 |
+| `std/time.md` | 15 | 1 | 1 | 17 |
 
 ## By Directory
 
@@ -64,8 +64,8 @@ fixture and CLI case; unsupported surface records progress without failing.
 | `cli` | 0 | 0 | 102 | 102 |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 34 | 52 | 19 | 105 |
-| `runtime/valid` | 385 | 200 | 344 | 929 |
+| `runtime/panic` | 52 | 34 | 19 | 105 |
+| `runtime/valid` | 386 | 199 | 344 | 929 |
 | `typing/invalid` | 499 | 469 | 105 | 1073 |
 | `typing/valid` | 328 | 41 | 46 | 415 |
 | `typing/warnings` | 7 | 13 | 0 | 20 |
@@ -104,7 +104,7 @@ compiler stage that first declined the case.
 | `fail:pattern-arity` | 2 |
 | `fail:pipe-step-needs-placeholder` | 5 |
 | `fail:placeholder-outside-pipe` | 1 |
-| `fail:runtime-exit` | 75 |
+| `fail:runtime-exit` | 56 |
 | `fail:stdout` | 10 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
@@ -659,21 +659,16 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (75)</summary>
+<details><summary><code>fail:runtime-exit</code> (56)</summary>
 
 - `runtime/panic/for-loop-iterator-invalidated.hd`
-- `runtime/panic/integer-add-overflow.hd`
 - `runtime/panic/invalid-shift.hd`
-- `runtime/panic/integer-negation-overflow.hd`
 - `runtime/panic/invalidated-iterator.hd`
 - `runtime/panic/integer-divide-by-zero.hd`
-- `runtime/panic/signed-min-division-overflow.hd`
 - `runtime/panic/defer-block-on-indirect.hd`
 - `runtime/panic/assert-equal-f64-unequal.hd`
 - `runtime/valid/nested-closure-captures.hd`
 - `runtime/valid/map-lookup-and-duplicate-keys.hd`
-- `runtime/panic/i32-add-overflow-in-function.hd`
-- `runtime/panic/i32-min-divided-by-minus-one.hd`
 - `runtime/valid/literal-patterns.hd`
 - `runtime/valid/string-trim-and-lower.hd`
 - `runtime/valid/bounded-blanket-supertraits.hd`
@@ -681,7 +676,6 @@ compiler stage that first declined the case.
 - `runtime/valid/suspending-call-in-scoped-defer.hd`
 - `runtime/panic/for-iterator-invalidated-via-helper.hd`
 - `runtime/valid/signed-zero-and-infinity-through-generics.hd`
-- `runtime/panic/generic-i32-overflow.hd`
 - `runtime/panic/exhausted-iterator-invalidated-by-growth.hd`
 - `runtime/panic/alias-growth-invalidates-readonly-iterator.hd`
 - `runtime/valid/empty-string-operations.hd`
@@ -691,9 +685,6 @@ compiler stage that first declined the case.
 - `runtime/valid/replace-empty-old.hd`
 - `runtime/panic/duration-suffix-overflow.hd`
 - `runtime/valid/narrowing-cast-wraps.hd`
-- `runtime/panic/operator-generic-overflow.hd`
-- `runtime/panic/intrinsic-method-overflow.hd`
-- `runtime/panic/num-from-i64-overflow.hd`
 - `runtime/valid/pipe-nested-placeholder.hd`
 - `runtime/panic/compound-assign-map-missing-key.hd`
 - `runtime/panic/string-slice-inside-scalar.hd`
@@ -713,28 +704,18 @@ compiler stage that first declined the case.
 - `runtime/valid/num-saturating.hd`
 - `runtime/valid/num-every-width.hd`
 - `runtime/valid/num-bit-counts.hd`
-- `runtime/panic/duration-add-overflow.hd`
 - `runtime/valid/digest-sha256-vectors.hd`
 - `runtime/valid/digest-sha256-long.hd`
 - `runtime/panic/deque-invalidated.hd`
 - `runtime/valid/list-pop.hd`
 - `runtime/valid/list-insert-remove-clear.hd`
 - `runtime/valid/num-to-fixed.hd`
-- `runtime/panic/list-index-underflow.hd`
-- `runtime/panic/usize-len-underflow.hd`
-- `runtime/panic/literal-var-fallback-overflow.hd`
-- `runtime/panic/sign-fallback-balance-underflow.hd`
-- `runtime/valid/sized-integer-arithmetic.hd`
-- `runtime/panic/u8-add-overflow.hd`
 - `runtime/valid/dbg-prints-void.hd`
 - `runtime/valid/num-rotate.hd`
-- `runtime/panic/iterator-sum-overflow.hd`
-- `runtime/panic/list-sum-overflow.hd`
 - `runtime/valid/generic-data-let-pattern.hd`
 - `runtime/valid/generic-data-match-pattern.hd`
 - `runtime/valid/generic-data-pattern-in-generic-function.hd`
 - `runtime/panic/unbounded-recursion.hd`
-- `runtime/panic/usize-max-overflow-wasm32.hd`
 - `runtime/valid/console-error-line-override.hd`
 
 </details>
@@ -2126,18 +2107,31 @@ runtime/panic/char-to-digit-radix-high.hd
 runtime/panic/char-to-digit-radix-low.hd
 runtime/panic/cli-duplicate-option.hd
 runtime/panic/cmp-clamp-reversed.hd
+runtime/panic/duration-add-overflow.hd
 runtime/panic/explicit-panic-skips-defer.hd
 runtime/panic/explicit-panic.hd
+runtime/panic/generic-i32-overflow.hd
+runtime/panic/i32-add-overflow-in-function.hd
+runtime/panic/i32-min-divided-by-minus-one.hd
+runtime/panic/integer-add-overflow.hd
+runtime/panic/integer-negation-overflow.hd
+runtime/panic/intrinsic-method-overflow.hd
+runtime/panic/iterator-sum-overflow.hd
 runtime/panic/list-chunks-zero.hd
 runtime/panic/list-index-out-of-bounds.hd
 runtime/panic/list-index-u64-beyond-u32.hd
+runtime/panic/list-index-underflow.hd
 runtime/panic/list-insert-out-of-range.hd
 runtime/panic/list-remove-at-out-of-range.hd
 runtime/panic/list-set-out-of-bounds.hd
 runtime/panic/list-set-u64-beyond-u32.hd
+runtime/panic/list-sum-overflow.hd
 runtime/panic/list-windows-size.hd
+runtime/panic/literal-var-fallback-overflow.hd
 runtime/panic/manual-clock-negative-sleep.hd
+runtime/panic/num-from-i64-overflow.hd
 runtime/panic/num-to-fixed-digits-range.hd
+runtime/panic/operator-generic-overflow.hd
 runtime/panic/option-expect-none.hd
 runtime/panic/println-console-closed.hd
 runtime/panic/result-expect-err.hd
@@ -2145,7 +2139,12 @@ runtime/panic/rng-int-empty-range.hd
 runtime/panic/rng-sample-too-many.hd
 runtime/panic/second-drive-of-completed-suspension.hd
 runtime/panic/second-suspension-drive.hd
+runtime/panic/sign-fallback-balance-underflow.hd
+runtime/panic/signed-min-division-overflow.hd
 runtime/panic/string-index-out-of-bounds.hd
+runtime/panic/u8-add-overflow.hd
+runtime/panic/usize-len-underflow.hd
+runtime/panic/usize-max-overflow-wasm32.hd
 runtime/valid/assert-equal-bool.hd
 runtime/valid/assert-equal-char.hd
 runtime/valid/assert-equal-f64.hd
@@ -2463,6 +2462,7 @@ runtime/valid/shared-enum-data-defaults.hd
 runtime/valid/shared-mutable-child-no-invariants.hd
 runtime/valid/shift-count-unsigned.hd
 runtime/valid/shorter-promotion-path-wins.hd
+runtime/valid/sized-integer-arithmetic.hd
 runtime/valid/split-empty-input-nonempty-separator.hd
 runtime/valid/static-and-dynamic-trait-dispatch.hd
 runtime/valid/stored-suspension-parameter.hd
