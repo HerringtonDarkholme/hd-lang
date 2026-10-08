@@ -26,4 +26,4 @@ fn main() -> void $ Console:
     println(classify(0))
     println(classify(7))
     println(17 % 5 + 100 / 7)
-    println(-(2 + 3) * 2)
+    println(-(+2 + 3) * 2)

@@ -335,6 +335,17 @@ impl Ck<'_, '_> {
                         _ => self.literal_at(tok, want)?,
                     }
                 };
+                // A literal pattern takes the scrutinee's type.
+                if let Some(w) = want
+                    && self.b.const_of(r).is_some()
+                    && self
+                        .infer
+                        .kind_of(self.pool(), t)
+                        .is_some_and(|k| k != VarKind::General)
+                {
+                    let pool = self.cx.names.pool;
+                    let _ = self.infer.unify(pool, t, w);
+                }
                 if neg && let Some((ct, bits)) = self.b.const_of(r) {
                     return Ok((
                         self.b
@@ -396,7 +407,7 @@ impl Ck<'_, '_> {
         {
             let lit = matches!(
                 self.infer.kind_of(pool, t),
-                Some(VarKind::IntLit | VarKind::FloatLit)
+                Some(VarKind::IntLit | VarKind::SignedIntLit | VarKind::FloatLit)
             );
             match pool.get(self.strip_mut(t)) {
                 _ if lit => self.err(

@@ -229,7 +229,7 @@ fn with_blocks_provide_requirements() {
 #[test]
 fn pipes_and_comprehensions_check() {
     let out = program(
-        "fn add(a: i32, b: i32) -> i32:\n    a + b\n\nfn main() -> void $ Console:\n    xs := [1, 2, 3, 4]\n    y := 3 |> add(_, 1)\n    evens := [for x in xs if x % 2 == 0 => x * 10]\n    m := {for x in xs => \"$x\": x + y}\n    println(evens.len() + m.len())\n",
+        "fn add(a: i32, b: i32) -> i32:\n    a + b\n\nfn main() -> void $ Console:\n    xs := [+1, 2, 3, 4]\n    y := 3 |> add(_, 1)\n    evens := [for x in xs if x % 2 == 0 => x * 10]\n    m := {for x in xs => \"$x\": x + y}\n    println(evens.len() + m.len())\n",
     );
     assert!(
         codes(&out).iter().all(|c| *c == Code::Unsupported),
@@ -437,4 +437,24 @@ fn decorator_target_kind_is_checked() {
         .filter(|c| *c == Code::DecoratorTargetKind)
         .count();
     assert_eq!(hits, 1, "{}", bad.render());
+}
+
+/// A bare integer literal defaults to `usize`; a signed one to `i32`
+/// (`types.literal.local.default`).
+#[test]
+fn integer_literals_take_their_default_types() {
+    let ok = program(
+        "fn main() -> void:\n    x := 3\n    y := +3\n    z := -1\n    let a: usize = x\n    let b: i32 = y\n    let c: i32 = z\n    pass\n",
+    );
+    assert!(!ok.render().contains("error"), "{}", ok.render());
+    for (name, want) in [("x", "i32"), ("y", "usize"), ("z", "usize")] {
+        let bad = program(&format!(
+            "fn main() -> void:\n    x := 3\n    y := +3\n    z := -1\n    let w: {want} = {name}\n    pass\n"
+        ));
+        assert!(
+            codes(&bad).contains(&Code::TypeMismatch),
+            "{name}: {}",
+            bad.render()
+        );
+    }
 }

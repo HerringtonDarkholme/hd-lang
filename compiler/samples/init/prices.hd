@@ -1,4 +1,4 @@
-markup := 5
+markup := +5
 let mut calls: i32 = 0
 
 pub fn price_of(sku: string) -> i32:

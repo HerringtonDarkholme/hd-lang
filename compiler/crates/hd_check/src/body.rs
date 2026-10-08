@@ -953,7 +953,28 @@ impl Ck<'_, '_> {
     /// One statement; its type is `never` when it cannot complete.
     pub(crate) fn stmt(&mut self, s: NodeRef<'_>) -> StageResult<Ty> {
         let span = self.cx.src.span(s);
-        self.stmt_node(s).map_err(|e| e.at(span))
+        let start = self.infer.var_count();
+        let r = self.stmt_node(s).map_err(|e| e.at(span));
+        // A `break` value joins with the loop's other values, so its class
+        // stays open until the join (`types.literal.local.form.join-open`).
+        if s.kind() != SyntaxKind::BreakStmt {
+            self.close_literals(start);
+        }
+        r
+    }
+
+    /// `types.literal.local.class.open`: a literal class that met no type
+    /// by the end of its statement takes its default type.
+    fn close_literals(&mut self, start: usize) {
+        let pool = self.cx.names.pool;
+        for (t, k) in self.infer.open_literals_since(pool, start) {
+            let d = match k {
+                VarKind::SignedIntLit => Ty::I32,
+                VarKind::IntLit => Ty::prim(hd_types::Prim::Usize),
+                _ => Ty::prim(hd_types::Prim::F64),
+            };
+            let _ = self.infer.unify(pool, t, d);
+        }
     }
 
     fn stmt_node(&mut self, s: NodeRef<'_>) -> StageResult<Ty> {
@@ -1283,7 +1304,8 @@ impl Ck<'_, '_> {
             TyData::Infer(_) => {
                 let d = match self.infer.kind_of(pool, r) {
                     Some(VarKind::FloatLit) => Ty::prim(hd_types::Prim::F64),
-                    Some(VarKind::IntLit) => Ty::I32,
+                    Some(VarKind::SignedIntLit) => Ty::I32,
+                    Some(VarKind::IntLit) => Ty::prim(hd_types::Prim::Usize),
                     _ => Ty::POISON,
                 };
                 if d != Ty::POISON {

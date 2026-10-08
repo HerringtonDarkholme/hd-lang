@@ -441,6 +441,12 @@ impl Ck<'_, '_> {
         };
         let (r, t) = self.expr(*e, want)?;
         let pool = self.cx.names.pool;
+        if matches!(op, Some(TokenKind::Plus | TokenKind::Minus))
+            && self.b.const_of(r).is_some()
+            && self.cx.src.tkind(self.cx.src.first(*e)) == Some(TokenKind::Number)
+        {
+            self.infer.mark_signed(pool, t);
+        }
         let st = self.strip_mut(t);
         let numeric = self.numeric(t);
         let prim = match pool.get(st) {
@@ -715,7 +721,12 @@ impl Ck<'_, '_> {
         let pool = self.cx.names.pool;
         let c = self.strip_mut(ct);
         let ok = match pool.get(c) {
-            TyData::Infer(_) if self.infer.kind_of(pool, c) == Some(VarKind::IntLit) => {
+            TyData::Infer(_)
+                if matches!(
+                    self.infer.kind_of(pool, c),
+                    Some(VarKind::IntLit | VarKind::SignedIntLit)
+                ) =>
+            {
                 self.infer.unify(pool, c, Ty::prim(Prim::U32)).is_ok()
             }
             TyData::Prim(p) => p.is_unsigned(),

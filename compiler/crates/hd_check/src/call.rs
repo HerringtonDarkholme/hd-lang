@@ -363,7 +363,7 @@ impl Ck<'_, '_> {
         if self.b.const_of(r).is_some()
             && matches!(
                 self.infer.kind_of(self.pool(), t),
-                Some(VarKind::IntLit | VarKind::FloatLit)
+                Some(VarKind::IntLit | VarKind::SignedIntLit | VarKind::FloatLit)
             )
             && self.can_unify(t, to)
         {
@@ -1492,12 +1492,13 @@ impl Ck<'_, '_> {
         }
         // A literal's type is its default once a member is asked of it.
         if matches!(pool.get(t), TyData::Infer(_))
-            && let Some(k @ (VarKind::IntLit | VarKind::FloatLit)) = self.infer.kind_of(pool, t)
+            && let Some(k @ (VarKind::IntLit | VarKind::SignedIntLit | VarKind::FloatLit)) =
+                self.infer.kind_of(pool, t)
         {
-            let d = if k == VarKind::IntLit {
-                Ty::I32
-            } else {
-                Ty::prim(Prim::F64)
+            let d = match k {
+                VarKind::SignedIntLit => Ty::I32,
+                VarKind::IntLit => Ty::prim(Prim::Usize),
+                _ => Ty::prim(Prim::F64),
             };
             let _ = self.infer.unify(pool, t, d);
             return self.resolve_method(d, name);

@@ -44,12 +44,12 @@ fn find(xs: List[i32], want: i32) -> i32?:
     .None
 
 fn main() -> void $ Console:
-    xs := [3, 1, 4, 1, 5]
+    xs := [+3, 1, 4, 1, 5]
     let total = +0
     for x in xs:
         total = total + x
     println("total $total of ${xs.len()}")
-    scale := 10
+    scale := +10
     times := fn(v: i32) -> i32: v * scale
     println(times(4))
     r := Rect { w: 2, h: 3 }

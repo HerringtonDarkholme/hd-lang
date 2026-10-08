@@ -11,6 +11,8 @@ use crate::pool::{InternPool, Ty, TyData};
 pub enum VarKind {
     General,
     IntLit,
+    /// An integer literal class with a signed member (`-1`, `+5`).
+    SignedIntLit,
     FloatLit,
 }
 
@@ -110,6 +112,40 @@ impl InferTable {
         }
     }
 
+    /// The number of variables made so far.
+    #[must_use]
+    pub fn var_count(&self) -> usize {
+        self.parent.len()
+    }
+
+    /// Variables from `start` on whose class is an unbound literal, with
+    /// the class kind (the literal classes a statement leaves open).
+    #[must_use]
+    pub fn open_literals_since(&self, pool: &InternPool, start: usize) -> Vec<(Ty, VarKind)> {
+        (start..self.parent.len())
+            .filter_map(|v| {
+                let t = pool.intern_ty(&TyData::Infer(InferVar::from_raw(
+                    u32::try_from(v).expect("vars"),
+                )));
+                match self.kind_of(pool, t) {
+                    Some(k) if k != VarKind::General => Some((t, k)),
+                    _ => None,
+                }
+            })
+            .collect()
+    }
+
+    /// Marks an unbound integer literal class as holding a signed literal.
+    pub fn mark_signed(&mut self, pool: &InternPool, t: Ty) {
+        if let TyData::Infer(v) = pool.get(self.shallow(pool, t)) {
+            let r = self.root(v.raw());
+            if self.kind[r as usize] == VarKind::IntLit {
+                self.trail.push(Undo::Kind(r, VarKind::IntLit));
+                self.kind[r as usize] = VarKind::SignedIntLit;
+            }
+        }
+    }
+
     /// Resolves every variable it can, recursively.
     #[must_use]
     pub fn resolve(&self, pool: &InternPool, t: Ty) -> Ty {
@@ -197,7 +233,9 @@ impl InferTable {
         }
         let ok = match (self.kind[v as usize], pool.get(t)) {
             (VarKind::General, _) | (_, TyData::Poison | TyData::Never) => true,
-            (VarKind::IntLit, TyData::Prim(p)) => p.is_integer() || p.is_float(),
+            (VarKind::IntLit | VarKind::SignedIntLit, TyData::Prim(p)) => {
+                p.is_integer() || p.is_float()
+            }
             (VarKind::FloatLit, TyData::Prim(p)) => p.is_float(),
             _ => false,
         };
@@ -240,6 +278,9 @@ impl InferTable {
                 let merged = match (kx, ky) {
                     (VarKind::General, k) | (k, VarKind::General) => k,
                     (VarKind::FloatLit, _) | (_, VarKind::FloatLit) => VarKind::FloatLit,
+                    (VarKind::SignedIntLit, _) | (_, VarKind::SignedIntLit) => {
+                        VarKind::SignedIntLit
+                    }
                     _ => VarKind::IntLit,
                 };
                 self.trail.push(Undo::Parent(x, self.parent[x as usize]));
