@@ -83,18 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q19. Diagnostic Rendering Versus The Spec
-
-The new compiler prints `error: main.hd:0..39: error unknown-module:
-unknown-module ...` (byte offsets, "error" and the code repeated).
-Compare its rendering against the spec's diagnostic format rules
-(`spec/cli/command-line.md` and wherever the spec defines rendering,
-positions and the JSON form) on five broken programs (parse, name,
-type, row, runtime panic). Write `future-work/compiler/diagnostics-format.md`:
-a table per rule (spec rule ID, required form, new compiler's output,
-match / differs), and the list of changes the compiler needs. Report
-only. Timebox 30 minutes; push.
-
 ### Q20. One Known-Gaps Backlog
 
 Merge every open gap from `reconciliation.md` (D2a–D2f findings),
