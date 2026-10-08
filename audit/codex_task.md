@@ -83,19 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q14. Hello-World Size Breakdown
-
-`hello` builds to 4.8 KB (the target is 2 KB, `size-startup-heap`).
-Build `compiler/samples/hello` with the release `hd build`, then write
-`audit/compiler/size-hello-<short hash>.md`: bytes per section, then
-every function and data segment with its size and **why it is
-reachable** (the call chain from `main`, e.g. `println` → std number
-formatting → ...), and the name section's share. End with a ranked list
-of the five biggest contributors, each marked implementation slip or
-design issue, with the design section involved. Use a small script under
-`compiler/bench/` (wasm-tools or a hand parser) so it can be rerun.
-Report only; don't edit `compiler/crates/`. Timebox 30 minutes; push.
-
 ### Q15. Phase-2 Job Briefs From The Work Estimate
 
 From `future-work/compiler/work-estimate.md`'s ordered job list, write
