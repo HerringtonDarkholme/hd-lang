@@ -77,6 +77,7 @@ test-report	cli.test.report.pass,cli.test.report.heading,cli.test.report.failure
 dbg-value-forms	cli.dbg.run
 derivation-lines-agree	cli.json.summary.result,cli.exit.success
 dev-dependency-cyclic-integration	cli.dep.path,cli.json.test.result
+dev-dependency-tests-block	cli.dep.path,cli.json.test.result
 entry-err-display	cli.file.run,cli.exit.program
 entry-err-chain	cli.file.run,cli.exit.program
 task-beside-dir	cli.task.beside-dir,cli.exit.hd-failure

@@ -90,17 +90,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### S7. Spec: `use` Lines Inside `tests:` Blocks
-
-Check `spec/lang/10-modules.md` (and 14-annotations if `tests:` lives
-there) for how a `use` line inside a `tests:` block is scoped: visible
-only to that block's cases, or to the module; shadowing against the
-module's own names; whether it may name test-only dependencies. If the
-spec is silent or ambiguous, write numbered rules with IDs per
-`spec/STYLE.md`, an example each, consistent with the TS prototype when
-it has settled behaviour (flag real conflicts in the commit message).
-One type-phase fixture per new rule. Timebox 30 minutes; push.
-
 ### T4. Conformance Triage For Phase 2
 
 From `compiler/CONFORMANCE.md` (Q18) at the current main, map every

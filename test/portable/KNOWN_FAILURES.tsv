@@ -82,3 +82,5 @@ typing/invalid/impl-target-row-extension.hd	check exits 0 on an implementation t
 typing/invalid/positional-spread-duplicates-vararg.hd	check reports nonfinal-positional-spread on `collect(nums..., +4)`, where supplying the vararg by spread and by another positional value is duplicate-argument (expr.call.spread.vararg-duplicate)	Q3
 cli/dep-one-key-per-line	`hd check` exits 0 when two dependency keys name one host path and compatibility line (module.dep.one-key-per-line)	S1
 cli/toolchain-too-old	`hd check` exits 0 when the root package requires toolchain version 999.0.0 (module.toolchain.graph-minimum)	S1
+typing/invalid/tests-block-use-leak.hd	check exits 0: a use inside the tests block stays in scope for the whole module, so the outer name resolves (names.tests.inside-only)	S7
+cli/dev-dependency-tests-block	hd test reports test-only-use on the tests-block use: a dev dependency used from a tests block is rejected although test code may use it (module.test.dev-dependency)	S7

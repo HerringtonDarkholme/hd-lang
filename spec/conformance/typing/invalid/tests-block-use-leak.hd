@@ -1,0 +1,11 @@
+# test: a name a tests-block use introduces is not visible outside the block
+# Spec 03 Tests Blocks: names.tests.inside-only.
+# Naming the used name outside the block is unknown-name.
+fn report(ok: bool) -> void:
+    assert_equal(ok, true, reason="the block's import stays inside")  # diagnostic: unknown-name
+
+tests:
+    use std.testing.assert_equal
+
+    it("checks a flag"):
+        assert_equal(true, true, reason="ok")

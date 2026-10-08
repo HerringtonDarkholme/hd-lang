@@ -1,0 +1,11 @@
+# test: a use inside a tests block must not repeat a name used outside the block
+# Spec 03 Tests Blocks: names.tests.no-shadow.
+use std.testing.assert_equal
+
+fn double(n: i32) -> i32: n + n
+
+tests:
+    use std.testing.assert_equal  # diagnostic: duplicate-module-name
+
+    it("doubles"):
+        assert_equal(double(3), 6, reason="math")

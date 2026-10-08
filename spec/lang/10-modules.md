@@ -388,6 +388,20 @@ tests/common/mod.hd    # tests.common, shared by integration test programs
 19. r[module.test.non-test-use.dev-dependency] Code under the source root, other than test code, that uses a dev dependency is an error. Error: `test-only-use`.
 20. r[module.test.cyclic-dev-unit] A dev dependency that itself depends on the package must not be used from a `tests:` block or a test module. Error: `cyclic-test-dependency`.
 21. r[module.test.cyclic-dev-allowed] Integration test modules and [tasks](../cli/command-line.md#tasks) may use such a dev dependency.
+22. r[module.test.dev-dependency.in-tests] A use inside a `tests:` block may name a dev dependency that does not depend on the package.
+
+```hd
+# src/lib.hd of package shop, whose dev-dependency fx supplies sample data
+fn order_count(lines: List[string]) -> usize:
+    lines.len()
+
+tests:
+    use dep.fx.{sample_orders}
+    use std.testing.assert_equal
+
+    it("counts the sample orders"):
+        assert_equal(order_count(sample_orders()), 2, reason="two sample orders")
+```
 
 > **Why.** Each integration test program builds on its own, as each Cargo
 > integration test is its own crate. So helpers go in a subdirectory such

@@ -94,7 +94,7 @@ lang/03-names-and-scopes.md	4	mixed	typing/invalid/method-type-parameter-reuses-
 lang/03-names-and-scopes.md	5	accept	typing/valid/names-and-scopes.hd
 lang/03-names-and-scopes.md	6	mixed	typing/invalid/sibling-module-function-not-imported.hd|typing/invalid/sibling-module-private-function-bare.hd
 lang/03-names-and-scopes.md	7	mixed	typing/invalid/forward-module-binding.hd
-lang/03-names-and-scopes.md	8	mixed	typing/invalid/tests-block-item-outside.hd|typing/invalid/public-test-item.hd
+lang/03-names-and-scopes.md	8	mixed	typing/invalid/tests-block-item-outside.hd|typing/invalid/public-test-item.hd|typing/invalid/tests-block-use-shadow.hd|typing/invalid/tests-block-use-leak.hd
 lang/03-names-and-scopes.md	9	accept	parse/valid/uses.hd
 lang/03-names-and-scopes.md	10	type-fragment	-
 lang/03-names-and-scopes.md	11	accept	typing/valid/literal-suffix-local-shadow.hd

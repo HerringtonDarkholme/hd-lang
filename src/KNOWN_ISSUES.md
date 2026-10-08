@@ -33,6 +33,7 @@ CLI tier.
 | S1C | 1 | a template helper gets no public signature rules |
 | S1D | 32 | `dyn Trait` is parsed as the bare trait: bare trait types are accepted, the per-trait dynamic-safety gate is kept, `impl dyn Tr:` folds into `Tr`'s default methods, and supertrait bindings are not merged or checked for conflicts |
 | S1E | 3 | GADT variant result types and variant type parameters still parse; a fact's panic keeps its own category, not `fact-evaluation-failed` |
+| S7 | 2 | a `tests:`-block `use` stays in scope for the whole module, and a dev dependency used from a `tests:` block is rejected |
 
 ## Findings
 
