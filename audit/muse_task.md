@@ -90,18 +90,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q21. Writing-Log Audit: Diagnostics Worth Improving
-
-`audit/hd-writing-log.md` has rows from Haiku and Sonnet sessions with
-the compiler's verbatim message and whether it helped (yes / partly /
-no). For every "no" and "partly" row, check what the **new** Rust
-compiler says today for the same mistake (write the one-line repro, run
-`compiler/target/release/hd FILE.hd`), and write
-`audit/compiler/diagnostics-from-log.md`: mistake, old message, new
-message, helped now?, the spec rule, and a proposed better message (one
-line). Rank by how often the mistake appears. Report only; don't edit
-the compiler. Timebox 45 minutes; push.
-
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
