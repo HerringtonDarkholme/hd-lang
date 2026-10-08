@@ -817,6 +817,11 @@ impl Ck<'_, '_> {
 
     /// One statement; its type is `never` when it cannot complete.
     pub(crate) fn stmt(&mut self, s: NodeRef<'_>) -> StageResult<Ty> {
+        let span = self.cx.src.span(s);
+        self.stmt_node(s).map_err(|e| e.at(span))
+    }
+
+    fn stmt_node(&mut self, s: NodeRef<'_>) -> StageResult<Ty> {
         self.charge()?;
         let kids: Vec<NodeRef<'_>> = s.children().collect();
         match s.kind() {

@@ -5,6 +5,8 @@
 
 use core::fmt;
 
+use crate::Span;
+
 /// Every stage of the pipeline, in run order (design-overview.md §1.2,
 /// codegen.md §11.2, scheduler.md §6.1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -82,6 +84,8 @@ impl Stage {
 pub struct NotImplemented {
     pub stage: Stage,
     pub what: String,
+    /// Where the construct is, when the stage knows it.
+    pub span: Option<Span>,
 }
 
 impl NotImplemented {
@@ -90,7 +94,16 @@ impl NotImplemented {
         Self {
             stage,
             what: what.into(),
+            span: None,
         }
+    }
+
+    /// Sets the span if none is set yet, so the innermost node that knows
+    /// its position wins as the error unwinds.
+    #[must_use]
+    pub fn at(mut self, span: Span) -> Self {
+        self.span.get_or_insert(span);
+        self
     }
 }
 

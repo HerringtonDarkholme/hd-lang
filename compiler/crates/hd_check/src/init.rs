@@ -102,7 +102,7 @@ pub fn check_init(
     let mut per_stmt = Vec::new();
     for (i, s) in stmts.iter().enumerate() {
         ck.init_stmt = i;
-        ck.top_level(*s)?;
+        ck.top_level(*s).map_err(|e| e.at(cx.src.span(*s)))?;
         per_stmt.push(std::mem::take(&mut ck.facts));
     }
     // Final types of the bindings, before the body's own sweep.

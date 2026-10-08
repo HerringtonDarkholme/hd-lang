@@ -169,3 +169,27 @@ fn run_file_ignores_broken_siblings() {
     std::fs::write(dir.join("broken.hd"), "fn broken( :\n").expect("write");
     assert_eq!(hd_run(&cache("hd-cache-sibling"), &file), "fine\n");
 }
+
+/// An `unsupported` error names the file and position of the construct,
+/// not the sentinel span `:0..0`.
+#[test]
+fn unsupported_error_names_its_file() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-unsupported");
+    std::fs::create_dir_all(&dir).expect("dir");
+    let file = dir.join("spread.hd");
+    std::fs::write(
+        &file,
+        "data Point:\n    x: i32\n    y: i32\n\nfn main() -> void:\n    p := Point { x: +1, y: +2 }\n    q := Point { ...p, x: +3 }\n    pass\n",
+    )
+    .expect("write");
+    let output = hd(&cache("hd-cache-unsupported"))
+        .arg("run")
+        .arg(&file)
+        .output()
+        .expect("run hd");
+    assert!(!output.status.success());
+    let err = String::from_utf8_lossy(&output.stderr);
+    assert!(err.contains("spread.hd:"), "{err}");
+    assert!(err.contains("a data literal spread"), "{err}");
+    assert!(!err.contains(":0..0"), "{err}");
+}

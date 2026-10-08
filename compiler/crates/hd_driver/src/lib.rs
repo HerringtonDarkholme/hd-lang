@@ -438,6 +438,7 @@ pub fn build(host: &Host<'_>, package: &str, goal: &Goal) -> Output {
         run.stop(
             Stage::PackageResult,
             &format!("{left} tasks never became ready"),
+            None,
         );
     }
     let mut counters = lock(&run.counters).clone();
@@ -540,19 +541,21 @@ impl Run<'_> {
             Err(e) => {
                 lock(&self.report).not_implemented(s, &e.what);
                 if !self.analyze() {
-                    self.stop(s, &e.what);
+                    self.stop(s, &e.what, e.span);
                 }
                 None
             }
         }
     }
 
-    fn stop(&self, s: Stage, what: &str) {
-        let span = Span {
+    /// Reports a stop; `at` is where the stage found the construct, or the
+    /// sentinel span when the stage has no position.
+    fn stop(&self, s: Stage, what: &str, at: Option<Span>) {
+        let span = at.unwrap_or(Span {
             file: FileId::from_raw(u32::MAX),
             lo: 0,
             hi: 0,
-        };
+        });
         lock(&self.diags).error(
             Code::Unsupported,
             span,

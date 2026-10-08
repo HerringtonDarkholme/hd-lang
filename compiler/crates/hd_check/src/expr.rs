@@ -123,6 +123,11 @@ pub(crate) fn literal_text(src: &hd_resolve::Src<'_>, n: NodeRef<'_>) -> Option<
 
 impl Ck<'_, '_> {
     pub(crate) fn expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
+        let span = self.cx.src.span(n);
+        self.expr_node(n, want).map_err(|e| e.at(span))
+    }
+
+    fn expr_node(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         self.charge()?;
         let pool = self.cx.names.pool;
         let kids: Vec<NodeRef<'_>> = n.children().collect();
