@@ -513,27 +513,17 @@ impl Ck<'_, '_> {
         else {
             return;
         };
-        // A defaulted trait argument left out (`Add[Out = Self]` is
-        // `Add[Self, Out = Self]`), so the clause matches its goals.
+        // Headers carry their defaults filled; a bound the checker forms
+        // itself is filled the same way, so the clause matches its goals.
         let args = match self.cx.lookup.item(def) {
-            Some(it) if it.generics.len() > pool.list_items(args).len() => {
-                let mut v = pool.list_items(args).to_vec();
-                for g in it.generics.iter().skip(v.len()) {
-                    let Some(d) = g.default else { break };
-                    let known = v.clone();
-                    v.push(pool.subst(d, &|p: ParamRef| {
-                        if p.owner != def {
-                            None
-                        } else if p.index == 0 {
-                            Some(self_ty)
-                        } else {
-                            known.get(p.index as usize - 1).copied()
-                        }
-                    }));
-                }
-                pool.list(&v)
-            }
-            _ => args,
+            Some(it) => hd_resolve::fill_trait_args(
+                self.cx.names.pool,
+                def,
+                &it.generics,
+                args,
+                Some(self_ty),
+            ),
+            None => args,
         };
         if depth > 16
             || (0..self.env.clause_self.len()).any(|i| {

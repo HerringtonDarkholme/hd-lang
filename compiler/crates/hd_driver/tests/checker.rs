@@ -491,3 +491,82 @@ fn integer_literals_take_their_default_types() {
         );
     }
 }
+
+const MONEY_ADD: &str = "use std.ops.Add\n\ndata Money:\n    cents: i64\n\nimpl Add for Money:\n    type Out = Money\n    fn add(self, rhs: Money) -> Money:\n        Money { cents: self.cents + rhs.cents }\n\n";
+
+/// A bound that omits a defaulted trait argument takes the default, as an
+/// impl head does: `T < Add` is `T < Add[T]`, which `impl Add for Money`
+/// (`Add[Money]`) satisfies (`types.generic.default.written`,
+/// `expr.op.trait.rhs-self`).
+#[test]
+fn a_bound_takes_the_trait_argument_default() {
+    for twice in [
+        "fn twice[T < Add](x: T) -> T::Out:\n    x + x\n\n",
+        "fn twice[T < Add[Out = T]](x: T) -> T:\n    x + x\n\n",
+    ] {
+        let out = program(&format!(
+            "{MONEY_ADD}{twice}fn main() -> void:\n    _m := twice(Money {{ cents: 2 }})\n    pass\n"
+        ));
+        assert!(codes(&out).is_empty(), "{twice}{}", out.render());
+    }
+}
+
+fn program_of(files: &[(&str, &str)]) -> Output {
+    let mut src = MemorySources::default();
+    for (path, text) in files {
+        src.insert(path, text);
+    }
+    let store = MemoryStore::default();
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    build(
+        &host,
+        "app",
+        &Goal::Program {
+            entry: "main".into(),
+        },
+    )
+}
+
+const SAME: &str = "trait Same[Other = Self]:\n    fn same(self, other: Other) -> bool\n";
+const CONVERT: &str = "trait Convert[A, B = A]:\n    fn convert(self, a: A) -> B\n";
+const SAME_USES: &str = "data Money:\n    cents: i64\n\nimpl Same for Money:\n    fn same(self, other: Money) -> bool:\n        self.cents == other.cents\n\nimpl Convert[i64] for Money:\n    fn convert(self, a: i64) -> i64:\n        self.cents + a\n\nfn check[T < Same](left: T, right: T) -> bool:\n    left.same(right)\n\nfn plus[T < Convert[i64]](x: T) -> i64:\n    x.convert(1)\n\nfn main() -> void:\n    _a := check(Money { cents: 1 }, Money { cents: 1 })\n    _b := plus(Money { cents: 1 })\n    pass\n";
+
+/// A trait of the same folder fills its defaults in impl heads and bounds
+/// whatever the declaration order, in the trait's own module (private)
+/// and in a sibling module: `impl Same for Money` is `Same[Money]` and
+/// `T < Same` is `T < Same[T]` (a default naming `Self`); `Convert[i64]`
+/// is `Convert[i64, i64]` (a default naming an earlier parameter).
+#[test]
+fn same_folder_trait_defaults_fill_in_any_order() {
+    let one = program(&format!("{SAME_USES}\n{SAME}\n{CONVERT}"));
+    assert!(codes(&one).is_empty(), "{}", one.render());
+    let sibling = format!("pub {SAME}\npub {CONVERT}");
+    let two = program_of(&[
+        (
+            "main.hd",
+            &format!("use pkg.zz.{{Same, Convert}}\n\n{SAME_USES}"),
+        ),
+        ("zz.hd", &sibling),
+    ]);
+    assert!(codes(&two).is_empty(), "{}", two.render());
+}
+
+/// The written and the defaulted form of one trait reference are one
+/// impl head, so two impls of them overlap.
+#[test]
+fn a_filled_default_and_the_written_argument_overlap() {
+    let out = program(&format!(
+        "data Money:\n    cents: i64\n\nimpl Same for Money:\n    fn same(self, other: Money) -> bool:\n        true\n\nimpl Same[Money] for Money:\n    fn same(self, other: Money) -> bool:\n        false\n\n{SAME}\nfn main() -> void:\n    pass\n"
+    ));
+    assert!(
+        codes(&out).contains(&Code::OverlappingImpl),
+        "{}",
+        out.render()
+    );
+}

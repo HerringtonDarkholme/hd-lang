@@ -21,7 +21,7 @@ use hd_types::{ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList};
 
 use crate::iface::{
     Export, Field, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item, ItemData, Names,
-    TraitData, Variant,
+    TraitData, Variant, fill_trait_args,
 };
 use crate::variance::{self, Seen};
 use crate::view::Src;
@@ -328,6 +328,11 @@ struct Resolver<'a, 'b> {
     /// This folder's aliases, lowered in module order.
     aliases: RefCell<HashMap<DefId, (usize, Ty)>>,
     seeds: HashMap<DefId, Item>,
+    /// The declared parameters of the traits of the modules being lowered,
+    /// lowered before any other header, so a trait reference fills its
+    /// defaults whatever the declaration order, and a private trait (which
+    /// a frozen interface leaves out) is filled as while it was built.
+    own_traits: HashMap<DefId, Vec<Generic>>,
 }
 
 impl Resolver<'_, '_> {
@@ -391,37 +396,19 @@ impl Resolver<'_, '_> {
         iface.item(d).cloned()
     }
 
-    /// An impl head's trait arguments with the trait's omitted trailing
-    /// arguments filled from their defaults (`types.type-args.default`):
-    /// `impl Add for Money` implements `Add[Money]`
-    /// (`expr.op.trait.rhs-self`). Parameter 0 is `Self`.
-    fn default_trait_args(&self, tr: DefId, args: TyList, self_ty: Ty) -> TyList {
+    /// A trait reference's arguments with the omitted trailing ones filled
+    /// from the trait's defaults (`iface::fill_trait_args`): `impl Add for
+    /// Money` implements `Add[Money]` (`expr.op.trait.rhs-self`), and
+    /// `T < Add` is `T < Add[T]`.
+    fn fill_trait_args(&self, tr: DefId, args: TyList, self_ty: Option<Ty>) -> TyList {
         let pool = self.cx.names.pool;
-        let Some(item) = self.item(tr) else {
-            return args;
-        };
-        let mut v = pool.list_items(args).to_vec();
-        if v.len() >= item.generics.len() {
-            return args;
+        if let Some(g) = self.own_traits.get(&tr) {
+            return fill_trait_args(pool, tr, g, args, self_ty);
         }
-        for g in &item.generics[v.len()..] {
-            let Some(d) = g.default else {
-                return args;
-            };
-            let known = v.clone();
-            let t = pool.subst(d, &|p: ParamRef| {
-                if p.owner != tr {
-                    return None;
-                }
-                if p.index == 0 {
-                    Some(self_ty)
-                } else {
-                    known.get(p.index as usize - 1).copied()
-                }
-            });
-            v.push(t);
+        match self.item(tr) {
+            Some(item) => fill_trait_args(pool, tr, &item.generics, args, self_ty),
+            None => args,
         }
-        pool.list(&v)
     }
 
     fn trait_has_assoc(&self, tr: DefId, name: Symbol) -> bool {
@@ -583,10 +570,15 @@ fn scope_of(
 /// An associated type declared in a trait or bound in an impl body.
 type AssocDecl = (Symbol, DefId, Option<Ty>);
 
+/// A bound's trait and its arguments, defaults filled.
+type BoundRef = (DefId, TyList);
+
 /// The type parameters in scope while lowering one header.
 #[derive(Clone, Default)]
 struct Gen {
-    tys: Vec<(Symbol, Ty, Vec<DefId>)>,
+    /// Type parameters in scope: name, type, and each bound's trait with
+    /// its (default-filled) arguments.
+    tys: Vec<(Symbol, Ty, Vec<BoundRef>)>,
     rows: Vec<(Symbol, RowParamRef)>,
     self_ty: Option<Ty>,
     self_trait: Option<DefId>,
@@ -703,8 +695,11 @@ impl Lower<'_, '_, '_> {
     }
 
     /// A trait reference (a bound, a supertrait, an impl's trait, a `dyn`
-    /// or a row key) as a trait-value type.
-    fn trait_value(&mut self, n: NodeRef<'_>, gn: &Gen) -> Option<Ty> {
+    /// or a row key) as a trait-value type, its omitted trailing arguments
+    /// filled from their defaults with `self_ty` as `Self`
+    /// (`types.generic.default.written`). `self_ty` is `None` for a `dyn`
+    /// type and a row key.
+    fn trait_value(&mut self, n: NodeRef<'_>, gn: &Gen, self_ty: Option<Ty>) -> Option<Ty> {
         let segs = self.segments(n);
         let span = self.src.span(n);
         let found = self.resolve_path(&segs, span);
@@ -735,9 +730,10 @@ impl Lower<'_, '_, '_> {
                 )
             })
             .collect();
+        let args = self.names.pool.list(&args);
         Some(self.names.pool.intern_ty(&TyData::TraitValue {
             def,
-            args: self.names.pool.list(&args),
+            args: self.r.fill_trait_args(def, args, self_ty),
             bindings,
         }))
     }
@@ -766,7 +762,7 @@ impl Lower<'_, '_, '_> {
                 data.params.push(*p);
                 continue;
             }
-            if let Some(t) = self.trait_value(c, gn) {
+            if let Some(t) = self.trait_value(c, gn, None) {
                 data.keys.push(t);
             }
         }
@@ -938,7 +934,7 @@ impl Lower<'_, '_, '_> {
                 let Some(c) = Src::child(n, SyntaxKind::NamedType) else {
                     return Ty::POISON;
                 };
-                self.trait_value(c, gn).unwrap_or(Ty::POISON)
+                self.trait_value(c, gn, None).unwrap_or(Ty::POISON)
             }
             SyntaxKind::FunctionType => {
                 let arrow = n
@@ -977,11 +973,15 @@ impl Lower<'_, '_, '_> {
                     return Ty::POISON;
                 };
                 let name = self.sym(self.src.text(t));
-                let mut cands: Vec<DefId> = Vec::new();
+                // `Self::X` inside a trait leaves the trait's arguments
+                // implicit (each use instantiates them); `T::X` names the
+                // bound's arguments, defaults filled, so `T::Out` under
+                // `T < Add` is `<T as Add[T]>::Out`.
+                let mut cands: Vec<BoundRef> = Vec::new();
                 if Some(base) == gn.self_ty
                     && let Some(tr) = gn.self_trait
                 {
-                    cands.push(tr);
+                    cands.push((tr, TyList::EMPTY));
                 }
                 if let Some((_, _, bounds)) = gn.tys.iter().find(|(_, t, _)| *t == base) {
                     cands.extend(bounds.iter().copied());
@@ -989,9 +989,9 @@ impl Lower<'_, '_, '_> {
                 let tr = cands
                     .iter()
                     .copied()
-                    .find(|tr| self.r.trait_has_assoc(*tr, name))
+                    .find(|(tr, _)| self.r.trait_has_assoc(*tr, name))
                     .or_else(|| cands.first().copied());
-                let Some(trait_) = tr else {
+                let Some((trait_, args)) = tr else {
                     self.gap("a projection on a type without a bound naming it");
                     return Ty::POISON;
                 };
@@ -1001,7 +1001,7 @@ impl Lower<'_, '_, '_> {
                         .member(trait_, PathKind::Member, self.names.text(name)),
                     trait_,
                     self_ty: base,
-                    args: TyList::EMPTY,
+                    args,
                 })
             }
             SyntaxKind::InferType => Ty::POISON,
@@ -1072,8 +1072,12 @@ impl Lower<'_, '_, '_> {
                 g.mut_bound = bl
                     .direct_token(&self.src.parse.tokens, TokenKind::KwMut)
                     .is_some();
+                let me = (!row)
+                    .then(|| gn.tys[start..].iter().find(|(s, _, _)| *s == g.name))
+                    .flatten()
+                    .map(|(_, t, _)| *t);
                 for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
-                    if let Some(t) = self.trait_value(b, gn) {
+                    if let Some(t) = self.trait_value(b, gn, me) {
                         bounds.push(t);
                     }
                 }
@@ -1083,7 +1087,7 @@ impl Lower<'_, '_, '_> {
                 slot.2 = bounds
                     .iter()
                     .filter_map(|b| match self.names.pool.get(*b) {
-                        TyData::TraitValue { def, .. } => Some(def),
+                        TyData::TraitValue { def, args, .. } => Some((def, args)),
                         _ => None,
                     })
                     .collect();
@@ -1518,13 +1522,13 @@ impl Lower<'_, '_, '_> {
             .map(|t| self.src.text(*t).to_owned());
         let (trait_, trait_args, header_bindings) = match trait_node {
             None => (DefId::NONE, TyList::EMPTY, Vec::new()),
-            Some(tn) => match self.trait_value(tn, &gn) {
+            Some(tn) => match self.trait_value(tn, &gn, Some(self_ty)) {
                 Some(tv) => match pool.get(tv) {
                     TyData::TraitValue {
                         def,
                         args,
                         bindings,
-                    } => (def, self.r.default_trait_args(def, args, self_ty), bindings),
+                    } => (def, args, bindings),
                     _ => return,
                 },
                 None => return,
@@ -1619,20 +1623,20 @@ impl Lower<'_, '_, '_> {
                         .intern(self.names.module(self.module), PathKind::Impl, &seg)
                         .raw(),
                 );
-                let tv = pool.intern_ty(&TyData::TraitValue {
-                    def: tr,
-                    args: TyList::EMPTY,
-                    bindings: vec![],
-                });
                 let mut gs = Vec::new();
                 let mut params = Vec::new();
                 for (i, g) in generics.iter().enumerate() {
                     let index = u16::try_from(i).unwrap_or(u16::MAX);
-                    params.push(pool.intern_ty(&TyData::Param(ParamRef { owner: def, index })));
+                    let param = pool.intern_ty(&TyData::Param(ParamRef { owner: def, index }));
+                    params.push(param);
                     let mut g2 = Generic::plain(g.name);
                     if !g.row {
                         g2.bound = Some(tr);
-                        g2.bounds = vec![tv];
+                        g2.bounds = vec![pool.intern_ty(&TyData::TraitValue {
+                            def: tr,
+                            args: self.r.fill_trait_args(tr, TyList::EMPTY, Some(param)),
+                            bindings: vec![],
+                        })];
                     }
                     g2.row = g.row;
                     gs.push(g2);
@@ -1647,7 +1651,7 @@ impl Lower<'_, '_, '_> {
                     true,
                     ItemData::Impl {
                         trait_: tr,
-                        trait_args: TyList::EMPTY,
+                        trait_args: self.r.fill_trait_args(tr, TyList::EMPTY, Some(self_ty)),
                         self_ty,
                         methods: vec![],
                         assoc: vec![],
@@ -1661,9 +1665,25 @@ impl Lower<'_, '_, '_> {
         }
     }
 
+    /// A trait's `Self` (its parameter 0), the scope of its header, and
+    /// its declared parameters.
+    fn trait_generics(&mut self, h: &Head<'_>) -> (Ty, Gen, Vec<Generic>) {
+        let self_ty = self.names.pool.intern_ty(&TyData::Param(ParamRef {
+            owner: h.def,
+            index: 0,
+        }));
+        let mut gn = Gen {
+            self_ty: Some(self_ty),
+            self_trait: Some(h.def),
+            ..Gen::default()
+        };
+        let gl = Src::child(h.node, SyntaxKind::GenericParameterList);
+        let generics = self.generics(gl, h.def, 1, &mut gn);
+        (self_ty, gn, generics)
+    }
+
     fn item(&mut self, h: &Head<'_>, out: &mut Vec<Item>) {
         let n = h.node;
-        let pool = self.names.pool;
         let block = Src::child(n, SyntaxKind::Block);
         let gl = Src::child(n, SyntaxKind::GenericParameterList);
         match h.kind {
@@ -1725,16 +1745,7 @@ impl Lower<'_, '_, '_> {
                 out.push(it);
             }
             HeadKind::Trait => {
-                let self_ty = pool.intern_ty(&TyData::Param(ParamRef {
-                    owner: h.def,
-                    index: 0,
-                }));
-                let mut gn = Gen {
-                    self_ty: Some(self_ty),
-                    self_trait: Some(h.def),
-                    ..Gen::default()
-                };
-                let generics = self.generics(gl, h.def, 1, &mut gn);
+                let (self_ty, gn, generics) = self.trait_generics(h);
                 // A trait's parameters are invariant (types.variance.trait-params).
                 if self.r.frozen.is_none()
                     && let Some(gl) = gl
@@ -1756,7 +1767,7 @@ impl Lower<'_, '_, '_> {
                 let mut supers = Vec::new();
                 if let Some(bl) = Src::child(n, SyntaxKind::BoundList) {
                     for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
-                        if let Some(t) = self.trait_value(b, &gn) {
+                        if let Some(t) = self.trait_value(b, &gn, Some(self_ty)) {
                             supers.push(t);
                         }
                     }
@@ -1937,6 +1948,7 @@ pub fn build_folder(
         variances: HashMap::new(),
         aliases: RefCell::new(HashMap::new()),
         seeds: HashMap::new(),
+        own_traits: HashMap::new(),
     };
     for (m, hs) in mods.iter().zip(&all_heads) {
         for h in hs {
@@ -2007,8 +2019,14 @@ pub fn build_folder(
         exports: Vec::new(),
     };
     let mut unsupported = None;
-    for ((m, hs), us) in mods.iter().zip(&all_heads).zip(&all_uses) {
-        let (scope, kinds) = scope_of(&r, m, hs, us, diags);
+    let scopes: Vec<(ModuleScope, Kinds)> = mods
+        .iter()
+        .zip(&all_heads)
+        .zip(&all_uses)
+        .map(|((m, hs), us)| scope_of(&r, m, hs, us, diags))
+        .collect();
+    r.own_traits = own_trait_generics(&r, mods, &all_heads, &scopes);
+    for ((m, hs), (scope, kinds)) in mods.iter().zip(&all_heads).zip(scopes) {
         let mut items: Vec<Item> = Vec::new();
         {
             let mut low = Lower {
@@ -2110,6 +2128,36 @@ pub fn build_folder(
         Some(what) => Err(NotImplemented::new(stage, what)),
         None => Ok(out),
     }
+}
+
+/// The declared parameters of every trait of `mods`, by trait, so their
+/// headers fill trait-argument defaults in any declaration order.
+/// The main lowering reports their diagnostics, so these are dropped.
+fn own_trait_generics(
+    r: &Resolver<'_, '_>,
+    mods: &[ModIn<'_>],
+    all_heads: &[Vec<Head<'_>>],
+    scopes: &[(ModuleScope, Kinds)],
+) -> HashMap<DefId, Vec<Generic>> {
+    let mut out = HashMap::new();
+    let mut scratch = DiagBuf::default();
+    for ((m, hs), (scope, kinds)) in mods.iter().zip(all_heads).zip(scopes) {
+        let mut low = Lower {
+            r,
+            names: r.cx.names,
+            src: m.src,
+            module: &m.path,
+            scope,
+            kinds,
+            diags: &mut scratch,
+            unsupported: None,
+        };
+        for h in hs.iter().filter(|h| h.kind == HeadKind::Trait) {
+            let (_, _, generics) = low.trait_generics(h);
+            out.entry(h.def).or_insert(generics);
+        }
+    }
+    out
 }
 
 /// The function nodes with bodies, by item: own functions and the methods

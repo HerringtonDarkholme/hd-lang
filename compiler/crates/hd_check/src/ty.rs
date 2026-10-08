@@ -172,9 +172,21 @@ impl Ck<'_, '_> {
                 .into_iter()
                 .map(|(name, t)| (self.cx.names.member(def, PathKind::Member, &name), t))
                 .collect();
+            // A written trait value omits its defaulted trailing arguments
+            // (`types.generic.default.written`); no `Self` is known here.
+            let args = match self.cx.lookup.item(def) {
+                Some(it) => hd_resolve::fill_trait_args(
+                    self.cx.names.pool,
+                    def,
+                    &it.generics,
+                    pool.list(&args),
+                    None,
+                ),
+                None => pool.list(&args),
+            };
             return Ok(pool.intern_ty(&TyData::TraitValue {
                 def,
-                args: pool.list(&args),
+                args,
                 bindings,
             }));
         }

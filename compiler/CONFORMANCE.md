@@ -8,25 +8,25 @@ fixture and CLI case; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1490 | 803 | 650 | 2943 |
+| 1496 | 795 | 654 | 2945 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
-| `cli/command-line.md` | 0 | 0 | 101 | 101 |
+| `cli/command-line.md` | 0 | 0 | 102 | 102 |
 | `lang/01-lexical-structure.md` | 127 | 16 | 2 | 145 |
 | `lang/02-grammar.md` | 179 | 15 | 20 | 214 |
 | `lang/03-names-and-scopes.md` | 65 | 20 | 16 | 101 |
-| `lang/04-type-system.md` | 238 | 82 | 31 | 351 |
-| `lang/05-expressions.md` | 122 | 84 | 71 | 277 |
+| `lang/04-type-system.md` | 238 | 83 | 31 | 352 |
+| `lang/05-expressions.md` | 125 | 79 | 73 | 277 |
 | `lang/06-control-flow.md` | 96 | 35 | 26 | 157 |
 | `lang/07-functions.md` | 50 | 34 | 46 | 130 |
 | `lang/08-data-and-enums.md` | 52 | 43 | 28 | 123 |
-| `lang/09-traits.md` | 178 | 131 | 49 | 358 |
+| `lang/09-traits.md` | 178 | 130 | 50 | 358 |
 | `lang/10-modules.md` | 98 | 122 | 38 | 258 |
 | `lang/11-requirements-and-suspension.md` | 104 | 55 | 100 | 259 |
-| `lang/14-annotations.md` | 59 | 74 | 20 | 153 |
+| `lang/14-annotations.md` | 60 | 73 | 20 | 153 |
 | `std/cli.md` | 1 | 0 | 4 | 5 |
 | `std/cmp.md` | 2 | 0 | 12 | 14 |
 | `std/collections.md` | 13 | 6 | 10 | 29 |
@@ -55,19 +55,19 @@ fixture and CLI case; unsupported surface records progress without failing.
 | `std/task.md` | 1 | 1 | 5 | 7 |
 | `std/testing.md` | 14 | 23 | 2 | 39 |
 | `std/text.md` | 27 | 5 | 3 | 35 |
-| `std/time.md` | 10 | 4 | 3 | 17 |
+| `std/time.md` | 12 | 2 | 3 | 17 |
 
 ## By Directory
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
-| `cli` | 0 | 0 | 101 | 101 |
+| `cli` | 0 | 0 | 102 | 102 |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 31 | 53 | 21 | 105 |
-| `runtime/valid` | 341 | 211 | 377 | 929 |
-| `typing/invalid` | 499 | 468 | 105 | 1072 |
-| `typing/valid` | 325 | 44 | 46 | 415 |
+| `runtime/panic` | 31 | 51 | 23 | 105 |
+| `runtime/valid` | 344 | 207 | 378 | 929 |
+| `typing/invalid` | 499 | 469 | 105 | 1073 |
+| `typing/valid` | 328 | 41 | 46 | 415 |
 | `typing/warnings` | 7 | 13 | 0 | 20 |
 
 ## Failure Buckets
@@ -96,7 +96,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 9 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 289 |
+| `fail:no-diagnostic` | 290 |
 | `fail:nonexhaustive-match` | 16 |
 | `fail:not-callable` | 1 |
 | `fail:orphan-impl` | 1 |
@@ -104,14 +104,14 @@ compiler stage that first declined the case.
 | `fail:pattern-arity` | 2 |
 | `fail:pipe-step-needs-placeholder` | 5 |
 | `fail:placeholder-outside-pipe` | 1 |
-| `fail:runtime-exit` | 78 |
+| `fail:runtime-exit` | 80 |
 | `fail:stdout` | 10 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
-| `fail:trait-method-signature` | 2 |
+| `fail:trait-method-signature` | 1 |
 | `fail:trait-used-as-type` | 2 |
-| `fail:type-mismatch` | 94 |
+| `fail:type-mismatch` | 87 |
 | `fail:type-used-as-value` | 2 |
 | `fail:unknown-data-field` | 13 |
 | `fail:unknown-import` | 29 |
@@ -122,13 +122,13 @@ compiler stage that first declined the case.
 | `fail:unknown-trait` | 8 |
 | `fail:unknown-type` | 2 |
 | `fail:unknown-variant` | 1 |
-| `fail:unsatisfied-trait-bound` | 38 |
-| `fail:unused-local-binding` | 11 |
+| `fail:unsatisfied-trait-bound` | 34 |
+| `fail:unused-local-binding` | 12 |
 | `unsupported:Body` | 194 |
-| `unsupported:CLI` | 101 |
+| `unsupported:CLI` | 102 |
 | `unsupported:Collect` | 88 |
 | `unsupported:Discover` | 13 |
-| `unsupported:Emit` | 172 |
+| `unsupported:Emit` | 175 |
 | `unsupported:FolderIface` | 35 |
 | `unsupported:Link` | 1 |
 | `unsupported:RunCase` | 41 |
@@ -302,7 +302,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (289)</summary>
+<details><summary><code>fail:no-diagnostic</code> (290)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -488,6 +488,7 @@ compiler stage that first declined the case.
 - `typing/invalid/assert-equal-numeric-widening.hd`
 - `typing/invalid/derived-arbitrary-function-member.hd`
 - `typing/invalid/derived-arbitrary-tuned-member-not-arbitrary.hd`
+- `typing/invalid/mut-on-type-parameter.hd`
 - `typing/invalid/function-type-rest-not-list.hd`
 - `typing/invalid/vararg-type-not-collection.hd`
 - `typing/invalid/function-type-unbounded-inputs.hd`
@@ -658,7 +659,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (78)</summary>
+<details><summary><code>fail:runtime-exit</code> (80)</summary>
 
 - `runtime/panic/for-loop-iterator-invalidated.hd`
 - `runtime/panic/integer-add-overflow.hd`
@@ -694,6 +695,7 @@ compiler stage that first declined the case.
 - `runtime/panic/string-slice-inside-scalar.hd`
 - `runtime/panic/string-slice-past-end.hd`
 - `runtime/panic/string-slice-reversed.hd`
+- `runtime/panic/index-trait-map-missing.hd`
 - `runtime/valid/comprehension-bang-calls.hd`
 - `runtime/panic/map-index-missing-key.hd`
 - `runtime/panic/list-view-reversed.hd`
@@ -712,6 +714,7 @@ compiler stage that first declined the case.
 - `runtime/valid/num-every-width.hd`
 - `runtime/valid/num-bit-counts.hd`
 - `runtime/valid/seeded-random.hd`
+- `runtime/panic/duration-add-overflow.hd`
 - `runtime/valid/digest-sha256-vectors.hd`
 - `runtime/valid/digest-sha256-long.hd`
 - `runtime/panic/deque-invalidated.hd`
@@ -784,10 +787,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:trait-method-signature</code> (2)</summary>
+<details><summary><code>fail:trait-method-signature</code> (1)</summary>
 
 - `typing/invalid/trait-impl-method-missing-result-type.hd`
-- `runtime/valid/generic-parameter-forms.hd`
 
 </details>
 
@@ -798,7 +800,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (94)</summary>
+<details><summary><code>fail:type-mismatch</code> (87)</summary>
 
 - `runtime/valid/structural-equality.hd`
 - `runtime/valid/structural-ordering.hd`
@@ -844,22 +846,18 @@ compiler stage that first declined the case.
 - `runtime/valid/derived-newtype.hd`
 - `typing/invalid/least-common-type-supertrait-widening.hd`
 - `typing/invalid/function-result-representation-change.hd`
-- `typing/valid/generic-missing-call.hd`
 - `typing/valid/debug-standard-types.hd`
 - `typing/invalid/row-union-other-parts.hd`
 - `typing/invalid/row-union-nested-lists.hd`
 - `typing/valid/row-union-omitted-result.hd`
 - `typing/invalid/row-union-if-nested-lists.hd`
 - `typing/invalid/operator-left-literal.hd`
-- `runtime/valid/primitive-operator-calls-method.hd`
+- `runtime/valid/intrinsic-method-calls.hd`
 - `typing/valid/row-union-private-result.hd`
 - `typing/invalid/pipe-brackets-after-bare-step.hd`
 - `typing/invalid/pipe-suspending-bare-step.hd`
 - `typing/invalid/placeholder-outside-pipe.hd`
 - `runtime/valid/iterator-from-fn.hd`
-- `typing/valid/index-traits-builtin.hd`
-- `runtime/valid/index-traits-builtin-run.hd`
-- `runtime/panic/index-trait-map-missing.hd`
 - `runtime/valid/never-break-continue.hd`
 - `typing/invalid/generic-inference-trait-value.hd`
 - `typing/invalid/vararg-rest-distinct.hd`
@@ -879,9 +877,6 @@ compiler stage that first declined the case.
 - `typing/invalid/lct-optional-two-layers.hd`
 - `typing/invalid/num-abs-diff-unsigned.hd`
 - `typing/invalid/num-bit-count-u32.hd`
-- `runtime/valid/duration-arithmetic.hd`
-- `runtime/panic/duration-add-overflow.hd`
-- `runtime/valid/duration-display.hd`
 - `typing/valid/literal-var-fallback.hd`
 - `typing/valid/sign-fallback-unsigned.hd`
 - `typing/valid/sign-fallback-signed.hd`
@@ -1113,7 +1108,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unsatisfied-trait-bound</code> (38)</summary>
+<details><summary><code>fail:unsatisfied-trait-bound</code> (34)</summary>
 
 - `typing/invalid/provider-value-type-mismatch.hd`
 - `runtime/valid/private-function-inferred-result.hd`
@@ -1123,11 +1118,7 @@ compiler stage that first declined the case.
 - `typing/invalid/generic-erasure-without-bound.hd`
 - `typing/invalid/closure-not-inspectable.hd`
 - `typing/invalid/spelled-function-type-not-inspectable.hd`
-- `runtime/panic/operator-generic-overflow.hd`
-- `runtime/valid/intrinsic-method-calls.hd`
-- `runtime/panic/intrinsic-method-overflow.hd`
 - `runtime/valid/iterator-adapters-run.hd`
-- `typing/valid/operator-rhs-default.hd`
 - `typing/valid/error-derivation.hd`
 - `runtime/valid/error-derivation-run.hd`
 - `typing/valid/error-generated-bounds.hd`
@@ -1156,7 +1147,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unused-local-binding</code> (11)</summary>
+<details><summary><code>fail:unused-local-binding</code> (12)</summary>
 
 - `typing/invalid/least-type-weakening-variance.hd`
 - `runtime/valid/map-iteration-order.hd`
@@ -1169,6 +1160,7 @@ compiler stage that first declined the case.
 - `runtime/panic/range-from-overflow.hd`
 - `typing/invalid/local-annotation-bare-trait.hd`
 - `runtime/valid/raw-identifiers-as-names.hd`
+- `runtime/valid/generic-parameter-forms.hd`
 
 </details>
 
@@ -1371,7 +1363,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:CLI</code> (101)</summary>
+<details><summary><code>unsupported:CLI</code> (102)</summary>
 
 - `cli/exit-program-status`
 - `cli/exit-test-failure`
@@ -1474,6 +1466,7 @@ compiler stage that first declined the case.
 - `cli/json-diagnostic-fixes`
 - `cli/fmt-check`
 - `cli/fmt-syntax-error`
+- `cli/check-summary`
 
 </details>
 
@@ -1588,7 +1581,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Emit</code> (172)</summary>
+<details><summary><code>unsupported:Emit</code> (175)</summary>
 
 - `runtime/valid/float-display.hd`
 - `runtime/panic/map-iterator-invalidated.hd`
@@ -1657,6 +1650,9 @@ compiler stage that first declined the case.
 - `runtime/valid/row-union-branches-run.hd`
 - `runtime/valid/row-union-closure-result-runs.hd`
 - `runtime/valid/operator-generic-primitive-run.hd`
+- `runtime/panic/operator-generic-overflow.hd`
+- `runtime/panic/intrinsic-method-overflow.hd`
+- `runtime/valid/primitive-operator-calls-method.hd`
 - `runtime/valid/float-remainder-run.hd`
 - `runtime/valid/literal-suffix-generic-num-run.hd`
 - `runtime/valid/num-traits-run.hd`
@@ -2278,6 +2274,8 @@ runtime/valid/direct-member-hides-promoted.hd
 runtime/valid/discard-propagated-void-result.hd
 runtime/valid/display-dispatch.hd
 runtime/valid/duration-api.hd
+runtime/valid/duration-arithmetic.hd
+runtime/valid/duration-display.hd
 runtime/valid/duration-negation.hd
 runtime/valid/dynamic-suspending-method.hd
 runtime/valid/else-if-chain.hd
@@ -2335,6 +2333,7 @@ runtime/valid/impl-distinct-target-arguments.hd
 runtime/valid/impl-method-generics-renamed.hd
 runtime/valid/implicit-continuation-in-delimiters.hd
 runtime/valid/indentation-levels.hd
+runtime/valid/index-traits-builtin-run.hd
 runtime/valid/index-traits-run.hd
 runtime/valid/indexed-replacement-list-and-map.hd
 runtime/valid/infinite-loop-else.hd
@@ -3131,6 +3130,7 @@ typing/valid/generic-join-fresh-list-elements.hd
 typing/valid/generic-join-mut-and-readonly.hd
 typing/valid/generic-map-key.hd
 typing/valid/generic-method-dynamically-safe.hd
+typing/valid/generic-missing-call.hd
 typing/valid/generic-mutual-bounds.hd
 typing/valid/generic-optional-field-default.hd
 typing/valid/generic-provider-keys-consistent-substitution.hd
@@ -3145,6 +3145,7 @@ typing/valid/identity-trait-value-operand.hd
 typing/valid/impl-distinct-trait-arguments.hd
 typing/valid/impl-parameter-fixed-by-binding.hd
 typing/valid/impl-serves-mutable-view.hd
+typing/valid/index-traits-builtin.hd
 typing/valid/index-traits.hd
 typing/valid/index-unsigned-widths.hd
 typing/valid/inferred-mutable-from-mutable.hd
@@ -3221,6 +3222,7 @@ typing/valid/ok-err-are-not-prelude-names.hd
 typing/valid/operator-bitwise-user.hd
 typing/valid/operator-generic-primitive.hd
 typing/valid/operator-newtype-hand-written.hd
+typing/valid/operator-rhs-default.hd
 typing/valid/operator-traits.hd
 typing/valid/option-result.hd
 typing/valid/optional-outer-weakening.hd

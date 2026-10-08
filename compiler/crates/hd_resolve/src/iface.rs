@@ -12,7 +12,7 @@ use hd_base::{DefId, Hash128, PathId, StableHasher, StageResult, Symbol};
 use hd_intern::{PathKind, PathTable, ShardedInterner};
 use hd_types::solver::{HeadKey, ImplOrigin, ImplTable, PlanStep};
 use hd_types::wire::{TableWriter, Tables};
-use hd_types::{InternPool, RowId, Ty, TyData, TyList};
+use hd_types::{InternPool, ParamRef, RowId, Ty, TyData, TyList};
 
 /// The run-wide tables a resolver writes into.
 #[derive(Clone, Copy)]
@@ -129,6 +129,57 @@ impl Generic {
             variance: 0,
         }
     }
+}
+
+/// A trait reference's arguments with the trait's omitted trailing
+/// parameters filled from their defaults, in declaration order, each with
+/// the earlier arguments and `Self` substituted (`types.generic.default.fill`,
+/// `types.generic.default.written`; trait-solver.md §2.1). `generics` are
+/// the trait's declared parameters (parameter 0 is `Self`). `self_ty` is
+/// `None` where no `Self` is known (a `dyn` type or a row key).
+///
+/// The arguments stay as written when a missing slot has no default, when
+/// its default names `Self` and `self_ty` is `None`, or when its default
+/// is poisoned: those are errors reported elsewhere.
+#[must_use]
+pub fn fill_trait_args(
+    pool: &InternPool,
+    tr: DefId,
+    generics: &[Generic],
+    args: TyList,
+    self_ty: Option<Ty>,
+) -> TyList {
+    let n = pool.list_items(args).len();
+    if n >= generics.len() {
+        return args;
+    }
+    let mut v = pool.list_items(args).to_vec();
+    for g in &generics[n..] {
+        let Some(d) = g.default else {
+            return args;
+        };
+        if pool.has_poison(d) {
+            return args;
+        }
+        let needs_self = std::cell::Cell::new(false);
+        let known = &v;
+        let t = pool.subst(d, &|p: ParamRef| {
+            if p.owner != tr {
+                return None;
+            }
+            if p.index == 0 {
+                needs_self.set(self_ty.is_none());
+                self_ty
+            } else {
+                known.get(usize::from(p.index) - 1).copied()
+            }
+        });
+        if needs_self.get() {
+            return args;
+        }
+        v.push(t);
+    }
+    pool.list(&v)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
