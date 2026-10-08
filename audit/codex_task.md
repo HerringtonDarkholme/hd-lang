@@ -83,18 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q15. Phase-2 Job Briefs From The Work Estimate
-
-From `future-work/compiler/work-estimate.md`'s ordered job list, write
-`future-work/compiler/phase2-jobs.md`: one section per phase-2 job
-("make it work": the checker and emitter long tail, chapter by chapter),
-each with: scope in one line; the TS files it uses as a checklist (not
-to port); the spec chapters and design sections; the conformance cases
-it should turn green (directories or case lists); its exit test; and
-its size estimate. Order by dependency and by how many conformance cases
-each unblocks. Tables and short lists; docs only. Timebox 45 minutes;
-push.
-
 ### Q16. compiler/README.md: How The New Compiler Fits Together
 
 A newcomer's map in `compiler/README.md` (replace or extend what is
