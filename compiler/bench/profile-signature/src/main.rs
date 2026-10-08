@@ -113,11 +113,11 @@ fn main() {
     }
 
     let signature = geo.replacen(
-        "pub fn g0(a: i32, b: i32) -> i32:",
-        "pub fn g0(a: i32, b: i32, unused: i32) -> i32:",
+        "pub fn shape_0(a: i32, b: i32) -> i32:",
+        "pub fn shape_0(a: i32, b: i32, unused: i32) -> i32:",
         1,
     );
-    let caller = app.replacen("g0(a, 0)", "g0(a, 0, 0)", 1);
+    let caller = app.replacen("shape_0(a, 0)", "shape_0(a, 0, 0)", 1);
     let start = Instant::now();
     let edited = compile(&store, &clock, &files(&caller, &signature), executor);
     print_report(
