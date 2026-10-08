@@ -5,7 +5,9 @@
 // directly, 1 warmup + 5 measured runs each, p50/p95. Prints a markdown
 // report to stdout. Fails loudly when hd and JS outputs differ.
 //
-// Usage: node compiler/bench/runtime/run.mjs [workdir]
+// Usage: node compiler/bench/runtime/run.mjs [workdir] [--release]
+// With --release, programs are built with `hd build --release` and the
+// release-profile Wasm is timed; otherwise the debug profile.
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,7 +22,10 @@ const RUNS = 5;
 const TIMEOUT_MS = 300_000;
 
 const args = process.argv.slice(2);
-const workRoot = args[0] ?? join(tmpdir(), `hd-runtime-${process.pid}`);
+const release = args.includes("--release");
+const workRoot =
+  args.find((a) => !a.startsWith("--")) ?? join(tmpdir(), `hd-runtime-${process.pid}`);
+const profile = release ? "release" : "debug";
 
 function sh(cmd, argv, opts = {}) {
   const start = performance.now();
@@ -90,7 +95,8 @@ function main() {
     const cache = join(workRoot, `cache-${name}`);
     rmSync(cache, { recursive: true, force: true });
     mkdirSync(cache, { recursive: true });
-    const built = sh(NEW_HD, ["build"], {
+    const buildArgs = release ? ["build", "--release"] : ["build"];
+    const built = sh(NEW_HD, buildArgs, {
       cwd: dir,
       env: { ...process.env, HD_CACHE: cache },
     });
@@ -99,7 +105,7 @@ function main() {
       process.exitCode = 1;
       continue;
     }
-    const wasm = join(dir, "build", "debug", `${name}.wasm`);
+    const wasm = join(dir, "build", profile, `${name}.wasm`);
     const hd = sh("node", [RUNNER, wasm]);
     const js = sh("node", [join(HERE, "progs", `${name}.js`)]);
     if (hd.out !== js.out) {
@@ -116,7 +122,7 @@ function main() {
 
   console.log(`# Runtime vs Node`);
   console.log(``);
-  console.log(`- hd commit: \`${hash}\`; binary: \`compiler/target/release/hd build\` (debug profile)`);
+  console.log(`- hd commit: \`${hash}\`; binary: \`compiler/target/release/hd build\` (${profile} profile)`);
   console.log(`- runner: \`node ${nodeVersion()} compiler/host/run.mjs\` for hd, \`node\` directly for JS`);
   console.log(`- method: build once per program; 1 warmup + ${RUNS} measured runs each; p50 = median, p95 = max`);
   console.log(`- outputs verified equal before timing (checksum printed by each program)`);

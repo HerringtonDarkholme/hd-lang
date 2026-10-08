@@ -102,18 +102,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q24. Runtime Versus Node, Release Builds
-
-Q22 (`audit/compiler/runtime-vs-node-6572b51d.md`) measured debug-profile
-Wasm only. Rerun `compiler/bench/runtime/run.mjs` with release builds
-(`hd build --release`; add a `--release` switch to the script if it has
-none) on current main, same method (1 warmup + 5 runs, p50/p95), and
-write `audit/compiler/runtime-vs-node-<short hash>.md` with both the
-debug and release ratios side by side. For string-build and map-count,
-say whether release changes the picture (checked arithmetic vs the
-quadratic append and per-op boxing). Delete the Q22 report in the same
-commit (git history keeps it). Report only. Timebox 45 minutes; push.
-
 ### Q25. Does `hd check --tests` Check `tests:` Blocks?
 
 Q23 found `hd check FILE` silent on mistakes inside `tests:` blocks. By
