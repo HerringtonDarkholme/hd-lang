@@ -154,6 +154,43 @@ M4d landed (b756387e): module init, suspension state machines and the
 Update `reconciliation.md` and `footprint.md`. Docs only; timebox 45
 minutes; push.
 
+### Q18. Conformance Runner For The New Compiler (A Cargo Test)
+
+Phase 2 ("make it work") is driven by the conformance suite. Add one
+test target, `compiler/crates/hd_driver/tests/conformance.rs` (never an
+`hd` subcommand), that runs every `spec/conformance/` case through the
+new compiler by its phase (parse, type, runtime with expected stdout and
+exit code, cli where it can), and writes `compiler/CONFORMANCE.md`: pass
+/ fail / unsupported counts per chapter and per directory, plus a
+bucketed failure list (first diagnostic code or `unsupported` stage).
+It fails only on a crash or when a previously passing case regresses
+(a checked-in pass list it updates with `HD_UPDATE_CONFORMANCE=1`), not
+on unsupported cases. Run it at the commit you start from and commit
+the numbers. Test code and `compiler/CONFORMANCE.md` only; fmt and
+clippy `-D warnings` clean. Timebox 60 minutes; push.
+
+### Q19. Diagnostic Rendering Versus The Spec
+
+The new compiler prints `error: main.hd:0..39: error unknown-module:
+unknown-module ...` (byte offsets, "error" and the code repeated).
+Compare its rendering against the spec's diagnostic format rules
+(`spec/cli/command-line.md` and wherever the spec defines rendering,
+positions and the JSON form) on five broken programs (parse, name,
+type, row, runtime panic). Write `future-work/compiler/diagnostics-format.md`:
+a table per rule (spec rule ID, required form, new compiler's output,
+match / differs), and the list of changes the compiler needs. Report
+only. Timebox 30 minutes; push.
+
+### Q20. One Known-Gaps Backlog
+
+Merge every open gap from `reconciliation.md` (D2a–D2f findings),
+`skeleton-findings.md` and the M-reports' "still unsupported" lists into
+one backlog table in `reconciliation.md`: gap, owning design section,
+phase (1 move / 2 work / 3 wonderful), size (S/M/L), and which
+`phase2-jobs.md` job absorbs it (or "none: add a job"). Remove items
+already fixed on main (check the code). Docs only. Timebox 45 minutes;
+push.
+
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
