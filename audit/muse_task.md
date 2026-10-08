@@ -121,6 +121,60 @@ sentence (and a rule ID per `spec/STYLE.md`) to the promotion rules in
 one-line example; cite the two fixtures. `bash spec/check.sh` green.
 Timebox 20 minutes; push.
 
+### D2j. Reconcile The Overnight Compiler Work
+
+Since 21aee16d's neighbours, main gained (titles in `git log` since
+c20e4ca6): item spans for header findings, missing-trait-method,
+coherence skipping orphan impls, decorator target checking, literal
+suffixes/prefixes/ranges, literal default types (bare usize, signed
+i32), diagnostic rendering and messages, embedded member promotion, row
+polymorphism (with per-row specialization — a known deviation from
+`req.poly.one-body`), row and generics determinism, associated-type
+projections, StrIndex and byte intrinsics, shared cells for mutable
+captures, char intrinsics, and `hd check`. Run D2 for all of it:
+update `reconciliation.md` (mark fixed rows fixed; add each commit's
+"not fixed" findings to the backlog with its task number from the
+orchestrator's list where the commit message or report names one) and
+`footprint.md` counts; record design decisions the code made where the
+design was silent (e.g. anchors for header spans in a third Iface
+section; shared cells; the closure provider context). Docs only;
+timebox 60 minutes; push.
+
+### Q22. Runtime Versus Node (Goal `runtime`)
+
+Under `compiler/bench/runtime/`: six small user-style programs the new
+compiler runs today (integer loops, string building, list sort, map
+counting, trait dispatch through a bound, closures), each with an
+equivalent hand-written JavaScript program. A rerunnable script runs
+both on the same Node (hd via `compiler/target/release/hd build` then
+the host's runner, JS directly), 5 runs, p50/p95, warm-up excluded, and
+writes `audit/compiler/runtime-vs-node-<short hash>.md`: per program the
+ratio hd/JS, the geomean, and anything over 1.5x flagged with a guess
+at the cause (allocation, boxing, checked arithmetic, call overhead).
+Report only. Timebox 60 minutes; push.
+
+### Q23. Mistake Corpus And Diagnostic Location (Goals `mistakes`, `diag-location`)
+
+From `audit/hd-writing-log.md` and Q21's report, build
+`compiler/bench/mistakes/`: one small `.hd` file per logged mistake
+kind (up to 40), each with its expected diagnostic code and expected
+line in a header comment. A script runs the new compiler's `hd check
+--format json` on each and reports: share with the expected code, share
+whose reported line is the mistake's line (goal ≥ 95%), diagnostics per
+mistake, and the worst offenders. Write
+`audit/compiler/mistakes-<short hash>.md`. Report only. Timebox 45
+minutes; push.
+
+### S14. Spec: `hd check --summary` And The Text Summary Line
+
+The `hd check` implementer found the per-code and per-file counts of
+`--summary` (`cli.check.summary-mode`) and the text-mode summary line
+unspecified. Specify them in `spec/cli/command-line.md` (numbered rules
+with IDs per `spec/STYLE.md`, one example each; keep it minimal and
+consistent with `hd test`'s summary from S6), and add CLI cases to
+`spec/conformance/cli-cases.tsv` where it has none. Timebox 30 minutes;
+push.
+
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
