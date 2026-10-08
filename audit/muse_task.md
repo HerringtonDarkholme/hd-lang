@@ -90,6 +90,51 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
+### T4b. Redo The Triage On Current Numbers
+
+T4 used `compiler/CONFORMANCE.md` at 561efcfb (497 pass). Main now
+passes 1,022 (P2-1a), and the buckets changed: `fail:unknown-import`
+fell from 777 to 29; the largest are now `fail:no-diagnostic` 509,
+`unsupported:Body` 274, `unsupported:Emit` 264, `fail:type-mismatch`
+126. Regenerate the report first (`HD_UPDATE_CONFORMANCE=1 cargo test
+-p hd_driver --test conformance`, in your worktree; about 8 minutes),
+then redo the bucket-to-job table, and for `fail:no-diagnostic` split it
+by expected code (the `reject:CODE` column). Weigh the order by cases
+unblocked per job size; a dependency counts only when the bucket truly
+needs the earlier job (say which code path). Docs only (and the
+regenerated report). Timebox 45 minutes; push.
+
+### D2h. Reconcile P2-1a And The Haiku Fixes
+
+Landed: P2-1a (44ccaf3f, runner and checker breadth), f92730d4 (pattern
+type errors skip the refutability cascade), d91db19e (scripts run:
+`Roots::Script`, `script_entry`, entry rows inferred from the init's
+calls), a5027712 (a FILE with no `hd.toml` above is a one-file program),
+dc19fda8 / 60f37949 (`NotImplemented` carries a span; innermost wins).
+Record in the owning docs (citing the commit): the script entry design
+(codegen.md, commands.md); the single-file source rule (commands.md);
+the span on structured errors (data-structures.md, the error type). Add
+to the backlog: `hd run FILE` must be an error (`cli.run.file`) — the
+new CLI still accepts `hd run FILE|DIR` and `hd build FILE|DIR -o`
+(owner's task 10; see `cli-forms.md`); emit-stage `unsupported` sites
+have no span; entry-row inference scans only direct item calls. Docs
+only; timebox 30 minutes; push.
+
+### S8. Spec: Where `req.row.alias.no-mut` Is Detected
+
+T2 retagged `typing/invalid/row-alias-mut-key.hd` as a parse-phase
+`syntax-error`, but detecting `mut` behind a type alias in a requirement
+row needs the alias resolved, which a parser cannot do (the new
+compiler ledgers it in `compiler/KNOWN_FAILURES.tsv`). Read
+`req.row.alias.no-mut` and its neighbours in
+`spec/lang/11-requirements-and-suspension.md`: either the rule is a
+type-phase check with its own code (find the existing one or add one
+per `spec/STYLE.md`), or the rule must be syntactic (then say how a
+parser sees it). Fix the rule text, the fixture's expected code and its
+`cases.tsv` phase together, remove the ledger row if the case's phase
+moves, and run `cargo test -p hd_syntax --test corpus` and `bash
+spec/check.sh`. Timebox 30 minutes; push.
+
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
