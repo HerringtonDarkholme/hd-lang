@@ -90,17 +90,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### S13. Spec: Embedded Fields Count As Promoted Members
-
-The promotion work (#16) found that `names.promote.member` must count a
-part's embedded fields as promoted members, though embedded fields are
-never `pub`; otherwise `diamond-different-depths` cannot hide the deeper
-copy while `diamond-same-depth-conflict` still reports. Add one
-sentence (and a rule ID per `spec/STYLE.md`) to the promotion rules in
-`spec/lang/03-names-and-scopes.md` / `08-data-and-enums.md`, with a
-one-line example; cite the two fixtures. `bash spec/check.sh` green.
-Timebox 20 minutes; push.
-
 ### D2j. Reconcile The Overnight Compiler Work
 
 Since 21aee16d's neighbours, main gained (titles in `git log` since

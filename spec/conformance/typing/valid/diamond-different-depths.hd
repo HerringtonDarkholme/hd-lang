@@ -1,4 +1,5 @@
 # test: one type embedded through two paths at different depths resolves to the shallower copy, with no conflict
+# Spec 03 Depths And Promoted Members: names.promote.embedded, names.hide.depth; the embedded field Base is promoted at both depths.
 data Base:
     pub id: string
 

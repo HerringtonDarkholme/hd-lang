@@ -266,7 +266,7 @@ The stdlib chapters' terms are in the
 | **primitive types** | `bool`, the integer types `i8` to `i64` and `u8` to `u64`, `f32`, `f64`, `char`, and `string`. See [Primitive Types](lang/04-type-system.md#primitive-types). |
 | **program instance** | One instantiated Wasm module graph with its module storage, provider bindings, and execution state. See [`module.init.program-instance`](lang/10-modules.md#r-module.init.program-instance). |
 | **promoted candidate** | Among the promoted inherent methods that lookup considers, the one with the called name at the smallest depth. See [`names.method-lookup.promoted-candidate`](lang/03-names-and-scopes.md#r-names.method-lookup.promoted-candidate). |
-| **promoted member** | A `pub` field or `pub` inherent method of a part's type, reached from the outer type through the part's path. See [`names.promote.member`](lang/03-names-and-scopes.md#r-names.promote.member). |
+| **promoted member** | A `pub` field or `pub` inherent method of a part's type, or a part's embedded field, reached from the outer type through the part's path. See [`names.promote.member`](lang/03-names-and-scopes.md#r-names.promote.member). |
 | **pseudo-version** | A version that names one untagged commit by a base version, its time, and its hash. See [`module.version.pseudo`](lang/10-modules.md#r-module.version.pseudo). |
 | **readonly edge** | A field declared `field: U` with a composite `U`, which gives readonly access through any container. See [`types.path.field.readonly-edge`](lang/04-type-system.md#r-types.path.field.readonly-edge). |
 | **readonly view** | The `T` access to a composite value; it does not imply deep immutability. See [`types.view.term`](lang/04-type-system.md#r-types.view.term). |

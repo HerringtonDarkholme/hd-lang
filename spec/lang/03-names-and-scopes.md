@@ -754,6 +754,7 @@ See also: [Data Declarations](08-data-and-enums.md#data-declarations),
 1. r[names.part.definition] A **part** of `S` is a value reached from `S` through one or more embedded fields.
 2. r[names.part.depth] A part's **depth** is the number of embedded fields on its path; the own fields and inherent methods of `S` are at depth 0.
 3. r[names.promote.member] Each `pub` field and `pub` inherent method of a part's type, at any depth, is a **promoted member** of `S`. It sits at the part's depth, reached through the part's path. A private member or a trait method of a part's type is never promoted, even in the module that declares it. It has no effect on lookup through `S`.
+4. r[names.promote.embedded] A part's embedded field is also a promoted member of `S`, at its own depth, though an embedded field is never `pub`.
 
 ```text
 data Base:
@@ -764,6 +765,18 @@ data Record:
 
 fn invalid(record: Record) -> string:
     record.secret  # error: unknown-data-field
+```
+
+```text
+data Base:
+    pub id: string
+
+data Middle:
+    Base
+
+data Outer:
+    Base
+    Middle  # the embedded field Base is promoted twice; the shallower copy hides the deeper
 ```
 
 ### Members Lookup Considers

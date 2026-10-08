@@ -586,6 +586,7 @@ Each fact about promotion is stated once, in chapter 03 or chapter 09:
 | Fact | Rule |
 | --- | --- |
 | Only the `pub` fields and `pub` inherent methods of a part, at any depth, are promoted; trait methods never are. | [`names.promote.member`](03-names-and-scopes.md#r-names.promote.member) |
+| A part's embedded field is also promoted, though an embedded field is never `pub`. | [`names.promote.embedded`](03-names-and-scopes.md#r-names.promote.embedded) |
 | For each name, the shallowest member hides deeper ones, so a `pub` own member hides a promoted one. | [`names.hide.depth`](03-names-and-scopes.md#r-names.hide.depth) |
 | A private own member with a promoted member's name is `ambiguous-promoted-member`. | [`names.conflict.private-shadow`](03-names-and-scopes.md#r-names.conflict.private-shadow) |
 | Two members with one name at the smallest depth are `ambiguous-promoted-member` at the declaration. | [`names.conflict.error`](03-names-and-scopes.md#r-names.conflict.error) |
