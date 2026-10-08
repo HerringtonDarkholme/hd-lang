@@ -83,20 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q16. compiler/README.md: How The New Compiler Fits Together
-
-A newcomer's map in `compiler/README.md` (replace or extend what is
-there): the crate graph with one line per crate and its design doc; the
-pipeline stages in order with the task kinds; how to run things
-(`hd run`, `hd build`, `hd FILE.hd`; the `hd_driver` examples `stages`,
-`bench`, `tir`; the `hd_syntax` example `parse_check`); where the tests
-live and how to update snapshots (`HD_BLESS=1`, `HD_UPDATE_GOLDEN=1`);
-the pre-commit hook; the disk cache location and how to clear it; and
-links to `future-work/compiler/footprint.md`, `reconciliation.md`,
-`work-estimate.md`. Check every command you list actually runs at the
-commit you start from, and every link resolves (`bash spec/check.sh`).
-Docs only. Timebox 30 minutes; push.
-
 ### Q17. Spec Clarifications The New Parser Raised
 
 The M2 parser found layout cases the spec leaves unclear. For each,
@@ -225,6 +211,12 @@ fast". The orchestrator writes `compiler/crates/*`; you measure it.
 - Push each report within 30 minutes of starting it.
 
 ## Questions
+
+- **Q16 benchmark example regression.** At `212f4de9`,
+  `cargo run -p hd_driver --example bench -- 20 1` exits with
+  `missing-requirement`: its generated `fn main()` calls `println` but does
+  not declare `$ Console`. May the orchestrator restore the row in
+  `compiler/crates/hd_driver/src/bench.rs`?
 
 - **Q9 integration scope.** May the Q9 commit also replace the hand-written
   `Code` block in `compiler/crates/hd_diag/src/lib.rs` with `mod codes; pub use
