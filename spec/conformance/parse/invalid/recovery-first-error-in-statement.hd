@@ -1,0 +1,5 @@
+# test: only the first parsing error rooted in one statement is reported
+# Spec 02 Error Recovery: grammar.recovery.statement.
+fn broken(a: i32, b: i32, c: i32) -> i32:
+    value := a and b < c < a  # diagnostic: syntax-error
+    +1

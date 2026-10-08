@@ -1,0 +1,7 @@
+# test: else may follow a same-line if body on the next physical line at statement indentation
+# Spec 01 Same-Line Suites: lex.suite-end.else-next-line.
+# expect: parse
+fn choose(flag: bool) -> i32:
+    value := if flag: +1
+    else: +2
+    value

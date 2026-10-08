@@ -312,13 +312,16 @@ See also: [Trailing Callback Blocks](07-functions.md#trailing-callback-blocks).
 5. r[lex.suite-end.comma] A comma at the delimiter depth where a same-line suite opened always closes that suite, including at depth zero. So the suite body cannot contain such a comma.
 6. r[lex.suite-end.example] For example, the body of `fn(name): name.len()` ends immediately before that closure's closing `)`.
 7. r[lex.suite-end.else] `else` is also a boundary for the immediately preceding same-line `if`, `for`, or `while` suite. Layout emits that suite's `SUITE_END` before `else` and keeps the enclosing conditional or loop open, as the conditional and loop productions require.
-8. r[lex.suite-end.else-example] Thus `x := if c: 1 else: 2` is one conditional expression. The line boundary after `2` closes the `else` suite and then any enclosing same-line suite, innermost first.
-9. r[lex.suite-end.no-spelling] `SUITE_END` has no source spelling. Parser-aware layout processing identifies the boundary from the expected suite and enclosing delimiter structure.
+8. r[lex.suite-end.else-next-line] At delimiter depth zero, `else` may follow a same-line `if` suite on the next physical line at the containing statement's indentation.
+9. r[lex.suite-end.else-example] Thus `x := if c: 1 else: 2` is one conditional expression. The line boundary after `2` closes the `else` suite and then any enclosing same-line suite, innermost first.
+10. r[lex.suite-end.no-spelling] `SUITE_END` has no source spelling. Parser-aware layout processing identifies the boundary from the expected suite and enclosing delimiter structure.
 
 ```hd
 fn demo(flag: bool) -> i32:
     x := if flag: +1 else: +2
-    x
+    y := if flag: +1
+    else: +2
+    x + y
 ```
 
 ### Delimiter Matching

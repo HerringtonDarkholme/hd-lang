@@ -2852,3 +2852,6 @@ runtime/valid/bang-call-and-prefix-not.hd	runtime
 parse/valid/every-operator-and-delimiter-token.hd	parse
 parse/valid/trailing-doc-comments-are-commentary.hd	parse
 parse/invalid/range-glued-to-spread.hd	parse
+parse/valid/next-line-else-after-same-line-if.hd	parse
+parse/invalid/recovery-first-error-in-statement.hd	parse
+parse/invalid/unclosed-delimiter-suppresses-fallout.hd	parse

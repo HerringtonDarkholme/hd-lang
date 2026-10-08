@@ -83,28 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q17. Spec Clarifications The New Parser Raised
-
-The M2 parser found layout cases the spec leaves unclear. For each,
-find the governing rules in `spec/lang/01-lexical-structure.md` and
-`02-grammar.md`, decide what the spec should say (keep what the TS
-prototype and the new parser agree on when the spec is silent; flag
-real conflicts in the commit message instead of deciding), and write it
-as numbered rules with IDs per `spec/STYLE.md`, each with one example:
-
-1. An `else:` on the line after a same-line `if` body (the new parser
-   accepts it).
-2. An indented non-closure suite inside brackets whose `else` line sits
-   between the header and body columns (the new parser reports
-   `invalid-dedent`).
-3. Error recovery: which independent errors after the first one in a
-   statement, or after an unclosed delimiter, an implementation must
-   still report.
-
-One fixture per new rule (parse phase) and a `compiler/KNOWN_FAILURES.tsv`
-row if the new parser disagrees. `bash spec/check.sh` and
-`cargo test -p hd_syntax` green. Timebox 45 minutes; push.
-
 ### D2f. Reconcile M4d
 
 M4d landed (b756387e): module init, suspension state machines and the
@@ -211,6 +189,17 @@ fast". The orchestrator writes `compiler/crates/*`; you measure it.
 - Push each report within 30 minutes of starting it.
 
 ## Questions
+
+- **Q17 nested-suite middle-column `else`.** The Rust parser reports
+  `invalid-dedent` when a non-closure suite inside brackets has its `else`
+  between the header and body columns, while the TypeScript prototype accepts
+  it. Should `lex.nested.*` reject it as a dedent to an inactive column, or
+  should nested control-flow headers permit that alignment?
+- **Q17 recovery across statements.** The Rust parser reports the first error
+  in each later independent statement, while the TypeScript prototype returns
+  only the first parse error in the file. Should
+  `grammar.recovery.statement` require continued reporting after each
+  statement boundary?
 
 - **Q16 benchmark example regression.** At `212f4de9`,
   `cargo run -p hd_driver --example bench -- 20 1` exits with

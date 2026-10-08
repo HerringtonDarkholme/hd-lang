@@ -1,0 +1,6 @@
+# test: an unclosed delimiter suppresses parsing-error fallout on its later lines
+# Spec 02 Error Recovery: grammar.recovery.unclosed.
+fn unfinished() -> i32:
+    values := [  # diagnostic: unclosed-delimiter
+        +1
+    +2

@@ -44,6 +44,27 @@ top_level_statement = suite_statement
 7. r[grammar.limit.nesting] An implementation may limit how deeply brackets, suites, closures, and string interpolations nest within one another. The limit is implementation-defined.
 8. r[grammar.limit.nesting.error] Source that nests deeper than that limit is an error, reported on the first construct past it. Error: `nesting-too-deep`.
 
+### Error Recovery
+
+Error recovery limits cascades from rejected syntax:
+
+```text
+fn broken(a: i32, b: i32, c: i32) -> i32:
+    value := a and b < c < a  # error: syntax-error
+    +1
+
+fn unfinished() -> i32:
+    values := [  # error: unclosed-delimiter
+        +1
+    +2
+```
+
+1. r[grammar.recovery.statement] After the first parsing error in a statement, an implementation must suppress further parsing errors rooted in that statement.
+2. r[grammar.recovery.unclosed] After an `unclosed-delimiter` error, an implementation must suppress parsing errors on later lines within that delimiter.
+
+> **Why.** One diagnostic identifies the root cause without presenting its
+> syntactic fallout as independent mistakes.
+
 ## Test Blocks
 
 A file may hold one `tests:` block, whose items are compiled only for tests:
