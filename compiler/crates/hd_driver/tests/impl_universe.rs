@@ -201,3 +201,85 @@ fn each_closure_gets_its_own_answer_in_any_order_and_thread_count() {
         }
     }
 }
+
+/// Analyze one file as package `app`.
+fn analyze_one(text: &str) -> String {
+    let mut src = MemorySources::default();
+    src.insert("main.hd", text);
+    let store = MemoryStore::default();
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    build(&host, "app", &Goal::Analyze).render()
+}
+
+const FAMILY_DISJOINT: &str = "\
+pub trait Num:
+    fn zero() -> Self
+
+impl Num for i32:
+    fn zero() -> i32:
+        +0
+
+impl Num for i64:
+    fn zero() -> i64:
+        0
+
+pub trait Combine[Rhs]:
+    fn combine(self, rhs: Rhs) -> Self
+
+pub data Money:
+    pub cents: i32
+
+impl[N < Num] Combine[N] for N:
+    fn combine(self, rhs: N) -> N:
+        self
+
+impl Combine[Money] for i32:
+    fn combine(self, rhs: Money) -> i32:
+        self
+";
+
+const FAMILY_OVERLAP: &str = "\
+pub trait Num:
+    fn zero() -> Self
+
+impl Num for i32:
+    fn zero() -> i32:
+        +0
+
+impl Num for i64:
+    fn zero() -> i64:
+        0
+
+pub trait Combine[Rhs]:
+    fn combine(self, rhs: Rhs) -> Self
+
+impl[N < Num] Combine[N] for N:
+    fn combine(self, rhs: N) -> N:
+        self
+
+impl Combine[i32] for i32:
+    fn combine(self, rhs: i32) -> i32:
+        self
+";
+
+/// A family impl stands for one impl per member type, and each member
+/// replaces the parameter in the trait arguments too. `Combine[i32] for
+/// i32` does not overlap `Combine[Money] for Money`.
+#[test]
+fn a_family_impl_with_explicit_trait_arguments_does_not_overlap_disjoint_impls() {
+    let out = analyze_one(FAMILY_DISJOINT);
+    assert!(!out.contains("overlapping-impl"), "{out}");
+}
+
+/// A real overlap with a family member is still reported.
+#[test]
+fn a_family_impl_with_explicit_trait_arguments_overlaps_its_member() {
+    let out = analyze_one(FAMILY_OVERLAP);
+    assert!(out.contains("overlapping-impl"), "{out}");
+}

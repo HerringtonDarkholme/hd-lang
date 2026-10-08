@@ -538,9 +538,16 @@ impl<'a> Universe<'a> {
                     continue;
                 }
                 match self.family(imp, *self_ty) {
-                    Some(members) => {
+                    Some((param, members)) => {
+                        // One impl per member: the member replaces the
+                        // parameter in the whole head.
                         for m in members {
-                            heads.push((imp.def, m, *trait_args));
+                            let args: Vec<Ty> = pool
+                                .list_items(*trait_args)
+                                .iter()
+                                .map(|&t| pool.subst(t, &|p: ParamRef| (p == param).then_some(m)))
+                                .collect();
+                            heads.push((imp.def, m, pool.list(&args)));
                         }
                     }
                     None => heads.push((imp.def, *self_ty, *trait_args)),
@@ -569,7 +576,7 @@ impl<'a> Universe<'a> {
 
     /// A numeric-family head: `impl[N < B] Tr for N` where every impl of
     /// `B` has a ground target.
-    fn family(&self, imp: &Item, self_ty: Ty) -> Option<Vec<Ty>> {
+    fn family(&self, imp: &Item, self_ty: Ty) -> Option<(ParamRef, Vec<Ty>)> {
         let pool = self.pool();
         let TyData::Param(p) = pool.get(self_ty) else {
             return None;
@@ -588,7 +595,7 @@ impl<'a> Universe<'a> {
                 _ => None,
             })
             .collect();
-        (!members.is_empty()).then_some(members)
+        (!members.is_empty()).then_some((p, members))
     }
 
     fn unify(
