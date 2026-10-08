@@ -121,6 +121,40 @@ grew (section, function) and whether the commit's feature explains it.
 Refresh the size report (delete the old one) with the per-section table
 at current main. Report only. Timebox 40 minutes; push.
 
+### L2. Std Gaps, Part 1: Backoff, retry_with!, Rng::from_seed, default()
+
+Your L1 inventory found plain-hd items the spec declares and `lib/std`
+lacks. Add them to `lib/std` (this job lifts the read-only rule for
+these files only), with the exact signatures the spec states:
+
+- `std.task`: `Backoff` (rule `std-task.backoff.decl-usize`) and
+  `retry_with!` (`std-task.retry-with.decl`), a loop over `Clock.sleep!`
+  written like the existing `retry!`.
+- `std.random`: `Rng::from_seed`, as `std-random.rng.from-random` uses it.
+- `std.ops`: the free `default()` that makes the `@default` fact
+  (`std-ops.default.derive.marker`).
+
+Where the spec leaves a detail open, take the simplest body that meets
+the rule text and list it in your commit message; never add API the
+spec does not name. Checks: `pnpm run check` (lib/std feeds the
+prototype too), the full `cargo test -q --release --workspace` in
+`compiler/`, and `HD_UPDATE_CONFORMANCE=1` for the driver conformance
+test (the CONFORMANCE.md diff may only add cases; say which, e.g.
+`runtime/valid/retry-with-backoff.hd`). Report hello-world size before
+and after (it should not change). One commit; push. Timebox 45 minutes.
+
+### L3. Std Gaps, Part 2: std.sys And std.net Declarations
+
+Add `lib/std/sys.hd` with what the spec declares as plain hd: the `Sys`
+trait, `SysError`, and the map-backed `MapSys` provider. Then
+`lib/std/net.hd`: the `Net` trait, `NetError`, and the data types, but
+only where each item is plain hd. A type that would need a host handle
+(a live socket) is out of scope: list it in the commit message and
+stop there; no host hooks, no `compiler/crates/` edits. Same checks and
+size report as L2; fixtures to watch: `runtime/valid/map-sys.hd`,
+`runtime/valid/net-own-provider.hd`. One commit; push. Timebox 45
+minutes.
+
 ### P1. Profile The New Compiler (After S4; Standing Job)
 
 Owner, 2026-10-07: "you write the code, codex do the profiling. move
