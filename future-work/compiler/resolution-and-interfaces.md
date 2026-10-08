@@ -21,13 +21,13 @@ Part of the [compiler design](README.md).
 `module_below` for the path below the root): the package identifier
 (each `-` as `_`, e.g. `acme-shop` → `acme_shop`), then the path below
 the source root. `src/lib.hd` is the root module itself, `src/x/mod.hd`
-is `x`, and a flat `main.hd` is `main`. The test and task roots get
-segments no source path can spell, `$tests` and `$tasks`, so
-`tests/checkout.hd` is `pkg.$tests.checkout` while `src/tests/checkout.hd`
-stays `pkg.tests.checkout` (a different module), and no `pkg` path
-reaches test or task code (`module.test.no-tests-root`). Provisional:
-an owner question on the `tests/checkout.hd` vs `src/tests/checkout.hd`
-collision is open. Each module also records its relative base (its root
+is `x`, and a flat `main.hd` is `main`. Integration test programs,
+shared test modules and tasks have no module path, as in Rust (owner
+2026-10-08; `module.test.integration.no-path`, `cli.task.no-path`):
+`src/tests/checkout.hd` is `pkg.tests.checkout`, and `tests/checkout.hd`
+is named by its file. Today `hd_project` still gives them internal
+segments no source path can spell (`$tests`, `$tasks`); #114 keeps those
+internal and drops them from anything user-visible. Each module also records its relative base (its root
 for a root file: `src/lib.hd`, `src/main.hd`, or a file directly under
 `tests/` or `tasks`), so `self` starts there, and its floor (the package
 root, or the test/task root), which a root `super` must stay within.
