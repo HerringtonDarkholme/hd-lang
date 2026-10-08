@@ -154,6 +154,16 @@ pub fn write_body(
     let mut t = TableWriter::new(pool, paths, syms);
     let mut extra = b.extra.clone();
     for i in 0..b.len() {
+        if b.tags[i] == Tag::Coerce {
+            // The evidence word would be an ID; none is written today, and a
+            // future one must be remapped like `Impl` before it can leak.
+            if b.record(b.data[i][1]).get(1).copied() != Some(crate::ir::NONE) {
+                return Err(NotImplemented::new(
+                    Stage::ModuleFinish,
+                    "wire form of coercion evidence",
+                ));
+            }
+        }
         for w in id_words(b, i)? {
             match w {
                 IdWord::Def(at) => extra[at] = t.def(DefId::from_raw(extra[at])),

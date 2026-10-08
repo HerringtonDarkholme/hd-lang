@@ -144,7 +144,8 @@ pub fn promotion_conflicts(
         level = next;
     }
     let mut keys: Vec<_> = table.keys().copied().collect();
-    keys.sort_by_key(|(ns, n)| (*ns as u8, n.raw()));
+    // Content order (scheduler.md §6.5): by name text, not symbol id.
+    keys.sort_by_cached_key(|(ns, n)| (*ns as u8, names.text(*n).to_owned()));
     for key in keys {
         let members = &table[&key];
         let name = names.text(key.1);

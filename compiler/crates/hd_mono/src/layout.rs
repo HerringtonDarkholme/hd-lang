@@ -282,10 +282,29 @@ pub fn canon(pool: &InternPool, path_hash: &dyn Fn(DefId) -> Hash128, t: Ty, h: 
             canon_row(pool, path_hash, row, h);
             h.u8(u8::from(suspends));
         }
-        TyData::TraitValue { def, args, .. } => {
+        TyData::TraitValue {
+            def,
+            args,
+            bindings,
+        } => {
             h.u8(6);
             h.hash(path_hash(def));
             canon_list(pool, path_hash, args, h);
+            // Bindings in content order: (associated item path, canon).
+            let mut bs: Vec<(Hash128, Hash128)> = bindings
+                .into_iter()
+                .map(|(a, t)| {
+                    let mut kh = StableHasher::new("binding");
+                    canon(pool, path_hash, t, &mut kh);
+                    (path_hash(a), kh.finish())
+                })
+                .collect();
+            bs.sort();
+            h.u32(u32::try_from(bs.len()).expect("bindings"));
+            for (a, t) in bs {
+                h.hash(a);
+                h.hash(t);
+            }
         }
         TyData::Mut(i) => {
             h.u8(7);
@@ -295,9 +314,30 @@ pub fn canon(pool: &InternPool, path_hash: &dyn Fn(DefId) -> Hash128, t: Ty, h: 
             h.u8(8);
             canon_row(pool, path_hash, r, h);
         }
-        other => {
-            h.u8(255);
-            h.str(&format!("{other:?}"));
+        TyData::Poison => h.u8(9),
+        TyData::Param(p) => {
+            h.u8(10);
+            h.hash(path_hash(p.owner));
+            h.u16(p.index);
+        }
+        TyData::Assoc {
+            assoc,
+            trait_,
+            self_ty,
+            args,
+        } => {
+            h.u8(11);
+            h.hash(path_hash(assoc));
+            h.hash(path_hash(trait_));
+            canon(pool, path_hash, self_ty, h);
+            canon_list(pool, path_hash, args, h);
+        }
+        // Inference variables and canonical placeholders never reach an
+        // instance key; encode the form only, never a run-local number.
+        TyData::Infer(_) => h.u8(12),
+        TyData::Canon(n) => {
+            h.u8(13);
+            h.u8(n);
         }
     }
 }
@@ -325,6 +365,18 @@ fn canon_row(
     h.u32(u32::try_from(keys.len()).expect("keys"));
     for k in keys {
         h.hash(k);
+    }
+    let mut params: Vec<(Hash128, u16)> = pool
+        .row_data(r)
+        .params
+        .into_iter()
+        .map(|p| (path_hash(p.owner), p.index))
+        .collect();
+    params.sort();
+    h.u32(u32::try_from(params.len()).expect("params"));
+    for (o, i) in params {
+        h.hash(o);
+        h.u16(i);
     }
 }
 
@@ -491,6 +543,85 @@ mod tests {
         let mut h = hd_base::StableHasher::new("t");
         super::canon(&p, &|d| Hash128(u128::from(d.raw()) * 977), f, &mut h);
         h.finish()
+    }
+
+    /// `canon` of a tuple of a parameter, an associated projection and a
+    /// trait value with a binding, interned in the given order. The owner
+    /// ids differ per run; the path hash maps them to the same content.
+    fn param_canon(flip: bool) -> Hash128 {
+        let p = InternPool::new();
+        // Run-local ids: `flip` swaps which raw id names which item.
+        let (owner, trait_, assoc, other) = if flip {
+            (40, 30, 20, 10)
+        } else {
+            (10, 20, 30, 40)
+        };
+        let path = move |d: DefId| {
+            let name = match d.raw() {
+                x if x == owner => 1u128,
+                x if x == trait_ => 2,
+                x if x == assoc => 3,
+                _ => 4,
+            };
+            Hash128(name * 977)
+        };
+        let param = |i: u16| {
+            p.intern_ty(&TyData::Param(hd_types::ParamRef {
+                owner: DefId::from_raw(owner),
+                index: i,
+            }))
+        };
+        let (t0, t1) = if flip {
+            let t1 = param(1);
+            (param(0), t1)
+        } else {
+            let t0 = param(0);
+            (t0, param(1))
+        };
+        let proj = p.intern_ty(&TyData::Assoc {
+            assoc: DefId::from_raw(assoc),
+            trait_: DefId::from_raw(trait_),
+            self_ty: t0,
+            args: TyList::EMPTY,
+        });
+        let tv = p.intern_ty(&TyData::TraitValue {
+            def: DefId::from_raw(trait_),
+            args: TyList::EMPTY,
+            bindings: vec![
+                (DefId::from_raw(assoc), t1),
+                (DefId::from_raw(other), Ty::I32),
+            ],
+        });
+        let tup = p.intern_ty(&TyData::Tuple {
+            elems: p.list(&[proj, tv]),
+            rest: None,
+        });
+        let mut h = hd_base::StableHasher::new("t");
+        super::canon(&p, &path, tup, &mut h);
+        h.finish()
+    }
+
+    #[test]
+    fn canon_of_params_and_projections_ignores_interning_order() {
+        assert_eq!(param_canon(false), param_canon(true));
+    }
+
+    #[test]
+    fn canon_sees_trait_value_bindings() {
+        let p = InternPool::new();
+        let tv = |t: Ty| {
+            p.intern_ty(&TyData::TraitValue {
+                def: DefId::from_raw(1),
+                args: TyList::EMPTY,
+                bindings: vec![(DefId::from_raw(2), t)],
+            })
+        };
+        let enc = |t: Ty| {
+            let mut h = hd_base::StableHasher::new("t");
+            super::canon(&p, &|d| Hash128(u128::from(d.raw())), t, &mut h);
+            h.finish()
+        };
+        assert_ne!(enc(tv(Ty::I32)), enc(tv(Ty::STRING)));
     }
 
     #[test]
