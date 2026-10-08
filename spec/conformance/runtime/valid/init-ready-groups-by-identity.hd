@@ -1,5 +1,5 @@
 # test: groups that are ready together initialize in module identity order, not in the order of the uses that reach them
-# Spec 10 Initialization Order: module.init.group.ready-order, module.init.group.once;
+# Spec 10 Initialization Order: module.init.cycle.ready-order, module.init.cycle.once;
 # Entry Behavior: module.init.tests. The tree's src/alpha.hd and src/beta.hd each
 # record their name at top level through src/log/mod.hd.
 # fixture-package-tree: init-order/src/report.hd

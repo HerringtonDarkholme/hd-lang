@@ -13,23 +13,23 @@ runner implement over the language tier:
 - how snapshots compare text, and where snapshot files live;
 - how an integration test runs one of the package's executables or tasks;
 - the temporary directory of a test case;
-- which std fakes stand in for host providers in a unit test case;
+- which std fakes stand in for host providers in a unit test;
 - the host capabilities through which `std.testing` reaches the test runner.
 
 The language tier keeps the assertion functions and the literal `expect` of
-`snapshot`. It also keeps the test registration functions `it`, `it_each`,
-`it_prop`, and `it_prop_with`. Their options, position rules, and
+`snapshot`. It also keeps `it`, `it_each`, `it_prop`, and `it_prop_with`,
+the functions a test registration call may call. Their options, position rules, and
 diagnostics stay in the language tier too
 ([Standard Testing](../lang/10-modules.md#standard-testing),
 [Test Cases](../lang/10-modules.md#test-cases),
-[Registration Functions](../lang/10-modules.md#registration-functions),
+[Registration Calls](../lang/10-modules.md#registration-calls),
 [Snapshots](../lang/10-modules.md#snapshots)).
 
-## Registration Functions
+## Registration Calls
 
-The language tier declares the test registration functions `it_each`,
-`it_prop`, and `it_prop_with`, and checks their names, options, and
-positions ([Registration Functions](../lang/10-modules.md#registration-functions)).
+The language tier declares the functions of the test registration calls
+`it_each`, `it_prop`, and `it_prop_with`, and checks their names, options,
+and positions ([Registration Calls](../lang/10-modules.md#registration-calls)).
 This chapter defines what their test cases do when they run.
 
 > **Note.** The `timeout` parameter of each has the type that `it`'s has,
@@ -375,7 +375,7 @@ tests:
 ## Table-Test Rows
 
 A call of `it_each` in test position is registered as
-[Registration Functions](#registration-functions) specifies.
+[Registration Calls](#registration-calls) specifies.
 
 1. r[std-testing.it-each] A top-level call of `std.testing.it_each` registers one test case for each element of `rows`, which runs `body` with that element.
 2. r[std-testing.it-each.name] The test case for the element at index `i` is named `name[i]`.
@@ -524,7 +524,7 @@ it("exports the orders into its own directory"):
     assert_equal(read_text!(out).expect("the written export"), orders, reason="the export holds every order")
 ```
 
-> **Note.** A unit test case may call `temp_dir` too, but it reaches no
+> **Note.** A unit test may call `temp_dir` too, but it reaches no
 > real file. Only an integration test case gets `FsRead` and `FsWrite`
 > from the runner.
 
@@ -534,7 +534,7 @@ it("exports the orders into its own directory"):
 
 ## Unit Test Providers
 
-A unit test case gets `TestRunner` alone
+A unit test gets `TestRunner` alone
 ([`module.testing.unit-row.anywhere`](../lang/10-modules.md#r-module.testing.unit-row.anywhere)).
 Each host capability trait but `Net` has a deterministic std provider that
 the test binds with `$.with` instead:
@@ -570,7 +570,7 @@ tests:
         _ := receipt_header("Main St")  # error: missing-requirement
 ```
 
-1. r[std-testing.unit.hint] The `missing-requirement` error for a host trait of this table, inside a unit test case, names the trait's provider and `$.with`. It also suggests moving the test case to the test root.
+1. r[std-testing.unit.hint] The `missing-requirement` error for a host trait of this table, inside a unit test, names the trait's provider and `$.with`. It also suggests moving the test case to the test root.
 
 > **Why.** An agent that meets the error learns both fixes at once. A fake
 > keeps the test a unit test, and the test root makes it an integration

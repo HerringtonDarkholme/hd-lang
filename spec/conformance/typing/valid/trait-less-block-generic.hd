@@ -1,5 +1,5 @@
-# test: a trait-less block for a generic type declares the type's own parameters, without bounds
-# Spec 14 Trait-Less Derivation Blocks: annot.traitless.generic (M28).
+# test: a block with no trait for a generic type declares the type's own parameters, without bounds
+# Spec 14 Derivation Blocks With No Trait: annot.no-trait.generic (M28).
 use std.structure.Structure
 
 data Tag:

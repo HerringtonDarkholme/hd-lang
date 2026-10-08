@@ -120,7 +120,7 @@ their shared boundary, not duplicate implementations.
 | `ManifestRecord` exists, but no stat manifest is read or written. | cache.md §5.5 | 3 — wonderful | M | none: add a phase-3 cache-I/O job |
 | A program miss keys and decodes every package module instead of the root's reachable closure. | codegen.md §11.2, §11.3 | 3 — wonderful | M | none: add a phase-3 reachability-cache job |
 | Code keys omit interface, layout, selected-impl, inline, inlined-body, and literal dependencies. | codegen.md §13.8; cache.md §5.3 | 2 — work | M | P2-6 |
-| Multi-module initialization groups still stop; shared enum constructor data now initializes with its module. | codegen.md §12.3 | 2 — work | M | P2-4 and P2-6 |
+| Module cycles of several modules still stop; shared enum constructor data now initializes with its module. | codegen.md §12.3 | 2 — work | M | P2-4 and P2-6 |
 | Entry-module initialization lacks its inferred providers, and reusable contexts are absent. | codegen.md §12.4 | 2 — work | M | P2-8 |
 | Synchronous emission still lacks `ItemRef`, `Is`, `DefaultCall`, `CopyData`, `SwitchStr`, several collection operations, f32 arithmetic, and wider conversions. | codegen.md §12.1, §12.2; wasm-layout.md §15.1, §15.2 | 2 — work | L | P2-6 |
 | `ToAny`, supertrait coercions, generic methods through `dyn`, and constant supertrait-aware vtables are incomplete. | codegen.md §13.5; wasm-layout.md §15.3 | 2 — work | L | P2-3 and P2-6 |

@@ -50,7 +50,7 @@ it.
 | `cold-check`: ≤ 1 s | plausible for ordinary code; line count alone does not bound it | wide impl buckets (the overlap check's trie and unification work, counted, not the old pairwise estimate), deep folder chains on the serial interface path, bodies near the fuel limit, shared proof subgoals (frontend lane) | an ordinary benchmark and a separate pathological set, each reporting work counts, not only time | 3 and 4 |
 | `startup`: ≤ 20 ms, ≤ 10 MB | feasible only with the lazy command path (commands.md §7.1 step 2) | binary page faults, pool or engine creation, eager std validation, cache scans | warm and cold executable pages on named platforms; resident pages, not file size | 1, then 4 |
 | `determinism` | contract fixed for the backend: the wire rule, one key order, print-at-end, per-state operational fields | the frontend's solver memo keys (Codex finding 8, frontend lane) | the matrix of testing-the-compiler.md §8.1, with ID shift, shuffled order and mixed warmth run before threads | 2, then 4 |
-| `recheck-precision`: one module per private body edit | holds for an ordinary private function; see design-overview.md §1.4 for what is counted and the exceptions | hidden template helpers and facts (frontend lane, Codex findings 4 and 6); init-order recomputation | the edit vocabulary of testing-the-compiler.md §8.2 | 4 |
+| `recheck-precision`: one module per private body edit | holds for an ordinary private function; see design-overview.md §1.4 for what is counted and the exceptions | hidden private items a template names, and facts (frontend lane, Codex findings 4 and 6); init-order recomputation | the edit vocabulary of testing-the-compiler.md §8.2 | 4 |
 
 ### 9.2 Systems Measurements Per Slice
 

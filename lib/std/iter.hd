@@ -219,7 +219,7 @@ impl[T] Iterator[T]:
 
     # The target is solved from the expected type or an explicit type
     # argument, and is `List[T]` when nothing determines it
-    # (spec/std/iter.md#collect-targets).
+    # (spec/std/iter.md#what-collect-builds).
     ## A `C` built from the remaining items of `self`; a list when the target type is not named.
     ## See [std-iter.adapter.collect-defaulted](../../spec/std/iter.md#r-std-iter.adapter.collect-defaulted).
     pub fn collect[C < FromIterator[T] = List[T]](mut self) -> C:

@@ -35,7 +35,7 @@ interfaces from D1 and does not reach around them:
 | `ModuleResult` | `hd_check` | init summary, fact records, diagnostics; whether the module has errors |
 | folder interfaces (§4.10, §4.11) | `hd_resolve` | signatures, impl tables, templates and hidden items, default and fact expressions, per-item hashes for instance keys |
 | types and rows | `hd_types` | the InternPool (§3.9.2), stable paths for every `DefId`, and `StableHash` |
-| init order | `InitOrder` | statement order per initialization group |
+| init order | `InitOrder` | statement order per module cycle |
 | test plan (§7.3) | `hd_driver` | test programs and their statically registered cases |
 | cache | `hd_cache` | `CacheStore`, the key rules of §5.3, entry framing, verify mode, eviction. D2 adds the kinds `code`, `link` and `cwasm` (§11.2) |
 | scheduler | `hd_sched` | `TaskKind::Ext` tasks with dependencies on D1 tasks, fuel, cancellation, the opt-in memory cap, content-ordered output |

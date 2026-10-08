@@ -1,5 +1,5 @@
 # test: FromIterator is not a prelude name
-# std Iterators, Collect Targets: std-iter.prelude.from-iterator (Collect CO6).
+# std Iterators, What Collect Builds: std-iter.prelude.from-iterator (Collect CO6).
 
 data Bag:
     items: List[i32]

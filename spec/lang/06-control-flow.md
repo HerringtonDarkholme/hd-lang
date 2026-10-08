@@ -272,7 +272,7 @@ fn from_iterator(source: Iterator[i32]) -> i32:
 > **Note.** An iterator is single-pass, and there is no `clone` or `tee`
 > of an iterator. To traverse the items twice, call `iter()` on the
 > collection again, as `twice` does, or collect the iterator into a list
-> first ([Collect Targets](../std/iter.md#collect-targets)).
+> first ([What Collect Builds](../std/iter.md#what-collect-builds)).
 
 > **Why.** `next` takes `mut self` and `step` is private, so no readonly
 > path advances an iterator. A readonly `Iterator[T]` parameter therefore

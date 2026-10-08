@@ -1,4 +1,4 @@
-# test: bound-only parameters are solved to a fixed point, so a chain of bounds is solved in dependency order
+# test: parameters named only in bounds are solved to a fixed point, so a chain of bounds is solved in dependency order
 # Spec 04 Inference Through A Bound: types.generic.infer.bound.fixed-point (owner decision BOUND-INFERENCE, batch 77, 2026-10-03).
 use std.testing.assert_equal
 

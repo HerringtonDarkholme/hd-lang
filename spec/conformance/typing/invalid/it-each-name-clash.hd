@@ -1,5 +1,5 @@
 # test: another test case must not be named like an it_each row
-# Spec Modules, Registration Functions: module.testing.reg.row-name-clash; it("doubles[0]") beside it_each("doubles", ...) is duplicate-test-name.
+# Spec Modules, Registration Calls: module.testing.reg.row-name-clash; it("doubles[0]") beside it_each("doubles", ...) is duplicate-test-name.
 use std.testing.it_each
 
 tests:

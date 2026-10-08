@@ -238,7 +238,7 @@ results: slot per case; printed by the release cursor in content order (§6.5)
   made cheap by `InstancePre` and the pooling allocator. Starting from a
   snapshot was dropped by the owner, so module initialization runs per
   case.
-- **Host setups.** A unit test case gets `TestRunner` alone. An
+- **Host setups.** A unit test gets `TestRunner` alone. An
   integration test or doc test gets the default profile, `TestRunner`, the
   test runner's `Process`, the test grant, the package directory as its
   working directory, no arguments and closed input

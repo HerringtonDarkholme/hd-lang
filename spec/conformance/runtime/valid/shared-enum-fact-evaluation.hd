@@ -2,7 +2,7 @@
 # Spec 08 Shared Enum Constructor Data: data.shared.module-init,
 # data.shared.module-init.order, data.shared.module-init.effects.
 # Spec 08 Shared Parameter Defaults: data.shared.default.eval-order.
-# Spec 10 Initialization Order: module.init.group.once.
+# Spec 10 Initialization Order: module.init.cycle.once.
 # fixture-package-tree: shared-enum-init/src/app.hd
 use pkg.shipping.{Shipping}
 use pkg.trace.{recorded}

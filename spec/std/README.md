@@ -19,8 +19,8 @@ The language tier names a std item only when the compiler must know it:
   a `std.ops` operator trait;
 - an intrinsic, such as `List.push`, `string.len`, or `facts_of(f)`;
 - a prelude name and its signature;
-- the test registration functions `it`, `it_each`, `it_prop`, and
-  `it_prop_with`, with their position rules and diagnostics;
+- the functions of the test registration calls `it`, `it_each`, `it_prop`,
+  and `it_prop_with`, with their position rules and diagnostics;
 - the conformance harness: `it`, `assert`, `assert_equal`, and `println`.
 
 This tier keeps what those registration functions do when a test runs:
@@ -170,7 +170,7 @@ file of its own.
 | File | Module | Rule ID prefix | Scope |
 | --- | --- | --- | --- |
 | [`testing.md`](testing.md) | `std.testing` | `std-testing` | what `it_each`, `it_prop`, and `it_prop_with` cases do when they run, property tests, the draw limit, derived `Arbitrary`, table-test rows, snapshot files, the `timeout` option, `hd_run!`, the runner capabilities |
-| [`iter.md`](iter.md) | `std.iter` | `std-iter` | iterator adapters, including `skip`, `take_while`, `zip`, `chain`, `flat_map`, `any`, `all`, `find`, and `count`; collect targets, `FromIterator` and its impls, `map` on a list or an optional |
+| [`iter.md`](iter.md) | `std.iter` | `std-iter` | iterator adapters, including `skip`, `take_while`, `zip`, `chain`, `flat_map`, `any`, `all`, `find`, and `count`; what `collect` builds, `FromIterator` and its impls, `map` on a list or an optional |
 | [`text.md`](text.md) | `std.text` | `std-text` | string methods above the intrinsics, including `lines` and `repeat`; `split_once`, `split_whitespace`, padding, and `count`; the `r` prefix |
 | [`format.md`](format.md) | `std.format` | `std-format` | the text `debug` returns, `Debug` builders and layout, derived builder calls, `Debug` for the public std types |
 | [`time.md`](time.md) | `std.time` | `std-time` | `Duration`, its suffixes, its arithmetic, and its `Display` text; `Timestamp + Duration`; the host trait `Clock`, `Timestamp`, `Instant`, `now`, and `sleep!`; the provider `ManualClock`; the UTC `Date`, RFC 3339 text, and `TimeParseError`; the serialization opt-in of the time types |
@@ -207,7 +207,6 @@ the [language glossary](../README.md#glossary).
 
 | Term | Definition |
 | --- | --- |
-| **collect target** | The collection that `collect` builds, named by the expected type. See [Collect Targets](iter.md#collect-targets). |
 | **Debug builders** | The `DebugWriter` methods that describe a value as a struct, tuple, list, or map. See [Debug Builders](format.md#debug-builders). |
 | **draw limit** | The per-case limit on draws from `Choices`; once it is spent, every draw returns its simplest value. See [`std-testing.limit`](testing.md#r-std-testing.limit). |
 | **flag** | A command-line argument that `std.cli` reads as set or not set; it takes no value. See [`std-cli.cli.flag`](cli.md#r-std-cli.cli.flag). |

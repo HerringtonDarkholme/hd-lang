@@ -2464,8 +2464,8 @@ impl Describe for Worker by Logger:
 3. r[trait.by.part-impl] The type of that field, with `C`'s type arguments substituted, must implement the same instantiation of `Trait`.
 4. r[trait.by.invalid] Otherwise the implementation is an error, reported on the line of `by`. Error: `invalid-delegation`.
 5. r[trait.by.structure] `impl Trait for C by Structure` is never a delegation. It declares a derivation template or a derivation block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.
-6. r[trait.by.trait-less] A header without a trait never delegates: `impl C by Structure` declares a [trait-less derivation block](14-annotations.md#trait-less-derivation-blocks).
-7. r[trait.by.trait-less.error] `impl C by E` without a trait, where `E` is not `Structure`, is an error, reported on the line of `by`. Error: `invalid-delegation`.
+6. r[trait.by.no-trait] A header without a trait never delegates: `impl C by Structure` declares a [derivation block with no trait](14-annotations.md#derivation-blocks-with-no-trait).
+7. r[trait.by.no-trait.error] `impl C by E` without a trait, where `E` is not `Structure`, is an error, reported on the line of `by`. Error: `invalid-delegation`.
 
 ```text
 trait Describe:

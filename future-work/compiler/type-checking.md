@@ -317,7 +317,7 @@ pub enum Goal {
     /// Normalize `<self_ty as Trait[args]>::assoc`; `assoc` is the item's own DefId.
     Project { assoc: DefId, tref: TraitRef },
     /// Every instantiation `Trait[A..]` that `self_ty` implements.
-    /// For bound-only parameters and for choosing among instantiations.
+    /// For parameters named only in bounds and for choosing among instantiations.
     Instantiations { self_ty: Ty, trait_: DefId, mut_: bool },
     /// The method candidates named `name` for a receiver type,
     /// inherent first, then available traits.
@@ -606,12 +606,12 @@ For a call `f(args)` whose callee resolves to a generic declaration:
    Section 3.4 gives the mechanism.
 6. **Bounds.** Each instantiated bound becomes an `Implements` goal.
    `Holds` may teach a binding; `Stalled` becomes an obligation.
-7. **Bound-only parameters.** After the other parameters, each bound-only
+7. **Parameters named only in bounds.** After the other parameters, each such
    parameter asks `Instantiations` of its bounded parameter's type, and
    solves when exactly one instantiation fits. The step repeats until
    nothing changes
    ([`types.generic.infer.bound.fixed-point`](../../spec/lang/04-type-system.md#r-types.generic.infer.bound.fixed-point)).
-   The repeat count is at most the number of bound-only parameters.
+   The repeat count is at most the number of parameters named only in bounds.
 8. **Defaults.** A parameter still unbound takes its declared default,
    in declaration order, with earlier arguments substituted. Then its
    bounds are checked
@@ -1709,7 +1709,7 @@ omit `-> T`
 Public functions, trait methods and impl methods cannot
 (`missing-result-type`, a header error).
 
-**Hidden template helpers (review finding 6).** A derive template may
+**Hidden private items a template names (review finding 6).** A derive template may
 call private helpers of its trait's module, which the interface exports
 as hidden items (owner, 2026-10-07). A dependent checks the instantiated
 template, so it needs each helper's signature. To keep "interfaces come
@@ -2171,7 +2171,7 @@ again:
 
 **Open.**
 
-1. **Signatures of hidden template helpers (review finding 6).** A
+1. **Signatures of hidden private items a template names (review finding 6).** A
    template may call private helpers of its trait's module (owner,
    2026-10-07), so a dependent needs their signatures. If a helper may
    omit its result or row, the interface depends on a body, and a helper

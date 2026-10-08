@@ -9,8 +9,8 @@ ordinary hd over the language tier:
   `collect`, with their laziness and ordering;
 - the adapters `skip`, `take_while`, `zip`, `chain`, and `flat_map`, and
   the draining `any`, `all`, `find`, and `count`;
-- the `FromIterator` trait and the collect targets `List`, `Map`,
-  `Result`, and `T?`;
+- the `FromIterator` trait and the collections `collect` builds:
+  `List`, `Map`, `Result`, and `T?`;
 - `map` on `List[T]` and on `T?`.
 
 The language tier keeps what the compiler knows by name
@@ -44,7 +44,7 @@ fn first_evens(values: List[i32]) -> List[(usize, i32)]:
 | r[std-iter.adapter.enumerate-usize] `enumerate` | `fn enumerate(mut self) -> mut Iterator[(usize, T)]` | a new iterator over `(index, item)` pairs, with `usize` indices counting from `0` |
 | r[std-iter.adapter.map] `map` | `fn map[U](mut self, transform: fn(T) -> U) -> mut Iterator[U]` | a new iterator over `transform(item)` for each item of `self`, in order |
 | r[std-iter.adapter.fold] `fold` | `fn fold[A, R](mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R` | the accumulator after `step` has combined it with each remaining item of `self`, in order, starting from `initial` |
-| r[std-iter.adapter.collect-defaulted] `collect` | `fn collect[C < FromIterator[T] = List[T]](mut self) -> C` | a `C` built from the remaining items of `self`, as [Collect Targets](#collect-targets) specifies |
+| r[std-iter.adapter.collect-defaulted] `collect` | `fn collect[C < FromIterator[T] = List[T]](mut self) -> C` | a `C` built from the remaining items of `self`, as [What Collect Builds](#what-collect-builds) specifies |
 
 1. r[std-iter.adapter.methods] The adapters are ordinary methods of the prelude `Iterator[T]`, so every iterator has them without a `use`.
 2. r[std-iter.adapter.lazy] Calling `filter`, `take`, or `enumerate` does not advance `self`.
@@ -161,7 +161,7 @@ fn joined_eagerly(first: List[i32], rest: mut Iterator[i32]) -> List[i32]:
 > or range passes directly. `I` is a bounded type parameter, so `other.iter()`
 > is dispatched statically, with no trait value.
 
-## Collect Targets
+## What Collect Builds
 
 `collect` builds the collection that the expected type names:
 
@@ -180,7 +180,8 @@ fn count(values: List[i32]) -> usize:
     copied.len()
 ```
 
-The target implements the `std.iter` trait `FromIterator[T]`:
+The collection being built implements the `std.iter` trait
+`FromIterator[T]`:
 
 ```text
 trait FromIterator[T]:
@@ -190,13 +191,13 @@ trait FromIterator[T]:
 1. r[std-iter.collect.trait] `std.iter` declares `FromIterator[T]`, whose `from_iter` builds a `Self` from the items of an iterator.
 2. r[std-iter.prelude.from-iterator] `std.iter` also declares `FromIterator`, which is not a prelude name. Code imports it to implement or name it, as in `use std.iter.FromIterator`, and a `collect` call needs no import.
 3. r[std-iter.collect.call] `collect` returns `C::from_iter(self)`.
-4. r[std-iter.collect.target] `C` is solved like any call-site type argument: from the expected type, or from an explicit list such as `collect::[Map[string, i32]]()`.
-5. r[std-iter.collect.target-default] When nothing determines `C`, its declared [default](../lang/04-type-system.md#type-argument-defaults) `List[T]` applies.
-6. r[std-iter.collect.bound] A target that does not implement `FromIterator[T]` is an error. Error: `unsatisfied-trait-bound`.
+4. r[std-iter.collect.expected] `C` is solved like any call-site type argument: from the expected type, or from an explicit list such as `collect::[Map[string, i32]]()`.
+5. r[std-iter.collect.default] When nothing determines `C`, its declared [default](../lang/04-type-system.md#type-argument-defaults) `List[T]` applies.
+6. r[std-iter.collect.bound] A `C` that does not implement `FromIterator[T]` is an error. Error: `unsatisfied-trait-bound`.
 
 The standard library implements `FromIterator` for these prelude types:
 
-| Rule | Target | Items | Result |
+| Rule | Collection | Items | Result |
 | --- | --- | --- | --- |
 | r[std-iter.collect.list] List | `List[T]` | `T` | every remaining item, in order |
 | r[std-iter.collect.map-last] Map | `Map[K, V]` | `(K, V)` | one entry per pair; for an equal key the later value wins |
@@ -205,7 +206,7 @@ The standard library implements `FromIterator` for these prelude types:
 
 1. r[std-iter.collect.drain] Collecting into a `List` or a `Map` advances `self` until `next` returns `.None`, which leaves `self` exhausted.
 2. r[std-iter.collect.stop] Collecting into a `Result` or an optional stops at the first `.Err` or `.None` and leaves the rest of `self` unread.
-3. r[std-iter.collect.map-key] A `Map` target needs `K < Eq & Hash`, as every map does.
+3. r[std-iter.collect.map-key] A `Map` collection needs `K < Eq & Hash`, as every map does.
 
 ```text
 fn total(values: List[i32]) -> i32:

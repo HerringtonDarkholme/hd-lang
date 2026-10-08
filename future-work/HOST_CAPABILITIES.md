@@ -277,7 +277,7 @@ net = ["localhost"]
 | `hd FILE` outside a package, and the REPL | the command's flags only |
 | an integration test case or a doc test | the **test grant**: read of the package directory, write of its own [`temp_dir`](../spec/std/testing.md#temporary-directories), then `[test.permissions]`, then the flags of `hd test` |
 | a program that `hd_run!` starts | as `hd run NAME` gets it: `[permissions]`, with no flags |
-| a unit test case | no host capability, unchanged |
+| a unit test | no host capability, unchanged |
 | a built `.wasm` under another host | that host's policy; `hd build` embeds no grant |
 
 1. **Effective grant.** For each category, a resource is granted when an

@@ -1,5 +1,5 @@
 # test: a blanket implementation whose own bound is unmet gives the type no instantiation of the bound's trait
-# Spec 04 Bound-Only Parameters: types.generic.infer.bound.none.
+# Spec 04 Inference Through A Bound: types.generic.infer.bound.none.
 trait Mark:
     fn mark(self) -> void
 

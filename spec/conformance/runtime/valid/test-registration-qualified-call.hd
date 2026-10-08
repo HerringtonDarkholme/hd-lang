@@ -1,5 +1,5 @@
 # test: a module-qualified call of it or it_each registers test cases
-# Spec Modules, Registration Functions: module.testing.reg.identity.all; testing.it and testing.it_each after use std.testing are the registration functions.
+# Spec Modules, Registration Calls: module.testing.reg.identity.all; testing.it and testing.it_each after use std.testing are the functions of the calls.
 use std.testing
 
 tests:

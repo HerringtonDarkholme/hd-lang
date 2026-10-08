@@ -1038,7 +1038,7 @@ See also: [Declarations](#declarations).
 
 This section defines program entry functions.
 
-1. r[fn.entry.main] `pub fn main() -> void` or `pub fn main() -> Result[void, E]` is the default non-suspending executable entry point.
+1. r[fn.entry.main] `pub fn main() -> void` or `pub fn main() -> Result[void, E]` is the default non-suspending entry point.
 2. r[fn.entry.no-parameters] It has no source-level parameters.
 3. r[fn.entry.suspending] A suspending entry point is named `main!`.
 4. r[fn.entry.requirements] Entry points may declare host requirements with the ordinary `$` clause.

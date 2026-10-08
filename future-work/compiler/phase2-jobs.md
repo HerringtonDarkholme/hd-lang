@@ -211,7 +211,7 @@ portable conformance suite.
 | Specification | Aggregate rules in `lang/08-data-and-enums.md`; initialization and visibility in `lang/10-modules.md`; annotations and derivation in `lang/14-annotations.md` |
 | Design | `checking-and-tir.md` §§4.13.8–4.13.10; `type-checking.md` §§1.7, 8; `resolution-and-interfaces.md` §§4.10–4.12; `codegen.md` §12.3 |
 | Cases to turn green | Chapter-08, chapter-10 initialization/visibility, and chapter-14 fact/template/debug rows. Include `spec/conformance/trees/{init-cycle,init-group,init-order,shared-enum-init,visibility}`; candidate reach is at most 533 rows. |
-| Exit test | All selected cases check with stable initialization groups and diagnostics; facts and generated instances appear once; debug/inspect uses only recorded evidence and TIR operations. |
+| Exit test | All selected cases check with stable module cycles and diagnostics; facts and generated instances appear once; debug/inspect uses only recorded evidence and TIR operations. |
 | Size estimate | 5–7 kLOC of Rust. |
 
 ## P2-5. Packages, Discovery, And Interfaces

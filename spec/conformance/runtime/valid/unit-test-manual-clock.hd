@@ -1,4 +1,4 @@
-# test: a unit test case binds the std fake ManualClock with $.with in place of the host clock
+# test: a unit test binds the std fake ManualClock with $.with in place of the host clock
 # Spec std Testing, Unit Test Providers: std-testing.unit.hint; Modules: module.testing.unit-row.test-runner (task #321).
 use std.testing.assert_equal
 use std.time.{Clock, ManualClock, Timestamp, now}

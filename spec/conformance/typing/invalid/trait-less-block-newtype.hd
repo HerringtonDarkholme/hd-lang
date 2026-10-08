@@ -1,4 +1,4 @@
-# test: a trait-less block cannot target a newtype
+# test: a block with no trait cannot target a newtype
 use std.structure.Structure
 
 type Meters(i64)

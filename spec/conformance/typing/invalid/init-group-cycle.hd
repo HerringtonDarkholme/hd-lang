@@ -1,5 +1,5 @@
 # test: statements of a group that wait on each other form an initialization cycle
-# Spec 10 Order Inside A Group: module.init.group.cycle (Dependency Cycles DC7, DC11).
+# Spec 10 Order Inside A Cycle: module.init.cycle.stuck (Dependency Cycles DC7, DC11).
 # fixture-package-tree: init-cycle/src/shop/a.hd
 use pkg.shop.b.{read_b}
 

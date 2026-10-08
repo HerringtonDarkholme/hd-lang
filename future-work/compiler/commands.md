@@ -66,7 +66,7 @@ research's "dependency bodies skipped" now holds cold as well as warm.
    One unit-test program per package, holding every module's `tests:`
    cases and doc tests, with an init export per module (§19.1); one
    program per integration test file. Registration names are string
-   literals ([Registration Functions](../../spec/lang/10-modules.md#registration-functions)),
+   literals ([Registration Calls](../../spec/lang/10-modules.md#registration-calls)),
    so the checker lists each program's cases without running anything.
    Only the row count of an `it_each` case is learned at run time.
    `--filter` is applied to this list.

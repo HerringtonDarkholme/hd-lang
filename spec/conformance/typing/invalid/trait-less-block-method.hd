@@ -1,4 +1,4 @@
-# test: a trait-less block holds only member lines, not methods
+# test: a block with no trait holds only member lines, not methods
 use std.structure.Structure
 
 data Account:

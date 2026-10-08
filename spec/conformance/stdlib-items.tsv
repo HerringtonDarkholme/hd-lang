@@ -10,7 +10,7 @@ std.sys	std/sys.md#system-reads
 std.testing.RunOutput	std/testing.md#running-executables
 std.testing.temp_dir	std/testing.md#temporary-directories
 std.testing.arbitrary	std/testing.md#derived-arbitrary
-std.iter.FromIterator	std/iter.md#collect-targets
+std.iter.FromIterator	std/iter.md#what-collect-builds
 std.text.r	std/text.md#raw-text-prefix
 std.text.Utf8Error	std/text.md#utf-8-conversion
 std.format.DebugStruct	std/format.md#debug-builders

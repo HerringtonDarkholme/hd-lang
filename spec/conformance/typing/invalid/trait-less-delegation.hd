@@ -1,5 +1,5 @@
 # test: a header without a trait never delegates, so only Structure may follow by
-# Spec 02 Traits And Implementations: grammar.impl.traitless-by.other.
+# Spec 02 Traits And Implementations: grammar.impl.by-no-trait.other.
 data Logger:
     name: string
 

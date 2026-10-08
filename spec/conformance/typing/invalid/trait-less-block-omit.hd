@@ -1,4 +1,4 @@
-# test: a trait-less block writes only metadata, so it cannot omit a member
+# test: a block with no trait writes only metadata, so it cannot omit a member
 use std.structure.Structure
 
 data Token:

@@ -292,7 +292,7 @@ relative, shifting a whole declaration's indentation changes nothing. A
 syntax test checks two template bodies with equal lexical tokens and
 different block structure: their hashes differ.
 
-Hidden template helpers are no exception. A private function that a
+Private items a template names are no exception. A private function that a
 template body names has a written result type, and its omitted `$`
 clause means the empty row
 ([resolution-and-interfaces.md §4.10.1](resolution-and-interfaces.md#4101-header-validation-stages)).

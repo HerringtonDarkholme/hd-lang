@@ -1,5 +1,5 @@
 # test: a renamed it_each is still a registration function, so a call outside test position is misplaced
-# Spec Modules, Registration Functions: module.testing.reg.identity; the test-position rules apply under any spelling.
+# Spec Modules, Registration Calls: module.testing.reg.identity; the test-position rules apply under any spelling.
 use std.testing.{it_each as each}
 
 fn helper() -> void:

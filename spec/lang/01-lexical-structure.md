@@ -571,7 +571,7 @@ only in fixed positions:
 | r[lex.contextual.use] Use | `use` | at the start of a module-level item, alone or after `pub`, when a use root (`pkg`, `std`, `dep`, `self`, or `super`) follows it; and as the operation name in the dedicated `$.use(...)` provider expression |
 | r[lex.contextual.context] Context | `context`, `with`, `Context` | after `$.` |
 | r[lex.contextual.derive] Derive | `derive` | immediately after `@` |
-| r[lex.contextual.by-header] Delegation and derivation | `by` | after the target type of an implementation header, as in `impl Describe for Service by Logger` or the trait-less `impl User by Structure` |
+| r[lex.contextual.by-header] Delegation and derivation | `by` | after the target type of an implementation header, as in `impl Describe for Service by Logger` or `impl User by Structure`, without a trait |
 
 1. r[lex.contextual.elsewhere] These contextual words remain ordinary identifiers elsewhere. Declarations such as `fn with() -> void`, `fn derive() -> void`, and `fn use() -> void` are lexically valid. So are expressions such as `resource.use(f)` and `super := parent`.
 2. r[lex.contextual.shadowing] The separate prelude shadowing rule still applies.

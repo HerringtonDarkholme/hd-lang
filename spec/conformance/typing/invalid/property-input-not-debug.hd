@@ -1,5 +1,5 @@
 # test: it_prop requires its input type to implement Debug
-# Spec Modules, Registration Functions: module.testing.reg.prop-debug.
+# Spec Modules, Registration Calls: module.testing.reg.prop-debug.
 use std.testing.{Arbitrary, Choices, it_prop}
 
 data Reading:

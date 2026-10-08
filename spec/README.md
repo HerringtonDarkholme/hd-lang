@@ -182,7 +182,6 @@ The stdlib chapters' terms are in the
 | **bare step** | A pipe step that is a name or path without `_`. See [`expr.pipe.step-kinds`](lang/05-expressions.md#r-expr.pipe.step-kinds). |
 | **bound method reference** | `value::name`, where `value` names a value, as a function value. See [`fn.ref.bound`](lang/07-functions.md#r-fn.ref.bound). |
 | **bound requirement key** | A requirement key that binds associated types, such as `Store[Item = User]`; its provider value has the trait value type `dyn Store[Item = User]`. See [Bound Requirement Keys](lang/11-requirements-and-suspension.md#bound-requirement-keys). |
-| **bound-only parameter** | A type parameter of a call that no parameter type names but a bound of another type parameter does; inference solves it from that bound. See [`types.generic.infer.bound`](lang/04-type-system.md#r-types.generic.infer.bound). |
 | **build directory** | The directory `build` in a package directory, where `hd` writes its build and cache output, such as `build/debug/NAME.wasm`. See [`cli.build.directory`](cli/command-line.md#r-cli.build.directory). |
 | **cache directory** | The one directory per user where `hd` keeps every fetched dependency version, read-only. See [Cache](cli/command-line.md#cache). |
 | **call place** | A call `v()` whose callee's type implements `Update`, so `v() = x` and `v() op= x` store through it. See [Callable Values](lang/05-expressions.md#callable-values). |
@@ -204,11 +203,11 @@ The stdlib chapters' terms are in the
 | **dynamic provider** | A provider a closure gets at each call, because its row keeps the key. See [Lexical And Dynamic Providers](lang/11-requirements-and-suspension.md#lexical-and-dynamic-providers). |
 | **embedded field** | A bare type-name member of a data declaration, which embeds another data type. See [Data Embedding](lang/08-data-and-enums.md#data-embedding). |
 | **entry module** | The module that a program starts from: a module that the toolchain selects in a package, or the file of a single-file program. See [`module.init.entry-module.selected`](lang/10-modules.md#r-module.init.entry-module.selected). |
+| **entry point** | A public top-level function named `main` or `main!` with no parameters. See [`module.entry.definition`](lang/10-modules.md#r-module.entry.definition). |
 | **enum** | A nominal sum type. See [`data.kind.enum`](lang/08-data-and-enums.md#r-data.kind.enum). |
 | **error derivation** | Implementing `Display`, `Error`, and `From` for an error type from its `@error` lines. See [Error Derivation](lang/14-annotations.md#error-derivation). |
 | **error type** | An enum with a bare `@error` line, or a data type with an `@error("...")` or `@error(transparent)` line. See [`annot.error.type`](lang/14-annotations.md#r-annot.error.type). |
 | **executable** | A program a package ships, declared by an `[[executable]]` table of `hd.toml`, or `src/main.hd` when the manifest declares none. See [`cli.exe.table`](cli/command-line.md#r-cli.exe.table) and [`cli.exe.default-main`](cli/command-line.md#r-cli.exe.default-main). |
-| **executable entry point** | A public top-level function named `main` or `main!` with no parameters. See [`module.entry.definition`](lang/10-modules.md#r-module.entry.definition). |
 | **exhausted** | An iterator whose `next` has returned `.None`. See [`flow.for.iterator-exhausted`](lang/06-control-flow.md#r-flow.for.iterator-exhausted). |
 | **exhausted iterator** | An iterator whose `next` has returned `.None`. What a later `next` returns is unspecified. See [`flow.for.iterator-exhausted`](lang/06-control-flow.md#r-flow.for.iterator-exhausted). |
 | **fact** | An ordinary value attached to a type, member, or variant for derivations to read. See [Facts](lang/14-annotations.md#facts). |
@@ -223,7 +222,6 @@ The stdlib chapters' terms are in the
 | **infinite loop** | A `while` loop whose condition is the literal `true`. It completes normally only through a `break` that targets it. See [`flow.while.infinite`](lang/06-control-flow.md#r-flow.while.infinite). |
 | **inherent associated function** | A member of an inherent implementation without a `self` parameter, called through the type, as in `User::guest()`. See [Inherent Members](lang/09-traits.md#inherent-members). |
 | **inherent method** | A member of an inherent implementation whose first parameter is `self` or `mut self`, called with dot syntax. See [Inherent Members](lang/09-traits.md#inherent-members). |
-| **initialization group** | A strongly connected component of the use graph: one module, or modules that use each other in a loop, initialized together. See [`module.init.group`](lang/10-modules.md#r-module.init.group). |
 | **inspectable types** | The types for which the compiler supplies `Inspectable`: primitives, module-level declarations, collections and tuples of inspectable types, and matching dynamic values. See [Inspectable Types](lang/09-traits.md#inspectable-types). |
 | **integration test module** | A module under the package's test root, which sees the package as a dependent does. See [`module.test.integration`](lang/10-modules.md#r-module.test.integration). |
 | **integration test program** | A file directly under the test root, compiled as its own program. See [`module.test.integration.program`](lang/10-modules.md#r-module.test.integration.program). |
@@ -241,11 +239,12 @@ The stdlib chapters' terms are in the
 | **local type names** | The name category of data types, enums, traits, aliases, and newtypes declared inside an executable suite. See [`names.category.local-type`](lang/03-names-and-scopes.md#r-names.category.local-type). |
 | **manifest hash** | The tree hash of a tree that holds only a dependency version's `hd.toml`. See [`cli.sum.manifest-hash`](cli/command-line.md#r-cli.sum.manifest-hash). |
 | **manifest line** | An `hd.sum` line that records the manifest hash of a version that selection reads. See [`cli.sum.manifest-line`](cli/command-line.md#r-cli.sum.manifest-line). |
-| **member line** | A line of a derivation block that edits one member's facts or omits it, or a line of a trait-less derivation block that edits its metadata. See [Member Lines](lang/14-annotations.md#member-lines). |
+| **member line** | A line of a derivation block that edits one member's facts or omits it, or a line of a derivation block with no trait that edits its metadata. See [Member Lines](lang/14-annotations.md#member-lines). |
 | **member metadata** | The ordered list of values attached to a data field, an enum variant, or a parameter. See [Terminology](lang/14-annotations.md#terminology). |
 | **member names** | The name category of data fields, embedded fields, methods, enum variants, and tuple fields, within the namespace of their owning type. See [`names.category.member`](lang/03-names-and-scopes.md#r-names.category.member). |
 | **method lookup** | The steps that resolve `x.name(args)` to an own inherent method or a candidate. See [Method Lookup](lang/03-names-and-scopes.md#method-lookup). |
 | **method reference** | A method or associated function named as a function value, written `Owner::name` or `value::name` without arguments. See [Method References](lang/07-functions.md#method-references). |
+| **module cycle** | A strongly connected component of the use graph: modules that use each other, or one module alone as a trivial cycle, initialized together. See [`module.init.cycle`](lang/10-modules.md#r-module.init.cycle). |
 | **minimal version selection** | Choosing, for each host path and compatibility line, the largest minimum that any reached manifest states. See [Version Selection](lang/10-modules.md#version-selection). |
 | **module names** | The name category of top-level types, traits, functions, and names introduced by use declarations. See [`names.category.module`](lang/03-names-and-scopes.md#r-names.category.module). |
 | **mutable access** | What an expression has when its type is `mut U`, its type is a parameter bounded by `mut Trait` or `mut Any`, or it is `self` in a `mut self` method. See [Mutation Checks](lang/04-type-system.md#mutation-checks). |
@@ -299,7 +298,6 @@ The stdlib chapters' terms are in the
 | **suffixed literal** | A numeric literal with a literal suffix, such as `250ms`, which calls the suffix function, as `ms(250)`. See [Literal Suffixes](lang/05-expressions.md#literal-suffixes). |
 | **task** | A development program of a package, a file `tasks/NAME.hd` that `hd run NAME` runs and the package never ships. See [Tasks](cli/command-line.md#tasks). |
 | **template** | A trait's one derived implementation, written `impl[T] Trait for T by Structure:` in the trait's module. See [Templates](lang/14-annotations.md#templates). |
-| **template helper** | A private item that a template body names; it follows the signature rules of a public declaration. See [`module.package.template-helper`](lang/10-modules.md#r-module.package.template-helper). |
 | **test grant** | The capability grant of an integration test case or a doc test, built from `[test.capabilities]`, the flags of `hd test`, and fixed file system entries. See [`cli.test.env.grant`](cli/command-line.md#r-cli.test.env.grant). |
 | **totally denied** | A trait whose grant is `false`; a module that imports it never starts. See [Total Deny](cli/command-line.md#total-deny). |
 | **tuple template** | A trait's derivation for every tuple type, written `impl[T < Tuple] Trait for T by Structure:` in the trait's module. See [Tuple Templates](lang/14-annotations.md#tuple-templates). |
@@ -307,10 +305,9 @@ The stdlib chapters' terms are in the
 | **test code** | A package's `tests:` blocks, test modules, integration test modules, and doc tests, compiled only by a test build. See [`module.test.code`](lang/10-modules.md#r-module.test.code). |
 | **test module** | A module whose file name ends in `_test.hd`. See [Test Modules](lang/10-modules.md#test-modules). |
 | **test position** | The top level of a `tests:` block, a test module, or an integration test module, where test-case calls go. See [`module.testing.test-position`](lang/10-modules.md#r-module.testing.test-position). |
-| **test registration function** | `it`, `it_each`, `it_prop`, or `it_prop_with`; only a direct call of one may stand in test position. See [`module.testing.position-statements`](lang/10-modules.md#r-module.testing.position-statements). |
+| **test registration call** | A direct call of `it`, `it_each`, `it_prop`, or `it_prop_with`; only such a call may stand in test position. See [`module.testing.position-statements`](lang/10-modules.md#r-module.testing.position-statements). |
 | **trait candidates** | The trait methods of the receiver's type with the called name whose trait is available at the call. See [`names.method-lookup.trait-candidates`](lang/03-names-and-scopes.md#r-names.method-lookup.trait-candidates). |
 | **trait methods** | The methods of every trait that a known implementation implements for a type. See [`names.member.trait-methods`](lang/03-names-and-scopes.md#r-names.member.trait-methods). |
-| **trait-less derivation block** | An `impl X by Structure:` without a trait, whose member lines write shared metadata of `X` for every derivation. See [Trait-Less Derivation Blocks](lang/14-annotations.md#trait-less-derivation-blocks). |
 | **tree hash** | The `h1:` hash of a dependency version's files, which `hd.sum` records. See [`cli.sum.hash`](cli/command-line.md#r-cli.sum.hash). |
 | **tree line** | An `hd.sum` line that records the tree hash of a selected version. See [`cli.sum.line`](cli/command-line.md#r-cli.sum.line). |
 | **type forms** | The kinds of type that hd-lang has, such as primitive types, tuples, optional types, and function types. See [Type Forms](lang/04-type-system.md#type-forms). |
@@ -319,7 +316,7 @@ The stdlib chapters' terms are in the
 | **typed derivation** | Implementing a trait for a data type or enum from its members through the trait's template. See [Typed Derivation](lang/14-annotations.md#typed-derivation). |
 | **typed fact type** | A fact type whose `@annotate` decorator writes a type argument, a pattern such as `T` in `@annotate::[T](.Field)` or `fn(T) -> R`. The pattern's parameters are inferred from a target's type as a call's are, and a value on that target checks against the fact type at them. See [`annot.typed-fact.declare`](lang/14-annotations.md#r-annot.typed-fact.declare). |
 | **unbound method reference** | `Owner::name` without an argument clause, where `Owner` names a type, a trait, or a type parameter. See [`fn.ref.unbound`](lang/07-functions.md#r-fn.ref.unbound). |
-| **unit test case** | A test case in a `tests:` block or a test module, wherever its file lies, whose body gets `TestRunner` alone from the runner. See [`module.testing.unit-row.anywhere`](lang/10-modules.md#r-module.testing.unit-row.anywhere). |
+| **unit test** | A test case in a `tests:` block or a test module, wherever its file lies, whose body gets `TestRunner` alone from the runner. See [`module.testing.unit-row.anywhere`](lang/10-modules.md#r-module.testing.unit-row.anywhere). |
 | **untyped fact type** | A fact type whose `annotate` type argument is the default `Any`, as in `@annotate(.Field)`, so its values stay unchecked. See [`annot.typed-fact.untyped`](lang/14-annotations.md#r-annot.typed-fact.untyped). |
 | **value expression** | An expression that produces a value. See [`expr.category.value`](lang/05-expressions.md#r-expr.category.value). |
 | **value names** | The name category of top-level executable bindings, parameters, local bindings, local named functions, loop bindings, pattern bindings, and captured values. See [`names.category.value`](lang/03-names-and-scopes.md#r-names.category.value). |

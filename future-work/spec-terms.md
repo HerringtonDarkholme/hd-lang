@@ -16,9 +16,10 @@ None: every hd-only concept below keeps an established or plain word.
 
 ## Verdicts
 
-**keep 181, replace 6, owner 0.** Five S11c replacements (below) plus the
-S11b `ghost entry` → `stale entry` row. The 181 keeping rows hold with
-their evidence; the glossary-hygiene duplicate note stands. S11b's
+**keep 173, replace 14, owner 0.** Eight S11d replacements (below), five
+S11c replacements, plus the S11b `ghost entry` → `stale entry` row. The
+173 keeping rows hold with their evidence; the glossary-hygiene
+duplicate note stands. S11b's
 `ghost entry` reasoning stands: everyday "ghost" means a haunting,
 which says nothing about an unreachable map entry, and the verification
 sense (Dafny ghost state, erased at runtime) means something related
@@ -37,7 +38,7 @@ section is next touched (S12's lane).
 | base tag | cli/command-line.md#r-cli.dep.pseudo.base | A pseudo-version's **base tag** is the tag its form names, by the pseudo-version table, with the package's tag prefix. | keep | P: the tag a form names |
 | bound method reference | lang/07-functions.md#r-fn.ref.bound | `value::name`, where `value` names a value, as a function value. | keep | Python docs, bound methods: a function tied to its receiver |
 | bound requirement key | lang/11-requirements-and-suspension.md#bound-requirement-keys | A requirement key that binds associated types, such as `Store[Item = User]`; its provider value has the trait value type `dyn Store[Item = User]`. | keep | P: a key carrying its bindings |
-| bound-only parameter | lang/04-type-system.md#r-types.generic.infer.bound | A type parameter of a call that no parameter type names but a bound of another type parameter does; inference solves it from that bound. | keep | P: named only in a bound |
+| bound-only parameter | lang/04-type-system.md#r-types.generic.infer.bound | A type parameter of a call that no parameter type names but a bound of another type parameter does; inference solves it from that bound. | replace | a parameter named only in bounds — S11d; term dropped from the spec |
 | build directory | cli/command-line.md#r-cli.build.directory | The directory `build` in a package directory, where `hd` writes its build and cache output, such as `build/debug/NAME.wasm`. | keep | P: the directory a build writes to |
 | build profiles | lang/04-type-system.md#integer-arithmetic | A program is built under one of three **build profiles**: debug, release, or test. | keep | Cargo book, Profiles: named build configurations |
 | cache directory | cli/command-line.md#cache | The one directory per user where `hd` keeps every fetched dependency version, read-only. | keep | P: the directory a cache lives in |
@@ -45,7 +46,7 @@ section is next touched (S12's lane).
 | callable value | lang/05-expressions.md#callable-values | A value whose type implements `Apply`, read by calling it with no arguments, as in `count()`. | keep | Python docs, callable objects: a value used as a function |
 | capability grant | cli/command-line.md#capability-grants | What a program's host capability traits may touch at run time: for each trait, no limit, a total deny, or a list of scope entries. | keep | object-capability literature (Dennis–Van Horn): what a capability permits |
 | coherence slot | lang/14-annotations.md#terminology | One `(trait, concrete target)` pair over the resolved package graph. | replace | (trait, type) pair — S11c; term dropped from the spec |
-| collect target | std/iter.md#collect-targets | The collection that `collect` builds, named by the expected type. | keep | P: what an operation builds toward |
+| collect target | std/iter.md#what-collect-builds | The collection that `collect` builds, named by the expected type. | replace | the collection being built — S11d; rule IDs std-iter.collect.expected, std-iter.collect.default |
 | compatibility line | lang/10-modules.md#r-module.version.line | The versions of a package that must stay compatible: one major number, or `0.MINOR` below 1.0. | keep | P: a line of mutually compatible versions |
 | compiled entries | cli/command-line.md#r-cli.cache.obj | `hd` stores its **compiled entries** in the directory `obj` of the cache directory. | keep | P: entries already compiled |
 | compound assignment | lang/05-expressions.md#compound-assignment | A statement `place op= value`, such as `total += x`, that combines an operator with a store. | keep | C standard, assignment operators: `op=` forms |
@@ -72,7 +73,7 @@ section is next touched (S12's lane).
 | error derivation | lang/14-annotations.md#error-derivation | Implementing `Display`, `Error`, and `From` for an error type from its `@error` lines. | keep | P: deriving an error implementation |
 | error type | lang/14-annotations.md#r-annot.error.type | An enum with a bare `@error` line, or a data type with an `@error("...")` or `@error(transparent)` line. | keep | P: the type of an error value |
 | executable | cli/command-line.md#r-cli.exe.table | A program a package ships, declared by an `[[executable]]` table of `hd.toml`, or `src/main.hd` when the manifest declares none. See `cli.exe.table` and `cli.exe.default-main`. | keep | P: a file that can be executed |
-| executable entry point | lang/10-modules.md#r-module.entry.definition | A public top-level function named `main` or `main!` with no parameters. | keep | P: where execution enters (C `main`) |
+| executable entry point | lang/10-modules.md#r-module.entry.definition | A public top-level function named `main` or `main!` with no parameters. | replace | entry point — S11d; heading Entry Point |
 | exhausted | lang/06-control-flow.md#r-flow.for.iterator-exhausted | An iterator whose `next` has returned `.None`. | keep | P: emptied of items |
 | exhausted iterator | lang/06-control-flow.md#r-flow.for.iterator-exhausted | An iterator whose `next` has returned `.None`. What a later `next` returns is unspecified. | keep | P: an iterator with no items left |
 | fact | lang/14-annotations.md#facts | An ordinary value attached to a type, member, or variant for derivations to read. | keep | Datalog literature: an asserted proposition (vs a rule) |
@@ -92,7 +93,7 @@ section is next touched (S12's lane).
 | infinite loop | lang/06-control-flow.md#r-flow.while.infinite | A `while` loop whose condition is the literal `true`. It completes normally only through a `break` that targets it. | keep | P: a loop that never ends |
 | inherent associated function | lang/09-traits.md#inherent-members | A member of an inherent implementation without a `self` parameter, called through the type, as in `User::guest()`. | keep | R: inherent implementations |
 | inherent method | lang/09-traits.md#inherent-members | A member of an inherent implementation whose first parameter is `self` or `mut self`, called with dot syntax. | keep | R: inherent implementations |
-| initialization group | lang/10-modules.md#r-module.init.group | A strongly connected component of the use graph: one module, or modules that use each other in a loop, initialized together. | keep | P: units initialized together |
+| initialization group | lang/10-modules.md#r-module.init.cycle | A strongly connected component of the use graph: one module, or modules that use each other in a loop, initialized together. | replace | module cycle — S11d; rule IDs module.init.cycle.* (group.cycle is now cycle.stuck) |
 | inspectable types | lang/09-traits.md#inspectable-types | The types for which the compiler supplies `Inspectable`: primitives, module-level declarations, collections and tuples of inspectable types, and matching dynamic values. | keep | P: types that can be inspected |
 | integration test module | lang/10-modules.md#r-module.test.integration | A module under the package's test root, which sees the package as a dependent does. | keep | Cargo book, integration tests |
 | integration test program | lang/10-modules.md#r-module.test.integration.program | A file directly under the test root, compiled as its own program. | keep | Cargo book, integration tests |
@@ -111,7 +112,7 @@ section is next touched (S12's lane).
 | local type names | lang/03-names-and-scopes.md#r-names.category.local-type | The name category of data types, enums, traits, aliases, and newtypes declared inside an executable suite. | keep | P: type names visible locally |
 | manifest hash | cli/command-line.md#r-cli.sum.manifest-hash | The tree hash of a tree that holds only a dependency version's `hd.toml`. | keep | P: the hash recorded in a manifest |
 | manifest line | cli/command-line.md#r-cli.sum.manifest-line | An `hd.sum` line that records the manifest hash of a version that selection reads. | keep | P: one line of a manifest |
-| member line | lang/14-annotations.md#member-lines | A line of a derivation block that edits one member's facts or omits it, or a line of a trait-less derivation block that edits its metadata. | keep | P: one line configuring a member |
+| member line | lang/14-annotations.md#member-lines | A line of a derivation block that edits one member's facts or omits it, or a line of a derivation block with no trait that edits its metadata. | keep | P: one line configuring a member |
 | member metadata | lang/14-annotations.md#terminology | The ordered list of values attached to a data field, an enum variant, or a parameter. | keep | P: data about a member |
 | member names | lang/03-names-and-scopes.md#r-names.category.member | The name category of data fields, embedded fields, methods, enum variants, and tuple fields, within the namespace of their owning type. | keep | P: the names of members |
 | method lookup | lang/03-names-and-scopes.md#method-lookup | The steps that resolve `x.name(args)` to an own inherent method or a candidate. | keep | P: finding a method by name |
@@ -183,19 +184,19 @@ section is next touched (S12's lane).
 | target parameter | lang/14-annotations.md#r-annot.typed-fact.pattern.trivial | That parameter is the fact type's **target parameter**, and it is inferred as the target's whole type. | keep | P: the parameter aimed at |
 | task | cli/command-line.md#tasks | A development program of a package, a file `tasks/NAME.hd` that `hd run NAME` runs and the package never ships. | keep | P: a unit of scheduled work |
 | template | lang/14-annotations.md#templates | A trait's one derived implementation, written `impl[T] Trait for T by Structure:` in the trait's module. | keep | C++ standard, templates: an outline stamped per use |
-| template helper | lang/10-modules.md#r-module.package.template-helper | A private item that a template body names; it follows the signature rules of a public declaration. | keep | templates (C++ standard) plus P: a helper |
+| template helper | lang/10-modules.md#r-module.package.template-private | A private item that a template body names; it follows the signature rules of a public declaration. | replace | a private item the template uses — S11d; rule IDs module.package.template-private.* |
 | test case | lang/10-modules.md#test-cases | One test, registered by a call of the prelude function `it` in test position, by one row of an `it_each` call, or by an `it_prop` or `it_prop_with` call. | keep | P: one checked example |
 | test code | lang/10-modules.md#r-module.test.code | A package's `tests:` blocks, test modules, integration test modules, and doc tests, compiled only by a test build. | keep | P: code that tests |
 | test grant | cli/command-line.md#r-cli.test.env.grant | The capability grant of an integration test case or a doc test, built from `[test.capabilities]`, the flags of `hd test`, and fixed file system entries. | keep | P: the scope granted to tests |
 | test module | lang/10-modules.md#test-modules | A module whose file name ends in `_test.hd`. | keep | P: a module of tests |
 | test position | lang/10-modules.md#r-module.testing.test-position | The top level of a `tests:` block, a test module, or an integration test module, where test-case calls go. | keep | P: where test cases stand |
-| test program | cli/command-line.md#r-cli.test.program | A **test program** is a program that `hd test` builds to run test cases: one per module with unit test cases or doc tests, and one per integration test module. | keep | P: a program running tests |
-| test registration function | lang/10-modules.md#r-module.testing.position-statements | `it`, `it_each`, `it_prop`, or `it_prop_with`; only a direct call of one may stand in test position. | keep | P: a function registering a test |
+| test program | cli/command-line.md#r-cli.test.program | A **test program** is a program that `hd test` builds to run test cases: one per module with unit tests or doc tests, and one per integration test module. | keep | P: a program running tests |
+| test registration function | lang/10-modules.md#r-module.testing.position-statements | `it`, `it_each`, `it_prop`, or `it_prop_with`; only a direct call of one may stand in test position. | replace | test registration call — S11d; rule ID module.testing.reg.calls; heading Registration Calls |
 | the same compiled program | lang/11-requirements-and-suspension.md#r-req.determinism.same-program | Two builds are **the same compiled program** when the compiler's outputs for them are byte-identical. | keep | P: the identical build artifact (dup note below) |
 | totally denied | cli/command-line.md#total-deny | A trait whose grant is `false`; a module that imports it never starts. | keep | P: refused entirely |
 | trait candidates | lang/03-names-and-scopes.md#r-names.method-lookup.trait-candidates | The trait methods of the receiver's type with the called name whose trait is available at the call. | keep | P: candidate traits |
 | trait methods | lang/03-names-and-scopes.md#r-names.member.trait-methods | The methods of every trait that a known implementation implements for a type. | keep | P: a trait's functions |
-| trait-less derivation block | lang/14-annotations.md#trait-less-derivation-blocks | An `impl X by Structure:` without a trait, whose member lines write shared metadata of `X` for every derivation. | keep | P: a derivation block with no trait |
+| trait-less derivation block | lang/14-annotations.md#derivation-blocks-with-no-trait | An `impl X by Structure:` without a trait, whose member lines write shared metadata of `X` for every derivation. | replace | derivation block with no trait — S11d; rule IDs annot.no-trait.*, trait.by.no-trait, grammar.impl.by-no-trait |
 | tree hash | cli/command-line.md#r-cli.sum.hash | The `h1:` hash of a dependency version's files, which `hd.sum` records. | keep | Git docs, object hashes: a tree's hash |
 | tree line | cli/command-line.md#r-cli.sum.line | An `hd.sum` line that records the tree hash of a selected version. | keep | P: one line about a tree |
 | trivial pattern | lang/14-annotations.md#r-annot.typed-fact.pattern.trivial | A pattern that is one of those parameters alone, as `T` in `@annotate::T`, is a **trivial pattern**. | keep | P: a pattern doing nothing |
@@ -207,7 +208,7 @@ section is next touched (S12's lane).
 | typed fact type | lang/14-annotations.md#r-annot.typed-fact.declare | A fact type whose `@annotate` decorator writes a type argument, a pattern such as `T` in `@annotate::T` or `fn(T) -> R`. The pattern's parameters are inferred from a target's type as a call's are, and a value on that target checks against the fact type at them. | keep | P: the type of a typed fact |
 | unbound method reference | lang/07-functions.md#r-fn.ref.unbound | `Owner::name` without an argument clause, where `Owner` names a type, a trait, or a type parameter. | keep | Python docs, unbound methods |
 | unit pattern | lang/02-grammar.md#r-grammar.pattern.unit | `()` is the **unit pattern**. | keep | Haskell report, unit pattern `()` |
-| unit test case | lang/10-modules.md#r-module.testing.unit-row.anywhere | A test case in a `tests:` block or a test module, wherever its file lies, whose body gets `TestRunner` alone from the runner. | keep | P: a test of one unit |
+| unit test case | lang/10-modules.md#r-module.testing.unit-row.anywhere | A test case in a `tests:` block or a test module, wherever its file lies, whose body gets `TestRunner` alone from the runner. | replace | unit test — S11d |
 | untyped fact type | lang/14-annotations.md#r-annot.typed-fact.untyped | A fact type whose `annotate` type argument is the default `Any`, as in `@annotate(.Field)`, so its values stay unchecked. | keep | P: the type of an untyped fact |
 | value expression | lang/05-expressions.md#r-expr.category.value | An expression that produces a value. | keep | P: an expression yielding a value |
 | value names | lang/03-names-and-scopes.md#r-names.category.value | The name category of top-level executable bindings, parameters, local bindings, local named functions, loop bindings, pattern bindings, and captured values. | keep | P: the names of values |

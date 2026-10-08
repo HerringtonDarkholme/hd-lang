@@ -97,7 +97,7 @@ tests:
 2. r[grammar.tests.item-forms] Its items take the forms of top-level items: use declarations, decorated declarations, declarations, and statements.
 3. r[grammar.tests.top-level] A `tests:` block may appear only at module top level. A `tests:` block inside a suite or inside another `tests:` block is an error. Error: `syntax-error`.
 4. r[grammar.tests.once] A file may have at most one `tests:` block. A second block is an error. Error: `duplicate-tests-block`.
-5. r[grammar.tests.registration] Each statement of the block must be a call of a test registration function, as [`module.testing.position-statements`](10-modules.md#r-module.testing.position-statements) specifies.
+5. r[grammar.tests.registration] Each statement of the block must be a test registration call, as [`module.testing.position-statements`](10-modules.md#r-module.testing.position-statements) specifies.
 6. r[grammar.tests.keyword] `tests` is a reserved word, so it never names a declaration or binding.
 
 ```text
@@ -614,8 +614,8 @@ associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
 11. r[grammar.trait.associated-type] Associated type declarations omit `=` in a trait requirement and provide `= type` in an implementation.
 13. r[grammar.impl.inline-bounds] Generic implementations state every bound inline in their generic parameter list; the language has no separate bound clause.
 14. r[grammar.impl.by-structure] `impl Trait for T by Structure` declares a derivation template or a derivation block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.
-15. r[grammar.impl.traitless-by] `impl T by Structure`, without a trait, declares a trait-less derivation block, as [Trait-Less Derivation Blocks](14-annotations.md#trait-less-derivation-blocks) defines.
-16. r[grammar.impl.traitless-by.other] In a header without a trait, `by` followed by any other name is a semantic error, not a grammar error, as [`trait.by.trait-less`](09-traits.md#r-trait.by.trait-less) defines.
+15. r[grammar.impl.by-no-trait] `impl T by Structure`, without a trait, declares a derivation block with no trait, as [Derivation Blocks With No Trait](14-annotations.md#derivation-blocks-with-no-trait) defines.
+16. r[grammar.impl.by-no-trait.other] In a header without a trait, `by` followed by any other name is a semantic error, not a grammar error, as [`trait.by.no-trait`](09-traits.md#r-trait.by.no-trait) defines.
 17. r[grammar.impl.derivation-line] A `derivation_line` is a member line. Its placement and meaning are defined in [Member Lines](14-annotations.md#member-lines).
 18. r[grammar.impl.derivation-line.forms] Which right sides a member line accepts is a semantic rule of [Member Lines](14-annotations.md#member-lines), not a grammar rule.
 19. r[grammar.impl.intrinsic-method] An `intrinsic_method` is an implementation method without a body. [Intrinsic Methods](09-traits.md#intrinsic-methods) defines where one is valid.
@@ -1923,8 +1923,8 @@ derive_decorator = "derive", "(", qualified_name,
 3. r[grammar.annot.alias-no-decorator] Any decorator before a transparent alias is an error. Error: `syntax-error`.
 4. r[grammar.annot.derive-traits] The names in a `derive_decorator` are traits. [Opting In](14-annotations.md#opting-in) defines which traits it accepts.
 
-Member metadata written away from a declaration uses a trait-less
-derivation block, an `impl_decl`, as [`grammar.impl.traitless-by`](#r-grammar.impl.traitless-by)
+Member metadata written away from a declaration uses a derivation block
+with no trait, an `impl_decl`, as [`grammar.impl.by-no-trait`](#r-grammar.impl.by-no-trait)
 states.
 
 See also: [Typed Derivation](14-annotations.md#typed-derivation).

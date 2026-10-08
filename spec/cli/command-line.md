@@ -20,7 +20,7 @@ command finds a package and what each command runs:
 
 The language tier defines what a program means: its
 [entry module](../lang/10-modules.md#module-initialization) and
-[entry point](../lang/10-modules.md#executable-entry-point), and
+[entry point](../lang/10-modules.md#entry-point), and
 [single-file programs](../lang/10-modules.md#single-file-programs). This tier
 says which program a command starts. Its diagnostic codes are in the
 [Diagnostics](../README.md#diagnostics) table with the language tier's.
@@ -107,7 +107,7 @@ hd notes.hd
 > **Why.** One file or one run uses only `std`. A program that needs
 > several files or a dependency is a package.
 
-> **Note.** The `tests:` block of a single file holds unit test cases, so
+> **Note.** The `tests:` block of a single file holds unit tests, so
 > `hd test FILE` binds them `TestRunner` alone
 > ([`cli.test.env.unit`](#r-cli.test.env.unit)). A script is tested
 > against the real system by running it.
@@ -191,7 +191,7 @@ module = "tools.migrate"
 > **Note.** The entry module's `main`, `main!`, or top-level statements
 > decide what the executable does, by
 > [Module Initialization](../lang/10-modules.md#module-initialization) and
-> [Executable Entry Point](../lang/10-modules.md#executable-entry-point).
+> [Entry Point](../lang/10-modules.md#entry-point).
 
 > **Why.** The manifest names the module, never the function. An agent
 > that renames `main` then sees an error in source, not a stale manifest.
@@ -407,7 +407,7 @@ Where a program's grant comes from:
 | `hd FILE` outside any package, `hd FILE.wasm`, and `hd` with no FILE | the command's `--cap` flags alone |
 | a program that [`hd_run!`](../std/testing.md#running-executables) starts | the package's `[capabilities]` table, with no flags |
 | an integration test case, or a doc test | the [test grant](#r-cli.test.env.grant) |
-| a unit test case | none, since it gets no host provider |
+| a unit test | none, since it gets no host provider |
 
 1. r[cli.cap.source.package] `hd run`, and `hd FILE` for a FILE in a package, apply the package's `[capabilities]` table and the command's flags.
 2. r[cli.cap.source.flags-only] `hd FILE` outside any package, and `hd` with no FILE, apply only the command's flags, so the REPL takes its grant from them.
@@ -666,7 +666,7 @@ hd test               # every test passes, so each test program's fingerprint is
 hd test --affected    # after an edit to src/billing.hd: only the programs that reach it
 ```
 
-1. r[cli.test.program] A **test program** is a program that `hd test` builds to run test cases: one per module with unit test cases or doc tests, and one per integration test module.
+1. r[cli.test.program] A **test program** is a program that `hd test` builds to run test cases: one per module with unit tests or doc tests, and one per integration test module.
 2. r[cli.test.fingerprint] A test program's **fingerprint** changes whenever a change could change its outcome: a source file it reads, a dependency, a manifest setting, the `hd` version, or a test option such as `--seed`.
 3. r[cli.test.affected] `hd test --affected` runs only the test programs whose fingerprint differs from the one recorded when they last passed, or that have no record.
 4. r[cli.test.affected.record] `hd test` records a test program's fingerprint only when every test case of the program ran and passed. A filtered run, or one in which a test case of the program fails, records nothing for it.
@@ -684,10 +684,10 @@ file lies:
 
 | Test case | Host providers | Capability grant | Working directory | Program arguments | Standard input |
 | --- | --- | --- | --- | --- | --- |
-| a [unit test case](../lang/10-modules.md#r-module.testing.unit-row.anywhere), in `src`, `tasks`, or a single file | `TestRunner` alone | none | not reachable | not reachable | not reachable |
+| a [unit test](../lang/10-modules.md#r-module.testing.unit-row.anywhere), in `src`, `tasks`, or a single file | `TestRunner` alone | none | not reachable | not reachable | not reachable |
 | an integration test case, or a doc test | the default profile, `TestRunner`, and the test runner's `Process` | the test grant | the package directory | none | closed |
 
-1. r[cli.test.env.unit] `hd test` binds `TestRunner` alone for a unit test case, in a package or outside one, by [`module.testing.unit-row.places`](../lang/10-modules.md#r-module.testing.unit-row.places).
+1. r[cli.test.env.unit] `hd test` binds `TestRunner` alone for a unit test, in a package or outside one, by [`module.testing.unit-row.places`](../lang/10-modules.md#r-module.testing.unit-row.places).
 2. r[cli.test.env.integration] For an integration test case or a doc test, `hd test` binds the traits of the [default profile](#host-capabilities) that the body's row names. It binds them as `hd run` does, except as this list says.
 3. r[cli.test.env.cwd] Such a test case runs with the package directory, the directory of its `hd.toml`, as its working directory. A relative path such as `fixtures/orders.csv` then names a file of the package.
 4. r[cli.test.env.args] Its `Args` provider holds no program arguments, so `list` returns an empty list.
@@ -728,12 +728,12 @@ hd test --cap Http=true    # this run reaches every host
 > cases write files without meeting, as Go's `t.TempDir` does.
 
 > **Why.** A fixed test grant reads the package and writes only the test
-> case's own directory, with no setup per test. A unit test case runs on
+> case's own directory, with no setup per test. A unit test runs on
 > fakes alone, so it needs no grant.
 
 ### Testing Tasks
 
-1. r[cli.test.tasks] A whole-package `hd test` also runs the test cases of the `tests:` blocks in the package's [tasks](#tasks) and shared task modules. They are unit test cases.
+1. r[cli.test.tasks] A whole-package `hd test` also runs the test cases of the `tests:` blocks in the package's [tasks](#tasks) and shared task modules. They are unit tests.
 2. r[cli.test.tasks.file] `hd test tasks/NAME.hd` runs the test cases of task `NAME`, by [`cli.package.file`](#r-cli.package.file).
 3. r[cli.test.tasks.no-tests] A whole-package `hd test` compiles no test build of a task, or of an executable's entry module, that holds no `tests:` block.
 4. r[cli.test.tasks.run] An integration test runs a task with [`hd_run!`](../std/testing.md#running-executables), by [`cli.test.process.tasks`](#r-cli.test.process.tasks).

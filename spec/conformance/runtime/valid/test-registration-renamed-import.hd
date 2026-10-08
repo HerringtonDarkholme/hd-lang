@@ -1,5 +1,5 @@
 # test: a renamed import of it or it_each still registers test cases
-# Spec Modules, Registration Functions: module.testing.reg.identity.spellings; a registration call is known by declaration identity, not by spelling.
+# Spec Modules, Registration Calls: module.testing.reg.identity.spellings; a registration call is known by declaration identity, not by spelling.
 use std.testing.{assert, it as check, it_each as each}
 
 tests:

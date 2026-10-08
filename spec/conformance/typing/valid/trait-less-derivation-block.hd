@@ -1,4 +1,4 @@
-# test: a trait-less block extends and replaces decorator metadata
+# test: a block with no trait extends and replaces decorator metadata
 use std.structure.Structure
 
 data MinLen:

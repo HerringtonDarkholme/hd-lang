@@ -91,7 +91,7 @@ interface and cache entries (§7.5).
 7. **Drive summaries.** The research's Q3 step 5 and Q7 slices 3 and 4
    still mention drive summaries and their hash, which answer 13 removed.
 8. **Initialization order** needs bodies across the modules of an
-   initialization group, a cross-module body fact not listed in the
+   module cycle, a cross-module body fact not listed in the
    research. Handled inside the folder by init summaries (§4.13.10).
 9. **"Query engine."** The Day 1 list says "incremental checking on a
    query engine", while the decision is a per-module cache with no salsa.

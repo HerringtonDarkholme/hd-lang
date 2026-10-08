@@ -1,5 +1,5 @@
 # test: a type whose only implementation has other trait arguments than the bound allows gives no instantiation
-# Spec 04 Bound-Only Parameters: types.generic.infer.bound.none.
+# Spec 04 Inference Through A Bound: types.generic.infer.bound.none.
 trait Source[T]:
     fn take(self) -> T
 

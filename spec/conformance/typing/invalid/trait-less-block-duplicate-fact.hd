@@ -1,4 +1,4 @@
-# test: a trait-less block's += appends after the decorator values, so a second value of one type is a duplicate
+# test: the += of a block with no trait appends after the decorator values, so a second value of one type is a duplicate
 use std.structure.Structure
 
 data MaxLen:

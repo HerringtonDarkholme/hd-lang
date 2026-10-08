@@ -1,5 +1,5 @@
-# test: a trait-less block's header may rename the type's parameters; only their count, order, and absence of bounds are checked
-# Spec 14 Trait-Less Derivation Blocks: annot.traitless.generic.rename (M29).
+# test: the header of a block with no trait may rename the type's parameters; only their count, order, and absence of bounds are checked
+# Spec 14 Derivation Blocks With No Trait: annot.no-trait.generic.rename (M29).
 use std.structure.Structure
 
 data Tag:

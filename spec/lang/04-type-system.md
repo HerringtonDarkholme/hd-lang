@@ -1575,16 +1575,16 @@ fn name(label: Label) -> string:
     text
 ```
 
-1. r[types.generic.infer.bound] A **bound-only parameter** of a call is a type parameter that no parameter type names but a bound of another type parameter does. One case is `U` in `read[U, S < Source[U]](source: S)`.
-2. r[types.generic.infer.bound.after] Call inference solves a bound-only parameter after the other parameters.
-3. r[types.generic.infer.bound.one] Once the bounded parameter is known, if its type implements the bound's trait for exactly one instantiation, that instantiation solves the bound-only parameter.
+1. r[types.generic.infer.bound] A type parameter of a call is **named only in bounds** when no parameter type names it but a bound of another type parameter does. One case is `U` in `read[U, S < Source[U]](source: S)`.
+2. r[types.generic.infer.bound.after] Call inference solves a parameter named only in bounds after the other parameters.
+3. r[types.generic.infer.bound.one] Once the bounded parameter is known, if its type implements the bound's trait for exactly one instantiation, that instantiation solves the parameter.
 4. r[types.generic.infer.bound.none] If the type implements the bound's trait for no instantiation, the call is an error. Error: `unsatisfied-trait-bound`.
-5. r[types.generic.infer.bound.ambiguous] If the type implements the bound's trait for several instantiations, this step leaves the bound-only parameter unsolved.
-6. r[types.generic.infer.bound.default] A bound-only parameter left unsolved takes its type-argument default, as [`types.generic.default.fill`](#r-types.generic.default.fill) gives, and the bound is then checked.
-7. r[types.generic.infer.bound.no-default] A bound-only parameter left unsolved without a default is an error, and an explicit type argument resolves it.
+5. r[types.generic.infer.bound.ambiguous] If the type implements the bound's trait for several instantiations, this step leaves the parameter unsolved.
+6. r[types.generic.infer.bound.default] A parameter named only in bounds and left unsolved takes its type-argument default, as [`types.generic.default.fill`](#r-types.generic.default.fill) gives, and the bound is then checked.
+7. r[types.generic.infer.bound.no-default] A parameter named only in bounds, left unsolved without a default, is an error, and an explicit type argument resolves it.
 8. r[types.generic.infer.bound.no-default.ambiguous] When a bound of the parameter allows several instantiations, the error is `ambiguous-type`, by [`types.infer.ambiguous.code`](#r-types.infer.ambiguous.code). Error: `ambiguous-type`.
 9. r[types.generic.infer.bound.no-default.disagree] When each bound allows exactly one instantiation and they differ, no solution exists. Error: `cannot-infer-type`.
-10. r[types.generic.infer.bound.several-bounds] When several bounds name one bound-only parameter, this step solves it only once every parameter those bounds constrain is known.
+10. r[types.generic.infer.bound.several-bounds] When several bounds name one parameter named only in bounds, this step solves it only once every parameter those bounds constrain is known.
 11. r[types.generic.infer.bound.agree] It then solves the parameter only if each of those bounds allows exactly one instantiation and they all allow the same one.
 12. r[types.generic.infer.bound.disagree] Otherwise, when bounds allow different instantiations or one allows several, the parameter is left unsolved, as for one bound.
 13. r[types.generic.infer.bound.fixed-point] The step repeats until it solves no further parameter, so a chain of such bounds is solved in dependency order.
@@ -1637,8 +1637,8 @@ fn first_name(teams: List[List[string]]) -> string?:
     found
 ```
 
-A default fills a bound-only parameter that several instantiations leave
-open. The bound of `S` names the later `U`, so only `U` needs a default:
+A default fills a parameter named only in bounds that several
+instantiations leave open. The bound of `S` names the later `U`, so only `U` needs a default:
 
 ```text
 fn read_or_text[S < Source[U], U = string](source: S) -> U:

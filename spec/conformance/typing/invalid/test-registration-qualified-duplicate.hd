@@ -1,5 +1,5 @@
 # test: qualified and bare calls of it share one set of test names
-# Spec Modules, Registration Functions: module.testing.reg.identity.all; testing.it registers a test case as it does.
+# Spec Modules, Registration Calls: module.testing.reg.identity.all; testing.it registers a test case as it does.
 use std.testing
 
 tests:

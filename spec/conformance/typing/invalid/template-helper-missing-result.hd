@@ -1,5 +1,5 @@
 # test: a private function that a template body names follows the public signature rules, so it must declare its result type
-# Spec 10 Fully Annotated Declarations: module.package.template-helper, module.package.template-helper.result.
+# Spec 10 Fully Annotated Declarations: module.package.template-private, module.package.template-private.result.
 use std.structure.{Structure, Field, Variant, Describer}
 
 trait Named:

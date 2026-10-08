@@ -1,5 +1,5 @@
 # test: a module-qualified call of it_prop registers a property test case
-# Spec Modules, Registration Functions: module.testing.reg.identity.all; testing.it_prop is it_prop.
+# Spec Modules, Registration Calls: module.testing.reg.identity.all; testing.it_prop is it_prop.
 use std.testing
 
 tests:

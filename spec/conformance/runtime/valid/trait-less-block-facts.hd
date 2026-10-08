@@ -1,5 +1,5 @@
-# test: a trait-less block's lines apply after the decorators, and a derivation block's lines after both
-# Spec 14 Trait-Less Derivation Blocks: += appends after decorator values, = replaces them.
+# test: the lines of a block with no trait apply after the decorators, and a derivation block's lines after both
+# Spec 14 Derivation Blocks With No Trait: += appends after decorator values, = replaces them.
 use std.structure.{Structure, Field, Variant, Walker}
 use std.testing.assert_equal
 

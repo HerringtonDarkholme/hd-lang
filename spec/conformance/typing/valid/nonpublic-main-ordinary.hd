@@ -1,4 +1,4 @@
-# Spec 10 Executable Entry Point: module.entry.private-main.
+# Spec 10 Entry Point: module.entry.private-main.
 trait Database
 
 fn main() -> void $ Database:

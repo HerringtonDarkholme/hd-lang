@@ -1,5 +1,5 @@
 # test: an it_each name must be a string literal
-# Spec Modules, Registration Functions: module.testing.reg.name; a computed it_each name is non-literal-test-argument.
+# Spec Modules, Registration Calls: module.testing.reg.name; a computed it_each name is non-literal-test-argument.
 use std.testing.it_each
 
 fn label() -> string: "halves"

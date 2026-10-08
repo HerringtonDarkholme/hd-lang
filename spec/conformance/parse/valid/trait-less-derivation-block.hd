@@ -1,4 +1,4 @@
-# test: impl T by Structure without a trait parses as a trait-less derivation block
+# test: impl T by Structure without a trait parses as a derivation block with no trait
 # expect: parse
 use std.structure.Structure
 

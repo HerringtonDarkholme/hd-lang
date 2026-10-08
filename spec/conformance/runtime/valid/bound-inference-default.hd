@@ -1,4 +1,4 @@
-# test: a bound-only parameter that several instantiations leave open takes its type-argument default
+# test: a parameter named only in bounds that several instantiations leave open takes its type-argument default
 # Spec 04 Inference Through A Bound: types.generic.infer.bound.default; Bound Order: types.generic.bound.any-order lets S's bound name the later, defaulted U.
 use std.testing.assert_equal
 

@@ -1,4 +1,4 @@
-# test: a trait-less block is not permitted in a local scope
+# test: a block with no trait is not permitted in a local scope
 use std.structure.Structure
 
 fn run() -> void:

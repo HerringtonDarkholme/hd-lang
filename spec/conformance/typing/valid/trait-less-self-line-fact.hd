@@ -1,5 +1,5 @@
-# test: a trait-less block may write a type-level fact that no known template reads
-# Spec 14 Trait-Less Blocks: annot.traitless.self; dead-fact warnings are parked.
+# test: a block with no trait may write a type-level fact that no known template reads
+# Spec 14 Blocks With No Trait: annot.no-trait.self; dead-fact warnings are parked.
 use std.structure.{Structure, Field, Variant, Walker}
 
 trait Show:

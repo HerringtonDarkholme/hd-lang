@@ -15,4 +15,4 @@ it_prop_with("top-level generated property", gen=small, cases=1, shrink=1, prop=
     pass
 )
 
-# Spec 10 Registration Functions: module.testing.reg.import, module.testing.reg.row-body-closure, module.testing.reg.prop-registers.
+# Spec 10 Registration Calls: module.testing.reg.import, module.testing.reg.row-body-closure, module.testing.reg.prop-registers.

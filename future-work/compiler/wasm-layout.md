@@ -377,7 +377,7 @@ the offset stays inside that function. Eager filling of the tables in
 
 - **Init order.** The `hd.init` export calls each reachable group's init
   function once, in D1's order (`InitOrder` and M3), after every group it
-  uses ([`module.init.group.once`](../../spec/lang/10-modules.md#r-module.init.group.once)).
+  uses ([`module.init.cycle.once`](../../spec/lang/10-modules.md#r-module.init.cycle.once)).
 - **No Wasm `start` function** (mine). Init can panic and can call
   imports. Calling it as an export after instantiation lets the host
   refuse a start, attribute a trap to init, and run a test case's init

@@ -1,5 +1,5 @@
-# test: a collect target that does not implement FromIterator is an error
-# std Iterators, Collect Targets: std-iter.collect.bound (Collect CO1).
+# test: a collection being built that does not implement FromIterator is an error
+# std Iterators, What Collect Builds: std-iter.collect.bound (Collect CO1).
 
 fn total(values: List[i32]) -> i32:
     let size: i32 = values.iter().collect()  # diagnostic: unsatisfied-trait-bound

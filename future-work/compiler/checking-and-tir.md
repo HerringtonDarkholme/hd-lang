@@ -252,7 +252,7 @@ Definite initialization of top-level bindings follows transitive read sets
 through function bodies
 ([`module.init.definite`](../../spec/lang/10-modules.md#r-module.init.definite)).
 Inside one module, M3 computes it from that module's TIR. But an
-initialization group that spans several modules of a folder, through a use
+module cycle that spans several modules of a folder, through a use
 loop, needs the bodies of all of them. That is a body-derived fact across
 modules, which the research did not list.
 
@@ -263,7 +263,7 @@ directly, the same-folder functions it calls, and the trait methods it
 dispatches ([`module.init.definite.dispatch`](../../spec/lang/10-modules.md#r-module.init.definite.dispatch)).
 An `InitOrder(F)` task runs only for a folder whose use graph has a
 multi-module loop with top-level statements. It reads the summaries,
-orders statements by [Order Inside A Group](../../spec/lang/10-modules.md#order-inside-a-group),
+orders statements by [Order Inside A Cycle](../../spec/lang/10-modules.md#order-inside-a-cycle),
 and reports `top-level-read-before-initialization`. Its key is the sorted
 summary hashes, so a body edit that does not change what a function reads
 reruns nothing. Groups never span folders, so the fact stays inside one

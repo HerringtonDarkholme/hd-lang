@@ -1,5 +1,5 @@
-# test: a type has at most one trait-less block, so a second one overlaps the first
-# Spec 14 Trait-Less Derivation Blocks: annot.traitless.unique (M28).
+# test: a type has at most one block with no trait, so a second one overlaps the first
+# Spec 14 Derivation Blocks With No Trait: annot.no-trait.unique (M28).
 use std.structure.Structure
 
 data Tag:

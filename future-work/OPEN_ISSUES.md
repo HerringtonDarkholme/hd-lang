@@ -35,7 +35,7 @@ from [Facts](../spec/lang/14-annotations.md#facts):
 >
 > 10. r[annot.fact.unused-std] A fact of a primitive or standard type, such as `@"internal"`, never gets this warning.
 >
-> 11. r[annot.fact.unused-self-line] A type-level fact that a trait-less block's `Self` line writes gets the same warning under the same conditions, reported on that line. Warning: `unused-derivation-fact`.
+> 11. r[annot.fact.unused-self-line] A type-level fact that the `Self` line of a block with no trait writes gets the same warning under the same conditions, reported on that line. Warning: `unused-derivation-fact`.
 >
 > 12. r[annot.fact.unused-self-line.per-trait] A type-level fact that a `Self` line of a derivation block for a trait writes gets the same warning, reported on that line, when the fact's package does not supply that trait. Warning: `unused-derivation-fact`.
 

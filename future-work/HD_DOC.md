@@ -375,7 +375,7 @@ look follows the website's stylesheet; the spec leaves styling free.
 | public items and their public members | as written, by `cli.doc.items` | all |
 | `##` doc comments | as written, `##` kept in the view, rendered as Markdown in HTML | all |
 | decorators: typed facts such as `@num_suffix` or `@route("/users")`, `@derive`, `@error`, member metadata | as written, unevaluated | all |
-| trait-less derivation blocks | as written after the type, since their facts enter the interface | item, HTML |
+| derivation blocks with no trait | as written after the type, since their facts enter the interface | item, HTML |
 | derived impls | one impl head per line, `# derived` | item, HTML |
 | impls that `@error` generates | one impl head per line, `# @error` | item, HTML |
 | hand-written impls, in any module | one impl head per line | item, HTML |

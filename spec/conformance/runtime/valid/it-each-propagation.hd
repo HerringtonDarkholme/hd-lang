@@ -1,6 +1,6 @@
 # test: an it_each body that uses ? returns Result[void, Error]
-# Spec 10 Registration Functions: module.testing.reg.body-result.
-# Spec Modules, Registration Functions: module.testing.reg.body-closure-result; a row body without a written result follows the test body rule.
+# Spec 10 Registration Calls: module.testing.reg.body-result.
+# Spec Modules, Registration Calls: module.testing.reg.body-closure-result; a row body without a written result follows the test body rule.
 use std.error.Error
 use std.testing.{assert_equal, it_each}
 

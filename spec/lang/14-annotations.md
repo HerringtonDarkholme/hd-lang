@@ -24,8 +24,8 @@ The design principles are:
 
 An ordinary decorator attaches a value to the item or member it precedes.
 That is a type-level fact before a data type or enum, or member metadata
-before a field, variant, or parameter. A trait-less derivation block
-attaches the same values away from the declaration.
+before a field, variant, or parameter. A derivation block with no
+trait attaches the same values away from the declaration.
 
 The compiler lowers attached values to fact construction. This is not
 runtime wrapper execution. `@derive(Trait, ...)` generates
@@ -47,8 +47,8 @@ name, type, behavior, or visibility.
 ## Two `annotate` Forms
 
 Values are attached in two forms. One is a prefix decorator on the
-declaration or member. The other is a member line of a trait-less
-derivation block, for shared metadata written away from the declaration.
+declaration or member. The other is a member line of a derivation block
+with no trait, for shared metadata written away from the declaration.
 
 > **Note.** This heading keeps its earlier name so that links to it stay
 > valid. The `annotate Target:` block and the reserved word `annotate` were
@@ -154,8 +154,8 @@ the member name `Box`. Metadata is attached only to the embedded field
 itself; it is not propagated to promoted fields or methods.
 
 Multiple lines retain source order and obey the duplicate rule of
-[Member Metadata](#member-metadata). A trait-less derivation block may then
-extend or replace a member's decorator values. Decorators attach to
+[Member Metadata](#member-metadata). A derivation block with no trait may
+then extend or replace a member's decorator values. Decorators attach to
 declarations or members, never to type expressions. Declaration decorators
 are module-level syntax; local declarations cannot be decorated.
 
@@ -233,7 +233,7 @@ See also: [Prefix Decorators](#prefix-decorators), [Facts](#facts).
 
 Member metadata is written on the member with `@value` lines, or away
 from the declaration in a
-[trait-less derivation block](#trait-less-derivation-blocks):
+[derivation block with no trait](#derivation-blocks-with-no-trait):
 
 ```text
 use std.structure.Structure
@@ -245,11 +245,11 @@ impl User by Structure:
     display_name = [min_len(1), max_len(80)]
 ```
 
-A trait-less block writes metadata for a data type's fields or an enum's
-variants. A function has no derivation block, so parameter metadata is
+A derivation block with no trait writes metadata for a data type's fields
+or an enum's variants. A function has no derivation block, so parameter metadata is
 written only with `@value` on the parameter.
 
-1. r[annot.metadata.places] A field's or variant's metadata is written with `@value` lines on it and with member lines of a trait-less derivation block for its type.
+1. r[annot.metadata.places] A field's or variant's metadata is written with `@value` lines on it and with member lines of a derivation block with no trait for its type.
 2. r[annot.metadata.params-at-only] Parameter metadata, including a payload parameter's, is written only with `@value` lines on the parameter.
 3. r[annot.metadata.list-any] Member metadata and parameter metadata are contextually typed as `List[dyn Any]`.
 4. r[annot.metadata.value] Any value that a global may hold may be attached to any item or member; no marker trait is required. Only a fact type's [target kinds](#target-kinds) limit where it goes.
@@ -605,7 +605,7 @@ data Meter:
 
 Metadata has no declaration form of its own. Decorator lines are
 `decorator_line` in the [Annotations grammar](02-grammar.md#annotations). A
-trait-less derivation block is an `impl_decl` with `by` and no `for`, and
+derivation block with no trait is an `impl_decl` with `by` and no `for`, and
 its members are `derivation_line`s, as
 [Traits And Implementations](02-grammar.md#traits-and-implementations)
 defines:
@@ -1003,9 +1003,9 @@ impl Show for Point by Structure  # error: unknown-trait
 #### Member Lines
 
 A **member line** in a derivation block adjusts facts, or leaves a member
-out, for that block only. A trait-less derivation block uses the same lines
-to write shared metadata, as
-[Trait-Less Derivation Blocks](#trait-less-derivation-blocks) defines:
+out, for that block only. A derivation block with no trait uses the same
+lines to write shared metadata, as
+[Derivation Blocks With No Trait](#derivation-blocks-with-no-trait) defines:
 
 | Rule | Form | Meaning for this block |
 | --- | --- | --- |
@@ -1022,7 +1022,7 @@ to write shared metadata, as
 6. r[annot.line.typed] A member line's list is contextually typed as that member's metadata list, as in [Member Metadata](#member-metadata). An element of a typed fact type gets its expected type by [`annot.typed-fact.check`](#r-annot.typed-fact.check). A `Self` line's list is contextually typed as `List[dyn Any]`.
 7. r[annot.line.duplicate] After a line applies, one member, variant, or type must not hold two facts of the same concrete type. `+=` with a type already present is an error; `=` changes it instead. Error: `duplicate-fact`.
 8. r[annot.line.unchanged] A member without a line keeps its declaration facts.
-9. r[annot.line.placement-blocks] A member line anywhere other than a derivation block or a trait-less derivation block, including in a template or an ordinary implementation, is an error. Error: `misplaced-derivation`.
+9. r[annot.line.placement-blocks] A member line anywhere other than a derivation block, with or without a trait, including in a template or an ordinary implementation, is an error. Error: `misplaced-derivation`.
 
 ```text
 use std.structure.Structure
@@ -1102,10 +1102,10 @@ impl Deserialize for Session by Structure:
 > worth a second look. Some differences are deliberate, as serde's
 > `skip_serializing` shows.
 
-#### Trait-Less Derivation Blocks
+#### Derivation Blocks With No Trait
 
-A **trait-less derivation block** writes shared metadata for one type, away
-from its declaration. It names no trait and derives nothing:
+A derivation block with no trait writes shared metadata for one type,
+away from its declaration. It names no trait and derives nothing:
 
 ```text
 use std.structure.Structure
@@ -1128,22 +1128,22 @@ embedded field is named by its final type name, and members promoted
 through it are not direct members. The block cannot add, rename, remove, or
 change the type of a member.
 
-1. r[annot.traitless.form] `impl X by Structure:`, written without a trait, is a trait-less derivation block. It writes metadata of `X` and implements nothing.
-2. r[annot.traitless.not-inherent] A trait-less block is not an inherent implementation: it declares no members of `X`.
-3. r[annot.traitless.lines-only] Its body holds only member lines. A method or an associated type in it is an error, reported on that member. Error: `misplaced-derivation`.
-4. r[annot.traitless.no-omit] It writes only metadata, so an omit line `f = pass` in it is an error. Error: `invalid-member-line`.
-5. r[annot.traitless.after-decorators] Its lines apply to the values that a member's decorators attach: a `+=` line appends after them, and a `=` line replaces them.
-6. r[annot.traitless.self] Its `Self` lines apply the same way to the type-level facts that decorators before `X` attach.
-7. r[annot.traitless.declaration-facts] The result is the declaration facts of `X` and its members: every derivation of `X` sees it.
-8. r[annot.traitless.then-blocks] A derivation block's member lines then edit those declaration facts, for that block only.
-9. r[annot.traitless.module] A trait-less block must be declared in the module that declares `X`, as an inherent implementation must. One declared elsewhere is an error, reported on the block. Error: `misplaced-derivation`.
-10. r[annot.traitless.local] A trait-less block in a local scope is an error, reported on the block: local declarations carry no metadata. Error: `misplaced-derivation`.
-11. r[annot.traitless.target] `X` must be a data type or an enum. Any other target, including a newtype, is an error, reported on the block. Error: `misplaced-derivation`.
-12. r[annot.traitless.by] The name after `by` in a header without a trait must be `Structure`, as [`trait.by.trait-less`](09-traits.md#r-trait.by.trait-less) states.
-13. r[annot.traitless.generic] The header must declare only the own type parameters of `X`'s declaration, in order and without bounds, and apply `X` to them, as `impl[T] Box[T] by Structure:`.
-14. r[annot.traitless.generic.rename] The header may rename the parameters, as `impl[U] Box[U] by Structure:` for `data Box[T]`. Only their count, their order, and the absence of bounds are checked.
-15. r[annot.traitless.generic.error] Any other header, such as `impl Box[i32] by Structure:` or `impl[T < Hash] Box[T] by Structure:`, is an error, reported on the block. Error: `misplaced-derivation`.
-16. r[annot.traitless.unique] A type has at most one trait-less block. A second one is an error, reported on the second block. Error: `overlapping-impl`.
+1. r[annot.no-trait.form] `impl X by Structure:`, written without a trait, is a derivation block with no trait. It writes metadata of `X` and implements nothing.
+2. r[annot.no-trait.not-inherent] A block with no trait is not an inherent implementation: it declares no members of `X`.
+3. r[annot.no-trait.lines-only] Its body holds only member lines. A method or an associated type in it is an error, reported on that member. Error: `misplaced-derivation`.
+4. r[annot.no-trait.no-omit] It writes only metadata, so an omit line `f = pass` in it is an error. Error: `invalid-member-line`.
+5. r[annot.no-trait.after-decorators] Its lines apply to the values that a member's decorators attach: a `+=` line appends after them, and a `=` line replaces them.
+6. r[annot.no-trait.self] Its `Self` lines apply the same way to the type-level facts that decorators before `X` attach.
+7. r[annot.no-trait.declaration-facts] The result is the declaration facts of `X` and its members: every derivation of `X` sees it.
+8. r[annot.no-trait.then-blocks] A derivation block's member lines then edit those declaration facts, for that block only.
+9. r[annot.no-trait.module] A derivation block with no trait must be declared in the module that declares `X`, as an inherent implementation must. One declared elsewhere is an error, reported on the block. Error: `misplaced-derivation`.
+10. r[annot.no-trait.local] A derivation block with no trait in a local scope is an error, reported on the block: local declarations carry no metadata. Error: `misplaced-derivation`.
+11. r[annot.no-trait.target] `X` must be a data type or an enum. Any other target, including a newtype, is an error, reported on the block. Error: `misplaced-derivation`.
+12. r[annot.no-trait.by] The name after `by` in a header without a trait must be `Structure`, as [`trait.by.no-trait`](09-traits.md#r-trait.by.no-trait) states.
+13. r[annot.no-trait.generic] The header must declare only the own type parameters of `X`'s declaration, in order and without bounds, and apply `X` to them, as `impl[T] Box[T] by Structure:`.
+14. r[annot.no-trait.generic.rename] The header may rename the parameters, as `impl[U] Box[U] by Structure:` for `data Box[T]`. Only their count, their order, and the absence of bounds are checked.
+15. r[annot.no-trait.generic.error] Any other header, such as `impl Box[i32] by Structure:` or `impl[T < Hash] Box[T] by Structure:`, is an error, reported on the block. Error: `misplaced-derivation`.
+16. r[annot.no-trait.unique] A type has at most one derivation block with no trait. A second one is an error, reported on the second block. Error: `overlapping-impl`.
 
 ```text
 use std.structure.Structure
@@ -1193,7 +1193,7 @@ fn key_for(style: Style, m: Member) -> string:
 
 1. r[annot.fact.descriptive] Facts are descriptive: a fact changes no generated call. Only a template's own code reads it.
 2. r[annot.fact.type-level-decorator] A decorator before a data or enum declaration attaches a type-level fact, as `@style(prefix="user_")` does.
-3. r[annot.fact.member-metadata] A member's or variant's declaration facts are its member metadata. Those are the values that its decorators attach, in source order, as the type's trait-less derivation block edits them.
+3. r[annot.fact.member-metadata] A member's or variant's declaration facts are its member metadata. Those are the values that its decorators attach, in source order, as the type's derivation block with no trait edits them.
 4. r[annot.fact.payload] A payload member's declaration facts are the values of the decorators before its payload parameter.
 5. r[annot.fact.shared] Declaration facts are seen by every derivation of the type. A derivation block's member lines edit them for that block only.
 6. r[annot.fact.eval.lazy] A fact expression is evaluated once, at run time, when the program first reads the fact, like a lazily initialized global.

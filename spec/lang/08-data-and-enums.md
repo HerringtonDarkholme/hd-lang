@@ -806,7 +806,7 @@ enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
 5. r[data.shared.arguments] The constructor call follows ordinary positional/named argument ordering and must initialize each shared parameter without a default. Error: `missing-required-field`.
 6. r[data.shared.per-variant] Shared constructor data belongs to the variant, not to each value: every value of one variant has the same shared data.
 7. r[data.shared.module-init] Each variant's constructor expression is evaluated once at run time during its declaring module's initialization.
-8. r[data.shared.module-init.order] These evaluations join that module's top-level initialization under [`module.init.group`](10-modules.md#r-module.init.group) and [Order Inside A Group](10-modules.md#order-inside-a-group).
+8. r[data.shared.module-init.order] These evaluations join that module's top-level initialization under [`module.init.cycle`](10-modules.md#r-module.init.cycle) and [Order Inside A Cycle](10-modules.md#order-inside-a-cycle).
 9. r[data.shared.module-init.requirement-free] The expression must satisfy [`module.init.requirement-free`](10-modules.md#r-module.init.requirement-free), and it may call any requirement-free function.
 10. r[data.shared.module-init.effects] Its writes to module state occur during initialization.
 11. r[data.shared.module-init.not-lazy] The expression is neither lazy nor compile-time evaluation.

@@ -1,4 +1,4 @@
-# test: a unit test case gets TestRunner alone, so a call that needs the host Clock is missing-requirement at check time
+# test: a unit test gets TestRunner alone, so a call that needs the host Clock is missing-requirement at check time
 # Spec std Testing, Unit Test Providers: std-testing.unit.hint; Modules: module.testing.unit-row.test-runner (task #321).
 use std.time.{Clock, now}
 

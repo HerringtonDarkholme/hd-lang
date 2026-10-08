@@ -394,7 +394,7 @@ impl Encode for Order by Structure:
 
 `cache = pass` leaves a member out, and `build` fills it from its default.
 Shared metadata that every derivation sees can also be written away from the
-declaration, in a trait-less block such as `impl User by Structure:` with the
+declaration, in a block with no trait such as `impl User by Structure:` with the
 same member lines; see [Using Annotations](#using-annotations).
 Facts and member metadata are `List[dyn Any]` values evaluated once at compile
 time, so they must be requirement-free and may not reach `block_on`.
@@ -3246,8 +3246,8 @@ A `Route` value before anything but a function is `decorator-target-kind`.
 A newtype is a kind too, `.Newtype`. The compiler checks only that kind; whatever reads a value checks that it suits its
 target. See [Target Kinds](../spec/lang/14-annotations.md#target-kinds).
 
-To write shared metadata away from a long declaration, use a trait-less
-derivation block. It names no trait, derives nothing, and holds only member
+To write shared metadata away from a long declaration, use a derivation
+block with no trait. It names no trait, derives nothing, and holds only member
 lines, which every derivation of the type sees:
 
 ```text
@@ -3267,8 +3267,8 @@ replaces them. A per-trait derivation block, such as
 `impl Encode for User by Structure:`, then edits the result for that one
 derivation. The block lives in the type's module, and a type has at most
 one. For a generic type it declares the type's own parameters, without
-bounds, as `impl[T] Box[T] by Structure:`. Decorators and trait-less
-blocks are module-level, so local declarations cannot carry member metadata.
+bounds, as `impl[T] Box[T] by Structure:`. Decorators and blocks with no
+trait are module-level, so local declarations cannot carry member metadata.
 
 Metadata is contextually typed as `List[dyn Any]`, so any value may be
 attached, and metadata values and reusable lists are ordinary values:

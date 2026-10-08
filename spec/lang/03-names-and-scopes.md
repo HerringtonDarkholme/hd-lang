@@ -541,7 +541,7 @@ See also: [Prelude Names](#prelude-names).
 ### Local Declaration Limits
 
 1. r[names.local.no-pub] `pub` is not permitted on local declarations.
-2. r[names.local.no-metadata] Decorators and [trait-less derivation blocks](14-annotations.md#trait-less-derivation-blocks) are not permitted in a local scope.
+2. r[names.local.no-metadata] Decorators and [derivation blocks with no trait](14-annotations.md#derivation-blocks-with-no-trait) are not permitted in a local scope.
 
 ```hd
 fn demo() -> i32:

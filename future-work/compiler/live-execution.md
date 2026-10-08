@@ -179,7 +179,7 @@ commands.md §20.5 already sketches. This design fills in the linker.
    and of earlier inputs' top-level bindings) exists once per session.
    The first input that reaches a module emits its storage globals and
    runs its init group, as
-   [`module.init.group.once`](../../spec/lang/10-modules.md#r-module.init.group.once)
+   [`module.init.cycle.once`](../../spec/lang/10-modules.md#r-module.init.cycle.once)
    asks. Later inputs import those globals.
 4. **Exports.** The module exports every instance and global it defines,
    under its instance key. The session records them in `symbols`.

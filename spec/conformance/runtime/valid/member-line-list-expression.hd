@@ -1,4 +1,4 @@
-# test: a member line's right side may be any list-typed expression, in a trait-less block and a derivation block
+# test: a member line's right side may be any list-typed expression, in a block with no trait and a derivation block
 # Spec 14 Member Lines: annot.line.right-typed (M28).
 use std.structure.{Structure, Field, Variant, Walker}
 use std.testing.assert_equal

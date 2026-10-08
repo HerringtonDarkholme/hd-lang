@@ -90,26 +90,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### S11d. Apply The Next Term Replacements (Orchestrator Decision)
-
-From S11c's list, apply (wording only; same process as S11c: spec text,
-rule IDs retired and renamed, citations, glossaries, fixture comments,
-guide, lib/std doc comments, spec-terms rows):
-
-| Coined | Use instead |
-| --- | --- |
-| collect target | the collection being built |
-| bound-only parameter | a parameter named only in bounds |
-| template helper | a private item the template uses |
-| test registration function | test registration call |
-| trait-less derivation block | derivation block with no trait |
-| unit test case | unit test |
-| initialization group | module cycle (modules that use each other; one module alone is a trivial cycle) |
-| executable entry point | entry point |
-
-Leave filenames and test-name strings alone, as S11c did. `bash
-spec/check.sh` green. Timebox 45 minutes; push.
-
 ### S13. Spec: Embedded Fields Count As Promoted Members
 
 The promotion work (#16) found that `names.promote.member` must count a

@@ -1,5 +1,5 @@
 # test: code imports FromIterator to implement it, and collect needs no import
-# std Iterators, Collect Targets: std-iter.prelude.from-iterator (Collect CO6).
+# std Iterators, What Collect Builds: std-iter.prelude.from-iterator (Collect CO6).
 
 use std.iter.FromIterator
 

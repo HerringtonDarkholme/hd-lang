@@ -1,5 +1,5 @@
 # test: a template body that names a top-level binding is an error
-# Spec 10 Fully Annotated Declarations: module.package.template-helper.no-binding.
+# Spec 10 Fully Annotated Declarations: module.package.template-private.no-binding.
 use std.structure.{Structure, Field, Variant, Describer}
 
 trait Named:

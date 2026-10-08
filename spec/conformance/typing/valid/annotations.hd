@@ -1,4 +1,4 @@
-# test: a trait-less derivation block attaches member metadata of any type
+# test: a derivation block with no trait attaches member metadata of any type
 use std.structure.Structure
 
 data MinLen:

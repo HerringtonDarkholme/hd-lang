@@ -1,5 +1,5 @@
 # test: it_each takes the options of it
-# Spec Modules, Registration Functions: module.testing.reg.options; an ignored it_each call runs none of its rows.
+# Spec Modules, Registration Calls: module.testing.reg.options; an ignored it_each call runs none of its rows.
 use std.testing.it_each
 
 tests:

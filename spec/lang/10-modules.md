@@ -801,7 +801,7 @@ fn same(a: Point, b: Point) -> bool:
 > **Note.** More standard names outside the prelude are stdlib tier.
 > Examples are the string prefix [`r`](../std/text.md#raw-text-prefix) of
 > `std.text`,
-> [`FromIterator`](../std/iter.md#collect-targets) of `std.iter`, and
+> [`FromIterator`](../std/iter.md#what-collect-builds) of `std.iter`, and
 > [`Duration`](../std/time.md#duration) and its suffixes of `std.time`.
 
 See also: [Conversion Trait](09-traits.md#conversion-trait),
@@ -860,7 +860,7 @@ fn check_order(id: i32, count: i32) -> bool:
 4. r[module.dbg.body.print] The body evaluates the arguments from left to right. It prints the value of each element of `values` on a line of its own when it is evaluated, as [Debug Values](#debug-values) says. It needs no `Debug` bound on any element type.
 5. r[module.dbg.body.site] The body prints what it knows of the call site, which no ordinary hd parameter can supply, as [Debug Lines](#debug-lines) says. A direct call with only positional arguments and no explicit type arguments knows each argument's source text. Any other call knows only the location.
 6. r[module.dbg.body.value] A `dbg` used as a function value, as in `let show: fn((i32, string)) -> void = dbg`, has no call site. So its body prints each element of its one tuple argument on a line of its own, with no location.
-7. r[module.dbg.no-requirement] A `dbg` call needs no requirement and adds none to a row. It is valid in a pure function, in a [unit test case](#r-module.testing.unit-row.anywhere), and in generic code.
+7. r[module.dbg.no-requirement] A `dbg` call needs no requirement and adds none to a row. It is valid in a pure function, in a [unit test](#r-module.testing.unit-row.anywhere), and in generic code.
 8. r[module.dbg.not-behavior] What `dbg` prints is diagnostic output, not program behavior. It is not an effect, a replay does not record it, and tools that judge a program's output ignore it.
 
 ```text
@@ -1310,8 +1310,8 @@ pub fn it[T < Termination, $R](name: string, ignore: string? = .None, expect_pan
 5. r[module.testing.it.options-strings] The named options are those of the signature above: `ignore`, `expect_panic`, and `timeout`. An `ignore` or `expect_panic` value must be a string literal without interpolation. Any other value for them is an error. Error: `non-literal-test-argument`.
 6. r[module.testing.it.unknown-option] Any other named argument is an error. Error: `unknown-named-argument`.
 7. r[module.testing.test-position] **Test position** is the top level of a `tests:` block, of a [test module](#test-modules), or of an integration test module.
-8. r[module.testing.position-statements] Every statement in test position must be a call of a **test registration function**: `it`, `it_each`, `it_prop`, or `it_prop_with` ([Registration Functions](#registration-functions)). Any other statement is an error. Error: `invalid-test-statement`.
-9. r[module.testing.direct-call] A test registration function may be used only as such a direct call in test position. Any other use, including a call elsewhere or a use as a value, is an error. Error: `misplaced-test-case`.
+8. r[module.testing.position-statements] Every statement in test position must be a **test registration call**: a direct call of `it`, `it_each`, `it_prop`, or `it_prop_with` ([Registration Calls](#registration-calls)). Any other statement is an error. Error: `invalid-test-statement`.
+9. r[module.testing.direct-call] `it`, `it_each`, `it_prop`, and `it_prop_with` may be used only in a test registration call in test position. Any other use, including a call elsewhere or a use as a value, is an error. Error: `misplaced-test-case`.
 10. r[module.testing.it.unique] Two test cases of one module must not have the same name. Error: `duplicate-test-name`.
 
 | Rule | Option | Value | Effect |
@@ -1368,10 +1368,10 @@ tests:
 See also: [Test Timeout](../std/testing.md#test-timeout) in the stdlib tier,
 for what the `timeout` option does.
 
-### Registration Functions
+### Registration Calls
 
-`std.testing` declares three more test registration functions. `it_each`
-registers one test case per row:
+`std.testing` declares three more functions a test registration call may
+call. `it_each` registers one test case per row:
 
 ```text
 pub fn it_each[A, T < Termination, $R](name: string, rows: List[A], ignore: string? = .None,
@@ -1392,9 +1392,9 @@ pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choice
                                                 prop: fn!(T) -> R) -> void
 ```
 
-1. r[module.testing.reg.functions] `it_each`, `it_prop`, and `it_prop_with` are test registration functions with the signatures above, which `std.testing` declares. The test-position rules of `it` apply to them.
+1. r[module.testing.reg.calls] `it_each`, `it_prop`, and `it_prop_with` take test registration calls with the signatures above; `std.testing` declares them. The test-position rules of `it` apply to them.
 2. r[module.testing.reg.import] None of the three is a prelude name. Code imports them from `std.testing`, as in `use std.testing.it_each`.
-3. r[module.testing.reg.identity] A call is a call of a test registration function by declaration identity, not by spelling. The test-position rules and the rules of this section apply to it under any spelling.
+3. r[module.testing.reg.identity] A call is a test registration call by declaration identity, not by spelling. The test-position rules and the rules of this section apply to it under any spelling.
 4. r[module.testing.reg.identity.spellings] So a bare `it_each(...)`, a call of a renamed import such as `use std.testing.{it_each as each}`, and `testing.it_each(...)` after `use std.testing` all call `it_each`.
 5. r[module.testing.reg.identity.all] The same holds for `it`, `it_prop`, and `it_prop_with`. `it` is a prelude name, and code may also import it under another name or call it as `testing.it`.
 6. r[module.testing.reg.row-body-closure] The body of `it_each` has a parameter, so it is an explicit `fn!` closure, not a trailing block. After omitted options, a call passes it by name, as in `body=fn!(value: i32): ...`.
@@ -1469,7 +1469,7 @@ tests:
 3. r[module.testing.driven] The runner drives the body's suspension to completion, as the host drives `main!`.
 4. r[module.testing.runner-provider] A test run's profile also binds the host capability trait `std.testing.TestRunner`. The runner binds a provider of it for the body of every test case.
 5. r[module.testing.unit-row.test-runner] A test case in a `tests:` block or a test module gets no other host provider. Its body's requirement row may hold `TestRunner` and no other key, so every other requirement comes from a `$.with` provider scope. Error: `missing-requirement`.
-6. r[module.testing.unit-row.anywhere] A **unit test case** is a test case in a `tests:` block or a test module. Rule `module.testing.unit-row.test-runner` holds for it wherever its file lies.
+6. r[module.testing.unit-row.anywhere] A **unit test** is a test case in a `tests:` block or a test module. Rule `module.testing.unit-row.test-runner` holds for it wherever its file lies.
 7. r[module.testing.unit-row.places] So a `tests:` block under the source root, in a [task](../cli/command-line.md#tasks) or a shared task module, or in a [single-file program](#single-file-programs) gets `TestRunner` alone.
 8. r[module.testing.kind-decides] The kind of a test case decides what the runner binds for it, never the directory of its file. Only an integration test case and a [doc test](#doc-tests) get the profile's providers.
 9. r[module.testing.profile] A test run compiles against one [runtime profile](#runtime-profiles), the default profile unless the run selects another.
@@ -1522,7 +1522,7 @@ tests:
 > language tier names it in these rules only and specifies none of its
 > methods.
 
-> **Note.** The `missing-requirement` error in a unit test case suggests
+> **Note.** The `missing-requirement` error in a unit test suggests
 > a std fake for the missing trait, such as `ManualClock` for `Clock`
 > ([Unit Test Providers](../std/testing.md#unit-test-providers)). It also
 > suggests moving
@@ -1583,9 +1583,9 @@ pub fn main() -> void:
 ### Initialization Order
 
 1. r[module.init.use-graph] Before execution, the compiler resolves the use graph reachable from the selected script or executable entry module. The graph may have loops inside one folder.
-2. r[module.init.group] An **initialization group** is a strongly connected component of that graph: one module, or the modules that use each other in a loop.
-3. r[module.init.group.once] Every reachable group is initialized exactly once per program instance, after every other group it uses has been initialized.
-4. r[module.init.group.ready-order] When several groups are otherwise ready, the least fully qualified module identity in each group orders them lexicographically.
+2. r[module.init.cycle] A **module cycle** is a strongly connected component of that graph: modules that use each other, or one module alone as a trivial cycle.
+3. r[module.init.cycle.once] Every reachable cycle is initialized exactly once per program instance, after every other cycle it uses has been initialized.
+4. r[module.init.cycle.ready-order] When several cycles are otherwise ready, the least fully qualified module identity in each cycle orders them lexicographically.
 
 > **Why.** Ordering by module identity makes initialization independent of
 > filesystem enumeration.
@@ -1599,9 +1599,9 @@ fn total() -> i32:
 demo := total()
 ```
 
-#### Order Inside A Group
+#### Order Inside A Cycle
 
-Top-level statements of a group run in dependency order, then in file
+Top-level statements of a cycle run in dependency order, then in file
 order, as Go orders the variables of one package:
 
 ```text
@@ -1619,18 +1619,18 @@ pub fn price_of(sku: string) -> i32:
     catalog.base_price(sku) + markup
 ```
 
-1. r[module.init.group.dependency] A top-level statement depends on each top-level binding of its group in its transitive read set. The read set is computed as for [definite initialization](#definite-initialization), across every module of the group.
-2. r[module.init.group.step] A group initializes one top-level executable statement at a time. Each step runs the earliest remaining statement whose dependencies are all initialized.
-3. r[module.init.group.earliest] Statements are ordered by fully qualified module identity, then by source position.
-4. r[module.init.group.cycle] When statements remain and none of them is ready, they form an initialization cycle, which is an error. Error: `top-level-read-before-initialization`.
+1. r[module.init.cycle.dependency] A top-level statement depends on each top-level binding of its cycle in its transitive read set. The read set is computed as for [definite initialization](#definite-initialization), across every module of the cycle.
+2. r[module.init.cycle.step] A cycle initializes one top-level executable statement at a time. Each step runs the earliest remaining statement whose dependencies are all initialized.
+3. r[module.init.cycle.earliest] Statements are ordered by fully qualified module identity, then by source position.
+4. r[module.init.cycle.stuck] When statements remain and none of them is ready, they form an initialization cycle, which is an error. Error: `top-level-read-before-initialization`.
 
-> **Note.** In a group of one module, definite initialization makes every
+> **Note.** In a cycle of one module, definite initialization makes every
 > statement ready in turn, so its statements run in source order.
 
 ### Top-Level Statements
 
 1. r[module.init.declarations] Within one module, named declarations are available before initialization.
-2. r[module.init.source-order-single] In a group of one module, top-level executable statements run in source order. A larger group follows [Order Inside A Group](#order-inside-a-group).
+2. r[module.init.source-order-single] In a cycle of one module, top-level executable statements run in source order. A larger cycle follows [Order Inside A Cycle](#order-inside-a-cycle).
 3. r[module.init.uses] Use declarations do not execute as statements.
 4. r[module.init.binding] Top-level bindings are initialized at their statement, before later function bodies may access them.
 5. r[module.init.storage] Their storage remains available to functions in that module for the lifetime of the program instance.
@@ -1822,10 +1822,10 @@ use std.json.parse
 2. r[module.package.annotated.parts] That signature includes parameter and result types, requirement rows, suspension, and generic parameters with their bounds and variance. It also includes the types of public fields and enum data.
 3. r[module.package.no-inference] Nothing in a public signature is inferred from a function body.
 4. r[module.package.no-pub-binding] Top-level bindings cannot be public. A `pub` binding is an error. Error: `syntax-error`.
-5. r[module.package.template-helper] A private item that a [template](14-annotations.md#r-annot.template.form) body names is a **template helper**. It follows the signature rules of a public declaration.
-6. r[module.package.template-helper.result] So a template helper function must declare its result type. Omitting it is an error. Error: `missing-result-type`.
-7. r[module.package.template-helper.row] A template helper function without a requirement clause has the empty row, as [`req.row.omitted.empty-pub`](11-requirements-and-suspension.md#r-req.row.omitted.empty-pub) states for a public function.
-8. r[module.package.template-helper.no-binding] A template body must not name a top-level binding. Naming one is an error. Error: `template-names-binding`.
+5. r[module.package.template-private] A private item that a [template](14-annotations.md#r-annot.template.form) body names follows the signature rules of a public declaration.
+6. r[module.package.template-private.result] So a private function a template names must declare its result type. Omitting it is an error. Error: `missing-result-type`.
+7. r[module.package.template-private.row] Such a function without a requirement clause has the empty row, as [`req.row.omitted.empty-pub`](11-requirements-and-suspension.md#r-req.row.omitted.empty-pub) states for a public function.
+8. r[module.package.template-private.no-binding] A template body must not name a top-level binding. Naming one is an error. Error: `template-names-binding`.
 
 ```text
 pub answer := 42  # error: syntax-error
@@ -1864,7 +1864,7 @@ A package interface must contain:
 | associated types |
 | every module-level implementation head, for coherence |
 | each fact's expression and its type |
-| each template helper and each private type it names, as a hidden item |
+| each private item a template names and each private type it names, as a hidden item |
 
 1. r[module.interface.contents] A package interface must contain every item in the table.
 2. r[module.interface.hidden-item] A **hidden item** is in the interface, but only the code of an instantiated template may name it. Downstream source cannot name it.
@@ -1882,7 +1882,7 @@ pub fn total(items: List[i32]) -> usize:
     items.len()   # fully annotated: this signature enters the package interface
 ```
 
-## Executable Entry Point
+## Entry Point
 
 The conventional non-suspending entry point is:
 
@@ -1891,7 +1891,7 @@ pub fn main() -> void:
     ...
 ```
 
-1. r[module.entry.definition] An **executable entry point** is a public top-level function named `main` or `main!` with no parameters.
+1. r[module.entry.definition] An **entry point** is a public top-level function named `main` or `main!` with no parameters.
 2. r[module.entry.result-termination] Its result type must implement `std.process.Termination`, as for an ordinary trait bound, so it may be `void`, `ExitCode`, or `Result[T, E]` with `T < Termination` and `E < Display`. Any other result type is an error. Error: `unsatisfied-trait-bound`.
 3. r[module.entry.row] It may declare a requirement row.
 4. r[module.entry.row.host] Every key in that row must be a host capability trait of the selected runtime profile. Any other key is an error. Error: `nonhost-entry-requirement`.

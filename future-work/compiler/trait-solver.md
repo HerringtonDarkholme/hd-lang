@@ -117,7 +117,7 @@ changes 1 and 4).
 | --- | --- | --- | --- |
 | `Implements` | each bound of an instantiated callee; `==`, `<`, `?` conversions; trait-value conversions; impl checks | `fn show[T < Display](v: T)` called with a `User` asks `User: Display` | `Holds { Impl(impl Display for User) }` |
 | `Project` | a projection meets another type in unification; an operator's `Out`; `T::Item` in a signature | `price + price` with `impl Add for Money { type Out = Money }` asks `<Money as Add[Money]>::Out` | `Normalized { ty: Money, evidence }` |
-| `Instantiations` | bound-only parameters; the instantiation choice of a method or operator; `X::from(v)` | `AppError::from(code)` asks `Instantiations { AppError, From }` | `Many([From[i32], From[string]])` in content order |
+| `Instantiations` | parameters named only in bounds; the instantiation choice of a method or operator; `X::from(v)` | `AppError::from(code)` asks `Instantiations { AppError, From }` | `Many([From[i32], From[string]])` in content order |
 | `Methods` | `value.name(...)`, `Type::name(...)` | `w.show()` on a `Wrapper` with an inherent `show` and an available `Show` | `Many([Inherent(show), Trait(Show::show)])`; the checker takes the inherent one |
 
 The answer shapes:
@@ -555,7 +555,8 @@ impl binds `Item = string`
 A unique head match never teaches anything. `Money: Add[?0]` with one
 impl `Add[Money] for Money` stalls; it does not learn `?0 := Money`.
 Choosing among instantiations is the job of `Instantiations`, which the
-checker asks exactly where the spec says: bound-only parameters
+checker asks exactly where the spec says: parameters named only in
+bounds
 ([Inference Through A Bound](../../spec/lang/04-type-system.md#inference-through-a-bound))
 and the instantiation choice
 ([Instantiations Of One Generic Trait](../../spec/lang/09-traits.md#instantiations-of-one-generic-trait)).
@@ -982,9 +983,9 @@ a second route (rule TS-2) and no cycle is coinductive.
 
 The "bounded monotone fixpoint" of the prior-art lessons is therefore not
 needed in the solver. The checker keeps the one fixpoint the spec defines,
-the bound-only inference loop
+the bound-inference loop
 ([`types.generic.infer.bound.fixed-point`](../../spec/lang/04-type-system.md#r-types.generic.infer.bound.fixed-point)),
-which is bounded by the number of bound-only parameters
+which is bounded by the number of parameters named only in bounds
 ([type-checking.md §2.4](type-checking.md#24-calls-and-use-site-type-arguments)).
 
 ### 6.4 Stalling
