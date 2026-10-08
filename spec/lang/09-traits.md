@@ -340,6 +340,7 @@ The comparison and hash traits whose laws relate them are related traits:
 1. r[trait.derive.related.same-list] Deriving `Hash`, `PartialOrd`, or `Ord` requires each of its related traits to be derived in the same `@derive` list.
 2. r[trait.derive.related.no-mix] One type's related traits must be all derived or all hand-written: a derived implementation and a hand-written implementation of two related traits never coexist.
 3. r[trait.derive.related.error] A derivation that breaks either rule is an error, reported on its `@derive` line. Error: `mixed-derived-law`.
+4. r[trait.derive.related.replaces] When a derived trait's missing related trait is also its supertrait, as `PartialOrd` is for `Ord`, this error replaces `missing-supertrait-implementation` on that `@derive` line.
 
 ```text
 @derive(Hash)  # error: mixed-derived-law

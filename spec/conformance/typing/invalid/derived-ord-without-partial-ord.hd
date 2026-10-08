@@ -1,0 +1,7 @@
+# test: deriving Ord without PartialOrd is one mixed-derived-law error, which replaces the supertrait error
+# Spec 09 Traits: trait.derive.related.same-list, trait.derive.related.replaces.
+
+@derive(Eq, Ord)  # diagnostic: mixed-derived-law
+data Release:
+    major: i64
+    minor: i64
