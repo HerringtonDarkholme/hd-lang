@@ -11,7 +11,7 @@ use hd_base::{
     DefId, FolderId, Fuel, InferVar, ModuleId, NotImplemented, Stage, StageResult, Symbol,
 };
 
-use crate::pool::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
+use crate::pool::{ParamRef, Prim, Ty, TyData, TyList, Types};
 use crate::unify::VarKind;
 
 /// A trait reference: `self_ty: trait_[args]` (§2.1).
@@ -163,7 +163,7 @@ pub enum HeadKey {
 impl HeadKey {
     /// The head key of a type: what a candidate lookup indexes by.
     #[must_use]
-    pub fn of(pool: &InternPool, t: Ty) -> HeadKey {
+    pub fn of(pool: Types<'_>, t: Ty) -> HeadKey {
         match pool.get(t) {
             TyData::Adt { def, .. } | TyData::TraitValue { def, .. } => HeadKey::Ctor(def),
             TyData::Prim(p) => HeadKey::Prim(p),
@@ -221,7 +221,7 @@ pub enum PlanStep {
 /// of parameters the head fixed; a projection that is not concrete yet
 /// leaves its target as it was.
 pub fn apply_binds(
-    pool: &InternPool,
+    pool: Types<'_>,
     tables: &[(ModuleId, &ImplTable)],
     t: &ImplTable,
     row: usize,
@@ -479,7 +479,7 @@ pub struct Selection {
 
 /// The solving context of one body, header check or derive instance.
 pub struct SolveCx<'a> {
-    pub pool: &'a InternPool,
+    pub pool: Types<'a>,
     pub env: &'a ParamEnv,
     pub universe: ImplUniverseId,
     pub tables: &'a [(ModuleId, &'a ImplTable)],
@@ -493,7 +493,7 @@ pub trait Solver: Sync {
     fn elaborate(&self, bounds: &[DeclaredBound], out: &mut ParamEnvBuilder) -> EnvKey;
     fn select(
         &self,
-        pool: &InternPool,
+        pool: Types<'_>,
         tables: &[(ModuleId, &ImplTable)],
         tref: ConcreteTraitRef,
     ) -> StageResult<Selection>;
@@ -501,7 +501,7 @@ pub trait Solver: Sync {
     /// projection in `t` with a concrete base, normalized.
     fn normalize_concrete(
         &self,
-        pool: &InternPool,
+        pool: Types<'_>,
         tables: &[(ModuleId, &ImplTable)],
         t: Ty,
     ) -> StageResult<Ty>;
@@ -509,8 +509,9 @@ pub trait Solver: Sync {
 
 /// Canonicalizes a goal's self type and arguments (§2.2 steps 1 and 3):
 /// variables become `Canon(i)` in first-occurrence order.
+#[must_use]
 pub fn canonicalize(
-    pool: &InternPool,
+    pool: Types<'_>,
     kind: GoalKind,
     tref: TraitRef,
     mut_: bool,
@@ -535,7 +536,7 @@ pub fn canonicalize(
     (goal, vars)
 }
 
-fn canon_ty(pool: &InternPool, t: Ty, vars: &mut CanonVars) -> Ty {
+fn canon_ty(pool: Types<'_>, t: Ty, vars: &mut CanonVars) -> Ty {
     if !pool.has_infer(t) {
         return t;
     }
@@ -582,7 +583,7 @@ fn both(a: M, b: M) -> M {
 /// Matches an impl head pattern (its parameters owned by `owner`) against
 /// a goal type, binding the parameters. A variable in the goal where the
 /// pattern has structure is a "maybe": the goal stalls on it.
-fn match_ty(pool: &InternPool, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Option<Ty>>) -> M {
+fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Option<Ty>>) -> M {
     if let TyData::Param(p) = pool.get(pat)
         && p.owner == owner
     {
@@ -654,7 +655,7 @@ fn match_ty(pool: &InternPool, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Opt
 }
 
 fn match_list(
-    pool: &InternPool,
+    pool: Types<'_>,
     owner: DefId,
     l1: TyList,
     l2: TyList,
@@ -684,7 +685,7 @@ pub struct TableSolver;
 
 /// The impl arguments a head match bound, then the plan's bound steps
 /// substituted with them.
-fn plan_goals(pool: &InternPool, t: &ImplTable, row: usize, args: &[Ty]) -> Vec<TraitRef> {
+fn plan_goals(pool: Types<'_>, t: &ImplTable, row: usize, args: &[Ty]) -> Vec<TraitRef> {
     let owner = t.def[row];
     let s = |x: Ty| {
         pool.subst(x, &|p: ParamRef| {
@@ -861,7 +862,7 @@ impl TableSolver {
     }
 }
 
-fn collect_vars(pool: &InternPool, t: Ty, out: &mut Vec<InferVar>) {
+fn collect_vars(pool: Types<'_>, t: Ty, out: &mut Vec<InferVar>) {
     if !pool.has_infer(t) {
         return;
     }
@@ -890,7 +891,7 @@ fn collect_vars(pool: &InternPool, t: Ty, out: &mut Vec<InferVar>) {
 
 /// Goal arguments that are bare variables learn the matching head
 /// argument (§8.1 `learned`).
-fn learned_from(pool: &InternPool, head: TyList, goal: TyList) -> Vec<(InferVar, Ty)> {
+fn learned_from(pool: Types<'_>, head: TyList, goal: TyList) -> Vec<(InferVar, Ty)> {
     pool.list_items(goal)
         .iter()
         .copied()
@@ -933,7 +934,7 @@ impl Solver for TableSolver {
 
     fn select(
         &self,
-        pool: &InternPool,
+        pool: Types<'_>,
         tables: &[(ModuleId, &ImplTable)],
         tref: ConcreteTraitRef,
     ) -> StageResult<Selection> {
@@ -966,7 +967,7 @@ impl Solver for TableSolver {
 
     fn normalize_concrete(
         &self,
-        pool: &InternPool,
+        pool: Types<'_>,
         tables: &[(ModuleId, &ImplTable)],
         t: Ty,
     ) -> StageResult<Ty> {
@@ -979,11 +980,11 @@ impl Solver for TableSolver {
 /// has proven the goal, so a head match is enough. A projection on a
 /// parameter or a variable, or one no impl binds, is kept.
 #[must_use]
-pub fn normalize_concrete(pool: &InternPool, tables: &[(ModuleId, &ImplTable)], t: Ty) -> Ty {
+pub fn normalize_concrete(pool: Types<'_>, tables: &[(ModuleId, &ImplTable)], t: Ty) -> Ty {
     norm_concrete(pool, tables, t, 0)
 }
 
-fn norm_concrete(pool: &InternPool, tables: &[(ModuleId, &ImplTable)], t: Ty, depth: u32) -> Ty {
+fn norm_concrete(pool: Types<'_>, tables: &[(ModuleId, &ImplTable)], t: Ty, depth: u32) -> Ty {
     if !pool.has_assoc(t) || depth > 64 {
         return t;
     }
@@ -1054,7 +1055,7 @@ fn norm_concrete(pool: &InternPool, tables: &[(ModuleId, &ImplTable)], t: Ty, de
 /// One projection step on a concrete base: a trait value's binding, or
 /// the binding of the impl whose head matches.
 fn project_concrete(
-    pool: &InternPool,
+    pool: Types<'_>,
     tables: &[(ModuleId, &ImplTable)],
     assoc: DefId,
     trait_: DefId,
@@ -1112,7 +1113,7 @@ mod tests {
         ImplUniverses, MemoEntry, MemoKey, MemoKind, ParamEnv, SolveCx, Solver, TableSolver,
         TraitRef, canonicalize,
     };
-    use crate::pool::{InternPool, Prim, Ty, TyData, TyList};
+    use crate::pool::{InternPool, LocalPool, Prim, Ty, TyData, TyList, Types};
     use crate::unify::{InferTable, VarKind};
     use hd_base::{DefId, FolderId, Fuel, ModuleId};
 
@@ -1128,34 +1129,36 @@ mod tests {
 
     #[test]
     fn canonical_goals_share_keys_across_bodies() {
-        let p = InternPool::new();
+        let gp = InternPool::new();
+        // Two bodies, each with its own local pool.
+        let (l1, l2) = (LocalPool::new(), LocalPool::new());
+        let (p1, p2) = (Types::with_local(&gp, &l1), Types::with_local(&gp, &l2));
         let list = DefId::from_raw(1);
         let eq = DefId::from_raw(2);
         let mut t1 = InferTable::default();
-        let _ = t1.fresh(&p, VarKind::General);
-        let v3 = t1.fresh(&p, VarKind::General);
+        let _ = t1.fresh(p1, VarKind::General);
+        let v3 = t1.fresh(p1, VarKind::General);
         let mut t2 = InferTable::default();
-        let v0 = t2.fresh(&p, VarKind::General);
-        let mk = |v| {
-            p.intern_ty(&TyData::Adt {
+        let v0 = t2.fresh(p2, VarKind::General);
+        let g = |p: Types<'_>, v| TraitRef {
+            trait_: eq,
+            self_ty: p.intern_ty(&TyData::Adt {
                 def: list,
                 args: p.list(&[v]),
-            })
-        };
-        let g = |v| TraitRef {
-            trait_: eq,
-            self_ty: mk(v),
+            }),
             args: TyList::EMPTY,
         };
-        let (a, _) = canonicalize(&p, GoalKind::Implements, g(v3), false);
-        let (b, vars) = canonicalize(&p, GoalKind::Implements, g(v0), false);
+        let (a, _) = canonicalize(p1, GoalKind::Implements, g(p1, v3), false);
+        let (b, vars) = canonicalize(p2, GoalKind::Implements, g(p2, v0), false);
+        assert!(!a.self_ty.is_local(), "canonical goals are global");
         assert_eq!(a, b);
         assert_eq!(vars.map.len(), 1);
     }
 
     #[test]
     fn skeleton_solver_finds_one_exact_head_and_memo_publishes_once() {
-        let p = InternPool::new();
+        let gp = InternPool::new();
+        let p = gp.types();
         let tr = DefId::from_raw(5);
         let mut t = ImplTable::default();
         t.trait_.push(tr);
@@ -1177,7 +1180,7 @@ mod tests {
         let mut body = BodyMemo::default();
         let u = ImplUniverses::default().intern(&[]);
         let mut cx = SolveCx {
-            pool: &p,
+            pool: p,
             env: &env,
             universe: u,
             tables: &tables,
@@ -1200,10 +1203,10 @@ mod tests {
         assert!(matches!(a, super::Answer::Holds { .. }));
         assert!(
             TableSolver
-                .select(&p, &tables, ConcreteTraitRef(tref))
+                .select(p, &tables, ConcreteTraitRef(tref))
                 .is_ok()
         );
-        let (cg, _) = canonicalize(&p, GoalKind::Implements, tref, false);
+        let (cg, _) = canonicalize(p, GoalKind::Implements, tref, false);
         let key = MemoKey {
             goal: cg,
             env: super::EnvKey::EMPTY,

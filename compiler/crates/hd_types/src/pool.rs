@@ -2,6 +2,8 @@
 //! type list is one hash-consed item, so global type equality is one
 //! integer compare. Storage is a one-byte tag, a `u32` data word, a `u32`
 //! meta word (flags and node count) and variable parts in `extra`.
+//! Types that hold inference variables live in the checked body's
+//! `LocalPool` instead; [`Types`] reads and builds through both.
 
 use std::cell::RefCell;
 use std::sync::Mutex;
@@ -441,7 +443,149 @@ impl Default for InternPool {
     }
 }
 
+/// Bit 31 of an index: the item is in a body-local pool (§3.9.2).
+const LOCAL: u32 = 1 << 31;
+/// Bits 27..30 of a local index: its pool's generation, so an index used
+/// against another body's pool fails loudly.
+const GEN_SHIFT: u32 = 27;
+const GEN_MASK: u32 = 0xF;
+/// Bits 0..26 of a local index: the row.
+const LOCAL_ROW: u32 = (1 << GEN_SHIFT) - 1;
+
+static NEXT_LOCAL: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+/// The body-local pool (§3.9.2, §3.4): the types that hold inference
+/// variables, in the global pool's columns, owned by one body and dropped
+/// with it, so variables never reach the shared pool. Unlike the design
+/// it is hash-consed, through a body-local table, because the checker
+/// compares variable-holding types with `==`. `resolve` interns the
+/// variable-free results in the global pool.
+pub struct LocalPool {
+    cols: Cols,
+    index: RefCell<IdTable>,
+    generation: u32,
+}
+
+impl Default for LocalPool {
+    fn default() -> Self {
+        Self {
+            cols: Cols::default(),
+            index: RefCell::new(IdTable::default()),
+            generation: NEXT_LOCAL.fetch_add(1, Ordering::Relaxed) & GEN_MASK,
+        }
+    }
+}
+
+impl LocalPool {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    fn intern(&self, c: &Content<'_>, meta: u32) -> u32 {
+        let h32 = low(c.hash());
+        let mut idx = self.index.borrow_mut();
+        let found = idx.find(h32, |i| c.matches(&self.cols, i));
+        let row = found.unwrap_or_else(|| {
+            let i = self.cols.push(c, meta);
+            idx.insert(h32, i);
+            i
+        });
+        assert!(row <= LOCAL_ROW, "body-local pool over capacity");
+        LOCAL | self.generation << GEN_SHIFT | row
+    }
+
+    /// Items in this pool.
+    #[must_use]
+    pub fn len(&self) -> u32 {
+        self.cols.tag.len()
+    }
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.cols.tag.is_empty()
+    }
+}
+
+/// A view of the types one piece of code can see: the global pool and,
+/// while a body is checked, that body's local pool. Every read and build
+/// goes through it; an index with bit 31 set reads the local pool, and a
+/// built item that holds an inference variable goes there.
+#[derive(Clone, Copy)]
+pub struct Types<'a> {
+    global: &'a InternPool,
+    local: Option<&'a LocalPool>,
+}
+
+impl<'a> Types<'a> {
+    /// The global pool alone: building a variable-holding type panics.
+    #[must_use]
+    pub fn of(global: &'a InternPool) -> Self {
+        Self {
+            global,
+            local: None,
+        }
+    }
+
+    /// The global pool and one body's local pool.
+    #[must_use]
+    pub fn with_local(global: &'a InternPool, local: &'a LocalPool) -> Self {
+        Self {
+            global,
+            local: Some(local),
+        }
+    }
+
+    #[must_use]
+    pub fn global(self) -> &'a InternPool {
+        self.global
+    }
+
+    /// The columns and row of an index.
+    fn at(self, id: u32) -> (&'a Cols, u32) {
+        if id & LOCAL == 0 {
+            return (&self.global.cols, id);
+        }
+        let l = self.local.expect("a body-local type read outside its body");
+        assert_eq!(
+            (id >> GEN_SHIFT) & GEN_MASK,
+            l.generation,
+            "a body-local type read in another body"
+        );
+        (&l.cols, id & LOCAL_ROW)
+    }
+
+    fn meta_word(self, id: u32) -> u32 {
+        let (c, i) = self.at(id);
+        c.meta[i]
+    }
+
+    /// Interns in the local pool when the item holds a variable, else in
+    /// the global pool.
+    fn intern(self, tag: PoolTag, data: u32, rec: (&[u32], &[Ty]), meta: u32) -> u32 {
+        if meta & meta::HAS_INFER == 0 {
+            return self.global.intern(tag, data, rec, meta);
+        }
+        let (head, tys) = rec;
+        self.local
+            .expect("an inference variable built outside a body")
+            .intern(
+                &Content {
+                    tag,
+                    data,
+                    head,
+                    tys,
+                },
+                meta,
+            )
+    }
+}
+
 impl Ty {
+    /// Whether this index is in a body-local pool.
+    #[must_use]
+    pub const fn is_local(self) -> bool {
+        self.0 & LOCAL != 0
+    }
     #[must_use]
     pub const fn prim(p: Prim) -> Ty {
         Ty(p as u32)
@@ -472,6 +616,11 @@ impl InternPool {
     /// then `tys`. A hit allocates nothing: the content is hashed and
     /// compared where it lies.
     fn intern(&self, tag: PoolTag, data: u32, (head, tys): (&[u32], &[Ty]), meta: u32) -> u32 {
+        // A global type never holds a local one (§3.4).
+        assert!(
+            meta & meta::HAS_INFER == 0,
+            "an inference variable reached the global pool"
+        );
         let c = Content {
             tag,
             data,
@@ -526,28 +675,95 @@ impl InternPool {
         i
     }
 
-    fn meta_of(&self, t: Ty) -> u32 {
-        self.cols.meta[t.0]
+    /// This pool as a [`Types`] view with no body-local pool.
+    #[must_use]
+    pub fn types(&self) -> Types<'_> {
+        Types::of(self)
     }
-
-    fn list_meta(&self, l: TyList) -> u32 {
-        self.cols.meta[l.0]
-    }
-
     pub fn list(&self, tys: &[Ty]) -> TyList {
+        self.types().list(tys)
+    }
+    /// A list's items, borrowed from the pool: no copy.
+    #[must_use]
+    pub fn list_items(&self, l: TyList) -> &[Ty] {
+        self.types().list_items(l)
+    }
+    pub fn row(&self, row: &RowData) -> RowId {
+        self.types().row(row)
+    }
+    #[must_use]
+    pub fn row_data(&self, r: RowId) -> RowData {
+        self.types().row_data(r)
+    }
+    pub fn intern_ty(&self, t: &TyData) -> Ty {
+        self.types().intern_ty(t)
+    }
+    #[must_use]
+    pub fn get(&self, t: Ty) -> TyData {
+        self.types().get(t)
+    }
+    #[must_use]
+    pub fn has_infer(&self, t: Ty) -> bool {
+        self.types().has_infer(t)
+    }
+    #[must_use]
+    pub fn has_poison(&self, t: Ty) -> bool {
+        self.types().has_poison(t)
+    }
+    #[must_use]
+    pub fn has_param(&self, t: Ty) -> bool {
+        self.types().has_param(t)
+    }
+    #[must_use]
+    pub fn has_assoc(&self, t: Ty) -> bool {
+        self.types().has_assoc(t)
+    }
+    pub fn subst(&self, t: Ty, f: &dyn Fn(ParamRef) -> Option<Ty>) -> Ty {
+        self.types().subst(t, f)
+    }
+    pub fn subst_row(&self, r: RowId, f: &dyn Fn(ParamRef) -> Option<Ty>) -> RowId {
+        self.types().subst_row(r, f)
+    }
+    #[must_use]
+    pub fn display(&self, t: Ty) -> String {
+        self.types().display(t)
+    }
+    #[must_use]
+    pub fn len(&self) -> u32 {
+        self.cols.tag.len()
+    }
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.cols.tag.is_empty()
+    }
+}
+
+impl<'a> Types<'a> {
+    fn meta_of(self, t: Ty) -> u32 {
+        self.meta_word(t.0)
+    }
+
+    fn list_meta(self, l: TyList) -> u32 {
+        self.meta_word(l.0)
+    }
+
+    #[must_use]
+    pub fn list(self, tys: &[Ty]) -> TyList {
         let meta = tys.iter().fold(0, |m, t| m | self.meta_of(*t));
         TyList(self.intern(PoolTag::List, 0, (&[], tys), meta))
     }
 
     /// A list's items, borrowed from the pool: no copy.
     #[must_use]
-    pub fn list_items(&self, l: TyList) -> &[Ty] {
-        self.cols.list(l.0)
+    pub fn list_items(self, l: TyList) -> &'a [Ty] {
+        let (c, i) = self.at(l.0);
+        c.list(i)
     }
 
     /// Interns a row. A key that is itself a row (`TyData::Row`, a solved
     /// row variable) is flattened into this one (`req.row.set.parameter`).
-    pub fn row(&self, row: &RowData) -> RowId {
+    #[must_use]
+    pub fn row(self, row: &RowData) -> RowId {
         let mut keys = Vec::new();
         let mut params = row.params.clone();
         for k in &row.keys {
@@ -577,13 +793,14 @@ impl InternPool {
         RowId(self.intern(PoolTag::Row, 0, (&words, &[]), meta))
     }
 
-    fn row_meta(&self, r: RowId) -> u32 {
-        self.cols.meta[r.0]
+    fn row_meta(self, r: RowId) -> u32 {
+        self.meta_word(r.0)
     }
 
     #[must_use]
-    pub fn row_data(&self, r: RowId) -> RowData {
-        let w = self.cols.record(r.0);
+    pub fn row_data(self, r: RowId) -> RowData {
+        let (c, i) = self.at(r.0);
+        let w = c.record(i);
         let n = w[0] as usize;
         let keys = w[1..=n].iter().map(|&k| Ty(k)).collect();
         let params = w[n + 2..]
@@ -596,9 +813,10 @@ impl InternPool {
         RowData { keys, params }
     }
 
-    /// Interns a type. Body-local types (with `Infer`) are interned too in
-    /// this skeleton; the design keeps them in a body-local pool (§3.4).
-    pub fn intern_ty(&self, t: &TyData) -> Ty {
+    /// Interns a type: in the body's local pool when it holds an inference
+    /// variable, else in the global pool (§3.4).
+    #[must_use]
+    pub fn intern_ty(self, t: &TyData) -> Ty {
         use PoolTag as T;
         let (tag, data, meta): (PoolTag, u32, u32) = match t {
             TyData::Prim(p) => (T::Prim, *p as u32, 0),
@@ -695,9 +913,10 @@ impl InternPool {
 
     /// Decodes a type (§3.4 `TyView`).
     #[must_use]
-    pub fn get(&self, t: Ty) -> TyData {
-        let (tag, d) = (self.cols.tag[t.0], self.cols.data[t.0]);
-        let x = self.cols.record_of(tag, d);
+    pub fn get(self, t: Ty) -> TyData {
+        let (c, i) = self.at(t.0);
+        let (tag, d) = (c.tag[i], c.data[i]);
+        let x = c.record_of(tag, d);
         match tag {
             PoolTag::Prim => TyData::Prim(Prim::ALL[d as usize]),
             PoolTag::Never => TyData::Never,
@@ -748,33 +967,24 @@ impl InternPool {
     }
 
     #[must_use]
-    pub fn has_infer(&self, t: Ty) -> bool {
+    pub fn has_infer(self, t: Ty) -> bool {
         self.meta_of(t) & meta::HAS_INFER != 0
     }
     #[must_use]
-    pub fn has_poison(&self, t: Ty) -> bool {
+    pub fn has_poison(self, t: Ty) -> bool {
         self.meta_of(t) & meta::HAS_POISON != 0
     }
     #[must_use]
-    pub fn has_param(&self, t: Ty) -> bool {
+    pub fn has_param(self, t: Ty) -> bool {
         self.meta_of(t) & meta::HAS_PARAM != 0
     }
     #[must_use]
-    pub fn has_assoc(&self, t: Ty) -> bool {
+    pub fn has_assoc(self, t: Ty) -> bool {
         self.meta_of(t) & meta::HAS_ASSOC != 0
     }
-    #[must_use]
-    pub fn len(&self) -> u32 {
-        self.cols.tag.len()
-    }
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.cols.tag.is_empty()
-    }
-
     /// Replaces declared parameters: `f` maps a parameter to its argument,
     /// or `None` to keep it.
-    pub fn subst(&self, t: Ty, f: &dyn Fn(ParamRef) -> Option<Ty>) -> Ty {
+    pub fn subst(self, t: Ty, f: &dyn Fn(ParamRef) -> Option<Ty>) -> Ty {
         if !self.has_param(t) {
             return t;
         }
@@ -840,7 +1050,7 @@ impl InternPool {
     /// Replaces declared parameters in a row: a row parameter maps through
     /// `f` like a type parameter of the same owner and index, and its
     /// argument (a `TyData::Row`, or a row variable) joins the keys.
-    pub fn subst_row(&self, r: RowId, f: &dyn Fn(ParamRef) -> Option<Ty>) -> RowId {
+    pub fn subst_row(self, r: RowId, f: &dyn Fn(ParamRef) -> Option<Ty>) -> RowId {
         if self.row_meta(r) & meta::HAS_PARAM == 0 {
             return r;
         }
@@ -864,7 +1074,7 @@ impl InternPool {
     /// Prints a type with run IDs for items (`#n`); output that a user
     /// sees goes through stable paths instead (§6.5).
     #[must_use]
-    pub fn display(&self, t: Ty) -> String {
+    pub fn display(self, t: Ty) -> String {
         let list = |l: TyList| {
             self.list_items(l)
                 .iter()
@@ -923,7 +1133,7 @@ impl InternPool {
 
 #[cfg(test)]
 mod tests {
-    use super::{InternPool, Prim, RowData, RowId, Ty, TyData, TyList};
+    use super::{InternPool, LocalPool, Prim, RowData, RowId, Ty, TyData, TyList, Types};
     use hd_base::DefId;
 
     #[test]
@@ -1008,7 +1218,6 @@ mod tests {
                 args: list,
             },
             TyData::Mut(Ty::STRING),
-            TyData::Infer(hd_base::InferVar::from_raw(0)),
             TyData::Canon(2),
         ];
         for f in forms {
@@ -1019,5 +1228,28 @@ mod tests {
         assert_eq!(p.row_data(row).keys.len(), 2);
         let opt = p.intern_ty(&TyData::Option(Ty::POISON));
         assert!(p.has_poison(opt));
+    }
+
+    /// Variable-holding types go to the body's local pool and never grow
+    /// the global one; variable-free types built through the same view are
+    /// global.
+    #[test]
+    fn variables_stay_body_local() {
+        let g = InternPool::new();
+        let before = g.len();
+        let local = LocalPool::new();
+        let p = Types::with_local(&g, &local);
+        let v = p.intern_ty(&TyData::Infer(hd_base::InferVar::from_raw(3)));
+        let opt = p.intern_ty(&TyData::Option(v));
+        let l = p.list(&[opt, Ty::I32]);
+        assert!(v.is_local() && opt.is_local() && Ty(l.0).is_local());
+        assert_eq!(p.get(opt), TyData::Option(v));
+        assert_eq!(p.list_items(l), &[opt, Ty::I32]);
+        assert_eq!(p.intern_ty(&TyData::Option(v)), opt, "hash-consed locally");
+        assert!(p.has_infer(opt));
+        let plain = p.intern_ty(&TyData::Option(Ty::I32));
+        assert!(!plain.is_local());
+        assert_eq!(g.len(), before + 1, "only the variable-free type is global");
+        assert_eq!(local.len(), 3);
     }
 }

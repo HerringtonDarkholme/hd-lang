@@ -75,7 +75,7 @@ impl Ck<'_, '_> {
 
     /// A type constructor applied to arguments (aliases expanded).
     pub(crate) fn ctor(&mut self, def: DefId, args: &[Ty]) -> StageResult<Ty> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let Some(item) = self.cx.lookup.item(def) else {
             return unsupported(format!("the type {}", self.cx.names.path(def)));
         };
@@ -105,7 +105,7 @@ impl Ck<'_, '_> {
     }
 
     fn named_ty(&mut self, n: NodeRef<'_>) -> StageResult<Ty> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let segs = self.segments(n);
         let mut args = Vec::new();
         let mut row = None;
@@ -185,7 +185,7 @@ impl Ck<'_, '_> {
     /// `Map[K < Eq & Hash, V]` (types.map-key.declared-bound): one error
     /// for a key type that misses either trait.
     pub(crate) fn check_map_key(&mut self, k: Ty, at: NodeRef<'_>) -> StageResult<()> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let before = self.diags.len();
         for (module, name) in [("std.cmp", "Eq"), ("std.hash", "Hash")] {
             let tr = self.cx.names.item(module, name);
@@ -247,12 +247,12 @@ impl Ck<'_, '_> {
             let t = self.named_ty(c)?;
             data.keys.push(t);
         }
-        Ok(self.cx.names.pool.row(&data))
+        Ok(self.pool().row(&data))
     }
 
     /// The type a type node names.
     pub(crate) fn ty_node(&mut self, n: NodeRef<'_>) -> StageResult<Ty> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let first = |me: &mut Self, n: NodeRef<'_>| -> StageResult<Ty> {
             match n.children().find(|c| c.kind().is_type()) {
                 Some(c) => me.ty_node(c),

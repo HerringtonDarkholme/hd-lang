@@ -148,7 +148,7 @@ impl Ck<'_, '_> {
     // ------------------------------------------------------------ names
 
     pub(crate) fn name_expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let s = self.sym_of(n);
         if let Some((l, d)) = self.find_local(s) {
             return Ok(self.read_local(l, d, n));
@@ -218,7 +218,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> (Ref, Ty) {
         self.note_call(def);
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let vars = self.fresh_generics(sig, explicit, 0);
         let inst = |t: Ty| subst_owner(pool, def, &vars, t);
         let ft = pool.intern_ty(&TyData::Fn {
@@ -238,7 +238,7 @@ impl Ck<'_, '_> {
     }
 
     fn fresh_generics(&mut self, sig: &FnSig, explicit: &[Ty], skip: usize) -> Vec<Ty> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         sig.generics
             .iter()
             .enumerate()
@@ -340,7 +340,7 @@ impl Ck<'_, '_> {
         };
         let (r, t) = self.expr(*e, None)?;
         // A newtype converts to the type it wraps (`string(path)`).
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let tr = self.infer.resolve(pool, t);
         if let TyData::Adt { def, .. } = pool.get(match pool.get(tr) {
             TyData::Mut(i) => i,
@@ -383,7 +383,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         bang: bool,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let full = ft;
         let ft = self.infer.resolve(pool, ft);
         let ft = match pool.get(ft) {
@@ -490,7 +490,7 @@ impl Ck<'_, '_> {
         }
         // Bare variable parameters still open: several arguments solving
         // one join at the readonly view (types.generic.infer.join).
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let open: Vec<bool> = rest
             .iter()
             .map(|p| {
@@ -602,7 +602,7 @@ impl Ck<'_, '_> {
         bang: bool,
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let Some(item) = self.cx.lookup.item(def) else {
             return unsupported("a call of an item outside the closure");
         };
@@ -744,7 +744,7 @@ impl Ck<'_, '_> {
     /// `all!(a(), b())`: cold suspensions, then one `AwaitAll` whose
     /// value is the tuple of their results (suspension.md §14.5).
     fn await_all(&mut self, args: &Args<'_>, n: NodeRef<'_>, bang: bool) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         if !bang {
             self.err(Code::NotSuspending, n, "`all` is called as `all!(...)`");
         }
@@ -793,7 +793,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         bang: bool,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let Some(((_, vararg), fixed)) = sig.params.split_last() else {
             return unsupported("a vararg function without parameters");
         };
@@ -866,7 +866,7 @@ impl Ck<'_, '_> {
         bang: bool,
         n: NodeRef<'_>,
     ) -> (Ref, Ty) {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         if bang {
             self.check_bang(suspends, n);
         }
@@ -897,7 +897,7 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
         call: Option<NodeRef<'_>>,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let at = call.unwrap_or(v);
         let name = self.cx.src.text(self.cx.src.last(v)).to_owned();
         let w = want
@@ -1172,7 +1172,7 @@ impl Ck<'_, '_> {
         bang: bool,
         is_param: bool,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         if !is_param && let Some((method, impl_def, impl_args)) = self.find_inherent(t, name) {
             let sig = self.sig_of(method)?;
             let explicit = std::mem::take(&mut self.method_targs);
@@ -1250,7 +1250,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         bang: bool,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let Some(ItemData::Trait(td)) = self.cx.lookup.item(tr).map(|i| &i.data) else {
             return unsupported("a trait path");
         };
@@ -1291,7 +1291,7 @@ impl Ck<'_, '_> {
         inst: &dyn Fn(Ty) -> Ty,
         n: NodeRef<'_>,
     ) -> StageResult<()> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         for (i, g) in sig.generics.iter().enumerate() {
             let before = self.diags.len();
             for b in &g.bounds {
@@ -1322,7 +1322,7 @@ impl Ck<'_, '_> {
 
     /// An inherent method of a type: (method, impl, impl arguments).
     pub(crate) fn find_inherent(&mut self, t: Ty, name: &str) -> Option<(DefId, DefId, Vec<Ty>)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let sym = self.cx.names.syms.intern(name);
         let cands = self.method_index().inherent.get(&sym).cloned()?;
         let t = match pool.get(self.infer.shallow(pool, t)) {
@@ -1376,7 +1376,7 @@ impl Ck<'_, '_> {
 
     /// A built-in method of `List`, `Map` (spec/lang/10-modules.md#built-in-methods).
     fn builtin_method(&mut self, t: Ty, name: &str) -> Option<(IntrinsicOp, Vec<Ty>, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let t = self.infer.resolve(pool, t);
         let t = match pool.get(t) {
             TyData::Mut(i) => i,
@@ -1422,7 +1422,7 @@ impl Ck<'_, '_> {
     }
 
     fn resolve_method(&mut self, rt: Ty, name: &str) -> StageResult<Option<Hit>> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let t = self.infer.resolve(pool, rt);
         let t = match pool.get(t) {
             TyData::Mut(i) => i,
@@ -1569,7 +1569,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         bang: bool,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let rt = self.norm_ty(rt);
         // A receiver whose type an earlier error left unknown adds nothing.
         if matches!(self.strip_mut(rt), Ty::NEVER | Ty::POISON) {
@@ -1726,7 +1726,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         bang: bool,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let TraitTarget {
             trait_,
             method,
@@ -1837,7 +1837,7 @@ impl Ck<'_, '_> {
         args: &[(Ref, Ty, NodeRef<'_>)],
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let method = self.cx.names.member(trait_, PathKind::Member, name);
         let sig = self.sig_of(method)?;
         let t = self.infer.resolve(pool, rt);
@@ -1911,7 +1911,7 @@ impl Ck<'_, '_> {
         args: &[Ref],
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let Some((method, impl_def, impl_args)) = self.find_inherent(t, name) else {
             return unsupported(format!("the inherent method `{name}`"));
         };
@@ -1961,7 +1961,7 @@ impl Ck<'_, '_> {
         bound: Ty,
         n: NodeRef<'_>,
     ) -> StageResult<()> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let TyData::TraitValue {
             def,
             args,
@@ -2025,7 +2025,7 @@ impl Ck<'_, '_> {
         name: &str,
         depth: u32,
     ) -> Option<(DefId, TyList, DefId)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let Some(ItemData::Trait(t)) = self.cx.lookup.item(trait_).map(|i| &i.data) else {
             return None;
         };
@@ -2070,7 +2070,7 @@ impl Ck<'_, '_> {
     /// `t` with its projections normalized as far as inference allows;
     /// a type without projections is returned as is.
     pub(crate) fn norm_ty(&mut self, t: Ty) -> Ty {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let r = self.infer.resolve(pool, t);
         if !pool.has_assoc(r) {
             return t;
@@ -2083,7 +2083,7 @@ impl Ck<'_, '_> {
     /// binding. A projection on a parameter with no binding stays rigid,
     /// named by the trait that declares it.
     pub(crate) fn normalize(&mut self, t: Ty) -> StageResult<Ty> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let t = self.infer.resolve(pool, t);
         let TyData::Assoc {
             assoc,
@@ -2183,7 +2183,7 @@ impl Ck<'_, '_> {
 impl Ck<'_, '_> {
     /// Normalizes every projection inside a type.
     pub(crate) fn normalize_deep(&mut self, t: Ty) -> StageResult<Ty> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let t = self.infer.resolve(pool, t);
         let list = |me: &mut Self, l: TyList| -> StageResult<TyList> {
             let mut v = Vec::new();
@@ -2239,7 +2239,7 @@ impl Ck<'_, '_> {
 impl Ck<'_, '_> {
     /// A type with its outer `mut` view removed, variables resolved.
     pub(crate) fn strip_mut(&self, t: Ty) -> Ty {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let t = self.infer.resolve(pool, t);
         match pool.get(t) {
             TyData::Mut(i) => i,
@@ -2269,12 +2269,7 @@ impl Ck<'_, '_> {
 
 /// A projection written `Self::Out` in a trait names the trait's own
 /// arguments implicitly: fills them in from the call's.
-pub(crate) fn with_assoc_args(
-    pool: &hd_types::InternPool,
-    t: Ty,
-    trait_: DefId,
-    args: TyList,
-) -> Ty {
+pub(crate) fn with_assoc_args(pool: hd_types::Types<'_>, t: Ty, trait_: DefId, args: TyList) -> Ty {
     if args == TyList::EMPTY {
         return t;
     }
@@ -2328,7 +2323,7 @@ pub(crate) fn with_assoc_args(
 }
 
 /// Substitutes one owner's parameters.
-pub(crate) fn subst_owner(pool: &hd_types::InternPool, owner: DefId, args: &[Ty], t: Ty) -> Ty {
+pub(crate) fn subst_owner(pool: hd_types::Types<'_>, owner: DefId, args: &[Ty], t: Ty) -> Ty {
     pool.subst(t, &|p: ParamRef| {
         (p.owner == owner)
             .then(|| args.get(p.index as usize).copied())

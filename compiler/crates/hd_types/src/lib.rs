@@ -10,5 +10,7 @@ pub mod solver;
 pub mod unify;
 pub mod wire;
 
-pub use pool::{InternPool, ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList};
+pub use pool::{
+    InternPool, LocalPool, ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList, Types,
+};
 pub use unify::{InferTable, UnifyError, VarKind};

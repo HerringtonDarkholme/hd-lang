@@ -137,7 +137,7 @@ impl Ck<'_, '_> {
 
     /// A number literal's type meeting a trait value type is its default.
     fn default_literal(&mut self, got: Ty, want: Ty) -> Ty {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let g = self.strip_mut(self.infer.resolve(pool, got));
         if matches!(pool.get(self.strip_mut(want)), TyData::TraitValue { .. })
             && matches!(pool.get(g), TyData::Infer(_))
@@ -159,7 +159,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let template = self.cx.names.item("std.ops", "Template");
         let want = want.map(|w| self.infer.resolve(pool, w));
         let Some(elem) = want.and_then(|w| match pool.get(self.strip_mut(w)) {
@@ -264,7 +264,7 @@ impl Ck<'_, '_> {
     /// `fn(N) -> R` with `N < Num`, or `fn(Template[T]) -> R`, and a
     /// literal function never suspends (`annot.typed-fact.check`).
     pub(crate) fn check_literal_marker(&mut self, def: DefId, node: NodeRef<'_>) {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let Some(item) = self.cx.lookup.item(def) else {
             return;
         };

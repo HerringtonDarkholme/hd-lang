@@ -67,7 +67,7 @@ impl Ck<'_, '_> {
         t: Ty,
         binds: &mut Vec<(NodeIdx, LocalId)>,
     ) -> StageResult<()> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let tr = self.infer.resolve(pool, t);
         let inner = match pool.get(tr) {
             TyData::Mut(i) => i,
@@ -333,7 +333,7 @@ impl Ck<'_, '_> {
                         .kind_of(self.pool(), t)
                         .is_some_and(|k| k != VarKind::General)
                 {
-                    let pool = self.cx.names.pool;
+                    let pool = self.pool();
                     let _ = self.infer.unify(pool, t, w);
                 }
                 if neg && let Some((ct, bits)) = self.b.const_of(r) {
@@ -377,7 +377,7 @@ impl Ck<'_, '_> {
         els: Option<NodeRef<'_>>,
         at: NodeRef<'_>,
     ) -> StageResult<()> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let annot = match ty_node {
             Some(t) => Some(self.ty_node(t)?),
             None => None,
@@ -513,7 +513,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let Some(scrut) = n.children().next() else {
             return unsupported("a `match` without a scrutinee");
         };
@@ -599,7 +599,7 @@ impl Ck<'_, '_> {
             return Ok(());
         };
         if row.wrap_some {
-            let pool = self.cx.names.pool;
+            let pool = self.pool();
             let inner = match pool.get(self.infer.resolve(pool, t)) {
                 TyData::Option(x) => x,
                 _ => Ty::POISON,
@@ -631,7 +631,7 @@ impl Ck<'_, '_> {
         root: Ref,
         root_t: Ty,
     ) -> StageResult<()> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let row = &rows[i];
         while let Some((p, v, t)) = work.pop() {
             match p.kind() {
@@ -783,7 +783,7 @@ impl Ck<'_, '_> {
                 .prim(PrimOp::And as u32, &[a, c], Ty::BOOL, p.index()));
         }
         let (lit, _) = self.pattern_literal(p, Some(t))?;
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let tt = self.infer.resolve(pool, t);
         if tt == Ty::STRING {
             let rec = self.b.refs_record(&[v, lit]);

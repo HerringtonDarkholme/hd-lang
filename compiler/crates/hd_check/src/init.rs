@@ -98,7 +98,16 @@ pub fn check_init(
     } else {
         RowId::EMPTY
     };
-    let mut ck = new_ck(cx, item, item, BodyKind::Init, (Ty::VOID, row), diags);
+    let local = hd_types::LocalPool::new();
+    let mut ck = new_ck(
+        cx,
+        &local,
+        item,
+        item,
+        BodyKind::Init,
+        (Ty::VOID, row),
+        diags,
+    );
     ck.module_init = Some(module.to_owned());
     let blk = ck.b.open_block();
     let mut per_stmt = Vec::new();
@@ -377,7 +386,7 @@ impl Ck<'_, '_> {
         name: &str,
         n: NodeRef<'_>,
     ) -> StageResult<Option<(Ref, Ty)>> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let hd_types::TyData::Adt { def, .. } = pool.get(t) else {
             return Ok(None);
         };

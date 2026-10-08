@@ -50,7 +50,7 @@ impl Ck<'_, '_> {
         if self.key_supplies(have, want) {
             return true;
         }
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let same_trait = matches!(
             (pool.get(have), pool.get(want)),
             (TyData::TraitValue { def: a, .. }, TyData::TraitValue { def: b, .. }) if a == b
@@ -111,7 +111,7 @@ impl Ck<'_, '_> {
         if !self.available(Need::Key(key)) {
             let msg = format!(
                 "this needs `$ {}`, which the enclosing function's row does not name",
-                hd_resolve::show_ty(&self.cx.names, key)
+                hd_resolve::show_ty_in(&self.cx.names, self.pool(), key)
             );
             self.err(Code::MissingRequirement, n, &msg);
         }
@@ -120,7 +120,7 @@ impl Ck<'_, '_> {
     /// Every key and row parameter of a callee's row, as seen from this
     /// call, must be available here.
     pub(crate) fn check_row(&mut self, row: RowId, n: NodeRef<'_>) {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let row = self.infer.resolve_row(pool, row);
         let mut d = pool.row_data(row);
         // Diagnostics in content order (scheduler.md §6.5), not by the
@@ -129,7 +129,7 @@ impl Ck<'_, '_> {
             .keys
             .into_iter()
             .filter(|k| matches!(pool.get(*k), TyData::TraitValue { .. }))
-            .map(|k| (hd_resolve::show_ty(&self.cx.names, k), k))
+            .map(|k| (hd_resolve::show_ty_in(&self.cx.names, self.pool(), k), k))
             .collect();
         keys.sort_by(|a, b| a.0.cmp(&b.0));
         for (_, k) in keys {
@@ -167,7 +167,7 @@ impl Ck<'_, '_> {
     /// least solution (`req.row.least.solution`); otherwise `want` must
     /// entail every part of `got` (`req.row.subsume`), else `type-mismatch`.
     pub(crate) fn fit_row(&mut self, got: RowId, want: RowId, n: NodeRef<'_>, what: &str) {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let got = self.infer.resolve_row(pool, got);
         let want = self.infer.resolve_row(pool, want);
         if got == want {
@@ -221,7 +221,7 @@ impl Ck<'_, '_> {
                 continue;
             }
             if !concrete.iter().any(|c| self.key_fits(*c, *k)) {
-                missing.push(hd_resolve::show_ty(&self.cx.names, *k));
+                missing.push(hd_resolve::show_ty_in(&self.cx.names, self.pool(), *k));
             }
         }
         for p in &g.params {
@@ -252,7 +252,7 @@ impl Ck<'_, '_> {
         vars: &[Ty],
         skip: usize,
     ) -> RowId {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let empty = pool.intern_ty(&TyData::Row(RowId::EMPTY));
         for (i, g) in sig.generics.iter().enumerate() {
             if g.row
@@ -273,7 +273,7 @@ impl Ck<'_, '_> {
     /// `req.row.least.ambiguous`: a parameter's row pattern may list at most
     /// one row parameter that no other parameter's pattern fixes.
     pub(crate) fn check_row_patterns(&mut self, sig: &FnSig, node: NodeRef<'_>) {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let patterns: Vec<Vec<RowParamRef>> = sig
             .params
             .iter()

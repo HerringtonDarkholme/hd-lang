@@ -376,7 +376,7 @@ impl Ck<'_, '_> {
     /// `mut X` is lowered to `X` when this argument is a readonly `X`
     /// (types.generic.infer.join.outer-permission).
     pub(crate) fn join_down(&mut self, var: Ty, got: Ty) -> bool {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let TyData::Mut(x) = pool.get(self.infer.shallow(pool, var)) else {
             return false;
         };

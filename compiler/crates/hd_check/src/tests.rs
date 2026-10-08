@@ -243,7 +243,16 @@ fn check_case(
         suspends: true,
         variadic: false,
     };
-    let mut ck = new_ck(cx, def, def, BodyKind::TestCase, (ret, RowId::EMPTY), diags);
+    let local = hd_types::LocalPool::new();
+    let mut ck = new_ck(
+        cx,
+        &local,
+        def,
+        def,
+        BodyKind::TestCase,
+        (ret, RowId::EMPTY),
+        diags,
+    );
     ck.suspends = vec![true];
     let blk = ck.b.open_block();
     let (tail, _) = ck.block_value(block, Some(ret))?;

@@ -7,13 +7,13 @@ use hd_base::DefId;
 use hd_diag::Code;
 use hd_resolve::{FnSig, ImplKind, ItemData, Lookup, Names};
 use hd_syntax::NodeRef;
-use hd_types::{InternPool, ParamRef, Ty, TyData};
+use hd_types::{ParamRef, Ty, TyData, Types};
 
 use crate::body::Ck;
 
 /// Whether a type mentions an associated type projection, which this
 /// comparison leaves to the bodies.
-fn has_assoc(pool: &InternPool, t: Ty, depth: u32) -> bool {
+fn has_assoc(pool: Types<'_>, t: Ty, depth: u32) -> bool {
     if depth > 32 {
         return true;
     }
@@ -100,7 +100,7 @@ impl Ck<'_, '_> {
     /// Compares the method `def` of a written trait implementation with
     /// the trait's method of its name; reports at `node`.
     pub(crate) fn check_impl_method(&mut self, def: DefId, node: NodeRef<'_>) {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let Some(it) = self.cx.lookup.item(def) else {
             return;
         };
@@ -168,7 +168,7 @@ impl Ck<'_, '_> {
     }
 
     fn sig_differs(
-        pool: &InternPool,
+        pool: Types<'_>,
         (want, got): (&FnSig, &FnSig),
         free_bounds: bool,
         inst: &dyn Fn(Ty) -> Ty,

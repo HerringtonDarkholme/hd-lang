@@ -157,7 +157,7 @@ pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList,
         }
     });
     if pool.has_assoc(s) {
-        hd_types::solver::normalize_concrete(pool, &env.impl_tables(), s)
+        hd_types::solver::normalize_concrete(pool.types(), &env.impl_tables(), s)
     } else {
         s
     }
@@ -410,7 +410,7 @@ impl Cx<'_> {
                     self_ty,
                     args: trait_args,
                 });
-                let sel = self.solver.select(self.pool, &self.tables, tref)?;
+                let sel = self.solver.select(self.pool.types(), &self.tables, tref)?;
                 let Some((_, t)) = self.tables.iter().find(|(m, _)| *m == sel.impl_row.module)
                 else {
                     return err("a selection outside the impl tables");
@@ -440,7 +440,7 @@ impl Cx<'_> {
                 .find_map(|(_, t)| t.def.iter().position(|d| *d == impl_).map(|row| (*t, row)))
         {
             out.resize(out.len().max(n), None);
-            hd_types::solver::apply_binds(self.pool, &self.tables, t, row, &mut out);
+            hd_types::solver::apply_binds(self.pool.types(), &self.tables, t, row, &mut out);
         }
         let mut args = Vec::new();
         for a in out.into_iter().take(n) {

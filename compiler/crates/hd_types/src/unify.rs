@@ -4,7 +4,7 @@
 
 use hd_base::InferVar;
 
-use crate::pool::{InternPool, Ty, TyData};
+use crate::pool::{Ty, TyData, Types};
 
 /// A variable's kind: general, integer literal or float literal (§3.1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -51,7 +51,7 @@ pub struct InferTable {
 pub struct Snapshot(usize);
 
 impl InferTable {
-    pub fn fresh(&mut self, pool: &InternPool, kind: VarKind) -> Ty {
+    pub fn fresh(&mut self, pool: Types<'_>, kind: VarKind) -> Ty {
         let v = u32::try_from(self.parent.len()).expect("vars");
         self.parent.push(v);
         self.rank.push(0);
@@ -87,7 +87,7 @@ impl InferTable {
     /// Replaces a bound variable's solution with `t`, undoably: the
     /// permission join of several arguments lowers `mut X` to `X`
     /// (type-checking.md §3.4, "Permission join").
-    pub fn rebind(&mut self, pool: &InternPool, var: Ty, t: Ty) {
+    pub fn rebind(&mut self, pool: Types<'_>, var: Ty, t: Ty) {
         let TyData::Infer(v) = pool.get(var) else {
             return;
         };
@@ -98,7 +98,7 @@ impl InferTable {
 
     /// Replaces bound variables at the top of `t`.
     #[must_use]
-    pub fn shallow(&self, pool: &InternPool, t: Ty) -> Ty {
+    pub fn shallow(&self, pool: Types<'_>, t: Ty) -> Ty {
         let mut t = t;
         while let TyData::Infer(v) = pool.get(t) {
             match self.binding[self.root(v.raw()) as usize] {
@@ -113,7 +113,7 @@ impl InferTable {
 
     /// The kind of an unbound variable, if `t` is one.
     #[must_use]
-    pub fn kind_of(&self, pool: &InternPool, t: Ty) -> Option<VarKind> {
+    pub fn kind_of(&self, pool: Types<'_>, t: Ty) -> Option<VarKind> {
         match pool.get(self.shallow(pool, t)) {
             TyData::Infer(v) => Some(self.kind[self.root(v.raw()) as usize]),
             _ => None,
@@ -129,7 +129,7 @@ impl InferTable {
     /// Variables from `start` on whose class is an unbound literal, with
     /// the class kind (the literal classes a statement leaves open).
     #[must_use]
-    pub fn open_literals_since(&self, pool: &InternPool, start: usize) -> Vec<(Ty, VarKind)> {
+    pub fn open_literals_since(&self, pool: Types<'_>, start: usize) -> Vec<(Ty, VarKind)> {
         (start..self.parent.len())
             .filter_map(|v| {
                 let t = pool.intern_ty(&TyData::Infer(InferVar::from_raw(
@@ -144,7 +144,7 @@ impl InferTable {
     }
 
     /// Marks an unbound integer literal class as holding a signed literal.
-    pub fn mark_signed(&mut self, pool: &InternPool, t: Ty) {
+    pub fn mark_signed(&mut self, pool: Types<'_>, t: Ty) {
         if let TyData::Infer(v) = pool.get(self.shallow(pool, t)) {
             let r = self.root(v.raw());
             if self.kind[r as usize] == VarKind::IntLit {
@@ -156,7 +156,7 @@ impl InferTable {
 
     /// Resolves every variable it can, recursively.
     #[must_use]
-    pub fn resolve(&self, pool: &InternPool, t: Ty) -> Ty {
+    pub fn resolve(&self, pool: Types<'_>, t: Ty) -> Ty {
         let t = self.shallow(pool, t);
         if !pool.has_infer(t) {
             return t;
@@ -222,7 +222,7 @@ impl InferTable {
 
     /// Resolves a row's keys; a bound row variable's row joins the keys.
     #[must_use]
-    pub fn resolve_row(&self, pool: &InternPool, row: crate::RowId) -> crate::RowId {
+    pub fn resolve_row(&self, pool: Types<'_>, row: crate::RowId) -> crate::RowId {
         let mut d = pool.row_data(row);
         if !d.keys.iter().any(|k| pool.has_infer(*k)) {
             return row;
@@ -231,7 +231,7 @@ impl InferTable {
         pool.row(&d)
     }
 
-    fn occurs(&self, pool: &InternPool, v: u32, t: Ty) -> bool {
+    fn occurs(&self, pool: Types<'_>, v: u32, t: Ty) -> bool {
         let t = self.shallow(pool, t);
         match pool.get(t) {
             TyData::Infer(w) => self.root(w.raw()) == v,
@@ -257,7 +257,7 @@ impl InferTable {
         }
     }
 
-    fn bind(&mut self, pool: &InternPool, v: u32, t: Ty) -> Result<(), UnifyError> {
+    fn bind(&mut self, pool: Types<'_>, v: u32, t: Ty) -> Result<(), UnifyError> {
         let var = InferVar::from_raw(v);
         if self.occurs(pool, v, t) {
             return Err(UnifyError::Occurs { var, ty: t });
@@ -279,7 +279,7 @@ impl InferTable {
     }
 
     /// Unifies two types; on error the caller rolls back to its snapshot.
-    pub fn unify(&mut self, pool: &InternPool, a: Ty, b: Ty) -> Result<(), UnifyError> {
+    pub fn unify(&mut self, pool: Types<'_>, a: Ty, b: Ty) -> Result<(), UnifyError> {
         let (a, b) = (self.shallow(pool, a), self.shallow(pool, b));
         if a == b {
             return Ok(());
@@ -402,7 +402,7 @@ impl InferTable {
 
     fn unify_lists(
         &mut self,
-        pool: &InternPool,
+        pool: Types<'_>,
         l1: crate::TyList,
         l2: crate::TyList,
         a: Ty,
@@ -425,57 +425,59 @@ impl InferTable {
 #[cfg(test)]
 mod tests {
     use super::{InferTable, UnifyError, VarKind};
-    use crate::pool::{InternPool, Ty, TyData};
+    use crate::pool::{InternPool, LocalPool, Ty, TyData, Types};
 
     #[test]
     fn unify_resolve_rollback_and_occurs() {
-        let p = InternPool::new();
+        let (gp, lp) = (InternPool::new(), LocalPool::new());
+        let p = Types::with_local(&gp, &lp);
         let mut t = InferTable::default();
-        let a = t.fresh(&p, VarKind::General);
+        let a = t.fresh(p, VarKind::General);
         let opt_a = p.intern_ty(&TyData::Option(a));
         let opt_i32 = p.intern_ty(&TyData::Option(Ty::I32));
         let snap = t.snapshot();
-        t.unify(&p, opt_a, opt_i32).expect("unify");
-        assert_eq!(t.resolve(&p, opt_a), opt_i32);
+        t.unify(p, opt_a, opt_i32).expect("unify");
+        assert_eq!(t.resolve(p, opt_a), opt_i32);
         t.rollback(snap);
-        assert_eq!(t.resolve(&p, opt_a), opt_a);
+        assert_eq!(t.resolve(p, opt_a), opt_a);
         assert!(matches!(
-            t.unify(&p, a, opt_a),
+            t.unify(p, a, opt_a),
             Err(UnifyError::Occurs { .. })
         ));
-        let lit = t.fresh(&p, VarKind::IntLit);
+        let lit = t.fresh(p, VarKind::IntLit);
         assert!(matches!(
-            t.unify(&p, lit, Ty::STRING),
+            t.unify(p, lit, Ty::STRING),
             Err(UnifyError::Kind { .. })
         ));
-        assert!(t.unify(&p, lit, Ty::POISON).is_ok());
+        assert!(t.unify(p, lit, Ty::POISON).is_ok());
     }
 
     /// Union by rank: unions keep classes shallow, kinds merge at the
     /// root, and a rollback restores every link, rank and kind exactly.
     #[test]
     fn union_by_rank_rolls_back_exactly() {
-        let p = InternPool::new();
+        let (gp, lp) = (InternPool::new(), LocalPool::new());
+        let p = Types::with_local(&gp, &lp);
         let mut t = InferTable::default();
-        let vars: Vec<Ty> = (0..16).map(|_| t.fresh(&p, VarKind::General)).collect();
-        let lit = t.fresh(&p, VarKind::IntLit);
-        let before: Vec<Ty> = vars.iter().map(|v| t.shallow(&p, *v)).collect();
+        let vars: Vec<Ty> = (0..16).map(|_| t.fresh(p, VarKind::General)).collect();
+        let lit = t.fresh(p, VarKind::IntLit);
+        let before: Vec<Ty> = vars.iter().map(|v| t.shallow(p, *v)).collect();
         let snap = t.snapshot();
         for w in vars.windows(2) {
-            t.unify(&p, w[0], w[1]).expect("unify vars");
+            t.unify(p, w[0], w[1]).expect("unify vars");
         }
-        t.unify(&p, vars[7], lit).expect("unify literal");
-        let root = t.shallow(&p, vars[0]);
-        assert!(vars.iter().all(|v| t.shallow(&p, *v) == root));
-        assert_eq!(t.kind_of(&p, vars[3]), Some(VarKind::IntLit));
+        t.unify(p, vars[7], lit).expect("unify literal");
+        let root = t.shallow(p, vars[0]);
+        assert!(vars.iter().all(|v| t.shallow(p, *v) == root));
+        assert_eq!(t.kind_of(p, vars[3]), Some(VarKind::IntLit));
         assert!(t.rank.iter().all(|r| *r <= 5), "log2(17) bounds the rank");
-        t.unify(&p, vars[0], Ty::I32).expect("bind");
-        assert_eq!(t.resolve(&p, vars[15]), Ty::I32);
+        t.unify(p, vars[0], Ty::I32).expect("bind");
+        assert_eq!(t.resolve(p, vars[15]), Ty::I32);
         t.rollback(snap);
-        let after: Vec<Ty> = vars.iter().map(|v| t.shallow(&p, *v)).collect();
+        let after: Vec<Ty> = vars.iter().map(|v| t.shallow(p, *v)).collect();
         assert_eq!(before, after);
         assert!(t.rank.iter().all(|r| *r == 0));
-        assert_eq!(t.kind_of(&p, vars[3]), Some(VarKind::General));
-        assert_eq!(t.kind_of(&p, lit), Some(VarKind::IntLit));
+        assert_eq!(t.kind_of(p, vars[3]), Some(VarKind::General));
+        assert_eq!(t.kind_of(p, lit), Some(VarKind::IntLit));
     }
 }

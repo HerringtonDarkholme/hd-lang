@@ -1,6 +1,6 @@
 //! Body checking (type-checking.md §1.4 to §1.6; checking-and-tir.md
 //! §4.13): one function body over the full parser's tree, typed with an
-//! `InferTable` in the run's `InternPool`, trait goals through the
+//! `InferTable` whose variable types live in the body's `LocalPool`, trait goals through the
 //! `Solver` with fuel, TIR written through `TirBuilder`. User errors go to
 //! the `DiagBuf`; a construct the checker does not carry yet is a
 //! structured "not implemented", which stops a build.
@@ -71,6 +71,8 @@ pub(crate) struct OpenSub {
 
 pub(crate) struct Ck<'a, 'c> {
     pub cx: &'c BodyCx<'a>,
+    /// The body's local pool: its types that hold inference variables.
+    pub local: &'c hd_types::LocalPool,
     pub b: TirBuilder,
     pub infer: InferTable,
     pub scopes: Vec<HashMap<Symbol, LocalId>>,
@@ -136,6 +138,7 @@ pub(crate) type NodeRefIdx = hd_base::NodeIdx;
 /// scope (`env`), the TIR item and kind, its result and row.
 pub(crate) fn new_ck<'a, 'c>(
     cx: &'c BodyCx<'a>,
+    local: &'c hd_types::LocalPool,
     env: DefId,
     item: DefId,
     kind: BodyKind,
@@ -145,6 +148,7 @@ pub(crate) fn new_ck<'a, 'c>(
     let pool = cx.names.pool;
     let mut ck = Ck {
         cx,
+        local,
         b: TirBuilder::new(item, kind),
         infer: InferTable::default(),
         scopes: vec![HashMap::new()],
@@ -245,7 +249,16 @@ pub fn check_fn(
     let Some(sig) = item.sig().cloned() else {
         return unsupported("a body of a non-function item");
     };
-    let mut ck = new_ck(cx, def, def, BodyKind::Fn, (sig.ret, sig.row), diags);
+    let local = hd_types::LocalPool::new();
+    let mut ck = new_ck(
+        cx,
+        &local,
+        def,
+        def,
+        BodyKind::Fn,
+        (sig.ret, sig.row),
+        diags,
+    );
     ck.check_impl_method(def, node);
     ck.check_literal_marker(def, node);
     ck.check_row_patterns(&sig, node);
@@ -303,7 +316,16 @@ pub fn check_default(
         _ => return unsupported("a default of this item kind"),
     };
     let def = default_body_def(&cx.names, owner, name);
-    let mut ck = new_ck(cx, owner, def, BodyKind::Default, (ty, RowId::EMPTY), diags);
+    let local = hd_types::LocalPool::new();
+    let mut ck = new_ck(
+        cx,
+        &local,
+        owner,
+        def,
+        BodyKind::Default,
+        (ty, RowId::EMPTY),
+        diags,
+    );
     let blk = ck.b.open_block();
     for (n, t) in params {
         let l = ck.b.local(t, n, local_flags::PARAM, expr.index());
@@ -315,11 +337,14 @@ pub fn check_default(
     ck.finish(root)
 }
 
-impl Ck<'_, '_> {
-    pub(crate) fn pool(&self) -> &hd_types::InternPool {
-        self.cx.names.pool
+impl<'c> Ck<'_, 'c> {
+    /// The types this body sees: the run's pool and the body's local pool.
+    pub(crate) fn pool(&self) -> hd_types::Types<'c> {
+        hd_types::Types::with_local(self.cx.names.pool, self.local)
     }
+}
 
+impl Ck<'_, '_> {
     pub(crate) fn charge(&mut self) -> StageResult<()> {
         if self.fuel.charge(1) {
             Ok(())
@@ -343,7 +368,7 @@ impl Ck<'_, '_> {
         let t = self.infer.resolve(self.pool(), t);
         match self.pool().get(t) {
             TyData::Infer(_) => "{unknown}".into(),
-            _ => hd_resolve::show_ty(&self.cx.names, t),
+            _ => hd_resolve::show_ty_in(&self.cx.names, self.pool(), t),
         }
     }
 
@@ -383,7 +408,7 @@ impl Ck<'_, '_> {
     /// `integer-literal-range`: an integer constant must fit its type.
     fn check_literal_ranges(&mut self) {
         use hd_types::Prim;
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         for (r, at) in std::mem::take(&mut self.lit_nodes) {
             let Some((t, bits)) = self.b.const_of(r) else {
                 continue;
@@ -428,7 +453,7 @@ impl Ck<'_, '_> {
 
     /// Declares an item's type parameters with their bounds.
     fn add_generics(&mut self, owner: DefId, gs: &[hd_resolve::Generic]) {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         for (i, g) in gs.iter().enumerate() {
             let p = pool.intern_ty(&TyData::Param(ParamRef {
                 owner,
@@ -459,7 +484,7 @@ impl Ck<'_, '_> {
 
     /// Adds a bound and, transitively, its supertraits to the environment.
     pub(crate) fn add_bound(&mut self, self_ty: Ty, bound: Ty, depth: u32) {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let TyData::TraitValue {
             def,
             args,
@@ -596,7 +621,7 @@ impl Ck<'_, '_> {
     /// Unifies `got` with `want`, inserting the coercions of
     /// type-checking.md §4.2 (`never`, `.Some` wrapping, trait values).
     pub(crate) fn coerce(&mut self, r: Ref, got: Ty, want: Ty, n: NodeRef<'_>, what: &str) -> Ref {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let (got, want) = (self.norm_ty(got), self.norm_ty(want));
         let g = self.infer.shallow(pool, got);
         let w = self.infer.shallow(pool, want);
@@ -672,7 +697,7 @@ impl Ck<'_, '_> {
     }
 
     pub(crate) fn expect(&mut self, got: Ty, want: Ty, n: NodeRef<'_>, what: &str) {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         if got == Ty::NEVER || want == Ty::NEVER {
             return;
         }
@@ -703,7 +728,7 @@ impl Ck<'_, '_> {
     /// Whether `want` is a narrower numeric type than `got` in the same
     /// family (`types.num.families`); `usize` is 32 bits wide.
     fn narrows(&self, got: Ty, want: Ty) -> bool {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let prim = |t: Ty| {
             let t = self.strip_mut(self.infer.resolve(pool, t));
             match pool.get(t) {
@@ -734,7 +759,7 @@ impl Ck<'_, '_> {
     pub(crate) fn can_unify(&mut self, a: Ty, b: Ty) -> bool {
         let (a, b) = (self.norm_ty(a), self.norm_ty(b));
         let snap = self.infer.snapshot();
-        let ok = self.infer.unify(self.cx.names.pool, a, b).is_ok();
+        let ok = self.infer.unify(self.pool(), a, b).is_ok();
         self.infer.rollback(snap);
         ok
     }
@@ -746,7 +771,7 @@ impl Ck<'_, '_> {
         tref: TraitRef,
         at: NodeRef<'_>,
     ) -> StageResult<Option<hd_types::solver::Evidence>> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         // Projections with a known base normalize before the goal is
         // solved (trait-solver.md §4.3, point 3).
         let tref = TraitRef {
@@ -803,7 +828,7 @@ impl Ck<'_, '_> {
             mut_: false,
         };
         let mut scx = SolveCx {
-            pool: self.cx.names.pool,
+            pool: self.pool(),
             env: &self.env,
             universe: self.cx.universe,
             tables: self.cx.impls,
@@ -817,7 +842,7 @@ impl Ck<'_, '_> {
     /// children, `Tuple`, and the numeric families on primitives.
     pub(crate) fn builtin_holds(&self, tref: TraitRef) -> Option<hd_types::solver::Evidence> {
         use hd_types::solver::{BuiltinImpl, Evidence};
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let path = self.cx.names.path(tref.trait_);
         let t = match pool.get(tref.self_ty) {
             TyData::Mut(i) => i,
@@ -858,7 +883,7 @@ impl Ck<'_, '_> {
     /// The inspectable types (spec/lang/09-traits.md#inspectable-types);
     /// `arg` admits what counts only as a type argument.
     pub(crate) fn inspectable(&self, t: Ty, arg: bool, depth: u32) -> bool {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         if depth > 32 {
             return false;
         }
@@ -934,7 +959,7 @@ impl Ck<'_, '_> {
                 };
                 let (r, t) = self.expr(e, want)?;
                 // A last expression that cannot complete is a statement.
-                if self.infer.shallow(self.cx.names.pool, t) == Ty::NEVER {
+                if self.infer.shallow(self.pool(), t) == Ty::NEVER {
                     diverged = true;
                     continue;
                 }
@@ -942,9 +967,9 @@ impl Ck<'_, '_> {
                 // value-less statement such as an `if` without `else`.
                 if let Some(w) = want
                     && self.fn_body == Some(block.index())
-                    && self.infer.shallow(self.cx.names.pool, t) == Ty::VOID
+                    && self.infer.shallow(self.pool(), t) == Ty::VOID
                     && !matches!(
-                        self.pool().get(self.infer.shallow(self.cx.names.pool, w)),
+                        self.pool().get(self.infer.shallow(self.pool(), w)),
                         TyData::Infer(_) | TyData::Prim(hd_types::Prim::Void)
                     )
                 {
@@ -976,7 +1001,7 @@ impl Ck<'_, '_> {
             if w != Ty::VOID && w != Ty::NEVER {
                 let mut snap_ok = false;
                 if matches!(self.pool().get(w), TyData::Infer(_)) {
-                    snap_ok = self.infer.unify(self.cx.names.pool, w, Ty::VOID).is_ok();
+                    snap_ok = self.infer.unify(self.pool(), w, Ty::VOID).is_ok();
                 }
                 if !snap_ok && self.fn_body == Some(block.index()) {
                     // `fn.body.value-less-fallthrough`, at the statement
@@ -1009,7 +1034,7 @@ impl Ck<'_, '_> {
 
     /// `flow.must-use.discard`: `Result[T, E]`, `T?` and `mut Suspend[T]`.
     pub(crate) fn must_use(&self, t: Ty) -> bool {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let t = self.infer.resolve(pool, t);
         let (inner, is_mut) = match pool.get(t) {
             TyData::Mut(i) => (self.infer.resolve(pool, i), true),
@@ -1041,7 +1066,7 @@ impl Ck<'_, '_> {
     /// `types.literal.local.class.open`: a literal class that met no type
     /// by the end of its statement takes its default type.
     fn close_literals(&mut self, start: usize) {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         for (t, k) in self.infer.open_literals_since(pool, start) {
             let d = match k {
                 VarKind::SignedIntLit => Ty::I32,
@@ -1365,7 +1390,7 @@ impl Ck<'_, '_> {
     /// Resolves every type the body recorded; literal variables with no
     /// other constraint take their default type (type-checking.md §3.6).
     pub(crate) fn zonk(&mut self, t: Ty) -> Ty {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let r = self.infer.resolve(pool, t);
         if !pool.has_infer(r) {
             return if pool.has_assoc(r) {
@@ -1458,7 +1483,7 @@ impl Ck<'_, '_> {
     /// A row with its variables solved; a row variable nothing constrained
     /// is the empty row, the least solution.
     pub(crate) fn zonk_row(&mut self, row: RowId) -> RowId {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let row = self.infer.resolve_row(pool, row);
         let mut d = pool.row_data(row);
         if !d.keys.iter().any(|k| pool.has_infer(*k)) {
@@ -1497,7 +1522,7 @@ impl Ck<'_, '_> {
             let facts = std::mem::take(&mut self.facts);
             self.cx.init.borrow_mut().facts.insert(item, facts);
         }
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         // Literal defaults first, so `x := +0` then `x = y` resolves both.
         let n = self.b.body_mut().ty.len();
         for i in 0..self.b.body_mut().consts.len() {

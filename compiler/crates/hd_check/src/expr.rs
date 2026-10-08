@@ -132,7 +132,7 @@ impl Ck<'_, '_> {
 
     fn expr_node(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         self.charge()?;
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let kids: Vec<NodeRef<'_>> = n.children().collect();
         Ok(match n.kind() {
             SyntaxKind::LiteralExpr => self.literal(n, want)?,
@@ -297,7 +297,7 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
         strip: bool,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         Ok(match self.cx.src.tkind(t) {
             Some(TokenKind::KwTrue) => (self.b.const_value(Ty::BOOL, 1), Ty::BOOL),
             Some(TokenKind::KwFalse) => (self.b.const_value(Ty::BOOL, 0), Ty::BOOL),
@@ -418,7 +418,7 @@ impl Ck<'_, '_> {
 
     /// A value's `Display` text: itself for a string, else `to_string`.
     pub(crate) fn display_str(&mut self, r: Ref, t: Ty, n: NodeRef<'_>) -> StageResult<Ref> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let tt = self.infer.shallow(pool, t);
         let tt = match pool.get(tt) {
             TyData::Mut(i) => self.infer.shallow(pool, i),
@@ -443,7 +443,7 @@ impl Ck<'_, '_> {
             return unsupported("an operand-less unary");
         };
         let (r, t) = self.expr(*e, want)?;
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         if matches!(op, Some(TokenKind::Plus | TokenKind::Minus))
             && self.b.const_of(r).is_some()
             && self.cx.src.tkind(self.cx.src.first(*e)) == Some(TokenKind::Number)
@@ -583,7 +583,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         rn: NodeRef<'_>,
     ) -> StageResult<Ref> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let prim = match op {
             TokenKind::Plus => Some(PrimOp::Add),
             TokenKind::Minus => Some(PrimOp::Sub),
@@ -703,7 +703,7 @@ impl Ck<'_, '_> {
 
     /// Whether a type is floating-point, or a floating literal's variable.
     fn float_like(&self, t: Ty) -> bool {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let t = self.strip_mut(t);
         match pool.get(t) {
             TyData::Prim(p) => p.is_float(),
@@ -715,7 +715,7 @@ impl Ck<'_, '_> {
     /// A shift count (`expr.shift.count-unsigned`): any unsigned integer
     /// type; an unsuffixed literal takes `u32`.
     fn shift_count(&mut self, ct: Ty, rn: NodeRef<'_>) {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let c = self.strip_mut(ct);
         let ok = match pool.get(c) {
             TyData::Infer(_)
@@ -740,7 +740,7 @@ impl Ck<'_, '_> {
     /// operand of type `at` and a right operand of type `ct`
     /// (`expr.op.no-impl`).
     pub(crate) fn op_fits(&mut self, tr: DefId, at: Ty, ct: Option<Ty>) -> StageResult<bool> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let t = self.strip_mut(at);
         if matches!(
             pool.get(t),
@@ -780,7 +780,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         rn: NodeRef<'_>,
     ) -> StageResult<Ref> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let tr = self.cx.names.item("std.cmp", "PartialOrd");
         if !self.op_fits(tr, at, Some(ct))? {
             let msg = format!("{} does not implement `PartialOrd`", self.show(at));
@@ -827,7 +827,7 @@ impl Ck<'_, '_> {
     /// Whether a type's values have identity (`AnyRef`): data, lists,
     /// maps, trait values and `AnyRef`-bounded parameters.
     fn has_identity(&self, t: Ty) -> bool {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let t = self.strip_mut(t);
         match pool.get(t) {
             TyData::Adt { def, .. } => !matches!(
@@ -878,7 +878,7 @@ impl Ck<'_, '_> {
     }
 
     fn field_expr(&mut self, n: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let Some(base) = kids.first() else {
             return unsupported("a field without a base");
         };
@@ -927,7 +927,7 @@ impl Ck<'_, '_> {
     /// The built-in index operations of a receiver type: get, set, key
     /// type, value type.
     pub(crate) fn index_kind(&mut self, t: Ty) -> Option<(IntrinsicOp, IntrinsicOp, Ty, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let t = self.infer.resolve(pool, t);
         let t = match pool.get(t) {
             TyData::Mut(i) => i,
@@ -999,7 +999,7 @@ impl Ck<'_, '_> {
     /// one widens, and a `u64` beyond the `usize` range saturates, so it
     /// fails the bounds check (`expr.index.list.range`).
     pub(crate) fn index_key(&mut self, key: NodeRef<'_>, kt: Ty) -> StageResult<Ref> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let usize_t = Ty::prim(Prim::Usize);
         if kt != usize_t {
             let (kr, ktt) = self.expr(key, Some(kt))?;
@@ -1033,7 +1033,7 @@ impl Ck<'_, '_> {
         kids: &[NodeRef<'_>],
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let list = self.cx.names.item("std.core", "List");
         let elem = match want
             .map(|w| self.infer.resolve(pool, w))
@@ -1083,7 +1083,7 @@ impl Ck<'_, '_> {
         kids: &[NodeRef<'_>],
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let map = self.cx.names.item("std.core", "Map");
         let (k, v, expected) =
             match want
@@ -1134,7 +1134,7 @@ impl Ck<'_, '_> {
         kids: &[NodeRef<'_>],
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let Some(name_node) = kids.first() else {
             return unsupported("a data literal without a name");
         };
@@ -1296,7 +1296,7 @@ impl Ck<'_, '_> {
 
     /// `if c: a else: b` as a statement or a value.
     pub(crate) fn if_expr(&mut self, e: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let Some(cond) = e.children().next() else {
             return unsupported("an `if` without a condition");
         };
@@ -1402,7 +1402,7 @@ impl Ck<'_, '_> {
         let Some(blk) = Src::child(clause, SyntaxKind::Block) else {
             return unsupported("a loop `else` without a block");
         };
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let t = match want {
             Some(w) => w,
             None => self.infer.fresh(pool, VarKind::General),
@@ -1473,7 +1473,7 @@ impl Ck<'_, '_> {
         e: NodeRef<'_>,
         body: &mut dyn FnMut(&mut Self) -> StageResult<()>,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let els = self.loop_else.take();
         let (sr, st) = self.expr(src, None)?;
         let iterator = self.cx.names.item("std.iter", "Iterator");
@@ -1732,7 +1732,7 @@ impl Ck<'_, '_> {
         kids: &[NodeRef<'_>],
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let is_map = self.cx.src.tkind(self.cx.src.first(n)) == Some(TokenKind::LBrace);
         let Some((element, clauses)) = kids.split_last() else {
             return unsupported("an empty comprehension");
@@ -1847,7 +1847,7 @@ impl Ck<'_, '_> {
 
     /// `fn(params) -> R: body`: a sub-body with its captures.
     fn closure(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let wanted = want
             .map(|w| self.infer.resolve(pool, w))
             .map(|w| match pool.get(w) {
@@ -1956,7 +1956,7 @@ impl Ck<'_, '_> {
     /// return of the failure (converted by `From` when the error types
     /// differ).
     fn try_expr(&mut self, n: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let Some(e) = kids.first() else {
             return unsupported("a `?` without an operand");
         };
@@ -2050,7 +2050,7 @@ impl Ck<'_, '_> {
         kids: &[NodeRef<'_>],
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let inclusive = n
             .direct_token(&self.cx.src.parse.tokens, TokenKind::DotDotEq)
             .is_some();
@@ -2089,7 +2089,7 @@ impl Ck<'_, '_> {
     /// `$.with(K = p, ...): block` (`req.with`): each provider is
     /// evaluated, must implement its key, and covers the key in the block.
     fn with_expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let Some(al) = Src::child(n, SyntaxKind::ArgumentList) else {
             return unsupported("a `$.with` without providers");
         };
@@ -2145,7 +2145,7 @@ impl Ck<'_, '_> {
     }
 
     fn context_expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
-        let pool = self.cx.names.pool;
+        let pool = self.pool();
         let toks: Vec<String> = self
             .cx
             .src

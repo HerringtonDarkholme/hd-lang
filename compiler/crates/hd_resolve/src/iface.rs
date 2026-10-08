@@ -1033,14 +1033,14 @@ pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
         t.head_key.push(if kind == ImplKind::TupleTemplate {
             HeadKey::TupleAny
         } else {
-            HeadKey::of(names.pool, self_ty)
+            HeadKey::of(names.pool.types(), self_ty)
         });
         let arg_keys: Vec<HeadKey> = names
             .pool
             .list_items(args)
             .iter()
             .take(2)
-            .map(|a| HeadKey::of(names.pool, *a))
+            .map(|a| HeadKey::of(names.pool.types(), *a))
             .collect();
         t.arg_key.push([
             arg_keys.first().copied().unwrap_or(HeadKey::Any),
@@ -1107,12 +1107,17 @@ pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
 /// A type as a user reads it: items by name, parameters by position.
 #[must_use]
 pub fn show_ty(names: &Names<'_>, t: Ty) -> String {
-    let pool = names.pool;
+    show_ty_in(names, names.pool.types(), t)
+}
+
+/// [`show_ty`] for a type that may live in a body's local pool.
+#[must_use]
+pub fn show_ty_in(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty) -> String {
     let seg = |d: DefId| names.paths.segment(PathId::from_raw(d.raw())).to_owned();
     let list = |l: TyList| {
         pool.list_items(l)
             .iter()
-            .map(|x| show_ty(names, *x))
+            .map(|x| show_ty_in(names, pool, *x))
             .collect::<Vec<_>>()
             .join(", ")
     };
@@ -1131,10 +1136,13 @@ pub fn show_ty(names: &Names<'_>, t: Ty) -> String {
         TyData::Tuple { elems, rest } => format!(
             "({}{})",
             list(elems),
-            rest.map_or(String::new(), |r| format!(", {}...", show_ty(names, r)))
+            rest.map_or(String::new(), |r| format!(
+                ", {}...",
+                show_ty_in(names, pool, r)
+            ))
         ),
-        TyData::Option(i) => format!("{}?", show_ty(names, i)),
-        TyData::Mut(i) => format!("mut {}", show_ty(names, i)),
+        TyData::Option(i) => format!("{}?", show_ty_in(names, pool, i)),
+        TyData::Mut(i) => format!("mut {}", show_ty_in(names, pool, i)),
         TyData::Fn {
             params,
             result,
@@ -1144,11 +1152,11 @@ pub fn show_ty(names: &Names<'_>, t: Ty) -> String {
             "fn{}({}) -> {}",
             if suspends { "!" } else { "" },
             list(params),
-            show_ty(names, result)
+            show_ty_in(names, pool, result)
         ),
         TyData::Param(p) => format!("{}#{}", seg(p.owner), p.index),
         TyData::Assoc { assoc, self_ty, .. } => {
-            format!("{}::{}", show_ty(names, self_ty), seg(assoc))
+            format!("{}::{}", show_ty_in(names, pool, self_ty), seg(assoc))
         }
         TyData::Infer(_) | TyData::Canon(_) => "?".into(),
         TyData::Row(r) => {
@@ -1157,7 +1165,8 @@ pub fn show_ty(names: &Names<'_>, t: Ty) -> String {
                 return "$()".into();
             }
             // Content order (scheduler.md §6.5), not interning order.
-            let mut parts: Vec<String> = d.keys.iter().map(|k| show_ty(names, *k)).collect();
+            let mut parts: Vec<String> =
+                d.keys.iter().map(|k| show_ty_in(names, pool, *k)).collect();
             parts.sort();
             let mut ps: Vec<String> = d
                 .params
