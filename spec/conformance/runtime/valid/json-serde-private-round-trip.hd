@@ -1,4 +1,4 @@
-# test: a type with private fields round trips through JSON by its derived consent, private fields included
+# test: a type with private fields round trips through JSON by its derived implementation, private fields included
 # Spec std/json Typed JSON, Derived Serialize: std-json.derive.to-json.private, std-json.to-json, std-json.from-json (task #320).
 # Spec 14 Serialization: annot.serde.definition, annot.serde.private.
 use std.json.{encode, decode, to_json, from_json, Json, JsonError}

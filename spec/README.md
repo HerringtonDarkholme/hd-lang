@@ -290,7 +290,7 @@ The stdlib chapters' terms are in the
 | **scalar boundary** | A byte offset of a string, from `0` to its length, that does not fall inside a scalar value's encoding. See [`types.string.boundary`](lang/04-type-system.md#r-types.string.boundary). |
 | **script** | An entry module with no `main`, whose top-level executable statements are the entry behavior. See [`module.init.script`](lang/10-modules.md#r-module.init.script). |
 | **sealed trait** | A standard trait whose implementations only the compiler and the standard library supply. See [Sealed Traits](lang/09-traits.md#sealed-traits). |
-| **serialization consent** | A type's one permission, for every format, to write or build its values, private members included: an implementation of `std.serde.Serialize` or `std.serde.Deserialize`. See [Serialization](lang/14-annotations.md#serialization). |
+| **serialization opt-in** | A type's implementation of `std.serde.Serialize` or `std.serde.Deserialize`, one permission for every format to write or build its values, private members included. See [Serialization](lang/14-annotations.md#serialization). |
 | **self reference** | A member's or variant's `self_ref`: whether its type needs the type being derived (`.Required`), only refers to it (`.Optional`), or neither (`.Absent`), computed from its type alone. See [Self References](lang/14-annotations.md#self-references). |
 | **shared test module** | A module in a subdirectory of the test root, which every integration test program may use. See [`module.test.integration.shared`](lang/10-modules.md#r-module.test.integration.shared). |
 | **shape** | In generic code, the machine representation a value occupies. See [Shapes and Generic Code](lang/04-type-system.md#shapes-and-generic-code). |

@@ -1,6 +1,6 @@
 # test: an embedded member is one key named by its type, shared constructor data is not written, a newtype is its base value, and a generic type round trips
 # Spec std/json Derived Serialize, Derived Deserialize, Encode And Decode: std-json.derive.to-json.embedded, std-json.derive.to-json.shared, std-json.derive.from-json.inverse, std-json.from-json.root.
-# Spec std/serde Derived Consent: std-serde.derive.shared, std-serde.derive.serialize.template, std-serde.derive.deserialize.template.
+# Spec std/serde Derived Implementations: std-serde.derive.shared, std-serde.derive.serialize.template, std-serde.derive.deserialize.template.
 # Spec 09 Derived Newtypes: trait.derive.newtype.templated, trait.derive.newtype.self-positions.
 use std.json.{encode, decode, from_json, parse, Json, JsonError}
 use std.serde.{Serialize, Deserialize}

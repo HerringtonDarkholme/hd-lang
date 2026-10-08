@@ -1,5 +1,5 @@
 # test: a derived Deserialize offers every variant to begin_variant, then reads each built member with member and its own deserialize, then calls end_variant; a hand-written one may peek
-# Spec std/serde Reading, Derived Consent: std-serde.read.variant, std-serde.read.choices, std-serde.read.member, std-serde.read.peek, std-serde.derive.deserialize.template, std-serde.derive.deserialize.order, std-serde.derive.omitted, std-serde.derive.shared.
+# Spec std/serde Reading, Derived Implementations: std-serde.read.variant, std-serde.read.choices, std-serde.read.member, std-serde.read.peek, std-serde.derive.deserialize.template, std-serde.derive.deserialize.order, std-serde.derive.omitted, std-serde.derive.shared.
 # Spec 14 Serialization: annot.serde.by-hand.
 use std.serde.{Deserialize, Deserializer, ValueKind}
 use std.structure.{Structure, Facts, VariantInfo, Member}

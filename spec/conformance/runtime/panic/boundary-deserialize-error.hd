@@ -1,0 +1,22 @@
+# test: a deserialize failure at the boundary is a host-contract panic the caller sees
+# Spec Modules, Private Fields At A Boundary: module.boundary.deserialize.exact.
+# fixture-runtime-profile: consent-vault
+use std.serde.{Serialize, Serializer, Deserialize, Deserializer}
+
+pub data Token:
+    pub owner: string
+    secret: i64
+
+impl Serialize for Token:
+    fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:
+        out.text(self.owner)
+
+impl Deserialize for Token:
+    fn deserialize[R < Deserializer](input: mut R) -> Result[Token, R::Error]:
+        .Err(input.invalid("Token"))
+
+pub trait Vault:
+    fn keep(self, token: Token) -> Token
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).keep(Token { owner: "ada", secret: 42 })  # panic: host-contract

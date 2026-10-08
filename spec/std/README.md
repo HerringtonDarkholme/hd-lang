@@ -173,7 +173,7 @@ file of its own.
 | [`iter.md`](iter.md) | `std.iter` | `std-iter` | iterator adapters, including `skip`, `take_while`, `zip`, `chain`, `flat_map`, `any`, `all`, `find`, and `count`; collect targets, `FromIterator` and its impls, `map` on a list or an optional |
 | [`text.md`](text.md) | `std.text` | `std-text` | string methods above the intrinsics, including `lines` and `repeat`; `split_once`, `split_whitespace`, padding, and `count`; the `r` prefix |
 | [`format.md`](format.md) | `std.format` | `std-format` | the text `debug` returns, `Debug` builders and layout, derived builder calls, `Debug` for the public std types |
-| [`time.md`](time.md) | `std.time` | `std-time` | `Duration`, its suffixes, its arithmetic, and its `Display` text; `Timestamp + Duration`; the host trait `Clock`, `Timestamp`, `Instant`, `now`, and `sleep!`; the provider `ManualClock`; the UTC `Date`, RFC 3339 text, and `TimeParseError`; the serialization consent of the time types |
+| [`time.md`](time.md) | `std.time` | `std-time` | `Duration`, its suffixes, its arithmetic, and its `Display` text; `Timestamp + Duration`; the host trait `Clock`, `Timestamp`, `Instant`, `now`, and `sleep!`; the provider `ManualClock`; the UTC `Date`, RFC 3339 text, and `TimeParseError`; the serialization opt-in of the time types |
 | [`task.md`](task.md) | `std.task` | `std-task` | the `retry!` combinator; `Backoff` and `retry_with!`; `all_list!` |
 | [`ops.md`](ops.md) | `std.ops` | `std-ops` | the `Default` trait and its standard implementations |
 | [`cmp.md`](cmp.md) | `std.cmp` | `std-cmp` | what derived `Eq`, `PartialOrd`, and `Ord` compare; tuple comparison; `clamp`; `Reverse` |
@@ -194,7 +194,7 @@ file of its own.
 | [`error.md`](error.md) | `std.error` | `std-error` | the cause chain `chain`, what `root_cause` and `find` return, the boundary-safe `ErrorReport`, `report_of`, and `Result.context` with `ContextError` |
 | [`encoding.md`](encoding.md) | `std.encoding` | `std-encoding` | hex and base64 text for bytes: `hex_encode`, `hex_decode`, `base64_encode`, `base64_decode`, and `DecodeError` |
 | [`digest.md`](digest.md) | `std.digest` | `std-digest` | the SHA-256 digest: `sha256` and `sha256_hex` |
-| [`json.md`](json.md) | `std.json` | `std-json` | the untyped `Json` value, `Number`, `parse`, `JsonError`, `pretty`, and the `Display` text; JSON as a format over the serialization consent: `to_json`, `from_json`, `encode`, and `decode` |
+| [`json.md`](json.md) | `std.json` | `std-json` | the untyped `Json` value, `Number`, `parse`, `JsonError`, `pretty`, and the `Display` text; JSON as a format over the serialization opt-in: `to_json`, `from_json`, `encode`, and `decode` |
 | [`serde.md`](serde.md) | `std.serde` | `std-serde` | the data model of `Serializer` and `Deserializer`, the calls of derived `Serialize` and `Deserialize`, and the standard implementations |
 | [`cli.md`](cli.md) | `std.cli` | `std-cli` | argument parsing for scripts: the `Cli` builder, `parse`, `parse_args`, `Parsed`, `CliError`, and `usage` |
 | [`regex.md`](regex.md) | `std.regex` | `std-regex` | regular expressions in the RE2 subset: `Regex`, `is_match`, `find`, `Match`, and `RegexError` |

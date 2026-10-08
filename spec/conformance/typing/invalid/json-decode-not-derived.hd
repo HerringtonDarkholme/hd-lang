@@ -1,5 +1,5 @@
-# test: decoding into a type that has no Deserialize consent is an error
-# Spec std/json Encode And Decode: std-json.decode.consent (task #241, #320).
+# test: decoding into a type that does not implement Deserialize is an error
+# Spec std/json Encode And Decode: std-json.decode.deserialize (task #241, #320).
 use std.json.{decode, JsonError}
 
 data Plain:

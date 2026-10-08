@@ -91,7 +91,6 @@ parts wait:
 | Question | State |
 | --- | --- |
 | Per-format overriding | Deferred by the owner. The plan below needs no new mechanism. |
-| Boundary encoding through the consent | **Reopened 2026-10-07 (security).** A consented value crosses a host boundary as its field tree ([`module.boundary.consent.tree`](../spec/lang/10-modules.md#r-module.boundary.consent.tree)), so a hand-written consent that redacts a private field (JSON omits `secret`) still hands the host every field: the consent permits the crossing but its redaction is bypassed, against the rule's own reason ("a host is one more format"). Orchestrator recommendation: encode consented types through `serialize`/`deserialize` at the boundary (only types with private fields need consent; all-`pub` types keep the cheap field tree). The owner first answered "keep" without this note. |
 | Schemas | Which consent carries a `describe` for schemas, and the data model a schema describer reads. |
 | More standard consents | Tuples, `Result`, `Set`, and maps whose keys are not `string` have no standard implementation yet. |
 

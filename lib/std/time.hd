@@ -562,9 +562,9 @@ impl Clock for ManualClock:
             panic("sleep! with a negative duration: ${duration}")
         self.current = Timestamp::from_unix_milliseconds(self.current.millis + step)
 
-# `Duration` and `Instant` consent to every format, and so to the host
-# boundary, as their whole milliseconds; a `Timestamp` consents as its
-# RFC 3339 text (r-std-time.serde.consent, r-std-time.serde.int-form,
+# `Duration` and `Instant` serialize to every format, and so to the host
+# boundary, as their whole milliseconds; a `Timestamp` serializes as its
+# RFC 3339 text (r-std-time.serde.impls, r-std-time.serde.int-form,
 # r-std-time.serde.text-form).
 impl Serialize for Duration:
     fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]:

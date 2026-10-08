@@ -1,5 +1,5 @@
-# test: a data type whose fields are all pub crosses a host call both ways without Serialize or Deserialize, and an enum payload needs no consent
-# Spec Modules, Private Fields At A Boundary: module.boundary.consent.public, module.boundary.consent.direction.
+# test: a data type whose fields are all pub crosses a host call both ways without Serialize or Deserialize, and an enum payload needs neither trait
+# Spec Modules, Private Fields At A Boundary: module.boundary.public, module.boundary.direction.
 # fixture-runtime-profile: consent-vault
 use std.testing.assert_equal
 
@@ -16,7 +16,7 @@ pub trait Vault:
 
 pub fn main() -> void $ Vault:
     kept := $.use(Vault).keep(Token { owner: "ada", scope: Scope.Write(["/orders"]) })
-    assert_equal(kept.owner, "ada", reason="a pub field crosses without consent")
+    assert_equal(kept.owner, "ada", reason="a pub field crosses without either trait")
     match kept.scope:
-        Scope.Write(paths) => assert_equal(paths, ["/orders"], reason="an enum payload crosses without consent")
+        Scope.Write(paths) => assert_equal(paths, ["/orders"], reason="an enum payload crosses without either trait")
         Scope.Read => panic("the scope changed")

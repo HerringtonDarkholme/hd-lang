@@ -1,5 +1,5 @@
 # test: Duration and Instant write and read whole milliseconds; Timestamp writes and reads RFC 3339 text
-# Spec std/time Serialization: std-time.serde.consent, std-time.serde.int-form, std-time.serde.text-form, std-time.serde.int-read, std-time.serde.text-read.
+# Spec std/time Serialization: std-time.serde.impls, std-time.serde.int-form, std-time.serde.text-form, std-time.serde.int-read, std-time.serde.text-read.
 use std.json.{encode, decode, JsonError}
 use std.serde.{Serialize, Deserialize}
 use std.time.{Duration, Timestamp, Instant}

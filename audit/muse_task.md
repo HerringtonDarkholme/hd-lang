@@ -90,45 +90,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### S10. Spec: Consented Types Cross A Boundary Only Through Their Consent (Owner, First)
-
-Owner, 2026-10-07 (security): the field-tree rule
-(`module.boundary.consent.tree`) exposes private fields a hand-written
-`Serialize` redacts, and on the way in builds a value from host data
-without running its `Deserialize`, so a host can forge private fields
-and skip every invariant (the Java-deserialization class of bug). Change
-`spec/lang/10-modules.md` "Private Fields At A Boundary":
-
-1. Out: a value of a consented type (one with a non-`pub` field) crosses
-   out of hd as exactly what its `serialize` writes.
-2. In: such a value is built only by its type's `deserialize`; a
-   `deserialize` error is a boundary error the caller sees (name the
-   existing error type or code; follow `spec/STYLE.md`).
-3. All-`pub` data and enums keep the plain field tree.
-4. Deserialization never selects a type from the data: no polymorphic
-   or `dyn` deserialization, at a boundary or in any format (state it
-   in `14-annotations.md` "Serialization" too, with a one-line why:
-   Java's gadget chains).
-
-5. **Drop the word "consent"** (owner: a bad term; it was ours, not the
-   owner's). Everywhere in `spec/` (about 37 places: 10-modules, 14-annotations,
-   std/json, std/serde, std/time, std/README), say what it means:
-   "implements `Serialize`" / "implements `Deserialize`" / "implements
-   both", or "opts into serialization" where a noun is unavoidable. Rule
-   IDs containing `consent` get new IDs (retire the old ones per
-   `spec/STYLE.md`); fix every citation (`pnpm run spec refs` finds
-   them). Fixtures and guide text too.
-
-Retire `module.boundary.consent.tree` (new IDs for the new rules), fix the
-"Why" and the Note, remove the OPEN_ISSUES row "Boundary encoding through
-the consent" (decided), add one fixture per new rule where a program can
-observe it (a redacting `Serialize` whose secret the host must not see:
-runtime fixture with a host stub if the portable runner supports one,
-else a spec example only), and a `test/portable/KNOWN_FAILURES.tsv` row
-tagged BOUNDARYCONSENT where the prototype differs. `bash spec/check.sh`
-and `cargo test -p hd_syntax --test corpus` green. Timebox 45 minutes;
-push.
-
 ### S11. Spec Terminology Sweep: No Invented Words (Owner, After S10)
 
 Owner, 2026-10-07: "don't invent unnecessary new words". The spec has

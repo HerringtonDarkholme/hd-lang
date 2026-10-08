@@ -1,20 +1,20 @@
-# std.serde: the format-neutral consent to serialize
+# std.serde: the format-neutral opt-in to serialization
 # (spec/lang/14-annotations.md#serialization). A type opts in once with
 # `Serialize` and `Deserialize`, derived or written by hand, and every
-# format reads the consent through `Serializer` and `Deserializer`: JSON
+# format reads the implementation through `Serializer` and `Deserializer`: JSON
 # (spec/std/json.md#typed-json) and the host boundary
-# (spec/lang/10-modules.md#r-module.boundary.consent.out). The standard
+# (spec/lang/10-modules.md#r-module.boundary.out). The standard
 # implementations and the templates are spec/std/serde.md.
 use std.structure.{Structure, Walker, Source, Variant, VariantInfo, Field, Member, Members, Key, Facts}
 
-# A value that consents to be written by every format
+# A value that opts in to be written by every format
 # (r-annot.serde.definition).
 ## A type that can write itself to a `Serializer`; the compiler knows it for the boundary rule.
 ## See [annot.serde.module](../../spec/lang/14-annotations.md#r-annot.serde.module).
 pub trait Serialize:
     fn serialize[W < Serializer](self, out: mut W) -> Result[void, W::Error]
 
-# A value that consents to be built by every format
+# A value that opts in to be built by every format
 # (r-annot.serde.definition).
 ## A type that can read itself from a `Deserializer`; the compiler knows it for the boundary rule.
 ## See [annot.serde.module](../../spec/lang/14-annotations.md#r-annot.serde.module).
@@ -78,7 +78,7 @@ pub trait Deserializer:
     fn invalid(mut self, expected: string) -> Self::Error
 
 # ---------------------------------------------------------------------------
-# The templates (spec/std/serde.md#derived-consent).
+# The templates (spec/std/serde.md#derived-implementations).
 
 # Derived `Serialize`: `begin_variant`, then `member` and the member's own
 # `serialize` for each walked member, then `end_variant`

@@ -1,7 +1,7 @@
 # test: a derived Serialize calls begin_variant, then member and the value for each walked member, then end_variant; a list is begin_list, items, end_list
 # Spec 02 Traits And Implementations: grammar.impl.by-structure.
-# Spec std/serde Data Model, Derived Consent: std-serde.derive.serialize.order, std-serde.model.variant, std-serde.model.list, std-serde.derive.omitted (task #320).
-# Spec std/serde Data Model, Derived Consent: std-serde.model.map, std-serde.model.len, std-serde.model.null, std-serde.model.bool, std-serde.model.int, std-serde.model.uint, std-serde.model.member-args, std-serde.derive.serialize.template.
+# Spec std/serde Data Model, Derived Implementations: std-serde.derive.serialize.order, std-serde.model.variant, std-serde.model.list, std-serde.derive.omitted (task #320).
+# Spec std/serde Data Model, Derived Implementations: std-serde.model.map, std-serde.model.len, std-serde.model.null, std-serde.model.bool, std-serde.model.int, std-serde.model.uint, std-serde.model.member-args, std-serde.derive.serialize.template.
 use std.serde.{Serialize, Serializer}
 use std.structure.{Structure, Facts, VariantInfo, Member}
 use std.testing.assert_equal

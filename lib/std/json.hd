@@ -1,5 +1,5 @@
 # std.json: the untyped JSON value, its parser, and its writers, and
-# typed JSON over the `std.serde` consent: `to_json`, `from_json`,
+# typed JSON over the `std.serde` opt-in: `to_json`, `from_json`,
 # `encode`, and `decode` (spec/std/json.md).
 use std.format.{DebugWriter, DebugList}
 use std.error.Error
@@ -712,7 +712,7 @@ impl Debug for JsonError:
 
 # ---------------------------------------------------------------------------
 # Typed JSON (spec/std/json.md#typed-json): JSON as a format that reads the
-# `std.serde` consent. `to_json` writes a value through `JsonWriter`, and
+# `std.serde` opt-in. `to_json` writes a value through `JsonWriter`, and
 # `from_json` reads one through `JsonReader`.
 
 # The `Json` of a value (r-std-json.to-json).

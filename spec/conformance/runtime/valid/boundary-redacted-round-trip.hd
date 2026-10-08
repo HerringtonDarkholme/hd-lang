@@ -1,5 +1,5 @@
-# test: a Serialize and a Deserialize written by hand are consent too, so a type with a private field crosses a host call both ways, as the same tree of fields
-# Spec Modules, Private Fields At A Boundary: module.boundary.consent.out, module.boundary.consent.in, module.boundary.consent.tree.
+# test: a hand-written Serialize that redacts a private field keeps it from the host: the value crosses as exactly what serialize writes
+# Spec Modules, Private Fields At A Boundary: module.boundary.serialize.exact, module.boundary.deserialize.exact.
 # Spec 14 Serialization: annot.serde.by-hand, annot.serde.definition.
 # fixture-runtime-profile: consent-vault
 use std.serde.{Serialize, Serializer, Deserialize, Deserializer}
@@ -22,5 +22,5 @@ pub trait Vault:
 
 pub fn main() -> void $ Vault:
     kept := $.use(Vault).keep(Token { owner: "ada", secret: 42 })
-    assert_equal(kept.owner, "ada", reason="the public field crosses")
-    assert_equal(kept.secret, 42, reason="the consent changes no encoding: the private field crosses as a field")
+    assert_equal(kept.owner, "ada", reason="the written field crosses")
+    assert_equal(kept.secret, 0, reason="the redacted field never reaches the host")

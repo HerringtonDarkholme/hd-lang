@@ -11,13 +11,14 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-08 the suite has
-2,830 cases: 2,761 selected in `test/portable/cases.tsv` and 69 known
-failures. The selected cases are 2,373 language tier, 312 stdlib tier, and 76
-CLI tier; the known failures are 46 language tier, 4 stdlib tier, and 19
+2,831 cases: 2,760 selected in `test/portable/cases.tsv` and 71 known
+failures. The selected cases are 2,372 language tier, 312 stdlib tier, and 76
+CLI tier; the known failures are 48 language tier, 4 stdlib tier, and 19
 CLI tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
+| BOUNDARYCONSENT | 2 | the host boundary crosses field trees instead of through `serialize`/`deserialize` |
 | CAPS | 2 | no `std.net` or `std.sys` (task N3) |
 | CLI-DOC | 8 | `hd doc` prints one item; it writes no pages and takes no flags |
 | CLI-PAGES-HIDDEN | 2 | `hd new --pages` stays hidden until `hd doc` can build the site |

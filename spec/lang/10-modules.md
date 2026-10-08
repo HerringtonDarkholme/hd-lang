@@ -2154,8 +2154,9 @@ fn demo() -> void:
 
 #### Private Fields At A Boundary
 
-A data type with a private field crosses a boundary only with its
-author's [serialization consent](14-annotations.md#serialization):
+A data type with a private field crosses a boundary only through that
+type's `Serialize` and `Deserialize` implementations
+([serialization opt-in](14-annotations.md#serialization)):
 
 ```text
 use std.serde.{Serialize, Deserialize}
@@ -2174,27 +2175,23 @@ pub trait Vault:  # a host capability of the selected runtime profile
     fn badge(self) -> Badge  # error: boundary-private-field
 ```
 
-1. r[module.boundary.consent.out] A value of a data type with a field that is not `pub` crosses a boundary out of hd only when the type implements `std.serde.Serialize`.
-2. r[module.boundary.consent.in] Such a value crosses a boundary into hd only when the type implements `std.serde.Deserialize`.
-3. r[module.boundary.consent.public] A data type whose fields are all `pub` crosses in either direction without either trait. An enum's payloads have no visibility, so they need no consent.
-4. r[module.boundary.consent.direction] A registered function's arguments cross into hd, and its result crosses out. A host capability method's arguments cross out of hd, and its result crosses in.
-5. r[module.boundary.consent.error] A boundary signature whose type, or a type inside it, would cross without the consent its direction needs is an error, reported at that signature. Error: `boundary-private-field`.
-6. r[module.boundary.consent.tree] A consented value crosses as the same tree of fields as any other data value. The consent permits the crossing and changes no encoding.
+1. r[module.boundary.out] A value of a data type with a field that is not `pub` crosses a boundary out of hd only when the type implements `std.serde.Serialize`.
+2. r[module.boundary.in] Such a value crosses a boundary into hd only when the type implements `std.serde.Deserialize`.
+3. r[module.boundary.serialize.exact] A value of a type that implements `std.serde.Serialize` crosses out of hd as exactly what its `serialize` writes: private fields the implementation does not write do not cross.
+4. r[module.boundary.deserialize.exact] A value crosses into hd only as built by its type's `std.serde.Deserialize` implementation; a `deserialize` error is a `host-contract` panic the caller sees.
+5. r[module.boundary.deserialize.no-dyn] Deserialization at a boundary never selects a type from the data: the target type comes from the signature.
+6. r[module.boundary.public] A data type whose fields are all `pub` crosses in either direction without either trait. An enum's payloads have no visibility, so they need neither trait.
+7. r[module.boundary.direction] A registered function's arguments cross into hd, and its result crosses out. A host capability method's arguments cross out of hd, and its result crosses in.
+8. r[module.boundary.error] A boundary signature whose type, or a type inside it, would cross without the trait its direction needs is an error, reported at that signature. Error: `boundary-private-field`.
 
-```hd
-fn demo() -> List[i32]:
-    [+1, +2]   # boundary values have tree semantics: shared nodes encode twice
-```
-
-> **Why.** A host is one more format. A type that lets JSON read its
-> private fields lets the host read them too. Without its author's
-> consent, its private state stays away from both.
+> **Why.** A host is one more format. A type's `serialize` decides what
+> leaves hd, and only its `deserialize` can rebuild private state on the
+> way in, so a redacting implementation redacts for the host exactly as
+> for JSON.
 
 > **Note.** The standard library's `Duration`, `Timestamp`, and `Instant`
-> consent both ways, so a `Clock` provider's results cross into hd
-> ([Time](../std/time.md#serialization)). Whether a boundary should encode
-> a value through its consent's methods is open, in
-> [Serialization Formats](../../future-work/OPEN_ISSUES.md#serialization-formats).
+> implement both traits, so a `Clock` provider's results cross into hd
+> ([Time](../std/time.md#serialization)).
 
 ### Instances And Threads
 

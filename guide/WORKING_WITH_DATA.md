@@ -13,7 +13,7 @@ A service's config file is the first thing that breaks in production, and
 the first thing a reviewer reads. hd reads it as typed data: the fields
 are typed, a missing one is a named error with its path, and an extra one
 is ignored, so a newer config still loads with an older binary. The type
-declares its consent with `@derive(Serialize, Deserialize)`; nothing else
+declares Serialize and Deserialize with `@derive(Serialize, Deserialize)`; nothing else
 is needed. The exact rules are in
 [Typed JSON](../spec/std/json.md#typed-json) and
 [Serde](../spec/std/serde.md):

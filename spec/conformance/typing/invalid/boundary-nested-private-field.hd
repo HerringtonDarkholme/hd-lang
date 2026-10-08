@@ -1,5 +1,5 @@
-# test: a type inside a boundary type needs the consent too: a pub field whose type has a private field and no consent is an error at the signature
-# Spec Modules, Private Fields At A Boundary: module.boundary.consent.error, module.boundary.consent.out.
+# test: a type inside a boundary type needs both traits too: a pub field whose type has a private field and no implementation is an error at the signature
+# Spec Modules, Private Fields At A Boundary: module.boundary.error, module.boundary.out.
 # fixture-runtime-profile: consent-vault
 pub data Badge:
     pub label: string

@@ -575,7 +575,7 @@ lang/10-modules.md	61	mixed	typing/invalid/entry-point-parameters.hd
 lang/10-modules.md	62	mixed	typing/invalid/nondisplay-entry-error.hd
 lang/10-modules.md	63	type-fragment	-
 lang/10-modules.md	64	accept	typing/valid/entry-exit-code.hd
-lang/10-modules.md	65	mixed	runtime/valid/boundary-consent-crossing.hd|typing/invalid/boundary-private-field-no-consent.hd
+lang/10-modules.md	65	mixed	runtime/valid/boundary-derived-round-trip.hd|typing/invalid/boundary-private-field-no-traits.hd
 lang/10-modules.md	66	type-fragment	-
 lang/11-requirements-and-suspension.md	1	accept	typing/valid/requirements-and-suspension.hd
 lang/11-requirements-and-suspension.md	2	mixed	parse/invalid/old-row-separator-header.hd

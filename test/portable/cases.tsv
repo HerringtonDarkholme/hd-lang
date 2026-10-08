@@ -1954,8 +1954,8 @@ typing/invalid/serde-map-key-not-string.hd	type
 runtime/valid/json-serde-private-round-trip.hd	runtime
 runtime/valid/serde-derive-call-order.hd	runtime
 runtime/valid/time-serde-forms.hd	runtime
-runtime/valid/boundary-consent-crossing.hd	runtime
-typing/invalid/boundary-private-field-no-consent.hd	type
+runtime/valid/boundary-derived-round-trip.hd	runtime
+typing/invalid/boundary-private-field-no-traits.hd	type
 runtime/valid/string-split-once.hd	runtime
 runtime/valid/string-pad.hd	runtime
 runtime/valid/string-count.hd	runtime
@@ -2587,7 +2587,6 @@ typing/invalid/serde-derive-member-not-deserialize.hd	type
 typing/invalid/boundary-result-needs-deserialize.hd	type
 typing/invalid/boundary-nested-private-field.hd	type
 runtime/valid/boundary-public-fields-cross.hd	runtime
-runtime/valid/boundary-consent-by-hand.hd	runtime
 runtime/valid/json-typed-missing-key-ignores-default.hd	runtime
 parse/invalid/variant-named-argument-before-positional.hd	parse
 runtime/panic/usize-max-overflow-wasm32.hd	runtime

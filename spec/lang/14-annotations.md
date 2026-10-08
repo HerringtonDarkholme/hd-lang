@@ -814,7 +814,7 @@ fn first_or[M](facts: Facts, fallback: M) -> M:
 5. r[annot.structure.named-positions.error] Any other use of `Structure`, such as the bound in `fn fields[X < Structure]`, is an error. Error: `structure-outside-template`.
 6. r[annot.structure.receivers] `walk` takes the value as a readonly `self`. `facts`, `describe`, and `build` are receiverless.
 7. r[annot.structure.build-fresh] `build` returns `mut Self`, because a built value is fresh like a data literal. Callers weaken it by ordinary assignability.
-8. r[annot.structure.private] `walk`, `describe`, and `build` include private members. Opting a type in is consent for the template's library to read every member.
+8. r[annot.structure.private] `walk`, `describe`, and `build` include private members. Opting a type in lets the template's library read every member.
 9. r[annot.structure.pure] `walk`, `describe`, and `build`, and every method of `Walker`, `Describer`, and `Source`, have the empty requirement row and are not suspending.
 10. r[annot.structure.pure.impl] An implementation method of `Walker`, `Describer`, or `Source` that declares a requirement or suspends is an error. Error: `trait-method-signature`.
 11. r[annot.structure.name] `T::name()` returns the target's declared name, with no module path and no type arguments. Like `facts`, `name` is receiverless.
@@ -1700,9 +1700,9 @@ An implementation must not guess them:
 
 ## Serialization
 
-**Serialization consent** is a type's one permission, for every format, to
-write its values or to build them, private members included. A type gives
-it once, by deriving or implementing two traits of `std.serde`:
+A type opts into serialization for every format at once, to write its
+values or to build them, private members included, by deriving or
+implementing two traits of `std.serde`:
 
 ```text
 use std.serde.{Serialize, Deserialize}
@@ -1714,12 +1714,13 @@ data Session:
     expires_at: i64
 ```
 
-1. r[annot.serde.definition] A type **consents to serialization** when it implements `std.serde.Serialize`, and **consents to deserialization** when it implements `std.serde.Deserialize`.
-2. r[annot.serde.private] A consent covers private members. A derived `serialize` writes every member that its derivation walks, and a derived `deserialize` builds every member, as [`annot.structure.private`](#r-annot.structure.private) allows.
+1. r[annot.serde.definition] A type opts into serialization when it implements `std.serde.Serialize`, and into deserialization when it implements `std.serde.Deserialize`.
+2. r[annot.serde.private] The opt-in covers private members. A derived `serialize` writes every member that its derivation walks, and a derived `deserialize` builds every member, as [`annot.structure.private`](#r-annot.structure.private) allows.
 3. r[annot.serde.derivable] `std.serde` declares the [template](#templates) of each trait. So `@derive(Serialize)`, `@derive(Deserialize)`, and a derivation block for either trait are valid.
 4. r[annot.serde.members] Every member that a derived `Serialize` walks must implement `Serialize`, and every member that a derived `Deserialize` builds must implement `Deserialize`.
 5. r[annot.serde.members.error] A member that does not is an error, reported at the opt-in and naming the member. Error: `member-not-derivable`.
-6. r[annot.serde.by-hand] A type may implement either trait by hand instead. A written implementation is consent too.
+6. r[annot.serde.by-hand] A type may implement either trait by hand instead. A written implementation opts in too.
+7. r[annot.serde.no-dyn] No format selects a type from the data: deserialization never constructs a polymorphic or `dyn` value from a payload. A payload that names its own type is data, not instructions: Java's gadget chains show where trusting it leads.
 
 ```text
 use std.serde.Serialize
@@ -1734,8 +1735,8 @@ data Account:
 ```
 
 > **Why.** Rust's serde and Swift's `Codable` work this way: a type
-> consents once, and each format is a writer or reader that the consent
-> drives. Adding a format then needs no change to any type.
+> opts in once, and each format is a writer or reader that the type's
+> implementation drives. Adding a format then needs no change to any type.
 
 > **Note.** A format declares no trait of its own for types to implement,
 > so a type has exactly one serialized form for all formats. A derivation
@@ -1748,7 +1749,7 @@ See also: [Boundary Encoding](10-modules.md#boundary-encoding),
 
 ### The `std.serde` Module
 
-The module `std.serde` declares the two consent traits and the format
+The module `std.serde` declares the two serialization traits and the format
 protocol they drive:
 
 ```text
@@ -1805,11 +1806,11 @@ pub trait Deserializer:
 ```
 
 1. r[annot.serde.module] The standard module `std.serde` declares `Serialize`, `Deserialize`, `Serializer`, `Deserializer`, and `ValueKind`, as above. `Facts`, `VariantInfo`, and `Member` are those of [`std.structure`](#the-stdstructure-module).
-2. r[annot.serde.known] The compiler knows `Serialize` and `Deserialize` by name, for the boundary rule [`module.boundary.consent.out`](10-modules.md#r-module.boundary.consent.out). It knows no other part of `std.serde`.
+2. r[annot.serde.known] The compiler knows `Serialize` and `Deserialize` by name, for the boundary rule [`module.boundary.out`](10-modules.md#r-module.boundary.out). It knows no other part of `std.serde`.
 3. r[annot.serde.not-sealed] None of the five items is sealed. Any package may implement the four traits.
 
 > **Why.** `Structure` may be named only inside a template, so a format
-> cannot walk a type itself. The consent's templates walk it once, for
+> cannot walk a type itself. The derived templates walk it once, for
 > every format, and pass each member to the format's writer or reader.
 
 > **Note.** The meaning of each `Serializer` and `Deserializer` call, the

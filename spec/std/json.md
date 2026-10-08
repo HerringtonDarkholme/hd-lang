@@ -9,7 +9,7 @@ over the language tier:
 - `parse`, a strict [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259) parser;
 - `JsonError`, the error that `parse` and `decode` return;
 - the compact `Display` text of a `Json`, and its `pretty` method;
-- the typed part: JSON as a format over the `std.serde` consent, with
+- the typed part: JSON as a format over opt-in serialization, with
   `to_json`, `from_json`, `encode`, and `decode`.
 
 Nothing in it is language tier.
@@ -451,7 +451,7 @@ fn pretty_demo(text: string) -> string:
 ## Typed JSON
 
 JSON is a format that reads a type's
-[serialization consent](../lang/14-annotations.md#serialization).
+[serialization opt-in](../lang/14-annotations.md#serialization).
 `to_json` writes any value that implements `Serialize` as a `Json`, and
 `from_json` builds a `Deserialize` value from one. `encode` and `decode`
 join them to JSON text:
@@ -485,8 +485,8 @@ fn load(text: string) -> Result[Session, JsonError]:
 1. r[std-json.decode.parse-error] When `parse` fails, `decode` returns its parse error and reads no value.
 2. r[std-json.from-json.errors] `from_json` returns only the decode errors: `WrongType`, `MissingField`, and `UnknownVariant`.
 3. r[std-json.from-json.root] Each path that `from_json` reports starts at the value it reads, whose path is `$`.
-4. r[std-json.encode.consent] `encode` or `to_json` of a type that does not implement `Serialize` is an error. Error: `unsatisfied-trait-bound`.
-5. r[std-json.decode.consent] `decode` or `from_json` into a type that does not implement `Deserialize` is an error. Error: `unsatisfied-trait-bound`.
+4. r[std-json.encode.serialize] `encode` or `to_json` of a type that does not implement `Serialize` is an error. Error: `unsatisfied-trait-bound`.
+5. r[std-json.decode.deserialize] `decode` or `from_json` into a type that does not implement `Deserialize` is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
 use std.json.{encode, decode, JsonError}
@@ -501,7 +501,7 @@ fn load(text: string) -> Result[Plain, JsonError]:
     decode::[Plain](text)  # error: unsatisfied-trait-bound
 ```
 
-> **Why.** JSON declares no trait of its own, so a type's one consent
+> **Why.** JSON declares no trait of its own, so a type's one opt-in
 > serves JSON and every other format alike, as `serde_json` reads serde's
 > `Serialize`.
 
@@ -525,7 +525,7 @@ JSON writes and reads each standard implementation of
 | r[std-json.std.list] List | `List[T]`, where `T` implements the trait | an `Array` of the items' values, in order | an `Array`, item by item |
 | r[std-json.std.map] Map | `Map[string, V]`, where `V` implements the trait | an `Object` of the entries' values, in the map's iteration order | an `Object`, entry by entry, in its key order |
 
-1. r[std-json.std.json.consent] `std.json` implements `Serialize` and `Deserialize` for `Json`. A `Json` reads through `peek`, so it takes any value.
+1. r[std-json.std.json.impls] `std.json` implements `Serialize` and `Deserialize` for `Json`. A `Json` reads through `peek`, so it takes any value.
 2. r[std-json.std.integer.read] A float is never an integer, so `1.0` is a `WrongType` for every integer type. So is an integer outside the type's range.
 3. r[std-json.std.float-special] A NaN or an infinity has no JSON number, so its `to_json` is `null`, as in `serde_json`.
 4. r[std-json.std.float-read] An `f32` reads the nearest `f32` to the number's `f64`. A number past the finite `f32` range is a `WrongType`.
@@ -542,7 +542,7 @@ fn round_trip(names: List[string]) -> Result[List[string], JsonError]:
 > **Note.** `T??` loses a layer: `.Some(.None)` writes `null`, which reads
 > back as `.None`. A NaN writes `null`, which no float reads.
 
-> **Note.** Only a `Map` with `string` keys has a consent, by
+> **Note.** Only a `Map` with `string` keys implements the trait, by
 > [`std-serde.std.map-keys`](serde.md#r-std-serde.std.map-keys), so
 > `encode` of a `Map[i32, i32]` is an `unsatisfied-trait-bound` error.
 
@@ -577,7 +577,7 @@ enum Shape:
 4. r[std-json.derive.to-json.positional] A positional member's key is its member name: `_0`, `_1`, and so on.
 5. r[std-json.derive.to-json.embedded] An embedded member is one key, named by its type's final name, whose value is the part's `Json`. It is not flattened.
 6. r[std-json.derive.to-json.shared] Shared constructor data is not a member, so it is not written.
-7. r[std-json.derive.to-json.private] A private member is written like any other, since the consent covers it.
+7. r[std-json.derive.to-json.private] A private member is written like any other, since the opt-in covers it.
 
 > **Note.** A member omitted with `= pass` in a derivation block writes no
 > key, as [Omitted Members](../lang/14-annotations.md#omitted-members)

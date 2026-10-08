@@ -11,10 +11,10 @@ ordinary hd over the language tier:
   templates;
 - the standard implementations of both traits.
 
-The language tier keeps the module's declarations and what a consent means
+The language tier keeps the module's declarations and what opting in means
 ([Serialization](../lang/14-annotations.md#serialization)), since the host
-boundary reads the consent
-([`module.boundary.consent.out`](../lang/10-modules.md#r-module.boundary.consent.out)).
+boundary reads the implementation's output, not the field tree
+([`module.boundary.out`](../lang/10-modules.md#r-module.boundary.out)).
 
 ## Data Model
 
@@ -85,7 +85,7 @@ fn read_text_or_empty[R < Deserializer](input: mut R) -> Result[string, R::Error
 > read itself. A format that is not self-describing may return an error
 > from `peek`.
 
-## Derived Consent
+## Derived Implementations
 
 The [templates](../lang/14-annotations.md#templates) drive a format's
 writer or reader with a value's members. For the `Session` of

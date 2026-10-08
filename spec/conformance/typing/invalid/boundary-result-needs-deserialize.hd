@@ -1,5 +1,5 @@
-# test: a host capability method's result crosses into hd, so a type with a private field that only consents to Serialize cannot be its result
-# Spec Modules, Private Fields At A Boundary: module.boundary.consent.in, module.boundary.consent.direction, module.boundary.consent.error.
+# test: a host capability method's result crosses into hd, so a type with a private field that only implements Serialize cannot be its result
+# Spec Modules, Private Fields At A Boundary: module.boundary.in, module.boundary.direction, module.boundary.error.
 # fixture-runtime-profile: consent-vault
 use std.serde.Serialize
 

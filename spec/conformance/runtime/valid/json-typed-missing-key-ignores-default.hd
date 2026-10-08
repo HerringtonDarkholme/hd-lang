@@ -1,6 +1,6 @@
 # test: a member's declared default is a value for code, not a wire rule: a missing key is still read, and is a MissingField when its type does not read null
 # Spec std/json Derived Deserialize: std-json.derive.from-json.no-default, std-json.derive.from-json.missing.
-# Spec std/serde Derived Consent: std-serde.derive.deserialize.order.
+# Spec std/serde Derived Implementations: std-serde.derive.deserialize.order.
 # Spec 14 Build: annot.build.member.
 use std.json.{decode, JsonError}
 use std.serde.{Serialize, Deserialize}

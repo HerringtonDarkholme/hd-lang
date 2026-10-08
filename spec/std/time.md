@@ -12,7 +12,7 @@ ordinary hd over the language tier:
   it returns, and the helpers `now` and `sleep!`;
 - `ManualClock`, the deterministic `Clock` provider;
 - the UTC `Date` of a `Timestamp`, RFC 3339 text, and `TimeParseError`;
-- the serialization consent of `Duration`, `Timestamp`, and `Instant`.
+- the serialization opt-in of `Duration`, `Timestamp`, and `Instant`.
 
 The language tier keeps the suffix mechanism
 ([Literal Suffixes](../lang/05-expressions.md#literal-suffixes)):
@@ -423,7 +423,7 @@ See also: [Decode Errors](encoding.md#decode-errors),
 ## Serialization
 
 `Duration` and `Instant` give their
-[serialization consent](../lang/14-annotations.md#serialization) as their
+[serialization opt-in](../lang/14-annotations.md#serialization) as their
 whole milliseconds, and `Timestamp` as its RFC 3339 text:
 
 ```text
@@ -441,7 +441,7 @@ fn record(lease: Lease) -> string:
     encode(lease)  # {"holder":"ada","granted_at":"2023-11-14T22:13:20Z","term":30000}
 ```
 
-1. r[std-time.serde.consent] `Duration`, `Timestamp`, and `Instant` each implement `std.serde.Serialize` and `std.serde.Deserialize`.
+1. r[std-time.serde.impls] `Duration`, `Timestamp`, and `Instant` each implement `std.serde.Serialize` and `std.serde.Deserialize`.
 2. r[std-time.serde.int-form] A `Duration` and an `Instant` each write one `int` holding their milliseconds, as `as_milliseconds()` gives.
 3. r[std-time.serde.text-form] A `Timestamp` writes one text: its RFC 3339 text in UTC with milliseconds, the same text its `Display` gives.
 4. r[std-time.serde.int-read] A `Duration` and an `Instant` each read one `int` with the type's name as `expected`, as in `"Duration"`, and hold that many milliseconds.
@@ -452,7 +452,7 @@ fn record(lease: Lease) -> string:
 > milliseconds, which round trip exactly, and the private fields stay
 > private to code.
 
-> **Note.** The consent lets a `Clock` provider's `Timestamp` and
+> **Note.** The implementations let a `Clock` provider's `Timestamp` and
 > `Instant` cross the host boundary into hd, and `sleep!`'s `Duration`
 > cross out, by
-> [`module.boundary.consent.in`](../lang/10-modules.md#r-module.boundary.consent.in).
+> [`module.boundary.in`](../lang/10-modules.md#r-module.boundary.in).
