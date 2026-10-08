@@ -28,6 +28,14 @@ When the queue is empty, report that and wait.
 - Start each job from current main: `git fetch origin && git reset --hard
   origin/main` in your worktree, but only when it holds no unpushed work
   (check `git status` and `git log origin/main..HEAD` first).
+- **Any change under `compiler/` (samples and bench inputs included) or
+  to a conformance fixture runs the whole Rust suite before you push:**
+  `cargo test -q --release --workspace` from `compiler/`. Crate tests
+  read samples by line number (`hd_cli/tests/test_cmd.rs` asserts
+  `compiler/samples/testing/cart.hd` lines), so the conformance gate alone
+  is not enough; U1 turned CI red that way. If a crate test needs an
+  update you can't make (`compiler/crates/` is not yours), stop and say
+  so in the commit message instead of pushing.
 - Install dependencies in your worktree with `pnpm install
   --frozen-lockfile`; never symlink or modify the shared `node_modules`.
 - To finish each job:
