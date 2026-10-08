@@ -16,7 +16,8 @@ fn list(names: &Names<'_>, l: TyList) -> String {
     names
         .pool
         .list_items(l)
-        .into_iter()
+        .iter()
+        .copied()
         .map(|t| ty(names, t))
         .collect::<Vec<_>>()
         .join(", ")

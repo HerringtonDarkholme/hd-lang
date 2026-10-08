@@ -152,7 +152,7 @@ pub fn layout_of(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> StageResult<L
         },
         TyData::Tuple { elems, rest: None } => {
             let mut values = Vec::new();
-            for e in pool.list_items(elems) {
+            for e in pool.list_items(elems).iter().copied() {
                 values.extend(layout_of(pool, env, e)?.values);
             }
             match values.len() {
@@ -388,7 +388,7 @@ fn canon_list(
 ) {
     let items = pool.list_items(l);
     h.u32(u32::try_from(items.len()).expect("list"));
-    for t in items {
+    for &t in items {
         canon(pool, path_hash, t, h);
     }
 }

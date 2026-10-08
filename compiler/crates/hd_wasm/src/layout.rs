@@ -358,7 +358,7 @@ impl Lay<'_> {
             }
             TyData::Tuple { elems, rest: None } => {
                 let mut es = Vec::new();
-                for e in pool.list_items(elems) {
+                for e in pool.list_items(elems).iter().copied() {
                     es.push(self.vts_at(e, d)?);
                 }
                 let n: usize = es.iter().map(Vec::len).sum();
@@ -385,7 +385,7 @@ impl Lay<'_> {
             }
             TyData::Fn { params, result, .. } => {
                 let mut ps = vec![VT::Eq];
-                for p in pool.list_items(params) {
+                for p in pool.list_items(params).iter().copied() {
                     ps.extend(self.vts_at(p, d)?);
                 }
                 ps.push(VT::rn(ctx_keys()));

@@ -109,7 +109,7 @@ impl<'a> TableWriter<'a> {
             return Ok(r);
         }
         let mut words = Vec::new();
-        for t in self.pool.list_items(l) {
+        for t in self.pool.list_items(l).iter().copied() {
             words.push(self.ty(t)?);
         }
         let row = self.row(tag::LIST, words);

@@ -143,7 +143,7 @@ impl Ck<'_, '_> {
                     return unsupported("a tuple pattern with a rest");
                 }
                 let elems = match pool.get(inner) {
-                    TyData::Tuple { elems, .. } => pool.list_items(elems),
+                    TyData::Tuple { elems, .. } => pool.list_items(elems).to_vec(),
                     TyData::Infer(_) => {
                         let vs: Vec<Ty> = subs
                             .iter()
@@ -659,9 +659,9 @@ impl Ck<'_, '_> {
                         TyData::Tuple { elems, .. } => pool.list_items(elems),
                         TyData::Mut(x) => match pool.get(self.infer.resolve(pool, x)) {
                             TyData::Tuple { elems, .. } => pool.list_items(elems),
-                            _ => vec![],
+                            _ => &[],
                         },
-                        _ => vec![],
+                        _ => &[],
                     };
                     let subs: Vec<NodeRef<'_>> = p.children().collect();
                     for (k, s) in subs.iter().enumerate().rev() {
@@ -816,7 +816,7 @@ impl Ck<'_, '_> {
             SyntaxKind::TuplePattern => {
                 let elems = match pool.get(self.strip(t)) {
                     TyData::Tuple { elems, .. } => pool.list_items(elems),
-                    _ => vec![],
+                    _ => &[],
                 };
                 P::Ctor(
                     "()".into(),
@@ -896,7 +896,9 @@ impl Ck<'_, '_> {
             TyData::Prim(Prim::Bool) => {
                 Some(vec![("true".into(), vec![]), ("false".into(), vec![])])
             }
-            TyData::Tuple { elems, .. } => Some(vec![("()".into(), pool.list_items(elems))]),
+            TyData::Tuple { elems, .. } => {
+                Some(vec![("()".into(), pool.list_items(elems).to_vec())])
+            }
             TyData::Option(i) => Some(vec![("None".into(), vec![]), ("Some".into(), vec![i])]),
             TyData::Adt { def, args } => match &self.cx.lookup.item(def)?.data {
                 ItemData::Enum { variants, .. } => {
@@ -909,7 +911,7 @@ impl Ck<'_, '_> {
                                     self.cx.names.text(v.name).to_owned(),
                                     v.fields
                                         .iter()
-                                        .map(|f| subst_owner(pool, def, &argv, f.ty))
+                                        .map(|f| subst_owner(pool, def, argv, f.ty))
                                         .collect(),
                                 )
                             })
@@ -921,7 +923,7 @@ impl Ck<'_, '_> {
                     Some(vec![(
                         "{}".into(),
                         fs.iter()
-                            .map(|f| subst_owner(pool, def, &argv, f.ty))
+                            .map(|f| subst_owner(pool, def, argv, f.ty))
                             .collect(),
                     )])
                 }

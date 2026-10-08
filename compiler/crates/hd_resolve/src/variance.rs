@@ -68,12 +68,12 @@ pub fn walk(
         TyData::Mut(i) | TyData::Option(i) => go(i, 0, seen),
         TyData::Adt { def, args } => {
             let vs = var_of(def);
-            for (j, a) in pool.list_items(args).into_iter().enumerate() {
+            for (j, a) in pool.list_items(args).iter().copied().enumerate() {
                 go(a, polarity * vs.get(j).copied().unwrap_or(0), seen);
             }
         }
         TyData::Tuple { elems, rest } => {
-            for e in pool.list_items(elems) {
+            for e in pool.list_items(elems).iter().copied() {
                 go(e, polarity, seen);
             }
             if let Some(r) = rest {
@@ -86,7 +86,7 @@ pub fn walk(
             row,
             ..
         } => {
-            for p in pool.list_items(params) {
+            for p in pool.list_items(params).iter().copied() {
                 go(p, -polarity, seen);
             }
             go(result, polarity, seen);
@@ -96,7 +96,7 @@ pub fn walk(
             }
         }
         TyData::TraitValue { args, bindings, .. } => {
-            for a in pool.list_items(args) {
+            for a in pool.list_items(args).iter().copied() {
                 go(a, 0, seen);
             }
             for (_, b) in bindings {
@@ -105,7 +105,7 @@ pub fn walk(
         }
         TyData::Assoc { self_ty, args, .. } => {
             go(self_ty, 0, seen);
-            for a in pool.list_items(args) {
+            for a in pool.list_items(args).iter().copied() {
                 go(a, 0, seen);
             }
         }

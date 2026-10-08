@@ -250,7 +250,8 @@ pub fn apply_binds(
             let ta = pool.list(
                 &pool
                     .list_items(*targs)
-                    .into_iter()
+                    .iter()
+                    .copied()
                     .map(|x| {
                         pool.subst(x, &|p: ParamRef| {
                             (p.owner == owner)
@@ -518,7 +519,8 @@ pub fn canonicalize(
     let self_ty = canon_ty(pool, tref.self_ty, &mut vars);
     let args: Vec<Ty> = pool
         .list_items(tref.args)
-        .into_iter()
+        .iter()
+        .copied()
         .map(|t| canon_ty(pool, t, &mut vars))
         .collect();
     let goal = CanonGoal {
@@ -550,7 +552,7 @@ fn canon_ty(pool: &InternPool, t: Ty, vars: &mut CanonVars) -> Ty {
         TyData::Option(i) => TyData::Option(c(i)),
         TyData::Mut(i) => TyData::Mut(c(i)),
         TyData::Adt { def, args } => {
-            let a: Vec<Ty> = pool.list_items(args).into_iter().map(&mut c).collect();
+            let a: Vec<Ty> = pool.list_items(args).iter().copied().map(&mut c).collect();
             TyData::Adt {
                 def,
                 args: pool.list(&a),
@@ -663,7 +665,7 @@ fn match_list(
         return M::No;
     }
     let mut r = M::Yes;
-    for (p, t) in x.into_iter().zip(y) {
+    for (&p, &t) in x.iter().zip(y) {
         r = both(r, match_ty(pool, owner, p, t, binds));
         if r == M::No {
             return r;
@@ -705,7 +707,8 @@ fn plan_goals(pool: &InternPool, t: &ImplTable, row: usize, args: &[Ty]) -> Vec<
                 args: pool.list(
                     &pool
                         .list_items(*targs)
-                        .into_iter()
+                        .iter()
+                        .copied()
                         .map(s)
                         .collect::<Vec<_>>(),
                 ),
@@ -784,7 +787,7 @@ impl TableSolver {
                 // A bare variable among the goal's arguments learns the head's.
                 let (hs, gs) = (pool.list_items(t.head_args[r]), pool.list_items(tref.args));
                 let b = if hs.len() == gs.len() {
-                    hs.iter().zip(&gs).fold(M::Yes, |acc, (h, g)| {
+                    hs.iter().zip(gs).fold(M::Yes, |acc, (h, g)| {
                         if matches!(pool.get(*g), TyData::Infer(_)) {
                             acc
                         } else {
@@ -865,18 +868,18 @@ fn collect_vars(pool: &InternPool, t: Ty, out: &mut Vec<InferVar>) {
     match pool.get(t) {
         TyData::Infer(v) => out.push(v),
         TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
-            for a in pool.list_items(args) {
+            for a in pool.list_items(args).iter().copied() {
                 collect_vars(pool, a, out);
             }
         }
         TyData::Tuple { elems, .. } => {
-            for a in pool.list_items(elems) {
+            for a in pool.list_items(elems).iter().copied() {
                 collect_vars(pool, a, out);
             }
         }
         TyData::Option(i) | TyData::Mut(i) => collect_vars(pool, i, out),
         TyData::Fn { params, result, .. } => {
-            for a in pool.list_items(params) {
+            for a in pool.list_items(params).iter().copied() {
                 collect_vars(pool, a, out);
             }
             collect_vars(pool, result, out);
@@ -889,8 +892,9 @@ fn collect_vars(pool: &InternPool, t: Ty, out: &mut Vec<InferVar>) {
 /// argument (§8.1 `learned`).
 fn learned_from(pool: &InternPool, head: TyList, goal: TyList) -> Vec<(InferVar, Ty)> {
     pool.list_items(goal)
-        .into_iter()
-        .zip(pool.list_items(head))
+        .iter()
+        .copied()
+        .zip(pool.list_items(head).iter().copied())
         .filter_map(|(g, h)| match pool.get(g) {
             TyData::Infer(v) => Some((v, h)),
             _ => None,
@@ -988,7 +992,8 @@ fn norm_concrete(pool: &InternPool, tables: &[(ModuleId, &ImplTable)], t: Ty, de
         pool.list(
             &pool
                 .list_items(l)
-                .into_iter()
+                .iter()
+                .copied()
                 .map(|x| norm_concrete(pool, tables, x, depth))
                 .collect::<Vec<_>>(),
         )
@@ -1085,7 +1090,7 @@ fn project_concrete(
                 && (goal_args.len() != head_args.len()
                     || head_args
                         .iter()
-                        .zip(&goal_args)
+                        .zip(goal_args)
                         .any(|(h, g)| match_ty(pool, owner, *h, *g, &mut binds) != M::Yes))
             {
                 continue;

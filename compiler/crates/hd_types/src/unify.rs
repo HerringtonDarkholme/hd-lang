@@ -162,7 +162,16 @@ impl InferTable {
             return t;
         }
         let r = |x: Ty| self.resolve(pool, x);
-        let rl = |l| pool.list(&pool.list_items(l).into_iter().map(r).collect::<Vec<_>>());
+        let rl = |l| {
+            pool.list(
+                &pool
+                    .list_items(l)
+                    .iter()
+                    .copied()
+                    .map(r)
+                    .collect::<Vec<_>>(),
+            )
+        };
         let d = match pool.get(t) {
             TyData::Adt { def, args } => TyData::Adt {
                 def,
@@ -232,14 +241,16 @@ impl InferTable {
                 rest: None,
             } => pool
                 .list_items(l)
-                .into_iter()
+                .iter()
+                .copied()
                 .any(|x| self.occurs(pool, v, x)),
             TyData::Option(i) | TyData::Mut(i) => self.occurs(pool, v, i),
             TyData::Fn { params, result, .. } => {
                 self.occurs(pool, v, result)
                     || pool
                         .list_items(params)
-                        .into_iter()
+                        .iter()
+                        .copied()
                         .any(|x| self.occurs(pool, v, x))
             }
             _ => false,
@@ -404,7 +415,7 @@ impl InferTable {
                 found: b,
             });
         }
-        for (s, t) in x.into_iter().zip(y) {
+        for (&s, &t) in x.iter().zip(y) {
             self.unify(pool, s, t)?;
         }
         Ok(())

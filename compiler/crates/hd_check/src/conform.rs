@@ -23,11 +23,13 @@ fn has_assoc(pool: &InternPool, t: Ty, depth: u32) -> bool {
         TyData::Mut(i) | TyData::Option(i) => has_assoc(pool, i, d),
         TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => pool
             .list_items(args)
-            .into_iter()
+            .iter()
+            .copied()
             .any(|a| has_assoc(pool, a, d)),
         TyData::Tuple { elems, rest } => {
             pool.list_items(elems)
-                .into_iter()
+                .iter()
+                .copied()
                 .any(|a| has_assoc(pool, a, d))
                 || rest.is_some_and(|r| has_assoc(pool, r, d))
         }
@@ -38,7 +40,8 @@ fn has_assoc(pool: &InternPool, t: Ty, depth: u32) -> bool {
             ..
         } => {
             pool.list_items(params)
-                .into_iter()
+                .iter()
+                .copied()
                 .any(|a| has_assoc(pool, a, d))
                 || has_assoc(pool, result, d)
                 || pool

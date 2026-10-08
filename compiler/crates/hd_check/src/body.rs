@@ -472,7 +472,7 @@ impl Ck<'_, '_> {
         // `Add[Self, Out = Self]`), so the clause matches its goals.
         let args = match self.cx.lookup.item(def) {
             Some(it) if it.generics.len() > pool.list_items(args).len() => {
-                let mut v = pool.list_items(args);
+                let mut v = pool.list_items(args).to_vec();
                 for g in it.generics.iter().skip(v.len()) {
                     let Some(d) = g.default else { break };
                     let known = v.clone();
@@ -755,7 +755,8 @@ impl Ck<'_, '_> {
             args: pool.list(
                 &pool
                     .list_items(tref.args)
-                    .into_iter()
+                    .iter()
+                    .copied()
                     .map(|a| {
                         let a = self.infer.resolve(pool, a);
                         self.norm_ty(a)
@@ -869,11 +870,13 @@ impl Ck<'_, '_> {
             TyData::Mut(i) | TyData::Option(i) => self.inspectable(i, true, depth + 1),
             TyData::Tuple { elems, .. } => pool
                 .list_items(elems)
-                .into_iter()
+                .iter()
+                .copied()
                 .all(|e| self.inspectable(e, false, depth + 1)),
             TyData::Adt { args, .. } => pool
                 .list_items(args)
-                .into_iter()
+                .iter()
+                .copied()
                 .all(|a| self.inspectable(a, true, depth + 1)),
             TyData::TraitValue { def, .. } => {
                 arg || def == inspect || self.trait_extends(def, inspect, 0)
@@ -1475,12 +1478,11 @@ impl Ck<'_, '_> {
     }
 
     fn zonk_list(&mut self, l: TyList) -> TyList {
-        let items: Vec<Ty> = self
-            .pool()
-            .list_items(l)
-            .into_iter()
-            .map(|x| self.zonk(x))
-            .collect();
+        // Owned: `zonk` needs `&mut self` while the items are walked.
+        let mut items: Vec<Ty> = self.pool().list_items(l).to_vec();
+        for x in &mut items {
+            *x = self.zonk(*x);
+        }
         self.pool().list(&items)
     }
 

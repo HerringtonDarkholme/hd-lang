@@ -337,8 +337,9 @@ impl Ck<'_, '_> {
                         .unwrap_or_default(),
                 };
                 pool.list_items(ga)
-                    .into_iter()
-                    .zip(pool.list_items(wa))
+                    .iter()
+                    .copied()
+                    .zip(pool.list_items(wa).iter().copied())
                     .enumerate()
                     .all(|(j, (a, b))| {
                         // A `mut` outer view is invariant in every argument.
@@ -357,13 +358,15 @@ impl Ck<'_, '_> {
             (TyData::Option(a), TyData::Option(b)) => self.perm_fits(a, b, false, d),
             (TyData::Tuple { elems: a, .. }, TyData::Tuple { elems: b, .. }) => pool
                 .list_items(a)
-                .into_iter()
-                .zip(pool.list_items(b))
+                .iter()
+                .copied()
+                .zip(pool.list_items(b).iter().copied())
                 .all(|(x, y)| self.perm_fits(x, y, weaken, d)),
             (TyData::TraitValue { args: a, .. }, TyData::TraitValue { args: b, .. }) => pool
                 .list_items(a)
-                .into_iter()
-                .zip(pool.list_items(b))
+                .iter()
+                .copied()
+                .zip(pool.list_items(b).iter().copied())
                 .all(|(x, y)| self.perm_fits(x, y, false, d)),
             _ => true,
         }

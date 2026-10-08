@@ -408,7 +408,7 @@ impl Resolver<'_, '_> {
         let Some(item) = self.item(tr) else {
             return args;
         };
-        let mut v = pool.list_items(args);
+        let mut v = pool.list_items(args).to_vec();
         if v.len() >= item.generics.len() {
             return args;
         }
@@ -1306,7 +1306,7 @@ impl Lower<'_, '_, '_> {
         }
         // Each impl parameter's derived variance in the target.
         let mut seen = vec![Seen::default(); generics.len()];
-        for (a, v) in pool.list_items(args).into_iter().zip(&declared) {
+        for (a, v) in pool.list_items(args).iter().copied().zip(&declared) {
             let var_of = |d: DefId| self.variances(d);
             variance::walk(pool, a, *v, def, &var_of, &mut seen);
         }
@@ -1869,7 +1869,8 @@ pub fn misplaced_impl(names: &Names<'_>, module: &str, it: &Item) -> Option<Code
     owners.extend(ctor_module(*self_ty));
     owners.extend(
         pool.list_items(*trait_args)
-            .into_iter()
+            .iter()
+            .copied()
             .filter_map(ctor_module),
     );
     if owners.iter().any(|o| o == module) {

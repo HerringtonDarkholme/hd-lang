@@ -691,7 +691,7 @@ impl Ck<'_, '_> {
                 let TyData::Adt { args: targs, .. } = pool.get(t) else {
                     return unsupported("a newtype's type");
                 };
-                let it = subst_owner(pool, def, &pool.list_items(targs), inner);
+                let it = subst_owner(pool, def, pool.list_items(targs), inner);
                 let (r, rt) = self.expr(*e, Some(it))?;
                 let r = self.coerce(r, rt, it, *e, "argument");
                 // A newtype over a composite carries its base value's
@@ -957,7 +957,7 @@ impl Ck<'_, '_> {
                 let fs = variants[i]
                     .fields
                     .iter()
-                    .map(|f| subst_owner(pool, def, &argv, f.ty))
+                    .map(|f| subst_owner(pool, def, argv, f.ty))
                     .collect();
                 Some((u32::try_from(i).ok()?, fs))
             }
@@ -1456,7 +1456,7 @@ impl Ck<'_, '_> {
                     return Ok(Some(Hit::Trait {
                         trait_: tr,
                         method: m,
-                        args: pool.list_items(self.env.clause_args[i]),
+                        args: pool.list_items(self.env.clause_args[i]).to_vec(),
                         choice: (ChoiceKind::Bound, u32::try_from(i).unwrap_or(0)),
                     }));
                 }
@@ -1472,7 +1472,7 @@ impl Ck<'_, '_> {
                         trait_: *tr,
                         method: *m,
                         args: if *tr == def {
-                            pool.list_items(args)
+                            pool.list_items(args).to_vec()
                         } else {
                             vec![]
                         },
@@ -2139,7 +2139,7 @@ impl Ck<'_, '_> {
         // `P::Error` under a bound `P < Walker[Self]` leaves the trait's
         // arguments implicit: the impl that matches supplies them.
         let n_trait = self.cx.lookup.item(trait_).map_or(0, |i| i.generics.len());
-        let mut av = pool.list_items(args);
+        let mut av = pool.list_items(args).to_vec();
         while av.len() < n_trait {
             av.push(self.infer.fresh(pool, VarKind::General));
         }
@@ -2162,7 +2162,7 @@ impl Ck<'_, '_> {
             let impl_def = table.def[r];
             if let Some((_, b)) = table.assoc[r].iter().find(|(d, _)| *d == assoc) {
                 let ia = pool.list_items(impl_args);
-                let x = subst_owner(pool, impl_def, &ia, *b);
+                let x = subst_owner(pool, impl_def, ia, *b);
                 return self.normalized(x);
             }
         }
@@ -2187,7 +2187,7 @@ impl Ck<'_, '_> {
         let t = self.infer.resolve(pool, t);
         let list = |me: &mut Self, l: TyList| -> StageResult<TyList> {
             let mut v = Vec::new();
-            for x in pool.list_items(l) {
+            for x in pool.list_items(l).iter().copied() {
                 v.push(me.normalize_deep(x)?);
             }
             Ok(pool.list(&v))
@@ -2282,7 +2282,8 @@ pub(crate) fn with_assoc_args(
         pool.list(
             &pool
                 .list_items(l)
-                .into_iter()
+                .iter()
+                .copied()
                 .map(|x| with_assoc_args(pool, x, trait_, args))
                 .collect::<Vec<_>>(),
         )

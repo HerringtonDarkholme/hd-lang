@@ -165,7 +165,8 @@ pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList,
 
 fn key_args(pool: &InternPool, args: TyList) -> Vec<KeyArg> {
     pool.list_items(args)
-        .into_iter()
+        .iter()
+        .copied()
         .map(|t| {
             if is_class_ref(pool, t) {
                 KeyArg::Class(A1Class::Ref)
@@ -195,7 +196,12 @@ fn unify(pool: &InternPool, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<Opti
         (TyData::Adt { args: a, .. }, TyData::Adt { args: b, .. })
         | (TyData::TraitValue { args: a, .. }, TyData::TraitValue { args: b, .. })
         | (TyData::Tuple { elems: a, .. }, TyData::Tuple { elems: b, .. }) => {
-            for (x, y) in pool.list_items(a).into_iter().zip(pool.list_items(b)) {
+            for (x, y) in pool
+                .list_items(a)
+                .iter()
+                .copied()
+                .zip(pool.list_items(b).iter().copied())
+            {
                 unify(pool, owner, x, y, out);
             }
         }
@@ -212,7 +218,12 @@ fn unify(pool: &InternPool, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<Opti
                 ..
             },
         ) => {
-            for (x, y) in pool.list_items(a).into_iter().zip(pool.list_items(b)) {
+            for (x, y) in pool
+                .list_items(a)
+                .iter()
+                .copied()
+                .zip(pool.list_items(b).iter().copied())
+            {
                 unify(pool, owner, x, y, out);
             }
             unify(pool, owner, r, s, out);
@@ -370,7 +381,7 @@ impl Cx<'_> {
             });
         }
         let own_from = self.env.parent(def).map_or(0, |p| p.1);
-        let args = self.classify(def, &self.pool.list_items(args), own_from)?;
+        let args = self.classify(def, self.pool.list_items(args), own_from)?;
         let key = self.push(def, 0, args, depth, parent)?;
         Ok(CallTarget {
             key,
@@ -415,8 +426,9 @@ impl Cx<'_> {
         for (x, y) in self
             .pool
             .list_items(targs)
-            .into_iter()
-            .zip(self.pool.list_items(trait_args))
+            .iter()
+            .copied()
+            .zip(self.pool.list_items(trait_args).iter().copied())
         {
             unify(self.pool, impl_, x, y, &mut out);
         }
@@ -521,7 +533,7 @@ impl Cx<'_> {
                     let t = match c {
                         Callee::Item { def, targs } => {
                             let targs: Vec<Ty> =
-                                pool.list_items(targs).into_iter().map(s).collect();
+                                pool.list_items(targs).iter().copied().map(s).collect();
                             self.target(def, pool.list(&targs), depth, id)?
                         }
                         Callee::TraitMethod {
@@ -533,7 +545,7 @@ impl Cx<'_> {
                         } => {
                             let self_ty = s(self_ty);
                             let targs: Vec<Ty> =
-                                pool.list_items(targs).into_iter().map(s).collect();
+                                pool.list_items(targs).iter().copied().map(s).collect();
                             let pick = match choice.0 {
                                 ChoiceKind::Impl => Some(DefId::from_raw(choice.1)),
                                 ChoiceKind::Bound => None,
@@ -608,7 +620,7 @@ impl Cx<'_> {
                     let targs = pool.list_items(trait_args);
                     let mut slots = Vec::new();
                     for m in env.trait_methods(trait_) {
-                        let t = self.method_target(trait_, m, from, &targs, None, depth, id)?;
+                        let t = self.method_target(trait_, m, from, targs, None, depth, id)?;
                         reps.hash(t.key);
                         slots.push(t);
                     }
@@ -637,7 +649,7 @@ impl Cx<'_> {
                         let targs = pool.list_items(trait_args);
                         let mut slots = Vec::new();
                         for m in env.trait_methods(trait_) {
-                            let t = self.method_target(trait_, m, from, &targs, None, depth, id)?;
+                            let t = self.method_target(trait_, m, from, targs, None, depth, id)?;
                             reps.hash(t.key);
                             slots.push(t);
                         }

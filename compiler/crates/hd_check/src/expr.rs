@@ -155,7 +155,7 @@ impl Ck<'_, '_> {
                 let wants: Vec<Option<Ty>> =
                     match want.map(|w| pool.get(self.infer.shallow(pool, w))) {
                         Some(TyData::Tuple { elems, .. }) => {
-                            pool.list_items(elems).into_iter().map(Some).collect()
+                            pool.list_items(elems).iter().copied().map(Some).collect()
                         }
                         _ => vec![],
                     };
@@ -1186,7 +1186,11 @@ impl Ck<'_, '_> {
             && let TyData::Adt { def: wd, args: wa } = pool.get(self.strip_mut(w))
             && wd == def
         {
-            for (v, a) in targs.iter().zip(pool.list_items(wa)).skip(explicit) {
+            for (v, a) in targs
+                .iter()
+                .zip(pool.list_items(wa).iter().copied())
+                .skip(explicit)
+            {
                 let _ = self.infer.unify(pool, *v, a);
             }
         }
@@ -1737,7 +1741,7 @@ impl Ck<'_, '_> {
         let (def, args) = if is_map {
             let map = self.cx.names.item("std.core", "Map");
             let a = match want.map(|w| pool.get(w)) {
-                Some(TyData::Adt { def, args }) if def == map => pool.list_items(args),
+                Some(TyData::Adt { def, args }) if def == map => pool.list_items(args).to_vec(),
                 _ => vec![
                     self.infer.fresh(pool, VarKind::General),
                     self.infer.fresh(pool, VarKind::General),
@@ -1747,7 +1751,7 @@ impl Ck<'_, '_> {
         } else {
             let list = self.cx.names.item("std.core", "List");
             let a = match want.map(|w| pool.get(w)) {
-                Some(TyData::Adt { def, args }) if def == list => pool.list_items(args),
+                Some(TyData::Adt { def, args }) if def == list => pool.list_items(args).to_vec(),
                 _ => vec![self.infer.fresh(pool, VarKind::General)],
             };
             (list, a)
@@ -1851,7 +1855,9 @@ impl Ck<'_, '_> {
                 d => d,
             });
         let (wparams, wret) = match wanted {
-            Some(TyData::Fn { params, result, .. }) => (pool.list_items(params), Some(result)),
+            Some(TyData::Fn { params, result, .. }) => {
+                (pool.list_items(params).to_vec(), Some(result))
+            }
             _ => (vec![], None),
         };
         let suspends = n

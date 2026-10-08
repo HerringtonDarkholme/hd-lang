@@ -154,14 +154,14 @@ impl<T> AppendVec<T> {
     }
 }
 
-impl<T: Copy + Default> AppendVec<T> {
+impl<T: Copy> AppendVec<T> {
     /// Appends `len` items from `items` as one run inside a single chunk
     /// and returns the run's first index, so [`AppendVec::run`] can lend
     /// the run as one slice. A run that does not fit in the rest of the
     /// current chunk starts at the next chunk; the skipped slots hold
-    /// `T::default()`. `items` must yield exactly `len` items and must not
-    /// push to this column (the writer lock is held while it runs).
-    pub fn push_run(&self, len: u32, items: impl IntoIterator<Item = T>) -> u32 {
+    /// `pad`. `items` must yield exactly `len` items and must not push to
+    /// this column (the writer lock is held while it runs).
+    pub fn push_run(&self, len: u32, pad: T, items: impl IntoIterator<Item = T>) -> u32 {
         let _w = self
             .writer
             .lock()
@@ -180,7 +180,7 @@ impl<T: Copy + Default> AppendVec<T> {
             let next = u32::try_from((1u64 << (k + 1 + BASE_BITS as usize)) - (1 << BASE_BITS))
                 .expect("AppendVec over capacity");
             for i in start..next {
-                self.write_unpublished(i, T::default());
+                self.write_unpublished(i, pad);
             }
             start = next;
         }
@@ -310,14 +310,14 @@ mod tests {
             v.push(i);
         }
         // Six words do not fit in the four slots left in chunk 0.
-        let s = v.push_run(6, 10..16);
+        let s = v.push_run(6, 0, 10..16);
         assert_eq!(s, 1024);
         assert_eq!(v.run(s, 6), &[10, 11, 12, 13, 14, 15]);
         assert_eq!(v[1021], 0, "padding");
-        assert_eq!(v.push_run(0, std::iter::empty()), 1030);
+        assert_eq!(v.push_run(0, 0, std::iter::empty()), 1030);
         assert!(v.run(1030, 0).is_empty());
         // A run longer than chunk 1 skips to chunk 2.
-        let big = v.push_run(3000, 0..3000);
+        let big = v.push_run(3000, 0, 0..3000);
         assert_eq!(big, 1024 + 2048);
         assert_eq!(v.run(big, 3000)[2999], 2999);
     }

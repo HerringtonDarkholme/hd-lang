@@ -181,7 +181,7 @@ impl<'a> Universe<'a> {
         let (x, y) = (self.pool().list_items(x), self.pool().list_items(y));
         x.len() == y.len()
             && x.iter()
-                .zip(&y)
+                .zip(y)
                 .all(|(a, b)| self.matches(*a, *b, owner, sub))
     }
 
@@ -349,18 +349,18 @@ impl<'a> Universe<'a> {
                         }
                     }
                 }
-                for a in args_v {
+                for &a in args_v {
                     self.check_ty(a, env, at, out);
                 }
             }
             TyData::Option(i) | TyData::Mut(i) => self.check_ty(i, env, at, out),
             TyData::Tuple { elems, rest } => {
-                for e in pool.list_items(elems).into_iter().chain(rest) {
+                for e in pool.list_items(elems).iter().copied().chain(rest) {
                     self.check_ty(e, env, at, out);
                 }
             }
             TyData::Fn { params, result, .. } => {
-                for e in pool.list_items(params) {
+                for e in pool.list_items(params).iter().copied() {
                     self.check_ty(e, env, at, out);
                 }
                 self.check_ty(result, env, at, out);
@@ -681,7 +681,7 @@ impl<'a> Universe<'a> {
         let (x, y) = (self.pool().list_items(x), self.pool().list_items(y));
         x.len() == y.len()
             && x.iter()
-                .zip(&y)
+                .zip(y)
                 .all(|(a, b)| self.unify(*a, *b, oa, ob, sub))
     }
 }

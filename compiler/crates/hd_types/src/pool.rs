@@ -224,22 +224,29 @@ impl PoolTag {
 /// The pool's columns (§3.9.2): one fixed-size row per item, and the
 /// variable parts of every item in one flat `extra` column. An item with
 /// a record keeps the record's first `extra` word in `data`; the record's
-/// length follows from its tag and, for lists, rows and trait values,
-/// from a count word inside it.
+/// length follows from its tag and, for rows and trait values, from count
+/// words inside it. A list's items live in the `tys` column and its
+/// record is `[start, len]` there, so a list is lent as one `&[Ty]`.
 #[derive(Default)]
 struct Cols {
     tag: AppendVec<PoolTag>,
     data: AppendVec<u32>,
     meta: AppendVec<u32>,
     extra: AppendVec<u32>,
+    tys: AppendVec<Ty>,
 }
 
 impl Cols {
     /// Appends one item. The caller serializes appends, so the columns
     /// stay row-aligned.
     fn push(&self, c: &Content<'_>, meta: u32) -> u32 {
-        let data = if c.tag.has_record() {
-            self.extra.push_run(c.rec_len(), c.rec_words())
+        let data = if c.tag == PoolTag::List {
+            let len = u32::try_from(c.tys.len()).expect("list");
+            let start = self.tys.push_run(len, Ty::NEVER, c.tys.iter().copied());
+            self.extra.push_run(2, 0, [start, len])
+        } else if c.tag.has_record() {
+            let len = u32::try_from(c.head.len()).expect("record");
+            self.extra.push_run(len, 0, c.head.iter().copied())
         } else {
             c.data
         };
@@ -261,10 +268,9 @@ impl Cols {
         }
         let x = |k: u32| self.extra[off + k];
         let len = match tag {
-            PoolTag::Adt | PoolTag::TupleRest | PoolTag::Param => 2,
+            PoolTag::Adt | PoolTag::TupleRest | PoolTag::Param | PoolTag::List => 2,
             PoolTag::Fn | PoolTag::Assoc => 4,
             PoolTag::TraitValue => 3 + 2 * x(2),
-            PoolTag::List => 1 + x(0),
             PoolTag::Row => {
                 let n = x(0);
                 2 + n + 2 * x(1 + n)
@@ -273,11 +279,18 @@ impl Cols {
         };
         self.extra.run(off, len)
     }
+
+    /// The items of list `i`, borrowed from the `tys` column.
+    fn list(&self, i: u32) -> &[Ty] {
+        debug_assert!(self.tag[i] == PoolTag::List, "not a list");
+        let off = self.data[i];
+        self.tys.run(self.extra[off], self.extra[off + 1])
+    }
 }
 
 /// An item's content as the interner sees it: the tag, the inline `data`
-/// word (inline tags only) and the record, given as leading words and
-/// then types, so a list is hashed and compared where it lies.
+/// word (inline tags only), the `extra` record (`head`) and, for a list,
+/// its items, so content is hashed and compared where it lies.
 #[derive(Clone, Copy)]
 struct Content<'a> {
     tag: PoolTag,
@@ -287,17 +300,6 @@ struct Content<'a> {
 }
 
 impl Content<'_> {
-    fn rec_len(&self) -> u32 {
-        u32::try_from(self.head.len() + self.tys.len()).expect("record")
-    }
-
-    fn rec_words(&self) -> impl Iterator<Item = u32> + '_ {
-        self.head
-            .iter()
-            .copied()
-            .chain(self.tys.iter().map(|t| t.0))
-    }
-
     /// A 64-bit content hash (Fx-style word mixing with a final fold). It
     /// picks shards and probe slots only; nothing hashed or printed reads it.
     fn hash(&self) -> u64 {
@@ -305,7 +307,8 @@ impl Content<'_> {
         let mix = |h: u64, w: u32| (h.rotate_left(5) ^ u64::from(w)).wrapping_mul(K);
         let mut h = mix(0, self.tag as u32);
         if self.tag.has_record() {
-            h = self.rec_words().fold(h, mix);
+            h = self.head.iter().copied().fold(h, mix);
+            h = self.tys.iter().map(|t| t.0).fold(h, mix);
         } else {
             h = mix(h, self.data);
         }
@@ -316,20 +319,14 @@ impl Content<'_> {
 
     /// Whether item `i` of `cols` has this content.
     fn matches(&self, cols: &Cols, i: u32) -> bool {
-        if cols.tag[i] != self.tag {
-            return false;
+        match cols.tag[i] {
+            t if t != self.tag => false,
+            PoolTag::List => cols.list(i) == self.tys,
+            t if t.has_record() => cols.record(i) == self.head,
+            _ => cols.data[i] == self.data,
         }
-        if !self.tag.has_record() {
-            return cols.data[i] == self.data;
-        }
-        let stored = cols.record(i);
-        let h = self.head.len();
-        stored.len() == h + self.tys.len()
-            && stored[..h] == *self.head
-            && stored[h..].iter().zip(self.tys).all(|(w, t)| *w == t.0)
     }
 }
-
 /// A slot word's hash and id.
 fn split(w: u64) -> (u32, u32) {
     (low(w >> 32), low(w) - 1)
@@ -539,13 +536,13 @@ impl InternPool {
 
     pub fn list(&self, tys: &[Ty]) -> TyList {
         let meta = tys.iter().fold(0, |m, t| m | self.meta_of(*t));
-        let len = [u32::try_from(tys.len()).expect("list")];
-        TyList(self.intern(PoolTag::List, 0, (&len, tys), meta))
+        TyList(self.intern(PoolTag::List, 0, (&[], tys), meta))
     }
 
+    /// A list's items, borrowed from the pool: no copy.
     #[must_use]
-    pub fn list_items(&self, l: TyList) -> Vec<Ty> {
-        self.cols.record(l.0)[1..].iter().map(|&w| Ty(w)).collect()
+    pub fn list_items(&self, l: TyList) -> &[Ty] {
+        self.cols.list(l.0)
     }
 
     /// Interns a row. A key that is itself a row (`TyData::Row`, a solved
@@ -785,7 +782,8 @@ impl InternPool {
             self.list(
                 &self
                     .list_items(x)
-                    .into_iter()
+                    .iter()
+                    .copied()
                     .map(|e| self.subst(e, f))
                     .collect::<Vec<_>>(),
             )
