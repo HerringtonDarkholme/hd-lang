@@ -1,0 +1,12 @@
+# Text output of hd check --summary: one line per severity, file and code,
+# in file then code order, then the summary line, all on standard error.
+run: hd check --summary
+exit: 101
+stdout-json: []
+stderr: error: src/cart.hd: type-mismatch: 1
+stderr: warning: src/cart.hd: unused-local-binding: 1
+stderr: error: src/tax.hd: unknown-name: 1
+stderr: check result: FAILED. errors: 2; warnings: 1
+run: hd check --summary src/util.hd
+stdout-json: []
+stderr: check result: ok. errors: 0; warnings: 0

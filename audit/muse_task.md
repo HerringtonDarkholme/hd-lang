@@ -93,16 +93,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### S14. Spec: `hd check --summary` And The Text Summary Line
-
-The `hd check` implementer found the per-code and per-file counts of
-`--summary` (`cli.check.summary-mode`) and the text-mode summary line
-unspecified. Specify them in `spec/cli/command-line.md` (numbered rules
-with IDs per `spec/STYLE.md`, one example each; keep it minimal and
-consistent with `hd test`'s summary from S6), and add CLI cases to
-`spec/conformance/cli-cases.tsv` where it has none. Timebox 30 minutes;
-push.
-
 ### D2k. Design Text After The Pool And Solver-Lookup Work
 
 Two architecture commits landed: "pool: …" (#61, ends at 97ef2c30) and

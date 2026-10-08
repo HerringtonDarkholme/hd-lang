@@ -1,0 +1,3 @@
+pub fn total(price: i32) -> i32:
+    discount := +1
+    "free"

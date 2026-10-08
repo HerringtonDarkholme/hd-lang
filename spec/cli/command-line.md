@@ -577,6 +577,18 @@ hd check --summary         # a count per code and file, in place of each diagnos
 2. r[cli.check.max-errors.summary] The summary still counts every error and warning, and the exit status is unchanged.
 3. r[cli.check.summary-mode] In text output, `hd check --summary` prints, in place of each diagnostic, one line for each pair of a code and a file, with its count. The summary follows.
 4. r[cli.check.output-options] `--max-errors` and `--summary` change only what is printed. They change no diagnostic, count, or exit status.
+5. r[cli.check.report.stream] In text output, `hd check` writes its diagnostics and its summary to standard error, and nothing to standard output.
+6. r[cli.check.report.summary] The last line is the summary: `check result: ok.` when the run reported no error, or `check result: FAILED.` when it did, then `errors: E; warnings: W` with both counts, zero counts included.
+7. r[cli.check.summary-mode.line] A `--summary` line is the severity, the file, the code, and the count, each followed by `: ` except the count, as in `error: src/cart.hd: type-mismatch: 2`. The file is written as in a diagnostic.
+8. r[cli.check.summary-mode.order] `--summary` lines are in file-path order, then in code order.
+
+```sh
+hd check --summary
+# error: src/cart.hd: type-mismatch: 2
+# warning: src/cart.hd: unused-local-binding: 1
+# error: src/tax.hd: unknown-name: 1
+# check result: FAILED. errors: 3; warnings: 1
+```
 
 > **Why.** An agent with a hundred errors reads the first few, fixes them,
 > and checks again. The counts per code show at a glance whether one

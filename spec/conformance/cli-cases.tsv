@@ -100,3 +100,4 @@ json-check-modules-checked	cli.json.summary.modules-checked,cli.json.summary.res
 json-diagnostic-fixes	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint,cli.exe.main-unlisted,cli.exit.hd-failure
 fmt-check	cli.fmt.package,cli.fmt.meaning,cli.fmt.idempotent,cli.fmt.check,cli.fmt.no-check
 fmt-syntax-error	cli.fmt.syntax-error,cli.fmt.file,cli.fmt.check,cli.exit.hd-failure
+check-summary	cli.check.summary-mode,cli.check.output-options,cli.check.report.stream,cli.check.report.summary,cli.check.summary-mode.line,cli.check.summary-mode.order,cli.exit.hd-failure,cli.exit.success
