@@ -13,9 +13,9 @@ fn classify(c: i32) -> i32:
     return -1
 
 fn count_tokens(limit: i32) -> i32:
-    state := +0
-    tokens := +0
-    i := +0
+    let state = +0
+    let tokens = +0
+    let i = +0
     while i < limit:
         c := (i * 17 + 11) % 128
         kind := classify(c)
@@ -38,7 +38,7 @@ fn count_tokens(limit: i32) -> i32:
         tokens = tokens + 1
     return tokens
 
-fn main():
+fn main() -> void $ Console:
     println(classify(65))
     println(classify(53))
     println(classify(35))

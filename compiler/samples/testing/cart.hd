@@ -3,7 +3,7 @@
 use std.testing.{assert, assert_equal}
 use std.error.Error
 
-items_added := +0
+let items_added = +0
 
 fn add_item(count: i32) -> i32:
     items_added = items_added + count

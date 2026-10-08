@@ -1,6 +1,6 @@
 use pkg.domain.readings.{Reading, reading, score, choose}
 
-fn main():
+fn main() -> void $ Console:
     low := reading(7, 11, 3)
     high := reading(13, 17, 5)
     selected := choose(high, low)

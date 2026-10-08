@@ -3,7 +3,7 @@ use pkg.metrics.shapes.{Rect, Square, Measure, adjusted}
 fn twice[T < Measure](value: T) -> i32:
     return value.measure() + value.measure()
 
-fn main():
+fn main() -> void $ Console:
     rect := Rect { width: 6, height: 7 }
     square := Square { side: 9 }
     println(rect.measure())

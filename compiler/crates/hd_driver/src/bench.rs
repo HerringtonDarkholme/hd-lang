@@ -35,7 +35,7 @@ pub fn sources(n: usize) -> (String, String) {
     for i in 0..n {
         let _ = write!(
             geo,
-            "pub fn g{i}(a: i32, b: i32) -> i32:\n    x := a * {i} + b\n    i := +0\n    while i < 3:\n        if x % 2 == 0:\n            x = x / 2\n        else:\n            x = x * 3 + 1\n        i = i + 1\n    return x\n\n"
+            "pub fn g{i}(a: i32, b: i32) -> i32:\n    let x = a * {i} + b\n    let i = +0\n    while i < 3:\n        if x % 2 == 0:\n            x = x / 2\n        else:\n            x = x * 3 + 1\n        i = i + 1\n    return x\n\n"
         );
     }
     let mut app = String::from("use pkg.geo.shapes.{");
@@ -52,7 +52,7 @@ pub fn sources(n: usize) -> (String, String) {
             "fn f{i}(a: i32) -> i32:\n    return g{i}(a, {i}) + 1\n\n"
         );
     }
-    app.push_str("fn main():\n    s := +0\n");
+    app.push_str("fn main():\n    let s = +0\n");
     for i in 0..n {
         let _ = writeln!(app, "    s = s + f{i}(s % 100)");
     }
