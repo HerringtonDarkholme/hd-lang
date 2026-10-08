@@ -45,6 +45,7 @@ mod tag {
     pub const TRAIT_VALUE: u8 = 12;
     pub const ASSOC: u8 = 13;
     pub const ROW: u8 = 14;
+    pub const ROW_TY: u8 = 15;
 }
 
 impl<'a> TableWriter<'a> {
@@ -193,6 +194,7 @@ impl<'a> TableWriter<'a> {
                 ],
             ),
             TyData::Canon(i) => (tag::CANON, vec![u32::from(i)]),
+            TyData::Row(r) => (tag::ROW_TY, vec![self.row_id(r)?]),
             other @ TyData::Infer(_) => {
                 return Err(NotImplemented::new(
                     Stage::ModuleFinish,
@@ -364,6 +366,7 @@ impl Tables {
                     pool.intern_ty(&TyData::Canon(u8::try_from(*words.first()?).ok()?))
                         .0
                 }
+                tag::ROW_TY => pool.intern_ty(&TyData::Row(RowId(row(0)?))).0,
                 _ => return None,
             };
             t.rows.push(v);

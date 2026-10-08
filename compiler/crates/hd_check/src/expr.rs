@@ -12,7 +12,7 @@ use hd_resolve::{ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{IntrinsicOp, NONE, PrimOp, Ref, Tag, TirSink, local_flags};
 use hd_types::solver::{Answer, TraitRef};
-use hd_types::{ParamRef, Prim, Ty, TyData, TyList, VarKind};
+use hd_types::{ParamRef, Prim, Ty, TyData, VarKind};
 
 use crate::body::{Ck, OpenSub, unsupported};
 
@@ -1847,14 +1847,9 @@ impl Ck<'_, '_> {
                 TyData::Mut(i) => pool.get(i),
                 d => d,
             });
-        let (wparams, wret, wrow) = match wanted {
-            Some(TyData::Fn {
-                params,
-                result,
-                row,
-                ..
-            }) => (pool.list_items(params), Some(result), row),
-            _ => (vec![], None, hd_types::RowId::EMPTY),
+        let (wparams, wret) = match wanted {
+            Some(TyData::Fn { params, result, .. }) => (pool.list_items(params), Some(result)),
+            _ => (vec![], None),
         };
         let suspends = n
             .direct_token(&self.cx.src.parse.tokens, TokenKind::Bang)
@@ -1895,9 +1890,12 @@ impl Ck<'_, '_> {
             Some(rt) => self.ty_node(rt)?,
             None => wret.unwrap_or_else(|| self.infer.fresh(pool, VarKind::General)),
         };
-        let row = match Src::child(n, SyntaxKind::RequirementRow) {
-            Some(r) => self.row_of(r)?,
-            None => wrow,
+        // A written row, or the least row of the keys the body uses
+        // (`req.row.omitted.closure-row`); the expected row is matched
+        // against it afterwards, by row subsumption.
+        let written = match Src::child(n, SyntaxKind::RequirementRow) {
+            Some(r) => Some(self.row_of(r)?),
+            None => None,
         };
         let mark = self.b.open_sub(&params);
         self.subs.push(OpenSub {
@@ -1905,7 +1903,10 @@ impl Ck<'_, '_> {
             depth: self.scopes.len() - 1,
         });
         self.rets.push(ret);
-        self.rows.push(row);
+        self.rows.push(crate::body::RowFrame::Closure {
+            written,
+            used: hd_types::RowData::default(),
+        });
         self.suspends.push(suspends);
         let saved_loops = std::mem::take(&mut self.loops);
         let blk = self.b.open_block();
@@ -1922,7 +1923,13 @@ impl Ck<'_, '_> {
         };
         let root = self.b.close_block(blk, tail, ret, n.index());
         self.loops = saved_loops;
-        self.rows.pop();
+        let row = match self.rows.pop() {
+            Some(crate::body::RowFrame::Closure {
+                written: Some(r), ..
+            }) => r,
+            Some(crate::body::RowFrame::Closure { used, .. }) => pool.row(&used),
+            _ => hd_types::RowId::EMPTY,
+        };
         self.rets.pop();
         self.suspends.pop();
         self.subs.pop();
@@ -2118,7 +2125,7 @@ impl Ck<'_, '_> {
             keys,
             params: vec![],
         });
-        self.rows.push(row);
+        self.rows.push(crate::body::RowFrame::With(row));
         let bm = self.b.open_block();
         let r = self.block_value(body, want);
         self.rows.pop();
@@ -2150,7 +2157,7 @@ impl Ck<'_, '_> {
         let TyData::TraitValue { def: key_trait, .. } = pool.get(key) else {
             return unsupported("a `$.use` key that is not a trait");
         };
-        self.check_row_has(key_trait, n);
+        self.require_key(key, n);
         let at = self.b.refs_record(&[Ref(key.0)]);
         // `mut K` for a mutable requirement trait, else `K`.
         let pt = if self.trait_is_mutable(key_trait, 0) {
@@ -2159,34 +2166,6 @@ impl Ck<'_, '_> {
             key
         };
         Ok((self.b.emit(Tag::ProviderGet, at, NONE, pt, n.index()), pt))
-    }
-
-    /// A requirement the body uses must be in its row
-    /// (`req.row.set.call`): `missing-requirement` otherwise.
-    pub(crate) fn check_row_has(&mut self, key: hd_base::DefId, n: NodeRef<'_>) {
-        let pool = self.cx.names.pool;
-        let covered = self.rows.iter().any(|r| {
-            let d = pool.row_data(*r);
-            !d.params.is_empty()
-                || d.keys.iter().any(|k| match pool.get(*k) {
-                    TyData::TraitValue { def, .. } => def == key || self.trait_extends(def, key, 0),
-                    _ => false,
-                })
-        });
-        if !covered {
-            let msg = format!(
-                "this needs `$ {}`, which the enclosing function's row does not name",
-                hd_resolve::show_ty(
-                    &self.cx.names,
-                    pool.intern_ty(&TyData::TraitValue {
-                        def: key,
-                        args: TyList::EMPTY,
-                        bindings: vec![]
-                    })
-                )
-            );
-            self.err(Code::MissingRequirement, n, &msg);
-        }
     }
 
     /// Whether trait `a` has `b` among its supertraits.

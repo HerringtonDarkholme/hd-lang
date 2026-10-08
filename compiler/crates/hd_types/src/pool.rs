@@ -166,6 +166,9 @@ pub enum TyData {
     Infer(InferVar),
     /// A canonical placeholder of the solver (trait-solver.md §2.2).
     Canon(u8),
+    /// A requirement row in a row parameter's argument slot (an explicit
+    /// `f::[$ Db]`, or the row a call solved for `$R`).
+    Row(RowId),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -187,6 +190,7 @@ enum PoolTag {
     Canon,
     List,
     Row,
+    RowTy,
 }
 
 /// Meta flags (§3.9.2).
@@ -290,17 +294,39 @@ impl InternPool {
         self.extra[l.0].iter().map(|&w| Ty(w)).collect()
     }
 
+    /// Interns a row. A key that is itself a row (`TyData::Row`, a solved
+    /// row variable) is flattened into this one (`req.row.set.parameter`).
     pub fn row(&self, row: &RowData) -> RowId {
-        let mut keys = row.keys.clone();
+        let mut keys = Vec::new();
+        let mut params = row.params.clone();
+        for k in &row.keys {
+            if let TyData::Row(r) = self.get(*k) {
+                let inner = self.row_data(r);
+                keys.extend(inner.keys);
+                params.extend(inner.params);
+            } else {
+                keys.push(*k);
+            }
+        }
         keys.sort_by_key(|t| t.0);
         keys.dedup();
+        params.sort_by_key(|p| (p.owner.raw(), p.index));
+        params.dedup();
+        let mut meta = keys.iter().fold(0, |m, t| m | self.meta_of(*t));
+        if !params.is_empty() {
+            meta |= meta::HAS_PARAM;
+        }
         let mut words: Vec<u32> = vec![u32::try_from(keys.len()).expect("row keys")];
         words.extend(keys.iter().map(|t| t.0));
-        for p in &row.params {
+        for p in &params {
             words.push(p.owner.raw());
             words.push(u32::from(p.index));
         }
-        RowId(self.intern(PoolTag::Row, 0, words, 0))
+        RowId(self.intern(PoolTag::Row, 0, words, meta))
+    }
+
+    fn row_meta(&self, r: RowId) -> u32 {
+        self.meta[r.0]
     }
 
     #[must_use]
@@ -349,7 +375,7 @@ impl InternPool {
                 T::Fn,
                 params.0,
                 vec![result.0, row.0, u32::from(*suspends)],
-                self.list_meta(*params) | self.meta_of(*result),
+                self.list_meta(*params) | self.meta_of(*result) | self.row_meta(*row),
             ),
             TyData::TraitValue {
                 def,
@@ -387,6 +413,7 @@ impl InternPool {
             TyData::Mut(inner) => (T::Mut, inner.0, vec![], self.meta_of(*inner)),
             TyData::Infer(v) => (T::Infer, v.raw(), vec![], meta::HAS_INFER),
             TyData::Canon(i) => (T::Canon, u32::from(*i), vec![], meta::HAS_CANON),
+            TyData::Row(r) => (T::RowTy, r.0, vec![], self.row_meta(*r)),
         };
         Ty(self.intern(tag, data, extra, meta))
     }
@@ -440,6 +467,7 @@ impl InternPool {
             PoolTag::Mut => TyData::Mut(Ty(d)),
             PoolTag::Infer => TyData::Infer(InferVar::from_raw(d)),
             PoolTag::Canon => TyData::Canon(u8::try_from(d).expect("canon")),
+            PoolTag::RowTy => TyData::Row(RowId(d)),
             PoolTag::List | PoolTag::Row => unreachable!("not a type index"),
         }
     }
@@ -497,9 +525,10 @@ impl InternPool {
             } => TyData::Fn {
                 params: l(params),
                 result: self.subst(result, f),
-                row,
+                row: self.subst_row(row, f),
                 suspends,
             },
+            TyData::Row(r) => TyData::Row(self.subst_row(r, f)),
             TyData::TraitValue {
                 def,
                 args,
@@ -526,6 +555,30 @@ impl InternPool {
             other => other,
         };
         self.intern_ty(&d)
+    }
+
+    /// Replaces declared parameters in a row: a row parameter maps through
+    /// `f` like a type parameter of the same owner and index, and its
+    /// argument (a `TyData::Row`, or a row variable) joins the keys.
+    pub fn subst_row(&self, r: RowId, f: &dyn Fn(ParamRef) -> Option<Ty>) -> RowId {
+        if self.row_meta(r) & meta::HAS_PARAM == 0 {
+            return r;
+        }
+        let d = self.row_data(r);
+        let mut out = RowData {
+            keys: d.keys.iter().map(|k| self.subst(*k, f)).collect(),
+            params: Vec::new(),
+        };
+        for p in d.params {
+            match f(ParamRef {
+                owner: p.owner,
+                index: p.index,
+            }) {
+                Some(t) => out.keys.push(t),
+                None => out.params.push(p),
+            }
+        }
+        self.row(&out)
     }
 
     /// Prints a type with run IDs for items (`#n`); output that a user
@@ -574,6 +627,16 @@ impl InternPool {
             TyData::Mut(i) => format!("mut {}", self.display(i)),
             TyData::Infer(v) => format!("?{}", v.raw()),
             TyData::Canon(i) => format!("^{i}"),
+            TyData::Row(r) => {
+                let d = self.row_data(r);
+                let mut parts: Vec<String> = d.keys.iter().map(|k| self.display(*k)).collect();
+                parts.extend(
+                    d.params
+                        .iter()
+                        .map(|p| format!("R{}@{}", p.index, p.owner.raw())),
+                );
+                format!("$({})", parts.join(" + "))
+            }
         }
     }
 }

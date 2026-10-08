@@ -1131,6 +1131,19 @@ pub fn show_ty(names: &Names<'_>, t: Ty) -> String {
             format!("{}::{}", show_ty(names, self_ty), seg(assoc))
         }
         TyData::Infer(_) | TyData::Canon(_) => "?".into(),
+        TyData::Row(r) => {
+            let d = pool.row_data(r);
+            if d.keys.is_empty() && d.params.is_empty() {
+                return "$()".into();
+            }
+            let mut parts: Vec<String> = d.keys.iter().map(|k| show_ty(names, *k)).collect();
+            parts.extend(
+                d.params
+                    .iter()
+                    .map(|p| format!("{}#{}", seg(p.owner), p.index)),
+            );
+            format!("$ {}", parts.join(" + "))
+        }
     }
 }
 

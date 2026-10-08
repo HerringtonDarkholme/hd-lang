@@ -16,6 +16,7 @@ mod literals;
 mod pat;
 mod promote;
 mod render;
+mod rows;
 pub mod stages;
 pub mod tests;
 mod ty;

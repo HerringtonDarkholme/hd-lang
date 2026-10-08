@@ -47,6 +47,23 @@ pub(crate) fn unsupported<T>(what: impl Into<String>) -> StageResult<T> {
 
 /// An open closure: its builder mark, the scope depth at its start, its
 /// result type.
+/// One level of the available-keys stack (type-checking.md §5.2).
+pub(crate) enum RowFrame {
+    /// A function's declared row: the bottom of a body's stack.
+    Declared(RowId),
+    /// The entry module's top level: every key is available.
+    Any,
+    /// A closure with a written row, or (`written: None`) the keys its
+    /// body uses so far, which become its inferred row
+    /// (`req.row.omitted.closure-row`).
+    Closure {
+        written: Option<RowId>,
+        used: hd_types::RowData,
+    },
+    /// The keys a `$.with` block binds.
+    With(RowId),
+}
+
 pub(crate) struct OpenSub {
     pub mark: SubMark,
     pub depth: usize,
@@ -68,8 +85,11 @@ pub(crate) struct Ck<'a, 'c> {
     /// Type parameters by name: the impl's, then the function's.
     pub gens: Vec<(Symbol, Ty)>,
     pub self_ty: Option<Ty>,
-    /// The requirement row of the body (its own and its closures').
-    pub rows: Vec<RowId>,
+    /// The available keys: the body's row, then closures and `$.with`
+    /// blocks, innermost last.
+    pub rows: Vec<RowFrame>,
+    /// Row parameters by name: the impl's, then the function's.
+    pub row_gens: Vec<(Symbol, hd_types::RowParamRef)>,
     pub subs: Vec<OpenSub>,
     /// Bounds on types not yet known at their use: solved at the end.
     pub pending: Vec<(TraitRef, NodeRefIdx)>,
@@ -134,7 +154,14 @@ pub(crate) fn new_ck<'a, 'c>(
         rets: vec![ret],
         gens: Vec::new(),
         self_ty: None,
-        rows: vec![row],
+        rows: vec![
+            if kind == BodyKind::Init && !pool.row_data(row).params.is_empty() {
+                RowFrame::Any
+            } else {
+                RowFrame::Declared(row)
+            },
+        ],
+        row_gens: Vec::new(),
         subs: Vec::new(),
         pending: Vec::new(),
         method_targs: Vec::new(),
@@ -218,6 +245,7 @@ pub fn check_fn(
     let mut ck = new_ck(cx, def, def, BodyKind::Fn, (sig.ret, sig.row), diags);
     ck.check_impl_method(def, node);
     ck.check_literal_marker(def, node);
+    ck.check_row_patterns(&sig, node);
     ck.suspends = vec![sig.suspends];
     let blk = ck.b.open_block();
     for (name, ty) in sig.params.clone() {
@@ -399,6 +427,15 @@ impl Ck<'_, '_> {
                 index: u16::try_from(i).unwrap_or(u16::MAX),
             }));
             self.gens.push((g.name, p));
+            if g.row {
+                self.row_gens.push((
+                    g.name,
+                    hd_types::RowParamRef {
+                        owner,
+                        index: u16::try_from(i).unwrap_or(u16::MAX),
+                    },
+                ));
+            }
             let first = self.env.clause_self.len();
             for b in &g.bounds {
                 self.add_bound(p, *b, 0);
@@ -588,6 +625,17 @@ impl Ck<'_, '_> {
                 self.show(got)
             );
             self.err(Code::TypeMismatch, n, &msg);
+        }
+        // A function value fits a wider row (`req.row.subsume`); an open
+        // row variable takes the least solution (`req.row.least`).
+        if self.diags.len() == before
+            && !joined
+            && let (TyData::Fn { row: gr, .. }, TyData::Fn { row: wr, .. }) = (
+                pool.get(self.infer.resolve(pool, gs)),
+                pool.get(self.infer.resolve(pool, ws)),
+            )
+        {
+            self.fit_row(gr, wr, n, what);
         }
         r
     }
@@ -1318,12 +1366,17 @@ impl Ck<'_, '_> {
             } => {
                 let p = self.zonk_list(params);
                 let r = self.zonk(result);
+                let row = self.zonk_row(row);
                 pool.intern_ty(&TyData::Fn {
                     params: p,
                     result: r,
                     row,
                     suspends,
                 })
+            }
+            TyData::Row(row) => {
+                let row = self.zonk_row(row);
+                pool.intern_ty(&TyData::Row(row))
             }
             TyData::TraitValue {
                 def,
@@ -1354,6 +1407,28 @@ impl Ck<'_, '_> {
             }
             _ => Ty::POISON,
         }
+    }
+
+    /// A row with its variables solved; a row variable nothing constrained
+    /// is the empty row, the least solution.
+    pub(crate) fn zonk_row(&mut self, row: RowId) -> RowId {
+        let pool = self.cx.names.pool;
+        let row = self.infer.resolve_row(pool, row);
+        let mut d = pool.row_data(row);
+        if !d.keys.iter().any(|k| pool.has_infer(*k)) {
+            return row;
+        }
+        let mut keys = Vec::new();
+        for k in d.keys {
+            if matches!(pool.get(k), TyData::Infer(_)) {
+                let empty = pool.intern_ty(&TyData::Row(RowId::EMPTY));
+                let _ = self.infer.unify(pool, k, empty);
+            } else {
+                keys.push(self.zonk(k));
+            }
+        }
+        d.keys = keys;
+        pool.row(&d)
     }
 
     fn zonk_list(&mut self, l: TyList) -> TyList {

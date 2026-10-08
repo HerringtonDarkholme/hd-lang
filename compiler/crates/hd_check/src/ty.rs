@@ -215,9 +215,22 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// A written row: keys, and the body's row parameters by name
+    /// (`req.row.param.marked.use`).
     pub(crate) fn row_of(&mut self, n: NodeRef<'_>) -> StageResult<RowId> {
         let mut data = RowData::default();
         for c in n.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
+            let segs = self.segments(c);
+            if let [name] = segs.as_slice()
+                && let Some((_, p)) = self
+                    .row_gens
+                    .iter()
+                    .rev()
+                    .find(|(s, _)| self.cx.names.text(*s) == name.as_str())
+            {
+                data.params.push(*p);
+                continue;
+            }
             let t = self.named_ty(c)?;
             data.keys.push(t);
         }
@@ -305,6 +318,12 @@ impl Ck<'_, '_> {
                 })
             }
             SyntaxKind::InferType => self.infer.fresh(pool, VarKind::General),
+            // A row in a row slot, as an explicit argument for a row
+            // parameter (`req.row.slot.list`).
+            SyntaxKind::RequirementRow => {
+                let r = self.row_of(n)?;
+                pool.intern_ty(&TyData::Row(r))
+            }
             SyntaxKind::ProjectionType => {
                 let base = first(self, n)?;
                 let Some(t) = n.name(&self.cx.src.parse.tokens) else {

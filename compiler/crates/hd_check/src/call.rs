@@ -224,7 +224,11 @@ impl Ck<'_, '_> {
         let ft = pool.intern_ty(&TyData::Fn {
             params: pool.list(&sig.params.iter().map(|p| inst(p.1)).collect::<Vec<_>>()),
             result: inst(sig.ret),
-            row: sig.row,
+            row: pool.subst_row(sig.row, &|p| {
+                (p.owner == def)
+                    .then(|| vars.get(p.index as usize).copied())
+                    .flatten()
+            }),
             suspends: sig.suspends,
         });
         let a = self.b.refs_record(&[Ref(def.raw())]);
@@ -465,17 +469,6 @@ impl Ck<'_, '_> {
         Ok((cold, st))
     }
 
-    /// Every key of a callee's row must be covered here.
-    fn check_row(&mut self, row: hd_types::RowId, n: NodeRef<'_>) {
-        let pool = self.cx.names.pool;
-        let data = pool.row_data(row);
-        for k in data.keys {
-            if let TyData::TraitValue { def, .. } = pool.get(k) {
-                self.check_row_has(def, n);
-            }
-        }
-    }
-
     /// Checks arguments against parameters (positional, then named by
     /// parameter name), skipping `skip` leading parameters already given.
     fn check_args(
@@ -664,7 +657,8 @@ impl Ck<'_, '_> {
                         }
                     }
                 }
-                self.check_row(sig.row, n);
+                let row = self.call_row(def, &sig, &vars, 0);
+                self.check_row(row, n);
                 // A checked `assert_equal` call runs std's `check_equal`
                 // (lib/std/testing.hd), which has the same signature.
                 let def = if item
@@ -844,7 +838,8 @@ impl Ck<'_, '_> {
         refs.push(packed);
         let inst_full = |t: Ty| subst_owner(pool, def, vars, t);
         self.bounds_of(sig, vars, &inst_full, n)?;
-        self.check_row(sig.row, n);
+        let row = self.call_row(def, sig, vars, 0);
+        self.check_row(row, n);
         let ret = self.normalize_deep(inst(sig.ret))?;
         let c = Callee::Item {
             def,

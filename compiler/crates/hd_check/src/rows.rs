@@ -1,0 +1,302 @@
+//! Requirement rows in bodies (type-checking.md §5.2 to §5.6): the
+//! available-keys stack, closure rows, row subsumption, and the least
+//! solution of a callee's row parameters.
+
+use hd_diag::Code;
+use hd_resolve::{FnSig, Src};
+use hd_syntax::{NodeRef, SyntaxKind};
+use hd_types::{RowData, RowId, RowParamRef, Ty, TyData};
+
+use crate::body::{Ck, RowFrame};
+
+/// One requirement a body needs: a key or a row parameter.
+#[derive(Clone, Copy)]
+enum Need {
+    Key(Ty),
+    Param(RowParamRef),
+}
+
+impl Ck<'_, '_> {
+    /// Whether the listed key `have` supplies the needed key `want`: the
+    /// same key, or a key whose trait has `want`'s trait as a supertrait.
+    fn key_supplies(&self, have: Ty, want: Ty) -> bool {
+        if have == want {
+            return true;
+        }
+        let pool = self.pool();
+        match (pool.get(have), pool.get(want)) {
+            (
+                TyData::TraitValue {
+                    def: d1,
+                    args: a1,
+                    bindings: b1,
+                },
+                TyData::TraitValue {
+                    def: d2,
+                    args: a2,
+                    bindings: b2,
+                },
+            ) => {
+                (d1 == d2 && a1 == a2 && (b1.is_empty() || b2.is_empty() || b1 == b2))
+                    || (d1 != d2 && self.trait_extends(d1, d2, 0))
+            }
+            _ => false,
+        }
+    }
+
+    /// `key_supplies`, solving type variables inside a generic key: the
+    /// pattern `Repo[T]` against `Repo[User]` fixes `T`.
+    fn key_fits(&mut self, have: Ty, want: Ty) -> bool {
+        if self.key_supplies(have, want) {
+            return true;
+        }
+        let pool = self.cx.names.pool;
+        let same_trait = matches!(
+            (pool.get(have), pool.get(want)),
+            (TyData::TraitValue { def: a, .. }, TyData::TraitValue { def: b, .. }) if a == b
+        );
+        if !same_trait || !(pool.has_infer(have) || pool.has_infer(want)) {
+            return false;
+        }
+        let snap = self.infer.snapshot();
+        if self.infer.unify(pool, have, want).is_ok() {
+            return true;
+        }
+        self.infer.rollback(snap);
+        false
+    }
+
+    fn row_supplies(&self, row: RowId, need: Need) -> bool {
+        let d = self.pool().row_data(row);
+        match need {
+            Need::Key(k) => d.keys.iter().any(|h| self.key_supplies(*h, k)),
+            Need::Param(p) => d.params.contains(&p),
+        }
+    }
+
+    /// Finds `need` in the available-keys stack (`req.row.entail`); a
+    /// closure that infers its row takes the key into it instead.
+    fn available(&mut self, need: Need) -> bool {
+        for i in (0..self.rows.len()).rev() {
+            let supplied = match &self.rows[i] {
+                RowFrame::With(r) => {
+                    if self.row_supplies(*r, need) {
+                        return true;
+                    }
+                    continue;
+                }
+                RowFrame::Any => return true,
+                RowFrame::Declared(r)
+                | RowFrame::Closure {
+                    written: Some(r), ..
+                } => self.row_supplies(*r, need),
+                RowFrame::Closure { written: None, .. } => {
+                    if let RowFrame::Closure { used, .. } = &mut self.rows[i] {
+                        match need {
+                            Need::Key(k) => used.keys.push(k),
+                            Need::Param(p) => used.params.push(p),
+                        }
+                    }
+                    true
+                }
+            };
+            return supplied;
+        }
+        false
+    }
+
+    /// A key the body uses must be available (`req.row.set.call`):
+    /// `missing-requirement` otherwise.
+    pub(crate) fn require_key(&mut self, key: Ty, n: NodeRef<'_>) {
+        if !self.available(Need::Key(key)) {
+            let msg = format!(
+                "this needs `$ {}`, which the enclosing function's row does not name",
+                hd_resolve::show_ty(&self.cx.names, key)
+            );
+            self.err(Code::MissingRequirement, n, &msg);
+        }
+    }
+
+    /// Every key and row parameter of a callee's row, as seen from this
+    /// call, must be available here.
+    pub(crate) fn check_row(&mut self, row: RowId, n: NodeRef<'_>) {
+        let pool = self.cx.names.pool;
+        let row = self.infer.resolve_row(pool, row);
+        let d = pool.row_data(row);
+        for k in d.keys {
+            if matches!(pool.get(k), TyData::TraitValue { .. }) {
+                self.require_key(k, n);
+            }
+        }
+        for p in d.params {
+            // Only this body's own row parameters reach here substituted;
+            // another owner's are a callee's that was not instantiated.
+            if !self.row_gens.iter().any(|(_, g)| *g == p) {
+                continue;
+            }
+            if !self.available(Need::Param(p)) {
+                let name = self
+                    .row_gens
+                    .iter()
+                    .find(|(_, g)| *g == p)
+                    .map_or_else(String::new, |(s, _)| self.cx.names.text(*s).to_owned());
+                let msg = format!(
+                    "this needs the row `$ {name}`, which the enclosing function's row does not name"
+                );
+                self.err(Code::MissingRequirement, n, &msg);
+            }
+        }
+    }
+
+    /// A function value of row `got` checked against an expected function
+    /// type of row `want`. A row variable still open in `want` takes the
+    /// least solution (`req.row.least.solution`); otherwise `want` must
+    /// entail every part of `got` (`req.row.subsume`), else `type-mismatch`.
+    pub(crate) fn fit_row(&mut self, got: RowId, want: RowId, n: NodeRef<'_>, what: &str) {
+        let pool = self.cx.names.pool;
+        let got = self.infer.resolve_row(pool, got);
+        let want = self.infer.resolve_row(pool, want);
+        if got == want {
+            return;
+        }
+        let (g, w) = (pool.row_data(got), pool.row_data(want));
+        let open: Vec<Ty> = w
+            .keys
+            .iter()
+            .copied()
+            .filter(|k| matches!(pool.get(*k), TyData::Infer(_)))
+            .collect();
+        let concrete: Vec<Ty> = w
+            .keys
+            .iter()
+            .copied()
+            .filter(|k| !matches!(pool.get(*k), TyData::Infer(_)))
+            .collect();
+        if let Some((first, rest)) = open.split_first() {
+            // The least solution: what `got` lists beyond the pattern.
+            let mut beyond = Vec::new();
+            for k in &g.keys {
+                if !concrete.iter().any(|c| self.key_fits(*c, *k)) {
+                    beyond.push(*k);
+                }
+            }
+            let sol = RowData {
+                keys: beyond,
+                params: g
+                    .params
+                    .iter()
+                    .copied()
+                    .filter(|p| !w.params.contains(p))
+                    .collect(),
+            };
+            let sol = pool.intern_ty(&TyData::Row(pool.row(&sol)));
+            let _ = self.infer.unify(pool, *first, sol);
+            let empty = pool.intern_ty(&TyData::Row(RowId::EMPTY));
+            for v in rest {
+                let _ = self.infer.unify(pool, *v, empty);
+            }
+            return;
+        }
+        let mut missing = Vec::new();
+        for k in &g.keys {
+            if matches!(pool.get(*k), TyData::Infer(_)) {
+                // An open row variable in the value's own row: the least
+                // row that fits, the empty one.
+                let empty = pool.intern_ty(&TyData::Row(RowId::EMPTY));
+                let _ = self.infer.unify(pool, *k, empty);
+                continue;
+            }
+            if !concrete.iter().any(|c| self.key_fits(*c, *k)) {
+                missing.push(hd_resolve::show_ty(&self.cx.names, *k));
+            }
+        }
+        for p in &g.params {
+            if !w.params.contains(p) {
+                let name = self.row_gens.iter().find(|(_, x)| x == p).map_or_else(
+                    || "R".to_owned(),
+                    |(s, _)| self.cx.names.text(*s).to_owned(),
+                );
+                missing.push(name);
+            }
+        }
+        if let Some(k) = missing.first() {
+            let msg = format!(
+                "in {what}: the function's row lists `{k}`, which the expected row does not"
+            );
+            self.err(Code::TypeMismatch, n, &msg);
+        }
+    }
+
+    /// The callee's row as seen from this call, its row parameters
+    /// replaced by the call's row variables; a row variable that no
+    /// argument constrained is the empty row (`req.row.least.examples`).
+    pub(crate) fn call_row(
+        &mut self,
+        def: hd_base::DefId,
+        sig: &FnSig,
+        vars: &[Ty],
+        skip: usize,
+    ) -> RowId {
+        let pool = self.cx.names.pool;
+        let empty = pool.intern_ty(&TyData::Row(RowId::EMPTY));
+        for (i, g) in sig.generics.iter().enumerate() {
+            if g.row
+                && let Some(v) = vars.get(i + skip)
+                && matches!(pool.get(self.infer.shallow(pool, *v)), TyData::Infer(_))
+            {
+                let _ = self.infer.unify(pool, *v, empty);
+            }
+        }
+        let row = pool.subst_row(sig.row, &|p| {
+            (p.owner == def)
+                .then(|| vars.get(p.index as usize + skip).copied())
+                .flatten()
+        });
+        self.infer.resolve_row(pool, row)
+    }
+
+    /// `req.row.least.ambiguous`: a parameter's row pattern may list at most
+    /// one row parameter that no other parameter's pattern fixes.
+    pub(crate) fn check_row_patterns(&mut self, sig: &FnSig, node: NodeRef<'_>) {
+        let pool = self.cx.names.pool;
+        let patterns: Vec<Vec<RowParamRef>> = sig
+            .params
+            .iter()
+            .map(|(_, t)| match pool.get(*t) {
+                TyData::Fn { row, .. } => pool.row_data(row).params,
+                _ => Vec::new(),
+            })
+            .collect();
+        let mut fixed: Vec<RowParamRef> = Vec::new();
+        loop {
+            let before = fixed.len();
+            for p in &patterns {
+                let open: Vec<RowParamRef> =
+                    p.iter().copied().filter(|r| !fixed.contains(r)).collect();
+                if let [one] = open.as_slice() {
+                    fixed.push(*one);
+                }
+            }
+            if fixed.len() == before {
+                break;
+            }
+        }
+        let params: Vec<NodeRef<'_>> = Src::child(node, SyntaxKind::ParameterList)
+            .map(|pl| {
+                pl.children()
+                    .filter(|c| c.kind() == SyntaxKind::Parameter)
+                    .collect()
+            })
+            .unwrap_or_default();
+        for (i, p) in patterns.iter().enumerate() {
+            if p.iter().filter(|r| !fixed.contains(r)).count() >= 2 {
+                let at = params.get(i).copied().unwrap_or(node);
+                self.err(
+                    Code::AmbiguousRowPattern,
+                    at,
+                    "this row pattern lists two row parameters that no other parameter fixes",
+                );
+            }
+        }
+    }
+}

@@ -213,6 +213,12 @@ pub fn layout_of(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> StageResult<L
             packed_bits: None,
         },
         TyData::Mut(inner) => layout_of(pool, env, inner)?,
+        TyData::Row(_) => {
+            return Err(NotImplemented::new(
+                Stage::Emit,
+                "the layout of a requirement row",
+            ));
+        }
         TyData::Param(_)
         | TyData::Assoc { .. }
         | TyData::Infer(_)
@@ -288,6 +294,14 @@ pub fn canon(pool: &InternPool, path_hash: &dyn Fn(DefId) -> Hash128, t: Ty, h: 
         TyData::Mut(i) => {
             h.u8(7);
             canon(pool, path_hash, i, h);
+        }
+        TyData::Row(r) => {
+            h.u8(8);
+            let keys = pool.row_data(r).keys;
+            h.u32(u32::try_from(keys.len()).expect("keys"));
+            for k in keys {
+                canon(pool, path_hash, k, h);
+            }
         }
         other => {
             h.u8(255);

@@ -174,9 +174,10 @@ impl InferTable {
             } => TyData::Fn {
                 params: rl(params),
                 result: r(result),
-                row,
+                row: self.resolve_row(pool, row),
                 suspends,
             },
+            TyData::Row(row) => TyData::Row(self.resolve_row(pool, row)),
             TyData::TraitValue {
                 def,
                 args,
@@ -200,6 +201,17 @@ impl InferTable {
             other => other,
         };
         pool.intern_ty(&d)
+    }
+
+    /// Resolves a row's keys; a bound row variable's row joins the keys.
+    #[must_use]
+    pub fn resolve_row(&self, pool: &InternPool, row: crate::RowId) -> crate::RowId {
+        let mut d = pool.row_data(row);
+        if !d.keys.iter().any(|k| pool.has_infer(*k)) {
+            return row;
+        }
+        d.keys = d.keys.iter().map(|k| self.resolve(pool, *k)).collect();
+        pool.row(&d)
     }
 
     fn occurs(&self, pool: &InternPool, v: u32, t: Ty) -> bool {
