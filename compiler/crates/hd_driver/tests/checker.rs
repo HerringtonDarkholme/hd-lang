@@ -485,6 +485,19 @@ fn mut_on_unconstrained_type_parameter() {
     );
 }
 
+/// `mut Self` in a trait and in an impl names no declared type parameter.
+#[test]
+fn mut_self_is_not_a_type_parameter() {
+    let out = program(
+        "trait Dup:\n    fn dup(mut self) -> mut Self\n\ndata Box:\n    n: i32\n\nimpl Dup for Box:\n    fn dup(mut self) -> mut Self:\n        self\n\nimpl[T < mut Any] Dup for T:\n    fn dup(mut self) -> mut Self:\n        self\n\nfn main() -> void:\n    pass\n",
+    );
+    assert!(
+        !codes(&out).contains(&Code::MutOnTypeParameter),
+        "{}",
+        out.render()
+    );
+}
+
 const LIMITED_FACT: &str = "use std.annotation.annotate\n\n@annotate(.Field)\ndata MaxLen:\n    value: i32\n\nfn max_len(value: i32) -> MaxLen:\n    MaxLen { value: value }\n\ndata Profile:\n    @max_len(80)\n    name: string\n\n";
 
 /// A fact type limited to `.Field` is accepted on a field and rejected

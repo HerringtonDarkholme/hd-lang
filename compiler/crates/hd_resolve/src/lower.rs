@@ -878,6 +878,15 @@ impl Lower<'_, '_, '_> {
         self.ctor(def, kind, &args, row, span)
     }
 
+    /// Whether a `mut` type wraps the written name `Self`, which is no
+    /// declared type parameter (types.param.mut-self).
+    fn names_self(&self, n: NodeRef<'_>) -> bool {
+        n.children().find(|c| c.kind().is_type()).is_some_and(|c| {
+            c.kind() == SyntaxKind::NamedType
+                && self.segments(c).first().is_some_and(|s| s.0 == "Self")
+        })
+    }
+
     fn ty(&mut self, n: Option<NodeRef<'_>>, gn: &Gen) -> Ty {
         let Some(n) = n else { return Ty::VOID };
         let pool = self.names.pool;
@@ -912,7 +921,7 @@ impl Lower<'_, '_, '_> {
                         );
                         t
                     }
-                    TyData::Param(_) if !gn.bounded.contains(&t) => {
+                    TyData::Param(_) if !gn.bounded.contains(&t) && !self.names_self(n) => {
                         self.diags.error(
                             Code::MutOnTypeParameter,
                             self.src.span(n),
