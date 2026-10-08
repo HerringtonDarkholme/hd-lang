@@ -110,6 +110,17 @@ guide, lib/std doc comments, spec-terms rows):
 Leave filenames and test-name strings alone, as S11c did. `bash
 spec/check.sh` green. Timebox 45 minutes; push.
 
+### S13. Spec: Embedded Fields Count As Promoted Members
+
+The promotion work (#16) found that `names.promote.member` must count a
+part's embedded fields as promoted members, though embedded fields are
+never `pub`; otherwise `diamond-different-depths` cannot hide the deeper
+copy while `diamond-same-depth-conflict` still reports. Add one
+sentence (and a rule ID per `spec/STYLE.md`) to the promotion rules in
+`spec/lang/03-names-and-scopes.md` / `08-data-and-enums.md`, with a
+one-line example; cite the two fixtures. `bash spec/check.sh` green.
+Timebox 20 minutes; push.
+
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
