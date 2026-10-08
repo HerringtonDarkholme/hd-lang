@@ -1,0 +1,33 @@
+fn fill(n: i32) -> mut List[i32]:
+    let items: mut List[i32] = []
+    let state: i32 = 12345
+    let i: i32 = 0
+    while i < n:
+        state = (state * 31 + 7) % 100003
+        items.push(state)
+        i = i + 1
+    items
+
+fn sort(items: mut List[i32]) -> void:
+    let i: usize = 1
+    while i < items.len():
+        let key: i32 = items[i]
+        let j: usize = i
+        while j > 0:
+            if items[j - 1] <= key:
+                break
+            items[j] = items[j - 1]
+            j = j - 1
+        items[j] = key
+        i = i + 1
+
+fn checksum(items: List[i32]) -> i32:
+    let total: i32 = 0
+    for value in items:
+        total = (total + value) % 1000003
+    total
+
+pub fn main() -> void $ Console:
+    let items: mut List[i32] = fill(30000)
+    sort(items)
+    println(checksum(items))

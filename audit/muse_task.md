@@ -90,19 +90,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q22. Runtime Versus Node (Goal `runtime`)
-
-Under `compiler/bench/runtime/`: six small user-style programs the new
-compiler runs today (integer loops, string building, list sort, map
-counting, trait dispatch through a bound, closures), each with an
-equivalent hand-written JavaScript program. A rerunnable script runs
-both on the same Node (hd via `compiler/target/release/hd build` then
-the host's runner, JS directly), 5 runs, p50/p95, warm-up excluded, and
-writes `audit/compiler/runtime-vs-node-<short hash>.md`: per program the
-ratio hd/JS, the geomean, and anything over 1.5x flagged with a guess
-at the cause (allocation, boxing, checked arithmetic, call overhead).
-Report only. Timebox 60 minutes; push.
-
 ### Q23. Mistake Corpus And Diagnostic Location (Goals `mistakes`, `diag-location`)
 
 From `audit/hd-writing-log.md` and Q21's report, build

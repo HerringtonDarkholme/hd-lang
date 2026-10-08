@@ -1,0 +1,10 @@
+fn total(n: i32) -> i32:
+    let items: mut List[i32] = []
+    let i: i32 = 0
+    while i < n:
+        items.push((i * 31 + 7) % 100003)
+        i = i + 1
+    items.iter().map(fn(x): x * 3 + 1).filter(fn(x): x % 2 == 0).fold(0, fn(acc, x): (acc + x) % 1000003)
+
+pub fn main() -> void $ Console:
+    println(total(20000000))

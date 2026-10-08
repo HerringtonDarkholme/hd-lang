@@ -1,0 +1,33 @@
+trait Step:
+    fn step(self, x: i32) -> i32
+
+data Double:
+    k: i32
+
+impl Step for Double:
+    fn step(self, x: i32) -> i32:
+        x * 2 + self.k
+
+data Add:
+    k: i32
+
+impl Step for Add:
+    fn step(self, x: i32) -> i32:
+        x + self.k
+
+fn apply[S < Step](s: S, x: i32) -> i32:
+    s.step(x)
+
+fn drive(n: i32) -> i32:
+    double := Double { k: 3 }
+    add := Add { k: 5 }
+    let x: i32 = 1
+    let i: i32 = 0
+    while i < n:
+        x = apply(double, x) % 1000003
+        x = apply(add, x) % 1000003
+        i = i + 1
+    x
+
+pub fn main() -> void $ Console:
+    println(drive(80000000))

@@ -1,0 +1,10 @@
+fn build(n: i32) -> string:
+    let out: string = ""
+    let i: i32 = 0
+    while i < n:
+        out = out + "abcdefgh"
+        i = i + 1
+    out
+
+pub fn main() -> void $ Console:
+    println(build(40000).len())
