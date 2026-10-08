@@ -114,14 +114,9 @@ fn build_goal(program: &disk::Program, goal: &Goal) -> Result<Output, ExitCode> 
         executor: executor(),
     };
     let out: Output = build(&host, &program.package, goal);
+    eprint!("{}", out.render_located(&program.sources));
     if out.diags.has_errors() {
-        for line in out.render().lines() {
-            eprintln!("error: {line}");
-        }
         return Err(ExitCode::from(HD_FAILURE));
-    }
-    for line in out.render().lines() {
-        eprintln!("{line}");
     }
     Ok(out)
 }

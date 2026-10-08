@@ -143,9 +143,12 @@ impl DiagBuf {
         order
     }
 
-    /// Compact form: `file:lo..hi: severity code: message`, in content order.
+    /// Compact form: `severity: location: code: message`, in content order.
+    /// `location` is the caller's `file:line:column` (or byte range). The
+    /// message's leading code, if it repeats the code, is dropped so the
+    /// code prints once.
     #[must_use]
-    pub fn render_compact(&self, file_name: &dyn Fn(Span) -> String) -> String {
+    pub fn render_compact(&self, location: &dyn Fn(Span) -> String) -> String {
         let mut out = String::new();
         for i in self.content_order() {
             let p = self.primary[i];
@@ -153,15 +156,13 @@ impl DiagBuf {
                 Severity::Error => "error",
                 Severity::Warning => "warning",
             };
-            let _ = writeln!(
-                out,
-                "{}:{}..{}: {sev} {}: {}",
-                file_name(p),
-                p.lo,
-                p.hi,
-                self.code[i].as_str(),
-                self.get_text(self.message[i])
-            );
+            let code = self.code[i].as_str();
+            let text = self.get_text(self.message[i]);
+            let message = text
+                .strip_prefix(code)
+                .and_then(|rest| rest.strip_prefix(": "))
+                .unwrap_or(text);
+            let _ = writeln!(out, "{sev}: {}: {code}: {message}", location(p));
         }
         out
     }
@@ -214,7 +215,7 @@ mod tests {
         assert!(b.push(Code::SyntaxError, Severity::Error, s(9), "late", None));
         assert!(b.push(Code::SyntaxError, Severity::Error, s(2), "early", root));
         assert!(!b.push(Code::SyntaxError, Severity::Error, s(3), "dup", root));
-        let text = b.render_compact(&|_| "a.hd".into());
+        let text = b.render_compact(&|_| "a.hd:1:1".into());
         assert!(text.find("early").expect("early") < text.find("late").expect("late"));
         assert!(b.render_json().starts_with("[{\"code\":\"syntax-error\""));
     }

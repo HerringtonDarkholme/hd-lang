@@ -321,7 +321,7 @@ fn orphan_impl_overlapping_std_is_one_error() {
         "impl Display for i32:\n    fn to_string(self) -> string:\n        \"\"\n",
     )]);
     assert_eq!(r.lines().count(), 1, "{r}");
-    assert!(r.contains("error orphan-impl"), "{r}");
+    assert!(r.contains("error: a/x.hd:0..66: orphan-impl: "), "{r}");
     assert!(!r.contains("overlapping-impl"), "{r}");
 }
 

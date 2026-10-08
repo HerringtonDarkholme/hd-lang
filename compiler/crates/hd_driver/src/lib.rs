@@ -228,16 +228,48 @@ pub struct Output {
 }
 
 impl Output {
-    /// Diagnostics as `file:lo..hi: error code: message`, in content order.
+    /// Diagnostics as `severity: file:lo..hi: code: message`, in content
+    /// order. Tests use this form; the CLI uses [`Output::render_located`].
     #[must_use]
     pub fn render(&self) -> String {
+        self.diags
+            .render_compact(&|s: Span| format!("{}:{}..{}", self.file_name(s), s.lo, s.hi))
+    }
+
+    /// Diagnostics as `severity: file:line:column: code: message`, in content
+    /// order. Line and column are 1-based; the column counts characters from
+    /// the line start. `sources` supplies the text the positions index.
+    #[must_use]
+    pub fn render_located(&self, sources: &dyn SourceSet) -> String {
         self.diags.render_compact(&|s: Span| {
-            s.file
-                .get()
-                .and_then(|_| self.files.get(s.file.idx()).cloned())
-                .unwrap_or_default()
+            let file = self.file_name(s);
+            let (line, column) = sources
+                .read(&file)
+                .map_or((1, 1), |text| line_column(&text, s.lo as usize));
+            format!("{file}:{line}:{column}")
         })
     }
+
+    fn file_name(&self, s: Span) -> String {
+        s.file
+            .get()
+            .and_then(|_| self.files.get(s.file.idx()).cloned())
+            .unwrap_or_default()
+    }
+}
+
+/// The 1-based line and column of byte `offset` in `text`. The column counts
+/// characters after the line's last newline.
+fn line_column(text: &[u8], offset: usize) -> (usize, usize) {
+    let before = &text[..offset.min(text.len())];
+    // Each newline ends one segment, so the segment count is the line number.
+    let line = before.split(|&b| b == b'\n').count();
+    let start = before
+        .iter()
+        .rposition(|&b| b == b'\n')
+        .map_or(0, |i| i + 1);
+    let column = String::from_utf8_lossy(&before[start..]).chars().count() + 1;
+    (line, column)
 }
 
 struct SkimOut {

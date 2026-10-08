@@ -134,14 +134,9 @@ pub fn command(args: &[OsString]) -> ExitCode {
     };
     let out = build(&host, &package, &goal);
     // Warnings are shown; only errors stop the command.
+    eprint!("{}", out.render_located(&sources));
     if out.diags.has_errors() {
-        for line in out.render().lines() {
-            eprintln!("error: {line}");
-        }
         return ExitCode::from(HD_FAILURE);
-    }
-    for line in out.render().lines() {
-        eprintln!("{line}");
     }
     if let Some(f) = &o.file
         && out.tests.is_empty()
