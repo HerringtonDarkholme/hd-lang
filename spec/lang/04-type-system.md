@@ -2156,11 +2156,11 @@ fn setup() -> void:
 
 > **Note.** A list key can still change through a `mut` alias, as a data
 > key with a derived `Hash` already can. Its entry then becomes a
-> [ghost entry](#r-types.map.ghost).
+> [stale entry](#r-types.map.stale).
 
 > **Why.** The key traits are an ordinary bound, so a missing trait reads
 > as any other unmet bound. A `mut` key stays an error: code holding it
-> could change the key and leave a [ghost entry](#r-types.map.ghost).
+> could change the key and leave a [stale entry](#r-types.map.stale).
 
 ### Lookup And Order
 
@@ -2189,7 +2189,7 @@ fn demo() -> List[string]:
 
 1. r[types.map.key-view] A readonly key view does not freeze the object.
 2. r[types.map.no-reindex] If another mutable alias changes a stored key's equality or hash after insertion, the map does not automatically reindex it.
-3. r[types.map.ghost] The entry can remain visible during iteration yet be unreachable by lookup or removal with the mutated key: a ghost entry.
+3. r[types.map.stale] The entry can remain visible during iteration yet be unreachable by lookup or removal with the mutated key: a stale entry.
 4. r[types.map.no-repair] Such mutation does not trigger a compile-time error or an automatic repair.
 
 ```hd

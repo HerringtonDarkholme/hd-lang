@@ -90,29 +90,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### S11b. Terminology Sweep, Redone With Evidence (Owner, Next)
-
-S11 kept all 186 terms with "ordinary English" / "standard vocabulary"
-verdicts and no evidence, including `ghost entry`, `law partners`,
-`draw budget`, `coherence slot`, `take part`, `fits`. That is not the
-sweep the owner asked for ("don't invent unnecessary new words"). Redo
-`future-work/spec-terms.md` with a stricter test:
-
-- **keep** only with evidence: name the language or source and the page
-  where the term means the same thing (Rust reference, Go spec, Swift
-  book, Kotlin docs, Haskell report, TAPL, QuickCheck docs, ...), or it
-  is a keyword hd spells, or plain English used in its everyday sense
-  (say which sense). One short citation per row.
-- **replace** every term that fails that test and has a plain phrase or
-  established term; give the replacement and apply it (spec text, rule
-  IDs with retirements, citations via `pnpm run spec refs`, fixtures,
-  guide, lib/std doc comments) in commits grouped by chapter.
-- **owner** only for a real hd-only concept with no existing word: one
-  plain alternative each; list them at the top of the file.
-- Expect real replacements: a sweep that replaces nothing has not looked.
-
-`bash spec/check.sh` green after each commit. Timebox 75 minutes; push.
-
 ### S12. Glossary Hygiene
 
 `spec/README.md` and `spec/std/README.md` glossaries: merge duplicate
