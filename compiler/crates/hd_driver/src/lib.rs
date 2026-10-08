@@ -2482,12 +2482,12 @@ impl Env<'_> {
             if *tag != hd_tir::Tag::Call {
                 continue;
             }
-            let Some(hd_tir::Callee::Item { def: callee, .. }) =
+            let Some(hd_tir::Callee::Item { def: callee, targs }) =
                 hd_tir::Callee::from_words(b.record(b.data[i][0]))
             else {
                 continue;
             };
-            for k in self.row_keys(callee) {
+            for k in self.row_keys(callee, targs) {
                 if !keys.contains(&k) {
                     keys.push(k);
                 }
@@ -2515,14 +2515,23 @@ impl ProgramEnv for Env<'_> {
     fn suspends(&self, def: DefId) -> bool {
         self.sig(def).is_some_and(|s| s.suspends)
     }
-    fn row_keys(&self, def: DefId) -> Vec<DefId> {
+    fn row_keys(&self, def: DefId, args: TyList) -> Vec<DefId> {
         let Some(s) = self.sig(def) else {
             return self.init_keys(def);
         };
-        let mut keys: Vec<DefId> = self
-            .run
-            .pool
-            .row_data(s.row)
+        let pool = &self.run.pool;
+        let row = match pool.get(hd_mono::subst(
+            pool,
+            self,
+            def,
+            args,
+            pool.intern_ty(&TyData::Row(s.row)),
+        )) {
+            TyData::Row(r) => r,
+            _ => s.row,
+        };
+        let mut keys: Vec<DefId> = pool
+            .row_data(row)
             .keys
             .into_iter()
             .filter_map(|k| match self.run.pool.get(k) {
@@ -2532,6 +2541,7 @@ impl ProgramEnv for Env<'_> {
             .collect();
         let names = self.run.names();
         keys.sort_by_key(|k| names.path_hash(*k));
+        keys.dedup();
         keys
     }
     fn parent(&self, def: DefId) -> Option<(DefId, usize)> {

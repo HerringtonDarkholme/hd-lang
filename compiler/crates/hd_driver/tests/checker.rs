@@ -275,6 +275,39 @@ fn a_missing_requirement_is_an_error() {
     );
 }
 
+/// A row parameter takes the row of the callback a call passes
+/// (`req.poly.least`): a pure closure needs nothing, a closure printing
+/// needs `Console` from its caller, and a caller whose row lacks it is
+/// rejected at the call.
+#[test]
+fn row_polymorphic_callbacks() {
+    const CALL: &str = "fn call[T, $R](f: fn() -> T $ R) -> T $ R:\n    f()\n\n";
+    let ok = program(&format!(
+        "{CALL}fn main() -> void $ Console:\n    n := call(fn() -> i32: 7)\n    call(fn() -> void: println(n))\n"
+    ));
+    assert!(codes(&ok).is_empty(), "{}", ok.render());
+    // Each call's instance gets its row's providers; the closure reads
+    // its own from the context the call passes.
+    assert!(ok.wasm.is_some(), "{:?}", ok.report.body_failures);
+    let bad = program(&format!(
+        "{CALL}pub fn quiet() -> void:\n    call(fn() -> void: println(1))\n\nfn main() -> void $ Console:\n    quiet()\n"
+    ));
+    assert!(
+        codes(&bad).contains(&Code::MissingRequirement),
+        "{}",
+        bad.render()
+    );
+    // A closure fits a wider expected row, never a narrower one.
+    let narrow = program(
+        "fn run(f: fn() -> void) -> void:\n    f()\n\nfn main() -> void $ Console:\n    run(fn() -> void: println(1))\n",
+    );
+    assert!(
+        codes(&narrow).contains(&Code::TypeMismatch),
+        "{}",
+        narrow.render()
+    );
+}
+
 #[test]
 fn an_impl_must_write_every_required_trait_method() {
     let missing = "trait Named:\n    fn name(self) -> string\n    fn id(self) -> i32\n\ndata User: pass\n\nimpl Named for User:\n    fn name(self) -> string:\n        \"u\"\n\nfn main() -> void $ Console:\n    println(1)\n";

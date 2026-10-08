@@ -13,6 +13,28 @@ use crate::{VT, WTy, unsupported};
 /// The value bound (§15.1).
 pub const BOUND: usize = 4;
 
+/// A function value's provider context (codegen.md §12.4, one callable
+/// ABI): every closure code takes, after its arguments, the key ids and
+/// the providers of the caller's row for it, so a value of any narrower
+/// row looks its own keys up and row subsumption is no instruction.
+#[must_use]
+pub fn ctx_keys() -> WTy {
+    WTy::Array(VT::I64)
+}
+
+/// The providers of a context: per key, its value and its vtable.
+#[must_use]
+pub fn ctx_provs() -> WTy {
+    WTy::Array(VT::Eq)
+}
+
+/// The id a context gives a key: the low bits of its stable path hash.
+#[must_use]
+pub fn key_id(env: &dyn ProgramEnv, k: DefId) -> i64 {
+    let bytes = env.path_hash(k).0.to_le_bytes();
+    i64::from_le_bytes(bytes[..8].try_into().unwrap_or_default())
+}
+
 /// What emission reads about the program's types.
 pub struct Lay<'a> {
     pub pool: &'a InternPool,
@@ -366,6 +388,8 @@ impl Lay<'_> {
                 for p in pool.list_items(params) {
                     ps.extend(self.vts_at(p, d)?);
                 }
+                ps.push(VT::rn(ctx_keys()));
+                ps.push(VT::rn(ctx_provs()));
                 let code = WTy::Func(ps, self.vts_at(result, d)?);
                 Shape::Fn {
                     base: closure_base(&code),

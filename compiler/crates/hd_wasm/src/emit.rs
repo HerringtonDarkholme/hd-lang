@@ -17,7 +17,8 @@ use hd_types::{InternPool, Prim, Ty, TyData, TyList};
 use crate::asm::Asm;
 use crate::layout::{
     ACTIVE, CANCELLED, DONE, EnumShape, F_CANCEL, F_CHILD, F_FLAGS, F_POLL, F_SAVED, F_STATE, Lay,
-    OptShape, Shape, box_of, cancel_fn, frame_of, storage, suspend_base, task_base,
+    OptShape, Shape, box_of, cancel_fn, ctx_keys, ctx_provs, frame_of, key_id, storage,
+    suspend_base, task_base,
 };
 use crate::rt::{Helper, OptForm, block_import};
 use crate::{Code, GSym, Part, Sym, VT, WTy, unsupported};
@@ -375,6 +376,8 @@ impl Em<'_> {
                     self.load_as(r, &want)?;
                     k += n;
                 }
+                let callee = self.ty_of(a);
+                self.push_ctx(callee)?;
                 self.a.get(f);
                 self.a.struct_get(&base, 0);
                 self.a.call_ref(&code);
@@ -1249,6 +1252,49 @@ impl Em<'_> {
         Ok(())
     }
 
+    /// The keys of a function type's row, as trait items.
+    fn fn_row_keys(&self, t: Ty) -> Vec<DefId> {
+        let pool = self.pool();
+        let t = match pool.get(t) {
+            TyData::Mut(i) => i,
+            _ => t,
+        };
+        let TyData::Fn { row, .. } = pool.get(t) else {
+            return Vec::new();
+        };
+        let mut keys: Vec<DefId> = pool
+            .row_data(row)
+            .keys
+            .into_iter()
+            .filter_map(|k| match pool.get(k) {
+                TyData::TraitValue { def, .. } => Some(def),
+                _ => None,
+            })
+            .collect();
+        keys.sort_by_key(|k| self.env().path_hash(*k));
+        keys.dedup();
+        keys
+    }
+
+    /// The context a call of a function value of type `callee` passes:
+    /// the key ids and this body's providers of the callee type's row
+    /// (codegen.md §12.4), or two nulls for the empty row.
+    fn push_ctx(&mut self, callee: Ty) -> StageResult<()> {
+        let keys = self.fn_row_keys(callee);
+        if keys.is_empty() {
+            self.a.ref_null(&ctx_keys());
+            self.a.ref_null(&ctx_provs());
+            return Ok(());
+        }
+        for k in &keys {
+            self.a.i64(key_id(self.env(), *k));
+        }
+        self.a.array_new_fixed(&ctx_keys(), u32_of(keys.len()));
+        self.push_providers(&keys)?;
+        self.a.array_new_fixed(&ctx_provs(), u32_of(2 * keys.len()));
+        Ok(())
+    }
+
     fn call(&mut self, i: u32, callee_at: u32, args_at: u32, ty: Ty) -> StageResult<()> {
         let rec = self.rec(args_at);
         let args = &rec[..rec.len().saturating_sub(3)];
@@ -1278,7 +1324,7 @@ impl Em<'_> {
                     let want = self.vts(*p)?;
                     self.load_as(*r, &want)?;
                 }
-                let keys = self.env().row_keys(t.item);
+                let keys = self.env().row_keys(t.item, t.args);
                 self.push_providers(&keys)?;
                 self.a.call(Sym::Inst(t.key));
                 // A suspending callee's plain call is its cold constructor.
@@ -2011,7 +2057,7 @@ pub fn signature(
         for &l in &plocals {
             params.extend(lay.vts(s(b.local_ty[l as usize]))?);
         }
-        for k in lay.env.row_keys(item) {
+        for k in lay.env.row_keys(item, args) {
             params.push(VT::Eq);
             params.push(VT::r(lay.vtable(k, TyList::EMPTY)?));
         }
@@ -2027,6 +2073,8 @@ pub fn signature(
         for &l in &plocals {
             params.extend(lay.vts(s(b.local_ty[l as usize]))?);
         }
+        params.push(VT::rn(ctx_keys()));
+        params.push(VT::rn(ctx_provs()));
         let Some(ci) =
             (0..b.len()).find(|&i| b.tags[i] == Tag::Closure && b.data[i][0] == u32::from(sub))
         else {
@@ -2669,7 +2717,7 @@ impl<'a> Em<'a> {
             let want: Vec<VT> = self.vts(*p)?.iter().map(VT::dflt).collect();
             self.load_as(*r, &want)?;
         }
-        let keys = self.env().row_keys(t.item);
+        let keys = self.env().row_keys(t.item, t.args);
         self.push_providers(&keys)?;
         self.a.call(Sym::Part(t.key, Part::Body));
         let tmp: Vec<u32> = gres.iter().map(|v| self.a.local(v.dflt())).collect();
@@ -2869,7 +2917,7 @@ pub fn emit(
         em.locals[l as usize] = Some(ls);
     }
     if sub == 0 {
-        for k in env.row_keys(b.item) {
+        for k in env.row_keys(b.item, args) {
             em.providers.push((k, [next, next + 1]));
             next += 2;
         }
@@ -2908,6 +2956,47 @@ pub fn emit(
             em.a.get(e);
             em.a.struct_get(&env_ty, f);
             em.a.set(l);
+        }
+        // The closure's own row: each key's provider from the context.
+        let (keys_at, provs_at) = (next, next + 1);
+        for k in em.fn_row_keys(s(b.ty[ci])) {
+            let vt = em.lay.vtable(k, TyList::EMPTY)?;
+            let pl = em.a.local(VT::Eq);
+            let vl = em.a.local(VT::r(vt.clone()));
+            let at = em.a.local(VT::I32);
+            em.a.i32(0);
+            em.a.set(at);
+            em.a.block();
+            em.a.loop_();
+            em.a.raw_get(keys_at);
+            em.a.raw_get(at);
+            em.a.array_get(&ctx_keys());
+            em.a.i64(key_id(env, k));
+            em.a.s().i64_eq();
+            em.a.br_if(1);
+            em.a.raw_get(at);
+            em.a.i32(1);
+            em.a.s().i32_add();
+            em.a.set(at);
+            em.a.br(0);
+            em.a.end();
+            em.a.end();
+            em.a.raw_get(provs_at);
+            em.a.raw_get(at);
+            em.a.i32(2);
+            em.a.s().i32_mul();
+            em.a.array_get(&ctx_provs());
+            em.a.set(pl);
+            em.a.raw_get(provs_at);
+            em.a.raw_get(at);
+            em.a.i32(2);
+            em.a.s().i32_mul();
+            em.a.i32(1);
+            em.a.s().i32_add();
+            em.a.array_get(&ctx_provs());
+            em.a.ref_cast(&vt, false);
+            em.a.set(vl);
+            em.providers.push((k, [pl, vl]));
         }
     }
     let root = b.sub_root[sub as usize];
@@ -2985,7 +3074,7 @@ fn emit_suspending(
             em.locals[l as usize] = Some((next..next + n).collect());
             next += n;
         }
-        for k in env.row_keys(b.item) {
+        for k in env.row_keys(b.item, args) {
             em.providers.push((k, [next, next + 1]));
             next += 2;
         }
@@ -3272,7 +3361,7 @@ fn root_poll(
 ) -> StageResult<Helper> {
     let lay = Lay { pool, env, path };
     let mut providers = Vec::new();
-    for k in env.row_keys(main) {
+    for k in env.row_keys(main, TyList::EMPTY) {
         let p = path(k);
         let Some(host) = hd_host_abi::TABLE
             .iter()

@@ -32,9 +32,10 @@ pub trait ProgramEnv: LayoutEnv {
     fn params(&self, def: DefId) -> Option<Vec<Ty>>;
     /// Whether the function suspends (`fn f!`).
     fn suspends(&self, def: DefId) -> bool;
-    /// The requirement keys of the function's row, as trait items, in
-    /// key order (codegen.md §12.4).
-    fn row_keys(&self, def: DefId) -> Vec<DefId>;
+    /// The requirement keys of an instance's row, as trait items, in key
+    /// order (codegen.md §12.4): the declared keys, and the keys of each
+    /// row parameter's argument, so providers are passed per instance.
+    fn row_keys(&self, def: DefId, args: TyList) -> Vec<DefId>;
     /// A method's owner (impl or trait) and how many of the instance's
     /// arguments are the owner's: an impl's parameters, or a trait's
     /// `Self` and parameters.
@@ -291,9 +292,12 @@ impl Cx<'_> {
         let bounded = self.env.bounded(def).unwrap_or_default();
         let mut a = Vec::new();
         for (k, &t) in args.iter().enumerate() {
+            // A row argument is part of the instance (codegen.md §12.4:
+            // its keys are the instance's provider parameters).
             let exact = k < own_from
                 || bounded.get(k - own_from).copied().unwrap_or(true)
                 || is_class_ref(self.pool, t)
+                || matches!(self.pool.get(t), TyData::Row(_))
                 || self.env.body(def).is_none();
             a.push(
                 if !exact && a1_class(self.pool, self.env, t)? == A1Class::Ref {
@@ -543,7 +547,7 @@ impl Cx<'_> {
                     for b in env.bounded(t.item).unwrap_or_default() {
                         reps.u8(u8::from(b));
                     }
-                    for k in env.row_keys(t.item) {
+                    for k in env.row_keys(t.item, t.args) {
                         reps.hash(env.path_hash(k));
                     }
                     calls.insert(ix, Target::Call(t));
