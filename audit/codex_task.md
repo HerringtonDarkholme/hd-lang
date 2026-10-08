@@ -131,6 +131,41 @@ One fixture per new rule (parse phase) and a `compiler/KNOWN_FAILURES.tsv`
 row if the new parser disagrees. `bash spec/check.sh` and
 `cargo test -p hd_syntax` green. Timebox 45 minutes; push.
 
+### D2f. Reconcile M4d
+
+M4d landed (b756387e): module init, suspension state machines and the
+`defer` exit ladder run end to end. Run D2 for it, and record (citing
+"M4d gap n") with the intended rule:
+
+1. No liveness (suspension.md §14.2 step 1): frames save every local at
+   every point; dead references are not cleared (Codex re-review N-B6).
+2. Resume uses pc-guarded block lists, not the `br_table` dispatch loop
+   §14.2 chose for code size. Orchestrator decision: keep it for phase
+   1; restore the designed dispatch in phase 3 ("make it wonderful")
+   when size work starts. Record it as a known deviation.
+3. The callee's frame type: §14.1 types `f$body`'s frame as `$F_f`,
+   unknown to callers until the callee is emitted; M4d uses
+   `$Suspend_L` plus a cast, and a layout-independent `$Task` prefix
+   (cancel, state, flags) so parents cancel children of any result
+   type. Adopt or correct in suspension.md.
+4. No waker objects or wake masks: a completed-handle table; `all!`
+   re-polls every unfinished child; no handle generations or slot reuse.
+5. Not built: the competing-driver field and check, the
+   forbidden-context counter (indirect `block_on`/`println`), the debug
+   deadlock report, hook emission.
+6. Init: statement order inside a multi-module group with statements in
+   more than one module; providers in the entry module's top level
+   (`module.init.script-row`).
+7. Checker gaps for the follow-up list: S5 shared enum data (constructor
+   expressions not checked into the Init body; field reads fail
+   `unknown-data-field`); `"$x"` interpolation of a top-level binding
+   fails `unknown-name`; every `for` lowers to `iter`/`next`, never the
+   For tags, so `for i in 0..3` fails at emission; a `main` returning
+   `.Err` exits 0.
+
+Update `reconciliation.md` and `footprint.md`. Docs only; timebox 45
+minutes; push.
+
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
