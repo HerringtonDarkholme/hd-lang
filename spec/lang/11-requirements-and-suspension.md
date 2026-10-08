@@ -473,7 +473,7 @@ fn get_order() -> string $ AppRow + Clock:
 10. r[req.row.alias.one-key] An ordinary alias of one trait, such as `type Store = Db`, names that trait wherever it is used. So `x: dyn Store` is a `dyn Db` value, and `$ Store` is the key `Db`.
 11. r[req.row.alias.bound-key] A row alias may list a [bound key](#bound-requirement-keys), as in `type UserRow = $ Store[Item = User] + Log`. An ordinary alias of one bound trait, as in `type UserStore = Store[Item = User]`, is that bound key in a row.
 12. r[req.row.alias.access] A key reached through an alias is its trait, so its provider's access follows [`req.mut.trait-access`](#r-req.mut.trait-access).
-13. r[req.row.alias.no-mut] An alias whose target is written with `mut`, as in `type Store = mut Db`, is an error where it is used as a key. Error: `syntax-error`.
+13. r[req.row.alias.no-mut] An alias whose target is written with `mut`, as in `type Store = mut Db`, is an error where it is used as a key. The `mut` is visible only after resolving the alias, so a parser cannot detect it: this is a type-phase check. Error: `mut-alias-key`.
 14. r[req.row.alias.generic.marked] A row alias may declare generic parameters, and a row parameter among them is marked `$`, as in `type WithLog[$R] = $ R + Log`.
 15. r[req.row.alias.generic.use] `$ WithLog[$ Clock]` is the row `$ Clock + Log`, and in a function with row parameter `R`, `$ WithLog[$ R]` extends `R` with `Log`.
 16. r[req.row.alias.generic.kind] A row argument for a type-kinded alias parameter, as in `$ Only[$ AppRow]` after `type Only[T] = T`, is an error. Error: `generic-kind-mismatch`.

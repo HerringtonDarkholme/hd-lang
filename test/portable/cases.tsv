@@ -1151,7 +1151,6 @@ typing/invalid/row-alias-as-type.hd	type
 typing/invalid/row-alias-in-use.hd	type
 typing/invalid/row-alias-binding.hd	type
 typing/valid/row-alias-bare-context.hd	type
-typing/invalid/row-alias-mut-key.hd	type
 typing/invalid/row-alias-generic-kind.hd	type
 runtime/valid/installer-function-runs.hd	runtime
 typing/invalid/cast-literal-out-of-range.hd	type

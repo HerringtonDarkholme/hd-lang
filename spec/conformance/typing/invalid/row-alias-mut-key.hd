@@ -5,5 +5,5 @@ trait Counter:
 
 type Store = mut dyn Counter
 
-fn tick() -> void $ Store:  # diagnostic: syntax-error
+fn tick() -> void $ Store:  # diagnostic: mut-alias-key
     pass

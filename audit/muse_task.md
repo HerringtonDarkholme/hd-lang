@@ -90,21 +90,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### S8. Spec: Where `req.row.alias.no-mut` Is Detected
-
-T2 retagged `typing/invalid/row-alias-mut-key.hd` as a parse-phase
-`syntax-error`, but detecting `mut` behind a type alias in a requirement
-row needs the alias resolved, which a parser cannot do (the new
-compiler ledgers it in `compiler/KNOWN_FAILURES.tsv`). Read
-`req.row.alias.no-mut` and its neighbours in
-`spec/lang/11-requirements-and-suspension.md`: either the rule is a
-type-phase check with its own code (find the existing one or add one
-per `spec/STYLE.md`), or the rule must be syntactic (then say how a
-parser sees it). Fix the rule text, the fixture's expected code and its
-`cases.tsv` phase together, remove the ledger row if the case's phase
-moves, and run `cargo test -p hd_syntax --test corpus` and `bash
-spec/check.sh`. Timebox 30 minutes; push.
-
 ### S9. Spec: `tests:` Imports May Shadow (Owner Decision)
 
 Owner, 2026-10-07, on S7's `names.tests.no-shadow`: **allow

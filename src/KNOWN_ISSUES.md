@@ -10,10 +10,10 @@ git history keeps the audit evidence behind each finding.
 
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
-finding below or with an applied decision. On 2026-10-07 the suite has
-2,830 cases: 2,763 selected in `test/portable/cases.tsv` and 67 known
-failures. The selected cases are 2,375 language tier, 312 stdlib tier, and 76
-CLI tier; the known failures are 44 language tier, 4 stdlib tier, and 19
+finding below or with an applied decision. On 2026-10-08 the suite has
+2,830 cases: 2,762 selected in `test/portable/cases.tsv` and 68 known
+failures. The selected cases are 2,374 language tier, 312 stdlib tier, and 76
+CLI tier; the known failures are 45 language tier, 4 stdlib tier, and 19
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -27,6 +27,7 @@ CLI tier.
 | F-621 | 1 | a library module under test gets an entry row for its top level |
 | F-622 | 1 | `derivation-line-drift` warns on blocks whose member lines agree |
 | F-623 | 3 | the package graph is not modeled, so no `package-cycle` and no dependency back on the root |
+| F-624 | 1 | the checker reports `syntax-error` for a `mut`-target alias used as a requirement key instead of `mut-alias-key` |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
 | S1A | 5 | indirect `block_on` and `println` panic at run time instead of a transitive ban; no instantiation depth limit; impl-head projections accepted |
 | S1B | 4 | `hd fmt` and two JSON report fields are missing |
@@ -91,6 +92,12 @@ Correctness and diagnostics:
   build (`module.test.cyclic-dev-unit`, `module.test.cyclic-dev-allowed`).
   `cli/dep-package-cycle`, `cli/dev-dependency-cyclic-unit`, and
   `cli/dev-dependency-cyclic-integration` show it.
+- **F-624**: the checker reports the legacy `syntax-error` on the function
+  line for an alias whose target is written with `mut` used as a
+  requirement key, instead of resolving the alias and reporting
+  `mut-alias-key` on the key use. By `req.row.alias.no-mut`, detecting
+  the `mut` needs the alias resolved, which is a type-phase check.
+  `typing/invalid/row-alias-mut-key.hd` shows it.
 
 Runtime cost:
 
