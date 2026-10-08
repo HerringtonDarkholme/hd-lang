@@ -1269,8 +1269,11 @@ impl Ck<'_, '_> {
                     return Ok(());
                 }
                 let Some((l, depth)) = self.find_local(name) else {
-                    let msg = format!("`{}` is not defined", self.cx.names.text(name));
-                    self.err(Code::UnknownName, *lhs, &msg);
+                    let text = self.cx.names.text(name).to_owned();
+                    if !self.is_poison_name(&text) {
+                        let msg = format!("`{text}` is not defined");
+                        self.err(Code::UnknownName, *lhs, &msg);
+                    }
                     return Ok(());
                 };
                 let flags = self.b.body_mut().local_flags[l.idx()];

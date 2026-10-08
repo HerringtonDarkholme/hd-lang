@@ -166,6 +166,9 @@ impl Ck<'_, '_> {
             return Ok(v);
         }
         let text = self.cx.names.text(s).to_owned();
+        if self.is_poison_name(&text) {
+            return Ok(self.poison_value(n));
+        }
         if let Some(Named::Item(def)) = self.scope_name(&text)
             && let Some(item) = self.cx.lookup.item(def)
         {
@@ -206,6 +209,9 @@ impl Ck<'_, '_> {
             }
         }
         let segs = self.segments_expr(inner);
+        if segs.first().is_some_and(|s| self.is_poison_name(s)) {
+            return Ok(self.poison_value(n));
+        }
         let Some(def) = self.resolve_path(&segs) else {
             let msg = format!("`{}` is not defined", segs.join("."));
             self.err(Code::UnknownName, n, &msg);
@@ -302,6 +308,9 @@ impl Ck<'_, '_> {
                 if let Some(Named::Item(def)) = self.scope_name(&text) {
                     return self.call_item(def, &[], &args, n, bang, want);
                 }
+                if self.is_poison_name(&text) {
+                    return Ok(self.poison_value(n));
+                }
                 let msg = format!("`{text}` is not defined");
                 self.err(Code::UnknownName, callee, &msg);
                 Ok((Ref(NONE), Ty::NEVER))
@@ -317,6 +326,9 @@ impl Ck<'_, '_> {
                     }
                 }
                 let segs = self.segments_expr(inner);
+                if segs.first().is_some_and(|s| self.is_poison_name(s)) {
+                    return Ok(self.poison_value(n));
+                }
                 match self.resolve_path(&segs) {
                     Some(def)
                         if matches!(
@@ -998,6 +1010,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<Option<(Ref, Ty)>> {
         let text = self.cx.src.text(self.cx.src.first(base)).to_owned();
         match self.scope_name(&text) {
+            Some(Named::Poison) => Ok(Some(self.poison_value(n))),
             Some(Named::Module(m)) => {
                 let Some(def) = self.export(m, name) else {
                     let msg = format!("`{text}.{name}` is not defined");
@@ -1138,6 +1151,7 @@ impl Ck<'_, '_> {
                 return self.static_on_type(Ty::prim(*p), &name, args, (n, bang), false, want);
             }
             match self.scope_name(&text) {
+                Some(Named::Poison) => return Ok(self.poison_value(n)),
                 Some(Named::Module(m)) => {
                     let Some(def) = self.export(m, &name) else {
                         let msg = format!("`{text}.{name}` is not defined");

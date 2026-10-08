@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1575 | 729 | 539 | 2843 |
+| 1586 | 717 | 540 | 2843 |
 
 ## By Chapter
 
@@ -23,7 +23,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/07-functions.md` | 51 | 34 | 45 | 130 |
 | `lang/08-data-and-enums.md` | 52 | 41 | 30 | 123 |
 | `lang/09-traits.md` | 185 | 126 | 47 | 358 |
-| `lang/10-modules.md` | 108 | 97 | 53 | 258 |
+| `lang/10-modules.md` | 119 | 86 | 53 | 258 |
 | `lang/11-requirements-and-suspension.md` | 104 | 54 | 101 | 259 |
 | `lang/14-annotations.md` | 61 | 73 | 19 | 153 |
 | `std/cli.md` | 1 | 0 | 4 | 5 |
@@ -52,7 +52,7 @@ fixture; unsupported surface records progress without failing.
 | `std/serde.md` | 2 | 1 | 5 | 8 |
 | `std/sys.md` | 0 | 1 | 0 | 1 |
 | `std/task.md` | 1 | 1 | 5 | 7 |
-| `std/testing.md` | 14 | 23 | 2 | 39 |
+| `std/testing.md` | 14 | 22 | 3 | 39 |
 | `std/text.md` | 27 | 5 | 3 | 35 |
 | `std/time.md` | 15 | 1 | 1 | 17 |
 
@@ -62,9 +62,9 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 52 | 34 | 19 | 105 |
+| `runtime/panic` | 52 | 33 | 20 | 105 |
 | `runtime/valid` | 386 | 179 | 364 | 929 |
-| `typing/invalid` | 508 | 455 | 110 | 1073 |
+| `typing/invalid` | 519 | 444 | 110 | 1073 |
 | `typing/valid` | 335 | 34 | 46 | 415 |
 | `typing/warnings` | 7 | 13 | 0 | 20 |
 
@@ -102,7 +102,6 @@ compiler stage that first declined the case.
 | `fail:pattern-arity` | 2 |
 | `fail:pipe-step-needs-placeholder` | 5 |
 | `fail:placeholder-outside-pipe` | 1 |
-| `fail:private-import` | 1 |
 | `fail:re-export-loop` | 1 |
 | `fail:runtime-exit` | 56 |
 | `fail:stdout` | 10 |
@@ -114,10 +113,10 @@ compiler stage that first declined the case.
 | `fail:type-mismatch` | 87 |
 | `fail:type-used-as-value` | 2 |
 | `fail:unknown-data-field` | 13 |
-| `fail:unknown-import` | 27 |
+| `fail:unknown-import` | 26 |
 | `fail:unknown-method` | 33 |
-| `fail:unknown-module` | 14 |
-| `fail:unknown-name` | 12 |
+| `fail:unknown-module` | 5 |
+| `fail:unknown-name` | 11 |
 | `fail:unknown-named-argument` | 3 |
 | `fail:unknown-trait` | 9 |
 | `fail:unknown-type` | 4 |
@@ -127,7 +126,7 @@ compiler stage that first declined the case.
 | `unsupported:Body` | 202 |
 | `unsupported:Collect` | 88 |
 | `unsupported:Discover` | 13 |
-| `unsupported:Emit` | 137 |
+| `unsupported:Emit` | 138 |
 | `unsupported:FolderIface` | 35 |
 | `unsupported:Link` | 1 |
 | `unsupported:RunCase` | 57 |
@@ -663,12 +662,6 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:private-import</code> (1)</summary>
-
-- `typing/invalid/sibling-module-private-function-import.hd`
-
-</details>
-
 <details><summary><code>fail:re-export-loop</code> (1)</summary>
 
 - `typing/invalid/pub-use-loop.hd`
@@ -909,7 +902,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-import</code> (27)</summary>
+<details><summary><code>fail:unknown-import</code> (26)</summary>
 
 - `runtime/valid/it-each-rows.hd`
 - `typing/invalid/it-each-outside-test-position.hd`
@@ -936,7 +929,6 @@ compiler stage that first declined the case.
 - `typing/valid/test-runner-every-registration-form.hd`
 - `runtime/valid/property-generators-scalars.hd`
 - `runtime/valid/property-generators-collections.hd`
-- `typing/invalid/unknown-package-name.hd`
 - `typing/invalid/integration-test-private-name.hd`
 
 </details>
@@ -979,26 +971,17 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-module</code> (14)</summary>
+<details><summary><code>fail:unknown-module</code> (5)</summary>
 
 - `typing/invalid/folder-cycle-facade.hd`
 - `typing/invalid/folder-cycle-nested.hd`
 - `runtime/valid/folder-graph-test-edges.hd`
-- `typing/invalid/integration-super-above-test-root.hd`
-- `typing/invalid/integration-program-use.hd`
-- `typing/invalid/root-file-super.hd`
-- `typing/invalid/main-not-importable.hd`
-- `typing/invalid/unknown-pkg-module.hd`
-- `typing/invalid/unknown-dep-module.hd`
-- `typing/invalid/relative-shared-test-above-test-root.hd`
-- `typing/invalid/root-file-lib-super.hd`
-- `typing/invalid/relative-above-package-root.hd`
 - `runtime/valid/map-sys.hd`
 - `runtime/valid/net-own-provider.hd`
 
 </details>
 
-<details><summary><code>fail:unknown-name</code> (12)</summary>
+<details><summary><code>fail:unknown-name</code> (11)</summary>
 
 - `typing/valid/recursive-local-closure.hd`
 - `typing/invalid/recursive-closure-inferred-result.hd`
@@ -1008,7 +991,6 @@ compiler stage that first declined the case.
 - `runtime/valid/recursive-local-closure.hd`
 - `typing/invalid/default-later-parameter-earlier-twin.hd`
 - `typing/invalid/variant-pattern-unknown-field.hd`
-- `runtime/panic/snapshot-mismatch.hd`
 - `typing/invalid/module-path-private-member.hd`
 - `typing/invalid/module-path-missing-member.hd`
 - `typing/invalid/module-path-private-std-function.hd`
@@ -1425,7 +1407,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Emit</code> (137)</summary>
+<details><summary><code>unsupported:Emit</code> (138)</summary>
 
 - `runtime/valid/float-display.hd`
 - `runtime/panic/map-iterator-invalidated.hd`
@@ -1478,6 +1460,7 @@ compiler stage that first declined the case.
 - `runtime/valid/function-type-impl-method.hd`
 - `runtime/valid/generic-function-value-argument-inference.hd`
 - `runtime/panic/println-in-default-indirect.hd`
+- `runtime/panic/snapshot-mismatch.hd`
 - `runtime/valid/row-extension-absent-key-runs.hd`
 - `runtime/valid/string-prefix-std.hd`
 - `runtime/valid/row-subsumption-runs.hd`
@@ -2625,6 +2608,8 @@ typing/invalid/inspectable-needs-import.hd
 typing/invalid/integer-literal-match-without-catch-all.hd
 typing/invalid/integer-literal-range.hd
 typing/invalid/integer-narrowing.hd
+typing/invalid/integration-program-use.hd
+typing/invalid/integration-super-above-test-root.hd
 typing/invalid/integration-tests-root-use.hd
 typing/invalid/interpolation-without-display.hd
 typing/invalid/invalid-map-key.hd
@@ -2686,6 +2671,7 @@ typing/invalid/literal-var-range-bound-conflict.hd
 typing/invalid/literal-var-structure-conflict.hd
 typing/invalid/literal-var-top-level-undecided.hd
 typing/invalid/local-value-reuses-type-parameter.hd
+typing/invalid/main-not-importable.hd
 typing/invalid/marker-bound-unproven.hd
 typing/invalid/match-arm-after-catch-all.hd
 typing/invalid/match-arm-misses-expected-type.hd
@@ -2814,7 +2800,9 @@ typing/invalid/reassign-short-binding.hd
 typing/invalid/reassign-short-module-binding.hd
 typing/invalid/recursive-data-optional-field-required.hd
 typing/invalid/redeclare-core-type.hd
+typing/invalid/relative-above-package-root.hd
 typing/invalid/relative-path-into-std.hd
+typing/invalid/relative-shared-test-above-test-root.hd
 typing/invalid/requirement-key-argument-bare-trait.hd
 typing/invalid/requirement-key-binding-missing.hd
 typing/invalid/requirement-key-binding-row-unknown-trait.hd
@@ -2828,6 +2816,8 @@ typing/invalid/result-constructor-without-context.hd
 typing/invalid/result-invariant.hd
 typing/invalid/result-ok-payload-type-mismatch.hd
 typing/invalid/result-ok-without-unit.hd
+typing/invalid/root-file-lib-super.hd
+typing/invalid/root-file-super.hd
 typing/invalid/row-extension-keeps-other-keys.hd
 typing/invalid/row-extension-unsound.hd
 typing/invalid/row-extension-without-provider.hd
@@ -2850,6 +2840,7 @@ typing/invalid/short-binding-readonly-root.hd
 typing/invalid/sibling-module-binding-not-visible.hd
 typing/invalid/sibling-module-function-not-imported.hd
 typing/invalid/sibling-module-private-function-bare.hd
+typing/invalid/sibling-module-private-function-import.hd
 typing/invalid/sibling-module-trait-name-not-imported.hd
 typing/invalid/sign-fallback-no-instantiation.hd
 typing/invalid/single-file-self-use.hd
@@ -2904,7 +2895,10 @@ typing/invalid/u32-to-usize-binding.hd
 typing/invalid/unary-minus-string.hd
 typing/invalid/unary-plus-i32-literal-range.hd
 typing/invalid/unit-pattern-non-void.hd
+typing/invalid/unknown-dep-module.hd
 typing/invalid/unknown-literal-suffix.hd
+typing/invalid/unknown-package-name.hd
+typing/invalid/unknown-pkg-module.hd
 typing/invalid/unknown-std-module-grouped.hd
 typing/invalid/unknown-std-module.hd
 typing/invalid/unknown-std-name.hd

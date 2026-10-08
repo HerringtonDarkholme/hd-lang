@@ -6,6 +6,7 @@ use hd_base::{DefId, StageResult};
 use hd_intern::PathKind;
 use hd_resolve::{BindingKind, HeadKind, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
+use hd_tir::ir::{NONE, Ref, Tag, TirSink};
 use hd_types::{ParamRef, Prim, RowData, RowId, Ty, TyData, TyList, VarKind};
 
 use crate::body::{Ck, unsupported};
@@ -15,6 +16,8 @@ use crate::body::{Ck, unsupported};
 pub(crate) enum Named {
     Item(DefId),
     Module(u32),
+    /// Bound by a failed `use`: an earlier error, stay quiet.
+    Poison,
 }
 
 impl Ck<'_, '_> {
@@ -37,8 +40,22 @@ impl Ck<'_, '_> {
         match b.kind {
             BindingKind::Item => Some(Named::Item(DefId::from_raw(b.value))),
             BindingKind::Module => Some(Named::Module(b.value)),
+            BindingKind::Poison => Some(Named::Poison),
             _ => None,
         }
+    }
+
+    /// Whether a module-level name was bound by a failed `use`.
+    pub(crate) fn is_poison_name(&self, name: &str) -> bool {
+        matches!(self.scope_name(name), Some(Named::Poison))
+    }
+
+    /// The value of a reference to a poisoned name.
+    pub(crate) fn poison_value(&mut self, n: NodeRef<'_>) -> (Ref, Ty) {
+        (
+            self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()),
+            Ty::POISON,
+        )
     }
 
     /// `module.name` through the module's export.
@@ -138,6 +155,9 @@ impl Ck<'_, '_> {
             if let Some(p) = Prim::ALL.iter().find(|p| p.name() == name) {
                 return Ok(Ty::prim(*p));
             }
+        }
+        if self.is_poison_name(&segs[0]) {
+            return Ok(Ty::POISON);
         }
         let Some(def) = self.resolve_path(&segs) else {
             return unsupported(format!("the type name `{}`", segs.join(".")));

@@ -396,8 +396,10 @@ impl Ck<'_, '_> {
                             None => self.global_get(sym, n),
                         };
                         let Some((r, ty)) = read else {
-                            let msg = format!("`{name}` is not defined");
-                            self.err(Code::UnknownName, n, &msg);
+                            if !self.is_poison_name(&name) {
+                                let msg = format!("`{name}` is not defined");
+                                self.err(Code::UnknownName, n, &msg);
+                            }
                             continue;
                         };
                         let s = self.display_str(r, ty, n)?;
@@ -1227,8 +1229,11 @@ impl Ck<'_, '_> {
             } else {
                 // Shorthand `Name { x }`.
                 let Some((l, d)) = self.find_local(fname) else {
-                    let msg = format!("`{}` is not defined", self.cx.names.text(fname));
-                    self.err(Code::UnknownName, *a, &msg);
+                    let text = self.cx.names.text(fname).to_owned();
+                    if !self.is_poison_name(&text) {
+                        let msg = format!("`{text}` is not defined");
+                        self.err(Code::UnknownName, *a, &msg);
+                    }
                     continue;
                 };
                 self.read_local(l, d, *a)

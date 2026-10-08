@@ -99,6 +99,9 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let sym = self.cx.names.syms.intern(name);
+        if self.is_poison_name(name) {
+            return Ok(self.poison(n));
+        }
         let Some(b) = self.cx.scope.lookup(sym) else {
             let msg = format!("`{name}` is not defined");
             self.err(Code::UnknownName, n, &msg);
@@ -208,8 +211,10 @@ impl Ck<'_, '_> {
                             None => self.global_get(sym, n),
                         };
                         let Some((r, ty)) = read else {
-                            let msg = format!("`{name}` is not defined");
-                            self.err(Code::UnknownName, n, &msg);
+                            if !self.is_poison_name(&name) {
+                                let msg = format!("`{name}` is not defined");
+                                self.err(Code::UnknownName, n, &msg);
+                            }
                             continue;
                         };
                         pieces.push(self.b.const_str(&std::mem::take(&mut cur)));

@@ -425,6 +425,42 @@ fn bind_item(scope: &mut ModuleScope, name: Symbol, def: DefId, origin: Origin, 
     );
 }
 
+/// A name a failed `use` would have bound: later references stay quiet.
+fn bind_poison(scope: &mut ModuleScope, name: Symbol, origin: Origin, row: u32) {
+    scope.bind(
+        name,
+        Binding {
+            kind: BindingKind::Poison,
+            value: 0,
+        },
+        origin,
+        row,
+    );
+}
+
+/// Poisons every name a whole `use` would have bound.
+fn poison_use(scope: &mut ModuleScope, names: &Names<'_>, u: &UseDecl, row: u32) {
+    if let Some(group) = &u.group {
+        for g in group {
+            let local = names.syms.intern(g.alias.as_deref().unwrap_or(&g.name));
+            bind_poison(scope, local, use_origin(u), row);
+        }
+    } else if let Some(last) = u.path.last() {
+        let local = names
+            .syms
+            .intern(u.alias.as_deref().unwrap_or(last.as_str()));
+        bind_poison(scope, local, use_origin(u), row);
+    }
+}
+
+fn use_origin(u: &UseDecl) -> Origin {
+    if u.public {
+        Origin::PubUse
+    } else {
+        Origin::Use
+    }
+}
+
 fn scope_of(
     r: &Resolver<'_, '_>,
     m: &ModIn<'_>,
@@ -465,6 +501,7 @@ fn scope_of(
                 ),
             };
             diags.error(Code::UnknownModule, u.span, &msg);
+            poison_use(&mut scope, names, u, row);
             continue;
         }
         if let Some(group) = &u.group {
@@ -472,6 +509,7 @@ fn scope_of(
                 if !r.module_exists(&module) {
                     let msg = format!("no module named `{module}`");
                     diags.error(Code::UnknownModule, u.span, &msg);
+                    poison_use(&mut scope, names, u, row);
                     continue;
                 }
                 for g in group {
@@ -490,6 +528,8 @@ fn scope_of(
                         Err(code) => {
                             let msg = format!("{} `{}` in `{module}`", code.as_str(), g.name);
                             diags.error(code, g.span, &msg);
+                            let local = names.syms.intern(g.alias.as_deref().unwrap_or(&g.name));
+                            bind_poison(&mut scope, local, use_origin(u), row);
                         }
                     }
                 }
@@ -510,6 +550,7 @@ fn scope_of(
                     if as_decl.is_some() {
                         let msg = format!("`{module}` is ambiguous");
                         diags.error(Code::AmbiguousImport, u.span, &msg);
+                        bind_poison(&mut scope, local, use_origin(u), row);
                         continue;
                     }
                     let idx = u32::try_from(scope.modules.len()).unwrap_or(u32::MAX);
@@ -529,6 +570,7 @@ fn scope_of(
                 } else if !r.module_exists(&parent) {
                     let msg = format!("no module named `{parent}`");
                     diags.error(Code::UnknownModule, u.span, &msg);
+                    bind_poison(&mut scope, local, use_origin(u), row);
                 } else {
                     let code = r
                         .export(&parent, names.syms.intern(last))
@@ -536,6 +578,7 @@ fn scope_of(
                         .unwrap_or(Code::UnknownImport);
                     let msg = format!("{} `{last}` in `{parent}`", code.as_str());
                     diags.error(code, u.span, &msg);
+                    bind_poison(&mut scope, local, use_origin(u), row);
                 }
             }
         }
@@ -620,6 +663,13 @@ impl Lower<'_, '_, '_> {
             .collect()
     }
 
+    /// Whether a name was bound by a failed `use` (an earlier error).
+    fn is_poisoned(&self, name: &str) -> bool {
+        self.scope
+            .lookup(self.sym(name))
+            .is_some_and(|b| b.kind == BindingKind::Poison)
+    }
+
     /// The declaration a (possibly qualified) name reaches.
     fn resolve_path(
         &mut self,
@@ -627,6 +677,9 @@ impl Lower<'_, '_, '_> {
         span: Span,
     ) -> Option<(DefId, HeadKind)> {
         let (first, _) = segs.first()?;
+        if self.is_poisoned(first) {
+            return None;
+        }
         let b = self.scope.lookup(self.sym(first));
         if segs.len() == 1 {
             return match b {
@@ -706,6 +759,9 @@ impl Lower<'_, '_, '_> {
     fn trait_value(&mut self, n: NodeRef<'_>, gn: &Gen, self_ty: Option<Ty>) -> Option<Ty> {
         let segs = self.segments(n);
         let span = self.src.span(n);
+        if segs.first().is_some_and(|s| self.is_poisoned(&s.0)) {
+            return None;
+        }
         let found = self.resolve_path(&segs, span);
         let Some((def, kind)) = found else {
             let name = segs.last().map_or("", |s| s.0.as_str()).to_owned();
@@ -868,6 +924,9 @@ impl Lower<'_, '_, '_> {
             if let Some(p) = Prim::ALL.iter().find(|p| p.name() == first) {
                 return Ty::prim(*p);
             }
+        }
+        if self.is_poisoned(&first) {
+            return Ty::POISON;
         }
         let Some((def, kind)) = self.resolve_path(&segs, span) else {
             if segs.len() == 1 {
@@ -1633,6 +1692,9 @@ impl Lower<'_, '_, '_> {
             }
             for a in args {
                 let sym = self.sym(&a);
+                if self.is_poisoned(&a) {
+                    continue;
+                }
                 let Some(Binding {
                     kind: BindingKind::Item,
                     value,

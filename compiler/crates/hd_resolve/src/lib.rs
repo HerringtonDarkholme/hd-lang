@@ -80,6 +80,15 @@ impl ModuleScope {
     pub fn bind(&mut self, name: Symbol, b: Binding, origin: Origin, use_row: u32) {
         if let Some(&row) = self.index.get(&name) {
             let r = row as usize;
+            if b.kind == BindingKind::Poison {
+                return;
+            }
+            if self.binding[r].kind == BindingKind::Poison {
+                self.binding[r] = b;
+                self.origin[r] = origin;
+                self.use_row[r] = use_row;
+                return;
+            }
             if self.binding[r] != b && self.origin[r] != Origin::Own {
                 self.binding[r] = Binding {
                     kind: BindingKind::Ambiguous,
