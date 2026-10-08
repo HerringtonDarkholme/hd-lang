@@ -8,7 +8,7 @@ fixture and CLI case; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1559 | 770 | 616 | 2945 |
+| 1560 | 768 | 617 | 2945 |
 
 ## By Chapter
 
@@ -18,13 +18,13 @@ fixture and CLI case; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 127 | 16 | 2 | 145 |
 | `lang/02-grammar.md` | 183 | 14 | 17 | 214 |
 | `lang/03-names-and-scopes.md` | 65 | 20 | 16 | 101 |
-| `lang/04-type-system.md` | 250 | 73 | 29 | 352 |
+| `lang/04-type-system.md` | 251 | 72 | 29 | 352 |
 | `lang/05-expressions.md` | 136 | 77 | 64 | 277 |
 | `lang/06-control-flow.md` | 97 | 34 | 26 | 157 |
 | `lang/07-functions.md` | 51 | 34 | 45 | 130 |
 | `lang/08-data-and-enums.md` | 52 | 43 | 28 | 123 |
 | `lang/09-traits.md` | 184 | 129 | 45 | 358 |
-| `lang/10-modules.md` | 99 | 123 | 36 | 258 |
+| `lang/10-modules.md` | 99 | 122 | 37 | 258 |
 | `lang/11-requirements-and-suspension.md` | 104 | 55 | 100 | 259 |
 | `lang/14-annotations.md` | 61 | 73 | 19 | 153 |
 | `std/cli.md` | 1 | 0 | 4 | 5 |
@@ -65,8 +65,8 @@ fixture and CLI case; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 52 | 34 | 19 | 105 |
-| `runtime/valid` | 386 | 199 | 344 | 929 |
-| `typing/invalid` | 499 | 469 | 105 | 1073 |
+| `runtime/valid` | 386 | 198 | 345 | 929 |
+| `typing/invalid` | 500 | 468 | 105 | 1073 |
 | `typing/valid` | 328 | 41 | 46 | 415 |
 | `typing/warnings` | 7 | 13 | 0 | 20 |
 
@@ -87,7 +87,7 @@ compiler stage that first declined the case.
 | `fail:implicit-narrowing` | 1 |
 | `fail:integer-literal-range` | 1 |
 | `fail:invalid-result-propagation` | 2 |
-| `fail:invalid-test-statement` | 1 |
+| `fail:invalid-test-statement` | 2 |
 | `fail:invalid-token` | 2 |
 | `fail:let-else-falls-through` | 1 |
 | `fail:missing-entry-point` | 2 |
@@ -114,11 +114,11 @@ compiler stage that first declined the case.
 | `fail:type-mismatch` | 87 |
 | `fail:type-used-as-value` | 2 |
 | `fail:unknown-data-field` | 13 |
-| `fail:unknown-import` | 29 |
+| `fail:unknown-import` | 24 |
 | `fail:unknown-method` | 33 |
 | `fail:unknown-module` | 67 |
-| `fail:unknown-name` | 9 |
-| `fail:unknown-named-argument` | 2 |
+| `fail:unknown-name` | 10 |
+| `fail:unknown-named-argument` | 3 |
 | `fail:unknown-trait` | 8 |
 | `fail:unknown-type` | 2 |
 | `fail:unknown-variant` | 1 |
@@ -132,7 +132,7 @@ compiler stage that first declined the case.
 | `unsupported:FolderIface` | 35 |
 | `unsupported:Link` | 1 |
 | `unsupported:RunCase` | 41 |
-| `unsupported:TestCase` | 5 |
+| `unsupported:TestCase` | 6 |
 
 <details><summary><code>fail:argument-count</code> (16)</summary>
 
@@ -228,9 +228,10 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:invalid-test-statement</code> (1)</summary>
+<details><summary><code>fail:invalid-test-statement</code> (2)</summary>
 
 - `runtime/valid/tests-block-items.hd`
+- `runtime/valid/test-registration-renamed-import.hd`
 
 </details>
 
@@ -412,6 +413,7 @@ compiler stage that first declined the case.
 - `typing/invalid/public-test-item.hd`
 - `typing/invalid/unknown-panic-category.hd`
 - `typing/invalid/test-case-as-value.hd`
+- `typing/invalid/it-each-name-clash.hd`
 - `typing/invalid/assert-equal-without-debug.hd`
 - `typing/invalid/test-timeout-string.hd`
 - `typing/invalid/block-on-in-fact.hd`
@@ -488,7 +490,6 @@ compiler stage that first declined the case.
 - `typing/invalid/assert-equal-numeric-widening.hd`
 - `typing/invalid/derived-arbitrary-function-member.hd`
 - `typing/invalid/derived-arbitrary-tuned-member-not-arbitrary.hd`
-- `typing/invalid/mut-on-type-parameter.hd`
 - `typing/invalid/function-type-rest-not-list.hd`
 - `typing/invalid/vararg-type-not-collection.hd`
 - `typing/invalid/function-type-unbounded-inputs.hd`
@@ -893,18 +894,15 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-import</code> (29)</summary>
+<details><summary><code>fail:unknown-import</code> (24)</summary>
 
 - `runtime/valid/it-each-rows.hd`
 - `typing/invalid/it-each-outside-test-position.hd`
-- `typing/invalid/it-each-name-clash.hd`
 - `typing/invalid/it-each-non-literal-name.hd`
-- `runtime/valid/it-each-options.hd`
 - `runtime/valid/test-timeout-options.hd`
 - `runtime/valid/it-each-propagation.hd`
 - `typing/valid/snapshot-inline.hd`
 - `typing/invalid/snapshot-non-literal-expect.hd`
-- `runtime/panic/snapshot-mismatch.hd`
 - `typing/invalid/property-input-not-debug.hd`
 - `runtime/valid/property-assume-discards.hd`
 - `runtime/valid/property-draw-budget.hd`
@@ -918,8 +916,6 @@ compiler stage that first declined the case.
 - `typing/invalid/private-std-name-in-group.hd`
 - `runtime/valid/retry-with-backoff.hd`
 - `runtime/valid/choices-choose.hd`
-- `runtime/valid/property-body-discard-message-fails.hd`
-- `runtime/valid/test-registration-renamed-import.hd`
 - `typing/invalid/test-registration-renamed-misplaced.hd`
 - `typing/valid/test-runner-every-registration-form.hd`
 - `runtime/valid/property-generators-scalars.hd`
@@ -1037,7 +1033,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-name</code> (9)</summary>
+<details><summary><code>fail:unknown-name</code> (10)</summary>
 
 - `typing/valid/recursive-local-closure.hd`
 - `typing/invalid/recursive-closure-inferred-result.hd`
@@ -1047,13 +1043,15 @@ compiler stage that first declined the case.
 - `runtime/valid/recursive-local-closure.hd`
 - `typing/invalid/default-later-parameter-earlier-twin.hd`
 - `typing/invalid/variant-pattern-unknown-field.hd`
+- `runtime/panic/snapshot-mismatch.hd`
 - `typing/invalid/module-path-private-std-function.hd`
 
 </details>
 
-<details><summary><code>fail:unknown-named-argument</code> (2)</summary>
+<details><summary><code>fail:unknown-named-argument</code> (3)</summary>
 
 - `runtime/valid/tests-block-use-shadow.hd`
+- `runtime/valid/property-body-discard-message-fails.hd`
 - `runtime/valid/test-registration-qualified-prop.hd`
 
 </details>
@@ -1790,12 +1788,13 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:TestCase</code> (5)</summary>
+<details><summary><code>unsupported:TestCase</code> (6)</summary>
 
 - `runtime/valid/test-block-propagation.hd`
 - `runtime/valid/termination-report.hd`
 - `runtime/valid/test-body-explicit-closure.hd`
 - `runtime/valid/it-body-by-name.hd`
+- `runtime/valid/it-each-options.hd`
 - `runtime/valid/test-registration-qualified-call.hd`
 
 </details>
@@ -2820,6 +2819,7 @@ typing/invalid/mut-on-primitive-optional.hd
 typing/invalid/mut-on-primitive-parameter.hd
 typing/invalid/mut-on-tuple-generic-optional.hd
 typing/invalid/mut-on-tuple-optional.hd
+typing/invalid/mut-on-type-parameter.hd
 typing/invalid/mut-tuple-annotation.hd
 typing/invalid/mut-tuple-parameter.hd
 typing/invalid/mut-upgrade.hd
