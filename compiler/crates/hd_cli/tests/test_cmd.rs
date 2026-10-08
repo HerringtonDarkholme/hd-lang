@@ -32,20 +32,20 @@ fn text(b: &[u8]) -> String {
 /// Every case of the package, in content order: `cart` before `money`,
 /// then registration order. Passes are quiet.
 const ALL: &str = "\
-PANIC cart.hd:49: sums a discount wrong
+PANIC cart.hd:50: sums a discount wrong
     panic: assertion-failed: ten less two: actual 8, expected 7
     repro: hd test cart.hd --filter \"sums a discount wrong\"
-PANIC cart.hd:52: finds the cheapest of none
+PANIC cart.hd:53: finds the cheapest of none
     panic: index-out-of-bounds: list index out of bounds
     repro: hd test cart.hd --filter \"finds the cheapest of none\"
-FAIL cart.hd:58: expects a panic that never comes
+FAIL cart.hd:59: expects a panic that never comes
     the case completed, but it expects the panic `assertion-failed`
     repro: hd test cart.hd --filter \"expects a panic that never comes\"
-IGNORED cart.hd:61: waits for a slow price service (needs the price service)
-PANIC cart.hd:64: adds two and two
+IGNORED cart.hd:62: waits for a slow price service (needs the price service)
+PANIC cart.hd:65: adds two and two
     panic: assertion-failed: two and two make five
     repro: hd test cart.hd --filter \"adds two and two\"
-UNSUPPORTED cart.hd:67: parses quantities (a test body that uses `?` cannot run yet)
+UNSUPPORTED cart.hd:68: parses quantities (a test body that uses `?` cannot run yet)
 test result: FAILED. 6 passed; 4 failed; 1 ignored; 1 unsupported
 ";
 
@@ -83,7 +83,7 @@ fn filter_selects_cases() {
     let out = hd_test(&dir, &["cart.hd", "--filter", "cheapest"]);
     assert_eq!(
         text(&out.stdout),
-        "PANIC cart.hd:52: finds the cheapest of none\n    \
+        "PANIC cart.hd:53: finds the cheapest of none\n    \
          panic: index-out-of-bounds: list index out of bounds\n    \
          repro: hd test cart.hd --filter \"finds the cheapest of none\"\n\
          test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 unsupported\n"
