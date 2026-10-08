@@ -1,0 +1,13 @@
+# Text output keeps passes quiet, reports other cases in content order, and
+# ends with one summary over the selected cases.
+run: hd test
+exit: 1
+stdout: FAIL src/lib.hd:7: returns a failed exit code
+stdout:     `report()` returned `ExitCode(3)`
+stdout:     repro: hd test src/lib.hd --filter "returns a failed exit code"
+stdout: IGNORED src/lib.hd:9: calls the live service (needs credentials)
+stdout: test result: FAILED. 1 passed; 1 failed; 1 ignored
+stderr-json: []
+run: hd test --filter passes
+stdout: test result: ok. 1 passed; 0 failed; 0 ignored
+stderr-json: []

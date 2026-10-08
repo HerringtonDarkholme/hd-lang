@@ -83,19 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### S6. Spec: `hd test` Output Format
-
-Check `spec/cli/command-line.md` for the test runner's report: per-case
-result lines, the failure block (assertion message, source position),
-panic reporting, the summary line, ordering (content order, streamed),
-exit codes, `--filter`. Fill any gap with numbered rules (IDs per
-`spec/STYLE.md`, an example each), consistent with
-`future-work/compiler/engines-and-test-runner.md` §19.3 and §19.5 and
-with what the TS prototype prints when the spec is silent. Add CLI cases
-where `spec/conformance/cli-cases.tsv` has none for a rule. The
-orchestrator's M4c agent is implementing `hd test` now: describe the
-format, don't change compiler code. Timebox 45 minutes; push.
-
 ### D2g. Reconcile M4c (Phase 1 Complete)
 
 M4c landed (4c4b3b92): `hd test` runs `tests:` blocks end to end; shared

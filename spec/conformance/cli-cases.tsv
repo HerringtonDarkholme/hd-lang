@@ -73,6 +73,7 @@ dev-dependency-integration	cli.dep.path,cli.json.test.result
 dev-dependency-non-test	cli.dep.dev-use.remove-first,cli.json.diagnostic.file
 dev-dependency-cyclic-unit	cli.exit.hd-failure,cli.json.diagnostic.file
 test-outcomes	cli.exit.test-failure,cli.json.test.result,cli.json.test.order,cli.test.filter,cli.test.filter.none
+test-report	cli.test.report.pass,cli.test.report.heading,cli.test.report.failure,cli.test.report.repro,cli.test.report.ignored,cli.test.report.summary,cli.test.report.filter,cli.test.report.order,cli.test.report.stream,cli.exit.test-failure
 dbg-value-forms	cli.dbg.run
 derivation-lines-agree	cli.json.summary.result,cli.exit.success
 dev-dependency-cyclic-integration	cli.dep.path,cli.json.test.result

@@ -631,6 +631,34 @@ The first block on `slugify` in `src/lib.hd` would be `doc pkg.slugify[0]`.
 > new package may have none yet. A filter that matches nothing in a named
 > FILE is most often a typo, so it does not pass silently.
 
+#### Text Report
+
+```console
+FAIL tests/cart.hd:18: returns a failed exit code
+    `report()` returned `ExitCode(3)`
+    repro: hd test tests/cart.hd --filter "returns a failed exit code"
+PANIC tests/cart.hd:24: sums prices
+    panic: assertion-failed: total: actual 9, expected 10
+    tests/cart.hd:25 pkg.cart/$test.2
+    repro: hd test tests/cart.hd --filter "sums prices"
+IGNORED tests/cart.hd:28: calls the live service (needs credentials)
+test result: FAILED. 1 passed; 2 failed; 1 ignored
+```
+
+1. r[cli.test.report.pass] In text output, a passing test case has no result line.
+2. r[cli.test.report.heading] A failed case starts with `FAIL` or `PANIC`, its registration's file and line, and its name.
+3. r[cli.test.report.failure] A `FAIL` block prints the failure message, indented by four spaces.
+4. r[cli.test.report.repro] Each failure block ends with `repro: hd test FILE --filter "NAME"`, indented by four spaces and command-line escaped.
+5. r[cli.test.report.panic] A `PANIC` block prints `panic: CATEGORY: MESSAGE`, indented by four spaces.
+6. r[cli.test.report.frame] Its symbolized frames follow as `FILE:LINE FUNCTION`, indented by four spaces and with the panic site first.
+7. r[cli.test.report.ignored] An ignored case prints `IGNORED`, its registration's file and line, its name, and its reason.
+8. r[cli.test.report.summary] The final line gives the run's verdict and its passed, failed, and ignored counts, including zero counts.
+9. r[cli.test.report.filter] Result blocks and summary counts include only cases selected by `--filter`.
+10. r[cli.test.report.order] Result blocks use file-path order, then registration order, then row-index order, regardless of completion order.
+11. r[cli.test.report.stream] A ready result block is written once every earlier selected case has finished, without waiting for the whole run.
+
+See also: [Machine Output](#machine-output), [Exit Status](#exit-status).
+
 ### Affected Tests
 
 ```sh

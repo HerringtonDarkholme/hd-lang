@@ -1,0 +1,10 @@
+use std.process.ExitCode
+
+tests:
+    it("passes"):
+        pass
+
+    it("returns a failed exit code", body=fn!() -> ExitCode: ExitCode(3))
+
+    it("calls the live service", ignore="needs credentials"):
+        pass
