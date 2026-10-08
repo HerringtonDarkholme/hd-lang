@@ -1,0 +1,38 @@
+fn gcd(a: i32, b: i32) -> i32:
+    let x: i32 = a
+    let y: i32 = b
+    while y != 0:
+        let next: i32 = x % y
+        x = y
+        y = next
+    x
+
+fn fib(n: i32) -> i32:
+    let a: i32 = 0
+    let b: i32 = 1
+    let i: i32 = 0
+    while i < n:
+        let next: i32 = a + b
+        a = b
+        b = next
+        i = i + 1
+    a
+
+fn poly(x: i32) -> i32:
+    ((3 * x + 5) * x - 7) * x + 11
+
+fn kernel(rounds: i32) -> i32:
+    let x: i32 = 7
+    let total: i32 = 0
+    let i: i32 = 1
+    while i <= rounds:
+        x = (x * 17 + i * 13) % 10007
+        total = total + x % 97
+        i = i + 1
+    total
+
+pub fn main() -> void $ Console:
+    println(gcd(1071, 462))
+    println(fib(30))
+    println(poly(12))
+    println(kernel(10000))
