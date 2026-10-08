@@ -1,0 +1,70 @@
+# A shopping cart's totals, tested in place: passing, failing and
+# panicking cases, an ignored one, and one whose `?` fails.
+use std.testing.{assert, assert_equal}
+use std.error.Error
+
+items_added := +0
+
+fn add_item(count: i32) -> i32:
+    items_added = items_added + count
+    items_added
+
+fn total(prices: List[i32]) -> i32:
+    sum := +0
+    for p in prices:
+        sum += p
+    sum
+
+fn cheapest(prices: List[i32]) -> i32:
+    best := prices[0]
+    for p in prices:
+        if p < best:
+            best = p
+    best
+
+data QuantityError:
+    text: string
+
+impl Display for QuantityError:
+    fn to_string(self) -> string:
+        "not a quantity: ${self.text}"
+
+impl Error for QuantityError
+
+fn quantity(text: string) -> Result[i32, QuantityError]:
+    if text == "3":
+        return .Ok(3)
+    .Err(QuantityError { text: text })
+
+tests:
+    it("sums prices"):
+        assert_equal(total([3, 4, 5]), 12, reason="three prices")
+
+    it("counts from a fresh start"):
+        assert_equal(add_item(2), 2, reason="the first add")
+
+    it("counts from a fresh start again"):
+        assert_equal(add_item(3), 3, reason="no state from the last case")
+
+    it("sums a discount wrong"):
+        assert_equal(total([10, -2]), 7, reason="ten less two")
+
+    it("finds the cheapest of none"):
+        _ := cheapest([])
+
+    it("rejects an empty cart", expect_panic="index-out-of-bounds"):
+        _ := cheapest([])
+
+    it("expects a panic that never comes", expect_panic="assertion-failed"):
+        assert(total([]) == 0, reason="an empty cart costs nothing")
+
+    it("waits for a slow price service", ignore="needs the price service"):
+        assert(false, reason="never runs")
+
+    it("adds two and two"):
+        assert(total([2, 2]) == 5, reason="two and two make five")
+
+    it("parses quantities"):
+        assert_equal(quantity("3")?, 3, reason="a number")
+        _ := quantity("lots")?
+        .Ok(())

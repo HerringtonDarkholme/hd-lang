@@ -78,6 +78,36 @@ fn default_name(root: &Path) -> String {
     }
 }
 
+/// The nearest directory at or above `start` that holds `hd.toml`.
+pub fn package_root(start: &Path) -> Option<PathBuf> {
+    let start = std::fs::canonicalize(start).ok()?;
+    start
+        .ancestors()
+        .find(|d| d.join("hd.toml").is_file())
+        .map(Path::to_path_buf)
+}
+
+/// The sources and the package name of a root directory.
+pub fn sources_of(root: &Path) -> Result<(DiskSources, String), String> {
+    let package = match std::fs::read_to_string(root.join("hd.toml")) {
+        Ok(text) => {
+            parse_manifest(&text)
+                .map_err(|e| format!("hd.toml: {e}"))?
+                .name
+        }
+        Err(_) => default_name(root),
+    };
+    let mut files = Vec::new();
+    walk(root, root, &mut files)?;
+    Ok((
+        DiskSources {
+            root: root.to_path_buf(),
+            files,
+        },
+        package,
+    ))
+}
+
 /// Finds the package root, its name and the entry module of a target.
 pub fn load(target: &Path) -> Result<Program, String> {
     let (root, entry_file) = if target.is_dir() {

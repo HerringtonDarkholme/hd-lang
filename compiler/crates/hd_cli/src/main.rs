@@ -5,6 +5,7 @@
 
 mod disk;
 mod node;
+mod test_cmd;
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -18,7 +19,8 @@ use hd_run::{Grants, HostSetup, Limits, Outcome, run_program};
 const USAGE: &str = "usage:
   hd FILE.hd
   hd run FILE.hd|DIR
-  hd build FILE.hd|DIR -o OUT.wasm";
+  hd build FILE.hd|DIR -o OUT.wasm
+  hd test [FILE.hd] [--filter PATTERN] [--jobs N]";
 
 fn usage() -> ExitCode {
     eprintln!("{USAGE}");
@@ -31,6 +33,7 @@ fn main() -> ExitCode {
         return usage();
     };
     match (command, &arguments[1..]) {
+        ("test", rest) => test_cmd::command(rest),
         ("run", [target]) => run_command(Path::new(target)),
         ("build", [target, flag, out]) if flag == "-o" => {
             build_command(Path::new(target), Path::new(out))
@@ -46,7 +49,7 @@ fn main() -> ExitCode {
     }
 }
 
-struct Wall(Instant);
+pub(crate) struct Wall(pub(crate) Instant);
 
 impl Clock for Wall {
     fn now_ns(&self) -> u64 {
@@ -56,7 +59,7 @@ impl Clock for Wall {
 
 /// The compiled-cache directory (`cli.cache.obj`): `obj` under `HD_CACHE`,
 /// or under the platform's user cache directory followed by `hd`.
-fn cache_dir() -> PathBuf {
+pub(crate) fn cache_dir() -> PathBuf {
     if let Some(dir) = std::env::var_os("HD_CACHE") {
         return PathBuf::from(dir).join("obj");
     }
@@ -69,8 +72,22 @@ fn cache_dir() -> PathBuf {
     base.join("hd").join("obj")
 }
 
+/// The thread count (`cli.jobs.env`, `cli.jobs.default`): `HD_JOBS`, else
+/// the number of cores, at most 8.
+pub(crate) fn default_jobs() -> usize {
+    std::env::var("HD_JOBS")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|n| *n >= 1)
+        .unwrap_or_else(|| {
+            std::thread::available_parallelism()
+                .map_or(1, std::num::NonZero::get)
+                .min(8)
+        })
+}
+
 fn executor() -> Executor {
-    let threads = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
+    let threads = default_jobs();
     if threads > 1 {
         Executor::Pool(threads)
     } else {

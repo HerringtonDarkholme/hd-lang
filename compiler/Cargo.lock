@@ -83,6 +83,7 @@ name = "hd_cli"
 version = "0.0.0"
 dependencies = [
  "hd_cache",
+ "hd_check",
  "hd_driver",
  "hd_project",
  "hd_run",

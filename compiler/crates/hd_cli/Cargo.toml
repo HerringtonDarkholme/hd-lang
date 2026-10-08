@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 hd_cache = { path = "../hd_cache", features = ["disk"] }
+hd_check = { path = "../hd_check" }
 hd_driver = { path = "../hd_driver" }
 hd_project = { path = "../hd_project" }
 hd_run = { path = "../hd_run" }
