@@ -1,7 +1,8 @@
 # Muse Task Queue
 
-> **Paused, 2026-10-08 ~12:45 (owner: "muse is dead").** The
-> orchestrator does these jobs now. If Muse returns, start from the top.
+> **Active again, 2026-10-08 ~16:00 (owner: "muse is back").** Pull
+> origin/main into your worktree first; S14, S15 and S16 were done by
+> the orchestrator while you were away.
 
 > **Owner, 2026-10-07 night:** Codex died; its open jobs moved here
 > ("try offload work to muse"). Same rules as Codex had: small, checkable
@@ -93,6 +94,49 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
+### U1. `use std.testing…` Goes Inside The `tests:` Block (First)
+
+Owner, 2026-10-08: "just fix your examples". About 895 files put
+`use std.testing…` at the top level although only their `tests:` block
+uses it (`rg -l '^use std.testing' | xargs rg -l '^tests:'`): 829
+conformance fixtures, plus `guide/`, `website/`, `spec/lang`, `spec/std`,
+`README.md`, `examples/`, `test/`, `compiler/samples`, `compiler/bench`
+and code blocks in Markdown. The rules (spec 03 Tests Blocks,
+`names.tests.inside-only`, `names.tests.shadow`): a `use` inside the block
+is visible only inside it, so test-only imports belong there.
+
+For each file (or each Markdown code block) that has both a top-level
+`use std.testing…` line and a `tests:` block:
+- if every name that line imports is used only inside the block, move
+  the line to the top of the block (indented four spaces, then a blank
+  line before the block's first other item); if the block already
+  imports some of the same names, merge into one `use` without
+  duplicates;
+- if any imported name is also used outside the block, leave the file
+  alone and list it in the commit message;
+- leave alone `spec/conformance/runtime/valid/tests-block-use-shadow.hd`,
+  `spec/conformance/typing/invalid/tests-block-use-leak.hd` and the
+  Tests Blocks section of `spec/lang/03-names-and-scopes.md` (they test
+  or show the rules on purpose);
+- files without a `tests:` block (test modules, integration test
+  modules) are test code throughout: their top-level imports are right.
+  Don't touch them.
+
+A small script is fine for the `.hd` files (don't commit it); read a
+sample of its diffs before committing. Fixtures whose expectations name
+line numbers (a `# line:` header, a panic frame `FILE:LINE`, an
+`expect-stdout` with a line) shift when a line moves: check each such
+fixture and fix the number in the same commit, or leave the file alone
+and list it.
+
+Checks: `cargo test -q --release -p hd_driver --test conformance` from
+`compiler/` must pass (no case lost from `compiler/CONFORMANCE.md`; if a
+case is lost, revert that file and list it); `cargo test -q --release -p
+hd_syntax --test corpus`; and `bash spec/check.sh` run in a clean
+worktree (the main checkout has an untracked file that aborts it). One
+commit per area (fixtures; spec Markdown; guide and website; the rest).
+Timebox 60 minutes; push.
+
 ### D2k. Design Text After The Pool And Solver-Lookup Work
 
 Two architecture commits landed: "pool: …" (#61, ends at 97ef2c30) and
@@ -142,8 +186,76 @@ mark any matching `reconciliation.md` rows fixed:
   empty collections) — record the list; the literal-default retry when
   several candidates fit. Record TS-3 (placeholder as `Maybe`, no teaching
   through a unique head) and §6.4 literal kinds as not yet done.
+- Memo (§7, commit "solver: memoize canonical goals…"): canonical keys
+  with environment, universe and scope; global memo first-writer-wins,
+  published only for finished, uncut, unfueled goals; an entry records
+  the `(trait, head key)` probes of its subtree, and a global entry
+  serves a module only when its own table has no row for any of them
+  (the own-table rule, absent from the design); depth cut stores an
+  `AtLeast` entry in the body memo only; fuel charged once per proof
+  node; `Methods` goals are not memoized (no availability key yet).
+- Unowned rows (commit "solver: scope memo answers that read unowned
+  rows…", #87): §3.2's claim that a known-argument goal never depends on
+  the universe is wrong when its proof reads unowned rows (misplaced
+  impls, built-in-target rows); such answers are "scoped" and published
+  under the key with the universe filled in; the universe also includes
+  folders with unowned rows; add the §7.1 row.
+- Defaults (commit "resolve: fill trait-argument defaults…", #89): §2.1
+  should say a projection written under a bound takes the bound's filled
+  arguments, and `Self::X` inside a trait leaves them to each use.
+- Header checks (commit "check: header checks ask the solver", #68):
+  they live in `hd_check::header`, ask `TableSolver` under the item's
+  environment with the folder's closure universe and no own table;
+  resolution keeps only the overlap check. Record as not done: supertrait
+  bindings (`Project`), a fuel diagnostic per item (§4.10.1), compiler-
+  supplied traits answered in the checker not the solver (§3.9), and the
+  header result not cached in the graph entry.
+- Codegen selection (commit "codegen: select through owner lookup…",
+  #66): a program build's universe is every folder; selection shares the
+  run's global memo; §8.3's head-only `select` with its own table, and
+  `Selection.args` returning every impl argument, are not done.
 
-Docs only; no spec edits. Timebox 45 minutes; push.
+Docs only; no spec edits. Timebox 60 minutes; push.
+
+### T1. Bench Generator Writes A Program That Checks
+
+`compiler/bench/generated/generate.mjs` emits a 10k-line package whose
+`main` fails `hd check` with `missing-requirement: $ Console` (both the
+TS prototype and the new compiler reject it), so the larger generated
+package can't be built or timed. Fix the generator so `main` declares
+the requirement it uses (`pub fn main() -> void $ Console:`) and every
+generated program checks clean with `compiler/target/release/hd check`
+(build it with `cargo build --release -p hd_cli` in `compiler/`). Follow
+house style: an i32 literal is `+N`; `:=` is never reassigned (a counter
+is `let x = +0`). Generated output stays deterministic. Tooling only.
+Timebox 30 minutes; push.
+
+### Q24. Runtime Versus Node, Release Builds
+
+Q22 (`audit/compiler/runtime-vs-node-6572b51d.md`) measured debug-profile
+Wasm only. Rerun `compiler/bench/runtime/run.mjs` with release builds
+(`hd build --release`; add a `--release` switch to the script if it has
+none) on current main, same method (1 warmup + 5 runs, p50/p95), and
+write `audit/compiler/runtime-vs-node-<short hash>.md` with both the
+debug and release ratios side by side. For string-build and map-count,
+say whether release changes the picture (checked arithmetic vs the
+quadratic append and per-op boxing). Delete the Q22 report in the same
+commit (git history keeps it). Report only. Timebox 45 minutes; push.
+
+### Q25. Does `hd check --tests` Check `tests:` Blocks?
+
+Q23 found `hd check FILE` silent on mistakes inside `tests:` blocks. By
+the spec (`cli.check.default`, `cli.check.tests` in
+`spec/cli/command-line.md`) a plain `hd check` skips test code, so that
+part is correct. Find out, with the new compiler, whether
+`hd check --tests FILE` (and package-mode `hd check --tests`) checks
+`tests:` blocks and reports `duplicate-tests-block` and
+`invalid-test-statement`. Update `compiler/bench/mistakes/run.mjs` to
+pass `--tests` for the test-code mistake kinds, rerun it, and write the
+new shares into a refreshed `audit/compiler/mistakes-<short hash>.md`
+(delete the old one). List any spec rule the compiler misses as a
+"compiler gap" line; don't touch `compiler/crates/`. Timebox 45 minutes;
+push.
 
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
