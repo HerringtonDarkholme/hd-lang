@@ -10,6 +10,7 @@ use std::collections::HashMap;
 
 use hd_base::{DefId, ModuleId, Symbol};
 
+pub mod anchor;
 pub mod header;
 pub mod iface;
 pub mod lower;

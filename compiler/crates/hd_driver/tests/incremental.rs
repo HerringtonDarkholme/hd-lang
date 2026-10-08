@@ -226,3 +226,160 @@ fn user_errors_are_coded_diagnostics() {
     assert!(codes.contains(&"unknown-name"), "{codes:?}");
     assert!(codes.contains(&"type-mismatch"), "{codes:?}");
 }
+
+/// Interface keys come from API text, which ignores comments and blank
+/// lines, so a comment above an item hits the cached interface. Findings
+/// from the cached interface still land on the shifted line, because item
+/// positions are declaration-relative (resolution-and-interfaces.md §4.10).
+const FINDINGS: &str = "\
+trait Marker
+
+data Box[T]:
+    pub value: T
+
+impl[T] Marker for Box[T]
+impl Marker for Box[i32]
+
+data Score:
+    value: i32
+
+impl PartialOrd for Score:
+    fn partial_cmp(self, other: Score) -> Ordering?:
+        .Some(Ordering.Equal)
+
+pub data Needs[T < Hash]:
+    pub value: T
+
+pub data Holder[T]:
+    ok: i32
+    pub bad: Needs[T]
+
+pub fn lookup[T](counts: Needs[T]) -> i32:
+    0
+
+impl Display for i32:
+    fn to_text(self) -> string:
+        \"\"
+";
+
+/// The 1-based line of each diagnostic with `code`, for the one-file program.
+fn lines_of(r: &Output, text: &str, code: &str) -> Vec<usize> {
+    let mut lines: Vec<usize> = (0..r.diags.len())
+        .filter(|i| r.diags.code[*i].as_str() == code)
+        .map(|i| {
+            let lo = r.diags.primary[i].lo as usize;
+            text[..lo].matches('\n').count() + 1
+        })
+        .collect();
+    lines.sort_unstable();
+    lines
+}
+
+fn one_file(text: &str) -> MemorySources {
+    let mut s = MemorySources::default();
+    s.insert("main.hd", text);
+    s
+}
+
+fn line_of(text: &str, needle: &str) -> usize {
+    text.lines()
+        .position(|l| l.contains(needle))
+        .expect("needle")
+        + 1
+}
+
+fn assert_findings(r: &Output, text: &str) {
+    let want = |code: &str, needle: &str| {
+        assert_eq!(
+            lines_of(r, text, code),
+            vec![line_of(text, needle)],
+            "{code}\n{}",
+            r.render()
+        );
+    };
+    want("orphan-impl", "impl Display for i32");
+    // The user's `Display` impl also overlaps std's, and is the later one.
+    assert_eq!(
+        lines_of(r, text, "overlapping-impl"),
+        vec![
+            line_of(text, "impl Marker for Box[i32]"),
+            line_of(text, "impl Display for i32")
+        ],
+        "{}",
+        r.render()
+    );
+    want(
+        "missing-supertrait-implementation",
+        "impl PartialOrd for Score",
+    );
+    // A field type is reported at the field; a parameter at the signature.
+    let bounds = lines_of(r, text, "unsatisfied-trait-bound");
+    assert_eq!(
+        bounds,
+        vec![line_of(text, "bad: Needs"), line_of(text, "fn lookup")],
+        "{}",
+        r.render()
+    );
+}
+
+#[test]
+fn header_findings_name_their_line_and_survive_a_cached_interface() {
+    let store = MemoryStore::default();
+    let executor = Executor::Serial(SerialOrder::Priority);
+    let cold = run(&store, &one_file(FINDINGS), executor);
+    assert_findings(&cold, FINDINGS);
+
+    let shifted = FINDINGS
+        .replace("trait Marker", "# the marker\n\ntrait Marker")
+        .replace("data Score:", "# scores\ndata Score:")
+        .replace("impl Display", "# orphan\n\nimpl Display")
+        .replace(
+            "pub data Holder[T]:",
+            "# holds a map\n\n\npub data Holder[T]:",
+        );
+    let warm = run(&store, &one_file(&shifted), executor);
+    assert!(
+        warm.counters.ifaces_built.is_empty(),
+        "interface rebuilt: {:?}",
+        warm.counters.ifaces_built
+    );
+    assert_findings(&warm, &shifted);
+}
+
+#[test]
+fn interface_keys_ignore_a_comment_above_an_item() {
+    let store = MemoryStore::default();
+    let executor = Executor::Serial(SerialOrder::Priority);
+    let base = program(DATA_MAIN, GEO);
+    let cold = ok(&store, &base, executor);
+    let commented = GEO
+        .replace("pub trait Shape:", "# a shape\n\n\npub trait Shape:")
+        .replace("pub data Point:", "# a point\npub data Point:");
+    let r = ok(&store, &program(DATA_MAIN, &commented), executor);
+    let c = &r.counters;
+    assert!(c.ifaces_built.is_empty(), "{:?}", c.ifaces_built);
+    assert_eq!(
+        c.deep_hashes["demo.geo"],
+        cold.counters.deep_hashes["demo.geo"]
+    );
+    assert_eq!(
+        c.iface_blobs["demo.geo"],
+        cold.counters.iface_blobs["demo.geo"]
+    );
+
+    // The same keys on a cold store: the interface bytes and hashes do not
+    // depend on where an item sits.
+    let fresh = ok(
+        &MemoryStore::default(),
+        &program(DATA_MAIN, &commented),
+        executor,
+    );
+    assert_eq!(
+        fresh.counters.deep_hashes["demo.geo"],
+        cold.counters.deep_hashes["demo.geo"]
+    );
+    assert_eq!(
+        fresh.counters.iface_blobs["demo.geo"],
+        cold.counters.iface_blobs["demo.geo"]
+    );
+}

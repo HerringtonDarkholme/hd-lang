@@ -381,6 +381,9 @@ pub struct FolderIface {
     pub blob: Arc<[u8]>,
     pub api_hash: Hash128,
     pub deep_hash: Hash128,
+    /// Where each item and written type sits: `(item, slot)` to (module
+    /// index in the folder, anchor). Outside every hash; diagnostics only.
+    pub spans: HashMap<(DefId, u32), (u32, crate::anchor::Anchor)>,
 }
 
 impl FolderIface {
@@ -963,6 +966,7 @@ pub fn folder_iface(
         blob,
         api_hash,
         deep_hash,
+        spans: HashMap::new(),
     }
 }
 

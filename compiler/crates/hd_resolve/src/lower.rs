@@ -292,6 +292,8 @@ pub struct ModOut {
     pub items: Vec<Item>,
     pub scope: ModuleScope,
     pub kinds: Kinds,
+    /// Declaration-relative positions of the items (`anchor`).
+    pub anchors: crate::anchor::Anchors,
 }
 
 pub struct FolderOut {
@@ -2013,10 +2015,12 @@ pub fn build_folder(
             }
         }
         ownership(names, &m.path, &items, hs, &m.src, diags);
+        let anchors = crate::anchor::collect(names, &m.src, hs, &items);
         out.modules.push(ModOut {
             items,
             scope,
             kinds,
+            anchors,
         });
     }
     if r.frozen.is_none() {

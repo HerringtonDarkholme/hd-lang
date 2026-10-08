@@ -259,7 +259,7 @@ struct PrepOut {
 }
 
 /// A folder's stage-A diagnostics, with the module each belongs to.
-type IfaceDiags = Vec<(usize, Code, u32, u32, String)>;
+type IfaceDiags = Vec<(usize, Code, hd_resolve::anchor::Anchor, String)>;
 
 /// A module's TIR and body diagnostics after `Body(m)`.
 type BodyOut = (Vec<Body>, DiagBuf);
@@ -485,6 +485,17 @@ pub fn analyze_package(package: &str, sources: &dyn SourceSet) -> PipelineReport
 
 fn u32_of(i: usize) -> u32 {
     u32::try_from(i).expect("run index")
+}
+
+/// The interface's span table from decoded anchor rows (item index, module
+/// index, slot, anchor).
+fn spans_of(
+    items: &[Item],
+    rows: &[(u32, u32, u32, hd_resolve::anchor::Anchor)],
+) -> HashMap<(DefId, u32), (u32, hd_resolve::anchor::Anchor)> {
+    rows.iter()
+        .filter_map(|(i, m, slot, a)| Some(((items.get(*i as usize)?.def, *slot), (*m, *a))))
+        .collect()
 }
 
 impl Run<'_> {
@@ -816,15 +827,20 @@ impl Run<'_> {
     fn emit_iface_diags(&self, fi: usize, diags: &IfaceDiags) {
         let folder = &self.table.folders[fi];
         let mut d = lock(&self.diags);
-        for (m, code, lo, hi, msg) in diags {
+        for (m, code, anchor, msg) in diags {
             let Some(mid) = folder.modules.get(*m) else {
                 continue;
             };
-            let span = Span {
+            let span = if self.parse_of(mid.idx()).is_ok() {
+                hd_resolve::anchor::resolve(&self.src(mid.idx()), anchor)
+            } else {
+                None
+            }
+            .unwrap_or(Span {
                 file: FileId::from_raw(mid.raw()),
-                lo: *lo,
-                hi: *hi,
-            };
+                lo: 0,
+                hi: 0,
+            });
             d.push(*code, Severity::Error, span, msg, None);
         }
     }
@@ -869,15 +885,17 @@ impl Run<'_> {
             && let (Some(blob), Some(dsec)) = (sections.first(), sections.get(1))
             && let Some((items, exports)) = hd_resolve::decode_items(&names, blob)
             && let Some(diags) = decode_iface_diags(dsec)
+            && let Some(rows) = sections.get(2).and_then(|b| hd_resolve::anchor::decode(b))
             && let Some(mentions) = self.mentions(fid, &items, &exports)
         {
-            let iface = hd_resolve::folder_iface(
+            let mut iface = hd_resolve::folder_iface(
                 &folder.path,
                 items,
                 exports,
                 Arc::from(blob.as_slice()),
                 &mentions,
             );
+            iface.spans = spans_of(&iface.items, &rows);
             self.emit_iface_diags(fi, &diags);
             self.note_iface(&folder.path, &iface, false);
             lock(&self.report).ok(Stage::FolderIface);
@@ -911,6 +929,12 @@ impl Run<'_> {
                 return;
             }
         };
+        let mut anchored = Vec::new();
+        for (mi, m) in out.modules.iter().enumerate() {
+            for (def, slot, a) in &m.anchors {
+                anchored.push((*def, u32_of(mi), *slot, *a));
+            }
+        }
         let all: Vec<Item> = out.modules.into_iter().flat_map(|m| m.items).collect();
         for it in &all {
             if let Some(k) = it.intrinsic
@@ -949,21 +973,31 @@ impl Run<'_> {
                 (
                     m,
                     diags.code[i],
-                    sp.lo,
-                    sp.hi,
+                    hd_resolve::anchor::of_span(&self.src(folder.modules[m].idx()), sp.lo, sp.hi),
                     diags.get_text(diags.message[i]).to_owned(),
                 )
             })
             .collect();
         let dsec = encode_iface_diags(&idiags);
-        self.put(EntryKind::Iface, key, &[&blob, &dsec]);
+        let by_def: HashMap<DefId, u32> = items
+            .iter()
+            .enumerate()
+            .map(|(i, it)| (it.def, u32_of(i)))
+            .collect();
+        let rows: Vec<(u32, u32, u32, hd_resolve::anchor::Anchor)> = anchored
+            .into_iter()
+            .filter_map(|(d, m, slot, a)| Some((*by_def.get(&d)?, m, slot, a)))
+            .collect();
+        let asec = hd_resolve::anchor::encode(&rows);
+        self.put(EntryKind::Iface, key, &[&blob, &dsec, &asec]);
         let Some(mentions) = self.mentions(fid, &items, &out.exports) else {
             self.blocked(Stage::FolderIface);
             let _ = self.iface[fi].set(None);
             return;
         };
-        let iface =
+        let mut iface =
             hd_resolve::folder_iface(&folder.path, items, out.exports, Arc::from(blob), &mentions);
+        iface.spans = spans_of(&iface.items, &rows);
         lock(&self.diags).append(&diags);
         self.note_iface(&folder.path, &iface, true);
         lock(&self.report).ok(Stage::FolderIface);
@@ -1022,17 +1056,43 @@ impl Run<'_> {
             .collect()
     }
 
-    /// The span of an item's module file, for interface-level findings.
-    fn item_span(&self, d: DefId) -> Span {
-        let file = self
-            .table
-            .module(&self.names().module_of(d))
-            .map_or(u32::MAX, |m| self.table.modules[m.idx()].file.raw());
-        Span {
-            file: FileId::from_raw(file),
+    /// Where an item, or one of its written types (`slot`), sits in its
+    /// file: resolved from the interface's declaration-relative anchors
+    /// against this run's parse. Falls back to the start of the module file.
+    fn item_span(&self, d: DefId, slot: u32) -> Span {
+        let Some(mid) = self.table.module(&self.names().module_of(d)) else {
+            return Span {
+                file: FileId::from_raw(u32::MAX),
+                lo: 0,
+                hi: 0,
+            };
+        };
+        let module = &self.table.modules[mid.idx()];
+        let fallback = Span {
+            file: module.file,
             lo: 0,
             hi: 0,
+        };
+        let Some(iface) = self.iface_of(module.folder) else {
+            return fallback;
+        };
+        let Some((m, anchor)) = iface
+            .spans
+            .get(&(d, slot))
+            .or_else(|| iface.spans.get(&(d, 0)))
+        else {
+            return fallback;
+        };
+        let Some(target) = self.table.folders[module.folder.idx()]
+            .modules
+            .get(*m as usize)
+        else {
+            return fallback;
+        };
+        if !self.parse_of(target.idx()).is_ok() {
+            return fallback;
         }
+        hd_resolve::anchor::resolve(&self.src(target.idx()), anchor).unwrap_or(fallback)
     }
 
     /// `HeaderCheck(F)`: stage B (§4.10.1) over F's interface, against the
@@ -1047,7 +1107,7 @@ impl Run<'_> {
         let findings = u.stage_b(&own.items);
         let mut d = lock(&self.diags);
         for f in findings {
-            d.error(f.code, self.item_span(f.item), &f.message);
+            d.error(f.code, self.item_span(f.item, f.slot), &f.message);
         }
         drop(d);
         lock(&self.report).ok(Stage::HeaderCheck);
@@ -1077,7 +1137,38 @@ impl Run<'_> {
         }
         let names = self.names();
         let u = hd_resolve::Universe::new(names, all.iter().flat_map(|i| i.items.iter()));
-        let order = |d: DefId| names.path(d);
+        // Content order (§4.12.3): the later impl is the one reported. A
+        // `@derive` ranks after written impls, a derivation block after both.
+        let order = |d: DefId| {
+            let rank = all
+                .iter()
+                .find_map(|i| i.item(d))
+                .map_or(0, |it| match &it.data {
+                    ItemData::Impl {
+                        kind: hd_resolve::ImplKind::Derived,
+                        ..
+                    } => 1,
+                    ItemData::Impl {
+                        kind: hd_resolve::ImplKind::Derivation,
+                        ..
+                    } => 2,
+                    _ => 0,
+                });
+            let at = all
+                .iter()
+                .find_map(|i| i.spans.get(&(d, 0)))
+                .map_or((0, 0, 0), |(_, a)| (a.decl, a.member, a.tok));
+            let module = names.module_of(d);
+            // std first: its impls are the earlier ones.
+            let package = u8::from(!module.starts_with("std."));
+            format!(
+                "{package}{rank}\0{module}\0{:010}{:010}{:010}\0{}",
+                at.0,
+                at.1,
+                at.2,
+                names.path(d)
+            )
+        };
         let overlaps = u.overlaps(&order);
         lock(&self.report).ok(Stage::Coherence);
         let mut d = lock(&self.diags);
@@ -1087,7 +1178,7 @@ impl Run<'_> {
                 names.path(a),
                 names.path(b)
             );
-            d.error(Code::OverlappingImpl, self.item_span(b), &msg);
+            d.error(Code::OverlappingImpl, self.item_span(b, 0), &msg);
         }
     }
 
@@ -2211,11 +2302,12 @@ fn decode_regs(r: &mut Reader<'_>) -> Vec<hd_check::tests::TestReg> {
 fn encode_iface_diags(d: &IfaceDiags) -> Vec<u8> {
     let mut w = Writer::default();
     w.len_of(d);
-    for (m, code, lo, hi, msg) in d {
+    for (m, code, a, msg) in d {
         w.u32(u32_of(*m));
         w.str(code.as_str());
-        w.u32(*lo);
-        w.u32(*hi);
+        for v in [a.decl, a.member, a.tok, a.count] {
+            w.u32(v);
+        }
         w.str(msg);
     }
     w.bytes
@@ -2227,8 +2319,13 @@ fn decode_iface_diags(b: &[u8]) -> Option<IfaceDiags> {
     for _ in 0..r.count() {
         let m = r.u32() as usize;
         let code = Code::from_name(r.str()).unwrap_or(Code::Unsupported);
-        let (lo, hi) = (r.u32(), r.u32());
-        out.push((m, code, lo, hi, r.str().to_owned()));
+        let a = hd_resolve::anchor::Anchor {
+            decl: r.u32(),
+            member: r.u32(),
+            tok: r.u32(),
+            count: r.u32(),
+        };
+        out.push((m, code, a, r.str().to_owned()));
     }
     r.ok().then_some(out)
 }

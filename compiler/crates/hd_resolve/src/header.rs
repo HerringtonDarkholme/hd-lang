@@ -29,6 +29,8 @@ pub struct Universe<'a> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Finding {
     pub item: DefId,
+    /// Which written position of the item (`anchor` slots): 0 is its header.
+    pub slot: u32,
     pub code: hd_diag::Code,
     pub message: String,
 }
@@ -317,7 +319,8 @@ impl<'a> Universe<'a> {
     }
 
     /// Written types against their declared bounds (`trait.bound.no-implied`).
-    fn check_ty(&self, t: Ty, env: &Env, item: DefId, out: &mut Vec<Finding>) {
+    fn check_ty(&self, t: Ty, env: &Env, at: (DefId, u32), out: &mut Vec<Finding>) {
+        let item = at.0;
         let pool = self.pool();
         match pool.get(t) {
             TyData::Adt { def, args } => {
@@ -333,6 +336,7 @@ impl<'a> Universe<'a> {
                             if self.holds(a, b, env, DEPTH) == Some(false) {
                                 out.push(Finding {
                                     item,
+                                    slot: at.1,
                                     code: hd_diag::Code::UnsatisfiedTraitBound,
                                     message: format!(
                                         "unsatisfied-trait-bound: {} does not implement {} in `{}`",
@@ -346,20 +350,20 @@ impl<'a> Universe<'a> {
                     }
                 }
                 for a in args_v {
-                    self.check_ty(a, env, item, out);
+                    self.check_ty(a, env, at, out);
                 }
             }
-            TyData::Option(i) | TyData::Mut(i) => self.check_ty(i, env, item, out),
+            TyData::Option(i) | TyData::Mut(i) => self.check_ty(i, env, at, out),
             TyData::Tuple { elems, rest } => {
                 for e in pool.list_items(elems).into_iter().chain(rest) {
-                    self.check_ty(e, env, item, out);
+                    self.check_ty(e, env, at, out);
                 }
             }
             TyData::Fn { params, result, .. } => {
                 for e in pool.list_items(params) {
-                    self.check_ty(e, env, item, out);
+                    self.check_ty(e, env, at, out);
                 }
-                self.check_ty(result, env, item, out);
+                self.check_ty(result, env, at, out);
             }
             _ => {}
         }
@@ -394,8 +398,22 @@ impl<'a> Universe<'a> {
                 ItemData::Alias(t) | ItemData::Newtype(t) => vec![*t],
                 ItemData::Trait(_) | ItemData::AssocType { .. } => vec![],
             };
-            for t in tys {
-                self.check_ty(t, &env, it.def, &mut out);
+            // Slot 0 is the header; written types of functions, data and
+            // enums have their own (`anchor`).
+            let positional = matches!(
+                it.data,
+                ItemData::Fn(_)
+                    | ItemData::Method { .. }
+                    | ItemData::Data(_)
+                    | ItemData::Enum { .. }
+            );
+            for (i, t) in tys.into_iter().enumerate() {
+                let slot = if positional {
+                    u32::try_from(i + 1).unwrap_or(0)
+                } else {
+                    0
+                };
+                self.check_ty(t, &env, (it.def, slot), &mut out);
             }
             let ItemData::Impl {
                 trait_,
@@ -420,6 +438,7 @@ impl<'a> Universe<'a> {
                 if self.holds(*self_ty, s, &env, DEPTH) == Some(false) {
                     out.push(Finding {
                         item: it.def,
+                        slot: 0,
                         code: hd_diag::Code::MissingSupertraitImplementation,
                         message: format!(
                             "missing-supertrait-implementation: {} implements {} but not {}",
@@ -463,6 +482,7 @@ impl<'a> Universe<'a> {
         let Some(f) = fields.iter().find(|f| f.embedded && f.name == by) else {
             out.push(Finding {
                 item: it.def,
+                slot: 0,
                 code: hd_diag::Code::InvalidDelegation,
                 message: format!(
                     "invalid-delegation: `{}` has no embedded field `{}`",
@@ -478,6 +498,7 @@ impl<'a> Universe<'a> {
         if self.holds(ft, tv, env, DEPTH) == Some(false) {
             out.push(Finding {
                 item: it.def,
+                slot: 0,
                 code: hd_diag::Code::InvalidDelegation,
                 message: format!(
                     "invalid-delegation: the field `{}` does not implement {}",

@@ -8,7 +8,7 @@ fixture and CLI case; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1178 | 942 | 822 | 2942 |
+| 1188 | 932 | 823 | 2943 |
 
 ## By Chapter
 
@@ -23,10 +23,10 @@ fixture and CLI case; unsupported surface records progress without failing.
 | `lang/06-control-flow.md` | 93 | 33 | 30 | 156 |
 | `lang/07-functions.md` | 45 | 35 | 50 | 130 |
 | `lang/08-data-and-enums.md` | 42 | 52 | 29 | 123 |
-| `lang/09-traits.md` | 122 | 177 | 59 | 358 |
-| `lang/10-modules.md` | 82 | 123 | 51 | 256 |
+| `lang/09-traits.md` | 131 | 168 | 59 | 358 |
+| `lang/10-modules.md` | 82 | 123 | 53 | 258 |
 | `lang/11-requirements-and-suspension.md` | 87 | 70 | 103 | 260 |
-| `lang/14-annotations.md` | 37 | 94 | 23 | 154 |
+| `lang/14-annotations.md` | 38 | 93 | 22 | 153 |
 | `std/cli.md` | 1 | 0 | 4 | 5 |
 | `std/cmp.md` | 2 | 0 | 12 | 14 |
 | `std/collections.md` | 8 | 6 | 15 | 29 |
@@ -64,9 +64,9 @@ fixture and CLI case; unsupported surface records progress without failing.
 | `cli` | 0 | 0 | 101 | 101 |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 26 | 50 | 28 | 104 |
-| `runtime/valid` | 182 | 240 | 506 | 928 |
-| `typing/invalid` | 384 | 565 | 123 | 1072 |
+| `runtime/panic` | 26 | 50 | 29 | 105 |
+| `runtime/valid` | 182 | 241 | 506 | 929 |
+| `typing/invalid` | 394 | 554 | 123 | 1071 |
 | `typing/valid` | 292 | 59 | 64 | 415 |
 | `typing/warnings` | 7 | 14 | 0 | 21 |
 
@@ -93,13 +93,13 @@ compiler stage that first declined the case.
 | `fail:missing-required-field` | 2 |
 | `fail:missing-requirement` | 11 |
 | `fail:missing-return-value` | 9 |
-| `fail:missing-supertrait-implementation` | 4 |
+| `fail:missing-supertrait-implementation` | 2 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 354 |
+| `fail:no-diagnostic` | 352 |
 | `fail:nonexhaustive-match` | 16 |
 | `fail:not-callable` | 2 |
 | `fail:orphan-impl` | 2 |
-| `fail:overlapping-impl` | 9 |
+| `fail:overlapping-impl` | 1 |
 | `fail:pattern-arity` | 2 |
 | `fail:pipe-step-needs-placeholder` | 5 |
 | `fail:placeholder-outside-pipe` | 1 |
@@ -117,8 +117,8 @@ compiler stage that first declined the case.
 | `fail:unknown-method` | 49 |
 | `fail:unknown-module` | 67 |
 | `fail:unknown-name` | 8 |
-| `fail:unknown-named-argument` | 1 |
-| `fail:unknown-trait` | 7 |
+| `fail:unknown-named-argument` | 2 |
+| `fail:unknown-trait` | 8 |
 | `fail:unknown-type` | 2 |
 | `fail:unknown-variant` | 1 |
 | `fail:unsatisfied-trait-bound` | 35 |
@@ -130,7 +130,7 @@ compiler stage that first declined the case.
 | `unsupported:Emit` | 265 |
 | `unsupported:FolderIface` | 35 |
 | `unsupported:Link` | 1 |
-| `unsupported:RunCase` | 40 |
+| `unsupported:RunCase` | 41 |
 | `unsupported:TestCase` | 4 |
 
 <details><summary><code>fail:argument-count</code> (17)</summary>
@@ -289,12 +289,10 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:missing-supertrait-implementation</code> (4)</summary>
+<details><summary><code>fail:missing-supertrait-implementation</code> (2)</summary>
 
-- `typing/invalid/partial-ord-requires-eq.hd`
 - `typing/invalid/derive-error-trait.hd`
 - `typing/invalid/num-sealed-impl.hd`
-- `typing/invalid/num-sealed-user-number.hd`
 
 </details>
 
@@ -304,7 +302,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (354)</summary>
+<details><summary><code>fail:no-diagnostic</code> (352)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -424,7 +422,6 @@ compiler stage that first declined the case.
 - `typing/invalid/newtype-derivation-block.hd`
 - `typing/invalid/duplicate-tests-block.hd`
 - `typing/invalid/tests-block-name-collision.hd`
-- `typing/invalid/tests-block-use-shadow.hd`
 - `typing/invalid/tests-block-use-leak.hd`
 - `typing/invalid/tests-block-binding.hd`
 - `typing/invalid/duplicate-test-name.hd`
@@ -476,7 +473,6 @@ compiler stage that first declined the case.
 - `typing/invalid/str-prefix-before-data.hd`
 - `typing/invalid/ambiguous-row-pattern.hd`
 - `typing/invalid/row-subsumption-missing-key.hd`
-- `typing/invalid/row-alias-mut-key.hd`
 - `typing/invalid/literal-suffix-no-parameter.hd`
 - `typing/invalid/row-union-list-no-convert.hd`
 - `typing/invalid/row-union-missing-requirement.hd`
@@ -579,7 +575,7 @@ compiler stage that first declined the case.
 - `typing/warnings/private-main-suspending.hd`
 - `typing/invalid/test-body-uses-property-runner.hd`
 - `typing/invalid/serde-derive-member-not-serialize.hd`
-- `typing/invalid/boundary-private-field-no-consent.hd`
+- `typing/invalid/boundary-private-field-no-traits.hd`
 - `typing/invalid/list-helper-callback-row.hd`
 - `typing/invalid/iterator-any-callback-row.hd`
 - `typing/invalid/string-slice-negative-offset.hd`
@@ -698,17 +694,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:overlapping-impl</code> (9)</summary>
+<details><summary><code>fail:overlapping-impl</code> (1)</summary>
 
-- `typing/invalid/overlapping-impl-unifying-targets.hd`
-- `typing/invalid/overlapping-impl-despite-bounds.hd`
-- `typing/invalid/overlapping-generic-impl-heads.hd`
-- `typing/invalid/overlapping-tuple-impl.hd`
-- `typing/invalid/overlapping-option-impl.hd`
-- `typing/invalid/function-type-overlapping-impl.hd`
-- `typing/invalid/derive-and-block-overlap.hd`
-- `typing/invalid/derive-beside-written-impl.hd`
-- `typing/invalid/impl-duplicate-exact-pair.hd`
+- `typing/invalid/num-sealed-user-number.hd`
 
 </details>
 
@@ -1211,19 +1199,21 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-named-argument</code> (1)</summary>
+<details><summary><code>fail:unknown-named-argument</code> (2)</summary>
 
+- `runtime/valid/tests-block-use-shadow.hd`
 - `runtime/valid/test-registration-qualified-prop.hd`
 
 </details>
 
-<details><summary><code>fail:unknown-trait</code> (7)</summary>
+<details><summary><code>fail:unknown-trait</code> (8)</summary>
 
 - `typing/invalid/user-suspend-implementation.hd`
 - `typing/invalid/reference-trait-name-unknown.hd`
 - `typing/invalid/row-parameter-on-data.hd`
 - `typing/invalid/row-parameter-on-trait.hd`
 - `typing/valid/row-alias-one-key.hd`
+- `typing/invalid/row-alias-mut-key.hd`
 - `typing/invalid/row-parameter-on-newtype.hd`
 - `typing/invalid/row-parameter-unmarked.hd`
 
@@ -2118,7 +2108,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:RunCase</code> (40)</summary>
+<details><summary><code>unsupported:RunCase</code> (41)</summary>
 
 - `runtime/valid/cancellation-unwinds-nested-frames.hd`
 - `runtime/valid/cancellation-unwinds-suspending-closure.hd`
@@ -2137,7 +2127,7 @@ compiler stage that first declined the case.
 - `runtime/panic/host-result-out-of-range.hd`
 - `runtime/valid/println-pending-write.hd`
 - `runtime/valid/block-on-pending-write.hd`
-- `runtime/valid/boundary-consent-crossing.hd`
+- `runtime/valid/boundary-derived-round-trip.hd`
 - `runtime/valid/host-result-special-floats.hd`
 - `runtime/valid/doc-test-passes.hd`
 - `runtime/panic/doc-test-failing-assert.hd`
@@ -2158,8 +2148,9 @@ compiler stage that first declined the case.
 - `runtime/valid/pending-first-poll-void-return-operand.hd`
 - `runtime/valid/pending-first-poll-void-return.hd`
 - `runtime/valid/own-module-private-members.hd`
+- `runtime/panic/boundary-deserialize-error.hd`
 - `runtime/valid/boundary-public-fields-cross.hd`
-- `runtime/valid/boundary-consent-by-hand.hd`
+- `runtime/valid/boundary-redacted-round-trip.hd`
 
 </details>
 
@@ -2762,6 +2753,8 @@ typing/invalid/declaration-requirement-not-on-result.hd
 typing/invalid/default-body-inherent-method.hd
 typing/invalid/defer-return.hd
 typing/invalid/defer-suspends.hd
+typing/invalid/derive-and-block-overlap.hd
+typing/invalid/derive-beside-written-impl.hd
 typing/invalid/derive-unknown-trait.hd
 typing/invalid/derived-arbitrary-generic-bound.hd
 typing/invalid/discarded-optional-result.hd
@@ -2805,6 +2798,7 @@ typing/invalid/function-equality.hd
 typing/invalid/function-identity-against-any.hd
 typing/invalid/function-result-type-mismatch.hd
 typing/invalid/function-type-orphan-impl.hd
+typing/invalid/function-type-overlapping-impl.hd
 typing/invalid/function-type-row-unknown-trait-nested.hd
 typing/invalid/function-value-no-default-arguments.hd
 typing/invalid/generic-bound-unsatisfied.hd
@@ -2824,6 +2818,7 @@ typing/invalid/guarded-match-not-exhaustive.hd
 typing/invalid/hd-run-requires-process.hd
 typing/invalid/if-branch-misses-expected-type.hd
 typing/invalid/impl-bound-bare-trait.hd
+typing/invalid/impl-duplicate-exact-pair.hd
 typing/invalid/impl-iterator-trait.hd
 typing/invalid/impl-method-generic-bound-added.hd
 typing/invalid/impl-method-generic-bound-changed.hd
@@ -2931,10 +2926,16 @@ typing/invalid/orphan-impl-alias-target.hd
 typing/invalid/orphan-impl-nested-trait-argument.hd
 typing/invalid/orphan-impl-standard-data.hd
 typing/invalid/orphan-impl-standard-enum.hd
+typing/invalid/overlapping-generic-impl-heads.hd
+typing/invalid/overlapping-impl-despite-bounds.hd
+typing/invalid/overlapping-impl-unifying-targets.hd
+typing/invalid/overlapping-option-impl.hd
+typing/invalid/overlapping-tuple-impl.hd
 typing/invalid/parameter-default-type-mismatch.hd
 typing/invalid/parent-declaration-not-in-child.hd
 typing/invalid/part-trait-method-not-promoted.hd
 typing/invalid/partial-eq-removed.hd
+typing/invalid/partial-ord-requires-eq.hd
 typing/invalid/payload-free-enum-equality.hd
 typing/invalid/plain-break-in-value-loop.hd
 typing/invalid/prelude-shadow-println-function.hd
