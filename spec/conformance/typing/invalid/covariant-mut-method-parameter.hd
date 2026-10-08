@@ -5,5 +5,5 @@ data Feed[+T]:
     latest: T
 
 impl[T] Feed[T]:
-    pub fn swap(self, other: mut T) -> void:  # diagnostic: invalid-variance
+    pub fn swap(self, other: mut List[T]) -> void:  # diagnostic: invalid-variance
         pass

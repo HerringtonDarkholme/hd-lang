@@ -1668,6 +1668,7 @@ runtime/valid/tuple-element-permission.hd	runtime	accept	lang/04-type-system.md#
 typing/invalid/mut-tuple-parameter.hd	type	reject:mut-on-tuple	lang/04-type-system.md#r-types.tuple.no-mut
 typing/invalid/mut-tuple-annotation.hd	type	reject:mut-on-tuple	lang/04-type-system.md#r-types.tuple.no-mut
 typing/invalid/let-mut-tuple.hd	type	reject:mut-on-tuple	lang/04-type-system.md#r-types.bind.let-mut-tuple
+typing/invalid/mut-on-type-parameter.hd	type	reject:mut-on-type-parameter	lang/04-type-system.md#r-types.generic.no-mut-t
 runtime/valid/template-derived-trait-self.hd	runtime	accept	lang/14-annotations.md#r-annot.template.qualified-self.receiverless
 runtime/valid/task-retry.hd	runtime	accept	std/task.md#r-std-task.combinator.retry.loop
 runtime/valid/task-retry-at-least-once.hd	runtime	accept	std/task.md#r-std-task.combinator.retry.zero-once

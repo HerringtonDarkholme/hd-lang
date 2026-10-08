@@ -1,0 +1,5 @@
+# test: an unconstrained generic parameter written as mut T is rejected at the mut T type
+# Spec 04 Mutable Bounds: types.generic.no-mut-t; a mutable requirement uses a bound, T < mut Any.
+
+fn reset[T](value: mut T) -> void:  # diagnostic: mut-on-type-parameter
+    pass

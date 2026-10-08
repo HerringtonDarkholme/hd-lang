@@ -1422,7 +1422,7 @@ fn clear_value[T < mut Clear](value: T) -> void:
 ```
 
 1. r[types.generic.direct] An unconstrained generic declaration stores or passes `T` directly.
-2. r[types.generic.no-mut-t] An unconstrained generic declaration must not write `mut T`.
+2. r[types.generic.no-mut-t] An unconstrained generic declaration must not write `mut T`, as in `fn invalid[T](value: mut T)`. It is an error at the `mut T` type, in place of `invalid-variance`. Error: `mut-on-type-parameter`.
 3. r[types.generic.mut-bound] Mutable generic requirements use a bound.
 4. r[types.generic.mut-any] `T < mut Any` accepts any mutable-root type.
 5. r[types.generic.mut-trait] `T < mut Trait` additionally requires the underlying type to implement `Trait`.
