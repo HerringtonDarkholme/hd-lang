@@ -117,6 +117,29 @@ fn cell_locals(b: &Body) -> HashMap<u32, u32> {
     cells
 }
 
+/// The operator an intrinsic method of the primitives' std
+/// implementations computes (`expr.op.std.intrinsic-method`,
+/// `expr.eq.std.intrinsic`); `cmp` and `partial_cmp` build an `Ordering`
+/// instead.
+fn intrinsic_op(method: &str) -> Option<PrimOp> {
+    Some(match method {
+        "add" => PrimOp::Add,
+        "sub" => PrimOp::Sub,
+        "mul" => PrimOp::Mul,
+        "div" => PrimOp::Div,
+        "rem" => PrimOp::Rem,
+        "neg" => PrimOp::Neg,
+        "bit_and" => PrimOp::BitAnd,
+        "bit_or" => PrimOp::BitOr,
+        "bit_xor" => PrimOp::BitXor,
+        "not" => PrimOp::Not,
+        "shl" => PrimOp::Shl,
+        "shr" => PrimOp::Shr,
+        "eq" => PrimOp::Eq,
+        _ => return None,
+    })
+}
+
 fn u32_of(i: usize) -> u32 {
     u32::try_from(i).expect("index")
 }
@@ -1043,8 +1066,18 @@ impl Em<'_> {
             return unsupported("an unknown operator");
         };
         let ops = self.rec(rec);
-        let t0 = ops.first().map_or(Ty::I32, |r| self.ty_of(*r));
         let ty = self.sub(self.b.ty[i as usize]);
+        self.prim_value(op, &ops, ty)?;
+        self.store(i)
+    }
+
+    /// Pushes the value of primitive operator `op` on the operands `ops`,
+    /// whose result has type `ty`. This is the one lowering of the
+    /// operators on numbers, `char` and `bool`: the `Prim` instruction and
+    /// the intrinsic methods of the std operator and comparison traits
+    /// (`expr.op.std.intrinsic-method`) both come here.
+    fn prim_value(&mut self, op: PrimOp, ops: &[u32], ty: Ty) -> StageResult<()> {
+        let t0 = ops.first().map_or(Ty::I32, |r| self.ty_of(*r));
         let (bits, signed, float) = num(self.pool(), t0);
         let vt0 = self.vts(t0)?;
         if !matches!(vt0.as_slice(), [VT::I32 | VT::I64 | VT::F32 | VT::F64]) {
@@ -1052,17 +1085,37 @@ impl Em<'_> {
         }
         let wide = vt0[0] == VT::I64;
         if float {
-            return self.float_prim(i, op, &ops, &vt0[0]);
+            return self.float_value(op, ops, &vt0[0]);
         }
         let s = |em: &mut Self| -> StageResult<()> {
-            for r in &ops {
+            for r in ops {
                 em.comp(*r, 0, &vt0[0])?;
+            }
+            Ok(())
+        };
+        // A shift's count is any unsigned type (`expr.shift.count-unsigned`),
+        // so it is brought to the shifted value's width.
+        let shift = |em: &mut Self| -> StageResult<()> {
+            em.comp(ops[0], 0, &vt0[0])?;
+            let count = em.vts(em.ty_of(ops[1]))?;
+            let Some(cv) = count.first() else {
+                return unsupported("a shift count without a value");
+            };
+            em.comp(ops[1], 0, cv)?;
+            match (cv, wide) {
+                (VT::I32, true) => {
+                    em.a.s().i64_extend_i32_u();
+                }
+                (VT::I64, false) => {
+                    em.a.s().i32_wrap_i64();
+                }
+                _ => {}
             }
             Ok(())
         };
         match op {
             PrimOp::Add | PrimOp::Sub | PrimOp::Mul | PrimOp::Div | PrimOp::Rem | PrimOp::Neg => {
-                self.checked(op, &ops, bits, signed, wide)?;
+                self.checked(op, ops, bits, signed, wide)?;
             }
             PrimOp::Eq | PrimOp::Ne | PrimOp::Lt | PrimOp::Le | PrimOp::Gt | PrimOp::Ge => {
                 s(self)?;
@@ -1115,7 +1168,7 @@ impl Em<'_> {
                 }
             }
             PrimOp::Shl => {
-                s(self)?;
+                shift(self)?;
                 if wide {
                     self.a.s().i64_shl();
                 } else {
@@ -1123,7 +1176,7 @@ impl Em<'_> {
                 }
             }
             PrimOp::Shr => {
-                s(self)?;
+                shift(self)?;
                 let mut x = self.a.s();
                 match (wide, signed) {
                     (false, true) => x.i32_shr_s(),
@@ -1183,17 +1236,17 @@ impl Em<'_> {
                 }
             }
         }
-        self.store(i)
+        Ok(())
     }
 
-    fn float_prim(&mut self, i: u32, op: PrimOp, ops: &[u32], vt: &VT) -> StageResult<()> {
+    fn float_value(&mut self, op: PrimOp, ops: &[u32], vt: &VT) -> StageResult<()> {
         if *vt != VT::F64 {
             return unsupported("f32 arithmetic");
         }
         if op == PrimOp::Neg {
             self.comp(ops[0], 0, vt)?;
             self.a.s().f64_neg();
-            return self.store(i);
+            return Ok(());
         }
         for r in ops {
             self.comp(*r, 0, vt)?;
@@ -1212,7 +1265,7 @@ impl Em<'_> {
             PrimOp::Ge => x.f64_ge(),
             _ => return unsupported(format!("the float operator {op:?}")),
         };
-        self.store(i)
+        Ok(())
     }
 
     /// Checked integer arithmetic (lowering-catalog.md, "Arithmetic And
@@ -1431,17 +1484,38 @@ impl Em<'_> {
             TargetKind::Builtin { self_ty, .. } => {
                 let name = (self.lay.path)(t.item);
                 let name = name.rsplit(['.', '/']).next().unwrap_or("").to_owned();
-                self.builtin(i, &name, *self_ty, args)
+                self.builtin(i, &name, *self_ty, args, ty)
             }
         }
     }
 
-    fn builtin(&mut self, i: u32, name: &str, self_ty: Ty, args: &[u32]) -> StageResult<()> {
+    fn builtin(
+        &mut self,
+        i: u32,
+        name: &str,
+        self_ty: Ty,
+        args: &[u32],
+        ty: Ty,
+    ) -> StageResult<()> {
         let self_ty = match self.pool().get(self_ty) {
             TyData::Mut(x) => x,
             _ => self_ty,
         };
         let shape = self.lay.shape(self_ty)?;
+        // The intrinsic methods of the primitives' std operator and
+        // comparison implementations compute what the operator computes
+        // (`expr.op.std.intrinsic-method`, `expr.ord.std.intrinsic`), so
+        // they share its lowering.
+        if matches!(shape, Shape::Scalar(_)) && matches!(self.pool().get(self_ty), TyData::Prim(_))
+        {
+            if let Some(op) = intrinsic_op(name) {
+                self.prim_value(op, args, ty)?;
+                return self.store(i);
+            }
+            if matches!(name, "cmp" | "partial_cmp") {
+                return self.ordering(i, args, name == "partial_cmp", ty);
+            }
+        }
         match (name, &shape) {
             ("to_string", Shape::Scalar(v @ (VT::I32 | VT::I64))) => {
                 if self.pool().get(self_ty) == TyData::Prim(Prim::Bool) {
@@ -1465,16 +1539,6 @@ impl Em<'_> {
                 self.load(args[0])?;
                 self.store(i)
             }
-            ("eq", Shape::Scalar(v @ (VT::I32 | VT::I64))) => {
-                self.comp(args[0], 0, v)?;
-                self.comp(args[1], 0, v)?;
-                if *v == VT::I64 {
-                    self.a.s().i64_eq();
-                } else {
-                    self.a.s().i32_eq();
-                }
-                self.store(i)
-            }
             ("eq", Shape::Str) => {
                 self.load(args[0])?;
                 self.load(args[1])?;
@@ -1486,6 +1550,59 @@ impl Em<'_> {
                 self.pool().display(self_ty)
             )),
         }
+    }
+
+    /// `cmp` or `partial_cmp` of two numbers or characters: the operator
+    /// lowering's `>` minus its `<`, as an `Ordering` (`Less`, `Equal`,
+    /// `Greater` are variants 0, 1 and 2). `partial_cmp` wraps it in
+    /// `.Some`, or answers `.None` when a float operand is NaN
+    /// (`expr.ord.unordered`).
+    fn ordering(&mut self, i: u32, args: &[u32], partial: bool, ty: Ty) -> StageResult<()> {
+        let ops = [args[0], args[1]];
+        let tag = self.a.local(VT::I32);
+        self.a.i32(1);
+        self.prim_value(PrimOp::Gt, &ops, Ty::BOOL)?;
+        self.a.s().i32_add();
+        self.prim_value(PrimOp::Lt, &ops, Ty::BOOL)?;
+        self.a.s().i32_sub();
+        self.a.set(tag);
+        if !partial {
+            let Shape::Enum(EnumShape {
+                slots, boxed: None, ..
+            }) = self.lay.shape(ty)?
+            else {
+                return unsupported("an `Ordering` that is not a plain tag");
+            };
+            if !slots.is_empty() {
+                return unsupported("an `Ordering` that is not a plain tag");
+            }
+            self.a.get(tag);
+            return self.store(i);
+        }
+        let Shape::Opt(OptShape::Tagged(dv), _) = self.lay.shape(ty)? else {
+            return unsupported("an `Ordering?` that is not a tagged pair");
+        };
+        if dv.as_slice() != [VT::I32] {
+            return unsupported("an `Ordering?` that is not a tagged pair");
+        }
+        let (_, _, float) = num(self.pool(), self.ty_of(ops[0]));
+        if float {
+            // Ordered exactly when neither operand is NaN; `.None` has a
+            // zero payload, as a constructed one does.
+            let some = self.a.local(VT::I32);
+            self.prim_value(PrimOp::Eq, &[ops[0], ops[0]], Ty::BOOL)?;
+            self.prim_value(PrimOp::Eq, &[ops[1], ops[1]], Ty::BOOL)?;
+            self.a.s().i32_and();
+            self.a.set(some);
+            self.a.get(some);
+            self.a.get(tag);
+            self.a.get(some);
+            self.a.s().i32_mul();
+        } else {
+            self.a.i32(1);
+            self.a.get(tag);
+        }
+        self.store(i)
     }
 
     fn lit_into(&mut self, i: u32, s: &str) -> StageResult<()> {
