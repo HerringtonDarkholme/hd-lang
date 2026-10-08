@@ -83,21 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q18. Conformance Runner For The New Compiler (A Cargo Test)
-
-Phase 2 ("make it work") is driven by the conformance suite. Add one
-test target, `compiler/crates/hd_driver/tests/conformance.rs` (never an
-`hd` subcommand), that runs every `spec/conformance/` case through the
-new compiler by its phase (parse, type, runtime with expected stdout and
-exit code, cli where it can), and writes `compiler/CONFORMANCE.md`: pass
-/ fail / unsupported counts per chapter and per directory, plus a
-bucketed failure list (first diagnostic code or `unsupported` stage).
-It fails only on a crash or when a previously passing case regresses
-(a checked-in pass list it updates with `HD_UPDATE_CONFORMANCE=1`), not
-on unsupported cases. Run it at the commit you start from and commit
-the numbers. Test code and `compiler/CONFORMANCE.md` only; fmt and
-clippy `-D warnings` clean. Timebox 60 minutes; push.
-
 ### Q19. Diagnostic Rendering Versus The Spec
 
 The new compiler prints `error: main.hd:0..39: error unknown-module:
