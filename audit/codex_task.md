@@ -83,19 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### T2. Fixture Phase-Tag Audit
-
-`spec/conformance/cases.tsv` tags each case with a phase (parse, type,
-runtime, ...). M2 found cases tagged `type` that expect parse codes.
-Write `spec/tools/phase-audit.ts` (and a `pnpm run spec phase-audit`
-entry if `spec.ts` has a subcommand table): for every row, the expected
-diagnostic code's phase (from the spec's diagnostics tables, the same
-source as Q9's generator) must match the row's phase; report
-mismatches. Add a test beside `spec-tools.test.ts`. Then fix every
-mismatch in `cases.tsv` (tags only; one line of reasoning per group in
-the commit message). Add the audit to `spec/check.sh`. Timebox 45
-minutes; push.
-
 ### T3. Spec Rule Coverage By The New Compiler
 
 Extend `pnpm run spec coverage` (spec/tools/spec-coverage.ts) with a

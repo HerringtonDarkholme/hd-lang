@@ -29,6 +29,7 @@ import {
 import { failures, rewrite, rewriteSummary } from "./spec-rewrite.ts";
 import { run } from "./spec.ts";
 import { generateDiagnosticCodes } from "./diagnostic-codes.ts";
+import { phaseAudit, phaseAuditReport } from "./phase-audit.ts";
 
 /** Whether this checkout's history holds `rev`; a shallow clone may not. */
 function hasCommit(rev: string): boolean {
@@ -80,6 +81,25 @@ parse/invalid/bad.hd\tparse\treject:bad-thing\tlang/01-lexical-structure.md#widg
   assert.match(generated, /Self::BadThing => Phase::Parse/);
   assert.match(generated, /Self::NeverNamed => Phase::Type/);
   assert.match(generated, /pub fn from_name\(name: &str\)/);
+});
+
+test("phase audit reports diagnostic rows tagged for the wrong phase", () => {
+  const cases = `path\tphase\texpectation\tspecification
+parse/invalid/bad.hd\tparse\treject:bad-thing\tlang/01-lexical-structure.md#widgets
+typing/invalid/also-bad.hd\ttype\treject:bad-thing\tlang/01-lexical-structure.md#widgets
+typing/invalid/other.hd\ttype\treject:never-named\tlang/01-lexical-structure.md#widgets
+`;
+  const result = phaseAudit(README, "", cases);
+  assert.equal(result.checked, 3);
+  assert.deepEqual(result.mismatches, [
+    {
+      path: "typing/invalid/also-bad.hd",
+      code: "bad-thing",
+      rowPhase: "type",
+      expectedPhase: "parse",
+    },
+  ]);
+  assert.match(phaseAuditReport(result), /bad-thing belongs to parse, row says type/);
 });
 
 const STD_ITER = `# std.iter

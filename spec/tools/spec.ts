@@ -3,6 +3,7 @@
 //   pnpm run spec counts [--by chapter|prefix|topic|kind] [--json]
 //   pnpm run spec audit [--strict] [--list] [--json]
 //   pnpm run spec coverage [--uncovered CHAPTER] [--json]
+//   pnpm run spec phase-audit [--json]
 //   pnpm run spec refs RULE-ID [--json]
 //   pnpm run spec refs --dead [--brief] [--all] [--json]
 //   pnpm run spec rewrite BASE [HEAD] [--json] [--fail-on KINDS]
@@ -15,6 +16,7 @@
 // `refs --dead` finds a failing citation (a dead citation in spec/, a
 // fixture, guide/, or lib/std that does not record history), or when
 // `rewrite --fail-on` names a kind the rewrite trips; 2 on a usage error.
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -23,12 +25,14 @@ import { loadCorpus, loadCorpusAt, REPO_ROOT, SPEC_ROOT } from "./spec-corpus.ts
 import { coverage, coverageReport } from "./spec-coverage.ts";
 import { counts, countsReport, type CountsView } from "./spec-counts.ts";
 import { glossary, glossaryMarkdown, glossaryReport } from "./spec-glossary.ts";
+import { phaseAudit, phaseAuditReport } from "./phase-audit.ts";
 import { buildIndex, deadCitations, deadReport, historicalIds, refsReport } from "./spec-refs.ts";
 import { FAIL_KINDS, failures, type FailKind, rewrite, rewriteReport } from "./spec-rewrite.ts";
 
 const USAGE = `usage: spec.ts counts [--by chapter|prefix|topic|kind] [--json]
        spec.ts audit [--strict] [--list] [--json]
        spec.ts coverage [--uncovered CHAPTER] [--json]
+       spec.ts phase-audit [--json]
        spec.ts refs RULE-ID [--json]
        spec.ts refs --dead [--brief] [--all] [--json]
        spec.ts rewrite BASE [HEAD] [--json] [--fail-on lost-codes,lost-examples,reused-ids]
@@ -105,6 +109,17 @@ export function run(
     } catch (error) {
       throw new UsageError((error as Error).message);
     }
+  }
+  if (command === "phase-audit") {
+    const options = parse(rest, ["--json"], []);
+    if (options.positional.length > 0) throw new UsageError("phase-audit takes no arguments");
+    const corpus = loadCorpus(roots.spec);
+    const cases = readFileSync(resolve(roots.spec, "conformance", "cases.tsv"), "utf8");
+    const result = phaseAudit(corpus.readme, corpus.controlFlow, cases);
+    return {
+      status: result.mismatches.length > 0 ? 1 : 0,
+      stdout: options.flags.has("--json") ? json(result) : phaseAuditReport(result),
+    };
   }
   if (command === "refs") {
     const options = parse(rest, ["--dead", "--brief", "--all", "--json"], []);

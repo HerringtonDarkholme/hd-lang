@@ -7,7 +7,8 @@ implementation. The one exception is an adapter module that
 
 | File | Purpose |
 | --- | --- |
-| `spec.ts` | the `pnpm run spec` entry point: `counts`, `coverage`, `audit`, `refs`, `rewrite`, and `glossary` |
+| `spec.ts` | the `pnpm run spec` entry point: `counts`, `coverage`, `audit`, `phase-audit`, `refs`, `rewrite`, and `glossary` |
+| `phase-audit.ts` | fixture phase tags checked against the diagnostic phase table |
 | `spec-corpus.ts` | every chapter with its rule inventory, read from a directory or a git revision |
 | `spec-rewrite.ts` | the before/after report of `rewrite` |
 | `spec-glossary.ts` | the terms, the Markdown page, and the missing-term report of `glossary` |
@@ -47,6 +48,16 @@ case that selects a runner option fails.
 `timedOut: true`, and must keep serving later commands. `status` is the
 exit status, or null for a command that did not finish. The repository's
 own adapter is [`test/hd-adapter.ts`](../../test/hd-adapter.ts).
+
+## Fixture Phase Audit
+
+`phase-audit` checks that every diagnostic or panic expectation belongs to
+the phase named by its `cases.tsv` row. It shares diagnostic ownership with
+the generated compiler code table.
+
+```sh
+pnpm run spec phase-audit
+```
 
 ## Fixture Coverage
 

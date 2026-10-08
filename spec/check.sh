@@ -97,6 +97,11 @@ node --experimental-strip-types "$spec_dir/check-spec-style.ts" "$spec_dir"
 node --experimental-strip-types "$spec_dir/tools/diagnostic-codes.ts" --check ||
     fail "compiler diagnostic codes are stale"
 
+# A fixture's phase must agree with the stable diagnostic phase that also
+# generates the compiler's Code::phase table.
+node --experimental-strip-types "$spec_dir/tools/spec.ts" phase-audit ||
+    fail "a fixture's phase disagrees with its diagnostic code"
+
 # Fuzzer (spec/tools/fuzz): the import gate. Its smoke run against the
 # compiler is `pnpm run fuzz:smoke`.
 node --experimental-strip-types "$spec_dir/tools/fuzz/check-imports.ts" ||
