@@ -286,7 +286,7 @@ The stdlib chapters' terms are in the
 | **rule ID** | A stable dotted name for one normative rule. See [Rule IDs](STYLE.md#rule-ids). |
 | **runtime identity** | Two types share it when they are the same declaration applied to type arguments with the same runtime identity. See [`trait.identity.definition`](lang/09-traits.md#r-trait.identity.definition). |
 | **runtime profile** | A named compile-time set of host capability traits, their boundary adapters, and runtime choices such as panic exit statuses. See [`module.profile.definition`](lang/10-modules.md#r-module.profile.definition). |
-| **same compiled program** | Two builds whose compiler outputs are byte-identical. See [`req.determinism.same-program`](lang/11-requirements-and-suspension.md#r-req.determinism.same-program). |
+| **the same compiled program** | Two builds whose compiler outputs are byte-identical. See [`req.determinism.same-program`](lang/11-requirements-and-suspension.md#r-req.determinism.same-program). |
 | **scalar boundary** | A byte offset of a string, from `0` to its length, that does not fall inside a scalar value's encoding. See [`types.string.boundary`](lang/04-type-system.md#r-types.string.boundary). |
 | **script** | An entry module with no `main`, whose top-level executable statements are the entry behavior. See [`module.init.script`](lang/10-modules.md#r-module.init.script). |
 | **sealed trait** | A standard trait whose implementations only the compiler and the standard library supply. See [Sealed Traits](lang/09-traits.md#sealed-traits). |

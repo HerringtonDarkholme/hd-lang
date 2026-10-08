@@ -24,7 +24,7 @@ import { audit, auditReport, auditTotals } from "./spec-audit.ts";
 import { loadCorpus, loadCorpusAt, REPO_ROOT, SPEC_ROOT } from "./spec-corpus.ts";
 import { compilerPassList, coverage, coverageReport } from "./spec-coverage.ts";
 import { counts, countsReport, type CountsView } from "./spec-counts.ts";
-import { glossary, glossaryMarkdown, glossaryReport } from "./spec-glossary.ts";
+import { glossary, glossaryDuplicates, glossaryMarkdown, glossaryReport } from "./spec-glossary.ts";
 import { phaseAudit, phaseAuditReport } from "./phase-audit.ts";
 import { buildIndex, deadCitations, deadReport, historicalIds, refsReport } from "./spec-refs.ts";
 import { FAIL_KINDS, failures, type FailKind, rewrite, rewriteReport } from "./spec-rewrite.ts";
@@ -181,9 +181,16 @@ export function run(
     return { status: tripped.length > 0 ? 1 : 0, stdout };
   }
   if (command === "glossary") {
-    const options = parse(rest, ["--markdown", "--json"], []);
+    const options = parse(rest, ["--markdown", "--json", "--check"], []);
     if (options.positional.length > 0) throw new UsageError("glossary takes no arguments");
     const result = glossary(loadCorpus(roots.spec));
+    if (options.flags.has("--check")) {
+      const dups = glossaryDuplicates(result);
+      return {
+        status: dups.length > 0 ? 1 : 0,
+        stdout: dups.length > 0 ? `${dups.join("\n")}\n` : "",
+      };
+    }
     const stdout = options.flags.has("--json")
       ? json(result)
       : options.flags.has("--markdown")

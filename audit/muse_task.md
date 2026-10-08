@@ -90,15 +90,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### S12. Glossary Hygiene
-
-`spec/README.md` and `spec/std/README.md` glossaries: merge duplicate
-entries (S11 found `same compiled program` / `the same compiled
-program`), make every glossary entry link to its defining rule, and drop
-entries for terms no spec text still uses (`pnpm run spec glossary` and
-a grep). Add a `spec/check.sh` step if `spec glossary` can detect
-duplicates and dangling entries cheaply. Timebox 30 minutes; push.
-
 ### Q21. Writing-Log Audit: Diagnostics Worth Improving
 
 `audit/hd-writing-log.md` has rows from Haiku and Sonnet sessions with

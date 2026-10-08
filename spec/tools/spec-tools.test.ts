@@ -20,7 +20,9 @@ import {
   ruleHistory,
 } from "./spec-refs.ts";
 import {
+  duplicateKey,
   glossary,
+  glossaryDuplicates,
   glossaryMarkdown,
   glossaryReport,
   rebaseLinks,
@@ -524,6 +526,38 @@ test("glossary helpers rebase links and match plurals", () => {
   assert.equal(rebaseLinks("[a](https://e.com/x.md)", "std"), "[a](https://e.com/x.md)");
   assert.ok(termKeys("trait candidates").includes("trait candidate"));
   assert.ok(termKeys("mutable edges").includes("mutable edge"));
+});
+
+test("glossary duplicates catch article variants and spare plurals", async () => {
+  await withSpecs(
+    {
+      "README.md": `# Spec
+
+## Glossary
+
+| Term | Definition |
+| --- | --- |
+| **same thing** | One. See [\`lex.widget.one\`](lang/01-lexical-structure.md#r-lex.widget.one). |
+| **mutable edge** | Two. See [\`lex.widget.one\`](lang/01-lexical-structure.md#r-lex.widget.one). |
+`,
+      "std/README.md": "# Std\n",
+      "lang/01-lexical-structure.md": `# Lexical Structure
+
+1. r[lex.widget.one] The **the same thing** is one.
+
+A **mutable edges** list follows.
+`,
+      "std/iter.md": STD_ITER,
+    },
+    (spec) => {
+      const result = glossary(loadCorpus(spec));
+      assert.equal(duplicateKey("The Same Thing"), "same thing");
+      assert.deepEqual(glossaryDuplicates(result), [
+        "same thing at spec/README.md:7",
+        "the same thing at spec/lang/01-lexical-structure.md:3",
+      ]);
+    },
+  );
 });
 
 test("coverage counts rules cited by fixtures and cases.tsv, not by the README", () => {

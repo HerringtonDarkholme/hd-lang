@@ -218,6 +218,38 @@ function chapterTerms(chapter: Chapter): GlossaryTerm[] {
 const byTerm = (a: GlossaryTerm, b: GlossaryTerm): number =>
   a.term.toLowerCase().localeCompare(b.term.toLowerCase()) || a.chapter.localeCompare(b.chapter);
 
+/** The lookup key of a term for duplicate detection: lowercase, without
+ * code marks or extra spaces, and without a leading article, so `same
+ * compiled program` and `the same compiled program` collide. Unlike
+ * `termKeys`, plurals stay distinct: `mutable edge` and `mutable edges`
+ * are different terms. */
+export function duplicateKey(term: string): string {
+  return term
+    .toLowerCase()
+    .replaceAll("`", "")
+    .replaceAll(/\s+/g, " ")
+    .replace(/^(?:an?|the) /, "")
+    .trim();
+}
+
+/** Duplicate glossary terms: normalized terms naming more than one entry,
+ * one `term at location` line per entry, sorted. Empty when clean. */
+export function glossaryDuplicates(result: Glossary): string[] {
+  const groups = new Map<string, GlossaryTerm[]>();
+  for (const entry of result.terms) {
+    const key = duplicateKey(entry.term);
+    groups.set(key, [...(groups.get(key) ?? []), entry]);
+  }
+  const out: string[] = [];
+  for (const entries of groups.values()) {
+    const raws = new Set(entries.map((entry) => entry.term));
+    const handwritten = entries.filter((entry) => entry.source === "glossary");
+    if (raws.size < 2 && handwritten.length < 2) continue;
+    for (const entry of entries) out.push(`${entry.term} at ${entry.at}`);
+  }
+  return out.sort();
+}
+
 export function glossary(corpus: Corpus): Glossary {
   const listed = [
     ...handWrittenGlossary(corpus.readme, ""),

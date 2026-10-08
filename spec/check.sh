@@ -84,6 +84,9 @@ node --experimental-strip-types "$spec_dir/check-spec-anchors.ts" "$spec_dir" "$
 # records history; records and src/ comments only warn.
 node --experimental-strip-types "$spec_dir/tools/spec.ts" refs --dead --brief ||
     fail "a dead rule citation in spec/, a fixture, guide/, or lib/std (pnpm run spec refs --dead)"
+# Glossary duplicates (S12): two entries must not name one term.
+node --experimental-strip-types "$spec_dir/tools/spec.ts" glossary --check ||
+    fail "duplicate glossary terms (pnpm run spec glossary --check)"
 # Tiers (conformance/README.md): a language-tier fixture imports no item that
 # conformance/stdlib-items.tsv lists, except as conformance/tier-crossings.tsv
 # records; each crossing row must still hold.
