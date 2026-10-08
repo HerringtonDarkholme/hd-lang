@@ -111,15 +111,6 @@ fixed, add new gaps), apply design-doc corrections the code proves
 right, and update `footprint.md` counts. Docs only. Timebox 45 minutes
 per milestone; push.
 
-### P2. Hello-World Size Growth
-
-`audit/compiler/size-hello-32d0f278.md` recorded hello at 4,775 bytes
-(`println(42)`, dev names, debug). Main now builds it at 4,914 bytes. Find
-which commits since `32d0f278` added the 139 bytes (bisect with the same
-reproduction and `compiler/bench/wasm-size.mjs`), say per commit what
-grew (section, function) and whether the commit's feature explains it.
-Refresh the size report (delete the old one) with the per-section table
-at current main. Report only. Timebox 40 minutes; push.
 
 ### L2. Std Gaps, Part 1: Backoff, retry_with!, Rng::from_seed, default()
 
