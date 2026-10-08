@@ -1144,7 +1144,7 @@ impl Ck<'_, '_> {
                     }
                     Some(HeadKind::Trait) => {
                         self.method_targs = method_targs;
-                        return self.trait_static(def, &name, args, n, bang);
+                        return self.trait_static(def, explicit, &name, args, n, bang);
                     }
                     Some(k) if k.is_type() => {
                         let t = self.ctor(def, &explicit)?;
@@ -1241,10 +1241,13 @@ impl Ck<'_, '_> {
         Ok((Ref(NONE), Ty::NEVER))
     }
 
-    /// `Trait::method(args)`: the self type comes from the arguments.
+    /// `Trait::method(args)`: the self type comes from the arguments; the
+    /// trait's arguments are the written ones (`Combine::[i32]::combine`,
+    /// `trait.qualified.trait-arguments`), the rest fresh.
     fn trait_static(
         &mut self,
         tr: DefId,
+        trait_args: Vec<Ty>,
         name: &str,
         args: &Args<'_>,
         n: NodeRef<'_>,
@@ -1266,7 +1269,7 @@ impl Ck<'_, '_> {
                 trait_: tr,
                 method: m,
                 self_ty,
-                args: vec![],
+                args: trait_args,
             },
             None,
             args,
