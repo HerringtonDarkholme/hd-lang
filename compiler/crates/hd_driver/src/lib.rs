@@ -242,12 +242,19 @@ impl Output {
     #[must_use]
     pub fn render_located(&self, sources: &dyn SourceSet) -> String {
         self.diags.render_compact(&|s: Span| {
-            let file = self.file_name(s);
-            let (line, column) = sources
-                .read(&file)
-                .map_or((1, 1), |text| line_column(&text, s.lo as usize));
+            let (file, line, column) = self.locate(sources, s);
             format!("{file}:{line}:{column}")
         })
+    }
+
+    /// The package-relative file, 1-based line and column of a span's start.
+    #[must_use]
+    pub fn locate(&self, sources: &dyn SourceSet, s: Span) -> (String, usize, usize) {
+        let file = self.file_name(s);
+        let (line, column) = sources
+            .read(&file)
+            .map_or((1, 1), |text| line_column(&text, s.lo as usize));
+        (file, line, column)
     }
 
     fn file_name(&self, s: Span) -> String {

@@ -3,6 +3,7 @@
 //! §2.2): the file system (`DiskSources`, the disk `CacheStore`), the clock,
 //! the executor and the engine (`node::NodeEngine`, an `hd_run::Engine`).
 
+mod check_cmd;
 mod disk;
 mod node;
 mod test_cmd;
@@ -20,12 +21,13 @@ const USAGE: &str = "usage:
   hd FILE.hd
   hd run [--release] [NAME]
   hd build [--release] [FILE.hd]
+  hd check [FILE.hd] [--format json]
   hd test [FILE.hd] [--filter PATTERN] [--jobs N]";
 
 /// `cli.exit.hd-failure`: `hd` itself failed, or rejected its command line.
-const HD_FAILURE: u8 = 101;
+pub(crate) const HD_FAILURE: u8 = 101;
 
-fn fail(message: &str) -> ExitCode {
+pub(crate) fn fail(message: &str) -> ExitCode {
     eprintln!("error: {message}");
     ExitCode::from(HD_FAILURE)
 }
@@ -44,6 +46,7 @@ fn main() -> ExitCode {
         ("test", rest) => test_cmd::command(rest),
         ("run", rest) => run_command(rest),
         ("build", rest) => build_command(rest),
+        ("check", rest) => check_cmd::command(rest),
         (file, [])
             if Path::new(file)
                 .extension()
@@ -92,7 +95,7 @@ pub(crate) fn default_jobs() -> usize {
         })
 }
 
-fn executor() -> Executor {
+pub(crate) fn executor() -> Executor {
     let threads = default_jobs();
     if threads > 1 {
         Executor::Pool(threads)
@@ -197,7 +200,7 @@ fn no_package(command: &str) -> String {
 }
 
 /// The package directory of the working directory.
-fn package_of_cwd(command: &str) -> Result<PathBuf, String> {
+pub(crate) fn package_of_cwd(command: &str) -> Result<PathBuf, String> {
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
     disk::package_root(&cwd).ok_or_else(|| no_package(command))
 }
