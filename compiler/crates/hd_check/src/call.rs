@@ -1982,7 +1982,9 @@ impl Ck<'_, '_> {
                 args,
             });
             let got = self.normalize_deep(proj)?;
-            if matches!(pool.get(got), TyData::Assoc { self_ty, .. } if pool.has_infer(self_ty))
+            // Waiting on inference, or no impl (the bound itself reported it).
+            if matches!(pool.get(got), TyData::Assoc { self_ty, .. }
+                if !matches!(pool.get(self.strip_mut(self_ty)), TyData::Param(_)))
                 || pool.has_poison(got)
             {
                 continue;
