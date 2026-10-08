@@ -824,6 +824,39 @@ fn match_list(
     r
 }
 
+/// Whether a numeric-family head can match `self_ty` (§3.9). A target
+/// that is a bare impl parameter, as in `impl[N < Num] Add for N`,
+/// stands for one impl per type its bound's trait lists
+/// (`trait.target.numeric-family.each`), so it matches only those types:
+/// those a head of the bound's trait matches. A parameter of the asking
+/// item matches, and the bound step asks its environment. Every other
+/// head is decided by `match_ty` alone.
+fn family_excludes(
+    pool: Types<'_>,
+    impls: Impls<'_>,
+    t: &ImplTable,
+    r: usize,
+    self_ty: Ty,
+    read_dir: &mut bool,
+) -> bool {
+    let TyData::Param(p) = pool.get(t.head_self[r]) else {
+        return false;
+    };
+    if p.owner != t.def[r] || matches!(pool.get(self_ty), TyData::Param(_)) {
+        return false;
+    }
+    t.plan[r].iter().any(|step| match step {
+        PlanStep::Bound { param, trait_, .. } if u16::from(*param) == p.index => !impls
+            .candidates(pool, *trait_, self_ty, &[], false, read_dir)
+            .into_iter()
+            .any(|(at, bt)| {
+                let br = at.row as usize;
+                match_ty(pool, bt.def[br], bt.head_self[br], self_ty, &mut Vec::new()) == M::Yes
+            }),
+        _ => false,
+    })
+}
+
 /// The table solver: poison holds; a parameter's bound is found in the
 /// elaborated environment; otherwise impl heads are matched (§3.4) with
 /// their bound plans (§3.6) solved recursively. A goal whose type is still
@@ -833,8 +866,8 @@ fn match_list(
 pub struct TableSolver;
 
 /// The impl arguments a head match bound, then the plan's bound steps
-/// substituted with them.
-fn plan_goals(pool: Types<'_>, t: &ImplTable, row: usize, args: &[Ty]) -> Vec<TraitRef> {
+/// substituted with them, each with its step index in the plan.
+fn plan_goals(pool: Types<'_>, t: &ImplTable, row: usize, args: &[Ty]) -> Vec<(u16, TraitRef)> {
     let owner = t.def[row];
     let s = |x: Ty| {
         pool.subst(x, &|p: ParamRef| {
@@ -843,26 +876,29 @@ fn plan_goals(pool: Types<'_>, t: &ImplTable, row: usize, args: &[Ty]) -> Vec<Tr
                 .flatten()
         })
     };
-    t.plan[row]
-        .iter()
-        .filter_map(|step| match step {
+    (0u16..)
+        .zip(&t.plan[row])
+        .filter_map(|(i, step)| match step {
             PlanStep::Bound {
                 param,
                 trait_,
                 args: targs,
                 ..
-            } => Some(TraitRef {
-                trait_: *trait_,
-                self_ty: args.get(*param as usize).copied()?,
-                args: pool.list(
-                    &pool
-                        .list_items(*targs)
-                        .iter()
-                        .copied()
-                        .map(s)
-                        .collect::<Vec<_>>(),
-                ),
-            }),
+            } => Some((
+                i,
+                TraitRef {
+                    trait_: *trait_,
+                    self_ty: args.get(*param as usize).copied()?,
+                    args: pool.list(
+                        &pool
+                            .list_items(*targs)
+                            .iter()
+                            .copied()
+                            .map(s)
+                            .collect::<Vec<_>>(),
+                    ),
+                },
+            )),
             PlanStep::Bind { .. } => None,
         })
         .collect()
@@ -924,7 +960,7 @@ impl TableSolver {
         // The frame's "read the directory" bit (§3.2 debug check).
         let mut read_dir = false;
         let mut yes = Vec::new();
-        let mut maybe = false;
+        let mut maybes = 0usize;
         let cands = cx
             .impls
             .candidates(pool, tref.trait_, self_ty, goal_args, open, &mut read_dir);
@@ -934,6 +970,9 @@ impl TableSolver {
                 if matches!(pool.get(self_ty), TyData::Tuple { .. }) {
                     yes.push((at, Vec::new(), t));
                 }
+                continue;
+            }
+            if family_excludes(pool, cx.impls, t, r, self_ty, &mut read_dir) {
                 continue;
             }
             let owner = t.def[r];
@@ -962,7 +1001,7 @@ impl TableSolver {
                         fixed.into_iter().map(|a| a.unwrap_or(Ty::POISON)).collect();
                     yes.push((at, args, t));
                 }
-                M::Maybe => maybe = true,
+                M::Maybe => maybes += 1,
                 M::No => {}
             }
         }
@@ -974,52 +1013,93 @@ impl TableSolver {
                 "internal error: a solver frame read the candidate directory, but its memo key has no impl universe",
             ));
         }
-        for (row, args, t) in yes {
-            let mut ok = true;
-            for sub in plan_goals(pool, t, row.row as usize, &args) {
-                match Self::implements(cx, sub, fuel, depth + 1)? {
-                    Answer::Holds { .. } => {}
-                    Answer::Fails(_) => {
-                        ok = false;
-                        break;
-                    }
-                    other => return Ok(other),
+        // Committing (§3.5, rule TS-2): the heads alone pick the impl,
+        // before any bound is solved. A goal with open variables that
+        // more than one head could still answer stalls, so inference can
+        // learn more; it never tries each head's bounds. Two heads that
+        // match a goal with no open variable exist only beside an overlap
+        // error (§5.4): the first in content order is taken.
+        let open_goal = pool.has_infer(self_ty) || goal_args.iter().any(|a| pool.has_infer(*a));
+        if yes.is_empty() && maybes == 0 && !pool.has_infer(self_ty) {
+            let (leaf, _) = canonicalize(pool, GoalKind::Implements, tref, false);
+            return Ok(Answer::Fails(Box::new(FailInfo {
+                leaf,
+                chain: vec![],
+                reason: FailReason::NoImpl,
+                near: vec![],
+            })));
+        }
+        let several = yes.len() + maybes > 1;
+        match yes.into_iter().next() {
+            Some(head) if maybes == 0 && !(open_goal && several) => {
+                Self::commit(cx, tref, head, fuel, depth)
+            }
+            _ => {
+                // The goal's variables, in first-occurrence order (§3.4).
+                let mut all = Vec::new();
+                collect_vars(pool, self_ty, &mut all);
+                for a in goal_args {
+                    collect_vars(pool, *a, &mut all);
                 }
+                let mut on = Vec::with_capacity(all.len());
+                for v in all {
+                    if !on.contains(&v) {
+                        on.push(v);
+                    }
+                }
+                Ok(Answer::Stalled { on })
             }
-            if ok {
-                let learned = learned_from(pool, t.head_args[row.row as usize], tref.args)
-                    .into_iter()
-                    .map(|(v, x)| {
-                        let owner = t.def[row.row as usize];
-                        let x = pool.subst(x, &|p: ParamRef| {
-                            (p.owner == owner)
-                                .then(|| args.get(p.index as usize).copied())
-                                .flatten()
-                        });
-                        (v, x)
-                    })
-                    .collect();
-                return Ok(Answer::Holds {
-                    evidence: Evidence::Impl {
-                        row,
-                        args: pool.list(&args),
-                    },
-                    learned,
+        }
+    }
+
+    /// Solves the bound plan of the one impl a goal committed to (§3.6).
+    /// The first step that does not hold decides; a failing step fails
+    /// the goal, with this impl added to the front of its chain (§10.1).
+    fn commit(
+        cx: &mut SolveCx<'_>,
+        tref: TraitRef,
+        (row, args, t): (ImplRef, Vec<Ty>, &ImplTable),
+        fuel: &mut Fuel,
+        depth: u32,
+    ) -> StageResult<Answer> {
+        let pool = cx.pool;
+        let r = row.row as usize;
+        for (step, sub) in plan_goals(pool, t, r, &args) {
+            match Self::implements(cx, sub, fuel, depth + 1)? {
+                Answer::Holds { .. } => {}
+                Answer::Fails(mut info) => {
+                    info.chain.insert(
+                        0,
+                        ChainStep {
+                            impl_row: row,
+                            step,
+                            origin: t.origin[r],
+                        },
+                    );
+                    return Ok(Answer::Fails(info));
+                }
+                other => return Ok(other),
+            }
+        }
+        let owner = t.def[r];
+        let learned = learned_from(pool, t.head_args[r], tref.args)
+            .into_iter()
+            .map(|(v, x)| {
+                let x = pool.subst(x, &|p: ParamRef| {
+                    (p.owner == owner)
+                        .then(|| args.get(p.index as usize).copied())
+                        .flatten()
                 });
-            }
-        }
-        if maybe || pool.has_infer(self_ty) {
-            let mut on = Vec::new();
-            collect_vars(pool, self_ty, &mut on);
-            return Ok(Answer::Stalled { on });
-        }
-        let (leaf, _) = canonicalize(pool, GoalKind::Implements, tref, false);
-        Ok(Answer::Fails(Box::new(FailInfo {
-            leaf,
-            chain: vec![],
-            reason: FailReason::NoImpl,
-            near: vec![],
-        })))
+                (v, x)
+            })
+            .collect();
+        Ok(Answer::Holds {
+            evidence: Evidence::Impl {
+                row,
+                args: pool.list(&args),
+            },
+            learned,
+        })
     }
 }
 
@@ -1251,6 +1331,9 @@ fn project_concrete(
         let Some((_, b)) = t.assoc[r].iter().find(|(k, _)| *k == assoc) else {
             continue;
         };
+        if family_excludes(pool, impls, t, r, base, read_dir) {
+            continue;
+        }
         let owner = t.def[r];
         let mut binds = Vec::new();
         if match_ty(pool, owner, t.head_self[r], base, &mut binds) != M::Yes {
@@ -1712,5 +1795,392 @@ mod tests {
             .solve(&mut cx, &goal, &mut Fuel::new(100))
             .expect_err("internal error");
         assert!(err.what.starts_with("internal error"), "{}", err.what);
+    }
+
+    /// Solves `tref` over one table (module 0), with no environment.
+    fn solve_in(p: Types<'_>, t: &ImplTable, tref: TraitRef) -> super::Answer {
+        solve_over(p, &[(ModuleId::from_raw(0), t)], tref)
+    }
+
+    fn solve_over(
+        p: Types<'_>,
+        tables: &[(ModuleId, &ImplTable)],
+        tref: TraitRef,
+    ) -> super::Answer {
+        let env = ParamEnv::default();
+        let global = GlobalMemo::default();
+        let mut body = BodyMemo::default();
+        let (universe, _) = ImplUniverses::default().intern(&[]);
+        let mut cx = SolveCx {
+            pool: p,
+            env: &env,
+            universe,
+            impls: super::Impls::All(tables),
+            body_memo: &mut body,
+            global: &global,
+        };
+        let goal = Goal::Implements {
+            tref,
+            bindings: vec![],
+            mut_: false,
+        };
+        TableSolver
+            .solve(&mut cx, &goal, &mut Fuel::new(100))
+            .expect("solves")
+    }
+
+    /// A module's own impls are rows of its own table and of its folder's
+    /// table: one impl, so one head, at its first place.
+    #[test]
+    fn one_impl_seen_in_two_tables_is_one_head() {
+        let gp = InternPool::new();
+        let local = LocalPool::new();
+        let p = Types::with_local(&gp, &local);
+        let [pick, money, imp] = [5, 6, 7].map(DefId::from_raw);
+        let v = InferTable::default().fresh(p, VarKind::General);
+        let money_ty = adt(p, money, &[]);
+        let mut t = ImplTable::default();
+        push_row(
+            &mut t,
+            p,
+            (pick, imp),
+            money_ty,
+            p.list(&[Ty::I32]),
+            (0, vec![]),
+        );
+        t.index();
+        let tref = TraitRef {
+            trait_: pick,
+            self_ty: money_ty,
+            args: p.list(&[v]),
+        };
+        let (own, folder) = (ModuleId::from_raw(0), ModuleId::from_raw(1));
+        match solve_over(p, &[(own, &t), (folder, &t)], tref) {
+            super::Answer::Holds {
+                evidence: super::Evidence::Impl { row, .. },
+                ..
+            } => assert_eq!(row.module, own),
+            other => panic!("one head commits: {other:?}"),
+        }
+    }
+
+    fn adt(p: Types<'_>, def: DefId, args: &[Ty]) -> Ty {
+        p.intern_ty(&TyData::Adt {
+            def,
+            args: p.list(args),
+        })
+    }
+
+    fn param(p: Types<'_>, owner: DefId, index: u16) -> Ty {
+        p.intern_ty(&TyData::Param(crate::pool::ParamRef { owner, index }))
+    }
+
+    /// `param < trait_` as plan step 0.
+    fn bound(param: u8, trait_: DefId) -> Vec<super::PlanStep> {
+        vec![super::PlanStep::Bound {
+            param,
+            trait_,
+            args: TyList::EMPTY,
+            mut_: false,
+        }]
+    }
+
+    fn row_of(a: &super::Answer) -> Option<u32> {
+        match a {
+            super::Answer::Holds {
+                evidence: super::Evidence::Impl { row, .. },
+                ..
+            } => Some(row.row),
+            _ => None,
+        }
+    }
+
+    /// Rule TS-2 (a): the one matching head is committed to; its failing
+    /// bound fails the goal, and the failure names the bound's goal as the
+    /// leaf and the committed impl and step as the chain (§10.1).
+    #[test]
+    fn a_failing_bound_of_the_committed_head_fails_the_goal_with_its_chain() {
+        use super::{Answer, ChainStep, FailReason, ImplRef};
+        let gp = InternPool::new();
+        let p = gp.types();
+        let [show, missing, boxed, imp] = [5, 6, 7, 8].map(DefId::from_raw);
+        // impl[T < Missing] Show for Box[T]
+        let mut t = ImplTable::default();
+        let target = adt(p, boxed, &[param(p, imp, 0)]);
+        push_row(
+            &mut t,
+            p,
+            (show, imp),
+            target,
+            TyList::EMPTY,
+            (1, bound(0, missing)),
+        );
+        t.index();
+        let tref = TraitRef {
+            trait_: show,
+            self_ty: adt(p, boxed, &[Ty::I32]),
+            args: TyList::EMPTY,
+        };
+        let Answer::Fails(info) = solve_in(p, &t, tref) else {
+            panic!("the bound fails the goal");
+        };
+        let leaf = TraitRef {
+            trait_: missing,
+            self_ty: Ty::I32,
+            args: TyList::EMPTY,
+        };
+        assert_eq!(
+            info.leaf,
+            canonicalize(p, GoalKind::Implements, leaf, false).0
+        );
+        assert_eq!(info.reason, FailReason::NoImpl);
+        let at = ImplRef {
+            module: ModuleId::from_raw(0),
+            row: 0,
+        };
+        assert_eq!(
+            info.chain,
+            [ChainStep {
+                impl_row: at,
+                step: 0,
+                origin: ImplOrigin::Written
+            }]
+        );
+    }
+
+    /// Rule TS-2 (b): two heads that an open goal could still pick
+    /// between stall it on its variables; neither is tried. One head
+    /// alone commits.
+    #[test]
+    fn several_possible_heads_stall_an_open_goal() {
+        use super::Answer;
+        let gp = InternPool::new();
+        let local = LocalPool::new();
+        let p = Types::with_local(&gp, &local);
+        let [pick, money, boxed, d1, d2] = [5, 6, 7, 8, 9].map(DefId::from_raw);
+        let mut infer = InferTable::default();
+        let v = infer.fresh(p, VarKind::General);
+        let TyData::Infer(var) = p.get(v) else {
+            panic!("a variable");
+        };
+        let money_ty = adt(p, money, &[]);
+        // impl Pick[i32] for Money; impl Pick[string] for Money
+        let mut t = ImplTable::default();
+        push_row(
+            &mut t,
+            p,
+            (pick, d1),
+            money_ty,
+            p.list(&[Ty::I32]),
+            (0, vec![]),
+        );
+        push_row(
+            &mut t,
+            p,
+            (pick, d2),
+            money_ty,
+            p.list(&[Ty::STRING]),
+            (0, vec![]),
+        );
+        t.index();
+        let open = TraitRef {
+            trait_: pick,
+            self_ty: money_ty,
+            args: p.list(&[v]),
+        };
+        assert_eq!(solve_in(p, &t, open), Answer::Stalled { on: vec![var] });
+        // impl Pick for Box[i32]; impl Pick for Box[string]: two `Maybe`s.
+        let mut t2 = ImplTable::default();
+        let (b_i32, b_str) = (adt(p, boxed, &[Ty::I32]), adt(p, boxed, &[Ty::STRING]));
+        push_row(&mut t2, p, (pick, d1), b_i32, TyList::EMPTY, (0, vec![]));
+        push_row(&mut t2, p, (pick, d2), b_str, TyList::EMPTY, (0, vec![]));
+        t2.index();
+        let open_self = TraitRef {
+            trait_: pick,
+            self_ty: adt(p, boxed, &[v]),
+            args: TyList::EMPTY,
+        };
+        assert_eq!(
+            solve_in(p, &t2, open_self),
+            Answer::Stalled { on: vec![var] }
+        );
+        // With one head, the open argument commits to it.
+        let mut one = ImplTable::default();
+        push_row(
+            &mut one,
+            p,
+            (pick, d1),
+            money_ty,
+            p.list(&[Ty::I32]),
+            (0, vec![]),
+        );
+        one.index();
+        assert_eq!(row_of(&solve_in(p, &one, open)), Some(0));
+    }
+
+    /// Rule TS-2 (c): a head that matches by binding its parameters to
+    /// the goal's variables, beside a head the variables could still
+    /// become, stalls too. Once the goal is known, only one head matches.
+    #[test]
+    fn a_yes_head_beside_a_maybe_head_stalls_until_the_goal_is_known() {
+        use super::Answer;
+        let gp = InternPool::new();
+        let local = LocalPool::new();
+        let p = Types::with_local(&gp, &local);
+        let [conv, boxed, d1, d2] = [5, 6, 7, 8].map(DefId::from_raw);
+        let mut infer = InferTable::default();
+        let (v0, v1) = (
+            infer.fresh(p, VarKind::General),
+            infer.fresh(p, VarKind::General),
+        );
+        let var = |t: Ty| match p.get(t) {
+            TyData::Infer(x) => x,
+            _ => panic!("a variable"),
+        };
+        // impl[T] Convert[T] for Box[T]; impl Convert[i32] for Box[string]
+        let mut t = ImplTable::default();
+        let tp = param(p, d1, 0);
+        push_row(
+            &mut t,
+            p,
+            (conv, d1),
+            adt(p, boxed, &[tp]),
+            p.list(&[tp]),
+            (1, vec![]),
+        );
+        let b_str = adt(p, boxed, &[Ty::STRING]);
+        push_row(
+            &mut t,
+            p,
+            (conv, d2),
+            b_str,
+            p.list(&[Ty::I32]),
+            (0, vec![]),
+        );
+        t.index();
+        let goal = |self_ty, arg| TraitRef {
+            trait_: conv,
+            self_ty,
+            args: p.list(&[arg]),
+        };
+        assert_eq!(
+            solve_in(p, &t, goal(adt(p, boxed, &[v1]), v0)),
+            Answer::Stalled {
+                on: vec![var(v1), var(v0)]
+            }
+        );
+        assert_eq!(
+            solve_in(p, &t, goal(b_str, v0)),
+            Answer::Stalled { on: vec![var(v0)] }
+        );
+        assert_eq!(row_of(&solve_in(p, &t, goal(b_str, Ty::I32))), Some(1));
+        assert_eq!(row_of(&solve_in(p, &t, goal(b_str, Ty::STRING))), Some(0));
+    }
+
+    /// Rule TS-2 (d), §5.4: two heads match a known goal only beside an
+    /// overlap error. The first in content order is committed to, even
+    /// when its bound fails, on every ask and every thread.
+    #[test]
+    fn overlapping_heads_commit_to_the_first_in_content_order() {
+        use super::Answer;
+        let gp = InternPool::new();
+        let p = gp.types();
+        let [show, missing, boxed, generic, plain] = [5, 6, 7, 8, 9].map(DefId::from_raw);
+        let b_i32 = adt(p, boxed, &[Ty::I32]);
+        let generic_row = |t: &mut ImplTable| {
+            let target = adt(p, boxed, &[param(p, generic, 0)]);
+            push_row(
+                t,
+                p,
+                (show, generic),
+                target,
+                TyList::EMPTY,
+                (1, bound(0, missing)),
+            );
+        };
+        let plain_row =
+            |t: &mut ImplTable| push_row(t, p, (show, plain), b_i32, TyList::EMPTY, (0, vec![]));
+        // impl[T < Missing] Show for Box[T], then impl Show for Box[i32]
+        let mut first_generic = ImplTable::default();
+        generic_row(&mut first_generic);
+        plain_row(&mut first_generic);
+        first_generic.index();
+        // The same two in the other content order.
+        let mut first_plain = ImplTable::default();
+        plain_row(&mut first_plain);
+        generic_row(&mut first_plain);
+        first_plain.index();
+        let tref = TraitRef {
+            trait_: show,
+            self_ty: b_i32,
+            args: TyList::EMPTY,
+        };
+        let a = solve_in(p, &first_generic, tref);
+        let Answer::Fails(info) = &a else {
+            panic!("no backtracking to the second head: {a:?}");
+        };
+        assert_eq!(info.chain[0].impl_row.row, 0);
+        let b = solve_in(p, &first_plain, tref);
+        assert_eq!(row_of(&b), Some(0));
+        std::thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| {
+                    let p = gp.types();
+                    assert_eq!(solve_in(p, &first_generic, tref), a);
+                    assert_eq!(solve_in(p, &first_plain, tref), b);
+                });
+            }
+        });
+    }
+
+    /// §3.9, `trait.target.numeric-family.each`: a numeric-family head
+    /// stands for the types its bound lists, so it matches only those and
+    /// never takes a goal from another head.
+    #[test]
+    fn a_numeric_family_head_matches_only_its_members() {
+        use super::Answer;
+        let gp = InternPool::new();
+        let p = gp.types();
+        let [eq, num, family, for_char, for_i32] = [5, 6, 7, 8, 9].map(DefId::from_raw);
+        let char_ty = Ty::prim(Prim::Char);
+        let mut t = ImplTable::default();
+        // impl[N < Num] Eq for N; impl Eq for char; impl Num for i32
+        let n = param(p, family, 0);
+        push_row(
+            &mut t,
+            p,
+            (eq, family),
+            n,
+            TyList::EMPTY,
+            (1, bound(0, num)),
+        );
+        push_row(
+            &mut t,
+            p,
+            (eq, for_char),
+            char_ty,
+            TyList::EMPTY,
+            (0, vec![]),
+        );
+        push_row(
+            &mut t,
+            p,
+            (num, for_i32),
+            Ty::I32,
+            TyList::EMPTY,
+            (0, vec![]),
+        );
+        t.index();
+        let goal = |self_ty| TraitRef {
+            trait_: eq,
+            self_ty,
+            args: TyList::EMPTY,
+        };
+        assert_eq!(row_of(&solve_in(p, &t, goal(char_ty))), Some(1));
+        assert_eq!(row_of(&solve_in(p, &t, goal(Ty::I32))), Some(0));
+        let Answer::Fails(info) = solve_in(p, &t, goal(Ty::BOOL)) else {
+            panic!("bool is no member");
+        };
+        assert!(info.chain.is_empty(), "no head matched: {info:?}");
     }
 }

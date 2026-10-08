@@ -308,13 +308,15 @@ impl<'a> Impls<'a> {
         let key = HeadKey::of(pool, self_ty);
         let v = match self {
             Impls::All(tables) => {
-                return tables
-                    .iter()
-                    .flat_map(|(m, t)| {
-                        t.candidates(trait_, key)
-                            .map(move |row| (ImplRef { module: *m, row }, *t))
-                    })
-                    .collect();
+                return one_row_per_impl(
+                    tables
+                        .iter()
+                        .flat_map(|(m, t)| {
+                            t.candidates(trait_, key)
+                                .map(move |row| (ImplRef { module: *m, row }, *t))
+                        })
+                        .collect(),
+                );
             }
             Impls::Owned(v) => v,
         };
@@ -348,8 +350,26 @@ impl<'a> Impls<'a> {
         }
         refs.sort_unstable_by_key(|r| (position(r.module), r.row));
         refs.dedup();
-        refs.into_iter()
-            .filter_map(|r| Some((r, self.table(r.module)?)))
-            .collect()
+        one_row_per_impl(
+            refs.into_iter()
+                .filter_map(|r| Some((r, self.table(r.module)?)))
+                .collect(),
+        )
     }
+}
+
+/// Keeps the first row of each impl. A module's own impls are rows of its
+/// own table and again of its folder's frozen table; they are one head
+/// (rule TS-2), found at its first place in content order.
+fn one_row_per_impl(mut rows: Vec<(ImplRef, &ImplTable)>) -> Vec<(ImplRef, &ImplTable)> {
+    let mut seen: Vec<DefId> = Vec::with_capacity(rows.len());
+    rows.retain(|(r, t)| {
+        let def = t.def[r.row as usize];
+        if seen.contains(&def) {
+            return false;
+        }
+        seen.push(def);
+        true
+    });
+    rows
 }
