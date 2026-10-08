@@ -18,10 +18,10 @@ For each instance of a suspending function `f!`:
 
 | Function | Signature | Use |
 | --- | --- | --- |
-| `f$body` | `(frame: (ref null $F_f), dflt(args)..., dflt(providers)...) -> (dflt(T), (ref null $F_f))` | the body. A null frame starts at state 0 with arguments in locals. A non-null frame resumes from its saved state, and its arguments are default values that it ignores. A null second result means Ready with the first; a frame means Pending, and the first result is `default(T)` |
-| `f$cold` | `(args..., providers...) -> (ref $F_f)` | the plain call `f(args)`: allocates a frame holding the arguments and providers in state 0 |
-| `f$poll` | `(frame: (ref $Suspend_L), cx) -> (i32, T)` | the vtable's `poll`; casts the frame and calls `f$body` with it |
-| `f$cancel` | `(frame: (ref $Suspend_L)) -> ()` | the vtable's `cancel` (§14.6) |
+| `f$body` | `(frame: (ref null $Suspend_L), dflt(args)..., dflt(providers)...) -> (dflt(T), (ref null $Suspend_L))` | the body. A null frame starts at state 0 with arguments in locals. A non-null frame is cast to the private `$F_f` and resumes from its saved state; its arguments are default values that it ignores. A null second result means Ready with the first; a frame means Pending, and the first result is `default(T)` |
+| `f$cold` | `(args..., providers...) -> (ref $Suspend_L)` | the plain call `f(args)`: allocates a private `$F_f` holding the arguments and providers in state 0, then returns it at the public result-layout base type |
+| `f$poll` | `(frame: eqref) -> (i32, dflt(T))` | the result-layout vtable's `poll`; casts the frame to `$F_f` and calls `f$body` with it |
+| `f$cancel` | `(frame: eqref) -> ()` | the layout-independent `$Task` cancel function (§14.6); it casts the frame to `$F_f` |
 
 **Defaultable forms (Codex re-review N3).** A value of a data, list or
 closure type is a non-null reference, which has no default inhabitant.
@@ -34,23 +34,31 @@ and the read narrows with `ref.as_non_null`, which cannot fail. On the
 fresh path the arguments arrive non-null, and the prologue narrows each
 reference argument once into a non-null local.
 
-`$Suspend_L` is one base struct per result layout `L` (§15.2):
+Every suspension starts with the layout-independent `$Task` prefix.
+`$Suspend_L` extends it once per result layout `L` (§15.2), and the
+callee-private `$F_f` extends that base:
 
 ```text
-$Suspend_L = (sub (struct (field $state (mut i32))      ;; resume point; 0 = not started
-                          (field $flags (mut i32))      ;; ACTIVE, STARTED, DONE, CANCELLED bits
-                          (field $driver (mut anyref))  ;; the driver that owns it, for competing-driver checks
-                          (field $vt (ref $SuspendVT_L))))
-$F_f       = (sub final $Suspend_L (struct ... saved locals ... (field $child (mut (ref null $F_g))) ...))
+$Task      = (sub (struct (field $cancel (ref null $CancelFn))
+                          (field $state (mut i32))      ;; resume point; 0 = not started
+                          (field $flags (mut i32))))    ;; ACTIVE, DONE, CANCELLED bits
+$Suspend_L = (sub $Task (struct ... $Task fields ...
+                          (field $poll (ref null $PollFn_L))
+                          (field $driver (mut anyref))))
+$F_f       = (sub final $Suspend_L (struct ... base fields ...
+                          (field $child (mut (ref null $Task)))
+                          ... saved locals ...))
 ```
 
-**M4b implementation boundary (M4b gap 1).** The current emitter uses a
-reduced `$Suspend_L` containing only a poll function reference. It has no
-state, flags, driver identity, saved fields, waker or cancel function.
-Its `block_on` lowering repeatedly calls that poll function and, on
-Pending, calls `hd:rt.block`. This is enough for the synchronous M4b exit
-program, but it does not replace the state-machine, one-shot, competing
-driver, wake or cancellation rules in this chapter.
+The public body signature uses `$Suspend_L`, not `$F_f`: a caller knows
+the callee's result layout before the callee's private frame type is
+emitted. Parents retain a child as `$Task` and cancel it without knowing
+either its result or frame layout.
+
+**M4d implementation boundary (M4d gap 3 and M4d gap 5).** The emitter
+implements this hierarchy except for `$Suspend_L.driver`. It checks
+re-entrant and terminal-state polls, but not competing drivers. The field
+and check remain part of the design and land with the complete driver.
 
 ### 14.2 The State Machine
 
@@ -86,6 +94,12 @@ why blocks with a suspension point are flattened. The alternative,
 re-entering the nesting with skip flags as Binaryen's Asyncify does,
 costs code size on every path. The cost of flattening is a branch through `$dispatch` at
 each control transfer inside a suspending loop, a few cycles.
+
+**Known phase-1 deviation (M4d gap 1 and M4d gap 2).** M4d saves every
+Wasm local at every suspension point and resumes through nested,
+`pc`-guarded block lists. It does not run liveness, clear dead references,
+or emit this section's `br_table` dispatch loop. Phase 3 restores the
+designed liveness, clearing and dispatch when code-size work begins.
 
 ### 14.3 Lazy Frame Materialization
 

@@ -2,7 +2,8 @@
 
 Part of the [compiler design](README.md).
 
-Status: review, 2026-10-07, after M4b (`74e2f624`). It compares
+Status: review, 2026-10-07, after M4d (`b756387e`). This report records
+implementation fit, not accepted language behavior. It compares
 `compiler/crates` with the design docs of this folder and records the
 authorized corrections. Where the code is right and a doc is wrong, the
 verdict says "design wrong". Earlier
@@ -19,18 +20,21 @@ uses the full parser, `hd_project`, `hd_resolve`, `hd_types`,
 `hd_tir::Body`, every executor, `CacheStore`, `hd_mono` and `hd_wasm`.
 M4b carries a std-using program through collection, layout-driven Wasm,
 link and V8, with warm cache hits and deterministic bytes across serial
-and pool executors. The remaining findings are feature coverage and
-incomplete cache/runtime details, not a second compiler pipeline.
+and pool executors. M4d adds module storage and initialization, suspension
+state machines, `all!`, cancellation and the `defer` exit ladder. The
+remaining findings are feature coverage and incomplete cache/runtime
+details, not a second compiler pipeline.
 
 ## Summary: The Top 10
 
 Ranked by how much each blocks the next working language slice.
 
-1. **Body checking covers std but still has four structural gaps.** `mut`
+1. **Body checking covers std but still has structural gaps.** `mut`
    is transparent to unification, closure rows are not inferred, dispatch
    is absent from initialization facts, and suspension side records are
-   never populated. Language forms outside the std corpus can still stop
-   with `NotImplemented`.
+   never populated. Shared enum initialization, top-level interpolation
+   and counted-loop tags also fail before or during emission. Language
+   forms outside the std corpus can still stop with `NotImplemented`.
 2. **The standard-library pack is not writable.** M4a produces checked,
    verified std TIR, but `hd_stdpack::build_pack` still has no pack writer.
 3. **Interfaces omit diagnostic and top-level-binding fidelity.** They
@@ -57,12 +61,12 @@ Ranked by how much each blocks the next working language slice.
    named Rust views, the schema generator and the JavaScript decoder do
    not exist.
    Browser consumers still lack the designed stable generated surface.
-8. **Emission now runs a representative std-using program, but the long
-   tail is large.** Layout-driven Wasm covers data, value enums, lists,
-   maps, closures, trait calls, matches, interpolation and std `println`.
-   Module globals, state machines, provider contexts, defaults, several
-   control-flow and collection tags, panic metadata and advanced erased
-   calls still return `NotImplemented` or use M4b shortcuts.
+8. **Emission now runs init, suspension and cleanup programs, but the long
+   tail is large.** Layout-driven Wasm covers module globals, state
+   machines, `all!`, cancellation, provider scopes and `defer`, besides
+   the M4b forms. Defaults, reusable contexts, several control-flow and
+   collection tags, panic metadata and advanced erased calls remain
+   unsupported or use phase-1 shortcuts.
 9. **Task-boundary panic isolation regressed.** The old architecture path
    caught panics; the unified `Exec` calls tasks directly under serial and
    rayon executors. One task panic can unwind the build instead of becoming
@@ -163,7 +167,22 @@ tag; `With`/`ContextNew`/`ContextFor`; `ItemRef`, `Is`, `CallHost`,
 `DefaultCall`, `CopyData`, `SwitchStr`, the `For` tags and `Scope` with
 `defer`; `MapRemove`, `MapIter` and `StrIndex`; `ToAny` and `Supertrait`;
 f32 arithmetic and wider conversions; shared captures; generic methods
-through `dyn`; and recursive types.
+through `dyn`; and recursive types. M4d closes `GlobalGet`/`GlobalSet`,
+the emitted `Await`, `AwaitValue` and `AwaitAll` forms, `With`, and
+`Scope` with `defer`. `AwaitRace` remains unused because the checker
+lowers `race!` through std hd.
+
+### M4d Findings
+
+| Finding | Code evidence | Intended rule | Side that changes |
+| --- | --- | --- | --- |
+| M4d gap 1. Frames save every local and never clear dead references | `hd_wasm::emit::{emit_suspending,save,reload}` learns every Wasm local in a first pass and stores the full set at every point | Suspension §14.2 computes liveness once; §14.3 saves live values and clears dead references | implementation changes in phase 3; design stays |
+| M4d gap 2. Resume uses guarded block lists instead of one dispatch loop | `hd_wasm::emit::{plan,resume_list}` numbers points, then re-enters nested control flow through `pc` range tests | Suspension §14.2 uses one flattened `br_table` dispatch loop for linear code size | accepted phase-1 deviation; restore the designed dispatch in phase 3 |
+| M4d gap 3. A caller cannot name the callee-private frame type | `hd_wasm::layout::{task_base,suspend_base,frame_of}` and `emit_suspending` expose `$Suspend_L`, cast to `$F_f` in the callee, and cancel children through `$Task` | `$Task` is the layout-independent cancel/state/flags prefix; `$Suspend_L` is public per result layout; `$F_f` is private | suspension.md §14.1 adopts the implementable hierarchy |
+| M4d gap 4. Wake tracking has no waker objects or wake masks | `hd_wasm::rt::{wake_mark,wake_take}` stores completed handles; `await_all` re-polls every unfinished child | Suspension §14.4 uses generation-tagged reusable handle slots and wakers; §14.5 uses per-child wake masks | implementation gap; design stays |
+| M4d gap 5. Four runtime safeguards are absent | `suspend_base` has no driver field; no forbidden-context counter, hook emission or frame-tree report exists | Suspension §14.3 checks competing drivers, §14.7 emits optional hooks, §14.8 reports debug wait trees, and §14.9 guards indirect `block_on`/`println` | implementation gaps; design stays |
+| M4d gap 6. Module initialization covers only the simple group and row cases | `Run::group_init_order` rejects groups with statements in multiple modules; `entry` supplies providers only to `main` | Module Initialization orders statements across a group; `module.init.script-row` gives an entry module's top level its inferred providers | implementation gap; design stays |
+| M4d gap 7. Four frontend or entry-result cases block follow-up coverage | shared enum constructors are absent from Init TIR; top-level interpolation reports `unknown-name`; every `for` lowers through `iter`/`next`; a `.Err` result from `main` maps to status 0 | Shared data initializes with its module; top-level reads resolve; codegen receives counted `For` tags; the entry wrapper maps `Result` failure to a nonzero outcome | implementation gaps; design stays |
 
 ### Findings Table
 
@@ -217,12 +236,22 @@ through `dyn`; and recursive types.
 | codegen.md §11.2, §11.3, SK-N12 | `Run::collect`, `Run::decode_pending` | `prog_key` lists every module, and a miss decodes every module's TIR, not only modules the root reaches | impl wrong | Reachable modules from the manifest's use lists, as §11.3 says |
 | codegen.md §11.3 | `Run::package_result` | `Collect` runs after all of `PackageResult`, not after the `tir` entries and `HeaderCheck` tasks of reached folders only | both ok | Keep for one program; split when tests add programs |
 | codegen.md §11.4 | `hd_run` depends on `hd_cache` | The design's crate table now records this dependency | both ok | None |
-| codegen.md §12.1, §12.2 | `hd_wasm::emit` over `hd_tir::Body` and the structural layout engine | M4b emits a representative std-using program through V8; the gap-10 forms remain structured unsupported cases | both ok | Extend this emitter only |
+| codegen.md §12.1, §12.2 | `hd_wasm::emit` over `hd_tir::Body` and the structural layout engine | M4d emits representative init, suspension and cleanup programs through V8; the remaining gap-10 forms stay structured unsupported cases | both ok | Extend this emitter only |
+| codegen.md §12.3 | `hd_wasm` binding globals and group init functions; `Run::group_init_order` | Module storage and simple dependency-first group initialization run; multi-module statement order and shared enum constructor initialization do not (M4d gaps 6 and 7) | gap | Emit the designed cross-module statement order and every module-owned initializer |
+| codegen.md §12.4 | `hd_wasm::emit::{push_providers,with,entry}` | Concrete rows, default-profile providers and lexical `With` scopes emit; entry top-level providers and reusable contexts do not (M4d gap 6) | gap | Pass an entry module's inferred row to its init body and add context lowering |
+| codegen.md §12.5 | `hd_wasm::emit::{scope,exit}` | The `defer` exit ladder runs through returns, breaks, continues and cancellation; counted `For` tags never reach emission (M4d gap 7) | gap | Make the checker emit the designed counted-loop tags |
+| codegen.md §13.6 | `hd_wasm::emit::await_all`; generated race helper | Tuple layouts and `all!` run; `all!` re-polls every unfinished child because wake masks are absent (M4d gap 4) | gap | Add wake masks with the complete driver |
 | codegen.md §13.2, SK-2 | `hd_check::body` (`rep_summary`), `A1Rule` | Bounded parameter is always exact, as SK-2 decided; codegen.md §13.2 was updated | both ok | None |
 | codegen.md §13.3 | `hd_mono::layout::instance_key` | The duplicate `World`/`CTy` key path was deleted | both ok | None |
 | codegen.md §13.8, SK-3 | `hd_cache::code_key` | Callee representation summaries are present, but interface, layout, selected-impl, inline, inlined-body and literal dependencies are absent | gap | Complete the dependency record before treating code-cache hits as sound (M4b gap 4) |
 | wasm-layout.md §15.1, §15.2 | `hd_mono::layout::layout_of`, used by hd_wasm | The private four-form emitter layout was deleted | both ok | None |
-| wasm-layout.md §15.4 to §15.6 | `hd_wasm::{link,rt}` | Literal globals, helper stubs and dev names exist; module storage, site metadata and folds do not, and hello measures about 4.8 KB | gap | Add module globals and metadata, then use Q14's attribution against the 2 KB target (M4b gaps 5 and 8) |
+| suspension.md §14.1 | `hd_wasm::layout::{task_base,suspend_base,frame_of}`; `emit_suspending` | Body, cold, poll and cancel functions now use the corrected `$Task`/`$Suspend_L`/`$F_f` hierarchy | both ok | Keep the public result-layout base and private callee frame (M4d gap 3) |
+| suspension.md §14.2, §14.3 | `hd_wasm::emit::{plan,resume_list,save,reload}` | State machines and lazy frames run, but save all locals and use guarded lists rather than liveness and `br_table` dispatch | gap | Restore liveness, dead-reference clearing and the designed dispatch in phase 3 (M4d gaps 1 and 2) |
+| suspension.md §14.4, §14.5 | `hd_wasm::rt::{wake_mark,wake_take}`; `emit::await_all` | Completed handles wake the root and joins run, but there are no waker objects, wake masks, generations or reusable slots | gap | Add the complete waker and handle-table design (M4d gap 4) |
+| suspension.md §14.6 | `hd_wasm::emit::{flag_checks,cancel_task,scope,exit}` | Re-entrant and terminal-state checks, child cancellation and LIFO `defer` ladders run; external abort remains incomplete | both ok | Extend the implemented cancellation path as host operations land |
+| suspension.md §14.7 to §14.9 | `hd_run::drive`; `hd_wasm` entry helpers | Basic deadlock outcome and poll/block paths exist; hooks, competing-driver checks, forbidden contexts and debug reports do not | gap | Add the four safeguards without a second driver (M4d gap 5) |
+| wasm-layout.md §15.4 to §15.6 | `hd_wasm::{link,rt}` | Literal and module-storage globals, init functions, helper stubs and dev names exist; site metadata, constant globals and folds do not, and hello measures about 4.8 KB | gap | Add constant globals and metadata, then use Q14's attribution against the 2 KB target (M4b gaps 5 and 8) |
+| runtime-and-host.md §16.2 | `hd_wasm::emit::entry`; `hd_cli::node` | Entry success and panic paths run, but a `main` result of `.Err` still exits 0 (M4d gap 7) | gap | Map the entry `Result` through the specified outcome rule |
 | runtime-and-host.md §16.4 | `hd_wasm::meta::RuntimeMeta`, `hd_wasm::link` | The codec exists; link writes no `hd.runtime`, `hd.sites` or `hd.folds` section | gap | Write metadata and panic-site tables from the reached import and code sets (M4b gap 5) |
 | runtime-and-host.md §17.1, §17.2 | `hd_host_abi::{TABLE, PRELUDE_IMPORTS}` | Checking and emission consume the single ABI description | both ok | None |
 | runtime-and-host.md §17.9 | `hd_run::{Engine, run_program}`, `hd_cli::node` | Node implements the embedding API and `hd run` uses it; wasmtime remains an approved-later stub | both ok | Add wasmtime after approval |

@@ -2,7 +2,8 @@
 
 Part of the [compiler design](README.md).
 
-Status: report, 2026-10-07, after M4b (`74e2f624`). One row per
+Status: report, 2026-10-07, after M4d (`b756387e`). This footprint records
+implementation coverage, not accepted language behavior. One row per
 design-doc section: where its code is and how far it goes. **Real**: the
 structure or algorithm the section designs is implemented and tested,
 possibly over the subset. **Skeleton**: its types and entry points exist
@@ -16,8 +17,9 @@ The original stage counts on `lib/std` are in
 [skeleton-findings.md](skeleton-findings.md#architecture-skeleton-findings).
 M4a checks all 37 std modules and 1,080 bodies to verified TIR. M4b
 collects std, emits layout-driven Wasm and runs a representative program
-on V8. A row is still only real for the implemented subset: the known
-M4a and M4b gaps below keep affected sections at skeleton or missing.
+on V8. M4d runs module initialization, suspension and `defer` programs.
+A row is still only real for the implemented subset: the known M4a,
+M4b and M4d gaps below keep affected sections at skeleton or missing.
 
 ## Totals
 
@@ -31,15 +33,15 @@ M4a and M4b gaps below keep affected sections at skeleton or missing.
 | [trait-solver.md](trait-solver.md) | 14 | 10 | 34 | 58 |
 | [cache.md](cache.md) | 4 | 4 | 1 | 9 |
 | [scheduler.md](scheduler.md) | 2 | 3 | 0 | 5 |
-| [codegen.md](codegen.md) | 8 | 10 | 4 | 22 |
-| [suspension.md](suspension.md) | 0 | 8 | 1 | 9 |
+| [codegen.md](codegen.md) | 9 | 10 | 3 | 22 |
+| [suspension.md](suspension.md) | 2 | 6 | 1 | 9 |
 | [wasm-layout.md](wasm-layout.md) | 5 | 3 | 0 | 8 |
 | [runtime-and-host.md](runtime-and-host.md) | 3 | 9 | 2 | 14 |
 | [engines-and-test-runner.md](engines-and-test-runner.md) | 2 | 4 | 6 | 12 |
 | [commands.md](commands.md) | 3 | 5 | 7 | 15 |
 | [live-execution.md](live-execution.md) | 3 | 2 | 35 | 40 |
 | [tiering.md](tiering.md) | 3 | 2 | 26 | 31 |
-| all | 89 | 99 | 136 | 324 |
+| all | 92 | 97 | 135 | 324 |
 
 ### M3 Corrections
 
@@ -82,6 +84,22 @@ skeleton. Runtime-and-host.md §16.1, §16.3, §17.3 and §17.4 move from
 missing to skeleton. Engines-and-test-runner.md §18.3 moves from missing
 to real for Node/V8 instantiation, while §18.4 moves from skeleton to
 missing because the browser runner itself has not landed.
+
+### M4d Corrections
+
+Codegen.md §12.3 moves from missing to skeleton for module storage and
+simple group initialization. Section §13.6 moves from skeleton to real
+for tuple layouts and the tested `all!` subset. Cross-module statement
+ordering, shared enum initialization, counted `For` tags, entry-result
+termination and reusable provider contexts remain gaps.
+
+Suspension.md §14.1 and §14.6 move from skeleton to real for the corrected
+frame hierarchy, generated body/poll/cancel functions, child cancellation
+and tested `defer` ladders. Sections §14.2 to §14.5 remain skeletons:
+M4d saves every local, uses guarded block lists, and has no waker objects
+or wake masks. Sections §14.8 and §14.9 also remain skeletons; their debug
+report and forbidden-context counter are absent. Section §14.7 stays
+missing because normal emission drops `Hook` and no hook-enabled tier exists.
 
 ## Sections
 
@@ -266,9 +284,9 @@ missing because the browser runner itself has not landed.
 | codegen.md §11.4 Crates | crates hd_mono, hd_host_abi, hd_wasm, hd_run, hd_run_wasmtime, hd_web | skeleton |
 | codegen.md §12.1 Analysis, Then One Emission Walk | hd_wasm emits each supported body in one walk using collection results and structural layouts | real |
 | codegen.md §12.2 Lowering Rules | hd_wasm::emit covers data, value enums, lists, maps, closures, trait calls, matches, interpolation and std println | real |
-| codegen.md §12.3 Facts, Defaults, Derives And Tests | none | missing |
-| codegen.md §12.4 Rows And Providers | collection and emission carry provider arguments and host-provider vtables; `With` and context tags remain unsupported | skeleton |
-| codegen.md §12.5 Counted Loops And Checks | list/map helpers and checks emit; the explicit `For` tags and several operations remain unsupported | skeleton |
+| codegen.md §12.3 Facts, Defaults, Derives And Tests | hd_wasm links binding globals and module init functions; facts, defaults, derives, tests and shared enum constructor initialization remain absent | skeleton |
+| codegen.md §12.4 Rows And Providers | provider arguments, host-provider vtables and lexical `With` scopes emit; reusable contexts and entry-top-level providers remain unsupported | skeleton |
+| codegen.md §12.5 Counted Loops And Checks | list/map helpers, checks and the `defer` exit ladder emit; the checker still lowers every `for` through `iter`/`next`, never the explicit `For` tags | skeleton |
 | codegen.md §12.6 Tiers And Optimizations | hd_mono::passes | skeleton |
 | codegen.md §12.7 Emission-Time Checks | the emitter consumes verified TIR but trusts record indexes and does not run the designed debug assertions | skeleton |
 | codegen.md §12.8 Size Versus Speed Policy | none | missing |
@@ -277,30 +295,30 @@ missing because the browser runner itself has not landed.
 | codegen.md §13.3 Instance Keys | hd_mono::layout (`canon`, `instance_key`, `KeyArg`) | real |
 | codegen.md §13.4 The Instantiation Depth Limit | hd_mono::layout (`MAX_DEPTH`, `MAX_CHAIN`) | skeleton |
 | codegen.md §13.5 Dictionaries: Trait Values And GADT Evidence | trait-value coercions and calls emit; vtables allocate per coercion, omit supertraits, and generic dyn methods remain unsupported | skeleton |
-| codegen.md §13.6 Tuples, Arity And `all!` | tuple and vararg layouts plus generated intrinsic bodies emit; `all!` state machines remain unsupported | skeleton |
+| codegen.md §13.6 Tuples, Arity And `all!` | tuple and vararg layouts plus generated intrinsic bodies emit; `all!` state machines run for the tested subset | real |
 | codegen.md §13.7 Merging Byte-Identical Functions | none | missing |
 | codegen.md §13.8 Code Entries | hd_wasm::Code has function/type relocations and stable bytes; its key omits the full dependency list, and sites/lines are absent | skeleton |
 | codegen.md §13.9 What Instances Cost | none | missing |
 | codegen.md §13.10 The Link Step | hd_wasm::link assigns structural types, imports, helpers, functions, literals and dev names; folding and hd custom sections remain absent | skeleton |
-| suspension.md §14.1 Functions Per Suspending Body | hd_mono::suspend (`SuspendFn`) | skeleton |
-| suspension.md §14.2 The State Machine | hd_mono::suspend (`StateMachine`, `plan_state_machine`) | skeleton |
-| suspension.md §14.3 Lazy Frame Materialization | hd_mono::suspend (`FrameLayout`) | skeleton |
-| suspension.md §14.4 Wakers And The Entry Driver | hd_run::drive (poll/wake loop) | skeleton |
-| suspension.md §14.5 `all!` And `race!` | hd_mono::suspend (`JoinKind`) | skeleton |
-| suspension.md §14.6 Cancellation And `defer` | hd_mono::suspend (`FrameState::Cancelled`) | skeleton |
+| suspension.md §14.1 Functions Per Suspending Body | hd_wasm::layout (`task_base`, `suspend_base`, `frame_of`) and hd_wasm::emit (`emit_suspending`) generate cold, body, poll and cancel functions | real |
+| suspension.md §14.2 The State Machine | hd_wasm::emit (`plan`, `resume_list`) numbers states and resumes through `pc` guards; liveness and the designed `br_table` dispatch remain absent | skeleton |
+| suspension.md §14.3 Lazy Frame Materialization | hd_wasm::emit allocates on first Pending and resumes children directly, but saves every local and never clears dead references | skeleton |
+| suspension.md §14.4 Wakers And The Entry Driver | hd_run::drive plus hd_wasm `hd.poll`/`hd.wake` and a completed-handle table; waker objects, generations and reusable slots remain absent | skeleton |
+| suspension.md §14.5 `all!` And `race!` | hd_wasm emits `all!` and the std-lowered race helper, but re-polls every unfinished child because wake masks are absent | skeleton |
+| suspension.md §14.6 Cancellation And `defer` | hd_wasm::emit checks active/terminal flags, cancels children through `$Task`, and runs tested LIFO exit ladders; external host abort remains partial | real |
 | suspension.md §14.7 Hook Points | none | missing |
-| suspension.md §14.8 Deadlock Detection | hd_run::drive (deadlock outcome) | skeleton |
-| suspension.md §14.9 `block_on` | hd_wasm emits a reduced poll loop and calls `hd:rt.block` on Pending; wakers, driver state and cancellation remain absent | skeleton |
+| suspension.md §14.8 Deadlock Detection | hd_run::drive reports a bare deadlock outcome; the debug frame-tree report is absent | skeleton |
+| suspension.md §14.9 `block_on` | hd_wasm emits the poll/block loop; the forbidden-context counter for indirect `block_on` and `println` is absent | skeleton |
 | wasm-layout.md §15.1 Layout Classes | hd_mono::layout (`LayoutClass`, `VALUE_BOUND`, slot sharing), consumed by hd_wasm | real |
 | wasm-layout.md §15.2 Values | hd_mono::layout (`layout_of` for every type form), consumed by hd_wasm | real |
 | wasm-layout.md §15.3 The Type Section | hd_wasm::link interns structural arrays, structs, subtypes and function types dependency-first | real |
-| wasm-layout.md §15.4 Globals And Module Initialization | hd_wasm links lazy literal globals and constant helpers; module storage and constant vtable globals remain absent | skeleton |
+| wasm-layout.md §15.4 Globals And Module Initialization | hd_wasm links lazy literal globals, binding storage and reachable group init functions; constant vtable globals and multi-module statement ordering remain absent | skeleton |
 | wasm-layout.md §15.5 Panic Sites And Backtraces | panic stubs emit, but no `hd.sites`, `hd.lines`, `hd.folds` or symbolized backtrace metadata is linked | skeleton |
 | wasm-layout.md §15.6 The 2 KB Tiny Program | hello measures about 4.8 KB with dev names; Q14 owns the section and reachability accounting | skeleton |
 | wasm-layout.md §15.7 Emission | hd_wasm emits a representative program through structural layouts and validates the linked module on V8 | real |
 | wasm-layout.md §15.8 Deterministic Bytes | the exit program is byte-identical across both serial orders and pool execution, cold and warm | real |
 | runtime-and-host.md §16.1 Where Each Piece Lives | hd_wasm generates reached helpers and hd_cli supplies the Node host; the complete runtime split is partial | skeleton |
-| runtime-and-host.md §16.2 Panics And Exit Codes | hd_run (`Outcome`, `PanicReport`) | skeleton |
+| runtime-and-host.md §16.2 Panics And Exit Codes | hd_run (`Outcome`, `PanicReport`) and hd_wasm entry wrappers; a `main` result of `.Err` still exits 0 | skeleton |
 | runtime-and-host.md §16.3 Allocation | layout-driven structs, arrays, boxes, closures and per-coercion vtables allocate in emitted Wasm; budgets and stats hooks remain absent | skeleton |
 | runtime-and-host.md §16.4 Metadata And The Import List | hd_wasm::meta (`RuntimeMeta`), hd_host_abi (`RUNTIME_MODULES`); `link` writes no `hd.runtime` section | skeleton |
 | runtime-and-host.md §17.1 One ABI Description | hd_host_abi (`TABLE`, `PRELUDE_IMPORTS`, codecs); checking and emission consume it | real |
