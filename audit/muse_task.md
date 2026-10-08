@@ -102,21 +102,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q25. Does `hd check --tests` Check `tests:` Blocks?
-
-Q23 found `hd check FILE` silent on mistakes inside `tests:` blocks. By
-the spec (`cli.check.default`, `cli.check.tests` in
-`spec/cli/command-line.md`) a plain `hd check` skips test code, so that
-part is correct. Find out, with the new compiler, whether
-`hd check --tests FILE` (and package-mode `hd check --tests`) checks
-`tests:` blocks and reports `duplicate-tests-block` and
-`invalid-test-statement`. Update `compiler/bench/mistakes/run.mjs` to
-pass `--tests` for the test-code mistake kinds, rerun it, and write the
-new shares into a refreshed `audit/compiler/mistakes-<short hash>.md`
-(delete the old one). List any spec rule the compiler misses as a
-"compiler gap" line; don't touch `compiler/crates/`. Timebox 45 minutes;
-push.
-
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,

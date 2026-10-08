@@ -1,10 +1,11 @@
-// Q23: mistake corpus vs `hd check --format json`.
+// Q25: mistake corpus vs `hd check --format json`.
 //
 // Each file in cases/ carries `# code:` (expected diagnostic code) and
 // `# line:` (the source line holding the mistake) headers. The script runs
 // `hd check --format json` on each, takes the first diagnostic, and reports
 // the share with the expected code and the share whose reported line is the
-// mistake's line.
+// mistake's line. Files with a `tests:` block (the test-code mistake kinds)
+// are checked with `hd check --tests --format json` instead.
 //
 // Usage: node compiler/bench/mistakes/run.mjs
 import { execFileSync } from "node:child_process";
@@ -28,10 +29,13 @@ function gitHash() {
   }
 }
 
-function check(file) {
+function check(file, tests) {
+  const argv = tests
+    ? ["check", "--tests", "--format", "json", file]
+    : ["check", "--format", "json", file];
   let out = "";
   try {
-    out = execFileSync(NEW_HD, ["check", "--format", "json", file], {
+    out = execFileSync(NEW_HD, argv, {
       encoding: "utf8",
       timeout: TIMEOUT_MS,
     });
@@ -61,12 +65,14 @@ function main() {
     const text = readFileSync(join(HERE, "cases", name), "utf8");
     const code = text.match(/^# code: (\S+)/m)[1];
     const line = Number(text.match(/^# line: (\d+)/m)[1]);
-    const diags = check(join(HERE, "cases", name));
+    const tests = /^tests:/m.test(text);
+    const diags = check(join(HERE, "cases", name), tests);
     const first = diags[0] ?? null;
     rows.push({
       name: name.slice(0, -3),
       code,
       line,
+      mode: tests ? "--tests" : "check",
       got: first ? first.code : "(no diagnostic)",
       gotLine: first ? first.line : "-",
       gotSev: first ? first.severity : "-",
@@ -79,7 +85,7 @@ function main() {
 
   console.log(`# Mistake corpus vs hd check`);
   console.log(``);
-  console.log(`- hd commit: \`${gitHash()}\`; \`hd check --format json FILE\` per case`);
+  console.log(`- hd commit: \`${gitHash()}\`; \`hd check [--tests] --format json FILE\` per case (--tests for cases with a tests: block)`);
   console.log(`- cases: ${rows.length}; first diagnostic per file decides`);
   console.log(`- code match: ${codeHit}/${rows.length} (${((100 * codeHit) / rows.length).toFixed(1)}%)`);
   console.log(
@@ -87,12 +93,12 @@ function main() {
   );
   console.log(`- both: ${bothHit}/${rows.length}`);
   console.log(``);
-  console.log(`| Case | Expected | Line | Got | Got line | Diags |`);
-  console.log(`| --- | --- | ---: | --- | ---: | ---: |`);
+  console.log(`| Case | Mode | Expected | Line | Got | Got line | Diags |`);
+  console.log(`| --- | --- | --- | ---: | --- | ---: | ---: |`);
   for (const r of rows) {
     const flag = r.got === r.code && r.gotLine === r.line ? "" : " **MISS**";
     console.log(
-      `| ${r.name} | ${r.code} | ${r.line} | ${r.got} | ${r.gotLine} | ${r.n} |${flag}`,
+      `| ${r.name} | ${r.mode} | ${r.code} | ${r.line} | ${r.got} | ${r.gotLine} | ${r.n} |${flag}`,
     );
   }
 }
