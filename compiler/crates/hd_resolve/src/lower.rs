@@ -285,6 +285,8 @@ pub struct ModOut {
     pub kinds: Kinds,
     /// Declaration-relative positions of the items (`anchor`).
     pub anchors: crate::anchor::Anchors,
+    /// The syntax nodes of the module's derivation blocks.
+    pub blocks: Vec<hd_base::NodeIdx>,
 }
 
 pub struct FolderOut {
@@ -2012,7 +2014,6 @@ pub fn misplaced_block(
     let ItemData::Impl {
         trait_,
         self_ty,
-        kind,
         by,
         ..
     } = &it.data
@@ -2020,7 +2021,7 @@ pub fn misplaced_block(
         return None;
     };
     let traitless = *trait_ == DefId::NONE && by.is_some_and(|b| names.text(b) == "Structure");
-    if !traitless && *kind != ImplKind::Derivation {
+    if !derivation_block(names, it) {
         return None;
     }
     let TyData::Adt { def, args } = pool.get(*self_ty) else {
@@ -2180,6 +2181,38 @@ fn related_derives(
     }
 }
 
+/// Whether an impl item is a derivation block: `by Structure` on a trait, or
+/// with no trait (`annot.no-trait.form`). This is the one test for a block.
+pub(crate) fn derivation_block(names: &Names<'_>, it: &Item) -> bool {
+    let ItemData::Impl {
+        trait_, kind, by, ..
+    } = &it.data
+    else {
+        return false;
+    };
+    let traitless = *trait_ == DefId::NONE && by.is_some_and(|b| names.text(b) == "Structure");
+    traitless || *kind == ImplKind::Derivation
+}
+
+/// The syntax nodes of the derivation blocks among a module's heads.
+fn derivation_nodes(
+    names: &Names<'_>,
+    items: &[Item],
+    heads: &[Head<'_>],
+) -> Vec<hd_base::NodeIdx> {
+    heads
+        .iter()
+        .filter(|h| h.kind == HeadKind::Impl)
+        .filter(|h| {
+            items
+                .iter()
+                .find(|i| i.def == h.def)
+                .is_some_and(|it| derivation_block(names, it))
+        })
+        .map(|h| h.node.index())
+        .collect()
+}
+
 /// The placement rules of derivation syntax (`annot.template.module`,
 /// `annot.block.module`, `annot.block.newtype.error`,
 /// `annot.line.placement-blocks`, `annot.no-trait.*`), each reported once on
@@ -2196,10 +2229,7 @@ fn placement(
         let Some(it) = items.iter().find(|i| i.def == h.def) else {
             continue;
         };
-        let ItemData::Impl {
-            trait_, by, kind, ..
-        } = &it.data
-        else {
+        let ItemData::Impl { trait_, by, .. } = &it.data else {
             continue;
         };
         let msg = if misplaced_template(names, module, it) {
@@ -2211,7 +2241,7 @@ fn placement(
             diags.error(Code::MisplacedDerivation, src.span(h.node), msg);
         }
         let traitless = *trait_ == DefId::NONE && by.is_some_and(|b| names.text(b) == "Structure");
-        let block = traitless || *kind == ImplKind::Derivation;
+        let block = derivation_block(names, it);
         for m in Src::child(h.node, SyntaxKind::Block)
             .into_iter()
             .flat_map(NodeRef::children)
@@ -2414,11 +2444,13 @@ pub fn build_folder(
             related_derives(names, &items, hs, &scope, &m.src, diags);
         }
         let anchors = crate::anchor::collect(names, &m.src, hs, &items);
+        let blocks = derivation_nodes(names, &items, hs);
         out.modules.push(ModOut {
             items,
             scope,
             kinds,
             anchors,
+            blocks,
         });
     }
     if r.frozen.is_none() {
@@ -2439,7 +2471,7 @@ pub fn build_folder(
                 diags,
                 unsupported: None,
             };
-            low.check_module_decorators(&items);
+            low.check_module_decorators(&items, &o.blocks);
         }
         let mut seen = HashSet::new();
         for (m, us) in mods.iter().zip(&all_uses) {

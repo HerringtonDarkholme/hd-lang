@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1614 | 685 | 544 | 2843 |
+| 1616 | 683 | 544 | 2843 |
 
 ## By Chapter
 
@@ -25,7 +25,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/09-traits.md` | 192 | 117 | 49 | 358 |
 | `lang/10-modules.md` | 119 | 86 | 53 | 258 |
 | `lang/11-requirements-and-suspension.md` | 104 | 54 | 101 | 259 |
-| `lang/14-annotations.md` | 78 | 57 | 18 | 153 |
+| `lang/14-annotations.md` | 80 | 55 | 18 | 153 |
 | `std/cli.md` | 1 | 0 | 4 | 5 |
 | `std/cmp.md` | 8 | 0 | 6 | 14 |
 | `std/collections.md` | 18 | 5 | 6 | 29 |
@@ -66,7 +66,7 @@ fixture; unsupported surface records progress without failing.
 | `runtime/valid` | 386 | 174 | 369 | 929 |
 | `typing/invalid` | 547 | 417 | 109 | 1073 |
 | `typing/valid` | 335 | 34 | 46 | 415 |
-| `typing/warnings` | 7 | 13 | 0 | 20 |
+| `typing/warnings` | 9 | 11 | 0 | 20 |
 
 ## Failure Buckets
 
@@ -94,7 +94,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 9 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 267 |
+| `fail:no-diagnostic` | 265 |
 | `fail:nonexhaustive-match` | 16 |
 | `fail:not-callable` | 1 |
 | `fail:orphan-impl` | 1 |
@@ -301,7 +301,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (267)</summary>
+<details><summary><code>fail:no-diagnostic</code> (265)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -429,7 +429,6 @@ compiler stage that first declined the case.
 - `typing/invalid/supertrait-binding-mismatch.hd`
 - `typing/invalid/supertrait-binding-unknown.hd`
 - `typing/invalid/init-group-cycle.hd`
-- `typing/warnings/derivation-block-decorator.hd`
 - `typing/invalid/operator-function-left-exact.hd`
 - `typing/invalid/pipe-placeholder-in-closure.hd`
 - `typing/invalid/pipe-multi-line-step.hd`
@@ -443,7 +442,6 @@ compiler stage that first declined the case.
 - `typing/invalid/trait-value-unbound-associated-type.hd`
 - `typing/invalid/dyn-associated-function-bound.hd`
 - `typing/invalid/binding-on-non-trait.hd`
-- `typing/warnings/derivation-block-decorator-std.hd`
 - `typing/invalid/type-argument-list-too-long.hd`
 - `typing/invalid/written-type-too-many-arguments.hd`
 - `typing/invalid/requirement-key-binding-provider.hd`
@@ -3254,6 +3252,8 @@ typing/valid/variance-permission-weakening.hd
 typing/valid/variance-receiverless-function.hd
 typing/valid/variance-separate-trait-impl.hd
 typing/valid/variant-pattern-lists-payload.hd
+typing/warnings/derivation-block-decorator-std.hd
+typing/warnings/derivation-block-decorator.hd
 typing/warnings/let-list-redundant-mut.hd
 typing/warnings/let-mut-optional-payload.hd
 typing/warnings/redundant-let-mut.hd
