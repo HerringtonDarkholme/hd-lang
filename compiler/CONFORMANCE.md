@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1604 | 694 | 545 | 2843 |
+| 1611 | 688 | 544 | 2843 |
 
 ## By Chapter
 
@@ -25,7 +25,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/09-traits.md` | 189 | 120 | 49 | 358 |
 | `lang/10-modules.md` | 119 | 86 | 53 | 258 |
 | `lang/11-requirements-and-suspension.md` | 104 | 54 | 101 | 259 |
-| `lang/14-annotations.md` | 71 | 63 | 19 | 153 |
+| `lang/14-annotations.md` | 78 | 57 | 18 | 153 |
 | `std/cli.md` | 1 | 0 | 4 | 5 |
 | `std/cmp.md` | 8 | 0 | 6 | 14 |
 | `std/collections.md` | 18 | 5 | 6 | 29 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 52 | 33 | 20 | 105 |
 | `runtime/valid` | 386 | 174 | 369 | 929 |
-| `typing/invalid` | 537 | 426 | 110 | 1073 |
+| `typing/invalid` | 544 | 420 | 109 | 1073 |
 | `typing/valid` | 335 | 34 | 46 | 415 |
 | `typing/warnings` | 7 | 13 | 0 | 20 |
 
@@ -94,7 +94,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 9 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 276 |
+| `fail:no-diagnostic` | 270 |
 | `fail:nonexhaustive-match` | 16 |
 | `fail:not-callable` | 1 |
 | `fail:orphan-impl` | 1 |
@@ -123,7 +123,7 @@ compiler stage that first declined the case.
 | `fail:unknown-variant` | 1 |
 | `fail:unsatisfied-trait-bound` | 30 |
 | `fail:unused-local-binding` | 11 |
-| `unsupported:Body` | 202 |
+| `unsupported:Body` | 201 |
 | `unsupported:Collect` | 93 |
 | `unsupported:Discover` | 13 |
 | `unsupported:Emit` | 138 |
@@ -301,7 +301,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (276)</summary>
+<details><summary><code>fail:no-diagnostic</code> (270)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -386,13 +386,11 @@ compiler stage that first declined the case.
 - `typing/invalid/duplicate-fact.hd`
 - `typing/invalid/member-line-payload-member.hd`
 - `typing/invalid/invalid-member-line.hd`
-- `typing/invalid/member-line-outside-block.hd`
 - `typing/invalid/omitted-member-without-default.hd`
 - `typing/invalid/generic-member-call.hd`
 - `typing/invalid/newtype-derivation-self.hd`
 - `typing/warnings/derivation-line-drift.hd`
 - `typing/invalid/structure-without-use.hd`
-- `typing/invalid/newtype-derivation-block.hd`
 - `typing/invalid/duplicate-tests-block.hd`
 - `typing/invalid/tests-block-name-collision.hd`
 - `typing/invalid/tests-block-use-leak.hd`
@@ -415,14 +413,10 @@ compiler stage that first declined the case.
 - `typing/invalid/block-on-in-metadata.hd`
 - `typing/invalid/duplicate-declaration-fact.hd`
 - `typing/invalid/trait-less-block-omit.hd`
-- `typing/invalid/trait-less-block-method.hd`
-- `typing/invalid/trait-less-block-newtype.hd`
 - `typing/invalid/trait-less-block-duplicate-fact.hd`
 - `typing/invalid/trait-less-delegation.hd`
 - `typing/invalid/omitted-embedded-part.hd`
 - `typing/invalid/duplicate-type-level-fact.hd`
-- `typing/invalid/trait-less-block-generic-argument.hd`
-- `typing/invalid/trait-less-block-generic-bound.hd`
 - `typing/invalid/trait-less-block-second.hd`
 - `typing/invalid/member-line-not-list.hd`
 - `typing/invalid/println-in-defer.hd`
@@ -1066,7 +1060,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (202)</summary>
+<details><summary><code>unsupported:Body</code> (201)</summary>
 
 - `typing/invalid/nonfinal-spread.hd`
 - `typing/valid/enums.hd`
@@ -1135,7 +1129,6 @@ compiler stage that first declined the case.
 - `runtime/valid/suspending-trailing-block.hd`
 - `typing/invalid/integration-test-missing-requirement.hd`
 - `typing/valid/default-before-final-function.hd`
-- `typing/invalid/trait-less-block-local.hd`
 - `runtime/valid/test-module-top-level-cases.hd`
 - `typing/invalid/facts-of-method.hd`
 - `typing/valid/row-union-spread.hd`
@@ -2674,6 +2667,7 @@ typing/invalid/marker-bound-unproven.hd
 typing/invalid/match-arm-after-catch-all.hd
 typing/invalid/match-arm-misses-expected-type.hd
 typing/invalid/match-guard-type-mismatch.hd
+typing/invalid/member-line-outside-block.hd
 typing/invalid/method-bound-bare-trait.hd
 typing/invalid/method-without-requirement-clause.hd
 typing/invalid/missing-mutable-edge.hd
@@ -2699,6 +2693,7 @@ typing/invalid/mutable-provider-install-readonly-field.hd
 typing/invalid/mutable-provider-install-readonly-value.hd
 typing/invalid/nested-optional-needs-some.hd
 typing/invalid/newtype-bound-bare-trait.hd
+typing/invalid/newtype-derivation-block.hd
 typing/invalid/newtype-over-data-permission.hd
 typing/invalid/newtype-value-category.hd
 typing/invalid/nil-is-unknown-name.hd
@@ -2868,6 +2863,11 @@ typing/invalid/top-level-defer.hd
 typing/invalid/top-level-let-annotation-type-mismatch.hd
 typing/invalid/top-level-return.hd
 typing/invalid/trait-impl-missing-method.hd
+typing/invalid/trait-less-block-generic-argument.hd
+typing/invalid/trait-less-block-generic-bound.hd
+typing/invalid/trait-less-block-local.hd
+typing/invalid/trait-less-block-method.hd
+typing/invalid/trait-less-block-newtype.hd
 typing/invalid/trait-method-bare-trait.hd
 typing/invalid/trait-method-beside-promoted-method.hd
 typing/invalid/trait-method-receiver-mismatch.hd

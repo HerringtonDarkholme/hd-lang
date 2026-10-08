@@ -1643,7 +1643,13 @@ impl Lower<'_, '_, '_> {
             Some(_) => ImplKind::Delegated,
             None => ImplKind::Written,
         };
-        let block = Src::child(n, SyntaxKind::Block);
+        // A block with no trait writes metadata only and declares no
+        // members (`annot.no-trait.not-inherent`).
+        let block = if trait_ == DefId::NONE && by.as_deref() == Some("Structure") {
+            None
+        } else {
+            Src::child(n, SyntaxKind::Block)
+        };
         if trait_ != DefId::NONE {
             self.duplicate_members(block);
         }
@@ -1977,6 +1983,164 @@ pub fn misplaced_impl(names: &Names<'_>, module: &str, it: &Item) -> Option<Code
     })
 }
 
+/// Whether a syntax node is `impl X by Structure`, a derivation block with
+/// no trait (`annot.no-trait.form`).
+fn traitless_block(src: &Src<'_>, n: NodeRef<'_>) -> bool {
+    if n.kind() != SyntaxKind::ImplDecl || n.children().filter(|c| c.kind().is_type()).count() != 1
+    {
+        return false;
+    }
+    let words: Vec<&str> = n.direct_tokens().map(|t| src.text(t)).collect();
+    words
+        .iter()
+        .position(|w| *w == "by")
+        .and_then(|i| words.get(i + 1))
+        .is_some_and(|w| *w == "Structure")
+}
+
+/// Whether an item is a template whose trait is declared in another module
+/// (`annot.template.module`).
+#[must_use]
+pub fn misplaced_template(names: &Names<'_>, module: &str, it: &Item) -> bool {
+    matches!(
+        &it.data,
+        ItemData::Impl { trait_, kind: ImplKind::Template | ImplKind::TupleTemplate, .. }
+            if *trait_ != DefId::NONE && names.module_of(*trait_) != module
+    )
+}
+
+/// Why a derivation block is rejected, if it is: it is declared outside the
+/// module of its target (`annot.block.module`, `annot.no-trait.module`),
+/// targets a newtype (`annot.block.newtype.error`) or, with no trait, any
+/// target but a data type or enum with an unbounded header
+/// (`annot.no-trait.target`, `annot.no-trait.generic.error`). `items` are
+/// the items of `module`. Rejected blocks stay out of the derivation checks.
+#[must_use]
+pub fn misplaced_block(
+    names: &Names<'_>,
+    module: &str,
+    items: &[Item],
+    it: &Item,
+) -> Option<&'static str> {
+    let pool = names.pool;
+    let ItemData::Impl {
+        trait_,
+        self_ty,
+        kind,
+        by,
+        ..
+    } = &it.data
+    else {
+        return None;
+    };
+    let traitless = *trait_ == DefId::NONE && by.is_some_and(|b| names.text(b) == "Structure");
+    if !traitless && *kind != ImplKind::Derivation {
+        return None;
+    }
+    let TyData::Adt { def, args } = pool.get(*self_ty) else {
+        return traitless.then_some("a derivation block with no trait targets a data type or enum");
+    };
+    if names.module_of(def) != module {
+        return Some("a derivation block belongs in the module that declares its target");
+    }
+    let target = items.iter().find(|i| i.def == def)?;
+    match &target.data {
+        ItemData::Newtype(_) => {
+            return Some("a derivation block cannot target a newtype; derive it with `@derive`");
+        }
+        ItemData::Data(_) | ItemData::Enum { .. } => {}
+        _ if traitless => {
+            return Some("a derivation block with no trait targets a data type or enum");
+        }
+        _ => {}
+    }
+    if traitless {
+        let own = pool.list_items(args);
+        let plain = it.generics.len() == target.generics.len()
+            && own.len() == it.generics.len()
+            && it.generics.iter().enumerate().all(|(i, g)| {
+                let index = u16::try_from(i).unwrap_or(u16::MAX);
+                g.bound.is_none()
+                    && g.bounds.is_empty()
+                    && !g.mut_bound
+                    && g.default.is_none()
+                    && own.get(i).is_some_and(|a| {
+                        pool.get(*a)
+                            == TyData::Param(ParamRef {
+                                owner: it.def,
+                                index,
+                            })
+                    })
+            });
+        if !plain {
+            return Some(
+                "a derivation block with no trait declares the target's own parameters, without bounds",
+            );
+        }
+    }
+    None
+}
+
+/// The placement rules of derivation syntax (`annot.template.module`,
+/// `annot.block.module`, `annot.block.newtype.error`,
+/// `annot.line.placement-blocks`, `annot.no-trait.*`), each reported once on
+/// the block or member.
+fn placement(
+    names: &Names<'_>,
+    module: &str,
+    items: &[Item],
+    heads: &[Head<'_>],
+    src: &Src<'_>,
+    diags: &mut DiagBuf,
+) {
+    for h in heads.iter().filter(|h| h.kind == HeadKind::Impl) {
+        let Some(it) = items.iter().find(|i| i.def == h.def) else {
+            continue;
+        };
+        let ItemData::Impl {
+            trait_, by, kind, ..
+        } = &it.data
+        else {
+            continue;
+        };
+        let msg = if misplaced_template(names, module, it) {
+            Some("a template belongs in the module that declares its trait")
+        } else {
+            misplaced_block(names, module, items, it)
+        };
+        if let Some(msg) = msg {
+            diags.error(Code::MisplacedDerivation, src.span(h.node), msg);
+        }
+        let traitless = *trait_ == DefId::NONE && by.is_some_and(|b| names.text(b) == "Structure");
+        let block = traitless || *kind == ImplKind::Derivation;
+        for m in Src::child(h.node, SyntaxKind::Block)
+            .into_iter()
+            .flat_map(NodeRef::children)
+        {
+            let what = match m.kind() {
+                SyntaxKind::Derivation if !block => "a member line belongs in a derivation block",
+                SyntaxKind::FnDecl | SyntaxKind::AssociatedTypeDecl if traitless => {
+                    "a derivation block with no trait holds only member lines"
+                }
+                _ => continue,
+            };
+            diags.error(Code::MisplacedDerivation, src.span(m), what);
+        }
+    }
+    // A derivation block with no trait in a local scope
+    // (`annot.no-trait.local`): any such impl not at the module's top level.
+    let top: Vec<_> = src.root().children().map(NodeRef::index).collect();
+    for n in src.root().descendants() {
+        if traitless_block(src, n) && !top.contains(&n.index()) {
+            diags.error(
+                Code::MisplacedDerivation,
+                src.span(n),
+                "a derivation block with no trait cannot be local",
+            );
+        }
+    }
+}
+
 /// The owning-module rule (`trait.impl.module`, §4.9 "Orphan and coherence
 /// inputs"): an impl lives in the module of its trait, of its target's
 /// outer constructor, or of a trait argument's outer constructor. std may
@@ -2146,6 +2310,9 @@ pub fn build_folder(
             }
         }
         ownership(names, &m.path, &items, hs, &m.src, diags);
+        if r.frozen.is_none() {
+            placement(names, &m.path, &items, hs, &m.src, diags);
+        }
         let anchors = crate::anchor::collect(names, &m.src, hs, &items);
         out.modules.push(ModOut {
             items,
@@ -2263,6 +2430,8 @@ pub fn body_nodes<'t>(
         match h.kind {
             HeadKind::Fn => out.push((h.def, h.node)),
             // An impl's methods, and a trait's default method bodies.
+            // A block with no trait declares no members.
+            HeadKind::Impl if traitless_block(src, h.node) => {}
             HeadKind::Impl | HeadKind::Trait => {
                 for f in Src::child(h.node, SyntaxKind::Block)
                     .iter()

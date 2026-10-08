@@ -1871,7 +1871,18 @@ impl Run<'_> {
             {
                 continue;
             }
-            let Some(template) = template_of(cx.lookup, *trait_) else {
+            // A rejected block (`misplaced-derivation`) derives nothing.
+            if hd_resolve::lower::misplaced_block(
+                &names,
+                &names.module_of(it.def),
+                cx.lookup.own,
+                it,
+            )
+            .is_some()
+            {
+                continue;
+            }
+            let Some(template) = template_of(&names, cx.lookup, *trait_) else {
                 continue;
             };
             let Some(tm) = self.table.module(&names.module_of(template)) else {
@@ -3179,8 +3190,13 @@ pub fn messages(o: &Output) -> Vec<String> {
 
 /// The derivation template of `trait_` (`annot.template.form`), among a
 /// module's own items, then the interfaces it sees.
-fn template_of(lookup: &Lookup<'_>, trait_: DefId) -> Option<DefId> {
-    let is = |it: &&Item| matches!(&it.data, ItemData::Impl { trait_: t, kind: hd_resolve::ImplKind::Template, .. } if *t == trait_);
+/// A template declared outside its trait's module is rejected
+/// (`misplaced-derivation`) and derives nothing.
+fn template_of(names: &Names<'_>, lookup: &Lookup<'_>, trait_: DefId) -> Option<DefId> {
+    let is = |it: &&Item| {
+        matches!(&it.data, ItemData::Impl { trait_: t, kind: hd_resolve::ImplKind::Template, .. } if *t == trait_)
+            && !hd_resolve::lower::misplaced_template(names, &names.module_of(it.def), it)
+    };
     lookup
         .own
         .iter()
