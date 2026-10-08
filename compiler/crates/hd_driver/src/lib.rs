@@ -19,9 +19,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use hd_base::wire::{Reader, Writer};
-use hd_base::{
-    DefId, FileId, FolderId, Hash128, ModuleId, NotImplemented, Span, Stage, StageResult,
-};
+use hd_base::{DefId, FileId, FolderId, Hash128, NotImplemented, Span, Stage, StageResult};
 use hd_cache::{
     CacheStore, EntryKind, FileApi, MemoryStore, check_key, code_key, iface_key, prog_key,
     toolchain_key,
@@ -38,8 +36,8 @@ use hd_sched::{ExtTask, SerialOrder, SerialScheduler, Spawn, TaskGraph, TaskId, 
 use hd_syntax::{HeaderKind, Parse, parse, skim};
 use hd_tir::Body;
 use hd_types::solver::{
-    FolderImpls, GlobalMemo, ImplTable, ImplUniverseId, ImplUniverses, ImplView, OwnerMap,
-    TableSolver, UniverseImpls,
+    FolderImpls, GlobalMemo, ImplRef, ImplUniverseId, ImplUniverses, ImplView, Impls, OwnerMap,
+    TableSolver, UniverseImpls, folder_table,
 };
 use hd_types::{InternPool, Ty, TyData, TyList};
 use hd_wasm::Code as WasmCode;
@@ -322,7 +320,13 @@ struct CheckOut {
 struct ProgramTables {
     items: HashMap<DefId, Item>,
     bodies: HashMap<DefId, (Body, Hash128)>,
-    impl_tables: Vec<(ModuleId, ImplTable)>,
+    /// Where each impl's row lives: its folder's table.
+    impl_rows: HashMap<DefId, ImplRef>,
+    /// The program's impl universe: every folder of the program. A build
+    /// sees the whole program, so the universe is not narrowed to a
+    /// closure (trait-solver.md §3.2).
+    universe: ImplUniverseId,
+    extra: Arc<UniverseImpls>,
 }
 
 struct CollectOut {
@@ -1830,22 +1834,63 @@ impl Run<'_> {
                 }
             }
         }
-        let mut impls: Vec<&Item> = items
-            .values()
-            .filter(|i| matches!(i.data, ItemData::Impl { .. }))
-            .collect();
-        impls.sort_by_key(|i| names.path_hash(i.def));
-        let impl_tables = vec![(
-            ModuleId::from_raw(0),
-            hd_resolve::impl_table(&names, &impls),
-        )];
+        let mut impl_rows = HashMap::new();
+        let mut members = Vec::new();
+        for f in 0..self.table.folders.len() {
+            let fid = FolderId::from_raw(u32_of(f));
+            let Some(fi) = self.folder_impls(fid) else {
+                continue;
+            };
+            for (row, d) in fi.table.def.iter().enumerate() {
+                impl_rows.insert(
+                    *d,
+                    ImplRef {
+                        module: folder_table(fid),
+                        row: u32_of(row),
+                    },
+                );
+            }
+            if fi.in_universe() {
+                members.push((fid, fi));
+            }
+        }
+        let (universe, extra) = self.universes.intern(&members);
         lock(&self.counters).tir_decoded.extend(decoded);
         let _ = self.program.set(ProgramTables {
             items,
             bodies,
-            impl_tables,
+            impl_rows,
+            universe,
+            extra,
         });
         self.program.get()
+    }
+
+    /// Every folder's impls, by folder id: the program's tables.
+    fn program_folders(&self) -> Vec<Option<&FolderImpls>> {
+        (0..self.table.folders.len())
+            .map(|f| self.folder_impls(FolderId::from_raw(u32_of(f))))
+            .collect()
+    }
+
+    /// The program's view of the impls (trait-solver.md §3.2): owner
+    /// lookup over every folder, no module's own table, the program's
+    /// universe.
+    fn program_view<'a>(
+        &'a self,
+        p: &'a ProgramTables,
+        folders: &'a [Option<&'a FolderImpls>],
+        arity: &'a dyn Fn(DefId) -> usize,
+    ) -> ImplView<'a> {
+        ImplView {
+            paths: &self.paths,
+            owners: self.owners(),
+            own: None,
+            folders,
+            universe: p.universe,
+            extra: &p.extra,
+            arity,
+        }
     }
 
     /// `Collect` (codegen.md §11.3): `prog_key`, then instances, then code
@@ -1930,7 +1975,14 @@ impl Run<'_> {
             );
             return;
         }
-        let env = Env { run: self, p };
+        let folders = self.program_folders();
+        let arity = p.arity();
+        let view = self.program_view(p, &folders, &arity);
+        let env = Env {
+            run: self,
+            p,
+            impls: Impls::Owned(&view),
+        };
         let has_init = |m: &str| p.bodies.contains_key(&init_of(m));
         // The init groups each root module reaches, in order, and their union.
         let mut root_modules: Vec<String> = Vec::new();
@@ -2329,7 +2381,14 @@ impl Run<'_> {
             );
             return;
         };
-        let env = Env { run: self, p };
+        let folders = self.program_folders();
+        let arity = p.arity();
+        let view = self.program_view(p, &folders, &arity);
+        let env = Env {
+            run: self,
+            p,
+            impls: Impls::Owned(&view),
+        };
         let names = self.names();
         let ret = env.ret(item).unwrap_or(Ty::VOID);
         let path = |d: DefId| names.path(d);
@@ -2374,7 +2433,14 @@ impl Run<'_> {
                 c.collected.table.sub[id.idx()]
             ));
         }
-        let env = Env { run: self, p };
+        let folders = self.program_folders();
+        let arity = p.arity();
+        let view = self.program_view(p, &folders, &arity);
+        let env = Env {
+            run: self,
+            p,
+            impls: Impls::Owned(&view),
+        };
         let names = self.names();
         let path = |d: DefId| names.path(d);
         let exports = match &c.roots {
@@ -2534,6 +2600,14 @@ fn split_sections(bytes: &[u8]) -> Option<Vec<&[u8]>> {
 struct Env<'r> {
     run: &'r Run<'r>,
     p: &'r ProgramTables,
+    impls: Impls<'r>,
+}
+
+impl ProgramTables {
+    /// A trait's number of arguments, for owner lookup.
+    fn arity(&self) -> impl Fn(DefId) -> usize + '_ {
+        |d| self.items.get(&d).map_or(0, |i| i.generics.len())
+    }
 }
 
 impl LayoutEnv for Env<'_> {
@@ -2716,8 +2790,14 @@ impl ProgramEnv for Env<'_> {
     fn describe(&self, def: DefId) -> String {
         self.run.names().path(def)
     }
-    fn impl_tables(&self) -> Vec<(ModuleId, &ImplTable)> {
-        self.p.impl_tables.iter().map(|(m, t)| (*m, t)).collect()
+    fn impls(&self) -> Impls<'_> {
+        self.impls
+    }
+    fn solving(&self) -> (ImplUniverseId, &GlobalMemo) {
+        (self.p.universe, &self.run.memo)
+    }
+    fn impl_row(&self, impl_: DefId) -> Option<ImplRef> {
+        self.p.impl_rows.get(&impl_).copied()
     }
 }
 

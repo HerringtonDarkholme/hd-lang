@@ -867,20 +867,13 @@ pub struct SolveCx<'a> {
 pub trait Solver: Sync {
     fn solve(&self, cx: &mut SolveCx<'_>, goal: &Goal, fuel: &mut Fuel) -> StageResult<Answer>;
     fn elaborate(&self, bounds: &[DeclaredBound], out: &mut ParamEnvBuilder) -> EnvKey;
-    fn select(
-        &self,
-        pool: Types<'_>,
-        tables: &[(ModuleId, &ImplTable)],
-        tref: ConcreteTraitRef,
-    ) -> StageResult<Selection>;
+    /// Codegen's entry (§8.3): the impl of a concrete trait reference,
+    /// asked through the build's context, whose impls, universe and memos
+    /// live as long as the build.
+    fn select(&self, cx: &mut SolveCx<'_>, tref: ConcreteTraitRef) -> StageResult<Selection>;
     /// Codegen's entry for associated types at an instance: every
     /// projection in `t` with a concrete base, normalized.
-    fn normalize_concrete(
-        &self,
-        pool: Types<'_>,
-        tables: &[(ModuleId, &ImplTable)],
-        t: Ty,
-    ) -> StageResult<Ty>;
+    fn normalize_concrete(&self, pool: Types<'_>, impls: Impls<'_>, t: Ty) -> StageResult<Ty>;
 }
 
 /// Canonicalizes a goal's self type and arguments (§2.2 steps 1 and 3):
@@ -2257,25 +2250,9 @@ impl Solver for TableSolver {
         }
     }
 
-    fn select(
-        &self,
-        pool: Types<'_>,
-        tables: &[(ModuleId, &ImplTable)],
-        tref: ConcreteTraitRef,
-    ) -> StageResult<Selection> {
-        let env = ParamEnv::default();
-        let global = GlobalMemo::default();
-        let mut memo = BodyMemo::default();
-        let mut cx = SolveCx {
-            pool,
-            env: &env,
-            universe: ImplUniverseId(0),
-            impls: Impls::All(tables),
-            body_memo: &mut memo,
-            global: &global,
-        };
+    fn select(&self, cx: &mut SolveCx<'_>, tref: ConcreteTraitRef) -> StageResult<Selection> {
         let mut fuel = Fuel::new(Fuel::BODY_DEFAULT);
-        let mut s = Search::new(&mut cx, &mut fuel);
+        let mut s = Search::new(cx, &mut fuel);
         match s
             .goal(Ask::Implements(tref.0, false), 0, true, true)?
             .answer
@@ -2294,13 +2271,8 @@ impl Solver for TableSolver {
         }
     }
 
-    fn normalize_concrete(
-        &self,
-        pool: Types<'_>,
-        tables: &[(ModuleId, &ImplTable)],
-        t: Ty,
-    ) -> StageResult<Ty> {
-        Ok(normalize_concrete(pool, Impls::All(tables), t))
+    fn normalize_concrete(&self, pool: Types<'_>, impls: Impls<'_>, t: Ty) -> StageResult<Ty> {
+        Ok(normalize_concrete(pool, impls, t))
     }
 }
 
@@ -2575,11 +2547,7 @@ mod tests {
             .solve(&mut cx, &goal, &mut Fuel::new(10))
             .expect("holds");
         assert!(matches!(a, super::Answer::Holds { .. }));
-        assert!(
-            TableSolver
-                .select(p, &tables, ConcreteTraitRef(tref))
-                .is_ok()
-        );
+        assert!(TableSolver.select(&mut cx, ConcreteTraitRef(tref)).is_ok());
         let (cg, _) = canonicalize(p, GoalKind::Implements, tref, false);
         let key = MemoKey {
             goal: cg,

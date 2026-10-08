@@ -12,9 +12,12 @@ pub mod passes;
 
 use std::collections::{BTreeSet, HashMap};
 
-use hd_base::{DefId, Hash128, InstId, ModuleId, NotImplemented, StableHasher, Stage, StageResult};
+use hd_base::{DefId, Hash128, InstId, NotImplemented, StableHasher, Stage, StageResult};
 use hd_tir::ir::{Body, Callee, ChoiceKind, Coercion, Tag};
-use hd_types::solver::{ConcreteTraitRef, ImplTable, Impls, Solver, TraitRef};
+use hd_types::solver::{
+    BodyMemo, ConcreteTraitRef, GlobalMemo, ImplRef, ImplUniverseId, Impls, ParamEnv, SolveCx,
+    Solver, TraitRef,
+};
 use hd_types::{InternPool, ParamRef, Ty, TyData, TyList};
 
 use crate::layout::{A1Class, KeyArg, LayoutEnv, a1_class, canon, instance_key};
@@ -56,7 +59,15 @@ pub trait ProgramEnv: LayoutEnv {
     fn path_hash(&self, def: DefId) -> Hash128;
     /// The item's stable path, for diagnostics.
     fn describe(&self, def: DefId) -> String;
-    fn impl_tables(&self) -> Vec<(ModuleId, &ImplTable)>;
+    /// Where selection reads impls: owner lookup over the whole program's
+    /// folders (trait-solver.md §3.2, §8.3), the program being the impl
+    /// universe.
+    fn impls(&self) -> Impls<'_>;
+    /// The program's impl universe and the run's proof memo, which
+    /// selection shares with checking (trait-solver.md §7.1).
+    fn solving(&self) -> (ImplUniverseId, &GlobalMemo);
+    /// Where an impl's row lives.
+    fn impl_row(&self, impl_: DefId) -> Option<ImplRef>;
 }
 
 /// The A1 class `REF` as a type argument: a reserved canonical
@@ -157,7 +168,7 @@ pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList,
         }
     });
     if pool.has_assoc(s) {
-        hd_types::solver::normalize_concrete(pool.types(), Impls::All(&env.impl_tables()), s)
+        hd_types::solver::normalize_concrete(pool.types(), env.impls(), s)
     } else {
         s
     }
@@ -252,11 +263,18 @@ fn layout_hash(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, h: &mut StableHas
     }
 }
 
+type SelectKey = (DefId, Ty, TyList, Option<DefId>);
+
 struct Cx<'a> {
     pool: &'a InternPool,
     env: &'a dyn ProgramEnv,
     solver: &'a dyn Solver,
-    tables: Vec<(ModuleId, &'a ImplTable)>,
+    /// Selection's context: no parameters in scope, one memo for the build.
+    penv: ParamEnv,
+    memo: BodyMemo,
+    /// The build's selections, by `(trait, self type, trait arguments,
+    /// chosen impl)`: the impl and its arguments (trait-solver.md §8.3).
+    selected: HashMap<SelectKey, (DefId, Vec<Ty>)>,
     out: Collected,
     work: Vec<InstId>,
 }
@@ -395,30 +413,46 @@ impl Cx<'_> {
     /// Selects the implementation of `trait_` for `self_ty` (codegen.md
     /// §13.2 `select`): the impl and its arguments.
     fn select(
-        &self,
+        &mut self,
         trait_: DefId,
         self_ty: Ty,
         trait_args: TyList,
         choice: Option<DefId>,
     ) -> StageResult<(DefId, Vec<Ty>)> {
-        let impl_ = if let Some(d) = choice {
-            d
+        let key = (trait_, self_ty, trait_args, choice);
+        if let Some(hit) = self.selected.get(&key) {
+            return Ok(hit.clone());
+        }
+        let env = self.env;
+        let view = env.impls();
+        let at = if let Some(d) = choice {
+            let Some(at) = env.impl_row(d) else {
+                return err("a chosen impl outside the impl tables");
+            };
+            at
         } else {
-            {
-                let tref = ConcreteTraitRef(TraitRef {
-                    trait_,
-                    self_ty,
-                    args: trait_args,
-                });
-                let sel = self.solver.select(self.pool.types(), &self.tables, tref)?;
-                let Some((_, t)) = self.tables.iter().find(|(m, _)| *m == sel.impl_row.module)
-                else {
-                    return err("a selection outside the impl tables");
-                };
-                t.def[sel.impl_row.row as usize]
-            }
+            let tref = ConcreteTraitRef(TraitRef {
+                trait_,
+                self_ty,
+                args: trait_args,
+            });
+            let (universe, global) = env.solving();
+            let mut cx = SolveCx {
+                pool: self.pool.types(),
+                env: &self.penv,
+                universe,
+                impls: view,
+                body_memo: &mut self.memo,
+                global,
+            };
+            self.solver.select(&mut cx, tref)?.impl_row
         };
-        let Some((head, targs, n)) = self.env.impl_head(impl_) else {
+        let Some(t) = view.table(at.module) else {
+            return err("a selection outside the impl tables");
+        };
+        let row = at.row as usize;
+        let impl_ = t.def[row];
+        let Some((head, targs, n)) = env.impl_head(impl_) else {
             return err("a selected impl without a head");
         };
         let mut out = vec![None; n];
@@ -433,20 +467,9 @@ impl Cx<'_> {
             unify(self.pool, impl_, x, y, &mut out);
         }
         // Parameters that a bound's binding fixes (`Bind` steps).
-        if out.iter().any(Option::is_none)
-            && let Some((t, row)) = self
-                .tables
-                .iter()
-                .find_map(|(_, t)| t.def.iter().position(|d| *d == impl_).map(|row| (*t, row)))
-        {
+        if out.iter().any(Option::is_none) {
             out.resize(out.len().max(n), None);
-            hd_types::solver::apply_binds(
-                self.pool.types(),
-                Impls::All(&self.tables),
-                t,
-                row,
-                &mut out,
-            );
+            hd_types::solver::apply_binds(self.pool.types(), view, t, row, &mut out);
         }
         let mut args = Vec::new();
         for a in out.into_iter().take(n) {
@@ -455,6 +478,7 @@ impl Cx<'_> {
             };
             args.push(a);
         }
+        self.selected.insert(key, (impl_, args.clone()));
         Ok((impl_, args))
     }
 
@@ -703,7 +727,9 @@ pub fn collect(
         pool,
         env,
         solver,
-        tables: env.impl_tables(),
+        penv: ParamEnv::default(),
+        memo: BodyMemo::default(),
+        selected: HashMap::new(),
         out: Collected::default(),
         work: Vec::new(),
     };
