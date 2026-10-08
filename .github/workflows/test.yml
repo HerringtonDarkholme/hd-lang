@@ -72,10 +72,14 @@ jobs:
       - name: Build browser-safe syntax crate
         run: cargo build -p hd_syntax --target wasm32-unknown-unknown
 
-  check:
-    name: Check (types, lint, format, tests, spec)
+  # The TypeScript prototype's checks (pnpm run check, its perf gate and
+  # the playground end-to-end run) are off: the prototype is a frozen test
+  # oracle and the Rust compiler is the product (owner, 2026-10-07). Only the
+  # specification's own check stays.
+  spec:
+    name: Specification check
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - name: Check out
         uses: actions/checkout@v5
@@ -92,64 +96,5 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run checks
-        run: pnpm run check
-
-      # Not part of `pnpm run check`, which stays fast for local work.
-      - name: Fuzz smoke
-        run: pnpm run fuzz:smoke
-
-  # Its own job, so it runs next to the check job and on a quieter machine.
-  # test/perf/inference/README.md explains the rules and the baseline.
-  perf:
-    name: Type checker performance gate
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Check out
-        uses: actions/checkout@v5
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v5
-        with:
-          node-version-file: package.json
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Performance gate
-        run: pnpm run perf:check
-
-  e2e:
-    name: End-to-end (playground and website)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Check out
-        uses: actions/checkout@v5
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v5
-        with:
-          node-version-file: package.json
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      # Builds the site together with the playground it serves.
-      - name: Build website
-        run: pnpm run website:build
-
-      # ubuntu runners ship Google Chrome at /usr/bin/google-chrome, which
-      # website/playground/test/chrome.ts finds. The run covers the site and
-      # then the playground.
-      - name: Website and playground end-to-end
-        run: pnpm run website:e2e
+      - name: Spec check
+        run: bash spec/check.sh
