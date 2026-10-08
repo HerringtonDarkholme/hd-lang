@@ -298,13 +298,11 @@ fn assert_findings(r: &Output, text: &str) {
         );
     };
     want("orphan-impl", "impl Display for i32");
-    // The user's `Display` impl also overlaps std's, and is the later one.
+    // The orphan `Display` impl is reported once, as `orphan-impl` only;
+    // coherence skips it. The `Marker` overlap is still reported.
     assert_eq!(
         lines_of(r, text, "overlapping-impl"),
-        vec![
-            line_of(text, "impl Marker for Box[i32]"),
-            line_of(text, "impl Display for i32")
-        ],
+        vec![line_of(text, "impl Marker for Box[i32]")],
         "{}",
         r.render()
     );

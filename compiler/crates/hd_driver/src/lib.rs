@@ -1136,7 +1136,12 @@ impl Run<'_> {
             all.push(i);
         }
         let names = self.names();
-        let u = hd_resolve::Universe::new(names, all.iter().flat_map(|i| i.items.iter()));
+        // Impls the orphan check rejected (`orphan-impl`, `nonlocal-impl`)
+        // are already one error; they stay out of the overlap check.
+        let placed = all.iter().flat_map(|i| i.items.iter()).filter(|it| {
+            hd_resolve::lower::misplaced_impl(&names, &names.module_of(it.def), it).is_none()
+        });
+        let u = hd_resolve::Universe::new(names, placed);
         // Content order (§4.12.3): the later impl is the one reported. A
         // `@derive` ranks after written impls, a derivation block after both.
         let order = |d: DefId| {

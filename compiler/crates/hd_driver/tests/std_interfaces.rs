@@ -315,6 +315,17 @@ fn ownership_errors() {
 }
 
 #[test]
+fn orphan_impl_overlapping_std_is_one_error() {
+    let r = check(&[(
+        "a/x.hd",
+        "impl Display for i32:\n    fn to_string(self) -> string:\n        \"\"\n",
+    )]);
+    assert_eq!(r.lines().count(), 1, "{r}");
+    assert!(r.contains("error orphan-impl"), "{r}");
+    assert!(!r.contains("overlapping-impl"), "{r}");
+}
+
+#[test]
 fn stage_b_and_coherence_errors() {
     let r = check(&[(
         "a/x.hd",

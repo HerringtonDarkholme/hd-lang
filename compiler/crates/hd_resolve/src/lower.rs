@@ -1815,22 +1815,16 @@ impl Lower<'_, '_, '_> {
     }
 }
 
-/// The owning-module rule (`trait.impl.module`, §4.9 "Orphan and coherence
-/// inputs"): an impl lives in the module of its trait, of its target's
-/// outer constructor, or of a trait argument's outer constructor. std may
-/// implement for built-in targets in any of its modules.
-fn ownership(
-    names: &Names<'_>,
-    module: &str,
-    items: &[Item],
-    heads: &[Head<'_>],
-    src: &Src<'_>,
-    diags: &mut DiagBuf,
-) {
+/// The placement error of one item, if it is an impl outside its owning
+/// module: `OrphanImpl` when no owner is in the impl's package,
+/// `NonlocalImpl` otherwise. `None` for everything else. Coherence calls
+/// this too, to leave rejected impls out of the overlap check.
+#[must_use]
+pub fn misplaced_impl(names: &Names<'_>, module: &str, it: &Item) -> Option<Code> {
     let pool = names.pool;
     let package = module.split('.').next().unwrap_or("");
     if package == "std" {
-        return;
+        return None;
     }
     let ctor_module = |t: Ty| -> Option<String> {
         let t = match pool.get(t) {
@@ -1845,39 +1839,62 @@ fn ownership(
             _ => None,
         }
     };
+    let ItemData::Impl {
+        trait_,
+        trait_args,
+        self_ty,
+        kind,
+        ..
+    } = &it.data
+    else {
+        return None;
+    };
+    if *trait_ == DefId::NONE || !kind.is_impl() {
+        return None;
+    }
+    let mut owners = vec![names.module_of(*trait_)];
+    owners.extend(ctor_module(*self_ty));
+    owners.extend(
+        pool.list_items(*trait_args)
+            .into_iter()
+            .filter_map(ctor_module),
+    );
+    if owners.iter().any(|o| o == module) {
+        return None;
+    }
+    let local = owners.iter().any(|o| o.split('.').next() == Some(package));
+    Some(if local {
+        Code::NonlocalImpl
+    } else {
+        Code::OrphanImpl
+    })
+}
+
+/// The owning-module rule (`trait.impl.module`, §4.9 "Orphan and coherence
+/// inputs"): an impl lives in the module of its trait, of its target's
+/// outer constructor, or of a trait argument's outer constructor. std may
+/// implement for built-in targets in any of its modules. Reports every
+/// misplaced impl of one module (see `misplaced_impl`).
+fn ownership(
+    names: &Names<'_>,
+    module: &str,
+    items: &[Item],
+    heads: &[Head<'_>],
+    src: &Src<'_>,
+    diags: &mut DiagBuf,
+) {
     for it in items {
-        let ItemData::Impl {
-            trait_,
-            trait_args,
-            self_ty,
-            kind,
-            ..
-        } = &it.data
-        else {
+        let Some(code) = misplaced_impl(names, module, it) else {
             continue;
         };
-        if *trait_ == DefId::NONE || !kind.is_impl() {
-            continue;
-        }
-        let mut owners = vec![names.module_of(*trait_)];
-        owners.extend(ctor_module(*self_ty));
-        owners.extend(
-            pool.list_items(*trait_args)
-                .into_iter()
-                .filter_map(ctor_module),
-        );
-        if owners.iter().any(|o| o == module) {
-            continue;
-        }
         let span = heads
             .iter()
             .find(|h| h.def == it.def)
             .map_or(src.span(src.root()), |h| src.span(h.node));
-        let local = owners.iter().any(|o| o.split('.').next() == Some(package));
-        let (code, what) = if local {
-            (Code::NonlocalImpl, "nonlocal-impl")
+        let what = if code == Code::NonlocalImpl {
+            "nonlocal-impl"
         } else {
-            (Code::OrphanImpl, "orphan-impl")
+            "orphan-impl"
         };
         let msg = format!(
             "{what}: `{}` belongs in the module of its trait or target",

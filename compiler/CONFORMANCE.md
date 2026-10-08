@@ -8,7 +8,7 @@ fixture and CLI case; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1190 | 930 | 823 | 2943 |
+| 1191 | 929 | 823 | 2943 |
 
 ## By Chapter
 
@@ -23,7 +23,7 @@ fixture and CLI case; unsupported surface records progress without failing.
 | `lang/06-control-flow.md` | 93 | 34 | 30 | 157 |
 | `lang/07-functions.md` | 45 | 35 | 50 | 130 |
 | `lang/08-data-and-enums.md` | 42 | 52 | 29 | 123 |
-| `lang/09-traits.md` | 134 | 165 | 59 | 358 |
+| `lang/09-traits.md` | 135 | 164 | 59 | 358 |
 | `lang/10-modules.md` | 82 | 123 | 53 | 258 |
 | `lang/11-requirements-and-suspension.md` | 86 | 70 | 103 | 259 |
 | `lang/14-annotations.md` | 38 | 93 | 22 | 153 |
@@ -66,7 +66,7 @@ fixture and CLI case; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 26 | 50 | 29 | 105 |
 | `runtime/valid` | 182 | 241 | 506 | 929 |
-| `typing/invalid` | 397 | 552 | 123 | 1072 |
+| `typing/invalid` | 398 | 551 | 123 | 1072 |
 | `typing/valid` | 292 | 59 | 64 | 415 |
 | `typing/warnings` | 6 | 14 | 0 | 20 |
 
@@ -98,7 +98,7 @@ compiler stage that first declined the case.
 | `fail:no-diagnostic` | 349 |
 | `fail:nonexhaustive-match` | 16 |
 | `fail:not-callable` | 2 |
-| `fail:orphan-impl` | 2 |
+| `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
 | `fail:pattern-arity` | 2 |
 | `fail:pipe-step-needs-placeholder` | 5 |
@@ -684,9 +684,8 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:orphan-impl</code> (2)</summary>
+<details><summary><code>fail:orphan-impl</code> (1)</summary>
 
-- `typing/invalid/orphan-impl.hd`
 - `typing/invalid/from-reflexive-impl.hd`
 
 </details>
@@ -2926,6 +2925,7 @@ typing/invalid/orphan-impl-alias-target.hd
 typing/invalid/orphan-impl-nested-trait-argument.hd
 typing/invalid/orphan-impl-standard-data.hd
 typing/invalid/orphan-impl-standard-enum.hd
+typing/invalid/orphan-impl.hd
 typing/invalid/overlapping-generic-impl-heads.hd
 typing/invalid/overlapping-impl-despite-bounds.hd
 typing/invalid/overlapping-impl-unifying-targets.hd
