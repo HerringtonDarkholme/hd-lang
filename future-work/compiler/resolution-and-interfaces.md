@@ -17,6 +17,30 @@ Part of the [compiler design](README.md).
    of source files lives in folder `x/`
    ([`module.folder.parent-file`](../../spec/lang/10-modules.md#r-module.folder.parent-file)).
 
+**Use roots (#106).** `hd_project` owns one mapping, `module_path` (with
+`module_below` for the path below the root): the package identifier
+(each `-` as `_`, e.g. `acme-shop` → `acme_shop`), then the path below
+the source root. `src/lib.hd` is the root module itself, `src/x/mod.hd`
+is `x`, and a flat `main.hd` is `main`. The test and task roots get
+segments no source path can spell, `$tests` and `$tasks`, so
+`tests/checkout.hd` is `pkg.$tests.checkout` while `src/tests/checkout.hd`
+stays `pkg.tests.checkout` (a different module), and no `pkg` path
+reaches test or task code (`module.test.no-tests-root`). Provisional:
+an owner question on the `tests/checkout.hd` vs `src/tests/checkout.hd`
+collision is open. Each module also records its relative base (its root
+for a root file: `src/lib.hd`, `src/main.hd`, or a file directly under
+`tests/` or `tasks`), so `self` starts there, and its floor (the package
+root, or the test/task root), which a root `super` must stay within.
+Entry modules (`src/main.hd`, test programs, tasks) are their own
+program, which no `use` reaches. `UseRoots::absolute` maps `pkg`, `std`,
+`dep.NAME`, `self` and `super` and rejects any other first segment; an
+unknown `dep.NAME` and a `super` above the floor are their own errors.
+Dependencies load only their library (test code and executables never
+build), `requires` maps each `dep.NAME` to its package, and a manifest
+loop is `package-cycle`. A package with `src/` takes files only from
+`src`, `tests` and `tasks`; `[dev-dependencies]` parses but does not
+load yet.
+
 The module set always comes from this scan, never from cache entries, so a
 deleted file is never served from the cache (Gleam #4320).
 
@@ -86,6 +110,17 @@ for each pending entry, in (module path, source order):
   serial, monotone pass over one SCC (lesson 7).
 - Other use errors: `unknown-module`, `unknown-import`, `private-import`,
   `direct-variant-use`, `ambiguous-import`, `test-only-use`.
+
+**Failed uses bind poison (#110).** A failed use (unknown module,
+unknown import, private import, bad root, ambiguous import) still binds
+every name it would have bound — each listed name alias-aware, or the
+module alias — as `BindingKind::Poison`, so later references resolve to
+something and stay quiet instead of cascading new diagnostics.
+`ModuleScope::bind` gives poison both directions of precedence: a poison
+binding never overwrites a real one, and a real binding replaces
+poison. The checker reads poison in references, calls, members,
+interpolations, literal functions and type positions, and
+reports nothing there: one error at the `use`, silence after.
 
 **Private-name index (M3 gap 2).** Each interface has a sorted
 `private_names` section of `(module path, name, kind, declaration anchor)`.

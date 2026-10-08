@@ -102,24 +102,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### D2m. Design Text For Module Paths And Poison Names
-
-Update `future-work/compiler/resolution-and-interfaces.md` (and
-`reconciliation.md` rows) for two commits, docs only:
-- "Module paths: use roots for the source, test and task roots and path
-  dependencies (#106)": one mapping in `hd_project` (`module_path`,
-  `module_below`); the package name with `-` as `_`; `src/lib.hd` is the
-  root, `x/mod.hd` is `x`; test and task roots use internal prefixes
-  `P.$tests…` / `P.$tasks…` (record as provisional: an owner question on
-  the collision between `tests/checkout.hd` and `src/tests/checkout.hd`
-  is open); where `self` starts and the root `super` stays within; entry
-  modules not usable; `UseRoots::absolute` for `pkg`, `std`, `dep.NAME`,
-  `self`, `super`; dependencies load only their library; `package-cycle`;
-  a package with `src/` takes files only from `src`, `tests`, `tasks`.
-- "Resolver: a failed use binds its names as poison (#110)": where poison
-  is produced and read, and that a real binding replaces poison.
-Timebox 40 minutes; push.
-
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
