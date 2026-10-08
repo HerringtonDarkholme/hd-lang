@@ -5,6 +5,7 @@
 //! forms), and add the struct descriptors.
 
 use hd_base::{DefId, StageResult};
+use hd_mono::layout::StdKind;
 use hd_mono::{ProgramEnv, class_ref, is_class_ref, subst};
 use hd_types::{InternPool, Prim, Ty, TyData, TyList};
 
@@ -295,67 +296,64 @@ impl Lay<'_> {
                 _ => Shape::Scalar(VT::I32),
             },
             TyData::Never => Shape::Void,
-            TyData::Adt { def, args } => {
-                let path = (self.path)(def);
-                match path.as_str() {
-                    "std/core/List" => {
-                        let [e] = pool.list_items(args)[..] else {
-                            return unsupported("a List without one argument");
-                        };
-                        let elem = self.vts_at(e, d)?;
-                        Shape::List {
-                            ty: list_ty(&elem),
-                            elem,
-                        }
-                    }
-                    "std/core/Map" => {
-                        let [k, v] = pool.list_items(args)[..] else {
-                            return unsupported("a Map without two arguments");
-                        };
-                        let (key, val) = (self.vts_at(k, d)?, self.vts_at(v, d)?);
-                        Shape::Map {
-                            ty: map_ty(&key, &val),
-                            key,
-                            val,
-                        }
-                    }
-                    "std/task/Suspend" => {
-                        let [r] = pool.list_items(args)[..] else {
-                            return unsupported("a Suspend without one argument");
-                        };
-                        let result = self.vts_at(r, d)?;
-                        let (base, poll_ty) = suspend_base(&result);
-                        Shape::Suspend {
-                            base,
-                            poll: poll_ty,
-                            result,
-                        }
-                    }
-                    _ => {
-                        if let Some(vs) = self.env.enum_variants(def, args) {
-                            return Ok(Shape::Enum(self.enum_shape(&vs, d)?));
-                        }
-                        let Some(fs) = self.env.data_fields(def) else {
-                            return unsupported(format!("the layout of `{path}`"));
-                        };
-                        let mut fields = Vec::new();
-                        let mut all = Vec::new();
-                        for f in fs {
-                            let vs = self.vts_at(subst(pool, self.env, def, args, f), d)?;
-                            fields.push((u32::try_from(all.len()).expect("fields"), vs.clone()));
-                            all.extend(vs);
-                        }
-                        Shape::Data {
-                            ty: WTy::Struct {
-                                fields: all,
-                                sup: None,
-                                open: false,
-                            },
-                            fields,
-                        }
+            TyData::Adt { def, args } => match self.env.std_kind(def) {
+                StdKind::List => {
+                    let [e] = pool.list_items(args)[..] else {
+                        return unsupported("a List without one argument");
+                    };
+                    let elem = self.vts_at(e, d)?;
+                    Shape::List {
+                        ty: list_ty(&elem),
+                        elem,
                     }
                 }
-            }
+                StdKind::Map => {
+                    let [k, v] = pool.list_items(args)[..] else {
+                        return unsupported("a Map without two arguments");
+                    };
+                    let (key, val) = (self.vts_at(k, d)?, self.vts_at(v, d)?);
+                    Shape::Map {
+                        ty: map_ty(&key, &val),
+                        key,
+                        val,
+                    }
+                }
+                StdKind::Suspend => {
+                    let [r] = pool.list_items(args)[..] else {
+                        return unsupported("a Suspend without one argument");
+                    };
+                    let result = self.vts_at(r, d)?;
+                    let (base, poll_ty) = suspend_base(&result);
+                    Shape::Suspend {
+                        base,
+                        poll: poll_ty,
+                        result,
+                    }
+                }
+                StdKind::Other => {
+                    if let Some(vs) = self.env.enum_variants(def, args) {
+                        return Ok(Shape::Enum(self.enum_shape(&vs, d)?));
+                    }
+                    let Some(fs) = self.env.data_fields(def) else {
+                        return unsupported(format!("the layout of `{}`", (self.path)(def)));
+                    };
+                    let mut fields = Vec::new();
+                    let mut all = Vec::new();
+                    for f in fs {
+                        let vs = self.vts_at(subst(pool, self.env, def, args, f), d)?;
+                        fields.push((u32::try_from(all.len()).expect("fields"), vs.clone()));
+                        all.extend(vs);
+                    }
+                    Shape::Data {
+                        ty: WTy::Struct {
+                            fields: all,
+                            sup: None,
+                            open: false,
+                        },
+                        fields,
+                    }
+                }
+            },
             TyData::Tuple { elems, rest: None } => {
                 let mut es = Vec::new();
                 for e in pool.list_items(elems).iter().copied() {

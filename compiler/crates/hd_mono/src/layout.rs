@@ -67,10 +67,23 @@ fn one(class: LayoutClass, v: ValType) -> Layout {
     }
 }
 
+/// The std types the backend gives a built-in shape.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StdKind {
+    List,
+    Map,
+    Suspend,
+    Other,
+}
+
 /// What layouts need to know about declared types (enum shapes).
 pub trait LayoutEnv {
     /// Variant payload types of an enum, or `None` for a data type.
     fn enum_variants(&self, def: DefId, args: TyList) -> Option<Vec<Vec<Ty>>>;
+    /// Which built-in std type `def` is, if any.
+    fn std_kind(&self, _def: DefId) -> StdKind {
+        StdKind::Other
+    }
 }
 
 /// The layout of a type (§15.1 and the value table of §15.2). Every type

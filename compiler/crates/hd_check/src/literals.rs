@@ -160,7 +160,7 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        let template = self.cx.names.item("std.ops", "Template");
+        let template = self.cx.names.known.template;
         let want = want.map(|w| self.infer.resolve(pool, w));
         let Some(elem) = want.and_then(|w| match pool.get(self.strip_mut(w)) {
             TyData::Adt { def, args } if def == template => pool.list_items(args).first().copied(),
@@ -220,7 +220,7 @@ impl Ck<'_, '_> {
             }
         }
         pieces.push(self.b.const_str(&cur));
-        let list = self.cx.names.item("std.core", "List");
+        let list = self.cx.names.known.list;
         let list_of = |me: &mut Self, items: &[Ref], el: Ty| {
             let lt = pool.intern_ty(&TyData::Adt {
                 def: list,
@@ -310,7 +310,7 @@ impl Ck<'_, '_> {
             }
             return;
         }
-        let template = self.cx.names.item("std.ops", "Template");
+        let template = self.cx.names.known.template;
         if !matches!(pool.get(ty), TyData::Adt { def: d, .. } if d == template) {
             mismatch(self, "needs a `Template` parameter");
         }

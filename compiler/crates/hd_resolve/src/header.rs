@@ -53,16 +53,16 @@ impl<'a> Universe<'a> {
                 impls.entry(trait_).or_default().push(it);
             }
         }
+        let k = names.known;
         let opaque = [
-            ("std.core", "Any"),
-            ("std.core", "AnyVal"),
-            ("std.core", "AnyRef"),
-            ("std.function", "Tuple"),
-            ("std.structure", "Structure"),
-            ("std.inspect", "Inspectable"),
+            k.any,
+            k.any_val,
+            k.any_ref,
+            k.tuple,
+            k.structure,
+            k.inspectable,
         ]
-        .iter()
-        .map(|(m, n)| names.item(m, n))
+        .into_iter()
         .collect();
         Self {
             names,

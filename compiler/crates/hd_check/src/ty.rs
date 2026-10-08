@@ -142,7 +142,11 @@ impl Ck<'_, '_> {
         let Some(def) = self.resolve_path(&segs) else {
             return unsupported(format!("the type name `{}`", segs.join(".")));
         };
-        if self.cx.names.module_of(def) == "std.function" {
+        if self
+            .cx
+            .names
+            .declared_in(def, self.cx.names.known.function_module)
+        {
             let name = self
                 .cx
                 .names
@@ -174,7 +178,7 @@ impl Ck<'_, '_> {
                 bindings,
             }));
         }
-        if self.cx.names.path(def) == "std/core/Map"
+        if def == self.cx.names.known.map
             && let Some(k) = args.first()
         {
             self.check_map_key(*k, n)?;
@@ -187,8 +191,7 @@ impl Ck<'_, '_> {
     pub(crate) fn check_map_key(&mut self, k: Ty, at: NodeRef<'_>) -> StageResult<()> {
         let pool = self.pool();
         let before = self.diags.len();
-        for (module, name) in [("std.cmp", "Eq"), ("std.hash", "Hash")] {
-            let tr = self.cx.names.item(module, name);
+        for tr in [self.cx.names.known.eq, self.cx.names.known.hash] {
             let tref = hd_types::solver::TraitRef {
                 trait_: tr,
                 self_ty: k,

@@ -427,7 +427,7 @@ impl Ck<'_, '_> {
         if tt == Ty::STRING {
             return Ok(r);
         }
-        let display = self.cx.names.item("std.format", "Display");
+        let display = self.cx.names.known.display;
         let r2 = self.trait_call(display, "to_string", r, t, &[], n)?;
         Ok(r2.0)
     }
@@ -483,7 +483,11 @@ impl Ck<'_, '_> {
                 } else {
                     ("Not", "not")
                 };
-                let tr = self.cx.names.item("std.ops", trait_name);
+                let tr = if op == Some(TokenKind::Minus) {
+                    self.cx.names.known.neg
+                } else {
+                    self.cx.names.known.not
+                };
                 if !self.op_fits(tr, t, None)? {
                     return mismatch(self, &format!("`{trait_name}`"));
                 }
@@ -534,11 +538,9 @@ impl Ck<'_, '_> {
                 .is_some_and(|k| k != VarKind::General),
             TyData::Mut(i) => self.numeric(i),
             TyData::Param(_) => (0..self.env.clause_self.len()).any(|i| {
+                let known = self.cx.names.known;
                 self.env.clause_self[i] == t
-                    && matches!(
-                        self.cx.names.path(self.env.clause_trait[i]).as_str(),
-                        "std/num/Num" | "std/num/Integer" | "std/num/Float"
-                    )
+                    && [known.num, known.integer, known.float].contains(&self.env.clause_trait[i])
             }),
             TyData::Never | TyData::Poison => true,
             _ => false,
@@ -667,21 +669,21 @@ impl Ck<'_, '_> {
             return Ok(v);
         }
         // Everything else is the operator trait's method.
-        let (module, trait_name, method) = match prim {
-            PrimOp::Add => ("std.ops", "Add", "add"),
-            PrimOp::Sub => ("std.ops", "Sub", "sub"),
-            PrimOp::Mul => ("std.ops", "Mul", "mul"),
-            PrimOp::Div => ("std.ops", "Div", "div"),
-            PrimOp::Rem => ("std.ops", "Rem", "rem"),
-            PrimOp::BitAnd => ("std.ops", "BitAnd", "bit_and"),
-            PrimOp::BitOr => ("std.ops", "BitOr", "bit_or"),
-            PrimOp::BitXor => ("std.ops", "BitXor", "bit_xor"),
-            PrimOp::Shl => ("std.ops", "Shl", "shl"),
-            PrimOp::Shr => ("std.ops", "Shr", "shr"),
-            PrimOp::Eq | PrimOp::Ne => ("std.cmp", "Eq", "eq"),
-            _ => ("std.cmp", "Ord", "cmp"),
+        let k = self.cx.names.known;
+        let (tr, trait_name, method) = match prim {
+            PrimOp::Add => (k.add, "Add", "add"),
+            PrimOp::Sub => (k.sub, "Sub", "sub"),
+            PrimOp::Mul => (k.mul, "Mul", "mul"),
+            PrimOp::Div => (k.div, "Div", "div"),
+            PrimOp::Rem => (k.rem, "Rem", "rem"),
+            PrimOp::BitAnd => (k.bit_and, "BitAnd", "bit_and"),
+            PrimOp::BitOr => (k.bit_or, "BitOr", "bit_or"),
+            PrimOp::BitXor => (k.bit_xor, "BitXor", "bit_xor"),
+            PrimOp::Shl => (k.shl, "Shl", "shl"),
+            PrimOp::Shr => (k.shr, "Shr", "shr"),
+            PrimOp::Eq | PrimOp::Ne => (k.eq, "Eq", "eq"),
+            _ => (k.ord, "Ord", "cmp"),
         };
-        let tr = self.cx.names.item(module, trait_name);
         if matches!(prim, PrimOp::Lt | PrimOp::Le | PrimOp::Gt | PrimOp::Ge) {
             return self.ordering((a, at), (c, ct), prim, n, rn);
         }
@@ -781,14 +783,14 @@ impl Ck<'_, '_> {
         rn: NodeRef<'_>,
     ) -> StageResult<Ref> {
         let pool = self.pool();
-        let tr = self.cx.names.item("std.cmp", "PartialOrd");
+        let tr = self.cx.names.known.partial_ord;
         if !self.op_fits(tr, at, Some(ct))? {
             let msg = format!("{} does not implement `PartialOrd`", self.show(at));
             self.err(Code::TypeMismatch, n, &msg);
             return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()));
         }
         let (v, vt) = self.trait_call_args(tr, "partial_cmp", a, at, &[(c, ct, rn)], n)?;
-        let ord = self.cx.names.item("std.cmp", "Ordering");
+        let ord = self.cx.names.known.ordering;
         let ord_ty = pool.intern_ty(&TyData::Adt {
             def: ord,
             args: hd_types::TyList::EMPTY,
@@ -796,7 +798,7 @@ impl Ck<'_, '_> {
         let sym = self.cx.names.syms.intern("order");
         let l = self.b.local(vt, sym, local_flags::ASSIGNED, n.index());
         self.b.set(l, v, n.index());
-        let eq = self.cx.names.item("std.cmp", "Eq");
+        let eq = self.cx.names.known.eq;
         // Ordering's variants: Less, Equal, Greater.
         let (first, second) = match prim {
             PrimOp::Lt => (0, None),
@@ -836,7 +838,7 @@ impl Ck<'_, '_> {
             ),
             TyData::TraitValue { .. } | TyData::Never | TyData::Poison | TyData::Infer(_) => true,
             TyData::Param(_) => {
-                let any_ref = self.cx.names.item("std.core", "AnyRef");
+                let any_ref = self.cx.names.known.any_ref;
                 (0..self.env.clause_self.len()).any(|i| {
                     self.env.clause_self[i] == t
                         && (self.env.clause_trait[i] == any_ref
@@ -945,14 +947,15 @@ impl Ck<'_, '_> {
             return None;
         };
         let argv = pool.list_items(args);
-        match self.cx.names.path(def).as_str() {
-            "std/core/List" => Some((
+        let known = self.cx.names.known;
+        match def {
+            d if d == known.list => Some((
                 IntrinsicOp::ListIndex,
                 IntrinsicOp::ListSet,
                 Ty::prim(Prim::Usize),
                 *argv.first()?,
             )),
-            "std/core/Map" => Some((
+            d if d == known.map => Some((
                 IntrinsicOp::MapIndex,
                 IntrinsicOp::MapSet,
                 *argv.first()?,
@@ -978,7 +981,7 @@ impl Ck<'_, '_> {
             ));
         }
         let (kr, kt) = self.expr(*key, None)?;
-        let index = self.cx.names.item("std.ops", "Index");
+        let index = self.cx.names.known.index;
         // `expr.index.trait.no-read`.
         if !self.op_fits(index, bt, Some(kt))? {
             let msg = format!(
@@ -1034,7 +1037,7 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        let list = self.cx.names.item("std.core", "List");
+        let list = self.cx.names.known.list;
         let elem = match want
             .map(|w| self.infer.resolve(pool, w))
             .map(|w| match pool.get(w) {
@@ -1084,7 +1087,7 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        let map = self.cx.names.item("std.core", "Map");
+        let map = self.cx.names.known.map;
         let (k, v, expected) =
             match want
                 .map(|w| self.infer.resolve(pool, w))
@@ -1476,14 +1479,14 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let els = self.loop_else.take();
         let (sr, st) = self.expr(src, None)?;
-        let iterator = self.cx.names.item("std.iter", "Iterator");
+        let iterator = self.cx.names.known.iterator;
         let st_r = self.infer.resolve(pool, st);
         let st_i = match pool.get(st_r) {
             TyData::Mut(i) => i,
             _ => st_r,
         };
         if let TyData::Adt { def, args } = pool.get(st_i)
-            && self.cx.names.path(def) == "std/ops/Range"
+            && def == self.cx.names.known.range
             && matches!(
                 pat.kind(),
                 SyntaxKind::BindingPattern | SyntaxKind::WildcardPattern
@@ -1512,13 +1515,10 @@ impl Ck<'_, '_> {
             TyData::Infer(_) => return unsupported("a `for` over a value whose type is not known"),
             // Every std range is `Iterable[T] for Range[T]` (and `RangeFrom`).
             TyData::Adt { def, args }
-                if matches!(
-                    self.cx.names.path(def).as_str(),
-                    "std/ops/Range" | "std/ops/RangeFrom"
-                ) =>
+                if def == self.cx.names.known.range || def == self.cx.names.known.range_from =>
             {
                 let et = pool.list_items(args).first().copied().unwrap_or(Ty::POISON);
-                let iterable = self.cx.names.item("std.iter", "Iterable");
+                let iterable = self.cx.names.known.iterable;
                 let tref = hd_types::solver::TraitRef {
                     trait_: iterable,
                     self_ty: st_i,
@@ -1547,7 +1547,7 @@ impl Ck<'_, '_> {
                 (r, et)
             }
             _ => {
-                let iterable = self.cx.names.item("std.iter", "Iterable");
+                let iterable = self.cx.names.known.iterable;
                 let (r, t) = self.trait_call(iterable, "iter", sr, st, &[], src)?;
                 let t = self.infer.resolve(pool, t);
                 let t = match pool.get(t) {
@@ -1739,7 +1739,7 @@ impl Ck<'_, '_> {
         };
         let want = want.map(|w| self.strip_mut(w));
         let (def, args) = if is_map {
-            let map = self.cx.names.item("std.core", "Map");
+            let map = self.cx.names.known.map;
             let a = match want.map(|w| pool.get(w)) {
                 Some(TyData::Adt { def, args }) if def == map => pool.list_items(args).to_vec(),
                 _ => vec![
@@ -1749,7 +1749,7 @@ impl Ck<'_, '_> {
             };
             (map, a)
         } else {
-            let list = self.cx.names.item("std.core", "List");
+            let list = self.cx.names.known.list;
             let a = match want.map(|w| pool.get(w)) {
                 Some(TyData::Adt { def, args }) if def == list => pool.list_items(args).to_vec(),
                 _ => vec![self.infer.fresh(pool, VarKind::General)],
@@ -1963,7 +1963,7 @@ impl Ck<'_, '_> {
         let (r, t) = self.expr(*e, None)?;
         let t = self.infer.resolve(pool, t);
         let ret = self.infer.resolve(pool, *self.rets.last().expect("ret"));
-        let result = self.cx.names.item("std.core", "Result");
+        let result = self.cx.names.known.result;
         match (pool.get(t), pool.get(ret)) {
             (TyData::Option(inner), TyData::Option(_)) => {
                 let ok_b = self.b.open_block();
@@ -2004,7 +2004,7 @@ impl Ck<'_, '_> {
                     // coercion (`expr.try.test.converts`).
                     self.coerce(ev, et, ret_e, *e, "error")
                 } else {
-                    let from = self.cx.names.item("std.convert", "From");
+                    let from = self.cx.names.known.from;
                     let tref = hd_types::solver::TraitRef {
                         trait_: from,
                         self_ty: ret_e,
@@ -2060,20 +2060,20 @@ impl Ck<'_, '_> {
             self.cx.src.tkind(first_tok),
             Some(TokenKind::DotDot | TokenKind::DotDotEq)
         );
-        let (name, fields): (&str, Vec<NodeRef<'_>>) = match (kids.len(), starts_open) {
-            (2, _) => ("Range", kids.to_vec()),
-            (1, true) => ("RangeTo", kids.to_vec()),
-            (1, false) => ("RangeFrom", kids.to_vec()),
+        let known = self.cx.names.known;
+        let (def, fields): (DefId, Vec<NodeRef<'_>>) = match (kids.len(), starts_open) {
+            (2, _) => (known.range, kids.to_vec()),
+            (1, true) => (known.range_to, kids.to_vec()),
+            (1, false) => (known.range_from, kids.to_vec()),
             _ => return unsupported("a full range `..`"),
         };
-        let def = self.cx.names.item("std.ops", name);
         let et = self.infer.fresh(pool, VarKind::General);
         let mut refs = Vec::new();
         for f in &fields {
             let (r, t) = self.expr(*f, Some(et))?;
             refs.push(self.coerce(r, t, et, *f, "range bound"));
         }
-        if name != "RangeFrom" {
+        if def != known.range_from {
             refs.push(self.b.const_value(Ty::BOOL, u64::from(inclusive)));
         }
         let t = pool.intern_ty(&TyData::Adt {

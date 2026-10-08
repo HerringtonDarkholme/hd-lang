@@ -48,10 +48,12 @@ fn fresh<T>(f: impl FnOnce(&Names<'_>) -> T) -> T {
         PathTable::new(),
         ShardedInterner::default(),
     );
+    let known = hd_resolve::KnownItems::new(&paths);
     f(&Names {
         pool: &pool,
         paths: &paths,
         syms: &syms,
+        known: &known,
     })
 }
 

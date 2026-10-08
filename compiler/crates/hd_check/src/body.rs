@@ -210,7 +210,7 @@ pub(crate) fn new_ck<'a, 'c>(
                     kind,
                     hd_resolve::ImplKind::Template | hd_resolve::ImplKind::TupleTemplate
                 ) {
-                    let st = cx.names.item("std.structure", "Structure");
+                    let st = cx.names.known.structure;
                     let tv = pool.intern_ty(&TyData::TraitValue {
                         def: st,
                         args: TyList::EMPTY,
@@ -851,7 +851,8 @@ impl Ck<'_, '_> {
     pub(crate) fn builtin_holds(&self, tref: TraitRef) -> Option<hd_types::solver::Evidence> {
         use hd_types::solver::{BuiltinImpl, Evidence};
         let pool = self.pool();
-        let path = self.cx.names.path(tref.trait_);
+        let known = self.cx.names.known;
+        let tr = tref.trait_;
         let t = match pool.get(tref.self_ty) {
             TyData::Mut(i) => i,
             _ => tref.self_ty,
@@ -866,23 +867,27 @@ impl Ck<'_, '_> {
             TyData::Prim(p) => Some(p),
             _ => None,
         };
-        let b = match path.as_str() {
-            "std/core/Any" => BuiltinImpl::Any,
+        let b = match tr {
+            _ if tr == known.any => BuiltinImpl::Any,
             // Every value type is in exactly one sealed category
             // (types.sealed.exactly-one); a parameter's comes from its bound.
-            "std/core/AnyVal" if self.sealed_fits(t, false) => BuiltinImpl::AnyVal,
-            "std/core/AnyRef" if self.sealed_fits(t, true) => BuiltinImpl::AnyRef,
-            "std/function/Tuple" if matches!(pool.get(t), TyData::Tuple { .. }) => {
+            _ if tr == known.any_val && self.sealed_fits(t, false) => BuiltinImpl::AnyVal,
+            _ if tr == known.any_ref && self.sealed_fits(t, true) => BuiltinImpl::AnyRef,
+            _ if tr == known.tuple && matches!(pool.get(t), TyData::Tuple { .. }) => {
                 BuiltinImpl::Tuple
             }
-            "std/num/Num" if prim.is_some_and(|p| p.is_integer() || p.is_float()) => {
+            _ if tr == known.num && prim.is_some_and(|p| p.is_integer() || p.is_float()) => {
                 BuiltinImpl::Num
             }
-            "std/num/Integer" if prim.is_some_and(hd_types::Prim::is_integer) => {
+            _ if tr == known.integer && prim.is_some_and(hd_types::Prim::is_integer) => {
                 BuiltinImpl::Integer
             }
-            "std/num/Float" if prim.is_some_and(hd_types::Prim::is_float) => BuiltinImpl::Float,
-            "std/inspect/Inspectable" if self.inspectable(t, false, 0) => BuiltinImpl::Inspectable,
+            _ if tr == known.float && prim.is_some_and(hd_types::Prim::is_float) => {
+                BuiltinImpl::Float
+            }
+            _ if tr == known.inspectable && self.inspectable(t, false, 0) => {
+                BuiltinImpl::Inspectable
+            }
             _ => return None,
         };
         Some(Evidence::Builtin(b))
@@ -896,7 +901,7 @@ impl Ck<'_, '_> {
             return false;
         }
         let t = self.infer.resolve(pool, t);
-        let inspect = self.cx.names.item("std.inspect", "Inspectable");
+        let inspect = self.cx.names.known.inspectable;
         match pool.get(t) {
             TyData::Prim(p) => p != hd_types::Prim::Void || arg,
             TyData::Never | TyData::Poison => true,
@@ -1050,10 +1055,9 @@ impl Ck<'_, '_> {
         };
         match pool.get(inner) {
             TyData::Option(_) => true,
-            TyData::Adt { def, .. } => match self.cx.names.path(def).as_str() {
-                "std/core/Result" => true,
-                p => is_mut && p.ends_with("/Suspend"),
-            },
+            TyData::Adt { def, .. } => {
+                def == self.cx.names.known.result || (is_mut && def == self.cx.names.known.suspend)
+            }
             _ => false,
         }
     }
@@ -1336,7 +1340,7 @@ impl Ck<'_, '_> {
         (lhs, s): (NodeRef<'_>, NodeRef<'_>),
     ) -> StageResult<()> {
         let (kr, kt) = self.expr(key, None)?;
-        let set = self.cx.names.item("std.ops", "IndexSet");
+        let set = self.cx.names.known.index_set;
         if !self.op_fits(set, bt, Some(kt))? {
             self.err(
                 Code::InvalidAssignmentTarget,
@@ -1349,7 +1353,7 @@ impl Ck<'_, '_> {
         let (vr, vt) = match compound {
             None => self.expr(rhs, None)?,
             Some(k) => {
-                let index = self.cx.names.item("std.ops", "Index");
+                let index = self.cx.names.known.index;
                 if !self.op_fits(index, bt, Some(kt))? {
                     let msg = format!(
                         "{} has no `Index` implementation for this key",

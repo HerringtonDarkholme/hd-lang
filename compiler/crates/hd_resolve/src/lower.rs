@@ -15,14 +15,6 @@ use std::sync::Arc;
 use hd_base::{DefId, NotImplemented, PathId, Span, Stage, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
 
-/// The compiler-implemented sealed traits: a written implementation of one
-/// is `sealed-trait-implementation`, and its methods are the compiler's.
-pub const SEALED_TRAIT_PATHS: [&str; 4] = [
-    "std/core/AnyVal",
-    "std/core/AnyRef",
-    "std/structure/Structure",
-    "std/function/Tuple",
-];
 use hd_intern::PathKind;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_types::{ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList};
@@ -790,7 +782,10 @@ impl Lower<'_, '_, '_> {
         span: Span,
     ) -> Ty {
         let pool = self.names.pool;
-        if self.names.module_of(def) == "std.function" {
+        if self
+            .names
+            .declared_in(def, self.names.known.function_module)
+        {
             let name = self.names.paths.segment(PathId::from_raw(def.raw()));
             if name == "Fn" || name == "SuspendFn" {
                 let params = match args.first().map(|a| pool.get(*a)) {
@@ -1207,9 +1202,10 @@ impl Lower<'_, '_, '_> {
     /// A declaration's declared parameter variances (types.variance.list,
     /// types.variance.map for the built-in collections).
     fn variances(&self, def: DefId) -> Vec<i8> {
-        match self.names.path(def).as_str() {
-            "std/core/List" => vec![1],
-            "std/core/Map" => vec![0, 1],
+        let known = self.names.known;
+        match def {
+            d if d == known.list => vec![1],
+            d if d == known.map => vec![0, 1],
             _ if self.r.variances.contains_key(&def) => self.r.variances[&def].clone(),
             _ => self
                 .r
@@ -1294,10 +1290,7 @@ impl Lower<'_, '_, '_> {
         };
         // The built-in collections' markers describe their readonly views
         // only (types.variance.list, types.variance.map).
-        if matches!(
-            self.names.path(target).as_str(),
-            "std/core/List" | "std/core/Map"
-        ) {
+        if target == self.names.known.list || target == self.names.known.map {
             return;
         }
         let declared = self.variances(target);
@@ -1539,10 +1532,7 @@ impl Lower<'_, '_, '_> {
         };
         // The compiler-implemented sealed traits take no written
         // implementation (types.sealed.no-impl).
-        if self.r.frozen.is_none()
-            && by.is_none()
-            && SEALED_TRAIT_PATHS.contains(&self.names.path(trait_).as_str())
-        {
+        if self.r.frozen.is_none() && by.is_none() && self.names.known.is_sealed(trait_) {
             let msg = format!(
                 "`{}` is implemented by the compiler only",
                 self.names.path(trait_)
@@ -1552,10 +1542,9 @@ impl Lower<'_, '_, '_> {
         }
         let bare_param = matches!(pool.get(self_ty), TyData::Param(p) if p.owner == h.def);
         let tuple_bound = bare_param
-            && generics.first().is_some_and(|g| {
-                g.bound
-                    .is_some_and(|b| self.names.path(b) == "std/function/Tuple")
-            });
+            && generics
+                .first()
+                .is_some_and(|g| g.bound.is_some_and(|b| b == self.names.known.tuple));
         let kind = match by.as_deref() {
             Some("Structure") if tuple_bound => ImplKind::TupleTemplate,
             Some("Structure") if bare_param => ImplKind::Template,

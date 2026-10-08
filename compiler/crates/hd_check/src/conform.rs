@@ -74,7 +74,7 @@ pub fn omitted_trait_methods(names: &Names<'_>, lookup: &Lookup<'_>, imp: DefId)
     }
     // A written implementation of a sealed trait is already
     // `sealed-trait-implementation`; its methods are the compiler's.
-    if hd_resolve::SEALED_TRAIT_PATHS.contains(&names.path(*trait_).as_str()) {
+    if names.known.is_sealed(*trait_) {
         return Vec::new();
     }
     let Some(ItemData::Trait(td)) = lookup.item(*trait_).map(|t| &t.data) else {
@@ -151,13 +151,11 @@ impl Ck<'_, '_> {
         };
         // A walker, describer or source may strengthen `member`'s bound,
         // and a walker `rest`'s (annot.walker.strengthen-member).
-        let tpath = self.cx.names.path(trait_);
+        let known = self.cx.names.known;
         let mname = self.cx.names.text(it.name);
-        let free_bounds = matches!(
-            tpath.as_str(),
-            "std/structure/Walker" | "std/structure/Describer" | "std/structure/Source"
-        ) && (mname == "member"
-            || (mname == "rest" && tpath == "std/structure/Walker"));
+        let free_bounds =
+            (trait_ == known.walker || trait_ == known.describer || trait_ == known.source)
+                && (mname == "member" || (mname == "rest" && trait_ == known.walker));
         if let Some(why) = Self::sig_differs(pool, (tsig, sig), free_bounds, &inst) {
             let msg = format!(
                 "`{}` differs from the trait's declaration: {why}",

@@ -30,7 +30,7 @@ use hd_check::BodyCx;
 use hd_check::stages::{ModuleFacts, init_order, test_overlay};
 use hd_diag::{Code, DiagBuf, Severity};
 use hd_intern::{PathTable, ShardedInterner};
-use hd_mono::layout::LayoutEnv;
+use hd_mono::layout::{LayoutEnv, StdKind};
 use hd_mono::{Collected, ProgramEnv};
 use hd_project::{FolderGraph, MemorySources, ModuleTable, SourceSet};
 use hd_resolve::{FolderIface, Item, ItemData, Lookup, ModOut, Names, Src};
@@ -361,6 +361,8 @@ struct Run<'a> {
     texts: Vec<Arc<str>>,
     pool: InternPool,
     paths: PathTable,
+    /// The compiler-known std items, resolved once for the run.
+    known: hd_resolve::KnownItems,
     syms: ShardedInterner,
     universes: ImplUniverses,
     memo: GlobalMemo,
@@ -429,13 +431,16 @@ pub fn build(host: &Host<'_>, package: &str, goal: &Goal) -> Output {
     let n = table.modules.len();
     let nf = table.folders.len();
     let pipeline = hd_mono::passes::validate(&hd_mono::passes::DEV).unwrap_or_default();
+    let paths = PathTable::new();
+    let known = hd_resolve::KnownItems::new(&paths);
     let run = Run {
         host,
         package: package.to_owned(),
         goal: goal.clone(),
         texts,
         pool: InternPool::new(),
-        paths: PathTable::new(),
+        paths,
+        known,
         syms: ShardedInterner::default(),
         universes: ImplUniverses::default(),
         memo: GlobalMemo::default(),
@@ -555,6 +560,7 @@ impl Run<'_> {
             pool: &self.pool,
             paths: &self.paths,
             syms: &self.syms,
+            known: &self.known,
         }
     }
 
@@ -2118,15 +2124,16 @@ impl Run<'_> {
             return None;
         }
         let rt = |n: &str| names.item("std.rt", n);
+        let known = &self.known;
         let TyData::Adt { def, args } = pool.get(ret) else {
             return Some((rt("entry_status"), pool.list(&[ret])));
         };
-        if def != names.item("std.core", "Result") {
+        if def != known.result {
             return Some((rt("entry_status"), pool.list(&[ret])));
         }
         let a = pool.list_items(args);
         let (ok, err) = (a[0], a[1]);
-        let error = names.item("std.error", "Error");
+        let error = known.error;
         match pool.get(err) {
             TyData::TraitValue { def, .. } if def == error => {
                 Some((rt("entry_status_dyn"), pool.list(&[ok])))
@@ -2491,6 +2498,18 @@ struct Env<'r> {
 }
 
 impl LayoutEnv for Env<'_> {
+    fn std_kind(&self, def: DefId) -> StdKind {
+        let k = &self.run.known;
+        if def == k.list {
+            StdKind::List
+        } else if def == k.map {
+            StdKind::Map
+        } else if def == k.suspend {
+            StdKind::Suspend
+        } else {
+            StdKind::Other
+        }
+    }
     fn enum_variants(&self, def: DefId, args: TyList) -> Option<Vec<Vec<Ty>>> {
         match &self.p.items.get(&def)?.data {
             ItemData::Enum { variants, .. } => Some(
@@ -2642,8 +2661,7 @@ impl ProgramEnv for Env<'_> {
         if let Some(k) = it.intrinsic {
             return Some(self.run.syms.resolve(k).to_owned());
         }
-        let names = self.run.names();
-        (names.path(def) == "std/task/block_on").then(|| "block_on".to_owned())
+        (def == self.run.known.block_on).then(|| "block_on".to_owned())
     }
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>> {
         match &self.p.items.get(&def)?.data {

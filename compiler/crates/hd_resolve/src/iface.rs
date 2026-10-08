@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::known::KnownItems;
 use hd_base::wire::{Reader, Writer};
 use hd_base::{DefId, Hash128, PathId, StableHasher, StageResult, Symbol};
 use hd_intern::{PathKind, PathTable, ShardedInterner};
@@ -19,6 +20,8 @@ pub struct Names<'a> {
     pub pool: &'a InternPool,
     pub paths: &'a PathTable,
     pub syms: &'a ShardedInterner,
+    /// The std items the compiler recognizes, resolved once for the run.
+    pub known: &'a KnownItems,
 }
 
 impl Names<'_> {
@@ -67,6 +70,18 @@ impl Names<'_> {
         }
         segs.reverse();
         segs.join(".")
+    }
+    /// Whether `d` is declared directly in `module` (its nearest module or
+    /// package ancestor is `module`), without rendering any path.
+    #[must_use]
+    pub fn declared_in(&self, d: DefId, module: PathId) -> bool {
+        let mut p = PathId::from_raw(d.raw());
+        while p.get().is_some()
+            && !matches!(self.paths.kind(p), PathKind::Module | PathKind::Package)
+        {
+            p = self.paths.parent(p);
+        }
+        p == module
     }
     /// The stable path of an item, for messages and relocations.
     #[must_use]
@@ -1196,10 +1211,12 @@ mod tests {
             PathTable::new(),
             ShardedInterner::default(),
         );
+        let known = crate::KnownItems::new(&paths);
         let n = Names {
             pool: &pool,
             paths: &paths,
             syms: &syms,
+            known: &known,
         };
         let f = n.item("app.geo", "first");
         let t = pool.intern_ty(&TyData::Param(ParamRef { owner: f, index: 0 }));
@@ -1221,10 +1238,12 @@ mod tests {
             PathTable::new(),
             ShardedInterner::default(),
         );
+        let known2 = crate::KnownItems::new(&paths2);
         let n2 = Names {
             pool: &pool2,
             paths: &paths2,
             syms: &syms2,
+            known: &known2,
         };
         let (back, ex) = decode_items(&n2, &blob).expect("decode");
         assert_eq!(back[0].def, n2.item("app.geo", "first"));

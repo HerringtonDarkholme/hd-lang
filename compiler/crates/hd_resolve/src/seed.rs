@@ -211,7 +211,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             });
             let result = |ok: Ty, err: Ty| {
                 pool.intern_ty(&TyData::Adt {
-                    def: names.item("std.core", "Result"),
+                    def: names.known.result,
                     args: pool.list(&[ok, err]),
                 })
             };
@@ -305,10 +305,10 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                     bindings: vec![],
                 })
             };
-            let eq = names.item("std.cmp", "Eq");
+            let eq = names.known.eq;
             let g = Generic {
                 bound: Some(eq),
-                bounds: vec![tv(eq), tv(names.item("std.format", "Debug"))],
+                bounds: vec![tv(eq), tv(names.known.debug)],
                 ..Generic::plain(sym(names, "T"))
             };
             item(

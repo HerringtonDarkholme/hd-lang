@@ -391,7 +391,7 @@ impl Ck<'_, '_> {
             _ => ft,
         };
         // `s!()` on a stored suspension: a suspension point.
-        let suspend = self.cx.names.item("std.task", "Suspend");
+        let suspend = self.cx.names.known.suspend;
         if let TyData::Adt { def, args: sa } = pool.get(ft)
             && def == suspend
             && bang
@@ -672,7 +672,7 @@ impl Ck<'_, '_> {
                     .intrinsic
                     .is_some_and(|k| self.cx.names.text(k) == "assert_equal")
                 {
-                    self.cx.names.item("std.testing", "check_equal")
+                    self.cx.names.known.check_equal
                 } else {
                     def
                 };
@@ -751,7 +751,7 @@ impl Ck<'_, '_> {
         if bang {
             self.check_bang(true, n);
         }
-        let suspend = self.cx.names.item("std.task", "Suspend");
+        let suspend = self.cx.names.known.suspend;
         let mut refs = Vec::new();
         let mut tys = Vec::new();
         for e in &args.positional {
@@ -813,7 +813,7 @@ impl Ck<'_, '_> {
         }
         let trailing = args.positional.get(fixed.len()..).unwrap_or(&[]);
         let lt = inst(*vararg);
-        let list = self.cx.names.item("std.core", "List");
+        let list = self.cx.names.known.list;
         let packed = match pool.get(self.strip_mut(lt)) {
             TyData::Adt { def: d, args: la } if d == list => {
                 let et = pool.list_items(la).first().copied().unwrap_or(Ty::POISON);
@@ -871,7 +871,7 @@ impl Ck<'_, '_> {
             self.check_bang(suspends, n);
         }
         if suspends && !bang {
-            let suspend = self.cx.names.item("std.task", "Suspend");
+            let suspend = self.cx.names.known.suspend;
             let st = pool.intern_ty(&TyData::Adt {
                 def: suspend,
                 args: pool.list(&[ret]),
@@ -906,7 +906,7 @@ impl Ck<'_, '_> {
                 TyData::Mut(i) => i,
                 _ => w,
             });
-        let result = self.cx.names.item("std.core", "Result");
+        let result = self.cx.names.known.result;
         let enum_ty = match w.map(|w| pool.get(w)) {
             Some(TyData::Option(_) | TyData::Adt { .. }) => w.unwrap_or(Ty::POISON),
             _ => match name.as_str() {
@@ -1387,7 +1387,7 @@ impl Ck<'_, '_> {
         };
         let a = pool.list_items(args);
         let usize_t = Ty::prim(Prim::Usize);
-        let iterator = self.cx.names.item("std.iter", "Iterator");
+        let iterator = self.cx.names.known.iterator;
         let iter_of = |x: Ty| {
             let it = pool.intern_ty(&TyData::Adt {
                 def: iterator,
@@ -1395,22 +1395,30 @@ impl Ck<'_, '_> {
             });
             pool.intern_ty(&TyData::Mut(it))
         };
-        match (self.cx.names.path(def).as_str(), name) {
-            ("std/core/List", "len") => Some((IntrinsicOp::ListLen, vec![], usize_t)),
-            ("std/core/List", "push") => Some((IntrinsicOp::ListPush, vec![a[0]], Ty::VOID)),
-            ("std/core/List", "iter") => Some((IntrinsicOp::ListIter, vec![], iter_of(a[0]))),
-            ("std/core/Map", "len") => Some((IntrinsicOp::MapLen, vec![], usize_t)),
-            ("std/core/Map", "get") => Some((
+        let known = self.cx.names.known;
+        let which = if def == known.list {
+            1
+        } else if def == known.map {
+            2
+        } else {
+            0
+        };
+        match (which, name) {
+            (1, "len") => Some((IntrinsicOp::ListLen, vec![], usize_t)),
+            (1, "push") => Some((IntrinsicOp::ListPush, vec![a[0]], Ty::VOID)),
+            (1, "iter") => Some((IntrinsicOp::ListIter, vec![], iter_of(a[0]))),
+            (2, "len") => Some((IntrinsicOp::MapLen, vec![], usize_t)),
+            (2, "get") => Some((
                 IntrinsicOp::MapGet,
                 vec![a[0]],
                 pool.intern_ty(&TyData::Option(a[1])),
             )),
-            ("std/core/Map", "remove") => Some((
+            (2, "remove") => Some((
                 IntrinsicOp::MapRemove,
                 vec![a[0]],
                 pool.intern_ty(&TyData::Option(a[1])),
             )),
-            ("std/core/Map", "iter") => {
+            (2, "iter") => {
                 let pair = pool.intern_ty(&TyData::Tuple {
                     elems: pool.list(&[a[0], a[1]]),
                     rest: None,
@@ -1636,7 +1644,7 @@ impl Ck<'_, '_> {
                 let handle_fact = name == "fact"
                     && matches!(
                         pool.get(self.strip_mut(rt)),
-                        TyData::Adt { def, .. } if self.cx.names.path(def) == "std/structure/Field"
+                        TyData::Adt { def, .. } if def == self.cx.names.known.field
                     );
                 if !handle_fact {
                     self.bounds_of(&sig, &vars, &inst, n)?;

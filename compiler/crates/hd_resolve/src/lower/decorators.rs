@@ -31,8 +31,6 @@ pub(crate) mod kind {
     pub const METHOD: u16 = 1 << 9;
 }
 
-const ANNOTATE_PATH: &str = "std/annotation/annotate";
-
 fn kind_bit(name: &str) -> Option<u16> {
     Some(match name {
         "Fn" => kind::FN,
@@ -129,7 +127,7 @@ impl Lower<'_, '_, '_> {
                 continue;
             };
             // `annot.target.recognized`: only std's own `annotate` counts.
-            if self.names.path(DefId::from_raw(value)).as_str() != ANNOTATE_PATH {
+            if DefId::from_raw(value) != self.names.known.annotate {
                 continue;
             }
             let mut m = 0;
