@@ -90,25 +90,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### S9. Spec: `tests:` Imports May Shadow (Owner Decision)
-
-Owner, 2026-10-07, on S7's `names.tests.no-shadow`: **allow
-shadowing**. A `use` inside a `tests:` block may introduce a name the
-module declares or uses outside the block; inside the block (its cases
-and helpers) the block's import wins, as a nested scope; outside the
-block nothing changes. `module.test.dev-dependency.in-tests` stays as
-written (owner: keep). Codex's Q17 layout and recovery rules stay too
-(owner: keep all).
-
-Replace `names.tests.no-shadow` with the shadowing rule (a new rule ID;
-retire the old one per `spec/STYLE.md`), drop its `duplicate-module-name`
-fixture or turn it into a runtime-valid fixture where the block's import
-shadows a module function and the module's own code still sees its own,
-and update S7's example in 10-modules.md if it shows the error. Prototype
-disagreement gets a `test/portable/KNOWN_FAILURES.tsv` row; run `cargo
-test -p hd_syntax --test corpus` and `bash spec/check.sh`. Timebox 30
-minutes; push.
-
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
@@ -144,10 +125,4 @@ fast". The orchestrator writes `compiler/crates/*`; you measure it.
 
 ## Questions
 
-- P2 (2026-10-07): `pnpm run check` is red on current main for a case
-  outside this job: `typing/invalid/row-alias-mut-key.hd` is listed as
-  phase `parse` in `spec/conformance/cases.tsv`, but `hd debug parse`
-  exits 0 on it and only `hd check` rejects it (syntax-error at 8:1),
-  so the spec-suite parse step fails. CI Test is already red on the
-  T4/S7 commits for this. Left untouched (not this job's lane); the P2
-  report commit changes no `src/`, spec, or fixture.
+(none)

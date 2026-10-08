@@ -959,7 +959,6 @@ typing/invalid/duplicate-tests-block.hd	type
 runtime/valid/tests-block-items.hd	runtime
 typing/invalid/tests-block-item-outside.hd	type
 typing/invalid/tests-block-name-collision.hd	type
-typing/invalid/tests-block-use-shadow.hd	type
 runtime/valid/suspending-trailing-block.hd	runtime
 runtime/valid/test-case-options.hd	runtime
 runtime/valid/test-expect-panic.hd	runtime

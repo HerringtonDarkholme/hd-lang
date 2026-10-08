@@ -1141,7 +1141,7 @@ typing/invalid/duplicate-tests-block.hd	type	reject:duplicate-tests-block	lang/0
 runtime/valid/tests-block-items.hd	runtime	accept	lang/02-grammar.md#test-blocks
 typing/invalid/tests-block-item-outside.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.tests.inside-only
 typing/invalid/tests-block-name-collision.hd	type	reject:duplicate-module-name	lang/03-names-and-scopes.md#r-names.tests.unique
-typing/invalid/tests-block-use-shadow.hd	type	reject:duplicate-module-name	lang/03-names-and-scopes.md#r-names.tests.no-shadow
+runtime/valid/tests-block-use-shadow.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.tests.shadow
 typing/invalid/tests-block-use-leak.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.tests.inside-only
 runtime/valid/suspending-trailing-block.hd	runtime	accept	lang/07-functions.md#r-fn.trailing.suspending
 runtime/valid/test-case-options.hd	runtime	accept	lang/10-modules.md#test-cases

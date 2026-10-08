@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-08 the suite has
-2,830 cases: 2,762 selected in `test/portable/cases.tsv` and 68 known
-failures. The selected cases are 2,374 language tier, 312 stdlib tier, and 76
-CLI tier; the known failures are 45 language tier, 4 stdlib tier, and 19
+2,830 cases: 2,761 selected in `test/portable/cases.tsv` and 69 known
+failures. The selected cases are 2,373 language tier, 312 stdlib tier, and 76
+CLI tier; the known failures are 46 language tier, 4 stdlib tier, and 19
 CLI tier.
 
 | Tag | Cases | Why they fail |
@@ -28,6 +28,7 @@ CLI tier.
 | F-622 | 1 | `derivation-line-drift` warns on blocks whose member lines agree |
 | F-623 | 3 | the package graph is not modeled, so no `package-cycle` and no dependency back on the root |
 | F-624 | 1 | the checker reports `syntax-error` for a `mut`-target alias used as a requirement key instead of `mut-alias-key` |
+| F-625 | 1 | a `use` inside a `tests:` block leaks to module scope: main's two-argument call resolves to std `assert_equal` and misses its reason parameter, where the block import should win only inside the block |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
 | S1A | 5 | indirect `block_on` and `println` panic at run time instead of a transitive ban; no instantiation depth limit; impl-head projections accepted |
 | S1B | 4 | `hd fmt` and two JSON report fields are missing |
@@ -98,6 +99,13 @@ Correctness and diagnostics:
   `mut-alias-key` on the key use. By `req.row.alias.no-mut`, detecting
   the `mut` needs the alias resolved, which is a type-phase check.
   `typing/invalid/row-alias-mut-key.hd` shows it.
+- **F-625**: a `use` inside a `tests:` block leaks to module scope: code
+  outside the block resolves the name through the block import instead of
+  the module declaration, so a two-argument call to the module's
+  `assert_equal` misses std `assert_equal`'s reason parameter with
+  `argument-count`. By `names.tests.shadow`, the block import wins only
+  inside the block, as a nested scope. `runtime/valid/tests-block-use-shadow.hd`
+  shows it.
 
 Runtime cost:
 

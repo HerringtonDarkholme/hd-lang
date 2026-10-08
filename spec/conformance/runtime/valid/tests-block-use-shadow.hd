@@ -1,0 +1,15 @@
+# test: a use inside a tests block shadows the module's function inside the block
+# Spec 03 Tests Blocks: names.tests.shadow.
+fn assert_equal(actual: i32, expected: i32) -> string:
+    "module"
+
+fn main() -> string: assert_equal(+1, +1)
+
+tests:
+    use std.testing.assert_equal
+
+    it("sees the block import inside the block"):
+        assert_equal(+1, +1, reason="the block import wins")
+
+    it("module code sees its own function"):
+        assert_equal(main(), "module", reason="outside the block nothing changes")

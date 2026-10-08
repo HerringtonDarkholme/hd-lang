@@ -85,3 +85,4 @@ cli/toolchain-too-old	`hd check` exits 0 when the root package requires toolchai
 typing/invalid/tests-block-use-leak.hd	check exits 0: a use inside the tests block stays in scope for the whole module, so the outer name resolves (names.tests.inside-only)	S7
 cli/dev-dependency-tests-block	hd test reports test-only-use on the tests-block use: a dev dependency used from a tests block is rejected although test code may use it (module.test.dev-dependency)	S7
 typing/invalid/row-alias-mut-key.hd	check reports syntax-error on the function line, where the rule wants mut-alias-key on the key use: the prototype has no alias-resolving mut check for requirement rows (req.row.alias.no-mut)	F-624
+runtime/valid/tests-block-use-shadow.hd	check fails with argument-count on main's two-argument call: the block import leaks to module scope, so the call resolves to std assert_equal instead of the module function (names.tests.shadow)	F-625

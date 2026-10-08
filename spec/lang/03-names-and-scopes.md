@@ -240,7 +240,7 @@ fn late_fee(days: i32) -> i32:
 tests:
     fn overdue() -> i32: 31
     pub fn shared_overdue() -> i32: 45  # error: public-test-item
-    use std.testing.assert_equal  # error: duplicate-module-name
+    use std.testing.assert_equal  # valid: the block's import shadows the module's
 
     it("uses a private function"):
         assert_equal(late_fee(overdue()), 5, reason="the block sees late_fee")
@@ -249,7 +249,7 @@ fn report() -> i32:
     overdue()  # error: unknown-name
 
 fn check_flag(ok: bool) -> void:
-    assert_equal(ok, true, reason="the block's import stays inside")  # error: unknown-name
+    assert_equal(ok, true, reason="outside the block, the module's own import applies")
 ```
 
 1. r[names.tests.module-items] The items of a [`tests:` block](02-grammar.md#test-blocks) are module items of the file's module.
@@ -257,7 +257,7 @@ fn check_flag(ok: bool) -> void:
 3. r[names.tests.inside-only] A name that an item of the block declares or uses is visible only inside the block. Naming it outside the block is an error. Error: `unknown-name`.
 4. r[names.tests.unique] Because they are module items, a name declared in the block must not repeat a module name declared outside it. Error: `duplicate-module-name`.
 5. r[names.tests.no-pub] An item inside a `tests:` block must not be marked `pub`. Error: `public-test-item`.
-6. r[names.tests.no-shadow] A use inside the block must not introduce a name the module declares or uses outside the block. Error: `duplicate-module-name`.
+6. r[names.tests.shadow] A `use` inside the block may introduce a name the module declares or uses outside the block; inside the block (its cases and helpers) the block's import wins, as a nested scope. Outside the block nothing changes.
 
 > **Why.** Module items, rather than local declarations, let the block hold
 > implementations and derivation blocks, as Rust's `mod tests` can. Nothing
