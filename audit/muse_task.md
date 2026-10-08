@@ -140,6 +140,17 @@ an unconstrained `T` reports that code and not `invalid-variance` too.
 
 Spec, fixtures and the generated file only. Timebox 30 minutes; push.
 
+### S16. Literal Style In The Q22 Runtime Programs
+
+`compiler/bench/runtime/progs/*.hd` writes `let x: i32 = 0` (16 lines).
+House style (owner): an i32 literal is written `+N`, and `:=` is
+non-reassignable. So `let total: i32 = 0` becomes `let total = +0`
+(it is reassigned); a never-reassigned binding becomes `name := ...`
+(`let r: i32 = i % 10007` becomes `r := i % 10007`); annotate only
+non-i32 widths. Rerun `node compiler/bench/runtime/run.mjs` to confirm
+every hd/JS checksum still matches; numbers needn't be re-reported.
+Timebox 20 minutes; push.
+
 ### D2k. Design Text After The Pool And Solver-Lookup Work
 
 Two architecture commits landed: "pool: …" (#61, ends at 97ef2c30) and
