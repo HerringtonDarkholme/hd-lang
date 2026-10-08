@@ -188,7 +188,7 @@ impl Ck<'_, '_> {
             SyntaxKind::FieldExpr => self.field_expr(n, &kids)?,
             SyntaxKind::IndexExpr => self.index_expr(n, &kids)?,
             SyntaxKind::CallExpr => self.call(n, &kids, want)?,
-            SyntaxKind::DataExpr => self.data_expr(n, &kids)?,
+            SyntaxKind::DataExpr => self.data_expr(n, &kids, want)?,
             SyntaxKind::ListExpr => self.list_expr(n, &kids, want)?,
             SyntaxKind::MapExpr => self.map_expr(n, &kids, want)?,
             SyntaxKind::IfExpr => self.if_expr(n, want)?,
@@ -863,6 +863,7 @@ impl Ck<'_, '_> {
             return Ok((self.b.emit(Tag::TupleGet, r.0, idx, t, n.index()), t));
         }
         if let Some((idx, ft)) = self.field_of(bt, &name) {
+            let ft = self.field_access(bt, &name, ft);
             return Ok((self.b.emit(Tag::Field, r.0, idx, ft, n.index()), ft));
         }
         if let Some(v) = self.shared_field(r, inner, &name, n)? {
@@ -997,8 +998,9 @@ impl Ck<'_, '_> {
                 pool.list_items(args).first().copied()
             }
             _ => None,
-        }
-        .unwrap_or_else(|| self.infer.fresh(pool, VarKind::General));
+        };
+        let inferred = elem.is_none();
+        let elem = elem.unwrap_or_else(|| self.infer.fresh(pool, VarKind::General));
         let mut refs = Vec::new();
         for e in kids {
             if e.kind() == SyntaxKind::SpreadExpr {
@@ -1010,10 +1012,20 @@ impl Ck<'_, '_> {
             let (r, t) = self.expr(*e, Some(elem))?;
             refs.push(self.coerce(r, t, elem, *e, "list element"));
         }
+        // An element type solved from the elements alone is their readonly
+        // view, as before permissions were tracked in inference. This keeps
+        // `typing/invalid/orphan-impl-nested-trait-argument.hd` at one error;
+        // types.fresh.element-permission would keep `mut` (reported).
+        if inferred && let TyData::Mut(x) = pool.get(self.infer.shallow(pool, elem)) {
+            self.infer.rebind(pool, elem, x);
+        }
+        // A fresh list has mutable access to its new outer object
+        // (types.fresh.mutable-outer).
         let t = pool.intern_ty(&TyData::Adt {
             def: list,
             args: pool.list(&[elem]),
         });
+        let t = pool.intern_ty(&TyData::Mut(t));
         let rec = self.b.refs_record(&refs);
         Ok((self.b.emit(Tag::NewList, NONE, rec, t, n.index()), t))
     }
@@ -1026,21 +1038,23 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.cx.names.pool;
         let map = self.cx.names.item("std.core", "Map");
-        let (k, v) = match want
-            .map(|w| self.infer.resolve(pool, w))
-            .map(|w| match pool.get(w) {
-                TyData::Mut(i) => pool.get(i),
-                d => d,
-            }) {
-            Some(TyData::Adt { def, args }) if def == map => {
-                let a = pool.list_items(args);
-                (a[0], a[1])
-            }
-            _ => (
-                self.infer.fresh(pool, VarKind::General),
-                self.infer.fresh(pool, VarKind::General),
-            ),
-        };
+        let (k, v, expected) =
+            match want
+                .map(|w| self.infer.resolve(pool, w))
+                .map(|w| match pool.get(w) {
+                    TyData::Mut(i) => pool.get(i),
+                    d => d,
+                }) {
+                Some(TyData::Adt { def, args }) if def == map => {
+                    let a = pool.list_items(args);
+                    (a[0], a[1], true)
+                }
+                _ => (
+                    self.infer.fresh(pool, VarKind::General),
+                    self.infer.fresh(pool, VarKind::General),
+                    false,
+                ),
+            };
         let mut refs = Vec::new();
         for e in kids {
             let ek: Vec<NodeRef<'_>> = e.children().collect();
@@ -1052,16 +1066,27 @@ impl Ck<'_, '_> {
             let (vr, vt) = self.expr(*ve, Some(v))?;
             refs.push(self.coerce(vr, vt, v, *ve, "map value"));
         }
+        // A key type an expected map type did not fix meets the key bound
+        // here (types.map-key.declared-bound).
+        if !kids.is_empty() && !expected {
+            self.check_map_key(k, n)?;
+        }
         let t = pool.intern_ty(&TyData::Adt {
             def: map,
             args: pool.list(&[k, v]),
         });
+        let t = pool.intern_ty(&TyData::Mut(t));
         let rec = self.b.refs_record(&refs);
         Ok((self.b.emit(Tag::NewMap, NONE, rec, t, n.index()), t))
     }
 
     /// `Name { field: value, ... }`, with `Name::[T]` or inferred arguments.
-    fn data_expr(&mut self, n: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<(Ref, Ty)> {
+    fn data_expr(
+        &mut self,
+        n: NodeRef<'_>,
+        kids: &[NodeRef<'_>],
+        want: Option<Ty>,
+    ) -> StageResult<(Ref, Ty)> {
         let pool = self.cx.names.pool;
         let Some(name_node) = kids.first() else {
             return unsupported("a data literal without a name");
@@ -1103,8 +1128,20 @@ impl Ck<'_, '_> {
         for t in &targ_nodes {
             targs.push(self.ty_node(*t)?);
         }
+        let explicit = targs.len();
         while targs.len() < item.generics.len() {
             targs.push(self.infer.fresh(pool, VarKind::General));
+        }
+        // An expected type of the same declaration solves the inferred
+        // arguments first, so a field sees its substituted type (`mut U`
+        // included).
+        if let Some(w) = want
+            && let TyData::Adt { def: wd, args: wa } = pool.get(self.strip_mut(w))
+            && wd == def
+        {
+            for (v, a) in targs.iter().zip(pool.list_items(wa)).skip(explicit) {
+                let _ = self.infer.unify(pool, *v, a);
+            }
         }
         let inst = |t: Ty| {
             pool.subst(t, &|p: ParamRef| {
@@ -1115,6 +1152,7 @@ impl Ck<'_, '_> {
         };
         let mut vals = vec![Ref(NONE); fields.len()];
         let mut seen = vec![false; fields.len()];
+        let mut fresh_mut = true;
         for a in &kids[1..] {
             if a.kind() == SyntaxKind::SpreadExpr {
                 return unsupported("a data literal spread");
@@ -1137,6 +1175,19 @@ impl Ck<'_, '_> {
                 };
                 self.read_local(l, d, *a)
             };
+            // A readonly value in a direct `mut U` field makes the literal
+            // readonly (types.fresh.readonly-field).
+            let ft = if matches!(pool.get(fields[i].ty), TyData::Mut(_))
+                && !fields[i].embedded
+                && self.is_composite(t)
+                && !self.has_mut_access(t)
+            {
+                fresh_mut = false;
+                self.readonly_view(ft)
+            } else {
+                ft
+            };
+            let ft = self.infer.resolve(pool, ft);
             vals[i] = self.coerce(r, t, ft, *a, "field");
             seen[i] = true;
         }
@@ -1166,6 +1217,11 @@ impl Ck<'_, '_> {
             def,
             args: pool.list(&targs),
         });
+        let ty = if fresh_mut {
+            pool.intern_ty(&TyData::Mut(ty))
+        } else {
+            ty
+        };
         let rec = self.b.refs_record(&vals);
         Ok((self.b.emit(Tag::NewData, NONE, rec, ty, n.index()), ty))
     }
@@ -1388,10 +1444,20 @@ impl Ck<'_, '_> {
             }
         }
         let (it, item_ty) = match pool.get(st_i) {
-            TyData::Adt { def, args } if def == iterator => (
-                sr,
-                pool.list_items(args).first().copied().unwrap_or(Ty::POISON),
-            ),
+            TyData::Adt { def, args } if def == iterator => {
+                // The loop advances the iterator itself (flow.for.iterator-mut).
+                if !self.has_mut_access(st) {
+                    self.err(
+                        Code::MutableReceiverRequired,
+                        src,
+                        "mutable-receiver-required: a loop advances its iterator, which needs `mut` access",
+                    );
+                }
+                (
+                    sr,
+                    pool.list_items(args).first().copied().unwrap_or(Ty::POISON),
+                )
+            }
             TyData::Infer(_) => return unsupported("a `for` over a value whose type is not known"),
             // Every std range is `Iterable[T] for Range[T]` (and `RangeFrom`).
             TyData::Adt { def, args }
@@ -1982,6 +2048,15 @@ impl Ck<'_, '_> {
                 return unsupported("a `$.with` key that is not a trait");
             };
             let (r, t) = self.expr(*vn, None)?;
+            // A mutable requirement trait needs a `mut` provider.
+            if self.trait_is_mutable(def, 0) && self.is_composite(t) && !self.has_mut_access(t) {
+                let msg = format!(
+                    "mutable-upgrade: `{}` has `mut self` methods, so its provider needs `mut` access, but this is a readonly {}",
+                    self.cx.names.path(def),
+                    self.show(t)
+                );
+                self.err(Code::MutableUpgrade, *vn, &msg);
+            }
             let tref = hd_types::solver::TraitRef {
                 trait_: def,
                 self_ty: self.strip_mut(t),
@@ -2033,7 +2108,12 @@ impl Ck<'_, '_> {
         };
         self.check_row_has(key_trait, n);
         let at = self.b.refs_record(&[Ref(key.0)]);
-        let pt = pool.intern_ty(&TyData::Mut(key));
+        // `mut K` for a mutable requirement trait, else `K`.
+        let pt = if self.trait_is_mutable(key_trait, 0) {
+            pool.intern_ty(&TyData::Mut(key))
+        } else {
+            key
+        };
         Ok((self.b.emit(Tag::ProviderGet, at, NONE, pt, n.index()), pt))
     }
 

@@ -22,6 +22,7 @@ use crate::iface::{
     Export, Field, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item, ItemData, Names,
     TraitData, Variant,
 };
+use crate::variance::{self, Seen};
 use crate::view::Src;
 use crate::{Binding, BindingKind, ModuleScope, Origin};
 
@@ -317,6 +318,8 @@ struct Resolver<'a, 'b> {
     visiting: RefCell<HashSet<(String, Symbol)>>,
     /// Associated type names of this folder's traits, from their heads.
     trait_assoc: HashMap<DefId, Vec<Symbol>>,
+    /// The declared variance markers of the folder's own declarations.
+    variances: HashMap<DefId, Vec<i8>>,
     /// This folder's aliases, lowered in module order.
     aliases: RefCell<HashMap<DefId, (usize, Ty)>>,
     seeds: HashMap<DefId, Item>,
@@ -888,7 +891,27 @@ impl Lower<'_, '_, '_> {
             }
             SyntaxKind::MutType => {
                 let t = first_ty(self, n);
-                pool.intern_ty(&TyData::Mut(t))
+                // Neither a primitive nor a tuple has a `mut` form
+                // (types.prim.no-mut.error, types.tuple.no-mut).
+                match pool.get(t) {
+                    TyData::Prim(_) => {
+                        self.diags.error(
+                            Code::MutOnPrimitive,
+                            self.src.span(n),
+                            "mut-on-primitive: a primitive type has no `mut` form",
+                        );
+                        t
+                    }
+                    TyData::Tuple { .. } => {
+                        self.diags.error(
+                            Code::MutOnTuple,
+                            self.src.span(n),
+                            "mut-on-tuple: a tuple type has no `mut` form",
+                        );
+                        t
+                    }
+                    _ => pool.intern_ty(&TyData::Mut(t)),
+                }
             }
             SyntaxKind::ParenType => first_ty(self, n),
             SyntaxKind::RestType => first_ty(self, n),
@@ -1029,12 +1052,22 @@ impl Lower<'_, '_, '_> {
                     Vec::new(),
                 ));
             }
-            out.push((Generic::plain(name), *g, row));
+            let mut generic = Generic::plain(name);
+            let toks = &self.src.parse.tokens;
+            if g.direct_token(toks, TokenKind::Plus).is_some() {
+                generic.variance = 1;
+            } else if g.direct_token(toks, TokenKind::Minus).is_some() {
+                generic.variance = -1;
+            }
+            out.push((generic, *g, row));
         }
         let mut done = Vec::new();
         for (mut g, node, row) in out {
             let mut bounds = Vec::new();
             if let Some(bl) = Src::child(node, SyntaxKind::BoundList) {
+                g.mut_bound = bl
+                    .direct_token(&self.src.parse.tokens, TokenKind::KwMut)
+                    .is_some();
                 for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
                     if let Some(t) = self.trait_value(b, gn) {
                         bounds.push(t);
@@ -1162,6 +1195,165 @@ impl Lower<'_, '_, '_> {
         out
     }
 
+    /// A declaration's declared parameter variances (types.variance.list,
+    /// types.variance.map for the built-in collections).
+    fn variances(&self, def: DefId) -> Vec<i8> {
+        match self.names.path(def).as_str() {
+            "std/core/List" => vec![1],
+            "std/core/Map" => vec![0, 1],
+            _ if self.r.variances.contains_key(&def) => self.r.variances[&def].clone(),
+            _ => self
+                .r
+                .item(def)
+                .map(|i| i.generics.iter().map(|g| g.variance).collect())
+                .unwrap_or_default(),
+        }
+    }
+
+    /// Checks the fields under `holder` against the declared markers of
+    /// `owner`'s parameters (types.variance.verified): each field is a
+    /// positive position, an embedded one an invariant position.
+    fn field_variance(
+        &mut self,
+        owner: DefId,
+        generics: &[Generic],
+        holder: Option<NodeRef<'_>>,
+        fields: &[Field],
+    ) {
+        let Some(holder) = holder else { return };
+        let nodes = holder.children().filter(|c| {
+            matches!(
+                c.kind(),
+                SyntaxKind::DataField | SyntaxKind::Parameter | SyntaxKind::EmbeddedField
+            )
+        });
+        let mut bad = Vec::new();
+        for (node, f) in nodes.zip(fields) {
+            let mut seen = vec![Seen::default(); generics.len()];
+            let pol = i8::from(!f.embedded);
+            let var_of = |d: DefId| self.variances(d);
+            variance::walk(self.names.pool, f.ty, pol, owner, &var_of, &mut seen);
+            if let Some(g) = Self::broken(generics, &seen) {
+                bad.push((self.src.span(node), g));
+            }
+        }
+        for (span, g) in bad {
+            self.variance_error(span, g);
+        }
+    }
+
+    /// The first parameter whose occurrences break its marker.
+    fn broken(generics: &[Generic], seen: &[Seen]) -> Option<(Symbol, i8)> {
+        generics
+            .iter()
+            .zip(seen)
+            .find(|(g, s)| s.breaks(g.variance))
+            .map(|(g, _)| (g.name, g.variance))
+    }
+
+    fn variance_error(&mut self, span: Span, (name, marker): (Symbol, i8)) {
+        let msg = format!(
+            "invalid-variance: `{}` is declared {}, but it occurs in a {} position here",
+            self.names.text(name),
+            if marker > 0 {
+                "covariant (`+`)"
+            } else {
+                "contravariant (`-`)"
+            },
+            if marker > 0 {
+                "negative or invariant"
+            } else {
+                "positive or invariant"
+            }
+        );
+        self.diags.error(Code::InvalidVariance, span, &msg);
+    }
+
+    /// The instance methods of an inherent impl, checked by the variance
+    /// each impl parameter has in the target (types.variance.surface,
+    /// types.variance.target.check).
+    fn impl_variance(
+        &mut self,
+        def: DefId,
+        generics: &[Generic],
+        (self_ty, gn): (Ty, &Gen),
+        block: NodeRef<'_>,
+    ) {
+        let pool = self.names.pool;
+        let TyData::Adt { def: target, args } = pool.get(self_ty) else {
+            return;
+        };
+        // The built-in collections' markers describe their readonly views
+        // only (types.variance.list, types.variance.map).
+        if matches!(
+            self.names.path(target).as_str(),
+            "std/core/List" | "std/core/Map"
+        ) {
+            return;
+        }
+        let declared = self.variances(target);
+        if declared.iter().all(|v| *v == 0) {
+            return;
+        }
+        // Each impl parameter's derived variance in the target.
+        let mut seen = vec![Seen::default(); generics.len()];
+        for (a, v) in pool.list_items(args).into_iter().zip(&declared) {
+            let var_of = |d: DefId| self.variances(d);
+            variance::walk(pool, a, *v, def, &var_of, &mut seen);
+        }
+        let derived: Vec<Generic> = generics
+            .iter()
+            .zip(&seen)
+            .map(|(g, s)| Generic {
+                variance: s.derived(),
+                ..g.clone()
+            })
+            .collect();
+        if derived.iter().all(|g| g.variance == 0) {
+            return;
+        }
+        let mut bad = Vec::new();
+        for f in block.children().filter(|c| c.kind() == SyntaxKind::FnDecl) {
+            let Some(pl) = Src::child(f, SyntaxKind::ParameterList) else {
+                continue;
+            };
+            let toks = &self.src.parse.tokens;
+            let params: Vec<NodeRef<'_>> = pl
+                .children()
+                .filter(|c| c.kind() == SyntaxKind::Parameter)
+                .collect();
+            if params
+                .first()
+                .is_none_or(|p| p.direct_token(toks, TokenKind::KwSelfValue).is_none())
+            {
+                continue;
+            }
+            let Some(name) = f.name(toks) else {
+                continue;
+            };
+            let text = self.src.text(name).to_owned();
+            let mdef = self.names.member(def, PathKind::Member, &text);
+            let mut probe = std::mem::take(self.diags);
+            let sig = self.sig(f, mdef, gn);
+            std::mem::swap(self.diags, &mut probe);
+            let mut seen = vec![Seen::default(); generics.len()];
+            let var_of = |d: DefId| self.variances(d);
+            for (_, t) in sig.params.iter().skip(1) {
+                variance::walk(pool, *t, -1, def, &var_of, &mut seen);
+            }
+            variance::walk(pool, sig.ret, 1, def, &var_of, &mut seen);
+            for k in pool.row_data(sig.row).keys {
+                variance::walk(pool, k, 0, def, &var_of, &mut seen);
+            }
+            if let Some(g) = Self::broken(&derived, &seen) {
+                bad.push((self.src.span(f), g));
+            }
+        }
+        for (span, g) in bad {
+            self.variance_error(span, g);
+        }
+    }
+
     fn decorators(&self, n: NodeRef<'_>) -> Vec<(String, Vec<String>)> {
         let mut out = Vec::new();
         for d in n.children().filter(|c| c.kind() == SyntaxKind::Decorator) {
@@ -1239,6 +1431,38 @@ impl Lower<'_, '_, '_> {
         (methods, assoc)
     }
 
+    /// A trait or trait implementation declares each member once
+    /// (trait.member.unique). Error: `duplicate-trait-member`.
+    fn duplicate_members(&mut self, block: Option<NodeRef<'_>>) {
+        if self.r.frozen.is_some() {
+            return;
+        }
+        let mut seen = HashSet::new();
+        let mut bad = Vec::new();
+        for f in block.iter().flat_map(|b| b.children()) {
+            if !matches!(
+                f.kind(),
+                SyntaxKind::FnDecl | SyntaxKind::AssociatedTypeDecl
+            ) {
+                continue;
+            }
+            let Some(t) = f
+                .name(&self.src.parse.tokens)
+                .or_else(|| self.src.name_after(f, TokenKind::KwFn))
+            else {
+                continue;
+            };
+            let text = self.src.text(t).to_owned();
+            if !seen.insert(text.clone()) {
+                bad.push((self.src.span(f), text));
+            }
+        }
+        for (span, text) in bad {
+            let msg = format!("duplicate-trait-member: `{text}` is declared twice");
+            self.diags.error(Code::DuplicateTraitMember, span, &msg);
+        }
+    }
+
     fn intrinsic(&self, n: NodeRef<'_>) -> Option<Symbol> {
         self.decorators(n)
             .into_iter()
@@ -1262,6 +1486,14 @@ impl Lower<'_, '_, '_> {
             [tr, t, ..] => (Some(*tr), *t),
             [] => return,
         };
+        // An implementation target has no outer `mut` (trait.target.no-mut).
+        if target.kind() == SyntaxKind::MutType && self.r.frozen.is_none() {
+            self.diags.error(
+                Code::MutableImplTarget,
+                self.src.span(target),
+                "mutable-impl-target: an implementation target cannot be a `mut` view",
+            );
+        }
         let self_ty = self.ty(Some(target), &gn);
         gn.self_ty = Some(self_ty);
         let toks: Vec<_> = n.direct_tokens().collect();
@@ -1284,6 +1516,25 @@ impl Lower<'_, '_, '_> {
                 None => return,
             },
         };
+        // The compiler-implemented sealed traits take no written
+        // implementation (types.sealed.no-impl).
+        if self.r.frozen.is_none()
+            && by.is_none()
+            && matches!(
+                self.names.path(trait_).as_str(),
+                "std/core/AnyVal"
+                    | "std/core/AnyRef"
+                    | "std/structure/Structure"
+                    | "std/function/Tuple"
+            )
+        {
+            let msg = format!(
+                "sealed-trait-implementation: `{}` is implemented by the compiler only",
+                self.names.path(trait_)
+            );
+            self.diags
+                .error(Code::SealedTraitImplementation, self.src.span(n), &msg);
+        }
         let bare_param = matches!(pool.get(self_ty), TyData::Param(p) if p.owner == h.def);
         let tuple_bound = bare_param
             && generics.first().is_some_and(|g| {
@@ -1298,7 +1549,16 @@ impl Lower<'_, '_, '_> {
             None => ImplKind::Written,
         };
         let block = Src::child(n, SyntaxKind::Block);
+        if trait_ != DefId::NONE {
+            self.duplicate_members(block);
+        }
         let (methods, assoc_decls) = self.members(block, h.def, trait_ != DefId::NONE, &gn, out);
+        if trait_ == DefId::NONE
+            && self.r.frozen.is_none()
+            && let Some(b) = block
+        {
+            self.impl_variance(h.def, &generics, (self_ty, &gn), b);
+        }
         let mut assoc: Vec<(DefId, Ty)> = header_bindings;
         for (name, _, ty) in assoc_decls {
             if trait_ != DefId::NONE {
@@ -1413,6 +1673,9 @@ impl Lower<'_, '_, '_> {
                 let mut gn = Gen::default();
                 let generics = self.generics(gl, h.def, 0, &mut gn);
                 let fields = self.fields(block, &gn);
+                if self.r.frozen.is_none() {
+                    self.field_variance(h.def, &generics, block, &fields);
+                }
                 self.derived(h, &generics, out);
                 let mut it = Item::new(h.def, h.name, h.public, ItemData::Data(fields));
                 it.generics = generics;
@@ -1422,6 +1685,11 @@ impl Lower<'_, '_, '_> {
                 let mut gn = Gen::default();
                 let generics = self.generics(gl, h.def, 0, &mut gn);
                 let shared = self.fields(Src::child(n, SyntaxKind::ParameterList), &gn);
+                let check = self.r.frozen.is_none();
+                if check {
+                    let holder = Src::child(n, SyntaxKind::ParameterList);
+                    self.field_variance(h.def, &generics, holder, &shared);
+                }
                 let mut variants = Vec::new();
                 for v in block
                     .iter()
@@ -1433,6 +1701,10 @@ impl Lower<'_, '_, '_> {
                     };
                     let text = self.src.text(t).to_owned();
                     let fields = self.fields(Src::child(v, SyntaxKind::ParameterList), &gn);
+                    if check {
+                        let holder = Src::child(v, SyntaxKind::ParameterList);
+                        self.field_variance(h.def, &generics, holder, &fields);
+                    }
                     variants.push(Variant {
                         name: self.sym(&text),
                         def: self.names.member(h.def, PathKind::Variant, &text),
@@ -1456,6 +1728,24 @@ impl Lower<'_, '_, '_> {
                     ..Gen::default()
                 };
                 let generics = self.generics(gl, h.def, 1, &mut gn);
+                // A trait's parameters are invariant (types.variance.trait-params).
+                if self.r.frozen.is_none()
+                    && let Some(gl) = gl
+                {
+                    for (g, node) in generics.iter().zip(
+                        gl.children()
+                            .filter(|c| c.kind() == SyntaxKind::GenericParameter),
+                    ) {
+                        if g.variance != 0 {
+                            let msg = format!(
+                                "invalid-variance: trait parameter `{}` is invariant and takes no marker",
+                                self.names.text(g.name)
+                            );
+                            self.diags
+                                .error(Code::InvalidVariance, self.src.span(node), &msg);
+                        }
+                    }
+                }
                 let mut supers = Vec::new();
                 if let Some(bl) = Src::child(n, SyntaxKind::BoundList) {
                     for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
@@ -1464,6 +1754,7 @@ impl Lower<'_, '_, '_> {
                         }
                     }
                 }
+                self.duplicate_members(block);
                 let (methods, assoc_decls) = self.members(block, h.def, h.public, &gn, out);
                 let mut assoc = Vec::new();
                 for (name, def, ty) in assoc_decls {
@@ -1618,6 +1909,7 @@ pub fn build_folder(
         memo: RefCell::new(HashMap::new()),
         visiting: RefCell::new(HashSet::new()),
         trait_assoc: HashMap::new(),
+        variances: HashMap::new(),
         aliases: RefCell::new(HashMap::new()),
         seeds: HashMap::new(),
     };
@@ -1629,6 +1921,23 @@ pub fn build_folder(
             r.own
                 .entry((m.path.clone(), h.name))
                 .or_insert((h.def, h.kind, h.public));
+            if let Some(gl) = Src::child(h.node, SyntaxKind::GenericParameterList) {
+                let toks = &m.src.parse.tokens;
+                let vs = gl
+                    .children()
+                    .filter(|c| c.kind() == SyntaxKind::GenericParameter)
+                    .map(|g| {
+                        if g.direct_token(toks, TokenKind::Plus).is_some() {
+                            1
+                        } else if g.direct_token(toks, TokenKind::Minus).is_some() {
+                            -1
+                        } else {
+                            0
+                        }
+                    })
+                    .collect();
+                r.variances.insert(h.def, vs);
+            }
             if h.kind == HeadKind::Trait {
                 let assoc = Src::child(h.node, SyntaxKind::Block)
                     .iter()

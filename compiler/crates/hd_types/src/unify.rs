@@ -26,6 +26,7 @@ enum Undo {
     Bind(u32),
     Parent(u32, u32),
     Kind(u32, VarKind),
+    Rebind(u32, Option<Ty>),
 }
 
 /// The body's inference table: union-find with path halving and a trail.
@@ -68,8 +69,21 @@ impl InferTable {
                 Undo::Bind(v) => self.binding[v as usize] = None,
                 Undo::Parent(v, old) => self.parent[v as usize] = old,
                 Undo::Kind(v, k) => self.kind[v as usize] = k,
+                Undo::Rebind(v, old) => self.binding[v as usize] = old,
             }
         }
+    }
+
+    /// Replaces a bound variable's solution with `t`, undoably: the
+    /// permission join of several arguments lowers `mut X` to `X`
+    /// (type-checking.md §3.4, "Permission join").
+    pub fn rebind(&mut self, pool: &InternPool, var: Ty, t: Ty) {
+        let TyData::Infer(v) = pool.get(var) else {
+            return;
+        };
+        let r = self.root(v.raw());
+        self.trail.push(Undo::Rebind(r, self.binding[r as usize]));
+        self.binding[r as usize] = Some(t);
     }
 
     /// Replaces bound variables at the top of `t`.
@@ -203,6 +217,18 @@ impl InferTable {
         }
         match (pool.get(a), pool.get(b)) {
             (TyData::Poison, _) | (_, TyData::Poison) => Ok(()),
+            // A variable binds to the whole type, its view included, so
+            // `T = mut User` is inferred (types.generic.mut-argument).
+            (TyData::Infer(x), TyData::Mut(_))
+                if self.kind[self.root(x.raw()) as usize] == VarKind::General =>
+            {
+                self.bind(pool, self.root(x.raw()), b)
+            }
+            (TyData::Mut(_), TyData::Infer(y))
+                if self.kind[self.root(y.raw()) as usize] == VarKind::General =>
+            {
+                self.bind(pool, self.root(y.raw()), a)
+            }
             // A view marker does not change the value's type: `mut T`
             // checks against `T` (mutability is checked separately).
             (TyData::Mut(x), TyData::Mut(y)) => self.unify(pool, x, y),

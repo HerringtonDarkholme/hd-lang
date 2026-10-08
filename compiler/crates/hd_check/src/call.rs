@@ -383,6 +383,7 @@ impl Ck<'_, '_> {
         bang: bool,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.cx.names.pool;
+        let full = ft;
         let ft = self.infer.resolve(pool, ft);
         let ft = match pool.get(ft) {
             TyData::Mut(i) => i,
@@ -395,6 +396,14 @@ impl Ck<'_, '_> {
             && bang
             && args.positional.is_empty()
         {
+            // Driving a suspension advances it (`mut self`).
+            if !self.has_mut_access(full) {
+                self.err(
+                    Code::MutableReceiverRequired,
+                    n,
+                    "mutable-receiver-required: driving a suspension needs `mut` access to it",
+                );
+            }
             let t = pool.list_items(sa).first().copied().unwrap_or(Ty::POISON);
             self.check_bang(true, n);
             return Ok((self.b.emit(Tag::AwaitValue, f.0, NONE, t, n.index()), t));
@@ -489,14 +498,43 @@ impl Ck<'_, '_> {
             let msg = format!("argument-count: `{name}` takes {} arguments", rest.len());
             self.err(Code::ArgumentCount, n, &msg);
         }
+        // Bare variable parameters still open: several arguments solving
+        // one join at the readonly view (types.generic.infer.join).
+        let pool = self.cx.names.pool;
+        let open: Vec<bool> = rest
+            .iter()
+            .map(|p| {
+                matches!(pool.get(p.1), TyData::Infer(_))
+                    && matches!(pool.get(self.infer.shallow(pool, p.1)), TyData::Infer(_))
+            })
+            .collect();
         for (i, e) in args.positional.iter().enumerate() {
-            let w = match rest.get(i) {
+            let mut w = match rest.get(i) {
                 Some(p) => Some(self.normalize_deep(p.1)?),
                 None => None,
             };
             let (r, t) = self.expr(*e, w)?;
+            if let Some(p) = rest.get(i)
+                && open.get(i).copied().unwrap_or(false)
+                && self.join_down(p.1, t)
+            {
+                w = Some(self.normalize_deep(p.1)?);
+            }
             let r = match w {
-                Some(w) => self.coerce(r, t, w, *e, "argument"),
+                Some(w) => self.coerce(
+                    r,
+                    t,
+                    w,
+                    *e,
+                    if rest
+                        .get(i)
+                        .is_some_and(|p| matches!(pool.get(p.1), TyData::Infer(_)))
+                    {
+                        "inferred argument"
+                    } else {
+                        "argument"
+                    },
+                ),
                 None => r,
             };
             if let Some(s) = slots.get_mut(i) {
@@ -517,9 +555,22 @@ impl Ck<'_, '_> {
                 self.err(Code::DuplicateArgument, *e, &msg);
                 continue;
             }
-            let w = self.normalize_deep(rest[i].1)?;
+            let mut w = self.normalize_deep(rest[i].1)?;
             let (r, t) = self.expr(*e, Some(w))?;
-            slots[i] = Some(self.coerce(r, t, w, *e, "argument"));
+            if open[i] && self.join_down(rest[i].1, t) {
+                w = self.normalize_deep(rest[i].1)?;
+            }
+            slots[i] = Some(self.coerce(
+                r,
+                t,
+                w,
+                *e,
+                if matches!(pool.get(rest[i].1), TyData::Infer(_)) {
+                    "inferred argument"
+                } else {
+                    "argument"
+                },
+            ));
         }
         let mut out = Vec::new();
         for (i, s) in slots.into_iter().enumerate() {
@@ -598,6 +649,9 @@ impl Ck<'_, '_> {
                 self.default_owner = Some((def, pool.list(&vars), vec![]));
                 let refs = self.check_args(&params, &sig.defaults, 0, args, n, &name)?;
                 for (i, g) in sig.generics.iter().enumerate() {
+                    if g.mut_bound {
+                        self.check_mut_bound(vars[i], n);
+                    }
                     for b in &g.bounds {
                         let b = inst(*b);
                         if let TyData::TraitValue {
@@ -642,6 +696,13 @@ impl Ck<'_, '_> {
                 let it = subst_owner(pool, def, &pool.list_items(targs), inner);
                 let (r, rt) = self.expr(*e, Some(it))?;
                 let r = self.coerce(r, rt, it, *e, "argument");
+                // A newtype over a composite carries its base value's
+                // permission (types.newtype.construct-permission).
+                let t = if self.is_composite(rt) && self.has_mut_access(rt) {
+                    pool.intern_ty(&TyData::Mut(t))
+                } else {
+                    t
+                };
                 let rec = self.b.refs_record(&[r]);
                 Ok((self.b.emit(Tag::NewData, NONE, rec, t, n.index()), t))
             }
@@ -1245,6 +1306,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<()> {
         let pool = self.cx.names.pool;
         for (i, g) in sig.generics.iter().enumerate() {
+            let before = self.diags.len();
             for b in &g.bounds {
                 let b = inst(*b);
                 if let TyData::TraitValue {
@@ -1258,6 +1320,9 @@ impl Ck<'_, '_> {
                     };
                     self.require_ref(tref, n)?;
                 }
+            }
+            if g.mut_bound && self.diags.len() == before {
+                self.check_mut_bound(vars[i], n);
             }
         }
         Ok(())
@@ -1551,6 +1616,7 @@ impl Ck<'_, '_> {
                     self.err(Code::UnknownMethod, n, &msg);
                     return Ok((Ref(NONE), Ty::NEVER));
                 }
+                self.check_receiver(params[0].1, rt, n);
                 let mut refs = vec![recv];
                 let mut all = impl_args.clone();
                 all.extend(&vars);
@@ -1578,6 +1644,10 @@ impl Ck<'_, '_> {
                 Ok(self.emit_call(&c, &refs, ret, sig.suspends, bang, n))
             }
             Some(Hit::Builtin { op, params, ret }) => {
+                if matches!(op, IntrinsicOp::ListPush | IntrinsicOp::MapRemove) {
+                    let st = pool.intern_ty(&TyData::Mut(self.strip_mut(rt)));
+                    self.check_receiver(st, rt, n);
+                }
                 let ps: Vec<(Symbol, Ty)> = params
                     .iter()
                     .map(|t| (self.cx.names.syms.intern("value"), *t))
@@ -1603,6 +1673,11 @@ impl Ck<'_, '_> {
                     TyData::Mut(i) => i,
                     _ => t,
                 };
+                if let Some(&(s, st)) = self.sig_of(method)?.params.first()
+                    && self.cx.names.text(s) == "self"
+                {
+                    self.check_receiver(st, rt, n);
+                }
                 self.trait_method_call(
                     TraitTarget {
                         trait_,

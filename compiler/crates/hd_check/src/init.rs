@@ -23,6 +23,8 @@ pub struct Global {
     pub def: DefId,
     pub ty: Ty,
     pub stmt: usize,
+    /// Bound with `:=`: not reassignable (expr.bind.one-name).
+    pub short: bool,
 }
 
 /// What one body or top-level statement reaches directly.
@@ -196,6 +198,18 @@ impl Ck<'_, '_> {
             Some(a) => (self.coerce(r, t, a, rhs, "binding"), a),
             None => (r, t),
         };
+        // The binding forms' views (types.bind.short, types.bind.let-mut-infer).
+        let t = if pat
+            .direct_tokens()
+            .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut))
+        {
+            self.let_mut_name(t, annot.is_some(), pat);
+            t
+        } else if annot.is_none() {
+            self.readonly_view(t)
+        } else {
+            t
+        };
         let module = self.module_init.clone().unwrap_or_default();
         let def = self.cx.names.item(&module, &text);
         self.cx.init.borrow_mut().globals.insert(
@@ -204,6 +218,7 @@ impl Ck<'_, '_> {
                 def,
                 ty: t,
                 stmt: self.init_stmt,
+                short: s.kind() == SyntaxKind::ExprStmt,
             },
         );
         let a = self.b.refs_record(&[Ref(def.raw())]);
@@ -348,6 +363,8 @@ impl Ck<'_, '_> {
             self.scopes.push(HashMap::new());
             for (k, r) in out.iter().enumerate() {
                 let l = self.bind_local(params[k].0, params[k].1, e);
+                // A shared constructor parameter is a field, not a local.
+                self.user_locals.pop();
                 self.b.set(l, *r, e.index());
             }
             let (r, t) = self.expr(e, Some(params[i].1))?;

@@ -11,7 +11,7 @@ pub use store::{CacheStore, DiskStore, EntryKind, MemoryStore, decode_entry, enc
 
 /// The entry layout version (data-structures.md §3.20): part of every
 /// toolchain key, so a layout change misses instead of misreading.
-pub const LAYOUT_VERSION: u16 = 2;
+pub const LAYOUT_VERSION: u16 = 3;
 
 /// One file's part of a folder key: `(module, role, api_text_hash)`.
 pub struct FileApi<'a> {

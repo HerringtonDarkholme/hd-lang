@@ -14,6 +14,7 @@ pub mod header;
 pub mod iface;
 pub mod lower;
 pub mod seed;
+pub mod variance;
 pub mod view;
 
 pub use header::{Finding, Universe};

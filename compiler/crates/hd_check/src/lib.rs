@@ -5,8 +5,10 @@
 //! coherence, init order). It reads syntax and interfaces and writes TIR;
 //! nothing downstream reads syntax.
 
+mod access;
 pub mod body;
 mod call;
+mod conform;
 mod expr;
 pub mod init;
 mod pat;

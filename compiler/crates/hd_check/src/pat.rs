@@ -111,6 +111,19 @@ impl Ck<'_, '_> {
                     let _ = sub;
                     return unsupported("a binding with a sub-pattern");
                 }
+                // A `let` pattern's names follow the binding forms
+                // (types.bind.let-pattern-mut, types.bind.let-mut-pattern.annotated).
+                let t = match self.let_view {
+                    Some(annotated)
+                        if p.direct_tokens()
+                            .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut)) =>
+                    {
+                        self.let_mut_name(t, annotated, p);
+                        t
+                    }
+                    Some(false) => self.readonly_view(t),
+                    _ => t,
+                };
                 let l = self.bind_local(name, t, p);
                 binds.push((p.index(), l));
             }
@@ -375,6 +388,7 @@ impl Ck<'_, '_> {
         };
         // `let mut` on a primitive or a tuple (types.bind.let-mut-primitive,
         // types.bind.let-mut-tuple).
+        let mut t = t;
         if pat.kind() == SyntaxKind::BindingPattern
             && pat
                 .direct_tokens()
@@ -398,8 +412,12 @@ impl Ck<'_, '_> {
                 TyData::Tuple { .. } => {
                     self.err(Code::MutOnTuple, pat, "mut-on-tuple: `let mut` on a tuple");
                 }
-                _ => {}
+                _ => self.let_mut_name(t, annot.is_some(), pat),
             }
+        } else if pat.kind() == SyntaxKind::BindingPattern && annot.is_none() {
+            // `x := e` and `let x = e` bind the readonly view
+            // (types.bind.short, types.bind.let-readonly).
+            t = self.readonly_view(t);
         }
         // A plain name: a new local.
         if pat.kind() == SyntaxKind::BindingPattern && els.is_none() {
@@ -422,7 +440,10 @@ impl Ck<'_, '_> {
         let mut binds = Vec::new();
         let outer = self.scopes.last().cloned().unwrap_or_default();
         let before = self.diags.len();
-        self.declare_pattern(pat, t, &mut binds)?;
+        let saved = self.let_view.replace(annot.is_some());
+        let declared = self.declare_pattern(pat, t, &mut binds);
+        self.let_view = saved;
+        declared?;
         // `flow.let.refutable.else`, `flow.let.else.unreachable`. A pattern
         // that does not fit `t` already reported; skip the cascade.
         let refutable = self.refutable(pat, t);

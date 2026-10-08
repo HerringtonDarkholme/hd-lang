@@ -161,7 +161,35 @@ impl Ck<'_, '_> {
                 bindings: vec![],
             }));
         }
+        if self.cx.names.path(def) == "std/core/Map"
+            && let Some(k) = args.first()
+        {
+            self.check_map_key(*k, n)?;
+        }
         self.ctor(def, &args)
+    }
+
+    /// `Map[K < Eq & Hash, V]` (types.map-key.declared-bound): one error
+    /// for a key type that misses either trait.
+    pub(crate) fn check_map_key(&mut self, k: Ty, at: NodeRef<'_>) -> StageResult<()> {
+        let pool = self.cx.names.pool;
+        let before = self.diags.len();
+        for (module, name) in [("std.cmp", "Eq"), ("std.hash", "Hash")] {
+            let tr = self.cx.names.item(module, name);
+            let tref = hd_types::solver::TraitRef {
+                trait_: tr,
+                self_ty: k,
+                args: hd_types::TyList::EMPTY,
+            };
+            if matches!(pool.get(self.infer.resolve(pool, k)), TyData::Param(_)) {
+                return Ok(());
+            }
+            self.require_ref(tref, at)?;
+            if self.diags.len() != before {
+                break;
+            }
+        }
+        Ok(())
     }
 
     /// A dotted path to an item.
@@ -218,6 +246,14 @@ impl Ck<'_, '_> {
                         hd_diag::Code::MutOnPrimitive,
                         n,
                         "mut-on-primitive: a primitive type has no `mut` form",
+                    );
+                    return Ok(t);
+                }
+                if matches!(pool.get(t), TyData::Tuple { .. }) {
+                    self.err(
+                        hd_diag::Code::MutOnTuple,
+                        n,
+                        "mut-on-tuple: a tuple type has no `mut` form",
                     );
                     return Ok(t);
                 }

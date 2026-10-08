@@ -98,6 +98,10 @@ pub(crate) struct Ck<'a, 'c> {
     pub loop_else: Option<(NodeRefIdx, Ty)>,
     /// The function body block, for `missing-return-value`.
     pub fn_body: Option<NodeRefIdx>,
+    /// Declaring a `let` pattern's names: whether it has an annotation.
+    pub let_view: Option<bool>,
+    /// The locals the source binds by name, for `unused-local-binding`.
+    pub user_locals: Vec<LocalId>,
 }
 
 /// A node index kept for a later diagnostic.
@@ -141,6 +145,8 @@ pub(crate) fn new_ck<'a, 'c>(
         placeholder: None,
         loop_else: None,
         fn_body: None,
+        let_view: None,
+        user_locals: Vec::new(),
     };
     let Some(it) = cx.lookup.item(env) else {
         return ck;
@@ -206,6 +212,7 @@ pub fn check_fn(
         return unsupported("a body of a non-function item");
     };
     let mut ck = new_ck(cx, def, def, BodyKind::Fn, (sig.ret, sig.row), diags);
+    ck.check_impl_method(def, node);
     ck.suspends = vec![sig.suspends];
     let blk = ck.b.open_block();
     for (name, ty) in sig.params.clone() {
@@ -299,6 +306,41 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// `unused-local-binding` (flow.unused.warning): a local the source
+    /// binds and never reads; a name beginning with `_` is exempt.
+    fn unused_locals(&mut self) {
+        // One warning per line: a `let` pattern's unread names share it.
+        let mut lines = std::collections::HashSet::new();
+        for l in std::mem::take(&mut self.user_locals) {
+            let body = self.b.body_mut();
+            let (flags, name, at) = (
+                body.local_flags[l.idx()],
+                body.local_name[l.idx()],
+                body.local_syn[l.idx()],
+            );
+            let text = self.cx.names.text(name);
+            if flags & local_flags::READ != 0 || text.starts_with('_') {
+                continue;
+            }
+            let msg = format!(
+                "unused-local-binding: `{text}` is never read; name it `_{text}` to keep it"
+            );
+            let span = self.cx.src.span(self.cx.src.parse.tree.node(at));
+            let source = self.cx.src.text;
+            let lo = usize::try_from(span.lo).unwrap_or(0).min(source.len());
+            if !lines.insert(source[..lo].rfind('\n')) {
+                continue;
+            }
+            self.diags.push(
+                Code::UnusedLocalBinding,
+                hd_diag::Severity::Warning,
+                span,
+                &msg,
+                None,
+            );
+        }
+    }
+
     /// `integer-literal-range`: an integer constant must fit its type.
     fn check_literal_ranges(&mut self) {
         use hd_types::Prim;
@@ -337,8 +379,15 @@ impl Ck<'_, '_> {
                 index: u16::try_from(i).unwrap_or(u16::MAX),
             }));
             self.gens.push((g.name, p));
+            let first = self.env.clause_self.len();
             for b in &g.bounds {
                 self.add_bound(p, *b, 0);
+            }
+            // `T < mut Trait`: values of `T` have mutable access.
+            if g.mut_bound {
+                for m in &mut self.env.clause_mut[first..] {
+                    *m = true;
+                }
             }
         }
     }
@@ -453,6 +502,7 @@ impl Ck<'_, '_> {
         }
         let l = self.b.local(t, name, local_flags::ASSIGNED, at.index());
         self.scopes.last_mut().expect("scope").insert(name, l);
+        self.user_locals.push(l);
         l
     }
 
@@ -465,6 +515,12 @@ impl Ck<'_, '_> {
         if g == Ty::NEVER || w == Ty::NEVER || g == w {
             return r;
         }
+        // A join variable (a branch or element already seen) is not a declared
+        // type: the least common type weakens instead (types.lct).
+        let joined = matches!(pool.get(want), TyData::Infer(_));
+        if !joined && self.check_upgrade(got, want, n, what) {
+            return r;
+        }
         let strip = |t: Ty| match pool.get(t) {
             TyData::Mut(i) => i,
             _ => t,
@@ -473,7 +529,9 @@ impl Ck<'_, '_> {
         if let TyData::Option(inner) = pool.get(ws)
             && !matches!(pool.get(gs), TyData::Option(_) | TyData::Infer(_))
         {
-            self.expect(got, inner, n, what);
+            if !self.check_upgrade(got, inner, n, what) {
+                self.expect(got, inner, n, what);
+            }
             return self.b.coerce(Coercion::WrapSome, NONE, r, want, n.index());
         }
         if let (TyData::TraitValue { def: to, .. }, TyData::TraitValue { def: from, .. }) =
@@ -501,7 +559,16 @@ impl Ck<'_, '_> {
                 .b
                 .coerce(Coercion::ToTraitValue, NONE, r, want, n.index());
         }
+        let before = self.diags.len();
         self.expect(got, want, n, what);
+        if self.diags.len() == before && !joined && !self.perm_fits(got, want, true, 0) {
+            let msg = format!(
+                "type-mismatch in {what}: expected {}, found {}; permissions inside a type convert only by declared variance",
+                self.show(want),
+                self.show(got)
+            );
+            self.err(Code::TypeMismatch, n, &msg);
+        }
         r
     }
 
@@ -620,8 +687,10 @@ impl Ck<'_, '_> {
         };
         let b = match path.as_str() {
             "std/core/Any" => BuiltinImpl::Any,
-            "std/core/AnyVal" => BuiltinImpl::AnyVal,
-            "std/core/AnyRef" => BuiltinImpl::AnyRef,
+            // Every value type is in exactly one sealed category
+            // (types.sealed.exactly-one); a parameter's comes from its bound.
+            "std/core/AnyVal" if self.sealed_fits(t, false) => BuiltinImpl::AnyVal,
+            "std/core/AnyRef" if self.sealed_fits(t, true) => BuiltinImpl::AnyRef,
             "std/function/Tuple" if matches!(pool.get(t), TyData::Tuple { .. }) => {
                 BuiltinImpl::Tuple
             }
@@ -944,6 +1013,13 @@ impl Ck<'_, '_> {
                     && let Some(g) = global
                 {
                     // A mutable top-level binding (`GlobalSet`).
+                    if g.short {
+                        let msg = format!(
+                            "non-reassignable-binding: `{}` is bound with `:=`; use `let` to reassign it",
+                            self.cx.names.text(name)
+                        );
+                        self.err(Code::NonReassignableBinding, *lhs, &msg);
+                    }
                     if compound.is_some() {
                         return unsupported("compound assignment to a top-level binding");
                     }
@@ -997,6 +1073,7 @@ impl Ck<'_, '_> {
                     self.err(Code::UnknownDataField, *lhs, &msg);
                     return Ok(());
                 };
+                self.check_store_target(base, (br, bt), *lhs);
                 let v = match compound {
                     None => {
                         let (r, t) = self.expr(*rhs, Some(ft))?;
@@ -1027,8 +1104,9 @@ impl Ck<'_, '_> {
                     return Ok(());
                 }
                 let Some((op_get, op_set, kt, vt)) = self.index_kind(bt) else {
-                    return self.index_set((br, bt), *key, *rhs, compound, (*lhs, s));
+                    return self.index_set((br, bt), (*base, *key), *rhs, compound, (*lhs, s));
                 };
+                self.check_store_target(*base, (br, bt), *lhs);
                 let kr = self.index_key(*key, kt)?;
                 let v = match compound {
                     None => {
@@ -1059,7 +1137,7 @@ impl Ck<'_, '_> {
     fn index_set(
         &mut self,
         (br, bt): (Ref, Ty),
-        key: NodeRef<'_>,
+        (base, key): (NodeRef<'_>, NodeRef<'_>),
         rhs: NodeRef<'_>,
         compound: Option<TokenKind>,
         (lhs, s): (NodeRef<'_>, NodeRef<'_>),
@@ -1077,6 +1155,7 @@ impl Ck<'_, '_> {
             );
             return Ok(());
         }
+        self.check_store_target(base, (br, bt), lhs);
         let (vr, vt) = match compound {
             None => self.expr(rhs, None)?,
             Some(k) => {
@@ -1223,6 +1302,7 @@ impl Ck<'_, '_> {
     }
 
     fn finish(mut self, root: Ref) -> StageResult<Body> {
+        self.unused_locals();
         if self.module_init.is_none() {
             let item = self.b.body_mut().item;
             let facts = std::mem::take(&mut self.facts);

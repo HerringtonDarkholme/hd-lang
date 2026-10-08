@@ -1402,6 +1402,7 @@ impl Run<'_> {
         dw.len_of(&diags.code);
         for i in 0..diags.len() {
             dw.str(diags.code[i].as_str());
+            dw.u8(u8::from(diags.severity[i] == Severity::Warning));
             dw.u32(diags.primary[i].lo);
             dw.u32(diags.primary[i].hi);
             dw.str(diags.get_text(diags.message[i]));
@@ -1463,11 +1464,16 @@ impl Run<'_> {
         let mut buf = DiagBuf::default();
         for _ in 0..r.count() {
             let code = Code::from_name(r.str()).unwrap_or(Code::Unsupported);
+            let severity = if r.u8() == 0 {
+                Severity::Error
+            } else {
+                Severity::Warning
+            };
             let (lo, hi) = (r.u32(), r.u32());
             let msg = r.str().to_owned();
             buf.push(
                 code,
-                Severity::Error,
+                severity,
                 Span {
                     file: FileId::from_raw(u32_of(m)),
                     lo,
@@ -1750,6 +1756,20 @@ impl Run<'_> {
             },
         };
         let order = collected.table.content_order();
+        // Emitted code embeds the layouts of the data types it touches, and
+        // instance keys name types by path only: the program's data layouts
+        // are part of every code key, so two programs that declare one path
+        // with different fields never share code.
+        let mut layouts = hd_base::StableHasher::new("data-layouts");
+        for d in &collected.data {
+            layouts.hash(d.0);
+            let fields = env.data_fields(d.def()).unwrap_or_default();
+            layouts.u32(u32::try_from(fields.len()).unwrap_or(u32::MAX));
+            for f in fields {
+                hd_mono::layout::canon(&self.pool, &|x| env.path_hash(x), f, &mut layouts);
+            }
+        }
+        let layouts = layouts.finish();
         let mut code_keys = Vec::new();
         let codes: Vec<OnceLock<WasmCode>> = order.iter().map(|_| OnceLock::new()).collect();
         let mut misses = Vec::new();
@@ -1758,6 +1778,7 @@ impl Run<'_> {
             let tir = p.bodies.get(&item).map_or(Hash128(0), |b| b.1);
             let mut reps = hd_base::StableHasher::new("code-deps");
             reps.hash(self.toolchain);
+            reps.hash(layouts);
             reps.hash(collected.callee_reps[id.idx()]);
             let ck = code_key(
                 self.pipeline,

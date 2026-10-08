@@ -207,7 +207,7 @@ fn top_level_statements_are_checked_in_order() {
 #[test]
 fn with_blocks_provide_requirements() {
     let out = program(
-        "use std.console.BufferConsole\n\nfn show() -> void:\n    console := BufferConsole.new()\n    $.with(Console = console):\n        println(1)\n\nfn main() -> void $ Console:\n    show()\n",
+        "use std.console.BufferConsole\n\nfn show() -> void:\n    let mut console = BufferConsole.new()\n    $.with(Console = console):\n        println(1)\n\nfn main() -> void $ Console:\n    show()\n",
     );
     assert!(
         codes(&out).iter().all(|c| *c == Code::Unsupported),

@@ -117,11 +117,15 @@ fn compile(target: &Path) -> Result<Vec<u8>, ExitCode> {
             entry: program.entry.clone(),
         },
     );
-    if !out.diags.is_empty() {
+    // Warnings are shown; only errors stop the command.
+    if out.diags.has_errors() {
         for line in out.render().lines() {
             eprintln!("error: {line}");
         }
         return Err(ExitCode::FAILURE);
+    }
+    for line in out.render().lines() {
+        eprintln!("{line}");
     }
     out.wasm.ok_or_else(|| {
         eprintln!("error: no Wasm produced");

@@ -94,6 +94,11 @@ pub struct Generic {
     pub default: Option<Ty>,
     /// A row parameter (`$R`).
     pub row: bool,
+    /// A `mut` bound (`T < mut Trait`, `T < mut Any`): values of the
+    /// parameter have mutable access (types.path.access.mut-bound).
+    pub mut_bound: bool,
+    /// The declared variance marker: `+T` is 1, `-T` is -1, unmarked 0.
+    pub variance: i8,
 }
 
 impl Generic {
@@ -105,6 +110,8 @@ impl Generic {
             bounds: Vec::new(),
             default: None,
             row: false,
+            mut_bound: false,
+            variance: 0,
         }
     }
 }
@@ -407,7 +414,12 @@ fn put_generics(w: &mut Writer, t: &mut TableWriter<'_>, gs: &[Generic]) -> Stag
             Some(d) => t.ty(d)?,
             None => u32::MAX,
         });
-        w.u8(u8::from(g.row));
+        let variance = match g.variance {
+            1 => 0b0100,
+            -1 => 0b1000,
+            _ => 0,
+        };
+        w.u8(u8::from(g.row) | (u8::from(g.mut_bound) << 1) | variance);
     }
     Ok(())
 }
@@ -424,12 +436,19 @@ fn get_generics(r: &mut Reader<'_>, t: &Tables) -> Option<Vec<Generic>> {
         }
         let d = r.u32();
         let default = if d == u32::MAX { None } else { Some(t.ty(d)?) };
+        let flags = r.u8();
         out.push(Generic {
             name,
             bound,
             bounds,
             default,
-            row: r.u8() != 0,
+            row: flags & 1 != 0,
+            mut_bound: flags & 2 != 0,
+            variance: match flags & 0b1100 {
+                0b0100 => 1,
+                0b1000 => -1,
+                _ => 0,
+            },
         });
     }
     Some(out)

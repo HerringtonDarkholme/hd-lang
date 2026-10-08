@@ -71,7 +71,7 @@ fn main() -> void $ Console:
     toks := [Token.Num(7), Token.Plus, Token.Word("hi")]
     for t in toks:
         println(describe(t))
-    let mut ages: Map[string, i32] = {"ann": 31, "bob": 27}
+    let ages: mut Map[string, i32] = {"ann": 31, "bob": 27}
     ages["cy"] = 40
     ann := ages["ann"]
     cy := ages["cy"]
