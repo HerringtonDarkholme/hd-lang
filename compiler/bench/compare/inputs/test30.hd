@@ -1,9 +1,9 @@
-use std.testing.{assert_equal}
-
 pub fn main() -> void $ Console:
     println("ready")
 
 tests:
+    use std.testing.{assert_equal}
+
     it("case 0"):
         assert_equal(0 + 1, 1, reason="c0")
     it("case 1"):

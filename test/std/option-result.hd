@@ -1,10 +1,10 @@
 # std.option and std.result: inherent methods, callable without a use.
-use std.testing.{assert, assert_equal}
-
 fn half(value: i32) -> Result[i32, string]:
     if value % 2 == 0: .Ok(value / 2) else: .Err("odd")
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("option map and unwrap_or"):
         let present: i32? = .Some(3)
         let absent: i32? = .None

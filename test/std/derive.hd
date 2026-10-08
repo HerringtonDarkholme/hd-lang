@@ -1,6 +1,4 @@
 # Derived Eq, PartialOrd, Ord, and Hash, through the std templates.
-use std.testing.{assert, assert_equal}
-
 @derive(Eq, PartialOrd, Ord, Hash)
 data Key:
     first: i32
@@ -56,6 +54,8 @@ fn total[T < Ord](left: T, right: T) -> string:
         .Greater => "greater"
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("derived ordering is lexicographic in field order"):
         assert(Key { first: 1, second: "z" } < Key { first: 2, second: "a" }, reason="first field")
         assert(Key { first: 1, second: "a" } < Key { first: 1, second: "b" }, reason="tie break")

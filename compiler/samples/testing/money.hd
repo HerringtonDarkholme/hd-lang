@@ -1,7 +1,5 @@
 # Currencies with shared enum data, initialized with the module before each
 # case runs (data.shared.module-init).
-use std.testing.assert
-
 enum Currency(code: string, cents: i32 = 100):
     Usd -> Currency("USD")
     Jpy -> Currency("JPY", cents=1)
@@ -10,6 +8,8 @@ fn format_price(amount: i32, c: Currency) -> string:
     "${amount / c.cents} ${c.code}"
 
 tests:
+    use std.testing.assert
+
     it("formats dollars"):
         assert(format_price(1250, Currency.Usd) == "12 USD", reason="cents to dollars")
 

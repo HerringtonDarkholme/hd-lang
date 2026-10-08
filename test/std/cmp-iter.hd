@@ -1,7 +1,5 @@
 # std.cmp and std.iter.
 use std.cmp.{clamp, max, min, Reverse}
-use std.testing.{assert, assert_equal}
-
 fn is_greater(order: Ordering) -> bool:
     match order:
         .Greater => true
@@ -25,6 +23,8 @@ impl Ord for Entry:
         self.rank.cmp(other.rank)
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("min, max, and clamp"):
         assert_equal(min(3, 2), 2, reason="min")
         assert_equal(max("a", "b"), "b", reason="max")

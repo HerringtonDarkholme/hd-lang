@@ -3,8 +3,8 @@
 # expect: argument-count
 # fixed:         assert(1 == 1, reason="equal")
 
-use std.testing.assert
-
 tests:
+    use std.testing.assert
+
     it("compares"):
         assert(1 == 1)  # diagnostic: argument-count

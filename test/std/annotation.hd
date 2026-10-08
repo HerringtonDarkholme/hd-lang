@@ -1,7 +1,5 @@
 # std.annotation: a function's decorator values, read through facts_of.
 use std.annotation.{annotate, facts_of as facts}
-use std.testing.{assert, assert_equal}
-
 @annotate(.Fn)
 data Route:
     path: string
@@ -32,6 +30,8 @@ fn path_of(found: Route?) -> string:
         .None => ""
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("finds each attached value by its type"):
         assert_equal(path_of(facts(list_users).find::[Route]()), "/users", reason="a data value")
         assert_equal(facts(list_users).find::[string](), "lists users", reason="a literal value")

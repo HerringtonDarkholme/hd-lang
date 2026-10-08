@@ -1,7 +1,6 @@
 # textstats: analytics over an embedded multi-line log string.
 # Shows a triple-quoted string, string methods, closures, filter/map/fold,
 # Map counting, sorted_by with a two-key comparison, and formatted output.
-use std.testing.assert_equal
 use std.text.join
 
 LOG := """2026-10-03 10:00:01 INFO server started on port 8080
@@ -59,6 +58,8 @@ pub fn main() -> void $ Console:
     println(join(errors(lines).map(fn(l: string) -> string: l.slice(11, 19)), ", "))
 
 tests:
+    use std.testing.assert_equal
+
     it("counts lines"):
         assert_equal(nonblank_lines(LOG).len(), 6, reason="six lines")
         assert_equal(nonblank_lines("a\n\n  \nb").len(), 2, reason="blank lines skipped")

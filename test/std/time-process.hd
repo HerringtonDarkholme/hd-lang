@@ -1,6 +1,5 @@
 # std.time Duration and std.process.
 use std.process.{ExitCode, Process, ProcessOutput, ScriptedProcess, Termination}
-use std.testing.assert_equal
 use std.time.{Duration, h, min, ms, s}
 
 fn status!(program: string) -> i32 $ Process:
@@ -12,6 +11,8 @@ fn code(value: ExitCode) -> u8:
     u8(value)
 
 tests:
+    use std.testing.assert_equal
+
     it("Duration counts whole milliseconds"):
         assert_equal(Duration::milliseconds(250).as_milliseconds(), 250, reason="milliseconds")
         assert_equal(Duration::seconds(2).as_milliseconds(), 2000, reason="seconds")

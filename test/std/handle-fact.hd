@@ -4,8 +4,6 @@
 # (annot.handle.fact.exact).
 use std.annotation.annotate
 use std.structure.{Structure, Field, Variant, Describer}
-use std.testing.assert_equal
-
 @annotate::[F](.Field)
 data Tag[F]:
     label: string
@@ -54,6 +52,8 @@ data Job:
     plain: List[string]
 
 tests:
+    use std.testing.assert_equal
+
     it("reads a typed fact through a handle whose F has no Inspectable bound"):
         # `describe` passes read-type handles, so the fact on `hits`, bound to
         # `mut Counter`, is not found at F = Counter.

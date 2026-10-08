@@ -1,5 +1,4 @@
 # std.text: inherent string methods, join, and StringBuilder.
-use std.testing.{assert, assert_equal}
 use std.text.{join, StringBuilder, Utf8Error}
 
 # The decoded text, or how `string::from_utf8` failed.
@@ -10,6 +9,8 @@ fn decoded(bytes: List[u8]) -> string:
         .Err(Utf8Error.Truncated) => "truncated"
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("is_empty, ends_with, and contains"):
         assert("".is_empty() && !"a".is_empty(), reason="is_empty")
         assert("main.hd".ends_with(".hd") && !"hd".ends_with("main.hd"), reason="ends_with")

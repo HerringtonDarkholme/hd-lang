@@ -1,6 +1,5 @@
 # A shopping cart's totals, tested in place: passing, failing and
 # panicking cases, an ignored one, and one whose `?` fails.
-use std.testing.{assert, assert_equal}
 use std.error.Error
 
 let items_added = +0
@@ -37,6 +36,8 @@ fn quantity(text: string) -> Result[i32, QuantityError]:
     .Err(QuantityError { text: text })
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("sums prices"):
         assert_equal(total([3, 4, 5]), 12, reason="three prices")
 

@@ -4,8 +4,6 @@
 # L21), and both live in `std.text` beside `r` (L22).
 use std.ops.{Template, str_prefix}
 use std.text.{interpolate, process_escapes}
-use std.testing.assert_equal
-
 # A prefix that processes escapes in its pieces, then joins them.
 @str_prefix
 fn cooked(t: Template[i32]) -> string:
@@ -21,6 +19,8 @@ fn escaped(text: string) -> string:
         .Err(error) => "?${error.position}"
 
 tests:
+    use std.testing.assert_equal
+
     it("interpolate joins pieces and values in order"):
         joined := interpolate(Template { raw_parts: ["a", "b", "c"], values: [1, 2] })
         assert_equal(joined, "a1b2c", reason="pieces around values")

@@ -4,7 +4,6 @@
 # and `all!` to run independent tasks of one wave together.
 use std.cmp.max
 use std.task.all
-use std.testing.{assert, assert_equal}
 use std.text.join
 
 @derive(Eq, Debug)
@@ -143,6 +142,8 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
     .Ok(())
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("orders dependencies first"):
         match plan(build_graph()):
             .Ok(order) =>

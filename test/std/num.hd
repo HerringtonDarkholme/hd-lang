@@ -1,7 +1,5 @@
 # std.num: checked, wrapping, and saturating arithmetic, bit counts, and parsing.
 use std.num.{parse_i32, parse_i64, ParseNumberError}
-use std.testing.{assert, assert_equal}
-
 fn describe(result: Result[i32, ParseNumberError]) -> string:
     match result:
         .Ok(value) => "ok $value"
@@ -16,6 +14,8 @@ fn i32_min() -> i32:
     -2147483647 - 1
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("checked arithmetic reports overflow as None"):
         assert_equal(i32_max().checked_add(1), .None, reason="add overflows")
         assert_equal(i32_min().checked_sub(1), .None, reason="sub overflows")

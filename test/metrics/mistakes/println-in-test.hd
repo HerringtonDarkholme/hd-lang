@@ -2,12 +2,12 @@
 # log: 2026-10-02 M6 scratch test
 # expect: missing-requirement
 
-use std.testing.assert_equal
-
 fn twice(n: i32) -> i32:
     n * 2
 
 tests:
+    use std.testing.assert_equal
+
     it("doubles"):
         println("checking")  # diagnostic: missing-requirement
         assert_equal(twice(2), 4, reason="double")

@@ -1,7 +1,5 @@
 # std.collections: inherent List methods, callable without a use.
 use std.collections.Set
-use std.testing.assert_equal
-
 fn by_length(a: string, b: string) -> Ordering:
     if a.len() < b.len():
         .Less
@@ -11,6 +9,8 @@ fn by_length(a: string, b: string) -> Ordering:
         .Equal
 
 tests:
+    use std.testing.assert_equal
+
     it("map and filter"):
         items := [+3, 1, 2]
         assert_equal(items.map(fn(value: i32) -> string: "<$value>"), ["<3>", "<1>", "<2>"], reason="map")

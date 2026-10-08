@@ -1,6 +1,5 @@
 # std.time ManualClock and std.random SeededRandom, the deterministic providers.
 use std.random.{Random, SeededRandom}
-use std.testing.{assert, assert_equal}
 use std.time.{Clock, Duration, Instant, ManualClock, Timestamp, s}
 
 fn stamp!(pause: Duration) -> Timestamp $ Clock:
@@ -12,6 +11,8 @@ fn roll() -> u64 $ Random:
     $.use(Random).next_u64() % 6 + 1
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("ManualClock starts where it is told and sleep! advances it"):
         let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(1000))
         assert(clock.now() == Timestamp::from_unix_milliseconds(1000), reason="the start")

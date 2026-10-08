@@ -1,7 +1,5 @@
 # std.error: chain, report_of, and ErrorReport.
 use std.error.{Error, ErrorReport, chain, report_of}
-use std.testing.assert_equal
-
 @error("disk full")
 data DiskError:
     free: i64
@@ -27,6 +25,8 @@ fn texts(error: dyn Error) -> List[string]:
     chain(error).map(fn(item: dyn Error) -> string: item.to_string())
 
 tests:
+    use std.testing.assert_equal
+
     it("an absent optional source ends the chain"):
         assert_equal(texts(RepoError.Write("a.txt", .None)), ["cannot write a.txt"], reason="no cause")
 

@@ -1,7 +1,5 @@
 # std.hash: the standard Hash implementations feed their bytes to a Hasher
 # (spec/std/hash.md#bytes-written).
-use std.testing.{assert_equal}
-
 data Recorder:
     bytes: mut List[u8]
 
@@ -19,6 +17,8 @@ fn lookup[K < Eq & Hash](items: Map[K, i32], key: K) -> i32?:
     items.get(key)
 
 tests:
+    use std.testing.{assert_equal}
+
     it("a string hashes its UTF-8 length as a u64, then its UTF-8 bytes"):
         assert_equal(recorded("hé"), [3, 0, 0, 0, 0, 0, 0, 0, 104, 195, 169], reason="the length, then the UTF-8 bytes")
 

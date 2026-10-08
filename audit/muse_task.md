@@ -94,49 +94,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### U1. `use std.testing…` Goes Inside The `tests:` Block (First)
-
-Owner, 2026-10-08: "just fix your examples". About 895 files put
-`use std.testing…` at the top level although only their `tests:` block
-uses it (`rg -l '^use std.testing' | xargs rg -l '^tests:'`): 829
-conformance fixtures, plus `guide/`, `website/`, `spec/lang`, `spec/std`,
-`README.md`, `examples/`, `test/`, `compiler/samples`, `compiler/bench`
-and code blocks in Markdown. The rules (spec 03 Tests Blocks,
-`names.tests.inside-only`, `names.tests.shadow`): a `use` inside the block
-is visible only inside it, so test-only imports belong there.
-
-For each file (or each Markdown code block) that has both a top-level
-`use std.testing…` line and a `tests:` block:
-- if every name that line imports is used only inside the block, move
-  the line to the top of the block (indented four spaces, then a blank
-  line before the block's first other item); if the block already
-  imports some of the same names, merge into one `use` without
-  duplicates;
-- if any imported name is also used outside the block, leave the file
-  alone and list it in the commit message;
-- leave alone `spec/conformance/runtime/valid/tests-block-use-shadow.hd`,
-  `spec/conformance/typing/invalid/tests-block-use-leak.hd` and the
-  Tests Blocks section of `spec/lang/03-names-and-scopes.md` (they test
-  or show the rules on purpose);
-- files without a `tests:` block (test modules, integration test
-  modules) are test code throughout: their top-level imports are right.
-  Don't touch them.
-
-A small script is fine for the `.hd` files (don't commit it); read a
-sample of its diffs before committing. Fixtures whose expectations name
-line numbers (a `# line:` header, a panic frame `FILE:LINE`, an
-`expect-stdout` with a line) shift when a line moves: check each such
-fixture and fix the number in the same commit, or leave the file alone
-and list it.
-
-Checks: `cargo test -q --release -p hd_driver --test conformance` from
-`compiler/` must pass (no case lost from `compiler/CONFORMANCE.md`; if a
-case is lost, revert that file and list it); `cargo test -q --release -p
-hd_syntax --test corpus`; and `bash spec/check.sh` run in a clean
-worktree (the main checkout has an untracked file that aborts it). One
-commit per area (fixtures; spec Markdown; guide and website; the rest).
-Timebox 60 minutes; push.
-
 ### D2k. Design Text After The Pool And Solver-Lookup Work
 
 Two architecture commits landed: "pool: …" (#61, ends at 97ef2c30) and

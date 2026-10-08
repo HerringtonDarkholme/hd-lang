@@ -2,7 +2,6 @@
 # Shows requirement traits (Inventory, std Clock), a mutable in-memory
 # provider installed with `$.with`, suspending `fn!` calls, `?` with a
 # local error enum, @derive, Map and List.
-use std.testing.{assert, assert_equal}
 use std.time.{Clock, ManualClock, Timestamp}
 
 @derive(Eq, Debug)
@@ -97,6 +96,8 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
     .Ok(())
 
 tests:
+    use std.testing.{assert, assert_equal}
+
     it("places an order and reserves stock"):
         $.with(Inventory=fresh_inventory(), Clock=ManualClock::new(Timestamp::from_unix_milliseconds(5))):
             result := place_order!(7, [Line { sku: "apple", qty: 4 }, Line { sku: "pear", qty: 2 }])

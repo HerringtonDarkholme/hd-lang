@@ -581,14 +581,14 @@ after `ScriptedProcess` and the archived sketch.
 
 ```text
 use std.http.{Http, Response, ScriptedHttp, get}
-use std.testing.assert_equal
-
 fn status!(url: string) -> u16 $ Http:
     match get!(url):
         .Ok(response) => response.status
         .Err(_) => 0
 
 tests:
+    use std.testing.assert_equal
+
     it("reads the scripted status"):
         let mut http = ScriptedHttp::new({"https://example.com/": Response { status: 204, headers: [], body: [] }})
         $.with(Http=http):
