@@ -57,6 +57,10 @@ fn main() {
         report.body_ok, report.body_failed
     );
     println!("pool items: {}", out.pool_items);
+    println!(
+        "solver memo: {} hits, {} misses",
+        out.memo.hits, out.memo.misses
+    );
     let mut br: Vec<(&String, &usize)> = report.body_reasons.iter().collect();
     br.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
     for (r, n) in br.into_iter().take(40) {

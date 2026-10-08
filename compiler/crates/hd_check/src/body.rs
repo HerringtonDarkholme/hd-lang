@@ -251,6 +251,8 @@ pub(crate) fn new_ck<'a, 'c>(
         None => it.generics.clone(),
     };
     ck.add_generics(env, &gs);
+    // The environment is frozen from here: its memo key, once per body.
+    ck.env.key = Some(cx.global.env_key(&ck.env));
     ck
 }
 

@@ -982,6 +982,11 @@ impl<'a> Types<'a> {
     pub fn has_assoc(self, t: Ty) -> bool {
         self.meta_of(t) & meta::HAS_ASSOC != 0
     }
+    /// Whether `t` holds a canonical placeholder (trait-solver.md §2.2).
+    #[must_use]
+    pub fn has_canon(self, t: Ty) -> bool {
+        self.meta_of(t) & meta::HAS_CANON != 0
+    }
     /// Replaces declared parameters: `f` maps a parameter to its argument,
     /// or `None` to keep it.
     pub fn subst(self, t: Ty, f: &dyn Fn(ParamRef) -> Option<Ty>) -> Ty {

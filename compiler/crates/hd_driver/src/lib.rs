@@ -229,6 +229,9 @@ pub struct Output {
     pub tests: Vec<TestCase>,
     /// Items in the run's global `InternPool` at the end (a size counter).
     pub pool_items: u32,
+    /// The trait solver's memo hits and misses over the run (a counter;
+    /// with several threads it varies from run to run).
+    pub memo: hd_types::solver::MemoStats,
 }
 
 impl Output {
@@ -522,6 +525,7 @@ pub fn build(host: &Host<'_>, package: &str, goal: &Goal) -> Output {
         ifaces,
         tir_text: std::mem::take(&mut *lock(&run.tir_text)),
         pool_items: run.pool.len(),
+        memo: run.memo.stats(),
     }
 }
 

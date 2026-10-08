@@ -2,14 +2,18 @@
 //! §3, §6, §7, §8, §10, §12). The goal, candidate, memo, evidence and
 //! failure records are real definitions; `solve` and `select` are the
 //! table solver: impl heads matched with their bound plans, and the
-//! `Instantiations` and `Methods` goals' candidate schemes (§6.5); the
-//! projection goal is still not implemented (the checker normalizes).
+//! `Instantiations` and `Methods` goals' candidate schemes (§6.5), over
+//! canonical goals memoized per body and per run (§7: heights, cycles,
+//! fuel charged per proof node); the projection goal is still not
+//! implemented (the checker normalizes).
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use hd_base::{
-    DefId, FolderId, Fuel, InferVar, ModuleId, NotImplemented, Stage, StageResult, Symbol,
+    AppendVec, DefId, FolderId, Fuel, InferVar, ModuleId, NotImplemented, Stage, StageResult,
+    Symbol,
 };
 
 pub use crate::lookup::{
@@ -101,6 +105,8 @@ pub struct EnvKey(pub u32);
 
 impl EnvKey {
     pub const EMPTY: EnvKey = EnvKey(0);
+    /// An environment the run memo has not interned yet (`GlobalMemo::env_key`).
+    pub const UNSET: EnvKey = EnvKey(u32::MAX);
 }
 
 /// A declared bound, as written on an item (§4.2's input).
@@ -266,7 +272,7 @@ pub fn apply_binds(
     row: usize,
     args: &mut [Option<Ty>],
 ) {
-    apply_binds_in(pool, impls, t, row, args, &mut false);
+    apply_binds_in(pool, impls, t, row, args, &mut Reads::default());
 }
 
 fn apply_binds_in(
@@ -275,7 +281,7 @@ fn apply_binds_in(
     t: &ImplTable,
     row: usize,
     args: &mut [Option<Ty>],
-    read_dir: &mut bool,
+    reads: &mut Reads,
 ) {
     let owner = t.def[row];
     for _ in 0..t.plan[row].len() {
@@ -311,8 +317,8 @@ fn apply_binds_in(
                     })
                     .collect::<Vec<_>>(),
             );
-            if let Some(x) = project_concrete(pool, impls, *assoc, *trait_, *base, ta, read_dir) {
-                args[*target as usize] = Some(norm_concrete(pool, impls, x, 0, read_dir));
+            if let Some(x) = project_concrete(pool, impls, *assoc, *trait_, *base, ta, reads) {
+                args[*target as usize] = Some(norm_concrete(pool, impls, x, 0, reads));
                 changed = true;
             }
         }
@@ -524,33 +530,215 @@ impl MemoKey {
     }
 }
 
-/// The run's global memo: completed, context-free answers only (rule TS-4).
+/// A memo slot: a global entry index, or a body entry index with this bit
+/// set (§7.1 "Children are entry indices").
+pub const BODY_ENTRY: u32 = 1 << 31;
+
+/// Levels a goal asked at depth 0 may use: depths 0 to 64 (§7.2, §7.3).
+const LEVELS: u32 = 65;
+
+/// The height of a cycle: no depth suffices (§7.3 point 4).
+const CYCLE: u8 = u8::MAX;
+
+/// An answer over placeholders and global types (§7.1 "Remapping"): what
+/// a memo entry stores. It names no body-local type or variable, so a
+/// trial's rollback cannot leave it dangling. `OutOfFuel` is never stored.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CanonAnswer {
+    Holds {
+        evidence: Evidence,
+        learned: Vec<(u8, Ty)>,
+    },
+    Candidates(Vec<Candidate>),
+    Fails(Box<FailInfo>),
+    Stalled {
+        on: Vec<u8>,
+    },
+    Overflow,
+}
+
+/// The cold part of a memo entry: its goal, answer and proof-DAG children
+/// (memo slots, in plan order, repeats removed; §7.4), and the impl
+/// probes of its subtree.
+#[derive(Debug)]
+pub struct MemoRecord {
+    pub key: MemoKey,
+    pub answer: CanonAnswer,
+    pub children: Box<[u32]>,
+    /// The `(trait, head key)` probes of the goal's whole subtree, as a
+    /// set. A module whose own table has rows for one of them lists those
+    /// rows first and names them by its own table (lookup.rs
+    /// `OWN_TABLE`), so the entry is not that module's answer.
+    pub reads: Box<[(DefId, HeadKey)]>,
+}
+
+/// Memo hits and misses of a run, over every eligible goal asked.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MemoStats {
+    pub hits: u64,
+    pub misses: u64,
+}
+
+/// An environment's clauses: what `EnvKey` interns.
+type EnvClauses = (
+    Vec<Ty>,
+    Vec<DefId>,
+    Vec<TyList>,
+    Vec<Vec<(DefId, Ty)>>,
+    Vec<bool>,
+    Vec<u16>,
+);
+
+/// The run's global memo: completed, context-free answers only (rule
+/// TS-4), shared by every body and thread. Entries and records are
+/// append-only, so a published entry never changes and a reader holds it
+/// without a lock; the shards map keys to entries, first writer wins.
 #[derive(Default)]
 pub struct GlobalMemo {
-    shards: [Mutex<HashMap<MemoKey, MemoEntry>>; 16],
+    shards: [Mutex<HashMap<MemoKey, u32>>; 16],
+    entries: AppendVec<MemoEntry>,
+    records: AppendVec<MemoRecord>,
+    envs: Mutex<HashMap<EnvClauses, EnvKey>>,
+    hits: AtomicU64,
+    misses: AtomicU64,
 }
 
 impl GlobalMemo {
-    fn shard(&self, k: &MemoKey) -> &Mutex<HashMap<MemoKey, MemoEntry>> {
+    fn shard(&self, k: &MemoKey) -> &Mutex<HashMap<MemoKey, u32>> {
         use std::hash::{Hash, Hasher};
         let mut h = std::collections::hash_map::DefaultHasher::new();
         k.hash(&mut h);
         &self.shards[usize::try_from(h.finish() % 16).expect("shard")]
     }
+
+    /// The entry published for `k`.
     #[must_use]
-    pub fn get(&self, k: &MemoKey) -> Option<MemoEntry> {
+    pub fn lookup(&self, k: &MemoKey) -> Option<u32> {
         self.shard(k).lock().expect("memo").get(k).copied()
     }
-    /// Publishes an entry; the first writer wins (answers are pure).
-    pub fn publish(&self, k: MemoKey, e: MemoEntry) -> MemoEntry {
-        *self.shard(&k).lock().expect("memo").entry(k).or_insert(e)
+
+    #[must_use]
+    pub fn get(&self, k: &MemoKey) -> Option<MemoEntry> {
+        self.lookup(k).map(|i| self.entry(i))
+    }
+
+    #[must_use]
+    pub fn entry(&self, i: u32) -> MemoEntry {
+        *self.entries.get(i).expect("memo entry")
+    }
+
+    #[must_use]
+    pub fn record(&self, i: u32) -> &MemoRecord {
+        self.records.get(self.entry(i).answer).expect("memo record")
+    }
+
+    /// Publishes an entry and returns the index that holds `rec.key`: the
+    /// first writer wins. Two writers of one key computed one answer
+    /// (rule TS-1); debug builds check it.
+    pub fn publish(&self, rec: MemoRecord, mut e: MemoEntry) -> u32 {
+        let key = rec.key;
+        let mut shard = self.shard(&key).lock().expect("memo");
+        if let Some(&i) = shard.get(&key) {
+            debug_assert!(
+                {
+                    let (w, wr) = (self.entry(i), self.record(i));
+                    (w.kind, w.height, w.heads, &wr.answer)
+                        == (e.kind, e.height, e.heads, &rec.answer)
+                },
+                "rule TS-1: two writers of one memo key disagree: {key:?}"
+            );
+            return i;
+        }
+        e.answer = self.records.push(rec);
+        let i = self.entries.push(e);
+        assert!(i < BODY_ENTRY, "global memo over capacity");
+        shard.insert(key, i);
+        i
+    }
+
+    /// The interned key of an environment (§2.3): equal clause lists get
+    /// equal keys; no clause is `EnvKey::EMPTY`. A run ID: it keys the
+    /// memo, never a cache key or output.
+    pub fn env_key(&self, env: &ParamEnv) -> EnvKey {
+        if env.clause_self.is_empty() {
+            return EnvKey::EMPTY;
+        }
+        let clauses = (
+            env.clause_self.clone(),
+            env.clause_trait.clone(),
+            env.clause_args.clone(),
+            env.clause_bindings.clone(),
+            env.clause_mut.clone(),
+            env.clause_origin.clone(),
+        );
+        let mut m = self.envs.lock().expect("envs");
+        let next = EnvKey(u32::try_from(m.len() + 1).expect("envs"));
+        *m.entry(clauses).or_insert(next)
+    }
+
+    fn count(&self, hit: bool) {
+        let c = if hit { &self.hits } else { &self.misses };
+        c.fetch_add(1, Ordering::Relaxed);
+    }
+
+    #[must_use]
+    pub fn stats(&self) -> MemoStats {
+        MemoStats {
+            hits: self.hits.load(Ordering::Relaxed),
+            misses: self.misses.load(Ordering::Relaxed),
+        }
     }
 }
 
-/// A body's own memo (§7.1): goals with placeholders or local types.
+/// A body's own memo (§7.1): goals with placeholders, and the goals
+/// whose answer is the body's alone (they met the depth cut, or read its
+/// module's own impl rows). It also remembers the global entries the body
+/// used, so a repeat takes no lock, and the proof nodes the body has been
+/// charged for (`met`, rule TS-5). Nothing in it names a body-local type
+/// or variable, so a trial's rollback leaves every entry valid (§2.2).
 #[derive(Default, Debug)]
 pub struct BodyMemo {
-    pub table: HashMap<MemoKey, MemoEntry>,
+    table: HashMap<MemoKey, u32>,
+    entries: Vec<MemoEntry>,
+    records: Vec<MemoRecord>,
+    met: HashSet<MemoKey>,
+}
+
+impl BodyMemo {
+    /// The body's own entries (not the global ones it used).
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+    /// The body's own records.
+    pub fn records(&self) -> impl Iterator<Item = &MemoRecord> {
+        self.records.iter()
+    }
+    /// The slot a key maps to: a body entry (`BODY_ENTRY` set) or a
+    /// global one.
+    #[must_use]
+    pub fn slot(&self, k: &MemoKey) -> Option<u32> {
+        self.table.get(k).copied()
+    }
+}
+
+/// A memo slot's entry and record.
+fn slot_of<'x>(
+    entries: &'x [MemoEntry],
+    records: &'x [MemoRecord],
+    global: &'x GlobalMemo,
+    slot: u32,
+) -> (MemoEntry, &'x MemoRecord) {
+    if slot & BODY_ENTRY == 0 {
+        (global.entry(slot), global.record(slot))
+    } else {
+        let e = entries[(slot & !BODY_ENTRY) as usize];
+        (e, &records[e.answer as usize])
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -678,51 +866,265 @@ pub fn canonicalize(
     mut_: bool,
 ) -> (CanonGoal, CanonVars) {
     let mut vars = CanonVars::default();
-    let self_ty = canon_ty(pool, tref.self_ty, &mut vars);
-    let args: Vec<Ty> = pool
-        .list_items(tref.args)
-        .iter()
-        .copied()
-        .map(|t| canon_ty(pool, t, &mut vars))
-        .collect();
+    let mut number = |t: Ty| {
+        let TyData::Infer(v) = pool.get(t) else {
+            return Some(t);
+        };
+        let i = vars.map.iter().position(|w| *w == v).unwrap_or_else(|| {
+            vars.map.push(v);
+            vars.kinds.push(VarKind::General);
+            vars.map.len() - 1
+        });
+        Some(pool.intern_ty(&TyData::Canon(u8::try_from(i).unwrap_or(u8::MAX))))
+    };
+    let self_ty = fold_vars(pool, tref.self_ty, false, &mut number).expect("numbering");
+    let args = fold_list(pool, tref.args, false, &mut number).expect("numbering");
     let goal = CanonGoal {
         kind,
         mut_,
         n_vars: u8::try_from(vars.map.len()).unwrap_or(u8::MAX),
         trait_: tref.trait_,
         self_ty,
-        args: pool.list(&args),
+        args,
         extra: 0,
     };
     (goal, vars)
 }
 
-fn canon_ty(pool: Types<'_>, t: Ty, vars: &mut CanonVars) -> Ty {
-    if !pool.has_infer(t) {
-        return t;
+/// Rebuilds `t` with every inference variable (`canon` false) or every
+/// placeholder (`canon` true) replaced by `f`, in a fixed pre-order walk
+/// over every type form; `None` when `f` refuses one.
+fn fold_vars(
+    pool: Types<'_>,
+    t: Ty,
+    canon: bool,
+    f: &mut dyn FnMut(Ty) -> Option<Ty>,
+) -> Option<Ty> {
+    let has = if canon {
+        pool.has_canon(t)
+    } else {
+        pool.has_infer(t)
+    };
+    if !has {
+        return Some(t);
     }
-    let mut c = |x| canon_ty(pool, x, vars);
     let d = match pool.get(t) {
-        TyData::Infer(v) => {
-            let i = vars.map.iter().position(|w| *w == v).unwrap_or_else(|| {
-                vars.map.push(v);
-                vars.kinds.push(VarKind::General);
-                vars.map.len() - 1
-            });
-            TyData::Canon(u8::try_from(i).unwrap_or(u8::MAX))
-        }
-        TyData::Option(i) => TyData::Option(c(i)),
-        TyData::Mut(i) => TyData::Mut(c(i)),
-        TyData::Adt { def, args } => {
-            let a: Vec<Ty> = pool.list_items(args).iter().copied().map(&mut c).collect();
-            TyData::Adt {
-                def,
-                args: pool.list(&a),
-            }
-        }
+        TyData::Infer(_) | TyData::Canon(_) => return f(t),
+        TyData::Adt { def, args } => TyData::Adt {
+            def,
+            args: fold_list(pool, args, canon, f)?,
+        },
+        TyData::Tuple { elems, rest } => TyData::Tuple {
+            elems: fold_list(pool, elems, canon, f)?,
+            rest: match rest {
+                Some(r) => Some(fold_vars(pool, r, canon, f)?),
+                None => None,
+            },
+        },
+        TyData::Option(i) => TyData::Option(fold_vars(pool, i, canon, f)?),
+        TyData::Mut(i) => TyData::Mut(fold_vars(pool, i, canon, f)?),
+        TyData::Fn {
+            params,
+            result,
+            row,
+            suspends,
+        } => TyData::Fn {
+            params: fold_list(pool, params, canon, f)?,
+            result: fold_vars(pool, result, canon, f)?,
+            row: fold_row(pool, row, canon, f)?,
+            suspends,
+        },
+        TyData::TraitValue {
+            def,
+            args,
+            bindings,
+        } => TyData::TraitValue {
+            def,
+            args: fold_list(pool, args, canon, f)?,
+            bindings: bindings
+                .into_iter()
+                .map(|(k, b)| Some((k, fold_vars(pool, b, canon, f)?)))
+                .collect::<Option<Vec<_>>>()?,
+        },
+        TyData::Assoc {
+            assoc,
+            trait_,
+            self_ty,
+            args,
+        } => TyData::Assoc {
+            assoc,
+            trait_,
+            self_ty: fold_vars(pool, self_ty, canon, f)?,
+            args: fold_list(pool, args, canon, f)?,
+        },
+        TyData::Row(r) => TyData::Row(fold_row(pool, r, canon, f)?),
         other => other,
     };
-    pool.intern_ty(&d)
+    Some(pool.intern_ty(&d))
+}
+
+fn fold_list(
+    pool: Types<'_>,
+    l: TyList,
+    canon: bool,
+    f: &mut dyn FnMut(Ty) -> Option<Ty>,
+) -> Option<TyList> {
+    let items = pool.list_items(l);
+    let has = |t: &Ty| {
+        if canon {
+            pool.has_canon(*t)
+        } else {
+            pool.has_infer(*t)
+        }
+    };
+    if !items.iter().any(has) {
+        return Some(l);
+    }
+    let mut out = Vec::with_capacity(items.len());
+    for t in items {
+        out.push(fold_vars(pool, *t, canon, f)?);
+    }
+    Some(pool.list(&out))
+}
+
+fn fold_row(
+    pool: Types<'_>,
+    r: crate::pool::RowId,
+    canon: bool,
+    f: &mut dyn FnMut(Ty) -> Option<Ty>,
+) -> Option<crate::pool::RowId> {
+    let mut d = pool.row_data(r);
+    let has = |t: &Ty| {
+        if canon {
+            pool.has_canon(*t)
+        } else {
+            pool.has_infer(*t)
+        }
+    };
+    if !d.keys.iter().any(has) {
+        return Some(r);
+    }
+    for k in &mut d.keys {
+        *k = fold_vars(pool, *k, canon, f)?;
+    }
+    Some(pool.row(&d))
+}
+
+/// An answer's types over the goal's placeholders (§7.1 "Remapping");
+/// `None` when it names a variable the goal does not, which no answer
+/// does (the solver makes no variable).
+fn canon_answer(pool: Types<'_>, a: &Answer, vars: &CanonVars) -> Option<CanonAnswer> {
+    let index = |v: InferVar| {
+        vars.map
+            .iter()
+            .position(|w| *w == v)
+            .and_then(|i| u8::try_from(i).ok())
+    };
+    let mut place = |t: Ty| match pool.get(t) {
+        TyData::Infer(v) => Some(pool.intern_ty(&TyData::Canon(index(v)?))),
+        _ => Some(t),
+    };
+    Some(match a {
+        Answer::Holds { evidence, learned } => CanonAnswer::Holds {
+            evidence: match evidence {
+                Evidence::Impl { row, args } => Evidence::Impl {
+                    row: *row,
+                    args: fold_list(pool, *args, false, &mut place)?,
+                },
+                other => other.clone(),
+            },
+            learned: learned
+                .iter()
+                .map(|(v, t)| Some((index(*v)?, fold_vars(pool, *t, false, &mut place)?)))
+                .collect::<Option<_>>()?,
+        },
+        Answer::Candidates(cands) => CanonAnswer::Candidates(
+            cands
+                .iter()
+                .map(|c| {
+                    Some(Candidate {
+                        impl_args: fold_list(pool, c.impl_args, false, &mut place)?,
+                        args: fold_list(pool, c.args, false, &mut place)?,
+                        ..c.clone()
+                    })
+                })
+                .collect::<Option<_>>()?,
+        ),
+        Answer::Fails(info) => {
+            // The leaf is canonical already; a reason's type is global.
+            let global = match &info.reason {
+                FailReason::Binding { found: t, .. } | FailReason::NotInspectable { arg: t } => {
+                    !pool.has_infer(*t)
+                }
+                _ => true,
+            };
+            if !global {
+                return None;
+            }
+            CanonAnswer::Fails(info.clone())
+        }
+        Answer::Stalled { on } => CanonAnswer::Stalled {
+            on: on.iter().map(|v| index(*v)).collect::<Option<_>>()?,
+        },
+        Answer::Overflow => CanonAnswer::Overflow,
+        Answer::Normalized { .. } | Answer::OutOfFuel => return None,
+    })
+}
+
+/// A stored answer in the asking goal's variables.
+fn decanon_answer(pool: Types<'_>, a: &CanonAnswer, vars: &CanonVars) -> Answer {
+    let var = |i: u8| vars.map[usize::from(i)];
+    let mut back = |t: Ty| match pool.get(t) {
+        TyData::Canon(i) => Some(pool.intern_ty(&TyData::Infer(var(i)))),
+        _ => Some(t),
+    };
+    let list = |l: TyList, f: &mut dyn FnMut(Ty) -> Option<Ty>| {
+        fold_list(pool, l, true, f).expect("placeholders")
+    };
+    match a {
+        CanonAnswer::Holds { evidence, learned } => Answer::Holds {
+            evidence: match evidence {
+                Evidence::Impl { row, args } => Evidence::Impl {
+                    row: *row,
+                    args: list(*args, &mut back),
+                },
+                other => other.clone(),
+            },
+            learned: learned
+                .iter()
+                .map(|(i, t)| {
+                    let t = fold_vars(pool, *t, true, &mut back).expect("placeholders");
+                    (var(*i), t)
+                })
+                .collect(),
+        },
+        CanonAnswer::Candidates(cands) => Answer::Candidates(
+            cands
+                .iter()
+                .map(|c| Candidate {
+                    impl_args: list(c.impl_args, &mut back),
+                    args: list(c.args, &mut back),
+                    ..c.clone()
+                })
+                .collect(),
+        ),
+        CanonAnswer::Fails(info) => Answer::Fails(info.clone()),
+        CanonAnswer::Stalled { on } => Answer::Stalled {
+            on: on.iter().map(|i| var(*i)).collect(),
+        },
+        CanonAnswer::Overflow => Answer::Overflow,
+    }
+}
+
+impl CanonAnswer {
+    fn kind(&self) -> MemoKind {
+        match self {
+            CanonAnswer::Holds { .. } | CanonAnswer::Candidates(_) => MemoKind::Holds,
+            CanonAnswer::Fails(_) => MemoKind::Fails,
+            CanonAnswer::Stalled { .. } => MemoKind::Stalled,
+            CanonAnswer::Overflow => MemoKind::Overflow,
+        }
+    }
 }
 
 /// The outcome of matching one impl head against a goal's type (§3.4).
@@ -849,7 +1251,7 @@ fn family_excludes(
     t: &ImplTable,
     r: usize,
     self_ty: Ty,
-    read_dir: &mut bool,
+    reads: &mut Reads,
 ) -> bool {
     let TyData::Param(p) = pool.get(t.head_self[r]) else {
         return false;
@@ -858,8 +1260,8 @@ fn family_excludes(
         return false;
     }
     t.plan[r].iter().any(|step| match step {
-        PlanStep::Bound { param, trait_, .. } if u16::from(*param) == p.index => !impls
-            .candidates(pool, *trait_, self_ty, &[], false, read_dir)
+        PlanStep::Bound { param, trait_, .. } if u16::from(*param) == p.index => !reads
+            .candidates(impls, pool, *trait_, self_ty, &[], false)
             .into_iter()
             .any(|(at, bt)| {
                 let br = at.row as usize;
@@ -918,25 +1320,347 @@ pub fn plan_goals(pool: Types<'_>, t: &ImplTable, row: usize, args: &[Ty]) -> Ve
         .collect()
 }
 
-impl TableSolver {
+/// The impl probes of one frame (§3.2, §7.1): whether it read the
+/// candidate directory, and which `(trait, head key)` buckets it probed.
+#[derive(Default)]
+struct Reads {
+    dir: bool,
+    keys: Vec<(DefId, HeadKey)>,
+}
+
+impl Reads {
+    fn candidates<'a>(
+        &mut self,
+        impls: Impls<'a>,
+        pool: Types<'_>,
+        trait_: DefId,
+        self_ty: Ty,
+        args: &[Ty],
+        open: bool,
+    ) -> Vec<(ImplRef, &'a ImplTable)> {
+        self.keys.push((trait_, HeadKey::of(pool, self_ty)));
+        impls.candidates(pool, trait_, self_ty, args, open, &mut self.dir)
+    }
+}
+
+/// The goals the search memoizes, with their `mut_` flag.
+#[derive(Clone, Copy)]
+enum Ask {
+    Implements(TraitRef, bool),
+    /// The self type with its outer `mut` stripped, and the trait.
+    Instantiations(Ty, DefId, bool),
+}
+
+/// A goal's outcome at one depth (§7.3).
+struct Outcome {
+    answer: Answer,
+    /// Levels used, the goal itself included; `CYCLE` for a cycle.
+    height: u8,
+    /// The answer met the depth cut: an `Overflow` that more levels could
+    /// change, so it is the body's alone (rule TS-4).
+    cut: bool,
+}
+
+impl Outcome {
+    fn leaf(answer: Answer) -> Self {
+        Outcome {
+            answer,
+            height: 1,
+            cut: false,
+        }
+    }
+}
+
+/// A parent's height from a child's (§7.3).
+fn above(h: u8) -> u8 {
+    if h == CYCLE {
+        CYCLE
+    } else {
+        h.saturating_add(1).min(CYCLE - 1)
+    }
+}
+
+/// One `solve` call (§6, §7): the goals in progress, for cycles (§6.3),
+/// and the scratch lists of the children and probes of the frames on the
+/// stack, each frame's at the end.
+struct Search<'s, 'a> {
+    cx: &'s mut SolveCx<'a>,
+    fuel: &'s mut Fuel,
+    env: EnvKey,
+    stack: Vec<MemoKey>,
+    children: Vec<u32>,
+    reads: Vec<(DefId, HeadKey)>,
+    walk: Vec<u32>,
+}
+
+impl<'s, 'a> Search<'s, 'a> {
+    fn new(cx: &'s mut SolveCx<'a>, fuel: &'s mut Fuel) -> Self {
+        let env = match cx.env.key {
+            Some(k) => {
+                debug_assert_eq!(k, cx.global.env_key(cx.env), "a stale EnvKey");
+                k
+            }
+            None => cx.global.env_key(cx.env),
+        };
+        Search {
+            cx,
+            fuel,
+            env,
+            stack: Vec::new(),
+            children: Vec::new(),
+            reads: Vec::new(),
+            walk: Vec::new(),
+        }
+    }
+
+    /// Asks one goal at `depth` (0 at the use): the memo first, else the
+    /// goal is computed and its entry published (rule TS-4). `memo` false
+    /// asks without a lookup or an entry.
+    fn goal(&mut self, ask: Ask, depth: u32, root: bool, memo: bool) -> StageResult<Outcome> {
+        let pool = self.cx.pool;
+        let (kind, tref, mut_) = match ask {
+            Ask::Implements(t, m) => (GoalKind::Implements, t, m),
+            Ask::Instantiations(s, tr, m) => (
+                GoalKind::Instantiations,
+                TraitRef {
+                    trait_: tr,
+                    self_ty: s,
+                    args: TyList::EMPTY,
+                },
+                m,
+            ),
+        };
+        let (cg, vars) = canonicalize(pool, kind, tref, mut_);
+        // More variables than placeholders: asked, never memoized (§7.5).
+        let memo = memo && vars.map.len() < usize::from(u8::MAX);
+        // §2.2's scopes: a goal with no placeholder is `Global`, or `Env`
+        // when it names a parameter; only those may go global.
+        let params = pool.has_param(cg.self_ty)
+            || pool.list_items(cg.args).iter().any(|a| pool.has_param(*a));
+        let env = if params { self.env } else { EnvKey::EMPTY };
+        let key = MemoKey::new(pool, cg, env, self.cx.universe, 0);
+        let global = cg.n_vars == 0;
+        // Rule TS-7: a goal that meets itself on the stack is a cycle;
+        // every frame from it up answers `Overflow`, at any depth.
+        if self.stack.contains(&key) {
+            return Ok(Outcome {
+                answer: Answer::Overflow,
+                height: CYCLE,
+                cut: false,
+            });
+        }
+        if depth >= LEVELS {
+            return Ok(Outcome {
+                answer: Answer::Overflow,
+                height: 1,
+                cut: true,
+            });
+        }
+        if memo {
+            if let Some(slot) = self.find(&key, global)
+                && let Some(out) = self.reuse(slot, &vars, depth, root)
+            {
+                self.cx.global.count(true);
+                return Ok(out);
+            }
+            self.cx.global.count(false);
+        }
+        let (cstart, rstart) = (self.children.len(), self.reads.len());
+        self.stack.push(key);
+        let r = match ask {
+            Ask::Implements(t, _) => self.implements(&key, cg, t, depth, root),
+            Ask::Instantiations(s, tr, _) => self.instantiations(&key, s, tr, depth, root),
+        };
+        self.stack.pop();
+        let (out, heads) = r?;
+        let mut children: Vec<u32> = Vec::with_capacity(self.children.len() - cstart);
+        for c in self.children.drain(cstart..) {
+            if !children.contains(&c) {
+                children.push(c);
+            }
+        }
+        let mut reads = self.reads.split_off(rstart);
+        reads.sort_unstable_by_key(|(t, k)| (t.raw(), k.code()));
+        reads.dedup();
+        self.reads.extend_from_slice(&reads);
+        if !memo || matches!(out.answer, Answer::OutOfFuel) {
+            return Ok(out);
+        }
+        let Some(answer) = canon_answer(pool, &out.answer, &vars) else {
+            return Ok(out);
+        };
+        // §7.3: a goal that met the cut stores how many levels did not
+        // suffice; any other stores its answer and height.
+        let (kind, height) = if out.cut {
+            let left = u8::try_from(LEVELS - depth).expect("levels");
+            (MemoKind::AtLeast, left)
+        } else {
+            (answer.kind(), out.height)
+        };
+        let entry = MemoEntry {
+            answer: 0,
+            children: u32::try_from(children.len()).expect("children"),
+            height,
+            kind,
+            heads,
+        };
+        let to_global = global && !out.cut && self.own_free(&reads);
+        let rec = MemoRecord {
+            key,
+            answer,
+            children: children.into(),
+            reads: reads.into(),
+        };
+        let slot = if to_global {
+            self.cx.global.publish(rec, entry)
+        } else {
+            let bm = &mut *self.cx.body_memo;
+            bm.entries.push(MemoEntry {
+                answer: u32::try_from(bm.records.len()).expect("memo"),
+                ..entry
+            });
+            bm.records.push(rec);
+            u32::try_from(bm.entries.len() - 1).expect("memo") | BODY_ENTRY
+        };
+        self.cx.body_memo.table.insert(key, slot);
+        self.children.push(slot);
+        Ok(out)
+    }
+
+    /// The slot that answers `key` here: the body's table, then, for a goal
+    /// with no placeholder, the global memo, whose entry serves only when
+    /// this module's own table has no row for its probes.
+    fn find(&mut self, key: &MemoKey, global: bool) -> Option<u32> {
+        if let Some(s) = self.cx.body_memo.table.get(key) {
+            return Some(*s);
+        }
+        if !global {
+            return None;
+        }
+        let memo = self.cx.global;
+        let i = memo.lookup(key)?;
+        if !self.own_free(&memo.record(i).reads) {
+            return None;
+        }
+        self.cx.body_memo.table.insert(*key, i);
+        Some(i)
+    }
+
+    /// Whether this module's own table has no row for any of `reads`: then
+    /// an entry with those probes is its answer too (lookup.rs `OWN_TABLE`).
+    fn own_free(&self, reads: &[(DefId, HeadKey)]) -> bool {
+        let Impls::Owned(v) = self.cx.impls else {
+            return true;
+        };
+        let Some(own) = v.own.filter(|o| !o.def.is_empty()) else {
+            return true;
+        };
+        reads
+            .iter()
+            .all(|(t, k)| own.candidates(*t, *k).next().is_none())
+    }
+
+    /// An entry's outcome at `depth` (§7.3), its proof DAG charged (rule
+    /// TS-5). `None` when the entry met the cut with fewer levels than this
+    /// use has: the goal is computed again.
+    fn reuse(&mut self, slot: u32, vars: &CanonVars, depth: u32, root: bool) -> Option<Outcome> {
+        let pool = self.cx.pool;
+        let global = self.cx.global;
+        let bm = &*self.cx.body_memo;
+        let (e, rec) = slot_of(&bm.entries, &bm.records, global, slot);
+        let left = LEVELS - depth;
+        let overflow = |height, cut| Outcome {
+            answer: Answer::Overflow,
+            height,
+            cut,
+        };
+        let out = match e.kind {
+            MemoKind::AtLeast if left > u32::from(e.height) => return None,
+            MemoKind::AtLeast => overflow(1, true),
+            _ if e.height == CYCLE => overflow(CYCLE, false),
+            _ if depth + u32::from(e.height) > LEVELS => overflow(e.height, true),
+            _ => Outcome {
+                answer: decanon_answer(pool, &rec.answer, vars),
+                height: e.height,
+                cut: false,
+            },
+        };
+        self.reads.extend_from_slice(&rec.reads);
+        self.children.push(slot);
+        if !self.charge_dag(slot, root) {
+            return Some(Outcome::leaf(Answer::OutOfFuel));
+        }
+        Some(out)
+    }
+
+    /// Rule TS-5: charges the proof DAG under `slot`, depth first in plan
+    /// order. A node the body has not paid for costs one plus the heads its
+    /// probe matched, and joins `met` before its children are walked; a
+    /// node already met costs nothing and is not entered, except that the
+    /// asked goal costs one. False when the fuel runs out.
+    fn charge_dag(&mut self, slot: u32, root: bool) -> bool {
+        let global = self.cx.global;
+        let bm = &mut *self.cx.body_memo;
+        self.walk.clear();
+        self.walk.push(slot);
+        let mut first = root;
+        while let Some(s) = self.walk.pop() {
+            let (e, rec) = slot_of(&bm.entries, &bm.records, global, s);
+            let cost = if bm.met.insert(rec.key) {
+                self.walk.extend(rec.children.iter().rev());
+                1 + u64::from(e.heads)
+            } else {
+                u64::from(first)
+            };
+            first = false;
+            if cost > 0 && !self.fuel.charge(cost) {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Rule TS-5 for a goal computed now: the walk's charge, made when its
+    /// probe is done and before its children are asked.
+    fn charge(&mut self, key: &MemoKey, heads: u16, root: bool) -> bool {
+        let cost = if self.cx.body_memo.met.insert(*key) {
+            1 + u64::from(heads)
+        } else {
+            u64::from(root)
+        };
+        cost == 0 || self.fuel.charge(cost)
+    }
+
+    /// A goal answered before any impl probe.
+    fn leaf(&mut self, key: &MemoKey, root: bool, answer: Answer) -> (Outcome, u16) {
+        let answer = if self.charge(key, 0, root) {
+            answer
+        } else {
+            Answer::OutOfFuel
+        };
+        (Outcome::leaf(answer), 0)
+    }
+
+    /// `Implements` (§3): poison holds; a parameter's bound is found in the
+    /// elaborated environment; otherwise impl heads are matched (§3.4) and
+    /// the one committed head's bound plan is asked (§3.6). Returns the
+    /// outcome and the heads the probe matched.
     fn implements(
-        cx: &mut SolveCx<'_>,
+        &mut self,
+        key: &MemoKey,
+        cg: CanonGoal,
         tref: TraitRef,
-        fuel: &mut Fuel,
         depth: u32,
-    ) -> StageResult<Answer> {
-        let pool = cx.pool;
-        if !fuel.charge(1) {
-            return Ok(Answer::OutOfFuel);
-        }
-        if depth > 64 {
-            return Ok(Answer::Overflow);
-        }
+        root: bool,
+    ) -> StageResult<(Outcome, u16)> {
+        let pool = self.cx.pool;
+        let impls = self.cx.impls;
         if pool.has_poison(tref.self_ty) {
-            return Ok(Answer::Holds {
+            let holds = Answer::Holds {
                 evidence: Evidence::Poison,
                 learned: vec![],
-            });
+            };
+            return Ok(self.leaf(key, root, holds));
         }
         let self_ty = match pool.get(tref.self_ty) {
             TyData::Mut(i) => i,
@@ -944,40 +1668,36 @@ impl TableSolver {
         };
         // The environment: a clause on the same parameter and trait.
         if let TyData::Param(param) = pool.get(self_ty) {
-            for i in 0..cx.env.clause_self.len() {
-                if cx.env.clause_self[i] == self_ty && cx.env.clause_trait[i] == tref.trait_ {
+            let env = self.cx.env;
+            for i in 0..env.clause_self.len() {
+                if env.clause_self[i] == self_ty && env.clause_trait[i] == tref.trait_ {
                     let mut binds = Vec::new();
-                    let m = match_list(
-                        pool,
-                        DefId::NONE,
-                        cx.env.clause_args[i],
-                        tref.args,
-                        &mut binds,
-                    );
+                    let m =
+                        match_list(pool, DefId::NONE, env.clause_args[i], tref.args, &mut binds);
                     if m == M::No {
                         continue;
                     }
-                    let learned = learned_from(pool, cx.env.clause_args[i], tref.args);
+                    let learned = learned_from(pool, env.clause_args[i], tref.args);
                     let index = u16::try_from(i).unwrap_or(u16::MAX);
-                    return Ok(Answer::Holds {
+                    let holds = Answer::Holds {
                         evidence: Evidence::Bound { param, index },
                         learned,
-                    });
+                    };
+                    return Ok(self.leaf(key, root, holds));
                 }
             }
         }
         if let TyData::Infer(v) = pool.get(self_ty) {
-            return Ok(Answer::Stalled { on: vec![v] });
+            return Ok(self.leaf(key, root, Answer::Stalled { on: vec![v] }));
         }
         let goal_args = pool.list_items(tref.args);
         let open = goal_args.iter().any(|a| open_arg(pool, *a));
-        // The frame's "read the directory" bit (§3.2 debug check).
-        let mut read_dir = false;
+        // The frame's probes and its "read the directory" bit (§3.2).
+        let mut reads = Reads::default();
         let mut yes = Vec::new();
         let mut maybes = 0usize;
-        let cands = cx
-            .impls
-            .candidates(pool, tref.trait_, self_ty, goal_args, open, &mut read_dir);
+        let cands = reads.candidates(impls, pool, tref.trait_, self_ty, goal_args, open);
+        let heads = u16::try_from(cands.len()).unwrap_or(u16::MAX);
         for (at, t) in cands {
             let r = at.row as usize;
             if t.origin[r] == ImplOrigin::TupleTemplate {
@@ -986,7 +1706,7 @@ impl TableSolver {
                 }
                 continue;
             }
-            if family_excludes(pool, cx.impls, t, r, self_ty, &mut read_dir) {
+            if family_excludes(pool, impls, t, r, self_ty, &mut reads) {
                 continue;
             }
             let owner = t.def[r];
@@ -1010,7 +1730,7 @@ impl TableSolver {
                     let n = usize::from(t.n_params[r]).max(binds.len());
                     let mut fixed: Vec<Option<Ty>> =
                         (0..n).map(|i| binds.get(i).copied().flatten()).collect();
-                    apply_binds_in(pool, cx.impls, t, r, &mut fixed, &mut read_dir);
+                    apply_binds_in(pool, impls, t, r, &mut fixed, &mut reads);
                     let args: Vec<Ty> =
                         fixed.into_iter().map(|a| a.unwrap_or(Ty::POISON)).collect();
                     yes.push((at, args, t));
@@ -1019,13 +1739,15 @@ impl TableSolver {
                 M::No => {}
             }
         }
-        if read_dir
-            && MemoKey::universe_for(pool, GoalKind::Implements, tref.args, cx.universe).is_none()
-        {
+        if reads.dir && key.universe.is_none() {
             return Err(NotImplemented::new(
                 Stage::Body,
                 "internal error: a solver frame read the candidate directory, but its memo key has no impl universe",
             ));
+        }
+        self.reads.extend_from_slice(&reads.keys);
+        if !self.charge(key, heads, root) {
+            return Ok((Outcome::leaf(Answer::OutOfFuel), heads));
         }
         // Committing (§3.5, rule TS-2): the heads alone pick the impl,
         // before any bound is solved. A goal with open variables that
@@ -1035,18 +1757,18 @@ impl TableSolver {
         // error (§5.4): the first in content order is taken.
         let open_goal = pool.has_infer(self_ty) || goal_args.iter().any(|a| pool.has_infer(*a));
         if yes.is_empty() && maybes == 0 && !pool.has_infer(self_ty) {
-            let (leaf, _) = canonicalize(pool, GoalKind::Implements, tref, false);
-            return Ok(Answer::Fails(Box::new(FailInfo {
-                leaf,
+            let fails = Answer::Fails(Box::new(FailInfo {
+                leaf: cg,
                 chain: vec![],
                 reason: FailReason::NoImpl,
                 near: vec![],
-            })));
+            }));
+            return Ok((Outcome::leaf(fails), heads));
         }
         let several = yes.len() + maybes > 1;
         match yes.into_iter().next() {
             Some(head) if maybes == 0 && !(open_goal && several) => {
-                Self::commit(cx, tref, head, fuel, depth)
+                Ok((self.commit(tref, head, depth)?, heads))
             }
             _ => {
                 // The goal's variables, in first-occurrence order (§3.4).
@@ -1061,7 +1783,7 @@ impl TableSolver {
                         on.push(v);
                     }
                 }
-                Ok(Answer::Stalled { on })
+                Ok((Outcome::leaf(Answer::Stalled { on }), heads))
             }
         }
     }
@@ -1070,16 +1792,18 @@ impl TableSolver {
     /// The first step that does not hold decides; a failing step fails
     /// the goal, with this impl added to the front of its chain (§10.1).
     fn commit(
-        cx: &mut SolveCx<'_>,
+        &mut self,
         tref: TraitRef,
         (row, args, t): (ImplRef, Vec<Ty>, &ImplTable),
-        fuel: &mut Fuel,
         depth: u32,
-    ) -> StageResult<Answer> {
-        let pool = cx.pool;
+    ) -> StageResult<Outcome> {
+        let pool = self.cx.pool;
         let r = row.row as usize;
+        let mut height = 1;
         for (step, sub) in plan_goals(pool, t, r, &args) {
-            match Self::implements(cx, sub, fuel, depth + 1)? {
+            let o = self.goal(Ask::Implements(sub, false), depth + 1, false, true)?;
+            height = height.max(above(o.height));
+            match o.answer {
                 Answer::Holds { .. } => {}
                 Answer::Fails(mut info) => {
                     info.chain.insert(
@@ -1090,9 +1814,19 @@ impl TableSolver {
                             origin: t.origin[r],
                         },
                     );
-                    return Ok(Answer::Fails(info));
+                    return Ok(Outcome {
+                        answer: Answer::Fails(info),
+                        height,
+                        cut: false,
+                    });
                 }
-                other => return Ok(other),
+                other => {
+                    return Ok(Outcome {
+                        answer: other,
+                        height,
+                        cut: o.cut,
+                    });
+                }
             }
         }
         let owner = t.def[r];
@@ -1107,12 +1841,16 @@ impl TableSolver {
                 (v, x)
             })
             .collect();
-        Ok(Answer::Holds {
-            evidence: Evidence::Impl {
-                row,
-                args: pool.list(&args),
+        Ok(Outcome {
+            answer: Answer::Holds {
+                evidence: Evidence::Impl {
+                    row,
+                    args: pool.list(&args),
+                },
+                learned,
             },
-            learned,
+            height,
+            cut: false,
         })
     }
 }
@@ -1170,7 +1908,7 @@ fn reads_fresh(pool: Types<'_>, owner: DefId, t: Ty, fixed: &[Option<Ty>]) -> bo
     hit.get()
 }
 
-impl TableSolver {
+impl Search<'_, '_> {
     /// `Instantiations { S, Tr }` (§6.5): every impl head of `Tr` that
     /// matches `S` with all trait arguments open, as schemes in content
     /// order. The target fixes some impl parameters; the plan steps over
@@ -1178,31 +1916,24 @@ impl TableSolver {
     /// dropped. Steps that read a fresh parameter, or that stall on a
     /// variable of `S`, are the candidate's residual obligations.
     fn instantiations(
-        cx: &mut SolveCx<'_>,
+        &mut self,
+        key: &MemoKey,
         self_ty: Ty,
         trait_: DefId,
-        fuel: &mut Fuel,
         depth: u32,
-    ) -> StageResult<Answer> {
-        let pool = cx.pool;
-        if !fuel.charge(1) {
-            return Ok(Answer::OutOfFuel);
-        }
-        if depth > 64 {
-            return Ok(Answer::Overflow);
-        }
-        let self_ty = match pool.get(self_ty) {
-            TyData::Mut(i) => i,
-            _ => self_ty,
-        };
+        root: bool,
+    ) -> StageResult<(Outcome, u16)> {
+        let pool = self.cx.pool;
+        let impls = self.cx.impls;
         match pool.get(self_ty) {
             TyData::Poison => {
-                return Ok(Answer::Holds {
+                let holds = Answer::Holds {
                     evidence: Evidence::Poison,
                     learned: vec![],
-                });
+                };
+                return Ok(self.leaf(key, root, holds));
             }
-            TyData::Infer(v) => return Ok(Answer::Stalled { on: vec![v] }),
+            TyData::Infer(v) => return Ok(self.leaf(key, root, Answer::Stalled { on: vec![v] })),
             TyData::Param(_) | TyData::TraitValue { .. } => {
                 return Err(NotImplemented::new(
                     Stage::Body,
@@ -1211,27 +1942,23 @@ impl TableSolver {
             }
             _ => {}
         }
-        let mut read_dir = false;
+        let mut reads = Reads::default();
         let mut out = Vec::new();
         let mut maybe = false;
-        let cands = cx
-            .impls
-            .candidates(pool, trait_, self_ty, &[], true, &mut read_dir);
+        let cands = reads.candidates(impls, pool, trait_, self_ty, &[], true);
+        let heads = u16::try_from(cands.len()).unwrap_or(u16::MAX);
+        // The rows that match, with their impl arguments, before any step
+        // is asked: the probe is charged first (rule TS-5).
+        let mut matched = Vec::new();
         for (at, t) in cands {
             let r = at.row as usize;
             if t.origin[r] == ImplOrigin::TupleTemplate {
                 if matches!(pool.get(self_ty), TyData::Tuple { .. }) {
-                    out.push(Candidate {
-                        row: at,
-                        n_fresh: 0,
-                        impl_args: TyList::EMPTY,
-                        args: t.head_args[r],
-                        residual: vec![],
-                    });
+                    matched.push((at, t, None));
                 }
                 continue;
             }
-            if family_excludes(pool, cx.impls, t, r, self_ty, &mut read_dir) {
+            if family_excludes(pool, impls, t, r, self_ty, &mut reads) {
                 continue;
             }
             let owner = t.def[r];
@@ -1247,7 +1974,33 @@ impl TableSolver {
             let n = usize::from(t.n_params[r]).max(binds.len());
             let mut fixed: Vec<Option<Ty>> =
                 (0..n).map(|i| binds.get(i).copied().flatten()).collect();
-            apply_binds_in(pool, cx.impls, t, r, &mut fixed, &mut read_dir);
+            apply_binds_in(pool, impls, t, r, &mut fixed, &mut reads);
+            matched.push((at, t, Some(fixed)));
+        }
+        if reads.dir && key.universe.is_none() {
+            return Err(NotImplemented::new(
+                Stage::Body,
+                "internal error: an Instantiations frame read the directory without a universe",
+            ));
+        }
+        self.reads.extend_from_slice(&reads.keys);
+        if !self.charge(key, heads, root) {
+            return Ok((Outcome::leaf(Answer::OutOfFuel), heads));
+        }
+        let mut height = 1;
+        for (at, t, fixed) in matched {
+            let r = at.row as usize;
+            let Some(fixed) = fixed else {
+                out.push(Candidate {
+                    row: at,
+                    n_fresh: 0,
+                    impl_args: TyList::EMPTY,
+                    args: t.head_args[r],
+                    residual: vec![],
+                });
+                continue;
+            };
+            let owner = t.def[r];
             let impl_args: Vec<Ty> = (0u16..)
                 .zip(&fixed)
                 .map(|(index, a)| {
@@ -1276,14 +2029,23 @@ impl TableSolver {
                 let Some(&(_, sub)) = goals.iter().find(|(k, _)| *k == i) else {
                     continue;
                 };
-                match Self::implements(cx, sub, fuel, depth + 1)? {
+                let o = self.goal(Ask::Implements(sub, false), depth + 1, false, true)?;
+                height = height.max(above(o.height));
+                match o.answer {
                     Answer::Holds { .. } => {}
                     Answer::Fails(_) => {
                         dropped = true;
                         break;
                     }
                     Answer::Stalled { .. } => residual.push(i),
-                    other => return Ok(other),
+                    other => {
+                        let o = Outcome {
+                            answer: other,
+                            height,
+                            cut: o.cut,
+                        };
+                        return Ok((o, heads));
+                    }
                 }
             }
             if dropped {
@@ -1309,15 +2071,14 @@ impl TableSolver {
                 residual,
             });
         }
-        if read_dir
-            && MemoKey::universe_for(pool, GoalKind::Instantiations, TyList::EMPTY, cx.universe)
-                .is_none()
-        {
-            return Err(NotImplemented::new(
-                Stage::Body,
-                "internal error: an Instantiations frame read the directory without a universe",
-            ));
-        }
+        let done = |answer| {
+            let o = Outcome {
+                answer,
+                height,
+                cut: false,
+            };
+            Ok((o, heads))
+        };
         if maybe {
             let mut on = Vec::new();
             collect_vars(pool, self_ty, &mut on);
@@ -1327,7 +2088,7 @@ impl TableSolver {
                 seen.push(*v);
                 first
             });
-            return Ok(Answer::Stalled { on });
+            return done(Answer::Stalled { on });
         }
         if out.is_empty() {
             let tref = TraitRef {
@@ -1336,29 +2097,30 @@ impl TableSolver {
                 args: TyList::EMPTY,
             };
             let (leaf, _) = canonicalize(pool, GoalKind::Instantiations, tref, false);
-            return Ok(Answer::Fails(Box::new(FailInfo {
+            return done(Answer::Fails(Box::new(FailInfo {
                 leaf,
                 chain: vec![],
                 reason: FailReason::NoImpl,
                 near: vec![],
             })));
         }
-        Ok(Answer::Candidates(out))
+        done(Answer::Candidates(out))
     }
 
     /// The trait part of `Methods` (§6.5 step 3): one `Instantiations`
     /// goal per trait, in the given order; a trait the receiver does not
     /// implement adds nothing. The answer lists every candidate (its
-    /// row's trait tells them apart); none at all is an empty list.
-    fn methods(
-        cx: &mut SolveCx<'_>,
-        receiver: Ty,
-        traits: &[DefId],
-        fuel: &mut Fuel,
-    ) -> StageResult<Answer> {
+    /// row's trait tells them apart); none at all is an empty list. The
+    /// `Methods` goal itself is not memoized: its key would need the
+    /// module's availability, and its `Instantiations` goals are.
+    fn methods(&mut self, receiver: Ty, traits: &[DefId]) -> StageResult<Answer> {
+        let s = strip_outer_mut(self.cx.pool, receiver);
         let mut all = Vec::new();
         for tr in traits {
-            match Self::instantiations(cx, receiver, *tr, fuel, 0)? {
+            match self
+                .goal(Ask::Instantiations(s, *tr, false), 0, true, true)?
+                .answer
+            {
                 Answer::Candidates(c) => all.extend(c),
                 Answer::Fails(_) => {}
                 other => return Ok(other),
@@ -1368,16 +2130,38 @@ impl TableSolver {
     }
 }
 
+fn strip_outer_mut(pool: Types<'_>, t: Ty) -> Ty {
+    match pool.get(t) {
+        TyData::Mut(i) => i,
+        _ => t,
+    }
+}
+
 impl Solver for TableSolver {
     fn solve(&self, cx: &mut SolveCx<'_>, goal: &Goal, fuel: &mut Fuel) -> StageResult<Answer> {
+        let pool = cx.pool;
+        let mut s = Search::new(cx, fuel);
         match goal {
-            Goal::Implements { tref, .. } => Self::implements(cx, *tref, fuel, 0),
+            // Bindings do not reach the answer yet, so a goal that has
+            // some is asked without the memo, whose key leaves them out.
+            Goal::Implements {
+                tref,
+                bindings,
+                mut_,
+            } => Ok(s
+                .goal(Ask::Implements(*tref, *mut_), 0, true, bindings.is_empty())?
+                .answer),
             Goal::Instantiations {
-                self_ty, trait_, ..
-            } => Self::instantiations(cx, *self_ty, *trait_, fuel, 0),
+                self_ty,
+                trait_,
+                mut_,
+            } => {
+                let ask = Ask::Instantiations(strip_outer_mut(pool, *self_ty), *trait_, *mut_);
+                Ok(s.goal(ask, 0, true, true)?.answer)
+            }
             Goal::Methods {
                 receiver, traits, ..
-            } => Self::methods(cx, *receiver, traits, fuel),
+            } => s.methods(*receiver, traits),
             Goal::Project { .. } => Err(NotImplemented::new(
                 Stage::Body,
                 "the Project goal (the checker normalizes)",
@@ -1385,6 +2169,9 @@ impl Solver for TableSolver {
         }
     }
 
+    /// Elaborates the clauses. Their key is the run memo's
+    /// (`GlobalMemo::env_key`), interned on the first solve; it is
+    /// `EnvKey::EMPTY` for no bound and `EnvKey::UNSET` until then.
     fn elaborate(&self, bounds: &[DeclaredBound], out: &mut ParamEnvBuilder) -> EnvKey {
         for (i, b) in bounds.iter().enumerate() {
             out.clause_self.push(b.tref.self_ty);
@@ -1394,13 +2181,12 @@ impl Solver for TableSolver {
             out.clause_mut.push(b.mut_);
             out.clause_origin.push(u16::try_from(i).expect("bounds"));
         }
-        let key = if bounds.is_empty() {
+        out.key = None;
+        if out.clause_self.is_empty() {
             EnvKey::EMPTY
         } else {
-            EnvKey(u32::try_from(bounds.len()).expect("env"))
-        };
-        out.key = Some(key);
-        key
+            EnvKey::UNSET
+        }
     }
 
     fn select(
@@ -1421,7 +2207,11 @@ impl Solver for TableSolver {
             global: &global,
         };
         let mut fuel = Fuel::new(Fuel::BODY_DEFAULT);
-        match Self::implements(&mut cx, tref.0, &mut fuel, 0)? {
+        let mut s = Search::new(&mut cx, &mut fuel);
+        match s
+            .goal(Ask::Implements(tref.0, false), 0, true, true)?
+            .answer
+        {
             Answer::Holds {
                 evidence: Evidence::Impl { row, args },
                 ..
@@ -1452,7 +2242,7 @@ impl Solver for TableSolver {
 /// parameter or a variable, or one no impl binds, is kept.
 #[must_use]
 pub fn normalize_concrete(pool: Types<'_>, impls: Impls<'_>, t: Ty) -> Ty {
-    norm_concrete(pool, impls, t, 0, &mut false)
+    norm_concrete(pool, impls, t, 0, &mut Reads::default())
 }
 
 fn norm_list(
@@ -1460,16 +2250,16 @@ fn norm_list(
     impls: Impls<'_>,
     l: TyList,
     depth: u32,
-    read_dir: &mut bool,
+    reads: &mut Reads,
 ) -> TyList {
     let mut out = Vec::with_capacity(pool.list_items(l).len());
     for x in pool.list_items(l).iter().copied() {
-        out.push(norm_concrete(pool, impls, x, depth, read_dir));
+        out.push(norm_concrete(pool, impls, x, depth, reads));
     }
     pool.list(&out)
 }
 
-fn norm_concrete(pool: Types<'_>, impls: Impls<'_>, t: Ty, depth: u32, read_dir: &mut bool) -> Ty {
+fn norm_concrete(pool: Types<'_>, impls: Impls<'_>, t: Ty, depth: u32, reads: &mut Reads) -> Ty {
     if !pool.has_assoc(t) || depth > 64 {
         return t;
     }
@@ -1480,10 +2270,10 @@ fn norm_concrete(pool: Types<'_>, impls: Impls<'_>, t: Ty, depth: u32, read_dir:
             self_ty,
             args,
         } => {
-            let s = norm_concrete(pool, impls, self_ty, depth, read_dir);
-            let a = norm_list(pool, impls, args, depth, read_dir);
-            if let Some(x) = project_concrete(pool, impls, assoc, trait_, s, a, read_dir) {
-                return norm_concrete(pool, impls, x, depth + 1, read_dir);
+            let s = norm_concrete(pool, impls, self_ty, depth, reads);
+            let a = norm_list(pool, impls, args, depth, reads);
+            if let Some(x) = project_concrete(pool, impls, assoc, trait_, s, a, reads) {
+                return norm_concrete(pool, impls, x, depth + 1, reads);
             }
             TyData::Assoc {
                 assoc,
@@ -1494,22 +2284,22 @@ fn norm_concrete(pool: Types<'_>, impls: Impls<'_>, t: Ty, depth: u32, read_dir:
         }
         TyData::Adt { def, args } => TyData::Adt {
             def,
-            args: norm_list(pool, impls, args, depth, read_dir),
+            args: norm_list(pool, impls, args, depth, reads),
         },
         TyData::Tuple { elems, rest } => TyData::Tuple {
-            elems: norm_list(pool, impls, elems, depth, read_dir),
-            rest: rest.map(|r| norm_concrete(pool, impls, r, depth, read_dir)),
+            elems: norm_list(pool, impls, elems, depth, reads),
+            rest: rest.map(|r| norm_concrete(pool, impls, r, depth, reads)),
         },
-        TyData::Option(i) => TyData::Option(norm_concrete(pool, impls, i, depth, read_dir)),
-        TyData::Mut(i) => TyData::Mut(norm_concrete(pool, impls, i, depth, read_dir)),
+        TyData::Option(i) => TyData::Option(norm_concrete(pool, impls, i, depth, reads)),
+        TyData::Mut(i) => TyData::Mut(norm_concrete(pool, impls, i, depth, reads)),
         TyData::Fn {
             params,
             result,
             row,
             suspends,
         } => TyData::Fn {
-            params: norm_list(pool, impls, params, depth, read_dir),
-            result: norm_concrete(pool, impls, result, depth, read_dir),
+            params: norm_list(pool, impls, params, depth, reads),
+            result: norm_concrete(pool, impls, result, depth, reads),
             row,
             suspends,
         },
@@ -1519,10 +2309,10 @@ fn norm_concrete(pool: Types<'_>, impls: Impls<'_>, t: Ty, depth: u32, read_dir:
             bindings,
         } => TyData::TraitValue {
             def,
-            args: norm_list(pool, impls, args, depth, read_dir),
+            args: norm_list(pool, impls, args, depth, reads),
             bindings: bindings
                 .into_iter()
-                .map(|(k, b)| (k, norm_concrete(pool, impls, b, depth, read_dir)))
+                .map(|(k, b)| (k, norm_concrete(pool, impls, b, depth, reads)))
                 .collect(),
         },
         _ => return t,
@@ -1540,7 +2330,7 @@ fn project_concrete(
     trait_: DefId,
     self_ty: Ty,
     args: TyList,
-    read_dir: &mut bool,
+    reads: &mut Reads,
 ) -> Option<Ty> {
     let base = match pool.get(self_ty) {
         TyData::Mut(i) => i,
@@ -1555,13 +2345,13 @@ fn project_concrete(
     let goal_args = pool.list_items(args);
     let open = goal_args.iter().any(|a| open_arg(pool, *a))
         || (goal_args.is_empty() && impls.implicit_args(trait_, 0));
-    let cands = impls.candidates(pool, trait_, base, goal_args, open, read_dir);
+    let cands = reads.candidates(impls, pool, trait_, base, goal_args, open);
     for (at, t) in cands {
         let r = at.row as usize;
         let Some((_, b)) = t.assoc[r].iter().find(|(k, _)| *k == assoc) else {
             continue;
         };
-        if family_excludes(pool, impls, t, r, base, read_dir) {
+        if family_excludes(pool, impls, t, r, base, reads) {
             continue;
         }
         let owner = t.def[r];
@@ -1729,16 +2519,19 @@ mod tests {
             universe: None,
             avail: 0,
         };
-        let e = MemoEntry {
-            answer: 1,
-            children: 0,
-            height: 0,
-            kind: MemoKind::Holds,
-            heads: 1,
+        // The solve published its completed, context-free answer.
+        let i = global.lookup(&key).expect("published");
+        let e = global.entry(i);
+        assert_eq!((e.kind, e.height, e.heads), (MemoKind::Holds, 1, 1));
+        let again = super::MemoRecord {
+            key,
+            answer: global.record(i).answer.clone(),
+            children: Box::new([]),
+            reads: Box::new([]),
         };
-        global.publish(key, e);
-        let e2 = MemoEntry { answer: 2, ..e };
-        assert_eq!(global.publish(key, e2).answer, 1, "first writer wins");
+        let e2 = MemoEntry { children: 7, ..e };
+        assert_eq!(global.publish(again, e2), i, "first writer wins");
+        assert_eq!(global.entry(i).children, e.children);
     }
 
     /// Appends one impl row of `trait_` (rows of one trait stay together).
@@ -2540,5 +3333,543 @@ mod tests {
             panic!("candidates");
         };
         assert_eq!(c.iter().map(|c| c.row.row).collect::<Vec<_>>(), [3, 0, 1]);
+    }
+
+    /// One body of a memo test over every table: its pool, memo and fuel,
+    /// and the run's shared global memo.
+    fn solve_body(
+        p: Types<'_>,
+        tables: &[(ModuleId, &ImplTable)],
+        env: &ParamEnv,
+        (global, body, fuel): (&GlobalMemo, &mut BodyMemo, &mut Fuel),
+        goal: &Goal,
+    ) -> super::Answer {
+        let (universe, _) = ImplUniverses::default().intern(&[]);
+        let mut cx = SolveCx {
+            pool: p,
+            env,
+            universe,
+            impls: super::Impls::All(tables),
+            body_memo: body,
+            global,
+        };
+        TableSolver.solve(&mut cx, goal, fuel).expect("solves")
+    }
+
+    fn implements(tref: TraitRef) -> Goal {
+        Goal::Implements {
+            tref,
+            bindings: vec![],
+            mut_: false,
+        }
+    }
+
+    /// Row 0 `impl Show for i32`, row 1 `impl[T < Show] Show for Box[T]`,
+    /// row 2 `impl Pick[i32] for Money`.
+    fn show_table(p: Types<'_>) -> (ImplTable, [DefId; 4]) {
+        let ids = [20, 21, 22, 23].map(DefId::from_raw);
+        let [show, pick, boxed, money] = ids;
+        let mut t = ImplTable::default();
+        let no_plan = (0, vec![]);
+        push_row(
+            &mut t,
+            p,
+            (show, DefId::from_raw(30)),
+            Ty::I32,
+            TyList::EMPTY,
+            no_plan,
+        );
+        let imp = DefId::from_raw(31);
+        let target = adt(p, boxed, &[param(p, imp, 0)]);
+        push_row(
+            &mut t,
+            p,
+            (show, imp),
+            target,
+            TyList::EMPTY,
+            (1, bound(0, show)),
+        );
+        let m = adt(p, money, &[]);
+        let row = (pick, DefId::from_raw(32));
+        push_row(&mut t, p, row, m, p.list(&[Ty::I32]), (0, vec![]));
+        t.index();
+        (t, ids)
+    }
+
+    /// `Box` nested `n` deep over `i32`.
+    fn boxes(p: Types<'_>, boxed: DefId, n: usize) -> Ty {
+        (0..n).fold(Ty::I32, |t, _| adt(p, boxed, &[t]))
+    }
+
+    /// One body asking ground goals and goals with variables, each answer
+    /// checked against a fresh solve; returns the fuel it spent.
+    fn memo_body(gp: &InternPool, t: &ImplTable, global: &GlobalMemo) -> u64 {
+        let [show, pick, boxed, money] = [20, 21, 22, 23].map(DefId::from_raw);
+        let tables = [(ModuleId::from_raw(0), t)];
+        let local = LocalPool::new();
+        let p = Types::with_local(gp, &local);
+        let mut infer = InferTable::default();
+        let v = infer.fresh(p, VarKind::General);
+        let w = infer.fresh(p, VarKind::General);
+        let show_of = |self_ty| TraitRef {
+            trait_: show,
+            self_ty,
+            args: TyList::EMPTY,
+        };
+        let goals = [
+            show_of(boxes(p, boxed, 2)),
+            show_of(boxes(p, boxed, 1)),
+            show_of(adt(p, boxed, &[Ty::STRING])),
+            show_of(adt(p, boxed, &[v])),
+            TraitRef {
+                trait_: pick,
+                self_ty: adt(p, money, &[]),
+                args: p.list(&[w]),
+            },
+            show_of(boxes(p, boxed, 2)),
+        ];
+        let env = ParamEnv::default();
+        let mut body = BodyMemo::default();
+        let mut fuel = Fuel::new(1000);
+        for g in goals {
+            let cx = (global, &mut body, &mut fuel);
+            let a = solve_body(p, &tables, &env, cx, &implements(g));
+            assert_eq!(a, solve_over(p, &tables, g), "{g:?}");
+        }
+        fuel.spent()
+    }
+
+    /// §14.2 memo invariance: a hit, from the body's memo or from another
+    /// body's global entry, answers as a fresh solve, in the asking body's
+    /// own variables. Ground goals are shared across bodies and threads;
+    /// a warm memo charges a body the fuel a cold one does (rule TS-5).
+    #[test]
+    fn a_memo_hit_answers_as_a_fresh_solve() {
+        let gp = InternPool::new();
+        let (t, _) = show_table(gp.types());
+        let global = GlobalMemo::default();
+        let cold = memo_body(&gp, &t, &global);
+        let stats = |hits, misses| super::MemoStats { hits, misses };
+        assert_eq!(global.stats(), stats(2, 8));
+        assert_eq!(
+            memo_body(&gp, &t, &global),
+            cold,
+            "fuel does not see the memo"
+        );
+        // The second body found its three ground goals in the global memo
+        // and computed again the two with variables (and a subgoal).
+        assert_eq!(global.stats(), stats(6, 11));
+        let shared = GlobalMemo::default();
+        std::thread::scope(|s| {
+            for _ in 0..8 {
+                s.spawn(|| assert_eq!(memo_body(&gp, &t, &shared), cold));
+            }
+        });
+    }
+
+    /// §14.2 memo invariance: contexts that differ only by their
+    /// environment key a goal on a parameter apart, in both orders and on
+    /// several threads; a goal that names no parameter has one entry.
+    #[test]
+    fn contexts_that_differ_only_by_environment_get_their_own_entries() {
+        use super::{Answer, EnvKey};
+        let gp = InternPool::new();
+        let g = gp.types();
+        let (t, [show, _, boxed, _]) = show_table(g);
+        let tables = [(ModuleId::from_raw(0), &t)];
+        let tp = param(g, DefId::from_raw(40), 0);
+        let mut bounded = ParamEnv::default();
+        bounded.clause_self.push(tp);
+        bounded.clause_trait.push(show);
+        bounded.clause_args.push(TyList::EMPTY);
+        bounded.clause_bindings.push(vec![]);
+        bounded.clause_mut.push(false);
+        bounded.clause_origin.push(0);
+        let plain = ParamEnv::default();
+        let show_of = |self_ty| TraitRef {
+            trait_: show,
+            self_ty,
+            args: TyList::EMPTY,
+        };
+        // `Box[T]: Show` asks `T: Show`, which only the bound answers.
+        let on_param = show_of(adt(g, boxed, &[tp]));
+        let ground = show_of(boxes(g, boxed, 1));
+        let gp = &gp;
+        let ask = |global: &GlobalMemo, env: &ParamEnv| {
+            let mut body = BodyMemo::default();
+            let mut fuel = Fuel::new(100);
+            let mut one = |tref| {
+                let cx = (global, &mut body, &mut fuel);
+                solve_body(gp.types(), &tables, env, cx, &implements(tref))
+            };
+            (one(on_param), one(ground))
+        };
+        let yes = ask(&GlobalMemo::default(), &bounded);
+        let no = ask(&GlobalMemo::default(), &plain);
+        assert!(matches!(yes.0, Answer::Holds { .. }), "{yes:?}");
+        assert!(matches!(no.0, Answer::Fails(_)), "{no:?}");
+        assert_eq!(yes.1, no.1);
+        let (universe, _) = ImplUniverses::default().intern(&[]);
+        let key = |tref, env| {
+            let (cg, _) = canonicalize(g, GoalKind::Implements, tref, false);
+            MemoKey::new(g, cg, env, universe, 0)
+        };
+        for bounded_first in [true, false] {
+            let global = GlobalMemo::default();
+            let order = if bounded_first {
+                [(&bounded, &yes), (&plain, &no)]
+            } else {
+                [(&plain, &no), (&bounded, &yes)]
+            };
+            for (env, want) in order {
+                assert_eq!(&ask(&global, env), want);
+            }
+            let with_bound = global.get(&key(on_param, global.env_key(&bounded)));
+            let without = global.get(&key(on_param, EnvKey::EMPTY));
+            assert_eq!(with_bound.map(|e| e.kind), Some(MemoKind::Holds));
+            assert_eq!(without.map(|e| e.kind), Some(MemoKind::Fails));
+            assert!(global.get(&key(ground, EnvKey::EMPTY)).is_some());
+            assert!(global.get(&key(ground, global.env_key(&bounded))).is_none());
+        }
+        let global = GlobalMemo::default();
+        let envs = [(&bounded, &yes), (&plain, &no)];
+        std::thread::scope(|s| {
+            for i in 0..8 {
+                let (global, ask) = (&global, &ask);
+                s.spawn(move || {
+                    for k in 0..2 {
+                        let (env, want) = envs[(i + k) % 2];
+                        assert_eq!(&ask(global, env), want);
+                    }
+                });
+            }
+        });
+    }
+
+    /// §2.2: body memo entries are canonical, so a trial that cached one
+    /// and rolled back, dropping its variables (whose numbers come back),
+    /// leaves no stale entry: a later variable reuses the entry under its
+    /// own name, and no entry names a body-local type.
+    #[test]
+    fn a_rolled_back_trial_leaves_no_stale_body_entry() {
+        use super::{Answer, CanonAnswer};
+        let gp = InternPool::new();
+        let local = LocalPool::new();
+        let p = Types::with_local(&gp, &local);
+        let (t, [_, pick, _, money]) = show_table(gp.types());
+        let tables = [(ModuleId::from_raw(0), &t)];
+        let (global, env) = (GlobalMemo::default(), ParamEnv::default());
+        let mut body = BodyMemo::default();
+        let mut fuel = Fuel::new(100);
+        let mut infer = InferTable::default();
+        let pick_of = |v| {
+            implements(TraitRef {
+                trait_: pick,
+                self_ty: adt(p, money, &[]),
+                args: p.list(&[v]),
+            })
+        };
+        let var = |t: Ty| match p.get(t) {
+            TyData::Infer(x) => x,
+            _ => panic!("a variable"),
+        };
+        let learned = |a: Answer| match a {
+            Answer::Holds { learned, .. } => learned,
+            other => panic!("holds: {other:?}"),
+        };
+        let mark = infer.trial_mark();
+        let v = infer.fresh(p, VarKind::General);
+        let a = solve_body(
+            p,
+            &tables,
+            &env,
+            (&global, &mut body, &mut fuel),
+            &pick_of(v),
+        );
+        assert_eq!(learned(a), [(var(v), Ty::I32)]);
+        assert_eq!(body.len(), 1, "a goal with a variable is the body's");
+        infer.rollback_trial(mark);
+        let reused = infer.fresh(p, VarKind::General);
+        assert_eq!(
+            var(reused),
+            var(v),
+            "the trial's variable number comes back"
+        );
+        let w = infer.fresh(p, VarKind::General);
+        let hits = global.stats().hits;
+        let b = solve_body(
+            p,
+            &tables,
+            &env,
+            (&global, &mut body, &mut fuel),
+            &pick_of(w),
+        );
+        assert_eq!(global.stats().hits, hits + 1);
+        assert_eq!(learned(b), [(var(w), Ty::I32)]);
+        assert_eq!(body.len(), 1);
+        for r in body.records() {
+            let g = r.key.goal;
+            assert!(!g.self_ty.is_local());
+            assert!(p.list_items(g.args).iter().all(|a| !a.is_local()));
+            if let CanonAnswer::Holds { learned, .. } = &r.answer {
+                assert!(learned.iter().all(|(_, t)| !t.is_local()));
+            }
+        }
+    }
+
+    /// Rule TS-7, §7.3: a goal that meets itself answers `Overflow` at once,
+    /// not 64 levels down, and every goal of the cycle stores `Overflow`
+    /// with the cycle height, which a later use in any body reuses.
+    #[test]
+    fn a_cycle_overflows_at_once_and_is_memoized() {
+        use super::{Answer, EnvKey, PlanStep};
+        let gp = InternPool::new();
+        let g = gp.types();
+        let [pair, imp] = [50, 51].map(DefId::from_raw);
+        // impl[T, U < Pair[T]] Pair[U] for T
+        let step = PlanStep::Bound {
+            param: 1,
+            trait_: pair,
+            args: g.list(&[param(g, imp, 0)]),
+            mut_: false,
+        };
+        let mut t = ImplTable::default();
+        let (target, args) = (param(g, imp, 0), g.list(&[param(g, imp, 1)]));
+        push_row(&mut t, g, (pair, imp), target, args, (2, vec![step]));
+        t.index();
+        let tables = [(ModuleId::from_raw(0), &t)];
+        let goal = |self_ty, a| TraitRef {
+            trait_: pair,
+            self_ty,
+            args: g.list(&[a]),
+        };
+        let (global, env) = (GlobalMemo::default(), ParamEnv::default());
+        let mut body = BodyMemo::default();
+        let mut fuel = Fuel::new(1000);
+        let first = implements(goal(Ty::I32, Ty::BOOL));
+        let a = solve_body(g, &tables, &env, (&global, &mut body, &mut fuel), &first);
+        assert_eq!(a, Answer::Overflow);
+        assert_eq!(
+            fuel.spent(),
+            4,
+            "two goals of one head each; the repeat is met"
+        );
+        let (universe, _) = ImplUniverses::default().intern(&[]);
+        for (s, x) in [(Ty::I32, Ty::BOOL), (Ty::BOOL, Ty::I32)] {
+            let (cg, _) = canonicalize(g, GoalKind::Implements, goal(s, x), false);
+            let key = MemoKey::new(g, cg, EnvKey::EMPTY, universe, 0);
+            let e = global.get(&key).expect("memoized");
+            assert_eq!((e.kind, e.height), (MemoKind::Overflow, u8::MAX));
+        }
+        let mut other = BodyMemo::default();
+        let hits = global.stats().hits;
+        let second = implements(goal(Ty::BOOL, Ty::I32));
+        let b = solve_body(g, &tables, &env, (&global, &mut other, &mut fuel), &second);
+        assert_eq!((b, global.stats().hits), (Answer::Overflow, hits + 1));
+        let fresh = solve_over(g, &tables, goal(Ty::BOOL, Ty::I32));
+        assert_eq!(fresh, Answer::Overflow);
+    }
+
+    /// §7.3: whether a goal overflows depends on the goal and the depth of
+    /// its use, never on which ask computed it first: `Box` nested `n` deep
+    /// over `i32` holds up to 64 and overflows from 65, in any order, in
+    /// one body (whose `AtLeast` entries are reused or improved) or across
+    /// bodies.
+    #[test]
+    fn heights_keep_overflow_independent_of_the_first_asker() {
+        use super::Answer;
+        let gp = InternPool::new();
+        let g = gp.types();
+        let (t, [show, _, boxed, _]) = show_table(g);
+        let tables = [(ModuleId::from_raw(0), &t)];
+        let show_of = |n| TraitRef {
+            trait_: show,
+            self_ty: boxes(g, boxed, n),
+            args: TyList::EMPTY,
+        };
+        let env = ParamEnv::default();
+        let fresh: Vec<Answer> = (0..=70)
+            .map(|n| {
+                let (global, mut body) = (GlobalMemo::default(), BodyMemo::default());
+                let cx = (&global, &mut body, &mut Fuel::new(10_000));
+                solve_body(g, &tables, &env, cx, &implements(show_of(n)))
+            })
+            .collect();
+        assert!(matches!(fresh[64], Answer::Holds { .. }), "{:?}", fresh[64]);
+        assert_eq!(fresh[65], Answer::Overflow);
+        let orders = [
+            [10, 70, 64, 65, 66, 63, 70, 1],
+            [70, 66, 65, 64, 10, 63, 1, 70],
+        ];
+        for order in orders {
+            let global = GlobalMemo::default();
+            let mut shared = BodyMemo::default();
+            for n in order {
+                let mut fuel = Fuel::new(10_000);
+                let goal = implements(show_of(n));
+                let cx = (&global, &mut shared, &mut fuel);
+                assert_eq!(solve_body(g, &tables, &env, cx, &goal), fresh[n], "n = {n}");
+                let mut own = BodyMemo::default();
+                let cx = (&global, &mut own, &mut fuel);
+                let b = solve_body(g, &tables, &env, cx, &goal);
+                assert_eq!(b, fresh[n], "a new body, n = {n}");
+            }
+        }
+    }
+
+    /// Rule TS-5, §7.4: a shared subgoal is charged once per body, so the
+    /// DAG `P(k) = Pair[P(k-1), P(k-1)]` of 21 goals costs 42 steps, not
+    /// two million, cold or warm; a repeat of the asked goal costs one.
+    #[test]
+    fn a_shared_subgoal_is_charged_once_per_body() {
+        use super::{Answer, PlanStep};
+        let gp = InternPool::new();
+        let g = gp.types();
+        let [eq, pair, imp, for_i32] = [60, 61, 62, 63].map(DefId::from_raw);
+        let step = |param| PlanStep::Bound {
+            param,
+            trait_: eq,
+            args: TyList::EMPTY,
+            mut_: false,
+        };
+        // impl Eq for i32; impl[A < Eq, B < Eq] Eq for Pair[A, B]
+        let mut t = ImplTable::default();
+        push_row(
+            &mut t,
+            g,
+            (eq, for_i32),
+            Ty::I32,
+            TyList::EMPTY,
+            (0, vec![]),
+        );
+        let target = adt(g, pair, &[param(g, imp, 0), param(g, imp, 1)]);
+        let plan = (2, vec![step(0), step(1)]);
+        push_row(&mut t, g, (eq, imp), target, TyList::EMPTY, plan);
+        t.index();
+        let tables = [(ModuleId::from_raw(0), &t)];
+        let deep = (0..20).fold(Ty::I32, |x, _| adt(g, pair, &[x, x]));
+        let goal = implements(TraitRef {
+            trait_: eq,
+            self_ty: deep,
+            args: TyList::EMPTY,
+        });
+        let (global, env) = (GlobalMemo::default(), ParamEnv::default());
+        for _ in 0..2 {
+            let mut body = BodyMemo::default();
+            let mut fuel = Fuel::new(1000);
+            let a = solve_body(g, &tables, &env, (&global, &mut body, &mut fuel), &goal);
+            assert!(matches!(a, Answer::Holds { .. }), "{a:?}");
+            assert_eq!(fuel.spent(), 42);
+            let _ = solve_body(g, &tables, &env, (&global, &mut body, &mut fuel), &goal);
+            assert_eq!(fuel.spent(), 43);
+        }
+    }
+
+    /// lookup.rs `OWN_TABLE`: a module answers with its own impl rows
+    /// first, so an entry that probed a bucket where the asking module
+    /// has own rows is that module's alone, in either order; a goal whose
+    /// probes miss its own table uses the global entry.
+    #[test]
+    fn a_module_with_its_own_rows_keeps_its_own_answer() {
+        use super::{
+            Answer, Evidence, FolderImpls, ImplRef, ImplView, Impls, OWN_TABLE, OwnerMap,
+            UniverseImpls, folder_table,
+        };
+        use hd_base::PathId;
+        use hd_intern::{PathKind, PathTable};
+
+        let gp = InternPool::new();
+        let g = gp.types();
+        let paths = PathTable::new();
+        let pkg = paths.intern(PathId::NONE, PathKind::Package, "pkg");
+        let base = paths.intern(pkg, PathKind::Module, "base");
+        let user = paths.intern(pkg, PathKind::Module, "user");
+        let item = |name: &str| DefId::from_raw(paths.intern(base, PathKind::Item, name).raw());
+        let imp = |name: &str| DefId::from_raw(paths.intern(base, PathKind::Impl, name).raw());
+        let (show, foo, bar) = (item("Show"), item("Foo"), item("Bar"));
+        let f0 = FolderId::from_raw(0);
+        let mut owners = OwnerMap::default();
+        owners.insert(base, f0);
+        owners.insert(user, FolderId::from_raw(1));
+        let (foo_ty, bar_ty) = (adt(g, foo, &[]), adt(g, bar, &[]));
+        let row = |t: &mut ImplTable, d, s| {
+            push_row(t, g, (show, d), s, TyList::EMPTY, (0, vec![]));
+        };
+        // `base` declares both impls; its own table holds only the first
+        // here, so the probe for `Bar` misses it.
+        let mut folder = ImplTable::default();
+        row(&mut folder, imp("Foo"), foo_ty);
+        row(&mut folder, imp("Bar"), bar_ty);
+        folder.index();
+        let fi = FolderImpls::new(f0, folder, g, &paths, &owners);
+        let mut own = ImplTable::default();
+        row(&mut own, imp("Foo"), foo_ty);
+        own.index();
+        let empty = FolderImpls::default();
+        let folders = [Some(&fi), Some(&empty)];
+        let extra = UniverseImpls::default();
+        let arity = |_: DefId| 0;
+        let (universe, _) = ImplUniverses::default().intern(&[]);
+        let view = |own| ImplView {
+            paths: &paths,
+            owners: &owners,
+            own,
+            folders: &folders,
+            universe,
+            extra: &extra,
+            arity: &arity,
+        };
+        let (in_base, in_user) = (view(Some(&own)), view(None));
+        let ask = |global: &GlobalMemo, v: &ImplView<'_>, self_ty| {
+            let env = ParamEnv::default();
+            let mut body = BodyMemo::default();
+            let mut cx = SolveCx {
+                pool: g,
+                env: &env,
+                universe,
+                impls: Impls::Owned(v),
+                body_memo: &mut body,
+                global,
+            };
+            let goal = implements(TraitRef {
+                trait_: show,
+                self_ty,
+                args: TyList::EMPTY,
+            });
+            let a = TableSolver
+                .solve(&mut cx, &goal, &mut Fuel::new(100))
+                .expect("solves");
+            let row = match a {
+                Answer::Holds {
+                    evidence: Evidence::Impl { row, .. },
+                    ..
+                } => row,
+                other => panic!("holds: {other:?}"),
+            };
+            (row, body.len())
+        };
+        let mine = ImplRef {
+            module: OWN_TABLE,
+            row: 0,
+        };
+        let folder_row = |row| ImplRef {
+            module: folder_table(f0),
+            row,
+        };
+        for base_first in [true, false] {
+            let global = GlobalMemo::default();
+            let asks = if base_first {
+                [(&in_base, (mine, 1)), (&in_user, (folder_row(0), 0))]
+            } else {
+                [(&in_user, (folder_row(0), 0)), (&in_base, (mine, 1))]
+            };
+            for (v, want) in asks {
+                assert_eq!(ask(&global, v, foo_ty), want);
+            }
+            assert_eq!(ask(&global, &in_user, bar_ty), (folder_row(1), 0));
+            let hits = global.stats().hits;
+            assert_eq!(ask(&global, &in_base, bar_ty), (folder_row(1), 0));
+            assert_eq!(global.stats().hits, hits + 1, "`base` shares `Bar`'s entry");
+        }
     }
 }
