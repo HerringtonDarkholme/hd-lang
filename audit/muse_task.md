@@ -102,20 +102,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q26. Where The Time Goes In map-count And string-build
-
-Q22/Q24 found map-count 60x and string-build 84x slower than Node. Profile
-both hd programs (`compiler/bench/runtime/progs/`) under Node
-(`node --cpu-prof compiler/host/run.mjs …` or V8's `--prof`, whichever
-works here) and attribute the time: which emitted functions or runtime
-helpers dominate (hashing, equality calls, boxing/allocation, `bytes_concat`
-copies), with percentages. For string-build, confirm the copy volume
-(bytes copied per append) against the 320 KB result. End with the two or
-three changes that would remove most of the gap, each marked
-representation change or implementation slip. Write
-`audit/compiler/runtime-hotspots-<short hash>.md`. Report only; no
-`compiler/crates/` edits. Timebox 60 minutes; push.
-
 ### S17. Spec: What A Release Build Changes
 
 Q24 found `hd build --release` emits the same code as debug. Before the
