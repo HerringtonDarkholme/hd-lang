@@ -14,7 +14,7 @@ use std::collections::{BTreeSet, HashMap};
 
 use hd_base::{DefId, Hash128, InstId, ModuleId, NotImplemented, StableHasher, Stage, StageResult};
 use hd_tir::ir::{Body, Callee, ChoiceKind, Coercion, Tag};
-use hd_types::solver::{ConcreteTraitRef, ImplTable, Solver, TraitRef};
+use hd_types::solver::{ConcreteTraitRef, ImplTable, Impls, Solver, TraitRef};
 use hd_types::{InternPool, ParamRef, Ty, TyData, TyList};
 
 use crate::layout::{A1Class, KeyArg, LayoutEnv, a1_class, canon, instance_key};
@@ -157,7 +157,7 @@ pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList,
         }
     });
     if pool.has_assoc(s) {
-        hd_types::solver::normalize_concrete(pool.types(), &env.impl_tables(), s)
+        hd_types::solver::normalize_concrete(pool.types(), Impls::All(&env.impl_tables()), s)
     } else {
         s
     }
@@ -440,7 +440,13 @@ impl Cx<'_> {
                 .find_map(|(_, t)| t.def.iter().position(|d| *d == impl_).map(|row| (*t, row)))
         {
             out.resize(out.len().max(n), None);
-            hd_types::solver::apply_binds(self.pool.types(), &self.tables, t, row, &mut out);
+            hd_types::solver::apply_binds(
+                self.pool.types(),
+                Impls::All(&self.tables),
+                t,
+                row,
+                &mut out,
+            );
         }
         let mut args = Vec::new();
         for a in out.into_iter().take(n) {

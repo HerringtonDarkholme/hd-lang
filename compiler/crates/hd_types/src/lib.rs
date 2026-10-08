@@ -5,6 +5,7 @@
 //! data-structures.md §3.4, §3.6, §3.9.2, §3.20.2; type-checking.md §3;
 //! trait-solver.md).
 
+pub mod lookup;
 pub mod pool;
 pub mod solver;
 pub mod unify;

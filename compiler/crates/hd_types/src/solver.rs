@@ -5,12 +5,16 @@
 //! `Instantiations` and `Methods` goals are still not implemented.
 
 use std::collections::{BTreeMap, HashMap};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use hd_base::{
     DefId, FolderId, Fuel, InferVar, ModuleId, NotImplemented, Stage, StageResult, Symbol,
 };
 
+pub use crate::lookup::{
+    FolderImpls, ImplView, Impls, OWN_TABLE, OwnerMap, RefTable, UniverseImpls, folder_table,
+    open_arg,
+};
 use crate::pool::{ParamRef, Prim, Ty, TyData, TyList, Types};
 use crate::unify::VarKind;
 
@@ -122,20 +126,31 @@ pub type ParamEnvBuilder = ParamEnv;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ImplUniverseId(pub u32);
 
-/// Interns impl universes once per run; equal lists share one id.
+/// Interns impl universes once per run; equal lists share one id and one
+/// merged view of their folders' unowned rows and directory.
 #[derive(Default)]
 pub struct ImplUniverses {
-    by_list: Mutex<HashMap<Vec<FolderId>, ImplUniverseId>>,
+    by_list: Mutex<UniverseMap>,
 }
 
+type UniverseMap = HashMap<Vec<FolderId>, (ImplUniverseId, Arc<UniverseImpls>)>;
+
 impl ImplUniverses {
-    pub fn intern(&self, folders: &[FolderId]) -> ImplUniverseId {
+    /// The universe of a context: `folders` are the folders of its closure
+    /// that hold `arg_impls` or unowned rows, in any order.
+    pub fn intern(
+        &self,
+        folders: &[(FolderId, &FolderImpls)],
+    ) -> (ImplUniverseId, Arc<UniverseImpls>) {
         let mut list = folders.to_vec();
-        list.sort_by_key(|f| f.raw());
-        list.dedup();
+        list.sort_by_key(|(f, _)| f.raw());
+        list.dedup_by_key(|(f, _)| *f);
+        let key: Vec<FolderId> = list.iter().map(|(f, _)| *f).collect();
         let mut m = self.by_list.lock().expect("universes");
         let next = ImplUniverseId(u32::try_from(m.len()).expect("universes"));
-        *m.entry(list).or_insert(next)
+        m.entry(key)
+            .or_insert_with(|| (next, Arc::new(UniverseImpls::new(&list))))
+            .clone()
     }
     #[must_use]
     pub fn len(&self) -> usize {
@@ -177,6 +192,24 @@ impl HeadKey {
             TyData::Param(_) => HeadKey::Param,
             _ => HeadKey::Any,
         }
+    }
+
+    /// A bucket code: rows of one trait are grouped by it (§3.3). It
+    /// orders buckets inside a table only; candidates still come out in
+    /// row order, so no raw id reaches an answer.
+    #[must_use]
+    pub fn code(self) -> u64 {
+        let (tag, payload) = match self {
+            HeadKey::Ctor(d) => (1, d.raw()),
+            HeadKey::Prim(p) => (2, u32::from(p as u8)),
+            HeadKey::Tuple(n) => (3, u32::from(n)),
+            HeadKey::TupleAny => (4, 0),
+            HeadKey::Fn => (5, 0),
+            HeadKey::SuspendFn => (6, 0),
+            HeadKey::Param => (7, 0),
+            HeadKey::Any => (8, 0),
+        };
+        (tag << 32) | u64::from(payload)
     }
 }
 
@@ -222,10 +255,21 @@ pub enum PlanStep {
 /// leaves its target as it was.
 pub fn apply_binds(
     pool: Types<'_>,
-    tables: &[(ModuleId, &ImplTable)],
+    impls: Impls<'_>,
     t: &ImplTable,
     row: usize,
     args: &mut [Option<Ty>],
+) {
+    apply_binds_in(pool, impls, t, row, args, &mut false);
+}
+
+fn apply_binds_in(
+    pool: Types<'_>,
+    impls: Impls<'_>,
+    t: &ImplTable,
+    row: usize,
+    args: &mut [Option<Ty>],
+    read_dir: &mut bool,
 ) {
     let owner = t.def[row];
     for _ in 0..t.plan[row].len() {
@@ -261,8 +305,8 @@ pub fn apply_binds(
                     })
                     .collect::<Vec<_>>(),
             );
-            if let Some(x) = project_concrete(pool, tables, *assoc, *trait_, *base, ta) {
-                args[*target as usize] = Some(normalize_concrete(pool, tables, x));
+            if let Some(x) = project_concrete(pool, impls, *assoc, *trait_, *base, ta, read_dir) {
+                args[*target as usize] = Some(norm_concrete(pool, impls, x, 0, read_dir));
                 changed = true;
             }
         }
@@ -287,19 +331,83 @@ pub struct ImplTable {
     pub origin: Vec<ImplOrigin>,
     pub rank: Vec<u64>,
     pub by_trait: BTreeMap<u32, (u32, u32)>,
+    /// The head index (§3.3): within each trait's row range, the rows
+    /// sorted by `(head key code, row)`. Built by `index`.
+    pub by_key: Vec<u32>,
 }
 
 impl ImplTable {
-    /// Rows of one trait whose head key can match `key`.
-    pub fn candidates(&self, trait_: DefId, key: HeadKey) -> impl Iterator<Item = u32> + '_ {
-        let (s, e) = self.by_trait.get(&trait_.raw()).copied().unwrap_or((0, 0));
-        (s..e).filter(move |&r| {
-            let h = self.head_key[r as usize];
-            h == key
-                || h == HeadKey::Param
-                || key == HeadKey::Any
-                || (h == HeadKey::TupleAny && matches!(key, HeadKey::Tuple(_)))
-        })
+    /// Builds the head index once the rows are in place.
+    pub fn index(&mut self) {
+        let mut perm: Vec<u32> = (0..u32::try_from(self.def.len()).expect("impls")).collect();
+        for &(s, e) in self.by_trait.values() {
+            perm[s as usize..e as usize]
+                .sort_unstable_by_key(|&r| (self.head_key[r as usize].code(), r));
+        }
+        self.by_key = perm;
+    }
+
+    /// The rows in `[s, e)` with one head key code, in row order.
+    fn bucket(&self, s: u32, e: u32, code: u64) -> &[u32] {
+        let rows = &self.by_key[s as usize..e as usize];
+        let lo = rows.partition_point(|&r| self.head_key[r as usize].code() < code);
+        let hi = rows.partition_point(|&r| self.head_key[r as usize].code() <= code);
+        &rows[lo..hi]
+    }
+
+    /// Rows of one trait whose head key can match `key`, in row order: the
+    /// exact bucket, the `Param` rows and, for a tuple, the `TupleAny`
+    /// rows. A goal whose key is `Any` sees every row of the trait.
+    #[must_use]
+    pub fn candidates(&self, trait_: DefId, key: HeadKey) -> Rows<'_> {
+        debug_assert_eq!(self.by_key.len(), self.def.len(), "ImplTable::index");
+        let Some(&(s, e)) = self.by_trait.get(&trait_.raw()) else {
+            return Rows::All(0..0);
+        };
+        if key == HeadKey::Any {
+            return Rows::All(s..e);
+        }
+        let param = if key == HeadKey::Param {
+            &[][..]
+        } else {
+            self.bucket(s, e, HeadKey::Param.code())
+        };
+        let tuple = if matches!(key, HeadKey::Tuple(_)) {
+            self.bucket(s, e, HeadKey::TupleAny.code())
+        } else {
+            &[][..]
+        };
+        Rows::Buckets([self.bucket(s, e, key.code()), param, tuple])
+    }
+}
+
+/// The rows a head-index probe returns, in row order (§3.3).
+pub enum Rows<'a> {
+    All(std::ops::Range<u32>),
+    /// Up to three buckets, each in row order, merged.
+    Buckets([&'a [u32]; 3]),
+}
+
+impl Iterator for Rows<'_> {
+    type Item = u32;
+    fn next(&mut self) -> Option<u32> {
+        match self {
+            Rows::All(r) => r.next(),
+            Rows::Buckets(b) => {
+                let mut best: Option<usize> = None;
+                for i in 0..3 {
+                    if let Some(&x) = b[i].first()
+                        && best.is_none_or(|j| x < b[j][0])
+                    {
+                        best = Some(i);
+                    }
+                }
+                let i = best?;
+                let x = b[i][0];
+                b[i] = &b[i][1..];
+                Some(x)
+            }
+        }
     }
 }
 
@@ -363,6 +471,45 @@ pub struct MemoKey {
     pub env: EnvKey,
     pub universe: Option<ImplUniverseId>,
     pub avail: u32,
+}
+
+impl MemoKey {
+    /// The universe part of a goal's key (§2.2, §3.2): every
+    /// `Instantiations` and `Methods` goal, and every goal with an open
+    /// trait argument, may read the candidate directory, so its answer
+    /// depends on the asking context's universe. Other goals key without it.
+    #[must_use]
+    pub fn universe_for(
+        pool: Types<'_>,
+        kind: GoalKind,
+        args: TyList,
+        universe: ImplUniverseId,
+    ) -> Option<ImplUniverseId> {
+        let reads = match kind {
+            GoalKind::Instantiations | GoalKind::Methods => true,
+            GoalKind::Implements | GoalKind::Project => {
+                pool.list_items(args).iter().any(|a| open_arg(pool, *a))
+            }
+        };
+        reads.then_some(universe)
+    }
+
+    /// A canonical goal's key in a context (§7.1).
+    #[must_use]
+    pub fn new(
+        pool: Types<'_>,
+        goal: CanonGoal,
+        env: EnvKey,
+        universe: ImplUniverseId,
+        avail: u32,
+    ) -> MemoKey {
+        MemoKey {
+            goal,
+            env,
+            universe: Self::universe_for(pool, goal.kind, goal.args, universe),
+            avail,
+        }
+    }
 }
 
 /// The run's global memo: completed, context-free answers only (rule TS-4).
@@ -481,8 +628,10 @@ pub struct Selection {
 pub struct SolveCx<'a> {
     pub pool: Types<'a>,
     pub env: &'a ParamEnv,
+    /// The context's impl universe (§3.2): part of the key of every goal
+    /// that may read the candidate directory.
     pub universe: ImplUniverseId,
-    pub tables: &'a [(ModuleId, &'a ImplTable)],
+    pub impls: Impls<'a>,
     pub body_memo: &'a mut BodyMemo,
     pub global: &'a GlobalMemo,
 }
@@ -770,48 +919,60 @@ impl TableSolver {
         if let TyData::Infer(v) = pool.get(self_ty) {
             return Ok(Answer::Stalled { on: vec![v] });
         }
-        let key = HeadKey::of(pool, self_ty);
+        let goal_args = pool.list_items(tref.args);
+        let open = goal_args.iter().any(|a| open_arg(pool, *a));
+        // The frame's "read the directory" bit (§3.2 debug check).
+        let mut read_dir = false;
         let mut yes = Vec::new();
         let mut maybe = false;
-        for (m, t) in cx.tables {
-            for row in t.candidates(tref.trait_, key) {
-                let r = row as usize;
-                if t.origin[r] == ImplOrigin::TupleTemplate {
-                    if matches!(pool.get(self_ty), TyData::Tuple { .. }) {
-                        yes.push((ImplRef { module: *m, row }, Vec::new(), t));
-                    }
-                    continue;
+        let cands = cx
+            .impls
+            .candidates(pool, tref.trait_, self_ty, goal_args, open, &mut read_dir);
+        for (at, t) in cands {
+            let r = at.row as usize;
+            if t.origin[r] == ImplOrigin::TupleTemplate {
+                if matches!(pool.get(self_ty), TyData::Tuple { .. }) {
+                    yes.push((at, Vec::new(), t));
                 }
-                let owner = t.def[r];
-                let mut binds = Vec::new();
-                let a = match_ty(pool, owner, t.head_self[r], self_ty, &mut binds);
-                // A bare variable among the goal's arguments learns the head's.
-                let (hs, gs) = (pool.list_items(t.head_args[r]), pool.list_items(tref.args));
-                let b = if hs.len() == gs.len() {
-                    hs.iter().zip(gs).fold(M::Yes, |acc, (h, g)| {
-                        if matches!(pool.get(*g), TyData::Infer(_)) {
-                            acc
-                        } else {
-                            both(acc, match_ty(pool, owner, *h, *g, &mut binds))
-                        }
-                    })
-                } else {
-                    M::No
-                };
-                match both(a, b) {
-                    M::Yes => {
-                        let n = usize::from(t.n_params[r]).max(binds.len());
-                        let mut fixed: Vec<Option<Ty>> =
-                            (0..n).map(|i| binds.get(i).copied().flatten()).collect();
-                        apply_binds(pool, cx.tables, t, r, &mut fixed);
-                        let args: Vec<Ty> =
-                            fixed.into_iter().map(|a| a.unwrap_or(Ty::POISON)).collect();
-                        yes.push((ImplRef { module: *m, row }, args, t));
-                    }
-                    M::Maybe => maybe = true,
-                    M::No => {}
-                }
+                continue;
             }
+            let owner = t.def[r];
+            let mut binds = Vec::new();
+            let a = match_ty(pool, owner, t.head_self[r], self_ty, &mut binds);
+            // A bare variable among the goal's arguments learns the head's.
+            let hs = pool.list_items(t.head_args[r]);
+            let b = if hs.len() == goal_args.len() {
+                hs.iter().zip(goal_args).fold(M::Yes, |acc, (h, g)| {
+                    if matches!(pool.get(*g), TyData::Infer(_)) {
+                        acc
+                    } else {
+                        both(acc, match_ty(pool, owner, *h, *g, &mut binds))
+                    }
+                })
+            } else {
+                M::No
+            };
+            match both(a, b) {
+                M::Yes => {
+                    let n = usize::from(t.n_params[r]).max(binds.len());
+                    let mut fixed: Vec<Option<Ty>> =
+                        (0..n).map(|i| binds.get(i).copied().flatten()).collect();
+                    apply_binds_in(pool, cx.impls, t, r, &mut fixed, &mut read_dir);
+                    let args: Vec<Ty> =
+                        fixed.into_iter().map(|a| a.unwrap_or(Ty::POISON)).collect();
+                    yes.push((at, args, t));
+                }
+                M::Maybe => maybe = true,
+                M::No => {}
+            }
+        }
+        if read_dir
+            && MemoKey::universe_for(pool, GoalKind::Implements, tref.args, cx.universe).is_none()
+        {
+            return Err(NotImplemented::new(
+                Stage::Body,
+                "internal error: a solver frame read the candidate directory, but its memo key has no impl universe",
+            ));
         }
         for (row, args, t) in yes {
             let mut ok = true;
@@ -945,7 +1106,7 @@ impl Solver for TableSolver {
             pool,
             env: &env,
             universe: ImplUniverseId(0),
-            tables,
+            impls: Impls::All(tables),
             body_memo: &mut memo,
             global: &global,
         };
@@ -971,7 +1132,7 @@ impl Solver for TableSolver {
         tables: &[(ModuleId, &ImplTable)],
         t: Ty,
     ) -> StageResult<Ty> {
-        Ok(normalize_concrete(pool, tables, t))
+        Ok(normalize_concrete(pool, Impls::All(tables), t))
     }
 }
 
@@ -980,25 +1141,28 @@ impl Solver for TableSolver {
 /// has proven the goal, so a head match is enough. A projection on a
 /// parameter or a variable, or one no impl binds, is kept.
 #[must_use]
-pub fn normalize_concrete(pool: Types<'_>, tables: &[(ModuleId, &ImplTable)], t: Ty) -> Ty {
-    norm_concrete(pool, tables, t, 0)
+pub fn normalize_concrete(pool: Types<'_>, impls: Impls<'_>, t: Ty) -> Ty {
+    norm_concrete(pool, impls, t, 0, &mut false)
 }
 
-fn norm_concrete(pool: Types<'_>, tables: &[(ModuleId, &ImplTable)], t: Ty, depth: u32) -> Ty {
+fn norm_list(
+    pool: Types<'_>,
+    impls: Impls<'_>,
+    l: TyList,
+    depth: u32,
+    read_dir: &mut bool,
+) -> TyList {
+    let mut out = Vec::with_capacity(pool.list_items(l).len());
+    for x in pool.list_items(l).iter().copied() {
+        out.push(norm_concrete(pool, impls, x, depth, read_dir));
+    }
+    pool.list(&out)
+}
+
+fn norm_concrete(pool: Types<'_>, impls: Impls<'_>, t: Ty, depth: u32, read_dir: &mut bool) -> Ty {
     if !pool.has_assoc(t) || depth > 64 {
         return t;
     }
-    let go = |x: Ty| norm_concrete(pool, tables, x, depth);
-    let list = |l: TyList| {
-        pool.list(
-            &pool
-                .list_items(l)
-                .iter()
-                .copied()
-                .map(|x| norm_concrete(pool, tables, x, depth))
-                .collect::<Vec<_>>(),
-        )
-    };
     let d = match pool.get(t) {
         TyData::Assoc {
             assoc,
@@ -1006,9 +1170,10 @@ fn norm_concrete(pool: Types<'_>, tables: &[(ModuleId, &ImplTable)], t: Ty, dept
             self_ty,
             args,
         } => {
-            let (s, a) = (go(self_ty), list(args));
-            if let Some(x) = project_concrete(pool, tables, assoc, trait_, s, a) {
-                return norm_concrete(pool, tables, x, depth + 1);
+            let s = norm_concrete(pool, impls, self_ty, depth, read_dir);
+            let a = norm_list(pool, impls, args, depth, read_dir);
+            if let Some(x) = project_concrete(pool, impls, assoc, trait_, s, a, read_dir) {
+                return norm_concrete(pool, impls, x, depth + 1, read_dir);
             }
             TyData::Assoc {
                 assoc,
@@ -1019,22 +1184,22 @@ fn norm_concrete(pool: Types<'_>, tables: &[(ModuleId, &ImplTable)], t: Ty, dept
         }
         TyData::Adt { def, args } => TyData::Adt {
             def,
-            args: list(args),
+            args: norm_list(pool, impls, args, depth, read_dir),
         },
         TyData::Tuple { elems, rest } => TyData::Tuple {
-            elems: list(elems),
-            rest: rest.map(go),
+            elems: norm_list(pool, impls, elems, depth, read_dir),
+            rest: rest.map(|r| norm_concrete(pool, impls, r, depth, read_dir)),
         },
-        TyData::Option(i) => TyData::Option(go(i)),
-        TyData::Mut(i) => TyData::Mut(go(i)),
+        TyData::Option(i) => TyData::Option(norm_concrete(pool, impls, i, depth, read_dir)),
+        TyData::Mut(i) => TyData::Mut(norm_concrete(pool, impls, i, depth, read_dir)),
         TyData::Fn {
             params,
             result,
             row,
             suspends,
         } => TyData::Fn {
-            params: list(params),
-            result: go(result),
+            params: norm_list(pool, impls, params, depth, read_dir),
+            result: norm_concrete(pool, impls, result, depth, read_dir),
             row,
             suspends,
         },
@@ -1044,8 +1209,11 @@ fn norm_concrete(pool: Types<'_>, tables: &[(ModuleId, &ImplTable)], t: Ty, dept
             bindings,
         } => TyData::TraitValue {
             def,
-            args: list(args),
-            bindings: bindings.into_iter().map(|(k, b)| (k, go(b))).collect(),
+            args: norm_list(pool, impls, args, depth, read_dir),
+            bindings: bindings
+                .into_iter()
+                .map(|(k, b)| (k, norm_concrete(pool, impls, b, depth, read_dir)))
+                .collect(),
         },
         _ => return t,
     };
@@ -1053,14 +1221,16 @@ fn norm_concrete(pool: Types<'_>, tables: &[(ModuleId, &ImplTable)], t: Ty, dept
 }
 
 /// One projection step on a concrete base: a trait value's binding, or
-/// the binding of the impl whose head matches.
+/// the binding of the impl whose head matches. Trait arguments left
+/// implicit (`Self::Out`) are open, so the directory is read.
 fn project_concrete(
     pool: Types<'_>,
-    tables: &[(ModuleId, &ImplTable)],
+    impls: Impls<'_>,
     assoc: DefId,
     trait_: DefId,
     self_ty: Ty,
     args: TyList,
+    read_dir: &mut bool,
 ) -> Option<Ty> {
     let base = match pool.get(self_ty) {
         TyData::Mut(i) => i,
@@ -1072,36 +1242,36 @@ fn project_concrete(
     if let TyData::TraitValue { bindings, .. } = pool.get(base) {
         return bindings.iter().find(|(k, _)| *k == assoc).map(|(_, b)| *b);
     }
-    let key = HeadKey::of(pool, base);
     let goal_args = pool.list_items(args);
-    for (_, t) in tables {
-        for row in t.candidates(trait_, key) {
-            let r = row as usize;
-            let Some((_, b)) = t.assoc[r].iter().find(|(k, _)| *k == assoc) else {
-                continue;
-            };
-            let owner = t.def[r];
-            let mut binds = Vec::new();
-            if match_ty(pool, owner, t.head_self[r], base, &mut binds) != M::Yes {
-                continue;
-            }
-            // `Self::Out` may leave the trait's arguments implicit.
-            let head_args = pool.list_items(t.head_args[r]);
-            if !goal_args.is_empty()
-                && (goal_args.len() != head_args.len()
-                    || head_args
-                        .iter()
-                        .zip(goal_args)
-                        .any(|(h, g)| match_ty(pool, owner, *h, *g, &mut binds) != M::Yes))
-            {
-                continue;
-            }
-            return Some(pool.subst(*b, &|p: ParamRef| {
-                (p.owner == owner)
-                    .then(|| binds.get(p.index as usize).copied().flatten())
-                    .flatten()
-            }));
+    let open = goal_args.iter().any(|a| open_arg(pool, *a))
+        || (goal_args.is_empty() && impls.implicit_args(trait_, 0));
+    let cands = impls.candidates(pool, trait_, base, goal_args, open, read_dir);
+    for (at, t) in cands {
+        let r = at.row as usize;
+        let Some((_, b)) = t.assoc[r].iter().find(|(k, _)| *k == assoc) else {
+            continue;
+        };
+        let owner = t.def[r];
+        let mut binds = Vec::new();
+        if match_ty(pool, owner, t.head_self[r], base, &mut binds) != M::Yes {
+            continue;
         }
+        // `Self::Out` may leave the trait's arguments implicit.
+        let head_args = pool.list_items(t.head_args[r]);
+        if !goal_args.is_empty()
+            && (goal_args.len() != head_args.len()
+                || head_args
+                    .iter()
+                    .zip(goal_args)
+                    .any(|(h, g)| match_ty(pool, owner, *h, *g, &mut binds) != M::Yes))
+        {
+            continue;
+        }
+        return Some(pool.subst(*b, &|p: ParamRef| {
+            (p.owner == owner)
+                .then(|| binds.get(p.index as usize).copied().flatten())
+                .flatten()
+        }));
     }
     None
 }
@@ -1121,10 +1291,42 @@ mod tests {
     fn universes_dedup_sorted_lists() {
         let u = ImplUniverses::default();
         let f = FolderId::from_raw;
-        let a = u.intern(&[f(2), f(1)]);
-        assert_eq!(a, u.intern(&[f(1), f(2), f(2)]));
-        assert_ne!(a, u.intern(&[f(1)]));
+        let x = super::FolderImpls::default();
+        let a = u.intern(&[(f(2), &x), (f(1), &x)]).0;
+        assert_eq!(a, u.intern(&[(f(1), &x), (f(2), &x), (f(2), &x)]).0);
+        assert_ne!(a, u.intern(&[(f(1), &x)]).0);
         assert_eq!(u.len(), 2);
+    }
+
+    #[test]
+    fn head_index_returns_matching_rows_in_row_order() {
+        let tr = DefId::from_raw(5);
+        let mut t = ImplTable::default();
+        let keys = [
+            HeadKey::Prim(Prim::I32),
+            HeadKey::Param,
+            HeadKey::Tuple(2),
+            HeadKey::Prim(Prim::Bool),
+            HeadKey::TupleAny,
+            HeadKey::Prim(Prim::I32),
+        ];
+        for k in keys {
+            t.trait_.push(tr);
+            t.head_key.push(k);
+            t.def.push(DefId::from_raw(6));
+        }
+        t.by_trait.insert(tr.raw(), (0, 6));
+        t.index();
+        let rows = |k| t.candidates(tr, k).collect::<Vec<_>>();
+        assert_eq!(rows(HeadKey::Prim(Prim::I32)), [0, 1, 5]);
+        assert_eq!(rows(HeadKey::Tuple(2)), [1, 2, 4]);
+        assert_eq!(rows(HeadKey::Param), [1]);
+        assert_eq!(rows(HeadKey::Any), [0, 1, 2, 3, 4, 5]);
+        assert!(
+            t.candidates(DefId::from_raw(9), HeadKey::Any)
+                .next()
+                .is_none()
+        );
     }
 
     #[test]
@@ -1173,17 +1375,18 @@ mod tests {
         t.origin.push(ImplOrigin::Written);
         t.rank.push(0);
         t.by_trait.insert(tr.raw(), (0, 1));
+        t.index();
         let m = ModuleId::from_raw(0);
         let tables = [(m, &t)];
         let env = ParamEnv::default();
         let global = GlobalMemo::default();
         let mut body = BodyMemo::default();
-        let u = ImplUniverses::default().intern(&[]);
+        let (u, _) = ImplUniverses::default().intern(&[]);
         let mut cx = SolveCx {
             pool: p,
             env: &env,
             universe: u,
-            tables: &tables,
+            impls: super::Impls::All(&tables),
             body_memo: &mut body,
             global: &global,
         };
@@ -1223,5 +1426,291 @@ mod tests {
         global.publish(key, e);
         let e2 = MemoEntry { answer: 2, ..e };
         assert_eq!(global.publish(key, e2).answer, 1, "first writer wins");
+    }
+
+    /// Appends one impl row of `trait_` (rows of one trait stay together).
+    fn push_row(
+        t: &mut ImplTable,
+        pool: Types<'_>,
+        (trait_, def): (DefId, DefId),
+        self_ty: Ty,
+        args: TyList,
+        (n_params, plan): (u8, Vec<super::PlanStep>),
+    ) {
+        let n = u32::try_from(t.def.len()).expect("rows");
+        t.by_trait
+            .entry(trait_.raw())
+            .and_modify(|e| e.1 = n + 1)
+            .or_insert((n, n + 1));
+        t.trait_.push(trait_);
+        t.def.push(def);
+        t.head_key.push(HeadKey::of(pool, self_ty));
+        t.arg_key.push([HeadKey::Any; 2]);
+        t.n_params.push(n_params);
+        t.head_self.push(self_ty);
+        t.head_args.push(args);
+        t.plan.push(plan);
+        t.assoc.push(vec![]);
+        t.origin.push(ImplOrigin::Written);
+        t.rank.push(u64::from(n));
+    }
+
+    /// §14.2 memo invariance, §3.2's A/B pair: modules `a` and `b` see the
+    /// same traits but different closures, and ask one open goal,
+    /// `Receiver: Pick[?0]`. Only `a`'s closure holds the argument-owned
+    /// `impl Pick[Product] for Receiver`. Each gets its own answer in both
+    /// orders and on several threads, and their keys differ by universe.
+    #[test]
+    fn two_closures_asking_one_open_goal_keep_their_own_answers() {
+        use super::{
+            Answer, EnvKey, Evidence, FolderImpls, ImplRef, ImplView, Impls, OwnerMap, folder_table,
+        };
+        use hd_base::PathId;
+        use hd_intern::{PathKind, PathTable};
+
+        let gp = InternPool::new();
+        let g = gp.types();
+        let paths = PathTable::new();
+        let pkg = paths.intern(PathId::NONE, PathKind::Package, "pkg");
+        let mods = ["base", "prod", "a", "b"].map(|m| paths.intern(pkg, PathKind::Module, m));
+        let item =
+            |m: PathId, name: &str| DefId::from_raw(paths.intern(m, PathKind::Item, name).raw());
+        let (pick, receiver, product) = (
+            item(mods[0], "Pick"),
+            item(mods[0], "Receiver"),
+            item(mods[1], "Product"),
+        );
+        let f = FolderId::from_raw;
+        let mut owners = OwnerMap::default();
+        for (i, m) in (0u32..).zip(mods) {
+            owners.insert(m, f(i));
+        }
+        let adt = |def| {
+            g.intern_ty(&TyData::Adt {
+                def,
+                args: TyList::EMPTY,
+            })
+        };
+        let (recv_ty, prod_ty) = (adt(receiver), adt(product));
+        let mut t = ImplTable::default();
+        let def = DefId::from_raw(paths.intern(mods[1], PathKind::Impl, "Pick").raw());
+        push_row(
+            &mut t,
+            g,
+            (pick, def),
+            recv_ty,
+            g.list(&[prod_ty]),
+            (0, vec![]),
+        );
+        t.index();
+        let prod = FolderImpls::new(f(1), t, g, &paths, &owners);
+        assert_eq!(prod.arg_impls, [0], "owned only through `Product`");
+        assert!(prod.unowned.is_empty());
+        let empty = FolderImpls::default();
+        let universes = ImplUniverses::default();
+        let global = GlobalMemo::default();
+
+        // One context: its closure's folders, one open goal.
+        let ask = |closure: &[u32]| -> (Answer, MemoKey) {
+            let mut folders: Vec<Option<&FolderImpls>> = vec![None; 4];
+            let mut members = Vec::new();
+            for &c in closure {
+                let fi = if c == 1 { &prod } else { &empty };
+                folders[c as usize] = Some(fi);
+                if fi.in_universe() {
+                    members.push((f(c), fi));
+                }
+            }
+            let (universe, extra) = universes.intern(&members);
+            let arity = |_: DefId| 1;
+            let view = ImplView {
+                paths: &paths,
+                owners: &owners,
+                own: None,
+                folders: &folders,
+                universe,
+                extra: &extra,
+                arity: &arity,
+            };
+            let local = LocalPool::new();
+            let p = Types::with_local(&gp, &local);
+            let v = InferTable::default().fresh(p, VarKind::General);
+            let tref = TraitRef {
+                trait_: pick,
+                self_ty: recv_ty,
+                args: p.list(&[v]),
+            };
+            let env = ParamEnv::default();
+            let mut body = BodyMemo::default();
+            let mut cx = SolveCx {
+                pool: p,
+                env: &env,
+                universe,
+                impls: Impls::Owned(&view),
+                body_memo: &mut body,
+                global: &global,
+            };
+            let goal = Goal::Implements {
+                tref,
+                bindings: vec![],
+                mut_: false,
+            };
+            let answer = TableSolver
+                .solve(&mut cx, &goal, &mut Fuel::new(100))
+                .expect("solves");
+            let (cg, _) = canonicalize(p, GoalKind::Implements, tref, false);
+            (answer, MemoKey::new(p, cg, EnvKey::EMPTY, universe, 0))
+        };
+        let a = || match ask(&[0, 1, 2]) {
+            (
+                Answer::Holds {
+                    evidence: Evidence::Impl { row, .. },
+                    learned,
+                },
+                key,
+            ) => {
+                let at = ImplRef {
+                    module: folder_table(f(1)),
+                    row: 0,
+                };
+                assert_eq!(row, at);
+                assert_eq!(learned.iter().map(|l| l.1).collect::<Vec<_>>(), [prod_ty]);
+                key
+            }
+            other => panic!("`a` sees the impl: {other:?}"),
+        };
+        let b = || match ask(&[0, 3]) {
+            (Answer::Fails(_), key) => key,
+            other => panic!("`b` does not: {other:?}"),
+        };
+        let (ka, kb) = (a(), b());
+        assert_eq!((b(), a()), (kb, ka), "the other order");
+        assert!(ka.universe.is_some() && kb.universe.is_some());
+        assert_ne!(ka, kb, "the universe keeps the two answers apart");
+        assert_eq!(ka.goal, kb.goal);
+        // Equal arg-impl folders share one universe: `a` without its own
+        // (empty) folder keys the same.
+        assert_eq!(ask(&[0, 1]).1, ka);
+        std::thread::scope(|s| {
+            for i in 0..8 {
+                let (a, b) = (&a, &b);
+                s.spawn(move || {
+                    let keys = if i % 2 == 0 {
+                        (a(), b())
+                    } else {
+                        let kb = b();
+                        (a(), kb)
+                    };
+                    assert_eq!(keys, (ka, kb));
+                });
+            }
+        });
+    }
+
+    /// §3.2's debug check: a goal whose arguments are all known keys
+    /// without a universe, so a frame of it that reads the directory (here
+    /// through a `Bind` step whose projection leaves the trait's argument
+    /// implicit) is an internal error, not a silently shared answer.
+    #[test]
+    fn a_directory_read_under_a_key_without_a_universe_is_an_internal_error() {
+        use super::{FolderImpls, ImplView, Impls, MemoKey, OwnerMap, PlanStep, UniverseImpls};
+        use crate::pool::ParamRef;
+        use hd_base::PathId;
+        use hd_intern::{PathKind, PathTable};
+
+        let gp = InternPool::new();
+        let g = gp.types();
+        let paths = PathTable::new();
+        let pkg = paths.intern(PathId::NONE, PathKind::Package, "pkg");
+        let base = paths.intern(pkg, PathKind::Module, "base");
+        let item = |name: &str| DefId::from_raw(paths.intern(base, PathKind::Item, name).raw());
+        let (pick, sup, item_ty, receiver, product, wrap, imp) = (
+            item("Pick"),
+            item("Sup"),
+            item("Sup.Item"),
+            item("Receiver"),
+            item("Product"),
+            item("Wrap"),
+            item("impl"),
+        );
+        let mut owners = OwnerMap::default();
+        owners.insert(base, FolderId::from_raw(0));
+        let adt = |def, args: &[Ty]| {
+            g.intern_ty(&TyData::Adt {
+                def,
+                args: g.list(args),
+            })
+        };
+        let param = g.intern_ty(&TyData::Param(ParamRef {
+            owner: imp,
+            index: 0,
+        }));
+        // `impl[I, Q] Pick[Product] for Wrap[I]` where `I < Sup[Item = Q]`,
+        // the bound leaving `Sup`'s argument implicit.
+        let mut t = ImplTable::default();
+        let bind = PlanStep::Bind {
+            param: 0,
+            trait_: sup,
+            args: TyList::EMPTY,
+            assoc: item_ty,
+            target: 1,
+        };
+        push_row(
+            &mut t,
+            g,
+            (pick, imp),
+            adt(wrap, &[param]),
+            g.list(&[adt(product, &[])]),
+            (2, vec![bind]),
+        );
+        t.index();
+        let fi = FolderImpls::new(FolderId::from_raw(0), t, g, &paths, &owners);
+        let folders = [Some(&fi)];
+        let extra = UniverseImpls::default();
+        let arity = |d: DefId| usize::from(d == sup || d == pick);
+        let (universe, _) = ImplUniverses::default().intern(&[]);
+        let view = ImplView {
+            paths: &paths,
+            owners: &owners,
+            own: None,
+            folders: &folders,
+            universe,
+            extra: &extra,
+            arity: &arity,
+        };
+        let tref = TraitRef {
+            trait_: pick,
+            self_ty: adt(wrap, &[adt(receiver, &[])]),
+            args: g.list(&[adt(product, &[])]),
+        };
+        assert_eq!(
+            MemoKey::universe_for(g, GoalKind::Implements, tref.args, universe),
+            None,
+            "known arguments key without a universe"
+        );
+        assert_eq!(
+            MemoKey::universe_for(g, GoalKind::Instantiations, TyList::EMPTY, universe),
+            Some(universe)
+        );
+        let env = ParamEnv::default();
+        let global = GlobalMemo::default();
+        let mut body = BodyMemo::default();
+        let mut cx = SolveCx {
+            pool: g,
+            env: &env,
+            universe,
+            impls: Impls::Owned(&view),
+            body_memo: &mut body,
+            global: &global,
+        };
+        let goal = Goal::Implements {
+            tref,
+            bindings: vec![],
+            mut_: false,
+        };
+        let err = TableSolver
+            .solve(&mut cx, &goal, &mut Fuel::new(100))
+            .expect_err("internal error");
+        assert!(err.what.starts_with("internal error"), "{}", err.what);
     }
 }

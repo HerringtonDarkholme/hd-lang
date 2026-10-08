@@ -19,26 +19,34 @@ use hd_tir::ir::{
     BodyKind, Callee, Coercion, LoopMark, NONE, Ref, SubMark, Tag, TirBuilder, TirSink, local_flags,
 };
 use hd_types::solver::{
-    Answer, BodyMemo, GlobalMemo, Goal, ImplTable, ImplUniverseId, ParamEnv, SolveCx, Solver,
+    Answer, BodyMemo, GlobalMemo, Goal, ImplTable, ImplView, Impls, ParamEnv, SolveCx, Solver,
     TraitRef,
 };
 use hd_types::{InferTable, ParamRef, RowId, Ty, TyData, TyList, VarKind};
 
 /// What a body sees: the run's tables, its module's scope, the items of
-/// its closure and the impl tables of its impl universe.
+/// its closure and its view of the impls (owner tables and its impl
+/// universe, trait-solver.md §3.2).
 pub struct BodyCx<'a> {
     pub names: Names<'a>,
     pub src: Src<'a>,
     pub scope: &'a ModuleScope,
     pub lookup: &'a Lookup<'a>,
-    pub impls: &'a [(ModuleId, &'a ImplTable)],
-    pub universe: ImplUniverseId,
+    pub impls: &'a ImplView<'a>,
     pub global: &'a GlobalMemo,
     pub solver: &'a dyn Solver,
     /// The methods of the closure by name, built on first use.
     pub methods: std::cell::OnceCell<crate::MethodIndex>,
     /// The module's top-level bindings and its bodies' init facts.
     pub init: std::cell::RefCell<crate::init::ModuleInit>,
+}
+
+impl BodyCx<'_> {
+    /// The table an impl row of a solver answer lives in.
+    #[must_use]
+    pub fn impl_table(&self, m: ModuleId) -> Option<&ImplTable> {
+        Impls::Owned(self.impls).table(m)
+    }
 }
 
 pub(crate) fn unsupported<T>(what: impl Into<String>) -> StageResult<T> {
@@ -830,8 +838,8 @@ impl Ck<'_, '_> {
         let mut scx = SolveCx {
             pool: self.pool(),
             env: &self.env,
-            universe: self.cx.universe,
-            tables: self.cx.impls,
+            universe: self.cx.impls.universe,
+            impls: Impls::Owned(self.cx.impls),
             body_memo: &mut self.memo,
             global: self.cx.global,
         };

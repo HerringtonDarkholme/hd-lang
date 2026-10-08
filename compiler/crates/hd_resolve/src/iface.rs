@@ -1101,6 +1101,7 @@ pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
         t.rank
             .push(u64::try_from(rank.0 & u128::from(u64::MAX)).expect("rank"));
     }
+    t.index();
     t
 }
 

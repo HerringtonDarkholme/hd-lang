@@ -1528,10 +1528,8 @@ impl Ck<'_, '_> {
                         Evidence::Impl { row, .. } => {
                             let def = self
                                 .cx
-                                .impls
-                                .iter()
-                                .find(|(m, _)| *m == row.module)
-                                .map_or(DefId::NONE, |(_, t)| t.def[row.row as usize]);
+                                .impl_table(row.module)
+                                .map_or(DefId::NONE, |t| t.def[row.row as usize]);
                             (ChoiceKind::Impl, def.raw())
                         }
                         _ => (ChoiceKind::Builtin, 0),
@@ -2156,7 +2154,7 @@ impl Ck<'_, '_> {
                 },
             ..
         } = self.solve(tref)?
-            && let Some((_, table)) = self.cx.impls.iter().find(|(m, _)| *m == row.module)
+            && let Some(table) = self.cx.impl_table(row.module)
         {
             let r = row.row as usize;
             let impl_def = table.def[r];
@@ -2254,10 +2252,8 @@ impl Ck<'_, '_> {
             Some(Evidence::Impl { row, .. }) => {
                 let def = self
                     .cx
-                    .impls
-                    .iter()
-                    .find(|(m, _)| *m == row.module)
-                    .map_or(DefId::NONE, |(_, t)| t.def[row.row as usize]);
+                    .impl_table(row.module)
+                    .map_or(DefId::NONE, |t| t.def[row.row as usize]);
                 (ChoiceKind::Impl, def.raw())
             }
             Some(Evidence::Bound { index, .. }) => (ChoiceKind::Bound, u32::from(*index)),
