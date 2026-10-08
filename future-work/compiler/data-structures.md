@@ -255,10 +255,10 @@ methods only.
 | --- | --- | --- | --- |
 | strings (`Symbol`) | identifiers, module and package names, literal text that types name (string prefixes, keys) | `ShardedInterner` | process |
 | stable paths (`PathId`) | the trie of §3.2 | `ShardedInterner` | process |
-| InternPool (`Index`) | types with no inference variables, rows, lists and constant values | `ShardedInterner` with four columns (§3.9.2) | process |
-| body-local pool | types holding `InferVar`s or rigid placeholders, in the InternPool's encoding | none: owned by one body; not hash-consed | body |
+| InternPool (`Ty`) | types with no inference variables, rows, lists and constant values | one `Cols`, one append lock, 64 dedup shards, a per-thread read-through table (§3.9.2) | process |
+| body-local pool | types holding `InferVar`s or rigid placeholders, in the InternPool's columns | hash-consed through a body-local table; one fresh pool per body, dropped with it | body |
 
-**One generic (mine).** All three global interners are one structure:
+**One generic (mine).** The string and path interners are one structure:
 
 ```rust
 pub struct ShardedInterner<C: Columns> {
@@ -266,14 +266,20 @@ pub struct ShardedInterner<C: Columns> {
     index:  [CachePadded<Mutex<HashTable<(u32 /*hash*/, u32 /*id*/)>>>; 64],
 }
 struct Local<C> { cols: C /* AppendVecs */, len: AtomicU32 }
-// An id packs the owner and the row: bits 25..30 owner thread, 0..24 row.
-// Bit 31 is reserved: the pool uses it for body-local types, TIR for constants.
+// A string/path id packs the owner and the row: bits 25..30 owner thread, 0..24 row.
+// The type pool does not use owner bits: a global `Ty` is a plain row, and a
+// body-local index sets bit 31, a 4-bit pool generation in bits 27..30, and
+// the row in bits 0..26 (§3.9.2). The generation overlaps the tier bits
+// 29..30 the design reserved for carry and module rows — an open layout
+// decision. Bit 31 stays reserved for TIR constants.
 ```
 
 1. **Lookup** hashes the content, locks the shard `hash % 64`, and probes
    with the stored 32-bit hash before comparing content.
 2. **Miss**: append to the calling thread's columns, then publish
-   `len` with `Release`, then insert into the shard and unlock.
+   `len` with `Release`, then insert into the shard and unlock. The type
+   pool has no per-thread columns: a miss appends to the one `Cols`
+   under its single append lock, which keeps the columns row-aligned.
 3. **Read** of an existing ID takes no lock. An ID is obtained only from
    the index (after its mutex's acquire) or from data published after it,
    so the item is visible. `AppendVec` never moves an item (§3.9.4).
@@ -293,7 +299,12 @@ struct Local<C> { cols: C /* AppendVecs */, len: AtomicU32 }
    built at compile time into `static` columns of owner 0, so a fresh
    process allocates nothing for them (the `startup` target) and their
    IDs are constants, such as `Ty::I32`. A lookup tries this static table
-   (a perfect hash) before it touches a shard.
+   (a perfect hash) before it touches a shard. The type pool is the
+   exception: it has no static table and no per-owner columns.
+   `InternPool::default` interns the primitives in `Prim::ALL` order,
+   then `Never`, `Poison`, the empty list and the empty row, so
+   `Ty::I32` and friends are still constants, but from a fixed
+   loop, not from compiled columns.
 6. **Per-worker read-through table (systems review, finding 9).** Hits
    took the shard lock too, and the hottest keys (`i32`, `string`,
    `Option[i32]`) land on fixed shards, so 8 workers passed a few cache
@@ -658,26 +669,28 @@ collection and emission read types and constants under substitution.
 Reads are random access by `Index`, one item at a time; the type sweep
 and the TIR codec read many items in column order.
 
-**Layout.** Four columns per owner thread, from §3.3's `ShardedInterner`:
+**Layout.** One `Cols`, shared by every thread (no per-owner columns):
 
 ```rust
 pub struct PoolCols {
     tag:   AppendVec<PoolTag>,   // 1 B
     data:  AppendVec<u32>,       // 4 B: inline payload, or an offset into `extra`
-    meta:  AppendVec<Meta>,      // 4 B: flags (8 bits) and node count (24 bits)
+    meta:  AppendVec<u32>,       // flags only (HAS_INFER | HAS_POISON | HAS_PARAM | HAS_ASSOC | HAS_CANON)
     extra: AppendVec<u32>,       // variable parts
+    tys:   AppendVec<Ty>,        // list items, lent as `&[Ty]`
     bytes: AppendVec<u8>,        // string and byte constants
 }
-#[repr(transparent)] pub struct Meta(u32);   // HAS_INFER | HAS_POISON | HAS_PARAM | HAS_ROWVAR | HAS_ASSOC | HAS_LOCAL | IS_CONST
-pub struct Index(u32);   // bit 31 clear: global, bits 25..30 owner (63 reserved), bits 0..24 row
-                         // bit 31 set: not global, bits 29..30 tier (local, carry, module), bits 0..28 row
+#[repr(transparent)] pub struct Meta(u32);   // flags only: no node count is stored
+pub struct Ty(u32);   // a plain global row; bit 31 clear
+                      // bit 31 set: body-local; bits 27..30 pool generation, bits 0..26 row
 const _: () = assert!(core::mem::size_of::<PoolTag>() == 1);
 ```
 
-`Meta` holds what type-checking.md §1.4 needs in one load: the flags,
-and the node count that the `type-too-large` limit reads (§4.15),
-saturated at 2^24 − 1. It is computed from the children's `meta` at
-intern time.
+`Meta` holds what type-checking.md §1.4 needs in one load: the flags.
+The designed node count for the `type-too-large` limit (§4.15) is not
+built: nothing stores it, and the limit reads it nowhere yet. `meta` is
+computed from the children's flags at intern time. The global pool
+rejects `HAS_INFER`: building a variable-holding type against it panics.
 
 | Tag | `data` | `extra` record | Local only |
 | --- | --- | --- | --- |
@@ -691,7 +704,7 @@ intern time.
 | `Fn` | offset | `[params TyList, result Ty, row RowId, flags]`; flags bit 0: suspends | |
 | `TraitValue` | offset | `[DefId, args TyList, bindings AssocList]` | |
 | `Assoc` | offset | `[assoc DefId, self Ty, trait args TyList]`; the trait is the item's declaring trait | |
-| `TyList` | offset | `[len, Ty × len]` | |
+| `TyList` | offset | `[start, len]` into `tys` | |
 | `AssocList` | offset | `[len, (item DefId, Ty) × len]`, sorted by the item's path hash at intern | |
 | `Row` | offset | `[nkeys, key Ty × nkeys, nparams, RowParamRef × nparams, npending, (RowVar, subst TyList, minus RowId) × npending]` | pending part only: carry or module tier |
 | `Int` | offset | `[ty, low word, high word]` | |
@@ -706,39 +719,46 @@ intern time.
   the type in `extra`, which left no word for the offset. Every typed
   constant now keeps `[ty, ...]` in `extra`; only untyped `Bool`, `Unit`
   and `Char` are inline.
-- **Lists are items.** A `TyList` is interned like a type, so `Adt`
-  equality is a compare of two words, and every `extra` record has a
-  fixed width (2 to 4 words) except the list and row items themselves.
+- **Lists are items in their own column.** A `TyList`'s items live in
+  the typed `tys` column and its `extra` record is `[start, len]`, so
+  `list_items` lends `&[Ty]` with no cast (lending `&[Ty]` from `u32`
+  words would need unsafe outside `AppendVec`). `Adt` equality stays a
+  compare of two words. Every `extra` record has a fixed width except
+  rows and trait values, which carry their counts inside.
 - **Items are fixed size**: 9 bytes in the tag, data and meta columns,
   plus `extra` words for compound items, plus an 8-byte index entry.
   Measured shapes give about 20 bytes of columns per type and 28 with its
   index entry; `TyList`s are shared, which is why the average is low.
-- **No per-thread copies.** Threads share one pool. Only appending is per
-  thread, which is Zig 0.14's scheme, not Vx's merge.
+- **No per-thread copies.** Threads share one pool. Appends serialize on
+  the one append lock, which is Zig 0.14's scheme, not Vx's merge.
 - Primitives, `Poison`, `Never`, `void`, the empty `TyList`, the empty
-  row, `true`, `false` and `()` are pre-seeded at fixed indices (§3.3).
+  row, `true`, `false` and `()` are pre-seeded in a fixed order at
+  `InternPool::default` (§3.3).
 
-**The body-local pool (mine: not hash-consed).** It has the same five
-columns in the worker's arena, but no index: `mk` of a type with a
-variable always appends. So rollback is truncation of five columns, with
-no hash table to repair, and equality of local types is structural, which
-unification does anyway. A local type that becomes variable-free is
-interned globally by `resolve`, which memoizes per body in a
-`resolved: Vec<Ty>` column parallel to the local rows (`NONE` until
-resolved).
+**The body-local pool (mine: hash-consed).** It has the same columns
+in the checking call's arena, plus a body-local dedup table: interning
+the same content twice returns the same index. It must be hash-consed
+because the checker compares variable-holding types with `==`. A local
+type that becomes variable-free is interned globally by `resolve`. The
+pool is never truncated on rollback: trials truncate the TIR, the
+diagnostics, the pending obligations and the union-find trail, never the
+pool, so an index stays valid after a rollback. One body owns one fresh
+pool (`LocalPool::new` per `check_fn`, `check_default`, `check_init`),
+not one pool per worker; it is dropped with the body.
 
-**Identity and indexing.** `Index` bit 31 marks a non-global item, and
-bits 29..30 name its tier: the body-local pool, a body's carry, or the
-module tier of pending rows (§3.4). Global items carry an owner thread
-in bits 25..30. Owner 63 is reserved: a TIR constant `Ref` with those
-bits set is an open-literal placeholder, replaced at `finish`
-([checking-and-tir.md](checking-and-tir.md#the-builder-api), builder). A `Ty`, `TyList`, `RowId`
-or constant is an `Index` whose tag the typed accessor asserts in debug
+**Identity and indexing.** A global `Ty` is a plain row. A body-local
+index sets bit 31, carries its pool's 4-bit generation in bits 27..30,
+and the row in bits 0..26. Reading an index against another body's pool
+fails loudly on the generation. The generation overlaps the tier bits
+29..30 the design reserved for carry and module rows — recorded here as
+an open layout decision. Owner 63 needs no reservation: there are no
+owner bits. A `Ty`, `TyList`, `RowId`
+or constant is an index whose tag the typed accessor asserts in debug
 builds.
 
 **Lifetime and growth.** The global pool lives for the process. Each
-owner's `AppendVec` grows by doubling chunks (§3.9.4) and never moves an
-item. The local pool is truncated to empty at each body's start.
+append takes the one append lock and never moves an item. A body's local
+pool is dropped at its end; nothing truncates it mid-body.
 
 **Determinism.** `Index` values depend on thread order. They never reach
 output: printing goes through stable paths, hashing through the canonical
@@ -1712,11 +1732,18 @@ section fixes their storage.
   type-checking.md §13 had its own. They hold the same rows, so the
   builder owns one set and the checker reads it; the checker's flags are
   the TIR `local_flags` column, written through the trail.
+- **Union-find: union by rank, undone by the trail.** Links, rank
+  changes and kind changes are each trailed (`Parent`, `Rank`, `Kind`
+  undo entries, plus `Bind`/`Rebind` for bindings), and a rollback
+  restores each one exactly. There is deliberately no path compression:
+  lookups are reads (`root` takes `&self` and writes nothing), and each
+  compressed link would need its own trail entry.
 - **`Goal` at 16 bytes** is a tag plus three `u32` operands (a type, a
   trait, an interned argument list); its size is asserted.
 - **Checkpoint.** type-checking.md §3.5's `Checkpoint` holds the trail
   length, the output and obligation lengths, and a `TirCheckpoint`
-  (§3.9.5). The local pool's length is in the latter.
+  (§3.9.5). The local pool has no length in either: it is never
+  truncated, so an index survives a rollback.
 
 **Identity.** All IDs are numbered from 0 per body (§6.5 rule 2).
 

@@ -99,9 +99,9 @@ than owning a second solver
 
 **Rule TS-1. The solver is a pure function of its memo key.** An answer
 depends only on the canonical goal, the parameter environment, the local
-impls visible at the asking point, the availability key (for `Methods`),
-the impl universe of the asking context (for `Instantiations` and
-`Methods`, section 3.2), and the run's frozen interfaces. Section 7.1 makes each of these part of
+impls visible at the asking point, the trait list (for `Methods`),
+the impl universe of the asking context (for `Instantiations`, `Methods`,
+and any goal with an open argument, section 3.2), and the run's frozen interfaces. Section 7.1 makes each of these part of
 the key. The solver holds no mutable state except memo tables. It never
 reports a diagnostic, never sees a span, and never writes an inference
 variable.
@@ -198,6 +198,10 @@ Assoc { assoc: DefId, tref: TraitRef }
 - Trait argument defaults are filled before the goal is formed, so
   `impl Add for Money` and the goal `Money: Add[Money]` agree
   ([`expr.op.trait.rhs-self`](../../spec/lang/05-expressions.md#r-expr.op.trait.rhs-self)).
+  Header lowering fills every written trait reference once, so a
+  projection written under a bound takes the bound's filled arguments:
+  `T::Out` under `T < Add` is `<T as Add[T]>::Out`. `Self::X` inside a
+  trait keeps no filled arguments; each use fills its own.
 
 ### 2.2 Canonical Goals
 
@@ -241,9 +245,10 @@ when the answer has learned bindings or stalls.
 | `Env` (mine) | parameters, but no placeholder, no local type | the run's global memo | the canonical goal and the item's `EnvKey` |
 | `Body` | any placeholder or local type | the body's memo | the canonical goal and the visible local impls |
 
-A `Methods` goal adds the module's `AvailKey` in every scope. An
-`Instantiations` or `Methods` goal adds the context's `ImplUniverseId`
-in every scope (section 3.2).
+An `Instantiations` goal adds the context's `ImplUniverseId` in every
+scope (section 3.2), as does a `Methods` goal. A `Methods` goal is never
+memoized: it carries the trait list from the method index instead of an
+availability key, and no availability key exists yet.
 
 **Why parameters may go global.** With the `EnvKey` in the key, a goal
 that mentions `T` is still a pure function of its key, and the members of
@@ -289,7 +294,7 @@ this order:
 | 1 | the parameter environment (section 4.2) | `S` is a parameter |
 | 2 | a trait value as self (section 9.3) | `S` is a trait value type of `Tr` or of a subtrait |
 | 3 | compiler-supplied impls (section 3.9) | `Tr` is sealed: `Any`, `AnyVal`, `AnyRef`, `Inspectable`, `Tuple`, `Num`, `Integer`, `Float`, `Suspend`, `Structure` |
-| 4 | impl tables of the owner modules (section 3.2) | written impls, derived impls, delegations, numeric families, tuple templates |
+| 4 | impl tables of the owner folders (section 3.2) | written impls, derived impls, delegations, numeric families, tuple templates |
 | 5 | the body's local impls | the goal names a local trait or a local type |
 
 **Rule TS-2. Commit on the head; never backtrack among impls (mine, after
@@ -307,102 +312,106 @@ environment (the supertrait binding of `Num`) and through std's
 `impl[N < Num] Add for N`. The environment wins, so the evidence is
 `Bound`. Codegen re-selects at the concrete type anyway (rule TS-6).
 
-### 3.2 Owner Modules
+### 3.2 Owner Folders
 
-An impl `impl Tr[Args] for Target` lives in a module that declares `Tr`,
+An impl `impl Tr[Args] for Target` lives in a folder that declares `Tr`,
 the outer constructor of `Target`, or the outer constructor of one of
 `Args`
 ([Implementation Modules](../../spec/lang/09-traits.md#implementation-modules)).
-D1 turns this into lookup in at most `2 + len(Args)` modules
+Tables are per folder, not per module: each folder's interface holds one
+`ImplTable`, and lookup reads the tables of the owner folders
 ([§4.12.1](resolution-and-interfaces.md#4121-owner-module-impl-tables-mine)).
 
 ```rust
-fn owner_modules(g: &TraitRef, out: &mut SmallVec<[ModuleId; 4]>) {
-    out.push(module_of(g.trait_));
-    for t in once(g.self_ty).chain(g.args.iter()) {
-        match head_ctor(t) {
-            Head::Decl(def) => out.push(module_of(def)),
-            Head::Builtin(_) => out.push(STD_BUILTIN_TABLE),  // one synthetic table: every std module's impls for built-ins
-            Head::Param | Head::TraitValue => {}              // owns nothing
-            Head::Infer => {}                                  // section 3.4
-        }
-    }
-    out.sort_by_key(content_rank); out.dedup();
+fn owner_folders(g: &TraitRef) -> Folders {
+    // the folders declaring g.trait_, the head constructor of the self
+    // type, and the head constructor of each known trait argument
 }
 ```
 
-**Built-in targets.** std may hold impls and inherent impls for
-primitives, `List`, `Map`, tuples, `Fn`, `Option` and `Result` in any of
-its modules
-([`trait.own.module.inherent.std`](../../spec/lang/09-traits.md#r-trait.own.module.inherent.std)).
-So std's interface gathers every impl and inherent impl whose target is a
-built-in constructor into one synthetic table, `STD_BUILTIN_TABLE`, and
-lookup reads that table instead of one "owner" module.
+**Unowned rows.** std's impls for built-in targets (primitives, `List`,
+`Map`, tuples, `Fn`, `Option`, `Result`) live in the synthetic
+`STD_BUILTIN_TABLE`, which is an "unowned" table: it also holds the impls
+the ownership check rejected as `nonlocal-impl` or `orphan-impl`.
+Rejected impls are already one error each; they stay in the table so the
+rest of the pipeline sees a stable row, but coherence skips them and the
+overlap check never reports them twice.
 
 **The gap: impls owned through a trait argument.** When an argument is
-still an inference variable, its owner module is unknown. `Money:
-Add[?0]` may be answered by `impl Add[Cents] for Money` in the module that
+still an inference variable, its owner folder is unknown. `Money:
+Add[?0]` may be answered by `impl Add[Cents] for Money` in the folder that
 declares `Cents`
 ([`trait.own.argument`](../../spec/lang/09-traits.md#r-trait.own.argument)).
 `Instantiations` and the trait part of `Methods` are the same case with
-every argument open. D1's `2 + len(Args)` bound covers only goals whose
+every argument open. The `2 + len(Args)` bound covers only goals whose
 arguments are known. The Codex review found the same gap (blocker 3).
 
 The fix is a **candidate directory**, after the review's proposal:
 
-1. Resolution flags each impl that its module owns only through a trait
+1. Resolution flags each impl that its folder owns only through a trait
    argument. The interface lists those heads in an `arg_impls` section,
-   sorted by `(trait, target head key)`, with its own section hash.
-2. Once per run, the driver merges the `arg_impls` sections of every
-   folder in the program graph into a **directory**: per trait, rows of
-   `(target head key, folder, impl row)`, in content order. It is frozen
-   before any body task starts that needs it.
+   sorted by `(trait, target head key)`. There is no section hash:
+   nothing persists the directory, so nothing hashes it.
+2. Once per impl universe, the driver merges the `arg_impls` sections of
+   that universe's folders into a **directory**: per trait, rows of
+   `(target head key, folder, impl row)`, in content order. Merging takes
+   no barrier, and scheduler.md §6.1's "universes add no edge" holds:
+   every folder in a context's closure is already a dependency of its
+   task through the `FolderIface` chain.
 3. A goal with an open argument reads the trait's directory rows for its
-   target head key, and keeps only rows whose folder is in the asking
-   module's **dependency closure** (a bit set per module, built in M1).
-   The owner confirmed the closure rule (2026-10-07).
+   target head key. Lookup itself takes no memo: `candidates` is a pure
+   function of the tables, the directory and the goal.
 4. **Cache key (incremental soundness).** An argument-owned impl's trait
-   and target are nameable outside its module, so its head is in its
+   and target are nameable outside its folder, so its head is in its
    folder's `api_hash` and therefore in the deep hash
    ([resolution-and-interfaces.md §4.10](resolution-and-interfaces.md#410-folder-interface-construction)).
-   A module's `check` key already holds the deep hash of every folder in
+   A folder's `check` key already holds the deep hash of every folder in
    its closure, so adding `impl Pick[Product] for Receiver` in a third
-   folder rechecks every module whose closure holds it. No separate
+   folder rechecks every folder whose closure holds it. No separate
    `arg_impls` hash is needed (Codex re-review N-A1; the backend lane
    removes `argc` from cache.md).
 
-**The impl universe (Codex re-review N1).** The closure filter makes an
-answer depend on who asks. Modules A and B may both ask `Instantiations
-{ Receiver, Pick }`, while only A's closure holds `impl Pick[Product] for
-Receiver`. The goal has no placeholder, so without more it would be one
-global memo entry, and whichever module asked first would decide the
-other's answer. So:
+**The impl universe (Codex re-review N1).** The directory makes an
+answer depend on which folders the asking context sees. Two folders may
+both ask `Instantiations { Receiver, Pick }` while only one's universe
+holds `impl Pick[Product] for Receiver`. The goal has no placeholder, so
+without more it would be one global memo entry, and whichever folder
+asked first would decide the other's answer. So:
 
 - Every solving context carries an **`ImplUniverseId`** in `SolveCx`: the
-  interned, sorted list of the folders in its closure whose `arg_impls`
-  section is not empty. The driver computes it once per context. For a
-  module's bodies and its test overlay, that is after M1 builds the
-  closure bit set. A `HeaderCheck(F)` does not wait for M1: its universe
-  comes from `closure(F)` when the task starts
-  ([scheduler.md §6.1](scheduler.md#61-tasks)). Contexts with equal
-  lists share one id, so most modules of a package share one.
-- The contexts are a module's bodies, the module's test overlay (its
-  closure includes test-only dependencies), a folder's `HeaderCheck(F)`
-  (the folder's closure), and a derive instance (its module's).
-- **The id is part of the key of every `Instantiations` and `Methods`
-  goal**, in every scope. These are the only goals that read the
-  directory.
-- An `Implements` or `Project` goal in `Global` or `Env` scope never reads
-  it: every trait argument is known, so its owner modules are fixed, and
-  the module that declares a known type lies in the closure of every
-  module that can name that type. Its bound-plan steps are `Implements`
-  and `Project` goals with known arguments too.
-- **Debug check.** Each frame keeps a "read the directory" bit. A frame
-  whose key has no universe and sets the bit is an internal error.
+  interned, sorted list of the folders in its closure that have
+  `arg_impls` or unowned rows. A folder with neither joins no universe.
+  The driver computes it once per context. For a folder's bodies and its
+  test overlay, that is after M1 builds the closure bit set.
+- The contexts are a folder's bodies, the folder's test overlay (its
+  closure includes test-only dependencies), a folder's header checks
+  (the folder's closure universe, with no own table), a program build
+  (every folder, section 8.3), and a derive instance (its folder's).
+  Contexts with equal lists share one id, so most folders of a package
+  share one.
+- **The id is part of the key of every goal with an open argument**, in
+  every scope: `Instantiations` and `Methods` always, and an
+  `Implements` or `Project` goal whose argument is open (`Infer`,
+  `Canon` or `Poison`). The checker phrases instantiation and
+  method-trait questions with fresh variables, so they land here.
+- An `Implements` or `Project` goal in `Global` or `Env` scope with all
+  arguments known never reads the directory: its owner folders are
+  fixed, and the folder that declares a known type lies in the closure
+  of every folder that can name that type. Its bound-plan steps are
+  `Implements` and `Project` goals with known arguments too — except a
+  `Bind` step whose bound leaves trait arguments implicit
+  (`n < arity`): that step reads the directory after all.
+- **No `HeaderCheck` goal kind exists.** Header checks are not solver
+  goals and carry no universe in any key. They run a separate
+  `TableSolver` from `hd_check::header`, under the item's environment
+  with the folder's closure universe and no own table (section 3.7).
+- **Debug check.** Each frame keeps a "read the directory" bit and a
+  "read unowned rows" bit (section 7.1). A frame whose key has no
+  universe and sets the directory bit is an internal error.
 
-The memo-invariance test (section 14.2) asks the A/B pair in both orders
+The memo-invariance test asks the two-folder pair in both orders
 and on several threads, with equal trait availability and different
-closures.
+universes.
 
 Why the closure, not the whole graph: a library's check result must not
 depend on which downstream packages a program adds. A downstream package
@@ -413,7 +422,7 @@ instantiations.
 ### 3.3 The Head Index
 
 ```rust
-pub struct ImplTable {                     // per module, SoA, frozen with its folder
+pub struct ImplTable {                     // per folder, SoA, frozen with its interface
     // D1's columns
     pub trait_: Box<[DefId]>, pub def: Box<[DefId]>, pub head_key: Box<[HeadKey]>,
     // added by this design
@@ -429,22 +438,26 @@ pub struct ImplTable {                     // per module, SoA, frozen with its f
 pub enum HeadKey { Ctor(DefId), Prim(Prim), Tuple(u16), TupleAny, Fn, SuspendFn, Param, Any }
 ```
 
-Rows are sorted by `(trait rank, head key, arg key, rank)`. A probe for
-`S: Tr[A..]` in one module is:
+Rows are sorted by `(trait rank, head key, rank)`. The head index is a
+per-trait permutation over that order: it sorts each trait's row range
+once, and a probe walks the bucket in row order. An impl that appears in
+two tables is one head (rule TS-2): lookup dedups rows by impl `DefId`
+before matching. A probe for `S: Tr[A..]` in one folder is:
 
 1. `by_trait[Tr]` gives the trait's rows.
 2. Binary search for `head_key(S)`; add the `Param` rows (numeric
    families) and, for a tuple, the `TupleAny` rows (tuple templates).
-3. Within the bucket, skip rows whose `arg_key` disagrees with the goal's
-   first two arguments. This is rustc's fast reject (`DeepRejectCtxt`)
-   cut to two keys.
-4. Match the survivors' heads (section 3.4).
+3. Match the survivors' heads (section 3.4).
+
+The `arg_key` fast reject is written but not read: resolution fills the
+first two argument keys per row, but nothing skips on them — rustc's
+`DeepRejectCtxt` cut to two keys is not done.
 
 **Fast path (mine, after MoonBit).** A non-generic trait (`Display`, `Eq`,
 `Hash`, `Debug`) with a known self constructor usually has one row per
-head key in all owner modules together. It may have more: `Tr for
+head key in all owner folders together. It may have more: `Tr for
 Box[i32]` and `Tr for Box[string]` share the head key `Box`. So the probe
-is one binary search per owner module, and then a match of every row in
+is one binary search per owner folder, and then a match of every row in
 the bucket (Codex re-review N-T6). The global memo makes the second probe
 free. In
 practice most goals of a body take this path.
@@ -477,6 +490,15 @@ enum MatchResult { Yes(Subst), No, Maybe(SmallVec<[CanonVar; 2]>) }
   rest shape. `TupleAny` matches every tuple.
 - **Several `Maybe`s.** The goal stalls on the union of their
   placeholders, in canonical order.
+- **Numeric families match by trait list.** A `Param`-keyed head matches
+  a primitive only when the impl bound's family trait lists that type
+  (`family_excludes`): `impl[N < Num] Add for N` does not match `string`.
+  A parameter matches through its environment instead (section 3.9).
+- **Placeholders never learn, and carry no literal kind.** A placeholder
+  against a constructor or a bound parameter is `Maybe` even when exactly
+  one head matches: no unique head ever binds a placeholder (rule TS-3).
+  The `Maybe` carries no `VarKind` split and there is no `Canon` arm, so
+  literal-kind-specific matching is not done.
 - **Cost.** Linear in the head's size. Heads are small, so matching is a
   few dozen steps at most.
 
@@ -488,9 +510,13 @@ After the probe:
 | --- | --- |
 | no `Yes`, no `Maybe` | `Fails`: no impl |
 | exactly one `Yes`, no `Maybe` | commit: solve its bound plan |
-| any `Maybe` | `Stalled` on the placeholders, unless every `Maybe` row's arguments are already ruled out by the fast reject |
+| any `Maybe` | `Stalled` on the placeholders |
 | two `Yes` | only possible with an overlap error elsewhere: take the first in content order and continue. Coherence reports the overlap (section 5.4); the solver reports nothing |
 
+- **A failing bound fails with its own failure.** Under a committed head
+  there is no second route, so a bound that fails answers with that
+  bound's `FailInfo`, with this impl and step prepended to its `chain`
+  (section 10.1).
 - **Exact exhaustion (M1 finding 4).** When every candidate head is exact
   and none matches, the answer is `Fails(FailInfo { reason: NoImpl,
   ... })`; it does not stall and is not an internal error.
@@ -520,6 +546,10 @@ pub enum PlanStep {
   ([`trait.bound.depth`](../../spec/lang/09-traits.md#r-trait.bound.depth)).
   The first step that fails decides the answer, so a plan's answer does
   not depend on anything but its order.
+- **A `Bind` step can read the directory.** Most steps are `Implements`
+  goals with known arguments, but a `Bind` whose bound leaves trait
+  arguments implicit (`n < arity`) reads the candidate directory like an
+  open-argument goal (section 3.2).
 - **Self types shrink.** A step's self type is an impl parameter, and every
   parameter is bound to a part of the goal or fixed by a binding. So a
   subgoal's self type is a subterm of the goal's types or a projection's
@@ -539,12 +569,15 @@ Supertraits act in two directions.
 The second row is sound because the impl check proves every supertrait
 under the impl's own bounds
 ([`trait.super.impl-bounds`](../../spec/lang/09-traits.md#r-trait.super.impl-bounds)).
-That check runs in the folder's `HeaderCheck(F)` task, from headers and
+That check runs in the folder's header stage, from headers and
 impl tables only, so a dependency's impls are checked even when its bodies
-are not (review T7). It asks `Implements` for each
-supertrait under the impl's environment, and `Project` for each
-supertrait binding
-([`trait.binding.super.mismatch`](../../spec/lang/09-traits.md#r-trait.binding.super.mismatch)).
+are not (review T7). It lives in `hd_check::header`: each item asks its
+supertrait `Implements` goals through `TableSolver` under the item's
+environment, with the folder's closure universe and no own table, and
+resolution keeps only the overlap check. Not done: supertrait bindings
+are not asked as `Project` (the solver has no `Project` path; the checker
+normalizes); there is no fuel diagnostic per item (§4.10.1); the header
+result is not cached in the graph entry.
 
 ### 3.8 What A Goal May Teach The Checker
 
@@ -583,6 +616,11 @@ through matching.
 For a parameter, every row above answers through the environment only
 ([`types.sealed.type-parameter`](../../spec/lang/04-type-system.md#r-types.sealed.type-parameter)).
 `never` implements neither `AnyVal` nor `AnyRef`.
+
+**Not done: the checker answers these itself.** The table above is the
+specification of the answers, but no solver goal reaches them: the
+checker proves compiler-supplied traits in `builtin_holds` and never asks
+the solver. Wiring them as solver rows is open work.
 
 **Written impls that act like built-ins.** Two kinds live in std's tables
 as ordinary rows with special head keys:
@@ -1006,7 +1044,9 @@ goal again gives the same stall.
 **Literal placeholders.** An integer-literal placeholder stalls like any
 other. A head that is not an integer type rules it out (`No` instead of
 `Maybe`). So `?int: Display` stalls, and `?int: Pairing` with no integer
-impl fails at once. Literal defaulting at the end of the statement then
+impl fails at once. When several candidates fit only while literals stay
+open, the solver retries with the defaults (`i32`, `usize`, `f64`)
+before stalling. Literal defaulting at the end of the statement then
 wakes the obligation.
 
 ### 6.5 Ambiguity
@@ -1029,8 +1069,9 @@ cannot be decided yet. So each candidate is a **scheme**:
 pub struct Candidate {
     pub row: ImplRef,          // or the clause or trait value it came from
     pub n_fresh: u8,           // impl parameters the target did not fix
-    pub args: TyListTemplate,  // the trait arguments, over the fixed types and the fresh parameters
-    pub residual: PlanRange,   // the plan steps that read a fresh parameter, in plan order
+    pub impl_args: TyList,     // each impl parameter: the fixed type, or the parameter itself when fresh
+    pub args: TyList,          // the trait arguments, over the fixed types and the fresh parameters
+    pub residual: Vec<u16>,    // the plan steps the solver did not decide, in plan order
 }
 ```
 
@@ -1039,7 +1080,10 @@ pub struct Candidate {
   the whole answer `Overflow`, since depth exhaustion is never a
   failure.
 - The steps that read a fresh parameter are the candidate's
-  **residual obligations**. The solver does not run them.
+  **residual obligations**. So is a fixed plan step that stalls on a
+  variable of `S`. A residual `Bind` step is never an obligation: only
+  `Bound` steps become goals.
+- The solver does not run them.
 - The checker instantiates a scheme inside each trial: a fresh variable
   per fresh parameter, unified with the call's argument types, then the
   residual steps as obligations under that trial
@@ -1069,10 +1113,19 @@ is memoizable as before.
    that declares `name` or reaches it through a supertrait, and that the
    receiver implements, by one `Instantiations` goal each.
 
-A per-module method index maps a name to the available traits that
+A per-folder method index maps a name to the available traits that
 declare it, so step 3 asks one goal per trait with that name, not one per
-available trait. The answer also lists, for diagnostics only, traits that
+available trait. The `Methods` goal carries that trait list from the
+index; it carries no `AvailKey`. The answer also lists, for diagnostics only, traits that
 are not available but would match: the `use` fix-it.
+
+**Checked once vs once per trial.** The checker infers each call
+argument once before the trials unless its check needs the expected
+type. Those go per trial, one check per surviving candidate: closures,
+`.V` contextual variants (including through a call head), `if`, `match`
+and block expressions, empty collections, and any list, map, tuple or
+parenthesized argument holding one of those
+([type-checking.md §2.4](type-checking.md#24-calls-and-use-site-type-arguments)).
 
 ## 7. Memoization And Budgets
 
@@ -1087,8 +1140,10 @@ is now part of the key, or makes the goal ineligible for the global memo:
 | the goal's types, with variables | the canonical goal; placeholders keep their kinds (section 2.2) |
 | declared bounds and supertrait bindings | `EnvKey`, the interned elaborated environment; `EMPTY` when the goal names no parameter |
 | local impls, visible from their declaration point ([`trait.impl.local.lookup`](../../spec/lang/09-traits.md#r-trait.impl.local.lookup)) | `LocalVis`: the interned sorted list of visible local impls, in the `Body` key; a goal that names no local type or local trait cannot match a local impl and keys with `EMPTY` |
-| trait availability (`Methods` only) | the module's `AvailKey` plus the lexical scope's local traits |
-| which argument-owned impls the asking context sees (`Instantiations`, `Methods`) | the context's `ImplUniverseId` (section 3.2), in every scope |
+| trait availability (`Methods` only) | not keyed: `Methods` goals are not memoized, so there is no availability key yet (section 6.5) |
+| which argument-owned impls the asking context sees (`Instantiations`, `Methods`, open-argument `Implements`/`Project`) | the context's `ImplUniverseId` (section 3.2), in every scope |
+| what the proof read | each entry records the `(trait, head key)` probes of its subtree; a global entry serves a folder only when that folder's own table has no row for any of them (the own-table rule) |
+| unowned rows read | an answer whose proof read unowned rows is scoped: it is published under its key with the universe filled in, and the universe counts folders with unowned rows (section 3.2) |
 | coinductive assumptions | none exist (section 3.10) |
 | proof depth | the stored height, checked at each use (section 7.3) |
 | remaining fuel | never stored: `OutOfFuel` makes the frame and every ancestor in the same `solve` call ineligible |
@@ -1323,12 +1378,15 @@ instance is an `Impl` choice and needs none.
 
 ### 8.3 What Codegen Does With It
 
-**Rule TS-6. Codegen selects by head only (mine).** At an instance, every
-type is concrete. Overlap is head-only, so at most one head matches a
-concrete trait reference, and the checker has already proven its bounds.
-`select` therefore matches heads in the owner modules and returns the impl
-and its arguments. It never proves a subgoal, has no depth limit, and
-charges no fuel.
+**Rule TS-6. Codegen selects through owner lookup (mine).** At an
+instance, every type is concrete. A program build's impl universe is
+every folder, and selection shares the run's global memo with checking.
+`select` solves the concrete trait reference as an `Implements` goal and
+takes the `Impl` evidence: the designed head-only `select` with its own
+table is not built. It has no depth limit of its own and charges no
+fuel. The returned `Selection` holds the impl row with the args the
+proof found; `Selection.args` returning every impl argument verbatim
+from the solver is not done.
 
 **Selection, then reconstruction (Codex re-review N7).** A head match
 fixes only the impl parameters that occur in the head. In
@@ -1343,9 +1401,9 @@ parameter is fixed by the head or by a `Bind` step, or resolution has
 rejected the impl as `unconstrained-impl-parameter`. The returned
 `Selection` holds every impl argument.
 
-`select` and `normalize_concrete` keep their answers in their own
-codegen table, not in the proof memo, since they assume proofs instead
-of making them. A proof entry and a selection entry never share a key.
+`select` solves through the run's shared global memo, not in a proof
+memo of its own: there is no separate codegen table with its own keys,
+since selection assumes proofs instead of making them.
 
 - **No depth limit at instances.** The spec's 64 counts from a use in
   source. An instance of generic code may need a deep concrete proof that

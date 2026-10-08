@@ -60,8 +60,8 @@ Ranked by how much each blocks the next working language slice.
    point at byte zero of the file. Declaration anchors now sit in a third
    interface blob section, outside every hash, and header-stage and
    coherence findings resolve through them (`c20e4ca6`).
-4. **Trait defaults and coherence use temporary shortcuts.** Omitted trait
-   arguments do not take declaration defaults, and coherence compares
+4. **Trait defaults landed; coherence keeps its temporary shortcut.** Omitted trait
+   arguments take declaration defaults during header lowering (#89), and coherence compares
    heads pairwise instead of using the designed discrimination tries.
 5. **Cache framing is real, but the cache model is partial.** Interface,
    check, code and link boundaries use `CacheStore` and framed entries;
@@ -121,7 +121,7 @@ their shared boundary, not duplicate implementations.
 | A task panic can unwind the build instead of becoming one internal diagnostic. | scheduler.md §6.4 | 2 — work | S | P2-10 |
 | Emit tasks and disk entries are per instance instead of per missed folder-group codepack. | scheduler.md §6.2; codegen.md §11.1, §11.3; cache.md §5.2 | 3 — wonderful | L | none: add a phase-3 codepack job |
 | Frozen interfaces cannot distinguish a private declaration from an absent cross-folder name. | resolution-and-interfaces.md §4.9 | 2 — work | M | P2-5 |
-| Header lowering does not apply declared trait defaults or complete all derived heads. | resolution-and-interfaces.md §4.10, §4.10.1 | 2 — work | M | P2-3 |
+| Header lowering now applies declared trait defaults (#89); completing all derived heads remains open. | resolution-and-interfaces.md §4.10, §4.10.1 | 2 — work | M | P2-3 |
 | Interfaces decode into owned copies and have no indexed, zero-copy reader. | resolution-and-interfaces.md §4.11 | 3 — wonderful | M | none: add a phase-3 interface-storage job |
 | ~~Interfaces omit declaration anchors, so stage-B, coherence, and package diagnostics can fall back to byte zero.~~ Anchors landed: a third interface blob section maps `(item, slot)` to declaration-relative token anchors, outside every hash; header-stage and coherence findings resolve through them (`c20e4ca6`). The package-level paths of M1 finding 6 keep their byte-zero fallback. | resolution-and-interfaces.md §4.11; checking-and-tir.md §4.14 | 2 — work | M | P2-5 (package paths only) |
 | Coherence compares trait heads pairwise rather than through the designed ground and generic tries. | resolution-and-interfaces.md §4.12; trait-solver.md §5.2 | 3 — wonderful | M | none: add a phase-3 solver-index job |
@@ -131,7 +131,7 @@ their shared boundary, not duplicate implementations.
 | Mutability checking omits receiver, argument, upgrade, and redundant-`let mut` results. | type-checking.md §8; checking-and-tir.md §4.13 | 2 — work | M | P2-2 |
 | ~~Closure requirement rows are not inferred.~~ Fixed: a closure without a clause infers its row from its body, a call solves a row variable as the least row of its callback, and function values check row subsumption (`81e10e77`). | type-checking.md §6; checking-and-tir.md §4.13 | 2 — work | M | fixed |
 | The checker does not populate suspension side records. | checking-and-tir.md §4.13; suspension.md §14.2 | 2 — work | M | P2-7 |
-| Projection, `Instantiations`, and `Methods` goals remain checker-local shortcuts rather than table-solver goals. | trait-solver.md §3.1–§3.6 | 2 — work | L | P2-3 |
+| Projections remain checker-side (the solver has no `Project` path; the checker normalizes). `Instantiations` and `Methods` are table-solver goals asked through `TableSolver`. | trait-solver.md §3.1–§3.6 | 2 — work | L | P2-3 |
 | Checker and solver fuel exhaustion reports internal `unsupported` instead of the specified limit diagnostic. | checking-and-tir.md §4.15; trait-solver.md §7.4 | 2 — work | S | P2-2 |
 | Many type, pattern, expression, call, assignment, and recovery forms still stop with structured `NotImplemented`. | type-checking.md §§2–10; checking-and-tir.md §4.13 | 2 — work | L | P2-1 and P2-2 |
 | Seven designed cache-key families and several toolchain-key fields remain absent. | cache.md §5.3 | 2 — work | L | P2-5 |

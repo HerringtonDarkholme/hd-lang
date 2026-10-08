@@ -57,7 +57,7 @@ pub struct TaskGraph { nodes: AppendVec<TaskNode> }
   role, with test-only uses added (cache.md §5.3). Then each solving context gets one
   `ImplUniverseId`: the sorted list of the folders in its closure whose
   `arg_impls` section is not empty, interned once per run
-  ([trait-solver.md §3.2](trait-solver.md#32-owner-modules)).
+  ([trait-solver.md §3.2](trait-solver.md#32-owner-folders)).
   - The contexts: each module's ordinary and test-role bodies, computed
     before any `Body(m)` starts; each
     `HeaderCheck(F)`, from `closure(F)` when the task starts; and each

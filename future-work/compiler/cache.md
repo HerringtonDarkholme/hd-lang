@@ -143,7 +143,7 @@ fast_key      = H("fast", toolchain_key, package key, sorted [(path, source_hash
 - **Argument-owned impls need no extra hash (Codex re-review N-A1).** A
   goal with an open trait argument reads impls owned only through a
   trait argument, from any folder in the asking context's closure
-  ([trait-solver.md §3.2](trait-solver.md#32-owner-modules)). Such an
+  ([trait-solver.md §3.2](trait-solver.md#32-owner-folders)). Such an
   impl has a nameable trait and target, so its head is in its folder's
   `api_hash` and deep hash
   ([resolution-and-interfaces.md §4.10](resolution-and-interfaces.md#410-folder-interface-construction)).
