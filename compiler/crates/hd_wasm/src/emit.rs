@@ -77,6 +77,9 @@ struct Em<'a> {
     calls: &'a HashMap<u32, Target>,
     a: Asm,
     locals: Vec<Option<Vec<u32>>>,
+    /// Locals that live in a shared heap cell (a closure captures them and
+    /// someone assigns them), each with the index of its first `LocalSet`.
+    cells: HashMap<u32, u32>,
     vals: HashMap<u32, (Vec<u32>, Vec<VT>)>,
     ctrl: Vec<Ctl>,
     deciding: Vec<u32>,
@@ -92,6 +95,26 @@ struct Em<'a> {
     /// Each `defer` suite's "registered" flag local.
     defer_flags: HashMap<u32, u32>,
     susp: Option<Susp>,
+}
+
+/// The locals a closure captures by shared cell, each with its first
+/// `LocalSet` (the declaration, which makes a fresh cell).
+fn cell_locals(b: &Body) -> HashMap<u32, u32> {
+    let mut cells = HashMap::new();
+    for (c, l) in b.cap_local.iter().enumerate() {
+        if b.cap_mode.get(c) == Some(&hd_tir::ir::CaptureMode::Shared) {
+            cells.insert(l.raw(), u32::MAX);
+        }
+    }
+    for i in 0..b.len() {
+        if b.tags[i] == Tag::LocalSet
+            && let Some(first) = cells.get_mut(&b.data[i][0])
+            && *first == u32::MAX
+        {
+            *first = u32_of(i);
+        }
+    }
+    cells
 }
 
 fn u32_of(i: usize) -> u32 {
@@ -157,18 +180,71 @@ impl Em<'_> {
         self.ctrl.push(c);
     }
 
+    /// The cell type of a shared local: one mutable field per component.
+    fn cell_ty(&self, l: u32) -> StageResult<WTy> {
+        let fields = self.vts(self.sub(self.b.local_ty[l as usize]))?;
+        Ok(WTy::Struct {
+            fields,
+            sup: None,
+            open: false,
+        })
+    }
+
+    /// The value types a body local is held in: its components, or one
+    /// reference to its cell.
+    fn local_vts(&self, l: u32) -> StageResult<Vec<VT>> {
+        if self.cells.contains_key(&l) {
+            return Ok(vec![VT::rn(self.cell_ty(l)?)]);
+        }
+        self.vts(self.sub(self.b.local_ty[l as usize]))
+    }
+
     /// The Wasm locals of a body local.
     fn local(&mut self, l: u32) -> StageResult<Vec<u32>> {
         if let Some(Some(v)) = self.locals.get(l as usize) {
             return Ok(v.clone());
         }
-        let t = self.sub(self.b.local_ty[l as usize]);
-        let vs: Vec<u32> = self.vts(t)?.into_iter().map(|v| self.a.local(v)).collect();
+        let vs: Vec<u32> = self
+            .local_vts(l)?
+            .into_iter()
+            .map(|v| self.a.local(v))
+            .collect();
         if self.locals.len() <= l as usize {
             self.locals.resize(l as usize + 1, None);
         }
         self.locals[l as usize] = Some(vs.clone());
         Ok(vs)
+    }
+
+    /// Stores the temporaries `tmp` (the local's components) into local
+    /// `l`'s cell. `fresh` makes a new cell, as a declaration does; any other
+    /// store writes the existing cell, making one first if it has none yet.
+    fn cell_store(&mut self, l: u32, tmp: &[u32], fresh: bool) -> StageResult<()> {
+        let cell = self.cell_ty(l)?;
+        let cl = self.local(l)?[0];
+        let make = |em: &mut Self| {
+            for t in tmp {
+                em.a.get(*t);
+            }
+            em.a.struct_new(&cell);
+            em.a.set(cl);
+        };
+        if fresh {
+            make(self);
+            return Ok(());
+        }
+        self.a.get(cl);
+        self.a.s().ref_is_null();
+        self.a.if_();
+        make(self);
+        self.a.else_();
+        for (k, t) in tmp.iter().enumerate() {
+            self.a.get(cl);
+            self.a.get(*t);
+            self.a.struct_set(&cell, u32_of(k));
+        }
+        self.a.end();
+        Ok(())
     }
 
     /// Pushes component `k` of a value, converted to `want`.
@@ -323,8 +399,16 @@ impl Em<'_> {
             }
             Tag::LocalGet => {
                 let ls = self.local(a)?;
-                for l in &ls {
-                    self.a.get(*l);
+                if self.cells.contains_key(&a) {
+                    let cell = self.cell_ty(a)?;
+                    for k in 0..self.vts(self.sub(self.b.local_ty[a as usize]))?.len() {
+                        self.a.get(ls[0]);
+                        self.a.struct_get(&cell, u32_of(k));
+                    }
+                } else {
+                    for l in &ls {
+                        self.a.get(*l);
+                    }
                 }
                 self.store(i)?;
             }
@@ -333,8 +417,16 @@ impl Em<'_> {
                 let t = self.sub(self.b.local_ty[a as usize]);
                 let want = self.vts(t)?;
                 self.load_as(bw, &want)?;
-                for l in ls.iter().rev() {
-                    self.a.set(*l);
+                if let Some(first) = self.cells.get(&a).copied() {
+                    let tmp: Vec<u32> = want.iter().map(|v| self.a.local(v.clone())).collect();
+                    for l in tmp.iter().rev() {
+                        self.a.set(*l);
+                    }
+                    self.cell_store(a, &tmp, first == i)?;
+                } else {
+                    for l in ls.iter().rev() {
+                        self.a.set(*l);
+                    }
                 }
             }
             Tag::Prim => self.prim(i, a, bw)?,
@@ -1568,12 +1660,8 @@ impl Em<'_> {
         let mut fields = vec![VT::r(code.clone())];
         self.a.ref_func(Sym::Inst(key));
         for c in start..start + len {
-            if self.b.cap_mode.get(c) == Some(&hd_tir::ir::CaptureMode::Shared) {
-                return unsupported("a mutably captured variable (a shared cell)");
-            }
             let l = self.b.cap_local[c].raw();
-            let t = self.sub(self.b.local_ty[l as usize]);
-            let vs = self.vts(t)?;
+            let vs = self.local_vts(l)?;
             let ls = self.local(l)?;
             for x in &ls {
                 self.a.get(*x);
@@ -2269,6 +2357,7 @@ impl<'a> Em<'a> {
             calls,
             a,
             locals: vec![None; b.local_ty.len()],
+            cells: cell_locals(b),
             vals: HashMap::new(),
             ctrl: Vec::new(),
             deciding: Vec::new(),
@@ -2999,7 +3088,18 @@ pub fn emit(
         copies.push((l, ls));
     }
     for (l, ls) in copies {
-        em.locals[l as usize] = Some(ls);
+        if em.cells.contains_key(&l) {
+            // A captured, assigned parameter moves into its cell.
+            let cell = em.cell_ty(l)?;
+            let cl = em.local(l)?[0];
+            for x in &ls {
+                em.a.get(*x);
+            }
+            em.a.struct_new(&cell);
+            em.a.set(cl);
+        } else {
+            em.locals[l as usize] = Some(ls);
+        }
     }
     if sub == 0 {
         for k in env.row_keys(b.item, args) {
@@ -3021,7 +3121,7 @@ pub fn emit(
         let mut cl = Vec::new();
         for c in caps[0] as usize..(caps[0] + caps[1]) as usize {
             let l = b.cap_local[c].raw();
-            let vs = em.lay.vts(s(b.local_ty[l as usize]))?;
+            let vs = em.local_vts(l)?;
             let ls = em.local(l)?;
             for (k, v) in vs.iter().enumerate() {
                 cl.push((u32_of(fields.len()), ls[k], v.clone()));
@@ -3155,6 +3255,9 @@ fn emit_suspending(
         });
         let mut next = 1;
         for &l in &plocals {
+            if em.cells.contains_key(&l) {
+                return unsupported("a mutably captured parameter of a suspending function");
+            }
             let n = u32_of(em.lay.vts(s(b.local_ty[l as usize]))?.len());
             em.locals[l as usize] = Some((next..next + n).collect());
             next += n;

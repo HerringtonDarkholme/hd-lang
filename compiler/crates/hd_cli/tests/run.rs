@@ -482,3 +482,127 @@ fn string_slice_off_boundary_panics() {
     let err = String::from_utf8_lossy(&output.stderr);
     assert!(err.contains("panic: index-out-of-bounds"), "{err}");
 }
+
+/// A closure that assigns a captured `let` shares one cell with its owner:
+/// every call sees the previous call's write, and the owner reads the final
+/// value afterwards.
+#[test]
+fn closure_mutating_a_captured_let_shares_a_cell() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-shared-cell");
+    std::fs::create_dir_all(&dir).expect("dir");
+    let file = dir.join("counter.hd");
+    std::fs::write(
+        &file,
+        "fn main() -> void $ Console:\n\
+         \x20   let n: i32 = +0\n\
+         \x20   bump := fn() -> i32:\n\
+         \x20       n = n + 1\n\
+         \x20       return n\n\
+         \x20   println(\"${bump()} ${bump()} ${bump()}\")\n\
+         \x20   println(\"${n}\")\n\
+         \x20   n = n + 10\n\
+         \x20   println(\"${bump()}\")\n",
+    )
+    .expect("write");
+    let output = hd(&cache("hd-cache-shared-cell"))
+        .arg(&file)
+        .output()
+        .expect("run hd");
+    let err = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "1 2 3\n3\n14\n",
+        "{err}"
+    );
+}
+
+/// A cell outlives the function that made it, and a `let` inside a
+/// loop gets a fresh cell per iteration.
+#[test]
+fn shared_cells_outlive_their_function_and_renew_per_iteration() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-shared-cell-more");
+    std::fs::create_dir_all(&dir).expect("dir");
+    let file = dir.join("more.hd");
+    std::fs::write(
+        &file,
+        "fn counter(start: i32) -> fn() -> i32:\n\
+         \x20   let at = start\n\
+         \x20   return fn() -> i32:\n\
+         \x20       at = at + 1\n\
+         \x20       return at\n\
+         fn main() -> void $ Console:\n\
+         \x20   a := counter(+10)\n\
+         \x20   b := counter(+20)\n\
+         \x20   println(\"${a()} ${a()} ${b()}\")\n\
+         \x20   let i: i32 = +0\n\
+         \x20   while i < 2:\n\
+         \x20       let n: i32 = i * 100\n\
+         \x20       bump := fn() -> i32:\n\
+         \x20           n = n + 1\n\
+         \x20           return n\n\
+         \x20       println(\"${bump()} ${bump()}\")\n\
+         \x20       i = i + 1\n",
+    )
+    .expect("write");
+    let output = hd(&cache("hd-cache-shared-cell-more"))
+        .arg(&file)
+        .output()
+        .expect("run hd");
+    let err = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "11 12 21\n1 2\n101 102\n",
+        "{err}"
+    );
+}
+
+/// `chars` is built on a mutably capturing closure (`Iterator::from_fn`).
+#[test]
+#[ignore = "blocked on the char_from_scalar and char_scalar intrinsics, which emit does not lower"]
+fn chars_walks_a_non_ascii_string() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-chars");
+    std::fs::create_dir_all(&dir).expect("dir");
+    let file = dir.join("chars.hd");
+    std::fs::write(
+        &file,
+        "fn main() -> void $ Console:\n\
+         \x20   for c in \"h\u{e9}llo\".chars():\n\
+         \x20       println(\"${c}\")\n",
+    )
+    .expect("write");
+    let output = hd(&cache("hd-cache-chars"))
+        .arg(&file)
+        .output()
+        .expect("run hd");
+    let err = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "h\n\u{e9}\nl\nl\no\n",
+        "{err}"
+    );
+}
+
+/// `bytes` is another `Iterator::from_fn` over a captured, assigned offset.
+#[test]
+fn bytes_walks_a_non_ascii_string() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-bytes");
+    std::fs::create_dir_all(&dir).expect("dir");
+    let file = dir.join("bytes.hd");
+    std::fs::write(
+        &file,
+        "fn main() -> void $ Console:\n\
+         \x20   for b in \"h\u{e9}y\".bytes():\n\
+         \x20       println(\"${b}\")\n",
+    )
+    .expect("write");
+    let output = hd(&cache("hd-cache-bytes"))
+        .arg(&file)
+        .output()
+        .expect("run hd");
+    let err = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "104\n195\n169\n121\n",
+        "{err}"
+    );
+}
