@@ -362,8 +362,8 @@ holds integration tests:
 ```text
 src/billing.hd         # billing
 src/billing_test.hd    # billing_test, a test module
-tests/checkout.hd      # tests.checkout, an integration test program
-tests/common/mod.hd    # tests.common, shared by integration test programs
+tests/checkout.hd      # an integration test program, with no module path
+tests/common/mod.hd    # a shared test module, reached as self.common
 ```
 
 1. r[module.test.module] A source file whose name ends in `_test.hd` is a **test module**, such as `src/billing_test.hd`, whose module is `billing_test`.
@@ -382,6 +382,7 @@ tests/common/mod.hd    # tests.common, shared by integration test programs
 13. r[module.test.integration.pkg-root] In an integration test module, the `pkg` root names the package's library modules, each with only its public declarations.
 14. r[module.test.integration.self-shared] An integration test program uses a shared test module through `self`, as in `use self.common` for `tests/common/mod.hd`.
 15. r[module.test.no-tests-root] There is no `tests` use root: test code reaches the test root only through `self` and `super`. A use path that starts with `tests` is an error. Error: `unknown-module`.
+15. r[module.test.integration.no-path] Integration test programs and shared test modules are not modules of the package: they have no module path, so a library module such as `src/tests/checkout.hd` never clashes with `tests/checkout.hd`.
 16. r[module.test.no-tests-block] A test module or an integration test module must not contain a `tests:` block. Error: `misplaced-tests-block`.
 17. r[module.test.dev-dependency] A **dev dependency** is a dependency that the manifest declares in `[dev-dependencies]`. Test code may use it, and a dependent package never sees it.
 18. r[module.test.non-test-use.test-module] Non-test code that uses a test module is an error. Error: `test-only-use`.
