@@ -1,0 +1,6 @@
+# Shared enum data in a module of its own: `main` reads it after this
+# module initializes (data.shared.module-init).
+pub enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
+    Ok -> HttpStatus(200, phrase="OK")
+    NotFound -> HttpStatus(404, phrase="Not Found")
+    ServiceUnavailable -> HttpStatus(503, phrase="Service Unavailable", retryable=true)

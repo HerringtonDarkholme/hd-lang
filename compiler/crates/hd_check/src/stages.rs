@@ -14,16 +14,12 @@ pub struct ModuleFacts {
     pub impls: usize,
 }
 
-/// `TestOverlay(m)` (§4.13.9): checks `tests:` blocks and doc tests.
+/// `TestOverlay(m)` (§4.13.9). A build that runs no test checks no
+/// `tests:` block; `hd test` checks them with the module's bodies, in its
+/// own `check` entry (`crate::tests`). Doc tests are not checked yet.
 pub fn test_overlay(m: &ModuleFacts) -> StageResult<Option<String>> {
-    if m.has_tests_block {
-        Err(NotImplemented::new(
-            Stage::TestOverlay,
-            format!("tests: block of {}", m.path),
-        ))
-    } else {
-        Ok(None)
-    }
+    let _ = m;
+    Ok(None)
 }
 
 /// `InitOrder(F)` (§4.13.10): only when a folder's init group spans
@@ -64,6 +60,6 @@ mod tests {
         assert!(init_order("p", &[&a]).is_ok());
         assert!(init_order("p", &[&a, &b]).is_err());
         assert!(test_overlay(&a).expect("no tests").is_none());
-        assert!(test_overlay(&b).is_err());
+        assert!(test_overlay(&b).expect("checked by hd test").is_none());
     }
 }

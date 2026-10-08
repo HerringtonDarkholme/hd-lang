@@ -210,7 +210,8 @@ pub enum Lowering {
 /// Every intrinsic key std may name, and its lowering. The keys are the
 /// declarations' `@intrinsic` arguments; `panic_message`, `task_all` and
 /// `test_case` belong to the compiler-supplied `std.core.panic`,
-/// `std.task.all` and `std.testing.it`.
+/// `std.task.all` and `std.testing.it`, `assert_equal` to
+/// `std.testing.assert_equal`, and `entry_write` to `std.rt`.
 pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("bytes_len", Lowering::Compiler),
     ("bytes_at", Lowering::Compiler),
@@ -228,6 +229,8 @@ pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("task_all_frame", Lowering::Compiler),
     ("task_all", Lowering::Compiler),
     ("test_case", Lowering::Compiler),
+    ("entry_write", Lowering::Compiler),
+    ("assert_equal", Lowering::Compiler),
     ("dbg", Lowering::Compiler),
     ("dbg_text", Lowering::Compiler),
     ("dbg_write", Lowering::HostPrimitive("dbg_write")),

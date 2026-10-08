@@ -293,11 +293,46 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                     Ty::VOID,
                 )),
             );
-            if let Some(p) = out.last_mut() {
-                p.intrinsic = Some(sym(names, "test_case"));
-            }
+            // `assert_equal[T < Eq & Debug](actual: T, expected: T, reason:
+            // string)` (module.testing.exports): the checker checks the
+            // call and runs std's `check_equal` (lib/std/testing.hd).
+            let ae = names.item(module, "assert_equal");
+            let t = param(names, ae, 0);
+            let tv = |d| {
+                pool.intern_ty(&TyData::TraitValue {
+                    def: d,
+                    args: TyList::EMPTY,
+                    bindings: vec![],
+                })
+            };
+            let eq = names.item("std.cmp", "Eq");
+            let g = Generic {
+                bound: Some(eq),
+                bounds: vec![tv(eq), tv(names.item("std.format", "Debug"))],
+                ..Generic::plain(sym(names, "T"))
+            };
+            item(
+                "assert_equal",
+                vec![],
+                ItemData::Fn(FnSig::simple(
+                    vec![g],
+                    vec![
+                        (sym(names, "actual"), t),
+                        (sym(names, "expected"), t),
+                        (sym(names, "reason"), Ty::STRING),
+                    ],
+                    Ty::VOID,
+                )),
+            );
         }
         _ => {}
+    }
+    for (name, key) in [("it", "test_case"), ("assert_equal", "assert_equal")] {
+        if module == "std.testing"
+            && let Some(p) = out.iter_mut().find(|i| i.def == names.item(module, name))
+        {
+            p.intrinsic = Some(sym(names, key));
+        }
     }
     out
 }

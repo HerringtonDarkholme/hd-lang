@@ -121,6 +121,8 @@ pub struct Collected {
     pub data: BTreeSet<DefIdOrd>,
     /// The init bodies' instances, in initialization order.
     pub inits: Vec<Hash128>,
+    /// The extra roots' instances, in the order the caller gave them.
+    pub extra: Vec<Hash128>,
 }
 
 pub use layout::InstanceTable;
@@ -302,8 +304,13 @@ impl Cx<'_> {
     ) -> StageResult<CallTarget> {
         let ret = self.env.ret(def).unwrap_or(Ty::VOID);
         // A std function whose body the compiler supplies, though its
-        // source has a placeholder body (`race!`'s frame).
-        if let Some(key) = self.env.intrinsic(def).filter(|k| k == "task_race_frame") {
+        // source has a placeholder body (`race!`'s frame, the categorized
+        // `panic`, `std.rt`'s `entry_write`).
+        if let Some(key) = self
+            .env
+            .intrinsic(def)
+            .filter(|k| matches!(k.as_str(), "task_race_frame" | "panic" | "entry_write"))
+        {
             return Ok(CallTarget {
                 key: Hash128(0),
                 item: def,
@@ -630,6 +637,7 @@ pub fn collect(
     solver: &dyn Solver,
     root: DefId,
     inits: &[DefId],
+    extra: &[(DefId, TyList)],
 ) -> StageResult<Collected> {
     let mut cx = Cx {
         pool,
@@ -643,6 +651,12 @@ pub fn collect(
     for i in inits {
         let k = cx.push(*i, 0, TyList::EMPTY, 0, InstId::NONE)?;
         cx.out.inits.push(k);
+    }
+    // Extra roots with type arguments: the test cases after the first and
+    // the `std.rt` result functions (engines-and-test-runner.md §19.1).
+    for (d, args) in extra {
+        let t = cx.target(*d, *args, 0, InstId::NONE)?;
+        cx.out.extra.push(t.key);
     }
     // Breadth-first in push order (codegen.md §13.4): the first instance
     // over a limit is the same on every run.

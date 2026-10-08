@@ -9,6 +9,7 @@ use std::collections::{HashMap, HashSet};
 
 use hd_base::{DefId, NodeIdx, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
+use hd_resolve::ItemData;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::Body;
 use hd_tir::ir::{BodyKind, NONE, Ref, Tag, TirSink};
@@ -38,7 +39,10 @@ pub struct ModuleInit {
     pub facts: HashMap<DefId, InitFacts>,
 }
 
-/// The top-level executable statements of a module, in source order.
+/// The top-level executable statements of a module, in source order. An
+/// enum declaration with shared constructor data counts as one: its
+/// constructor expressions run at its source position
+/// (`data.shared.module-init.order`).
 #[must_use]
 pub fn init_statements(root: NodeRef<'_>) -> Vec<NodeRef<'_>> {
     root.children()
@@ -49,9 +53,17 @@ pub fn init_statements(root: NodeRef<'_>) -> Vec<NodeRef<'_>> {
                     | SyntaxKind::ExprStmt
                     | SyntaxKind::AssignmentStmt
                     | SyntaxKind::DiscardStmt
-            )
+            ) || (c.kind() == SyntaxKind::EnumDecl
+                && c.descendants()
+                    .any(|d| d.kind() == SyntaxKind::VariantSharedData))
         })
         .collect()
+}
+
+/// The global that holds one variant's shared field (`data.shared.not-stored`).
+#[must_use]
+pub fn shared_global(names: &hd_resolve::Names<'_>, variant: DefId, field: &str) -> DefId {
+    names.member(variant, hd_intern::PathKind::Hidden, field)
 }
 
 /// Checks a module's top-level statements as its `Init` body. `entry`:
@@ -109,6 +121,9 @@ pub fn check_init(
 impl Ck<'_, '_> {
     /// A top-level statement: a simple binding becomes a global.
     fn top_level(&mut self, s: NodeRef<'_>) -> StageResult<()> {
+        if s.kind() == SyntaxKind::EnumDecl {
+            return self.shared_init(s);
+        }
         let kids: Vec<NodeRef<'_>> = s.children().collect();
         let binding = match s.kind() {
             SyntaxKind::LetStmt => {
@@ -172,6 +187,209 @@ impl Ck<'_, '_> {
         let a = self.b.refs_record(&[Ref(def.raw())]);
         self.b.emit(Tag::GlobalSet, a, r.0, Ty::VOID, s.index());
         Ok(())
+    }
+
+    /// An enum's shared constructor data (`data.shared.module-init`): each
+    /// variant's constructor call, checked against the shared parameters,
+    /// sets one global per shared field. Omitted defaults are `DefaultCall`s
+    /// over the earlier values (`data.shared.default.eval-order`).
+    fn shared_init(&mut self, s: NodeRef<'_>) -> StageResult<()> {
+        let tokens = &self.cx.src.parse.tokens;
+        let Some(t) = s.name(tokens) else {
+            return unsupported("an enum without a name");
+        };
+        let ename = self.cx.src.text(t).to_owned();
+        let module = self.module_init.clone().unwrap_or_default();
+        let def = self.cx.names.item(&module, &ename);
+        let Some(item) = self.cx.lookup.item(def) else {
+            return unsupported("shared data of an unknown enum");
+        };
+        let ItemData::Enum { shared, variants } = item.data.clone() else {
+            return unsupported("shared data outside an enum");
+        };
+        if !item.generics.is_empty() {
+            return unsupported("shared data of a generic enum");
+        }
+        let params: Vec<(Symbol, Ty)> = shared.iter().map(|f| (f.name, f.ty)).collect();
+        for v in s
+            .descendants()
+            .filter(|c| c.kind() == SyntaxKind::EnumVariant)
+        {
+            let Some(vt) = v.name(&self.cx.src.parse.tokens) else {
+                continue;
+            };
+            let vname = self.cx.src.text(vt).to_owned();
+            let Some(var) = variants
+                .iter()
+                .find(|x| self.cx.names.text(x.name) == vname)
+            else {
+                continue;
+            };
+            let Some(sd) = v
+                .children()
+                .find(|c| c.kind() == SyntaxKind::VariantSharedData)
+            else {
+                let msg = format!(
+                    "missing-required-field: variant `{vname}` gives no shared data of `{ename}`"
+                );
+                self.err(Code::MissingRequiredField, v, &msg);
+                continue;
+            };
+            let owner = self.cx.src.text(self.cx.src.first(sd)).to_owned();
+            if owner != ename {
+                let msg =
+                    format!("variant-result-owner: `{owner}` is not the enclosing enum `{ename}`");
+                self.err(Code::VariantResultOwner, sd, &msg);
+                continue;
+            }
+            let al = sd.children().find(|c| c.kind() == SyntaxKind::ArgumentList);
+            let args = self.args_of(al)?;
+            let vals = self.shared_args(s, &params, &args, sd, &ename)?;
+            for (f, r) in shared.iter().zip(vals) {
+                let fname = self.cx.names.text(f.name).to_owned();
+                let g = shared_global(&self.cx.names, var.def, &fname);
+                let a = self.b.refs_record(&[Ref(g.raw())]);
+                self.b.emit(Tag::GlobalSet, a, r.0, Ty::VOID, sd.index());
+            }
+        }
+        Ok(())
+    }
+
+    /// One variant's constructor arguments against the shared parameters:
+    /// explicit arguments first, then each omitted default in parameter
+    /// order, inline, with the earlier parameters in scope
+    /// (`data.shared.default.eval-order`, `data.shared.default.scope`).
+    fn shared_args(
+        &mut self,
+        decl: NodeRef<'_>,
+        params: &[(Symbol, Ty)],
+        args: &crate::call::Args<'_>,
+        at: NodeRef<'_>,
+        ename: &str,
+    ) -> StageResult<Vec<Ref>> {
+        let mut slots: Vec<Option<Ref>> = vec![None; params.len()];
+        if args.positional.len() > params.len() {
+            let msg = format!("argument-count: `{ename}` takes {} arguments", params.len());
+            self.err(Code::ArgumentCount, at, &msg);
+        }
+        for (i, e) in args.positional.iter().enumerate() {
+            let w = params.get(i).map(|p| p.1);
+            let (r, t) = self.expr(*e, w)?;
+            if let (Some(w), Some(s)) = (w, slots.get_mut(i)) {
+                *s = Some(self.coerce(r, t, w, *e, "argument"));
+            }
+        }
+        for (pname, e) in &args.named {
+            let Some(i) = params
+                .iter()
+                .position(|p| self.cx.names.text(p.0) == pname.as_str())
+            else {
+                let msg = format!("unknown-named-argument: `{ename}` has no parameter `{pname}`");
+                self.err(Code::UnknownNamedArgument, *e, &msg);
+                continue;
+            };
+            if slots[i].is_some() {
+                let msg = format!("duplicate-argument: `{pname}` is given twice");
+                self.err(Code::DuplicateArgument, *e, &msg);
+                continue;
+            }
+            let (r, t) = self.expr(*e, Some(params[i].1))?;
+            slots[i] = Some(self.coerce(r, t, params[i].1, *e, "argument"));
+        }
+        let defaults: Vec<Option<NodeRef<'_>>> = decl
+            .children()
+            .find(|c| c.kind() == SyntaxKind::ParameterList)
+            .map(|pl| {
+                pl.children()
+                    .map(|p| {
+                        p.children()
+                            .find(|c| c.kind() == SyntaxKind::DefaultValue)
+                            .and_then(|dv| dv.children().next())
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mut out = Vec::new();
+        for (i, s) in slots.into_iter().enumerate() {
+            if let Some(r) = s {
+                out.push(r);
+                continue;
+            }
+            let Some(e) = defaults.get(i).copied().flatten() else {
+                let msg = format!(
+                    "missing-required-field: `{ename}` needs `{}`",
+                    self.cx.names.text(params[i].0)
+                );
+                self.err(Code::MissingRequiredField, at, &msg);
+                return Ok(Vec::new());
+            };
+            self.scopes.push(HashMap::new());
+            for (k, r) in out.iter().enumerate() {
+                let l = self.bind_local(params[k].0, params[k].1, e);
+                self.b.set(l, *r, e.index());
+            }
+            let (r, t) = self.expr(e, Some(params[i].1))?;
+            self.scopes.pop();
+            out.push(self.coerce(r, t, params[i].1, e, "default"));
+        }
+        Ok(out)
+    }
+
+    /// A shared field read on an enum value (`data.shared.per-variant`):
+    /// the global of the value's variant, chosen by a `SwitchTag` chain.
+    pub(crate) fn shared_field(
+        &mut self,
+        r: Ref,
+        t: Ty,
+        name: &str,
+        n: NodeRef<'_>,
+    ) -> StageResult<Option<(Ref, Ty)>> {
+        let pool = self.cx.names.pool;
+        let hd_types::TyData::Adt { def, .. } = pool.get(t) else {
+            return Ok(None);
+        };
+        let Some(item) = self.cx.lookup.item(def) else {
+            return Ok(None);
+        };
+        let ItemData::Enum { shared, variants } = &item.data else {
+            return Ok(None);
+        };
+        let sym = self.cx.names.syms.intern(name);
+        let Some(f) = shared.iter().find(|f| f.name == sym) else {
+            return Ok(None);
+        };
+        if !item.generics.is_empty() {
+            return unsupported("a shared field of a generic enum");
+        }
+        let ft = f.ty;
+        let globals: Vec<DefId> = variants
+            .iter()
+            .map(|v| shared_global(&self.cx.names, v.def, name))
+            .collect();
+        if globals.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some((self.shared_chain(r, &globals, 0, ft, n), ft)))
+    }
+
+    fn shared_chain(&mut self, r: Ref, globals: &[DefId], k: usize, ft: Ty, n: NodeRef<'_>) -> Ref {
+        let get = |ck: &mut Self, g: DefId| {
+            let a = ck.b.refs_record(&[Ref(g.raw())]);
+            ck.b.emit(Tag::GlobalGet, a, NONE, ft, n.index())
+        };
+        if k + 1 >= globals.len() {
+            return get(self, globals[k]);
+        }
+        let then_b = self.b.open_block();
+        let v = get(self, globals[k]);
+        let then = self.b.close_block(then_b, Some(v), ft, n.index());
+        let else_b = self.b.open_block();
+        let w = self.shared_chain(r, globals, k + 1, ft, n);
+        let other = self.b.close_block(else_b, Some(w), ft, n.index());
+        let rec = self
+            .b
+            .refs_record(&[Ref(u32::try_from(k).unwrap_or(0)), then, other]);
+        self.b.emit(Tag::SwitchTag, r.0, rec, ft, n.index())
     }
 
     /// A top-level binding read from any body of the module.

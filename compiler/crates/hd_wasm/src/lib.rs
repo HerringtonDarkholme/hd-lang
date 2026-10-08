@@ -28,7 +28,7 @@ use wasm_encoder::{
     Module, RefType, StorageType, StructType, SubType, TypeSection, ValType,
 };
 
-pub use emit::{emit, entry};
+pub use emit::{emit, entry, test_entry};
 pub use rt::Helper;
 
 /// A Wasm value type, with references to structural type descriptors.
@@ -517,7 +517,7 @@ impl Types {
 pub fn link(
     codes: &[(Hash128, Code)],
     names: &[String],
-    exports: &[(&str, Helper)],
+    exports: &[(String, Helper)],
 ) -> StageResult<Vec<u8>> {
     // Every function body: instances, then their parts.
     let mut all: Vec<(Sym, &Code, String)> = Vec::new();

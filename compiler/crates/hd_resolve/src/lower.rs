@@ -92,9 +92,19 @@ impl UseDecl {
 #[must_use]
 pub fn use_decls(src: &Src<'_>, package: &str, module: &str) -> Vec<UseDecl> {
     let mut out = Vec::new();
+    // A `tests:` block's uses join the module's scope (a phase-1
+    // simplification: the spec scopes them to the block).
+    let in_tests = src
+        .root()
+        .children()
+        .filter(|c| c.kind() == SyntaxKind::TestsBlock)
+        .flat_map(hd_syntax::NodeRef::children)
+        .filter(|b| b.kind() == SyntaxKind::Block)
+        .flat_map(hd_syntax::NodeRef::children);
     for item in src
         .root()
         .children()
+        .chain(in_tests)
         .filter(|c| c.kind() == SyntaxKind::UseDecl)
     {
         let mut path: Vec<String> = Vec::new();
@@ -1726,7 +1736,8 @@ pub fn body_nodes<'t>(
     for h in heads {
         match h.kind {
             HeadKind::Fn => out.push((h.def, h.node)),
-            HeadKind::Impl => {
+            // An impl's methods, and a trait's default method bodies.
+            HeadKind::Impl | HeadKind::Trait => {
                 for f in Src::child(h.node, SyntaxKind::Block)
                     .iter()
                     .flat_map(|b| b.children())

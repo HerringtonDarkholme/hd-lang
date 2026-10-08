@@ -1,0 +1,35 @@
+# M4c: the four gaps M4d found. Shared enum data with defaults, read in
+# another module and in this one; `$x` interpolation of a top-level
+# binding; `for` over ranges (with `continue`, `break` and `..=`), and
+# over a list.
+use pkg.codes.HttpStatus
+
+enum Level(rank: i32, label: string = "level ${rank}"):
+    Low -> Level(1)
+    High -> Level(9, label="top")
+
+greeting := "hi"
+
+fn describe(s: HttpStatus) -> string:
+    "${s.code} ${s.phrase} ${s.retryable}"
+
+fn main() -> void $ Console:
+    println(describe(HttpStatus.Ok))
+    println(describe(HttpStatus.NotFound))
+    println(describe(HttpStatus.ServiceUnavailable))
+    println("${Level.Low.label} ${Level.High.label} ${Level.High.rank}")
+    println("$greeting")
+    for i in 0..3:
+        println("$i")
+    total := +0
+    for i in 1..=10:
+        if i == 3:
+            continue
+        if i == 8:
+            break
+        total += i
+    println("$total")
+    for _ in 0..2:
+        println("tick")
+    for word in ["a", "b"]:
+        println(word)

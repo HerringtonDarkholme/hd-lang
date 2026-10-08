@@ -38,7 +38,7 @@ use hd_sched::{ExtTask, SerialOrder, SerialScheduler, Spawn, TaskGraph, TaskId, 
 use hd_syntax::{HeaderKind, Parse, parse, skim};
 use hd_tir::Body;
 use hd_types::solver::{GlobalMemo, ImplTable, ImplUniverses, TableSolver};
-use hd_types::{InternPool, Ty, TyList};
+use hd_types::{InternPool, Ty, TyData, TyList};
 use hd_wasm::Code as WasmCode;
 
 pub mod bench;
@@ -47,7 +47,8 @@ mod report;
 include!(concat!(env!("OUT_DIR"), "/std_files.rs"));
 
 /// The std sources every run reads: `lib/std` as embedded at build time,
-/// plus the virtual `core.hd` of the compiler-supplied `std.core`.
+/// plus the virtual `core.hd` of the compiler-supplied `std.core` and the
+/// virtual `rt.hd` of `std.rt`.
 #[must_use]
 pub fn std_sources() -> MemorySources {
     let mut s = MemorySources::default();
@@ -55,11 +56,56 @@ pub fn std_sources() -> MemorySources {
         s.insert(path, text);
     }
     s.insert("core.hd", hd_resolve::seed::CORE_SOURCE);
+    s.insert("rt.hd", RT_SOURCE);
     s
 }
 
-/// A source set with the virtual `core.hd` added when it is missing: a
-/// run whose root package is std itself.
+/// `std.rt`: the hd the compiler roots after an entry point or a test case
+/// returns (module.entry.exit-report, module.testing.pass): the status
+/// `report()` gives, after an `.Err`'s report on standard error
+/// (module.entry.err-stderr). The driver picks one by the result type:
+/// `entry_status` for any `Termination`, `entry_status_display` for a
+/// `Result` whose error is only `Display`, `entry_status_error` for one
+/// whose error type implements `Error` and `entry_status_dyn` for the
+/// erased `dyn Error`; the last two print the cause chain
+/// (module.entry.err-render-chain). It is compiler-supplied, like
+/// `std.core`, so the TS prototype's `lib/std` is unchanged.
+pub const RT_SOURCE: &str = "\
+# std.rt: the entry and test-case result functions (hd_driver::RT_SOURCE).
+use std.process.Termination
+use std.error.{Error, report_of}
+
+fn entry_status[T < Termination](result: T) -> u8:
+    u8(result.report())
+
+fn entry_status_display[T < Termination, E < Display](result: Result[T, E]) -> u8:
+    match result:
+        .Ok(value) => u8(value.report())
+        .Err(error) =>
+            entry_write(error.to_string())
+            1
+
+fn entry_status_error[T < Termination, E < Error](result: Result[T, E]) -> u8:
+    match result:
+        .Ok(value) => u8(value.report())
+        .Err(error) =>
+            entry_write(report_of(error).to_string())
+            1
+
+fn entry_status_dyn[T < Termination](result: Result[T, dyn Error]) -> u8:
+    match result:
+        .Ok(value) => u8(value.report())
+        .Err(error) =>
+            entry_write(report_of(error).to_string())
+            1
+
+@intrinsic(\"entry_write\")
+fn entry_write(text: string) -> void:
+    panic(\"intrinsic\")
+";
+
+/// A source set with the virtual `core.hd` and `rt.hd` added when they are
+/// missing: a run whose root package is std itself.
 fn with_core(sources: &dyn SourceSet) -> MemorySources {
     let mut s = MemorySources::default();
     for e in sources.list() {
@@ -69,6 +115,9 @@ fn with_core(sources: &dyn SourceSet) -> MemorySources {
     }
     if sources.read("core.hd").is_none() {
         s.insert("core.hd", hd_resolve::seed::CORE_SOURCE);
+    }
+    if sources.read("rt.hd").is_none() {
+        s.insert("rt.hd", RT_SOURCE);
     }
     s
 }
@@ -131,8 +180,35 @@ pub enum Goal {
     /// A program whose root is `fn main` of this module (its path below
     /// the package, as `main` or `app.main`).
     Program { entry: String },
+    /// The package's unit-test program (engines-and-test-runner.md
+    /// §19.1): every selected `it` case of its `tests:` blocks, each a
+    /// root. `module` limits the cases to one module (`hd test FILE`),
+    /// `filter` to the names that contain it (`cli.test.filter`).
+    Tests {
+        module: Option<String>,
+        filter: Option<String>,
+    },
     /// Every stage over a package; "not implemented" is counted.
     Analyze,
+}
+
+/// A test case as the test plan lists it (§19.2), in content order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TestCase {
+    /// The module path, as `pkg.math`.
+    pub module: String,
+    /// The package-relative file and the registration's 1-based line.
+    pub file: String,
+    pub line: u32,
+    pub name: String,
+    /// `it`, `it_each`, `it_prop` or `it_prop_with`.
+    pub kind: String,
+    pub ignore: Option<String>,
+    pub expect_panic: Option<String>,
+    /// Why the case cannot run yet.
+    pub unsupported: Option<String>,
+    /// For a case that runs: its `hd.test.i` and `hd.init.j` exports.
+    pub run: Option<(u32, u32)>,
 }
 
 /// The result of a run.
@@ -147,6 +223,8 @@ pub struct Output {
     pub ifaces: Vec<(String, Arc<[u8]>)>,
     /// Readable TIR of the bodies a `Host::render_tir` named, by item path.
     pub tir_text: std::collections::BTreeMap<String, String>,
+    /// A test run's selected cases, in content order.
+    pub tests: Vec<TestCase>,
 }
 
 impl Output {
@@ -206,8 +284,28 @@ struct CollectOut {
     codes: Vec<OnceLock<WasmCode>>,
     code_keys: Vec<Hash128>,
     prog_key: Hash128,
-    root_key: Hash128,
+    roots: Roots,
 }
+
+/// The roots a program's exports poll.
+enum Roots {
+    /// `main`, its report and the inits it reaches.
+    Main {
+        def: DefId,
+        key: Hash128,
+        report: Option<Hash128>,
+    },
+    /// Each running case (item, instance, report), and per test module
+    /// the inits it reaches.
+    Tests {
+        cases: Vec<(DefId, Hash128, Option<Hash128>)>,
+        inits: Vec<Vec<Hash128>>,
+    },
+}
+
+/// A module's `tests:` blocks after checking: the case items and the
+/// registrations.
+type TestsOut = (Vec<Item>, Vec<hd_check::tests::TestReg>);
 
 struct Run<'a> {
     host: &'a Host<'a>,
@@ -230,6 +328,10 @@ struct Run<'a> {
     prep: Vec<OnceLock<Option<PrepOut>>>,
     body: Vec<OnceLock<Option<BodyOut>>>,
     check: Vec<OnceLock<Option<CheckOut>>>,
+    /// Per module, in a test run: the checked `tests:` blocks (a miss).
+    tests: Vec<OnceLock<TestsOut>>,
+    /// Per module, in a test run: the registrations its check entry holds.
+    regs: Vec<OnceLock<Vec<hd_check::tests::TestReg>>>,
     program: OnceLock<ProgramTables>,
     collect: OnceLock<CollectOut>,
     wasm: OnceLock<Vec<u8>>,
@@ -300,6 +402,8 @@ pub fn build(host: &Host<'_>, package: &str, goal: &Goal) -> Output {
         prep: (0..n).map(|_| OnceLock::new()).collect(),
         body: (0..n).map(|_| OnceLock::new()).collect(),
         check: (0..n).map(|_| OnceLock::new()).collect(),
+        tests: (0..n).map(|_| OnceLock::new()).collect(),
+        regs: (0..n).map(|_| OnceLock::new()).collect(),
         program: OnceLock::new(),
         collect: OnceLock::new(),
         wasm: OnceLock::new(),
@@ -348,7 +452,9 @@ pub fn build(host: &Host<'_>, package: &str, goal: &Goal) -> Output {
         .iter()
         .filter_map(|f| Some((f.path.clone(), run.iface_of(f.id)?.blob.clone())))
         .collect();
+    let cases = run.test_cases();
     Output {
+        tests: cases,
         wasm,
         diags,
         files: run.table.files.clone(),
@@ -624,7 +730,7 @@ impl Run<'_> {
         // A program's collection crosses packages (codegen.md §13.2): the
         // std modules its folders reach are checked to TIR too.
         let mut reached = vec![false; self.table.folders.len()];
-        if matches!(self.goal, Goal::Program { .. }) {
+        if self.goal != Goal::Analyze {
             for module in &self.table.modules {
                 if module.package == 0 {
                     for c in g.closure[module.folder.idx()].iter() {
@@ -992,7 +1098,7 @@ impl Run<'_> {
             self.toolchain,
             self.package_key,
             &module.path,
-            ROLE,
+            self.role(m),
             self.skim_of(m).source_hash,
             &closure,
         ))
@@ -1125,12 +1231,15 @@ impl Run<'_> {
         let stmts = hd_check::init::init_statements(src.root());
         let mut init_facts = Vec::new();
         if !stmts.is_empty() {
+            // A test program has no entry module: every top level is
+            // requirement-free.
             let entry_name = match &self.goal {
-                Goal::Program { entry } => entry.as_str(),
-                Goal::Analyze => "main",
+                Goal::Program { entry } => Some(entry.as_str()),
+                Goal::Tests { .. } => None,
+                Goal::Analyze => Some("main"),
             };
-            let entry =
-                module.package == 0 && module.path == format!("{}.{entry_name}", self.package);
+            let entry = module.package == 0
+                && entry_name.is_some_and(|e| module.path == format!("{}.{e}", self.package));
             let item = hd_check::default_body_def(&names, names.item(&module.path, "init"), "init");
             match hd_check::init::check_init(&cx, item, &module.path, &stmts, entry, &mut diags) {
                 Ok((b, facts)) => {
@@ -1185,6 +1294,23 @@ impl Run<'_> {
                     if self.goal != Goal::Analyze {
                         break;
                     }
+                }
+            }
+        }
+        // A test run checks the `tests:` blocks too, into the module's
+        // test-role `check` entry (`check_key` role "test").
+        if self.role(m) == "test" && failed.is_none() {
+            match hd_check::tests::check_tests(&cx, &module.path, &mut diags) {
+                Ok(t) => {
+                    lock(&self.report).body_ok += t.bodies.len();
+                    bodies.extend(t.bodies);
+                    let _ = self.tests[m].set((t.items, t.regs));
+                }
+                Err(e) => {
+                    lock(&self.report)
+                        .body_failures
+                        .push(format!("{} tests: {}", module.path, e.what));
+                    failed.get_or_insert(e);
                 }
             }
         }
@@ -1293,7 +1419,16 @@ impl Run<'_> {
         }
         let mut meta = Writer::default();
         meta.hash(content.finish());
-        let items = match hd_resolve::encode_items(&names, &prep.items, &[]) {
+        // A test run's case items join the module's items, and its
+        // registrations are a fifth section.
+        let (case_items, regs) = match self.tests[m].get() {
+            Some((i, r)) => (i.as_slice(), r.as_slice()),
+            None => (&[][..], &[][..]),
+        };
+        let all_items: Vec<Item> = prep.items.iter().chain(case_items).cloned().collect();
+        let mut rw = Writer::default();
+        encode_regs(regs, &mut rw);
+        let items = match hd_resolve::encode_items(&names, &all_items, &[]) {
             Ok(x) => x,
             Err(e) => {
                 self.stage::<()>(Stage::ModuleFinish, Err(e));
@@ -1302,7 +1437,7 @@ impl Run<'_> {
             }
         };
         let Some(key) = self.check_key(m) else { return };
-        let sections: [&[u8]; 4] = [&dw.bytes, &meta.bytes, &items, &tw.bytes];
+        let sections: [&[u8]; 5] = [&dw.bytes, &meta.bytes, &items, &tw.bytes, &rw.bytes];
         self.put(EntryKind::Check, key, &sections);
         lock(&self.counters)
             .modules_checked
@@ -1338,6 +1473,11 @@ impl Run<'_> {
         }
         let has_errors = buf.has_errors();
         lock(&self.diags).append(&buf);
+        let regs = sections
+            .get(4)
+            .map(|b| decode_regs(&mut Reader::new(b)))
+            .unwrap_or_default();
+        let _ = self.regs[m].set(regs);
         let content = Reader::new(meta).hash();
         let _ = self.check[m].set(Some(CheckOut {
             entry,
@@ -1349,7 +1489,7 @@ impl Run<'_> {
     fn package_result(&self, sp: &dyn Spawn) {
         lock(&self.report).ok(Stage::PackageResult);
         match &self.goal {
-            Goal::Program { .. } => {
+            Goal::Program { .. } | Goal::Tests { .. } => {
                 if !lock(&self.diags).has_errors() {
                     sp.add(TaskKind::Ext(ExtTask::Collect), &[]);
                 }
@@ -1424,11 +1564,38 @@ impl Run<'_> {
 
     /// `Collect` (codegen.md §11.3): `prog_key`, then instances, then code
     /// keys; hits are looked up here, and only misses become `Emit` tasks.
+    /// A program's roots are `main` (with its report), or for a test run
+    /// each running case (engines-and-test-runner.md §19.1).
     fn collect(&self, sp: &dyn Spawn) {
-        let Goal::Program { entry } = &self.goal else {
-            return;
+        let names = self.names();
+        let (entry_key, roots) = match &self.goal {
+            Goal::Program { entry } => {
+                let entry_module = format!("{}.{entry}", self.package);
+                let root = names.item(&entry_module, "main");
+                (entry_module, vec![(root, String::new())])
+            }
+            Goal::Tests { module, filter } => {
+                let cases: Vec<(DefId, String)> = self
+                    .test_plan()
+                    .into_iter()
+                    .filter_map(|(m, r)| {
+                        let body = r.body.as_ref().filter(|_| r.ignore.is_none())?;
+                        let path = &self.table.modules[m].path;
+                        Some((names.item(path, body), path.clone()))
+                    })
+                    .collect();
+                if cases.is_empty() {
+                    return;
+                }
+                let key = format!(
+                    "test:{}:{}",
+                    module.as_deref().unwrap_or("*"),
+                    filter.as_deref().unwrap_or("")
+                );
+                (key, cases)
+            }
+            Goal::Analyze => return,
         };
-        let entry_module = format!("{}.{entry}", self.package);
         let mut modules: Vec<(&str, Hash128)> = Vec::new();
         for (m, module) in self.table.modules.iter().enumerate() {
             if module.package != 0 {
@@ -1440,7 +1607,7 @@ impl Run<'_> {
             };
             modules.push((module.path.as_str(), c.content));
         }
-        let pkey = prog_key(self.toolchain, self.pipeline, &entry_module, &modules);
+        let pkey = prog_key(self.toolchain, self.pipeline, &entry_key, &modules);
         if let Some(sections) = self.lookup(EntryKind::Link, pkey)
             && let Some(w) = sections.first()
         {
@@ -1458,8 +1625,7 @@ impl Run<'_> {
             );
             return;
         };
-        let names = self.names();
-        let root = names.item(&entry_module, "main");
+        let (root, _) = roots[0];
         if !p.bodies.contains_key(&root) {
             let span = Span {
                 file: FileId::from_raw(u32::MAX),
@@ -1469,29 +1635,103 @@ impl Run<'_> {
             lock(&self.diags).error(
                 Code::MissingEntryPoint,
                 span,
-                &format!("missing-entry-point: `{entry_module}` has no `fn main`"),
+                &format!("missing-entry-point: `{entry_key}` has no `fn main`"),
             );
             return;
         }
         let env = Env { run: self, p };
+        let init_of = |m: &str| hd_check::default_body_def(&names, names.item(m, "init"), "init");
+        let has_init = |m: &str| p.bodies.contains_key(&init_of(m));
+        // The init groups each root module reaches, in order, and their union.
+        let mut root_modules: Vec<String> = Vec::new();
+        for (_, m) in &roots {
+            let m = if m.is_empty() {
+                entry_key.clone()
+            } else {
+                m.clone()
+            };
+            if !root_modules.contains(&m) {
+                root_modules.push(m);
+            }
+        }
+        let mut per_module: Vec<Vec<DefId>> = Vec::new();
+        let mut all_inits: Vec<DefId> = Vec::new();
+        for m in &root_modules {
+            let order = match self.group_init_order(m, &has_init) {
+                Ok(o) => o,
+                Err(e) => {
+                    self.stage::<()>(Stage::Collect, Err(e));
+                    return;
+                }
+            };
+            let defs: Vec<DefId> = order
+                .iter()
+                .map(|m| init_of(m))
+                .filter(|d| p.bodies.contains_key(d))
+                .collect();
+            for d in &defs {
+                if !all_inits.contains(d) {
+                    all_inits.push(*d);
+                }
+            }
+            per_module.push(defs);
+        }
+        // Extra roots: the other cases, then each distinct report function.
+        let mut extra: Vec<(DefId, TyList)> = roots[1..]
+            .iter()
+            .map(|(d, _)| (*d, TyList::EMPTY))
+            .collect();
+        let reports: Vec<Option<(DefId, TyList)>> = roots
+            .iter()
+            .map(|(d, _)| self.report_fn(p, env.ret(*d).unwrap_or(Ty::VOID)))
+            .collect();
+        for r in reports.iter().flatten() {
+            if !extra.contains(r) {
+                extra.push(*r);
+            }
+        }
         let Some(collected) = self.stage(
             Stage::Collect,
-            {
-                let init_of =
-                    |m: &str| hd_check::default_body_def(&names, names.item(m, "init"), "init");
-                let has_init = |m: &str| p.bodies.contains_key(&init_of(m));
-                self.group_init_order(&entry_module, &has_init)
-            }
-            .and_then(|order| {
-                let inits: Vec<DefId> = order
-                    .iter()
-                    .map(|m| hd_check::default_body_def(&names, names.item(m, "init"), "init"))
-                    .filter(|d| p.bodies.contains_key(d))
-                    .collect();
-                hd_mono::collect(&self.pool, &env, &TableSolver, root, &inits)
-            }),
+            hd_mono::collect(&self.pool, &env, &TableSolver, root, &all_inits, &extra),
         ) else {
             return;
+        };
+        let key_of_extra = |r: &(DefId, TyList)| {
+            extra
+                .iter()
+                .position(|x| x == r)
+                .and_then(|i| collected.extra.get(i).copied())
+        };
+        let key_of_init = |d: &DefId| {
+            all_inits
+                .iter()
+                .position(|x| x == d)
+                .and_then(|i| collected.inits.get(i).copied())
+        };
+        let plan = match &self.goal {
+            Goal::Program { .. } => Roots::Main {
+                def: root,
+                key: collected.table.key[0],
+                report: reports[0].as_ref().and_then(key_of_extra),
+            },
+            _ => Roots::Tests {
+                cases: roots
+                    .iter()
+                    .enumerate()
+                    .map(|(i, (d, _))| {
+                        let key = if i == 0 {
+                            collected.table.key[0]
+                        } else {
+                            key_of_extra(&(*d, TyList::EMPTY)).unwrap_or(Hash128(0))
+                        };
+                        (*d, key, reports[i].as_ref().and_then(key_of_extra))
+                    })
+                    .collect(),
+                inits: per_module
+                    .iter()
+                    .map(|ds| ds.iter().filter_map(key_of_init).collect())
+                    .collect(),
+            },
         };
         let order = collected.table.content_order();
         let mut code_keys = Vec::new();
@@ -1520,14 +1760,13 @@ impl Run<'_> {
                 None => misses.push(slot),
             }
         }
-        let root_key = collected.table.key[0];
         let _ = self.collect.set(CollectOut {
             collected,
             order,
             codes,
             code_keys,
             prog_key: pkey,
-            root_key,
+            roots: plan,
         });
         let link = sp.add_held(TaskKind::Ext(ExtTask::Link), &[]);
         for slot in misses {
@@ -1535,6 +1774,110 @@ impl Run<'_> {
             sp.edge(e, link);
         }
         sp.release(link);
+    }
+
+    /// The `check` role of module `m`: a test run checks the package's
+    /// modules with their `tests:` blocks, into separate entries.
+    fn role(&self, m: usize) -> &'static str {
+        if matches!(self.goal, Goal::Tests { .. }) && self.table.modules[m].package == 0 {
+            "test"
+        } else {
+            ROLE
+        }
+    }
+
+    /// The selected registrations of a test run, in content order: module
+    /// order, then registration order (§19.2). `--filter` keeps the names
+    /// that contain it (`cli.test.filter`).
+    fn test_plan(&self) -> Vec<(usize, hd_check::tests::TestReg)> {
+        let Goal::Tests { module, filter } = &self.goal else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        for (m, md) in self.table.modules.iter().enumerate() {
+            if md.package != 0 || module.as_ref().is_some_and(|x| *x != md.path) {
+                continue;
+            }
+            for r in self.regs[m].get().into_iter().flatten() {
+                if filter.as_ref().is_none_or(|f| r.name.contains(f.as_str())) {
+                    out.push((m, r.clone()));
+                }
+            }
+        }
+        out
+    }
+
+    /// The test plan as `Output::tests` lists it: running cases get their
+    /// `hd.test.i` and `hd.init.j` exports, in the order `collect` roots them.
+    fn test_cases(&self) -> Vec<TestCase> {
+        let mut modules: Vec<usize> = Vec::new();
+        let mut next = 0u32;
+        let mut out = Vec::new();
+        for (m, r) in self.test_plan() {
+            let run = if r.body.is_some() && r.ignore.is_none() {
+                let j = if let Some(j) = modules.iter().position(|x| *x == m) {
+                    j
+                } else {
+                    modules.push(m);
+                    modules.len() - 1
+                };
+                next += 1;
+                Some((next - 1, u32_of(j)))
+            } else {
+                None
+            };
+            let text = &self.texts[m];
+            let upto = text.get(..r.at as usize).unwrap_or("");
+            out.push(TestCase {
+                module: self.table.modules[m].path.clone(),
+                file: self.table.files.get(m).cloned().unwrap_or_default(),
+                line: u32_of(upto.matches('\n').count() + 1),
+                name: r.name,
+                kind: r.kind,
+                ignore: r.ignore,
+                expect_panic: r.expect_panic,
+                unsupported: r.unsupported,
+                run,
+            });
+        }
+        out
+    }
+
+    /// The `std.rt` function that turns a root's result into its exit
+    /// status (module.entry.exit-report), or `None` for `void`: the
+    /// `Error` form for an error type that implements `Error` (its cause
+    /// chain is printed), the `Display` form otherwise.
+    fn report_fn(&self, p: &ProgramTables, ret: Ty) -> Option<(DefId, TyList)> {
+        let pool = &self.pool;
+        let names = self.names();
+        if ret == Ty::VOID || ret == Ty::NEVER {
+            return None;
+        }
+        let rt = |n: &str| names.item("std.rt", n);
+        let TyData::Adt { def, args } = pool.get(ret) else {
+            return Some((rt("entry_status"), pool.list(&[ret])));
+        };
+        if def != names.item("std.core", "Result") {
+            return Some((rt("entry_status"), pool.list(&[ret])));
+        }
+        let a = pool.list_items(args);
+        let (ok, err) = (a[0], a[1]);
+        let error = names.item("std.error", "Error");
+        match pool.get(err) {
+            TyData::TraitValue { def, .. } if def == error => {
+                Some((rt("entry_status_dyn"), pool.list(&[ok])))
+            }
+            TyData::Adt { def: ed, .. }
+                if p.items.values().any(|i| {
+                    matches!(&i.data, ItemData::Impl { trait_, self_ty, .. }
+                        if *trait_ == error
+                            && matches!(pool.get(*self_ty), TyData::Adt { def, .. } if def == ed))
+                }) =>
+            {
+                Some((rt("entry_status_error"), args))
+            }
+            _ => Some((rt("entry_status_display"), args)),
+        }
     }
 
     /// The modules the entry module reaches, in initialization order
@@ -1691,6 +2034,11 @@ impl Run<'_> {
             &c.collected.calls[id.idx()],
             c.collected.table.key[id.idx()],
         );
+        // The instance's item names where emission stopped.
+        let r = r.map_err(|mut e| {
+            e.what = format!("{} (in `{}`)", e.what, names.path(item));
+            e
+        });
         let Some(code) = self.stage(Stage::Emit, r) else {
             return;
         };
@@ -1719,18 +2067,21 @@ impl Run<'_> {
         let env = Env { run: self, p };
         let names = self.names();
         let path = |d: DefId| names.path(d);
-        let root = c.collected.table.item[0];
-        let Some(entry) = self.stage(
-            Stage::Link,
-            hd_wasm::entry(
+        let exports = match &c.roots {
+            Roots::Main { def, key, report } => hd_wasm::entry(
                 &self.pool,
                 &env,
                 &path,
-                root,
-                c.root_key,
+                *def,
+                *key,
                 &c.collected.inits,
+                *report,
             ),
-        ) else {
+            Roots::Tests { cases, inits } => {
+                hd_wasm::test_entry(&self.pool, &env, &path, cases, inits)
+            }
+        };
+        let Some(entry) = self.stage(Stage::Link, exports) else {
             return;
         };
         let Some(wasm) = self.stage(Stage::Link, hd_wasm::link(&codes, &fnames, &entry)) else {
@@ -1776,6 +2127,45 @@ fn absolute_use(path: &str, package: &str, module: &str) -> String {
         }
         _ => path.to_owned(),
     }
+}
+
+/// A module's test registrations, as its test-role `check` entry holds them.
+fn encode_regs(regs: &[hd_check::tests::TestReg], w: &mut Writer) {
+    let opt = |w: &mut Writer, s: &Option<String>| match s {
+        Some(s) => {
+            w.u8(1);
+            w.str(s);
+        }
+        None => w.u8(0),
+    };
+    w.len_of(regs);
+    for r in regs {
+        w.str(&r.name);
+        w.str(&r.kind);
+        opt(w, &r.body);
+        opt(w, &r.ignore);
+        opt(w, &r.expect_panic);
+        opt(w, &r.unsupported);
+        w.u32(r.at);
+    }
+}
+
+fn decode_regs(r: &mut Reader<'_>) -> Vec<hd_check::tests::TestReg> {
+    let opt = |r: &mut Reader<'_>| (r.u8() == 1).then(|| r.str().to_owned());
+    let n = r.count();
+    let mut out = Vec::new();
+    for _ in 0..n {
+        out.push(hd_check::tests::TestReg {
+            name: r.str().to_owned(),
+            kind: r.str().to_owned(),
+            body: opt(r),
+            ignore: opt(r),
+            expect_panic: opt(r),
+            unsupported: opt(r),
+            at: r.u32(),
+        });
+    }
+    out
 }
 
 fn encode_iface_diags(d: &IfaceDiags) -> Vec<u8> {
@@ -1943,6 +2333,8 @@ impl ProgramEnv for Env<'_> {
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>> {
         match &self.p.items.get(&def)?.data {
             ItemData::Data(fs) => Some(fs.iter().map(|f| f.ty).collect()),
+            // A newtype is a data value of its one inner value.
+            ItemData::Newtype(inner) => Some(vec![*inner]),
             _ => None,
         }
     }

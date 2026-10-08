@@ -1364,6 +1364,42 @@ impl Em<'_> {
                 self.a.s().unreachable();
                 Ok(())
             }
+            // std's `panic_with(category, message)`: the report names the
+            // category, then the message when it is not empty
+            // (`flow.panic.report`).
+            "panic" => {
+                crate::rt::write_lit(&mut self.a, "panic: ");
+                self.load(args[0])?;
+                self.a.call(Sym::Helper(Helper::StrToBuf));
+                self.a.call(crate::rt::stderr_import());
+                let sv = [VT::r(WTy::Bytes), VT::I64];
+                let (b, w) = (self.a.local(sv[0].clone()), self.a.local(VT::I64));
+                self.load_as(args[1], &sv)?;
+                self.a.set(w);
+                self.a.set(b);
+                self.a.get(w);
+                self.a.i64(32);
+                self.a.s().i64_shr_u().i32_wrap_i64();
+                self.a.if_();
+                crate::rt::write_lit(&mut self.a, ": ");
+                self.a.get(b);
+                self.a.get(w);
+                self.a.call(Sym::Helper(Helper::StrToBuf));
+                self.a.call(crate::rt::stderr_import());
+                self.a.end();
+                crate::rt::write_lit(&mut self.a, "\n");
+                self.a.s().unreachable();
+                Ok(())
+            }
+            // `std.rt`'s report of an entry point's or a test case's `.Err`
+            // on standard error (`module.entry.err-stderr`).
+            "entry_write" => {
+                self.load(args[0])?;
+                self.a.call(Sym::Helper(Helper::StrToBuf));
+                self.a.call(crate::rt::stderr_import());
+                crate::rt::write_lit(&mut self.a, "\n");
+                Ok(())
+            }
             "block_on" => {
                 // suspension.md §14.9: poll; when Pending, wait in the host.
                 let Shape::Suspend { base, poll, result } = self.lay.shape(self.ty_of(args[0]))?
@@ -3147,7 +3183,9 @@ fn flag_checks(a: &mut Asm, f: u32, ft: &WTy, poll: bool) {
 /// runs every reachable group's init in order; `hd.poll` provides one
 /// default-profile provider per row key, each a vtable of host stubs
 /// generated from `hd_host_abi::TABLE` (runtime-and-host.md §17.1), and
-/// runs `main` or polls `main!`; `hd.wake(n)` records completed handles.
+/// runs `main` or polls `main!`, then turns its result into the exit
+/// status with `report` (a `std.rt` instance; `None` for `void`);
+/// `hd.wake(n)` records completed handles.
 pub fn entry(
     pool: &InternPool,
     env: &dyn ProgramEnv,
@@ -3155,7 +3193,60 @@ pub fn entry(
     main: DefId,
     key: hd_base::Hash128,
     inits: &[hd_base::Hash128],
-) -> StageResult<Vec<(&'static str, Helper)>> {
+    report: Option<hd_base::Hash128>,
+) -> StageResult<Vec<(String, Helper)>> {
+    Ok(vec![
+        (
+            "hd.init".into(),
+            Helper::EntryInit {
+                inits: inits.to_vec(),
+            },
+        ),
+        (
+            "hd.poll".into(),
+            root_poll(pool, env, path, main, key, report)?,
+        ),
+        ("hd.wake".into(), Helper::EntryWake),
+    ])
+}
+
+/// The exports of a test program (engines-and-test-runner.md §19.1):
+/// `hd.init.j`, the init groups that test module `j` reaches; `hd.test.i`,
+/// which polls case `i` as `hd.poll` polls `main`; and `hd.wake`.
+pub fn test_entry(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    path: &dyn Fn(DefId) -> String,
+    cases: &[(DefId, hd_base::Hash128, Option<hd_base::Hash128>)],
+    inits: &[Vec<hd_base::Hash128>],
+) -> StageResult<Vec<(String, Helper)>> {
+    let mut out = Vec::new();
+    for (j, ks) in inits.iter().enumerate() {
+        out.push((
+            format!("hd.init.{j}"),
+            Helper::EntryInit { inits: ks.clone() },
+        ));
+    }
+    for (i, (def, key, report)) in cases.iter().enumerate() {
+        out.push((
+            format!("hd.test.{i}"),
+            root_poll(pool, env, path, *def, *key, *report)?,
+        ));
+    }
+    out.push(("hd.wake".into(), Helper::EntryWake));
+    Ok(out)
+}
+
+/// The poll export of one root: its row's default providers, then the
+/// root's call or poll, then its report.
+fn root_poll(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    path: &dyn Fn(DefId) -> String,
+    main: DefId,
+    key: hd_base::Hash128,
+    report: Option<hd_base::Hash128>,
+) -> StageResult<Helper> {
     let lay = Lay { pool, env, path };
     let mut providers = Vec::new();
     for k in env.row_keys(main) {
@@ -3193,24 +3284,13 @@ pub fn entry(
     } else {
         None
     };
-    Ok(vec![
-        (
-            "hd.init",
-            Helper::EntryInit {
-                inits: inits.to_vec(),
-            },
-        ),
-        (
-            "hd.poll",
-            Helper::EntryPoll {
-                main: key,
-                providers,
-                results: u32_of(results.len()),
-                bang,
-            },
-        ),
-        ("hd.wake", Helper::EntryWake),
-    ])
+    Ok(Helper::EntryPoll {
+        main: key,
+        providers,
+        results: u32_of(results.len()),
+        bang,
+        report: report.map(|k| (k, results)),
+    })
 }
 
 /// One vtable slot of a default-profile provider: a host stub, or a

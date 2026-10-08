@@ -182,6 +182,9 @@ pub enum Helper {
         providers: Vec<(WTy, Vec<Helper>)>,
         results: u32,
         bang: Option<(WTy, WTy)>,
+        /// The `std.rt` result function's instance, which turns the
+        /// root's result into the exit status; `None` for `void`.
+        report: Option<(Hash128, Vec<VT>)>,
     },
     /// `hd.wake(n)`: marks the completed handles.
     EntryWake,
@@ -333,6 +336,7 @@ impl Helper {
                 providers,
                 results,
                 bang,
+                report,
             } => {
                 w.u8(10);
                 w.hash(*main);
@@ -350,6 +354,14 @@ impl Helper {
                         w.u8(1);
                         enc_wty(b, w);
                         enc_wty(p, w);
+                    }
+                    None => w.u8(0),
+                }
+                match report {
+                    Some((k, vts)) => {
+                        w.u8(1);
+                        w.hash(*k);
+                        encode_vts(vts, w);
                     }
                     None => w.u8(0),
                 }
@@ -456,11 +468,17 @@ impl Helper {
                 } else {
                     None
                 };
+                let report = if r.u8() == 1 {
+                    Some((r.hash(), decode_vts(r, 0)?))
+                } else {
+                    None
+                };
                 Helper::EntryPoll {
                     main,
                     providers,
                     results,
                     bang,
+                    report,
                 }
             }
             _ => return None,
@@ -694,7 +712,7 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
         }
         Helper::PanicStr => {
             let mut a = Asm::new(str_vts());
-            write_lit(&mut a, "panic: ");
+            write_lit(&mut a, "panic: explicit-panic: ");
             a.get(0);
             a.get(1);
             a.call(Sym::Helper(Helper::StrToBuf));
@@ -936,6 +954,7 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             providers,
             results,
             bang,
+            report,
         } => {
             let mut a = Asm::new(vec![]);
             let build = |a: &mut Asm| {
@@ -951,10 +970,15 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
                 None => {
                     build(&mut a);
                     a.call(Sym::Inst(*main));
-                    for _ in 0..*results {
-                        a.s().drop();
+                    // The result is on the stack, as the report's parameters.
+                    if let Some((k, _)) = report {
+                        a.call(Sym::Inst(*k));
+                    } else {
+                        for _ in 0..*results {
+                            a.s().drop();
+                        }
+                        a.i32(0);
                     }
-                    a.i32(0);
                 }
                 Some((base, poll)) => {
                     let WTy::Func(_, prs) = poll else {
@@ -975,11 +999,34 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
                     a.get(root);
                     a.struct_get(base, F_POLL);
                     a.call_ref(poll);
-                    for _ in 1..prs.len() {
-                        a.s().drop();
+                    // Ready: the report of the result; else -1.
+                    if let Some((k, want)) = report {
+                        let tmp: Vec<u32> = prs[1..].iter().map(|v| a.local(v.clone())).collect();
+                        for l in tmp.iter().rev() {
+                            a.set(*l);
+                        }
+                        let ready = a.local(VT::I32);
+                        let status = a.local(VT::I32);
+                        a.set(ready);
+                        a.i32(-1);
+                        a.set(status);
+                        a.get(ready);
+                        a.if_();
+                        for (l, (have, want)) in tmp.iter().zip(prs[1..].iter().zip(want)) {
+                            a.get(*l);
+                            a.conv(have, want);
+                        }
+                        a.call(Sym::Inst(*k));
+                        a.set(status);
+                        a.end();
+                        a.get(status);
+                    } else {
+                        for _ in 1..prs.len() {
+                            a.s().drop();
+                        }
+                        a.i32(1);
+                        a.s().i32_sub();
                     }
-                    a.i32(1);
-                    a.s().i32_sub();
                 }
             }
             a.finish(vec![VT::I32])
@@ -994,7 +1041,7 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
 }
 
 /// Writes a fixed text to standard error through the runtime import.
-fn write_lit(a: &mut Asm, text: &str) {
+pub(crate) fn write_lit(a: &mut Asm, text: &str) {
     a.call(Sym::Helper(Helper::Lit(text.as_bytes().to_vec())));
     a.i64(i64::try_from(text.len()).unwrap_or(0) << 32);
     a.call(Sym::Helper(Helper::StrToBuf));

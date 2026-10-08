@@ -1,0 +1,20 @@
+# M4c: a `main` returning `.Err` writes the error's `Display` text to
+# standard error and exits with status 1 (module.entry.err-stderr).
+data Oops:
+    what: string
+
+impl Display for Oops:
+    fn to_string(self) -> string:
+        "oops: ${self.what}"
+
+fn check(n: i32) -> Result[i32, Oops]:
+    if n > 2:
+        return .Err(Oops { what: "too big" })
+    .Ok(n)
+
+fn main() -> Result[void, Oops] $ Console:
+    v := check(1)?
+    println("got $v")
+    _ := check(5)?
+    println("unreachable")
+    .Ok(())

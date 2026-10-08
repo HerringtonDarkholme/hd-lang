@@ -37,8 +37,8 @@ fn every_stage_runs_on_std() {
     walk(&root, &root, &mut s, &mut files);
     let r = analyze_package("std", &s);
     println!("{}", r.render());
-    // The compiler-supplied `std.core` is one more, virtual, module.
-    let files = files + 1;
+    // The compiler-supplied `std.core` and `std.rt` are two more, virtual, modules.
+    let files = files + 2;
     assert_eq!(r.tally(Stage::Skim).ok, files);
     assert_eq!(
         r.tally(Stage::Parse).ok + r.tally(Stage::Parse).not_implemented,

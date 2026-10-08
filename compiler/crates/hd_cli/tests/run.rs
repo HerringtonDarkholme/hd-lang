@@ -58,7 +58,12 @@ const DEFER: &str = "5\nerr bad\nok 2\n7\nnormal: body\nnormal: second registere
                      loop: cleanup 2\nloop: after\ntry: cleanup x\ntry: cleanup y\n\
                      nested: inner\nnested: outer\n";
 
-const CASES: [(&str, &str); 12] = [
+/// M4c: shared enum data (read across modules), `$x` of a top-level
+/// binding, and `for` over ranges and a list.
+const GAPS: &str = "200 OK false\n404 Not Found false\n503 Service Unavailable true\n\
+                    level 1 top 9\nhi\n0\n1\n2\n25\ntick\ntick\na\nb\n";
+
+const CASES: [(&str, &str); 13] = [
     ("hello/hello.hd", "42\n"),
     ("hello", "42\n"),
     ("arith", "7\n9\n3\n55\n-1\n0\n1\n16\n-10\n"),
@@ -71,6 +76,7 @@ const CASES: [(&str, &str); 12] = [
     ("init/main.hd", INIT),
     ("suspend/main.hd", SUSPEND),
     ("defer/main.hd", DEFER),
+    ("gaps/main.hd", GAPS),
 ];
 
 #[test]
@@ -90,6 +96,20 @@ fn run_samples_on_v8_cold_then_warm() {
         dir.join("obj").join("link").is_dir(),
         "the disk cache holds linked programs"
     );
+}
+
+/// M4c: `main` returning `.Err` prints the error's report on standard
+/// error and exits with status 1 (module.entry.err-stderr).
+#[test]
+fn main_returning_err_exits_with_its_report() {
+    let output = hd(&cache("hd-cache-err-exit"))
+        .arg("run")
+        .arg(samples().join("err_exit/main.hd"))
+        .output()
+        .expect("run hd");
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "got 1\n");
+    assert_eq!(String::from_utf8_lossy(&output.stderr), "oops: too big\n");
 }
 
 #[test]

@@ -93,6 +93,32 @@ fn strip_piece(t: &str, kind: TokenKind) -> &str {
     }
 }
 
+/// The text of a plain string literal without interpolation, as a test
+/// name or option (`module.testing.it.name`); `None` for anything else.
+pub(crate) fn literal_text(src: &hd_resolve::Src<'_>, n: NodeRef<'_>) -> Option<String> {
+    if n.kind() != SyntaxKind::StringExpr {
+        return None;
+    }
+    let toks: Vec<_> = src.tokens(n).collect();
+    let [t] = toks.as_slice() else {
+        return None;
+    };
+    let text = src.text(*t);
+    if src.tkind(*t) != Some(TokenKind::String) || !text.starts_with('"') {
+        return None;
+    }
+    let mut pieces = Vec::new();
+    decode_piece(strip_piece(text, TokenKind::String), &mut pieces);
+    let mut out = String::new();
+    for p in pieces {
+        match p {
+            Piece::Text(s) => out.push_str(&s),
+            Piece::Name(_) => return None,
+        }
+    }
+    Some(out)
+}
+
 impl Ck<'_, '_> {
     pub(crate) fn expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         self.charge()?;
@@ -286,12 +312,16 @@ impl Ck<'_, '_> {
                     Piece::Text(s) => parts.push(self.b.const_str(&s)),
                     Piece::Name(name) => {
                         let sym = self.cx.names.syms.intern(&name);
-                        let Some((l, d)) = self.find_local(sym) else {
+                        // A local, else a top-level binding of the module.
+                        let read = match self.find_local(sym) {
+                            Some((l, d)) => Some(self.read_local(l, d, n)),
+                            None => self.global_get(sym, n),
+                        };
+                        let Some((r, ty)) = read else {
                             let msg = format!("unknown-name `{name}`");
                             self.err(Code::UnknownName, n, &msg);
                             continue;
                         };
-                        let (r, ty) = self.read_local(l, d, n);
                         let s = self.display_str(r, ty, n)?;
                         parts.push(s);
                     }
@@ -620,6 +650,9 @@ impl Ck<'_, '_> {
         }
         if let Some((idx, ft)) = self.field_of(bt, &name) {
             return Ok((self.b.emit(Tag::Field, r.0, idx, ft, n.index()), ft));
+        }
+        if let Some(v) = self.shared_field(r, inner, &name, n)? {
+            return Ok(v);
         }
         if matches!(pool.get(inner), TyData::Infer(_)) {
             return self.gap(n, "a field of a value whose type is not yet known");
@@ -1024,6 +1057,18 @@ impl Ck<'_, '_> {
             TyData::Mut(i) => i,
             _ => st_r,
         };
+        if let TyData::Adt { def, args } = pool.get(st_i)
+            && self.cx.names.path(def) == "std/ops/Range"
+            && matches!(
+                pat.kind(),
+                SyntaxKind::BindingPattern | SyntaxKind::WildcardPattern
+            )
+        {
+            let et = pool.list_items(args).first().copied().unwrap_or(Ty::POISON);
+            if self.numeric(et) {
+                return self.range_loop(pat, sr, et, e, body);
+            }
+        }
         let (it, item_ty) = match pool.get(st_i) {
             TyData::Adt { def, args } if def == iterator => (
                 sr,
@@ -1120,6 +1165,85 @@ impl Ck<'_, '_> {
         self.b.emit(Tag::Match, next.0, rec, Ty::VOID, e.index());
         let lbody = self.b.close_block(lb, None, Ty::VOID, e.index());
         Ok((self.b.close_loop(lp, lbody, Ty::VOID, e.index()), Ty::VOID))
+    }
+
+    /// A `for` over a numeric `Range` as a counting loop (lowering-catalog
+    /// "for over a range"): no iterator value. Each round tests
+    /// `cur < end || (inclusive && cur == end)`, binds the item, then
+    /// advances before the body runs, so `continue` needs no step of its
+    /// own. At the inclusive end it clears `inclusive` instead of adding,
+    /// so `0..=255u8` cannot overflow.
+    fn range_loop(
+        &mut self,
+        pat: NodeRef<'_>,
+        sr: Ref,
+        et: Ty,
+        e: NodeRef<'_>,
+        body: &mut dyn FnMut(&mut Self) -> StageResult<()>,
+    ) -> StageResult<(Ref, Ty)> {
+        use hd_tir::ir::local_flags::ASSIGNED;
+        let at = e.index();
+        let sym = |me: &Self, s: &str| me.cx.names.syms.intern(s);
+        let (cur_s, end_s, inc_s) = (sym(self, "$cur"), sym(self, "$end"), sym(self, "$incl"));
+        let cur_l = self.b.local(et, cur_s, ASSIGNED, at);
+        let end_l = self.b.local(et, end_s, ASSIGNED, at);
+        let inc_l = self.b.local(Ty::BOOL, inc_s, ASSIGNED, at);
+        let start = self.b.emit(Tag::Field, sr.0, 0, et, at);
+        self.b.set(cur_l, start, at);
+        let end = self.b.emit(Tag::Field, sr.0, 1, et, at);
+        self.b.set(end_l, end, at);
+        let inc = self.b.emit(Tag::Field, sr.0, 2, Ty::BOOL, at);
+        self.b.set(inc_l, inc, at);
+        let lt = PrimOp::Lt as u32;
+        let lp = self.b.open_loop();
+        let lb = self.b.open_block();
+        // The test.
+        let (c, d) = (self.b.get(cur_l, et, at), self.b.get(end_l, et, at));
+        let below = self.b.prim(lt, &[c, d], Ty::BOOL, at);
+        let ob = self.b.open_block();
+        let incv = self.b.get(inc_l, Ty::BOOL, at);
+        let ab = self.b.open_block();
+        let (c, d) = (self.b.get(cur_l, et, at), self.b.get(end_l, et, at));
+        let at_end = self.b.prim(PrimOp::Eq as u32, &[c, d], Ty::BOOL, at);
+        let ablk = self.b.close_block(ab, Some(at_end), Ty::BOOL, at);
+        let both = self.b.emit(Tag::And, incv.0, ablk.0, Ty::BOOL, at);
+        let oblk = self.b.close_block(ob, Some(both), Ty::BOOL, at);
+        let go = self.b.emit(Tag::Or, below.0, oblk.0, Ty::BOOL, at);
+        // The round: bind, advance, then the body.
+        let tb = self.b.open_block();
+        self.loops.push((lp, None));
+        self.scopes.push(HashMap::new());
+        let item = self.b.get(cur_l, et, at);
+        let mut binds = Vec::new();
+        self.declare_pattern(pat, et, &mut binds)?;
+        for (_, l) in &binds {
+            self.b.set(*l, item, at);
+        }
+        let (c, d) = (self.b.get(cur_l, et, at), self.b.get(end_l, et, at));
+        let more = self.b.prim(lt, &[c, d], Ty::BOOL, at);
+        let ib = self.b.open_block();
+        let c = self.b.get(cur_l, et, at);
+        let one = self.b.const_value(et, 1);
+        let next = self.b.prim(PrimOp::Add as u32, &[c, one], et, at);
+        self.b.set(cur_l, next, at);
+        let iblk = self.b.close_block(ib, None, Ty::VOID, at);
+        let fb = self.b.open_block();
+        let no = self.b.const_value(Ty::BOOL, 0);
+        self.b.set(inc_l, no, at);
+        let fblk = self.b.close_block(fb, None, Ty::VOID, at);
+        let rec = self.b.refs_record(&[iblk, fblk]);
+        self.b.emit(Tag::If, more.0, rec, Ty::VOID, at);
+        body(self)?;
+        self.scopes.pop();
+        self.loops.pop();
+        let then = self.b.close_block(tb, None, Ty::VOID, at);
+        let eb = self.b.open_block();
+        self.b.emit(Tag::Break, lp.0.raw(), NONE, Ty::NEVER, at);
+        let els = self.b.close_block(eb, None, Ty::VOID, at);
+        let rec = self.b.refs_record(&[then, els]);
+        self.b.emit(Tag::If, go.0, rec, Ty::VOID, at);
+        let lbody = self.b.close_block(lb, None, Ty::VOID, at);
+        Ok((self.b.close_loop(lp, lbody, Ty::VOID, at), Ty::VOID))
     }
 
     /// `_` in a pipe step: the piped value.
@@ -1419,6 +1543,13 @@ impl Ck<'_, '_> {
                 let ev = if self.can_unify(et, ret_e) {
                     self.expect(et, ret_e, *e, "error");
                     ev
+                } else if matches!(
+                    pool.get(self.infer.resolve(pool, ret_e)),
+                    TyData::TraitValue { .. }
+                ) {
+                    // Into an erased error such as `dyn Error`: a trait-value
+                    // coercion (`expr.try.test.converts`).
+                    self.coerce(ev, et, ret_e, *e, "error")
                 } else {
                     let from = self.cx.names.item("std.convert", "From");
                     let tref = hd_types::solver::TraitRef {

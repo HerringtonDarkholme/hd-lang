@@ -12,6 +12,7 @@ pub mod init;
 mod pat;
 mod render;
 pub mod stages;
+pub mod tests;
 mod ty;
 
 pub use body::{BodyCx, check_default, check_fn, default_body_def};

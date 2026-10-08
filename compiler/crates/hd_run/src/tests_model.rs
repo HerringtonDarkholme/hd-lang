@@ -42,11 +42,30 @@ pub struct Case {
 /// A case's result (§19.5).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CaseResult {
-    Passed { ms: u64 },
-    Failed { message: String },
-    Panicked { category: String },
+    /// The body completed and `report()` gave `ExitCode(0)`, or it
+    /// panicked with its `expect_panic` category.
+    Passed {
+        us: u64,
+    },
+    /// `report()` gave another code (an `.Err`'s report is the message),
+    /// or an `expect_panic` case completed or panicked otherwise.
+    Failed {
+        message: String,
+    },
+    /// The body panicked (`module.testing.fail`).
+    Panicked {
+        category: String,
+        message: String,
+    },
     TimedOut,
-    Skipped,
+    /// `ignore` (`module.testing.option.ignore`), with its reason.
+    Ignored {
+        reason: String,
+    },
+    /// A case this runner cannot run yet, and why.
+    Unsupported {
+        what: String,
+    },
 }
 
 /// The test plan: cases in content order, after `--filter` (§19.2).
@@ -138,13 +157,16 @@ mod tests {
         let plan = TestPlan::new(vec![case(2, "b"), case(1, "a"), case(3, "c")], None);
         let mut cur = ReleaseCursor::new(&plan);
         let k = |i: usize| plan.cases[i].key.clone();
-        assert!(cur.finish(k(1), CaseResult::Passed { ms: 1 }).is_empty());
-        let out = cur.finish(k(0), CaseResult::Passed { ms: 1 });
+        assert!(cur.finish(k(1), CaseResult::Passed { us: 1 }).is_empty());
+        let out = cur.finish(k(0), CaseResult::Passed { us: 1 });
         assert_eq!(
             out.iter().map(|(k, _)| k.registration).collect::<Vec<_>>(),
             [1, 2]
         );
-        assert_eq!(cur.finish(k(2), CaseResult::Skipped).len(), 1);
+        let ignored = CaseResult::Ignored {
+            reason: "slow".into(),
+        };
+        assert_eq!(cur.finish(k(2), ignored).len(), 1);
     }
 
     #[test]

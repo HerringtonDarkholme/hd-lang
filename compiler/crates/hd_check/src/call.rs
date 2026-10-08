@@ -614,6 +614,16 @@ impl Ck<'_, '_> {
                     }
                 }
                 self.check_row(sig.row, n);
+                // A checked `assert_equal` call runs std's `check_equal`
+                // (lib/std/testing.hd), which has the same signature.
+                let def = if item
+                    .intrinsic
+                    .is_some_and(|k| self.cx.names.text(k) == "assert_equal")
+                {
+                    self.cx.names.item("std.testing", "check_equal")
+                } else {
+                    def
+                };
                 let c = Callee::Item {
                     def,
                     targs: pool.list(&vars),
