@@ -83,16 +83,17 @@ outputs.
 
 ### Serialization Formats
 
-Owner decision, 2026-10-05: one format-neutral consent per type, many
-formats, as in Rust's serde and Swift's `Codable`
+Owner decision, 2026-10-05: one format-neutral `Serialize` and
+`Deserialize` implementation per type, many formats, as in Rust's serde
+and Swift's `Codable`
 ([Serialization](../spec/lang/14-annotations.md#serialization)). These
 parts wait:
 
 | Question | State |
 | --- | --- |
 | Per-format overriding | Deferred by the owner. The plan below needs no new mechanism. |
-| Schemas | Which consent carries a `describe` for schemas, and the data model a schema describer reads. |
-| More standard consents | Tuples, `Result`, `Set`, and maps whose keys are not `string` have no standard implementation yet. |
+| Schemas | Which trait carries a `describe` for schemas, and the data model a schema describer reads. |
+| More standard implementations | Tuples, `Result`, `Set`, and maps whose keys are not `string` have no standard `Serialize`/`Deserialize` implementation yet. |
 
 **Per-format overriding, planned through facts.** Facts are sufficient; no
 per-format trait and no specialization is needed. The owner considered a
