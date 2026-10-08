@@ -1476,7 +1476,20 @@ impl Run<'_> {
         let env = Env { run: self, p };
         let Some(collected) = self.stage(
             Stage::Collect,
-            hd_mono::collect(&self.pool, &env, &TableSolver, root),
+            {
+                let init_of =
+                    |m: &str| hd_check::default_body_def(&names, names.item(m, "init"), "init");
+                let has_init = |m: &str| p.bodies.contains_key(&init_of(m));
+                self.group_init_order(&entry_module, &has_init)
+            }
+            .and_then(|order| {
+                let inits: Vec<DefId> = order
+                    .iter()
+                    .map(|m| hd_check::default_body_def(&names, names.item(m, "init"), "init"))
+                    .filter(|d| p.bodies.contains_key(d))
+                    .collect();
+                hd_mono::collect(&self.pool, &env, &TableSolver, root, &inits)
+            }),
         ) else {
             return;
         };
@@ -1524,6 +1537,130 @@ impl Run<'_> {
         sp.release(link);
     }
 
+    /// The modules the entry module reaches, in initialization order
+    /// (spec/lang/10-modules.md, "Initialization Order"): each
+    /// initialization group (a strongly connected component of the use
+    /// graph) after the groups it uses; among ready groups, the one with
+    /// the least module identity first; inside a group, by module path.
+    fn group_init_order(
+        &self,
+        entry: &str,
+        has_init: &dyn Fn(&str) -> bool,
+    ) -> hd_base::StageResult<Vec<String>> {
+        let Some(start) = self.table.module(entry) else {
+            return Ok(Vec::new());
+        };
+        let n = self.table.modules.len();
+        let edges: Vec<Vec<usize>> = (0..n)
+            .map(|m| {
+                let mut v: Vec<usize> = self
+                    .skim_of(m)
+                    .uses
+                    .iter()
+                    .filter_map(|u| self.table.module_of_use(u))
+                    .map(hd_base::ModuleId::idx)
+                    .filter(|x| *x != m)
+                    .collect();
+                v.sort_unstable();
+                v.dedup();
+                v
+            })
+            .collect();
+        // Tarjan's strongly connected components over the reachable graph.
+        let mut index = vec![usize::MAX; n];
+        let mut low = vec![0; n];
+        let mut on = vec![false; n];
+        let mut stack = Vec::new();
+        let mut comp = vec![usize::MAX; n];
+        let mut groups: Vec<Vec<usize>> = Vec::new();
+        let mut counter = 0;
+        // Iterative DFS: (node, next edge).
+        let mut work = vec![(start.idx(), 0usize)];
+        index[start.idx()] = counter;
+        low[start.idx()] = counter;
+        counter += 1;
+        stack.push(start.idx());
+        on[start.idx()] = true;
+        while let Some(&mut (v, ref mut e)) = work.last_mut() {
+            if let Some(&w) = edges[v].get(*e) {
+                *e += 1;
+                if index[w] == usize::MAX {
+                    index[w] = counter;
+                    low[w] = counter;
+                    counter += 1;
+                    stack.push(w);
+                    on[w] = true;
+                    work.push((w, 0));
+                } else if on[w] {
+                    low[v] = low[v].min(index[w]);
+                }
+                continue;
+            }
+            work.pop();
+            if let Some(&(u, _)) = work.last() {
+                low[u] = low[u].min(low[v]);
+            }
+            if low[v] == index[v] {
+                let mut g = Vec::new();
+                while let Some(w) = stack.pop() {
+                    on[w] = false;
+                    comp[w] = groups.len();
+                    g.push(w);
+                    if w == v {
+                        break;
+                    }
+                }
+                g.sort_by(|a, b| {
+                    self.table.modules[*a]
+                        .path
+                        .cmp(&self.table.modules[*b].path)
+                });
+                groups.push(g);
+            }
+        }
+        // Kahn's order over the groups: dependencies first, ties by the
+        // least module identity.
+        let mut deps: Vec<std::collections::BTreeSet<usize>> =
+            vec![std::collections::BTreeSet::new(); groups.len()];
+        for (gi, g) in groups.iter().enumerate() {
+            for &m in g {
+                for &w in &edges[m] {
+                    if comp[w] != usize::MAX && comp[w] != gi {
+                        deps[gi].insert(comp[w]);
+                    }
+                }
+            }
+        }
+        let name = |g: usize| self.table.modules[groups[g][0]].path.clone();
+        let mut done = vec![false; groups.len()];
+        let mut out = Vec::new();
+        for _ in 0..groups.len() {
+            let Some(next) = (0..groups.len())
+                .filter(|g| !done[*g] && deps[*g].iter().all(|d| done[*d]))
+                .min_by_key(|g| name(*g))
+            else {
+                break;
+            };
+            done[next] = true;
+            let with_init: Vec<&usize> = groups[next]
+                .iter()
+                .filter(|m| has_init(&self.table.modules[**m].path))
+                .collect();
+            if with_init.len() > 1 {
+                return Err(NotImplemented::new(
+                    Stage::Collect,
+                    "statement order inside a multi-module initialization group (`InitOrder`)",
+                ));
+            }
+            out.extend(
+                groups[next]
+                    .iter()
+                    .map(|m| self.table.modules[*m].path.clone()),
+            );
+        }
+        Ok(out)
+    }
+
     fn emit(&self, slot: usize) {
         let (Some(c), Some(p)) = (self.collect.get(), self.program.get()) else {
             return;
@@ -1552,6 +1689,7 @@ impl Run<'_> {
             args,
             ret,
             &c.collected.calls[id.idx()],
+            c.collected.table.key[id.idx()],
         );
         let Some(code) = self.stage(Stage::Emit, r) else {
             return;
@@ -1584,7 +1722,14 @@ impl Run<'_> {
         let root = c.collected.table.item[0];
         let Some(entry) = self.stage(
             Stage::Link,
-            hd_wasm::entry(&self.pool, &env, &path, root, c.root_key),
+            hd_wasm::entry(
+                &self.pool,
+                &env,
+                &path,
+                root,
+                c.root_key,
+                &c.collected.inits,
+            ),
         ) else {
             return;
         };

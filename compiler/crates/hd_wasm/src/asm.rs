@@ -4,7 +4,7 @@
 
 use wasm_encoder::{BlockType, HeapType, InstructionSink, MemArg};
 
-use crate::{Code, Reloc, Sym, VT, WTy, padded};
+use crate::{Code, GSym, Reloc, Sym, VT, WTy, padded};
 
 #[derive(Default)]
 pub struct Asm {
@@ -16,6 +16,9 @@ pub struct Asm {
     pub locals: Vec<VT>,
     /// What each local holds: a non-null reference is narrowed on read.
     logical: Vec<VT>,
+    /// What each parameter holds, when it is declared defaultable (a
+    /// suspending body's resume arguments, suspension.md §14.1).
+    param_logical: Vec<VT>,
 }
 
 #[must_use]
@@ -34,6 +37,42 @@ impl Asm {
             params,
             ..Asm::default()
         }
+    }
+    /// Parameters declared in their defaultable form, read as `logical`.
+    #[must_use]
+    pub fn new_dflt(logical: Vec<VT>) -> Asm {
+        Asm {
+            params: logical.iter().map(VT::dflt).collect(),
+            param_logical: logical,
+            ..Asm::default()
+        }
+    }
+    /// The number of parameters.
+    #[must_use]
+    pub fn nparams(&self) -> u32 {
+        u32::try_from(self.params.len()).expect("params")
+    }
+    /// The declared (defaultable) type of a local or parameter.
+    #[must_use]
+    pub fn decl(&self, l: u32) -> VT {
+        let np = self.params.len();
+        if (l as usize) < np {
+            self.params[l as usize].clone()
+        } else {
+            self.locals[l as usize - np].clone()
+        }
+    }
+    /// Reads a local as declared, never narrowed.
+    pub fn raw_get(&mut self, l: u32) {
+        self.s().local_get(l);
+    }
+    pub fn global_get(&mut self, g: GSym) {
+        self.out.push(0x23);
+        self.slot(Reloc::Global(g));
+    }
+    pub fn global_set(&mut self, g: GSym) {
+        self.out.push(0x24);
+        self.slot(Reloc::Global(g));
     }
     pub fn s(&mut self) -> InstructionSink<'_> {
         InstructionSink::new(&mut self.out)
@@ -56,9 +95,12 @@ impl Asm {
     pub fn get(&mut self, l: u32) {
         self.s().local_get(l);
         let np = self.params.len();
-        if (l as usize) >= np
-            && matches!(self.logical.get(l as usize - np), Some(VT::Ref(_, false)))
-        {
+        let narrow = if (l as usize) >= np {
+            matches!(self.logical.get(l as usize - np), Some(VT::Ref(_, false)))
+        } else {
+            matches!(self.param_logical.get(l as usize), Some(VT::Ref(_, false)))
+        };
+        if narrow {
             self.s().ref_as_non_null();
         }
     }
@@ -106,6 +148,10 @@ impl Asm {
     }
     pub fn struct_new(&mut self, t: &WTy) {
         self.gc(0x00);
+        self.slot(Reloc::Type(t.clone()));
+    }
+    pub fn struct_new_default(&mut self, t: &WTy) {
+        self.gc(0x01);
         self.slot(Reloc::Type(t.clone()));
     }
     pub fn struct_get(&mut self, t: &WTy, f: u32) {
@@ -233,6 +279,7 @@ impl Asm {
             results,
             body: head,
             relocs,
+            parts: Vec::new(),
         }
     }
 }

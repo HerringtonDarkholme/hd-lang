@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 
-use hd_base::{DefId, StageResult};
+use hd_base::{DefId, Hash128, StageResult};
 use hd_mono::{CallTarget, ProgramEnv, Target, TargetKind, subst};
 use hd_tir::ir::{
     Body, Callee, ChoiceKind, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags,
@@ -15,9 +15,12 @@ use hd_tir::ir::{
 use hd_types::{InternPool, Prim, Ty, TyData, TyList};
 
 use crate::asm::Asm;
-use crate::layout::{EnumShape, Lay, OptShape, Shape, box_of, storage};
+use crate::layout::{
+    ACTIVE, CANCELLED, DONE, EnumShape, F_CANCEL, F_CHILD, F_FLAGS, F_POLL, F_SAVED, F_STATE, Lay,
+    OptShape, Shape, box_of, cancel_fn, frame_of, storage, suspend_base, task_base,
+};
 use crate::rt::{Helper, OptForm, block_import};
-use crate::{Code, Sym, VT, WTy, unsupported};
+use crate::{Code, GSym, Part, Sym, VT, WTy, unsupported};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Ctl {
@@ -26,6 +29,43 @@ enum Ctl {
     Arm(u32, u32),
     Brk(u32),
     Cont(u32),
+    /// The cleanup block of `Scope` instruction `s` (codegen.md §12.2,
+    /// "The exit ladder"): a branch to it runs the scope's suites.
+    Scope(u32),
+}
+
+/// A way out of a cleanup scope: each is one rung of its exit ladder.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Exit {
+    Ret,
+    Brk(u32),
+    Cont(u32),
+    /// Cancellation at a suspension point (suspension.md §14.6): it runs
+    /// the same suites, then the body returns.
+    Cancel,
+}
+
+/// A cleanup scope's ladder: the exit-code local and the exits taken.
+struct ScopeInfo {
+    code: u32,
+    exits: Vec<Exit>,
+}
+
+/// A suspending body's state machine (suspension.md §14.2, §14.3).
+struct Susp {
+    /// `$F_f`: the frame.
+    frame_ty: WTy,
+    /// `$Suspend_L` of the body's result.
+    base: WTy,
+    frame: u32,
+    pc: u32,
+    /// Each suspension point's state, numbered in structural order.
+    states: HashMap<u32, u32>,
+    /// The states inside each instruction that contains a point.
+    ranges: HashMap<u32, (u32, u32)>,
+    /// The saved Wasm locals, in field order from `F_SAVED` (the second
+    /// pass; the first pass learns them).
+    saved: Vec<(u32, VT)>,
 }
 
 struct Em<'a> {
@@ -41,6 +81,16 @@ struct Em<'a> {
     deciding: Vec<u32>,
     /// Covering providers, innermost last: key trait, its two locals.
     providers: Vec<(DefId, [u32; 2])>,
+    /// The instance's own key (a suspending body names its parts).
+    key: Hash128,
+    /// The function's result values (defaultable in a suspending body).
+    results: Vec<VT>,
+    /// Locals holding a return value across an exit ladder.
+    ret: Option<Vec<u32>>,
+    scopes: HashMap<u32, ScopeInfo>,
+    /// Each `defer` suite's "registered" flag local.
+    defer_flags: HashMap<u32, u32>,
+    susp: Option<Susp>,
 }
 
 fn u32_of(i: usize) -> u32 {
@@ -230,8 +280,15 @@ impl Em<'_> {
             return unsupported("a block operand that is not a block");
         }
         let [list, tail] = self.b.data[blk as usize];
-        for i in self.rec(list) {
-            if self.b.tags[i as usize] != Tag::Block {
+        let items: Vec<u32> = self
+            .rec(list)
+            .into_iter()
+            .filter(|i| self.b.tags[*i as usize] != Tag::Block)
+            .collect();
+        if self.range(blk).is_some() {
+            self.resume_list(&items)?;
+        } else {
+            for i in items {
                 self.inst(i)?;
             }
         }
@@ -281,6 +338,9 @@ impl Em<'_> {
             }
             Tag::Prim => self.prim(i, a, bw)?,
             Tag::And | Tag::Or => {
+                if self.range(i).is_some() {
+                    return unsupported("a suspension point in the right operand of `and`/`or`");
+                }
                 let r = self.result(i)?;
                 self.comp(a, 0, &VT::I32)?;
                 if self.b.tags[i as usize] == Tag::Or {
@@ -451,6 +511,22 @@ impl Em<'_> {
                 let r = self.rec(bw);
                 self.result(i)?;
                 self.comp(a, 0, &VT::I32)?;
+                if let Some((lo, hi)) = self.range(r[0]) {
+                    // Resuming into the then block takes it; into the
+                    // else block, not (suspension.md §14.2).
+                    let c = self.a.local(VT::I32);
+                    self.a.set(c);
+                    let pc = self.pc();
+                    self.a.get(pc);
+                    self.a.s().i32_eqz();
+                    self.a.if_();
+                    self.a.get(c);
+                    self.a.else_();
+                    self.in_range(lo, hi);
+                    self.a.end();
+                    self.a.set(c);
+                    self.a.get(c);
+                }
                 self.a.if_();
                 self.open(Ctl::Plain);
                 self.block_into(r[0], Some(i))?;
@@ -486,25 +562,35 @@ impl Em<'_> {
                             self.store(target)?;
                         }
                     }
-                    let d = self.depth_of(Ctl::Brk(target))?;
-                    self.a.br(d);
+                    self.exit(Exit::Brk(target))?;
                 } else {
-                    let d = self.depth_of(Ctl::Cont(target))?;
-                    self.a.br(d);
+                    self.exit(Exit::Cont(target))?;
                 }
             }
-            Tag::Return => {
-                if a != NONE {
-                    self.load(a)?;
+            Tag::Return => self.ret(a)?,
+            Tag::GlobalGet => {
+                let h = self.global_hash(a);
+                let vs = self.vts(ty)?;
+                let dv: Vec<VT> = vs.iter().map(VT::dflt).collect();
+                for (k, v) in dv.iter().enumerate() {
+                    self.a.global_get(GSym::Binding(h, u32_of(k), v.clone()));
                 }
-                self.a.s().return_();
+                self.store_from(i, &dv)?;
+            }
+            Tag::GlobalSet => {
+                let h = self.global_hash(a);
+                let vs = self.vts(self.ty_of(bw))?;
+                for (k, v) in vs.iter().enumerate() {
+                    self.comp(bw, k, v)?;
+                    self.a.global_set(GSym::Binding(h, u32_of(k), v.dflt()));
+                }
             }
             Tag::Unreachable => {
                 self.a.s().unreachable();
             }
             Tag::Scope => {
                 if !self.rec(bw).is_empty() {
-                    return unsupported("emission of `defer` (the exit ladder)");
+                    return self.scope(i, a, bw);
                 }
                 self.result(i)?;
                 self.a.block();
@@ -522,6 +608,16 @@ impl Em<'_> {
                 for k in (0..n).rev() {
                     self.a.block();
                     self.open(Ctl::Arm(i, u32_of(k)));
+                }
+                if self.range(blocks[0]).is_some() {
+                    return unsupported("a suspension point in a match decision (a guard)");
+                }
+                for (k, arm) in blocks[1..].iter().enumerate() {
+                    if let Some((lo, hi)) = self.range(*arm) {
+                        self.in_range(lo, hi);
+                        let d = self.depth_of(Ctl::Arm(i, u32_of(k)))?;
+                        self.a.br_if(d);
+                    }
                 }
                 self.deciding.push(i);
                 self.block_into(blocks[0], None)?;
@@ -544,7 +640,11 @@ impl Em<'_> {
                 let d = self.depth_of(Ctl::Arm(m, a))?;
                 self.a.br(d);
             }
+            Tag::With => self.with(i, a, bw)?,
             Tag::Guard => {
+                if self.range(i).is_some() {
+                    return unsupported("a suspension point in a match guard");
+                }
                 let r = self.rec(bw);
                 self.block_value(a)?;
                 self.a.if_();
@@ -594,9 +694,19 @@ impl Em<'_> {
                 self.unwrap(a, &o, &inner)?;
                 self.store_from(i, &inner)?;
             }
-            Tag::Hook | Tag::Defer => {}
-            Tag::Await => {
-                return unsupported("emission of `Await` (suspension state machines)");
+            Tag::Hook => {}
+            Tag::Defer => {
+                let Some(&f) = self.defer_flags.get(&a) else {
+                    return unsupported("a `Defer` outside its scope");
+                };
+                self.a.i32(1);
+                self.a.set(f);
+            }
+            Tag::Await | Tag::AwaitValue | Tag::AwaitAll => self.point(i, a, bw)?,
+            Tag::AwaitRace => {
+                return unsupported(
+                    "emission of `AwaitRace` (the checker emits `race!` as std hd)",
+                );
             }
             other => return unsupported(format!("emission of TIR tag {}", other.name())),
         }
@@ -1171,7 +1281,12 @@ impl Em<'_> {
                 let keys = self.env().row_keys(t.item);
                 self.push_providers(&keys)?;
                 self.a.call(Sym::Inst(t.key));
-                let got = self.vts(t.ret)?;
+                // A suspending callee's plain call is its cold constructor.
+                let got = if self.env().suspends(t.item) {
+                    self.vts(ty)?
+                } else {
+                    self.vts(t.ret)?
+                };
                 self.store_from(i, &got)
             }
             TargetKind::Intrinsic(key) => self.call_intrinsic(i, key, args, ty),
@@ -1264,7 +1379,7 @@ impl Em<'_> {
                 self.a.loop_();
                 self.a.get(s);
                 self.a.get(s);
-                self.a.struct_get(&base, 0);
+                self.a.struct_get(&base, F_POLL);
                 self.a.call_ref(&poll);
                 for l in tmp.iter().rev() {
                     self.a.set(*l);
@@ -1272,8 +1387,10 @@ impl Em<'_> {
                 self.a.set(ready);
                 self.a.get(ready);
                 self.a.br_if(1);
+                // The host waits for at least one completion and writes
+                // the handles; they go to the wake table.
                 self.a.call(block_import());
-                self.a.s().drop();
+                self.a.call(Sym::Helper(Helper::WakeMark));
                 self.a.br(0);
                 self.a.end();
                 self.a.end();
@@ -1284,11 +1401,31 @@ impl Em<'_> {
                 let _ = ty;
                 self.store_from(i, &result)
             }
+            "task_race_frame" => {
+                let Shape::Suspend { base, poll, result } = self.lay.shape(ty)? else {
+                    return unsupported("a `race!` frame of a type that is not a suspension");
+                };
+                let (_, lt) = self.list_parts(self.ty_of(args[0]))?;
+                self.comp(args[0], 0, &VT::r(lt.clone()))?;
+                self.a.call(Sym::Helper(Helper::RaceCold {
+                    list: lt,
+                    base: base.clone(),
+                    poll,
+                    result,
+                }));
+                self.store_from(i, &[VT::r(base)])
+            }
             other => unsupported(format!("the intrinsic `{other}`")),
         }
     }
 
     fn call_dyn(&mut self, i: u32, trait_: DefId, method: DefId, args: &[u32]) -> StageResult<()> {
+        let rs = self.push_dyn(trait_, method, args)?;
+        self.store_from(i, &rs)
+    }
+
+    /// A trait-value call, its results left on the stack.
+    fn push_dyn(&mut self, trait_: DefId, method: DefId, args: &[u32]) -> StageResult<Vec<VT>> {
         let recv_t = self.ty_of(args[0]);
         let Shape::Dyn {
             vt, args: targs, ..
@@ -1325,7 +1462,7 @@ impl Em<'_> {
         self.a.get(vl);
         self.a.struct_get(&vt, u32_of(slot));
         self.a.call_ref(&sig);
-        self.store_from(i, &rs.clone())
+        Ok(rs.clone())
     }
 
     fn closure(&mut self, i: u32, sub: u32, rec: u32, ty: Ty) -> StageResult<()> {
@@ -1408,15 +1545,16 @@ impl Em<'_> {
                 for p in self.env().params(t.item).unwrap_or_default() {
                     ps.extend(self.vts(subst(self.pool(), self.env(), t.item, t.args, p))?);
                 }
+                let mut results = self.vts(t.ret)?;
                 if self.env().suspends(*m) {
-                    return unsupported("a vtable slot of a suspending method");
+                    results = vec![VT::r(suspend_base(&results).0)];
                 }
                 self.a.ref_func(Sym::Helper(Helper::Adapter {
                     sig,
                     self_vts: fv.clone(),
                     target: Box::new(target),
                     params: ps,
-                    results: self.vts(t.ret)?,
+                    results,
                 }));
             }
             self.a.struct_new(&vt);
@@ -1841,7 +1979,10 @@ pub fn signature(
             params.push(VT::Eq);
             params.push(VT::r(lay.vtable(k, TyList::EMPTY)?));
         }
-        let results = lay.vts(s(ret))?;
+        let mut results = lay.vts(s(ret))?;
+        if lay.env.suspends(item) {
+            results = vec![VT::r(suspend_base(&results).0)];
+        }
         Ok((params, results, plocals))
     } else {
         let r = b.sub_params[sub as usize];
@@ -1865,8 +2006,787 @@ pub fn signature(
     }
 }
 
+fn is_point(t: Tag) -> bool {
+    matches!(
+        t,
+        Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace
+    )
+}
+
+/// The blocks an instruction owns, by its operand schema.
+fn operand_blocks(b: &Body, i: u32) -> Vec<u32> {
+    let [a, bw] = b.data[i as usize];
+    let rec = |at: u32| b.record(at).to_vec();
+    let mut out = match b.tags[i as usize] {
+        Tag::If | Tag::Match => rec(bw),
+        Tag::Loop => vec![a],
+        Tag::Scope | Tag::Guard => [vec![a], rec(bw)].concat(),
+        Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
+            rec(bw).into_iter().skip(1).take(2).collect()
+        }
+        Tag::And | Tag::Or | Tag::With => vec![bw],
+        _ => vec![],
+    };
+    out.retain(|x| *x != NONE && b.tags.get(*x as usize) == Some(&Tag::Block));
+    out
+}
+
+type Plan = (HashMap<u32, u32>, HashMap<u32, (u32, u32)>);
+
+/// Numbers the suspension points in structural order and records, for
+/// every block and instruction that contains one, its range of states
+/// (suspension.md §14.2): a subtree's states are contiguous.
+fn plan(b: &Body, root: u32) -> StageResult<Plan> {
+    fn join(r: Option<(u32, u32)>, x: Option<(u32, u32)>) -> Option<(u32, u32)> {
+        match (r, x) {
+            (Some(a), Some(c)) => Some((a.0.min(c.0), a.1.max(c.1))),
+            (a, c) => a.or(c),
+        }
+    }
+    fn block(b: &Body, blk: u32, p: &mut Plan, next: &mut u32) -> StageResult<Option<(u32, u32)>> {
+        let mut r = None;
+        for &i in b.record(b.data[blk as usize][0]) {
+            if b.tags[i as usize] == Tag::Block {
+                continue;
+            }
+            r = join(r, inst(b, i, p, next)?);
+        }
+        if let Some(x) = r {
+            p.1.insert(blk, x);
+        }
+        Ok(r)
+    }
+    fn inst(b: &Body, i: u32, p: &mut Plan, next: &mut u32) -> StageResult<Option<(u32, u32)>> {
+        let mut r = None;
+        let blocks = operand_blocks(b, i);
+        for (k, ob) in blocks.iter().enumerate() {
+            let x = block(b, *ob, p, next)?;
+            if x.is_some() && b.tags[i as usize] == Tag::Scope && k > 0 {
+                return unsupported("a suspension point in a `defer` suite");
+            }
+            r = join(r, x);
+        }
+        if is_point(b.tags[i as usize]) {
+            *next += 1;
+            p.0.insert(i, *next);
+            r = join(r, Some((*next, *next)));
+        }
+        if let Some(x) = r {
+            p.1.insert(i, x);
+        }
+        Ok(r)
+    }
+    let mut p = (HashMap::new(), HashMap::new());
+    let mut next = 0;
+    block(b, root, &mut p, &mut next)?;
+    Ok(p)
+}
+
+impl<'a> Em<'a> {
+    fn new(
+        lay: Lay<'a>,
+        b: &'a Body,
+        args: TyList,
+        calls: &'a HashMap<u32, Target>,
+        key: Hash128,
+        a: Asm,
+        results: Vec<VT>,
+    ) -> Self {
+        Em {
+            lay,
+            b,
+            item: b.item,
+            args,
+            calls,
+            a,
+            locals: vec![None; b.local_ty.len()],
+            vals: HashMap::new(),
+            ctrl: Vec::new(),
+            deciding: Vec::new(),
+            providers: Vec::new(),
+            key,
+            results,
+            ret: None,
+            scopes: HashMap::new(),
+            defer_flags: HashMap::new(),
+            susp: None,
+        }
+    }
+
+    fn range(&self, x: u32) -> Option<(u32, u32)> {
+        self.susp.as_ref().and_then(|s| s.ranges.get(&x).copied())
+    }
+    fn pc(&self) -> u32 {
+        self.susp.as_ref().map_or(0, |s| s.pc)
+    }
+    /// Pushes whether `lo <= pc <= hi`.
+    fn in_range(&mut self, lo: u32, hi: u32) {
+        let pc = self.pc();
+        let (lo, hi) = (lo.cast_signed(), hi.cast_signed());
+        self.a.get(pc);
+        self.a.i32(lo);
+        if lo == hi {
+            self.a.s().i32_eq();
+            return;
+        }
+        self.a.s().i32_ge_u();
+        self.a.get(pc);
+        self.a.i32(hi);
+        self.a.s().i32_le_u().i32_and();
+    }
+    /// `if pc == 0` around fresh-path-only code (no-op outside a machine).
+    fn fresh_only(&mut self, f: impl FnOnce(&mut Self) -> StageResult<()>) -> StageResult<()> {
+        if self.susp.is_none() {
+            return f(self);
+        }
+        let pc = self.pc();
+        self.a.get(pc);
+        self.a.s().i32_eqz();
+        self.a.if_();
+        self.open(Ctl::Plain);
+        f(self)?;
+        self.ctrl.pop();
+        self.a.end();
+        Ok(())
+    }
+
+    /// A block list that contains a suspension point (suspension.md
+    /// §14.2): on resume, the code before the point is skipped, and each
+    /// construct on the way enters the branch that holds the point.
+    fn resume_list(&mut self, items: &[u32]) -> StageResult<()> {
+        let last = items.iter().rposition(|i| self.range(*i).is_some());
+        let mut j = 0;
+        while j < items.len() {
+            let i = items[j];
+            if let Some((lo, hi)) = self.range(i) {
+                let pc = self.pc();
+                self.a.get(pc);
+                self.a.s().i32_eqz();
+                self.in_range(lo, hi);
+                self.a.s().i32_or();
+                self.a.if_();
+                self.open(Ctl::Plain);
+                self.inst(i)?;
+                self.ctrl.pop();
+                self.a.end();
+                j += 1;
+                continue;
+            }
+            let start = j;
+            while j < items.len() && self.range(items[j]).is_none() {
+                j += 1;
+            }
+            let group = items[start..j].to_vec();
+            if last.is_some_and(|l| start < l) {
+                self.fresh_only(|em| {
+                    for g in group {
+                        em.inst(g)?;
+                    }
+                    Ok(())
+                })?;
+            } else {
+                for g in group {
+                    self.inst(g)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn global_hash(&self, a: u32) -> Hash128 {
+        let def = self.b.record(a).first().copied().unwrap_or(NONE);
+        self.env().path_hash(DefId::from_raw(def))
+    }
+
+    /// `return`: through the exit ladders of the scopes it leaves.
+    fn ret(&mut self, a: u32) -> StageResult<()> {
+        let crossing = self.ctrl.iter().any(|c| matches!(c, Ctl::Scope(_)));
+        let results = self.results.clone();
+        if crossing {
+            if a != NONE && !results.is_empty() {
+                let ls = if let Some(l) = &self.ret {
+                    l.clone()
+                } else {
+                    let l: Vec<u32> = results.iter().map(|v| self.a.local(v.clone())).collect();
+                    self.ret = Some(l.clone());
+                    l
+                };
+                self.load_as(a, &results)?;
+                for l in ls.iter().rev() {
+                    self.a.set(*l);
+                }
+            }
+            return self.exit(Exit::Ret);
+        }
+        if a != NONE {
+            self.load_as(a, &results)?;
+        }
+        self.finish_return();
+        Ok(())
+    }
+
+    fn finish_return(&mut self) {
+        if let Some(base) = self.susp.as_ref().map(|s| s.base.clone()) {
+            self.a.ref_null(&base);
+        }
+        self.a.s().return_();
+    }
+
+    /// Leaves by `e`: to the innermost cleanup scope it crosses, which
+    /// runs its suites and then takes `e` again; else directly.
+    fn exit(&mut self, e: Exit) -> StageResult<()> {
+        let floor = match e {
+            Exit::Brk(t) => self.ctrl.iter().rposition(|c| *c == Ctl::Brk(t)),
+            Exit::Cont(t) => self.ctrl.iter().rposition(|c| *c == Ctl::Cont(t)),
+            Exit::Ret | Exit::Cancel => None,
+        };
+        let scope = self
+            .ctrl
+            .iter()
+            .rposition(|c| matches!(c, Ctl::Scope(_)))
+            .filter(|p| floor.is_none_or(|f| *p > f));
+        if let Some(p) = scope {
+            let Ctl::Scope(s) = self.ctrl[p] else {
+                return unsupported("a cleanup scope marker");
+            };
+            let Some(info) = self.scopes.get_mut(&s) else {
+                return unsupported("a cleanup scope without its ladder");
+            };
+            let code = if let Some(k) = info.exits.iter().position(|x| *x == e) {
+                k + 1
+            } else {
+                info.exits.push(e);
+                info.exits.len()
+            };
+            let local = info.code;
+            self.a.i32(i32::try_from(code).unwrap_or(0));
+            self.a.set(local);
+            self.a.br(u32_of(self.ctrl.len() - 1 - p));
+            return Ok(());
+        }
+        match e {
+            Exit::Brk(t) => {
+                let d = self.depth_of(Ctl::Brk(t))?;
+                self.a.br(d);
+            }
+            Exit::Cont(t) => {
+                let d = self.depth_of(Ctl::Cont(t))?;
+                self.a.br(d);
+            }
+            Exit::Ret => {
+                if let Some(ls) = self.ret.clone() {
+                    for l in ls {
+                        self.a.get(l);
+                    }
+                } else if !self.results.is_empty() {
+                    self.a.s().unreachable();
+                    return Ok(());
+                }
+                self.finish_return();
+            }
+            Exit::Cancel => {
+                for v in self.results.clone() {
+                    self.a.zero(&v);
+                }
+                self.finish_return();
+            }
+        }
+        Ok(())
+    }
+
+    /// A `Scope` with `defer` suites: the exit ladder (codegen.md §12.2).
+    /// Each suite has a "registered" flag; every exit stores its code and
+    /// branches to the scope's end, which runs the registered suites last
+    /// in, first out, then takes the exit.
+    fn scope(&mut self, i: u32, body: u32, rec: u32) -> StageResult<()> {
+        let suites = self.rec(rec);
+        self.result(i)?;
+        let code = self.a.local(VT::I32);
+        let flags: Vec<u32> = suites.iter().map(|_| self.a.local(VT::I32)).collect();
+        for (s, f) in suites.iter().zip(&flags) {
+            self.defer_flags.insert(*s, *f);
+        }
+        self.scopes.insert(
+            i,
+            ScopeInfo {
+                code,
+                exits: Vec::new(),
+            },
+        );
+        let fl = flags.clone();
+        self.fresh_only(|em| {
+            for f in fl {
+                em.a.i32(0);
+                em.a.set(f);
+            }
+            Ok(())
+        })?;
+        self.a.block();
+        self.open(Ctl::Scope(i));
+        self.block_into(body, Some(i))?;
+        self.a.i32(0);
+        self.a.set(code);
+        self.ctrl.pop();
+        self.a.end();
+        for (s, f) in suites.iter().zip(&flags).rev() {
+            self.a.get(*f);
+            self.a.if_();
+            self.open(Ctl::Plain);
+            self.block_into(*s, None)?;
+            self.ctrl.pop();
+            self.a.end();
+        }
+        let exits = self
+            .scopes
+            .get(&i)
+            .map(|s| s.exits.clone())
+            .unwrap_or_default();
+        for (k, e) in exits.into_iter().enumerate() {
+            self.a.get(code);
+            self.a.i32(i32::try_from(k + 1).unwrap_or(0));
+            self.a.s().i32_eq();
+            self.a.if_();
+            self.open(Ctl::Plain);
+            self.exit(e)?;
+            self.ctrl.pop();
+            self.a.end();
+        }
+        Ok(())
+    }
+
+    /// `$.with(K = p, ...): block`: each provider becomes a trait value
+    /// that covers its key in the block.
+    fn with(&mut self, i: u32, rec: u32, body: u32) -> StageResult<()> {
+        let Some(Target::Withs(vts)) = self.calls.get(&i).cloned() else {
+            return unsupported("a `$.with` that collection did not record");
+        };
+        let pairs = self.rec(rec);
+        let mut pushed = 0;
+        for ((k, v), (trait_, slots)) in pairs.chunks(2).map(|c| (c[0], c[1])).zip(vts) {
+            let key_t = Ty(k);
+            let TyData::TraitValue { args: targs, .. } = self.pool().get(key_t) else {
+                return unsupported("a `$.with` key that is not a trait");
+            };
+            let vt = self.lay.vtable(trait_, targs)?;
+            let ls = [self.a.local(VT::Eq), self.a.local(VT::r(vt.clone()))];
+            let fv = self.vts(self.ty_of(v))?;
+            self.erase(v, &fv)?;
+            self.a.set(ls[0]);
+            self.vtable_value(trait_, targs, &vt, &slots, &fv)?;
+            self.a.set(ls[1]);
+            self.providers.push((trait_, ls));
+            pushed += 1;
+        }
+        self.result(i)?;
+        self.a.block();
+        self.open(Ctl::Plain);
+        let r = self.block_into(body, Some(i));
+        self.ctrl.pop();
+        self.a.end();
+        for _ in 0..pushed {
+            self.providers.pop();
+        }
+        r
+    }
+
+    /// Pushes a vtable struct of adapters over the slots' targets.
+    fn vtable_value(
+        &mut self,
+        trait_: DefId,
+        targs: TyList,
+        vt: &WTy,
+        slots: &[CallTarget],
+        fv: &[VT],
+    ) -> StageResult<()> {
+        let methods = self.env().trait_methods(trait_);
+        for (m, t) in methods.iter().zip(slots) {
+            let sig = self.lay.slot_sig(trait_, targs, *m)?;
+            let target = Self::adapter_target(t)?;
+            let mut ps = Vec::new();
+            for p in self.env().params(t.item).unwrap_or_default() {
+                ps.extend(self.vts(subst(self.pool(), self.env(), t.item, t.args, p))?);
+            }
+            let mut results = self.vts(t.ret)?;
+            if self.env().suspends(*m) {
+                results = vec![VT::r(suspend_base(&results).0)];
+            }
+            self.a.ref_func(Sym::Helper(Helper::Adapter {
+                sig,
+                self_vts: fv.to_vec(),
+                target: Box::new(target),
+                params: ps,
+                results,
+            }));
+        }
+        self.a.struct_new(vt);
+        Ok(())
+    }
+
+    // ------------------------------------------------------ suspension
+
+    fn susp_parts(&self) -> StageResult<(WTy, WTy, u32, u32)> {
+        let Some(s) = &self.susp else {
+            return unsupported("a suspension point outside a suspending body");
+        };
+        Ok((s.frame_ty.clone(), s.base.clone(), s.frame, s.pc))
+    }
+
+    /// Saves every saved local into the frame (suspension.md §14.3).
+    fn save(&mut self) -> StageResult<()> {
+        let (ft, _, frame, _) = self.susp_parts()?;
+        let saved = self
+            .susp
+            .as_ref()
+            .map(|s| s.saved.clone())
+            .unwrap_or_default();
+        for (j, (l, _)) in saved.iter().enumerate() {
+            self.a.raw_get(frame);
+            self.a.raw_get(*l);
+            self.a.struct_set(&ft, F_SAVED + u32_of(j));
+        }
+        Ok(())
+    }
+
+    /// Reloads every saved local from the frame.
+    fn reload(&mut self) -> StageResult<()> {
+        let (ft, _, frame, _) = self.susp_parts()?;
+        let saved = self
+            .susp
+            .as_ref()
+            .map(|s| s.saved.clone())
+            .unwrap_or_default();
+        for (j, (l, _)) in saved.iter().enumerate() {
+            self.a.raw_get(frame);
+            self.a.struct_get(&ft, F_SAVED + u32_of(j));
+            self.a.set(*l);
+        }
+        Ok(())
+    }
+
+    /// Pending at state `k` with the child on the stack: allocates the
+    /// frame on the first real wait (§14.3), saves, and returns Pending.
+    fn suspend(&mut self, k: u32, child: u32) -> StageResult<()> {
+        let (ft, base, frame, _) = self.susp_parts()?;
+        self.a.raw_get(frame);
+        self.a.s().ref_is_null();
+        self.a.if_();
+        self.a.struct_new_default(&ft);
+        self.a.set(frame);
+        self.a.raw_get(frame);
+        self.a.ref_func(Sym::Part(self.key, Part::Cancel));
+        self.a.struct_set(&ft, F_CANCEL);
+        self.a.raw_get(frame);
+        self.a.ref_func(Sym::Part(self.key, Part::Poll));
+        self.a.struct_set(&ft, F_POLL);
+        self.a.end();
+        self.save()?;
+        self.a.raw_get(frame);
+        self.a.raw_get(child);
+        self.a.struct_set(&ft, F_CHILD);
+        self.a.raw_get(frame);
+        self.a.i32(k.cast_signed());
+        self.a.struct_set(&ft, F_STATE);
+        for v in self.results.clone() {
+            self.a.zero(&v);
+        }
+        self.a.raw_get(frame);
+        let _ = base;
+        self.a.s().return_();
+        Ok(())
+    }
+
+    /// Cancels the child task in local `c` (a `$Task`), when present.
+    fn cancel_task(&mut self, c: u32) {
+        let task = task_base();
+        self.a.raw_get(c);
+        self.a.s().ref_is_null();
+        self.a.s().i32_eqz();
+        self.a.if_();
+        self.a.raw_get(c);
+        self.a.raw_get(c);
+        self.a.s().ref_as_non_null();
+        self.a.struct_get(&task, F_CANCEL);
+        self.a.call_ref(&cancel_fn());
+        self.a.end();
+    }
+
+    /// A suspension point (suspension.md §14.2 to §14.6).
+    fn point(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {
+        let Some(k) = self.susp.as_ref().and_then(|s| s.states.get(&i).copied()) else {
+            return unsupported("a suspension point outside a suspending body");
+        };
+        let (ft, _, frame, pc) = self.susp_parts()?;
+        let tag = self.b.tags[i as usize];
+        let task = task_base();
+        let children = if tag == Tag::AwaitAll {
+            self.rec(bw)
+        } else {
+            vec![]
+        };
+        if children.len() > 31 {
+            return unsupported("`all!` of more than 31 suspensions");
+        }
+        let done = self.a.local(VT::I32);
+        // Resumed for cancellation: cancel the child, then leave through
+        // the enclosing scopes' ladders, which run the registered suites.
+        self.a.get(pc);
+        self.a.i32(k.cast_signed());
+        self.a.s().i32_eq();
+        self.a.if_();
+        self.open(Ctl::Plain);
+        self.a.raw_get(frame);
+        self.a.struct_get(&ft, F_FLAGS);
+        self.a.i32(CANCELLED);
+        self.a.s().i32_and();
+        self.a.if_();
+        self.open(Ctl::Plain);
+        let c = self.a.local(VT::rn(task.clone()));
+        if tag == Tag::AwaitAll {
+            for (j, ch) in children.iter().enumerate() {
+                self.a.get(done);
+                self.a.i32(1 << j);
+                self.a.s().i32_and().i32_eqz();
+                self.a.if_();
+                self.comp(*ch, 0, &VT::rn(task.clone()))?;
+                self.a.set(c);
+                self.cancel_task(c);
+                self.a.end();
+            }
+        } else {
+            self.a.raw_get(frame);
+            self.a.struct_get(&ft, F_CHILD);
+            self.a.set(c);
+            self.cancel_task(c);
+        }
+        self.exit(Exit::Cancel)?;
+        self.ctrl.pop();
+        self.a.end();
+        self.ctrl.pop();
+        self.a.end();
+        let ty = self.sub(self.b.ty[i as usize]);
+        let res = self.vts(ty)?;
+        match tag {
+            Tag::AwaitAll => self.await_all(i, k, &children, done, ty),
+            Tag::AwaitValue => {
+                self.await_stored(i, k, &res, |em, base| em.comp(a, 0, &VT::r(base.clone())))
+            }
+            _ => {
+                let Some(c) = Callee::from_words(self.b.record(a)) else {
+                    return unsupported("a malformed callee record");
+                };
+                let rec = self.rec(bw);
+                let args = rec[..rec.len().saturating_sub(3)].to_vec();
+                if let Callee::TraitMethod {
+                    trait_,
+                    method,
+                    choice: (ChoiceKind::TraitValue, _),
+                    ..
+                } = c
+                {
+                    return self.await_stored(i, k, &res, |em, _| {
+                        em.push_dyn(trait_, method, &args).map(|_| ())
+                    });
+                }
+                let Some(Target::Call(t)) = self.calls.get(&i).cloned() else {
+                    return unsupported("a bang call that collection did not resolve");
+                };
+                if t.kind != TargetKind::Instance || !self.env().suspends(t.item) {
+                    return unsupported("a bang call of a compiler lowering");
+                }
+                self.await_direct(i, k, &t, &args, &res)
+            }
+        }
+    }
+
+    /// `g!(x)` of a known suspending instance: its body called directly,
+    /// with the saved child frame on resume (§14.3).
+    fn await_direct(
+        &mut self,
+        i: u32,
+        k: u32,
+        t: &CallTarget,
+        args: &[u32],
+        res: &[VT],
+    ) -> StageResult<()> {
+        let (ft, _, frame, pc) = self.susp_parts()?;
+        let gres = self.vts(t.ret)?;
+        let (gbase, _) = suspend_base(&gres);
+        let ch = self.a.local(VT::rn(gbase.clone()));
+        self.a.ref_null(&gbase);
+        self.a.set(ch);
+        self.a.get(pc);
+        self.a.i32(k.cast_signed());
+        self.a.s().i32_eq();
+        self.a.if_();
+        self.a.raw_get(frame);
+        self.a.struct_get(&ft, F_CHILD);
+        self.a.ref_cast(&gbase, true);
+        self.a.set(ch);
+        self.a.end();
+        self.a.raw_get(ch);
+        let pool = self.pool();
+        let mut ps = Vec::new();
+        for p in self.env().params(t.item).unwrap_or_default() {
+            ps.push(subst(pool, self.env(), t.item, t.args, p));
+        }
+        for (r, p) in args.iter().zip(&ps) {
+            let want: Vec<VT> = self.vts(*p)?.iter().map(VT::dflt).collect();
+            self.load_as(*r, &want)?;
+        }
+        let keys = self.env().row_keys(t.item);
+        self.push_providers(&keys)?;
+        self.a.call(Sym::Part(t.key, Part::Body));
+        let tmp: Vec<u32> = gres.iter().map(|v| self.a.local(v.dflt())).collect();
+        let nc = self.a.local(VT::rn(gbase));
+        self.a.set(nc);
+        for l in tmp.iter().rev() {
+            self.a.set(*l);
+        }
+        self.a.raw_get(nc);
+        self.a.s().ref_is_null().i32_eqz();
+        self.a.if_();
+        self.suspend(k, nc)?;
+        self.a.end();
+        self.a.i32(0);
+        self.a.set(pc);
+        for l in &tmp {
+            self.a.raw_get(*l);
+        }
+        let dres: Vec<VT> = gres.iter().map(VT::dflt).collect();
+        let _ = res;
+        self.store_from(i, &dres)
+    }
+
+    /// A stored suspension (`s!()`, a trait-value bang call): polled
+    /// through its vtable; `fresh` pushes it on the fresh path.
+    fn await_stored(
+        &mut self,
+        i: u32,
+        k: u32,
+        res: &[VT],
+        fresh: impl FnOnce(&mut Self, &WTy) -> StageResult<()>,
+    ) -> StageResult<()> {
+        let (ft, _, frame, pc) = self.susp_parts()?;
+        let (base, poll) = suspend_base(res);
+        let s = self.a.local(VT::rn(base.clone()));
+        self.a.get(pc);
+        self.a.i32(k.cast_signed());
+        self.a.s().i32_eq();
+        self.a.if_();
+        self.a.raw_get(frame);
+        self.a.struct_get(&ft, F_CHILD);
+        self.a.ref_cast(&base, true);
+        self.a.set(s);
+        self.a.else_();
+        fresh(self, &base)?;
+        self.a.set(s);
+        self.a.end();
+        self.a.raw_get(s);
+        self.a.s().ref_as_non_null();
+        self.a.raw_get(s);
+        self.a.s().ref_as_non_null();
+        self.a.struct_get(&base, F_POLL);
+        self.a.call_ref(&poll);
+        let tmp: Vec<u32> = res.iter().map(|v| self.a.local(v.dflt())).collect();
+        let ready = self.a.local(VT::I32);
+        for l in tmp.iter().rev() {
+            self.a.set(*l);
+        }
+        self.a.set(ready);
+        self.a.get(ready);
+        self.a.s().i32_eqz();
+        self.a.if_();
+        self.suspend(k, s)?;
+        self.a.end();
+        self.a.i32(0);
+        self.a.set(pc);
+        for l in &tmp {
+            self.a.raw_get(*l);
+        }
+        let dres: Vec<VT> = res.iter().map(VT::dflt).collect();
+        self.store_from(i, &dres)
+    }
+
+    /// `all!(a, b, ...)` (suspension.md §14.5): polls the unfinished
+    /// children in argument order, keeps each result, and completes once
+    /// every child has.
+    fn await_all(
+        &mut self,
+        i: u32,
+        k: u32,
+        children: &[u32],
+        done: u32,
+        ty: Ty,
+    ) -> StageResult<()> {
+        let pc = self.pc();
+        let Shape::Tuple { elems, boxed } = self.lay.shape(ty)? else {
+            return unsupported("an `all!` result that is not a tuple");
+        };
+        self.fresh_only(|em| {
+            em.a.i32(0);
+            em.a.set(done);
+            Ok(())
+        })?;
+        let mut keep = Vec::new();
+        for (j, (ch, rv)) in children.iter().zip(&elems).enumerate() {
+            let (base, poll) = suspend_base(rv);
+            let ls: Vec<u32> = rv.iter().map(|v| self.a.local(v.dflt())).collect();
+            let tmp: Vec<u32> = rv.iter().map(|v| self.a.local(v.dflt())).collect();
+            let s = self.a.local(VT::r(base.clone()));
+            let bit = 1i32 << j;
+            self.a.get(done);
+            self.a.i32(bit);
+            self.a.s().i32_and().i32_eqz();
+            self.a.if_();
+            self.comp(*ch, 0, &VT::r(base.clone()))?;
+            self.a.set(s);
+            self.a.get(s);
+            self.a.get(s);
+            self.a.struct_get(&base, F_POLL);
+            self.a.call_ref(&poll);
+            for l in tmp.iter().rev() {
+                self.a.set(*l);
+            }
+            self.a.if_();
+            self.a.get(done);
+            self.a.i32(bit);
+            self.a.s().i32_or();
+            self.a.set(done);
+            for (d, t) in ls.iter().zip(&tmp) {
+                self.a.raw_get(*t);
+                self.a.set(*d);
+            }
+            self.a.end();
+            self.a.end();
+            keep.push(ls);
+        }
+        let all = (1i32 << children.len()) - 1;
+        let none = self.a.local(VT::rn(task_base()));
+        self.a.get(done);
+        self.a.i32(all);
+        self.a.s().i32_ne();
+        self.a.if_();
+        self.suspend(k, none)?;
+        self.a.end();
+        self.a.i32(0);
+        self.a.set(pc);
+        for (ls, rv) in keep.iter().zip(&elems) {
+            for (l, v) in ls.iter().zip(rv) {
+                self.a.raw_get(*l);
+                self.a.conv(&v.dflt(), v);
+            }
+        }
+        if let Some(b) = boxed {
+            self.a.struct_new(&b);
+        }
+        self.store(i)
+    }
+}
+
 /// `Emit(inst)`: walks the generic TIR of sub-body `sub` under the
-/// instance's arguments.
+/// instance's arguments. A suspending function's instance (suspension.md
+/// §14.1) emits its cold constructor as the code entry and `f$body`,
+/// `f$poll` and `f$cancel` as its parts.
 pub fn emit(
     pool: &InternPool,
     env: &dyn ProgramEnv,
@@ -1876,23 +2796,30 @@ pub fn emit(
     args: TyList,
     ret: Ty,
     calls: &HashMap<u32, Target>,
+    key: Hash128,
 ) -> StageResult<Code> {
     let lay = Lay { pool, env, path };
+    if sub == 0 && env.suspends(b.item) {
+        return emit_suspending(&lay, b, args, ret, calls, key);
+    }
     let (params, results, plocals) = signature(&lay, b, sub, args, ret)?;
-    let mut em = Em {
-        lay,
+    let s = |t: Ty| subst(pool, env, b.item, args, t);
+    if sub != 0
+        && let Some(ci) =
+            (0..b.len()).find(|&i| b.tags[i] == Tag::Closure && b.data[i][0] == u32::from(sub))
+        && matches!(pool.get(s(b.ty[ci])), TyData::Fn { suspends: true, .. })
+    {
+        return unsupported("a suspending closure (`fn!` value)");
+    }
+    let mut em = Em::new(
+        Lay { pool, env, path },
         b,
-        item: b.item,
         args,
         calls,
-        a: Asm::new(params.clone()),
-        locals: vec![None; b.local_ty.len()],
-        vals: HashMap::new(),
-        ctrl: Vec::new(),
-        deciding: Vec::new(),
-        providers: Vec::new(),
-    };
-    let s = |t: Ty| subst(pool, env, b.item, args, t);
+        key,
+        Asm::new(params.clone()),
+        results.clone(),
+    );
     // Parameters are the first Wasm locals, in order.
     let mut next = u32::from(sub != 0);
     let mut copies = Vec::new();
@@ -1900,7 +2827,6 @@ pub fn emit(
         let n = u32_of(em.lay.vts(s(b.local_ty[l as usize]))?.len());
         let ls: Vec<u32> = (next..next + n).collect();
         next += n;
-        // A parameter that is assigned gets a defaultable copy.
         copies.push((l, ls));
     }
     for (l, ls) in copies {
@@ -1962,16 +2888,274 @@ pub fn emit(
     Ok(em.a.finish(results))
 }
 
-/// The entry wrapper of `main` (codegen.md §13.1): one default-profile
-/// provider per row key, each a vtable of host stubs generated from
-/// `hd_host_abi::TABLE` (runtime-and-host.md §17.1).
+/// A suspending function (suspension.md §14.1 to §14.6). The body is
+/// emitted twice: the first pass learns its Wasm locals, which the frame
+/// saves; the second writes the state machine over that frame.
+fn emit_suspending(
+    lay: &Lay<'_>,
+    b: &Body,
+    args: TyList,
+    ret: Ty,
+    calls: &HashMap<u32, Target>,
+    key: Hash128,
+) -> StageResult<Code> {
+    let (pool, env) = (lay.pool, lay.env);
+    let s = |t: Ty| subst(pool, env, b.item, args, t);
+    let (cold_params, _, plocals) = signature(lay, b, 0, args, ret)?;
+    let results = lay.vts(s(ret))?;
+    let (base, _) = suspend_base(&results);
+    let dres: Vec<VT> = results.iter().map(VT::dflt).collect();
+    let mut logical = vec![VT::rn(base.clone())];
+    logical.extend(cold_params.iter().cloned());
+    let mut bres = dres.clone();
+    bres.push(VT::rn(base.clone()));
+    let root = b.sub_root[0];
+    let (states, ranges) = plan(b, root)?;
+    let frame_ty = |saved: &[(u32, VT)]| {
+        let mut extra = vec![VT::rn(task_base())];
+        extra.extend(saved.iter().map(|x| x.1.clone()));
+        frame_of(&base, &extra)
+    };
+    let pass = |saved: Vec<(u32, VT)>| -> StageResult<(Code, Vec<(u32, VT)>)> {
+        let ft = frame_ty(&saved);
+        let mut a = Asm::new_dflt(logical.clone());
+        let frame = a.local(VT::rn(ft.clone()));
+        let pc = a.local(VT::I32);
+        let mut em = Em::new(
+            Lay {
+                pool,
+                env,
+                path: lay.path,
+            },
+            b,
+            args,
+            calls,
+            key,
+            a,
+            dres.clone(),
+        );
+        em.susp = Some(Susp {
+            frame_ty: ft.clone(),
+            base: base.clone(),
+            frame,
+            pc,
+            states: states.clone(),
+            ranges: ranges.clone(),
+            saved,
+        });
+        let mut next = 1;
+        for &l in &plocals {
+            let n = u32_of(em.lay.vts(s(b.local_ty[l as usize]))?.len());
+            em.locals[l as usize] = Some((next..next + n).collect());
+            next += n;
+        }
+        for k in env.row_keys(b.item) {
+            em.providers.push((k, [next, next + 1]));
+            next += 2;
+        }
+        // Prologue: a frame resumes from its state with its locals.
+        em.a.raw_get(0);
+        em.a.ref_cast(&ft, true);
+        em.a.set(frame);
+        em.a.raw_get(frame);
+        em.a.s().ref_is_null().i32_eqz();
+        em.a.if_();
+        em.reload()?;
+        em.a.raw_get(frame);
+        em.a.struct_get(&ft, F_STATE);
+        em.a.set(pc);
+        em.a.end();
+        em.ctrl.push(Ctl::Plain);
+        em.block_into(root, None)?;
+        let tail = b.data[root as usize][1];
+        if tail == NONE {
+            if dres.is_empty() {
+                em.a.ref_null(&base);
+            } else {
+                em.a.s().unreachable();
+            }
+        } else {
+            em.load_as(tail, &dres)?;
+            em.a.ref_null(&base);
+        }
+        let np = em.a.nparams();
+        let mut all = Vec::new();
+        for l in 1..np {
+            all.push((l, em.a.decl(l)));
+        }
+        for j in 0..u32_of(em.a.locals.len()) {
+            let l = np + j;
+            if l != frame && l != pc {
+                all.push((l, em.a.decl(l)));
+            }
+        }
+        Ok((em.a.finish(bres.clone()), all))
+    };
+    let (_, saved) = pass(Vec::new())?;
+    let (body, again) = pass(saved.clone())?;
+    if again != saved {
+        return unsupported("a suspending body whose two emission passes differ");
+    }
+    let ft = frame_ty(&saved);
+    let field = |l: u32| {
+        saved
+            .iter()
+            .position(|x| x.0 == l)
+            .map(|j| F_SAVED + u32_of(j))
+    };
+    // The cold constructor: a frame in state 0 holding the arguments.
+    let mut a = Asm::new(cold_params.clone());
+    let f = a.local(VT::r(ft.clone()));
+    a.struct_new_default(&ft);
+    a.set(f);
+    a.get(f);
+    a.ref_func(Sym::Part(key, Part::Cancel));
+    a.struct_set(&ft, F_CANCEL);
+    a.get(f);
+    a.ref_func(Sym::Part(key, Part::Poll));
+    a.struct_set(&ft, F_POLL);
+    for p in 0..u32_of(cold_params.len()) {
+        let Some(fi) = field(p + 1) else {
+            return unsupported("a suspending body's parameter without a frame field");
+        };
+        a.get(f);
+        a.get(p);
+        a.struct_set(&ft, fi);
+    }
+    a.get(f);
+    let cold = a.finish(vec![VT::r(base.clone())]);
+    // f$poll: the runtime checks, then the body over the frame.
+    let mut a = Asm::new(vec![VT::Eq]);
+    let f = a.local(VT::r(ft.clone()));
+    let tmp: Vec<u32> = dres.iter().map(|v| a.local(v.clone())).collect();
+    let nf = a.local(VT::rn(base.clone()));
+    a.get(0);
+    a.ref_cast(&ft, false);
+    a.set(f);
+    flag_checks(&mut a, f, &ft, true);
+    a.get(f);
+    a.get(f);
+    a.struct_get(&ft, F_FLAGS);
+    a.i32(ACTIVE);
+    a.s().i32_or();
+    a.struct_set(&ft, F_FLAGS);
+    a.get(f);
+    for v in &logical[1..] {
+        a.zero(&v.dflt());
+    }
+    a.call(Sym::Part(key, Part::Body));
+    a.set(nf);
+    for l in tmp.iter().rev() {
+        a.set(*l);
+    }
+    a.get(f);
+    a.get(f);
+    a.struct_get(&ft, F_FLAGS);
+    a.i32(!ACTIVE);
+    a.s().i32_and();
+    a.struct_set(&ft, F_FLAGS);
+    a.raw_get(nf);
+    a.s().ref_is_null();
+    a.if_();
+    a.get(f);
+    a.get(f);
+    a.struct_get(&ft, F_FLAGS);
+    a.i32(DONE);
+    a.s().i32_or();
+    a.struct_set(&ft, F_FLAGS);
+    a.i32(1);
+    for l in &tmp {
+        a.raw_get(*l);
+    }
+    a.s().return_();
+    a.end();
+    a.i32(0);
+    for v in &dres {
+        a.zero(v);
+    }
+    let mut pres = vec![VT::I32];
+    pres.extend(dres.iter().cloned());
+    let poll_code = a.finish(pres);
+    // f$cancel (§14.6): a frame that never waited only gets marked.
+    let mut a = Asm::new(vec![VT::Eq]);
+    let f = a.local(VT::r(ft.clone()));
+    a.get(0);
+    a.ref_cast(&ft, false);
+    a.set(f);
+    flag_checks(&mut a, f, &ft, false);
+    a.get(f);
+    a.get(f);
+    a.struct_get(&ft, F_FLAGS);
+    a.i32(CANCELLED);
+    a.s().i32_or();
+    a.struct_set(&ft, F_FLAGS);
+    a.get(f);
+    a.struct_get(&ft, F_STATE);
+    a.s().i32_eqz();
+    a.if_();
+    a.s().return_();
+    a.end();
+    a.get(f);
+    for v in &logical[1..] {
+        a.zero(&v.dflt());
+    }
+    a.call(Sym::Part(key, Part::Body));
+    for _ in 0..bres.len() {
+        a.s().drop();
+    }
+    let cancel = a.finish(vec![]);
+    let mut code = cold;
+    code.parts = vec![
+        (Part::Body, body),
+        (Part::Poll, poll_code),
+        (Part::Cancel, cancel),
+    ];
+    Ok(code)
+}
+
+/// The runtime checks of `f$poll` and `f$cancel` (§14.3, §14.6): an
+/// active frame is a re-entrant poll; a poll of a completed or cancelled
+/// frame is invalid, and a cancel of one does nothing.
+fn flag_checks(a: &mut Asm, f: u32, ft: &WTy, poll: bool) {
+    a.get(f);
+    a.struct_get(ft, F_FLAGS);
+    a.i32(ACTIVE);
+    a.s().i32_and();
+    a.if_();
+    a.call(Sym::Helper(Helper::Panic(
+        "suspension-reentrant-poll: a suspension was polled or cancelled while active".into(),
+    )));
+    a.s().unreachable();
+    a.end();
+    a.get(f);
+    a.struct_get(ft, F_FLAGS);
+    a.i32(DONE | CANCELLED);
+    a.s().i32_and();
+    a.if_();
+    if poll {
+        a.call(Sym::Helper(Helper::Panic(
+            "suspension-invalid-state: a completed or cancelled suspension was polled".into(),
+        )));
+        a.s().unreachable();
+    } else {
+        a.s().return_();
+    }
+    a.end();
+}
+
+/// The entry exports (codegen.md §13.1, suspension.md §14.4): `hd.init`
+/// runs every reachable group's init in order; `hd.poll` provides one
+/// default-profile provider per row key, each a vtable of host stubs
+/// generated from `hd_host_abi::TABLE` (runtime-and-host.md §17.1), and
+/// runs `main` or polls `main!`; `hd.wake(n)` records completed handles.
 pub fn entry(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     path: &dyn Fn(DefId) -> String,
     main: DefId,
     key: hd_base::Hash128,
-) -> StageResult<Helper> {
+    inits: &[hd_base::Hash128],
+) -> StageResult<Vec<(&'static str, Helper)>> {
     let lay = Lay { pool, env, path };
     let mut providers = Vec::new();
     for k in env.row_keys(main) {
@@ -1998,39 +3182,105 @@ pub fn entry(
             else {
                 return unsupported(format!("the host method `{name}`"));
             };
-            if !env.suspends(m)
-                || hm.wait != hd_host_abi::Wait::May
-                || hm.params != [hd_host_abi::Codec::Buffer("string")]
-            {
-                return unsupported(format!("the host method shape of `{}.{name}`", host.key));
-            }
-            let full = pool.list(&[hd_mono::class_ref(pool)]);
-            let ret = subst(pool, env, m, full, env.ret(m).unwrap_or(Ty::VOID));
-            let result = lay.vts(ret)?;
-            let (base, poll_ty) = crate::layout::suspend_base(&result);
-            let frame = WTy::Struct {
-                fields: vec![VT::r(poll_ty), VT::r(WTy::Bytes), VT::I64, VT::I32],
-                sup: Some(Box::new(base)),
-                open: false,
-            };
-            let poller = Helper::HostPoll {
-                frame: frame.clone(),
-                module: format!("hd:{}", host.key),
-                method: hm.name.to_owned(),
-                result,
-            };
-            slots.push(Helper::HostCold {
-                sig,
-                frame,
-                poll: Box::new(poller),
-            });
+            slots.push(host_slot(&lay, host.key, hm, m, sig)?);
         }
         providers.push((vt, slots));
     }
-    let results = lay.vts(env.ret(main).unwrap_or(Ty::VOID))?;
-    Ok(Helper::Entry {
-        main: key,
-        providers,
-        results: u32_of(results.len()),
+    let ret = env.ret(main).unwrap_or(Ty::VOID);
+    let results = lay.vts(ret)?;
+    let bang = if env.suspends(main) {
+        Some(suspend_base(&results))
+    } else {
+        None
+    };
+    Ok(vec![
+        (
+            "hd.init",
+            Helper::EntryInit {
+                inits: inits.to_vec(),
+            },
+        ),
+        (
+            "hd.poll",
+            Helper::EntryPoll {
+                main: key,
+                providers,
+                results: u32_of(results.len()),
+                bang,
+            },
+        ),
+        ("hd.wake", Helper::EntryWake),
+    ])
+}
+
+/// One vtable slot of a default-profile provider: a host stub, or a
+/// stub that panics for a method shape not lowered yet.
+fn host_slot(
+    lay: &Lay<'_>,
+    key: &str,
+    hm: &hd_host_abi::HostMethod,
+    m: DefId,
+    sig: WTy,
+) -> StageResult<Helper> {
+    let (pool, env) = (lay.pool, lay.env);
+    let unlowered = |sig: WTy| {
+        Ok(Helper::Unlowered {
+            sig,
+            what: format!("the host method `{key}.{}`", hm.name),
+        })
+    };
+    if !env.suspends(m) || hm.wait != hd_host_abi::Wait::May {
+        return unlowered(sig);
+    }
+    let full = pool.list(&[hd_mono::class_ref(pool)]);
+    let mut args = Vec::new();
+    let params: Vec<Ty> = env
+        .params(m)
+        .unwrap_or_default()
+        .into_iter()
+        .skip(1)
+        .collect();
+    for (p, c) in params.iter().zip(hm.params) {
+        let pt = subst(pool, env, m, full, *p);
+        let vts = lay.vts(pt)?;
+        args.push(match (c, vts.as_slice()) {
+            (hd_host_abi::Codec::Buffer("string"), _) => crate::rt::ArgCodec::Str,
+            (hd_host_abi::Codec::Scalar(_), [VT::Ref(t, false)]) if t.fields() == [VT::I64] => {
+                crate::rt::ArgCodec::DataI64((**t).clone())
+            }
+            (hd_host_abi::Codec::Scalar(_), [v @ (VT::I32 | VT::I64 | VT::F64)]) => {
+                crate::rt::ArgCodec::Scalar(v.clone())
+            }
+            _ => return unlowered(sig),
+        });
+    }
+    if params.len() != hm.params.len() {
+        return unlowered(sig);
+    }
+    let ret = subst(pool, env, m, full, env.ret(m).unwrap_or(Ty::VOID));
+    let result = lay.vts(ret)?;
+    if !(result.is_empty() || result == [VT::I32, VT::I32]) {
+        return unlowered(sig);
+    }
+    let (base, _) = suspend_base(&result);
+    let mut extra: Vec<VT> = args
+        .iter()
+        .flat_map(crate::rt::ArgCodec::vts)
+        .map(|v| v.dflt())
+        .collect();
+    extra.push(VT::I32);
+    let frame = frame_of(&base, &extra);
+    let poller = Helper::HostPoll {
+        frame: frame.clone(),
+        module: format!("hd:{key}"),
+        method: hm.name.to_owned(),
+        args,
+        result,
+    };
+    Ok(Helper::HostCold {
+        sig,
+        frame: frame.clone(),
+        poll: Box::new(poller),
+        cancel: Box::new(Helper::HostCancel { frame }),
     })
 }

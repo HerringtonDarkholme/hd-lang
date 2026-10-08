@@ -103,6 +103,8 @@ pub enum Target {
     VTable(DefId, Vec<CallTarget>),
     /// A closure's code instance.
     Closure(Hash128),
+    /// A `$.with`'s providers: per key, the trait and its vtable slots.
+    Withs(Vec<(DefId, Vec<CallTarget>)>),
 }
 
 /// The output of `Collect` (codegen.md §11.3).
@@ -118,6 +120,8 @@ pub struct Collected {
     pub imports: BTreeSet<u32>,
     /// Data types the program builds or reads.
     pub data: BTreeSet<DefIdOrd>,
+    /// The init bodies' instances, in initialization order.
+    pub inits: Vec<Hash128>,
 }
 
 pub use layout::InstanceTable;
@@ -298,6 +302,17 @@ impl Cx<'_> {
         parent: InstId,
     ) -> StageResult<CallTarget> {
         let ret = self.env.ret(def).unwrap_or(Ty::VOID);
+        // A std function whose body the compiler supplies, though its
+        // source has a placeholder body (`race!`'s frame).
+        if let Some(key) = self.env.intrinsic(def).filter(|k| k == "task_race_frame") {
+            return Ok(CallTarget {
+                key: Hash128(0),
+                item: def,
+                args,
+                ret: subst(self.pool, self.env, def, args, ret),
+                kind: TargetKind::Intrinsic(key),
+            });
+        }
         if self.env.body(def).is_none() {
             let Some(key) = self.env.intrinsic(def) else {
                 return Err(NotImplemented::new(
@@ -551,6 +566,37 @@ impl Cx<'_> {
                     }
                     calls.insert(ix, Target::VTable(trait_, slots));
                 }
+                Tag::With => {
+                    let rec = body.record(a).to_vec();
+                    let mut withs = Vec::new();
+                    for pair in rec.chunks(2) {
+                        let [k, v] = pair else {
+                            return err("a malformed `$.with` record");
+                        };
+                        let TyData::TraitValue {
+                            def: trait_,
+                            args: trait_args,
+                            ..
+                        } = pool.get(s(Ty(*k)))
+                        else {
+                            return err("a `$.with` key that is not a trait");
+                        };
+                        let from = s(body.ty[*v as usize]);
+                        let from = match pool.get(from) {
+                            TyData::Mut(x) => x,
+                            _ => from,
+                        };
+                        let targs = pool.list_items(trait_args);
+                        let mut slots = Vec::new();
+                        for m in env.trait_methods(trait_) {
+                            let t = self.method_target(trait_, m, from, &targs, None, depth, id)?;
+                            reps.hash(t.key);
+                            slots.push(t);
+                        }
+                        withs.push((trait_, slots));
+                    }
+                    calls.insert(ix, Target::Withs(withs));
+                }
                 _ => {}
             }
         }
@@ -576,13 +622,15 @@ fn note_data(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut BTreeSet<
     }
 }
 
-/// Collection from `root` (codegen.md §13.1): every reachable instance,
-/// each call's target, the imports and data types.
+/// Collection from `root` (codegen.md §13.1) and the init bodies `inits`
+/// of the groups it reaches, in initialization order: every reachable
+/// instance, each call's target, the imports and data types.
 pub fn collect(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     solver: &dyn Solver,
     root: DefId,
+    inits: &[DefId],
 ) -> StageResult<Collected> {
     let mut cx = Cx {
         pool,
@@ -593,6 +641,10 @@ pub fn collect(
         work: Vec::new(),
     };
     cx.push(root, 0, TyList::EMPTY, 0, InstId::NONE)?;
+    for i in inits {
+        let k = cx.push(*i, 0, TyList::EMPTY, 0, InstId::NONE)?;
+        cx.out.inits.push(k);
+    }
     // Breadth-first in push order (codegen.md §13.4): the first instance
     // over a limit is the same on every run.
     let mut next = 0;

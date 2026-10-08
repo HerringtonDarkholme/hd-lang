@@ -107,7 +107,42 @@ pub fn closure_base(code: &WTy) -> WTy {
     }
 }
 
-/// `$Suspend_L` (suspension.md §14.1, reduced): a poll function reference.
+/// Fields of every suspension (suspension.md §14.1): the cancel function,
+/// the resume state, the flags; then, per result layout, the poll
+/// function; then, in a generated frame, the awaited child.
+pub const F_CANCEL: u32 = 0;
+pub const F_STATE: u32 = 1;
+pub const F_FLAGS: u32 = 2;
+pub const F_POLL: u32 = 3;
+pub const F_CHILD: u32 = 4;
+/// The first saved field of a generated frame.
+pub const F_SAVED: u32 = 5;
+
+/// Frame flags (suspension.md §14.1).
+pub const ACTIVE: i32 = 1;
+pub const DONE: i32 = 4;
+pub const CANCELLED: i32 = 8;
+
+/// The cancel function's type: `(frame) -> ()`, one for every layout.
+#[must_use]
+pub fn cancel_fn() -> WTy {
+    WTy::Func(vec![VT::Eq], vec![])
+}
+
+/// `$Task`: the layout-independent prefix of every suspension, through
+/// which a parent cancels a child of any result layout.
+#[must_use]
+pub fn task_base() -> WTy {
+    WTy::Struct {
+        fields: vec![VT::rn(cancel_fn()), VT::I32, VT::I32],
+        sup: None,
+        open: true,
+    }
+}
+
+/// `$Suspend_L` (suspension.md §14.1) and its poll function's type
+/// `(frame) -> (i32 ready, dflt(L)...)`. The competing-driver field is
+/// not laid out yet.
 #[must_use]
 pub fn suspend_base(result: &[VT]) -> (WTy, WTy) {
     let mut res = vec![VT::I32];
@@ -115,12 +150,25 @@ pub fn suspend_base(result: &[VT]) -> (WTy, WTy) {
     let poll = WTy::Func(vec![VT::Eq], res);
     (
         WTy::Struct {
-            fields: vec![VT::r(poll.clone())],
-            sup: None,
+            fields: vec![VT::rn(cancel_fn()), VT::I32, VT::I32, VT::rn(poll.clone())],
+            sup: Some(Box::new(task_base())),
             open: true,
         },
         poll,
     )
+}
+
+/// A suspension type over a base, with extra fields (a generated frame,
+/// a host leaf, a combinator frame).
+#[must_use]
+pub fn frame_of(base: &WTy, extra: &[VT]) -> WTy {
+    let mut fields = base.fields().to_vec();
+    fields.extend_from_slice(extra);
+    WTy::Struct {
+        fields,
+        sup: Some(Box::new(base.clone())),
+        open: false,
+    }
 }
 
 /// The struct for erased values that are not one reference: an immutable

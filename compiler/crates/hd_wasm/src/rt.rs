@@ -10,7 +10,84 @@ use hd_base::{Hash128, StageResult};
 use wasm_encoder::BlockType;
 
 use crate::asm::Asm;
-use crate::{Code, Sym, VT, WTy, decode_vts, encode_vts, unsupported};
+use crate::layout::{
+    ACTIVE, CANCELLED, DONE, F_CANCEL, F_FLAGS, F_POLL, F_SAVED, F_STATE, cancel_fn, storage,
+};
+use crate::{Code, GSym, Sym, VT, WTy, decode_vts, encode_vts, unsupported};
+
+/// How a host method's argument crosses (runtime-and-host.md §17.2).
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ArgCodec {
+    /// A string: its viewed bytes into the exchange buffer, then the length.
+    Str,
+    /// A data value of one `i64` field (`Duration`): the field, as a scalar.
+    DataI64(WTy),
+    /// A scalar, as itself.
+    Scalar(VT),
+}
+
+impl ArgCodec {
+    /// The argument's values in the frame.
+    #[must_use]
+    pub fn vts(&self) -> Vec<VT> {
+        match self {
+            ArgCodec::Str => vec![VT::r(WTy::Bytes), VT::I64],
+            ArgCodec::DataI64(t) => vec![VT::r(t.clone())],
+            ArgCodec::Scalar(v) => vec![v.clone()],
+        }
+    }
+    fn import(&self) -> VT {
+        match self {
+            ArgCodec::Str => VT::I32,
+            ArgCodec::DataI64(_) => VT::I64,
+            ArgCodec::Scalar(v) => v.clone(),
+        }
+    }
+    fn encode(&self, w: &mut Writer) {
+        match self {
+            ArgCodec::Str => w.u8(0),
+            ArgCodec::DataI64(t) => {
+                w.u8(1);
+                enc_wty(t, w);
+            }
+            ArgCodec::Scalar(v) => {
+                w.u8(2);
+                encode_vts(std::slice::from_ref(v), w);
+            }
+        }
+    }
+    fn decode(r: &mut Reader<'_>) -> Option<ArgCodec> {
+        Some(match r.u8() {
+            0 => ArgCodec::Str,
+            1 => ArgCodec::DataI64(dec_wty(r)?),
+            2 => ArgCodec::Scalar(decode_vts(r, 0)?.pop()?),
+            _ => return None,
+        })
+    }
+}
+
+/// The wake table (suspension.md §14.4): completed host handles by slot.
+#[must_use]
+pub fn wake_table() -> GSym {
+    GSym::Rt("wake".into(), VT::rn(WTy::Array(VT::I32)))
+}
+
+/// The entry's root suspension, for `main!` (suspension.md §14.4).
+#[must_use]
+pub fn root_global() -> GSym {
+    GSym::Rt("root".into(), VT::rn(crate::layout::task_base()))
+}
+
+/// The host runtime's `abort` import (runtime-and-host.md §17.2).
+#[must_use]
+pub fn abort_import() -> Sym {
+    Sym::Import {
+        module: "hd:rt".into(),
+        name: "abort".into(),
+        params: vec![VT::I32],
+        results: vec![],
+    }
+}
 
 /// How a `T?` is built (`layout::OptShape` without its payload values).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -48,12 +125,43 @@ pub enum Helper {
         sig: WTy,
         frame: WTy,
         poll: Box<Helper>,
+        cancel: Box<Helper>,
     },
-    /// The leaf frame's poll: `.start`, then `.finish` after a wait.
+    /// The leaf frame's poll: `.start`; after a wait, `.finish` once the
+    /// wake table holds the handle.
     HostPoll {
         frame: WTy,
         module: String,
         method: String,
+        args: Vec<ArgCodec>,
+        /// `[]` for `void`, `[i32, i32]` for an enum of tags.
+        result: Vec<VT>,
+    },
+    /// The leaf frame's cancel: aborts a pending operation.
+    HostCancel { frame: WTy },
+    /// A slot the compiler does not lower yet: panics when called.
+    Unlowered { sig: WTy, what: String },
+    /// `(n)`: marks the `n` handles in the exchange buffer as completed.
+    WakeMark,
+    /// `(h) -> i32`: whether handle `h` completed; clears its slot.
+    WakeTake,
+    /// `race!`'s frame (std's `task_race_frame` intrinsic): `(list) -> frame`.
+    RaceCold {
+        list: WTy,
+        base: WTy,
+        poll: WTy,
+        result: Vec<VT>,
+    },
+    RacePoll {
+        list: WTy,
+        base: WTy,
+        poll: WTy,
+        result: Vec<VT>,
+    },
+    RaceCancel {
+        list: WTy,
+        base: WTy,
+        poll: WTy,
         result: Vec<VT>,
     },
     /// A vtable slot over a concrete impl method: unerases the receiver.
@@ -64,13 +172,19 @@ pub enum Helper {
         params: Vec<VT>,
         results: Vec<VT>,
     },
-    /// The exported `main`: builds the default profile's providers and
-    /// calls the entry.
-    Entry {
+    /// `hd.init`: every reachable group's init, in order.
+    EntryInit { inits: Vec<Hash128> },
+    /// `hd.poll`: builds the default profile's providers and runs `main`,
+    /// or polls `main!`'s root (`bang` is its `$Suspend_L`); `-1` while
+    /// pending, else the exit status.
+    EntryPoll {
         main: Hash128,
         providers: Vec<(WTy, Vec<Helper>)>,
         results: u32,
+        bang: Option<(WTy, WTy)>,
     },
+    /// `hd.wake(n)`: marks the completed handles.
+    EntryWake,
 }
 
 fn enc_wty(t: &WTy, w: &mut Writer) {
@@ -125,22 +239,72 @@ impl Helper {
                     }
                 }
             }
-            Helper::HostCold { sig, frame, poll } => {
+            Helper::HostCold {
+                sig,
+                frame,
+                poll,
+                cancel,
+            } => {
                 w.u8(7);
                 enc_wty(sig, w);
                 enc_wty(frame, w);
                 poll.encode(w);
+                cancel.encode(w);
             }
             Helper::HostPoll {
                 frame,
                 module,
                 method,
+                args,
                 result,
             } => {
                 w.u8(8);
                 enc_wty(frame, w);
                 w.str(module);
                 w.str(method);
+                w.len_of(args);
+                for a in args {
+                    a.encode(w);
+                }
+                encode_vts(result, w);
+            }
+            Helper::HostCancel { frame } => {
+                w.u8(11);
+                enc_wty(frame, w);
+            }
+            Helper::Unlowered { sig, what } => {
+                w.u8(12);
+                enc_wty(sig, w);
+                w.str(what);
+            }
+            Helper::WakeMark => w.u8(13),
+            Helper::WakeTake => w.u8(14),
+            Helper::RaceCold {
+                list,
+                base,
+                poll,
+                result,
+            }
+            | Helper::RacePoll {
+                list,
+                base,
+                poll,
+                result,
+            }
+            | Helper::RaceCancel {
+                list,
+                base,
+                poll,
+                result,
+            } => {
+                w.u8(match self {
+                    Helper::RaceCold { .. } => 15,
+                    Helper::RacePoll { .. } => 16,
+                    _ => 17,
+                });
+                enc_wty(list, w);
+                enc_wty(base, w);
+                enc_wty(poll, w);
                 encode_vts(result, w);
             }
             Helper::Adapter {
@@ -157,10 +321,18 @@ impl Helper {
                 encode_vts(params, w);
                 encode_vts(results, w);
             }
-            Helper::Entry {
+            Helper::EntryInit { inits } => {
+                w.u8(18);
+                w.len_of(inits);
+                for k in inits {
+                    w.hash(*k);
+                }
+            }
+            Helper::EntryPoll {
                 main,
                 providers,
                 results,
+                bang,
             } => {
                 w.u8(10);
                 w.hash(*main);
@@ -173,7 +345,16 @@ impl Helper {
                     }
                 }
                 w.u32(*results);
+                match bang {
+                    Some((b, p)) => {
+                        w.u8(1);
+                        enc_wty(b, w);
+                        enc_wty(p, w);
+                    }
+                    None => w.u8(0),
+                }
             }
+            Helper::EntryWake => w.u8(19),
         }
     }
 
@@ -204,13 +385,52 @@ impl Helper {
                 sig: dec_wty(r)?,
                 frame: dec_wty(r)?,
                 poll: Box::new(Helper::decode(r)?),
+                cancel: Box::new(Helper::decode(r)?),
             },
             8 => Helper::HostPoll {
                 frame: dec_wty(r)?,
                 module: r.str().to_owned(),
                 method: r.str().to_owned(),
+                args: (0..r.count())
+                    .map(|_| ArgCodec::decode(r))
+                    .collect::<Option<Vec<_>>>()?,
                 result: decode_vts(r, 0)?,
             },
+            11 => Helper::HostCancel { frame: dec_wty(r)? },
+            12 => Helper::Unlowered {
+                sig: dec_wty(r)?,
+                what: r.str().to_owned(),
+            },
+            13 => Helper::WakeMark,
+            14 => Helper::WakeTake,
+            t @ 15..=17 => {
+                let (list, base, poll, result) =
+                    (dec_wty(r)?, dec_wty(r)?, dec_wty(r)?, decode_vts(r, 0)?);
+                match t {
+                    15 => Helper::RaceCold {
+                        list,
+                        base,
+                        poll,
+                        result,
+                    },
+                    16 => Helper::RacePoll {
+                        list,
+                        base,
+                        poll,
+                        result,
+                    },
+                    _ => Helper::RaceCancel {
+                        list,
+                        base,
+                        poll,
+                        result,
+                    },
+                }
+            }
+            18 => Helper::EntryInit {
+                inits: (0..r.count()).map(|_| r.hash()).collect(),
+            },
+            19 => Helper::EntryWake,
             9 => Helper::Adapter {
                 sig: dec_wty(r)?,
                 self_vts: decode_vts(r, 0)?,
@@ -230,10 +450,17 @@ impl Helper {
                         .collect::<Option<Vec<_>>>()?;
                     providers.push((vt, slots));
                 }
-                Helper::Entry {
+                let results = r.u32();
+                let bang = if r.u8() == 1 {
+                    Some((dec_wty(r)?, dec_wty(r)?))
+                } else {
+                    None
+                };
+                Helper::EntryPoll {
                     main,
                     providers,
-                    results: r.u32(),
+                    results,
+                    bang,
                 }
             }
             _ => return None,
@@ -536,95 +763,137 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             }
             a.finish(results.clone())
         }
-        Helper::HostCold { sig, frame, poll } => {
+        Helper::HostCold {
+            sig,
+            frame,
+            poll,
+            cancel,
+        } => {
             let WTy::Func(params, results) = sig else {
                 return unsupported("a host stub without a signature");
             };
             let mut a = Asm::new(params.clone());
+            let f = a.local(VT::r(frame.clone()));
+            a.struct_new_default(frame);
+            a.set(f);
+            a.get(f);
+            a.ref_func(Sym::Helper((**cancel).clone()));
+            a.struct_set(frame, F_CANCEL);
+            a.get(f);
             a.ref_func(Sym::Helper((**poll).clone()));
+            a.struct_set(frame, F_POLL);
             for k in 1..params.len() {
+                a.get(f);
                 a.get(u32::try_from(k).expect("k"));
+                a.struct_set(frame, F_SAVED - 2 + u32::try_from(k).expect("k"));
             }
+            let nf = u32::try_from(frame.fields().len()).expect("fields");
+            a.get(f);
             a.i32(-1);
-            a.struct_new(frame);
+            a.struct_set(frame, nf - 1);
+            a.get(f);
             a.finish(results.clone())
         }
         Helper::HostPoll {
             frame,
             module,
             method,
+            args,
             result,
-        } => {
-            if *result != [VT::I32, VT::I32] {
-                return unsupported("a host result codec other than an enum of tags");
-            }
-            let mut res = vec![VT::I32];
-            res.extend(result.iter().map(VT::dflt));
+        } => host_poll(frame, module, method, args, result)?,
+        Helper::HostCancel { frame } => {
             let mut a = Asm::new(vec![VT::Eq]);
-            let (f, h, n, st) = (
-                a.local(VT::r(frame.clone())),
-                a.local(VT::I32),
-                a.local(VT::I32),
-                a.local(VT::I32),
-            );
+            let f = a.local(VT::r(frame.clone()));
+            let nf = u32::try_from(frame.fields().len()).expect("fields");
             a.get(0);
             a.ref_cast(frame, false);
             a.set(f);
             a.get(f);
-            a.struct_get(frame, 3);
-            a.set(h);
-            a.get(h);
-            a.i32(0);
-            a.s().i32_lt_s();
+            a.struct_get(frame, F_FLAGS);
+            a.i32(DONE | CANCELLED);
+            a.s().i32_and();
             a.if_();
-            a.get(f);
-            a.struct_get(frame, 1);
-            a.get(f);
-            a.struct_get(frame, 2);
-            a.call(Sym::Helper(Helper::StrToBuf));
-            a.call(Sym::Import {
-                module: module.clone(),
-                name: format!("{method}.start"),
-                params: vec![VT::I32],
-                results: vec![VT::I32, VT::I32],
-            });
-            a.set(n);
-            a.set(st);
-            a.get(st);
-            a.if_();
-            a.get(f);
-            a.get(n);
-            a.struct_set(frame, 3);
-            a.i32(0);
-            a.i32(0);
-            a.i32(0);
             a.s().return_();
             a.end();
-            a.else_();
-            a.get(h);
-            a.call(Sym::Import {
-                module: module.clone(),
-                name: format!("{method}.finish"),
-                params: vec![VT::I32],
-                results: vec![VT::I32],
-            });
-            a.set(n);
+            a.get(f);
+            a.get(f);
+            a.struct_get(frame, F_FLAGS);
+            a.i32(CANCELLED);
+            a.s().i32_or();
+            a.struct_set(frame, F_FLAGS);
+            a.get(f);
+            a.struct_get(frame, nf - 1);
+            a.i32(0);
+            a.s().i32_ge_s();
+            a.if_();
+            a.get(f);
+            a.struct_get(frame, nf - 1);
+            a.call(abort_import());
             a.end();
-            // Decode an enum of tags (runtime-and-host.md §17.4): the
-            // variant index, then a payload variant index when present.
-            a.i32(1);
-            a.i32(0);
-            a.mem8_load(0);
-            a.get(n);
-            a.i32(1);
-            a.s().i32_gt_s();
-            a.s().if_(BlockType::Result(wasm_encoder::ValType::I32));
-            a.i32(0);
-            a.mem8_load(1);
-            a.else_();
-            a.i32(0);
+            a.finish(vec![])
+        }
+        Helper::Unlowered { sig, what } => {
+            let WTy::Func(params, results) = sig else {
+                return unsupported("an unlowered slot without a signature");
+            };
+            let mut a = Asm::new(params.clone());
+            a.call(Sym::Helper(Helper::Panic(format!(
+                "unsupported: {what} is not lowered yet"
+            ))));
+            a.s().unreachable();
+            a.finish(results.clone())
+        }
+        Helper::WakeMark => wake_mark(),
+        Helper::WakeTake => wake_take(),
+        Helper::RaceCold {
+            list,
+            base,
+            poll,
+            result,
+        } => {
+            let fr = race_frame(list, base);
+            let mut a = Asm::new(vec![VT::r(list.clone())]);
+            let f = a.local(VT::r(fr.clone()));
+            a.struct_new_default(&fr);
+            a.set(f);
+            a.get(f);
+            let h = |k: u8| Helper::from_race(k, list, base, poll, result);
+            a.ref_func(Sym::Helper(h(2)));
+            a.struct_set(&fr, F_CANCEL);
+            a.get(f);
+            a.ref_func(Sym::Helper(h(1)));
+            a.struct_set(&fr, F_POLL);
+            a.get(f);
+            a.get(0);
+            a.struct_set(&fr, F_SAVED - 1);
+            a.get(f);
+            a.finish(vec![VT::r(base.clone())])
+        }
+        Helper::RacePoll {
+            list,
+            base,
+            poll,
+            result,
+        } => race_poll(list, base, poll, result),
+        Helper::RaceCancel { list, base, .. } => {
+            let fr = race_frame(list, base);
+            let mut a = Asm::new(vec![VT::Eq]);
+            let f = a.local(VT::r(fr.clone()));
+            a.get(0);
+            a.ref_cast(&fr, false);
+            a.set(f);
+            a.get(f);
+            a.struct_get(&fr, F_FLAGS);
+            a.i32(DONE | CANCELLED);
+            a.s().i32_and();
+            a.if_();
+            a.s().return_();
             a.end();
-            a.finish(res)
+            a.get(f);
+            a.i32(CANCELLED);
+            a.struct_set(&fr, F_FLAGS);
+            cancel_list(&mut a, f, &fr, list, None);
+            a.finish(vec![])
         }
         Helper::Adapter {
             sig,
@@ -655,23 +924,70 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             }
             a.finish(sr.clone())
         }
-        Helper::Entry {
+        Helper::EntryInit { inits } => {
+            let mut a = Asm::new(vec![]);
+            for k in inits {
+                a.call(Sym::Inst(*k));
+            }
+            a.finish(vec![])
+        }
+        Helper::EntryPoll {
             main,
             providers,
             results,
+            bang,
         } => {
             let mut a = Asm::new(vec![]);
-            for (vt, slots) in providers {
-                a.ref_null_eq();
-                for s in slots {
-                    a.ref_func(Sym::Helper(s.clone()));
+            let build = |a: &mut Asm| {
+                for (vt, slots) in providers {
+                    a.ref_null_eq();
+                    for s in slots {
+                        a.ref_func(Sym::Helper(s.clone()));
+                    }
+                    a.struct_new(vt);
                 }
-                a.struct_new(vt);
+            };
+            match bang {
+                None => {
+                    build(&mut a);
+                    a.call(Sym::Inst(*main));
+                    for _ in 0..*results {
+                        a.s().drop();
+                    }
+                    a.i32(0);
+                }
+                Some((base, poll)) => {
+                    let WTy::Func(_, prs) = poll else {
+                        return unsupported("a root poll type");
+                    };
+                    let root = a.local(VT::r(base.clone()));
+                    a.global_get(root_global());
+                    a.s().ref_is_null();
+                    a.if_();
+                    build(&mut a);
+                    a.call(Sym::Inst(*main));
+                    a.global_set(root_global());
+                    a.end();
+                    a.global_get(root_global());
+                    a.ref_cast(base, false);
+                    a.set(root);
+                    a.get(root);
+                    a.get(root);
+                    a.struct_get(base, F_POLL);
+                    a.call_ref(poll);
+                    for _ in 1..prs.len() {
+                        a.s().drop();
+                    }
+                    a.i32(1);
+                    a.s().i32_sub();
+                }
             }
-            a.call(Sym::Inst(*main));
-            for _ in 0..*results {
-                a.s().drop();
-            }
+            a.finish(vec![VT::I32])
+        }
+        Helper::EntryWake => {
+            let mut a = Asm::new(vec![VT::I32]);
+            a.get(0);
+            a.call(Sym::Helper(Helper::WakeMark));
             a.finish(vec![])
         }
     })
@@ -703,4 +1019,426 @@ pub fn unerase(a: &mut Asm, p: u32, vts: &[VT]) {
             }
         }
     }
+}
+
+impl Helper {
+    fn from_race(k: u8, list: &WTy, base: &WTy, poll: &WTy, result: &[VT]) -> Helper {
+        let (list, base, poll, result) =
+            (list.clone(), base.clone(), poll.clone(), result.to_vec());
+        match k {
+            0 => Helper::RaceCold {
+                list,
+                base,
+                poll,
+                result,
+            },
+            1 => Helper::RacePoll {
+                list,
+                base,
+                poll,
+                result,
+            },
+            _ => Helper::RaceCancel {
+                list,
+                base,
+                poll,
+                result,
+            },
+        }
+    }
+}
+
+/// `race!`'s frame: a suspension holding its list of children.
+fn race_frame(list: &WTy, base: &WTy) -> WTy {
+    crate::layout::frame_of(base, &[VT::rn(list.clone())])
+}
+
+/// Cancels every child of a race frame in list order, but `skip`.
+fn cancel_list(a: &mut Asm, f: u32, fr: &WTy, list: &WTy, skip: Option<u32>) {
+    let task = crate::layout::task_base();
+    let (l, i, c) = (
+        a.local(VT::r(list.clone())),
+        a.local(VT::I32),
+        a.local(VT::r(task.clone())),
+    );
+    a.get(f);
+    a.struct_get(fr, F_SAVED - 1);
+    a.s().ref_as_non_null();
+    a.set(l);
+    a.i32(0);
+    a.set(i);
+    a.block();
+    a.loop_();
+    a.get(i);
+    a.get(l);
+    a.struct_get(list, 0);
+    a.s().i32_ge_u();
+    a.br_if(1);
+    let go = skip.map(|s| {
+        a.get(i);
+        a.get(s);
+        a.s().i32_ne();
+        a.if_();
+    });
+    a.get(l);
+    a.struct_get(list, 1);
+    a.get(i);
+    a.array_get(&WTy::Array(storage(&VT::r(task.clone())).dflt()));
+    a.ref_cast(&task, false);
+    a.set(c);
+    a.get(c);
+    a.get(c);
+    a.struct_get(&task, F_CANCEL);
+    a.call_ref(&cancel_fn());
+    if go.is_some() {
+        a.end();
+    }
+    a.get(i);
+    a.i32(1);
+    a.s().i32_add();
+    a.set(i);
+    a.br(0);
+    a.end();
+    a.end();
+}
+
+/// `race!`'s poll (suspension.md §14.5): polls the children in list order;
+/// the first Ready wins, and every other child is cancelled in list order
+/// before it returns. An empty list panics.
+fn race_poll(list: &WTy, base: &WTy, poll: &WTy, result: &[VT]) -> Code {
+    let fr = race_frame(list, base);
+    let mut res = vec![VT::I32];
+    res.extend(result.iter().map(VT::dflt));
+    let mut a = Asm::new(vec![VT::Eq]);
+    let (f, l, i, c, ready) = (
+        a.local(VT::r(fr.clone())),
+        a.local(VT::r(list.clone())),
+        a.local(VT::I32),
+        a.local(VT::r(base.clone())),
+        a.local(VT::I32),
+    );
+    let tmp: Vec<u32> = result.iter().map(|v| a.local(v.dflt())).collect();
+    a.get(0);
+    a.ref_cast(&fr, false);
+    a.set(f);
+    a.get(f);
+    a.struct_get(&fr, F_FLAGS);
+    a.i32(DONE | CANCELLED | ACTIVE);
+    a.s().i32_and();
+    a.if_();
+    a.call(Sym::Helper(Helper::Panic(
+        "suspension-invalid-state: a completed or cancelled `race!` was polled".into(),
+    )));
+    a.s().unreachable();
+    a.end();
+    a.get(f);
+    a.struct_get(&fr, F_SAVED - 1);
+    a.s().ref_as_non_null();
+    a.set(l);
+    a.get(l);
+    a.struct_get(list, 0);
+    a.s().i32_eqz();
+    a.if_();
+    a.call(Sym::Helper(Helper::Panic(
+        "explicit-panic: `race!` of an empty list".into(),
+    )));
+    a.s().unreachable();
+    a.end();
+    a.block();
+    a.loop_();
+    a.get(i);
+    a.get(l);
+    a.struct_get(list, 0);
+    a.s().i32_ge_u();
+    a.br_if(1);
+    a.get(l);
+    a.struct_get(list, 1);
+    a.get(i);
+    a.array_get(&WTy::Array(VT::Eq));
+    a.ref_cast(base, false);
+    a.set(c);
+    a.get(c);
+    a.get(c);
+    a.struct_get(base, F_POLL);
+    a.call_ref(poll);
+    for t in tmp.iter().rev() {
+        a.set(*t);
+    }
+    a.set(ready);
+    a.get(ready);
+    a.if_();
+    cancel_list(&mut a, f, &fr, list, Some(i));
+    a.get(f);
+    a.i32(DONE);
+    a.struct_set(&fr, F_FLAGS);
+    a.i32(1);
+    for t in &tmp {
+        a.raw_get(*t);
+    }
+    a.s().return_();
+    a.end();
+    a.get(i);
+    a.i32(1);
+    a.s().i32_add();
+    a.set(i);
+    a.br(0);
+    a.end();
+    a.end();
+    let _ = F_STATE;
+    for v in &res {
+        a.zero(v);
+    }
+    a.finish(res)
+}
+
+/// The leaf frame's poll (runtime-and-host.md §17.2).
+fn host_poll(
+    frame: &WTy,
+    module: &str,
+    method: &str,
+    args: &[ArgCodec],
+    result: &[VT],
+) -> StageResult<Code> {
+    let tags = match result {
+        [] => false,
+        [VT::I32, VT::I32] => true,
+        _ => return unsupported("a host result codec other than `void` or an enum of tags"),
+    };
+    let mut res = vec![VT::I32];
+    res.extend(result.iter().map(VT::dflt));
+    let nf = u32::try_from(frame.fields().len()).expect("fields");
+    let mut a = Asm::new(vec![VT::Eq]);
+    let (f, h, n, st) = (
+        a.local(VT::r(frame.clone())),
+        a.local(VT::I32),
+        a.local(VT::I32),
+        a.local(VT::I32),
+    );
+    let pending = |a: &mut Asm| {
+        for v in &res {
+            a.zero(v);
+        }
+        a.s().return_();
+    };
+    a.get(0);
+    a.ref_cast(frame, false);
+    a.set(f);
+    a.get(f);
+    a.struct_get(frame, F_FLAGS);
+    a.i32(DONE | CANCELLED);
+    a.s().i32_and();
+    a.if_();
+    a.call(Sym::Helper(Helper::Panic(
+        "suspension-invalid-state: a completed or cancelled host call was polled".into(),
+    )));
+    a.s().unreachable();
+    a.end();
+    a.get(f);
+    a.struct_get(frame, nf - 1);
+    a.set(h);
+    a.get(h);
+    a.i32(0);
+    a.s().i32_lt_s();
+    a.if_();
+    let mut fi = F_SAVED - 1;
+    let mut imp = Vec::new();
+    for c in args {
+        match c {
+            ArgCodec::Str => {
+                a.get(f);
+                a.struct_get(frame, fi);
+                a.s().ref_as_non_null();
+                a.get(f);
+                a.struct_get(frame, fi + 1);
+                a.call(Sym::Helper(Helper::StrToBuf));
+            }
+            ArgCodec::DataI64(t) => {
+                a.get(f);
+                a.struct_get(frame, fi);
+                a.ref_cast(t, false);
+                a.struct_get(t, 0);
+            }
+            ArgCodec::Scalar(_) => {
+                a.get(f);
+                a.struct_get(frame, fi);
+            }
+        }
+        fi += u32::try_from(c.vts().len()).expect("vts");
+        imp.push(c.import());
+    }
+    a.call(Sym::Import {
+        module: module.to_owned(),
+        name: format!("{method}.start"),
+        params: imp,
+        results: vec![VT::I32, VT::I32],
+    });
+    a.set(n);
+    a.set(st);
+    a.get(st);
+    a.if_();
+    a.get(f);
+    a.get(n);
+    a.struct_set(frame, nf - 1);
+    pending(&mut a);
+    a.end();
+    a.else_();
+    a.get(h);
+    a.call(Sym::Helper(Helper::WakeTake));
+    a.s().i32_eqz();
+    a.if_();
+    pending(&mut a);
+    a.end();
+    a.get(h);
+    a.call(Sym::Import {
+        module: module.to_owned(),
+        name: format!("{method}.finish"),
+        params: vec![VT::I32],
+        results: vec![VT::I32],
+    });
+    a.set(n);
+    a.end();
+    a.get(f);
+    a.i32(DONE);
+    a.struct_set(frame, F_FLAGS);
+    a.i32(1);
+    if tags {
+        // An enum of tags (runtime-and-host.md §17.4): the variant index,
+        // then a payload variant index when present.
+        a.i32(0);
+        a.mem8_load(0);
+        a.get(n);
+        a.i32(1);
+        a.s().i32_gt_s();
+        a.s().if_(BlockType::Result(wasm_encoder::ValType::I32));
+        a.i32(0);
+        a.mem8_load(1);
+        a.else_();
+        a.i32(0);
+        a.end();
+    }
+    Ok(a.finish(res))
+}
+
+/// `(n)`: reads `n` handles (`i32`, little-endian) from the exchange
+/// buffer and records each in the wake table under its slot (suspension.md
+/// §14.4). The table grows to fit.
+fn wake_mark() -> Code {
+    let arr = WTy::Array(VT::I32);
+    let mut a = Asm::new(vec![VT::I32]);
+    let (i, h, t, fresh) = (
+        a.local(VT::I32),
+        a.local(VT::I32),
+        a.local(VT::rn(arr.clone())),
+        a.local(VT::r(arr.clone())),
+    );
+    a.block();
+    a.loop_();
+    a.get(i);
+    a.get(0);
+    a.s().i32_ge_u();
+    a.br_if(1);
+    a.get(i);
+    a.i32(4);
+    a.s().i32_mul();
+    a.s().i32_load(crate::asm::mem(0));
+    a.set(h);
+    a.global_get(wake_table());
+    a.set(t);
+    // Grow when the slot is past the end.
+    a.raw_get(t);
+    a.s().ref_is_null();
+    a.if_();
+    a.i32(16);
+    a.array_new_default(&arr);
+    a.set(t);
+    a.end();
+    a.get(h);
+    a.i32(0xFFFFF);
+    a.s().i32_and();
+    a.raw_get(t);
+    a.s().ref_as_non_null().array_len();
+    a.s().i32_ge_u();
+    a.if_();
+    a.get(h);
+    a.i32(0xFFFFF);
+    a.s().i32_and();
+    a.i32(2);
+    a.s().i32_mul();
+    a.i32(16);
+    a.s().i32_add();
+    a.array_new_default(&arr);
+    a.set(fresh);
+    a.get(fresh);
+    a.i32(0);
+    a.raw_get(t);
+    a.s().ref_as_non_null();
+    a.i32(0);
+    a.raw_get(t);
+    a.s().ref_as_non_null().array_len();
+    a.array_copy(&arr, &arr);
+    a.get(fresh);
+    a.set(t);
+    a.end();
+    a.raw_get(t);
+    a.s().ref_as_non_null();
+    a.get(h);
+    a.i32(0xFFFFF);
+    a.s().i32_and();
+    a.get(h);
+    a.array_set(&arr);
+    a.raw_get(t);
+    a.global_set(wake_table());
+    a.get(i);
+    a.i32(1);
+    a.s().i32_add();
+    a.set(i);
+    a.br(0);
+    a.end();
+    a.end();
+    a.finish(vec![])
+}
+
+/// `(h) -> i32`: whether the wake table holds handle `h` (its full,
+/// generation-tagged value); a taken handle's slot is cleared.
+fn wake_take() -> Code {
+    let arr = WTy::Array(VT::I32);
+    let mut a = Asm::new(vec![VT::I32]);
+    let (t, s) = (a.local(VT::rn(arr.clone())), a.local(VT::I32));
+    a.global_get(wake_table());
+    a.set(t);
+    a.get(0);
+    a.i32(0xFFFFF);
+    a.s().i32_and();
+    a.set(s);
+    a.raw_get(t);
+    a.s().ref_is_null();
+    a.if_();
+    a.i32(0);
+    a.s().return_();
+    a.end();
+    a.get(s);
+    a.raw_get(t);
+    a.s().ref_as_non_null().array_len();
+    a.s().i32_ge_u();
+    a.if_();
+    a.i32(0);
+    a.s().return_();
+    a.end();
+    a.raw_get(t);
+    a.s().ref_as_non_null();
+    a.get(s);
+    a.array_get(&arr);
+    a.get(0);
+    a.s().i32_ne();
+    a.if_();
+    a.i32(0);
+    a.s().return_();
+    a.end();
+    a.raw_get(t);
+    a.s().ref_as_non_null();
+    a.get(s);
+    a.i32(0);
+    a.array_set(&arr);
+    a.i32(1);
+    a.finish(vec![VT::I32])
 }

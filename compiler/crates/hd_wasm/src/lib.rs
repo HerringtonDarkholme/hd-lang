@@ -170,11 +170,80 @@ impl WTy {
     }
 }
 
+/// The functions a suspending instance lowers to besides its cold
+/// constructor (suspension.md §14.1): `f$body`, `f$poll`, `f$cancel`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Part {
+    Body,
+    Poll,
+    Cancel,
+}
+
+impl Part {
+    fn tag(self) -> u8 {
+        match self {
+            Part::Body => 0,
+            Part::Poll => 1,
+            Part::Cancel => 2,
+        }
+    }
+    fn from_tag(t: u8) -> Option<Part> {
+        [Part::Body, Part::Poll, Part::Cancel]
+            .get(usize::from(t))
+            .copied()
+    }
+}
+
+/// A global symbol: a top-level binding's storage, one global per Wasm
+/// value of its layout (wasm-layout.md §15.4, "module storage"), or a
+/// runtime global.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum GSym {
+    /// The binding's path hash, the component, its (defaultable) type.
+    Binding(Hash128, u32, VT),
+    /// A runtime global by name, with its type.
+    Rt(String, VT),
+}
+
+impl GSym {
+    #[must_use]
+    pub fn vt(&self) -> &VT {
+        match self {
+            GSym::Binding(_, _, v) | GSym::Rt(_, v) => v,
+        }
+    }
+    fn encode(&self, w: &mut Writer) {
+        match self {
+            GSym::Binding(h, k, v) => {
+                w.u8(0);
+                w.hash(*h);
+                w.u32(*k);
+                v.encode(w);
+            }
+            GSym::Rt(n, v) => {
+                w.u8(1);
+                w.str(n);
+                v.encode(w);
+            }
+        }
+    }
+    fn decode(r: &mut Reader<'_>) -> Option<GSym> {
+        Some(match r.u8() {
+            0 => GSym::Binding(r.hash(), r.u32(), VT::decode(r, 0)?),
+            1 => GSym::Rt(r.str().to_owned(), VT::decode(r, 0)?),
+            _ => return None,
+        })
+    }
+}
+
 /// A function symbol (codegen.md §13.8 `FuncTarget`).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Sym {
-    /// A collected instance, by instance key.
+    /// A collected instance, by instance key (a suspending instance's
+    /// cold constructor).
     Inst(Hash128),
+    /// Another function of a suspending instance.
+    Part(Hash128, Part),
     /// A host import: module, name and Wasm signature.
     Import {
         module: String,
@@ -191,6 +260,7 @@ pub enum Sym {
 pub enum Reloc {
     Func(Sym),
     Type(WTy),
+    Global(GSym),
 }
 
 /// A code entry (codegen.md §13.8): locals and instructions as bytes, index
@@ -201,6 +271,8 @@ pub struct Code {
     pub results: Vec<VT>,
     pub body: Vec<u8>,
     pub relocs: Vec<(u32, Reloc)>,
+    /// A suspending instance's other functions (suspension.md §14.1).
+    pub parts: Vec<(Part, Code)>,
 }
 
 impl Sym {
@@ -226,6 +298,11 @@ impl Sym {
                 w.u8(2);
                 h.encode(w);
             }
+            Sym::Part(k, p) => {
+                w.u8(3);
+                w.hash(*k);
+                w.u8(p.tag());
+            }
         }
     }
     pub(crate) fn decode(r: &mut Reader<'_>) -> Option<Sym> {
@@ -238,6 +315,7 @@ impl Sym {
                 results: decode_vts(r, 0)?,
             },
             2 => Sym::Helper(Helper::decode(r)?),
+            3 => Sym::Part(r.hash(), Part::from_tag(r.u8())?),
             _ => return None,
         })
     }
@@ -248,8 +326,13 @@ impl Code {
     #[must_use]
     pub fn encode(&self) -> Vec<u8> {
         let mut w = Writer::default();
-        encode_vts(&self.params, &mut w);
-        encode_vts(&self.results, &mut w);
+        self.encode_into(&mut w);
+        w.bytes
+    }
+
+    fn encode_into(&self, w: &mut Writer) {
+        encode_vts(&self.params, w);
+        encode_vts(&self.results, w);
         w.blob(&self.body);
         w.len_of(&self.relocs);
         for (at, r) in &self.relocs {
@@ -257,31 +340,45 @@ impl Code {
             match r {
                 Reloc::Func(s) => {
                     w.u8(0);
-                    s.encode(&mut w);
+                    s.encode(w);
                 }
                 Reloc::Type(t) => {
                     w.u8(1);
-                    t.encode(&mut w);
+                    t.encode(w);
+                }
+                Reloc::Global(g) => {
+                    w.u8(2);
+                    g.encode(w);
                 }
             }
         }
-        w.bytes
+        w.len_of(&self.parts);
+        for (p, c) in &self.parts {
+            w.u8(p.tag());
+            c.encode_into(w);
+        }
     }
 
     /// Decodes a code entry; `None` when malformed (a cache miss).
     #[must_use]
     pub fn decode(bytes: &[u8]) -> Option<Code> {
         let mut r = Reader::new(bytes);
-        let params = decode_vts(&mut r, 0)?;
-        let results = decode_vts(&mut r, 0)?;
+        let c = Self::decode_from(&mut r, 0)?;
+        r.ok().then_some(c)
+    }
+
+    fn decode_from(r: &mut Reader<'_>, depth: u8) -> Option<Code> {
+        let params = decode_vts(r, 0)?;
+        let results = decode_vts(r, 0)?;
         let body = r.blob().to_vec();
         let n = r.count();
         let mut relocs = Vec::new();
         for _ in 0..n {
             let at = r.u32();
             let reloc = match r.u8() {
-                0 => Reloc::Func(Sym::decode(&mut r)?),
-                1 => Reloc::Type(WTy::decode(&mut r, 0)?),
+                0 => Reloc::Func(Sym::decode(r)?),
+                1 => Reloc::Type(WTy::decode(r, 0)?),
+                2 => Reloc::Global(GSym::decode(r)?),
                 _ => return None,
             };
             if (at as usize) + 5 > body.len() {
@@ -289,11 +386,21 @@ impl Code {
             }
             relocs.push((at, reloc));
         }
-        r.ok().then_some(Code {
+        let mut parts = Vec::new();
+        let n = r.count();
+        if depth > 0 && n != 0 {
+            return None;
+        }
+        for _ in 0..n {
+            let p = Part::from_tag(r.u8())?;
+            parts.push((p, Self::decode_from(r, 1)?));
+        }
+        Some(Code {
             params,
             results,
             body,
             relocs,
+            parts,
         })
     }
 }
@@ -400,14 +507,28 @@ impl Types {
 }
 
 /// `Link(P)`: helpers, index assignment, the type section, the literal
-/// pool, relocation patching (codegen.md §13.10). Inputs are in content
-/// order, so the bytes are deterministic. `entry` is the exported `main`;
-/// `names` are the instances' item paths for the dev `name` section.
-pub fn link(codes: &[(Hash128, Code)], names: &[String], entry: &Helper) -> StageResult<Vec<u8>> {
-    // Helpers and imports reachable from the code, to a fixed point.
+/// pool, globals, relocation patching (codegen.md §13.10). Inputs are in
+/// content order, so the bytes are deterministic. `exports` are the entry
+/// functions (`hd.init`, `hd.poll`, `hd.wake`); `names` are the
+/// instances' item paths for the dev `name` section.
+pub fn link(
+    codes: &[(Hash128, Code)],
+    names: &[String],
+    exports: &[(&str, Helper)],
+) -> StageResult<Vec<u8>> {
+    // Every function body: instances, then their parts.
+    let mut all: Vec<(Sym, &Code, String)> = Vec::new();
+    for ((k, c), n) in codes.iter().zip(names) {
+        all.push((Sym::Inst(*k), c, n.clone()));
+        for (p, pc) in &c.parts {
+            all.push((Sym::Part(*k, *p), pc, format!("{n}${p:?}")));
+        }
+    }
+    // Helpers, imports and globals reachable from the code, to a fixed point.
     let mut helpers: BTreeMap<Helper, Code> = BTreeMap::new();
     let mut imports: BTreeSet<(String, String, Vec<VT>, Vec<VT>)> = BTreeSet::new();
-    let mut todo = vec![entry.clone()];
+    let mut gsyms: BTreeSet<GSym> = BTreeSet::new();
+    let mut todo: Vec<Helper> = exports.iter().map(|e| e.1.clone()).collect();
     let mut scan = |c: &Code, todo: &mut Vec<Helper>| {
         for (_, r) in &c.relocs {
             match r {
@@ -425,11 +546,14 @@ pub fn link(codes: &[(Hash128, Code)], names: &[String], entry: &Helper) -> Stag
                         results.clone(),
                     ));
                 }
+                Reloc::Global(g) => {
+                    gsyms.insert(g.clone());
+                }
                 _ => {}
             }
         }
     };
-    for (_, c) in codes {
+    for (_, c, _) in &all {
         scan(c, &mut todo);
     }
     while let Some(h) = todo.pop() {
@@ -477,12 +601,13 @@ pub fn link(codes: &[(Hash128, Code)], names: &[String], entry: &Helper) -> Stag
         nfuncs += 1;
         bodies.push(c);
     }
-    for (k, c) in codes {
-        func_idx.insert(Sym::Inst(*k), nfuncs);
+    for (sym, c, _) in &all {
+        func_idx.insert(sym.clone(), nfuncs);
         nfuncs += 1;
         bodies.push(c);
     }
-    // Globals: one lazily filled cell per literal (wasm-layout.md §15.4).
+    // Globals: one lazily filled cell per literal (wasm-layout.md §15.4),
+    // then module storage and runtime globals, by symbol order.
     let mut globals = GlobalSection::new();
     let mut lit_global: BTreeMap<Vec<u8>, u32> = BTreeMap::new();
     for (i, bytes) in lits.keys().enumerate() {
@@ -499,6 +624,34 @@ pub fn link(codes: &[(Hash128, Code)], names: &[String], entry: &Helper) -> Stag
             &ConstExpr::ref_null(HeapType::Concrete(t)),
         );
         lit_global.insert(bytes.clone(), u32::try_from(i).expect("globals"));
+    }
+    let mut global_idx: BTreeMap<GSym, u32> = BTreeMap::new();
+    for g in &gsyms {
+        let vt = g.vt().dflt();
+        let val_type = types.val(&vt);
+        let init = match &vt {
+            VT::I32 => ConstExpr::i32_const(0),
+            VT::I64 => ConstExpr::i64_const(0),
+            VT::F32 => ConstExpr::f32_const(0.0_f32.into()),
+            VT::F64 => ConstExpr::f64_const(0.0_f64.into()),
+            VT::Eq => ConstExpr::ref_null(HeapType::Abstract {
+                shared: false,
+                ty: wasm_encoder::AbstractHeapType::Eq,
+            }),
+            VT::Ref(t, _) => ConstExpr::ref_null(HeapType::Concrete(types.of(t))),
+        };
+        globals.global(
+            GlobalType {
+                val_type,
+                mutable: true,
+                shared: false,
+            },
+            &init,
+        );
+        global_idx.insert(
+            g.clone(),
+            u32::try_from(lits.len() + global_idx.len()).expect("globals"),
+        );
     }
     let mut funcs = FunctionSection::new();
     let mut code_sec = CodeSection::new();
@@ -528,6 +681,12 @@ pub fn link(codes: &[(Hash128, Code)], names: &[String], entry: &Helper) -> Stag
                     f
                 }
                 Reloc::Type(t) => types.of(t),
+                Reloc::Global(g) => {
+                    let Some(&i) = global_idx.get(g) else {
+                        return unsupported(format!("a global relocation with no global: {g:?}"));
+                    };
+                    i
+                }
             };
             let mut b = Vec::new();
             padded(&mut b, v);
@@ -535,11 +694,13 @@ pub fn link(codes: &[(Hash128, Code)], names: &[String], entry: &Helper) -> Stag
         }
         code_sec.raw(&body);
     }
-    let Some(&main) = func_idx.get(&Sym::Helper(entry.clone())) else {
-        return unsupported("the entry wrapper has no code");
-    };
-    let mut exports = ExportSection::new();
-    exports.export("main", ExportKind::Func, main);
+    let mut export_sec = ExportSection::new();
+    for (name, h) in exports {
+        let Some(&f) = func_idx.get(&Sym::Helper(h.clone())) else {
+            return unsupported("an entry export has no code");
+        };
+        export_sec.export(name, ExportKind::Func, f);
+    }
     let mut mems = MemorySection::new();
     if !imports.is_empty() {
         mems.memory(MemoryType {
@@ -549,7 +710,7 @@ pub fn link(codes: &[(Hash128, Code)], names: &[String], entry: &Helper) -> Stag
             shared: false,
             page_size_log2: None,
         });
-        exports.export("hd.x", ExportKind::Memory, 0);
+        export_sec.export("hd.x", ExportKind::Memory, 0);
     }
     let mut elems = ElementSection::new();
     if !declared.is_empty() {
@@ -564,7 +725,7 @@ pub fn link(codes: &[(Hash128, Code)], names: &[String], entry: &Helper) -> Stag
         module.section(&mems);
     }
     module.section(&globals);
-    module.section(&exports);
+    module.section(&export_sec);
     module.section(&elems);
     module.section(&DataCountSection { count: 1 });
     module.section(&code_sec);
@@ -586,7 +747,7 @@ pub fn link(codes: &[(Hash128, Code)], names: &[String], entry: &Helper) -> Stag
         let short: String = text.chars().take(60).collect();
         fnames.append(ni + u32::try_from(k).expect("k"), &format!("rt:{short}"));
     }
-    for (k, n) in names.iter().enumerate() {
+    for (k, (_, _, n)) in all.iter().enumerate() {
         fnames.append(ni + nh + u32::try_from(k).expect("k"), n);
     }
     let mut ns = wasm_encoder::NameSection::new();
