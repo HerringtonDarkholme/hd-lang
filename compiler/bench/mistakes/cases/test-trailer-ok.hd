@@ -1,0 +1,10 @@
+# code: invalid-test-statement
+# line: 10
+
+pub fn main() -> void $ Console:
+    println("hi")
+
+tests:
+    it("a"):
+        1
+    .Ok(())

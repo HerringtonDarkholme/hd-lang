@@ -1,0 +1,5 @@
+# code: missing-contextual-enum-type
+# line: 5
+
+fn f(x: i32?) -> bool:
+    x == .Some(3)

@@ -1,0 +1,8 @@
+# code: bang-call-outside-suspension
+# line: 8
+
+fn show!() -> string:
+    "hi"
+
+fn f() -> string:
+    show!()

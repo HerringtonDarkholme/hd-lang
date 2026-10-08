@@ -1,0 +1,6 @@
+# code: unsatisfied-trait-bound
+# line: 6
+
+fn f() -> List[i32]:
+    keys := [1]
+    keys + [2]

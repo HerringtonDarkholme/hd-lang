@@ -1,0 +1,5 @@
+# code: integer-literal-range
+# line: 5
+
+fn f() -> i64:
+    9223372036854775807

@@ -1,0 +1,7 @@
+# code: argument-count
+# line: 7
+
+use std.testing.assert
+
+fn f() -> void:
+    assert(1 == 1)

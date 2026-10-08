@@ -1,0 +1,5 @@
+# code: syntax-error
+# line: 4
+
+fn f(mut c: i32) -> i32:
+    c

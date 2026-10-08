@@ -1,0 +1,7 @@
+# code: mutable-receiver-required
+# line: 6
+
+fn f() -> usize:
+    items := [1, 2]
+    items.push(3)
+    items.len()

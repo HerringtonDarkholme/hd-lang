@@ -1,0 +1,5 @@
+# code: private-main
+# line: 4
+
+fn main() -> void:
+    _ := 1

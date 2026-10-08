@@ -1,0 +1,6 @@
+# code: cannot-infer-type
+# line: 5
+
+fn f() -> void:
+    pieces := []
+    pieces.push("a")

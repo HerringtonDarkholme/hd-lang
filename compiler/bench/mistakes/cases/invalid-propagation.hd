@@ -1,0 +1,9 @@
+# code: invalid-result-propagation
+# line: 8
+
+fn g() -> Result[i32, string]:
+    .Ok(1)
+
+fn f() -> void:
+    g()?
+    ()

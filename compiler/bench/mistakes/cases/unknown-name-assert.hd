@@ -1,0 +1,5 @@
+# code: unknown-name
+# line: 5
+
+fn f() -> void:
+    assert(1 == 1)

@@ -1,0 +1,5 @@
+# code: syntax-error
+# line: 5
+
+fn f() -> Map[string, i32]:
+    {:}

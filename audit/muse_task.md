@@ -90,18 +90,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Q23. Mistake Corpus And Diagnostic Location (Goals `mistakes`, `diag-location`)
-
-From `audit/hd-writing-log.md` and Q21's report, build
-`compiler/bench/mistakes/`: one small `.hd` file per logged mistake
-kind (up to 40), each with its expected diagnostic code and expected
-line in a header comment. A script runs the new compiler's `hd check
---format json` on each and reports: share with the expected code, share
-whose reported line is the mistake's line (goal ≥ 95%), diagnostics per
-mistake, and the worst offenders. Write
-`audit/compiler/mistakes-<short hash>.md`. Report only. Timebox 45
-minutes; push.
-
 ### S14. Spec: `hd check --summary` And The Text Summary Line
 
 The `hd check` implementer found the per-code and per-file counts of

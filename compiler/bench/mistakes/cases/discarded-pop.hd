@@ -1,0 +1,5 @@
+# code: discarded-must-use-value
+# line: 5
+
+fn f(items: mut List[i32]) -> void:
+    items.pop()

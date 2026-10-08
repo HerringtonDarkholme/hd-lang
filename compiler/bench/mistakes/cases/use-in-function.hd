@@ -1,0 +1,6 @@
+# code: syntax-error
+# line: 5
+
+fn f() -> i32:
+    use std.text.repeat
+    1

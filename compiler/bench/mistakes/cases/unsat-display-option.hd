@@ -1,0 +1,5 @@
+# code: unsatisfied-trait-bound
+# line: 5
+
+fn f(x: string?) -> string:
+    "${x}"

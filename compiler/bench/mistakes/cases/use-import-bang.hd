@@ -1,0 +1,7 @@
+# code: syntax-error
+# line: 4
+
+use std.fs.{read_text!}
+
+fn f() -> void:
+    1

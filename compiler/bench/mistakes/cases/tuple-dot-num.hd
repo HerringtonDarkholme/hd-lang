@@ -1,0 +1,5 @@
+# code: syntax-error
+# line: 5
+
+fn f(pair: (i32, i32)) -> i32:
+    pair.1

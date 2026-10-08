@@ -1,0 +1,7 @@
+# code: non-reassignable-binding
+# line: 5
+
+fn f() -> i32:
+    sum := +0
+    sum = sum + 1
+    sum

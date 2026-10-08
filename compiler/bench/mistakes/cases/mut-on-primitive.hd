@@ -1,0 +1,7 @@
+# code: mut-on-primitive
+# line: 5
+
+fn f() -> i64:
+    let mut total: i64 = 0
+    total = total + 1
+    total

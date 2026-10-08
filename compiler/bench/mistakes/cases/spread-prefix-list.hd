@@ -1,0 +1,5 @@
+# code: syntax-error
+# line: 5
+
+fn f(path: List[string], name: string) -> List[string]:
+    [...path, name]

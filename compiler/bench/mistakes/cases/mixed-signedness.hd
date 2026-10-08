@@ -1,0 +1,6 @@
+# code: mixed-signedness
+# line: 6
+
+fn f(items: List[i32]) -> bool:
+    let index: i32 = 0
+    index < items.len()

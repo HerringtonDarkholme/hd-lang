@@ -1,0 +1,13 @@
+# code: duplicate-tests-block
+# line: 11
+
+pub fn main() -> void $ Console:
+    println("hi")
+
+tests:
+    it("a"):
+        1
+
+tests:
+    it("b"):
+        1

@@ -1,0 +1,6 @@
+# code: syntax-error
+# line: 5
+
+fn f() -> i32:
+    const LIMIT: i32 = 10
+    LIMIT

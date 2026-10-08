@@ -1,0 +1,8 @@
+# code: syntax-error
+# line: 8
+
+data Reverse:
+    value: i32
+
+fn f() -> Reverse:
+    Reverse(value: 1)

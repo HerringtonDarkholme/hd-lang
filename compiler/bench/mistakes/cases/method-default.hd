@@ -1,0 +1,9 @@
+# code: syntax-error
+# line: 8
+
+data Pad:
+    width: i32
+
+impl Pad:
+    pub fn pad_start(self, width: i32, fill: char = ' ') -> string:
+        "x"

@@ -1,0 +1,10 @@
+# code: syntax-error
+# line: 7
+
+fn f(x: bool) -> i32:
+    if x:
+        1
+    elif x:
+        2
+    else:
+        3

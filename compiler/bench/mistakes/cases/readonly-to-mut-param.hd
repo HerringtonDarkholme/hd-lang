@@ -1,0 +1,9 @@
+# code: readonly-argument-to-mutable-parameter
+# line: 9
+
+fn take(items: mut List[i32]) -> i32:
+    items[0]
+
+fn f() -> i32:
+    items := [1, 2]
+    take(items)
