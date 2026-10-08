@@ -3,9 +3,9 @@
 | Field | Value |
 | --- | --- |
 | Status | Research inventory only; nothing in this file is accepted behavior beyond the cited spec and design records. |
-| Scope | What M3 implemented to make `lib/std` interfaces and the prelude available to programs, plus the body and pack work still ahead. |
+| Scope | What M3 and M4c implemented to make compiler-supplied and `lib/std` interfaces available to programs, plus the pack work still ahead. |
 | Sources | [`lib/std`](../../lib/std), [Prelude](../../spec/lang/10-modules.md#prelude), [Standard Library Primitives](../../spec/std/README.md#standard-library-primitives), [Intrinsic Methods](../../spec/lang/09-traits.md#intrinsic-methods), [`hd_host_abi`](../../compiler/crates/hd_host_abi/src/lib.rs) |
-| Inventory date | 2026-10-07, after M3 `20ea6342` |
+| Inventory date | 2026-10-07, after M4c `4c4b3b92` |
 
 ## Prelude
 
@@ -18,7 +18,7 @@
 | `std.iter` | `Iterator`, `Iterable` | Declared in `iter.hd`. | Built-in string, list and map methods refer to these types. |
 | `std.console` | `Console`, `ConsoleError`, `println` | Declared in `console.hd`; `println` is ordinary hd over `Console` and `block_on`. | The generic declaration supersedes `PRELUDE_IMPORTS`' temporary `println(i32)` shim. |
 | `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker` | No declarations for these four in `task.hd`; the compiler supplies them. | Seed the protocol interface before checking `console.hd`, `task.hd`, or any suspending signature. |
-| `std.testing` | `it`, test code only | `it` is compiler-provided; `testing.hd` declares the remaining testing API. | Add this fixed use only to test overlays and test modules. |
+| `std.testing` | `it`, test code only | `it` is compiler-provided; `testing.hd` declares the remaining testing API. | Add this fixed use only to test-role checks and test modules. |
 
 ### Compiler-Supplied Names Outside The Prelude
 
@@ -27,10 +27,11 @@
 | `std.function` | `Fn`, `SuspendFn` | Function-type syntax lowers to these compiler-known constructors. `Tuple` remains an ordinary declaration in `function.hd`. |
 | `std.inspect` | `downcast_val` | Runtime downcasting needs an intrinsic body, while `Inspectable` and `TypeId` remain ordinary declarations. |
 | `std.structure` | `Structure` and its compiler-known members | Derivation templates receive this sealed structural view from the compiler. The supporting protocols remain ordinary declarations. |
+| `std.rt` | `entry_status`, `entry_status_display`, `entry_status_error`, `entry_status_dyn`, `entry_write` | The driver inserts virtual `rt.hd`; its ordinary hd functions implement entry and test-result reporting over the private `entry_write` intrinsic. |
 
-**M3 gap 1.** These seeded declarations are ordinary interface items of
-their named modules. A source declaration with the same stable path wins,
-and only `std.core` needs a virtual source module for discovery.
+**M4c gap 6.** These declarations are ordinary interface items of their
+named modules. A source declaration with the same stable path wins.
+`std.core` and `std.rt` need virtual source modules for discovery.
 
 | Fixed but non-exporting prelude use | Why the compiler needs it |
 | --- | --- |
@@ -142,7 +143,7 @@ and only `std.core` needs a virtual source module for discovery.
 
 | Folder | Modules | Outgoing folder edges | Cycle status |
 | --- | --- | --- | --- |
-| `std` (`lib/std`) | 33 modules: the virtual `core`, plus the 32 root files other than `prelude.hd` and `testing.hd` | none outside itself | Acyclic root |
+| `std` (`lib/std`) | 34 modules: virtual `core` and `rt`, plus the 32 root files other than `prelude.hd` and `testing.hd` | none outside itself | Acyclic root |
 | `std.testing` (`lib/std/testing`) | `std.testing` from `testing.hd`, plus `std.testing.arbitrary` | `std`, through ordinary imports and the fixed prelude uses | Acyclic; the parent and child modules share this folder |
 | `std.prelude` (`lib/std/prelude`) | `std.prelude` from `prelude.hd`, plus `std.prelude.testing` | `std`, through the fixed prelude origins; `std.testing`, through the test-only re-export | Acyclic leaf after both dependencies |
 
@@ -161,7 +162,7 @@ acyclic.
 
 | Order | Piece | Depends on | What it unblocks |
 | --- | --- | --- | --- |
-| 1 | Discover the virtual `std.core` module and seed all compiler-supplied declarations listed above | Core type, function, suspension, inspection and structure descriptors in the toolchain | Resolving every fixed prelude use and compiler-known std path. |
+| 1 | Discover virtual `std.core` and `std.rt`, then seed all compiler-supplied declarations listed above | Core type, function, suspension, inspection, structure and entry-report descriptors in the toolchain | Resolving every fixed prelude use, compiler-known std path and result-report root. |
 | 2 | Build folder interfaces in order: `std`, `std.testing`, `std.prelude` | Step 1 and the parent-file folder rule | The slice-2 no-diagnostic exit and canonical interface blobs. |
 | 3 | Install fixed prelude uses from those interfaces | Step 2 | Ordinary programs see exactly the specified prelude and std types reach their signatures. |
 | 4 | Build typed facts, derived heads and template bodies | Step 3; stable compiler-known paths | `by Structure`, annotations and fact-bearing literal functions. |

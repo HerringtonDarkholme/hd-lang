@@ -2,7 +2,8 @@
 
 Part of the [compiler design](README.md).
 
-Status: report, 2026-10-07, after M4d (`b756387e`). This footprint records
+Status: report, 2026-10-07, after M4c (`4c4b3b92`). Phase 1, "make it
+move", is complete. This footprint records
 implementation coverage, not accepted language behavior. One row per
 design-doc section: where its code is and how far it goes. **Real**: the
 structure or algorithm the section designs is implemented and tested,
@@ -18,8 +19,9 @@ The original stage counts on `lib/std` are in
 M4a checks all 37 std modules and 1,080 bodies to verified TIR. M4b
 collects std, emits layout-driven Wasm and runs a representative program
 on V8. M4d runs module initialization, suspension and `defer` programs.
-A row is still only real for the implemented subset: the known M4a,
-M4b and M4d gaps below keep affected sections at skeleton or missing.
+M4c adds shared enum initialization, range loops, entry-error reporting
+and end-to-end unit tests. A row is still only real for the implemented
+subset: the known M4a through M4c gaps keep affected sections partial.
 
 ## Totals
 
@@ -37,11 +39,11 @@ M4b and M4d gaps below keep affected sections at skeleton or missing.
 | [suspension.md](suspension.md) | 2 | 6 | 1 | 9 |
 | [wasm-layout.md](wasm-layout.md) | 5 | 3 | 0 | 8 |
 | [runtime-and-host.md](runtime-and-host.md) | 3 | 9 | 2 | 14 |
-| [engines-and-test-runner.md](engines-and-test-runner.md) | 2 | 4 | 6 | 12 |
-| [commands.md](commands.md) | 3 | 5 | 7 | 15 |
+| [engines-and-test-runner.md](engines-and-test-runner.md) | 5 | 2 | 5 | 12 |
+| [commands.md](commands.md) | 5 | 5 | 5 | 15 |
 | [live-execution.md](live-execution.md) | 3 | 2 | 35 | 40 |
 | [tiering.md](tiering.md) | 3 | 2 | 26 | 31 |
-| all | 92 | 97 | 135 | 324 |
+| all | 97 | 95 | 132 | 324 |
 
 ### M3 Corrections
 
@@ -101,6 +103,20 @@ or wake masks. Sections §14.8 and §14.9 also remain skeletons; their debug
 report and forbidden-context counter are absent. Section §14.7 stays
 missing because normal emission drops `Hook` and no hook-enabled tier exists.
 
+### M4c Corrections
+
+Shared enum constructors, top-level interpolation, `ForRange` and concrete
+entry `.Err` reports now run. Their sections stay in their prior categories
+because multi-module initialization, map iteration, erased errors and the
+remaining emission inventory are still partial.
+
+Engines-and-test-runner.md §§19.1, 19.3 and 19.5 move from skeleton to
+real for the unit-test subset. Section §19.4 moves from missing to skeleton:
+`expect_panic` works, while properties and timeouts remain unsupported.
+Commands.md §§7.3 and 20.1 move from missing to real for `hd test`, FILE,
+filter, jobs, ordered reports and exit statuses. Per-root build-error
+isolation, `hd.runtime` case metadata and the rest of P2-9 remain gaps.
+
 ## Sections
 
 | Section | Code path | Status |
@@ -142,7 +158,7 @@ missing because normal emission drops `Hook` and no hook-enabled tier exists.
 | resolution-and-interfaces.md §4.10 Folder Interface Construction | hd_resolve lowers every std header and `Universe::stage_b` runs; the checker completes implicit projection arguments, while derived heads and declared generic defaults remain incomplete | skeleton |
 | resolution-and-interfaces.md §4.11 The Interface Blob | hd_resolve::iface codec round-trips canonical bytes across fresh runs and shuffled orders; no zero-copy reader, private-name index or declaration anchors | skeleton |
 | resolution-and-interfaces.md §4.12 Traits, Impls And Coherence | hd_resolve::Universe runs stage B and generic-head overlap; coherence is pairwise rather than trie-based | skeleton |
-| checking-and-tir.md §4.13 Body Checking | hd_check::BodyCx checks all 37 std modules and 1,080 bodies through inference, rows, usefulness, initialization and verified hd_tir::Body output; non-std forms can remain unsupported | real |
+| checking-and-tir.md §4.13 Body Checking | hd_check::BodyCx checks all 38 current std modules and more than 1,000 bodies through inference, rows, usefulness, initialization and verified hd_tir::Body output; non-std forms can remain unsupported | real |
 | checking-and-tir.md §4.14 Diagnostics | every running stage uses hd_diag::DiagBuf and the generated complete Code enum; interface and package findings still use placeholder spans | skeleton |
 | checking-and-tir.md §4.15 Limits | hd_base::Fuel is charged by the checker and solver; limit diagnostics remain incomplete | skeleton |
 | type-checking.md §1.1 Who Owns What | hd_check owns checking, hd_types owns inference and solving, and hd_tir owns construction and verification on the full std corpus | real |
@@ -284,9 +300,9 @@ missing because normal emission drops `Hook` and no hook-enabled tier exists.
 | codegen.md §11.4 Crates | crates hd_mono, hd_host_abi, hd_wasm, hd_run, hd_run_wasmtime, hd_web | skeleton |
 | codegen.md §12.1 Analysis, Then One Emission Walk | hd_wasm emits each supported body in one walk using collection results and structural layouts | real |
 | codegen.md §12.2 Lowering Rules | hd_wasm::emit covers data, value enums, lists, maps, closures, trait calls, matches, interpolation and std println | real |
-| codegen.md §12.3 Facts, Defaults, Derives And Tests | hd_wasm links binding globals and module init functions; facts, defaults, derives, tests and shared enum constructor initialization remain absent | skeleton |
+| codegen.md §12.3 Facts, Defaults, Derives And Tests | hd_wasm links bindings, shared enum constructors, synthesized test bodies and module init functions; facts, defaults, derives and multi-module statement ordering remain partial | skeleton |
 | codegen.md §12.4 Rows And Providers | provider arguments, host-provider vtables and lexical `With` scopes emit; reusable contexts and entry-top-level providers remain unsupported | skeleton |
-| codegen.md §12.5 Counted Loops And Checks | list/map helpers, checks and the `defer` exit ladder emit; the checker still lowers every `for` through `iter`/`next`, never the explicit `For` tags | skeleton |
+| codegen.md §12.5 Counted Loops And Checks | `ForRange`, checks and the `defer` exit ladder emit; `ForMap` remains blocked on `MapIter` | skeleton |
 | codegen.md §12.6 Tiers And Optimizations | hd_mono::passes | skeleton |
 | codegen.md §12.7 Emission-Time Checks | the emitter consumes verified TIR but trusts record indexes and does not run the designed debug assertions | skeleton |
 | codegen.md §12.8 Size Versus Speed Policy | none | missing |
@@ -318,9 +334,9 @@ missing because normal emission drops `Hook` and no hook-enabled tier exists.
 | wasm-layout.md §15.7 Emission | hd_wasm emits a representative program through structural layouts and validates the linked module on V8 | real |
 | wasm-layout.md §15.8 Deterministic Bytes | the exit program is byte-identical across both serial orders and pool execution, cold and warm | real |
 | runtime-and-host.md §16.1 Where Each Piece Lives | hd_wasm generates reached helpers and hd_cli supplies the Node host; the complete runtime split is partial | skeleton |
-| runtime-and-host.md §16.2 Panics And Exit Codes | hd_run (`Outcome`, `PanicReport`) and hd_wasm entry wrappers; a `main` result of `.Err` still exits 0 | skeleton |
+| runtime-and-host.md §16.2 Panics And Exit Codes | hd_run (`Outcome`, `PanicReport`), virtual `std.rt` and hd_wasm entry wrappers; concrete `.Err` results exit 1, while erased-error emission remains absent | skeleton |
 | runtime-and-host.md §16.3 Allocation | layout-driven structs, arrays, boxes, closures and per-coercion vtables allocate in emitted Wasm; budgets and stats hooks remain absent | skeleton |
-| runtime-and-host.md §16.4 Metadata And The Import List | hd_wasm::meta (`RuntimeMeta`), hd_host_abi (`RUNTIME_MODULES`); `link` writes no `hd.runtime` section | skeleton |
+| runtime-and-host.md §16.4 Metadata And The Import List | hd_wasm::meta (`RuntimeMeta`), hd_host_abi (`RUNTIME_MODULES`); test cases pass directly from driver to CLI and `link` writes no `hd.runtime` section | skeleton |
 | runtime-and-host.md §17.1 One ABI Description | hd_host_abi (`TABLE`, `PRELUDE_IMPORTS`, codecs); checking and emission consume it | real |
 | runtime-and-host.md §17.2 Import Shapes | hd_host_abi (`imports_of`, `Handle`, `SlotState`) | real |
 | runtime-and-host.md §17.3 The Exchange Buffer | hd_wasm exports linear memory and generated host stubs copy supported values; the full buffer protocol remains partial | skeleton |
@@ -337,22 +353,22 @@ missing because normal emission drops `Hook` and no hook-enabled tier exists.
 | engines-and-test-runner.md §18.4 The Browser Runner | none; M4b's V8 engine is Node, not the browser worker | missing |
 | engines-and-test-runner.md §18.5 The Reserved Hot-Reload Table | none | missing |
 | engines-and-test-runner.md §18.6 Measured Choices | none | missing |
-| engines-and-test-runner.md §19.1 Building | hd_run::tests_model (`ProgramKey`) | skeleton |
+| engines-and-test-runner.md §19.1 Building | hd_driver `Goal::Tests`, test-role checks and one unit-test program; per-root build-error isolation remains absent | real |
 | engines-and-test-runner.md §19.2 Listing Cases | hd_run::tests_model (`TestPlan`, `expand_rows`), hd_wasm::meta (`TestMeta`) | real |
-| engines-and-test-runner.md §19.3 Running | hd_run::tests_model (`ReleaseCursor`) | skeleton |
-| engines-and-test-runner.md §19.4 Property Tests, Panics And Timeouts | none | missing |
-| engines-and-test-runner.md §19.5 Reports | hd_run::tests_model (`CaseResult`) | skeleton |
+| engines-and-test-runner.md §19.3 Running | Node workers run fresh instances per case; hd_run::tests_model `ReleaseCursor` publishes in content order | real |
+| engines-and-test-runner.md §19.4 Property Tests, Panics And Timeouts | `expect_panic` is judged from stderr categories; properties and timeouts remain unsupported | skeleton |
+| engines-and-test-runner.md §19.5 Reports | hd_cli `Report` and hd_run::tests_model `CaseResult`, tested cold, warm and across job counts | real |
 | engines-and-test-runner.md §19.6 Tests In The Browser | none | missing |
 | commands.md §7.1 `hd check` (Package Mode) | hd_driver::architecture (stage report; no `hd check` command yet) | skeleton |
 | commands.md §7.2 `hd check FILE` | none | missing |
-| commands.md §7.3 `hd test` (Up To D2) | none | missing |
+| commands.md §7.3 `hd test` (Up To D2) | hd_cli `test_cmd` over the one driver, with FILE, filter and jobs | real |
 | commands.md §7.4 `hd test --affected` | none | missing |
 | commands.md §7.5 `hd run`, `hd build` | hd_cli on the one driver, Node Engine and persistent DiskStore; language coverage and std remain incomplete | real |
 | commands.md §7.6 `hd fmt`, `hd fix` | hd_fmt (`round_trip`, `format`) | skeleton |
 | commands.md §7.7 `hd doc` | hd_doc (`render`) | skeleton |
 | commands.md §7.8 `hd repl` | none | missing |
 | commands.md §7.9 The Playground | hd_web (`WebSession`) | skeleton |
-| commands.md §20.1 `hd test` | none | missing |
+| commands.md §20.1 `hd test` | hd_cli `test_cmd` runs unit cases and prints ordered reports and statuses | real |
 | commands.md §20.2 `hd run` And `hd FILE` | hd_cli uses the one driver, Node Engine and persistent cache | real |
 | commands.md §20.3 `hd build` | hd_cli writes the one driver's deterministic Wasm and uses the persistent cache | real |
 | commands.md §20.4 `hd app.wasm` | none | missing |

@@ -83,37 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### D2g. Reconcile M4c (Phase 1 Complete)
-
-M4c landed (4c4b3b92): `hd test` runs `tests:` blocks end to end; shared
-enum data initializes with its module; `"$x"` of a top-level binding;
-`for` over ranges; `main` returning `.Err` exits 1. Phase 1 ("make it
-move") is complete. Run D2 for it, and record (citing "M4c gap n") with
-the intended rule:
-
-1. `use` lines inside a `tests:` block join the whole module's scope
-   (the spec does not allow it): say how the checker scopes them.
-2. A build error in one module's tests fails all of `hd test`; §19.1
-   wants per-root isolation (drop only the roots that reach the error),
-   which Collect and Emit do not support.
-3. Test cases are synthesized items (`module.$test<i>`) stored in a
-   test-role check entry, not a separate `TestOverlay` stage or entry:
-   record or correct in scheduler.md and cache.md.
-4. The case list passes from driver to CLI directly; §19.2 puts it in
-   the `hd.runtime` section.
-5. Panic categories are parsed from the stderr report, not read from
-   instance globals (§15.5).
-6. `std.rt` is a new compiler-supplied virtual module (like `std.core`)
-   for entry reports: name it in codegen.md and std-bootstrap.md.
-7. `dyn Error` does not satisfy `Display` in the solver; a `dyn Error`
-   value cannot be emitted (recursive vtable type); `for` over a map
-   (`MapIter`) and `Debug` for `string` (mutable captures, `StrIndex`)
-   are not emitted. Add to the backlog with their phase-2 job.
-8. Also mark phase 1 complete in `footprint.md` and the README's status
-   line.
-
-Docs only; timebox 45 minutes; push.
-
 ### S7. Spec: `use` Lines Inside `tests:` Blocks
 
 Check `spec/lang/10-modules.md` (and 14-annotations if `tests:` lives

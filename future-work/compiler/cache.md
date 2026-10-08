@@ -26,8 +26,7 @@ so `obj/` needs a spec change, which the owner accepted (open question
 | Kind | Content | Written by | Read by |
 | --- | --- | --- | --- |
 | `iface` | a folder interface blob (§4.11); its header carries `api_hash`, `deep_hash`, `heads_hash` | `FolderIface` | dependents' key computation, resolution, coherence, `hd doc` |
-| `check` | one module, in sections: diagnostics, init summary, row results, fact records, the read list (§5.3), the file's declaration table (`locs`), headers, and, only when the module has no error, its TIR with per-item TIR hashes and dependency lists (§4.13.11) | `ModuleFinish` | output, `InitOrder`, D2 |
-| `check-test` | the test overlay's diagnostics, test registrations and TIR | `TestOverlay` | `hd check --tests`, `hd test` |
+| `check` | one module and role, in sections: diagnostics, init summary, row results, fact records, the read list (§5.3), the file's declaration table (`locs`), headers, and, only when the module has no error, its TIR with per-item TIR hashes and dependency lists (§4.13.11); role `test` also holds synthesized test items and registrations | `ModuleFinish` | output, `InitOrder`, D2, `hd check --tests`, `hd test` |
 | `graph` | every package-wide part in one entry: each folder's stage-B header diagnostics ([resolution-and-interfaces.md §4.10.1](resolution-and-interfaces.md#4101-header-validation-stages)), each trait's overlap diagnostics, each folder's statement order and its diagnostics | `HeaderCheck`, `Coherence` and `InitOrder`, gathered at `PackageResult` | output, D2 |
 | `pkgres` | the package's sorted diagnostics and summary counts | `PackageResult` | the warm fast path |
 | `depfiles` | a fetched dependency's file list with content and api text hashes | first use of the dependency | every later run (§5.5) |
@@ -99,14 +98,10 @@ check_key(m)  = H("check", toolchain_key, package key, module path, role, source
 hdr_key(F)    = H("hdr", iface_key(F),
                   sorted [(folder path, deep_hash) for each folder in closure(F)])
 
-test_key(m)   = H("check-test", check_key(m), source_hash(m),
-                  sorted [(folder path, deep_hash) for each folder in test_closure(m)],
-                  sorted dev-dependency keys)
-
 coh_key(T)    = H("coh", toolchain_key, stable path of T, sorted head hashes of T's impls)
 init_key(F)   = H("init", toolchain_key, folder path, sorted [(module path, init summary hash)])
 graph_key     = H("graph", sorted hdr keys, sorted coh keys, sorted init keys)
-pkgres_key    = H("pkgres", sorted check, test, hdr, coh and init keys, folder graph hash,
+pkgres_key    = H("pkgres", sorted role-keyed check, hdr, coh and init keys, folder graph hash,
                   manifest diagnostics hash, command mode)
 fast_key      = H("fast", toolchain_key, package key, sorted [(path, source_hash)] of every
                   file, sorted dependency keys, command mode)
@@ -140,8 +135,8 @@ fast_key      = H("fast", toolchain_key, package key, sorted [(path, source_hash
 - **Dependency closures.** `closure(m)` is m's own folder plus every
   folder reachable from it through the folder graph's use edges. It is
   the transitive closure, not only the folders m names. `closure(F)` is
-  the same for a folder. `test_closure(m)` adds every folder that the
-  test code's uses reach, dev dependencies included. These are the bit
+  the same for a folder. A role-`test` `check_key` uses `test_closure(m)`,
+  which adds every folder that test code reaches, dev dependencies included. These are the bit
   sets the driver builds per context (scheduler.md §6.1), the same sets
   that filter the candidate directory. So each key lists every folder
   whose impls its check can see.

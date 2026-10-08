@@ -2,6 +2,10 @@
 
 The design documents of the new compiler, in reading order.
 
+Status: phase 1 ("make it move") is complete at M4c (`4c4b3b92`). The
+single Rust pipeline checks, emits and runs representative programs and
+unit tests on V8; phase 2 completes language and command coverage.
+
 - [goals.md](goals.md): goals, the Arena, metrics, feature triage and decisions.
 - [research.md](research.md): the architecture research and its open questions.
 - [prior-art-issues.md](prior-art-issues.md): known issues of prior compiler front ends.

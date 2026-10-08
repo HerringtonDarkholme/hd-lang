@@ -2,7 +2,7 @@
 
 Part of the [compiler design](README.md).
 
-Status: review, 2026-10-07, after M4d (`b756387e`). This report records
+Status: review, 2026-10-07, after M4c (`4c4b3b92`). This report records
 implementation fit, not accepted language behavior. It compares
 `compiler/crates` with the design docs of this folder and records the
 authorized corrections. Where the code is right and a doc is wrong, the
@@ -21,7 +21,10 @@ uses the full parser, `hd_project`, `hd_resolve`, `hd_types`,
 M4b carries a std-using program through collection, layout-driven Wasm,
 link and V8, with warm cache hits and deterministic bytes across serial
 and pool executors. M4d adds module storage and initialization, suspension
-state machines, `all!`, cancellation and the `defer` exit ladder. The
+state machines, `all!`, cancellation and the `defer` exit ladder. M4c adds
+shared enum initialization, top-level interpolation, range loops,
+entry-error reporting and an end-to-end unit-test command. Phase 1,
+"make it move", is complete. The
 remaining findings are feature coverage and incomplete cache/runtime
 details, not a second compiler pipeline.
 
@@ -32,9 +35,9 @@ Ranked by how much each blocks the next working language slice.
 1. **Body checking covers std but still has structural gaps.** `mut`
    is transparent to unification, closure rows are not inferred, dispatch
    is absent from initialization facts, and suspension side records are
-   never populated. Shared enum initialization, top-level interpolation
-   and counted-loop tags also fail before or during emission. Language
-   forms outside the std corpus can still stop with `NotImplemented`.
+   never populated. `dyn Error` does not satisfy `Display` in the solver.
+   Language forms outside the exercised corpus can still stop with
+   `NotImplemented`.
 2. **The standard-library pack is not writable.** M4a produces checked,
    verified std TIR, but `hd_stdpack::build_pack` still has no pack writer.
 3. **Interfaces omit diagnostic and top-level-binding fidelity.** They
@@ -61,12 +64,11 @@ Ranked by how much each blocks the next working language slice.
    named Rust views, the schema generator and the JavaScript decoder do
    not exist.
    Browser consumers still lack the designed stable generated surface.
-8. **Emission now runs init, suspension and cleanup programs, but the long
-   tail is large.** Layout-driven Wasm covers module globals, state
-   machines, `all!`, cancellation, provider scopes and `defer`, besides
-   the M4b forms. Defaults, reusable contexts, several control-flow and
-   collection tags, panic metadata and advanced erased calls remain
-   unsupported or use phase-1 shortcuts.
+8. **Emission now runs init, tests, suspension and cleanup, but the long
+   tail is large.** Layout-driven Wasm covers module globals, shared enum
+   data, range loops, state machines, `all!`, cancellation, provider scopes
+   and `defer`. `dyn Error`, `MapIter`, string `Debug`, panic metadata and
+   advanced erased calls remain unsupported or use phase-1 shortcuts.
 9. **Task-boundary panic isolation regressed.** The old architecture path
    caught panics; the unified `Exec` calls tasks directly under serial and
    rayon executors. One task panic can unwind the build instead of becoming
@@ -78,7 +80,7 @@ Ranked by how much each blocks the next working language slice.
 ## Open Backlog
 
 This is the single backlog for open reconciliation, skeleton, and milestone
-findings. It was checked against `compiler/crates` at `b824c3cf`. No surviving
+findings. It was checked against `compiler/crates` at `4c4b3b92`. No surviving
 gap is phase 1: the vertical slice moves. Phase 2 completes behavior; phase 3
 improves the working implementation.
 
@@ -118,13 +120,12 @@ their shared boundary, not duplicate implementations.
 | `ManifestRecord` exists, but no stat manifest is read or written. | cache.md §5.5 | 3 — wonderful | M | none: add a phase-3 cache-I/O job |
 | A program miss keys and decodes every package module instead of the root's reachable closure. | codegen.md §11.2, §11.3 | 3 — wonderful | M | none: add a phase-3 reachability-cache job |
 | Code keys omit interface, layout, selected-impl, inline, inlined-body, and literal dependencies. | codegen.md §13.8; cache.md §5.3 | 2 — work | M | P2-6 |
-| Multi-module initialization groups still stop, and shared enum constructor data is not initialized with its module. | codegen.md §12.3 | 2 — work | L | P2-4 and P2-6 |
-| Top-level string interpolation fails during checking instead of producing initialization TIR. | type-checking.md §1.7; codegen.md §12.3 | 2 — work | S | P2-4 |
-| Counted loops never reach emission as the designed `For` tags. | codegen.md §12.5 | 2 — work | M | P2-1 and P2-6 |
-| A `.Err` entry result maps to status 0 instead of the specified nonzero outcome. | runtime-and-host.md §16.2 | 2 — work | S | P2-8 |
+| Multi-module initialization groups still stop; shared enum constructor data now initializes with its module. | codegen.md §12.3 | 2 — work | M | P2-4 and P2-6 |
 | Entry-module initialization lacks its inferred providers, and reusable contexts are absent. | codegen.md §12.4 | 2 — work | M | P2-8 |
 | Synchronous emission still lacks `ItemRef`, `Is`, `DefaultCall`, `CopyData`, `SwitchStr`, several collection operations, f32 arithmetic, and wider conversions. | codegen.md §12.1, §12.2; wasm-layout.md §15.1, §15.2 | 2 — work | L | P2-6 |
 | `ToAny`, supertrait coercions, generic methods through `dyn`, and constant supertrait-aware vtables are incomplete. | codegen.md §13.5; wasm-layout.md §15.3 | 2 — work | L | P2-3 and P2-6 |
+| `dyn Error` does not satisfy `Display` in the solver, and its recursive vtable type cannot be emitted. | trait-solver.md §9; codegen.md §13.5 | 2 — work | M | P2-3 and P2-6 |
+| `MapIter` and string `Debug` still stop emission; the latter needs mutable captures and `StrIndex`. | codegen.md §12.2, §12.5; suspension.md §14.1 | 2 — work | M | P2-6 and P2-7 |
 | Shared captures and suspending closure values are not emitted. | codegen.md §12.2; suspension.md §14.1–§14.3 | 2 — work | L | P2-7 |
 | Recursive type layouts still stop emission. | representation-runtime.md §§2–6; wasm-layout.md §15.2 | 2 — work | M | P2-6 |
 | Emission has no designed verifier assertions for substituted types, selections, suspension cases, and relocations. | codegen.md §12.7 | 2 — work | M | P2-6 |
@@ -138,7 +139,7 @@ their shared boundary, not duplicate implementations.
 | Generated host stubs, full structured-value codecs, capability enforcement, and host limits are incomplete. | runtime-and-host.md §§16–17 | 2 — work | L | P2-8 |
 | The browser Engine and worker glue are incomplete. | engines-and-test-runner.md §18.4; build-order.md §22 | 2 — work | L | P2-8 |
 | The wasmtime crate remains a stub without the approved-later dependency. | runtime-and-host.md §17.9; engines-and-test-runner.md §18.1 | 3 — wonderful | L | none: add a native-engine job after approval |
-| Test overlays and the unit, integration, property, panic, timeout, and snapshot runner remain unimplemented. | engines-and-test-runner.md §§19.1–§19.6 | 2 — work | L | P2-9 |
+| Test build errors stop the whole run; integration, property, timeout and snapshot execution remain incomplete. | engines-and-test-runner.md §§19.1–§19.6 | 2 — work | L | P2-9 |
 | `hd check` and most command, package, dependency, query, formatting, documentation, and cache flows are absent. | commands.md §§7, 20 | 2 — work | L | P2-10 and P2-12 |
 | Text diagnostics use byte spans and repeated labels; required JSON Lines, summaries, fixes, paths, and status 101 are absent. | checking-and-tir.md §4.14; commands.md §20.1 | 2 — work | M | P2-10 |
 
@@ -249,7 +250,20 @@ lowers `race!` through std hd.
 | M4d gap 4. Wake tracking has no waker objects or wake masks | `hd_wasm::rt::{wake_mark,wake_take}` stores completed handles; `await_all` re-polls every unfinished child | Suspension §14.4 uses generation-tagged reusable handle slots and wakers; §14.5 uses per-child wake masks | implementation gap; design stays |
 | M4d gap 5. Four runtime safeguards are absent | `suspend_base` has no driver field; no forbidden-context counter, hook emission or frame-tree report exists | Suspension §14.3 checks competing drivers, §14.7 emits optional hooks, §14.8 reports debug wait trees, and §14.9 guards indirect `block_on`/`println` | implementation gaps; design stays |
 | M4d gap 6. Module initialization covers only the simple group and row cases | `Run::group_init_order` rejects groups with statements in multiple modules; `entry` supplies providers only to `main` | Module Initialization orders statements across a group; `module.init.script-row` gives an entry module's top level its inferred providers | implementation gap; design stays |
-| M4d gap 7. Four frontend or entry-result cases block follow-up coverage | shared enum constructors are absent from Init TIR; top-level interpolation reports `unknown-name`; every `for` lowers through `iter`/`next`; a `.Err` result from `main` maps to status 0 | Shared data initializes with its module; top-level reads resolve; codegen receives counted `For` tags; the entry wrapper maps `Result` failure to a nonzero outcome | implementation gaps; design stays |
+| M4d gap 7. Four frontend or entry-result cases blocked follow-up coverage | `shared_init`, top-level `string_expr`, `range_loop` and virtual `std.rt` now cover the four cases | Shared data initializes with its module; top-level reads resolve; codegen receives counted `For` tags; the entry wrapper maps `Result` failure to a nonzero outcome | fixed by M4c; design stays |
+
+### M4c Findings
+
+| Finding | Code evidence | Intended rule | Side that changes |
+| --- | --- | --- | --- |
+| M4c gap 1. A `use` inside `tests:` joins the module scope | `hd_resolve::use_decls` chains block uses into every module use; `hd_check::tests::statements` then skips them | Test position holds only registration calls (`module.testing.position-statements`); test-only names must not enter ordinary bodies | implementation changes; S7 makes the scope rule explicit |
+| M4c gap 2. One test-body build error stops the run | `Run::body` records the first failed test check and stops package emission | §19.1 drops only roots whose collection or emission reached the error; unrelated module roots still run | Collect and Emit need per-root failure isolation |
+| M4c gap 3. Tests use ordinary synthesized items and a role-keyed check entry | `check_tests` makes `module.$test<i>` items; `Run::body` stores them under `check_key` role `test` | The role-`test` `check` entry owns test diagnostics, registrations and TIR; no separate overlay stage exists | scheduler.md and cache.md corrected; implementation stays |
+| M4c gap 4. The driver passes the case list directly to the CLI | `Run::test_cases` builds `Output::tests`; `hd_cli::test_cmd::run` consumes it | §19.2 places the linked case list in `hd.runtime`, which every engine reads | implementation changes in P2-9; design stays |
+| M4c gap 5. The CLI parses panic categories from stderr | `hd_cli::test_cmd::panic_of` scans the final `panic:` line | §15.5 stores the category and message in runtime state and symbolizes the trapped site | phase-1 bridge; P2-6 and P2-9 restore metadata |
+| M4c gap 6. Entry reports need a second virtual std module | `hd_driver::RT_SOURCE` supplies `std.rt`; `report_fn` roots its status function | `std.rt` is compiler-supplied like `std.core`; ordinary hd renders results over intrinsic `entry_write` | codegen.md and std-bootstrap.md corrected; implementation stays |
+| M4c gap 7. Four test-support forms still stop | The solver misses `dyn Error: Display`; emission rejects recursive error vtables, `MapIter`, mutable captures and `StrIndex` | P2-3 completes erased-error solving; P2-6 emits erased errors and maps; P2-7 supplies shared captures for string `Debug` | implementation gaps; design stays |
+| M4c gap 8. The vertical slice now includes unit tests | Exact cold/warm and one-thread/four-thread tests cover pass, fail, panic, ignore, filter and status | Phase 1 ends when one Rust pipeline checks, emits and runs representative programs and tests | README and footprint mark phase 1 complete |
 
 ### Findings Table
 
@@ -283,6 +297,7 @@ lowers `race!` through std hd.
 | scheduler.md §6.2 (stepping) | `SteppingScheduler::run_for`, `hd_web::WebSession::check` | A step is one task, not one body; `hd_web` does not step at all ("one slice") | gap | `Body(m)` keeps a body cursor; `hd_web` calls `run_for` |
 | scheduler.md §6.3 | `analyze_package` uses `SerialOrder::Priority`; caller selects the build executor | Serial priority is real, but the pool drains FIFO rather than priority order | impl wrong | Preserve priorities when publishing pool work |
 | scheduler.md §6.4 | unified `Exec` calls tasks directly | The old architecture path's panic catch was deleted during consolidation | gap | Catch unwind at the executor boundary and emit one internal diagnostic |
+| scheduler.md §6.1, cache.md §5.2 | role-`test` `Run::{module_prep,body,module_finish}` | Synthesized test items, registrations and TIR use the ordinary role-keyed `check` entry, not a `TestOverlay` task or `check-test` entry (M4c gap 3) | design wrong | Keep one task path and one role-keyed entry |
 | scheduler.md §6.2 rule 4, codegen.md §11.1, §11.3 | `Run::collect`, `ExtTask::Emit(u32)` | §11.3 says one `Emit` per code-entry miss; §6.2 rule 4 says batches per module group; the §11.1 diagram says per folder group. The code makes one task per instance, hits included | design wrong | One rule in both docs: `Emit(group)` per folder group with a miss (the `codepack` unit); hits are looked up in `Collect` |
 | syntax.md §4.4, build-order.md slice 1 | `hd_syntax::parser` | M2's one recursive-descent parser accepts every non-reject fixture and all 36 standard-library files | both ok | Keep the corpus, snapshots and mutation tests |
 | syntax.md §4.4 (progress and depth) | `Parser::{statements,enter,skip_balanced}`, `MAX_NESTING` | Progress guards and `nesting-too-deep` cover the two failure classes without a second fuel mechanism | design wrong | Replace parser fuel with the implemented progress and depth rules (M2 gap 5) |
@@ -303,10 +318,10 @@ lowers `race!` through std hd.
 | codegen.md §11.2, §11.3, SK-N12 | `Run::collect`, `Run::decode_pending` | `prog_key` lists every module, and a miss decodes every module's TIR, not only modules the root reaches | impl wrong | Reachable modules from the manifest's use lists, as §11.3 says |
 | codegen.md §11.3 | `Run::package_result` | `Collect` runs after all of `PackageResult`, not after the `tir` entries and `HeaderCheck` tasks of reached folders only | both ok | Keep for one program; split when tests add programs |
 | codegen.md §11.4 | `hd_run` depends on `hd_cache` | The design's crate table now records this dependency | both ok | None |
-| codegen.md §12.1, §12.2 | `hd_wasm::emit` over `hd_tir::Body` and the structural layout engine | M4d emits representative init, suspension and cleanup programs through V8; the remaining gap-10 forms stay structured unsupported cases | both ok | Extend this emitter only |
-| codegen.md §12.3 | `hd_wasm` binding globals and group init functions; `Run::group_init_order` | Module storage and simple dependency-first group initialization run; multi-module statement order and shared enum constructor initialization do not (M4d gaps 6 and 7) | gap | Emit the designed cross-module statement order and every module-owned initializer |
+| codegen.md §12.1, §12.2 | `hd_wasm::emit` over `hd_tir::Body` and the structural layout engine | M4c emits representative init, test, suspension and cleanup programs through V8; the remaining gap-10 forms stay structured unsupported cases | both ok | Extend this emitter only |
+| codegen.md §12.3 | `hd_wasm` binding globals and group init functions; `Run::group_init_order` | Module storage, shared enum constructors and simple dependency-first initialization run; multi-module statement order remains absent | gap | Emit the designed cross-module statement order and every remaining module-owned initializer |
 | codegen.md §12.4 | `hd_wasm::emit::{push_providers,with,entry}` | Concrete rows, default-profile providers and lexical `With` scopes emit; entry top-level providers and reusable contexts do not (M4d gap 6) | gap | Pass an entry module's inferred row to its init body and add context lowering |
-| codegen.md §12.5 | `hd_wasm::emit::{scope,exit}` | The `defer` exit ladder runs through returns, breaks, continues and cancellation; counted `For` tags never reach emission (M4d gap 7) | gap | Make the checker emit the designed counted-loop tags |
+| codegen.md §12.5 | `hd_check::expr::range_loop`; `hd_wasm::emit::{scope,exit}` | `ForRange` and the `defer` exit ladder run; `ForMap` still stops at the unimplemented `MapIter` path | gap | Emit map iteration through the existing counted-loop path (M4c gap 7) |
 | codegen.md §13.6 | `hd_wasm::emit::await_all`; generated race helper | Tuple layouts and `all!` run; `all!` re-polls every unfinished child because wake masks are absent (M4d gap 4) | gap | Add wake masks with the complete driver |
 | codegen.md §13.2, SK-2 | `hd_check::body` (`rep_summary`), `A1Rule` | Bounded parameter is always exact, as SK-2 decided; codegen.md §13.2 was updated | both ok | None |
 | codegen.md §13.3 | `hd_mono::layout::instance_key` | The duplicate `World`/`CTy` key path was deleted | both ok | None |
@@ -318,13 +333,18 @@ lowers `race!` through std hd.
 | suspension.md §14.6 | `hd_wasm::emit::{flag_checks,cancel_task,scope,exit}` | Re-entrant and terminal-state checks, child cancellation and LIFO `defer` ladders run; external abort remains incomplete | both ok | Extend the implemented cancellation path as host operations land |
 | suspension.md §14.7 to §14.9 | `hd_run::drive`; `hd_wasm` entry helpers | Basic deadlock outcome and poll/block paths exist; hooks, competing-driver checks, forbidden contexts and debug reports do not | gap | Add the four safeguards without a second driver (M4d gap 5) |
 | wasm-layout.md §15.4 to §15.6 | `hd_wasm::{link,rt}` | Literal and module-storage globals, init functions, helper stubs and dev names exist; site metadata, constant globals and folds do not, and hello measures about 4.8 KB | gap | Add constant globals and metadata, then use Q14's attribution against the 2 KB target (M4b gaps 5 and 8) |
-| runtime-and-host.md §16.2 | `hd_wasm::emit::entry`; `hd_cli::node` | Entry success and panic paths run, but a `main` result of `.Err` still exits 0 (M4d gap 7) | gap | Map the entry `Result` through the specified outcome rule |
-| runtime-and-host.md §16.4 | `hd_wasm::meta::RuntimeMeta`, `hd_wasm::link` | The codec exists; link writes no `hd.runtime`, `hd.sites` or `hd.folds` section | gap | Write metadata and panic-site tables from the reached import and code sets (M4b gap 5) |
+| runtime-and-host.md §16.2 | `hd_wasm::emit::entry`; `hd_driver::RT_SOURCE`; `hd_cli::node` | Entry success, panic and concrete `.Err` results now produce the specified status; erased `dyn Error` results remain blocked | gap | Complete erased-error solving and emission without a second report path (M4c gap 7) |
+| runtime-and-host.md §16.4 | `hd_wasm::meta::RuntimeMeta`, `Run::test_cases`, `hd_wasm::link` | The codec exists, but the CLI receives cases directly and link writes no `hd.runtime`, `hd.sites` or `hd.folds` section | gap | Write metadata and panic-site tables from the reached import and code sets (M4b gap 5, M4c gaps 4 and 5) |
 | runtime-and-host.md §17.1, §17.2 | `hd_host_abi::{TABLE, PRELUDE_IMPORTS}` | Checking and emission consume the single ABI description | both ok | None |
 | runtime-and-host.md §17.9 | `hd_run::{Engine, run_program}`, `hd_cli::node` | Node implements the embedding API and `hd run` uses it; wasmtime remains an approved-later stub | both ok | Add wasmtime after approval |
 | engines-and-test-runner.md §18.4, build-order.md §22 | `hd_cli::node`, `hd_web` | Node is correctly behind `Engine`; the browser worker and glue remain incomplete | gap | Implement the browser Engine and worker in slice 9 |
+| engines-and-test-runner.md §19.1 | `Goal::Tests`, `Run::test_plan`, `Run::collect` | One unit-test program is built, but one module's build error still prevents every case from running | gap | Drop only the roots that reach an error (M4c gap 2) |
+| engines-and-test-runner.md §19.2 | `Run::test_cases`, `Output::tests` | Cases are listed deterministically, but the list bypasses the designed `hd.runtime` section | gap | Link and read the section through the engine boundary (M4c gap 4) |
+| engines-and-test-runner.md §19.3, §19.5 | Node test workers, `ReleaseCursor`, `Report` | Fresh instances run in parallel and reports stream in content order, with exact cold/warm tests | both ok | Keep the one execution and release path |
+| engines-and-test-runner.md §19.4 | `judge`, `panic_of` | `expect_panic` works, but categories come from stderr; properties and timeouts remain unsupported | gap | Read panic metadata and add property and timeout driving (M4c gaps 5 and 7) |
 | testing-the-compiler.md §8.1, wasm-layout.md §15.8 | `hd_testkit` | FIFO, priority, shuffled and 2/8-worker pool builds produce byte-identical Wasm | both ok | None |
 | commands.md §7.1 | none | No `hd check` command; `hd_cli` has `run` and `build` | gap | Add `hd check` on the single driver |
+| commands.md §7.3, §20.1 | `hd_cli::test_cmd` on `Goal::Tests` | `hd test`, FILE, filter, jobs, ordered reports and statuses run end to end for unit tests | both ok | Extend the same command path for the remaining P2-9 cases |
 | commands.md §7.5, §20.2, §20.3 | `hd_cli` | `hd run` and `hd build` use the single driver, Node Engine and persistent disk cache; std and language coverage remain incomplete | both ok | Extend the single pipeline only |
 | live-execution.md §4.5, SK-14 | `hd_run::journal` | The journal lives in `hd_run`; live-execution.md names no crate | design wrong | live-execution.md §4.5: name `hd_run` |
 
@@ -514,3 +534,11 @@ rows without completing every contract:
    interface findings still fall back to file-level spans.
 5. **Totals.** Real remains 52, skeleton 99 and missing 173, for 324
    sections.
+
+### After M4c
+
+Relative to the M4d footprint, M4c moves three test-runner sections from
+skeleton to real, one from missing to skeleton, and two command sections
+from missing to real. Engines-and-test-runner.md becomes 5 real, 2 skeleton
+and 5 missing; commands.md becomes 5 real, 5 skeleton and 5 missing.
+The full footprint is 97 real, 95 skeleton and 132 missing, for 324 sections.

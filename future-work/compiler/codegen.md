@@ -299,6 +299,11 @@ cancel function (§14.6).
 - **Test registrations.** A `TestCase` body evaluates its registration
   call's run-time arguments (`rows`, `timeout`, examples) and calls the
   std registration function, which drives the test body (§19.3).
+- **Entry reports (`std.rt`, M4c gap 6).** The compiler supplies the
+  virtual module `std.rt`, like `std.core`. Its ordinary hd functions turn
+  `Termination` and `Result` values into statuses and rendered error chains;
+  only its private `entry_write` operation is intrinsic. Collection roots
+  the matching function after each entry point or test case.
 
 ### 12.4 Rows And Providers
 

@@ -11,7 +11,7 @@ pub enum TaskKind {
     Skim(FileId), Parse(FileId), FolderGraph(PackageId),
     FolderIface(FolderId), HeaderCheck(FolderId),
     ModulePrep(ModuleId), Body(ModuleId), ModuleFinish(ModuleId),  // Body: all of a module's bodies, as one batched parallel iterator (granularity rule below)
-    TestOverlay(ModuleId), Coherence(PackageId), InitOrder(FolderId), PackageResult(PackageId),  // Coherence: one task over the traits whose key changed
+    Coherence(PackageId), InitOrder(FolderId), PackageResult(PackageId),  // Coherence: one task over the traits whose key changed
     Ext(ExtTask),                       // D2's tasks, behind a trait object
 }
 struct TaskNode {
@@ -52,15 +52,14 @@ pub struct TaskGraph { nodes: AppendVec<TaskNode> }
   `graph` entry (cache.md §5.2), found by its part key before it runs.
 - **Closures and impl universes (Codex re-review N1).** Once the folder
   graphs are built, the driver computes each folder's closure as a bit
-  set over the program graph's folders, bottom-up. `ModulePrep(m)` (M1)
-  builds `closure(m)` from its own folder and its file's non-test uses,
-  and `TestOverlay(m)` builds `test_closure(m)` with the test uses
-  added (cache.md §5.3). Then each solving context gets one
+  set over the program graph's folders, bottom-up. `ModulePrep(m)` builds
+  `closure(m)` for the ordinary role and `test_closure(m)` for the test
+  role, with test-only uses added (cache.md §5.3). Then each solving context gets one
   `ImplUniverseId`: the sorted list of the folders in its closure whose
   `arg_impls` section is not empty, interned once per run
   ([trait-solver.md §3.2](trait-solver.md#32-owner-modules)).
-  - The contexts: each module's bodies, computed in M1 before any
-    `Body(m)` starts; each module's test overlay; each
+  - The contexts: each module's ordinary and test-role bodies, computed
+    before any `Body(m)` starts; each
     `HeaderCheck(F)`, from `closure(F)` when the task starts; and each
     derive instance, which uses its module's id.
   - Equal lists get one id, so most modules of a package share one.
@@ -68,6 +67,10 @@ pub struct TaskGraph { nodes: AppendVec<TaskNode> }
     cache key or output; the keys hash the closure lists instead.
   - Every folder in a context's closure is already a dependency of its
     task, through the `FolderIface` chain, so universes add no edge.
+- **Test-role checks (M4c gap 3).** A test run uses the ordinary
+  `ModulePrep`, `Body` and `ModuleFinish` tasks with role `test`. The role's
+  `check` entry stores synthesized `module.$test<i>` items, registrations
+  and TIR; there is no `TestOverlay` task or cache entry.
 - **Cache checks are tasks too.** A key can be computed only when the
   deep hashes it names are known, so "compute key, look up, skip or run"
   is the first step of each `FolderIface` and `ModulePrep` task. A hit
