@@ -102,6 +102,61 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
+### Y1. String Appends: Design Options For A Rope Or Builder (Research)
+
+Q26 (`audit/compiler/runtime-hotspots-efc99933.md`) found string append
+is O(n²): 40k appends copy ~6.4 GB for a 320 KB result (84x vs Node).
+Read `future-work/compiler/representation-runtime.md` §6 Strings (and
+what `lib/std` and the spec promise about `string`: immutability, UTF-8,
+O(1) `len`, slicing/indexing on views, hashing, equality, boundary
+crossing to the host). Then compare how three or four real systems avoid
+the quadratic append — V8 cons-strings flattened on demand, Java/Go
+builders (`StringBuilder`, `strings.Builder`), Rust `String` with
+amortized growth plus `+=` reusing the left buffer when it is uniquely
+owned, Swift/Koka-style in-place append on a unique reference — and for
+each: what it costs hd (heap layout under Wasm GC, every string op that
+must flatten, hashing/equality cost, host boundary, code size in a
+hello-world), and what it needs from the language (a builder type in
+std, or nothing visible). End with a recommendation and the smallest
+first step. Write it as a proposal section appended to
+`future-work/compiler/representation-runtime.md` §6 (clearly marked
+"Proposal, not accepted") — no spec edits, no new user-visible names
+without listing them as owner questions in this file's Questions
+section. Timebox 60 minutes; push.
+
+### L1. Std Inventory: Spec'd Items Missing From `lib/std`
+
+Some fixtures fail because a std module the spec defines does not exist
+in `lib/std` (e.g. `std.sys`, `std.net`). Compare `spec/std/*.md` (every
+module and its public items: types, traits, functions, constants, with
+their rule IDs) against `lib/std/*.hd` (and the compiler's seeded std
+items in `compiler/crates/hd_resolve/src/seed.rs`). List per module:
+items in the spec but missing from std, items in std with a different
+signature than the spec, and items in std the spec doesn't mention. For
+each missing item, note whether it needs a compiler intrinsic (host
+capability call, runtime primitive) or can be plain hd. Count the
+conformance fixtures that use each missing item (grep
+`spec/conformance`). Write `audit/compiler/std-inventory-<short hash>.md`.
+Report only. Timebox 60 minutes; push.
+
+### D2m. Design Text For Module Paths And Poison Names
+
+Update `future-work/compiler/resolution-and-interfaces.md` (and
+`reconciliation.md` rows) for two commits, docs only:
+- "Module paths: use roots for the source, test and task roots and path
+  dependencies (#106)": one mapping in `hd_project` (`module_path`,
+  `module_below`); the package name with `-` as `_`; `src/lib.hd` is the
+  root, `x/mod.hd` is `x`; test and task roots use internal prefixes
+  `P.$tests…` / `P.$tasks…` (record as provisional: an owner question on
+  the collision between `tests/checkout.hd` and `src/tests/checkout.hd`
+  is open); where `self` starts and the root `super` stays within; entry
+  modules not usable; `UseRoots::absolute` for `pkg`, `std`, `dep.NAME`,
+  `self`, `super`; dependencies load only their library; `package-cycle`;
+  a package with `src/` takes files only from `src`, `tests`, `tasks`.
+- "Resolver: a failed use binds its names as poison (#110)": where poison
+  is produced and read, and that a real binding replaces poison.
+Timebox 40 minutes; push.
+
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
