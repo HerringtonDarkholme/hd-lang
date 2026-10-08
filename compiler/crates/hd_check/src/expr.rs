@@ -2183,15 +2183,6 @@ impl Ck<'_, '_> {
 
     /// Whether trait `a` has `b` among its supertraits.
     pub(crate) fn trait_extends(&self, a: hd_base::DefId, b: hd_base::DefId, depth: u32) -> bool {
-        if depth > 16 {
-            return false;
-        }
-        let Some(ItemData::Trait(t)) = self.cx.lookup.item(a).map(|i| &i.data) else {
-            return false;
-        };
-        t.supers.iter().any(|s| match self.pool().get(*s) {
-            TyData::TraitValue { def, .. } => def == b || self.trait_extends(def, b, depth + 1),
-            _ => false,
-        })
+        crate::body::trait_extends(self.cx.lookup, self.pool(), a, b, depth)
     }
 }

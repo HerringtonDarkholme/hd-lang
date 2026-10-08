@@ -256,6 +256,89 @@ pub(crate) fn new_ck<'a, 'c>(
     ck
 }
 
+/// Whether trait `a` has `b` among its supertraits.
+pub(crate) fn trait_extends(
+    lookup: &Lookup<'_>,
+    pool: hd_types::Types<'_>,
+    a: DefId,
+    b: DefId,
+    depth: u32,
+) -> bool {
+    if depth > 16 {
+        return false;
+    }
+    let Some(ItemData::Trait(t)) = lookup.item(a).map(|i| &i.data) else {
+        return false;
+    };
+    t.supers.iter().any(|s| match pool.get(*s) {
+        TyData::TraitValue { def, .. } => {
+            def == b || trait_extends(lookup, pool, def, b, depth + 1)
+        }
+        _ => false,
+    })
+}
+
+/// Elaborates one declared bound into an environment (trait-solver.md
+/// §2.3, §4.2): the clause, a defaulted trait argument left out filled
+/// in, then its supertraits, depth first in declared order, each trait
+/// reference once. Bodies and header checks build their environments
+/// with it.
+pub(crate) fn add_bound(
+    lookup: &Lookup<'_>,
+    global: &hd_types::InternPool,
+    pool: hd_types::Types<'_>,
+    env: &mut ParamEnv,
+    (self_ty, bound): (Ty, Ty),
+    depth: u32,
+) {
+    let TyData::TraitValue {
+        def,
+        args,
+        bindings,
+    } = pool.get(bound)
+    else {
+        return;
+    };
+    // Headers carry their defaults filled; a bound the checker forms
+    // itself is filled the same way, so the clause matches its goals.
+    let args = match lookup.item(def) {
+        Some(it) => hd_resolve::fill_trait_args(global, def, &it.generics, args, Some(self_ty)),
+        None => args,
+    };
+    if depth > 16
+        || (0..env.clause_self.len()).any(|i| {
+            env.clause_self[i] == self_ty
+                && env.clause_trait[i] == def
+                && env.clause_args[i] == args
+        })
+    {
+        return;
+    }
+    env.clause_self.push(self_ty);
+    env.clause_trait.push(def);
+    env.clause_args.push(args);
+    env.clause_bindings.push(bindings);
+    env.clause_mut.push(false);
+    env.clause_origin
+        .push(u16::try_from(env.clause_origin.len()).unwrap_or(u16::MAX));
+    if let Some(ItemData::Trait(t)) = lookup.item(def).map(|i| &i.data) {
+        let known = pool.list_items(args);
+        for s in &t.supers {
+            let s = pool.subst(*s, &|p: ParamRef| {
+                if p.owner != def {
+                    return None;
+                }
+                if p.index == 0 {
+                    Some(self_ty)
+                } else {
+                    known.get(p.index as usize - 1).copied()
+                }
+            });
+            add_bound(lookup, global, pool, env, (self_ty, s), depth + 1);
+        }
+    }
+}
+
 /// Checks one function body and returns its TIR.
 pub fn check_fn(
     cx: &BodyCx<'_>,
@@ -504,60 +587,14 @@ impl Ck<'_, '_> {
 
     /// Adds a bound and, transitively, its supertraits to the environment.
     pub(crate) fn add_bound(&mut self, self_ty: Ty, bound: Ty, depth: u32) {
-        let pool = self.pool();
-        let TyData::TraitValue {
-            def,
-            args,
-            bindings,
-        } = pool.get(bound)
-        else {
-            return;
-        };
-        // Headers carry their defaults filled; a bound the checker forms
-        // itself is filled the same way, so the clause matches its goals.
-        let args = match self.cx.lookup.item(def) {
-            Some(it) => hd_resolve::fill_trait_args(
-                self.cx.names.pool,
-                def,
-                &it.generics,
-                args,
-                Some(self_ty),
-            ),
-            None => args,
-        };
-        if depth > 16
-            || (0..self.env.clause_self.len()).any(|i| {
-                self.env.clause_self[i] == self_ty
-                    && self.env.clause_trait[i] == def
-                    && self.env.clause_args[i] == args
-            })
-        {
-            return;
-        }
-        self.env.clause_self.push(self_ty);
-        self.env.clause_trait.push(def);
-        self.env.clause_args.push(args);
-        self.env.clause_bindings.push(bindings);
-        self.env.clause_mut.push(false);
-        self.env
-            .clause_origin
-            .push(u16::try_from(self.env.clause_origin.len()).unwrap_or(u16::MAX));
-        if let Some(ItemData::Trait(t)) = self.cx.lookup.item(def).map(|i| &i.data) {
-            let known = pool.list_items(args);
-            for s in t.supers.clone() {
-                let s = pool.subst(s, &|p: ParamRef| {
-                    if p.owner != def {
-                        return None;
-                    }
-                    if p.index == 0 {
-                        Some(self_ty)
-                    } else {
-                        known.get(p.index as usize - 1).copied()
-                    }
-                });
-                self.add_bound(self_ty, s, depth + 1);
-            }
-        }
+        add_bound(
+            self.cx.lookup,
+            self.cx.names.pool,
+            self.pool(),
+            &mut self.env,
+            (self_ty, bound),
+            depth,
+        );
     }
 
     /// A local by name, innermost first, with its scope depth.

@@ -4,7 +4,7 @@
 //! (resolution-and-interfaces.md §4.9, §4.10, §4.12; data-structures.md
 //! §3.15): module scopes over the full parser's tree, header lowering to
 //! `hd_types` types, folder interfaces and their blobs, impl tables for
-//! the solver, and the stage-B header check.
+//! the solver, and the overlap check.
 
 use std::collections::HashMap;
 
@@ -19,7 +19,7 @@ pub mod seed;
 pub mod variance;
 pub mod view;
 
-pub use header::{Finding, Universe};
+pub use header::Universe;
 pub use iface::{
     Export, Field, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item, ItemData, Lookup, Names,
     TraitData, Variant, decode_items, deep_hash, encode_items, fill_trait_args, folder_iface,

@@ -38,7 +38,8 @@ use hd_sched::{ExtTask, SerialOrder, SerialScheduler, Spawn, TaskGraph, TaskId, 
 use hd_syntax::{HeaderKind, Parse, parse, skim};
 use hd_tir::Body;
 use hd_types::solver::{
-    FolderImpls, GlobalMemo, ImplTable, ImplUniverses, ImplView, OwnerMap, TableSolver,
+    FolderImpls, GlobalMemo, ImplTable, ImplUniverseId, ImplUniverses, ImplView, OwnerMap,
+    TableSolver, UniverseImpls,
 };
 use hd_types::{InternPool, Ty, TyData, TyList};
 use hd_wasm::Code as WasmCode;
@@ -1156,22 +1157,43 @@ impl Run<'_> {
         hd_resolve::anchor::resolve(&self.src(target.idx()), anchor).unwrap_or(fallback)
     }
 
-    /// `HeaderCheck(F)`: stage B (§4.10.1) over F's interface, against the
-    /// interfaces of its closure.
+    /// `HeaderCheck(F)`: stage B (§4.10.1) over F's interface, its goals
+    /// asked through the solver with the impls of `closure(F)` and its
+    /// impl universe, taken when the task starts (trait-solver.md §3.2).
     fn header_check(&self, fi: usize) {
         let fid = self.table.folders[fi].id;
         let (Some(own), Some(all)) = (self.iface_of(fid), self.closure_ifaces(fid)) else {
             self.blocked(Stage::HeaderCheck);
             return;
         };
-        let u = hd_resolve::Universe::new(self.names(), all.iter().flat_map(|i| i.items.iter()));
-        let findings = u.stage_b(&own.items);
+        let names = self.names();
+        let lookup = Lookup::new(&[], all.iter().map(AsRef::as_ref).collect());
+        let (folders, universe, extra) = self.closure_impls(&self.closure(fid));
+        let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
+        let impls = ImplView {
+            paths: &self.paths,
+            owners: self.owners(),
+            own: None,
+            folders: &folders,
+            universe,
+            extra: &extra,
+            arity: &arity,
+        };
+        let cx = hd_check::header::HeaderCx {
+            names,
+            lookup: &lookup,
+            impls: &impls,
+            global: &self.memo,
+            solver: &TableSolver,
+        };
+        let r = hd_check::header::stage_b(&cx, &own.items);
+        let Some(findings) = self.stage(Stage::HeaderCheck, r) else {
+            return;
+        };
         let mut d = lock(&self.diags);
         for f in findings {
             d.error(f.code, self.item_span(f.item, f.slot), &f.message);
         }
-        drop(d);
-        lock(&self.report).ok(Stage::HeaderCheck);
     }
 
     fn init_order(&self, fi: usize) {
@@ -1352,6 +1374,31 @@ impl Run<'_> {
             .as_deref()
     }
 
+    /// A solving context's impls (trait-solver.md §3.2): the closure's
+    /// folder tables by folder id, read by owner, and its impl universe,
+    /// the closure's folders whose `arg_impls` or unowned rows are not
+    /// empty.
+    fn closure_impls(
+        &self,
+        closure: &[FolderId],
+    ) -> (
+        Vec<Option<&FolderImpls>>,
+        ImplUniverseId,
+        Arc<UniverseImpls>,
+    ) {
+        let mut folders: Vec<Option<&FolderImpls>> = vec![None; self.table.folders.len()];
+        let mut members = Vec::new();
+        for f in closure {
+            let fi = self.folder_impls(*f);
+            folders[f.idx()] = fi;
+            if let Some(fi) = fi.filter(|fi| fi.in_universe()) {
+                members.push((*f, fi));
+            }
+        }
+        let (universe, extra) = self.universes.intern(&members);
+        (folders, universe, extra)
+    }
+
     /// `Body(m)`: every body of the module, in source order.
     fn body(&self, m: usize) {
         let Some(Some(prep)) = self.prep[m].get() else {
@@ -1371,19 +1418,7 @@ impl Run<'_> {
             .filter(|i| matches!(i.data, ItemData::Impl { .. }))
             .collect();
         let own_table = hd_resolve::impl_table(&names, &own_impls);
-        // The closure's folder tables, read by owner, and the impl universe:
-        // the closure's folders whose `arg_impls` or unowned rows are not
-        // empty (trait-solver.md §3.2).
-        let mut folders: Vec<Option<&FolderImpls>> = vec![None; self.table.folders.len()];
-        let mut members = Vec::new();
-        for f in &closure {
-            let fi = self.folder_impls(*f);
-            folders[f.idx()] = fi;
-            if let Some(fi) = fi.filter(|fi| fi.in_universe()) {
-                members.push((*f, fi));
-            }
-        }
-        let (universe, extra) = self.universes.intern(&members);
+        let (folders, universe, extra) = self.closure_impls(&closure);
         let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
         let impls = ImplView {
             paths: &self.paths,
