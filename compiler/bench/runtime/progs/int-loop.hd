@@ -1,8 +1,8 @@
 fn checksum(n: i32) -> i32:
-    let total: i32 = 0
-    let i: i32 = 0
+    let total = +0
+    let i = +0
     while i < n:
-        let r: i32 = i % 10007
+        r := i % 10007
         total = (total + (r * r) % 10007) % 1000003
         i = i + 1
     total

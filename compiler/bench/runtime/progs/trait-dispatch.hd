@@ -21,8 +21,8 @@ fn apply[S < Step](s: S, x: i32) -> i32:
 fn drive(n: i32) -> i32:
     double := Double { k: 3 }
     add := Add { k: 5 }
-    let x: i32 = 1
-    let i: i32 = 0
+    let x = +1
+    let i = +0
     while i < n:
         x = apply(double, x) % 1000003
         x = apply(add, x) % 1000003

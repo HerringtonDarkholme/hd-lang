@@ -1,5 +1,8 @@
 # Muse Task Queue
 
+> **Paused, 2026-10-08 ~12:45 (owner: "muse is dead").** The
+> orchestrator does these jobs now. If Muse returns, start from the top.
+
 > **Owner, 2026-10-07 night:** Codex died; its open jobs moved here
 > ("try offload work to muse"). Same rules as Codex had: small, checkable
 > jobs; no conformance-fixture coverage jobs; never edit
@@ -127,17 +130,6 @@ an unconstrained `T` reports that code and not `invalid-variance` too.
   breaks, report instead of editing the pass list).
 
 Spec, fixtures and the generated file only. Timebox 30 minutes; push.
-
-### S16. Literal Style In The Q22 Runtime Programs
-
-`compiler/bench/runtime/progs/*.hd` writes `let x: i32 = 0` (16 lines).
-House style (owner): an i32 literal is written `+N`, and `:=` is
-non-reassignable. So `let total: i32 = 0` becomes `let total = +0`
-(it is reassigned); a never-reassigned binding becomes `name := ...`
-(`let r: i32 = i % 10007` becomes `r := i % 10007`); annotate only
-non-i32 widths. Rerun `node compiler/bench/runtime/run.mjs` to confirm
-every hd/JS checksum still matches; numbers needn't be re-reported.
-Timebox 20 minutes; push.
 
 ### D2k. Design Text After The Pool And Solver-Lookup Work
 

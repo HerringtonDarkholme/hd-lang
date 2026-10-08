@@ -1,6 +1,6 @@
 fn total(n: i32) -> i32:
     let items: mut List[i32] = []
-    let i: i32 = 0
+    let i = +0
     while i < n:
         items.push((i * 31 + 7) % 100003)
         i = i + 1

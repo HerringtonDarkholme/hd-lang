@@ -1,14 +1,14 @@
 fn tally(n: i32, buckets: i32) -> i32:
     let counts: mut Map[i32, i32] = {}
-    let i: i32 = 0
+    let i = +0
     while i < n:
-        let key: i32 = (i * 31 + 7) % buckets
+        key := (i * 31 + 7) % buckets
         counts[key] = match counts.get(key):
             .Some(seen) => seen + 1
             .None => 1
         i = i + 1
-    let total: i32 = 0
-    let b: i32 = 0
+    let total = +0
+    let b = +0
     while b < buckets:
         total = total + counts.get_or(b, 0)
         b = b + 1
