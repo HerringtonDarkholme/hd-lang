@@ -327,12 +327,18 @@ impl Cx<'_> {
         let ret = self.env.ret(def).unwrap_or(Ty::VOID);
         // A std function whose body the compiler supplies, though its
         // source has a placeholder body (`race!`'s frame, the categorized
-        // `panic`, `std.rt`'s `entry_write`).
-        if let Some(key) = self
-            .env
-            .intrinsic(def)
-            .filter(|k| matches!(k.as_str(), "task_race_frame" | "panic" | "entry_write"))
-        {
+        // `panic`, `std.rt`'s `entry_write`, the string byte primitives).
+        if let Some(key) = self.env.intrinsic(def).filter(|k| {
+            matches!(
+                k.as_str(),
+                "task_race_frame"
+                    | "panic"
+                    | "entry_write"
+                    | "bytes_len"
+                    | "bytes_at"
+                    | "bytes_slice"
+            )
+        }) {
             return Ok(CallTarget {
                 key: Hash128(0),
                 item: def,

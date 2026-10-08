@@ -420,3 +420,65 @@ fn build_rejects_the_output_flag() {
     assert_eq!(r.code, Some(101));
     assert!(!dir.join("x.wasm").exists());
 }
+
+/// `s[i]` and slices read a string as a view over shared bytes: a slice of
+/// a non-ASCII string indexes from its own start, and an access outside
+/// the view panics with `index-out-of-bounds` at the call site.
+#[test]
+fn string_index_and_slice_on_views() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-str-index");
+    std::fs::create_dir_all(&dir).expect("dir");
+    let file = dir.join("views.hd");
+    std::fs::write(
+        &file,
+        "fn main() -> void $ Console:\n\
+         \x20   s := \"h\u{e9}llo w\u{f6}rld\"\n\
+         \x20   println(\"${s.len()} ${s[0]} ${s[1]}\")\n\
+         \x20   word := s.slice(7, 12)\n\
+         \x20   println(word)\n\
+         \x20   println(\"${word.len()} ${word[0]} ${word[2]}\")\n\
+         \x20   println(word.slice(0, 1))\n\
+         \x20   println(word.slice(1, 3))\n\
+         \x20   let lo: usize = 7\n\
+         \x20   let hi: usize = 10\n\
+         \x20   println(s[lo..hi])\n\
+         \x20   println(s[lo..])\n\
+         \x20   println(word[5])\n",
+    )
+    .expect("write");
+    let output = hd(&cache("hd-cache-str-index"))
+        .arg(&file)
+        .output()
+        .expect("run hd");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "13 104 195\nw\u{f6}rl\n5 119 182\nw\n\u{f6}\nw\u{f6}\nw\u{f6}rld\n"
+    );
+    assert_eq!(output.status.code(), Some(3));
+    let err = String::from_utf8_lossy(&output.stderr);
+    assert!(err.contains("panic: index-out-of-bounds"), "{err}");
+}
+
+/// A slice that is not on scalar boundaries, or is reversed, panics.
+#[test]
+fn string_slice_off_boundary_panics() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-str-slice");
+    std::fs::create_dir_all(&dir).expect("dir");
+    let file = dir.join("bad.hd");
+    std::fs::write(
+        &file,
+        "fn main() -> void $ Console:\n\
+         \x20   s := \"h\u{e9}llo\"\n\
+         \x20   println(s.slice(1, 3))\n\
+         \x20   println(s.slice(2, 3))\n",
+    )
+    .expect("write");
+    let output = hd(&cache("hd-cache-str-slice"))
+        .arg(&file)
+        .output()
+        .expect("run hd");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "\u{e9}\n");
+    assert_eq!(output.status.code(), Some(3));
+    let err = String::from_utf8_lossy(&output.stderr);
+    assert!(err.contains("panic: index-out-of-bounds"), "{err}");
+}

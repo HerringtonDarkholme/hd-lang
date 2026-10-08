@@ -1483,6 +1483,15 @@ impl Em<'_> {
                 let _ = ty;
                 self.store_from(i, &result)
             }
+            "bytes_len" => {
+                let (_, span) = self.str_view(args[0])?;
+                self.a.get(span);
+                self.a.i64(32);
+                self.a.s().i64_shr_u().i32_wrap_i64();
+                self.store(i)
+            }
+            "bytes_at" => self.str_at(i, args[0], args[1]),
+            "bytes_slice" => self.str_slice(i, args[0], args[1], args[2]),
             "task_race_frame" => {
                 let Shape::Suspend { base, poll, result } = self.lay.shape(ty)? else {
                     return unsupported("a `race!` frame of a type that is not a suspension");
@@ -1758,6 +1767,7 @@ impl Em<'_> {
             }
             IntrinsicOp::ListIter => self.list_iter(i, args[0], ty),
             IntrinsicOp::StrConcat => self.concat(i, &args),
+            IntrinsicOp::StrIndex => self.str_at(i, args[0], args[1]),
             IntrinsicOp::StrEq => {
                 let sv = [VT::r(WTy::Bytes), VT::I64];
                 self.load_as(args[0], &sv)?;
@@ -1773,6 +1783,77 @@ impl Em<'_> {
     }
 
     /// `i < len` or the `index-out-of-bounds` panic.
+    /// A string's array and span in fresh locals.
+    fn str_view(&mut self, r: u32) -> StageResult<(u32, u32)> {
+        let sv = [VT::r(WTy::Bytes), VT::I64];
+        let (b, s) = (self.a.local(sv[0].clone()), self.a.local(VT::I64));
+        self.load_as(r, &sv)?;
+        self.a.set(s);
+        self.a.set(b);
+        Ok((b, s))
+    }
+
+    /// Pushes the `len` field of the span in local `s`.
+    fn span_len(&mut self, s: u32) {
+        self.a.get(s);
+        self.a.i64(32);
+        self.a.s().i64_shr_u().i32_wrap_i64();
+    }
+
+    /// `s[i]` (`StrIndex`, `bytes_at`): `i < len`, then `bytes[start + i]`.
+    /// The array may be longer than the view, so the engine's own bounds
+    /// check is not enough.
+    fn str_at(&mut self, i: u32, text: u32, index: u32) -> StageResult<()> {
+        let (b, s) = self.str_view(text)?;
+        let ix = self.a.local(VT::I32);
+        self.comp(index, 0, &VT::I32)?;
+        self.a.set(ix);
+        self.a.get(ix);
+        self.span_len(s);
+        self.a.s().i32_ge_u();
+        self.a.if_();
+        self.panic("index-out-of-bounds: string index out of bounds");
+        self.a.end();
+        self.a.get(b);
+        self.a.get(s);
+        self.a.s().i32_wrap_i64();
+        self.a.get(ix);
+        self.a.s().i32_add();
+        self.a.array_get(&WTy::Bytes);
+        self.store(i)
+    }
+
+    /// `bytes_slice(text, start, end)`: `start <= end <= len`, then a new
+    /// span over the same array; nothing is allocated or copied.
+    fn str_slice(&mut self, i: u32, text: u32, start: u32, end: u32) -> StageResult<()> {
+        let (b, s) = self.str_view(text)?;
+        let (lo, hi) = (self.a.local(VT::I32), self.a.local(VT::I32));
+        self.comp(start, 0, &VT::I32)?;
+        self.a.set(lo);
+        self.comp(end, 0, &VT::I32)?;
+        self.a.set(hi);
+        self.a.get(lo);
+        self.a.get(hi);
+        self.a.s().i32_gt_u();
+        self.a.get(hi);
+        self.span_len(s);
+        self.a.s().i32_gt_u().i32_or();
+        self.a.if_();
+        self.panic("index-out-of-bounds: string slice out of bounds");
+        self.a.end();
+        self.a.get(b);
+        self.a.get(hi);
+        self.a.get(lo);
+        self.a.s().i32_sub().i64_extend_i32_u();
+        self.a.i64(32);
+        self.a.s().i64_shl();
+        self.a.get(s);
+        self.a.s().i32_wrap_i64();
+        self.a.get(lo);
+        self.a.s().i32_add().i64_extend_i32_u().i64_or();
+        self.store(i)
+    }
+
     fn bounds(&mut self, l: u32, lt: &WTy, ix: u32) {
         self.a.get(ix);
         self.a.get(l);
