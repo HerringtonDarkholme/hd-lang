@@ -118,6 +118,58 @@ where `spec/conformance/cli-cases.tsv` has none for a rule. The
 orchestrator's M4c agent is implementing `hd test` now: describe the
 format, don't change compiler code. Timebox 45 minutes; push.
 
+### D2g. Reconcile M4c (Phase 1 Complete)
+
+M4c landed (4c4b3b92): `hd test` runs `tests:` blocks end to end; shared
+enum data initializes with its module; `"$x"` of a top-level binding;
+`for` over ranges; `main` returning `.Err` exits 1. Phase 1 ("make it
+move") is complete. Run D2 for it, and record (citing "M4c gap n") with
+the intended rule:
+
+1. `use` lines inside a `tests:` block join the whole module's scope
+   (the spec does not allow it): say how the checker scopes them.
+2. A build error in one module's tests fails all of `hd test`; §19.1
+   wants per-root isolation (drop only the roots that reach the error),
+   which Collect and Emit do not support.
+3. Test cases are synthesized items (`module.$test<i>`) stored in a
+   test-role check entry, not a separate `TestOverlay` stage or entry:
+   record or correct in scheduler.md and cache.md.
+4. The case list passes from driver to CLI directly; §19.2 puts it in
+   the `hd.runtime` section.
+5. Panic categories are parsed from the stderr report, not read from
+   instance globals (§15.5).
+6. `std.rt` is a new compiler-supplied virtual module (like `std.core`)
+   for entry reports: name it in codegen.md and std-bootstrap.md.
+7. `dyn Error` does not satisfy `Display` in the solver; a `dyn Error`
+   value cannot be emitted (recursive vtable type); `for` over a map
+   (`MapIter`) and `Debug` for `string` (mutable captures, `StrIndex`)
+   are not emitted. Add to the backlog with their phase-2 job.
+8. Also mark phase 1 complete in `footprint.md` and the README's status
+   line.
+
+Docs only; timebox 45 minutes; push.
+
+### S7. Spec: `use` Lines Inside `tests:` Blocks
+
+Check `spec/lang/10-modules.md` (and 14-annotations if `tests:` lives
+there) for how a `use` line inside a `tests:` block is scoped: visible
+only to that block's cases, or to the module; shadowing against the
+module's own names; whether it may name test-only dependencies. If the
+spec is silent or ambiguous, write numbered rules with IDs per
+`spec/STYLE.md`, an example each, consistent with the TS prototype when
+it has settled behaviour (flag real conflicts in the commit message).
+One type-phase fixture per new rule. Timebox 30 minutes; push.
+
+### T4. Conformance Triage For Phase 2
+
+From `compiler/CONFORMANCE.md` (Q18) at the current main, map every
+failure bucket (first diagnostic code or `unsupported` stage) to the
+`future-work/compiler/phase2-jobs.md` job that fixes it (P2-1 to
+P2-10), with the number of cases each bucket holds. Write the result as
+a table at the top of `phase2-jobs.md` and reorder the jobs by cases
+unblocked per estimated job size, respecting dependencies. Docs only.
+Timebox 30 minutes; push.
+
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
