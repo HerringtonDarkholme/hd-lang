@@ -116,6 +116,50 @@ the fixtures it found contradicting the spec:
 Docs and fixtures only; `bash spec/check.sh` and `cargo test -p
 hd_syntax --test corpus` green. Timebox 45 minutes; push.
 
+### S11b. Terminology Sweep, Redone With Evidence (Owner, Next)
+
+S11 kept all 186 terms with "ordinary English" / "standard vocabulary"
+verdicts and no evidence, including `ghost entry`, `law partners`,
+`draw budget`, `coherence slot`, `take part`, `fits`. That is not the
+sweep the owner asked for ("don't invent unnecessary new words"). Redo
+`future-work/spec-terms.md` with a stricter test:
+
+- **keep** only with evidence: name the language or source and the page
+  where the term means the same thing (Rust reference, Go spec, Swift
+  book, Kotlin docs, Haskell report, TAPL, QuickCheck docs, ...), or it
+  is a keyword hd spells, or plain English used in its everyday sense
+  (say which sense). One short citation per row.
+- **replace** every term that fails that test and has a plain phrase or
+  established term; give the replacement and apply it (spec text, rule
+  IDs with retirements, citations via `pnpm run spec refs`, fixtures,
+  guide, lib/std doc comments) in commits grouped by chapter.
+- **owner** only for a real hd-only concept with no existing word: one
+  plain alternative each; list them at the top of the file.
+- Expect real replacements: a sweep that replaces nothing has not looked.
+
+`bash spec/check.sh` green after each commit. Timebox 75 minutes; push.
+
+### S12. Glossary Hygiene
+
+`spec/README.md` and `spec/std/README.md` glossaries: merge duplicate
+entries (S11 found `same compiled program` / `the same compiled
+program`), make every glossary entry link to its defining rule, and drop
+entries for terms no spec text still uses (`pnpm run spec glossary` and
+a grep). Add a `spec/check.sh` step if `spec glossary` can detect
+duplicates and dangling entries cheaply. Timebox 30 minutes; push.
+
+### Q21. Writing-Log Audit: Diagnostics Worth Improving
+
+`audit/hd-writing-log.md` has rows from Haiku and Sonnet sessions with
+the compiler's verbatim message and whether it helped (yes / partly /
+no). For every "no" and "partly" row, check what the **new** Rust
+compiler says today for the same mistake (write the one-line repro, run
+`compiler/target/release/hd FILE.hd`), and write
+`audit/compiler/diagnostics-from-log.md`: mistake, old message, new
+message, helped now?, the spec rule, and a proposed better message (one
+line). Rank by how often the mistake appears. Report only; don't edit
+the compiler. Timebox 45 minutes; push.
+
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
