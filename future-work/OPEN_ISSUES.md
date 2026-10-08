@@ -91,7 +91,6 @@ parts wait:
 | Question | State |
 | --- | --- |
 | Per-format overriding | Deferred by the owner. The plan below needs no new mechanism. |
-| Boundary encoding through the consent | A consented value crosses a host boundary as its field tree ([`module.boundary.consent.tree`](../spec/lang/10-modules.md#r-module.boundary.consent.tree)). So a hand-written consent, as `Duration`'s one `int`, changes JSON but not the boundary. Whether the boundary should encode through `serialize` and `deserialize` is open. |
 | Schemas | Which consent carries a `describe` for schemas, and the data model a schema describer reads. |
 | More standard consents | Tuples, `Result`, `Set`, and maps whose keys are not `string` have no standard implementation yet. |
 
