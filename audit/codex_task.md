@@ -83,79 +83,9 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### S7. Spec: `use` Lines Inside `tests:` Blocks
-
-Check `spec/lang/10-modules.md` (and 14-annotations if `tests:` lives
-there) for how a `use` line inside a `tests:` block is scoped: visible
-only to that block's cases, or to the module; shadowing against the
-module's own names; whether it may name test-only dependencies. If the
-spec is silent or ambiguous, write numbered rules with IDs per
-`spec/STYLE.md`, an example each, consistent with the TS prototype when
-it has settled behaviour (flag real conflicts in the commit message).
-One type-phase fixture per new rule. Timebox 30 minutes; push.
-
-### T4. Conformance Triage For Phase 2
-
-From `compiler/CONFORMANCE.md` (Q18) at the current main, map every
-failure bucket (first diagnostic code or `unsupported` stage) to the
-`future-work/compiler/phase2-jobs.md` job that fixes it (P2-1 to
-P2-10), with the number of cases each bucket holds. Write the result as
-a table at the top of `phase2-jobs.md` and reorder the jobs by cases
-unblocked per estimated job size, respecting dependencies. Docs only.
-Timebox 30 minutes; push.
-
-### P2. Side-By-Side: TS Prototype Versus New Compiler
-
-The owner wants a real comparison, not separate numbers. Under
-`compiler/bench/compare/`, a rerunnable script that runs the same inputs
-through both compilers on an idle machine (report the load), 5 runs
-each, p50 and p95:
-
-- `hd check`, `hd build`, `hd run` on `tiny`, `calc.hd` (the baseline's
-  programs, `audit/compiler/baseline-2026-10-06.md` §6.3) and your
-  `compiler/bench/` programs, cold and warm cache;
-- `hd test` on a file with 1, 30 and 300 cases (cases the new compiler
-  supports), per-case time and total;
-- the startup cost alone (`hd --version` or the nearest no-op).
-
-The TS prototype is `pnpm` + `node` from the repo (`src/`); the new one
-is `compiler/target/release/hd`. Note what each compiler skips (the new
-one still reports `unsupported` for some features; pick inputs both
-accept). Write `audit/compiler/compare-<short hash>.md`: tables, then
-three lines of conclusion. Report only. Timebox 45 minutes; push.
-
-### D2. Reconcile After Each Orchestrator Milestone (Standing)
-
-Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
-rerun the reconciliation of `future-work/compiler/reconciliation.md`
-against the new code: update its top-10 and table (mark fixed rows
-fixed, add new gaps), apply design-doc corrections the code proves
-right, and update `footprint.md` counts. Docs only. Timebox 45 minutes
-per milestone; push.
-
-### P1. Profile The New Compiler (After S4; Standing Job)
-
-Owner, 2026-10-07: "you write the code, codex do the profiling. move
-fast". The orchestrator writes `compiler/crates/*`; you measure it.
-
-- Each time a new compiler commit lands on main (`git log -- compiler/`),
-  profile it: `hd run` / `hd build` on the samples and on the generated
-  bench (`cargo run --release -p hd_driver --example bench N`) at 3,000 and
-  30,000 lines, cold, warm, body edit, signature edit, comment edit.
-  Use `samply` or `cargo flamegraph` if installed, else `perf`-style
-  timers already in the driver's counters.
-- Write `audit/compiler/profile-<date>-<short hash>.md`: per-stage time,
-  the top 10 hot functions with their share, allocations if measurable,
-  and for each hotspot one line: **implementation slip** (name the fix)
-  or **architecture issue** (name the design section). Compare with the
-  previous report.
-- Only flag what is atrociously bad (order-of-magnitude, superlinear,
-  or a stage that dominates for no design reason). Perf is eyeballed,
-  not gated, and micro-tuning is out of scope.
-- You may add benchmark inputs or a harness under `compiler/bench/`
-  (new directory). Never edit `compiler/crates/`; the orchestrator
-  applies fixes from your report.
-- Push each report within 30 minutes of starting it.
+Paused (2026-10-07 night: Codex died). The open jobs moved to
+`audit/muse_task.md`. When Codex is back, the orchestrator refills this
+queue.
 
 ## Questions
 
