@@ -179,6 +179,74 @@ fast". The orchestrator writes `compiler/crates/*`; you measure it.
   applies fixes from your report.
 - Push each report within 30 minutes of starting it.
 
+### T2. Test: Every KnownItems Field Names A Real Std Item (#69)
+
+`compiler/crates/hd_resolve/src/known.rs` resolves `KnownItems` once per
+run: the std items the compiler recognises (`eq`, `hash`, `walker`, …).
+A std rename leaves a field at `DefId::NONE` and silently turns its
+check off. Add one test file, `compiler/crates/hd_resolve/tests/known_items.rs`
+(this job lifts the `compiler/crates/` rule for that new file only; no
+product-code edits): build std through the public API the existing
+tests use, then assert every field is set, naming the field on failure.
+If a field is optional by design (say why in a comment you find in
+`known.rs`), list it explicitly as exempt. Checks: `cargo fmt --check`,
+clippy `-D warnings`, the full `cargo test -q --release --workspace`.
+If the test finds an unset field today, don't fix `known.rs`: mark it
+exempt with a `// BUG:` line and report it in the commit message. One
+commit; push. Timebox 40 minutes.
+
+### D2n. Design Text For The Derivation Instance Check (#17a, #17d)
+
+Two commits landed: `2f8cf104` (the instantiated-template check at
+each derivation opt-in: `member-not-derivable`) and the
+`derive-field-missing-trait` commit after it (comparison traits report
+at the field; derived newtypes get an implementation head; the base
+type is checked through the solver; derived implementations repeat
+their type's anchor slots). Read both diffs and write what they do into
+the design text where derivation checking belongs (find it in
+`future-work/compiler/checking-and-tir.md` or
+`resolution-and-interfaces.md`): the walker/describer/source record, the
+finish-time obligation pass, the driver's re-check of template methods
+with a scratch buffer, the cache-key widening for template modules, the
+one-error-per-field rule, and the open gaps (derivation blocks report at
+the block header; derived newtype methods have no bodies yet, #117).
+Mark any matching `reconciliation.md` row. Docs only; one commit; push.
+Timebox 40 minutes.
+
+### Y2. Proposal: The Intrinsic A Single-Pass `join` Needs (#112)
+
+Owner decision: string appends get a builder now, a rope in phase 3.
+`lib/std/text.hd` `join` is O(n log n) by halves, and `StringBuilder`
+stores parts and calls `join`. Single-pass needs one primitive that
+hd cannot write today. Propose the smallest one, with its signature as
+a plain hd declaration (only the body is special; see
+`@intrinsic("bytes_len")` in `text.hd`), e.g. a total-length
+allocation plus a byte copy, or one `concat` over a list. For each
+candidate: the hd code of `join` and `StringBuilder.build` on top of
+it, the Wasm the emitter would produce (GC arrays, `array.copy`), its
+cost (allocations, copies per byte), and what the spec must name
+(intrinsics are spec-named). Recommend one. Add it as a section to
+`future-work/compiler/representation-runtime.md` beside the owner's
+decision. Research only: no lib, spec or compiler edits. One commit;
+push. Timebox 40 minutes.
+
+### Y3. Design Note: Derived Newtype Methods In Codegen (#117)
+
+`@derive` on a newtype now has an implementation head, and no method
+bodies: five `runtime/valid` fixtures stop at the Collect stage
+(`derived-newtype`, `derived-debug-newtype`, `serde-std-writes`,
+`json-typed-members`, `derive-members-of-data-and-enums`). Spec 09
+`trait.derive.newtype.*` says the method applies the base type's method
+to the wrapped values and rewraps the allowed `Self` positions. Read
+`future-work/compiler/codegen.md` and the newtype representation (is a
+newtype erased to its base at runtime?) and write a short design note:
+where the bodies come from (a generated adapter per instance, or the
+base implementation reused directly when the representation is the
+same), which crate makes them (mono or emit), how `Self?`,
+`Result[Self, E]` and `List[Self]` positions are rewrapped, and the
+code-size cost per derived newtype. Add it to `codegen.md`. Research
+only; one commit; push. Timebox 40 minutes.
+
 ## Questions
 
 (none)
