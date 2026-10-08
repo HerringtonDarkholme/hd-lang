@@ -128,6 +128,9 @@ their shared boundary, not duplicate implementations.
 | `MapIter` and string `Debug` still stop emission; the latter needs mutable captures and `StrIndex`. | codegen.md §12.2, §12.5; suspension.md §14.1 | 2 — work | M | P2-6 and P2-7 |
 | Shared captures and suspending closure values are not emitted. | codegen.md §12.2; suspension.md §14.1–§14.3 | 2 — work | L | P2-7 |
 | Recursive type layouts still stop emission. | representation-runtime.md §§2–6; wasm-layout.md §15.2 | 2 — work | M | P2-6 |
+| `hd run FILE` must be an error (`cli.run.file`), but the new CLI still accepts `hd run FILE\|DIR` and `hd build FILE\|DIR -o` (owner task 10; `d91db19e`/`a5027712` cemented the FILE form; see `cli-forms.md` Findings). | commands.md §7.5, §20.2 | 2 — work | S | P2-10 |
+| Emit-stage `unsupported` sites have no span: only checker stages set `NotImplemented::at`, so emit/layout declines still report the byte-zero sentinel. | data-structures.md §3.8; codegen.md §12 | 2 — work | S | P2-6 |
+| Entry-row inference scans only direct item calls: `init_keys` reads `Tag::Call` with `Callee::Item`, so indirect or dynamic calls contribute no provider rows. | codegen.md §12.4 | 2 — work | S | P2-8 |
 | Emission has no designed verifier assertions for substituted types, selections, suspension cases, and relocations. | codegen.md §12.7 | 2 — work | M | P2-6 |
 | Wasm locals are retained per value instead of reusing dead single-use slots. | codegen.md §12.1 | 3 — wonderful | M | none: add a phase-3 emitter-allocation job |
 | Scalar erasure always boxes, reference locals default nullable, and coercions allocate vtables repeatedly. | wasm-layout.md §15.1–§15.3 | 3 — wonderful | L | none: add a phase-3 representation job |

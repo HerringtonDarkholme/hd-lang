@@ -90,22 +90,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### D2h. Reconcile P2-1a And The Haiku Fixes
-
-Landed: P2-1a (44ccaf3f, runner and checker breadth), f92730d4 (pattern
-type errors skip the refutability cascade), d91db19e (scripts run:
-`Roots::Script`, `script_entry`, entry rows inferred from the init's
-calls), a5027712 (a FILE with no `hd.toml` above is a one-file program),
-dc19fda8 / 60f37949 (`NotImplemented` carries a span; innermost wins).
-Record in the owning docs (citing the commit): the script entry design
-(codegen.md, commands.md); the single-file source rule (commands.md);
-the span on structured errors (data-structures.md, the error type). Add
-to the backlog: `hd run FILE` must be an error (`cli.run.file`) — the
-new CLI still accepts `hd run FILE|DIR` and `hd build FILE|DIR -o`
-(owner's task 10; see `cli-forms.md`); emit-stage `unsupported` sites
-have no span; entry-row inference scans only direct item calls. Docs
-only; timebox 30 minutes; push.
-
 ### S8. Spec: Where `req.row.alias.no-mut` Is Detected
 
 T2 retagged `typing/invalid/row-alias-mut-key.hd` as a parse-phase

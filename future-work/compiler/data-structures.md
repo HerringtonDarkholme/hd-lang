@@ -570,6 +570,14 @@ output by `--max-errors`, not in storage, so summary counts stay exact.
 takes exactly the template's typed arguments, so a missing or
 mistyped argument does not compile.
 
+**Structured `NotImplemented` carries an optional span** (`dc19fda8`,
+`60f37949`). `hd_base::unsupported::NotImplemented` has
+`span: Option<Span>`; `.at(span)` sets it only when none is set, so the
+innermost node that knows its position wins as the error unwinds, and
+the driver falls back to the sentinel span when no stage knew the
+position. Checker stages set it at the construct; emit-stage sites do
+not yet (see the backlog).
+
 ### 3.9 Data-Oriented Encoding
 
 Added with D2, after the owner asked whether this design is truly

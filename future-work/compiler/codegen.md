@@ -593,6 +593,7 @@ through `dyn` (§13.5).
 | --- | --- |
 | executable or task (`hd run`, `hd build`) | the entry wrapper of `main` or `main!` (§16.2), and the init function of every group the entry module reaches |
 | `hd build FILE` | the same, for FILE's module |
+| script: an entry module with top-level statements and no `main` (`d91db19e`) | the module init (`Roots::Script`); its entry row (`module.init.script-row`) is inferred from the init's direct item calls, and `hd_wasm::script_entry` emits it |
 | unit test program (one per package) | one `TestCase` body per registration and per doc test, in every module of the package, and one init export per module with tests, which runs that module's reachable init groups |
 | integration test program (one file) | its `TestCase` bodies, and its reachable init groups |
 | REPL input | the input's top-level statements as an init body (§20.5) |

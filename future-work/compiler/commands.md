@@ -127,6 +127,12 @@ that reached them changes.
   `--release`.
 - **A library-only package** (owner, 2026-10-07): `hd build` checks it and
   writes only its interface and cache entries. It writes no `.wasm` file.
+- **A script** (`d91db19e`): an entry module with top-level statements and
+  no `main` runs its module initialization as the whole entry behavior
+  (`Roots::Script`, emitted by `hd_wasm::script_entry`).
+- **A FILE with no `hd.toml` above it is a one-file program**
+  (`a5027712`, [`cli.file.run`](../../spec/cli/command-line.md#r-cli.file.run)):
+  only FILE is its source, not its siblings.
 
 §20.2 to §20.4 continue these flows.
 
