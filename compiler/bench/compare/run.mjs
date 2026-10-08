@@ -149,20 +149,18 @@ function main() {
     });
     ts(["build"], dir);
     const tsWarm = measure(() => ts(["build"], dir));
-    const outCold = join(workRoot, `build-${name}-cold.wasm`);
     const nwCold = measure((i) => {
       const cache = join(workRoot, `cache-build-${name}-cold-${i}`);
       rmSync(cache, { recursive: true, force: true });
       mkdirSync(cache, { recursive: true });
-      rmSync(outCold, { force: true });
-      return nw(["build", "src/main.hd", "-o", outCold], dir, cache);
+      rmSync(join(dir, "build"), { recursive: true, force: true });
+      return nw(["build"], dir, cache);
     });
     const nwCache = join(workRoot, `cache-build-${name}-warm`);
     rmSync(nwCache, { recursive: true, force: true });
     mkdirSync(nwCache, { recursive: true });
-    const outWarm = join(workRoot, `build-${name}-warm.wasm`);
-    nw(["build", "src/main.hd", "-o", outWarm], dir, nwCache);
-    const nwWarm = measure(() => nw(["build", "src/main.hd", "-o", outWarm], dir, nwCache));
+    nw(["build"], dir, nwCache);
+    const nwWarm = measure(() => nw(["build"], dir, nwCache));
     console.log(`| ${name} | ${row(tsCold)} | ${row(tsWarm)} | ${row(nwCold)} | ${row(nwWarm)} |`);
   }
   {
@@ -178,7 +176,7 @@ function main() {
   console.log(``);
 
   // Run.
-  console.log(`## hd run (bare FILE; same sources)\n`);
+  console.log(`## hd run (`hd FILE`; same sources)\n`);
   console.log(`| Input | TS cold | TS warm | new cold | new warm |`);
   console.log(`| --- | ---: | ---: | ---: | ---: |`);
   for (const [name, src] of [
@@ -196,13 +194,13 @@ function main() {
       const cache = join(workRoot, `cache-run-${name}-cold-${i}`);
       rmSync(cache, { recursive: true, force: true });
       mkdirSync(cache, { recursive: true });
-      return nw(["run", "src/main.hd"], dir, cache);
+      return nw(["src/main.hd"], dir, cache);
     });
     const nwCache = join(workRoot, `cache-run-${name}-warm`);
     rmSync(nwCache, { recursive: true, force: true });
     mkdirSync(nwCache, { recursive: true });
-    nw(["run", "src/main.hd"], dir, nwCache);
-    const nwWarm = measure(() => nw(["run", "src/main.hd"], dir, nwCache));
+    nw(["src/main.hd"], dir, nwCache);
+    const nwWarm = measure(() => nw(["src/main.hd"], dir, nwCache));
     const ok = tsCold.last.out.trim() === nwCold.last.out.trim() ? "same stdout" : "STDOUT DIFFERS";
     console.log(
       `| ${name} | ${row(tsCold)} | ${row(tsWarm)} | ${row(nwCold)} | ${row(nwWarm)} | ${ok} |`,
@@ -248,7 +246,7 @@ function main() {
     const t = ts(["check", "src/main.hd"], dir);
     const c = join(workRoot, "cache-skip");
     mkdirSync(c, { recursive: true });
-    const n = nw(["run", "src/main.hd"], dir, c);
+    const n = nw(["src/main.hd"], dir, c);
     console.log(
       `- \`${f}\`: TS check exit ${t.ok ? 0 : 101} (${t.out.split("\n")[0].slice(0, 120)}); new run ${n.ok ? "exit 0" : "fails"} (${n.out.split("\n")[0].slice(0, 120)})`,
     );
@@ -257,7 +255,7 @@ function main() {
     const dir = mkpkg("skip-calc-new", calcSrc);
     const c = join(workRoot, "cache-skip");
     mkdirSync(c, { recursive: true });
-    const n = nw(["run", "src/main.hd"], dir, c);
+    const n = nw(["src/main.hd"], dir, c);
     console.log(
       `- \`examples/dogfood/calc.hd\` on new: fails (${n.out.split("\n")[0].slice(0, 160)})`,
     );

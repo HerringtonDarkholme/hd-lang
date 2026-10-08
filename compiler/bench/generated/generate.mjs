@@ -48,4 +48,7 @@ for (const [relativePath, lines] of sources) {
     await writeFile(path, `${lines.join("\n")}\n`)
 }
 
+// A package, so that `hd run` works on it.
+await writeFile(resolve(root, "hd.toml"), '[package]\nname = "generated"\nversion = "0.1.0"\n')
+
 console.log(`generated 10000 lines (${functionIndex} worker functions) in ${root}`)

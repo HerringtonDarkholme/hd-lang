@@ -4,7 +4,7 @@ These programs exercise the current compiler subset with inputs larger and
 more varied than `compiler/samples/`. Run a checked-in case from `compiler/`:
 
 ```sh
-cargo run --release -p hd_cli -- run bench/tokenizer
+cargo run --release -p hd_cli -- bench/tokenizer/main.hd
 ```
 
 Compare its stdout with the adjacent `expected.out`. The hand-written cases
@@ -20,7 +20,7 @@ nested folders, then run it:
 
 ```sh
 node bench/generated/generate.mjs
-cargo run --release -p hd_cli -- run bench/generated/out/package
+(cd bench/generated/out/package && cargo run --release --manifest-path ../../../../Cargo.toml -p hd_cli -- run)
 ```
 
 Generated sources live under `generated/out/` and are intentionally ignored.

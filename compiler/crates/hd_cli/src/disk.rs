@@ -87,16 +87,19 @@ pub fn package_root(start: &Path) -> Option<PathBuf> {
         .map(Path::to_path_buf)
 }
 
+/// The package name of a root directory: from its `hd.toml`.
+pub fn package_name(root: &Path) -> Result<String, String> {
+    match std::fs::read_to_string(root.join("hd.toml")) {
+        Ok(text) => Ok(parse_manifest(&text)
+            .map_err(|e| format!("hd.toml: {e}"))?
+            .name),
+        Err(_) => Ok(default_name(root)),
+    }
+}
+
 /// The sources and the package name of a root directory.
 pub fn sources_of(root: &Path) -> Result<(DiskSources, String), String> {
-    let package = match std::fs::read_to_string(root.join("hd.toml")) {
-        Ok(text) => {
-            parse_manifest(&text)
-                .map_err(|e| format!("hd.toml: {e}"))?
-                .name
-        }
-        Err(_) => default_name(root),
-    };
+    let package = package_name(root)?;
     let mut files = Vec::new();
     walk(root, root, &mut files)?;
     Ok((
@@ -108,82 +111,101 @@ pub fn sources_of(root: &Path) -> Result<(DiskSources, String), String> {
     ))
 }
 
-/// Finds the package root, its name and the entry module of a target.
-pub fn load(target: &Path) -> Result<Program, String> {
-    let (root, entry_file) = if target.is_dir() {
-        (target.to_path_buf(), None)
-    } else {
-        if target.extension().is_none_or(|x| x != "hd") {
-            return Err(format!("{}: not an .hd file", target.display()));
-        }
-        let root = target
-            .parent()
-            .filter(|p| !p.as_os_str().is_empty())
-            .unwrap_or(Path::new("."));
-        let name = target
-            .file_name()
-            .ok_or("not a file")?
-            .to_string_lossy()
-            .into_owned();
-        (root.to_path_buf(), Some(name))
-    };
-    let package = match std::fs::read_to_string(root.join("hd.toml")) {
-        Ok(text) => {
-            parse_manifest(&text)
-                .map_err(|e| format!("hd.toml: {e}"))?
-                .name
-        }
-        Err(_) => default_name(&root),
-    };
-    // A FILE with no `hd.toml` above it is a one-file program (cli.file.run):
-    // only FILE is its source, not its siblings.
-    let mut files = Vec::new();
-    match &entry_file {
-        Some(name) if package_root(&root).is_none() => {
-            let size = std::fs::metadata(target).map_or(0, |m| m.len());
-            files.push(SourceEntry {
-                path: name.clone(),
-                size,
-            });
-        }
-        _ => walk(&root, &root, &mut files)?,
+/// The entry module path of a package-relative file: `src/main.hd` is
+/// `src.main`.
+fn module_of(rel: &str) -> String {
+    rel.trim_end_matches(".hd").replace('/', ".")
+}
+
+/// A single-file program, or a module of the package that holds FILE:
+/// without an `hd.toml` above FILE, only FILE is a source (`cli.file.run`).
+pub fn load_file(target: &Path) -> Result<Program, String> {
+    if target.extension().is_none_or(|x| x != "hd") {
+        return Err(format!("{}: not an .hd file", target.display()));
     }
-    let sources = DiskSources {
-        root: root.clone(),
-        files,
-    };
-    let entry_file = match entry_file {
-        Some(f) => f,
-        None if sources.files.iter().any(|s| s.path == "main.hd") => "main.hd".to_owned(),
-        None => {
-            let mains: Vec<&SourceEntry> = sources
-                .files
-                .iter()
-                .filter(|s| !s.path.contains('/'))
-                .filter(|s| {
-                    sources.read(&s.path).is_some_and(|b| {
-                        String::from_utf8_lossy(&b)
-                            .lines()
-                            .any(|l| l.starts_with("fn main("))
-                    })
-                })
-                .collect();
-            match mains.as_slice() {
-                [one] => one.path.clone(),
-                [] => return Err(format!("{}: no file defines `fn main`", root.display())),
-                _ => {
-                    return Err(format!(
-                        "{}: several files define `fn main`",
-                        root.display()
-                    ));
-                }
-            }
-        }
-    };
-    let entry = entry_file.trim_end_matches(".hd").replace('/', ".");
+    let root = target
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let name = target
+        .file_name()
+        .ok_or("not a file")?
+        .to_string_lossy()
+        .into_owned();
+    let package = package_name(root)?;
+    let mut files = Vec::new();
+    if package_root(root).is_none() {
+        let size = std::fs::metadata(target).map_or(0, |m| m.len());
+        files.push(SourceEntry {
+            path: name.clone(),
+            size,
+        });
+    } else {
+        walk(root, root, &mut files)?;
+    }
+    Ok(Program {
+        sources: DiskSources {
+            root: root.to_path_buf(),
+            files,
+        },
+        package,
+        entry: module_of(&name),
+    })
+}
+
+/// The whole package at `root`, with the package-relative file `entry` as
+/// its entry module.
+pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
+    let (sources, package) = sources_of(root)?;
     Ok(Program {
         sources,
         package,
-        entry,
+        entry: module_of(entry),
     })
+}
+
+/// What `hd run NAME` can run: its name and the package-relative file of
+/// its entry module.
+pub struct Runnable {
+    pub name: String,
+    pub file: String,
+    pub is_task: bool,
+}
+
+/// The package's executables: the default one, `src/main.hd` (or `main.hd`
+/// at the package directory), named after the package (`cli.exe.default-main`,
+/// `cli.exe.default-name`). `[[executable]]` tables are not read yet.
+pub fn executables(root: &Path, package: &str) -> Vec<Runnable> {
+    ["src/main.hd", "main.hd"]
+        .iter()
+        .find(|f| root.join(f).is_file())
+        .map(|f| Runnable {
+            name: package.to_owned(),
+            file: (*f).to_owned(),
+            is_task: false,
+        })
+        .into_iter()
+        .collect()
+}
+
+/// The package's tasks: each file `tasks/NAME.hd` (`cli.task.file`).
+pub fn tasks(root: &Path) -> Vec<Runnable> {
+    let Ok(entries) = std::fs::read_dir(root.join("tasks")) else {
+        return Vec::new();
+    };
+    let mut out: Vec<Runnable> = entries
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_file() && p.extension().is_some_and(|x| x == "hd"))
+        .filter_map(|p| {
+            let stem = p.file_stem()?.to_string_lossy().into_owned();
+            Some(Runnable {
+                file: format!("tasks/{stem}.hd"),
+                name: stem,
+                is_task: true,
+            })
+        })
+        .collect();
+    out.sort_by(|a, b| a.name.cmp(&b.name));
+    out
 }

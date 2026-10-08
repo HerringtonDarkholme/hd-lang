@@ -86,19 +86,26 @@ the later test-runner pipeline.
 
 ## Build And Run
 
-Build the native binary once, then use it in the three forms implemented at
-this commit:
+Build the native binary once, then use the forms implemented at this
+commit. `hd FILE.hd` runs one file. `hd run [NAME]` and `hd build [FILE.hd]`
+work on the package whose `hd.toml` is at or above the working directory:
 
 ```sh
 cargo build -p hd_cli
-./target/debug/hd run samples/hello
-./target/debug/hd build samples/hello -o /private/tmp/hello.wasm
 ./target/debug/hd samples/hello/hello.hd
+(cd samples/fib && ../../target/debug/hd run)
+(cd samples/fib && ../../target/debug/hd build)
 ```
 
-`run` and the bare-file form compile and execute with Node/V8. `build` writes
-the linked Wasm module without running it. A target can be one `.hd` file or a
-package directory; `build` requires `-o OUT.wasm`.
+`hd FILE.hd` and `hd run` compile and execute with Node/V8. `hd run` runs the
+package's one executable (`src/main.hd`, or `main.hd` in the package
+directory), and `hd run NAME` runs the executable or the task `tasks/NAME.hd`
+that NAME names; `hd run FILE` is an error. `hd build` writes each executable
+to `build/debug/NAME.wasm` (`build/release/` with `--release`), and
+`hd build FILE.hd` writes `build/debug/files/STEM.wasm`. Outside a package,
+`hd run` and `hd build` are errors that suggest `hd new`. Every rejected
+command line exits with status 101. `--release` is accepted but selects only
+the output directory; there is no separate release pipeline yet.
 
 ## Inspection Examples
 
@@ -175,7 +182,7 @@ that `obj` directory. For disposable development runs, make the target
 unambiguous:
 
 ```sh
-HD_CACHE=/private/tmp/hd-cache ./target/debug/hd run samples/hello
+HD_CACHE=/private/tmp/hd-cache ./target/debug/hd samples/hello/hello.hd
 rm -rf /private/tmp/hd-cache/obj
 ```
 
