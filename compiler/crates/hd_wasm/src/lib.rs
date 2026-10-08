@@ -4,9 +4,12 @@
 //! substitution (`emit`), with value layouts from `layout` and call targets
 //! from collection (no selection here). Runtime pieces the compiler builds
 //! (literal getters, number formatting, panic stubs, host provider stubs,
-//! vtable adapters, the entry wrapper) are `rt` helpers. A code entry holds
-//! symbolic relocations: callees by instance key or helper, Wasm types by
-//! their structural descriptor; `Link` assigns indices.
+//! the wake table, `race!`'s frame, vtable adapters, the entry exports)
+//! are `rt` helpers. A suspending instance's code entry is its cold
+//! constructor, with its state-machine body, poll and cancel functions as
+//! parts (suspension.md §14.1). A code entry holds symbolic relocations:
+//! callees by instance key, part or helper, globals by binding path hash,
+//! Wasm types by their structural descriptor; `Link` assigns indices.
 
 pub mod asm;
 pub mod emit;

@@ -9,7 +9,6 @@
 
 pub mod layout;
 pub mod passes;
-pub mod suspend;
 
 use std::collections::{BTreeSet, HashMap};
 
