@@ -252,8 +252,16 @@ pub struct Item {
     /// bits of `crate::lower::kind` (`annot.target.limit`); `None` limits
     /// nothing.
     pub targets: Option<u16>,
+    /// A function marked `@num_suffix` (`LITERAL_SUFFIX`) or `@str_prefix`
+    /// (`LITERAL_PREFIX`), or 0 (`expr.literal-fn.marker`).
+    pub literal_fn: u8,
     pub data: ItemData,
 }
+
+/// `Item::literal_fn` of a suffix function.
+pub const LITERAL_SUFFIX: u8 = 1;
+/// `Item::literal_fn` of a prefix function.
+pub const LITERAL_PREFIX: u8 = 2;
 
 impl Item {
     #[must_use]
@@ -265,6 +273,7 @@ impl Item {
             generics: Vec::new(),
             intrinsic: None,
             targets: None,
+            literal_fn: 0,
             data,
         }
     }
@@ -580,6 +589,7 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
     put_generics(w, t, &it.generics)?;
     w.u32(it.intrinsic.map_or(u32::MAX, |s| t.sym(s)));
     w.u32(it.targets.map_or(u32::MAX, u32::from));
+    w.u8(it.literal_fn);
     match &it.data {
         ItemData::Fn(s) => {
             w.u8(0);
@@ -674,6 +684,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         u32::MAX => None,
         m => Some(u16::try_from(m).ok()?),
     };
+    let literal_fn = r.u8();
     let data = match r.u8() {
         0 => ItemData::Fn(get_sig(r, t)?),
         1 => ItemData::Data(get_fields(r, t)?),
@@ -753,6 +764,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         generics,
         intrinsic,
         targets,
+        literal_fn,
         data,
     })
 }

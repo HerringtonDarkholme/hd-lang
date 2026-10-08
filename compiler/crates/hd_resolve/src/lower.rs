@@ -1476,6 +1476,18 @@ impl Lower<'_, '_, '_> {
         }
     }
 
+    /// `@num_suffix` or `@str_prefix` before a function.
+    fn literal_fn(&self, n: NodeRef<'_>) -> u8 {
+        self.decorators(n)
+            .iter()
+            .find_map(|(d, _)| match d.as_str() {
+                "num_suffix" => Some(crate::iface::LITERAL_SUFFIX),
+                "str_prefix" => Some(crate::iface::LITERAL_PREFIX),
+                _ => None,
+            })
+            .unwrap_or(0)
+    }
+
     fn intrinsic(&self, n: NodeRef<'_>) -> Option<Symbol> {
         self.decorators(n)
             .into_iter()
@@ -1674,6 +1686,7 @@ impl Lower<'_, '_, '_> {
                 let sig = self.sig(n, h.def, &Gen::default());
                 let mut it = Item::new(h.def, h.name, h.public, ItemData::Fn(sig));
                 it.intrinsic = self.intrinsic(n);
+                it.literal_fn = self.literal_fn(n);
                 out.push(it);
             }
             HeadKind::Data => {

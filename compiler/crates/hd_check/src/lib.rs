@@ -11,6 +11,7 @@ mod call;
 mod conform;
 mod expr;
 pub mod init;
+mod literals;
 mod pat;
 mod render;
 pub mod stages;

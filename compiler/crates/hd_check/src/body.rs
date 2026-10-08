@@ -86,6 +86,9 @@ pub(crate) struct Ck<'a, 'c> {
     pub defer_base: Option<usize>,
     /// The node of each literal constant, for range diagnostics.
     pub lit_nodes: Vec<(Ref, hd_base::NodeIdx)>,
+    /// The literal node being checked as the argument of its literal
+    /// function (`expr.literal-fn.ordinary-call`).
+    pub lit_arg: Option<hd_base::NodeIdx>,
     /// Checking a module's top-level statements: the module path.
     pub module_init: Option<String>,
     /// The top-level statement being checked.
@@ -139,6 +142,7 @@ pub(crate) fn new_ck<'a, 'c>(
         suspends: vec![false],
         defer_base: None,
         lit_nodes: Vec::new(),
+        lit_arg: None,
         module_init: None,
         init_stmt: 0,
         facts: crate::init::InitFacts::default(),
@@ -213,6 +217,7 @@ pub fn check_fn(
     };
     let mut ck = new_ck(cx, def, def, BodyKind::Fn, (sig.ret, sig.row), diags);
     ck.check_impl_method(def, node);
+    ck.check_literal_marker(def, node);
     ck.suspends = vec![sig.suspends];
     let blk = ck.b.open_block();
     for (name, ty) in sig.params.clone() {
@@ -352,18 +357,38 @@ impl Ck<'_, '_> {
             let TyData::Prim(p) = pool.get(t) else {
                 continue;
             };
+            let node = self.cx.src.parse.tree.node(at);
+            // A literal under unary `-` was negated by the checker: `bits`
+            // holds the negated value (`types.literal.negation`).
+            let negated = node.kind() == SyntaxKind::UnaryExpr;
             let v = bits.cast_signed();
+            if negated && p.is_unsigned() {
+                let msg = format!(
+                    "type-mismatch: a negated literal does not fit unsigned {}",
+                    p.name()
+                );
+                self.err(Code::TypeMismatch, node, &msg);
+                continue;
+            }
             let ok = match p {
                 Prim::I8 => i8::try_from(v).is_ok(),
                 Prim::I16 => i16::try_from(v).is_ok(),
                 Prim::I32 => i32::try_from(v).is_ok(),
+                // A negated `i64` literal keeps its sign; a plain one
+                // above `i64::MAX` wrapped into the negative range.
+                Prim::I64 => {
+                    if negated {
+                        v <= 0
+                    } else {
+                        v >= 0
+                    }
+                }
                 Prim::U8 => u8::try_from(bits).is_ok(),
                 Prim::U16 => u16::try_from(bits).is_ok(),
-                Prim::U32 => u32::try_from(bits).is_ok(),
+                Prim::U32 | Prim::Usize => u32::try_from(bits).is_ok(),
                 _ => true,
             };
             if !ok {
-                let node = self.cx.src.parse.tree.node(at);
                 let msg = format!("integer-literal-range: {v} does not fit {}", p.name());
                 self.err(Code::IntegerLiteralRange, node, &msg);
             }
@@ -580,6 +605,17 @@ impl Ck<'_, '_> {
         let snap = self.infer.snapshot();
         if self.infer.unify(pool, got, want).is_err() {
             self.infer.rollback(snap);
+            // `types.num.narrowing`: a value of a wider type of the same
+            // numeric family where a narrower one is expected.
+            if !matches!(what, "operand" | "range bound") && self.narrows(got, want) {
+                let msg = format!(
+                    "implicit-narrowing in {what}: expected {}, found {}; write the conversion",
+                    self.show(want),
+                    self.show(got)
+                );
+                self.err(Code::ImplicitNarrowing, n, &msg);
+                return;
+            }
             let msg = format!(
                 "type-mismatch in {what}: expected {}, found {}",
                 self.show(want),
@@ -587,6 +623,36 @@ impl Ck<'_, '_> {
             );
             self.err(Code::TypeMismatch, n, &msg);
         }
+    }
+
+    /// Whether `want` is a narrower numeric type than `got` in the same
+    /// family (`types.num.families`); `usize` is 32 bits wide.
+    fn narrows(&self, got: Ty, want: Ty) -> bool {
+        let pool = self.cx.names.pool;
+        let prim = |t: Ty| {
+            let t = self.strip_mut(self.infer.resolve(pool, t));
+            match pool.get(t) {
+                TyData::Prim(p) => Some(p),
+                _ => None,
+            }
+        };
+        let (Some(g), Some(w)) = (prim(got), prim(want)) else {
+            return false;
+        };
+        let family = |p: hd_types::Prim| (p.is_float(), p.is_unsigned());
+        let width = |p: hd_types::Prim| match p {
+            hd_types::Prim::I8 | hd_types::Prim::U8 => 8,
+            hd_types::Prim::I16 | hd_types::Prim::U16 => 16,
+            hd_types::Prim::I32
+            | hd_types::Prim::U32
+            | hd_types::Prim::Usize
+            | hd_types::Prim::F32 => 32,
+            _ => 64,
+        };
+        (g.is_integer() || g.is_float())
+            && (w.is_integer() || w.is_float())
+            && family(g) == family(w)
+            && width(w) < width(g)
     }
 
     /// Whether two types can unify, with no lasting effect.

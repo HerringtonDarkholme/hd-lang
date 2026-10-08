@@ -76,7 +76,7 @@ fn decode_piece(raw: &str, out: &mut Vec<Piece>) {
 
 /// The text of a string token without its delimiters and interpolation
 /// openers and closers.
-fn strip_piece(t: &str, kind: TokenKind) -> &str {
+pub(crate) fn strip_piece(t: &str, kind: TokenKind) -> &str {
     let t = match kind {
         TokenKind::StrHead | TokenKind::String => {
             let t = t.trim_start_matches(|c: char| c.is_alphanumeric() || c == '_');
@@ -133,7 +133,16 @@ impl Ck<'_, '_> {
         let kids: Vec<NodeRef<'_>> = n.children().collect();
         Ok(match n.kind() {
             SyntaxKind::LiteralExpr => self.literal(n, want)?,
-            SyntaxKind::StringExpr => (self.string_expr(n)?, Ty::STRING),
+            SyntaxKind::StringExpr => {
+                let first = self.cx.src.text(self.cx.src.first(n));
+                match first.find('"') {
+                    Some(0) | None => (self.string_expr(n)?, Ty::STRING),
+                    Some(at) => {
+                        let prefix = first[..at].to_owned();
+                        self.prefixed_string(n, &prefix, want)?
+                    }
+                }
+            }
             SyntaxKind::UnaryExpr => self.unary(n, &kids, want)?,
             SyntaxKind::ParenExpr => match kids.as_slice() {
                 [e] => self.expr(*e, want)?,
@@ -243,7 +252,26 @@ impl Ck<'_, '_> {
     }
 
     fn literal(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
-        let (r, t) = self.literal_at(self.cx.src.first(n), want)?;
+        let first = self.cx.src.first(n);
+        let mut strip = false;
+        if self.cx.src.tkind(first) == Some(TokenKind::Number) {
+            let text = self.cx.src.text(first).to_owned();
+            let suffix = crate::literals::split_suffix(&text).1;
+            if !suffix.is_empty() {
+                if self.lit_arg == Some(n.index()) {
+                    self.lit_arg = None;
+                    strip = true;
+                } else {
+                    return self.literal_fn_call(
+                        n,
+                        suffix,
+                        hd_resolve::iface::LITERAL_SUFFIX,
+                        want,
+                    );
+                }
+            }
+        }
+        let (r, t) = self.literal_tok(first, want, strip)?;
         if self.b.const_of(r).is_some() {
             self.lit_nodes.push((r, n.index()));
         }
@@ -255,6 +283,16 @@ impl Ck<'_, '_> {
         &mut self,
         t: hd_base::TokenIdx,
         want: Option<Ty>,
+    ) -> StageResult<(Ref, Ty)> {
+        self.literal_tok(t, want, false)
+    }
+
+    /// The literal token at `t`; `strip` drops a number's literal suffix.
+    fn literal_tok(
+        &mut self,
+        t: hd_base::TokenIdx,
+        want: Option<Ty>,
+        strip: bool,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.cx.names.pool;
         Ok(match self.cx.src.tkind(t) {
@@ -274,7 +312,13 @@ impl Ck<'_, '_> {
                 (self.b.const_value(ct, u64::from(u32::from(ch))), ct)
             }
             Some(TokenKind::Number) => {
-                let text = self.cx.src.text(t).replace('_', "");
+                let text = self.cx.src.text(t);
+                let text = if strip {
+                    crate::literals::split_suffix(text).0
+                } else {
+                    text
+                }
+                .replace('_', "");
                 let int = if let Some(h) = text.strip_prefix("0x") {
                     u64::from_str_radix(h, 16).ok()
                 } else if let Some(b) = text.strip_prefix("0b") {
