@@ -64,9 +64,13 @@ pnpm run spec phase-audit
 `coverage` prints, per chapter, how many rules a fixture, `cases.tsv`, or
 `examples.tsv` cites. The conformance README does not count.
 `--uncovered 08` lists the uncovered IDs of the chapters whose name starts with `08`.
+`--compiler` adds the rules cited by fixtures in the checked-in new-compiler
+pass list. With `--uncovered`, it lists rules with no passing new-compiler
+fixture.
 
 ```sh
 pnpm run spec coverage
+pnpm run spec coverage --compiler
 pnpm run spec coverage --uncovered 08
 ```
 

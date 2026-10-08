@@ -2,7 +2,7 @@
 //
 //   pnpm run spec counts [--by chapter|prefix|topic|kind] [--json]
 //   pnpm run spec audit [--strict] [--list] [--json]
-//   pnpm run spec coverage [--uncovered CHAPTER] [--json]
+//   pnpm run spec coverage [--compiler] [--uncovered CHAPTER] [--json]
 //   pnpm run spec phase-audit [--json]
 //   pnpm run spec refs RULE-ID [--json]
 //   pnpm run spec refs --dead [--brief] [--all] [--json]
@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 
 import { audit, auditReport, auditTotals } from "./spec-audit.ts";
 import { loadCorpus, loadCorpusAt, REPO_ROOT, SPEC_ROOT } from "./spec-corpus.ts";
-import { coverage, coverageReport } from "./spec-coverage.ts";
+import { compilerPassList, coverage, coverageReport } from "./spec-coverage.ts";
 import { counts, countsReport, type CountsView } from "./spec-counts.ts";
 import { glossary, glossaryMarkdown, glossaryReport } from "./spec-glossary.ts";
 import { phaseAudit, phaseAuditReport } from "./phase-audit.ts";
@@ -31,7 +31,7 @@ import { FAIL_KINDS, failures, type FailKind, rewrite, rewriteReport } from "./s
 
 const USAGE = `usage: spec.ts counts [--by chapter|prefix|topic|kind] [--json]
        spec.ts audit [--strict] [--list] [--json]
-       spec.ts coverage [--uncovered CHAPTER] [--json]
+       spec.ts coverage [--compiler] [--uncovered CHAPTER] [--json]
        spec.ts phase-audit [--json]
        spec.ts refs RULE-ID [--json]
        spec.ts refs --dead [--brief] [--all] [--json]
@@ -97,10 +97,13 @@ export function run(
     return { status: options.flags.has("--strict") && warnings.length > 0 ? 1 : 0, stdout };
   }
   if (command === "coverage") {
-    const options = parse(rest, ["--json"], ["--uncovered"]);
+    const options = parse(rest, ["--compiler", "--json"], ["--uncovered"]);
     if (options.positional.length > 0) throw new UsageError("coverage takes no arguments");
     const corpus = loadCorpus(roots.spec);
-    const result = coverage(corpus, buildIndex(corpus, roots.repo));
+    const passes = options.flags.has("--compiler")
+      ? compilerPassList(readFileSync(resolve(roots.repo, "compiler", "CONFORMANCE.md"), "utf8"))
+      : undefined;
+    const result = coverage(corpus, buildIndex(corpus, roots.repo), passes);
     try {
       const stdout = options.flags.has("--json")
         ? json(result)

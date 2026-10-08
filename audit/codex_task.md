@@ -83,15 +83,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### T3. Spec Rule Coverage By The New Compiler
-
-Extend `pnpm run spec coverage` (spec/tools/spec-coverage.ts) with a
-`--compiler` mode: read Q18's pass list and report, per chapter, how
-many rule IDs are cited by at least one fixture the **new compiler**
-passes, next to the existing "cited by any fixture" share. That is
-phase 2's progress number. Test beside `spec-tools.test.ts`; document
-in `spec/tools/README.md`. Timebox 30 minutes; push.
-
 ### S6. Spec: `hd test` Output Format
 
 Check `spec/cli/command-line.md` for the test runner's report: per-case

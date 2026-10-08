@@ -10,7 +10,7 @@ import { knownCodes } from "./spec-prose.ts";
 import { audit, auditTotals, normalizeSentence } from "./spec-audit.ts";
 import { chapterNames, loadCorpus, REPO_ROOT, SPEC_ROOT } from "./spec-corpus.ts";
 import { counts } from "./spec-counts.ts";
-import { coverage, coverageReport } from "./spec-coverage.ts";
+import { compilerPassList, coverage, coverageReport } from "./spec-coverage.ts";
 import {
   areaOf,
   type Citation,
@@ -564,6 +564,49 @@ test("coverage counts rules cited by fixtures and cases.tsv, not by the README",
   assert.ok(coverageReport(result, first.chapter).includes(second.id));
   assert.throws(() => coverageReport(result, "99-nothing"), /no chapter matches/);
   assert.throws(() => run(["coverage", "--uncovered", "99-nothing"]), /no chapter matches/);
+});
+
+test("compiler coverage counts rules cited by passing new-compiler fixtures", () => {
+  const corpus = loadCorpus(SPEC_ROOT);
+  const rules = corpus.chapters.flatMap((chapter) =>
+    chapter.inventory.rules.map((rule) => ({ chapter: chapter.name, id: rule.id })),
+  );
+  const first = rules[0]!;
+  const second = rules.find((entry) => entry.chapter === first.chapter && entry.id !== first.id)!;
+  const cite = (file: string, id: string, text: string): Citation => ({
+    file,
+    line: 1,
+    id,
+    form: "id",
+    target: "",
+    area: "fixtures",
+    history: false,
+    text,
+  });
+  const index: RefIndex = {
+    live: new Map(),
+    history: ruleHistory(REPO_ROOT),
+    citations: [
+      cite("spec/conformance/parse/valid/pass.hd", first.id, first.id),
+      cite("spec/conformance/cases.tsv", second.id, `typing/valid/fail.hd\ttype\taccept`),
+    ],
+  };
+  const passes = compilerPassList(`before
+<!-- pass-list-start -->
+\`\`\`text
+parse/valid/pass.hd
+\`\`\`
+<!-- pass-list-end -->
+after
+`);
+  const result = coverage(corpus, index, passes);
+  const own = result.chapters.find((chapter) => chapter.chapter === first.chapter)!;
+  assert.equal(own.cited, 2);
+  assert.equal(own.compiler, 1);
+  assert.ok(!own.compilerUncovered!.includes(first.id));
+  assert.ok(own.compilerUncovered!.includes(second.id));
+  assert.match(coverageReport(result), /Compiler share/);
+  assert.equal(result.compiler, 1);
 });
 
 test("the spec tools import only Node built-ins and spec/", async () => {
