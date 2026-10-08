@@ -102,21 +102,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### L1. Std Inventory: Spec'd Items Missing From `lib/std`
-
-Some fixtures fail because a std module the spec defines does not exist
-in `lib/std` (e.g. `std.sys`, `std.net`). Compare `spec/std/*.md` (every
-module and its public items: types, traits, functions, constants, with
-their rule IDs) against `lib/std/*.hd` (and the compiler's seeded std
-items in `compiler/crates/hd_resolve/src/seed.rs`). List per module:
-items in the spec but missing from std, items in std with a different
-signature than the spec, and items in std the spec doesn't mention. For
-each missing item, note whether it needs a compiler intrinsic (host
-capability call, runtime primitive) or can be plain hd. Count the
-conformance fixtures that use each missing item (grep
-`spec/conformance`). Write `audit/compiler/std-inventory-<short hash>.md`.
-Report only. Timebox 60 minutes; push.
-
 ### D2m. Design Text For Module Paths And Poison Names
 
 Update `future-work/compiler/resolution-and-interfaces.md` (and
