@@ -1,1 +1,2 @@
 path	expected
+typing/invalid/row-alias-mut-key.hd	syntax-error

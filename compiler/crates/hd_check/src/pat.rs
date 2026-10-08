@@ -421,10 +421,13 @@ impl Ck<'_, '_> {
         // scope after it.
         let mut binds = Vec::new();
         let outer = self.scopes.last().cloned().unwrap_or_default();
+        let before = self.diags.len();
         self.declare_pattern(pat, t, &mut binds)?;
-        // `flow.let.refutable.else`, `flow.let.else.unreachable`.
+        // `flow.let.refutable.else`, `flow.let.else.unreachable`. A pattern
+        // that does not fit `t` already reported; skip the cascade.
         let refutable = self.refutable(pat, t);
         match els {
+            _ if self.diags.len() != before => {}
             None if refutable => self.err(
                 Code::RefutableLetPattern,
                 pat,

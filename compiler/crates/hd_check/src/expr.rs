@@ -1460,8 +1460,13 @@ impl Ck<'_, '_> {
         self.loops.push((lp, result));
         self.scopes.push(HashMap::new());
         let mut binds = Vec::new();
+        let before = self.diags.len();
         self.declare_pattern(pat, item_ty, &mut binds)?;
-        self.irrefutable_loop_pattern(pat, item_ty);
+        // A pattern that does not fit the item type already reported; its
+        // refutability would only repeat that error.
+        if self.diags.len() == before {
+            self.irrefutable_loop_pattern(pat, item_ty);
+        }
         let ab = self.b.open_block();
         body(self)?;
         let arm0 = self.b.close_block(ab, None, Ty::VOID, e.index());
