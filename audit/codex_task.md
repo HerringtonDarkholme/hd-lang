@@ -155,6 +155,54 @@ phase (1 move / 2 work / 3 wonderful), size (S/M/L), and which
 already fixed on main (check the code). Docs only. Timebox 45 minutes;
 push.
 
+### T1. CI: The New Compiler's Gates (After Q18)
+
+Edit `.github/workflows/test.yml` (never trigger workflows; a push runs
+it): in the Rust job, add the conformance cargo test from Q18 (it fails
+only on a regression), cache `~/.cargo` and `compiler/target` keyed on
+`compiler/Cargo.lock` and the toolchain, make sure Node is installed
+for the runtime tests (`hd run` uses Node), and build the `hd` release
+binary once so the CLI tests reuse it. Keep job names stable. Check the
+YAML locally with a parser (e.g. `node -e` with a YAML lib already in
+node_modules, or `python3 -c 'import yaml'` if available). Timebox 30
+minutes; push, then read the run's result with `gh run list` (read
+only) and fix if red.
+
+### T2. Fixture Phase-Tag Audit
+
+`spec/conformance/cases.tsv` tags each case with a phase (parse, type,
+runtime, ...). M2 found cases tagged `type` that expect parse codes.
+Write `spec/tools/phase-audit.ts` (and a `pnpm run spec phase-audit`
+entry if `spec.ts` has a subcommand table): for every row, the expected
+diagnostic code's phase (from the spec's diagnostics tables, the same
+source as Q9's generator) must match the row's phase; report
+mismatches. Add a test beside `spec-tools.test.ts`. Then fix every
+mismatch in `cases.tsv` (tags only; one line of reasoning per group in
+the commit message). Add the audit to `spec/check.sh`. Timebox 45
+minutes; push.
+
+### T3. Spec Rule Coverage By The New Compiler
+
+Extend `pnpm run spec coverage` (spec/tools/spec-coverage.ts) with a
+`--compiler` mode: read Q18's pass list and report, per chapter, how
+many rule IDs are cited by at least one fixture the **new compiler**
+passes, next to the existing "cited by any fixture" share. That is
+phase 2's progress number. Test beside `spec-tools.test.ts`; document
+in `spec/tools/README.md`. Timebox 30 minutes; push.
+
+### S6. Spec: `hd test` Output Format
+
+Check `spec/cli/command-line.md` for the test runner's report: per-case
+result lines, the failure block (assertion message, source position),
+panic reporting, the summary line, ordering (content order, streamed),
+exit codes, `--filter`. Fill any gap with numbered rules (IDs per
+`spec/STYLE.md`, an example each), consistent with
+`future-work/compiler/engines-and-test-runner.md` §19.3 and §19.5 and
+with what the TS prototype prints when the spec is silent. Add CLI cases
+where `spec/conformance/cli-cases.tsv` has none for a rule. The
+orchestrator's M4c agent is implementing `hd test` now: describe the
+format, don't change compiler code. Timebox 45 minutes; push.
+
 ### D2. Reconcile After Each Orchestrator Milestone (Standing)
 
 Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
