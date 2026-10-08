@@ -465,7 +465,7 @@ hd run; echo $?
 ```
 
 1. r[cli.cap.total.needs] A Wasm module's needs are the host capability traits whose methods its import list names.
-2. r[cli.cap.total.refuse] When a need of a module is totally denied, `hd` refuses to start it, before its module initialization and before `main`.
+2. r[cli.cap.total.refuse] When a need of a module is totally denied, `hd` refuses to start it, before its module initialization and before `main`. Error: `denied-capability`.
 3. r[cli.cap.total.message] The refusal names the trait, and the setting that denied it: the `hd.toml` key or the `--cap` flag.
 4. r[cli.cap.total.status] A refused command exits with status 101, since no program ran, by [`cli.exit.hd-failure`](#r-cli.exit.hd-failure).
 5. r[cli.cap.total.any-module] The check reads only the module's import list, so it holds alike for a program built from source and for a prebuilt Wasm module.
@@ -1026,6 +1026,7 @@ hd check --format json
 17. r[cli.json.fix.edit] An edit is an object with the fields `file`, `start`, `end`, and `text`. It replaces the bytes of `file` from offset `start` up to offset `end` with `text`.
 18. r[cli.json.fix.offsets] `start` and `end` count bytes of the file's UTF-8 text from 0, and the byte at `end` is not replaced. `file` is a path as [`cli.json.diagnostic.file`](#r-cli.json.diagnostic.file) gives it.
 19. r[cli.json.fix.disjoint] The edits of one fix-it never overlap, so applying them together applies the fix-it.
+20. r[cli.json.diagnostic.no-position] A diagnostic that no source text causes, such as `denied-capability`, has `null` for `file`, `line`, and `column`.
 
 ```sh
 hd check --format json

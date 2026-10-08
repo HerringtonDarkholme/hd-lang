@@ -7,3 +7,9 @@ stdout-json: []
 run: hd run --cap Console=true
 exit: 101
 stdout-json: []
+# Under --format json the refusal is one denied-capability diagnostic with
+# no source position, then the summary, on standard error.
+run: hd run --format json
+exit: 101
+stdout-json: []
+stderr-json: [{"kind":"diagnostic","code":"denied-capability","severity":"error","message":null,"file":null,"line":null,"column":null},{"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"ignored":0,"status":101}]

@@ -397,11 +397,7 @@ These items remain required but do not currently require new core syntax:
     that `listen!` picks for port 0; TLS over a stream; and how a handle
     trait that a provider returns crosses the component ABI.
   - **An HTTP server**, as a registered boundary that exports the
-    `wasi:http` handler, with `Net` covering its listen address.
-  - **A code for the total-deny refusal.** Under `--format json`, a
-    diagnostic object needs a stable code
-    ([`cli.json.diagnostic`](../spec/cli/command-line.md#r-cli.json.diagnostic)),
-    and the startup refusal has none;
+    `wasi:http` handler, with `Net` covering its listen address;
 - exporter configuration, sampling, storage, and operational privacy policy
   after the observability hook is designed; and
 - which generated artifacts—JSON Schema, OpenAPI, MCP, clients, or
