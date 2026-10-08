@@ -80,10 +80,9 @@ pub enum StdKind {
 pub trait LayoutEnv {
     /// Variant payload types of an enum, or `None` for a data type.
     fn enum_variants(&self, def: DefId, args: TyList) -> Option<Vec<Vec<Ty>>>;
-    /// Which built-in std type `def` is, if any.
-    fn std_kind(&self, _def: DefId) -> StdKind {
-        StdKind::Other
-    }
+    /// Which built-in std type `def` is, if any. Required: a default of
+    /// `Other` would lay out `List`, `Map` and `Suspend` as plain data.
+    fn std_kind(&self, def: DefId) -> StdKind;
 }
 
 /// The layout of a type (§15.1 and the value table of §15.2). Every type
@@ -508,8 +507,8 @@ impl InstanceTable {
 #[cfg(test)]
 mod tests {
     use super::{
-        A1Class, InstanceTable, KeyArg, LayoutClass, LayoutEnv, ValType, a1_class, instance_key,
-        layout_of,
+        A1Class, InstanceTable, KeyArg, LayoutClass, LayoutEnv, StdKind, ValType, a1_class,
+        instance_key, layout_of,
     };
     use hd_base::{DefId, Hash128, InstId};
     use hd_types::{InternPool, Ty, TyData, TyList};
@@ -522,6 +521,9 @@ mod tests {
                 2 => Some(vec![vec![Ty::I32], vec![Ty::STRING]]),
                 _ => None,
             }
+        }
+        fn std_kind(&self, _: DefId) -> StdKind {
+            StdKind::Other
         }
     }
 
