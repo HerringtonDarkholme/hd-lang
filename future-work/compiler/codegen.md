@@ -1544,6 +1544,16 @@ of a small match, plus the pooled message literals — all shared
 across call sites at the same instantiation and folded when identical
 (§13.7).
 
+**As built (#137, 2026-10-09).** Resolve lowers each error type's
+headers as ordinary impls (`ImplKind::Error` in `hd_resolve`), and the
+checker writes their bodies directly (`hd_check/src/error.rs`) rather
+than instantiating a std template: a message needs its variant's scope
+(named, `_N` and shared members, not `self`) and its source spans for
+diagnostics, which the `@derive` template path cannot give. An error
+type with no cause omits `cause` and takes the trait default. A
+three-variant error measured within 15 bytes of the same impls written
+by hand.
+
 ### 13.15 Integer Widths
 
 Seven programs show sub-word integers running as checked 32/64-bit
