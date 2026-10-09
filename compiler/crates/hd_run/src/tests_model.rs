@@ -56,6 +56,9 @@ pub enum CaseResult {
     Panicked {
         category: String,
         message: String,
+        /// The `dbg` lines the case wrote before it panicked, which the
+        /// report shows with the failure (`cli.dbg.test`).
+        debug: String,
     },
     TimedOut,
     /// `ignore` (`module.testing.option.ignore`), with its reason.

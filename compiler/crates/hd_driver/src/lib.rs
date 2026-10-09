@@ -2078,6 +2078,7 @@ impl Run<'_> {
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             results: std::cell::RefCell::default(),
             locals: &locals,
+            file_name: &self.table.files[m],
         };
         let mut diags = DiagBuf::default();
         let mut bodies = Vec::new();
@@ -2561,6 +2562,7 @@ impl Run<'_> {
                 init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
                 results: std::cell::RefCell::default(),
                 locals: &tlocals,
+                file_name: &self.table.files[tm],
             };
             found.extend(self.check_opt_ins(&tcx, &theads, &opts, &mut derived));
         }
@@ -3480,7 +3482,7 @@ impl Run<'_> {
         let r = match sub {
             hd_mono::Sub::Body(k) => {
                 let body = p.bodies.get(&item).map(|b| &b.0);
-                match body.or_else(|| c.collected.supplied_body(&self.pool, item, args)) {
+                match c.collected.supplied_body(&self.pool, item, args).or(body) {
                     Some(body) => hd_wasm::emit(
                         &self.pool,
                         &env,
@@ -4102,6 +4104,23 @@ impl ProgramEnv for Env<'_> {
     }
     fn map_key_items(&self) -> (DefId, DefId) {
         (self.run.known.eq, self.run.known.hash_of)
+    }
+    fn dbg_body(&self, item: DefId, key: &str, ty: Ty, debug: bool) -> StageResult<Body> {
+        // `dbg`'s printing bodies (spec/lang/10-modules.md "Debug Printing"):
+        // the generator over the type's declaration.
+        let names = self.run.names();
+        let cx = hd_structure::Cx {
+            names: &names,
+            items: self.p,
+            stage: Stage::Collect,
+        };
+        match key {
+            "dbg_show" => hd_structure::dbg_show_body(&cx, item, ty, debug),
+            _ => hd_structure::dbg_values_body(&cx, item, ty),
+        }
+    }
+    fn debug_trait(&self) -> DefId {
+        self.run.known.debug
     }
 }
 

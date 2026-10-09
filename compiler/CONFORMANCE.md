@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2078 | 540 | 227 | 2845 |
+| 2088 | 530 | 227 | 2845 |
 
 ## By Chapter
 
@@ -23,7 +23,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/07-functions.md` | 89 | 31 | 10 | 130 |
 | `lang/08-data-and-enums.md` | 78 | 37 | 8 | 123 |
 | `lang/09-traits.md` | 258 | 86 | 15 | 359 |
-| `lang/10-modules.md` | 178 | 62 | 18 | 258 |
+| `lang/10-modules.md` | 182 | 58 | 18 | 258 |
 | `lang/11-requirements-and-suspension.md` | 140 | 51 | 68 | 259 |
 | `lang/14-annotations.md` | 104 | 42 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
@@ -39,7 +39,7 @@ fixture; unsupported surface records progress without failing.
 | `std/host.md` | 2 | 0 | 0 | 2 |
 | `std/http.md` | 2 | 0 | 0 | 2 |
 | `std/iter.md` | 15 | 7 | 3 | 25 |
-| `std/json.md` | 8 | 9 | 2 | 19 |
+| `std/json.md` | 14 | 3 | 2 | 19 |
 | `std/net.md` | 1 | 0 | 0 | 1 |
 | `std/num.md` | 12 | 6 | 0 | 18 |
 | `std/ops.md` | 6 | 3 | 4 | 13 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 75 | 24 | 6 | 105 |
-| `runtime/valid` | 685 | 99 | 145 | 929 |
+| `runtime/valid` | 695 | 89 | 145 | 929 |
 | `typing/invalid` | 647 | 377 | 51 | 1075 |
 | `typing/valid` | 373 | 17 | 25 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -106,7 +106,7 @@ compiler stage that first declined the case.
 | `fail:private-import` | 1 |
 | `fail:private-main` | 8 |
 | `fail:re-export-loop` | 1 |
-| `fail:runtime-exit` | 48 |
+| `fail:runtime-exit` | 38 |
 | `fail:stdout` | 3 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
@@ -618,7 +618,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (48)</summary>
+<details><summary><code>fail:runtime-exit</code> (38)</summary>
 
 - `runtime/panic/for-loop-iterator-invalidated.hd`
 - `runtime/panic/invalidated-iterator.hd`
@@ -650,24 +650,14 @@ compiler stage that first declined the case.
 - `runtime/valid/json-numbers.hd`
 - `runtime/valid/json-suite.hd`
 - `runtime/valid/json-float-text.hd`
-- `runtime/valid/json-typed-round-trip.hd`
-- `runtime/valid/json-typed-enum.hd`
-- `runtime/valid/json-typed-optional.hd`
-- `runtime/valid/json-typed-errors.hd`
-- `runtime/valid/json-serde-private-round-trip.hd`
 - `runtime/valid/time-serde-forms.hd`
 - `runtime/panic/deque-invalidated.hd`
-- `runtime/valid/list-pop.hd`
-- `runtime/valid/list-insert-remove-clear.hd`
 - `runtime/valid/num-to-fixed.hd`
 - `runtime/valid/property-generators-scalars.hd`
-- `runtime/valid/dbg-prints-void.hd`
-- `runtime/valid/dbg-without-requirement.hd`
 - `runtime/valid/generic-data-let-pattern.hd`
 - `runtime/valid/generic-data-match-pattern.hd`
 - `runtime/valid/generic-data-pattern-in-generic-function.hd`
 - `runtime/panic/unbounded-recursion.hd`
-- `runtime/valid/json-typed-missing-key-ignores-default.hd`
 
 </details>
 
@@ -1680,6 +1670,8 @@ runtime/valid/data-fields-named-in-any-order.hd
 runtime/valid/data-literal-evaluation-order.hd
 runtime/valid/data-patterns.hd
 runtime/valid/data-visibility-across-packages.hd
+runtime/valid/dbg-prints-void.hd
+runtime/valid/dbg-without-requirement.hd
 runtime/valid/debug-derive-data.hd
 runtime/valid/debug-derive-variants.hd
 runtime/valid/default-body-supertrait-member.hd
@@ -1871,6 +1863,12 @@ runtime/valid/json-number-grammar.hd
 runtime/valid/json-object-order.hd
 runtime/valid/json-pretty.hd
 runtime/valid/json-round-trip.hd
+runtime/valid/json-serde-private-round-trip.hd
+runtime/valid/json-typed-enum.hd
+runtime/valid/json-typed-errors.hd
+runtime/valid/json-typed-missing-key-ignores-default.hd
+runtime/valid/json-typed-optional.hd
+runtime/valid/json-typed-round-trip.hd
 runtime/valid/lazy-result-candidate.hd
 runtime/valid/leading-dot-chain.hd
 runtime/valid/leading-dot-deeper-continues.hd
@@ -1884,11 +1882,13 @@ runtime/valid/list-chunks.hd
 runtime/valid/list-counts.hd
 runtime/valid/list-flat-map-windows.hd
 runtime/valid/list-group-by.hd
+runtime/valid/list-insert-remove-clear.hd
 runtime/valid/list-iterator.hd
 runtime/valid/list-map-key.hd
 runtime/valid/list-min-max.hd
 runtime/valid/list-of-trait-values.hd
 runtime/valid/list-partition-search.hd
+runtime/valid/list-pop.hd
 runtime/valid/list-sorted-by-key.hd
 runtime/valid/list-view-run.hd
 runtime/valid/list-view-to-list-mut.hd
@@ -3285,7 +3285,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 78 | 24 | 0 | 102 |
+| 80 | 22 | 0 | 102 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3302,6 +3302,8 @@ cli/check-summary
 cli/clean-build
 cli/clean-outside-package
 cli/clean-workspace
+cli/dbg-uses
+cli/dbg-values
 cli/dep-dev-remove
 cli/dep-invalid-manifest
 cli/dep-key-collision

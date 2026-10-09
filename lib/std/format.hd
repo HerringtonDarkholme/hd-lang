@@ -695,6 +695,72 @@ fn dbg_here(head: string) -> void:
 fn dbg_nested[T < Debug](value: T, out: mut DebugWriter) -> void:
     value.debug(out)
 
+# Writes `value` into `out` the way `dbg` prints a part (r-module.dbg.value.*):
+# through `Debug` when its static type implements it, else structurally, each
+# part by these same rules. The compiler supplies the body at each concrete
+# type, since it needs the type's declaration.
+@intrinsic("dbg_show")
+fn dbg_show[T](value: T, out: mut DebugWriter) -> void:
+    panic("intrinsic")
+
+# The structural forms of the built-in composites, over `dbg_show`'s printer
+# for their parts. Each opens a part the way a builder does.
+fn dbg_option[E](value: E?, out: mut DebugWriter, show: fn(E, mut DebugWriter) -> void) -> void:
+    match value:
+        .Some(inner) =>
+            if out.open():
+                out.write("Option.Some")
+                out.tuple_item(0)
+                show(inner, out)
+                out.end_item()
+                out.tuple_close(1, false)
+        .None => out.write("Option.None")
+
+fn dbg_result[A, B](value: Result[A, B], out: mut DebugWriter, show_ok: fn(A, mut DebugWriter) -> void, show_err: fn(B, mut DebugWriter) -> void) -> void:
+    match value:
+        .Ok(inner) =>
+            if out.open():
+                out.write("Result.Ok")
+                out.tuple_item(0)
+                show_ok(inner, out)
+                out.end_item()
+                out.tuple_close(1, false)
+        .Err(inner) =>
+            if out.open():
+                out.write("Result.Err")
+                out.tuple_item(0)
+                show_err(inner, out)
+                out.end_item()
+                out.tuple_close(1, false)
+
+# A list can change after it is built, so a cycle may pass through it
+# (r-module.dbg.cycle.tracked).
+fn dbg_list[E](value: List[E], out: mut DebugWriter, show: fn(E, mut DebugWriter) -> void) -> void:
+    if out.enter(value):
+        if out.open():
+            let count: usize = 0
+            for item in value:
+                if out.entry_item(count, "["):
+                    show(item, out)
+                    out.end_item()
+                count = count + 1
+            out.entry_close(count, "[", "]")
+        out.leave()
+
+fn dbg_map[K < Eq & Hash, V](value: Map[K, V], out: mut DebugWriter, show_key: fn(K, mut DebugWriter) -> void, show_value: fn(V, mut DebugWriter) -> void) -> void:
+    if out.enter(value):
+        if out.open():
+            let count: usize = 0
+            for (key, item) in value:
+                if out.entry_item(count, "{"):
+                    show_key(key, out)
+                    out.write(": ")
+                    show_value(item, out)
+                    out.end_item()
+                count = count + 1
+            out.entry_close(count, "{", "}")
+        out.leave()
+
 # The REPL's forms of `dbg_one` and `dbg_shown`.
 fn dbg_render[T](width: usize, value: T, show: fn(T, mut DebugWriter) -> void) -> string:
     dbg_layout(width, value, show)
