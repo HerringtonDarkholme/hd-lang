@@ -561,7 +561,7 @@ impl Helper {
                 payload,
                 inner,
             } => {
-                w.u8(32);
+                w.u8(33);
                 enc_wty(sig, w);
                 enc_wty(payload, w);
                 inner.encode(w);
@@ -740,7 +740,7 @@ impl Helper {
                 sig: dec_wty(r)?,
                 what: r.str().to_owned(),
             },
-            32 => Helper::HandleSlot {
+            33 => Helper::HandleSlot {
                 sig: dec_wty(r)?,
                 payload: dec_wty(r)?,
                 inner: Box::new(Helper::decode(r)?),
