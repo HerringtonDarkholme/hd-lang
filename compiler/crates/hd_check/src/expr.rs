@@ -427,6 +427,19 @@ impl Ck<'_, '_> {
         Ok(r2.0)
     }
 
+    /// The bits of the constant `bits` of type `ct`, negated: a float
+    /// literal flips its sign, an integer is two's complement.
+    pub(crate) fn negated_bits(&self, ct: Ty, bits: u64) -> u64 {
+        let pool = self.pool();
+        let is_float = matches!(self.infer.kind_of(pool, ct), Some(VarKind::FloatLit))
+            || matches!(pool.get(self.infer.shallow(pool, ct)), TyData::Prim(p) if p.is_float());
+        if is_float {
+            (-f64::from_bits(bits)).to_bits()
+        } else {
+            bits.cast_signed().wrapping_neg().cast_unsigned()
+        }
+    }
+
     fn unary(
         &mut self,
         n: NodeRef<'_>,
@@ -495,14 +508,7 @@ impl Ck<'_, '_> {
             Some(TokenKind::Minus) => {
                 if let Some((ct, bits)) = self.b.const_of(r) {
                     self.lit_nodes.retain(|x| x.0 != r);
-                    let pool = self.pool();
-                    let is_float = matches!(self.infer.kind_of(pool, ct), Some(VarKind::FloatLit))
-                        || matches!(pool.get(self.infer.shallow(pool, ct)), TyData::Prim(p) if p.is_float());
-                    let v = if is_float {
-                        (-f64::from_bits(bits)).to_bits()
-                    } else {
-                        bits.cast_signed().wrapping_neg().cast_unsigned()
-                    };
+                    let v = self.negated_bits(ct, bits);
                     let nr = self.b.const_value(ct, v);
                     self.lit_nodes.push((nr, n.index(), true));
                     (nr, t)

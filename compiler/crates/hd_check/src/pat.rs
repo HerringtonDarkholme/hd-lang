@@ -516,11 +516,8 @@ impl Ck<'_, '_> {
             let _ = self.infer.unify(pool, t, w);
         }
         if neg && let Some((ct, bits)) = self.b.const_of(r) {
-            return (
-                self.b
-                    .const_value(ct, bits.cast_signed().wrapping_neg().cast_unsigned()),
-                t,
-            );
+            let v = self.negated_bits(ct, bits);
+            return (self.b.const_value(ct, v), t);
         }
         (r, t)
     }
