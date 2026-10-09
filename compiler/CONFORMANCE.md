@@ -8,18 +8,18 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2272 | 430 | 143 | 2845 |
+| 2276 | 426 | 143 | 2845 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
-| `lang/01-lexical-structure.md` | 135 | 10 | 0 | 145 |
+| `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
 | `lang/02-grammar.md` | 195 | 11 | 9 | 215 |
 | `lang/03-names-and-scopes.md` | 92 | 8 | 1 | 101 |
 | `lang/04-type-system.md` | 300 | 47 | 5 | 352 |
 | `lang/05-expressions.md` | 221 | 50 | 6 | 277 |
-| `lang/06-control-flow.md` | 129 | 24 | 4 | 157 |
+| `lang/06-control-flow.md` | 130 | 23 | 4 | 157 |
 | `lang/07-functions.md` | 99 | 23 | 8 | 130 |
 | `lang/08-data-and-enums.md` | 85 | 30 | 8 | 123 |
 | `lang/09-traits.md` | 272 | 72 | 15 | 359 |
@@ -33,7 +33,7 @@ fixture; unsupported surface records progress without failing.
 | `std/digest.md` | 2 | 0 | 0 | 2 |
 | `std/encoding.md` | 3 | 0 | 0 | 3 |
 | `std/error.md` | 14 | 0 | 0 | 14 |
-| `std/format.md` | 7 | 1 | 0 | 8 |
+| `std/format.md` | 8 | 0 | 0 | 8 |
 | `std/fs.md` | 3 | 1 | 0 | 4 |
 | `std/hash.md` | 8 | 1 | 0 | 9 |
 | `std/host.md` | 2 | 0 | 0 | 2 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 78 | 23 | 4 | 105 |
-| `runtime/valid` | 782 | 36 | 111 | 929 |
+| `runtime/valid` | 786 | 32 | 111 | 929 |
 | `typing/invalid` | 725 | 333 | 17 | 1075 |
 | `typing/valid` | 389 | 15 | 11 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -104,8 +104,8 @@ compiler stage that first declined the case.
 | `fail:private-main` | 7 |
 | `fail:re-export-loop` | 1 |
 | `fail:readonly-root` | 1 |
-| `fail:runtime-exit` | 16 |
-| `fail:stdout` | 4 |
+| `fail:runtime-exit` | 15 |
+| `fail:stdout` | 1 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
@@ -554,12 +554,11 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (16)</summary>
+<details><summary><code>fail:runtime-exit</code> (15)</summary>
 
 - `runtime/panic/for-loop-iterator-invalidated.hd`
 - `runtime/panic/invalidated-iterator.hd`
 - `runtime/panic/defer-block-on-indirect.hd`
-- `runtime/valid/literal-patterns.hd`
 - `runtime/panic/for-iterator-invalidated-via-helper.hd`
 - `runtime/panic/exhausted-iterator-invalidated-by-growth.hd`
 - `runtime/panic/alias-growth-invalidates-readonly-iterator.hd`
@@ -575,12 +574,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:stdout</code> (4)</summary>
+<details><summary><code>fail:stdout</code> (1)</summary>
 
-- `runtime/valid/debug-source-text.hd`
 - `runtime/valid/crlf-line-endings.hd`
-- `runtime/valid/string-and-char-literal-contents.hd`
-- `runtime/valid/escape-sequences.hd`
 
 </details>
 
@@ -1473,6 +1469,7 @@ runtime/valid/dbg-prints-void.hd
 runtime/valid/dbg-without-requirement.hd
 runtime/valid/debug-derive-data.hd
 runtime/valid/debug-derive-variants.hd
+runtime/valid/debug-source-text.hd
 runtime/valid/debug-tuple-rest.hd
 runtime/valid/default-body-supertrait-member.hd
 runtime/valid/default-hasher.hd
@@ -1549,6 +1546,7 @@ runtime/valid/error-find-trait-value.hd
 runtime/valid/error-find.hd
 runtime/valid/error-report.hd
 runtime/valid/error-root-cause.hd
+runtime/valid/escape-sequences.hd
 runtime/valid/evaluation-order-elements-and-indexing.hd
 runtime/valid/explicit-type-args-associated.hd
 runtime/valid/explicit-type-args-method.hd
@@ -1721,6 +1719,7 @@ runtime/valid/list-view-run.hd
 runtime/valid/list-view-to-list-mut.hd
 runtime/valid/literal-erased-fallback.hd
 runtime/valid/literal-fallback-hint-fix.hd
+runtime/valid/literal-patterns.hd
 runtime/valid/literal-receiver-params-differ-annotated.hd
 runtime/valid/literal-suffix-call.hd
 runtime/valid/literal-suffix-calls.hd
@@ -1995,6 +1994,7 @@ runtime/valid/std-errors-erased-codecs.hd
 runtime/valid/std-errors-erased.hd
 runtime/valid/stored-suspension-parameter.hd
 runtime/valid/stored-suspension-single-drive.hd
+runtime/valid/string-and-char-literal-contents.hd
 runtime/valid/string-byte-methods.hd
 runtime/valid/string-concatenation-and-numeric-selectors.hd
 runtime/valid/string-count.hd
