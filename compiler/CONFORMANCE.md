@@ -8,17 +8,17 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2248 | 454 | 143 | 2845 |
+| 2260 | 442 | 143 | 2845 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
-| `lang/01-lexical-structure.md` | 133 | 12 | 0 | 145 |
-| `lang/02-grammar.md` | 193 | 13 | 9 | 215 |
+| `lang/01-lexical-structure.md` | 135 | 10 | 0 | 145 |
+| `lang/02-grammar.md` | 195 | 11 | 9 | 215 |
 | `lang/03-names-and-scopes.md` | 92 | 8 | 1 | 101 |
 | `lang/04-type-system.md` | 300 | 47 | 5 | 352 |
-| `lang/05-expressions.md` | 213 | 58 | 6 | 277 |
+| `lang/05-expressions.md` | 221 | 50 | 6 | 277 |
 | `lang/06-control-flow.md` | 129 | 24 | 4 | 157 |
 | `lang/07-functions.md` | 93 | 29 | 8 | 130 |
 | `lang/08-data-and-enums.md` | 80 | 35 | 8 | 123 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 78 | 23 | 4 | 105 |
-| `runtime/valid` | 768 | 50 | 111 | 929 |
-| `typing/invalid` | 716 | 342 | 17 | 1075 |
-| `typing/valid` | 388 | 16 | 11 | 415 |
+| `runtime/valid` | 775 | 43 | 111 | 929 |
+| `typing/invalid` | 720 | 338 | 17 | 1075 |
+| `typing/valid` | 389 | 15 | 11 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -76,7 +76,7 @@ compiler stage that first declined the case.
 | Bucket | Cases |
 | --- | ---: |
 | `fail:ambiguous-method` | 1 |
-| `fail:argument-count` | 16 |
+| `fail:argument-count` | 15 |
 | `fail:bang-call-outside-suspension` | 2 |
 | `fail:bare-variant-pattern` | 3 |
 | `fail:boundary-private-field` | 1 |
@@ -99,7 +99,6 @@ compiler stage that first declined the case.
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
 | `fail:pattern-arity` | 1 |
-| `fail:pipe-step-needs-placeholder` | 5 |
 | `fail:placeholder-outside-pipe` | 1 |
 | `fail:private-import` | 1 |
 | `fail:private-main` | 7 |
@@ -112,7 +111,7 @@ compiler stage that first declined the case.
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-method-signature` | 1 |
 | `fail:trait-used-as-type` | 2 |
-| `fail:type-mismatch` | 56 |
+| `fail:type-mismatch` | 52 |
 | `fail:type-used-as-value` | 1 |
 | `fail:unknown-data-field` | 6 |
 | `fail:unknown-import` | 1 |
@@ -122,7 +121,7 @@ compiler stage that first declined the case.
 | `fail:unknown-trait` | 7 |
 | `fail:unknown-type` | 4 |
 | `fail:unknown-variant` | 1 |
-| `fail:unsatisfied-trait-bound` | 12 |
+| `fail:unsatisfied-trait-bound` | 10 |
 | `fail:unused-local-binding` | 6 |
 | `unsupported:Body` | 57 |
 | `unsupported:Collect` | 30 |
@@ -137,7 +136,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:argument-count</code> (16)</summary>
+<details><summary><code>fail:argument-count</code> (15)</summary>
 
 - `typing/invalid/unsaturated-enum-constructor.hd`
 - `runtime/valid/final-vararg.hd`
@@ -152,7 +151,6 @@ compiler stage that first declined the case.
 - `runtime/valid/spelled-function-type-values.hd`
 - `runtime/valid/generic-variant-constructor-argument.hd`
 - `typing/invalid/generic-variant-constructor-argument-unsolved.hd`
-- `typing/invalid/pipe-call-step-without-placeholder.hd`
 - `runtime/valid/function-value-vararg-call.hd`
 - `runtime/valid/result-and-then.hd`
 
@@ -531,16 +529,6 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:pipe-step-needs-placeholder</code> (5)</summary>
-
-- `typing/valid/pipe-steps.hd`
-- `runtime/valid/pipe-evaluation-order.hd`
-- `runtime/valid/pipe-bare-method-step.hd`
-- `runtime/valid/leading-pipe-lines-join-the-chain.hd`
-- `runtime/valid/pipe-placeholder-steps.hd`
-
-</details>
-
 <details><summary><code>fail:placeholder-outside-pipe</code> (1)</summary>
 
 - `typing/invalid/pipe-duplicate-placeholder.hd`
@@ -648,7 +636,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (56)</summary>
+<details><summary><code>fail:type-mismatch</code> (52)</summary>
 
 - `typing/invalid/unknown-associated-type.hd`
 - `typing/invalid/heterogeneous-list.hd`
@@ -674,11 +662,7 @@ compiler stage that first declined the case.
 - `typing/invalid/row-union-if-nested-lists.hd`
 - `typing/invalid/operator-left-literal.hd`
 - `runtime/valid/intrinsic-method-calls.hd`
-- `typing/invalid/pipe-brackets-after-bare-step.hd`
-- `typing/invalid/pipe-suspending-bare-step.hd`
 - `typing/invalid/placeholder-outside-pipe.hd`
-- `runtime/valid/pipe-method-reference-step.hd`
-- `typing/invalid/pipe-suspending-method-reference.hd`
 - `typing/invalid/generic-inference-trait-value.hd`
 - `typing/invalid/vararg-rest-distinct.hd`
 - `typing/invalid/range-mixed-signedness.hd`
@@ -802,7 +786,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unsatisfied-trait-bound</code> (12)</summary>
+<details><summary><code>fail:unsatisfied-trait-bound</code> (10)</summary>
 
 - `typing/invalid/provider-value-type-mismatch.hd`
 - `typing/invalid/propagation-no-chained-conversion.hd`
@@ -814,8 +798,6 @@ compiler stage that first declined the case.
 - `runtime/valid/iterator-chain-iterable.hd`
 - `runtime/valid/iterator-flat-map.hd`
 - `typing/invalid/list-slice-negative-literal.hd`
-- `runtime/valid/operators-longest-match.hd`
-- `runtime/valid/precedence-and-associativity.hd`
 
 </details>
 
@@ -1726,6 +1708,7 @@ runtime/valid/leading-dot-chain.hd
 runtime/valid/leading-dot-deeper-continues.hd
 runtime/valid/leading-dot-lines-join-the-chain.hd
 runtime/valid/leading-dot-statement-indent-tail.hd
+runtime/valid/leading-pipe-lines-join-the-chain.hd
 runtime/valid/let-after-same-line-if-keeps-else.hd
 runtime/valid/list-access-building.hd
 runtime/valid/list-and-optional-map.hd
@@ -1857,6 +1840,7 @@ runtime/valid/operator-generic-primitive-run.hd
 runtime/valid/operator-string-add.hd
 runtime/valid/operator-syntax-without-import.hd
 runtime/valid/operator-traits-run.hd
+runtime/valid/operators-longest-match.hd
 runtime/valid/operators-without-spaces.hd
 runtime/valid/option-and-then.hd
 runtime/valid/option-enum-spellings.hd
@@ -1878,8 +1862,13 @@ runtime/valid/parenthesized-nested-same-line-if.hd
 runtime/valid/partial-equality-dispatch.hd
 runtime/valid/partial-ordering-dispatch.hd
 runtime/valid/path-operations.hd
+runtime/valid/pipe-bare-method-step.hd
+runtime/valid/pipe-evaluation-order.hd
+runtime/valid/pipe-method-reference-step.hd
+runtime/valid/pipe-placeholder-steps.hd
 runtime/valid/pipe-suspending-substitution-step.hd
 runtime/valid/plain-dollar-text.hd
+runtime/valid/precedence-and-associativity.hd
 runtime/valid/prefixed-string-template.hd
 runtime/valid/prelude-cmp-method-direct.hd
 runtime/valid/prelude-eq-method-direct.hd
@@ -2597,6 +2586,10 @@ typing/invalid/part-trait-method-not-promoted.hd
 typing/invalid/partial-eq-removed.hd
 typing/invalid/partial-ord-requires-eq.hd
 typing/invalid/payload-free-enum-equality.hd
+typing/invalid/pipe-brackets-after-bare-step.hd
+typing/invalid/pipe-call-step-without-placeholder.hd
+typing/invalid/pipe-suspending-bare-step.hd
+typing/invalid/pipe-suspending-method-reference.hd
 typing/invalid/plain-break-in-value-loop.hd
 typing/invalid/positional-spread-duplicates-vararg.hd
 typing/invalid/positional-spread-without-vararg.hd
@@ -3099,6 +3092,7 @@ typing/valid/part-trait-method-ignored-by-lookup.hd
 typing/valid/partly-consumed-iterator.hd
 typing/valid/path-newtype.hd
 typing/valid/per-trait-self-line-foreign-fact.hd
+typing/valid/pipe-steps.hd
 typing/valid/prelude-surface.hd
 typing/valid/println-top-level-script.hd
 typing/valid/private-data-embeds-private-type.hd
