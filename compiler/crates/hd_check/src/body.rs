@@ -16,7 +16,8 @@ use hd_resolve::{ItemData, Lookup, LookupDecls, ModuleScope, Names, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::Body;
 use hd_tir::ir::{
-    BodyKind, Callee, Coercion, LoopMark, NONE, Ref, SubMark, Tag, TirBuilder, TirSink, local_flags,
+    BodyKind, Callee, Coercion, IntrinsicOp, LoopMark, NONE, Ref, SubMark, Tag, TirBuilder,
+    TirSink, local_flags,
 };
 use hd_types::solver::{
     Answer, BodyMemo, Evidence, GlobalMemo, Goal, ImplTable, ImplView, Impls, ParamEnv, SolveCx,
@@ -1530,9 +1531,8 @@ impl Ck<'_, '_> {
                     return unsupported("an index target shape");
                 };
                 let (br, bt) = self.expr(*base, None)?;
-                // `expr.index.trait.place`: a string is not a place, nor is
-                // a slice.
-                if key.kind() == SyntaxKind::RangeExpr || self.strip_mut(bt) == Ty::STRING {
+                // `expr.index.trait.place`: a string is not a place.
+                if self.strip_mut(bt) == Ty::STRING {
                     self.err(
                         Code::InvalidAssignmentTarget,
                         *lhs,
@@ -1540,11 +1540,23 @@ impl Ck<'_, '_> {
                     );
                     return Ok(());
                 }
-                let Some((op_get, op_set, kt, vt)) = self.index_kind(bt) else {
+                let builtin = self.index_kind(bt);
+                let Some((op_get, op_set, kt, vt)) = builtin else {
                     return self.index_set((br, bt), (*base, *key), *rhs, compound, (*lhs, s));
                 };
+                let (kr, key_ty) = self.index_key_value(*key, builtin)?;
+                // `expr.index.slice.no-store`: no range type stores into a
+                // list.
+                if op_get != IntrinsicOp::MapIndex && self.is_range_ty(key_ty) {
+                    self.err(
+                        Code::InvalidAssignmentTarget,
+                        *lhs,
+                        "this index cannot be assigned",
+                    );
+                    return Ok(());
+                }
                 self.check_store_target(*base, (br, bt), *lhs);
-                let kr = self.index_key(*key, kt)?;
+                let kr = self.index_key((kr, key_ty), *key, kt);
                 let v = match compound {
                     None => {
                         let (r, t) = self.expr(*rhs, Some(vt))?;

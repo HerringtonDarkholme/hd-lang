@@ -1070,17 +1070,21 @@ impl Ck<'_, '_> {
             return unsupported("an index shape");
         };
         let (br, bt) = self.expr(*base, None)?;
-        if key.kind() != SyntaxKind::RangeExpr
-            && let Some((get, _, kt, vt)) = self.index_kind(bt)
+        let builtin = self.index_kind(bt);
+        let (kr, kt) = self.index_key_value(*key, builtin)?;
+        // `expr.index.slice.call`: a list or string indexed by a range
+        // type is the call of `Index`; every other built-in index reads
+        // by its key type.
+        if let Some((get, _, bkt, vt)) = builtin
+            && !(get != IntrinsicOp::MapIndex && self.is_range_ty(kt))
         {
-            let kr = self.index_key(*key, kt)?;
+            let kr = self.index_key((kr, kt), *key, bkt);
             let rec = self.b.refs_record(&[br, kr]);
             return Ok((
                 self.b.emit(Tag::Intrinsic, get as u32, rec, vt, n.index()),
                 vt,
             ));
         }
-        let (kr, kt) = self.expr(*key, None)?;
         let index = self.cx.names.known.index;
         // `expr.index.trait.no-read`.
         if !self.op_fits(index, bt, Some(kt))? {
@@ -1097,26 +1101,60 @@ impl Ck<'_, '_> {
         self.trait_call_args(index, "index", br, bt, &[(kr, kt, *key)], n)
     }
 
+    /// An index key, checked with the expected type its built-in receiver
+    /// gives it: `usize` for a list or string, or `Range[usize]` for a
+    /// range expression, so a range's literal bounds are `usize`
+    /// (`expr.index.expected`, `expr.index.expected.range`).
+    pub(crate) fn index_key_value(
+        &mut self,
+        key: NodeRef<'_>,
+        builtin: Option<(IntrinsicOp, IntrinsicOp, Ty, Ty)>,
+    ) -> StageResult<(Ref, Ty)> {
+        let want = builtin.map(|(get, _, kt, _)| {
+            if key.kind() == SyntaxKind::RangeExpr && get != IntrinsicOp::MapIndex {
+                let known = self.cx.names.known;
+                self.pool().intern_ty(&TyData::Adt {
+                    def: known.range,
+                    args: self.pool().list(&[kt]),
+                })
+            } else {
+                kt
+            }
+        });
+        self.expr(key, want)
+    }
+
+    /// Whether `t` is one of std's range types.
+    pub(crate) fn is_range_ty(&self, t: Ty) -> bool {
+        let pool = self.pool();
+        let known = self.cx.names.known;
+        match pool.get(self.strip_mut(t)) {
+            TyData::Adt { def, .. } => [
+                known.range,
+                known.range_from,
+                known.range_to,
+                known.range_full,
+            ]
+            .contains(&def),
+            _ => false,
+        }
+    }
+
     /// A built-in index key of type `kt`. A `usize` key
     /// (`expr.index.list.unsigned`) admits every unsigned type: a narrower
     /// one widens, and a `u64` beyond the `usize` range saturates, so it
     /// fails the bounds check (`expr.index.list.range`).
-    pub(crate) fn index_key(&mut self, key: NodeRef<'_>, kt: Ty) -> StageResult<Ref> {
+    pub(crate) fn index_key(&mut self, (kr, ktt): (Ref, Ty), key: NodeRef<'_>, kt: Ty) -> Ref {
         let pool = self.pool();
         let usize_t = Ty::prim(Prim::Usize);
-        if kt != usize_t {
-            let (kr, ktt) = self.expr(key, Some(kt))?;
-            return Ok(self.coerce(kr, ktt, kt, key, "index"));
-        }
-        let (kr, ktt) = self.expr(key, Some(kt))?;
         let got = self.strip_mut(ktt);
         let p = match pool.get(got) {
-            TyData::Prim(p) if p.is_unsigned() && p != Prim::Usize => p,
-            _ => return Ok(self.coerce(kr, ktt, kt, key, "index")),
+            TyData::Prim(p) if kt == usize_t && p.is_unsigned() && p != Prim::Usize => p,
+            _ => return self.coerce(kr, ktt, kt, key, "index"),
         };
         let at = key.index();
         if p != Prim::U64 {
-            return Ok(self.b.prim(PrimOp::Conv as u32, &[kr], usize_t, at));
+            return self.b.prim(PrimOp::Conv as u32, &[kr], usize_t, at);
         }
         let max = self.b.const_value(got, u64::from(u32::MAX));
         let over = self.b.prim(PrimOp::Gt as u32, &[kr, max], Ty::BOOL, at);
@@ -1127,7 +1165,7 @@ impl Ck<'_, '_> {
         let small = self.b.prim(PrimOp::Conv as u32, &[kr], usize_t, at);
         let els = self.b.close_block(eb, Some(small), usize_t, at);
         let rec = self.b.refs_record(&[then, els]);
-        Ok(self.b.emit(Tag::If, over.0, rec, usize_t, at))
+        self.b.emit(Tag::If, over.0, rec, usize_t, at)
     }
 
     /// A tuple expression (`expr.tuple.comma`). Against an expected tuple
@@ -2484,13 +2522,25 @@ impl Ck<'_, '_> {
         let inclusive = n
             .direct_token(&self.cx.src.parse.tokens, TokenKind::DotDotEq)
             .is_some();
-        let _ = want;
+        // The expected type of the bounds: the element of an expected
+        // range type (`expr.index.expected.range`).
+        let known = self.cx.names.known;
+        let bound_want = want.and_then(|w| {
+            let w = self.strip_mut(w);
+            match pool.get(w) {
+                TyData::Adt { def, args }
+                    if [known.range, known.range_from, known.range_to].contains(&def) =>
+                {
+                    pool.list_items(args).first().copied()
+                }
+                _ => None,
+            }
+        });
         let first_tok = self.cx.src.first(n);
         let starts_open = matches!(
             self.cx.src.tkind(first_tok),
             Some(TokenKind::DotDot | TokenKind::DotDotEq)
         );
-        let known = self.cx.names.known;
         let (def, fields): (DefId, Vec<NodeRef<'_>>) = match (kids.len(), starts_open) {
             (2, _) => (known.range, kids.to_vec()),
             (1, true) => (known.range_to, kids.to_vec()),
@@ -2512,6 +2562,17 @@ impl Ck<'_, '_> {
         for f in &fields {
             let (r, t) = self.expr(*f, Some(et))?;
             refs.push(self.coerce(r, t, et, *f, "range bound"));
+        }
+        // Bounds that are all literals take the expected element type.
+        if let Some(bw) = bound_want
+            && let e = self.infer.resolve(pool, et)
+            && matches!(pool.get(e), TyData::Infer(_))
+            && self
+                .infer
+                .kind_of(pool, e)
+                .is_some_and(|k| k.literal_default().is_some())
+        {
+            self.expect(e, bw, fields[0], "range bound");
         }
         if def != known.range_from {
             refs.push(self.b.const_value(Ty::BOOL, u64::from(inclusive)));
