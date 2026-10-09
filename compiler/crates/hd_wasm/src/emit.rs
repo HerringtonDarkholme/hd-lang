@@ -657,6 +657,10 @@ impl Em<'_> {
                     return unsupported("a list literal without a list layout");
                 };
                 let items = self.rec(bw);
+                if a != NONE {
+                    let spreads = self.rec(a);
+                    return self.spread_list(i, &items, &spreads, &elem, &lt);
+                }
                 self.a.i32(i32::try_from(items.len()).unwrap_or(0));
                 for (k, v) in elem.iter().enumerate() {
                     let st = storage(v).dflt();
@@ -2960,6 +2964,88 @@ impl Em<'_> {
             self.a.struct_set(lt, first + u32_of(k));
         }
         self.a.end();
+    }
+
+    /// A list literal with spreads (`expr.list.spread.insert`): the
+    /// operands are already evaluated, once, in element order. The new list
+    /// is sized exactly, then each component array is filled by `array.set`
+    /// for an element and `array.copy` for a spread.
+    fn spread_list(
+        &mut self,
+        i: u32,
+        items: &[u32],
+        spreads: &[u32],
+        elem: &[VT],
+        lt: &WTy,
+    ) -> StageResult<()> {
+        let is_spread = |k: usize| spreads.iter().any(|s| *s as usize == k);
+        let n = self.a.local(VT::I32);
+        self.a
+            .i32(i32::try_from(items.len() - spreads.len()).unwrap_or(0));
+        self.a.set(n);
+        let mut sources = Vec::new();
+        for (k, r) in items.iter().enumerate() {
+            if !is_spread(k) {
+                continue;
+            }
+            let (_, st) = self.list_parts(self.ty_of(*r))?;
+            if st != *lt {
+                return unsupported("a list spread with a different element layout");
+            }
+            let l = self.a.local(VT::r(st.clone()));
+            self.comp(*r, 0, &VT::r(st.clone()))?;
+            self.a.set(l);
+            self.a.get(n);
+            self.a.get(l);
+            self.a.struct_get(&st, 0);
+            self.a.s().i32_add();
+            self.a.set(n);
+            sources.push(l);
+        }
+        let off = self.a.local(VT::I32);
+        self.a.get(n);
+        for (c, v) in elem.iter().enumerate() {
+            let arr = WTy::Array(storage(v).dflt());
+            let dst = self.a.local(VT::r(arr.clone()));
+            self.a.get(n);
+            self.a.array_new_default(&arr);
+            self.a.set(dst);
+            self.a.i32(0);
+            self.a.set(off);
+            let mut next = sources.iter();
+            for (k, r) in items.iter().enumerate() {
+                if is_spread(k) {
+                    let Some(l) = next.next() else {
+                        return unsupported("a list spread without its list");
+                    };
+                    self.a.get(dst);
+                    self.a.get(off);
+                    self.a.get(*l);
+                    self.a.struct_get(lt, 1 + u32_of(c));
+                    self.a.i32(0);
+                    self.a.get(*l);
+                    self.a.struct_get(lt, 0);
+                    self.a.array_copy(&arr, &arr);
+                    self.a.get(off);
+                    self.a.get(*l);
+                    self.a.struct_get(lt, 0);
+                    self.a.s().i32_add();
+                    self.a.set(off);
+                } else {
+                    self.a.get(dst);
+                    self.a.get(off);
+                    self.comp(*r, c, v)?;
+                    self.a.array_set(&arr);
+                    self.a.get(off);
+                    self.a.i32(1);
+                    self.a.s().i32_add();
+                    self.a.set(off);
+                }
+            }
+            self.a.get(dst);
+        }
+        self.a.struct_new(lt);
+        self.store(i)
     }
 
     fn list_iter(&mut self, i: u32, list: u32, ty: Ty) -> StageResult<()> {

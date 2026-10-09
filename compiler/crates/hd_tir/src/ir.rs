@@ -117,7 +117,7 @@ tags! {
     CopyData: Value, Record;
     NewVariant: Meta, Values;
     NewTuple: Value, Values;
-    NewList: None, Record;
+    NewList: Record, Record;
     NewMap: None, Values;
     Field: Value, Meta;
     FieldSet: Value, Record;
@@ -591,6 +591,12 @@ impl TirBuilder {
             self.scratch.push(i);
         }
         Ref(i)
+    }
+
+    /// A record of plain numbers in `extra`, such as the spread positions
+    /// of a `NewList`.
+    pub fn words_record(&mut self, words: &[u32]) -> u32 {
+        self.record(words)
     }
 
     /// A record of values or blocks in `extra` (the `Values`/`Blocks`

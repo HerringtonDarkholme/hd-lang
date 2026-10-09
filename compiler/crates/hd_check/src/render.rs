@@ -105,7 +105,10 @@ pub fn render(names: &Names<'_>, b: &Body) -> String {
             let vals: Vec<String> = args[..n].iter().map(|x| value(names, b, *x)).collect();
             ops.push(format!("({})", vals.join(", ")));
         } else {
-            for (word, op) in [(a, tag.operands().0), (w, tag.operands().1)] {
+            for (side, (word, op)) in [(a, tag.operands().0), (w, tag.operands().1)]
+                .into_iter()
+                .enumerate()
+            {
                 match op {
                     Op::None => {}
                     Op::Value | Op::Block => ops.push(value(names, b, word)),
@@ -115,6 +118,11 @@ pub fn render(names: &Names<'_>, b: &Body) -> String {
                     Op::Values | Op::Blocks | Op::Record => {
                         if word == NONE {
                             ops.push("-".into());
+                        } else if tag == Tag::NewList && side == 0 {
+                            // The positions of the spread elements.
+                            let ks: Vec<String> =
+                                b.record(word).iter().map(|x| format!("#{x}")).collect();
+                            ops.push(format!("[{}]", ks.join(" ")));
                         } else if tag == Tag::ProviderGet || tag == Tag::ItemRef {
                             ops.push("[..]".into());
                         } else if matches!(tag, Tag::SwitchTag | Tag::Payload | Tag::FieldSet) {

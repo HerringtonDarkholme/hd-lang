@@ -1330,12 +1330,35 @@ impl Ck<'_, '_> {
         let inferred = elem.is_none();
         let elem = self.join_target(elem);
         let mut refs = Vec::new();
-        for e in kids {
-            if e.kind() == SyntaxKind::SpreadExpr {
-                return unsupported("a list spread");
-            }
+        let mut spreads = Vec::new();
+        for (k, e) in kids.iter().enumerate() {
             if e.kind() == SyntaxKind::ComprehensionFor {
                 return unsupported("a list comprehension");
+            }
+            if e.kind() == SyntaxKind::SpreadExpr {
+                let Some(operand) = e.children().next() else {
+                    return unsupported("a spread without an operand");
+                };
+                let list_ty = pool.intern_ty(&TyData::Adt {
+                    def: list,
+                    args: pool.list(&[elem]),
+                });
+                let (r, t) = self.expr(operand, Some(list_ty))?;
+                // `expr.list.spread.type`: the operand is a list.
+                let Some(item) = self.list_item(self.infer.resolve(pool, t)) else {
+                    if !matches!(self.strip_mut(t), Ty::NEVER | Ty::POISON) {
+                        let msg = format!("in spread: expected a list, found {}", self.show(t));
+                        self.err(Code::TypeMismatch, operand, &msg);
+                    }
+                    return Ok((Ref(NONE), Ty::NEVER));
+                };
+                // `expr.list.spread.expected`, `expr.list.spread.inferred`.
+                if self.coerce(r, item, elem, operand, "list spread") != r {
+                    return unsupported("a list spread that converts its elements");
+                }
+                spreads.push(u32::try_from(k).unwrap_or(0));
+                refs.push(r);
+                continue;
             }
             let (r, t) = self.expr(*e, Some(elem))?;
             refs.push(self.coerce(r, t, elem, *e, "list element"));
@@ -1355,7 +1378,12 @@ impl Ck<'_, '_> {
         });
         let t = pool.intern_ty(&TyData::Mut(t));
         let rec = self.b.refs_record(&refs);
-        Ok((self.b.emit(Tag::NewList, NONE, rec, t, n.index()), t))
+        let marks = if spreads.is_empty() {
+            NONE
+        } else {
+            self.b.words_record(&spreads)
+        };
+        Ok((self.b.emit(Tag::NewList, marks, rec, t, n.index()), t))
     }
 
     fn map_expr(

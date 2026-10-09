@@ -222,10 +222,10 @@ fn run_file_ignores_broken_siblings() {
 fn unsupported_error_names_its_file() {
     let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-unsupported");
     std::fs::create_dir_all(&dir).expect("dir");
-    let file = dir.join("spread.hd");
+    let file = dir.join("pattern.hd");
     std::fs::write(
         &file,
-        "pub fn main() -> void:\n    xs := [+1, +2]\n    ys := [+0, xs...]\n    pass\n",
+        "let (a, b) = (+1, +2)\n\npub fn main() -> void:\n    pass\n",
     )
     .expect("write");
     let output = hd(&cache("hd-cache-unsupported"))
@@ -234,8 +234,8 @@ fn unsupported_error_names_its_file() {
         .expect("run hd");
     assert!(!output.status.success());
     let err = String::from_utf8_lossy(&output.stderr);
-    assert!(err.contains("spread.hd:"), "{err}");
-    assert!(err.contains("a list spread"), "{err}");
+    assert!(err.contains("pattern.hd:"), "{err}");
+    assert!(err.contains("a top-level binding with a pattern"), "{err}");
     assert!(!err.contains(":0..0"), "{err}");
 }
 
