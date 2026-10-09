@@ -1,4 +1,4 @@
-import type { Program } from "../ast.ts";
+import type { MethodDecl, Program } from "../ast.ts";
 import { DiagnosticError } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
 import { carriedLibraryUses, renameStandardBindings } from "./standard-bindings.ts";
@@ -77,7 +77,18 @@ export function withStandardTraits(program: Program): Program {
         withStandardSource(diagnostic, document, diagnostic.span),
       ),
     );
-  const parsed = result.program;
+  // A std method marked `@intrinsic("name")` is one this checker supplies
+  // itself (`TypeId::of`, checker/expression-inspect.ts); only the Rust
+  // compiler reads its declaration.
+  const parsed = {
+    ...result.program,
+    implementations: result.program.implementations
+      .map((implementation) => ({
+        ...implementation,
+        methods: implementation.methods.filter((method) => !namedIntrinsic(method)),
+      }))
+      .filter((implementation) => implementation.methods.length > 0 || implementation.traitName),
+  };
   const renames = carriedLibraryUses(program, parsed);
   for (const implementation of parsed.implementations) {
     const name = implementation.traitName?.split("[")[0];
@@ -106,4 +117,11 @@ export function withStandardTraits(program: Program): Program {
     data: [...program.data, ...data],
     implementations: [...program.implementations, ...implementations],
   };
+}
+
+function namedIntrinsic(method: MethodDecl): boolean {
+  return !!method.decorators?.facts.some(
+    (fact) =>
+      fact.kind === "call" && fact.callee.kind === "name" && fact.callee.name === "intrinsic",
+  );
 }
