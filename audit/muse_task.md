@@ -105,18 +105,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### R9. Design Note: `@error` Derivation (#137, Design Text)
-
-13 valid programs fail with "X does not implement Error/From": `@error`,
-`@from` and `@source` do not yet produce the impls. Read the spec rules
-(`spec/lang/14-annotations.md` and `spec/std/error.md`), then
-`codegen.md` §13 and the D2o derive text (#119: derived impls instantiate
-a template). Say where the `Error`, `Display` and `From` impls come from
-(a std template like `@derive`, or compiler-supplied rows like §3.9),
-what the generated `From` conversions look like for `@from` fields, how
-`@source` feeds `source()`, and the footprint per error type. Add it to
-`codegen.md`. Questions with a recommendation. Timebox 45 minutes.
-
 ### R10. Design Note: Property And Snapshot Tests (#138, Design Text)
 
 16 valid programs import `it_each`, `it_prop`, `it_prop_with` or
@@ -267,3 +255,18 @@ on the block. Recommend asking the owner for a code
    one global across instantiations risks wrong reads; per-(fact,
    args) globals with a shared getter are always correct, at one
    global plus flag each. Recommend per-instantiation globals.
+
+### Q-R9: generated-impl bounds and transparent @from (R9, 2026-10-09)
+
+1. **Mirror @derive derived-bounds (recommended).** A generic error
+   type whose message or members use T needs bounds like
+   impl[T < Display] Display for E[T]; the compiler should walk the
+   message/member types exactly as @derive derived-bounds does.
+   Recommend the same rule, not unbounded impls (which would fail at
+   each use) and not T < Error-everywhere.
+2. **Transparent @from is allowed and orthogonal (recommended).** A
+   transparent type's one member may also carry @from: the From
+   conversion is generated and the message/cause still forward to the
+   member. The alternative (reject the combination) has no rule
+   behind it - cause.one limits @from/@source only.
+   Recommend allowing it.

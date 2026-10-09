@@ -1498,3 +1498,48 @@ its value can differ per instantiation, filled by its body's instance
 on first read (§12.3); the getter is shared. Collection records fact
 getters with their instance arguments (step 8), so each instantiation
 resolves to its own global.
+
+### 13.14 `@error` Derivation
+
+13 valid programs fail with "X does not implement Error/From": `@error`,
+`@from` and `@source` produce no impls yet. The spec already places
+them: `@error` is a compiler intrinsic, not an ordinary decorator
+(`annot.error.intrinsic`), and for an error type `E` the compiler
+generates `impl Display for E`, `impl Error for E`, and one
+`impl From[P] for E` per `@from` member (`annot.error.generates`),
+as ordinary implementations under ordinary coherence and overlap
+(`annot.error.ordinary`, `annot.error.hand-written`).
+
+Neither alternative source fits. A `std.error` template in the style
+of tuple templates (§13.6) cannot see the variant payload names, the
+shared fields, or the interpolated message scopes the messages are
+checked in (`annot.error.message.checked`). Compiler-supplied solver
+rows (§3.9) answer whether a sealed trait holds, not how to render
+this variant's message or wrap that payload — and `Display`/`Error`/
+`From` are not sealed. So each `@error` site generates template
+bodies, instantiated per error type on the #119 model (derived impls
+instantiate a template):
+
+- `Display::to_string`: a match over the variants. Each arm builds
+  its interpolated message (`annot.error.message.*`); a transparent
+  variant or data type forwards to its member
+  (`annot.error.transparent.display`). Needs no imports
+  (`annot.error.no-use`), as `error-without-import.hd` requires.
+- `Error::cause`: a match returning the `@from`/`@source` member, or
+  `.None` without one (`annot.error.cause.*`); an `E?` source matches
+  `None`/`Some`; a transparent member returns its own `cause`
+  (`annot.error.transparent.cause`). The cause member's type must
+  implement `Error`, checked as any bound
+  (`annot.error.cause.type`).
+- `From[P]::from` per `@from` member: construct the variant (or the
+  data value) holding the payload. The `?` operator's conversions
+  then dispatch through these impls ordinarily.
+
+Resolve sees the generated impls exactly like hand-written ones, so
+coherence and the hand-written overlap errors fall out with no extra
+work. Collection instantiates each used body per type arguments, as
+for any impl. Footprint per error type: one `Display` body, one
+`Error` body, and one `From` body per `@from` member, each the size
+of a small match, plus the pooled message literals — all shared
+across call sites at the same instantiation and folded when identical
+(§13.7).
