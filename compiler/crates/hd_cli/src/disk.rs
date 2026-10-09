@@ -4,11 +4,11 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use hd_diag::Code;
+use hd_diag::{Code, Severity};
 use hd_driver::{Dependency, Packages};
 use hd_project::{Grant, Manifest, SourceEntry, SourceSet, module_below, parse_manifest};
 
-use crate::report::Diag;
+use crate::report::{Diag, Edit, Fix};
 
 /// This toolchain's version, which a manifest's `[package] hd` minimum is
 /// compared with (`module.toolchain.graph-minimum`).
@@ -85,6 +85,8 @@ pub struct Program {
     /// The `[capabilities]` table of its package, the valid keys
     /// (`cli.cap.source.package`); empty outside a package.
     pub capabilities: Vec<(String, Grant)>,
+    /// Its executables' entry modules, by path below the source root.
+    pub entries: Vec<String>,
 }
 
 /// A package that a path requirement reaches.
@@ -108,6 +110,7 @@ impl Program {
                     requires: d.requires.clone(),
                 })
                 .collect(),
+            entries: self.entries.clone(),
         }
     }
 }
@@ -198,12 +201,74 @@ fn default_name(root: &Path) -> String {
 }
 
 /// The nearest directory at or above `start` that holds `hd.toml`.
-pub fn package_root(start: &Path) -> Option<PathBuf> {
+fn nearest_manifest(start: &Path) -> Option<PathBuf> {
     let start = std::fs::canonicalize(start).ok()?;
     start
         .ancestors()
         .find(|d| d.join("hd.toml").is_file())
         .map(Path::to_path_buf)
+}
+
+/// The package directory of package mode (`cli.mode.package.nearest`): the
+/// nearest `hd.toml` at or above `start`, when it declares a package. A
+/// manifest that does not parse counts as one, so its error is reported.
+pub fn package_root(start: &Path) -> Option<PathBuf> {
+    let dir = nearest_manifest(start)?;
+    match manifest_of(&dir) {
+        Ok(Some(m)) if !m.declares_package => None,
+        _ => Some(dir),
+    }
+}
+
+/// The members of workspace mode (`cli.mode.workspace`): when the nearest
+/// `hd.toml` at or above `start` is a workspace manifest, its directory and
+/// each member's directory, in `members` order.
+pub fn workspace_root(start: &Path) -> Option<(PathBuf, Vec<PathBuf>)> {
+    let dir = nearest_manifest(start)?;
+    let m = manifest_of(&dir).ok()??;
+    if m.declares_package {
+        return None;
+    }
+    let members = m.workspace?.members.iter().map(|p| dir.join(p)).collect();
+    Some((dir, members))
+}
+
+/// A directory of a workspace's `members` or `exclude` list, normalized for
+/// comparison: no `./` and no trailing `/`.
+fn listed(list: &[String], rel: &str) -> bool {
+    list.iter().any(|p| {
+        let p = p.trim_end_matches('/');
+        p.strip_prefix("./").unwrap_or(p) == rel
+    })
+}
+
+/// `cli.mode.member.unlisted`: the package at `root` lies under a
+/// workspace manifest that neither lists it in `members` nor in `exclude`.
+/// The error names that manifest.
+fn unlisted_member(root: &Path) -> Result<Option<Diag>, String> {
+    let root = std::fs::canonicalize(root).map_err(|e| e.to_string())?;
+    for dir in root.ancestors().skip(1) {
+        let Some(m) = manifest_of(dir)? else { continue };
+        let Some(w) = m.workspace.filter(|_| !m.declares_package) else {
+            continue;
+        };
+        let rel = root
+            .strip_prefix(dir)
+            .map_err(|e| e.to_string())?
+            .to_string_lossy()
+            .replace('\\', "/");
+        if listed(&w.members, &rel) || listed(&w.exclude, &rel) {
+            return Ok(None);
+        }
+        return Ok(Some(Diag::error(
+            None,
+            &format!(
+                "this package lies under the workspace manifest `{}`, which neither lists `{rel}` in `members` nor in `exclude`; add it to one",
+                dir.join("hd.toml").display()
+            ),
+        )));
+    }
+    Ok(None)
 }
 
 /// The package name of a root directory: from its `hd.toml`.
@@ -285,6 +350,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
             Some(r) => capabilities(&r)?,
             None => Vec::new(),
         },
+        entries: Vec::new(),
     })
 }
 
@@ -294,6 +360,11 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
     let (sources, package) = sources_of(root)?;
     let problems = manifest_problems(root, &package)?;
     let (requires, deps) = dependencies(root)?;
+    let entries = executables(root, &package)
+        .iter()
+        .filter(|e| e.file.starts_with("src/"))
+        .map(|e| module_below(&e.file))
+        .collect();
     Ok(Program {
         sources,
         package,
@@ -303,6 +374,7 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
         problems,
         as_written: None,
         capabilities: capabilities(root)?,
+        entries,
     })
 }
 
@@ -343,7 +415,10 @@ fn manifest_problems(root: &Path, package: &str) -> Result<Vec<Diag>, String> {
     let mut out: Vec<(Option<u32>, Diag)> = Vec::new();
     let sum = std::fs::read_to_string(root.join("hd.sum")).unwrap_or_default();
     for r in m.dependencies.iter().chain(&m.dev_dependencies) {
-        if own.iter().any(|p| p.line == Some(r.line)) {
+        if own
+            .iter()
+            .any(|p| p.line == Some(r.line) && p.severity == Severity::Error)
+        {
             continue;
         }
         let why = if let Some(dir) = &r.path {
@@ -389,10 +464,14 @@ fn manifest_problems(root: &Path, package: &str) -> Result<Vec<Diag>, String> {
     for p in own {
         out.push((
             p.line,
-            Diag::error(p.code, &p.message).at(FILE, p.line.map(|l| l as usize)),
+            Diag::new(p.code, p.severity, &p.message).at(FILE, p.line.map(|l| l as usize)),
         ));
     }
+    out.extend(executable_problems(root, &m));
     out.sort_by_key(|(line, _)| *line);
+    if let Some(d) = unlisted_member(root)? {
+        out.insert(0, (None, d));
+    }
     let executables = executables(root, package);
     for t in tasks(root) {
         if executables.iter().any(|e| e.name == t.name) {
@@ -412,18 +491,115 @@ fn manifest_problems(root: &Path, package: &str) -> Result<Vec<Diag>, String> {
     Ok(out.into_iter().map(|(_, d)| d).collect())
 }
 
-/// What `hd run NAME` can run: its name and the package-relative file of
-/// its entry module.
+/// The `[[executable]]` rules that need the disk or the whole table:
+/// a `module` that names no module (`cli.exe.missing-module`), two
+/// executables with one name (`cli.exe.several`), and a `src/main.hd` that
+/// no table names (`cli.exe.main-unlisted`), whose fix-it adds a table for
+/// it.
+fn executable_problems(root: &Path, m: &Manifest) -> Vec<(Option<u32>, Diag)> {
+    const FILE: &str = "hd.toml";
+    let mut out = Vec::new();
+    let mut names: Vec<&str> = Vec::new();
+    for e in &m.executables {
+        let (Some(name), Some(module)) = (&e.name, &e.module) else {
+            continue;
+        };
+        if module_file(root, module).is_none() {
+            out.push((
+                Some(e.line),
+                Diag::error(
+                    Some(Code::MissingEntryPoint),
+                    &format!(
+                        "the executable `{name}` names the module `{module}`, and the package has no `src/{}.hd`",
+                        module.replace('.', "/")
+                    ),
+                )
+                .at(FILE, Some(e.line as usize)),
+            ));
+        }
+        if names.contains(&name.as_str()) {
+            out.push((
+                Some(e.line),
+                Diag::error(
+                    Some(Code::DuplicateExecutableName),
+                    &format!("two executables are named `{name}`; rename one"),
+                )
+                .at(FILE, Some(e.line as usize)),
+            ));
+        }
+        names.push(name);
+    }
+    let listed = m
+        .executables
+        .iter()
+        .any(|e| e.module.as_deref() == Some("main"));
+    if !m.executables.is_empty() && !listed && root.join("src/main.hd").is_file() {
+        let end = std::fs::metadata(root.join(FILE))
+            .map_or(0, |f| u32::try_from(f.len()).unwrap_or(u32::MAX));
+        let mut d = Diag::error(
+            Some(Code::UnlistedEntry),
+                "`src/main.hd` is no executable, since `hd.toml` has `[[executable]]` tables and none names module `main`; add one for it, or rename the file",
+        )
+        .at(FILE, None);
+        d.fixes.push(Fix {
+            message: format!(
+                "add an `[[executable]]` table for `src/main.hd` named `{}`",
+                m.name
+            ),
+            edits: vec![Edit {
+                file: FILE.to_owned(),
+                start: end,
+                end,
+                text: format!(
+                    "\n[[executable]]\nname = \"{}\"\nmodule = \"main\"\n",
+                    m.name
+                ),
+            }],
+        });
+        out.push((None, d));
+    }
+    out
+}
+
+/// The file of the module at `module` below the source root: `src/a/b.hd`,
+/// or `src/a/b/mod.hd`, whichever exists.
+fn module_file(root: &Path, module: &str) -> Option<String> {
+    let below = module.replace('.', "/");
+    [format!("src/{below}.hd"), format!("src/{below}/mod.hd")]
+        .into_iter()
+        .find(|f| root.join(f).is_file())
+}
+
+/// What `hd run NAME` can run: its name, the package-relative file of its
+/// entry module, and that module's path below the source root.
 pub struct Runnable {
     pub name: String,
     pub file: String,
     pub is_task: bool,
 }
 
-/// The package's executables: the default one, `src/main.hd` (or `main.hd`
-/// at the package directory), named after the package (`cli.exe.default-main`,
-/// `cli.exe.default-name`). `[[executable]]` tables are not read yet.
+/// The package's executables (`cli.exe.*`): one per `[[executable]]`
+/// table whose module exists; with no table, the default one,
+/// `src/main.hd` (or `main.hd` at the package directory), named after the
+/// package (`cli.exe.default-main`, `cli.exe.default-name`).
 pub fn executables(root: &Path, package: &str) -> Vec<Runnable> {
+    let tables = manifest_of(root)
+        .ok()
+        .flatten()
+        .map(|m| m.executables)
+        .unwrap_or_default();
+    if !tables.is_empty() {
+        return tables
+            .into_iter()
+            .filter_map(|e| {
+                Some(Runnable {
+                    file: module_file(root, e.module.as_deref()?)?,
+                    name: e.name?,
+                    is_task: false,
+                })
+            })
+            .collect();
+    }
     ["src/main.hd", "main.hd"]
         .iter()
         .find(|f| root.join(f).is_file())

@@ -87,11 +87,6 @@ When the queue is empty, say so under "Questions" and wait.
 
 ## Jobs
 
-### O6. Manifest Sections (#107)
-
-`hd.toml` `[capabilities]`, `[workspace]`, `[executable]`, `[profile]`,
-`[test]` in project discovery (~7 CLI cases).
-
 ### O7. Folder Cycles, Dev-Dependencies, Executables Exclude Tests (#111)
 
 Folder-cycle recovery (resolution-and-interfaces.md §4.8 rule 5),
@@ -107,13 +102,6 @@ One commit per command; skip a command whose spec needs a design that
 
 ## Questions
 
-- **O1, `cli/ambiguous-import` (fixture).** Its expected JSON line has
-  `notes`, `related`, `fix`, `rule` and `rules` fields and an exact
-  message in single quotes. No `cli.json.*` rule names those fields
-  (`cli.json.diagnostic.fields` lists `code`, `severity`, `message`,
-  `file`, `line`, `column`; `cli.json.diagnostic.fixes` adds `fixes`).
-  Should the fixture drop them, or should a spec rule add them? The case
-  also needs `[[executable]]` (O6) first.
 - **O1, `hd check FILE` in a package (design).** `commands.md` §7.2
   says "Check only FILE's module", but `cli/json-file-location` expects
   the `type-mismatch` in `src/util.hd` when checking `src/main.hd`, which
@@ -160,3 +148,12 @@ One commit per command; skip a command whose spec needs a design that
   `cli.cap.total.test` covers, do not run yet. The other `cap-*` cases
   stop on host methods not lowered yet (`FsRead.read_text`, `Env.get`,
   `write_bytes`) or on `hd FILE.wasm` (O8).
+- **O6 left out.** `[source] root` is still "not implemented" (it moves
+  the source root, which discovery assumes is `src`). `members` and
+  `exclude` match directories exactly, with no globs. `-p NAME`
+  (`cli.workspace.select.*`) and the workspace's shared selection and
+  `hd.sum` (`cli.mode.member.shared`) are not built; dependency
+  selection itself is still local. `[toolchain] pin` and
+  `[test.capabilities]` parse but have no effect yet. The samples under
+  `compiler/samples` lost their `version = "0.1.0"` line, which is now an
+  `unknown-manifest-key` warning.

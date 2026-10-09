@@ -315,9 +315,13 @@ fn run_command(args: &[OsString]) -> ExitCode {
             )
         });
     }
-    let root = match package_of_cwd("run") {
-        Ok(r) => r,
-        Err(e) => return rep.fail(&e),
+    let root = match workspace_member(name.as_deref()) {
+        Some(Ok(r)) => r,
+        Some(Err(e)) => return rep.fail(&e),
+        None => match package_of_cwd("run") {
+            Ok(r) => r,
+            Err(e) => return rep.fail(&e),
+        },
     };
     let package = match disk::package_name(&root) {
         Ok(p) => p,
@@ -373,6 +377,56 @@ fn run_command(args: &[OsString]) -> ExitCode {
     execute(&wasm, &program, &w.caps, &mut rep)
 }
 
+/// In workspace mode, the member whose executable or task `hd run NAME`
+/// runs (`cli.workspace.run-name`, `.run-ambiguous`, `.run-missing`,
+/// `.run-bare`); `None` outside workspace mode.
+fn workspace_member(name: Option<&str>) -> Option<Result<PathBuf, String>> {
+    let cwd = std::env::current_dir().ok()?;
+    let (ws, members) = disk::workspace_root(&cwd)?;
+    let rel = |dir: &Path| {
+        dir.strip_prefix(&ws)
+            .unwrap_or(dir)
+            .to_string_lossy()
+            .replace('\\', "/")
+    };
+    let runnables = |dir: &Path| -> Vec<String> {
+        let package = disk::package_name(dir).unwrap_or_default();
+        disk::executables(dir, &package)
+            .into_iter()
+            .chain(disk::tasks(dir))
+            .map(|r| r.name)
+            .collect()
+    };
+    let Some(name) = name else {
+        let lists: Vec<String> = members
+            .iter()
+            .map(|dir| format!("{}: {}", rel(dir), runnables(dir).join(", ")))
+            .collect();
+        return Some(Err(format!(
+            "this is a workspace; run one member's executable or task with `hd run NAME`: {}",
+            lists.join("; ")
+        )));
+    };
+    let having: Vec<&PathBuf> = members
+        .iter()
+        .filter(|dir| runnables(dir).iter().any(|n| n == name))
+        .collect();
+    Some(match having.as_slice() {
+        [one] => Ok((*one).clone()),
+        [] => Err(format!(
+            "no member of this workspace has an executable or task named `{name}`"
+        )),
+        several => Err(format!(
+            "several members have an executable or task named `{name}`: {}; run it from inside one",
+            several
+                .iter()
+                .map(|d| rel(d))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )),
+    })
+}
+
 /// Writes a built module to `build/PROFILE/[files/]NAME.wasm`
 /// (`cli.build.output`, `cli.build.output.file`).
 fn write_module(
@@ -402,7 +456,19 @@ fn build_command(args: &[OsString]) -> ExitCode {
     };
     let mut rep = Reporter::stdout(w.json);
     let built = match w.positional.as_slice() {
-        [] => build_package(w.release, &mut rep),
+        [] => match std::env::current_dir()
+            .ok()
+            .and_then(|cwd| disk::workspace_root(&cwd))
+        {
+            // `cli.workspace.members`: each member in turn.
+            Some((_, members)) => members
+                .iter()
+                .try_for_each(|root| build_package(root, w.release, &mut rep)),
+            None => match package_of_cwd("build") {
+                Ok(root) => build_package(&root, w.release, &mut rep),
+                Err(e) => Err(rep.fail(&e)),
+            },
+        },
         [file] => build_file(Path::new(file), w.release, &mut rep),
         _ => Err(rep.fail("`hd build` takes at most one FILE")),
     };
@@ -414,18 +480,17 @@ fn build_command(args: &[OsString]) -> ExitCode {
 
 /// A whole-package `hd build`: each executable to its module; a package with
 /// no executable is checked and writes no `.wasm` file.
-fn build_package(release: bool, rep: &mut Reporter) -> Result<(), ExitCode> {
-    let root = package_of_cwd("build").map_err(|e| rep.fail(&e))?;
-    let package = disk::package_name(&root).map_err(|e| rep.fail(&e))?;
-    let executables = disk::executables(&root, &package);
+fn build_package(root: &Path, release: bool, rep: &mut Reporter) -> Result<(), ExitCode> {
+    let package = disk::package_name(root).map_err(|e| rep.fail(&e))?;
+    let executables = disk::executables(root, &package);
     if executables.is_empty() {
-        let program = disk::load_package(&root, "main").map_err(|e| rep.fail(&e))?;
+        let program = disk::load_package(root, "main").map_err(|e| rep.fail(&e))?;
         return build_goal(&program, &Goal::Analyze, rep).map(|_| ());
     }
     for exe in &executables {
-        let program = disk::load_package(&root, &exe.file).map_err(|e| rep.fail(&e))?;
+        let program = disk::load_package(root, &exe.file).map_err(|e| rep.fail(&e))?;
         let wasm = compile(&program, rep)?;
-        write_module(&root, release, false, &exe.name, &wasm).map_err(|e| rep.fail(&e))?;
+        write_module(root, release, false, &exe.name, &wasm).map_err(|e| rep.fail(&e))?;
     }
     Ok(())
 }

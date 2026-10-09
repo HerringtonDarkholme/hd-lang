@@ -15,8 +15,8 @@ use hd_base::{FileId, FolderId, ModuleId};
 use hd_diag::Code;
 
 pub use manifest::{
-    CAPABILITY_KEYS, Grant, Manifest, Problem, Requirement, Version, compatibility_line,
-    grant_problem, parse_manifest, problems,
+    CAPABILITY_KEYS, Executable, Grant, Manifest, Problem, Requirement, Version, Workspace,
+    compatibility_line, grant_problem, parse_manifest, problems,
 };
 
 /// One file of a source set: its package-relative path with `/`.
@@ -228,6 +228,10 @@ pub struct PackageIn<'a> {
     /// Each dependency, by the name source writes after `dep.`, and the
     /// index of its package in the discovery list.
     pub requires: Vec<(String, u16)>,
+    /// The entry modules its `[[executable]]` tables name, by their path
+    /// below the source root (`cli.exe.entry-program`); `src/main.hd` is
+    /// one whatever they say (`module.path.main-file`).
+    pub entries: Vec<String>,
 }
 
 /// One module: a file. Dense IDs; stable form is the module path.
@@ -377,6 +381,7 @@ impl ModuleTable {
             sources,
             scope: Scope::All,
             requires: Vec::new(),
+            entries: Vec::new(),
         }])
     }
 
@@ -415,6 +420,8 @@ impl ModuleTable {
             let root = package_ident(p.name);
             for e in &entries {
                 let path = module_path(p.name, &e.path);
+                let executable = Root::of(&e.path).0 == Root::Source
+                    && p.entries.contains(&module_below(&e.path));
                 let id = ModuleId::from_raw(u32::try_from(t.modules.len()).expect("modules"));
                 let stem = e.path.trim_end_matches(".hd");
                 let mod_file = e.path == "mod.hd" || e.path.ends_with("/mod.hd");
@@ -492,10 +499,14 @@ impl ModuleTable {
                     },
                     path,
                     folder: FolderId::NONE,
-                    role: role_of(&e.path),
+                    role: if executable {
+                        Role::Exe
+                    } else {
+                        role_of(&e.path)
+                    },
                     package: pi,
                     floor,
-                    entry: is_entry(&e.path),
+                    entry: is_entry(&e.path) || executable,
                 });
             }
         }
@@ -824,7 +835,12 @@ mod tests {
         let m =
             parse_manifest("[package]\nname = \"shop\"\nversion = \"1.0\"\n").expect("manifest");
         assert_eq!(m.name, "shop");
-        assert!(parse_manifest("[workspace]\nx = 1\n").is_err());
+        assert_eq!(m.unknown, [("package.version".to_owned(), 3)]);
+        let w = parse_manifest("[workspace]\nmembers = [\"app\"]\nx = 1\n").expect("manifest");
+        assert!(!w.declares_package);
+        assert_eq!(w.workspace.map(|w| w.members), Some(vec!["app".to_owned()]));
+        assert_eq!(w.unknown, [("workspace.x".to_owned(), 3)]);
+        assert!(parse_manifest("[source]\nroot = \"lib\"\n").is_err());
     }
 
     #[test]
@@ -875,12 +891,14 @@ mod tests {
                 sources: &shop,
                 scope: Scope::All,
                 requires: vec![("cash".to_owned(), 1)],
+                entries: Vec::new(),
             },
             PackageIn {
                 name: "money",
                 sources: &money,
                 scope: Scope::Library,
                 requires: Vec::new(),
+                entries: Vec::new(),
             },
         ]);
         let paths: Vec<&str> = t.modules.iter().map(|m| m.path.as_str()).collect();
@@ -965,6 +983,7 @@ mod tests {
             sources: &s,
             scope: Scope::Library,
             requires,
+            entries: Vec::new(),
         };
         let t = ModuleTable::discover_all(&[
             p("shop", vec![("money".to_owned(), 1)]),

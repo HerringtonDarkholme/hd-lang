@@ -244,11 +244,7 @@ fn scratch(name: &str) -> PathBuf {
 /// A package `shop` with one executable (`main.hd`) and one task (`seed`).
 fn shop(name: &str) -> PathBuf {
     let dir = scratch(name);
-    std::fs::write(
-        dir.join("hd.toml"),
-        "[package]\nname = \"shop\"\nversion = \"0.1.0\"\n",
-    )
-    .expect("write");
+    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("write");
     std::fs::write(
         dir.join("main.hd"),
         "fn main() -> void $ Console:\n    println(\"main\")\n",
@@ -772,4 +768,85 @@ fn a_grant_must_name_a_host_trait_and_fit_its_kind() {
         "{}",
         r.err
     );
+}
+
+/// Writes `files` under a fresh directory.
+fn tree(name: &str, files: &[(&str, &str)]) -> PathBuf {
+    let dir = scratch(name);
+    for (file, text) in files {
+        let path = dir.join(file);
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
+        std::fs::write(path, text).expect("write");
+    }
+    dir
+}
+
+const HELLO: &str = "pub fn main() -> void $ Console:\n    println(\"hello\")\n";
+
+/// `cli.exe.table`, `cli.exe.other-module`: an `[[executable]]` table names
+/// its entry module below the source root, and `hd run NAME` runs it.
+#[test]
+fn executable_tables_name_their_entry_modules() {
+    let dir = tree(
+        "hd-forms-exe",
+        &[
+            (
+                "hd.toml",
+                "[package]\nname = \"shop\"\n\n[[executable]]\nname = \"migrate\"\nmodule = \"tools.migrate\"\n",
+            ),
+            (
+                "src/tools/migrate.hd",
+                "pub fn main() -> void $ Console:\n    println(\"migrated\")\n",
+            ),
+        ],
+    );
+    let r = ran(&dir, &["run", "migrate"]);
+    assert_eq!(
+        (r.code, r.out.as_str()),
+        (Some(0), "migrated\n"),
+        "{}",
+        r.err
+    );
+    let r = ran(&dir, &["build"]);
+    assert_eq!(r.code, Some(0), "{}", r.err);
+    assert!(dir.join("build/debug/migrate.wasm").is_file());
+}
+
+/// `cli.workspace.members`, `cli.workspace.run-name`, `.run-bare`,
+/// `cli.mode.member.unlisted`: at a workspace root, check and build act on
+/// every member, and `hd run NAME` finds the one member with NAME; a
+/// package the manifest does not list is an error naming the manifest.
+#[test]
+fn a_workspace_root_acts_on_its_members() {
+    let dir = tree(
+        "hd-forms-workspace",
+        &[
+            ("hd.toml", "[workspace]\nmembers = [\"app\", \"lib\"]\n"),
+            ("app/hd.toml", "[package]\nname = \"app\"\n"),
+            ("app/src/main.hd", HELLO),
+            ("lib/hd.toml", "[package]\nname = \"lib\"\n"),
+            ("lib/src/lib.hd", "pub fn one() -> i32:\n    missing\n"),
+            ("loose/hd.toml", "[package]\nname = \"loose\"\n"),
+            ("loose/src/main.hd", HELLO),
+        ],
+    );
+    let r = ran(&dir, &["check"]);
+    assert_eq!(r.code, Some(101));
+    assert!(
+        r.err.starts_with("error: lib/src/lib.hd:2:5: unknown-name"),
+        "{}",
+        r.err
+    );
+    std::fs::write(dir.join("lib/src/lib.hd"), "pub fn one() -> i32:\n    1\n").expect("write");
+    let r = ran(&dir, &["build"]);
+    assert_eq!(r.code, Some(0), "{}", r.err);
+    assert!(dir.join("app/build/debug/app.wasm").is_file());
+    let r = ran(&dir, &["run", "app"]);
+    assert_eq!((r.code, r.out.as_str()), (Some(0), "hello\n"), "{}", r.err);
+    let r = ran(&dir, &["run"]);
+    assert_eq!(r.code, Some(101));
+    assert!(r.err.contains("app: app"), "{}", r.err);
+    let r = ran(&dir.join("loose"), &["run"]);
+    assert_eq!(r.code, Some(101));
+    assert!(r.err.contains("neither lists `loose`"), "{}", r.err);
 }

@@ -1,28 +1,58 @@
-//! The manifest `hd.toml`: its package section and requirements, and the
-//! rules a manifest alone can break (commands.md §7.1 step 1:
-//! [Dependency Requirements], [Host Paths], [Versions], [Toolchain Version]
-//! of `spec/lang/10-modules.md`, `cli.dep.invalid`).
+//! The manifest `hd.toml`: its tables, and the rules a manifest alone can
+//! break (commands.md §7.1 step 1: [Dependency Requirements], [Host Paths],
+//! [Versions], [Toolchain Version] of `spec/lang/10-modules.md`,
+//! `cli.dep.invalid`, Package Tooling's `cli.manifest.*`).
 
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
 use hd_base::{NotImplemented, Stage, StageResult};
-use hd_diag::Code;
+use hd_diag::{Code, Severity};
 
-/// The manifest's package section (`hd.toml`), parsed with `toml`.
+/// A parsed `hd.toml`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Manifest {
+    /// Whether it declares a package: it has a `[package]` table
+    /// (`cli.mode.package.nearest`).
+    pub declares_package: bool,
     pub name: String,
-    pub version: Option<String>,
     /// `[package] hd`, the minimum toolchain version
     /// (`cli.manifest.toolchain-keys`), and its 1-based line.
     pub hd: Option<(String, u32)>,
+    /// `[toolchain] pin` (`module.toolchain.pin`) and its line.
+    pub pin: Option<(String, u32)>,
     pub dependencies: Vec<Requirement>,
     pub dev_dependencies: Vec<Requirement>,
     /// `[capabilities]` (`cli.cap.table`): each key as written, its grant
     /// (`None` when the value is neither a boolean nor a list of strings),
     /// and its line.
     pub capabilities: Vec<(String, Option<Grant>, u32)>,
+    /// `[test.capabilities]`, in the same form (`cli.test.env.grant.table`).
+    pub test_capabilities: Vec<(String, Option<Grant>, u32)>,
+    /// The `[[executable]]` tables, in order (`cli.exe.table`).
+    pub executables: Vec<Executable>,
+    /// `[workspace]` (`cli.mode.workspace`).
+    pub workspace: Option<Workspace>,
+    /// Each table or key that no rule gives a meaning, by its dotted path,
+    /// and its line (`cli.manifest.unknown-key`).
+    pub unknown: Vec<(String, u32)>,
+}
+
+/// One `[[executable]]` table: `name`, `module`, and the line of its
+/// header. A missing or non-string field is `None`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Executable {
+    pub name: Option<String>,
+    pub module: Option<String>,
+    pub line: u32,
+}
+
+/// A `[workspace]` table: its members and excluded directories, relative
+/// to the workspace root.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Workspace {
+    pub members: Vec<String>,
+    pub exclude: Vec<String>,
 }
 
 /// What a capability grant gives one host capability trait
@@ -115,37 +145,58 @@ impl Requirement {
     }
 }
 
-/// A rule a manifest breaks: its code, the 1-based line it is at (`None`
-/// for the manifest as a whole), and the message.
+/// A rule a manifest breaks: its code, its severity, the 1-based line it is
+/// at (`None` for the manifest as a whole), and the message.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Problem {
     /// `None` for a rule the specification gives no code, such as an
     /// unknown `[capabilities]` key.
     pub code: Option<Code>,
+    pub severity: Severity,
     pub line: Option<u32>,
     pub message: String,
 }
 
-/// The 1-based line of each `[section] key` of a manifest, and of each
-/// section header under the key `""`.
-fn key_lines(text: &str) -> BTreeMap<(String, String), u32> {
+/// The 1-based line of each table and key of a manifest, by its dotted
+/// path; an entry of an array of tables has its index as a segment, as
+/// `executable.0.module`.
+fn key_lines(text: &str) -> BTreeMap<String, u32> {
+    fn walk(
+        prefix: &str,
+        t: &toml::de::DeTable<'_>,
+        line: &dyn Fn(usize) -> u32,
+        out: &mut BTreeMap<String, u32>,
+    ) {
+        for (key, value) in t {
+            let k: &str = key.get_ref();
+            let path = if prefix.is_empty() {
+                k.to_owned()
+            } else {
+                format!("{prefix}.{k}")
+            };
+            out.insert(path.clone(), line(key.span().start));
+            match value.get_ref() {
+                toml::de::DeValue::Table(inner) => walk(&path, inner, line, out),
+                toml::de::DeValue::Array(items) => {
+                    for (i, item) in items.iter().enumerate() {
+                        if let toml::de::DeValue::Table(inner) = item.get_ref() {
+                            let at = format!("{path}.{i}");
+                            out.insert(at.clone(), line(item.span().start));
+                            walk(&at, inner, line, out);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
     let line = |at: usize| {
         let before = text.get(..at).unwrap_or(text);
         u32::try_from(before.bytes().filter(|&b| b == b'\n').count() + 1).unwrap_or(u32::MAX)
     };
     let mut out = BTreeMap::new();
-    let Ok(doc) = toml::de::DeTable::parse(text) else {
-        return out;
-    };
-    for (section, value) in doc.get_ref() {
-        let name: &str = section.get_ref();
-        out.insert((name.to_owned(), String::new()), line(section.span().start));
-        if let toml::de::DeValue::Table(t) = value.get_ref() {
-            for (key, _) in t {
-                let k: &str = key.get_ref();
-                out.insert((name.to_owned(), k.to_owned()), line(key.span().start));
-            }
-        }
+    if let Ok(doc) = toml::de::DeTable::parse(text) {
+        walk("", doc.get_ref(), &line, &mut out);
     }
     out
 }
@@ -153,7 +204,7 @@ fn key_lines(text: &str) -> BTreeMap<(String, String), u32> {
 fn requirements(
     section: &str,
     table: &toml::Table,
-    lines: &BTreeMap<(String, String), u32>,
+    lines: &BTreeMap<String, u32>,
 ) -> Vec<Requirement> {
     table
         .iter()
@@ -170,38 +221,86 @@ fn requirements(
                 text: v.as_str().map_or_else(|| v.to_string(), str::to_owned),
                 table: v.is_table(),
                 version: field("version"),
-                line: lines
-                    .get(&(section.to_owned(), k.clone()))
-                    .copied()
-                    .unwrap_or(1),
+                line: lines.get(&format!("{section}.{k}")).copied().unwrap_or(1),
             }
         })
         .collect()
 }
 
-/// Parses `hd.toml`. Sections other than `[package]`, `[dependencies]` and
-/// `[dev-dependencies]` are not implemented yet.
+/// A grant table: `[capabilities]` or `[test.capabilities]`.
+fn grants(
+    path: &str,
+    table: &toml::Table,
+    lines: &BTreeMap<String, u32>,
+) -> Vec<(String, Option<Grant>, u32)> {
+    table
+        .iter()
+        .map(|(k, v)| {
+            let grant = match v {
+                toml::Value::Boolean(true) => Some(Grant::All),
+                toml::Value::Boolean(false) => Some(Grant::Deny),
+                toml::Value::Array(items) => items
+                    .iter()
+                    .map(|i| i.as_str().map(str::to_owned))
+                    .collect::<Option<Vec<_>>>()
+                    .map(Grant::Scopes),
+                _ => None,
+            };
+            let line = lines.get(&format!("{path}.{k}")).copied().unwrap_or(1);
+            (k.clone(), grant, line)
+        })
+        .collect()
+}
+
+/// The strings of a list, or `None` when it is not a list of strings.
+fn strings(v: Option<&toml::Value>) -> Vec<String> {
+    v.and_then(toml::Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(|s| s.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Parses `hd.toml` by the Package Tooling table: each table and key it
+/// lists is read, and every other one is recorded as unknown
+/// (`cli.manifest.unknown-key`). `[source] root`, which moves the source
+/// root, is not implemented yet.
 pub fn parse_manifest(text: &str) -> StageResult<Manifest> {
     let table: toml::Table = text.parse().map_err(|e: toml::de::Error| {
         NotImplemented::new(Stage::Discover, format!("manifest: {}", e.message()))
     })?;
     let lines = key_lines(text);
+    let at = |path: &str| lines.get(path).copied().unwrap_or(1);
     let mut m = Manifest::default();
+    let mut unknowns: Vec<(String, u32)> = Vec::new();
+    // The keys a table may hold; any other key is unknown.
+    let only = |unknowns: &mut Vec<(String, u32)>, path: &str, t: &toml::Table, keys: &[&str]| {
+        for k in t.keys() {
+            if !keys.contains(&k.as_str()) {
+                let p = format!("{path}.{k}");
+                let line = at(&p);
+                unknowns.push((p, line));
+            }
+        }
+    };
     for (section, value) in &table {
         match (section.as_str(), value) {
             ("package", toml::Value::Table(p)) => {
+                m.declares_package = true;
+                only(&mut unknowns, "package", p, &["name", "hd"]);
                 if let Some(toml::Value::String(n)) = p.get("name") {
                     n.clone_into(&mut m.name);
                 }
-                if let Some(toml::Value::String(v)) = p.get("version") {
-                    m.version = Some(v.clone());
-                }
                 if let Some(toml::Value::String(v)) = p.get("hd") {
-                    let line = lines
-                        .get(&("package".to_owned(), "hd".to_owned()))
-                        .copied()
-                        .unwrap_or(1);
-                    m.hd = Some((v.clone(), line));
+                    m.hd = Some((v.clone(), at("package.hd")));
+                }
+            }
+            ("toolchain", toml::Value::Table(t)) => {
+                only(&mut unknowns, "toolchain", t, &["pin"]);
+                if let Some(toml::Value::String(v)) = t.get("pin") {
+                    m.pin = Some((v.clone(), at("toolchain.pin")));
                 }
             }
             ("dependencies" | "dev-dependencies", toml::Value::Table(d)) => {
@@ -213,35 +312,50 @@ pub fn parse_manifest(text: &str) -> StageResult<Manifest> {
                 }
             }
             ("capabilities", toml::Value::Table(c)) => {
-                m.capabilities = c
-                    .iter()
-                    .map(|(k, v)| {
-                        let grant = match v {
-                            toml::Value::Boolean(true) => Some(Grant::All),
-                            toml::Value::Boolean(false) => Some(Grant::Deny),
-                            toml::Value::Array(items) => items
-                                .iter()
-                                .map(|i| i.as_str().map(str::to_owned))
-                                .collect::<Option<Vec<_>>>()
-                                .map(Grant::Scopes),
-                            _ => None,
-                        };
-                        let line = lines
-                            .get(&("capabilities".to_owned(), k.clone()))
-                            .copied()
-                            .unwrap_or(1);
-                        (k.clone(), grant, line)
-                    })
-                    .collect();
+                m.capabilities = grants("capabilities", c, &lines);
             }
-            (other, _) => {
+            ("test", toml::Value::Table(t)) => {
+                only(&mut unknowns, "test", t, &["capabilities"]);
+                if let Some(toml::Value::Table(c)) = t.get("capabilities") {
+                    m.test_capabilities = grants("test.capabilities", c, &lines);
+                }
+            }
+            ("workspace", toml::Value::Table(w)) => {
+                only(&mut unknowns, "workspace", w, &["members", "exclude"]);
+                m.workspace = Some(Workspace {
+                    members: strings(w.get("members")),
+                    exclude: strings(w.get("exclude")),
+                });
+            }
+            ("executable", toml::Value::Array(items)) => {
+                for (i, item) in items.iter().enumerate() {
+                    let path = format!("executable.{i}");
+                    let field = |name: &str| {
+                        item.get(name)
+                            .and_then(toml::Value::as_str)
+                            .map(str::to_owned)
+                    };
+                    if let Some(t) = item.as_table() {
+                        only(&mut unknowns, &path, t, &["name", "module"]);
+                    }
+                    m.executables.push(Executable {
+                        name: field("name"),
+                        module: field("module"),
+                        line: at(&path),
+                    });
+                }
+            }
+            ("source", _) => {
                 return Err(NotImplemented::new(
                     Stage::Discover,
-                    format!("manifest section [{other}]"),
+                    "manifest section [source]".to_owned(),
                 ));
             }
+            (other, _) => unknowns.push((other.to_owned(), at(other))),
         }
     }
+    unknowns.sort_by_key(|(_, line)| *line);
+    m.unknown = unknowns;
     Ok(m)
 }
 
@@ -453,8 +567,11 @@ fn identity(r: &Requirement) -> Option<String> {
 /// The rules a manifest alone breaks, in line order: each requirement's
 /// form, key-name collisions and keys that share a package
 /// (`cli.dep.invalid`), a minimum toolchain above `toolchain`
-/// (`module.toolchain.graph-minimum`), and each `[capabilities]` key and
-/// value (`cli.cap.table.keys`, `cli.cap.value.unscoped`).
+/// (`module.toolchain.graph-minimum`), each `[capabilities]` and
+/// `[test.capabilities]` key and value (`cli.cap.table.keys`,
+/// `cli.cap.value.unscoped`), an `[[executable]]` table without a string
+/// `name` and `module` (`cli.manifest.known-key`), and a warning for each
+/// unknown table or key (`cli.manifest.unknown-key`).
 #[must_use]
 pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
     let mut out = Vec::new();
@@ -462,6 +579,7 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
     let mut packages: BTreeMap<String, &str> = BTreeMap::new();
     let invalid = |line: u32, message: String| Problem {
         code: Some(Code::InvalidRequirement),
+        severity: Severity::Error,
         line: Some(line),
         message,
     };
@@ -499,13 +617,14 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
     {
         out.push(Problem {
             code: Some(Code::ToolchainTooOld),
+            severity: Severity::Error,
             line: Some(*line),
             message: format!(
                 "this package needs toolchain {text} or newer, and this `hd` is {toolchain}"
             ),
         });
     }
-    for (key, grant, line) in &m.capabilities {
+    for (key, grant, line) in m.capabilities.iter().chain(&m.test_capabilities) {
         let why = match grant {
             None => Some(format!(
                 "the grant of `{key}` is `true`, `false`, or a list of scope entries"
@@ -515,10 +634,30 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
         if let Some(message) = why {
             out.push(Problem {
                 code: None,
+                severity: Severity::Error,
                 line: Some(*line),
                 message,
             });
         }
+    }
+    for e in &m.executables {
+        if e.name.is_none() || e.module.is_none() {
+            out.push(Problem {
+                code: None,
+                severity: Severity::Error,
+                line: Some(e.line),
+                message: "an `[[executable]]` table has a string `name` and a string `module`"
+                    .to_owned(),
+            });
+        }
+    }
+    for (path, line) in &m.unknown {
+        out.push(Problem {
+            code: Some(Code::UnknownManifestKey),
+            severity: Severity::Warning,
+            line: Some(*line),
+            message: format!("`{path}` has no meaning in `hd.toml`, so it is ignored"),
+        });
     }
     out.sort_by_key(|p| p.line);
     out

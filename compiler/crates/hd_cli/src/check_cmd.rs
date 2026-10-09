@@ -89,16 +89,41 @@ struct Target {
     program: disk::Program,
     /// The package-relative FILE whose module is checked (`cli.package.file`).
     only: Option<String>,
+    /// In workspace mode, the member's directory below the workspace root,
+    /// which its diagnostics' files start with.
+    member: Option<String>,
 }
 
-fn target(file: Option<&OsString>) -> Result<Target, String> {
+/// What `hd check` checks: FILE's package or FILE alone, the package of the
+/// working directory, or in workspace mode every member
+/// (`cli.workspace.members`).
+fn targets(file: Option<&OsString>) -> Result<Vec<Target>, String> {
     let Some(file) = file else {
+        let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+        if let Some((ws, members)) = disk::workspace_root(&cwd) {
+            return members
+                .iter()
+                .map(|dir| {
+                    Ok(Target {
+                        program: disk::load_package(dir, "main")?,
+                        only: None,
+                        member: Some(
+                            dir.strip_prefix(&ws)
+                                .unwrap_or(dir)
+                                .to_string_lossy()
+                                .replace('\\', "/"),
+                        ),
+                    })
+                })
+                .collect();
+        }
         let root = package_of_cwd("check")
             .map_err(|e| format!("{e}; or pass a FILE to check it as a single-file program"))?;
-        return Ok(Target {
+        return Ok(vec![Target {
             program: disk::load_package(&root, "main")?,
             only: None,
-        });
+            member: None,
+        }]);
     };
     let path = Path::new(file);
     if path.extension().is_none_or(|x| x != "hd") {
@@ -117,16 +142,47 @@ fn target(file: Option<&OsString>) -> Result<Target, String> {
                     .collect::<Vec<_>>()
                     .join("/")
             });
-            Ok(Target {
+            Ok(vec![Target {
                 program: disk::load_package(&root, "main")?,
                 only,
-            })
+                member: None,
+            }])
         }
-        None => Ok(Target {
+        None => Ok(vec![Target {
             program: disk::load_file(path)?,
             only: None,
-        }),
+            member: None,
+        }]),
     }
+}
+
+/// Checks one target: its manifest's diagnostics and, unless one is an
+/// error, the compiler's; and the count of modules whose bodies it checked.
+fn check_one(mut t: Target, o: &Options) -> (Vec<Diag>, usize) {
+    if t.program.problems.iter().any(Diag::is_error) {
+        return (t.program.problems, 0);
+    }
+    let (tests, left_out) = scope(&mut t, o);
+    let goal = if tests {
+        Goal::CheckTests
+    } else {
+        Goal::Analyze
+    };
+    let store = DiskStore { root: cache_dir() };
+    let clock = Wall(Instant::now());
+    let host = Host {
+        render_tir: &[],
+        sources: &t.program.sources,
+        store: &store,
+        clock: &clock,
+        executor: executor(),
+    };
+    let out = build_packages(&host, &t.program.package, &t.program.packages(), &goal);
+    let shown = shown(&out, &t);
+    let mut diags = t.program.problems;
+    diags.extend(left_out);
+    diags.extend(shown);
+    (diags, out.counters.modules_checked.len())
 }
 
 pub(crate) fn command(args: &[OsString]) -> ExitCode {
@@ -134,33 +190,28 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
         Ok(o) => o,
         Err(e) => return fail(&e),
     };
-    let (diags, modules_checked) = match target(o.file.as_ref()) {
-        Ok(t) if t.program.problems.iter().any(Diag::is_error) => (t.program.problems, 0),
-        Ok(mut t) => {
-            let (tests, left_out) = scope(&mut t, &o);
-            let goal = if tests {
-                Goal::CheckTests
-            } else {
-                Goal::Analyze
-            };
-            let store = DiskStore { root: cache_dir() };
-            let clock = Wall(Instant::now());
-            let host = Host {
-                render_tir: &[],
-                sources: &t.program.sources,
-                store: &store,
-                clock: &clock,
-                executor: executor(),
-            };
-            let out = build_packages(&host, &t.program.package, &t.program.packages(), &goal);
-            let shown = shown(&out, &t);
-            let mut diags = t.program.problems;
-            diags.extend(left_out);
-            diags.extend(shown);
-            (diags, out.counters.modules_checked.len())
+    let (mut diags, mut modules_checked) = (Vec::new(), 0);
+    match targets(o.file.as_ref()) {
+        Ok(ts) => {
+            for t in ts {
+                let member = t.member.clone();
+                let (mut ds, n) = check_one(t, &o);
+                if let Some(m) = member {
+                    for d in &mut ds {
+                        if let Some(f) = &mut d.file {
+                            *f = format!("{m}/{f}");
+                        }
+                        for e in d.fixes.iter_mut().flat_map(|f| &mut f.edits) {
+                            e.file = format!("{m}/{}", e.file);
+                        }
+                    }
+                }
+                diags.extend(ds);
+                modules_checked += n;
+            }
         }
-        Err(e) => (vec![Diag::error(None, &e)], 0),
-    };
+        Err(e) => diags.push(Diag::error(None, &e)),
+    }
     let failed = diags.iter().any(Diag::is_error);
     let status = if failed { HD_FAILURE } else { 0 };
     if o.json {

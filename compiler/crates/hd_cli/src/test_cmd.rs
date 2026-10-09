@@ -108,22 +108,71 @@ fn target(file: Option<&Path>) -> Result<(PathBuf, Option<String>), String> {
     Ok((root, Some(rel)))
 }
 
+/// One package `hd test` tests: its root, FILE relative to it, and in
+/// workspace mode the member's directory below the workspace root.
+type Unit = (PathBuf, Option<String>, Option<String>);
+
+/// What `hd test` tests: FILE's module, the package of the working
+/// directory, or in workspace mode every member (`cli.workspace.members`).
+fn units(file: Option<&Path>) -> Result<Vec<Unit>, String> {
+    if file.is_none() {
+        let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+        if let Some((ws, members)) = disk::workspace_root(&cwd) {
+            return Ok(members
+                .into_iter()
+                .map(|dir| {
+                    let member = dir
+                        .strip_prefix(&ws)
+                        .unwrap_or(&dir)
+                        .to_string_lossy()
+                        .replace('\\', "/");
+                    (dir, None, Some(member))
+                })
+                .collect());
+        }
+    }
+    let (root, rel) = target(file)?;
+    Ok(vec![(root, rel, None)])
+}
+
 pub fn command(args: &[OsString]) -> ExitCode {
     let o = match parse(args) {
         Ok(o) => o,
         Err(e) => return fail(&e),
     };
-    let mut rep = Reporter::stdout(o.json);
-    let (root, file) = match target(o.file.as_deref()) {
-        Ok(t) => t,
-        Err(e) => return rep.fail(&e),
+    let mut report = Report {
+        rep: Reporter::stdout(o.json),
+        text: String::new(),
+        passed: 0,
+        failed: 0,
+        ignored: 0,
+        unsupported: 0,
     };
-    let program = match disk::load_package(&root, "main") {
-        Ok(p) => p,
-        Err(e) => return rep.fail(&e),
+    let units = match units(o.file.as_deref()) {
+        Ok(u) => u,
+        Err(e) => return report.rep.fail(&e),
     };
+    for (root, file, member) in units {
+        if let Err(code) = test_one(&root, file.as_deref(), member.as_deref(), &o, &mut report) {
+            return code;
+        }
+    }
+    report.finish()
+}
+
+/// Tests one package: checks it with its test code, then runs the selected
+/// cases into `report`. A member's case files start with its directory.
+fn test_one(
+    root: &Path,
+    file: Option<&str>,
+    member: Option<&str>,
+    o: &Options,
+    report: &mut Report,
+) -> Result<(), ExitCode> {
+    let rep = &mut report.rep;
+    let program = disk::load_package(root, "main").map_err(|e| rep.fail(&e))?;
     if rep.diags(&program.problems) {
-        return rep.finish(HD_FAILURE);
+        return Err(rep.finish(HD_FAILURE));
     }
     let (sources, package) = (&program.sources, &program.package);
     let store = DiskStore { root: cache_dir() };
@@ -140,32 +189,51 @@ pub fn command(args: &[OsString]) -> ExitCode {
         },
     };
     let goal = Goal::Tests {
-        module: file.as_ref().map(|f| hd_project::module_path(package, f)),
+        module: file.map(|f| hd_project::module_path(package, f)),
         filter: o.filter.clone(),
     };
     let out = build_packages(&host, package, &program.packages(), &goal);
     // Warnings are shown; only errors stop the command.
-    if rep.diags(&report::from_output(&out, sources, None)) {
-        return rep.finish(HD_FAILURE);
+    let mut diags = report::from_output(&out, sources, None);
+    if let Some(m) = member {
+        for d in &mut diags {
+            if let Some(f) = &mut d.file {
+                *f = format!("{m}/{f}");
+            }
+        }
+    }
+    if rep.diags(&diags) {
+        return Err(rep.finish(HD_FAILURE));
     }
     if let Some(f) = &o.file
         && out.tests.is_empty()
     {
         // cli.test.file-empty, cli.test.filter.none
-        return rep.fail(&match &o.filter {
+        return Err(rep.fail(&match &o.filter {
             Some(p) => format!(
                 "no test case of `{}` has a name that contains `{p}`",
                 f.display()
             ),
             None => format!("`{}` registers no test case", f.display()),
-        });
+        }));
     }
-    run(&out.tests, out.wasm.as_deref(), o.jobs, rep)
+    let mut cases = out.tests.clone();
+    if let Some(m) = member {
+        for c in &mut cases {
+            c.file = format!("{m}/{}", c.file);
+        }
+    }
+    run(&cases, out.wasm.as_deref(), o.jobs, report)
 }
 
 /// Runs the cases on up to `jobs` Node workers, round robin in content
 /// order, and prints the results in content order.
-fn run(cases: &[TestCase], wasm: Option<&[u8]>, jobs: usize, rep: Reporter) -> ExitCode {
+fn run(
+    cases: &[TestCase],
+    wasm: Option<&[u8]>,
+    jobs: usize,
+    report: &mut Report,
+) -> Result<(), ExitCode> {
     let plan = TestPlan::new(
         cases
             .iter()
@@ -187,14 +255,6 @@ fn run(cases: &[TestCase], wasm: Option<&[u8]>, jobs: usize, rep: Reporter) -> E
         None,
     );
     let mut cursor = ReleaseCursor::new(&plan);
-    let mut report = Report {
-        rep,
-        text: String::new(),
-        passed: 0,
-        failed: 0,
-        ignored: 0,
-        unsupported: 0,
-    };
     let key = |i: usize| plan.cases[i].key.clone();
     let mut running: Vec<(usize, (u32, u32))> = Vec::new();
     for (i, c) in cases.iter().enumerate() {
@@ -216,7 +276,7 @@ fn run(cases: &[TestCase], wasm: Option<&[u8]>, jobs: usize, rep: Reporter) -> E
     }
     if !running.is_empty() {
         let Some(wasm) = wasm else {
-            return report.rep.fail("internal: the test program was not built");
+            return Err(report.rep.fail("internal: the test program was not built"));
         };
         let workers = jobs.min(running.len()).max(1);
         let (tx, rx) = mpsc::channel::<Result<(usize, CaseRun), String>>();
@@ -268,10 +328,10 @@ fn run(cases: &[TestCase], wasm: Option<&[u8]>, jobs: usize, rep: Reporter) -> E
         });
         if let Some(e) = error {
             report.flush();
-            return report.rep.fail(&e);
+            return Err(report.rep.fail(&e));
         }
     }
-    report.finish()
+    Ok(())
 }
 
 /// A finished case's outcome (`module.testing.pass`, `module.testing.fail`,

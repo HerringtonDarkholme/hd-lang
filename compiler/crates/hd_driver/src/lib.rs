@@ -32,7 +32,7 @@ use hd_diag::{Code, DiagBuf, Severity};
 use hd_intern::{PathTable, ShardedInterner};
 use hd_mono::layout::{LayoutEnv, StdKind};
 use hd_mono::{Collected, ProgramEnv};
-use hd_project::{FolderGraph, MemorySources, ModuleTable, PackageIn, Scope, SourceSet};
+use hd_project::{FolderGraph, MemorySources, ModuleTable, PackageIn, Role, Scope, SourceSet};
 use hd_resolve::{FolderIface, Item, ItemData, Lookup, ModOut, Names, Src};
 use hd_sched::{ExtTask, SerialOrder, SerialScheduler, Spawn, TaskGraph, TaskId, TaskKind};
 use hd_syntax::{HeaderKind, Parse, parse, skim};
@@ -311,6 +311,9 @@ struct SkimOut {
     api_text_hash: Hash128,
     uses: Vec<String>,
     facts: ModuleFacts,
+    /// The header span of a top-level `pub fn main` or `main!`, which
+    /// `cli.exe.unselected-main` is about.
+    public_main: Option<(u32, u32)>,
 }
 
 struct GraphOut {
@@ -460,6 +463,9 @@ pub struct Packages<'a> {
     /// `deps[i]`.
     pub requires: Vec<(String, u16)>,
     pub deps: Vec<Dependency<'a>>,
+    /// The root's executable entry modules, by their path below its source
+    /// root (`cli.exe.entry-program`).
+    pub entries: Vec<String>,
 }
 
 /// One run with the caller's sources, store, executor and clock.
@@ -486,6 +492,7 @@ pub fn build_packages(
         sources: &std,
         scope: Scope::All,
         requires: Vec::new(),
+        entries: Vec::new(),
     };
     let ins: Vec<PackageIn<'_>> = if package == "std" {
         vec![std_in]
@@ -495,12 +502,14 @@ pub fn build_packages(
             sources: host.sources,
             scope: Scope::All,
             requires: packages.requires.clone(),
+            entries: packages.entries.clone(),
         })
         .chain(packages.deps.iter().map(|d| PackageIn {
             name: &d.name,
             sources: d.sources,
             scope: Scope::Library,
             requires: d.requires.clone(),
+            entries: Vec::new(),
         }))
         .chain(std::iter::once(std_in))
         .collect()
@@ -852,11 +861,25 @@ impl Run<'_> {
                 .filter(|b| b.kind == HeaderKind::Impl && b.header_indent == 0)
                 .count(),
         };
+        let public_main = sk
+            .bodies
+            .iter()
+            .filter(|b| b.kind == HeaderKind::Function && b.header_indent == 0)
+            .find(|b| {
+                let header = text
+                    .get(b.header_start as usize..b.body_start as usize)
+                    .unwrap_or("");
+                ["pub fn main(", "pub fn main!(", "pub fn main["]
+                    .iter()
+                    .any(|p| header.trim_start().starts_with(p))
+            })
+            .map(|b| (b.header_start, b.body_start));
         SkimOut {
             source_hash: sk.source_hash,
             api_text_hash: sk.api_text_hash,
             uses,
             facts,
+            public_main,
         }
     }
 
@@ -908,6 +931,28 @@ impl Run<'_> {
             .collect();
         let graph = FolderGraph::build(&self.table, &uses);
         lock(&self.report).ok(Stage::FolderGraph);
+        // `cli.exe.unselected-main`: a public `main` under the source root
+        // of a module no executable names is an ordinary function.
+        for (m, module) in self.table.modules.iter().enumerate() {
+            let source = self.table.files[m].starts_with("src/");
+            if module.package != 0 || module.entry || module.role != Role::Lib || !source {
+                continue;
+            }
+            if let Some((lo, hi)) = self.skim_of(m).public_main {
+                let span = Span {
+                    file: module.file,
+                    lo,
+                    hi,
+                };
+                lock(&self.diags).push(
+                    Code::UnselectedMain,
+                    Severity::Warning,
+                    span,
+                    "this public `main` is an ordinary function, since no executable names its module; name it in an `[[executable]]` table of `hd.toml` to run it",
+                    None,
+                );
+            }
+        }
         for c in &graph.cycles {
             if c.iter().any(|f| self.table.folders[f.idx()].package != 0) {
                 continue;

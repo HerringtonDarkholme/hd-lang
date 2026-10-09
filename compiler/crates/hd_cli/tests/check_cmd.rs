@@ -14,11 +14,7 @@ fn scratch(name: &str) -> PathBuf {
 /// A package `shop` whose `main.hd` holds `main_source`.
 fn package(name: &str, main_source: &str) -> PathBuf {
     let dir = scratch(name);
-    std::fs::write(
-        dir.join("hd.toml"),
-        "[package]\nname = \"shop\"\nversion = \"0.1.0\"\n",
-    )
-    .expect("write");
+    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("write");
     std::fs::write(dir.join("main.hd"), main_source).expect("write");
     dir
 }

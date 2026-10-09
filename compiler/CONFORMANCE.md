@@ -3272,7 +3272,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 31 | 71 | 0 | 102 |
+| 38 | 64 | 0 | 102 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3292,6 +3292,10 @@ cli/dep-package-cycle
 cli/dep-path-no-package
 cli/derivation-lines-agree
 cli/entry-err-display
+cli/exe-main-unlisted
+cli/exe-missing-module
+cli/exe-unselected-main
+cli/exe-unselected-main-used
 cli/exit-hd-failure
 cli/exit-outside-package
 cli/exit-package-check
@@ -3302,9 +3306,12 @@ cli/json-check-clean
 cli/json-check-error
 cli/json-check-modules-checked
 cli/json-check-warning
+cli/json-diagnostic-fixes
 cli/json-file-location
 cli/json-file-single
 cli/json-run
+cli/manifest-unknown-key
+cli/member-unlisted
 cli/task-beside-dir
 cli/task-name-clash
 cli/toolchain-too-old

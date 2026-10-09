@@ -38,9 +38,13 @@ pub(crate) struct Diag {
 
 impl Diag {
     pub(crate) fn error(code: Option<Code>, message: &str) -> Diag {
+        Diag::new(code, Severity::Error, message)
+    }
+
+    pub(crate) fn new(code: Option<Code>, severity: Severity, message: &str) -> Diag {
         Diag {
             code,
-            severity: Severity::Error,
+            severity,
             message: message.to_owned(),
             file: None,
             line: None,
