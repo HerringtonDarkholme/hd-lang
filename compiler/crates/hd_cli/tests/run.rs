@@ -1038,3 +1038,32 @@ fn remove_deletes_a_requirement_line_by_line() {
     assert_eq!(r.code, Some(101));
     assert!(r.err.contains("`json` is no key"), "{}", r.err);
 }
+
+/// `cli.dep.fetch`, `cli.dep.path`: with path requirements only there is
+/// nothing to fetch and no `hd.sum` line to add; a dependency requirement
+/// needs a fetch, which is not built yet, and is an error.
+#[test]
+fn fetch_with_path_requirements_only_has_nothing_to_do() {
+    let dir = tree(
+        "hd-forms-fetch",
+        &[
+            (
+                "hd.toml",
+                "[package]\nname = \"shop\"\n\n[dependencies]\nmoney = { path = \"money\" }\n",
+            ),
+            ("money/hd.toml", "[package]\nname = \"money\"\n"),
+            ("money/src/lib.hd", "pub fn one() -> i32:\n    1\n"),
+            ("src/main.hd", HELLO),
+        ],
+    );
+    let r = ran(&dir, &["fetch", "--format", "json"]);
+    assert_eq!(r.code, Some(0), "{}", r.err);
+    assert!(r.out.starts_with("{\"kind\":\"summary\""), "{}", r.out);
+    assert!(!dir.join("hd.sum").exists());
+    std::fs::write(
+        dir.join("hd.toml"),
+        "[package]\nname = \"shop\"\n\n[dependencies]\njson = \"github.com/acme/json@2.1.0\"\n",
+    )
+    .expect("write");
+    assert_eq!(ran(&dir, &["fetch"]).code, Some(101));
+}

@@ -33,6 +33,7 @@ const USAGE: &str = "usage:
   hd new [--app | --lib] [--pages] [--vcs none] [PATH]
   hd clean [--cache]
   hd remove NAME
+  hd fetch
   hd test [FILE.hd] [--filter PATTERN] [--jobs N] [--format json]";
 
 /// `cli.exit.hd-failure`: `hd` itself failed, or rejected its command line.
@@ -81,6 +82,7 @@ fn main() -> ExitCode {
         ("new", rest) => new_cmd::command(rest),
         ("clean", rest) => clean_cmd::command(rest),
         ("remove", rest) => dep_cmd::remove(rest),
+        ("fetch", rest) => dep_cmd::fetch(rest),
         ("run", rest) => run_command(rest),
         ("build", rest) => build_command(rest),
         ("check", rest) => check_cmd::command(rest),

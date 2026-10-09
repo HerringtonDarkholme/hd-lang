@@ -1,5 +1,6 @@
 //! The dependency commands that need no fetch design yet (Dependency
-//! Commands, `cli.dep.*`): `hd remove NAME`.
+//! Commands, `cli.dep.*`): `hd remove NAME`, and `hd fetch` for a
+//! selection with nothing to fetch.
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -110,4 +111,52 @@ fn remove_in(root: &Path, name: &str) -> Result<(), String> {
         std::fs::write(&sum_path, kept).map_err(|e| format!("{}: {e}", sum_path.display()))?;
     }
     Ok(())
+}
+
+/// `hd fetch` (`cli.dep.fetch`, `cli.dep.workspace-fetch`): with only path
+/// requirements there is nothing to fetch and no `hd.sum` line to add
+/// (`cli.dep.path`); fetching a dependency requirement is not built yet.
+pub(crate) fn fetch(args: &[OsString]) -> ExitCode {
+    let (json, words) = match words(args) {
+        Ok(w) => w,
+        Err(e) => return fail(&e),
+    };
+    let mut rep = Reporter::stdout(json);
+    if let Some(w) = words.first() {
+        return rep.fail(&format!("`hd fetch` takes no operand or option `{w}`"));
+    }
+    let cwd = match std::env::current_dir() {
+        Ok(c) => c,
+        Err(e) => return rep.fail(&e.to_string()),
+    };
+    let roots = if let Some((_, members)) = crate::disk::workspace_root(&cwd) {
+        members
+    } else if let Some(root) = crate::disk::package_root(&cwd) {
+        vec![root]
+    } else {
+        return rep.fail(
+            "`hd fetch` works on a package, and no `hd.toml` is at or above here; create a package with `hd new`",
+        );
+    };
+    for root in roots {
+        let m = match std::fs::read_to_string(root.join("hd.toml"))
+            .map_err(|e| e.to_string())
+            .and_then(|t| hd_project::parse_manifest(&t).map_err(|e| e.to_string()))
+        {
+            Ok(m) => m,
+            Err(e) => return rep.fail(&format!("{}: {e}", root.join("hd.toml").display())),
+        };
+        if let Some(r) = m
+            .dependencies
+            .iter()
+            .chain(&m.dev_dependencies)
+            .find(|r| r.path.is_none())
+        {
+            return rep.fail(&format!(
+                "fetching `{}` ({}) is not implemented yet",
+                r.key, r.text
+            ));
+        }
+    }
+    rep.finish(0)
 }
