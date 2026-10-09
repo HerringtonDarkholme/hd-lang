@@ -466,6 +466,8 @@ pub struct Packages<'a> {
     /// The root's executable entry modules, by their path below its source
     /// root (`cli.exe.entry-program`).
     pub entries: Vec<String>,
+    /// The root's dev dependencies, as `requires` (`module.test.dev-dependency`).
+    pub dev_requires: Vec<(String, u16)>,
 }
 
 /// One run with the caller's sources, store, executor and clock.
@@ -493,6 +495,7 @@ pub fn build_packages(
         scope: Scope::All,
         requires: Vec::new(),
         entries: Vec::new(),
+        dev_requires: Vec::new(),
     };
     let ins: Vec<PackageIn<'_>> = if package == "std" {
         vec![std_in]
@@ -503,6 +506,7 @@ pub fn build_packages(
             scope: Scope::All,
             requires: packages.requires.clone(),
             entries: packages.entries.clone(),
+            dev_requires: packages.dev_requires.clone(),
         })
         .chain(packages.deps.iter().map(|d| PackageIn {
             name: &d.name,
@@ -510,6 +514,7 @@ pub fn build_packages(
             scope: Scope::Library,
             requires: d.requires.clone(),
             entries: Vec::new(),
+            dev_requires: Vec::new(),
         }))
         .chain(std::iter::once(std_in))
         .collect()

@@ -232,6 +232,9 @@ pub struct PackageIn<'a> {
     /// below the source root (`cli.exe.entry-program`); `src/main.hd` is
     /// one whatever they say (`module.path.main-file`).
     pub entries: Vec<String>,
+    /// Its dev dependencies, as `requires` (`module.test.dev-dependency`):
+    /// only the root's are read (`module.select.dev-dependencies`).
+    pub dev_requires: Vec<(String, u16)>,
 }
 
 /// One module: a file. Dense IDs; stable form is the module path.
@@ -338,6 +341,9 @@ pub struct ModuleTable {
     pub packages: Vec<String>,
     /// Per package: each dependency name and its package index.
     pub requires: Vec<Vec<(String, u16)>>,
+    /// Per package: its dev dependencies, in the same form; only the root
+    /// has any.
+    pub dev_requires: Vec<Vec<(String, u16)>>,
     /// Display paths by `FileId`: package-relative for the root package,
     /// `<pkg>/path` for a dependency.
     pub files: Vec<String>,
@@ -382,6 +388,7 @@ impl ModuleTable {
             scope: Scope::All,
             requires: Vec::new(),
             entries: Vec::new(),
+            dev_requires: Vec::new(),
         }])
     }
 
@@ -396,6 +403,7 @@ impl ModuleTable {
             package: packages.first().map_or("", |p| p.name).to_owned(),
             packages: packages.iter().map(|p| p.name.to_owned()).collect(),
             requires: packages.iter().map(|p| p.requires.clone()).collect(),
+            dev_requires: packages.iter().map(|p| p.dev_requires.clone()).collect(),
             ..Self::default()
         };
         let mut folders: BTreeMap<String, (u16, Vec<ModuleId>)> = BTreeMap::new();
@@ -544,15 +552,47 @@ impl ModuleTable {
     pub fn use_roots(&self, m: ModuleId) -> UseRoots {
         let module = &self.modules[m.idx()];
         let package = usize::from(module.package);
+        // Test modules, integration tests and tasks see the dev
+        // dependencies too (`module.test.dev-dependency`,
+        // `cli.task.dev-dependencies`), except that a unit test module never
+        // sees one that depends back on the package
+        // (`module.test.cyclic-dev-unit`). Other code does not see them.
+        let unit_test = Root::of(&self.files[m.idx()]).0 == Root::Source;
+        let dev =
+            self.dev_requires
+                .get(package)
+                .into_iter()
+                .flatten()
+                .filter(|(_, p)| match module.role {
+                    Role::Task => true,
+                    Role::Test => !(unit_test && self.reaches(*p, module.package)),
+                    Role::Lib | Role::Exe => false,
+                });
         UseRoots {
             pkg: package_ident(&self.packages[package]),
             base: module.base.clone(),
             floor: module.floor.clone(),
             deps: self.requires[package]
                 .iter()
+                .chain(dev)
                 .map(|(name, p)| (name.clone(), package_ident(&self.packages[usize::from(*p)])))
                 .collect(),
         }
+    }
+
+    /// Whether package `from` reaches package `to` through requirements.
+    fn reaches(&self, from: u16, to: u16) -> bool {
+        let mut seen = vec![false; self.packages.len()];
+        let mut stack = vec![from];
+        while let Some(p) = stack.pop() {
+            if p == to {
+                return true;
+            }
+            if !std::mem::replace(&mut seen[usize::from(p)], true) {
+                stack.extend(self.requires[usize::from(p)].iter().map(|(_, q)| *q));
+            }
+        }
+        false
     }
 
     /// Each cycle of the package graph (`module.cycle.package`): package
@@ -892,6 +932,7 @@ mod tests {
                 scope: Scope::All,
                 requires: vec![("cash".to_owned(), 1)],
                 entries: Vec::new(),
+                dev_requires: Vec::new(),
             },
             PackageIn {
                 name: "money",
@@ -899,6 +940,7 @@ mod tests {
                 scope: Scope::Library,
                 requires: Vec::new(),
                 entries: Vec::new(),
+                dev_requires: Vec::new(),
             },
         ]);
         let paths: Vec<&str> = t.modules.iter().map(|m| m.path.as_str()).collect();
@@ -984,6 +1026,7 @@ mod tests {
             scope: Scope::Library,
             requires,
             entries: Vec::new(),
+            dev_requires: Vec::new(),
         };
         let t = ModuleTable::discover_all(&[
             p("shop", vec![("money".to_owned(), 1)]),

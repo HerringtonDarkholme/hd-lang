@@ -87,12 +87,6 @@ When the queue is empty, say so under "Questions" and wait.
 
 ## Jobs
 
-### O7. Folder Cycles, Dev-Dependencies, Executables Exclude Tests (#111)
-
-Folder-cycle recovery (resolution-and-interfaces.md §4.8 rule 5),
-`[dev-dependencies]` loading with `test-only-use`, and `hd run` leaving
-`tests/` out of the executable program.
-
 ### O8. CLI Commands (#108), One Command Per Commit
 
 `hd new`, `hd remove`, `hd clean`, `hd fetch`, `hd doc`, `hd fmt`,
@@ -157,3 +151,26 @@ One commit per command; skip a command whose spec needs a design that
   `[test.capabilities]` parse but have no effect yet. The samples under
   `compiler/samples` lost their `version = "0.1.0"` line, which is now an
   `unknown-manifest-key` warning.
+- **O7, folder-cycle recovery (needs `hd_resolve`).** §4.8 rule 5
+  resolves a cyclic SCC's folders together, as one folder. In
+  `hd_driver`, `FolderIface(F)` builds one folder's interface through
+  `hd_resolve::Cx { folder, .. }` and needs every other folder of its
+  closure built first, so a cycle leaves a member blocked and its uses
+  cascade (`folder-cycle-facade`: `unknown-module` after
+  `folder-cycle`). Recovery means an interface over several folders in
+  `hd_resolve`'s interface lowering, which is not my lane. Who takes it?
+- **O7, dev dependencies (needs `hd_resolve`).** The root's
+  `[dev-dependencies]` now load, and test modules, integration tests and
+  tasks see them (`hd_project::ModuleTable::use_roots`); library code
+  does not, and a unit test module does not see one that depends back on
+  the package. Two parts need the resolver: the `test-only-use` and
+  `cyclic-test-dependency` codes (a new `UseRootError` arm in
+  `hd_resolve` lowering), and dev dependencies inside a library module's
+  `tests:` block, whose uses `use_decls` joins to the module's scope
+  (`dev-dependency-tests-block`). The run-time cases also need top-level
+  `it(...)` in test modules (`TrailingCallExpr`, hd_check).
+- **O7, `hd run --release`.** `hd run`, `hd build` and `hd FILE` now
+  leave test code and other tasks out of the program, so
+  `release-wraps` gets to running; it then panics with
+  `integer-overflow`, since `--release` does not select the wrapping
+  profile in codegen yet.

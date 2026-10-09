@@ -850,3 +850,27 @@ fn a_workspace_root_acts_on_its_members() {
     assert_eq!(r.code, Some(101));
     assert!(r.err.contains("neither lists `loose`"), "{}", r.err);
 }
+
+/// `module.test.code`: `hd run` and `hd build` build the executable without
+/// the package's test code or its other tasks.
+#[test]
+fn a_program_leaves_test_code_out() {
+    let dir = shop("hd-forms-no-tests");
+    std::fs::create_dir_all(dir.join("tests")).expect("dir");
+    std::fs::write(
+        dir.join("tests/broken.hd"),
+        "fn main() -> void:\n    _ := missing\n",
+    )
+    .expect("write");
+    std::fs::write(
+        dir.join("tasks/broken.hd"),
+        "fn main() -> void:\n    _ := missing\n",
+    )
+    .expect("write");
+    let r = ran(&dir, &["run"]);
+    assert_eq!((r.code, r.out.as_str()), (Some(0), "main\n"), "{}", r.err);
+    let r = ran(&dir, &["run", "seed"]);
+    assert_eq!((r.code, r.out.as_str()), (Some(0), "seeded\n"), "{}", r.err);
+    let r = ran(&dir, &["build"]);
+    assert_eq!(r.code, Some(0), "{}", r.err);
+}

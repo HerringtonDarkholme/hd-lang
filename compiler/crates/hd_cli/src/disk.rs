@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use hd_diag::{Code, Severity};
 use hd_driver::{Dependency, Packages};
-use hd_project::{Grant, Manifest, SourceEntry, SourceSet, module_below, parse_manifest};
+use hd_project::{Grant, Manifest, Role, SourceEntry, SourceSet, module_below, parse_manifest};
 
 use crate::report::{Diag, Edit, Fix};
 
@@ -74,6 +74,8 @@ pub struct Program {
     pub entry: String,
     /// The root's requirements, as `Packages::requires` indexes them.
     pub requires: Requires,
+    /// The root's dev requirements, in the same form.
+    pub dev_requires: Requires,
     /// The packages its path requirements reach.
     pub deps: Vec<DiskPackage>,
     /// What its manifest breaks (commands.md §7.1 step 1); any error stops
@@ -97,6 +99,16 @@ pub struct DiskPackage {
 }
 
 impl Program {
+    /// Narrows the sources to one program's: the library, the executables
+    /// and `entry_file` (`cli.check.default`, `module.test.code`). Test
+    /// code and the other tasks are no part of a program that `hd run` or
+    /// `hd build` builds.
+    pub fn only_program(&mut self, entry_file: &str) {
+        self.sources.retain(|path| {
+            path == entry_file || matches!(hd_project::role_of(path), Role::Lib | Role::Exe)
+        });
+    }
+
     /// The packages around the root, as the driver takes them.
     pub fn packages(&self) -> Packages<'_> {
         Packages {
@@ -111,6 +123,7 @@ impl Program {
                 })
                 .collect(),
             entries: self.entries.clone(),
+            dev_requires: self.dev_requires.clone(),
         }
     }
 }
@@ -126,24 +139,36 @@ fn manifest_of(dir: &Path) -> Result<Option<Manifest>, String> {
 }
 
 /// The packages a root's path requirements reach, transitively
-/// (`module.path-dep.form`), in the order they are first reached. One
+/// (`module.path-dep.form`), in the order they are first reached, and the
+/// root's own requirements and dev requirements. Only the root's
+/// `[dev-dependencies]` are read (`module.select.dev-dependencies`). One
 /// directory is one package, so a requirement that reaches a package read
 /// before names it again: a cycle stays finite, and the build reports it
 /// (`module.cycle.package`). A host requirement needs a fetch, and a path
 /// with no manifest is no package; neither is read here.
-fn dependencies(root: &Path) -> Result<(Requires, Vec<DiskPackage>), String> {
+fn dependencies(root: &Path) -> Result<(Requires, Requires, Vec<DiskPackage>), String> {
     let Some(manifest) = manifest_of(root)? else {
-        return Ok((Vec::new(), Vec::new()));
+        return Ok((Vec::new(), Vec::new(), Vec::new()));
     };
     let mut dirs: Vec<PathBuf> = vec![std::fs::canonicalize(root).map_err(|e| e.to_string())?];
     let mut requires: Vec<Requires> = Vec::new();
+    let mut dev = Vec::new();
     let mut manifests = vec![manifest];
     let mut deps: Vec<DiskPackage> = Vec::new();
     let mut next = 0;
     while next < dirs.len() {
         let mut own = Vec::new();
         let reqs = manifests[next].dependencies.clone();
-        for r in &reqs {
+        let dev_reqs = if next == 0 {
+            manifests[0].dev_dependencies.clone()
+        } else {
+            Vec::new()
+        };
+        for (is_dev, r) in reqs
+            .iter()
+            .map(|r| (false, r))
+            .chain(dev_reqs.iter().map(|r| (true, r)))
+        {
             let Some(path) = &r.path else { continue };
             let Ok(dir) = std::fs::canonicalize(dirs[next].join(path)) else {
                 continue;
@@ -164,7 +189,12 @@ fn dependencies(root: &Path) -> Result<(Requires, Vec<DiskPackage>), String> {
                 manifests.push(m);
                 dirs.len() - 1
             };
-            own.push((r.name(), u16::try_from(index).map_err(|e| e.to_string())?));
+            let edge = (r.name(), u16::try_from(index).map_err(|e| e.to_string())?);
+            if is_dev {
+                dev.push(edge);
+            } else {
+                own.push(edge);
+            }
         }
         requires.push(own);
         next += 1;
@@ -174,7 +204,7 @@ fn dependencies(root: &Path) -> Result<(Requires, Vec<DiskPackage>), String> {
     for (d, r) in deps.iter_mut().zip(requires) {
         d.requires = r;
     }
-    Ok((root_requires, deps))
+    Ok((root_requires, dev, deps))
 }
 
 /// A package name for a root without `hd.toml`: its directory's name.
@@ -343,6 +373,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
         package,
         entry: module_below(&name),
         requires: Vec::new(),
+        dev_requires: Vec::new(),
         deps: Vec::new(),
         problems: Vec::new(),
         as_written,
@@ -359,7 +390,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
 pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
     let (sources, package) = sources_of(root)?;
     let problems = manifest_problems(root, &package)?;
-    let (requires, deps) = dependencies(root)?;
+    let (requires, dev_requires, deps) = dependencies(root)?;
     let entries = executables(root, &package)
         .iter()
         .filter(|e| e.file.starts_with("src/"))
@@ -370,6 +401,7 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
         package,
         entry: module_below(entry),
         requires,
+        dev_requires,
         deps,
         problems,
         as_written: None,

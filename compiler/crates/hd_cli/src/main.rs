@@ -361,10 +361,11 @@ fn run_command(args: &[OsString]) -> ExitCode {
             }
         },
     };
-    let program = match disk::load_package(&root, &chosen.file) {
+    let mut program = match disk::load_package(&root, &chosen.file) {
         Ok(p) => p,
         Err(e) => return rep.fail(&e),
     };
+    program.only_program(&chosen.file);
     let wasm = match compile(&program, &mut rep) {
         Ok(wasm) => wasm,
         Err(code) => return code,
@@ -484,11 +485,13 @@ fn build_package(root: &Path, release: bool, rep: &mut Reporter) -> Result<(), E
     let package = disk::package_name(root).map_err(|e| rep.fail(&e))?;
     let executables = disk::executables(root, &package);
     if executables.is_empty() {
-        let program = disk::load_package(root, "main").map_err(|e| rep.fail(&e))?;
+        let mut program = disk::load_package(root, "main").map_err(|e| rep.fail(&e))?;
+        program.only_program("");
         return build_goal(&program, &Goal::Analyze, rep).map(|_| ());
     }
     for exe in &executables {
-        let program = disk::load_package(root, &exe.file).map_err(|e| rep.fail(&e))?;
+        let mut program = disk::load_package(root, &exe.file).map_err(|e| rep.fail(&e))?;
+        program.only_program(&exe.file);
         let wasm = compile(&program, rep)?;
         write_module(root, release, false, &exe.name, &wasm).map_err(|e| rep.fail(&e))?;
     }
@@ -515,7 +518,8 @@ fn build_file(file: &Path, release: bool, rep: &mut Reporter) -> Result<(), Exit
         return Err(rep.fail("FILE is outside its package"));
     };
     let rel = rel.to_string_lossy().replace('\\', "/");
-    let program = disk::load_package(&root, &rel).map_err(|e| rep.fail(&e))?;
+    let mut program = disk::load_package(&root, &rel).map_err(|e| rep.fail(&e))?;
+    program.only_program(&rel);
     let wasm = compile(&program, rep)?;
     let stem = full
         .file_stem()

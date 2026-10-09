@@ -451,3 +451,37 @@ fn messages_name_test_and_task_code_by_file() {
         assert!(all.contains("no module named `tests`"), "{all}");
     }
 }
+
+/// `module.test.dev-dependency`, `module.test.non-test-use.dev-dependency`:
+/// a test module may use a dev dependency, and library code may not.
+#[test]
+fn dev_dependencies_are_for_test_code_only() {
+    let dir = scratch("hd-check-dev");
+    for (file, text) in [
+        (
+            "hd.toml",
+            "[package]\nname = \"shop\"\n\n[dev-dependencies]\nfixtures = { path = \"fixtures\" }\n",
+        ),
+        ("fixtures/hd.toml", "[package]\nname = \"fixtures\"\n"),
+        ("fixtures/src/lib.hd", "pub fn sample() -> i32:\n    2\n"),
+        ("src/lib.hd", "pub fn double(v: i32) -> i32:\n    v * 2\n"),
+        (
+            "src/lib_test.hd",
+            "use dep.fixtures.{sample}\nuse pkg.{double}\n\nfn four() -> i32:\n    double(sample())\n",
+        ),
+    ] {
+        let path = dir.join(file);
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
+        std::fs::write(path, text).expect("write");
+    }
+    let r = check(&dir, "hd-check-cache-dev", &["--tests"]);
+    assert_eq!(r.code, Some(0), "{}", r.err);
+    std::fs::write(
+        dir.join("src/lib.hd"),
+        "use dep.fixtures.{sample}\n\npub fn double(v: i32) -> i32:\n    v * sample()\n",
+    )
+    .expect("write");
+    let r = check(&dir, "hd-check-cache-dev", &[]);
+    assert_eq!(r.code, Some(101));
+    assert!(r.err.starts_with("error: src/lib.hd:1:1:"), "{}", r.err);
+}
