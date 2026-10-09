@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2295 | 412 | 138 | 2845 |
+| 2301 | 408 | 136 | 2845 |
 
 ## By Chapter
 
@@ -38,7 +38,7 @@ fixture; unsupported surface records progress without failing.
 | `std/hash.md` | 8 | 1 | 0 | 9 |
 | `std/host.md` | 2 | 0 | 0 | 2 |
 | `std/http.md` | 2 | 0 | 0 | 2 |
-| `std/iter.md` | 15 | 7 | 3 | 25 |
+| `std/iter.md` | 21 | 3 | 1 | 25 |
 | `std/json.md` | 18 | 0 | 1 | 19 |
 | `std/net.md` | 1 | 0 | 0 | 1 |
 | `std/num.md` | 16 | 2 | 0 | 18 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 86 | 15 | 4 | 105 |
-| `runtime/valid` | 791 | 29 | 109 | 929 |
+| `runtime/valid` | 797 | 24 | 108 | 929 |
 | `typing/invalid` | 727 | 332 | 16 | 1075 |
-| `typing/valid` | 393 | 13 | 9 | 415 |
+| `typing/valid` | 393 | 14 | 8 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -80,11 +80,12 @@ compiler stage that first declined the case.
 | `fail:bang-call-outside-suspension` | 2 |
 | `fail:bare-variant-pattern` | 3 |
 | `fail:boundary-private-field` | 1 |
-| `fail:cannot-infer-type` | 8 |
+| `fail:cannot-infer-type` | 6 |
 | `fail:duplicate-argument` | 1 |
 | `fail:duplicate-data-pattern-field` | 1 |
 | `fail:identity-requires-references` | 9 |
 | `fail:implicit-narrowing` | 1 |
+| `fail:invalid-result-propagation` | 2 |
 | `fail:invalid-test-statement` | 1 |
 | `fail:invalid-token` | 2 |
 | `fail:let-else-falls-through` | 1 |
@@ -121,9 +122,9 @@ compiler stage that first declined the case.
 | `fail:unknown-trait` | 7 |
 | `fail:unknown-type` | 4 |
 | `fail:unknown-variant` | 1 |
-| `fail:unsatisfied-trait-bound` | 9 |
+| `fail:unsatisfied-trait-bound` | 5 |
 | `fail:unused-local-binding` | 6 |
-| `unsupported:Body` | 52 |
+| `unsupported:Body` | 50 |
 | `unsupported:Collect` | 30 |
 | `unsupported:Emit` | 19 |
 | `unsupported:Link` | 4 |
@@ -167,14 +168,12 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:cannot-infer-type</code> (8)</summary>
+<details><summary><code>fail:cannot-infer-type</code> (6)</summary>
 
 - `typing/invalid/none-to-any.hd`
 - `typing/invalid/none-without-expected-type.hd`
 - `typing/invalid/facts-of-as-value.hd`
-- `runtime/valid/collect-targets-run.hd`
 - `typing/invalid/handle-fact-pattern-mismatch.hd`
-- `runtime/valid/iterator-skip-take-while.hd`
 - `typing/invalid/eq-contextual-both-operands.hd`
 - `typing/invalid/any-bare-none.hd`
 
@@ -209,6 +208,13 @@ compiler stage that first declined the case.
 <details><summary><code>fail:implicit-narrowing</code> (1)</summary>
 
 - `typing/invalid/no-widening-list-literal.hd`
+
+</details>
+
+<details><summary><code>fail:invalid-result-propagation</code> (2)</summary>
+
+- `typing/valid/collect-targets.hd`
+- `runtime/valid/collect-target-from-try-hint.hd`
 
 </details>
 
@@ -757,17 +763,13 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unsatisfied-trait-bound</code> (9)</summary>
+<details><summary><code>fail:unsatisfied-trait-bound</code> (5)</summary>
 
 - `typing/invalid/provider-value-type-mismatch.hd`
 - `typing/invalid/propagation-no-chained-conversion.hd`
 - `typing/invalid/propagation-conversion-then-injection.hd`
 - `typing/invalid/propagation-error-without-conversion.hd`
-- `runtime/valid/iterator-adapters-run.hd`
 - `runtime/valid/fs-helpers.hd`
-- `runtime/valid/iterator-zip-iterable.hd`
-- `runtime/valid/iterator-chain-iterable.hd`
-- `runtime/valid/iterator-flat-map.hd`
 
 </details>
 
@@ -782,7 +784,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (52)</summary>
+<details><summary><code>unsupported:Body</code> (50)</summary>
 
 - `typing/valid/enums.hd`
 - `typing/valid/requirements-and-suspension.hd`
@@ -806,11 +808,9 @@ compiler stage that first declined the case.
 - `runtime/valid/row-alias-runs.hd`
 - `typing/valid/row-alias-bare-slots.hd`
 - `runtime/valid/row-alias-bare-runs.hd`
-- `typing/valid/collect-targets.hd`
 - `typing/valid/type-default-trait-method.hd`
 - `typing/valid/newtype-unwrap-permission.hd`
 - `typing/invalid/newtype-unwrap-readonly.hd`
-- `runtime/valid/collect-target-from-try-hint.hd`
 - `typing/invalid/tuple-vararg-no-auto-spread.hd`
 - `typing/valid/tuple-trait-bound.hd`
 - `runtime/valid/tuple-bound-vararg-call.hd`
@@ -1413,6 +1413,7 @@ runtime/valid/cmp-min-max-distinguishable-tie.hd
 runtime/valid/cmp-min-max.hd
 runtime/valid/cmp-ordering-eq.hd
 runtime/valid/cmp-reverse.hd
+runtime/valid/collect-targets-run.hd
 runtime/valid/colons-in-brackets-and-trailing-blocks.hd
 runtime/valid/comments-hide-code-from-the-parser.hd
 runtime/valid/comparisons-beside-brackets.hd
@@ -1660,11 +1661,16 @@ runtime/valid/interpolation-expression-spacing.hd
 runtime/valid/interpolation-forms.hd
 runtime/valid/it-each-options.hd
 runtime/valid/it-each-rows.hd
+runtime/valid/iterator-adapters-run.hd
+runtime/valid/iterator-chain-iterable.hd
 runtime/valid/iterator-drives-loops.hd
+runtime/valid/iterator-flat-map.hd
 runtime/valid/iterator-from-fn.hd
 runtime/valid/iterator-search-count.hd
 runtime/valid/iterator-shape-versus-value-changes.hd
 runtime/valid/iterator-single-pass.hd
+runtime/valid/iterator-skip-take-while.hd
+runtime/valid/iterator-zip-iterable.hd
 runtime/valid/json-errors.hd
 runtime/valid/json-escapes.hd
 runtime/valid/json-float-text.hd
