@@ -914,6 +914,23 @@ impl Ck<'_, '_> {
         Ok(!matches!(self.solve(tref)?, Answer::Fails(_)))
     }
 
+    /// Whether `t` coerces into the trait value `target` because it
+    /// implements the trait (`types.assign.trait-value`), or the answer waits for
+    /// inference; `false` when `target` is no trait value.
+    fn erases_into(&mut self, t: Ty, target: Ty) -> StageResult<bool> {
+        let pool = self.pool();
+        let TyData::TraitValue { def, args, .. } = pool.get(self.infer.resolve(pool, target))
+        else {
+            return Ok(false);
+        };
+        let tref = TraitRef {
+            trait_: def,
+            self_ty: self.infer.resolve(pool, t),
+            args,
+        };
+        Ok(!matches!(self.solve(tref)?, Answer::Fails(_)))
+    }
+
     pub(crate) fn b_empty_rec(&mut self) -> u32 {
         self.b.refs_record(&[])
     }
@@ -2512,12 +2529,10 @@ impl Ck<'_, '_> {
                 let ev = if self.can_unify(et, ret_e) {
                     self.expect(et, ret_e, *e, "error");
                     ev
-                } else if matches!(
-                    pool.get(self.infer.resolve(pool, ret_e)),
-                    TyData::TraitValue { .. }
-                ) {
-                    // Into an erased error such as `dyn Error`: a trait-value
-                    // coercion (`expr.try.test.converts`).
+                } else if self.erases_into(et, ret_e)? {
+                    // Into an erased error such as `dyn Error` that the
+                    // error's type implements: a trait-value coercion
+                    // (`expr.try.convert.assignable`, `expr.try.test.converts`).
                     self.coerce(ev, et, ret_e, *e, "error")
                 } else {
                     let from = self.cx.names.known.from;
@@ -2526,7 +2541,9 @@ impl Ck<'_, '_> {
                         self_ty: ret_e,
                         args: pool.list(&[et]),
                     };
-                    let _ = self.require_ref(tref, n)?;
+                    // An error that neither is assignable nor converts is
+                    // `invalid-result-propagation` (`expr.try.convert.none`).
+                    let _ = self.require_ref_as(tref, n, Code::InvalidResultPropagation)?;
                     let method = self.cx.names.member(from, PathKind::Member, "from");
                     let c = hd_tir::ir::Callee::TraitMethod {
                         trait_: from,

@@ -760,3 +760,51 @@ fn a_dependency_diagnostic_is_located_in_its_file() {
     let (file, line, column) = out.locate(out.diags.primary[at]);
     assert_eq!((file.as_str(), line, column), ("<ext>/src/lib.hd", 2, 12));
 }
+
+/// `expr.try.convert`: a `?` error that is assignable or converts by
+/// `From` propagates; one that does neither is `invalid-result-propagation`
+/// (`expr.try.convert.none`), whether the function returns a plain error
+/// type or the erased `dyn Error` (`expr.try.test.converts`).
+#[test]
+fn a_try_error_that_does_not_convert_is_invalid_propagation() {
+    const ERRORS: &str = "\
+use std.error.Error
+use std.convert.From
+
+data Parse:
+    text: string
+
+impl Display for Parse:
+    fn to_string(self) -> string: self.text
+
+impl Error for Parse
+
+data Wrapped:
+    parse: Parse
+
+impl From[Parse] for Wrapped:
+    fn from(value: Parse) -> Wrapped: Wrapped { parse: value }
+
+fn parse() -> Result[i32, Parse]:
+    .Err(Parse { text: \"x\" })
+
+fn word() -> Result[i32, string]:
+    .Err(\"x\")
+";
+    for ok in [
+        "fn f() -> Result[i32, Wrapped]:\n    .Ok(parse()?)",
+        "fn f() -> Result[i32, dyn Error]:\n    .Ok(parse()?)",
+    ] {
+        assert_eq!(item_codes(&format!("{ERRORS}\n{ok}\n")), [], "{ok}");
+    }
+    for bad in [
+        "fn f() -> Result[i32, Wrapped]:\n    .Ok(word()?)",
+        "fn f() -> Result[i32, dyn Error]:\n    .Ok(word()?)",
+    ] {
+        assert_eq!(
+            item_codes(&format!("{ERRORS}\n{bad}\n")),
+            [Code::InvalidResultPropagation],
+            "{bad}"
+        );
+    }
+}

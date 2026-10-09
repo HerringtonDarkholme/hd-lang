@@ -1019,7 +1019,7 @@ impl Ck<'_, '_> {
     }
 
     /// [`Self::require_ref`], reporting a failure with `code`.
-    fn require_ref_as(
+    pub(crate) fn require_ref_as(
         &mut self,
         tref: TraitRef,
         at: NodeRef<'_>,
