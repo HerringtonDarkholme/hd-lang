@@ -248,6 +248,7 @@ The structured values of the ABI table, byte by byte:
 | `ConsoleError` | `0` (`Closed`) |
 | `ProcessOutput` | stdout, stderr, then the status, zigzag |
 | `ProcessError` | the variant index (`NotFound` 0, `PermissionDenied` 1, `NotGranted` 2, `Other` 3), then `Other`'s message |
+| `SysError` | the variant index (`NotGranted` 0, `Unsupported` 1), then its name (task #222) |
 
 So `Result[string?, ConsoleError]` is `0 0` at the end of input, `0 1`
 and the line for a line, and `1 0` for `Closed`;

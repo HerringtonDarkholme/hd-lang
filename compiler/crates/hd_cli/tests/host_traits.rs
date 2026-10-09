@@ -446,3 +446,50 @@ fn random_draws_from_the_host_source() {
     );
     assert_eq!(denied.status.code(), Some(101));
 }
+
+const SYS_PROGRAM: &str = "use std.sys.{Sys, SysError}
+
+fn show(r: Result[string, SysError]) -> string:
+    match r:
+        .Ok(text) => text
+        .Err(e) => \"${e}\"
+
+pub fn main() -> void $ Console + Sys:
+    sys := $.use(Sys)
+    println(show(sys.os()))
+    println(show(sys.arch()))
+    println(\"${sys.hostname().is_ok()}\")
+    match sys.cpu_count():
+        .Ok(n) => println(\"${n > 0}\")
+        .Err(e) => println(\"${e}\")
+    match sys.hostname():
+        .Err(.NotGranted(name)) => println(\"refused ${name}\")
+        _ => println(\"read\")
+";
+
+/// `Sys` (`std-sys.*`, `cli.cap.scope.sys`): the host's operating system
+/// and architecture by std's names, its host name and processor count;
+/// a grant names the methods it covers, and another method returns
+/// `NotGranted` with its name.
+#[test]
+fn sys_reads_the_host_inside_the_grant() {
+    let dir = work("host-sys");
+    write(&dir.join("main.hd"), SYS_PROGRAM);
+    let (os, arch) = (std::env::consts::OS, std::env::consts::ARCH);
+    let out = run(&dir, &["main.hd"]);
+    assert_eq!(text(&out.stderr), "");
+    assert_eq!(
+        text(&out.stdout),
+        format!("{os}\n{arch}\ntrue\ntrue\nread\n")
+    );
+    assert!(out.status.success());
+    let partial = run(&dir, &["--cap", "Sys=os,cpu_count", "main.hd"]);
+    assert_eq!(
+        text(&partial.stdout),
+        format!(
+            "{os}\nsys access to arch is not granted; run with --cap Sys=arch\n\
+             false\ntrue\nrefused hostname\n"
+        )
+    );
+    assert!(partial.status.success());
+}

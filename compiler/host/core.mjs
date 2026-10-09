@@ -48,7 +48,7 @@ import {
 } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { tmpdir } from "node:os";
+import { arch as osArch, availableParallelism, hostname, platform, tmpdir } from "node:os";
 import { dirname, basename, join, resolve } from "node:path";
 
 export class Deadlock extends Error {}
@@ -241,6 +241,12 @@ const FS_CODES = {
 };
 // `EntryKind`'s variants.
 const KIND = { File: 0, Directory: 1, Symlink: 2 };
+// `SysError`'s variants (std.sys).
+const SYS = { NotGranted: 0, Unsupported: 1 };
+// The names `std.sys` gives Node's platforms and architectures
+// (std-sys.os, std-sys.arch); any other is Node's own name.
+const OS_NAMES = { darwin: "macos", win32: "windows" };
+const ARCH_NAMES = { x64: "x86_64", arm64: "aarch64", ia32: "x86" };
 // `ProcessError`'s variants (std.process).
 const PROC = { NotFound: 0, PermissionDenied: 1, NotGranted: 2, Other: 3 };
 
@@ -500,6 +506,19 @@ export function createHost(sink, env = {}) {
       .zz(status);
   };
 
+  // `Result[T, SysError]` of the read `name`: `.Ok` of what `value`
+  // encodes, `.Err(.NotGranted(name))` outside the grant, or
+  // `.Err(.Unsupported(name))` when the host cannot answer it.
+  const sysRead = (name, value) => {
+    const e = new Enc();
+    if (!grant.coversName("Sys", name)) return put(e.leb(1).leb(SYS.NotGranted).str(name));
+    try {
+      return put(value(new Enc().leb(0)));
+    } catch {
+      return put(e.leb(1).leb(SYS.Unsupported).str(name));
+    }
+  };
+
   const imports = {
     "hd:rt": {
       stderr: (len) => {
@@ -558,6 +577,15 @@ export function createHost(sink, env = {}) {
     "hd:Random": {
       next_u64: () => randomBytes(8).readBigInt64LE(0),
       fill: (count) => put(new Enc().bytes(randomBytes(count >>> 0))),
+    },
+    // The host system's four reads (std-sys.*). The grant covers each by
+    // its method's name (cli.cap.scope.sys); a refused or unanswerable
+    // read is `.Err` with that name (std-sys.not-granted, .unsupported).
+    "hd:Sys": {
+      os: () => sysRead("os", (e) => e.str(OS_NAMES[platform()] ?? platform())),
+      arch: () => sysRead("arch", (e) => e.str(ARCH_NAMES[osArch()] ?? osArch())),
+      hostname: () => sysRead("hostname", (e) => e.str(hostname())),
+      cpu_count: () => sysRead("cpu_count", (e) => e.leb(availableParallelism())),
     },
     "hd:Args": {
       program: () => put(new Enc().str(program)),
