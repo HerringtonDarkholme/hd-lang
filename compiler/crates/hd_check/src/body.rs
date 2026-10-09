@@ -189,6 +189,9 @@ pub(crate) struct Ck<'a, 'c> {
     pub let_view: Option<bool>,
     /// The locals the source binds by name, for `unused-local-binding`.
     pub user_locals: Vec<LocalId>,
+    /// Whether the body read a name that a failed `use` poisoned: its
+    /// poison types come from that error, not from a failed inference.
+    pub read_poison_name: bool,
     /// Nested projection normalizations, against binding cycles.
     pub norm_depth: u32,
     /// Arguments of an instantiation choice inferred once, before its
@@ -270,6 +273,7 @@ pub(crate) fn new_ck<'a, 'c>(
         suspends: vec![false],
         defer_base: None,
         lit_nodes: Vec::new(),
+        read_poison_name: false,
         lit_arg: None,
         module_init: None,
         init_stmt: 0,
@@ -1921,7 +1925,10 @@ impl Ck<'_, '_> {
             let l = TyList(self.b.body_mut().extra[list_at]);
             self.b.body_mut().extra[list_at] = self.zonk_list(l).0;
         }
-        if !self.diags.has_errors() && !self.cx.results.borrow().has_errors() {
+        if !self.diags.has_errors()
+            && !self.cx.results.borrow().has_errors()
+            && !self.read_poison_name
+        {
             for i in 0..n {
                 let t = self.b.body_mut().ty[i];
                 let at = self.b.body_mut().syn[i];

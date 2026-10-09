@@ -244,6 +244,11 @@ impl Ck<'_, '_> {
                     }
                 }
             }
+            // Against a poisoned type the names still bind, to the poison
+            // type, so their uses report nothing further.
+            SyntaxKind::VariantPattern | SyntaxKind::DataPattern if inner == Ty::POISON => {
+                return self.declare_poisoned_fields(p, binds);
+            }
             SyntaxKind::VariantPattern => {
                 let name = self.variant_pattern_name(p);
                 // `flow.match.bare-payload`: `Some(x)` for `.Some(x)`.
@@ -307,6 +312,44 @@ impl Ck<'_, '_> {
                 }
             }
             other => return unsupported(format!("the pattern {other:?}")),
+        }
+        Ok(())
+    }
+
+    /// The names under a variant or data pattern whose type is poisoned
+    /// bind to the poison type.
+    fn declare_poisoned_fields(
+        &mut self,
+        p: NodeRef<'_>,
+        binds: &mut Vec<(NodeIdx, LocalId)>,
+    ) -> StageResult<()> {
+        let fields: Vec<NodeRef<'_>> = match p.kind() {
+            SyntaxKind::DataPattern => p
+                .children()
+                .filter(|c| c.kind() == SyntaxKind::DataPatternField)
+                .collect(),
+            _ => Src::child(p, SyntaxKind::PatternArgumentList)
+                .map(|al| al.children().collect())
+                .unwrap_or_default(),
+        };
+        for f in fields {
+            match f.kind() {
+                SyntaxKind::DataPatternField if f.children().next().is_none() => {
+                    let name = self
+                        .cx
+                        .names
+                        .syms
+                        .intern(self.cx.src.text(self.cx.src.first(f)));
+                    let l = self.bind_local(name, Ty::POISON, f);
+                    binds.push((f.index(), l));
+                }
+                SyntaxKind::DataPatternField | SyntaxKind::NamedPattern => {
+                    if let Some(sub) = f.children().next() {
+                        self.declare_pattern(sub, Ty::POISON, binds)?;
+                    }
+                }
+                _ => self.declare_pattern(f, Ty::POISON, binds)?,
+            }
         }
         Ok(())
     }
@@ -704,6 +747,12 @@ impl Ck<'_, '_> {
             return unsupported("a `match` without a scrutinee");
         };
         let (sr, st) = self.expr(scrut, None)?;
+        // A scrutinee that failed to check has reported its error (`sr` is
+        // the empty ref) or is poisoned: its arms bind poisoned names and
+        // the exhaustiveness and reachability checks stay silent, so one
+        // failed expression is one diagnostic.
+        let failed = sr.0 == NONE || self.infer.resolve(self.pool(), st) == Ty::POISON;
+        let st = if failed { Ty::POISON } else { st };
         let result = self.join_target(want);
         let mut rows = Vec::new();
         let mut arms = Vec::new();
@@ -749,8 +798,10 @@ impl Ck<'_, '_> {
                 arm: u32::try_from(i).unwrap_or(u32::MAX),
             });
         }
-        self.check_exhaustive(n, &rows, st);
-        self.check_reachable(&rows, st);
+        if !failed {
+            self.check_exhaustive(n, &rows, st);
+            self.check_reachable(&rows, st);
+        }
         let db = self.b.open_block();
         self.decide(&rows, 0, sr, st)?;
         let dec = self.b.close_block(db, None, Ty::NEVER, n.index());

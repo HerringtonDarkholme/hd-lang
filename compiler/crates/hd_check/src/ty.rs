@@ -58,6 +58,7 @@ impl Ck<'_, '_> {
 
     /// The value of a reference to a poisoned name.
     pub(crate) fn poison_value(&mut self, n: NodeRef<'_>) -> (Ref, Ty) {
+        self.read_poison_name = true;
         (
             self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()),
             Ty::POISON,
