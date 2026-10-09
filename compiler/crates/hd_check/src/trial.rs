@@ -310,6 +310,7 @@ impl Ck<'_, '_> {
             .positional
             .iter()
             .copied()
+            .chain(args.spread)
             .chain(args.named.iter().map(|(_, e)| *e));
         for e in all {
             if needs_expected(e) {

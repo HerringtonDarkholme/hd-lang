@@ -107,14 +107,41 @@ pub(crate) struct TraitTarget {
 /// trailing block (`fn.trailing.form`), which supplies the final parameter.
 pub(crate) struct Args<'t> {
     pub positional: Vec<NodeRef<'t>>,
+    /// The operand of a positional spread `x...`, which stands after every
+    /// plain positional value (`expr.call.spread`).
+    pub spread: Option<NodeRef<'t>>,
+    /// Positional arguments written after the spread
+    /// (`expr.call.spread.position`).
+    pub after_spread: Vec<NodeRef<'t>>,
     pub named: Vec<(String, NodeRef<'t>)>,
     pub trailing: Option<NodeRef<'t>>,
+}
+
+/// The parameters a call's arguments are checked against.
+pub(crate) struct Formals<'a> {
+    pub params: &'a [(Symbol, Ty)],
+    pub defaults: &'a [bool],
+    /// Whether the final parameter is a vararg (`fn.vararg.form`).
+    pub variadic: bool,
+}
+
+/// Where a positional spread stands among the parameters not yet given.
+#[derive(Clone, Copy)]
+struct SpreadAt<'a> {
+    /// Whether the final of those parameters is a vararg.
+    variadic: bool,
+    /// How many plain positional arguments precede the spread.
+    given: usize,
+    /// The parameters a named argument supplies; the spread skips them.
+    named: &'a [bool],
 }
 
 impl Args<'_> {
     pub(crate) fn empty() -> Self {
         Args {
             positional: Vec::new(),
+            spread: None,
+            after_spread: Vec::new(),
             named: Vec::new(),
             trailing: None,
         }
@@ -122,7 +149,7 @@ impl Args<'_> {
 }
 
 impl Ck<'_, '_> {
-    pub(crate) fn args_of<'t>(&self, al: Option<NodeRef<'t>>) -> StageResult<Args<'t>> {
+    pub(crate) fn args_of<'t>(&self, al: Option<NodeRef<'t>>) -> Args<'t> {
         let mut a = Args::empty();
         for c in al.iter().flat_map(|l| l.children()) {
             match c.kind() {
@@ -130,10 +157,16 @@ impl Ck<'_, '_> {
                     let Some(e) = c.children().next() else {
                         continue;
                     };
-                    if e.kind() == SyntaxKind::SpreadExpr {
-                        return unsupported("a spread argument");
+                    let operand = if e.kind() == SyntaxKind::SpreadExpr {
+                        e.children().next()
+                    } else {
+                        None
+                    };
+                    match (operand, a.spread) {
+                        (Some(o), None) => a.spread = Some(o),
+                        (_, Some(_)) => a.after_spread.push(operand.unwrap_or(e)),
+                        (None, None) => a.positional.push(e),
                     }
-                    a.positional.push(e);
                 }
                 SyntaxKind::NamedArgument => {
                     let name = self.cx.src.text(self.cx.src.first(c)).to_owned();
@@ -145,7 +178,7 @@ impl Ck<'_, '_> {
                 _ => {}
             }
         }
-        Ok(a)
+        a
     }
 
     fn method_index(&self) -> &crate::MethodIndex {
@@ -258,7 +291,7 @@ impl Ck<'_, '_> {
         ) else {
             return unsupported("a call shape");
         };
-        let args = self.args_of(al)?;
+        let args = self.args_of(al);
         self.call_args(n, callee, &args, want)
     }
 
@@ -284,7 +317,7 @@ impl Ck<'_, '_> {
         } else {
             (n, head, None)
         };
-        let mut args = self.args_of(al)?;
+        let mut args = self.args_of(al);
         args.trailing = Some(block);
         self.call_args(call, callee, &args, want)
     }
@@ -368,7 +401,7 @@ impl Ck<'_, '_> {
 
     /// `i64(x)`: a numeric conversion.
     fn conversion(&mut self, to: Ty, args: &Args<'_>, n: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
-        no_trailing(args, "a conversion")?;
+        plain_args(args, "a conversion")?;
         let [e] = args.positional.as_slice() else {
             return unsupported("a conversion shape");
         };
@@ -462,25 +495,30 @@ impl Ck<'_, '_> {
             return unsupported("named arguments to a function value");
         }
         let ps = pool.list_items(params);
-        let given = args.positional.len() + usize::from(args.trailing.is_some());
-        if ps.len() != given {
-            let msg = format!("the function takes {} arguments", ps.len());
-            self.err(Code::ArgumentCount, n, &msg);
-        }
-        let mut refs = Vec::new();
-        for (i, e) in args.positional.iter().enumerate() {
-            let w = ps.get(i).copied();
-            let (r, t) = self.expr(*e, w)?;
-            refs.push(match w {
-                Some(w) => self.coerce(r, t, w, *e, "argument"),
-                None => r,
-            });
-        }
-        if let Some(block) = args.trailing {
-            let w = self.trailing_param(ps.last().copied(), "the function value")?;
-            let (r, t) = self.trailing_closure(block, w)?;
-            refs.push(self.coerce(r, t, w, block, "argument"));
-        }
+        let refs = if args.spread.is_some() {
+            self.spread_value_args(ps, args, n)?
+        } else {
+            let given = args.positional.len() + usize::from(args.trailing.is_some());
+            if ps.len() != given {
+                let msg = format!("the function takes {} arguments", ps.len());
+                self.err(Code::ArgumentCount, n, &msg);
+            }
+            let mut refs = Vec::new();
+            for (i, e) in args.positional.iter().enumerate() {
+                let w = ps.get(i).copied();
+                let (r, t) = self.expr(*e, w)?;
+                refs.push(match w {
+                    Some(w) => self.coerce(r, t, w, *e, "argument"),
+                    None => r,
+                });
+            }
+            if let Some(block) = args.trailing {
+                let w = self.trailing_param(ps.last().copied(), "the function value")?;
+                let (r, t) = self.trailing_closure(block, w)?;
+                refs.push(self.coerce(r, t, w, block, "argument"));
+            }
+            refs
+        };
         self.check_row(row, n);
         let rec = self.b.refs_record(&refs);
         if !suspends {
@@ -534,8 +572,7 @@ impl Ck<'_, '_> {
     /// parameter name), skipping `skip` leading parameters already given.
     fn check_args(
         &mut self,
-        params: &[(Symbol, Ty)],
-        defaults: &[bool],
+        formals: &Formals<'_>,
         skip: usize,
         args: &Args<'_>,
         n: NodeRef<'_>,
@@ -543,12 +580,18 @@ impl Ck<'_, '_> {
     ) -> StageResult<Vec<Ref>> {
         // The callee's default bodies, taken before any argument is checked.
         let owner = self.default_owner.take();
-        let rest = params.get(skip..).unwrap_or(&[]);
+        let rest = formals.params.get(skip..).unwrap_or(&[]);
+        let variadic = formals.variadic && !rest.is_empty();
+        if variadic && args.trailing.is_some() {
+            return unsupported("a trailing block for a vararg function");
+        }
+        // A vararg is the final parameter; the fixed ones come before it.
+        let nfixed = rest.len() - usize::from(variadic);
         let mut slots: Vec<Option<Ref>> = vec![None; rest.len()];
         // A trailing block supplies the final parameter, so positional
         // arguments fill the ones before it (`fn.trailing.arguments`).
         let room = rest.len() - usize::from(args.trailing.is_some() && !rest.is_empty());
-        if args.positional.len() > room {
+        if !variadic && args.positional.len() > room {
             let msg = format!("`{name}` takes {} arguments", rest.len());
             self.err(Code::ArgumentCount, n, &msg);
         }
@@ -562,7 +605,26 @@ impl Ck<'_, '_> {
                     && matches!(pool.get(self.infer.shallow(pool, p.1)), TyData::Infer(_))
             })
             .collect();
+        // The separate arguments a vararg collects, with the types each
+        // contributes to a tuple (`fn.vararg.collect`).
+        let mut items: Vec<(Ref, Ty)> = Vec::new();
+        let mut item_wants = Vec::new();
         for (i, e) in args.positional.iter().enumerate() {
+            if variadic && i >= nfixed {
+                // Asked once the fixed arguments have solved what they can.
+                if i == nfixed {
+                    item_wants =
+                        self.vararg_wants(rest[nfixed].1, args.positional.len() - nfixed)?;
+                }
+                let w = item_wants[i - nfixed];
+                let (r, t) = self.arg_value(*e, w)?;
+                let r = match w {
+                    Some(w) => self.coerce(r, t, w, *e, "argument"),
+                    None => r,
+                };
+                items.push((r, w.unwrap_or(t)));
+                continue;
+            }
             let mut w = match rest.get(i) {
                 Some(p) => Some(self.normalize_deep(p.1)?),
                 None => None,
@@ -596,6 +658,25 @@ impl Ck<'_, '_> {
             {
                 *s = Some(r);
             }
+        }
+        if variadic && !items.is_empty() {
+            slots[nfixed] = Some(self.pack_vararg(&items, rest[nfixed].1, n)?);
+        }
+        if let Some(s) = args.spread {
+            let tys: Vec<Ty> = rest.iter().map(|p| p.1).collect();
+            let named: Vec<bool> = rest
+                .iter()
+                .map(|p| {
+                    let text = self.cx.names.text(p.0);
+                    args.named.iter().any(|(nm, _)| nm == text)
+                })
+                .collect();
+            let at = SpreadAt {
+                variadic,
+                given: args.positional.len(),
+                named: &named,
+            };
+            self.spread_arg(s, &tys, at, &mut slots, args)?;
         }
         for (pname, e) in &args.named {
             let Some(i) = rest
@@ -644,11 +725,15 @@ impl Ck<'_, '_> {
                 slots[last] = Some(self.coerce(r, t, w, block, "argument"));
             }
         }
+        // A vararg nothing supplied collects no arguments.
+        if variadic && slots[nfixed].is_none() {
+            slots[nfixed] = Some(self.pack_vararg(&[], rest[nfixed].1, n)?);
+        }
         let mut out = Vec::new();
         for (i, s) in slots.into_iter().enumerate() {
             match s {
                 Some(r) => out.push(r),
-                None if defaults.get(skip + i).copied().unwrap_or(false) => {
+                None if formals.defaults.get(skip + i).copied().unwrap_or(false) => {
                     // `DefaultCall` of the parameter's default body, after
                     // every explicit argument, over the earlier values
                     // (checking-and-tir.md "Default calls").
@@ -672,6 +757,223 @@ impl Ck<'_, '_> {
             }
         }
         Ok(out)
+    }
+
+    /// The expected type of each of `count` separate arguments a vararg of
+    /// type `lt` collects: the list's element, or the tuple's elements
+    /// when the type is already a tuple of that many.
+    fn vararg_wants(&mut self, lt: Ty, count: usize) -> StageResult<Vec<Option<Ty>>> {
+        let pool = self.pool();
+        let lt = self.normalize_deep(lt)?;
+        let list = self.cx.names.known.list;
+        Ok(match pool.get(self.strip_mut(lt)) {
+            TyData::Adt { def, args } if def == list => {
+                let et = pool.list_items(args).first().copied().unwrap_or(Ty::POISON);
+                vec![Some(et); count]
+            }
+            TyData::Tuple { elems, rest: None } if pool.list_items(elems).len() == count => {
+                pool.list_items(elems).iter().copied().map(Some).collect()
+            }
+            _ => vec![None; count],
+        })
+    }
+
+    /// The collected value of a vararg of type `lt` from separate
+    /// arguments: a list, or the tuple expression of them
+    /// (`fn.vararg.collect.list`, `fn.vararg.collect.tuple-expr`,
+    /// `fn.vararg.tuple-param.infer`).
+    fn pack_vararg(&mut self, items: &[(Ref, Ty)], lt: Ty, n: NodeRef<'_>) -> StageResult<Ref> {
+        let pool = self.pool();
+        let lt = self.normalize_deep(lt)?;
+        let list = self.cx.names.known.list;
+        let refs: Vec<Ref> = items.iter().map(|i| i.0).collect();
+        let shape = pool.get(self.strip_mut(lt));
+        if matches!(shape, TyData::Adt { def, .. } if def == list) {
+            let rec = self.b.refs_record(&refs);
+            return Ok(self.b.emit(Tag::NewList, NONE, rec, lt, n.index()));
+        }
+        if matches!(shape, TyData::Tuple { rest: Some(_), .. }) {
+            return unsupported("a tuple vararg with a rest element");
+        }
+        let tys: Vec<Ty> = items.iter().map(|i| i.1).collect();
+        let tt = pool.intern_ty(&TyData::Tuple {
+            elems: pool.list(&tys),
+            rest: None,
+        });
+        self.expect(tt, lt, n, "argument");
+        let rec = self.b.refs_record(&refs);
+        Ok(self.b.emit(Tag::NewTuple, NONE, rec, tt, n.index()))
+    }
+
+    /// The positional spread `e...` of a call (`expr.call.spread.fills`).
+    /// `tys` are the parameters not yet given, `at` where the spread
+    /// stands; the spread fills `slots`.
+    fn spread_arg(
+        &mut self,
+        e: NodeRef<'_>,
+        tys: &[Ty],
+        at: SpreadAt,
+        slots: &mut [Option<Ref>],
+        args: &Args<'_>,
+    ) -> StageResult<()> {
+        let pool = self.pool();
+        let SpreadAt {
+            variadic,
+            given,
+            named,
+        } = at;
+        let nfixed = tys.len() - usize::from(variadic);
+        // The parameters the spread fills: those after the given ones that
+        // no named argument supplies (`expr.call.spread.fills`).
+        let free: Vec<usize> = (given..tys.len())
+            .filter(|&i| !named.get(i).copied().unwrap_or(false))
+            .collect();
+        let at_vararg = variadic && (given >= nfixed || free.first() == Some(&nfixed));
+        // A positional after the spread is a second supply of a vararg, or
+        // else the spread is not final (`expr.call.spread.position`,
+        // `expr.call.spread.vararg-duplicate`).
+        let mut failed = false;
+        if let Some(late) = args.after_spread.first() {
+            let (code, msg) = if at_vararg {
+                (
+                    Code::DuplicateArgument,
+                    "the vararg is given by the spread and by a value",
+                )
+            } else {
+                (
+                    Code::NonfinalPositionalSpread,
+                    "a positional spread must be the final positional argument",
+                )
+            };
+            self.err(code, *late, msg);
+            failed = true;
+        }
+        let lt = if at_vararg {
+            Some(self.normalize_deep(tys[nfixed])?)
+        } else {
+            None
+        };
+        let (r, t) = self.arg_value(e, lt)?;
+        let poison = |slots: &mut [Option<Ref>], free: &[usize]| {
+            for &i in free {
+                if let Some(s) = slots.get_mut(i) {
+                    s.get_or_insert(Ref(NONE));
+                }
+            }
+        };
+        if failed {
+            poison(slots, &free);
+            return Ok(());
+        }
+        let t = self.infer.resolve(pool, t);
+        if matches!(self.strip_mut(t), Ty::NEVER | Ty::POISON) {
+            poison(slots, &free);
+            return Ok(());
+        }
+        // At the vararg: the operand is its collected value
+        // (`expr.call.spread.at-vararg`), passed through without a copy.
+        if let Some(lt) = lt {
+            if slots[nfixed].is_some() {
+                // Separate arguments already supplied it.
+                let list = self.cx.names.known.list;
+                if matches!(pool.get(self.strip_mut(lt)), TyData::Adt { def, .. } if def == list) {
+                    self.err(
+                        Code::DuplicateArgument,
+                        e,
+                        "the vararg is given by separate values and by a spread",
+                    );
+                    return Ok(());
+                }
+                return unsupported("a spread after the separate arguments of a tuple vararg");
+            }
+            slots[nfixed] = Some(self.coerce(r, t, lt, e, "argument"));
+            return Ok(());
+        }
+        // Before fixed parameters: a tuple of the remaining inputs
+        // (`expr.call.spread.inputs`).
+        let list = self.cx.names.known.list;
+        match pool.get(self.strip_mut(t)) {
+            TyData::Tuple { elems, rest } => {
+                if rest.is_some() && variadic {
+                    return unsupported("a spread of a tuple with a rest element");
+                }
+                let elems = pool.list_items(elems);
+                if rest.is_some() || variadic || elems.len() != free.len() {
+                    let msg = format!(
+                        "in spread: the remaining inputs are {} values, found {}",
+                        free.len(),
+                        self.show(t)
+                    );
+                    self.err(Code::TypeMismatch, e, &msg);
+                    poison(slots, &free);
+                    return Ok(());
+                }
+                for (k, (&et, &i)) in elems.iter().zip(&free).enumerate() {
+                    let idx = u32::try_from(k).unwrap_or(0);
+                    let g = self.b.emit(Tag::TupleGet, r.0, idx, et, e.index());
+                    let w = self.normalize_deep(tys[i])?;
+                    slots[i] = Some(self.coerce(g, et, w, e, "argument"));
+                }
+            }
+            TyData::Adt { def, .. } if def == list => {
+                self.err(
+                    Code::PositionalSpreadNeedsVararg,
+                    e,
+                    "a list spreads only at a vararg parameter",
+                );
+                poison(slots, &free);
+            }
+            TyData::Infer(_) | TyData::Param(_) => {
+                return unsupported("a spread of a value whose arity is not known");
+            }
+            _ => {
+                let msg = format!("in spread: expected a tuple, found {}", self.show(t));
+                self.err(Code::TypeMismatch, e, &msg);
+                poison(slots, &free);
+            }
+        }
+        Ok(())
+    }
+
+    /// The arguments of a function-value call with a positional spread.
+    fn spread_value_args(
+        &mut self,
+        ps: &[Ty],
+        args: &Args<'_>,
+        n: NodeRef<'_>,
+    ) -> StageResult<Vec<Ref>> {
+        if args.trailing.is_some() {
+            return unsupported("a trailing block with a spread argument");
+        }
+        let mut slots: Vec<Option<Ref>> = vec![None; ps.len()];
+        if args.positional.len() > ps.len() {
+            let msg = format!("the function takes {} arguments", ps.len());
+            self.err(Code::ArgumentCount, n, &msg);
+        }
+        for (i, e) in args.positional.iter().enumerate() {
+            let w = ps.get(i).copied();
+            let (r, t) = self.expr(*e, w)?;
+            let r = match w {
+                Some(w) => self.coerce(r, t, w, *e, "argument"),
+                None => r,
+            };
+            if let Some(s) = slots.get_mut(i) {
+                *s = Some(r);
+            }
+        }
+        if let Some(s) = args.spread {
+            let at = SpreadAt {
+                variadic: false,
+                given: args.positional.len(),
+                named: &[],
+            };
+            self.spread_arg(s, ps, at, &mut slots, args)?;
+        }
+        if slots.iter().any(Option::is_none) {
+            let msg = format!("the function takes {} arguments", ps.len());
+            self.err(Code::ArgumentCount, n, &msg);
+        }
+        Ok(slots.into_iter().flatten().collect())
     }
 
     /// A call of a function item, generic or not.
@@ -703,9 +1005,6 @@ impl Ck<'_, '_> {
                 {
                     return self.await_all(args, n, bang);
                 }
-                if sig.variadic {
-                    return self.vararg_call(def, &sig, &vars, args, n, bang);
-                }
                 // The result first, so an expected type guides literals.
                 let ret = self.normalize_deep(inst(sig.ret))?;
                 if let Some(w) = want
@@ -719,7 +1018,12 @@ impl Ck<'_, '_> {
                     }
                 }
                 self.default_owner = Some((def, pool.list(&vars), vec![]));
-                let refs = self.check_args(&params, &sig.defaults, 0, args, n, &name)?;
+                let formals = Formals {
+                    params: &params,
+                    defaults: &sig.defaults,
+                    variadic: sig.variadic,
+                };
+                let refs = self.check_args(&formals, 0, args, n, &name)?;
                 // Parameters named only in bounds, then defaults (§2.4
                 // steps 7 and 8); a bound naming one still open waits.
                 let open = self.infer_through_bounds(def, &sig, &vars, n)?;
@@ -778,7 +1082,7 @@ impl Ck<'_, '_> {
             }
             ItemData::Newtype(inner) => {
                 let inner = *inner;
-                no_trailing(args, "a newtype constructor")?;
+                plain_args(args, "a newtype constructor")?;
                 let [e] = args.positional.as_slice() else {
                     return unsupported("a newtype constructor shape");
                 };
@@ -839,7 +1143,15 @@ impl Ck<'_, '_> {
     /// `all!(a(), b())`: cold suspensions, then one `AwaitAll` whose
     /// value is the tuple of their results (suspension.md §14.5).
     fn await_all(&mut self, args: &Args<'_>, n: NodeRef<'_>, bang: bool) -> StageResult<(Ref, Ty)> {
-        no_trailing(args, "`all`")?;
+        if let Some(s) = args.spread {
+            self.err(
+                Code::TypeMismatch,
+                s,
+                "`all` takes its tasks as direct arguments, not as a spread",
+            );
+            return Ok((Ref(NONE), Ty::NEVER));
+        }
+        plain_args(args, "`all`")?;
         let pool = self.pool();
         if !bang {
             self.err(Code::NotSuspending, n, "`all` is called as `all!(...)`");
@@ -875,81 +1187,6 @@ impl Ck<'_, '_> {
         });
         let rec = self.b.refs_record(&refs);
         Ok((self.b.emit(Tag::AwaitAll, NONE, rec, t, n.index()), t))
-    }
-
-    /// A call of a function whose last parameter is a vararg
-    /// (spec/lang/07-functions.md, `fn.vararg`): the trailing positional
-    /// arguments become a list, or a tuple for a `Tuple`-bounded type.
-    fn vararg_call(
-        &mut self,
-        def: DefId,
-        sig: &FnSig,
-        vars: &[Ty],
-        args: &Args<'_>,
-        n: NodeRef<'_>,
-        bang: bool,
-    ) -> StageResult<(Ref, Ty)> {
-        let pool = self.pool();
-        let Some(((_, vararg), fixed)) = sig.params.split_last() else {
-            return unsupported("a vararg function without parameters");
-        };
-        if !args.named.is_empty() {
-            return unsupported("named arguments to a vararg function");
-        }
-        no_trailing(args, "a vararg function")?;
-        let inst = |t: Ty| subst_owner(pool, def, vars, t);
-        let mut refs = Vec::new();
-        for (i, e) in args.positional.iter().take(fixed.len()).enumerate() {
-            let w = inst(fixed[i].1);
-            let (r, t) = self.expr(*e, Some(w))?;
-            refs.push(self.coerce(r, t, w, *e, "argument"));
-        }
-        if args.positional.len() < fixed.len() {
-            let msg = format!("the call needs at least {} arguments", fixed.len());
-            self.err(Code::ArgumentCount, n, &msg);
-        }
-        let trailing = args.positional.get(fixed.len()..).unwrap_or(&[]);
-        let lt = inst(*vararg);
-        let list = self.cx.names.known.list;
-        let packed = match pool.get(self.strip_mut(lt)) {
-            TyData::Adt { def: d, args: la } if d == list => {
-                let et = pool.list_items(la).first().copied().unwrap_or(Ty::POISON);
-                let mut items = Vec::new();
-                for e in trailing {
-                    let (r, t) = self.expr(*e, Some(et))?;
-                    items.push(self.coerce(r, t, et, *e, "argument"));
-                }
-                let rec = self.b.refs_record(&items);
-                self.b.emit(Tag::NewList, NONE, rec, lt, n.index())
-            }
-            _ => {
-                let mut items = Vec::new();
-                let mut tys = Vec::new();
-                for e in trailing {
-                    let (r, t) = self.expr(*e, None)?;
-                    items.push(r);
-                    tys.push(t);
-                }
-                let tt = pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&tys),
-                    rest: None,
-                });
-                self.expect(tt, lt, n, "argument");
-                let rec = self.b.refs_record(&items);
-                self.b.emit(Tag::NewTuple, NONE, rec, tt, n.index())
-            }
-        };
-        refs.push(packed);
-        let inst_full = |t: Ty| subst_owner(pool, def, vars, t);
-        self.bounds_of(sig, vars, &inst_full, n)?;
-        let row = self.call_row(def, sig, vars, 0);
-        self.check_row(row, n);
-        let ret = self.normalize_deep(inst(sig.ret))?;
-        let c = Callee::Item {
-            def,
-            targs: pool.list(vars),
-        };
-        Ok(self.emit_call(&c, &refs, ret, sig.suspends, bang, n))
     }
 
     /// Emits a `Call`, or an `Await` for a bang call of a suspending
@@ -994,7 +1231,7 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
         call: Option<NodeRef<'_>>,
     ) -> StageResult<(Ref, Ty)> {
-        no_trailing(args, "a variant")?;
+        plain_args(args, "a variant")?;
         let pool = self.pool();
         let at = call.unwrap_or(v);
         let name = self.cx.src.text(self.cx.src.last(v)).to_owned();
@@ -1290,7 +1527,12 @@ impl Ck<'_, '_> {
             let mut all = impl_args.clone();
             all.extend(&vars);
             self.default_owner = Some((method, pool.list(&all), vec![]));
-            let refs = self.check_args(&params, &sig.defaults, 0, args, n, name)?;
+            let formals = Formals {
+                params: &params,
+                defaults: &sig.defaults,
+                variadic: sig.variadic,
+            };
+            let refs = self.check_args(&formals, 0, args, n, name)?;
             self.bounds_of(&sig, &vars, &inst, n)?;
             self.check_row(sig.row, n);
             let mut targs = impl_args.clone();
@@ -1870,7 +2112,12 @@ impl Ck<'_, '_> {
                 let mut all = impl_args.clone();
                 all.extend(&vars);
                 self.default_owner = Some((method, pool.list(&all), vec![recv]));
-                refs.extend(self.check_args(&params, &sig.defaults, 1, args, n, name)?);
+                let formals = Formals {
+                    params: &params,
+                    defaults: &sig.defaults,
+                    variadic: sig.variadic,
+                };
+                refs.extend(self.check_args(&formals, 1, args, n, name)?);
                 // `h.fact::[D]()` on a structure handle reads a typed fact
                 // (annot.handle.fact.typed): `D` is matched against the
                 // member's type, not bounded by `Inspectable`.
@@ -1904,7 +2151,12 @@ impl Ck<'_, '_> {
                 let mut refs = vec![recv];
                 let mut full = vec![(self.cx.names.syms.intern("self"), rt)];
                 full.extend(ps);
-                refs.extend(self.check_args(&full, &[], 1, args, n, name)?);
+                let formals = Formals {
+                    params: &full,
+                    defaults: &[],
+                    variadic: false,
+                };
+                refs.extend(self.check_args(&formals, 1, args, n, name)?);
                 let rec = self.b.refs_record(&refs);
                 Ok((
                     self.b.emit(Tag::Intrinsic, op as u32, rec, ret, n.index()),
@@ -2008,25 +2260,22 @@ impl Ck<'_, '_> {
             }
             _ => 0,
         };
-        refs.extend(
-            self.check_args(
-                &params,
-                &sig.defaults,
-                skip,
-                args,
-                n,
+        let formals = Formals {
+            params: &params,
+            defaults: &sig.defaults,
+            variadic: sig.variadic,
+        };
+        let method_name = self
+            .cx
+            .names
+            .text(
                 self.cx
-                    .names
-                    .text(
-                        self.cx
-                            .lookup
-                            .item(method)
-                            .map_or(Symbol::from_raw(0), |i| i.name),
-                    )
-                    .to_owned()
-                    .as_str(),
-            )?,
-        );
+                    .lookup
+                    .item(method)
+                    .map_or(Symbol::from_raw(0), |i| i.name),
+            )
+            .to_owned();
+        refs.extend(self.check_args(&formals, skip, args, n, &method_name)?);
         self.bounds_of(&sig, &vars, &inst, n)?;
         // At an opt-in, a `walk`, `describe` or `build` call's walker,
         // describer or source type carries the member obligations.
@@ -2536,11 +2785,16 @@ impl Ck<'_, '_> {
 /// A callee with no final function parameter takes no trailing block
 /// (`grammar.call.trailing-block.eligible`); no diagnostic code names that
 /// yet (audit/compiler/diagnostic-notes.md), so it stays a stop.
-fn no_trailing(args: &Args<'_>, what: &str) -> StageResult<()> {
-    match args.trailing {
-        Some(_) => unsupported(format!("a trailing block for {what}")),
-        None => Ok(()),
+/// The arguments of a form that takes neither a trailing block nor a
+/// positional spread.
+fn plain_args(args: &Args<'_>, what: &str) -> StageResult<()> {
+    if args.trailing.is_some() {
+        return unsupported(format!("a trailing block for {what}"));
     }
+    if args.spread.is_some() {
+        return unsupported(format!("a spread argument for {what}"));
+    }
+    Ok(())
 }
 
 pub(crate) fn subst_owner(pool: hd_types::Types<'_>, owner: DefId, args: &[Ty], t: Ty) -> Ty {

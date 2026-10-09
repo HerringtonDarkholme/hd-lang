@@ -286,7 +286,7 @@ impl Ck<'_, '_> {
                 continue;
             }
             let al = sd.children().find(|c| c.kind() == SyntaxKind::ArgumentList);
-            let args = self.args_of(al)?;
+            let args = self.args_of(al);
             let vals = self.shared_args(s, &params, &args, sd, &ename)?;
             for (f, r) in shared.iter().zip(vals) {
                 let fname = self.cx.names.text(f.name).to_owned();
@@ -310,6 +310,9 @@ impl Ck<'_, '_> {
         at: NodeRef<'_>,
         ename: &str,
     ) -> StageResult<Vec<Ref>> {
+        if args.spread.is_some() {
+            return unsupported("a spread argument for a shared variant parameter");
+        }
         let mut slots: Vec<Option<Ref>> = vec![None; params.len()];
         if args.positional.len() > params.len() {
             let msg = format!("`{ename}` takes {} arguments", params.len());

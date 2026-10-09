@@ -8,23 +8,23 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1834 | 682 | 328 | 2844 |
+| 1846 | 685 | 313 | 2844 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
 | `lang/01-lexical-structure.md` | 133 | 11 | 1 | 145 |
-| `lang/02-grammar.md` | 188 | 13 | 13 | 214 |
+| `lang/02-grammar.md` | 188 | 14 | 12 | 214 |
 | `lang/03-names-and-scopes.md` | 76 | 14 | 11 | 101 |
 | `lang/04-type-system.md` | 265 | 72 | 15 | 352 |
-| `lang/05-expressions.md` | 159 | 76 | 42 | 277 |
+| `lang/05-expressions.md` | 164 | 76 | 37 | 277 |
 | `lang/06-control-flow.md` | 108 | 33 | 16 | 157 |
-| `lang/07-functions.md` | 76 | 34 | 20 | 130 |
+| `lang/07-functions.md` | 79 | 36 | 15 | 130 |
 | `lang/08-data-and-enums.md` | 70 | 39 | 14 | 123 |
-| `lang/09-traits.md` | 207 | 117 | 35 | 359 |
-| `lang/10-modules.md` | 142 | 77 | 39 | 258 |
-| `lang/11-requirements-and-suspension.md` | 119 | 62 | 78 | 259 |
+| `lang/09-traits.md` | 208 | 116 | 35 | 359 |
+| `lang/10-modules.md` | 142 | 78 | 38 | 258 |
+| `lang/11-requirements-and-suspension.md` | 122 | 62 | 75 | 259 |
 | `lang/14-annotations.md` | 90 | 56 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 13 | 0 | 1 | 14 |
@@ -62,10 +62,10 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 67 | 28 | 10 | 105 |
-| `runtime/valid` | 540 | 178 | 211 | 929 |
-| `typing/invalid` | 578 | 419 | 77 | 1074 |
-| `typing/valid` | 351 | 34 | 30 | 415 |
+| `runtime/panic` | 68 | 28 | 9 | 105 |
+| `runtime/valid` | 544 | 179 | 206 | 929 |
+| `typing/invalid` | 584 | 421 | 69 | 1074 |
+| `typing/valid` | 352 | 34 | 29 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -81,6 +81,7 @@ compiler stage that first declined the case.
 | `fail:bare-variant-pattern` | 3 |
 | `fail:cannot-infer-type` | 8 |
 | `fail:discarded-must-use-value` | 1 |
+| `fail:duplicate-argument` | 1 |
 | `fail:duplicate-data-pattern-field` | 1 |
 | `fail:identity-requires-references` | 9 |
 | `fail:implicit-narrowing` | 1 |
@@ -105,7 +106,7 @@ compiler stage that first declined the case.
 | `fail:placeholder-outside-pipe` | 1 |
 | `fail:private-main` | 7 |
 | `fail:re-export-loop` | 1 |
-| `fail:runtime-exit` | 67 |
+| `fail:runtime-exit` | 68 |
 | `fail:stdout` | 4 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
@@ -118,15 +119,15 @@ compiler stage that first declined the case.
 | `fail:unknown-import` | 25 |
 | `fail:unknown-method` | 33 |
 | `fail:unknown-module` | 1 |
-| `fail:unknown-name` | 12 |
+| `fail:unknown-name` | 13 |
 | `fail:unknown-named-argument` | 3 |
 | `fail:unknown-trait` | 9 |
 | `fail:unknown-type` | 4 |
 | `fail:unknown-variant` | 1 |
 | `fail:unsatisfied-trait-bound` | 30 |
 | `fail:unused-local-binding` | 6 |
-| `unsupported:Body` | 140 |
-| `unsupported:Collect` | 25 |
+| `unsupported:Body` | 124 |
+| `unsupported:Collect` | 26 |
 | `unsupported:Emit` | 60 |
 | `unsupported:FolderIface` | 34 |
 | `unsupported:Link` | 2 |
@@ -143,6 +144,7 @@ compiler stage that first declined the case.
 
 - `typing/invalid/unsaturated-enum-constructor.hd`
 - `runtime/valid/final-vararg.hd`
+- `runtime/valid/vararg-function-values.hd`
 - `runtime/valid/map-grow-and-remove.hd`
 - `typing/invalid/variant-duplicate-argument.hd`
 - `typing/invalid/duplicate-argument.hd`
@@ -155,7 +157,6 @@ compiler stage that first declined the case.
 - `typing/invalid/generic-variant-constructor-argument-unsolved.hd`
 - `typing/invalid/pipe-call-step-without-placeholder.hd`
 - `runtime/valid/function-value-vararg-call.hd`
-- `runtime/valid/trait-delegation-vararg.hd`
 - `runtime/valid/result-and-then.hd`
 
 </details>
@@ -191,6 +192,12 @@ compiler stage that first declined the case.
 <details><summary><code>fail:discarded-must-use-value</code> (1)</summary>
 
 - `runtime/valid/lct-optional-injection.hd`
+
+</details>
+
+<details><summary><code>fail:duplicate-argument</code> (1)</summary>
+
+- `typing/invalid/nonfinal-spread.hd`
 
 </details>
 
@@ -651,7 +658,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (67)</summary>
+<details><summary><code>fail:runtime-exit</code> (68)</summary>
 
 - `runtime/panic/for-loop-iterator-invalidated.hd`
 - `runtime/panic/invalid-shift.hd`
@@ -713,6 +720,7 @@ compiler stage that first declined the case.
 - `runtime/valid/requirement-row-order-trait-value.hd`
 - `runtime/valid/requirement-row-order-data-field.hd`
 - `runtime/valid/dbg-prints-void.hd`
+- `runtime/valid/dbg-without-requirement.hd`
 - `runtime/valid/num-rotate.hd`
 - `runtime/valid/generic-data-let-pattern.hd`
 - `runtime/valid/generic-data-match-pattern.hd`
@@ -965,7 +973,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-name</code> (12)</summary>
+<details><summary><code>fail:unknown-name</code> (13)</summary>
 
 - `typing/valid/recursive-local-closure.hd`
 - `typing/invalid/recursive-closure-inferred-result.hd`
@@ -973,6 +981,7 @@ compiler stage that first declined the case.
 - `typing/valid/data-default-calls-function-value.hd`
 - `typing/invalid/parameter-default-later-parameter.hd`
 - `runtime/valid/recursive-local-closure.hd`
+- `typing/invalid/positional-after-spread.hd`
 - `typing/invalid/default-later-parameter-earlier-twin.hd`
 - `typing/invalid/variant-pattern-unknown-field.hd`
 - `typing/invalid/module-path-private-member.hd`
@@ -1065,9 +1074,8 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (140)</summary>
+<details><summary><code>unsupported:Body</code> (124)</summary>
 
-- `typing/invalid/nonfinal-spread.hd`
 - `typing/valid/enums.hd`
 - `typing/valid/local-functions.hd`
 - `typing/valid/local-types.hd`
@@ -1082,20 +1090,14 @@ compiler stage that first declined the case.
 - `runtime/panic/integer-power-overflow.hd`
 - `runtime/valid/integer-power-associativity.hd`
 - `runtime/valid/floating-power.hd`
-- `runtime/valid/homogeneous-varargs.hd`
-- `runtime/valid/vararg-function-values.hd`
-- `runtime/valid/varargs-in-trait-and-suspending-methods.hd`
 - `typing/invalid/literal-payload-pattern-nonexhaustive.hd`
 - `runtime/valid/literal-payload-patterns.hd`
 - `runtime/valid/binding-expressions.hd`
 - `runtime/valid/named-local-functions.hd`
-- `typing/invalid/positional-after-spread.hd`
 - `runtime/valid/suspending-generic-method.hd`
 - `runtime/valid/named-local-suspending-function.hd`
 - `runtime/valid/nested-provider-restoration.hd`
 - `runtime/valid/generic-suspending-associated-function-qualified-call.hd`
-- `typing/invalid/positional-spread-without-vararg.hd`
-- `typing/invalid/positional-spread-duplicates-vararg.hd`
 - `typing/invalid/for-over-non-iterable.hd`
 - `runtime/valid/tuple-impl-target.hd`
 - `runtime/valid/bang-call-explicit-type-arguments.hd`
@@ -1124,19 +1126,13 @@ compiler stage that first declined the case.
 - `typing/invalid/newtype-unwrap-readonly.hd`
 - `runtime/valid/collect-target-from-try-hint.hd`
 - `typing/invalid/tuple-vararg-no-auto-spread.hd`
-- `typing/invalid/tuple-spread-arity.hd`
 - `typing/valid/tuple-trait-bound.hd`
 - `runtime/valid/tuple-bound-vararg-call.hd`
-- `runtime/valid/tuple-vararg.hd`
 - `runtime/valid/tuple-spread-fixed.hd`
-- `typing/valid/race-plain-signature.hd`
 - `typing/invalid/race-no-tasks.hd`
-- `typing/invalid/all-spread-argument.hd`
 - `typing/invalid/all-explicit-type-arguments.hd`
 - `typing/invalid/tuple-spread-tuple-operand.hd`
 - `runtime/valid/tuple-spread-rest.hd`
-- `typing/invalid/tuple-spread-plain-into-vararg.hd`
-- `typing/invalid/tuple-spread-rest-into-plain.hd`
 - `runtime/valid/call-rest-inference.hd`
 - `runtime/valid/tuple-vararg-spread-tail.hd`
 - `runtime/valid/tuple-rest-derived.hd`
@@ -1159,7 +1155,6 @@ compiler stage that first declined the case.
 - `typing/invalid/range-pattern-empty.hd`
 - `runtime/valid/range-pattern-run.hd`
 - `typing/invalid/race-empty-list-literal.hd`
-- `runtime/panic/race-empty-at-run-time.hd`
 - `runtime/valid/list-slice-mutable.hd`
 - `runtime/valid/range-eq.hd`
 - `typing/invalid/power-float-widths.hd`
@@ -1181,10 +1176,8 @@ compiler stage that first declined the case.
 - `runtime/valid/local-impl-visible-after-declaration.hd`
 - `runtime/valid/local-impl-known-after-declaration.hd`
 - `typing/invalid/local-data-reuses-type-parameter.hd`
-- `runtime/valid/tuple-spread-candidate.hd`
 - `runtime/valid/shared-enum-data-computed-once.hd`
 - `runtime/valid/trait-default-method-instantiates-params.hd`
-- `runtime/valid/dbg-without-requirement.hd`
 - `runtime/valid/iterator-list-sum.hd`
 - `typing/invalid/sibling-module-private-method.hd`
 - `typing/invalid/sibling-module-requirement-key-not-imported.hd`
@@ -1210,7 +1203,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Collect</code> (25)</summary>
+<details><summary><code>unsupported:Collect</code> (26)</summary>
 
 - `runtime/valid/reference-bounded-dynamic-method.hd`
 - `runtime/valid/trait-value-as-provider.hd`
@@ -1222,6 +1215,7 @@ compiler stage that first declined the case.
 - `runtime/valid/trait-less-block-facts.hd`
 - `runtime/valid/member-line-list-expression.hd`
 - `runtime/valid/structure-qualified-self.hd`
+- `runtime/valid/trait-delegation-vararg.hd`
 - `runtime/valid/derived-default-enum.hd`
 - `runtime/valid/derived-default-declared-no-bound.hd`
 - `runtime/valid/derived-debug-newtype.hd`
@@ -1773,6 +1767,7 @@ runtime/panic/operator-generic-overflow.hd
 runtime/panic/option-expect-none.hd
 runtime/panic/println-console-closed.hd
 runtime/panic/println-in-default-indirect.hd
+runtime/panic/race-empty-at-run-time.hd
 runtime/panic/range-from-overflow.hd
 runtime/panic/removed-map-iterator-invalidated.hd
 runtime/panic/result-expect-err.hd
@@ -2002,6 +1997,7 @@ runtime/valid/header-and-bracket-expression-positions.hd
 runtime/valid/heap-order.hd
 runtime/valid/heap-reverse.hd
 runtime/valid/heterogeneous-tuples.hd
+runtime/valid/homogeneous-varargs.hd
 runtime/valid/host-args-env.hd
 runtime/valid/http-scripted-provider.hd
 runtime/valid/http-scripted-unknown-url.hd
@@ -2306,9 +2302,11 @@ runtime/valid/tuple-derived-order.hd
 runtime/valid/tuple-element-permission.hd
 runtime/valid/tuple-ordering-nan-unordered.hd
 runtime/valid/tuple-rebuild.hd
+runtime/valid/tuple-spread-candidate.hd
 runtime/valid/tuple-thirteen-elements.hd
 runtime/valid/tuple-vararg-function-value.hd
 runtime/valid/tuple-vararg-infer.hd
+runtime/valid/tuple-vararg.hd
 runtime/valid/type-arguments-in-expressions.hd
 runtime/valid/typed-derivation-build-defaults.hd
 runtime/valid/typed-derivation-embedded-generic-walk.hd
@@ -2325,6 +2323,7 @@ runtime/valid/utf8-invalid-bytes.hd
 runtime/valid/utf8-overlong.hd
 runtime/valid/utf8-truncated.hd
 runtime/valid/utf8-valid-text.hd
+runtime/valid/varargs-in-trait-and-suspending-methods.hd
 runtime/valid/while-break-and-continue.hd
 runtime/valid/while-else-break-value.hd
 runtime/valid/while-else-exhaustion-value.hd
@@ -2334,6 +2333,7 @@ typing/invalid/alias-bound-bare-trait.hd
 typing/invalid/alias-unknown-target.hd
 typing/invalid/all-bang-child.hd
 typing/invalid/all-non-suspend-argument.hd
+typing/invalid/all-spread-argument.hd
 typing/invalid/ambiguous-default-and-written-trait-method.hd
 typing/invalid/ambiguous-default-methods.hd
 typing/invalid/ambiguous-method-two-traits.hd
@@ -2713,6 +2713,8 @@ typing/invalid/partial-eq-removed.hd
 typing/invalid/partial-ord-requires-eq.hd
 typing/invalid/payload-free-enum-equality.hd
 typing/invalid/plain-break-in-value-loop.hd
+typing/invalid/positional-spread-duplicates-vararg.hd
+typing/invalid/positional-spread-without-vararg.hd
 typing/invalid/prelude-shadow-println-function.hd
 typing/invalid/prelude-shadow-renamed-use.hd
 typing/invalid/prelude-shadow-usize-alias.hd
@@ -2873,6 +2875,9 @@ typing/invalid/tuple-no-inherent-member.hd
 typing/invalid/tuple-option-parameter-bare-trait.hd
 typing/invalid/tuple-rest-assign.hd
 typing/invalid/tuple-rest-literal-short.hd
+typing/invalid/tuple-spread-arity.hd
+typing/invalid/tuple-spread-plain-into-vararg.hd
+typing/invalid/tuple-spread-rest-into-plain.hd
 typing/invalid/tuple-trait-user-impl.hd
 typing/invalid/tuple-vararg-arity.hd
 typing/invalid/type-default-impl-mismatch.hd
@@ -3140,6 +3145,7 @@ typing/valid/provider-capturing-closure.hd
 typing/valid/pub-own-member-shadows-promoted.hd
 typing/valid/pub-use-chain.hd
 typing/valid/public-requirement-row.hd
+typing/valid/race-plain-signature.hd
 typing/valid/random-trait.hd
 typing/valid/raw-identifiers.hd
 typing/valid/readonly-callable-mutable-result.hd
