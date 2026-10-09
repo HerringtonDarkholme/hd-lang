@@ -759,6 +759,13 @@ ordinary data word is a run ID.
 | string prefixes, literal suffixes (`10ms`) | `Call` of the resolved prefix or suffix function |
 | `x[i]`, `x[i] = v` | `Call` of the resolved index or set method |
 | `x += y`, and the other compound assignments | the place's operands evaluated once (their `Ref`s used twice), `Prim` or a trait `Call`, then `LocalSet`, `FieldSet` or a set `Call` |
+| `a ** b` on integers | a `Prim` integer-power operation: checked multiplication in the base's result type (`expr.power.checked`, `expr.power.int.*`); float `**` is the IEEE `pow` hook (`expr.power.float.pow`), same family as float arithmetic |
+| `a..`, `..b` range patterns | bound comparisons in the decision tree (`n >= a`, `n < b`), no range value built (`flow.match.range.from`, `flow.match.range.to`, `flow.match.range.no-bind`) |
+| `..` full-range expression | `RangeFull {}`: a `NewData` of the fieldless struct (`expr.range.form.full`) |
+| `(a, rest...)` tuple pattern | the existing `Match` decision tree, with the rest subpattern binding the trailing elements as a `List` (`flow.match.spread.rest`, `flow.match.spread.cover`) |
+| `p = e` through a call (`count() = 1`) | the callee evaluated to a place, then the store, in `expr.assign.order.call` order — the same evaluate-once, `Ref`s-twice machinery as compound assignment (`expr.assign.target`, `expr.assign.order`) |
+| `Variant(pos, named=…)` mixed construction | checked by call conventions (positionals first), then `NewVariant` with payloads in order (`data.enum.construct.call`) |
+| `(1, 2, 3, 4)` against `(usize, usize, List[i32]...)` | `NewTuple` with fixed elements plus the rest list as its rest operand (R4), checked against the rest type (`types.tuple.rest.*`) |
 | `x.E ...= e` | `CopyData`, then `FieldSet` |
 | `T { ...base, f: e, ... }` | `base` evaluated first, then the explicit field expressions in source order, then `CopyData(base, [(f, e), ...])` (copy-update; one spread max, first) |
 | `[a, xs..., b]` | `NewList` with the spread bits marking `xs`; each operand evaluated once, in element order |

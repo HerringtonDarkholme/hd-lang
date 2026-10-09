@@ -107,15 +107,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### R24. Design Note: Small Body Gaps (#123, Design Text)
-
-From your R22 plan: `**` (14), open range patterns (9), full range `..`
-(6), compound assignment (4), tuple patterns with a rest (4),
-assignment targets (7), mixed positional and named variant fields (4),
-`RestType` in a body (5). For each, the spec rule IDs and the TIR it
-lowers to (a desugar into existing nodes where the design allows), one
-row each in a table in `checking-and-tir.md`. Timebox 45 minutes.
-
 ### R25. Design Note: Type Names Used As Values (Design Text)
 
 7 programs use a type name as a value (`Mailer`, `Priced`, `list`,
