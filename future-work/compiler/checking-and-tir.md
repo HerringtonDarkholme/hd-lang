@@ -675,6 +675,30 @@ ordinary data word is a run ID.
 | `all!(a(x), b(y))` | two cold `Call`s, then `AwaitAll` |
 | `race!(...)` | a `NewList` of cold suspensions, then `AwaitRace` |
 | test registrations | `Call`s in a `TestCase` body |
+| `f(a): block` (trailing block call) | the ordinary arguments, then `Call` with one more final argument: a `Closure` built from the block, contextually typed by the callee's final zero-argument function parameter |
+| top-level `it("name"):` in a test module | test registration, exactly as in a `tests:` block (a `TestCase` body), not an ordinary statement |
+
+A trailing block is a closure in call position. Check resolves the
+callee first: its final parameter must have a zero-argument function
+type (`fn.trailing.form`), else the form does not apply (which
+diagnostic that is remains open — see Questions). The ordinary
+arguments check in order, then the block checks as a zero-argument
+closure whose result and behavior come from that parameter
+(`fn.trailing.closure`); when the parameter is suspending (`fn!`), the
+block is a suspending body and may make bang calls
+(`fn.trailing.suspending`). `return` inside the block returns from the
+callback (`fn.trailing.return`), as in any closure body. At run time
+the closure value is created when the call's arguments evaluate, and
+the block runs only when the callee invokes it.
+
+In a test module (including one integration test file), a top-level
+`it` / `it_each` / `it_prop` / `it_prop_with` trailing call goes
+through the same registration as `tests:` blocks (`check_tests`):
+name and options from the argument list, the block as a `TestCase`
+body. Any other top-level trailing call lowers as an ordinary call.
+The emitter needs nothing new: `Closure`, `Call`/`CallValue` and
+`TestCase` bodies already lower, and collection roots already cover
+one integration test program per file (codegen.md §13.1).
 
 ##### The Builder API
 

@@ -105,17 +105,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### R6. Design Note: Trailing-Block Calls (#74, Design Text)
-
-Same format as R3. 22 valid programs stop at Body on `TrailingCallExpr`,
-and so does every top-level `it(...)` in an integration test (a fresh
-`hd new` package fails `hd test` on it). Read the spec's trailing-block
-rules (grammar and functions chapters) and say how the call lowers to
-TIR (the block becomes a closure argument? which parameter?), how
-`it(...)` registers a test, and what the emitter needs. Add it to
-`checking-and-tir.md`; this job lifts the rule for that file. Timebox
-45 minutes.
-
 ### R7. Design Note: Map Iteration And Removal (#124, Design Text)
 
 19 programs stop at Emit on `MapIter`, 3 on `MapRemove`, 3 on map keys
@@ -230,7 +219,6 @@ fast". The orchestrator writes `compiler/crates/*`; you measure it.
    Recommend queuing it before or with the Emit adapter work.
 
 ### Q-R4: two spread semantics edges (R4, 2026-10-09)
-
 1. **Copy-update reads happen at construction (recommended).** The
    spread expression is evaluated first, then the explicit field
    expressions in source order, then the new value is built — so a
@@ -260,3 +248,12 @@ fast". The orchestrator writes `compiler/crates/*`; you measure it.
   are read; that gap is logged in `audit/compiler/diagnostic-notes.md`
   (the spec is frozen).
 - **Q-R4.2:** pass-through, as recommended.
+### Q-R6: ineligible trailing-block callee (R6, 2026-10-09)
+
+A trailing block applies only when resolution finds a callable with
+an eligible final parameter (`grammar.call.trailing-block.eligible`),
+but no diagnostic code names the failure (e.g. `total := len(items):`
+where the callee takes no callback). The spec is frozen, so a new
+code needs an owner decision; the fallback is reusing `type-mismatch`
+on the block. Recommend asking the owner for a code
+(`trailing-block-ineligible` or reuse) before the Check task lands.
