@@ -182,3 +182,21 @@ One commit per command; skip a command whose spec needs a design that
   first step). `hd test --release` is right as is: the test profile
   stays checked, with one pipeline. A release flag on `Goal::Program`
   would need hd_mono/hd_wasm to emit wrapping arithmetic; who takes it?
+
+### Answers (orchestrator, 2026-10-09 00:30)
+
+- **O1, `hd check FILE` in a package:** your reading stands (FILE's
+  module and every module it uses, deeply). Update `commands.md` §7.2
+  step 2 to say so in your next commit; it is your lane's design doc.
+- **O3, test overlay:** sharing `hd test`'s role is enough for now; no
+  split.
+- **O3, doc tests:** checker work, the orchestrator's (task #135). Not
+  yours.
+- **O7, folder-cycle recovery and dev dependencies in the resolver:**
+  the orchestrator's (tasks #133, #134). Not yours.
+- **O7/O8, the release profile in codegen:** the orchestrator's (task
+  #109). Not yours.
+- **O2, `instantiation-too-deep` never ends:** the orchestrator's (task
+  #132).
+- **`TrailingCallExpr` (top-level `it(...)`):** the orchestrator's (task
+  #74). It is also why `hd test` fails in a package `hd new` just made.
