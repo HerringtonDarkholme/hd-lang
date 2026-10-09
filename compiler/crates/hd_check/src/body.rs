@@ -154,6 +154,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// unsolved (§2.4 step 9): variable, call, and whether a bound allows
     /// several instantiations. Decided at the end of the statement.
     pub open_params: Vec<(Ty, NodeRefIdx, bool)>,
+    /// The type variables of function references (spec 07, Generic
+    /// Function Values): variable, its default, and the reference.
+    /// Decided at the end of the statement.
+    pub ref_params: Vec<(Ty, Option<Ty>, NodeRefIdx)>,
     /// Checking a template's method at a derivation opt-in: the opt-in
     /// (`annot.template.checked`).
     pub opt_in: Option<&'c crate::derive::OptIn>,
@@ -218,6 +222,7 @@ pub(crate) fn new_ck<'a, 'c>(
         norm_depth: 0,
         pre_args: Vec::new(),
         open_params: Vec::new(),
+        ref_params: Vec::new(),
         opt_in: None,
         structure_calls: Vec::new(),
     };
@@ -1089,6 +1094,7 @@ impl Ck<'_, '_> {
         let span = self.cx.src.span(s);
         let start = self.infer.var_count();
         let open = self.open_params.len();
+        let refs = self.ref_params.len();
         let r = self.stmt_node(s).map_err(|e| e.at(span));
         // A `break` value joins with the loop's other values, so its class
         // stays open until the join (`types.literal.local.form.join-open`).
@@ -1096,6 +1102,7 @@ impl Ck<'_, '_> {
             self.close_literals(start);
         }
         self.close_open_params(open);
+        self.close_ref_params(refs);
         r
     }
 
@@ -1604,6 +1611,7 @@ impl Ck<'_, '_> {
         }
         // A tail expression's call parameters are decided here.
         self.close_open_params(0);
+        self.close_ref_params(0);
         // Bounds that waited for inference.
         let pending = std::mem::take(&mut self.pending);
         for (tref, at) in pending {

@@ -29,6 +29,7 @@ pub(crate) struct Checkpoint {
     user_locals: usize,
     pre_args: usize,
     open_params: usize,
+    ref_params: usize,
     /// The flags of the locals older than the trial (a read marks them).
     flags: Vec<u8>,
     facts: crate::init::InitFacts,
@@ -59,6 +60,7 @@ impl Ck<'_, '_> {
             user_locals: self.user_locals.len(),
             pre_args: self.pre_args.len(),
             open_params: self.open_params.len(),
+            ref_params: self.ref_params.len(),
             flags: self.b.body_mut().local_flags[..tir.locals as usize].to_vec(),
             facts: self.facts.clone(),
             rows: self.rows.clone(),
@@ -76,6 +78,7 @@ impl Ck<'_, '_> {
         self.user_locals.truncate(c.user_locals);
         self.pre_args.truncate(c.pre_args);
         self.open_params.truncate(c.open_params);
+        self.ref_params.truncate(c.ref_params);
         self.facts = c.facts;
         self.rows = c.rows;
         // A check that stopped with "not implemented" may leave frames
@@ -525,7 +528,7 @@ impl Ck<'_, '_> {
     }
 
     /// An unbound variable that no literal joined.
-    fn unsolved(&self, t: Ty) -> bool {
+    pub(crate) fn unsolved(&self, t: Ty) -> bool {
         let pool = self.pool();
         matches!(pool.get(self.infer.shallow(pool, t)), TyData::Infer(_))
             && self.infer.kind_of(pool, t) == Some(VarKind::General)

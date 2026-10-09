@@ -332,6 +332,27 @@ impl Ck<'_, '_> {
                 .copied()
                 .zip(pool.list_items(b).iter().copied())
                 .all(|(x, y)| self.perm_fits(x, y, false, d)),
+            // `fn.type.declared-variance`: contravariant in each input,
+            // covariant in the output.
+            (
+                TyData::Fn {
+                    params: a,
+                    result: ar,
+                    ..
+                },
+                TyData::Fn {
+                    params: b,
+                    result: br,
+                    ..
+                },
+            ) => {
+                pool.list_items(a)
+                    .iter()
+                    .copied()
+                    .zip(pool.list_items(b).iter().copied())
+                    .all(|(x, y)| self.perm_fits(y, x, true, d))
+                    && self.perm_fits(ar, br, true, d)
+            }
             _ => true,
         }
     }

@@ -12,6 +12,7 @@ pub mod conflicts;
 mod conform;
 pub mod derive;
 mod expr;
+mod fnref;
 pub mod header;
 pub mod init;
 mod literals;

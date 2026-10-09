@@ -64,7 +64,7 @@ impl MethodIndex {
 }
 
 /// A resolved method.
-enum Hit {
+pub(crate) enum Hit {
     /// An inherent method with its impl's arguments.
     Inherent {
         method: DefId,
@@ -157,7 +157,6 @@ impl Ck<'_, '_> {
     // ------------------------------------------------------------ names
 
     pub(crate) fn name_expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
-        let pool = self.pool();
         let s = self.sym_of(n);
         if let Some((l, d)) = self.find_local(s) {
             return Ok(self.read_local(l, d, n));
@@ -174,7 +173,7 @@ impl Ck<'_, '_> {
         {
             if let ItemData::Fn(sig) = &item.data {
                 let sig = sig.clone();
-                return Ok(self.item_value(def, &sig, &[], n));
+                return self.item_value(def, &sig, &[], want, n);
             }
             if let ItemData::Data(fields) = &item.data
                 && fields.is_empty()
@@ -184,7 +183,6 @@ impl Ck<'_, '_> {
                 return Ok((self.b.emit(Tag::NewData, NONE, rec, t, n.index()), t));
             }
         }
-        let _ = (want, pool);
         if let Some(Named::Item(def)) = self.scope_name(&text)
             && self.kind_of_item(def).is_some_and(HeadKind::is_type)
         {
@@ -197,8 +195,12 @@ impl Ck<'_, '_> {
         Ok((Ref(NONE), Ty::NEVER))
     }
 
-    /// `f::[T]` as a value.
-    pub(crate) fn explicit_item_value(&mut self, n: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
+    /// `f::[T]` as a value, or a member's `Owner::name::[T]`.
+    pub(crate) fn explicit_item_value(
+        &mut self,
+        n: NodeRef<'_>,
+        want: Option<Ty>,
+    ) -> StageResult<(Ref, Ty)> {
         let Some(inner) = n.children().next() else {
             return unsupported("a type-argument value shape");
         };
@@ -207,6 +209,9 @@ impl Ck<'_, '_> {
             for t in tl.children().filter(|c| c.kind().is_type()) {
                 explicit.push(self.ty_node(t)?);
             }
+        }
+        if inner.kind() == SyntaxKind::PathExpr {
+            return self.path_value(inner, want, &explicit);
         }
         let segs = self.segments_expr(inner);
         if segs.first().is_some_and(|s| self.is_poison_name(s)) {
@@ -219,40 +224,12 @@ impl Ck<'_, '_> {
         };
         if let Some(ItemData::Fn(sig)) = self.cx.lookup.item(def).map(|i| &i.data) {
             let sig = sig.clone();
-            return Ok(self.item_value(def, &sig, &explicit, n));
+            return self.item_value(def, &sig, &explicit, want, n);
         }
         unsupported("a type with arguments used as a value")
     }
 
-    /// A function item as a value: `ItemRef` instantiated.
-    fn item_value(
-        &mut self,
-        def: DefId,
-        sig: &FnSig,
-        explicit: &[Ty],
-        n: NodeRef<'_>,
-    ) -> (Ref, Ty) {
-        self.note_call(def);
-        let pool = self.pool();
-        let vars = self.fresh_generics(sig, explicit, 0);
-        let inst = |t: Ty| subst_owner(pool, def, &vars, t);
-        let ft = pool.intern_ty(&TyData::Fn {
-            params: pool.list(&sig.params.iter().map(|p| inst(p.1)).collect::<Vec<_>>()),
-            result: inst(sig.ret),
-            row: pool.subst_row(sig.row, &|p| {
-                (p.owner == def)
-                    .then(|| vars.get(p.index as usize).copied())
-                    .flatten()
-            }),
-            suspends: sig.suspends,
-        });
-        let a = self.b.refs_record(&[Ref(def.raw())]);
-        let l = pool.list(&vars);
-        let bw = self.b.refs_record(&[Ref(l.0)]);
-        (self.b.emit(Tag::ItemRef, a, bw, ft, n.index()), ft)
-    }
-
-    fn fresh_generics(&mut self, sig: &FnSig, explicit: &[Ty], skip: usize) -> Vec<Ty> {
+    pub(crate) fn fresh_generics(&mut self, sig: &FnSig, explicit: &[Ty], skip: usize) -> Vec<Ty> {
         let pool = self.pool();
         sig.generics
             .iter()
@@ -1019,7 +996,7 @@ impl Ck<'_, '_> {
                 };
                 if let Some(ItemData::Fn(sig)) = self.cx.lookup.item(def).map(|i| &i.data) {
                     let sig = sig.clone();
-                    return Ok(Some(self.item_value(def, &sig, &[], n)));
+                    return self.item_value(def, &sig, &[], None, n).map(Some);
                 }
                 unsupported("a module member value that is not a function")
             }
@@ -1384,7 +1361,7 @@ impl Ck<'_, '_> {
         )
     }
 
-    fn sig_of(&self, d: DefId) -> StageResult<FnSig> {
+    pub(crate) fn sig_of(&self, d: DefId) -> StageResult<FnSig> {
         match self.cx.lookup.item(d).and_then(|i| i.sig().cloned()) {
             Some(s) => Ok(s),
             None => unsupported("a method without a signature"),
@@ -1393,7 +1370,7 @@ impl Ck<'_, '_> {
 
     /// The bounds of a callee's own parameters, under its full
     /// instantiation (`Self` and the owner's parameters included).
-    fn bounds_of(
+    pub(crate) fn bounds_of(
         &mut self,
         sig: &FnSig,
         vars: &[Ty],
@@ -1533,7 +1510,7 @@ impl Ck<'_, '_> {
         }
     }
 
-    fn resolve_method(&mut self, rt: Ty, name: &str) -> StageResult<Option<Hit>> {
+    pub(crate) fn resolve_method(&mut self, rt: Ty, name: &str) -> StageResult<Option<Hit>> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, rt);
         let t = match pool.get(t) {
@@ -2432,7 +2409,7 @@ impl Ck<'_, '_> {
     /// The template's `T` when the body is a template's method and `tr`
     /// is `Structure` or the template's own trait
     /// (`annot.template.qualified-self`).
-    fn template_self(&mut self, tr: DefId) -> Option<Ty> {
+    pub(crate) fn template_self(&mut self, tr: DefId) -> Option<Ty> {
         let item = self.b.body_mut().item;
         let ItemData::Method { owner, .. } = &self.cx.lookup.item(item)?.data else {
             return None;

@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1695 | 688 | 461 | 2844 |
+| 1705 | 690 | 449 | 2844 |
 
 ## By Chapter
 
@@ -18,14 +18,14 @@ fixture; unsupported surface records progress without failing.
 | `lang/02-grammar.md` | 184 | 14 | 16 | 214 |
 | `lang/03-names-and-scopes.md` | 74 | 14 | 13 | 101 |
 | `lang/04-type-system.md` | 254 | 72 | 26 | 352 |
-| `lang/05-expressions.md` | 142 | 78 | 57 | 277 |
+| `lang/05-expressions.md` | 142 | 80 | 55 | 277 |
 | `lang/06-control-flow.md` | 101 | 33 | 23 | 157 |
-| `lang/07-functions.md` | 51 | 35 | 44 | 130 |
+| `lang/07-functions.md` | 59 | 34 | 37 | 130 |
 | `lang/08-data-and-enums.md` | 56 | 40 | 27 | 123 |
-| `lang/09-traits.md` | 204 | 117 | 38 | 359 |
+| `lang/09-traits.md` | 206 | 117 | 36 | 359 |
 | `lang/10-modules.md` | 133 | 79 | 46 | 258 |
 | `lang/11-requirements-and-suspension.md` | 105 | 56 | 98 | 259 |
-| `lang/14-annotations.md` | 89 | 55 | 9 | 153 |
+| `lang/14-annotations.md` | 89 | 56 | 8 | 153 |
 | `std/cli.md` | 1 | 0 | 4 | 5 |
 | `std/cmp.md` | 12 | 0 | 2 | 14 |
 | `std/collections.md` | 19 | 5 | 5 | 29 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 57 | 32 | 16 | 105 |
-| `runtime/valid` | 447 | 180 | 302 | 929 |
-| `typing/invalid` | 557 | 419 | 98 | 1074 |
-| `typing/valid` | 336 | 34 | 45 | 415 |
+| `runtime/valid` | 447 | 181 | 301 | 929 |
+| `typing/invalid` | 564 | 420 | 90 | 1074 |
+| `typing/valid` | 339 | 34 | 42 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -95,7 +95,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 9 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 257 |
+| `fail:no-diagnostic` | 258 |
 | `fail:nonexhaustive-match` | 16 |
 | `fail:not-callable` | 1 |
 | `fail:orphan-impl` | 1 |
@@ -103,7 +103,7 @@ compiler stage that first declined the case.
 | `fail:pattern-arity` | 2 |
 | `fail:pipe-step-needs-placeholder` | 5 |
 | `fail:placeholder-outside-pipe` | 1 |
-| `fail:private-main` | 8 |
+| `fail:private-main` | 7 |
 | `fail:re-export-loop` | 1 |
 | `fail:runtime-exit` | 66 |
 | `fail:stdout` | 10 |
@@ -112,7 +112,7 @@ compiler stage that first declined the case.
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-method-signature` | 1 |
 | `fail:trait-used-as-type` | 2 |
-| `fail:type-mismatch` | 86 |
+| `fail:type-mismatch` | 88 |
 | `fail:type-used-as-value` | 2 |
 | `fail:unknown-data-field` | 13 |
 | `fail:unknown-import` | 25 |
@@ -125,9 +125,9 @@ compiler stage that first declined the case.
 | `fail:unknown-variant` | 1 |
 | `fail:unsatisfied-trait-bound` | 30 |
 | `fail:unused-local-binding` | 7 |
-| `unsupported:Body` | 200 |
+| `unsupported:Body` | 186 |
 | `unsupported:Collect` | 25 |
-| `unsupported:Emit` | 138 |
+| `unsupported:Emit` | 140 |
 | `unsupported:FolderIface` | 34 |
 | `unsupported:Link` | 1 |
 | `unsupported:RunCase` | 57 |
@@ -308,7 +308,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (257)</summary>
+<details><summary><code>fail:no-diagnostic</code> (258)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -427,6 +427,7 @@ compiler stage that first declined the case.
 - `typing/invalid/duplicate-function-fact.hd`
 - `typing/invalid/facts-of-closure.hd`
 - `typing/invalid/facts-of-local-binding.hd`
+- `typing/invalid/facts-of-method.hd`
 - `typing/invalid/row-union-list-no-convert.hd`
 - `typing/invalid/row-union-missing-requirement.hd`
 - `typing/invalid/public-method-missing-result-type.hd`
@@ -632,7 +633,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:private-main</code> (8)</summary>
+<details><summary><code>fail:private-main</code> (7)</summary>
 
 - `typing/invalid/unresolved-generic-return-placeholder.hd`
 - `typing/invalid/provider-spread-of-non-context.hd`
@@ -641,7 +642,6 @@ compiler stage that first declined the case.
 - `typing/invalid/prelude-shadow-hash-local.hd`
 - `typing/invalid/unused-cold-suspension.hd`
 - `typing/invalid/block-on-in-defer.hd`
-- `typing/invalid/trait-reference-unsolved-self.hd`
 
 </details>
 
@@ -778,7 +778,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (86)</summary>
+<details><summary><code>fail:type-mismatch</code> (88)</summary>
 
 - `runtime/valid/structural-equality.hd`
 - `runtime/valid/structural-ordering.hd`
@@ -834,6 +834,8 @@ compiler stage that first declined the case.
 - `typing/invalid/pipe-brackets-after-bare-step.hd`
 - `typing/invalid/pipe-suspending-bare-step.hd`
 - `typing/invalid/placeholder-outside-pipe.hd`
+- `runtime/valid/pipe-method-reference-step.hd`
+- `typing/invalid/pipe-suspending-method-reference.hd`
 - `runtime/valid/iterator-from-fn.hd`
 - `runtime/valid/never-break-continue.hd`
 - `typing/invalid/generic-inference-trait-value.hd`
@@ -1071,7 +1073,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (200)</summary>
+<details><summary><code>unsupported:Body</code> (186)</summary>
 
 - `typing/invalid/nonfinal-spread.hd`
 - `typing/valid/enums.hd`
@@ -1140,7 +1142,6 @@ compiler stage that first declined the case.
 - `typing/invalid/integration-test-missing-requirement.hd`
 - `typing/valid/default-before-final-function.hd`
 - `runtime/valid/test-module-top-level-cases.hd`
-- `typing/invalid/facts-of-method.hd`
 - `typing/valid/row-union-spread.hd`
 - `typing/valid/row-list-copy-wider.hd`
 - `typing/invalid/operator-power-user.hd`
@@ -1153,16 +1154,7 @@ compiler stage that first declined the case.
 - `typing/valid/let-mut-infer.hd`
 - `typing/invalid/let-mut-spread-mut-field.hd`
 - `typing/valid/let-mut-spread-fresh-field.hd`
-- `typing/valid/method-references.hd`
-- `runtime/valid/method-references-run.hd`
-- `runtime/valid/pipe-method-reference-step.hd`
-- `typing/invalid/field-reference.hd`
-- `typing/invalid/bound-reference-readonly-receiver.hd`
-- `typing/invalid/mut-self-reference-readonly-callback.hd`
-- `typing/invalid/pipe-suspending-method-reference.hd`
 - `typing/valid/collect-targets.hd`
-- `typing/invalid/bound-reference-associated-function.hd`
-- `typing/valid/type-default-function-value.hd`
 - `typing/valid/type-default-trait-method.hd`
 - `typing/valid/newtype-unwrap-permission.hd`
 - `typing/invalid/newtype-unwrap-readonly.hd`
@@ -1251,13 +1243,9 @@ compiler stage that first declined the case.
 - `typing/invalid/non-test-code-uses-test-module.hd`
 - `runtime/valid/test-module-uses-test-module.hd`
 - `typing/invalid/set-type-not-prelude.hd`
-- `runtime/valid/trait-associated-function-reference.hd`
-- `typing/invalid/trait-associated-reference-unsolved-self.hd`
 - `typing/invalid/local-inherent-impl-nonlocal-target.hd`
 - `typing/invalid/local-method-captures-local.hd`
 - `typing/invalid/copy-update-private-field-other-module.hd`
-- `typing/invalid/trait-qualified-supertrait-reference.hd`
-- `typing/valid/trait-qualified-declaring-trait.hd`
 - `typing/invalid/copy-update-readonly-source-mut-field.hd`
 - `runtime/valid/operators-longest-match.hd`
 - `runtime/valid/colons-in-brackets-and-trailing-blocks.hd`
@@ -1306,7 +1294,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Emit</code> (138)</summary>
+<details><summary><code>unsupported:Emit</code> (140)</summary>
 
 - `runtime/valid/float-display.hd`
 - `runtime/valid/partial-equality-dispatch.hd`
@@ -1373,6 +1361,7 @@ compiler stage that first declined the case.
 - `runtime/valid/primitive-operator-calls-method.hd`
 - `runtime/valid/float-remainder-run.hd`
 - `runtime/valid/literal-suffix-default-parameter.hd`
+- `runtime/valid/method-references-run.hd`
 - `runtime/valid/requirement-key-binding-run.hd`
 - `runtime/valid/generic-inference-explicit-conversions.hd`
 - `runtime/valid/for-patterns.hd`
@@ -1443,6 +1432,7 @@ compiler stage that first declined the case.
 - `runtime/valid/trait-value-binding-identity.hd`
 - `runtime/valid/trait-value-satisfies-instantiated-bound.hd`
 - `runtime/valid/erased-error-result.hd`
+- `runtime/valid/trait-associated-function-reference.hd`
 - `runtime/valid/http-scripted-provider.hd`
 - `runtime/valid/http-scripted-unknown-url.hd`
 - `runtime/valid/call-and-closure-forms.hd`
@@ -2417,6 +2407,8 @@ typing/invalid/bound-inference-incompatible-argument.hd
 typing/invalid/bound-inference-mixed-several-impls.hd
 typing/invalid/bound-inference-no-impl.hd
 typing/invalid/bound-inference-several-impls.hd
+typing/invalid/bound-reference-associated-function.hd
+typing/invalid/bound-reference-readonly-receiver.hd
 typing/invalid/branch-binding-does-not-leak.hd
 typing/invalid/break-outside-loop.hd
 typing/invalid/break-value-in-void-loop.hd
@@ -2529,6 +2521,7 @@ typing/invalid/error-second-cause.hd
 typing/invalid/expected-i32-found-usize.hd
 typing/invalid/facts-find-unbounded-key.hd
 typing/invalid/facts-of-without-import.hd
+typing/invalid/field-reference.hd
 typing/invalid/float-literal-map-key.hd
 typing/invalid/float-map-key.hd
 typing/invalid/float-misses-ord-bound.hd
@@ -2681,6 +2674,7 @@ typing/invalid/mut-on-primitive-parameter.hd
 typing/invalid/mut-on-tuple-generic-optional.hd
 typing/invalid/mut-on-tuple-optional.hd
 typing/invalid/mut-on-type-parameter.hd
+typing/invalid/mut-self-reference-readonly-callback.hd
 typing/invalid/mut-tuple-annotation.hd
 typing/invalid/mut-tuple-parameter.hd
 typing/invalid/mut-upgrade.hd
@@ -2864,6 +2858,7 @@ typing/invalid/tests-block-item-outside.hd
 typing/invalid/top-level-defer.hd
 typing/invalid/top-level-let-annotation-type-mismatch.hd
 typing/invalid/top-level-return.hd
+typing/invalid/trait-associated-reference-unsolved-self.hd
 typing/invalid/trait-impl-missing-method.hd
 typing/invalid/trait-less-block-generic-argument.hd
 typing/invalid/trait-less-block-generic-bound.hd
@@ -2878,6 +2873,8 @@ typing/invalid/trait-method-row-unknown-trait.hd
 typing/invalid/trait-method-signature.hd
 typing/invalid/trait-parameter-bound-bare-trait.hd
 typing/invalid/trait-qualified-supertrait-call.hd
+typing/invalid/trait-qualified-supertrait-reference.hd
+typing/invalid/trait-reference-unsolved-self.hd
 typing/invalid/trait-value-binding-mismatch.hd
 typing/invalid/trait-value-unrelated-bound.hd
 typing/invalid/trait-variance-marker.hd
@@ -3091,6 +3088,7 @@ typing/valid/literal-var-range-bound.hd
 typing/valid/map-indexing.hd
 typing/valid/match-guard-reads-binding.hd
 typing/valid/match-guards.hd
+typing/valid/method-references.hd
 typing/valid/module-bindings.hd
 typing/valid/mut-outer-views-valid.hd
 typing/valid/mut-self-primitive-impl.hd
@@ -3218,6 +3216,7 @@ typing/valid/trait-less-block-generic.hd
 typing/valid/trait-less-derivation-block.hd
 typing/valid/trait-less-self-line-fact.hd
 typing/valid/trait-qualified-call-generic-receiver.hd
+typing/valid/trait-qualified-declaring-trait.hd
 typing/valid/trait-resolution-depth-limit.hd
 typing/valid/trait-value-as-target-argument.hd
 typing/valid/trait-value-bound-associated-type.hd
@@ -3227,6 +3226,7 @@ typing/valid/tuple-derived-traits.hd
 typing/valid/tuple-template.hd
 typing/valid/tuple-trait-rest.hd
 typing/valid/type-default-calls.hd
+typing/valid/type-default-function-value.hd
 typing/valid/type-level-fact-without-template.hd
 typing/valid/type-parameter-shadows-module-name.hd
 typing/valid/typed-derivation-build.hd

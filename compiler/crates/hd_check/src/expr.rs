@@ -248,8 +248,8 @@ impl Ck<'_, '_> {
                     None => (Ref(NONE), Ty::VOID),
                 }
             }
-            SyntaxKind::TypeArgsExpr => self.explicit_item_value(n)?,
-            SyntaxKind::PathExpr => return self.gap(n, "a path used as a value"),
+            SyntaxKind::TypeArgsExpr => self.explicit_item_value(n, want)?,
+            SyntaxKind::PathExpr => self.path_value(n, want, &[])?,
             other => return unsupported(format!("expression {other:?}")),
         })
     }

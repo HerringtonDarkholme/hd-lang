@@ -470,7 +470,7 @@ choices of type-checking.md §17 are below.
 | `LocalSet` | a: local, b: value | `void`; the value's type equals the local's |
 | `GlobalGet` | a: `[binding DefId]` | the binding's type |
 | `GlobalSet` | a: `[binding DefId]`, b: value | `void`; only in init bodies and for mutable top-level bindings |
-| `ItemRef` | a: `[item DefId]`, b: `[type arguments]` | the item's function type, instantiated (functions, variant constructors, method references) |
+| `ItemRef` | a: `[item DefId]`, b: `[type arguments]` | the item's function type, instantiated (functions, variant constructors, unbound method references, receiver first). The type arguments are the owner's, then the item's own: an inherent member's impl arguments; a trait member's `Self`, then the trait's arguments. A bound reference `value::name` is no `ItemRef`: it is a `Closure` whose body calls the method on a captured local holding the receiver (`hd_check/src/fnref.rs`) |
 | `ProviderGet` | a: `[key type]` | the key's provider type (`$.use(K)`) |
 | `Hole` | a: expected type | the expected type; only in a module with errors |
 | `Poison` | none | poison; only in a module with errors |
