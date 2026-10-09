@@ -5,8 +5,11 @@
 
 use std::ffi::OsString;
 
+use std::path::Path;
+
 use hd_diag::Code;
 use hd_project::{Grant, grant_problem};
+use hd_run::{GrantValue, Grants};
 
 use crate::report::Diag;
 
@@ -85,4 +88,27 @@ pub(crate) fn refusal(wasm: &[u8], table: &[(String, Grant)], flags: &[CapFlag])
             &format!("the program needs {need}, which {setting} denies, so it does not start"),
         ))
     })
+}
+
+fn value(g: &Grant) -> GrantValue {
+    match g {
+        Grant::All => GrantValue::All,
+        Grant::Deny => GrantValue::Deny,
+        Grant::Scopes(list) => GrantValue::Scopes(list.clone()),
+    }
+}
+
+/// The program's grant (Grant Precedence): the package's table, whose
+/// path entries are relative to `table_dir`, and the flags, whose path
+/// entries are relative to the working directory
+/// (`cli.cap.scope.path.relative`).
+pub(crate) fn grants(table: &[(String, Grant)], table_dir: &Path, flags: &[CapFlag]) -> Grants {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| table_dir.to_path_buf());
+    let table: Vec<(String, GrantValue)> =
+        table.iter().map(|(k, g)| (k.clone(), value(g))).collect();
+    let flags: Vec<(String, GrantValue)> = flags
+        .iter()
+        .map(|f| (f.key.clone(), value(&f.grant)))
+        .collect();
+    Grants::resolve(&table, table_dir, &flags, &cwd)
 }

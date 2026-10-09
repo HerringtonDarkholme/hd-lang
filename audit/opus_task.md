@@ -89,16 +89,6 @@ When the queue is empty, say so under "Questions" and wait.
 
 ## Jobs
 
-### O11. Capability Grants
-
-CLI cases `cap-flag-overrides-table`, `cap-partial-deny`,
-`cap-env-notice`, `wasm-cap-flags-only` (`cli.cap.*`, `cli.wasm.grant`):
-flag-over-table order, path scopes (relative, resolved, write-not-read),
-partial refusal, the `Env` notice, and `hd test --cap` with
-`cli.cap.total.test`. Host methods the emitter has not lowered yet
-(`FsRead.read_text`, `Env.get`, `write_bytes`) are the orchestrator's:
-list them under "Questions" and build the grant logic around them.
-
 ### O12. Workspaces
 
 `dep-workspace-fetch` and the gaps you listed in O6: `-p NAME`
@@ -208,6 +198,20 @@ bench N`).
   `std.testing` (`unknown-import`). The tests-only modules that ran as
   programs no longer do; one `missing-entry-point` is left,
   `script-empty-run` (an empty script entry).
+- **O11 status (host methods needed).** Built in `hd_run` (`grant.rs`):
+  the resolved grant by Grant Precedence (deny, flags, table, no limit),
+  path entries resolved against the package or the working directory
+  with `..` and links followed, the scope checks a provider asks
+  (`covers_path`, `covers_host` with `*.` names, ports and `[v6]`,
+  `covers_name` for `Env` prefixes, `Process`, `Sys`), the `Env` notice
+  text, and the test grant with its `FsRead`/`FsWrite` defaults
+  (`Grants::for_test`). `hd run` and `hd FILE` build the grant into
+  `HostSetup`; `hd test` takes and checks `--cap`. The cases stop on the
+  emitter: `cap-flag-overrides-table` (`FsRead.read_text` not lowered),
+  `cap-partial-deny` (`write_bytes` at Link), `cap-env-notice`
+  (`Env.get` not lowered). Once those import, the JS host's providers
+  call these checks and print the notice; `cli.cap.total.test` waits on
+  integration programs.
 - **Left for other lanes (status).** The CLI cases still failing for
   reasons outside this lane wait on the orchestrator's tasks above:
   top-level `it(...)` (#74: the `json-test-*`, `test-*`, `new-app`,

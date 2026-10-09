@@ -46,6 +46,15 @@ fn parse(args: &[OsString]) -> Result<Options, String> {
             i += used;
             continue;
         }
+        // `cli.cap.flag.commands`: `--cap` is checked here. Its test grant
+        // (`cli.test.env.grant`, `Grants::for_test`) covers integration
+        // test programs and doc tests; a unit test gets no provider, and
+        // neither of those runs yet.
+        if let Some(cap) = crate::caps::cap_flag(args, i) {
+            let (_, used) = cap?;
+            i += used;
+            continue;
+        }
         let a = &args[i];
         i += 1;
         let text = a.to_string_lossy();

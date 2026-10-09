@@ -22,7 +22,7 @@ use std::time::Instant;
 
 use hd_cache::DiskStore;
 use hd_driver::{Clock, Executor, Goal, Host, Output, build_packages};
-use hd_run::{Grants, HostSetup, Limits, Outcome, run_program};
+use hd_run::{HostSetup, Limits, Outcome, run_program};
 
 use crate::report::Reporter;
 
@@ -211,6 +211,7 @@ fn compile(program: &disk::Program, rep: &mut Reporter) -> Result<Vec<u8>, ExitC
 fn execute(
     wasm: &[u8],
     table: &[(String, hd_project::Grant)],
+    table_dir: Option<&Path>,
     flags: &[caps::CapFlag],
     args: &[OsString],
     rep: &mut Reporter,
@@ -220,9 +221,10 @@ fn execute(
         return rep.finish(HD_FAILURE);
     }
     let store = DiskStore { root: cache_dir() };
+    let cwd = std::env::current_dir().unwrap_or_default();
     let host = HostSetup {
         providers: Vec::new(),
-        grants: Grants::default(),
+        grants: caps::grants(table, table_dir.unwrap_or(&cwd), flags),
         limits: Limits::default(),
         args: args
             .iter()
@@ -309,6 +311,7 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
         Ok(wasm) => execute(
             &wasm,
             &program.capabilities,
+            program.package_dir.as_deref(),
             &w.caps,
             &w.program_args,
             &mut rep,
@@ -358,7 +361,7 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
             "`{shown}` imports `{m}` `{n}`, which `hd` does not provide: {rebuild}"
         ));
     }
-    execute(&wasm, &[], &w.caps, &w.program_args, &mut rep)
+    execute(&wasm, &[], None, &w.caps, &w.program_args, &mut rep)
 }
 
 /// The words and flags of `hd run` and `hd build`.
@@ -524,6 +527,7 @@ fn run_command(args: &[OsString]) -> ExitCode {
     execute(
         &wasm,
         &program.capabilities,
+        program.package_dir.as_deref(),
         &w.caps,
         &w.program_args,
         &mut rep,

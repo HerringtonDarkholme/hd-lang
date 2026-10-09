@@ -1174,3 +1174,23 @@ fn test_file_links_only_what_it_uses_and_skips_untested_entries() {
         r.out
     );
 }
+
+/// `cli.cap.flag.commands`, `cli.cap.flag.unknown`: `hd test` takes
+/// `--cap` and rejects a flag that names no host trait.
+#[test]
+fn test_takes_cap_flags() {
+    let dir = tree(
+        "hd-forms-test-cap",
+        &[
+            ("hd.toml", "[package]\nname = \"shop\"\n"),
+            (
+                "src/lib.hd",
+                "pub fn one() -> i32:\n    1\n\ntests:\n    it(\"is one\"):\n        pass\n",
+            ),
+        ],
+    );
+    let r = ran(&dir, &["test", "--cap", "Http=localhost"]);
+    assert_eq!(r.code, Some(0), "{}{}", r.out, r.err);
+    let r = ran(&dir, &["test", "--cap", "Time=true"]);
+    assert_eq!(r.code, Some(101));
+}

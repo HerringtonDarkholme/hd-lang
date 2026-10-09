@@ -87,6 +87,9 @@ pub struct Program {
     /// The `[capabilities]` table of its package, the valid keys
     /// (`cli.cap.source.package`); empty outside a package.
     pub capabilities: Vec<(String, Grant)>,
+    /// Its package's directory, which the table's path entries are
+    /// relative to; `None` outside a package.
+    pub package_dir: Option<PathBuf>,
     /// Its executables' entry modules, by path below the source root.
     pub entries: Vec<String>,
 }
@@ -381,6 +384,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
             Some(r) => capabilities(&r)?,
             None => Vec::new(),
         },
+        package_dir: package_root(root),
         entries: Vec::new(),
     })
 }
@@ -406,6 +410,7 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
         problems,
         as_written: None,
         capabilities: capabilities(root)?,
+        package_dir: Some(root.to_path_buf()),
         entries,
     })
 }

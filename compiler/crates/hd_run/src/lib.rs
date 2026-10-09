@@ -5,10 +5,12 @@
 //! (live-execution.md §4). No engine lives here: wasmtime is in
 //! `hd_run_wasmtime`, the browser's in `hd_web`.
 
+mod grant;
 mod imports;
 pub mod journal;
 pub mod tests_model;
 
+pub use grant::{GrantValue, Grants, Limit, env_notice, resolve_path};
 pub use imports::{module_exports, module_imports, needs, unknown_import};
 
 use std::task::Poll;
@@ -43,19 +45,6 @@ pub enum StartError {
     /// A capability the program imports is not granted (§17.7): startup refusal.
     Refused(String),
     Engine(String),
-}
-
-/// Capability grants (§17.7): which keys, and which resources per key.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Grants {
-    pub keys: Vec<(String, Vec<String>)>,
-}
-
-impl Grants {
-    #[must_use]
-    pub fn allows(&self, key: &str) -> bool {
-        self.keys.iter().any(|(k, _)| k == key)
-    }
 }
 
 /// Resource limits (§17.8).
@@ -147,12 +136,11 @@ pub fn drive(inst: &mut dyn Instance, max_polls: usize) -> Outcome {
     Outcome::Internal("poll limit reached".into())
 }
 
-/// Startup refusal (§17.7): every imported capability key must be granted.
+/// Startup refusal (§17.7): no imported capability key may be totally
+/// denied.
 pub fn check_grants(imported_keys: &[&str], grants: &Grants) -> Result<(), StartError> {
     match imported_keys.iter().find(|k| !grants.allows(k)) {
-        Some(k) => Err(StartError::Refused(format!(
-            "capability `{k}` is not granted"
-        ))),
+        Some(k) => Err(StartError::Refused(format!("capability `{k}` is denied"))),
         None => Ok(()),
     }
 }
@@ -178,7 +166,7 @@ pub fn run_program<E: Engine>(
 
 #[cfg(test)]
 mod tests {
-    use super::{Grants, Instance, Outcome, check_grants, drive};
+    use super::{Grants, Instance, Limit, Outcome, check_grants, drive};
     use std::task::Poll;
 
     struct Fake {
@@ -221,7 +209,7 @@ mod tests {
     #[test]
     fn ungranted_capability_is_refused() {
         let g = Grants {
-            keys: vec![("Console".into(), vec![])],
+            limits: vec![("FsRead".into(), Limit::Deny)],
         };
         assert!(check_grants(&["Console"], &g).is_ok());
         assert!(check_grants(&["Console", "FsRead"], &g).is_err());
