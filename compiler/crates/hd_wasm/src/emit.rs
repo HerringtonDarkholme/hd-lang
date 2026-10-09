@@ -1457,15 +1457,23 @@ impl Em<'_> {
     fn float_value(&mut self, op: PrimOp, ops: &[u32], vt: &VT) -> StageResult<()> {
         // `expr.power.float.pow`: the IEEE `pow` helper takes and gives
         // `f64`, so an `f32` operand is widened exactly and the result is
-        // rounded back to `f32`.
-        if op == PrimOp::Pow {
+        // rounded back to `f32`. Floating `%` is the same shape: the `fmod`
+        // helper works on `f64`, and the remainder of two `f32` values is
+        // exactly an `f32` value, so narrowing it loses nothing
+        // (`expr.float.remainder-truncated`).
+        let helper = match op {
+            PrimOp::Pow => Some(Helper::PowF64),
+            PrimOp::Rem => Some(Helper::RemF64),
+            _ => None,
+        };
+        if let Some(helper) = helper {
             for r in ops {
                 self.comp(*r, 0, vt)?;
                 if *vt == VT::F32 {
                     self.a.s().f64_promote_f32();
                 }
             }
-            self.a.call(Sym::Helper(Helper::PowF64));
+            self.a.call(Sym::Helper(helper));
             if *vt == VT::F32 {
                 self.a.s().f32_demote_f64();
             }

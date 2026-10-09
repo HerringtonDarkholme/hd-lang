@@ -1606,6 +1606,28 @@ follows IEEE 754 clause 9.2 for the special cases and computes
 `exp(y ln x)` in double-double arithmetic otherwise, then rounds once.
 No host import is involved, so every host gives the same bits.
 
+As built (#181b): floats use the instructions of their own width, so
+`f32` `+ - * /`, negation and the comparisons round once to `f32` and
+follow IEEE 754 for NaN, infinities and signed zeros. Floating `%` is
+the generated `RemF64` helper (`rem.rs`, `(f64, f64) -> f64`), C `fmod`:
+exact, with the dividend's sign, and NaN for a zero divisor, an infinite
+dividend or a NaN operand. A floating-point quotient does not give the
+remainder (`a - b * trunc(a / b)` rounds twice), so the helper works on
+integers. It splits both operands into a 53-bit significand and an
+exponent (subnormals normalized with `clz`), then subtracts the divisor's
+significand from the dividend's where it fits, doubling once per step of
+the exponent difference, as musl's `fmod` does. The loop runs at most
+2045 times and every step is exact, so there is no rounding to argue
+about. An `f32` operand pair is widened, remaindered, and narrowed: the
+remainder of two `f32` values is an `f32` value, so the narrowing is
+exact. Casts are one `convert` lowering: `f32` to `f64` is `promote`,
+`f64` to `f32` is `demote`, integer to float is the `convert` instruction
+(one rounding, ties to even, also at `i64`/`u64` to `f32`), and float to
+integer is `trunc_sat`, which gives the bound for an overflow or an
+infinity and 0 for NaN. The 8- and 16-bit targets saturate to `i32`
+first and clamp to the type's range, which agrees with saturating
+directly because the clamp is monotone.
+
 ### 13.16 Supertrait Calls Through A Trait Value
 
 `dyn Error` calling `to_string` and `bounded-blanket-supertraits`

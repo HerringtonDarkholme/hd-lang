@@ -546,3 +546,104 @@ fn float_width_casts_round_to_nearest_even() {
     case.check("widen", format!("!same(f64({s}[i]), {w}[i])"));
     case.run();
 }
+
+/// Operands whose remainders cover the sign combinations, zeros,
+/// infinities, NaN, subnormals and quotients too large for an exact
+/// floating quotient.
+const REM_VALUES: [f64; 29] = [
+    0.0,
+    -0.0,
+    1.0,
+    -1.0,
+    2.0,
+    -2.0,
+    0.1,
+    -0.3,
+    3.0,
+    5.5,
+    -5.5,
+    7.25,
+    1.0e-3,
+    123_456.789,
+    4.35,
+    1.0e22,
+    -1.0e22,
+    1.0e300,
+    f64::MAX,
+    f64::MIN_POSITIVE,
+    -f64::MIN_POSITIVE,
+    5e-324,
+    -5e-324,
+    2.0e-310,
+    f64::INFINITY,
+    f64::NEG_INFINITY,
+    f64::NAN,
+    9_007_199_254_740_993.0,
+    0.333_333_333_333_333_3,
+];
+
+/// A pair whose exponents are close, so the significands decide the bits.
+fn near_pair(rng: &mut Rng) -> (f64, f64) {
+    let y = f64::from_bits(rng.next());
+    let shift = i64::try_from(rng.next() % 70).expect("small") - 5;
+    let exp = i64::try_from((y.to_bits() >> 52) & 0x7ff).expect("exponent") + shift;
+    let exp = u64::try_from(exp.clamp(0, 0x7fe)).expect("clamped");
+    let x = f64::from_bits((rng.next() & !(0x7ff << 52)) | (exp << 52));
+    (x, y)
+}
+
+#[test]
+fn f64_remainder_matches_rust() {
+    let (mut a, mut b) = pairs(&REM_VALUES);
+    let mut rng = Rng(0x1234_5678_9abc_def1);
+    for i in 0..300 {
+        let (x, y) = if i % 3 == 0 {
+            (f64::from_bits(rng.next()), f64::from_bits(rng.next()))
+        } else {
+            near_pair(&mut rng)
+        };
+        a.push(x);
+        b.push(y);
+    }
+    let (da, db) = (a.clone(), b.clone());
+    let mut case = Case::new("rem64", move |i| format!("a={:e} b={:e}", da[i], db[i]));
+    case.items
+        .push_str("fn rem(a: f64, b: f64) -> f64:\n    a % b\n");
+    let ca = case.col("f64", lits64(&a));
+    let cb = case.col("f64", lits64(&b));
+    let want: Vec<f64> = a.iter().zip(&b).map(|(x, y)| x % y).collect();
+    let w = case.col("f64", lits64(&want));
+    case.check("rem", format!("!same(rem({ca}[i], {cb}[i]), {w}[i])"));
+    case.run();
+}
+
+#[test]
+fn f32_remainder_matches_rust() {
+    let values: Vec<f32> = REM_VALUES.into_iter().map(to_f32).collect();
+    let (mut a, mut b) = pairs(&values);
+    let mut rng = Rng(0x0fed_cba9_8765_4321);
+    for i in 0..300 {
+        let (x, y) = if i % 3 == 0 {
+            (rng.f32_bits(), rng.f32_bits())
+        } else {
+            let y = rng.f32_bits();
+            let shift = i32::try_from(rng.next() % 40).expect("small") - 5;
+            let exp = i32::try_from((y.to_bits() >> 23) & 0xff).expect("exponent") + shift;
+            let exp = u32::try_from(exp.clamp(0, 0xfe)).expect("clamped");
+            let fraction = u32::try_from(rng.next() >> 40).expect("24 bits") & !(0xff << 23);
+            (f32::from_bits(fraction | (exp << 23)), y)
+        };
+        a.push(x);
+        b.push(y);
+    }
+    let (da, db) = (a.clone(), b.clone());
+    let mut case = Case::new("rem32", move |i| format!("a={:e} b={:e}", da[i], db[i]));
+    case.items
+        .push_str("fn rem(a: f32, b: f32) -> f32:\n    a % b\n");
+    let ca = case.col("f32", lits32(&a));
+    let cb = case.col("f32", lits32(&b));
+    let want: Vec<f32> = a.iter().zip(&b).map(|(x, y)| x % y).collect();
+    let w = case.col("f32", lits32(&want));
+    case.check("rem", format!("!same32(rem({ca}[i], {cb}[i]), {w}[i])"));
+    case.run();
+}

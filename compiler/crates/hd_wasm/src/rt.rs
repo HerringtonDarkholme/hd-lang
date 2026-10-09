@@ -287,6 +287,9 @@ pub enum Helper {
     LebGet,
     /// `(x: f64, y: f64) -> f64`: IEEE 754 `pow` (`expr.power.float.pow`).
     PowF64,
+    /// `(x: f64, y: f64) -> f64`: floating `%`, C `fmod`
+    /// (`expr.float.remainder-truncated`).
+    RemF64,
     /// `(end)`: grows the exchange buffer to `end` bytes.
     Fit,
     /// The leaf frame's cancel: aborts a pending operation.
@@ -570,6 +573,7 @@ impl Helper {
             Helper::LebPut => w.u8(29),
             Helper::LebGet => w.u8(30),
             Helper::PowF64 => w.u8(32),
+            Helper::RemF64 => w.u8(35),
             Helper::Fit => w.u8(31),
             Helper::HostCancel { frame } => {
                 w.u8(11);
@@ -766,6 +770,7 @@ impl Helper {
             29 => Helper::LebPut,
             30 => Helper::LebGet,
             32 => Helper::PowF64,
+            35 => Helper::RemF64,
             31 => Helper::Fit,
             11 => Helper::HostCancel { frame: dec_wty(r)? },
             12 => Helper::Unlowered {
@@ -1216,6 +1221,7 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
         Helper::LebPut => crate::boundary::leb_put_code(),
         Helper::LebGet => crate::boundary::leb_get_code(),
         Helper::PowF64 => crate::pow::pow_f64_code(),
+        Helper::RemF64 => crate::rem::rem_f64_code(),
         Helper::Fit => crate::boundary::fit_code(),
         Helper::HostCancel { frame } => {
             let mut a = Asm::new(vec![VT::Eq]);
