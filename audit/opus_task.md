@@ -78,12 +78,14 @@ When the queue is empty, say so under "Questions" and wait.
 
 - **Yours:** `compiler/crates/hd_cli`, `compiler/crates/hd_project`, the
   CLI-facing parts of `compiler/crates/hd_driver` (goals, output modes,
-  JSON, reports), and their tests.
+  JSON, reports), the host side of `compiler/crates/hd_run` (import
+  reading, capability grants, the test environment), and their tests.
 - **Not yours (the orchestrator's agents are in them):** `hd_check`,
   `hd_types`, `hd_mono`, `hd_wasm`, `hd_tir`, `hd_structure`, and
   `hd_resolve` lowering. If a job needs a change there, stop and ask.
-- `src/` is frozen; `lib/std/`, `spec/`, `guide/`, `website/` are read
-  only unless a job says so.
+- `src/` is frozen; `spec/` is frozen (never edited, whatever a job
+  says); `lib/std/`, `guide/`, `website/` are read only unless a job
+  says so.
 
 ## Jobs
 
@@ -93,6 +95,51 @@ When the queue is empty, say so under "Questions" and wait.
 `hd --help`, flag-first `hd --release`, `hd FILE.wasm` (~24 CLI cases).
 One commit per command; skip a command whose spec needs a design that
 `commands.md` lacks and ask under "Questions".
+
+### O9. Test Reports, Outcomes And Exit Codes
+
+CLI cases: `test-report` (`cli.test.report.*`), `test-every-case`,
+`test-err-report`, `test-outcomes`, `test-timeout`, `test-snapshot-file`,
+`exit-test-failure`, `exit-package-file`. First run each and write down
+what stops it. Build the parts in your lane (report text and order,
+streaming, summary, timeouts, snapshot files, exit codes, JSON test
+records). A case that stops in another lane (for example
+`TrailingCallExpr` at Body, an unlowered `ItemRef` at Emit) goes under
+"Questions" with the stage and message, and you move on. Also triage
+`dbg-values`, `dbg-uses`, `dbg-value-forms`, `typeid-package-name`,
+`typeid-single-file` and `entry-err-chain` the same way: do the CLI or
+host part if they have one, and name the blocking stage otherwise.
+
+### O10. Test Environments And Package Test Discovery (#43)
+
+CLI cases `test-unit-fakes`, `test-integration-env`, `test-tasks`
+(`cli.test.env.*`, `cli.test.tasks.*`, `cli.task.*`). Driver tier (#43):
+13 package fixtures stop at `unsupported: stage Discover` (multi-file
+fixtures), and about 24 tests-only modules are run as programs and fail
+with `missing-entry-point`. Find them in `compiler/CONFORMANCE.md`
+(`unsupported:Discover`, `fail:missing-entry-point`). Discovery is
+`hd_project`; which goal a fixture or file runs under is CLI-facing
+`hd_driver`. Read `spec/lang/10-modules.md` (tests, tasks) and
+`spec/cli/command-line.md` (Test Environments) before changing
+behaviour.
+
+### O11. Capability Grants
+
+CLI cases `cap-flag-overrides-table`, `cap-partial-deny`,
+`cap-env-notice`, `wasm-cap-flags-only` (`cli.cap.*`, `cli.wasm.grant`):
+flag-over-table order, path scopes (relative, resolved, write-not-read),
+partial refusal, the `Env` notice, and `hd test --cap` with
+`cli.cap.total.test`. Host methods the emitter has not lowered yet
+(`FsRead.read_text`, `Env.get`, `write_bytes`) are the orchestrator's:
+list them under "Questions" and build the grant logic around them.
+
+### O12. Workspaces
+
+`dep-workspace-fetch` and the gaps you listed in O6: `-p NAME`
+(`cli.workspace.select.*`), the workspace's shared selection and `hd.sum`
+(`cli.mode.member.shared`), `members`/`exclude` globs, `[source] root`,
+`[toolchain] pin`, `[test.capabilities]`. One commit per item if they
+are independent.
 
 ## Questions
 
