@@ -24,7 +24,7 @@ const USAGE: &str = "usage:
   hd [--format json] FILE.hd
   hd run [--release] [--format json] [NAME]
   hd build [--release] [--format json] [FILE.hd]
-  hd check [FILE.hd] [--format json]
+  hd check [FILE.hd] [--tests | --all] [--format json]
   hd test [FILE.hd] [--filter PATTERN] [--jobs N] [--format json]";
 
 /// `cli.exit.hd-failure`: `hd` itself failed, or rejected its command line.

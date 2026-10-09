@@ -193,6 +193,10 @@ pub enum Goal {
     },
     /// Every stage over a package; "not implemented" is counted.
     Analyze,
+    /// `Analyze`, with each module's `tests:` blocks checked as test code
+    /// into its test-role `check` entry, as a test run checks them
+    /// (`hd check --tests`, `cli.check.tests`).
+    CheckTests,
 }
 
 /// A test case as the test plan lists it (§19.2), in content order.
@@ -581,7 +585,7 @@ pub fn build_packages(
     let mut skims = Vec::new();
     for i in 0..n {
         skims.push(g.add(TaskKind::Skim(u32::try_from(i).expect("files")), &[]));
-        if *goal == Goal::Analyze {
+        if matches!(goal, Goal::Analyze | Goal::CheckTests) {
             g.add(TaskKind::Parse(u32::try_from(i).expect("files")), &[]);
         }
     }
@@ -696,7 +700,7 @@ impl Run<'_> {
     }
 
     fn analyze(&self) -> bool {
-        self.goal == Goal::Analyze
+        matches!(self.goal, Goal::Analyze | Goal::CheckTests)
     }
 
     fn exec(&self, id: TaskId, kind: TaskKind, sp: &dyn Spawn) {
@@ -940,7 +944,7 @@ impl Run<'_> {
         // A program's collection crosses packages (codegen.md §13.2): the
         // std modules its folders reach are checked to TIR too.
         let mut reached = vec![false; self.table.folders.len()];
-        if self.goal != Goal::Analyze {
+        if !self.analyze() {
             for module in &self.table.modules {
                 if module.package == 0 {
                     for c in g.closure[module.folder.idx()].iter() {
@@ -1671,7 +1675,7 @@ impl Run<'_> {
             let entry_name = match &self.goal {
                 Goal::Program { entry } => Some(entry.as_str()),
                 Goal::Tests { .. } => None,
-                Goal::Analyze => Some("main"),
+                Goal::Analyze | Goal::CheckTests => Some("main"),
             };
             let entry = module.package == 0
                 && entry_name.is_some_and(|e| {
@@ -1782,7 +1786,7 @@ impl Run<'_> {
                         .push(format!("{}: {}", names.path(def), e.what));
                     drop(r);
                     failed.get_or_insert(e);
-                    if self.goal != Goal::Analyze {
+                    if !self.analyze() {
                         break;
                     }
                 }
@@ -2217,7 +2221,7 @@ impl Run<'_> {
                     sp.add(TaskKind::Ext(ExtTask::Collect), &[]);
                 }
             }
-            Goal::Analyze => {
+            Goal::Analyze | Goal::CheckTests => {
                 lock(&self.report).not_implemented(
                     Stage::Collect,
                     "no program root: a library package needs a test plan (§13.1)",
@@ -2358,7 +2362,7 @@ impl Run<'_> {
                 );
                 (key, cases)
             }
-            Goal::Analyze => return,
+            Goal::Analyze | Goal::CheckTests => return,
         };
         let mut modules: Vec<(&str, Hash128)> = Vec::new();
         // std's content is in the toolchain key; a dependency's reached
@@ -2575,10 +2579,13 @@ impl Run<'_> {
         sp.release(link);
     }
 
-    /// The `check` role of module `m`: a test run checks the package's
-    /// modules with their `tests:` blocks, into separate entries.
+    /// The `check` role of module `m`: a test run, and `hd check --tests`,
+    /// check the package's modules with their `tests:` blocks, into
+    /// separate entries.
     fn role(&self, m: usize) -> &'static str {
-        if matches!(self.goal, Goal::Tests { .. }) && self.table.modules[m].package == 0 {
+        if matches!(self.goal, Goal::Tests { .. } | Goal::CheckTests)
+            && self.table.modules[m].package == 0
+        {
             "test"
         } else {
             ROLE

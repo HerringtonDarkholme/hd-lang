@@ -20,6 +20,13 @@ pub struct DiskSources {
     files: Vec<SourceEntry>,
 }
 
+impl DiskSources {
+    /// Keeps the files whose package-relative path `keep` accepts.
+    pub fn retain(&mut self, keep: impl Fn(&str) -> bool) {
+        self.files.retain(|e| keep(&e.path));
+    }
+}
+
 impl SourceSet for DiskSources {
     fn list(&self) -> Vec<SourceEntry> {
         self.files.clone()

@@ -87,13 +87,6 @@ When the queue is empty, say so under "Questions" and wait.
 
 ## Jobs
 
-### O3. `hd check --tests` And `--all` (#73)
-
-`cli.check.tests`, `cli.check.tests.doc`, `cli.check.all`: the flags
-don't exist yet. Test overlays per `checking-and-tir.md` §4.13.9 ("Test
-overlay"). If the overlay task itself is missing in `hd_driver`'s
-scheduling, build it there (it is CLI-facing driver work).
-
 ### O4. Test And Task Modules Have No Module Path (#114)
 
 Owner, 2026-10-08: as in Rust, integration test programs, shared test
@@ -161,3 +154,15 @@ One commit per command; skip a command whose spec needs a design that
   `build-instantiation-too-deep`, `hd build` never ends (still running
   after 60 s), so monomorphization has no `instantiation-too-deep` limit
   yet (hd_mono). `cap-total-deny` waits on `[capabilities]` (O5, O6).
+- **O3, the test overlay (design).** `checking-and-tir.md` §4.13.9
+  has a `TestOverlay(m)` task, cached as `check-test`; in `hd_driver` it
+  is still a stub, and `hd test` checks `tests:` blocks inside `Body(m)`
+  under the check role "test". `hd check --tests` now reuses that path
+  (`Goal::CheckTests`), so it shares `hd test`'s entries, not the plain
+  check's. Splitting it into its own task would move the registrations
+  out of the check entry, which `hd test`'s collection reads. Is that
+  split wanted now, or is sharing `hd test`'s role enough?
+- **O3, doc tests (`cli.check.tests.doc`).** Nothing extracts doc tests
+  from `##` blocks yet, in `hd test` or anywhere else, so `hd check
+  --tests` checks none. Extraction is checker work (synthetic files
+  whose spans map back, §4.13.9). Should it be a job of its own?

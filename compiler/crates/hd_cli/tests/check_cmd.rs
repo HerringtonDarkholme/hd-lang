@@ -371,3 +371,64 @@ fn json_mode_reports_a_command_error_as_a_diagnostic_with_no_code() {
     );
     assert!(lines[1].contains("\"status\":101"), "{}", lines[1]);
 }
+
+/// A package with one error in each kind of code: a `tests:` block, a test
+/// module, an integration test file, and a task.
+fn code_kinds(name: &str) -> PathBuf {
+    let dir = scratch(name);
+    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("write");
+    let files = [
+        (
+            "src/lib.hd",
+            "pub fn double(v: i32) -> i32:\n    v * 2\n\ntests:\n    it(\"block\"):\n        _ := in_block\n",
+        ),
+        ("src/lib_test.hd", "fn helper() -> i32:\n    in_unit\n"),
+        (
+            "tests/flow.hd",
+            "fn main() -> void:\n    _ := in_integration\n",
+        ),
+        ("tasks/seed.hd", "fn main() -> void:\n    _ := in_task\n"),
+    ];
+    for (file, text) in files {
+        let path = dir.join(file);
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
+        std::fs::write(path, text).expect("write");
+    }
+    dir
+}
+
+/// The names the errors of a text report are about, in order.
+fn missing(err: &str) -> Vec<&str> {
+    err.lines().filter_map(|l| l.split('`').nth(1)).collect()
+}
+
+/// `cli.check.default`, `cli.check.tests`, `cli.check.all`: plain `hd check`
+/// checks no test code and no task; `--tests` adds the `tests:` blocks,
+/// test modules and integration tests; `--all` adds the tasks. A FILE of
+/// test code or a task is checked as that kind.
+#[test]
+fn tests_and_all_widen_what_check_covers() {
+    let dir = code_kinds("hd-check-kinds");
+    let cache = "hd-check-cache-kinds";
+    let plain = check(&dir, cache, &[]);
+    assert_eq!(plain.code, Some(0), "{}", plain.err);
+    let tests = check(&dir, cache, &["--tests"]);
+    assert_eq!(tests.code, Some(101));
+    assert_eq!(
+        missing(&tests.err),
+        ["in_block", "in_unit", "in_integration"],
+        "{}",
+        tests.err
+    );
+    let all = check(&dir, cache, &["--all"]);
+    assert_eq!(
+        missing(&all.err),
+        ["in_block", "in_unit", "in_task", "in_integration"],
+        "{}",
+        all.err
+    );
+    let task = check(&dir, cache, &["tasks/seed.hd"]);
+    assert_eq!(missing(&task.err), ["in_task"], "{}", task.err);
+    let flow = check(&dir, cache, &["tests/flow.hd"]);
+    assert_eq!(missing(&flow.err), ["in_integration"], "{}", flow.err);
+}

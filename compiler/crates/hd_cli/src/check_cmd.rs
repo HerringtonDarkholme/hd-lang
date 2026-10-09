@@ -1,4 +1,4 @@
-//! `hd check [FILE] [--format json]` (`cli.package.whole`, `cli.check.*`,
+//! `hd check [FILE] [--tests | --all] [--format json]` (`cli.package.whole`, `cli.check.*`,
 //! `cli.file.check-test`, `cli.json.*`): the pipeline through checking and
 //! coherence, with no collection or emission.
 
@@ -12,6 +12,7 @@ use std::time::Instant;
 use hd_cache::DiskStore;
 use hd_diag::Code;
 use hd_driver::{Goal, Host, Output, build_packages};
+use hd_project::{ModuleTable, Role, role_of};
 
 use crate::report::{self, Diag, Summary};
 use crate::{HD_FAILURE, Wall, cache_dir, disk, executor, fail, package_of_cwd};
@@ -22,6 +23,10 @@ struct Options {
     json: bool,
     summary: bool,
     max_errors: Option<usize>,
+    /// `--tests`: also the test code (`cli.check.tests`).
+    tests: bool,
+    /// `--all`: also the test code and the tasks (`cli.check.all`).
+    all: bool,
 }
 
 fn options(args: &[OsString]) -> Result<Options, String> {
@@ -30,6 +35,8 @@ fn options(args: &[OsString]) -> Result<Options, String> {
         json: false,
         summary: false,
         max_errors: None,
+        tests: false,
+        all: false,
     };
     let mut i = 0;
     while i < args.len() {
@@ -42,8 +49,14 @@ fn options(args: &[OsString]) -> Result<Options, String> {
         let a = &args[i];
         i += 1;
         let text = a.to_string_lossy();
-        if text == "--summary" {
-            o.summary = true;
+        let switch = match text.as_ref() {
+            "--summary" => Some(&mut o.summary),
+            "--tests" => Some(&mut o.tests),
+            "--all" => Some(&mut o.all),
+            _ => None,
+        };
+        if let Some(on) = switch {
+            *on = true;
             continue;
         }
         let max = if text == "--max-errors" {
@@ -123,7 +136,13 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
     };
     let (diags, modules_checked) = match target(o.file.as_ref()) {
         Ok(t) if t.program.problems.iter().any(Diag::is_error) => (t.program.problems, 0),
-        Ok(t) => {
+        Ok(mut t) => {
+            let (tests, left_out) = scope(&mut t, &o);
+            let goal = if tests {
+                Goal::CheckTests
+            } else {
+                Goal::Analyze
+            };
             let store = DiskStore { root: cache_dir() };
             let clock = Wall(Instant::now());
             let host = Host {
@@ -133,14 +152,10 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
                 clock: &clock,
                 executor: executor(),
             };
-            let out = build_packages(
-                &host,
-                &t.program.package,
-                &t.program.packages(),
-                &Goal::Analyze,
-            );
+            let out = build_packages(&host, &t.program.package, &t.program.packages(), &goal);
             let shown = shown(&out, &t);
             let mut diags = t.program.problems;
+            diags.extend(left_out);
             diags.extend(shown);
             (diags, out.counters.modules_checked.len())
         }
@@ -164,6 +179,38 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
         eprint!("{}", text_report(&diags, &o));
     }
     ExitCode::from(status)
+}
+
+/// Narrows a package's sources to what this check covers, and says whether
+/// that includes test code. A whole-package check covers the library and
+/// the executables (`cli.check.default`); `--tests` adds the test code, its
+/// `tests:` blocks, test modules and integration test files
+/// (`cli.check.tests`); `--all` adds the tasks too (`cli.check.all`). A
+/// FILE of test code or a task brings in its kind. A single-file program is
+/// its one file. The layout errors of the files left out, such as
+/// `cli.task.beside-dir`, hold whatever the scope, so they are returned.
+fn scope(t: &mut Target, o: &Options) -> (bool, Vec<Diag>) {
+    let only = t.only.as_deref().map(role_of);
+    let tests = o.tests || o.all || only == Some(Role::Test);
+    let tasks = o.all || only == Some(Role::Task);
+    let keep = |path: &str| match role_of(path) {
+        Role::Test => tests,
+        Role::Task => tasks,
+        Role::Lib | Role::Exe => true,
+    };
+    if t.program.as_written.is_some() {
+        return (tests, Vec::new());
+    }
+    let layout = ModuleTable::discover(&t.program.package, &t.program.sources);
+    let left_out = layout
+        .problems
+        .iter()
+        .map(|(file, code, message)| (&layout.files[file.idx()], code, message))
+        .filter(|(path, _, _)| !keep(path))
+        .map(|(path, code, message)| Diag::error(Some(*code), message).at(path, Some(1)))
+        .collect();
+    t.program.sources.retain(keep);
+    (tests, left_out)
 }
 
 /// The diagnostics this run reports, in content order. A FILE in a package

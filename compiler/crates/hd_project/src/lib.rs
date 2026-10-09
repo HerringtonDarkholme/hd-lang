@@ -155,7 +155,10 @@ fn is_entry(file: &str) -> bool {
     is_root_file(file) && file != "src/lib.hd"
 }
 
-fn role_of(file: &str) -> Role {
+/// The role of a package-relative file: an entry, test code (a test
+/// module or an integration test file), a task, or library code.
+#[must_use]
+pub fn role_of(file: &str) -> Role {
     match Root::of(file) {
         (Root::Source, "main.hd") => Role::Exe,
         (Root::Test, _) => Role::Test,
