@@ -12,7 +12,7 @@ use hd_mono::{CallTarget, ProgramEnv, Target, TargetKind, subst};
 use hd_tir::ir::{
     Body, Callee, ChoiceKind, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags,
 };
-use hd_types::{InternPool, Prim, Ty, TyData, TyList};
+use hd_types::{InternPool, Prim, RowId, Ty, TyData, TyList};
 
 use crate::asm::Asm;
 use crate::layout::{
@@ -610,7 +610,9 @@ impl Em<'_> {
                 self.a.struct_new(&mt);
                 self.store(i)?;
             }
-            Tag::Closure => self.closure(i, a, bw, ty)?,
+            Tag::Closure => self.closure(i, bw, ty)?,
+            // No captures: a bound reference is a `Closure` (§13.11).
+            Tag::ItemRef => self.closure_value(i, 0..0, ty)?,
             Tag::ProviderGet => {
                 let key = self.rec(a).first().copied().unwrap_or(NONE);
                 let key_t = Ty(key);
@@ -1804,18 +1806,26 @@ impl Em<'_> {
         Ok(rs.clone())
     }
 
-    fn closure(&mut self, i: u32, sub: u32, rec: u32, ty: Ty) -> StageResult<()> {
+    fn closure(&mut self, i: u32, rec: u32, ty: Ty) -> StageResult<()> {
+        let caps = self.rec(rec);
+        let (start, len) = (caps[0] as usize, caps[1] as usize);
+        self.closure_value(i, start..start + len, ty)
+    }
+
+    /// A closure value: its code, the instance collection recorded (a
+    /// closure body, or a function reference's adapter, codegen.md
+    /// §13.11), and the captured locals `caps` (indices into
+    /// `cap_local`).
+    fn closure_value(&mut self, i: u32, caps: std::ops::Range<usize>, ty: Ty) -> StageResult<()> {
         let Some(Target::Closure(key)) = self.calls.get(&i).cloned() else {
             return unsupported("a closure that collection did not record");
         };
         let Shape::Fn { base, code } = self.lay.shape(ty)? else {
             return unsupported("a closure without a function type");
         };
-        let caps = self.rec(rec);
-        let (start, len) = (caps[0] as usize, caps[1] as usize);
         let mut fields = vec![VT::r(code.clone())];
         self.a.ref_func(Sym::Inst(key));
-        for c in start..start + len {
+        for c in caps {
             let l = self.b.cap_local[c].raw();
             let vs = self.local_vts(l)?;
             let ls = self.local(l)?;
@@ -1824,7 +1834,6 @@ impl Em<'_> {
             }
             fields.extend(vs);
         }
-        let _ = sub;
         let env = WTy::Struct {
             fields,
             sup: Some(Box::new(base)),
@@ -3387,42 +3396,8 @@ pub fn emit(
         let (keys_at, provs_at) = (next, next + 1);
         for k in em.fn_row_keys(s(b.ty[ci])) {
             let vt = em.lay.vtable(k, TyList::EMPTY)?;
-            let pl = em.a.local(VT::Eq);
-            let vl = em.a.local(VT::r(vt.clone()));
-            let at = em.a.local(VT::I32);
-            em.a.i32(0);
-            em.a.set(at);
-            em.a.block();
-            em.a.loop_();
-            em.a.raw_get(keys_at);
-            em.a.raw_get(at);
-            em.a.array_get(&ctx_keys());
-            em.a.i64(key_id(env, k));
-            em.a.s().i64_eq();
-            em.a.br_if(1);
-            em.a.raw_get(at);
-            em.a.i32(1);
-            em.a.s().i32_add();
-            em.a.set(at);
-            em.a.br(0);
-            em.a.end();
-            em.a.end();
-            em.a.raw_get(provs_at);
-            em.a.raw_get(at);
-            em.a.i32(2);
-            em.a.s().i32_mul();
-            em.a.array_get(&ctx_provs());
-            em.a.set(pl);
-            em.a.raw_get(provs_at);
-            em.a.raw_get(at);
-            em.a.i32(2);
-            em.a.s().i32_mul();
-            em.a.i32(1);
-            em.a.s().i32_add();
-            em.a.array_get(&ctx_provs());
-            em.a.ref_cast(&vt, false);
-            em.a.set(vl);
-            em.providers.push((k, [pl, vl]));
+            let ls = ctx_provider(&mut em.a, env, k, &vt, keys_at, provs_at);
+            em.providers.push((k, ls));
         }
     }
     let root = b.sub_root[sub as usize];
@@ -3437,6 +3412,141 @@ pub fn emit(
         em.load_as(tail, &results)?;
     }
     Ok(em.a.finish(results))
+}
+
+/// The provider of key `k` from a closure call's context (the parameters
+/// `keys_at` and `provs_at`, codegen.md §12.4): two fresh locals holding
+/// its value and its vtable. The caller's row covers `k`, so the search
+/// ends at its slot.
+fn ctx_provider(
+    a: &mut Asm,
+    env: &dyn ProgramEnv,
+    k: DefId,
+    vt: &WTy,
+    keys_at: u32,
+    provs_at: u32,
+) -> [u32; 2] {
+    let pl = a.local(VT::Eq);
+    let vl = a.local(VT::r(vt.clone()));
+    let at = a.local(VT::I32);
+    a.i32(0);
+    a.set(at);
+    a.block();
+    a.loop_();
+    a.raw_get(keys_at);
+    a.raw_get(at);
+    a.array_get(&ctx_keys());
+    a.i64(key_id(env, k));
+    a.s().i64_eq();
+    a.br_if(1);
+    a.raw_get(at);
+    a.i32(1);
+    a.s().i32_add();
+    a.set(at);
+    a.br(0);
+    a.end();
+    a.end();
+    a.raw_get(provs_at);
+    a.raw_get(at);
+    a.i32(2);
+    a.s().i32_mul();
+    a.array_get(&ctx_provs());
+    a.set(pl);
+    a.raw_get(provs_at);
+    a.raw_get(at);
+    a.i32(2);
+    a.s().i32_mul();
+    a.i32(1);
+    a.s().i32_add();
+    a.array_get(&ctx_provs());
+    a.ref_cast(vt, false);
+    a.set(vl);
+    [pl, vl]
+}
+
+/// A function reference's adapter instance (codegen.md §13.11): closure
+/// code `(env, params..., keys, providers)` that forwards its parameters,
+/// receiver first for a method (`fn.ref.unbound.receiver`), and its row's
+/// providers from the context to one call of the item's instance at
+/// `args`, which collection recorded as instruction 0. The context passes
+/// through, so one adapter serves every caller row. A suspending item's
+/// call is its cold constructor, which the adapter returns
+/// (`fn.ref.suspending`).
+pub fn emit_adapter(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    path: &dyn Fn(DefId) -> String,
+    layouts: &Layouts,
+    item: DefId,
+    args: TyList,
+    calls: &HashMap<u32, Target>,
+) -> StageResult<Code> {
+    let lay = Lay::new(pool, env, path, layouts);
+    let Some(Target::Call(t)) = calls.get(&0) else {
+        return unsupported("a function reference that collection did not resolve");
+    };
+    if t.kind != TargetKind::Instance {
+        return unsupported("a function reference to a compiler lowering");
+    }
+    let s = |x: Ty| subst(pool, env, item, args, x);
+    let params: Vec<Ty> = env
+        .params(item)
+        .unwrap_or_default()
+        .into_iter()
+        .map(s)
+        .collect();
+    let ft = pool.intern_ty(&TyData::Fn {
+        params: pool.list(&params),
+        result: s(env.ret(item).unwrap_or(Ty::VOID)),
+        row: RowId::EMPTY,
+        suspends: env.suspends(item),
+    });
+    let Shape::Fn { code, .. } = lay.shape(ft)? else {
+        return unsupported("a function reference without a function type");
+    };
+    let WTy::Func(cps, crs) = code else {
+        return unsupported("a closure code type");
+    };
+    let mut want = Vec::new();
+    for p in env.params(t.item).unwrap_or_default() {
+        want.extend(lay.vts(subst(pool, env, t.item, t.args, p))?);
+    }
+    let mut got = lay.vts(t.ret)?;
+    if env.suspends(t.item) {
+        got = vec![VT::r(suspend_base(&got).0)];
+        // A frame over an erased result is another type, not a subtype.
+        if got != crs {
+            return unsupported("a reference to a suspending instance with an erased result");
+        }
+    }
+    let (keys_at, provs_at) = (u32_of(cps.len() - 2), u32_of(cps.len() - 1));
+    if want.len() + 3 != cps.len() || got.len() != crs.len() {
+        return unsupported("a function reference whose instance has another shape");
+    }
+    let mut a = Asm::new(cps.clone());
+    let mut provs = Vec::new();
+    for k in env.row_keys(t.item, t.args) {
+        let vt = lay.vtable(k, TyList::EMPTY)?;
+        provs.push(ctx_provider(&mut a, env, k, &vt, keys_at, provs_at));
+    }
+    for (j, w) in want.iter().enumerate() {
+        a.get(u32_of(j + 1));
+        a.conv(&cps[j + 1], w);
+    }
+    for [pl, vl] in provs {
+        a.get(pl);
+        a.get(vl);
+    }
+    a.call(Sym::Inst(t.key));
+    let tmp: Vec<u32> = got.iter().map(|v| a.local(v.clone())).collect();
+    for l in tmp.iter().rev() {
+        a.set(*l);
+    }
+    for (l, (have, w)) in tmp.iter().zip(got.iter().zip(&crs)) {
+        a.get(*l);
+        a.conv(have, w);
+    }
+    Ok(a.finish(crs))
 }
 
 /// A suspending function (suspension.md §14.1 to §14.6). The body is

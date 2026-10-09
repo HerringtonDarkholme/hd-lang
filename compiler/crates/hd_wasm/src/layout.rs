@@ -604,8 +604,15 @@ impl<'a> Lay<'a> {
                     }
                 }
             }
-            TyData::Fn { params, result, .. } => {
-                vec![VT::r(closure_base(&self.code_ty(params, result)?))]
+            TyData::Fn {
+                params,
+                result,
+                suspends,
+                ..
+            } => {
+                vec![VT::r(closure_base(
+                    &self.code_ty(params, result, suspends)?,
+                ))]
             }
             TyData::TraitValue { def, args, .. } => {
                 self.nominal(self.dyn_ty(def, args), Nominal::Dyn, def)?
@@ -759,15 +766,22 @@ impl<'a> Lay<'a> {
         Ok(EnumForm { slots, at, boxed })
     }
 
-    /// A closure's code type: `(eqref env, params..., keys, providers) -> results`.
-    fn code_ty(&self, params: TyList, result: Ty) -> StageResult<WTy> {
+    /// A closure's code type: `(eqref env, params..., keys, providers) ->
+    /// results`. A suspending function value's code returns its cold
+    /// `mut Suspend[T]`, as a plain call of a suspending function does
+    /// (suspension.md §14.1).
+    fn code_ty(&self, params: TyList, result: Ty, suspends: bool) -> StageResult<WTy> {
         let mut ps = vec![VT::Eq];
         for p in self.pool.list_items(params).iter().copied() {
             ps.extend(self.vts(p)?);
         }
         ps.push(VT::rn(ctx_keys()));
         ps.push(VT::rn(ctx_provs()));
-        Ok(WTy::Func(ps, self.vts(result)?))
+        let mut rs = self.vts(result)?;
+        if suspends {
+            rs = vec![VT::r(suspend_base(&rs).0)];
+        }
+        Ok(WTy::Func(ps, rs))
     }
 
     /// The values of a nominal type: laid out, a member of a group being
@@ -1327,8 +1341,13 @@ impl<'a> Lay<'a> {
                 };
                 Shape::Opt(shape, iv)
             }
-            TyData::Fn { params, result, .. } => {
-                let code = self.code_ty(params, result)?;
+            TyData::Fn {
+                params,
+                result,
+                suspends,
+                ..
+            } => {
+                let code = self.code_ty(params, result, suspends)?;
                 Shape::Fn {
                     base: closure_base(&code),
                     code,

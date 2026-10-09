@@ -94,6 +94,12 @@ pub fn is_class_ref(pool: &InternPool, t: Ty) -> bool {
     pool.get(t) == TyData::Canon(0xF0)
 }
 
+/// The `sub` of a function reference's adapter instance (codegen.md
+/// §13.11): an `ItemRef`'s closure code, keyed by the referenced item and
+/// its full type arguments. It has no TIR of its own; collection records
+/// its one forwarded call as instruction 0.
+pub const ADAPTER: u16 = u16::MAX;
+
 /// How a call is lowered.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TargetKind {
@@ -861,6 +867,71 @@ impl Cx<'_> {
         }
     }
 
+    /// What a code entry reads of a call's target: the callee's identity,
+    /// instance and signature (walking skeleton, SK-3).
+    fn hash_target(&self, t: &CallTarget, reps: &mut StableHasher) {
+        let (pool, env) = (self.pool, self.env);
+        reps.hash(env.path_hash(t.item));
+        reps.hash(t.key);
+        let ph = |d: DefId| env.path_hash(d);
+        canon(pool, &ph, t.ret, reps);
+        for p in env.params(t.item).unwrap_or_default() {
+            canon(pool, &ph, subst(pool, env, t.item, t.args, p), reps);
+        }
+        for b in env.bounded(t.item).unwrap_or_default() {
+            reps.u8(u8::from(b));
+        }
+        for k in env.row_keys(t.item, t.args) {
+            reps.hash(env.path_hash(k));
+        }
+    }
+
+    /// A function reference's adapter (codegen.md §13.11): its one call,
+    /// of the item at the instance's arguments, recorded as instruction
+    /// 0. A trait member's arguments are `[Self, trait args..., own...]`,
+    /// and its implementation is selected at that `Self` (the reference
+    /// carries no evidence choice).
+    fn scan_adapter(&mut self, id: InstId) -> StageResult<()> {
+        let (item, args, depth) = (
+            self.out.table.item[id.idx()],
+            self.out.table.args[id.idx()],
+            self.out.table.depth[id.idx()],
+        );
+        let (pool, env) = (self.pool, self.env);
+        let mut reps = StableHasher::new("callee-reps");
+        let s = |t: Ty| subst(pool, env, item, args, t);
+        let mut types: Vec<Ty> = env.params(item).unwrap_or_default();
+        types.extend(env.ret(item));
+        for t in types {
+            let t = s(t);
+            reps.hash(layout_hash(pool, env, t, &mut self.layouts));
+            note_data(pool, env, t, &mut self.out.data);
+        }
+        reps.u8(u8::from(env.suspends(item)));
+        let t = match env.parent(item) {
+            Some((trait_, _)) if env.impl_head(trait_).is_none() => {
+                let all = pool.list_items(args);
+                let Some((&self_ty, targs)) = all.split_first() else {
+                    return err("a trait member reference without `Self`");
+                };
+                if matches!(pool.get(self_ty), TyData::TraitValue { .. }) {
+                    return err("a trait member reference whose `Self` is a trait value");
+                }
+                self.method_target(trait_, item, self_ty, targs, None, depth, id)?
+            }
+            _ => self.target(item, args, depth, id)?,
+        };
+        self.hash_target(&t, &mut reps);
+        reps.u16(ADAPTER);
+        if self.out.calls.len() <= id.idx() {
+            self.out.calls.resize_with(id.idx() + 1, HashMap::new);
+            self.out.callee_reps.resize(id.idx() + 1, Hash128(0));
+        }
+        self.out.calls[id.idx()] = HashMap::from([(0, Target::Call(t))]);
+        self.out.callee_reps[id.idx()] = reps.finish();
+        Ok(())
+    }
+
     fn scan(&mut self, id: InstId) -> StageResult<()> {
         let (item, sub, args, depth) = (
             self.out.table.item[id.idx()],
@@ -868,6 +939,9 @@ impl Cx<'_> {
             self.out.table.args[id.idx()],
             self.out.table.depth[id.idx()],
         );
+        if sub == ADAPTER {
+            return self.scan_adapter(id);
+        }
         let pool = self.pool;
         let env = self.env;
         // A compiler-supplied method's instance has no item body: its
@@ -960,24 +1034,26 @@ impl Cx<'_> {
                             }
                         }
                     };
-                    reps.hash(env.path_hash(t.item));
-                    reps.hash(t.key);
-                    let ph = |d: DefId| env.path_hash(d);
-                    canon(pool, &ph, t.ret, &mut reps);
-                    for p in env.params(t.item).unwrap_or_default() {
-                        canon(pool, &ph, subst(pool, env, t.item, t.args, p), &mut reps);
-                    }
-                    for b in env.bounded(t.item).unwrap_or_default() {
-                        reps.u8(u8::from(b));
-                    }
-                    for k in env.row_keys(t.item, t.args) {
-                        reps.hash(env.path_hash(k));
-                    }
+                    self.hash_target(&t, &mut reps);
                     calls.insert(ix, Target::Call(t));
                 }
                 Tag::Closure => {
                     let sub_k = u16::try_from(a).expect("subs");
                     let key = self.push(item, sub_k, args, depth, id)?;
+                    calls.insert(ix, Target::Closure(key));
+                }
+                // A function reference is a closure whose code is the
+                // adapter instance of the item at its substituted type
+                // arguments (codegen.md §13.11).
+                Tag::ItemRef => {
+                    let (Some(&d), Some(&l)) = (body.record(a).first(), body.record(b).first())
+                    else {
+                        return err("a malformed function reference record");
+                    };
+                    let targs: Vec<Ty> =
+                        pool.list_items(TyList(l)).iter().copied().map(s).collect();
+                    let key =
+                        self.push(DefId::from_raw(d), ADAPTER, pool.list(&targs), depth, id)?;
                     calls.insert(ix, Target::Closure(key));
                 }
                 Tag::Coerce => {
