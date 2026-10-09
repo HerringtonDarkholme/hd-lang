@@ -89,14 +89,6 @@ When the queue is empty, say so under "Questions" and wait.
 
 ## Jobs
 
-### O15. Doc Tests (#135)
-
-`cli.check.tests.doc` and the doc-test rules in the spec: extract the
-examples in `##` blocks as synthetic test files whose spans map back to
-the source (`checking-and-tir.md` §4.13.9), for `hd test` and `hd check
---tests`. Extraction and scheduling are `hd_project`/`hd_driver` work. If
-the checker itself needs a change, stop and ask under "Questions".
-
 ### O16. Cache Coherence And InitOrder Results (#102)
 
 Warm runs redo about 1.1 ms of Coherence and InitOrder work. Cache them
@@ -212,6 +204,20 @@ bench N`).
   `cyclic-test-dependency` but also the `TrailingCallExpr` of its
   top-level `it(...)` (#74); `dev-dependency-integration` and
   `dev-dependency-cyclic-integration` wait on #74 alone.
+- **O15 status (waits on #74).** `hd_project::doc_tests` extracts the doc
+  tests of a source file: each `hd` fence in a `##` block
+  (`module.test.doc.block`, `.fence`), named `doc <module>.<item>[i]`
+  with `pkg` for `src/lib.hd`, `Type.member` for a member and `doc
+  <module>[i]` for module documentation (`cli.test.doc.name.*`), its
+  compile-fail `CODE`, and a synthetic program (its `use` lines, then
+  `it(NAME):` with the rest as the trailing body) whose lines map back
+  to the `##` lines. It is not wired into `hd check --tests` or `hd test`
+  yet: each program is a top-level trailing-block `it(...)`, which stops
+  at Body (`TrailingCallExpr`, #74), so wiring it now would turn every
+  doc test into an `unsupported` error; a doc test also runs as its own
+  program with the integration environment, as integration programs
+  will. Once #74 lands, the driver adds one synthetic integration-view
+  module per doc test (§4.13.9) and the runner maps its lines back.
 - **Left for other lanes (status).** The CLI cases still failing for
   reasons outside this lane wait on the orchestrator's tasks above:
   top-level `it(...)` (#74: the `json-test-*`, `test-*`, `new-app`,

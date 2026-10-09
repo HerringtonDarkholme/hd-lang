@@ -6,6 +6,7 @@
 //! No file system access here (§2.2 rule 3): sources come through
 //! `SourceSet`, which the CLI implements over the disk and `hd_web` over JS.
 
+mod doctest;
 pub mod edit;
 mod manifest;
 
@@ -15,6 +16,7 @@ use std::sync::Arc;
 use hd_base::{FileId, FolderId, ModuleId};
 use hd_diag::Code;
 
+pub use doctest::{DocTest, doc_tests};
 pub use manifest::{
     CAPABILITY_KEYS, Executable, Grant, Manifest, Problem, Requirement, Version, Workspace,
     compatibility_line, grant_problem, parse_manifest, problems,
