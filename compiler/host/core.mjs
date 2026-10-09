@@ -186,6 +186,13 @@ export class Enc {
   str(s) {
     return this.bytes(Buffer.from(s, "utf8"));
   }
+  // An `f64` as its raw IEEE 754 bits, little-endian.
+  f64(v) {
+    this.room(8);
+    new DataView(this.buf.buffer, this.buf.byteOffset).setFloat64(this.len, v, true);
+    this.len += 8;
+    return this;
+  }
   list(xs, each) {
     this.leb(xs.length);
     for (const x of xs) each(this, x);
@@ -927,6 +934,9 @@ export function createHost(sink, env = {}) {
       show: (len) => env.runner?.show(text(len)),
     },
   };
+
+  // A runtime profile's own providers (`env.providers`, profiles.mjs).
+  if (env.providers) Object.assign(imports, env.providers({ put, Enc }));
 
   // Runs `init`, then polls `poll` to completion. Returns the status (3
   // for a trap) and whether the instance trapped.

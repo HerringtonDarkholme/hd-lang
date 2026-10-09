@@ -79,6 +79,43 @@ pub struct HandleB {
     pub slots: Vec<Helper>,
 }
 
+/// Refuses a type that holds a data type with a field that is not `pub`:
+/// such a value crosses a profile's boundary only through its
+/// `Serialize` and `Deserialize` (`module.boundary.out`, `.in`,
+/// `.serialize.exact`), which the boundary does not call yet.
+pub fn check_structural(lay: &Lay<'_>, t: Ty) -> StageResult<()> {
+    let pool = lay.pool;
+    let mut seen = std::collections::HashSet::new();
+    let mut todo = vec![t];
+    while let Some(t) = todo.pop() {
+        let t = lay.strip(t);
+        if !seen.insert(t) {
+            continue;
+        }
+        match pool.get(t) {
+            TyData::Adt { def, args } => {
+                if lay.env.has_private_field(def) {
+                    return unsupported(format!(
+                        "`{}` at a profile's boundary, which crosses through its Serialize and Deserialize",
+                        (lay.path)(def)
+                    ));
+                }
+                todo.extend(pool.list_items(args).iter().copied());
+                for f in lay.env.data_fields(def).unwrap_or_default() {
+                    todo.push(subst(pool, lay.env, def, args, f));
+                }
+                for v in lay.env.enum_variants(def, args).unwrap_or_default() {
+                    todo.extend(v);
+                }
+            }
+            TyData::Option(inner) => todo.push(inner),
+            TyData::Tuple { elems, .. } => todo.extend(pool.list_items(elems).iter().copied()),
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
 /// The payload struct of a host handle: its handle number.
 #[must_use]
 pub fn handle_payload() -> WTy {

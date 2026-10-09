@@ -493,16 +493,49 @@ fn decode_stdout_line(text: &str) -> Result<String, String> {
     Ok(out)
 }
 
-fn run_wasm(wasm: &[u8], serial: usize) -> std::io::Result<std::process::Output> {
-    let path =
-        PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("conformance-{serial}.wasm"));
+/// Runs a program's entry on the run host, under the fixture's runtime
+/// `profile` when it names one: the run configuration names it, and the
+/// host's `profiles.mjs` supplies its providers (README "Runtime
+/// Profiles").
+fn run_wasm(
+    wasm: &[u8],
+    serial: usize,
+    profile: Option<&str>,
+) -> std::io::Result<std::process::Output> {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
+    let path = dir.join(format!("conformance-{serial}.wasm"));
     std::fs::write(&path, wasm)?;
-    let result = Command::new("node")
+    let mut command = Command::new("node");
+    command
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
-        .arg(&path)
-        .output();
+        .arg(&path);
+    let config = dir.join(format!("conformance-{serial}.json"));
+    if let Some(name) = profile {
+        std::fs::write(&config, format!("{{\"profile\":{name:?}}}"))?;
+        command.arg(&config);
+    }
+    let result = command.output();
     let _ = std::fs::remove_file(path);
+    let _ = std::fs::remove_file(config);
     result
+}
+
+/// A fixture whose only harness is its runtime profile: its entry runs
+/// under the profile (README "Runtime Profiles"), with no test case, no
+/// doc test and no scenario.
+fn profile_entry(text: &str) -> bool {
+    directive(text, "fixture-runtime-profile").is_some()
+        && !text
+            .lines()
+            .any(|line| line.starts_with("tests:") || line.starts_with("## "))
+        && [
+            "fixture-runtime-scenario",
+            "fixture-runtime-pending-function",
+            "fixture-test-layout",
+            "fixture-package-tree",
+        ]
+        .iter()
+        .all(|name| directive(text, name).is_none())
 }
 
 /// A fixture whose only harness is a single-file `tests:` block, or a
@@ -745,7 +778,7 @@ fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usi
     if let Some(stage) = first_unsupported(&checked.report, false) {
         return Verdict::Unsupported(stage);
     }
-    if has_runtime_harness(&fixture.text) {
+    if has_runtime_harness(&fixture.text) && !profile_entry(&fixture.text) {
         let verdict = if doc_tests_harness(fixture) {
             doc_tests_case(case, fixture, store, serial)
         } else if plain_tests(&fixture.text) {
@@ -784,7 +817,8 @@ fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usi
     let Some(wasm) = built.wasm else {
         return Verdict::Unsupported("Link".to_owned());
     };
-    let run = match run_wasm(&wasm, serial) {
+    let profile = directive(&fixture.text, "fixture-runtime-profile");
+    let run = match run_wasm(&wasm, serial, profile) {
         Ok(run) => run,
         Err(error) => return Verdict::Crash(error.to_string()),
     };

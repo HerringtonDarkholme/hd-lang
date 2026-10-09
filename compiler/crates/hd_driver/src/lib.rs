@@ -4093,6 +4093,12 @@ impl ProgramEnv for Env<'_> {
             _ => None,
         }
     }
+    fn has_private_field(&self, def: DefId) -> bool {
+        self.p
+            .items
+            .get(&def)
+            .is_some_and(|i| matches!(&i.data, ItemData::Data(fs) if fs.iter().any(|f| !f.public)))
+    }
     fn path_hash(&self, def: DefId) -> Hash128 {
         self.run.names().path_hash(def)
     }

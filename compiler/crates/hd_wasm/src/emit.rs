@@ -4817,9 +4817,7 @@ fn root_poll(
             }
         };
         let p = path(k);
-        let Some(host) = hd_host_abi::host_trait(&p.replace('/', ".")) else {
-            return unsupported(format!("a default provider for `{p}`"));
-        };
+        let host = hd_host_abi::host_trait(&p.replace('/', "."));
         if !lay.dyn_supers(k, TyList::EMPTY)?.is_empty() {
             return unsupported(format!(
                 "a default provider for `{p}`, which has supertraits"
@@ -4831,6 +4829,13 @@ fn root_poll(
             let sig = lay.slot_sig(k, TyList::EMPTY, m)?;
             let mp = path(m);
             let name = mp.rsplit(['.', '/']).next().unwrap_or("");
+            // A trait the ABI table does not list is a runtime profile's
+            // own, whose row comes from its declaration.
+            let Some(host) = host else {
+                let key = p.rsplit(['.', '/']).next().unwrap_or("");
+                slots.push(profile_slot(&lay, key, name, m, sig)?);
+                continue;
+            };
             // A method the table does not list runs its default body,
             // which for `write_error_line!` is the first method's call.
             let Some(hm) = host
@@ -4841,7 +4846,7 @@ fn root_poll(
             else {
                 return unsupported(format!("the host method `{name}`"));
             };
-            slots.push(host_slot(&lay, host.key, hm, m, sig, false)?);
+            slots.push(host_slot(&lay, host.key, &HostRow::of(hm), m, sig, false)?);
         }
         providers.push((vt, slots));
     }
@@ -4890,10 +4895,72 @@ pub(crate) fn handle_slots(
         slots.push(Helper::HandleSlot {
             sig,
             payload: crate::boundary::handle_payload(),
-            inner: Box::new(host_slot(lay, host.key, hm, m, inner, true)?),
+            inner: Box::new(host_slot(lay, host.key, &HostRow::of(hm), m, inner, true)?),
         });
     }
     Ok(slots)
+}
+
+/// One host method's row as `host_slot` lowers it: from the ABI table, or
+/// derived from a runtime profile's own trait (`profile_slot`).
+struct HostRow<'a> {
+    name: &'a str,
+    params: &'a [hd_host_abi::Codec],
+    result: hd_host_abi::Codec,
+    wait: hd_host_abi::Wait,
+}
+
+impl HostRow<'_> {
+    fn of(hm: &hd_host_abi::HostMethod) -> HostRow<'_> {
+        HostRow {
+            name: hm.name,
+            params: hm.params,
+            result: hm.result,
+            wait: hm.wait,
+        }
+    }
+}
+
+/// A vtable slot of a host trait that a runtime profile declares itself
+/// (spec/conformance/README.md "Runtime Profiles"), which the ABI table
+/// does not list: it is imported from `hd:<Trait>` by the method's name,
+/// waits when the method suspends, and every argument and result crosses
+/// in the exchange buffer, so a result gets each check of its declared
+/// type (`module.profile.host-result.*`). A data type with a field that
+/// is not `pub` crosses only through its `Serialize` and `Deserialize`
+/// (`module.boundary.serialize.exact`, `.deserialize.exact`), which the
+/// boundary does not call yet: unsupported.
+fn profile_slot(lay: &Lay<'_>, key: &str, name: &str, m: DefId, sig: WTy) -> StageResult<Helper> {
+    use hd_host_abi::{Codec, Wait};
+    let (pool, env) = (lay.pool, lay.env);
+    let full = pool.list(&[hd_mono::class_ref(pool)]);
+    let params: Vec<Ty> = env
+        .params(m)
+        .unwrap_or_default()
+        .into_iter()
+        .skip(1)
+        .map(|p| subst(pool, env, m, full, p))
+        .collect();
+    let ret = subst(pool, env, m, full, env.ret(m).unwrap_or(Ty::VOID));
+    for t in params.iter().chain([&ret]) {
+        crate::boundary::check_structural(lay, *t)?;
+    }
+    let codecs = vec![Codec::Buffer(""); params.len()];
+    let row = HostRow {
+        name,
+        params: &codecs,
+        result: if lay.vts(ret)?.is_empty() {
+            Codec::Void
+        } else {
+            Codec::Buffer("")
+        },
+        wait: if env.suspends(m) {
+            Wait::May
+        } else {
+            Wait::Never
+        },
+    };
+    host_slot(lay, key, &row, m, sig, false)
 }
 
 /// One vtable slot of a default-profile provider (runtime-and-host.md
@@ -4905,7 +4972,7 @@ pub(crate) fn handle_slots(
 fn host_slot(
     lay: &Lay<'_>,
     key: &str,
-    hm: &hd_host_abi::HostMethod,
+    hm: &HostRow<'_>,
     m: DefId,
     sig: WTy,
     handle: bool,

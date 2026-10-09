@@ -68,6 +68,11 @@ pub trait ProgramEnv: LayoutEnv {
     fn intrinsic(&self, def: DefId) -> Option<String>;
     /// Data fields, for the struct types a program needs.
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>>;
+    /// Whether a data type has a field that is not `pub`: its value crosses
+    /// a boundary only through its `Serialize` and `Deserialize`
+    /// (`module.boundary.out`, `module.boundary.in`). A newtype's inner
+    /// value has no visibility.
+    fn has_private_field(&self, def: DefId) -> bool;
     fn path_hash(&self, def: DefId) -> Hash128;
     /// A declaration's printable name in a `TypeId` (trait.typeid.name.*):
     /// a prelude name as written, any other declaration by its absolute

@@ -111,6 +111,21 @@ Four things are generated from it:
 Std's capability traits are still declared in `lib/std` in hd. The table
 mirrors them, and a test fails when the two disagree.
 
+**As built (task #222), a runtime profile's own traits.** An entry row's
+trait that the table does not list is a selected runtime profile's own,
+as a conformance fixture's `Gauge`, `Sensor` or `Vault`
+([Runtime Profiles](../../spec/conformance/README.md#runtime-profiles)).
+`hd_wasm` derives its row from the declaration: imports from
+`hd:<Trait>` by method name, a wait when the method suspends, and every
+argument and result in the exchange buffer, so each result gets the
+checks of its declared type. A data type with a field that is not `pub`
+must cross through its `Serialize` and `Deserialize`
+([`module.boundary.serialize.exact`](../../spec/lang/10-modules.md#r-module.boundary.serialize.exact)),
+which the boundary does not call yet, so such a method stops at Link.
+The conformance runner gives the run host a profile by name, and
+`compiler/host/profiles.mjs`, which `hd` does not embed, supplies its
+providers.
+
 ### 17.2 Import Shapes
 
 | Method kind | Import | Example |
