@@ -196,7 +196,7 @@ fn enc_wty(t: &WTy, w: &mut Writer) {
 
 fn dec_wty(r: &mut Reader<'_>) -> Option<WTy> {
     match decode_vts(r, 0)?.pop()? {
-        VT::Ref(t, _) => Some(*t),
+        VT::Ref(t, _) => Some(std::sync::Arc::unwrap_or_clone(t)),
         _ => None,
     }
 }

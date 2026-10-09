@@ -1126,6 +1126,13 @@ pub enum Reloc {
 }
 ```
 
+**Recursive descriptors (#120).** A `CanonWasmTy` naming a recursion
+group ([wasm-layout.md §15.3](wasm-layout.md#153-the-type-section)) is
+the group and a member index. The entry's bytes start with a table of the
+groups it names, directly or through another group, each once and after
+the groups it names; a descriptor names a group by its place there, so
+no group's encoding nests in another's.
+
 **Stable numbering (lowering pass).** An emitted body holds no
 program-wide dense number that changes when something is added
 elsewhere, apart from function indices in `call`, which wasmtime's
@@ -1190,6 +1197,16 @@ inline_summary(f)    = H("no-inline") when the trivial-inlining test (§12.6) fa
 pipeline_hash        = H(pipeline name, each pass's name, version and parameters,
                          emit options, engine options)   (tiering.md §6.4)
 ```
+
+**`layout_hash` as built (#120).** It hashes `canon(T)` and the
+declarations of every item `T` names and of every item their declared
+types name (fields, payloads, trait method signatures), however far, not
+the instances' descriptors: an instance's layout reads only those, at
+`T`'s arguments. Items that reach each other share one hash (Tarjan's
+algorithm over items, memoized per item for the build), so the hash
+covers a whole recursion group, and the walk ends on any recursion, a
+payload at growing arguments (`E[List[T]]` in `E[T]`) included. The
+earlier walk over instance fields stopped at depth 4.
 
 **M4b key gap (M4b gap 4), narrowed by P2-1b `53563951`.** The
 implementation now hashes the layout hashes with the pipeline, instance

@@ -360,6 +360,9 @@ struct ProgramTables {
     /// closure (trait-solver.md §3.2).
     universe: ImplUniverseId,
     extra: Arc<UniverseImpls>,
+    /// The program's self-recursive enums (`hd_mono::layout::recursive_enums`),
+    /// found once on the first layout that asks.
+    recursive_enums: OnceLock<std::collections::HashSet<DefId>>,
 }
 
 struct CollectOut {
@@ -369,6 +372,9 @@ struct CollectOut {
     code_keys: Vec<Hash128>,
     prog_key: Hash128,
     roots: Roots,
+    /// Nominal types' layouts, shared by the program's emissions so each
+    /// recursion group is laid out once.
+    layouts: hd_wasm::layout::Layouts,
 }
 
 /// The roots a program's exports poll.
@@ -2362,6 +2368,7 @@ impl Run<'_> {
             impl_rows,
             universe,
             extra,
+            recursive_enums: OnceLock::new(),
         });
         self.program.get()
     }
@@ -2633,6 +2640,7 @@ impl Run<'_> {
             code_keys,
             prog_key: pkey,
             roots: plan,
+            layouts: hd_wasm::layout::Layouts::default(),
         });
         let link = sp.add_held(TaskKind::Ext(ExtTask::Link), &[]);
         for slot in misses {
@@ -2906,6 +2914,7 @@ impl Run<'_> {
             &self.pool,
             &env,
             &path,
+            &c.layouts,
             body,
             sub,
             args,
@@ -3157,6 +3166,33 @@ impl LayoutEnv for Env<'_> {
             ),
             _ => None,
         }
+    }
+    fn enum_declared(&self, def: DefId) -> Option<Vec<Vec<Ty>>> {
+        match &self.p.items.get(&def)?.data {
+            ItemData::Enum { variants, .. } => Some(
+                variants
+                    .iter()
+                    .map(|v| v.fields.iter().map(|f| f.ty).collect())
+                    .collect(),
+            ),
+            _ => None,
+        }
+    }
+    fn recursive_enum(&self, def: DefId) -> bool {
+        self.p
+            .recursive_enums
+            .get_or_init(|| {
+                let mut enums: Vec<DefId> = self
+                    .p
+                    .items
+                    .iter()
+                    .filter(|(_, i)| matches!(i.data, ItemData::Enum { .. }))
+                    .map(|(d, _)| *d)
+                    .collect();
+                enums.sort_unstable_by_key(|d| d.raw());
+                hd_mono::layout::recursive_enums(&self.run.pool, self, &enums)
+            })
+            .contains(&def)
     }
 }
 

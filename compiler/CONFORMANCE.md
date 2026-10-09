@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1660 | 676 | 508 | 2844 |
+| 1677 | 685 | 482 | 2844 |
 
 ## By Chapter
 
@@ -19,27 +19,27 @@ fixture; unsupported surface records progress without failing.
 | `lang/03-names-and-scopes.md` | 70 | 12 | 19 | 101 |
 | `lang/04-type-system.md` | 252 | 72 | 28 | 352 |
 | `lang/05-expressions.md` | 142 | 78 | 57 | 277 |
-| `lang/06-control-flow.md` | 100 | 33 | 24 | 157 |
+| `lang/06-control-flow.md` | 101 | 33 | 23 | 157 |
 | `lang/07-functions.md` | 51 | 34 | 45 | 130 |
-| `lang/08-data-and-enums.md` | 52 | 40 | 31 | 123 |
-| `lang/09-traits.md` | 199 | 117 | 43 | 359 |
+| `lang/08-data-and-enums.md` | 55 | 40 | 28 | 123 |
+| `lang/09-traits.md` | 199 | 116 | 44 | 359 |
 | `lang/10-modules.md` | 130 | 82 | 46 | 258 |
 | `lang/11-requirements-and-suspension.md` | 104 | 54 | 101 | 259 |
-| `lang/14-annotations.md` | 84 | 55 | 14 | 153 |
+| `lang/14-annotations.md` | 88 | 55 | 10 | 153 |
 | `std/cli.md` | 1 | 0 | 4 | 5 |
 | `std/cmp.md` | 12 | 0 | 2 | 14 |
 | `std/collections.md` | 19 | 5 | 5 | 29 |
 | `std/console.md` | 6 | 1 | 0 | 7 |
 | `std/digest.md` | 0 | 2 | 0 | 2 |
 | `std/encoding.md` | 3 | 0 | 0 | 3 |
-| `std/error.md` | 1 | 11 | 2 | 14 |
+| `std/error.md` | 2 | 11 | 1 | 14 |
 | `std/format.md` | 7 | 1 | 0 | 8 |
 | `std/fs.md` | 1 | 1 | 2 | 4 |
 | `std/hash.md` | 6 | 2 | 1 | 9 |
 | `std/host.md` | 0 | 0 | 2 | 2 |
 | `std/http.md` | 0 | 0 | 2 | 2 |
 | `std/iter.md` | 15 | 7 | 3 | 25 |
-| `std/json.md` | 2 | 0 | 17 | 19 |
+| `std/json.md` | 6 | 9 | 4 | 19 |
 | `std/net.md` | 1 | 0 | 0 | 1 |
 | `std/num.md` | 8 | 10 | 0 | 18 |
 | `std/ops.md` | 2 | 3 | 8 | 13 |
@@ -47,14 +47,14 @@ fixture; unsupported surface records progress without failing.
 | `std/path.md` | 2 | 0 | 0 | 2 |
 | `std/process.md` | 2 | 0 | 1 | 3 |
 | `std/random.md` | 8 | 0 | 0 | 8 |
-| `std/regex.md` | 0 | 0 | 13 | 13 |
+| `std/regex.md` | 4 | 0 | 9 | 13 |
 | `std/result.md` | 4 | 1 | 0 | 5 |
 | `std/serde.md` | 2 | 0 | 6 | 8 |
 | `std/sys.md` | 1 | 0 | 0 | 1 |
 | `std/task.md` | 1 | 0 | 6 | 7 |
 | `std/testing.md` | 17 | 19 | 3 | 39 |
 | `std/text.md` | 28 | 5 | 2 | 35 |
-| `std/time.md` | 15 | 1 | 1 | 17 |
+| `std/time.md` | 15 | 2 | 0 | 17 |
 
 ## By Directory
 
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 57 | 32 | 16 | 105 |
-| `runtime/valid` | 420 | 172 | 337 | 929 |
+| `runtime/valid` | 437 | 181 | 311 | 929 |
 | `typing/invalid` | 552 | 413 | 109 | 1074 |
 | `typing/valid` | 335 | 34 | 46 | 415 |
 | `typing/warnings` | 9 | 11 | 0 | 20 |
@@ -103,7 +103,7 @@ compiler stage that first declined the case.
 | `fail:pipe-step-needs-placeholder` | 5 |
 | `fail:placeholder-outside-pipe` | 1 |
 | `fail:re-export-loop` | 1 |
-| `fail:runtime-exit` | 57 |
+| `fail:runtime-exit` | 66 |
 | `fail:stdout` | 10 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
@@ -126,7 +126,7 @@ compiler stage that first declined the case.
 | `unsupported:Body` | 202 |
 | `unsupported:Collect` | 30 |
 | `unsupported:Discover` | 13 |
-| `unsupported:Emit` | 164 |
+| `unsupported:Emit` | 138 |
 | `unsupported:FolderIface` | 35 |
 | `unsupported:Link` | 1 |
 | `unsupported:RunCase` | 57 |
@@ -635,7 +635,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (57)</summary>
+<details><summary><code>fail:runtime-exit</code> (66)</summary>
 
 - `runtime/panic/for-loop-iterator-invalidated.hd`
 - `runtime/panic/invalid-shift.hd`
@@ -647,7 +647,6 @@ compiler stage that first declined the case.
 - `runtime/valid/map-lookup-and-duplicate-keys.hd`
 - `runtime/valid/literal-patterns.hd`
 - `runtime/valid/string-trim-and-lower.hd`
-- `runtime/valid/bounded-blanket-supertraits.hd`
 - `runtime/valid/suspending-calls-in-loops.hd`
 - `runtime/valid/suspending-call-in-scoped-defer.hd`
 - `runtime/panic/for-iterator-invalidated-via-helper.hd`
@@ -683,6 +682,16 @@ compiler stage that first declined the case.
 - `runtime/valid/num-bit-counts.hd`
 - `runtime/valid/digest-sha256-vectors.hd`
 - `runtime/valid/digest-sha256-long.hd`
+- `runtime/valid/json-escapes.hd`
+- `runtime/valid/json-numbers.hd`
+- `runtime/valid/json-object-order.hd`
+- `runtime/valid/json-suite.hd`
+- `runtime/valid/json-float-text.hd`
+- `runtime/valid/json-typed-enum.hd`
+- `runtime/valid/json-typed-optional.hd`
+- `runtime/valid/json-typed-errors.hd`
+- `runtime/valid/json-serde-private-round-trip.hd`
+- `runtime/valid/time-serde-forms.hd`
 - `runtime/panic/deque-invalidated.hd`
 - `runtime/valid/list-pop.hd`
 - `runtime/valid/list-insert-remove-clear.hd`
@@ -1308,7 +1317,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Emit</code> (164)</summary>
+<details><summary><code>unsupported:Emit</code> (138)</summary>
 
 - `runtime/valid/float-display.hd`
 - `runtime/valid/partial-equality-dispatch.hd`
@@ -1324,7 +1333,6 @@ compiler stage that first declined the case.
 - `runtime/valid/function-value-argument.hd`
 - `runtime/valid/function-field-returns-mutable-data.hd`
 - `runtime/valid/requirement-function-value.hd`
-- `runtime/valid/generic-enum-payloads.hd`
 - `runtime/valid/generic-callable-adapter.hd`
 - `runtime/valid/reference-identity.hd`
 - `runtime/valid/row-polymorphic-forwarding.hd`
@@ -1334,11 +1342,11 @@ compiler stage that first declined the case.
 - `runtime/valid/row-extension-provider-restoration.hd`
 - `runtime/valid/row-variable-plus-key.hd`
 - `runtime/valid/parameter-defaults-after-explicit-arguments.hd`
-- `runtime/valid/nested-variant-positional-bindings.hd`
 - `runtime/valid/for-loops-lists-and-maps.hd`
 - `runtime/valid/data-field-defaults.hd`
 - `runtime/valid/comprehensions.hd`
 - `runtime/valid/supertrait-methods.hd`
+- `runtime/valid/bounded-blanket-supertraits.hd`
 - `runtime/valid/suspending-calls-in-branches.hd`
 - `runtime/valid/suspending-match-guards.hd`
 - `runtime/valid/block-on-inside-driver.hd`
@@ -1377,16 +1385,12 @@ compiler stage that first declined the case.
 - `runtime/valid/literal-suffix-default-parameter.hd`
 - `runtime/valid/requirement-key-binding-run.hd`
 - `runtime/valid/generic-inference-explicit-conversions.hd`
-- `runtime/valid/structure-self-ref.hd`
-- `runtime/valid/structure-self-ref-enum.hd`
-- `runtime/valid/structure-self-ref-type-arguments.hd`
 - `runtime/valid/index-then-call-element.hd`
 - `runtime/valid/for-patterns.hd`
 - `runtime/valid/tuple-derived-order.hd`
 - `runtime/valid/tuple-vararg-function-value.hd`
 - `runtime/valid/default-standard-types.hd`
 - `runtime/valid/default-tuple-thirteen-elements.hd`
-- `runtime/valid/structure-self-ref-omitted.hd`
 - `runtime/valid/list-map-key.hd`
 - `runtime/valid/derived-default-data.hd`
 - `runtime/valid/derived-default-declared.hd`
@@ -1394,30 +1398,15 @@ compiler stage that first declined the case.
 - `runtime/valid/host-args-env.hd`
 - `runtime/valid/map-keys-values.hd`
 - `runtime/valid/std-errors-erased.hd`
-- `runtime/valid/std-errors-erased-codecs.hd`
 - `runtime/valid/process-error-display.hd`
 - `runtime/valid/hash-bytes-result.hd`
 - `runtime/valid/option-and-then.hd`
 - `runtime/valid/map-args-env.hd`
 - `runtime/valid/memory-fs.hd`
 - `runtime/valid/memory-fs-directories.hd`
-- `runtime/valid/json-round-trip.hd`
-- `runtime/valid/json-escapes.hd`
-- `runtime/valid/json-errors.hd`
-- `runtime/valid/json-numbers.hd`
-- `runtime/valid/json-object-order.hd`
-- `runtime/valid/json-pretty.hd`
-- `runtime/valid/json-suite.hd`
-- `runtime/valid/json-float-text.hd`
-- `runtime/valid/json-number-grammar.hd`
 - `runtime/valid/json-typed-round-trip.hd`
-- `runtime/valid/json-typed-enum.hd`
-- `runtime/valid/json-typed-optional.hd`
 - `runtime/valid/json-typed-primitives.hd`
-- `runtime/valid/json-typed-errors.hd`
-- `runtime/valid/json-serde-private-round-trip.hd`
 - `runtime/valid/serde-derive-call-order.hd`
-- `runtime/valid/time-serde-forms.hd`
 - `runtime/valid/task-all-list-order.hd`
 - `runtime/valid/string-pad-default-fill.hd`
 - `runtime/valid/list-group-by.hd`
@@ -1431,16 +1420,12 @@ compiler stage that first declined the case.
 - `runtime/valid/regex-literals-escapes.hd`
 - `runtime/valid/regex-classes.hd`
 - `runtime/valid/regex-anchors-groups.hd`
-- `runtime/valid/regex-repetition.hd`
-- `runtime/valid/regex-leftmost-first.hd`
-- `runtime/valid/regex-linear-time.hd`
 - `runtime/valid/regex-errors.hd`
 - `runtime/valid/regex-find-all.hd`
 - `runtime/valid/regex-captures.hd`
 - `runtime/valid/regex-named-groups.hd`
 - `runtime/valid/regex-replace.hd`
 - `runtime/valid/regex-split.hd`
-- `runtime/valid/regex-captures-linear-time.hd`
 - `runtime/valid/module-qualified-function-value.hd`
 - `runtime/valid/module-qualified-function-value-parenthesized.hd`
 - `runtime/valid/generic-storage-invokes-callables.hd`
@@ -1463,7 +1448,6 @@ compiler stage that first declined the case.
 - `runtime/valid/nested-mutable-captures.hd`
 - `runtime/valid/loop-iteration-cells.hd`
 - `runtime/valid/data-literal-evaluation-order.hd`
-- `runtime/valid/recursive-data-types.hd`
 - `runtime/valid/serde-std-reads.hd`
 - `runtime/valid/json-typed-missing-key-ignores-default.hd`
 - `runtime/valid/associated-binding-positions.hd`
@@ -1472,7 +1456,6 @@ compiler stage that first declined the case.
 - `runtime/valid/erased-error-result.hd`
 - `runtime/valid/http-scripted-provider.hd`
 - `runtime/valid/http-scripted-unknown-url.hd`
-- `runtime/valid/reference-cycles-are-ordinary-data.hd`
 - `runtime/valid/call-and-closure-forms.hd`
 
 </details>
@@ -2099,6 +2082,7 @@ runtime/valid/generic-call-nested-fresh-pair.hd
 runtime/valid/generic-data-embedding.hd
 runtime/valid/generic-data-fields.hd
 runtime/valid/generic-data-pattern-nested-generic.hd
+runtime/valid/generic-enum-payloads.hd
 runtime/valid/generic-forward-bound-explicit-first-slot.hd
 runtime/valid/generic-inference-literal-any-position.hd
 runtime/valid/generic-inference-mut-weakening.hd
@@ -2145,6 +2129,10 @@ runtime/valid/integer-literal-forms.hd
 runtime/valid/iterator-drives-loops.hd
 runtime/valid/iterator-search-count.hd
 runtime/valid/iterator-single-pass.hd
+runtime/valid/json-errors.hd
+runtime/valid/json-number-grammar.hd
+runtime/valid/json-pretty.hd
+runtime/valid/json-round-trip.hd
 runtime/valid/leading-dot-chain.hd
 runtime/valid/leading-dot-deeper-continues.hd
 runtime/valid/leading-dot-lines-join-the-chain.hd
@@ -2205,6 +2193,7 @@ runtime/valid/named-enum-payload-patterns.hd
 runtime/valid/nested-control-flow-as-expressions.hd
 runtime/valid/nested-provider-scope.hd
 runtime/valid/nested-suspending-call.hd
+runtime/valid/nested-variant-positional-bindings.hd
 runtime/valid/net-own-provider.hd
 runtime/valid/no-final-line-ending.hd
 runtime/valid/not-granted-display.hd
@@ -2262,7 +2251,13 @@ runtime/valid/qualified-calls-beside-promoted-method.hd
 runtime/valid/range-iteration.hd
 runtime/valid/raw-identifiers.hd
 runtime/valid/readonly-root-generic-mutable-path.hd
+runtime/valid/recursive-data-types.hd
 runtime/valid/recursive-private-functions-least-row.hd
+runtime/valid/reference-cycles-are-ordinary-data.hd
+runtime/valid/regex-captures-linear-time.hd
+runtime/valid/regex-leftmost-first.hd
+runtime/valid/regex-linear-time.hd
+runtime/valid/regex-repetition.hd
 runtime/valid/replace-non-overlapping.hd
 runtime/valid/requirement-row-forwarded-through-calls.hd
 runtime/valid/resource-error-operation-payload.hd
@@ -2292,6 +2287,7 @@ runtime/valid/shorter-promotion-path-wins.hd
 runtime/valid/sized-integer-arithmetic.hd
 runtime/valid/split-empty-input-nonempty-separator.hd
 runtime/valid/static-and-dynamic-trait-dispatch.hd
+runtime/valid/std-errors-erased-codecs.hd
 runtime/valid/stored-suspension-parameter.hd
 runtime/valid/stored-suspension-single-drive.hd
 runtime/valid/string-byte-methods.hd
@@ -2309,6 +2305,10 @@ runtime/valid/string-split-whitespace.hd
 runtime/valid/string-split.hd
 runtime/valid/strings-and-comments-hide-keywords-and-operators.hd
 runtime/valid/structure-name.hd
+runtime/valid/structure-self-ref-enum.hd
+runtime/valid/structure-self-ref-omitted.hd
+runtime/valid/structure-self-ref-type-arguments.hd
+runtime/valid/structure-self-ref.hd
 runtime/valid/suite-statement-right-sides.hd
 runtime/valid/suspending-argument-candidate.hd
 runtime/valid/suspending-blanket-impls.hd

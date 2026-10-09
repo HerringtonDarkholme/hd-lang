@@ -17,10 +17,11 @@ pub mod layout;
 pub mod meta;
 pub mod rt;
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::sync::Arc;
 
 use hd_base::wire::{Reader, Writer};
-use hd_base::{Hash128, NotImplemented, Stage, StageResult};
+use hd_base::{Hash128, NotImplemented, StableHasher, Stage, StageResult};
 use wasm_encoder::{
     CodeSection, CompositeInnerType, CompositeType, ConstExpr, DataCountSection, DataSection,
     ElementSection, Elements, EntityType, ExportKind, ExportSection, FieldType, FuncType,
@@ -32,7 +33,9 @@ pub use emit::{emit, entry, script_entry, test_entry};
 pub use rt::Helper;
 
 /// A Wasm value type, with references to structural type descriptors.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// Ordered as a derived order would be, with a shared descriptor compared
+/// by pointer first (`Ord` below).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum VT {
     I32,
     I64,
@@ -41,12 +44,12 @@ pub enum VT {
     /// `eqref`, nullable: erased storage (the A1 class `REF`, wasm-layout.md §15.1).
     Eq,
     /// `(ref $T)` or `(ref null $T)`.
-    Ref(Box<WTy>, bool),
+    Ref(Arc<WTy>, bool),
 }
 
 /// A Wasm heap type, described by structure (hd needs no nominal Wasm
 /// types, codegen.md §13.7): equal descriptors are one type.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum WTy {
     /// `(array (mut i8))`: string bytes.
     Bytes,
@@ -60,16 +63,170 @@ pub enum WTy {
         open: bool,
     },
     Func(Vec<VT>, Vec<VT>),
+    /// Member `i` of a recursion group (wasm-layout.md §15.3).
+    Rec(Arc<Group>, u32),
+    /// Inside a recursion group's member: the group's member `i`.
+    Back(u32),
+}
+
+/// A recursion group (wasm-layout.md §15.3): its members in canonical
+/// order, naming each other as `Back`. A group is identified by a hash of
+/// its members, which names other groups by their hashes, so groups
+/// compare, order and hash in constant time however deep the types they
+/// name nest.
+pub struct Group {
+    members: Vec<WTy>,
+    hash: Hash128,
+}
+
+impl Group {
+    #[must_use]
+    pub fn new(members: Vec<WTy>) -> Arc<Group> {
+        let mut h = StableHasher::new("wasm-rec-group");
+        h.u32(u32::try_from(members.len()).expect("group"));
+        for m in &members {
+            m.digest(&mut h);
+        }
+        Arc::new(Group {
+            members,
+            hash: h.finish(),
+        })
+    }
+}
+
+/// A group shows its hash and size, not the groups it names: a type's
+/// text stays as small as the type.
+impl std::fmt::Debug for Group {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Group({:032x}, {})", self.hash.0, self.members.len())
+    }
+}
+
+impl std::ops::Deref for Group {
+    type Target = [WTy];
+    fn deref(&self) -> &[WTy] {
+        &self.members
+    }
+}
+
+impl PartialEq for Group {
+    fn eq(&self, other: &Self) -> bool {
+        self.hash == other.hash
+    }
+}
+
+impl Eq for Group {}
+
+impl std::hash::Hash for Group {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.hash.hash(state);
+    }
+}
+
+impl Ord for Group {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.hash.cmp(&other.hash)
+    }
+}
+
+impl PartialOrd for Group {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+// The order of `VT` and `WTy` is the derived one (variant, then fields in
+// order), except that two references to one shared descriptor compare
+// equal without walking it, and groups compare by their hash: descriptors
+// are trees that share their parts, and link and the helper table order
+// them often.
+
+impl VT {
+    fn variant(&self) -> u8 {
+        match self {
+            VT::I32 => 0,
+            VT::I64 => 1,
+            VT::F32 => 2,
+            VT::F64 => 3,
+            VT::Eq => 4,
+            VT::Ref(..) => 5,
+        }
+    }
+}
+
+impl Ord for VT {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self, other) {
+            (VT::Ref(a, n), VT::Ref(b, m)) => {
+                let by = if Arc::ptr_eq(a, b) {
+                    std::cmp::Ordering::Equal
+                } else {
+                    a.cmp(b)
+                };
+                by.then(n.cmp(m))
+            }
+            _ => self.variant().cmp(&other.variant()),
+        }
+    }
+}
+
+impl PartialOrd for VT {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl WTy {
+    fn variant(&self) -> u8 {
+        match self {
+            WTy::Bytes => 0,
+            WTy::Array(_) => 1,
+            WTy::Struct { .. } => 2,
+            WTy::Func(..) => 3,
+            WTy::Rec(..) => 4,
+            WTy::Back(_) => 5,
+        }
+    }
+}
+
+impl Ord for WTy {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self, other) {
+            (WTy::Array(a), WTy::Array(b)) => a.cmp(b),
+            (
+                WTy::Struct {
+                    fields: f,
+                    sup: s,
+                    open: o,
+                },
+                WTy::Struct {
+                    fields: g,
+                    sup: t,
+                    open: p,
+                },
+            ) => f.cmp(g).then_with(|| s.cmp(t)).then(o.cmp(p)),
+            (WTy::Func(p, r), WTy::Func(q, s)) => p.cmp(q).then_with(|| r.cmp(s)),
+            (WTy::Rec(g, i), WTy::Rec(h, j)) => g.hash.cmp(&h.hash).then(i.cmp(j)),
+            (WTy::Back(i), WTy::Back(j)) => i.cmp(j),
+            _ => self.variant().cmp(&other.variant()),
+        }
+    }
+}
+
+impl PartialOrd for WTy {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl VT {
     #[must_use]
     pub fn r(t: WTy) -> VT {
-        VT::Ref(Box::new(t), false)
+        VT::Ref(Arc::new(t), false)
     }
     #[must_use]
     pub fn rn(t: WTy) -> VT {
-        VT::Ref(Box::new(t), true)
+        VT::Ref(Arc::new(t), true)
     }
     /// The defaultable form (wasm-layout.md §15.2): references nullable.
     #[must_use]
@@ -93,14 +250,17 @@ impl VT {
         }
     }
     fn decode(r: &mut Reader<'_>, depth: u8) -> Option<VT> {
+        Self::decode_in(r, depth, None)
+    }
+    fn decode_in(r: &mut Reader<'_>, depth: u8, group: Option<u32>) -> Option<VT> {
         Some(match r.u8() {
             0 => VT::I32,
             1 => VT::I64,
             2 => VT::F32,
             3 => VT::F64,
             4 => VT::Eq,
-            5 => VT::Ref(Box::new(WTy::decode(r, depth)?), false),
-            6 => VT::Ref(Box::new(WTy::decode(r, depth)?), true),
+            5 => VT::Ref(Arc::new(WTy::decode_in(r, depth, group)?), false),
+            6 => VT::Ref(Arc::new(WTy::decode_in(r, depth, group)?), true),
             _ => return None,
         })
     }
@@ -119,6 +279,55 @@ pub(crate) fn decode_vts(r: &mut Reader<'_>, depth: u8) -> Option<Vec<VT>> {
 }
 
 impl WTy {
+    /// Feeds a group member's content to its group's hash: other groups by
+    /// their hashes, so the walk ends at them.
+    pub(crate) fn digest(&self, h: &mut StableHasher) {
+        let vts = |v: &[VT], h: &mut StableHasher| {
+            h.u32(u32::try_from(v.len()).expect("values"));
+            for x in v {
+                match x {
+                    VT::Ref(t, n) => {
+                        h.u8(if *n { 6 } else { 5 });
+                        t.digest(h);
+                    }
+                    x => h.u8(x.variant()),
+                }
+            }
+        };
+        match self {
+            WTy::Bytes => h.u8(0),
+            WTy::Array(v) => {
+                h.u8(1);
+                vts(std::slice::from_ref(v), h);
+            }
+            WTy::Struct { fields, sup, open } => {
+                h.u8(2);
+                vts(fields, h);
+                h.u8(u8::from(*open));
+                match sup {
+                    Some(s) => {
+                        h.u8(1);
+                        s.digest(h);
+                    }
+                    None => h.u8(0),
+                }
+            }
+            WTy::Func(p, r) => {
+                h.u8(3);
+                vts(p, h);
+                vts(r, h);
+            }
+            WTy::Rec(g, i) => {
+                h.u8(4);
+                h.hash(g.hash);
+                h.u32(*i);
+            }
+            WTy::Back(i) => {
+                h.u8(5);
+                h.u32(*i);
+            }
+        }
+    }
     fn encode(&self, w: &mut Writer) {
         match self {
             WTy::Bytes => w.u8(0),
@@ -143,32 +352,102 @@ impl WTy {
                 encode_vts(p, w);
                 encode_vts(r, w);
             }
+            WTy::Rec(g, i) => {
+                w.u8(4);
+                w.u32(table_index(g));
+                w.u32(*i);
+            }
+            WTy::Back(i) => {
+                w.u8(5);
+                w.u32(*i);
+            }
         }
     }
+    /// Decodes a type; `None` when malformed, including a `Back` outside
+    /// a group or past its end. `group` is the enclosing group's size.
     fn decode(r: &mut Reader<'_>, depth: u8) -> Option<WTy> {
+        Self::decode_in(r, depth, None)
+    }
+    fn decode_in(r: &mut Reader<'_>, depth: u8, group: Option<u32>) -> Option<WTy> {
         let depth = depth.checked_add(1).filter(|d| *d < 64)?;
+        let vts = |r: &mut Reader<'_>| -> Option<Vec<VT>> {
+            (0..r.count())
+                .map(|_| VT::decode_in(r, depth, group))
+                .collect()
+        };
         Some(match r.u8() {
             0 => WTy::Bytes,
-            1 => WTy::Array(VT::decode(r, depth)?),
+            1 => WTy::Array(VT::decode_in(r, depth, group)?),
             2 => {
-                let fields = decode_vts(r, depth)?;
+                let fields = vts(r)?;
                 let open = r.u8() == 1;
                 let sup = if r.u8() == 1 {
-                    Some(Box::new(WTy::decode(r, depth)?))
+                    Some(Box::new(WTy::decode_in(r, depth, group)?))
                 } else {
                     None
                 };
                 WTy::Struct { fields, sup, open }
             }
-            3 => WTy::Func(decode_vts(r, depth)?, decode_vts(r, depth)?),
+            3 => WTy::Func(vts(r)?, vts(r)?),
+            4 => {
+                let g = table_group(r.u32())?;
+                let i = r.u32();
+                ((i as usize) < g.len()).then_some(())?;
+                WTy::Rec(g, i)
+            }
+            5 => {
+                let i = r.u32();
+                (i < group?).then_some(())?;
+                WTy::Back(i)
+            }
             _ => return None,
         })
     }
+    /// The type with a recursion group's member opened: its references to
+    /// the group's members as `Rec` types (what a field read gives).
     #[must_use]
-    pub fn fields(&self) -> &[VT] {
+    pub fn unrolled(&self) -> std::borrow::Cow<'_, WTy> {
         match self {
-            WTy::Struct { fields, .. } => fields,
-            _ => &[],
+            WTy::Rec(g, i) => std::borrow::Cow::Owned(g[*i as usize].close(g)),
+            t => std::borrow::Cow::Borrowed(t),
+        }
+    }
+    /// A member of `g` with its `Back` references as `Rec` types.
+    fn close(&self, g: &Arc<Group>) -> WTy {
+        self.map_refs(&mut |t| match t {
+            WTy::Back(j) => Some(WTy::Rec(g.clone(), *j)),
+            _ => None,
+        })
+    }
+    /// Rebuilds the type, replacing each referenced type (a field's, an
+    /// element's, a parameter's, a result's, the supertype) for which `f`
+    /// answers; the rest are rebuilt in turn. A `Rec` is closed and kept.
+    #[must_use]
+    pub fn map_refs(&self, f: &mut dyn FnMut(&WTy) -> Option<WTy>) -> WTy {
+        let mut at = |t: &WTy| f(t).unwrap_or_else(|| t.map_refs(f));
+        let mut vt = |v: &VT| match v {
+            VT::Ref(t, n) => VT::Ref(Arc::new(at(t)), *n),
+            v => v.clone(),
+        };
+        match self {
+            WTy::Array(v) => WTy::Array(vt(v)),
+            WTy::Struct { fields, sup, open } => WTy::Struct {
+                fields: fields.iter().map(&mut vt).collect(),
+                sup: sup.as_ref().map(|s| Box::new(at(s))),
+                open: *open,
+            },
+            WTy::Func(p, r) => {
+                WTy::Func(p.iter().map(&mut vt).collect(), r.iter().map(vt).collect())
+            }
+            t @ (WTy::Bytes | WTy::Rec(..) | WTy::Back(_)) => t.clone(),
+        }
+    }
+    /// A struct's fields, a recursion group's member opened.
+    #[must_use]
+    pub fn fields(&self) -> Vec<VT> {
+        match &*self.unrolled() {
+            WTy::Struct { fields, .. } => fields.clone(),
+            _ => Vec::new(),
         }
     }
 }
@@ -324,13 +603,194 @@ impl Sym {
     }
 }
 
+/// While a code entry is encoded or decoded, its recursion groups' table:
+/// each group the entry names, directly or through another group, once,
+/// after the groups it names, so a type names a group by its place in the
+/// table and no encoding nests one group in another.
+enum Table {
+    /// Finding the groups the entry names directly.
+    Find(Vec<Arc<Group>>, HashSet<Hash128>),
+    /// Each group's place.
+    Enc(HashMap<Hash128, u32>),
+    /// The groups decoded so far.
+    Dec(Vec<Arc<Group>>),
+}
+
+thread_local! {
+    static TABLE: std::cell::RefCell<Option<Table>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Runs `f` with `table` as the current table; returns `f`'s result and
+/// the table after it.
+fn with_table<T>(table: Table, f: impl FnOnce() -> T) -> (T, Table) {
+    let prev = TABLE.with(|c| c.replace(Some(table)));
+    let out = f();
+    let table = TABLE
+        .with(|c| c.replace(prev))
+        .expect("the table set above");
+    (out, table)
+}
+
+/// A group's place in the current table (while finding, a placeholder).
+fn table_index(g: &Arc<Group>) -> u32 {
+    TABLE.with(|c| match c.borrow_mut().as_mut() {
+        Some(Table::Find(found, seen)) => {
+            if seen.insert(g.hash) {
+                found.push(g.clone());
+            }
+            0
+        }
+        Some(Table::Enc(at)) => at[&g.hash],
+        _ => unreachable!("a recursion group is encoded only within a code entry"),
+    })
+}
+
+/// The decoded group at place `i`, if decoded already.
+fn table_group(i: u32) -> Option<Arc<Group>> {
+    TABLE.with(|c| match c.borrow().as_ref() {
+        Some(Table::Dec(groups)) => groups.get(i as usize).cloned(),
+        _ => None,
+    })
+}
+
+/// The groups a type names, not looking into them.
+fn groups_in(t: &WTy, out: &mut Vec<Arc<Group>>) {
+    let vt = |v: &VT, out: &mut Vec<Arc<Group>>| {
+        if let VT::Ref(t, _) = v {
+            groups_in(t, out);
+        }
+    };
+    match t {
+        WTy::Rec(g, _) => out.push(g.clone()),
+        WTy::Array(v) => vt(v, out),
+        WTy::Struct { fields, sup, .. } => {
+            for f in fields {
+                vt(f, out);
+            }
+            if let Some(s) = sup {
+                groups_in(s, out);
+            }
+        }
+        WTy::Func(p, r) => {
+            for x in p.iter().chain(r) {
+                vt(x, out);
+            }
+        }
+        WTy::Bytes | WTy::Back(_) => {}
+    }
+}
+
+/// `roots` and every group they name, each after the groups it names
+/// (depth first, with an explicit stack), leaving out the groups `known`
+/// accepts and what only they name.
+fn groups_after_parts(
+    roots: Vec<Arc<Group>>,
+    known: &dyn Fn(&Arc<Group>) -> bool,
+) -> Vec<Arc<Group>> {
+    let mut seen = HashSet::new();
+    let mut out = Vec::new();
+    let mut stack: Vec<(Arc<Group>, bool)> = roots.into_iter().rev().map(|g| (g, false)).collect();
+    while let Some((g, finished)) = stack.pop() {
+        if finished {
+            out.push(g);
+            continue;
+        }
+        if !seen.insert(g.hash) || known(&g) {
+            continue;
+        }
+        let mut parts = Vec::new();
+        for m in g.iter() {
+            groups_in(m, &mut parts);
+        }
+        stack.push((g, true));
+        stack.extend(
+            parts
+                .into_iter()
+                .rev()
+                .filter(|p| !seen.contains(&p.hash))
+                .map(|p| (p, false)),
+        );
+    }
+    out
+}
+
+impl Drop for Group {
+    /// Takes apart a chain of groups each held only by the one before it
+    /// with a loop, not one nested drop per group.
+    fn drop(&mut self) {
+        let mut stack: Vec<Arc<Group>> = Vec::new();
+        for m in std::mem::take(&mut self.members) {
+            take_groups(m, &mut stack);
+        }
+        while let Some(g) = stack.pop() {
+            if let Some(mut g) = Arc::into_inner(g) {
+                for m in std::mem::take(&mut g.members) {
+                    take_groups(m, &mut stack);
+                }
+            }
+        }
+    }
+}
+
+/// Moves the groups a type holds onto `out`, dropping the rest of it.
+fn take_groups(t: WTy, out: &mut Vec<Arc<Group>>) {
+    let vt = |v: VT, out: &mut Vec<Arc<Group>>| {
+        if let VT::Ref(t, _) = v
+            && let Some(t) = Arc::into_inner(t)
+        {
+            take_groups(t, out);
+        }
+    };
+    match t {
+        WTy::Rec(g, _) => out.push(g),
+        WTy::Array(v) => vt(v, out),
+        WTy::Struct { fields, sup, .. } => {
+            for f in fields {
+                vt(f, out);
+            }
+            if let Some(s) = sup {
+                take_groups(*s, out);
+            }
+        }
+        WTy::Func(p, r) => {
+            for x in p.into_iter().chain(r) {
+                vt(x, out);
+            }
+        }
+        WTy::Bytes | WTy::Back(_) => {}
+    }
+}
+
 impl Code {
-    /// The code entry's bytes (codegen.md §13.8): ID-free.
+    /// The code entry's bytes (codegen.md §13.8): ID-free. First the
+    /// table of its recursion groups (`Table`), then the entry.
     #[must_use]
     pub fn encode(&self) -> Vec<u8> {
-        let mut w = Writer::default();
-        self.encode_into(&mut w);
-        w.bytes
+        let ((), found) = with_table(Table::Find(Vec::new(), HashSet::new()), || {
+            self.encode_into(&mut Writer::default());
+        });
+        let Table::Find(roots, _) = found else {
+            unreachable!("the table set above")
+        };
+        let groups = groups_after_parts(roots, &|_| false);
+        let at: HashMap<Hash128, u32> = groups
+            .iter()
+            .enumerate()
+            .map(|(k, g)| (g.hash, u32::try_from(k).expect("groups")))
+            .collect();
+        let (bytes, _) = with_table(Table::Enc(at), || {
+            let mut w = Writer::default();
+            w.len_of(&groups);
+            for g in &groups {
+                w.len_of(&g.members);
+                for m in g.iter() {
+                    m.encode(&mut w);
+                }
+            }
+            self.encode_into(&mut w);
+            w.bytes
+        });
+        bytes
     }
 
     fn encode_into(&self, w: &mut Writer) {
@@ -366,8 +826,22 @@ impl Code {
     #[must_use]
     pub fn decode(bytes: &[u8]) -> Option<Code> {
         let mut r = Reader::new(bytes);
-        let c = Self::decode_from(&mut r, 0)?;
-        r.ok().then_some(c)
+        let (c, _) = with_table(Table::Dec(Vec::new()), || {
+            for _ in 0..r.count() {
+                let n = u32::try_from(r.count()).ok()?;
+                let members: Vec<WTy> = (0..n)
+                    .map(|_| WTy::decode_in(&mut r, 0, Some(n)))
+                    .collect::<Option<_>>()?;
+                let g = Group::new(members);
+                TABLE.with(|c| {
+                    if let Some(Table::Dec(groups)) = c.borrow_mut().as_mut() {
+                        groups.push(g);
+                    }
+                });
+            }
+            Self::decode_from(&mut r, 0)
+        });
+        r.ok().then_some(c?)
     }
 
     fn decode_from(r: &mut Reader<'_>, depth: u8) -> Option<Code> {
@@ -421,91 +895,212 @@ pub(crate) fn padded(out: &mut Vec<u8>, v: u32) {
 
 // ------------------------------------------------------------------- link
 
-/// The type section under construction: each descriptor once, its
-/// dependencies first, each in its own recursion group.
+/// The type section under construction (wasm-layout.md §15.3): each type
+/// once, its dependencies first. A type outside a recursion group is a
+/// group of one; a `Rec` type's group is emitted whole, after the types
+/// it names outside itself.
 #[derive(Default)]
 struct Types {
     idx: BTreeMap<WTy, u32>,
+    /// Each emitted type by its resolved form, indices in place of named
+    /// types: a type with the resolved form of a group's member is that
+    /// member, so a descriptor built outside the group (a function's type
+    /// from its parameters, a closure base from its code type) names the
+    /// one Wasm type.
+    resolved: HashMap<Resolved, u32>,
     sec: TypeSection,
     n: u32,
 }
 
+/// A type with its references resolved to indices.
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct Resolved {
+    kind: u8,
+    vals: Vec<RVal>,
+    results: Vec<RVal>,
+    sup: Option<u32>,
+    open: bool,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum RVal {
+    I8,
+    I32,
+    I64,
+    F32,
+    F64,
+    Eq,
+    Ref(u32, bool),
+}
+
 impl Types {
     fn val(&mut self, v: &VT) -> ValType {
+        rval_type(self.rval(v, &mut |_| None))
+    }
+    /// A value resolved; `inner` answers a group's own `Back` references.
+    fn rval(&mut self, v: &VT, inner: &mut dyn FnMut(u32) -> Option<u32>) -> RVal {
         match v {
-            VT::I32 => ValType::I32,
-            VT::I64 => ValType::I64,
-            VT::F32 => ValType::F32,
-            VT::F64 => ValType::F64,
-            VT::Eq => ValType::Ref(RefType::EQREF),
-            VT::Ref(t, n) => {
-                let i = self.of(t);
-                ValType::Ref(RefType {
-                    nullable: *n,
-                    heap_type: HeapType::Concrete(i),
-                })
-            }
+            VT::I32 => RVal::I32,
+            VT::I64 => RVal::I64,
+            VT::F32 => RVal::F32,
+            VT::F64 => RVal::F64,
+            VT::Eq => RVal::Eq,
+            VT::Ref(t, n) => RVal::Ref(self.target(t, inner), *n),
         }
+    }
+    fn target(&mut self, t: &WTy, inner: &mut dyn FnMut(u32) -> Option<u32>) -> u32 {
+        match t {
+            WTy::Back(j) => inner(*j).expect("a `Back` inside its group"),
+            t => self.of(t),
+        }
+    }
+    /// The resolved form of a type (not a `Rec` or `Back`), its
+    /// dependencies emitted first.
+    fn resolve(&mut self, t: &WTy, inner: &mut dyn FnMut(u32) -> Option<u32>) -> Resolved {
+        let mut r = Resolved {
+            kind: 0,
+            vals: Vec::new(),
+            results: Vec::new(),
+            sup: None,
+            open: false,
+        };
+        match t {
+            WTy::Bytes => r.vals.push(RVal::I8),
+            WTy::Array(v) => {
+                r.kind = 1;
+                r.vals.push(self.rval(v, inner));
+            }
+            WTy::Struct { fields, sup, open } => {
+                r.kind = 2;
+                r.sup = sup.as_ref().map(|s| self.target(s, inner));
+                r.vals = fields.iter().map(|f| self.rval(f, inner)).collect();
+                r.open = *open;
+            }
+            WTy::Func(p, rs) => {
+                r.kind = 3;
+                r.vals = p.iter().map(|v| self.rval(v, inner)).collect();
+                r.results = rs.iter().map(|v| self.rval(v, inner)).collect();
+            }
+            WTy::Rec(..) | WTy::Back(_) => unreachable!("a group member is resolved in its group"),
+        }
+        r
     }
     fn of(&mut self, t: &WTy) -> u32 {
         if let Some(&i) = self.idx.get(t) {
             return i;
         }
-        let (inner, sup, open) = match t {
-            WTy::Bytes => (
-                CompositeInnerType::Array(wasm_encoder::ArrayType(FieldType {
-                    element_type: StorageType::I8,
-                    mutable: true,
-                })),
-                None,
-                false,
-            ),
-            WTy::Array(v) => {
-                let e = self.val(v);
-                (
-                    CompositeInnerType::Array(wasm_encoder::ArrayType(FieldType {
-                        element_type: StorageType::Val(e),
-                        mutable: true,
-                    })),
-                    None,
-                    false,
-                )
+        let i = match t {
+            WTy::Rec(g, k) => {
+                self.group(g);
+                return self.idx[&WTy::Rec(g.clone(), *k)];
             }
-            WTy::Struct { fields, sup, open } => {
-                let sup = sup.as_ref().map(|s| self.of(s));
-                let fs: Vec<FieldType> = fields
-                    .iter()
-                    .map(|f| FieldType {
-                        element_type: StorageType::Val(self.val(f)),
-                        mutable: true,
-                    })
-                    .collect();
-                (
-                    CompositeInnerType::Struct(StructType { fields: fs.into() }),
-                    sup,
-                    *open,
-                )
-            }
-            WTy::Func(p, r) => {
-                let ps: Vec<ValType> = p.iter().map(|v| self.val(v)).collect();
-                let rs: Vec<ValType> = r.iter().map(|v| self.val(v)).collect();
-                (CompositeInnerType::Func(FuncType::new(ps, rs)), None, false)
+            WTy::Back(_) => unreachable!("a `Back` outside its group"),
+            t => {
+                let r = self.resolve(t, &mut |_| None);
+                if let Some(&i) = self.resolved.get(&r) {
+                    i
+                } else {
+                    self.sec.ty().subtype(&subtype(&r));
+                    let i = self.n;
+                    self.n += 1;
+                    self.resolved.insert(r, i);
+                    i
+                }
             }
         };
-        self.sec.ty().subtype(&SubType {
-            is_final: !open,
-            supertype_idxs: sup.into_iter().collect(),
-            composite_type: CompositeType {
-                inner,
-                shared: false,
-                descriptor: None,
-                describes: None,
-            },
-        });
-        let i = self.n;
-        self.n += 1;
         self.idx.insert(t.clone(), i);
         i
+    }
+    /// Emits a recursion group: the types its members name outside it,
+    /// then its members in their canonical order.
+    fn group(&mut self, g: &Arc<Group>) {
+        // The groups it names first, each after the groups it names, in a
+        // loop: emitting one then finds the groups it names emitted.
+        let idx = &self.idx;
+        let order = groups_after_parts(vec![g.clone()], &|p| {
+            idx.contains_key(&WTy::Rec(p.clone(), 0))
+        });
+        for p in order {
+            self.emit_group(&p);
+        }
+    }
+
+    /// Emits a group whose named groups are emitted.
+    fn emit_group(&mut self, g: &Arc<Group>) {
+        // A group of one that names no member is an ordinary type (the
+        // Wasm form of a type outside `rec` is that group).
+        if let [m] = &g[..]
+            && !layout::has_back(m)
+        {
+            let i = self.of(m);
+            self.idx.insert(WTy::Rec(g.clone(), 0), i);
+            return;
+        }
+        // Outside types first: resolving with a placeholder for the
+        // group's own members emits them.
+        for m in g.iter() {
+            let _ = self.resolve(m, &mut |_| Some(0));
+        }
+        let base = self.n;
+        let len = u32::try_from(g.len()).expect("group");
+        let rs: Vec<Resolved> = g
+            .iter()
+            .map(|m| self.resolve(m, &mut |j| (j < len).then_some(base + j)))
+            .collect();
+        self.sec
+            .ty()
+            .rec(rs.iter().map(subtype).collect::<Vec<_>>());
+        self.n += len;
+        for (j, r) in rs.into_iter().enumerate() {
+            let at = base + u32::try_from(j).expect("group");
+            self.resolved.entry(r).or_insert(at);
+            self.idx.insert(WTy::Rec(g.clone(), at - base), at);
+        }
+    }
+}
+
+fn rval_type(v: RVal) -> ValType {
+    match v {
+        RVal::I32 | RVal::I8 => ValType::I32,
+        RVal::I64 => ValType::I64,
+        RVal::F32 => ValType::F32,
+        RVal::F64 => ValType::F64,
+        RVal::Eq => ValType::Ref(RefType::EQREF),
+        RVal::Ref(i, nullable) => ValType::Ref(RefType {
+            nullable,
+            heap_type: HeapType::Concrete(i),
+        }),
+    }
+}
+
+fn subtype(r: &Resolved) -> SubType {
+    let field = |v: &RVal| FieldType {
+        element_type: if *v == RVal::I8 {
+            StorageType::I8
+        } else {
+            StorageType::Val(rval_type(*v))
+        },
+        mutable: true,
+    };
+    let inner = match r.kind {
+        0 | 1 => CompositeInnerType::Array(wasm_encoder::ArrayType(field(&r.vals[0]))),
+        2 => CompositeInnerType::Struct(StructType {
+            fields: r.vals.iter().map(field).collect::<Vec<_>>().into(),
+        }),
+        _ => CompositeInnerType::Func(FuncType::new(
+            r.vals.iter().map(|v| rval_type(*v)),
+            r.results.iter().map(|v| rval_type(*v)),
+        )),
+    };
+    SubType {
+        is_final: !r.open,
+        supertype_idxs: r.sup.into_iter().collect(),
+        composite_type: CompositeType {
+            inner,
+            shared: false,
+            descriptor: None,
+            describes: None,
+        },
     }
 }
 
@@ -757,4 +1352,58 @@ pub fn link(
     ns.functions(&fnames);
     module.section(&ns);
     Ok(module.finish())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Code, Group, Reloc, Types, VT, WTy};
+    use std::sync::Arc;
+
+    /// `{next: (ref null $F)}` and `$F = (eqref) -> (ref null $S)`, one group.
+    fn group() -> Arc<Group> {
+        Group::new(vec![
+            WTy::Struct {
+                fields: vec![VT::rn(WTy::Back(1))],
+                sup: None,
+                open: false,
+            },
+            WTy::Func(vec![VT::Eq], vec![VT::rn(WTy::Back(0))]),
+        ])
+    }
+
+    #[test]
+    fn recursion_groups_round_trip_and_reject_stray_backs() {
+        let code = Code {
+            params: vec![VT::r(WTy::Rec(group(), 0))],
+            results: vec![],
+            body: vec![0; 5],
+            relocs: vec![(0, Reloc::Type(WTy::Rec(group(), 1)))],
+            parts: vec![],
+        };
+        assert_eq!(Code::decode(&code.encode()), Some(code));
+        let stray = Code {
+            params: vec![VT::r(WTy::Back(0))],
+            results: vec![],
+            body: vec![],
+            relocs: vec![],
+            parts: vec![],
+        };
+        assert_eq!(Code::decode(&stray.encode()), None);
+    }
+
+    #[test]
+    fn a_group_is_emitted_once_and_its_members_unrolled_are_the_members() {
+        let mut t = Types::default();
+        let g = group();
+        let s = t.of(&WTy::Rec(g.clone(), 0));
+        let f = t.of(&WTy::Rec(g.clone(), 1));
+        assert_eq!((s, f), (0, 1));
+        // The function type built from its parameters outside the group,
+        // and the struct opened, name the members.
+        let outside = WTy::Func(vec![VT::Eq], vec![VT::rn(WTy::Rec(g.clone(), 0))]);
+        assert_eq!(t.of(&outside), f);
+        assert_eq!(t.of(&WTy::Rec(g.clone(), 0).unrolled()), s);
+        assert_eq!(WTy::Rec(g, 0).fields(), [VT::rn(WTy::Rec(group(), 1))]);
+        assert_eq!(t.n, 2);
+    }
 }

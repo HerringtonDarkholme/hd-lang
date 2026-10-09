@@ -171,6 +171,21 @@ cast on a match, and their payloadless variants need no allocation.
 Subtype enums cast once per matching arm, which the engine checks with
 one load and compare.
 
+**Self-recursive enums (implementation, #120).** An enum is
+self-recursive when its declaration reaches itself through value
+positions: enum payloads, tuple elements, `T?`, and another enum's
+argument when that enum holds the parameter in a value position. Data,
+collections, functions and trait values are references and end a path.
+A cycle of declarations decides, found once per program
+(`hd_mono::layout::recursive_enums`), so a payload naming its own enum at
+growing arguments (`E[T?]` in `E[T]`) is boxed like a plain one and every
+other value layout is finite. A projection in a value position is not
+resolved there, so its enum counts as self-recursive. "Payload fields"
+counts declared fields across the variants. The first implementation's
+subtype base holds the tag only, a payloadless variant allocates a base
+struct (no singleton globals yet), and a payload read casts per field,
+not once per arm.
+
 **Erased scalars.** In an erased position, `bool`, `char` and integers of
 16 bits or less become `i31ref`. Wider integers (`i32`, `u32`, `usize`,
 `i64`, `u64`) become `i31ref` when the value fits in 31 signed bits and
@@ -309,6 +324,37 @@ so `List[T]` and `Map[K, V]` in std see one type either way.
    when their encoded bytes under that order are equal. Recognizing equal
    recursive shapes under different member names is deferred until the
    size measurements ask for it (Codex re-review N-B1, N-S3).
+   **As built (#120).** Storage erases a reference to `eqref` in an
+   enum's slots and box and in a list's or map's arrays, and layout reads
+   only the parts' storage there, so Wasm types recur only through data
+   fields and trait values (vtable slot types), possibly by way of
+   tuples, optionals, closures and suspensions. Layout runs Tarjan's
+   algorithm, with an explicit stack, over those two nominal kinds, and
+   builds each component's descriptors after the components it names; a
+   member is named by its position until the group closes. The group's
+   members are its nominal types, ordered by `canon(T)`, and the types
+   inside them that name one (a closure base and code type, a slot type,
+   a tuple box), ordered by their content hash over the nominal order,
+   supertypes first. A nominal type on no cycle is a group of one that
+   link emits as an ordinary type. A descriptor is `Rec(group, i)`,
+   inside a member `Back(i)`; a group is identified by a hash of its
+   members that names other groups by their hashes, so groups compare in
+   constant time. A code entry writes its groups once, in a table before
+   the entry, each after the groups it names, so no encoding nests; link
+   emits a group's named groups first with a loop. The program's
+   emissions share the laid-out nominal types, so a group is laid out
+   once per build. At link, a type built outside the group whose
+   resolved form equals a member's (a function's type from its
+   parameters, a closure base from its code type) is that member. An
+   item whose declarations recur at ever larger arguments (`D[T]` naming
+   `D[List[T]]?`, an expansive cycle in Kennedy and Pierce's sense) has
+   no finite descriptor and stops emission as unsupported; the check
+   runs only when an item is on the walk's path at two arguments.
+   **Cost (measured, #120).** A code entry carries the descriptors of
+   every group it reaches, so a program with one group of `N` types used
+   by `N` functions, or a chain of `N` nested types, writes `O(N^2)`
+   descriptor bytes: about 0.26 s at `N = 800` and 1.5 s at `N = 3200`
+   cold. A program-wide type table would make it linear.
 4. **Subtyping.** Declared only where hd needs it: enum variants under
    their base, frames under `$Suspend_L`, closure environments under
    `$Fn_sig`. Every leaf is `final`, which lets engines skip subtype
@@ -321,6 +367,9 @@ so `List[T]` and `Map[K, V]` in std see one type either way.
    ready set). The type section is then a pure function of the type set,
    and valid by construction
    ([Wasm type validity](https://webassembly.github.io/spec/core/valid/types.html)).
+   The current link emits each group on first use, after the groups it
+   names (a depth-first topological order over code in content order):
+   valid and deterministic, but not yet the sorted ready set.
 6. **Stability (lowering pass).** No dense order is stable under
    insertion: a new type that sorts early shifts the type immediates of
    later functions, and wasmtime's per-function cache keys include them.

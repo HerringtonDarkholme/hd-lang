@@ -3,6 +3,8 @@
 //! data-structures.md §3.22).
 
 use hd_base::{DefId, Hash128, InstId, NotImplemented, StableHasher, Stage, StageResult};
+use std::collections::{HashMap, HashSet};
+
 use hd_types::{InternPool, Prim, Ty, TyData, TyList};
 
 /// The A1 class of a move-only type argument (§13.2).
@@ -80,26 +82,76 @@ pub enum StdKind {
 pub trait LayoutEnv {
     /// Variant payload types of an enum, or `None` for a data type.
     fn enum_variants(&self, def: DefId, args: TyList) -> Option<Vec<Vec<Ty>>>;
+    /// An enum's variant payload types as declared, over its own
+    /// parameters; `None` for any other item.
+    fn enum_declared(&self, def: DefId) -> Option<Vec<Vec<Ty>>>;
+    /// Whether an enum is self-recursive (`recursive_enums`): every
+    /// instance of it is boxed.
+    fn recursive_enum(&self, def: DefId) -> bool;
     /// Which built-in std type `def` is, if any. Required: a default of
     /// `Other` would lay out `List`, `Map` and `Suspend` as plain data.
     fn std_kind(&self, def: DefId) -> StdKind;
 }
 
 /// The layout of a type (§15.1 and the value table of §15.2). Every type
-/// form has a row; forms that need declared shapes ask `env`.
+/// form has a row; forms that need declared shapes ask `env`. A
+/// self-recursive enum is one boxed reference (`recursive_enums`), so the
+/// walk through value positions is finite. The enums `t` holds by value
+/// are laid out first, innermost first (`value_enums`), so the recursion
+/// is only as deep as tuples and optionals nest.
 pub fn layout_of(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> StageResult<Layout> {
-    layout_in(pool, env, t, &mut Vec::new())
+    let mut memo: HashMap<Ty, Layout> = HashMap::new();
+    for e in value_enums(pool, env, t) {
+        let l = layout_in(pool, env, e, &memo)?;
+        memo.insert(e, l);
+    }
+    layout_in(pool, env, t, &memo)
 }
 
-/// `layout_of` with the enums being laid out on `open`: an enum whose
-/// payload holds itself has no layout yet (the recursive layouts of
-/// wasm-layout.md, not built).
+/// The enum instances `t` holds by value, `t` included, each after the
+/// enums it holds: enum payloads, tuple elements and `T?`. A self-recursive
+/// enum is a reference and ends the walk; it is not listed.
+#[must_use]
+pub fn value_enums(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> Vec<Ty> {
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    let mut stack = vec![(t, false)];
+    while let Some((t, finished)) = stack.pop() {
+        if finished {
+            out.push(t);
+            continue;
+        }
+        match pool.get(t) {
+            TyData::Adt { def, args } => {
+                if let Some(vs) = env.enum_variants(def, args)
+                    && !env.recursive_enum(def)
+                    && seen.insert(t)
+                {
+                    stack.push((t, true));
+                    stack.extend(vs.into_iter().flatten().map(|f| (f, false)));
+                }
+            }
+            TyData::Tuple { elems, rest } => {
+                stack.extend(pool.list_items(elems).iter().map(|e| (*e, false)));
+                stack.extend(rest.map(|r| (r, false)));
+            }
+            TyData::Option(i) | TyData::Mut(i) => stack.push((i, false)),
+            _ => {}
+        }
+    }
+    out
+}
+
+/// `layout_of`, with the enums `memo` holds already laid out.
 fn layout_in(
     pool: &InternPool,
     env: &dyn LayoutEnv,
     t: Ty,
-    open: &mut Vec<Ty>,
+    memo: &HashMap<Ty, Layout>,
 ) -> StageResult<Layout> {
+    if let Some(l) = memo.get(&t) {
+        return Ok(l.clone());
+    }
     let l = match pool.get(t) {
         TyData::Prim(p) => match p {
             Prim::Bool | Prim::I8 | Prim::U8 => Layout {
@@ -134,20 +186,16 @@ fn layout_in(
         TyData::Adt { def, args } => match env.enum_variants(def, args) {
             None => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
             Some(vs) if vs.iter().all(Vec::is_empty) => one(LayoutClass::I32, ValType::I32),
-            Some(_) if open.contains(&t) => {
-                return Err(NotImplemented::new(
-                    Stage::Collect,
-                    "a recursive type layout (an enum whose payload holds itself)",
-                ));
+            Some(_) if env.recursive_enum(def) => {
+                one(LayoutClass::Ref, ValType::Ref { nullable: false })
             }
             Some(vs) => {
-                open.push(t);
                 // Slot sharing: a tag, then per value type the max count over variants.
                 let mut slots: Vec<(ValType, usize)> = Vec::new();
                 for v in &vs {
                     let mut here: Vec<(ValType, usize)> = Vec::new();
                     for f in v {
-                        for val in layout_in(pool, env, *f, open)?.values {
+                        for val in layout_in(pool, env, *f, memo)?.values {
                             let val = if matches!(val, ValType::Ref { .. }) {
                                 ValType::EqRef
                             } else {
@@ -166,7 +214,6 @@ fn layout_in(
                         }
                     }
                 }
-                open.pop();
                 let mut values = vec![ValType::I32];
                 for (val, n) in slots {
                     values.extend(std::iter::repeat_n(val, n));
@@ -185,7 +232,7 @@ fn layout_in(
         TyData::Tuple { elems, rest: None } => {
             let mut values = Vec::new();
             for e in pool.list_items(elems).iter().copied() {
-                values.extend(layout_in(pool, env, e, open)?.values);
+                values.extend(layout_in(pool, env, e, memo)?.values);
             }
             match values.len() {
                 0 => Layout {
@@ -208,7 +255,7 @@ fn layout_in(
             ));
         }
         TyData::Option(inner) => {
-            let li = layout_in(pool, env, inner, open)?;
+            let li = layout_in(pool, env, inner, memo)?;
             match (li.class, li.values.as_slice()) {
                 (LayoutClass::Ref, [ValType::Ref { .. }]) => {
                     one(LayoutClass::Ref, ValType::Ref { nullable: true })
@@ -244,7 +291,7 @@ fn layout_in(
             values: vec![ValType::EqRef, ValType::Ref { nullable: false }],
             packed_bits: None,
         },
-        TyData::Mut(inner) => layout_in(pool, env, inner, open)?,
+        TyData::Mut(inner) => layout_in(pool, env, inner, memo)?,
         TyData::Row(_) => {
             return Err(NotImplemented::new(
                 Stage::Emit,
@@ -263,6 +310,158 @@ fn layout_in(
         }
     };
     Ok(l)
+}
+
+/// The self-recursive enums among `enums`, the program's enum declarations
+/// (wasm-layout.md §15.2): those whose declaration reaches itself through
+/// value positions. Value positions are enum payloads, tuple elements and
+/// `T?`, and another enum's argument when that enum holds the parameter
+/// in a value position. Data, collections, functions and trait values are
+/// references and end a path. A cycle decides, so a payload naming its
+/// own enum at growing arguments (`E[T?]` in `E[T]`) is boxed like a
+/// plain one, and every other enum's value layout is finite. A projection
+/// in a value position is not resolved here, so its enum counts as
+/// self-recursive.
+#[must_use]
+pub fn recursive_enums(pool: &InternPool, env: &dyn LayoutEnv, enums: &[DefId]) -> HashSet<DefId> {
+    let mut g = ValueGraph {
+        enums: enums.iter().copied().collect(),
+        ..ValueGraph::default()
+    };
+    for &e in enums {
+        for v in env.enum_declared(e).unwrap_or_default() {
+            for f in v {
+                g.walk(pool, e, f);
+            }
+        }
+    }
+    let index: HashMap<DefId, usize> = enums.iter().enumerate().map(|(i, d)| (*d, i)).collect();
+    let succ: Vec<Vec<usize>> = enums
+        .iter()
+        .map(|e| {
+            g.edges
+                .get(e)
+                .map(|to| to.iter().filter_map(|d| index.get(d).copied()).collect())
+                .unwrap_or_default()
+        })
+        .collect();
+    let comp = sccs(&succ);
+    let mut size: HashMap<usize, usize> = HashMap::new();
+    for c in &comp {
+        *size.entry(*c).or_default() += 1;
+    }
+    let mut out = g.opaque;
+    for (i, e) in enums.iter().enumerate() {
+        if size[&comp[i]] > 1 || succ[i].contains(&i) {
+            out.insert(*e);
+        }
+    }
+    out
+}
+
+/// The enum graph of `recursive_enums`.
+#[derive(Default)]
+struct ValueGraph {
+    enums: HashSet<DefId>,
+    /// Enum to the enums it holds in a value position.
+    edges: HashMap<DefId, Vec<DefId>>,
+    /// An enum's parameters it holds in a value position.
+    uses: HashSet<(DefId, u16)>,
+    /// Arguments of an enum's parameter not known to be held yet: the
+    /// declaration that wrote each, and the argument.
+    waiting: HashMap<(DefId, u16), Vec<(DefId, Ty)>>,
+    /// Enums with a projection in a value position.
+    opaque: HashSet<DefId>,
+}
+
+impl ValueGraph {
+    /// Walks `t`, a type `from` holds by value.
+    fn walk(&mut self, pool: &InternPool, from: DefId, t: Ty) {
+        let mut todo = vec![(from, t)];
+        while let Some((f, t)) = todo.pop() {
+            match pool.get(t) {
+                TyData::Param(p) if p.owner == f => {
+                    if self.uses.insert((f, p.index)) {
+                        todo.extend(self.waiting.remove(&(f, p.index)).unwrap_or_default());
+                    }
+                }
+                TyData::Adt { def, args } if self.enums.contains(&def) => {
+                    self.edges.entry(f).or_default().push(def);
+                    for (j, &a) in pool.list_items(args).iter().enumerate() {
+                        let j = u16::try_from(j).expect("parameters");
+                        if self.uses.contains(&(def, j)) {
+                            todo.push((f, a));
+                        } else {
+                            self.waiting.entry((def, j)).or_default().push((f, a));
+                        }
+                    }
+                }
+                TyData::Tuple { elems, rest } => {
+                    todo.extend(pool.list_items(elems).iter().map(|e| (f, *e)));
+                    todo.extend(rest.map(|r| (f, r)));
+                }
+                TyData::Option(i) | TyData::Mut(i) => todo.push((f, i)),
+                TyData::Assoc { .. } => {
+                    self.opaque.insert(f);
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+/// Strongly connected components of a graph given by successor lists:
+/// per node, its component's number (Tarjan's algorithm, iterative).
+#[must_use]
+pub fn sccs(succ: &[Vec<usize>]) -> Vec<usize> {
+    const UNSEEN: usize = usize::MAX;
+    let n = succ.len();
+    let (mut index, mut low, mut comp) = (vec![UNSEEN; n], vec![0; n], vec![UNSEEN; n]);
+    let (mut stack, mut on) = (Vec::new(), vec![false; n]);
+    let (mut next, mut ncomp) = (0, 0);
+    for root in 0..n {
+        if index[root] != UNSEEN {
+            continue;
+        }
+        // (node, next successor to visit)
+        let mut call = vec![(root, 0)];
+        index[root] = next;
+        low[root] = next;
+        next += 1;
+        stack.push(root);
+        on[root] = true;
+        while let Some(&mut (v, ref mut k)) = call.last_mut() {
+            if let Some(&w) = succ[v].get(*k) {
+                *k += 1;
+                if index[w] == UNSEEN {
+                    index[w] = next;
+                    low[w] = next;
+                    next += 1;
+                    stack.push(w);
+                    on[w] = true;
+                    call.push((w, 0));
+                } else if on[w] {
+                    low[v] = low[v].min(index[w]);
+                }
+                continue;
+            }
+            call.pop();
+            if let Some(&(p, _)) = call.last() {
+                low[p] = low[p].min(low[v]);
+            }
+            if low[v] == index[v] {
+                while let Some(w) = stack.pop() {
+                    on[w] = false;
+                    comp[w] = ncomp;
+                    if w == v {
+                        break;
+                    }
+                }
+                ncomp += 1;
+            }
+        }
+    }
+    comp
 }
 
 /// The A1 class of a concrete type argument.
@@ -542,9 +741,82 @@ mod tests {
                 _ => None,
             }
         }
+        fn enum_declared(&self, def: DefId) -> Option<Vec<Vec<Ty>>> {
+            self.enum_variants(def, TyList::EMPTY)
+        }
+        fn recursive_enum(&self, _: DefId) -> bool {
+            false
+        }
         fn std_kind(&self, _: DefId) -> StdKind {
             StdKind::Other
         }
+    }
+
+    /// Declared enums for `recursive_enums`, by raw id.
+    struct Decls(Vec<(u32, Vec<Vec<Ty>>)>);
+    impl LayoutEnv for Decls {
+        fn enum_variants(&self, def: DefId, _: TyList) -> Option<Vec<Vec<Ty>>> {
+            self.enum_declared(def)
+        }
+        fn enum_declared(&self, def: DefId) -> Option<Vec<Vec<Ty>>> {
+            self.0
+                .iter()
+                .find(|(d, _)| *d == def.raw())
+                .map(|(_, v)| v.clone())
+        }
+        fn recursive_enum(&self, _: DefId) -> bool {
+            false
+        }
+        fn std_kind(&self, _: DefId) -> StdKind {
+            StdKind::Other
+        }
+    }
+
+    #[test]
+    fn recursive_enums_follow_value_positions_only() {
+        let p = InternPool::new();
+        let d = DefId::from_raw;
+        let param = |owner: u32, index: u16| {
+            p.intern_ty(&TyData::Param(hd_types::ParamRef {
+                owner: d(owner),
+                index,
+            }))
+        };
+        let adt = |def: u32, args: &[Ty]| {
+            p.intern_ty(&TyData::Adt {
+                def: d(def),
+                args: p.list(args),
+            })
+        };
+        let opt = |t: Ty| p.intern_ty(&TyData::Option(t));
+        // 1: `Tree[T] = Leaf(T) | Node(Tree[T], Tree[T])`.
+        let tree = adt(1, &[param(1, 0)]);
+        // 2: `Grow[T] = More(Grow[T?]) | Done(T)`: growing arguments.
+        let grow = adt(2, &[opt(param(2, 0))]);
+        // 3: `Wrap[T] = W(T) | N`; 4: `Loop = A(Wrap[Loop])`.
+        // 5: `Hold[T] = H(List[T])` (9 is a data type); 6: `Flat = F(Hold[Flat])`.
+        let list_of = |t: Ty| adt(9, &[t]);
+        let decls = Decls(vec![
+            (1, vec![vec![param(1, 0)], vec![tree, tree]]),
+            (2, vec![vec![grow], vec![param(2, 0)]]),
+            (3, vec![vec![param(3, 0)], vec![]]),
+            (4, vec![vec![adt(3, &[adt(4, &[])])]]),
+            (5, vec![vec![list_of(param(5, 0))]]),
+            (6, vec![vec![adt(5, &[adt(6, &[])])]]),
+        ]);
+        let all: Vec<DefId> = (1..=6).map(d).collect();
+        let rec = super::recursive_enums(&p, &decls, &all);
+        let mut got: Vec<u32> = rec.iter().map(|x| x.raw()).collect();
+        got.sort_unstable();
+        assert_eq!(got, [1, 2, 4]);
+    }
+
+    #[test]
+    fn sccs_group_cycles() {
+        let comp = super::sccs(&[vec![1], vec![0, 2], vec![2], vec![]]);
+        assert_eq!(comp[0], comp[1]);
+        assert_ne!(comp[0], comp[2]);
+        assert_ne!(comp[2], comp[3]);
     }
 
     /// `canon` of a function type with a two-key row, the keys interned in

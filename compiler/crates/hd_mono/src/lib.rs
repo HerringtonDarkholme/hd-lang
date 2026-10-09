@@ -270,24 +270,201 @@ fn unify(pool: &InternPool, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<Opti
     }
 }
 
-/// The hash of a type's layout-relevant shape: its canonical form and,
-/// for a declared type, its fields' (codegen.md §13.8 `layout_hash`).
-fn layout_hash(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, h: &mut StableHasher, depth: u8) {
-    let ph = |d: DefId| env.path_hash(d);
-    canon(pool, &ph, t, h);
-    if depth > 4 {
-        return;
-    }
-    if let TyData::Adt { def, args } = pool.get(t) {
-        for f in env.data_fields(def).unwrap_or_default() {
-            layout_hash(pool, env, subst(pool, env, def, args, f), h, depth + 1);
+/// The items a type names: data types, enums and traits (a projection's
+/// trait included).
+fn items_in(pool: &InternPool, t: Ty, out: &mut Vec<DefId>) {
+    let list = |l: TyList, out: &mut Vec<DefId>| {
+        for &x in pool.list_items(l) {
+            items_in(pool, x, out);
         }
-        for v in env.enum_variants(def, args).unwrap_or_default() {
-            for f in v {
-                layout_hash(pool, env, f, h, depth + 1);
+    };
+    match pool.get(t) {
+        TyData::Adt { def, args } => {
+            out.push(def);
+            list(args, out);
+        }
+        TyData::TraitValue {
+            def,
+            args,
+            bindings,
+        } => {
+            out.push(def);
+            list(args, out);
+            for (_, b) in bindings {
+                items_in(pool, b, out);
             }
         }
+        TyData::Assoc {
+            trait_,
+            self_ty,
+            args,
+            ..
+        } => {
+            out.push(trait_);
+            items_in(pool, self_ty, out);
+            list(args, out);
+        }
+        TyData::Tuple { elems, rest } => {
+            list(elems, out);
+            if let Some(r) = rest {
+                items_in(pool, r, out);
+            }
+        }
+        TyData::Option(i) | TyData::Mut(i) => items_in(pool, i, out),
+        TyData::Fn { params, result, .. } => {
+            list(params, out);
+            items_in(pool, result, out);
+        }
+        _ => {}
     }
+}
+
+/// An item's declared types that layouts read: a data type's fields, an
+/// enum's payloads, a trait's method parameters and results, as declared.
+fn declared_types(env: &dyn ProgramEnv, def: DefId) -> Vec<Ty> {
+    if let Some(fs) = env.data_fields(def) {
+        return fs;
+    }
+    if let Some(vs) = env.enum_declared(def) {
+        return vs.into_iter().flatten().collect();
+    }
+    let mut out = Vec::new();
+    for m in env.trait_methods(def) {
+        out.extend(env.params(m).unwrap_or_default());
+        out.extend(env.ret(m));
+    }
+    out
+}
+
+/// `layout_hash(T)` (codegen.md §13.8): the hash of `canon(T)` and of the
+/// declarations of every item `T` names, and of every item their declared
+/// types name, however far. A type's layout reads only those, at `T`'s
+/// arguments, so the hash covers a whole recursion group and ends on any
+/// recursion, a growing one (`E[List[T]]` in `E[T]`) included, since it
+/// walks declarations, of which a program has finitely many.
+fn layout_hash(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    t: Ty,
+    memo: &mut HashMap<DefId, Hash128>,
+) -> Hash128 {
+    let ph = |d: DefId| env.path_hash(d);
+    let mut h = StableHasher::new("layout-hash");
+    canon(pool, &ph, t, &mut h);
+    let mut items = Vec::new();
+    items_in(pool, t, &mut items);
+    let mut hashes: Vec<Hash128> = items
+        .into_iter()
+        .map(|d| declarations_hash(pool, env, d, memo))
+        .collect();
+    hashes.sort_unstable();
+    hashes.dedup();
+    h.u32(u32::try_from(hashes.len()).expect("items"));
+    for x in hashes {
+        h.hash(x);
+    }
+    h.finish()
+}
+
+/// The hash of an item's declaration and of every declaration it reaches
+/// through its declared types, memoized per item for the build. Items that
+/// reach each other share one hash, over their own declarations and the
+/// hashes of the items they reach outside themselves: Tarjan's algorithm
+/// with an explicit stack.
+fn declarations_hash(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    root: DefId,
+    memo: &mut HashMap<DefId, Hash128>,
+) -> Hash128 {
+    if let Some(h) = memo.get(&root) {
+        return *h;
+    }
+    let ph = |d: DefId| env.path_hash(d);
+    // An item's own hash and the items its declared types name.
+    let read = |d: DefId| {
+        let mut h = StableHasher::new("declaration");
+        h.hash(ph(d));
+        let mut names = Vec::new();
+        let tys = declared_types(env, d);
+        h.u32(u32::try_from(tys.len()).expect("types"));
+        for t in tys {
+            canon(pool, &ph, t, &mut h);
+            items_in(pool, t, &mut names);
+        }
+        names.sort_unstable_by_key(|n| n.raw());
+        names.dedup();
+        (h.finish(), names)
+    };
+    // Per visited item, by visit number: the item, its own hash, the items
+    // it names, its low link and whether it is on `stack`.
+    let (own, names) = read(root);
+    let mut index: HashMap<DefId, usize> = HashMap::from([(root, 0)]);
+    let mut nodes = vec![(root, own, names)];
+    let (mut low, mut on, mut stack) = (vec![0], vec![true], vec![0]);
+    let mut call: Vec<(usize, usize)> = vec![(0, 0)];
+    while let Some(&mut (v, ref mut k)) = call.last_mut() {
+        if let Some(&w) = nodes[v].2.get(*k) {
+            *k += 1;
+            if memo.contains_key(&w) {
+                continue;
+            }
+            match index.get(&w) {
+                None => {
+                    let i = nodes.len();
+                    index.insert(w, i);
+                    let (own, names) = read(w);
+                    nodes.push((w, own, names));
+                    low.push(i);
+                    on.push(true);
+                    stack.push(i);
+                    call.push((i, 0));
+                }
+                Some(&wi) if on[wi] => low[v] = low[v].min(wi),
+                Some(_) => {}
+            }
+            continue;
+        }
+        call.pop();
+        if let Some(&(p, _)) = call.last() {
+            low[p] = low[p].min(low[v]);
+        }
+        if low[v] != v {
+            continue;
+        }
+        let at = stack.iter().rposition(|&x| x == v).expect("on the stack");
+        let members = stack.split_off(at);
+        let inside: std::collections::HashSet<DefId> =
+            members.iter().map(|&m| nodes[m].0).collect();
+        let mut owns: Vec<Hash128> = Vec::new();
+        let mut outside: Vec<Hash128> = Vec::new();
+        for &m in &members {
+            on[m] = false;
+            owns.push(nodes[m].1);
+            for n in &nodes[m].2 {
+                if !inside.contains(n) {
+                    outside.push(memo[n]);
+                }
+            }
+        }
+        owns.sort_unstable();
+        outside.sort_unstable();
+        outside.dedup();
+        let mut h = StableHasher::new("declarations");
+        h.u32(u32::try_from(owns.len()).expect("items"));
+        for o in owns {
+            h.hash(o);
+        }
+        h.u32(u32::try_from(outside.len()).expect("items"));
+        for o in outside {
+            h.hash(o);
+        }
+        let hash = h.finish();
+        for m in members {
+            memo.insert(nodes[m].0, hash);
+        }
+    }
+    memo[&root]
 }
 
 type SelectKey = (DefId, Ty, TyList, Option<DefId>);
@@ -314,6 +491,8 @@ struct Cx<'a> {
     /// Per item: which of its own type parameters need their exact
     /// representation (A1's representation summary, §13.2).
     exact: HashMap<DefId, Vec<bool>>,
+    /// `declarations_hash` per item, for the build.
+    layouts: HashMap<DefId, Hash128>,
     out: Collected,
     work: Vec<InstId>,
 }
@@ -711,7 +890,7 @@ impl Cx<'_> {
         for i in 0..body.len() {
             let ty = s(body.ty[i]);
             if seen.insert(ty) {
-                layout_hash(pool, env, ty, &mut reps, 0);
+                reps.hash(layout_hash(pool, env, ty, &mut self.layouts));
             }
             note_data(pool, env, ty, &mut self.out.data);
             let ix = u32::try_from(i).expect("insts");
@@ -970,6 +1149,7 @@ pub fn collect(
         memo: BodyMemo::default(),
         selected: HashMap::new(),
         exact: HashMap::new(),
+        layouts: HashMap::new(),
         out: Collected::default(),
         work: Vec::new(),
     };

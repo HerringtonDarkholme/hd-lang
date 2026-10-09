@@ -17,7 +17,7 @@ use hd_types::{InternPool, Prim, Ty, TyData, TyList};
 use crate::asm::Asm;
 use crate::layout::{
     ACTIVE, CANCELLED, DONE, EnumShape, F_CANCEL, F_CHILD, F_FLAGS, F_POLL, F_SAVED, F_STATE, Lay,
-    OptShape, Shape, box_of, cancel_fn, ctx_keys, ctx_provs, frame_of, key_id, storage,
+    Layouts, OptShape, Shape, box_of, cancel_fn, ctx_keys, ctx_provs, frame_of, key_id, storage,
     suspend_base, task_base,
 };
 use crate::rt::{Helper, OptForm, block_import};
@@ -913,6 +913,16 @@ impl Em<'_> {
                 else {
                     return unsupported("a payload outside the variant");
                 };
+                if let (Some(b), Some(Some(sub))) = (&e.boxed, e.subtypes.get(variant as usize)) {
+                    // A subtype box: the variant's subtype holds the
+                    // payload's exact values after the tag.
+                    for s in &slots {
+                        self.comp(v, 0, &VT::r(b.clone()))?;
+                        self.a.ref_cast(sub, false);
+                        self.a.struct_get(sub, u32_of(*s + 1));
+                    }
+                    return self.store_from(i, &vs);
+                }
                 for (s, want) in slots.iter().zip(&vs) {
                     let st = e.slots[*s].clone();
                     match &e.boxed {
@@ -940,6 +950,22 @@ impl Em<'_> {
             Shape::Enum(e) => {
                 self.a.i32(variant.cast_signed());
                 let fields = e.fields.get(variant as usize).cloned().unwrap_or_default();
+                if let (Some(base), Some(sub)) = (&e.boxed, e.subtypes.get(variant as usize)) {
+                    // A subtype box: the tag, then the payload's exact
+                    // values; a payloadless variant is the base alone.
+                    match sub {
+                        Some(sub) => {
+                            for ((_, vs), r) in fields.iter().zip(&args) {
+                                for (k, x) in vs.iter().enumerate() {
+                                    self.comp(*r, k, x)?;
+                                }
+                            }
+                            self.a.struct_new(sub);
+                        }
+                        None => self.a.struct_new(base),
+                    }
+                    return self.store(i);
+                }
                 for (s, st) in e.slots.iter().enumerate() {
                     let src = fields.iter().zip(&args).find_map(|((slots, vs), r)| {
                         slots
@@ -1735,17 +1761,23 @@ impl Em<'_> {
     fn push_dyn(&mut self, trait_: DefId, method: DefId, args: &[u32]) -> StageResult<Vec<VT>> {
         let recv_t = self.ty_of(args[0]);
         let Shape::Dyn {
-            vt, args: targs, ..
+            trait_: recv_trait,
+            vt,
+            args: targs,
         } = self.lay.shape(recv_t)?
         else {
             return unsupported("a trait-value call on a value that is not a trait value");
         };
-        let Some(slot) = self
-            .env()
-            .trait_methods(trait_)
-            .iter()
-            .position(|m| *m == method)
-        else {
+        // The receiver's vtable holds its own trait's methods only.
+        let slot = (recv_trait == trait_)
+            .then(|| {
+                self.env()
+                    .trait_methods(trait_)
+                    .iter()
+                    .position(|m| *m == method)
+            })
+            .flatten();
+        let Some(slot) = slot else {
             return unsupported("a trait-value call of a supertrait's method");
         };
         let sig = self.lay.slot_sig(trait_, targs, method)?;
@@ -3257,6 +3289,7 @@ pub fn emit(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     path: &dyn Fn(DefId) -> String,
+    layouts: &Layouts,
     b: &Body,
     sub: u16,
     args: TyList,
@@ -3264,7 +3297,7 @@ pub fn emit(
     calls: &HashMap<u32, Target>,
     key: Hash128,
 ) -> StageResult<Code> {
-    let lay = Lay { pool, env, path };
+    let lay = Lay::new(pool, env, path, layouts);
     if sub == 0 && env.suspends(b.item) {
         return emit_suspending(&lay, b, args, ret, calls, key);
     }
@@ -3278,7 +3311,7 @@ pub fn emit(
         return unsupported("a suspending closure (`fn!` value)");
     }
     let mut em = Em::new(
-        Lay { pool, env, path },
+        Lay::new(pool, env, path, layouts),
         b,
         args,
         calls,
@@ -3440,11 +3473,7 @@ fn emit_suspending(
         let frame = a.local(VT::rn(ft.clone()));
         let pc = a.local(VT::I32);
         let mut em = Em::new(
-            Lay {
-                pool,
-                env,
-                path: lay.path,
-            },
+            Lay::new(pool, env, lay.path, lay.shared),
             b,
             args,
             calls,
@@ -3755,7 +3784,8 @@ fn root_poll(
     key: hd_base::Hash128,
     report: Option<hd_base::Hash128>,
 ) -> StageResult<Helper> {
-    let lay = Lay { pool, env, path };
+    let shared = Layouts::default();
+    let lay = Lay::new(pool, env, path, &shared);
     let mut providers = Vec::new();
     for k in env.row_keys(main, TyList::EMPTY) {
         let p = path(k);
