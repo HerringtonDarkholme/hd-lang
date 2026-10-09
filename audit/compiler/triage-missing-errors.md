@@ -60,3 +60,26 @@ entry rules). Read only: no compiler or fixture edits.
 - No spec/fixture issues found that belong in
   `audit/compiler/diagnostic-notes.md` (every sampled fixture reads
   as a genuinely missing check, not a wrong fixture).
+
+## Proposed task rows (R26)
+
+One line per cause above with no orchestrator task number yet,
+biggest first. Rows 1 (#20/#24/#25/#27), 5 (#38/#40), 7 (#57) and
+13 (#41) already match tasks and are skipped.
+
+- [check] ordering, defaults, kind, impl-target and shadowing formation checks (24 programs): default-order, partial-generic-arguments, omitted defaults, default variants, init visibility/order, row/type/default kinds, impl targets and heads, Inspectable keys, prelude shadowing, pipe/defer/variance/result/vararg/import/method/argument/extra/cycle/safety/target/bound rules; Check.
+- [check] miscellaneous singletons (24 programs): float-literal-range, bare-parameter-impl-target, requirement-in-default, duplicate-literal-match-arm, incompatible-identity-operands, inspectable-member-redeclared, structure-outside-template, generic-member-call, newtype-derivation-self, structure-without-use, test-body-string-error, unknown-panic-category, nested-local-annotation-bare-trait, module-named-pkg, module-path-not-identifier, assoc-call-parameter-two-bounds, ambiguous-requirement-key-solution, dyn-self-parameter-unavailable, dyn-inherent-nonlocal, foreign-inherent-impl, uninhabited-binding, template-names-binding, hd-run-outside-integration, trait-resolution-depth; per-fixture codes; Check.
+- [check] duplicate declarations (16 programs): data.literal.duplicate, trait.binding.*, module uniqueness; `duplicate-field`, `duplicate-trait-member`, `duplicate-module-name`, `duplicate-inherent-member`, …; Check.
+- [check] test-harness validation (14 programs): Test Cases / Test Blocks rules; `duplicate-test-name`, `type-mismatch`, `misplaced-test-case`, …; Check (test overlay).
+- [check] entry checks under entry goals (7 programs): Entry Point / entry behavior; `unsatisfied-trait-bound`, `nonhost-entry-requirement`, `entry-point-parameters`; Check (plus wrong-code follow-up at build).
+- [check] function-type formation (6 programs): rest/vararg well-formedness; `type-mismatch` / `generic-kind-mismatch`; Check.
+- [check] suspension contexts (6 programs): driving/suspension context rules; `suspension-forbidden-context`; Check.
+- [check] supertrait satisfaction (5 programs): trait.super.*; `missing-supertrait-implementation`; Check (solver).
+- [check] test-runner requirement rows (5 programs): module.testing.unit-row.*; `missing-requirement`; Check (test overlay).
+- [check] overlapping impls (5 programs): annot.no-trait.unique, annot.error.hand-written, annot.template.tuple.overlap; `overlapping-impl`; Check (Collect).
+- [check] error-attribution bounds (5 programs): annot.error.*; `unsatisfied-trait-bound`; Check (derive).
+- [check] delegation checks (5 programs): delegation rules incl. a missing-method case; Check.
+- [check] std.testing Eq/Debug bounds (3 programs): module.testing.no-implicit-eq; `unsatisfied-trait-bound`; Check (call checking).
+- [check] variance/invariance at joins (3 programs): types.generic.infer.join.*; `type-mismatch`; Check (inference join).
+- [check] map key bounds (2 programs): Map key `Hash`/`Eq`; `unsatisfied-trait-bound`; Check.
+- [check] unresolved inference (2 programs): `cannot-infer-type`; Check.
