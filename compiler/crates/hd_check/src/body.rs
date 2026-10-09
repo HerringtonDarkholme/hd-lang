@@ -163,8 +163,9 @@ pub(crate) struct Ck<'a, 'c> {
     pub suspends: Vec<bool>,
     /// Inside a `defer` suite: the loop depth at its start.
     pub defer_base: Option<usize>,
-    /// The node of each literal constant, for range diagnostics.
-    pub lit_nodes: Vec<(Ref, hd_base::NodeIdx)>,
+    /// The node of each literal constant, for range diagnostics, and
+    /// whether a `-` negated it.
+    pub lit_nodes: Vec<(Ref, hd_base::NodeIdx, bool)>,
     /// The literal node being checked as the argument of its literal
     /// function (`expr.literal-fn.ordinary-call`).
     pub lit_arg: Option<hd_base::NodeIdx>,
@@ -650,7 +651,7 @@ impl Ck<'_, '_> {
     fn check_literal_ranges(&mut self) {
         use hd_types::Prim;
         let pool = self.pool();
-        for (r, at) in std::mem::take(&mut self.lit_nodes) {
+        for (r, at, negated) in std::mem::take(&mut self.lit_nodes) {
             let Some((t, bits)) = self.b.const_of(r) else {
                 continue;
             };
@@ -658,13 +659,19 @@ impl Ck<'_, '_> {
                 continue;
             };
             let node = self.cx.src.parse.tree.node(at);
-            // A literal under unary `-` was negated by the checker: `bits`
+            // A literal under `-` was negated by the checker: `bits`
             // holds the negated value (`types.literal.negation`).
-            let negated = node.kind() == SyntaxKind::UnaryExpr;
             let v = bits.cast_signed();
             if negated && p.is_unsigned() {
                 let msg = format!("a negated literal does not fit unsigned {}", p.name());
-                self.err(Code::TypeMismatch, node, &msg);
+                // A range pattern's bound is outside the subject's type
+                // (`flow.match.range.bound-type`).
+                let code = if node.kind() == SyntaxKind::RangePattern {
+                    Code::IntegerLiteralRange
+                } else {
+                    Code::TypeMismatch
+                };
+                self.err(code, node, &msg);
                 continue;
             }
             let ok = match p {

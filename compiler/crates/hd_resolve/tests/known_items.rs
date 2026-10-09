@@ -88,6 +88,7 @@ fn every_known_item_is_declared() {
         ("range", known.range),
         ("range_from", known.range_from),
         ("range_to", known.range_to),
+        ("range_full", known.range_full),
         ("template", known.template),
         ("index", known.index),
         ("index_set", known.index_set),

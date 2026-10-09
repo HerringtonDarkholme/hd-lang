@@ -289,7 +289,7 @@ impl Ck<'_, '_> {
         }
         let (r, t) = self.literal_tok(first, strip)?;
         if self.b.const_of(r).is_some() {
-            self.lit_nodes.push((r, n.index()));
+            self.lit_nodes.push((r, n.index(), false));
         }
         Ok((r, t))
     }
@@ -510,7 +510,7 @@ impl Ck<'_, '_> {
                         bits.cast_signed().wrapping_neg().cast_unsigned()
                     };
                     let nr = self.b.const_value(ct, v);
-                    self.lit_nodes.push((nr, n.index()));
+                    self.lit_nodes.push((nr, n.index(), true));
                     (nr, t)
                 } else {
                     (self.b.prim(PrimOp::Neg as u32, &[r], t, n.index()), t)
@@ -2302,7 +2302,17 @@ impl Ck<'_, '_> {
             (2, _) => (known.range, kids.to_vec()),
             (1, true) => (known.range_to, kids.to_vec()),
             (1, false) => (known.range_from, kids.to_vec()),
-            _ => return unsupported("a full range `..`"),
+            // `expr.range.form.full`: `RangeFull {}`, with no bound and
+            // no element type.
+            (0, _) => {
+                let t = pool.intern_ty(&TyData::Adt {
+                    def: known.range_full,
+                    args: pool.list(&[]),
+                });
+                let rec = self.b.refs_record(&[]);
+                return Ok((self.b.emit(Tag::NewData, NONE, rec, t, n.index()), t));
+            }
+            _ => return unsupported("a range with more than two bounds"),
         };
         let et = self.infer.fresh(pool, VarKind::General);
         let mut refs = Vec::new();

@@ -55,7 +55,24 @@ impl<'t> Row<'t> {
 enum P {
     Wild,
     Ctor(String, Vec<P>),
+    /// An integer literal or range pattern: the values `lo..=hi`, none
+    /// when `lo > hi` (`flow.match.cover.integer`).
+    Int(i128, i128),
     Lit,
+}
+
+/// A numeric bound of a range pattern.
+#[derive(Clone, Copy)]
+struct Bound {
+    neg: bool,
+    tok: hd_base::TokenIdx,
+}
+
+/// The bounds of a range pattern (`flow.match.range.*`).
+struct RangeBounds {
+    lo: Option<Bound>,
+    hi: Option<Bound>,
+    inclusive: bool,
 }
 
 impl Ck<'_, '_> {
@@ -125,13 +142,28 @@ impl Ck<'_, '_> {
                 binds.push((p.index(), l));
             }
             SyntaxKind::LiteralPattern => {
-                let (_, lt) = self.pattern_literal(p, Some(t))?;
+                let (r, lt) = self.pattern_literal(p, Some(t))?;
                 self.expect(lt, t, p, "pattern");
+                // `types.literal.int-range`.
+                if self.b.const_of(r).is_some() && p.children().next().is_none() {
+                    let neg = self.cx.src.tkind(self.cx.src.first(p)) == Some(TokenKind::Minus);
+                    self.lit_nodes.push((r, p.index(), neg));
+                }
             }
             SyntaxKind::RangePattern => {
-                for c in p.children() {
-                    let (_, lt) = self.pattern_literal(c, Some(t))?;
-                    self.expect(lt, t, c, "pattern");
+                let bounds = self.range_bounds(p);
+                for b in [bounds.lo, bounds.hi].into_iter().flatten() {
+                    let before = self.diags.len();
+                    let (r, lt) = self.bound_literal(b, t)?;
+                    self.expect(lt, t, p, "pattern");
+                    if self.diags.len() != before {
+                        // One `type-mismatch` per pattern.
+                        break;
+                    }
+                    // `flow.match.range.bound-type`.
+                    if self.b.const_of(r).is_some() {
+                        self.lit_nodes.push((r, p.index(), b.neg));
+                    }
                 }
             }
             SyntaxKind::TuplePattern if p.children().next().is_none() => {
@@ -326,28 +358,87 @@ impl Ck<'_, '_> {
                         _ => self.literal_at(tok)?,
                     }
                 };
-                // A literal pattern takes the scrutinee's type.
-                if let Some(w) = want
-                    && self.b.const_of(r).is_some()
-                    && self
-                        .infer
-                        .kind_of(self.pool(), t)
-                        .is_some_and(|k| k != VarKind::General)
-                {
-                    let pool = self.pool();
-                    let _ = self.infer.unify(pool, t, w);
-                }
-                if neg && let Some((ct, bits)) = self.b.const_of(r) {
-                    return Ok((
-                        self.b
-                            .const_value(ct, bits.cast_signed().wrapping_neg().cast_unsigned()),
-                        t,
-                    ));
-                }
-                Ok((r, t))
+                Ok(self.pattern_value(r, t, want, neg))
             }
             _ => self.expr(p, want),
         }
+    }
+
+    /// A literal pattern's constant `r` of type `t`: it takes the
+    /// scrutinee's type `want`, and `neg` negates it.
+    fn pattern_value(&mut self, r: Ref, t: Ty, want: Option<Ty>, neg: bool) -> (Ref, Ty) {
+        if let Some(w) = want
+            && self.b.const_of(r).is_some()
+            && self
+                .infer
+                .kind_of(self.pool(), t)
+                .is_some_and(|k| k != VarKind::General)
+        {
+            let pool = self.pool();
+            let _ = self.infer.unify(pool, t, w);
+        }
+        if neg && let Some((ct, bits)) = self.b.const_of(r) {
+            return (
+                self.b
+                    .const_value(ct, bits.cast_signed().wrapping_neg().cast_unsigned()),
+                t,
+            );
+        }
+        (r, t)
+    }
+
+    /// The bounds of a range pattern, read from its tokens: `[-]a`, the
+    /// `..` or `..=`, then `[-]b`; either bound may be missing.
+    fn range_bounds(&self, p: NodeRef<'_>) -> RangeBounds {
+        let mut out = RangeBounds {
+            lo: None,
+            hi: None,
+            inclusive: false,
+        };
+        let mut neg = false;
+        let mut after = false;
+        for t in p.direct_tokens() {
+            match self.cx.src.tkind(t) {
+                Some(TokenKind::Minus) => neg = true,
+                Some(k @ (TokenKind::DotDot | TokenKind::DotDotEq)) => {
+                    after = true;
+                    out.inclusive = k == TokenKind::DotDotEq;
+                }
+                Some(TokenKind::Number) => {
+                    let b = Some(Bound { neg, tok: t });
+                    if after {
+                        out.hi = b;
+                    } else {
+                        out.lo = b;
+                    }
+                    neg = false;
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+
+    /// A range bound's constant, checked against the subject type `t`.
+    fn bound_literal(&mut self, b: Bound, t: Ty) -> StageResult<(Ref, Ty)> {
+        let (r, lt) = self.literal_at(b.tok)?;
+        Ok(self.pattern_value(r, lt, Some(t), b.neg))
+    }
+
+    /// A pattern bound's integer value.
+    fn bound_value(&self, b: Bound) -> Option<i128> {
+        let text = self.cx.src.text(b.tok);
+        let text = crate::literals::split_suffix(text).0.replace('_', "");
+        let v = if let Some(h) = text.strip_prefix("0x") {
+            i128::from_str_radix(h, 16).ok()?
+        } else if let Some(h) = text.strip_prefix("0b") {
+            i128::from_str_radix(h, 2).ok()?
+        } else if let Some(h) = text.strip_prefix("0o") {
+            i128::from_str_radix(h, 8).ok()?
+        } else {
+            text.parse::<i128>().ok()?
+        };
+        Some(if b.neg { -v } else { v })
     }
 
     // ------------------------------------------------------------ let
@@ -763,21 +854,29 @@ impl Ck<'_, '_> {
     /// `v == literal`, or a range test, as a `bool` value.
     fn literal_test(&mut self, p: NodeRef<'_>, v: Ref, t: Ty) -> StageResult<Ref> {
         if p.kind() == SyntaxKind::RangePattern {
-            let ends: Vec<NodeRef<'_>> = p.children().collect();
-            let [lo, hi] = ends.as_slice() else {
-                return unsupported("an open range pattern");
+            // `flow.match.range.*`: bound comparisons, no range value.
+            let bounds = self.range_bounds(p);
+            let mut tests = Vec::new();
+            if let Some(lo) = bounds.lo {
+                let (l, _) = self.bound_literal(lo, t)?;
+                tests.push(self.b.prim(PrimOp::Ge as u32, &[v, l], Ty::BOOL, p.index()));
+            }
+            if let Some(hi) = bounds.hi {
+                let (h, _) = self.bound_literal(hi, t)?;
+                let op = if bounds.inclusive {
+                    PrimOp::Le
+                } else {
+                    PrimOp::Lt
+                };
+                tests.push(self.b.prim(op as u32, &[v, h], Ty::BOOL, p.index()));
+            }
+            return match tests.as_slice() {
+                [only] => Ok(*only),
+                [a, c] => Ok(self
+                    .b
+                    .prim(PrimOp::And as u32, &[*a, *c], Ty::BOOL, p.index())),
+                _ => unsupported("a range pattern without a bound"),
             };
-            let inclusive = p
-                .direct_token(&self.cx.src.parse.tokens, TokenKind::DotDotEq)
-                .is_some();
-            let (l, _) = self.pattern_literal(*lo, Some(t))?;
-            let (h, _) = self.pattern_literal(*hi, Some(t))?;
-            let a = self.b.prim(PrimOp::Ge as u32, &[v, l], Ty::BOOL, p.index());
-            let op = if inclusive { PrimOp::Le } else { PrimOp::Lt };
-            let c = self.b.prim(op as u32, &[v, h], Ty::BOOL, p.index());
-            return Ok(self
-                .b
-                .prim(PrimOp::And as u32, &[a, c], Ty::BOOL, p.index()));
         }
         let (lit, _) = self.pattern_literal(p, Some(t))?;
         let pool = self.pool();
@@ -807,8 +906,23 @@ impl Ck<'_, '_> {
             SyntaxKind::LiteralPattern => match self.cx.src.tkind(self.cx.src.first(p)) {
                 Some(TokenKind::KwTrue) => P::Ctor("true".into(), vec![]),
                 Some(TokenKind::KwFalse) => P::Ctor("false".into(), vec![]),
+                Some(first) if self.int_range(t).is_some() => {
+                    let neg = first == TokenKind::Minus;
+                    let tok = if neg {
+                        hd_base::TokenIdx::from_raw(self.cx.src.first(p).raw() + 1)
+                    } else {
+                        self.cx.src.first(p)
+                    };
+                    match self.cx.src.tkind(tok) {
+                        Some(TokenKind::Number) => self
+                            .bound_value(Bound { neg, tok })
+                            .map_or(P::Lit, |v| P::Int(v, v)),
+                        _ => P::Lit,
+                    }
+                }
                 _ => P::Lit,
             },
+            SyntaxKind::RangePattern => self.range_p(p, t),
             SyntaxKind::TuplePattern if p.children().next().is_none() => P::Wild,
             SyntaxKind::TuplePattern => {
                 let elems = match pool.get(self.strip(t)) {
@@ -871,6 +985,44 @@ impl Ck<'_, '_> {
                 }
                 P::Ctor("{}".into(), args)
             }
+            _ => P::Lit,
+        }
+    }
+
+    /// The values of an integer type, smallest and largest; `None` for
+    /// any other type. `usize` is 32 bits, as its literals are checked.
+    fn int_range(&self, t: Ty) -> Option<(i128, i128)> {
+        let TyData::Prim(p) = self.pool().get(self.strip(t)) else {
+            return None;
+        };
+        Some(match p {
+            Prim::I8 => (i128::from(i8::MIN), i128::from(i8::MAX)),
+            Prim::I16 => (i128::from(i16::MIN), i128::from(i16::MAX)),
+            Prim::I32 => (i128::from(i32::MIN), i128::from(i32::MAX)),
+            Prim::I64 => (i128::from(i64::MIN), i128::from(i64::MAX)),
+            Prim::U8 => (0, i128::from(u8::MAX)),
+            Prim::U16 => (0, i128::from(u16::MAX)),
+            Prim::U32 | Prim::Usize => (0, i128::from(u32::MAX)),
+            Prim::U64 => (0, i128::from(u64::MAX)),
+            _ => return None,
+        })
+    }
+
+    /// A range pattern as the integers it matches
+    /// (`flow.match.range.cover`); an empty range is `Int(lo, hi)` with
+    /// `lo > hi` (`flow.match.range.empty`).
+    fn range_p(&self, p: NodeRef<'_>, t: Ty) -> P {
+        let Some((min, max)) = self.int_range(t) else {
+            return P::Lit;
+        };
+        let b = self.range_bounds(p);
+        let lo = b.lo.map_or(Some(min), |x| self.bound_value(x));
+        let hi = b.hi.map_or(Some(max), |x| {
+            self.bound_value(x)
+                .map(|v| if b.inclusive { v } else { v - 1 })
+        });
+        match (lo, hi) {
+            (Some(lo), Some(hi)) => P::Int(lo, hi),
             _ => P::Lit,
         }
     }
@@ -947,7 +1099,7 @@ impl Ck<'_, '_> {
                         v.extend(r[1..].iter().cloned());
                         Some(v)
                     }
-                    P::Ctor(..) | P::Lit => None,
+                    P::Ctor(..) | P::Lit | P::Int(..) => None,
                     P::Wild => {
                         let mut v = vec![P::Wild; arity];
                         v.extend(r[1..].iter().cloned());
@@ -956,7 +1108,11 @@ impl Ck<'_, '_> {
                 })
                 .collect()
         };
+        // An integer column: the values split at the bounds of its
+        // patterns (`flow.match.cover.integer`).
+        let ints = m.iter().any(|r| matches!(r[0], P::Int(..)));
         match head {
+            P::Int(lo, hi) => self.useful_int(m, q, tys, (*lo, *hi), depth),
             P::Ctor(c, args) => {
                 let ftys = self
                     .ctors(t)
@@ -971,6 +1127,9 @@ impl Ck<'_, '_> {
             }
             P::Lit => true,
             P::Wild => {
+                if ints && let Some(all) = self.int_range(t) {
+                    return self.useful_int(m, q, tys, all, depth);
+                }
                 let ctors = self.ctors(t);
                 let present: Vec<&String> = m
                     .iter()
@@ -1001,6 +1160,45 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// Whether some integer in `lo..=hi` matches `q` and no row of `m`.
+    /// The values split into segments at the rows' bounds, and each
+    /// segment is tried with the rows that hold it.
+    fn useful_int(
+        &self,
+        m: &[Vec<P>],
+        q: &[P],
+        tys: &[Ty],
+        (lo, hi): (i128, i128),
+        depth: u32,
+    ) -> bool {
+        if lo > hi {
+            return false;
+        }
+        let mut starts = vec![lo];
+        for r in m {
+            if let P::Int(l, h) = r[0]
+                && l <= h
+            {
+                starts.extend([l, h + 1].into_iter().filter(|c| *c > lo && *c <= hi));
+            }
+        }
+        starts.sort_unstable();
+        starts.dedup();
+        starts.iter().enumerate().any(|(i, &s)| {
+            let e = starts.get(i + 1).map_or(hi, |n| n - 1);
+            let rows: Vec<Vec<P>> = m
+                .iter()
+                .filter(|r| match r[0] {
+                    P::Wild => true,
+                    P::Int(l, h) => l <= s && e <= h,
+                    _ => false,
+                })
+                .map(|r| r[1..].to_vec())
+                .collect();
+            self.useful(&rows, &q[1..], &tys[1..], depth + 1)
+        })
+    }
+
     /// `unreachable-match-arm` for an arm whose values the unguarded arms
     /// before it already match.
     /// Whether some value of `t` fails to match `pat`.
@@ -1009,11 +1207,27 @@ impl Ck<'_, '_> {
         self.useful(&[vec![p]], &[P::Wild], &[t], 0)
     }
 
+    /// Whether a range pattern has a bound outside the integer type `t`,
+    /// which `integer-literal-range` reports (`flow.match.range.bound-type`).
+    fn bound_outside(&self, p: NodeRef<'_>, t: Ty) -> bool {
+        let Some((min, max)) = self.int_range(t) else {
+            return false;
+        };
+        let b = self.range_bounds(p);
+        [b.lo, b.hi]
+            .into_iter()
+            .flatten()
+            .filter_map(|x| self.bound_value(x))
+            .any(|v| v < min || v > max)
+    }
+
     fn check_reachable(&mut self, rows: &[Row<'_>], t: Ty) {
         let mut before: Vec<Vec<P>> = Vec::new();
         for r in rows {
             let p = self.to_p(r.pat, t);
+            // An arm with an out-of-type bound is already an error.
             if !self.useful(&before, std::slice::from_ref(&p), &[t], 0)
+                && !r.pat.is_some_and(|n| self.bound_outside(n, t))
                 && let Some(node) = r.pat
             {
                 self.err(
