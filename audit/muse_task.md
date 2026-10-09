@@ -105,15 +105,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### R8. Design Note: Default Arguments At Run Time (#32, Design Text)
-
-9 programs stop at Emit on `DefaultCall`, plus derive defaults and facts
-left by #119. Read the spec's default-argument rules (evaluation time and
-order, what a default may refer to) and add to `codegen.md` how a call
-that omits arguments is emitted (a per-function default thunk, inlined
-expressions, or a wrapper), with the footprint per function. Timebox 30
-minutes.
-
 ### R9. Design Note: `@error` Derivation (#137, Design Text)
 
 13 valid programs fail with "X does not implement Error/From": `@error`,
@@ -262,3 +253,17 @@ on the block. Recommend asking the owner for a code
    impls at the instance's substituted types instead of Check
    recording them on the node, so the TIR schema does not change.
    Recommend Emit-side selection.
+
+### Q-R8: default inlining policy and derived-fact globals (R8, 2026-10-09)
+
+1. **No special-casing for default bodies in the inliner
+   (recommended).** Trivial constants inline; anything larger goes
+   through the default thunk unless bounded inlining (§12.6) takes it
+   under its normal budgets. The alternative (always inline small
+   defaults, or never inline them) is a size/speed knob for measured
+   tuning, not for this design. Recommend the neutral rule.
+2. **One lazy global per derived-fact instantiation (recommended).**
+   A derived fact's value can differ per type arguments, so sharing
+   one global across instantiations risks wrong reads; per-(fact,
+   args) globals with a shared getter are always correct, at one
+   global plus flag each. Recommend per-instantiation globals.

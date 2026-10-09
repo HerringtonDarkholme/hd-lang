@@ -1459,3 +1459,42 @@ mutated after insertion keeps its entry, unreachable by a fresh
 lookup. Footprint per `(K, V)` is one step function plus the iterator
 closure, the same shape as list iterators; merging (§13.7) folds
 identical steps.
+
+### 13.13 Omitted Arguments, Default Bodies And Derived Facts
+
+9 programs stop at Emit on `DefaultCall`, plus derive defaults and
+facts left by #119. Check already emits one `DefaultCall` per omitted
+argument, carrying the default body's `DefId`, the call's type
+arguments and the earlier arguments' `Ref`s. This section fixes the
+emission shape: a per-function default thunk, not inlined expressions
+and not a wrapper.
+
+A call that omits arguments emits the explicit arguments, then one
+direct `call` of each omitted parameter's default-body instance in
+declaration order, feeding each result into the call's argument slots
+(`fn.default.eval`). The earlier arguments pass as values, so nothing
+evaluates twice; the forbidden-context bracket applies as §12.3
+describes. The alternatives lose: inlining every default at every
+call site duplicates code per site, and per-callee wrapper functions
+multiply by omission pattern (up to 2^D per generic instantiation).
+The thunk shares one default-body instance across all call sites at
+the same type arguments. Trivial constants already inline (the
+`DefaultCall` row), and bounded inlining (§12.6) may inline small
+non-trivial defaults at hot sites under its normal budgets — no
+special-casing (see Questions).
+
+Footprint per function with D defaulted parameters, per distinct type
+tuple that reaches it: one instance per default body (the default
+expression's code, often a few instructions), plus one call sequence
+per omitted argument at each omitting call site. Monomorphic
+functions pay D small bodies total, shared by all callers; constants
+pay nothing.
+
+Derived defaults and facts (#119) use the same shapes. A derived
+member's default body is an ordinary instance keyed by (default body,
+substituted type arguments) and pushed by collection step 6. A
+derived fact gets one lazy global per (fact, type arguments), since
+its value can differ per instantiation, filled by its body's instance
+on first read (§12.3); the getter is shared. Collection records fact
+getters with their instance arguments (step 8), so each instantiation
+resolves to its own global.
