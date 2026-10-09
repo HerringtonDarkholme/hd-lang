@@ -53,7 +53,9 @@ pub trait ProgramEnv: LayoutEnv {
     fn impl_head(&self, impl_: DefId) -> Option<(Ty, TyList, usize)>;
     /// The method of `impl_` that implements the trait method `method`.
     fn impl_method(&self, impl_: DefId, method: DefId) -> Option<DefId>;
-    /// A trait's own methods, in declaration order (the vtable shape).
+    /// A trait's own methods, in declaration order (the vtable shape),
+    /// without those the compiler lowers at each call (an intrinsic
+    /// member, `Inspectable.downcast`).
     fn trait_methods(&self, trait_: DefId) -> Vec<DefId>;
     /// A trait's own parameter count, `Self` excluded.
     fn trait_arity(&self, trait_: DefId) -> usize;
@@ -63,6 +65,10 @@ pub trait ProgramEnv: LayoutEnv {
     /// Data fields, for the struct types a program needs.
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>>;
     fn path_hash(&self, def: DefId) -> Hash128;
+    /// A declaration's printable name in a `TypeId` (trait.typeid.name.*):
+    /// a prelude name as written, any other declaration by its absolute
+    /// qualified name.
+    fn type_name(&self, def: DefId) -> String;
     /// The item's stable path, for diagnostics.
     fn describe(&self, def: DefId) -> String;
     /// Where selection reads impls: owner lookup over the whole program's
@@ -232,6 +238,93 @@ pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList,
         hd_types::solver::normalize_concrete(pool.types(), env.impls(), s)
     } else {
         s
+    }
+}
+
+/// The printable name of `t`'s runtime identity (trait.typeid.name.*),
+/// which a `TypeId` holds as its key. Equality of `TypeId`s compares keys
+/// (`lib/std/inspect.hd`), so the name spells exactly what runtime
+/// identity compares (trait.identity.*): each declaration by its qualified
+/// name, applied to its arguments; an inner `mut`, never the outer one;
+/// `T?` for `Option[T]`. Types are concrete here, aliases expanded.
+#[must_use]
+pub fn type_name(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> String {
+    let t = match pool.get(t) {
+        TyData::Mut(x) => x,
+        _ => t,
+    };
+    let mut out = String::new();
+    name_into(pool, env, t, &mut out);
+    out
+}
+
+fn name_into(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut String) {
+    let list = |l: &[Ty], out: &mut String| {
+        for (k, x) in l.iter().enumerate() {
+            if k > 0 {
+                out.push_str(", ");
+            }
+            name_into(pool, env, *x, out);
+        }
+    };
+    match pool.get(t) {
+        TyData::Prim(p) => out.push_str(p.name()),
+        TyData::Never => out.push_str("never"),
+        TyData::Adt { def, args } => {
+            out.push_str(&env.type_name(def));
+            if !pool.list_items(args).is_empty() {
+                out.push('[');
+                list(pool.list_items(args), out);
+                out.push(']');
+            }
+        }
+        // A trait value type is its trait applied to its arguments
+        // (trait.identity.trait-value), printed without `dyn`.
+        TyData::TraitValue {
+            def,
+            args,
+            bindings,
+        } => {
+            out.push_str(&env.type_name(def));
+            let args = pool.list_items(args);
+            if !args.is_empty() || !bindings.is_empty() {
+                out.push('[');
+                list(args, out);
+                for (k, (a, b)) in bindings.iter().enumerate() {
+                    if k > 0 || !args.is_empty() {
+                        out.push_str(", ");
+                    }
+                    let n = env.type_name(*a);
+                    out.push_str(n.rsplit('.').next().unwrap_or(&n));
+                    out.push_str(" = ");
+                    name_into(pool, env, *b, out);
+                }
+                out.push(']');
+            }
+        }
+        TyData::Tuple { elems, rest } => {
+            out.push('(');
+            let elems = pool.list_items(elems);
+            list(elems, out);
+            if let Some(r) = rest {
+                if !elems.is_empty() {
+                    out.push_str(", ");
+                }
+                name_into(pool, env, r, out);
+                out.push_str("...");
+            }
+            out.push(')');
+        }
+        TyData::Option(i) => {
+            name_into(pool, env, i, out);
+            out.push('?');
+        }
+        TyData::Mut(i) => {
+            out.push_str("mut ");
+            name_into(pool, env, i, out);
+        }
+        // Not inspectable (trait.inspectable.not.*): never recorded.
+        _ => out.push_str(&pool.display(t)),
     }
 }
 
@@ -1097,6 +1190,22 @@ impl Cx<'_> {
                             let self_ty = s(self_ty);
                             let targs: Vec<Ty> =
                                 pool.list_items(targs).iter().copied().map(s).collect();
+                            // A member the compiler lowers at each call, at
+                            // any receiver, a trait value included
+                            // (`Inspectable.downcast`): its arguments are
+                            // `[Self, method arguments...]`.
+                            if let Some(key) = env.intrinsic(method) {
+                                let t = CallTarget {
+                                    key: Hash128(0),
+                                    item: method,
+                                    args: pool.list(&[&[self_ty], &targs[..]].concat()),
+                                    ret: ty,
+                                    kind: TargetKind::Intrinsic(key),
+                                };
+                                self.hash_target(&t, &mut reps);
+                                calls.insert(ix, Target::Call(t));
+                                continue;
+                            }
                             let supplied = match choice.0 {
                                 ChoiceKind::Builtin => {
                                     self.supplied_target(method, self_ty, &targs, depth, id)?

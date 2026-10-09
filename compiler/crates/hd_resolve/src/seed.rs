@@ -199,6 +199,49 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             if let Some(p) = out.last_mut() {
                 p.intrinsic = Some(sym(names, "downcast_val"));
             }
+            // `Inspectable`'s two default methods (trait.rtti.surface):
+            // `downcast[T < AnyRef & Inspectable](self) -> T?` and
+            // `downcast_mut[...](mut self) -> mut T?`. std's source declares
+            // the trait with `runtime_type` alone; these members join it
+            // (`lower::build_folder`), and the compiler lowers them at each
+            // call, so the trait's dictionary holds `runtime_type` alone.
+            let tr = names.item(module, "Inspectable");
+            let self_ty = param(names, tr, 0);
+            let any_ref = pool.intern_ty(&TyData::TraitValue {
+                def: names.item("std.core", "AnyRef"),
+                args: TyList::EMPTY,
+                bindings: vec![],
+            });
+            for (name, mutable) in [("downcast", false), ("downcast_mut", true)] {
+                let m = names.member(tr, PathKind::Member, name);
+                let t = param(names, m, 0);
+                let mut g = gens(names, &["T"]);
+                g[0].bound = Some(names.item("std.core", "AnyRef"));
+                g[0].bounds = vec![any_ref, insp];
+                let (recv, ret) = if mutable {
+                    (
+                        pool.intern_ty(&TyData::Mut(self_ty)),
+                        // `mut T?` is an optional of `mut T`, as written.
+                        pool.intern_ty(&TyData::Option(pool.intern_ty(&TyData::Mut(t)))),
+                    )
+                } else {
+                    (self_ty, pool.intern_ty(&TyData::Option(t)))
+                };
+                let mut it = Item::new(
+                    m,
+                    sym(names, name),
+                    true,
+                    ItemData::Method {
+                        owner: tr,
+                        sig: FnSig::simple(g, vec![(sym(names, "self"), recv)], ret),
+                        // Default methods (trait.rtti.defaults), whose
+                        // bodies the compiler lowers.
+                        has_body: true,
+                    },
+                );
+                it.intrinsic = Some(sym(names, name));
+                out.push(it);
+            }
         }
         "std.structure" => {
             // `Structure` (annotations, "The Structure Trait"): sealed; the

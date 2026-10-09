@@ -2719,6 +2719,21 @@ pub fn build_folder(
                 items.push(s.clone());
             }
         }
+        // A compiler-supplied member of a trait the module's source
+        // declares (`Inspectable.downcast`) joins that trait's methods.
+        for s in &m.seeds {
+            let ItemData::Method { owner, .. } = &s.data else {
+                continue;
+            };
+            if let Some(ItemData::Trait(t)) = items
+                .iter_mut()
+                .find(|i| i.def == *owner)
+                .map(|i| &mut i.data)
+                && !t.methods.iter().any(|(_, d)| *d == s.def)
+            {
+                t.methods.push((s.name, s.def));
+            }
+        }
         let index = ItemIndex::new(names, &items);
         ownership(names, &m.path, &items, hs, &m.src, diags);
         if r.frozen.is_none() {

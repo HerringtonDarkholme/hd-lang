@@ -193,6 +193,10 @@ pub enum Helper {
     HostCancel { frame: WTy },
     /// A slot the compiler does not lower yet: panics when called.
     Unlowered { sig: WTy, what: String },
+    /// `Inspectable.runtime_type`'s slot in a vtable built at a concrete
+    /// type (trait.inspect.dynamic): the `TypeId` (`ty`) whose key is
+    /// `name`, the erased value's recorded type.
+    RuntimeType { sig: WTy, ty: WTy, name: String },
     /// `(n)`: marks the `n` handles in the exchange buffer as completed.
     WakeMark,
     /// `(h) -> i32`: whether handle `h` completed; clears its slot.
@@ -414,6 +418,12 @@ impl Helper {
                 enc_wty(sig, w);
                 w.str(what);
             }
+            Helper::RuntimeType { sig, ty, name } => {
+                w.u8(25);
+                enc_wty(sig, w);
+                enc_wty(ty, w);
+                w.str(name);
+            }
             Helper::WakeMark => w.u8(13),
             Helper::WakeTake => w.u8(14),
             Helper::RaceCold {
@@ -566,6 +576,11 @@ impl Helper {
             12 => Helper::Unlowered {
                 sig: dec_wty(r)?,
                 what: r.str().to_owned(),
+            },
+            25 => Helper::RuntimeType {
+                sig: dec_wty(r)?,
+                ty: dec_wty(r)?,
+                name: r.str().to_owned(),
             },
             13 => Helper::WakeMark,
             14 => Helper::WakeTake,
@@ -1025,6 +1040,14 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             a.s().unreachable();
             a.finish(results.clone())
         }
+        Helper::RuntimeType { sig, ty, name } => {
+            let WTy::Func(params, results) = sig else {
+                return unsupported("a `runtime_type` slot without a signature");
+            };
+            let mut a = Asm::new(params.clone());
+            push_type_id(&mut a, ty, name);
+            a.finish(results.clone())
+        }
         Helper::WakeMark => wake_mark(),
         Helper::WakeTake => wake_take(),
         Helper::RaceCold {
@@ -1210,6 +1233,14 @@ pub(crate) fn write_lit(a: &mut Asm, text: &str) {
     a.i64(i64::try_from(text.len()).unwrap_or(0) << 32);
     a.call(Sym::Helper(Helper::StrToBuf));
     a.call(stderr_import());
+}
+
+/// Pushes a `TypeId`, the std data type `st` over its key string, whose
+/// key is `name` (trait.typeid.name).
+pub fn push_type_id(a: &mut Asm, st: &WTy, name: &str) {
+    a.call(Sym::Helper(Helper::Lit(name.as_bytes().to_vec())));
+    a.i64(i64::try_from(name.len()).unwrap_or(0) << 32);
+    a.struct_new(st);
 }
 
 /// Unerases parameter `p` (an `eqref`) to `vts`: one reference is cast,

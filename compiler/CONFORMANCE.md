@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1902 | 653 | 289 | 2844 |
+| 1925 | 640 | 279 | 2844 |
 
 ## By Chapter
 
@@ -22,7 +22,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/06-control-flow.md` | 108 | 33 | 16 | 157 |
 | `lang/07-functions.md` | 83 | 35 | 12 | 130 |
 | `lang/08-data-and-enums.md` | 73 | 39 | 11 | 123 |
-| `lang/09-traits.md` | 212 | 115 | 32 | 359 |
+| `lang/09-traits.md` | 226 | 102 | 31 | 359 |
 | `lang/10-modules.md` | 144 | 77 | 37 | 258 |
 | `lang/11-requirements-and-suspension.md` | 129 | 60 | 70 | 259 |
 | `lang/14-annotations.md` | 104 | 42 | 7 | 153 |
@@ -32,7 +32,7 @@ fixture; unsupported surface records progress without failing.
 | `std/console.md` | 7 | 0 | 0 | 7 |
 | `std/digest.md` | 0 | 2 | 0 | 2 |
 | `std/encoding.md` | 3 | 0 | 0 | 3 |
-| `std/error.md` | 8 | 1 | 5 | 14 |
+| `std/error.md` | 13 | 1 | 0 | 14 |
 | `std/format.md` | 7 | 1 | 0 | 8 |
 | `std/fs.md` | 3 | 1 | 0 | 4 |
 | `std/hash.md` | 7 | 2 | 0 | 9 |
@@ -42,7 +42,7 @@ fixture; unsupported surface records progress without failing.
 | `std/json.md` | 8 | 9 | 2 | 19 |
 | `std/net.md` | 1 | 0 | 0 | 1 |
 | `std/num.md` | 8 | 10 | 0 | 18 |
-| `std/ops.md` | 2 | 3 | 8 | 13 |
+| `std/ops.md` | 6 | 3 | 4 | 13 |
 | `std/option.md` | 3 | 0 | 0 | 3 |
 | `std/path.md` | 2 | 0 | 0 | 2 |
 | `std/process.md` | 3 | 0 | 0 | 3 |
@@ -63,8 +63,8 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 68 | 28 | 9 | 105 |
-| `runtime/valid` | 587 | 160 | 182 | 929 |
-| `typing/invalid` | 593 | 412 | 69 | 1074 |
+| `runtime/valid` | 606 | 151 | 172 | 929 |
+| `typing/invalid` | 597 | 408 | 69 | 1074 |
 | `typing/valid` | 356 | 30 | 29 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -96,7 +96,7 @@ compiler stage that first declined the case.
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
 | `fail:no-diagnostic` | 250 |
-| `fail:nonexhaustive-match` | 17 |
+| `fail:nonexhaustive-match` | 4 |
 | `fail:not-callable` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
@@ -112,11 +112,11 @@ compiler stage that first declined the case.
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-method-signature` | 1 |
 | `fail:trait-used-as-type` | 2 |
-| `fail:type-mismatch` | 87 |
+| `fail:type-mismatch` | 88 |
 | `fail:type-used-as-value` | 2 |
 | `fail:unknown-data-field` | 13 |
 | `fail:unknown-import` | 25 |
-| `fail:unknown-method` | 33 |
+| `fail:unknown-method` | 32 |
 | `fail:unknown-module` | 1 |
 | `fail:unknown-name` | 13 |
 | `fail:unknown-named-argument` | 3 |
@@ -125,9 +125,9 @@ compiler stage that first declined the case.
 | `fail:unknown-variant` | 1 |
 | `fail:unsatisfied-trait-bound` | 16 |
 | `fail:unused-local-binding` | 6 |
-| `unsupported:Body` | 124 |
+| `unsupported:Body` | 123 |
 | `unsupported:Collect` | 26 |
-| `unsupported:Emit` | 36 |
+| `unsupported:Emit` | 27 |
 | `unsupported:FolderIface` | 34 |
 | `unsupported:Link` | 2 |
 | `unsupported:RunCase` | 61 |
@@ -561,24 +561,11 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:nonexhaustive-match</code> (17)</summary>
+<details><summary><code>fail:nonexhaustive-match</code> (4)</summary>
 
-- `runtime/valid/inspectable-downcast-success-and-failure.hd`
-- `runtime/valid/inspectable-generic-arguments-exact.hd`
-- `runtime/valid/inspectable-downcast-mut.hd`
-- `runtime/valid/inspectable-inner-mut-identity.hd`
-- `runtime/valid/inspectable-generic-inner-mut-argument.hd`
-- `runtime/valid/inspectable-generic-target-helper.hd`
-- `runtime/valid/error-downcast-through-inspectable.hd`
-- `typing/invalid/downcast-mut-readonly-value.hd`
-- `typing/invalid/downcast-target-not-inspectable.hd`
-- `typing/invalid/downcast-value-type-target.hd`
 - `runtime/valid/facts-of-read.hd`
 - `typing/valid/literal-var-match-payload.hd`
 - `runtime/valid/literal-var-flow.hd`
-- `runtime/valid/sealed-supertrait-extension.hd`
-- `runtime/valid/inspectable-primitives-collections-options.hd`
-- `typing/invalid/downcast-result-readonly.hd`
 - `typing/invalid/error-find-concrete-receiver.hd`
 
 </details>
@@ -758,7 +745,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (87)</summary>
+<details><summary><code>fail:type-mismatch</code> (88)</summary>
 
 - `runtime/valid/structural-equality.hd`
 - `runtime/valid/structural-ordering.hd`
@@ -800,6 +787,7 @@ compiler stage that first declined the case.
 - `runtime/valid/none-with-expected-list-type.hd`
 - `runtime/valid/optional-erased-to-any.hd`
 - `runtime/valid/dynamic-trait-value-satisfies-own-bound.hd`
+- `runtime/valid/inspectable-generic-target-helper.hd`
 - `typing/invalid/least-common-type-supertrait-widening.hd`
 - `typing/invalid/function-result-representation-change.hd`
 - `typing/valid/debug-standard-types.hd`
@@ -905,7 +893,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-method</code> (33)</summary>
+<details><summary><code>fail:unknown-method</code> (32)</summary>
 
 - `typing/valid/mutable-suspension.hd`
 - `typing/invalid/readonly-suspension-cancel.hd`
@@ -924,8 +912,6 @@ compiler stage that first declined the case.
 - `typing/valid/literal-var-flow-types.hd`
 - `typing/invalid/literal-var-method-missing.hd`
 - `runtime/valid/inspectable-dynamic-vs-static-identity.hd`
-- `runtime/valid/inspectable-generic-downcast-targets.hd`
-- `runtime/valid/error-bound-downcast-evidence.hd`
 - `runtime/valid/typeid-nested-mut-trait-argument.hd`
 - `runtime/valid/facts-of-literal-generic-none.hd`
 - `runtime/valid/debug-source-text.hd`
@@ -933,6 +919,7 @@ compiler stage that first declined the case.
 - `typing/invalid/list-sum-non-numeric.hd`
 - `runtime/valid/option-result-prelude-spellings.hd`
 - `typing/invalid/sealed-member-written-in-impl.hd`
+- `runtime/valid/sealed-supertrait-extension.hd`
 - `runtime/valid/sealed-member-name-inherent-method.hd`
 - `runtime/valid/typeid-qualified-trait-name.hd`
 - `typing/invalid/typeid-of-unbounded-parameter.hd`
@@ -1036,7 +1023,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (124)</summary>
+<details><summary><code>unsupported:Body</code> (123)</summary>
 
 - `typing/valid/enums.hd`
 - `typing/valid/local-functions.hd`
@@ -1071,7 +1058,6 @@ compiler stage that first declined the case.
 - `runtime/valid/part-copy-is-copy-update.hd`
 - `typing/invalid/negative-literal-exponent.hd`
 - `typing/invalid/lowercase-list-type.hd`
-- `runtime/valid/inspectable-function-fields-and-trait-arguments.hd`
 - `typing/invalid/error-implementation-local-type.hd`
 - `typing/valid/row-union-spread.hd`
 - `typing/valid/row-list-copy-wider.hd`
@@ -1196,7 +1182,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Emit</code> (36)</summary>
+<details><summary><code>unsupported:Emit</code> (27)</summary>
 
 - `runtime/valid/float-display.hd`
 - `runtime/valid/suspending-calls-in-branches.hd`
@@ -1209,17 +1195,8 @@ compiler stage that first declined the case.
 - `runtime/valid/float-remainder-run.hd`
 - `runtime/valid/requirement-key-binding-run.hd`
 - `runtime/valid/generic-inference-explicit-conversions.hd`
-- `runtime/valid/default-standard-types.hd`
-- `runtime/valid/default-tuple-thirteen-elements.hd`
-- `runtime/valid/derived-default-data.hd`
-- `runtime/valid/derived-default-declared.hd`
 - `runtime/valid/primitive-float-cmp-method-direct.hd`
-- `runtime/valid/error-find.hd`
-- `runtime/valid/error-find-erased.hd`
-- `runtime/valid/error-find-trait-value.hd`
-- `runtime/valid/error-context.hd`
 - `runtime/valid/json-typed-primitives.hd`
-- `runtime/valid/context-error-debug.hd`
 - `runtime/valid/regex-literals-escapes.hd`
 - `runtime/valid/regex-classes.hd`
 - `runtime/valid/regex-anchors-groups.hd`
@@ -1817,6 +1794,7 @@ runtime/valid/console-error-line-override.hd
 runtime/valid/console-error-traits.hd
 runtime/valid/console-input-helper.hd
 runtime/valid/construction-provider-capture.hd
+runtime/valid/context-error-debug.hd
 runtime/valid/contextual-variant-after-same-line-if.hd
 runtime/valid/contextual-variant-expressions.hd
 runtime/valid/contextual-variant-patterns.hd
@@ -1841,6 +1819,8 @@ runtime/valid/debug-derive-variants.hd
 runtime/valid/default-body-supertrait-member.hd
 runtime/valid/default-hasher.hd
 runtime/valid/default-method-conflict-inherent-resolves.hd
+runtime/valid/default-standard-types.hd
+runtime/valid/default-tuple-thirteen-elements.hd
 runtime/valid/defaults-reference-earlier-parameters.hd
 runtime/valid/defer-after-return-value.hd
 runtime/valid/defer-and-discard-statements.hd
@@ -1850,6 +1830,8 @@ runtime/valid/defer-order.hd
 runtime/valid/definite-init-diverging-branch.hd
 runtime/valid/depth-two-promotion.hd
 runtime/valid/deque-ends.hd
+runtime/valid/derived-default-data.hd
+runtime/valid/derived-default-declared.hd
 runtime/valid/derived-eq-every-member.hd
 runtime/valid/derived-equality-generic.hd
 runtime/valid/derived-equality-members.hd
@@ -1883,10 +1865,16 @@ runtime/valid/enum-shared-data-per-variant.hd
 runtime/valid/enum-value-fixed-at-construction.hd
 runtime/valid/eprintln-error-line.hd
 runtime/valid/erased-error-result.hd
+runtime/valid/error-bound-downcast-evidence.hd
 runtime/valid/error-chain-derived-causes.hd
 runtime/valid/error-chain-method.hd
 runtime/valid/error-chain.hd
+runtime/valid/error-context.hd
 runtime/valid/error-derivation-run.hd
+runtime/valid/error-downcast-through-inspectable.hd
+runtime/valid/error-find-erased.hd
+runtime/valid/error-find-trait-value.hd
+runtime/valid/error-find.hd
 runtime/valid/error-report.hd
 runtime/valid/error-root-cause.hd
 runtime/valid/evaluation-order-elements-and-indexing.hd
@@ -1980,6 +1968,14 @@ runtime/valid/inherent-members-disjoint-targets.hd
 runtime/valid/inherent-method-beats-trait-method.hd
 runtime/valid/inherent-methods.hd
 runtime/valid/init-read-through-trait-dispatch.hd
+runtime/valid/inspectable-downcast-mut.hd
+runtime/valid/inspectable-downcast-success-and-failure.hd
+runtime/valid/inspectable-function-fields-and-trait-arguments.hd
+runtime/valid/inspectable-generic-arguments-exact.hd
+runtime/valid/inspectable-generic-downcast-targets.hd
+runtime/valid/inspectable-generic-inner-mut-argument.hd
+runtime/valid/inspectable-inner-mut-identity.hd
+runtime/valid/inspectable-primitives-collections-options.hd
 runtime/valid/integer-literal-forms.hd
 runtime/valid/interpolation-expression-spacing.hd
 runtime/valid/interpolation-forms.hd
@@ -2448,6 +2444,10 @@ typing/invalid/discarded-optional-result.hd
 typing/invalid/discarded-result.hd
 typing/invalid/discarded-suspension.hd
 typing/invalid/distinct-traits-not-overloads.hd
+typing/invalid/downcast-mut-readonly-value.hd
+typing/invalid/downcast-result-readonly.hd
+typing/invalid/downcast-target-not-inspectable.hd
+typing/invalid/downcast-value-type-target.hd
 typing/invalid/drive-readonly-suspension.hd
 typing/invalid/duplicate-binding-in-one-pattern.hd
 typing/invalid/duplicate-bool-match-arm.hd

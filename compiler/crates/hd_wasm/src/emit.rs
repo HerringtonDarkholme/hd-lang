@@ -1493,6 +1493,14 @@ impl Em<'_> {
         let Some(c) = Callee::from_words(self.b.record(callee_at)) else {
             return unsupported("a malformed callee record");
         };
+        let target = self.calls.get(&i).cloned();
+        // A member the compiler lowers at each call goes there at any
+        // receiver, a trait value included (`Inspectable.downcast`).
+        if let Some(Target::Call(t)) = &target
+            && let TargetKind::Intrinsic(key) = &t.kind
+        {
+            return self.call_intrinsic(i, t.item, key, args, ty);
+        }
         if let Callee::TraitMethod {
             trait_,
             method,
@@ -1504,12 +1512,12 @@ impl Em<'_> {
             let rs = self.push_dyn(trait_, method, targs, args)?;
             return self.store_from(i, &rs);
         }
-        let Some(Target::Call(t)) = self.calls.get(&i).cloned() else {
+        let Some(Target::Call(t)) = target else {
             return unsupported("a call that collection did not resolve");
         };
         match &t.kind {
             TargetKind::Instance => self.call_instance(i, &t, args, ty, false),
-            TargetKind::Intrinsic(key) => self.call_intrinsic(i, key, args, ty),
+            TargetKind::Intrinsic(key) => self.call_intrinsic(i, t.item, key, args, ty),
             TargetKind::Builtin { self_ty, .. } => {
                 let name = (self.lay.path)(t.item);
                 let name = name.rsplit(['.', '/']).next().unwrap_or("").to_owned();
@@ -1588,6 +1596,12 @@ impl Em<'_> {
             TyData::Mut(x) => x,
             _ => self_ty,
         };
+        // A concrete value's recorded type is its static type
+        // (trait.inspect.static).
+        if name == "runtime_type" {
+            self.push_type_id(self_ty, ty)?;
+            return self.store(i);
+        }
         let shape = self.lay.shape(self_ty)?;
         // The intrinsic methods of the primitives' std operator and
         // comparison implementations compute what the operator computes
@@ -1698,8 +1712,16 @@ impl Em<'_> {
         self.store(i)
     }
 
-    fn call_intrinsic(&mut self, i: u32, key: &str, args: &[u32], ty: Ty) -> StageResult<()> {
+    fn call_intrinsic(
+        &mut self,
+        i: u32,
+        item: DefId,
+        key: &str,
+        args: &[u32],
+        ty: Ty,
+    ) -> StageResult<()> {
         match key {
+            "downcast_val" | "downcast" | "downcast_mut" => self.downcast(i, item, args[0], ty),
             "panic_message" => {
                 self.load(args[0])?;
                 self.a.call(Sym::Helper(Helper::PanicStr));
@@ -1817,6 +1839,150 @@ impl Em<'_> {
             }
             other => unsupported(format!("the intrinsic `{other}`")),
         }
+    }
+
+    /// The `Inspectable` trait and its `runtime_type` method, from the
+    /// item of a recovery intrinsic: `downcast_val`'s parameter is a
+    /// `dyn Inspectable`, and `downcast` and `downcast_mut` are its members.
+    fn inspectable_of(&self, item: DefId) -> StageResult<(DefId, DefId)> {
+        let env = self.env();
+        let insp = match env.parent(item) {
+            Some((owner, _)) => owner,
+            None => match env
+                .params(item)
+                .and_then(|ps| ps.first().map(|p| self.pool().get(*p)))
+            {
+                Some(TyData::TraitValue { def, .. }) => def,
+                _ => return unsupported("a recovery intrinsic without `Inspectable`"),
+            },
+        };
+        // The trait's dictionary holds `runtime_type` alone.
+        let Some(&rt) = env.trait_methods(insp).first() else {
+            return unsupported("an `Inspectable` without `runtime_type`");
+        };
+        Ok((insp, rt))
+    }
+
+    /// Pushes the `TypeId` of `t` (trait.typeid.*): the std data type
+    /// `TypeId` (`ty`, `runtime_type`'s result) over `t`'s printable name.
+    fn push_type_id(&mut self, t: Ty, ty: Ty) -> StageResult<()> {
+        let (st, name) = self.type_id_parts(t, ty)?;
+        crate::rt::push_type_id(&mut self.a, &st, &name);
+        Ok(())
+    }
+
+    /// The struct of the `TypeId` type `ty` and the key of `t`'s identity.
+    fn type_id_parts(&self, t: Ty, ty: Ty) -> StageResult<(WTy, String)> {
+        let ty = match self.pool().get(ty) {
+            TyData::Mut(x) => x,
+            _ => ty,
+        };
+        let Shape::Data { ty: st, fields } = self.lay.shape(ty)? else {
+            return unsupported("a `TypeId` that is not a data value");
+        };
+        if !matches!(&fields[..], [(0, vs)] if *vs == [VT::r(WTy::Bytes), VT::I64]) {
+            return unsupported("a `TypeId` that is not its key string");
+        }
+        Ok((st, hd_mono::type_name(self.pool(), self.env(), t)))
+    }
+
+    /// `downcast_val::[T](value)`, `value.downcast::[T]()` and
+    /// `value.downcast_mut::[T]()` (trait.downcast.*): `.Some` of the
+    /// value exactly when its recorded type has `T`'s runtime identity,
+    /// `T` matched exactly; a reference comes back as itself and a boxed
+    /// value unboxed. A trait value's recorded type is read through its
+    /// `Inspectable` dictionary's `runtime_type`; a concrete receiver's is
+    /// its static type, so the test is decided here.
+    fn downcast(&mut self, i: u32, item: DefId, recv: u32, ty: Ty) -> StageResult<()> {
+        let pool = self.pool();
+        let strip = |t: Ty| match pool.get(t) {
+            TyData::Mut(x) => x,
+            _ => t,
+        };
+        let TyData::Option(target) = pool.get(strip(ty)) else {
+            return unsupported("a downcast whose result is not optional");
+        };
+        let recv_t = strip(self.ty_of(recv));
+        let Shape::Opt(o, inner) = self.lay.shape(strip(ty))? else {
+            return unsupported("a downcast whose result is not optional");
+        };
+        let want = hd_mono::type_name(pool, self.env(), target);
+        let TyData::TraitValue { .. } = pool.get(recv_t) else {
+            if hd_mono::type_name(pool, self.env(), recv_t) == want {
+                if matches!(o, OptShape::Tagged(_)) {
+                    self.a.i32(1);
+                }
+                self.load_as(recv, &inner)?;
+                if let OptShape::Boxed(b, _) = &o {
+                    self.a.struct_new(b);
+                }
+                return self.store(i);
+            }
+            return self.none_into(i);
+        };
+        let Shape::Dyn {
+            trait_: from,
+            args: from_args,
+            vt,
+        } = self.lay.shape(recv_t)?
+        else {
+            return unsupported("a downcast of a trait value without a vtable");
+        };
+        let (insp, rt) = self.inspectable_of(item)?;
+        let Some((steps, iargs)) = self.super_path(from, from_args, insp, TyList::EMPTY)? else {
+            return unsupported("a downcast of a trait value that is not `Inspectable`");
+        };
+        let ivt = self.lay.vtable(insp, iargs)?;
+        let sig = self.lay.slot_sig(insp, iargs, rt)?;
+        let Some(id_ty) = self.env().ret(rt) else {
+            return unsupported("a `runtime_type` without its result");
+        };
+        let (st, _) = self.type_id_parts(target, id_ty)?;
+        // The payload, then its recorded type's key against `T`'s.
+        let p = self.a.local(VT::Eq);
+        self.comp(recv, 0, &VT::Eq)?;
+        self.a.set(p);
+        self.a.get(p);
+        self.comp(recv, 1, &VT::r(vt))?;
+        for (svt, field) in &steps {
+            self.a.struct_get(svt, *field);
+        }
+        self.a.struct_get(&ivt, 0);
+        self.a.call_ref(&sig);
+        let id = self.a.local(VT::r(st.clone()));
+        self.a.set(id);
+        self.a.get(id);
+        self.a.struct_get(&st, 0);
+        self.a.get(id);
+        self.a.struct_get(&st, 1);
+        self.a
+            .call(Sym::Helper(Helper::Lit(want.as_bytes().to_vec())));
+        self.a.i64(i64::try_from(want.len()).unwrap_or(0) << 32);
+        self.a.call(Sym::Helper(Helper::StrEq));
+        self.a.if_();
+        if matches!(o, OptShape::Tagged(_)) {
+            self.a.i32(1);
+        }
+        crate::rt::unerase(&mut self.a, p, &inner);
+        if let OptShape::Boxed(b, _) = &o {
+            self.a.struct_new(b);
+        }
+        self.store(i)?;
+        self.a.else_();
+        self.none_into(i)?;
+        self.a.end();
+        Ok(())
+    }
+
+    /// Sets an optional instruction's values to `.None`: every value zero.
+    fn none_into(&mut self, i: u32) -> StageResult<()> {
+        let res = self.result(i)?;
+        let want = self.vals[&i].1.clone();
+        for (l, v) in res.iter().zip(&want) {
+            self.a.zero(&v.dflt());
+            self.a.set(*l);
+        }
+        Ok(())
     }
 
     /// A trait-value call, its results left on the stack: the method's
@@ -3231,14 +3397,23 @@ impl<'a> Em<'a> {
         let methods = self.env().trait_methods(trait_);
         for (m, t) in methods.iter().zip(&table.slots) {
             let sig = self.lay.slot_sig(trait_, targs, *m)?;
-            // A method the compiler supplies for every type
-            // (`Inspectable.runtime_type`) has no lowering yet: its
-            // slot panics when called, as a host slot does.
-            if matches!(t.kind, TargetKind::Builtin { .. }) {
-                self.a.ref_func(Sym::Helper(Helper::Unlowered {
-                    sig,
-                    what: format!("the compiler-supplied `{}`", (self.lay.path)(*m)),
-                }));
+            // A method the compiler supplies for every type: the vtable's
+            // `runtime_type` answers the recorded type, the concrete type
+            // the vtable is built at (trait.inspect.dynamic). Any other
+            // has no lowering yet: its slot panics when called, as a host
+            // slot does.
+            if let TargetKind::Builtin { self_ty, .. } = t.kind {
+                let path = (self.lay.path)(*m);
+                if path.rsplit(['.', '/']).next() == Some("runtime_type") {
+                    let (ty, name) = self.type_id_parts(self_ty, t.ret)?;
+                    self.a
+                        .ref_func(Sym::Helper(Helper::RuntimeType { sig, ty, name }));
+                } else {
+                    self.a.ref_func(Sym::Helper(Helper::Unlowered {
+                        sig,
+                        what: format!("the compiler-supplied `{path}`"),
+                    }));
+                }
                 continue;
             }
             let target = Self::adapter_target(t)?;

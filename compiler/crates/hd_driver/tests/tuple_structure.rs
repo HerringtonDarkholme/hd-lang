@@ -132,8 +132,9 @@ pub fn main() -> void $ Console:
 /// `build` at a tuple (`annot.tuple.build`), through a user tuple
 /// template's source: the source names the members by
 /// position, last first, so the tuple is built from one value per member
-/// whatever order the keys come in. (std's tuple `Default` reads facts through
-/// `downcast_val`, which emission does not lower yet.)
+/// whatever order the keys come in. (std's tuple `Default` builds through
+/// its own source; the conformance fixture `default-tuple-thirteen-elements`
+/// runs it.)
 #[test]
 fn tuple_build_through_a_source() {
     let main = "\

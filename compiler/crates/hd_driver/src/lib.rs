@@ -3717,7 +3717,14 @@ impl ProgramEnv for Env<'_> {
     }
     fn trait_methods(&self, trait_: DefId) -> Vec<DefId> {
         match self.p.items.get(&trait_).map(|i| &i.data) {
-            Some(ItemData::Trait(t)) => t.methods.iter().map(|m| m.1).collect(),
+            // A method the compiler lowers at each call (`Inspectable`'s
+            // `downcast`) has no slot.
+            Some(ItemData::Trait(t)) => t
+                .methods
+                .iter()
+                .map(|m| m.1)
+                .filter(|m| self.p.items.get(m).is_none_or(|i| i.intrinsic.is_none()))
+                .collect(),
             _ => Vec::new(),
         }
     }
@@ -3741,6 +3748,18 @@ impl ProgramEnv for Env<'_> {
     }
     fn path_hash(&self, def: DefId) -> Hash128 {
         self.run.names().path_hash(def)
+    }
+    fn type_name(&self, def: DefId) -> String {
+        let names = self.run.names();
+        let (module, name) = (names.module_of(def), names.display_name(def));
+        if hd_resolve::PRELUDE
+            .iter()
+            .any(|(m, ns)| *m == module && ns.contains(&name))
+        {
+            return name.to_owned();
+        }
+        // A package name's `-` is written `_` (trait.typeid.name.package).
+        format!("{}.{name}", module.replace('-', "_"))
     }
     fn describe(&self, def: DefId) -> String {
         self.run.names().path(def)
