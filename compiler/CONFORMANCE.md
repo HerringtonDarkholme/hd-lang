@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2189 | 504 | 152 | 2845 |
+| 2195 | 498 | 152 | 2845 |
 
 ## By Chapter
 
@@ -17,11 +17,11 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 133 | 12 | 0 | 145 |
 | `lang/02-grammar.md` | 191 | 15 | 9 | 215 |
 | `lang/03-names-and-scopes.md` | 92 | 8 | 1 | 101 |
-| `lang/04-type-system.md` | 289 | 53 | 10 | 352 |
+| `lang/04-type-system.md` | 293 | 49 | 10 | 352 |
 | `lang/05-expressions.md` | 205 | 63 | 9 | 277 |
 | `lang/06-control-flow.md` | 126 | 27 | 4 | 157 |
 | `lang/07-functions.md` | 91 | 31 | 8 | 130 |
-| `lang/08-data-and-enums.md` | 78 | 37 | 8 | 123 |
+| `lang/08-data-and-enums.md` | 79 | 36 | 8 | 123 |
 | `lang/09-traits.md` | 259 | 86 | 14 | 359 |
 | `lang/10-modules.md` | 201 | 43 | 14 | 258 |
 | `lang/11-requirements-and-suspension.md` | 166 | 48 | 45 | 259 |
@@ -32,7 +32,7 @@ fixture; unsupported surface records progress without failing.
 | `std/console.md` | 7 | 0 | 0 | 7 |
 | `std/digest.md` | 2 | 0 | 0 | 2 |
 | `std/encoding.md` | 3 | 0 | 0 | 3 |
-| `std/error.md` | 13 | 1 | 0 | 14 |
+| `std/error.md` | 14 | 0 | 0 | 14 |
 | `std/format.md` | 7 | 1 | 0 | 8 |
 | `std/fs.md` | 3 | 1 | 0 | 4 |
 | `std/hash.md` | 8 | 1 | 0 | 9 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 77 | 24 | 4 | 105 |
-| `runtime/valid` | 719 | 90 | 120 | 929 |
-| `typing/invalid` | 709 | 349 | 17 | 1075 |
-| `typing/valid` | 386 | 18 | 11 | 415 |
+| `runtime/valid` | 722 | 87 | 120 | 929 |
+| `typing/invalid` | 710 | 348 | 17 | 1075 |
+| `typing/valid` | 388 | 16 | 11 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -95,7 +95,6 @@ compiler stage that first declined the case.
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
 | `fail:no-diagnostic` | 210 |
-| `fail:nonexhaustive-match` | 4 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
@@ -106,7 +105,7 @@ compiler stage that first declined the case.
 | `fail:private-main` | 7 |
 | `fail:re-export-loop` | 1 |
 | `fail:readonly-root` | 1 |
-| `fail:runtime-exit` | 38 |
+| `fail:runtime-exit` | 39 |
 | `fail:stdout` | 3 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
@@ -114,10 +113,10 @@ compiler stage that first declined the case.
 | `fail:trait-method-signature` | 1 |
 | `fail:trait-used-as-type` | 2 |
 | `fail:type-mismatch` | 56 |
-| `fail:type-used-as-value` | 2 |
+| `fail:type-used-as-value` | 1 |
 | `fail:unknown-data-field` | 14 |
 | `fail:unknown-import` | 1 |
-| `fail:unknown-method` | 33 |
+| `fail:unknown-method` | 31 |
 | `fail:unknown-module` | 1 |
 | `fail:unknown-name` | 12 |
 | `fail:unknown-trait` | 7 |
@@ -506,15 +505,6 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:nonexhaustive-match</code> (4)</summary>
-
-- `runtime/valid/facts-of-read.hd`
-- `typing/valid/literal-var-match-payload.hd`
-- `runtime/valid/literal-var-flow.hd`
-- `typing/invalid/error-find-concrete-receiver.hd`
-
-</details>
-
 <details><summary><code>fail:nonlocal-impl</code> (1)</summary>
 
 - `typing/invalid/nonlocal-impl.hd`
@@ -585,7 +575,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (38)</summary>
+<details><summary><code>fail:runtime-exit</code> (39)</summary>
 
 - `runtime/panic/for-loop-iterator-invalidated.hd`
 - `runtime/panic/invalidated-iterator.hd`
@@ -621,6 +611,7 @@ compiler stage that first declined the case.
 - `runtime/panic/deque-invalidated.hd`
 - `runtime/valid/num-to-fixed.hd`
 - `runtime/valid/property-generators-scalars.hd`
+- `runtime/valid/debug-source-text.hd`
 - `runtime/valid/generic-data-let-pattern.hd`
 - `runtime/valid/generic-data-match-pattern.hd`
 - `runtime/valid/generic-data-pattern-in-generic-function.hd`
@@ -738,9 +729,8 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-used-as-value</code> (2)</summary>
+<details><summary><code>fail:type-used-as-value</code> (1)</summary>
 
-- `runtime/valid/option-enum-spellings.hd`
 - `typing/invalid/facts-of-type-name.hd`
 
 </details>
@@ -770,7 +760,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-method</code> (33)</summary>
+<details><summary><code>fail:unknown-method</code> (31)</summary>
 
 - `typing/valid/mutable-suspension.hd`
 - `typing/invalid/readonly-suspension-cancel.hd`
@@ -786,15 +776,13 @@ compiler stage that first declined the case.
 - `runtime/valid/typeid-of-equality.hd`
 - `typing/invalid/inspectable-user-implementation.hd`
 - `runtime/valid/bare-marker-decorator.hd`
-- `typing/valid/literal-var-flow-types.hd`
+- `runtime/valid/facts-of-read.hd`
 - `typing/invalid/literal-var-method-missing.hd`
 - `runtime/valid/inspectable-dynamic-vs-static-identity.hd`
 - `runtime/valid/typeid-nested-mut-trait-argument.hd`
 - `runtime/valid/facts-of-literal-generic-none.hd`
-- `runtime/valid/debug-source-text.hd`
 - `typing/invalid/iterator-sum-non-numeric.hd`
 - `typing/invalid/list-sum-non-numeric.hd`
-- `runtime/valid/option-result-prelude-spellings.hd`
 - `typing/invalid/sealed-member-written-in-impl.hd`
 - `runtime/valid/sealed-supertrait-extension.hd`
 - `runtime/valid/sealed-member-name-inherent-method.hd`
@@ -1800,6 +1788,7 @@ runtime/valid/literal-suffix-calls.hd
 runtime/valid/literal-suffix-default-parameter.hd
 runtime/valid/literal-suffix-generic-num-run.hd
 runtime/valid/literal-trait-value-float-fallback.hd
+runtime/valid/literal-var-flow.hd
 runtime/valid/literal-var-instantiation-wait.hd
 runtime/valid/local-declarations-in-block-suites.hd
 runtime/valid/local-impl-known-after-declaration.hd
@@ -1898,8 +1887,10 @@ runtime/valid/operator-syntax-without-import.hd
 runtime/valid/operator-traits-run.hd
 runtime/valid/operators-without-spaces.hd
 runtime/valid/option-and-then.hd
+runtime/valid/option-enum-spellings.hd
 runtime/valid/option-impl-target.hd
 runtime/valid/option-match-patterns.hd
+runtime/valid/option-result-prelude-spellings.hd
 runtime/valid/option-tests-conversions.hd
 runtime/valid/optional-alias-mutation.hd
 runtime/valid/optional-closure-arguments.hd
@@ -2344,6 +2335,7 @@ typing/invalid/error-bare-before-data.hd
 typing/invalid/error-before-function.hd
 typing/invalid/error-cause-not-error.hd
 typing/invalid/error-extra-argument.hd
+typing/invalid/error-find-concrete-receiver.hd
 typing/invalid/error-find-non-error.hd
 typing/invalid/error-form-other-rule.hd
 typing/invalid/error-from-beside-other-member.hd
@@ -3046,9 +3038,11 @@ typing/valid/literal-suffix-result-type.hd
 typing/valid/literal-suffix-user.hd
 typing/valid/literal-var-data-pattern.hd
 typing/valid/literal-var-fallback.hd
+typing/valid/literal-var-flow-types.hd
 typing/valid/literal-var-for-range-index.hd
 typing/valid/literal-var-list-adopts.hd
 typing/valid/literal-var-list-push.hd
+typing/valid/literal-var-match-payload.hd
 typing/valid/literal-var-method-fallback.hd
 typing/valid/literal-var-range-bound.hd
 typing/valid/literal-var-tuple.hd
