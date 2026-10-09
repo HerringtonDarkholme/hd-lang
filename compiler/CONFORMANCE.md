@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2208 | 484 | 153 | 2845 |
+| 2221 | 472 | 152 | 2845 |
 
 ## By Chapter
 
@@ -17,13 +17,13 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 133 | 12 | 0 | 145 |
 | `lang/02-grammar.md` | 191 | 15 | 9 | 215 |
 | `lang/03-names-and-scopes.md` | 92 | 8 | 1 | 101 |
-| `lang/04-type-system.md` | 293 | 49 | 10 | 352 |
-| `lang/05-expressions.md` | 205 | 63 | 9 | 277 |
-| `lang/06-control-flow.md` | 126 | 27 | 4 | 157 |
+| `lang/04-type-system.md` | 295 | 48 | 9 | 352 |
+| `lang/05-expressions.md` | 207 | 61 | 9 | 277 |
+| `lang/06-control-flow.md` | 129 | 24 | 4 | 157 |
 | `lang/07-functions.md` | 92 | 30 | 8 | 130 |
 | `lang/08-data-and-enums.md` | 79 | 36 | 8 | 123 |
-| `lang/09-traits.md` | 271 | 73 | 15 | 359 |
-| `lang/10-modules.md` | 201 | 43 | 14 | 258 |
+| `lang/09-traits.md` | 272 | 72 | 15 | 359 |
+| `lang/10-modules.md` | 202 | 42 | 14 | 258 |
 | `lang/11-requirements-and-suspension.md` | 166 | 48 | 45 | 259 |
 | `lang/14-annotations.md` | 104 | 42 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
@@ -39,9 +39,9 @@ fixture; unsupported surface records progress without failing.
 | `std/host.md` | 2 | 0 | 0 | 2 |
 | `std/http.md` | 2 | 0 | 0 | 2 |
 | `std/iter.md` | 15 | 7 | 3 | 25 |
-| `std/json.md` | 14 | 3 | 2 | 19 |
+| `std/json.md` | 15 | 2 | 2 | 19 |
 | `std/net.md` | 1 | 0 | 0 | 1 |
-| `std/num.md` | 12 | 6 | 0 | 18 |
+| `std/num.md` | 14 | 4 | 0 | 18 |
 | `std/ops.md` | 8 | 3 | 2 | 13 |
 | `std/option.md` | 3 | 0 | 0 | 3 |
 | `std/path.md` | 2 | 0 | 0 | 2 |
@@ -52,7 +52,7 @@ fixture; unsupported surface records progress without failing.
 | `std/serde.md` | 3 | 0 | 5 | 8 |
 | `std/sys.md` | 1 | 0 | 0 | 1 |
 | `std/task.md` | 7 | 0 | 0 | 7 |
-| `std/testing.md` | 34 | 4 | 1 | 39 |
+| `std/testing.md` | 35 | 3 | 1 | 39 |
 | `std/text.md` | 29 | 5 | 1 | 35 |
 | `std/time.md` | 16 | 1 | 0 | 17 |
 
@@ -62,8 +62,8 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 77 | 24 | 4 | 105 |
-| `runtime/valid` | 731 | 77 | 121 | 929 |
+| `runtime/panic` | 78 | 23 | 4 | 105 |
+| `runtime/valid` | 743 | 66 | 120 | 929 |
 | `typing/invalid` | 714 | 344 | 17 | 1075 |
 | `typing/valid` | 388 | 16 | 11 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -105,8 +105,8 @@ compiler stage that first declined the case.
 | `fail:private-main` | 7 |
 | `fail:re-export-loop` | 1 |
 | `fail:readonly-root` | 1 |
-| `fail:runtime-exit` | 39 |
-| `fail:stdout` | 3 |
+| `fail:runtime-exit` | 26 |
+| `fail:stdout` | 4 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
@@ -126,7 +126,7 @@ compiler stage that first declined the case.
 | `fail:unused-local-binding` | 6 |
 | `unsupported:Body` | 57 |
 | `unsupported:Collect` | 30 |
-| `unsupported:Emit` | 29 |
+| `unsupported:Emit` | 28 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 28 |
 | `unsupported:TestCase` | 5 |
@@ -577,52 +577,40 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (39)</summary>
+<details><summary><code>fail:runtime-exit</code> (26)</summary>
 
 - `runtime/panic/for-loop-iterator-invalidated.hd`
 - `runtime/panic/invalidated-iterator.hd`
 - `runtime/panic/defer-block-on-indirect.hd`
-- `runtime/panic/assert-equal-f64-unequal.hd`
 - `runtime/valid/literal-patterns.hd`
 - `runtime/valid/string-trim-and-lower.hd`
 - `runtime/panic/for-iterator-invalidated-via-helper.hd`
-- `runtime/valid/signed-zero-and-infinity-through-generics.hd`
 - `runtime/panic/exhausted-iterator-invalidated-by-growth.hd`
 - `runtime/panic/alias-growth-invalidates-readonly-iterator.hd`
 - `runtime/valid/empty-string-operations.hd`
 - `runtime/valid/multibyte-scalar-strings.hd`
-- `runtime/valid/interpolation-display-order.hd`
-- `runtime/valid/primitive-display-bound-and-trait-values.hd`
 - `runtime/valid/replace-empty-old.hd`
 - `runtime/valid/pipe-nested-placeholder.hd`
 - `runtime/panic/string-slice-inside-scalar.hd`
 - `runtime/panic/string-slice-past-end.hd`
 - `runtime/panic/string-slice-reversed.hd`
-- `runtime/valid/display-tuples.hd`
 - `runtime/panic/list-view-reversed.hd`
 - `runtime/panic/list-view-index-out-of-bounds.hd`
 - `runtime/panic/list-view-invalidated.hd`
 - `runtime/valid/string-more-methods.hd`
 - `runtime/valid/num-parse-f64-values.hd`
-- `runtime/valid/num-parse-f64-specials.hd`
 - `runtime/valid/num-parse-f64-round-trip.hd`
-- `runtime/valid/json-numbers.hd`
 - `runtime/valid/json-suite.hd`
 - `runtime/valid/json-float-text.hd`
 - `runtime/valid/time-serde-forms.hd`
 - `runtime/panic/deque-invalidated.hd`
-- `runtime/valid/num-to-fixed.hd`
-- `runtime/valid/property-generators-scalars.hd`
-- `runtime/valid/debug-source-text.hd`
-- `runtime/valid/generic-data-let-pattern.hd`
-- `runtime/valid/generic-data-match-pattern.hd`
-- `runtime/valid/generic-data-pattern-in-generic-function.hd`
 - `runtime/panic/unbounded-recursion.hd`
 
 </details>
 
-<details><summary><code>fail:stdout</code> (3)</summary>
+<details><summary><code>fail:stdout</code> (4)</summary>
 
+- `runtime/valid/debug-source-text.hd`
 - `runtime/valid/crlf-line-endings.hd`
 - `runtime/valid/string-and-char-literal-contents.hd`
 - `runtime/valid/escape-sequences.hd`
@@ -957,9 +945,8 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Emit</code> (29)</summary>
+<details><summary><code>unsupported:Emit</code> (28)</summary>
 
-- `runtime/valid/float-display.hd`
 - `runtime/valid/suspending-calls-in-branches.hd`
 - `runtime/valid/suspending-match-guards.hd`
 - `runtime/valid/f32-display-width-through-generics.hd`
@@ -1338,6 +1325,7 @@ parse/valid/vararg-and-spread.hd
 parse/valid/while-else.hd
 runtime/panic/assert-equal-bool-unequal.hd
 runtime/panic/assert-equal-char-unequal.hd
+runtime/panic/assert-equal-f64-unequal.hd
 runtime/panic/assert-equal-generic-nominal-unequal.hd
 runtime/panic/assert-equal-generic-primitive-unequal.hd
 runtime/panic/assert-equal-i32-unequal.hd
@@ -1575,6 +1563,7 @@ runtime/valid/discard-propagated-void-result.hd
 runtime/valid/display-dispatch.hd
 runtime/valid/display-tuple-rest.hd
 runtime/valid/display-tuple-thirteen-elements.hd
+runtime/valid/display-tuples.hd
 runtime/valid/doc-test-compile-fail.hd
 runtime/valid/doc-test-passes.hd
 runtime/valid/doc-test-private-item.hd
@@ -1627,6 +1616,7 @@ runtime/valid/field-and-trait-method-share-name.hd
 runtime/valid/field-read-beside-trait-method.hd
 runtime/valid/fieldless-data-argument.hd
 runtime/valid/fieldless-data-canonical.hd
+runtime/valid/float-display.hd
 runtime/valid/float-eq-bound.hd
 runtime/valid/float-literal-forms.hd
 runtime/valid/floating-power.hd
@@ -1646,6 +1636,9 @@ runtime/valid/generic-call-nested-fresh-pair.hd
 runtime/valid/generic-callable-adapter.hd
 runtime/valid/generic-data-embedding.hd
 runtime/valid/generic-data-fields.hd
+runtime/valid/generic-data-let-pattern.hd
+runtime/valid/generic-data-match-pattern.hd
+runtime/valid/generic-data-pattern-in-generic-function.hd
 runtime/valid/generic-data-pattern-nested-generic.hd
 runtime/valid/generic-enum-payloads.hd
 runtime/valid/generic-forward-bound-explicit-first-slot.hd
@@ -1724,6 +1717,7 @@ runtime/valid/inspectable-primitives-collections-options.hd
 runtime/valid/installer-function-runs.hd
 runtime/valid/integer-literal-forms.hd
 runtime/valid/integer-power-associativity.hd
+runtime/valid/interpolation-display-order.hd
 runtime/valid/interpolation-expression-spacing.hd
 runtime/valid/interpolation-forms.hd
 runtime/valid/it-each-options.hd
@@ -1736,6 +1730,7 @@ runtime/valid/iterator-single-pass.hd
 runtime/valid/json-errors.hd
 runtime/valid/json-escapes.hd
 runtime/valid/json-number-grammar.hd
+runtime/valid/json-numbers.hd
 runtime/valid/json-object-order.hd
 runtime/valid/json-pretty.hd
 runtime/valid/json-round-trip.hd
@@ -1863,10 +1858,12 @@ runtime/valid/num-is-finite.hd
 runtime/valid/num-is-nan.hd
 runtime/valid/num-ordered-display.hd
 runtime/valid/num-parse-f64-errors.hd
+runtime/valid/num-parse-f64-specials.hd
 runtime/valid/num-parse-integers.hd
 runtime/valid/num-parse-unsigned.hd
 runtime/valid/num-rotate.hd
 runtime/valid/num-saturating.hd
+runtime/valid/num-to-fixed.hd
 runtime/valid/num-traits-run.hd
 runtime/valid/numeric-candidate-tie-break.hd
 runtime/valid/operands-across-suspension-order.hd
@@ -1904,6 +1901,7 @@ runtime/valid/prelude-hash-method-direct.hd
 runtime/valid/prelude-partial-cmp-method-direct.hd
 runtime/valid/primitive-bool-eq-method-direct.hd
 runtime/valid/primitive-char-cmp-method-direct.hd
+runtime/valid/primitive-display-bound-and-trait-values.hd
 runtime/valid/primitive-integer-cmp-method-direct.hd
 runtime/valid/primitive-string-cmp-method-direct.hd
 runtime/valid/println-console-stdout.hd
@@ -1929,6 +1927,7 @@ runtime/valid/property-assume-discards.hd
 runtime/valid/property-body-discard-message-fails.hd
 runtime/valid/property-draw-budget.hd
 runtime/valid/property-generators-collections.hd
+runtime/valid/property-generators-scalars.hd
 runtime/valid/provider-capture-timing.hd
 runtime/valid/provider-from-suspending-call.hd
 runtime/valid/provider-scope-dynamic-callback.hd
@@ -2014,6 +2013,7 @@ runtime/valid/sibling-module-names-imported.hd
 runtime/valid/sibling-module-pub-members.hd
 runtime/valid/sibling-module-std-name-imported.hd
 runtime/valid/sibling-module-trait-imported.hd
+runtime/valid/signed-zero-and-infinity-through-generics.hd
 runtime/valid/sized-integer-arithmetic.hd
 runtime/valid/split-empty-input-nonempty-separator.hd
 runtime/valid/spread-pattern.hd
@@ -3267,7 +3267,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 82 | 20 | 0 | 102 |
+| 83 | 19 | 0 | 102 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3285,6 +3285,7 @@ cli/clean-build
 cli/clean-outside-package
 cli/clean-workspace
 cli/dbg-uses
+cli/dbg-value-forms
 cli/dbg-values
 cli/dep-dev-remove
 cli/dep-invalid-manifest
