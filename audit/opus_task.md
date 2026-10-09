@@ -51,10 +51,10 @@ When the queue is empty, say so under "Questions" and wait.
   `src/` is only a checklist (cases, behaviour), never ported. No clippy
   `allow`/`expect`. Separate crates talk through their existing
   interfaces. One feature per job; no symptom patches; no special cases.
-- **Never edit spec text or conformance fixtures.** A fixture you believe
-  is wrong, or a diagnostic code or message you would change, goes under
-  "Questions" (fixtures) or into `audit/compiler/diagnostic-notes.md`
-  (messages, codes, positions; owner rule).
+- **The spec is frozen (owner, 2026-10-08 night).** Never edit spec text or
+  conformance fixtures. Log every issue you find (a fixture you believe
+  is wrong, a spec gap, a diagnostic code, message or position you would
+  change) as a row in `audit/compiler/diagnostic-notes.md`, and go on.
 - **Gates before every push**, from `compiler/`:
   `cargo fmt --check`, `cargo clippy --workspace --all-targets --release
   -- -D warnings`, `cargo test -q --release --workspace`. Update the pass

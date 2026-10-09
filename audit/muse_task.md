@@ -97,8 +97,11 @@ When the queue is empty, report that and wait.
   row, never an edit.
 - `lib/std/`, `guide/`, `website/`: read only, unless a job says so.
 - `future-work/compiler/*.md`: only where a job says so.
-- `spec/lang/*.md` rule text: only where a job says so. Fixtures under
-  `spec/conformance/` and `test/portable/` are yours in the fixture jobs.
+- `spec/`: **frozen (owner, 2026-10-08 night: "freeze all spec", "no
+  change, log them all")**. No edits to rule text, std chapters,
+  conformance fixtures or indexes, whatever a job or an earlier answer
+  says. Log every spec or fixture issue you find as a row in
+  `audit/compiler/diagnostic-notes.md` and go on.
 
 ## Jobs
 
@@ -127,7 +130,7 @@ can queue one compiler task per cause.
   traits (#42), header bounds and associated-type bindings (#15), row
   aliases (#49), literal-kind canonicalization (#77). Biggest cause first.
 - Read only: never edit `compiler/crates/` or a fixture. A fixture you
-  think is wrong per the spec goes under "Questions" with the rule.
+  think is wrong per the spec goes into `audit/compiler/diagnostic-notes.md` with the rule.
 - Timebox 60 minutes; push what you have, with the untriaged cases listed
   at the end.
 
@@ -140,30 +143,6 @@ Wasm trap, an hd panic with the wrong code, or wrong output, with a
 minimal program and the stage you suspect (Emit, runtime host).
 Write `audit/compiler/triage-wrong-runs.md`. Read only; timebox 45
 minutes.
-
-### Y4. Accept `concat_all` (A1): Spec Row Only (#112)
-
-Owner approved A1, 2026-10-08 23:50. Add one row to the
-**Representation** table under "Standard Library Primitives" in
-`spec/std/README.md`, in that table's three columns (Primitive,
-Signature, Why it is a primitive):
-
-- Primitive: `concat_all` (the approved name; like the other rows, the
-  function name, not the reference implementation's intrinsic key).
-- Signature: `(parts: List[string]) -> string`.
-- Why: allocates one string of the parts' total byte length and copies
-  each part once; hd has no byte buffer, so `join` cannot do this in hd
-  (the same reason the table gives for `bytes_concat`).
-
-The spec has no syntax for declaring a primitive (see that section's
-first paragraph), so no `@intrinsic(...)` text goes into the spec. In
-`future-work/compiler/representation-runtime.md`, change the heading
-"Single-Pass `join`: The `concat_all` Intrinsic (Proposal, Not Accepted)"
-to "... (Accepted: A1, Owner 2026-10-08)" and keep its text. Do **not**
-touch `lib/std`: the compiler side does not exist yet, and the
-orchestrator's agent adds it with the `join`/`StringBuilder.build`
-rewrite. This job lifts the spec rule for that one row and the design
-file for that heading. Check: `bash spec/check.sh`. Timebox 20 minutes.
 
 ### R3. Design Note: Functions As Values (#46, Design Text)
 
