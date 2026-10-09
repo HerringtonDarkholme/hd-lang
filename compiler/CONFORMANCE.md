@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2260 | 442 | 143 | 2845 |
+| 2272 | 430 | 143 | 2845 |
 
 ## By Chapter
 
@@ -20,8 +20,8 @@ fixture; unsupported surface records progress without failing.
 | `lang/04-type-system.md` | 300 | 47 | 5 | 352 |
 | `lang/05-expressions.md` | 221 | 50 | 6 | 277 |
 | `lang/06-control-flow.md` | 129 | 24 | 4 | 157 |
-| `lang/07-functions.md` | 93 | 29 | 8 | 130 |
-| `lang/08-data-and-enums.md` | 80 | 35 | 8 | 123 |
+| `lang/07-functions.md` | 99 | 23 | 8 | 130 |
+| `lang/08-data-and-enums.md` | 85 | 30 | 8 | 123 |
 | `lang/09-traits.md` | 272 | 72 | 15 | 359 |
 | `lang/10-modules.md` | 202 | 42 | 14 | 258 |
 | `lang/11-requirements-and-suspension.md` | 166 | 48 | 45 | 259 |
@@ -48,7 +48,7 @@ fixture; unsupported surface records progress without failing.
 | `std/process.md` | 3 | 0 | 0 | 3 |
 | `std/random.md` | 8 | 0 | 0 | 8 |
 | `std/regex.md` | 4 | 0 | 9 | 13 |
-| `std/result.md` | 4 | 1 | 0 | 5 |
+| `std/result.md` | 5 | 0 | 0 | 5 |
 | `std/serde.md` | 4 | 0 | 4 | 8 |
 | `std/sys.md` | 1 | 0 | 0 | 1 |
 | `std/task.md` | 7 | 0 | 0 | 7 |
@@ -63,8 +63,8 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 78 | 23 | 4 | 105 |
-| `runtime/valid` | 775 | 43 | 111 | 929 |
-| `typing/invalid` | 720 | 338 | 17 | 1075 |
+| `runtime/valid` | 782 | 36 | 111 | 929 |
+| `typing/invalid` | 725 | 333 | 17 | 1075 |
 | `typing/valid` | 389 | 15 | 11 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -76,7 +76,7 @@ compiler stage that first declined the case.
 | Bucket | Cases |
 | --- | ---: |
 | `fail:ambiguous-method` | 1 |
-| `fail:argument-count` | 15 |
+| `fail:argument-count` | 5 |
 | `fail:bang-call-outside-suspension` | 2 |
 | `fail:bare-variant-pattern` | 3 |
 | `fail:boundary-private-field` | 1 |
@@ -94,7 +94,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 1 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 212 |
+| `fail:no-diagnostic` | 211 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
@@ -111,7 +111,7 @@ compiler stage that first declined the case.
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-method-signature` | 1 |
 | `fail:trait-used-as-type` | 2 |
-| `fail:type-mismatch` | 52 |
+| `fail:type-mismatch` | 51 |
 | `fail:type-used-as-value` | 1 |
 | `fail:unknown-data-field` | 6 |
 | `fail:unknown-import` | 1 |
@@ -136,23 +136,13 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:argument-count</code> (15)</summary>
+<details><summary><code>fail:argument-count</code> (5)</summary>
 
-- `typing/invalid/unsaturated-enum-constructor.hd`
-- `runtime/valid/final-vararg.hd`
-- `runtime/valid/vararg-function-values.hd`
 - `runtime/valid/map-grow-and-remove.hd`
 - `typing/invalid/variant-duplicate-argument.hd`
 - `typing/invalid/duplicate-argument.hd`
 - `typing/invalid/unknown-named-argument.hd`
 - `typing/invalid/variant-unknown-payload-field.hd`
-- `runtime/valid/single-payload-variant-function-value.hd`
-- `typing/invalid/two-payload-variant-as-function-value.hd`
-- `runtime/valid/spelled-function-type-values.hd`
-- `runtime/valid/generic-variant-constructor-argument.hd`
-- `typing/invalid/generic-variant-constructor-argument-unsolved.hd`
-- `runtime/valid/function-value-vararg-call.hd`
-- `runtime/valid/result-and-then.hd`
 
 </details>
 
@@ -288,7 +278,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (212)</summary>
+<details><summary><code>fail:no-diagnostic</code> (211)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -421,7 +411,6 @@ compiler stage that first declined the case.
 - `typing/invalid/function-type-rest-not-list.hd`
 - `typing/invalid/vararg-type-not-collection.hd`
 - `typing/invalid/function-type-unbounded-inputs.hd`
-- `typing/invalid/vararg-function-value-list.hd`
 - `typing/invalid/display-tuple-element-without-display.hd`
 - `typing/invalid/default-tuple-element-without-default.hd`
 - `typing/invalid/typed-fact-mismatch.hd`
@@ -636,7 +625,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (52)</summary>
+<details><summary><code>fail:type-mismatch</code> (51)</summary>
 
 - `typing/invalid/unknown-associated-type.hd`
 - `typing/invalid/heterogeneous-list.hd`
@@ -664,7 +653,6 @@ compiler stage that first declined the case.
 - `runtime/valid/intrinsic-method-calls.hd`
 - `typing/invalid/placeholder-outside-pipe.hd`
 - `typing/invalid/generic-inference-trait-value.hd`
-- `typing/invalid/vararg-rest-distinct.hd`
 - `typing/invalid/range-mixed-signedness.hd`
 - `typing/valid/slice-types.hd`
 - `runtime/valid/slicing-run.hd`
@@ -1574,6 +1562,7 @@ runtime/valid/field-and-trait-method-share-name.hd
 runtime/valid/field-read-beside-trait-method.hd
 runtime/valid/fieldless-data-argument.hd
 runtime/valid/fieldless-data-canonical.hd
+runtime/valid/final-vararg.hd
 runtime/valid/float-cast-saturates.hd
 runtime/valid/float-display.hd
 runtime/valid/float-eq-bound.hd
@@ -1589,6 +1578,7 @@ runtime/valid/function-type-impl-method.hd
 runtime/valid/function-type-sugar-without-import.hd
 runtime/valid/function-typed-field-call.hd
 runtime/valid/function-value-argument.hd
+runtime/valid/function-value-vararg-call.hd
 runtime/valid/generic-associated-function-qualified-call.hd
 runtime/valid/generic-bound-dispatch.hd
 runtime/valid/generic-call-nested-fresh-literal.hd
@@ -1626,6 +1616,7 @@ runtime/valid/generic-trait-instantiation-by-argument.hd
 runtime/valid/generic-trait-literal-default-instantiation.hd
 runtime/valid/generic-trait-method-qualified-call.hd
 runtime/valid/generic-trait-qualified-calls.hd
+runtime/valid/generic-variant-constructor-argument.hd
 runtime/valid/hash-bytes-derived.hd
 runtime/valid/hash-bytes-result.hd
 runtime/valid/hash-bytes-scalars.hd
@@ -1939,6 +1930,7 @@ runtime/valid/requirement-row-order-data-field.hd
 runtime/valid/requirement-row-order-stored-suspension.hd
 runtime/valid/requirement-row-order-trait-value.hd
 runtime/valid/resource-error-operation-payload.hd
+runtime/valid/result-and-then.hd
 runtime/valid/result-entry-point-ok.hd
 runtime/valid/result-enum-spellings.hd
 runtime/valid/result-map.hd
@@ -1993,7 +1985,9 @@ runtime/valid/sibling-module-pub-members.hd
 runtime/valid/sibling-module-std-name-imported.hd
 runtime/valid/sibling-module-trait-imported.hd
 runtime/valid/signed-zero-and-infinity-through-generics.hd
+runtime/valid/single-payload-variant-function-value.hd
 runtime/valid/sized-integer-arithmetic.hd
+runtime/valid/spelled-function-type-values.hd
 runtime/valid/split-empty-input-nonempty-separator.hd
 runtime/valid/spread-pattern.hd
 runtime/valid/static-and-dynamic-trait-dispatch.hd
@@ -2125,6 +2119,7 @@ runtime/valid/utf8-invalid-bytes.hd
 runtime/valid/utf8-overlong.hd
 runtime/valid/utf8-truncated.hd
 runtime/valid/utf8-valid-text.hd
+runtime/valid/vararg-function-values.hd
 runtime/valid/varargs-in-trait-and-suspending-methods.hd
 runtime/valid/while-break-and-continue.hd
 runtime/valid/while-else-break-value.hd
@@ -2378,6 +2373,7 @@ typing/invalid/generic-readonly-argument-to-mut-parameter.hd
 typing/invalid/generic-trait-instantiation-no-fit.hd
 typing/invalid/generic-trait-instantiations-ambiguous.hd
 typing/invalid/generic-trait-literal-without-default.hd
+typing/invalid/generic-variant-constructor-argument-unsolved.hd
 typing/invalid/grammar-mutable-field-modifier.hd
 typing/invalid/guarded-catch-all-not-exhaustive.hd
 typing/invalid/guarded-match-not-exhaustive.hd
@@ -2812,6 +2808,7 @@ typing/invalid/tuple-spread-rest-into-plain.hd
 typing/invalid/tuple-spread-tuple-operand.hd
 typing/invalid/tuple-trait-user-impl.hd
 typing/invalid/tuple-vararg-arity.hd
+typing/invalid/two-payload-variant-as-function-value.hd
 typing/invalid/type-argument-list-too-long.hd
 typing/invalid/type-default-impl-mismatch.hd
 typing/invalid/type-name-as-value.hd
@@ -2837,6 +2834,7 @@ typing/invalid/unknown-string-prefix.hd
 typing/invalid/unknown-test-option.hd
 typing/invalid/unknown-value-name.hd
 typing/invalid/unknown-variant.hd
+typing/invalid/unsaturated-enum-constructor.hd
 typing/invalid/unsigned-negation.hd
 typing/invalid/use-alias-original-name-unbound.hd
 typing/invalid/use-module-and-root-declaration.hd
@@ -2846,6 +2844,8 @@ typing/invalid/user-anyval-implementation.hd
 typing/invalid/user-map-key-bound.hd
 typing/invalid/usize-to-u32-argument.hd
 typing/invalid/vararg-function-value-arity.hd
+typing/invalid/vararg-function-value-list.hd
+typing/invalid/vararg-rest-distinct.hd
 typing/invalid/variance-contravariant-target-result.hd
 typing/invalid/variance-covariant-target-parameter.hd
 typing/invalid/variance-position.hd
