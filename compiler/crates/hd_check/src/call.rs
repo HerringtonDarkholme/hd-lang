@@ -2973,9 +2973,8 @@ impl Ck<'_, '_> {
             }
             _ => {}
         }
-        if pool.has_infer(st) {
-            return Ok(t);
-        }
+        // A self type that inference has not finished still normalizes
+        // when exactly one impl fits whatever its variables become.
         // `P::Error` under a bound `P < Walker[Self]` leaves the trait's
         // arguments implicit: the impl that matches supplies them.
         let n_trait = self.cx.lookup.item(trait_).map_or(0, |i| i.generics.len());
@@ -2994,8 +2993,9 @@ impl Ck<'_, '_> {
                     row,
                     args: impl_args,
                 },
-            ..
+            learned,
         } = self.solve(tref)?
+            && (learned.is_empty() || !pool.has_infer(st))
             && let Some(table) = self.cx.impl_table(row.module)
         {
             let r = row.row as usize;
@@ -3006,7 +3006,11 @@ impl Ck<'_, '_> {
                 return self.normalized(x);
             }
         }
-        // A trait's default for the associated type.
+        // A trait's default for the associated type, once the implementing
+        // type is known.
+        if pool.has_infer(st) {
+            return Ok(t);
+        }
         if let Some(ItemData::AssocType {
             default: Some(d), ..
         }) = self.cx.lookup.item(assoc).map(|i| &i.data)
