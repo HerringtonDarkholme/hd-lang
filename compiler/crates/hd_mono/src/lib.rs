@@ -22,7 +22,7 @@ use hd_types::solver::{
 use hd_types::{InternPool, ParamRef, Ty, TyData, TyList};
 
 pub use crate::layout::Sub;
-use crate::layout::{A1Class, KeyArg, LayoutEnv, a1_class, canon, instance_key};
+use crate::layout::{A1Class, KeyArg, LayoutEnv, a1_class, canon, instance_key, key_hash};
 
 /// What collection reads about the program (the driver implements it over
 /// TIR and interfaces).
@@ -37,10 +37,12 @@ pub trait ProgramEnv: LayoutEnv {
     fn params(&self, def: DefId) -> Option<Vec<Ty>>;
     /// Whether the function suspends (`fn f!`).
     fn suspends(&self, def: DefId) -> bool;
-    /// The requirement keys of an instance's row, as trait items, in key
-    /// order (codegen.md §12.4): the declared keys, and the keys of each
-    /// row parameter's argument, so providers are passed per instance.
-    fn row_keys(&self, def: DefId, args: TyList) -> Vec<DefId>;
+    /// The requirement keys of an instance's row, each the whole trait
+    /// value type with its substituted arguments and bindings (codegen.md
+    /// §13.18), in key order (`key_order`, §12.4): the declared keys, and
+    /// the keys of each row parameter's argument, so providers are passed
+    /// per instance.
+    fn row_keys(&self, def: DefId, args: TyList) -> Vec<Ty>;
     /// A method's owner (impl or trait) and how many of the instance's
     /// arguments are the owner's: an impl's parameters, or a trait's
     /// `Self` and parameters.
@@ -132,6 +134,26 @@ pub struct CallTarget {
     pub args: TyList,
     pub ret: Ty,
     pub kind: TargetKind,
+}
+
+/// A row's requirement keys in key order (codegen.md §12.4, §13.18): the
+/// trait value types among `keys`, sorted by their content hash
+/// (`layout::key_hash`) and each once, so a caller and its callee agree on
+/// the order without comparing run-local type numbers. `Repo[User]` and
+/// `Repo[Post]` are two keys.
+pub fn key_order(
+    pool: &InternPool,
+    path_hash: &dyn Fn(DefId) -> Hash128,
+    keys: impl IntoIterator<Item = Ty>,
+) -> Vec<Ty> {
+    let mut keyed: Vec<(Hash128, Ty)> = keys
+        .into_iter()
+        .filter(|k| matches!(pool.get(*k), TyData::TraitValue { .. }))
+        .map(|k| (key_hash(pool, path_hash, k), k))
+        .collect();
+    keyed.sort_by_key(|p| p.0);
+    keyed.dedup_by_key(|p| p.0);
+    keyed.into_iter().map(|p| p.1).collect()
 }
 
 /// What collection recorded for one instruction.
@@ -672,7 +694,10 @@ impl Cx<'_> {
     /// Only a value of the parameter itself, `mut`, an optional, and the
     /// erased storage of a `List`, `Map` or enum payload keep it movable:
     /// a data type's fields, a tuple, a function type, a trait value or a
-    /// projection that mentions it change their Wasm type with it.
+    /// projection that mentions it change their Wasm type with it. A
+    /// requirement key that mentions it (the item's own row, a function
+    /// type's row, a `$.with` key) changes which provider the instance
+    /// passes and reads, so it is exact too (codegen.md §13.18).
     fn exact_params(&mut self, def: DefId) -> Vec<bool> {
         if let Some(e) = self.exact.get(&def) {
             return e.clone();
@@ -683,10 +708,16 @@ impl Cx<'_> {
         let env = self.env;
         let mut types: Vec<Ty> = env.params(def).unwrap_or_default();
         types.extend(env.ret(def));
+        // Unsubstituted: the keys over the item's own parameters.
+        types.extend(env.row_keys(def, TyList::EMPTY));
         if let Some(b) = env.body(def) {
             types.extend(b.ty.iter().copied());
             types.extend(b.local_ty.iter().copied());
             for i in 0..b.len() {
+                if b.tags[i] == Tag::With {
+                    types.extend(b.record(b.data[i][0]).chunks(2).map(|c| Ty(c[0])));
+                    continue;
+                }
                 if !matches!(b.tags[i], Tag::Call | Tag::Await) {
                     continue;
                 }
@@ -1043,7 +1074,7 @@ impl Cx<'_> {
             reps.u8(u8::from(b));
         }
         for k in env.row_keys(t.item, t.args) {
-            reps.hash(env.path_hash(k));
+            reps.hash(key_hash(pool, &ph, k));
         }
     }
 
@@ -1409,7 +1440,7 @@ fn makes_call(body: &Body) -> bool {
 
 /// Marks in `out` each own parameter of `def` that `t` holds where its
 /// exact representation matters (`inside`: below a data type, tuple,
-/// function type, trait value or projection).
+/// function type, trait value or projection, or in a requirement key).
 fn pinned(
     pool: &InternPool,
     env: &dyn ProgramEnv,
@@ -1446,9 +1477,22 @@ fn pinned(
                 pinned(pool, env, def, e, true, out);
             }
         }
-        TyData::Fn { params, result, .. } => {
+        TyData::Fn {
+            params,
+            result,
+            row,
+            ..
+        } => {
             for e in pool.list_items(params).iter().copied().chain([result]) {
                 pinned(pool, env, def, e, true, out);
+            }
+            for k in pool.row_data(row).keys {
+                pinned(pool, env, def, k, true, out);
+            }
+        }
+        TyData::Row(row) => {
+            for k in pool.row_data(row).keys {
+                pinned(pool, env, def, k, true, out);
             }
         }
         TyData::TraitValue { args, bindings, .. } => {

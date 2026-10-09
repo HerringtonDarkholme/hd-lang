@@ -51,10 +51,14 @@ pub fn ctx_provs() -> WTy {
     WTy::Array(VT::Eq)
 }
 
-/// The id a context gives a key: the low bits of its stable path hash.
+/// The id a context gives a key: the low bits of its content hash, which
+/// covers the trait's arguments and bindings, so `Repo[User]` and
+/// `Repo[Post]` have two ids (codegen.md §13.18).
 #[must_use]
-pub fn key_id(env: &dyn ProgramEnv, k: DefId) -> i64 {
-    let bytes = env.path_hash(k).0.to_le_bytes();
+pub fn key_id(pool: &InternPool, env: &dyn ProgramEnv, k: Ty) -> i64 {
+    let bytes = hd_mono::layout::key_hash(pool, &|d| env.path_hash(d), k)
+        .0
+        .to_le_bytes();
     i64::from_le_bytes(bytes[..8].try_into().unwrap_or_default())
 }
 
@@ -1455,6 +1459,15 @@ impl<'a> Lay<'a> {
         match &self.vts(self.dyn_ty(trait_, args))?[..] {
             [VT::Eq, VT::Ref(vt, false)] => Ok((**vt).clone()),
             _ => unsupported("a trait value that is not a payload and a vtable"),
+        }
+    }
+
+    /// The vtable type of a requirement key's provider: that of the key's
+    /// trait at the key's arguments, as `$.with` builds it.
+    pub fn key_vtable(&self, k: Ty) -> StageResult<WTy> {
+        match self.pool.get(k) {
+            TyData::TraitValue { def, args, .. } => self.vtable(def, args),
+            _ => unsupported("a requirement key that is not a trait"),
         }
     }
 

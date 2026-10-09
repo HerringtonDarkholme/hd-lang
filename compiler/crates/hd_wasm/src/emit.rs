@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use hd_base::{DefId, Hash128, StableHasher, StageResult};
 use hd_mono::layout::{canon, inline_map_key};
-use hd_mono::{CallTarget, ProgramEnv, Target, TargetKind, VTable, subst};
+use hd_mono::{CallTarget, ProgramEnv, Target, TargetKind, VTable, key_order, subst};
 use hd_tir::ir::{
     Body, Callee, ChoiceKind, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags,
 };
@@ -89,8 +89,9 @@ struct Em<'a> {
     vals: HashMap<u32, (Vec<u32>, Vec<VT>)>,
     ctrl: Vec<Ctl>,
     deciding: Vec<u32>,
-    /// Covering providers, innermost last: key trait, its two locals.
-    providers: Vec<(DefId, [u32; 2])>,
+    /// Covering providers, innermost last: the whole key (the trait value
+    /// type with its arguments, codegen.md §13.18), its two locals.
+    providers: Vec<(Ty, [u32; 2])>,
     /// The instance's own key (a suspending body names its parts).
     key: Hash128,
     /// The function's result values (defaultable in a suspending body).
@@ -640,16 +641,11 @@ impl Em<'_> {
             Tag::ItemRef => self.closure_value(i, 0..0, ty)?,
             Tag::ProviderGet => {
                 let key = self.rec(a).first().copied().unwrap_or(NONE);
-                let key_t = Ty(key);
-                let TyData::TraitValue { def, .. } = self.pool().get(key_t) else {
+                let key_t = self.sub(Ty(key));
+                if !matches!(self.pool().get(key_t), TyData::TraitValue { .. }) {
                     return unsupported("a provider key that is not a trait");
-                };
-                let Some((_, ls)) = self.providers.iter().rev().find(|p| p.0 == def) else {
-                    return unsupported("a provider the function's row does not pass");
-                };
-                let ls = *ls;
-                self.a.get(ls[0]);
-                self.a.get(ls[1]);
+                }
+                self.push_providers(&[key_t])?;
                 self.store(i)?;
             }
             Tag::If => {
@@ -1431,11 +1427,17 @@ impl Em<'_> {
         Ok(())
     }
 
-    /// The current providers for a callee's row keys, in key order.
-    fn push_providers(&mut self, keys: &[DefId]) -> StageResult<()> {
+    /// The current providers for a callee's row keys, in key order: per
+    /// key, the innermost provider of that whole key, so `Repo[User]`
+    /// never matches `Repo[Post]` (`req.row.entail.generic`, codegen.md
+    /// §13.18). Check covers every key, so a miss is internal.
+    fn push_providers(&mut self, keys: &[Ty]) -> StageResult<()> {
         for k in keys {
             let Some((_, ls)) = self.providers.iter().rev().find(|p| p.0 == *k) else {
-                return unsupported("a call whose row this function does not cover");
+                return unsupported(format!(
+                    "a provider of `{}`, which this function's row does not cover",
+                    self.pool().display(*k)
+                ));
             };
             let ls = *ls;
             self.a.get(ls[0]);
@@ -1444,8 +1446,8 @@ impl Em<'_> {
         Ok(())
     }
 
-    /// The keys of a function type's row, as trait items.
-    fn fn_row_keys(&self, t: Ty) -> Vec<DefId> {
+    /// The keys of a function type's row, whole and in key order.
+    fn fn_row_keys(&self, t: Ty) -> Vec<Ty> {
         let pool = self.pool();
         let t = match pool.get(t) {
             TyData::Mut(i) => i,
@@ -1454,18 +1456,8 @@ impl Em<'_> {
         let TyData::Fn { row, .. } = pool.get(t) else {
             return Vec::new();
         };
-        let mut keys: Vec<DefId> = pool
-            .row_data(row)
-            .keys
-            .into_iter()
-            .filter_map(|k| match pool.get(k) {
-                TyData::TraitValue { def, .. } => Some(def),
-                _ => None,
-            })
-            .collect();
-        keys.sort_by_key(|k| self.env().path_hash(*k));
-        keys.dedup();
-        keys
+        let env = self.env();
+        key_order(pool, &|d| env.path_hash(d), pool.row_data(row).keys)
     }
 
     /// The context a call of a function value of type `callee` passes:
@@ -1479,7 +1471,7 @@ impl Em<'_> {
             return Ok(());
         }
         for k in &keys {
-            self.a.i64(key_id(self.env(), *k));
+            self.a.i64(key_id(self.pool(), self.env(), *k));
         }
         self.a.array_new_fixed(&ctx_keys(), u32_of(keys.len()));
         self.push_providers(&keys)?;
@@ -2918,7 +2910,7 @@ pub fn signature(
         }
         for k in lay.env.row_keys(item, args) {
             params.push(VT::Eq);
-            params.push(VT::r(lay.vtable(k, TyList::EMPTY)?));
+            params.push(VT::r(lay.key_vtable(k)?));
         }
         let mut results = lay.vts(s(ret))?;
         if lay.env.suspends(item) {
@@ -3323,7 +3315,7 @@ impl<'a> Em<'a> {
         let pairs = self.rec(rec);
         let mut pushed = 0;
         for ((k, v), table) in pairs.chunks(2).map(|c| (c[0], c[1])).zip(vts) {
-            let key_t = Ty(k);
+            let key_t = self.sub(Ty(k));
             let TyData::TraitValue { args: targs, .. } = self.pool().get(key_t) else {
                 return unsupported("a `$.with` key that is not a trait");
             };
@@ -3335,7 +3327,7 @@ impl<'a> Em<'a> {
             self.a.set(ls[0]);
             self.vtable_value(&table, targs, &fv)?;
             self.a.set(ls[1]);
-            self.providers.push((trait_, ls));
+            self.providers.push((key_t, ls));
             pushed += 1;
         }
         self.result(i)?;
@@ -3940,8 +3932,8 @@ pub fn emit(
         // The closure's own row: each key's provider from the context.
         let (keys_at, provs_at) = (next, next + 1);
         for k in em.fn_row_keys(s(b.ty[ci])) {
-            let vt = em.lay.vtable(k, TyList::EMPTY)?;
-            let ls = ctx_provider(&mut em.a, env, k, &vt, keys_at, provs_at);
+            let vt = em.lay.key_vtable(k)?;
+            let ls = ctx_provider(&mut em.a, pool, env, k, &vt, keys_at, provs_at);
             em.providers.push((k, ls));
         }
     }
@@ -3965,8 +3957,9 @@ pub fn emit(
 /// ends at its slot.
 fn ctx_provider(
     a: &mut Asm,
+    pool: &InternPool,
     env: &dyn ProgramEnv,
-    k: DefId,
+    k: Ty,
     vt: &WTy,
     keys_at: u32,
     provs_at: u32,
@@ -3981,7 +3974,7 @@ fn ctx_provider(
     a.raw_get(keys_at);
     a.raw_get(at);
     a.array_get(&ctx_keys());
-    a.i64(key_id(env, k));
+    a.i64(key_id(pool, env, k));
     a.s().i64_eq();
     a.br_if(1);
     a.raw_get(at);
@@ -4071,8 +4064,8 @@ pub fn emit_adapter(
     let mut a = Asm::new(cps.clone());
     let mut provs = Vec::new();
     for k in env.row_keys(t.item, t.args) {
-        let vt = lay.vtable(k, TyList::EMPTY)?;
-        provs.push(ctx_provider(&mut a, env, k, &vt, keys_at, provs_at));
+        let vt = lay.key_vtable(k)?;
+        provs.push(ctx_provider(&mut a, pool, env, k, &vt, keys_at, provs_at));
     }
     for (j, w) in want.iter().enumerate() {
         a.get(u32_of(j + 1));
@@ -4101,7 +4094,7 @@ pub fn emit_adapter(
 struct ClosureBind {
     env: WTy,
     caps: Vec<(u32, u32)>,
-    provs: Vec<(DefId, WTy, [u32; 2])>,
+    provs: Vec<(Ty, WTy, [u32; 2])>,
 }
 
 /// One emission pass of a suspending body: its code, every Wasm local it
@@ -4197,7 +4190,7 @@ fn emit_suspending(
             let (env_ty, caps) = em.closure_env(ci)?;
             let mut provs = Vec::new();
             for k in em.fn_row_keys(s(b.ty[ci])) {
-                let vt = em.lay.vtable(k, TyList::EMPTY)?;
+                let vt = em.lay.key_vtable(k)?;
                 let ls = [em.a.local(VT::Eq), em.a.local(VT::r(vt.clone()))];
                 em.providers.push((k, ls));
                 provs.push((k, vt, ls));
@@ -4299,7 +4292,7 @@ fn emit_suspending(
         }
         let (keys_at, provs_at) = (u32_of(cold_params.len() - 2), u32_of(cold_params.len() - 1));
         for (k, vt, ls) in bind.provs {
-            let got = ctx_provider(&mut a, env, k, &vt, keys_at, provs_at);
+            let got = ctx_provider(&mut a, pool, env, k, &vt, keys_at, provs_at);
             for (g, l) in got.into_iter().zip(ls) {
                 a.get(f);
                 a.get(g);
@@ -4522,7 +4515,19 @@ fn root_poll(
     let shared = Layouts::default();
     let lay = Lay::new(pool, env, path, &shared);
     let mut providers = Vec::new();
-    for k in env.row_keys(main, TyList::EMPTY) {
+    for key in env.row_keys(main, TyList::EMPTY) {
+        // A host capability is never generic (`req.use.entry-row`), so the
+        // host table is keyed by the trait alone (codegen.md §13.18).
+        let k = match pool.get(key) {
+            TyData::TraitValue {
+                def,
+                args,
+                bindings,
+            } if args == TyList::EMPTY && bindings.is_empty() => def,
+            _ => {
+                return unsupported(format!("a default provider for `{}`", pool.display(key)));
+            }
+        };
         let p = path(k);
         let Some(host) = hd_host_abi::TABLE
             .iter()

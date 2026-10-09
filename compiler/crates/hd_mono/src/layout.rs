@@ -581,6 +581,15 @@ pub fn canon(pool: &InternPool, path_hash: &dyn Fn(DefId) -> Hash128, t: Ty, h: 
     }
 }
 
+/// A requirement key's content hash: `canon` of the whole key, the trait
+/// with its type arguments and bindings (`req.key.binding.identity`,
+/// codegen.md §13.18). Content order of a row's keys is this hash's order.
+pub fn key_hash(pool: &InternPool, path_hash: &dyn Fn(DefId) -> Hash128, k: Ty) -> Hash128 {
+    let mut kh = StableHasher::new("row-key");
+    canon(pool, path_hash, k, &mut kh);
+    kh.finish()
+}
+
 /// A row's keys in content order (§6.5): each key's `canon` hash, sorted.
 /// The pool lists keys in this run's interning order, which must not reach
 /// an instance key.
@@ -594,11 +603,7 @@ fn canon_row(
         .row_data(r)
         .keys
         .into_iter()
-        .map(|k| {
-            let mut kh = StableHasher::new("row-key");
-            canon(pool, path_hash, k, &mut kh);
-            kh.finish()
-        })
+        .map(|k| key_hash(pool, path_hash, k))
         .collect();
     keys.sort();
     h.u32(u32::try_from(keys.len()).expect("keys"));

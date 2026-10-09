@@ -3575,14 +3575,14 @@ impl Env<'_> {
     /// The row keys of a module init, which has no signature. An entry
     /// module's init has an inferred entry row (`module.init.script-row`),
     /// so its keys are those of the callees its top level calls.
-    fn init_keys(&self, def: DefId) -> Vec<DefId> {
+    fn init_keys(&self, def: DefId) -> Vec<Ty> {
         let Some((b, _)) = self.p.bodies.get(&def) else {
             return Vec::new();
         };
         if b.kind != hd_tir::BodyKind::Init {
             return Vec::new();
         }
-        let mut keys: Vec<DefId> = Vec::new();
+        let mut keys: Vec<Ty> = Vec::new();
         for (i, tag) in b.tags.iter().enumerate() {
             if *tag != hd_tir::Tag::Call {
                 continue;
@@ -3592,16 +3592,11 @@ impl Env<'_> {
             else {
                 continue;
             };
-            for k in self.row_keys(callee, targs) {
-                if !keys.contains(&k) {
-                    keys.push(k);
-                }
-            }
+            keys.extend(self.row_keys(callee, targs));
         }
         // Content order, as `row_keys` does for a signature's row.
         let names = self.run.names();
-        keys.sort_by_key(|k| names.path_hash(*k));
-        keys
+        hd_mono::key_order(&self.run.pool, &|d| names.path_hash(d), keys)
     }
 }
 
@@ -3634,7 +3629,7 @@ impl ProgramEnv for Env<'_> {
     fn suspends(&self, def: DefId) -> bool {
         self.sig(def).is_some_and(|s| s.suspends)
     }
-    fn row_keys(&self, def: DefId, args: TyList) -> Vec<DefId> {
+    fn row_keys(&self, def: DefId, args: TyList) -> Vec<Ty> {
         let Some(s) = self.sig(def) else {
             return self.init_keys(def);
         };
@@ -3649,19 +3644,8 @@ impl ProgramEnv for Env<'_> {
             TyData::Row(r) => r,
             _ => s.row,
         };
-        let mut keys: Vec<DefId> = pool
-            .row_data(row)
-            .keys
-            .into_iter()
-            .filter_map(|k| match self.run.pool.get(k) {
-                hd_types::TyData::TraitValue { def, .. } => Some(def),
-                _ => None,
-            })
-            .collect();
         let names = self.run.names();
-        keys.sort_by_key(|k| names.path_hash(*k));
-        keys.dedup();
-        keys
+        hd_mono::key_order(pool, &|d| names.path_hash(d), pool.row_data(row).keys)
     }
     fn parent(&self, def: DefId) -> Option<(DefId, usize)> {
         let ItemData::Method { owner, .. } = &self.p.items.get(&def)?.data else {

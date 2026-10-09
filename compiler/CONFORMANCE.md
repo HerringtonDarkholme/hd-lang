@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1925 | 640 | 279 | 2844 |
+| 1928 | 637 | 279 | 2844 |
 
 ## By Chapter
 
@@ -24,7 +24,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/08-data-and-enums.md` | 73 | 39 | 11 | 123 |
 | `lang/09-traits.md` | 226 | 102 | 31 | 359 |
 | `lang/10-modules.md` | 144 | 77 | 37 | 258 |
-| `lang/11-requirements-and-suspension.md` | 129 | 60 | 70 | 259 |
+| `lang/11-requirements-and-suspension.md` | 132 | 57 | 70 | 259 |
 | `lang/14-annotations.md` | 104 | 42 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 13 | 0 | 1 | 14 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 68 | 28 | 9 | 105 |
-| `runtime/valid` | 606 | 151 | 172 | 929 |
+| `runtime/valid` | 609 | 148 | 172 | 929 |
 | `typing/invalid` | 597 | 408 | 69 | 1074 |
 | `typing/valid` | 356 | 30 | 29 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -105,7 +105,7 @@ compiler stage that first declined the case.
 | `fail:placeholder-outside-pipe` | 1 |
 | `fail:private-main` | 7 |
 | `fail:re-export-loop` | 1 |
-| `fail:runtime-exit` | 62 |
+| `fail:runtime-exit` | 59 |
 | `fail:stdout` | 3 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
@@ -629,7 +629,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (62)</summary>
+<details><summary><code>fail:runtime-exit</code> (59)</summary>
 
 - `runtime/panic/for-loop-iterator-invalidated.hd`
 - `runtime/panic/invalid-shift.hd`
@@ -682,9 +682,6 @@ compiler stage that first declined the case.
 - `runtime/valid/list-pop.hd`
 - `runtime/valid/list-insert-remove-clear.hd`
 - `runtime/valid/num-to-fixed.hd`
-- `runtime/valid/requirement-row-order-stored-suspension.hd`
-- `runtime/valid/requirement-row-order-trait-value.hd`
-- `runtime/valid/requirement-row-order-data-field.hd`
 - `runtime/valid/dbg-prints-void.hd`
 - `runtime/valid/dbg-without-requirement.hd`
 - `runtime/valid/num-rotate.hd`
@@ -2154,6 +2151,9 @@ runtime/valid/replace-non-overlapping.hd
 runtime/valid/requirement-function-value.hd
 runtime/valid/requirement-row-duplicate-after-substitution.hd
 runtime/valid/requirement-row-forwarded-through-calls.hd
+runtime/valid/requirement-row-order-data-field.hd
+runtime/valid/requirement-row-order-stored-suspension.hd
+runtime/valid/requirement-row-order-trait-value.hd
 runtime/valid/resource-error-operation-payload.hd
 runtime/valid/result-entry-point-ok.hd
 runtime/valid/result-enum-spellings.hd

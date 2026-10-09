@@ -1677,16 +1677,21 @@ the full key:
   full keys; matching a call's providers into a callee instance —
   including one provider per instantiation of a generic
   `fn f[T](... $ Repo[T])` — compares full keys, which falls out of
-  instance keys carrying the type arguments.
+  instance keys carrying the type arguments. As built, A1 (§13.2)
+  had erased an unbounded `T` that only a key names, so a type
+  parameter named by a requirement key (the item's own row, a
+  function type's row, a `$.with` key) is exact.
 - **Emit**: the provider list and `push_providers` key by full key,
   so `ProviderGet` for `Repo[User]` no longer matches `Repo[Post]`.
   Emitted code is unchanged (the same locals); the fix is
   compile-time only.
 - **Host**: host capabilities are never generic — a generic key
   cannot come from the host (`nonhost-entry-requirement`) — so the
-  host lookup path stays trait-keyed and untouched. Row-parameter
-  contexts keep `i64` ids over the canonical key, which already
-  includes the arguments.
+  host lookup path stays trait-keyed and untouched. A function
+  value's context ids are the low bits of the key's content hash
+  (`canon` of the whole key, as a row's content order uses), so
+  they include the arguments; as built, they had been the trait's
+  path hash.
 
 Cost per call: zero at run time (the same locals and the same
 context walk); at compile time, one interned-`Ty` comparison per
