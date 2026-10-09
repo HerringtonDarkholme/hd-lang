@@ -10,7 +10,7 @@
 pub mod layout;
 pub mod passes;
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
 use hd_base::{DefId, Hash128, InstId, NodeIdx, NotImplemented, StableHasher, Stage, StageResult};
@@ -23,7 +23,7 @@ use hd_types::{InternPool, ParamRef, Ty, TyData, TyList};
 
 pub use crate::layout::Sub;
 use crate::layout::{
-    A1Class, KeyArg, LayoutEnv, MAX_CHAIN, MAX_DEPTH, a1_class, canon, instance_key, key_hash,
+    A1Class, CanonMemo, KeyArg, LayoutEnv, MAX_CHAIN, MAX_DEPTH, a1_class, canon, instance_key,
 };
 
 /// What collection reads about the program (the driver implements it over
@@ -140,7 +140,7 @@ pub struct CallTarget {
 
 /// A row's requirement keys in key order (codegen.md §12.4, §13.18): the
 /// trait value types among `keys`, sorted by their content hash
-/// (`layout::key_hash`) and each once, so a caller and its callee agree on
+/// (`layout::canon`) and each once, so a caller and its callee agree on
 /// the order without comparing run-local type numbers. `Repo[User]` and
 /// `Repo[Post]` are two keys.
 pub fn key_order(
@@ -148,10 +148,11 @@ pub fn key_order(
     path_hash: &dyn Fn(DefId) -> Hash128,
     keys: impl IntoIterator<Item = Ty>,
 ) -> Vec<Ty> {
+    let mut memo = CanonMemo::default();
     let mut keyed: Vec<(Hash128, Ty)> = keys
         .into_iter()
         .filter(|k| matches!(pool.get(*k), TyData::TraitValue { .. }))
-        .map(|k| (key_hash(pool, path_hash, k), k))
+        .map(|k| (canon(pool, path_hash, &mut memo, k), k))
         .collect();
     keyed.sort_by_key(|p| p.0);
     keyed.dedup_by_key(|p| p.0);
@@ -278,17 +279,46 @@ pub fn type_name(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> String {
         _ => t,
     };
     let mut out = String::new();
-    name_into(pool, env, t, &mut out);
+    name_into(pool, env, t, &mut out, usize::MAX);
     out
 }
 
-fn name_into(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut String) {
-    let list = |l: &[Ty], out: &mut String| {
+/// The longest type a diagnostic prints in full, in bytes; a longer one is
+/// cut there and ends in `...`. A type that nests 33 deep can have 2^33
+/// leaves (`instantiation-too-deep`, codegen.md §13.4).
+pub const SHOWN_TYPE_MAX: usize = 120;
+
+/// `t` as `type_name` spells it, cut at `SHOWN_TYPE_MAX` bytes: the walk
+/// stops there, so its cost is bounded too, however large the type's tree.
+#[must_use]
+pub fn shown_type(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> String {
+    let mut out = String::new();
+    name_into(pool, env, t, &mut out, SHOWN_TYPE_MAX);
+    if out.len() > SHOWN_TYPE_MAX {
+        let mut cut = SHOWN_TYPE_MAX;
+        while !out.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        out.truncate(cut);
+        out.push_str("...");
+    }
+    out
+}
+
+/// Spells `t` into `out`, and stops once `out` is longer than `limit`.
+fn name_into(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut String, limit: usize) {
+    if out.len() > limit {
+        return;
+    }
+    let list = |l: &[Ty], sep: &str, out: &mut String| {
         for (k, x) in l.iter().enumerate() {
-            if k > 0 {
-                out.push_str(", ");
+            if out.len() > limit {
+                return;
             }
-            name_into(pool, env, *x, out);
+            if k > 0 {
+                out.push_str(sep);
+            }
+            name_into(pool, env, *x, out, limit);
         }
     };
     match pool.get(t) {
@@ -298,7 +328,7 @@ fn name_into(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut String) {
             out.push_str(&env.type_name(def));
             if !pool.list_items(args).is_empty() {
                 out.push('[');
-                list(pool.list_items(args), out);
+                list(pool.list_items(args), ", ", out);
                 out.push(']');
             }
         }
@@ -313,7 +343,7 @@ fn name_into(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut String) {
             let args = pool.list_items(args);
             if !args.is_empty() || !bindings.is_empty() {
                 out.push('[');
-                list(args, out);
+                list(args, ", ", out);
                 for (k, (a, b)) in bindings.iter().enumerate() {
                     if k > 0 || !args.is_empty() {
                         out.push_str(", ");
@@ -321,7 +351,7 @@ fn name_into(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut String) {
                     let n = env.type_name(*a);
                     out.push_str(n.rsplit('.').next().unwrap_or(&n));
                     out.push_str(" = ");
-                    name_into(pool, env, *b, out);
+                    name_into(pool, env, *b, out, limit);
                 }
                 out.push(']');
             }
@@ -329,26 +359,52 @@ fn name_into(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut String) {
         TyData::Tuple { elems, rest } => {
             out.push('(');
             let elems = pool.list_items(elems);
-            list(elems, out);
+            list(elems, ", ", out);
             if let Some(r) = rest {
                 if !elems.is_empty() {
                     out.push_str(", ");
                 }
-                name_into(pool, env, r, out);
+                name_into(pool, env, r, out, limit);
                 out.push_str("...");
             }
             out.push(')');
         }
         TyData::Option(i) => {
-            name_into(pool, env, i, out);
+            name_into(pool, env, i, out, limit);
             out.push('?');
         }
         TyData::Mut(i) => {
             out.push_str("mut ");
-            name_into(pool, env, i, out);
+            name_into(pool, env, i, out, limit);
         }
-        // Not inspectable (trait.inspectable.not.*): never recorded.
-        _ => out.push_str(&pool.display(t)),
+        // Not inspectable (trait.inspectable.not.*): never recorded, but a
+        // diagnostic spells them.
+        TyData::Fn {
+            params,
+            result,
+            suspends,
+            ..
+        } => {
+            out.push_str(if suspends { "fn!(" } else { "fn(" });
+            list(pool.list_items(params), ", ", out);
+            out.push_str(") -> ");
+            name_into(pool, env, result, out, limit);
+        }
+        TyData::Row(r) => {
+            out.push_str("$(");
+            list(&pool.row_data(r).keys, " + ", out);
+            out.push(')');
+        }
+        TyData::Assoc { assoc, self_ty, .. } => {
+            out.push('<');
+            name_into(pool, env, self_ty, out, limit);
+            let n = env.type_name(assoc);
+            out.push_str(">.");
+            out.push_str(n.rsplit('.').next().unwrap_or(&n));
+        }
+        TyData::Poison | TyData::Param(_) | TyData::Infer(_) | TyData::Canon(_) => {
+            out.push_str(&pool.display(t));
+        }
     }
 }
 
@@ -422,17 +478,21 @@ fn unify(pool: &InternPool, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<Opti
 }
 
 /// The items a type names: data types, enums and traits (a projection's
-/// trait included).
-fn items_in(pool: &InternPool, t: Ty, out: &mut Vec<DefId>) {
-    let list = |l: TyList, out: &mut Vec<DefId>| {
+/// trait included). `seen` holds the types already walked, so a type shared
+/// by its parts is walked once however large its tree.
+fn items_in(pool: &InternPool, t: Ty, out: &mut Vec<DefId>, seen: &mut HashSet<Ty>) {
+    if !seen.insert(t) {
+        return;
+    }
+    let list = |l: TyList, out: &mut Vec<DefId>, seen: &mut HashSet<Ty>| {
         for &x in pool.list_items(l) {
-            items_in(pool, x, out);
+            items_in(pool, x, out, seen);
         }
     };
     match pool.get(t) {
         TyData::Adt { def, args } => {
             out.push(def);
-            list(args, out);
+            list(args, out, seen);
         }
         TyData::TraitValue {
             def,
@@ -440,9 +500,9 @@ fn items_in(pool: &InternPool, t: Ty, out: &mut Vec<DefId>) {
             bindings,
         } => {
             out.push(def);
-            list(args, out);
+            list(args, out, seen);
             for (_, b) in bindings {
-                items_in(pool, b, out);
+                items_in(pool, b, out, seen);
             }
         }
         TyData::Assoc {
@@ -452,19 +512,19 @@ fn items_in(pool: &InternPool, t: Ty, out: &mut Vec<DefId>) {
             ..
         } => {
             out.push(trait_);
-            items_in(pool, self_ty, out);
-            list(args, out);
+            items_in(pool, self_ty, out, seen);
+            list(args, out, seen);
         }
         TyData::Tuple { elems, rest } => {
-            list(elems, out);
+            list(elems, out, seen);
             if let Some(r) = rest {
-                items_in(pool, r, out);
+                items_in(pool, r, out, seen);
             }
         }
-        TyData::Option(i) | TyData::Mut(i) => items_in(pool, i, out),
+        TyData::Option(i) | TyData::Mut(i) => items_in(pool, i, out, seen),
         TyData::Fn { params, result, .. } => {
-            list(params, out);
-            items_in(pool, result, out);
+            list(params, out, seen);
+            items_in(pool, result, out, seen);
         }
         _ => {}
     }
@@ -497,16 +557,17 @@ fn layout_hash(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     t: Ty,
+    canons: &mut CanonMemo,
     memo: &mut HashMap<DefId, Hash128>,
 ) -> Hash128 {
     let ph = |d: DefId| env.path_hash(d);
     let mut h = StableHasher::new("layout-hash");
-    canon(pool, &ph, t, &mut h);
+    h.hash(canon(pool, &ph, canons, t));
     let mut items = Vec::new();
-    items_in(pool, t, &mut items);
+    items_in(pool, t, &mut items, &mut HashSet::new());
     let mut hashes: Vec<Hash128> = items
         .into_iter()
-        .map(|d| declarations_hash(pool, env, d, memo))
+        .map(|d| declarations_hash(pool, env, d, canons, memo))
         .collect();
     hashes.sort_unstable();
     hashes.dedup();
@@ -526,6 +587,7 @@ fn declarations_hash(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     root: DefId,
+    canons: &mut CanonMemo,
     memo: &mut HashMap<DefId, Hash128>,
 ) -> Hash128 {
     if let Some(h) = memo.get(&root) {
@@ -533,15 +595,16 @@ fn declarations_hash(
     }
     let ph = |d: DefId| env.path_hash(d);
     // An item's own hash and the items its declared types name.
-    let read = |d: DefId| {
+    let read = |d: DefId, canons: &mut CanonMemo| {
         let mut h = StableHasher::new("declaration");
         h.hash(ph(d));
         let mut names = Vec::new();
+        let mut seen = HashSet::new();
         let tys = declared_types(env, d);
         h.u32(u32::try_from(tys.len()).expect("types"));
         for t in tys {
-            canon(pool, &ph, t, &mut h);
-            items_in(pool, t, &mut names);
+            h.hash(canon(pool, &ph, canons, t));
+            items_in(pool, t, &mut names, &mut seen);
         }
         names.sort_unstable_by_key(|n| n.raw());
         names.dedup();
@@ -549,7 +612,7 @@ fn declarations_hash(
     };
     // Per visited item, by visit number: the item, its own hash, the items
     // it names, its low link and whether it is on `stack`.
-    let (own, names) = read(root);
+    let (own, names) = read(root, canons);
     let mut index: HashMap<DefId, usize> = HashMap::from([(root, 0)]);
     let mut nodes = vec![(root, own, names)];
     let (mut low, mut on, mut stack) = (vec![0], vec![true], vec![0]);
@@ -564,7 +627,7 @@ fn declarations_hash(
                 None => {
                     let i = nodes.len();
                     index.insert(w, i);
-                    let (own, names) = read(w);
+                    let (own, names) = read(w, canons);
                     nodes.push((w, own, names));
                     low.push(i);
                     on.push(true);
@@ -642,6 +705,9 @@ struct Cx<'a> {
     /// Per item: which of its own type parameters need their exact
     /// representation (A1's representation summary, §13.2).
     exact: HashMap<DefId, Vec<bool>>,
+    /// `canon` per type, for the build: instance keys, layout hashes and
+    /// call targets read each type's digest once.
+    canons: CanonMemo,
     /// `declarations_hash` per item, for the build.
     layouts: HashMap<DefId, Hash128>,
     /// Nesting depth per type, so a type shared by its parts is walked
@@ -683,9 +749,11 @@ fn err<T>(what: &str) -> StageResult<T> {
 }
 
 impl Cx<'_> {
-    fn key(&self, item: DefId, sub: Sub, args: TyList) -> Hash128 {
-        let ph = |d: DefId| self.env.path_hash(d);
-        instance_key(self.pool, &ph, item, sub, &key_args(self.pool, args))
+    fn key(&mut self, item: DefId, sub: Sub, args: TyList) -> Hash128 {
+        let env = self.env;
+        let ph = |d: DefId| env.path_hash(d);
+        let args = key_args(self.pool, args);
+        instance_key(self.pool, &ph, &mut self.canons, item, sub, &args)
     }
 
     /// Pushes an instance that `parent` requests; returns its key. A new
@@ -795,12 +863,17 @@ impl Cx<'_> {
             p = table.parent[p.idx()];
         }
         ids.reverse();
+        // Each type argument is cut at `SHOWN_TYPE_MAX`: the last
+        // instance's can have 2^33 leaves.
         let name = |item: DefId, args: TyList| {
             let args = self.pool.list_items(args);
             if args.is_empty() {
                 format!("`{}`", self.env.describe(item))
             } else {
-                let shown: Vec<String> = args.iter().map(|&t| self.pool.display(t)).collect();
+                let shown: Vec<String> = args
+                    .iter()
+                    .map(|&t| shown_type(self.pool, self.env, t))
+                    .collect();
                 format!("`{}[{}]`", self.env.describe(item), shown.join(", "))
             }
         };
@@ -812,13 +885,11 @@ impl Cx<'_> {
         if ids.len() > 3 {
             shown.push("...".to_owned());
         }
-        // The last instance's arguments may be too large to print.
+        shown.push(name(item, args));
         let last = format!("`{}`", self.env.describe(item));
         let why = if depth > u32::from(MAX_DEPTH) {
-            shown.push(format!("{last} with type arguments {depth} deep"));
             format!("its type arguments nest {depth} deep, past the limit of {MAX_DEPTH}")
         } else {
-            shown.push(name(item, args));
             format!("its request chain is {chain} long, past the limit of {MAX_CHAIN}")
         };
         let message = format!(
@@ -1196,20 +1267,21 @@ impl Cx<'_> {
 
     /// What a code entry reads of a call's target: the callee's identity,
     /// instance and signature (walking skeleton, SK-3).
-    fn hash_target(&self, t: &CallTarget, reps: &mut StableHasher) {
+    fn hash_target(&mut self, t: &CallTarget, reps: &mut StableHasher) {
         let (pool, env) = (self.pool, self.env);
+        let memo = &mut self.canons;
         reps.hash(env.path_hash(t.item));
         reps.hash(t.key);
         let ph = |d: DefId| env.path_hash(d);
-        canon(pool, &ph, t.ret, reps);
+        reps.hash(canon(pool, &ph, memo, t.ret));
         for p in env.params(t.item).unwrap_or_default() {
-            canon(pool, &ph, subst(pool, env, t.item, t.args, p), reps);
+            reps.hash(canon(pool, &ph, memo, subst(pool, env, t.item, t.args, p)));
         }
         for b in env.bounded(t.item).unwrap_or_default() {
             reps.u8(u8::from(b));
         }
         for k in env.row_keys(t.item, t.args) {
-            reps.hash(key_hash(pool, &ph, k));
+            reps.hash(canon(pool, &ph, memo, k));
         }
     }
 
@@ -1229,7 +1301,13 @@ impl Cx<'_> {
         types.extend(env.ret(item));
         for t in types {
             let t = s(t);
-            reps.hash(layout_hash(pool, env, t, &mut self.layouts));
+            reps.hash(layout_hash(
+                pool,
+                env,
+                t,
+                &mut self.canons,
+                &mut self.layouts,
+            ));
             note_data(pool, env, t, &mut self.out.data);
         }
         reps.u8(u8::from(env.suspends(item)));
@@ -1323,7 +1401,13 @@ impl Cx<'_> {
         for i in 0..body.len() {
             let ty = s(body.ty[i]);
             if seen.insert(ty) {
-                reps.hash(layout_hash(pool, env, ty, &mut self.layouts));
+                reps.hash(layout_hash(
+                    pool,
+                    env,
+                    ty,
+                    &mut self.canons,
+                    &mut self.layouts,
+                ));
             }
             note_data(pool, env, ty, &mut self.out.data);
             // A generated body's nodes are in no source file.
@@ -1674,6 +1758,7 @@ pub fn collect(
         memo: BodyMemo::default(),
         selected: HashMap::new(),
         exact: HashMap::new(),
+        canons: CanonMemo::default(),
         layouts: HashMap::new(),
         depths: HashMap::new(),
         at: None,

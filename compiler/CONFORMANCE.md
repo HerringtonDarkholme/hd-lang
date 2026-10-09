@@ -3266,12 +3266,13 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 68 | 34 | 0 | 102 |
+| 69 | 33 | 0 | 102 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
 <!-- cli-pass-list-start -->
 ```text
+cli/build-instantiation-too-deep
 cli/build-library-only
 cli/build-output
 cli/cap-total-deny

@@ -23,7 +23,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
 use hd_base::{DefId, StableHasher, StageResult};
-use hd_mono::layout::{LayoutEnv, StdKind, canon, sccs, value_enums};
+use hd_mono::layout::{CanonMemo, LayoutEnv, StdKind, canon, sccs, value_enums};
 use hd_mono::{ProgramEnv, class_ref, is_class_ref, subst};
 use hd_types::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
 
@@ -56,7 +56,8 @@ pub fn ctx_provs() -> WTy {
 /// `Repo[Post]` have two ids (codegen.md §13.18).
 #[must_use]
 pub fn key_id(pool: &InternPool, env: &dyn ProgramEnv, k: Ty) -> i64 {
-    let bytes = hd_mono::layout::key_hash(pool, &|d| env.path_hash(d), k)
+    let ph = |d: DefId| env.path_hash(d);
+    let bytes = canon(pool, &ph, &mut CanonMemo::default(), k)
         .0
         .to_le_bytes();
     i64::from_le_bytes(bytes[..8].try_into().unwrap_or_default())
@@ -1032,13 +1033,10 @@ impl<'a> Lay<'a> {
         }
         // Nominal members by canonical key: `rank[i]` of member `i`.
         let path_hash = |d: DefId| self.env.path_hash(d);
+        let mut memo = CanonMemo::default();
         let keys: Vec<_> = members
             .iter()
-            .map(|m| {
-                let mut h = StableHasher::new("rec-member");
-                canon(self.pool, &path_hash, m.0, &mut h);
-                h.finish()
-            })
+            .map(|m| canon(self.pool, &path_hash, &mut memo, m.0))
             .collect();
         let mut by_key: Vec<usize> = (0..members.len()).collect();
         by_key.sort_by_key(|&i| keys[i]);

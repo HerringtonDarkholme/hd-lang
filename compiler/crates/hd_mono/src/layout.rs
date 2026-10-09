@@ -484,9 +484,31 @@ pub fn a1_class(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> StageResult<A1
     })
 }
 
-/// `canon(T)`: the structural encoding over stable paths (§13.3). The
+/// Each type's `canon` digest, for one build: a type is encoded once, and
+/// every type that holds it reads its digest back.
+#[derive(Default, Debug)]
+pub struct CanonMemo(HashMap<Ty, Hash128>);
+
+/// `canon(T)`: the structural encoding over stable paths (§13.3), as a
+/// Merkle digest. Each part of a compound type enters as its own digest,
+/// memoized in `memo`, so equal types hash equal however they were built,
+/// and the walk is linear in the distinct types of `t`, never in its tree
+/// (a tuple that doubles per level has 2^d leaves but d + 1 types). The
 /// caller supplies each item's stable path hash.
-pub fn canon(pool: &InternPool, path_hash: &dyn Fn(DefId) -> Hash128, t: Ty, h: &mut StableHasher) {
+///
+/// A requirement key's content hash is `canon` of the whole key, the trait
+/// with its type arguments and bindings (`req.key.binding.identity`,
+/// codegen.md §13.18); content order of a row's keys is its order.
+pub fn canon(
+    pool: &InternPool,
+    path_hash: &dyn Fn(DefId) -> Hash128,
+    memo: &mut CanonMemo,
+    t: Ty,
+) -> Hash128 {
+    if let Some(&d) = memo.0.get(&t) {
+        return d;
+    }
+    let mut h = StableHasher::new("canon");
     match pool.get(t) {
         TyData::Prim(p) => {
             h.u8(0);
@@ -496,18 +518,18 @@ pub fn canon(pool: &InternPool, path_hash: &dyn Fn(DefId) -> Hash128, t: Ty, h: 
         TyData::Adt { def, args } => {
             h.u8(2);
             h.hash(path_hash(def));
-            canon_list(pool, path_hash, args, h);
+            canon_list(pool, path_hash, memo, args, &mut h);
         }
         TyData::Tuple { elems, rest } => {
             h.u8(3);
-            canon_list(pool, path_hash, elems, h);
+            canon_list(pool, path_hash, memo, elems, &mut h);
             if let Some(r) = rest {
-                canon(pool, path_hash, r, h);
+                h.hash(canon(pool, path_hash, memo, r));
             }
         }
         TyData::Option(i) => {
             h.u8(4);
-            canon(pool, path_hash, i, h);
+            h.hash(canon(pool, path_hash, memo, i));
         }
         TyData::Fn {
             params,
@@ -516,9 +538,9 @@ pub fn canon(pool: &InternPool, path_hash: &dyn Fn(DefId) -> Hash128, t: Ty, h: 
             suspends,
         } => {
             h.u8(5);
-            canon_list(pool, path_hash, params, h);
-            canon(pool, path_hash, result, h);
-            canon_row(pool, path_hash, row, h);
+            canon_list(pool, path_hash, memo, params, &mut h);
+            h.hash(canon(pool, path_hash, memo, result));
+            canon_row(pool, path_hash, memo, row, &mut h);
             h.u8(u8::from(suspends));
         }
         TyData::TraitValue {
@@ -528,15 +550,11 @@ pub fn canon(pool: &InternPool, path_hash: &dyn Fn(DefId) -> Hash128, t: Ty, h: 
         } => {
             h.u8(6);
             h.hash(path_hash(def));
-            canon_list(pool, path_hash, args, h);
+            canon_list(pool, path_hash, memo, args, &mut h);
             // Bindings in content order: (associated item path, canon).
             let mut bs: Vec<(Hash128, Hash128)> = bindings
                 .into_iter()
-                .map(|(a, t)| {
-                    let mut kh = StableHasher::new("binding");
-                    canon(pool, path_hash, t, &mut kh);
-                    (path_hash(a), kh.finish())
-                })
+                .map(|(a, t)| (path_hash(a), canon(pool, path_hash, memo, t)))
                 .collect();
             bs.sort();
             h.u32(u32::try_from(bs.len()).expect("bindings"));
@@ -547,11 +565,11 @@ pub fn canon(pool: &InternPool, path_hash: &dyn Fn(DefId) -> Hash128, t: Ty, h: 
         }
         TyData::Mut(i) => {
             h.u8(7);
-            canon(pool, path_hash, i, h);
+            h.hash(canon(pool, path_hash, memo, i));
         }
         TyData::Row(r) => {
             h.u8(8);
-            canon_row(pool, path_hash, r, h);
+            canon_row(pool, path_hash, memo, r, &mut h);
         }
         TyData::Poison => h.u8(9),
         TyData::Param(p) => {
@@ -568,8 +586,8 @@ pub fn canon(pool: &InternPool, path_hash: &dyn Fn(DefId) -> Hash128, t: Ty, h: 
             h.u8(11);
             h.hash(path_hash(assoc));
             h.hash(path_hash(trait_));
-            canon(pool, path_hash, self_ty, h);
-            canon_list(pool, path_hash, args, h);
+            h.hash(canon(pool, path_hash, memo, self_ty));
+            canon_list(pool, path_hash, memo, args, &mut h);
         }
         // Inference variables and canonical placeholders never reach an
         // instance key; encode the form only, never a run-local number.
@@ -579,23 +597,18 @@ pub fn canon(pool: &InternPool, path_hash: &dyn Fn(DefId) -> Hash128, t: Ty, h: 
             h.u8(n);
         }
     }
+    let d = h.finish();
+    memo.0.insert(t, d);
+    d
 }
 
-/// A requirement key's content hash: `canon` of the whole key, the trait
-/// with its type arguments and bindings (`req.key.binding.identity`,
-/// codegen.md §13.18). Content order of a row's keys is this hash's order.
-pub fn key_hash(pool: &InternPool, path_hash: &dyn Fn(DefId) -> Hash128, k: Ty) -> Hash128 {
-    let mut kh = StableHasher::new("row-key");
-    canon(pool, path_hash, k, &mut kh);
-    kh.finish()
-}
-
-/// A row's keys in content order (§6.5): each key's `canon` hash, sorted.
+/// A row's keys in content order (§6.5): each key's `canon` digest, sorted.
 /// The pool lists keys in this run's interning order, which must not reach
 /// an instance key.
 fn canon_row(
     pool: &InternPool,
     path_hash: &dyn Fn(DefId) -> Hash128,
+    memo: &mut CanonMemo,
     r: hd_types::RowId,
     h: &mut StableHasher,
 ) {
@@ -603,7 +616,7 @@ fn canon_row(
         .row_data(r)
         .keys
         .into_iter()
-        .map(|k| key_hash(pool, path_hash, k))
+        .map(|k| canon(pool, path_hash, memo, k))
         .collect();
     keys.sort();
     h.u32(u32::try_from(keys.len()).expect("keys"));
@@ -627,13 +640,14 @@ fn canon_row(
 fn canon_list(
     pool: &InternPool,
     path_hash: &dyn Fn(DefId) -> Hash128,
+    memo: &mut CanonMemo,
     l: TyList,
     h: &mut StableHasher,
 ) {
     let items = pool.list_items(l);
     h.u32(u32::try_from(items.len()).expect("list"));
     for &t in items {
-        canon(pool, path_hash, t, h);
+        h.hash(canon(pool, path_hash, memo, t));
     }
 }
 
@@ -683,6 +697,7 @@ impl std::fmt::Display for Sub {
 pub fn instance_key(
     pool: &InternPool,
     path_hash: &dyn Fn(DefId) -> Hash128,
+    memo: &mut CanonMemo,
     item: DefId,
     sub: Sub,
     args: &[KeyArg],
@@ -695,7 +710,7 @@ pub fn instance_key(
         match a {
             KeyArg::Canon(t) => {
                 h.u8(0);
-                canon(pool, path_hash, *t, &mut h);
+                h.hash(canon(pool, path_hash, memo, *t));
             }
             KeyArg::Class(c) => {
                 h.u8(1);
@@ -791,8 +806,8 @@ impl InstanceTable {
 #[cfg(test)]
 mod tests {
     use super::{
-        A1Class, InstanceTable, KeyArg, LayoutClass, LayoutEnv, StdKind, Sub, ValType, a1_class,
-        instance_key, layout_of,
+        A1Class, CanonMemo, InstanceTable, KeyArg, LayoutClass, LayoutEnv, StdKind, Sub, ValType,
+        a1_class, instance_key, layout_of,
     };
     use hd_base::{DefId, Hash128, InstId};
     use hd_types::{InternPool, Ty, TyData, TyList};
@@ -912,9 +927,8 @@ mod tests {
             row,
             suspends: false,
         });
-        let mut h = hd_base::StableHasher::new("t");
-        super::canon(&p, &|d| Hash128(u128::from(d.raw()) * 977), f, &mut h);
-        h.finish()
+        let ph = |d: DefId| Hash128(u128::from(d.raw()) * 977);
+        super::canon(&p, &ph, &mut CanonMemo::default(), f)
     }
 
     /// `canon` of a tuple of a parameter, an associated projection and a
@@ -968,9 +982,7 @@ mod tests {
             elems: p.list(&[proj, tv]),
             rest: None,
         });
-        let mut h = hd_base::StableHasher::new("t");
-        super::canon(&p, &path, tup, &mut h);
-        h.finish()
+        super::canon(&p, &path, &mut CanonMemo::default(), tup)
     }
 
     #[test]
@@ -989,9 +1001,8 @@ mod tests {
             })
         };
         let enc = |t: Ty| {
-            let mut h = hd_base::StableHasher::new("t");
-            super::canon(&p, &|d| Hash128(u128::from(d.raw())), t, &mut h);
-            h.finish()
+            let ph = |d: DefId| Hash128(u128::from(d.raw()));
+            super::canon(&p, &ph, &mut CanonMemo::default(), t)
         };
         assert_ne!(enc(tv(Ty::I32)), enc(tv(Ty::STRING)));
     }
@@ -999,6 +1010,71 @@ mod tests {
     #[test]
     fn canon_of_a_row_ignores_interning_order() {
         assert_eq!(fn_canon(false), fn_canon(true));
+    }
+
+    /// `T` paired with itself `levels` times over: a tree of 2^levels
+    /// leaves, but `levels + 1` distinct types in the pool.
+    fn doubled(p: &InternPool, levels: u32) -> Ty {
+        (0..levels).fold(Ty::I32, |t, _| {
+            p.intern_ty(&TyData::Tuple {
+                elems: p.list(&[t, t]),
+                rest: None,
+            })
+        })
+    }
+
+    #[test]
+    fn canon_walks_distinct_types_not_the_tree() {
+        // 2^64 leaves: a tree walk would never end.
+        let p = InternPool::new();
+        let ph = |d: DefId| Hash128(u128::from(d.raw()));
+        let mut memo = CanonMemo::default();
+        let deep = doubled(&p, 64);
+        let start = std::time::Instant::now();
+        let k = instance_key(
+            &p,
+            &ph,
+            &mut memo,
+            DefId::from_raw(1),
+            Sub::Body(0),
+            &[KeyArg::Canon(deep)],
+        );
+        assert!(start.elapsed() < std::time::Duration::from_secs(1));
+        assert_eq!(memo.0.len(), 65);
+        assert_ne!(k, Hash128(0));
+    }
+
+    #[test]
+    fn equal_types_built_two_ways_hash_equal() {
+        // `((i32, i32), (i32, i32))` from the shared pair, and from two
+        // pairs built in another pool in another order: one digest, and
+        // one with no memo shared between them.
+        let ph = |d: DefId| Hash128(u128::from(d.raw()));
+        let p = InternPool::new();
+        let shared = doubled(&p, 2);
+        let q = InternPool::new();
+        let _noise = q.intern_ty(&TyData::Option(Ty::STRING));
+        let pair = |q: &InternPool| {
+            q.intern_ty(&TyData::Tuple {
+                elems: q.list(&[Ty::I32, Ty::I32]),
+                rest: None,
+            })
+        };
+        let (left, right) = (pair(&q), pair(&q));
+        let built = q.intern_ty(&TyData::Tuple {
+            elems: q.list(&[left, right]),
+            rest: None,
+        });
+        let a = super::canon(&p, &ph, &mut CanonMemo::default(), shared);
+        let b = super::canon(&q, &ph, &mut CanonMemo::default(), built);
+        assert_eq!(a, b);
+        // A warm memo gives the same digest as a cold one.
+        let mut memo = CanonMemo::default();
+        let _ = super::canon(&q, &ph, &mut memo, left);
+        assert_eq!(super::canon(&q, &ph, &mut memo, built), b);
+        // And a different type a different one.
+        let other = doubled(&p, 3);
+        assert_ne!(super::canon(&p, &ph, &mut CanonMemo::default(), other), a);
     }
 
     #[test]
@@ -1071,14 +1147,15 @@ mod tests {
         let ph = |d: DefId| Hash128(u128::from(d.raw()) * 7919);
         let push = DefId::from_raw(4);
         let body = Sub::Body(0);
-        let a = instance_key(&p, &ph, push, body, &[KeyArg::Class(A1Class::Ref)]);
-        let b = instance_key(&p, &ph, push, body, &[KeyArg::Class(A1Class::Ref)]);
-        let c = instance_key(&p, &ph, push, body, &[KeyArg::Canon(Ty::I32)]);
+        let m = &mut CanonMemo::default();
+        let a = instance_key(&p, &ph, m, push, body, &[KeyArg::Class(A1Class::Ref)]);
+        let b = instance_key(&p, &ph, m, push, body, &[KeyArg::Class(A1Class::Ref)]);
+        let c = instance_key(&p, &ph, m, push, body, &[KeyArg::Canon(Ty::I32)]);
         assert_eq!(a, b);
         assert_ne!(a, c);
         // An adapter and the last body index never share a key.
-        let last = instance_key(&p, &ph, push, Sub::Body(u16::MAX), &[]);
-        assert_ne!(last, instance_key(&p, &ph, push, Sub::Adapter, &[]));
+        let last = instance_key(&p, &ph, m, push, Sub::Body(u16::MAX), &[]);
+        assert_ne!(last, instance_key(&p, &ph, m, push, Sub::Adapter, &[]));
         let mut t = InstanceTable::default();
         let (root, new) = t.push(push, body, TyList::EMPTY, 0, InstId::NONE, a);
         assert!(new);

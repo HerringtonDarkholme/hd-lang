@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 
 use hd_base::{DefId, Hash128, StableHasher, StageResult};
-use hd_mono::layout::{canon, inline_map_key};
+use hd_mono::layout::{CanonMemo, canon, inline_map_key};
 use hd_mono::{CallTarget, ProgramEnv, Target, TargetKind, VTable, key_order, subst};
 use hd_tir::ir::{
     Body, Callee, ChoiceKind, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags,
@@ -3308,7 +3308,12 @@ impl<'a> Em<'a> {
         let ty = self.lay.strip(ty);
         let mut h = StableHasher::new("canonical-data");
         let path_hash = |d: DefId| self.env().path_hash(d);
-        canon(self.pool(), &path_hash, ty, &mut h);
+        h.hash(canon(
+            self.pool(),
+            &path_hash,
+            &mut CanonMemo::default(),
+            ty,
+        ));
         self.a.global_get(GSym::Canon(h.finish(), VT::r(st)));
         self.store(i)
     }

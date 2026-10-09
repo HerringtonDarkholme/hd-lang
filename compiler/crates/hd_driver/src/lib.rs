@@ -3009,12 +3009,14 @@ impl Run<'_> {
         // are part of every code key, so two programs that declare one path
         // with different fields never share code.
         let mut layouts = hd_base::StableHasher::new("data-layouts");
+        let mut canons = hd_mono::layout::CanonMemo::default();
+        let ph = |x: DefId| env.path_hash(x);
         for d in &collected.data {
             layouts.hash(d.0);
             let fields = env.data_fields(d.def()).unwrap_or_default();
             layouts.u32(u32::try_from(fields.len()).unwrap_or(u32::MAX));
             for f in fields {
-                hd_mono::layout::canon(&self.pool, &|x| env.path_hash(x), f, &mut layouts);
+                layouts.hash(hd_mono::layout::canon(&self.pool, &ph, &mut canons, f));
             }
         }
         let layouts = layouts.finish();
