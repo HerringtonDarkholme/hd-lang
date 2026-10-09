@@ -229,6 +229,8 @@ instance.
 | `Prim` | one `prim_value` lowering, shared with the intrinsic std operator and comparison methods (`add`..`rem`, `neg`, bitwise, `not`, `shl`, `shr`, `eq` map to their `PrimOp`): overflow checks, division rules and panics have one source. `cmp` and `partial_cmp` build the `Ordering` tag as 1 + (a > b) − (a < b); float `partial_cmp` answers `.None` on NaN. A shift count keeps its own width and is extended or wrapped to the value's width |
 | `CallDyn` | `struct.get` of the vtable slot, then `call_ref`; a generic method also gets its witness global (§13.5.1). When the vtable is a known constant global after inlining, a direct `call` of the slot's function, which the inliner may then inline (§12.6) |
 | `CallValue` | `struct.get` of the closure's code, then `call_ref` with the closure as the first argument |
+| `MapIter` | §13.12's iterator: a `Closure` struct `{code, map, pos}`, built like `ListIter`'s `{code, list, index}` |
+| `MapRemove` | §13.12's removal: probe to the entry, write the tombstone, return the old value as an `Option` |
 | `ItemRef` | a function reference value, built as §13.11's adapter: a `Closure` struct whose code is the adapter instance |
 | `CallHost` | an import call with the exchange-buffer codecs (§17.2) |
 | `Closure` | a struct of the closure's environment: `Copy` and `Move` captures as fields, `Shared` ones as their cells; a closure with no capture is a constant global |
@@ -1413,3 +1415,47 @@ byte-identical adapters, and bounded inlining can inline an adapter at
 a known-callee `CallValue` site. Per §13.9's table, adapters are bounded
 by reachability: only (item, type arguments) pairs actually referenced
 as values exist.
+
+### 13.12 Map Iteration And Removal
+
+19 programs stop at Emit on `MapIter`, 3 on `MapRemove`, 3 on map keys
+that are not integers or strings. Today a map is insertion-ordered
+parallel arrays with a linear key search, integers compare inline and
+strings through the `StrEq` helper; anything else is `unsupported`.
+The table below keeps that substrate and fills the three gaps on the
+`$Map_K_V` layout of representation-runtime.md §7.2 (`index`,
+`hashes`, `keys`, `values`, `used`, `live`).
+
+**Iterator state.** `MapIter` builds a `Closure` struct `{code, map,
+pos: i32}`, mirroring `ListIter`'s `{code, list, index}` and the same
+closure ABI. The step function `() -> (K, V)?` scans entries from
+`pos` to `used`, skipping tombstones, yields `(keys[i], values[i])`
+for the first live entry and advances past it, and answers `.None`
+when no live entry remains.
+
+**Order.** Iteration follows entry order: replacing a value keeps its
+entry (`types.map.replace.in-place`), removal writes a tombstone
+without moving survivors, reinsertion appends a fresh entry at the
+end, and growth compacts (drops tombstones, rehashes) preserving entry
+order. That satisfies `types.map.order.deterministic` (same operations
+→ same order every run) while staying unspecified beyond it
+(`types.map.order.unspecified`).
+
+**Removal.** `MapRemove(key)` probes `index` to the entry (past
+tombstones, stopping at empty), writes the tombstone marker,
+decrements `live`, and returns the old value as an `Option`
+(`.None` when absent). Lookup probes the same way. Growth compacts
+when the table fills.
+
+**Other key types.** The key bound is already checked
+(`Map[K < Eq & Hash, V]`, `types.map-key.declared-bound`): at Emit,
+`MapGet`/`MapSet`/`MapRemove` hash with a monomorphized call of the
+substituted key type's `Hash` impl and compare with its `Eq` impl on
+a hash match (`types.map.eq-hash`). Collection pushes those impl
+method instances as it does `Bound` choices (§13.2 step 4); the
+integer and string inline paths stay as specializations. The stored
+`hashes` array keeps stale-key behavior (`types.map.stale`): a key
+mutated after insertion keeps its entry, unreachable by a fresh
+lookup. Footprint per `(K, V)` is one step function plus the iterator
+closure, the same shape as list iterators; merging (§13.7) folds
+identical steps.

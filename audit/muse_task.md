@@ -105,15 +105,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### R7. Design Note: Map Iteration And Removal (#124, Design Text)
-
-19 programs stop at Emit on `MapIter`, 3 on `MapRemove`, 3 on map keys
-that are not `int` or `string`. Read `representation-runtime.md` (the
-Map layout) and the spec's Map rules (iteration order, removal), then
-add to `codegen.md`: the iterator state, the order it yields, how removal
-keeps that order, and hashing and equality for other key types through
-their `Hash`/`Eq` impls. Timebox 45 minutes.
-
 ### R8. Design Note: Default Arguments At Run Time (#32, Design Text)
 
 9 programs stop at Emit on `DefaultCall`, plus derive defaults and facts
@@ -257,3 +248,17 @@ where the callee takes no callback). The spec is frozen, so a new
 code needs an owner decision; the fallback is reusing `type-mismatch`
 on the block. Recommend asking the owner for a code
 (`trailing-block-ineligible` or reuse) before the Check task lands.
+
+### Q-R7: iteration-during-mutation and impl resolution (R7, 2026-10-09)
+
+1. **Snapshot `used` at iterator creation (recommended).** Entries
+   appended while an iteration runs stay invisible; entries removed
+   before their yield are skipped via the live tombstone check. The
+   alternative (a live end-cursor that picks up appends) makes the
+   yield set depend on interleaving the spec does not describe.
+   Recommend snapshot + tombstone checks.
+2. **Emit re-selects the key impls (recommended).** The intrinsic node
+   carries only the key type; Emit asks the solver for the `Hash`/`Eq`
+   impls at the instance's substituted types instead of Check
+   recording them on the node, so the TIR schema does not change.
+   Recommend Emit-side selection.
