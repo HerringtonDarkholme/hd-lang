@@ -2407,6 +2407,7 @@ impl Ck<'_, '_> {
                     variadic: sig.variadic,
                 };
                 refs.extend(self.check_args(&formals, 1, args, n, name)?);
+                self.fill_method_defaults(&sig, &vars, &inst, want)?;
                 // `h.fact::[D]()` on a structure handle reads a typed fact
                 // (annot.handle.fact.typed): `D` is matched against the
                 // member's type, not bounded by `Inspectable`.

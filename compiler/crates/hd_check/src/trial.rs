@@ -413,6 +413,47 @@ impl Ck<'_, '_> {
         Ok(open)
     }
 
+    /// `types.generic.default.fill` for a method call: a type parameter
+    /// the arguments left unsolved takes its declared default, after the
+    /// expected type had its say (`types.generic.default.argument-wins`).
+    /// `inst` substitutes the impl's and the method's parameters.
+    pub(crate) fn fill_method_defaults(
+        &mut self,
+        sig: &FnSig,
+        vars: &[Ty],
+        inst: &dyn Fn(Ty) -> Ty,
+        want: Option<Ty>,
+    ) -> StageResult<()> {
+        let pool = self.pool();
+        let open = |this: &Self| {
+            sig.generics
+                .iter()
+                .enumerate()
+                .any(|(i, g)| g.default.is_some() && this.unsolved(vars[i]))
+        };
+        if !open(self) {
+            return Ok(());
+        }
+        if let Some(w) = want
+            && w != Ty::VOID
+            && !sig.suspends
+        {
+            let ret = self.normalize_deep(inst(sig.ret))?;
+            let snap = self.infer.snapshot();
+            if self.infer.unify(pool, ret, w).is_err() {
+                self.infer.rollback(snap);
+            }
+        }
+        for (i, g) in sig.generics.iter().enumerate() {
+            if let Some(d) = g.default
+                && self.unsolved(vars[i])
+            {
+                let _ = self.infer.unify(pool, vars[i], inst(d));
+            }
+        }
+        Ok(())
+    }
+
     /// What the bounds naming parameter `i` allow: each bound's one
     /// instantiation, paired with the bound's own arguments to unify.
     fn bound_instantiations(
