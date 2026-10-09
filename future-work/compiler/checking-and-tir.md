@@ -273,6 +273,14 @@ ranges, `Option` and tuples.
   Eq` reaches it as an ordinary `Impl` and the search meets no cycle
   ([trait-solver.md §3.10](trait-solver.md#310-derives-delegation-and-error)).
   The derive-instance task checks only member obligations.
+- **Opt-in bodies become the derived methods (#119).** Each checked
+  template method becomes a method of the derived implementation: the
+  opt-in body is kept, the template's `T` replaced by the target and
+  the methods' parameters by the instance's (`hd_tir::wire::map_ids`
+  rewrites every run ID — items, types, lists, constants), and each
+  `Structure` call chooses the derivation itself (`Impl` choice), so
+  collection calls these bodies directly. The bodies and the derived
+  methods' items join the module's check entry.
 - **Header goals are not body work.** Supertraits of each impl,
   supertrait bindings, a derived newtype's base impl and a delegation
   target's impl are checked by the folder's `HeaderCheck(F)` task

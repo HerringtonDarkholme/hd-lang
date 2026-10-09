@@ -102,21 +102,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### D2o. Design Text For Derive Codegen (#119)
-
-Commit "Codegen: derived implementations instantiate their template (#119)"
-landed. Read its diff and write it into the design text: in
-`future-work/compiler/checking-and-tir.md` §4.13.9, how an opt-in's checked
-template methods become the derived implementation's methods
-(`hd_tir::wire::map_ids`, Structure calls choosing the derivation); in
-`future-work/compiler/codegen.md` §12.3, the generated `Structure` bodies
-(`hd_check/src/structure.rs`: facts, name, walk, describe, build, one hidden
-method per handle) and what is not carried yet (facts, doc comments, shared
-constructor data); and in §13.2 the refined A1 rule: an own type parameter
-stays exact when a data type, tuple, function type, trait value or projection
-in the item's signature or body holds it. Docs only; one commit; push.
-Timebox 40 minutes.
-
 ### F1. Fixtures: `fn main() -> i32` Becomes `-> void` (Owner, 2026-10-08)
 
 122 conformance fixtures declare `fn main() -> i32`, which

@@ -297,6 +297,14 @@ cancel function (§14.6).
   direct, so a derived `encode` is straight-line code
   ([`annot.walk.members`](../../spec/lang/14-annotations.md#r-annot.walk.members)).
   Member handles are constant globals (§15.4).
+- **The derivation's own `Structure` (#119).** Each derivation gets its
+  own `Structure` for its target, generated as ordinary TIR in the
+  target module (`hd_check/src/structure.rs`): the bodies of `facts`,
+  `name`, `walk`, `describe` and `build`, plus one hidden method per
+  handle whose closures instantiate once per derivation. Not carried
+  yet: facts (declaration facts and member lines), doc comments
+  (`doc` is `.None`), and shared constructor data — a call of those
+  stops at collection with a structured "not implemented".
 - **Test registrations.** A `TestCase` body evaluates its registration
   call's run-time arguments (`rows`, `timeout`, examples) and calls the
   std registration function, which drives the test body (§19.3).
@@ -696,9 +704,13 @@ identity in the selection table.
 S1).** Each generic item carries a **representation summary** per type
 parameter, computed at check time and stored with its TIR, so the item's
 TIR hash covers it. The summary says whether instances need the
-parameter's exact representation. A parameter with a bound is always
-exact. An unbounded parameter is exact when the body has a closure type
-that mentions `T`. (Walking skeleton, SK-2: the earlier rule read only
+parameter's exact representation. An own type parameter stays exact
+when a data type, tuple, function type, trait value or projection in
+the item's signature or body holds it: those change their Wasm type
+with it, and erasing one cast a `Box[Point]` to `Box[REF]`. Only a
+value of the parameter itself, `mut`, an optional, and the erased
+storage of a `List`, `Map` or enum payload keep it movable. (Walking
+skeleton, SK-2: the earlier rule read only
 the body's own trait calls on `T`. It made `relay[T < Shape]`, which
 passes `T` on to `total[T < Shape]`, an instance at `REF`, and `select`
 then found no impl at `REF`.) When the parameter is not exact, the body
