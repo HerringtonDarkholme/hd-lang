@@ -6,6 +6,7 @@
 //! No file system access here (§2.2 rule 3): sources come through
 //! `SourceSet`, which the CLI implements over the disk and `hd_web` over JS.
 
+pub mod edit;
 mod manifest;
 
 use std::collections::BTreeMap;

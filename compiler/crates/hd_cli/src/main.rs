@@ -7,6 +7,7 @@ mod caps;
 mod check_cmd;
 mod disk;
 mod help;
+mod new_cmd;
 mod node;
 mod report;
 mod test_cmd;
@@ -27,6 +28,7 @@ const USAGE: &str = "usage:
   hd run [--release] [--format json] [--cap NAME=VALUE]... [NAME]
   hd build [--release] [--format json] [FILE.hd]
   hd check [FILE.hd] [--tests | --all] [--format json]
+  hd new [--app | --lib] [--pages] [--vcs none] [PATH]
   hd test [FILE.hd] [--filter PATTERN] [--jobs N] [--format json]";
 
 /// `cli.exit.hd-failure`: `hd` itself failed, or rejected its command line.
@@ -72,6 +74,7 @@ fn main() -> ExitCode {
             )),
         },
         ("test", rest) => test_cmd::command(rest),
+        ("new", rest) => new_cmd::command(rest),
         ("run", rest) => run_command(rest),
         ("build", rest) => build_command(rest),
         ("check", rest) => check_cmd::command(rest),

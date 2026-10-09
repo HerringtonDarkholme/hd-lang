@@ -929,3 +929,31 @@ fn release_comes_before_file_and_keeps_tests_checked() {
     assert_eq!(r.code, Some(1), "{}", r.out);
     assert!(r.out.contains("integer-overflow"), "{}", r.out);
 }
+
+/// `cli.new.app`, `cli.new.workspace-member`, `cli.new.existing`: a new
+/// application under a workspace root runs at once and joins `members`;
+/// a second `hd new` over it writes nothing.
+#[test]
+fn new_creates_a_package_and_joins_its_workspace() {
+    let dir = tree(
+        "hd-forms-new",
+        &[("hd.toml", "[workspace]\nmembers = [\"old\"]\n")],
+    );
+    let r = ran(&dir, &["new", "--app", "--vcs", "none", "my-app"]);
+    assert_eq!(r.code, Some(0), "{}", r.err);
+    assert_eq!(
+        std::fs::read_to_string(dir.join("hd.toml")).expect("read"),
+        "[workspace]\nmembers = [\"old\", \"my-app\"]\n"
+    );
+    assert!(dir.join("my-app/tests/my_app.hd").is_file());
+    let r = ran(&dir.join("my-app"), &["run"]);
+    assert_eq!(
+        (r.code, r.out.as_str()),
+        (Some(0), "hello, world\n"),
+        "{}",
+        r.err
+    );
+    let r = ran(&dir, &["new", "--lib", "--vcs", "none", "my-app"]);
+    assert_eq!(r.code, Some(101));
+    assert!(!dir.join("my-app/src/lib.hd").exists());
+}
