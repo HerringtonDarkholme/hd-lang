@@ -85,6 +85,14 @@ statement position. The `for`-loop and plain-statement positions
 already balance the stack, so the fix is in whatever joins the
 suspending arms, not in call emission itself.
 
+**Three more cases since #158 (2026-10-09).** Suspending closures now
+emit, so `task-retry`, `task-retry-at-least-once` and
+`retry-with-backoff` reach this trap in std's `retry!` and
+`retry_with!` bodies (`retry#0$Body`), whose `while` loops hold a bang
+call. A `for` over a range traps too, when a value follows the loop:
+`fn yes!() -> bool: true` +
+`fn count!(n: i32) -> i32: let tries: i32 = 0; for _ in 0..n: tries = tries + 1; _ := yes!(); tries`.
+
 ## D. Sub-word-width arithmetic runs at full width, checked (7)
 
 All integer arithmetic behaves as checked 32/64-bit: no wrapping, no

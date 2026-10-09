@@ -1869,27 +1869,54 @@ impl Em<'_> {
         let Some(Target::Closure(key)) = self.calls.get(&i).cloned() else {
             return unsupported("a closure that collection did not record");
         };
+        let (env, fields) = self.env_of(caps, ty)?;
+        self.a.ref_func(Sym::Inst(key));
+        for (_, l) in fields {
+            self.a.get(l);
+        }
+        self.a.struct_new(&env);
+        self.store(i)
+    }
+
+    /// The environment struct of a closure value of type `ty` that
+    /// captures `caps` (codegen.md, the `Closure` row): a subtype of the
+    /// function type's base holding the code, then each captured local's
+    /// values (a `Shared` one's cell). Each captured value comes with its
+    /// field and the Wasm local holding it, in field order.
+    fn env_of(
+        &mut self,
+        caps: std::ops::Range<usize>,
+        ty: Ty,
+    ) -> StageResult<(WTy, Vec<(u32, u32)>)> {
         let Shape::Fn { base, code } = self.lay.shape(ty)? else {
             return unsupported("a closure without a function type");
         };
-        let mut fields = vec![VT::r(code.clone())];
-        self.a.ref_func(Sym::Inst(key));
+        let mut fields = vec![VT::r(code)];
+        let mut at = Vec::new();
         for c in caps {
             let l = self.b.cap_local[c].raw();
             let vs = self.local_vts(l)?;
             let ls = self.local(l)?;
-            for x in &ls {
-                self.a.get(*x);
+            for (x, v) in ls.into_iter().zip(vs) {
+                at.push((u32_of(fields.len()), x));
+                fields.push(v);
             }
-            fields.extend(vs);
         }
         let env = WTy::Struct {
             fields,
             sup: Some(Box::new(base)),
             open: false,
         };
-        self.a.struct_new(&env);
-        self.store(i)
+        Ok((env, at))
+    }
+
+    /// [`Self::env_of`] for the closure instruction `ci`, from the body
+    /// it creates.
+    fn closure_env(&mut self, ci: usize) -> StageResult<(WTy, Vec<(u32, u32)>)> {
+        let caps = self.b.record(self.b.data[ci][1]).to_vec();
+        let (start, len) = (caps[0] as usize, caps[1] as usize);
+        let ty = self.sub(self.b.ty[ci]);
+        self.env_of(start..start + len, ty)
     }
 
     fn coerce(&mut self, i: u32, v: u32, rec: u32, ty: Ty) -> StageResult<()> {
@@ -2712,11 +2739,7 @@ pub fn signature(
         }
         params.push(VT::rn(ctx_keys()));
         params.push(VT::rn(ctx_provs()));
-        let Some(ci) =
-            (0..b.len()).find(|&i| b.tags[i] == Tag::Closure && b.data[i][0] == u32::from(sub))
-        else {
-            return unsupported("a closure body without its closure");
-        };
+        let ci = closure_of(b, sub)?;
         let Shape::Fn { code, .. } = lay.shape(s(b.ty[ci]))? else {
             return unsupported("a closure without a function type");
         };
@@ -2724,6 +2747,14 @@ pub fn signature(
             return unsupported("a closure code type");
         };
         Ok((params, rs, plocals))
+    }
+}
+
+/// The `Closure` instruction whose body is sub-body `sub`.
+fn closure_of(b: &Body, sub: u16) -> StageResult<usize> {
+    match (0..b.len()).find(|&i| b.tags[i] == Tag::Closure && b.data[i][0] == u32::from(sub)) {
+        Some(ci) => Ok(ci),
+        None => unsupported("a closure body without its closure"),
     }
 }
 
@@ -3522,18 +3553,17 @@ pub fn emit(
     key: Hash128,
 ) -> StageResult<Code> {
     let lay = Lay::new(pool, env, path, layouts);
-    if sub == 0 && env.suspends(b.item) {
-        return emit_suspending(&lay, b, args, ret, calls, key);
+    let s = |t: Ty| subst(pool, env, b.item, args, t);
+    let suspends = if sub == 0 {
+        env.suspends(b.item)
+    } else {
+        let ci = closure_of(b, sub)?;
+        matches!(pool.get(s(b.ty[ci])), TyData::Fn { suspends: true, .. })
+    };
+    if suspends {
+        return emit_suspending(&lay, b, sub, args, ret, calls, key);
     }
     let (params, results, plocals) = signature(&lay, b, sub, args, ret)?;
-    let s = |t: Ty| subst(pool, env, b.item, args, t);
-    if sub != 0
-        && let Some(ci) =
-            (0..b.len()).find(|&i| b.tags[i] == Tag::Closure && b.data[i][0] == u32::from(sub))
-        && matches!(pool.get(s(b.ty[ci])), TyData::Fn { suspends: true, .. })
-    {
-        return unsupported("a suspending closure (`fn!` value)");
-    }
     let mut em = Em::new(
         Lay::new(pool, env, path, layouts),
         b,
@@ -3573,36 +3603,13 @@ pub fn emit(
         }
     } else {
         // The closure's environment: captured values into their locals.
-        let Some(ci) =
-            (0..b.len()).find(|&i| b.tags[i] == Tag::Closure && b.data[i][0] == u32::from(sub))
-        else {
-            return unsupported("a closure body without its closure");
-        };
-        let Shape::Fn { base, code } = em.lay.shape(s(b.ty[ci]))? else {
-            return unsupported("a closure without a function type");
-        };
-        let caps = b.record(b.data[ci][1]).to_vec();
-        let mut fields = vec![VT::r(code)];
-        let mut cl = Vec::new();
-        for c in caps[0] as usize..(caps[0] + caps[1]) as usize {
-            let l = b.cap_local[c].raw();
-            let vs = em.local_vts(l)?;
-            let ls = em.local(l)?;
-            for (k, v) in vs.iter().enumerate() {
-                cl.push((u32_of(fields.len()), ls[k], v.clone()));
-                fields.push(v.clone());
-            }
-        }
-        let env_ty = WTy::Struct {
-            fields,
-            sup: Some(Box::new(base)),
-            open: false,
-        };
+        let ci = closure_of(b, sub)?;
+        let (env_ty, cl) = em.closure_env(ci)?;
         let e = em.a.local(VT::r(env_ty.clone()));
         em.a.get(0);
         em.a.ref_cast(&env_ty, false);
         em.a.set(e);
-        for (f, l, _) in cl {
+        for (f, l) in cl {
             em.a.get(e);
             em.a.struct_get(&env_ty, f);
             em.a.set(l);
@@ -3764,12 +3771,37 @@ pub fn emit_adapter(
     Ok(a.finish(crs))
 }
 
-/// A suspending function (suspension.md §14.1 to §14.6). The body is
-/// emitted twice: the first pass learns its Wasm locals, which the frame
-/// saves; the second writes the state machine over that frame.
+/// What a suspending closure's cold constructor binds besides its
+/// parameters: the environment struct with each captured value's field
+/// and body local, and each row key's provider from the call's context
+/// with its vtable type and two body locals.
+struct ClosureBind {
+    env: WTy,
+    caps: Vec<(u32, u32)>,
+    provs: Vec<(DefId, WTy, [u32; 2])>,
+}
+
+/// One emission pass of a suspending body: its code, every Wasm local it
+/// saves with its type, and a closure's bindings.
+type Pass = (Code, Vec<(u32, VT)>, Option<ClosureBind>);
+
+/// A suspending function or closure body (suspension.md §14.1 to §14.6).
+/// The body is emitted twice: the first pass learns its Wasm locals, which
+/// the frame saves; the second writes the state machine over that frame.
+///
+/// A closure (`req.suspend.closure.marker`) takes the same path. Its code
+/// is the cold constructor, with the closure ABI `(env, params..., keys,
+/// providers)`; `f$body` takes only the parameters. The constructor
+/// stores the parameters, the captured values and the providers of the
+/// closure's row into the frame, so they are bound when the suspension is
+/// constructed (`req.bind.construction`) and every poll reloads them as it
+/// reloads any saved local. A closure value is only ever called through
+/// `CallValue`, which builds the frame, so its body never takes the
+/// null-frame path.
 fn emit_suspending(
     lay: &Lay<'_>,
     b: &Body,
+    sub: u16,
     args: TyList,
     ret: Ty,
     calls: &HashMap<u32, Target>,
@@ -3777,22 +3809,34 @@ fn emit_suspending(
 ) -> StageResult<Code> {
     let (pool, env) = (lay.pool, lay.env);
     let s = |t: Ty| subst(pool, env, b.item, args, t);
-    let (cold_params, _, plocals) = signature(lay, b, 0, args, ret)?;
-    let results = lay.vts(s(ret))?;
+    let (cold_params, _, plocals) = signature(lay, b, sub, args, ret)?;
+    // The body's own parameters: a function's cold parameters, or a
+    // closure's parameters without its environment and context.
+    let (closure, result, own) = if sub == 0 {
+        (None, s(ret), cold_params.clone())
+    } else {
+        let ci = closure_of(b, sub)?;
+        let TyData::Fn { result, .. } = pool.get(s(b.ty[ci])) else {
+            return unsupported("a closure without a function type");
+        };
+        let own = cold_params[1..cold_params.len() - 2].to_vec();
+        (Some(ci), result, own)
+    };
+    let results = lay.vts(result)?;
     let (base, _) = suspend_base(&results);
     let dres: Vec<VT> = results.iter().map(VT::dflt).collect();
     let mut logical = vec![VT::rn(base.clone())];
-    logical.extend(cold_params.iter().cloned());
+    logical.extend(own.iter().cloned());
     let mut bres = dres.clone();
     bres.push(VT::rn(base.clone()));
-    let root = b.sub_root[0];
+    let root = b.sub_root[sub as usize];
     let (states, ranges) = plan(b, root)?;
     let frame_ty = |saved: &[(u32, VT)]| {
         let mut extra = vec![VT::rn(task_base())];
         extra.extend(saved.iter().map(|x| x.1.clone()));
         frame_of(&base, &extra)
     };
-    let pass = |saved: Vec<(u32, VT)>| -> StageResult<(Code, Vec<(u32, VT)>)> {
+    let pass = |saved: Vec<(u32, VT)>| -> StageResult<Pass> {
         let ft = frame_ty(&saved);
         let mut a = Asm::new_dflt(logical.clone());
         let frame = a.local(VT::rn(ft.clone()));
@@ -3824,10 +3868,29 @@ fn emit_suspending(
             em.locals[l as usize] = Some((next..next + n).collect());
             next += n;
         }
-        for k in env.row_keys(b.item, args) {
-            em.providers.push((k, [next, next + 1]));
-            next += 2;
-        }
+        let bind = if let Some(ci) = closure {
+            // Locals for the captured values and the row's providers,
+            // which the cold constructor fills through the frame.
+            let (env_ty, caps) = em.closure_env(ci)?;
+            let mut provs = Vec::new();
+            for k in em.fn_row_keys(s(b.ty[ci])) {
+                let vt = em.lay.vtable(k, TyList::EMPTY)?;
+                let ls = [em.a.local(VT::Eq), em.a.local(VT::r(vt.clone()))];
+                em.providers.push((k, ls));
+                provs.push((k, vt, ls));
+            }
+            Some(ClosureBind {
+                env: env_ty,
+                caps,
+                provs,
+            })
+        } else {
+            for k in env.row_keys(b.item, args) {
+                em.providers.push((k, [next, next + 1]));
+                next += 2;
+            }
+            None
+        };
         // Prologue: a frame resumes from its state with its locals.
         em.a.raw_get(0);
         em.a.ref_cast(&ft, true);
@@ -3864,10 +3927,10 @@ fn emit_suspending(
                 all.push((l, em.a.decl(l)));
             }
         }
-        Ok((em.a.finish(bres.clone()), all))
+        Ok((em.a.finish(bres.clone()), all, bind))
     };
-    let (_, saved) = pass(Vec::new())?;
-    let (body, again) = pass(saved.clone())?;
+    let (_, saved, _) = pass(Vec::new())?;
+    let (body, again, bind) = pass(saved.clone())?;
     if again != saved {
         return unsupported("a suspending body whose two emission passes differ");
     }
@@ -3889,13 +3952,37 @@ fn emit_suspending(
     a.get(f);
     a.ref_func(Sym::Part(key, Part::Poll));
     a.struct_set(&ft, F_POLL);
-    for p in 0..u32_of(cold_params.len()) {
-        let Some(fi) = field(p + 1) else {
-            return unsupported("a suspending body's parameter without a frame field");
-        };
+    // Cold parameter `first + j` is the body's local `j + 1`.
+    let first = u32::from(bind.is_some());
+    let slot = |l: u32| match field(l) {
+        Some(fi) => Ok(fi),
+        None => unsupported("a suspending body's local without a frame field"),
+    };
+    for j in 0..u32_of(own.len()) {
         a.get(f);
-        a.get(p);
-        a.struct_set(&ft, fi);
+        a.get(first + j);
+        a.struct_set(&ft, slot(j + 1)?);
+    }
+    if let Some(bind) = bind {
+        let e = a.local(VT::r(bind.env.clone()));
+        a.get(0);
+        a.ref_cast(&bind.env, false);
+        a.set(e);
+        for (fi, l) in bind.caps {
+            a.get(f);
+            a.get(e);
+            a.struct_get(&bind.env, fi);
+            a.struct_set(&ft, slot(l)?);
+        }
+        let (keys_at, provs_at) = (u32_of(cold_params.len() - 2), u32_of(cold_params.len() - 1));
+        for (k, vt, ls) in bind.provs {
+            let got = ctx_provider(&mut a, env, k, &vt, keys_at, provs_at);
+            for (g, l) in got.into_iter().zip(ls) {
+                a.get(f);
+                a.get(g);
+                a.struct_set(&ft, slot(l)?);
+            }
+        }
     }
     a.get(f);
     let cold = a.finish(vec![VT::r(base.clone())]);

@@ -804,12 +804,14 @@ impl TirSink for TirBuilder {
     }
     fn close_sub(&mut self, m: SubMark, root: Ref, fn_ty: Ty, syn: NodeIdx) -> Ref {
         self.body.sub_root[m.0.idx()] = root.0;
-        let mine: Vec<LocalId> = self
+        // A read inside this sub also captured the local into each
+        // enclosing open sub; those captures stay open.
+        let (mine, outer): (Vec<_>, Vec<_>) = self
             .open_caps
             .drain(m.1 as usize..)
-            .filter(|c| c.0 == m.0)
-            .map(|c| c.1)
-            .collect();
+            .partition(|c| c.0 == m.0);
+        self.open_caps.extend(outer);
+        let mine: Vec<LocalId> = mine.into_iter().map(|c| c.1).collect();
         let start = u32::try_from(self.body.cap_local.len()).expect("caps");
         self.body.cap_local.extend(&mine);
         let r = self.record(&[start, u32::try_from(mine.len()).expect("caps")]);

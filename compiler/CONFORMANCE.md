@@ -8,23 +8,23 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1846 | 685 | 313 | 2844 |
+| 1854 | 686 | 304 | 2844 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
 | `lang/01-lexical-structure.md` | 133 | 11 | 1 | 145 |
-| `lang/02-grammar.md` | 188 | 14 | 12 | 214 |
-| `lang/03-names-and-scopes.md` | 76 | 14 | 11 | 101 |
+| `lang/02-grammar.md` | 189 | 13 | 12 | 214 |
+| `lang/03-names-and-scopes.md` | 77 | 14 | 10 | 101 |
 | `lang/04-type-system.md` | 265 | 72 | 15 | 352 |
 | `lang/05-expressions.md` | 164 | 76 | 37 | 277 |
 | `lang/06-control-flow.md` | 108 | 33 | 16 | 157 |
-| `lang/07-functions.md` | 79 | 36 | 15 | 130 |
+| `lang/07-functions.md` | 82 | 35 | 13 | 130 |
 | `lang/08-data-and-enums.md` | 70 | 39 | 14 | 123 |
 | `lang/09-traits.md` | 208 | 116 | 35 | 359 |
 | `lang/10-modules.md` | 142 | 78 | 38 | 258 |
-| `lang/11-requirements-and-suspension.md` | 122 | 62 | 75 | 259 |
+| `lang/11-requirements-and-suspension.md` | 124 | 62 | 73 | 259 |
 | `lang/14-annotations.md` | 90 | 56 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 13 | 0 | 1 | 14 |
@@ -51,7 +51,7 @@ fixture; unsupported surface records progress without failing.
 | `std/result.md` | 4 | 1 | 0 | 5 |
 | `std/serde.md` | 3 | 0 | 5 | 8 |
 | `std/sys.md` | 1 | 0 | 0 | 1 |
-| `std/task.md` | 3 | 0 | 4 | 7 |
+| `std/task.md` | 4 | 3 | 0 | 7 |
 | `std/testing.md` | 19 | 18 | 2 | 39 |
 | `std/text.md` | 29 | 5 | 1 | 35 |
 | `std/time.md` | 15 | 2 | 0 | 17 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 68 | 28 | 9 | 105 |
-| `runtime/valid` | 544 | 179 | 206 | 929 |
+| `runtime/valid` | 552 | 180 | 197 | 929 |
 | `typing/invalid` | 584 | 421 | 69 | 1074 |
 | `typing/valid` | 352 | 34 | 29 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -106,8 +106,8 @@ compiler stage that first declined the case.
 | `fail:placeholder-outside-pipe` | 1 |
 | `fail:private-main` | 7 |
 | `fail:re-export-loop` | 1 |
-| `fail:runtime-exit` | 68 |
-| `fail:stdout` | 4 |
+| `fail:runtime-exit` | 70 |
+| `fail:stdout` | 3 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
@@ -128,7 +128,7 @@ compiler stage that first declined the case.
 | `fail:unused-local-binding` | 6 |
 | `unsupported:Body` | 124 |
 | `unsupported:Collect` | 26 |
-| `unsupported:Emit` | 60 |
+| `unsupported:Emit` | 51 |
 | `unsupported:FolderIface` | 34 |
 | `unsupported:Link` | 2 |
 | `unsupported:RunCase` | 61 |
@@ -658,7 +658,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (68)</summary>
+<details><summary><code>fail:runtime-exit</code> (70)</summary>
 
 - `runtime/panic/for-loop-iterator-invalidated.hd`
 - `runtime/panic/invalid-shift.hd`
@@ -666,7 +666,6 @@ compiler stage that first declined the case.
 - `runtime/panic/integer-divide-by-zero.hd`
 - `runtime/panic/defer-block-on-indirect.hd`
 - `runtime/panic/assert-equal-f64-unequal.hd`
-- `runtime/valid/nested-closure-captures.hd`
 - `runtime/valid/literal-patterns.hd`
 - `runtime/valid/string-trim-and-lower.hd`
 - `runtime/valid/suspending-calls-in-loops.hd`
@@ -689,10 +688,13 @@ compiler stage that first declined the case.
 - `runtime/panic/string-slice-past-end.hd`
 - `runtime/panic/string-slice-reversed.hd`
 - `runtime/valid/comprehension-bang-calls.hd`
+- `runtime/valid/task-retry.hd`
+- `runtime/valid/task-retry-at-least-once.hd`
 - `runtime/valid/display-tuples.hd`
 - `runtime/panic/list-view-reversed.hd`
 - `runtime/panic/list-view-index-out-of-bounds.hd`
 - `runtime/panic/list-view-invalidated.hd`
+- `runtime/valid/retry-with-backoff.hd`
 - `runtime/valid/scripted-input.hd`
 - `runtime/valid/string-more-methods.hd`
 - `runtime/valid/num-parse-f64-values.hd`
@@ -731,12 +733,11 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:stdout</code> (4)</summary>
+<details><summary><code>fail:stdout</code> (3)</summary>
 
 - `runtime/valid/crlf-line-endings.hd`
 - `runtime/valid/string-and-char-literal-contents.hd`
 - `runtime/valid/escape-sequences.hd`
-- `runtime/valid/type-expression-forms.hd`
 
 </details>
 
@@ -1234,7 +1235,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Emit</code> (60)</summary>
+<details><summary><code>unsupported:Emit</code> (51)</summary>
 
 - `runtime/valid/float-display.hd`
 - `runtime/valid/nested-block-on.hd`
@@ -1246,8 +1247,6 @@ compiler stage that first declined the case.
 - `runtime/valid/suspending-calls-in-branches.hd`
 - `runtime/valid/suspending-match-guards.hd`
 - `runtime/valid/block-on-inside-driver.hd`
-- `runtime/valid/suspending-closure-captures.hd`
-- `runtime/valid/suspending-closure-requirement-row.hd`
 - `runtime/valid/result-entry-point-ok.hd`
 - `runtime/valid/f32-display-width-through-generics.hd`
 - `runtime/valid/composite-identity-and-views.hd`
@@ -1258,7 +1257,6 @@ compiler stage that first declined the case.
 - `runtime/valid/write-line-around-suspending-provider-scope.hd`
 - `runtime/valid/embedded-construction-copies.hd`
 - `runtime/valid/propagation-into-erased-error.hd`
-- `runtime/valid/suspending-trailing-block.hd`
 - `runtime/panic/snapshot-mismatch.hd`
 - `runtime/valid/string-prefix-std.hd`
 - `runtime/valid/float-cast-saturates.hd`
@@ -1266,18 +1264,14 @@ compiler stage that first declined the case.
 - `runtime/valid/float-remainder-run.hd`
 - `runtime/valid/requirement-key-binding-run.hd`
 - `runtime/valid/generic-inference-explicit-conversions.hd`
-- `runtime/valid/task-retry.hd`
-- `runtime/valid/task-retry-at-least-once.hd`
 - `runtime/valid/default-standard-types.hd`
 - `runtime/valid/default-tuple-thirteen-elements.hd`
 - `runtime/valid/derived-default-data.hd`
 - `runtime/valid/derived-default-declared.hd`
 - `runtime/valid/primitive-float-cmp-method-direct.hd`
-- `runtime/valid/retry-with-backoff.hd`
 - `runtime/valid/std-errors-erased.hd`
 - `runtime/valid/process-error-display.hd`
 - `runtime/valid/json-typed-primitives.hd`
-- `runtime/valid/task-all-list-order.hd`
 - `runtime/valid/regex-literals-escapes.hd`
 - `runtime/valid/regex-classes.hd`
 - `runtime/valid/regex-anchors-groups.hd`
@@ -1289,8 +1283,6 @@ compiler stage that first declined the case.
 - `runtime/valid/regex-split.hd`
 - `runtime/valid/generic-storage-callable-list-identity.hd`
 - `runtime/valid/numeric-casts-in-range.hd`
-- `runtime/valid/nested-mutable-captures.hd`
-- `runtime/valid/loop-iteration-cells.hd`
 - `runtime/valid/serde-std-reads.hd`
 - `runtime/valid/associated-binding-positions.hd`
 - `runtime/valid/trait-value-binding-identity.hd`
@@ -2063,6 +2055,7 @@ runtime/valid/literal-var-instantiation-wait.hd
 runtime/valid/local-shadows-module-namespace.hd
 runtime/valid/logical-operators.hd
 runtime/valid/loop-iteration-binding-capture.hd
+runtime/valid/loop-iteration-cells.hd
 runtime/valid/manual-clock.hd
 runtime/valid/map-args-env.hd
 runtime/valid/map-get-or.hd
@@ -2112,7 +2105,9 @@ runtime/valid/named-arguments-trait-dispatch.hd
 runtime/valid/named-enum-payload-evaluation-order.hd
 runtime/valid/named-enum-payload-patterns.hd
 runtime/valid/nan-equality-through-generics.hd
+runtime/valid/nested-closure-captures.hd
 runtime/valid/nested-control-flow-as-expressions.hd
+runtime/valid/nested-mutable-captures.hd
 runtime/valid/nested-provider-scope.hd
 runtime/valid/nested-suspending-call.hd
 runtime/valid/nested-variant-positional-bindings.hd
@@ -2264,11 +2259,15 @@ runtime/valid/suspending-call-with-defer.hd
 runtime/valid/suspending-call-with-requirement.hd
 runtime/valid/suspending-calls-as-arguments.hd
 runtime/valid/suspending-calls-in-binary-expression.hd
+runtime/valid/suspending-closure-captures.hd
+runtime/valid/suspending-closure-requirement-row.hd
 runtime/valid/suspending-test-body.hd
+runtime/valid/suspending-trailing-block.hd
 runtime/valid/suspending-trait-default-method.hd
 runtime/valid/suspending-trait-dispatch.hd
 runtime/valid/tab-only-as-content.hd
 runtime/valid/task-all-list-empty.hd
+runtime/valid/task-all-list-order.hd
 runtime/valid/template-derived-trait-self.hd
 runtime/valid/termination-void-reports-zero.hd
 runtime/valid/test-block-on.hd
@@ -2308,6 +2307,7 @@ runtime/valid/tuple-vararg-function-value.hd
 runtime/valid/tuple-vararg-infer.hd
 runtime/valid/tuple-vararg.hd
 runtime/valid/type-arguments-in-expressions.hd
+runtime/valid/type-expression-forms.hd
 runtime/valid/typed-derivation-build-defaults.hd
 runtime/valid/typed-derivation-embedded-generic-walk.hd
 runtime/valid/u8-checked-add.hd
