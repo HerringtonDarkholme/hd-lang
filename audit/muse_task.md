@@ -187,6 +187,30 @@ that omits arguments is emitted (a per-function default thunk, inlined
 expressions, or a wrapper), with the footprint per function. Timebox 30
 minutes.
 
+### R9. Design Note: `@error` Derivation (#137, Design Text)
+
+13 valid programs fail with "X does not implement Error/From": `@error`,
+`@from` and `@source` do not yet produce the impls. Read the spec rules
+(`spec/lang/14-annotations.md` and `spec/std/error.md`), then
+`codegen.md` §13 and the D2o derive text (#119: derived impls instantiate
+a template). Say where the `Error`, `Display` and `From` impls come from
+(a std template like `@derive`, or compiler-supplied rows like §3.9),
+what the generated `From` conversions look like for `@from` fields, how
+`@source` feeds `source()`, and the footprint per error type. Add it to
+`codegen.md`. Questions with a recommendation. Timebox 45 minutes.
+
+### R10. Design Note: Property And Snapshot Tests (#138, Design Text)
+
+16 valid programs import `it_each`, `it_prop`, `it_prop_with` or
+`snapshot` from `std.testing`, which `lib/std` lacks; two cannot even
+plan their test cases. Read `spec/std/testing.md` (Property Tests,
+snapshots) and `checking-and-tir.md` (test registration and planning).
+Say which parts are plain hd in `lib/std` and which need the test planner
+(registering one case per row or per generated input, seeds, shrinking,
+snapshot files and their paths), and what `hd test` reports per case.
+Add it to `checking-and-tir.md`. Do not write `lib/std` code. Timebox 45
+minutes.
+
 ### P1. Profile The New Compiler (After S4; Standing Job)
 
 Owner, 2026-10-07: "you write the code, codex do the profiling. move
