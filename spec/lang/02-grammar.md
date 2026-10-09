@@ -1572,7 +1572,7 @@ indented_suite_body = NEWLINE, INDENT, statement, { statement }, DEDENT ;
 1. r[grammar.call.trailing-block] A call whose final parameter is a zero-argument function may use an indented trailing block. The call may stand as a complete statement, or as the complete right-hand side of `:=`, `let ... =`, `=`, `_ :=`, `return`, or `break`.
 2. r[grammar.call.trailing-block.no-arguments] When there are no ordinary arguments, the call omits `()`, as in `transaction:`.
 3. r[grammar.call.trailing-block.accepted] This production is accepted only at delimiter depth zero when the call is the complete statement or one of those complete right-hand sides.
-4. r[grammar.call.trailing-block.eligible] It is also accepted only when name and type resolution identify a callable with an eligible final parameter.
+4. r[grammar.call.trailing-block.eligible] It is also accepted only when name and type resolution identify a callable with an eligible final parameter. A trailing block on any other call is an error. Error: `trailing-block-ineligible`.
 5. r[grammar.call.trailing-block.next-line] Its body must begin on the next logical line. A body on the same line is an error. Error: `syntax-error`.
 6. r[grammar.call.trailing-block.not-header] It is not accepted in an `if`, `while`, `for`, or `match` header or inside brackets. A trailing block there is an error. Error: `trailing-block-position`.
 

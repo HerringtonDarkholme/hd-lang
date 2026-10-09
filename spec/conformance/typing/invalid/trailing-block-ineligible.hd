@@ -1,0 +1,8 @@
+# test: a trailing block on a call whose final parameter takes no zero-argument function is an error
+# Spec 02 Calls And Arguments: grammar.call.trailing-block.eligible (owner, 2026-10-09).
+
+fn total(items: List[i32]) -> usize: items.len()
+
+fn main() -> void:
+    count := total([1, 2]):  # diagnostic: trailing-block-ineligible
+        pass
