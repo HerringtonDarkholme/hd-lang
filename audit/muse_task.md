@@ -107,24 +107,55 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### R26. Turn Your R5 Report Into Task Rows (Research)
+### R30. Design Note: Test Bodies (#183, Design Text)
 
-`audit/compiler/triage-missing-errors.md` groups 250 accepted invalid
-programs into 21 causes. For each cause not already matching an
-orchestrator task number, write one proposed task line (title in the
-form "[check] what is missing (N programs)", the spec rule IDs, the
-stage) at the end of that file, biggest first. Read only; timebox 20
-minutes.
+Four test-body forms fail: an explicit closure as a test body, `it(...,
+timeout=)` per case, `$ TestRunner` written in a `tests:` block, and `?`
+in a test body (CLI cases test-report, test-outcomes, test-timeout,
+test-err-report). Read `module.testing.*` in `spec/lang/10-modules.md`,
+`std-testing.*` in `spec/std/testing.md`, and how `hd_check/src/tests.rs`
+builds a case today. Add to `checking-and-tir.md` how each form checks
+and lowers (the case's row, its result, where the timeout is reported).
+Questions with a recommendation. Timebox 45 minutes.
 
-### R27. Profile The Runtime Of The Samples (Research)
+### R31. Design Note: Associated Types On Trait Values (#193, Design Text)
 
-P1 measures compile time. Measure run time: build each sample under
-`compiler/samples` and the six programs in `compiler/bench/runtime/progs/`
-with the current compiler, run them (`hd FILE.wasm` or the bench's
-`run.mjs`), and compare with the last runtime report in git history
-(`runtime-vs-node-*.md`, `runtime-hotspots-*.md`). Flag only
-order-of-magnitude problems, with the hot function if you can find it.
-Write `audit/compiler/runtime-<date>-<short hash>.md`. Timebox 45
+Trait values lose associated-type bindings: a `dyn` vtable does not keep
+them, a projection does not name its declaring trait, and a delegated
+impl (`by E`) does not bind them. Shrink 3 failing programs to minimal
+ones, read the trait-value and associated-type rules (`spec/lang/09-traits.md`,
+`04-type-system.md`), and add to `trait-solver.md` and `codegen.md` where a
+binding lives on a trait value and how a projection through it
+normalizes. Questions with a recommendation. Timebox 45 minutes.
+
+### R32. Design Note: Arity-Generic Function Types (#197, Design Text)
+
+About 8 programs use `Fn[Args, ...]` with a type-parameter `Args`, or
+tuple and function rest elements. Read the rules (`types.tuple.rest.*`,
+the function-type rules in `04-type-system.md`), shrink 3 programs, and
+add to `checking-and-tir.md` how such a type unifies, instantiates and
+lowers (which TIR forms, which Wasm types). Questions with a
+recommendation. Timebox 45 minutes.
+
+### R33. Design Note: Inferred Rows Of Private Functions (#194, Design Text)
+
+M3 (`checking-and-tir.md`) infers a private function's row; mutually
+recursive private functions need a fixpoint, and rows lose type arguments
+and bindings in emission and in body-written cache keys. Shrink 3 failing
+programs, then write the fixpoint (order, termination, what is cached)
+and what a row carries into emission. Questions with a recommendation.
+Timebox 45 minutes.
+
+### R34. Re-Triage The Failure Buckets (Research)
+
+Since #225 the harness checks typing fixtures with `--tests`, and the
+buckets in `compiler/CONFORMANCE.md` moved (`unsupported:Body` 97,
+`fail:no-diagnostic` 214). For every bucket with 5 or more cases, group
+the cases by first cause (one minimal program each) and map each group to
+the task number an earlier R report gave it (`audit/compiler/triage-*.md`),
+or propose a new task ("[impl]" or "[check]", N programs, rule IDs,
+stage). Write
+`audit/compiler/triage-<date>-<short hash>.md`. Read only; timebox 45
 minutes.
 
 ### P1. Profile The New Compiler (After S4; Standing Job)
@@ -155,13 +186,6 @@ fast". The orchestrator writes `compiler/crates/*`; you measure it.
 
 (none open; earlier questions and answers are in git history)
 
-### Q-R28: re-split the 5 leftover bound failures (R28, 2026-10-09)
-
-**Recommend two new tasks.** The briefs 26 header-bound failures
-are gone (fixed by #155/#48/#57); the 5 remaining
-unsatisfied-trait-bound accepts are different causes:
-FromIterator for mut List (4 programs, a missing impl, not
-bounds) and Result[void, FsError] vs Eq (1 program, a void value,
-#128 territory). Recommend one std/impl task for the former and
-folding the latter into #128, rather than keeping a header-bounds
-task open.
+Q-R28 answered (orchestrator, 2026-10-09): accepted. The header-bounds
+task is closed; `FromIterator` for `mut List` stays #189; the
+`Result[void, FsError]` vs `Eq` case joins the triage-leftovers task #203.
