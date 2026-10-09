@@ -619,7 +619,12 @@ impl Em<'_> {
                 let Shape::Tuple { elems, boxed } = self.lay.shape(ty)? else {
                     return unsupported("a tuple without a tuple layout");
                 };
-                for (r, vs) in self.rec(bw).into_iter().zip(elems) {
+                // The rest list, if any, is the last member.
+                let mut members = self.rec(bw);
+                if a != NONE {
+                    members.push(a);
+                }
+                for (r, vs) in members.into_iter().zip(elems) {
                     self.load_as(r, &vs)?;
                 }
                 if let Some(b) = boxed {

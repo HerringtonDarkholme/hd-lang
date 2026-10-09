@@ -277,14 +277,16 @@ impl InferTable {
         let t = self.shallow(pool, t);
         match pool.get(t) {
             TyData::Infer(w) => self.root(w.raw()) == v,
-            TyData::Adt { args: l, .. }
-            | TyData::Tuple {
-                elems: l,
-                rest: None,
-            } => pool
+            TyData::Adt { args: l, .. } => pool
                 .list_items(l)
                 .iter()
                 .copied()
+                .any(|x| self.occurs(pool, v, x)),
+            TyData::Tuple { elems, rest } => pool
+                .list_items(elems)
+                .iter()
+                .copied()
+                .chain(rest)
                 .any(|x| self.occurs(pool, v, x)),
             TyData::Option(i) | TyData::Mut(i) => self.occurs(pool, v, i),
             TyData::Fn { params, result, .. } => {
@@ -400,6 +402,22 @@ impl InferTable {
                     rest: None,
                 },
             ) => self.unify_lists(pool, e1, e2, a, b),
+            // `types.tuple.rest.same`: with rest elements, the fixed
+            // elements and the rest elements are each pairwise equal; a
+            // tuple with one never meets a tuple without.
+            (
+                TyData::Tuple {
+                    elems: e1,
+                    rest: Some(r1),
+                },
+                TyData::Tuple {
+                    elems: e2,
+                    rest: Some(r2),
+                },
+            ) => {
+                self.unify_lists(pool, e1, e2, a, b)?;
+                self.unify(pool, r1, r2)
+            }
             (TyData::Option(x), TyData::Option(y)) => self.unify(pool, x, y),
             (
                 TyData::TraitValue {
@@ -557,5 +575,53 @@ mod tests {
         assert_eq!(t.var_count(), 4);
         assert_eq!(t.kind_of(p, old[2]), Some(VarKind::General));
         assert_eq!(t.resolve(p, old[0]), t.shallow(p, old[1]));
+    }
+
+    /// `types.tuple.rest.same`: tuples with rest elements unify their
+    /// fixed elements and their rest elements pairwise, and a tuple with a
+    /// rest element never meets one without.
+    #[test]
+    fn rest_tuples_unify_elementwise_and_never_with_plain_tuples() {
+        let (gp, lp) = (InternPool::new(), LocalPool::new());
+        let p = Types::with_local(&gp, &lp);
+        let mut t = InferTable::default();
+        let list_of = |x: Ty| {
+            p.intern_ty(&TyData::Adt {
+                def: hd_base::DefId::from_raw(7),
+                args: p.list(&[x]),
+            })
+        };
+        let rest_tuple = |fixed: Ty, item: Ty| {
+            p.intern_ty(&TyData::Tuple {
+                elems: p.list(&[fixed]),
+                rest: Some(list_of(item)),
+            })
+        };
+        let (a, b) = (t.fresh(p, VarKind::General), t.fresh(p, VarKind::General));
+        t.unify(p, rest_tuple(a, b), rest_tuple(Ty::I32, Ty::BOOL))
+            .expect("fixed and rest elements unify");
+        assert_eq!(t.resolve(p, a), Ty::I32);
+        assert_eq!(t.resolve(p, b), Ty::BOOL);
+        let plain = p.intern_ty(&TyData::Tuple {
+            elems: p.list(&[Ty::I32]),
+            rest: None,
+        });
+        assert!(matches!(
+            t.unify(p, rest_tuple(Ty::I32, Ty::BOOL), plain),
+            Err(UnifyError::Mismatch { .. })
+        ));
+        assert!(matches!(
+            t.unify(
+                p,
+                rest_tuple(Ty::I32, Ty::BOOL),
+                rest_tuple(Ty::I32, Ty::I32)
+            ),
+            Err(UnifyError::Mismatch { .. })
+        ));
+        let c = t.fresh(p, VarKind::General);
+        assert!(matches!(
+            t.unify(p, c, rest_tuple(c, Ty::I32)),
+            Err(UnifyError::Occurs { .. })
+        ));
     }
 }

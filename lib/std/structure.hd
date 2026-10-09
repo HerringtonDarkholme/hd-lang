@@ -198,8 +198,8 @@ impl[HdS] Members[HdS]:
                 return Key { info: info, is_end: false, hd_type: self.hd_type }
         self.end()
 
-# Generated `walk` calls `member` for a walker without `rest`, which is what
-# the default does (annot.walk.rest.default), so the default never runs.
+# Generated `walk` calls `rest` for a rest member; the default calls
+# `member` with the list (annot.walk.rest, annot.walk.rest.default).
 ## The protocol that walks a value variant and member by member.
 ## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).
 pub trait Walker[S]:
@@ -207,7 +207,7 @@ pub trait Walker[S]:
     fn variant(mut self, v: Variant[S]) -> Result[void, Self::Error]
     fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, Self::Error]
     fn rest[T](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, Self::Error]:
-        panic("Walker.rest: generated code calls member for a walker without rest")
+        self.member(h, items)
 
 ## The protocol that describes a type variant and member by member, without a value.
 ## See [annot.structure.module](../../spec/lang/14-annotations.md#r-annot.structure.module).

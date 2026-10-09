@@ -134,6 +134,9 @@ struct SpreadAt<'a> {
     given: usize,
     /// The parameters a named argument supplies; the spread skips them.
     named: &'a [bool],
+    /// The separate arguments a rest tuple vararg still holds, which the
+    /// spread then ends (`fn.vararg.collect.tuple-expr`).
+    items: &'a [(Ref, Ty)],
 }
 
 impl Args<'_> {
@@ -659,7 +662,13 @@ impl Ck<'_, '_> {
                 *s = Some(r);
             }
         }
-        if variadic && !items.is_empty() {
+        // A list spread that ends a rest tuple vararg's arguments is its
+        // rest list, so the arguments wait for it.
+        let tail_pending = args.spread.is_some()
+            && variadic
+            && !items.is_empty()
+            && self.rest_of(rest[nfixed].1)?.is_some();
+        if variadic && !items.is_empty() && !tail_pending {
             slots[nfixed] = Some(self.pack_vararg(&items, rest[nfixed].1, n)?);
         }
         if let Some(s) = args.spread {
@@ -675,6 +684,7 @@ impl Ck<'_, '_> {
                 variadic,
                 given: args.positional.len(),
                 named: &named,
+                items: if tail_pending { &items } else { &[] },
             };
             self.spread_arg(s, &tys, at, &mut slots, args)?;
         }
@@ -759,6 +769,17 @@ impl Ck<'_, '_> {
         Ok(out)
     }
 
+    /// The rest list type of a vararg type that is a tuple with a rest
+    /// element.
+    fn rest_of(&mut self, lt: Ty) -> StageResult<Option<Ty>> {
+        let pool = self.pool();
+        let lt = self.normalize_deep(lt)?;
+        Ok(match pool.get(self.strip_mut(lt)) {
+            TyData::Tuple { rest, .. } => rest,
+            _ => None,
+        })
+    }
+
     /// The expected type of each of `count` separate arguments a vararg of
     /// type `lt` collects: the list's element, or the tuple's elements
     /// when the type is already a tuple of that many.
@@ -773,6 +794,16 @@ impl Ck<'_, '_> {
             }
             TyData::Tuple { elems, rest: None } if pool.list_items(elems).len() == count => {
                 pool.list_items(elems).iter().copied().map(Some).collect()
+            }
+            // The fixed elements one each, then the rest's item type
+            // (`expr.tuple.rest.collect`).
+            TyData::Tuple {
+                elems,
+                rest: Some(rest),
+            } => {
+                let item = self.list_item(rest);
+                let fixed = pool.list_items(elems).iter().copied().map(Some);
+                fixed.chain(std::iter::repeat(item)).take(count).collect()
             }
             _ => vec![None; count],
         })
@@ -793,7 +824,9 @@ impl Ck<'_, '_> {
             return Ok(self.b.emit(Tag::NewList, NONE, rec, lt, n.index()));
         }
         if matches!(shape, TyData::Tuple { rest: Some(_), .. }) {
-            return unsupported("a tuple vararg with a rest element");
+            let stripped = self.strip_mut(lt);
+            let refs: Vec<Ref> = items.iter().map(|i| i.0).collect();
+            return Ok(self.rest_tuple_value(stripped, &refs, None, n));
         }
         let tys: Vec<Ty> = items.iter().map(|i| i.1).collect();
         let tt = pool.intern_ty(&TyData::Tuple {
@@ -821,6 +854,7 @@ impl Ck<'_, '_> {
             variadic,
             given,
             named,
+            items,
         } = at;
         let nfixed = tys.len() - usize::from(variadic);
         // The parameters the spread fills: those after the given ones that
@@ -853,7 +887,12 @@ impl Ck<'_, '_> {
         } else {
             None
         };
-        let (r, t) = self.arg_value(e, lt)?;
+        // After separate arguments, the spread is the rest list.
+        let tail_ty = match lt {
+            Some(lt) if !items.is_empty() => self.rest_of(lt)?,
+            _ => None,
+        };
+        let (r, t) = self.arg_value(e, tail_ty.or(lt))?;
         let poison = |slots: &mut [Option<Ref>], free: &[usize]| {
             for &i in free {
                 if let Some(s) = slots.get_mut(i) {
@@ -873,6 +912,13 @@ impl Ck<'_, '_> {
         // At the vararg: the operand is its collected value
         // (`expr.call.spread.at-vararg`), passed through without a copy.
         if let Some(lt) = lt {
+            if let Some(rest) = tail_ty {
+                let tail = self.coerce(r, t, rest, e, "argument");
+                let refs: Vec<Ref> = items.iter().map(|i| i.0).collect();
+                let tuple = self.strip_mut(lt);
+                slots[nfixed] = Some(self.rest_tuple_value(tuple, &refs, Some(tail), e));
+                return Ok(());
+            }
             if slots[nfixed].is_some() {
                 // Separate arguments already supplied it.
                 let list = self.cx.names.known.list;
@@ -884,7 +930,12 @@ impl Ck<'_, '_> {
                     );
                     return Ok(());
                 }
-                return unsupported("a spread after the separate arguments of a tuple vararg");
+                self.err(
+                    Code::TypeMismatch,
+                    e,
+                    "in spread: the vararg's tuple type has no rest element for a list",
+                );
+                return Ok(());
             }
             slots[nfixed] = Some(self.coerce(r, t, lt, e, "argument"));
             return Ok(());
@@ -894,11 +945,15 @@ impl Ck<'_, '_> {
         let list = self.cx.names.known.list;
         match pool.get(self.strip_mut(t)) {
             TyData::Tuple { elems, rest } => {
-                if rest.is_some() && variadic {
-                    return unsupported("a spread of a tuple with a rest element");
-                }
                 let elems = pool.list_items(elems);
-                if rest.is_some() || variadic || elems.len() != free.len() {
+                // A rest element fills the vararg; a tuple without one
+                // fills the remaining inputs exactly (`expr.call.spread.inputs`).
+                let fits = if rest.is_some() {
+                    variadic && elems.len() + 1 == free.len() && free.last() == Some(&nfixed)
+                } else {
+                    !variadic && elems.len() == free.len()
+                };
+                if !fits {
                     let msg = format!(
                         "in spread: the remaining inputs are {} values, found {}",
                         free.len(),
@@ -913,6 +968,12 @@ impl Ck<'_, '_> {
                     let g = self.b.emit(Tag::TupleGet, r.0, idx, et, e.index());
                     let w = self.normalize_deep(tys[i])?;
                     slots[i] = Some(self.coerce(g, et, w, e, "argument"));
+                }
+                if let Some(rest) = rest {
+                    let idx = u32::try_from(elems.len()).unwrap_or(0);
+                    let g = self.b.emit(Tag::TupleGet, r.0, idx, rest, e.index());
+                    let w = self.normalize_deep(tys[nfixed])?;
+                    slots[nfixed] = Some(self.coerce(g, rest, w, e, "argument"));
                 }
             }
             TyData::Adt { def, .. } if def == list => {
@@ -966,6 +1027,7 @@ impl Ck<'_, '_> {
                 variadic: false,
                 given: args.positional.len(),
                 named: &[],
+                items: &[],
             };
             self.spread_arg(s, ps, at, &mut slots, args)?;
         }
@@ -2758,6 +2820,19 @@ impl Ck<'_, '_> {
                 if let Some(b) = found {
                     return self.normalized(b);
                 }
+                // Implicit trait arguments (`Self::Error` in a generic
+                // trait) are the bound's own, so the projection is the
+                // one a call of a sibling method returns.
+                let n_trait = self.cx.lookup.item(trait_).map_or(0, |i| i.generics.len());
+                let args = if pool.list_items(args).len() < n_trait {
+                    (0..self.env.clause_self.len())
+                        .find(|&i| {
+                            self.env.clause_self[i] == st && self.env.clause_trait[i] == trait_
+                        })
+                        .map_or(args, |i| self.env.clause_args[i])
+                } else {
+                    args
+                };
                 return Ok(pool.intern_ty(&TyData::Assoc {
                     assoc,
                     trait_,

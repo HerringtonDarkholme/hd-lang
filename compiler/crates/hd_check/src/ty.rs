@@ -357,12 +357,29 @@ impl Ck<'_, '_> {
             SyntaxKind::ParenType => first(self, n)?,
             SyntaxKind::TupleType => {
                 let mut elems = Vec::new();
+                let mut rest = None;
                 for c in n.children().filter(|c| c.kind().is_type()) {
-                    elems.push(self.ty_node(c)?);
+                    if c.kind() == SyntaxKind::RestType {
+                        let t = first(self, c)?;
+                        // `types.tuple.rest.list`: a rest element is a `List`.
+                        let list = self.cx.names.known.list;
+                        if !matches!(pool.get(t), TyData::Adt { def, .. } if def == list)
+                            && t != Ty::POISON
+                        {
+                            self.err(
+                                hd_diag::Code::TypeMismatch,
+                                c,
+                                "a rest element's type must be a `List`",
+                            );
+                        }
+                        rest = Some(t);
+                    } else {
+                        elems.push(self.ty_node(c)?);
+                    }
                 }
                 pool.intern_ty(&TyData::Tuple {
                     elems: pool.list(&elems),
-                    rest: None,
+                    rest,
                 })
             }
             SyntaxKind::DynType => match Src::child(n, SyntaxKind::NamedType) {

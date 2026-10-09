@@ -331,9 +331,20 @@ pub(crate) fn new_ck<'a, 'c>(
                     index: 0,
                 }));
                 ck.self_ty = Some(p);
+                // `Self` is bound by the trait over its own parameters, so
+                // `Self::Assoc` of a generic trait is the projection a
+                // call of a sibling method returns.
+                let own: Vec<Ty> = (1..=o.generics.len())
+                    .map(|i| {
+                        pool.intern_ty(&TyData::Param(ParamRef {
+                            owner: *owner,
+                            index: u16::try_from(i).unwrap_or(u16::MAX),
+                        }))
+                    })
+                    .collect();
                 let tv = pool.intern_ty(&TyData::TraitValue {
                     def: *owner,
-                    args: TyList::EMPTY,
+                    args: pool.list(&own),
                     bindings: vec![],
                 });
                 ck.add_bound(p, tv, 0);

@@ -598,9 +598,10 @@ impl<'a> Lay<'a> {
                     self.nominal(t, Nominal::Data, def)?
                 }
             },
-            TyData::Tuple { elems, rest: None } => {
+            // A rest element is the tuple's last member, a `List`.
+            TyData::Tuple { elems, rest } => {
                 let mut es = Vec::new();
-                for e in pool.list_items(elems).iter().copied() {
+                for e in pool.list_items(elems).iter().copied().chain(rest) {
                     es.extend(self.vts(e)?);
                 }
                 if es.len() > BOUND {
@@ -683,9 +684,9 @@ impl<'a> Lay<'a> {
                 },
                 StdKind::List | StdKind::Map | StdKind::Suspend => vec![Flat::Ref(false)],
             },
-            TyData::Tuple { elems, rest: None } => {
+            TyData::Tuple { elems, rest } => {
                 let mut es = Vec::new();
-                for e in pool.list_items(elems).iter().copied() {
+                for e in pool.list_items(elems).iter().copied().chain(rest) {
                     es.extend(self.flat(e)?);
                 }
                 if es.len() > BOUND {
@@ -1361,9 +1362,9 @@ impl<'a> Lay<'a> {
                     }
                 }
             },
-            TyData::Tuple { elems, rest: None } => {
+            TyData::Tuple { elems, rest } => {
                 let mut es = Vec::new();
-                for e in pool.list_items(elems).iter().copied() {
+                for e in pool.list_items(elems).iter().copied().chain(rest) {
                     es.push(self.vts(e)?);
                 }
                 let n: usize = es.iter().map(Vec::len).sum();

@@ -143,7 +143,6 @@ impl Ck<'_, '_> {
 
     fn expr_node(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         self.charge()?;
-        let pool = self.pool();
         let kids: Vec<NodeRef<'_>> = n.children().collect();
         Ok(match n.kind() {
             SyntaxKind::LiteralExpr => self.literal(n, want)?,
@@ -162,39 +161,7 @@ impl Ck<'_, '_> {
                 [e] => self.expr(*e, want)?,
                 _ => return unsupported("a parenthesized expression shape"),
             },
-            SyntaxKind::TupleExpr => {
-                let wants: Vec<Option<Ty>> =
-                    match want.map(|w| pool.get(self.infer.shallow(pool, w))) {
-                        Some(TyData::Tuple { elems, .. }) => {
-                            pool.list_items(elems).iter().copied().map(Some).collect()
-                        }
-                        _ => vec![],
-                    };
-                if kids.is_empty() {
-                    return Ok((Ref(NONE), Ty::VOID));
-                }
-                let mut refs = Vec::new();
-                let mut tys = Vec::new();
-                for (i, e) in kids.iter().enumerate() {
-                    if e.kind() == SyntaxKind::SpreadExpr {
-                        return unsupported("a tuple spread");
-                    }
-                    let w = wants.get(i).copied().flatten();
-                    let (r, t) = self.expr(*e, w)?;
-                    let r = match w {
-                        Some(w) => self.coerce(r, t, w, *e, "tuple element"),
-                        None => r,
-                    };
-                    refs.push(r);
-                    tys.push(w.unwrap_or(t));
-                }
-                let t = pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&tys),
-                    rest: None,
-                });
-                let rec = self.b.refs_record(&refs);
-                (self.b.emit(Tag::NewTuple, NONE, rec, t, n.index()), t)
-            }
+            SyntaxKind::TupleExpr => self.tuple_expr(n, &kids, want)?,
             SyntaxKind::NameExpr => self.name_expr(n, want)?,
             SyntaxKind::VariantExpr => {
                 self.variant_value(n, &crate::call::Args::empty(), want, None)?
@@ -1098,6 +1065,146 @@ impl Ck<'_, '_> {
         let els = self.b.close_block(eb, Some(small), usize_t, at);
         let rec = self.b.refs_record(&[then, els]);
         Ok(self.b.emit(Tag::If, over.0, rec, usize_t, at))
+    }
+
+    /// A tuple expression (`expr.tuple.comma`). Against an expected tuple
+    /// type with a rest element, its elements fill the fixed elements and
+    /// the rest are collected into the rest list, or a final spread
+    /// supplies it (`expr.tuple.rest.*`).
+    fn tuple_expr(
+        &mut self,
+        n: NodeRef<'_>,
+        kids: &[NodeRef<'_>],
+        want: Option<Ty>,
+    ) -> StageResult<(Ref, Ty)> {
+        let pool = self.pool();
+        let (wants, want_rest) = match want.map(|w| pool.get(self.infer.shallow(pool, w))) {
+            Some(TyData::Tuple { elems, rest }) => (
+                pool.list_items(elems).iter().copied().map(Some).collect(),
+                rest,
+            ),
+            _ => (Vec::<Option<Ty>>::new(), None),
+        };
+        // The element type each collected rest value is checked against.
+        let rest_item = want_rest.and_then(|r| self.list_item(r));
+        let spread = kids
+            .last()
+            .copied()
+            .filter(|e| e.kind() == SyntaxKind::SpreadExpr);
+        let plain = &kids[..kids.len() - usize::from(spread.is_some())];
+        if kids.is_empty() && want_rest.is_none() {
+            return Ok((Ref(NONE), Ty::VOID));
+        }
+        let mut refs = Vec::new();
+        let mut tys = Vec::new();
+        for (i, e) in plain.iter().enumerate() {
+            if e.kind() == SyntaxKind::SpreadExpr {
+                return unsupported("a tuple spread before the last element");
+            }
+            let w = wants.get(i).copied().flatten().or(rest_item);
+            let (r, t) = self.expr(*e, w)?;
+            let r = match w {
+                Some(w) => self.coerce(r, t, w, *e, "tuple element"),
+                None => r,
+            };
+            refs.push(r);
+            tys.push(w.unwrap_or(t));
+        }
+        let tail = match spread {
+            Some(sp) => {
+                let Some(operand) = sp.children().next() else {
+                    return unsupported("a spread without an operand");
+                };
+                let (r, t) = self.expr(operand, want_rest)?;
+                Some((r, t, operand))
+            }
+            None => None,
+        };
+        let tt = match (want_rest, &tail) {
+            (Some(_), _) => want.map_or(Ty::POISON, |w| self.infer.shallow(pool, w)),
+            (None, Some((_, t, operand))) => {
+                // `expr.tuple.rest.spread.list`: the spread operand is a
+                // list, which gives the rest element.
+                let t = self.strip_mut(*t);
+                let list = self.cx.names.known.list;
+                if !matches!(pool.get(t), TyData::Adt { def, .. } if def == list) {
+                    if !matches!(t, Ty::NEVER | Ty::POISON) {
+                        let msg = format!("in spread: expected a list, found {}", self.show(t));
+                        self.err(Code::TypeMismatch, *operand, &msg);
+                    }
+                    return Ok((Ref(NONE), Ty::NEVER));
+                }
+                pool.intern_ty(&TyData::Tuple {
+                    elems: pool.list(&tys),
+                    rest: Some(t),
+                })
+            }
+            (None, None) => {
+                let t = pool.intern_ty(&TyData::Tuple {
+                    elems: pool.list(&tys),
+                    rest: None,
+                });
+                let rec = self.b.refs_record(&refs);
+                return Ok((self.b.emit(Tag::NewTuple, NONE, rec, t, n.index()), t));
+            }
+        };
+        let tail = match (&tail, want_rest) {
+            (Some((r, t, operand)), Some(rest)) => {
+                Some(self.coerce(*r, *t, rest, *operand, "tuple spread"))
+            }
+            (Some((r, _, _)), None) => Some(*r),
+            (None, _) => None,
+        };
+        let r = self.rest_tuple_value(tt, &refs, tail, n);
+        Ok((r, tt))
+    }
+
+    /// The item type of a list type; none for any other type.
+    pub(crate) fn list_item(&self, list_ty: Ty) -> Option<Ty> {
+        let pool = self.pool();
+        let list = self.cx.names.known.list;
+        match pool.get(self.strip_mut(list_ty)) {
+            TyData::Adt { def, args } if def == list => pool.list_items(args).first().copied(),
+            _ => None,
+        }
+    }
+
+    /// The value of the rest tuple type `tt`: `items` fill the fixed
+    /// elements and the rest are collected into a new list, or `tail` is
+    /// the rest list (`expr.tuple.rest.collect`, `expr.tuple.rest.spread`,
+    /// `expr.tuple.rest.value`). The items are already checked against
+    /// their element types.
+    pub(crate) fn rest_tuple_value(
+        &mut self,
+        tt: Ty,
+        items: &[Ref],
+        tail: Option<Ref>,
+        at: NodeRef<'_>,
+    ) -> Ref {
+        let pool = self.pool();
+        let TyData::Tuple {
+            elems,
+            rest: Some(list_ty),
+        } = pool.get(tt)
+        else {
+            return Ref(NONE);
+        };
+        let fixed = pool.list_items(elems).len();
+        if items.len() < fixed || (tail.is_some() && items.len() != fixed) {
+            let msg = format!(
+                "{} takes {fixed} elements before its rest, found {}",
+                self.show(tt),
+                items.len()
+            );
+            self.err(Code::TypeMismatch, at, &msg);
+            return Ref(NONE);
+        }
+        let rest = tail.unwrap_or_else(|| {
+            let rec = self.b.refs_record(&items[fixed..]);
+            self.b.emit(Tag::NewList, NONE, rec, list_ty, at.index())
+        });
+        let rec = self.b.refs_record(&items[..fixed]);
+        self.b.emit(Tag::NewTuple, rest.0, rec, tt, at.index())
     }
 
     fn list_expr(

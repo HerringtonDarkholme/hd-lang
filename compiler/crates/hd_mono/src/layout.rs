@@ -237,9 +237,10 @@ fn layout_in(
                 }
             }
         },
-        TyData::Tuple { elems, rest: None } => {
+        // A rest element is the tuple's last member, a `List`.
+        TyData::Tuple { elems, rest } => {
             let mut values = Vec::new();
-            for e in pool.list_items(elems).iter().copied() {
+            for e in pool.list_items(elems).iter().copied().chain(rest) {
                 values.extend(layout_in(pool, env, e, memo)?.values);
             }
             match values.len() {
@@ -255,12 +256,6 @@ fn layout_in(
                 },
                 _ => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
             }
-        }
-        TyData::Tuple { rest: Some(_), .. } => {
-            return Err(NotImplemented::new(
-                Stage::Emit,
-                "layout of an open tuple (rest element)",
-            ));
         }
         TyData::Option(inner) => {
             let li = layout_in(pool, env, inner, memo)?;

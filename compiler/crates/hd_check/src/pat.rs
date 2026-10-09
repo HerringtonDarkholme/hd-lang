@@ -110,36 +110,27 @@ impl Ck<'_, '_> {
                     self.err(Code::BareVariantPattern, p, &msg);
                     return Ok(());
                 }
-                if binds
-                    .iter()
-                    .any(|(_, l)| self.b.body_mut().local_name[l.idx()] == name)
-                {
+                return self.bind_pattern_name(p, name, t, binds);
+            }
+            // A spread pattern is checked by its tuple pattern; here it
+            // stands where a tuple pattern has no rest element.
+            SyntaxKind::SpreadPattern => {
+                if inner != Ty::POISON {
                     let msg = format!(
-                        "`{}` is bound twice in one pattern",
-                        self.cx.names.text(name)
+                        "a spread pattern needs a tuple with a rest element, not {}",
+                        self.show(t)
                     );
-                    self.err(Code::DuplicateBinding, p, &msg);
+                    self.err(Code::TypeMismatch, p, &msg);
                 }
-                if let Some(sub) = p.children().next() {
-                    // `name @ pattern`-like forms.
-                    let _ = sub;
-                    return unsupported("a binding with a sub-pattern");
+                if let Some(nt) = p.direct_tokens().find(|t| {
+                    matches!(
+                        self.cx.src.tkind(*t),
+                        Some(TokenKind::Ident | TokenKind::RawIdent)
+                    )
+                }) {
+                    let name = self.cx.names.syms.intern(self.cx.src.text(nt));
+                    self.bind_pattern_name(p, name, Ty::POISON, binds)?;
                 }
-                // A `let` pattern's names follow the binding forms
-                // (types.bind.let-pattern-mut, types.bind.let-mut-pattern.annotated).
-                let t = match self.let_view {
-                    Some(annotated)
-                        if p.direct_tokens()
-                            .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut)) =>
-                    {
-                        self.let_mut_name(t, annotated, p);
-                        t
-                    }
-                    Some(false) => self.readonly_view(t),
-                    _ => t,
-                };
-                let l = self.bind_local(name, t, p);
-                binds.push((p.index(), l));
             }
             SyntaxKind::LiteralPattern => {
                 let (r, lt) = self.pattern_literal(p, Some(t))?;
@@ -171,11 +162,18 @@ impl Ck<'_, '_> {
             }
             SyntaxKind::TuplePattern => {
                 let subs: Vec<NodeRef<'_>> = p.children().collect();
-                if subs.iter().any(|s| s.kind() == SyntaxKind::SpreadPattern) {
-                    return unsupported("a tuple pattern with a rest");
-                }
-                let elems = match pool.get(inner) {
-                    TyData::Tuple { elems, .. } => pool.list_items(elems).to_vec(),
+                // A spread pattern ends the pattern (grammar.pattern.tuple-spread).
+                let spread = subs
+                    .last()
+                    .copied()
+                    .filter(|s| s.kind() == SyntaxKind::SpreadPattern);
+                let fixed = &subs[..subs.len() - usize::from(spread.is_some())];
+                let (elems, rest) = match pool.get(inner) {
+                    TyData::Tuple { elems, rest } => (pool.list_items(elems).to_vec(), rest),
+                    TyData::Poison => return self.declare_poisoned(&subs, binds),
+                    TyData::Infer(_) if spread.is_some() => {
+                        return unsupported("a spread pattern on a value whose type is not known");
+                    }
                     TyData::Infer(_) => {
                         let vs: Vec<Ty> = subs
                             .iter()
@@ -186,20 +184,64 @@ impl Ck<'_, '_> {
                             rest: None,
                         });
                         self.expect(tt, t, p, "pattern");
-                        vs
+                        (vs, None)
                     }
                     _ => {
                         let msg = format!("in pattern: {} is not a tuple", self.show(t));
                         self.err(Code::TypeMismatch, p, &msg);
-                        return Ok(());
+                        return self.declare_poisoned(&subs, binds);
                     }
                 };
-                if elems.len() != subs.len() {
-                    self.err(Code::PatternArity, p, "the tuple has another size");
-                    return Ok(());
-                }
-                for (s, et) in subs.iter().zip(elems) {
-                    self.declare_pattern(*s, et, binds)?;
+                match (rest, spread) {
+                    (Some(rest_ty), Some(sp)) => {
+                        // `flow.match.spread.arity`.
+                        if fixed.len() != elems.len() {
+                            let msg = format!(
+                                "the tuple takes {} patterns before its spread, found {}",
+                                elems.len(),
+                                fixed.len()
+                            );
+                            self.err(Code::TypeMismatch, p, &msg);
+                            return self.declare_poisoned(&subs, binds);
+                        }
+                        for (s, et) in fixed.iter().zip(elems) {
+                            self.declare_pattern(*s, et, binds)?;
+                        }
+                        // `flow.match.spread.bind`: `_...` binds nothing.
+                        if let Some(nt) = sp.direct_tokens().find(|t| {
+                            matches!(
+                                self.cx.src.tkind(*t),
+                                Some(TokenKind::Ident | TokenKind::RawIdent)
+                            )
+                        }) {
+                            let name = self.cx.names.syms.intern(self.cx.src.text(nt));
+                            self.bind_pattern_name(sp, name, rest_ty, binds)?;
+                        }
+                    }
+                    // `flow.match.spread.required`.
+                    (Some(_), None) => {
+                        let msg = format!(
+                            "{} has a rest element, so its pattern ends in a spread pattern",
+                            self.show(t)
+                        );
+                        self.err(Code::TypeMismatch, p, &msg);
+                        return self.declare_poisoned(&subs, binds);
+                    }
+                    // `flow.match.spread.fixed-tuple`.
+                    (None, Some(_)) => {
+                        let msg = format!("{} has no rest element to spread", self.show(t));
+                        self.err(Code::TypeMismatch, p, &msg);
+                        return self.declare_poisoned(&subs, binds);
+                    }
+                    (None, None) => {
+                        if elems.len() != subs.len() {
+                            self.err(Code::PatternArity, p, "the tuple has another size");
+                            return self.declare_poisoned(&subs, binds);
+                        }
+                        for (s, et) in subs.iter().zip(elems) {
+                            self.declare_pattern(*s, et, binds)?;
+                        }
+                    }
                 }
             }
             SyntaxKind::VariantPattern => {
@@ -266,6 +308,59 @@ impl Ck<'_, '_> {
             }
             other => return unsupported(format!("the pattern {other:?}")),
         }
+        Ok(())
+    }
+
+    /// After an error in a tuple pattern its names still bind, to the
+    /// poison type, so their uses report nothing further.
+    fn declare_poisoned(
+        &mut self,
+        subs: &[NodeRef<'_>],
+        binds: &mut Vec<(NodeIdx, LocalId)>,
+    ) -> StageResult<()> {
+        for s in subs {
+            self.declare_pattern(*s, Ty::POISON, binds)?;
+        }
+        Ok(())
+    }
+
+    /// Binds a name of a binding or spread pattern to a local of type `t`
+    /// (`names.bind.pattern`; a `let` pattern's names follow the binding
+    /// forms, types.bind.let-pattern-mut, types.bind.let-mut-pattern.annotated).
+    fn bind_pattern_name(
+        &mut self,
+        p: NodeRef<'_>,
+        name: hd_base::Symbol,
+        t: Ty,
+        binds: &mut Vec<(NodeIdx, LocalId)>,
+    ) -> StageResult<()> {
+        if binds
+            .iter()
+            .any(|(_, l)| self.b.body_mut().local_name[l.idx()] == name)
+        {
+            let msg = format!(
+                "`{}` is bound twice in one pattern",
+                self.cx.names.text(name)
+            );
+            self.err(Code::DuplicateBinding, p, &msg);
+        }
+        if p.kind() == SyntaxKind::BindingPattern && p.children().next().is_some() {
+            // `name @ pattern`-like forms.
+            return unsupported("a binding with a sub-pattern");
+        }
+        let t = match self.let_view {
+            Some(annotated)
+                if p.direct_tokens()
+                    .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut)) =>
+            {
+                self.let_mut_name(t, annotated, p);
+                t
+            }
+            Some(false) => self.readonly_view(t),
+            _ => t,
+        };
+        let l = self.bind_local(name, t, p);
+        binds.push((p.index(), l));
         Ok(())
     }
 
@@ -724,7 +819,7 @@ impl Ck<'_, '_> {
         while let Some((p, v, t)) = work.pop() {
             match p.kind() {
                 SyntaxKind::WildcardPattern => {}
-                SyntaxKind::BindingPattern => {
+                SyntaxKind::BindingPattern | SyntaxKind::SpreadPattern => {
                     if let Some(&(_, l)) = row.binds.iter().find(|(n, _)| *n == p.index()) {
                         self.b.set(l, v, p.index());
                     }
@@ -743,17 +838,10 @@ impl Ck<'_, '_> {
                 }
                 SyntaxKind::TuplePattern if p.children().next().is_none() => {}
                 SyntaxKind::TuplePattern => {
-                    let elems = match pool.get(self.infer.resolve(pool, t)) {
-                        TyData::Tuple { elems, .. } => pool.list_items(elems),
-                        TyData::Mut(x) => match pool.get(self.infer.resolve(pool, x)) {
-                            TyData::Tuple { elems, .. } => pool.list_items(elems),
-                            _ => &[],
-                        },
-                        _ => &[],
-                    };
+                    let members = self.tuple_members(t);
                     let subs: Vec<NodeRef<'_>> = p.children().collect();
                     for (k, s) in subs.iter().enumerate().rev() {
-                        let et = elems.get(k).copied().unwrap_or(Ty::POISON);
+                        let et = members.get(k).copied().unwrap_or(Ty::POISON);
                         let g = self.b.emit(
                             Tag::TupleGet,
                             v.0,
@@ -900,9 +988,11 @@ impl Ck<'_, '_> {
 
     fn to_p(&self, p: Option<NodeRef<'_>>, t: Ty) -> P {
         let Some(p) = p else { return P::Wild };
-        let pool = self.pool();
         match p.kind() {
-            SyntaxKind::WildcardPattern | SyntaxKind::BindingPattern => P::Wild,
+            // A spread pattern covers every list (`flow.match.spread.cover`).
+            SyntaxKind::WildcardPattern
+            | SyntaxKind::BindingPattern
+            | SyntaxKind::SpreadPattern => P::Wild,
             SyntaxKind::LiteralPattern => match self.cx.src.tkind(self.cx.src.first(p)) {
                 Some(TokenKind::KwTrue) => P::Ctor("true".into(), vec![]),
                 Some(TokenKind::KwFalse) => P::Ctor("false".into(), vec![]),
@@ -925,16 +1015,13 @@ impl Ck<'_, '_> {
             SyntaxKind::RangePattern => self.range_p(p, t),
             SyntaxKind::TuplePattern if p.children().next().is_none() => P::Wild,
             SyntaxKind::TuplePattern => {
-                let elems = match pool.get(self.strip(t)) {
-                    TyData::Tuple { elems, .. } => pool.list_items(elems),
-                    _ => &[],
-                };
+                let members = self.tuple_members(t);
                 P::Ctor(
                     "()".into(),
                     p.children()
                         .enumerate()
                         .map(|(i, c)| {
-                            self.to_p(Some(c), elems.get(i).copied().unwrap_or(Ty::POISON))
+                            self.to_p(Some(c), members.get(i).copied().unwrap_or(Ty::POISON))
                         })
                         .collect(),
                 )
@@ -1027,6 +1114,18 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// The members of a tuple type, its rest element last; none for a
+    /// type that is not a tuple.
+    fn tuple_members(&self, t: Ty) -> Vec<Ty> {
+        let pool = self.pool();
+        match pool.get(self.strip(t)) {
+            TyData::Tuple { elems, rest } => {
+                pool.list_items(elems).iter().copied().chain(rest).collect()
+            }
+            _ => Vec::new(),
+        }
+    }
+
     fn strip(&self, t: Ty) -> Ty {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
@@ -1045,9 +1144,8 @@ impl Ck<'_, '_> {
             TyData::Prim(Prim::Bool) => {
                 Some(vec![("true".into(), vec![]), ("false".into(), vec![])])
             }
-            TyData::Tuple { elems, .. } => {
-                Some(vec![("()".into(), pool.list_items(elems).to_vec())])
-            }
+            // The rest element is the tuple's last member.
+            TyData::Tuple { .. } => Some(vec![("()".into(), self.tuple_members(st))]),
             TyData::Option(i) => Some(vec![("None".into(), vec![]), ("Some".into(), vec![i])]),
             TyData::Adt { def, args } => match &self.cx.lookup.item(def)?.data {
                 ItemData::Enum { variants, .. } => {

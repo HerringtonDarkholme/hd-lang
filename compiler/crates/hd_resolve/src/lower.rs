@@ -1390,7 +1390,19 @@ impl Lower<'_, '_, '_> {
                 let mut rest = None;
                 for c in n.children().filter(|c| c.kind().is_type()) {
                     if c.kind() == SyntaxKind::RestType {
-                        rest = Some(first_ty(self, c));
+                        let t = first_ty(self, c);
+                        // `types.tuple.rest.list`: a rest element is a `List`.
+                        let list = self.names.known.list;
+                        if !matches!(pool.get(t), TyData::Adt { def, .. } if def == list)
+                            && t != Ty::POISON
+                        {
+                            self.diags.error(
+                                Code::TypeMismatch,
+                                self.src.span(c),
+                                "a rest element's type must be a `List`",
+                            );
+                        }
+                        rest = Some(t);
                     } else {
                         elems.push(self.ty(Some(c), gn));
                     }

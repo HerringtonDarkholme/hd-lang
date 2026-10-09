@@ -1216,6 +1216,22 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
                 rest: None,
             },
         ) => match_list(pool, owner, e1, e2, binds),
+        (
+            TyData::Tuple {
+                elems: e1,
+                rest: Some(r1),
+            },
+            TyData::Tuple {
+                elems: e2,
+                rest: Some(r2),
+            },
+        ) => {
+            let r = match_list(pool, owner, e1, e2, binds);
+            if r == M::No {
+                return r;
+            }
+            both(r, match_ty(pool, owner, r1, r2, binds))
+        }
         (TyData::Option(p), TyData::Option(x)) => match_ty(pool, owner, p, x, binds),
         (
             TyData::Fn {
@@ -2019,8 +2035,8 @@ fn collect_vars(pool: Types<'_>, t: Ty, out: &mut Vec<InferVar>) {
                 collect_vars(pool, a, out);
             }
         }
-        TyData::Tuple { elems, .. } => {
-            for a in pool.list_items(elems).iter().copied() {
+        TyData::Tuple { elems, rest } => {
+            for a in pool.list_items(elems).iter().copied().chain(rest) {
                 collect_vars(pool, a, out);
             }
         }

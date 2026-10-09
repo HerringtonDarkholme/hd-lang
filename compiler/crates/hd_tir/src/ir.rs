@@ -116,7 +116,7 @@ tags! {
     NewData: None, Values;
     CopyData: Value, Record;
     NewVariant: Meta, Values;
-    NewTuple: None, Values;
+    NewTuple: Value, Values;
     NewList: None, Record;
     NewMap: None, Values;
     Field: Value, Meta;
