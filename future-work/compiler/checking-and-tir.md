@@ -136,6 +136,25 @@ and sweeps the pending rows out of every type
 - **No overloading, no disjunctions.** Every call resolves to one callee by
   name and receiver type, so there is no search over alternatives (the
   Swift lesson).
+- **Local items lift to hidden module items.** A `data`, `enum`,
+  `trait`, `type` or `fn` declared in a body becomes a module-level
+  item with a mangled path (enclosing item, kind, name, statement
+  index), visible only from its declaration point to its suite's end.
+  Outer generic parameters become its parameters, so one declaration
+  keeps one identity per instantiation
+  (`names.local-type.identity`, `names.local-type.refs`). Local types
+  capture nothing and execute nothing
+  (`names.local-type.static`); a local `fn` lowers as a named
+  `Closure` value with closure captures and a self-visible name
+  (`fn.local.capture-rules`, unlike anonymous closures); a local
+  `impl` emits no item and captures nothing
+  (`names.local-impl.static`, `names.local-impl.no-capture`) — it
+  extends the lexical impl-table overlay to the suite's end, so
+  method and trait lookup inside find its methods (which must
+  involve a visible local nominal or trait,
+  `names.local-impl.involve`). Emit sees ordinary items, instances
+  keyed as usual, and closures; `pub` and decorators stay rejected
+  (`names.local.no-pub`, `names.local.no-metadata`).
 
 #### 4.13.3 Expressions And Statements
 

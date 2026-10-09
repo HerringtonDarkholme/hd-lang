@@ -105,17 +105,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### R23. Design Note: Local Declarations In Bodies (#123, Design Text)
-
-18 programs stop at Body on a local `data` declaration, 4 on a local
-named `fn`, 2 on a local `impl` (your R22 plan). Read the spec rules for
-items inside bodies (`spec/lang/02-grammar.md` statements,
-`03-names-and-scopes.md` scopes, `07-functions.md`, `08-data-and-enums.md`)
-and add to `checking-and-tir.md` how a local item is named and lowered
-(a hidden module-level item with a mangled path? captures forbidden?),
-how its methods and impls are found, and what Emit sees. Timebox 45
-minutes.
-
 ### R24. Design Note: Small Body Gaps (#123, Design Text)
 
 From your R22 plan: `**` (14), open range patterns (9), full range `..`
@@ -453,3 +442,17 @@ rather than a carve-out.
 - **Q-R21.2:** the spec does not say how two promoted methods at the same
   smallest depth tie (`names.method-lookup.promoted-candidate`); logged.
   The compiler reports `ambiguous-method` there, the conservative error.
+
+### Q-R23: mangled paths and local-fn form (R23, 2026-10-09)
+
+1. **Mangled path with statement index, content-keyed caches
+   (recommended).** Enclosing item plus kind, name and statement
+   index keeps names unique; cache keys hash item content, so an
+   edit that renumbers statements costs rechecking, never staleness.
+   The alternative (span-based paths) litters keys with positions.
+   Recommend index plus content keys.
+2. **Local fn as a named Closure value (recommended).** Captures and
+   recursion fall out of closure semantics with a self-visible name.
+   The alternative (a hidden item plus an env-carrying adapter per
+   call, R3-style) pays an adapter at every call site for no extra
+   expressiveness. Recommend the Closure value.
