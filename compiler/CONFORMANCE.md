@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1893 | 653 | 298 | 2844 |
+| 1902 | 653 | 289 | 2844 |
 
 ## By Chapter
 
@@ -17,11 +17,11 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 133 | 11 | 1 | 145 |
 | `lang/02-grammar.md` | 189 | 13 | 12 | 214 |
 | `lang/03-names-and-scopes.md` | 77 | 14 | 10 | 101 |
-| `lang/04-type-system.md` | 265 | 72 | 15 | 352 |
-| `lang/05-expressions.md` | 167 | 75 | 35 | 277 |
+| `lang/04-type-system.md` | 267 | 72 | 13 | 352 |
+| `lang/05-expressions.md` | 170 | 75 | 32 | 277 |
 | `lang/06-control-flow.md` | 108 | 33 | 16 | 157 |
-| `lang/07-functions.md` | 82 | 35 | 13 | 130 |
-| `lang/08-data-and-enums.md` | 70 | 39 | 14 | 123 |
+| `lang/07-functions.md` | 83 | 35 | 12 | 130 |
+| `lang/08-data-and-enums.md` | 73 | 39 | 11 | 123 |
 | `lang/09-traits.md` | 212 | 115 | 32 | 359 |
 | `lang/10-modules.md` | 144 | 77 | 37 | 258 |
 | `lang/11-requirements-and-suspension.md` | 129 | 60 | 70 | 259 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 68 | 28 | 9 | 105 |
-| `runtime/valid` | 578 | 160 | 191 | 929 |
+| `runtime/valid` | 587 | 160 | 182 | 929 |
 | `typing/invalid` | 593 | 412 | 69 | 1074 |
 | `typing/valid` | 356 | 30 | 29 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -127,7 +127,7 @@ compiler stage that first declined the case.
 | `fail:unused-local-binding` | 6 |
 | `unsupported:Body` | 124 |
 | `unsupported:Collect` | 26 |
-| `unsupported:Emit` | 45 |
+| `unsupported:Emit` | 36 |
 | `unsupported:FolderIface` | 34 |
 | `unsupported:Link` | 2 |
 | `unsupported:RunCase` | 61 |
@@ -1196,20 +1196,12 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Emit</code> (45)</summary>
+<details><summary><code>unsupported:Emit</code> (36)</summary>
 
 - `runtime/valid/float-display.hd`
-- `runtime/valid/identity-ignores-permissions.hd`
-- `runtime/valid/fieldless-data-canonical.hd`
-- `runtime/valid/reference-identity.hd`
 - `runtime/valid/suspending-calls-in-branches.hd`
 - `runtime/valid/suspending-match-guards.hd`
 - `runtime/valid/f32-display-width-through-generics.hd`
-- `runtime/valid/composite-identity-and-views.hd`
-- `runtime/valid/covariant-readonly-weakening.hd`
-- `runtime/valid/defaults-reference-earlier-parameters.hd`
-- `runtime/valid/copy-update-shallow.hd`
-- `runtime/valid/embedded-construction-copies.hd`
 - `runtime/panic/snapshot-mismatch.hd`
 - `runtime/valid/string-prefix-std.hd`
 - `runtime/valid/float-cast-saturates.hd`
@@ -1237,7 +1229,6 @@ compiler stage that first declined the case.
 - `runtime/valid/regex-named-groups.hd`
 - `runtime/valid/regex-replace.hd`
 - `runtime/valid/regex-split.hd`
-- `runtime/valid/generic-storage-callable-list-identity.hd`
 - `runtime/valid/numeric-casts-in-range.hd`
 - `runtime/valid/serde-std-reads.hd`
 - `runtime/valid/associated-binding-positions.hd`
@@ -1809,6 +1800,7 @@ runtime/valid/cmp-reverse.hd
 runtime/valid/colons-in-brackets-and-trailing-blocks.hd
 runtime/valid/comments-hide-code-from-the-parser.hd
 runtime/valid/comparisons-beside-brackets.hd
+runtime/valid/composite-identity-and-views.hd
 runtime/valid/compound-assign-index-once.hd
 runtime/valid/compound-assign-index.hd
 runtime/valid/compound-assign-map-run.hd
@@ -1832,8 +1824,10 @@ runtime/valid/contextual-words-as-names.hd
 runtime/valid/continuation-line-opens-with-a-bracket.hd
 runtime/valid/copy-update-copies-embedded-part.hd
 runtime/valid/copy-update-evaluation-order.hd
+runtime/valid/copy-update-shallow.hd
 runtime/valid/copy-update-skips-defaults.hd
 runtime/valid/copy-update-source-order-observed.hd
+runtime/valid/covariant-readonly-weakening.hd
 runtime/valid/data-expression-forms.hd
 runtime/valid/data-field-defaults.hd
 runtime/valid/data-field-evaluation-order.hd
@@ -1847,6 +1841,7 @@ runtime/valid/debug-derive-variants.hd
 runtime/valid/default-body-supertrait-member.hd
 runtime/valid/default-hasher.hd
 runtime/valid/default-method-conflict-inherent-resolves.hd
+runtime/valid/defaults-reference-earlier-parameters.hd
 runtime/valid/defer-after-return-value.hd
 runtime/valid/defer-and-discard-statements.hd
 runtime/valid/defer-closure-propagation.hd
@@ -1872,6 +1867,7 @@ runtime/valid/duration-order.hd
 runtime/valid/dyn-inherent-methods.hd
 runtime/valid/dynamic-suspending-method.hd
 runtime/valid/else-if-chain.hd
+runtime/valid/embedded-construction-copies.hd
 runtime/valid/embedded-copy-at-field-position.hd
 runtime/valid/embedded-field-satisfies-trait.hd
 runtime/valid/embedded-part-follows-container.hd
@@ -1904,6 +1900,7 @@ runtime/valid/field-and-inherent-method-share-name.hd
 runtime/valid/field-and-trait-method-share-name.hd
 runtime/valid/field-read-beside-trait-method.hd
 runtime/valid/fieldless-data-argument.hd
+runtime/valid/fieldless-data-canonical.hd
 runtime/valid/float-eq-bound.hd
 runtime/valid/float-literal-forms.hd
 runtime/valid/for-loops-lists-and-maps.hd
@@ -1939,6 +1936,7 @@ runtime/valid/generic-mut-argument-preserved.hd
 runtime/valid/generic-parameter-forms.hd
 runtime/valid/generic-partial-eq-bound-primitives.hd
 runtime/valid/generic-requirement-key-substitution.hd
+runtime/valid/generic-storage-callable-list-identity.hd
 runtime/valid/generic-storage-invokes-callables.hd
 runtime/valid/generic-supertraits.hd
 runtime/valid/generic-suspending-function-bound.hd
@@ -1966,6 +1964,7 @@ runtime/valid/i32-minimum-through-generic-optional.hd
 runtime/valid/i64-u64-precision-through-generics.hd
 runtime/valid/i64-widening-checked.hd
 runtime/valid/identifier-spellings.hd
+runtime/valid/identity-ignores-permissions.hd
 runtime/valid/impl-distinct-target-arguments.hd
 runtime/valid/impl-method-generics-renamed.hd
 runtime/valid/implicit-continuation-in-delimiters.hd
@@ -2150,6 +2149,7 @@ runtime/valid/readonly-root-generic-mutable-path.hd
 runtime/valid/recursive-data-types.hd
 runtime/valid/recursive-private-functions-least-row.hd
 runtime/valid/reference-cycles-are-ordinary-data.hd
+runtime/valid/reference-identity.hd
 runtime/valid/regex-captures-linear-time.hd
 runtime/valid/regex-leftmost-first.hd
 runtime/valid/regex-linear-time.hd

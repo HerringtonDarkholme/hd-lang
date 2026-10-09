@@ -7,8 +7,8 @@
 
 use std::collections::HashMap;
 
-use hd_base::{DefId, Hash128, StageResult};
-use hd_mono::layout::inline_map_key;
+use hd_base::{DefId, Hash128, StableHasher, StageResult};
+use hd_mono::layout::{canon, inline_map_key};
 use hd_mono::{CallTarget, ProgramEnv, Target, TargetKind, VTable, subst};
 use hd_tir::ir::{
     Body, Callee, ChoiceKind, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags,
@@ -515,16 +515,31 @@ impl Em<'_> {
                 let Shape::Data { ty: st, fields } = self.lay.shape(ty)? else {
                     return unsupported("a data value without a struct layout");
                 };
+                if fields.is_empty() {
+                    return self.canonical_data(i, ty, st);
+                }
                 for (r, (_, vs)) in self.rec(bw).into_iter().zip(fields) {
                     self.load_as(r, &vs)?;
                 }
                 self.a.struct_new(&st);
                 self.store(i)?;
             }
+            Tag::Is => {
+                // `expr.is.*`: the underlying references, never the
+                // trait-value pair; component 0 of every operand layout
+                // is the reference (the payload of a trait value).
+                self.comp(a, 0, &VT::Eq)?;
+                self.comp(bw, 0, &VT::Eq)?;
+                self.a.s().ref_eq();
+                self.store_from(i, &[VT::I32])?;
+            }
             Tag::CopyData => {
                 let Shape::Data { ty: st, fields } = self.lay.shape(ty)? else {
                     return unsupported("a copied value without a struct layout");
                 };
+                if fields.is_empty() {
+                    return self.canonical_data(i, ty, st);
+                }
                 // Replacements are `(field, value)` pairs; every other field
                 // is read from the source (codegen.md `CopyData`).
                 let words = self.rec(bw);
@@ -2958,6 +2973,18 @@ impl<'a> Em<'a> {
             }
         }
         Ok(())
+    }
+
+    /// A fieldless data value is canonical for its data type
+    /// (`expr.is.canonical-data`): one constant global per type, read here
+    /// without allocating (`expr.is.canonical.same`).
+    fn canonical_data(&mut self, i: u32, ty: Ty, st: WTy) -> StageResult<()> {
+        let ty = self.lay.strip(ty);
+        let mut h = StableHasher::new("canonical-data");
+        let path_hash = |d: DefId| self.env().path_hash(d);
+        canon(self.pool(), &path_hash, ty, &mut h);
+        self.a.global_get(GSym::Canon(h.finish(), VT::r(st)));
+        self.store(i)
     }
 
     fn global_hash(&self, a: u32) -> Hash128 {

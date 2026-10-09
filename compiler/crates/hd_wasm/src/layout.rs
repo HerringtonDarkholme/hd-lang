@@ -526,7 +526,7 @@ impl<'a> Lay<'a> {
         self.rec.borrow_mut().done.extend(laid);
     }
 
-    fn strip(&self, t: Ty) -> Ty {
+    pub(crate) fn strip(&self, t: Ty) -> Ty {
         match self.pool.get(t) {
             TyData::Mut(i) => self.strip(i),
             _ => t,

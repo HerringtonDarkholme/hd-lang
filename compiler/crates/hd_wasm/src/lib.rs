@@ -26,8 +26,9 @@ use hd_base::{Hash128, NotImplemented, StableHasher, Stage, StageResult};
 use wasm_encoder::{
     CodeSection, CompositeInnerType, CompositeType, ConstExpr, DataCountSection, DataSection,
     ElementSection, Elements, EntityType, ExportKind, ExportSection, FieldType, FuncType,
-    FunctionSection, GlobalSection, GlobalType, HeapType, ImportSection, MemorySection, MemoryType,
-    Module, RefType, StorageType, StructType, SubType, TypeSection, ValType,
+    FunctionSection, GlobalSection, GlobalType, HeapType, ImportSection, Instruction,
+    MemorySection, MemoryType, Module, RefType, StorageType, StructType, SubType, TypeSection,
+    ValType,
 };
 
 pub use emit::{emit, emit_adapter, entry, script_entry, test_entry};
@@ -486,13 +487,17 @@ pub enum GSym {
     Binding(Hash128, u32, VT),
     /// A runtime global by name, with its type.
     Rt(String, VT),
+    /// The canonical value of a fieldless data type: an immutable constant
+    /// global, named by the canonical encoding of the type, holding the
+    /// struct `VT` (`expr.is.canonical-data`).
+    Canon(Hash128, VT),
 }
 
 impl GSym {
     #[must_use]
     pub fn vt(&self) -> &VT {
         match self {
-            GSym::Binding(_, _, v) | GSym::Rt(_, v) => v,
+            GSym::Binding(_, _, v) | GSym::Rt(_, v) | GSym::Canon(_, v) => v,
         }
     }
     fn encode(&self, w: &mut Writer) {
@@ -508,12 +513,18 @@ impl GSym {
                 w.str(n);
                 v.encode(w);
             }
+            GSym::Canon(h, v) => {
+                w.u8(2);
+                w.hash(*h);
+                v.encode(w);
+            }
         }
     }
     fn decode(r: &mut Reader<'_>) -> Option<GSym> {
         Some(match r.u8() {
             0 => GSym::Binding(r.hash(), r.u32(), VT::decode(r, 0)?),
             1 => GSym::Rt(r.str().to_owned(), VT::decode(r, 0)?),
+            2 => GSym::Canon(r.hash(), VT::decode(r, 0)?),
             _ => return None,
         })
     }
@@ -1226,6 +1237,22 @@ pub fn link(
     }
     let mut global_idx: BTreeMap<GSym, u32> = BTreeMap::new();
     for g in &gsyms {
+        if let GSym::Canon(_, VT::Ref(t, _)) = g {
+            let idx = types.of(t);
+            globals.global(
+                GlobalType {
+                    val_type: types.val(g.vt()),
+                    mutable: false,
+                    shared: false,
+                },
+                &ConstExpr::extended([Instruction::StructNewDefault(idx)]),
+            );
+            global_idx.insert(
+                g.clone(),
+                u32::try_from(lits.len() + global_idx.len()).expect("globals"),
+            );
+            continue;
+        }
         let vt = g.vt().dflt();
         let val_type = types.val(&vt);
         let init = match &vt {
