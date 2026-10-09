@@ -204,6 +204,21 @@ same), which crate makes them (mono or emit), how `Self?`,
 code-size cost per derived newtype. Add it to `codegen.md`. Research
 only; one commit; push. Timebox 40 minutes.
 
+### D2o. Design Text For Derive Codegen (#119)
+
+Commit "Codegen: derived implementations instantiate their template (#119)"
+landed. Read its diff and write it into the design text: in
+`future-work/compiler/checking-and-tir.md` §4.13.9, how an opt-in's checked
+template methods become the derived implementation's methods
+(`hd_tir::wire::map_ids`, Structure calls choosing the derivation); in
+`future-work/compiler/codegen.md` §12.3, the generated `Structure` bodies
+(`hd_check/src/structure.rs`: facts, name, walk, describe, build, one hidden
+method per handle) and what is not carried yet (facts, doc comments, shared
+constructor data); and in §13.2 the refined A1 rule: an own type parameter
+stays exact when a data type, tuple, function type, trait value or projection
+in the item's signature or body holds it. Docs only; one commit; push.
+Timebox 40 minutes.
+
 ### P1. Profile The New Compiler (After S4; Standing Job)
 
 Owner, 2026-10-07: "you write the code, codex do the profiling. move
