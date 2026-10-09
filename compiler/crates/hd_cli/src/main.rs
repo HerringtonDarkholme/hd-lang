@@ -5,6 +5,7 @@
 
 mod caps;
 mod check_cmd;
+mod clean_cmd;
 mod disk;
 mod help;
 mod new_cmd;
@@ -29,6 +30,7 @@ const USAGE: &str = "usage:
   hd build [--release] [--format json] [FILE.hd]
   hd check [FILE.hd] [--tests | --all] [--format json]
   hd new [--app | --lib] [--pages] [--vcs none] [PATH]
+  hd clean [--cache]
   hd test [FILE.hd] [--filter PATTERN] [--jobs N] [--format json]";
 
 /// `cli.exit.hd-failure`: `hd` itself failed, or rejected its command line.
@@ -75,6 +77,7 @@ fn main() -> ExitCode {
         },
         ("test", rest) => test_cmd::command(rest),
         ("new", rest) => new_cmd::command(rest),
+        ("clean", rest) => clean_cmd::command(rest),
         ("run", rest) => run_command(rest),
         ("build", rest) => build_command(rest),
         ("check", rest) => check_cmd::command(rest),
@@ -97,11 +100,11 @@ impl Clock for Wall {
     }
 }
 
-/// The compiled-cache directory (`cli.cache.obj`): `obj` under `HD_CACHE`,
-/// or under the platform's user cache directory followed by `hd`.
-pub(crate) fn cache_dir() -> PathBuf {
+/// The cache directory (`cli.cache.directory`): `HD_CACHE`, or the
+/// platform's user cache directory followed by `hd`.
+pub(crate) fn cache_root() -> PathBuf {
     if let Some(dir) = std::env::var_os("HD_CACHE") {
-        return PathBuf::from(dir).join("obj");
+        return PathBuf::from(dir);
     }
     let home = std::env::var_os("HOME").map_or_else(std::env::temp_dir, PathBuf::from);
     let base = if cfg!(target_os = "macos") {
@@ -109,7 +112,13 @@ pub(crate) fn cache_dir() -> PathBuf {
     } else {
         std::env::var_os("XDG_CACHE_HOME").map_or_else(|| home.join(".cache"), PathBuf::from)
     };
-    base.join("hd").join("obj")
+    base.join("hd")
+}
+
+/// The compiled-cache directory (`cli.cache.obj`): `obj` in the cache
+/// directory.
+pub(crate) fn cache_dir() -> PathBuf {
+    cache_root().join("obj")
 }
 
 /// The thread count (`cli.jobs.env`, `cli.jobs.default`): `HD_JOBS`, else

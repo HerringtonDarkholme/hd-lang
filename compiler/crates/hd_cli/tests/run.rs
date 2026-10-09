@@ -957,3 +957,49 @@ fn new_creates_a_package_and_joins_its_workspace() {
     assert_eq!(r.code, Some(101));
     assert!(!dir.join("my-app/src/lib.hd").exists());
 }
+
+/// `cli.clean.cache.*`: `hd clean --cache` removes the read-only fetched
+/// versions and the compiled entries, and keeps the cache directory; a
+/// directory that holds anything else is no cache, and nothing goes.
+#[test]
+fn clean_cache_empties_only_an_hd_cache() {
+    let dir = scratch("hd-forms-clean-cache");
+    let cache = dir.join("cache");
+    let version = cache.join("pkg/github.com/acme/json@2.1.0");
+    std::fs::create_dir_all(version.join("src")).expect("dir");
+    std::fs::write(version.join("hd.toml"), "[package]\nname = \"json\"\n").expect("write");
+    std::fs::create_dir_all(cache.join("obj/check")).expect("dir");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        for d in [version.join("src"), version.clone()] {
+            std::fs::set_permissions(&d, std::fs::Permissions::from_mode(0o555)).expect("chmod");
+        }
+    }
+    let clean = |cache: &Path| {
+        hd(cache)
+            .current_dir(&dir)
+            .args(["clean", "--cache"])
+            .output()
+            .expect("run hd")
+    };
+    let out = clean(&cache);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        text.starts_with("removed github.com/acme/json@2.1.0\nremoved 1 version from "),
+        "{text}"
+    );
+    assert!(cache.is_dir() && !cache.join("pkg").exists() && !cache.join("obj").exists());
+    let again = clean(&cache);
+    assert!(String::from_utf8_lossy(&again.stdout).contains("is empty"));
+    std::fs::write(dir.join("notes.txt"), "mine").expect("write");
+    let foreign = clean(&dir);
+    assert_eq!(foreign.status.code(), Some(101));
+    assert!(dir.join("notes.txt").is_file());
+}
