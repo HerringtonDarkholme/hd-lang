@@ -392,11 +392,20 @@ impl Ck<'_, '_> {
             params.push(self.normalize_deep(inst(pool, m, p.1))?);
         }
         let result = self.normalize_deep(inst(pool, m, m.sig.ret))?;
+        // A `List` vararg stays a rest element of the inputs
+        // (`fn.type.vararg-rest`); a tuple vararg is an ordinary input.
+        let list = self.cx.names.known.list;
+        let vararg = m.sig.variadic
+            && params.len() + skip == m.sig.params.len()
+            && params
+                .last()
+                .is_some_and(|t| matches!(pool.get(*t), TyData::Adt { def, .. } if def == list));
         Ok(pool.intern_ty(&TyData::Fn {
             params: pool.list(&params),
             result,
             row: inst_row(pool, m, m.sig.row),
             suspends: m.sig.suspends,
+            vararg,
         }))
     }
 

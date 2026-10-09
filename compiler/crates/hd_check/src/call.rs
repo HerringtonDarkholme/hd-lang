@@ -503,6 +503,7 @@ impl Ck<'_, '_> {
             result,
             row,
             suspends,
+            vararg,
         } = pool.get(ft)
         else {
             if matches!(pool.get(ft), TyData::Infer(_)) {
@@ -519,7 +520,23 @@ impl Ck<'_, '_> {
             return unsupported("named arguments to a function value");
         }
         let ps = pool.list_items(params);
-        let refs = if args.spread.is_some() {
+        let refs = if vararg {
+            // The inputs end in a rest element: the arguments are
+            // collected as a vararg call collects them
+            // (`fn.type.rest-call`).
+            let formals: Vec<(Symbol, Ty)> = ps
+                .iter()
+                .enumerate()
+                .map(|(i, t)| (self.cx.names.syms.intern(&format!("${i}")), *t))
+                .collect();
+            let defaults = vec![false; ps.len()];
+            let formals = Formals {
+                params: &formals,
+                defaults: &defaults,
+                variadic: true,
+            };
+            self.check_args(&formals, 0, args, n, "the function value")?
+        } else if args.spread.is_some() {
             self.spread_value_args(ps, args, n)?
         } else {
             let given = args.positional.len() + usize::from(args.trailing.is_some());
@@ -1537,6 +1554,7 @@ impl Ck<'_, '_> {
             result: t,
             row: hd_types::RowId::EMPTY,
             suspends: false,
+            vararg: false,
         });
         self.fit_expected(ft, want);
         // The enum's own type arguments are decided like a reference's.
@@ -3046,11 +3064,13 @@ impl Ck<'_, '_> {
                 result,
                 row,
                 suspends,
+                vararg,
             } => TyData::Fn {
                 params: list(self, params)?,
                 result: self.normalize_deep(result)?,
                 row,
                 suspends,
+                vararg,
             },
             _ => return Ok(t),
         };

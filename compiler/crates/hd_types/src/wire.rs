@@ -181,13 +181,14 @@ impl<'a> TableWriter<'a> {
                 result,
                 row,
                 suspends,
+                vararg,
             } => (
                 tag::FN,
                 vec![
                     self.list(params)?,
                     self.ty(result)?,
                     self.row_id(row)?,
-                    u32::from(suspends),
+                    u32::from(suspends) | u32::from(vararg) << 1,
                 ],
             ),
             TyData::TraitValue {
@@ -335,7 +336,8 @@ impl Tables {
                         params: TyList(row(0)?),
                         result: Ty(row(1)?),
                         row: RowId(row(2)?),
-                        suspends: *words.get(3)? != 0,
+                        suspends: *words.get(3)? & 1 != 0,
+                        vararg: *words.get(3)? & 2 != 0,
                     })
                     .0
                 }

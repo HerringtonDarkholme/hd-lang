@@ -2309,6 +2309,7 @@ impl Ck<'_, '_> {
                 result: ret,
                 row: own_row,
                 suspends,
+                vararg: false,
             });
             let flags = local_flags::ASSIGNED | local_flags::SHORT;
             let l = self.b.local(t, name, flags, n.index());
@@ -2355,6 +2356,7 @@ impl Ck<'_, '_> {
             result: ret,
             row,
             suspends,
+            vararg: false,
         });
         // A local function that calls itself captures its own name: the
         // name is declared, a fresh shared cell, before the closure exists,

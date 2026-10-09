@@ -230,11 +230,13 @@ impl InferTable {
                 result,
                 row,
                 suspends,
+                vararg,
             } => TyData::Fn {
                 params: rl(params),
                 result: r(result),
                 row: self.resolve_row(pool, row),
                 suspends,
+                vararg,
             },
             TyData::Row(row) => TyData::Row(self.resolve_row(pool, row)),
             TyData::Context(row) => TyData::Context(self.resolve_row(pool, row)),
@@ -450,15 +452,17 @@ impl InferTable {
                     params: p1,
                     result: r1,
                     suspends: s1,
+                    vararg: v1,
                     ..
                 },
                 TyData::Fn {
                     params: p2,
                     result: r2,
                     suspends: s2,
+                    vararg: v2,
                     ..
                 },
-            ) if s1 == s2 => {
+            ) if s1 == s2 && v1 == v2 => {
                 self.unify_lists(pool, p1, p2, a, b)?;
                 self.unify(pool, r1, r2)
             }

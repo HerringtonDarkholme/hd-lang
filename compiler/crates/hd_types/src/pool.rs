@@ -151,6 +151,10 @@ pub enum TyData {
         result: Ty,
         row: RowId,
         suspends: bool,
+        /// Whether the inputs end in a rest element `List[T]...`: the
+        /// last of `params` is that `List[T]` and a call collects its
+        /// arguments (`fn.type.vararg-rest`).
+        vararg: bool,
     },
     TraitValue {
         def: DefId,
@@ -880,8 +884,14 @@ impl<'a> Types<'a> {
                 result,
                 row,
                 suspends,
+                vararg,
             } => {
-                buf = [params.0, result.0, row.0, u32::from(*suspends)];
+                buf = [
+                    params.0,
+                    result.0,
+                    row.0,
+                    u32::from(*suspends) | u32::from(*vararg) << 1,
+                ];
                 &buf
             }
             TyData::Param(p) => {
@@ -943,7 +953,8 @@ impl<'a> Types<'a> {
                 params: TyList(x[0]),
                 result: Ty(x[1]),
                 row: RowId(x[2]),
-                suspends: x[3] != 0,
+                suspends: x[3] & 1 != 0,
+                vararg: x[3] & 2 != 0,
             },
             PoolTag::TraitValue => TyData::TraitValue {
                 def: DefId::from_raw(x[0]),
@@ -1023,11 +1034,13 @@ impl<'a> Types<'a> {
                 result,
                 row,
                 suspends,
+                vararg,
             } => TyData::Fn {
                 params: l(params),
                 result: self.subst(result, f),
                 row: self.subst_row(row, f),
                 suspends,
+                vararg,
             },
             TyData::Row(r) => TyData::Row(self.subst_row(r, f)),
             TyData::Context(r) => TyData::Context(self.subst_row(r, f)),
@@ -1191,11 +1204,13 @@ pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> T
             result,
             row,
             suspends,
+            vararg,
         } => TyData::Fn {
             params: list(params),
             result: with_assoc_args(pool, result, trait_, args),
             row,
             suspends,
+            vararg,
         },
         _ => return t,
     };
@@ -1272,6 +1287,7 @@ mod tests {
                 result: Ty::VOID,
                 row,
                 suspends: true,
+                vararg: false,
             },
             TyData::TraitValue {
                 def,

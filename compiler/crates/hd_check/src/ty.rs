@@ -209,16 +209,27 @@ impl Ck<'_, '_> {
                 .segment(hd_base::PathId::from_raw(def.raw()))
                 .to_owned();
             if name == "Fn" || name == "SuspendFn" {
-                let params = match args.first().map(|a| pool.get(*a)) {
-                    Some(TyData::Tuple { elems, .. }) => elems,
-                    Some(_) => pool.list(&args[..1]),
-                    None => TyList::EMPTY,
+                // A rest element ends the inputs as the `List` it is
+                // (`fn.type.vararg-rest`).
+                let (params, vararg) = match args.first().map(|a| pool.get(*a)) {
+                    Some(TyData::Tuple { elems, rest: None }) => (elems, false),
+                    Some(TyData::Tuple {
+                        elems,
+                        rest: Some(r),
+                    }) => {
+                        let mut all = pool.list_items(elems).to_vec();
+                        all.push(r);
+                        (pool.list(&all), true)
+                    }
+                    Some(_) => (pool.list(&args[..1]), false),
+                    None => (TyList::EMPTY, false),
                 };
                 return Ok(pool.intern_ty(&TyData::Fn {
                     params,
                     result: args.get(1).copied().unwrap_or(Ty::VOID),
                     row: row.unwrap_or(RowId::EMPTY),
                     suspends: name == "SuspendFn",
+                    vararg,
                 }));
             }
         }
@@ -435,6 +446,7 @@ impl Ck<'_, '_> {
                 let mut params = Vec::new();
                 let mut result = Ty::VOID;
                 let mut row = RowId::EMPTY;
+                let mut vararg = false;
                 for c in n.children() {
                     if c.kind() == SyntaxKind::RequirementRow {
                         row = self.row_of(c)?;
@@ -444,6 +456,7 @@ impl Ck<'_, '_> {
                         if after {
                             result = t;
                         } else {
+                            vararg = c.kind() == SyntaxKind::RestType;
                             params.push(t);
                         }
                     }
@@ -453,6 +466,7 @@ impl Ck<'_, '_> {
                     result,
                     row,
                     suspends,
+                    vararg,
                 })
             }
             SyntaxKind::InferType => self.infer.fresh(pool, VarKind::General),

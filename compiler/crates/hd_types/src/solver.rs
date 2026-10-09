@@ -957,11 +957,13 @@ fn fold_vars(
             result,
             row,
             suspends,
+            vararg,
         } => TyData::Fn {
             params: fold_list(pool, params, canon, f)?,
             result: fold_vars(pool, result, canon, f)?,
             row: fold_row(pool, row, canon, f)?,
             suspends,
+            vararg,
         },
         TyData::TraitValue {
             def,
@@ -1243,15 +1245,17 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
                 params: p1,
                 result: r1,
                 suspends: s1,
+                vararg: v1,
                 ..
             },
             TyData::Fn {
                 params: p2,
                 result: r2,
                 suspends: s2,
+                vararg: v2,
                 ..
             },
-        ) if s1 == s2 => both(
+        ) if s1 == s2 && v1 == v2 => both(
             match_list(pool, owner, p1, p2, binds),
             match_ty(pool, owner, r1, r2, binds),
         ),
@@ -2504,11 +2508,13 @@ fn norm_concrete(pool: Types<'_>, impls: Impls<'_>, t: Ty, depth: u32, reads: &m
             result,
             row,
             suspends,
+            vararg,
         } => TyData::Fn {
             params: norm_list(pool, impls, params, depth, reads),
             result: norm_concrete(pool, impls, result, depth, reads),
             row,
             suspends,
+            vararg,
         },
         TyData::TraitValue {
             def,
@@ -4523,6 +4529,7 @@ mod tests {
             result: Ty::I32,
             row: crate::pool::RowId::EMPTY,
             suspends: false,
+            vararg: false,
         });
         let tuple = |elems: &[Ty]| {
             p.intern_ty(&TyData::Tuple {

@@ -4501,6 +4501,7 @@ pub fn emit_adapter(
         result: s(env.ret(item).unwrap_or(Ty::VOID)),
         row: RowId::EMPTY,
         suspends: env.suspends(item),
+        vararg: false,
     });
     let Shape::Fn { code, .. } = lay.shape(ft)? else {
         return unsupported("a function reference without a function type");

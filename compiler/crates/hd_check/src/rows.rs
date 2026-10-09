@@ -348,6 +348,7 @@ impl Ck<'_, '_> {
                 params,
                 result,
                 suspends,
+                vararg,
                 row,
             },
             TyData::Fn { row: more, .. },
@@ -369,6 +370,7 @@ impl Ck<'_, '_> {
                 params,
                 result,
                 suspends,
+                vararg,
                 row: union,
             });
             self.infer.rebind(pool, var, widened);

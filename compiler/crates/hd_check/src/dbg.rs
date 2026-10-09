@@ -76,6 +76,7 @@ impl Ck<'_, '_> {
             result: Ty::VOID,
             row: hd_types::RowId::EMPTY,
             suspends: false,
+            vararg: false,
         });
         let show = self.format_fn("dbg_show");
         let a = self.b.refs_record(&[Ref(show.raw())]);

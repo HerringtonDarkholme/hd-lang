@@ -537,12 +537,13 @@ pub fn canon(
             result,
             row,
             suspends,
+            vararg,
         } => {
             h.u8(5);
             canon_list(pool, path_hash, memo, params, &mut h);
             h.hash(canon(pool, path_hash, memo, result));
             canon_row(pool, path_hash, memo, row, &mut h);
-            h.u8(u8::from(suspends));
+            h.u8(u8::from(suspends) | u8::from(vararg) << 1);
         }
         TyData::TraitValue {
             def,
@@ -931,6 +932,7 @@ mod tests {
             result: Ty::I32,
             row,
             suspends: false,
+            vararg: false,
         });
         let ph = |d: DefId| Hash128(u128::from(d.raw()) * 977);
         super::canon(&p, &ph, &mut CanonMemo::default(), f)

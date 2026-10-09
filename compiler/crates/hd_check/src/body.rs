@@ -1687,6 +1687,7 @@ impl Ck<'_, '_> {
                 result,
                 row,
                 suspends,
+                vararg,
             } => {
                 let p = self.zonk_list(params);
                 let r = self.zonk(result);
@@ -1696,6 +1697,7 @@ impl Ck<'_, '_> {
                     result: r,
                     row,
                     suspends,
+                    vararg,
                 })
             }
             TyData::Row(row) => {

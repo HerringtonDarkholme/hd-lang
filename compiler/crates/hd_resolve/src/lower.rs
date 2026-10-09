@@ -1325,16 +1325,27 @@ impl Lower<'_, '_, '_> {
         {
             let name = self.names.paths.segment(PathId::from_raw(def.raw()));
             if name == "Fn" || name == "SuspendFn" {
-                let params = match args.first().map(|a| pool.get(*a)) {
-                    Some(TyData::Tuple { elems, .. }) => elems,
-                    Some(_) => pool.list(&args[..1]),
-                    None => TyList::EMPTY,
+                // A rest element ends the inputs as the `List` it is
+                // (`fn.type.vararg-rest`).
+                let (params, vararg) = match args.first().map(|a| pool.get(*a)) {
+                    Some(TyData::Tuple { elems, rest: None }) => (elems, false),
+                    Some(TyData::Tuple {
+                        elems,
+                        rest: Some(r),
+                    }) => {
+                        let mut all = pool.list_items(elems).to_vec();
+                        all.push(r);
+                        (pool.list(&all), true)
+                    }
+                    Some(_) => (pool.list(&args[..1]), false),
+                    None => (TyList::EMPTY, false),
                 };
                 return pool.intern_ty(&TyData::Fn {
                     params,
                     result: args.get(1).copied().unwrap_or(Ty::VOID),
                     row: row.unwrap_or(RowId::EMPTY),
                     suspends: name == "SuspendFn",
+                    vararg,
                 });
             }
         }
@@ -1523,6 +1534,7 @@ impl Lower<'_, '_, '_> {
                 let mut params = Vec::new();
                 let mut result = Ty::VOID;
                 let mut row = RowId::EMPTY;
+                let mut vararg = false;
                 for c in n.children() {
                     if c.kind() == SyntaxKind::RequirementRow {
                         row = self.row(Some(c), gn);
@@ -1532,6 +1544,9 @@ impl Lower<'_, '_, '_> {
                         if after {
                             result = t;
                         } else {
+                            // `fn.type.vararg-rest`: a rest element is a
+                            // `List`, and the inputs' last.
+                            vararg = c.kind() == SyntaxKind::RestType;
                             params.push(t);
                         }
                     }
@@ -1541,6 +1556,7 @@ impl Lower<'_, '_, '_> {
                     result,
                     row,
                     suspends,
+                    vararg,
                 })
             }
             SyntaxKind::ProjectionType => {
