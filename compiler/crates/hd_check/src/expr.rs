@@ -303,7 +303,8 @@ impl Ck<'_, '_> {
             Some(TokenKind::KwPass) => (Ref(NONE), Ty::VOID),
             Some(TokenKind::Char) => {
                 let raw = self.cx.src.text(t);
-                let inner = raw.trim_start_matches('\'').trim_end_matches('\'');
+                let inner = raw.strip_prefix('\'').unwrap_or(raw);
+                let inner = inner.strip_suffix('\'').unwrap_or(inner);
                 let mut pieces = Vec::new();
                 decode_piece(inner, &mut pieces);
                 let ch = match pieces.as_slice() {
