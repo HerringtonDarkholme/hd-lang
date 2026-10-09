@@ -11,4 +11,4 @@ impl Left for User:
     fn label(self) -> i32: self.value
 impl Right for User:
     fn label(self) -> i32: self.value
-fn main() -> void: User { value: 42 }.label()  # diagnostic: ambiguous-method
+fn main() -> i32: User { value: 42 }.label()  # diagnostic: ambiguous-method

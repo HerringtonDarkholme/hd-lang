@@ -1,5 +1,5 @@
 # test: trailing callback statement
 
-fn main() -> void:
+fn main() -> i32:
     apply:
         42

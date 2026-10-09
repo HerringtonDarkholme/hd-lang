@@ -1,4 +1,4 @@
 # test: generics / functions / unresolved placeholder
 
 fn missing[T]() -> i32: 1
-fn main() -> void: missing()  # diagnostic: cannot-infer-type
+fn main() -> i32: missing()  # diagnostic: cannot-infer-type

@@ -11,6 +11,6 @@ impl Packer:
     fn map_list(self) -> List[i32]:
         [self.count]
 
-fn main() -> void:
+fn main() -> i32:
     pack := Packer { count: 1 }
     pack.map(5) + pack.map_list()[0]

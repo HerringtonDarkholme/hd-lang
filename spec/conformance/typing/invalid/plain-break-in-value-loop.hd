@@ -1,6 +1,6 @@
 # test: plain break in value loop
 
-fn main() -> void:
+fn main() -> i32:
     while true:
         break  # diagnostic: break-value-context
     else:

@@ -1,6 +1,6 @@
 # test: branch binding does not leak
 
-fn main() -> void:
+fn main() -> i32:
     if true:
         hidden := 1
     hidden  # diagnostic: unknown-name

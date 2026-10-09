@@ -2,5 +2,5 @@
 # Spec 10 Prelude: module.prelude.no-shadow.
 use std.cmp.{Ordering as Display}  # diagnostic: prelude-name-shadow
 
-fn main() -> void:
+fn main() -> i32:
     0

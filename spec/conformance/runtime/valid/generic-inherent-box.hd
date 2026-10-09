@@ -9,4 +9,4 @@ impl[T] Box[T]:
 
 fn through[T](box: Box[T]) -> T: box.get()
 
-fn main() -> void: through(Box { value: 40 }) + Box { value: 3 }.get()
+fn main() -> i32: through(Box { value: 40 }) + Box { value: 3 }.get()

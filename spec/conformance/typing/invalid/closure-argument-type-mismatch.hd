@@ -1,5 +1,5 @@
 # test: closure argument type mismatch
 
-fn main() -> void:
+fn main() -> i32:
     apply := fn(value: i32) -> i32: value
     apply(true)  # diagnostic: type-mismatch

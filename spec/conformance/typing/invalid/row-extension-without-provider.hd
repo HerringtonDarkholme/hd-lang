@@ -3,6 +3,6 @@
 fn drop_logger[$R](callback: fn() -> i32 $ R + Logger) -> i32 $ R:
     callback()  # diagnostic: missing-requirement
 fn read() -> i32 $ Logger: 42
-fn main() -> void: drop_logger(read)
+fn main() -> i32: drop_logger(read)
 
 trait Logger

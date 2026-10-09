@@ -102,23 +102,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### F1. Fixtures: `fn main() -> i32` Becomes `-> void` (Owner, 2026-10-08)
-
-122 conformance fixtures declare `fn main() -> i32`, which
-`module.entry.result-termination` rejects (an entry returns `void`,
-`ExitCode` or `Result`). The owner chose to fix the fixtures, not the
-spec. Find them with `grep -rlE '^fn main\(\) -> i32' spec/conformance`.
-Rewrite each to `fn main() -> void:` and keep the body's effects: a body
-that is one expression becomes `_ := EXPR` on its own line; a block body
-keeps its statements and turns a final value line into `_ := EXPR`. Do
-not change anything else in a fixture (its tests, comments, expected
-output). This job lifts the fixture rule for these files only.
-Checks: `bash spec/check.sh` in a clean worktree, and the full
-`cargo test -q --release --workspace` in `compiler/` with
-`HD_UPDATE_CONFORMANCE=1` for the driver conformance test; the
-CONFORMANCE.md diff may only add passes (list them). One commit; push.
-Timebox 45 minutes.
-
 ### P1. Profile The New Compiler (After S4; Standing Job)
 
 Owner, 2026-10-07: "you write the code, codex do the profiling. move
@@ -168,30 +151,15 @@ fast". The orchestrator writes `compiler/crates/*`; you measure it.
   the 3,000-line bench build before and after, so the std.task to
   std.time cost is on record.
 
-### Q-F1: 87 fixtures' tests assert `main()`'s i32 value (F1 partial: 34/122 done)
-
-F1's recipe (signature to `-> void`, bodies kept) is done and green for
-34 fixtures whose tests never use `main()`'s value (list in the commit).
-It cannot extend to the other 87: their `tests:` blocks assert the
-value, e.g. `assert_equal(main(), 42)`, and with `-> void` that is
-`unsatisfied-trait-bound: type 'void' does not implement Eq` (verified
-on `comprehensions.hd`, then reverted). "Do not change tests" and
-"rewrite each" conflict there. Also found while here: a trailing value
-in a `-> void` body is silently dropped (no mismatch error), and
-integer literals widen without the `i32` context, so two panic
-fixtures needed `let _: i32 = …` to keep their overflow (done), one
-marker file (`function-result-type-mismatch.hd`) tests the `i32`
-mismatch itself and was left alone, and the 2 `pub fn main() -> i32`
-fixtures (`expected-i32-found-usize`, `entry-result-not-termination`)
-are deliberate rule coverage, out of F1's grep. Options:
-
-1. **Leave the 87 as `-> i32` (recommended).** Non-pub `main` is an
-   ordinary function per `module.entry.private-main`; nothing rejects
-   its result type, so the F1 premise does not apply to them. The 34
-   already done still silence their `private-main` warnings.
-2. **Rewrite the 87 tests to not need the value.** Contradicts "do not
-   change tests"; a follow-up job with the fixture rule lifted could
-   rename the helpers (e.g. `compute()`) and keep every assertion.
-3. **Accept the breakage now, fix tests after.** Not recommended:
-   87 red suites for an intermediate commit.
-
+- **Q-F1: option 1, for all 122 fixtures; F1 is withdrawn and the
+  partial commit 3b3a9181 is reverted.** F1's premise was the
+  orchestrator's mistake: a non-pub `main` is an ordinary function
+  (`module.entry.private-main`), so `module.entry.result-termination`
+  never applies to these fixtures. The partial rewrite also left non-void
+  final expressions in `-> void` bodies (`ord-supertrait-dispatch`,
+  `u8-checked-add`, ...), which `fn.body.void-final` rejects; the four new
+  passes came from a compiler gap, not a fix. The real bugs are in the
+  compiler (it treats a private `main` as an entry point, and it does not
+  enforce `fn.body.void-final`), and the orchestrator's agents fix them.
+  Lesson for fixture jobs: when a job's recipe conflicts with a spec rule,
+  stop and ask instead of changing the recipe.

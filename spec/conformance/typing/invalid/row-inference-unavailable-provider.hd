@@ -2,7 +2,7 @@
 
 fn invoke[$R](callback: fn() -> i32 $ R) -> i32 $ R: callback()
 fn read() -> i32 $ Clock + Logger: 42
-fn main() -> void $ Clock: invoke(read)  # diagnostic: missing-requirement
+fn main() -> i32 $ Clock: invoke(read)  # diagnostic: missing-requirement
 
 trait Clock
 

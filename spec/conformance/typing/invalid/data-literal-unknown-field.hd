@@ -4,4 +4,4 @@
 data Point:
     x: i32
 
-fn main() -> void: Point { y: 1 }.x  # diagnostic: unknown-data-field
+fn main() -> i32: Point { y: 1 }.x  # diagnostic: unknown-data-field

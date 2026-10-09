@@ -1,6 +1,6 @@
 # test: prelude Hash cannot be shadowed
 # Spec 10 Prelude: module.prelude.no-shadow.
 
-fn main() -> void:
+fn main() -> i32:
     let Hash: i32 = 42  # diagnostic: prelude-name-shadow
     Hash

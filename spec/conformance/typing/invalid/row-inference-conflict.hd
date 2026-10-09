@@ -4,7 +4,7 @@ fn combine[$R](left: fn() -> i32 $ R, right: fn() -> i32 $ R) -> i32 $ R:
     left() + right()
 fn clock() -> i32 $ Clock: 20
 fn logger() -> i32 $ Logger: 22
-fn main() -> void $ Clock + Logger: combine(clock, logger)  # diagnostic: type-mismatch
+fn main() -> i32 $ Clock + Logger: combine(clock, logger)  # diagnostic: type-mismatch
 
 trait Clock
 
