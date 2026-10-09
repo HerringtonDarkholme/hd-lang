@@ -1576,3 +1576,36 @@ by the method name for the explicit `checked_*`/`wrapping_*`/
 `saturating_*` forms (identical in every build,
 `types.arith.always`). Code entries are per profile: debug-checked
 and release-wrapped sequences never share a cache entry.
+
+### 13.16 Supertrait Calls Through A Trait Value
+
+`dyn Error` calling `to_string` and `bounded-blanket-supertraits`
+stop at Emit on "a trait-value call of a supertrait's method": the
+emitter only looks in the receiver trait's own slots. The spec
+exposes transitive supertrait methods on every dynamic value
+(`trait.dyn.value-methods`, `trait.dyn.supertrait-methods`) and lets
+a `dyn` child widen implicitly to a supertrait value
+(`trait.dyn.widen`, bindings kept per `trait.dyn.binding.widen`).
+
+A child vtable holds its own methods' slots plus one vtable field
+per direct supertrait (the `Supertrait` coercion already reads "the
+parent's vtable field from the child's vtable"). A supertrait method
+call through a `dyn Sub` value is two loads — parent vtable, then
+slot — and one `call_ref`, reusing the `CallDyn` shape; generic
+supertrait methods use the witness ABI (§13.5.1) unchanged, since the
+witness travels per call, not per vtable. No flattening: parent
+method code is referenced once per (type, declaring trait), not once
+per child trait.
+
+Widening `dyn Sub` to `dyn Super` is free. Both values are the same
+`(payload, vtable)` pair shape, and the child vtable already reaches
+every supertrait method through its parent fields, so the value is
+reused as-is; child-only methods simply become unreachable
+(`trait.dyn.widen` drops them, `trait.dyn.no-narrow` never returns).
+Vtables exist per (concrete type, trait) pair (§13.2 step 5),
+extended by the associated-type bindings the pair carries.
+
+Footprint per trait value stays two words. Per (type, trait) in the
+used hierarchies there is one vtable of own slots plus parent
+fields; method bodies are shared with the direct-call instances,
+and identical vtables fold (§13.7).

@@ -115,16 +115,6 @@ statement, a `defer`, a loop body, ...). If they share one cause, say so.
 Add the minimal programs and findings to
 `audit/compiler/triage-wrong-runs.md` §C. Read only; timebox 30 minutes.
 
-### R14. Design Note: Supertrait Calls Through A Trait Value (#131, Design Text)
-
-`dyn Error` calling `to_string` (a `Display` method) and
-`bounded-blanket-supertraits` stop on "a trait-value call of a
-supertrait's method". Read `codegen.md` (vtables, §13) and the spec's
-trait-value rules, then add to `codegen.md` how a vtable reaches a
-supertrait's methods (flattened slots or a supertrait vtable pointer),
-with the footprint per trait value and how upcasting `dyn Sub` to
-`dyn Super` works if the spec allows it. Timebox 45 minutes.
-
 ### R15. Design Note: The Release Profile In Codegen (#109, Design Text)
 
 `--release` parses, but no codegen setting changes: `+` still panics on
@@ -355,3 +345,17 @@ on the block. Recommend asking the owner for a code
    release-wrapped sequences for the same source must never share a
    cache entry; the pipeline/code key carries the profile.
    Recommend making that keying explicit if it is not already.
+
+### Q-R14: unavailable slots and widening form (R14, 2026-10-09)
+
+1. **Trap stub for dynamically unavailable slots (recommended).** A
+   supertrait method that cannot work dynamically
+   (trait.dyn.member.unavailable) still shapes its vtable slot, but
+   Check rejects every call through it (trait.dyn.bound.available),
+   so the slot fills with an explicit-panic stub. The alternative
+   (shrinking the vtable) couples the shape to availability.
+   Recommend the stub: unreachable by construction, loud if reached.
+2. **Widening is free (recommended).** The widened value reuses the
+   (payload, child vtable) pair as-is instead of materializing a
+   parent-vtable pair. The alternative costs a struct build per
+   widening for no observable difference. Recommend free.
