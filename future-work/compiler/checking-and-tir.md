@@ -780,6 +780,8 @@ ordinary data word is a run ID.
 | any other `for` | a `Block`: the `iter` `Call`, then a `Loop` around the `next` `Call` and a `Match` on its `Option` |
 | `let p = e else: ...`, `x is p` | `Match` with two arms |
 | `x := e`, `let p = e` | a new local and `LocalSet`, or a `Match` for a pattern |
+| `Order(x)` newtype call | nothing: the newtype is erased, so construction and unwrapping are permission-carrying views (`types.newtype.construct`, `types.newtype.construct-ref`, `types.newtype.construct-permission`, `types.newtype.unwrap-permission`); a permission upgrade is `mutable-upgrade`, not a conversion |
+| a type parameter in a type (`T?`) | nothing: the name resolves to the in-scope parameter (`names.type-param.local`) and types erase |
 | `a ** b` | `Prim` on primitives, else the trait `Call` |
 | `$.with`, `$.use`, `$.context` | `With`, `ProviderGet`, `ContextNew` |
 | `all!(a(x), b(y))` | two cold `Call`s, then `AwaitAll` |
@@ -809,6 +811,17 @@ body. Any other top-level trailing call lowers as an ordinary call.
 The emitter needs nothing new: `Closure`, `Call`/`CallValue` and
 `TestCase` bodies already lower, and collection roots already cover
 one integration test program per file (codegen.md §13.1).
+
+**Type names in bodies resolve before anything else.** A bare type or
+trait name in a body is resolved through scope, prelude and imports
+first: unresolvable names are the expected rejections, not values —
+`list` and `Set` are `unknown-type` (`names.module.other-module.type`,
+prelude lowercase/collection rules), `Mailer` and `Priced` out of
+scope are `unknown-trait`
+(`names.module.other-module.trait`). Only resolvable names reach
+value checking: a type parameter in a type erases, and a newtype-name
+call converts with permissions. Every one of the nine R22 cases
+settles this way; no `diagnostic-notes.md` row was needed.
 
 ##### The Builder API
 

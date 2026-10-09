@@ -107,17 +107,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### R25. Design Note: Type Names Used As Values (Design Text)
-
-7 programs use a type name as a value (`Mailer`, `Priced`, `list`,
-`Set`, `T`), 2 call a type name (R22). Read the spec rules (names,
-`types.*` for type-as-value, constructors, `type-used-as-value`) and say
-which of these are valid (and what they mean) and which must be
-errors, citing rule IDs; then the lowering for the valid ones. If the
-spec does not settle a case, log it in
-`audit/compiler/diagnostic-notes.md` instead of deciding. Add to
-`checking-and-tir.md`. Timebox 30 minutes.
-
 ### R26. Turn Your R5 Report Into Task Rows (Research)
 
 `audit/compiler/triage-missing-errors.md` groups 250 accepted invalid
