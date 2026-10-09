@@ -1400,7 +1400,7 @@ impl Ck<'_, '_> {
         Ok(Ty::VOID)
     }
 
-    /// `x = e`, `x op= e`, `a.f = e`, `a[i] = e`.
+    /// `x = e`, `x op= e`, `a.f = e`, `a[i] = e`, `v() = e`.
     fn assign(&mut self, s: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<()> {
         let [lhs, rhs] = kids else {
             return unsupported("this assignment form");
@@ -1538,6 +1538,7 @@ impl Ck<'_, '_> {
                 self.b
                     .emit(Tag::Intrinsic, op_set as u32, rec, Ty::VOID, s.index());
             }
+            SyntaxKind::CallExpr => self.call_place(*lhs, *rhs, compound, s)?,
             _ => return unsupported("assignment to this target"),
         }
         Ok(())
@@ -1589,7 +1590,7 @@ impl Ck<'_, '_> {
     }
 
     /// `cur op rhs` for a compound assignment.
-    fn compound(
+    pub(crate) fn compound(
         &mut self,
         k: TokenKind,
         cur: Ref,

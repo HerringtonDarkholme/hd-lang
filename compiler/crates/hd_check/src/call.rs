@@ -490,6 +490,9 @@ impl Ck<'_, '_> {
             if matches!(pool.get(ft), TyData::Infer(_)) {
                 return unsupported("a call of a value whose type is not yet known");
             }
+            if !bang && self.is_applicable(ft)? {
+                return self.apply_call((f, full), args, n);
+            }
             let msg = format!("{} is not a function", self.show(ft));
             self.err(Code::NotCallable, n, &msg);
             return Ok((Ref(NONE), Ty::NEVER));

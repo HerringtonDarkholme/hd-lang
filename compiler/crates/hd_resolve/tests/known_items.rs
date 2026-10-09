@@ -92,6 +92,8 @@ fn every_known_item_is_declared() {
         ("template", known.template),
         ("index", known.index),
         ("index_set", known.index_set),
+        ("apply", known.apply),
+        ("update", known.update),
         ("neg", known.neg),
         ("not", known.not),
         ("add", known.add),
