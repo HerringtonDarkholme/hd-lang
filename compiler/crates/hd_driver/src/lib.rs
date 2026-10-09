@@ -3055,16 +3055,6 @@ impl Run<'_> {
         let item = c.collected.table.item[id.idx()];
         let sub = c.collected.table.sub[id.idx()];
         let args = c.collected.table.args[id.idx()];
-        let body = p.bodies.get(&item).map(|b| &b.0);
-        let body = body.or_else(|| c.collected.supplied_body(&self.pool, item, args));
-        // A function reference's adapter has no TIR (codegen.md §13.11).
-        if body.is_none() && sub != hd_mono::ADAPTER {
-            self.stage::<()>(
-                Stage::Emit,
-                Err(NotImplemented::new(Stage::Emit, "an instance without TIR")),
-            );
-            return;
-        }
         let folders = self.program_folders();
         let arity = p.arity();
         let view = self.program_view(p, &folders, &arity);
@@ -3078,20 +3068,29 @@ impl Run<'_> {
         let ret = env.ret(item).unwrap_or(Ty::VOID);
         let path = |d: DefId| names.path(d);
         let calls = &c.collected.calls[id.idx()];
-        let r = match body {
-            Some(body) if sub != hd_mono::ADAPTER => hd_wasm::emit(
-                &self.pool,
-                &env,
-                &path,
-                &c.layouts,
-                body,
-                sub,
-                args,
-                ret,
-                calls,
-                c.collected.table.key[id.idx()],
-            ),
-            _ => hd_wasm::emit_adapter(&self.pool, &env, &path, &c.layouts, item, args, calls),
+        let r = match sub {
+            hd_mono::Sub::Body(k) => {
+                let body = p.bodies.get(&item).map(|b| &b.0);
+                match body.or_else(|| c.collected.supplied_body(&self.pool, item, args)) {
+                    Some(body) => hd_wasm::emit(
+                        &self.pool,
+                        &env,
+                        &path,
+                        &c.layouts,
+                        body,
+                        k,
+                        args,
+                        ret,
+                        calls,
+                        c.collected.table.key[id.idx()],
+                    ),
+                    None => Err(NotImplemented::new(Stage::Emit, "an instance without TIR")),
+                }
+            }
+            // A function reference's adapter has no TIR (codegen.md §13.11).
+            hd_mono::Sub::Adapter => {
+                hd_wasm::emit_adapter(&self.pool, &env, &path, &c.layouts, item, args, calls)
+            }
         };
         // The instance's item names where emission stopped.
         let r = r.map_err(|mut e| {

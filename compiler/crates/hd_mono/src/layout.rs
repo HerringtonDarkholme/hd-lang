@@ -631,17 +631,52 @@ pub enum KeyArg {
     Class(A1Class),
 }
 
-/// `instance_key = H("inst", item path, sub-body, [canon(arg) or class])` (§13.3).
+/// Which code of its item an instance is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Sub {
+    /// A body of the item's TIR: 0 for the item's own, `k` for its
+    /// closure body `k`.
+    Body(u16),
+    /// A function reference's adapter, which has no TIR (codegen.md
+    /// §13.11): its code forwards to one call that collection records as
+    /// instruction 0.
+    Adapter,
+}
+
+impl Sub {
+    /// The kind, then the body index: an adapter never shares a key or a
+    /// code-entry hash with a body.
+    pub fn hash_into(self, h: &mut StableHasher) {
+        match self {
+            Sub::Body(k) => {
+                h.u8(0);
+                h.u16(k);
+            }
+            Sub::Adapter => h.u8(1),
+        }
+    }
+}
+
+impl std::fmt::Display for Sub {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Sub::Body(k) => write!(f, "{k}"),
+            Sub::Adapter => f.write_str("adapter"),
+        }
+    }
+}
+
+/// `instance_key = H("inst", item path, sub, [canon(arg) or class])` (§13.3).
 pub fn instance_key(
     pool: &InternPool,
     path_hash: &dyn Fn(DefId) -> Hash128,
     item: DefId,
-    sub: u16,
+    sub: Sub,
     args: &[KeyArg],
 ) -> Hash128 {
     let mut h = StableHasher::new("inst");
     h.hash(path_hash(item));
-    h.u16(sub);
+    sub.hash_into(&mut h);
     h.u32(u32::try_from(args.len()).expect("args"));
     for a in args {
         match a {
@@ -662,12 +697,12 @@ pub fn instance_key(
 #[derive(Default, Debug)]
 pub struct InstanceTable {
     pub item: Vec<DefId>,
-    pub sub: Vec<u16>,
+    pub sub: Vec<Sub>,
     pub args: Vec<TyList>,
     pub depth: Vec<u8>,
     pub parent: Vec<InstId>,
     pub key: Vec<Hash128>,
-    index: std::collections::HashMap<(DefId, u16, TyList), InstId>,
+    index: std::collections::HashMap<(DefId, Sub, TyList), InstId>,
 }
 
 /// The instantiation depth limits (§13.4).
@@ -679,7 +714,7 @@ impl InstanceTable {
     pub fn push(
         &mut self,
         item: DefId,
-        sub: u16,
+        sub: Sub,
         args: TyList,
         depth: u8,
         parent: InstId,
@@ -726,7 +761,7 @@ impl InstanceTable {
 #[cfg(test)]
 mod tests {
     use super::{
-        A1Class, InstanceTable, KeyArg, LayoutClass, LayoutEnv, StdKind, ValType, a1_class,
+        A1Class, InstanceTable, KeyArg, LayoutClass, LayoutEnv, StdKind, Sub, ValType, a1_class,
         instance_key, layout_of,
     };
     use hd_base::{DefId, Hash128, InstId};
@@ -1005,22 +1040,29 @@ mod tests {
         let p = InternPool::new();
         let ph = |d: DefId| Hash128(u128::from(d.raw()) * 7919);
         let push = DefId::from_raw(4);
-        let a = instance_key(&p, &ph, push, 0, &[KeyArg::Class(A1Class::Ref)]);
-        let b = instance_key(&p, &ph, push, 0, &[KeyArg::Class(A1Class::Ref)]);
-        let c = instance_key(&p, &ph, push, 0, &[KeyArg::Canon(Ty::I32)]);
+        let body = Sub::Body(0);
+        let a = instance_key(&p, &ph, push, body, &[KeyArg::Class(A1Class::Ref)]);
+        let b = instance_key(&p, &ph, push, body, &[KeyArg::Class(A1Class::Ref)]);
+        let c = instance_key(&p, &ph, push, body, &[KeyArg::Canon(Ty::I32)]);
         assert_eq!(a, b);
         assert_ne!(a, c);
+        // An adapter and the last body index never share a key.
+        let last = instance_key(&p, &ph, push, Sub::Body(u16::MAX), &[]);
+        assert_ne!(last, instance_key(&p, &ph, push, Sub::Adapter, &[]));
         let mut t = InstanceTable::default();
         assert!(
-            t.push(push, 0, TyList::EMPTY, 0, InstId::NONE, a)
+            t.push(push, body, TyList::EMPTY, 0, InstId::NONE, a)
                 .expect("push")
                 .1
         );
         assert!(
-            !t.push(push, 0, TyList::EMPTY, 0, InstId::NONE, a)
+            !t.push(push, body, TyList::EMPTY, 0, InstId::NONE, a)
                 .expect("push")
                 .1
         );
-        assert!(t.push(push, 1, TyList::EMPTY, 33, InstId::NONE, c).is_err());
+        assert!(
+            t.push(push, Sub::Body(1), TyList::EMPTY, 33, InstId::NONE, c)
+                .is_err()
+        );
     }
 }

@@ -21,6 +21,7 @@ use hd_types::solver::{
 };
 use hd_types::{InternPool, ParamRef, Ty, TyData, TyList};
 
+pub use crate::layout::Sub;
 use crate::layout::{A1Class, KeyArg, LayoutEnv, a1_class, canon, instance_key};
 
 /// What collection reads about the program (the driver implements it over
@@ -93,12 +94,6 @@ pub fn class_ref(pool: &InternPool) -> Ty {
 pub fn is_class_ref(pool: &InternPool, t: Ty) -> bool {
     pool.get(t) == TyData::Canon(0xF0)
 }
-
-/// The `sub` of a function reference's adapter instance (codegen.md
-/// §13.11): an `ItemRef`'s closure code, keyed by the referenced item and
-/// its full type arguments. It has no TIR of its own; collection records
-/// its one forwarded call as instruction 0.
-pub const ADAPTER: u16 = u16::MAX;
 
 /// How a call is lowered.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -520,7 +515,7 @@ fn err<T>(what: &str) -> StageResult<T> {
 }
 
 impl Cx<'_> {
-    fn key(&self, item: DefId, sub: u16, args: TyList) -> Hash128 {
+    fn key(&self, item: DefId, sub: Sub, args: TyList) -> Hash128 {
         let ph = |d: DefId| self.env.path_hash(d);
         instance_key(self.pool, &ph, item, sub, &key_args(self.pool, args))
     }
@@ -529,7 +524,7 @@ impl Cx<'_> {
     fn push(
         &mut self,
         item: DefId,
-        sub: u16,
+        sub: Sub,
         args: TyList,
         depth: u8,
         parent: InstId,
@@ -669,7 +664,7 @@ impl Cx<'_> {
         }
         let own_from = self.env.parent(def).map_or(0, |p| p.1);
         let args = self.classify(def, self.pool.list_items(args), own_from)?;
-        let key = self.push(def, 0, args, depth, parent)?;
+        let key = self.push(def, Sub::Body(0), args, depth, parent)?;
         Ok(CallTarget {
             key,
             item: def,
@@ -788,7 +783,7 @@ impl Cx<'_> {
             self.out.supplied.insert(key, Arc::new(body));
         }
         let args = self.pool.list(&[&[self_ty], targs].concat());
-        let key = self.push(method, 0, args, depth, parent)?;
+        let key = self.push(method, Sub::Body(0), args, depth, parent)?;
         Ok(Some(CallTarget {
             key,
             item: method,
@@ -922,7 +917,7 @@ impl Cx<'_> {
             _ => self.target(item, args, depth, id)?,
         };
         self.hash_target(&t, &mut reps);
-        reps.u16(ADAPTER);
+        Sub::Adapter.hash_into(&mut reps);
         if self.out.calls.len() <= id.idx() {
             self.out.calls.resize_with(id.idx() + 1, HashMap::new);
             self.out.callee_reps.resize(id.idx() + 1, Hash128(0));
@@ -939,8 +934,9 @@ impl Cx<'_> {
             self.out.table.args[id.idx()],
             self.out.table.depth[id.idx()],
         );
-        if sub == ADAPTER {
-            return self.scan_adapter(id);
+        match sub {
+            Sub::Adapter => return self.scan_adapter(id),
+            Sub::Body(_) => {}
         }
         let pool = self.pool;
         let env = self.env;
@@ -1039,7 +1035,7 @@ impl Cx<'_> {
                 }
                 Tag::Closure => {
                     let sub_k = u16::try_from(a).expect("subs");
-                    let key = self.push(item, sub_k, args, depth, id)?;
+                    let key = self.push(item, Sub::Body(sub_k), args, depth, id)?;
                     calls.insert(ix, Target::Closure(key));
                 }
                 // A function reference is a closure whose code is the
@@ -1052,8 +1048,13 @@ impl Cx<'_> {
                     };
                     let targs: Vec<Ty> =
                         pool.list_items(TyList(l)).iter().copied().map(s).collect();
-                    let key =
-                        self.push(DefId::from_raw(d), ADAPTER, pool.list(&targs), depth, id)?;
+                    let key = self.push(
+                        DefId::from_raw(d),
+                        Sub::Adapter,
+                        pool.list(&targs),
+                        depth,
+                        id,
+                    )?;
                     calls.insert(ix, Target::Closure(key));
                 }
                 Tag::Coerce => {
@@ -1121,7 +1122,7 @@ impl Cx<'_> {
                 _ => {}
             }
         }
-        reps.u16(sub);
+        sub.hash_into(&mut reps);
         if self.out.calls.len() <= id.idx() {
             self.out.calls.resize_with(id.idx() + 1, HashMap::new);
             self.out.callee_reps.resize(id.idx() + 1, Hash128(0));
@@ -1229,9 +1230,9 @@ pub fn collect(
         out: Collected::default(),
         work: Vec::new(),
     };
-    cx.push(root, 0, TyList::EMPTY, 0, InstId::NONE)?;
+    cx.push(root, Sub::Body(0), TyList::EMPTY, 0, InstId::NONE)?;
     for i in inits {
-        let k = cx.push(*i, 0, TyList::EMPTY, 0, InstId::NONE)?;
+        let k = cx.push(*i, Sub::Body(0), TyList::EMPTY, 0, InstId::NONE)?;
         cx.out.inits.push(k);
     }
     // Extra roots with type arguments: the test cases after the first and
