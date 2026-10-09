@@ -229,6 +229,7 @@ instance.
 | `Prim` | one `prim_value` lowering, shared with the intrinsic std operator and comparison methods (`add`..`rem`, `neg`, bitwise, `not`, `shl`, `shr`, `eq` map to their `PrimOp`): overflow checks, division rules and panics have one source. `cmp` and `partial_cmp` build the `Ordering` tag as 1 + (a > b) − (a < b); float `partial_cmp` answers `.None` on NaN. A shift count keeps its own width and is extended or wrapped to the value's width |
 | `CallDyn` | `struct.get` of the vtable slot, then `call_ref`; a generic method also gets its witness global (§13.5.1). When the vtable is a known constant global after inlining, a direct `call` of the slot's function, which the inliner may then inline (§12.6) |
 | `CallValue` | `struct.get` of the closure's code, then `call_ref` with the closure as the first argument |
+| `ItemRef` | a function reference value, built as §13.11's adapter: a `Closure` struct whose code is the adapter instance |
 | `CallHost` | an import call with the exchange-buffer codecs (§17.2) |
 | `Closure` | a struct of the closure's environment: `Copy` and `Move` captures as fields, `Shared` ones as their cells; a closure with no capture is a constant global |
 | `Coerce` | option wrap: a tag set or nothing (§15.2); to a trait value: a pair with a constant vtable; `Supertrait`: the payload unchanged and `struct.get` of the parent's vtable field from the child's vtable (§13.5); readonly view, variance and row subsumption: nothing (§12.4) |
@@ -1361,3 +1362,51 @@ link_key = prog_key (§11.3), and on a prog_key miss
 
 A program is written under both keys, so the next warm run hits the
 cheap one. Link is serial per program and linear in output size.
+
+### 13.11 Function References Become Adapters
+
+41 programs stop at Emit on an `ItemRef` and 14 at Body on "a path used
+as a value". Check already builds the node for qualified and explicit
+references (`hd_check/src/call.rs`, `item_value`: the item plus its
+instantiated type arguments, as `checking-and-tir.md` records); the 14
+Body stops are bare paths that never reach it — a Check prerequisite
+(see Questions). The model below turns every `ItemRef` into a value by
+generating one adapter per instance, reusing the closure
+representation (§12.2); no new runtime form.
+
+For each reference kind of spec 07 (`fn.ref.*`, generic function
+values):
+
+| Kind | Example | TIR node | Adapter instance key | Adapter body | Receiver |
+| --- | --- | --- | --- | --- | --- |
+| plain function | `scaled`, `identity` as an argument | `ItemRef(item, args)`; args solved from the call/expected type, defaults applied, error if unsolved (`fn.type.generic.*`) | `H("adapter", item path, canon(args))` | forward `(args…, ctx)` to a `Call` of the item instance | none |
+| unbound method | `Counter::bump` | `ItemRef` | as above | forward `(receiver, rest…, ctx)`; receiver first (`fn.ref.unbound.receiver`) | caller supplies it |
+| bound method | `counter::bump` | a `Closure` node wrapping the adapter, capturing the receiver | as above (the receiver is data, not a type argument, so one key serves every receiver value) | read receiver from `env[0]`, forward `(rest…, ctx)`; a `mut self` receiver is a `Move` capture (creation already requires mutable access, `fn.ref.bound.mut`) | evaluated once at creation and captured (`fn.ref.bound.capture`) |
+| associated function | `Counter::zero` | `ItemRef` | as above | plain forward | none |
+| explicit type arguments | `Json::decode::[User]`, `Box::[i32]::get` | `ItemRef` with `b` = the written arguments | as above | plain forward | none |
+| trait-qualified | `Trait::name` | `ItemRef` after `select` resolves `Self` from the expected type (`fn.ref.trait-self`; unsolved is `cannot-infer-type`) | as above | plain forward | none |
+| suspending | `Store::load` | `ItemRef` of `fn!` type (`fn.ref.suspending`) | as above | plain forward; suspension is the caller's `CallValue` business, as for closures | none |
+| variant constructor | `SyncError.Fs` as a value | `ItemRef` | as above | call the constructor (one lowering; no inline tag construction) | none |
+
+Collection (§13.2) scans `ItemRef` like a call: it pushes the adapter
+instance and the underlying item instance with the substituted
+arguments. The adapter's TIR is synthetic (no source body): parameters
+`(env, args…, ctx)`, one `Call` of the item instance, return its
+result. Rows are not type arguments (§13.9), so one adapter serves
+every caller row; the context passes through untouched (`RowSubsume`).
+An adapter adds 1 to the instantiation chain (§13.4).
+
+Wasm shape: the reference value is a `Closure` struct whose code field
+is the adapter and whose env holds the bound receiver, if any. Every
+capture-free adapter is a constant global, exactly like a capture-free
+closure (§12.2); calls use `CallValue` (`struct.get` of the code, then
+`call_ref` with the closure first). The adapter code has the closure
+ABI `(env, args…, ctx)` (§12.4).
+
+Footprint per adapter: one Wasm function (a forwarder, tens of bytes;
+its type section entry dedups at link) plus, for bound references, the
+receiver already allocated by the creator. Merging (§13.7) folds
+byte-identical adapters, and bounded inlining can inline an adapter at
+a known-callee `CallValue` site. Per §13.9's table, adapters are bounded
+by reachability: only (item, type arguments) pairs actually referenced
+as values exist.

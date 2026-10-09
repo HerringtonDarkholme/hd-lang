@@ -144,25 +144,6 @@ minimal program and the stage you suspect (Emit, runtime host).
 Write `audit/compiler/triage-wrong-runs.md`. Read only; timebox 45
 minutes.
 
-### R3. Design Note: Functions As Values (#46, Design Text)
-
-Next compiler task after the current one. 41 programs stop at Emit on an
-`ItemRef` (a named function used as a value) and 14 at Body on "a path
-used as a value". The intended model is a generated adapter per
-instance. Read spec 07 (`fn.ref.*`: unbound method references take the
-receiver first, bound references `counter::bump`, generic functions
-referenced with or without type arguments), `codegen.md` (closures,
-function values, `§13` instances) and `checking-and-tir.md` (how a
-path expression becomes TIR). Then add a section to
-`future-work/compiler/codegen.md` that says, for each reference kind,
-what TIR node carries it, what instance key the adapter gets, what the
-adapter's body is, and how a bound reference captures its receiver;
-include the Wasm shape (the closure struct and `call_ref` type) and the
-footprint cost per adapter. Reuse the existing closure representation; no
-new runtime form. Design gaps go under "Questions" with a recommendation.
-This job lifts the `future-work/compiler/*.md` rule for codegen.md only.
-Timebox 45 minutes.
-
 ### R4. Design Note: Spreads (#122, Design Text)
 
 Same format as R3, for spreads: a data literal spread with copy-update
@@ -231,3 +212,17 @@ fast". The orchestrator writes `compiler/crates/*`; you measure it.
   `fn.body.void-final`. The compiler bugs it exposed are the
   orchestrator's. Lesson for fixture jobs: when a job's recipe conflicts
   with a spec rule, stop and ask instead of changing the recipe.
+
+### Q-R3: bound-receiver shape and the bare-path prerequisite (R3, 2026-10-09)
+
+1. **Bound references: `Closure`-wrap (recommended).** §13.11 builds a
+   bound reference as a `Closure` node wrapping the adapter with the
+   receiver captured, so the TIR schema (`ItemRef`: item + type args,
+   no env slot) does not change. The alternative is extending `ItemRef`
+   with an env operand, which touches the schema, the wire format and
+   every scan. Recommend the wrap.
+2. **Bare paths need a Check task first (recommended order).** The 14
+   "a path used as a value" Body stops never reach `item_value`;
+   routing `PathExpr` through it with expected-type instantiation
+   (`fn.type.generic.*`) is a Check change the adapter task depends on.
+   Recommend queuing it before or with the Emit adapter work.
