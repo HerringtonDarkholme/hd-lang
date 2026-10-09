@@ -323,9 +323,11 @@ impl Em<'_> {
                 Shape::Scalar(VT::F64) => {
                     self.a.s().f64_const(f64::from_bits(bits).into());
                 }
+                // A float literal's constant holds its `f64` bits whatever
+                // type the literal ends up with (`hd_check`'s literal).
                 Shape::Scalar(VT::F32) => {
-                    let b32 = u32::try_from(bits & 0xffff_ffff).expect("32 bits");
-                    self.a.s().f32_const(f32::from_bits(b32).into());
+                    self.a.s().f64_const(f64::from_bits(bits).into());
+                    self.a.s().f32_demote_f64();
                 }
                 Shape::Scalar(_) | Shape::Enum(EnumShape { boxed: None, .. }) => {
                     let low = u32::try_from(bits & 0xffff_ffff).expect("32 bits");
