@@ -20,20 +20,14 @@ use hd_run::tests_model::{
 };
 
 use crate::node::{CaseRun, run_cases};
-use crate::{Wall, cache_dir, disk};
-
-/// `cli.exit.hd-failure`.
-const HD_FAILURE: u8 = 101;
-
-fn fail(msg: &str) -> ExitCode {
-    eprintln!("error: {msg}");
-    ExitCode::from(HD_FAILURE)
-}
+use crate::report::{self, Reporter};
+use crate::{HD_FAILURE, Wall, cache_dir, disk, fail};
 
 struct Options {
     file: Option<PathBuf>,
     filter: Option<String>,
     jobs: usize,
+    json: bool,
 }
 
 fn parse(args: &[OsString]) -> Result<Options, String> {
@@ -41,17 +35,29 @@ fn parse(args: &[OsString]) -> Result<Options, String> {
         file: None,
         filter: None,
         jobs: crate::default_jobs(),
+        json: false,
     };
-    let mut it = args.iter();
-    while let Some(a) = it.next() {
+    let mut i = 0;
+    while i < args.len() {
+        if let Some(format) = report::format_flag(args, i) {
+            let (json, used) = format?;
+            o.json = json;
+            i += used;
+            continue;
+        }
+        let a = &args[i];
+        i += 1;
         let text = a.to_string_lossy();
         let mut value = |flag: &str| -> Result<String, String> {
             if let Some(v) = text.strip_prefix(&format!("{flag}=")) {
                 return Ok(v.to_owned());
             }
-            it.next()
+            let v = args
+                .get(i)
                 .map(|v| v.to_string_lossy().into_owned())
-                .ok_or_else(|| format!("`{flag}` needs a value"))
+                .ok_or_else(|| format!("`{flag}` needs a value"))?;
+            i += 1;
+            Ok(v)
         };
         if text == "--filter" || text.starts_with("--filter=") {
             o.filter = Some(value("--filter")?);
@@ -107,19 +113,17 @@ pub fn command(args: &[OsString]) -> ExitCode {
         Ok(o) => o,
         Err(e) => return fail(&e),
     };
+    let mut rep = Reporter::stdout(o.json);
     let (root, file) = match target(o.file.as_deref()) {
         Ok(t) => t,
-        Err(e) => return fail(&e),
+        Err(e) => return rep.fail(&e),
     };
     let program = match disk::load_package(&root, "main") {
         Ok(p) => p,
-        Err(e) => return fail(&e),
+        Err(e) => return rep.fail(&e),
     };
-    for d in &program.problems {
-        eprintln!("{}", d.text());
-    }
-    if program.problems.iter().any(crate::report::Diag::is_error) {
-        return ExitCode::from(HD_FAILURE);
+    if rep.diags(&program.problems) {
+        return rep.finish(HD_FAILURE);
     }
     let (sources, package) = (&program.sources, &program.package);
     let store = DiskStore { root: cache_dir() };
@@ -141,15 +145,14 @@ pub fn command(args: &[OsString]) -> ExitCode {
     };
     let out = build_packages(&host, package, &program.packages(), &goal);
     // Warnings are shown; only errors stop the command.
-    eprint!("{}", out.render_located(sources));
-    if out.diags.has_errors() {
-        return ExitCode::from(HD_FAILURE);
+    if rep.diags(&report::from_output(&out, sources, None)) {
+        return rep.finish(HD_FAILURE);
     }
     if let Some(f) = &o.file
         && out.tests.is_empty()
     {
         // cli.test.file-empty, cli.test.filter.none
-        return fail(&match &o.filter {
+        return rep.fail(&match &o.filter {
             Some(p) => format!(
                 "no test case of `{}` has a name that contains `{p}`",
                 f.display()
@@ -157,12 +160,12 @@ pub fn command(args: &[OsString]) -> ExitCode {
             None => format!("`{}` registers no test case", f.display()),
         });
     }
-    run(&out.tests, out.wasm.as_deref(), o.jobs)
+    run(&out.tests, out.wasm.as_deref(), o.jobs, rep)
 }
 
 /// Runs the cases on up to `jobs` Node workers, round robin in content
 /// order, and prints the results in content order.
-fn run(cases: &[TestCase], wasm: Option<&[u8]>, jobs: usize) -> ExitCode {
+fn run(cases: &[TestCase], wasm: Option<&[u8]>, jobs: usize, rep: Reporter) -> ExitCode {
     let plan = TestPlan::new(
         cases
             .iter()
@@ -184,7 +187,14 @@ fn run(cases: &[TestCase], wasm: Option<&[u8]>, jobs: usize) -> ExitCode {
         None,
     );
     let mut cursor = ReleaseCursor::new(&plan);
-    let mut report = Report::default();
+    let mut report = Report {
+        rep,
+        text: String::new(),
+        passed: 0,
+        failed: 0,
+        ignored: 0,
+        unsupported: 0,
+    };
     let key = |i: usize| plan.cases[i].key.clone();
     let mut running: Vec<(usize, (u32, u32))> = Vec::new();
     for (i, c) in cases.iter().enumerate() {
@@ -206,7 +216,7 @@ fn run(cases: &[TestCase], wasm: Option<&[u8]>, jobs: usize) -> ExitCode {
     }
     if !running.is_empty() {
         let Some(wasm) = wasm else {
-            return fail("internal: the test program was not built");
+            return report.rep.fail("internal: the test program was not built");
         };
         let workers = jobs.min(running.len()).max(1);
         let (tx, rx) = mpsc::channel::<Result<(usize, CaseRun), String>>();
@@ -258,7 +268,7 @@ fn run(cases: &[TestCase], wasm: Option<&[u8]>, jobs: usize) -> ExitCode {
         });
         if let Some(e) = error {
             report.flush();
-            return fail(&e);
+            return report.rep.fail(&e);
         }
     }
     report.finish()
@@ -309,9 +319,10 @@ fn panic_of(stderr: &str) -> (String, String) {
 
 /// What `hd test` prints: quiet passes, each other case with its location,
 /// a failure with its message and a repro command, then a summary
-/// (engines-and-test-runner.md §19.5).
-#[derive(Default)]
+/// (engines-and-test-runner.md §19.5). With `--format json`, one test
+/// object per case instead (`cli.json.test.result`), then the summary.
 struct Report {
+    rep: Reporter,
     text: String,
     passed: usize,
     failed: usize,
@@ -327,9 +338,13 @@ impl Report {
             };
             let at = format!("{}:{}", c.file, c.line);
             let repro = format!("hd test {} --filter \"{}\"", c.file, c.name);
-            let t = &mut self.text;
-            match r {
-                CaseResult::Passed { .. } => self.passed += 1,
+            let mut t = String::new();
+            // The outcome and message of the case's test object.
+            let (outcome, message) = match r {
+                CaseResult::Passed { .. } => {
+                    self.passed += 1;
+                    ("passed", String::new())
+                }
                 CaseResult::Failed { message } => {
                     self.failed += 1;
                     let _ = writeln!(t, "FAIL {at}: {}", c.name);
@@ -337,29 +352,45 @@ impl Report {
                         let _ = writeln!(t, "    {l}");
                     }
                     let _ = writeln!(t, "    repro: {repro}");
+                    ("failed", message)
                 }
                 CaseResult::Panicked { category, message } => {
                     self.failed += 1;
-                    let _ = writeln!(t, "PANIC {at}: {}", c.name);
-                    if message.is_empty() {
-                        let _ = writeln!(t, "    panic: {category}");
+                    let panic = if message.is_empty() {
+                        format!("panic: {category}")
                     } else {
-                        let _ = writeln!(t, "    panic: {category}: {message}");
-                    }
+                        format!("panic: {category}: {message}")
+                    };
+                    let _ = writeln!(t, "PANIC {at}: {}\n    {panic}", c.name);
                     let _ = writeln!(t, "    repro: {repro}");
+                    ("failed", panic)
                 }
                 CaseResult::TimedOut => {
                     self.failed += 1;
                     let _ = writeln!(t, "PANIC {at}: {}\n    panic: time-limit", c.name);
+                    ("failed", "panic: time-limit".to_owned())
                 }
                 CaseResult::Ignored { reason } => {
                     self.ignored += 1;
                     let _ = writeln!(t, "IGNORED {at}: {} ({reason})", c.name);
+                    ("ignored", reason)
                 }
                 CaseResult::Unsupported { what } => {
                     self.unsupported += 1;
                     let _ = writeln!(t, "UNSUPPORTED {at}: {} ({what} cannot run yet)", c.name);
+                    // JSON has no fourth outcome; as in text, it fails nothing.
+                    ("ignored", format!("unsupported: {what} cannot run yet"))
                 }
+            };
+            if self.rep.json {
+                let _ = writeln!(
+                    self.text,
+                    "{{\"kind\":\"test\",\"name\":{},\"outcome\":\"{outcome}\",\"message\":{}}}",
+                    report::quote(&c.name),
+                    report::quote(&message)
+                );
+            } else {
+                self.text.push_str(&t);
             }
         }
         self.flush();
@@ -373,6 +404,15 @@ impl Report {
     }
 
     fn finish(mut self) -> ExitCode {
+        let status = u8::from(self.failed > 0);
+        if self.rep.json {
+            return self.rep.finish_tests(
+                status,
+                self.passed,
+                self.failed,
+                self.ignored + self.unsupported,
+            );
+        }
         let verdict = if self.failed > 0 { "FAILED" } else { "ok" };
         let _ = writeln!(
             self.text,
@@ -380,10 +420,6 @@ impl Report {
             self.passed, self.failed, self.ignored, self.unsupported
         );
         self.flush();
-        if self.failed > 0 {
-            ExitCode::from(1)
-        } else {
-            ExitCode::SUCCESS
-        }
+        ExitCode::from(status)
     }
 }

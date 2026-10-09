@@ -659,3 +659,60 @@ fn utf8_bytes_round_trip() {
         "{err}"
     );
 }
+
+/// `cli.json.run`, `cli.json.run.program`: with `--format json`, `hd run`
+/// and `hd FILE` write the program's output to stdout untouched, and only
+/// their own JSON lines, ending in the summary, to stderr.
+#[test]
+fn run_and_file_write_json_to_stderr_and_the_program_to_stdout() {
+    let dir = shop("hd-forms-json-run");
+    let summary = "{\"kind\":\"summary\",\"errors\":0,\"warnings\":0,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":0}\n";
+    for args in [
+        &["run", "--format", "json"][..],
+        &["--format=json", "main.hd"][..],
+        &["main.hd", "--format", "json"][..],
+    ] {
+        let r = ran(&dir, args);
+        assert_eq!((r.code, r.out.as_str()), (Some(0), "main\n"), "{args:?}");
+        assert_eq!(r.err, summary, "{args:?}");
+    }
+    std::fs::write(
+        dir.join("main.hd"),
+        "fn main() -> void $ Console:\n    println(missing)\n",
+    )
+    .expect("write");
+    let r = ran(&dir, &["run", "--format", "json"]);
+    assert_eq!(r.code, Some(101));
+    assert_eq!(r.out, "");
+    let lines: Vec<&str> = r.err.lines().collect();
+    assert_eq!(lines.len(), 2, "{}", r.err);
+    assert!(
+        lines[0].contains("\"code\":\"unknown-name\"")
+            && lines[0].contains("\"file\":\"main.hd\",\"line\":2,\"column\":13"),
+        "{}",
+        lines[0]
+    );
+    assert!(
+        lines[1].contains("\"errors\":1") && lines[1].contains("\"status\":101"),
+        "{}",
+        lines[1]
+    );
+}
+
+/// `cli.json.lines.build`: `hd build --format json` writes JSON lines to
+/// stdout, the summary on success too.
+#[test]
+fn build_writes_json_lines_to_stdout() {
+    let dir = shop("hd-forms-json-build");
+    let r = ran(&dir, &["build", "--format", "json"]);
+    assert_eq!(r.code, Some(0), "{}", r.err);
+    assert_eq!(r.err, "");
+    assert_eq!(
+        r.out,
+        "{\"kind\":\"summary\",\"errors\":0,\"warnings\":0,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":0}\n"
+    );
+    assert!(dir.join("build/debug/shop.wasm").is_file());
+    let r = ran(&dir, &["build", "--format", "yaml"]);
+    assert_eq!(r.code, Some(101));
+    assert!(r.err.contains("`--format`"), "{}", r.err);
+}

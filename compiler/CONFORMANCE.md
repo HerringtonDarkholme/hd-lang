@@ -3272,12 +3272,13 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 28 | 74 | 0 | 102 |
+| 30 | 72 | 0 | 102 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
 <!-- cli-pass-list-start -->
 ```text
+cli/build-library-only
 cli/build-output
 cli/check-summary
 cli/clean-outside-package
@@ -3302,6 +3303,7 @@ cli/json-check-modules-checked
 cli/json-check-warning
 cli/json-file-location
 cli/json-file-single
+cli/json-run
 cli/task-beside-dir
 cli/task-name-clash
 cli/toolchain-too-old

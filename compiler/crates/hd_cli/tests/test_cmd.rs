@@ -111,3 +111,33 @@ fn a_file_runs_its_module_and_a_missed_filter_is_an_error() {
     let out = hd_test(&dir, &["."]);
     assert_eq!(out.status.code(), Some(101));
 }
+
+/// `cli.json.test.result`, `cli.json.test.order`: one test object per case
+/// in content order, an unsupported case as ignored, then the summary
+/// with the counts and status 1 when a case failed.
+#[test]
+fn json_lists_test_objects_then_the_summary() {
+    let out = hd_test(&cache("hd-cache-test-json"), &["--format", "json"]);
+    assert_eq!(out.status.code(), Some(1), "{}", text(&out.stderr));
+    assert_eq!(text(&out.stderr), "");
+    let stdout = text(&out.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines.len(), 13, "{stdout}");
+    assert!(
+        lines[..12]
+            .iter()
+            .all(|l| l.starts_with("{\"kind\":\"test\",\"name\":"))
+    );
+    assert!(
+        stdout.contains("{\"kind\":\"test\",\"name\":\"sums a discount wrong\",\"outcome\":\"failed\",\"message\":\"panic: assertion-failed: ten less two: actual 8, expected 7\"}"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\"name\":\"waits for a slow price service\",\"outcome\":\"ignored\",\"message\":\"needs the price service\"}"),
+        "{stdout}"
+    );
+    assert_eq!(
+        lines[12],
+        "{\"kind\":\"summary\",\"errors\":0,\"warnings\":0,\"passed\":6,\"failed\":4,\"ignored\":2,\"status\":1}"
+    );
+}

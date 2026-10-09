@@ -31,15 +31,24 @@ fn options(args: &[OsString]) -> Result<Options, String> {
         summary: false,
         max_errors: None,
     };
-    let mut rest = args.iter();
-    while let Some(a) = rest.next() {
+    let mut i = 0;
+    while i < args.len() {
+        if let Some(format) = report::format_flag(args, i) {
+            let (json, used) = format?;
+            o.json = json;
+            i += used;
+            continue;
+        }
+        let a = &args[i];
+        i += 1;
         let text = a.to_string_lossy();
         if text == "--summary" {
             o.summary = true;
             continue;
         }
         let max = if text == "--max-errors" {
-            let value = rest.next().ok_or("`--max-errors` needs a value")?;
+            let value = args.get(i).ok_or("`--max-errors` needs a value")?;
+            i += 1;
             Some(value.to_string_lossy().into_owned())
         } else {
             text.strip_prefix("--max-errors=").map(str::to_owned)
@@ -53,20 +62,6 @@ fn options(args: &[OsString]) -> Result<Options, String> {
                     ));
                 }
             }
-            continue;
-        }
-        let format = if text == "--format" {
-            let value = rest.next().ok_or("`--format` needs a value")?;
-            Some(value.to_string_lossy().into_owned())
-        } else {
-            text.strip_prefix("--format=").map(str::to_owned)
-        };
-        if let Some(value) = format {
-            match value.as_str() {
-                "json" => o.json = true,
-                "text" => o.json = false,
-                _ => return Err(format!("`--format` takes `text` or `json`, not `{value}`")),
-            }
         } else if text.starts_with('-') {
             return Err(format!("`hd check` has no option `{text}`"));
         } else if o.file.replace(a.clone()).is_some() {
@@ -76,11 +71,9 @@ fn options(args: &[OsString]) -> Result<Options, String> {
     Ok(o)
 }
 
-/// A program to check, and the path to show for a single file
-/// (`cli.json.diagnostic.file`).
+/// A program to check.
 struct Target {
     program: disk::Program,
-    as_written: Option<String>,
     /// The package-relative FILE whose module is checked (`cli.package.file`).
     only: Option<String>,
 }
@@ -91,7 +84,6 @@ fn target(file: Option<&OsString>) -> Result<Target, String> {
             .map_err(|e| format!("{e}; or pass a FILE to check it as a single-file program"))?;
         return Ok(Target {
             program: disk::load_package(&root, "main")?,
-            as_written: None,
             only: None,
         });
     };
@@ -114,13 +106,11 @@ fn target(file: Option<&OsString>) -> Result<Target, String> {
             });
             Ok(Target {
                 program: disk::load_package(&root, "main")?,
-                as_written: None,
                 only,
             })
         }
         None => Ok(Target {
             program: disk::load_file(path)?,
-            as_written: Some(path.to_string_lossy().into_owned()),
             only: None,
         }),
     }
@@ -180,7 +170,7 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
 /// narrows them to its module and the modules it uses, deeply
 /// (`cli.package.file`); a diagnostic of no file is kept.
 fn shown(out: &Output, t: &Target) -> Vec<Diag> {
-    let all = report::from_output(out, &t.program.sources, t.as_written.as_deref());
+    let all = report::from_output(out, &t.program.sources, t.program.as_written.as_deref());
     let Some(only) = &t.only else {
         return all;
     };

@@ -87,12 +87,6 @@ When the queue is empty, say so under "Questions" and wait.
 
 ## Jobs
 
-### O2. `--format json` On `hd run`, `hd build`, `hd test`, `hd FILE` (#104)
-
-About 14 CLI cases. Same `cli.json.*` rules, including
-`cli.json.diagnostic.no-position` (a diagnostic with no position prints a
-null position).
-
 ### O3. `hd check --tests` And `--all` (#73)
 
 `cli.check.tests`, `cli.check.tests.doc`, `cli.check.all`: the flags
@@ -156,3 +150,14 @@ One commit per command; skip a command whose spec needs a design that
   `test-only-use`), `hd remove` (O8: `dep-missing-sum`, whose check step
   now passes), and `hd build --format json` (O2:
   `build-instantiation-too-deep`).
+- **O2 left for other lanes.** `hd run`, `hd build`, `hd test` and
+  `hd FILE` take `--format json` now. Their remaining JSON cases fail
+  outside the CLI: `json-test-pass`, `json-test-fail`,
+  `json-test-ignored`, `json-test-order`, `test-tasks` and
+  `dev-dependency-tests-block` stop on `unsupported: stage Body:
+  expression TrailingCallExpr` in a top-level integration test `it(...)`
+  (hd_check); `test-outcomes` on "an explicit closure as a test body";
+  `dbg-release` on emitting TIR tag `ItemRef` (hd_wasm). In
+  `build-instantiation-too-deep`, `hd build` never ends (still running
+  after 60 s), so monomorphization has no `instantiation-too-deep` limit
+  yet (hd_mono). `cap-total-deny` waits on `[capabilities]` (O5, O6).

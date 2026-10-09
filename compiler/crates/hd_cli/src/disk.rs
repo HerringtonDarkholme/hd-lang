@@ -72,6 +72,9 @@ pub struct Program {
     /// What its manifest breaks (commands.md §7.1 step 1); any error stops
     /// the command before compiling.
     pub problems: Vec<Diag>,
+    /// A single-file program's FILE as the command line wrote it
+    /// (`cli.json.diagnostic.file`).
+    pub as_written: Option<String>,
 }
 
 /// A package that a path requirement reaches.
@@ -246,7 +249,9 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
         .into_owned();
     let package = package_name(root)?;
     let mut files = Vec::new();
-    if package_root(root).is_none() {
+    let alone = package_root(root).is_none();
+    let as_written = alone.then(|| target.to_string_lossy().into_owned());
+    if alone {
         let size = std::fs::metadata(target).map_or(0, |m| m.len());
         files.push(SourceEntry {
             path: name.clone(),
@@ -265,6 +270,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
         requires: Vec::new(),
         deps: Vec::new(),
         problems: Vec::new(),
+        as_written,
     })
 }
 
@@ -281,6 +287,7 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
         requires,
         deps,
         problems,
+        as_written: None,
     })
 }
 

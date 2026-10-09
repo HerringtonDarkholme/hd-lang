@@ -18,12 +18,14 @@ use hd_cache::DiskStore;
 use hd_driver::{Clock, Executor, Goal, Host, Output, build_packages};
 use hd_run::{Grants, HostSetup, Limits, Outcome, run_program};
 
+use crate::report::Reporter;
+
 const USAGE: &str = "usage:
-  hd FILE.hd
-  hd run [--release] [NAME]
-  hd build [--release] [FILE.hd]
+  hd [--format json] FILE.hd
+  hd run [--release] [--format json] [NAME]
+  hd build [--release] [--format json] [FILE.hd]
   hd check [FILE.hd] [--format json]
-  hd test [FILE.hd] [--filter PATTERN] [--jobs N]";
+  hd test [FILE.hd] [--filter PATTERN] [--jobs N] [--format json]";
 
 /// `cli.exit.hd-failure`: `hd` itself failed, or rejected its command line.
 pub(crate) const HD_FAILURE: u8 = 101;
@@ -48,15 +50,15 @@ fn main() -> ExitCode {
         ("run", rest) => run_command(rest),
         ("build", rest) => build_command(rest),
         ("check", rest) => check_cmd::command(rest),
-        (file, [])
-            if Path::new(file)
-                .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("hd")) =>
-        {
-            run_file_command(Path::new(file))
-        }
+        _ if arguments.iter().any(is_hd_file) => run_file_command(&arguments),
         _ => usage(),
     }
+}
+
+fn is_hd_file(word: &OsString) -> bool {
+    Path::new(word)
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("hd"))
 }
 
 pub(crate) struct Wall(pub(crate) Instant);
@@ -105,14 +107,16 @@ pub(crate) fn executor() -> Executor {
     }
 }
 
-/// Builds `goal` over a program's sources and prints the diagnostics.
-/// Warnings are shown; only errors stop the command.
-fn build_goal(program: &disk::Program, goal: &Goal) -> Result<Output, ExitCode> {
-    for d in &program.problems {
-        eprintln!("{}", d.text());
-    }
-    if program.problems.iter().any(report::Diag::is_error) {
-        return Err(ExitCode::from(HD_FAILURE));
+/// Builds `goal` over a program's sources and reports its manifest's and
+/// the compiler's diagnostics. Warnings are shown; only errors stop the
+/// command, which then ends with status 101.
+fn build_goal(
+    program: &disk::Program,
+    goal: &Goal,
+    rep: &mut Reporter,
+) -> Result<Output, ExitCode> {
+    if rep.diags(&program.problems) {
+        return Err(rep.finish(HD_FAILURE));
     }
     let store = DiskStore { root: cache_dir() };
     let clock = Wall(Instant::now());
@@ -124,26 +128,27 @@ fn build_goal(program: &disk::Program, goal: &Goal) -> Result<Output, ExitCode> 
         executor: executor(),
     };
     let out: Output = build_packages(&host, &program.package, &program.packages(), goal);
-    eprint!("{}", out.render_located(&program.sources));
-    if out.diags.has_errors() {
-        return Err(ExitCode::from(HD_FAILURE));
+    let as_written = program.as_written.as_deref().filter(|_| rep.json);
+    if rep.diags(&report::from_output(&out, &program.sources, as_written)) {
+        return Err(rep.finish(HD_FAILURE));
     }
     Ok(out)
 }
 
-/// Compiles a program to Wasm bytes, printing diagnostics.
-fn compile(program: &disk::Program) -> Result<Vec<u8>, ExitCode> {
+/// Compiles a program to Wasm bytes, reporting diagnostics.
+fn compile(program: &disk::Program, rep: &mut Reporter) -> Result<Vec<u8>, ExitCode> {
     let goal = Goal::Program {
         entry: program.entry.clone(),
     };
-    build_goal(program, &goal)?
-        .wasm
-        .ok_or_else(|| fail("no Wasm produced"))
+    match build_goal(program, &goal, rep)?.wasm {
+        Some(wasm) => Ok(wasm),
+        None => Err(rep.fail("no Wasm produced")),
+    }
 }
 
-/// Runs compiled Wasm and exits with the program's status
+/// Runs compiled Wasm and ends with the program's status
 /// (`cli.exit.program`).
-fn execute(wasm: &[u8]) -> ExitCode {
+fn execute(wasm: &[u8], rep: &mut Reporter) -> ExitCode {
     let store = DiskStore { root: cache_dir() };
     let host = HostSetup {
         providers: Vec::new(),
@@ -151,25 +156,47 @@ fn execute(wasm: &[u8]) -> ExitCode {
         limits: Limits::default(),
     };
     match run_program(&node::NodeEngine, wasm, &store, &host) {
-        Ok(Outcome::Exit(0)) => ExitCode::SUCCESS,
-        Ok(Outcome::Exit(code)) => ExitCode::from(code),
+        Ok(Outcome::Exit(code)) => rep.finish(code),
         Ok(Outcome::Panic(p)) => {
             eprintln!("panic: {}: {}", p.category, p.message);
-            ExitCode::from(101)
+            rep.finish(HD_FAILURE)
         }
-        Ok(Outcome::Internal(e)) => fail(&e),
-        Err(e) => fail(&e.to_string()),
+        Ok(Outcome::Internal(e)) => rep.fail(&e),
+        Err(e) => rep.fail(&e.to_string()),
     }
 }
 
-/// `hd FILE.hd` (`cli.file.run`): FILE as a single-file program.
-fn run_file_command(file: &Path) -> ExitCode {
+/// `hd [--format json] FILE.hd` (`cli.file.run`): FILE as a single-file
+/// program.
+fn run_file_command(args: &[OsString]) -> ExitCode {
+    let mut json = false;
+    let mut file = None;
+    let mut i = 0;
+    while i < args.len() {
+        match report::format_flag(args, i) {
+            Some(Ok((j, used))) => {
+                json = j;
+                i += used;
+                continue;
+            }
+            Some(Err(e)) => return fail(&e),
+            None => {}
+        }
+        if file.replace(Path::new(&args[i])).is_some() {
+            return usage();
+        }
+        i += 1;
+    }
+    let mut rep = Reporter::stderr(json);
+    let Some(file) = file else {
+        return usage();
+    };
     let program = match disk::load_file(file) {
         Ok(p) => p,
-        Err(e) => return fail(&e),
+        Err(e) => return rep.fail(&e),
     };
-    match compile(&program) {
-        Ok(wasm) => execute(&wasm),
+    match compile(&program, &mut rep) {
+        Ok(wasm) => execute(&wasm, &mut rep),
         Err(code) => code,
     }
 }
@@ -177,23 +204,33 @@ fn run_file_command(file: &Path) -> ExitCode {
 /// The words and flags of `hd run` and `hd build`.
 struct Words {
     release: bool,
+    json: bool,
     positional: Vec<OsString>,
 }
 
 fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
     let mut w = Words {
         release: false,
+        json: false,
         positional: Vec::new(),
     };
-    for a in args {
-        let text = a.to_string_lossy();
+    let mut i = 0;
+    while i < args.len() {
+        if let Some(format) = report::format_flag(args, i) {
+            let (json, used) = format?;
+            w.json = json;
+            i += used;
+            continue;
+        }
+        let text = args[i].to_string_lossy();
         if text == "--release" {
             w.release = true;
         } else if text.starts_with('-') {
             return Err(format!("`hd {command}` has no option `{text}`"));
         } else {
-            w.positional.push(a.clone());
+            w.positional.push(args[i].clone());
         }
+        i += 1;
     }
     Ok(w)
 }
@@ -227,31 +264,32 @@ fn run_command(args: &[OsString]) -> ExitCode {
         Ok(w) => w,
         Err(e) => return fail(&e),
     };
+    let mut rep = Reporter::stderr(w.json);
     let name = match w.positional.as_slice() {
         [] => None,
         [one] => Some(one.to_string_lossy().into_owned()),
-        _ => return fail("`hd run` takes at most one NAME"),
+        _ => return rep.fail("`hd run` takes at most one NAME"),
     };
     if let Some(n) = &name
         && is_path(n)
     {
-        return if Path::new(n).is_dir() {
-            fail(&format!(
+        return rep.fail(&if Path::new(n).is_dir() {
+            format!(
                 "`{n}` is a directory, neither a NAME nor a FILE; select a package member with `-p NAME`"
-            ))
+            )
         } else {
-            fail(&format!(
+            format!(
                 "`hd run` takes no FILE (`{n}`); use `hd run` for the package's executable or `hd run NAME` for a named executable or task, and `hd FILE` to run one file"
-            ))
-        };
+            )
+        });
     }
     let root = match package_of_cwd("run") {
         Ok(r) => r,
-        Err(e) => return fail(&e),
+        Err(e) => return rep.fail(&e),
     };
     let package = match disk::package_name(&root) {
         Ok(p) => p,
-        Err(e) => return fail(&e),
+        Err(e) => return rep.fail(&e),
     };
     let executables = disk::executables(&root, &package);
     let tasks = disk::tasks(&root);
@@ -259,7 +297,7 @@ fn run_command(args: &[OsString]) -> ExitCode {
         .iter()
         .find(|t| executables.iter().any(|e| e.name == t.name))
     {
-        return fail(&format!(
+        return rep.fail(&format!(
             "the task `{}` and an executable have the same name",
             t.name
         ));
@@ -268,12 +306,12 @@ fn run_command(args: &[OsString]) -> ExitCode {
         None => match executables.as_slice() {
             [one] => one,
             [] => {
-                return fail(&format!(
+                return rep.fail(&format!(
                     "package `{package}` has no executable to run; `hd run NAME` runs a task"
                 ));
             }
             _ => {
-                return fail(&format!(
+                return rep.fail(&format!(
                     "package `{package}` has several executables; run one with `hd run NAME`"
                 ));
             }
@@ -281,7 +319,7 @@ fn run_command(args: &[OsString]) -> ExitCode {
         Some(n) => match executables.iter().chain(&tasks).find(|r| r.name == n) {
             Some(r) => r,
             None => {
-                return fail(&format!(
+                return rep.fail(&format!(
                     "package `{package}` has no executable or task named `{n}`"
                 ));
             }
@@ -289,23 +327,29 @@ fn run_command(args: &[OsString]) -> ExitCode {
     };
     let program = match disk::load_package(&root, &chosen.file) {
         Ok(p) => p,
-        Err(e) => return fail(&e),
+        Err(e) => return rep.fail(&e),
     };
-    let wasm = match compile(&program) {
+    let wasm = match compile(&program, &mut rep) {
         Ok(wasm) => wasm,
         Err(code) => return code,
     };
     if chosen.is_task
         && let Err(e) = std::env::set_current_dir(&root)
     {
-        return fail(&format!("{}: {e}", root.display()));
+        return rep.fail(&format!("{}: {e}", root.display()));
     }
-    execute(&wasm)
+    execute(&wasm, &mut rep)
 }
 
 /// Writes a built module to `build/PROFILE/[files/]NAME.wasm`
 /// (`cli.build.output`, `cli.build.output.file`).
-fn write_module(root: &Path, release: bool, files: bool, stem: &str, wasm: &[u8]) -> ExitCode {
+fn write_module(
+    root: &Path,
+    release: bool,
+    files: bool,
+    stem: &str,
+    wasm: &[u8],
+) -> Result<(), String> {
     let mut dir = root
         .join("build")
         .join(if release { "release" } else { "debug" });
@@ -313,10 +357,9 @@ fn write_module(root: &Path, release: bool, files: bool, stem: &str, wasm: &[u8]
         dir.push("files");
     }
     let out = dir.join(format!("{stem}.wasm"));
-    match std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(&out, wasm)) {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(e) => fail(&format!("{}: {e}", out.display())),
-    }
+    std::fs::create_dir_all(&dir)
+        .and_then(|()| std::fs::write(&out, wasm))
+        .map_err(|e| format!("{}: {e}", out.display()))
 }
 
 /// `hd build [FILE]` (`cli.build.*`).
@@ -325,85 +368,61 @@ fn build_command(args: &[OsString]) -> ExitCode {
         Ok(w) => w,
         Err(e) => return fail(&e),
     };
-    match w.positional.as_slice() {
-        [] => build_package(w.release),
-        [file] => build_file(Path::new(file), w.release),
-        _ => fail("`hd build` takes at most one FILE"),
+    let mut rep = Reporter::stdout(w.json);
+    let built = match w.positional.as_slice() {
+        [] => build_package(w.release, &mut rep),
+        [file] => build_file(Path::new(file), w.release, &mut rep),
+        _ => Err(rep.fail("`hd build` takes at most one FILE")),
+    };
+    match built {
+        Ok(()) => rep.finish(0),
+        Err(code) => code,
     }
 }
 
 /// A whole-package `hd build`: each executable to its module; a package with
 /// no executable is checked and writes no `.wasm` file.
-fn build_package(release: bool) -> ExitCode {
-    let root = match package_of_cwd("build") {
-        Ok(r) => r,
-        Err(e) => return fail(&e),
-    };
-    let package = match disk::package_name(&root) {
-        Ok(p) => p,
-        Err(e) => return fail(&e),
-    };
+fn build_package(release: bool, rep: &mut Reporter) -> Result<(), ExitCode> {
+    let root = package_of_cwd("build").map_err(|e| rep.fail(&e))?;
+    let package = disk::package_name(&root).map_err(|e| rep.fail(&e))?;
     let executables = disk::executables(&root, &package);
     if executables.is_empty() {
-        let program = match disk::load_package(&root, "main") {
-            Ok(p) => p,
-            Err(e) => return fail(&e),
-        };
-        return match build_goal(&program, &Goal::Analyze) {
-            Ok(_) => ExitCode::SUCCESS,
-            Err(code) => code,
-        };
+        let program = disk::load_package(&root, "main").map_err(|e| rep.fail(&e))?;
+        return build_goal(&program, &Goal::Analyze, rep).map(|_| ());
     }
     for exe in &executables {
-        let program = match disk::load_package(&root, &exe.file) {
-            Ok(p) => p,
-            Err(e) => return fail(&e),
-        };
-        let wasm = match compile(&program) {
-            Ok(wasm) => wasm,
-            Err(code) => return code,
-        };
-        let code = write_module(&root, release, false, &exe.name, &wasm);
-        if code != ExitCode::SUCCESS {
-            return code;
-        }
+        let program = disk::load_package(&root, &exe.file).map_err(|e| rep.fail(&e))?;
+        let wasm = compile(&program, rep)?;
+        write_module(&root, release, false, &exe.name, &wasm).map_err(|e| rep.fail(&e))?;
     }
-    ExitCode::SUCCESS
+    Ok(())
 }
 
 /// `hd build FILE`: the module of a file of the package, linked with the
 /// rest of it. Its package is the one at or above FILE's directory
 /// (`cli.mode.start`).
-fn build_file(file: &Path, release: bool) -> ExitCode {
+fn build_file(file: &Path, release: bool, rep: &mut Reporter) -> Result<(), ExitCode> {
     if file.extension().is_none_or(|x| x != "hd") {
-        return fail(&format!(
+        return Err(rep.fail(&format!(
             "`{}` is not an .hd file; `hd build` takes a FILE.hd",
             file.display()
-        ));
+        )));
     }
-    let full = match std::fs::canonicalize(file) {
-        Ok(f) => f,
-        Err(e) => return fail(&format!("{}: {e}", file.display())),
-    };
+    let full =
+        std::fs::canonicalize(file).map_err(|e| rep.fail(&format!("{}: {e}", file.display())))?;
     let dir = full.parent().unwrap_or(Path::new("."));
     let Some(root) = disk::package_root(dir) else {
-        return fail(&no_package("build"));
+        return Err(rep.fail(&no_package("build")));
     };
     let Ok(rel) = full.strip_prefix(&root) else {
-        return fail("FILE is outside its package");
+        return Err(rep.fail("FILE is outside its package"));
     };
     let rel = rel.to_string_lossy().replace('\\', "/");
-    let program = match disk::load_package(&root, &rel) {
-        Ok(p) => p,
-        Err(e) => return fail(&e),
-    };
-    let wasm = match compile(&program) {
-        Ok(wasm) => wasm,
-        Err(code) => return code,
-    };
+    let program = disk::load_package(&root, &rel).map_err(|e| rep.fail(&e))?;
+    let wasm = compile(&program, rep)?;
     let stem = full
         .file_stem()
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_default();
-    write_module(&root, release, true, &stem, &wasm)
+    write_module(&root, release, true, &stem, &wasm).map_err(|e| rep.fail(&e))
 }
