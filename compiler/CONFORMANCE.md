@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2221 | 472 | 152 | 2845 |
+| 2230 | 472 | 143 | 2845 |
 
 ## By Chapter
 
@@ -17,8 +17,8 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 133 | 12 | 0 | 145 |
 | `lang/02-grammar.md` | 191 | 15 | 9 | 215 |
 | `lang/03-names-and-scopes.md` | 92 | 8 | 1 | 101 |
-| `lang/04-type-system.md` | 295 | 48 | 9 | 352 |
-| `lang/05-expressions.md` | 207 | 61 | 9 | 277 |
+| `lang/04-type-system.md` | 299 | 48 | 5 | 352 |
+| `lang/05-expressions.md` | 210 | 61 | 6 | 277 |
 | `lang/06-control-flow.md` | 129 | 24 | 4 | 157 |
 | `lang/07-functions.md` | 92 | 30 | 8 | 130 |
 | `lang/08-data-and-enums.md` | 79 | 36 | 8 | 123 |
@@ -39,7 +39,7 @@ fixture; unsupported surface records progress without failing.
 | `std/host.md` | 2 | 0 | 0 | 2 |
 | `std/http.md` | 2 | 0 | 0 | 2 |
 | `std/iter.md` | 15 | 7 | 3 | 25 |
-| `std/json.md` | 15 | 2 | 2 | 19 |
+| `std/json.md` | 16 | 2 | 1 | 19 |
 | `std/net.md` | 1 | 0 | 0 | 1 |
 | `std/num.md` | 14 | 4 | 0 | 18 |
 | `std/ops.md` | 8 | 3 | 2 | 13 |
@@ -49,7 +49,7 @@ fixture; unsupported surface records progress without failing.
 | `std/random.md` | 8 | 0 | 0 | 8 |
 | `std/regex.md` | 4 | 0 | 9 | 13 |
 | `std/result.md` | 4 | 1 | 0 | 5 |
-| `std/serde.md` | 3 | 0 | 5 | 8 |
+| `std/serde.md` | 4 | 0 | 4 | 8 |
 | `std/sys.md` | 1 | 0 | 0 | 1 |
 | `std/task.md` | 7 | 0 | 0 | 7 |
 | `std/testing.md` | 35 | 3 | 1 | 39 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 78 | 23 | 4 | 105 |
-| `runtime/valid` | 743 | 66 | 120 | 929 |
+| `runtime/valid` | 752 | 66 | 111 | 929 |
 | `typing/invalid` | 714 | 344 | 17 | 1075 |
 | `typing/valid` | 388 | 16 | 11 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -126,7 +126,7 @@ compiler stage that first declined the case.
 | `fail:unused-local-binding` | 6 |
 | `unsupported:Body` | 57 |
 | `unsupported:Collect` | 30 |
-| `unsupported:Emit` | 28 |
+| `unsupported:Emit` | 19 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 28 |
 | `unsupported:TestCase` | 5 |
@@ -945,21 +945,14 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Emit</code> (28)</summary>
+<details><summary><code>unsupported:Emit</code> (19)</summary>
 
 - `runtime/valid/suspending-calls-in-branches.hd`
 - `runtime/valid/suspending-match-guards.hd`
-- `runtime/valid/f32-display-width-through-generics.hd`
 - `runtime/valid/dynamic-trait-value-satisfies-own-bound.hd`
 - `runtime/valid/string-prefix-std.hd`
-- `runtime/valid/float-cast-saturates.hd`
-- `runtime/valid/primitive-operator-calls-method.hd`
-- `runtime/valid/float-remainder-run.hd`
 - `runtime/valid/requirement-key-binding-run.hd`
 - `runtime/valid/generic-inference-explicit-conversions.hd`
-- `runtime/valid/primitive-float-cmp-method-direct.hd`
-- `runtime/valid/numeric-explicit-widening.hd`
-- `runtime/valid/json-typed-primitives.hd`
 - `runtime/valid/regex-literals-escapes.hd`
 - `runtime/valid/regex-classes.hd`
 - `runtime/valid/regex-anchors-groups.hd`
@@ -970,8 +963,6 @@ compiler stage that first declined the case.
 - `runtime/valid/regex-replace.hd`
 - `runtime/valid/regex-split.hd`
 - `runtime/valid/inspectable-dynamic-vs-static-identity.hd`
-- `runtime/valid/numeric-casts-in-range.hd`
-- `runtime/valid/serde-std-reads.hd`
 - `runtime/valid/associated-binding-positions.hd`
 - `runtime/valid/trait-value-binding-identity.hd`
 - `runtime/valid/trait-value-satisfies-instantiated-bound.hd`
@@ -1607,6 +1598,7 @@ runtime/valid/error-root-cause.hd
 runtime/valid/evaluation-order-elements-and-indexing.hd
 runtime/valid/explicit-type-args-associated.hd
 runtime/valid/explicit-type-args-method.hd
+runtime/valid/f32-display-width-through-generics.hd
 runtime/valid/f64-nan-ordering.hd
 runtime/valid/f64-ordering-operators.hd
 runtime/valid/fact-unread-never-evaluated.hd
@@ -1616,9 +1608,11 @@ runtime/valid/field-and-trait-method-share-name.hd
 runtime/valid/field-read-beside-trait-method.hd
 runtime/valid/fieldless-data-argument.hd
 runtime/valid/fieldless-data-canonical.hd
+runtime/valid/float-cast-saturates.hd
 runtime/valid/float-display.hd
 runtime/valid/float-eq-bound.hd
 runtime/valid/float-literal-forms.hd
+runtime/valid/float-remainder-run.hd
 runtime/valid/floating-power.hd
 runtime/valid/for-loops-lists-and-maps.hd
 runtime/valid/for-patterns.hd
@@ -1739,6 +1733,7 @@ runtime/valid/json-typed-enum.hd
 runtime/valid/json-typed-errors.hd
 runtime/valid/json-typed-missing-key-ignores-default.hd
 runtime/valid/json-typed-optional.hd
+runtime/valid/json-typed-primitives.hd
 runtime/valid/json-typed-round-trip.hd
 runtime/valid/lazy-result-candidate.hd
 runtime/valid/leading-dot-chain.hd
@@ -1866,6 +1861,8 @@ runtime/valid/num-saturating.hd
 runtime/valid/num-to-fixed.hd
 runtime/valid/num-traits-run.hd
 runtime/valid/numeric-candidate-tie-break.hd
+runtime/valid/numeric-casts-in-range.hd
+runtime/valid/numeric-explicit-widening.hd
 runtime/valid/operands-across-suspension-order.hd
 runtime/valid/operator-generic-primitive-run.hd
 runtime/valid/operator-string-add.hd
@@ -1902,7 +1899,9 @@ runtime/valid/prelude-partial-cmp-method-direct.hd
 runtime/valid/primitive-bool-eq-method-direct.hd
 runtime/valid/primitive-char-cmp-method-direct.hd
 runtime/valid/primitive-display-bound-and-trait-values.hd
+runtime/valid/primitive-float-cmp-method-direct.hd
 runtime/valid/primitive-integer-cmp-method-direct.hd
+runtime/valid/primitive-operator-calls-method.hd
 runtime/valid/primitive-string-cmp-method-direct.hd
 runtime/valid/println-console-stdout.hd
 runtime/valid/println-in-test-body.hd
@@ -2001,6 +2000,7 @@ runtime/valid/seeded-random.hd
 runtime/valid/self-interpolation.hd
 runtime/valid/sequential-suspending-calls.hd
 runtime/valid/serde-derive-call-order.hd
+runtime/valid/serde-std-reads.hd
 runtime/valid/set-basics.hd
 runtime/valid/shared-enum-data-defaults.hd
 runtime/valid/shared-enum-fact-evaluation.hd
