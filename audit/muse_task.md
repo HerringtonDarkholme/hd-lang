@@ -115,16 +115,6 @@ statement, a `defer`, a loop body, ...). If they share one cause, say so.
 Add the minimal programs and findings to
 `audit/compiler/triage-wrong-runs.md` §C. Read only; timebox 30 minutes.
 
-### R13. Design Note: Integer Widths (#147, Design Text)
-
-Seven programs show sub-word integers running as checked 32/64-bit
-(your R2 §D). Read the numeric rules in `spec/lang/04-type-system.md`
-and `spec/std/num.md` (checked, wrapping, saturating, narrowing casts,
-bit counts, rotates) and `wasm-layout.md` (how `i8`/`u8`/`i16`/`u16`
-live in an `i32`). Add to `codegen.md`: per operation and width, the
-Wasm sequence (masking, sign extension, overflow test), and how the
-checked/wrapping choice is selected. Timebox 45 minutes.
-
 ### R14. Design Note: Supertrait Calls Through A Trait Value (#131, Design Text)
 
 `dyn Error` calling `to_string` (a `Display` method) and
@@ -352,3 +342,16 @@ on the block. Recommend asking the owner for a code
   for the owner (recommendation 100). Not decided here.
 - **Q-R10.2:** run every row; each row is its own case, so one failure
   must not hide the others.
+
+### Q-R13: sub-word canonical form and profile keying (R13, 2026-10-09)
+
+1. **Producers keep sub-word values canonical (recommended).** Every
+   narrowing sequence ends with mask plus sign/zero-extend, so an i8
+   in a local is always a sign-extended i32 and consumers use native
+   ops. The alternative (extend at each use) saves two instructions
+   per narrowing op and pays per consumer instead, while risking
+   exactly the class of bug in R2 section D. Recommend canonical.
+2. **Code entries are per profile (recommended).** Debug-checked and
+   release-wrapped sequences for the same source must never share a
+   cache entry; the pipeline/code key carries the profile.
+   Recommend making that keying explicit if it is not already.

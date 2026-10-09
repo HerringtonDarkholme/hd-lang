@@ -1543,3 +1543,36 @@ for any impl. Footprint per error type: one `Display` body, one
 of a small match, plus the pooled message literals — all shared
 across call sites at the same instantiation and folded when identical
 (§13.7).
+
+### 13.15 Integer Widths
+
+Seven programs show sub-word integers running as checked 32/64-bit
+(R2 §D): bit counts always 32, no wrapping, saturating traps,
+narrowing casts that keep 300. Values live as `i32` scalars in
+locals, packed `i8`/`i16` only in fields and array elements
+(wasm-layout.md). Field and array loads sign- or zero-extend, so
+every sequence below starts from a full-width exact value.
+
+Per operation and width, with `w` the bit width and `m` the mask:
+
+| Operation | 32/64-bit | Sub-word (`i8`/`u8`/`i16`/`u16`) |
+| --- | --- | --- |
+| `+`, `-`, `*`, `**`, unary `-`, checked (debug/test) | widen to 64 bits (`i64` ops), compare against the type range, panic `integer-overflow` outside it | same in 32 bits (exact: no two `w`-bit values overflow it), range-check against the type's range |
+| same, release | the Wasm op (wraps natively) | the Wasm op, then mask to `w` bits and re-extend to canonical form |
+| `wrapping_*` (every build) | the Wasm op | the Wasm op, then mask and re-extend, as release above |
+| `saturating_add`/`sub` (never panics) | unsigned: wrapping op, carry/borrow test selects the bound; signed: sign analysis selects `MIN`/`MAX` | exact in 32 bits, then clamp to the type range with selects |
+| `checked_*` | as checked, but the overflow flag selects `.None` instead of panicking | as checked, selecting `.None` |
+| `abs_diff` | `(a > b) ? a - b : b - a` in unsigned arithmetic | same, on the extended values |
+| narrowing cast (never panics) | `i32.wrap_i64` / extends | keep the low `w` bits (`types.cast.wrap`), re-extended: `300 as u8` is 44 |
+| `count_ones` → `u32` | `i32.popcnt` / `i64` popcnt plus extend | mask to `w` bits first, then popcnt (`-1i8` counts 8, not 32) |
+| `leading_zeros` → `u32` | `i32.clz` | mask, `clz`, subtract `32 - w` (zero gives `w`) |
+| `rotate_left`/`right` | native `rotl`/`rotr` | `((x << n) \| (x >> (w - n))) & m`; shift counts masked to `w` in release, `invalid-shift` panic in debug unless valid |
+| `<<`, `>>` | `shl`, `shr_s`/`shr_u`; count validated in debug (`invalid-shift`), masked to the width in release | same, on extended values, result masked and re-extended |
+| `/`, `%`, `MIN / -1` | native traps (identical in every build, `types.arith.always`) | same |
+
+The checked/wrapping choice is selected by the build profile for the
+operator forms (`types.arith.checked` vs `types.arith.release`) and
+by the method name for the explicit `checked_*`/`wrapping_*`/
+`saturating_*` forms (identical in every build,
+`types.arith.always`). Code entries are per profile: debug-checked
+and release-wrapped sequences never share a cache entry.
