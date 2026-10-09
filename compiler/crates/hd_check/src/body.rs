@@ -177,6 +177,11 @@ pub(crate) struct Ck<'a, 'c> {
     pub facts: crate::init::InitFacts,
     /// A pipe's value while its step is checked (`_`).
     pub placeholder: Option<(Ref, Ty)>,
+    /// A bare pipe step's piped value, which stands for the argument node
+    /// at this index (`expr.pipe.bare.call`).
+    pub pipe_arg: Option<(hd_base::NodeIdx, (Ref, Ty))>,
+    /// Checking the call a bare pipe step stands for.
+    pub bare_step: bool,
     /// The next `for` loop's `else` suite and the loop's result type.
     pub loop_else: Option<(NodeRefIdx, Ty)>,
     /// The function body block, for `missing-return-value`.
@@ -279,6 +284,8 @@ pub(crate) fn new_ck<'a, 'c>(
         init_stmt: 0,
         facts: crate::init::InitFacts::default(),
         placeholder: None,
+        pipe_arg: None,
+        bare_step: false,
         loop_else: None,
         fn_body: None,
         written_row: None,

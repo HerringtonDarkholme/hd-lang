@@ -342,7 +342,7 @@ impl Ck<'_, '_> {
     }
 
     /// A call of `callee` with `args`; `n` is the call node.
-    fn call_args(
+    pub(crate) fn call_args(
         &mut self,
         n: NodeRef<'_>,
         callee: NodeRef<'_>,
@@ -554,6 +554,9 @@ impl Ck<'_, '_> {
         }
         // A suspending function value: a plain call is cold, a bang call
         // awaits it.
+        if !bang && self.bare_step {
+            return Ok(self.suspending_pipe_step(n));
+        }
         let st = pool.intern_ty(&TyData::Mut(pool.intern_ty(&TyData::Adt {
             def: suspend,
             args: pool.list(&[result]),
@@ -1334,6 +1337,16 @@ impl Ck<'_, '_> {
         Ok((self.b.emit(Tag::AwaitAll, NONE, rec, t, n.index()), t))
     }
 
+    /// `expr.pipe.bare.no-suspend`: a bare step would suspend with no `!`.
+    fn suspending_pipe_step(&mut self, n: NodeRef<'_>) -> (Ref, Ty) {
+        self.err(
+            Code::SuspendingPipeStep,
+            n,
+            "a bare pipe step cannot suspend; write `_` and `!`",
+        );
+        (Ref(NONE), Ty::NEVER)
+    }
+
     /// Emits a `Call`, or an `Await` for a bang call of a suspending
     /// callee; a plain call of one is a cold `mut Suspend[T]`.
     fn emit_call(
@@ -1348,6 +1361,9 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         if bang {
             self.check_bang(suspends, n);
+        }
+        if suspends && !bang && self.bare_step {
+            return self.suspending_pipe_step(n);
         }
         if suspends && !bang {
             let suspend = self.cx.names.known.suspend;

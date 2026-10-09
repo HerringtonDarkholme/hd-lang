@@ -106,6 +106,27 @@ pub(crate) fn strip_piece(t: &str, kind: TokenKind) -> &str {
     }
 }
 
+/// A bare step: identifiers joined by `.`, or a path (`expr.pipe.bare.form`).
+fn is_bare_path(n: NodeRef<'_>) -> bool {
+    match n.kind() {
+        SyntaxKind::NameExpr | SyntaxKind::PathExpr => true,
+        SyntaxKind::FieldExpr => n.children().next().is_some_and(is_bare_path),
+        _ => false,
+    }
+}
+
+/// Whether a pipe step holds a `_` of its own: one in a nested pipe's
+/// step belongs to that pipe (`expr.pipe.slot.nested`).
+fn has_slot(n: NodeRef<'_>) -> bool {
+    if n.kind() == SyntaxKind::PlaceholderExpr {
+        return true;
+    }
+    if n.kind() == SyntaxKind::PipeExpr {
+        return n.children().next().is_some_and(has_slot);
+    }
+    n.children().any(has_slot)
+}
+
 /// The text of a plain string literal without interpolation, as a test
 /// name or option (`module.testing.it.name`); `None` for anything else.
 pub(crate) fn literal_text(src: &hd_resolve::Src<'_>, n: NodeRef<'_>) -> Option<String> {
@@ -143,6 +164,11 @@ impl Ck<'_, '_> {
 
     fn expr_node(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         self.charge()?;
+        if let Some((at, v)) = self.pipe_arg
+            && at == n.index()
+        {
+            return Ok(v);
+        }
         let kids: Vec<NodeRef<'_>> = n.children().collect();
         Ok(match n.kind() {
             SyntaxKind::LiteralExpr => self.literal(n, want)?,
@@ -1988,6 +2014,27 @@ impl Ck<'_, '_> {
             return unsupported("a pipe shape");
         };
         let v = self.expr(*lhs, None)?;
+        if is_bare_path(*step) {
+            // `expr.pipe.bare.call`: `value |> path` is the call
+            // `path(value)`, the value already evaluated.
+            let mut args = crate::call::Args::empty();
+            args.positional.push(*lhs);
+            let saved = self.pipe_arg.replace((lhs.index(), v));
+            let saved_bare = std::mem::replace(&mut self.bare_step, true);
+            let r = self.call_args(*step, *step, &args, want);
+            self.bare_step = saved_bare;
+            self.pipe_arg = saved;
+            return r;
+        }
+        if !has_slot(*step) {
+            // `expr.pipe.bare.needs-placeholder`: not a bare step, no `_`.
+            self.err(
+                Code::PipeStepNeedsPlaceholder,
+                *step,
+                "write `_` where the piped value goes",
+            );
+            return Ok((Ref(NONE), Ty::NEVER));
+        }
         let saved = self.placeholder.replace(v);
         let r = self.expr(*step, want);
         let unused = self.placeholder.take().is_some();
