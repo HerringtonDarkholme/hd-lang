@@ -141,22 +141,6 @@ minimal program and the stage you suspect (Emit, runtime host).
 Write `audit/compiler/triage-wrong-runs.md`. Read only; timebox 45
 minutes.
 
-### Y4. Accept `concat_all` (A1): Spec Row Only (#112)
-
-Orchestrator, 2026-10-08, proceeding on Y2's recommendation (owner: "don't
-be blocked by me"). Add the `string_concat_all` row to the Representation
-primitives table in `spec/std/README.md` (`Standard Library Primitives`),
-in the table's own style, with the declaration from
-`representation-runtime.md` (`@intrinsic("string_concat_all") fn
-concat_all(parts: List[string]) -> string`, private). Change that design
-section's heading from "Proposal, Not Accepted" to "Accepted (A1,
-2026-10-08)" and keep its text. Do **not** touch `lib/std` yet: the
-intrinsic does not exist in the compiler, and the orchestrator's agent
-adds it together with the `join`/`StringBuilder.build` rewrite. This job
-lifts the spec rule for that one table row and the design file for that
-heading. Checks: `bash spec/check.sh` (realign `examples.tsv` if a
-```text block moves). Timebox 20 minutes.
-
 ### R3. Design Note: Functions As Values (#46, Design Text)
 
 Next compiler task after the current one. 41 programs stop at Emit on an
@@ -237,15 +221,12 @@ fast". The orchestrator writes `compiler/crates/*`; you measure it.
   the 3,000-line bench build before and after, so the std.task to
   std.time cost is on record.
 
-- **Q-F1: option 1, for all 122 fixtures; F1 is withdrawn and the
-  partial commit 3b3a9181 is reverted.** F1's premise was the
+- **Q-F1: F1 is on hold until the owner decides; do not resume it.**
+  The partial commit 3b3a9181 is reverted because it left non-void final
+  expressions in `-> void` bodies, which `fn.body.void-final` rejects (its
+  four new passes came from compiler gaps). F1's premise was also the
   orchestrator's mistake: a non-pub `main` is an ordinary function
   (`module.entry.private-main`), so `module.entry.result-termination`
-  never applies to these fixtures. The partial rewrite also left non-void
-  final expressions in `-> void` bodies (`ord-supertrait-dispatch`,
-  `u8-checked-add`, ...), which `fn.body.void-final` rejects; the four new
-  passes came from a compiler gap, not a fix. The real bugs are in the
-  compiler (it treats a private `main` as an entry point, and it does not
-  enforce `fn.body.void-final`), and the orchestrator's agents fix them.
-  Lesson for fixture jobs: when a job's recipe conflicts with a spec rule,
-  stop and ask instead of changing the recipe.
+  does not apply to these fixtures. Whether the 122 fixtures change is
+  the owner's call. Lesson for fixture jobs: when a job's recipe
+  conflicts with a spec rule, stop and ask instead of changing the recipe.
