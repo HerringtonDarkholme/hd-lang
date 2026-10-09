@@ -1587,6 +1587,14 @@ by the method name for the explicit `checked_*`/`wrapping_*`/
 `types.arith.always`). Code entries are per profile: debug-checked
 and release-wrapped sequences never share a cache entry.
 
+As built (#147): the operators carry the widths. Casts, `<<` and `~`
+end canonical; a 64-bit `*` is checked by dividing the product back,
+and a 64-bit `MIN / -1` is tested before `i64.div_s`. The `std.num`
+methods stay ordinary hd over those operators, as
+`spec/std/num.md` says, so they get no dedicated sequences above.
+Native sequences would need spec-named intrinsics, a later speed
+item. Only the debug sequences exist; #109 adds the release ones.
+
 ### 13.16 Supertrait Calls Through A Trait Value
 
 `dyn Error` calling `to_string` and `bounded-blanket-supertraits`

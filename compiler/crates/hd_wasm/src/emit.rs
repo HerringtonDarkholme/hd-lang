@@ -147,6 +147,11 @@ fn intrinsic_op(method: &str) -> Option<PrimOp> {
     })
 }
 
+/// The low `bits` bits set, for a sub-word width.
+fn width_mask(bits: u8) -> i32 {
+    (1i32 << bits) - 1
+}
+
 fn u32_of(i: usize) -> u32 {
     u32::try_from(i).expect("index")
 }
@@ -1136,16 +1141,33 @@ impl Em<'_> {
             }
             Ok(())
         };
-        // A shift's count is any unsigned type (`expr.shift.count-unsigned`),
-        // so it is brought to the shifted value's width.
+        // A shift's count is any unsigned type (`expr.shift.count-unsigned`).
+        // It must be below the shifted value's bit width, checked in its own
+        // type before it is brought to the value's width
+        // (`types.arith.shift-count.debug`). A release build (#109) masks it
+        // to the width instead (`types.arith.shift-count.release`).
         let shift = |em: &mut Self| -> StageResult<()> {
             em.comp(ops[0], 0, &vt0[0])?;
             let count = em.vts(em.ty_of(ops[1]))?;
-            let Some(cv) = count.first() else {
+            let Some(cv) = count.first().cloned() else {
                 return unsupported("a shift count without a value");
             };
-            em.comp(ops[1], 0, cv)?;
-            match (cv, wide) {
+            let n = em.a.local(cv.clone());
+            em.comp(ops[1], 0, &cv)?;
+            em.a.set(n);
+            em.a.get(n);
+            if cv == VT::I64 {
+                em.a.i64(i64::from(bits));
+                em.a.s().i64_ge_u();
+            } else {
+                em.a.i32(i32::from(bits));
+                em.a.s().i32_ge_u();
+            }
+            em.a.if_();
+            em.panic("invalid-shift: shift count out of range");
+            em.a.end();
+            em.a.get(n);
+            match (&cv, wide) {
                 (VT::I32, true) => {
                     em.a.s().i64_extend_i32_u();
                 }
@@ -1158,7 +1180,7 @@ impl Em<'_> {
         };
         match op {
             PrimOp::Add | PrimOp::Sub | PrimOp::Mul | PrimOp::Div | PrimOp::Rem | PrimOp::Neg => {
-                self.checked(op, ops, bits, signed, wide)?;
+                self.checked(op, ops, bits, signed)?;
             }
             PrimOp::Eq | PrimOp::Ne | PrimOp::Lt | PrimOp::Le | PrimOp::Gt | PrimOp::Ge => {
                 s(self)?;
@@ -1210,12 +1232,15 @@ impl Em<'_> {
                     self.a.s().i32_xor();
                 }
             }
+            // Bits shifted past a sub-word width are dropped, as at 32 and
+            // 64 bits, so the result is brought back to canonical form.
             PrimOp::Shl => {
                 shift(self)?;
                 if wide {
                     self.a.s().i64_shl();
                 } else {
                     self.a.s().i32_shl();
+                    self.wrap_to(bits, signed);
                 }
             }
             PrimOp::Shr => {
@@ -1236,14 +1261,20 @@ impl Em<'_> {
                     self.a.i64(-1);
                     self.a.s().i64_xor();
                 } else {
-                    self.a.i32(-1);
+                    // A sign-extended value stays so under `~`; a
+                    // zero-extended one flips only its own bits.
+                    self.a.i32(if signed || bits >= 32 {
+                        -1
+                    } else {
+                        width_mask(bits)
+                    });
                     self.a.s().i32_xor();
                 }
             }
             PrimOp::Conv => {
                 s(self)?;
                 let to = self.vts(ty)?;
-                let (_, _, tfloat) = num(self.pool(), ty);
+                let (tbits, tsigned, tfloat) = num(self.pool(), ty);
                 let mut x = self.a.s();
                 match (
                     vt0[0].clone(),
@@ -1277,9 +1308,35 @@ impl Em<'_> {
                     (a, b, _) if a == b => {}
                     _ => return unsupported("this numeric conversion"),
                 }
+                // An integer cast keeps the target's low bits
+                // (`types.cast.wrap`): `u8(300)` is 44, `i8(200)` is -56.
+                if !tfloat {
+                    self.wrap_to(tbits, tsigned);
+                }
             }
         }
         Ok(())
+    }
+
+    /// Brings an `i32` holding a `bits`-wide integer's low bits back to
+    /// canonical form (codegen.md §13.15): sign-extended when `signed`,
+    /// zero-extended otherwise. Every producer of a sub-word value ends
+    /// with it, so consumers use the native 32-bit operations. Nothing at
+    /// 32 and 64 bits.
+    fn wrap_to(&mut self, bits: u8, signed: bool) {
+        match (bits, signed) {
+            (8, true) => {
+                self.a.s().i32_extend8_s();
+            }
+            (16, true) => {
+                self.a.s().i32_extend16_s();
+            }
+            (8 | 16, false) => {
+                self.a.i32(width_mask(bits));
+                self.a.s().i32_and();
+            }
+            _ => {}
+        }
     }
 
     fn float_value(&mut self, op: PrimOp, ops: &[u32], vt: &VT) -> StageResult<()> {
@@ -1311,21 +1368,21 @@ impl Em<'_> {
         Ok(())
     }
 
-    /// Checked integer arithmetic (lowering-catalog.md, "Arithmetic And
-    /// Overflow Checks"): 32-bit and narrower in `i64` with a range check;
-    /// 64-bit add and subtract by sign tests.
-    fn checked(
-        &mut self,
-        op: PrimOp,
-        ops: &[u32],
-        bits: u8,
-        signed: bool,
-        wide: bool,
-    ) -> StageResult<()> {
+    /// Checked integer arithmetic (codegen.md §13.15, `types.arith.checked`).
+    /// Sub-word widths compute exactly in `i32` and 32-bit widths in `i64`,
+    /// each range-checked against the type; 64-bit widths test the native
+    /// result. The operands are canonical, and an in-range result is too.
+    /// A release build (#109) drops the overflow test, computes natively,
+    /// and ends with `wrap_to`.
+    fn checked(&mut self, op: PrimOp, ops: &[u32], bits: u8, signed: bool) -> StageResult<()> {
+        let wide = bits == 64;
+        // The operands' representation, and the type the exact result fits.
         let vt = if wide { VT::I64 } else { VT::I32 };
-        let x = self.a.local(VT::I64);
-        let y = self.a.local(VT::I64);
-        let r = self.a.local(VT::I64);
+        let exact = if bits == 32 { VT::I64 } else { vt.clone() };
+        let in64 = exact == VT::I64;
+        let x = self.a.local(exact.clone());
+        let y = self.a.local(exact.clone());
+        let r = self.a.local(exact.clone());
         let (lhs, rhs) = if op == PrimOp::Neg {
             (None, ops[0])
         } else {
@@ -1335,7 +1392,7 @@ impl Em<'_> {
             match src {
                 Some(v) => {
                     self.comp(v, 0, &vt)?;
-                    if !wide {
+                    if bits == 32 {
                         if signed {
                             self.a.s().i64_extend_i32_s();
                         } else {
@@ -1343,88 +1400,178 @@ impl Em<'_> {
                         }
                     }
                 }
-                None => self.a.i64(0),
+                None => self.a.zero(&exact),
             }
             self.a.set(dst);
         }
         if matches!(op, PrimOp::Div | PrimOp::Rem) {
             self.a.get(y);
-            self.a.s().i64_eqz();
+            if in64 {
+                self.a.s().i64_eqz();
+            } else {
+                self.a.s().i32_eqz();
+            }
             self.a.if_();
-            self.panic("division-by-zero: division by zero");
+            self.panic("integer-division-by-zero: division by zero");
+            self.a.end();
+        }
+        // `MIN / -1` overflows in every build (`types.arith.min-division`).
+        // Narrower widths see it in the range check; at 64 bits it must be
+        // tested before `i64.div_s`, which would trap.
+        if wide && signed && op == PrimOp::Div {
+            self.a.get(x);
+            self.a.i64(i64::MIN);
+            self.a.s().i64_eq();
+            self.a.get(y);
+            self.a.i64(-1);
+            self.a.s().i64_eq().i32_and();
+            self.a.if_();
+            self.panic("integer-overflow: integer overflow");
             self.a.end();
         }
         self.a.get(x);
         self.a.get(y);
         {
             let mut s = self.a.s();
-            match (op, signed) {
-                (PrimOp::Add, _) => s.i64_add(),
-                (PrimOp::Sub | PrimOp::Neg, _) => s.i64_sub(),
-                (PrimOp::Mul, _) => s.i64_mul(),
-                (PrimOp::Div, true) => s.i64_div_s(),
-                (PrimOp::Div, false) => s.i64_div_u(),
-                (PrimOp::Rem, true) => s.i64_rem_s(),
-                _ => s.i64_rem_u(),
+            match (op, signed, in64) {
+                (PrimOp::Add, _, true) => s.i64_add(),
+                (PrimOp::Sub | PrimOp::Neg, _, true) => s.i64_sub(),
+                (PrimOp::Mul, _, true) => s.i64_mul(),
+                (PrimOp::Div, true, true) => s.i64_div_s(),
+                (PrimOp::Div, false, true) => s.i64_div_u(),
+                (PrimOp::Rem, true, true) => s.i64_rem_s(),
+                (_, _, true) => s.i64_rem_u(),
+                (PrimOp::Add, _, false) => s.i32_add(),
+                (PrimOp::Sub | PrimOp::Neg, _, false) => s.i32_sub(),
+                (PrimOp::Mul, _, false) => s.i32_mul(),
+                (PrimOp::Div, true, false) => s.i32_div_s(),
+                (PrimOp::Div, false, false) => s.i32_div_u(),
+                (PrimOp::Rem, true, false) => s.i32_rem_s(),
+                (_, _, false) => s.i32_rem_u(),
             };
         }
         self.a.set(r);
         if wide {
-            // 64-bit: add and subtract overflow by sign tests.
-            match (op, signed) {
-                (PrimOp::Add, true) => {
-                    self.a.get(x);
-                    self.a.get(r);
-                    self.a.s().i64_xor();
-                    self.a.get(y);
-                    self.a.get(r);
-                    self.a.s().i64_xor().i64_and();
-                    self.a.i64(0);
-                    self.a.s().i64_lt_s();
-                }
-                (PrimOp::Sub | PrimOp::Neg, true) => {
-                    self.a.get(x);
-                    self.a.get(y);
-                    self.a.s().i64_xor();
-                    self.a.get(x);
-                    self.a.get(r);
-                    self.a.s().i64_xor().i64_and();
-                    self.a.i64(0);
-                    self.a.s().i64_lt_s();
-                }
-                (PrimOp::Add, false) => {
-                    self.a.get(r);
-                    self.a.get(x);
-                    self.a.s().i64_lt_u();
-                }
-                (PrimOp::Sub | PrimOp::Neg, false) => {
-                    self.a.get(x);
-                    self.a.get(y);
-                    self.a.s().i64_lt_u();
-                }
-                _ => self.a.i32(0),
-            }
+            self.wide_overflow(op, signed, x, y, r);
         } else {
+            // The exact result against the type's range. An unsigned
+            // result below zero reads as a large unsigned value.
             let (lo, hi): (i64, i64) = if signed {
                 (-(1i64 << (bits - 1)), (1i64 << (bits - 1)) - 1)
             } else {
                 (0, (1i64 << bits) - 1)
             };
+            let push = |em: &mut Self, v: i64| {
+                if in64 {
+                    em.a.i64(v);
+                } else {
+                    em.a.i32(i32::try_from(v).expect("a sub-word bound"));
+                }
+            };
             self.a.get(r);
-            self.a.i64(lo);
-            self.a.s().i64_lt_s();
-            self.a.get(r);
-            self.a.i64(hi);
-            self.a.s().i64_gt_s().i32_or();
+            push(self, hi);
+            match (signed, in64) {
+                (true, true) => self.a.s().i64_gt_s(),
+                (false, true) => self.a.s().i64_gt_u(),
+                (true, false) => self.a.s().i32_gt_s(),
+                (false, false) => self.a.s().i32_gt_u(),
+            };
+            if signed {
+                self.a.get(r);
+                push(self, lo);
+                if in64 {
+                    self.a.s().i64_lt_s();
+                } else {
+                    self.a.s().i32_lt_s();
+                }
+                self.a.s().i32_or();
+            }
         }
         self.a.if_();
         self.panic("integer-overflow: integer overflow");
         self.a.end();
         self.a.get(r);
-        if !wide {
+        if bits == 32 {
             self.a.s().i32_wrap_i64();
         }
         Ok(())
+    }
+
+    /// Pushes whether the 64-bit `r = x op y` overflowed: add and subtract
+    /// by sign tests, multiply by dividing the product back.
+    fn wide_overflow(&mut self, op: PrimOp, signed: bool, x: u32, y: u32, r: u32) {
+        match (op, signed) {
+            (PrimOp::Add, true) => {
+                self.a.get(x);
+                self.a.get(r);
+                self.a.s().i64_xor();
+                self.a.get(y);
+                self.a.get(r);
+                self.a.s().i64_xor().i64_and();
+                self.a.i64(0);
+                self.a.s().i64_lt_s();
+            }
+            (PrimOp::Sub | PrimOp::Neg, true) => {
+                self.a.get(x);
+                self.a.get(y);
+                self.a.s().i64_xor();
+                self.a.get(x);
+                self.a.get(r);
+                self.a.s().i64_xor().i64_and();
+                self.a.i64(0);
+                self.a.s().i64_lt_s();
+            }
+            (PrimOp::Add, false) => {
+                self.a.get(r);
+                self.a.get(x);
+                self.a.s().i64_lt_u();
+            }
+            (PrimOp::Sub | PrimOp::Neg, false) => {
+                self.a.get(x);
+                self.a.get(y);
+                self.a.s().i64_lt_u();
+            }
+            // The product overflowed when `x` is not zero and `r / x` is not
+            // `y`. `x = -1` is tested apart, since `MIN / -1` traps: it
+            // overflows exactly when `y` is `MIN`.
+            (PrimOp::Mul, _) => {
+                let o = self.a.local(VT::I32);
+                self.a.i32(0);
+                self.a.set(o);
+                self.a.get(x);
+                self.a.s().i64_eqz().i32_eqz();
+                self.a.if_();
+                if signed {
+                    self.a.get(x);
+                    self.a.i64(-1);
+                    self.a.s().i64_eq();
+                    self.a.if_();
+                    self.a.get(y);
+                    self.a.i64(i64::MIN);
+                    self.a.s().i64_eq();
+                    self.a.set(o);
+                    self.a.else_();
+                }
+                self.a.get(r);
+                self.a.get(x);
+                if signed {
+                    self.a.s().i64_div_s();
+                } else {
+                    self.a.s().i64_div_u();
+                }
+                self.a.get(y);
+                self.a.s().i64_ne();
+                self.a.set(o);
+                if signed {
+                    self.a.end();
+                }
+                self.a.end();
+                self.a.get(o);
+            }
+            // Division and remainder overflow only at `MIN / -1`, tested
+            // before the division.
+            _ => self.a.i32(0),
+        }
     }
 
     /// The current providers for a callee's row keys, in key order: per
