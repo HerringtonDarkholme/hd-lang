@@ -406,6 +406,11 @@ fn name_into(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut String, l
             list(&pool.row_data(r).keys, " + ", out);
             out.push(')');
         }
+        TyData::Context(r) => {
+            out.push_str("$.Context[$(");
+            list(&pool.row_data(r).keys, " + ", out);
+            out.push_str(")]");
+        }
         TyData::Assoc { assoc, self_ty, .. } => {
             out.push('<');
             name_into(pool, env, self_ty, out, limit);
@@ -838,7 +843,7 @@ impl Cx<'_> {
                 parts.push(self_ty);
                 parts.extend(pool.list_items(args));
             }
-            TyData::Row(r) => row_keys(r, &mut parts),
+            TyData::Row(r) | TyData::Context(r) => row_keys(r, &mut parts),
             TyData::Prim(_)
             | TyData::Never
             | TyData::Poison
@@ -1777,7 +1782,7 @@ fn pinned(
                 pinned(pool, env, def, k, true, out);
             }
         }
-        TyData::Row(row) => {
+        TyData::Row(row) | TyData::Context(row) => {
             for k in pool.row_data(row).keys {
                 pinned(pool, env, def, k, true, out);
             }

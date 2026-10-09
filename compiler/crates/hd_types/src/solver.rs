@@ -987,6 +987,7 @@ fn fold_vars(
             args: fold_list(pool, args, canon, f)?,
         },
         TyData::Row(r) => TyData::Row(fold_row(pool, r, canon, f)?),
+        TyData::Context(r) => TyData::Context(fold_row(pool, r, canon, f)?),
         other => other,
     };
     Some(pool.intern_ty(&d))

@@ -181,6 +181,10 @@ pub(crate) struct Ck<'a, 'c> {
     pub loop_else: Option<(NodeRefIdx, Ty)>,
     /// The function body block, for `missing-return-value`.
     pub fn_body: Option<NodeRefIdx>,
+    /// The function header's written requirement row, which a
+    /// `missing-requirement` shows with its expansion
+    /// (`req.row.alias.diagnostics.expanded`).
+    pub written_row: Option<NodeRefIdx>,
     /// Declaring a `let` pattern's names: whether it has an annotation.
     pub let_view: Option<bool>,
     /// The locals the source binds by name, for `unused-local-binding`.
@@ -273,6 +277,7 @@ pub(crate) fn new_ck<'a, 'c>(
         placeholder: None,
         loop_else: None,
         fn_body: None,
+        written_row: None,
         let_view: None,
         user_locals: Vec::new(),
         norm_depth: 0,
@@ -525,6 +530,7 @@ pub(crate) fn check_fn_body(
     };
     ck.rets[0] = ret;
     ck.fn_body = Some(body.index());
+    ck.written_row = Src::child(node, SyntaxKind::RequirementRow).map(NodeRef::index);
     let (tail, _) = ck.block_value(body, Some(ret))?;
     let root = ck.b.close_block(blk, tail, ret, body.index());
     ck.finish_with(root, ret)

@@ -95,6 +95,11 @@ pub fn walk(
                 go(k, 0, seen);
             }
         }
+        TyData::Context(row) => {
+            for k in pool.row_data(row).keys {
+                go(k, 0, seen);
+            }
+        }
         TyData::TraitValue { args, bindings, .. } => {
             for a in pool.list_items(args).iter().copied() {
                 go(a, 0, seen);

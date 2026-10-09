@@ -172,6 +172,9 @@ pub enum TyData {
     /// A requirement row in a row parameter's argument slot (an explicit
     /// `f::[$ Db]`, or the row a call solved for `$R`).
     Row(RowId),
+    /// A reusable provider context, `$.Context[$ Row]` (`req.context.row`):
+    /// indexed by one concrete, expanded row.
+    Context(RowId),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -194,6 +197,7 @@ enum PoolTag {
     List,
     Row,
     RowTy,
+    Context,
 }
 
 /// Meta flags (§3.9.2).
@@ -856,6 +860,7 @@ impl<'a> Types<'a> {
             TyData::Infer(v) => (T::Infer, v.raw(), meta::HAS_INFER),
             TyData::Canon(i) => (T::Canon, u32::from(*i), meta::HAS_CANON),
             TyData::Row(r) => (T::RowTy, r.0, self.row_meta(*r)),
+            TyData::Context(r) => (T::Context, r.0, self.row_meta(*r)),
         };
         let mut buf = [0u32; 4];
         let rec: &[u32] = match t {
@@ -962,6 +967,7 @@ impl<'a> Types<'a> {
             PoolTag::Infer => TyData::Infer(InferVar::from_raw(d)),
             PoolTag::Canon => TyData::Canon(u8::try_from(d).expect("canon")),
             PoolTag::RowTy => TyData::Row(RowId(d)),
+            PoolTag::Context => TyData::Context(RowId(d)),
             PoolTag::List | PoolTag::Row => unreachable!("not a type index"),
         }
     }
@@ -1024,6 +1030,7 @@ impl<'a> Types<'a> {
                 suspends,
             },
             TyData::Row(r) => TyData::Row(self.subst_row(r, f)),
+            TyData::Context(r) => TyData::Context(self.subst_row(r, f)),
             TyData::TraitValue {
                 def,
                 args,
@@ -1122,17 +1129,20 @@ impl<'a> Types<'a> {
             TyData::Mut(i) => format!("mut {}", self.display(i)),
             TyData::Infer(v) => format!("?{}", v.raw()),
             TyData::Canon(i) => format!("^{i}"),
-            TyData::Row(r) => {
-                let d = self.row_data(r);
-                let mut parts: Vec<String> = d.keys.iter().map(|k| self.display(*k)).collect();
-                parts.extend(
-                    d.params
-                        .iter()
-                        .map(|p| format!("R{}@{}", p.index, p.owner.raw())),
-                );
-                format!("$({})", parts.join(" + "))
-            }
+            TyData::Row(r) => self.display_row(r),
+            TyData::Context(r) => format!("$.Context[{}]", self.display_row(r)),
         }
+    }
+
+    fn display_row(self, r: RowId) -> String {
+        let d = self.row_data(r);
+        let mut parts: Vec<String> = d.keys.iter().map(|k| self.display(*k)).collect();
+        parts.extend(
+            d.params
+                .iter()
+                .map(|p| format!("R{}@{}", p.index, p.owner.raw())),
+        );
+        format!("$({})", parts.join(" + "))
     }
 }
 

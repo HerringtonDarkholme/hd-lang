@@ -46,6 +46,7 @@ mod tag {
     pub const ASSOC: u8 = 13;
     pub const ROW: u8 = 14;
     pub const ROW_TY: u8 = 15;
+    pub const CONTEXT: u8 = 16;
 }
 
 impl<'a> TableWriter<'a> {
@@ -222,6 +223,7 @@ impl<'a> TableWriter<'a> {
             ),
             TyData::Canon(i) => (tag::CANON, vec![u32::from(i)]),
             TyData::Row(r) => (tag::ROW_TY, vec![self.row_id(r)?]),
+            TyData::Context(r) => (tag::CONTEXT, vec![self.row_id(r)?]),
             other @ TyData::Infer(_) => {
                 return Err(NotImplemented::new(
                     Stage::ModuleFinish,
@@ -394,6 +396,7 @@ impl Tables {
                         .0
                 }
                 tag::ROW_TY => pool.intern_ty(&TyData::Row(RowId(row(0)?))).0,
+                tag::CONTEXT => pool.intern_ty(&TyData::Context(RowId(row(0)?))).0,
                 _ => return None,
             };
             t.rows.push(v);

@@ -3,7 +3,7 @@
 //! solution of a callee's row parameters.
 
 use hd_diag::Code;
-use hd_resolve::{FnSig, Src};
+use hd_resolve::{FnSig, HeadKind, Src};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_types::{RowData, RowId, RowParamRef, Ty, TyData, VarKind};
 
@@ -133,10 +133,62 @@ impl Ck<'_, '_> {
                     "this needs `$ {shown}`, which the runner does not bind for this test case: bind it with $.with({shown}=...)"
                 )
             } else {
-                format!("this needs `$ {shown}`, which the enclosing function's row does not name")
+                let note = self.expanded_row_note().unwrap_or_default();
+                format!(
+                    "this needs `$ {shown}`, which the enclosing function's row does not name{note}"
+                )
             };
             self.err(Code::MissingRequirement, n, &msg);
         }
+    }
+
+    /// When the function's own row decides a missing key and its header
+    /// writes the row with an alias: the row as written and its expanded
+    /// keys (`req.row.alias.diagnostics`,
+    /// `req.row.alias.diagnostics.expanded`).
+    fn expanded_row_note(&self) -> Option<String> {
+        let decided = self
+            .rows
+            .iter()
+            .rev()
+            .find(|f| !matches!(f, RowFrame::With(_)))?;
+        let RowFrame::Declared(row) = decided else {
+            return None;
+        };
+        let written = self.cx.src.parse.tree.node(self.written_row?);
+        let uses_alias = written
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::NamedType)
+            .any(|c| {
+                self.resolve_path(&self.segments(c))
+                    .is_some_and(|d| self.kind_of_item(d) == Some(HeadKind::Alias))
+            });
+        if !uses_alias {
+            return None;
+        }
+        let span = self.cx.src.span(written);
+        let text = self.cx.src.text.get(span.lo as usize..span.hi as usize)?;
+        let d = self.pool().row_data(*row);
+        let mut keys: Vec<String> = d
+            .keys
+            .iter()
+            .map(|k| hd_resolve::show_ty_in(&self.cx.names, self.pool(), *k))
+            .collect();
+        keys.sort();
+        let mut params: Vec<String> = d
+            .params
+            .iter()
+            .filter_map(|p| self.row_gens.iter().find(|(_, g)| g == p))
+            .map(|(s, _)| self.cx.names.text(*s).to_owned())
+            .collect();
+        params.sort();
+        keys.extend(params);
+        let expanded = if keys.is_empty() {
+            "$()".to_owned()
+        } else {
+            format!("$ {}", keys.join(" + "))
+        };
+        Some(format!("; `{text}` is `{expanded}`"))
     }
 
     /// Every key and row parameter of a callee's row, as seen from this

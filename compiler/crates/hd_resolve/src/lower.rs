@@ -22,7 +22,7 @@ use hd_types::{ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList};
 
 use crate::iface::{
     Export, Field, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item, ItemData, Names,
-    TraitData, Variant, fill_trait_args,
+    TraitData, Variant, fill_trait_args, show_ty,
 };
 use crate::known::KnownItems;
 use crate::variance::{self, Seen};
@@ -568,8 +568,9 @@ struct Resolver<'a, 'b> {
     trait_assoc: HashMap<DefId, Vec<Symbol>>,
     /// The declared variance markers of the folder's own declarations.
     variances: HashMap<DefId, Vec<i8>>,
-    /// This folder's aliases, lowered in module order.
-    aliases: RefCell<HashMap<DefId, (usize, Ty)>>,
+    /// This folder's aliases, each lowered after the aliases it names:
+    /// whether each generic parameter is a row parameter, and the body.
+    aliases: RefCell<HashMap<DefId, (Vec<bool>, Ty)>>,
     seeds: HashMap<DefId, Item>,
     /// The declared parameters of the traits of the modules being lowered,
     /// lowered before any other header, so a trait reference fills its
@@ -1123,7 +1124,13 @@ impl Lower<'_, '_, '_> {
                         let ty = self.ty(Src::type_child(a), gn);
                         bindings.push((name, ty));
                     }
-                    SyntaxKind::RequirementRow => row = Some(self.row(Some(a), gn)),
+                    // A row argument keeps its position: an alias's row
+                    // parameter takes it (`req.row.alias.generic.use`).
+                    SyntaxKind::RequirementRow => {
+                        let r = self.row(Some(a), gn);
+                        row = Some(r);
+                        args.push(self.names.pool.intern_ty(&TyData::Row(r)));
+                    }
                     k if k.is_type() => args.push(self.ty(Some(a), gn)),
                     _ => {}
                 }
@@ -1144,6 +1151,19 @@ impl Lower<'_, '_, '_> {
             return None;
         }
         let found = self.resolve_path(&segs, span);
+        self.trait_value_from(n, gn, self_ty, found)
+    }
+
+    /// [`Self::trait_value`] once its name has resolved to `found`.
+    fn trait_value_from(
+        &mut self,
+        n: NodeRef<'_>,
+        gn: &Gen,
+        self_ty: Option<Ty>,
+        found: Option<(DefId, HeadKind)>,
+    ) -> Option<Ty> {
+        let segs = self.segments(n);
+        let span = self.src.span(n);
         let Some((def, kind)) = found else {
             let name = segs.last().map_or("", |s| s.0.as_str()).to_owned();
             if segs.len() == 1 {
@@ -1160,7 +1180,8 @@ impl Lower<'_, '_, '_> {
             self.diags.error(Code::UnknownTrait, span, &msg);
             return None;
         }
-        let (args, bindings, _) = self.type_args(n, gn);
+        let (mut args, bindings, _) = self.type_args(n, gn);
+        args.retain(|a| !matches!(self.names.pool.get(*a), TyData::Row(_)));
         let bindings = bindings
             .into_iter()
             .map(|(name, t)| {
@@ -1203,11 +1224,90 @@ impl Lower<'_, '_, '_> {
                 data.params.push(*p);
                 continue;
             }
-            if let Some(t) = self.trait_value(c, gn, None) {
+            if segs.first().is_some_and(|s| self.is_poisoned(&s.0)) {
+                continue;
+            }
+            let found = self.resolve_path(&segs, self.src.span(c));
+            if let Some((def, HeadKind::Alias)) = found {
+                self.alias_in_row(c, def, gn, &mut data);
+                continue;
+            }
+            if let Some(t) = self.trait_value_from(c, gn, None, found) {
                 data.keys.push(t);
             }
         }
         self.names.pool.row(&data)
+    }
+
+    /// An alias written in a row (`req.row.alias.expand`): a row alias
+    /// stands for its keys, which the row flattens in; an alias of one
+    /// trait value is that key (`req.row.alias.one-key`).
+    fn alias_in_row(&mut self, c: NodeRef<'_>, def: DefId, gn: &Gen, data: &mut RowData) {
+        let (args, _, _) = self.type_args(c, gn);
+        let span = self.src.span(c);
+        let t = self.expand_alias(def, &args, span);
+        let pool = self.names.pool;
+        let name = self.names.display_name(def).to_owned();
+        match pool.get(t) {
+            TyData::Row(_) | TyData::TraitValue { .. } => data.keys.push(t),
+            TyData::Poison => {}
+            TyData::Mut(inner) if matches!(pool.get(inner), TyData::TraitValue { .. }) => {
+                let msg = format!(
+                    "`{name}` is `{}`, but a key has no `mut`: its trait decides the provider's access",
+                    show_ty(&self.names, t)
+                );
+                self.diags.error(Code::MutAliasKey, span, &msg);
+            }
+            _ => {
+                let msg = format!("no trait named `{name}`: not a trait");
+                self.diags.error(Code::UnknownTrait, span, &msg);
+            }
+        }
+    }
+
+    /// An alias's body, and whether each of its generic parameters is a
+    /// row parameter.
+    fn alias_body(&self, def: DefId) -> Option<(Vec<bool>, Ty)> {
+        if let Some(a) = self.r.aliases.borrow().get(&def) {
+            return Some(a.clone());
+        }
+        match self.r.item(def) {
+            Some(Item {
+                data: ItemData::Alias(t),
+                generics,
+                ..
+            }) => Some((generics.iter().map(|g| g.row).collect(), t)),
+            _ => None,
+        }
+    }
+
+    /// An alias applied to `args`: its body with them substituted, after
+    /// each argument's kind is checked against its parameter's
+    /// (`req.row.alias.generic.kind`, `req.row.slot.dollar`).
+    fn expand_alias(&mut self, def: DefId, args: &[Ty], span: Span) -> Ty {
+        let pool = self.names.pool;
+        let Some((rows, body)) = self.alias_body(def) else {
+            self.gap("an alias used before its declaration in the same folder");
+            return Ty::POISON;
+        };
+        for (a, row) in args.iter().zip(&rows) {
+            let is_row = matches!(pool.get(*a), TyData::Row(_));
+            if is_row != *row {
+                let name = self.names.display_name(def);
+                let msg = if *row {
+                    format!("`{name}` takes a row here: write it after `$`, as in `{name}[$ Key]`")
+                } else {
+                    format!("`{name}` takes a type here, not a row")
+                };
+                self.diags.error(Code::GenericKindMismatch, span, &msg);
+                return Ty::POISON;
+            }
+        }
+        pool.subst(body, &|p: ParamRef| {
+            (p.owner == def)
+                .then(|| args.get(p.index as usize).copied())
+                .flatten()
+        })
     }
 
     fn ctor(
@@ -1240,34 +1340,29 @@ impl Lower<'_, '_, '_> {
         }
         match kind {
             HeadKind::Alias => {
-                let body =
-                    self.r
-                        .aliases
-                        .borrow()
-                        .get(&def)
-                        .copied()
-                        .or_else(|| match self.r.item(def) {
-                            Some(Item {
-                                data: ItemData::Alias(t),
-                                generics,
-                                ..
-                            }) => Some((generics.len(), t)),
-                            _ => None,
-                        });
-                let Some((_, body)) = body else {
-                    self.gap("an alias used before its declaration in the same folder");
+                let t = self.expand_alias(def, args, span);
+                // A row alias is row-kinded (`req.row.alias.type-or-key`).
+                if matches!(pool.get(t), TyData::Row(_)) {
+                    let name = self.names.display_name(def);
+                    let msg = format!(
+                        "`{name}` is a row alias, not a type: write it in a row after `$`, as in `$ {name}`"
+                    );
+                    self.diags.error(Code::GenericKindMismatch, span, &msg);
                     return Ty::POISON;
-                };
-                pool.subst(body, &|p: ParamRef| {
-                    (p.owner == def)
-                        .then(|| args.get(p.index as usize).copied())
-                        .flatten()
+                }
+                t
+            }
+            HeadKind::Data | HeadKind::Enum | HeadKind::Newtype => {
+                let args: Vec<Ty> = args
+                    .iter()
+                    .copied()
+                    .filter(|a| !matches!(pool.get(*a), TyData::Row(_)))
+                    .collect();
+                pool.intern_ty(&TyData::Adt {
+                    def,
+                    args: pool.list(&args),
                 })
             }
-            HeadKind::Data | HeadKind::Enum | HeadKind::Newtype => pool.intern_ty(&TyData::Adt {
-                def,
-                args: pool.list(args),
-            }),
             HeadKind::Trait => {
                 let msg = format!("`{}` is a trait, not a type", self.names.display_name(def));
                 self.diags.error(Code::TraitUsedAsType, span, &msg);
@@ -1491,10 +1586,7 @@ impl Lower<'_, '_, '_> {
                 self.gap("a requirement row in type position");
                 Ty::POISON
             }
-            SyntaxKind::ContextType => {
-                self.gap("a context type in a header");
-                Ty::POISON
-            }
+            SyntaxKind::ContextType => self.context_ty(n, gn),
             _ => {
                 self.gap("this type form");
                 Ty::POISON
@@ -2490,33 +2582,299 @@ impl Lower<'_, '_, '_> {
                 out.push(it);
             }
             HeadKind::Impl => self.impl_item(h, out),
-            HeadKind::Alias | HeadKind::Newtype => {
+            HeadKind::Alias => self.alias_item(h, false, out),
+            HeadKind::Newtype => {
                 let mut gn = Gen::default();
                 let generics = self.generics(gl, h.def, 0, &mut gn);
-                let body = n.children().find(|c| c.kind().is_type());
-                if body.is_some_and(|b| b.kind() == SyntaxKind::RequirementRow) {
-                    self.gap("a row alias");
-                    return;
-                }
-                let t = self.ty(body, &gn);
-                let data = if h.kind == HeadKind::Alias {
-                    self.r
-                        .aliases
-                        .borrow_mut()
-                        .insert(h.def, (generics.len(), t));
-                    ItemData::Alias(t)
-                } else {
-                    // `@derive` on a newtype names implementations
-                    // from the base type's (`trait.derive.newtype`).
-                    self.derived(h, &generics, out);
-                    ItemData::Newtype(t)
-                };
-                let mut it = Item::new(h.def, h.name, h.public, data);
+                let t = self.ty(n.children().find(|c| c.kind().is_type()), &gn);
+                // `@derive` on a newtype names implementations from the
+                // base type's (`trait.derive.newtype`).
+                self.derived(h, &generics, out);
+                let mut it = Item::new(h.def, h.name, h.public, ItemData::Newtype(t));
                 it.generics = generics;
                 out.push(it);
             }
         }
     }
+
+    /// A transparent alias (`types.alias.same`), or a row alias, whose
+    /// right side is a row after `$` (`req.row.alias.dollar`), stored
+    /// expanded (`req.row.alias.expand.first`). A member of an alias
+    /// cycle keeps a poisoned body (`types.alias.cycle`).
+    fn alias_item(&mut self, h: &Head<'_>, cyclic: bool, out: &mut Vec<Item>) {
+        let n = h.node;
+        self.at = self.src.span(n).lo;
+        self.outer = h
+            .local
+            .map(|l| enclosing_generics(&self.src, l.top, self.at))
+            .unwrap_or_default();
+        let mut gn = Gen::default();
+        let gl = Src::child(n, SyntaxKind::GenericParameterList);
+        let generics = self.generics(gl, h.def, 0, &mut gn);
+        let body = n.children().find(|c| c.kind().is_type());
+        let t = match body {
+            _ if cyclic => Ty::POISON,
+            Some(b) if b.kind() == SyntaxKind::RequirementRow => {
+                if b.direct_token(&self.src.parse.tokens, TokenKind::Dollar)
+                    .is_some()
+                {
+                    let r = self.row(Some(b), &gn);
+                    self.names.pool.intern_ty(&TyData::Row(r))
+                } else {
+                    // `req.row.alias.dollar.missing`
+                    let msg = format!(
+                        "a row alias's right side is a row written after `$`: write `type {} = $ ...`",
+                        self.names.text(h.name)
+                    );
+                    self.diags
+                        .error(Code::GenericKindMismatch, self.src.span(b), &msg);
+                    Ty::POISON
+                }
+            }
+            b => self.ty(b, &gn),
+        };
+        let rows = generics.iter().map(|g| g.row).collect();
+        self.r.aliases.borrow_mut().insert(h.def, (rows, t));
+        let mut it = Item::new(h.def, h.name, h.public, ItemData::Alias(t));
+        it.generics = generics;
+        out.push(it);
+    }
+
+    /// The folder aliases (by index in `index`) that the declaration `n`
+    /// names, other than through its own generic parameters.
+    fn named_aliases(&mut self, n: NodeRef<'_>, index: &HashMap<DefId, usize>) -> Vec<usize> {
+        let params: Vec<&str> = Src::child(n, SyntaxKind::GenericParameterList)
+            .iter()
+            .flat_map(|gl| gl.children())
+            .filter(|g| g.kind() == SyntaxKind::GenericParameter)
+            .filter_map(|g| g.name(&self.src.parse.tokens))
+            .map(|t| self.src.text(t))
+            .collect();
+        let mut out = Vec::new();
+        for c in n
+            .descendants()
+            .filter(|c| c.kind() == SyntaxKind::NamedType)
+        {
+            let segs = self.segments(c);
+            let Some((first, _)) = segs.first() else {
+                continue;
+            };
+            if (segs.len() == 1 && params.contains(&first.as_str())) || self.is_poisoned(first) {
+                continue;
+            }
+            if let Some((d, HeadKind::Alias)) = self.resolve_path(&segs, self.src.span(c))
+                && let Some(&i) = index.get(&d)
+            {
+                out.push(i);
+            }
+        }
+        out.sort_unstable();
+        out.dedup();
+        out
+    }
+
+    /// `$.Context[$ Row]` (`req.context.row`): a context type indexed by
+    /// its row, which expands like any row (`req.row.alias.expand.first`).
+    fn context_ty(&mut self, n: NodeRef<'_>, gn: &Gen) -> Ty {
+        let Some(c) = n.children().find(|c| c.kind().is_type()) else {
+            return Ty::POISON;
+        };
+        let has_dollar = c.kind() == SyntaxKind::RequirementRow
+            && c.direct_token(&self.src.parse.tokens, TokenKind::Dollar)
+                .is_some();
+        if !has_dollar {
+            // The brackets are a row slot (`req.context.dollar`).
+            let msg = format!(
+                "`$.Context[...]` takes a row written after `$`, as in `$.Context[$ {}]`",
+                self.src.text(self.src.first(c))
+            );
+            self.diags
+                .error(Code::GenericKindMismatch, self.src.span(c), &msg);
+            return Ty::POISON;
+        }
+        let row = self.row(Some(c), gn);
+        let pool = self.names.pool;
+        if !pool.row_data(row).params.is_empty() {
+            self.diags.error(
+                Code::RowParameterInContext,
+                self.src.span(c),
+                "`$.Context[...]` takes only a concrete row, not a row parameter",
+            );
+            return Ty::POISON;
+        }
+        pool.intern_ty(&TyData::Context(row))
+    }
+}
+
+/// Lowers every alias of the folder before any other header, each after
+/// the aliases its declaration names, whatever the declaration order
+/// (resolution-and-interfaces.md, "Row aliases and context types in
+/// interfaces"). An alias that expands to itself is `alias-cycle`,
+/// reported once per cycle, on its declaration that comes first in the
+/// source (`types.alias.cycle.reported`). Returns each module's alias
+/// items and the first unsupported form met.
+fn lower_aliases(
+    r: &Resolver<'_, '_>,
+    mods: &[ModIn<'_>],
+    all_heads: &[Vec<Head<'_>>],
+    scopes: &mut [ModScopes],
+    diags: &mut DiagBuf,
+) -> (Vec<Vec<Item>>, Option<String>) {
+    let mut sites: Vec<(usize, &Head<'_>)> = Vec::new();
+    for (mi, hs) in all_heads.iter().enumerate() {
+        sites.extend(
+            hs.iter()
+                .filter(|h| h.kind == HeadKind::Alias)
+                .map(|h| (mi, h)),
+        );
+    }
+    let index: HashMap<DefId, usize> = sites
+        .iter()
+        .enumerate()
+        .map(|(i, (_, h))| (h.def, i))
+        .collect();
+    let locals: Vec<Vec<LocalItem>> = all_heads.iter().map(|hs| local_items(hs)).collect();
+    let mut scratch = DiagBuf::default();
+    let edges: Vec<Vec<usize>> = sites
+        .iter()
+        .map(|&(mi, h)| {
+            let s = &scopes[mi];
+            let scope = match (h.test, &s.tests) {
+                (Some(_), Some(tests)) => tests,
+                _ => &s.scope,
+            };
+            let mut low = Lower {
+                r,
+                names: r.cx.names,
+                src: mods[mi].src,
+                module: &mods[mi].path,
+                scope,
+                kinds: &s.kinds,
+                diags: &mut scratch,
+                unsupported: None,
+                locals: &locals[mi],
+                at: mods[mi].src.span(h.node).lo,
+                outer: Vec::new(),
+            };
+            low.named_aliases(h.node, &index)
+        })
+        .collect();
+    let mut out: Vec<Vec<Item>> = (0..mods.len()).map(|_| Vec::new()).collect();
+    let mut unsupported = None;
+    for comp in components(&edges) {
+        let cyclic = comp.len() > 1 || edges[comp[0]].contains(&comp[0]);
+        let first = comp.iter().copied().min().unwrap_or(0);
+        for &i in &comp {
+            let (mi, h) = sites[i];
+            let ModScopes {
+                scope,
+                kinds,
+                tests,
+                test_diags,
+            } = &mut scopes[mi];
+            let (scope, diags): (&ModuleScope, &mut DiagBuf) = match (h.test, tests.as_ref()) {
+                (Some(_), Some(tests)) => (tests, test_diags),
+                _ => (&*scope, &mut *diags),
+            };
+            let src = mods[mi].src;
+            if cyclic && i == first {
+                let names = r.cx.names;
+                let others: Vec<String> = comp
+                    .iter()
+                    .filter(|&&j| j != i)
+                    .map(|&j| format!("`{}`", names.text(sites[j].1.name)))
+                    .collect();
+                let msg = if others.is_empty() {
+                    format!("`{}` expands to itself", names.text(h.name))
+                } else {
+                    format!(
+                        "`{}` expands to itself through {}",
+                        names.text(h.name),
+                        others.join(", ")
+                    )
+                };
+                diags.error(Code::AliasCycle, src.span(h.node), &msg);
+            }
+            let mut low = Lower {
+                r,
+                names: r.cx.names,
+                src,
+                module: &mods[mi].path,
+                scope,
+                kinds: &*kinds,
+                diags,
+                unsupported: None,
+                locals: &locals[mi],
+                at: 0,
+                outer: Vec::new(),
+            };
+            low.alias_item(h, cyclic, &mut out[mi]);
+            if unsupported.is_none() {
+                unsupported = low.unsupported.take();
+            }
+        }
+    }
+    (out, unsupported)
+}
+
+/// The strongly connected components of a graph (Tarjan's algorithm),
+/// each after every component it reaches: dependencies first. Members of
+/// a component are in index order.
+fn components(edges: &[Vec<usize>]) -> Vec<Vec<usize>> {
+    struct St<'e> {
+        edges: &'e [Vec<usize>],
+        index: Vec<Option<usize>>,
+        low: Vec<usize>,
+        on: Vec<bool>,
+        stack: Vec<usize>,
+        next: usize,
+        out: Vec<Vec<usize>>,
+    }
+    fn visit(st: &mut St<'_>, v: usize) {
+        st.index[v] = Some(st.next);
+        st.low[v] = st.next;
+        st.next += 1;
+        st.stack.push(v);
+        st.on[v] = true;
+        for &w in &st.edges[v] {
+            match st.index[w] {
+                None => {
+                    visit(st, w);
+                    st.low[v] = st.low[v].min(st.low[w]);
+                }
+                Some(iw) if st.on[w] => st.low[v] = st.low[v].min(iw),
+                Some(_) => {}
+            }
+        }
+        if Some(st.low[v]) == st.index[v] {
+            let mut comp = Vec::new();
+            while let Some(w) = st.stack.pop() {
+                st.on[w] = false;
+                comp.push(w);
+                if w == v {
+                    break;
+                }
+            }
+            comp.sort_unstable();
+            st.out.push(comp);
+        }
+    }
+    let n = edges.len();
+    let mut st = St {
+        edges,
+        index: vec![None; n],
+        low: vec![0; n],
+        on: vec![false; n],
+        stack: Vec::new(),
+        next: 0,
+        out: Vec::new(),
+    };
+    for v in 0..n {
+        if st.index[v].is_none() {
+            visit(&mut st, v);
+        }
+    }
+    st.out
 }
 
 /// The placement error of one item, if it is an impl outside its owning
@@ -3035,7 +3393,8 @@ pub fn build_folder(
                     .or_insert((s.def, k, s.public));
                 r.seeds.insert(s.def, s.clone());
                 if let (ItemData::Alias(t), HeadKind::Alias) = (&s.data, k) {
-                    r.aliases.borrow_mut().insert(s.def, (s.generics.len(), *t));
+                    let rows = s.generics.iter().map(|g| g.row).collect();
+                    r.aliases.borrow_mut().insert(s.def, (rows, *t));
                 }
                 if let ItemData::Trait(t) = &s.data {
                     r.trait_assoc
@@ -3061,8 +3420,7 @@ pub fn build_folder(
         exports: Vec::new(),
         private_names: Vec::new(),
     };
-    let mut unsupported = None;
-    let scopes: Vec<ModScopes> = mods
+    let mut scopes: Vec<ModScopes> = mods
         .iter()
         .zip(&all_heads)
         .zip(&all_uses)
@@ -3082,14 +3440,15 @@ pub fn build_folder(
         })
         .collect();
     r.own_traits = own_trait_generics(&r, mods, &all_heads, &scopes);
-    for ((m, hs), s) in mods.iter().zip(&all_heads).zip(scopes) {
+    let (alias_items, alias_gap) = lower_aliases(&r, mods, &all_heads, &mut scopes, diags);
+    let mut unsupported = alias_gap;
+    for (((m, hs), s), mut items) in mods.iter().zip(&all_heads).zip(scopes).zip(alias_items) {
         let ModScopes {
             scope,
             kinds,
             tests,
             mut test_diags,
         } = s;
-        let mut items: Vec<Item> = Vec::new();
         {
             let locals = local_items(hs);
             // A test item's header resolves in its block's scope, and its
@@ -3113,12 +3472,11 @@ pub fn build_folder(
                     at: 0,
                     outer: Vec::new(),
                 };
-                let own: Vec<&Head<'_>> = hs.iter().filter(|h| h.test.is_some() == test).collect();
-                // Aliases first, so a later header in the module may use them.
-                for h in own.iter().filter(|h| h.kind == HeadKind::Alias) {
-                    low.item(h, &mut items);
-                }
-                for h in own.iter().filter(|h| h.kind != HeadKind::Alias) {
+                // The aliases are lowered already (`lower_aliases`).
+                for h in hs
+                    .iter()
+                    .filter(|h| h.test.is_some() == test && h.kind != HeadKind::Alias)
+                {
                     low.item(h, &mut items);
                 }
                 if unsupported.is_none() {

@@ -2458,6 +2458,9 @@ impl Ck<'_, '_> {
                 return unsupported("a `$.with` spread of a context");
             };
             let key = self.ty_node(*kn)?;
+            if key == Ty::POISON {
+                continue;
+            }
             let TyData::TraitValue { def, args, .. } = pool.get(key) else {
                 return unsupported("a `$.with` key that is not a trait");
             };
@@ -2517,6 +2520,9 @@ impl Ck<'_, '_> {
             return unsupported("`$.use` without a key");
         };
         let key = self.ty_node(kn)?;
+        if key == Ty::POISON {
+            return Ok((Ref(NONE), Ty::POISON));
+        }
         let TyData::TraitValue { def: key_trait, .. } = pool.get(key) else {
             return unsupported("a `$.use` key that is not a trait");
         };

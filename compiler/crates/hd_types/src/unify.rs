@@ -237,6 +237,7 @@ impl InferTable {
                 suspends,
             },
             TyData::Row(row) => TyData::Row(self.resolve_row(pool, row)),
+            TyData::Context(row) => TyData::Context(self.resolve_row(pool, row)),
             TyData::TraitValue {
                 def,
                 args,

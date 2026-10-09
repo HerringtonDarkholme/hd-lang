@@ -301,6 +301,12 @@ fn layout_in(
                 "the layout of a requirement row",
             ));
         }
+        TyData::Context(_) => {
+            return Err(NotImplemented::new(
+                Stage::Emit,
+                "the layout of a context value",
+            ));
+        }
         TyData::Param(_)
         | TyData::Assoc { .. }
         | TyData::Infer(_)
@@ -590,6 +596,10 @@ pub fn canon(
         TyData::Canon(n) => {
             h.u8(13);
             h.u8(n);
+        }
+        TyData::Context(r) => {
+            h.u8(14);
+            canon_row(pool, path_hash, memo, r, &mut h);
         }
     }
     let d = h.finish();

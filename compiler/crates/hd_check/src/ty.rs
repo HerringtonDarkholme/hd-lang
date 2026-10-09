@@ -329,7 +329,45 @@ impl Ck<'_, '_> {
             }
         };
         Ok(match n.kind() {
-            SyntaxKind::NamedType => self.named_ty(n)?,
+            SyntaxKind::NamedType => {
+                let t = self.named_ty(n)?;
+                // A row alias is row-kinded (`req.row.alias.type-or-key`).
+                if matches!(pool.get(t), TyData::Row(_)) {
+                    let name = self.segments(n).join(".");
+                    let msg = format!(
+                        "`{name}` is a row alias, not a type or one key: write it in a row after `$`, as in `$ {name}`"
+                    );
+                    self.err(hd_diag::Code::GenericKindMismatch, n, &msg);
+                    return Ok(Ty::POISON);
+                }
+                t
+            }
+            SyntaxKind::ContextType => {
+                let row = n.children().find(|c| c.kind().is_type()).filter(|c| {
+                    c.kind() == SyntaxKind::RequirementRow
+                        && c.direct_token(&self.cx.src.parse.tokens, TokenKind::Dollar)
+                            .is_some()
+                });
+                let Some(row) = row else {
+                    // The brackets are a row slot (`req.context.dollar`).
+                    self.err(
+                        hd_diag::Code::GenericKindMismatch,
+                        n,
+                        "`$.Context[...]` takes a row written after `$`",
+                    );
+                    return Ok(Ty::POISON);
+                };
+                let r = self.row_of(row)?;
+                if !pool.row_data(r).params.is_empty() {
+                    self.err(
+                        hd_diag::Code::RowParameterInContext,
+                        row,
+                        "`$.Context[...]` takes only a concrete row, not a row parameter",
+                    );
+                    return Ok(Ty::POISON);
+                }
+                pool.intern_ty(&TyData::Context(r))
+            }
             SyntaxKind::OptionalType => {
                 let t = first(self, n)?;
                 pool.intern_ty(&TyData::Option(t))

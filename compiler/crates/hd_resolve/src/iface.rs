@@ -1153,6 +1153,7 @@ pub fn mentioned_defs(pool: &InternPool, items: &[Item], exports: &[Export]) -> 
                 stack.push(result);
                 stack.extend(pool.row_data(row).keys);
             }
+            TyData::Row(row) | TyData::Context(row) => stack.extend(pool.row_data(row).keys),
             TyData::Assoc {
                 trait_,
                 self_ty,
@@ -1372,25 +1373,28 @@ pub fn show_ty_in(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty) -> String
             format!("{}::{}", show_ty_in(names, pool, self_ty), seg(assoc))
         }
         TyData::Infer(_) | TyData::Canon(_) => "?".into(),
-        TyData::Row(r) => {
-            let d = pool.row_data(r);
-            if d.keys.is_empty() && d.params.is_empty() {
-                return "$()".into();
-            }
-            // Content order (scheduler.md §6.5), not interning order.
-            let mut parts: Vec<String> =
-                d.keys.iter().map(|k| show_ty_in(names, pool, *k)).collect();
-            parts.sort();
-            let mut ps: Vec<String> = d
-                .params
-                .iter()
-                .map(|p| format!("{}#{}", seg(p.owner), p.index))
-                .collect();
-            ps.sort();
-            parts.extend(ps);
-            format!("$ {}", parts.join(" + "))
-        }
+        TyData::Row(r) => show_row_in(names, pool, r),
+        TyData::Context(r) => format!("$.Context[{}]", show_row_in(names, pool, r)),
     }
+}
+
+/// A row as a user reads it, after `$`: its keys in content order
+/// (scheduler.md §6.5), not interning order, then its row parameters.
+fn show_row_in(names: &Names<'_>, pool: hd_types::Types<'_>, r: hd_types::RowId) -> String {
+    let d = pool.row_data(r);
+    if d.keys.is_empty() && d.params.is_empty() {
+        return "$()".into();
+    }
+    let mut parts: Vec<String> = d.keys.iter().map(|k| show_ty_in(names, pool, *k)).collect();
+    parts.sort();
+    let mut ps: Vec<String> = d
+        .params
+        .iter()
+        .map(|p| format!("{}#{}", names.display_name(p.owner), p.index))
+        .collect();
+    ps.sort();
+    parts.extend(ps);
+    format!("$ {}", parts.join(" + "))
 }
 
 #[cfg(test)]
