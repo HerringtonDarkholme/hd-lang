@@ -769,7 +769,7 @@ ordinary data word is a run ID.
 | `(1, 2, 3, 4)` against `(usize, usize, List[i32]...)` | `NewTuple` with fixed elements plus the rest list as its rest operand (R4), checked against the rest type (`types.tuple.rest.*`) |
 | `x.E ...= e` | `CopyData`, then `FieldSet` |
 | `T { ...base, f: e, ... }` | `base` evaluated first, then the explicit field expressions in source order, then `CopyData(base, [(f, e), ...])` (copy-update; one spread max, first) |
-| `[a, xs..., b]` | `NewList` with the spread bits marking `xs`; each operand evaluated once, in element order |
+| `[a, xs..., b]` | `NewList` with the spread bits marking `xs`; each operand evaluated once, in element order. As built (#196): the first operand is a record of spread positions (NONE without spreads), so element count has no limit |
 | `(a, xs...)` | `NewTuple` with fixed elements `[a]` and `a` = the `xs` operand (which must be a `List[T]`) |
 | `f(xs...)` at a vararg | the `xs` value itself as the vararg's collected value |
 | `f(a, b, xs...)` after a tuple vararg's arguments | `a`, `b` as ordinary arguments, `xs` as the rest-element list |
