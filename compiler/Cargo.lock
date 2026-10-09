@@ -191,6 +191,7 @@ version = "0.0.0"
 dependencies = [
  "hd_base",
  "hd_cache",
+ "hd_host_abi",
  "hd_wasm",
 ]
 

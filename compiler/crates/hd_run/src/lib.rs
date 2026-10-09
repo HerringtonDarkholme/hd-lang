@@ -5,8 +5,11 @@
 //! (live-execution.md §4). No engine lives here: wasmtime is in
 //! `hd_run_wasmtime`, the browser's in `hd_web`.
 
+mod imports;
 pub mod journal;
 pub mod tests_model;
+
+pub use imports::{module_imports, needs};
 
 use std::task::Poll;
 

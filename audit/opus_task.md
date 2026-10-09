@@ -87,12 +87,6 @@ When the queue is empty, say so under "Questions" and wait.
 
 ## Jobs
 
-### O5. `denied-capability` Refusal (#86)
-
-`hd run`/`hd test` refuse a totally denied capability with
-`denied-capability` (`cli.cap.total.refuse`), text and JSON (null
-position). CLI case `cap-total-deny` (its JSON step).
-
 ### O6. Manifest Sections (#107)
 
 `hd.toml` `[capabilities]`, `[workspace]`, `[executable]`, `[profile]`,
@@ -158,3 +152,11 @@ One commit per command; skip a command whose spec needs a design that
   from `##` blocks yet, in `hd test` or anywhere else, so `hd check
   --tests` checks none. Extraction is checker work (synthetic files
   whose spans map back, §4.13.9). Should it be a job of its own?
+- **O5 scope.** `hd run` and `hd FILE` read the built module's import
+  list (a small import-section reader in `hd_run`, which `hd FILE.wasm`
+  can reuse) and refuse a totally denied need with `denied-capability`.
+  `hd test` does not take `--cap` yet: its unit-test program gets no host
+  provider, and integration test programs, whose refusal
+  `cli.cap.total.test` covers, do not run yet. The other `cap-*` cases
+  stop on host methods not lowered yet (`FsRead.read_text`, `Env.get`,
+  `write_bytes`) or on `hd FILE.wasm` (O8).

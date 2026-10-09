@@ -3272,7 +3272,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 30 | 72 | 0 | 102 |
+| 31 | 71 | 0 | 102 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3280,6 +3280,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 ```text
 cli/build-library-only
 cli/build-output
+cli/cap-total-deny
 cli/check-summary
 cli/clean-outside-package
 cli/dep-invalid-manifest

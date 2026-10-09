@@ -716,3 +716,60 @@ fn build_writes_json_lines_to_stdout() {
     assert_eq!(r.code, Some(101));
     assert!(r.err.contains("`--format`"), "{}", r.err);
 }
+
+/// `cli.cap.total.refuse`, `cli.cap.total.message`, `cli.cap.order.deny`:
+/// a totally denied need stops the program before it starts, with status
+/// 101 and a message that names the trait and the setting.
+#[test]
+fn a_totally_denied_need_refuses_to_start() {
+    let dir = shop("hd-forms-deny");
+    std::fs::write(
+        dir.join("hd.toml"),
+        "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = false\n",
+    )
+    .expect("write");
+    for args in [&["run"][..], &["run", "--cap", "Console=true"][..]] {
+        let r = ran(&dir, args);
+        assert_eq!((r.code, r.out.as_str()), (Some(101), ""), "{args:?}");
+        assert_eq!(
+            r.err,
+            "error: denied-capability: the program needs Console, which `Console = false` in hd.toml denies, so it does not start\n",
+            "{args:?}"
+        );
+    }
+    let alone = scratch("hd-forms-deny-file");
+    std::fs::write(
+        alone.join("hi.hd"),
+        "fn main() -> void $ Console:\n    println(\"hi\")\n",
+    )
+    .expect("write");
+    let r = ran(&alone, &["--cap", "Console=false", "hi.hd"]);
+    assert_eq!((r.code, r.out.as_str()), (Some(101), ""));
+    assert!(r.err.contains("`--cap Console=false` denies"), "{}", r.err);
+    let r = ran(&alone, &["--cap=Http=example.com", "hi.hd"]);
+    assert_eq!((r.code, r.out.as_str()), (Some(0), "hi\n"), "{}", r.err);
+}
+
+/// `cli.cap.flag.unknown`, `cli.cap.flag.unscoped`, `cli.cap.table.keys`.
+#[test]
+fn a_grant_must_name_a_host_trait_and_fit_its_kind() {
+    let dir = shop("hd-forms-bad-cap");
+    for flag in ["Time=true", "Console=a,b"] {
+        let r = ran(&dir, &["run", "--cap", flag]);
+        assert_eq!(r.code, Some(101), "{flag}");
+        assert!(r.err.contains(flag), "{flag}: {}", r.err);
+    }
+    std::fs::write(
+        dir.join("hd.toml"),
+        "[package]\nname = \"shop\"\n\n[capabilities]\nTime = true\n",
+    )
+    .expect("write");
+    let r = ran(&dir, &["run"]);
+    assert_eq!(r.code, Some(101));
+    assert!(
+        r.err
+            .starts_with("error: hd.toml:5:1: `Time` is no host capability trait"),
+        "{}",
+        r.err
+    );
+}

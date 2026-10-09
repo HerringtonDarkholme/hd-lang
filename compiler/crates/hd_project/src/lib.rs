@@ -15,7 +15,8 @@ use hd_base::{FileId, FolderId, ModuleId};
 use hd_diag::Code;
 
 pub use manifest::{
-    Manifest, Problem, Requirement, Version, compatibility_line, parse_manifest, problems,
+    CAPABILITY_KEYS, Grant, Manifest, Problem, Requirement, Version, compatibility_line,
+    grant_problem, parse_manifest, problems,
 };
 
 /// One file of a source set: its package-relative path with `/`.

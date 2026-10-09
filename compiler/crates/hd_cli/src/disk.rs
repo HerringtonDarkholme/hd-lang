@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use hd_diag::Code;
 use hd_driver::{Dependency, Packages};
-use hd_project::{Manifest, SourceEntry, SourceSet, module_below, parse_manifest};
+use hd_project::{Grant, Manifest, SourceEntry, SourceSet, module_below, parse_manifest};
 
 use crate::report::Diag;
 
@@ -82,6 +82,9 @@ pub struct Program {
     /// A single-file program's FILE as the command line wrote it
     /// (`cli.json.diagnostic.file`).
     pub as_written: Option<String>,
+    /// The `[capabilities]` table of its package, the valid keys
+    /// (`cli.cap.source.package`); empty outside a package.
+    pub capabilities: Vec<(String, Grant)>,
 }
 
 /// A package that a path requirement reaches.
@@ -278,6 +281,10 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
         deps: Vec::new(),
         problems: Vec::new(),
         as_written,
+        capabilities: match package_root(root) {
+            Some(r) => capabilities(&r)?,
+            None => Vec::new(),
+        },
     })
 }
 
@@ -295,7 +302,24 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
         deps,
         problems,
         as_written: None,
+        capabilities: capabilities(root)?,
     })
+}
+
+/// The valid keys of a package's `[capabilities]` table (`cli.cap.table`);
+/// `manifest_problems` reports the others.
+fn capabilities(root: &Path) -> Result<Vec<(String, Grant)>, String> {
+    Ok(manifest_of(root)?
+        .map(|m| m.capabilities)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|(k, g, _)| {
+            let g = g?;
+            hd_project::grant_problem(&k, &g)
+                .is_none()
+                .then_some((k, g))
+        })
+        .collect())
 }
 
 /// Whether `dir` holds a manifest that declares a package
@@ -365,7 +389,7 @@ fn manifest_problems(root: &Path, package: &str) -> Result<Vec<Diag>, String> {
     for p in own {
         out.push((
             p.line,
-            Diag::error(Some(p.code), &p.message).at(FILE, p.line.map(|l| l as usize)),
+            Diag::error(p.code, &p.message).at(FILE, p.line.map(|l| l as usize)),
         ));
     }
     out.sort_by_key(|(line, _)| *line);

@@ -19,6 +19,62 @@ pub struct Manifest {
     pub hd: Option<(String, u32)>,
     pub dependencies: Vec<Requirement>,
     pub dev_dependencies: Vec<Requirement>,
+    /// `[capabilities]` (`cli.cap.table`): each key as written, its grant
+    /// (`None` when the value is neither a boolean nor a list of strings),
+    /// and its line.
+    pub capabilities: Vec<(String, Option<Grant>, u32)>,
+}
+
+/// What a capability grant gives one host capability trait
+/// (`cli.cap.value.*`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Grant {
+    /// `true`: no limit.
+    All,
+    /// `false`: a total deny.
+    Deny,
+    /// A list of scope entries.
+    Scopes(Vec<String>),
+}
+
+/// The host capability traits a grant may name, and whether each takes
+/// scope entries (Capability Grants, `cli.cap.table.keys`).
+pub const CAPABILITY_KEYS: &[(&str, bool)] = &[
+    ("Console", false),
+    ("ConsoleInput", false),
+    ("Args", false),
+    ("Env", true),
+    ("Clock", false),
+    ("Random", false),
+    ("FsRead", true),
+    ("FsWrite", true),
+    ("Process", true),
+    ("Http", true),
+    ("Net", true),
+    ("Sys", true),
+];
+
+/// Why a grant for `key` breaks `cli.cap.table.keys` or
+/// `cli.cap.value.unscoped` (or their flag forms), or `None`.
+#[must_use]
+pub fn grant_problem(key: &str, grant: &Grant) -> Option<String> {
+    let names = || {
+        CAPABILITY_KEYS
+            .iter()
+            .map(|(k, _)| *k)
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    match CAPABILITY_KEYS.iter().find(|(k, _)| *k == key) {
+        None => Some(format!(
+            "`{key}` is no host capability trait; a grant names one of {}",
+            names()
+        )),
+        Some((_, false)) if matches!(grant, Grant::Scopes(_)) => Some(format!(
+            "`{key}` has no scope entries, so its grant is `true` or `false`, not a list"
+        )),
+        Some(_) => None,
+    }
 }
 
 /// One dependency requirement of a manifest (`module.dep.*`).
@@ -63,7 +119,9 @@ impl Requirement {
 /// for the manifest as a whole), and the message.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Problem {
-    pub code: Code,
+    /// `None` for a rule the specification gives no code, such as an
+    /// unknown `[capabilities]` key.
+    pub code: Option<Code>,
     pub line: Option<u32>,
     pub message: String,
 }
@@ -153,6 +211,28 @@ pub fn parse_manifest(text: &str) -> StageResult<Manifest> {
                 } else {
                     m.dev_dependencies = reqs;
                 }
+            }
+            ("capabilities", toml::Value::Table(c)) => {
+                m.capabilities = c
+                    .iter()
+                    .map(|(k, v)| {
+                        let grant = match v {
+                            toml::Value::Boolean(true) => Some(Grant::All),
+                            toml::Value::Boolean(false) => Some(Grant::Deny),
+                            toml::Value::Array(items) => items
+                                .iter()
+                                .map(|i| i.as_str().map(str::to_owned))
+                                .collect::<Option<Vec<_>>>()
+                                .map(Grant::Scopes),
+                            _ => None,
+                        };
+                        let line = lines
+                            .get(&("capabilities".to_owned(), k.clone()))
+                            .copied()
+                            .unwrap_or(1);
+                        (k.clone(), grant, line)
+                    })
+                    .collect();
             }
             (other, _) => {
                 return Err(NotImplemented::new(
@@ -372,15 +452,16 @@ fn identity(r: &Requirement) -> Option<String> {
 
 /// The rules a manifest alone breaks, in line order: each requirement's
 /// form, key-name collisions and keys that share a package
-/// (`cli.dep.invalid`), and a minimum toolchain above `toolchain`
-/// (`module.toolchain.graph-minimum`).
+/// (`cli.dep.invalid`), a minimum toolchain above `toolchain`
+/// (`module.toolchain.graph-minimum`), and each `[capabilities]` key and
+/// value (`cli.cap.table.keys`, `cli.cap.value.unscoped`).
 #[must_use]
 pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
     let mut out = Vec::new();
     let mut names: BTreeMap<String, &str> = BTreeMap::new();
     let mut packages: BTreeMap<String, &str> = BTreeMap::new();
     let invalid = |line: u32, message: String| Problem {
-        code: Code::InvalidRequirement,
+        code: Some(Code::InvalidRequirement),
         line: Some(line),
         message,
     };
@@ -417,12 +498,27 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
         && min > have
     {
         out.push(Problem {
-            code: Code::ToolchainTooOld,
+            code: Some(Code::ToolchainTooOld),
             line: Some(*line),
             message: format!(
                 "this package needs toolchain {text} or newer, and this `hd` is {toolchain}"
             ),
         });
+    }
+    for (key, grant, line) in &m.capabilities {
+        let why = match grant {
+            None => Some(format!(
+                "the grant of `{key}` is `true`, `false`, or a list of scope entries"
+            )),
+            Some(g) => grant_problem(key, g),
+        };
+        if let Some(message) = why {
+            out.push(Problem {
+                code: None,
+                line: Some(*line),
+                message,
+            });
+        }
     }
     out.sort_by_key(|p| p.line);
     out
@@ -451,17 +547,17 @@ mod tests {
             "[package]\nname = \"app\"\nhd = \"9.0.0\"\n\n[dependencies]\njson = \"github.com/acme@2.1.0\"\nmy-money = { path = \"a\" }\nmy_money = { path = \"b\" }\nm1 = { path = \"m\", version = \"0.4.0\" }\nm2 = { path = \"m/\", version = \"0.4.2\" }\n",
         )
         .expect("manifest");
-        let got: Vec<(Code, Option<u32>)> = problems(&m, "0.1.0")
+        let got: Vec<(Option<Code>, Option<u32>)> = problems(&m, "0.1.0")
             .into_iter()
             .map(|p| (p.code, p.line))
             .collect();
         assert_eq!(
             got,
             [
-                (Code::ToolchainTooOld, Some(3)),
-                (Code::InvalidRequirement, Some(6)),
-                (Code::InvalidRequirement, Some(8)),
-                (Code::InvalidRequirement, Some(10)),
+                (Some(Code::ToolchainTooOld), Some(3)),
+                (Some(Code::InvalidRequirement), Some(6)),
+                (Some(Code::InvalidRequirement), Some(8)),
+                (Some(Code::InvalidRequirement), Some(10)),
             ]
         );
         let ok = parse_manifest(
@@ -469,5 +565,26 @@ mod tests {
         )
         .expect("manifest");
         assert!(problems(&ok, "0.1.0").is_empty());
+    }
+
+    #[test]
+    fn capabilities_parse_and_check_their_keys() {
+        let m = parse_manifest(
+            "[package]\nname = \"app\"\n[capabilities]\nConsole = false\nFsRead = [\"data/\"]\nClock = [\"x\"]\nTime = true\nHttp = 3\n",
+        )
+        .expect("manifest");
+        let grant = |k: &str| {
+            m.capabilities
+                .iter()
+                .find(|c| c.0 == k)
+                .map(|c| c.1.clone())
+        };
+        assert_eq!(grant("Console"), Some(Some(super::Grant::Deny)));
+        assert_eq!(
+            grant("FsRead"),
+            Some(Some(super::Grant::Scopes(vec!["data/".to_owned()])))
+        );
+        let lines: Vec<Option<u32>> = problems(&m, "0.1.0").into_iter().map(|p| p.line).collect();
+        assert_eq!(lines, [Some(6), Some(7), Some(8)]);
     }
 }

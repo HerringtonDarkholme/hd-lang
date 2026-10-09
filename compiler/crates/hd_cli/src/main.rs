@@ -3,6 +3,7 @@
 //! §2.2): the file system (`DiskSources`, the disk `CacheStore`), the clock,
 //! the executor and the engine (`node::NodeEngine`, an `hd_run::Engine`).
 
+mod caps;
 mod check_cmd;
 mod disk;
 mod node;
@@ -21,8 +22,8 @@ use hd_run::{Grants, HostSetup, Limits, Outcome, run_program};
 use crate::report::Reporter;
 
 const USAGE: &str = "usage:
-  hd [--format json] FILE.hd
-  hd run [--release] [--format json] [NAME]
+  hd [--format json] [--cap NAME=VALUE]... FILE.hd
+  hd run [--release] [--format json] [--cap NAME=VALUE]... [NAME]
   hd build [--release] [--format json] [FILE.hd]
   hd check [FILE.hd] [--tests | --all] [--format json]
   hd test [FILE.hd] [--filter PATTERN] [--jobs N] [--format json]";
@@ -147,8 +148,18 @@ fn compile(program: &disk::Program, rep: &mut Reporter) -> Result<Vec<u8>, ExitC
 }
 
 /// Runs compiled Wasm and ends with the program's status
-/// (`cli.exit.program`).
-fn execute(wasm: &[u8], rep: &mut Reporter) -> ExitCode {
+/// (`cli.exit.program`), unless a need is totally denied
+/// (`cli.cap.total.refuse`).
+fn execute(
+    wasm: &[u8],
+    program: &disk::Program,
+    flags: &[caps::CapFlag],
+    rep: &mut Reporter,
+) -> ExitCode {
+    if let Some(d) = caps::refusal(wasm, &program.capabilities, flags) {
+        rep.diag(&d);
+        return rep.finish(HD_FAILURE);
+    }
     let store = DiskStore { root: cache_dir() };
     let host = HostSetup {
         providers: Vec::new(),
@@ -166,16 +177,26 @@ fn execute(wasm: &[u8], rep: &mut Reporter) -> ExitCode {
     }
 }
 
-/// `hd [--format json] FILE.hd` (`cli.file.run`): FILE as a single-file
-/// program.
+/// `hd [--format json] [--cap NAME=VALUE]... FILE.hd` (`cli.file.run`):
+/// FILE as a single-file program.
 fn run_file_command(args: &[OsString]) -> ExitCode {
     let mut json = false;
+    let mut flags = Vec::new();
     let mut file = None;
     let mut i = 0;
     while i < args.len() {
         match report::format_flag(args, i) {
             Some(Ok((j, used))) => {
                 json = j;
+                i += used;
+                continue;
+            }
+            Some(Err(e)) => return fail(&e),
+            None => {}
+        }
+        match caps::cap_flag(args, i) {
+            Some(Ok((f, used))) => {
+                flags.push(f);
                 i += used;
                 continue;
             }
@@ -196,7 +217,7 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
         Err(e) => return rep.fail(&e),
     };
     match compile(&program, &mut rep) {
-        Ok(wasm) => execute(&wasm, &mut rep),
+        Ok(wasm) => execute(&wasm, &program, &flags, &mut rep),
         Err(code) => code,
     }
 }
@@ -205,6 +226,8 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
 struct Words {
     release: bool,
     json: bool,
+    /// `--cap` flags; only `hd run` takes them (`cli.cap.flag.commands`).
+    caps: Vec<caps::CapFlag>,
     positional: Vec<OsString>,
 }
 
@@ -212,6 +235,7 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
     let mut w = Words {
         release: false,
         json: false,
+        caps: Vec::new(),
         positional: Vec::new(),
     };
     let mut i = 0;
@@ -219,6 +243,14 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         if let Some(format) = report::format_flag(args, i) {
             let (json, used) = format?;
             w.json = json;
+            i += used;
+            continue;
+        }
+        if command == "run"
+            && let Some(cap) = caps::cap_flag(args, i)
+        {
+            let (flag, used) = cap?;
+            w.caps.push(flag);
             i += used;
             continue;
         }
@@ -338,7 +370,7 @@ fn run_command(args: &[OsString]) -> ExitCode {
     {
         return rep.fail(&format!("{}: {e}", root.display()));
     }
-    execute(&wasm, &mut rep)
+    execute(&wasm, &program, &w.caps, &mut rep)
 }
 
 /// Writes a built module to `build/PROFILE/[files/]NAME.wasm`
