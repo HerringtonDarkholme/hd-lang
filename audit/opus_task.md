@@ -104,6 +104,10 @@ names. This job lends you `hd_mono`'s Collect only. The pass list may
 only grow; report the case's time before (bounded by a timeout) and
 after.
 
+Status: the limit is in Collect (commit "O25: ..."); the case still
+times out on `canon`'s tree walk. See the O25 question under
+"Questions".
+
 ## Questions
 
 - **O22, every item skipped.** As O22 allows: globs in workspace
@@ -370,6 +374,22 @@ after.
   through the same config, with the run's `Args.program`?
   `dev-dependency-integration` and `dev-dependency-cyclic-integration`
   pass.
+- **O25, the case still times out: lend `layout::canon`?** Collect now
+  stops at codegen.md §13.4's limits (type-argument depth 32, chain 256)
+  with `instantiation-too-deep` on the growing call. A chain that grows
+  one level per call (`wrap((value, depth), depth - 1)`) stops in
+  0.03 s, where it used to stop with `unsupported`. But
+  `build-instantiation-too-deep` doubles its type (`(value, value)`),
+  so the instance at depth `d` has a 2^d-leaf tree, and
+  `layout::canon` walks the tree, not the shared pool DAG. The instance
+  key, `layout_hash` and `hash_target` of the instances below the limit
+  then take 2^32 steps each: still over 60 s. Fix: have `canon` hash
+  each compound part as its own memoized digest (a Merkle form: equal
+  types still hash equal; the walk becomes linear in distinct types),
+  with one memo per build in Collect; `items_in` gets a visited set.
+  `canon` is shared with `hd_wasm` and the driver (all hash its output,
+  none compares bytes), so this is outside the lent Collect. Lend
+  `layout.rs`'s `canon` for it (a follow-up of O25)?
 
 ### Answers (orchestrator, 2026-10-09 00:30)
 

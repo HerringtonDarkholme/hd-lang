@@ -712,18 +712,29 @@ pub struct InstanceTable {
     pub item: Vec<DefId>,
     pub sub: Vec<Sub>,
     pub args: Vec<TyList>,
+    /// The nesting depth of the instance's deepest type argument (§13.4).
     pub depth: Vec<u8>,
+    /// The instance that first requested it, `NONE` for a root. Collection
+    /// is breadth-first, so the parents spell a shortest chain from a root.
     pub parent: Vec<InstId>,
     pub key: Vec<Hash128>,
     index: std::collections::HashMap<(DefId, Sub, TyList), InstId>,
 }
 
-/// The instantiation depth limits (§13.4).
+/// The instantiation limits (§13.4): the nesting depth of an instance's
+/// type arguments, and the length of its request chain from a root.
 pub const MAX_DEPTH: u8 = 32;
 pub const MAX_CHAIN: u32 = 256;
 
 impl InstanceTable {
+    /// The instance of `item`'s code `sub` at `args`, if collected.
+    #[must_use]
+    pub fn get(&self, item: DefId, sub: Sub, args: TyList) -> Option<InstId> {
+        self.index.get(&(item, sub, args)).copied()
+    }
+
     /// Pushes an instance once; returns its id and whether it was new.
+    /// The caller checks the limits first.
     pub fn push(
         &mut self,
         item: DefId,
@@ -732,15 +743,9 @@ impl InstanceTable {
         depth: u8,
         parent: InstId,
         key: Hash128,
-    ) -> StageResult<(InstId, bool)> {
-        if let Some(&id) = self.index.get(&(item, sub, args)) {
-            return Ok((id, false));
-        }
-        if depth > MAX_DEPTH {
-            return Err(NotImplemented::new(
-                Stage::Collect,
-                "instantiation-too-deep diagnostic",
-            ));
+    ) -> (InstId, bool) {
+        if let Some(id) = self.get(item, sub, args) {
+            return (id, false);
         }
         let id = InstId::from_raw(u32::try_from(self.item.len()).expect("instances"));
         self.item.push(item);
@@ -750,7 +755,19 @@ impl InstanceTable {
         self.parent.push(parent);
         self.key.push(key);
         self.index.insert((item, sub, args), id);
-        Ok((id, true))
+        (id, true)
+    }
+
+    /// The number of requests from a root to `id`: 0 for a root.
+    #[must_use]
+    pub fn chain_len(&self, id: InstId) -> u32 {
+        let mut n = 0;
+        let mut p = self.parent[id.idx()];
+        while p != InstId::NONE {
+            n += 1;
+            p = self.parent[p.idx()];
+        }
+        n
     }
     #[must_use]
     pub fn len(&self) -> usize {
@@ -1063,19 +1080,13 @@ mod tests {
         let last = instance_key(&p, &ph, push, Sub::Body(u16::MAX), &[]);
         assert_ne!(last, instance_key(&p, &ph, push, Sub::Adapter, &[]));
         let mut t = InstanceTable::default();
-        assert!(
-            t.push(push, body, TyList::EMPTY, 0, InstId::NONE, a)
-                .expect("push")
-                .1
-        );
-        assert!(
-            !t.push(push, body, TyList::EMPTY, 0, InstId::NONE, a)
-                .expect("push")
-                .1
-        );
-        assert!(
-            t.push(push, Sub::Body(1), TyList::EMPTY, 33, InstId::NONE, c)
-                .is_err()
-        );
+        let (root, new) = t.push(push, body, TyList::EMPTY, 0, InstId::NONE, a);
+        assert!(new);
+        assert!(!t.push(push, body, TyList::EMPTY, 0, InstId::NONE, a).1);
+        assert_eq!(t.get(push, body, TyList::EMPTY), Some(root));
+        // The chain counts requests from the root.
+        let (inner, _) = t.push(push, Sub::Body(1), TyList::EMPTY, 0, root, c);
+        assert_eq!(t.chain_len(root), 0);
+        assert_eq!(t.chain_len(inner), 1);
     }
 }

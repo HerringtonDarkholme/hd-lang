@@ -13,7 +13,7 @@ pub mod passes;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
-use hd_base::{DefId, Hash128, InstId, NotImplemented, StableHasher, Stage, StageResult};
+use hd_base::{DefId, Hash128, InstId, NodeIdx, NotImplemented, StableHasher, Stage, StageResult};
 use hd_tir::ir::{Body, Callee, ChoiceKind, Coercion, IntrinsicOp, Tag};
 use hd_types::solver::{
     BodyMemo, ConcreteTraitRef, Declarations, GlobalMemo, ImplRef, ImplUniverseId, Impls, ParamEnv,
@@ -22,7 +22,9 @@ use hd_types::solver::{
 use hd_types::{InternPool, ParamRef, Ty, TyData, TyList};
 
 pub use crate::layout::Sub;
-use crate::layout::{A1Class, KeyArg, LayoutEnv, a1_class, canon, instance_key, key_hash};
+use crate::layout::{
+    A1Class, KeyArg, LayoutEnv, MAX_CHAIN, MAX_DEPTH, a1_class, canon, instance_key, key_hash,
+};
 
 /// What collection reads about the program (the driver implements it over
 /// TIR and interfaces).
@@ -642,8 +644,26 @@ struct Cx<'a> {
     exact: HashMap<DefId, Vec<bool>>,
     /// `declarations_hash` per item, for the build.
     layouts: HashMap<DefId, Hash128>,
+    /// Nesting depth per type, so a type shared by its parts is walked
+    /// once however large its tree (codegen.md §13.4).
+    depths: HashMap<Ty, u32>,
+    /// The instruction being scanned: its item and syntax node, where an
+    /// instance request over a limit is reported.
+    at: Option<(DefId, NodeIdx)>,
+    /// Set when collection stops at a limit.
+    too_deep: Option<TooDeep>,
     out: Collected,
     work: Vec<InstId>,
+}
+
+/// Collection stopped at an instantiation limit (codegen.md §13.4):
+/// `instantiation-too-deep`, at the call that would exceed it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TooDeep {
+    /// The item whose body holds that call, and the call's syntax node;
+    /// `None` when the request has no instruction (a root, an adapter).
+    pub at: Option<(DefId, NodeIdx)>,
+    pub message: String,
 }
 
 /// The type of a value operand: an instruction's, or a constant's when
@@ -668,24 +688,148 @@ impl Cx<'_> {
         instance_key(self.pool, &ph, item, sub, &key_args(self.pool, args))
     }
 
-    /// Pushes an instance; returns its key.
+    /// Pushes an instance that `parent` requests; returns its key. A new
+    /// instance over a limit of codegen.md §13.4 stops collection.
     fn push(
         &mut self,
         item: DefId,
         sub: Sub,
         args: TyList,
-        depth: u8,
         parent: InstId,
     ) -> StageResult<Hash128> {
-        let key = self.key(item, sub, args);
-        let (id, new) =
-            self.out
-                .table
-                .push(item, sub, args, depth.saturating_add(1), parent, key)?;
-        if new {
-            self.work.push(id);
+        let table = &self.out.table;
+        if let Some(id) = table.get(item, sub, args) {
+            return Ok(table.key[id.idx()]);
         }
+        let chain = if parent == InstId::NONE {
+            0
+        } else {
+            table.chain_len(parent) + 1
+        };
+        let pool = self.pool;
+        let depth = pool
+            .list_items(args)
+            .iter()
+            .map(|&t| self.depth_of(t))
+            .max()
+            .unwrap_or(0);
+        if depth > u32::from(MAX_DEPTH) || chain > MAX_CHAIN {
+            return Err(self.stop_too_deep(item, args, parent, depth, chain));
+        }
+        let key = self.key(item, sub, args);
+        let depth = u8::try_from(depth).expect("within MAX_DEPTH");
+        let (id, _) = self.out.table.push(item, sub, args, depth, parent, key);
+        self.work.push(id);
         Ok(key)
+    }
+
+    /// The nesting depth of `t`: 1 for a type with no type parts, else one
+    /// more than its deepest part. A row counts its keys as parts.
+    fn depth_of(&mut self, t: Ty) -> u32 {
+        if let Some(&d) = self.depths.get(&t) {
+            return d;
+        }
+        let pool = self.pool;
+        let mut parts: Vec<Ty> = Vec::new();
+        let row_keys = |r: hd_types::RowId, parts: &mut Vec<Ty>| {
+            parts.extend(pool.row_data(r).keys);
+        };
+        match pool.get(t) {
+            TyData::Adt { args, .. } => parts.extend(pool.list_items(args)),
+            TyData::Tuple { elems, rest } => {
+                parts.extend(pool.list_items(elems));
+                parts.extend(rest);
+            }
+            TyData::Option(i) | TyData::Mut(i) => parts.push(i),
+            TyData::Fn {
+                params,
+                result,
+                row,
+                ..
+            } => {
+                parts.extend(pool.list_items(params));
+                parts.push(result);
+                row_keys(row, &mut parts);
+            }
+            TyData::TraitValue { args, bindings, .. } => {
+                parts.extend(pool.list_items(args));
+                parts.extend(bindings.into_iter().map(|(_, b)| b));
+            }
+            TyData::Assoc { self_ty, args, .. } => {
+                parts.push(self_ty);
+                parts.extend(pool.list_items(args));
+            }
+            TyData::Row(r) => row_keys(r, &mut parts),
+            TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Param(_)
+            | TyData::Infer(_)
+            | TyData::Canon(_) => {}
+        }
+        let d = 1 + parts
+            .into_iter()
+            .map(|p| self.depth_of(p))
+            .max()
+            .unwrap_or(0);
+        self.depths.insert(t, d);
+        d
+    }
+
+    /// Records the stop at a limit (codegen.md §13.4): the request of
+    /// `item` at `args` from `parent`, at the instruction being scanned,
+    /// with the first three instances of the chain and the last.
+    fn stop_too_deep(
+        &mut self,
+        item: DefId,
+        args: TyList,
+        parent: InstId,
+        depth: u32,
+        chain: u32,
+    ) -> NotImplemented {
+        let table = &self.out.table;
+        let mut ids = Vec::new();
+        let mut p = parent;
+        while p != InstId::NONE {
+            ids.push(p);
+            p = table.parent[p.idx()];
+        }
+        ids.reverse();
+        let name = |item: DefId, args: TyList| {
+            let args = self.pool.list_items(args);
+            if args.is_empty() {
+                format!("`{}`", self.env.describe(item))
+            } else {
+                let shown: Vec<String> = args.iter().map(|&t| self.pool.display(t)).collect();
+                format!("`{}[{}]`", self.env.describe(item), shown.join(", "))
+            }
+        };
+        let mut shown: Vec<String> = ids
+            .iter()
+            .take(3)
+            .map(|id| name(table.item[id.idx()], table.args[id.idx()]))
+            .collect();
+        if ids.len() > 3 {
+            shown.push("...".to_owned());
+        }
+        // The last instance's arguments may be too large to print.
+        let last = format!("`{}`", self.env.describe(item));
+        let why = if depth > u32::from(MAX_DEPTH) {
+            shown.push(format!("{last} with type arguments {depth} deep"));
+            format!("its type arguments nest {depth} deep, past the limit of {MAX_DEPTH}")
+        } else {
+            shown.push(name(item, args));
+            format!("its request chain is {chain} long, past the limit of {MAX_CHAIN}")
+        };
+        let message = format!(
+            "instantiating {last} does not end: {why}; the chain: {}",
+            shown.join(" -> ")
+        );
+        self.too_deep = Some(TooDeep {
+            at: self.at,
+            message,
+        });
+        NotImplemented::new(Stage::Collect, "instantiation-too-deep")
     }
 
     /// A1's representation summary of `def` (codegen.md §13.2): per own
@@ -767,13 +911,7 @@ impl Cx<'_> {
     }
 
     /// The target of a call of `def` at full arguments `args`.
-    fn target(
-        &mut self,
-        def: DefId,
-        args: TyList,
-        depth: u8,
-        parent: InstId,
-    ) -> StageResult<CallTarget> {
+    fn target(&mut self, def: DefId, args: TyList, parent: InstId) -> StageResult<CallTarget> {
         let ret = self.env.ret(def).unwrap_or(Ty::VOID);
         // A std function whose body the compiler supplies, though its
         // source has a placeholder body (`race!`'s frame, the categorized
@@ -821,7 +959,7 @@ impl Cx<'_> {
         }
         let own_from = self.env.parent(def).map_or(0, |p| p.1);
         let args = self.classify(def, self.pool.list_items(args), own_from)?;
-        let key = self.push(def, Sub::Body(0), args, depth, parent)?;
+        let key = self.push(def, Sub::Body(0), args, parent)?;
         Ok(CallTarget {
             key,
             item: def,
@@ -929,7 +1067,6 @@ impl Cx<'_> {
         method: DefId,
         self_ty: Ty,
         targs: &[Ty],
-        depth: u8,
         parent: InstId,
     ) -> StageResult<Option<CallTarget>> {
         let key = (method, self_ty);
@@ -940,7 +1077,7 @@ impl Cx<'_> {
             self.out.supplied.insert(key, Arc::new(body));
         }
         let args = self.pool.list(&[&[self_ty], targs].concat());
-        let key = self.push(method, Sub::Body(0), args, depth, parent)?;
+        let key = self.push(method, Sub::Body(0), args, parent)?;
         Ok(Some(CallTarget {
             key,
             item: method,
@@ -986,7 +1123,6 @@ impl Cx<'_> {
         self_ty: Ty,
         targs: &[Ty],
         choice: Option<DefId>,
-        depth: u8,
         parent: InstId,
     ) -> StageResult<CallTarget> {
         let n_trait = self.env.trait_arity(trait_);
@@ -995,7 +1131,7 @@ impl Cx<'_> {
         let (impl_, impl_args) = match self.select(trait_, self_ty, trait_args, choice)? {
             Picked::Impl(d, a) => (d, a),
             Picked::Builtin => {
-                if let Some(t) = self.supplied_target(method, self_ty, targs, depth, parent)? {
+                if let Some(t) = self.supplied_target(method, self_ty, targs, parent)? {
                     return Ok(t);
                 }
                 return Ok(self.builtin_target(method, self_ty, targs));
@@ -1005,7 +1141,7 @@ impl Cx<'_> {
             Some(m) if self.env.body(m).is_some() => {
                 let mut all = impl_args;
                 all.extend_from_slice(method_args);
-                self.target(m, self.pool.list(&all), depth, parent)
+                self.target(m, self.pool.list(&all), parent)
             }
             Some(m) => Ok(CallTarget {
                 item: m,
@@ -1014,7 +1150,7 @@ impl Cx<'_> {
             None => {
                 let mut all = vec![self_ty];
                 all.extend_from_slice(targs);
-                self.target(method, self.pool.list(&all), depth, parent)
+                self.target(method, self.pool.list(&all), parent)
             }
         }
     }
@@ -1028,7 +1164,6 @@ impl Cx<'_> {
         trait_: DefId,
         trait_args: TyList,
         from: Ty,
-        depth: u8,
         parent: InstId,
         reps: &mut StableHasher,
     ) -> StageResult<VTable> {
@@ -1036,7 +1171,7 @@ impl Cx<'_> {
         let targs = pool.list_items(trait_args);
         let mut slots = Vec::new();
         for m in env.trait_methods(trait_) {
-            let t = self.method_target(trait_, m, from, targs, None, depth, parent)?;
+            let t = self.method_target(trait_, m, from, targs, None, parent)?;
             reps.hash(t.key);
             slots.push(t);
         }
@@ -1050,7 +1185,7 @@ impl Cx<'_> {
             else {
                 return err("a supertrait that is not a trait");
             };
-            parents.push(self.vtable(def, args, from, depth, parent, reps)?);
+            parents.push(self.vtable(def, args, from, parent, reps)?);
         }
         Ok(VTable {
             trait_,
@@ -1084,11 +1219,9 @@ impl Cx<'_> {
     /// and its implementation is selected at that `Self` (the reference
     /// carries no evidence choice).
     fn scan_adapter(&mut self, id: InstId) -> StageResult<()> {
-        let (item, args, depth) = (
-            self.out.table.item[id.idx()],
-            self.out.table.args[id.idx()],
-            self.out.table.depth[id.idx()],
-        );
+        let (item, args) = (self.out.table.item[id.idx()], self.out.table.args[id.idx()]);
+        // An adapter has no TIR, so no instruction to point at.
+        self.at = None;
         let (pool, env) = (self.pool, self.env);
         let mut reps = StableHasher::new("callee-reps");
         let s = |t: Ty| subst(pool, env, item, args, t);
@@ -1109,9 +1242,9 @@ impl Cx<'_> {
                 if matches!(pool.get(self_ty), TyData::TraitValue { .. }) {
                     return err("a trait member reference whose `Self` is a trait value");
                 }
-                self.method_target(trait_, item, self_ty, targs, None, depth, id)?
+                self.method_target(trait_, item, self_ty, targs, None, id)?
             }
-            _ => self.target(item, args, depth, id)?,
+            _ => self.target(item, args, id)?,
         };
         self.hash_target(&t, &mut reps);
         Sub::Adapter.hash_into(&mut reps);
@@ -1130,7 +1263,6 @@ impl Cx<'_> {
     fn map_key(
         &mut self,
         map: Ty,
-        depth: u8,
         parent: InstId,
         reps: &mut StableHasher,
     ) -> StageResult<Option<Target>> {
@@ -1152,19 +1284,18 @@ impl Cx<'_> {
         let Some(&eq_method) = self.env.trait_methods(eq_trait).first() else {
             return err("an `Eq` trait without its method");
         };
-        let eq = self.method_target(eq_trait, eq_method, key, &[], None, depth, parent)?;
-        let hash = self.target(hash_of, pool.list(&[key]), depth, parent)?;
+        let eq = self.method_target(eq_trait, eq_method, key, &[], None, parent)?;
+        let hash = self.target(hash_of, pool.list(&[key]), parent)?;
         self.hash_target(&eq, reps);
         self.hash_target(&hash, reps);
         Ok(Some(Target::MapKey { hash, eq }))
     }
 
     fn scan(&mut self, id: InstId) -> StageResult<()> {
-        let (item, sub, args, depth) = (
+        let (item, sub, args) = (
             self.out.table.item[id.idx()],
             self.out.table.sub[id.idx()],
             self.out.table.args[id.idx()],
-            self.out.table.depth[id.idx()],
         );
         match sub {
             Sub::Adapter => return self.scan_adapter(id),
@@ -1195,6 +1326,12 @@ impl Cx<'_> {
                 reps.hash(layout_hash(pool, env, ty, &mut self.layouts));
             }
             note_data(pool, env, ty, &mut self.out.data);
+            // A generated body's nodes are in no source file.
+            self.at = body
+                .syn
+                .get(i)
+                .filter(|n| supplied.is_none() && **n != NodeIdx::NONE)
+                .map(|&n| (item, n));
             let ix = u32::try_from(i).expect("insts");
             let [a, b] = body.data[i];
             match body.tags[i] {
@@ -1209,7 +1346,7 @@ impl Cx<'_> {
                         Callee::Item { def, targs } => {
                             let targs: Vec<Ty> =
                                 pool.list_items(targs).iter().copied().map(s).collect();
-                            self.target(def, pool.list(&targs), depth, id)?
+                            self.target(def, pool.list(&targs), id)?
                         }
                         Callee::TraitMethod {
                             trait_,
@@ -1239,7 +1376,7 @@ impl Cx<'_> {
                             }
                             let supplied = match choice.0 {
                                 ChoiceKind::Builtin => {
-                                    self.supplied_target(method, self_ty, &targs, depth, id)?
+                                    self.supplied_target(method, self_ty, &targs, id)?
                                 }
                                 _ => None,
                             };
@@ -1272,9 +1409,7 @@ impl Cx<'_> {
                                 if matches!(pool.get(self_ty), TyData::TraitValue { .. }) {
                                     continue;
                                 }
-                                self.method_target(
-                                    trait_, method, self_ty, &targs, pick, depth, id,
-                                )?
+                                self.method_target(trait_, method, self_ty, &targs, pick, id)?
                             }
                         }
                     };
@@ -1291,7 +1426,7 @@ impl Cx<'_> {
                     let def = DefId::from_raw(d);
                     let targs: Vec<Ty> =
                         pool.list_items(TyList(l)).iter().copied().map(s).collect();
-                    let t = self.target(def, pool.list(&targs), depth, id)?;
+                    let t = self.target(def, pool.list(&targs), id)?;
                     let bracket = env.body(def).is_some_and(makes_call);
                     reps.u8(u8::from(bracket));
                     self.hash_target(&t, &mut reps);
@@ -1299,7 +1434,7 @@ impl Cx<'_> {
                 }
                 Tag::Closure => {
                     let sub_k = u16::try_from(a).expect("subs");
-                    let key = self.push(item, Sub::Body(sub_k), args, depth, id)?;
+                    let key = self.push(item, Sub::Body(sub_k), args, id)?;
                     calls.insert(ix, Target::Closure(key));
                 }
                 // A function reference is a closure whose code is the
@@ -1312,13 +1447,7 @@ impl Cx<'_> {
                     };
                     let targs: Vec<Ty> =
                         pool.list_items(TyList(l)).iter().copied().map(s).collect();
-                    let key = self.push(
-                        DefId::from_raw(d),
-                        Sub::Adapter,
-                        pool.list(&targs),
-                        depth,
-                        id,
-                    )?;
+                    let key = self.push(DefId::from_raw(d), Sub::Adapter, pool.list(&targs), id)?;
                     calls.insert(ix, Target::Closure(key));
                 }
                 Tag::Coerce => {
@@ -1343,7 +1472,7 @@ impl Cx<'_> {
                     else {
                         return err("a trait-value coercion to a non-trait type");
                     };
-                    let vt = self.vtable(trait_, trait_args, from, depth, id, &mut reps)?;
+                    let vt = self.vtable(trait_, trait_args, from, id, &mut reps)?;
                     calls.insert(ix, Target::VTable(vt));
                 }
                 Tag::With => {
@@ -1366,7 +1495,7 @@ impl Cx<'_> {
                             TyData::Mut(x) => x,
                             _ => from,
                         };
-                        withs.push(self.vtable(trait_, trait_args, from, depth, id, &mut reps)?);
+                        withs.push(self.vtable(trait_, trait_args, from, id, &mut reps)?);
                     }
                     calls.insert(ix, Target::Withs(withs));
                 }
@@ -1374,7 +1503,7 @@ impl Cx<'_> {
                 // inserts each entry, and lookup, insertion and removal
                 // hash and compare the key through its impls.
                 Tag::NewMap if !body.record(b).is_empty() => {
-                    if let Some(t) = self.map_key(ty, depth, id, &mut reps)? {
+                    if let Some(t) = self.map_key(ty, id, &mut reps)? {
                         calls.insert(ix, t);
                     }
                 }
@@ -1392,7 +1521,7 @@ impl Cx<'_> {
                     let Some(&m) = body.record(b).first() else {
                         return err("a map operation without its map");
                     };
-                    if let Some(t) = self.map_key(s(value_ty(body, m)), depth, id, &mut reps)? {
+                    if let Some(t) = self.map_key(s(value_ty(body, m)), id, &mut reps)? {
                         calls.insert(ix, t);
                     }
                 }
@@ -1527,7 +1656,8 @@ fn note_data(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut BTreeSet<
 
 /// Collection from `root` (codegen.md §13.1) and the init bodies `inits`
 /// of the groups it reaches, in initialization order: every reachable
-/// instance, each call's target, the imports and data types.
+/// instance, each call's target, the imports and data types; or the stop
+/// at an instantiation limit.
 pub fn collect(
     pool: &InternPool,
     env: &dyn ProgramEnv,
@@ -1535,7 +1665,7 @@ pub fn collect(
     root: DefId,
     inits: &[DefId],
     extra: &[(DefId, TyList)],
-) -> StageResult<Collected> {
+) -> StageResult<Result<Collected, TooDeep>> {
     let mut cx = Cx {
         pool,
         env,
@@ -1545,30 +1675,46 @@ pub fn collect(
         selected: HashMap::new(),
         exact: HashMap::new(),
         layouts: HashMap::new(),
+        depths: HashMap::new(),
+        at: None,
+        too_deep: None,
         out: Collected::default(),
         work: Vec::new(),
     };
-    cx.push(root, Sub::Body(0), TyList::EMPTY, 0, InstId::NONE)?;
-    for i in inits {
-        let k = cx.push(*i, Sub::Body(0), TyList::EMPTY, 0, InstId::NONE)?;
-        cx.out.inits.push(k);
-    }
-    // Extra roots with type arguments: the test cases after the first and
-    // the `std.rt` result functions (engines-and-test-runner.md §19.1).
-    for (d, args) in extra {
-        let t = cx.target(*d, *args, 0, InstId::NONE)?;
-        cx.out.extra.push(t.key);
-    }
-    // Breadth-first in push order (codegen.md §13.4): the first instance
-    // over a limit is the same on every run.
-    let mut next = 0;
-    while next < cx.work.len() {
-        let id = cx.work[next];
-        next += 1;
-        cx.scan(id)?;
+    if let Err(e) = cx.run(root, inits, extra) {
+        return match cx.too_deep.take() {
+            Some(t) => Ok(Err(t)),
+            None => Err(e),
+        };
     }
     let mut out = cx.out;
     out.calls.resize_with(out.table.len(), HashMap::new);
     out.callee_reps.resize(out.table.len(), Hash128(0));
-    Ok(out)
+    Ok(Ok(out))
+}
+
+impl Cx<'_> {
+    fn run(&mut self, root: DefId, inits: &[DefId], extra: &[(DefId, TyList)]) -> StageResult<()> {
+        self.push(root, Sub::Body(0), TyList::EMPTY, InstId::NONE)?;
+        for i in inits {
+            let k = self.push(*i, Sub::Body(0), TyList::EMPTY, InstId::NONE)?;
+            self.out.inits.push(k);
+        }
+        // Extra roots with type arguments: the test cases after the first
+        // and the `std.rt` result functions (engines-and-test-runner.md
+        // §19.1).
+        for (d, args) in extra {
+            let t = self.target(*d, *args, InstId::NONE)?;
+            self.out.extra.push(t.key);
+        }
+        // Breadth-first in push order (codegen.md §13.4): the first
+        // instance over a limit is the same on every run.
+        let mut next = 0;
+        while next < self.work.len() {
+            let id = self.work[next];
+            next += 1;
+            self.scan(id)?;
+        }
+        Ok(())
+    }
 }

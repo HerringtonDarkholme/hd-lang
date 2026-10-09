@@ -947,6 +947,26 @@ impl Run<'_> {
         );
     }
 
+    /// Reports collection's stop at an instantiation limit
+    /// (`types.generic.instantiation-depth.error`) on the call that would
+    /// exceed it, in the module that declares the calling item.
+    fn too_deep(&self, deep: &hd_mono::TooDeep) {
+        let span = deep
+            .at
+            .and_then(|(item, node)| {
+                let module = self.names().module_of(item);
+                let m = self.table.modules.iter().position(|x| x.path == module)?;
+                let src = self.src(m);
+                Some(src.span(src.parse.tree.node(node)))
+            })
+            .unwrap_or(Span {
+                file: FileId::from_raw(u32::MAX),
+                lo: 0,
+                hi: 0,
+            });
+        lock(&self.diags).error(Code::InstantiationTooDeep, span, &deep.message);
+    }
+
     fn blocked(&self, s: Stage) {
         lock(&self.report).blocked(s);
     }
@@ -2926,6 +2946,13 @@ impl Run<'_> {
             hd_mono::collect(&self.pool, &env, &TableSolver, root, &all_inits, &extra),
         ) else {
             return;
+        };
+        let collected = match collected {
+            Ok(c) => c,
+            Err(deep) => {
+                self.too_deep(&deep);
+                return;
+            }
         };
         let key_of_extra = |r: &(DefId, TyList)| {
             extra
