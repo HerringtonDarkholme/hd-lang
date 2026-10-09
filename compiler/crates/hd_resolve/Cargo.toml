@@ -16,3 +16,8 @@ hd_types = { path = "../hd_types" }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+hd_cache = { path = "../hd_cache" }
+hd_driver = { path = "../hd_driver" }
+hd_sched = { path = "../hd_sched" }

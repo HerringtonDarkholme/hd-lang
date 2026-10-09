@@ -102,22 +102,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### T2. Test: Every KnownItems Field Names A Real Std Item (#69)
-
-`compiler/crates/hd_resolve/src/known.rs` resolves `KnownItems` once per
-run: the std items the compiler recognises (`eq`, `hash`, `walker`, …).
-A std rename leaves a field at `DefId::NONE` and silently turns its
-check off. Add one test file, `compiler/crates/hd_resolve/tests/known_items.rs`
-(this job lifts the `compiler/crates/` rule for that new file only; no
-product-code edits): build std through the public API the existing
-tests use, then assert every field is set, naming the field on failure.
-If a field is optional by design (say why in a comment you find in
-`known.rs`), list it explicitly as exempt. Checks: `cargo fmt --check`,
-clippy `-D warnings`, the full `cargo test -q --release --workspace`.
-If the test finds an unset field today, don't fix `known.rs`: mark it
-exempt with a `// BUG:` line and report it in the commit message. One
-commit; push. Timebox 40 minutes.
-
 ### D2n. Design Text For The Derivation Instance Check (#17a, #17d)
 
 Two commits landed: `2f8cf104` (the instantiated-template check at
