@@ -1640,3 +1640,41 @@ section, and shares the wrapping instances; checked builds pay one
 widen-compare per narrowing operation plus the section. The default
 pipeline everywhere is the fast-build one; `--release` is the only
 way to ask for the optimized pipeline (see Questions).
+
+### 13.18 Provider Keys Carry Their Type Arguments
+
+`requirement-row-order-*` print 11 instead of 201: `Repo[User]` and
+`Repo[Post]` collapse into one provider. The spec keys providers by
+the whole trait reference — a generic key is entailed only by an
+identical key (`req.row.entail.generic`), and a key occurs at most
+once per row (`req.row.set.once`) — but Emit's provider list is
+keyed by bare trait `DefId`, so the first `Repo` match serves every
+`Repo[T]`. Check already distinguishes the keys (these programs
+check clean); only the lookup is wrong.
+
+The key is the full canonical trait reference: trait plus type
+arguments (and bindings), compared as interned `Ty` values — pointer
+comparison, no hashing cost. It is compared in three places, all by
+the full key:
+
+- **Check** (`require_key`, row entailment): unchanged, already
+  exact. Duplicate keys in one row stay a Check error, so lookup
+  never faces an ambiguous key.
+- **Collect**: callee-record `(key, provider)` pairs already carry
+  full keys; matching a call's providers into a callee instance —
+  including one provider per instantiation of a generic
+  `fn f[T](... $ Repo[T])` — compares full keys, which falls out of
+  instance keys carrying the type arguments.
+- **Emit**: the provider list and `push_providers` key by full key,
+  so `ProviderGet` for `Repo[User]` no longer matches `Repo[Post]`.
+  Emitted code is unchanged (the same locals); the fix is
+  compile-time only.
+- **Host**: host capabilities are never generic — a generic key
+  cannot come from the host (`nonhost-entry-requirement`) — so the
+  host lookup path stays trait-keyed and untouched. Row-parameter
+  contexts keep `i64` ids over the canonical key, which already
+  includes the arguments.
+
+Cost per call: zero at run time (the same locals and the same
+context walk); at compile time, one interned-`Ty` comparison per
+lookup.

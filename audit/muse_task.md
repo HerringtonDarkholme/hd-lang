@@ -117,16 +117,6 @@ breaks, and say which stage produces the wrong value (print the TIR or
 the Wasm text if the driver can). Add the findings to
 `audit/compiler/triage-wrong-runs.md`. Read only; timebox 45 minutes.
 
-### R19. Design Note: Provider Keys For Instantiated Traits (#155, Design Text)
-
-`requirement-row-order-*` print 11 instead of 201: providers are keyed
-by the trait item only, so `Repo[User]` and `Repo[Post]` collapse into
-one. Read the requirement-row rules (`spec/lang/11-requirements-and-suspension.md`,
-`req.*`) and `codegen.md`/`suspension.md` on how providers are passed
-(keys, provider arrays). Add to `codegen.md` how a provider key carries
-the trait's type arguments, where keys are compared (Collect, Emit, the
-host), and the cost per call. Timebox 45 minutes.
-
 ### R20. Design Note: Union Rows At Joins (#48, Design Text)
 
 An `if`/`match` or closure result gets one branch's requirement row
@@ -407,3 +397,15 @@ on the block. Recommend asking the owner for a code
 - **Q-R17.2:** covered, with no spec change: `fn.ref.generic` gives
   `Type::member::[T]` as a reference and `fn.ref.call` makes a reference
   followed by an argument clause an ordinary call.
+
+### Q-R19: unmatched keys and diagnostic spelling (R19, 2026-10-09)
+
+1. **Unmatched full keys stay internal errors (recommended).** Past
+   Check, every ProviderGet key is covered by construction, so a miss
+   means an internal invariant broke, as today. The alternative
+   (a user-facing diagnostic) would report Check-approved code as
+   broken. Recommend keeping the internal error.
+2. **Spell the full key in diagnostics (recommended).** Wherever a
+   provider is named (missing-key and collision reports), print
+   Repo[User], not Repo. The alternative (trait-only names) repeats
+   the confusion this design removes. Recommend full spelling.
