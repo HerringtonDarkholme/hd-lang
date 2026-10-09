@@ -428,7 +428,7 @@ fn test_one(
             filter: o.filter.clone(),
         };
         let out = build_packages(&host, package, &packages, &goal);
-        let mut found = report::from_output(&out, &sources, None);
+        let mut found = report::from_output(&out, None);
         // `module.test.doc.compile-fail`: it never runs, and passes only
         // when compiling it reports its code.
         if let Some(d) = doc

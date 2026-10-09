@@ -1196,7 +1196,11 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
             Some(_) => M::No,
         };
     }
-    if pat == t {
+    // A pattern that mentions parameters is matched structurally even
+    // against itself, so each parameter is bound: a goal inside the
+    // impl's own body names the impl's parameters, and the head is
+    // identical to it.
+    if pat == t && !pool.has_param(pat) {
         return M::Yes;
     }
     match (pool.get(pat), pool.get(t)) {
@@ -1259,6 +1263,7 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
                 def: d2, args: a2, ..
             },
         ) if d1 == d2 => match_list(pool, owner, a1, a2, binds),
+        _ if pat == t => M::Yes,
         _ => M::No,
     }
 }

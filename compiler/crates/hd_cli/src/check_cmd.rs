@@ -313,7 +313,7 @@ fn scope(t: &mut Target, o: &Options) -> (bool, Vec<Diag>) {
 /// (`cli.package.file`), and the doc tests of its module; a diagnostic of
 /// no file is kept.
 fn shown(out: &Output, t: &Target, docs: &[crate::test_cmd::Doc]) -> Vec<Diag> {
-    let all = report::from_output(out, &t.program.sources, t.program.as_written.as_deref());
+    let all = report::from_output(out, t.program.as_written.as_deref());
     let Some(only) = &t.only else {
         return all;
     };

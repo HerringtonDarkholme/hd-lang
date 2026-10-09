@@ -9,7 +9,6 @@ use std::fmt::Write as _;
 
 use hd_diag::{Code, Severity};
 use hd_driver::Output;
-use hd_project::SourceSet;
 
 /// One edit of a fix-it: bytes `start..end` of `file` become `text`.
 pub(crate) struct Edit {
@@ -132,14 +131,10 @@ impl Diag {
 
 /// The diagnostics of a compiler run, in content order. `as_written`
 /// replaces the file of a single-file program (`cli.json.diagnostic.file`).
-pub(crate) fn from_output(
-    out: &Output,
-    sources: &dyn SourceSet,
-    as_written: Option<&str>,
-) -> Vec<Diag> {
+pub(crate) fn from_output(out: &Output, as_written: Option<&str>) -> Vec<Diag> {
     let d = &out.diags;
     let place = |span| {
-        let (file, line, column) = out.locate(sources, span);
+        let (file, line, column) = out.locate(span);
         if file.is_empty() {
             (None, None, None)
         } else {

@@ -9,7 +9,9 @@ use std::path::{Path, PathBuf};
 use hd_base::Stage;
 use hd_cache::MemoryStore;
 use hd_diag::Code;
-use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
+use hd_driver::{
+    Dependency, Executor, Goal, Host, NoClock, Output, Packages, build, build_packages,
+};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
@@ -693,4 +695,68 @@ fn a_rejected_power_is_an_error_value() {
         item_codes("fn f(e: i32) -> i32: 2 ** e + 1"),
         [Code::TypeMismatch]
     );
+}
+
+const WALKS: &str = "trait Show:\n    fn show(self) -> i32\n\nimpl Show for i32:\n    fn show(self) -> i32:\n        self\n\nimpl[T < Show] Show for List[T]:\n    fn show(self) -> i32:\n        0\n\ntrait Sink:\n    type Error\n    fn put(mut self, n: i32) -> Result[void, Self::Error]\n\ntrait Walk:\n    type Error\n    fn one(mut self) -> Result[void, Self::Error]\n    fn item[F < Show](mut self, value: F) -> Result[void, Self::Error]\n    fn two(mut self) -> Result[void, Self::Error]\n    fn three[T < Show](mut self, v: List[T]) -> Result[void, Self::Error]\n\ndata W[K < mut Sink]:\n    pub out: mut K\n\nimpl[K < Sink] Walk for W[K]:\n    type Error = K::Error\n\n    fn one(mut self) -> Result[void, K::Error]:\n        self.out.put(1)\n\n    fn item[F < Show](mut self, value: F) -> Result[void, K::Error]:\n        self.out.put(value.show())\n\n";
+const MAIN: &str = "\npub fn main() -> void $ Console:\n    println(1)\n";
+
+/// Inside `impl[K < Sink] Walk for W[K]`, the goal `W[K]: Walk` names the
+/// impl's own parameter `K`, and the head `W[K]` is the same type. The
+/// impl's arguments are still bound (`K := K`), so `Self::Error` of a
+/// sibling call normalizes to `K::Error` instead of an unbound variable
+/// (`cannot-infer-type`), also when the sibling has a bound of its own.
+#[test]
+fn an_impl_body_calls_its_siblings_through_a_projection_binding() {
+    for (two, three) in [
+        ("self.one()", "self.item(v)"),
+        ("self.one()", "self.item::[List[T]](v)"),
+    ] {
+        let src = format!(
+            "{WALKS}    fn two(mut self) -> Result[void, K::Error]:\n        {two}\n\n    fn three[T < Show](mut self, v: List[T]) -> Result[void, K::Error]:\n        {three}\n{MAIN}"
+        );
+        let out = program(&src);
+        assert!(codes(&out).is_empty(), "{src}\n{}", out.render());
+    }
+}
+
+/// An error in a dependency's file is located in that file's own text, not
+/// at `1:1` for want of the root package's source of it.
+#[test]
+fn a_dependency_diagnostic_is_located_in_its_file() {
+    let mut root = MemorySources::default();
+    root.insert(
+        "src/main.hd",
+        "use dep.ext.f\n\npub fn main() -> void $ Console:\n    println(f())\n",
+    );
+    let mut dep = MemorySources::default();
+    dep.insert("src/lib.hd", "pub fn f() -> i32:\n    _xs := []\n    1\n");
+    let store = MemoryStore::default();
+    let host = Host {
+        render_tir: &[],
+        sources: &root,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let packages = Packages {
+        requires: vec![("ext".to_owned(), 1)],
+        deps: vec![Dependency {
+            name: "ext".to_owned(),
+            sources: &dep,
+            requires: Vec::new(),
+        }],
+        ..Packages::default()
+    };
+    let out = build_packages(
+        &host,
+        "app",
+        &packages,
+        &Goal::Program {
+            entry: "main".into(),
+        },
+    );
+    assert_eq!(codes(&out), [Code::CannotInferType], "{}", out.render());
+    let at = out.diags.content_order()[0];
+    let (file, line, column) = out.locate(out.diags.primary[at]);
+    assert_eq!((file.as_str(), line, column), ("<ext>/src/lib.hd", 2, 12));
 }

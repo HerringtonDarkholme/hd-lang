@@ -188,7 +188,7 @@ fn build_goal(
     };
     let out: Output = build_packages(&host, &program.package, &program.packages(), goal);
     let as_written = program.as_written.as_deref().filter(|_| rep.json);
-    let mut diags = report::from_output(&out, &program.sources, as_written);
+    let mut diags = report::from_output(&out, as_written);
     report::relocate(&mut diags, |f| program.sources.display(f));
     if rep.diags(&diags) {
         return Err(rep.finish(HD_FAILURE));

@@ -224,6 +224,10 @@ pub struct Output {
     pub diags: DiagBuf,
     /// Package-relative file paths, indexed by a diagnostic's `FileId`.
     pub files: Vec<String>,
+    /// Per file, the text the run read: the text its spans index. A
+    /// dependency's file (`<std>/serde.hd`) is not in the root package's
+    /// sources, so positions are located in this text.
+    pub texts: Vec<Arc<str>>,
     /// Per file, the files of the modules its `use`s reach (from the
     /// skims this run made; empty for a file it did not skim).
     pub uses: Vec<Vec<usize>>,
@@ -255,11 +259,11 @@ impl Output {
 
     /// Diagnostics as `severity: file:line:column: code: message`, in content
     /// order. Line and column are 1-based; the column counts characters from
-    /// the line start. `sources` supplies the text the positions index.
+    /// the line start.
     #[must_use]
-    pub fn render_located(&self, sources: &dyn SourceSet) -> String {
+    pub fn render_located(&self) -> String {
         self.diags.render_compact(&|s: Span| {
-            let (file, line, column) = self.locate(sources, s);
+            let (file, line, column) = self.locate(s);
             format!("{file}:{line}:{column}")
         })
     }
@@ -276,11 +280,13 @@ impl Output {
 
     /// The package-relative file, 1-based line and column of a span's start.
     #[must_use]
-    pub fn locate(&self, sources: &dyn SourceSet, s: Span) -> (String, usize, usize) {
+    pub fn locate(&self, s: Span) -> (String, usize, usize) {
         let file = self.file_name(s);
-        let (line, column) = sources
-            .read(&file)
-            .map_or((1, 1), |text| line_column(&text, s.lo as usize));
+        let (line, column) = s
+            .file
+            .get()
+            .and_then(|_| self.texts.get(s.file.idx()))
+            .map_or((1, 1), |text| line_column(text.as_bytes(), s.lo as usize));
         (file, line, column)
     }
 
@@ -739,6 +745,7 @@ pub fn build_packages(
         wasm,
         diags,
         files: run.table.files.clone(),
+        texts: run.texts.clone(),
         uses,
         modules: run.table.modules.iter().map(|m| m.path.clone()).collect(),
         counters,
