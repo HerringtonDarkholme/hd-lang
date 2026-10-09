@@ -5,7 +5,7 @@ use pkg.prices
 start := prices.price_of("tea")
 greeting := "hello"
 
-fn main() -> void $ Console:
+pub fn main() -> void $ Console:
     println(greeting)
     println(start)
     println(prices.count())

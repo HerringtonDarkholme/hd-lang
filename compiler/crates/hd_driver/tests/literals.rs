@@ -46,7 +46,7 @@ fn assert_code(src: &str, code: Code) {
     assert!(codes(&out).contains(&code), "{src}\n{}", out.render());
 }
 
-const MAIN: &str = "\nfn main() -> void:\n    pass\n";
+const MAIN: &str = "\npub fn main() -> void:\n    pass\n";
 
 const MILLIS: &str = "use std.ops.num_suffix
 

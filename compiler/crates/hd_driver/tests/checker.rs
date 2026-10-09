@@ -133,7 +133,7 @@ fn renamed_uses_resolve_in_bodies() {
     let mut src = MemorySources::default();
     src.insert(
         "main.hd",
-        "use std.cmp as order\nuse std.cmp.Ordering as Order\nuse std.format.{Display as Show}\n\nfn pick(o: Order) -> i32:\n    match o:\n        .Less => 1\n        .Equal => 2\n        .Greater => 3\n\nfn other(o: order.Ordering) -> i32:\n    pick(o)\n\nfn show[T < Show](x: T) -> string:\n    x.to_string()\n\nfn main() -> void $ Console:\n    println(other(.Less))\n",
+        "use std.cmp as order\nuse std.cmp.Ordering as Order\nuse std.format.{Display as Show}\n\nfn pick(o: Order) -> i32:\n    match o:\n        .Less => 1\n        .Equal => 2\n        .Greater => 3\n\nfn other(o: order.Ordering) -> i32:\n    pick(o)\n\nfn show[T < Show](x: T) -> string:\n    x.to_string()\n\npub fn main() -> void $ Console:\n    println(other(.Less))\n",
     );
     let store = MemoryStore::default();
     let host = Host {
@@ -155,7 +155,7 @@ fn renamed_uses_resolve_in_bodies() {
 #[test]
 fn top_level_statements_are_checked_in_order() {
     let ok = program(
-        "limit := +10\n\nfn below(n: i32) -> bool:\n    n < limit\n\nfn main() -> void $ Console:\n    println(below(3))\n",
+        "limit := +10\n\nfn below(n: i32) -> bool:\n    n < limit\n\npub fn main() -> void $ Console:\n    println(below(3))\n",
     );
     assert!(
         !codes(&ok).iter().any(|c| matches!(
@@ -167,7 +167,7 @@ fn top_level_statements_are_checked_in_order() {
     );
     assert_eq!(ok.report.body_failed, 0, "{:?}", ok.report.body_failures);
     let late = program(
-        "first := apply(first_name)\nlet names: List[string] = [\"Ada\"]\n\nfn apply(callback: fn() -> string) -> string:\n    callback()\n\nfn first_name() -> string:\n    names[0]\n\nfn main() -> void $ Console:\n    println(first)\n",
+        "first := apply(first_name)\nlet names: List[string] = [\"Ada\"]\n\nfn apply(callback: fn() -> string) -> string:\n    callback()\n\nfn first_name() -> string:\n    names[0]\n\npub fn main() -> void $ Console:\n    println(first)\n",
     );
     assert!(
         codes(&late).contains(&Code::TopLevelReadBeforeInitialization),
@@ -178,7 +178,7 @@ fn top_level_statements_are_checked_in_order() {
     src.insert("lib.hd", "println(1)\n\npub fn one() -> i32:\n    1\n");
     src.insert(
         "main.hd",
-        "use pkg.lib.{one}\n\nfn main() -> void $ Console:\n    println(one())\n",
+        "use pkg.lib.{one}\n\npub fn main() -> void $ Console:\n    println(one())\n",
     );
     let store = MemoryStore::default();
     let host = Host {
@@ -207,7 +207,7 @@ fn top_level_statements_are_checked_in_order() {
 #[test]
 fn with_blocks_provide_requirements() {
     let out = program(
-        "use std.console.BufferConsole\n\nfn show() -> void:\n    let mut console = BufferConsole.new()\n    $.with(Console = console):\n        println(1)\n\nfn main() -> void $ Console:\n    show()\n",
+        "use std.console.BufferConsole\n\nfn show() -> void:\n    let mut console = BufferConsole.new()\n    $.with(Console = console):\n        println(1)\n\npub fn main() -> void $ Console:\n    show()\n",
     );
     assert!(
         codes(&out).iter().all(|c| *c == Code::Unsupported),
@@ -216,7 +216,7 @@ fn with_blocks_provide_requirements() {
     );
     assert_eq!(out.report.body_failed, 0, "{:?}", out.report.body_failures);
     let out = program(
-        "fn show() -> void:\n    $.with(Console = 5):\n        println(1)\n\nfn main() -> void $ Console:\n    show()\n",
+        "fn show() -> void:\n    $.with(Console = 5):\n        println(1)\n\npub fn main() -> void $ Console:\n    show()\n",
     );
     assert!(
         codes(&out).contains(&Code::UnsatisfiedTraitBound),
@@ -229,7 +229,7 @@ fn with_blocks_provide_requirements() {
 #[test]
 fn pipes_and_comprehensions_check() {
     let out = program(
-        "fn add(a: i32, b: i32) -> i32:\n    a + b\n\nfn main() -> void $ Console:\n    xs := [+1, 2, 3, 4]\n    y := 3 |> add(_, 1)\n    evens := [for x in xs if x % 2 == 0 => x * 10]\n    m := {for x in xs => \"$x\": x + y}\n    println(evens.len() + m.len())\n",
+        "fn add(a: i32, b: i32) -> i32:\n    a + b\n\npub fn main() -> void $ Console:\n    xs := [+1, 2, 3, 4]\n    y := 3 |> add(_, 1)\n    evens := [for x in xs if x % 2 == 0 => x * 10]\n    m := {for x in xs => \"$x\": x + y}\n    println(evens.len() + m.len())\n",
     );
     assert!(
         codes(&out).iter().all(|c| *c == Code::Unsupported),
@@ -238,7 +238,7 @@ fn pipes_and_comprehensions_check() {
     );
     assert_eq!(out.report.body_failed, 0, "{:?}", out.report.body_failures);
     let out = program(
-        "fn add(a: i32, b: i32) -> i32:\n    a + b\n\nfn main() -> void $ Console:\n    println(add(_, 1))\n",
+        "fn add(a: i32, b: i32) -> i32:\n    a + b\n\npub fn main() -> void $ Console:\n    println(add(_, 1))\n",
     );
     assert!(
         codes(&out).contains(&Code::PlaceholderOutsidePipe),
@@ -253,21 +253,22 @@ fn codes(out: &Output) -> Vec<Code> {
 
 #[test]
 fn a_missing_requirement_is_an_error() {
-    let out = program("fn main():\n    println(42)\n");
+    let out = program("pub fn main():\n    println(42)\n");
     assert!(
         codes(&out).contains(&Code::MissingRequirement),
         "{}",
         out.render()
     );
-    let ok = program("fn main() -> void $ Console:\n    println(42)\n");
+    let ok = program("pub fn main() -> void $ Console:\n    println(42)\n");
     assert!(
         !codes(&ok).contains(&Code::MissingRequirement),
         "{}",
         ok.render()
     );
     // A callee's own row reaches its callers.
-    let out =
-        program("fn show(x: i32) -> void $ Console:\n    println(x)\n\nfn main():\n    show(1)\n");
+    let out = program(
+        "fn show(x: i32) -> void $ Console:\n    println(x)\n\npub fn main():\n    show(1)\n",
+    );
     assert!(
         codes(&out).contains(&Code::MissingRequirement),
         "{}",
@@ -283,14 +284,14 @@ fn a_missing_requirement_is_an_error() {
 fn row_polymorphic_callbacks() {
     const CALL: &str = "fn call[T, $R](f: fn() -> T $ R) -> T $ R:\n    f()\n\n";
     let ok = program(&format!(
-        "{CALL}fn main() -> void $ Console:\n    n := call(fn() -> i32: 7)\n    call(fn() -> void: println(n))\n"
+        "{CALL}pub fn main() -> void $ Console:\n    n := call(fn() -> i32: 7)\n    call(fn() -> void: println(n))\n"
     ));
     assert!(codes(&ok).is_empty(), "{}", ok.render());
     // Each call's instance gets its row's providers; the closure reads
     // its own from the context the call passes.
     assert!(ok.wasm.is_some(), "{:?}", ok.report.body_failures);
     let bad = program(&format!(
-        "{CALL}pub fn quiet() -> void:\n    call(fn() -> void: println(1))\n\nfn main() -> void $ Console:\n    quiet()\n"
+        "{CALL}pub fn quiet() -> void:\n    call(fn() -> void: println(1))\n\npub fn main() -> void $ Console:\n    quiet()\n"
     ));
     assert!(
         codes(&bad).contains(&Code::MissingRequirement),
@@ -299,7 +300,7 @@ fn row_polymorphic_callbacks() {
     );
     // A closure fits a wider expected row, never a narrower one.
     let narrow = program(
-        "fn run(f: fn() -> void) -> void:\n    f()\n\nfn main() -> void $ Console:\n    run(fn() -> void: println(1))\n",
+        "fn run(f: fn() -> void) -> void:\n    f()\n\npub fn main() -> void $ Console:\n    run(fn() -> void: println(1))\n",
     );
     assert!(
         codes(&narrow).contains(&Code::TypeMismatch),
@@ -310,7 +311,7 @@ fn row_polymorphic_callbacks() {
 
 #[test]
 fn an_impl_must_write_every_required_trait_method() {
-    let missing = "trait Named:\n    fn name(self) -> string\n    fn id(self) -> i32\n\ndata User: pass\n\nimpl Named for User:\n    fn name(self) -> string:\n        \"u\"\n\nfn main() -> void $ Console:\n    println(1)\n";
+    let missing = "trait Named:\n    fn name(self) -> string\n    fn id(self) -> i32\n\ndata User: pass\n\nimpl Named for User:\n    fn name(self) -> string:\n        \"u\"\n\npub fn main() -> void $ Console:\n    println(1)\n";
     let out = program(missing);
     assert!(
         codes(&out).contains(&Code::MissingTraitMethod),
@@ -318,7 +319,7 @@ fn an_impl_must_write_every_required_trait_method() {
         out.render()
     );
     // A method with a default body need not be written.
-    let defaulted = "trait Named:\n    fn name(self) -> string:\n        \"named\"\n\ndata User: pass\n\nimpl Named for User\n\nfn main() -> void $ Console:\n    println(1)\n";
+    let defaulted = "trait Named:\n    fn name(self) -> string:\n        \"named\"\n\ndata User: pass\n\nimpl Named for User\n\npub fn main() -> void $ Console:\n    println(1)\n";
     let out = program(defaulted);
     assert!(
         !codes(&out).contains(&Code::MissingTraitMethod),
@@ -329,7 +330,7 @@ fn an_impl_must_write_every_required_trait_method() {
 
 #[test]
 fn a_match_must_cover_every_variant() {
-    let src = "enum Color:\n    Red\n    Green\n    Blue\n\nfn code(c: Color) -> i32:\n    match c:\n        .Red => 1\n        .Green => 2\n\nfn main() -> void $ Console:\n    println(code(.Red))\n";
+    let src = "enum Color:\n    Red\n    Green\n    Blue\n\nfn code(c: Color) -> i32:\n    match c:\n        .Red => 1\n        .Green => 2\n\npub fn main() -> void $ Console:\n    println(code(.Red))\n";
     let out = program(src);
     assert!(
         codes(&out).contains(&Code::NonexhaustiveMatch),
@@ -347,7 +348,7 @@ fn a_match_must_cover_every_variant() {
         out.render()
     );
     // Nested: `.Some(.Red)` alone leaves `.None` and the other colors.
-    let nested = "enum Color:\n    Red\n    Green\n\nfn f(c: Color?) -> i32:\n    match c:\n        .Some(.Red) => 1\n        .None => 0\n\nfn main() -> void $ Console:\n    println(f(.None))\n";
+    let nested = "enum Color:\n    Red\n    Green\n\nfn f(c: Color?) -> i32:\n    match c:\n        .Some(.Red) => 1\n        .None => 0\n\npub fn main() -> void $ Console:\n    println(f(.None))\n";
     let out = program(nested);
     assert!(
         codes(&out).contains(&Code::NonexhaustiveMatch),
@@ -360,87 +361,87 @@ fn a_match_must_cover_every_variant() {
 fn checker_errors_are_reported() {
     let cases: &[(&str, Code)] = &[
         (
-            "fn main() -> void $ Console:\n    let x: i32 = \"a\"\n    println(x)\n",
+            "pub fn main() -> void $ Console:\n    let x: i32 = \"a\"\n    println(x)\n",
             Code::TypeMismatch,
         ),
         (
-            "fn main() -> void $ Console:\n    x := 1\n    println(x.nope())\n",
+            "pub fn main() -> void $ Console:\n    x := 1\n    println(x.nope())\n",
             Code::UnknownMethod,
         ),
         (
-            "fn f(o: i32?) -> i32:\n    let .Some(v) = o else:\n        println(0)\n    v\n\nfn main() -> void $ Console:\n    println(f(.None))\n",
+            "fn f(o: i32?) -> i32:\n    let .Some(v) = o else:\n        println(0)\n    v\n\npub fn main() -> void $ Console:\n    println(f(.None))\n",
             Code::LetElseFallsThrough,
         ),
         (
-            "fn f(x: i32) -> i32:\n    y := x?\n    y\n\nfn main() -> void $ Console:\n    println(f(1))\n",
+            "fn f(x: i32) -> i32:\n    y := x?\n    y\n\npub fn main() -> void $ Console:\n    println(f(1))\n",
             Code::InvalidResultPropagation,
         ),
         (
-            "data P:\n    x: i32\n\nfn main() -> void $ Console:\n    p := P { x: 1 }\n    println(p.y)\n",
+            "data P:\n    x: i32\n\npub fn main() -> void $ Console:\n    p := P { x: 1 }\n    println(p.y)\n",
             Code::UnknownDataField,
         ),
         (
-            "fn get!() -> i32:\n    1\n\nfn main() -> void $ Console:\n    println(get!())\n",
+            "fn get!() -> i32:\n    1\n\npub fn main() -> void $ Console:\n    println(get!())\n",
             Code::BangCallOutsideSuspension,
         ),
         (
-            "fn get() -> i32:\n    1\n\nfn main!() -> void $ Console:\n    println(get!())\n",
+            "fn get() -> i32:\n    1\n\npub fn main!() -> void $ Console:\n    println(get!())\n",
             Code::NotSuspending,
         ),
         (
-            "fn f(o: i32?) -> i32:\n    match o:\n        _ => 0\n        .Some(x) => x\n\nfn main() -> void $ Console:\n    println(f(.None))\n",
+            "fn f(o: i32?) -> i32:\n    match o:\n        _ => 0\n        .Some(x) => x\n\npub fn main() -> void $ Console:\n    println(f(.None))\n",
             Code::UnreachableMatchArm,
         ),
         (
-            "fn main() -> void $ Console:\n    x := .Red\n    println(1)\n",
+            "pub fn main() -> void $ Console:\n    x := .Red\n    println(1)\n",
             Code::MissingContextualEnumType,
         ),
         (
-            "fn f(a: i32, b: i32) -> i32:\n    a + b\n\nfn main() -> void $ Console:\n    println(f(1, c = 2))\n",
+            "fn f(a: i32, b: i32) -> i32:\n    a + b\n\npub fn main() -> void $ Console:\n    println(f(1, c = 2))\n",
             Code::UnknownNamedArgument,
         ),
         (
-            "fn f(a: i32, b: i32) -> i32:\n    a + b\n\nfn main() -> void $ Console:\n    println(f(1, a = 2))\n",
+            "fn f(a: i32, b: i32) -> i32:\n    a + b\n\npub fn main() -> void $ Console:\n    println(f(1, a = 2))\n",
             Code::DuplicateArgument,
         ),
         (
-            "fn main() -> void $ Console:\n    let x: u8 = 300\n    println(x)\n",
+            "pub fn main() -> void $ Console:\n    let x: u8 = 300\n    println(x)\n",
             Code::IntegerLiteralRange,
         ),
         (
-            "fn main() -> void $ Console:\n    while true:\n        break 1\n",
+            "pub fn main() -> void $ Console:\n    while true:\n        break 1\n",
             Code::BreakValueContext,
         ),
         (
-            "fn f() -> i32:\n    defer:\n        return 1\n    2\n\nfn main() -> void $ Console:\n    println(f())\n",
+            "fn f() -> i32:\n    defer:\n        return 1\n    2\n\npub fn main() -> void $ Console:\n    println(f())\n",
             Code::DeferControlFlow,
         ),
         (
-            "data P:\n    x: i32\n\nfn main() -> void $ Console:\n    q := P\n    println(1)\n",
+            "data P:\n    x: i32\n\npub fn main() -> void $ Console:\n    q := P\n    println(1)\n",
             Code::TypeUsedAsValue,
         ),
         (
-            "fn f(t: (i32, i32)) -> i32:\n    let (a, a) = t\n    a\n\nfn main() -> void $ Console:\n    println(f((1, 2)))\n",
+            "fn f(t: (i32, i32)) -> i32:\n    let (a, a) = t\n    a\n\npub fn main() -> void $ Console:\n    println(f((1, 2)))\n",
             Code::DuplicateBinding,
         ),
         (
-            "fn main() -> void $ Console:\n    xs := []\n    println(1)\n",
+            "pub fn main() -> void $ Console:\n    xs := []\n    println(1)\n",
             Code::CannotInferType,
         ),
         (
-            "fn main() -> void $ Console:\n    let mut n = 0\n    println(n)\n",
+            "pub fn main() -> void $ Console:\n    let mut n = 0\n    println(n)\n",
             Code::MutOnPrimitive,
         ),
         (
-            "fn main() -> void $ Console:\n    a := (1, 2)\n    println(a is a)\n",
+            "pub fn main() -> void $ Console:\n    a := (1, 2)\n    println(a is a)\n",
             Code::IdentityRequiresReferences,
         ),
         (
-            "fn main() -> void $ Console:\n    let n: mut i32 = 0\n    println(n)\n",
+            "pub fn main() -> void $ Console:\n    let n: mut i32 = 0\n    println(n)\n",
             Code::MutOnPrimitive,
         ),
         (
-            "fn main() -> void $ Console:\n    let mut pair = (1, 2)\n    println(pair._0)\n",
+            "pub fn main() -> void $ Console:\n    let mut pair = (1, 2)\n    println(pair._0)\n",
             Code::MutOnTuple,
         ),
     ];
@@ -455,22 +456,23 @@ fn checker_errors_are_reported() {
 #[test]
 fn mut_on_unconstrained_type_parameter() {
     let ok = program(
-        "fn keep[T < mut Any](value: mut T) -> void:\n    pass\n\nfn main() -> void:\n    pass\n",
+        "fn keep[T < mut Any](value: mut T) -> void:\n    pass\n\npub fn main() -> void:\n    pass\n",
     );
     assert!(
         !codes(&ok).contains(&Code::MutOnTypeParameter),
         "{}",
         ok.render()
     );
-    let bad =
-        program("fn reset[T](value: mut T) -> void:\n    pass\n\nfn main() -> void:\n    pass\n");
+    let bad = program(
+        "fn reset[T](value: mut T) -> void:\n    pass\n\npub fn main() -> void:\n    pass\n",
+    );
     assert!(
         codes(&bad).contains(&Code::MutOnTypeParameter),
         "{}",
         bad.render()
     );
     let method = program(
-        "data Feed[T]:\n    latest: T\n\nimpl[T] Feed[T]:\n    pub fn swap(self, other: mut T) -> void:\n        pass\n\nfn main() -> void:\n    pass\n",
+        "data Feed[T]:\n    latest: T\n\nimpl[T] Feed[T]:\n    pub fn swap(self, other: mut T) -> void:\n        pass\n\npub fn main() -> void:\n    pass\n",
     );
     let found = codes(&method);
     assert!(
@@ -489,7 +491,7 @@ fn mut_on_unconstrained_type_parameter() {
 #[test]
 fn mut_self_is_not_a_type_parameter() {
     let out = program(
-        "trait Dup:\n    fn dup(mut self) -> mut Self\n\ndata Box:\n    n: i32\n\nimpl Dup for Box:\n    fn dup(mut self) -> mut Self:\n        self\n\nimpl[T < mut Any] Dup for T:\n    fn dup(mut self) -> mut Self:\n        self\n\nfn main() -> void:\n    pass\n",
+        "trait Dup:\n    fn dup(mut self) -> mut Self\n\ndata Box:\n    n: i32\n\nimpl Dup for Box:\n    fn dup(mut self) -> mut Self:\n        self\n\nimpl[T < mut Any] Dup for T:\n    fn dup(mut self) -> mut Self:\n        self\n\npub fn main() -> void:\n    pass\n",
     );
     assert!(
         !codes(&out).contains(&Code::MutOnTypeParameter),
@@ -504,14 +506,14 @@ const LIMITED_FACT: &str = "use std.annotation.annotate\n\n@annotate(.Field)\nda
 /// before a function (`annot.target.limit.kind-error`).
 #[test]
 fn decorator_target_kind_is_checked() {
-    let ok = program(&format!("{LIMITED_FACT}fn main() -> void:\n    pass\n"));
+    let ok = program(&format!("{LIMITED_FACT}pub fn main() -> void:\n    pass\n"));
     assert!(
         !codes(&ok).contains(&Code::DecoratorTargetKind),
         "{}",
         ok.render()
     );
     let bad = program(&format!(
-        "{LIMITED_FACT}@max_len(3)\nfn greet() -> string:\n    \"hi\"\n\nfn main() -> void:\n    pass\n"
+        "{LIMITED_FACT}@max_len(3)\nfn greet() -> string:\n    \"hi\"\n\npub fn main() -> void:\n    pass\n"
     ));
     let hits = codes(&bad)
         .into_iter()
@@ -525,12 +527,12 @@ fn decorator_target_kind_is_checked() {
 #[test]
 fn integer_literals_take_their_default_types() {
     let ok = program(
-        "fn main() -> void:\n    x := 3\n    y := +3\n    z := -1\n    let a: usize = x\n    let b: i32 = y\n    let c: i32 = z\n    pass\n",
+        "pub fn main() -> void:\n    x := 3\n    y := +3\n    z := -1\n    let a: usize = x\n    let b: i32 = y\n    let c: i32 = z\n    pass\n",
     );
     assert!(!ok.render().contains("error"), "{}", ok.render());
     for (name, want) in [("x", "i32"), ("y", "usize"), ("z", "usize")] {
         let bad = program(&format!(
-            "fn main() -> void:\n    x := 3\n    y := +3\n    z := -1\n    let w: {want} = {name}\n    pass\n"
+            "pub fn main() -> void:\n    x := 3\n    y := +3\n    z := -1\n    let w: {want} = {name}\n    pass\n"
         ));
         assert!(
             codes(&bad).contains(&Code::TypeMismatch),
@@ -553,7 +555,7 @@ fn a_bound_takes_the_trait_argument_default() {
         "fn twice[T < Add[Out = T]](x: T) -> T:\n    x + x\n\n",
     ] {
         let out = program(&format!(
-            "{MONEY_ADD}{twice}fn main() -> void:\n    _m := twice(Money {{ cents: 2 }})\n    pass\n"
+            "{MONEY_ADD}{twice}pub fn main() -> void:\n    _m := twice(Money {{ cents: 2 }})\n    pass\n"
         ));
         assert!(codes(&out).is_empty(), "{twice}{}", out.render());
     }
@@ -583,7 +585,7 @@ fn program_of(files: &[(&str, &str)]) -> Output {
 
 const SAME: &str = "trait Same[Other = Self]:\n    fn same(self, other: Other) -> bool\n";
 const CONVERT: &str = "trait Convert[A, B = A]:\n    fn convert(self, a: A) -> B\n";
-const SAME_USES: &str = "data Money:\n    cents: i64\n\nimpl Same for Money:\n    fn same(self, other: Money) -> bool:\n        self.cents == other.cents\n\nimpl Convert[i64] for Money:\n    fn convert(self, a: i64) -> i64:\n        self.cents + a\n\nfn check[T < Same](left: T, right: T) -> bool:\n    left.same(right)\n\nfn plus[T < Convert[i64]](x: T) -> i64:\n    x.convert(1)\n\nfn main() -> void:\n    _a := check(Money { cents: 1 }, Money { cents: 1 })\n    _b := plus(Money { cents: 1 })\n    pass\n";
+const SAME_USES: &str = "data Money:\n    cents: i64\n\nimpl Same for Money:\n    fn same(self, other: Money) -> bool:\n        self.cents == other.cents\n\nimpl Convert[i64] for Money:\n    fn convert(self, a: i64) -> i64:\n        self.cents + a\n\nfn check[T < Same](left: T, right: T) -> bool:\n    left.same(right)\n\nfn plus[T < Convert[i64]](x: T) -> i64:\n    x.convert(1)\n\npub fn main() -> void:\n    _a := check(Money { cents: 1 }, Money { cents: 1 })\n    _b := plus(Money { cents: 1 })\n    pass\n";
 
 /// A trait of the same folder fills its defaults in impl heads and bounds
 /// whatever the declaration order, in the trait's own module (private)
@@ -610,7 +612,7 @@ fn same_folder_trait_defaults_fill_in_any_order() {
 #[test]
 fn a_filled_default_and_the_written_argument_overlap() {
     let out = program(&format!(
-        "data Money:\n    cents: i64\n\nimpl Same for Money:\n    fn same(self, other: Money) -> bool:\n        true\n\nimpl Same[Money] for Money:\n    fn same(self, other: Money) -> bool:\n        false\n\n{SAME}\nfn main() -> void:\n    pass\n"
+        "data Money:\n    cents: i64\n\nimpl Same for Money:\n    fn same(self, other: Money) -> bool:\n        true\n\nimpl Same[Money] for Money:\n    fn same(self, other: Money) -> bool:\n        false\n\n{SAME}\npub fn main() -> void:\n    pass\n"
     ));
     assert!(
         codes(&out).contains(&Code::OverlappingImpl),

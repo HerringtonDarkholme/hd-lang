@@ -41,8 +41,8 @@ fn check(dir: &Path, cache: &str, args: &[&str]) -> Ran {
     }
 }
 
-const CLEAN: &str = "fn main() -> void $ Console:\n    println(\"ok\")\n";
-const BROKEN: &str = "fn main() -> void $ Console:\n    println(missing)\n";
+const CLEAN: &str = "pub fn main() -> void $ Console:\n    println(\"ok\")\n";
+const BROKEN: &str = "pub fn main() -> void $ Console:\n    println(missing)\n";
 
 /// The number after `"modules_checked":` in a summary line.
 fn modules_checked(out: &str) -> u32 {
@@ -381,9 +381,12 @@ fn code_kinds(name: &str) -> PathBuf {
         ("src/lib_test.hd", "fn helper() -> i32:\n    in_unit\n"),
         (
             "tests/flow.hd",
-            "fn main() -> void:\n    _ := in_integration\n",
+            "pub fn main() -> void:\n    _ := in_integration\n",
         ),
-        ("tasks/seed.hd", "fn main() -> void:\n    _ := in_task\n"),
+        (
+            "tasks/seed.hd",
+            "pub fn main() -> void:\n    _ := in_task\n",
+        ),
     ];
     for (file, text) in files {
         let path = dir.join(file);

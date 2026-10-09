@@ -41,7 +41,7 @@ mod tests {
     #[test]
     fn a_session_checks_its_sources() {
         let mut s = WebSession::default();
-        s.set_source("main.hd", "fn main():\n    println(1)\n");
+        s.set_source("main.hd", "pub fn main():\n    println(1)\n");
         let (_, r) = s.check();
         assert_eq!(r.tally(Stage::Body).ok, 1);
     }

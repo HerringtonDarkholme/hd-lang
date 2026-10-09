@@ -89,7 +89,7 @@ fn first[A < Tuple](a: A) -> A: a
 
 fn erase[T < Inspectable](x: T) -> dyn Inspectable: x
 
-fn main() -> void $ Console:
+pub fn main() -> void $ Console:
     u := User { name: \"ann\" }
     v := User { name: \"bob\" }
     println(pick(u, v, false).name)
@@ -121,7 +121,7 @@ fn keep[T < AnyVal](x: T) -> T: x
 
 fn erase[T < Inspectable](x: T) -> dyn Inspectable: x
 
-fn main() -> void:
+pub fn main() -> void:
     u := User { name: \"ann\" }
     _ := keep(u)
     _ := keep(Owner(u))

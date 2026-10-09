@@ -230,6 +230,17 @@ fn parse_case(case: &Case, text: &str) -> Verdict {
     }
 }
 
+/// The first error in content order; a warning that sorts before it is
+/// not the reason a build failed.
+fn first_error(output: &Output) -> usize {
+    output
+        .diags
+        .content_order()
+        .into_iter()
+        .find(|index| output.diags.severity[*index] == Severity::Error)
+        .unwrap_or(0)
+}
+
 fn diagnostic_verdict(case: &Case, fixture: &Fixture, output: &Output) -> Option<Verdict> {
     let errors: Vec<usize> = output
         .diags
@@ -362,7 +373,7 @@ fn tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize
         },
     );
     if built.diags.has_errors() {
-        let index = built.diags.content_order()[0];
+        let index = first_error(&built);
         if built.diags.code[index].as_str() == "unsupported" {
             return Verdict::Unsupported(
                 first_unsupported(&built.report, true).unwrap_or_else(|| "Build".to_owned()),
@@ -437,7 +448,7 @@ fn tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize
 fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize) -> Verdict {
     let checked = build_fixture(fixture, store, &Goal::Analyze);
     if checked.diags.has_errors() {
-        let index = checked.diags.content_order()[0];
+        let index = first_error(&checked);
         return Verdict::Fail(checked.diags.code[index].as_str().to_owned());
     }
     if let Some(stage) = first_unsupported(&checked.report, false) {
@@ -460,11 +471,19 @@ fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usi
         },
     );
     if built.diags.has_errors() {
-        let index = built.diags.content_order()[0];
+        let index = first_error(&built);
         if built.diags.code[index].as_str() == "unsupported" {
             return Verdict::Unsupported(
                 first_unsupported(&built.report, true).unwrap_or_else(|| "Build".to_owned()),
             );
+        }
+        // Runtime Execution step 1 runs an entry point only when the module
+        // declares one (module.entry.private-main): no entry, nothing to run.
+        if built.diags.code[index].as_str() == "missing-entry-point"
+            && !case.expectation.starts_with("panic:")
+            && expected_stdout(&fixture.text).is_none()
+        {
+            return Verdict::Pass;
         }
         return Verdict::Fail(built.diags.code[index].as_str().to_owned());
     }

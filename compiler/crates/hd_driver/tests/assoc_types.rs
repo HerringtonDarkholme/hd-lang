@@ -117,7 +117,7 @@ impl[T < Display, I < Supplier[Item = T]] Display for Feed[I]:
     fn to_string(self) -> string:
         \"feed of \" + shown(self.source)
 
-fn main() -> void $ Console:
+pub fn main() -> void $ Console:
     println(Feed::[Counter] {{ source: Counter {{ start: 5 }} }}.to_string())
     println(Feed::[Name] {{ source: Name {{ text: \"Lin\" }} }})
     let count: i32 = first_item(Counter {{ start: 41 }})
@@ -143,7 +143,7 @@ fn shown[T < Display, S < Supplier[Item = T]](s: S) -> string:
 fn plus_one[S < Supplier[Item = i32]](s: S) -> i32:
     s.get() + 1
 
-fn main() -> void $ Console:
+pub fn main() -> void $ Console:
     println(shown(Vault {{ inside: Opaque {{ id: 1 }} }}))
     println(plus_one(Name {{ text: \"Ada\" }}))
 "

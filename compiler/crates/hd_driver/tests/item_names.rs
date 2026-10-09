@@ -56,7 +56,7 @@ fn an_unsatisfied_bound_names_the_trait_plainly() {
 fn same[T < Eq](a: T, b: T) -> bool:
     a == b
 
-fn main():
+pub fn main():
     same(Opaque {}, Opaque {})
 ",
     );

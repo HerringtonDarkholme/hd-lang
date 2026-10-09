@@ -49,7 +49,7 @@ fn three() -> i32 $ Tag + Clock + Console:
 fn tagged() -> i32 $ Console + Clock:
     run_all(fn(): $.use(Tag).id() + $.use(Clock).now())
 
-fn main() -> void $ Console:
+pub fn main() -> void $ Console:
     $.with(Clock=FixedClock { value: 1 }):
         println(\"${tagged()}\")
         println(\"${run_two(fn(): $.use(Tag).id())}\")

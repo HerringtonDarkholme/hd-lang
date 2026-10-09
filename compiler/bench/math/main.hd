@@ -31,7 +31,7 @@ fn integer_kernel(rounds: i32) -> i32:
 fn polynomial(x: i32) -> i32:
     return ((3 * x + 5) * x - 7) * x + 11
 
-fn main() -> void $ Console:
+pub fn main() -> void $ Console:
     println(gcd(1071, 462))
     println(fib(30))
     println(polynomial(12))

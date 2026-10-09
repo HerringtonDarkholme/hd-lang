@@ -28,7 +28,10 @@ const EXEMPT: &[&str] = &["check_equal"];
 #[test]
 fn every_known_item_is_declared() {
     let mut sources = MemorySources::default();
-    sources.insert("main.hd", "fn main() -> void $ Console:\n    println(42)\n");
+    sources.insert(
+        "main.hd",
+        "pub fn main() -> void $ Console:\n    println(42)\n",
+    );
     let store = MemoryStore::default();
     let host = Host {
         render_tir: &[],

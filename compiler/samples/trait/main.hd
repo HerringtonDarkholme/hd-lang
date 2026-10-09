@@ -6,7 +6,7 @@ fn total[T < Shape](s: T) -> i32:
 fn relay[T < Shape](a: T, b: T) -> i32:
     return total(first(b, a))
 
-fn main() -> void $ Console:
+pub fn main() -> void $ Console:
     p := make(3, 4)
     println(p.area())
     println(total(p))

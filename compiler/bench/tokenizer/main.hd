@@ -38,7 +38,7 @@ fn count_tokens(limit: i32) -> i32:
         tokens = tokens + 1
     return tokens
 
-fn main() -> void $ Console:
+pub fn main() -> void $ Console:
     println(classify(65))
     println(classify(53))
     println(classify(35))

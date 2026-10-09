@@ -43,13 +43,13 @@ const BOOL_IMPL: &str = "impl Apply[bool] for Item:\n    fn apply(self, run: fn(
 const I32_IMPL: &str = "impl Apply[i32] for Item:\n    fn apply(self, run: fn(i32) -> i32) -> i32:\n        run(self.value)\n\n";
 // The closure captures `offset`, holds a string constant and a local, and
 // fails to check against `fn(bool) -> bool`.
-const MAIN: &str = "fn main() -> i32:\n    item := Item { value: 40 }\n    offset := +2\n    item.apply(fn(value):\n        label := \"trial\"\n        if label == \"trial\": value + offset else: value\n    )\n";
+const MAIN: &str = "pub fn main() -> i32:\n    item := Item { value: 40 }\n    offset := +2\n    item.apply(fn(value):\n        label := \"trial\"\n        if label == \"trial\": value + offset else: value\n    )\n";
 
 /// Two candidates, and only the second fits: its trial is the one with
 /// no error, and the call is checked for real against it.
 #[test]
 fn of_two_candidates_the_one_whose_trial_fits_is_chosen() {
-    let src = "trait Pick[T]:\n    fn pick(self, value: T) -> i32\n\ndata Item: pass\n\nimpl Pick[bool] for Item:\n    fn pick(self, value: bool) -> i32: 0\n\nimpl Pick[i32] for Item:\n    fn pick(self, value: i32) -> i32: value\n\nfn main(n: i32) -> i32:\n    Item {}.pick(n)\n";
+    let src = "trait Pick[T]:\n    fn pick(self, value: T) -> i32\n\ndata Item: pass\n\nimpl Pick[bool] for Item:\n    fn pick(self, value: bool) -> i32: 0\n\nimpl Pick[i32] for Item:\n    fn pick(self, value: i32) -> i32: value\n\npub fn main(n: i32) -> i32:\n    Item {}.pick(n)\n";
     let out = analyze(src, &["app/main/main"]);
     assert_eq!(errors(&out), vec![], "{}", out.render());
     let tir = out.tir_text.get("app/main/main").expect("main's TIR");

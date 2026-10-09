@@ -52,7 +52,7 @@ pub fn sources(n: usize) -> (String, String) {
             "fn step_{i}(a: i32) -> i32:\n    return shape_{i}(a, {i}) + 1\n\n"
         );
     }
-    app.push_str("fn main() -> void $ Console:\n    let s = +0\n");
+    app.push_str("pub fn main() -> void $ Console:\n    let s = +0\n");
     for i in 0..n {
         let _ = writeln!(app, "    s = s + step_{i}(s % 100)");
     }

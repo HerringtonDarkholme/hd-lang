@@ -12,7 +12,7 @@ fn check(n: i32) -> Result[i32, Oops]:
         return .Err(Oops { what: "too big" })
     .Ok(n)
 
-fn main() -> Result[void, Oops] $ Console:
+pub fn main() -> Result[void, Oops] $ Console:
     v := check(1)?
     println("got $v")
     _ := check(5)?

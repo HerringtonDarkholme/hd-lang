@@ -166,7 +166,7 @@ fn invalid(device: Device) -> void:
 fn also_invalid(device: Device) -> void:
     device.ticks = 1
 
-fn main() -> void:
+pub fn main() -> void:
     pass
 "
     );
@@ -188,7 +188,7 @@ data Both:
     Left
     Right
 
-fn main() -> void:
+pub fn main() -> void:
     pass
 ";
     assert_eq!(errors(field), vec![Code::AmbiguousPromotedMember]);
@@ -211,7 +211,7 @@ data Both:
     Left
     Right
 
-fn main() -> void:
+pub fn main() -> void:
     pass
 ";
     assert_eq!(errors(method), vec![Code::AmbiguousPromotedMember]);
@@ -227,7 +227,7 @@ data Record:
     Base
     id: i32
 
-fn main() -> void:
+pub fn main() -> void:
     pass
 ";
     assert_eq!(errors(src), vec![Code::AmbiguousPromotedMember]);
@@ -239,7 +239,7 @@ data Record:
     Base
     pub id: i32
 
-fn main() -> void:
+pub fn main() -> void:
     pass
 ";
     assert_eq!(errors(hidden), Vec::<Code>::new());
@@ -268,7 +268,7 @@ impl Describe for Page:
 fn invalid(page: Page) -> i32:
     page.describe()
 
-fn main() -> void:
+pub fn main() -> void:
     pass
 ";
     assert_eq!(errors(src), vec![Code::AmbiguousMethod]);

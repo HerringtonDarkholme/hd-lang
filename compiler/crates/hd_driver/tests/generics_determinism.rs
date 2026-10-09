@@ -50,7 +50,7 @@ fn second[A, B](a: A, b: B) -> B:
 fn label[T < Named](t: T) -> string:
     t.name()
 
-fn main() -> void $ Console:
+pub fn main() -> void $ Console:
     println(label(Ints { value: 3 }))
     words := Words { value: \"w\" }
     println(label(words))

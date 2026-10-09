@@ -99,7 +99,7 @@ data Vault:
     secret: Secret
     count: i32
 
-fn main() -> void:
+pub fn main() -> void:
     pass
 ";
     let out = analyze(src);
@@ -127,7 +127,7 @@ data Vault:
     count: i32
     name: string
 
-fn main() -> void:
+pub fn main() -> void:
     pass
 ";
     let out = analyze(src);
@@ -146,7 +146,7 @@ data Vault:
     secret: Secret = Secret { value: 7 }
     count: i32
 
-fn main() -> void:
+pub fn main() -> void:
     pass
 ";
     let out = analyze(src);
@@ -276,7 +276,7 @@ impl[S] Walker[S] for Quiet:
 data Label:
     text: string
 
-fn main() -> void:
+pub fn main() -> void:
     pass
 ";
     let store = MemoryStore::default();

@@ -314,6 +314,9 @@ struct SkimOut {
     /// The header span of a top-level `pub fn main` or `main!`, which
     /// `cli.exe.unselected-main` is about.
     public_main: Option<(u32, u32)>,
+    /// The header span of a top-level `main` or `main!` that is not
+    /// `pub` (`module.entry.private-main.warn`).
+    private_main: Option<(u32, u32)>,
 }
 
 struct GraphOut {
@@ -872,25 +875,27 @@ impl Run<'_> {
                 .filter(|b| b.kind == HeaderKind::Impl && b.header_indent == 0)
                 .count(),
         };
-        let public_main = sk
-            .bodies
-            .iter()
-            .filter(|b| b.kind == HeaderKind::Function && b.header_indent == 0)
-            .find(|b| {
-                let header = text
-                    .get(b.header_start as usize..b.body_start as usize)
-                    .unwrap_or("");
-                ["pub fn main(", "pub fn main!(", "pub fn main["]
-                    .iter()
-                    .any(|p| header.trim_start().starts_with(p))
-            })
-            .map(|b| (b.header_start, b.body_start));
+        let main_header = |prefixes: &[&str]| {
+            sk.bodies
+                .iter()
+                .filter(|b| b.kind == HeaderKind::Function && b.header_indent == 0)
+                .find(|b| {
+                    let header = text
+                        .get(b.header_start as usize..b.body_start as usize)
+                        .unwrap_or("");
+                    prefixes.iter().any(|p| header.trim_start().starts_with(p))
+                })
+                .map(|b| (b.header_start, b.body_start))
+        };
+        let public_main = main_header(&["pub fn main(", "pub fn main!(", "pub fn main["]);
+        let private_main = main_header(&["fn main(", "fn main!(", "fn main[", "fn main!["]);
         SkimOut {
             source_hash: sk.source_hash,
             api_text_hash: sk.api_text_hash,
             uses,
             facts,
             public_main,
+            private_main,
         }
     }
 
@@ -960,6 +965,29 @@ impl Run<'_> {
                     Severity::Warning,
                     span,
                     "this public `main` is an ordinary function, since no executable names its module; name it in an `[[executable]]` table of `hd.toml` to run it",
+                    None,
+                );
+            }
+        }
+        // `module.entry.private-main.warn`: a `main` or `main!` that is not
+        // `pub` in an entry module is an ordinary function.
+        for (m, module) in self.table.modules.iter().enumerate() {
+            let flat_main =
+                module.path == format!("{}.main", hd_project::package_ident(&self.package));
+            if module.package != 0 || !(module.entry || flat_main) {
+                continue;
+            }
+            if let Some((lo, hi)) = self.skim_of(m).private_main {
+                let span = Span {
+                    file: module.file,
+                    lo,
+                    hi,
+                };
+                lock(&self.diags).push(
+                    Code::PrivateMain,
+                    Severity::Warning,
+                    span,
+                    "main is not pub, so it is not the entry point",
                     None,
                 );
             }
@@ -2471,7 +2499,16 @@ impl Run<'_> {
         // A script has no `main`: its top-level statements are its module
         // initialization, and that is the whole entry behavior.
         let (main, _) = roots[0];
-        let script = matches!(self.goal, Goal::Program { .. }) && !p.bodies.contains_key(&main);
+        // `module.entry.private-main`: only a `pub` main is the entry point.
+        let public = self
+            .table
+            .modules
+            .iter()
+            .position(|module| module.path == entry_key)
+            .is_none_or(|m| self.skim_of(m).public_main.is_some());
+        let has_main =
+            p.bodies.contains_key(&main) && (public || !matches!(self.goal, Goal::Program { .. }));
+        let script = matches!(self.goal, Goal::Program { .. }) && !has_main;
         let root = if script { init_of(&entry_key) } else { main };
         if !p.bodies.contains_key(&root) {
             let span = Span {

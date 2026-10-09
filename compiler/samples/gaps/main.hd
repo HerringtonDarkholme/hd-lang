@@ -13,7 +13,7 @@ greeting := "hi"
 fn describe(s: HttpStatus) -> string:
     "${s.code} ${s.phrase} ${s.retryable}"
 
-fn main() -> void $ Console:
+pub fn main() -> void $ Console:
     println(describe(HttpStatus.Ok))
     println(describe(HttpStatus.NotFound))
     println(describe(HttpStatus.ServiceUnavailable))

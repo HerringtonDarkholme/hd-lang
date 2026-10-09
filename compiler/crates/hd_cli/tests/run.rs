@@ -121,7 +121,7 @@ fn run_reports_check_errors() {
     let file = dir.join("bad.hd");
     std::fs::write(
         &file,
-        "fn main() -> void $ Console:\n    println(missing)\n",
+        "pub fn main() -> void $ Console:\n    println(missing)\n",
     )
     .expect("write");
     let output = hd(&cache("hd-cache-error"))
@@ -145,7 +145,7 @@ fn rendered_diagnostics_do_not_repeat_their_code() {
     let file = dir.join("twice.hd");
     std::fs::write(
         &file,
-        "fn main() -> void $ Console:\n    println(missing)\n    let flag: i32 = true\n    println(flag)\n",
+        "pub fn main() -> void $ Console:\n    println(missing)\n    let flag: i32 = true\n    println(flag)\n",
     )
     .expect("write");
     let output = hd(&cache("hd-cache-no-repeat"))
@@ -172,7 +172,7 @@ fn warning_and_error_print_severity_location_code_and_message() {
     let file = dir.join("mixed.hd");
     std::fs::write(
         &file,
-        "fn add(a: i32, b: i32) -> i32:\n    a\n\nfn main() -> void $ Console:\n    u := +1\n    x := add(+1)\n    println(x)\n",
+        "fn add(a: i32, b: i32) -> i32:\n    a\n\npub fn main() -> void $ Console:\n    u := +1\n    x := add(+1)\n    println(x)\n",
     )
     .expect("write");
     let output = hd(&cache("hd-cache-severity"))
@@ -220,7 +220,7 @@ fn unsupported_error_names_its_file() {
     let file = dir.join("spread.hd");
     std::fs::write(
         &file,
-        "data Point:\n    x: i32\n    y: i32\n\nfn main() -> void:\n    p := Point { x: +1, y: +2 }\n    q := Point { ...p, x: +3 }\n    pass\n",
+        "data Point:\n    x: i32\n    y: i32\n\npub fn main() -> void:\n    p := Point { x: +1, y: +2 }\n    q := Point { ...p, x: +3 }\n    pass\n",
     )
     .expect("write");
     let output = hd(&cache("hd-cache-unsupported"))
@@ -247,13 +247,13 @@ fn shop(name: &str) -> PathBuf {
     std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("write");
     std::fs::write(
         dir.join("main.hd"),
-        "fn main() -> void $ Console:\n    println(\"main\")\n",
+        "pub fn main() -> void $ Console:\n    println(\"main\")\n",
     )
     .expect("write");
     std::fs::create_dir_all(dir.join("tasks")).expect("dir");
     std::fs::write(
         dir.join("tasks/seed.hd"),
-        "fn main() -> void $ Console:\n    println(\"seeded\")\n",
+        "pub fn main() -> void $ Console:\n    println(\"seeded\")\n",
     )
     .expect("write");
     dir
@@ -427,7 +427,7 @@ fn string_index_and_slice_on_views() {
     let file = dir.join("views.hd");
     std::fs::write(
         &file,
-        "fn main() -> void $ Console:\n\
+        "pub fn main() -> void $ Console:\n\
          \x20   s := \"h\u{e9}llo w\u{f6}rld\"\n\
          \x20   println(\"${s.len()} ${s[0]} ${s[1]}\")\n\
          \x20   word := s.slice(7, 12)\n\
@@ -463,7 +463,7 @@ fn string_slice_off_boundary_panics() {
     let file = dir.join("bad.hd");
     std::fs::write(
         &file,
-        "fn main() -> void $ Console:\n\
+        "pub fn main() -> void $ Console:\n\
          \x20   s := \"h\u{e9}llo\"\n\
          \x20   println(s.slice(1, 3))\n\
          \x20   println(s.slice(2, 3))\n",
@@ -489,7 +489,7 @@ fn closure_mutating_a_captured_let_shares_a_cell() {
     let file = dir.join("counter.hd");
     std::fs::write(
         &file,
-        "fn main() -> void $ Console:\n\
+        "pub fn main() -> void $ Console:\n\
          \x20   let n: i32 = +0\n\
          \x20   bump := fn() -> i32:\n\
          \x20       n = n + 1\n\
@@ -526,7 +526,7 @@ fn shared_cells_outlive_their_function_and_renew_per_iteration() {
          \x20   return fn() -> i32:\n\
          \x20       at = at + 1\n\
          \x20       return at\n\
-         fn main() -> void $ Console:\n\
+         pub fn main() -> void $ Console:\n\
          \x20   a := counter(+10)\n\
          \x20   b := counter(+20)\n\
          \x20   println(\"${a()} ${a()} ${b()}\")\n\
@@ -560,7 +560,7 @@ fn chars_walks_a_non_ascii_string() {
     let file = dir.join("chars.hd");
     std::fs::write(
         &file,
-        "fn main() -> void $ Console:\n\
+        "pub fn main() -> void $ Console:\n\
          \x20   for c in \"h\u{e9}llo\".chars():\n\
          \x20       println(\"${c}\")\n",
     )
@@ -585,7 +585,7 @@ fn bytes_walks_a_non_ascii_string() {
     let file = dir.join("bytes.hd");
     std::fs::write(
         &file,
-        "fn main() -> void $ Console:\n\
+        "pub fn main() -> void $ Console:\n\
          \x20   for b in \"h\u{e9}y\".bytes():\n\
          \x20       println(\"${b}\")\n",
     )
@@ -610,7 +610,7 @@ fn join_list_of_strings() {
     let file = dir.join("join.hd");
     std::fs::write(
         &file,
-        "fn main() -> void $ Console:\n\
+        "pub fn main() -> void $ Console:\n\
          \x20   let parts: List[string] = [\"ab\", \"c\u{e9}\", \"d\"]\n\
          \x20   println(parts.join(\"-\"))\n",
     )
@@ -636,7 +636,7 @@ fn utf8_bytes_round_trip() {
     let file = dir.join("utf8.hd");
     std::fs::write(
         &file,
-        "fn main() -> void $ Console:\n\
+        "pub fn main() -> void $ Console:\n\
          \x20   let bytes = \"h\u{e9}llo\".to_utf8()\n\
          \x20   println(\"${bytes.len()}\")\n\
          \x20   match string::from_utf8(bytes):\n\
@@ -674,7 +674,7 @@ fn run_and_file_write_json_to_stderr_and_the_program_to_stdout() {
     }
     std::fs::write(
         dir.join("main.hd"),
-        "fn main() -> void $ Console:\n    println(missing)\n",
+        "pub fn main() -> void $ Console:\n    println(missing)\n",
     )
     .expect("write");
     let r = ran(&dir, &["run", "--format", "json"]);
@@ -736,7 +736,7 @@ fn a_totally_denied_need_refuses_to_start() {
     let alone = scratch("hd-forms-deny-file");
     std::fs::write(
         alone.join("hi.hd"),
-        "fn main() -> void $ Console:\n    println(\"hi\")\n",
+        "pub fn main() -> void $ Console:\n    println(\"hi\")\n",
     )
     .expect("write");
     let r = ran(&alone, &["--cap", "Console=false", "hi.hd"]);
@@ -859,12 +859,12 @@ fn a_program_leaves_test_code_out() {
     std::fs::create_dir_all(dir.join("tests")).expect("dir");
     std::fs::write(
         dir.join("tests/broken.hd"),
-        "fn main() -> void:\n    _ := missing\n",
+        "pub fn main() -> void:\n    _ := missing\n",
     )
     .expect("write");
     std::fs::write(
         dir.join("tasks/broken.hd"),
-        "fn main() -> void:\n    _ := missing\n",
+        "pub fn main() -> void:\n    _ := missing\n",
     )
     .expect("write");
     let r = ran(&dir, &["run"]);

@@ -1,2 +1,2 @@
-fn main() -> void $ Console:
+pub fn main() -> void $ Console:
     println(42)
