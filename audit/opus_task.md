@@ -89,14 +89,6 @@ When the queue is empty, say so under "Questions" and wait.
 
 ## Jobs
 
-### O16. Cache Coherence And InitOrder Results (#102)
-
-Warm runs redo about 1.1 ms of Coherence and InitOrder work. Cache them
-under keys (`coh_key`, `init_key`) as `cache.md` describes, so a warm run
-with no edit does neither. Report warm-run timings before and after
-(the driver's stage timers; `cargo run --release -p hd_driver --example
-bench N`).
-
 ### O17. The Test Unit (Your O13 Question)
 
 Yes, a job of its own. `module.cycle.test-code` and §4.8 ("test modules
@@ -152,6 +144,7 @@ the workspace's shared selection and `hd.sum`
 needs a design `commands.md` lacks and say so under "Questions".
 
 ## Questions
+
 
 - **O8, fetching and selection (design).** `cli.dep.select`,
   `cli.dep.tidy`, `cli.dep.fetch`, `hd add` and `hd update` need version
@@ -272,6 +265,14 @@ needs a design `commands.md` lacks and say so under "Questions".
   program with the integration environment, as integration programs
   will. Once #74 lands, the driver adds one synthetic integration-view
   module per doc test (§4.13.9) and the runner maps its lines back.
+- **O16 (key granularity).** Coherence's result is cached in a `graph`
+  entry keyed by every folder's path and deep hash, coarser than
+  `cache.md`'s per-trait `coh_key`: any interface change reruns the
+  whole check (1.1 ms on the bench), and a warm run with no edit reads
+  it. A per-trait key would need the overlap check per trait from
+  `hd_resolve::Universe`, outside this lane. Wanted? InitOrder costs
+  under 1 µs on a warm run (it does work only for a folder whose modules
+  loop with top-level statements), so it has no entry.
 - **Left for other lanes (status).** The CLI cases still failing for
   reasons outside this lane wait on the orchestrator's tasks above:
   top-level `it(...)` (#74: the `json-test-*`, `test-*`, `new-app`,

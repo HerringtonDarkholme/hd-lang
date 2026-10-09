@@ -1638,6 +1638,28 @@ impl Run<'_> {
             };
             all.push(i);
         }
+        // The result is a function of every interface: a warm run with no
+        // interface change reads it (cache.md, "Part keys"; this key is
+        // coarser than the per-trait `coh_key`).
+        let key = {
+            let mut k = hd_base::StableHasher::new("coh");
+            k.hash(self.toolchain);
+            for (f, i) in self.table.folders.iter().zip(&all) {
+                k.str(&f.path);
+                k.hash(i.deep_hash);
+            }
+            k.finish()
+        };
+        if let Some(sections) = self.lookup(EntryKind::Graph, key)
+            && let Some(found) = sections.first().and_then(|b| decode_overlaps(b, &all))
+        {
+            lock(&self.report).ok(Stage::Coherence);
+            let mut d = lock(&self.diags);
+            for (item, msg) in found {
+                d.error(Code::OverlappingImpl, self.item_span(item, 0), &msg);
+            }
+            return;
+        }
         let names = self.names();
         // Impls the orphan check rejected (`orphan-impl`, `nonlocal-impl`)
         // are already one error; they stay out of the overlap check.
@@ -1679,14 +1701,21 @@ impl Run<'_> {
         };
         let overlaps = u.overlaps(&order);
         lock(&self.report).ok(Stage::Coherence);
+        let found: Vec<(DefId, String)> = overlaps
+            .into_iter()
+            .map(|(a, b, witness)| {
+                let msg = format!(
+                    "implementations {} and {} both apply to {witness}",
+                    names.path(a),
+                    names.path(b)
+                );
+                (b, msg)
+            })
+            .collect();
+        self.put(EntryKind::Graph, key, &[&encode_overlaps(&found, &all)]);
         let mut d = lock(&self.diags);
-        for (a, b, witness) in overlaps {
-            let msg = format!(
-                "implementations {} and {} both apply to {witness}",
-                names.path(a),
-                names.path(b)
-            );
-            d.error(Code::OverlappingImpl, self.item_span(b, 0), &msg);
+        for (item, msg) in found {
+            d.error(Code::OverlappingImpl, self.item_span(item, 0), &msg);
         }
     }
 
@@ -3242,6 +3271,42 @@ fn decode_regs(r: &mut Reader<'_>) -> Vec<hd_check::tests::TestReg> {
 }
 
 /// Stage-B findings by item index in the folder's interface.
+/// The overlaps of a coherence run, each reported impl as its folder's
+/// index and its item's index in that folder's interface.
+fn encode_overlaps(found: &[(DefId, String)], all: &[Arc<FolderIface>]) -> Vec<u8> {
+    let mut w = Writer::default();
+    w.len_of(found);
+    for (item, msg) in found {
+        let (f, i) = all
+            .iter()
+            .enumerate()
+            .find_map(|(f, iface)| {
+                iface
+                    .items
+                    .iter()
+                    .position(|it| it.def == *item)
+                    .map(|i| (f, i))
+            })
+            .unwrap_or((0, 0));
+        w.u32(u32_of(f));
+        w.u32(u32_of(i));
+        w.str(msg);
+    }
+    w.bytes
+}
+
+fn decode_overlaps(b: &[u8], all: &[Arc<FolderIface>]) -> Option<Vec<(DefId, String)>> {
+    let mut r = Reader::new(b);
+    let mut out = Vec::new();
+    for _ in 0..r.count() {
+        let f = r.u32() as usize;
+        let i = r.u32() as usize;
+        let item = all.get(f)?.items.get(i)?.def;
+        out.push((item, r.str().to_owned()));
+    }
+    Some(out)
+}
+
 fn encode_header_findings(found: &[hd_check::header::Finding], items: &[Item]) -> Vec<u8> {
     let mut w = Writer::default();
     w.len_of(found);
