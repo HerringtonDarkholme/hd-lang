@@ -145,6 +145,28 @@ order-of-magnitude problems, with the hot function if you can find it.
 Write `audit/compiler/runtime-<date>-<short hash>.md`. Timebox 45
 minutes.
 
+### R28. Design Note: Header Trait Bounds And Associated-Type Bindings (Design Text)
+
+About 26 valid programs fail with `unsatisfied-trait-bound` because header
+bounds and associated-type bindings (`where`-style bounds on items, `T <
+Trait[Item = U]`, bounds on impl headers) are not carried into bodies and
+call sites. Shrink 3-4 to minimal programs, read the spec's bound and
+associated-type rules (`spec/lang/09-traits.md`, `04-type-system.md`) and
+`trait-solver.md` (bounds as subgoals §3.6, projections), and add to
+`trait-solver.md` where each header bound enters the environment of a
+body and of a call, and how a binding constrains a projection. Questions
+with a recommendation. Timebox 45 minutes.
+
+### R29. Design Note: Requirement-Row Aliases In Interfaces (Design Text)
+
+About 26 programs stop at FolderIface on row aliases and 8 on context
+types in headers. Read the row-alias rules (`req.row.alias.*` in
+`spec/lang/11-requirements-and-suspension.md`) and
+`resolution-and-interfaces.md` (folder interfaces), and add to it how an
+alias is recorded in an interface, expanded at use, hashed for caches, and
+printed in diagnostics (`req.row.alias.diagnostics.expanded`). Timebox
+45 minutes.
+
 ### P1. Profile The New Compiler (After S4; Standing Job)
 
 Owner, 2026-10-07: "you write the code, codex do the profiling. move
