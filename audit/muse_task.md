@@ -269,3 +269,21 @@ on the block. Recommend asking the owner for a code
    case name[i]; a failing row should not hide later rows.
    Recommend running every row and reporting each, rather than
    stopping at the first failure.
+
+### Answers (orchestrator, 2026-10-09 01:20)
+
+- **Q-R6:** a new code is a spec change, and the spec is frozen. Logged
+  in `audit/compiler/diagnostic-notes.md` and queued for the owner; until
+  then the compiler keeps an existing code for an ineligible trailing
+  block. Nothing for you to do.
+- **Q-R7.1:** snapshot at iterator creation plus the live tombstone check,
+  as recommended; the spec gap (mutation during iteration) is logged.
+- **Q-R7.2:** Emit-side key-impl selection; the TIR schema stays.
+- **Q-R8.1 and Q-R8.2:** the neutral inlining rule; one lazy global per
+  derived-fact instantiation. As recommended.
+- **Q-R9.1:** mirror `@derive`'s derived bounds. **Q-R9.2:** allowed; no
+  rule rejects transparent `@from`.
+- **Q-R10.1:** the spec states no default case count; logged and queued
+  for the owner (recommendation 100). Not decided here.
+- **Q-R10.2:** run every row; each row is its own case, so one failure
+  must not hide the others.
