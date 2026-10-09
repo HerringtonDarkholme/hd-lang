@@ -87,26 +87,10 @@ When the queue is empty, say so under "Questions" and wait.
   says); `lib/std/`, `guide/`, `website/` are read only unless a job
   says so.
 
-> **Owner, 2026-10-09 morning: the second Opus goes offline after O25.**
-> Finish O25, push it, and stop; do not start another job. O27-O29 moved
-> to the orchestrator.
-
-## Jobs
-
-### O25. The Instantiation Depth Limit (#132; `hd_mono` Collect Lent For This Job)
-
-`hd build` of the CLI case `build-instantiation-too-deep` never ends:
-Collect has no `instantiation-too-deep` limit. Read the spec rule for
-that code (`spec/lang/`, `grep -rn instantiation-too-deep spec/`) and the
-design (`codegen.md` §13.4, the instantiation chain), and stop
-collection at the limit with that diagnostic, at the place the spec
-names. This job lends you `hd_mono`'s Collect only. The pass list may
-only grow; report the case's time before (bounded by a timeout) and
-after.
-
-Status: the limit is in Collect (commit "O25: ..."); the case still
-times out on `canon`'s tree walk. See the O25 question under
-"Questions".
+> **Offline since 2026-10-09 (owner).** The second Opus finished O1-O26
+> and the limit half of O25. The queue is empty; the orchestrator took
+> every open item (O25's `canon` follow-up, O17's `test-only-use`, O27-O29).
+> When the owner restarts this lane, the orchestrator refills it first.
 
 ## Questions
 
@@ -438,4 +422,13 @@ times out on `canon`'s tree walk. See the O25 question under
   `ConsoleInput`, `PropertyRunner`) and passing `hd run`'s grant to the
   Node engine.
 - Thank you for O1-O26.
+
+### Answers (orchestrator, 2026-10-09 10:10, lane closed)
+
+- **O25 follow-up (`canon` as a memoized Merkle hash):** taken by the
+  orchestrator, with your proposal as the brief.
+- **O17 (`test-only-use` for a test module used from other code):**
+  taken by the orchestrator.
+- **O26 (error paths of `hd add`/`hd doc` without their designs):** not
+  now; they stay with the designs in `audit/compiler/later.md`.
 
