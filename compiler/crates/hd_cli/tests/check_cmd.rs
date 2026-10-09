@@ -289,3 +289,85 @@ fn json_ignores_summary_and_max_errors() {
         opts.out.lines().take(5).collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn file_in_a_package_reports_the_modules_it_uses_and_not_the_others() {
+    let dir = broken_library("hd-check-file-uses");
+    std::fs::write(
+        dir.join("src/user.hd"),
+        "use pkg.b.{h}\n\npub fn u() -> i32:\n    h()\n",
+    )
+    .expect("write");
+    let r = check(&dir, "hd-check-cache-file-uses", &["src/user.hd"]);
+    assert_eq!(r.code, Some(101), "{}", r.err);
+    assert!(r.err.contains("src/b.hd:2:5: type-mismatch"), "{}", r.err);
+    assert!(!r.err.contains("src/a.hd"), "{}", r.err);
+    assert!(!r.err.contains("src/c.hd"), "{}", r.err);
+    assert_eq!(
+        r.err.lines().last(),
+        Some("check result: FAILED. errors: 1; warnings: 0")
+    );
+}
+
+/// A package whose manifest has the `invalid-requirement` of a github.com
+/// path without a repository on line 5 and a requirement on line 6 that
+/// has no `hd.sum` entry.
+fn bad_manifest(name: &str) -> PathBuf {
+    let dir = package(name, BROKEN);
+    std::fs::write(
+        dir.join("hd.toml"),
+        "[package]\nname = \"shop\"\n\n[dependencies]\njson = \"github.com/acme@2.1.0\"\nyaml = \"github.com/acme/yaml@1.0.0\"\n",
+    )
+    .expect("write");
+    dir
+}
+
+#[test]
+fn manifest_errors_stop_the_check_before_compiling() {
+    let dir = bad_manifest("hd-check-manifest");
+    let r = check(&dir, "hd-check-cache-manifest", &[]);
+    assert_eq!(r.code, Some(101), "{}", r.err);
+    let lines: Vec<&str> = r.err.lines().collect();
+    assert_eq!(lines.len(), 3, "{}", r.err);
+    assert!(
+        lines[0].starts_with("error: hd.toml:5:1: invalid-requirement: "),
+        "{}",
+        r.err
+    );
+    assert!(
+        lines[1].starts_with("error: hd.toml:6:1: missing-sum-entry: ")
+            && lines[1].contains("hd fetch")
+            && lines[1].contains("hd add"),
+        "{}",
+        r.err
+    );
+    assert_eq!(lines[2], "check result: FAILED. errors: 2; warnings: 0");
+    let json = check(&dir, "hd-check-cache-manifest", &["--format", "json"]);
+    assert_eq!(json.code, Some(101), "{}", json.err);
+    let lines: Vec<&str> = json.out.lines().collect();
+    assert_eq!(lines.len(), 3, "{}", json.out);
+    assert!(
+        lines[1].contains("\"code\":\"missing-sum-entry\"")
+            && lines[1].contains("\"file\":\"hd.toml\",\"line\":6,"),
+        "{}",
+        lines[1]
+    );
+    assert!(lines[2].contains("\"errors\":2"), "{}", lines[2]);
+}
+
+#[test]
+fn json_mode_reports_a_command_error_as_a_diagnostic_with_no_code() {
+    let dir = scratch("hd-check-json-nopkg");
+    let r = check(&dir, "hd-check-cache-json-nopkg", &["--format", "json"]);
+    assert_eq!(r.code, Some(101), "{}", r.err);
+    assert_eq!(r.err, "");
+    let lines: Vec<&str> = r.out.lines().collect();
+    assert_eq!(lines.len(), 2, "{}", r.out);
+    assert!(
+        lines[0].starts_with("{\"kind\":\"diagnostic\",\"code\":null,\"severity\":\"error\"")
+            && lines[0].contains("\"file\":null,\"line\":null,\"column\":null"),
+        "{}",
+        lines[0]
+    );
+    assert!(lines[1].contains("\"status\":101"), "{}", lines[1]);
+}

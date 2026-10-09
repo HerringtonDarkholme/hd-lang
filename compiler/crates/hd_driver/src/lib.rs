@@ -220,6 +220,9 @@ pub struct Output {
     pub diags: DiagBuf,
     /// Package-relative file paths, indexed by a diagnostic's `FileId`.
     pub files: Vec<String>,
+    /// Per file, the files of the modules its `use`s reach (from the
+    /// skims this run made; empty for a file it did not skim).
+    pub uses: Vec<Vec<usize>>,
     pub counters: Counters,
     pub report: PipelineReport,
     /// Each built folder interface's blob, by folder path.
@@ -566,6 +569,14 @@ pub fn build_packages(
             &format!("packages depend on each other: {}", names.join(" -> ")),
         );
     }
+    for (file, code, message) in &run.table.problems {
+        let span = Span {
+            file: *file,
+            lo: 0,
+            hi: 0,
+        };
+        lock(&run.diags).error(*code, span, message);
+    }
     let mut g = TaskGraph::default();
     let mut skims = Vec::new();
     for i in 0..n {
@@ -603,11 +614,25 @@ pub fn build_packages(
         .filter_map(|f| Some((f.path.clone(), run.iface_of(f.id)?.blob.clone())))
         .collect();
     let cases = run.test_cases();
+    let uses = run
+        .skim
+        .iter()
+        .map(|s| {
+            s.get().map_or_else(Vec::new, |s| {
+                s.uses
+                    .iter()
+                    .filter_map(|u| run.table.module_of_use(u))
+                    .map(|m| run.table.modules[m.idx()].file.idx())
+                    .collect()
+            })
+        })
+        .collect();
     Output {
         tests: cases,
         wasm,
         diags,
         files: run.table.files.clone(),
+        uses,
         counters,
         report,
         ifaces,

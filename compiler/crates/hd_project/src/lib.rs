@@ -6,10 +6,17 @@
 //! No file system access here (§2.2 rule 3): sources come through
 //! `SourceSet`, which the CLI implements over the disk and `hd_web` over JS.
 
+mod manifest;
+
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use hd_base::{FileId, FolderId, ModuleId, NotImplemented, Stage, StageResult};
+use hd_base::{FileId, FolderId, ModuleId};
+use hd_diag::Code;
+
+pub use manifest::{
+    Manifest, Problem, Requirement, Version, compatibility_line, parse_manifest, problems,
+};
 
 /// One file of a source set: its package-relative path with `/`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -51,81 +58,6 @@ impl SourceSet for MemorySources {
     fn read(&self, path: &str) -> Option<Arc<[u8]>> {
         self.files.get(path).cloned()
     }
-}
-
-/// The manifest's package section (`hd.toml`), parsed with `toml`.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Manifest {
-    pub name: String,
-    pub version: Option<String>,
-    pub dependencies: Vec<Requirement>,
-    pub dev_dependencies: Vec<Requirement>,
-}
-
-/// One dependency requirement of a manifest (`module.dep.*`).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Requirement {
-    /// The manifest key, as written.
-    pub key: String,
-    /// The directory of a path requirement, relative to the requiring
-    /// manifest's directory (`module.path-dep.form`).
-    pub path: Option<String>,
-    /// The requirement as written: `PATH@VERSION`, or the inline table.
-    pub text: String,
-}
-
-impl Requirement {
-    /// The name source writes after `dep.`: the key with each `-` as `_`
-    /// (`module.dep.key-name`).
-    #[must_use]
-    pub fn name(&self) -> String {
-        self.key.replace('-', "_")
-    }
-}
-
-fn requirements(table: &toml::Table) -> Vec<Requirement> {
-    table
-        .iter()
-        .map(|(k, v)| Requirement {
-            key: k.clone(),
-            path: v
-                .as_table()
-                .and_then(|t| t.get("path"))
-                .and_then(toml::Value::as_str)
-                .map(str::to_owned),
-            text: v.as_str().map_or_else(|| v.to_string(), str::to_owned),
-        })
-        .collect()
-}
-
-/// Parses `hd.toml`. Sections other than `[package]`, `[dependencies]` and
-/// `[dev-dependencies]` are not implemented yet.
-pub fn parse_manifest(text: &str) -> StageResult<Manifest> {
-    let table: toml::Table = text.parse().map_err(|e: toml::de::Error| {
-        NotImplemented::new(Stage::Discover, format!("manifest: {}", e.message()))
-    })?;
-    let mut m = Manifest::default();
-    for (section, value) in &table {
-        match (section.as_str(), value) {
-            ("package", toml::Value::Table(p)) => {
-                if let Some(toml::Value::String(n)) = p.get("name") {
-                    n.clone_into(&mut m.name);
-                }
-                if let Some(toml::Value::String(v)) = p.get("version") {
-                    m.version = Some(v.clone());
-                }
-            }
-            ("dependencies", toml::Value::Table(d)) => m.dependencies = requirements(d),
-            ("dev-dependencies", toml::Value::Table(d)) => m.dev_dependencies = requirements(d),
-            (other, _) => {
-                return Err(NotImplemented::new(
-                    Stage::Discover,
-                    format!("manifest section [{other}]"),
-                ));
-            }
-        }
-    }
-    Ok(m)
 }
 
 /// The role a file plays (cache.md §5.3).
@@ -366,6 +298,9 @@ pub struct ModuleTable {
     pub sources: Vec<(u16, String)>,
     pub modules: Vec<Module>,
     pub folders: Vec<Folder>,
+    /// Identity errors of discovery (§4.7 step 3): each module's file, the
+    /// code and the message, in path order.
+    pub problems: Vec<(FileId, Code, String)>,
     by_path: BTreeMap<String, ModuleId>,
 }
 
@@ -446,7 +381,54 @@ impl ModuleTable {
                     folder_of(&path).to_owned()
                 };
                 folders.entry(folder).or_insert((pi, Vec::new())).1.push(id);
-                t.by_path.insert(path.clone(), id);
+                let file = FileId::from_raw(id.raw());
+                let beside = match Root::of(&e.path) {
+                    (Root::Test | Root::Task, rest) => !rest.contains('/') && dirs.contains(stem),
+                    _ => false,
+                };
+                if pi == 0 && e.path == "src/mod.hd" {
+                    // `module.path.no-root-mod`.
+                    t.problems.push((
+                        file,
+                        Code::ReservedModuleName,
+                        "`src/mod.hd` is reserved: the package root module is `src/lib.hd`; rename it `src/lib.hd`"
+                            .to_owned(),
+                    ));
+                } else if beside {
+                    // `module.test.integration.beside-dir`, `cli.task.beside-dir`.
+                    t.problems.push((
+                        file,
+                        Code::DuplicateModuleName,
+                        format!(
+                            "`{}` lies beside the directory `{stem}/`, and both are one module; move it to `{stem}/mod.hd`",
+                            e.path
+                        ),
+                    ));
+                }
+                match t.by_path.entry(path.clone()) {
+                    std::collections::btree_map::Entry::Vacant(v) => {
+                        v.insert(id);
+                    }
+                    std::collections::btree_map::Entry::Occupied(o) => {
+                        // `module.path.unique`; a file reported above, as
+                        // beside its directory, is not reported twice.
+                        let first = o.get().idx();
+                        let flagged = t
+                            .problems
+                            .iter()
+                            .any(|(f, _, _)| f.idx() == first || *f == file);
+                        if !flagged {
+                            t.problems.push((
+                                file,
+                                Code::DuplicateModuleName,
+                                format!(
+                                    "`{}` and `{}` are both module `{path}`",
+                                    t.sources[first].1, e.path
+                                ),
+                            ));
+                        }
+                    }
+                }
                 t.files.push(if pi == 0 {
                     e.path.clone()
                 } else {
@@ -459,7 +441,7 @@ impl ModuleTable {
                 };
                 t.modules.push(Module {
                     id,
-                    file: FileId::from_raw(id.raw()),
+                    file,
                     base: if is_root_file(&e.path) {
                         floor.clone()
                     } else {
@@ -947,5 +929,31 @@ mod tests {
             p("fx", Vec::new()),
         ]);
         assert_eq!(t.package_cycles(), [vec![0, 1]]);
+    }
+
+    /// `tasks/shared.hd` beside `tasks/shared/` is one error on the file
+    /// (`cli.task.beside-dir`); `src/x.hd` beside `src/x/` is the parent
+    /// file of folder `x` and no error (`module.folder.parent-file`).
+    #[test]
+    fn a_task_file_beside_its_directory_is_a_duplicate_module() {
+        let mut s = MemorySources::default();
+        for f in [
+            "src/x.hd",
+            "src/x/y.hd",
+            "tasks/shared.hd",
+            "tasks/shared/mod.hd",
+        ] {
+            s.insert(f, "");
+        }
+        let t = ModuleTable::discover("shop", &s);
+        let found: Vec<(&str, hd_diag::Code)> = t
+            .problems
+            .iter()
+            .map(|(f, c, _)| (t.files[f.idx()].as_str(), *c))
+            .collect();
+        assert_eq!(
+            found,
+            [("tasks/shared.hd", hd_diag::Code::DuplicateModuleName)]
+        );
     }
 }

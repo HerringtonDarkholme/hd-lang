@@ -4,8 +4,15 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use hd_diag::Code;
 use hd_driver::{Dependency, Packages};
 use hd_project::{Manifest, SourceEntry, SourceSet, module_below, parse_manifest};
+
+use crate::report::Diag;
+
+/// This toolchain's version, which a manifest's `[package] hd` minimum is
+/// compared with (`module.toolchain.graph-minimum`).
+const TOOLCHAIN: &str = env!("CARGO_PKG_VERSION");
 
 /// Every `.hd` file under a root, read on demand.
 pub struct DiskSources {
@@ -62,6 +69,9 @@ pub struct Program {
     pub requires: Requires,
     /// The packages its path requirements reach.
     pub deps: Vec<DiskPackage>,
+    /// What its manifest breaks (commands.md §7.1 step 1); any error stops
+    /// the command before compiling.
+    pub problems: Vec<Diag>,
 }
 
 /// A package that a path requirement reaches.
@@ -254,6 +264,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
         entry: module_below(&name),
         requires: Vec::new(),
         deps: Vec::new(),
+        problems: Vec::new(),
     })
 }
 
@@ -261,6 +272,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
 /// package-relative file `entry` as its entry module.
 pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
     let (sources, package) = sources_of(root)?;
+    let problems = manifest_problems(root, &package)?;
     let (requires, deps) = dependencies(root)?;
     Ok(Program {
         sources,
@@ -268,7 +280,98 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
         entry: module_below(entry),
         requires,
         deps,
+        problems,
     })
+}
+
+/// Whether `dir` holds a manifest that declares a package
+/// (`module.path-dep.no-package`).
+fn declares_package(dir: &Path) -> Result<bool, String> {
+    Ok(manifest_of(dir)?.is_some_and(|m| !m.name.is_empty()))
+}
+
+/// What the root manifest breaks, in line order: the rules of the manifest
+/// alone (`hd_project::problems`), then those that need the disk: a path
+/// requirement's package and library (`module.path-dep.no-package`,
+/// `cli.dep.no-library`), a dependency requirement's `hd.sum` entry
+/// (`cli.dep.missing-sum`), and a task named as an executable
+/// (`cli.task.name-clash`).
+fn manifest_problems(root: &Path, package: &str) -> Result<Vec<Diag>, String> {
+    const FILE: &str = "hd.toml";
+    let Some(m) = manifest_of(root)? else {
+        return Ok(Vec::new());
+    };
+    let own = hd_project::problems(&m, TOOLCHAIN);
+    let mut out: Vec<(Option<u32>, Diag)> = Vec::new();
+    let sum = std::fs::read_to_string(root.join("hd.sum")).unwrap_or_default();
+    for r in m.dependencies.iter().chain(&m.dev_dependencies) {
+        if own.iter().any(|p| p.line == Some(r.line)) {
+            continue;
+        }
+        let why = if let Some(dir) = &r.path {
+            let dir_path = root.join(dir);
+            if !declares_package(&dir_path)? {
+                Some((
+                    Code::InvalidRequirement,
+                    format!(
+                        "`{}` requires the directory `{dir}`, which holds no package: it has no `hd.toml` with a `[package]` section",
+                        r.key
+                    ),
+                ))
+            } else if !dir_path.join("src/lib.hd").is_file() {
+                Some((
+                    Code::InvalidRequirement,
+                    format!(
+                        "`{}` requires the package in `{dir}`, which has no library (`src/lib.hd`), so no package can depend on it",
+                        r.key
+                    ),
+                ))
+            } else {
+                None
+            }
+        } else {
+            let entry = format!("{} ", r.text);
+            (!sum.lines().any(|l| l.starts_with(&entry))).then(|| {
+                (
+                    Code::MissingSumEntry,
+                    format!(
+                        "`{}` has no `hd.sum` entry; run `hd fetch` to fetch it and record its hash, or `hd add` to require it",
+                        r.text
+                    ),
+                )
+            })
+        };
+        if let Some((code, message)) = why {
+            out.push((
+                Some(r.line),
+                Diag::error(Some(code), &message).at(FILE, Some(r.line as usize)),
+            ));
+        }
+    }
+    for p in own {
+        out.push((
+            p.line,
+            Diag::error(Some(p.code), &p.message).at(FILE, p.line.map(|l| l as usize)),
+        ));
+    }
+    out.sort_by_key(|(line, _)| *line);
+    let executables = executables(root, package);
+    for t in tasks(root) {
+        if executables.iter().any(|e| e.name == t.name) {
+            out.push((
+                None,
+                Diag::error(
+                    Some(Code::DuplicateExecutableName),
+                    &format!(
+                        "the task `{}` and an executable have the same name; rename `{}`",
+                        t.name, t.file
+                    ),
+                )
+                .at(FILE, None),
+            ));
+        }
+    }
+    Ok(out.into_iter().map(|(_, d)| d).collect())
 }
 
 /// What `hd run NAME` can run: its name and the package-relative file of

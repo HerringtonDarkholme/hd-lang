@@ -87,14 +87,6 @@ When the queue is empty, say so under "Questions" and wait.
 
 ## Jobs
 
-### O1. `hd check --format json` Gaps (#105)
-
-About 22 CLI cases fail on `hd check --format json`: no JSON in some
-modes, exit 0 where the spec says 101, an extra `unknown-module` line.
-Spec: `spec/cli/command-line.md` `cli.json.*` and the check output rules
-(`cli.check.report.*`, `cli.check.summary-mode.*`). Find the cases in the
-CLI conformance run (`spec/conformance/cli-cases.tsv`, `cli/*/expect.txt`).
-
 ### O2. `--format json` On `hd run`, `hd build`, `hd test`, `hd FILE` (#104)
 
 About 14 CLI cases. Same `cli.json.*` rules, including
@@ -142,4 +134,25 @@ One commit per command; skip a command whose spec needs a design that
 
 ## Questions
 
-(none)
+- **O1, `cli/ambiguous-import` (fixture).** Its expected JSON line has
+  `notes`, `related`, `fix`, `rule` and `rules` fields and an exact
+  message in single quotes. No `cli.json.*` rule names those fields
+  (`cli.json.diagnostic.fields` lists `code`, `severity`, `message`,
+  `file`, `line`, `column`; `cli.json.diagnostic.fixes` adds `fixes`).
+  Should the fixture drop them, or should a spec rule add them? The case
+  also needs `[[executable]]` (O6) first.
+- **O1, `hd check FILE` in a package (design).** `commands.md` §7.2
+  says "Check only FILE's module", but `cli/json-file-location` expects
+  the `type-mismatch` in `src/util.hd` when checking `src/main.hd`, which
+  uses it (`cli.package.file`: "linked with the rest of the package"),
+  while `cli/check-summary` expects siblings that FILE does not use to
+  stay silent. I took the reading that fits both: FILE's module and every
+  module it uses, deeply. §7.2 step 2 could say so.
+- **O1 left for later jobs.** The other `hd check --format json` cases
+  wait on `[[executable]]` and `[workspace]` (O6: `exe-*`,
+  `json-diagnostic-fixes`, `manifest-unknown-key`, `member-unlisted`,
+  `ambiguous-import`), dev-dependency loading (O7:
+  `dev-dependency-non-test`, whose `unknown-module` line becomes
+  `test-only-use`), `hd remove` (O8: `dep-missing-sum`, whose check step
+  now passes), and `hd build --format json` (O2:
+  `build-instantiation-too-deep`).

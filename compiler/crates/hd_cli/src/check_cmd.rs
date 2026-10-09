@@ -10,9 +10,10 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 use hd_cache::DiskStore;
-use hd_diag::Severity;
+use hd_diag::Code;
 use hd_driver::{Goal, Host, Output, build_packages};
 
+use crate::report::{self, Diag, Summary};
 use crate::{HD_FAILURE, Wall, cache_dir, disk, executor, fail, package_of_cwd};
 
 /// What `hd check` was asked for.
@@ -130,182 +131,116 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
         Ok(o) => o,
         Err(e) => return fail(&e),
     };
-    let t = match target(o.file.as_ref()) {
-        Ok(t) => t,
-        Err(e) => return fail(&e),
+    let (diags, modules_checked) = match target(o.file.as_ref()) {
+        Ok(t) if t.program.problems.iter().any(Diag::is_error) => (t.program.problems, 0),
+        Ok(t) => {
+            let store = DiskStore { root: cache_dir() };
+            let clock = Wall(Instant::now());
+            let host = Host {
+                render_tir: &[],
+                sources: &t.program.sources,
+                store: &store,
+                clock: &clock,
+                executor: executor(),
+            };
+            let out = build_packages(
+                &host,
+                &t.program.package,
+                &t.program.packages(),
+                &Goal::Analyze,
+            );
+            let shown = shown(&out, &t);
+            let mut diags = t.program.problems;
+            diags.extend(shown);
+            (diags, out.counters.modules_checked.len())
+        }
+        Err(e) => (vec![Diag::error(None, &e)], 0),
     };
-    let store = DiskStore { root: cache_dir() };
-    let clock = Wall(Instant::now());
-    let host = Host {
-        render_tir: &[],
-        sources: &t.program.sources,
-        store: &store,
-        clock: &clock,
-        executor: executor(),
-    };
-    let out = build_packages(
-        &host,
-        &t.program.package,
-        &t.program.packages(),
-        &Goal::Analyze,
-    );
-    let order = shown(&out, &t);
-    let failed = order
-        .iter()
-        .any(|&i| out.diags.severity[i] == Severity::Error);
+    let failed = diags.iter().any(Diag::is_error);
+    let status = if failed { HD_FAILURE } else { 0 };
     if o.json {
-        print!("{}", json_lines(&out, &t, &order, failed));
+        let mut text = String::new();
+        for d in &diags {
+            let _ = writeln!(text, "{}", d.json());
+        }
+        let summary = Summary {
+            status,
+            modules_checked: Some(modules_checked),
+            ..Summary::of(&diags)
+        };
+        let _ = writeln!(text, "{}", summary.json());
+        print!("{text}");
     } else {
-        eprint!("{}", text_report(&out, &t, &order, &o, failed));
+        eprint!("{}", text_report(&diags, &o));
     }
-    if failed {
-        ExitCode::from(HD_FAILURE)
-    } else {
-        ExitCode::SUCCESS
-    }
+    ExitCode::from(status)
 }
 
 /// The diagnostics this run reports, in content order. A FILE in a package
-/// narrows them to that file's module (`cli.package.file`).
-fn shown(out: &Output, t: &Target) -> Vec<usize> {
-    let mut order = out.diags.content_order();
-    if let Some(only) = &t.only {
-        order.retain(|&i| out.locate(&t.program.sources, out.diags.primary[i]).0 == *only);
+/// narrows them to its module and the modules it uses, deeply
+/// (`cli.package.file`); a diagnostic of no file is kept.
+fn shown(out: &Output, t: &Target) -> Vec<Diag> {
+    let all = report::from_output(out, &t.program.sources, t.as_written.as_deref());
+    let Some(only) = &t.only else {
+        return all;
+    };
+    let mut reached = vec![false; out.files.len()];
+    let mut stack: Vec<usize> = out
+        .files
+        .iter()
+        .position(|f| f == only)
+        .into_iter()
+        .collect();
+    while let Some(f) = stack.pop() {
+        if !std::mem::replace(&mut reached[f], true) {
+            stack.extend(out.uses.get(f).into_iter().flatten().copied());
+        }
     }
-    order
+    all.into_iter()
+        .filter(|d| {
+            d.file.as_ref().is_none_or(|file| {
+                out.files
+                    .iter()
+                    .position(|f| f == file)
+                    .is_some_and(|i| reached[i])
+            })
+        })
+        .collect()
 }
 
 /// The text report of `cli.check.*`: each diagnostic, or with `--summary` one
 /// line per severity, file, and code, then the `check result` line.
-fn text_report(out: &Output, t: &Target, order: &[usize], o: &Options, failed: bool) -> String {
-    let d = &out.diags;
-    let word = |i: usize| match d.severity[i] {
-        Severity::Error => "error",
-        Severity::Warning => "warning",
-    };
+fn text_report(diags: &[Diag], o: &Options) -> String {
     let mut text = String::new();
     let (mut errors, mut warnings) = (0, 0);
     let mut stopped = false;
-    let mut counts: BTreeMap<(String, &str, &str), usize> = BTreeMap::new();
-    for &i in order {
-        let is_error = d.severity[i] == Severity::Error;
-        if is_error {
+    let mut counts: BTreeMap<(&str, &str, &str), usize> = BTreeMap::new();
+    for d in diags {
+        if d.is_error() {
             errors += 1;
         } else {
             warnings += 1;
         }
-        let (file, line, column) = out.locate(&t.program.sources, d.primary[i]);
-        let code = d.code[i].as_str();
         if o.summary {
-            *counts.entry((file, code, word(i))).or_insert(0) += 1;
+            let file = d.file.as_deref().unwrap_or("");
+            let code = d.code.map_or("", Code::as_str);
+            *counts.entry((file, code, d.severity_word())).or_insert(0) += 1;
             continue;
         }
         if stopped {
             continue;
         }
-        let raw = d.get_text(d.message[i]);
-        let message = raw
-            .strip_prefix(code)
-            .and_then(|rest| rest.strip_prefix(": "))
-            .unwrap_or(raw);
-        let _ = writeln!(
-            text,
-            "{}: {file}:{line}:{column}: {code}: {message}",
-            word(i)
-        );
+        let _ = writeln!(text, "{}", d.text());
         // Printing stops after the Nth error; the counts keep going.
-        stopped = is_error && o.max_errors.is_some_and(|n| errors >= n);
+        stopped = d.is_error() && o.max_errors.is_some_and(|n| errors >= n);
     }
     for ((file, code, severity), n) in &counts {
         let _ = writeln!(text, "{severity}: {file}: {code}: {n}");
     }
-    let result = if failed { "FAILED" } else { "ok" };
+    let result = if errors > 0 { "FAILED" } else { "ok" };
     let _ = writeln!(
         text,
         "check result: {result}. errors: {errors}; warnings: {warnings}"
     );
     text
-}
-
-/// The JSON lines of `cli.json.*`: each diagnostic, then the summary.
-fn json_lines(out: &Output, t: &Target, order: &[usize], failed: bool) -> String {
-    let d = &out.diags;
-    let name = |file: String| t.as_written.clone().unwrap_or(file);
-    let mut text = String::new();
-    let (mut errors, mut warnings) = (0, 0);
-    for &i in order {
-        let severity = match d.severity[i] {
-            Severity::Error => {
-                errors += 1;
-                "error"
-            }
-            Severity::Warning => {
-                warnings += 1;
-                "warning"
-            }
-        };
-        let (file, line, column) = out.locate(&t.program.sources, d.primary[i]);
-        let _ = write!(
-            text,
-            "{{\"kind\":\"diagnostic\",\"code\":\"{}\",\"severity\":\"{severity}\",\"message\":{},\"file\":{},\"line\":{line},\"column\":{column},\"fixes\":[",
-            d.code[i].as_str(),
-            quote(d.get_text(d.message[i])),
-            quote(&name(file)),
-        );
-        let fixes = d.fixes[i];
-        for (n, f) in (fixes.start as usize..(fixes.start + fixes.len) as usize).enumerate() {
-            if n > 0 {
-                text.push(',');
-            }
-            let _ = write!(
-                text,
-                "{{\"message\":{},\"edits\":[",
-                quote(d.get_text(d.fix_title[f]))
-            );
-            let edits = d.fix_edits[f];
-            for (m, e) in d.edits[edits.range()].iter().enumerate() {
-                if m > 0 {
-                    text.push(',');
-                }
-                let (file, _, _) = out.locate(&t.program.sources, e.span);
-                let _ = write!(
-                    text,
-                    "{{\"file\":{},\"start\":{},\"end\":{},\"text\":{}}}",
-                    quote(&name(file)),
-                    e.span.lo,
-                    e.span.hi,
-                    quote(d.get_text(e.text))
-                );
-            }
-            text.push_str("]}");
-        }
-        text.push_str("]}\n");
-    }
-    let status = if failed { u32::from(HD_FAILURE) } else { 0 };
-    let _ = writeln!(
-        text,
-        "{{\"kind\":\"summary\",\"errors\":{errors},\"warnings\":{warnings},\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":{status},\"modules_checked\":{}}}",
-        out.counters.modules_checked.len()
-    );
-    text
-}
-
-/// A JSON string literal.
-fn quote(s: &str) -> String {
-    let mut out = String::from("\"");
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            c if u32::from(c) < 0x20 => {
-                let _ = write!(out, "\\u{:04x}", u32::from(c));
-            }
-            c => out.push(c),
-        }
-    }
-    out.push('"');
-    out
 }

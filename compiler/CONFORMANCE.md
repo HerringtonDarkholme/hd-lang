@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1661 | 679 | 504 | 2844 |
+| 1664 | 676 | 504 | 2844 |
 
 ## By Chapter
 
@@ -23,7 +23,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/07-functions.md` | 51 | 34 | 45 | 130 |
 | `lang/08-data-and-enums.md` | 52 | 40 | 31 | 123 |
 | `lang/09-traits.md` | 201 | 117 | 41 | 359 |
-| `lang/10-modules.md` | 127 | 85 | 46 | 258 |
+| `lang/10-modules.md` | 130 | 82 | 46 | 258 |
 | `lang/11-requirements-and-suspension.md` | 104 | 54 | 101 | 259 |
 | `lang/14-annotations.md` | 84 | 55 | 14 | 153 |
 | `std/cli.md` | 1 | 0 | 4 | 5 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 57 | 32 | 16 | 105 |
 | `runtime/valid` | 424 | 172 | 333 | 929 |
-| `typing/invalid` | 549 | 416 | 109 | 1074 |
+| `typing/invalid` | 552 | 413 | 109 | 1074 |
 | `typing/valid` | 335 | 34 | 46 | 415 |
 | `typing/warnings` | 9 | 11 | 0 | 20 |
 
@@ -94,7 +94,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 9 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 263 |
+| `fail:no-diagnostic` | 260 |
 | `fail:nonexhaustive-match` | 16 |
 | `fail:not-callable` | 1 |
 | `fail:orphan-impl` | 1 |
@@ -302,7 +302,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (263)</summary>
+<details><summary><code>fail:no-diagnostic</code> (260)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -556,9 +556,6 @@ compiler stage that first declined the case.
 - `typing/invalid/data-literal-private-field-other-module.hd`
 - `typing/invalid/entry-point-parameters.hd`
 - `typing/invalid/generic-entry-point.hd`
-- `typing/invalid/root-mod-file.hd`
-- `typing/invalid/module-file-and-directory-module.hd`
-- `typing/invalid/integration-file-beside-directory.hd`
 - `typing/invalid/module-path-not-identifier.hd`
 - `typing/invalid/impl-head-projection.hd`
 - `typing/invalid/dyn-inherent-nonlocal.hd`
@@ -2596,6 +2593,7 @@ typing/invalid/inspectable-needs-import.hd
 typing/invalid/integer-literal-match-without-catch-all.hd
 typing/invalid/integer-literal-range.hd
 typing/invalid/integer-narrowing.hd
+typing/invalid/integration-file-beside-directory.hd
 typing/invalid/integration-program-use.hd
 typing/invalid/integration-super-above-test-root.hd
 typing/invalid/integration-tests-root-use.hd
@@ -2673,6 +2671,7 @@ typing/invalid/missing-requirement.hd
 typing/invalid/missing-return-value.hd
 typing/invalid/missing-trait-method.hd
 typing/invalid/mixed-derived-law.hd
+typing/invalid/module-file-and-directory-module.hd
 typing/invalid/module-qualified-without-use.hd
 typing/invalid/mut-any-bound-readonly-argument.hd
 typing/invalid/mut-iterator-iterable-bound.hd
@@ -2810,6 +2809,7 @@ typing/invalid/result-ok-payload-type-mismatch.hd
 typing/invalid/result-ok-without-unit.hd
 typing/invalid/root-file-lib-super.hd
 typing/invalid/root-file-super.hd
+typing/invalid/root-mod-file.hd
 typing/invalid/row-extension-keeps-other-keys.hd
 typing/invalid/row-extension-unsound.hd
 typing/invalid/row-extension-without-provider.hd
@@ -3272,7 +3272,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 19 | 83 | 0 | 102 |
+| 28 | 74 | 0 | 102 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3281,8 +3281,13 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 cli/build-output
 cli/check-summary
 cli/clean-outside-package
+cli/dep-invalid-manifest
+cli/dep-key-collision
+cli/dep-no-library
+cli/dep-one-key-per-line
 cli/dep-outside-package
 cli/dep-package-cycle
+cli/dep-path-no-package
 cli/derivation-lines-agree
 cli/entry-err-display
 cli/exit-hd-failure
@@ -3295,7 +3300,11 @@ cli/json-check-clean
 cli/json-check-error
 cli/json-check-modules-checked
 cli/json-check-warning
+cli/json-file-location
 cli/json-file-single
+cli/task-beside-dir
+cli/task-name-clash
+cli/toolchain-too-old
 cli/wasm-invalid
 ```
 <!-- cli-pass-list-end -->

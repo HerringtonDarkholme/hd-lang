@@ -6,6 +6,7 @@
 mod check_cmd;
 mod disk;
 mod node;
+mod report;
 mod test_cmd;
 
 use std::ffi::OsString;
@@ -107,6 +108,12 @@ pub(crate) fn executor() -> Executor {
 /// Builds `goal` over a program's sources and prints the diagnostics.
 /// Warnings are shown; only errors stop the command.
 fn build_goal(program: &disk::Program, goal: &Goal) -> Result<Output, ExitCode> {
+    for d in &program.problems {
+        eprintln!("{}", d.text());
+    }
+    if program.problems.iter().any(report::Diag::is_error) {
+        return Err(ExitCode::from(HD_FAILURE));
+    }
     let store = DiskStore { root: cache_dir() };
     let clock = Wall(Instant::now());
     let host = Host {

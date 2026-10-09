@@ -115,6 +115,12 @@ pub fn command(args: &[OsString]) -> ExitCode {
         Ok(p) => p,
         Err(e) => return fail(&e),
     };
+    for d in &program.problems {
+        eprintln!("{}", d.text());
+    }
+    if program.problems.iter().any(crate::report::Diag::is_error) {
+        return ExitCode::from(HD_FAILURE);
+    }
     let (sources, package) = (&program.sources, &program.package);
     let store = DiskStore { root: cache_dir() };
     let clock = Wall(Instant::now());
