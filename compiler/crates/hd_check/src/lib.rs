@@ -31,7 +31,7 @@ mod trial;
 mod ty;
 mod update;
 
-pub use body::{BodyCx, check_default, check_fn, default_body_def};
+pub use body::{BodyCx, TestsView, check_default, check_fn, default_body_def};
 pub use call::MethodIndex;
 pub use conform::omitted_trait_methods;
 pub use render::render;

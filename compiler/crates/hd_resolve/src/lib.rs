@@ -30,7 +30,8 @@ pub use iface::{
 pub use known::KnownItems;
 pub use lower::{
     Cx, FolderOut, Head, Kinds, LocalItem, LocalSite, ModIn, ModOut, PRELUDE, UseDecl, World,
-    body_nodes, build_folder, heads, local_at, local_items, prelude_modules, use_decls,
+    body_nodes, build_folder, heads, local_at, local_items, prelude_modules, test_use_decls,
+    tests_items, use_decls,
 };
 pub use view::Src;
 
@@ -109,6 +110,38 @@ impl ModuleScope {
     #[must_use]
     pub fn lookup(&self, name: Symbol) -> Option<Binding> {
         self.index.get(&name).map(|&r| self.binding[r as usize])
+    }
+
+    /// This scope with `inner` nested in it: each name `inner` binds
+    /// replaces this scope's binding of that name, as a nested scope's
+    /// names shadow the enclosing ones (`names.tests.shadow`).
+    #[must_use]
+    pub fn overlay(&self, inner: &ModuleScope) -> ModuleScope {
+        let mut out = self.clone();
+        let base = u32::try_from(out.modules.len()).expect("scope modules");
+        out.modules.extend(inner.modules.iter().cloned());
+        for (r, &name) in inner.name.iter().enumerate() {
+            if !out.index.contains_key(&name) {
+                let row = u32::try_from(out.name.len()).expect("scope rows");
+                out.name.push(name);
+                out.binding.push(inner.binding[r]);
+                out.origin.push(inner.origin[r]);
+                out.use_row.push(inner.use_row[r]);
+                out.index.insert(name, row);
+            }
+            let row = out.index[&name];
+            let mut b = inner.binding[r];
+            match b.kind {
+                BindingKind::Module => b.value += base,
+                BindingKind::Ambiguous => b.value = row,
+                _ => {}
+            }
+            let at = row as usize;
+            out.binding[at] = b;
+            out.origin[at] = inner.origin[r];
+            out.use_row[at] = inner.use_row[r];
+        }
+        out
     }
 }
 

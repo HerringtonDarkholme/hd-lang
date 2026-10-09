@@ -69,15 +69,24 @@ pub struct TestsOut {
     pub regs: Vec<TestReg>,
 }
 
-/// The statements of a module's `tests:` blocks.
+/// The statements of a module's `tests:` block: its items other than use
+/// declarations and declarations (`grammar.tests.item-forms`), which are
+/// the module's test items.
 #[must_use]
-pub fn tests_block_statements(root: NodeRef<'_>) -> Vec<NodeRef<'_>> {
-    root.children()
-        .filter(|c| c.kind() == SyntaxKind::TestsBlock)
-        .flat_map(hd_syntax::NodeRef::children)
-        .filter(|b| b.kind() == SyntaxKind::Block)
-        .flat_map(hd_syntax::NodeRef::children)
-        .filter(|s| s.kind() != SyntaxKind::UseDecl)
+pub fn tests_block_statements<'t>(src: &Src<'t>) -> Vec<NodeRef<'t>> {
+    hd_resolve::tests_items(src)
+        .filter(|s| {
+            !matches!(
+                s.kind(),
+                SyntaxKind::UseDecl
+                    | SyntaxKind::FnDecl
+                    | SyntaxKind::DataDecl
+                    | SyntaxKind::EnumDecl
+                    | SyntaxKind::TraitDecl
+                    | SyntaxKind::TypeDecl
+                    | SyntaxKind::ImplDecl
+            )
+        })
         .collect()
 }
 
@@ -314,6 +323,8 @@ fn check_case(
         (ret, RowId::EMPTY),
         diags,
     );
+    // The body sees what is in scope in its `tests:` block.
+    ck.move_to(cx.src.span(block).lo);
     ck.suspends = vec![true];
     ck.rows = vec![RowFrame::Profile {
         row: profile,

@@ -97,89 +97,100 @@ impl UseDecl {
     }
 }
 
-/// The use declarations of a file, in order.
+/// The top-level use declarations of a file, in order. The uses of its
+/// `tests:` block are [`test_use_decls`].
 #[must_use]
 pub fn use_decls(src: &Src<'_>, roots: &UseRoots) -> Vec<UseDecl> {
-    let mut out = Vec::new();
-    // A `tests:` block's uses join the module's scope (a phase-1
-    // simplification: the spec scopes them to the block).
-    let in_tests = src
-        .root()
+    src.root()
+        .children()
+        .filter(|c| c.kind() == SyntaxKind::UseDecl)
+        .map(|item| use_decl(src, item, roots, false))
+        .collect()
+}
+
+/// The items of a file's `tests:` block (`grammar.tests.item-forms`).
+pub fn tests_items<'t>(src: &Src<'t>) -> impl Iterator<Item = NodeRef<'t>> {
+    src.root()
         .children()
         .filter(|c| c.kind() == SyntaxKind::TestsBlock)
         .flat_map(hd_syntax::NodeRef::children)
         .filter(|b| b.kind() == SyntaxKind::Block)
-        .flat_map(hd_syntax::NodeRef::children);
-    for (item, tests) in src
-        .root()
-        .children()
-        .map(|c| (c, false))
-        .chain(in_tests.map(|c| (c, true)))
-        .filter(|(c, _)| c.kind() == SyntaxKind::UseDecl)
-    {
-        let mut path: Vec<String> = Vec::new();
-        let mut alias = None;
-        let mut public = false;
-        let mut after_as = false;
-        let mut seen_use = false;
-        for t in item.direct_tokens() {
-            match src.tkind(t) {
-                Some(TokenKind::KwPub) => public = true,
-                Some(TokenKind::Ident | TokenKind::RawIdent | TokenKind::KwSelfValue) => {
-                    let text = src.text(t);
-                    if !seen_use && text == "use" {
-                        seen_use = true;
-                    } else if text == "as" {
-                        after_as = true;
-                    } else if after_as {
-                        alias = Some(text.to_owned());
-                    } else {
-                        path.push(text.to_owned());
-                    }
+        .flat_map(hd_syntax::NodeRef::children)
+}
+
+/// The use declarations of a file's `tests:` block, in order. They are
+/// test code, and only the block sees their names (`names.tests.inside-only`).
+#[must_use]
+pub fn test_use_decls(src: &Src<'_>, roots: &UseRoots) -> Vec<UseDecl> {
+    tests_items(src)
+        .filter(|c| c.kind() == SyntaxKind::UseDecl)
+        .map(|item| use_decl(src, item, roots, true))
+        .collect()
+}
+
+/// One use declaration; `tests` when it is in a `tests:` block.
+fn use_decl(src: &Src<'_>, item: NodeRef<'_>, roots: &UseRoots, tests: bool) -> UseDecl {
+    let mut path: Vec<String> = Vec::new();
+    let mut alias = None;
+    let mut public = false;
+    let mut after_as = false;
+    let mut seen_use = false;
+    for t in item.direct_tokens() {
+        match src.tkind(t) {
+            Some(TokenKind::KwPub) => public = true,
+            Some(TokenKind::Ident | TokenKind::RawIdent | TokenKind::KwSelfValue) => {
+                let text = src.text(t);
+                if !seen_use && text == "use" {
+                    seen_use = true;
+                } else if text == "as" {
+                    after_as = true;
+                } else if after_as {
+                    alias = Some(text.to_owned());
+                } else {
+                    path.push(text.to_owned());
                 }
-                _ => {}
             }
+            _ => {}
         }
-        let group = Src::child(item, SyntaxKind::UseGroup).map(|g| {
-            g.children()
-                .filter(|c| c.kind() == SyntaxKind::UseItem)
-                .filter_map(|ui| {
-                    let toks: Vec<_> = ui
-                        .direct_tokens()
-                        .filter(|t| src.tkind(*t) == Some(TokenKind::Ident))
-                        .collect();
-                    let first = *toks.first()?;
-                    let alias = (toks.len() >= 3 && src.text(toks[1]) == "as")
-                        .then(|| src.text(toks[2]).to_owned());
-                    Some(UseName {
-                        name: src.text(first).to_owned(),
-                        alias,
-                        span: src.span(ui),
-                    })
-                })
-                .collect()
-        });
-        // A `tests:` block's use is test code, which may name a dev
-        // dependency (`module.test.dev-dependency.in-tests`).
-        let absolute = if tests {
-            roots.absolute_in_tests(&path)
-        } else {
-            roots.absolute(&path)
-        };
-        let (path, root_error) = match absolute {
-            Ok(abs) => (abs, None),
-            Err(e) => (path, Some(e)),
-        };
-        out.push(UseDecl {
-            public,
-            path,
-            group,
-            alias,
-            span: src.span(item),
-            root_error,
-        });
     }
-    out
+    let group = Src::child(item, SyntaxKind::UseGroup).map(|g| {
+        g.children()
+            .filter(|c| c.kind() == SyntaxKind::UseItem)
+            .filter_map(|ui| {
+                let toks: Vec<_> = ui
+                    .direct_tokens()
+                    .filter(|t| src.tkind(*t) == Some(TokenKind::Ident))
+                    .collect();
+                let first = *toks.first()?;
+                let alias = (toks.len() >= 3 && src.text(toks[1]) == "as")
+                    .then(|| src.text(toks[2]).to_owned());
+                Some(UseName {
+                    name: src.text(first).to_owned(),
+                    alias,
+                    span: src.span(ui),
+                })
+            })
+            .collect()
+    });
+    // A `tests:` block's use is test code, which may name a dev
+    // dependency (`module.test.dev-dependency.in-tests`).
+    let absolute = if tests {
+        roots.absolute_in_tests(&path)
+    } else {
+        roots.absolute(&path)
+    };
+    let (path, root_error) = match absolute {
+        Ok(abs) => (abs, None),
+        Err(e) => (path, Some(e)),
+    };
+    UseDecl {
+        public,
+        path,
+        group,
+        alias,
+        span: src.span(item),
+        root_error,
+    }
 }
 
 /// One own item's head and its node.
@@ -192,6 +203,10 @@ pub struct Head<'t> {
     pub public: bool,
     /// Where a block-local declaration is visible; `None` at the top level.
     pub local: Option<LocalSite<'t>>,
+    /// For an item of a `tests:` block, or a local declaration inside one,
+    /// the block: test code, which only the block sees
+    /// (`names.tests.inside-only`).
+    pub test: Option<NodeRef<'t>>,
 }
 
 /// A block-local declaration's place (checking-and-tir.md "Local items
@@ -302,12 +317,24 @@ fn decl_kind(src: &Src<'_>, n: NodeRef<'_>) -> Option<(HeadKind, TokenKind)> {
 
 /// Heads of the module's own items: the top-level ones, each followed by
 /// the block-local declarations of its bodies (checking-and-tir.md "Local
-/// items lift to hidden module items").
+/// items lift to hidden module items"). With `tests`, as test code is
+/// checked, the items of its `tests:` block follow (`names.tests.module-items`).
 #[must_use]
-pub fn heads<'t>(names: &Names<'_>, src: &Src<'t>, module: &str) -> Vec<Head<'t>> {
+pub fn heads<'t>(names: &Names<'_>, src: &Src<'t>, module: &str, tests: bool) -> Vec<Head<'t>> {
     let mut out = Vec::new();
     let mut impl_names: HashMap<String, u32> = HashMap::new();
-    for n in src.root().children() {
+    let top = src.root().children().map(|n| (n, None));
+    let in_tests = src
+        .root()
+        .children()
+        .filter(|c| tests && c.kind() == SyntaxKind::TestsBlock)
+        .flat_map(|b| {
+            Src::child(b, SyntaxKind::Block)
+                .into_iter()
+                .flat_map(hd_syntax::NodeRef::children)
+                .map(move |n| (n, Some(b)))
+        });
+    for (n, holder) in top.chain(in_tests) {
         let Some((kind, kw)) = decl_kind(src, n) else {
             continue;
         };
@@ -331,6 +358,7 @@ pub fn heads<'t>(names: &Names<'_>, src: &Src<'t>, module: &str) -> Vec<Head<'t>
                 node: n,
                 public: true,
                 local: None,
+                test: holder,
             }
         } else {
             let Some(t) = n.name(&src.parse.tokens).or_else(|| src.name_after(n, kw)) else {
@@ -344,11 +372,18 @@ pub fn heads<'t>(names: &Names<'_>, src: &Src<'t>, module: &str) -> Vec<Head<'t>
                 node: n,
                 public: src.is_pub(n),
                 local: None,
+                test: holder,
             }
         };
         out.push(h);
         for (owner, f) in body_nodes(names, src, &[h]) {
-            local_heads(names, src, (owner, f), n, &mut out);
+            local_heads(
+                names,
+                src,
+                (owner, f),
+                (holder.unwrap_or(n), holder),
+                &mut out,
+            );
         }
     }
     out
@@ -363,7 +398,7 @@ fn local_heads<'t>(
     names: &Names<'_>,
     src: &Src<'t>,
     (owner, f): (DefId, NodeRef<'t>),
-    top: NodeRef<'t>,
+    (top, holder): (NodeRef<'t>, Option<NodeRef<'t>>),
     out: &mut Vec<Head<'t>>,
 ) {
     let Some(body) = Src::child(f, SyntaxKind::Block) else {
@@ -409,10 +444,11 @@ fn local_heads<'t>(
                 suite: suite.index(),
                 top,
             }),
+            test: holder,
         };
         out.push(h);
         for (m, mf) in body_nodes(names, src, &[h]) {
-            local_heads(names, src, (m, mf), top, out);
+            local_heads(names, src, (m, mf), (top, holder), out);
         }
     }
 }
@@ -479,6 +515,10 @@ pub struct ModIn<'t> {
     pub src: Src<'t>,
     /// Compiler-supplied items of this module (`seed`).
     pub seeds: Vec<Item>,
+    /// Whether its test code is checked (`hd check --tests`, `hd test`):
+    /// the items of its `tests:` block are then items of the module, which
+    /// only the block sees. A folder interface never holds them.
+    pub tests: bool,
 }
 
 /// One module's result: all its items (private ones included), its scope
@@ -486,6 +526,13 @@ pub struct ModIn<'t> {
 pub struct ModOut {
     pub items: Vec<Item>,
     pub scope: ModuleScope,
+    /// With [`ModIn::tests`], the scope inside its `tests:` block: the
+    /// module's scope with the block's uses and items nested in it
+    /// (`names.tests.sees-module`, `names.tests.shadow`).
+    pub tests: Option<ModuleScope>,
+    /// The diagnostics of its `tests:` block's uses and item headers,
+    /// which no folder interface reports.
+    pub test_diags: DiagBuf,
     pub kinds: Kinds,
     /// Declaration-relative positions of the items (`anchor`).
     pub anchors: crate::anchor::Anchors,
@@ -681,13 +728,13 @@ fn scope_of(
     uses: &[UseDecl],
     diags: &mut DiagBuf,
 ) -> (ModuleScope, Kinds) {
-    let names = &r.cx.names;
     let mut scope = ModuleScope::default();
     let mut kinds = Kinds::new();
     for h in heads {
         // A local declaration's name is in no module scope
-        // (`names.local-type.static`); lowering finds it by position.
-        if h.kind != HeadKind::Impl && h.local.is_none() {
+        // (`names.local-type.static`); lowering finds it by position. Only
+        // its `tests:` block sees a test item (`names.tests.inside-only`).
+        if h.kind != HeadKind::Impl && h.local.is_none() && h.test.is_none() {
             bind_item(&mut scope, h.name, h.def, Origin::Own, u32::MAX);
         }
         kinds.insert(h.def, h.kind);
@@ -700,6 +747,65 @@ fn scope_of(
             kinds.insert(s.def, k);
         }
     }
+    bind_uses(r, &mut scope, &mut kinds, uses, diags);
+    prelude(r, m, heads, &mut scope, &mut kinds, diags);
+    (scope, kinds)
+}
+
+/// The scope inside a module's `tests:` block (spec 03 "Tests Blocks"):
+/// the module's scope with the block's items and uses nested in it, so
+/// the block sees every module name (`names.tests.sees-module`) and its
+/// own names win inside it (`names.tests.shadow`).
+fn test_scope_of(
+    r: &Resolver<'_, '_>,
+    src: &Src<'_>,
+    heads: &[Head<'_>],
+    (scope, kinds): (&ModuleScope, &mut Kinds),
+    uses: &[UseDecl],
+    diags: &mut DiagBuf,
+) -> ModuleScope {
+    let mut inner = ModuleScope::default();
+    for h in heads
+        .iter()
+        .filter(|h| h.test.is_some() && h.local.is_none() && h.kind != HeadKind::Impl)
+    {
+        let span = src.span(h.node);
+        let name = r.cx.names.text(h.name);
+        if h.public {
+            let msg = format!("`{name}` is an item of a `tests:` block, which cannot be `pub`");
+            diags.error(Code::PublicTestItem, span, &msg);
+        }
+        // A test item is a module item, so it repeats no module name
+        // declared outside the block (`names.tests.unique`).
+        let outside = scope
+            .index
+            .get(&h.name)
+            .map(|&row| scope.origin[row as usize]);
+        if matches!(outside, Some(Origin::Own | Origin::Use | Origin::PubUse)) {
+            let msg = format!("the module already declares `{name}` outside its `tests:` block");
+            diags.error(Code::DuplicateModuleName, span, &msg);
+            continue;
+        }
+        bind_item(&mut inner, h.name, h.def, Origin::Own, u32::MAX);
+    }
+    for u in uses.iter().filter(|u| u.public) {
+        let msg = "a use of a `tests:` block cannot be `pub`";
+        diags.error(Code::PublicTestItem, u.span, msg);
+    }
+    bind_uses(r, &mut inner, kinds, uses, diags);
+    scope.overlay(&inner)
+}
+
+/// Binds the names of `uses` in `scope`, and reports each use that names
+/// nothing, whose names stay quiet (poisoned).
+fn bind_uses(
+    r: &Resolver<'_, '_>,
+    scope: &mut ModuleScope,
+    kinds: &mut Kinds,
+    uses: &[UseDecl],
+    diags: &mut DiagBuf,
+) {
+    let names = &r.cx.names;
     for (row, u) in uses.iter().enumerate() {
         let row = u32::try_from(row).unwrap_or(u32::MAX);
         let module = u.module();
@@ -738,7 +844,7 @@ fn scope_of(
                 ),
             };
             diags.error(code, u.span, &msg);
-            poison_use(&mut scope, names, u, row);
+            poison_use(scope, names, u, row);
             continue;
         }
         if let Some(group) = &u.group {
@@ -746,7 +852,7 @@ fn scope_of(
                 if !r.module_exists(&module) {
                     let msg = format!("no module named `{module}`");
                     diags.error(Code::UnknownModule, u.span, &msg);
-                    poison_use(&mut scope, names, u, row);
+                    poison_use(scope, names, u, row);
                     continue;
                 }
                 for g in group {
@@ -759,14 +865,14 @@ fn scope_of(
                             } else {
                                 Origin::Use
                             };
-                            bind_item(&mut scope, local, d, origin, row);
+                            bind_item(scope, local, d, origin, row);
                             kinds.insert(d, k);
                         }
                         Err(code) => {
                             let msg = format!("{} `{}` in `{module}`", code.as_str(), g.name);
                             diags.error(code, g.span, &msg);
                             let local = names.syms.intern(g.alias.as_deref().unwrap_or(&g.name));
-                            bind_poison(&mut scope, local, use_origin(u), row);
+                            bind_poison(scope, local, use_origin(u), row);
                         }
                     }
                 }
@@ -787,7 +893,7 @@ fn scope_of(
                     if as_decl.is_some() {
                         let msg = format!("`{module}` is ambiguous");
                         diags.error(Code::AmbiguousImport, u.span, &msg);
-                        bind_poison(&mut scope, local, use_origin(u), row);
+                        bind_poison(scope, local, use_origin(u), row);
                         continue;
                     }
                     let idx = u32::try_from(scope.modules.len()).unwrap_or(u32::MAX);
@@ -802,12 +908,12 @@ fn scope_of(
                         row,
                     );
                 } else if let Some((d, k)) = as_decl {
-                    bind_item(&mut scope, local, d, Origin::Use, row);
+                    bind_item(scope, local, d, Origin::Use, row);
                     kinds.insert(d, k);
                 } else if !r.module_exists(&parent) {
                     let msg = format!("no module named `{parent}`");
                     diags.error(Code::UnknownModule, u.span, &msg);
-                    bind_poison(&mut scope, local, use_origin(u), row);
+                    bind_poison(scope, local, use_origin(u), row);
                 } else {
                     let code = r
                         .export(&parent, names.syms.intern(last))
@@ -815,11 +921,24 @@ fn scope_of(
                         .unwrap_or(Code::UnknownImport);
                     let msg = format!("{} `{last}` in `{parent}`", code.as_str());
                     diags.error(code, u.span, &msg);
-                    bind_poison(&mut scope, local, use_origin(u), row);
+                    bind_poison(scope, local, use_origin(u), row);
                 }
             }
         }
     }
+}
+
+/// Binds each prelude name that `scope` leaves free, and reports each
+/// own declaration that shadows one (`names.prelude.shadow`).
+fn prelude(
+    r: &Resolver<'_, '_>,
+    m: &ModIn<'_>,
+    heads: &[Head<'_>],
+    scope: &mut ModuleScope,
+    kinds: &mut Kinds,
+    diags: &mut DiagBuf,
+) {
+    let names = &r.cx.names;
     for (module, list) in PRELUDE {
         if !r.module_exists(module) {
             continue;
@@ -831,14 +950,14 @@ fn scope_of(
             };
             match scope.lookup(sym) {
                 None => {
-                    bind_item(&mut scope, sym, d, Origin::Prelude, u32::MAX);
+                    bind_item(scope, sym, d, Origin::Prelude, u32::MAX);
                     kinds.insert(d, k);
                 }
                 Some(b) if b.kind == BindingKind::Item && b.value == d.raw() => {}
                 Some(_) => {
                     let span = heads
                         .iter()
-                        .find(|h| h.name == sym && h.local.is_none())
+                        .find(|h| h.name == sym && h.local.is_none() && h.test.is_none())
                         .map_or(m.src.span(m.src.root()), |h| m.src.span(h.node));
                     let msg = format!("`{name}` shadows a prelude name");
                     diags.error(Code::PreludeNameShadow, span, &msg);
@@ -855,7 +974,6 @@ fn scope_of(
             }
         }
     }
-    (scope, kinds)
 }
 
 /// An associated type declared in a trait or bound in an impl body.
@@ -2840,8 +2958,10 @@ pub fn build_folder(
     diags: &mut DiagBuf,
 ) -> StageResult<FolderOut> {
     let names = &cx.names;
-    let all_heads: Vec<Vec<Head<'_>>> =
-        mods.iter().map(|m| heads(names, &m.src, &m.path)).collect();
+    let all_heads: Vec<Vec<Head<'_>>> = mods
+        .iter()
+        .map(|m| heads(names, &m.src, &m.path, m.tests))
+        .collect();
     let all_uses: Vec<Vec<UseDecl>> = mods.iter().map(|m| use_decls(&m.src, &m.roots)).collect();
     let mut r = Resolver {
         cx,
@@ -2861,8 +2981,9 @@ pub fn build_folder(
             if h.kind == HeadKind::Impl {
                 continue;
             }
-            // A local declaration is no module member (`names.local-type.static`).
-            if h.local.is_none() {
+            // A local declaration is no module member (`names.local-type.static`),
+            // and no other module sees a test item (`names.tests.inside-only`).
+            if h.local.is_none() && h.test.is_none() {
                 r.own
                     .entry((m.path.clone(), h.name))
                     .or_insert((h.def, h.kind, h.public));
@@ -2929,39 +3050,68 @@ pub fn build_folder(
         private_names: Vec::new(),
     };
     let mut unsupported = None;
-    let scopes: Vec<(ModuleScope, Kinds)> = mods
+    let scopes: Vec<ModScopes> = mods
         .iter()
         .zip(&all_heads)
         .zip(&all_uses)
-        .map(|((m, hs), us)| scope_of(&r, m, hs, us, diags))
+        .map(|((m, hs), us)| {
+            let (scope, mut kinds) = scope_of(&r, m, hs, us, diags);
+            let mut test_diags = DiagBuf::default();
+            let tests = m.tests.then(|| {
+                let uses = test_use_decls(&m.src, &m.roots);
+                test_scope_of(&r, &m.src, hs, (&scope, &mut kinds), &uses, &mut test_diags)
+            });
+            ModScopes {
+                scope,
+                kinds,
+                tests,
+                test_diags,
+            }
+        })
         .collect();
     r.own_traits = own_trait_generics(&r, mods, &all_heads, &scopes);
-    for ((m, hs), (scope, kinds)) in mods.iter().zip(&all_heads).zip(scopes) {
+    for ((m, hs), s) in mods.iter().zip(&all_heads).zip(scopes) {
+        let ModScopes {
+            scope,
+            kinds,
+            tests,
+            mut test_diags,
+        } = s;
         let mut items: Vec<Item> = Vec::new();
         {
             let locals = local_items(hs);
-            let mut low = Lower {
-                r: &r,
-                names: cx.names,
-                src: m.src,
-                module: &m.path,
-                scope: &scope,
-                kinds: &kinds,
-                diags,
-                unsupported: None,
-                locals: &locals,
-                at: 0,
-                outer: Vec::new(),
-            };
-            // Aliases first, so a later header in the module may use them.
-            for h in hs.iter().filter(|h| h.kind == HeadKind::Alias) {
-                low.item(h, &mut items);
-            }
-            for h in hs.iter().filter(|h| h.kind != HeadKind::Alias) {
-                low.item(h, &mut items);
-            }
-            if unsupported.is_none() {
-                unsupported = low.unsupported.take();
+            // A test item's header resolves in its block's scope, and its
+            // diagnostics are test code's.
+            let parts = [
+                (Some(&scope), &mut *diags, false),
+                (tests.as_ref(), &mut test_diags, true),
+            ];
+            for (scope, diags, test) in parts {
+                let Some(scope) = scope else { continue };
+                let mut low = Lower {
+                    r: &r,
+                    names: cx.names,
+                    src: m.src,
+                    module: &m.path,
+                    scope,
+                    kinds: &kinds,
+                    diags,
+                    unsupported: None,
+                    locals: &locals,
+                    at: 0,
+                    outer: Vec::new(),
+                };
+                let own: Vec<&Head<'_>> = hs.iter().filter(|h| h.test.is_some() == test).collect();
+                // Aliases first, so a later header in the module may use them.
+                for h in own.iter().filter(|h| h.kind == HeadKind::Alias) {
+                    low.item(h, &mut items);
+                }
+                for h in own.iter().filter(|h| h.kind != HeadKind::Alias) {
+                    low.item(h, &mut items);
+                }
+                if unsupported.is_none() {
+                    unsupported = low.unsupported.take();
+                }
             }
         }
         let mut have: HashSet<DefId> = items.iter().map(|i| i.def).collect();
@@ -2996,6 +3146,8 @@ pub fn build_folder(
         out.modules.push(ModOut {
             items,
             scope,
+            tests,
+            test_diags,
             kinds,
             anchors,
             blocks,
@@ -3085,32 +3237,44 @@ fn own_trait_generics(
     r: &Resolver<'_, '_>,
     mods: &[ModIn<'_>],
     all_heads: &[Vec<Head<'_>>],
-    scopes: &[(ModuleScope, Kinds)],
+    scopes: &[ModScopes],
 ) -> HashMap<DefId, Vec<Generic>> {
     let mut out = HashMap::new();
     let mut scratch = DiagBuf::default();
-    for ((m, hs), (scope, kinds)) in mods.iter().zip(all_heads).zip(scopes) {
+    for ((m, hs), s) in mods.iter().zip(all_heads).zip(scopes) {
         let locals = local_items(hs);
-        let mut low = Lower {
-            r,
-            names: r.cx.names,
-            src: m.src,
-            module: &m.path,
-            scope,
-            kinds,
-            diags: &mut scratch,
-            unsupported: None,
-            locals: &locals,
-            at: 0,
-            outer: Vec::new(),
-        };
         for h in hs.iter().filter(|h| h.kind == HeadKind::Trait) {
-            low.at = m.src.span(h.node).lo;
+            let scope = match (h.test, &s.tests) {
+                (Some(_), Some(tests)) => tests,
+                _ => &s.scope,
+            };
+            let mut low = Lower {
+                r,
+                names: r.cx.names,
+                src: m.src,
+                module: &m.path,
+                scope,
+                kinds: &s.kinds,
+                diags: &mut scratch,
+                unsupported: None,
+                locals: &locals,
+                at: m.src.span(h.node).lo,
+                outer: Vec::new(),
+            };
             let (_, _, generics) = low.trait_generics(h);
             out.entry(h.def).or_insert(generics);
         }
     }
     out
+}
+
+/// One module's scopes while its folder resolves: its own, and with test
+/// code, its `tests:` block's, whose diagnostics are kept apart.
+struct ModScopes {
+    scope: ModuleScope,
+    kinds: Kinds,
+    tests: Option<ModuleScope>,
+    test_diags: DiagBuf,
 }
 
 /// The function nodes with bodies, by item: own functions and the methods

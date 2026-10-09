@@ -1534,6 +1534,7 @@ impl Run<'_> {
             roots: self.table.use_roots(ModuleId::from_raw(u32_of(m))),
             src: self.src(m),
             seeds,
+            tests: false,
         }
     }
 
@@ -1555,7 +1556,11 @@ impl Run<'_> {
             folder: module.folder.raw(),
             world: self,
         };
-        let mods = [self.mod_in(m)];
+        // In the test role, its `tests:` block's items are its items too.
+        let mods = [hd_resolve::ModIn {
+            tests: self.role(m) == "test",
+            ..self.mod_in(m)
+        }];
         let out = hd_resolve::build_folder(&cx, &mods, Some(own), stage, diags)?;
         Ok(out.modules.into_iter().next())
     }
@@ -2057,13 +2062,22 @@ impl Run<'_> {
             hidden: &[],
         };
         let src = self.src(m);
-        let heads = hd_resolve::heads(&names, &src, &module.path);
+        // A test run checks the `tests:` block's items with the module's
+        // (`names.tests.module-items`), each seeing the block's scope.
+        let tests = self.role(m) == "test";
+        let heads = hd_resolve::heads(&names, &src, &module.path, tests);
         let Ok(Some(lowered)) = self.lower_module(m, Stage::Body, &mut DiagBuf::default()) else {
             self.blocked(Stage::Body);
             let _ = self.body[m].set(None);
             return;
         };
         let scope = lowered.scope;
+        let blocks: Vec<Span> = src
+            .root()
+            .children()
+            .filter(|c| c.kind() == hd_syntax::SyntaxKind::TestsBlock)
+            .map(|b| src.span(b))
+            .collect();
         let solver = TableSolver;
         let locals = hd_resolve::local_items(&heads);
         let cx = BodyCx {
@@ -2078,8 +2092,15 @@ impl Run<'_> {
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             results: std::cell::RefCell::default(),
             locals: &locals,
+            tests: lowered.tests.as_ref().map(|scope| hd_check::TestsView {
+                blocks: &blocks,
+                scope,
+            }),
         };
         let mut diags = DiagBuf::default();
+        // The `tests:` block's use and header diagnostics, which no folder
+        // interface reports.
+        diags.append(&lowered.test_diags);
         let mut bodies = Vec::new();
         let mut failed = None;
         // M1 (checking-and-tir.md §4.13.1 "Omitted result types"): the
@@ -2274,7 +2295,7 @@ impl Run<'_> {
         // or an integration test module is test code throughout: its
         // top-level registrations are checked in every role.
         if self.role(m) == "test" {
-            test_stmts.extend(hd_check::tests::tests_block_statements(src.root()));
+            test_stmts.extend(hd_check::tests::tests_block_statements(&src));
         }
         if !test_stmts.is_empty() && failed.is_none() {
             let profile = self.test_profile(m);
@@ -2547,7 +2568,7 @@ impl Run<'_> {
                 hidden: &[],
             };
             let src = self.src(tm);
-            let theads = hd_resolve::heads(&names, &src, &self.table.modules[tm].path);
+            let theads = hd_resolve::heads(&names, &src, &self.table.modules[tm].path, false);
             let tlocals = hd_resolve::local_items(&theads);
             let tcx = BodyCx {
                 names,
@@ -2561,6 +2582,7 @@ impl Run<'_> {
                 init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
                 results: std::cell::RefCell::default(),
                 locals: &tlocals,
+                tests: None,
             };
             found.extend(self.check_opt_ins(&tcx, &theads, &opts, &mut derived));
         }

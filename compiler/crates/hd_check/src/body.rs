@@ -44,6 +44,31 @@ pub struct BodyCx<'a> {
     /// The module's block-local declarations, lifted to hidden items
     /// (checking-and-tir.md "Local items lift to hidden module items").
     pub locals: &'a [hd_resolve::LocalItem],
+    /// When the module's test code is checked, its `tests:` block.
+    pub tests: Option<TestsView<'a>>,
+}
+
+/// A module's `tests:` block, when its items are checked: its extent (a
+/// second block is an error, `grammar.tests.once`, but sees the same), and
+/// the scope inside it, which only code in the block sees (spec 03 "Tests
+/// Blocks").
+#[derive(Clone, Copy)]
+pub struct TestsView<'a> {
+    pub blocks: &'a [hd_base::Span],
+    pub scope: &'a ModuleScope,
+}
+
+impl<'a> BodyCx<'a> {
+    /// The module-level names seen at byte `at`: the `tests:` block's
+    /// scope inside the block (`names.tests.inside-only`), else the
+    /// module's.
+    #[must_use]
+    pub fn scope_at(&self, at: u32) -> &'a ModuleScope {
+        match self.tests {
+            Some(t) if t.blocks.iter().any(|b| b.lo <= at && at < b.hi) => t.scope,
+            _ => self.scope,
+        }
+    }
 }
 
 impl BodyCx<'_> {

@@ -42,7 +42,7 @@ impl Ck<'_, '_> {
         if let Some(l) = hd_resolve::local_at(self.cx.locals, sym, self.at) {
             return Some(Named::Item(l.def));
         }
-        let b = self.cx.scope.lookup(sym)?;
+        let b = self.cx.scope_at(self.at).lookup(sym)?;
         match b.kind {
             BindingKind::Item => Some(Named::Item(DefId::from_raw(b.value))),
             BindingKind::Module => Some(Named::Module(b.value)),
@@ -66,7 +66,7 @@ impl Ck<'_, '_> {
 
     /// `module.name` through the module's export.
     pub(crate) fn export(&self, module: u32, name: &str) -> Option<DefId> {
-        let m = self.cx.scope.modules.get(module as usize)?;
+        let m = self.cx.scope_at(self.at).modules.get(module as usize)?;
         let sym = self.cx.names.syms.intern(name);
         self.cx
             .lookup
@@ -87,7 +87,7 @@ impl Ck<'_, '_> {
     pub(crate) fn missing_export(&mut self, module: u32, name: &str, n: NodeRef<'_>) {
         let path = self
             .cx
-            .scope
+            .scope_at(self.at)
             .modules
             .get(module as usize)
             .cloned()
@@ -283,7 +283,7 @@ impl Ck<'_, '_> {
                 if segs.len() == 2 {
                     return self.export(m, &segs[1]);
                 }
-                let base = self.cx.scope.modules.get(m as usize)?.clone();
+                let base = self.cx.scope_at(self.at).modules.get(m as usize)?.clone();
                 let module = format!("{base}.{}", segs[1..segs.len() - 1].join("."));
                 let sym = self.cx.names.syms.intern(segs.last()?);
                 self.cx

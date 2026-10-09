@@ -102,7 +102,7 @@ impl Ck<'_, '_> {
         if self.is_poison_name(name) {
             return Ok(self.poison(n));
         }
-        let Some(b) = self.cx.scope.lookup(sym) else {
+        let Some(b) = self.cx.scope_at(self.at).lookup(sym) else {
             let msg = format!("`{name}` is not defined");
             self.err(Code::UnknownName, n, &msg);
             return Ok(self.poison(n));

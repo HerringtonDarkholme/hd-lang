@@ -168,8 +168,9 @@ pub(crate) fn collect(
     };
     for h in heads {
         // A local head counts from the top-level declaration whose body
-        // holds it, whose text is in the API hash then (`skim`).
-        cx.top = h.local.map(|l| l.top);
+        // holds it, whose text is in the API hash then (`skim`); an item
+        // of a `tests:` block counts from the block.
+        cx.top = h.local.map(|l| l.top).or(h.test);
         let at = cx.top.unwrap_or(h.node);
         let Some(&decl) = order.get(&at.index().idx()) else {
             continue;
