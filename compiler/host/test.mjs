@@ -5,8 +5,8 @@
 // configuration, a `.json` file that `hd test` writes: the program's
 // `Args.program` and `args` (Test Environments), then per case its `test`
 // and `init` export indices, its own `tempDir`, the base `seed` of a
-// property test, and its `grants`. Standard input is closed
-// (cli.test.env.stdin).
+// property test, its `grants`, and its `snapshot` files. Standard input
+// is closed (cli.test.env.stdin).
 // One JSON line per case goes to standard output as the case ends: its
 // index, status, whether it trapped, its captured output and its time.
 import { readFileSync, writeSync } from "node:fs";
@@ -48,6 +48,7 @@ for (const c of config.cases) {
       grants: c.grants,
       tempDir: c.tempDir,
       seed: c.seed,
+      snapshot: c.snapshot ?? null,
     },
   );
   const t0 = performance.now();

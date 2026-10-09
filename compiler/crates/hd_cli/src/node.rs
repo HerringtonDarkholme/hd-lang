@@ -163,6 +163,18 @@ pub struct HostCase {
     pub temp_dir: PathBuf,
     pub seed: Option<i64>,
     pub grants: Grants,
+    pub snapshot: Snapshot,
+}
+
+/// Where a case's snapshot files are (`std-testing.snapshot-file.path`):
+/// `<root>/<folder>/<slug>-<n>.snap`, and whether this is an update run,
+/// which records them (`std-testing.snapshot-file.missing`).
+pub struct Snapshot {
+    pub root: PathBuf,
+    /// `__snapshots__/<module>`, as a message shows it.
+    pub folder: String,
+    pub slug: String,
+    pub update: bool,
 }
 
 /// What the cases of one test program share (Test Environments): an
@@ -188,13 +200,18 @@ fn host_config(env: &TestEnv<'_>, cases: &[HostCase]) -> String {
             out.push(',');
         }
         let seed = c.seed.map_or_else(|| "null".to_owned(), |s| s.to_string());
+        let s = &c.snapshot;
         let _ = write!(
             out,
-            "{{\"test\":{},\"init\":{},\"tempDir\":{},\"seed\":{seed},\"grants\":{}}}",
+            "{{\"test\":{},\"init\":{},\"tempDir\":{},\"seed\":{seed},\"grants\":{},\"snapshot\":{{\"dir\":{},\"shown\":{},\"slug\":{},\"update\":{}}}}}",
             c.test,
             c.init,
             quote(&c.temp_dir.to_string_lossy()),
-            grants_json(&c.grants)
+            grants_json(&c.grants),
+            quote(&s.root.join(&s.folder).to_string_lossy()),
+            quote(&s.folder),
+            quote(&s.slug),
+            s.update
         );
     }
     out.push_str("]}");
@@ -360,7 +377,7 @@ mod tests {
 
     use hd_run::{Grants, Limit};
 
-    use super::{HostCase, TestEnv, host_config, parse_case};
+    use super::{HostCase, Snapshot, TestEnv, host_config, parse_case};
 
     #[test]
     fn writes_the_host_config() {
@@ -375,6 +392,12 @@ mod tests {
                     ("FsWrite".into(), Limit::Entries(vec!["/tmp/a\"b".into()])),
                 ],
             },
+            snapshot: Snapshot {
+                root: PathBuf::from("/pkg"),
+                folder: "__snapshots__/tests.report".into(),
+                slug: "sums-prices".into(),
+                update: false,
+            },
         }];
         let env = TestEnv {
             cwd: Some(Path::new("/pkg")),
@@ -382,7 +405,7 @@ mod tests {
         };
         assert_eq!(
             host_config(&env, &cases),
-            r#"{"program":"tests/report.hd","args":[],"cases":[{"test":2,"init":1,"tempDir":"/tmp/hd-test-1-0/4","seed":9,"grants":{"Console":false,"FsWrite":["/tmp/a\"b"]}}]}"#
+            r#"{"program":"tests/report.hd","args":[],"cases":[{"test":2,"init":1,"tempDir":"/tmp/hd-test-1-0/4","seed":9,"grants":{"Console":false,"FsWrite":["/tmp/a\"b"]},"snapshot":{"dir":"/pkg/__snapshots__/tests.report","shown":"__snapshots__/tests.report","slug":"sums-prices","update":false}}]}"#
         );
     }
 

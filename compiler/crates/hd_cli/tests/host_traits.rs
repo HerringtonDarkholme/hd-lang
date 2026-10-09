@@ -244,3 +244,43 @@ fn process_runs_a_granted_host_program() {
         "3 [fed] [oops\n]\nprogram not granted; run with --cap Process=PROGRAM\nprogram not found\n"
     );
 }
+
+/// The default `TestRunner` keeps snapshot files
+/// (`std-testing.snapshot-file.*`): a missing one fails, `--update`
+/// records it under `__snapshots__/pkg` for `src/lib.hd`, it then passes,
+/// and a differing one fails again.
+#[test]
+fn the_default_test_runner_keeps_snapshot_files() {
+    let dir = work("host-snapshots");
+    write(&dir.join("hd.toml"), "[package]\nname = \"shop\"\n");
+    write(
+        &dir.join("src/lib.hd"),
+        "pub fn greet(name: string) -> string:\n    \"hello, ${name}\"\n\ntests:\n    \
+         use std.testing.snapshot_file\n\n    it(\"Greets Ada!\"):\n        snapshot_file(greet(\"Ada\"))\n",
+    );
+    let snap = dir.join("__snapshots__/pkg/greets-ada--1.snap");
+    let out = run(&dir, &["test"]);
+    assert_eq!(out.status.code(), Some(1), "{}", text(&out.stderr));
+    assert!(
+        text(&out.stdout).contains("__snapshots__/pkg/greets-ada--1.snap is missing"),
+        "{}",
+        text(&out.stdout)
+    );
+    assert!(!snap.exists());
+    let out = run(&dir, &["test", "--update"]);
+    assert_eq!(out.status.code(), Some(0), "{}", text(&out.stdout));
+    assert_eq!(
+        std::fs::read_to_string(&snap).expect("recorded"),
+        "hello, Ada"
+    );
+    let out = run(&dir, &["test"]);
+    assert_eq!(out.status.code(), Some(0), "{}", text(&out.stdout));
+    write(&snap, "hello, Bob");
+    let out = run(&dir, &["test"]);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(
+        text(&out.stdout).contains("differs from the snapshot file"),
+        "{}",
+        text(&out.stdout)
+    );
+}

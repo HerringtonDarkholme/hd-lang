@@ -1,7 +1,7 @@
 // The JS host of `hd run` and `hd test` on V8 (Node): the import object of
 // the ABI in `hd_host_abi` (runtime-and-host.md §17.2, §17.10), the
-// exchange-buffer codecs of §17.4, the default profile's providers, and
-// the entry driver of suspension.md §14.4.
+// exchange-buffer codecs of §17.4, the default profile's providers, the
+// test runner's, and the entry driver of suspension.md §14.4.
 //
 // - Import shapes (§17.2): a method that never waits is one import; its
 //   structured arguments are encoded one after another at offset 0 of the
@@ -296,7 +296,8 @@ function lineReader(fd) {
 // scope checks, `stdin` (a file descriptor, or `null` for a closed
 // standard input), and in a test case its `tempDir` (made on the first
 // `tempDir()` call, which `TestRunner.temp_dir` makes), the base `seed`
-// of a property test (Test Environments, cli.test.seed).
+// of a property test (Test Environments, cli.test.seed), and its
+// `snapshot` files (`dir`, `shown`, `slug`, `update`).
 export function createHost(sink, env = {}) {
   const args = env.args ?? [];
   const program = env.program ?? "";
@@ -415,6 +416,27 @@ export function createHost(sink, env = {}) {
     return o;
   };
   const one = (d) => [d.str()];
+  // Snapshot files of the case (std-testing.snapshot-file.*).
+  let snapshots = 0;
+  const snapshotCheck = (actual) => {
+    const s = env.snapshot;
+    snapshots += 1;
+    if (!s) return "no snapshot file: this run names no snapshot directory";
+    const file = join(s.dir, `${s.slug}-${snapshots}.snap`);
+    const shown = s.shown ? `${s.shown}/${s.slug}-${snapshots}.snap` : file;
+    if (existsSync(file)) {
+      const expected = readFileSync(file, "utf8");
+      if (expected === actual) return "";
+      if (!s.update) {
+        return `the text differs from the snapshot file ${shown}: expected ${JSON.stringify(expected)}, actual ${JSON.stringify(actual)}; run \`hd test --update\` to record it`;
+      }
+    } else if (!s.update) {
+      return `the snapshot file ${shown} is missing; run \`hd test --update\` to record it`;
+    }
+    mkdirSync(s.dir, { recursive: true });
+    writeFileSync(file, actual);
+    return "";
+  };
   // `Process.run!` (cli.host.default-profile): the default profile's
   // provider starts a host program in the working directory.
   const runProcess = (name, argv, input) => {
@@ -600,6 +622,14 @@ export function createHost(sink, env = {}) {
         finish: never,
       },
     }),
+    "hd:TestRunner": {
+      // `it_each` rows and timeouts belong to the runner's case list; a
+      // case built by `hd test` runs row 0 under no limit here.
+      row: () => env.row ?? 0,
+      report_timeout: () => {},
+      snapshot_check: (len) => put(new Enc().str(snapshotCheck(text(len)))),
+      temp_dir: () => put(new Enc().str(tempDir())),
+    },
   };
 
   // Runs `init`, then polls `poll` to completion. Returns the status (3

@@ -37,7 +37,7 @@ const USAGE: &str = "usage:
   hd remove NAME
   hd fetch
   hd fmt [--check] [FILE.hd]
-  hd test [FILE.hd] [--filter PATTERN] [--jobs N] [--format json]";
+  hd test [FILE.hd] [--filter PATTERN] [--jobs N] [--update] [--format json]";
 
 /// `cli.exit.hd-failure`: `hd` itself failed, or rejected its command line.
 pub(crate) const HD_FAILURE: u8 = 101;

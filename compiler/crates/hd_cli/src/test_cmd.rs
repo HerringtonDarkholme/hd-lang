@@ -21,7 +21,7 @@ use hd_run::tests_model::{
 };
 
 use crate::caps::CapFlag;
-use crate::node::{CaseRun, HostCase, TestEnv, run_cases};
+use crate::node::{CaseRun, HostCase, Snapshot, TestEnv, run_cases};
 use crate::report::{self, Reporter};
 use crate::{HD_FAILURE, Wall, cache_dir, disk, fail};
 
@@ -38,6 +38,9 @@ struct Options {
     /// `--seed N`: every property test case's base seed
     /// (`cli.test.seed.flag`).
     seed: Option<i64>,
+    /// `--update`: an update run, which records missing or differing
+    /// snapshot files (`std-testing.snapshot-file.missing`).
+    update: bool,
 }
 
 fn parse(args: &[OsString]) -> Result<Options, String> {
@@ -49,6 +52,7 @@ fn parse(args: &[OsString]) -> Result<Options, String> {
         packages: Vec::new(),
         caps: Vec::new(),
         seed: None,
+        update: false,
     };
     let mut i = 0;
     while i < args.len() {
@@ -93,7 +97,9 @@ fn parse(args: &[OsString]) -> Result<Options, String> {
             // (`cli.profile.pipeline.one`).
             continue;
         }
-        if text == "--filter" || text.starts_with("--filter=") {
+        if text == "--update" {
+            o.update = true;
+        } else if text == "--filter" || text.starts_with("--filter=") {
             o.filter = Some(value("--filter")?);
         } else if text == "--seed" || text.starts_with("--seed=") {
             // `cli.test.seed.flag`: N is a whole number.
@@ -234,6 +240,22 @@ struct Selected {
     program: usize,
     case: TestCase,
     fixed: Option<CaseResult>,
+    /// The `<module>` of its snapshot files' folder
+    /// (`std-testing.snapshot-file.module`).
+    snapshots: String,
+}
+
+/// The `<module>` part of a snapshot file's path for a case in `file`
+/// (`std-testing.snapshot-file.module`, `.module.root`): its module path
+/// below the package, `tests.<name>` under the test root, and `pkg` for
+/// `src/lib.hd`.
+fn snapshot_module(file: &str) -> String {
+    let below = hd_project::module_below(file);
+    if below.is_empty() {
+        "pkg".to_owned()
+    } else {
+        below
+    }
 }
 
 /// A doc test's program, added to the sources at `path`.
@@ -443,6 +465,7 @@ fn test_one(
                     run: None,
                 },
                 fixed: Some(fixed),
+                snapshots: snapshot_module(&d.file),
             });
             built.push(Built {
                 wasm: None,
@@ -469,6 +492,7 @@ fn test_one(
             }
             selected.push(Selected {
                 program: built.len(),
+                snapshots: snapshot_module(&case.file),
                 case,
                 fixed: None,
             });
@@ -521,6 +545,7 @@ fn test_one(
         table: disk::test_capabilities(root).map_err(|e| report.rep.fail(&e))?,
         flags: &o.caps,
         seed: o.seed,
+        update: o.update,
     };
     run(&selected, &built, &env, o.jobs, report)
 }
@@ -533,6 +558,31 @@ struct RunEnv<'a> {
     table: Vec<(String, hd_project::Grant)>,
     flags: &'a [CapFlag],
     seed: Option<i64>,
+    /// `--update`: snapshot files are recorded.
+    update: bool,
+}
+
+/// A test case name's slug (`std-testing.snapshot-file.slug`): lowercased,
+/// each run of characters other than ASCII letters and digits turned into
+/// `-`.
+fn slug(name: &str) -> String {
+    let mut out = String::new();
+    let mut gap = false;
+    for c in name.chars() {
+        if c.is_ascii_alphanumeric() {
+            if gap {
+                out.push('-');
+                gap = false;
+            }
+            out.push(c.to_ascii_lowercase());
+        } else {
+            gap = true;
+        }
+    }
+    if gap {
+        out.push('-');
+    }
+    out
 }
 
 /// A property test case's base seed (`cli.test.seed`): `--seed N` when
@@ -694,6 +744,12 @@ fn run(
             init,
             temp_dir: temp.case(i),
             seed: seeds[i],
+            snapshot: Snapshot {
+                folder: format!("__snapshots__/{}", selected[i].snapshots),
+                root: env.root.to_path_buf(),
+                slug: slug(&cases[i].name),
+                update: env.update,
+            },
             grants: if prog.cwd.is_some() {
                 crate::caps::test_grants(&env.table, env.root, env.flags, &temp.case(i))
             } else {

@@ -216,7 +216,7 @@ with its `Enc` and `Dec` classes.
   their total length. Scalar arguments stay Wasm parameters, before it.
   A method whose only argument is a `string` passes the string's bytes
   alone, with no length prefix: the parameter is the length
-  (`Console.write_line`, `Env.get`).
+  (`Console.write_line`, `Env.get`, `TestRunner.snapshot_check`).
 - **Results.** A waiting method's result is always in the buffer. A
   method that never waits returns a scalar as its Wasm result, a data
   value of one `i64` field (`Timestamp`, `Instant`) as that `i64`, and a
