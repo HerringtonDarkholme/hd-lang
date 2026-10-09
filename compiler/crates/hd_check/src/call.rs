@@ -12,7 +12,7 @@ use hd_resolve::{FnSig, HeadKind, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::ir::{Callee, ChoiceKind, IntrinsicOp, NONE, PrimOp, Providers, Ref, Tag, TirSink};
 use hd_types::solver::{Answer, Candidate, Evidence, Goal, TraitRef};
-use hd_types::{ParamRef, Prim, Ty, TyData, TyList, VarKind};
+use hd_types::{ParamRef, Prim, Ty, TyData, TyList, VarKind, with_assoc_args};
 
 use crate::body::{Ck, unsupported};
 use crate::ty::Named;
@@ -2465,61 +2465,6 @@ impl Ck<'_, '_> {
             _ => (ChoiceKind::Builtin, 0),
         }
     }
-}
-
-/// A projection written `Self::Out` in a trait names the trait's own
-/// arguments implicitly: fills them in from the call's.
-pub(crate) fn with_assoc_args(pool: hd_types::Types<'_>, t: Ty, trait_: DefId, args: TyList) -> Ty {
-    if args == TyList::EMPTY {
-        return t;
-    }
-    let list = |l: TyList| {
-        pool.list(
-            &pool
-                .list_items(l)
-                .iter()
-                .copied()
-                .map(|x| with_assoc_args(pool, x, trait_, args))
-                .collect::<Vec<_>>(),
-        )
-    };
-    let d = match pool.get(t) {
-        TyData::Assoc {
-            assoc,
-            trait_: tr,
-            self_ty,
-            args: a,
-        } => TyData::Assoc {
-            assoc,
-            trait_: tr,
-            self_ty: with_assoc_args(pool, self_ty, trait_, args),
-            args: if tr == trait_ && a == TyList::EMPTY {
-                args
-            } else {
-                list(a)
-            },
-        },
-        TyData::Adt { def, args: a } => TyData::Adt { def, args: list(a) },
-        TyData::Tuple { elems, rest } => TyData::Tuple {
-            elems: list(elems),
-            rest,
-        },
-        TyData::Option(i) => TyData::Option(with_assoc_args(pool, i, trait_, args)),
-        TyData::Mut(i) => TyData::Mut(with_assoc_args(pool, i, trait_, args)),
-        TyData::Fn {
-            params,
-            result,
-            row,
-            suspends,
-        } => TyData::Fn {
-            params: list(params),
-            result: with_assoc_args(pool, result, trait_, args),
-            row,
-            suspends,
-        },
-        _ => return t,
-    };
-    pool.intern_ty(&d)
 }
 
 /// Substitutes one owner's parameters.

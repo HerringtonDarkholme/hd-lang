@@ -976,6 +976,32 @@ There are no variadic generics (§4.13.7). Tuples are ordinary types:
   elements `_0`, `_1`… (`annot.tuple.members`), and a rest element is its last member, of type `List[T]` (`annot.tuple.rest`). No body is
   generated per arity; one is generated per tuple type that a program's
   instances reach.
+- **As built (#126).** The row answers every tuple type, with no mode:
+  rows read no context, so their memo entries must not depend on who
+  asks. Checking never asks it at a concrete tuple, since `Structure` is
+  named only inside a template (`annot.structure.named-positions`), where
+  a tuple template's `T` is a parameter that the environment answers. The
+  generator is the crate `hd_structure`: a `Target` (type, `name()`,
+  variants with their members and how each is read and built: fields,
+  payloads or tuple elements) and a `Cx` (the run's names and an `Items`
+  view of declarations). The checker builds a derivation's target and
+  gets hidden methods of the derived implementation, handles included
+  (§12.3). Collection asks `ProgramEnv::supplied_body(method, tuple)`,
+  which the driver answers with `tuple_target` and `supplied`: the body
+  belongs to the trait method itself, its signature the trait's with
+  `Self` replaced, so the instance is `(Structure.m, [tuple, own
+  arguments])`, keyed like any instance. A tuple has no implementation to
+  hold hidden handle methods, so its handles are built where the
+  traversal passes them, and their closures are instantiated per walker.
+  Both a `Builtin` callee choice and `select`'s `Builtin` answer go
+  through it; a `None` keeps emission's own lowering (`Inspectable`).
+  `Collected::supplied` holds the bodies by `(method, tuple)`, and
+  emission reads them there. The code key's TIR hash is 0 for such an
+  instance: the instance key names the tuple, and the toolchain key covers
+  the generator and std. A rest member is read as the last element and
+  passed to `w.rest` (`annot.walk.rest`); std's default `rest` panics
+  instead of calling `member` (`annot.walk.rest.default`), and the checker
+  builds no rest tuple value yet.
 - `all!` is one intrinsic frame instance per tuple of child result types
   (§14.5). `race!` is an ordinary generic intrinsic over `T`.
 

@@ -17,6 +17,7 @@ hd_mono = { path = "../hd_mono" }
 hd_project = { path = "../hd_project" }
 hd_resolve = { path = "../hd_resolve" }
 hd_sched = { path = "../hd_sched", features = ["threads"] }
+hd_structure = { path = "../hd_structure" }
 hd_syntax = { path = "../hd_syntax" }
 hd_tir = { path = "../hd_tir" }
 hd_types = { path = "../hd_types" }

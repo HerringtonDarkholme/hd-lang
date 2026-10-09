@@ -2787,7 +2787,8 @@ impl Run<'_> {
         let item = c.collected.table.item[id.idx()];
         let sub = c.collected.table.sub[id.idx()];
         let args = c.collected.table.args[id.idx()];
-        let Some((body, _)) = p.bodies.get(&item) else {
+        let body = p.bodies.get(&item).map(|b| &b.0);
+        let Some(body) = body.or_else(|| c.collected.supplied_body(&self.pool, item, args)) else {
             self.stage::<()>(
                 Stage::Emit,
                 Err(NotImplemented::new(Stage::Emit, "an instance without TIR")),
@@ -3231,6 +3232,26 @@ impl ProgramEnv for Env<'_> {
     }
     fn decls(&self) -> &dyn Declarations {
         self
+    }
+    fn supplied_body(&self, method: DefId, self_ty: Ty) -> StageResult<Option<Body>> {
+        // A tuple's `Structure` (codegen.md §13.6): the derivation
+        // generator over the tuple's member list.
+        let names = self.run.names();
+        let Some(target) = hd_structure::tuple_target(names.pool, self_ty) else {
+            return Ok(None);
+        };
+        let cx = hd_structure::Cx {
+            names: &names,
+            items: self.p,
+            stage: Stage::Collect,
+        };
+        hd_structure::supplied(&cx, &target, method)
+    }
+}
+
+impl hd_structure::Items for ProgramTables {
+    fn item(&self, def: DefId) -> Option<&Item> {
+        self.items.get(&def)
     }
 }
 

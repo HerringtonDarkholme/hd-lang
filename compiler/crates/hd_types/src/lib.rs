@@ -14,5 +14,6 @@ pub mod wire;
 
 pub use pool::{
     InternPool, LocalPool, ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList, Types,
+    with_assoc_args,
 };
 pub use unify::{InferTable, UnifyError, VarKind};

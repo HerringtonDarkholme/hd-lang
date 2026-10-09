@@ -782,6 +782,9 @@ pub enum BuiltinImpl {
     Integer,
     Float,
     Suspend,
+    /// A concrete tuple type's `Structure` (codegen.md §13.6), whose
+    /// methods collection generates per tuple type.
+    Structure,
 }
 
 /// What a `Holds` answer carries (§8.1).
@@ -4442,11 +4445,12 @@ mod tests {
         assert_eq!(builtin_of(&a), Some(super::BuiltinImpl::Any));
     }
 
-    /// The `Tuple` and `Structure` rows: every tuple is a `Tuple`; no
-    /// concrete type has `Structure`, which only a template instance's
-    /// environment gives (`annot.structure.generated`).
+    /// The `Tuple` and `Structure` rows: every tuple is a `Tuple`; a tuple
+    /// has the compiler's `Structure` (`annot.tuple.structure`, codegen.md
+    /// §13.6); no other concrete type has `Structure`, which only a
+    /// template instance's environment gives (`annot.structure.generated`).
     #[test]
-    fn tuple_holds_for_tuples_and_structure_only_through_the_environment() {
+    fn tuple_holds_for_tuples_and_structure_for_tuples_or_through_the_environment() {
         let gp = InternPool::new();
         let p = gp.types();
         let decls = sealed_decls(p);
@@ -4458,7 +4462,9 @@ mod tests {
         });
         let a = ask_row(p, &decls, &env, &global, on(5, unit));
         assert_eq!(builtin_of(&a), Some(super::BuiltinImpl::Tuple));
-        for (tr, t) in [(5, Ty::I32), (6, unit), (6, Ty::I32)] {
+        let a = ask_row(p, &decls, &env, &global, on(6, unit));
+        assert_eq!(builtin_of(&a), Some(super::BuiltinImpl::Structure));
+        for (tr, t) in [(5, Ty::I32), (6, Ty::I32)] {
             let a = ask_row(p, &decls, &env, &global, on(tr, t));
             assert!(matches!(a, super::Answer::Fails(_)), "{a:?}");
         }

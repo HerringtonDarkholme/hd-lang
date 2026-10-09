@@ -11,6 +11,7 @@ pub mod layout;
 pub mod passes;
 
 use std::collections::{BTreeSet, HashMap};
+use std::sync::Arc;
 
 use hd_base::{DefId, Hash128, InstId, NotImplemented, StableHasher, Stage, StageResult};
 use hd_tir::ir::{Body, Callee, ChoiceKind, Coercion, Tag};
@@ -72,6 +73,13 @@ pub trait ProgramEnv: LayoutEnv {
     /// (trait-solver.md §3.9), so selection answers sealed traits as
     /// checking does.
     fn decls(&self) -> &dyn Declarations;
+    /// The body of a compiler-supplied impl's method at a concrete self
+    /// type, when the compiler generates one in TIR (a tuple's
+    /// `Structure`, codegen.md §13.6): its signature is the trait
+    /// method's with `Self` replaced, so its instance's arguments are the
+    /// self type, then the trait's and the method's own. `None` when
+    /// emission lowers the method itself (trait-solver.md §3.9).
+    fn supplied_body(&self, method: DefId, self_ty: Ty) -> StageResult<Option<Body>>;
 }
 
 /// The A1 class `REF` as a type argument: a reserved canonical
@@ -141,6 +149,19 @@ pub struct Collected {
     pub inits: Vec<Hash128>,
     /// The extra roots' instances, in the order the caller gave them.
     pub extra: Vec<Hash128>,
+    /// The compiler-supplied methods' bodies (`ProgramEnv::supplied_body`)
+    /// the program reaches, by `(trait method, self type)`.
+    pub supplied: HashMap<(DefId, Ty), Arc<Body>>,
+}
+
+impl Collected {
+    /// The TIR of an instance whose item has no body of its own: the
+    /// compiler-supplied method's, at the instance's self type.
+    #[must_use]
+    pub fn supplied_body(&self, pool: &InternPool, item: DefId, args: TyList) -> Option<&Body> {
+        let self_ty = pool.list_items(args).first().copied()?;
+        self.supplied.get(&(item, self_ty)).map(AsRef::as_ref)
+    }
 }
 
 pub use layout::InstanceTable;
@@ -562,6 +583,42 @@ impl Cx<'_> {
         Ok(picked)
     }
 
+    /// A call of a compiler-supplied impl's method whose body the compiler
+    /// generates per self type (`ProgramEnv::supplied_body`): an instance
+    /// of the trait method at `[self_ty, targs...]`, keyed and cached like
+    /// any instance. `None` when emission lowers the method itself.
+    fn supplied_target(
+        &mut self,
+        method: DefId,
+        self_ty: Ty,
+        targs: &[Ty],
+        depth: u8,
+        parent: InstId,
+    ) -> StageResult<Option<CallTarget>> {
+        let key = (method, self_ty);
+        if !self.out.supplied.contains_key(&key) {
+            let Some(body) = self.env.supplied_body(method, self_ty)? else {
+                return Ok(None);
+            };
+            self.out.supplied.insert(key, Arc::new(body));
+        }
+        let args = self.pool.list(&[&[self_ty], targs].concat());
+        let key = self.push(method, 0, args, depth, parent)?;
+        Ok(Some(CallTarget {
+            key,
+            item: method,
+            args,
+            ret: subst(
+                self.pool,
+                self.env,
+                method,
+                args,
+                self.env.ret(method).unwrap_or(Ty::VOID),
+            ),
+            kind: TargetKind::Instance,
+        }))
+    }
+
     /// A call of a method the compiler lowers per self type: a sealed
     /// trait's (§3.9), or a body-less method of a built-in family.
     fn builtin_target(&self, method: DefId, self_ty: Ty, targs: &[Ty]) -> CallTarget {
@@ -600,7 +657,12 @@ impl Cx<'_> {
         let method_args = &targs[n_trait.min(targs.len())..];
         let (impl_, impl_args) = match self.select(trait_, self_ty, trait_args, choice)? {
             Picked::Impl(d, a) => (d, a),
-            Picked::Builtin => return Ok(self.builtin_target(method, self_ty, targs)),
+            Picked::Builtin => {
+                if let Some(t) = self.supplied_target(method, self_ty, targs, depth, parent)? {
+                    return Ok(t);
+                }
+                return Ok(self.builtin_target(method, self_ty, targs));
+            }
         };
         match self.env.impl_method(impl_, method) {
             Some(m) if self.env.body(m).is_some() => {
@@ -629,7 +691,17 @@ impl Cx<'_> {
         );
         let pool = self.pool;
         let env = self.env;
-        let Some(body) = env.body(item) else {
+        // A compiler-supplied method's instance has no item body: its
+        // TIR was generated at its self type (`supplied_target`).
+        let supplied = match env.body(item) {
+            Some(_) => None,
+            None => pool
+                .list_items(args)
+                .first()
+                .and_then(|t| self.out.supplied.get(&(item, *t)))
+                .cloned(),
+        };
+        let Some(body) = env.body(item).or(supplied.as_deref()) else {
             return err("an instance whose item has no TIR");
         };
         let mut calls = HashMap::new();
@@ -668,33 +740,45 @@ impl Cx<'_> {
                             let self_ty = s(self_ty);
                             let targs: Vec<Ty> =
                                 pool.list_items(targs).iter().copied().map(s).collect();
-                            let pick = match choice.0 {
-                                ChoiceKind::Impl => Some(DefId::from_raw(choice.1)),
-                                ChoiceKind::Bound => None,
-                                ChoiceKind::TraitValue => continue,
+                            let supplied = match choice.0 {
                                 ChoiceKind::Builtin => {
-                                    let name = env.path_hash(method);
-                                    reps.hash(name);
-                                    calls.insert(
-                                        ix,
-                                        Target::Call(CallTarget {
-                                            key: Hash128(0),
-                                            item: method,
-                                            args: TyList::EMPTY,
-                                            ret: ty,
-                                            kind: TargetKind::Builtin {
-                                                method: String::new(),
-                                                self_ty,
-                                            },
-                                        }),
-                                    );
+                                    self.supplied_target(method, self_ty, &targs, depth, id)?
+                                }
+                                _ => None,
+                            };
+                            if let Some(t) = supplied {
+                                t
+                            } else {
+                                let pick = match choice.0 {
+                                    ChoiceKind::Impl => Some(DefId::from_raw(choice.1)),
+                                    ChoiceKind::Bound => None,
+                                    ChoiceKind::TraitValue => continue,
+                                    ChoiceKind::Builtin => {
+                                        let name = env.path_hash(method);
+                                        reps.hash(name);
+                                        calls.insert(
+                                            ix,
+                                            Target::Call(CallTarget {
+                                                key: Hash128(0),
+                                                item: method,
+                                                args: TyList::EMPTY,
+                                                ret: ty,
+                                                kind: TargetKind::Builtin {
+                                                    method: String::new(),
+                                                    self_ty,
+                                                },
+                                            }),
+                                        );
+                                        continue;
+                                    }
+                                };
+                                if matches!(pool.get(self_ty), TyData::TraitValue { .. }) {
                                     continue;
                                 }
-                            };
-                            if matches!(pool.get(self_ty), TyData::TraitValue { .. }) {
-                                continue;
+                                self.method_target(
+                                    trait_, method, self_ty, &targs, pick, depth, id,
+                                )?
                             }
-                            self.method_target(trait_, method, self_ty, &targs, pick, depth, id)?
                         }
                     };
                     reps.hash(env.path_hash(t.item));

@@ -350,7 +350,7 @@ pub fn instance(
             pool.list(&v)
         },
     )?;
-    let sig = crate::structure::subst_sig(names, sig, &f);
+    let sig = hd_structure::subst_sig(names, sig, &f);
     let item = Item::new(
         def,
         mi.name,

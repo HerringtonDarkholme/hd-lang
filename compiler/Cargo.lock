@@ -73,6 +73,7 @@ dependencies = [
  "hd_diag",
  "hd_intern",
  "hd_resolve",
+ "hd_structure",
  "hd_syntax",
  "hd_tir",
  "hd_types",
@@ -120,6 +121,7 @@ dependencies = [
  "hd_project",
  "hd_resolve",
  "hd_sched",
+ "hd_structure",
  "hd_syntax",
  "hd_tir",
  "hd_types",
@@ -213,6 +215,17 @@ dependencies = [
  "hd_base",
  "hd_driver",
  "hd_project",
+]
+
+[[package]]
+name = "hd_structure"
+version = "0.0.0"
+dependencies = [
+ "hd_base",
+ "hd_intern",
+ "hd_resolve",
+ "hd_tir",
+ "hd_types",
 ]
 
 [[package]]

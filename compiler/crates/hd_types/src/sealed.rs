@@ -210,7 +210,17 @@ pub(crate) fn row(
             Row::Fails(FailReason::NotInspectable { arg: self_ty })
         });
     }
-    // `Structure`: only a template instance's target has it, through the
-    // instance's environment (`annot.structure.generated`).
-    Some(Row::Fails(FailReason::NoImpl))
+    // `Structure`: a declared target has it only through a template
+    // instance's environment (`annot.structure.generated`). A tuple type
+    // has the compiler's (`annot.tuple.structure`): checking never asks it
+    // at a concrete tuple, since `Structure` is named only inside a
+    // template (`annot.structure.named-positions`), where a tuple
+    // template's `T` is a parameter that the environment answers; codegen
+    // asks it once a tuple template's instance is collected, and lowers
+    // its methods per tuple type (codegen.md §13.6).
+    Some(if matches!(t, TyData::Tuple { .. }) {
+        Row::Holds(BuiltinImpl::Structure, Vec::new())
+    } else {
+        Row::Fails(FailReason::NoImpl)
+    })
 }

@@ -1136,6 +1136,62 @@ impl<'a> Types<'a> {
     }
 }
 
+/// A projection written `Self::Out` in a trait names the trait's own
+/// arguments implicitly: fills them in from the call's.
+#[must_use]
+pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> Ty {
+    if args == TyList::EMPTY {
+        return t;
+    }
+    let list = |l: TyList| {
+        pool.list(
+            &pool
+                .list_items(l)
+                .iter()
+                .copied()
+                .map(|x| with_assoc_args(pool, x, trait_, args))
+                .collect::<Vec<_>>(),
+        )
+    };
+    let d = match pool.get(t) {
+        TyData::Assoc {
+            assoc,
+            trait_: tr,
+            self_ty,
+            args: a,
+        } => TyData::Assoc {
+            assoc,
+            trait_: tr,
+            self_ty: with_assoc_args(pool, self_ty, trait_, args),
+            args: if tr == trait_ && a == TyList::EMPTY {
+                args
+            } else {
+                list(a)
+            },
+        },
+        TyData::Adt { def, args: a } => TyData::Adt { def, args: list(a) },
+        TyData::Tuple { elems, rest } => TyData::Tuple {
+            elems: list(elems),
+            rest,
+        },
+        TyData::Option(i) => TyData::Option(with_assoc_args(pool, i, trait_, args)),
+        TyData::Mut(i) => TyData::Mut(with_assoc_args(pool, i, trait_, args)),
+        TyData::Fn {
+            params,
+            result,
+            row,
+            suspends,
+        } => TyData::Fn {
+            params: list(params),
+            result: with_assoc_args(pool, result, trait_, args),
+            row,
+            suspends,
+        },
+        _ => return t,
+    };
+    pool.intern_ty(&d)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{InternPool, LocalPool, Prim, RowData, RowId, Ty, TyData, TyList, Types};
