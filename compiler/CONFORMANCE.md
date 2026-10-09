@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1686 | 685 | 473 | 2844 |
+| 1695 | 688 | 461 | 2844 |
 
 ## By Chapter
 
@@ -16,16 +16,16 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `lang/01-lexical-structure.md` | 127 | 16 | 2 | 145 |
 | `lang/02-grammar.md` | 184 | 14 | 16 | 214 |
-| `lang/03-names-and-scopes.md` | 70 | 12 | 19 | 101 |
+| `lang/03-names-and-scopes.md` | 74 | 14 | 13 | 101 |
 | `lang/04-type-system.md` | 254 | 72 | 26 | 352 |
 | `lang/05-expressions.md` | 142 | 78 | 57 | 277 |
 | `lang/06-control-flow.md` | 101 | 33 | 23 | 157 |
 | `lang/07-functions.md` | 51 | 35 | 44 | 130 |
-| `lang/08-data-and-enums.md` | 55 | 40 | 28 | 123 |
-| `lang/09-traits.md` | 201 | 116 | 42 | 359 |
+| `lang/08-data-and-enums.md` | 56 | 40 | 27 | 123 |
+| `lang/09-traits.md` | 204 | 117 | 38 | 359 |
 | `lang/10-modules.md` | 133 | 79 | 46 | 258 |
 | `lang/11-requirements-and-suspension.md` | 105 | 56 | 98 | 259 |
-| `lang/14-annotations.md` | 88 | 55 | 10 | 153 |
+| `lang/14-annotations.md` | 89 | 55 | 9 | 153 |
 | `std/cli.md` | 1 | 0 | 4 | 5 |
 | `std/cmp.md` | 12 | 0 | 2 | 14 |
 | `std/collections.md` | 19 | 5 | 5 | 29 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 57 | 32 | 16 | 105 |
-| `runtime/valid` | 444 | 179 | 306 | 929 |
-| `typing/invalid` | 552 | 417 | 105 | 1074 |
-| `typing/valid` | 335 | 34 | 46 | 415 |
+| `runtime/valid` | 447 | 180 | 302 | 929 |
+| `typing/invalid` | 557 | 419 | 98 | 1074 |
+| `typing/valid` | 336 | 34 | 45 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -75,6 +75,7 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
+| `fail:ambiguous-method` | 1 |
 | `fail:argument-count` | 16 |
 | `fail:bang-call-outside-suspension` | 2 |
 | `fail:bare-variant-pattern` | 3 |
@@ -94,7 +95,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 9 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 255 |
+| `fail:no-diagnostic` | 257 |
 | `fail:nonexhaustive-match` | 16 |
 | `fail:not-callable` | 1 |
 | `fail:orphan-impl` | 1 |
@@ -124,14 +125,19 @@ compiler stage that first declined the case.
 | `fail:unknown-variant` | 1 |
 | `fail:unsatisfied-trait-bound` | 30 |
 | `fail:unused-local-binding` | 7 |
-| `unsupported:Body` | 199 |
+| `unsupported:Body` | 200 |
 | `unsupported:Collect` | 25 |
-| `unsupported:Discover` | 13 |
 | `unsupported:Emit` | 138 |
 | `unsupported:FolderIface` | 34 |
 | `unsupported:Link` | 1 |
 | `unsupported:RunCase` | 57 |
 | `unsupported:TestCase` | 6 |
+
+<details><summary><code>fail:ambiguous-method</code> (1)</summary>
+
+- `runtime/valid/unavailable-trait-method-invisible.hd`
+
+</details>
 
 <details><summary><code>fail:argument-count</code> (16)</summary>
 
@@ -302,7 +308,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (255)</summary>
+<details><summary><code>fail:no-diagnostic</code> (257)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -348,8 +354,10 @@ compiler stage that first declined the case.
 - `typing/invalid/duplicate-literal-match-arm.hd`
 - `typing/invalid/missing-supertrait-implementation.hd`
 - `typing/invalid/incompatible-identity-operands.hd`
+- `typing/invalid/unavailable-trait-method-not-found.hd`
 - `typing/invalid/function-typed-field-method-call.hd`
 - `typing/invalid/trait-value-impl-target.hd`
+- `typing/invalid/private-field-nothing-visible.hd`
 - `typing/invalid/embedded-copy-required.hd`
 - `typing/invalid/embedded-copy-required-fresh-literal.hd`
 - `typing/invalid/embedded-assignment-copy-required.hd`
@@ -1063,7 +1071,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (199)</summary>
+<details><summary><code>unsupported:Body</code> (200)</summary>
 
 - `typing/invalid/nonfinal-spread.hd`
 - `typing/valid/enums.hd`
@@ -1117,6 +1125,7 @@ compiler stage that first declined the case.
 - `runtime/valid/bang-call-explicit-type-arguments.hd`
 - `runtime/valid/list-suffix-spread.hd`
 - `typing/invalid/list-spread-non-list.hd`
+- `typing/invalid/private-own-method-nothing-visible.hd`
 - `runtime/valid/copy-update-copies-embedded-part.hd`
 - `typing/invalid/copy-update-readonly-embedded-mutable-edge.hd`
 - `runtime/valid/embedded-store-copies.hd`
@@ -1294,24 +1303,6 @@ compiler stage that first declined the case.
 - `runtime/panic/fact-evaluation-panics-on-read.hd`
 - `runtime/valid/derive-members-of-data-and-enums.hd`
 - `runtime/valid/trait-and-impl-declaration-forms.hd`
-
-</details>
-
-<details><summary><code>unsupported:Discover</code> (13)</summary>
-
-- `typing/invalid/orphan-impl-foreign-trait-argument.hd`
-- `runtime/valid/unavailable-trait-method-invisible.hd`
-- `typing/invalid/unavailable-trait-method-not-found.hd`
-- `typing/invalid/available-trait-method-beside-promoted.hd`
-- `runtime/valid/available-trait-method-across-packages.hd`
-- `typing/invalid/private-field-nothing-visible.hd`
-- `typing/invalid/private-promoted-method-nothing-visible.hd`
-- `typing/invalid/private-own-method-nothing-visible.hd`
-- `typing/invalid/private-embedded-field-nothing-visible.hd`
-- `runtime/valid/pub-own-member-hides-promoted-other-module.hd`
-- `typing/invalid/root-orphan-impl.hd`
-- `typing/valid/per-trait-self-line-foreign-fact.hd`
-- `runtime/valid/data-visibility-across-packages.hd`
 
 </details>
 
@@ -1946,6 +1937,7 @@ runtime/valid/associated-function-calls.hd
 runtime/valid/associated-function-qualified-call.hd
 runtime/valid/associated-type-bindings.hd
 runtime/valid/associated-type-projections.hd
+runtime/valid/available-trait-method-across-packages.hd
 runtime/valid/bang-call-arguments-before-body.hd
 runtime/valid/binding-expression-tuple-value.hd
 runtime/valid/blanket-impl-dynamic-and-bound.hd
@@ -2016,6 +2008,7 @@ runtime/valid/continuation-line-opens-with-a-bracket.hd
 runtime/valid/data-field-evaluation-order.hd
 runtime/valid/data-fields-named-in-any-order.hd
 runtime/valid/data-patterns.hd
+runtime/valid/data-visibility-across-packages.hd
 runtime/valid/debug-derive-data.hd
 runtime/valid/debug-derive-variants.hd
 runtime/valid/default-body-supertrait-member.hd
@@ -2249,6 +2242,7 @@ runtime/valid/provider-capture-timing.hd
 runtime/valid/provider-from-suspending-call.hd
 runtime/valid/provider-scope-dynamic-callback.hd
 runtime/valid/provider-scope-lexical-capture.hd
+runtime/valid/pub-own-member-hides-promoted-other-module.hd
 runtime/valid/pub-own-member-hides-promoted.hd
 runtime/valid/qualified-calls-beside-promoted-method.hd
 runtime/valid/range-iteration.hd
@@ -2396,6 +2390,7 @@ typing/invalid/assoc-call-type-no-candidate.hd
 typing/invalid/associated-binding-mismatch.hd
 typing/invalid/associated-binding-value-bare-trait.hd
 typing/invalid/associated-function-ambiguous-traits.hd
+typing/invalid/available-trait-method-beside-promoted.hd
 typing/invalid/bang-call-in-comprehension.hd
 typing/invalid/bang-call-in-defer.hd
 typing/invalid/bang-call-in-plain-function.hd
@@ -2723,6 +2718,7 @@ typing/invalid/optional-payload-mutable-outer.hd
 typing/invalid/optional-payload-weakening.hd
 typing/invalid/optional-readonly-payload-store.hd
 typing/invalid/orphan-impl-alias-target.hd
+typing/invalid/orphan-impl-foreign-trait-argument.hd
 typing/invalid/orphan-impl-nested-trait-argument.hd
 typing/invalid/orphan-impl-standard-data.hd
 typing/invalid/orphan-impl-standard-enum.hd
@@ -2745,12 +2741,14 @@ typing/invalid/prelude-shadow-renamed-use.hd
 typing/invalid/prelude-shadow-usize-alias.hd
 typing/invalid/prelude-shadow.hd
 typing/invalid/println-without-console.hd
+typing/invalid/private-embedded-field-nothing-visible.hd
 typing/invalid/private-own-field-beside-conflicting-promoted.hd
 typing/invalid/private-own-field-beside-deep-promoted.hd
 typing/invalid/private-own-field-beside-promoted.hd
 typing/invalid/private-own-field-needs-another-name.hd
 typing/invalid/private-own-method-beside-promoted.hd
 typing/invalid/private-package-name.hd
+typing/invalid/private-promoted-method-nothing-visible.hd
 typing/invalid/promoted-field-assignment-readonly.hd
 typing/invalid/promoted-field-conflict-at-declaration.hd
 typing/invalid/promoted-method-conflict-at-declaration.hd
@@ -2814,6 +2812,7 @@ typing/invalid/result-ok-without-unit.hd
 typing/invalid/root-file-lib-super.hd
 typing/invalid/root-file-super.hd
 typing/invalid/root-mod-file.hd
+typing/invalid/root-orphan-impl.hd
 typing/invalid/row-extension-keeps-other-keys.hd
 typing/invalid/row-extension-unsound.hd
 typing/invalid/row-extension-without-provider.hd
@@ -3134,6 +3133,7 @@ typing/valid/part-trait-method-beside-promoted-inherent.hd
 typing/valid/part-trait-method-ignored-by-lookup.hd
 typing/valid/partly-consumed-iterator.hd
 typing/valid/path-newtype.hd
+typing/valid/per-trait-self-line-foreign-fact.hd
 typing/valid/prelude-surface.hd
 typing/valid/println-top-level-script.hd
 typing/valid/private-data-embeds-private-type.hd
@@ -3278,7 +3278,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 54 | 48 | 0 | 102 |
+| 55 | 47 | 0 | 102 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3335,6 +3335,7 @@ cli/new-path
 cli/new-vcs
 cli/task-beside-dir
 cli/task-name-clash
+cli/test-unit-fakes
 cli/toolchain-too-old
 cli/wasm-cap-flags-only
 cli/wasm-invalid

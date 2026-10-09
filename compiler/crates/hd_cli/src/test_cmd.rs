@@ -15,6 +15,7 @@ use std::time::Instant;
 use hd_cache::DiskStore;
 use hd_check::tests::PANIC_CATEGORIES;
 use hd_driver::{Executor, Goal, Host, TestCase, build_packages};
+use hd_project::SourceSet as _;
 use hd_run::tests_model::{
     Case, CaseKey, CaseKind, CaseResult, ProgramKey, ReleaseCursor, TestPlan,
 };
@@ -176,10 +177,41 @@ fn test_one(
     report: &mut Report,
 ) -> Result<(), ExitCode> {
     let rep = &mut report.rep;
-    let program = disk::load_package(root, "main").map_err(|e| rep.fail(&e))?;
+    let mut program = disk::load_package(root, "main").map_err(|e| rep.fail(&e))?;
     if rep.diags(&program.problems) {
         return Err(rep.finish(HD_FAILURE));
     }
+    // `cli.package.file`: FILE's module, linked with what it uses; the rest
+    // of the package is neither checked nor built.
+    if let Some(f) = file {
+        let keep = hd_driver::use_closure(&program.package, &program.sources, f);
+        program.sources.retain(|p| keep.iter().any(|k| k == p));
+    }
+    // `cli.test.tasks.no-tests`: a task or an executable's entry module
+    // without a `tests:` block gets no test build.
+    let entries: Vec<String> = disk::executables(root, &program.package)
+        .into_iter()
+        .map(|e| e.file)
+        .collect();
+    let untested: Vec<String> = program
+        .sources
+        .list()
+        .into_iter()
+        .map(|e| e.path)
+        .filter(|p| {
+            let task = p
+                .strip_prefix("tasks/")
+                .is_some_and(|rest| !rest.contains('/'));
+            (task || entries.contains(p)) && file != Some(p.as_str())
+        })
+        .filter(|p| {
+            program
+                .sources
+                .read(p)
+                .is_none_or(|t| !hd_driver::has_tests_block(&String::from_utf8_lossy(&t)))
+        })
+        .collect();
+    program.sources.retain(|p| !untested.iter().any(|u| u == p));
     let (sources, package) = (&program.sources, &program.package);
     let store = DiskStore { root: cache_dir() };
     let clock = Wall(Instant::now());

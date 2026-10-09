@@ -703,6 +703,74 @@ pub fn build_packages(
     }
 }
 
+/// The module paths a file's `use` lines name, their roots replaced by
+/// the module paths they name. A path whose root names nothing makes no
+/// edge; resolution reports it.
+fn written_uses(text: &str, lines: &[(u32, u32)], roots: &hd_project::UseRoots) -> Vec<String> {
+    let mut uses = Vec::new();
+    for &(lo, hi) in lines {
+        let line = text.get(lo as usize..hi as usize).unwrap_or("").trim();
+        let rest = line.strip_prefix("pub ").unwrap_or(line);
+        if let Some(rest) = rest.strip_prefix("use ") {
+            let path = rest.split(".{").next().unwrap_or(rest);
+            let path = path.split(" as ").next().unwrap_or(path).trim();
+            let segs: Vec<&str> = path.split('.').collect();
+            if let Ok(abs) = roots.absolute(&segs) {
+                uses.push(abs.join("."));
+            }
+        }
+    }
+    uses
+}
+
+/// Whether a file holds a `tests:` block, from its skim alone.
+#[must_use]
+pub fn has_tests_block(text: &str) -> bool {
+    skim(text.as_bytes())
+        .bodies
+        .iter()
+        .any(|b| b.kind == HeaderKind::Tests)
+}
+
+/// The files of a package that the module of `file` reaches through its
+/// `use` lines, deeply, `file` first: the part of the package that
+/// `hd test FILE` and `hd check FILE` link with FILE's module
+/// (`cli.package.file`). Only discovery and skims run, no check.
+#[must_use]
+pub fn use_closure(package: &str, sources: &dyn SourceSet, file: &str) -> Vec<String> {
+    let table = ModuleTable::discover_all(&[PackageIn {
+        name: package,
+        sources,
+        scope: Scope::All,
+        requires: Vec::new(),
+        entries: Vec::new(),
+        dev_requires: Vec::new(),
+    }]);
+    let Some(start) = table.files.iter().position(|f| f == file) else {
+        return vec![file.to_owned()];
+    };
+    let mut seen = vec![false; table.modules.len()];
+    let mut order = Vec::new();
+    let mut stack = vec![start];
+    while let Some(m) = stack.pop() {
+        if std::mem::replace(&mut seen[m], true) {
+            continue;
+        }
+        order.push(table.files[m].clone());
+        let text = sources
+            .read(&table.sources[m].1)
+            .map(|b| String::from_utf8_lossy(&b).into_owned())
+            .unwrap_or_default();
+        let roots = table.use_roots(ModuleId::from_raw(u32_of(m)));
+        for u in written_uses(&text, &skim(text.as_bytes()).uses, &roots) {
+            if let Some(id) = table.module_of_use(&u) {
+                stack.push(id.idx());
+            }
+        }
+    }
+    order
+}
+
 /// Runs every stage of the design over one package and counts how far
 /// each gets (the same driver as `build`, in analysis mode).
 pub fn analyze_package(package: &str, sources: &dyn SourceSet) -> PipelineReport {
@@ -863,21 +931,7 @@ impl Run<'_> {
         let sk = skim(text.as_bytes());
         let module = &self.table.modules[m].path;
         let roots = self.table.use_roots(ModuleId::from_raw(u32_of(m)));
-        let mut uses = Vec::new();
-        for &(lo, hi) in &sk.uses {
-            let line = text.get(lo as usize..hi as usize).unwrap_or("").trim();
-            let rest = line.strip_prefix("pub ").unwrap_or(line);
-            if let Some(rest) = rest.strip_prefix("use ") {
-                let path = rest.split(".{").next().unwrap_or(rest);
-                let path = path.split(" as ").next().unwrap_or(path).trim();
-                let segs: Vec<&str> = path.split('.').collect();
-                // A path whose root names nothing makes no edge; resolution
-                // reports it.
-                if let Ok(abs) = roots.absolute(&segs) {
-                    uses.push(abs.join("."));
-                }
-            }
-        }
+        let mut uses = written_uses(text, &sk.uses, &roots);
         // The prelude's fixed uses (`module.prelude.fixed-uses`).
         if module != "std.core" {
             uses.extend(hd_resolve::prelude_modules().into_iter().map(str::to_owned));

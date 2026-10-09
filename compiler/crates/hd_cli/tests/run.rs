@@ -1142,3 +1142,35 @@ fn fmt_formats_the_package_and_leaves_broken_files_alone() {
     let r = ran(&dir, &["fmt", "--check", "src/main.hd"]);
     assert_eq!((r.code, r.out.as_str()), (Some(0), ""), "{}", r.err);
 }
+
+/// `cli.package.file`, `cli.test.tasks.no-tests`: `hd test FILE` checks
+/// FILE's module and what it uses, not a sibling with an error; a
+/// whole-package `hd test` builds no test build of a task or an entry
+/// module without a `tests:` block, so their top-level printing is fine.
+#[test]
+fn test_file_links_only_what_it_uses_and_skips_untested_entries() {
+    let dir = tree(
+        "hd-forms-test-scope",
+        &[
+            ("hd.toml", "[package]\nname = \"shop\"\n"),
+            (
+                "src/util.hd",
+                "pub fn double(v: i32) -> i32:\n    v * 2\n\ntests:\n    use std.testing.assert_equal\n\n    it(\"doubles\"):\n        assert_equal(double(2), 4, reason=\"d\")\n",
+            ),
+            ("src/broken.hd", "pub fn f() -> i32:\n    missing\n"),
+            ("src/main.hd", HELLO),
+            ("tasks/report.hd", "println(\"report\")\n"),
+        ],
+    );
+    let r = ran(&dir, &["test", "src/util.hd"]);
+    assert_eq!(r.code, Some(0), "{}{}", r.out, r.err);
+    std::fs::remove_file(dir.join("src/broken.hd")).expect("remove");
+    let r = ran(&dir, &["test"]);
+    assert_eq!(r.code, Some(0), "{}{}", r.out, r.err);
+    assert!(
+        r.out
+            .ends_with("test result: ok. 1 passed; 0 failed; 0 ignored\n"),
+        "{}",
+        r.out
+    );
+}

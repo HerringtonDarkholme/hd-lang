@@ -16,7 +16,9 @@ use std::process::Command;
 use hd_base::Stage;
 use hd_cache::MemoryStore;
 use hd_diag::Severity;
-use hd_driver::{Executor, Goal, Host, NoClock, Output, PipelineReport, build};
+use hd_driver::{
+    Dependency, Executor, Goal, Host, NoClock, Output, Packages, PipelineReport, build_packages,
+};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 use hd_syntax::parse;
@@ -61,6 +63,9 @@ struct Fixture {
     primary: String,
     text: String,
     tree: bool,
+    /// The dependencies of a package-role fixture: each package under
+    /// `packages/`, by name (README "Package Roles").
+    deps: Vec<(String, MemorySources)>,
 }
 
 fn root() -> PathBuf {
@@ -124,15 +129,58 @@ fn load_tree(root: &Path, dir: &Path, sources: &mut MemorySources) {
     }
 }
 
+/// The packages of the multi-package environment: each directory
+/// `packages/NAME/`, in ascending order of NAME, as a package whose source
+/// root holds the directory's files.
+fn role_packages() -> Vec<(String, MemorySources)> {
+    let dir = suite_root().join("packages");
+    let mut names: Vec<PathBuf> = std::fs::read_dir(&dir)
+        .expect("packages directory")
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_dir())
+        .collect();
+    names.sort();
+    names
+        .into_iter()
+        .map(|path| {
+            let mut flat = MemorySources::default();
+            load_tree(&path, &path, &mut flat);
+            let mut sources = MemorySources::default();
+            for entry in hd_project::SourceSet::list(&flat) {
+                let text = hd_project::SourceSet::read(&flat, &entry.path).expect("package file");
+                sources.insert(
+                    &format!("src/{}", entry.path),
+                    &String::from_utf8_lossy(&text),
+                );
+            }
+            let name = path
+                .file_name()
+                .expect("package name")
+                .to_string_lossy()
+                .into_owned();
+            (name, sources)
+        })
+        .collect()
+}
+
 fn fixture(case: &Case) -> Result<Fixture, String> {
     let file = suite_root().join(&case.path);
     let text = std::fs::read_to_string(&file).map_err(|error| error.to_string())?;
-    if directive(&text, "fixture-package-role").is_some() {
-        return Err("Discover".to_owned());
-    }
     let mut sources = MemorySources::default();
     let mut tree = false;
-    let primary = if let Some(value) = directive(&text, "fixture-package-tree") {
+    let mut deps = Vec::new();
+    let primary = if let Some(role) = directive(&text, "fixture-package-role") {
+        // The primary file is the root module of a package in the role,
+        // which depends on every package under `packages/`, each a
+        // library whose `lib.hd` is its root module.
+        deps = role_packages();
+        match role {
+            "library" => "src/lib.hd".to_owned(),
+            "root-application" => "src/main.hd".to_owned(),
+            _ => return Err("Discover".to_owned()),
+        }
+    } else if let Some(value) = directive(&text, "fixture-package-tree") {
         let Some((name, path)) = value.split_once('/') else {
             return Err("Discover".to_owned());
         };
@@ -156,6 +204,7 @@ fn fixture(case: &Case) -> Result<Fixture, String> {
         primary,
         text,
         tree,
+        deps,
     })
 }
 
@@ -181,7 +230,25 @@ fn build_fixture(fixture: &Fixture, store: &MemoryStore, goal: &Goal) -> Output 
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };
-    build(&host, "fixture", goal)
+    let packages = Packages {
+        requires: fixture
+            .deps
+            .iter()
+            .enumerate()
+            .map(|(i, (name, _))| (name.clone(), u16::try_from(i + 1).expect("packages")))
+            .collect(),
+        deps: fixture
+            .deps
+            .iter()
+            .map(|(name, sources)| Dependency {
+                name: name.clone(),
+                sources,
+                requires: Vec::new(),
+            })
+            .collect(),
+        ..Packages::default()
+    };
+    build_packages(&host, "fixture", &packages, goal)
 }
 
 fn marker_line(text: &str, kind: &str) -> Option<usize> {

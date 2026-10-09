@@ -89,19 +89,6 @@ When the queue is empty, say so under "Questions" and wait.
 
 ## Jobs
 
-### O10. Test Environments And Package Test Discovery (#43)
-
-CLI cases `test-unit-fakes`, `test-integration-env`, `test-tasks`
-(`cli.test.env.*`, `cli.test.tasks.*`, `cli.task.*`). Driver tier (#43):
-13 package fixtures stop at `unsupported: stage Discover` (multi-file
-fixtures), and about 24 tests-only modules are run as programs and fail
-with `missing-entry-point`. Find them in `compiler/CONFORMANCE.md`
-(`unsupported:Discover`, `fail:missing-entry-point`). Discovery is
-`hd_project`; which goal a fixture or file runs under is CLI-facing
-`hd_driver`. Read `spec/lang/10-modules.md` (tests, tasks) and
-`spec/cli/command-line.md` (Test Environments) before changing
-behaviour.
-
 ### O11. Capability Grants
 
 CLI cases `cap-flag-overrides-table`, `cap-partial-deny`,
@@ -203,6 +190,24 @@ bench N`).
   `dbg-value-forms`: Emit, TIR tag `ItemRef`. Panic frames in a `PANIC`
   block (`cli.test.report.frame`) need the module's line table from
   codegen.
+- **O10 status.** Built: the driver conformance harness gives
+  `fixture-package-role` its environment (the packages under
+  `packages/`, as `dep.NAME`), so the 13 `unsupported:Discover` fixtures
+  run; 9 pass, and 4 stop in the checker:
+  `unavailable-trait-method-invisible` (`ambiguous-method` between a trait
+  method and a promoted one), `unavailable-trait-method-not-found` and
+  `private-field-nothing-visible` (no diagnostic), and
+  `private-own-method-nothing-visible` (Body, "a method without a
+  signature"). `hd test FILE` now checks only FILE's module and what it
+  uses (`test-unit-fakes` passes), and a whole-package `hd test` leaves
+  out a task or entry module without a `tests:` block
+  (`cli.test.tasks.no-tests`). `test-tasks`, `test-integration-env` and
+  the integration environment (`cli.test.env.*`: working directory, temp
+  directory, args, stdin, test grant) wait on integration programs
+  running (`TrailingCallExpr`, #74) and on `it_each`/`it_prop` in
+  `std.testing` (`unknown-import`). The tests-only modules that ran as
+  programs no longer do; one `missing-entry-point` is left,
+  `script-empty-run` (an empty script entry).
 - **Left for other lanes (status).** The CLI cases still failing for
   reasons outside this lane wait on the orchestrator's tasks above:
   top-level `it(...)` (#74: the `json-test-*`, `test-*`, `new-app`,
