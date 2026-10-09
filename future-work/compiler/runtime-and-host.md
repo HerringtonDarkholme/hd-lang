@@ -163,6 +163,42 @@ The prototype names imports `hd:<trait>/<method>`. D2 splits that into
 Wasm's module and name fields, so the startup check reads the module field
 alone.
 
+**As built (task #181a), host primitives.** A key of `INTRINSICS` whose
+lowering is `HostPrimitive(name)` is one import `hd:prim` `name`, with no
+receiver, that never waits. `hd_mono` makes its call an `Intrinsic` target,
+and `hd_wasm` lowers it as `Helper::HostPrim`: the scalar arguments are
+import parameters as themselves (an `f32` or `f64` is the raw value, a
+`usize` an `i32`), and the string result is written in the exchange buffer
+as a string (§17.4) and decoded by the same `Dec` helper a provider's
+result uses. A program that never calls one has no such import, so its
+size is unchanged. Three are lowered: `format_f64`, `format_f32`, and
+`format_f64_fixed`. The JS host (`compiler/host/float.mjs`, imported by
+`core.mjs`) writes their text from the exact significand and exponent with
+`BigInt`, so no result depends on `Number.prototype.toString` or
+`toFixed`:
+
+- *Shortest text* is Steele and White free-format printing in Burger and
+  Dybvig's form. The interval of values that read back as the float
+  reaches halfway to each neighbor at the float's own width (`f32` or
+  `f64`), narrower below a power of two, and includes its ends exactly
+  when the significand is even. Of the shortest digit strings in it, the
+  closest is chosen, and an exact tie goes to the even last digit (as
+  JavaScript, Python and Go do; Rust takes the larger, and the spec does
+  not say). The notation rules of `types.display.notation` follow.
+- *Fixed-point text* is the exact quotient of `significand * 10^digits` by
+  a power of two, rounded half to even, with the sign bit kept.
+- A generated Wasm helper was the other choice: Ryu or Grisu tables and a
+  big-number fallback, assembled by hand, with no gain while Node is the
+  only host that runs programs. The spec makes these primitives host work
+  ("Host. The host supplies these, for now."), so the import is the
+  smallest lowering that matches it. The wasmtime provider, when it is
+  linked, writes the same text in Rust, and `float_text.rs` is the test it
+  must pass.
+
+`compiler/crates/hd_driver/tests/float_text.rs` checks the host text of
+about 13,000 `f64`, 5,600 `f32` and 14,000 fixed-point cases against Rust's
+own `{:e}` and `{:.N}` printing.
+
 ### 17.3 The Exchange Buffer
 
 - One exported linear memory, `hd.x`, of one page at first, grown on
