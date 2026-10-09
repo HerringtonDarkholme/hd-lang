@@ -143,19 +143,27 @@ minutes.
 
 ### Y4. Accept `concat_all` (A1): Spec Row Only (#112)
 
-Owner approved A1, 2026-10-08 23:50.
-Add the `string_concat_all` row to the Representation
-primitives table in `spec/std/README.md` (`Standard Library Primitives`),
-in the table's own style, with the declaration from
-`representation-runtime.md` (`@intrinsic("string_concat_all") fn
-concat_all(parts: List[string]) -> string`, private). Change that design
-section's heading from "Proposal, Not Accepted" to "Accepted (A1,
-2026-10-08)" and keep its text. Do **not** touch `lib/std` yet: the
-intrinsic does not exist in the compiler, and the orchestrator's agent
-adds it together with the `join`/`StringBuilder.build` rewrite. This job
-lifts the spec rule for that one table row and the design file for that
-heading. Checks: `bash spec/check.sh` (realign `examples.tsv` if a
-```text block moves). Timebox 20 minutes.
+Owner approved A1, 2026-10-08 23:50. Add one row to the
+**Representation** table under "Standard Library Primitives" in
+`spec/std/README.md`, in that table's three columns (Primitive,
+Signature, Why it is a primitive):
+
+- Primitive: `concat_all` (the approved name; like the other rows, the
+  function name, not the reference implementation's intrinsic key).
+- Signature: `(parts: List[string]) -> string`.
+- Why: allocates one string of the parts' total byte length and copies
+  each part once; hd has no byte buffer, so `join` cannot do this in hd
+  (the same reason the table gives for `bytes_concat`).
+
+The spec has no syntax for declaring a primitive (see that section's
+first paragraph), so no `@intrinsic(...)` text goes into the spec. In
+`future-work/compiler/representation-runtime.md`, change the heading
+"Single-Pass `join`: The `concat_all` Intrinsic (Proposal, Not Accepted)"
+to "... (Accepted: A1, Owner 2026-10-08)" and keep its text. Do **not**
+touch `lib/std`: the compiler side does not exist yet, and the
+orchestrator's agent adds it with the `join`/`StringBuilder.build`
+rewrite. This job lifts the spec rule for that one row and the design
+file for that heading. Check: `bash spec/check.sh`. Timebox 20 minutes.
 
 ### R3. Design Note: Functions As Values (#46, Design Text)
 
