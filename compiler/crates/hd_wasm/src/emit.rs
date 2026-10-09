@@ -1160,7 +1160,7 @@ impl Em<'_> {
             return unsupported(format!("the operator {op:?} on this layout"));
         }
         let wide = vt0[0] == VT::I64;
-        if float {
+        if float && op != PrimOp::Conv {
             return self.float_value(op, ops, &vt0[0]);
         }
         let s = |em: &mut Self| -> StageResult<()> {
@@ -1300,51 +1300,137 @@ impl Em<'_> {
                     self.a.s().i32_xor();
                 }
             }
-            PrimOp::Conv => {
-                s(self)?;
-                let to = self.vts(ty)?;
-                let (tbits, tsigned, tfloat) = num(self.pool(), ty);
-                let mut x = self.a.s();
-                match (
-                    vt0[0].clone(),
-                    to.first().cloned().unwrap_or(VT::I32),
-                    tfloat,
-                ) {
-                    (VT::I32, VT::I64, _) => {
-                        if signed {
-                            x.i64_extend_i32_s()
-                        } else {
-                            x.i64_extend_i32_u()
-                        };
-                    }
-                    (VT::I64, VT::I32, _) => {
-                        x.i32_wrap_i64();
-                    }
-                    (VT::I32, VT::F64, _) => {
-                        if signed {
-                            x.f64_convert_i32_s()
-                        } else {
-                            x.f64_convert_i32_u()
-                        };
-                    }
-                    (VT::I64, VT::F64, _) => {
-                        if signed {
-                            x.f64_convert_i64_s()
-                        } else {
-                            x.f64_convert_i64_u()
-                        };
-                    }
-                    (a, b, _) if a == b => {}
-                    _ => return unsupported("this numeric conversion"),
-                }
-                // An integer cast keeps the target's low bits
-                // (`types.cast.wrap`): `u8(300)` is 44, `i8(200)` is -56.
-                if !tfloat {
-                    self.wrap_to(tbits, tsigned);
-                }
-            }
+            PrimOp::Conv => self.convert(ops[0], &vt0[0], (signed, float), ty)?,
         }
         Ok(())
+    }
+
+    /// A numeric cast of `ops[0]` to the type `ty` (`types.cast.*`). The
+    /// source's representation is `from`, with its `signed` and `float`
+    /// kind. No cast panics (`types.cast.no-panic`).
+    fn convert(
+        &mut self,
+        op: u32,
+        from: &VT,
+        (signed, float): (bool, bool),
+        ty: Ty,
+    ) -> StageResult<()> {
+        let to = self.vts(ty)?;
+        let Some(to) = to.first().cloned() else {
+            return unsupported("a numeric cast to a type without a value");
+        };
+        let (tbits, tsigned, tfloat) = num(self.pool(), ty);
+        self.comp(op, 0, from)?;
+        let mut x = self.a.s();
+        match (from, &to) {
+            (VT::I32, VT::I64) => {
+                if signed {
+                    x.i64_extend_i32_s()
+                } else {
+                    x.i64_extend_i32_u()
+                };
+            }
+            (VT::I64, VT::I32) => {
+                x.i32_wrap_i64();
+            }
+            // An integer converts to the nearest float, a tie to the even
+            // significand (`types.cast.int-float`): one rounding, by the
+            // instruction.
+            (VT::I32, VT::F32) => {
+                if signed {
+                    x.f32_convert_i32_s()
+                } else {
+                    x.f32_convert_i32_u()
+                };
+            }
+            (VT::I64, VT::F32) => {
+                if signed {
+                    x.f32_convert_i64_s()
+                } else {
+                    x.f32_convert_i64_u()
+                };
+            }
+            (VT::I32, VT::F64) => {
+                if signed {
+                    x.f64_convert_i32_s()
+                } else {
+                    x.f64_convert_i32_u()
+                };
+            }
+            (VT::I64, VT::F64) => {
+                if signed {
+                    x.f64_convert_i64_s()
+                } else {
+                    x.f64_convert_i64_u()
+                };
+            }
+            // `f32` widens exactly; `f64` narrows to the nearest `f32`, a
+            // tie to the even significand (`types.cast.f32-f64`,
+            // `types.cast.f64-f32`).
+            (VT::F32, VT::F64) => {
+                x.f64_promote_f32();
+            }
+            (VT::F64, VT::F32) => {
+                x.f32_demote_f64();
+            }
+            (VT::F32 | VT::F64, VT::I32 | VT::I64) => {
+                self.float_to_int(from, tbits, tsigned);
+            }
+            (a, b) if a == b => {}
+            _ => return unsupported("this numeric conversion"),
+        }
+        // An integer cast keeps the target's low bits
+        // (`types.cast.wrap`): `u8(300)` is 44, `i8(200)` is -56. A float
+        // source was clamped to the target's range already.
+        if !tfloat && !float {
+            self.wrap_to(tbits, tsigned);
+        }
+        Ok(())
+    }
+
+    /// Truncates the float on the stack toward zero and saturates it to the
+    /// integer type of `bits` and `signed` (`types.cast.saturate`): the
+    /// target's bounds for the infinities and out-of-range values, and zero
+    /// for NaN. The `trunc_sat` instructions do this at 32 and 64 bits. A
+    /// sub-word target saturates in `i32` first, then clamps: that is
+    /// monotone, so the bound the clamp meets is the right one.
+    fn float_to_int(&mut self, from: &VT, bits: u8, signed: bool) {
+        let single = *from == VT::F32;
+        let mut x = self.a.s();
+        match (bits, single, signed) {
+            (64, true, true) => x.i64_trunc_sat_f32_s(),
+            (64, true, false) => x.i64_trunc_sat_f32_u(),
+            (64, false, true) => x.i64_trunc_sat_f64_s(),
+            (64, false, false) => x.i64_trunc_sat_f64_u(),
+            (32, true, true) => x.i32_trunc_sat_f32_s(),
+            (32, true, false) => x.i32_trunc_sat_f32_u(),
+            (32, false, true) => x.i32_trunc_sat_f64_s(),
+            (32, false, false) => x.i32_trunc_sat_f64_u(),
+            (_, true, _) => x.i32_trunc_sat_f32_s(),
+            (_, false, _) => x.i32_trunc_sat_f64_s(),
+        };
+        if bits >= 32 {
+            return;
+        }
+        let (lo, hi) = if signed {
+            (-(1i32 << (bits - 1)), (1i32 << (bits - 1)) - 1)
+        } else {
+            (0, width_mask(bits))
+        };
+        let v = self.a.local(VT::I32);
+        self.a.set(v);
+        // `lo` where `v < lo`, then `hi` where that is above `hi`.
+        self.a.i32(lo);
+        self.a.get(v);
+        self.a.get(v);
+        self.a.i32(lo);
+        self.a.s().i32_lt_s().select();
+        self.a.set(v);
+        self.a.i32(hi);
+        self.a.get(v);
+        self.a.get(v);
+        self.a.i32(hi);
+        self.a.s().i32_gt_s().select();
     }
 
     /// Brings an `i32` holding a `bits`-wide integer's low bits back to
