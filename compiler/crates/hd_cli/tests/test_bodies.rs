@@ -192,3 +192,43 @@ fn an_explicit_body_is_checked() {
         assert!(err.contains(code), "{body}: {err}");
     }
 }
+
+/// `std-testing.option.timeout-any-duration`, `.timeout-at-run`: the case
+/// of an explicit body evaluates its `timeout` before it calls the body,
+/// so a body that runs past it fails with `time-limit`, and one that uses
+/// `?` within its budget passes.
+#[test]
+fn an_explicit_body_runs_under_its_timeout() {
+    let lib = format!(
+        "{ERRORS}
+use std.time.{{Duration, h, ms}}
+
+fn budget() -> Duration: 1h
+
+fn forever(stop: i32) -> i32:
+    let total: i32 = 0
+    while total != stop:
+        total = (total + 1) % 1000
+    total
+
+tests:
+    it(\"spins\", timeout=100ms, body=fn!(): _ := forever(-1))
+
+    it(\"saves in time\", timeout=budget(), body=fn!() -> Result[void, SaveError]: save(1))
+"
+    );
+    let root = package("test-bodies-timeout", &lib);
+    let out = hd(&root, &["test"]);
+    assert_eq!(
+        text(&out.stdout),
+        "\
+PANIC src/lib.hd:24: spins
+    panic: time-limit: the test case ran longer than its timeout of 100ms
+    repro: hd test src/lib.hd --filter \"spins\"
+test result: FAILED. 1 passed; 1 failed; 0 ignored
+",
+        "{}",
+        text(&out.stderr)
+    );
+    assert_eq!(out.status.code(), Some(1));
+}
