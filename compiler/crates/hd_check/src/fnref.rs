@@ -142,7 +142,7 @@ impl Ck<'_, '_> {
                     Some(HeadKind::Trait) => {
                         return self.trait_ref(def, explicit, &name, method_targs, want, n);
                     }
-                    Some(HeadKind::Enum)
+                    Some(HeadKind::Enum | HeadKind::Alias)
                         if {
                             let et = self.ctor(def, &explicit)?;
                             self.variant_fields(et, &name).is_some()

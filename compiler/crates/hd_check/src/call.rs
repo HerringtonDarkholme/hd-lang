@@ -1453,8 +1453,13 @@ impl Ck<'_, '_> {
                 }
                 unsupported("a module member value that is not a function")
             }
-            Some(Named::Item(def)) if self.kind_of_item(def) == Some(HeadKind::Enum) => {
+            Some(Named::Item(def)) if self.is_enum_head(def) => {
                 let t = self.ctor(def, &[])?;
+                if self.kind_of_item(def) == Some(HeadKind::Alias)
+                    && self.variant_fields(t, name).is_none()
+                {
+                    return Ok(None);
+                }
                 let vnode = n;
                 Ok(Some(self.variant_by_name(
                     t,
@@ -1465,6 +1470,16 @@ impl Ck<'_, '_> {
             }
             _ => Ok(None),
         }
+    }
+
+    /// Whether `def` names an enum, or an alias that may expand to one
+    /// (`Option` is an alias of the built-in optional): `Name.Variant` can
+    /// then name a variant.
+    fn is_enum_head(&self, def: DefId) -> bool {
+        matches!(
+            self.kind_of_item(def),
+            Some(HeadKind::Enum | HeadKind::Alias)
+        )
     }
 
     /// A variant value of `t` from positional or named payload values.
@@ -1590,7 +1605,7 @@ impl Ck<'_, '_> {
                     return self.call_item(def, &explicit, args, n, bang, want);
                 }
                 Some(Named::Item(def)) => match self.kind_of_item(def) {
-                    Some(HeadKind::Enum)
+                    Some(HeadKind::Enum | HeadKind::Alias)
                         if {
                             let et = self.ctor(def, &explicit)?;
                             self.variant_fields(et, &name).is_some()
