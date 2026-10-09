@@ -101,6 +101,11 @@ impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
     fn variant(mut self, v: Variant[S]) -> Result[void, W::Error]:
         self.out.begin_variant(self.facts, v.info)
 
+    # A rest member is one `List[T]` member (annot.walk.rest.default),
+    # which needs `T < Serialize` here, as `member` needs `F < Serialize`.
+    fn rest[T < Serialize](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, W::Error]:
+        self.member(h, items)
+
     fn member[F < Serialize](mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
         self.out.member(h.info)?
         value.serialize(self.out)
