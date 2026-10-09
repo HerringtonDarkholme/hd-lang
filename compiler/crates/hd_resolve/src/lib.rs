@@ -28,8 +28,8 @@ pub use iface::{
 };
 pub use known::KnownItems;
 pub use lower::{
-    Cx, FolderOut, Head, Kinds, ModIn, ModOut, PRELUDE, UseDecl, World, body_nodes, build_folder,
-    heads, prelude_modules, use_decls,
+    Cx, FolderOut, Head, Kinds, LocalItem, LocalSite, ModIn, ModOut, PRELUDE, UseDecl, World,
+    body_nodes, build_folder, heads, local_at, local_items, prelude_modules, use_decls,
 };
 pub use view::Src;
 

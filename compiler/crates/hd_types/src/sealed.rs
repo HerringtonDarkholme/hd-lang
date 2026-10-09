@@ -72,6 +72,9 @@ pub trait Declarations {
     /// A trait's direct supertraits, as trait value types over the trait's
     /// parameters (`Self` is parameter 0).
     fn supertraits(&self, trait_: DefId) -> &[Ty];
+    /// Whether a declaration is local to a block suite, which is never
+    /// inspectable (`trait.inspectable.not.local`).
+    fn is_local(&self, def: DefId) -> bool;
 }
 
 /// A row's answer: it holds when every subgoal does (each on the same
@@ -187,13 +190,13 @@ pub(crate) fn row(
                 true
             }
             // A declaration applied to inspectable arguments, `Option`
-            // included (`trait.inspectable.declared`, `.option`). Block-local
-            // declarations (`trait.inspectable.not.local`) do not exist in
-            // this compiler yet.
+            // included (`trait.inspectable.declared`, `.option`), unless it
+            // is local to a block suite (`trait.inspectable.not.local`).
             TyData::Option(i) => {
                 argument(pool, i, &mut subs);
                 true
             }
+            TyData::Adt { def, .. } if decls.is_local(def) => false,
             TyData::Adt { args, .. } => {
                 for a in pool.list_items(args) {
                     argument(pool, *a, &mut subs);

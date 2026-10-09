@@ -1924,6 +1924,7 @@ impl Ck<'_, '_> {
             suspends: n
                 .direct_token(&self.cx.src.parse.tokens, TokenKind::Bang)
                 .is_some(),
+            name: None,
         };
         self.closure_of(n, &parts, want)
     }
@@ -1949,6 +1950,7 @@ impl Ck<'_, '_> {
             row: None,
             body: block,
             suspends,
+            name: None,
         };
         self.closure_of(block, &parts, Some(want))
     }
@@ -1960,6 +1962,20 @@ impl Ck<'_, '_> {
         parts: &ClosureParts<'_>,
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
+        let (r, t, _) = self.closure_with(n, parts, want)?;
+        Ok((r, t))
+    }
+
+    /// [`Self::closure_of`]; a local function's name (`parts.name`) is a
+    /// local of the enclosing scope, bound before the body so the body can
+    /// call it (`names.local-fn.visible`), and returned with it. The
+    /// caller sets it to the closure.
+    pub(crate) fn closure_with(
+        &mut self,
+        n: NodeRef<'_>,
+        parts: &ClosureParts<'_>,
+        want: Option<Ty>,
+    ) -> StageResult<(Ref, Ty, Option<hd_base::LocalId>)> {
         let pool = self.pool();
         let wanted = want
             .map(|w| self.infer.resolve(pool, w))
@@ -2014,6 +2030,22 @@ impl Ck<'_, '_> {
             Some(r) => Some(self.row_of(r)?),
             None => None,
         };
+        // The name's type before the body: the written row, or none yet.
+        let own_row = written.unwrap_or(hd_types::RowId::EMPTY);
+        let own = parts.name.map(|name| {
+            let t = pool.intern_ty(&TyData::Fn {
+                params: pool.list(&ptys),
+                result: ret,
+                row: own_row,
+                suspends,
+            });
+            let flags = local_flags::ASSIGNED | local_flags::SHORT;
+            let l = self.b.local(t, name, flags, n.index());
+            // The scope around the parameters' is the declaration's.
+            let at = self.scopes.len() - 2;
+            self.scopes[at].insert(name, l);
+            l
+        });
         let mark = self.b.open_sub(&params);
         self.subs.push(OpenSub {
             mark,
@@ -2053,7 +2085,21 @@ impl Ck<'_, '_> {
             row,
             suspends,
         });
-        Ok((self.b.close_sub(mark, root, ft, n.index()), ft))
+        // A local function that calls itself captures its own name: the
+        // name is declared, a fresh shared cell, before the closure exists,
+        // and set once it does (`fn.local.capture-rules`).
+        if let Some(l) = own
+            && self.b.body_mut().local_flags[l.idx()] & local_flags::CAPTURED != 0
+        {
+            if row != own_row {
+                return unsupported(
+                    "a recursive local function whose requirements are inferred; write its `$` clause",
+                );
+            }
+            self.b.set(l, Ref(NONE), n.index());
+            self.b.body_mut().local_flags[l.idx()] |= local_flags::CAPTURED_ASSIGNED;
+        }
+        Ok((self.b.close_sub(mark, root, ft, n.index()), ft, own))
     }
 
     /// `e?` on a `Result` or an `Option`: the success payload, or an early
@@ -2289,11 +2335,14 @@ impl Ck<'_, '_> {
 
 /// The source parts of a closure: a `fn(...)` expression's, or a trailing
 /// block's, which has only a body.
-struct ClosureParts<'t> {
-    params: Option<NodeRef<'t>>,
-    ret: Option<NodeRef<'t>>,
-    row: Option<NodeRef<'t>>,
+pub(crate) struct ClosureParts<'t> {
+    pub params: Option<NodeRef<'t>>,
+    pub ret: Option<NodeRef<'t>>,
+    pub row: Option<NodeRef<'t>>,
     /// A `Block`, or an inline suite's one expression.
-    body: NodeRef<'t>,
-    suspends: bool,
+    pub body: NodeRef<'t>,
+    pub suspends: bool,
+    /// A local function's name, visible in its own body
+    /// (`names.local-fn.visible`).
+    pub name: Option<hd_base::Symbol>,
 }

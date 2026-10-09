@@ -1746,6 +1746,11 @@ impl Ck<'_, '_> {
             _ => t,
         };
         for (impl_def, method) in cands {
+            // A local impl's methods are found only in its extent
+            // (`trait.impl.local.lookup`).
+            if self.hidden.contains(&impl_def) {
+                continue;
+            }
             let Some(item) = self.cx.lookup.item(impl_def) else {
                 continue;
             };

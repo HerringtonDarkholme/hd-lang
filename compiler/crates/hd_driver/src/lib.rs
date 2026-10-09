@@ -1614,6 +1614,7 @@ impl Run<'_> {
             universe,
             extra: &extra,
             arity: &arity,
+            hidden: &[],
         };
         let cx = hd_check::header::HeaderCx {
             names,
@@ -2016,6 +2017,7 @@ impl Run<'_> {
             universe,
             extra: &extra,
             arity: &arity,
+            hidden: &[],
         };
         let src = self.src(m);
         let heads = hd_resolve::heads(&names, &src, &module.path);
@@ -2026,6 +2028,7 @@ impl Run<'_> {
         };
         let scope = lowered.scope;
         let solver = TableSolver;
+        let locals = hd_resolve::local_items(&heads);
         let cx = BodyCx {
             names,
             src,
@@ -2037,6 +2040,7 @@ impl Run<'_> {
             methods: std::cell::OnceCell::new(),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             results: std::cell::RefCell::default(),
+            locals: &locals,
         };
         let mut diags = DiagBuf::default();
         let mut bodies = Vec::new();
@@ -2427,9 +2431,11 @@ impl Run<'_> {
                 universe,
                 extra: &extra,
                 arity: &arity,
+                hidden: &[],
             };
             let src = self.src(tm);
             let theads = hd_resolve::heads(&names, &src, &self.table.modules[tm].path);
+            let tlocals = hd_resolve::local_items(&theads);
             let tcx = BodyCx {
                 names,
                 src,
@@ -2441,6 +2447,7 @@ impl Run<'_> {
                 methods: std::cell::OnceCell::new(),
                 init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
                 results: std::cell::RefCell::default(),
+                locals: &tlocals,
             };
             found.extend(self.check_opt_ins(&tcx, &theads, &opts, &mut derived));
         }
@@ -2785,6 +2792,7 @@ impl Run<'_> {
             universe: p.universe,
             extra: &p.extra,
             arity,
+            hidden: &[],
         }
     }
 
@@ -3990,6 +3998,9 @@ impl Declarations for Env<'_> {
     }
     fn supertraits(&self, trait_: DefId) -> &[Ty] {
         self.p.items.get(&trait_).map_or(&[], Item::supertraits)
+    }
+    fn is_local(&self, def: DefId) -> bool {
+        self.run.names().is_local(def)
     }
 }
 

@@ -2600,6 +2600,9 @@ mod tests {
                 .find(|(d, _)| *d == trait_)
                 .map_or(&[], |(_, s)| s.as_slice())
         }
+        fn is_local(&self, _: DefId) -> bool {
+            false
+        }
     }
 
     #[test]
@@ -2847,6 +2850,7 @@ mod tests {
                 universe,
                 extra: &extra,
                 arity: &arity,
+                hidden: &[],
             };
             let local = LocalPool::new();
             let p = Types::with_local(&gp, &local);
@@ -2994,6 +2998,7 @@ mod tests {
                 universe,
                 extra: &extra,
                 arity: &arity,
+                hidden: &[],
             };
             let local = LocalPool::new();
             let p = Types::with_local(&gp, &local);
@@ -3154,6 +3159,7 @@ mod tests {
             universe,
             extra: &extra,
             arity: &arity,
+            hidden: &[],
         };
         let tref = TraitRef {
             trait_: pick,
@@ -4193,6 +4199,7 @@ mod tests {
             universe,
             extra: &extra,
             arity: &arity,
+            hidden: &[],
         };
         let (in_base, in_user) = (view(Some(&own)), view(None));
         let ask = |global: &GlobalMemo, v: &ImplView<'_>, self_ty| {

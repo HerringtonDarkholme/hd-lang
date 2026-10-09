@@ -43,6 +43,9 @@ struct Ctx<'a, 't> {
     src: &'a Src<'t>,
     out: Anchors,
     decl: u32,
+    /// For a block-local head: the top-level declaration holding it, which
+    /// every anchor of the head counts from.
+    top: Option<NodeRef<'t>>,
 }
 
 impl<'t> Ctx<'_, 't> {
@@ -54,6 +57,10 @@ impl<'t> Ctx<'_, 't> {
         node: NodeRef<'t>,
         header: bool,
     ) -> Option<Anchor> {
+        let (base, member) = match self.top {
+            Some(t) => (t, 0),
+            None => (base, member),
+        };
         let lo = self.src.first(node);
         let mut hi = self.src.last(node);
         self.src.tkind(lo)?;
@@ -137,9 +144,14 @@ pub(crate) fn collect(
         src,
         out: Vec::new(),
         decl: 0,
+        top: None,
     };
     for h in heads {
-        let Some(&decl) = order.get(&h.node.index().idx()) else {
+        // A local head counts from the top-level declaration whose body
+        // holds it, whose text is in the API hash then (`skim`).
+        cx.top = h.local.map(|l| l.top);
+        let at = cx.top.unwrap_or(h.node);
+        let Some(&decl) = order.get(&at.index().idx()) else {
             continue;
         };
         cx.decl = decl;

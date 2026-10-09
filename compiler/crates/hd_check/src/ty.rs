@@ -34,9 +34,14 @@ impl Ck<'_, '_> {
             .collect()
     }
 
-    /// A module-level name: an item, a module, or nothing.
+    /// An item name: a local declaration in scope here, else a
+    /// module-level name (an item, a module, or nothing).
     pub(crate) fn scope_name(&self, name: &str) -> Option<Named> {
-        let b = self.cx.scope.lookup(self.cx.names.syms.intern(name))?;
+        let sym = self.cx.names.syms.intern(name);
+        if let Some(l) = hd_resolve::local_at(self.cx.locals, sym, self.at) {
+            return Some(Named::Item(l.def));
+        }
+        let b = self.cx.scope.lookup(sym)?;
         match b.kind {
             BindingKind::Item => Some(Named::Item(DefId::from_raw(b.value))),
             BindingKind::Module => Some(Named::Module(b.value)),

@@ -190,6 +190,72 @@ pub struct Head<'t> {
     pub kind: HeadKind,
     pub node: NodeRef<'t>,
     pub public: bool,
+    /// Where a block-local declaration is visible; `None` at the top level.
+    pub local: Option<LocalSite<'t>>,
+}
+
+/// A block-local declaration's place (checking-and-tir.md "Local items
+/// lift to hidden module items"): it is visible from its first byte to
+/// the end of its enclosing suite (`names.local-type.name`,
+/// `names.local-impl.extent`).
+#[derive(Clone, Copy)]
+pub struct LocalSite<'t> {
+    pub lo: u32,
+    pub hi: u32,
+    /// The enclosing suite.
+    pub suite: hd_base::NodeIdx,
+    /// The top-level declaration whose text holds it, which its anchors
+    /// count from.
+    pub top: NodeRef<'t>,
+}
+
+/// A block-local declaration as name lookup sees it, with no syntax.
+#[derive(Clone, Copy, Debug)]
+pub struct LocalItem {
+    pub def: DefId,
+    pub name: Symbol,
+    pub kind: HeadKind,
+    pub lo: u32,
+    pub hi: u32,
+    pub suite: hd_base::NodeIdx,
+}
+
+impl LocalItem {
+    /// Whether byte `at` is in this declaration's extent.
+    #[must_use]
+    pub fn covers(&self, at: u32) -> bool {
+        self.lo <= at && at < self.hi
+    }
+}
+
+/// The block-local declarations among `heads`.
+#[must_use]
+pub fn local_items(heads: &[Head<'_>]) -> Vec<LocalItem> {
+    heads
+        .iter()
+        .filter_map(|h| {
+            let l = h.local?;
+            Some(LocalItem {
+                def: h.def,
+                name: h.name,
+                kind: h.kind,
+                lo: l.lo,
+                hi: l.hi,
+                suite: l.suite,
+            })
+        })
+        .collect()
+}
+
+/// The local type or trait `name` visible at byte `at`: the innermost
+/// declaration whose extent holds `at` (`names.local-type.name`,
+/// `names.local-type.not-visible`). Impls have no name to find.
+#[must_use]
+pub fn local_at(locals: &[LocalItem], name: Symbol, at: u32) -> Option<&LocalItem> {
+    locals
+        .iter()
+        .filter(|l| l.kind != HeadKind::Impl && l.name == name && l.covers(at))
+        .max_by_key(|l| l.lo)
 }
 
 /// The stable segment of an impl: its header's tokens, `impl` to the colon.
@@ -214,62 +280,192 @@ fn impl_segment(src: &Src<'_>, n: NodeRef<'_>) -> String {
     parts.join(" ")
 }
 
-/// Heads of the module's own top-level items.
+/// The head kind of a declaration node and the keyword before its name.
+fn decl_kind(src: &Src<'_>, n: NodeRef<'_>) -> Option<(HeadKind, TokenKind)> {
+    Some(match n.kind() {
+        SyntaxKind::FnDecl => (HeadKind::Fn, TokenKind::KwFn),
+        SyntaxKind::DataDecl => (HeadKind::Data, TokenKind::KwData),
+        SyntaxKind::EnumDecl => (HeadKind::Enum, TokenKind::KwEnum),
+        SyntaxKind::TraitDecl => (HeadKind::Trait, TokenKind::KwTrait),
+        SyntaxKind::TypeDecl => {
+            let k = if n.direct_token(&src.parse.tokens, TokenKind::Eq).is_some() {
+                HeadKind::Alias
+            } else {
+                HeadKind::Newtype
+            };
+            (k, TokenKind::KwType)
+        }
+        SyntaxKind::ImplDecl => (HeadKind::Impl, TokenKind::KwImpl),
+        _ => return None,
+    })
+}
+
+/// Heads of the module's own items: the top-level ones, each followed by
+/// the block-local declarations of its bodies (checking-and-tir.md "Local
+/// items lift to hidden module items").
 #[must_use]
 pub fn heads<'t>(names: &Names<'_>, src: &Src<'t>, module: &str) -> Vec<Head<'t>> {
     let mut out = Vec::new();
     let mut impl_names: HashMap<String, u32> = HashMap::new();
     for n in src.root().children() {
-        let (kind, kw) = match n.kind() {
-            SyntaxKind::FnDecl => (HeadKind::Fn, TokenKind::KwFn),
-            SyntaxKind::DataDecl => (HeadKind::Data, TokenKind::KwData),
-            SyntaxKind::EnumDecl => (HeadKind::Enum, TokenKind::KwEnum),
-            SyntaxKind::TraitDecl => (HeadKind::Trait, TokenKind::KwTrait),
-            SyntaxKind::TypeDecl => {
-                let k = if n.direct_token(&src.parse.tokens, TokenKind::Eq).is_some() {
-                    HeadKind::Alias
-                } else {
-                    HeadKind::Newtype
-                };
-                (k, TokenKind::KwType)
-            }
-            SyntaxKind::ImplDecl => {
-                let mut seg = impl_segment(src, n);
-                let count = impl_names.entry(seg.clone()).or_insert(0);
-                *count += 1;
-                if *count > 1 {
-                    seg = format!("{seg} #{count}");
-                }
-                let def = DefId::from_raw(
-                    names
-                        .paths
-                        .intern(names.module(module), PathKind::Impl, &seg)
-                        .raw(),
-                );
-                out.push(Head {
-                    name: names.syms.intern(&seg),
-                    def,
-                    kind: HeadKind::Impl,
-                    node: n,
-                    public: true,
-                });
-                continue;
-            }
-            _ => continue,
-        };
-        let Some(t) = n.name(&src.parse.tokens).or_else(|| src.name_after(n, kw)) else {
+        let Some((kind, kw)) = decl_kind(src, n) else {
             continue;
         };
-        let text = src.text(t);
-        out.push(Head {
-            name: names.syms.intern(text),
-            def: names.item(module, text),
-            kind,
-            node: n,
-            public: src.is_pub(n),
-        });
+        let h = if kind == HeadKind::Impl {
+            let mut seg = impl_segment(src, n);
+            let count = impl_names.entry(seg.clone()).or_insert(0);
+            *count += 1;
+            if *count > 1 {
+                seg = format!("{seg} #{count}");
+            }
+            let def = DefId::from_raw(
+                names
+                    .paths
+                    .intern(names.module(module), PathKind::Impl, &seg)
+                    .raw(),
+            );
+            Head {
+                name: names.syms.intern(&seg),
+                def,
+                kind: HeadKind::Impl,
+                node: n,
+                public: true,
+                local: None,
+            }
+        } else {
+            let Some(t) = n.name(&src.parse.tokens).or_else(|| src.name_after(n, kw)) else {
+                continue;
+            };
+            let text = src.text(t);
+            Head {
+                name: names.syms.intern(text),
+                def: names.item(module, text),
+                kind,
+                node: n,
+                public: src.is_pub(n),
+                local: None,
+            }
+        };
+        out.push(h);
+        for (owner, f) in body_nodes(names, src, &[h]) {
+            local_heads(names, src, (owner, f), n, &mut out);
+        }
     }
     out
+}
+
+/// The block-local type, trait and impl declarations of the body of
+/// function `f`, in source order, each followed by those of its own
+/// method bodies. A declaration's path is a child of its scope
+/// ([`Names::local_scope`]), numbered by its place among the body's local
+/// declarations (Q-R23.1). Local functions are closures, not items.
+fn local_heads<'t>(
+    names: &Names<'_>,
+    src: &Src<'t>,
+    (owner, f): (DefId, NodeRef<'t>),
+    top: NodeRef<'t>,
+    out: &mut Vec<Head<'t>>,
+) {
+    let Some(body) = Src::child(f, SyntaxKind::Block) else {
+        return;
+    };
+    let mut found = Vec::new();
+    local_decls(body, &mut found);
+    for (i, (n, suite)) in found.into_iter().enumerate() {
+        let Some((kind, kw)) = decl_kind(src, n) else {
+            continue;
+        };
+        // A local derivation block with no trait is an error of its own
+        // (`annot.no-trait.local`), never an impl.
+        if kind == HeadKind::Impl && traitless_block(src, n) {
+            continue;
+        }
+        let scope = names.local_scope(owner, i);
+        let (name, def) = if kind == HeadKind::Impl {
+            let seg = impl_segment(src, n);
+            (
+                names.syms.intern(&seg),
+                names.member(scope, PathKind::Impl, &seg),
+            )
+        } else {
+            let Some(t) = n.name(&src.parse.tokens).or_else(|| src.name_after(n, kw)) else {
+                continue;
+            };
+            let text = src.text(t);
+            (
+                names.syms.intern(text),
+                names.member(scope, PathKind::Item, text),
+            )
+        };
+        let h = Head {
+            name,
+            def,
+            kind,
+            node: n,
+            public: false,
+            local: Some(LocalSite {
+                lo: src.span(n).lo,
+                hi: src.span(suite).hi,
+                suite: suite.index(),
+                top,
+            }),
+        };
+        out.push(h);
+        for (m, mf) in body_nodes(names, src, &[h]) {
+            local_heads(names, src, (m, mf), top, out);
+        }
+    }
+}
+
+/// The type parameter names (and `Self`, inside an impl or trait) of the
+/// declarations of `top` that enclose the declaration starting at `at`.
+fn enclosing_generics(src: &Src<'_>, top: NodeRef<'_>, at: u32) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut n = top;
+    while src.span(n).lo < at {
+        if decl_kind(src, n).is_some() {
+            if matches!(n.kind(), SyntaxKind::ImplDecl | SyntaxKind::TraitDecl) {
+                out.push("Self".to_owned());
+            }
+            for g in Src::child(n, SyntaxKind::GenericParameterList)
+                .iter()
+                .flat_map(|gl| gl.children())
+            {
+                if let Some(t) = g.name(&src.parse.tokens) {
+                    out.push(src.text(t).to_owned());
+                }
+            }
+        }
+        let Some(c) = n.children().find(|c| {
+            let s = src.span(*c);
+            s.lo <= at && at < s.hi
+        }) else {
+            break;
+        };
+        n = c;
+    }
+    out
+}
+
+/// The local declarations under `n` with their suites, outside nested
+/// local declarations (whose methods are bodies of their own). A local
+/// function and a closure belong to the enclosing body.
+fn local_decls<'t>(n: NodeRef<'t>, out: &mut Vec<(NodeRef<'t>, NodeRef<'t>)>) {
+    for c in n.children() {
+        let decl = matches!(
+            c.kind(),
+            SyntaxKind::DataDecl
+                | SyntaxKind::EnumDecl
+                | SyntaxKind::TraitDecl
+                | SyntaxKind::TypeDecl
+                | SyntaxKind::ImplDecl
+        );
+        if decl && n.kind() == SyntaxKind::Block {
+            out.push((c, n));
+        } else {
+            local_decls(c, out);
+        }
+    }
 }
 
 /// The kind of every item a scope can name.
@@ -483,7 +679,9 @@ fn scope_of(
     let mut scope = ModuleScope::default();
     let mut kinds = Kinds::new();
     for h in heads {
-        if h.kind != HeadKind::Impl {
+        // A local declaration's name is in no module scope
+        // (`names.local-type.static`); lowering finds it by position.
+        if h.kind != HeadKind::Impl && h.local.is_none() {
             bind_item(&mut scope, h.name, h.def, Origin::Own, u32::MAX);
         }
         kinds.insert(h.def, h.kind);
@@ -634,11 +832,20 @@ fn scope_of(
                 Some(_) => {
                     let span = heads
                         .iter()
-                        .find(|h| h.name == sym)
+                        .find(|h| h.name == sym && h.local.is_none())
                         .map_or(m.src.span(m.src.root()), |h| m.src.span(h.node));
                     let msg = format!("`{name}` shadows a prelude name");
                     diags.error(Code::PreludeNameShadow, span, &msg);
                 }
+            }
+            // A local type declaration is subject to the same rule
+            // (`names.local-type.prelude`).
+            for h in heads
+                .iter()
+                .filter(|h| h.name == sym && h.local.is_some() && h.kind != HeadKind::Impl)
+            {
+                let msg = format!("`{name}` shadows a prelude name");
+                diags.error(Code::PreludeNameShadow, m.src.span(h.node), &msg);
             }
         }
     }
@@ -673,6 +880,14 @@ struct Lower<'a, 'r, 'x> {
     kinds: &'a Kinds,
     diags: &'a mut DiagBuf,
     unsupported: Option<String>,
+    /// The module's block-local declarations.
+    locals: &'a [LocalItem],
+    /// The byte where the header being lowered is declared: the local
+    /// declarations whose extent holds it are in scope.
+    at: u32,
+    /// For a local declaration: the type parameters (and `Self`) of the
+    /// declarations around it.
+    outer: Vec<String>,
 }
 
 impl Lower<'_, '_, '_> {
@@ -698,9 +913,12 @@ impl Lower<'_, '_, '_> {
 
     /// Whether a name was bound by a failed `use` (an earlier error).
     fn is_poisoned(&self, name: &str) -> bool {
-        self.scope
-            .lookup(self.sym(name))
-            .is_some_and(|b| b.kind == BindingKind::Poison)
+        let sym = self.sym(name);
+        local_at(self.locals, sym, self.at).is_none()
+            && self
+                .scope
+                .lookup(sym)
+                .is_some_and(|b| b.kind == BindingKind::Poison)
     }
 
     /// The declaration a (possibly qualified) name reaches.
@@ -712,6 +930,12 @@ impl Lower<'_, '_, '_> {
         let (first, _) = segs.first()?;
         if self.is_poisoned(first) {
             return None;
+        }
+        // A local declaration in scope here shadows the module's names.
+        if segs.len() == 1
+            && let Some(l) = local_at(self.locals, self.sym(first), self.at)
+        {
+            return Some((l.def, l.kind));
         }
         let b = self.scope.lookup(self.sym(first));
         if segs.len() == 1 {
@@ -965,6 +1189,12 @@ impl Lower<'_, '_, '_> {
             return Ty::POISON;
         }
         let Some((def, kind)) = self.resolve_path(&segs, span) else {
+            // Outer type parameters would become the local declaration's
+            // own (`names.local-type.refs`); not carried yet.
+            if segs.len() == 1 && self.outer.contains(&first) {
+                self.gap("a local declaration that names an enclosing type parameter");
+                return Ty::POISON;
+            }
             if segs.len() == 1 {
                 let msg = format!("no type named `{first}`");
                 self.diags.error(Code::UnknownType, span, &msg);
@@ -1995,6 +2225,13 @@ impl Lower<'_, '_, '_> {
 
     fn item(&mut self, h: &Head<'_>, out: &mut Vec<Item>) {
         let n = h.node;
+        // The local declarations in scope are those visible where this one
+        // is declared, itself included (`names.local-type.refs`).
+        self.at = self.src.span(n).lo;
+        self.outer = h
+            .local
+            .map(|l| enclosing_generics(&self.src, l.top, self.at))
+            .unwrap_or_default();
         let block = Src::child(n, SyntaxKind::Block);
         let gl = Src::child(n, SyntaxKind::GenericParameterList);
         match h.kind {
@@ -2618,9 +2855,12 @@ pub fn build_folder(
             if h.kind == HeadKind::Impl {
                 continue;
             }
-            r.own
-                .entry((m.path.clone(), h.name))
-                .or_insert((h.def, h.kind, h.public));
+            // A local declaration is no module member (`names.local-type.static`).
+            if h.local.is_none() {
+                r.own
+                    .entry((m.path.clone(), h.name))
+                    .or_insert((h.def, h.kind, h.public));
+            }
             if let Some(gl) = Src::child(h.node, SyntaxKind::GenericParameterList) {
                 let toks = &m.src.parse.tokens;
                 let vs = gl
@@ -2692,6 +2932,7 @@ pub fn build_folder(
     for ((m, hs), (scope, kinds)) in mods.iter().zip(&all_heads).zip(scopes) {
         let mut items: Vec<Item> = Vec::new();
         {
+            let locals = local_items(hs);
             let mut low = Lower {
                 r: &r,
                 names: cx.names,
@@ -2701,6 +2942,9 @@ pub fn build_folder(
                 kinds: &kinds,
                 diags,
                 unsupported: None,
+                locals: &locals,
+                at: 0,
+                outer: Vec::new(),
             };
             // Aliases first, so a later header in the module may use them.
             for h in hs.iter().filter(|h| h.kind == HeadKind::Alias) {
@@ -2767,6 +3011,9 @@ pub fn build_folder(
                 kinds: &o.kinds,
                 diags,
                 unsupported: None,
+                locals: &[],
+                at: 0,
+                outer: Vec::new(),
             };
             low.check_module_decorators(&items, &o.blocks);
         }
@@ -2828,6 +3075,7 @@ fn own_trait_generics(
     let mut out = HashMap::new();
     let mut scratch = DiagBuf::default();
     for ((m, hs), (scope, kinds)) in mods.iter().zip(all_heads).zip(scopes) {
+        let locals = local_items(hs);
         let mut low = Lower {
             r,
             names: r.cx.names,
@@ -2837,8 +3085,12 @@ fn own_trait_generics(
             kinds,
             diags: &mut scratch,
             unsupported: None,
+            locals: &locals,
+            at: 0,
+            outer: Vec::new(),
         };
         for h in hs.iter().filter(|h| h.kind == HeadKind::Trait) {
+            low.at = m.src.span(h.node).lo;
             let (_, _, generics) = low.trait_generics(h);
             out.entry(h.def).or_insert(generics);
         }

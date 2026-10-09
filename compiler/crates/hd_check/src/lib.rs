@@ -17,6 +17,7 @@ mod fnref;
 pub mod header;
 pub mod init;
 mod literals;
+mod local;
 mod pat;
 mod promote;
 mod render;

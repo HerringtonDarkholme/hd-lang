@@ -8,23 +8,23 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1995 | 574 | 275 | 2844 |
+| 2022 | 574 | 248 | 2844 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
 | `lang/01-lexical-structure.md` | 133 | 11 | 1 | 145 |
-| `lang/02-grammar.md` | 189 | 13 | 12 | 214 |
-| `lang/03-names-and-scopes.md` | 77 | 14 | 10 | 101 |
+| `lang/02-grammar.md` | 190 | 13 | 11 | 214 |
+| `lang/03-names-and-scopes.md` | 82 | 14 | 5 | 101 |
 | `lang/04-type-system.md` | 284 | 55 | 13 | 352 |
 | `lang/05-expressions.md` | 180 | 65 | 32 | 277 |
 | `lang/06-control-flow.md` | 112 | 29 | 16 | 157 |
-| `lang/07-functions.md` | 87 | 31 | 12 | 130 |
-| `lang/08-data-and-enums.md` | 73 | 39 | 11 | 123 |
-| `lang/09-traits.md` | 237 | 90 | 32 | 359 |
+| `lang/07-functions.md` | 89 | 31 | 10 | 130 |
+| `lang/08-data-and-enums.md` | 75 | 39 | 9 | 123 |
+| `lang/09-traits.md` | 252 | 90 | 17 | 359 |
 | `lang/10-modules.md` | 152 | 74 | 32 | 258 |
-| `lang/11-requirements-and-suspension.md` | 138 | 51 | 70 | 259 |
+| `lang/11-requirements-and-suspension.md` | 140 | 51 | 68 | 259 |
 | `lang/14-annotations.md` | 104 | 42 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 13 | 0 | 1 | 14 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 73 | 24 | 8 | 105 |
-| `runtime/valid` | 649 | 111 | 169 | 929 |
-| `typing/invalid` | 608 | 397 | 69 | 1074 |
-| `typing/valid` | 367 | 19 | 29 | 415 |
+| `runtime/valid` | 656 | 111 | 162 | 929 |
+| `typing/invalid` | 624 | 397 | 53 | 1074 |
+| `typing/valid` | 371 | 19 | 25 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -123,7 +123,7 @@ compiler stage that first declined the case.
 | `fail:unknown-variant` | 1 |
 | `fail:unsatisfied-trait-bound` | 10 |
 | `fail:unused-local-binding` | 6 |
-| `unsupported:Body` | 123 |
+| `unsupported:Body` | 96 |
 | `unsupported:Collect` | 26 |
 | `unsupported:Emit` | 28 |
 | `unsupported:FolderIface` | 34 |
@@ -945,17 +945,13 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (123)</summary>
+<details><summary><code>unsupported:Body</code> (96)</summary>
 
 - `typing/valid/enums.hd`
-- `typing/valid/local-functions.hd`
-- `typing/valid/local-types.hd`
-- `typing/invalid/local-impl-nonlocal-pair.hd`
 - `typing/valid/numeric-corners.hd`
 - `typing/invalid/mixed-numeric-power.hd`
 - `runtime/valid/unsigned-exponent.hd`
 - `typing/invalid/signed-exponent.hd`
-- `typing/valid/local-fn-in-provider-scope.hd`
 - `typing/invalid/generic-provider-key-collision-spread.hd`
 - `typing/invalid/signed-integer-exponent.hd`
 - `runtime/panic/integer-power-overflow.hd`
@@ -964,9 +960,7 @@ compiler stage that first declined the case.
 - `typing/invalid/literal-payload-pattern-nonexhaustive.hd`
 - `runtime/valid/literal-payload-patterns.hd`
 - `runtime/valid/binding-expressions.hd`
-- `runtime/valid/named-local-functions.hd`
 - `runtime/valid/suspending-generic-method.hd`
-- `runtime/valid/named-local-suspending-function.hd`
 - `runtime/valid/nested-provider-restoration.hd`
 - `runtime/valid/generic-suspending-associated-function-qualified-call.hd`
 - `typing/invalid/for-over-non-iterable.hd`
@@ -980,7 +974,6 @@ compiler stage that first declined the case.
 - `runtime/valid/part-copy-is-copy-update.hd`
 - `typing/invalid/negative-literal-exponent.hd`
 - `typing/invalid/lowercase-list-type.hd`
-- `typing/invalid/error-implementation-local-type.hd`
 - `typing/valid/row-union-spread.hd`
 - `typing/valid/row-list-copy-wider.hd`
 - `typing/invalid/operator-power-user.hd`
@@ -1034,31 +1027,12 @@ compiler stage that first declined the case.
 - `typing/invalid/local-annotation-row-unknown-trait.hd`
 - `typing/invalid/closure-row-unknown-trait.hd`
 - `typing/invalid/provider-scope-unknown-trait.hd`
-- `typing/invalid/local-impl-before-declaration.hd`
-- `typing/invalid/local-impl-child-suite-not-parent.hd`
-- `typing/invalid/local-inherent-impl-before-declaration.hd`
-- `typing/invalid/local-impl-trait-value-before-declaration.hd`
-- `typing/invalid/local-impl-closure-before-declaration.hd`
-- `typing/invalid/local-impl-sibling-overlap.hd`
-- `typing/invalid/local-supertrait-impl-after-child.hd`
-- `typing/invalid/local-impl-after-field-default.hd`
-- `typing/invalid/local-impl-after-trait-default.hd`
-- `runtime/valid/local-impl-visible-after-declaration.hd`
-- `runtime/valid/local-impl-known-after-declaration.hd`
-- `typing/invalid/local-data-reuses-type-parameter.hd`
 - `runtime/valid/shared-enum-data-computed-once.hd`
 - `runtime/valid/trait-default-method-instantiates-params.hd`
 - `runtime/valid/iterator-list-sum.hd`
 - `typing/invalid/sibling-module-private-method.hd`
 - `typing/invalid/sibling-module-requirement-key-not-imported.hd`
-- `typing/valid/local-recursive-data.hd`
-- `typing/invalid/local-data-later-declaration.hd`
-- `runtime/valid/trait-availability-prelude-and-scope.hd`
-- `runtime/valid/local-inherent-and-trait-impls.hd`
-- `typing/invalid/local-impl-second-pair.hd`
 - `typing/invalid/set-type-not-prelude.hd`
-- `typing/invalid/local-inherent-impl-nonlocal-target.hd`
-- `typing/invalid/local-method-captures-local.hd`
 - `runtime/valid/operators-longest-match.hd`
 - `runtime/valid/let-patterns-and-let-else.hd`
 - `runtime/valid/binding-chain-with-suite.hd`
@@ -1068,7 +1042,6 @@ compiler stage that first declined the case.
 - `runtime/valid/pattern-forms.hd`
 - `runtime/valid/assignment-and-break-forms.hd`
 - `typing/invalid/grammar-assignment-nonplace.hd`
-- `runtime/valid/local-declarations-in-block-suites.hd`
 - `runtime/valid/bang-call-and-prefix-not.hd`
 
 </details>
@@ -1954,6 +1927,10 @@ runtime/valid/literal-suffix-default-parameter.hd
 runtime/valid/literal-suffix-generic-num-run.hd
 runtime/valid/literal-trait-value-float-fallback.hd
 runtime/valid/literal-var-instantiation-wait.hd
+runtime/valid/local-declarations-in-block-suites.hd
+runtime/valid/local-impl-known-after-declaration.hd
+runtime/valid/local-impl-visible-after-declaration.hd
+runtime/valid/local-inherent-and-trait-impls.hd
 runtime/valid/local-shadows-module-namespace.hd
 runtime/valid/logical-operators.hd
 runtime/valid/loop-iteration-binding-capture.hd
@@ -2008,6 +1985,8 @@ runtime/valid/named-arguments-source-evaluation-order.hd
 runtime/valid/named-arguments-trait-dispatch.hd
 runtime/valid/named-enum-payload-evaluation-order.hd
 runtime/valid/named-enum-payload-patterns.hd
+runtime/valid/named-local-functions.hd
+runtime/valid/named-local-suspending-function.hd
 runtime/valid/nan-equality-through-generics.hd
 runtime/valid/nan-ordering-composites.hd
 runtime/valid/narrowing-cast-wraps.hd
@@ -2232,6 +2211,7 @@ runtime/valid/trailing-commas-everywhere.hd
 runtime/valid/trait-associated-call-infers-self.hd
 runtime/valid/trait-associated-function-reference.hd
 runtime/valid/trait-associated-functions.hd
+runtime/valid/trait-availability-prelude-and-scope.hd
 runtime/valid/trait-default-method-inherited.hd
 runtime/valid/trait-default-method-overridden.hd
 runtime/valid/trait-qualified-associated-and-named-calls.hd
@@ -2446,6 +2426,7 @@ typing/invalid/error-from-same-type.hd
 typing/invalid/error-from-type-parameter.hd
 typing/invalid/error-hand-written-display.hd
 typing/invalid/error-hand-written-from.hd
+typing/invalid/error-implementation-local-type.hd
 typing/invalid/error-message-before-enum.hd
 typing/invalid/error-message-not-display.hd
 typing/invalid/error-message-self.hd
@@ -2594,6 +2575,21 @@ typing/invalid/literal-var-range-bound-conflict.hd
 typing/invalid/literal-var-structure-conflict.hd
 typing/invalid/literal-var-top-level-undecided.hd
 typing/invalid/literal-var-tuple-fallback.hd
+typing/invalid/local-data-later-declaration.hd
+typing/invalid/local-data-reuses-type-parameter.hd
+typing/invalid/local-impl-after-field-default.hd
+typing/invalid/local-impl-after-trait-default.hd
+typing/invalid/local-impl-before-declaration.hd
+typing/invalid/local-impl-child-suite-not-parent.hd
+typing/invalid/local-impl-closure-before-declaration.hd
+typing/invalid/local-impl-nonlocal-pair.hd
+typing/invalid/local-impl-second-pair.hd
+typing/invalid/local-impl-sibling-overlap.hd
+typing/invalid/local-impl-trait-value-before-declaration.hd
+typing/invalid/local-inherent-impl-before-declaration.hd
+typing/invalid/local-inherent-impl-nonlocal-target.hd
+typing/invalid/local-method-captures-local.hd
+typing/invalid/local-supertrait-impl-after-child.hd
 typing/invalid/local-value-reuses-type-parameter.hd
 typing/invalid/main-not-importable.hd
 typing/invalid/marker-bound-unproven.hd
@@ -3063,6 +3059,10 @@ typing/valid/literal-var-list-push.hd
 typing/valid/literal-var-method-fallback.hd
 typing/valid/literal-var-range-bound.hd
 typing/valid/literal-var-tuple.hd
+typing/valid/local-fn-in-provider-scope.hd
+typing/valid/local-functions.hd
+typing/valid/local-recursive-data.hd
+typing/valid/local-types.hd
 typing/valid/map-indexing.hd
 typing/valid/match-guard-reads-binding.hd
 typing/valid/match-guards.hd

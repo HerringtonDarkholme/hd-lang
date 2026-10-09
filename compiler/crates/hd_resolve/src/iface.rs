@@ -16,6 +16,22 @@ use hd_types::solver::{
 use hd_types::wire::{TableWriter, Tables};
 use hd_types::{InternPool, ParamRef, RowId, Ty, TyData, TyList};
 
+/// The segment prefix of a local declaration's hidden scope; `#` is in no
+/// identifier, so no field or parameter default (also `Hidden`) has it.
+const LOCAL_SCOPE: &str = "local#";
+
+/// [`Names::is_local`] over a path table.
+fn is_local_path(paths: &PathTable, d: DefId) -> bool {
+    let mut p = PathId::from_raw(d.raw());
+    while p.get().is_some() {
+        if paths.kind(p) == PathKind::Hidden && paths.segment(p).starts_with(LOCAL_SCOPE) {
+            return true;
+        }
+        p = paths.parent(p);
+    }
+    false
+}
+
 /// The run-wide tables a resolver writes into.
 #[derive(Clone, Copy)]
 pub struct Names<'a> {
@@ -55,6 +71,21 @@ impl Names<'_> {
                 .intern(PathId::from_raw(owner.raw()), kind, name)
                 .raw(),
         )
+    }
+    /// The hidden scope of a block-local declaration: a child of the item
+    /// whose body declares it, numbered by the declaration's place among
+    /// that body's local declarations (checking-and-tir.md "Local items
+    /// lift to hidden module items"). The declaration's own path is a child
+    /// of this scope, so its last segment is the name a user writes.
+    #[must_use]
+    pub fn local_scope(&self, owner: DefId, index: usize) -> DefId {
+        self.member(owner, PathKind::Hidden, &format!("{LOCAL_SCOPE}{index}"))
+    }
+    /// Whether `d` is a block-local declaration or one of its members
+    /// (`names.local-type.static`): some ancestor is a [`Self::local_scope`].
+    #[must_use]
+    pub fn is_local(&self, d: DefId) -> bool {
+        is_local_path(self.paths, d)
     }
     /// The dotted path of the module that declares `d` (`std.format`).
     #[must_use]
@@ -498,6 +529,7 @@ impl<'a> Lookup<'a> {
 pub struct LookupDecls<'a> {
     pub lookup: &'a Lookup<'a>,
     pub sealed: SealedTraits,
+    pub paths: &'a PathTable,
 }
 
 impl Declarations for LookupDecls<'_> {
@@ -511,6 +543,9 @@ impl Declarations for LookupDecls<'_> {
     }
     fn supertraits(&self, trait_: DefId) -> &[Ty] {
         self.lookup.item(trait_).map_or(&[], Item::supertraits)
+    }
+    fn is_local(&self, def: DefId) -> bool {
+        is_local_path(self.paths, def)
     }
 }
 

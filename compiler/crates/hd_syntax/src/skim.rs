@@ -243,12 +243,50 @@ fn code_lines(tokens: &TokenBuf) -> Vec<(u32, u32)> {
     out
 }
 
+/// The starts of the lines that begin a `data`, `enum`, `trait`, `impl`
+/// or `type` declaration, in order.
+fn decl_line_starts(tokens: &TokenBuf) -> Vec<u32> {
+    let mut out = Vec::new();
+    for first in tokens.line_tok.iter().filter_map(|t| t.get()) {
+        let mut i = first.idx();
+        if tokens.kind.get(i) == Some(&TokenKind::KwPub) {
+            i += 1;
+        }
+        if matches!(
+            tokens.kind.get(i),
+            Some(
+                TokenKind::KwData
+                    | TokenKind::KwEnum
+                    | TokenKind::KwTrait
+                    | TokenKind::KwImpl
+                    | TokenKind::KwType
+            )
+        ) {
+            out.push(tokens.start[first.idx()]);
+        }
+    }
+    out
+}
+
 fn api_hash(source: &str, tokens: &TokenBuf, bodies: &[BodyRange]) -> Hash128 {
     let mut bytes = Vec::new();
     let mut indents = vec![0_u16];
+    // A function body that declares a local type, trait or impl stays in
+    // the API text: those lift to module items, and a local impl is in
+    // the folder interface (checking-and-tir.md "Local items lift to
+    // hidden module items").
+    let decls = decl_line_starts(tokens);
+    let declares = |body: &BodyRange| {
+        let i = decls.partition_point(|s| *s < body.body_start);
+        decls.get(i).is_some_and(|s| *s < body.body_end)
+    };
     let mut hidden_bodies = bodies
         .iter()
-        .filter(|body| matches!(body.kind, HeaderKind::Function | HeaderKind::Tests))
+        .filter(|body| match body.kind {
+            HeaderKind::Function => !declares(body),
+            HeaderKind::Tests => true,
+            _ => false,
+        })
         .peekable();
     for index in 0..tokens.len() {
         let start = tokens.start[index];

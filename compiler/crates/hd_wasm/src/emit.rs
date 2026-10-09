@@ -215,14 +215,29 @@ impl Em<'_> {
         self.ctrl.push(c);
     }
 
-    /// The cell type of a shared local: one mutable field per component.
+    /// The cell type of a shared local: one mutable field per component,
+    /// a nullable one for a reference. A cell can exist before its local's
+    /// first value: a recursive local function captures its own name's
+    /// cell before the closure is made (`fn.local.capture-rules`).
     fn cell_ty(&self, l: u32) -> StageResult<WTy> {
-        let fields = self.vts(self.sub(self.b.local_ty[l as usize]))?;
+        let fields = self.cell_fields(l)?;
         Ok(WTy::Struct {
             fields,
             sup: None,
             open: false,
         })
+    }
+
+    /// The field types of [`Self::cell_ty`].
+    fn cell_fields(&self, l: u32) -> StageResult<Vec<VT>> {
+        Ok(self
+            .vts(self.sub(self.b.local_ty[l as usize]))?
+            .into_iter()
+            .map(|v| match v {
+                VT::Ref(t, _) => VT::Ref(t, true),
+                v => v,
+            })
+            .collect())
     }
 
     /// The value types a body local is held in: its components, or one
@@ -436,9 +451,12 @@ impl Em<'_> {
                 let ls = self.local(a)?;
                 if self.cells.contains_key(&a) {
                     let cell = self.cell_ty(a)?;
-                    for k in 0..self.vts(self.sub(self.b.local_ty[a as usize]))?.len() {
+                    let fields = self.cell_fields(a)?;
+                    let want = self.vts(self.sub(self.b.local_ty[a as usize]))?;
+                    for (k, (f, w)) in fields.iter().zip(&want).enumerate() {
                         self.a.get(ls[0]);
                         self.a.struct_get(&cell, u32_of(k));
+                        self.a.conv(f, w);
                     }
                 } else {
                     for l in &ls {
@@ -453,7 +471,10 @@ impl Em<'_> {
                 let want = self.vts(t)?;
                 self.load_as(bw, &want)?;
                 if let Some(first) = self.cells.get(&a).copied() {
-                    let tmp: Vec<u32> = want.iter().map(|v| self.a.local(v.clone())).collect();
+                    // The cell's own field types: a declaration with no
+                    // value yet (`NONE`) stores null references.
+                    let fields = self.cell_fields(a)?;
+                    let tmp: Vec<u32> = fields.into_iter().map(|v| self.a.local(v)).collect();
                     for l in tmp.iter().rev() {
                         self.a.set(*l);
                     }

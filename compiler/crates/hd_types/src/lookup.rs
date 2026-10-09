@@ -272,6 +272,29 @@ pub struct ImplView<'a> {
     /// A trait's number of arguments: a projection that leaves them
     /// implicit (`Self::Out`) has open arguments.
     pub arity: &'a dyn Fn(DefId) -> usize,
+    /// Block-local impls this context does not see: those whose suite does
+    /// not hold it, or that are declared after it
+    /// (`trait.impl.local.lookup`, checking-and-tir.md "Local items lift
+    /// to hidden module items"). They stay rows of their tables, so a
+    /// probe that meets one is never answered from the run's memo.
+    pub hidden: &'a [DefId],
+}
+
+impl<'a> ImplView<'a> {
+    /// This view with `hidden` as its unseen local impls.
+    #[must_use]
+    pub fn hiding(&self, hidden: &'a [DefId]) -> ImplView<'a> {
+        ImplView {
+            paths: self.paths,
+            owners: self.owners,
+            own: self.own,
+            folders: self.folders,
+            universe: self.universe,
+            extra: self.extra,
+            arity: self.arity,
+            hidden,
+        }
+    }
 }
 
 /// Where the solver reads impls.
@@ -386,11 +409,15 @@ impl<'a> Impls<'a> {
         }
         refs.sort_unstable_by_key(|r| (position(r.module), r.row));
         refs.dedup();
-        one_row_per_impl(
+        let mut rows = one_row_per_impl(
             refs.into_iter()
                 .filter_map(|r| Some((r, self.table(r.module)?)))
                 .collect(),
-        )
+        );
+        if !v.hidden.is_empty() {
+            rows.retain(|(r, t)| !v.hidden.contains(&t.def[r.row as usize]));
+        }
+        rows
     }
 }
 

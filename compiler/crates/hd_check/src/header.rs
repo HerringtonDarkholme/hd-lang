@@ -62,6 +62,31 @@ pub fn stage_b(cx: &HeaderCx<'_>, items: &[Item]) -> StageResult<Vec<Finding>> {
     Ok(out)
 }
 
+/// The supertrait check of a local trait impl, with `cx`'s view of the
+/// impls as it is where the impl is declared: a supertrait impl declared
+/// later is not known yet (`names.member.known-impl`,
+/// `trait.impl.local.lookup`).
+pub fn local_supertraits(cx: &HeaderCx<'_>, it: &Item) -> StageResult<Vec<Finding>> {
+    let mut out = Vec::new();
+    if !matches!(&it.data, ItemData::Impl { trait_, kind, .. }
+        if *trait_ != DefId::NONE && kind.is_impl() && *kind != ImplKind::TupleTemplate)
+    {
+        return Ok(out);
+    }
+    let mut env = environment(cx, it);
+    env.key = Some(cx.global.env_key(&env));
+    let mut hc = ItemCheck {
+        cx,
+        env,
+        memo: BodyMemo::default(),
+        fuel: Fuel::new(Fuel::BODY_DEFAULT),
+        item: it.def,
+        out: &mut out,
+    };
+    hc.supertraits(it)?;
+    Ok(out)
+}
+
 /// The derived implementations of `items` whose type is a newtype: the base
 /// type must implement the derived trait
 /// (`trait.derive.newtype.requires`); one that does not is an error at the
@@ -229,12 +254,36 @@ impl<'a> ItemCheck<'_, 'a> {
         if *trait_ == DefId::NONE || !kind.is_impl() || *kind == ImplKind::TupleTemplate {
             return Ok(());
         }
-        let pool = self.pool();
-        let tv = pool.intern_ty(&TyData::TraitValue {
-            def: *trait_,
-            args: *trait_args,
-            bindings: vec![],
-        });
+        // A local impl's supertraits are those implemented where it is
+        // declared, which its body's checker asks (`local_supertraits`).
+        if !self.cx.names.is_local(it.def) {
+            self.supertraits(it)?;
+        }
+        if *kind == ImplKind::Delegated
+            && let Some(by) = by
+        {
+            let tv = self.pool().intern_ty(&TyData::TraitValue {
+                def: *trait_,
+                args: *trait_args,
+                bindings: vec![],
+            });
+            self.delegation(*self_ty, tv, *by)?;
+        }
+        Ok(())
+    }
+
+    /// An impl's target must implement each supertrait of its trait
+    /// (`trait.super.impl-bounds`).
+    fn supertraits(&mut self, it: &Item) -> StageResult<()> {
+        let ItemData::Impl {
+            trait_,
+            trait_args,
+            self_ty,
+            ..
+        } = &it.data
+        else {
+            return Ok(());
+        };
         for s in self.supers(*trait_, *trait_args, *self_ty) {
             if self.fails(*self_ty, s)? {
                 let message = format!(
@@ -245,11 +294,6 @@ impl<'a> ItemCheck<'_, 'a> {
                 );
                 self.report(0, Code::MissingSupertraitImplementation, message);
             }
-        }
-        if *kind == ImplKind::Delegated
-            && let Some(by) = by
-        {
-            self.delegation(*self_ty, tv, *by)?;
         }
         Ok(())
     }
@@ -337,6 +381,7 @@ impl<'a> ItemCheck<'_, 'a> {
         let decls = LookupDecls {
             lookup: self.cx.lookup,
             sealed: self.cx.names.known.sealed(),
+            paths: self.cx.names.paths,
         };
         let mut scx = SolveCx {
             pool,

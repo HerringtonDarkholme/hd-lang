@@ -41,6 +41,9 @@ pub struct BodyCx<'a> {
     pub init: std::cell::RefCell<crate::init::ModuleInit>,
     /// The module's private callables with omitted result types (M1).
     pub results: std::cell::RefCell<crate::results::Results>,
+    /// The module's block-local declarations, lifted to hidden items
+    /// (checking-and-tir.md "Local items lift to hidden module items").
+    pub locals: &'a [hd_resolve::LocalItem],
 }
 
 impl BodyCx<'_> {
@@ -50,6 +53,7 @@ impl BodyCx<'_> {
         LookupDecls {
             lookup: self.lookup,
             sealed: self.names.known.sealed(),
+            paths: self.names.paths,
         }
     }
 
@@ -175,6 +179,11 @@ pub(crate) struct Ck<'a, 'c> {
     /// (`types.lct.sites`): a function value that joins one widens its
     /// row to the union (`types.lct.row-union-every-site`).
     pub joins: Vec<Ty>,
+    /// The byte of the statement being checked: the local declarations
+    /// whose extent holds it are in scope (`names.local-type.name`).
+    pub at: u32,
+    /// The local impls not in scope at `at` (`trait.impl.local.lookup`).
+    pub hidden: Vec<DefId>,
 }
 
 /// A node index kept for a later diagnostic.
@@ -237,7 +246,11 @@ pub(crate) fn new_ck<'a, 'c>(
         opt_in: None,
         structure_calls: Vec::new(),
         joins: Vec::new(),
+        at: 0,
+        hidden: Vec::new(),
     };
+    // No local declaration holds byte 0: every local impl starts hidden.
+    ck.move_to(0);
     let Some(it) = cx.lookup.item(env) else {
         return ck;
     };
@@ -437,6 +450,9 @@ pub(crate) fn check_fn_body(
     if let Some(o) = opt_in {
         ck.enter_opt_in(o);
     }
+    // A local impl's method, or a local trait's default, sees what is in
+    // scope where it is written (`trait.impl.local.lookup`).
+    ck.move_to(cx.src.span(node).lo);
     ck.check_impl_method(def, node);
     ck.check_literal_marker(def, node);
     ck.check_row_patterns(&sig, node);
@@ -508,6 +524,8 @@ pub fn check_default(
         (ty, RowId::EMPTY),
         diags,
     );
+    // A default is looked up where it is written (`trait.impl.local.lookup`).
+    ck.move_to(cx.src.span(expr).lo);
     let blk = ck.b.open_block();
     for (n, t) in params {
         let l = ck.b.local(t, n, local_flags::PARAM, expr.index());
@@ -989,13 +1007,33 @@ impl Ck<'_, '_> {
         })
     }
 
+    /// Moves the checker to byte `at` of the module: the local declarations
+    /// in scope, and the local impls it sees, are those whose extent holds
+    /// it (`names.local-type.name`, `trait.impl.local.lookup`). Answers
+    /// remembered under other impls are dropped.
+    pub(crate) fn move_to(&mut self, at: u32) {
+        self.at = at;
+        let hidden: Vec<DefId> = self
+            .cx
+            .locals
+            .iter()
+            .filter(|l| l.kind == hd_resolve::HeadKind::Impl && !l.covers(at))
+            .map(|l| l.def)
+            .collect();
+        if hidden != self.hidden {
+            self.hidden = hidden;
+            self.memo = BodyMemo::default();
+        }
+    }
+
     pub(crate) fn solve_goal(&mut self, goal: &Goal) -> StageResult<Answer> {
         let decls = self.cx.decls();
+        let view = self.cx.impls.hiding(&self.hidden);
         let mut scx = SolveCx {
             pool: self.pool(),
             env: &self.env,
             universe: self.cx.impls.universe,
-            impls: Impls::Owned(self.cx.impls),
+            impls: Impls::Owned(&view),
             decls: &decls,
             body_memo: &mut self.memo,
             global: self.cx.global,
@@ -1030,6 +1068,9 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
     ) -> StageResult<(Option<Ref>, Ty)> {
         self.scopes.push(HashMap::new());
+        // The suite's local declarations end with it: the rest of the
+        // enclosing statement is back where it started.
+        let at = self.at;
         // A suite with `defer` is a cleanup scope (`flow.defer.scopes`):
         // a `Scope` over its statements, whose suites are its `Defer`s.
         let r = if block.children().any(|c| c.kind() == SyntaxKind::DeferStmt) {
@@ -1047,6 +1088,7 @@ impl Ck<'_, '_> {
             self.lines(block, want)
         };
         self.scopes.pop();
+        self.move_to(at);
         r
     }
 
@@ -1061,6 +1103,7 @@ impl Ck<'_, '_> {
         let mut diverged = false;
         for (i, s) in stmts.iter().copied().enumerate() {
             let last = i + 1 == stmts.len();
+            self.move_to(self.cx.src.span(s).lo);
             if last && value && s.kind() == SyntaxKind::ExprStmt {
                 let Some(e) = s.children().next() else {
                     return unsupported("an empty expression statement");
@@ -1291,6 +1334,12 @@ impl Ck<'_, '_> {
                 let suite = self.b.close_block(m, None, Ty::VOID, blk.index());
                 self.b.defer(suite, s.index());
             }
+            SyntaxKind::DataDecl
+            | SyntaxKind::EnumDecl
+            | SyntaxKind::TraitDecl
+            | SyntaxKind::TypeDecl
+            | SyntaxKind::ImplDecl => self.local_decl(s)?,
+            SyntaxKind::FnDecl => self.local_fn(s)?,
             other => return unsupported(format!("statement {other:?}")),
         }
         Ok(Ty::VOID)
@@ -1708,6 +1757,9 @@ impl Ck<'_, '_> {
             if pool.has_poison(tref.self_ty) {
                 continue;
             }
+            // Solved with the local impls known where the goal arose.
+            let node = self.cx.src.parse.tree.node(at);
+            self.move_to(self.cx.src.span(node).lo);
             // Its evidence is chosen again per instance at collection; a
             // bound that fails once the defaults are in is an error.
             if let Answer::Fails(_) = self.solve(tref)? {
@@ -1760,6 +1812,12 @@ impl Ck<'_, '_> {
                 } => {
                     let self_ty = self.zonk(self_ty);
                     let targs = self.zonk_list(targs);
+                    // The impls known at the call (`trait.impl.local.lookup`).
+                    let syn = self.b.body_mut().syn[i];
+                    if syn != hd_base::NodeIdx::NONE {
+                        let node = self.cx.src.parse.tree.node(syn);
+                        self.move_to(self.cx.src.span(node).lo);
+                    }
                     let choice = self.settle_choice(trait_, self_ty, targs, choice)?;
                     Callee::TraitMethod {
                         trait_,
