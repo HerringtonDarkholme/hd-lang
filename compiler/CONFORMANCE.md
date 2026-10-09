@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1638 | 680 | 526 | 2844 |
+| 1640 | 678 | 526 | 2844 |
 
 ## By Chapter
 
@@ -40,7 +40,7 @@ fixture; unsupported surface records progress without failing.
 | `std/http.md` | 0 | 0 | 2 | 2 |
 | `std/iter.md` | 15 | 7 | 3 | 25 |
 | `std/json.md` | 2 | 0 | 17 | 19 |
-| `std/net.md` | 0 | 1 | 0 | 1 |
+| `std/net.md` | 1 | 0 | 0 | 1 |
 | `std/num.md` | 8 | 10 | 0 | 18 |
 | `std/ops.md` | 2 | 3 | 8 | 13 |
 | `std/option.md` | 2 | 0 | 1 | 3 |
@@ -50,7 +50,7 @@ fixture; unsupported surface records progress without failing.
 | `std/regex.md` | 0 | 0 | 13 | 13 |
 | `std/result.md` | 4 | 1 | 0 | 5 |
 | `std/serde.md` | 2 | 0 | 6 | 8 |
-| `std/sys.md` | 0 | 1 | 0 | 1 |
+| `std/sys.md` | 1 | 0 | 0 | 1 |
 | `std/task.md` | 1 | 0 | 6 | 7 |
 | `std/testing.md` | 17 | 19 | 3 | 39 |
 | `std/text.md` | 27 | 5 | 3 | 35 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 56 | 32 | 17 | 105 |
-| `runtime/valid` | 402 | 173 | 354 | 929 |
+| `runtime/valid` | 404 | 171 | 354 | 929 |
 | `typing/invalid` | 549 | 416 | 109 | 1074 |
 | `typing/valid` | 335 | 34 | 46 | 415 |
 | `typing/warnings` | 9 | 11 | 0 | 20 |
@@ -115,7 +115,7 @@ compiler stage that first declined the case.
 | `fail:unknown-data-field` | 13 |
 | `fail:unknown-import` | 25 |
 | `fail:unknown-method` | 33 |
-| `fail:unknown-module` | 5 |
+| `fail:unknown-module` | 3 |
 | `fail:unknown-name` | 11 |
 | `fail:unknown-named-argument` | 3 |
 | `fail:unknown-trait` | 9 |
@@ -939,13 +939,11 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-module</code> (5)</summary>
+<details><summary><code>fail:unknown-module</code> (3)</summary>
 
 - `typing/invalid/folder-cycle-facade.hd`
 - `typing/invalid/folder-cycle-nested.hd`
 - `runtime/valid/folder-graph-test-edges.hd`
-- `runtime/valid/map-sys.hd`
-- `runtime/valid/net-own-provider.hd`
 
 </details>
 
@@ -2186,6 +2184,7 @@ runtime/valid/manual-clock.hd
 runtime/valid/map-get-or.hd
 runtime/valid/map-index-reads-value.hd
 runtime/valid/map-is-empty.hd
+runtime/valid/map-sys.hd
 runtime/valid/match-arm-binding-reuse.hd
 runtime/valid/match-guards.hd
 runtime/valid/method-call-never-selects-field.hd
@@ -2216,6 +2215,7 @@ runtime/valid/named-enum-payload-patterns.hd
 runtime/valid/nested-control-flow-as-expressions.hd
 runtime/valid/nested-provider-scope.hd
 runtime/valid/nested-suspending-call.hd
+runtime/valid/net-own-provider.hd
 runtime/valid/no-final-line-ending.hd
 runtime/valid/not-granted-display.hd
 runtime/valid/num-abs-diff.hd

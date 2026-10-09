@@ -1,0 +1,95 @@
+# std.net, the part written in hd (spec/std/net.md): the host capability
+# trait Net, its error, the socket handle traits, and Datagram. Sockets
+# are traits, so declaring them is plain hd; a live socket provider that
+# opens real connections is host-bound, and std.net declares no
+# deterministic provider. A unit test declares its own.
+use std.error.Error
+use std.format.DebugWriter
+use std.resource.ResourceError
+
+## Every failure of a lookup or a socket, as one error enum.
+## See [std-net.error.decl](../../spec/std/net.md#net-errors).
+pub enum NetError:
+    NotGranted(address: string)
+    InvalidAddress(address: string)
+    Dns(host: string)
+    Refused(address: string)
+    Other(message: string)
+
+impl Eq for NetError:
+    fn eq(self, other: NetError) -> bool:
+        match (self, other):
+            (.NotGranted(left), .NotGranted(right)) => left == right
+            (.InvalidAddress(left), .InvalidAddress(right)) => left == right
+            (.Dns(left), .Dns(right)) => left == right
+            (.Refused(left), .Refused(right)) => left == right
+            (.Other(left), .Other(right)) => left == right
+            _ => false
+
+impl Debug for NetError:
+    fn debug(self, out: mut DebugWriter) -> void:
+        match self:
+            .NotGranted(address) => out.debug_tuple("NetError.NotGranted").named_field("address", address).finish()
+            .InvalidAddress(address) => out.debug_tuple("NetError.InvalidAddress").named_field("address", address).finish()
+            .Dns(host) => out.debug_tuple("NetError.Dns").named_field("host", host).finish()
+            .Refused(address) => out.debug_tuple("NetError.Refused").named_field("address", address).finish()
+            .Other(message) => out.debug_tuple("NetError.Other").named_field("message", message).finish()
+
+impl Display for NetError:
+    fn to_string(self) -> string:
+        match self:
+            .NotGranted(address) => "net access to ${address} is not granted; run with --cap Net=${address}"
+            .InvalidAddress(address) => "invalid net address: ${address}"
+            .Dns(host) => "net lookup of ${host} failed"
+            .Refused(address) => "net connection to ${address} refused"
+            .Other(message) => message
+
+# A std error type implements `Error` (r-std-error.std-types.impl).
+impl Error for NetError
+
+# Socket results name `dyn` trait values: a bare trait name in a type
+# position is `trait-used-as-type` (r-types.trait.value.dyn-required),
+# so the chapter's `mut TcpStream` reads `mut dyn TcpStream` here; the
+# bare-vs-`dyn` spelling is an open owner question.
+## The host capability trait: DNS lookup, TCP, and UDP.
+## See [std-net.trait.decl](../../spec/std/net.md#r-std-net.trait.decl).
+pub trait Net:
+    fn lookup!(mut self, host: string) -> Result[List[string], NetError]
+    fn connect!(mut self, host: string, port: u16) -> Result[mut dyn TcpStream, NetError]
+    fn listen!(mut self, host: string, port: u16) -> Result[mut dyn TcpListener, NetError]
+    fn bind_udp!(mut self, host: string, port: u16) -> Result[mut dyn UdpSocket, NetError]
+
+## A TCP stream: a closable handle.
+## See [std-net.handles.decl](../../spec/std/net.md#r-std-net.handles.decl).
+pub trait TcpStream:
+    fn read!(mut self, max: usize) -> Result[List[u8], ResourceError[NetError]]
+    fn write!(mut self, bytes: List[u8]) -> Result[void, ResourceError[NetError]]
+    fn close(mut self) -> Result[void, ResourceError[NetError]]
+
+## A TCP listener: a closable handle.
+## See [std-net.handles.decl](../../spec/std/net.md#r-std-net.handles.decl).
+pub trait TcpListener:
+    fn accept!(mut self) -> Result[mut dyn TcpStream, ResourceError[NetError]]
+    fn close(mut self) -> Result[void, ResourceError[NetError]]
+
+## One UDP datagram with its sender.
+## See [std-net.handles.decl](../../spec/std/net.md#r-std-net.handles.decl).
+pub data Datagram:
+    pub bytes: List[u8]
+    pub host: string
+    pub port: u16
+
+impl Eq for Datagram:
+    fn eq(self, other: Datagram) -> bool:
+        self.bytes == other.bytes && self.host == other.host && self.port == other.port
+
+impl Debug for Datagram:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("Datagram").field("bytes", self.bytes).field("host", self.host).field("port", self.port).finish()
+
+## A UDP socket: a closable handle.
+## See [std-net.handles.decl](../../spec/std/net.md#r-std-net.handles.decl).
+pub trait UdpSocket:
+    fn send_to!(mut self, host: string, port: u16, bytes: List[u8]) -> Result[void, ResourceError[NetError]]
+    fn receive!(mut self, max: usize) -> Result[Datagram, ResourceError[NetError]]
+    fn close(mut self) -> Result[void, ResourceError[NetError]]

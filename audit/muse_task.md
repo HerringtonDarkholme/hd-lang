@@ -102,18 +102,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### L3. Std Gaps, Part 2: std.sys And std.net Declarations
-
-Add `lib/std/sys.hd` with what the spec declares as plain hd: the `Sys`
-trait, `SysError`, and the map-backed `MapSys` provider. Then
-`lib/std/net.hd`: the `Net` trait, `NetError`, and the data types, but
-only where each item is plain hd. A type that would need a host handle
-(a live socket) is out of scope: list it in the commit message and
-stop there; no host hooks, no `compiler/crates/` edits. Same checks and
-size report as L2; fixtures to watch: `runtime/valid/map-sys.hd`,
-`runtime/valid/net-own-provider.hd`. One commit; push. Timebox 45
-minutes.
-
 ### T2. Test: Every KnownItems Field Names A Real Std Item (#69)
 
 `compiler/crates/hd_resolve/src/known.rs` resolves `KnownItems` once per

@@ -49,9 +49,9 @@ call returns:
 ```text
 pub trait Net:
     fn lookup!(mut self, host: string) -> Result[List[string], NetError]
-    fn connect!(mut self, host: string, port: u16) -> Result[mut TcpStream, NetError]
-    fn listen!(mut self, host: string, port: u16) -> Result[mut TcpListener, NetError]
-    fn bind_udp!(mut self, host: string, port: u16) -> Result[mut UdpSocket, NetError]
+    fn connect!(mut self, host: string, port: u16) -> Result[mut dyn TcpStream, NetError]
+    fn listen!(mut self, host: string, port: u16) -> Result[mut dyn TcpListener, NetError]
+    fn bind_udp!(mut self, host: string, port: u16) -> Result[mut dyn UdpSocket, NetError]
 ```
 
 1. r[std-net.trait.decl] `std.net` declares the host capability trait `Net` with the methods above. Code imports it, as in `use std.net.Net`.
@@ -114,11 +114,11 @@ data NoNetwork: pass
 impl Net for NoNetwork:
     fn lookup!(mut self, host: string) -> Result[List[string], NetError]:
         .Err(.Dns(host))
-    fn connect!(mut self, host: string, port: u16) -> Result[mut TcpStream, NetError]:
+    fn connect!(mut self, host: string, port: u16) -> Result[mut dyn TcpStream, NetError]:
         .Err(.Refused("${host}:${port}"))
-    fn listen!(mut self, host: string, port: u16) -> Result[mut TcpListener, NetError]:
+    fn listen!(mut self, host: string, port: u16) -> Result[mut dyn TcpListener, NetError]:
         .Err(.Refused("${host}:${port}"))
-    fn bind_udp!(mut self, host: string, port: u16) -> Result[mut UdpSocket, NetError]:
+    fn bind_udp!(mut self, host: string, port: u16) -> Result[mut dyn UdpSocket, NetError]:
         .Err(.Refused("${host}:${port}"))
 
 fn addresses!(host: string) -> List[string] $ Net:

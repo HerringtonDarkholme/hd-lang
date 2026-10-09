@@ -1,0 +1,77 @@
+# std.sys, the part written in hd (spec/std/sys.md): the host capability
+# trait Sys, its error, and the map-backed MapSys provider. A live
+# provider that reads the host system is host-bound; this file holds only
+# the declarations and MapSys, which never touches the host.
+use std.error.Error
+use std.format.DebugWriter
+use std.num.parse_u32
+
+## The error of a system read.
+## See [std-sys.error.decl](../../spec/std/sys.md#system-reads).
+pub enum SysError:
+    NotGranted(name: string)
+    Unsupported(name: string)
+
+impl Eq for SysError:
+    fn eq(self, other: SysError) -> bool:
+        match (self, other):
+            (.NotGranted(left), .NotGranted(right)) => left == right
+            (.Unsupported(left), .Unsupported(right)) => left == right
+            _ => false
+
+impl Debug for SysError:
+    fn debug(self, out: mut DebugWriter) -> void:
+        match self:
+            .NotGranted(name) => out.debug_tuple("SysError.NotGranted").named_field("name", name).finish()
+            .Unsupported(name) => out.debug_tuple("SysError.Unsupported").named_field("name", name).finish()
+
+impl Display for SysError:
+    fn to_string(self) -> string:
+        match self:
+            .NotGranted(name) => "sys access to ${name} is not granted; run with --cap Sys=${name}"
+            .Unsupported(name) => "sys access to ${name} is not supported"
+
+# A std error type implements `Error` (r-std-error.std-types.impl).
+impl Error for SysError
+
+## The host capability to read four facts about the host system.
+## See [std-sys.decl](../../spec/std/sys.md#r-std-sys.decl).
+pub trait Sys:
+    fn os(self) -> Result[string, SysError]
+    fn arch(self) -> Result[string, SysError]
+    fn hostname(self) -> Result[string, SysError]
+    fn cpu_count(self) -> Result[u32, SysError]
+
+## The deterministic Sys provider: every read answers from a map.
+## See [std-sys.map.decl](../../spec/std/sys.md#r-std-sys.map.decl).
+pub data MapSys:
+    values: Map[string, string]
+
+impl MapSys:
+    ## Returns the provider whose methods read the value of the key that is the method's name.
+    ## See [std-sys.map.new](../../spec/std/sys.md#r-std-sys.map.new).
+    pub fn new(values: Map[string, string]) -> MapSys:
+        MapSys { values: values }
+
+impl Sys for MapSys:
+    fn os(self) -> Result[string, SysError]:
+        match self.values.get("os"):
+            .Some(text) => .Ok(text)
+            .None => .Err(SysError.Unsupported("os"))
+
+    fn arch(self) -> Result[string, SysError]:
+        match self.values.get("arch"):
+            .Some(text) => .Ok(text)
+            .None => .Err(SysError.Unsupported("arch"))
+
+    fn hostname(self) -> Result[string, SysError]:
+        match self.values.get("hostname"):
+            .Some(text) => .Ok(text)
+            .None => .Err(SysError.Unsupported("hostname"))
+
+    fn cpu_count(self) -> Result[u32, SysError]:
+        match self.values.get("cpu_count"):
+            .Some(text) => match parse_u32(text):
+                .Ok(count) => .Ok(count)
+                .Err(_) => .Err(SysError.Unsupported("cpu_count"))
+            .None => .Err(SysError.Unsupported("cpu_count"))
