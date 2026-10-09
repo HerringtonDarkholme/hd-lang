@@ -376,6 +376,37 @@ ranges, `Option` and tuples.
   `cases` (past 10× `cases` the property fails). A failure shrinks the
   choice stream (draws are reported per `std-testing.choices.from-case`),
   prints the shrunk input with `Debug`, and saves the regression file.
+- **Test bodies (#183).** Each `it` case is a synthesized suspending
+  item (`$testN`, body kind `TestCase`) with no parameters, whose row
+  frame is the profile the runner binds: `TestRunner` alone for a unit
+  test, the test profile's host traits too for an integration test. Its
+  row is the profile keys the body uses, so a body that names
+  `$ TestRunner` (or calls a function that does) checks in a `tests:`
+  block, and any other key is `missing-requirement`
+  (`module.testing.unit-row.test-runner`). A `timeout` argument is
+  checked as `Duration?` and evaluated first, in the case's instance;
+  a duration goes to std's `case_timeout`, which calls
+  `TestRunner.report_timeout(ms)`, so a timed case's row also holds
+  `TestRunner`. The host supervisor stops a body past its deadline and
+  `hd test` reports it as a `time-limit` panic. A trailing block is the
+  item's own body, with the fixed result `void`, or
+  `Result[void, dyn Error]` when it holds a `?` outside nested closures
+  (`expr.try.test.*`). An explicit closure (`body=fn!() -> T: ...`, or
+  the second positional argument) is checked with no expected type, so
+  it keeps its written or inferred result `T`; `T < Termination` is
+  required at the closure (`unsatisfied-trait-bound`), and the item's
+  body calls it, bang for a suspending one, so its row joins the case's
+  row and the item's result is `T`. An `it_each`, `it_prop` or
+  `it_prop_with` body gets the fixed result through
+  `registration_body_result` and runs under the std case body. For a
+  result other than `void`, the driver roots the `std.rt` status
+  function that `report_fn` picks, as for `main`: an `.Err` writes its
+  report and cause chain through `entry_write` into the case's captured
+  standard error, and `hd test` prints that text as the case's `FAIL`
+  message on standard output (the JSON `message` in `--format json`),
+  never on its own standard error (`module.testing.err-print`). A `?`
+  whose error neither is assignable nor converts by `From` is
+  `invalid-result-propagation` (`expr.try.convert.none`).
 - **Snapshots are host work inside ordinary cases.** `snapshot_file`
   calls `TestRunner.snapshot_check` (file IO, `--update` recording and
   the missing-file failure live in the host); the planner only runs
