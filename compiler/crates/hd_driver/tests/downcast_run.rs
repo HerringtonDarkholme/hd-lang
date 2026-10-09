@@ -282,3 +282,32 @@ pub fn main() -> void $ Console:
         "app.main.DiskError\nList[app.main.User?]\n(i32, mut List[string])\n"
     );
 }
+
+/// Values of unrelated types erased to `dyn Inspectable` in one list each
+/// come back at their own type through the method form with explicit type
+/// arguments, and as `.None` at any other (trait.downcast.some).
+#[test]
+fn a_list_of_inspectable_values_downcasts_by_method() {
+    let main = "\
+use std.inspect.Inspectable
+
+data User:
+    name: string
+
+data Tag:
+    label: string
+
+fn describe(value: dyn Inspectable) -> string:
+    match value.downcast::[User]():
+        .Some(user) => \"user ${user.name}\"
+        .None => match value.downcast::[Tag]():
+            .Some(tag) => \"tag ${tag.label}\"
+            .None => \"other\"
+
+pub fn main() -> void $ Console:
+    let values: List[dyn Inspectable] = [User { name: \"Ada\" }, Tag { label: \"hi\" }, 3]
+    for value in values:
+        println(describe(value))
+";
+    assert_eq!(output_of("list-method", main), "user Ada\ntag hi\nother\n");
+}
