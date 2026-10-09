@@ -105,6 +105,58 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
+### R11. Census Of Unimplemented Runtime Intrinsics (#148, Research)
+
+About 13 programs compile and then panic with `explicit-panic:
+intrinsic` (your R2 §E). For each case, find which intrinsic or host
+hook the panicking site calls (read the emitted module's imports or the
+`@intrinsic` keys `lib/std` names, and the emitter's intrinsic table),
+and write one table: intrinsic key, the std function that declares it,
+the cases that hit it, and what it must do per the spec rule. Group them
+so one compiler task can take one group. Write
+`audit/compiler/intrinsic-census.md`. Read only; timebox 45 minutes.
+
+### R12. Shrink The Wasm Fallthrough Traps (#146, Research)
+
+Five programs fail Wasm validation ("expected 0 elements on the stack
+for fallthru, found 1"; your R2 §C). Shrink each to the smallest program
+that still fails validation, run it with `compiler/target/release/hd`,
+and say which construct leaves the value (a suspending call as a
+statement, a `defer`, a loop body, ...). If they share one cause, say so.
+Add the minimal programs and findings to
+`audit/compiler/triage-wrong-runs.md` §C. Read only; timebox 30 minutes.
+
+### R13. Design Note: Integer Widths (#147, Design Text)
+
+Seven programs show sub-word integers running as checked 32/64-bit
+(your R2 §D). Read the numeric rules in `spec/lang/04-type-system.md`
+and `spec/std/num.md` (checked, wrapping, saturating, narrowing casts,
+bit counts, rotates) and `wasm-layout.md` (how `i8`/`u8`/`i16`/`u16`
+live in an `i32`). Add to `codegen.md`: per operation and width, the
+Wasm sequence (masking, sign extension, overflow test), and how the
+checked/wrapping choice is selected. Timebox 45 minutes.
+
+### R14. Design Note: Supertrait Calls Through A Trait Value (#131, Design Text)
+
+`dyn Error` calling `to_string` (a `Display` method) and
+`bounded-blanket-supertraits` stop on "a trait-value call of a
+supertrait's method". Read `codegen.md` (vtables, §13) and the spec's
+trait-value rules, then add to `codegen.md` how a vtable reaches a
+supertrait's methods (flattened slots or a supertrait vtable pointer),
+with the footprint per trait value and how upcasting `dyn Sub` to
+`dyn Super` works if the spec allows it. Timebox 45 minutes.
+
+### R15. Design Note: The Release Profile In Codegen (#109, Design Text)
+
+`--release` parses, but no codegen setting changes: `+` still panics on
+overflow (`types.arith.release`, CLI cases `release-wraps`,
+`release-test-checked`, `dbg-release`). Read the spec's profile rules
+(`spec/cli/command-line.md` profiles, `types.arith.*`, `cli.dbg.*`) and
+add to `codegen.md` how a profile reaches Emit (a goal field, part of
+each code key so the caches stay apart), what changes per profile
+(overflow checks, `dbg`, the name section), and the footprint. Timebox
+30 minutes.
+
 ### P1. Profile The New Compiler (After S4; Standing Job)
 
 Owner, 2026-10-07: "you write the code, codex do the profiling. move
