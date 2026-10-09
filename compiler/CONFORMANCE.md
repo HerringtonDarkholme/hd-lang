@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2122 | 506 | 217 | 2845 |
+| 2134 | 508 | 203 | 2845 |
 
 ## By Chapter
 
@@ -18,8 +18,8 @@ fixture; unsupported surface records progress without failing.
 | `lang/02-grammar.md` | 191 | 14 | 10 | 215 |
 | `lang/03-names-and-scopes.md` | 92 | 8 | 1 | 101 |
 | `lang/04-type-system.md` | 286 | 54 | 12 | 352 |
-| `lang/05-expressions.md` | 194 | 60 | 23 | 277 |
-| `lang/06-control-flow.md` | 113 | 28 | 16 | 157 |
+| `lang/05-expressions.md` | 196 | 62 | 19 | 277 |
+| `lang/06-control-flow.md` | 122 | 28 | 7 | 157 |
 | `lang/07-functions.md` | 89 | 30 | 11 | 130 |
 | `lang/08-data-and-enums.md` | 78 | 37 | 8 | 123 |
 | `lang/09-traits.md` | 258 | 86 | 15 | 359 |
@@ -42,7 +42,7 @@ fixture; unsupported surface records progress without failing.
 | `std/json.md` | 14 | 3 | 2 | 19 |
 | `std/net.md` | 1 | 0 | 0 | 1 |
 | `std/num.md` | 12 | 6 | 0 | 18 |
-| `std/ops.md` | 6 | 3 | 4 | 13 |
+| `std/ops.md` | 7 | 3 | 3 | 13 |
 | `std/option.md` | 3 | 0 | 0 | 3 |
 | `std/path.md` | 2 | 0 | 0 | 2 |
 | `std/process.md` | 3 | 0 | 0 | 3 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 76 | 24 | 5 | 105 |
-| `runtime/valid` | 700 | 86 | 143 | 929 |
-| `typing/invalid` | 675 | 355 | 45 | 1075 |
-| `typing/valid` | 373 | 18 | 24 | 415 |
+| `runtime/valid` | 704 | 87 | 138 | 929 |
+| `typing/invalid` | 681 | 355 | 39 | 1075 |
+| `typing/valid` | 375 | 19 | 21 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -113,7 +113,7 @@ compiler stage that first declined the case.
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-method-signature` | 1 |
 | `fail:trait-used-as-type` | 2 |
-| `fail:type-mismatch` | 54 |
+| `fail:type-mismatch` | 56 |
 | `fail:type-used-as-value` | 2 |
 | `fail:unknown-data-field` | 11 |
 | `fail:unknown-import` | 1 |
@@ -125,7 +125,7 @@ compiler stage that first declined the case.
 | `fail:unknown-variant` | 1 |
 | `fail:unsatisfied-trait-bound` | 12 |
 | `fail:unused-local-binding` | 6 |
-| `unsupported:Body` | 83 |
+| `unsupported:Body` | 69 |
 | `unsupported:Collect` | 29 |
 | `unsupported:Emit` | 28 |
 | `unsupported:FolderIface` | 34 |
@@ -683,7 +683,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (54)</summary>
+<details><summary><code>fail:type-mismatch</code> (56)</summary>
 
 - `typing/invalid/unknown-associated-type.hd`
 - `typing/invalid/heterogeneous-list.hd`
@@ -724,6 +724,8 @@ compiler stage that first declined the case.
 - `runtime/panic/string-slice-range-out-of-range.hd`
 - `runtime/panic/list-slice-out-of-range.hd`
 - `runtime/panic/list-slice-reversed.hd`
+- `typing/valid/slice-full-types.hd`
+- `runtime/valid/slicing-full-run.hd`
 - `typing/invalid/generic-inference-supertrait-widening.hd`
 - `typing/invalid/no-widening-operator.hd`
 - `typing/invalid/no-widening-float.hd`
@@ -889,7 +891,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (83)</summary>
+<details><summary><code>unsupported:Body</code> (69)</summary>
 
 - `typing/valid/enums.hd`
 - `typing/invalid/generic-provider-key-collision-spread.hd`
@@ -940,22 +942,8 @@ compiler stage that first declined the case.
 - `typing/invalid/spread-pattern-fixed-tuple.hd`
 - `typing/invalid/spread-pattern-arity.hd`
 - `runtime/valid/default-tuple-rest.hd`
-- `typing/valid/range-types.hd`
-- `typing/invalid/range-full-not-iterable.hd`
-- `typing/valid/slice-full-types.hd`
-- `runtime/valid/slicing-full-run.hd`
-- `runtime/valid/range-pattern-exclusive-to.hd`
-- `typing/valid/range-pattern-coverage.hd`
-- `typing/invalid/range-pattern-non-integer.hd`
-- `typing/invalid/range-pattern-bound-range.hd`
-- `typing/invalid/range-pattern-nonexhaustive.hd`
-- `typing/invalid/range-pattern-covered.hd`
-- `typing/invalid/range-pattern-empty.hd`
-- `runtime/valid/range-pattern-run.hd`
 - `runtime/valid/tuple-rest-map-key.hd`
 - `typing/invalid/race-empty-list-literal.hd`
-- `runtime/valid/list-slice-mutable.hd`
-- `runtime/valid/range-eq.hd`
 - `runtime/valid/module-qualified-variant.hd`
 - `runtime/valid/module-qualified-associated-call.hd`
 - `typing/invalid/local-annotation-row-unknown-trait.hd`
@@ -1852,6 +1840,7 @@ runtime/valid/list-min-max.hd
 runtime/valid/list-of-trait-values.hd
 runtime/valid/list-partition-search.hd
 runtime/valid/list-pop.hd
+runtime/valid/list-slice-mutable.hd
 runtime/valid/list-sorted-by-key.hd
 runtime/valid/list-view-run.hd
 runtime/valid/list-view-to-list-mut.hd
@@ -2020,7 +2009,10 @@ runtime/valid/pub-own-member-hides-promoted.hd
 runtime/valid/pub-use-same-declaration.hd
 runtime/valid/qualified-calls-beside-promoted-method.hd
 runtime/valid/question-mark-finds-std-from.hd
+runtime/valid/range-eq.hd
 runtime/valid/range-iteration.hd
+runtime/valid/range-pattern-exclusive-to.hd
+runtime/valid/range-pattern-run.hd
 runtime/valid/raw-identifiers.hd
 runtime/valid/readonly-root-generic-mutable-path.hd
 runtime/valid/recursive-data-types.hd
@@ -2694,6 +2686,12 @@ typing/invalid/public-method-without-requirement-clause.hd
 typing/invalid/public-test-item.hd
 typing/invalid/qualified-string-prefix-call.hd
 typing/invalid/qualified-string-prefix.hd
+typing/invalid/range-full-not-iterable.hd
+typing/invalid/range-pattern-bound-range.hd
+typing/invalid/range-pattern-covered.hd
+typing/invalid/range-pattern-empty.hd
+typing/invalid/range-pattern-non-integer.hd
+typing/invalid/range-pattern-nonexhaustive.hd
 typing/invalid/range-to-inclusive-not-iterable.hd
 typing/invalid/range-to-not-iterable.hd
 typing/invalid/readonly-argument-for-mut-bound.hd
@@ -3136,6 +3134,8 @@ typing/valid/pub-use-chain.hd
 typing/valid/public-requirement-row.hd
 typing/valid/race-plain-signature.hd
 typing/valid/random-trait.hd
+typing/valid/range-pattern-coverage.hd
+typing/valid/range-types.hd
 typing/valid/raw-identifiers.hd
 typing/valid/readonly-callable-mutable-result.hd
 typing/valid/readonly-embedded-source-mutable-result.hd
