@@ -14,6 +14,7 @@
 pub mod asm;
 pub mod emit;
 pub mod layout;
+pub mod map;
 pub mod meta;
 pub mod rt;
 

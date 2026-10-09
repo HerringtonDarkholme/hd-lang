@@ -8,6 +8,7 @@
 use std::collections::HashMap;
 
 use hd_base::{DefId, Hash128, StageResult};
+use hd_mono::layout::inline_map_key;
 use hd_mono::{CallTarget, ProgramEnv, Target, TargetKind, subst};
 use hd_tir::ir::{
     Body, Callee, ChoiceKind, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags,
@@ -17,10 +18,10 @@ use hd_types::{InternPool, Prim, RowId, Ty, TyData, TyList};
 use crate::asm::Asm;
 use crate::layout::{
     ACTIVE, CANCELLED, DONE, EnumShape, F_CANCEL, F_CHILD, F_FLAGS, F_POLL, F_SAVED, F_STATE, Lay,
-    Layouts, OptShape, Shape, box_of, cancel_fn, ctx_keys, ctx_provs, frame_of, key_id, storage,
-    suspend_base, task_base,
+    Layouts, M_HASHES, M_KEYS, M_LIVE, M_USED, OptShape, Shape, box_of, cancel_fn, ctx_keys,
+    ctx_provs, frame_of, key_id, storage, suspend_base, task_base,
 };
-use crate::rt::{Helper, OptForm, block_import};
+use crate::rt::{Helper, KeyOps, OptForm, block_import};
 use crate::{Code, GSym, Part, Sym, VT, WTy, unsupported};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -591,25 +592,7 @@ impl Em<'_> {
                 self.a.struct_new(&lt);
                 self.store(i)?;
             }
-            Tag::NewMap => {
-                let Shape::Map { key, val, ty: mt } = self.lay.shape(ty)? else {
-                    return unsupported("a map literal without a map layout");
-                };
-                let items = self.rec(bw);
-                let n = items.len() / 2;
-                self.a.i32(i32::try_from(n).unwrap_or(0));
-                for (part, vs) in [(0, &key), (1, &val)] {
-                    for (k, v) in vs.iter().enumerate() {
-                        for e in 0..n {
-                            self.comp(items[2 * e + part], k, v)?;
-                        }
-                        self.a
-                            .array_new_fixed(&WTy::Array(storage(v).dflt()), u32_of(n));
-                    }
-                }
-                self.a.struct_new(&mt);
-                self.store(i)?;
-            }
+            Tag::NewMap => self.map_literal(i, &self.rec(bw), ty)?,
             Tag::Closure => self.closure(i, bw, ty)?,
             // No captures: a bound reference is a `Closure` (§13.11).
             Tag::ItemRef => self.closure_value(i, 0..0, ty)?,
@@ -2038,10 +2021,12 @@ impl Em<'_> {
                 self.a.call(Sym::Helper(Helper::StrEq));
                 self.store(i)
             }
-            IntrinsicOp::MapIndex | IntrinsicOp::MapGet | IntrinsicOp::MapSet => {
-                self.map_op(i, op, &args, ty)
-            }
-            other => unsupported(format!("the intrinsic operation {other:?}")),
+            IntrinsicOp::MapIndex
+            | IntrinsicOp::MapGet
+            | IntrinsicOp::MapSet
+            | IntrinsicOp::MapRemove => self.map_op(i, op, &args, ty),
+            IntrinsicOp::MapIter => self.map_iter(i, args[0], ty),
+            IntrinsicOp::Item => unsupported("the intrinsic operation Item"),
         }
     }
 
@@ -2253,12 +2238,7 @@ impl Em<'_> {
         let Shape::Opt(o, _) = self.lay.shape(ot)? else {
             return unsupported("an optional element layout");
         };
-        let opt = match o {
-            OptShape::NullRef(_) => OptForm::NullRef,
-            OptShape::NullStr => OptForm::NullStr,
-            OptShape::Tagged(_) => OptForm::Tagged,
-            OptShape::Boxed(b, _) => OptForm::Boxed(b),
-        };
+        let opt = opt_form(o);
         // The closure ABI: environment, then the (unused) context.
         let code = WTy::Func(
             vec![VT::Eq, VT::rn(ctx_keys()), VT::rn(ctx_provs())],
@@ -2287,164 +2267,333 @@ impl Em<'_> {
         self.store(i)
     }
 
-    /// Map operations over the insertion-ordered arrays: a linear key
-    /// search (the bucketing hash is not built yet).
-    fn map_op(&mut self, i: u32, op: IntrinsicOp, args: &[u32], ty: Ty) -> StageResult<()> {
-        let Shape::Map { key, val, ty: mt } = self.lay.shape(self.ty_of(args[0]))? else {
+    /// A map type's key and value layouts, its struct, and its key type.
+    fn map_parts(&self, t: Ty) -> StageResult<(Vec<VT>, Vec<VT>, WTy, Ty)> {
+        let Shape::Map { key, val, ty } = self.lay.shape(t)? else {
             return unsupported("a map operation on a non-map");
         };
+        let pool = self.pool();
+        let t = match pool.get(t) {
+            TyData::Mut(x) => x,
+            _ => t,
+        };
+        let TyData::Adt { args, .. } = pool.get(t) else {
+            return unsupported("a map type");
+        };
+        let Some(&k) = pool.list_items(args).first() else {
+            return unsupported("a map type without a key");
+        };
+        Ok((key, val, ty, k))
+    }
+
+    /// How instruction `i`'s map hashes and compares keys of type `kt`
+    /// (codegen.md §13.12): inline for an integer, `bool`, `char` or
+    /// `string`, else through the `hash_of` and `Eq.eq` instances that
+    /// collection selected at the key type.
+    fn key_ops(&self, i: u32, kt: Ty, key: &[VT]) -> StageResult<KeyOps> {
+        if let Some(Target::MapKey { hash, eq }) = self.calls.get(&i) {
+            let params = self.key_params(hash, 0)?;
+            if params.len() != key.len()
+                || self.key_params(eq, 0)? != params
+                || self.key_params(eq, 1)? != params
+                || self.vts(hash.ret)? != [VT::I64]
+                || self.vts(eq.ret)? != [VT::I32]
+            {
+                return unsupported("a map key whose `hash_of` or `eq` takes other values");
+            }
+            return Ok(KeyOps::Call {
+                hash: Box::new(Sym::Inst(hash.key)),
+                eq: Box::new(Sym::Inst(eq.key)),
+                params,
+            });
+        }
+        if !inline_map_key(self.pool(), kt) {
+            return unsupported("a map key whose operations collection did not select");
+        }
+        Ok(match key {
+            [VT::I32] => KeyOps::I32,
+            [VT::I64] => KeyOps::I64,
+            [VT::Ref(t, false), VT::I64] if **t == WTy::Bytes => KeyOps::Str,
+            _ => return unsupported("an inline map key of another layout"),
+        })
+    }
+
+    /// The values parameter `k` of a key operation's instance takes.
+    fn key_params(&self, t: &CallTarget, k: usize) -> StageResult<Vec<VT>> {
+        if t.kind != TargetKind::Instance
+            || self.env().suspends(t.item)
+            || !self.env().row_keys(t.item, t.args).is_empty()
+        {
+            return unsupported("a map key whose `Eq` or `Hash` is not a plain function");
+        }
+        let ps = self.env().params(t.item).unwrap_or_default();
+        let Some(&p) = ps.get(k) else {
+            return unsupported("a map key operation without its parameter");
+        };
+        self.vts(subst(self.pool(), self.env(), t.item, t.args, p))
+    }
+
+    /// Pushes an empty map whose entry arrays hold `cap` entries (0 or a
+    /// power of two), with an index of twice that.
+    fn new_map(&mut self, mt: &WTy, comps: &[VT], cap: i32) {
+        let ints = WTy::Array(VT::I32);
+        self.a.i32(0);
+        self.a.i32(0);
+        self.a.i32(cap * 2);
+        self.a.array_new_default(&ints);
+        self.a.i32(cap);
+        self.a.array_new_default(&ints);
+        for v in comps {
+            self.a.i32(cap);
+            self.a.array_new_default(&WTy::Array(storage(v).dflt()));
+        }
+        self.a.struct_new(mt);
+    }
+
+    /// Evaluates key `r` into fresh locals, and its bucket hash into one.
+    fn map_key(&mut self, r: u32, key: &[VT], ops: &KeyOps) -> StageResult<(Vec<u32>, u32)> {
+        let kl: Vec<u32> = key.iter().map(|v| self.a.local(v.clone())).collect();
+        for (k, v) in key.iter().enumerate() {
+            self.comp(r, k, v)?;
+            self.a.set(kl[k]);
+        }
+        for l in &kl {
+            self.a.get(*l);
+        }
+        self.a.call(Sym::Helper(Helper::MapHash {
+            key: key.to_vec(),
+            ops: ops.clone(),
+        }));
+        let h = self.a.local(VT::I32);
+        self.a.set(h);
+        Ok((kl, h))
+    }
+
+    /// Inserts or replaces the entry of the key in `kl` (hash `h`) with
+    /// value `v` in the map in local `m`.
+    fn map_put(
+        &mut self,
+        m: u32,
+        parts: (&WTy, &[VT], &[VT]),
+        ops: &KeyOps,
+        kl: &[u32],
+        h: u32,
+        v: u32,
+    ) -> StageResult<()> {
+        let (mt, key, val) = parts;
+        self.a.get(m);
+        self.a.get(h);
+        for l in kl {
+            self.a.get(*l);
+        }
+        for (k, vt) in val.iter().enumerate() {
+            self.comp(v, k, vt)?;
+        }
+        self.a.call(Sym::Helper(Helper::MapPut {
+            map: mt.clone(),
+            key: key.to_vec(),
+            val: val.to_vec(),
+            ops: ops.clone(),
+        }));
+        Ok(())
+    }
+
+    /// A map literal: each entry inserted in source order
+    /// (`expr.map.order`), so a later equal key replaces the earlier value
+    /// in the earlier entry's place (`expr.map.duplicate.last`).
+    fn map_literal(&mut self, i: u32, items: &[u32], ty: Ty) -> StageResult<()> {
+        let (key, val, mt, kt) = self.map_parts(ty)?;
+        let n = items.len() / 2;
+        let cap = if n == 0 {
+            0
+        } else {
+            n.next_power_of_two().max(4)
+        };
+        let Ok(cap) = i32::try_from(cap) else {
+            return unsupported("a map literal too long for one array");
+        };
+        self.new_map(&mt, &[key.as_slice(), val.as_slice()].concat(), cap);
+        if n > 0 {
+            let ops = self.key_ops(i, kt, &key)?;
+            let m = self.a.local(VT::r(mt.clone()));
+            self.a.set(m);
+            for e in 0..n {
+                let (kl, h) = self.map_key(items[2 * e], &key, &ops)?;
+                self.map_put(m, (&mt, &key, &val), &ops, &kl, h, items[2 * e + 1])?;
+            }
+            self.a.get(m);
+        }
+        self.store(i)
+    }
+
+    /// `m[k]`, `m.get(k)`, `m[k] = v` and `m.remove(k)` (codegen.md
+    /// §13.12): hash the key, then probe for its entry.
+    fn map_op(&mut self, i: u32, op: IntrinsicOp, args: &[u32], ty: Ty) -> StageResult<()> {
+        let (key, val, mt, kt) = self.map_parts(self.ty_of(args[0]))?;
+        let ops = self.key_ops(i, kt, &key)?;
         let m = self.a.local(VT::r(mt.clone()));
         self.comp(args[0], 0, &VT::r(mt.clone()))?;
         self.a.set(m);
-        let kl: Vec<u32> = key.iter().map(|v| self.a.local(v.clone())).collect();
-        for (k, v) in key.iter().enumerate() {
-            self.comp(args[1], k, v)?;
-            self.a.set(kl[k]);
+        let (kl, h) = self.map_key(args[1], &key, &ops)?;
+        if op == IntrinsicOp::MapSet {
+            return self.map_put(m, (&mt, &key, &val), &ops, &kl, h, args[2]);
         }
-        let (n, at, j) = (
-            self.a.local(VT::I32),
-            self.a.local(VT::I32),
-            self.a.local(VT::I32),
-        );
+        let e = self.a.local(VT::I32);
         self.a.get(m);
-        self.a.struct_get(&mt, 0);
-        self.a.set(n);
-        self.a.i32(-1);
-        self.a.set(at);
-        self.a.i32(0);
-        self.a.set(j);
-        self.a.block();
-        self.a.loop_();
-        self.a.get(j);
-        self.a.get(n);
-        self.a.s().i32_ge_u();
-        self.a.br_if(1);
-        match key.as_slice() {
-            [VT::I32 | VT::I64] => {
-                let st = key[0].clone();
-                self.a.get(m);
-                self.a.struct_get(&mt, 1);
-                self.a.get(j);
-                self.a.array_get(&WTy::Array(st.clone()));
-                self.a.get(kl[0]);
-                if st == VT::I64 {
-                    self.a.s().i64_eq();
-                } else {
-                    self.a.s().i32_eq();
-                }
-            }
-            [VT::Ref(t, false), VT::I64] if **t == WTy::Bytes => {
-                let bn = VT::rn(WTy::Bytes);
-                self.a.get(m);
-                self.a.struct_get(&mt, 1);
-                self.a.get(j);
-                self.a.array_get(&WTy::Array(bn.clone()));
-                self.a.s().ref_as_non_null();
-                self.a.get(m);
-                self.a.struct_get(&mt, 2);
-                self.a.get(j);
-                self.a.array_get(&WTy::Array(VT::I64));
-                self.a.get(kl[0]);
-                self.a.get(kl[1]);
-                self.a.call(Sym::Helper(Helper::StrEq));
-            }
-            _ => return unsupported("a map key type other than an integer or a string"),
+        self.a.get(h);
+        for l in &kl {
+            self.a.get(*l);
         }
-        self.a.if_();
-        self.a.get(j);
-        self.a.set(at);
-        self.a.br(2);
-        self.a.end();
-        self.a.get(j);
-        self.a.i32(1);
-        self.a.s().i32_add();
-        self.a.set(j);
-        self.a.br(0);
-        self.a.end();
-        self.a.end();
-        let vfirst = 1 + u32_of(key.len());
+        self.a.call(Sym::Helper(Helper::MapFind {
+            map: mt.clone(),
+            key: key.clone(),
+            ops,
+        }));
+        self.a.set(e);
+        let vfirst = M_KEYS + u32_of(key.len());
         let read = |em: &mut Self| {
             for (k, v) in val.iter().enumerate() {
                 let st = storage(v).dflt();
                 em.a.get(m);
                 em.a.struct_get(&mt, vfirst + u32_of(k));
-                em.a.get(at);
+                em.a.get(e);
                 em.a.array_get(&WTy::Array(st.clone()));
                 em.a.conv(&st, v);
             }
         };
-        match op {
-            IntrinsicOp::MapIndex => {
-                self.a.get(at);
-                self.a.i32(0);
-                self.a.s().i32_lt_s();
-                self.a.if_();
-                self.panic("key-not-found: map key not found");
-                self.a.end();
-                read(self);
-                self.store_from(i, &val)
-            }
-            IntrinsicOp::MapGet => {
-                let Shape::Opt(o, _) = self.lay.shape(ty)? else {
-                    return unsupported("a map lookup without an optional result");
-                };
-                let res = self.result(i)?;
-                let want = self.vals[&i].1.clone();
-                self.a.get(at);
-                self.a.i32(0);
-                self.a.s().i32_ge_s();
-                self.a.if_();
-                if matches!(o, OptShape::Tagged(_)) {
-                    self.a.i32(1);
-                }
-                read(self);
-                if let OptShape::Boxed(b, _) = &o {
-                    self.a.struct_new(b);
-                }
-                for l in res.iter().rev() {
-                    self.a.set(*l);
-                }
-                self.a.else_();
-                for (l, v) in res.iter().zip(&want) {
-                    self.a.zero(&v.dflt());
-                    self.a.set(*l);
-                }
-                self.a.end();
-                Ok(())
-            }
-            _ => {
-                // MapSet: overwrite, or append both key and value.
-                self.a.get(at);
-                self.a.i32(0);
-                self.a.s().i32_lt_s();
-                self.a.if_();
-                let comps: Vec<VT> = key.iter().chain(&val).cloned().collect();
-                self.grow(m, &mt, n, 1, &comps);
-                for (k, v) in key.iter().enumerate() {
-                    self.a.get(m);
-                    self.a.struct_get(&mt, 1 + u32_of(k));
-                    self.a.get(n);
-                    self.a.get(kl[k]);
-                    self.a.array_set(&WTy::Array(storage(v).dflt()));
-                }
-                self.a.get(n);
-                self.a.set(at);
-                self.a.get(m);
-                self.a.get(n);
-                self.a.i32(1);
-                self.a.s().i32_add();
-                self.a.struct_set(&mt, 0);
-                self.a.end();
-                for (k, v) in val.iter().enumerate() {
-                    self.a.get(m);
-                    self.a.struct_get(&mt, vfirst + u32_of(k));
-                    self.a.get(at);
-                    self.comp(args[2], k, v)?;
-                    self.a.array_set(&WTy::Array(storage(v).dflt()));
-                }
-                Ok(())
-            }
+        if op == IntrinsicOp::MapIndex {
+            // expr.index.map.read-value
+            self.a.get(e);
+            self.a.i32(0);
+            self.a.s().i32_lt_s();
+            self.a.if_();
+            self.panic("index-out-of-bounds: map key not found");
+            self.a.end();
+            read(self);
+            return self.store_from(i, &val);
         }
+        // `get` and `remove` answer `V?`.
+        let Shape::Opt(o, _) = self.lay.shape(ty)? else {
+            return unsupported("a map lookup without an optional result");
+        };
+        let res = self.result(i)?;
+        let want = self.vals[&i].1.clone();
+        self.a.get(e);
+        self.a.i32(0);
+        self.a.s().i32_ge_s();
+        self.a.if_();
+        if matches!(o, OptShape::Tagged(_)) {
+            self.a.i32(1);
+        }
+        read(self);
+        if let OptShape::Boxed(b, _) = &o {
+            self.a.struct_new(b);
+        }
+        for l in res.iter().rev() {
+            self.a.set(*l);
+        }
+        if op == IntrinsicOp::MapRemove {
+            // The entry stays in place as a tombstone: probes pass it and
+            // iteration skips it, so the survivors keep their order.
+            let ints = WTy::Array(VT::I32);
+            self.a.get(m);
+            self.a.struct_get(&mt, M_HASHES);
+            self.a.get(e);
+            self.a.i32(-1);
+            self.a.array_set(&ints);
+            for (k, v) in key.iter().chain(&val).enumerate() {
+                let st = storage(v).dflt();
+                self.a.get(m);
+                self.a.struct_get(&mt, M_KEYS + u32_of(k));
+                self.a.get(e);
+                self.a.zero(&st);
+                self.a.array_set(&WTy::Array(st));
+            }
+            self.a.get(m);
+            self.a.get(m);
+            self.a.struct_get(&mt, M_LIVE);
+            self.a.i32(1);
+            self.a.s().i32_sub();
+            self.a.struct_set(&mt, M_LIVE);
+        }
+        self.a.else_();
+        for (l, v) in res.iter().zip(&want) {
+            self.a.zero(&v.dflt());
+            self.a.set(*l);
+        }
+        self.a.end();
+        Ok(())
+    }
+
+    /// `Map.iter()`: a cursor closure over the entries (codegen.md
+    /// §13.12), capturing the written and live entry counts.
+    fn map_iter(&mut self, i: u32, map: u32, ty: Ty) -> StageResult<()> {
+        let (key, val, mt, _) = self.map_parts(self.ty_of(map))?;
+        let pool = self.pool();
+        let it_t = match pool.get(ty) {
+            TyData::Mut(x) => x,
+            _ => ty,
+        };
+        let TyData::Adt { args, .. } = pool.get(it_t) else {
+            return unsupported("an iterator type");
+        };
+        let Some(&item) = pool.list_items(args).first() else {
+            return unsupported("an iterator type without its item");
+        };
+        let ot = pool.intern_ty(&TyData::Option(item));
+        let Shape::Opt(o, _) = self.lay.shape(ot)? else {
+            return unsupported("an optional entry layout");
+        };
+        let Shape::Tuple { boxed: tuple, .. } = self.lay.shape(item)? else {
+            return unsupported("a map entry that is not a tuple");
+        };
+        let code = WTy::Func(
+            vec![VT::Eq, VT::rn(ctx_keys()), VT::rn(ctx_provs())],
+            self.vts(ot)?,
+        );
+        let base = crate::layout::closure_base(&code);
+        let env = WTy::Struct {
+            fields: vec![
+                VT::r(code.clone()),
+                VT::r(mt.clone()),
+                VT::I32,
+                VT::I32,
+                VT::I32,
+            ],
+            sup: Some(Box::new(base)),
+            open: false,
+        };
+        let Shape::Data { ty: it, .. } = self.lay.shape(ty)? else {
+            return unsupported("an iterator without a struct layout");
+        };
+        let m = self.a.local(VT::r(mt.clone()));
+        self.comp(map, 0, &VT::r(mt.clone()))?;
+        self.a.set(m);
+        self.a.ref_func(Sym::Helper(Helper::MapStep {
+            env: env.clone(),
+            comps: [key, val].concat(),
+            tuple,
+            opt: opt_form(o),
+        }));
+        self.a.get(m);
+        self.a.i32(0);
+        self.a.get(m);
+        self.a.struct_get(&mt, M_USED);
+        self.a.get(m);
+        self.a.struct_get(&mt, M_LIVE);
+        self.a.struct_new(&env);
+        self.a.struct_new(&it);
+        self.store(i)
+    }
+}
+
+/// How a cursor builds its `T?` result.
+fn opt_form(o: OptShape) -> OptForm {
+    match o {
+        OptShape::NullRef(_) => OptForm::NullRef,
+        OptShape::NullStr => OptForm::NullStr,
+        OptShape::Tagged(_) => OptForm::Tagged,
+        OptShape::Boxed(b, _) => OptForm::Boxed(b),
     }
 }
 

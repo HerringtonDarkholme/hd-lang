@@ -255,10 +255,23 @@ pub fn list_ty(elem: &[VT]) -> WTy {
     }
 }
 
-/// A map: `{len, key arrays, value arrays}` in insertion order.
+/// A map's fields (codegen.md §13.12, representation-runtime.md §7.2):
+/// the live entry count, the written entry count (tombstones included),
+/// the probe index (entry number plus one, 0 empty, twice the entry
+/// capacity, a power of two), the entry hashes (-1 marks a removed
+/// entry), then one array per key value and per map value.
+pub const M_LIVE: u32 = 0;
+pub const M_USED: u32 = 1;
+pub const M_INDEX: u32 = 2;
+pub const M_HASHES: u32 = 3;
+pub const M_KEYS: u32 = 4;
+
+/// A map: `{live, used, index, hashes, key arrays, value arrays}`, its
+/// entries in the order they were added.
 #[must_use]
 pub fn map_ty(key: &[VT], val: &[VT]) -> WTy {
-    let mut fields = vec![VT::I32];
+    let ints = VT::r(WTy::Array(VT::I32));
+    let mut fields = vec![VT::I32, VT::I32, ints.clone(), ints];
     for v in key.iter().chain(val) {
         fields.push(VT::r(WTy::Array(storage(v).dflt())));
     }

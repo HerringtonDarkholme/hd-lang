@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1759 | 690 | 395 | 2844 |
+| 1792 | 689 | 363 | 2844 |
 
 ## By Chapter
 
@@ -17,29 +17,29 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 130 | 14 | 1 | 145 |
 | `lang/02-grammar.md` | 185 | 14 | 15 | 214 |
 | `lang/03-names-and-scopes.md` | 76 | 14 | 11 | 101 |
-| `lang/04-type-system.md` | 257 | 72 | 23 | 352 |
-| `lang/05-expressions.md` | 147 | 80 | 50 | 277 |
-| `lang/06-control-flow.md` | 101 | 33 | 23 | 157 |
+| `lang/04-type-system.md` | 259 | 72 | 21 | 352 |
+| `lang/05-expressions.md` | 155 | 76 | 46 | 277 |
+| `lang/06-control-flow.md` | 108 | 33 | 16 | 157 |
 | `lang/07-functions.md` | 73 | 34 | 23 | 130 |
 | `lang/08-data-and-enums.md` | 56 | 40 | 27 | 123 |
 | `lang/09-traits.md` | 207 | 117 | 35 | 359 |
-| `lang/10-modules.md` | 139 | 77 | 42 | 258 |
-| `lang/11-requirements-and-suspension.md` | 119 | 61 | 79 | 259 |
+| `lang/10-modules.md` | 141 | 77 | 40 | 258 |
+| `lang/11-requirements-and-suspension.md` | 119 | 62 | 78 | 259 |
 | `lang/14-annotations.md` | 89 | 56 | 8 | 153 |
-| `std/cli.md` | 1 | 0 | 4 | 5 |
-| `std/cmp.md` | 12 | 0 | 2 | 14 |
-| `std/collections.md` | 19 | 5 | 5 | 29 |
+| `std/cli.md` | 4 | 1 | 0 | 5 |
+| `std/cmp.md` | 13 | 0 | 1 | 14 |
+| `std/collections.md` | 24 | 5 | 0 | 29 |
 | `std/console.md` | 6 | 1 | 0 | 7 |
 | `std/digest.md` | 0 | 2 | 0 | 2 |
 | `std/encoding.md` | 3 | 0 | 0 | 3 |
 | `std/error.md` | 2 | 11 | 1 | 14 |
 | `std/format.md` | 7 | 1 | 0 | 8 |
-| `std/fs.md` | 1 | 1 | 2 | 4 |
-| `std/hash.md` | 6 | 2 | 1 | 9 |
-| `std/host.md` | 0 | 0 | 2 | 2 |
+| `std/fs.md` | 3 | 1 | 0 | 4 |
+| `std/hash.md` | 7 | 2 | 0 | 9 |
+| `std/host.md` | 2 | 0 | 0 | 2 |
 | `std/http.md` | 0 | 0 | 2 | 2 |
 | `std/iter.md` | 15 | 7 | 3 | 25 |
-| `std/json.md` | 6 | 9 | 4 | 19 |
+| `std/json.md` | 6 | 10 | 3 | 19 |
 | `std/net.md` | 1 | 0 | 0 | 1 |
 | `std/num.md` | 8 | 10 | 0 | 18 |
 | `std/ops.md` | 2 | 3 | 8 | 13 |
@@ -62,8 +62,8 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 57 | 31 | 17 | 105 |
-| `runtime/valid` | 490 | 183 | 256 | 929 |
+| `runtime/panic` | 66 | 28 | 11 | 105 |
+| `runtime/valid` | 514 | 185 | 230 | 929 |
 | `typing/invalid` | 570 | 419 | 85 | 1074 |
 | `typing/valid` | 344 | 34 | 37 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -105,7 +105,7 @@ compiler stage that first declined the case.
 | `fail:placeholder-outside-pipe` | 1 |
 | `fail:private-main` | 7 |
 | `fail:re-export-loop` | 1 |
-| `fail:runtime-exit` | 71 |
+| `fail:runtime-exit` | 70 |
 | `fail:stdout` | 8 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
@@ -127,7 +127,7 @@ compiler stage that first declined the case.
 | `fail:unused-local-binding` | 7 |
 | `unsupported:Body` | 163 |
 | `unsupported:Collect` | 25 |
-| `unsupported:Emit` | 104 |
+| `unsupported:Emit` | 72 |
 | `unsupported:FolderIface` | 34 |
 | `unsupported:Link` | 2 |
 | `unsupported:RunCase` | 61 |
@@ -650,7 +650,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (71)</summary>
+<details><summary><code>fail:runtime-exit</code> (70)</summary>
 
 - `runtime/panic/for-loop-iterator-invalidated.hd`
 - `runtime/panic/invalid-shift.hd`
@@ -659,7 +659,6 @@ compiler stage that first declined the case.
 - `runtime/panic/defer-block-on-indirect.hd`
 - `runtime/panic/assert-equal-f64-unequal.hd`
 - `runtime/valid/nested-closure-captures.hd`
-- `runtime/valid/map-lookup-and-duplicate-keys.hd`
 - `runtime/valid/literal-patterns.hd`
 - `runtime/valid/string-trim-and-lower.hd`
 - `runtime/valid/suspending-calls-in-loops.hd`
@@ -675,16 +674,14 @@ compiler stage that first declined the case.
 - `runtime/valid/replace-empty-old.hd`
 - `runtime/panic/duration-suffix-overflow.hd`
 - `runtime/valid/narrowing-cast-wraps.hd`
+- `runtime/valid/row-union-list-runs.hd`
 - `runtime/valid/row-union-branches-run.hd`
 - `runtime/valid/row-union-closure-result-runs.hd`
 - `runtime/valid/pipe-nested-placeholder.hd`
-- `runtime/panic/compound-assign-map-missing-key.hd`
 - `runtime/panic/string-slice-inside-scalar.hd`
 - `runtime/panic/string-slice-past-end.hd`
 - `runtime/panic/string-slice-reversed.hd`
-- `runtime/panic/index-trait-map-missing.hd`
 - `runtime/valid/comprehension-bang-calls.hd`
-- `runtime/panic/map-index-missing-key.hd`
 - `runtime/valid/display-tuples.hd`
 - `runtime/panic/list-view-reversed.hd`
 - `runtime/panic/list-view-index-out-of-bounds.hd`
@@ -704,6 +701,7 @@ compiler stage that first declined the case.
 - `runtime/valid/json-object-order.hd`
 - `runtime/valid/json-suite.hd`
 - `runtime/valid/json-float-text.hd`
+- `runtime/valid/json-typed-round-trip.hd`
 - `runtime/valid/json-typed-enum.hd`
 - `runtime/valid/json-typed-optional.hd`
 - `runtime/valid/json-typed-errors.hd`
@@ -713,6 +711,7 @@ compiler stage that first declined the case.
 - `runtime/valid/list-pop.hd`
 - `runtime/valid/list-insert-remove-clear.hd`
 - `runtime/valid/num-to-fixed.hd`
+- `runtime/valid/cli-errors.hd`
 - `runtime/valid/requirement-row-order-stored-suspension.hd`
 - `runtime/valid/requirement-row-order-trait-value.hd`
 - `runtime/valid/requirement-row-order-data-field.hd`
@@ -1271,25 +1270,16 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Emit</code> (104)</summary>
+<details><summary><code>unsupported:Emit</code> (72)</summary>
 
 - `runtime/valid/float-display.hd`
-- `runtime/valid/partial-equality-dispatch.hd`
-- `runtime/valid/map-iterator.hd`
-- `runtime/panic/map-iterator-invalidated.hd`
-- `runtime/panic/removed-map-iterator-invalidated.hd`
-- `runtime/valid/map-iteration-order.hd`
 - `runtime/valid/nested-block-on.hd`
-- `runtime/panic/assert-equal-map-unequal.hd`
-- `runtime/valid/assert-equal-map.hd`
 - `runtime/valid/identity-ignores-permissions.hd`
 - `runtime/valid/fieldless-data-canonical.hd`
 - `runtime/valid/parameter-default-earlier-parameter.hd`
 - `runtime/valid/reference-identity.hd`
 - `runtime/valid/parameter-defaults-after-explicit-arguments.hd`
-- `runtime/valid/for-loops-lists-and-maps.hd`
 - `runtime/valid/data-field-defaults.hd`
-- `runtime/valid/comprehensions.hd`
 - `runtime/valid/supertrait-methods.hd`
 - `runtime/valid/bounded-blanket-supertraits.hd`
 - `runtime/valid/suspending-calls-in-branches.hd`
@@ -1298,12 +1288,9 @@ compiler stage that first declined the case.
 - `runtime/valid/suspending-closure-captures.hd`
 - `runtime/valid/suspending-closure-requirement-row.hd`
 - `runtime/valid/result-entry-point-ok.hd`
-- `runtime/valid/nan-equality-through-generics.hd`
 - `runtime/valid/f32-display-width-through-generics.hd`
 - `runtime/valid/composite-identity-and-views.hd`
 - `runtime/valid/covariant-readonly-weakening.hd`
-- `runtime/panic/for-map-insert-invalidates.hd`
-- `runtime/panic/for-map-remove-invalidates.hd`
 - `runtime/valid/defaults-reference-earlier-parameters.hd`
 - `runtime/valid/write-line-suspending-call-argument.hd`
 - `runtime/valid/write-line-around-suspending-provider-scope.hd`
@@ -1313,7 +1300,6 @@ compiler stage that first declined the case.
 - `runtime/panic/println-in-default-indirect.hd`
 - `runtime/panic/snapshot-mismatch.hd`
 - `runtime/valid/string-prefix-std.hd`
-- `runtime/valid/row-union-list-runs.hd`
 - `runtime/valid/float-cast-saturates.hd`
 - `runtime/valid/primitive-operator-calls-method.hd`
 - `runtime/valid/float-remainder-run.hd`
@@ -1322,36 +1308,18 @@ compiler stage that first declined the case.
 - `runtime/valid/generic-inference-explicit-conversions.hd`
 - `runtime/valid/task-retry.hd`
 - `runtime/valid/task-retry-at-least-once.hd`
-- `runtime/valid/for-patterns.hd`
-- `runtime/valid/tuple-derived-order.hd`
 - `runtime/valid/default-standard-types.hd`
 - `runtime/valid/default-tuple-thirteen-elements.hd`
-- `runtime/valid/list-map-key.hd`
 - `runtime/valid/derived-default-data.hd`
 - `runtime/valid/derived-default-declared.hd`
 - `runtime/valid/primitive-float-cmp-method-direct.hd`
 - `runtime/valid/retry-with-backoff.hd`
-- `runtime/valid/host-args-env.hd`
-- `runtime/valid/map-keys-values.hd`
 - `runtime/valid/std-errors-erased.hd`
 - `runtime/valid/process-error-display.hd`
-- `runtime/valid/hash-bytes-result.hd`
-- `runtime/valid/map-args-env.hd`
-- `runtime/valid/memory-fs.hd`
-- `runtime/valid/memory-fs-directories.hd`
-- `runtime/valid/json-typed-round-trip.hd`
 - `runtime/valid/json-typed-primitives.hd`
 - `runtime/valid/serde-derive-call-order.hd`
 - `runtime/valid/task-all-list-order.hd`
 - `runtime/valid/string-pad-default-fill.hd`
-- `runtime/valid/list-group-by.hd`
-- `runtime/valid/list-counts.hd`
-- `runtime/valid/set-basics.hd`
-- `runtime/panic/set-invalidated.hd`
-- `runtime/valid/cli-flag-forms.hd`
-- `runtime/valid/cli-errors.hd`
-- `runtime/valid/cli-usage.hd`
-- `runtime/valid/cli-parse-args.hd`
 - `runtime/valid/regex-literals-escapes.hd`
 - `runtime/valid/regex-classes.hd`
 - `runtime/valid/regex-anchors-groups.hd`
@@ -1364,7 +1332,6 @@ compiler stage that first declined the case.
 - `runtime/valid/generic-storage-callable-list-identity.hd`
 - `runtime/valid/typed-derivation-build-defaults.hd`
 - `runtime/valid/numeric-casts-in-range.hd`
-- `runtime/valid/map-key-types.hd`
 - `runtime/valid/nested-mutable-captures.hd`
 - `runtime/valid/loop-iteration-cells.hd`
 - `runtime/valid/data-literal-evaluation-order.hd`
@@ -1803,6 +1770,7 @@ runtime/panic/assert-equal-generic-primitive-unequal.hd
 runtime/panic/assert-equal-i32-unequal.hd
 runtime/panic/assert-equal-list-unequal.hd
 runtime/panic/assert-equal-lists-in-main.hd
+runtime/panic/assert-equal-map-unequal.hd
 runtime/panic/assert-equal-nominal-unequal.hd
 runtime/panic/assert-equal-result-unequal.hd
 runtime/panic/assert-equal-string-unequal.hd
@@ -1813,12 +1781,16 @@ runtime/panic/char-to-digit-radix-high.hd
 runtime/panic/char-to-digit-radix-low.hd
 runtime/panic/cli-duplicate-option.hd
 runtime/panic/cmp-clamp-reversed.hd
+runtime/panic/compound-assign-map-missing-key.hd
 runtime/panic/duration-add-overflow.hd
 runtime/panic/explicit-panic-skips-defer.hd
 runtime/panic/explicit-panic.hd
+runtime/panic/for-map-insert-invalidates.hd
+runtime/panic/for-map-remove-invalidates.hd
 runtime/panic/generic-i32-overflow.hd
 runtime/panic/i32-add-overflow-in-function.hd
 runtime/panic/i32-min-divided-by-minus-one.hd
+runtime/panic/index-trait-map-missing.hd
 runtime/panic/integer-add-overflow.hd
 runtime/panic/integer-negation-overflow.hd
 runtime/panic/intrinsic-method-overflow.hd
@@ -1835,17 +1807,21 @@ runtime/panic/list-sum-overflow.hd
 runtime/panic/list-windows-size.hd
 runtime/panic/literal-var-fallback-overflow.hd
 runtime/panic/manual-clock-negative-sleep.hd
+runtime/panic/map-index-missing-key.hd
+runtime/panic/map-iterator-invalidated.hd
 runtime/panic/num-from-i64-overflow.hd
 runtime/panic/num-to-fixed-digits-range.hd
 runtime/panic/operator-generic-overflow.hd
 runtime/panic/option-expect-none.hd
 runtime/panic/println-console-closed.hd
 runtime/panic/range-from-overflow.hd
+runtime/panic/removed-map-iterator-invalidated.hd
 runtime/panic/result-expect-err.hd
 runtime/panic/rng-int-empty-range.hd
 runtime/panic/rng-sample-too-many.hd
 runtime/panic/second-drive-of-completed-suspension.hd
 runtime/panic/second-suspension-drive.hd
+runtime/panic/set-invalidated.hd
 runtime/panic/sign-fallback-balance-underflow.hd
 runtime/panic/signed-min-division-overflow.hd
 runtime/panic/string-index-out-of-bounds.hd
@@ -1861,6 +1837,7 @@ runtime/valid/assert-equal-generic-nominal.hd
 runtime/valid/assert-equal-generic-primitive.hd
 runtime/valid/assert-equal-i32.hd
 runtime/valid/assert-equal-list.hd
+runtime/valid/assert-equal-map.hd
 runtime/valid/assert-equal-nested-tuple.hd
 runtime/valid/assert-equal-nominal.hd
 runtime/valid/assert-equal-result.hd
@@ -1903,6 +1880,9 @@ runtime/valid/char-unicode-digits.hd
 runtime/valid/char-unicode-letters.hd
 runtime/valid/char-unicode-whitespace.hd
 runtime/valid/character-literals.hd
+runtime/valid/cli-flag-forms.hd
+runtime/valid/cli-parse-args.hd
+runtime/valid/cli-usage.hd
 runtime/valid/clock-helpers.hd
 runtime/valid/closure-as-function-argument.hd
 runtime/valid/closure-body-name-before-comma.hd
@@ -1931,6 +1911,7 @@ runtime/valid/compound-assignment-run.hd
 runtime/valid/compound-assignment-value-kind.hd
 runtime/valid/comprehension-forms.hd
 runtime/valid/comprehension-propagation.hd
+runtime/valid/comprehensions.hd
 runtime/valid/conditional-call-program.hd
 runtime/valid/console-error-line-default.hd
 runtime/valid/console-error-traits.hd
@@ -2000,6 +1981,8 @@ runtime/valid/field-read-beside-trait-method.hd
 runtime/valid/fieldless-data-argument.hd
 runtime/valid/float-eq-bound.hd
 runtime/valid/float-literal-forms.hd
+runtime/valid/for-loops-lists-and-maps.hd
+runtime/valid/for-patterns.hd
 runtime/valid/from-direct-call.hd
 runtime/valid/from-propagation-and-panic.hd
 runtime/valid/function-field-returns-mutable-data.hd
@@ -2039,12 +2022,14 @@ runtime/valid/generic-trait-literal-default-instantiation.hd
 runtime/valid/generic-trait-method-qualified-call.hd
 runtime/valid/generic-trait-qualified-calls.hd
 runtime/valid/hash-bytes-derived.hd
+runtime/valid/hash-bytes-result.hd
 runtime/valid/hash-bytes-scalars.hd
 runtime/valid/hash-bytes-sequences.hd
 runtime/valid/hash-of-reference-values.hd
 runtime/valid/heap-order.hd
 runtime/valid/heap-reverse.hd
 runtime/valid/heterogeneous-tuples.hd
+runtime/valid/host-args-env.hd
 runtime/valid/i32-extremes-through-generics.hd
 runtime/valid/i32-minimum-literal.hd
 runtime/valid/i32-minimum-through-generic-optional.hd
@@ -2083,7 +2068,10 @@ runtime/valid/list-access-building.hd
 runtime/valid/list-and-optional-map.hd
 runtime/valid/list-append-grows.hd
 runtime/valid/list-chunks.hd
+runtime/valid/list-counts.hd
 runtime/valid/list-flat-map-windows.hd
+runtime/valid/list-group-by.hd
+runtime/valid/list-map-key.hd
 runtime/valid/list-min-max.hd
 runtime/valid/list-of-trait-values.hd
 runtime/valid/list-partition-search.hd
@@ -2100,12 +2088,20 @@ runtime/valid/local-shadows-module-namespace.hd
 runtime/valid/logical-operators.hd
 runtime/valid/loop-iteration-binding-capture.hd
 runtime/valid/manual-clock.hd
+runtime/valid/map-args-env.hd
 runtime/valid/map-get-or.hd
 runtime/valid/map-index-reads-value.hd
 runtime/valid/map-is-empty.hd
+runtime/valid/map-iteration-order.hd
+runtime/valid/map-iterator.hd
+runtime/valid/map-key-types.hd
+runtime/valid/map-keys-values.hd
+runtime/valid/map-lookup-and-duplicate-keys.hd
 runtime/valid/map-sys.hd
 runtime/valid/match-arm-binding-reuse.hd
 runtime/valid/match-guards.hd
+runtime/valid/memory-fs-directories.hd
+runtime/valid/memory-fs.hd
 runtime/valid/method-call-never-selects-field.hd
 runtime/valid/method-receiver-before-arguments.hd
 runtime/valid/method-references-run.hd
@@ -2139,6 +2135,7 @@ runtime/valid/named-arguments-source-evaluation-order.hd
 runtime/valid/named-arguments-trait-dispatch.hd
 runtime/valid/named-enum-payload-evaluation-order.hd
 runtime/valid/named-enum-payload-patterns.hd
+runtime/valid/nan-equality-through-generics.hd
 runtime/valid/nested-control-flow-as-expressions.hd
 runtime/valid/nested-provider-scope.hd
 runtime/valid/nested-suspending-call.hd
@@ -2170,6 +2167,7 @@ runtime/valid/optional-mutable-match.hd
 runtime/valid/ord-supertrait-dispatch.hd
 runtime/valid/outer-field-beside-embedded-method.hd
 runtime/valid/parenthesized-nested-same-line-if.hd
+runtime/valid/partial-equality-dispatch.hd
 runtime/valid/partial-ordering-dispatch.hd
 runtime/valid/path-operations.hd
 runtime/valid/pipe-suspending-substitution-step.hd
@@ -2248,6 +2246,7 @@ runtime/valid/scripted-process.hd
 runtime/valid/seeded-random.hd
 runtime/valid/self-interpolation.hd
 runtime/valid/sequential-suspending-calls.hd
+runtime/valid/set-basics.hd
 runtime/valid/shared-enum-data-defaults.hd
 runtime/valid/shared-mutable-child-no-invariants.hd
 runtime/valid/shift-count-unsigned.hd
@@ -2319,6 +2318,7 @@ runtime/valid/trait-qualified-associated-and-named-calls.hd
 runtime/valid/trait-qualified-calls.hd
 runtime/valid/trim-unicode-white-space.hd
 runtime/valid/try-operand-expected-type.hd
+runtime/valid/tuple-derived-order.hd
 runtime/valid/tuple-element-permission.hd
 runtime/valid/tuple-ordering-nan-unordered.hd
 runtime/valid/tuple-rebuild.hd

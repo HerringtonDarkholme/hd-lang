@@ -3695,6 +3695,9 @@ impl ProgramEnv for Env<'_> {
         };
         hd_structure::supplied(&cx, &target, method)
     }
+    fn map_key_items(&self) -> (DefId, DefId) {
+        (self.run.known.eq, self.run.known.hash_of)
+    }
 }
 
 impl hd_structure::Items for ProgramTables {

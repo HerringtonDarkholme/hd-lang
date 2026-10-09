@@ -98,6 +98,24 @@ pub enum OptForm {
     Boxed(WTy),
 }
 
+/// How a map hashes and compares its key (codegen.md §13.12).
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum KeyOps {
+    /// An integer, `bool` or `char` in one `i32`.
+    I32,
+    /// A 64-bit integer.
+    I64,
+    /// A string: its viewed bytes.
+    Str,
+    /// Calls of the key type's `hash_of` and `Eq.eq` instances, which take
+    /// the key's values as `params`.
+    Call {
+        hash: Box<Sym>,
+        eq: Box<Sym>,
+        params: Vec<VT>,
+    },
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Helper {
     /// A pooled string literal's getter (wasm-layout.md §15.4).
@@ -118,6 +136,33 @@ pub enum Helper {
         env: WTy,
         list: WTy,
         elem: Vec<VT>,
+        opt: OptForm,
+    },
+    /// `(key...) -> i32`: a map key's bucket hash, 31 bits.
+    MapHash { key: Vec<VT>, ops: KeyOps },
+    /// `(map, hash, key...) -> i32`: the key's live entry, or -1.
+    MapFind { map: WTy, key: Vec<VT>, ops: KeyOps },
+    /// `(map, hash, key..., value...)`: replaces the value of the key's
+    /// entry, or appends a new entry.
+    MapPut {
+        map: WTy,
+        key: Vec<VT>,
+        val: Vec<VT>,
+        ops: KeyOps,
+    },
+    /// `(map)`: makes room for one more entry: drops removed entries,
+    /// doubling the capacity when at least half are live, and rebuilds
+    /// the index; entry order is kept.
+    MapGrow { map: WTy, comps: Vec<VT> },
+    /// The cursor closure of `Map.iter()`.
+    MapStep {
+        /// The environment `{code, map, pos, end, len}`, which names the
+        /// code and map types.
+        env: WTy,
+        /// The key's values, then the value's.
+        comps: Vec<VT>,
+        /// The `(K, V)` box, when the tuple is boxed.
+        tuple: Option<WTy>,
         opt: OptForm,
     },
     /// A host method that may wait, called cold: its leaf frame.
@@ -201,6 +246,55 @@ fn dec_wty(r: &mut Reader<'_>) -> Option<WTy> {
     }
 }
 
+fn enc_opt(opt: &OptForm, w: &mut Writer) {
+    match opt {
+        OptForm::NullRef => w.u8(0),
+        OptForm::NullStr => w.u8(1),
+        OptForm::Tagged => w.u8(2),
+        OptForm::Boxed(b) => {
+            w.u8(3);
+            enc_wty(b, w);
+        }
+    }
+}
+
+fn dec_opt(r: &mut Reader<'_>) -> Option<OptForm> {
+    Some(match r.u8() {
+        0 => OptForm::NullRef,
+        1 => OptForm::NullStr,
+        2 => OptForm::Tagged,
+        _ => OptForm::Boxed(dec_wty(r)?),
+    })
+}
+
+impl KeyOps {
+    fn encode(&self, w: &mut Writer) {
+        match self {
+            KeyOps::I32 => w.u8(0),
+            KeyOps::I64 => w.u8(1),
+            KeyOps::Str => w.u8(2),
+            KeyOps::Call { hash, eq, params } => {
+                w.u8(3);
+                hash.encode(w);
+                eq.encode(w);
+                encode_vts(params, w);
+            }
+        }
+    }
+    fn decode(r: &mut Reader<'_>) -> Option<KeyOps> {
+        Some(match r.u8() {
+            0 => KeyOps::I32,
+            1 => KeyOps::I64,
+            2 => KeyOps::Str,
+            _ => KeyOps::Call {
+                hash: Box::new(Sym::decode(r)?),
+                eq: Box::new(Sym::decode(r)?),
+                params: decode_vts(r, 0)?,
+            },
+        })
+    }
+}
+
 impl Helper {
     pub(crate) fn encode(&self, w: &mut Writer) {
         match self {
@@ -232,15 +326,48 @@ impl Helper {
                 enc_wty(env, w);
                 enc_wty(list, w);
                 encode_vts(elem, w);
-                match opt {
-                    OptForm::NullRef => w.u8(0),
-                    OptForm::NullStr => w.u8(1),
-                    OptForm::Tagged => w.u8(2),
-                    OptForm::Boxed(b) => {
-                        w.u8(3);
-                        enc_wty(b, w);
+                enc_opt(opt, w);
+            }
+            Helper::MapHash { key, ops } => {
+                w.u8(20);
+                encode_vts(key, w);
+                ops.encode(w);
+            }
+            Helper::MapFind { map, key, ops } => {
+                w.u8(21);
+                enc_wty(map, w);
+                encode_vts(key, w);
+                ops.encode(w);
+            }
+            Helper::MapPut { map, key, val, ops } => {
+                w.u8(22);
+                enc_wty(map, w);
+                encode_vts(key, w);
+                encode_vts(val, w);
+                ops.encode(w);
+            }
+            Helper::MapGrow { map, comps } => {
+                w.u8(23);
+                enc_wty(map, w);
+                encode_vts(comps, w);
+            }
+            Helper::MapStep {
+                env,
+                comps,
+                tuple,
+                opt,
+            } => {
+                w.u8(24);
+                enc_wty(env, w);
+                encode_vts(comps, w);
+                match tuple {
+                    Some(t) => {
+                        w.u8(1);
+                        enc_wty(t, w);
                     }
+                    None => w.u8(0),
                 }
+                enc_opt(opt, w);
             }
             Helper::HostCold {
                 sig,
@@ -386,12 +513,32 @@ impl Helper {
                 env: dec_wty(r)?,
                 list: dec_wty(r)?,
                 elem: decode_vts(r, 0)?,
-                opt: match r.u8() {
-                    0 => OptForm::NullRef,
-                    1 => OptForm::NullStr,
-                    2 => OptForm::Tagged,
-                    _ => OptForm::Boxed(dec_wty(r)?),
-                },
+                opt: dec_opt(r)?,
+            },
+            20 => Helper::MapHash {
+                key: decode_vts(r, 0)?,
+                ops: KeyOps::decode(r)?,
+            },
+            21 => Helper::MapFind {
+                map: dec_wty(r)?,
+                key: decode_vts(r, 0)?,
+                ops: KeyOps::decode(r)?,
+            },
+            22 => Helper::MapPut {
+                map: dec_wty(r)?,
+                key: decode_vts(r, 0)?,
+                val: decode_vts(r, 0)?,
+                ops: KeyOps::decode(r)?,
+            },
+            23 => Helper::MapGrow {
+                map: dec_wty(r)?,
+                comps: decode_vts(r, 0)?,
+            },
+            24 => Helper::MapStep {
+                env: dec_wty(r)?,
+                comps: decode_vts(r, 0)?,
+                tuple: if r.u8() == 1 { Some(dec_wty(r)?) } else { None },
+                opt: dec_opt(r)?,
             },
             7 => Helper::HostCold {
                 sig: dec_wty(r)?,
@@ -781,6 +928,16 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             }
             a.finish(results.clone())
         }
+        Helper::MapHash { key, ops } => crate::map::hash_code(key, ops)?,
+        Helper::MapFind { map, key, ops } => crate::map::find_code(map, key, ops)?,
+        Helper::MapPut { map, key, val, ops } => crate::map::put_code(map, key, val, ops),
+        Helper::MapGrow { map, comps } => crate::map::grow_code(map, comps),
+        Helper::MapStep {
+            env,
+            comps,
+            tuple,
+            opt,
+        } => crate::map::step_code(env, comps, tuple.as_ref(), opt)?,
         Helper::HostCold {
             sig,
             frame,

@@ -14,7 +14,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
 use hd_base::{DefId, Hash128, InstId, NotImplemented, StableHasher, Stage, StageResult};
-use hd_tir::ir::{Body, Callee, ChoiceKind, Coercion, Tag};
+use hd_tir::ir::{Body, Callee, ChoiceKind, Coercion, IntrinsicOp, Tag};
 use hd_types::solver::{
     BodyMemo, ConcreteTraitRef, Declarations, GlobalMemo, ImplRef, ImplUniverseId, Impls, ParamEnv,
     Selection, SolveCx, Solver, TraitRef,
@@ -81,6 +81,9 @@ pub trait ProgramEnv: LayoutEnv {
     /// self type, then the trait's and the method's own. `None` when
     /// emission lowers the method itself (trait-solver.md §3.9).
     fn supplied_body(&self, method: DefId, self_ty: Ty) -> StageResult<Option<Body>>;
+    /// The items a map key's hashing and equality call (codegen.md
+    /// §13.12): the `Eq` trait and `std.hash.hash_of`.
+    fn map_key_items(&self) -> (DefId, DefId);
 }
 
 /// The A1 class `REF` as a type argument: a reserved canonical
@@ -131,6 +134,13 @@ pub enum Target {
     Closure(Hash128),
     /// A `$.with`'s providers: per key, the trait and its vtable slots.
     Withs(Vec<(DefId, Vec<CallTarget>)>),
+    /// A map operation on a key that is not inline
+    /// (`layout::inline_map_key`): `hash_of` and `Eq.eq` at the key type
+    /// (codegen.md §13.12).
+    MapKey {
+        hash: CallTarget,
+        eq: CallTarget,
+    },
 }
 
 /// The output of `Collect` (codegen.md §11.3).
@@ -927,6 +937,41 @@ impl Cx<'_> {
         Ok(())
     }
 
+    /// The key operations of a map of type `map` (codegen.md §13.12):
+    /// `None` for an inline key, else `hash_of` and `Eq.eq` at the key
+    /// type, selected here so the TIR carries only the key type.
+    fn map_key(
+        &mut self,
+        map: Ty,
+        depth: u8,
+        parent: InstId,
+        reps: &mut StableHasher,
+    ) -> StageResult<Option<Target>> {
+        let pool = self.pool;
+        let map = match pool.get(map) {
+            TyData::Mut(x) => x,
+            _ => map,
+        };
+        let TyData::Adt { args, .. } = pool.get(map) else {
+            return err("a map operation on a non-map type");
+        };
+        let Some(&key) = pool.list_items(args).first() else {
+            return err("a map type without a key");
+        };
+        if layout::inline_map_key(pool, key) {
+            return Ok(None);
+        }
+        let (eq_trait, hash_of) = self.env.map_key_items();
+        let Some(&eq_method) = self.env.trait_methods(eq_trait).first() else {
+            return err("an `Eq` trait without its method");
+        };
+        let eq = self.method_target(eq_trait, eq_method, key, &[], None, depth, parent)?;
+        let hash = self.target(hash_of, pool.list(&[key]), depth, parent)?;
+        self.hash_target(&eq, reps);
+        self.hash_target(&hash, reps);
+        Ok(Some(Target::MapKey { hash, eq }))
+    }
+
     fn scan(&mut self, id: InstId) -> StageResult<()> {
         let (item, sub, args, depth) = (
             self.out.table.item[id.idx()],
@@ -1118,6 +1163,32 @@ impl Cx<'_> {
                         withs.push((trait_, slots));
                     }
                     calls.insert(ix, Target::Withs(withs));
+                }
+                // A map's key operations (codegen.md §13.12): a literal
+                // inserts each entry, and lookup, insertion and removal
+                // hash and compare the key through its impls.
+                Tag::NewMap if !body.record(b).is_empty() => {
+                    if let Some(t) = self.map_key(ty, depth, id, &mut reps)? {
+                        calls.insert(ix, t);
+                    }
+                }
+                Tag::Intrinsic
+                    if matches!(
+                        IntrinsicOp::from_u32(a),
+                        Some(
+                            IntrinsicOp::MapGet
+                                | IntrinsicOp::MapSet
+                                | IntrinsicOp::MapIndex
+                                | IntrinsicOp::MapRemove
+                        )
+                    ) =>
+                {
+                    let Some(&m) = body.record(b).first() else {
+                        return err("a map operation without its map");
+                    };
+                    if let Some(t) = self.map_key(s(value_ty(body, m)), depth, id, &mut reps)? {
+                        calls.insert(ix, t);
+                    }
                 }
                 _ => {}
             }

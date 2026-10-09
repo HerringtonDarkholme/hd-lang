@@ -78,6 +78,14 @@ pub enum StdKind {
     Other,
 }
 
+/// Whether a map key type hashes and compares inline (codegen.md §13.12):
+/// an integer, `bool`, `char` or `string`, whose `Eq` and `Hash` are
+/// std's fixed ones. Every other key calls its own impls.
+#[must_use]
+pub fn inline_map_key(pool: &InternPool, t: Ty) -> bool {
+    matches!(pool.get(t), TyData::Prim(p) if !matches!(p, Prim::F32 | Prim::F64 | Prim::Void))
+}
+
 /// What layouts need to know about declared types (enum shapes).
 pub trait LayoutEnv {
     /// Variant payload types of an enum, or `None` for a data type.

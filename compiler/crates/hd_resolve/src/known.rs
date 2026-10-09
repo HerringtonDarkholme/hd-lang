@@ -60,6 +60,8 @@ pub struct KnownItems {
     pub ord: DefId,
     pub ordering: DefId,
     pub hash: DefId,
+    /// `std.hash.hash_of`, which a map hashes a non-inline key by.
+    pub hash_of: DefId,
     pub display: DefId,
     pub debug: DefId,
     // std.iter, std.convert, std.error
@@ -152,6 +154,7 @@ impl KnownItems {
             ord: item("std.cmp", "Ord"),
             ordering: item("std.cmp", "Ordering"),
             hash: item("std.hash", "Hash"),
+            hash_of: item("std.hash", "hash_of"),
             display: item("std.format", "Display"),
             debug: item("std.format", "Debug"),
             iterator: item("std.iter", "Iterator"),
