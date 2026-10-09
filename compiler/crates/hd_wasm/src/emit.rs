@@ -1203,6 +1203,7 @@ impl Em<'_> {
             PrimOp::Add | PrimOp::Sub | PrimOp::Mul | PrimOp::Div | PrimOp::Rem | PrimOp::Neg => {
                 self.checked(op, ops, bits, signed)?;
             }
+            PrimOp::Pow => self.int_pow(ops, bits, signed)?,
             PrimOp::Eq | PrimOp::Ne | PrimOp::Lt | PrimOp::Le | PrimOp::Gt | PrimOp::Ge => {
                 s(self)?;
                 let mut x = self.a.s();
@@ -1361,6 +1362,22 @@ impl Em<'_> {
     }
 
     fn float_value(&mut self, op: PrimOp, ops: &[u32], vt: &VT) -> StageResult<()> {
+        // `expr.power.float.pow`: the IEEE `pow` helper takes and gives
+        // `f64`, so an `f32` operand is widened exactly and the result is
+        // rounded back to `f32`.
+        if op == PrimOp::Pow {
+            for r in ops {
+                self.comp(*r, 0, vt)?;
+                if *vt == VT::F32 {
+                    self.a.s().f64_promote_f32();
+                }
+            }
+            self.a.call(Sym::Helper(Helper::PowF64));
+            if *vt == VT::F32 {
+                self.a.s().f32_demote_f64();
+            }
+            return Ok(());
+        }
         if *vt != VT::F64 {
             return unsupported("f32 arithmetic");
         }
@@ -1400,7 +1417,6 @@ impl Em<'_> {
         // The operands' representation, and the type the exact result fits.
         let vt = if wide { VT::I64 } else { VT::I32 };
         let exact = if bits == 32 { VT::I64 } else { vt.clone() };
-        let in64 = exact == VT::I64;
         let x = self.a.local(exact.clone());
         let y = self.a.local(exact.clone());
         let r = self.a.local(exact.clone());
@@ -1425,6 +1441,19 @@ impl Em<'_> {
             }
             self.a.set(dst);
         }
+        self.checked_arith(op, bits, signed, (x, y, r));
+        self.a.get(r);
+        if bits == 32 {
+            self.a.s().i32_wrap_i64();
+        }
+        Ok(())
+    }
+
+    /// `r = x op y` on locals of the exact type (`checked`'s), with the
+    /// overflow and division tests; it leaves nothing on the stack.
+    fn checked_arith(&mut self, op: PrimOp, bits: u8, signed: bool, (x, y, r): (u32, u32, u32)) {
+        let wide = bits == 64;
+        let in64 = bits >= 32;
         if matches!(op, PrimOp::Div | PrimOp::Rem) {
             self.a.get(y);
             if in64 {
@@ -1511,7 +1540,81 @@ impl Em<'_> {
         self.a.if_();
         self.panic("integer-overflow: integer overflow");
         self.a.end();
-        self.a.get(r);
+    }
+
+    /// Checked integer power (`expr.power.int.*`, `expr.power.checked`):
+    /// `ops[0] ** ops[1]` by repeated squaring, each product checked in
+    /// the base's type. A square is made only while exponent bits remain,
+    /// so no checked product exceeds the final magnitude, and a result in
+    /// range never panics. An exponent of zero gives one.
+    fn int_pow(&mut self, ops: &[u32], bits: u8, signed: bool) -> StageResult<()> {
+        let vt = if bits == 64 { VT::I64 } else { VT::I32 };
+        let exact = if bits == 32 { VT::I64 } else { vt.clone() };
+        let in64 = exact == VT::I64;
+        let (x, y, p) = (
+            self.a.local(exact.clone()),
+            self.a.local(exact.clone()),
+            self.a.local(exact.clone()),
+        );
+        let (base, acc) = (self.a.local(exact.clone()), self.a.local(exact.clone()));
+        let e = self.a.local(VT::I64);
+        self.comp(ops[0], 0, &vt)?;
+        if bits == 32 {
+            if signed {
+                self.a.s().i64_extend_i32_s();
+            } else {
+                self.a.s().i64_extend_i32_u();
+            }
+        }
+        self.a.set(base);
+        // The exponent is any unsigned width, extended to 64 bits.
+        let evt = self.vts(self.ty_of(ops[1]))?;
+        let Some(ev) = evt.first().cloned() else {
+            return unsupported("an exponent without a value");
+        };
+        self.comp(ops[1], 0, &ev)?;
+        if ev == VT::I32 {
+            self.a.s().i64_extend_i32_u();
+        }
+        self.a.set(e);
+        if in64 {
+            self.a.i64(1);
+        } else {
+            self.a.i32(1);
+        }
+        self.a.set(acc);
+        self.a.block();
+        self.a.loop_();
+        self.a.get(e);
+        self.a.i64(1);
+        self.a.s().i64_and().i64_eqz().i32_eqz();
+        self.a.if_();
+        for (src, dst) in [(acc, x), (base, y)] {
+            self.a.get(src);
+            self.a.set(dst);
+        }
+        self.checked_arith(PrimOp::Mul, bits, signed, (x, y, p));
+        self.a.get(p);
+        self.a.set(acc);
+        self.a.end();
+        self.a.get(e);
+        self.a.i64(1);
+        self.a.s().i64_shr_u();
+        self.a.set(e);
+        self.a.get(e);
+        self.a.s().i64_eqz();
+        self.a.br_if(1);
+        for dst in [x, y] {
+            self.a.get(base);
+            self.a.set(dst);
+        }
+        self.checked_arith(PrimOp::Mul, bits, signed, (x, y, p));
+        self.a.get(p);
+        self.a.set(base);
+        self.a.br(0);
+        self.a.end();
+        self.a.end();
+        self.a.get(acc);
         if bits == 32 {
             self.a.s().i32_wrap_i64();
         }

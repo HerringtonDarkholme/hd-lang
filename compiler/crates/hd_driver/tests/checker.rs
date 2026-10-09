@@ -620,3 +620,77 @@ fn a_filled_default_and_the_written_argument_overlap() {
         out.render()
     );
 }
+
+/// The diagnostic codes of a program made of `items` and an empty `main`.
+fn item_codes(items: &str) -> Vec<Code> {
+    let out = program(&format!("{items}\npub fn main() -> void:\n    pass\n"));
+    codes(&out)
+}
+
+/// `**` takes an unsigned exponent for an integer base, an exponent of the
+/// base's type for a float base, and gives the base's type
+/// (`expr.power.int.exponent`, `expr.power.int.literal`,
+/// `expr.power.float.same-type`).
+#[test]
+fn power_operands_follow_the_exponent_rules() {
+    for ok in [
+        "fn f(b: i32, e: u32) -> i32: b ** e",
+        "fn f(b: i64, e: u8) -> i64: b ** e",
+        "fn f(b: u8, e: u16) -> u8: b ** e",
+        "fn f(b: i32, e: u64) -> i32: b ** e",
+        "fn f(b: i32, e: usize) -> i32: b ** e",
+        "fn f(b: i32) -> i32: b ** 3",
+        "fn f() -> i32: 2 ** 3 ** 2",
+        "fn f() -> i32: -2 ** 2",
+        "fn f(b: f64, e: f64) -> f64: b ** e",
+        "fn f(b: f32, e: f32) -> f32: b ** e",
+        "fn f(b: f32) -> f32: b ** 2.0",
+        "fn f() -> f64: 2.0 ** -1.0",
+        "fn f(b: i32) -> i64: i64(b ** 2)",
+    ] {
+        assert!(item_codes(ok).is_empty(), "{ok}");
+    }
+}
+
+/// Each rejected form is one `type-mismatch` and nothing more
+/// (`expr.power.int.signed`, `expr.power.negated-literal`,
+/// `expr.power.float.same-type`, `expr.power.mixed`,
+/// `expr.op.not-overloaded`).
+#[test]
+fn power_operand_errors_are_one_type_mismatch() {
+    for bad in [
+        // A signed exponent, in a variable or as a negated literal.
+        "fn f(b: i32, e: i32) -> i32: b ** e",
+        "fn f(b: u32, e: i64) -> u32: b ** e",
+        "fn f() -> i32: 2 ** -1",
+        "fn f(b: i32) -> i32: b ** -3",
+        // Integer and floating operands do not mix.
+        "fn f() -> f64: 2 ** 2.0",
+        "fn f(b: i32, e: f64) -> i32: b ** e",
+        "fn f(b: f64, e: i32) -> f64: b ** e",
+        "fn f(b: f64) -> f64: b ** 2",
+        // A float exponent has the base's type.
+        "fn f(b: f32, e: f64) -> f32: b ** e",
+        "fn f(b: f64, e: f32) -> f64: b ** e",
+        // `**` has no trait: any other base is an error.
+        "data Money:\n    cents: i64\n\nfn f(m: Money) -> Money: m ** 2",
+        "fn f(b: bool) -> bool: b ** 2",
+        "fn f(c: char) -> char: c ** 2",
+        "fn f(s: string) -> string: s ** 2",
+    ] {
+        assert_eq!(item_codes(bad), [Code::TypeMismatch], "{bad}");
+    }
+}
+
+/// An error in the exponent leaves no second error in its context.
+#[test]
+fn a_rejected_power_is_an_error_value() {
+    assert_eq!(
+        item_codes("fn f(e: i32) -> f64: 2 ** e"),
+        [Code::TypeMismatch]
+    );
+    assert_eq!(
+        item_codes("fn f(e: i32) -> i32: 2 ** e + 1"),
+        [Code::TypeMismatch]
+    );
+}

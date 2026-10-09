@@ -179,10 +179,13 @@ pub enum PrimOp {
     Not,
     /// A numeric conversion to the instruction's type (`i64(x)`).
     Conv,
+    /// `a ** b`: checked integer power with an unsigned exponent, or the
+    /// IEEE 754 `pow` of two floats (`expr.power.*`).
+    Pow,
 }
 
 impl PrimOp {
-    pub const ALL: [PrimOp; 21] = [
+    pub const ALL: [PrimOp; 22] = [
         PrimOp::Add,
         PrimOp::Sub,
         PrimOp::Mul,
@@ -204,6 +207,7 @@ impl PrimOp {
         PrimOp::Shr,
         PrimOp::Not,
         PrimOp::Conv,
+        PrimOp::Pow,
     ];
     #[must_use]
     pub fn from_u32(v: u32) -> Option<Self> {

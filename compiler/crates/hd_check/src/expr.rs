@@ -16,6 +16,17 @@ use hd_types::{ParamRef, Prim, Ty, TyData, VarKind};
 
 use crate::body::{Ck, OpenSub, unsupported};
 
+/// What the base of a `**` is (`expr.power.*`).
+#[derive(Clone, Copy)]
+enum PowerBase {
+    Int,
+    Float,
+    /// Not a number: an error.
+    Other,
+    /// Already an error, or a divergent value.
+    Poison,
+}
+
 /// Decodes a string piece's text: escapes, and `$name` references.
 pub(crate) enum Piece {
     Text(String),
@@ -197,6 +208,7 @@ impl Ck<'_, '_> {
             | SyntaxKind::BitwiseOrExpr
             | SyntaxKind::BitwiseXorExpr
             | SyntaxKind::ShiftExpr => self.binary(n, &kids)?,
+            SyntaxKind::PowerExpr => self.power(n, &kids)?,
             SyntaxKind::FieldExpr => self.field_expr(n, &kids)?,
             SyntaxKind::IndexExpr => self.index_expr(n, &kids)?,
             SyntaxKind::CallExpr => self.call(n, &kids, want)?,
@@ -629,7 +641,7 @@ impl Ck<'_, '_> {
         }
         if self.numeric(at) || (ats == Ty::BOOL && bool_ops) {
             if shift {
-                self.shift_count(ct, rn);
+                let _ = self.unsigned_count(ct, rn, "a shift count", true);
             } else {
                 self.expect(ct, at, rn, "operand");
             }
@@ -703,28 +715,101 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// A shift count (`expr.shift.count-unsigned`): any unsigned integer
-    /// type; an unsuffixed literal takes `u32`.
-    fn shift_count(&mut self, ct: Ty, rn: NodeRef<'_>) {
+    /// A shift count (`expr.shift.count-unsigned`) or an integer exponent
+    /// (`expr.power.int.exponent`): any unsigned integer type; an
+    /// unsuffixed literal takes `u32`. A negated literal is signed. A
+    /// shift count takes `u32` anyway and is checked at run time, but an
+    /// exponent rejects it here (`expr.power.negated-literal`).
+    fn unsigned_count(&mut self, ct: Ty, rn: NodeRef<'_>, what: &str, negated_ok: bool) -> bool {
         let pool = self.pool();
         let c = self.strip_mut(ct);
         let ok = match pool.get(c) {
-            TyData::Infer(_)
-                if matches!(
-                    self.infer.kind_of(pool, c),
-                    Some(VarKind::IntLit | VarKind::SignedIntLit)
-                ) =>
-            {
-                self.infer.unify(pool, c, Ty::prim(Prim::U32)).is_ok()
-            }
+            TyData::Infer(_) => match self.infer.kind_of(pool, c) {
+                Some(VarKind::IntLit) => self.infer.unify(pool, c, Ty::prim(Prim::U32)).is_ok(),
+                Some(VarKind::SignedIntLit) if negated_ok => {
+                    self.infer.unify(pool, c, Ty::prim(Prim::U32)).is_ok()
+                }
+                _ => false,
+            },
             TyData::Prim(p) => p.is_unsigned(),
             TyData::Never | TyData::Poison => true,
             _ => false,
         };
         if !ok {
-            let msg = format!("a shift count must be unsigned, found {}", self.show(ct));
+            let msg = format!("{what} must be unsigned, found {}", self.show(ct));
             self.err(Code::TypeMismatch, rn, &msg);
         }
+        ok
+    }
+
+    /// What a `**` base is (`expr.power.*`).
+    fn power_base(&self, t: Ty) -> PowerBase {
+        let pool = self.pool();
+        let t = self.strip_mut(t);
+        match pool.get(t) {
+            TyData::Prim(p) if p.is_integer() => PowerBase::Int,
+            TyData::Prim(p) if p.is_float() => PowerBase::Float,
+            TyData::Infer(_) => match self.infer.kind_of(pool, t) {
+                Some(VarKind::IntLit | VarKind::SignedIntLit) => PowerBase::Int,
+                Some(VarKind::FloatLit) => PowerBase::Float,
+                _ => PowerBase::Other,
+            },
+            TyData::Param(_) => {
+                let known = self.cx.names.known;
+                let bound = |tr: DefId| {
+                    (0..self.env.clause_self.len())
+                        .any(|i| self.env.clause_self[i] == t && self.env.clause_trait[i] == tr)
+                };
+                if bound(known.integer) {
+                    PowerBase::Int
+                } else if bound(known.float) {
+                    PowerBase::Float
+                } else {
+                    PowerBase::Other
+                }
+            }
+            TyData::Never | TyData::Poison => PowerBase::Poison,
+            _ => PowerBase::Other,
+        }
+    }
+
+    /// `a ** b` (`expr.power.*`). `**` has no operator trait
+    /// (`expr.op.not-overloaded`). An integer base takes an unsigned
+    /// exponent, a float base an exponent of its own type, and the result
+    /// has the base's type.
+    fn power(&mut self, n: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<(Ref, Ty)> {
+        let [l, r] = kids else {
+            return unsupported("a power expression shape");
+        };
+        let (a, at) = self.expr(*l, None)?;
+        let base = self.power_base(at);
+        let want = match base {
+            PowerBase::Int => Some(Ty::prim(Prim::U32)),
+            PowerBase::Float => Some(at),
+            PowerBase::Poison | PowerBase::Other => None,
+        };
+        let (c, ct) = self.expr(*r, want)?;
+        // A rejected operand makes the whole expression an error value, so
+        // its context reports nothing more.
+        let rejected = match base {
+            PowerBase::Int => !self.unsigned_count(ct, *r, "an exponent", false),
+            PowerBase::Float => {
+                self.expect(ct, at, *r, "operand");
+                false
+            }
+            PowerBase::Poison => false,
+            PowerBase::Other => {
+                let msg = format!("`**` takes integers or floats, found {}", self.show(at));
+                self.err(Code::TypeMismatch, n, &msg);
+                true
+            }
+        };
+        if rejected {
+            let p = self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index());
+            return Ok((p, Ty::POISON));
+        }
+        let v = self.b.prim(PrimOp::Pow as u32, &[a, c], at, n.index());
+        Ok((v, at))
     }
 
     /// Whether some implementation of operator trait `tr` fits a left

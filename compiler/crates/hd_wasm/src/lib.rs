@@ -17,6 +17,7 @@ pub mod emit;
 pub mod layout;
 pub mod map;
 pub mod meta;
+pub mod pow;
 pub mod rt;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
