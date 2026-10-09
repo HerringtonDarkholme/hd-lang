@@ -169,6 +169,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// The structure protocol calls of an opt-in's template body: the
     /// `Structure` method and its walker, describer or source type.
     pub structure_calls: Vec<(DefId, Ty)>,
+    /// The type variables of the least-common-type sites being joined
+    /// (`types.lct.sites`): a function value that joins one widens its
+    /// row to the union (`types.lct.row-union-every-site`).
+    pub joins: Vec<Ty>,
 }
 
 /// A node index kept for a later diagnostic.
@@ -230,6 +234,7 @@ pub(crate) fn new_ck<'a, 'c>(
         ref_params: Vec::new(),
         opt_in: None,
         structure_calls: Vec::new(),
+        joins: Vec::new(),
     };
     let Some(it) = cx.lookup.item(env) else {
         return ck;
@@ -722,6 +727,7 @@ impl Ck<'_, '_> {
     /// type-checking.md §4.2 (`never`, `.Some` wrapping, trait values).
     pub(crate) fn coerce(&mut self, r: Ref, got: Ty, want: Ty, n: NodeRef<'_>, what: &str) -> Ref {
         let pool = self.pool();
+        let target = want;
         let (got, want) = (self.norm_ty(got), self.norm_ty(want));
         let g = self.infer.shallow(pool, got);
         let w = self.infer.shallow(pool, want);
@@ -781,6 +787,11 @@ impl Ck<'_, '_> {
                 self.show(got)
             );
             self.err(Code::TypeMismatch, n, &msg);
+        }
+        // A function value joining a least-common-type site widens the
+        // site's row to the union (`req.row.union.sites.type`).
+        if self.diags.len() == before && joined {
+            self.join_row(target, got);
         }
         // A function value fits a wider row (`req.row.subsume`); an open
         // row variable takes the least solution (`req.row.least`).

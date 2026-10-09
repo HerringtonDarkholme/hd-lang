@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1928 | 637 | 279 | 2844 |
+| 1932 | 633 | 279 | 2844 |
 
 ## By Chapter
 
@@ -24,7 +24,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/08-data-and-enums.md` | 73 | 39 | 11 | 123 |
 | `lang/09-traits.md` | 226 | 102 | 31 | 359 |
 | `lang/10-modules.md` | 144 | 77 | 37 | 258 |
-| `lang/11-requirements-and-suspension.md` | 132 | 57 | 70 | 259 |
+| `lang/11-requirements-and-suspension.md` | 136 | 53 | 70 | 259 |
 | `lang/14-annotations.md` | 104 | 42 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 13 | 0 | 1 | 14 |
@@ -63,8 +63,8 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 68 | 28 | 9 | 105 |
-| `runtime/valid` | 609 | 148 | 172 | 929 |
-| `typing/invalid` | 597 | 408 | 69 | 1074 |
+| `runtime/valid` | 612 | 145 | 172 | 929 |
+| `typing/invalid` | 598 | 407 | 69 | 1074 |
 | `typing/valid` | 356 | 30 | 29 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -95,7 +95,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 9 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 250 |
+| `fail:no-diagnostic` | 249 |
 | `fail:nonexhaustive-match` | 4 |
 | `fail:not-callable` | 1 |
 | `fail:orphan-impl` | 1 |
@@ -105,7 +105,7 @@ compiler stage that first declined the case.
 | `fail:placeholder-outside-pipe` | 1 |
 | `fail:private-main` | 7 |
 | `fail:re-export-loop` | 1 |
-| `fail:runtime-exit` | 59 |
+| `fail:runtime-exit` | 56 |
 | `fail:stdout` | 3 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
@@ -306,7 +306,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (250)</summary>
+<details><summary><code>fail:no-diagnostic</code> (249)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -427,7 +427,6 @@ compiler stage that first declined the case.
 - `typing/invalid/facts-of-local-binding.hd`
 - `typing/invalid/facts-of-method.hd`
 - `typing/invalid/row-union-list-no-convert.hd`
-- `typing/invalid/row-union-missing-requirement.hd`
 - `typing/invalid/public-method-missing-result-type.hd`
 - `typing/invalid/intrinsic-method-user.hd`
 - `typing/invalid/supertrait-binding-mismatch.hd`
@@ -629,7 +628,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (59)</summary>
+<details><summary><code>fail:runtime-exit</code> (56)</summary>
 
 - `runtime/panic/for-loop-iterator-invalidated.hd`
 - `runtime/panic/invalid-shift.hd`
@@ -649,9 +648,6 @@ compiler stage that first declined the case.
 - `runtime/valid/replace-empty-old.hd`
 - `runtime/panic/duration-suffix-overflow.hd`
 - `runtime/valid/narrowing-cast-wraps.hd`
-- `runtime/valid/row-union-list-runs.hd`
-- `runtime/valid/row-union-branches-run.hd`
-- `runtime/valid/row-union-closure-result-runs.hd`
 - `runtime/valid/pipe-nested-placeholder.hd`
 - `runtime/panic/string-slice-inside-scalar.hd`
 - `runtime/panic/string-slice-past-end.hd`
@@ -2178,6 +2174,9 @@ runtime/valid/row-parameter-callable-in-list.hd
 runtime/valid/row-polymorphic-forwarding.hd
 runtime/valid/row-polymorphic-union-forwarding.hd
 runtime/valid/row-subsumption-runs.hd
+runtime/valid/row-union-branches-run.hd
+runtime/valid/row-union-closure-result-runs.hd
+runtime/valid/row-union-list-runs.hd
 runtime/valid/row-variable-binds-union.hd
 runtime/valid/row-variable-plus-key.hd
 runtime/valid/same-line-suite-body-forms.hd
@@ -2792,6 +2791,7 @@ typing/invalid/row-inference-conflict.hd
 typing/invalid/row-inference-unavailable-provider.hd
 typing/invalid/row-parameter-propagates-callback-requirement.hd
 typing/invalid/row-subsumption-missing-key.hd
+typing/invalid/row-union-missing-requirement.hd
 typing/invalid/same-depth-promotion-conflict.hd
 typing/invalid/same-module-private-field-not-promoted.hd
 typing/invalid/same-module-private-method-not-promoted.hd

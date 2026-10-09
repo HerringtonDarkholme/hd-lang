@@ -1048,7 +1048,7 @@ impl Ck<'_, '_> {
             _ => None,
         };
         let inferred = elem.is_none();
-        let elem = elem.unwrap_or_else(|| self.infer.fresh(pool, VarKind::General));
+        let elem = self.join_target(elem);
         let mut refs = Vec::new();
         for e in kids {
             if e.kind() == SyntaxKind::SpreadExpr {
@@ -1095,11 +1095,11 @@ impl Ck<'_, '_> {
                 }) {
                 Some(TyData::Adt { def, args }) if def == map => {
                     let a = pool.list_items(args);
-                    (a[0], a[1], true)
+                    (a[0], self.join_target(Some(a[1])), true)
                 }
                 _ => (
                     self.infer.fresh(pool, VarKind::General),
-                    self.infer.fresh(pool, VarKind::General),
+                    self.join_target(None),
                     false,
                 ),
             };
@@ -1391,10 +1391,7 @@ impl Ck<'_, '_> {
         } else {
             want
         };
-        let result = match want {
-            Some(w) => w,
-            None => self.infer.fresh(pool, VarKind::General),
-        };
+        let result = self.join_target(want);
         let tb = self.b.open_block();
         let (tt, tty) = self.block_value(then_node, Some(result))?;
         let then = self.b.close_block(tb, tt, tty, then_node.index());
@@ -2022,7 +2019,7 @@ impl Ck<'_, '_> {
         }
         let ret = match parts.ret {
             Some(rt) => self.ty_node(rt)?,
-            None => wret.unwrap_or_else(|| self.infer.fresh(pool, VarKind::General)),
+            None => self.join_target(wret),
         };
         // A written row, or the least row of the keys the body uses
         // (`req.row.omitted.closure-row`); the expected row is matched

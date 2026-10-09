@@ -179,20 +179,25 @@ design:
   of a value-producing `if`, the arms of a value-producing `match`,
   and the final value plus `return` operands of a closure or
   result-inferred function (`req.row.union.literal`,
-  `req.row.union.sites`) all take the union of their rows — today
-  they keep one branch's row, so the call passes too few providers
-  (`row-union-branches-run`). At each site the checker collects the
-  function-valued members, unions their rows, widens each to the
-  union, takes the least common type (`req.row.union.sites.type`),
-  and records one `RowSubsume` per widened value; anything holding
-  function values (rather than being one) keeps its own type or
-  errors `no-common-type` (`req.row.union.literal.direct`,
+  `req.row.union.sites`) all take the union of their rows. As built
+  (#48): each site joins into a *join variable* (`Ck::join_target`);
+  a function value coerced into a join variable already solved to a
+  function type widens that type's row to the union, by an undoable
+  `rebind` (`Ck::join_row`, `req.row.union.sites.type`). Nested sites
+  that share the variable (an `else if` chain, an `if` inside a list)
+  widen the same one. Anything holding function values (rather than
+  being one) keeps its own type (`req.row.union.literal.direct`,
   `req.row.union.sites.direct`). With an expected type there is no
   union: each member checks against it directly, and a key outside it
   is `type-mismatch` (`req.row.union.literal.expected`,
-  `req.row.subsume.missing`). The union forms during Body checking
-  at the join, once every member's type is known; no new TIR node —
-  `RowSubsume` already carries `fn $ R1` to `fn $ R2`.
+  `req.row.subsume.missing`). An unsolved type variable, such as a
+  generic argument's, is no expected type: the site joins on its own
+  and the caller solves the variable from the result. No TIR node
+  records the widening: the callable ABI passes the key ids with the
+  providers, so subsumption is no instruction (codegen.md §12.4), and
+  a call through the joined value passes the union's providers. Loop
+  `break`/`else` joins are not a `types.lct.sites` site and take no
+  union (Q-R20).
 
 #### 4.13.5 Suspension
 

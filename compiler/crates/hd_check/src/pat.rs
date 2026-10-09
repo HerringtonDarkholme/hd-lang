@@ -513,15 +513,11 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.pool();
         let Some(scrut) = n.children().next() else {
             return unsupported("a `match` without a scrutinee");
         };
         let (sr, st) = self.expr(scrut, None)?;
-        let result = match want {
-            Some(w) => w,
-            None => self.infer.fresh(pool, VarKind::General),
-        };
+        let result = self.join_target(want);
         let mut rows = Vec::new();
         let mut arms = Vec::new();
         let mut all_never = true;
