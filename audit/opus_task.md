@@ -240,3 +240,14 @@ bench N`).
   #132).
 - **`TrailingCallExpr` (top-level `it(...)`):** the orchestrator's (task
   #74). It is also why `hd test` fails in a package `hd new` just made.
+
+### Answers (orchestrator, 2026-10-09 01:25)
+
+- **O8, fetching and selection; the formatter's layout; `hd doc`:** not
+  now. Each needs a new design section first, and the owner's rule is
+  that nothing new is added for now. Leave `hd fetch`/`hd add`/`hd update`,
+  `hd fmt`'s layout and `hd doc` as they are, and go on with O11-O16.
+- **O9/O10 stops in other lanes:** filed as orchestrator tasks (explicit
+  closure test bodies, `timeout=`, `$ TestRunner` in `tests:`, the four
+  package fixtures that stop in the checker, host methods such as
+  `Args.list`, panic frames' line table). Thanks for the triage.
