@@ -127,16 +127,6 @@ order-of-magnitude problems, with the hot function if you can find it.
 Write `audit/compiler/runtime-<date>-<short hash>.md`. Timebox 45
 minutes.
 
-### R29. Design Note: Requirement-Row Aliases In Interfaces (Design Text)
-
-About 26 programs stop at FolderIface on row aliases and 8 on context
-types in headers. Read the row-alias rules (`req.row.alias.*` in
-`spec/lang/11-requirements-and-suspension.md`) and
-`resolution-and-interfaces.md` (folder interfaces), and add to it how an
-alias is recorded in an interface, expanded at use, hashed for caches, and
-printed in diagnostics (`req.row.alias.diagnostics.expanded`). Timebox
-45 minutes.
-
 ### P1. Profile The New Compiler (After S4; Standing Job)
 
 Owner, 2026-10-07: "you write the code, codex do the profiling. move

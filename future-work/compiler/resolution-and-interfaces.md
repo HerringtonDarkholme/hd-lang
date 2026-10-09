@@ -226,6 +226,23 @@ After step 8 the interface is usable: dependents may read it. The
 stage-B checks of §4.10.1 run next, in their own task, and no dependent
 reads their result.
 
+**Row aliases and context types in interfaces.** A row-alias
+declaration is recorded as an ordinary transparent alias item; every
+use in a header expands first (`req.row.alias.expand.first`),
+recursively through nested aliases, so headers store only expanded
+normalized rows — an interface never holds an unexpanded alias. At
+use sites the same expansion runs before normalization, entailment
+and solving. Cycles are `alias-cycle` regardless of declaration
+order (a use-before-declaration is not its own error). A
+`$.Context[...]` header type lowers like any generic type with its
+row argument expanded. Hashing follows content: alias declarations
+hash as items into `api_hash`; expanded rows hash by stable-sorted
+content, so two spellings of one row share cache entries.
+Diagnostics print the row as written (aliases intact, element order)
+plus the expanded keys, naming the missing one
+(`req.row.union.literal.diagnostics`,
+`req.row.alias.diagnostics.expanded`).
+
 **What the interface holds.** Public items, all impl heads, templates with
 their bodies, hidden items, and per parameter and field whether it has a
 default. It holds no private item record except hidden ones. Its
