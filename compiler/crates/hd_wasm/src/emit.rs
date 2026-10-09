@@ -2136,7 +2136,9 @@ impl Em<'_> {
             // `hd:prim` imports (`std` README, "Host"): the scalars go
             // in as parameters and the string comes back in the exchange
             // buffer.
-            "format_f64" | "format_f32" => self.host_primitive(i, key, args, ty),
+            "format_f64" | "format_f32" | "format_f64_fixed" => {
+                self.host_primitive(i, key, args, ty)
+            }
             other => unsupported(format!("the intrinsic `{other}`")),
         }
     }

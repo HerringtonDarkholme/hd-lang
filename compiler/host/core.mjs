@@ -52,7 +52,7 @@ import { MessageChannel, receiveMessageOnPort, Worker } from "node:worker_thread
 import { randomBytes } from "node:crypto";
 import { arch as osArch, availableParallelism, hostname, platform, tmpdir } from "node:os";
 import { dirname, basename, join, resolve } from "node:path";
-import { shortest } from "./float.mjs";
+import { fixed, shortest } from "./float.mjs";
 
 export class Deadlock extends Error {}
 
@@ -684,6 +684,7 @@ export function createHost(sink, env = {}) {
     "hd:prim": {
       format_f64: (value) => put(new Enc().str(shortest(value, 64))),
       format_f32: (value) => put(new Enc().str(shortest(value, 32))),
+      format_f64_fixed: (value, digits) => put(new Enc().str(fixed(value, Number(digits)))),
     },
     "hd:Console": {
       "write_line.start": (len) => {

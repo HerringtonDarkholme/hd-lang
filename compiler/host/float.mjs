@@ -1,6 +1,7 @@
-// Float text for the host primitives `format_f64` and `format_f32`
-// (spec/std/README.md#standard-library-primitives). The text is fixed by
-// the spec and never taken from the host's own number printing:
+// Float text for the host primitives `format_f64`, `format_f32` and
+// `format_f64_fixed` (spec/std/README.md#standard-library-primitives).
+// The text is fixed by the spec and never taken from the host's own
+// number printing:
 //
 // - `shortest` writes the Display text of
 //   spec/lang/04-type-system.md#numeric-display: the shortest decimal
@@ -9,9 +10,12 @@
 //   fixed notation for a normalized decimal exponent in [-6, 21) and
 //   lowercase scientific notation otherwise; `NaN`, `inf`, `-inf` and
 //   `-0.0`.
+// - `fixed` writes `to_fixed` (spec/std/num.md#fixed-point-text): the
+//   multiple of 10 to the power -digits nearest the exact binary value,
+//   ties to even, never an exponent, the sign bit kept.
 //
-// It works on the exact significand and exponent with BigInt, so the
-// result owes nothing to `Number.prototype.toString`.
+// Both work on the exact significand and exponent with BigInt, so the
+// result owes nothing to `Number.prototype.toString` or `toFixed`.
 
 // The two widths: the significand's stored bits and the exponent bias.
 const WIDTH = {
@@ -139,4 +143,25 @@ export function shortest(value, width) {
   }
   const mantissa = ds.length > 1 ? `${ds[0]}.${ds.slice(1)}` : ds;
   return `${sign}${mantissa}e${exponent < 0 ? "-" : "+"}${Math.abs(exponent)}`;
+}
+
+// The `to_fixed` text of an `f64` with `places` digits after the point.
+export function fixed(value, places) {
+  if (value !== value) return "NaN";
+  if (value === Infinity) return "inf";
+  if (value === -Infinity) return "-inf";
+  const { negative, f, e } = split(value, 64);
+  const n = BigInt(places);
+  let scaled;
+  if (e >= 0) scaled = f * (1n << BigInt(e)) * 10n ** n;
+  else {
+    const numerator = f * 10n ** n;
+    const denominator = 1n << BigInt(-e);
+    scaled = numerator / denominator;
+    const twice = (numerator % denominator) * 2n;
+    if (twice > denominator || (twice === denominator && (scaled & 1n) === 1n)) scaled += 1n;
+  }
+  const text = scaled.toString().padStart(places + 1, "0");
+  const whole = text.slice(0, text.length - places);
+  return `${negative ? "-" : ""}${whole}${places > 0 ? "." + text.slice(text.length - places) : ""}`;
 }

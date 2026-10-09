@@ -1021,6 +1021,7 @@ impl Cx<'_> {
                     | "char_from_scalar"
                     | "format_f64"
                     | "format_f32"
+                    | "format_f64_fixed"
             )
         }) {
             return Ok(CallTarget {

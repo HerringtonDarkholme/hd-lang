@@ -1,7 +1,8 @@
-//! The float text primitives (`format_f64`, `format_f32`; spec 04
-//! `types.display.*`): the host's text against Rust's own float printing,
-//! which is an independent shortest round-trip writer, then the same
-//! texts through compiled programs.
+//! The float text primitives (`format_f64`, `format_f32`,
+//! `format_f64_fixed`; spec 04 `types.display.*`, std `num` fixed-point
+//! text): the host's text against Rust's own float printing, which is an
+//! independent shortest round-trip and an exact fixed-point writer, then
+//! the same texts through compiled programs.
 
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
@@ -120,24 +121,25 @@ fn display_f32(x: f32) -> String {
     }
 }
 
-/// Runs `float.mjs` on one request per line (`s32 BITS` or `s64 BITS`,
-/// bits in hex) and returns one answer per line.
+/// Runs `float.mjs` on one request per line (`s32 BITS`, `s64 BITS`, or
+/// `fixed BITS DIGITS`, bits in hex) and returns one answer per line.
 fn host_text(requests: &[String]) -> Vec<String> {
     let float = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/float.mjs");
     let float = std::fs::canonicalize(float).expect("float.mjs");
-    let script = r#"const { shortest } = await import(process.argv[1]);
+    let script = r#"const { shortest, fixed } = await import(process.argv[1]);
 import { readFileSync } from "node:fs";
 const view = new DataView(new ArrayBuffer(8));
 const out = [];
 for (const line of readFileSync(0, "utf8").split("\n")) {
   if (!line) continue;
-  const [kind, bits] = line.split(" ");
+  const [kind, bits, digits] = line.split(" ");
   if (kind === "s32") {
     view.setUint32(0, Number("0x" + bits));
     out.push(shortest(view.getFloat32(0), 32));
   } else {
     view.setBigUint64(0, BigInt("0x" + bits));
-    out.push(shortest(view.getFloat64(0), 64));
+    const x = view.getFloat64(0);
+    out.push(kind === "s64" ? shortest(x, 64) : fixed(x, Number(digits)));
   }
 }
 process.stdout.write(out.join("\n") + "\n");
@@ -284,6 +286,42 @@ fn shortest_text_of_f32_matches_rust() {
     }
 }
 
+#[test]
+fn fixed_text_matches_rust() {
+    let mut rng = Rng(0xd1b5_4a32_d192_ed03);
+    let mut cases: Vec<(f64, usize)> = Vec::new();
+    for x in edge_f64() {
+        for digits in [0, 1, 2, 17, 100] {
+            cases.push((x, digits));
+        }
+    }
+    // Exact binary fractions, so ties come up at every digit count.
+    for _ in 0..3000 {
+        let n = i32::try_from(rng.next() % 40_000).expect("small") - 20_000;
+        let shift = i32::try_from(rng.next() % 12).expect("small");
+        let digits = usize::try_from(rng.next() % 8).expect("small");
+        cases.push((f64::from(n) / 2f64.powi(shift), digits));
+    }
+    for _ in 0..1500 {
+        let digits = usize::try_from(rng.next() % 101).expect("small");
+        cases.push((f64::from_bits(rng.next()), digits));
+    }
+    let requests: Vec<String> = cases
+        .iter()
+        .map(|(x, d)| format!("fixed {:x} {d}", x.to_bits()))
+        .collect();
+    let got = host_text(&requests);
+    assert_eq!(got.len(), cases.len());
+    for ((x, digits), text) in cases.iter().zip(&got) {
+        assert_eq!(
+            *text,
+            format!("{x:.digits$}"),
+            "bits {:x}, {digits} digits",
+            x.to_bits()
+        );
+    }
+}
+
 /// Runs the program's `tests:` block on the Node host and returns one
 /// result line per test.
 fn run_tests(name: &str, src: &str) -> Vec<String> {
@@ -398,6 +436,41 @@ tests:
         assert_equal(text(zero), "0.0", reason="zero")
         let small: f32 = -0.0
         assert_equal(text(small), "-0.0", reason="f32 negative zero")
+"#,
+    );
+}
+
+#[test]
+fn to_fixed_through_programs() {
+    all_pass(
+        "fixed",
+        r#"use std.testing.assert_equal
+
+tests:
+    it("rounds the exact binary value, a tie to even"):
+        assert_equal(0.125.to_fixed(2), "0.12", reason="tie to even, down")
+        assert_equal(0.375.to_fixed(2), "0.38", reason="tie to even, up")
+        assert_equal(2.5.to_fixed(0), "2", reason="tie")
+        assert_equal(3.5.to_fixed(0), "4", reason="tie")
+        assert_equal(0.5.to_fixed(0), "0", reason="tie to zero")
+        assert_equal((-0.5).to_fixed(0), "-0", reason="tie to negative zero")
+        assert_equal(1.005.to_fixed(2), "1.00", reason="1.005 is below the tie")
+        assert_equal(0.1.to_fixed(20), "0.10000000000000000555", reason="exact digits")
+        assert_equal(3.14159.to_fixed(2), "3.14", reason="plain")
+    it("never uses an exponent"):
+        assert_equal(1e21.to_fixed(1), "1000000000000000000000.0", reason="large")
+        assert_equal(1e-7.to_fixed(3), "0.000", reason="small")
+        assert_equal(1e-7.to_fixed(10), "0.0000001000", reason="small, more digits")
+        assert_equal(5e-324.to_fixed(2), "0.00", reason="subnormal")
+    it("one hundred digits"):
+        assert_equal(1.0.to_fixed(100).len(), 102, reason="the point and the digits")
+    it("signs and specials"):
+        zero := 0.0
+        assert_equal((-zero).to_fixed(1), "-0.0", reason="negative zero")
+        assert_equal((-0.001).to_fixed(2), "-0.00", reason="rounds to a negative zero")
+        assert_equal((zero / zero).to_fixed(2), "NaN", reason="NaN")
+        assert_equal((1.0 / zero).to_fixed(2), "inf", reason="infinity")
+        assert_equal((-1.0 / zero).to_fixed(2), "-inf", reason="negative infinity")
 "#,
     );
 }
