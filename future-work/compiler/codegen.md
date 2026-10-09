@@ -954,9 +954,16 @@ There are no variadic generics (§4.13.7). Tuples are ordinary types:
   instance per tuple type, like any impl. A user library's tuple
   template works the same way. No body is generated per arity.
 - Only sealed traits are `Builtin` (`Any`, `AnyVal`, `AnyRef`,
-  `Inspectable`, `Tuple`, `Num`, `Integer`, `Float`, `Suspend`). Those
-  with methods get a body that D2 generates per primitive or shape, such
-  as `type_id` and `downcast` for `Inspectable`.
+  `Inspectable`, `Tuple`, `Suspend`; `Num`, `Integer` and `Float` are
+  std's written impls, trait-solver.md §3.9). Those with methods get a
+  body that D2 generates per primitive or shape, such as `type_id` and
+  `downcast` for `Inspectable`.
+- Not done: a tuple's `Structure`. A tuple template's body calls
+  `Structure::walk` (and the other `Structure` methods) on its `T`, a
+  `Bound` choice; at a concrete tuple no impl answers it
+  (`annot.tuple.structure`: the compiler generates it while it
+  instantiates the template), so collection stops at `select`. Nothing
+  designs where those per-tuple-type bodies are generated.
 - `all!` is one intrinsic frame instance per tuple of child result types
   (§14.5). `race!` is an ordinary generic intrinsic over `T`.
 

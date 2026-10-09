@@ -7,6 +7,7 @@
 
 pub mod lookup;
 pub mod pool;
+pub mod sealed;
 pub mod solver;
 pub mod unify;
 pub mod wire;

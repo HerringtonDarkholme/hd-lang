@@ -38,8 +38,8 @@ use hd_sched::{ExtTask, SerialOrder, SerialScheduler, Spawn, TaskGraph, TaskId, 
 use hd_syntax::{HeaderKind, Parse, parse, skim};
 use hd_tir::Body;
 use hd_types::solver::{
-    FolderImpls, GlobalMemo, ImplRef, ImplUniverseId, ImplUniverses, ImplView, Impls, OwnerMap,
-    TableSolver, UniverseImpls, folder_table,
+    Declarations, FolderImpls, GlobalMemo, ImplRef, ImplUniverseId, ImplUniverses, ImplView, Impls,
+    OwnerMap, SealedTraits, TableSolver, TypeDecl, UniverseImpls, folder_table,
 };
 use hd_types::{InternPool, Ty, TyData, TyList};
 use hd_wasm::Code as WasmCode;
@@ -2394,6 +2394,7 @@ impl Run<'_> {
             run: self,
             p,
             impls: Impls::Owned(&view),
+            sealed: self.known.sealed(),
         };
         let has_init = |m: &str| p.bodies.contains_key(&init_of(m));
         // The init groups each root module reaches, in order, and their union.
@@ -2800,6 +2801,7 @@ impl Run<'_> {
             run: self,
             p,
             impls: Impls::Owned(&view),
+            sealed: self.known.sealed(),
         };
         let names = self.names();
         let ret = env.ret(item).unwrap_or(Ty::VOID);
@@ -2852,6 +2854,7 @@ impl Run<'_> {
             run: self,
             p,
             impls: Impls::Owned(&view),
+            sealed: self.known.sealed(),
         };
         let names = self.names();
         let path = |d: DefId| names.path(d);
@@ -3020,6 +3023,7 @@ struct Env<'r> {
     run: &'r Run<'r>,
     p: &'r ProgramTables,
     impls: Impls<'r>,
+    sealed: SealedTraits,
 }
 
 impl ProgramTables {
@@ -3225,8 +3229,23 @@ impl ProgramEnv for Env<'_> {
     fn impl_row(&self, impl_: DefId) -> Option<ImplRef> {
         self.p.impl_rows.get(&impl_).copied()
     }
-    fn universal_trait(&self, trait_: DefId) -> bool {
-        trait_ == self.run.known.inspectable
+    fn decls(&self) -> &dyn Declarations {
+        self
+    }
+}
+
+impl Declarations for Env<'_> {
+    fn sealed(&self) -> &SealedTraits {
+        &self.sealed
+    }
+    fn type_decl(&self, def: DefId) -> TypeDecl {
+        self.p
+            .items
+            .get(&def)
+            .map_or(TypeDecl::Data, Item::type_decl)
+    }
+    fn supertraits(&self, trait_: DefId) -> &[Ty] {
+        self.p.items.get(&trait_).map_or(&[], Item::supertraits)
     }
 }
 

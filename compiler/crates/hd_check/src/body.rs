@@ -12,15 +12,15 @@ use std::collections::HashMap;
 
 use hd_base::{DefId, Fuel, LocalId, ModuleId, NotImplemented, Stage, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
-use hd_resolve::{ItemData, Lookup, ModuleScope, Names, Src};
+use hd_resolve::{ItemData, Lookup, LookupDecls, ModuleScope, Names, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::Body;
 use hd_tir::ir::{
     BodyKind, Callee, Coercion, LoopMark, NONE, Ref, SubMark, Tag, TirBuilder, TirSink, local_flags,
 };
 use hd_types::solver::{
-    Answer, BodyMemo, GlobalMemo, Goal, ImplTable, ImplView, Impls, ParamEnv, SolveCx, Solver,
-    TraitRef,
+    Answer, BodyMemo, Evidence, GlobalMemo, Goal, ImplTable, ImplView, Impls, ParamEnv, SolveCx,
+    Solver, TraitRef,
 };
 use hd_types::{InferTable, ParamRef, RowId, Ty, TyData, TyList, VarKind};
 
@@ -42,6 +42,15 @@ pub struct BodyCx<'a> {
 }
 
 impl BodyCx<'_> {
+    /// The declarations the solver's compiler-supplied rows read
+    /// (trait-solver.md §3.9).
+    pub(crate) fn decls(&self) -> LookupDecls<'_> {
+        LookupDecls {
+            lookup: self.lookup,
+            sealed: self.names.known.sealed(),
+        }
+    }
+
     /// The table an impl row of a solver answer lives in.
     #[must_use]
     pub fn impl_table(&self, m: ModuleId) -> Option<&ImplTable> {
@@ -873,9 +882,6 @@ impl Ck<'_, '_> {
         if matches!(self.strip_mut(tref.self_ty), Ty::NEVER) {
             return Ok(Some(hd_types::solver::Evidence::Poison));
         }
-        if let Some(b) = self.builtin_holds(tref) {
-            return Ok(Some(b));
-        }
         match self.solve(tref)? {
             Answer::Holds { evidence, learned } => {
                 for (v, t) in learned {
@@ -911,94 +917,34 @@ impl Ck<'_, '_> {
     }
 
     pub(crate) fn solve_goal(&mut self, goal: &Goal) -> StageResult<Answer> {
+        let decls = self.cx.decls();
         let mut scx = SolveCx {
             pool: self.pool(),
             env: &self.env,
             universe: self.cx.impls.universe,
             impls: Impls::Owned(self.cx.impls),
+            decls: &decls,
             body_memo: &mut self.memo,
             global: self.cx.global,
         };
         self.cx.solver.solve(&mut scx, goal, &mut self.fuel)
     }
 
-    /// Compiler-answered traits (trait-solver.md §3.8): `Any` and its
-    /// children, `Tuple`, and the numeric families on primitives.
-    pub(crate) fn builtin_holds(&self, tref: TraitRef) -> Option<hd_types::solver::Evidence> {
-        use hd_types::solver::{BuiltinImpl, Evidence};
+    /// The evidence of a goal that a compiler-supplied row (trait-solver.md
+    /// §3.9) or a trait value's row (§9.3) answers, when one holds; `None`
+    /// for a goal the impl tables decide.
+    pub(crate) fn supplied_holds(&mut self, tref: TraitRef) -> StageResult<Option<Evidence>> {
         let pool = self.pool();
-        let known = self.cx.names.known;
-        let tr = tref.trait_;
-        let t = match pool.get(tref.self_ty) {
-            TyData::Mut(i) => i,
-            _ => tref.self_ty,
-        };
-        // A trait value implements its trait and supertraits.
-        if let TyData::TraitValue { def, .. } = pool.get(t)
-            && (def == tref.trait_ || self.trait_extends(def, tref.trait_, 0))
+        let self_ty = self.strip_mut(tref.self_ty);
+        if !self.cx.names.known.sealed().supplies(tref.trait_)
+            && !matches!(pool.get(self_ty), TyData::TraitValue { .. })
         {
-            return Some(Evidence::TraitValue { trait_: def });
+            return Ok(None);
         }
-        let prim = match pool.get(t) {
-            TyData::Prim(p) => Some(p),
+        Ok(match self.solve(tref)? {
+            Answer::Holds { evidence, .. } => Some(evidence),
             _ => None,
-        };
-        let b = match tr {
-            _ if tr == known.any => BuiltinImpl::Any,
-            // Every value type is in exactly one sealed category
-            // (types.sealed.exactly-one); a parameter's comes from its bound.
-            _ if tr == known.any_val && self.sealed_fits(t, false) => BuiltinImpl::AnyVal,
-            _ if tr == known.any_ref && self.sealed_fits(t, true) => BuiltinImpl::AnyRef,
-            _ if tr == known.tuple && matches!(pool.get(t), TyData::Tuple { .. }) => {
-                BuiltinImpl::Tuple
-            }
-            _ if tr == known.num && prim.is_some_and(|p| p.is_integer() || p.is_float()) => {
-                BuiltinImpl::Num
-            }
-            _ if tr == known.integer && prim.is_some_and(hd_types::Prim::is_integer) => {
-                BuiltinImpl::Integer
-            }
-            _ if tr == known.float && prim.is_some_and(hd_types::Prim::is_float) => {
-                BuiltinImpl::Float
-            }
-            _ if tr == known.inspectable && self.inspectable(t, false, 0) => {
-                BuiltinImpl::Inspectable
-            }
-            _ => return None,
-        };
-        Some(Evidence::Builtin(b))
-    }
-
-    /// The inspectable types (spec/lang/09-traits.md#inspectable-types);
-    /// `arg` admits what counts only as a type argument.
-    pub(crate) fn inspectable(&self, t: Ty, arg: bool, depth: u32) -> bool {
-        let pool = self.pool();
-        if depth > 32 {
-            return false;
-        }
-        let t = self.infer.resolve(pool, t);
-        let inspect = self.cx.names.known.inspectable;
-        match pool.get(t) {
-            TyData::Prim(p) => p != hd_types::Prim::Void || arg,
-            TyData::Never | TyData::Poison => true,
-            TyData::Mut(i) | TyData::Option(i) => self.inspectable(i, true, depth + 1),
-            TyData::Tuple { elems, .. } => pool
-                .list_items(elems)
-                .iter()
-                .copied()
-                .all(|e| self.inspectable(e, false, depth + 1)),
-            TyData::Adt { args, .. } => pool
-                .list_items(args)
-                .iter()
-                .copied()
-                .all(|a| self.inspectable(a, true, depth + 1)),
-            TyData::TraitValue { def, .. } => {
-                arg || def == inspect || self.trait_extends(def, inspect, 0)
-            }
-            TyData::Param(_) => (0..self.env.clause_self.len())
-                .any(|i| self.env.clause_self[i] == t && self.env.clause_trait[i] == inspect),
-            _ => false,
-        }
+        })
     }
 
     // ------------------------------------------------------------ blocks
@@ -1666,7 +1612,7 @@ impl Ck<'_, '_> {
                 self_ty: self.zonk(tref.self_ty),
                 args: self.zonk_list(tref.args),
             };
-            if pool.has_poison(tref.self_ty) || self.builtin_holds(tref).is_some() {
+            if pool.has_poison(tref.self_ty) {
                 continue;
             }
             // Its evidence is chosen again per instance at collection; a

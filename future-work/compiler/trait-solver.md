@@ -293,7 +293,7 @@ this order:
 | --- | --- | --- |
 | 1 | the parameter environment (section 4.2) | `S` is a parameter |
 | 2 | a trait value as self (section 9.3) | `S` is a trait value type of `Tr` or of a subtrait |
-| 3 | compiler-supplied impls (section 3.9) | `Tr` is sealed: `Any`, `AnyVal`, `AnyRef`, `Inspectable`, `Tuple`, `Num`, `Integer`, `Float`, `Suspend`, `Structure` |
+| 3 | compiler-supplied impls (section 3.9) | `Tr` is sealed and compiler-supplied: `Any`, `AnyVal`, `AnyRef`, `Inspectable`, `Tuple`, `Suspend`, `Structure` (std writes `Num`, `Integer` and `Float`) |
 | 4 | impl tables of the owner folders (section 3.2) | written impls, derived impls, delegations, numeric families, tuple templates |
 | 5 | the body's local impls | the goal names a local trait or a local type |
 
@@ -605,22 +605,40 @@ through matching.
 | Trait | Holds for | Subgoals | Evidence |
 | --- | --- | --- | --- |
 | `Any` | every value type, `never`, optionals | none | `Builtin(Any)` |
-| `AnyVal` | `bool`, `char`, integers, floats, `string`, tuples; a newtype over one of them | the newtype's base | `Builtin(AnyVal)` |
-| `AnyRef` | data, enums, `List`, `Map`, function types, trait values, `Any`, suspensions, handles; a newtype over one | the newtype's base | `Builtin(AnyRef)` |
+| `AnyVal` | `bool`, `char`, integers, floats, `string`, tuples, enums (optionals included), function types; a newtype over one of them ([`types.sealed.anyval-values`](../../spec/lang/04-type-system.md#r-types.sealed.anyval-values)) | the newtype's base | `Builtin(AnyVal)` |
+| `AnyRef` | data, `List`, `Map`, trait values, `Any`, suspensions, handles; a newtype over one | the newtype's base | `Builtin(AnyRef)` |
 | `Inspectable` | [inspectable types](../../spec/lang/09-traits.md#inspectable-types): primitives, `string`, module-level declarations with inspectable arguments, `List`, `Map`, tuples, `Inspectable` trait values; trait values and `Any` as arguments only | one per type argument, each one level deeper | `Builtin(Inspectable)`; codegen derives the `TypeId` from the type |
 | `Tuple` | every tuple type | none | `Builtin(Tuple)` |
-| `Num`, `Integer`, `Float` | the fixed primitive lists of [Numeric Traits](../../spec/lang/09-traits.md#numeric-traits) | none | `Builtin(Num)` and so on |
-| `Suspend[T]` | compiler frames and the `std.task` types | none | `Builtin(Suspend)` |
+| `Num`, `Integer`, `Float` | the fixed primitive lists of [Numeric Traits](../../spec/lang/09-traits.md#numeric-traits): std writes one impl per type (`lib/std/num.hd`, with the bodies of `zero`, `one`, `from_i64`), so the impl tables answer them | the impl's | `Impl` |
+| `Suspend[T]` | compiler frames and the `std.task` types | none | `Builtin(Suspend)`; no row while std declares no such trait |
 | `Structure` | only the target of a template instance, through that instance's environment | none | `Bound` |
 
-For a parameter, every row above answers through the environment only
-([`types.sealed.type-parameter`](../../spec/lang/04-type-system.md#r-types.sealed.type-parameter)).
-`never` implements neither `AnyVal` nor `AnyRef`.
+For a parameter or a rigid projection, every row above but `Any`
+answers through the environment only
+([`types.sealed.type-parameter`](../../spec/lang/04-type-system.md#r-types.sealed.type-parameter));
+every type parameter is `Any`. `never` implements neither `AnyVal` nor
+`AnyRef`, and is not inspectable. A row on an inference variable stalls,
+except `Any`, which holds.
 
-**Not done: the checker answers these itself.** The table above is the
-specification of the answers, but no solver goal reaches them: the
-checker proves compiler-supplied traits in `builtin_holds` and never asks
-the solver. Wiring them as solver rows is open work.
+**Where the rows live (#121).** `hd_types::sealed::row` is the table: one
+`match` over the sealed trait and the type's form. `Search::implements`
+asks it as source 3, after the environment and the trait-value rows of
+section 9.3 (source 2), so body checks, header checks and codegen's
+`select` all get its answer; the checker has no answerer of its own
+(`builtin_holds` is gone, and `is` asks `AnyRef`). A row's subgoals are
+`Implements` goals on the same trait one level deeper (a newtype's base;
+an inspectable type's arguments, where a trait value counts without a
+subgoal), asked and memoized like a committed impl's bound plan. The
+rows read no impl table, so their memo entries have no probes and need
+no universe; they read declarations through `SolveCx::decls` (a
+`Declarations`: the sealed traits' ids, a type's declaration kind, a
+trait's supertraits), which are the same in every context of a run.
+Codegen's `select` returns `Selection::Builtin` for them.
+
+Not done: no `Suspend` row (std declares no such trait); block-local
+declarations, which `trait.inspectable.not.local` excludes, do not exist
+in the compiler yet; `Inspectable`'s compiler-supplied `runtime_type`
+body is a panicking vtable slot (codegen.md §13.6).
 
 **Written impls that act like built-ins.** Two kinds live in std's tables
 as ordinary rows with special head keys:
@@ -1382,7 +1400,8 @@ instance is an `Impl` choice and needs none.
 instance, every type is concrete. A program build's impl universe is
 every folder, and selection shares the run's global memo with checking.
 `select` solves the concrete trait reference as an `Implements` goal and
-takes the `Impl` evidence: the designed head-only `select` with its own
+takes the `Impl` evidence, or a sealed trait's `Builtin` evidence
+(`Selection::Builtin`, section 3.9): the designed head-only `select` with its own
 table is not built. It has no depth limit of its own and charges no
 fuel. The returned `Selection` holds the impl row with the args the
 proof found; `Selection.args` returning every impl argument verbatim

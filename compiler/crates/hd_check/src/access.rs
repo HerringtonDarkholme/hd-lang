@@ -263,43 +263,6 @@ impl Ck<'_, '_> {
         })
     }
 
-    /// The sealed category of a type (types.sealed.exactly-one): `true`
-    /// for `AnyRef`, `false` for `AnyVal`, `None` when a bound or later
-    /// inference decides.
-    pub(crate) fn is_ref_type(&self, t: Ty) -> Option<bool> {
-        let pool = self.pool();
-        let t = self.strip_mut(t);
-        match pool.get(t) {
-            TyData::Adt { def, args } => match self.cx.lookup.item(def).map(|i| &i.data) {
-                Some(ItemData::Enum { .. }) => Some(false),
-                Some(ItemData::Newtype(inner)) => {
-                    let argv = pool.list_items(args);
-                    let inner = pool.subst(*inner, &|p: ParamRef| {
-                        (p.owner == def)
-                            .then(|| argv.get(p.index as usize).copied())
-                            .flatten()
-                    });
-                    self.is_ref_type(inner)
-                }
-                _ => Some(true),
-            },
-            TyData::TraitValue { .. } => Some(true),
-            TyData::Prim(_) | TyData::Tuple { .. } | TyData::Option(_) | TyData::Fn { .. } => {
-                Some(false)
-            }
-            _ => None,
-        }
-    }
-
-    /// Whether the compiler answers `t: AnyRef` (`reference`) or
-    /// `t: AnyVal` as holding. A type parameter is left to its bounds.
-    pub(crate) fn sealed_fits(&self, t: Ty, reference: bool) -> bool {
-        match self.is_ref_type(t) {
-            Some(r) => r == reference,
-            None => !matches!(self.pool().get(self.strip_mut(t)), TyData::Param(_)),
-        }
-    }
-
     /// Whether `got` converts to `want` by permission alone, once the two
     /// unify: weakening `mut U` to `U` where a readonly outer view's
     /// declared variance allows it, exact permissions elsewhere

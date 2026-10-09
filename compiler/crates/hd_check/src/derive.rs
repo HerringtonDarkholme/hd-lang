@@ -494,32 +494,18 @@ impl<'c> Ck<'_, 'c> {
     }
 
     /// Whether a member of type `ty` provably misses the trait value
-    /// `bound`. Compiler-supplied traits the solver does not answer yet
-    /// (trait-solver.md §3.9) never fail here, as in the header check.
+    /// `bound`: the solver answers `Fails`.
     fn member_fails(&mut self, ty: Ty, bound: Ty) -> StageResult<bool> {
         let pool = self.pool();
         let TyData::TraitValue { def, args, .. } = pool.get(bound) else {
             return Ok(false);
         };
-        let k = self.cx.names.known;
-        if [
-            k.any,
-            k.any_val,
-            k.any_ref,
-            k.tuple,
-            k.structure,
-            k.inspectable,
-        ]
-        .contains(&def)
-        {
-            return Ok(false);
-        }
         let tref = TraitRef {
             trait_: def,
             self_ty: ty,
             args,
         };
-        if pool.has_poison(ty) || self.builtin_holds(tref).is_some() {
+        if pool.has_poison(ty) {
             return Ok(false);
         }
         Ok(matches!(self.solve(tref)?, Answer::Fails(_)))

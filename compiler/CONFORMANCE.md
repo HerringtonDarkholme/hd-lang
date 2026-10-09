@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1636 | 683 | 525 | 2844 |
+| 1638 | 681 | 525 | 2844 |
 
 ## By Chapter
 
@@ -22,8 +22,8 @@ fixture; unsupported surface records progress without failing.
 | `lang/06-control-flow.md` | 99 | 33 | 25 | 157 |
 | `lang/07-functions.md` | 51 | 34 | 45 | 130 |
 | `lang/08-data-and-enums.md` | 52 | 40 | 31 | 123 |
-| `lang/09-traits.md` | 196 | 118 | 45 | 359 |
-| `lang/10-modules.md` | 123 | 86 | 49 | 258 |
+| `lang/09-traits.md` | 197 | 117 | 45 | 359 |
+| `lang/10-modules.md` | 124 | 85 | 49 | 258 |
 | `lang/11-requirements-and-suspension.md` | 104 | 54 | 101 | 259 |
 | `lang/14-annotations.md` | 84 | 55 | 14 | 153 |
 | `std/cli.md` | 1 | 0 | 4 | 5 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 56 | 32 | 17 | 105 |
 | `runtime/valid` | 402 | 174 | 353 | 929 |
-| `typing/invalid` | 547 | 418 | 109 | 1074 |
+| `typing/invalid` | 549 | 416 | 109 | 1074 |
 | `typing/valid` | 335 | 34 | 46 | 415 |
 | `typing/warnings` | 9 | 11 | 0 | 20 |
 
@@ -94,7 +94,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 9 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 265 |
+| `fail:no-diagnostic` | 263 |
 | `fail:nonexhaustive-match` | 16 |
 | `fail:not-callable` | 1 |
 | `fail:orphan-impl` | 1 |
@@ -302,7 +302,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (265)</summary>
+<details><summary><code>fail:no-diagnostic</code> (263)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -347,7 +347,6 @@ compiler stage that first declined the case.
 - `typing/invalid/enum-default-requires-provider.hd`
 - `typing/invalid/declared-generic-key-lexical-collision.hd`
 - `typing/invalid/public-function-missing-result-type.hd`
-- `typing/invalid/reference-bound-unsatisfied.hd`
 - `typing/invalid/parameter-default-order.hd`
 - `typing/invalid/duplicate-literal-match-arm.hd`
 - `typing/invalid/missing-supertrait-implementation.hd`
@@ -543,7 +542,6 @@ compiler stage that first declined the case.
 - `typing/invalid/child-trait-redeclares-associated-function.hd`
 - `typing/invalid/from-trait-value-target.hd`
 - `typing/invalid/child-module-not-in-parent.hd`
-- `typing/invalid/anyref-rejects-primitive.hd`
 - `typing/invalid/private-type-leak-data-field.hd`
 - `typing/invalid/private-type-leak-enum-payload.hd`
 - `typing/invalid/private-type-leak-trait-bound.hd`
@@ -2385,6 +2383,7 @@ typing/invalid/ambiguous-trait-method.hd
 typing/invalid/annotate-before-function.hd
 typing/invalid/any-exposes-no-methods.hd
 typing/invalid/anyref-rejects-enum.hd
+typing/invalid/anyref-rejects-primitive.hd
 typing/invalid/anyref-rejects-tuple.hd
 typing/invalid/anyval-bound-rejects-data.hd
 typing/invalid/anyval-user-impl.hd
@@ -2792,6 +2791,7 @@ typing/invalid/reassign-short-binding.hd
 typing/invalid/reassign-short-module-binding.hd
 typing/invalid/recursive-data-optional-field-required.hd
 typing/invalid/redeclare-core-type.hd
+typing/invalid/reference-bound-unsatisfied.hd
 typing/invalid/relative-above-package-root.hd
 typing/invalid/relative-path-into-std.hd
 typing/invalid/relative-shared-test-above-test-root.hd

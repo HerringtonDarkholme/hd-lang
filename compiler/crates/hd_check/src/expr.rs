@@ -610,7 +610,7 @@ impl Ck<'_, '_> {
         if op == TokenKind::KwIs {
             // `expr.is.value-operand`: both operands have identity.
             for (t, at) in [(at, n), (ct, rn)] {
-                if !self.has_identity(t) {
+                if !self.has_identity(t)? {
                     let msg = format!("{} has no identity to compare with `is`", self.show(t));
                     self.err(Code::IdentityRequiresReferences, at, &msg);
                 }
@@ -767,9 +767,6 @@ impl Ck<'_, '_> {
             self_ty: t,
             args: pool.list(&args),
         };
-        if self.builtin_holds(tref).is_some() {
-            return Ok(true);
-        }
         Ok(!matches!(self.solve(tref)?, Answer::Fails(_)))
     }
 
@@ -828,27 +825,21 @@ impl Ck<'_, '_> {
         Ok(self.b.emit(Tag::Or, x.0, blk.0, Ty::BOOL, n.index()))
     }
 
-    /// Whether a type's values have identity (`AnyRef`): data, lists,
-    /// maps, trait values and `AnyRef`-bounded parameters.
-    fn has_identity(&self, t: Ty) -> bool {
+    /// Whether a type's values have identity: the solver's `AnyRef` row
+    /// holds or waits (trait-solver.md §3.9). A diverging operand has no
+    /// value to compare and passes.
+    fn has_identity(&mut self, t: Ty) -> StageResult<bool> {
         let pool = self.pool();
-        let t = self.strip_mut(t);
-        match pool.get(t) {
-            TyData::Adt { def, .. } => !matches!(
-                self.cx.lookup.item(def).map(|i| &i.data),
-                Some(ItemData::Enum { .. })
-            ),
-            TyData::TraitValue { .. } | TyData::Never | TyData::Poison | TyData::Infer(_) => true,
-            TyData::Param(_) => {
-                let any_ref = self.cx.names.known.any_ref;
-                (0..self.env.clause_self.len()).any(|i| {
-                    self.env.clause_self[i] == t
-                        && (self.env.clause_trait[i] == any_ref
-                            || self.trait_extends(self.env.clause_trait[i], any_ref, 0))
-                })
-            }
-            _ => false,
+        let t = self.infer.resolve(pool, t);
+        if self.strip_mut(t) == Ty::NEVER {
+            return Ok(true);
         }
+        let tref = TraitRef {
+            trait_: self.cx.names.known.any_ref,
+            self_ty: t,
+            args: hd_types::TyList::EMPTY,
+        };
+        Ok(!matches!(self.solve(tref)?, Answer::Fails(_)))
     }
 
     pub(crate) fn b_empty_rec(&mut self) -> u32 {

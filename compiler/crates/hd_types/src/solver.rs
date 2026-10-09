@@ -21,6 +21,8 @@ pub use crate::lookup::{
     folder_table, open_arg,
 };
 use crate::pool::{ParamRef, Prim, Ty, TyData, TyList, Types};
+use crate::sealed::Row;
+pub use crate::sealed::{Declarations, SealedTraits, TypeDecl};
 use crate::unify::VarKind;
 
 /// A trait reference: `self_ty: trait_[args]` (§2.1).
@@ -844,11 +846,12 @@ pub enum Answer {
     OutOfFuel,
 }
 
-/// What codegen's `select` returns (§8.3): the impl and every impl argument.
+/// What codegen's `select` returns (§8.3): the impl and every impl
+/// argument, or the compiler-supplied impl of a sealed trait (§3.9).
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Selection {
-    pub impl_row: ImplRef,
-    pub args: TyList,
+pub enum Selection {
+    Impl { impl_row: ImplRef, args: TyList },
+    Builtin(BuiltinImpl),
 }
 
 /// The solving context of one body, header check or derive instance.
@@ -859,6 +862,9 @@ pub struct SolveCx<'a> {
     /// that may read the candidate directory.
     pub universe: ImplUniverseId,
     pub impls: Impls<'a>,
+    /// The declarations the compiler-supplied rows (§3.9) and the
+    /// trait-value rows (§9.3) read.
+    pub decls: &'a dyn Declarations,
     pub body_memo: &'a mut BodyMemo,
     pub global: &'a GlobalMemo,
 }
@@ -1748,6 +1754,21 @@ impl<'s, 'a> Search<'s, 'a> {
                 }
             }
         }
+        // A trait value as self (§9.3): its trait and supertraits.
+        if let TyData::TraitValue { def, args, .. } = pool.get(self_ty)
+            && let Some(learned) =
+                trait_value_holds(pool, self.cx.decls, (def, args), self_ty, tref)
+        {
+            let holds = Answer::Holds {
+                evidence: Evidence::TraitValue { trait_: def },
+                learned,
+            };
+            return Ok(self.leaf(key, root, holds));
+        }
+        // Compiler-supplied impls (§3.9).
+        if let Some(row) = crate::sealed::row(pool, self.cx.decls, tref.trait_, self_ty) {
+            return self.supplied(key, cg, tref.trait_, row, depth, root);
+        }
         if let TyData::Infer(v) = pool.get(self_ty) {
             return Ok(self.leaf(key, root, Answer::Stalled { on: vec![v] }));
         }
@@ -1847,6 +1868,74 @@ impl<'s, 'a> Search<'s, 'a> {
                 Ok((Outcome::leaf(Answer::Stalled { on }), heads))
             }
         }
+    }
+
+    /// A compiler-supplied row's answer (§3.9): its subgoals, each on the
+    /// same trait one level deeper, in order; the first that does not hold
+    /// decides, as a committed impl's bound plan does (§3.6).
+    fn supplied(
+        &mut self,
+        key: &MemoKey,
+        cg: CanonGoal,
+        trait_: DefId,
+        row: Row,
+        depth: u32,
+        root: bool,
+    ) -> StageResult<(Outcome, u16)> {
+        let (b, subs) = match row {
+            Row::Stalled(v) => return Ok(self.leaf(key, root, Answer::Stalled { on: vec![v] })),
+            Row::Fails(reason) => {
+                let fails = Answer::Fails(Box::new(FailInfo {
+                    leaf: cg,
+                    chain: vec![],
+                    reason,
+                    near: vec![],
+                }));
+                return Ok(self.leaf(key, root, fails));
+            }
+            Row::Holds(b, subs) => (b, subs),
+        };
+        if !self.charge(key, 0, root) {
+            return Ok((Outcome::leaf(Answer::OutOfFuel), 0));
+        }
+        let mut height = 1;
+        for self_ty in subs {
+            let sub = TraitRef {
+                trait_,
+                self_ty,
+                args: TyList::EMPTY,
+            };
+            let o = self.goal(Ask::Implements(sub, false), depth + 1, false, true)?;
+            height = height.max(above(o.height));
+            match o.answer {
+                Answer::Holds { .. } => {}
+                Answer::Fails(info) => {
+                    let out = Outcome {
+                        answer: Answer::Fails(info),
+                        height,
+                        cut: false,
+                    };
+                    return Ok((out, 0));
+                }
+                other => {
+                    let out = Outcome {
+                        answer: other,
+                        height,
+                        cut: o.cut,
+                    };
+                    return Ok((out, 0));
+                }
+            }
+        }
+        let holds = Outcome {
+            answer: Answer::Holds {
+                evidence: Evidence::Builtin(b),
+                learned: vec![],
+            },
+            height,
+            cut: false,
+        };
+        Ok((holds, 0))
     }
 
     /// Solves the bound plan of the one impl a goal committed to (§3.6).
@@ -1955,6 +2044,55 @@ fn learned_from(pool: Types<'_>, head: TyList, goal: TyList) -> Vec<(InferVar, T
             _ => None,
         })
         .collect()
+}
+
+/// §9.3's rows: a trait value `self_ty` of `value` satisfies a goal on its
+/// own trait with equal arguments (`trait.dyn.bound.instantiation`) and on
+/// each supertrait, whose arguments are the elaborated ones
+/// (`trait.dyn.bound`). Returns what the goal's bare variables learn, or
+/// `None` when no row holds. Supertraits are walked depth first in
+/// declared order, as an environment is elaborated (§4.2).
+fn trait_value_holds(
+    pool: Types<'_>,
+    decls: &dyn Declarations,
+    value: (DefId, TyList),
+    self_ty: Ty,
+    goal: TraitRef,
+) -> Option<Vec<(InferVar, Ty)>> {
+    let mut stack = vec![(value, 0u32)];
+    let mut seen: Vec<(DefId, TyList)> = Vec::new();
+    while let Some(((def, args), depth)) = stack.pop() {
+        if depth > 16 || seen.contains(&(def, args)) {
+            continue;
+        }
+        seen.push((def, args));
+        if def == goal.trait_ {
+            let m = match_list(pool, DefId::NONE, args, goal.args, &mut Vec::new());
+            if m != M::No {
+                return Some(learned_from(pool, args, goal.args));
+            }
+        }
+        let argv = pool.list_items(args);
+        let supers = decls.supertraits(def);
+        for s in supers.iter().rev() {
+            let s = pool.subst(*s, &|p: ParamRef| {
+                if p.owner != def {
+                    return None;
+                }
+                match p.index {
+                    0 => Some(self_ty),
+                    i => argv.get(usize::from(i) - 1).copied(),
+                }
+            });
+            if let TyData::TraitValue {
+                def: d, args: a, ..
+            } = pool.get(s)
+            {
+                stack.push(((d, a), depth + 1));
+            }
+        }
+    }
+    None
 }
 
 /// Whether `t` names an impl parameter of `owner` that `fixed` leaves open.
@@ -2260,10 +2398,14 @@ impl Solver for TableSolver {
             Answer::Holds {
                 evidence: Evidence::Impl { row, args },
                 ..
-            } => Ok(Selection {
+            } => Ok(Selection::Impl {
                 impl_row: row,
                 args,
             }),
+            Answer::Holds {
+                evidence: Evidence::Builtin(b),
+                ..
+            } => Ok(Selection::Builtin(b)),
             other => Err(NotImplemented::new(
                 Stage::Collect,
                 format!("select found no impl: {other:?}"),
@@ -2430,6 +2572,33 @@ mod tests {
     use crate::unify::{InferTable, VarKind};
     use hd_base::{DefId, FolderId, Fuel, ModuleId};
 
+    /// The declarations a test's rows read: the sealed traits (none by
+    /// default), declaration kinds (data by default) and supertraits.
+    #[derive(Default)]
+    struct TestDecls {
+        sealed: super::SealedTraits,
+        kinds: Vec<(DefId, super::TypeDecl)>,
+        supers: Vec<(DefId, Vec<Ty>)>,
+    }
+
+    impl super::Declarations for TestDecls {
+        fn sealed(&self) -> &super::SealedTraits {
+            &self.sealed
+        }
+        fn type_decl(&self, def: DefId) -> super::TypeDecl {
+            self.kinds
+                .iter()
+                .find(|(d, _)| *d == def)
+                .map_or(super::TypeDecl::Data, |(_, k)| *k)
+        }
+        fn supertraits(&self, trait_: DefId) -> &[Ty] {
+            self.supers
+                .iter()
+                .find(|(d, _)| *d == trait_)
+                .map_or(&[], |(_, s)| s.as_slice())
+        }
+    }
+
     #[test]
     fn universes_dedup_sorted_lists() {
         let u = ImplUniverses::default();
@@ -2530,6 +2699,7 @@ mod tests {
             env: &env,
             universe: u,
             impls: super::Impls::All(&tables),
+            decls: &TestDecls::default(),
             body_memo: &mut body,
             global: &global,
         };
@@ -2690,6 +2860,7 @@ mod tests {
                 env: &env,
                 universe,
                 impls: Impls::Owned(&view),
+                decls: &TestDecls::default(),
                 body_memo: &mut body,
                 global: &global,
             };
@@ -2835,6 +3006,7 @@ mod tests {
                 env: &env,
                 universe,
                 impls: Impls::Owned(&view),
+                decls: &TestDecls::default(),
                 body_memo: &mut body,
                 global: &global,
             };
@@ -3002,6 +3174,7 @@ mod tests {
             env: &env,
             universe,
             impls: Impls::Owned(&view),
+            decls: &TestDecls::default(),
             body_memo: &mut body,
             global: &global,
         };
@@ -3035,6 +3208,7 @@ mod tests {
             env: &env,
             universe,
             impls: super::Impls::All(tables),
+            decls: &TestDecls::default(),
             body_memo: &mut body,
             global: &global,
         };
@@ -3414,6 +3588,7 @@ mod tests {
             env: &env,
             universe,
             impls: super::Impls::All(&tables),
+            decls: &TestDecls::default(),
             body_memo: &mut body,
             global: &global,
         };
@@ -3546,6 +3721,7 @@ mod tests {
             env,
             universe,
             impls: super::Impls::All(tables),
+            decls: &TestDecls::default(),
             body_memo: body,
             global,
         };
@@ -4024,6 +4200,7 @@ mod tests {
                 env: &env,
                 universe,
                 impls: Impls::Owned(v),
+                decls: &TestDecls::default(),
                 body_memo: &mut body,
                 global,
             };
@@ -4067,5 +4244,372 @@ mod tests {
             assert_eq!(ask(&global, &in_base, bar_ty), (folder_row(1), 0));
             assert_eq!(global.stats().hits, hits + 1, "`base` shares `Bar`'s entry");
         }
+    }
+
+    // ------------------------------------------- compiler-supplied rows
+
+    /// The sealed traits and declarations of the §3.9 row tests:
+    /// `Any`..`Structure` are ids 1..6, `Point` (data) 20, `Color` (enum)
+    /// 21, `Mile` a newtype over `i32` 22, `Owner` a newtype over `Point`
+    /// 23, `Show` 30, `Fancy < Show` 31.
+    fn sealed_decls(p: Types<'_>) -> TestDecls {
+        let id = DefId::from_raw;
+        let point = adt(p, id(20), &[]);
+        let fancy_super = p.intern_ty(&TyData::TraitValue {
+            def: id(30),
+            args: TyList::EMPTY,
+            bindings: vec![],
+        });
+        TestDecls {
+            sealed: super::SealedTraits {
+                any: id(1),
+                any_val: id(2),
+                any_ref: id(3),
+                inspectable: id(4),
+                tuple: id(5),
+                structure: id(6),
+            },
+            kinds: vec![
+                (id(21), super::TypeDecl::Enum),
+                (id(22), super::TypeDecl::Newtype(Ty::I32)),
+                (id(23), super::TypeDecl::Newtype(point)),
+            ],
+            supers: vec![(id(31), vec![fancy_super])],
+        }
+    }
+
+    /// Solves `tref` with no impl table, under `env`.
+    fn ask_row(
+        p: Types<'_>,
+        decls: &TestDecls,
+        env: &ParamEnv,
+        global: &GlobalMemo,
+        tref: TraitRef,
+    ) -> super::Answer {
+        let mut body = BodyMemo::default();
+        let (universe, _) = ImplUniverses::default().intern(&[]);
+        let tables: [(ModuleId, &ImplTable); 0] = [];
+        let mut cx = SolveCx {
+            pool: p,
+            env,
+            universe,
+            impls: super::Impls::All(&tables),
+            decls,
+            body_memo: &mut body,
+            global,
+        };
+        TableSolver
+            .solve(&mut cx, &implements(tref), &mut Fuel::new(100))
+            .expect("solves")
+    }
+
+    fn on(trait_: u32, self_ty: Ty) -> TraitRef {
+        TraitRef {
+            trait_: DefId::from_raw(trait_),
+            self_ty,
+            args: TyList::EMPTY,
+        }
+    }
+
+    fn builtin_of(a: &super::Answer) -> Option<super::BuiltinImpl> {
+        match a {
+            super::Answer::Holds {
+                evidence: super::Evidence::Builtin(b),
+                ..
+            } => Some(*b),
+            _ => None,
+        }
+    }
+
+    /// §3.9's `Any`, `AnyVal` and `AnyRef` rows: every value type and
+    /// `never` are `Any`; each value type is in one category; a newtype
+    /// has its base's (`types.sealed.newtype`); `never` is in neither
+    /// (`types.sealed.never`); `mut` changes nothing.
+    #[test]
+    fn sealed_categories_answer_from_the_type_form() {
+        use super::BuiltinImpl::{Any, AnyRef, AnyVal};
+        let gp = InternPool::new();
+        let p = gp.types();
+        let decls = sealed_decls(p);
+        let env = ParamEnv::default();
+        let global = GlobalMemo::default();
+        let id = DefId::from_raw;
+        let ask = |tr, t| builtin_of(&ask_row(p, &decls, &env, &global, on(tr, t)));
+        let pair = p.intern_ty(&TyData::Tuple {
+            elems: p.list(&[Ty::I32, Ty::STRING]),
+            rest: None,
+        });
+        let point = adt(p, id(20), &[]);
+        let color = adt(p, id(21), &[]);
+        let mile = adt(p, id(22), &[]);
+        let owner = adt(p, id(23), &[]);
+        let dyn_show = p.intern_ty(&TyData::TraitValue {
+            def: id(30),
+            args: TyList::EMPTY,
+            bindings: vec![],
+        });
+        let mut_point = p.intern_ty(&TyData::Mut(point));
+        for t in [Ty::I32, Ty::STRING, Ty::VOID, pair, color, mile] {
+            assert_eq!(ask(2, t), Some(AnyVal), "{}", p.display(t));
+            assert_eq!(ask(3, t), None, "{}", p.display(t));
+        }
+        for t in [point, owner, dyn_show, mut_point] {
+            assert_eq!(ask(3, t), Some(AnyRef), "{}", p.display(t));
+            assert_eq!(ask(2, t), None, "{}", p.display(t));
+        }
+        for t in [Ty::NEVER, Ty::I32, point, dyn_show] {
+            assert_eq!(ask(1, t), Some(Any), "{}", p.display(t));
+        }
+        for tr in [2, 3] {
+            let a = ask_row(p, &decls, &env, &global, on(tr, Ty::NEVER));
+            let super::Answer::Fails(info) = a else {
+                panic!("never is in no category: {a:?}");
+            };
+            assert_eq!(info.reason, super::FailReason::WrongCategory);
+        }
+    }
+
+    /// A newtype's row asks its base one level deeper: `Mile`'s `AnyVal`
+    /// holds through `i32: AnyVal`. Both answers go to the global memo
+    /// with no impl probe, so no universe or own table can change them.
+    #[test]
+    fn a_newtype_over_a_primitive_is_answered_through_its_base() {
+        let gp = InternPool::new();
+        let p = gp.types();
+        let decls = sealed_decls(p);
+        let env = ParamEnv::default();
+        let global = GlobalMemo::default();
+        let mile = adt(p, DefId::from_raw(22), &[]);
+        let a = ask_row(p, &decls, &env, &global, on(2, mile));
+        assert_eq!(builtin_of(&a), Some(super::BuiltinImpl::AnyVal));
+        let (universe, _) = ImplUniverses::default().intern(&[]);
+        let key = |t| {
+            let (cg, _) = canonicalize(p, GoalKind::Implements, on(2, t), false);
+            MemoKey::new(p, cg, super::EnvKey::EMPTY, universe, 0)
+        };
+        for t in [mile, Ty::I32] {
+            let k = key(t);
+            assert_eq!(k.universe, None, "a known goal keys no universe");
+            let i = global.lookup(&k).expect("published globally");
+            let rec = global.record(i);
+            assert!(rec.reads.is_empty() && !rec.scoped, "{}", p.display(t));
+        }
+        let i = global.lookup(&key(mile)).expect("entry");
+        assert_eq!(global.entry(i).children, 1, "the base is a child");
+    }
+
+    /// `types.sealed.type-parameter`: a parameter is in a category, a
+    /// tuple or inspectable only through its environment; every type
+    /// parameter is `Any`. An unknown type waits, except for `Any`.
+    #[test]
+    fn a_parameter_answers_only_from_its_environment() {
+        use super::Answer;
+        let gp = InternPool::new();
+        let local = LocalPool::new();
+        let p = Types::with_local(&gp, &local);
+        let decls = sealed_decls(p);
+        let global = GlobalMemo::default();
+        let tp = param(p, DefId::from_raw(40), 0);
+        let mut bounded = ParamEnv::default();
+        bounded.clause_self.push(tp);
+        bounded.clause_trait.push(DefId::from_raw(3));
+        bounded.clause_args.push(TyList::EMPTY);
+        bounded.clause_bindings.push(vec![]);
+        bounded.clause_mut.push(false);
+        bounded.clause_origin.push(0);
+        let plain = ParamEnv::default();
+        let a = ask_row(p, &decls, &bounded, &global, on(3, tp));
+        assert!(
+            matches!(
+                a,
+                Answer::Holds {
+                    evidence: super::Evidence::Bound { index: 0, .. },
+                    ..
+                }
+            ),
+            "{a:?}"
+        );
+        for tr in [2, 3, 4, 5, 6] {
+            let a = ask_row(p, &decls, &plain, &global, on(tr, tp));
+            assert!(matches!(a, Answer::Fails(_)), "trait {tr}: {a:?}");
+        }
+        let a = ask_row(p, &decls, &plain, &global, on(1, tp));
+        assert_eq!(builtin_of(&a), Some(super::BuiltinImpl::Any));
+        let v = InferTable::default().fresh(p, VarKind::General);
+        let a = ask_row(p, &decls, &plain, &global, on(3, v));
+        assert!(matches!(a, Answer::Stalled { .. }), "{a:?}");
+        let a = ask_row(p, &decls, &plain, &global, on(1, v));
+        assert_eq!(builtin_of(&a), Some(super::BuiltinImpl::Any));
+    }
+
+    /// The `Tuple` and `Structure` rows: every tuple is a `Tuple`; no
+    /// concrete type has `Structure`, which only a template instance's
+    /// environment gives (`annot.structure.generated`).
+    #[test]
+    fn tuple_holds_for_tuples_and_structure_only_through_the_environment() {
+        let gp = InternPool::new();
+        let p = gp.types();
+        let decls = sealed_decls(p);
+        let env = ParamEnv::default();
+        let global = GlobalMemo::default();
+        let unit = p.intern_ty(&TyData::Tuple {
+            elems: TyList::EMPTY,
+            rest: None,
+        });
+        let a = ask_row(p, &decls, &env, &global, on(5, unit));
+        assert_eq!(builtin_of(&a), Some(super::BuiltinImpl::Tuple));
+        for (tr, t) in [(5, Ty::I32), (6, unit), (6, Ty::I32)] {
+            let a = ask_row(p, &decls, &env, &global, on(tr, t));
+            assert!(matches!(a, super::Answer::Fails(_)), "{a:?}");
+        }
+    }
+
+    /// The `Inspectable` row (`trait.inspectable.*`): primitives,
+    /// declarations and collections with inspectable arguments, tuples of
+    /// inspectable elements; trait values count as arguments only; function
+    /// types and `never` never. A failing argument fails with its own goal.
+    #[test]
+    fn inspectable_holds_per_argument_and_trait_values_only_as_arguments() {
+        use super::Answer;
+        let gp = InternPool::new();
+        let p = gp.types();
+        let decls = sealed_decls(p);
+        let env = ParamEnv::default();
+        let global = GlobalMemo::default();
+        let id = DefId::from_raw;
+        let list = |t| adt(p, id(50), &[t]);
+        let dyn_show = p.intern_ty(&TyData::TraitValue {
+            def: id(30),
+            args: TyList::EMPTY,
+            bindings: vec![],
+        });
+        let func = p.intern_ty(&TyData::Fn {
+            params: TyList::EMPTY,
+            result: Ty::I32,
+            row: crate::pool::RowId::EMPTY,
+            suspends: false,
+        });
+        let tuple = |elems: &[Ty]| {
+            p.intern_ty(&TyData::Tuple {
+                elems: p.list(elems),
+                rest: None,
+            })
+        };
+        let ask = |t| ask_row(p, &decls, &env, &global, on(4, t));
+        for t in [
+            Ty::I32,
+            Ty::STRING,
+            list(Ty::I32),
+            list(dyn_show),
+            list(p.intern_ty(&TyData::Mut(dyn_show))),
+            p.intern_ty(&TyData::Option(dyn_show)),
+            tuple(&[Ty::I32, list(dyn_show)]),
+        ] {
+            assert_eq!(
+                builtin_of(&ask(t)),
+                Some(super::BuiltinImpl::Inspectable),
+                "{}",
+                p.display(t)
+            );
+        }
+        for t in [
+            dyn_show,
+            func,
+            Ty::NEVER,
+            tuple(&[dyn_show]),
+            list(Ty::NEVER),
+        ] {
+            assert!(matches!(ask(t), Answer::Fails(_)), "{}", p.display(t));
+        }
+        let Answer::Fails(info) = ask(list(list(func))) else {
+            panic!("a function argument is not inspectable");
+        };
+        assert_eq!(info.reason, super::FailReason::NotInspectable { arg: func });
+        assert_eq!(info.leaf.self_ty, func, "the leaf is the failing argument");
+    }
+
+    /// §9.3: a trait value satisfies its own trait with equal arguments
+    /// and each supertrait, with trait-value evidence; no other trait.
+    #[test]
+    fn a_trait_value_satisfies_its_trait_and_supertraits() {
+        use super::Answer;
+        let gp = InternPool::new();
+        let local = LocalPool::new();
+        let p = Types::with_local(&gp, &local);
+        let decls = sealed_decls(p);
+        let env = ParamEnv::default();
+        let global = GlobalMemo::default();
+        let id = DefId::from_raw;
+        let value = |def, args: &[Ty]| {
+            p.intern_ty(&TyData::TraitValue {
+                def,
+                args: p.list(args),
+                bindings: vec![],
+            })
+        };
+        let fancy = value(id(31), &[]);
+        for tr in [30, 31] {
+            let a = ask_row(p, &decls, &env, &global, on(tr, fancy));
+            assert!(
+                matches!(
+                    a,
+                    Answer::Holds {
+                        evidence: super::Evidence::TraitValue { trait_ },
+                        ..
+                    } if trait_ == id(31)
+                ),
+                "{a:?}"
+            );
+        }
+        let a = ask_row(p, &decls, &env, &global, on(32, fancy));
+        assert!(matches!(a, Answer::Fails(_)), "{a:?}");
+        // `dyn Pick[i32]: Pick[i32]` holds, `Pick[bool]` does not, and a
+        // bare variable learns the value's argument.
+        let pick = |a: Ty| TraitRef {
+            trait_: id(33),
+            self_ty: value(id(33), &[Ty::I32]),
+            args: p.list(&[a]),
+        };
+        let a = ask_row(p, &decls, &env, &global, pick(Ty::I32));
+        assert!(matches!(a, Answer::Holds { .. }), "{a:?}");
+        let a = ask_row(p, &decls, &env, &global, pick(Ty::BOOL));
+        assert!(matches!(a, Answer::Fails(_)), "{a:?}");
+        let v = InferTable::default().fresh(p, VarKind::General);
+        let Answer::Holds { learned, .. } = ask_row(p, &decls, &env, &global, pick(v)) else {
+            panic!("holds");
+        };
+        assert_eq!(learned.len(), 1);
+        assert_eq!(learned[0].1, Ty::I32);
+    }
+
+    /// Codegen's `select` (§8.3) answers a sealed trait's goal with the
+    /// compiler-supplied impl.
+    #[test]
+    fn select_returns_the_compiler_supplied_impl() {
+        let gp = InternPool::new();
+        let p = gp.types();
+        let decls = sealed_decls(p);
+        let env = ParamEnv::default();
+        let global = GlobalMemo::default();
+        let mut body = BodyMemo::default();
+        let (universe, _) = ImplUniverses::default().intern(&[]);
+        let tables: [(ModuleId, &ImplTable); 0] = [];
+        let mut cx = SolveCx {
+            pool: p,
+            env: &env,
+            universe,
+            impls: super::Impls::All(&tables),
+            decls: &decls,
+            body_memo: &mut body,
+            global: &global,
+        };
+        let point = adt(p, DefId::from_raw(20), &[]);
+        let s = TableSolver.select(&mut cx, ConcreteTraitRef(on(4, point)));
+        assert_eq!(
+            s.expect("selects"),
+            super::Selection::Builtin(super::BuiltinImpl::Inspectable)
+        );
+        let s = TableSolver.select(&mut cx, ConcreteTraitRef(on(3, Ty::I32)));
+        assert!(s.is_err(), "i32 is no AnyRef");
     }
 }

@@ -15,8 +15,8 @@ use std::collections::{BTreeSet, HashMap};
 use hd_base::{DefId, Hash128, InstId, NotImplemented, StableHasher, Stage, StageResult};
 use hd_tir::ir::{Body, Callee, ChoiceKind, Coercion, Tag};
 use hd_types::solver::{
-    BodyMemo, ConcreteTraitRef, GlobalMemo, ImplRef, ImplUniverseId, Impls, ParamEnv, SolveCx,
-    Solver, TraitRef,
+    BodyMemo, ConcreteTraitRef, Declarations, GlobalMemo, ImplRef, ImplUniverseId, Impls, ParamEnv,
+    Selection, SolveCx, Solver, TraitRef,
 };
 use hd_types::{InternPool, ParamRef, Ty, TyData, TyList};
 
@@ -68,10 +68,10 @@ pub trait ProgramEnv: LayoutEnv {
     fn solving(&self) -> (ImplUniverseId, &GlobalMemo);
     /// Where an impl's row lives.
     fn impl_row(&self, impl_: DefId) -> Option<ImplRef>;
-    /// A sealed trait the compiler implements for every type, such as
-    /// `Inspectable` (checking-and-tir.md, the `Builtin` choice): it has
-    /// no impl row, and its methods are the compiler's.
-    fn universal_trait(&self, trait_: DefId) -> bool;
+    /// The declarations the solver's compiler-supplied rows read
+    /// (trait-solver.md §3.9), so selection answers sealed traits as
+    /// checking does.
+    fn decls(&self) -> &dyn Declarations;
 }
 
 /// The A1 class `REF` as a type argument: a reserved canonical
@@ -94,7 +94,9 @@ pub enum TargetKind {
     /// A compiler lowering of a body-less std function, by intrinsic key.
     Intrinsic(String),
     /// A body-less method of a built-in family (`impl[N < Num] Display for
-    /// N`): the method's name at a concrete self type.
+    /// N`), or a method of a sealed trait's compiler-supplied impl
+    /// (`Inspectable.runtime_type`, trait-solver.md §3.9): the method's
+    /// name at a concrete self type.
     Builtin { method: String, self_ty: Ty },
 }
 
@@ -269,6 +271,15 @@ fn layout_hash(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, h: &mut StableHas
 
 type SelectKey = (DefId, Ty, TyList, Option<DefId>);
 
+/// What selection picked (trait-solver.md §8.3): an impl and its
+/// arguments, or the compiler's impl of a sealed trait (§3.9), whose
+/// methods are lowered per type.
+#[derive(Clone)]
+enum Picked {
+    Impl(DefId, Vec<Ty>),
+    Builtin,
+}
+
 struct Cx<'a> {
     pool: &'a InternPool,
     env: &'a dyn ProgramEnv,
@@ -278,7 +289,7 @@ struct Cx<'a> {
     memo: BodyMemo,
     /// The build's selections, by `(trait, self type, trait arguments,
     /// chosen impl)`: the impl and its arguments (trait-solver.md §8.3).
-    selected: HashMap<SelectKey, (DefId, Vec<Ty>)>,
+    selected: HashMap<SelectKey, Picked>,
     /// Per item: which of its own type parameters need their exact
     /// representation (A1's representation summary, §13.2).
     exact: HashMap<DefId, Vec<bool>>,
@@ -470,7 +481,7 @@ impl Cx<'_> {
         self_ty: Ty,
         trait_args: TyList,
         choice: Option<DefId>,
-    ) -> StageResult<(DefId, Vec<Ty>)> {
+    ) -> StageResult<Picked> {
         let key = (trait_, self_ty, trait_args, choice);
         if let Some(hit) = self.selected.get(&key) {
             return Ok(hit.clone());
@@ -494,10 +505,26 @@ impl Cx<'_> {
                 env: &self.penv,
                 universe,
                 impls: view,
+                decls: env.decls(),
                 body_memo: &mut self.memo,
                 global,
             };
-            self.solver.select(&mut cx, tref)?.impl_row
+            let picked = self.solver.select(&mut cx, tref).map_err(|mut e| {
+                e.what = format!(
+                    "{} (`{}` at `{}`)",
+                    e.what,
+                    env.describe(trait_),
+                    self.pool.display(self_ty)
+                );
+                e
+            })?;
+            match picked {
+                Selection::Impl { impl_row, .. } => impl_row,
+                Selection::Builtin(_) => {
+                    self.selected.insert(key, Picked::Builtin);
+                    return Ok(Picked::Builtin);
+                }
+            }
         };
         let Some(t) = view.table(at.module) else {
             return err("a selection outside the impl tables");
@@ -530,8 +557,30 @@ impl Cx<'_> {
             };
             args.push(a);
         }
-        self.selected.insert(key, (impl_, args.clone()));
-        Ok((impl_, args))
+        let picked = Picked::Impl(impl_, args);
+        self.selected.insert(key, picked.clone());
+        Ok(picked)
+    }
+
+    /// A call of a method the compiler lowers per self type: a sealed
+    /// trait's (§3.9), or a body-less method of a built-in family.
+    fn builtin_target(&self, method: DefId, self_ty: Ty, targs: &[Ty]) -> CallTarget {
+        CallTarget {
+            key: Hash128(0),
+            item: method,
+            args: TyList::EMPTY,
+            ret: subst(
+                self.pool,
+                self.env,
+                method,
+                self.pool.list(&[&[self_ty], targs].concat()),
+                self.env.ret(method).unwrap_or(Ty::VOID),
+            ),
+            kind: TargetKind::Builtin {
+                method: String::new(),
+                self_ty,
+            },
+        }
     }
 
     /// The target of a trait method at a concrete self type: the impl's
@@ -549,25 +598,10 @@ impl Cx<'_> {
         let n_trait = self.env.trait_arity(trait_);
         let trait_args = self.pool.list(&targs[..n_trait.min(targs.len())]);
         let method_args = &targs[n_trait.min(targs.len())..];
-        if self.env.universal_trait(trait_) {
-            return Ok(CallTarget {
-                key: Hash128(0),
-                item: method,
-                args: TyList::EMPTY,
-                ret: subst(
-                    self.pool,
-                    self.env,
-                    method,
-                    self.pool.list(&[&[self_ty], targs].concat()),
-                    self.env.ret(method).unwrap_or(Ty::VOID),
-                ),
-                kind: TargetKind::Builtin {
-                    method: String::new(),
-                    self_ty,
-                },
-            });
-        }
-        let (impl_, impl_args) = self.select(trait_, self_ty, trait_args, choice)?;
+        let (impl_, impl_args) = match self.select(trait_, self_ty, trait_args, choice)? {
+            Picked::Impl(d, a) => (d, a),
+            Picked::Builtin => return Ok(self.builtin_target(method, self_ty, targs)),
+        };
         match self.env.impl_method(impl_, method) {
             Some(m) if self.env.body(m).is_some() => {
                 let mut all = impl_args;
@@ -575,20 +609,8 @@ impl Cx<'_> {
                 self.target(m, self.pool.list(&all), depth, parent)
             }
             Some(m) => Ok(CallTarget {
-                key: Hash128(0),
                 item: m,
-                args: TyList::EMPTY,
-                ret: subst(
-                    self.pool,
-                    self.env,
-                    method,
-                    self.pool.list(&[&[self_ty], targs].concat()),
-                    self.env.ret(method).unwrap_or(Ty::VOID),
-                ),
-                kind: TargetKind::Builtin {
-                    method: String::new(),
-                    self_ty,
-                },
+                ..self.builtin_target(method, self_ty, targs)
             }),
             None => {
                 let mut all = vec![self_ty];

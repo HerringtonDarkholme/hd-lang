@@ -1463,12 +1463,7 @@ impl Ck<'_, '_> {
                                 self_ty: self.infer.resolve(pool, vars[i]),
                                 args,
                             };
-                            if self.builtin_holds(tref).is_none()
-                                && matches!(
-                                    self.solve(tref),
-                                    Ok(hd_types::solver::Answer::Fails(_))
-                                )
-                            {
+                            if matches!(self.solve(tref), Ok(hd_types::solver::Answer::Fails(_))) {
                                 ok = false;
                             }
                         }
@@ -1644,7 +1639,7 @@ impl Ck<'_, '_> {
                 self_ty: t,
                 args: pool.list(&fresh),
             };
-            if self.builtin_holds(tref).is_some() {
+            if self.supplied_holds(tref)?.is_some() {
                 builtin.push((tr, m, fresh));
             } else {
                 asked.push(tr);

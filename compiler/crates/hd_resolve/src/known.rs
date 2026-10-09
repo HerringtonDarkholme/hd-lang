@@ -78,6 +78,20 @@ pub struct KnownItems {
 }
 
 impl KnownItems {
+    /// The sealed traits the solver's compiler-supplied rows answer
+    /// (trait-solver.md §3.9).
+    #[must_use]
+    pub fn sealed(&self) -> hd_types::solver::SealedTraits {
+        hd_types::solver::SealedTraits {
+            any: self.any,
+            any_val: self.any_val,
+            any_ref: self.any_ref,
+            inspectable: self.inspectable,
+            tuple: self.tuple,
+            structure: self.structure,
+        }
+    }
+
     /// Every known item, by its path. The ids exist whether or not the run
     /// declares the item; comparing against an absent one never matches.
     #[must_use]

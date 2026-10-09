@@ -10,7 +10,9 @@ use crate::known::KnownItems;
 use hd_base::wire::{Reader, Writer};
 use hd_base::{DefId, Hash128, PathId, StableHasher, StageResult, Symbol};
 use hd_intern::{PathKind, PathTable, ShardedInterner};
-use hd_types::solver::{HeadKey, ImplOrigin, ImplTable, PlanStep};
+use hd_types::solver::{
+    Declarations, HeadKey, ImplOrigin, ImplTable, PlanStep, SealedTraits, TypeDecl,
+};
 use hd_types::wire::{TableWriter, Tables};
 use hd_types::{InternPool, ParamRef, RowId, Ty, TyData, TyList};
 
@@ -365,6 +367,24 @@ impl Item {
             data,
         }
     }
+    /// What the solver's compiler-supplied rows read of a type
+    /// declaration (trait-solver.md §3.9).
+    #[must_use]
+    pub fn type_decl(&self) -> TypeDecl {
+        match &self.data {
+            ItemData::Enum { .. } => TypeDecl::Enum,
+            ItemData::Newtype(base) => TypeDecl::Newtype(*base),
+            _ => TypeDecl::Data,
+        }
+    }
+    /// A trait's direct supertraits; none for any other item.
+    #[must_use]
+    pub fn supertraits(&self) -> &[Ty] {
+        match &self.data {
+            ItemData::Trait(t) => &t.supers,
+            _ => &[],
+        }
+    }
     #[must_use]
     pub fn sig(&self) -> Option<&FnSig> {
         match &self.data {
@@ -465,6 +485,27 @@ impl<'a> Lookup<'a> {
             out.extend(f.items.iter().filter(is_impl));
         }
         out
+    }
+}
+
+/// The declarations the solver's compiler-supplied rows and trait-value
+/// rows read (trait-solver.md §3.9, §9.3), over a context's lookup.
+pub struct LookupDecls<'a> {
+    pub lookup: &'a Lookup<'a>,
+    pub sealed: SealedTraits,
+}
+
+impl Declarations for LookupDecls<'_> {
+    fn sealed(&self) -> &SealedTraits {
+        &self.sealed
+    }
+    fn type_decl(&self, def: DefId) -> TypeDecl {
+        self.lookup
+            .item(def)
+            .map_or(TypeDecl::Data, Item::type_decl)
+    }
+    fn supertraits(&self, trait_: DefId) -> &[Ty] {
+        self.lookup.item(trait_).map_or(&[], Item::supertraits)
     }
 }
 

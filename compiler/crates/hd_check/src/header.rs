@@ -13,13 +13,13 @@
 
 use hd_base::{DefId, Fuel, StageResult, Symbol};
 use hd_diag::Code;
-use hd_resolve::{FnSig, Generic, ImplKind, Item, ItemData, Lookup, Names};
+use hd_resolve::{FnSig, Generic, ImplKind, Item, ItemData, Lookup, LookupDecls, Names};
 use hd_types::solver::{
     Answer, BodyMemo, GlobalMemo, Goal, ImplView, Impls, ParamEnv, SolveCx, Solver, TraitRef,
 };
 use hd_types::{ParamRef, Ty, TyData, TyList, Types};
 
-use crate::body::{add_bound, trait_extends};
+use crate::body::add_bound;
 
 /// What a folder's header check sees: the items of its closure, its view
 /// of the impls, the run memo and the solver.
@@ -317,32 +317,12 @@ impl<'a> ItemCheck<'_, 'a> {
         let TyData::TraitValue { def, args, .. } = pool.get(bound) else {
             return Ok(false);
         };
-        let k = self.cx.names.known;
-        if [
-            k.any,
-            k.any_val,
-            k.any_ref,
-            k.tuple,
-            k.structure,
-            k.inspectable,
-        ]
-        .contains(&def)
-        {
-            return Ok(false);
-        }
         let inner = match pool.get(t) {
             TyData::Mut(i) => i,
             _ => t,
         };
-        match pool.get(inner) {
-            TyData::Never => return Ok(false),
-            // A trait value implements its trait and its supertraits.
-            TyData::TraitValue { def: d, .. }
-                if d == def || trait_extends(self.cx.lookup, pool, d, def, 0) =>
-            {
-                return Ok(false);
-            }
-            _ => {}
+        if inner == Ty::NEVER {
+            return Ok(false);
         }
         let tref = TraitRef {
             trait_: def,
@@ -354,11 +334,16 @@ impl<'a> ItemCheck<'_, 'a> {
             bindings: vec![],
             mut_: false,
         };
+        let decls = LookupDecls {
+            lookup: self.cx.lookup,
+            sealed: self.cx.names.known.sealed(),
+        };
         let mut scx = SolveCx {
             pool,
             env: &self.env,
             universe: self.cx.impls.universe,
             impls: Impls::Owned(self.cx.impls),
+            decls: &decls,
             body_memo: &mut self.memo,
             global: self.cx.global,
         };
