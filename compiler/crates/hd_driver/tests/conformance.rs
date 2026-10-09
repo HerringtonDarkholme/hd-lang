@@ -212,8 +212,8 @@ fn first_unsupported(report: &PipelineReport, back_half: bool) -> Option<String>
     if report.body_failed > 0 {
         return Some("Body".to_owned());
     }
-    // `Goal::Analyze` checks a package without a program root, so it never
-    // collects: the back half is judged by the `Goal::Program` build.
+    // `Goal::CheckTests` checks a package without a program root, so it
+    // never collects: the back half is judged by the `Goal::Program` build.
     Stage::ALL
         .into_iter()
         .take_while(|stage| back_half || *stage != Stage::Collect)
@@ -398,8 +398,14 @@ fn diagnostic_verdict(case: &Case, fixture: &Fixture, output: &Output) -> Option
         .map(|index| Verdict::Fail(output.diags.code[*index].as_str().to_owned()))
 }
 
+/// `check FILE`, which the runner always gives `--tests`, so it checks
+/// the fixture's test code too (README "Command Contract").
+fn check_fixture(fixture: &Fixture, store: &MemoryStore) -> Output {
+    build_fixture(fixture, store, &Goal::CheckTests)
+}
+
 fn type_case(case: &Case, fixture: &Fixture, store: &MemoryStore) -> Verdict {
-    let output = build_fixture(fixture, store, &Goal::Analyze);
+    let output = check_fixture(fixture, store);
     if let Some(verdict) = diagnostic_verdict(case, fixture, &output) {
         return verdict;
     }
@@ -731,7 +737,7 @@ fn doc_tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: u
 }
 
 fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize) -> Verdict {
-    let checked = build_fixture(fixture, store, &Goal::Analyze);
+    let checked = check_fixture(fixture, store);
     if checked.diags.has_errors() {
         let index = first_error(&checked);
         return Verdict::Fail(checked.diags.code[index].as_str().to_owned());
@@ -958,7 +964,7 @@ fn detail(case: &Case, store: &MemoryStore) -> String {
     if case.phase == Phase::Parse {
         return String::new();
     }
-    let mut output = build_fixture(&fixture, store, &Goal::Analyze);
+    let mut output = check_fixture(&fixture, store);
     if case.phase == Phase::Runtime && !output.diags.has_errors() {
         let goal = if plain_tests(&fixture.text) || doc_tests_harness(&fixture) {
             Goal::Tests {
