@@ -322,7 +322,7 @@ impl Ck<'_, '_> {
                         Some(TokenKind::StrHead) => {
                             return unsupported("an interpolated string pattern");
                         }
-                        _ => self.literal_at(tok, want)?,
+                        _ => self.literal_at(tok)?,
                     }
                 };
                 // A literal pattern takes the scrutinee's type.

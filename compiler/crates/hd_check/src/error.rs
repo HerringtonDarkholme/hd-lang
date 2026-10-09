@@ -2,9 +2,10 @@
 //! Derivation"; codegen.md §13.14). Header lowering declares the heads
 //! (`hd_resolve::error_type`); each body here is checked as ordinary code
 //! of the error type's module, so a message is type-checked in its
-//! variant's scope (`annot.error.message.checked`) and a cause member
-//! must implement `Error` as any coercion to `dyn Error` requires
-//! (`annot.error.cause.type`, `annot.error.transparent.type`).
+//! variant's scope (`annot.error.message.checked`). A cause member's type
+//! must implement `Error`, checked as a bound before its conversion to
+//! `dyn Error` (`annot.error.cause.type`); a transparent member's, by
+//! the `Error.cause` call on it (`annot.error.transparent.type`).
 //!
 //! - `Display::to_string` matches the variant and evaluates its message
 //!   with the members it interpolates bound by name; a transparent
@@ -29,7 +30,8 @@ use hd_resolve::{Field, FnSig, ItemData};
 use hd_syntax::NodeRef;
 use hd_tir::Body;
 use hd_tir::ir::{BodyKind, NONE, Ref, Tag, TirSink, local_flags};
-use hd_types::{ParamRef, RowId, Ty, TyData};
+use hd_types::solver::TraitRef;
+use hd_types::{ParamRef, RowId, Ty, TyData, TyList};
 
 use crate::body::{BodyCx, Ck, new_ck, unsupported};
 
@@ -350,6 +352,23 @@ impl Target<'_, '_> {
         };
         let node = v.members[c].node;
         let t = own(fs[c].ty);
+        // `annot.error.cause.type`: the cause member's type implements
+        // `Error`, an unmet bound like any other; with the bound unmet
+        // the member has no conversion to check.
+        let cause_ty = match pool.get(t) {
+            TyData::Option(inner) => inner,
+            _ => t,
+        };
+        let before = ck.diags.len();
+        let tref = TraitRef {
+            trait_: ck.cx.names.known.error,
+            self_ty: cause_ty,
+            args: TyList::EMPTY,
+        };
+        ck.require_ref(tref, node)?;
+        if ck.diags.len() > before {
+            return Ok(no_cause(ck, node));
+        }
         let r = self.read(ck, p, vi, c, t);
         // An optional `@source` gives a cause only when present
         // (`annot.error.cause.optional`).

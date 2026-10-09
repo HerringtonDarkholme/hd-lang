@@ -275,7 +275,7 @@ impl Ck<'_, '_> {
                 }
             }
         }
-        let (r, t) = self.literal_tok(first, want, strip)?;
+        let (r, t) = self.literal_tok(first, strip)?;
         if self.b.const_of(r).is_some() {
             self.lit_nodes.push((r, n.index()));
         }
@@ -283,21 +283,14 @@ impl Ck<'_, '_> {
     }
 
     /// The literal token at `t`.
-    pub(crate) fn literal_at(
-        &mut self,
-        t: hd_base::TokenIdx,
-        want: Option<Ty>,
-    ) -> StageResult<(Ref, Ty)> {
-        self.literal_tok(t, want, false)
+    pub(crate) fn literal_at(&mut self, t: hd_base::TokenIdx) -> StageResult<(Ref, Ty)> {
+        self.literal_tok(t, false)
     }
 
     /// The literal token at `t`; `strip` drops a number's literal suffix.
-    fn literal_tok(
-        &mut self,
-        t: hd_base::TokenIdx,
-        want: Option<Ty>,
-        strip: bool,
-    ) -> StageResult<(Ref, Ty)> {
+    /// An integer literal is an integer class even where a float is
+    /// expected (`types.literal.int-not-float`).
+    fn literal_tok(&mut self, t: hd_base::TokenIdx, strip: bool) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         Ok(match self.cx.src.tkind(t) {
             Some(TokenKind::KwTrue) => (self.b.const_value(Ty::BOOL, 1), Ty::BOOL),
@@ -333,13 +326,6 @@ impl Ck<'_, '_> {
                     text.parse::<u64>().ok()
                 };
                 if let Some(v) = int {
-                    let float_wanted = want
-                        .map(|w| self.infer.shallow(pool, w))
-                        .is_some_and(|w| matches!(pool.get(w), TyData::Prim(p) if p.is_float()));
-                    if float_wanted && let Ok(f) = text.parse::<f64>() {
-                        let ft = self.infer.fresh(pool, VarKind::FloatLit);
-                        return Ok((self.b.const_value(ft, f.to_bits()), ft));
-                    }
                     let lt = self.infer.fresh(pool, VarKind::IntLit);
                     (self.b.const_value(lt, v), lt)
                 } else if let Ok(f) = text.parse::<f64>() {

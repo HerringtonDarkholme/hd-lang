@@ -16,6 +16,20 @@ pub enum VarKind {
     FloatLit,
 }
 
+impl VarKind {
+    /// A literal class's default type (`types.literal.local.default`);
+    /// `None` for a general variable.
+    #[must_use]
+    pub const fn literal_default(self) -> Option<Ty> {
+        match self {
+            Self::General => None,
+            Self::IntLit => Some(Ty::prim(crate::Prim::Usize)),
+            Self::SignedIntLit => Some(Ty::I32),
+            Self::FloatLit => Some(Ty::prim(crate::Prim::F64)),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UnifyError {
     Mismatch { expected: Ty, found: Ty },
@@ -292,9 +306,9 @@ impl InferTable {
         }
         let ok = match (self.kind[v as usize], pool.get(t)) {
             (VarKind::General, _) | (_, TyData::Poison | TyData::Never) => true,
-            (VarKind::IntLit | VarKind::SignedIntLit, TyData::Prim(p)) => {
-                p.is_integer() || p.is_float()
-            }
+            // `types.literal.int-not-float`: an integer literal never
+            // takes a floating-point type.
+            (VarKind::IntLit | VarKind::SignedIntLit, TyData::Prim(p)) => p.is_integer(),
             (VarKind::FloatLit, TyData::Prim(p)) => p.is_float(),
             _ => false,
         };
@@ -336,7 +350,15 @@ impl InferTable {
                 let (kx, ky) = (self.kind[x as usize], self.kind[y as usize]);
                 let merged = match (kx, ky) {
                     (VarKind::General, k) | (k, VarKind::General) => k,
-                    (VarKind::FloatLit, _) | (_, VarKind::FloatLit) => VarKind::FloatLit,
+                    (VarKind::FloatLit, VarKind::FloatLit) => VarKind::FloatLit,
+                    // An integer class and a float class never join
+                    // (`types.literal.int-not-float`).
+                    (VarKind::FloatLit, _) | (_, VarKind::FloatLit) => {
+                        return Err(UnifyError::Mismatch {
+                            expected: a,
+                            found: b,
+                        });
+                    }
                     (VarKind::SignedIntLit, _) | (_, VarKind::SignedIntLit) => {
                         VarKind::SignedIntLit
                     }

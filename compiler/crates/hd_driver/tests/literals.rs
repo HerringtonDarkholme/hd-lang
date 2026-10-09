@@ -167,3 +167,73 @@ fn a_prefixed_string_calls_its_prefix_function() {
         Code::UnknownName,
     );
 }
+
+/// Every error code the program reports but an `Emit` stub's
+/// `unsupported`.
+fn errors(src: &str) -> Vec<Code> {
+    let out = program(src);
+    out.diags
+        .code
+        .iter()
+        .zip(&out.diags.severity)
+        .filter(|(c, s)| **c != Code::Unsupported && **s == hd_diag::Severity::Error)
+        .map(|(c, _)| *c)
+        .collect()
+}
+
+#[test]
+fn an_open_literal_wraps_into_an_optional() {
+    // `types.literal.local.expected` through `.Some` wrapping: the class
+    // meets the optional's payload type.
+    assert_clean(&format!(
+        "fn f() -> i32?:\n    let x: i32? = 42\n    x\n{MAIN}"
+    ));
+    assert_clean(&format!(
+        "fn f(flag: bool) -> i32?:\n    if flag: 40 else: .None\n{MAIN}"
+    ));
+    assert_clean(&format!("fn f() -> List[f64?]:\n    [1.5, .None]\n{MAIN}"));
+    assert_code(
+        &format!("fn f() -> u8?:\n    let x: u8? = 300\n    x\n{MAIN}"),
+        Code::IntegerLiteralRange,
+    );
+}
+
+#[test]
+fn a_literal_converts_to_a_trait_value_at_its_default_type() {
+    // `types.literal.local.erased`: `5` is a `usize`, which is `Display`.
+    assert_clean(&format!(
+        "fn f() -> string:\n    let x: dyn Display = 5\n    \"$x\"\n{MAIN}"
+    ));
+    let gauge = "trait Gauge:\n    fn level(self) -> f64\n\nimpl Gauge for f64:\n    fn level(self) -> f64:\n        self\n\n";
+    assert_clean(&format!(
+        "{gauge}fn f() -> f64:\n    let g: dyn Gauge = 0.5\n    g.level()\n{MAIN}"
+    ));
+    // `0` falls back to `usize`, which is no `Gauge`; a value whose type
+    // lacks the impl does not convert (`trait.dyn.convert`).
+    assert_eq!(
+        errors(&format!(
+            "{gauge}fn f() -> f64:\n    let g: dyn Gauge = 0\n    g.level()\n{MAIN}"
+        )),
+        vec![Code::TypeMismatch]
+    );
+}
+
+#[test]
+fn an_integer_literal_never_takes_a_float_type() {
+    // `types.literal.int-not-float`.
+    assert_eq!(
+        errors(&format!(
+            "fn f() -> f64:\n    let r: f64 = 1\n    r\n{MAIN}"
+        )),
+        vec![Code::TypeMismatch]
+    );
+    assert_eq!(
+        errors(&format!(
+            "fn f() -> f64:\n    let r = 0.5 * 2\n    r\n{MAIN}"
+        )),
+        vec![Code::TypeMismatch]
+    );
+    assert_clean(&format!(
+        "fn f() -> f64:\n    let r: f64 = 1.0\n    r * 2.0\n{MAIN}"
+    ));
+}

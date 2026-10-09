@@ -117,3 +117,13 @@ fn from_type_parameter_on_data_is_rejected() {
     let src = "@error(\"x\")\ndata D[E]:\n    @from\n    inner: E\n";
     assert_eq!(codes(src), vec![Code::InvalidErrorMarker]);
 }
+
+/// `annot.error.cause.type`: a cause member whose type lacks `Error` is an
+/// unmet bound, reported once, plain or optional.
+#[test]
+fn cause_without_error_is_an_unmet_bound() {
+    for ty in ["string", "string?"] {
+        let src = format!("@error\nenum E:\n    @error(\"bad\")\n    Path(@source reason: {ty})\n");
+        assert_eq!(codes(&src), vec![Code::UnsatisfiedTraitBound], "{ty}");
+    }
+}

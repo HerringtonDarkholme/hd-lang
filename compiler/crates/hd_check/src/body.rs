@@ -549,7 +549,11 @@ impl Ck<'_, '_> {
     pub(crate) fn show(&self, t: Ty) -> String {
         let t = self.infer.resolve(self.pool(), t);
         match self.pool().get(t) {
-            TyData::Infer(_) => "{unknown}".into(),
+            TyData::Infer(_) => match self.infer.kind_of(self.pool(), t) {
+                Some(VarKind::IntLit | VarKind::SignedIntLit) => "an integer literal".into(),
+                Some(VarKind::FloatLit) => "a floating-point literal".into(),
+                _ => "{unknown}".into(),
+            },
             _ => hd_resolve::show_ty_in(&self.cx.names, self.pool(), t),
         }
     }
@@ -766,8 +770,16 @@ impl Ck<'_, '_> {
             _ => t,
         };
         let (gs, ws) = (strip(g), strip(w));
+        // An open literal class is never an optional or a trait value, so
+        // it wraps or converts as a known type does.
+        let lit = self
+            .infer
+            .kind_of(pool, gs)
+            .and_then(VarKind::literal_default);
+        let open = matches!(pool.get(gs), TyData::Infer(_)) && lit.is_none();
         if let TyData::Option(inner) = pool.get(ws)
-            && !matches!(pool.get(gs), TyData::Option(_) | TyData::Infer(_))
+            && !open
+            && !matches!(pool.get(gs), TyData::Option(_))
         {
             if !self.check_upgrade(got, inner, n, what) {
                 self.expect(got, inner, n, what);
@@ -784,17 +796,26 @@ impl Ck<'_, '_> {
                 .coerce(Coercion::Supertrait, NONE, r, want, n.index());
         }
         if let TyData::TraitValue { def, args, .. } = pool.get(ws)
-            && !matches!(
-                pool.get(gs),
-                TyData::TraitValue { .. } | TyData::Infer(_) | TyData::Poison
-            )
+            && !open
+            && !matches!(pool.get(gs), TyData::TraitValue { .. } | TyData::Poison)
         {
+            // `types.literal.local.erased`: a literal converted to a trait
+            // value has its class's default type.
+            let gs = match lit {
+                Some(d) => {
+                    let _ = self.infer.unify(pool, gs, d);
+                    d
+                }
+                None => gs,
+            };
             let tref = TraitRef {
                 trait_: def,
                 self_ty: gs,
                 args,
             };
-            let _ = self.require_ref(tref, n);
+            // A value whose type lacks the impl does not convert: the
+            // binding's type does not fit (`trait.dyn.convert`).
+            let _ = self.require_ref_as(tref, n, Code::TypeMismatch);
             return self
                 .b
                 .coerce(Coercion::ToTraitValue, NONE, r, want, n.index());
@@ -903,6 +924,16 @@ impl Ck<'_, '_> {
         tref: TraitRef,
         at: NodeRef<'_>,
     ) -> StageResult<Option<hd_types::solver::Evidence>> {
+        self.require_ref_as(tref, at, Code::UnsatisfiedTraitBound)
+    }
+
+    /// [`Self::require_ref`], reporting a failure with `code`.
+    fn require_ref_as(
+        &mut self,
+        tref: TraitRef,
+        at: NodeRef<'_>,
+        code: Code,
+    ) -> StageResult<Option<hd_types::solver::Evidence>> {
         let pool = self.pool();
         // Projections with a known base normalize before the goal is
         // solved (trait-solver.md §4.3, point 3).
@@ -938,7 +969,7 @@ impl Ck<'_, '_> {
                     self.show(tref.self_ty),
                     self.cx.names.display_name(tref.trait_)
                 );
-                self.err(Code::UnsatisfiedTraitBound, at, &msg);
+                self.err(code, at, &msg);
                 Ok(None)
             }
             Answer::Stalled { .. } => {
@@ -1160,12 +1191,9 @@ impl Ck<'_, '_> {
             if joins.contains(&self.infer.shallow(pool, t)) {
                 continue;
             }
-            let d = match k {
-                VarKind::SignedIntLit => Ty::I32,
-                VarKind::IntLit => Ty::prim(hd_types::Prim::Usize),
-                _ => Ty::prim(hd_types::Prim::F64),
-            };
-            let _ = self.infer.unify(pool, t, d);
+            if let Some(d) = k.literal_default() {
+                let _ = self.infer.unify(pool, t, d);
+            }
         }
     }
 
@@ -1496,16 +1524,17 @@ impl Ck<'_, '_> {
         }
         match pool.get(r) {
             TyData::Infer(_) => {
-                let d = match self.infer.kind_of(pool, r) {
-                    Some(VarKind::FloatLit) => Ty::prim(hd_types::Prim::F64),
-                    Some(VarKind::SignedIntLit) => Ty::I32,
-                    Some(VarKind::IntLit) => Ty::prim(hd_types::Prim::Usize),
-                    _ => Ty::POISON,
-                };
-                if d != Ty::POISON {
-                    let _ = self.infer.unify(pool, r, d);
+                match self
+                    .infer
+                    .kind_of(pool, r)
+                    .and_then(VarKind::literal_default)
+                {
+                    Some(d) => {
+                        let _ = self.infer.unify(pool, r, d);
+                        d
+                    }
+                    None => Ty::POISON,
                 }
-                d
             }
             TyData::Adt { def, args } => {
                 let a = self.zonk_list(args);
