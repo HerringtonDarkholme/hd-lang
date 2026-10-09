@@ -219,6 +219,23 @@ stays exact when a data type, tuple, function type, trait value or projection
 in the item's signature or body holds it. Docs only; one commit; push.
 Timebox 40 minutes.
 
+### F1. Fixtures: `fn main() -> i32` Becomes `-> void` (Owner, 2026-10-08)
+
+122 conformance fixtures declare `fn main() -> i32`, which
+`module.entry.result-termination` rejects (an entry returns `void`,
+`ExitCode` or `Result`). The owner chose to fix the fixtures, not the
+spec. Find them with `grep -rlE '^fn main\(\) -> i32' spec/conformance`.
+Rewrite each to `fn main() -> void:` and keep the body's effects: a body
+that is one expression becomes `_ := EXPR` on its own line; a block body
+keeps its statements and turns a final value line into `_ := EXPR`. Do
+not change anything else in a fixture (its tests, comments, expected
+output). This job lifts the fixture rule for these files only.
+Checks: `bash spec/check.sh` in a clean worktree, and the full
+`cargo test -q --release --workspace` in `compiler/` with
+`HD_UPDATE_CONFORMANCE=1` for the driver conformance test; the
+CONFORMANCE.md diff may only add passes (list them). One commit; push.
+Timebox 45 minutes.
+
 ### P1. Profile The New Compiler (After S4; Standing Job)
 
 Owner, 2026-10-07: "you write the code, codex do the profiling. move
@@ -261,10 +278,10 @@ fast". The orchestrator writes `compiler/crates/*`; you measure it.
 - **`hd_driver/tests/checker.rs`:** update its std module count (38 to
   40) in the same commit; this answer lifts the `compiler/crates/` rule
   for that test file only.
-- **`retry_with!` and `Backoff` stay out.** `test/portable/KNOWN_FAILURES.tsv`
-  records an owner hold (batch 73): `retry-with-backoff` waits because
-  `std.task` importing `std.time` costs every program a `std.time`
-  check. My L2 brief missed it. Drop `Backoff` and `retry_with!` from
-  L2; push `Rng::from_seed` and `default()`. The orchestrator raises the
-  hold with the owner separately.
+- **`retry_with!` and `Backoff`: the owner lifted the batch-73 hold
+  (2026-10-08 evening).** Push them with L2, and delete the
+  `runtime/valid/retry-with-backoff.hd` row (finding `RETRY-WITH`) from
+  `test/portable/KNOWN_FAILURES.tsv` in the same commit. Report hello and
+  the 3,000-line bench build before and after, so the std.task to
+  std.time cost is on record.
 
