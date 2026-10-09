@@ -144,18 +144,6 @@ minimal program and the stage you suspect (Emit, runtime host).
 Write `audit/compiler/triage-wrong-runs.md`. Read only; timebox 45
 minutes.
 
-### R4. Design Note: Spreads (#122, Design Text)
-
-Same format as R3, for spreads: a data literal spread with copy-update
-(`Point { ...base, x: 1 }`, 23 programs), a spread argument (21), and a
-list or tuple spread (6). Spec: the data-literal and call chapters
-(`data.literal.*`, the spread rules in 05/07/08). Say which TIR node each
-lowers to, the evaluation order (spec rules), and the emitted code
-(field copies, a list builder of known size). Add it to
-`future-work/compiler/checking-and-tir.md` (lowering) and `codegen.md`
-(emission); this job lifts the rule for those two files. Timebox 45
-minutes.
-
 ### R5. Triage Invalid Programs The Compiler Accepts (Research)
 
 `fail:no-diagnostic` (about 260): a fixture expects an error and the
@@ -269,3 +257,22 @@ fast". The orchestrator writes `compiler/crates/*`; you measure it.
    routing `PathExpr` through it with expected-type instantiation
    (`fn.type.generic.*`) is a Check change the adapter task depends on.
    Recommend queuing it before or with the Emit adapter work.
+
+### Q-R4: two spread semantics edges (R4, 2026-10-09)
+
+1. **Copy-update reads happen at construction (recommended).** The
+   spread expression is evaluated first, then the explicit field
+   expressions in source order, then the new value is built — so a
+   field copy reads the source as it is after the explicit expressions
+   ran. If an explicit expression mutates the source through another
+   reference, the copy sees the mutated field. The alternative
+   (snapshot every field when the spread is evaluated) costs a full
+   copy even when a later explicit expression overwrites, and the spec
+   pins only the evaluation order, not the read time. Recommend
+   construction-time reads.
+2. **A spread vararg is passed through, not copied (recommended).**
+   `f(xs...)` at a vararg fills it with the `xs` value itself, so the
+   callee observes the caller's list (separate arguments still collect
+   a fresh list). The alternative (copy on spread) makes the two forms
+   indistinguishable but costs a copy the table's "as its collected
+   value" does not ask for. Recommend pass-through.

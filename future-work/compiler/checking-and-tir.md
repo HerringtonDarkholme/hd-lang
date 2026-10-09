@@ -580,7 +580,7 @@ it (§14.2).
 | `NewData` | b: `[field values]` in declaration order | the data type in `ty` |
 | `CopyData` | a: source, b: `[(field, value)]` replacements | the source's type. Copy-update literals and part copies; every part not replaced is copied too ([`data.part.copy-update`](../../spec/lang/08-data-and-enums.md#r-data.part.copy-update)) |
 | `NewVariant` | a: variant declaration index, b: `[payload values]` | the enum type in `ty` |
-| `NewTuple` | b: `[elements]` | the tuple type |
+| `NewTuple` | b: `[elements]`, a: rest-list operand or `NONE` (tuple spread) | the tuple type; with a rest operand, its rest element |
 | `NewList` | b: `[elements, spread bits]` | `List[T]` |
 | `NewMap` | b: `[key, value pairs]` | `Map[K, V]` |
 | `Field` | a: base, b: field index (parts included) | the field's type, with the base's access |
@@ -657,6 +657,12 @@ ordinary data word is a run ID.
 | `x[i]`, `x[i] = v` | `Call` of the resolved index or set method |
 | `x += y`, and the other compound assignments | the place's operands evaluated once (their `Ref`s used twice), `Prim` or a trait `Call`, then `LocalSet`, `FieldSet` or a set `Call` |
 | `x.E ...= e` | `CopyData`, then `FieldSet` |
+| `T { ...base, f: e, ... }` | `base` evaluated first, then the explicit field expressions in source order, then `CopyData(base, [(f, e), ...])` (copy-update; one spread max, first) |
+| `[a, xs..., b]` | `NewList` with the spread bits marking `xs`; each operand evaluated once, in element order |
+| `(a, xs...)` | `NewTuple` with fixed elements `[a]` and `a` = the `xs` operand (which must be a `List[T]`) |
+| `f(xs...)` at a vararg | the `xs` value itself as the vararg's collected value |
+| `f(a, b, xs...)` after a tuple vararg's arguments | `a`, `b` as ordinary arguments, `xs` as the rest-element list |
+| `f(xs...)` before fixed parameters | `xs` evaluated once into a temp, then ordinary arguments: `TupleGet`s for the fixed inputs, the rest list for a `List[T]` vararg |
 | `[for x in xs if c => e]`, map comprehensions | a `Block`: an empty `NewList` or `NewMap`, a loop, a push `Call` |
 | `e?` | `SwitchTag` on the `Result` or `Option`; the failing leaf converts the error with the resolved `From` call and `Return`s |
 | `while c: body` | `Loop` whose body is `If c then body else Break` |
