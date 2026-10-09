@@ -678,6 +678,60 @@ have a linear path. The rope above is revisited in phase 3 ("make it
 wonderful") with measurements: hello-world size, and real programs
 against the builder-vs-`+` benchmark.
 
+### Single-Pass `join`: The `concat_all` Intrinsic (Proposal, Not Accepted)
+
+`join` joins by halves (O(n log n) byte copies) because hd cannot write
+the single-pass version: measuring the total needs `bytes_len` per
+part (fine), but allocating a string of a computed length and filling
+it byte by byte needs a byte buffer, and hd has none — the primitives
+table says exactly this of `bytes_concat`
+([Standard Library Primitives](../../spec/std/README.md#standard-library-primitives)).
+`List[u8]` plus `string_from_bytes` does not close it: without a
+reserve operation every push may grow and copy, and the growth policy
+is representation, not library code. So single-pass needs one new
+primitive. Candidates:
+
+| | A1: `concat_all` over a list | A2: `join` with the separator built in | B: alloc + copy + finish trio |
+| --- | --- | --- | --- |
+| hd declaration | `@intrinsic("string_concat_all")` `fn concat_all(parts: List[string]) -> string: panic("intrinsic")` | `@intrinsic("string_join")` `fn join_parts(parts: List[string], sep: string) -> string: panic("intrinsic")` | a buffer type plus three functions, e.g. `StringBuf`, `buf_copy`, `buf_finish` |
+| `join` on top | interleave the separator into a `2n-1` list, one call | one call | fill a buffer part by part, finish once |
+| `StringBuilder.build` on top | `concat_all(self.parts)` — no intermediate at all | `join_parts(self.parts, "")` | same buffer loop with `""` never copied |
+| Wasm the emitter produces | `array.new` of the measured total, then one `array.copy` per part at a running offset; the S2 span covers the whole array | same, separators copied inline between parts | same, split across three calls with the buffer (length + fill cursor) on the heap |
+| allocations | 1 string; plus one `2n-1` pointer list for `join` with a separator | 1 string; none | 1 string + 1 buffer object |
+| copies per byte | exactly 1, plus one O(1) length read per part | exactly 1 | exactly 1 |
+| new visible names | one private function | one private function with join semantics baked in | a public-ish buffer type and three functions |
+| spec naming | one row in the Representation primitives table (needs the owner's approval, as the table requires) | same, but the row bakes in separator semantics | three rows plus the buffer type |
+
+The hd code on top of A1:
+
+```text
+pub fn join(parts: List[string], separator: string) -> string:
+    if parts.len() == 0:
+        return ""
+    let flat: mut List[string] = []
+    flat.push(parts[0])
+    let i: usize = 1
+    while i < parts.len():
+        flat.push(separator)
+        flat.push(parts[i])
+        i = i + 1
+    concat_all(flat)
+```
+
+No UTF-8 validation is needed anywhere in this path: parts and
+separator are valid by construction, and concatenation preserves
+validity (`types.string.concat-bytes`). Empty parts and an empty
+separator fall out of the same code (an empty part copies zero bytes).
+
+**Recommendation (medium; owner decision).** A1. One private function,
+no new types, reusable for both `join` and `build`; the interleaved
+list is pointer pushes, one pass, freed with the call. A2 saves that
+list at the cost of baking separator semantics into the runtime; B
+exposes a whole buffer protocol for the same bytes. If the owner
+approves the primitive row, `StringBuilder` goes O(n) with no other
+change, and the 40k-append benchmark should read ~320 KB copied once
+instead of ~6.4 GB.
+
 ## 7. Collections
 
 ### 7.1 `List[T]`

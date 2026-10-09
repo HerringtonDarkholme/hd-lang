@@ -102,23 +102,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Y2. Proposal: The Intrinsic A Single-Pass `join` Needs (#112)
-
-Owner decision: string appends get a builder now, a rope in phase 3.
-`lib/std/text.hd` `join` is O(n log n) by halves, and `StringBuilder`
-stores parts and calls `join`. Single-pass needs one primitive that
-hd cannot write today. Propose the smallest one, with its signature as
-a plain hd declaration (only the body is special; see
-`@intrinsic("bytes_len")` in `text.hd`), e.g. a total-length
-allocation plus a byte copy, or one `concat` over a list. For each
-candidate: the hd code of `join` and `StringBuilder.build` on top of
-it, the Wasm the emitter would produce (GC arrays, `array.copy`), its
-cost (allocations, copies per byte), and what the spec must name
-(intrinsics are spec-named). Recommend one. Add it as a section to
-`future-work/compiler/representation-runtime.md` beside the owner's
-decision. Research only: no lib, spec or compiler edits. One commit;
-push. Timebox 40 minutes.
-
 ### Y3. Design Note: Derived Newtype Methods In Codegen (#117)
 
 `@derive` on a newtype now has an implementation head, and no method
