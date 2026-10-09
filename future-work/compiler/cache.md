@@ -97,6 +97,18 @@ iface_key(F)  = H("iface", toolchain_key, package key, folder path,
 check_key(m)  = H("check", toolchain_key, package key, module path, role, source_hash(m),
                   sorted [(folder path, deep_hash) for each folder in closure(m)])
 
+> **As built (O23, 2026-10-09).** `check_key(m)` hashes the module's
+> token hash (`HeaderSkeleton::token_hash`: each code line from its first
+> to its last token, plus `##` comment lines; plain comments, blank lines
+> and trailing whitespace left out) in place of `source_hash(m)`, and the
+> entry stores positions as (code line, offset), so diagnostics follow an
+> edit that shifts lines. Because a comment can still change the parse
+> (a comment between a `##` block and its item detaches it), a `check` hit
+> also needs an empty `parse` entry, `parse_key = H("parse", toolchain_key,
+> source_hash(m))`, whose presence says the bytes parse cleanly; on its
+> miss the file is parsed. A comment edit therefore costs the skim and one
+> parse of the edited file.
+
 hdr_key(F)    = H("hdr", toolchain_key, package key, folder path F,
                   own deep_hash, sorted [(folder path, deep_hash) for each folder in closure(F)])
 
