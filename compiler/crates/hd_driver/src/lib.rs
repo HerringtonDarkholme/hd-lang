@@ -1068,6 +1068,19 @@ impl Run<'_> {
                 }
             }
         }
+        // Test code has the prelude's `std.testing` row
+        // (`module.prelude.test-only`), and its test cases run bodies of
+        // `std.testing` (`case_timeout` for a `timeout`), so that folder
+        // joins its closure; std's own test code makes no such edge.
+        let test_code = self.table.modules[m].role == hd_project::Role::Test
+            || sk.bodies.iter().any(|b| b.kind == HeaderKind::Tests);
+        let testing_elsewhere = self
+            .table
+            .module_of_use("std.testing")
+            .is_some_and(|t| self.table.modules[t.idx()].package != package);
+        if test_code && testing_elsewhere {
+            uses.push("std.testing".to_owned());
+        }
         // The prelude's fixed uses (`module.prelude.fixed-uses`).
         if module != "std.core" {
             uses.extend(hd_resolve::prelude_modules().into_iter().map(str::to_owned));

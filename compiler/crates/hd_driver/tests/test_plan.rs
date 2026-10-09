@@ -21,7 +21,7 @@ tests:
         assert(false, reason=\"never runs\")
 
     it(\"times out\", timeout=.None):
-        assert(true, reason=\"phase 2\")
+        assert(true, reason=\"no limit\")
 ";
 
 const TEXT: &str = "\
@@ -77,15 +77,13 @@ fn lists_cases_in_content_order_with_their_exports() {
         [
             ("app.math", "adds", 6, Some((0, 0))),
             ("app.math", "skips", 9, None),
-            ("app.math", "times out", 12, None),
-            ("app.text", "compares", 4, Some((1, 1))),
+            ("app.math", "times out", 12, Some((1, 0))),
+            ("app.text", "compares", 4, Some((2, 1))),
         ]
     );
     assert_eq!(out.tests[1].ignore.as_deref(), Some("slow"));
-    assert_eq!(
-        out.tests[2].unsupported.as_deref(),
-        Some("the `timeout` option")
-    );
+    // A `timeout` runs: the runner checks it (`std-testing.runner.timeout`).
+    assert_eq!(out.tests[2].unsupported, None);
     assert!(out.wasm.is_some());
 }
 

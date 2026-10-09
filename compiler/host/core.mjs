@@ -60,6 +60,15 @@ export class EndCase extends Error {}
 // A host result that breaks the ABI: the `host-contract` panic.
 class HostContract extends Error {}
 
+// A test body that ran longer than its `timeout`: the `time-limit` panic
+// (std-testing.option.timeout-any-duration, flow.panic.time-limit).
+class TimeLimit extends Error {}
+
+// The panic report of a body that overran its timeout of `ms`
+// milliseconds.
+export const timeLimitReport = (ms) =>
+  `panic: time-limit: the test case ran longer than its timeout of ${ms}ms\n`;
+
 // A path with `..` and `.` resolved and symbolic links followed as far as
 // it exists, so no path escapes a granted directory
 // (cli.cap.scope.path.resolved); `hd_run::resolve_path` on the Rust side.
@@ -328,6 +337,15 @@ export function createHost(sink, env = {}) {
   const out = [];
   let memory = null;
   let reported = false;
+  // The case's timeout, which `TestRunner.report_timeout` reports before
+  // the body runs (std-testing.runner.timeout): its length, and the
+  // `performance.now()` time by which the body must end.
+  let timeoutMs = null;
+  let deadline = null;
+  const overran = () => deadline !== null && performance.now() > deadline;
+  // Waits at most until `d`, and never past the timeout: a pending host
+  // wait is cut at the deadline (runtime-and-host.md §17.8).
+  const until = (d) => (deadline === null ? d : Math.min(d, deadline));
   const view = (len) => new Uint8Array(memory.buffer, 0, len);
   // A copy of the argument bytes, which a result may overwrite.
   const argsOf = (len) => new Dec(Uint8Array.from(view(len)));
@@ -494,7 +512,8 @@ export function createHost(sink, env = {}) {
           if (n) return n;
           const d = nextDeadline();
           if (d === null) deadlock();
-          Atomics.wait(sleeper, 0, 0, Math.max(0, d - performance.now()));
+          Atomics.wait(sleeper, 0, 0, Math.max(0, until(d) - performance.now()));
+          if (overran()) throw new TimeLimit();
         }
       },
       abort: (h) => {
@@ -650,7 +669,14 @@ export function createHost(sink, env = {}) {
       // The test runner (`env.runner`, test.mjs) picks the row an `it_each`
       // case runs; without one, row 0. Timeouts run under no limit here.
       row: (count) => (env.runner ? env.runner.row(count) : 0),
-      report_timeout: () => {},
+      // The runner fails a body that runs longer than its timeout: here at
+      // the end of the run or of a wait, and in test.mjs by stopping an
+      // instance that never returns.
+      report_timeout: (millis) => {
+        timeoutMs = Number(millis);
+        deadline = performance.now() + timeoutMs;
+        env.runner?.timeout?.(timeoutMs);
+      },
       snapshot_check: (len) => put(new Enc().str(snapshotCheck(text(len)))),
       temp_dir: () => put(new Enc().str(tempDir())),
     },
@@ -689,7 +715,8 @@ export function createHost(sink, env = {}) {
         if (n === 0) {
           const d = nextDeadline();
           if (d === null) deadlock();
-          await new Promise((r) => setTimeout(r, Math.max(0, d - performance.now())));
+          await new Promise((r) => setTimeout(r, Math.max(0, until(d) - performance.now())));
+          if (overran()) throw new TimeLimit();
           continue;
         }
         ex["hd.wake"](n);
@@ -703,6 +730,8 @@ export function createHost(sink, env = {}) {
       if (e instanceof HostContract) {
         sink.err(`panic: host-contract: ${e.message}\n`);
         reported = true;
+      } else if (e instanceof TimeLimit) {
+        reported = true;
       } else if (!(e instanceof WebAssembly.RuntimeError) && !(e instanceof Deadlock)) {
         throw e;
       }
@@ -712,6 +741,13 @@ export function createHost(sink, env = {}) {
       trapped = true;
     }
     flush();
+    // A body that ended after its deadline ran longer than its timeout,
+    // whatever it did after the deadline.
+    if (overran()) {
+      sink.err(timeLimitReport(timeoutMs));
+      status = 3;
+      trapped = true;
+    }
     return { status, trapped, ended };
   };
 

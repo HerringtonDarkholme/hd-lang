@@ -363,6 +363,17 @@ the variant index and the path.
 The flag names are open question 4; answer 11 settled the categories but
 not the flags.
 
+**As built (task #222), test timeouts on Node.** A test case's `timeout`
+is evaluated first in its instance and reported with
+`TestRunner.report_timeout`
+([`std-testing.runner.timeout`](../../spec/std/testing.md#r-std-testing.runner.timeout)).
+The JS host fails a body that ends after its deadline, and cuts a host
+wait (`block`, the driver's wait) at the deadline, with `time-limit`. V8
+cannot interrupt a Wasm loop from its own thread, so `host/test.mjs` runs
+the cases in a worker thread: its main thread stops a worker whose body
+is still running 50 ms past the deadline, reports that run as a
+`time-limit` panic, and starts a new worker at the next row or case.
+
 ### 17.9 The Embedding API
 
 The CLI is a host on this API (a Day 1 decision); the test runner and

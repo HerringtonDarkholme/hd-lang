@@ -1106,6 +1106,16 @@ impl Ck<'_, '_> {
                         TyData::Fn { result, .. } => self.norm_ty(result),
                         _ => Ty::VOID,
                     };
+                    // A `timeout` is evaluated and reported before the body
+                    // runs (`std-testing.option.timeout-at-run`).
+                    if args.named.iter().any(|(name, _)| name == "timeout")
+                        && let Some(r) = params
+                            .iter()
+                            .position(|p| self.cx.names.text(p.0) == "timeout")
+                            .and_then(|i| refs.get(i))
+                    {
+                        self.report_timeout(*r, n);
+                    }
                     let c = Callee::Item {
                         def: body_fn,
                         targs: pool.list(&vars),
@@ -2961,6 +2971,32 @@ impl Ck<'_, '_> {
     /// (`expr.try.test.with-try`, `expr.try.test.without-try`). The body
     /// is the final parameter, given by name, as a trailing block or last
     /// in position.
+    /// Reports a test case's `timeout`, a `Duration?` value, to the
+    /// runner: std's `case_timeout` when it holds a duration
+    /// (`std-testing.runner.timeout`), nothing for `.None`.
+    pub(crate) fn report_timeout(&mut self, timeout: Ref, n: NodeRef<'_>) {
+        let pool = self.pool();
+        let duration = match pool.get(crate::tests::timeout_ty(self.cx)) {
+            TyData::Option(inner) => inner,
+            _ => Ty::POISON,
+        };
+        let some = self.b.open_block();
+        let d = self
+            .b
+            .emit(Tag::Unwrap, timeout.0, NONE, duration, n.index());
+        let c = Callee::Item {
+            def: self.cx.names.item("std.testing", "case_timeout"),
+            targs: TyList::EMPTY,
+        };
+        self.b.call(&c, &[d], Providers::None, Ty::VOID, n.index());
+        let some = self.b.close_block(some, None, Ty::VOID, n.index());
+        let none = self.b.open_block();
+        let none = self.b.close_block(none, None, Ty::VOID, n.index());
+        let rec = self.b.refs_record(&[Ref(1), some, none]);
+        self.b
+            .emit(Tag::SwitchTag, timeout.0, rec, Ty::VOID, n.index());
+    }
+
     fn registration_body_result(
         &mut self,
         params: &[(Symbol, Ty)],

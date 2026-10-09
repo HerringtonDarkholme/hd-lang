@@ -326,3 +326,83 @@ fn the_test_runner_runs_a_task_by_name() {
     );
     assert_eq!(out.status.code(), Some(1), "{stdout}");
 }
+
+const TIMEOUT_TESTS: &str = "use std.time.{Duration, ms, h}
+
+fn budget() -> Duration: 1h
+
+fn forever(stop: i32) -> i32:
+    let total: i32 = 0
+    while total != stop:
+        total = (total + 1) % 1000
+    total
+
+tests:
+    use std.testing.{assert, it_each}
+
+    it(\"spins\", timeout=100ms):
+        _ := forever(-1)
+
+    it_each(\"rows\", [1, -1, 2], timeout=100ms, body=fn!(value: i32):
+        assert(forever(value) == value, reason=\"ends\")
+    )
+
+    it(\"within its budget\", timeout=budget()):
+        assert(forever(7) == 7, reason=\"ends\")
+
+    it(\"no limit\", timeout=.None):
+        assert(true, reason=\"runs\")
+";
+
+/// `TestRunner.report_timeout` (`std-testing.option.timeout-any-duration`,
+/// `.timeout-at-run`, `std-testing.runner.timeout`): a body that never
+/// returns fails with `time-limit` once past its timeout, a table's other
+/// rows and the later cases still run, and a timeout from a call or
+/// `.None` limits nothing.
+#[test]
+fn the_test_runner_fails_a_body_past_its_timeout() {
+    let dir = work("host-test-timeout");
+    write(&dir.join("timed.hd"), TIMEOUT_TESTS);
+    let out = run(&dir, &["test", "timed.hd"]);
+    assert_eq!(
+        text(&out.stdout),
+        "PANIC timed.hd:14: spins\n    \
+         panic: time-limit: the test case ran longer than its timeout of 100ms\n    \
+         repro: hd test timed.hd --filter \"spins\"\n\
+         PANIC timed.hd:17: rows[1]\n    \
+         panic: time-limit: the test case ran longer than its timeout of 100ms\n    \
+         repro: hd test timed.hd --filter \"rows[1]\"\n\
+         test result: FAILED. 4 passed; 2 failed; 0 ignored\n"
+    );
+    assert_eq!(out.status.code(), Some(1));
+}
+
+/// A host wait is cut at the timeout (runtime-and-host.md §17.8): an
+/// integration test that sleeps past its timeout fails with `time-limit`,
+/// with the output it wrote before, while one within it passes.
+#[test]
+fn a_sleep_past_the_timeout_fails_the_case() {
+    let dir = work("host-test-sleep");
+    write(&dir.join("hd.toml"), "[package]\nname = \"naps\"\n");
+    write(&dir.join("src/lib.hd"), "pub fn naps() -> i32:\n    2\n");
+    write(
+        &dir.join("tests/naps.hd"),
+        "use std.time.{ms, s, sleep}\n\nit(\"oversleeps\", timeout=50ms):\n    \
+         println(\"falling asleep\")\n    sleep!(10s)\n\n\
+         it(\"naps\", timeout=10s):\n    sleep!(1ms)\n",
+    );
+    let out = run(&dir, &["test", "--format", "json"]);
+    let stdout = text(&out.stdout);
+    assert!(
+        stdout.contains(
+            r#"{"kind":"test","name":"oversleeps","outcome":"failed","message":"panic: time-limit: the test case ran longer than its timeout of 50ms""#
+        ),
+        "{stdout}{}",
+        text(&out.stderr)
+    );
+    assert!(
+        stdout.contains(r#"{"kind":"test","name":"naps","outcome":"passed""#),
+        "{stdout}"
+    );
+    assert_eq!(out.status.code(), Some(1), "{stdout}");
+}

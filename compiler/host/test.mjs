@@ -32,6 +32,14 @@
 // `tempDir` for the first, a numbered directory inside it for each later
 // one, removed once that run ends (std-testing.temp-dir.per-run).
 //
+// A case's `timeout` (`TestRunner.report_timeout`, std-testing.runner.timeout)
+// fails a body that runs longer: the host checks it at the end of the run
+// and cuts a wait at it, and since a Wasm loop never returns to the host,
+// the cases run in a worker thread that this file's main thread
+// supervises. When a body is still running a little past its deadline,
+// the supervisor stops the worker, reports the run as a `time-limit`
+// panic, and starts a new worker at the next row or case.
+//
 // One JSON line per result goes to standard output: its case's `test`
 // index, then `status`, `trapped`, its captured output and its time. A row
 // line also has `row` and `rows`; an empty table is one line with
@@ -39,9 +47,15 @@
 // as `input` when it fails.
 import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync, writeSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { createHost, EndCase } from "./core.mjs";
+import { isMainThread, parentPort, Worker, workerData } from "node:worker_threads";
+import { createHost, EndCase, timeLimitReport } from "./core.mjs";
 
-const module = await WebAssembly.compile(readFileSync(process.argv[2]));
+// How long past a deadline the supervisor waits for a body to end on its
+// own before it stops the worker.
+const GRACE_MS = 50;
+
+// The wall clock, comparable across threads.
+const now = () => performance.timeOrigin + performance.now();
 // Without a configuration file, `argv[3]` lists the cases alone, as
 // `test:init:kind` (export indices and the registration function)
 // separated by commas, which run with no arguments, no temporary
@@ -57,8 +71,79 @@ const plain = (list) => ({
       return { test: Number(test), init: Number(init), kind: kind ?? "it", tempDir: null, seed: null, grants: {} };
     }),
 });
-const spec = process.argv[3] ?? "";
-const config = spec.endsWith(".json") ? JSON.parse(readFileSync(spec, "utf8")) : plain(spec);
+function configOf(spec) {
+  return spec.endsWith(".json") ? JSON.parse(readFileSync(spec, "utf8")) : plain(spec);
+}
+
+// Runs the cases in a worker from `start` (a case index, and for a table
+// resumed after a stopped row, its next row and its row count), restarting
+// it after each run it stops for overrunning its timeout.
+async function supervise(module, config) {
+  let start = { case: 0, row: 0, rows: 0 };
+  while (start.case < config.cases.length) {
+    start = await new Promise((next, fail) => {
+      const worker = new Worker(new URL(import.meta.url), { workerData: { module, config, start } });
+      // What the worker runs: its case, the row of a table and its count,
+      // and the current run's timeout.
+      let at = { ci: start.case, row: start.row > 0 ? start.row : null, rows: start.rows || null };
+      let timer = null;
+      let stopped = false;
+      const clear = () => {
+        if (timer !== null) clearTimeout(timer);
+        timer = null;
+      };
+      const stop = (ms) => {
+        stopped = true;
+        worker.terminate();
+        const c = config.cases[at.ci];
+        const line = {
+          test: c.test,
+          status: 3,
+          trapped: true,
+          stdout: "",
+          stderr: timeLimitReport(ms),
+          us: Math.round((ms + GRACE_MS) * 1000),
+        };
+        if (at.row !== null && at.rows !== null) {
+          writeSync(1, JSON.stringify({ test: c.test, row: at.row, rows: at.rows, ...line }) + "\n");
+          next(at.row + 1 < at.rows ? { case: at.ci, row: at.row + 1, rows: at.rows } : { case: at.ci + 1, row: 0, rows: 0 });
+        } else {
+          writeSync(1, JSON.stringify(line) + "\n");
+          next({ case: at.ci + 1, row: 0, rows: 0 });
+        }
+      };
+      worker.on("message", (m) => {
+        if (stopped) return;
+        if (m.type === "line") {
+          writeSync(1, m.text);
+        } else if (m.type === "case") {
+          clear();
+          at = { ci: m.ci, row: null, rows: null };
+        } else if (m.type === "rows") {
+          at.rows = m.rows;
+          if (at.row === null) at.row = 0;
+        } else if (m.type === "row") {
+          clear();
+          at.row = m.row;
+        } else if (m.type === "deadline") {
+          clear();
+          timer = setTimeout(() => stop(m.ms), Math.max(0, m.at - now()) + GRACE_MS);
+        } else if (m.type === "done") {
+          clear();
+        }
+      });
+      worker.on("error", fail);
+      worker.on("exit", () => {
+        clear();
+        if (!stopped) next({ case: config.cases.length, row: 0, rows: 0 });
+      });
+    });
+  }
+}
+
+// The worker's compiled module and configuration.
+let module = null;
+let config = null;
 
 // The message of the discard panic (std-testing.runner.discard-panic).
 const DISCARD = "std.testing: case discarded";
@@ -93,13 +178,14 @@ async function runOnce(c, k, runner) {
   const t0 = performance.now();
   const instance = await WebAssembly.instantiate(module, host.imports);
   const { status, trapped, ended } = await host.run(instance, `hd.init.${c.init}`, `hd.test.${c.test}`);
+  parentPort.postMessage({ type: "done" });
   host.close();
   if (dir) rmSync(dir, { recursive: true, force: true });
   const us = Math.round((performance.now() - t0) * 1000);
   return { status, trapped, ended, stdout, stderr, us };
 }
 
-const emit = (line) => writeSync(1, JSON.stringify(line) + "\n");
+const emit = (line) => parentPort.postMessage({ type: "line", text: JSON.stringify(line) + "\n" });
 
 const result = (c, r, extra = {}) => ({
   test: c.test,
@@ -139,9 +225,12 @@ class Case {
         if (this.kind === null && this.c.kind === "it_each") {
           this.kind = "rows";
           this.rows = count;
+          parentPort.postMessage({ type: "rows", rows: count });
         }
         return this.row;
       },
+      // The supervisor stops a run still going a little past this.
+      timeout: (ms) => parentPort.postMessage({ type: "deadline", at: now() + ms, ms }),
       slugSuffix: () => (this.kind === "rows" ? `.${this.row}` : ""),
       start: (cases, shrink, examples) => {
         if (this.kind === null) {
@@ -359,25 +448,50 @@ async function runProperty(c, ctl, first, firstResult) {
   emit(result(c, { ...firstResult, status: 0, trapped: false, us: total }));
 }
 
-for (const c of config.cases) {
-  const ctl = new Case(c);
-  const first = new Run();
-  const r = await runOnce(c, 0, ctl.hooks(first));
-  if (ctl.kind === "rows") {
+// Runs the cases from `start` and reports each result.
+async function runCases(m, cfg, start) {
+  module = m;
+  config = cfg;
+  for (let ci = start.case; ci < config.cases.length; ci++) {
+    const c = config.cases[ci];
+    parentPort.postMessage({ type: "case", ci });
+    const ctl = new Case(c);
     // Every row runs; one failing row hides no other.
-    const rows = ctl.rows;
-    if (rows === 0) {
-      emit({ test: c.test, row: 0, rows: 0 });
+    const rowsFrom = async (from, rows) => {
+      for (let row = from; row < rows; row++) {
+        ctl.row = row;
+        parentPort.postMessage({ type: "row", row });
+        emit(result(c, await runOnce(c, row, ctl.hooks(new Run())), { row, rows }));
+      }
+    };
+    // A table resumed after a row its supervisor stopped.
+    if (ci === start.case && start.row > 0) {
+      ctl.kind = "rows";
+      ctl.rows = start.rows;
+      await rowsFrom(start.row, start.rows);
       continue;
     }
-    emit(result(c, r, { row: 0, rows }));
-    for (let row = 1; row < rows; row++) {
-      ctl.row = row;
-      emit(result(c, await runOnce(c, row, ctl.hooks(new Run())), { row, rows }));
+    const first = new Run();
+    const r = await runOnce(c, 0, ctl.hooks(first));
+    if (ctl.kind === "rows") {
+      const rows = ctl.rows;
+      if (rows === 0) {
+        emit({ test: c.test, row: 0, rows: 0 });
+        continue;
+      }
+      emit(result(c, r, { row: 0, rows }));
+      await rowsFrom(1, rows);
+    } else if (ctl.kind === "prop") {
+      await runProperty(c, ctl, first, r);
+    } else {
+      emit(result(c, r));
     }
-  } else if (ctl.kind === "prop") {
-    await runProperty(c, ctl, first, r);
-  } else {
-    emit(result(c, r));
   }
+}
+
+if (isMainThread) {
+  const compiled = await WebAssembly.compile(readFileSync(process.argv[2]));
+  await supervise(compiled, configOf(process.argv[3] ?? ""));
+} else {
+  await runCases(workerData.module, workerData.config, workerData.start);
 }

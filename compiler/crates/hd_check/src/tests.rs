@@ -55,7 +55,7 @@ pub struct TestReg {
     pub body: Option<String>,
     pub ignore: Option<String>,
     pub expect_panic: Option<String>,
-    /// Why this case cannot run yet (property tests, timeouts: phase 2).
+    /// Why this case cannot run yet (a body that uses `?`, an explicit closure).
     pub unsupported: Option<String>,
     /// The registration's byte offset in its file.
     pub at: u32,
@@ -171,6 +171,7 @@ pub fn check_tests(
             .find(|c| c.kind() == SyntaxKind::ArgumentList);
         let mut positional = Vec::new();
         let mut body_arg = None;
+        let mut timeout = None;
         for a in args.iter().flat_map(|l| l.children()) {
             match a.kind() {
                 SyntaxKind::Argument => positional.extend(a.children().next()),
@@ -198,9 +199,7 @@ pub fn check_tests(
                                 diags.error(Code::UnknownPanicCategory, src.span(e), &msg);
                             }
                         }
-                        "timeout" => {
-                            reg.unsupported = Some("the `timeout` option".into());
-                        }
+                        "timeout" => timeout = Some(e),
                         "body" => body_arg = Some(e),
                         "prop" if kind != "it" => body_arg = Some(e),
                         other if kind == "it" => {
@@ -262,6 +261,7 @@ pub fn check_tests(
                     expr: e,
                     kind: &kind,
                     tries,
+                    timed: timeout.is_some(),
                 };
                 let (body, item) = check_registration(cx, module, &call, profile, diags)?;
                 out.bodies.push(body);
@@ -281,7 +281,12 @@ pub fn check_tests(
             && let Some(block) = block
         {
             let name = format!("$test{}", out.regs.len());
-            let (body, item) = check_case(cx, module, &name, block, profile, diags)?;
+            let case = ItCase {
+                name: &name,
+                block,
+                timeout,
+            };
+            let (body, item) = check_case(cx, module, &case, profile, diags)?;
             out.bodies.push(body);
             out.items.push(item);
             // A `?` makes the result `Result[void, dyn Error]`, and a
@@ -298,18 +303,34 @@ pub fn check_tests(
     Ok(out)
 }
 
+/// An `it` call whose test case is checked: the case's item name, its
+/// body block, and its `timeout` argument, if it has one.
+#[derive(Clone, Copy)]
+struct ItCase<'t> {
+    name: &'t str,
+    block: NodeRef<'t>,
+    timeout: Option<NodeRef<'t>>,
+}
+
 /// One `it` body: a suspending function item with no parameters, whose
 /// result is `void`, or `Result[void, dyn Error]` when it uses `?`
 /// (`expr.try.test.with-try`), and whose row is the keys of `profile`
-/// that its body uses, which the runner binds for it.
+/// that its body uses, which the runner binds for it. A `timeout`
+/// argument is evaluated first, in the case's instance, and reported to
+/// the runner (`std-testing.option.timeout-at-run`), so the row also
+/// holds `TestRunner`.
 fn check_case(
     cx: &BodyCx<'_>,
     module: &str,
-    name: &str,
-    block: NodeRef<'_>,
+    case: &ItCase<'_>,
     profile: RowId,
     diags: &mut DiagBuf,
 ) -> StageResult<(Body, Item)> {
+    let ItCase {
+        name,
+        block,
+        timeout,
+    } = *case;
     let pool = cx.names.pool;
     let def: DefId = cx.names.item(module, name);
     let ret = case_result(cx, has_try(block));
@@ -331,10 +352,23 @@ fn check_case(
         used: RowData::default(),
     }];
     let blk = ck.b.open_block();
+    if let Some(e) = timeout {
+        ck.move_to(cx.src.span(e).lo);
+        let want = timeout_ty(cx);
+        let (r, t) = ck.expr(e, Some(want))?;
+        let r = ck.coerce(r, t, want, e, "argument");
+        ck.report_timeout(r, e);
+    }
     let (tail, _) = ck.block_value(block, Some(ret))?;
     let root = ck.b.close_block(blk, tail, ret, block.index());
     let row = match ck.rows.first() {
-        Some(RowFrame::Profile { used, .. }) => pool.row(used),
+        Some(RowFrame::Profile { used, .. }) => {
+            let mut used = used.clone();
+            if timeout.is_some() {
+                add_key(cx, &mut used, cx.names.known.test_runner);
+            }
+            pool.row(&used)
+        }
         _ => RowId::EMPTY,
     };
     let body = ck.finish_body(root)?;
@@ -398,14 +432,38 @@ fn row_base(name: &str) -> Option<&str> {
 }
 
 /// A registration call whose test case is checked: the case's item name,
-/// the call expression, the registration function's name, and whether its
-/// body closure uses `?`.
+/// the call expression, the registration function's name, whether its
+/// body closure uses `?`, and whether it has a `timeout` argument.
 #[derive(Clone, Copy)]
 struct RegCall<'t> {
     name: &'t str,
     expr: NodeRef<'t>,
     kind: &'t str,
     tries: bool,
+    timed: bool,
+}
+
+/// The type of a registration's `timeout` option, `std.time.Duration?`
+/// (`std-testing.option.timeout-any-duration`).
+pub(crate) fn timeout_ty(cx: &BodyCx<'_>) -> Ty {
+    let pool = cx.names.pool;
+    let duration = pool.intern_ty(&TyData::Adt {
+        def: cx.names.item("std.time", "Duration"),
+        args: TyList::EMPTY,
+    });
+    pool.intern_ty(&TyData::Option(duration))
+}
+
+/// Adds the runner capability `runner` to a case's row.
+fn add_key(cx: &BodyCx<'_>, used: &mut RowData, runner: DefId) {
+    let key = cx.names.pool.intern_ty(&TyData::TraitValue {
+        def: runner,
+        args: TyList::EMPTY,
+        bindings: vec![],
+    });
+    if !used.keys.contains(&key) {
+        used.keys.push(key);
+    }
 }
 
 /// The test case of an `it_each`, `it_prop` or `it_prop_with` call: a
@@ -430,6 +488,7 @@ fn check_registration(
         expr: e,
         kind,
         tries,
+        timed,
     } = *call;
     let pool = cx.names.pool;
     let def: DefId = cx.names.item(module, name);
@@ -470,13 +529,10 @@ fn check_registration(
     } else {
         known.property_runner
     };
-    let key = pool.intern_ty(&TyData::TraitValue {
-        def: runner,
-        args: TyList::EMPTY,
-        bindings: vec![],
-    });
-    if !used.keys.contains(&key) {
-        used.keys.push(key);
+    add_key(cx, &mut used, runner);
+    // A `timeout` is reported through `TestRunner` (`case_timeout`).
+    if timed {
+        add_key(cx, &mut used, known.test_runner);
     }
     let row = pool.row(&used);
     let body = ck.finish_body(root)?;
