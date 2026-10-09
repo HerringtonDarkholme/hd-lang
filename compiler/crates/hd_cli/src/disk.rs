@@ -581,9 +581,27 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
 /// The valid keys of a package's `[capabilities]` table (`cli.cap.table`);
 /// `manifest_problems` reports the others.
 fn capabilities(root: &Path) -> Result<Vec<(String, Grant)>, String> {
-    Ok(manifest_of(root)?
-        .map(|m| m.capabilities)
-        .unwrap_or_default()
+    Ok(valid_grants(
+        manifest_of(root)?
+            .map(|m| m.capabilities)
+            .unwrap_or_default(),
+    ))
+}
+
+/// The valid keys of a package's `[test.capabilities]` table, which the
+/// test grant reads instead of `[capabilities]`
+/// (`cli.test.env.grant.table`).
+pub fn test_capabilities(root: &Path) -> Result<Vec<(String, Grant)>, String> {
+    Ok(valid_grants(
+        manifest_of(root)?
+            .map(|m| m.test_capabilities)
+            .unwrap_or_default(),
+    ))
+}
+
+/// The entries of a grant table whose key and value are valid.
+fn valid_grants(table: Vec<(String, Option<Grant>, u32)>) -> Vec<(String, Grant)> {
+    table
         .into_iter()
         .filter_map(|(k, g, _)| {
             let g = g?;
@@ -591,7 +609,7 @@ fn capabilities(root: &Path) -> Result<Vec<(String, Grant)>, String> {
                 .is_none()
                 .then_some((k, g))
         })
-        .collect())
+        .collect()
 }
 
 /// Whether `dir` holds a manifest that declares a package

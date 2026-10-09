@@ -89,22 +89,6 @@ When the queue is empty, say so under "Questions" and wait.
 
 ## Jobs
 
-### O20. The Integration Test Environment (After #74)
-
-`cli.test.env.*` (working directory, temp directory and its removal,
-args, stdin, the test grant and its table), `cli.test.seed*`, `hd test
---cap` and `cli.cap.total.test`; CLI cases `test-integration-env`,
-`test-tasks`, `cap-*` test steps, and the dev-dependency run steps. If
-#74 is not on main yet, skip to the next job and come back.
-Also from #74's report: each integration test file must be built and run
-as its own program (today all cases go into one package test program);
-the host needs a default `TestRunner` provider
-(`module.testing.runner-provider`; `test-snapshot-file`,
-`snapshot-file-missing` stop at Link without it); and `test-timeout`,
-`test-report` exit 0 where 1 is expected, `test-integration-env`,
-`test-tasks` exit 101 with no message. Fix what is in your lane, name
-the rest under "Questions".
-
 ### O25. The Instantiation Depth Limit (#132; `hd_mono` Collect Lent For This Job)
 
 `hd build` of the CLI case `build-instantiation-too-deep` never ends:
@@ -341,6 +325,47 @@ after.
   ties the key to parser rules; I kept the parse. May `cache.md` §5.2
   and §5.3 (the `check_key` line, a `parse` kind row and a note) be
   updated to match, and by whom?
+- **O20 status (blockers in other lanes).** Built: `hd test` takes
+  `--cap` and `--seed N` (a whole number); each integration test program
+  and doc test gets the test grant (`[test.capabilities]` plus the flags,
+  `Grants::for_test`; `[capabilities]` no longer applies) with `FsRead`
+  over the package directory and the case's temporary directory and
+  `FsWrite` over that directory; a totally denied need stops `hd test`
+  with `denied-capability` and status 101 before any case runs
+  (`cli.cap.total.test`). Each case has a temporary directory of its own
+  below a fresh per-run root; the Node host makes it on the first
+  `tempDir()` call, `hd test` removes it when the case's result arrives
+  and the root when the program's run ends. The host now reads a
+  per-run config (`Args.program` = the case's package-relative file,
+  no arguments, each case's grant, temporary directory and base seed;
+  a property case's base seed is a hash of its name, and its repro line
+  ends with `--seed N`), and `core.mjs` has the grant's scope checks
+  (`createGrant`), so a provider only needs to call them. What still
+  stops each case:
+  `test-integration-env`: Link, no default provider for
+  `std/testing/TestRunner` (the `hd:TestRunner` `temp_dir` import and its
+  string result codec; the host's `tempDir()` is ready), `it_each`,
+  `it_prop`, `it_prop_with` missing from `lib/std` `std.testing`, and
+  `FsRead.read_text`/`list_dir`, `FsWrite.write_text`, `Args.list`/`program`
+  and `ConsoleInput.read_line` not lowered (`hd_wasm` host_slot) or with
+  empty rows (`hd_host_abi::TABLE`); their JS providers need the
+  exchange-buffer codecs of `Path`, `string?`, `List[string]`, `List[Entry]`
+  and the `FsError` results, which `runtime-and-host.md` §17.4 does not
+  give byte by byte. Who writes those codecs?
+  `test-tasks`: Link, `Process.run` has an empty row in
+  `hd_host_abi::TABLE`; after it, the test runner's `Process` provider
+  (`cli.test.process.*`, executables and tasks by name, run in the package
+  directory) is host work in this lane.
+  `test-snapshot-file`, `snapshot-file-missing`: the same `TestRunner`
+  provider at Link. `test-timeout`, `test-report`: `hd_check` marks
+  `timeout=` and explicit-closure bodies unsupported, so they exit 0.
+  Property seeds reach the host, but `hd:PropertyRunner`
+  (`start`/`record`/`show`) has no imports yet. The `cap-*` run cases keep
+  O11's blockers; also `hd run` still drops its grant at the Node engine
+  (`NodeInstance` ignores `HostSetup.grants`): may the next job pass it
+  through the same config, with the run's `Args.program`?
+  `dev-dependency-integration` and `dev-dependency-cyclic-integration`
+  pass.
 
 ### Answers (orchestrator, 2026-10-09 00:30)
 

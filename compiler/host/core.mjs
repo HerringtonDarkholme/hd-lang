@@ -18,12 +18,86 @@
 // A trap is a panic: the run's status is 3 (never 101,
 // module.profile.panic-status).
 
+import { mkdirSync, realpathSync } from "node:fs";
+import { dirname, basename, join, resolve } from "node:path";
+
 export class Deadlock extends Error {}
 
+// A path with `..` and `.` resolved and symbolic links followed as far as
+// it exists, so no path escapes a granted directory
+// (cli.cap.scope.path.resolved); `hd_run::resolve_path` on the Rust side.
+export function resolvePath(path) {
+  const rest = [];
+  let base = resolve(path);
+  for (;;) {
+    try {
+      return join(realpathSync(base), ...rest.reverse());
+    } catch {
+      const parent = dirname(base);
+      if (parent === base) return resolve(path);
+      rest.push(basename(base));
+      base = parent;
+    }
+  }
+}
+
+// A program's capability grant as `hd` resolved it (Grant Precedence):
+// each trait with a limit maps to `false`, a total deny, or the list of its
+// scope entries, whose paths are absolute and resolved; a trait it leaves
+// out has no limit. A provider asks these before it touches a resource
+// (cli.host.default-profile.granted), as `hd_run::Grants` does.
+export function createGrant(limits = {}) {
+  const limit = (key) => (Object.hasOwn(limits, key) ? limits[key] : null);
+  const check = (key, covers) => {
+    const l = limit(key);
+    return l === null ? true : l === false ? false : l.some(covers);
+  };
+  return {
+    allows: (key) => limit(key) !== false,
+    // An entry covers the file it names or every path under the directory
+    // it names (cli.cap.scope.path); a relative path is from `cwd`.
+    coversPath: (key, path, cwd = process.cwd()) => {
+      const target = resolvePath(resolve(cwd, path));
+      return check(key, (e) => target === e || target.startsWith(e.endsWith("/") ? e : e + "/"));
+    },
+    // cli.cap.scope.host, .host.forms, cli.cap.scope.net.
+    coversHost: (key, host, port = null) =>
+      check(key, (e) => {
+        let [h, p] = [e, null];
+        const v6 = /^\[([^\]]*)\](?::(\d+))?$/.exec(e);
+        if (v6) [h, p] = [v6[1], v6[2] ?? null];
+        else if (e.split(":").length === 2) [h, p] = e.split(":");
+        if (p !== null && !/^\d+$/.test(p)) p = null;
+        const hostOk = h.startsWith("*.")
+          ? host.endsWith(h.slice(1)) && host.length > h.length - 1
+          : h.toLowerCase() === host.toLowerCase();
+        return hostOk && (p === null || Number(p) === port);
+      }),
+    // cli.cap.scope.env, .process, .sys.
+    coversName: (key, name) =>
+      check(key, (e) => (key === "Env" && e.endsWith("*") ? name.startsWith(e.slice(0, -1)) : e === name)),
+  };
+}
+
 // One host per instance: `sink.out(text)` and `sink.err(text)` receive the
-// program's standard output and standard error; `args` are the program's
-// arguments, for the `Args` provider once the emitter lowers its methods.
-export function createHost(sink, args = []) {
+// program's standard output and standard error. `env` holds what the
+// providers hand out once the emitter lowers their methods: `args` and
+// `program` for `Args`, `grants` for the scope checks, and in a test case
+// its `tempDir` (made on the first `tempDir()` call, which
+// `TestRunner.temp_dir` makes) and the base `seed` of a property test
+// (Test Environments, cli.test.seed).
+export function createHost(sink, env = {}) {
+  const args = env.args ?? [];
+  const program = env.program ?? "";
+  const grant = createGrant(env.grants ?? {});
+  const seed = env.seed ?? null;
+  let tempMade = false;
+  const tempDir = () => {
+    if (!env.tempDir) return "";
+    if (!tempMade) mkdirSync(env.tempDir, { recursive: true });
+    tempMade = true;
+    return env.tempDir;
+  };
   const out = [];
   let memory = null;
   let reported = false;
@@ -151,5 +225,5 @@ export function createHost(sink, args = []) {
     return { status, trapped };
   };
 
-  return { imports, run, args };
+  return { imports, run, args, program, grant, seed, tempDir };
 }

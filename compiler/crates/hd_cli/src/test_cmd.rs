@@ -20,7 +20,8 @@ use hd_run::tests_model::{
     Case, CaseKey, CaseKind, CaseResult, ProgramKey, ReleaseCursor, TestPlan,
 };
 
-use crate::node::{CaseRun, run_cases};
+use crate::caps::CapFlag;
+use crate::node::{CaseRun, HostCase, TestEnv, run_cases};
 use crate::report::{self, Reporter};
 use crate::{HD_FAILURE, Wall, cache_dir, disk, fail};
 
@@ -31,6 +32,12 @@ struct Options {
     json: bool,
     /// The members `-p NAME` selects (`cli.workspace.select.anywhere`).
     packages: Vec<String>,
+    /// The `--cap` flags, which the test grant reads
+    /// (`cli.test.env.grant`).
+    caps: Vec<CapFlag>,
+    /// `--seed N`: every property test case's base seed
+    /// (`cli.test.seed.flag`).
+    seed: Option<i64>,
 }
 
 fn parse(args: &[OsString]) -> Result<Options, String> {
@@ -40,6 +47,8 @@ fn parse(args: &[OsString]) -> Result<Options, String> {
         jobs: crate::default_jobs(),
         json: false,
         packages: Vec::new(),
+        caps: Vec::new(),
+        seed: None,
     };
     let mut i = 0;
     while i < args.len() {
@@ -55,12 +64,12 @@ fn parse(args: &[OsString]) -> Result<Options, String> {
             i += used;
             continue;
         }
-        // `cli.cap.flag.commands`: `--cap` is checked here. Its test grant
-        // (`cli.test.env.grant`, `Grants::for_test`) covers integration
-        // test programs and doc tests; a unit test gets no provider, and
-        // neither of those runs yet.
+        // `cli.cap.flag.commands`: the flags join the test grant of each
+        // integration test program and doc test (`cli.test.env.grant`); a
+        // unit test gets no provider.
         if let Some(cap) = crate::caps::cap_flag(args, i) {
-            let (_, used) = cap?;
+            let (flag, used) = cap?;
+            o.caps.push(flag);
             i += used;
             continue;
         }
@@ -86,6 +95,15 @@ fn parse(args: &[OsString]) -> Result<Options, String> {
         }
         if text == "--filter" || text.starts_with("--filter=") {
             o.filter = Some(value("--filter")?);
+        } else if text == "--seed" || text.starts_with("--seed=") {
+            // `cli.test.seed.flag`: N is a whole number.
+            let v = value("--seed")?;
+            o.seed = Some(
+                v.parse::<i64>()
+                    .ok()
+                    .filter(|n| *n >= 0)
+                    .ok_or_else(|| format!("`--seed {v}`: N is a whole number"))?,
+            );
         } else if text == "--jobs" || text.starts_with("--jobs=") {
             let v = value("--jobs")?;
             o.jobs = v
@@ -203,8 +221,11 @@ struct Built {
     wasm: Option<Vec<u8>>,
     /// An integration test or a doc test runs with the package directory as
     /// its working directory and a closed standard input
-    /// (`cli.test.env.cwd`, `cli.test.env.stdin`).
+    /// (`cli.test.env.cwd`, `cli.test.env.stdin`); a unit test has none.
     cwd: Option<PathBuf>,
+    /// What its `Args.program` returns: the test case's file relative to
+    /// the package directory (`cli.test.env.args.program`).
+    program: String,
 }
 
 /// A selected case: its program, the case as the driver lists it, and a
@@ -426,6 +447,7 @@ fn test_one(
             built.push(Built {
                 wasm: None,
                 cwd: None,
+                program: String::new(),
             });
             continue;
         }
@@ -451,9 +473,16 @@ fn test_one(
                 fixed: None,
             });
         }
+        // A doc test's file is the source file of its block.
+        let shown = match (path, doc) {
+            (Some(_), Some(d)) => d.file.clone(),
+            (Some(p), None) => p.clone(),
+            (None, _) => String::new(),
+        };
         built.push(Built {
             wasm: out.wasm,
             cwd: path.as_ref().map(|_| root.to_path_buf()),
+            program: program.sources.display(&shown),
         });
     }
     if let Some(m) = member {
@@ -487,19 +516,101 @@ fn test_one(
     }
     // `cli.test.report.order`: file path, then line, then registration.
     selected.sort_by(|a, b| (&a.case.file, a.case.line).cmp(&(&b.case.file, b.case.line)));
-    run(&selected, &built, o.jobs, report)
+    let env = RunEnv {
+        root,
+        table: disk::test_capabilities(root).map_err(|e| report.rep.fail(&e))?,
+        flags: &o.caps,
+        seed: o.seed,
+    };
+    run(&selected, &built, &env, o.jobs, report)
+}
+
+/// What a test case's environment comes from (Test Environments): the
+/// package directory, its `[test.capabilities]` table and the `--cap`
+/// flags (`cli.test.env.grant`), and `--seed` (`cli.test.seed.flag`).
+struct RunEnv<'a> {
+    root: &'a Path,
+    table: Vec<(String, hd_project::Grant)>,
+    flags: &'a [CapFlag],
+    seed: Option<i64>,
+}
+
+/// A property test case's base seed (`cli.test.seed`): `--seed N` when
+/// given (`cli.test.seed.flag`), else a hash of the case's name (64-bit
+/// FNV-1a, kept non-negative), so the same name gives the same seed on
+/// every run. Other cases draw nothing and have none.
+fn base_seed(case: &TestCase, flag: Option<i64>) -> Option<i64> {
+    if !matches!(case.kind.as_str(), "it_prop" | "it_prop_with") {
+        return None;
+    }
+    Some(flag.unwrap_or_else(|| {
+        let hash = case.name.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| {
+            (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3)
+        });
+        i64::try_from(hash >> 1).unwrap_or(i64::MAX)
+    }))
+}
+
+/// The temporary directories of one test program's run
+/// (`cli.test.env.temp-dir`): a fresh root of this process below the
+/// system's temporary directory, and in it one directory per case, which
+/// the host makes on the case's first `temp_dir` call
+/// (`std-testing.runner.temp-dir`). No other case, in this run or another,
+/// shares one. A case's directory is removed once the case ends, and the
+/// root with whatever is left when the run ends
+/// (`cli.test.env.temp-dir.removed`).
+pub(crate) struct TempDirs(PathBuf);
+
+impl TempDirs {
+    pub(crate) fn new() -> Result<TempDirs, String> {
+        static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let base = std::env::temp_dir();
+        loop {
+            let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let dir = base.join(format!("hd-test-{}-{n}", std::process::id()));
+            match std::fs::create_dir(&dir) {
+                Ok(()) => {
+                    let real = std::fs::canonicalize(&dir).unwrap_or(dir);
+                    return Ok(TempDirs(real));
+                }
+                // A leftover of an earlier process with the same id.
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+                Err(e) => return Err(format!("{}: {e}", dir.display())),
+            }
+        }
+    }
+
+    /// The directory of the case at `index`.
+    pub(crate) fn case(&self, index: usize) -> PathBuf {
+        self.0.join(index.to_string())
+    }
+
+    /// Removes the directory of a case that ended, passed or failed.
+    pub(crate) fn end(&self, index: usize) {
+        let _ = std::fs::remove_dir_all(self.case(index));
+    }
+}
+
+impl Drop for TempDirs {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
 }
 
 /// Runs the cases program by program on up to `jobs` Node workers, round
 /// robin in content order, and prints the results in content order
-/// (`cli.test.report.stream`), whatever order the workers finish in.
+/// (`cli.test.report.stream`), whatever order the workers finish in. An
+/// integration test program or a doc test with a totally denied need stops
+/// the command before any case runs (`cli.cap.total.test`).
 fn run(
     selected: &[Selected],
     built: &[Built],
+    env: &RunEnv<'_>,
     jobs: usize,
     report: &mut Report,
 ) -> Result<(), ExitCode> {
     let cases: Vec<TestCase> = selected.iter().map(|s| s.case.clone()).collect();
+    let seeds: Vec<Option<i64>> = cases.iter().map(|c| base_seed(c, env.seed)).collect();
     let plan = TestPlan::new(
         cases
             .iter()
@@ -522,27 +633,47 @@ fn run(
     );
     let mut cursor = ReleaseCursor::new(&plan);
     let key = |i: usize| plan.cases[i].key.clone();
+    // A case's result when it is known without running it.
+    let known = |s: &Selected| -> Option<CaseResult> {
+        let c = &s.case;
+        if let Some(r) = &s.fixed {
+            Some(r.clone())
+        } else if let Some(what) = &c.unsupported {
+            Some(CaseResult::Unsupported { what: what.clone() })
+        } else if let Some(reason) = &c.ignore {
+            Some(CaseResult::Ignored {
+                reason: reason.clone(),
+            })
+        } else if c.run.is_some() {
+            None
+        } else {
+            Some(CaseResult::Unsupported {
+                what: "a case without a checked body".into(),
+            })
+        }
+    };
     // Per program: (case index, (test export, init export)).
     let mut running: Vec<Vec<(usize, (u32, u32))>> = built.iter().map(|_| Vec::new()).collect();
     for (i, s) in selected.iter().enumerate() {
-        let c = &s.case;
-        let r = if let Some(r) = &s.fixed {
-            r.clone()
-        } else if let Some(what) = &c.unsupported {
-            CaseResult::Unsupported { what: what.clone() }
-        } else if let Some(reason) = &c.ignore {
-            CaseResult::Ignored {
-                reason: reason.clone(),
-            }
-        } else if let Some(run) = c.run {
+        if let (None, Some(run)) = (known(s), s.case.run) {
             running[s.program].push((i, run));
+        }
+    }
+    for (prog, running) in built.iter().zip(&running) {
+        if running.is_empty() || prog.cwd.is_none() {
             continue;
-        } else {
-            CaseResult::Unsupported {
-                what: "a case without a checked body".into(),
-            }
-        };
-        report.release(&cases, cursor.finish(key(i), r));
+        }
+        if let Some(wasm) = &prog.wasm
+            && let Some(d) = crate::caps::test_refusal(wasm, &env.table, env.flags, &prog.program)
+        {
+            report.rep.diag(&d);
+            return Err(report.rep.finish(HD_FAILURE));
+        }
+    }
+    for (i, s) in selected.iter().enumerate() {
+        if let Some(r) = known(s) {
+            report.release(&cases, &seeds, cursor.finish(key(i), r));
+        }
     }
     for (prog, running) in built.iter().zip(&running) {
         if running.is_empty() {
@@ -550,6 +681,24 @@ fn run(
         }
         let Some(wasm) = prog.wasm.as_deref() else {
             return Err(report.rep.fail("internal: a test program was not built"));
+        };
+        let temp = TempDirs::new().map_err(|e| report.rep.fail(&e))?;
+        let test_env = TestEnv {
+            cwd: prog.cwd.as_deref(),
+            program: &prog.program,
+        };
+        // An integration test or a doc test gets the test grant; a unit test
+        // gets no host provider, so no grant limits it.
+        let host_case = |i: usize, (test, init): (u32, u32)| HostCase {
+            test,
+            init,
+            temp_dir: temp.case(i),
+            seed: seeds[i],
+            grants: if prog.cwd.is_some() {
+                crate::caps::test_grants(&env.table, env.root, env.flags, &temp.case(i))
+            } else {
+                hd_run::Grants::default()
+            },
         };
         let workers = jobs.min(running.len()).max(1);
         let (tx, rx) = mpsc::channel::<Result<(usize, CaseRun), String>>();
@@ -559,10 +708,11 @@ fn run(
                 let tx = tx.clone();
                 let chunk: Vec<(usize, (u32, u32))> =
                     running.iter().skip(w).step_by(workers).copied().collect();
-                let cwd = prog.cwd.as_deref();
+                let host_cases: Vec<HostCase> =
+                    chunk.iter().map(|&(i, run)| host_case(i, run)).collect();
+                let test_env = &test_env;
                 s.spawn(move || {
-                    let exports: Vec<(u32, u32)> = chunk.iter().map(|(_, r)| *r).collect();
-                    let r = run_cases(wasm, &exports, cwd, &mut |c: CaseRun| {
+                    let r = run_cases(wasm, test_env, &host_cases, &mut |c: CaseRun| {
                         if let Some((i, _)) = chunk.iter().find(|(_, (t, _))| *t == c.test) {
                             let _ = tx.send(Ok((*i, c)));
                         }
@@ -576,8 +726,9 @@ fn run(
             for msg in rx {
                 match msg {
                     Ok((i, c)) => {
+                        temp.end(i);
                         let r = judge(&cases[i], &c);
-                        report.release(&cases, cursor.finish(key(i), r));
+                        report.release(&cases, &seeds, cursor.finish(key(i), r));
                     }
                     Err(e) => {
                         error.get_or_insert(e);
@@ -650,13 +801,19 @@ struct Report {
 }
 
 impl Report {
-    fn release(&mut self, cases: &[TestCase], done: Vec<(CaseKey, CaseResult)>) {
+    fn release(
+        &mut self,
+        cases: &[TestCase],
+        seeds: &[Option<i64>],
+        done: Vec<(CaseKey, CaseResult)>,
+    ) {
         for (k, r) in done {
-            let Some(c) = cases.get(k.registration as usize) else {
+            let i = k.registration as usize;
+            let Some(c) = cases.get(i) else {
                 continue;
             };
             let at = format!("{}:{}", c.file, c.line);
-            let repro = format!("hd test {} --filter {}", c.file, shell_quoted(&c.name));
+            let repro = repro(c, seeds.get(i).copied().flatten());
             let mut t = String::new();
             // The outcome and message of the case's test object.
             let (outcome, message) = match r {
@@ -750,6 +907,21 @@ impl Report {
     }
 }
 
+/// The command that reruns a failed case (`cli.test.report.repro`). A
+/// property test case's names its base seed, so it draws the same cases
+/// (`cli.test.seed.report`).
+fn repro(case: &TestCase, seed: Option<i64>) -> String {
+    let mut out = format!(
+        "hd test {} --filter {}",
+        case.file,
+        shell_quoted(&case.name)
+    );
+    if let Some(seed) = seed {
+        let _ = write!(out, " --seed {seed}");
+    }
+    out
+}
+
 /// A word as a POSIX shell reads it back, in double quotes
 /// (`cli.test.report.repro`: "command-line escaped").
 fn shell_quoted(word: &str) -> String {
@@ -766,7 +938,66 @@ fn shell_quoted(word: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::shell_quoted;
+    use super::{TempDirs, TestCase, base_seed, repro, shell_quoted};
+
+    fn case(name: &str, kind: &str) -> TestCase {
+        TestCase {
+            module: String::new(),
+            file: "tests/props.hd".into(),
+            line: 3,
+            name: name.into(),
+            kind: kind.into(),
+            ignore: None,
+            expect_panic: None,
+            unsupported: None,
+            run: None,
+        }
+    }
+
+    /// `cli.test.seed`, `.seed.flag`, `.seed.report`.
+    #[test]
+    fn a_property_case_has_a_base_seed_from_its_name() {
+        let a = case("sorts any list", "it_prop");
+        let seed = base_seed(&a, None).expect("a property case");
+        assert!(seed >= 0);
+        assert_eq!(
+            base_seed(&a, None),
+            Some(seed),
+            "the same name, the same seed"
+        );
+        assert_ne!(
+            base_seed(&case("sorts any vec", "it_prop_with"), None),
+            Some(seed)
+        );
+        assert_eq!(base_seed(&a, Some(7)), Some(7));
+        assert_eq!(base_seed(&case("adds", "it"), Some(7)), None);
+        assert_eq!(
+            repro(&a, Some(7)),
+            "hd test tests/props.hd --filter \"sorts any list\" --seed 7"
+        );
+        assert_eq!(
+            repro(&case("adds", "it"), None),
+            "hd test tests/props.hd --filter \"adds\""
+        );
+    }
+
+    /// `cli.test.env.temp-dir`, `.temp-dir.removed`.
+    #[test]
+    fn each_case_has_its_own_directory_removed_when_it_ends() {
+        let dirs = TempDirs::new().expect("a root");
+        let other = TempDirs::new().expect("another root");
+        assert_ne!(dirs.case(0), dirs.case(1));
+        assert_ne!(dirs.case(0), other.case(0));
+        std::fs::create_dir_all(dirs.case(0).join("deep")).expect("made");
+        std::fs::write(dirs.case(0).join("deep/f"), "x").expect("written");
+        std::fs::create_dir_all(dirs.case(1)).expect("made");
+        dirs.end(0);
+        assert!(!dirs.case(0).exists());
+        assert!(dirs.case(1).exists());
+        let root = dirs.0.clone();
+        drop(dirs);
+        assert!(!root.exists());
+    }
 
     #[test]
     fn repro_names_survive_the_shell() {

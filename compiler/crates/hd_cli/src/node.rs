@@ -3,14 +3,17 @@
 //! The JS host (`compiler/host/*.mjs`) is embedded, so the binary is
 //! relocatable.
 
+use std::fmt::Write as _;
 use std::io::{BufRead as _, BufReader, Write as _};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::task::Poll;
 
 use hd_cache::CacheStore;
-use hd_run::{Engine, HostSetup, Instance, LoadError, Outcome, StartError};
+use hd_run::{Engine, Grants, HostSetup, Instance, Limit, LoadError, Outcome, StartError};
+
+use crate::report::quote;
 
 /// The JS host: the import object and the entry driver.
 const CORE: &str = include_str!("../../../host/core.mjs");
@@ -143,26 +146,95 @@ pub struct CaseRun {
     pub us: u64,
 }
 
-/// Runs `cases` (`(test, init)` export indices) of a test program in one
-/// Node process, each in a fresh instance, and hands each result to `done`
-/// as it ends.
+/// One case as the test host runs it: its `hd.test.i` and `hd.init.j`
+/// exports, its own temporary directory (`cli.test.env.temp-dir`), which
+/// the host makes on the case's first `temp_dir` call, the base seed of a
+/// property test case (`cli.test.seed`), and the case's grant.
+pub struct HostCase {
+    pub test: u32,
+    pub init: u32,
+    pub temp_dir: PathBuf,
+    pub seed: Option<i64>,
+    pub grants: Grants,
+}
+
+/// What the cases of one test program share (Test Environments): an
+/// integration test's or a doc test's working directory, the package
+/// directory (`cli.test.env.cwd`), and the path that `Args.program`
+/// returns (`cli.test.env.args.program`). Every case's program arguments
+/// are empty (`cli.test.env.args`) and its standard input is closed
+/// (`cli.test.env.stdin`).
+pub struct TestEnv<'a> {
+    pub cwd: Option<&'a Path>,
+    pub program: &'a str,
+}
+
+/// The test host's configuration: the program's shared environment, then
+/// each case's.
+fn host_config(env: &TestEnv<'_>, cases: &[HostCase]) -> String {
+    let mut out = format!(
+        "{{\"program\":{},\"args\":[],\"cases\":[",
+        quote(env.program)
+    );
+    for (i, c) in cases.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        let seed = c.seed.map_or_else(|| "null".to_owned(), |s| s.to_string());
+        let _ = write!(
+            out,
+            "{{\"test\":{},\"init\":{},\"tempDir\":{},\"seed\":{seed},\"grants\":{}}}",
+            c.test,
+            c.init,
+            quote(&c.temp_dir.to_string_lossy()),
+            grants_json(&c.grants)
+        );
+    }
+    out.push_str("]}");
+    out
+}
+
+/// A grant as the JS host reads it: each trait with a limit, as `false`
+/// for a total deny or the list of its entries; a trait it leaves out has
+/// no limit (`cli.cap.order.default`).
+fn grants_json(g: &Grants) -> String {
+    let mut out = String::from("{");
+    for (i, (key, limit)) in g.limits.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        out.push_str(&quote(key));
+        out.push(':');
+        match limit {
+            Limit::Deny => out.push_str("false"),
+            Limit::Entries(list) => {
+                let items: Vec<String> = list.iter().map(|e| quote(e)).collect();
+                let _ = write!(out, "[{}]", items.join(","));
+            }
+        }
+    }
+    out.push('}');
+    out
+}
+
+/// Runs `cases` of a test program in one Node process, each in a fresh
+/// instance, and hands each result to `done` as it ends.
 pub fn run_cases(
     wasm: &[u8],
-    cases: &[(u32, u32)],
-    cwd: Option<&std::path::Path>,
+    env: &TestEnv<'_>,
+    cases: &[HostCase],
     done: &mut dyn FnMut(CaseRun),
 ) -> Result<(), String> {
     let dir = Scratch::new(wasm)?;
-    let list: Vec<String> = cases.iter().map(|(t, i)| format!("{t}:{i}")).collect();
+    let config = dir.0.join("config.json");
+    std::fs::write(&config, host_config(env, cases))
+        .map_err(|e| format!("{}: {e}", config.display()))?;
     let mut command = Command::new("node");
     command
         .arg(dir.0.join("test.mjs"))
         .arg(dir.0.join("main.wasm"))
-        .arg(list.join(","));
-    // An integration test's working directory is the package directory
-    // (`cli.test.env.cwd`); every case's standard input is closed
-    // (`cli.test.env.stdin`).
-    if let Some(cwd) = cwd {
+        .arg(&config);
+    if let Some(cwd) = env.cwd {
         command.current_dir(cwd);
     }
     let mut child = command
@@ -267,7 +339,35 @@ fn json_str(s: &str) -> Option<(String, &str)> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_case;
+    use std::path::{Path, PathBuf};
+
+    use hd_run::{Grants, Limit};
+
+    use super::{HostCase, TestEnv, host_config, parse_case};
+
+    #[test]
+    fn writes_the_host_config() {
+        let cases = [HostCase {
+            test: 2,
+            init: 1,
+            temp_dir: PathBuf::from("/tmp/hd-test-1-0/4"),
+            seed: Some(9),
+            grants: Grants {
+                limits: vec![
+                    ("Console".into(), Limit::Deny),
+                    ("FsWrite".into(), Limit::Entries(vec!["/tmp/a\"b".into()])),
+                ],
+            },
+        }];
+        let env = TestEnv {
+            cwd: Some(Path::new("/pkg")),
+            program: "tests/report.hd",
+        };
+        assert_eq!(
+            host_config(&env, &cases),
+            r#"{"program":"tests/report.hd","args":[],"cases":[{"test":2,"init":1,"tempDir":"/tmp/hd-test-1-0/4","seed":9,"grants":{"Console":false,"FsWrite":["/tmp/a\"b"]}}]}"#
+        );
+    }
 
     #[test]
     fn reads_a_case_line() {

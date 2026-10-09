@@ -68,6 +68,34 @@ fn parse_flag(value: &str) -> Result<CapFlag, String> {
 /// `hd.toml` key or the `--cap` flag (`cli.cap.total.message`). A deny
 /// always wins (`cli.cap.order.deny`).
 pub(crate) fn refusal(wasm: &[u8], table: &[(String, Grant)], flags: &[CapFlag]) -> Option<Diag> {
+    denied(wasm, table, "hd.toml", flags, "the program")
+}
+
+/// The same refusal of an integration test program or a doc test under the
+/// test grant (`cli.cap.total.test`), whose table is `[test.capabilities]`
+/// (`cli.test.env.grant.table`); `file` names the test program.
+pub(crate) fn test_refusal(
+    wasm: &[u8],
+    table: &[(String, Grant)],
+    flags: &[CapFlag],
+    file: &str,
+) -> Option<Diag> {
+    denied(
+        wasm,
+        table,
+        "`[test.capabilities]` of hd.toml",
+        flags,
+        &format!("the test program {file}"),
+    )
+}
+
+fn denied(
+    wasm: &[u8],
+    table: &[(String, Grant)],
+    table_name: &str,
+    flags: &[CapFlag],
+    who: &str,
+) -> Option<Diag> {
     let imports = match hd_run::module_imports(wasm) {
         Ok(i) => i,
         Err(e) => return Some(Diag::error(None, &format!("the built module: {e}"))),
@@ -76,7 +104,7 @@ pub(crate) fn refusal(wasm: &[u8], table: &[(String, Grant)], flags: &[CapFlag])
         let setting = table
             .iter()
             .find(|(k, g)| k == need && *g == Grant::Deny)
-            .map(|(k, _)| format!("`{k} = false` in hd.toml"))
+            .map(|(k, _)| format!("`{k} = false` in {table_name}"))
             .or_else(|| {
                 flags
                     .iter()
@@ -85,9 +113,22 @@ pub(crate) fn refusal(wasm: &[u8], table: &[(String, Grant)], flags: &[CapFlag])
             })?;
         Some(Diag::error(
             Some(Code::DeniedCapability),
-            &format!("the program needs {need}, which {setting} denies, so it does not start"),
+            &format!("{who} needs {need}, which {setting} denies, so it does not start"),
         ))
     })
+}
+
+/// The table's and the flags' values, as `Grants` reads them.
+type Values = Vec<(String, GrantValue)>;
+
+fn values(table: &[(String, Grant)], flags: &[CapFlag]) -> (Values, Values) {
+    (
+        table.iter().map(|(k, g)| (k.clone(), value(g))).collect(),
+        flags
+            .iter()
+            .map(|f| (f.key.clone(), value(&f.grant)))
+            .collect(),
+    )
 }
 
 fn value(g: &Grant) -> GrantValue {
@@ -104,11 +145,22 @@ fn value(g: &Grant) -> GrantValue {
 /// (`cli.cap.scope.path.relative`).
 pub(crate) fn grants(table: &[(String, Grant)], table_dir: &Path, flags: &[CapFlag]) -> Grants {
     let cwd = std::env::current_dir().unwrap_or_else(|_| table_dir.to_path_buf());
-    let table: Vec<(String, GrantValue)> =
-        table.iter().map(|(k, g)| (k.clone(), value(g))).collect();
-    let flags: Vec<(String, GrantValue)> = flags
-        .iter()
-        .map(|f| (f.key.clone(), value(&f.grant)))
-        .collect();
+    let (table, flags) = values(table, flags);
     Grants::resolve(&table, table_dir, &flags, &cwd)
+}
+
+/// A test case's grant (`cli.test.env.grant`): the package's
+/// `[test.capabilities]` table and the flags of `hd test` by Grant
+/// Precedence, with `FsRead` covering the package directory and the case's
+/// temporary directory and `FsWrite` that directory, as
+/// `cli.test.env.grant.fs-read`, `.fs-write` and `.fs-added` say.
+pub(crate) fn test_grants(
+    table: &[(String, Grant)],
+    package_dir: &Path,
+    flags: &[CapFlag],
+    temp_dir: &Path,
+) -> Grants {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| package_dir.to_path_buf());
+    let (table, flags) = values(table, flags);
+    Grants::for_test(&table, package_dir, &flags, &cwd, temp_dir)
 }

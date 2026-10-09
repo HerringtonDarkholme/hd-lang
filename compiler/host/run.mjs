@@ -10,7 +10,7 @@ const host = createHost(
     out: (text) => writeSync(1, text),
     err: (text) => writeSync(2, text),
   },
-  process.argv.slice(3),
+  { args: process.argv.slice(3) },
 );
 const { instance } = await WebAssembly.instantiate(bytes, host.imports);
 const { status } = await host.run(instance, "hd.init", "hd.poll");
