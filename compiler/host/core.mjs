@@ -47,6 +47,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
 import { dirname, basename, join, resolve } from "node:path";
 
@@ -550,6 +551,13 @@ export function createHost(sink, env = {}) {
         finish(h);
         return 0;
       },
+    },
+    // The operating system's random source (cli.host.default-profile).
+    // `Random` has no scope entries: a grant of `false` refuses the whole
+    // program at startup (cli.cap.total.refuse).
+    "hd:Random": {
+      next_u64: () => randomBytes(8).readBigInt64LE(0),
+      fill: (count) => put(new Enc().bytes(randomBytes(count >>> 0))),
     },
     "hd:Args": {
       program: () => put(new Enc().str(program)),

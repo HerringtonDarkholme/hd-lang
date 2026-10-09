@@ -196,7 +196,10 @@ pub static TABLE: &[HostTrait] = &[
     HostTrait {
         key: "Random",
         std_path: "std.random.Random",
-        methods: &[],
+        methods: &[
+            m("next_u64", &[], S(Scalar::I64), Wait::Never, None),
+            m("fill", &[S(Scalar::I32)], B("List[u8]"), Wait::Never, None),
+        ],
     },
     HostTrait {
         key: "Http",

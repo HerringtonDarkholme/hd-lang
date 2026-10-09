@@ -406,3 +406,43 @@ fn a_sleep_past_the_timeout_fails_the_case() {
     );
     assert_eq!(out.status.code(), Some(1), "{stdout}");
 }
+
+const RANDOM_PROGRAM: &str = "use std.random.{Random, rng}
+
+pub fn main() -> void $ Console + Random:
+    let mut source = $.use(Random)
+    println(\"${source.fill(16).len()} ${source.fill(100000).len()} ${source.fill(0).len()}\")
+    let distinct = 0
+    let previous = source.next_u64()
+    for _ in 0..8:
+        next := source.next_u64()
+        if next != previous:
+            distinct = distinct + 1
+        previous = next
+    println(\"${distinct}\")
+    let mut r = rng()
+    roll := r.int(1..=6)
+    println(\"${roll >= 1 && roll <= 6}\")
+";
+
+/// `Random` (`std-random.next`, `.fill`, cli.host.default-profile): the
+/// operating system's source fills any count of bytes and draws distinct
+/// values, `rng()` seeds from it, and `--cap Random=false` refuses the
+/// program before it starts (`cli.cap.total.refuse`).
+#[test]
+fn random_draws_from_the_host_source() {
+    let dir = work("host-random");
+    write(&dir.join("main.hd"), RANDOM_PROGRAM);
+    let out = run(&dir, &["main.hd"]);
+    assert_eq!(text(&out.stderr), "");
+    assert_eq!(text(&out.stdout), "16 100000 0\n8\ntrue\n");
+    assert!(out.status.success());
+    let denied = run(&dir, &["--cap", "Random=false", "main.hd"]);
+    assert_eq!(text(&denied.stdout), "");
+    assert!(
+        text(&denied.stderr).contains("needs Random, which `--cap Random=false` denies"),
+        "{}",
+        text(&denied.stderr)
+    );
+    assert_eq!(denied.status.code(), Some(101));
+}
