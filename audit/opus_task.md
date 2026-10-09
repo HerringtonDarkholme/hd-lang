@@ -89,15 +89,6 @@ When the queue is empty, say so under "Questions" and wait.
 
 ## Jobs
 
-### O14. Dev Dependencies In The Resolver (#134; Same Loan)
-
-Your O7 question: the `test-only-use` and `cyclic-test-dependency` codes
-(a `UseRootError` arm in `hd_resolve` lowering), and dev dependencies
-inside a library module's `tests:` block (`dev-dependency-tests-block`).
-CLI cases `dev-dependency-non-test`, `dev-dependency-cyclic-unit`,
-`dev-dependency-cyclic-integration`, `dev-dependency-integration`,
-`dev-dependency-tests-block`. Read the spec rules first.
-
 ### O15. Doc Tests (#135)
 
 `cli.check.tests.doc` and the doc-test rules in the spec: extract the
@@ -215,6 +206,12 @@ bench N`).
   and two fixtures stopped passing (`hd-run-requires-process`,
   `relative-shared-test-module`), so it is not in. Is the test unit a job
   of its own?
+- **O14 status.** `dev-dependency-non-test` passes (`test-only-use`,
+  with the `hd remove`/`hd add` message), `dev-dependency-tests-block`
+  passes, and `dev-dependency-cyclic-unit` reports
+  `cyclic-test-dependency` but also the `TrailingCallExpr` of its
+  top-level `it(...)` (#74); `dev-dependency-integration` and
+  `dev-dependency-cyclic-integration` wait on #74 alone.
 - **Left for other lanes (status).** The CLI cases still failing for
   reasons outside this lane wait on the orchestrator's tasks above:
   top-level `it(...)` (#74: the `json-test-*`, `test-*`, `new-app`,

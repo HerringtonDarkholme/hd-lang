@@ -3278,7 +3278,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 55 | 47 | 0 | 102 |
+| 57 | 45 | 0 | 102 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3303,6 +3303,8 @@ cli/dep-path-local
 cli/dep-path-no-package
 cli/dep-workspace-fetch
 cli/derivation-lines-agree
+cli/dev-dependency-non-test
+cli/dev-dependency-tests-block
 cli/entry-err-display
 cli/exe-main-unlisted
 cli/exe-missing-module

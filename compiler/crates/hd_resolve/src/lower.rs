@@ -110,11 +110,12 @@ pub fn use_decls(src: &Src<'_>, roots: &UseRoots) -> Vec<UseDecl> {
         .flat_map(hd_syntax::NodeRef::children)
         .filter(|b| b.kind() == SyntaxKind::Block)
         .flat_map(hd_syntax::NodeRef::children);
-    for item in src
+    for (item, tests) in src
         .root()
         .children()
-        .chain(in_tests)
-        .filter(|c| c.kind() == SyntaxKind::UseDecl)
+        .map(|c| (c, false))
+        .chain(in_tests.map(|c| (c, true)))
+        .filter(|(c, _)| c.kind() == SyntaxKind::UseDecl)
     {
         let mut path: Vec<String> = Vec::new();
         let mut alias = None;
@@ -158,7 +159,14 @@ pub fn use_decls(src: &Src<'_>, roots: &UseRoots) -> Vec<UseDecl> {
                 })
                 .collect()
         });
-        let (path, root_error) = match roots.absolute(&path) {
+        // A `tests:` block's use is test code, which may name a dev
+        // dependency (`module.test.dev-dependency.in-tests`).
+        let absolute = if tests {
+            roots.absolute_in_tests(&path)
+        } else {
+            roots.absolute(&path)
+        };
+        let (path, root_error) = match absolute {
             Ok(abs) => (abs, None),
             Err(e) => (path, Some(e)),
         };
@@ -492,18 +500,40 @@ fn scope_of(
         let row = u32::try_from(row).unwrap_or(u32::MAX);
         let module = u.module();
         if let Some(e) = u.root_error {
-            let msg = match e {
-                UseRootError::AboveRoot => "the path goes above the root".to_owned(),
-                UseRootError::UnknownDependency => format!(
-                    "`{}` names no dependency of this package",
-                    u.path.iter().take(2).cloned().collect::<Vec<_>>().join(".")
+            let dep = u.path.get(1).map_or("", String::as_str);
+            let (code, msg) = match e {
+                UseRootError::AboveRoot => (
+                    Code::UnknownModule,
+                    "the path goes above the root".to_owned(),
                 ),
-                UseRootError::UnknownRoot => format!(
-                    "`{}` is no use root; a path starts with `pkg`, `std`, `dep`, `self` or `super`",
-                    u.path.first().map_or("", String::as_str)
+                UseRootError::UnknownDependency => (
+                    Code::UnknownModule,
+                    format!("`dep.{dep}` names no dependency of this package"),
+                ),
+                UseRootError::UnknownRoot => (
+                    Code::UnknownModule,
+                    format!(
+                        "`{}` is no use root; a path starts with `pkg`, `std`, `dep`, `self` or `super`",
+                        u.path.first().map_or("", String::as_str)
+                    ),
+                ),
+                // `module.test.non-test-use.dev-dependency`,
+                // `cli.dep.dev-use.remove-first`.
+                UseRootError::TestOnly => (
+                    Code::TestOnlyUse,
+                    format!(
+                        "`dep.{dep}` is a dev dependency, which only test code may use; to use it here, run `hd remove {dep}`, then `hd add {dep} PATH@VERSION` to put it in [dependencies]"
+                    ),
+                ),
+                // `module.test.cyclic-dev-unit`.
+                UseRootError::CyclicTest => (
+                    Code::CyclicTestDependency,
+                    format!(
+                        "`dep.{dep}` depends on this package, so a unit test may not use it; use it from an integration test under tests/"
+                    ),
                 ),
             };
-            diags.error(Code::UnknownModule, u.span, &msg);
+            diags.error(code, u.span, &msg);
             poison_use(&mut scope, names, u, row);
             continue;
         }

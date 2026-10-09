@@ -486,7 +486,20 @@ fn dev_dependencies_are_for_test_code_only() {
     .expect("write");
     let r = check(&dir, "hd-check-cache-dev", &[]);
     assert_eq!(r.code, Some(101));
-    assert!(r.err.starts_with("error: src/lib.hd:1:1:"), "{}", r.err);
+    assert!(
+        r.err.starts_with("error: src/lib.hd:1:1: test-only-use: ")
+            && r.err.contains("hd remove fixtures"),
+        "{}",
+        r.err
+    );
+    // `module.test.dev-dependency.in-tests`: a `tests:` block may use it.
+    std::fs::write(
+        dir.join("src/lib.hd"),
+        "pub fn double(v: i32) -> i32:\n    v * 2\n\ntests:\n    use dep.fixtures.{sample}\n\n    it(\"doubles the sample\"):\n        _ := double(sample())\n",
+    )
+    .expect("write");
+    let r = check(&dir, "hd-check-cache-dev", &["--tests"]);
+    assert_eq!(r.code, Some(0), "{}", r.err);
 }
 
 /// resolution-and-interfaces.md §4.8 rule 5: the folders of a cycle

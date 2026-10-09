@@ -985,6 +985,35 @@ impl Run<'_> {
         let module = &self.table.modules[m].path;
         let roots = self.table.use_roots(ModuleId::from_raw(u32_of(m)));
         let mut uses = written_uses(text, &sk.uses, &roots);
+        // A `tests:` block's uses into another package, such as a dev
+        // dependency (`module.test.dev-dependency.in-tests`): the block is
+        // checked with its module, so their folders join its closure. They
+        // cannot close a folder cycle of this package, unlike its uses of
+        // this package, which make no edge (`module.cycle.test-code`).
+        let package = self.table.modules[m].package;
+        for b in sk.bodies.iter().filter(|b| b.kind == HeaderKind::Tests) {
+            let block = text
+                .get(b.body_start as usize..b.body_end as usize)
+                .unwrap_or("");
+            for line in block.lines() {
+                let Some(rest) = line.trim().strip_prefix("use ") else {
+                    continue;
+                };
+                let path = rest.split(".{").next().unwrap_or(rest);
+                let path = path.split(" as ").next().unwrap_or(path).trim();
+                let segs: Vec<&str> = path.split('.').collect();
+                if let Ok(abs) = roots.absolute_in_tests(&segs) {
+                    let abs = abs.join(".");
+                    let other = self
+                        .table
+                        .module_of_use(&abs)
+                        .is_some_and(|t| self.table.modules[t.idx()].package != package);
+                    if other {
+                        uses.push(abs);
+                    }
+                }
+            }
+        }
         // The prelude's fixed uses (`module.prelude.fixed-uses`).
         if module != "std.core" {
             uses.extend(hd_resolve::prelude_modules().into_iter().map(str::to_owned));

@@ -270,6 +270,25 @@ pub struct UseRoots {
     pub floor: String,
     /// Each dependency name and its package root module (`dep.NAME`).
     pub deps: Vec<(String, String)>,
+    /// Each dev dependency name, its package root module, and whether it
+    /// depends back on the package (`module.test.dev-dependency`).
+    pub dev: Vec<(String, String, bool)>,
+    /// What the module's own uses may name of the dev dependencies.
+    pub access: DevAccess,
+}
+
+/// Which dev dependencies a use may name (`module.test.non-test-use.*`,
+/// `module.test.cyclic-dev-unit`, `cli.task.dev-dependencies`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DevAccess {
+    /// None: code that is not test code.
+    #[default]
+    None,
+    /// Those that do not depend back on the package: a unit test module,
+    /// or a `tests:` block (`module.test.dev-dependency.in-tests`).
+    Unit,
+    /// All: an integration test, a shared test module or a task.
+    All,
 }
 
 /// Why a use path names no module path.
@@ -282,11 +301,36 @@ pub enum UseRootError {
     /// A `super` moves above the root (`module.relative.above-root`,
     /// `module.relative.root-file.super`).
     AboveRoot,
+    /// `dep.NAME` is a dev dependency, and the use is not in test code
+    /// (`module.test.non-test-use.dev-dependency`).
+    TestOnly,
+    /// `dep.NAME` is a dev dependency that depends back on the package,
+    /// and the use is in a unit test (`module.test.cyclic-dev-unit`).
+    CyclicTest,
 }
 
 impl UseRoots {
-    /// A use path with its root replaced by the module path it names.
+    /// A use path with its root replaced by the module path it names, for
+    /// a use at the module's top level.
     pub fn absolute<S: AsRef<str>>(&self, path: &[S]) -> Result<Vec<String>, UseRootError> {
+        self.absolute_with(path, self.access)
+    }
+
+    /// `absolute`, for a use inside a `tests:` block: test code, so it may
+    /// name a dev dependency that does not depend back on the package
+    /// (`module.test.dev-dependency.in-tests`).
+    pub fn absolute_in_tests<S: AsRef<str>>(
+        &self,
+        path: &[S],
+    ) -> Result<Vec<String>, UseRootError> {
+        self.absolute_with(path, self.access.max(DevAccess::Unit))
+    }
+
+    fn absolute_with<S: AsRef<str>>(
+        &self,
+        path: &[S],
+        access: DevAccess,
+    ) -> Result<Vec<String>, UseRootError> {
         let segs = |p: &str| -> Vec<String> { p.split('.').map(str::to_owned).collect() };
         let Some((first, mut rest)) = path.split_first() else {
             return Err(UseRootError::UnknownRoot);
@@ -298,11 +342,21 @@ impl UseRoots {
             "dep" => {
                 let (name, after) = rest.split_first().ok_or(UseRootError::UnknownDependency)?;
                 rest = after;
-                let (_, root) = self
-                    .deps
-                    .iter()
-                    .find(|(n, _)| n == name.as_ref())
-                    .ok_or(UseRootError::UnknownDependency)?;
+                let root =
+                    if let Some((_, root)) = self.deps.iter().find(|(n, _)| n == name.as_ref()) {
+                        root
+                    } else {
+                        let (_, root, cyclic) = self
+                            .dev
+                            .iter()
+                            .find(|(n, _, _)| n == name.as_ref())
+                            .ok_or(UseRootError::UnknownDependency)?;
+                        match access {
+                            DevAccess::None => return Err(UseRootError::TestOnly),
+                            DevAccess::Unit if *cyclic => return Err(UseRootError::CyclicTest),
+                            _ => root,
+                        }
+                    };
                 segs(root)
             }
             "super" => {
@@ -553,31 +607,34 @@ impl ModuleTable {
     pub fn use_roots(&self, m: ModuleId) -> UseRoots {
         let module = &self.modules[m.idx()];
         let package = usize::from(module.package);
-        // Test modules, integration tests and tasks see the dev
-        // dependencies too (`module.test.dev-dependency`,
-        // `cli.task.dev-dependencies`), except that a unit test module never
-        // sees one that depends back on the package
-        // (`module.test.cyclic-dev-unit`). Other code does not see them.
+        // An integration test, a shared test module or a task may use every
+        // dev dependency, a unit test module those that do not depend back
+        // on the package, other code none (`module.test.dev-dependency`,
+        // `module.test.cyclic-dev-unit`, `cli.task.dev-dependencies`).
         let unit_test = Root::of(&self.files[m.idx()]).0 == Root::Source;
-        let dev =
-            self.dev_requires
-                .get(package)
-                .into_iter()
-                .flatten()
-                .filter(|(_, p)| match module.role {
-                    Role::Task => true,
-                    Role::Test => !(unit_test && self.reaches(*p, module.package)),
-                    Role::Lib | Role::Exe => false,
-                });
+        let access = match module.role {
+            Role::Task => DevAccess::All,
+            Role::Test if unit_test => DevAccess::Unit,
+            Role::Test => DevAccess::All,
+            Role::Lib | Role::Exe => DevAccess::None,
+        };
+        let ident = |p: u16| package_ident(&self.packages[usize::from(p)]);
         UseRoots {
             pkg: package_ident(&self.packages[package]),
             base: module.base.clone(),
             floor: module.floor.clone(),
             deps: self.requires[package]
                 .iter()
-                .chain(dev)
-                .map(|(name, p)| (name.clone(), package_ident(&self.packages[usize::from(*p)])))
+                .map(|(name, p)| (name.clone(), ident(*p)))
                 .collect(),
+            dev: self
+                .dev_requires
+                .get(package)
+                .into_iter()
+                .flatten()
+                .map(|(name, p)| (name.clone(), ident(*p), self.reaches(*p, module.package)))
+                .collect(),
+            access,
         }
     }
 
@@ -1163,5 +1220,67 @@ mod tests {
         assert_eq!(t.folders[merged.idx()].path, "shop.a");
         assert_eq!(t.folders[merged.idx()].modules.len(), 2);
         assert_ne!(t.folder_of_module("shop.c.z"), Some(merged));
+    }
+
+    /// `module.test.non-test-use.dev-dependency`, `module.test.cyclic-dev-unit`:
+    /// what a use may name of the dev dependencies depends on its module.
+    #[test]
+    fn dev_dependencies_by_kind_of_code() {
+        let mut shop = MemorySources::default();
+        for f in [
+            "src/lib.hd",
+            "src/lib_test.hd",
+            "tests/flow.hd",
+            "tasks/seed.hd",
+        ] {
+            shop.insert(f, "");
+        }
+        let mut back = MemorySources::default();
+        back.insert("src/lib.hd", "");
+        let mut plain = MemorySources::default();
+        plain.insert("src/lib.hd", "");
+        let t = ModuleTable::discover_all(&[
+            PackageIn {
+                name: "shop",
+                sources: &shop,
+                scope: Scope::All,
+                requires: Vec::new(),
+                entries: Vec::new(),
+                dev_requires: vec![("back".to_owned(), 1), ("plain".to_owned(), 2)],
+            },
+            PackageIn {
+                name: "back",
+                sources: &back,
+                scope: Scope::Library,
+                requires: vec![("shop".to_owned(), 0)],
+                entries: Vec::new(),
+                dev_requires: Vec::new(),
+            },
+            PackageIn {
+                name: "plain",
+                sources: &plain,
+                scope: Scope::Library,
+                requires: Vec::new(),
+                entries: Vec::new(),
+                dev_requires: Vec::new(),
+            },
+        ]);
+        let roots = |p: &str| t.use_roots(t.module(p).expect(p));
+        let lib = roots("shop");
+        assert_eq!(lib.absolute(&["dep", "plain"]), Err(UseRootError::TestOnly));
+        assert_eq!(
+            lib.absolute_in_tests(&["dep", "plain"]).as_deref(),
+            Ok(&["plain".to_owned()][..])
+        );
+        assert_eq!(
+            lib.absolute_in_tests(&["dep", "back"]),
+            Err(UseRootError::CyclicTest)
+        );
+        assert_eq!(
+            roots("shop.lib_test").absolute(&["dep", "back"]),
+            Err(UseRootError::CyclicTest)
+        );
+        assert!(roots("shop.$tests.flow").absolute(&["dep", "back"]).is_ok());
+        assert!(roots("shop.$tasks.seed").absolute(&["dep", "back"]).is_ok());
     }
 }
