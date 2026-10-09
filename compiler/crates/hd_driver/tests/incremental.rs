@@ -135,15 +135,18 @@ fn incremental(executor: Executor) {
     assert!(c.hit("code") >= 1, "unchanged instances reuse their code");
     assert_eq!(c.emitted, 1, "only the edited function is re-emitted");
 
-    // 2. Comment-only edit: rechecked (source hash), same TIR, link hits.
+    // 2. Comment-only edit: the check key holds the token hash, so the
+    // module is only parsed (the parse proof), not rechecked; link hits.
     let commented = GEO.replace(
         "fn abs(v: i32) -> i32:\n",
-        "# absolute value\nfn abs(v: i32) -> i32:\n    # negate when below zero\n",
+        "# absolute value\n\nfn abs(v: i32) -> i32:\n    # negate when below zero\n",
     );
     let r = ok(&store, &program(DATA_MAIN, &commented), executor);
     let c = &r.counters;
     assert!(c.ifaces_built.is_empty());
-    assert_eq!(c.modules_checked, vec!["demo.geo.shapes".to_owned()]);
+    assert!(c.modules_checked.is_empty(), "{:?}", c.modules_checked);
+    assert_eq!(c.miss("check"), 0);
+    assert_eq!(c.parsed, vec!["demo.geo.shapes".to_owned()]);
     assert_eq!(c.hit("link"), 1, "prog_key hits after a comment edit");
     assert!(
         c.parts_computed.is_empty(),
@@ -199,6 +202,71 @@ fn incremental_serial() {
 #[test]
 fn incremental_pool() {
     incremental(Executor::Pool(4));
+}
+
+/// A comment edit above a warning keeps the `check` entry, and the warning
+/// still lands on its shifted line, as a fresh run reports it.
+#[test]
+fn a_comment_edit_reuses_the_check_and_moves_its_positions() {
+    let serial = Executor::Serial(SerialOrder::Priority);
+    let geo = format!("{GEO}\nfn noisy() -> i32:\n    unused := 1\n    return 2\n");
+    let store = MemoryStore::default();
+    let cold = run(&store, &program(DATA_MAIN, &geo), serial);
+    assert_eq!(
+        lines_of(&cold, &geo, "unused-local-binding"),
+        vec![line_of(&geo, "unused := 1")],
+        "{}",
+        cold.render()
+    );
+    let commented = geo
+        .replace("fn noisy", "# one\n# two\n\nfn noisy")
+        .replace("    unused", "    # three\n\n    unused");
+    let warm = run(&store, &program(DATA_MAIN, &commented), serial);
+    let c = &warm.counters;
+    assert!(c.modules_checked.is_empty(), "{:?}", c.modules_checked);
+    assert_eq!(
+        lines_of(&warm, &commented, "unused-local-binding"),
+        vec![line_of(&commented, "unused := 1")],
+        "{}",
+        warm.render()
+    );
+    let fresh = run(
+        &MemoryStore::default(),
+        &program(DATA_MAIN, &commented),
+        serial,
+    );
+    assert_eq!(warm.render(), fresh.render());
+    assert_eq!(warm.wasm, fresh.wasm);
+}
+
+/// A comment between a documentation comment and its item detaches it: the
+/// `check` key ignores comments, so the parse proof finds the error.
+#[test]
+fn a_comment_that_detaches_a_doc_comment_is_reported() {
+    let serial = Executor::Serial(SerialOrder::Priority);
+    let geo = GEO.replace("fn abs(", "## The absolute value.\nfn abs(");
+    let store = MemoryStore::default();
+    ok(&store, &program(DATA_MAIN, &geo), serial);
+    let detached = geo.replace("value.\n", "value.\n# note\n");
+    let warm = run(&store, &program(DATA_MAIN, &detached), serial);
+    let fresh = run(
+        &MemoryStore::default(),
+        &program(DATA_MAIN, &detached),
+        serial,
+    );
+    assert!(warm.wasm.is_none());
+    assert_eq!(
+        warm.counters.miss("check"),
+        0,
+        "the check key ignores comments"
+    );
+    assert_eq!(
+        lines_of(&warm, &detached, "doc-comment-without-target"),
+        vec![line_of(&detached, "## The absolute")],
+        "{}",
+        warm.render()
+    );
+    assert_eq!(warm.render(), fresh.render());
 }
 
 /// A stage that answers "not implemented" stops a build with an internal

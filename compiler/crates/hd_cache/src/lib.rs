@@ -67,15 +67,18 @@ pub fn iface_key(
     k.finish()
 }
 
-/// `check_key(m) = H("check", toolchain, package, m, role, source_hash(m),
-/// [(folder, deep_hash) for closure(folder(m))])`.
+/// `check_key(m) = H("check", toolchain, package, m, role, token_hash(m),
+/// [(folder, deep_hash) for closure(folder(m))])`. The token hash leaves
+/// out plain comments and blank lines, so the entry stores its positions
+/// by code line, and `parse_key` proves that the file's current bytes
+/// parse.
 #[must_use]
 pub fn check_key(
     toolchain: Hash128,
     package: Hash128,
     module: &str,
     role: &str,
-    source_hash: Hash128,
+    token_hash: Hash128,
     closure: &[(&str, Hash128)],
 ) -> Hash128 {
     let mut k = StableHasher::new("check");
@@ -83,11 +86,23 @@ pub fn check_key(
     k.hash(package);
     k.str(module);
     k.str(role);
-    k.hash(source_hash);
+    k.hash(token_hash);
     for (c, h) in closure {
         k.str(c);
         k.hash(*h);
     }
+    k.finish()
+}
+
+/// `parse_key(f) = H("parse", toolchain, source_hash(f))`: an empty entry
+/// whose presence says that these bytes parse without a diagnostic. A
+/// `check` hit needs it, since its key ignores comments and blank lines,
+/// which can still detach a documentation comment.
+#[must_use]
+pub fn parse_key(toolchain: Hash128, source_hash: Hash128) -> Hash128 {
+    let mut k = StableHasher::new("parse");
+    k.hash(toolchain);
+    k.hash(source_hash);
     k.finish()
 }
 

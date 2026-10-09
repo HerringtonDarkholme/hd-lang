@@ -105,18 +105,6 @@ the host needs a default `TestRunner` provider
 `test-tasks` exit 101 with no message. Fix what is in your lane, name
 the rest under "Questions".
 
-### O23. Comment Edits Re-Check Bodies
-
-Muse's profiles show that editing one comment in the 30,000-line bench
-still spends about 14 ms in Body (and Module prep), although a comment
-changes no token a body reads. Find which key changes on a comment edit
-(spans? the file hash feeding a body key?) and make body and module
-keys depend only on what `cache.md` says they read, so a comment edit
-re-checks nothing but the skim. Report the comment-edit timings before
-and after (`cargo run --release -p hd_driver --example bench N`, the
-profile harness under `compiler/bench/`). Diagnostics must still point
-at the right lines after an edit that shifts them.
-
 ### O25. The Instantiation Depth Limit (#132; `hd_mono` Collect Lent For This Job)
 
 `hd build` of the CLI case `build-instantiation-too-deep` never ends:
@@ -335,6 +323,24 @@ after.
   `coh_key` and `init_key` parts of one package-wide `graph` entry;
   they are separate entries here (one read per folder). Should they
   merge into one entry read once?
+- **O23, `cache.md` §5.3 still keys `check` by `source_hash(m)`.** O23
+  keys it by a token hash instead (`HeaderSkeleton::token_hash`: the
+  contents of each code line, a line on which a token or a `##` comment
+  starts, from its start to its last token; plain comments, blank lines
+  and trailing whitespace left out), the SK-5 alternative. The entry
+  stores each position as (code line, offset in it), so diagnostics and
+  test case lines follow an edit that shifts them. A comment can still
+  break the parse (one between a `##` comment and its item detaches it,
+  `doc-comment-without-target`), so a `check` hit also needs a new empty
+  `parse` entry, `parse_key = H("parse", toolchain, source_hash)`, whose
+  presence says the bytes parse cleanly; on its miss the file is parsed.
+  So a comment edit costs the skim plus one parse of the edited file
+  (about 8 ms of the 22,000-line bench file), not "nothing but the
+  skim". Dropping that parse would need the token hash to also cover
+  doc-comment attachment and the lexer's comment diagnostics, which
+  ties the key to parser rules; I kept the parse. May `cache.md` §5.2
+  and §5.3 (the `check_key` line, a `parse` kind row and a note) be
+  updated to match, and by whom?
 
 ### Answers (orchestrator, 2026-10-09 00:30)
 

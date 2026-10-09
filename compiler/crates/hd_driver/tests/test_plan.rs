@@ -89,6 +89,44 @@ fn lists_cases_in_content_order_with_their_exports() {
     assert!(out.wasm.is_some());
 }
 
+/// A comment edit keeps the `check` entries, and each case's line follows
+/// the edit.
+#[test]
+fn a_comment_edit_moves_case_lines_without_a_recheck() {
+    let store = MemoryStore::default();
+    let cold = run(&store, SERIAL, None);
+    let mut src = sources();
+    src.insert(
+        "math.hd",
+        &MATH.replace("tests:\n", "# cases\n\ntests:\n    # first\n"),
+    );
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: SERIAL,
+    };
+    let goal = Goal::Tests {
+        module: None,
+        filter: None,
+    };
+    let warm = build(&host, "app", &goal);
+    assert!(
+        !warm
+            .counters
+            .modules_checked
+            .iter()
+            .any(|m| m.starts_with("app.")),
+        "{:?}",
+        warm.counters.modules_checked
+    );
+    let lines = |o: &Output| o.tests.iter().map(|c| c.line).collect::<Vec<_>>();
+    assert_eq!(lines(&cold), [6, 9, 12, 4]);
+    assert_eq!(lines(&warm), [9, 12, 15, 4]);
+    assert_eq!(warm.wasm, cold.wasm);
+}
+
 #[test]
 fn filter_selects_by_name() {
     let out = run(&MemoryStore::default(), SERIAL, Some("comp"));

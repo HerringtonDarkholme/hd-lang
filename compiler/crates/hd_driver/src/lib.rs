@@ -24,7 +24,7 @@ use hd_base::{
 };
 use hd_cache::{
     CacheStore, EntryKind, FileApi, MemoryStore, check_key, code_key, hdr_key, iface_key, init_key,
-    prog_key, toolchain_key,
+    parse_key, prog_key, toolchain_key,
 };
 use hd_check::BodyCx;
 use hd_check::stages::{ModuleFacts, init_order, test_overlay};
@@ -330,6 +330,8 @@ fn main_visibility(header: &str) -> Option<bool> {
 struct SkimOut {
     source_hash: Hash128,
     api_text_hash: Hash128,
+    token_hash: Hash128,
+    code_lines: Vec<u32>,
     uses: Vec<String>,
     facts: ModuleFacts,
     /// The header span of a top-level `pub fn main` or `main!`, which
@@ -1050,6 +1052,8 @@ impl Run<'_> {
         SkimOut {
             source_hash: sk.source_hash,
             api_text_hash: sk.api_text_hash,
+            token_hash: sk.token_hash,
+            code_lines: sk.code_lines,
             uses,
             facts,
             public_main,
@@ -1771,7 +1775,7 @@ impl Run<'_> {
             self.package_key,
             &module.path,
             self.role(m),
-            self.skim_of(m).source_hash,
+            self.skim_of(m).token_hash,
             &closure,
         ))
     }
@@ -1814,7 +1818,7 @@ impl Run<'_> {
             });
             for p in paths {
                 if let Some(tm) = self.table.module(p) {
-                    out.insert(format!("template {p}"), self.skim_of(tm.idx()).source_hash);
+                    out.insert(format!("template {p}"), self.skim_of(tm.idx()).token_hash);
                 }
             }
         }
@@ -1838,12 +1842,22 @@ impl Run<'_> {
             .check_keys
             .insert(self.table.modules[mi].path.clone(), key);
         if let Some(sections) = self.lookup(EntryKind::Check, key) {
+            // The key ignores comments and blank lines, which can still
+            // break the parse (a detached documentation comment).
+            if !self.parses(mi) {
+                for s in [Stage::ModulePrep, Stage::Body, Stage::ModuleFinish] {
+                    self.blocked(s);
+                }
+                let _ = self.prep[mi].set(None);
+                let _ = self.check[mi].set(None);
+                return;
+            }
             lock(&self.report).ok(Stage::ModulePrep);
             self.read_check(mi, &sections, Arc::from(join_sections(&sections)));
             let _ = self.prep[mi].set(None);
             return;
         }
-        if !self.parse_of(mi).is_ok() {
+        if !self.parses(mi) {
             for s in [Stage::ModulePrep, Stage::Body, Stage::ModuleFinish] {
                 self.blocked(s);
             }
@@ -1874,6 +1888,28 @@ impl Run<'_> {
         let overlay = sp.add(TaskKind::TestOverlay(m), &[id]);
         sp.edge(finish, pr);
         sp.edge(overlay, pr);
+    }
+
+    /// Whether the module's bytes parse without a diagnostic: a `parse`
+    /// entry says so, else the parse runs and a clean one is recorded.
+    fn parses(&self, m: usize) -> bool {
+        let key = parse_key(self.toolchain, self.skim_of(m).source_hash);
+        if self.lookup(EntryKind::Parse, key).is_some() {
+            return true;
+        }
+        let ok = self.parse_of(m).is_ok();
+        if ok {
+            self.put(EntryKind::Parse, key, &[]);
+        }
+        ok
+    }
+
+    /// The module's code lines, which place the `check` entry's positions.
+    fn lines(&self, m: usize) -> Lines<'_> {
+        Lines {
+            starts: &self.skim_of(m).code_lines,
+            len: u32_of(self.texts[m].len()),
+        }
     }
 
     /// Which folder declares what: every module's path node.
@@ -2499,6 +2535,7 @@ impl Run<'_> {
             return;
         };
         let names = self.names();
+        let lines = self.lines(m);
         let mut diags = prep.diags.clone();
         diags.append(bdiags);
         let mut dw = Writer::default();
@@ -2506,8 +2543,8 @@ impl Run<'_> {
         for i in 0..diags.len() {
             dw.str(diags.code[i].as_str());
             dw.u8(u8::from(diags.severity[i] == Severity::Warning));
-            dw.u32(diags.primary[i].lo);
-            dw.u32(diags.primary[i].hi);
+            lines.write(&mut dw, diags.primary[i].lo);
+            lines.write(&mut dw, diags.primary[i].hi);
             dw.str(diags.get_text(diags.message[i]));
         }
         let mut tw = Writer::default();
@@ -2548,7 +2585,7 @@ impl Run<'_> {
             }
         }
         let mut rw = Writer::default();
-        encode_regs(regs, &mut rw);
+        encode_regs(regs, &mut rw, &lines);
         let items = match hd_resolve::encode_items(&names, &all_items, &[]) {
             Ok(x) => x,
             Err(e) => {
@@ -2574,6 +2611,7 @@ impl Run<'_> {
             let _ = self.check[m].set(None);
             return;
         };
+        let lines = self.lines(m);
         let mut r = Reader::new(d);
         let mut buf = DiagBuf::default();
         for _ in 0..r.count() {
@@ -2583,7 +2621,7 @@ impl Run<'_> {
             } else {
                 Severity::Warning
             };
-            let (lo, hi) = (r.u32(), r.u32());
+            let (lo, hi) = (lines.read(&mut r), lines.read(&mut r));
             let msg = r.str().to_owned();
             buf.push(
                 code,
@@ -2601,7 +2639,7 @@ impl Run<'_> {
         lock(&self.diags).append(&buf);
         let regs = sections
             .get(4)
-            .map(|b| decode_regs(&mut Reader::new(b)))
+            .map(|b| decode_regs(&mut Reader::new(b), &lines))
             .unwrap_or_default();
         let _ = self.regs[m].set(regs);
         let content = Reader::new(meta).hash();
@@ -3384,8 +3422,46 @@ impl hd_resolve::World for Run<'_> {
     }
 }
 
+/// A file's code lines (`HeaderSkeleton::code_lines`) and length. A `check`
+/// entry stores a byte offset as `(code line, offset from its start)`,
+/// which an edit of comments and blank lines keeps, since its key holds
+/// the lines' contents; an offset before the first code line stays raw.
+struct Lines<'a> {
+    starts: &'a [u32],
+    len: u32,
+}
+
+impl Lines<'_> {
+    const RAW: u32 = u32::MAX;
+
+    fn write(&self, w: &mut Writer, at: u32) {
+        match self.starts.partition_point(|&s| s <= at) {
+            0 => {
+                w.u32(Self::RAW);
+                w.u32(at);
+            }
+            k => {
+                w.u32(u32_of(k - 1));
+                w.u32(at - self.starts[k - 1]);
+            }
+        }
+    }
+
+    /// The offset in this file; one past its code line's content stays
+    /// before the next code line.
+    fn read(&self, r: &mut Reader<'_>) -> u32 {
+        let (line, off) = (r.u32() as usize, r.u32());
+        let first = self.starts.first().copied().unwrap_or(self.len);
+        let Some(&start) = self.starts.get(line) else {
+            return off.min(first);
+        };
+        let next = self.starts.get(line + 1).copied().unwrap_or(self.len);
+        start.saturating_add(off).min(next)
+    }
+}
+
 /// A module's test registrations, as its test-role `check` entry holds them.
-fn encode_regs(regs: &[hd_check::tests::TestReg], w: &mut Writer) {
+fn encode_regs(regs: &[hd_check::tests::TestReg], w: &mut Writer, lines: &Lines<'_>) {
     let opt = |w: &mut Writer, s: &Option<String>| match s {
         Some(s) => {
             w.u8(1);
@@ -3401,11 +3477,11 @@ fn encode_regs(regs: &[hd_check::tests::TestReg], w: &mut Writer) {
         opt(w, &r.ignore);
         opt(w, &r.expect_panic);
         opt(w, &r.unsupported);
-        w.u32(r.at);
+        lines.write(w, r.at);
     }
 }
 
-fn decode_regs(r: &mut Reader<'_>) -> Vec<hd_check::tests::TestReg> {
+fn decode_regs(r: &mut Reader<'_>, lines: &Lines<'_>) -> Vec<hd_check::tests::TestReg> {
     let opt = |r: &mut Reader<'_>| (r.u8() == 1).then(|| r.str().to_owned());
     let n = r.count();
     let mut out = Vec::new();
@@ -3417,7 +3493,7 @@ fn decode_regs(r: &mut Reader<'_>) -> Vec<hd_check::tests::TestReg> {
             ignore: opt(r),
             expect_panic: opt(r),
             unsupported: opt(r),
-            at: r.u32(),
+            at: lines.read(r),
         });
     }
     out

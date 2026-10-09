@@ -23,10 +23,11 @@ pub enum EntryKind {
     Link,
     Cwasm,
     Code,
+    Parse,
 }
 
 impl EntryKind {
-    pub const ALL: [EntryKind; 12] = [
+    pub const ALL: [EntryKind; 13] = [
         EntryKind::Iface,
         EntryKind::Check,
         EntryKind::CheckTest,
@@ -39,6 +40,7 @@ impl EntryKind {
         EntryKind::Link,
         EntryKind::Cwasm,
         EntryKind::Code,
+        EntryKind::Parse,
     ];
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -55,6 +57,7 @@ impl EntryKind {
             EntryKind::Link => "link",
             EntryKind::Cwasm => "cwasm",
             EntryKind::Code => "code",
+            EntryKind::Parse => "parse",
         }
     }
 }
