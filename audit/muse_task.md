@@ -105,27 +105,56 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### R18. Shrink The Wrong-Value Programs (#149, #130, Research)
+### R23. Design Note: Local Declarations In Bodies (#123, Design Text)
 
-Your R2 §B and §F list one-row wrong values: `'\''` evaluating to `\`,
-`literal-patterns` (29 vs 32), Map duplicate keys keeping the first
-value, `nested-closure-captures` (2 vs 42), bracket and type-expression
-evaluation, and the interpolation bugs (nested quotes doubling, a map
-value printing raw, `"[${W { s: "cd" }}]"` printing the inner literal
-twice). Shrink each to the smallest program, name the spec rule it
-breaks, and say which stage produces the wrong value (print the TIR or
-the Wasm text if the driver can). Add the findings to
-`audit/compiler/triage-wrong-runs.md`. Read only; timebox 45 minutes.
+18 programs stop at Body on a local `data` declaration, 4 on a local
+named `fn`, 2 on a local `impl` (your R22 plan). Read the spec rules for
+items inside bodies (`spec/lang/02-grammar.md` statements,
+`03-names-and-scopes.md` scopes, `07-functions.md`, `08-data-and-enums.md`)
+and add to `checking-and-tir.md` how a local item is named and lowered
+(a hidden module-level item with a mangled path? captures forbidden?),
+how its methods and impls are found, and what Emit sees. Timebox 45
+minutes.
 
-### R22. Plan The Remaining Body And Emit Stops (Research)
+### R24. Design Note: Small Body Gaps (#123, Design Text)
 
-After #46 and #74 land, list every remaining `unsupported:Body` and
-`unsupported:Emit` case from `compiler/CONFORMANCE.md` grouped by the
-construct named in the message, with counts, biggest first, and the
-known task number for each group (look at the task numbers named in
-`audit/compiler/*.md` and this file). Write
-`audit/compiler/stops-plan.md`. Read only; timebox 30 minutes. If #74
-is not on main yet, do R18-R21 first.
+From your R22 plan: `**` (14), open range patterns (9), full range `..`
+(6), compound assignment (4), tuple patterns with a rest (4),
+assignment targets (7), mixed positional and named variant fields (4),
+`RestType` in a body (5). For each, the spec rule IDs and the TIR it
+lowers to (a desugar into existing nodes where the design allows), one
+row each in a table in `checking-and-tir.md`. Timebox 45 minutes.
+
+### R25. Design Note: Type Names Used As Values (Design Text)
+
+7 programs use a type name as a value (`Mailer`, `Priced`, `list`,
+`Set`, `T`), 2 call a type name (R22). Read the spec rules (names,
+`types.*` for type-as-value, constructors, `type-used-as-value`) and say
+which of these are valid (and what they mean) and which must be
+errors, citing rule IDs; then the lowering for the valid ones. If the
+spec does not settle a case, log it in
+`audit/compiler/diagnostic-notes.md` instead of deciding. Add to
+`checking-and-tir.md`. Timebox 30 minutes.
+
+### R26. Turn Your R5 Report Into Task Rows (Research)
+
+`audit/compiler/triage-missing-errors.md` groups 250 accepted invalid
+programs into 21 causes. For each cause not already matching an
+orchestrator task number, write one proposed task line (title in the
+form "[check] what is missing (N programs)", the spec rule IDs, the
+stage) at the end of that file, biggest first. Read only; timebox 20
+minutes.
+
+### R27. Profile The Runtime Of The Samples (Research)
+
+P1 measures compile time. Measure run time: build each sample under
+`compiler/samples` and the six programs in `compiler/bench/runtime/progs/`
+with the current compiler, run them (`hd FILE.wasm` or the bench's
+`run.mjs`), and compare with the last runtime report in git history
+(`runtime-vs-node-*.md`, `runtime-hotspots-*.md`). Flag only
+order-of-magnitude problems, with the hot function if you can find it.
+Write `audit/compiler/runtime-<date>-<short hash>.md`. Timebox 45
+minutes.
 
 ### P1. Profile The New Compiler (After S4; Standing Job)
 
@@ -411,3 +440,16 @@ rather than a carve-out.
    promoted candidate wins at the smallest depth, but nothing breaks
    a tie between two promotion paths at that depth. Recommend
    ambiguous-method, consistent with trait-vs-trait ties.
+
+### Answers (orchestrator, 2026-10-09 03:10)
+
+- **Q-R19:** both as recommended (an unmatched full key stays an internal
+  error; diagnostics spell the full key, `Repo[User]`).
+- **Q-R20:** not now. The least-common-type table
+  (`types.lct.uses`) does not list loop-`else`/`break` joins, so the
+  compiler adds no union there; the gap is logged in
+  `audit/compiler/diagnostic-notes.md` (the spec is frozen).
+- **Q-R21.1:** diagnostics-only, fuel-capped, never memoized.
+- **Q-R21.2:** the spec does not say how two promoted methods at the same
+  smallest depth tie (`names.method-lookup.promoted-candidate`); logged.
+  The compiler reports `ambiguous-method` there, the conservative error.

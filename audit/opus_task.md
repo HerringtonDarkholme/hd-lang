@@ -113,6 +113,44 @@ the host needs a default `TestRunner` provider
 `test-tasks` exit 101 with no message. Fix what is in your lane, name
 the rest under "Questions".
 
+### O23. Comment Edits Re-Check Bodies
+
+Muse's profiles show that editing one comment in the 30,000-line bench
+still spends about 14 ms in Body (and Module prep), although a comment
+changes no token a body reads. Find which key changes on a comment edit
+(spans? the file hash feeding a body key?) and make body and module
+keys depend only on what `cache.md` says they read, so a comment edit
+re-checks nothing but the skim. Report the comment-edit timings before
+and after (`cargo run --release -p hd_driver --example bench N`, the
+profile harness under `compiler/bench/`). Diagnostics must still point
+at the right lines after an edit that shifts them.
+
+### O24. InitOrder From The Cache (#102)
+
+O16 cached Coherence. Do the same for InitOrder (`init_key`), so a warm
+run with no change redoes neither; report warm-run timings before and
+after.
+
+### O25. The Instantiation Depth Limit (#132; `hd_mono` Collect Lent For This Job)
+
+`hd build` of the CLI case `build-instantiation-too-deep` never ends:
+Collect has no `instantiation-too-deep` limit. Read the spec rule for
+that code (`spec/lang/`, `grep -rn instantiation-too-deep spec/`) and the
+design (`codegen.md` §13.4, the instantiation chain), and stop
+collection at the limit with that diagnostic, at the place the spec
+names. This job lends you `hd_mono`'s Collect only. The pass list may
+only grow; report the case's time before (bounded by a timeout) and
+after.
+
+### O26. CLI Tier Triage After #74
+
+Rerun the CLI tier (`cargo test -q --release -p hd_cli --test
+cli_conformance`) and list every failing case with its first blocking
+stage and message, and who owns it (you, a task number of the
+orchestrator's, or "needs a design" for `hd doc`, `hd fmt` layout and
+fetching). Build any part that is in your lane; put the table under
+"Questions" so the orchestrator can queue the rest.
+
 ## Questions
 
 - **O22, every item skipped.** As O22 allows: globs in workspace
