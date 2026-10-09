@@ -27,6 +27,8 @@ struct Options {
     tests: bool,
     /// `--all`: also the test code and the tasks (`cli.check.all`).
     all: bool,
+    /// The members `-p NAME` selects (`cli.workspace.select.anywhere`).
+    packages: Vec<String>,
 }
 
 fn options(args: &[OsString]) -> Result<Options, String> {
@@ -37,12 +39,19 @@ fn options(args: &[OsString]) -> Result<Options, String> {
         max_errors: None,
         tests: false,
         all: false,
+        packages: Vec::new(),
     };
     let mut i = 0;
     while i < args.len() {
         if let Some(format) = report::format_flag(args, i) {
             let (json, used) = format?;
             o.json = json;
+            i += used;
+            continue;
+        }
+        if let Some(p) = disk::package_flag(args, i) {
+            let (name, used) = p?;
+            o.packages.push(name);
             i += used;
             continue;
         }
@@ -97,9 +106,21 @@ struct Target {
 /// What `hd check` checks: FILE's package or FILE alone, the package of the
 /// working directory, or in workspace mode every member
 /// (`cli.workspace.members`).
-fn targets(file: Option<&OsString>) -> Result<Vec<Target>, String> {
+fn targets(file: Option<&OsString>, packages: &[String]) -> Result<Vec<Target>, String> {
     let Some(file) = file else {
         let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+        if !packages.is_empty() {
+            return disk::select_members(&cwd, packages)?
+                .into_iter()
+                .map(|(dir, rel)| {
+                    Ok(Target {
+                        program: disk::load_package(&dir, "main")?,
+                        only: None,
+                        member: Some(rel),
+                    })
+                })
+                .collect();
+        }
         if let Some((ws, members)) = disk::workspace_root(&cwd) {
             return members
                 .iter()
@@ -191,7 +212,10 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
         Err(e) => return fail(&e),
     };
     let (mut diags, mut modules_checked) = (Vec::new(), 0);
-    match targets(o.file.as_ref()) {
+    if o.file.is_some() && !o.packages.is_empty() {
+        return fail("`hd check` takes a FILE or `-p NAME`, not both");
+    }
+    match targets(o.file.as_ref(), &o.packages) {
         Ok(ts) => {
             for t in ts {
                 let member = t.member.clone();

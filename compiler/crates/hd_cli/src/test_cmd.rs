@@ -29,6 +29,8 @@ struct Options {
     filter: Option<String>,
     jobs: usize,
     json: bool,
+    /// The members `-p NAME` selects (`cli.workspace.select.anywhere`).
+    packages: Vec<String>,
 }
 
 fn parse(args: &[OsString]) -> Result<Options, String> {
@@ -37,12 +39,19 @@ fn parse(args: &[OsString]) -> Result<Options, String> {
         filter: None,
         jobs: crate::default_jobs(),
         json: false,
+        packages: Vec::new(),
     };
     let mut i = 0;
     while i < args.len() {
         if let Some(format) = report::format_flag(args, i) {
             let (json, used) = format?;
             o.json = json;
+            i += used;
+            continue;
+        }
+        if let Some(p) = disk::package_flag(args, i) {
+            let (name, used) = p?;
+            o.packages.push(name);
             i += used;
             continue;
         }
@@ -130,9 +139,15 @@ type Unit = (PathBuf, Option<String>, Option<String>);
 
 /// What `hd test` tests: FILE's module, the package of the working
 /// directory, or in workspace mode every member (`cli.workspace.members`).
-fn units(file: Option<&Path>) -> Result<Vec<Unit>, String> {
+fn units(file: Option<&Path>, packages: &[String]) -> Result<Vec<Unit>, String> {
     if file.is_none() {
         let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+        if !packages.is_empty() {
+            return Ok(disk::select_members(&cwd, packages)?
+                .into_iter()
+                .map(|(dir, rel)| (dir, None, Some(rel)))
+                .collect());
+        }
         if let Some((ws, members)) = disk::workspace_root(&cwd) {
             return Ok(members
                 .into_iter()
@@ -164,7 +179,12 @@ pub fn command(args: &[OsString]) -> ExitCode {
         ignored: 0,
         unsupported: 0,
     };
-    let units = match units(o.file.as_deref()) {
+    if o.file.is_some() && !o.packages.is_empty() {
+        return report
+            .rep
+            .fail("`hd test` takes a FILE or `-p NAME`, not both");
+    }
+    let units = match units(o.file.as_deref(), &o.packages) {
         Ok(u) => u,
         Err(e) => return report.rep.fail(&e),
     };

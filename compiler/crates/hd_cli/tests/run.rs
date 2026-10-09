@@ -1194,3 +1194,32 @@ fn test_takes_cap_flags() {
     let r = ran(&dir, &["test", "--cap", "Time=true"]);
     assert_eq!(r.code, Some(101));
 }
+
+/// `cli.workspace.select.anywhere`, `.repeat`, `.unknown`: `-p NAME`
+/// selects members by package name, from the root or inside a member;
+/// a NAME that names no member is an error.
+#[test]
+fn p_selects_workspace_members_from_anywhere() {
+    let dir = tree(
+        "hd-forms-select",
+        &[
+            ("hd.toml", "[workspace]\nmembers = [\"app\", \"lib\"]\n"),
+            ("app/hd.toml", "[package]\nname = \"app\"\n"),
+            ("app/src/main.hd", HELLO),
+            ("lib/hd.toml", "[package]\nname = \"lib\"\n"),
+            ("lib/src/lib.hd", "pub fn one() -> i32:\n    missing\n"),
+        ],
+    );
+    let r = ran(&dir.join("app"), &["check", "-p", "lib"]);
+    assert_eq!(r.code, Some(101));
+    assert!(r.err.starts_with("error: lib/src/lib.hd:2:5"), "{}", r.err);
+    let r = ran(&dir, &["check", "--package", "app"]);
+    assert_eq!(r.code, Some(0), "{}", r.err);
+    let r = ran(&dir.join("lib"), &["run", "-p", "app"]);
+    assert_eq!((r.code, r.out.as_str()), (Some(0), "hello\n"), "{}", r.err);
+    let r = ran(&dir, &["check", "-p", "app", "-p", "lib"]);
+    assert_eq!(r.code, Some(101));
+    let r = ran(&dir, &["test", "-p", "nope"]);
+    assert_eq!(r.code, Some(101));
+    assert!(r.err.contains("`-p nope` names no member"), "{}", r.err);
+}

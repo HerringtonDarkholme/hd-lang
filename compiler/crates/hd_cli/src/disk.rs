@@ -266,6 +266,86 @@ pub fn workspace_root(start: &Path) -> Option<(PathBuf, Vec<PathBuf>)> {
     Some((dir, members))
 }
 
+/// The workspace a command finds from `start`: at its root
+/// (`cli.mode.workspace`), or around the package of package mode when the
+/// nearest workspace manifest above it lists the package as a member
+/// (`cli.mode.member`). Its directory and its members' directories.
+fn enclosing_workspace(start: &Path) -> Option<(PathBuf, Vec<PathBuf>)> {
+    if let Some(ws) = workspace_root(start) {
+        return Some(ws);
+    }
+    let package = package_root(start)?;
+    let (root, members) = workspace_root(package.parent()?)?;
+    members
+        .iter()
+        .any(|m| std::fs::canonicalize(m).ok().as_ref() == Some(&package))
+        .then_some((root, members))
+}
+
+/// The members that `-p NAME` flags select (`cli.workspace.select.*`): by
+/// package name, wherever the command finds the workspace, each with its
+/// directory below the workspace root; a NAME that names no member is an
+/// error.
+pub fn select_members(start: &Path, names: &[String]) -> Result<Vec<(PathBuf, String)>, String> {
+    let Some((root, members)) = enclosing_workspace(start) else {
+        return Err(
+            "`-p NAME` selects a workspace member, and no workspace is at or above here".to_owned(),
+        );
+    };
+    let by_name: Vec<(PathBuf, String, String)> = members
+        .into_iter()
+        .map(|dir| {
+            let name = package_name(&dir).unwrap_or_default();
+            let rel = dir
+                .strip_prefix(&root)
+                .unwrap_or(&dir)
+                .to_string_lossy()
+                .replace('\\', "/");
+            (dir, rel, name)
+        })
+        .collect();
+    let mut out = Vec::new();
+    for n in names {
+        match by_name.iter().find(|(_, _, name)| name == n) {
+            Some((dir, rel, _)) => {
+                if !out.iter().any(|(d, _): &(PathBuf, String)| d == dir) {
+                    out.push((dir.clone(), rel.clone()));
+                }
+            }
+            None => {
+                return Err(format!(
+                    "`-p {n}` names no member of the workspace at {}; its members are {}",
+                    root.display(),
+                    by_name
+                        .iter()
+                        .map(|(_, _, name)| format!("`{name}`"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Reads `-p NAME` or `--package NAME` (or `--package=NAME`) at `args[i]`:
+/// the name and how many words it took, or `None` for another word.
+pub fn package_flag(
+    args: &[std::ffi::OsString],
+    i: usize,
+) -> Option<Result<(String, usize), String>> {
+    let text = args.get(i)?.to_string_lossy();
+    if text == "-p" || text == "--package" {
+        return Some(
+            args.get(i + 1)
+                .map(|v| (v.to_string_lossy().into_owned(), 2))
+                .ok_or_else(|| format!("`{text}` needs a NAME")),
+        );
+    }
+    text.strip_prefix("--package=")
+        .map(|v| Ok((v.to_owned(), 1)))
+}
+
 /// A directory of a workspace's `members` or `exclude` list, normalized for
 /// comparison: no `./` and no trailing `/`.
 fn listed(list: &[String], rel: &str) -> bool {

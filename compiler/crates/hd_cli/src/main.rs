@@ -373,6 +373,8 @@ struct Words {
     positional: Vec<OsString>,
     /// The words after `--`; only `hd run` takes them (`cli.args.separator`).
     program_args: Vec<OsString>,
+    /// The members `-p NAME` selects (`cli.workspace.select.anywhere`).
+    packages: Vec<String>,
 }
 
 fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
@@ -382,6 +384,7 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         caps: Vec::new(),
         positional: Vec::new(),
         program_args: Vec::new(),
+        packages: Vec::new(),
     };
     let mut i = 0;
     while i < args.len() {
@@ -392,6 +395,12 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         if let Some(format) = report::format_flag(args, i) {
             let (json, used) = format?;
             w.json = json;
+            i += used;
+            continue;
+        }
+        if let Some(p) = disk::package_flag(args, i) {
+            let (name, used) = p?;
+            w.packages.push(name);
             i += used;
             continue;
         }
@@ -464,7 +473,7 @@ fn run_command(args: &[OsString]) -> ExitCode {
             )
         });
     }
-    let root = match workspace_member(name.as_deref()) {
+    let root = match workspace_member(name.as_deref(), &w.packages) {
         Some(Ok(r)) => r,
         Some(Err(e)) => return rep.fail(&e),
         None => match package_of_cwd("run") {
@@ -534,18 +543,44 @@ fn run_command(args: &[OsString]) -> ExitCode {
     )
 }
 
-/// In workspace mode, the member whose executable or task `hd run NAME`
-/// runs (`cli.workspace.run-name`, `.run-ambiguous`, `.run-missing`,
-/// `.run-bare`); `None` outside workspace mode.
-fn workspace_member(name: Option<&str>) -> Option<Result<PathBuf, String>> {
+/// In workspace mode, or with `-p NAME` flags, the member whose executable
+/// or task `hd run NAME` runs (`cli.workspace.run-name`, `.run-ambiguous`,
+/// `.run-missing`, `.run-bare`, `cli.workspace.select.*`): among the
+/// selected members when flags select some. One selected member runs as a
+/// package does. `None` in plain package mode.
+fn workspace_member(name: Option<&str>, packages: &[String]) -> Option<Result<PathBuf, String>> {
     let cwd = std::env::current_dir().ok()?;
-    let (ws, members) = disk::workspace_root(&cwd)?;
-    let rel = |dir: &Path| {
-        dir.strip_prefix(&ws)
-            .unwrap_or(dir)
-            .to_string_lossy()
-            .replace('\\', "/")
+    let members: Vec<(PathBuf, String)> = if packages.is_empty() {
+        let (ws, members) = disk::workspace_root(&cwd)?;
+        members
+            .into_iter()
+            .map(|dir| {
+                let rel = dir
+                    .strip_prefix(&ws)
+                    .unwrap_or(&dir)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                (dir, rel)
+            })
+            .collect()
+    } else {
+        match disk::select_members(&cwd, packages) {
+            Ok(m) => m,
+            Err(e) => return Some(Err(e)),
+        }
     };
+    if let [(one, _)] = members.as_slice()
+        && !packages.is_empty()
+    {
+        return Some(Ok(one.clone()));
+    }
+    let rel = |dir: &Path| {
+        members
+            .iter()
+            .find(|(d, _)| d == dir)
+            .map_or_else(String::new, |(_, r)| r.clone())
+    };
+    let members: Vec<PathBuf> = members.iter().map(|(d, _)| d.clone()).collect();
     let runnables = |dir: &Path| -> Vec<String> {
         let package = disk::package_name(dir).unwrap_or_default();
         disk::executables(dir, &package)
@@ -613,6 +648,17 @@ fn build_command(args: &[OsString]) -> ExitCode {
     };
     let mut rep = Reporter::stdout(w.json);
     let built = match w.positional.as_slice() {
+        [] if !w.packages.is_empty() => {
+            match std::env::current_dir()
+                .map_err(|e| e.to_string())
+                .and_then(|cwd| disk::select_members(&cwd, &w.packages))
+            {
+                Ok(members) => members
+                    .iter()
+                    .try_for_each(|(root, _)| build_package(root, w.release, &mut rep)),
+                Err(e) => Err(rep.fail(&e)),
+            }
+        }
         [] => match std::env::current_dir()
             .ok()
             .and_then(|cwd| disk::workspace_root(&cwd))
