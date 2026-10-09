@@ -100,6 +100,39 @@ names. This job lends you `hd_mono`'s Collect only. The pass list may
 only grow; report the case's time before (bounded by a timeout) and
 after.
 
+### O27. Host Providers For The Capability Methods (Host Side Of #176)
+
+Your O26 table: `Process.run`, `FsWrite.write_bytes`, `FsRead.read_text`,
+`Env.get`, `Args.list` and a default `TestRunner` provider stop at Link or
+run time because neither the host ABI rows (`hd_host_abi::TABLE`) nor the
+host providers exist. Build the host side: the ABI rows with their
+exchange-buffer codecs as `wasm-layout.md` §15.4 and `codegen.md` §17.2
+describe, the Node host providers (`hd:Process`, `hd:FsWrite`, `hd:FsRead`,
+`hd:Env`, `hd:Args`, `hd:TestRunner` with temp dirs), and the grant checks.
+The orchestrator's agent lowers the calls in `hd_wasm` (task #176) against
+your rows; if a row's shape needs an emitter decision, write it under
+"Questions" with your proposal and build the rest. Read the spec's host
+capability chapters (`spec/std/fs.md`, `process.md`, `env.md`, `cli.md`,
+`testing.md` TestRunner) first.
+
+### O28. Skim Cost Of The Manifest Work
+
+Muse's profiles (`audit/compiler/profile-2026-10-09-*.md`) show Skim
++5.4 ms at the 30,000-line bench cold after O6/O7. Find what Skim now does
+per file that it did not before (manifest reads, path checks) and make it
+once per package or cached by key, as `cache.md` intends. Report cold and
+warm timings before and after; behaviour and the pass list unchanged.
+
+### O29. Rebuild Scope Of Edits
+
+On the 30,000-line bench a body edit costs about 119 ms and a signature
+edit about 130 ms. Check against `cache.md` what each edit should
+recompute (a body edit: that body's module, then Collect/Emit for the
+instances it changes; a signature edit: dependents through the interface
+hash) and find any over-invalidation in the driver's keys or scheduling.
+Fix what is in your lane; report what is not under "Questions". Timings
+before and after.
+
 ## Questions
 
 - **O22, every item skipped.** As O22 allows: globs in workspace
