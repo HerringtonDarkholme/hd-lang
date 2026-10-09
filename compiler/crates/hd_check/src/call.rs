@@ -994,7 +994,7 @@ impl Ck<'_, '_> {
         let name = self.cx.names.text(item.name).to_owned();
         match &item.data {
             ItemData::Fn(sig) => {
-                let sig = sig.clone();
+                let sig = self.with_result(def, sig.clone());
                 let vars = self.fresh_generics(&sig, explicit, 0);
                 let inst = |t: Ty| subst_owner(pool, def, &vars, t);
                 let params: Vec<(Symbol, Ty)> =
@@ -1693,7 +1693,7 @@ impl Ck<'_, '_> {
 
     pub(crate) fn sig_of(&self, d: DefId) -> StageResult<FnSig> {
         match self.cx.lookup.item(d).and_then(|i| i.sig().cloned()) {
-            Some(s) => Ok(s),
+            Some(s) => Ok(self.with_result(d, s)),
             None => unsupported("a method without a signature"),
         }
     }

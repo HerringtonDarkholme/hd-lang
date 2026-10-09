@@ -74,6 +74,23 @@ first, depth first. A callee already in progress closes a cycle:
 function in source order, whichever function was entered first. The walk
 is serial and bounded by the module's item count.
 
+As built (#80): the driver's `Body(m)` checks a module's bodies serially,
+so M1 runs at its start, after the top-level statements, over one
+`BodyCx`. `hd_check::results` registers the non-public functions and
+inherent methods whose declarations omit `-> T`. Every read of a callee's
+signature goes through `Ck::with_result`, which checks a pending callee
+right there with its own `DiagBuf` (a trial that reads the result rolls
+back only its own diagnostics). The result is a join variable
+(`join_target`), so the final value and the `return` operands take the
+least common type and the row union. A call of a callee in progress is
+poison. The cycle error goes to a module-level buffer, deduplicated by
+the cycle's first member. `Body(m)` takes each M1 body at its source
+position instead of checking it again, and `ModuleFinish` writes the
+inferred results into the module's items, which `Collect` reads. A
+top-level binding's literal class closes at the end of its statement
+(`types.literal.local.statement`), so a body that a top-level statement
+reaches sees the binding's type.
+
 **Omitted rows (M3).** Rows do not order checking. A call to a private
 callable `g` with an omitted row gives the call a pending row: `RowVar(g)`
 with the call's substitution, minus the keys of the `$.with` blocks

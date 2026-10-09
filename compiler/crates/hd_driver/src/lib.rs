@@ -354,9 +354,10 @@ struct PrepOut {
 /// A folder's stage-A diagnostics, with the module each belongs to.
 type IfaceDiags = Vec<(usize, Code, hd_resolve::anchor::Anchor, String)>;
 
-/// A module's TIR and body diagnostics after `Body(m)`, and the hidden
-/// methods its derivations add (checking-and-tir.md §4.13.9).
-type BodyOut = (Vec<Body>, DiagBuf, Vec<Item>);
+/// A module's TIR and body diagnostics after `Body(m)`, the hidden
+/// methods its derivations add (checking-and-tir.md §4.13.9), and the
+/// results M1 inferred for its private callables (§4.13.1).
+type BodyOut = (Vec<Body>, DiagBuf, Vec<Item>, Vec<(DefId, Ty)>);
 
 /// What a module's derivations add to its `check` entry: the derived
 /// implementations' methods and their bodies (codegen.md §12.3).
@@ -1950,10 +1951,16 @@ impl Run<'_> {
             solver: &solver,
             methods: std::cell::OnceCell::new(),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
+            results: std::cell::RefCell::default(),
         };
         let mut diags = DiagBuf::default();
         let mut bodies = Vec::new();
         let mut failed = None;
+        // M1 (checking-and-tir.md §4.13.1 "Omitted result types"): the
+        // private callables without a result type are checked before
+        // their callers, from the top-level statements on.
+        let methods = hd_resolve::body_nodes(&names, &src, &heads);
+        hd_check::results::omitted_results(&cx, &methods);
         // Top-level statements first: their bindings are visible to every
         // function body of the module (checking-and-tir.md §4.13.10).
         let mut stmts = hd_check::init::init_statements(src.root());
@@ -1998,6 +2005,9 @@ impl Run<'_> {
                 }
             }
         }
+        // The rest of M1, in source order; each body it checks is final.
+        hd_check::results::infer_results(&cx);
+        diags.append(&hd_check::results::cycles(&cx));
         // A written implementation writes every required trait method
         // (spec 09 `trait.impl.required`), reported at its header.
         for h in heads
@@ -2016,7 +2026,6 @@ impl Run<'_> {
         // Member promotion conflicts are declaration errors (spec 03
         // `names.conflict.error`), reported on the embedded field or on the
         // private member.
-        let methods = hd_resolve::body_nodes(&names, &src, &heads);
         let mut inherent = None;
         for h in heads
             .iter()
@@ -2058,7 +2067,14 @@ impl Run<'_> {
             if hd_resolve::Src::child(node, hd_syntax::SyntaxKind::Block).is_none() {
                 continue;
             }
-            match hd_check::check_fn(&cx, def, node, &mut diags) {
+            let checked = match hd_check::results::take(&cx, def) {
+                Some((checked, own)) => {
+                    diags.append(&own);
+                    checked
+                }
+                None => hd_check::check_fn(&cx, def, node, &mut diags),
+            };
+            match checked {
                 Ok(b) => {
                     lock(&self.report).body_ok += 1;
                     let path = names.path(def);
@@ -2227,7 +2243,8 @@ impl Run<'_> {
         }
         bodies.extend(derived.bodies);
         lock(&self.report).ok(Stage::Body);
-        let _ = self.body[m].set(Some((bodies, diags, derived.items)));
+        let inferred = hd_check::results::inferred(&cx);
+        let _ = self.body[m].set(Some((bodies, diags, derived.items, inferred)));
     }
 
     /// The derivation opt-ins of module `m`, its derived implementations
@@ -2338,6 +2355,7 @@ impl Run<'_> {
                 solver: &TableSolver,
                 methods: std::cell::OnceCell::new(),
                 init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
+                results: std::cell::RefCell::default(),
             };
             found.extend(self.check_opt_ins(&tcx, &theads, &opts, &mut derived));
         }
@@ -2444,7 +2462,7 @@ impl Run<'_> {
     /// meta (the module's TIR content hash, which `prog_key` reads); the
     /// module's items; TIR, one record per body.
     fn module_finish(&self, m: usize) {
-        let (Some(Some(prep)), Some(Some((bodies, bdiags, derived)))) =
+        let (Some(Some(prep)), Some(Some((bodies, bdiags, derived, inferred)))) =
             (self.prep[m].get(), self.body[m].get())
         else {
             self.blocked(Stage::ModuleFinish);
@@ -2490,6 +2508,16 @@ impl Run<'_> {
         };
         let mut all_items: Vec<Item> = prep.items.iter().chain(case_items).cloned().collect();
         add_derived_methods(&names, &mut all_items, derived);
+        // An omitted result type is the inferred one in the module's items,
+        // which `Collect` and the program's emission read.
+        let inferred: HashMap<DefId, Ty> = inferred.iter().copied().collect();
+        for it in &mut all_items {
+            if let Some(&ret) = inferred.get(&it.def)
+                && let ItemData::Fn(sig) | ItemData::Method { sig, .. } = &mut it.data
+            {
+                sig.ret = ret;
+            }
+        }
         let mut rw = Writer::default();
         encode_regs(regs, &mut rw);
         let items = match hd_resolve::encode_items(&names, &all_items, &[]) {

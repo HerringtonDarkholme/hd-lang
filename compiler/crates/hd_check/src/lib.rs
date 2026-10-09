@@ -20,6 +20,7 @@ mod literals;
 mod pat;
 mod promote;
 mod render;
+pub mod results;
 mod rows;
 pub mod stages;
 pub mod structure;

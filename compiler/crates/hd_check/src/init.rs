@@ -113,8 +113,24 @@ pub fn check_init(
     let mut per_stmt = Vec::new();
     for (i, s) in stmts.iter().enumerate() {
         ck.init_stmt = i;
+        let start = ck.infer.var_count();
         ck.top_level(*s).map_err(|e| e.at(cx.src.span(*s)))?;
+        // A binding takes its initializer's type, and no later statement
+        // changes it (`types.literal.local.statement`).
+        ck.close_literals(start);
         per_stmt.push(std::mem::take(&mut ck.facts));
+        // The statement's bindings as another body reads them: a body M1
+        // checks for a call further down sees the types decided so far.
+        let pool = ck.pool();
+        for g in cx.init.borrow_mut().globals.values_mut() {
+            if g.stmt != i {
+                continue;
+            }
+            let t = ck.infer.resolve(pool, g.ty);
+            if !t.is_local() {
+                g.ty = t;
+            }
+        }
     }
     // Final types of the bindings, before the body's own sweep.
     let mut globals: Vec<(Symbol, Global)> = cx
@@ -443,6 +459,17 @@ impl Ck<'_, '_> {
         // Inside the init body, a binding is visible from its statement on.
         if self.module_init.is_some() && g.stmt >= self.init_stmt {
             return None;
+        }
+        // Read by a body M1 checks while the top level is being checked,
+        // a binding whose type is still open holds the init body's
+        // variables: it has no type yet.
+        if self.module_init.is_none() && g.ty.is_local() {
+            let msg = format!(
+                "the type of `{}` is not decided before this function's result is inferred; annotate the binding",
+                self.cx.names.text(name)
+            );
+            self.err(Code::CannotInferType, n, &msg);
+            return Some(self.poison_value(n));
         }
         self.facts.reads.insert(g.def);
         let a = self.b.refs_record(&[Ref(g.def.raw())]);

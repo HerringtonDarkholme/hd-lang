@@ -39,6 +39,8 @@ pub struct BodyCx<'a> {
     pub methods: std::cell::OnceCell<crate::MethodIndex>,
     /// The module's top-level bindings and its bodies' init facts.
     pub init: std::cell::RefCell<crate::init::ModuleInit>,
+    /// The module's private callables with omitted result types (M1).
+    pub results: std::cell::RefCell<crate::results::Results>,
 }
 
 impl BodyCx<'_> {
@@ -401,6 +403,21 @@ pub(crate) fn check_fn_in(
     diags: &mut DiagBuf,
     opt_in: Option<&crate::derive::OptIn>,
 ) -> StageResult<Body> {
+    check_fn_body(cx, def, node, diags, opt_in, false).map(|(b, _)| b)
+}
+
+/// Checks one function body and returns its TIR and its result type.
+/// With `infer`, the written result is omitted: the result is a join
+/// variable, so the final value and every `return` operand take their
+/// least common type (`fn.decl.result-inferred.common`).
+pub(crate) fn check_fn_body(
+    cx: &BodyCx<'_>,
+    def: DefId,
+    node: NodeRef<'_>,
+    diags: &mut DiagBuf,
+    opt_in: Option<&crate::derive::OptIn>,
+    infer: bool,
+) -> StageResult<(Body, Ty)> {
     let Some(item) = cx.lookup.item(def) else {
         return unsupported(format!("body of {} has no header", cx.names.path(def)));
     };
@@ -436,12 +453,16 @@ pub(crate) fn check_fn_in(
     let Some(body) = Src::child(node, SyntaxKind::Block) else {
         return unsupported("a function without a body");
     };
-    let ret = ck.norm_ty(sig.ret);
+    let ret = if infer {
+        ck.join_target(None)
+    } else {
+        ck.norm_ty(sig.ret)
+    };
     ck.rets[0] = ret;
     ck.fn_body = Some(body.index());
     let (tail, _) = ck.block_value(body, Some(ret))?;
     let root = ck.b.close_block(blk, tail, ret, body.index());
-    ck.finish(root)
+    ck.finish_with(root, ret)
 }
 
 /// The `DefId` of a default body: the declaration's path plus the field or
@@ -1123,10 +1144,22 @@ impl Ck<'_, '_> {
     }
 
     /// `types.literal.local.class.open`: a literal class that met no type
-    /// by the end of its statement takes its default type.
-    fn close_literals(&mut self, start: usize) {
+    /// by the end of its statement takes its default type. A class that
+    /// reached the result join of an open function or closure stays open
+    /// until the join (`types.literal.local.form.join-open`): its return
+    /// paths join across statements
+    /// (`types.literal.local.form.function-return.statements`).
+    pub(crate) fn close_literals(&mut self, start: usize) {
         let pool = self.pool();
+        let joins: Vec<Ty> = self
+            .rets
+            .iter()
+            .map(|r| self.infer.shallow(pool, *r))
+            .collect();
         for (t, k) in self.infer.open_literals_since(pool, start) {
+            if joins.contains(&self.infer.shallow(pool, t)) {
+                continue;
+            }
             let d = match k {
                 VarKind::SignedIntLit => Ty::I32,
                 VarKind::IntLit => Ty::prim(hd_types::Prim::Usize),
@@ -1610,7 +1643,14 @@ impl Ck<'_, '_> {
         })
     }
 
-    fn finish(mut self, root: Ref) -> StageResult<Body> {
+    fn finish(self, root: Ref) -> StageResult<Body> {
+        let ret = self.rets[0];
+        self.finish_with(root, ret).map(|(b, _)| b)
+    }
+
+    /// Finishes the body and returns it with `ret` resolved: a function's
+    /// result type, inferred when its declaration omits it.
+    fn finish_with(mut self, root: Ref, ret: Ty) -> StageResult<(Body, Ty)> {
         self.unused_locals();
         if self.module_init.is_none() {
             let item = self.b.body_mut().item;
@@ -1662,6 +1702,7 @@ impl Ck<'_, '_> {
             let z = self.zonk(t);
             self.b.body_mut().local_ty[i] = z;
         }
+        let ret = self.zonk(ret);
         for i in 0..n {
             let tag = self.b.body_mut().tags[i];
             if tag != Tag::Call && tag != Tag::Await {
@@ -1730,7 +1771,7 @@ impl Ck<'_, '_> {
             let l = TyList(self.b.body_mut().extra[list_at]);
             self.b.body_mut().extra[list_at] = self.zonk_list(l).0;
         }
-        if !self.diags.has_errors() {
+        if !self.diags.has_errors() && !self.cx.results.borrow().has_errors() {
             for i in 0..n {
                 let t = self.b.body_mut().ty[i];
                 let at = self.b.body_mut().syn[i];
@@ -1762,8 +1803,10 @@ impl Ck<'_, '_> {
                 })
                 .collect()
         };
-        self.b
+        let body = self
+            .b
             .finish(root, &modes)
-            .map_err(|e| NotImplemented::new(Stage::Body, format!("TIR verifier: {e:?}")))
+            .map_err(|e| NotImplemented::new(Stage::Body, format!("TIR verifier: {e:?}")))?;
+        Ok((body, ret))
     }
 }

@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1932 | 633 | 279 | 2844 |
+| 1947 | 618 | 279 | 2844 |
 
 ## By Chapter
 
@@ -17,14 +17,14 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 133 | 11 | 1 | 145 |
 | `lang/02-grammar.md` | 189 | 13 | 12 | 214 |
 | `lang/03-names-and-scopes.md` | 77 | 14 | 10 | 101 |
-| `lang/04-type-system.md` | 267 | 72 | 13 | 352 |
+| `lang/04-type-system.md` | 276 | 63 | 13 | 352 |
 | `lang/05-expressions.md` | 170 | 75 | 32 | 277 |
 | `lang/06-control-flow.md` | 108 | 33 | 16 | 157 |
-| `lang/07-functions.md` | 83 | 35 | 12 | 130 |
+| `lang/07-functions.md` | 86 | 32 | 12 | 130 |
 | `lang/08-data-and-enums.md` | 73 | 39 | 11 | 123 |
-| `lang/09-traits.md` | 226 | 102 | 31 | 359 |
+| `lang/09-traits.md` | 227 | 101 | 31 | 359 |
 | `lang/10-modules.md` | 144 | 77 | 37 | 258 |
-| `lang/11-requirements-and-suspension.md` | 136 | 53 | 70 | 259 |
+| `lang/11-requirements-and-suspension.md` | 138 | 51 | 70 | 259 |
 | `lang/14-annotations.md` | 104 | 42 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 13 | 0 | 1 | 14 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 68 | 28 | 9 | 105 |
-| `runtime/valid` | 612 | 145 | 172 | 929 |
-| `typing/invalid` | 598 | 407 | 69 | 1074 |
-| `typing/valid` | 356 | 30 | 29 | 415 |
+| `runtime/valid` | 614 | 143 | 172 | 929 |
+| `typing/invalid` | 601 | 404 | 69 | 1074 |
+| `typing/valid` | 366 | 20 | 29 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -80,7 +80,6 @@ compiler stage that first declined the case.
 | `fail:bang-call-outside-suspension` | 2 |
 | `fail:bare-variant-pattern` | 3 |
 | `fail:cannot-infer-type` | 8 |
-| `fail:discarded-must-use-value` | 1 |
 | `fail:duplicate-argument` | 1 |
 | `fail:duplicate-data-pattern-field` | 1 |
 | `fail:identity-requires-references` | 9 |
@@ -92,10 +91,10 @@ compiler stage that first declined the case.
 | `fail:missing-entry-point` | 1 |
 | `fail:missing-required-field` | 2 |
 | `fail:missing-requirement` | 8 |
-| `fail:missing-return-value` | 9 |
+| `fail:missing-return-value` | 1 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 249 |
+| `fail:no-diagnostic` | 250 |
 | `fail:nonexhaustive-match` | 4 |
 | `fail:not-callable` | 1 |
 | `fail:orphan-impl` | 1 |
@@ -112,7 +111,7 @@ compiler stage that first declined the case.
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-method-signature` | 1 |
 | `fail:trait-used-as-type` | 2 |
-| `fail:type-mismatch` | 88 |
+| `fail:type-mismatch` | 82 |
 | `fail:type-used-as-value` | 2 |
 | `fail:unknown-data-field` | 13 |
 | `fail:unknown-import` | 25 |
@@ -123,7 +122,7 @@ compiler stage that first declined the case.
 | `fail:unknown-trait` | 9 |
 | `fail:unknown-type` | 4 |
 | `fail:unknown-variant` | 1 |
-| `fail:unsatisfied-trait-bound` | 16 |
+| `fail:unsatisfied-trait-bound` | 15 |
 | `fail:unused-local-binding` | 6 |
 | `unsupported:Body` | 123 |
 | `unsupported:Collect` | 26 |
@@ -185,12 +184,6 @@ compiler stage that first declined the case.
 - `runtime/valid/iterator-skip-take-while.hd`
 - `typing/invalid/eq-contextual-both-operands.hd`
 - `typing/invalid/any-bare-none.hd`
-
-</details>
-
-<details><summary><code>fail:discarded-must-use-value</code> (1)</summary>
-
-- `runtime/valid/lct-optional-injection.hd`
 
 </details>
 
@@ -278,17 +271,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:missing-return-value</code> (9)</summary>
+<details><summary><code>fail:missing-return-value</code> (1)</summary>
 
-- `typing/invalid/mutual-recursion-omitted-results.hd`
 - `typing/valid/void-unit-alias.hd`
-- `typing/valid/literal-first-use-fallback.hd`
-- `typing/invalid/literal-first-use-other-body.hd`
-- `typing/valid/literal-var-tuple.hd`
-- `typing/invalid/literal-var-tuple-fallback.hd`
-- `typing/valid/sign-fallback-separate-groups.hd`
-- `typing/valid/lct-variance-every-site.hd`
-- `typing/invalid/template-helper-missing-result.hd`
 
 </details>
 
@@ -306,7 +291,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (249)</summary>
+<details><summary><code>fail:no-diagnostic</code> (250)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -551,6 +536,7 @@ compiler stage that first declined the case.
 - `typing/invalid/generic-entry-point.hd`
 - `typing/invalid/module-path-not-identifier.hd`
 - `typing/invalid/impl-head-projection.hd`
+- `typing/invalid/template-helper-missing-result.hd`
 - `typing/invalid/dyn-inherent-nonlocal.hd`
 - `typing/invalid/template-names-binding.hd`
 - `typing/invalid/supertrait-binding-conflict.hd`
@@ -738,7 +724,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (88)</summary>
+<details><summary><code>fail:type-mismatch</code> (82)</summary>
 
 - `runtime/valid/structural-equality.hd`
 - `runtime/valid/structural-ordering.hd`
@@ -768,7 +754,6 @@ compiler stage that first declined the case.
 - `runtime/valid/propagation-in-closure-targets-closure.hd`
 - `runtime/valid/abrupt-assignment-stores-nothing.hd`
 - `runtime/valid/any-accepts-non-optional-values.hd`
-- `typing/valid/mutual-recursion-one-annotated.hd`
 - `typing/invalid/closure-returns-without-common-type.hd`
 - `runtime/valid/primitive-display-bound-and-trait-values.hd`
 - `runtime/valid/option-match-patterns.hd`
@@ -786,11 +771,9 @@ compiler stage that first declined the case.
 - `typing/valid/debug-standard-types.hd`
 - `typing/invalid/row-union-other-parts.hd`
 - `typing/invalid/row-union-nested-lists.hd`
-- `typing/valid/row-union-omitted-result.hd`
 - `typing/invalid/row-union-if-nested-lists.hd`
 - `typing/invalid/operator-left-literal.hd`
 - `runtime/valid/intrinsic-method-calls.hd`
-- `typing/valid/row-union-private-result.hd`
 - `typing/invalid/pipe-brackets-after-bare-step.hd`
 - `typing/invalid/pipe-suspending-bare-step.hd`
 - `typing/invalid/placeholder-outside-pipe.hd`
@@ -813,18 +796,15 @@ compiler stage that first declined the case.
 - `typing/invalid/no-widening-operator.hd`
 - `typing/invalid/no-widening-float.hd`
 - `runtime/valid/range-inclusive-field.hd`
+- `runtime/valid/lct-optional-injection.hd`
 - `typing/invalid/lct-optional-two-layers.hd`
 - `typing/invalid/num-abs-diff-unsigned.hd`
 - `typing/invalid/num-bit-count-u32.hd`
-- `typing/valid/literal-var-fallback.hd`
-- `typing/valid/sign-fallback-unsigned.hd`
-- `typing/valid/sign-fallback-signed.hd`
 - `typing/valid/literal-one-fit-left-operand.hd`
 - `runtime/valid/literal-erased-fallback.hd`
 - `runtime/valid/literal-trait-value-float-fallback.hd`
 - `typing/invalid/literal-operand-range-wide.hd`
 - `typing/invalid/mixed-width-operands-no-widening.hd`
-- `runtime/valid/lazy-result-candidate.hd`
 - `typing/invalid/usize-u32-operand.hd`
 - `typing/invalid/derived-eq-bound-unmet-data-argument.hd`
 - `typing/invalid/dyn-unknown-associated-binding.hd`
@@ -984,10 +964,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unsatisfied-trait-bound</code> (16)</summary>
+<details><summary><code>fail:unsatisfied-trait-bound</code> (15)</summary>
 
 - `typing/invalid/provider-value-type-mismatch.hd`
-- `runtime/valid/private-function-inferred-result.hd`
 - `typing/invalid/propagation-no-chained-conversion.hd`
 - `typing/invalid/propagation-conversion-then-injection.hd`
 - `typing/invalid/propagation-error-without-conversion.hd`
@@ -1981,6 +1960,7 @@ runtime/valid/json-number-grammar.hd
 runtime/valid/json-object-order.hd
 runtime/valid/json-pretty.hd
 runtime/valid/json-round-trip.hd
+runtime/valid/lazy-result-candidate.hd
 runtime/valid/leading-dot-chain.hd
 runtime/valid/leading-dot-deeper-continues.hd
 runtime/valid/leading-dot-lines-join-the-chain.hd
@@ -2115,6 +2095,7 @@ runtime/valid/println-in-test-body.hd
 runtime/valid/println-provider-suspending-body.hd
 runtime/valid/println-recording-provider.hd
 runtime/valid/println-under-main-driver.hd
+runtime/valid/private-function-inferred-result.hd
 runtime/valid/private-main-is-ordinary-function.hd
 runtime/valid/process-error-display.hd
 runtime/valid/process-error-results.hd
@@ -2601,6 +2582,7 @@ typing/invalid/literal-fallback-hint.hd
 typing/invalid/literal-first-use-bound.hd
 typing/invalid/literal-first-use-closure-conflict.hd
 typing/invalid/literal-first-use-conflict.hd
+typing/invalid/literal-first-use-other-body.hd
 typing/invalid/literal-first-use-range.hd
 typing/invalid/literal-operand-negation-unsigned.hd
 typing/invalid/literal-receiver-params-differ.hd
@@ -2620,6 +2602,7 @@ typing/invalid/literal-var-int-to-float.hd
 typing/invalid/literal-var-range-bound-conflict.hd
 typing/invalid/literal-var-structure-conflict.hd
 typing/invalid/literal-var-top-level-undecided.hd
+typing/invalid/literal-var-tuple-fallback.hd
 typing/invalid/local-value-reuses-type-parameter.hd
 typing/invalid/main-not-importable.hd
 typing/invalid/marker-bound-unproven.hd
@@ -2653,6 +2636,7 @@ typing/invalid/mut-upgrade.hd
 typing/invalid/mutable-impl-target.hd
 typing/invalid/mutable-provider-install-readonly-field.hd
 typing/invalid/mutable-provider-install-readonly-value.hd
+typing/invalid/mutual-recursion-omitted-results.hd
 typing/invalid/nested-optional-needs-some.hd
 typing/invalid/newtype-bound-bare-trait.hd
 typing/invalid/newtype-derivation-block.hd
@@ -3039,6 +3023,7 @@ typing/valid/iteration-protocol.hd
 typing/valid/iterator-adapters.hd
 typing/valid/lct-drops-never.hd
 typing/valid/lct-structural-join-order.hd
+typing/valid/lct-variance-every-site.hd
 typing/valid/lct-wide-variance-join.hd
 typing/valid/let-data-pattern.hd
 typing/valid/let-else-diverging-forms.hd
@@ -3057,6 +3042,7 @@ typing/valid/list-literal-compares-with-readonly-binding.hd
 typing/valid/literal-classes-separate-widths.hd
 typing/valid/literal-dependent-join.hd
 typing/valid/literal-first-use-closure.hd
+typing/valid/literal-first-use-fallback.hd
 typing/valid/literal-first-use-float-argument.hd
 typing/valid/literal-first-use-generic-join.hd
 typing/valid/literal-first-use-generic-wait.hd
@@ -3076,11 +3062,13 @@ typing/valid/literal-suffix-requirement.hd
 typing/valid/literal-suffix-result-type.hd
 typing/valid/literal-suffix-user.hd
 typing/valid/literal-var-data-pattern.hd
+typing/valid/literal-var-fallback.hd
 typing/valid/literal-var-for-range-index.hd
 typing/valid/literal-var-list-adopts.hd
 typing/valid/literal-var-list-push.hd
 typing/valid/literal-var-method-fallback.hd
 typing/valid/literal-var-range-bound.hd
+typing/valid/literal-var-tuple.hd
 typing/valid/map-indexing.hd
 typing/valid/match-guard-reads-binding.hd
 typing/valid/match-guards.hd
@@ -3093,6 +3081,7 @@ typing/valid/mutable-access-bound.hd
 typing/valid/mutable-closure-capture.hd
 typing/valid/mutable-loop-element-mutation.hd
 typing/valid/mutable-paths.hd
+typing/valid/mutual-recursion-one-annotated.hd
 typing/valid/named-variant-bindings.hd
 typing/valid/names-and-scopes.hd
 typing/valid/nested-data-argument-from-field-type.hd
@@ -3179,10 +3168,15 @@ typing/valid/row-union-if.hd
 typing/valid/row-union-list.hd
 typing/valid/row-union-map.hd
 typing/valid/row-union-match.hd
+typing/valid/row-union-omitted-result.hd
+typing/valid/row-union-private-result.hd
 typing/valid/same-module-private-member-explicit-path.hd
 typing/valid/shared-enum-default-writes-state.hd
 typing/valid/shared-enum-defaults.hd
 typing/valid/shift-count-unsigned.hd
+typing/valid/sign-fallback-separate-groups.hd
+typing/valid/sign-fallback-signed.hd
+typing/valid/sign-fallback-unsigned.hd
 typing/valid/std-derivation-types-debug.hd
 typing/valid/std-host-types-debug.hd
 typing/valid/std-joined-types-debug.hd

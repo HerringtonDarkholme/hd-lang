@@ -174,10 +174,11 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
-        let vars = self.fresh_generics(sig, explicit, 0);
+        let sig = self.with_result(def, sig.clone());
+        let vars = self.fresh_generics(&sig, explicit, 0);
         let m = Member {
             def,
-            sig: sig.clone(),
+            sig,
             vars,
             owner: Owner::Item,
         };
