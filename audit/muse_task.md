@@ -127,18 +127,6 @@ exhaustiveness then fails. Add the finding to
 `audit/compiler/triage-false-errors.md` under cause 4. Read only;
 timebox 30 minutes.
 
-### R17. Design Note: Static Generic Calls `Type::f::[T]()` (#140, Design Text)
-
-8 programs fail on `TypeId::of::[T]()` ("no method of on TypeId"; your
-R1 cause 5). Read the spec's qualified-call and explicit type-argument
-rules (`spec/lang/07-functions.md`, `05-expressions.md`) and how
-`TypeId::of` is declared in `lib/std`, then add to
-`checking-and-tir.md` how a qualified associated call with explicit type
-arguments resolves (owner first, then the member, then the type
-arguments) and what TIR it produces, reusing what #150's
-`hd_check/src/fnref.rs` does for `Owner::name::[T]` as a value.
-Timebox 30 minutes.
-
 ### P1. Profile The New Compiler (After S4; Standing Job)
 
 Owner, 2026-10-07: "you write the code, codex do the profiling. move
@@ -359,3 +347,17 @@ on the block. Recommend asking the owner for a code
 2. **Test builds keep the name section (recommended).** Only release
    omits the standard name section; test output and failure stacks
    stay readable. Recommend keeping it everywhere else.
+
+### Q-R17: of declaration and targets wording (R17, 2026-10-09)
+
+1. **Declare TypeId.of in lib/std (recommended).** The spec shows
+   impl TypeId with pub fn of[T < Inspectable]() but lib/std/inspect.hd
+   has no of; all eight programs wait on that declaration as well as
+   on the call path. Recommend adding the plain-hd declaration
+   (owner/orchestrator lane; this job could not touch lib/std).
+2. **Read targets as covering associated calls (recommended).**
+   expr.call.generic.targets names only module functions, while
+   fn.ref.generic covers Type::member::[T] references; nothing names
+   the call form Type::member::[T](args). Recommend treating the
+   combination as covering it (no frozen-spec change), rather than
+   ruling the eight programs out of scope.

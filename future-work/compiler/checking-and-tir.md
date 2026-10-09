@@ -534,6 +534,24 @@ use, which evaluated a default once per program. It is replaced:
   that is a constant, such as `= 10`, passes the trivial-inlining test
   and costs nothing.
 
+**Qualified associated calls (`Type::f::[T]()`).** A call whose callee
+spells explicit type arguments resolves in one order: the owner first
+(a type, trait, or type parameter, as `fn.ref.lookup` resolves it for
+references), then the member (methods and associated functions, never
+fields), then the written type arguments — the owner's, then the
+member's own — with trailing slots inferred or defaulted, over-long
+lists rejected (`fn.generic.explicit.*`), and row slots after `$`.
+That is `hd_check/src/fnref.rs` (`member_of`, vars, substitution)
+with the value path's expected-type fit replaced by ordinary call
+checking: the value arguments check against the instantiated
+signature (inferring with them per `fn.type.generic.argument`), and
+the result is an ordinary `Call` — an `Item` callee, or a
+`TraitMethod` with the solver's choice for trait members. No new TIR
+node. Prerequisite: the member must be declared; `TypeId::of` is
+missing from `lib/std/inspect.hd` although the spec shows its `impl`
+block, so all eight `TypeId::of::[T]()` programs wait on that
+declaration as well as on this path (owner/orchestrator lane).
+
 D1's "readonly view" kind is `Weaken`, since the spec's marked form is
 `mut T` (data-structures.md §3.4).
 
