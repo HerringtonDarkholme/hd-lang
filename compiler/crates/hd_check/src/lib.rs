@@ -20,6 +20,7 @@ mod promote;
 mod render;
 mod rows;
 pub mod stages;
+pub mod structure;
 pub mod tests;
 mod trial;
 mod ty;

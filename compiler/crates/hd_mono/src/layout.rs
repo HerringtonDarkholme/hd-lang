@@ -88,6 +88,18 @@ pub trait LayoutEnv {
 /// The layout of a type (§15.1 and the value table of §15.2). Every type
 /// form has a row; forms that need declared shapes ask `env`.
 pub fn layout_of(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> StageResult<Layout> {
+    layout_in(pool, env, t, &mut Vec::new())
+}
+
+/// `layout_of` with the enums being laid out on `open`: an enum whose
+/// payload holds itself has no layout yet (the recursive layouts of
+/// wasm-layout.md, not built).
+fn layout_in(
+    pool: &InternPool,
+    env: &dyn LayoutEnv,
+    t: Ty,
+    open: &mut Vec<Ty>,
+) -> StageResult<Layout> {
     let l = match pool.get(t) {
         TyData::Prim(p) => match p {
             Prim::Bool | Prim::I8 | Prim::U8 => Layout {
@@ -122,13 +134,20 @@ pub fn layout_of(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> StageResult<L
         TyData::Adt { def, args } => match env.enum_variants(def, args) {
             None => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
             Some(vs) if vs.iter().all(Vec::is_empty) => one(LayoutClass::I32, ValType::I32),
+            Some(_) if open.contains(&t) => {
+                return Err(NotImplemented::new(
+                    Stage::Collect,
+                    "a recursive type layout (an enum whose payload holds itself)",
+                ));
+            }
             Some(vs) => {
+                open.push(t);
                 // Slot sharing: a tag, then per value type the max count over variants.
                 let mut slots: Vec<(ValType, usize)> = Vec::new();
                 for v in &vs {
                     let mut here: Vec<(ValType, usize)> = Vec::new();
                     for f in v {
-                        for val in layout_of(pool, env, *f)?.values {
+                        for val in layout_in(pool, env, *f, open)?.values {
                             let val = if matches!(val, ValType::Ref { .. }) {
                                 ValType::EqRef
                             } else {
@@ -147,6 +166,7 @@ pub fn layout_of(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> StageResult<L
                         }
                     }
                 }
+                open.pop();
                 let mut values = vec![ValType::I32];
                 for (val, n) in slots {
                     values.extend(std::iter::repeat_n(val, n));
@@ -165,7 +185,7 @@ pub fn layout_of(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> StageResult<L
         TyData::Tuple { elems, rest: None } => {
             let mut values = Vec::new();
             for e in pool.list_items(elems).iter().copied() {
-                values.extend(layout_of(pool, env, e)?.values);
+                values.extend(layout_in(pool, env, e, open)?.values);
             }
             match values.len() {
                 0 => Layout {
@@ -188,7 +208,7 @@ pub fn layout_of(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> StageResult<L
             ));
         }
         TyData::Option(inner) => {
-            let li = layout_of(pool, env, inner)?;
+            let li = layout_in(pool, env, inner, open)?;
             match (li.class, li.values.as_slice()) {
                 (LayoutClass::Ref, [ValType::Ref { .. }]) => {
                     one(LayoutClass::Ref, ValType::Ref { nullable: true })
@@ -224,7 +244,7 @@ pub fn layout_of(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> StageResult<L
             values: vec![ValType::EqRef, ValType::Ref { nullable: false }],
             packed_bits: None,
         },
-        TyData::Mut(inner) => layout_of(pool, env, inner)?,
+        TyData::Mut(inner) => layout_in(pool, env, inner, open)?,
         TyData::Row(_) => {
             return Err(NotImplemented::new(
                 Stage::Emit,

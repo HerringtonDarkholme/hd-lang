@@ -68,6 +68,10 @@ pub trait ProgramEnv: LayoutEnv {
     fn solving(&self) -> (ImplUniverseId, &GlobalMemo);
     /// Where an impl's row lives.
     fn impl_row(&self, impl_: DefId) -> Option<ImplRef>;
+    /// A sealed trait the compiler implements for every type, such as
+    /// `Inspectable` (checking-and-tir.md, the `Builtin` choice): it has
+    /// no impl row, and its methods are the compiler's.
+    fn universal_trait(&self, trait_: DefId) -> bool;
 }
 
 /// The A1 class `REF` as a type argument: a reserved canonical
@@ -275,6 +279,9 @@ struct Cx<'a> {
     /// The build's selections, by `(trait, self type, trait arguments,
     /// chosen impl)`: the impl and its arguments (trait-solver.md §8.3).
     selected: HashMap<SelectKey, (DefId, Vec<Ty>)>,
+    /// Per item: which of its own type parameters need their exact
+    /// representation (A1's representation summary, §13.2).
+    exact: HashMap<DefId, Vec<bool>>,
     out: Collected,
     work: Vec<InstId>,
 }
@@ -321,16 +328,61 @@ impl Cx<'_> {
         Ok(key)
     }
 
+    /// A1's representation summary of `def` (codegen.md §13.2): per own
+    /// type parameter, whether a type of its signature or body holds the
+    /// parameter where the layout depends on its exact representation.
+    /// Only a value of the parameter itself, `mut`, an optional, and the
+    /// erased storage of a `List`, `Map` or enum payload keep it movable:
+    /// a data type's fields, a tuple, a function type, a trait value or a
+    /// projection that mentions it change their Wasm type with it.
+    fn exact_params(&mut self, def: DefId) -> Vec<bool> {
+        if let Some(e) = self.exact.get(&def) {
+            return e.clone();
+        }
+        let n = self.env.bounded(def).map_or(0, |b| b.len());
+        let mut out = vec![false; n];
+        let pool = self.pool;
+        let env = self.env;
+        let mut types: Vec<Ty> = env.params(def).unwrap_or_default();
+        types.extend(env.ret(def));
+        if let Some(b) = env.body(def) {
+            types.extend(b.ty.iter().copied());
+            types.extend(b.local_ty.iter().copied());
+            for i in 0..b.len() {
+                if !matches!(b.tags[i], Tag::Call | Tag::Await) {
+                    continue;
+                }
+                match Callee::from_words(b.record(b.data[i][0])) {
+                    Some(Callee::Item { targs, .. }) => {
+                        types.extend(pool.list_items(targs).iter().copied());
+                    }
+                    Some(Callee::TraitMethod { self_ty, targs, .. }) => {
+                        types.push(self_ty);
+                        types.extend(pool.list_items(targs).iter().copied());
+                    }
+                    None => {}
+                }
+            }
+        }
+        for t in types {
+            pinned(pool, env, def, t, false, &mut out);
+        }
+        self.exact.insert(def, out.clone());
+        out
+    }
+
     /// A1 (codegen.md §13.2): an unbounded, move-only argument of a
     /// reference layout is keyed and laid out as the class `REF`.
-    fn classify(&self, def: DefId, args: &[Ty], own_from: usize) -> StageResult<TyList> {
+    fn classify(&mut self, def: DefId, args: &[Ty], own_from: usize) -> StageResult<TyList> {
         let bounded = self.env.bounded(def).unwrap_or_default();
+        let pinned = self.exact_params(def);
         let mut a = Vec::new();
         for (k, &t) in args.iter().enumerate() {
             // A row argument is part of the instance (codegen.md §12.4:
             // its keys are the instance's provider parameters).
             let exact = k < own_from
                 || bounded.get(k - own_from).copied().unwrap_or(true)
+                || pinned.get(k - own_from).copied().unwrap_or(false)
                 || is_class_ref(self.pool, t)
                 || matches!(self.pool.get(t), TyData::Row(_))
                 || self.env.body(def).is_none();
@@ -497,6 +549,24 @@ impl Cx<'_> {
         let n_trait = self.env.trait_arity(trait_);
         let trait_args = self.pool.list(&targs[..n_trait.min(targs.len())]);
         let method_args = &targs[n_trait.min(targs.len())..];
+        if self.env.universal_trait(trait_) {
+            return Ok(CallTarget {
+                key: Hash128(0),
+                item: method,
+                args: TyList::EMPTY,
+                ret: subst(
+                    self.pool,
+                    self.env,
+                    method,
+                    self.pool.list(&[&[self_ty], targs].concat()),
+                    self.env.ret(method).unwrap_or(Ty::VOID),
+                ),
+                kind: TargetKind::Builtin {
+                    method: String::new(),
+                    self_ty,
+                },
+            });
+        }
         let (impl_, impl_args) = self.select(trait_, self_ty, trait_args, choice)?;
         match self.env.impl_method(impl_, method) {
             Some(m) if self.env.body(m).is_some() => {
@@ -701,6 +771,69 @@ impl Cx<'_> {
     }
 }
 
+/// Marks in `out` each own parameter of `def` that `t` holds where its
+/// exact representation matters (`inside`: below a data type, tuple,
+/// function type, trait value or projection).
+fn pinned(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    def: DefId,
+    t: Ty,
+    inside: bool,
+    out: &mut [bool],
+) {
+    if !pool.has_param(t) {
+        return;
+    }
+    match pool.get(t) {
+        TyData::Param(p) => {
+            if inside
+                && p.owner == def
+                && let Some(x) = out.get_mut(usize::from(p.index))
+            {
+                *x = true;
+            }
+        }
+        TyData::Mut(x) | TyData::Option(x) => pinned(pool, env, def, x, inside, out),
+        TyData::Adt { def: d, args } => {
+            // `List`, `Map` and enum payloads store references erased.
+            let erased = matches!(
+                env.std_kind(d),
+                layout::StdKind::List | layout::StdKind::Map
+            ) || env.enum_variants(d, args).is_some();
+            for a in pool.list_items(args).iter().copied() {
+                pinned(pool, env, def, a, inside || !erased, out);
+            }
+        }
+        TyData::Tuple { elems, rest } => {
+            for e in pool.list_items(elems).iter().copied().chain(rest) {
+                pinned(pool, env, def, e, true, out);
+            }
+        }
+        TyData::Fn { params, result, .. } => {
+            for e in pool.list_items(params).iter().copied().chain([result]) {
+                pinned(pool, env, def, e, true, out);
+            }
+        }
+        TyData::TraitValue { args, bindings, .. } => {
+            for e in pool
+                .list_items(args)
+                .iter()
+                .copied()
+                .chain(bindings.iter().map(|b| b.1))
+            {
+                pinned(pool, env, def, e, true, out);
+            }
+        }
+        TyData::Assoc { self_ty, args, .. } => {
+            for e in pool.list_items(args).iter().copied().chain([self_ty]) {
+                pinned(pool, env, def, e, true, out);
+            }
+        }
+        _ => {}
+    }
+}
+
 fn note_data(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut BTreeSet<DefIdOrd>) {
     if let TyData::Adt { def, .. } = pool.get(t)
         && env.data_fields(def).is_some()
@@ -730,6 +863,7 @@ pub fn collect(
         penv: ParamEnv::default(),
         memo: BodyMemo::default(),
         selected: HashMap::new(),
+        exact: HashMap::new(),
         out: Collected::default(),
         work: Vec::new(),
     };

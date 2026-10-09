@@ -1363,7 +1363,13 @@ impl Ck<'_, '_> {
             self.err(Code::UnknownMethod, n, &msg);
             return Ok((Ref(NONE), Ty::NEVER));
         };
-        let self_ty = self.infer.fresh(pool, VarKind::General);
+        // Inside a template, `Structure::f(..)` and `Trait::f(..)` of the
+        // derived trait have the template's `T` as `Self`
+        // (`annot.template.qualified-self`).
+        let self_ty = match self.template_self(tr) {
+            Some(t) => t,
+            None => self.infer.fresh(pool, VarKind::General),
+        };
         self.trait_method_call(
             TraitTarget {
                 trait_: tr,
@@ -2426,6 +2432,26 @@ impl Ck<'_, '_> {
             TyData::Mut(i) => i,
             _ => t,
         }
+    }
+
+    /// The template's `T` when the body is a template's method and `tr`
+    /// is `Structure` or the template's own trait
+    /// (`annot.template.qualified-self`).
+    fn template_self(&mut self, tr: DefId) -> Option<Ty> {
+        let item = self.b.body_mut().item;
+        let ItemData::Method { owner, .. } = &self.cx.lookup.item(item)?.data else {
+            return None;
+        };
+        let ItemData::Impl {
+            trait_,
+            self_ty,
+            kind: hd_resolve::ImplKind::Template | hd_resolve::ImplKind::TupleTemplate,
+            ..
+        } = &self.cx.lookup.item(*owner)?.data
+        else {
+            return None;
+        };
+        (tr == *trait_ || tr == self.cx.names.known.structure).then_some(*self_ty)
     }
 
     /// The callee choice a solver answer names (checking-and-tir.md,

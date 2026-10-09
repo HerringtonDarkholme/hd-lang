@@ -308,8 +308,17 @@ struct PrepOut {
 /// A folder's stage-A diagnostics, with the module each belongs to.
 type IfaceDiags = Vec<(usize, Code, hd_resolve::anchor::Anchor, String)>;
 
-/// A module's TIR and body diagnostics after `Body(m)`.
-type BodyOut = (Vec<Body>, DiagBuf);
+/// A module's TIR and body diagnostics after `Body(m)`, and the hidden
+/// methods its derivations add (checking-and-tir.md §4.13.9).
+type BodyOut = (Vec<Body>, DiagBuf, Vec<Item>);
+
+/// What a module's derivations add to its `check` entry: the derived
+/// implementations' methods and their bodies (codegen.md §12.3).
+#[derive(Default)]
+struct Derived {
+    items: Vec<Item>,
+    bodies: Vec<Body>,
+}
 
 /// A module's `check` entry, as far as `prog_key` needs it.
 struct CheckOut {
@@ -1827,17 +1836,27 @@ impl Run<'_> {
             hd_check::init::definite_init(&cx, &stmts, &init_facts, &mut diags);
         }
         // Each derivation opt-in checks its template's instance
-        // (spec 14 `annot.template.checked`, checking-and-tir.md §4.13.9).
+        // (spec 14 `annot.template.checked`, checking-and-tir.md §4.13.9),
+        // whose bodies join the module's.
+        let mut derived = Derived::default();
         if failed.is_none() {
-            self.opt_ins(m, &cx, &heads, &impls, &mut diags);
+            derived = self.opt_ins(m, &cx, &heads, &impls, &mut diags);
         }
         if let Some(e) = failed {
             self.stage::<()>(Stage::Body, Err(e));
             let _ = self.body[m].set(None);
             return;
         }
+        lock(&self.report).body_ok += derived.bodies.len();
+        for b in &derived.bodies {
+            let path = names.path(b.item);
+            if self.host.render_tir.iter().any(|p| *p == path) {
+                lock(&self.tir_text).insert(path, hd_check::render(&names, b));
+            }
+        }
+        bodies.extend(derived.bodies);
         lock(&self.report).ok(Stage::Body);
-        let _ = self.body[m].set(Some((bodies, diags)));
+        let _ = self.body[m].set(Some((bodies, diags, derived.items)));
     }
 
     /// The derivation opt-ins of module `m`, its derived implementations
@@ -1854,7 +1873,7 @@ impl Run<'_> {
         heads: &[hd_resolve::Head<'_>],
         impls: &ImplView<'_>,
         diags: &mut DiagBuf,
-    ) {
+    ) -> Derived {
         let names = self.names();
         // Per template module, in module order: (item index, opt-in, the
         // template methods it checks).
@@ -1893,16 +1912,18 @@ impl Run<'_> {
                 .find(|h| h.def == it.def)
                 .map(|h| hd_check::derive::omitted_members(&cx.src, h.node))
                 .unwrap_or_default();
-            if let Some(opt) =
+            if let Some(mut opt) =
                 hd_check::derive::OptIn::new(&names, cx.lookup, it, template, &omitted)
             {
+                opt.facts = derivation_facts(cx, heads, it.def, opt.data);
                 groups.entry(tm.idx()).or_default().push((i, opt));
             }
         }
         let mut found: Vec<OptInFinding> = Vec::new();
+        let mut derived = Derived::default();
         for (tm, opts) in groups {
             if tm == m {
-                found.extend(self.check_opt_ins(cx, heads, &opts));
+                found.extend(self.check_opt_ins(cx, heads, &opts, &mut derived));
                 continue;
             }
             let Some(tmod) = self.template_mods[tm].get_or_init(|| {
@@ -1947,7 +1968,7 @@ impl Run<'_> {
                 methods: std::cell::OnceCell::new(),
                 init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             };
-            found.extend(self.check_opt_ins(&tcx, &theads, &opts));
+            found.extend(self.check_opt_ins(&tcx, &theads, &opts, &mut derived));
         }
         // A derived newtype's base type must implement the trait.
         let hcx = hd_check::header::HeaderCx {
@@ -1984,15 +2005,21 @@ impl Run<'_> {
                 diags.error(Code::MemberNotDerivable, self.item_span(def, 0), &f.message);
             }
         }
+        derived
     }
 
     /// Checks opt-ins whose template module `tcx` sees: each checks the
     /// template methods its block does not write (`annot.block.methods`).
+    /// A clean opt-in adds its derive instances and its `Structure`'s
+    /// bodies to `derived` (codegen.md §12.3); a `Structure` the generator
+    /// does not carry yet adds no body, so a call of it stops at
+    /// collection.
     fn check_opt_ins(
         &self,
         tcx: &BodyCx<'_>,
         theads: &[hd_resolve::Head<'_>],
         opts: &[(usize, hd_check::derive::OptIn)],
+        derived: &mut Derived,
     ) -> Vec<OptInFinding> {
         let names = self.names();
         let k = &self.known;
@@ -2011,15 +2038,32 @@ impl Run<'_> {
                 .filter(|(_, n)| hd_resolve::Src::child(*n, hd_syntax::SyntaxKind::Block).is_some())
                 .collect();
             // A template the checker cannot carry yet decides nothing.
-            if let Ok(msgs) = hd_check::derive::check_opt_in(tcx, opt, &methods) {
+            if let Ok(checked) = hd_check::derive::check_opt_in(tcx, opt, &methods) {
                 let compare = [k.eq, k.partial_ord, k.ord, k.hash].contains(&opt.trait_);
-                out.extend(msgs.into_iter().map(|(member, message)| OptInFinding {
-                    item: *i,
-                    data: opt.data,
-                    slot: opt.members[member].slot,
-                    compare,
-                    message,
-                }));
+                if checked.failures.is_empty() && checked.bodies.len() == methods.len() {
+                    for (def, b) in checked.bodies {
+                        if let Ok((it, b)) = hd_check::derive::instance(tcx, opt, def, b) {
+                            derived.items.push(it);
+                            derived.bodies.push(b);
+                        }
+                    }
+                    if let Ok(g) = hd_check::structure::structure_bodies(tcx, opt, opt.facts) {
+                        derived.items.extend(g.items);
+                        derived.bodies.extend(g.bodies);
+                    }
+                }
+                out.extend(
+                    checked
+                        .failures
+                        .into_iter()
+                        .map(|(member, message)| OptInFinding {
+                            item: *i,
+                            data: opt.data,
+                            slot: opt.members[member].slot,
+                            compare,
+                            message,
+                        }),
+                );
             }
         }
         out
@@ -2029,7 +2073,7 @@ impl Run<'_> {
     /// meta (the module's TIR content hash, which `prog_key` reads); the
     /// module's items; TIR, one record per body.
     fn module_finish(&self, m: usize) {
-        let (Some(Some(prep)), Some(Some((bodies, bdiags)))) =
+        let (Some(Some(prep)), Some(Some((bodies, bdiags, derived)))) =
             (self.prep[m].get(), self.body[m].get())
         else {
             self.blocked(Stage::ModuleFinish);
@@ -2073,7 +2117,8 @@ impl Run<'_> {
             Some((i, r)) => (i.as_slice(), r.as_slice()),
             None => (&[][..], &[][..]),
         };
-        let all_items: Vec<Item> = prep.items.iter().chain(case_items).cloned().collect();
+        let mut all_items: Vec<Item> = prep.items.iter().chain(case_items).cloned().collect();
+        add_derived_methods(&names, &mut all_items, derived);
         let mut rw = Writer::default();
         encode_regs(regs, &mut rw);
         let items = match hd_resolve::encode_items(&names, &all_items, &[]) {
@@ -3123,10 +3168,17 @@ impl ProgramEnv for Env<'_> {
         }
     }
     fn impl_method(&self, impl_: DefId, method: DefId) -> Option<DefId> {
-        let name = match &self.p.items.get(&method)?.data {
-            ItemData::Method { .. } => self.p.items.get(&method)?.name,
+        let (name, owner) = match &self.p.items.get(&method)?.data {
+            ItemData::Method { owner, .. } => (self.p.items.get(&method)?.name, *owner),
             _ => return None,
         };
+        // A derivation's own `Structure` (codegen.md §12.3): the hidden
+        // methods of the derived implementation.
+        if owner == self.run.known.structure {
+            let names = self.run.names();
+            let d = names.member(impl_, hd_intern::PathKind::Hidden, names.text(name));
+            return self.p.items.contains_key(&d).then_some(d);
+        }
         match &self.p.items.get(&impl_)?.data {
             ItemData::Impl { methods, .. } => {
                 methods.iter().find(|(n, _)| *n == name).map(|(_, d)| *d)
@@ -3173,6 +3225,9 @@ impl ProgramEnv for Env<'_> {
     fn impl_row(&self, impl_: DefId) -> Option<ImplRef> {
         self.p.impl_rows.get(&impl_).copied()
     }
+    fn universal_trait(&self, trait_: DefId) -> bool {
+        trait_ == self.run.known.inspectable
+    }
 }
 
 /// Diagnostics of a run by stable module order, for tests.
@@ -3186,6 +3241,50 @@ pub fn messages(o: &Output) -> Vec<String> {
         .collect();
     v.dedup();
     v
+}
+
+/// Joins a module's derived methods to its items: each derived
+/// implementation lists its derive instances among its methods; its
+/// `Structure`'s methods stay hidden members, which `impl_method` finds
+/// for a call of `Structure` (codegen.md §12.3).
+fn add_derived_methods(names: &Names<'_>, items: &mut Vec<Item>, derived: &[Item]) {
+    for d in derived {
+        let ItemData::Method { owner, .. } = d.data else {
+            continue;
+        };
+        if d.def != names.member(owner, hd_intern::PathKind::Member, names.text(d.name)) {
+            continue;
+        }
+        if let Some(ItemData::Impl { methods, .. }) = items
+            .iter_mut()
+            .find(|i| i.def == owner)
+            .map(|i| &mut i.data)
+            && !methods.iter().any(|(n, _)| *n == d.name)
+        {
+            methods.push((d.name, d.def));
+        }
+    }
+    items.extend(derived.iter().cloned());
+}
+
+/// Whether the derivation `impl_` of `data` sees a fact (annotations,
+/// "Facts"): a decorator on the declaration or a member, a member line of
+/// its block, or a trait-less block for the type.
+fn derivation_facts(
+    cx: &BodyCx<'_>,
+    heads: &[hd_resolve::Head<'_>],
+    impl_: DefId,
+    data: DefId,
+) -> bool {
+    let head = |d: DefId| heads.iter().find(|h| h.def == d).map(|h| h.node);
+    let pool = cx.names.pool;
+    head(data).is_some_and(|n| hd_check::derive::has_decorator_facts(&cx.src, n))
+        || head(impl_).is_some_and(|n| hd_check::derive::has_fact_lines(&cx.src, n))
+        || cx.lookup.own.iter().any(|it| {
+            matches!(&it.data, ItemData::Impl { trait_, by: Some(_), self_ty, .. }
+                if *trait_ == DefId::NONE
+                    && matches!(pool.get(*self_ty), TyData::Adt { def, .. } if def == data))
+        })
 }
 
 /// The derivation template of `trait_` (`annot.template.form`), among a

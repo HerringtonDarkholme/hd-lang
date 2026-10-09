@@ -330,6 +330,39 @@ pub fn read_body(
     Some(b)
 }
 
+/// Rewrites every run ID of a body through `def` and `ty`: the item, the
+/// type columns, the constants' types, and the ID words of each record,
+/// the ones the wire form remaps. A derive instance is its template's
+/// checked body with the template's parameters replaced this way
+/// (checking-and-tir.md §4.13.9).
+///
+/// # Errors
+/// A tag whose ID words are not mapped yet, as for the wire form.
+pub fn map_ids(
+    b: &mut Body,
+    def: &dyn Fn(DefId) -> DefId,
+    ty: &dyn Fn(Ty) -> Ty,
+    list: &dyn Fn(TyList) -> TyList,
+) -> StageResult<()> {
+    for i in 0..b.len() {
+        for w in id_words(b, i)? {
+            match w {
+                IdWord::Def(at) => b.extra[at] = def(DefId::from_raw(b.extra[at])).raw(),
+                IdWord::Ty(at) => b.extra[at] = ty(Ty(b.extra[at])).0,
+                IdWord::List(at) => b.extra[at] = list(TyList(b.extra[at])).0,
+            }
+        }
+    }
+    b.item = def(b.item);
+    for t in b.ty.iter_mut().chain(b.local_ty.iter_mut()) {
+        *t = ty(*t);
+    }
+    for c in &mut b.consts {
+        c.0 = ty(c.0);
+    }
+    Ok(())
+}
+
 /// The TIR hash (§4.13.11): the hash of the body's wire bytes before the
 /// location columns, so it is a function of the body's content alone.
 #[must_use]

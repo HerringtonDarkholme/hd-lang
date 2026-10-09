@@ -62,6 +62,11 @@ pub struct OptIn {
     /// The target, over the opt-in's parameters.
     pub target: Ty,
     pub members: Vec<OptInMember>,
+    /// The members its member lines omit (`name = pass`).
+    pub omitted: Vec<String>,
+    /// Whether the derivation sees a fact: a decorator on the target or
+    /// one of its members, a member line, or a trait-less block.
+    pub facts: bool,
     /// Failing members found so far: member index and the bound it misses.
     failed: RefCell<Vec<(usize, Ty)>>,
 }
@@ -150,6 +155,8 @@ impl OptIn {
             data: def,
             target: *self_ty,
             members,
+            omitted: omitted.to_vec(),
+            facts: false,
             failed: RefCell::new(Vec::new()),
         })
     }
@@ -185,26 +192,67 @@ pub fn omitted_members(src: &hd_resolve::Src<'_>, block: NodeRef<'_>) -> Vec<Str
     out
 }
 
+/// Whether a derivation block carries a member line that edits facts:
+/// any line but `name = pass` (`annot.line.*`).
+#[must_use]
+pub fn has_fact_lines(src: &hd_resolve::Src<'_>, block: NodeRef<'_>) -> bool {
+    let Some(body) = hd_resolve::Src::child(block, SyntaxKind::Block) else {
+        return false;
+    };
+    let omitted = omitted_members(src, block).len();
+    body.children()
+        .filter(|c| c.kind() == SyntaxKind::Derivation)
+        .count()
+        > omitted
+}
+
+/// Whether a data or enum declaration attaches a fact: a decorator other
+/// than `@derive`, on the declaration or any member
+/// (`annot.fact.type-level-decorator`, `annot.fact.member-metadata`).
+#[must_use]
+pub fn has_decorator_facts(src: &hd_resolve::Src<'_>, decl: NodeRef<'_>) -> bool {
+    decl.descendants()
+        .filter(|d| d.kind() == SyntaxKind::Decorator)
+        .any(|d| {
+            src.tokens(d)
+                .find(|t| src.tkind(*t) == Some(TokenKind::Ident))
+                .is_none_or(|t| src.text(t) != "derive")
+        })
+}
+
+/// What one checked opt-in yields: one message per failing member, with
+/// the member's index in `opt.members`, in member order; and when it
+/// checks clean, the checked template bodies by template method.
+pub struct OptInCheck {
+    pub failures: Vec<(usize, String)>,
+    pub bodies: Vec<(DefId, hd_tir::Body)>,
+}
+
 /// Checks the template `methods` (their `DefId` and syntax) as `opt`'s
-/// instance and returns one message per failing member, with the member's
-/// index in `opt.members`, in member order.
-/// `cx` sees the template's module. Diagnostics of the bodies themselves
-/// are dropped.
+/// instance. `cx` sees the template's module. Diagnostics of the bodies
+/// themselves are dropped: a body with one is not kept.
 pub fn check_opt_in(
     cx: &BodyCx<'_>,
     opt: &OptIn,
     methods: &[(DefId, NodeRef<'_>)],
-) -> StageResult<Vec<(usize, String)>> {
+) -> StageResult<OptInCheck> {
+    let mut bodies = Vec::new();
     for &(def, node) in methods {
         let mut scratch = DiagBuf::default();
-        check_fn_in(cx, def, node, &mut scratch, Some(opt))?;
+        let b = check_fn_in(cx, def, node, &mut scratch, Some(opt))?;
+        if !scratch.has_errors() {
+            bodies.push((def, b));
+        }
+    }
+    if bodies.len() != methods.len() {
+        bodies.clear();
     }
     let mut failed = opt.failed.take();
     failed.sort_by_key(|f| f.0);
     failed.dedup_by_key(|f| f.0);
     let names = &cx.names;
     let target = hd_resolve::show_ty(names, opt.target);
-    Ok(failed
+    let failures: Vec<(usize, String)> = failed
         .into_iter()
         .map(|(i, bound)| {
             let m = &opt.members[i];
@@ -217,7 +265,103 @@ pub fn check_opt_in(
             );
             (i, msg)
         })
-        .collect())
+        .collect();
+    if !failures.is_empty() {
+        bodies.clear();
+    }
+    Ok(OptInCheck { failures, bodies })
+}
+
+/// The derive instance of one template method (checking-and-tir.md
+/// §4.13.9): the body that `check_opt_in` checked, as the method of the
+/// derived implementation `opt.impl_` of the same name. The template's
+/// `T` becomes the target, the template method's own parameters the
+/// instance method's, and each `Structure` call, which the template
+/// answers from its `T < Structure` bound, chooses the derivation's own
+/// `Structure` (`annot.structure.per-derivation`).
+pub fn instance(
+    cx: &BodyCx<'_>,
+    opt: &OptIn,
+    method: DefId,
+    mut body: hd_tir::Body,
+) -> StageResult<(Item, hd_tir::Body)> {
+    let names = &cx.names;
+    let pool = names.pool;
+    let Some(mi) = cx.lookup.item(method) else {
+        return crate::body::unsupported("a template method outside the module's view");
+    };
+    let Some(sig) = mi.sig() else {
+        return crate::body::unsupported("a template method without a signature");
+    };
+    let def = names.member(opt.impl_, hd_intern::PathKind::Member, names.text(mi.name));
+    let f = |p: ParamRef| {
+        if p.owner == opt.template && p.index == 0 {
+            Some(opt.target)
+        } else if p.owner == method {
+            Some(pool.intern_ty(&TyData::Param(ParamRef {
+                owner: def,
+                index: p.index,
+            })))
+        } else {
+            None
+        }
+    };
+    let structure = names.known.structure;
+    for i in 0..body.len() {
+        if !matches!(body.tags[i], hd_tir::Tag::Call | hd_tir::Tag::Await) {
+            continue;
+        }
+        let at = body.data[i][0];
+        let Some(hd_tir::Callee::TraitMethod {
+            trait_,
+            method: m,
+            self_ty,
+            targs,
+            choice: (hd_tir::ir::ChoiceKind::Bound, _),
+        }) = hd_tir::Callee::from_words(body.record(at))
+        else {
+            continue;
+        };
+        if trait_ != structure {
+            continue;
+        }
+        let words = hd_tir::Callee::TraitMethod {
+            trait_,
+            method: m,
+            self_ty,
+            targs,
+            choice: (hd_tir::ir::ChoiceKind::Impl, opt.impl_.raw()),
+        }
+        .words();
+        let start = at as usize + 1;
+        body.extra[start..start + words.len()].copy_from_slice(&words);
+    }
+    body.kind = hd_tir::BodyKind::DeriveInstance;
+    hd_tir::wire::map_ids(
+        &mut body,
+        &|d| if d == method { def } else { d },
+        &|t| pool.subst(t, &f),
+        &|l| {
+            let v: Vec<Ty> = pool
+                .list_items(l)
+                .iter()
+                .map(|t| pool.subst(*t, &f))
+                .collect();
+            pool.list(&v)
+        },
+    )?;
+    let sig = crate::structure::subst_sig(names, sig, &f);
+    let item = Item::new(
+        def,
+        mi.name,
+        mi.public,
+        ItemData::Method {
+            owner: opt.impl_,
+            sig,
+            has_body: true,
+        },
+    );
+    Ok((item, body))
 }
 
 impl<'c> Ck<'_, 'c> {

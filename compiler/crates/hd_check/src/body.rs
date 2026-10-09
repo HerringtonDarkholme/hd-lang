@@ -220,21 +220,31 @@ pub(crate) fn new_ck<'a, 'c>(
         && let Some(o) = cx.lookup.item(*owner)
     {
         match &o.data {
-            ItemData::Impl { self_ty, kind, .. } => {
+            ItemData::Impl {
+                self_ty,
+                kind,
+                trait_,
+                trait_args,
+                ..
+            } => {
                 ck.self_ty = Some(*self_ty);
                 // A `by Structure` template's target has the structure
-                // protocol by construction (annotations, "Templates").
+                // protocol by construction, and implements the derived
+                // trait through the instance (annotations, "Templates",
+                // `annot.template.qualified-self`).
                 if matches!(
                     kind,
                     hd_resolve::ImplKind::Template | hd_resolve::ImplKind::TupleTemplate
                 ) {
                     let st = cx.names.known.structure;
-                    let tv = pool.intern_ty(&TyData::TraitValue {
-                        def: st,
-                        args: TyList::EMPTY,
-                        bindings: vec![],
-                    });
-                    ck.add_bound(*self_ty, tv, 0);
+                    for (def, args) in [(st, TyList::EMPTY), (*trait_, *trait_args)] {
+                        let tv = pool.intern_ty(&TyData::TraitValue {
+                            def,
+                            args,
+                            bindings: vec![],
+                        });
+                        ck.add_bound(*self_ty, tv, 0);
+                    }
                 }
                 ck.add_generics(*owner, &o.generics);
             }
@@ -1598,6 +1608,39 @@ impl Ck<'_, '_> {
         self.finish(root)
     }
 
+    /// A call's choice once inference is done: a `Builtin` choice made
+    /// while the self type was still a literal's variable (`Box { value:
+    /// 1 } == ...`) becomes the impl the solver finds at the defaulted
+    /// type. A choice the solver does not answer with an impl stays.
+    fn settle_choice(
+        &mut self,
+        trait_: DefId,
+        self_ty: Ty,
+        targs: TyList,
+        choice: (hd_tir::ir::ChoiceKind, u32),
+    ) -> StageResult<(hd_tir::ir::ChoiceKind, u32)> {
+        let pool = self.pool();
+        if choice.0 != hd_tir::ir::ChoiceKind::Builtin
+            || !matches!(pool.get(self_ty), TyData::Adt { .. })
+        {
+            return Ok(choice);
+        }
+        let n = self.cx.lookup.item(trait_).map_or(0, |i| i.generics.len());
+        let items = pool.list_items(targs);
+        let tref = TraitRef {
+            trait_,
+            self_ty,
+            args: pool.list(&items[..n.min(items.len())]),
+        };
+        Ok(match self.solve(tref)? {
+            Answer::Holds {
+                evidence: ev @ hd_types::solver::Evidence::Impl { .. },
+                ..
+            } => self.choice_of(Some(&ev)),
+            _ => choice,
+        })
+    }
+
     fn finish(mut self, root: Ref) -> StageResult<Body> {
         self.unused_locals();
         if self.module_init.is_none() {
@@ -1674,13 +1717,18 @@ impl Ck<'_, '_> {
                     self_ty,
                     targs,
                     choice,
-                } => Callee::TraitMethod {
-                    trait_,
-                    method,
-                    self_ty: self.zonk(self_ty),
-                    targs: self.zonk_list(targs),
-                    choice,
-                },
+                } => {
+                    let self_ty = self.zonk(self_ty);
+                    let targs = self.zonk_list(targs);
+                    let choice = self.settle_choice(trait_, self_ty, targs, choice)?;
+                    Callee::TraitMethod {
+                        trait_,
+                        method,
+                        self_ty,
+                        targs,
+                        choice,
+                    }
+                }
             };
             let nw = z.words();
             self.b.body_mut().extra[at..at + nw.len()].copy_from_slice(&nw);

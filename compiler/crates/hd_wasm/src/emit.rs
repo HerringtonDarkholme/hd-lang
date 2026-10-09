@@ -1843,6 +1843,16 @@ impl Em<'_> {
             let methods = self.env().trait_methods(trait_);
             for (m, t) in methods.iter().zip(&slots) {
                 let sig = self.lay.slot_sig(trait_, targs, *m)?;
+                // A method the compiler supplies for every type
+                // (`Inspectable.runtime_type`) has no lowering yet: its
+                // slot panics when called, as a host slot does.
+                if matches!(t.kind, TargetKind::Builtin { .. }) {
+                    self.a.ref_func(Sym::Helper(Helper::Unlowered {
+                        sig,
+                        what: format!("the compiler-supplied `{}`", (self.lay.path)(*m)),
+                    }));
+                    continue;
+                }
                 let target = Self::adapter_target(t)?;
                 let mut ps = Vec::new();
                 for p in self.env().params(t.item).unwrap_or_default() {
