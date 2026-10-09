@@ -168,11 +168,13 @@ lowering is `HostPrimitive(name)` is one import `hd:prim` `name`, with no
 receiver, that never waits. `hd_mono` makes its call an `Intrinsic` target,
 and `hd_wasm` lowers it as `Helper::HostPrim`: the scalar arguments are
 import parameters as themselves (an `f32` or `f64` is the raw value, a
-`usize` an `i32`), and the string result is written in the exchange buffer
-as a string (§17.4) and decoded by the same `Dec` helper a provider's
-result uses. A program that never calls one has no such import, so its
-size is unchanged. Three are lowered: `format_f64`, `format_f32`, and
-`format_f64_fixed`. The JS host (`compiler/host/float.mjs`, imported by
+`usize` an `i32`), a string argument is written in the exchange buffer
+(the import gets its byte length, as for a provider method with one string
+argument), a string result is written in the exchange buffer as a string
+(§17.4) and decoded by the same `Dec` helper a provider's result uses, and
+a scalar result (`parse_f64`) is the import's own result. A program that never calls one has no such import, so its
+size is unchanged. Six are lowered: `format_f64`, `format_f32`,
+`format_f64_fixed`, `string_lower`, `string_upper`, and `parse_f64`. The JS host (`compiler/host/float.mjs`, imported by
 `core.mjs`) writes their text from the exact significand and exponent with
 `BigInt`, so no result depends on `Number.prototype.toString` or
 `toFixed`:
@@ -187,6 +189,13 @@ size is unchanged. Three are lowered: `format_f64`, `format_f32`, and
   not say). The notation rules of `types.display.notation` follow.
 - *Fixed-point text* is the exact quotient of `significand * 10^digits` by
   a power of two, rounded half to even, with the sign bit kept.
+- *Case mapping* is `String.prototype.toLowerCase` and `toUpperCase`: with
+  no locale argument they are Unicode Default Case Conversion with full
+  mappings, as the spec asks (`ß` gives `SS`, a final sigma by context).
+- *Parsing* reads the exact rational `digits * 10^exponent` in `BigInt`
+  and rounds it to the nearest `f64`, a tie to the even significand, with
+  infinity past the range and `0.0` below it. It does not use `Number`,
+  which the ECMAScript text lets round after the twentieth digit.
 - A generated Wasm helper was the other choice: Ryu or Grisu tables and a
   big-number fallback, assembled by hand, with no gain while Node is the
   only host that runs programs. The spec makes these primitives host work

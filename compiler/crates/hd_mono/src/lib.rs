@@ -1024,6 +1024,7 @@ impl Cx<'_> {
                     | "format_f64_fixed"
                     | "string_lower"
                     | "string_upper"
+                    | "parse_f64"
             )
         }) {
             return Ok(CallTarget {

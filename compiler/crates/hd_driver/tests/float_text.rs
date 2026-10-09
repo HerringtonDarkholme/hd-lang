@@ -1,5 +1,5 @@
 //! The float and case primitives (`format_f64`, `format_f32`,
-//! `format_f64_fixed`, `string_lower`, `string_upper`; spec 04 `types.display.*`, std `num` fixed-point
+//! `format_f64_fixed`, `parse_f64`, `string_lower`, `string_upper`; spec 04 `types.display.*`, std `num` fixed-point
 //! text): the host's text against Rust's own float printing, which is an
 //! independent shortest round-trip and an exact fixed-point writer, then
 //! the same texts through compiled programs.
@@ -122,19 +122,22 @@ fn display_f32(x: f32) -> String {
 }
 
 /// Runs `float.mjs` on one request per line (`s32 BITS`, `s64 BITS`, or
-/// `fixed BITS DIGITS`, bits in hex; `lower HEX` and
+/// `fixed BITS DIGITS`, bits in hex; `parse TEXT`; `lower HEX` and
 /// `upper HEX`, the UTF-8 bytes in hex) and returns one answer per line.
 fn host_text(requests: &[String]) -> Vec<String> {
     let float = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/float.mjs");
     let float = std::fs::canonicalize(float).expect("float.mjs");
-    let script = r#"const { shortest, fixed, lower, upper } = await import(process.argv[1]);
+    let script = r#"const { shortest, fixed, parse, lower, upper } = await import(process.argv[1]);
 import { readFileSync } from "node:fs";
 const view = new DataView(new ArrayBuffer(8));
 const out = [];
 for (const line of readFileSync(0, "utf8").split("\n")) {
   if (!line) continue;
   const [kind, bits, digits] = line.split(" ");
-  if (kind === "lower" || kind === "upper") {
+  if (kind === "parse") {
+    view.setFloat64(0, parse(bits));
+    out.push(view.getBigUint64(0).toString(16));
+  } else if (kind === "lower" || kind === "upper") {
     const text = Buffer.from(bits, "hex").toString("utf8");
     const mapped = kind === "lower" ? lower(text) : upper(text);
     out.push(Buffer.from(mapped, "utf8").toString("hex"));
@@ -480,6 +483,94 @@ tests:
     );
 }
 
+/// `parse_f64`'s unsigned decimal number texts against Rust's own
+/// correctly rounded `str::parse`.
+#[test]
+fn parse_matches_rust() {
+    let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+    let mut texts: Vec<String> = [
+        "0",
+        "0.0",
+        "000",
+        ".5",
+        "5.",
+        "007",
+        "1.5",
+        "15e-1",
+        "15E-1",
+        "1e400",
+        "1e-400",
+        "9007199254740993",
+        "9007199254740992.5",
+        "9007199254740991",
+        "2.2250738585072014e-308",
+        "2.2250738585072011e-308",
+        "4.9406564584124654e-324",
+        "2.4703282292062327e-324",
+        "2.4703282292062328e-324",
+        "1.7976931348623157e308",
+        "1.7976931348623158e308",
+        "1.7976931348623159e308",
+        "1e309",
+        "0.000000000000000000001e22",
+        "1e+2",
+        "1E-2",
+        "00.00e0",
+        "123456789012345678901234567890",
+        "1e99999999999999999999",
+        "1e-99999999999999999999",
+        "0e99999999999999999999",
+    ]
+    .iter()
+    .map(|t| (*t).to_owned())
+    .collect();
+    // Random finite values, in shortest and in long forms.
+    for _ in 0..1500 {
+        let x = f64::from_bits(rng.next() & 0x7fff_ffff_ffff_ffff);
+        if x.is_finite() {
+            texts.push(format!("{x:e}"));
+            texts.push(format!("{x:.30e}"));
+        }
+    }
+    // Exact ties: an odd 54-bit integer over a power of two is halfway
+    // between two doubles. N * 5^j / 10^j writes it in decimal, and a
+    // trailing 1 pushes it past the tie.
+    for _ in 0..1500 {
+        let n = (1u128 << 53) | u128::from(rng.next() >> 11) | 1;
+        let j = u32::try_from(rng.next() % 30).expect("small");
+        let scaled = (n * 5u128.pow(j)).to_string();
+        let split = scaled.len() - j as usize;
+        let tie = format!("{}.{}", &scaled[..split], &scaled[split..]);
+        texts.push(tie.clone());
+        texts.push(format!("{tie}0000000000000000000000001"));
+        if scaled.len() > 20 {
+            texts.push(tie.trim_end_matches('.').to_owned());
+        }
+    }
+    // Long digit strings, past the twentieth digit.
+    for _ in 0..1000 {
+        let n = 1 + usize::try_from(rng.next() % 60).expect("small");
+        let digits: String = (0..n)
+            .map(|_| char::from(b'0' + u8::try_from(rng.next() % 10).expect("digit")))
+            .collect();
+        let point =
+            usize::try_from(rng.next() % u64::try_from(n + 1).expect("small")).expect("small");
+        let exponent = i32::try_from(rng.next() % 700).expect("small") - 350;
+        texts.push(format!(
+            "{}.{}e{exponent}",
+            &digits[..point],
+            &digits[point..]
+        ));
+    }
+    let requests: Vec<String> = texts.iter().map(|t| format!("parse {t}")).collect();
+    let got = host_text(&requests);
+    assert_eq!(got.len(), texts.len());
+    for (text, bits) in texts.iter().zip(&got) {
+        let want: f64 = text.parse().expect("Rust reads the text");
+        assert_eq!(*bits, format!("{:x}", want.to_bits()), "parse {text}");
+    }
+}
+
 /// The UTF-8 bytes of `text` in hex.
 fn hex(text: &str) -> String {
     use std::fmt::Write as _;
@@ -543,6 +634,64 @@ tests:
         assert_equal("\u{130}".lower(), "i\u{307}", reason="dotted capital I")
         assert_equal("\u{3a3}A\u{3a3}".lower(), "\u{3c3}a\u{3c2}", reason="final sigma")
         assert_equal("\u{3a3}".lower(), "\u{3c3}", reason="lone sigma")
+"#,
+    );
+}
+
+#[test]
+fn parse_f64_through_programs() {
+    all_pass(
+        "parse",
+        r#"use std.num.{parse_f64, ParseNumberError}
+use std.testing.assert_equal
+
+fn bits(text: string) -> string:
+    match parse_f64(text):
+        .Ok(value) => "${value}"
+        .Err(.InvalidDigit(position)) => "invalid ${position}"
+        .Err(_) => "error"
+
+tests:
+    it("accepts the grammar"):
+        assert_equal(bits("1.5"), "1.5", reason="plain")
+        assert_equal(bits("+1.5"), "1.5", reason="plus")
+        assert_equal(bits("15e-1"), "1.5", reason="exponent")
+        assert_equal(bits("15E+0"), "15.0", reason="upper E")
+        assert_equal(bits(".5"), "0.5", reason="no whole part")
+        assert_equal(bits("-.5"), "-0.5", reason="negative")
+        assert_equal(bits("5."), "5.0", reason="no fraction")
+        assert_equal(bits("007"), "7.0", reason="leading zeros")
+        assert_equal(bits("-0"), "-0.0", reason="negative zero")
+    it("rejects the rest"):
+        assert_equal(bits(""), "error", reason="empty")
+        assert_equal(bits(" 1.5"), "invalid 0", reason="space")
+        assert_equal(bits("1_000"), "invalid 1", reason="underscore")
+        assert_equal(bits("0x10"), "invalid 1", reason="hex")
+        assert_equal(bits("1,5"), "invalid 1", reason="comma")
+        assert_equal(bits("1e"), "invalid 2", reason="bare exponent")
+        assert_equal(bits("1.5f"), "invalid 3", reason="suffix")
+        assert_equal(bits("."), "invalid 1", reason="lone point")
+    it("reads the specials"):
+        assert_equal(bits("nan"), "NaN", reason="nan")
+        assert_equal(bits("-Infinity"), "-inf", reason="negative infinity")
+        assert_equal(bits("+INF"), "inf", reason="inf")
+    it("rounds correctly"):
+        assert_equal(bits("9007199254740993"), "9007199254740992.0", reason="tie to even, down")
+        assert_equal(bits("9007199254740995"), "9007199254740996.0", reason="tie to even, up")
+        assert_equal(bits("1e400"), "inf", reason="past the range")
+        assert_equal(bits("-1e400"), "-inf", reason="negative past the range")
+        assert_equal(bits("1e-400"), "0.0", reason="below the subnormals")
+        assert_equal(bits("-1e-400"), "-0.0", reason="negative below")
+        assert_equal(bits("5e-324"), "5e-324", reason="smallest subnormal")
+        assert_equal(bits("2.4703282292062327e-324"), "0.0", reason="below half the smallest")
+        assert_equal(bits("2.4703282292062328e-324"), "5e-324", reason="above half the smallest")
+        assert_equal(bits("1.7976931348623157e308"), "1.7976931348623157e+308", reason="largest")
+        assert_equal(bits("0.30000000000000004"), "0.30000000000000004", reason="seventeen digits")
+    it("round-trips float text"):
+        x := 0.1 + 0.2
+        assert_equal(bits(x.to_string()), "0.30000000000000004", reason="sum")
+        assert_equal(bits(1e300.to_string()), "1e+300", reason="large")
+        assert_equal(bits(5e-324.to_string()), "5e-324", reason="subnormal")
 "#,
     );
 }

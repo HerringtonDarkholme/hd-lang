@@ -166,6 +166,59 @@ export function fixed(value, places) {
   return `${negative ? "-" : ""}${whole}${places > 0 ? "." + text.slice(text.length - places) : ""}`;
 }
 
+// The unsigned decimal number of spec/std/num.md#r-std-num.parse-f64.decimal:
+// digits, then optionally `.` and more digits (either side may be empty,
+// but not both), then an optional exponent.
+const DECIMAL = /^(?:([0-9]+)(?:\.([0-9]*))?|\.([0-9]+))(?:[eE]([+-]?[0-9]+))?$/;
+
+function bitLength(n) {
+  return n === 0n ? 0 : n.toString(2).length;
+}
+
+// The `f64` nearest the unsigned decimal number `text`, a tie going to the
+// even significand: positive infinity past the range and `0.0` below it
+// (the `parse_f64` primitive, spec/std/README.md#standard-library-
+// primitives). The value is the exact rational `digits * 10^exponent`, so
+// the result owes nothing to `Number` or `parseFloat`, which may round
+// after the twentieth digit. Text outside the grammar is a bug in std.
+export function parse(text) {
+  const m = DECIMAL.exec(text);
+  if (m === null) throw new Error(`parse_f64: text outside the grammar: ${text}`);
+  const whole = m[1] ?? "";
+  const fraction = m[2] ?? m[3] ?? "";
+  const digits = (whole + fraction).replace(/^0+/, "");
+  if (digits === "") return 0;
+  const exponent = BigInt(m[4] ?? "0") - BigInt(fraction.length);
+  // The value is in [10^(n-1+exponent), 10^(n+exponent)).
+  const magnitude = BigInt(digits.length) + exponent;
+  if (magnitude > 310n) return Infinity;
+  if (magnitude < -330n) return 0;
+  const d = BigInt(digits);
+  const e = Number(exponent);
+  let num = d;
+  let den = 1n;
+  if (e >= 0) num = d * 10n ** BigInt(e);
+  else den = 10n ** BigInt(-e);
+  // Scale so the quotient has 54 to 56 bits, then round it to the width
+  // of the result.
+  const shift = 54 - (bitLength(num) - bitLength(den));
+  if (shift >= 0) num <<= BigInt(shift);
+  else den <<= BigInt(-shift);
+  const q = num / den;
+  const rest = num % den;
+  const top = bitLength(q) - 1 - shift;
+  // The exponent of the last place: 52 below the top bit, or -1074 for a
+  // subnormal.
+  const unit = Math.max(top - 52, -1074);
+  const drop = BigInt(unit + shift);
+  let significand = q >> drop;
+  const low = q & ((1n << drop) - 1n);
+  const half = 1n << (drop - 1n);
+  if (low > half || (low === half && (rest > 0n || (significand & 1n) === 1n))) significand += 1n;
+  const x = Number(significand);
+  return unit >= -1000 ? x * 2 ** unit : x * 2 ** -1000 * 2 ** (unit + 1000);
+}
+
 // Unicode Default Case Conversion with full mappings
 // (spec/std/text.md#r-std-text.string.lower): `toLowerCase` and
 // `toUpperCase` are that conversion with no locale, `ß` giving `SS`, and
