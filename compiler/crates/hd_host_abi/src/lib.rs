@@ -204,7 +204,13 @@ pub static TABLE: &[HostTrait] = &[
     HostTrait {
         key: "Http",
         std_path: "std.http.Http",
-        methods: &[],
+        methods: &[m(
+            "send",
+            &[B("Request")],
+            B("Result[Response, HttpError]"),
+            Wait::May,
+            Some(ResourceArg::Host),
+        )],
     },
     HostTrait {
         key: "Process",

@@ -493,3 +493,176 @@ fn sys_reads_the_host_inside_the_grant() {
     );
     assert!(partial.status.success());
 }
+
+/// A loopback HTTP server for the `Http` tests, on a free port of
+/// 127.0.0.1: `/ok` answers with two `Set-Cookie` headers, `/redirect`
+/// redirects to `/ok`, `/loop` to itself, `/slow` answers after three
+/// seconds, a `POST` echoes its body, and any other path is a 404.
+fn http_server() -> u16 {
+    use std::io::{BufRead as _, BufReader, Read as _};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = listener.local_addr().expect("addr").port();
+    std::thread::spawn(move || {
+        for stream in listener.incoming().flatten() {
+            std::thread::spawn(move || {
+                let mut reader = BufReader::new(stream.try_clone().expect("clone"));
+                let mut line = String::new();
+                if reader.read_line(&mut line).is_err() {
+                    return;
+                }
+                let mut parts = line.split_whitespace();
+                let (method, path) = (
+                    parts.next().unwrap_or("").to_owned(),
+                    parts.next().unwrap_or("").to_owned(),
+                );
+                let mut length = 0;
+                loop {
+                    let mut h = String::new();
+                    if reader.read_line(&mut h).is_err() || h.trim().is_empty() {
+                        break;
+                    }
+                    if let Some((n, v)) = h.split_once(':')
+                        && n.eq_ignore_ascii_case("content-length")
+                    {
+                        length = v.trim().parse().unwrap_or(0);
+                    }
+                }
+                let mut body = vec![0; length];
+                let _ = reader.read_exact(&mut body);
+                let (status, headers, text) = match (method.as_str(), path.as_str()) {
+                    ("POST", _) => (
+                        "201 Created",
+                        String::new(),
+                        format!("got {}", String::from_utf8_lossy(&body)),
+                    ),
+                    (_, "/ok") => (
+                        "200 OK",
+                        "Set-Cookie: a=1\r\nSet-Cookie: b=2\r\n".to_owned(),
+                        "hello".to_owned(),
+                    ),
+                    (_, "/redirect") => {
+                        ("302 Found", "Location: /ok\r\n".to_owned(), String::new())
+                    }
+                    (_, "/loop") => ("302 Found", "Location: /loop\r\n".to_owned(), String::new()),
+                    (_, "/slow") => {
+                        std::thread::sleep(std::time::Duration::from_secs(3));
+                        ("200 OK", String::new(), String::new())
+                    }
+                    _ => ("404 Not Found", String::new(), "missing".to_owned()),
+                };
+                let mut stream = stream;
+                let _ = write!(
+                    stream,
+                    "HTTP/1.1 {status}\r\n{headers}Content-Length: {}\r\nConnection: close\r\n\r\n{text}",
+                    text.len()
+                );
+            });
+        }
+    });
+    port
+}
+
+const HTTP_PROGRAM: &str = "use std.http.{Http, HttpError, Method, Request, Response, get, send}
+use std.host.{Args, args}
+use std.time.ms
+
+fn show!(r: Result[Response, HttpError]) -> string:
+    match r:
+        .Ok(response) => \"${response.status} ${response.text()} ${debug(response.header(\"SET-COOKIE\"))} ${response.headers.len()}\"
+        .Err(e) => \"${debug(e)}\"
+
+pub fn main!() -> void $ Console + Http + Args:
+    base := args()[0]
+    println(show!(get!(\"${base}/ok\")))
+    println(show!(get!(\"${base}/redirect\")))
+    println(show!(get!(\"${base}/nothing\")))
+    println(show!(get!(\"${base}/loop\")))
+    println(show!(send!(Request { url: \"${base}/slow\", timeout: .Some(100ms) })))
+    println(show!(send!(Request { method: Method.Post, url: \"${base}/echo\", headers: [(\"Content-Type\", \"text/plain\")], body: \"abc\".to_utf8() })))
+    println(show!(get!(\"http://example.com/\")))
+    println(show!(get!(\"ftp://127.0.0.1/\")))
+";
+
+/// `Http` (`std-http.send.*`, `cli.cap.scope.host`, `.redirect`): a
+/// request to a granted host completes with every status as a response,
+/// repeated headers kept; redirects are followed up to 10; a timeout, an
+/// ungranted host and a URL that is not http are errors. Every request
+/// goes to a loopback server; the ungranted host is refused before any
+/// connection.
+#[test]
+fn http_sends_requests_inside_the_grant() {
+    let port = http_server();
+    let dir = work("host-http");
+    write(&dir.join("main.hd"), HTTP_PROGRAM);
+    let base = format!("http://127.0.0.1:{port}");
+    let out = run(&dir, &["--cap", "Http=127.0.0.1", "main.hd", "--", &base]);
+    assert_eq!(text(&out.stderr), "");
+    assert_eq!(
+        text(&out.stdout),
+        format!(
+            "200 hello Option.Some(\"a=1\") 4\n\
+             200 hello Option.Some(\"a=1\") 4\n\
+             404 missing Option.None 2\n\
+             HttpError.TooManyRedirects(url=\"{base}/loop\")\n\
+             HttpError.Timeout\n\
+             201 got abc Option.None 2\n\
+             HttpError.NotGranted(host=\"example.com\")\n\
+             HttpError.InvalidUrl(url=\"ftp://127.0.0.1/\")\n"
+        )
+    );
+    assert!(out.status.success());
+    // A grant for another port of the host covers none of these requests.
+    let other = run(
+        &dir,
+        &[
+            "--cap",
+            &format!("Http=127.0.0.1:{}", port ^ 1),
+            "main.hd",
+            "--",
+            &base,
+        ],
+    );
+    assert!(
+        text(&other.stdout).starts_with("HttpError.NotGranted(host=\"127.0.0.1\")\n"),
+        "{}",
+        text(&other.stdout)
+    );
+}
+
+/// `Http` in an integration test (`cli.test.env.integration`) under the
+/// test grant of `[test.capabilities]` (`cli.test.env.grant.table`), and
+/// in a plain function through `block_on`, which the request never leaves
+/// waiting on the event loop.
+#[test]
+fn http_reaches_a_granted_host_from_an_integration_test() {
+    let port = http_server();
+    let dir = work("host-http-test");
+    write(
+        &dir.join("hd.toml"),
+        "[package]\nname = \"fetcher\"\n\n[test.capabilities]\nHttp = [\"127.0.0.1\"]\n",
+    );
+    write(
+        &dir.join("src/lib.hd"),
+        "use std.http.{Http, get}\nuse std.task.block_on\n\n\
+         pub fn status_of(url: string) -> u16 $ Http:\n    \
+         match block_on(get(url)):\n        .Ok(response) => response.status\n        .Err(_) => 0\n",
+    );
+    write(
+        &dir.join("tests/fetch.hd"),
+        &format!(
+            "use std.testing.assert_equal\nuse std.http.get\nuse pkg.status_of\n\n\
+             it(\"reads a page\"):\n    \
+             assert_equal(status_of(\"http://127.0.0.1:{port}/ok\"), 200, reason=\"granted\")\n\n\
+             it(\"is refused another host\"):\n    \
+             assert_equal(status_of(\"http://localhost:{port}/ok\"), 0, reason=\"not granted\")\n"
+        ),
+    );
+    let out = run(&dir, &["test"]);
+    assert_eq!(
+        text(&out.stdout),
+        "test result: ok. 2 passed; 0 failed; 0 ignored\n",
+        "{}",
+        text(&out.stderr)
+    );
+    assert!(out.status.success());
+}

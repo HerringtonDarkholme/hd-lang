@@ -229,8 +229,10 @@ with its `Enc` and `Dec` classes.
   every length against the buffer's size, a variant index against the
   variant count, an option's tag against 1, and a narrow integer against
   its range; a failure is the `host-contract` panic.
-- Maps, tuples, functions, trait values and recursive types do not cross
-  yet; a host method over one stops at Link as unsupported.
+- **Tuples** (task #222) cross as their elements in order, from their
+  values or their box (`BTy::Tuple`).
+- Maps, functions, trait values and recursive types do not cross yet; a
+  host method over one stops at Link as unsupported.
 
 The structured values of the ABI table, byte by byte:
 
@@ -249,6 +251,9 @@ The structured values of the ABI table, byte by byte:
 | `ProcessOutput` | stdout, stderr, then the status, zigzag |
 | `ProcessError` | the variant index (`NotFound` 0, `PermissionDenied` 1, `NotGranted` 2, `Other` 3), then `Other`'s message |
 | `SysError` | the variant index (`NotGranted` 0, `Unsupported` 1), then its name (task #222) |
+| `Request` | its method's index (`Get` 0 to `Options` 6, then `Other` 7 and its name), its URL, its header pairs (a count, then each name and value), its body, and its timeout as a `Duration?` (a `Duration` is its milliseconds, zigzag) |
+| `Response` | its status, its header pairs, its body |
+| `HttpError` | the variant index (`NotGranted` 0, `InvalidUrl` 1, `Dns` 2, `Connect` 3, `Tls` 4, `Timeout` 5, `TooManyRedirects` 6, `Other` 7), then its text, which `Timeout` lacks |
 
 So `Result[string?, ConsoleError]` is `0 0` at the end of input, `0 1`
 and the line for a line, and `1 0` for `Closed`;
@@ -349,6 +354,13 @@ the variant index and the path.
   and tasks, built by `hd test` with the package's `[capabilities]` table
   ([`cli.cap.source.hd-run`](../../spec/cli/command-line.md#r-cli.cap.source.hd-run)),
   in the package directory.
+- **As built (task #222), `Http` on Node.** `send!` finishes inside its
+  `.start`: the program's thread hands the request to a client thread
+  (`compiler/host/http.mjs`) and waits on a shared flag, as `Process.run!`
+  waits on its child, so `block_on` never needs the event loop. The
+  client checks the grant for the URL and for each redirect target
+  ([`cli.cap.scope.redirect`](../../spec/cli/command-line.md#r-cli.cap.scope.redirect))
+  before it connects.
 
 ### 17.8 Resource Limits
 

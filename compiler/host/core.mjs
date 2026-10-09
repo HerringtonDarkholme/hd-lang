@@ -47,6 +47,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { MessageChannel, receiveMessageOnPort, Worker } from "node:worker_threads";
 import { randomBytes } from "node:crypto";
 import { arch as osArch, availableParallelism, hostname, platform, tmpdir } from "node:os";
 import { dirname, basename, join, resolve } from "node:path";
@@ -241,6 +242,42 @@ const FS_CODES = {
 };
 // `EntryKind`'s variants.
 const KIND = { File: 0, Directory: 1, Symlink: 2 };
+// `Method`'s variants (std.http), by index, as the wire names them.
+const METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
+// `HttpError`'s variants (std.http).
+const HTTP = {
+  NotGranted: 0,
+  InvalidUrl: 1,
+  Dns: 2,
+  Connect: 3,
+  Tls: 4,
+  Timeout: 5,
+  TooManyRedirects: 6,
+  Other: 7,
+};
+
+// The client thread of `http.mjs`, started on the first request; each
+// request waits for it synchronously, so it finishes inside `.start`.
+let httpClient = null;
+const httpSend = (request) => {
+  if (httpClient === null) {
+    const { port1, port2 } = new MessageChannel();
+    const flag = new Int32Array(new SharedArrayBuffer(4));
+    const worker = new Worker(new URL("./http.mjs", import.meta.url), {
+      workerData: { port: port2, flag },
+      transferList: [port2],
+    });
+    worker.unref();
+    port1.unref();
+    httpClient = { port: port1, flag };
+  }
+  const { port, flag } = httpClient;
+  Atomics.store(flag, 0, 0);
+  port.postMessage(request);
+  Atomics.wait(flag, 0, 0);
+  return receiveMessageOnPort(port).message;
+};
+
 // `SysError`'s variants (std.sys).
 const SYS = { NotGranted: 0, Unsupported: 1 };
 // The names `std.sys` gives Node's platforms and architectures
@@ -519,6 +556,29 @@ export function createHost(sink, env = {}) {
     }
   };
 
+  // `Http.send!` (std-http.send.*): decodes the `Request` (its method,
+  // URL, header pairs, body, and timeout), makes it on the client thread
+  // under the program's grant, and encodes `Result[Response, HttpError]`.
+  const httpRequest = (d) => {
+    const m = d.num();
+    const method = m < METHODS.length ? METHODS[m] : d.str();
+    const url = d.str();
+    const headers = d.list((d) => [d.str(), d.str()]);
+    const body = Uint8Array.from(d.bytes());
+    const timeout = d.num() === 1 ? Number(d.zz()) : null;
+    const r = httpSend({ method, url, headers, body, timeout, grants: env.grants ?? {} });
+    const e = new Enc();
+    if (r.error) {
+      e.leb(1).leb(HTTP[r.error]);
+      return r.error === "Timeout" ? e : e.str(r.text);
+    }
+    return e
+      .leb(0)
+      .leb(r.status)
+      .list(r.headers, (e, [n, v]) => e.str(n).str(v))
+      .bytes(r.body);
+  };
+
   const imports = {
     "hd:rt": {
       stderr: (len) => {
@@ -587,6 +647,9 @@ export function createHost(sink, env = {}) {
       hostname: () => sysRead("hostname", (e) => e.str(hostname())),
       cpu_count: () => sysRead("cpu_count", (e) => e.leb(availableParallelism())),
     },
+    "hd:Http": waiting({
+      send: { start: (len) => ready(httpRequest(argsOf(len))), finish: never },
+    }),
     "hd:Args": {
       program: () => put(new Enc().str(program)),
       list: () => put(new Enc().list(args, (e, a) => e.str(a))),

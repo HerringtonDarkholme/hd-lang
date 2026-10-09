@@ -58,6 +58,12 @@ pub enum BTy {
     },
     /// An enum: the variant index, then the payload fields.
     Enum(Box<EnumB>),
+    /// A tuple: its elements in order. Its values are the elements'
+    /// values, or one box of them (`layout::Shape::Tuple`).
+    Tuple {
+        boxed: Option<WTy>,
+        elems: Vec<BTy>,
+    },
 }
 
 /// An enum's layout (`layout::EnumShape`) with its payloads' boundary types.
@@ -72,7 +78,7 @@ pub struct EnumB {
 
 impl BTy {
     /// The boundary type of `t`, or `unsupported` for a type that does not
-    /// cross (a function, a trait value, a map, a tuple, a recursive type).
+    /// cross (a function, a trait value, a map, a recursive type).
     pub fn of(lay: &Lay<'_>, t: Ty) -> StageResult<BTy> {
         Self::of_at(lay, t, 0)
     }
@@ -173,6 +179,16 @@ impl BTy {
                     variants,
                 }))
             }
+            Shape::Tuple { boxed, .. } => {
+                let TyData::Tuple { elems, rest: None } = pool.get(t) else {
+                    return unsupported(what());
+                };
+                let mut es = Vec::new();
+                for e in pool.list_items(elems) {
+                    es.push(Self::of_at(lay, *e, depth + 1)?);
+                }
+                BTy::Tuple { boxed, elems: es }
+            }
             _ => return unsupported(what()),
         })
     }
@@ -205,6 +221,10 @@ impl BTy {
                 None => std::iter::once(VT::I32)
                     .chain(e.slots.iter().cloned())
                     .collect(),
+            },
+            BTy::Tuple { boxed, elems } => match boxed {
+                Some(b) => vec![VT::r(b.clone())],
+                None => elems.iter().flat_map(BTy::vts).collect(),
             },
         }
     }
@@ -295,6 +315,20 @@ impl BTy {
                     }
                 }
             }
+            BTy::Tuple { boxed, elems } => {
+                w.u8(10);
+                match boxed {
+                    Some(b) => {
+                        w.u8(1);
+                        enc_wty(b, w);
+                    }
+                    None => w.u8(0),
+                }
+                w.len_of(elems);
+                for e in elems {
+                    e.encode(w);
+                }
+            }
         }
     }
 
@@ -352,6 +386,15 @@ impl BTy {
                     subtypes,
                     variants,
                 }))
+            }
+            10 => {
+                let boxed = if r.u8() == 1 { Some(dec_wty(r)?) } else { None };
+                BTy::Tuple {
+                    boxed,
+                    elems: (0..r.count())
+                        .map(|_| BTy::decode(r))
+                        .collect::<Option<Vec<_>>>()?,
+                }
             }
             _ => return None,
         })
@@ -706,6 +749,25 @@ pub fn enc_code(b: &BTy) -> StageResult<Code> {
                     a.struct_get(ty, u32_of(first + k));
                 }
                 a.call(Sym::Helper(Helper::Enc(f.clone())));
+                a.set(0);
+                first += n;
+            }
+        }
+        BTy::Tuple { boxed, elems } => {
+            let mut first = 0;
+            for e in elems {
+                let n = e.vts().len();
+                a.get(0);
+                for k in 0..n {
+                    match boxed {
+                        Some(bx) => {
+                            a.get(1);
+                            a.struct_get(bx, u32_of(first + k));
+                        }
+                        None => a.get(1 + u32_of(first + k)),
+                    }
+                }
+                a.call(Sym::Helper(Helper::Enc(e.clone())));
                 a.set(0);
                 first += n;
             }
@@ -1092,6 +1154,18 @@ pub fn dec_code(b: &BTy) -> StageResult<Code> {
                 a.get(*v);
             }
             a.struct_new(ty);
+        }
+        BTy::Tuple { boxed, elems } => {
+            let mut vals = Vec::new();
+            for e in elems {
+                vals.extend(dec_into(&mut a, 0, e));
+            }
+            for v in &vals {
+                a.get(*v);
+            }
+            if let Some(bx) = boxed {
+                a.struct_new(bx);
+            }
         }
         BTy::Enum(e) => {
             let tag = a.local(VT::I32);

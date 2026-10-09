@@ -21,6 +21,8 @@ const CORE: &str = include_str!("../../../host/core.mjs");
 const RUN: &str = include_str!("../../../host/run.mjs");
 /// `hd test`: one fresh instance per case.
 const TEST: &str = include_str!("../../../host/test.mjs");
+/// The `Http` provider's client thread.
+const HTTP: &str = include_str!("../../../host/http.mjs");
 
 pub struct NodeEngine;
 
@@ -77,7 +79,12 @@ impl Scratch {
         let dir = std::env::temp_dir().join(format!("hd-run-{}-{n}", std::process::id()));
         let s = Scratch(dir);
         std::fs::create_dir_all(&s.0).map_err(|e| format!("{}: {e}", s.0.display()))?;
-        for (name, text) in [("core.mjs", CORE), ("run.mjs", RUN), ("test.mjs", TEST)] {
+        for (name, text) in [
+            ("core.mjs", CORE),
+            ("run.mjs", RUN),
+            ("test.mjs", TEST),
+            ("http.mjs", HTTP),
+        ] {
             std::fs::write(s.0.join(name), text).map_err(|e| format!("{}: {e}", s.0.display()))?;
         }
         std::fs::write(s.0.join("main.wasm"), wasm)
