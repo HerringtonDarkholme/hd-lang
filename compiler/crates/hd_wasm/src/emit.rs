@@ -4702,10 +4702,7 @@ fn root_poll(
             }
         };
         let p = path(k);
-        let Some(host) = hd_host_abi::TABLE
-            .iter()
-            .find(|t| t.std_path.replace('.', "/") == p)
-        else {
+        let Some(host) = hd_host_abi::host_trait(&p.replace('/', ".")) else {
             return unsupported(format!("a default provider for `{p}`"));
         };
         if !lay.dyn_supers(k, TyList::EMPTY)?.is_empty() {
@@ -4749,8 +4746,10 @@ fn root_poll(
     })
 }
 
-/// One vtable slot of a default-profile provider: a host stub, or a
-/// stub that panics for a method shape not lowered yet.
+/// One vtable slot of a default-profile provider (runtime-and-host.md
+/// §17.2): a host call for a method that never waits, a host leaf frame
+/// for one that may, or a stub that panics for a method whose declaration
+/// and ABI row disagree.
 fn host_slot(
     lay: &Lay<'_>,
     key: &str,
@@ -4758,6 +4757,9 @@ fn host_slot(
     m: DefId,
     sig: WTy,
 ) -> StageResult<Helper> {
+    use crate::boundary::BTy;
+    use crate::rt::{ArgCodec, ResCodec};
+    use hd_host_abi::Codec;
     let (pool, env) = (lay.pool, lay.env);
     let unlowered = |sig: WTy| {
         Ok(Helper::Unlowered {
@@ -4765,7 +4767,8 @@ fn host_slot(
             what: format!("the host method `{key}.{}`", hm.name),
         })
     };
-    if !env.suspends(m) || hm.wait != hd_host_abi::Wait::May {
+    let waits = hm.wait == hd_host_abi::Wait::May;
+    if env.suspends(m) != waits {
         return unlowered(sig);
     }
     let full = pool.list(&[hd_mono::class_ref(pool)]);
@@ -4776,29 +4779,55 @@ fn host_slot(
         .into_iter()
         .skip(1)
         .collect();
+    if params.len() != hm.params.len() {
+        return unlowered(sig);
+    }
     for (p, c) in params.iter().zip(hm.params) {
         let pt = subst(pool, env, m, full, *p);
         let vts = lay.vts(pt)?;
         args.push(match (c, vts.as_slice()) {
-            (hd_host_abi::Codec::Buffer("string"), _) => crate::rt::ArgCodec::Str,
-            (hd_host_abi::Codec::Scalar(_), [VT::Ref(t, false)]) if t.fields() == [VT::I64] => {
-                crate::rt::ArgCodec::DataI64((**t).clone())
+            // A lone string crosses as its bytes alone (§17.4).
+            (Codec::Buffer(_), _) if hm.params.len() == 1 && lay.strip(pt) == Ty::STRING => {
+                ArgCodec::Str
             }
-            (hd_host_abi::Codec::Scalar(_), [v @ (VT::I32 | VT::I64 | VT::F64)]) => {
-                crate::rt::ArgCodec::Scalar(v.clone())
+            (Codec::Buffer(_), _) => ArgCodec::Buf(BTy::of(lay, pt)?),
+            (Codec::Scalar(_), [VT::Ref(t, false)]) if t.fields() == [VT::I64] => {
+                ArgCodec::DataI64((**t).clone())
             }
+            (Codec::Scalar(_), [v @ (VT::I32 | VT::I64 | VT::F64)]) => ArgCodec::Scalar(v.clone()),
             _ => return unlowered(sig),
         });
     }
-    if params.len() != hm.params.len() {
-        return unlowered(sig);
-    }
     let ret = subst(pool, env, m, full, env.ret(m).unwrap_or(Ty::VOID));
-    let result = lay.vts(ret)?;
-    if !(result.is_empty() || result == [VT::I32, VT::I32]) {
-        return unlowered(sig);
+    let rv = lay.vts(ret)?;
+    let result = match (hm.result, rv.as_slice()) {
+        (Codec::Void, []) => ResCodec::Void,
+        (Codec::Scalar(_), [VT::Ref(t, false)]) if !waits && t.fields() == [VT::I64] => {
+            ResCodec::DataI64((**t).clone())
+        }
+        (Codec::Scalar(_), [v @ (VT::I32 | VT::I64 | VT::F64)]) if !waits => {
+            ResCodec::Scalar(v.clone())
+        }
+        (Codec::Buffer(_), _) => {
+            let b = BTy::of(lay, ret)?;
+            if waits && b.is_tags() && rv == [VT::I32, VT::I32] {
+                ResCodec::Tags
+            } else {
+                ResCodec::Buf(b)
+            }
+        }
+        _ => return unlowered(sig),
+    };
+    if !waits {
+        return Ok(Helper::HostCall {
+            sig,
+            module: format!("hd:{key}"),
+            method: hm.name.to_owned(),
+            args,
+            result,
+        });
     }
-    let (base, _) = suspend_base(&result);
+    let (base, _) = suspend_base(&result.vts());
     let mut extra: Vec<VT> = args
         .iter()
         .flat_map(crate::rt::ArgCodec::vts)

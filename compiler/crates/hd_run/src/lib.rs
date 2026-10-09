@@ -90,6 +90,9 @@ pub struct HostSetup {
     /// The program's arguments, the words after `--` (`cli.args.pass`),
     /// which an `Args` provider hands to the program.
     pub args: Vec<String>,
+    /// What `Args.program` returns: the FILE or NAME the command ran
+    /// (the default profile's `Args`, `cli.host.default-profile`).
+    pub program: String,
 }
 
 /// A running instance (§17.9).

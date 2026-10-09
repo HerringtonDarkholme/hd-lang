@@ -209,9 +209,10 @@ fn compile(program: &disk::Program, rep: &mut Reporter) -> Result<Vec<u8>, ExitC
 
 /// Runs compiled Wasm and ends with the program's status
 /// (`cli.exit.program`), unless a need is totally denied
-/// (`cli.cap.total.refuse`).
+/// (`cli.cap.total.refuse`). `program` is what its `Args.program` returns.
 fn execute(
     wasm: &[u8],
+    program: &str,
     table: &[(String, hd_project::Grant)],
     table_dir: Option<&Path>,
     flags: &[caps::CapFlag],
@@ -232,6 +233,7 @@ fn execute(
             .iter()
             .map(|a| a.to_string_lossy().into_owned())
             .collect(),
+        program: program.to_owned(),
     };
     match run_program(&node::NodeEngine, wasm, &store, &host) {
         Ok(Outcome::Exit(code)) => rep.finish(code),
@@ -312,6 +314,7 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
     match compile(&program, &mut rep) {
         Ok(wasm) => execute(
             &wasm,
+            &file.to_string_lossy(),
             &program.capabilities,
             program.package_dir.as_deref(),
             &w.caps,
@@ -363,7 +366,15 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
             "`{shown}` imports `{m}` `{n}`, which `hd` does not provide: {rebuild}"
         ));
     }
-    execute(&wasm, &[], None, &w.caps, &w.program_args, &mut rep)
+    execute(
+        &wasm,
+        &file.to_string_lossy(),
+        &[],
+        None,
+        &w.caps,
+        &w.program_args,
+        &mut rep,
+    )
 }
 
 /// The words and flags of `hd run` and `hd build`.
@@ -537,6 +548,7 @@ fn run_command(args: &[OsString]) -> ExitCode {
     }
     execute(
         &wasm,
+        &chosen.name,
         &program.capabilities,
         program.package_dir.as_deref(),
         &w.caps,

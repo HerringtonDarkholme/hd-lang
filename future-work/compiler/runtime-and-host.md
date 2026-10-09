@@ -198,6 +198,62 @@ type description, so it needs no field names:
 | tuple | elements |
 
 - Only boundary-safe types cross, as the spec defines them.
+
+**As built (task #176).** `hd_wasm::boundary` describes each boundary
+type as a `BTy` (its parts and Wasm layout, no pool) and generates one
+encoder `(off, values...) -> off'` and one decoder `(off) -> (values...,
+off')` per `BTy`, as `rt` helpers, so methods that cross the same type
+share them. The JS host (`compiler/host/core.mjs`) writes the same bytes
+with its `Enc` and `Dec` classes.
+
+- **Integers.** Unsigned LEB128; signed ones zigzag first. A value wider
+  than 32 bits is an `i64`. `bool` is 0 or 1, one byte; `char` is its
+  scalar value.
+- **Data and newtypes.** A newtype is data of one field, so `Path` is its
+  string's bytes, the same bytes as a `string`.
+- **Arguments.** A method's structured arguments are encoded one after
+  another at offset 0, with no count; the import's last parameter is
+  their total length. Scalar arguments stay Wasm parameters, before it.
+  A method whose only argument is a `string` passes the string's bytes
+  alone, with no length prefix: the parameter is the length
+  (`Console.write_line`, `Env.get`).
+- **Results.** A waiting method's result is always in the buffer. A
+  method that never waits returns a scalar as its Wasm result, a data
+  value of one `i64` field (`Timestamp`, `Instant`) as that `i64`, and a
+  structured value in the buffer, with its length as the result.
+- **An enum of tags** (each payload at most one payload-free enum, as
+  `Result[void, ConsoleError]`) is read as one or two bytes, which are
+  the general encoding's bytes for fewer than 128 variants.
+- **Checks.** The encoder grows the buffer before it writes (a refused
+  growth is `heap-exhausted`). The decoder checks every LEB128 byte and
+  every length against the buffer's size, a variant index against the
+  variant count, an option's tag against 1, and a narrow integer against
+  its range; a failure is the `host-contract` panic.
+- Maps, tuples, functions, trait values and recursive types do not cross
+  yet; a host method over one stops at Link as unsupported.
+
+The structured values of the ABI table, byte by byte:
+
+| Value | Bytes |
+| --- | --- |
+| `string`, `Path` | length, then the UTF-8 bytes |
+| `List[u8]` | length, then the bytes |
+| `string?` | `0`, or `1` and the string |
+| `List[string]` | count, then each string |
+| `Entry` | its path, its kind's index (`File` 0, `Directory` 1, `Symlink` 2), its size |
+| `Entry?` | `0`, or `1` and the entry |
+| `List[Entry]` | count, then each entry |
+| `Result[T, E]` | `0` and the `T`, or `1` and the `E` |
+| `FsError` | the variant index (`NotFound` 0, `PermissionDenied` 1, `NotGranted` 2, `AlreadyExists` 3, `NotADirectory` 4, `IsADirectory` 5, `InvalidUtf8` 6, `Other` 7), then its path, or `Other`'s message |
+| `ConsoleError` | `0` (`Closed`) |
+| `ProcessOutput` | stdout, stderr, then the status, zigzag |
+| `ProcessError` | the variant index (`NotFound` 0, `PermissionDenied` 1, `NotGranted` 2, `Other` 3), then `Other`'s message |
+
+So `Result[string?, ConsoleError]` is `0 0` at the end of input, `0 1`
+and the line for a line, and `1 0` for `Closed`;
+`Result[List[Entry], FsError]` is `0`, the count and the entries, or `1`,
+the variant index and the path.
+
 - **Cycles** ([`module.boundary.cycle`](../../spec/lang/10-modules.md#r-module.boundary.cycle)):
   the encoder counts depth, and past depth 256 it keeps a stack of the
   references above it and fails with `boundary-cycle` on a repeat. Acyclic
@@ -281,6 +337,13 @@ type description, so it needs no field names:
   per name.
 - Checks live in host providers only, never in hd code, as
   HOST_CAPABILITIES requires.
+- **As built (task #176).** On the Node engine, `hd run` and `hd FILE`
+  write the run's grant and its `Args.program` (the FILE or NAME the
+  command ran) into the run host's configuration; `hd test` writes each
+  case's grant into the test host's. Every provider of
+  `compiler/host/core.mjs` asks `createGrant`'s checks before it touches
+  a resource, and `rename!` checks both paths
+  ([`cli.cap.scope.rename`](../../spec/cli/command-line.md#r-cli.cap.scope.rename)).
 
 ### 17.8 Resource Limits
 

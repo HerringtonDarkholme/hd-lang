@@ -30,9 +30,14 @@ pub struct NodeModule {
 
 struct NodeInstance {
     wasm: Vec<u8>,
-    /// The program's arguments, after the module's path on Node's command
-    /// line.
+    /// The program's arguments, after the module's path and its
+    /// configuration on Node's command line.
     args: Vec<String>,
+    /// What its `Args.program` returns.
+    program: String,
+    /// Its capability grant, which the host's providers check
+    /// (`cli.host.default-profile.granted`).
+    grants: Grants,
     done: Option<Outcome>,
 }
 
@@ -54,6 +59,8 @@ impl Engine for NodeEngine {
         Ok(Box::new(NodeInstance {
             wasm: m.wasm.clone(),
             args: host.args.clone(),
+            program: host.program.clone(),
+            grants: host.grants.clone(),
             done: None,
         }))
     }
@@ -86,29 +93,29 @@ impl Drop for Scratch {
 }
 
 impl NodeInstance {
-    /// Runs the whole program in one Node process; output goes to ours.
+    /// Runs the whole program in one Node process, with our standard
+    /// streams, so it reads our input (`ConsoleInput`) and writes as it
+    /// goes. Its configuration holds its `Args.program` and its grant.
     fn run(&self) -> Outcome {
         let dir = match Scratch::new(&self.wasm) {
             Ok(d) => d,
             Err(e) => return Outcome::Internal(e),
         };
-        let out = Command::new("node")
+        let config = dir.0.join("config.json");
+        let text = run_config(&self.program, &self.grants);
+        if let Err(e) = std::fs::write(&config, text) {
+            return Outcome::Internal(format!("{}: {e}", config.display()));
+        }
+        let _ = std::io::stdout().flush();
+        let status = Command::new("node")
             .arg(dir.0.join("run.mjs"))
             .arg(dir.0.join("main.wasm"))
+            .arg(&config)
             .args(&self.args)
-            .output();
-        match out {
-            Ok(o) => {
-                let _ = std::io::stdout().write_all(&o.stdout);
-                if o.status.success() {
-                    Outcome::Exit(0)
-                } else {
-                    let _ = std::io::stderr().write_all(&o.stderr);
-                    Outcome::Exit(
-                        u8::try_from(o.status.code().unwrap_or(1).clamp(1, 255)).unwrap_or(1),
-                    )
-                }
-            }
+            .status();
+        match status {
+            Ok(s) if s.success() => Outcome::Exit(0),
+            Ok(s) => Outcome::Exit(u8::try_from(s.code().unwrap_or(1).clamp(1, 255)).unwrap_or(1)),
             Err(e) => Outcome::Internal(format!("node: {e}")),
         }
     }
@@ -192,6 +199,16 @@ fn host_config(env: &TestEnv<'_>, cases: &[HostCase]) -> String {
     }
     out.push_str("]}");
     out
+}
+
+/// The run host's configuration (`run.mjs`): the program's `Args.program`
+/// and its grant.
+fn run_config(program: &str, grants: &Grants) -> String {
+    format!(
+        "{{\"program\":{},\"grants\":{}}}",
+        quote(program),
+        grants_json(grants)
+    )
 }
 
 /// A grant as the JS host reads it: each trait with a limit, as `false`

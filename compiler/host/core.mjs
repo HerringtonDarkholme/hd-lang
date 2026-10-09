@@ -1,16 +1,27 @@
 // The JS host of `hd run` and `hd test` on V8 (Node): the import object of
-// the ABI in `hd_host_abi` (runtime-and-host.md §17.2, §17.10) for what the
-// compiler emits today, and the entry driver of suspension.md §14.4.
+// the ABI in `hd_host_abi` (runtime-and-host.md §17.2, §17.10), the
+// exchange-buffer codecs of §17.4, the default profile's providers, and
+// the entry driver of suspension.md §14.4.
 //
-// - Host operations that may wait start pending: `.start` returns status
-//   1 and a handle. `hd:Console` `write_line` completes at once (the line
-//   is written at completion); `hd:Clock` `sleep` completes when its
-//   duration has passed. `.finish(h)` writes the result into the exchange
-//   buffer; `hd:rt` `abort(h)` drops a pending operation.
+// - Import shapes (§17.2): a method that never waits is one import; its
+//   structured arguments are encoded one after another at offset 0 of the
+//   exchange buffer and their length is its last parameter, a lone string
+//   argument crosses as its bytes alone, and scalars are parameters. A
+//   structured result is written at offset 0 and its length returned.
+// - A method that may wait is `.start`, which returns `[status, value]`,
+//   then `.finish(h)`. Status 0: done at once, the result is in the buffer
+//   and `value` is its length. Status 1: pending, `value` is its handle.
+//   `hd:Console` `write_line` completes at once (the line is written at
+//   completion); `hd:Clock` `sleep` completes when its duration has
+//   passed. Every other method runs synchronously and finishes at once.
 // - `hd:rt` `block()` waits synchronously for at least one completion,
 //   writes the completed handles to the exchange buffer and returns their
 //   count; `stderr(len)` writes the buffer's first `len` bytes to standard
 //   error.
+// - Each provider asks the grant before it touches a resource
+//   (cli.host.default-profile.granted); a refused call returns the
+//   method's `NotGranted` result, or `.None` and a notice for `Env.get`
+//   (cli.cap.partial.refuse, cli.cap.env.*).
 // - The driver: an init export, then a poll export until it is not -1;
 //   while it is pending, the host waits for completions in its event loop
 //   and hands them over with `hd.wake(n)`. A pending root with nothing
@@ -18,10 +29,31 @@
 // A trap is a panic: the run's status is 3 (never 101,
 // module.profile.panic-status).
 
-import { mkdirSync, realpathSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  readSync,
+  realpathSync,
+  renameSync,
+  rmdirSync,
+  rmSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import { dirname, basename, join, resolve } from "node:path";
 
 export class Deadlock extends Error {}
+
+// A host result that breaks the ABI: the `host-contract` panic.
+class HostContract extends Error {}
 
 // A path with `..` and `.` resolved and symbolic links followed as far as
 // it exists, so no path escapes a granted directory
@@ -54,6 +86,7 @@ export function createGrant(limits = {}) {
   };
   return {
     allows: (key) => limit(key) !== false,
+    limited: (key) => limit(key) !== null,
     // An entry covers the file it names or every path under the directory
     // it names (cli.cap.scope.path); a relative path is from `cwd`.
     coversPath: (key, path, cwd = process.cwd()) => {
@@ -79,21 +112,205 @@ export function createGrant(limits = {}) {
   };
 }
 
+// The encoder of §17.4: integers as LEB128 (zigzag when signed), strings
+// and byte lists as their length then their bytes, lists as their count
+// then their elements, an optional as 0, or 1 and the value, an enum as
+// its variant index then its payload, data as its fields in order.
+export class Enc {
+  constructor() {
+    this.buf = new Uint8Array(64);
+    this.len = 0;
+  }
+  room(n) {
+    if (this.len + n <= this.buf.length) return;
+    const next = new Uint8Array(Math.max(this.buf.length * 2, this.len + n));
+    next.set(this.buf.subarray(0, this.len));
+    this.buf = next;
+  }
+  leb(v) {
+    let x = BigInt(v);
+    this.room(10);
+    do {
+      let b = Number(x & 0x7fn);
+      x >>= 7n;
+      if (x) b |= 0x80;
+      this.buf[this.len++] = b;
+    } while (x);
+    return this;
+  }
+  zz(v) {
+    const x = BigInt(v);
+    return this.leb(x >= 0n ? x << 1n : (-x << 1n) - 1n);
+  }
+  bytes(u8) {
+    this.leb(u8.length);
+    this.room(u8.length);
+    this.buf.set(u8, this.len);
+    this.len += u8.length;
+    return this;
+  }
+  str(s) {
+    return this.bytes(Buffer.from(s, "utf8"));
+  }
+  list(xs, each) {
+    this.leb(xs.length);
+    for (const x of xs) each(this, x);
+    return this;
+  }
+  done() {
+    return this.buf.subarray(0, this.len);
+  }
+}
+
+// The decoder of §17.4, over a copy of the argument bytes.
+export class Dec {
+  constructor(bytes) {
+    this.b = bytes;
+    this.at = 0;
+  }
+  leb() {
+    let r = 0n;
+    let s = 0n;
+    let b;
+    do {
+      b = this.b[this.at++];
+      if (b === undefined) throw new HostContract("an argument does not decode");
+      r |= BigInt(b & 0x7f) << s;
+      s += 7n;
+    } while (b & 0x80);
+    return r;
+  }
+  num() {
+    return Number(this.leb());
+  }
+  zz() {
+    const x = this.leb();
+    return (x >> 1n) ^ -(x & 1n);
+  }
+  bytes() {
+    const n = this.num();
+    if (this.at + n > this.b.length) throw new HostContract("an argument does not decode");
+    const out = this.b.subarray(this.at, this.at + n);
+    this.at += n;
+    return out;
+  }
+  str() {
+    return Buffer.from(this.bytes()).toString("utf8");
+  }
+  list(each) {
+    const n = this.num();
+    const out = [];
+    for (let i = 0; i < n; i++) out.push(each(this));
+    return out;
+  }
+}
+
+// `FsError`'s variants (std.fs), in declaration order.
+const FS = {
+  NotFound: 0,
+  PermissionDenied: 1,
+  NotGranted: 2,
+  AlreadyExists: 3,
+  NotADirectory: 4,
+  IsADirectory: 5,
+  InvalidUtf8: 6,
+  Other: 7,
+};
+const FS_CODES = {
+  ENOENT: FS.NotFound,
+  EACCES: FS.PermissionDenied,
+  EPERM: FS.PermissionDenied,
+  EEXIST: FS.AlreadyExists,
+  ENOTDIR: FS.NotADirectory,
+  EISDIR: FS.IsADirectory,
+};
+// `EntryKind`'s variants.
+const KIND = { File: 0, Directory: 1, Symlink: 2 };
+// `ProcessError`'s variants (std.process).
+const PROC = { NotFound: 0, PermissionDenied: 1, NotGranted: 2, Other: 3 };
+
+// `.Err(FsError)` of a failed file operation on `path`.
+const fsErr = (e, path, variant) => {
+  e.leb(1).leb(variant);
+  return variant === FS.Other ? e : e.str(path);
+};
+const fsFail = (e, path, err) => {
+  const v = FS_CODES[err?.code];
+  return v === undefined ? e.leb(1).leb(FS.Other).str(String(err?.message ?? err)) : fsErr(e, path, v);
+};
+// An `Entry`: path, kind, size.
+const entry = (e, path, st) => {
+  const kind = st.isSymbolicLink() ? KIND.Symlink : st.isDirectory() ? KIND.Directory : KIND.File;
+  return e.str(path).leb(kind).leb(kind === KIND.Directory ? 0 : st.size);
+};
+
+// Reads standard input one line at a time, synchronously
+// (cli.host.default-profile.input-closed): the line without its ending,
+// `null` at the end of input (and every time after), or `false` when
+// standard input cannot be read.
+function lineReader(fd) {
+  // A closed standard input is at its end (cli.test.env.stdin).
+  if (fd === null) return () => null;
+  let pending = Buffer.alloc(0);
+  let ended = false;
+  const chunk = Buffer.alloc(65536);
+  const waiter = new Int32Array(new SharedArrayBuffer(4));
+  return () => {
+    for (;;) {
+      const nl = pending.indexOf(10);
+      if (nl >= 0) {
+        let line = pending.subarray(0, nl);
+        pending = pending.subarray(nl + 1);
+        if (line.length && line[line.length - 1] === 13) line = line.subarray(0, line.length - 1);
+        return line.toString("utf8");
+      }
+      if (ended) {
+        if (!pending.length) return null;
+        const line = pending.toString("utf8");
+        pending = Buffer.alloc(0);
+        return line;
+      }
+      let n;
+      try {
+        n = readSync(fd, chunk, 0, chunk.length, null);
+      } catch (err) {
+        if (err.code === "EAGAIN") {
+          Atomics.wait(waiter, 0, 0, 5);
+          continue;
+        }
+        if (err.code === "EOF") {
+          n = 0;
+        } else {
+          return false;
+        }
+      }
+      if (n === 0) ended = true;
+      else pending = Buffer.concat([pending, chunk.subarray(0, n)]);
+    }
+  };
+}
+
 // One host per instance: `sink.out(text)` and `sink.err(text)` receive the
 // program's standard output and standard error. `env` holds what the
-// providers hand out once the emitter lowers their methods: `args` and
-// `program` for `Args`, `grants` for the scope checks, and in a test case
-// its `tempDir` (made on the first `tempDir()` call, which
-// `TestRunner.temp_dir` makes) and the base `seed` of a property test
-// (Test Environments, cli.test.seed).
+// providers hand out: `args` and `program` for `Args`, `grants` for the
+// scope checks, `stdin` (a file descriptor, or `null` for a closed
+// standard input), and in a test case its `tempDir` (made on the first
+// `tempDir()` call, which `TestRunner.temp_dir` makes), the base `seed`
+// of a property test (Test Environments, cli.test.seed).
 export function createHost(sink, env = {}) {
   const args = env.args ?? [];
   const program = env.program ?? "";
   const grant = createGrant(env.grants ?? {});
   const seed = env.seed ?? null;
+  const readLine = lineReader(env.stdin === undefined ? 0 : env.stdin);
   let tempMade = false;
+  let ownTemp = null;
   const tempDir = () => {
-    if (!env.tempDir) return "";
+    if (!env.tempDir) {
+      // A run without a configured directory makes its own.
+      ownTemp ??= mkdtempSync(join(tmpdir(), "hd-case-"));
+      return ownTemp;
+    }
     if (!tempMade) mkdirSync(env.tempDir, { recursive: true });
     tempMade = true;
     return env.tempDir;
@@ -102,12 +319,28 @@ export function createHost(sink, env = {}) {
   let memory = null;
   let reported = false;
   const view = (len) => new Uint8Array(memory.buffer, 0, len);
+  // A copy of the argument bytes, which a result may overwrite.
+  const argsOf = (len) => new Dec(Uint8Array.from(view(len)));
+  const text = (len) => Buffer.from(view(len)).toString("utf8");
+  // Writes an encoded result at offset 0, growing the buffer to fit, and
+  // returns its length (§17.3).
+  const put = (e) => {
+    const bytes = e.done();
+    if (bytes.length > memory.buffer.byteLength) {
+      memory.grow(Math.ceil((bytes.length - memory.buffer.byteLength) / 65536));
+    }
+    new Uint8Array(memory.buffer, 0, bytes.length).set(bytes);
+    return bytes.length;
+  };
+  // A waiting method that finished at once (§17.2): status 0, the length.
+  const ready = (e) => [0, put(e)];
   const flush = () => {
     if (out.length) {
       sink.out(out.join(""));
       out.length = 0;
     }
   };
+  const noticed = new Set();
 
   // Pending operations by handle: `at` is when it completes.
   const ops = new Map();
@@ -151,6 +384,56 @@ export function createHost(sink, env = {}) {
   const finish = (h) => {
     ops.delete(h);
   };
+  // A `.finish` of an operation that never pends: a stale handle.
+  const never = () => {
+    throw new HostContract("a finish of an operation that is not pending");
+  };
+  // A waiting file operation on the paths that `paths(d)` reads from the
+  // arguments; `run(e, paths, d)` does it once the grant covers each path.
+  const fsOp = (key, paths, run) => ({
+    start: (len) => {
+      const d = argsOf(len);
+      const ps = paths(d);
+      const e = new Enc();
+      const refused = ps.find((p) => !grant.coversPath(key, p));
+      if (refused !== undefined) return ready(fsErr(e, refused, FS.NotGranted));
+      try {
+        run(e, ps, d);
+      } catch (err) {
+        return ready(fsFail(new Enc(), ps[ps.length - 1], err));
+      }
+      return ready(e);
+    },
+    finish: never,
+  });
+  const waiting = (ops) => {
+    const o = {};
+    for (const [name, { start, finish }] of Object.entries(ops)) {
+      o[`${name}.start`] = start;
+      o[`${name}.finish`] = finish;
+    }
+    return o;
+  };
+  const one = (d) => [d.str()];
+  // `Process.run!` (cli.host.default-profile): the default profile's
+  // provider starts a host program in the working directory.
+  const runProcess = (name, argv, input) => {
+    const e = new Enc();
+    if (!grant.coversName("Process", name)) return e.leb(1).leb(PROC.NotGranted);
+    const r = spawnSync(name, argv, { input, cwd: process.cwd(), env: process.env, maxBuffer: 1 << 30 });
+    if (r.error) {
+      const code = r.error.code;
+      if (code === "ENOENT") return e.leb(1).leb(PROC.NotFound);
+      if (code === "EACCES" || code === "EPERM") return e.leb(1).leb(PROC.PermissionDenied);
+      return e.leb(1).leb(PROC.Other).str(String(r.error.message));
+    }
+    const status = r.status ?? 128;
+    return e
+      .leb(0)
+      .str(r.stdout.toString("utf8"))
+      .str(r.stderr.toString("utf8"))
+      .zz(status);
+  };
 
   const imports = {
     "hd:rt": {
@@ -174,8 +457,8 @@ export function createHost(sink, env = {}) {
     },
     "hd:Console": {
       "write_line.start": (len) => {
-        const text = Buffer.from(view(len)).toString("utf8");
-        return pending(performance.now(), () => out.push(text + "\n"));
+        const line = text(len);
+        return pending(performance.now(), () => out.push(line + "\n"));
       },
       "write_line.finish": (h) => {
         finish(h);
@@ -183,13 +466,140 @@ export function createHost(sink, env = {}) {
         return 1;
       },
     },
+    "hd:ConsoleInput": {
+      // `Result[string?, ConsoleError]`: the next line, `.None` at the end
+      // of input, `.Err(.Closed)` when it cannot be read.
+      "read_line.start": () => {
+        const line = readLine();
+        const e = new Enc();
+        if (line === false) return ready(e.leb(1).leb(0));
+        return ready(line === null ? e.leb(0).leb(0) : e.leb(0).leb(1).str(line));
+      },
+      "read_line.finish": never,
+    },
     "hd:Clock": {
+      now: () => BigInt(Date.now()),
+      monotonic: () => BigInt(Math.floor(performance.now())),
       "sleep.start": (ms) => pending(performance.now() + Number(ms), null),
       "sleep.finish": (h) => {
         finish(h);
         return 0;
       },
     },
+    "hd:Args": {
+      program: () => put(new Enc().str(program)),
+      list: () => put(new Enc().list(args, (e, a) => e.str(a))),
+    },
+    "hd:Env": {
+      // A variable outside the grant reads as unset; when it is set, a
+      // notice names the flag, once per name (cli.cap.env.notice).
+      get: (len) => {
+        const name = text(len);
+        const value = process.env[name];
+        const e = new Enc();
+        if (!grant.coversName("Env", name)) {
+          if (value !== undefined && !noticed.has(name)) {
+            noticed.add(name);
+            flush();
+            sink.err(`hd: env ${name} is set but not granted; run with --cap Env=${name}\n`);
+          }
+          return put(e.leb(0));
+        }
+        return put(value === undefined ? e.leb(0) : e.leb(1).str(value));
+      },
+      names: () =>
+        put(
+          new Enc().list(
+            Object.keys(process.env).filter((n) => grant.coversName("Env", n)),
+            (e, n) => e.str(n),
+          ),
+        ),
+    },
+    "hd:FsRead": waiting({
+      read_bytes: fsOp("FsRead", one, (e, [p]) => e.leb(0).bytes(readFileSync(p))),
+      read_text: fsOp("FsRead", one, (e, [p]) => {
+        const bytes = readFileSync(p);
+        let s;
+        try {
+          s = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+        } catch {
+          return fsErr(e, p, FS.InvalidUtf8);
+        }
+        return e.leb(0).str(s);
+      }),
+      // The entries in the byte order of their names; each path is the
+      // directory's, `/`, and the name (as `MemoryFs` lists them).
+      list_dir: fsOp("FsRead", one, (e, [p]) => {
+        const names = readdirSync(p).sort((a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b)));
+        const under = p.endsWith("/") ? p : `${p}/`;
+        const found = [];
+        for (const n of names) {
+          try {
+            found.push([under + n, lstatSync(under + n)]);
+          } catch {
+            // Gone since the listing.
+          }
+        }
+        e.leb(0).list(found, (e, [path, st]) => entry(e, path, st));
+      }),
+      stat: fsOp("FsRead", one, (e, [p]) => {
+        let st;
+        try {
+          st = lstatSync(p);
+        } catch (err) {
+          if (err.code === "ENOENT" || err.code === "ENOTDIR") return e.leb(0).leb(0);
+          throw err;
+        }
+        return entry(e.leb(0).leb(1), p, st);
+      }),
+    }),
+    "hd:FsWrite": waiting({
+      write_bytes: fsOp("FsWrite", one, (e, [p], d) => {
+        writeFileSync(p, d.bytes());
+        e.leb(0);
+      }),
+      write_text: fsOp("FsWrite", one, (e, [p], d) => {
+        writeFileSync(p, d.bytes());
+        e.leb(0);
+      }),
+      append_text: fsOp("FsWrite", one, (e, [p], d) => {
+        appendFileSync(p, d.bytes());
+        e.leb(0);
+      }),
+      create_dir_all: fsOp("FsWrite", one, (e, [p]) => {
+        if (existsSync(p) && !statSync(p).isDirectory()) {
+          return fsErr(e, p, FS.NotADirectory);
+        }
+        mkdirSync(p, { recursive: true });
+        e.leb(0);
+      }),
+      remove: fsOp("FsWrite", one, (e, [p]) => {
+        if (lstatSync(p).isDirectory()) rmdirSync(p);
+        else unlinkSync(p);
+        e.leb(0);
+      }),
+      // cli.cap.scope.rename: the grant covers both paths.
+      rename: fsOp(
+        "FsWrite",
+        (d) => [d.str(), d.str()],
+        (e, [from, to]) => {
+          renameSync(from, to);
+          e.leb(0);
+        },
+      ),
+    }),
+    "hd:Process": waiting({
+      run: {
+        start: (len) => {
+          const d = argsOf(len);
+          const name = d.str();
+          const argv = d.list((d) => d.str());
+          const input = Buffer.from(d.bytes());
+          return ready(runProcess(name, argv, input));
+        },
+        finish: never,
+      },
+    }),
   };
 
   // Runs `init`, then polls `poll` to completion. Returns the status (3
@@ -215,7 +625,12 @@ export function createHost(sink, env = {}) {
       }
     } catch (e) {
       flush();
-      if (!(e instanceof WebAssembly.RuntimeError) && !(e instanceof Deadlock)) throw e;
+      if (e instanceof HostContract) {
+        sink.err(`panic: host-contract: ${e.message}\n`);
+        reported = true;
+      } else if (!(e instanceof WebAssembly.RuntimeError) && !(e instanceof Deadlock)) {
+        throw e;
+      }
       // A panic stub wrote its report; any other trap is an internal error.
       if (!reported) sink.err(`internal error: ${e.message}\n`);
       status = 3;
@@ -225,5 +640,16 @@ export function createHost(sink, env = {}) {
     return { status, trapped };
   };
 
-  return { imports, run, args, program, grant, seed, tempDir };
+  // Removes a directory the host made for itself.
+  const close = () => {
+    if (ownTemp) {
+      try {
+        rmSync(ownTemp, { recursive: true, force: true });
+      } catch {
+        // Already gone.
+      }
+    }
+  };
+
+  return { imports, run, close, args, program, grant, seed, tempDir };
 }

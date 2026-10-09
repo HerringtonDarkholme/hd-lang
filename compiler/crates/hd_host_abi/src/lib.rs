@@ -148,7 +148,50 @@ pub static TABLE: &[HostTrait] = &[
     HostTrait {
         key: "FsWrite",
         std_path: "std.fs.FsWrite",
-        methods: &[],
+        methods: &[
+            m(
+                "write_bytes",
+                &[B("Path"), B("List[u8]")],
+                B("Result[void, FsError]"),
+                Wait::May,
+                Some(ResourceArg::Path),
+            ),
+            m(
+                "write_text",
+                &[B("Path"), B("string")],
+                B("Result[void, FsError]"),
+                Wait::May,
+                Some(ResourceArg::Path),
+            ),
+            m(
+                "append_text",
+                &[B("Path"), B("string")],
+                B("Result[void, FsError]"),
+                Wait::May,
+                Some(ResourceArg::Path),
+            ),
+            m(
+                "create_dir_all",
+                &[B("Path")],
+                B("Result[void, FsError]"),
+                Wait::May,
+                Some(ResourceArg::Path),
+            ),
+            m(
+                "remove",
+                &[B("Path")],
+                B("Result[void, FsError]"),
+                Wait::May,
+                Some(ResourceArg::Path),
+            ),
+            m(
+                "rename",
+                &[B("Path"), B("Path")],
+                B("Result[void, FsError]"),
+                Wait::May,
+                Some(ResourceArg::Path),
+            ),
+        ],
     },
     HostTrait {
         key: "Random",
@@ -163,7 +206,13 @@ pub static TABLE: &[HostTrait] = &[
     HostTrait {
         key: "Process",
         std_path: "std.process.Process",
-        methods: &[],
+        methods: &[m(
+            "run",
+            &[B("string"), B("List[string]"), B("string")],
+            B("Result[ProcessOutput, ProcessError]"),
+            Wait::May,
+            Some(ResourceArg::Program),
+        )],
     },
     HostTrait {
         key: "Env",
@@ -188,6 +237,16 @@ pub static TABLE: &[HostTrait] = &[
         ],
     },
 ];
+
+/// The test runner's host traits (§16.4, engines-and-test-runner.md §19):
+/// imported from `hd:<Key>` like a capability, but no grant names them.
+pub static RUNNERS: &[HostTrait] = &[];
+
+/// The host trait, capability or runner, whose std path is `std_path`.
+#[must_use]
+pub fn host_trait(std_path: &str) -> Option<&'static HostTrait> {
+    TABLE.iter().chain(RUNNERS).find(|t| t.std_path == std_path)
+}
 
 /// Non-capability import modules (§16.4).
 pub const RUNTIME_MODULES: &[&str] = &["hd:rt", "hd:TestRunner", "hd:PropertyRunner", "hd:hook"];
@@ -342,7 +401,7 @@ pub fn generate_js_glue() -> StageResult<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Handle, INTRINSICS, TABLE, imports_of, intrinsic, is_known_import};
+    use super::{Handle, INTRINSICS, RUNNERS, TABLE, imports_of, intrinsic, is_known_import};
 
     #[test]
     fn waiting_methods_import_a_start_finish_pair() {
@@ -403,7 +462,7 @@ mod tests {
     #[test]
     fn table_mirrors_std_capability_traits() {
         let std = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../lib/std");
-        for t in TABLE {
+        for t in TABLE.iter().chain(RUNNERS) {
             let (module, name) = t.std_path.rsplit_once('.').expect("path");
             let file = std.join(format!(
                 "{}.hd",

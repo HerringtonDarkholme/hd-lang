@@ -10,6 +10,7 @@ use hd_base::{Hash128, StageResult};
 use wasm_encoder::BlockType;
 
 use crate::asm::Asm;
+use crate::boundary::BTy;
 use crate::layout::{
     ACTIVE, CANCELLED, DONE, F_CANCEL, F_FLAGS, F_POLL, F_SAVED, F_STATE, cancel_fn, storage,
 };
@@ -24,6 +25,9 @@ pub enum ArgCodec {
     DataI64(WTy),
     /// A scalar, as itself.
     Scalar(VT),
+    /// A structured value, encoded into the exchange buffer after the
+    /// arguments before it (runtime-and-host.md §17.4).
+    Buf(BTy),
 }
 
 impl ArgCodec {
@@ -34,13 +38,7 @@ impl ArgCodec {
             ArgCodec::Str => vec![VT::r(WTy::Bytes), VT::I64],
             ArgCodec::DataI64(t) => vec![VT::r(t.clone())],
             ArgCodec::Scalar(v) => vec![v.clone()],
-        }
-    }
-    fn import(&self) -> VT {
-        match self {
-            ArgCodec::Str => VT::I32,
-            ArgCodec::DataI64(_) => VT::I64,
-            ArgCodec::Scalar(v) => v.clone(),
+            ArgCodec::Buf(b) => b.vts(),
         }
     }
     fn encode(&self, w: &mut Writer) {
@@ -54,6 +52,10 @@ impl ArgCodec {
                 w.u8(2);
                 encode_vts(std::slice::from_ref(v), w);
             }
+            ArgCodec::Buf(b) => {
+                w.u8(3);
+                b.encode(w);
+            }
         }
     }
     fn decode(r: &mut Reader<'_>) -> Option<ArgCodec> {
@@ -61,6 +63,73 @@ impl ArgCodec {
             0 => ArgCodec::Str,
             1 => ArgCodec::DataI64(dec_wty(r)?),
             2 => ArgCodec::Scalar(decode_vts(r, 0)?.pop()?),
+            3 => ArgCodec::Buf(BTy::decode(r)?),
+            _ => return None,
+        })
+    }
+}
+
+/// How a host method's result crosses (runtime-and-host.md §17.2).
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ResCodec {
+    Void,
+    /// A scalar, as the import's result.
+    Scalar(VT),
+    /// A data value of one `i64` field (`Timestamp`), as the import's
+    /// `i64` result.
+    DataI64(WTy),
+    /// An enum of tags (`BTy::is_tags`), read as one or two bytes.
+    Tags,
+    /// A structured value in the exchange buffer.
+    Buf(BTy),
+}
+
+impl ResCodec {
+    /// The result's values.
+    #[must_use]
+    pub fn vts(&self) -> Vec<VT> {
+        match self {
+            ResCodec::Void => vec![],
+            ResCodec::Scalar(v) => vec![v.clone()],
+            ResCodec::DataI64(t) => vec![VT::r(t.clone())],
+            ResCodec::Tags => vec![VT::I32, VT::I32],
+            ResCodec::Buf(b) => b.vts(),
+        }
+    }
+    /// The import's results, for a method that never waits.
+    fn import(&self) -> Vec<VT> {
+        match self {
+            ResCodec::Void => vec![],
+            ResCodec::Scalar(v) => vec![v.clone()],
+            ResCodec::DataI64(_) => vec![VT::I64],
+            ResCodec::Tags | ResCodec::Buf(_) => vec![VT::I32],
+        }
+    }
+    fn encode(&self, w: &mut Writer) {
+        match self {
+            ResCodec::Void => w.u8(0),
+            ResCodec::Scalar(v) => {
+                w.u8(1);
+                encode_vts(std::slice::from_ref(v), w);
+            }
+            ResCodec::DataI64(t) => {
+                w.u8(2);
+                enc_wty(t, w);
+            }
+            ResCodec::Tags => w.u8(3),
+            ResCodec::Buf(b) => {
+                w.u8(4);
+                b.encode(w);
+            }
+        }
+    }
+    fn decode(r: &mut Reader<'_>) -> Option<ResCodec> {
+        Some(match r.u8() {
+            0 => ResCodec::Void,
+            1 => ResCodec::Scalar(decode_vts(r, 0)?.pop()?),
+            2 => ResCodec::DataI64(dec_wty(r)?),
+            3 => ResCodec::Tags,
+            4 => ResCodec::Buf(BTy::decode(r)?),
             _ => return None,
         })
     }
@@ -186,9 +255,29 @@ pub enum Helper {
         module: String,
         method: String,
         args: Vec<ArgCodec>,
-        /// `[]` for `void`, `[i32, i32]` for an enum of tags.
-        result: Vec<VT>,
+        /// `Void`, `Tags` or `Buf`: a waiting method's result is in the
+        /// exchange buffer.
+        result: ResCodec,
     },
+    /// A host method that never waits: one import call
+    /// (runtime-and-host.md §17.2).
+    HostCall {
+        sig: WTy,
+        module: String,
+        method: String,
+        args: Vec<ArgCodec>,
+        result: ResCodec,
+    },
+    /// The encoder of a boundary type (`boundary::enc_code`).
+    Enc(BTy),
+    /// The decoder of a boundary type (`boundary::dec_code`).
+    Dec(BTy),
+    /// `(off, v: i64) -> off'`: unsigned LEB128.
+    LebPut,
+    /// `(off) -> (i64, off')`: unsigned LEB128.
+    LebGet,
+    /// `(end)`: grows the exchange buffer to `end` bytes.
+    Fit,
     /// The leaf frame's cancel: aborts a pending operation.
     HostCancel { frame: WTy },
     /// A slot the compiler does not lower yet: panics when called.
@@ -254,6 +343,15 @@ fn dec_wty(r: &mut Reader<'_>) -> Option<WTy> {
     match decode_vts(r, 0)?.pop()? {
         VT::Ref(t, _) => Some(std::sync::Arc::unwrap_or_clone(t)),
         _ => None,
+    }
+}
+
+impl OptForm {
+    pub(crate) fn encode(&self, w: &mut Writer) {
+        enc_opt(self, w);
+    }
+    pub(crate) fn decode(r: &mut Reader<'_>) -> Option<OptForm> {
+        dec_opt(r)
     }
 }
 
@@ -407,8 +505,36 @@ impl Helper {
                 for a in args {
                     a.encode(w);
                 }
-                encode_vts(result, w);
+                result.encode(w);
             }
+            Helper::HostCall {
+                sig,
+                module,
+                method,
+                args,
+                result,
+            } => {
+                w.u8(26);
+                enc_wty(sig, w);
+                w.str(module);
+                w.str(method);
+                w.len_of(args);
+                for a in args {
+                    a.encode(w);
+                }
+                result.encode(w);
+            }
+            Helper::Enc(b) => {
+                w.u8(27);
+                b.encode(w);
+            }
+            Helper::Dec(b) => {
+                w.u8(28);
+                b.encode(w);
+            }
+            Helper::LebPut => w.u8(29),
+            Helper::LebGet => w.u8(30),
+            Helper::Fit => w.u8(31),
             Helper::HostCancel { frame } => {
                 w.u8(11);
                 enc_wty(frame, w);
@@ -570,8 +696,22 @@ impl Helper {
                 args: (0..r.count())
                     .map(|_| ArgCodec::decode(r))
                     .collect::<Option<Vec<_>>>()?,
-                result: decode_vts(r, 0)?,
+                result: ResCodec::decode(r)?,
             },
+            26 => Helper::HostCall {
+                sig: dec_wty(r)?,
+                module: r.str().to_owned(),
+                method: r.str().to_owned(),
+                args: (0..r.count())
+                    .map(|_| ArgCodec::decode(r))
+                    .collect::<Option<Vec<_>>>()?,
+                result: ResCodec::decode(r)?,
+            },
+            27 => Helper::Enc(BTy::decode(r)?),
+            28 => Helper::Dec(BTy::decode(r)?),
+            29 => Helper::LebPut,
+            30 => Helper::LebGet,
+            31 => Helper::Fit,
             11 => Helper::HostCancel { frame: dec_wty(r)? },
             12 => Helper::Unlowered {
                 sig: dec_wty(r)?,
@@ -998,6 +1138,18 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             args,
             result,
         } => host_poll(frame, module, method, args, result)?,
+        Helper::HostCall {
+            sig,
+            module,
+            method,
+            args,
+            result,
+        } => host_call(sig, module, method, args, result)?,
+        Helper::Enc(b) => crate::boundary::enc_code(b)?,
+        Helper::Dec(b) => crate::boundary::dec_code(b)?,
+        Helper::LebPut => crate::boundary::leb_put_code(),
+        Helper::LebGet => crate::boundary::leb_get_code(),
+        Helper::Fit => crate::boundary::fit_code(),
         Helper::HostCancel { frame } => {
             let mut a = Asm::new(vec![VT::Eq]);
             let f = a.local(VT::r(frame.clone()));
@@ -1433,21 +1585,136 @@ fn race_poll(list: &WTy, base: &WTy, poll: &WTy, result: &[VT]) -> Code {
     a.finish(res)
 }
 
+/// Pushes a host import's arguments (runtime-and-host.md §17.2): the
+/// structured ones are encoded into the exchange buffer first, one after
+/// another, and their total length is the last import parameter; a lone
+/// string crosses as its bytes alone, its length the parameter; scalars
+/// are parameters as themselves. `load(a, i, v)` pushes the `i`-th value
+/// of the arguments, of type `v`. Returns the import's parameter types.
+fn marshal(a: &mut Asm, args: &[ArgCodec], load: &dyn Fn(&mut Asm, u32, &VT)) -> Vec<VT> {
+    let bufs = args.iter().any(|c| matches!(c, ArgCodec::Buf(_)));
+    let off = bufs.then(|| a.local(VT::I32));
+    let mut i = 0;
+    for c in args {
+        let vts = c.vts();
+        if let (ArgCodec::Buf(b), Some(off)) = (c, off) {
+            a.get(off);
+            for (k, v) in vts.iter().enumerate() {
+                load(a, i + u32::try_from(k).expect("k"), v);
+            }
+            a.call(Sym::Helper(Helper::Enc(b.clone())));
+            a.set(off);
+        }
+        i += u32::try_from(vts.len()).expect("vts");
+    }
+    let mut imp = Vec::new();
+    i = 0;
+    for c in args {
+        let vts = c.vts();
+        match c {
+            ArgCodec::Str => {
+                load(a, i, &vts[0]);
+                load(a, i + 1, &vts[1]);
+                a.call(Sym::Helper(Helper::StrToBuf));
+                imp.push(VT::I32);
+            }
+            ArgCodec::DataI64(t) => {
+                load(a, i, &vts[0]);
+                a.struct_get(t, 0);
+                imp.push(VT::I64);
+            }
+            ArgCodec::Scalar(v) => {
+                load(a, i, v);
+                imp.push(v.clone());
+            }
+            ArgCodec::Buf(_) => {}
+        }
+        i += u32::try_from(vts.len()).expect("vts");
+    }
+    if let Some(off) = off {
+        a.get(off);
+        imp.push(VT::I32);
+    }
+    imp
+}
+
+/// Decodes a result in the exchange buffer, whose length is in local `n`.
+fn unmarshal(a: &mut Asm, result: &ResCodec, n: u32) {
+    match result {
+        ResCodec::Tags => {
+            // An enum of tags (runtime-and-host.md §17.4): the variant
+            // index, then a payload variant index when present.
+            a.i32(0);
+            a.mem8_load(0);
+            a.get(n);
+            a.i32(1);
+            a.s().i32_gt_s();
+            a.s().if_(BlockType::Result(wasm_encoder::ValType::I32));
+            a.i32(0);
+            a.mem8_load(1);
+            a.else_();
+            a.i32(0);
+            a.end();
+        }
+        ResCodec::Buf(b) => {
+            a.i32(0);
+            a.call(Sym::Helper(Helper::Dec(b.clone())));
+            a.s().drop();
+        }
+        ResCodec::DataI64(t) => {
+            a.get(n);
+            a.struct_new(t);
+        }
+        ResCodec::Void | ResCodec::Scalar(_) => {}
+    }
+}
+
+/// A host method that never waits (runtime-and-host.md §17.2): one import
+/// call, its arguments and result marshalled as `marshal` and `unmarshal`
+/// do.
+fn host_call(
+    sig: &WTy,
+    module: &str,
+    method: &str,
+    args: &[ArgCodec],
+    result: &ResCodec,
+) -> StageResult<Code> {
+    let WTy::Func(params, results) = sig else {
+        return unsupported("a host stub without a signature");
+    };
+    let mut a = Asm::new(params.clone());
+    let imp = marshal(&mut a, args, &|a, i, _| a.get(1 + i));
+    let out = result.import();
+    a.call(Sym::Import {
+        module: module.to_owned(),
+        name: method.to_owned(),
+        params: imp,
+        results: out.clone(),
+    });
+    if !out.is_empty() {
+        let n = a.local(out[0].clone());
+        a.set(n);
+        if let ResCodec::Scalar(_) = result {
+            a.get(n);
+        }
+        unmarshal(&mut a, result, n);
+    }
+    Ok(a.finish(results.clone()))
+}
+
 /// The leaf frame's poll (runtime-and-host.md §17.2).
 fn host_poll(
     frame: &WTy,
     module: &str,
     method: &str,
     args: &[ArgCodec],
-    result: &[VT],
+    result: &ResCodec,
 ) -> StageResult<Code> {
-    let tags = match result {
-        [] => false,
-        [VT::I32, VT::I32] => true,
-        _ => return unsupported("a host result codec other than `void` or an enum of tags"),
-    };
+    if matches!(result, ResCodec::Scalar(_) | ResCodec::DataI64(_)) {
+        return unsupported("a waiting host method with a scalar result");
+    }
     let mut res = vec![VT::I32];
-    res.extend(result.iter().map(VT::dflt));
+    res.extend(result.vts().iter().map(VT::dflt));
     let nf = u32::try_from(frame.fields().len()).expect("fields");
     let mut a = Asm::new(vec![VT::Eq]);
     let (f, h, n, st) = (
@@ -1482,32 +1749,11 @@ fn host_poll(
     a.i32(0);
     a.s().i32_lt_s();
     a.if_();
-    let mut fi = F_SAVED - 1;
-    let mut imp = Vec::new();
-    for c in args {
-        match c {
-            ArgCodec::Str => {
-                a.get(f);
-                a.struct_get(frame, fi);
-                a.s().ref_as_non_null();
-                a.get(f);
-                a.struct_get(frame, fi + 1);
-                a.call(Sym::Helper(Helper::StrToBuf));
-            }
-            ArgCodec::DataI64(t) => {
-                a.get(f);
-                a.struct_get(frame, fi);
-                a.ref_cast(t, false);
-                a.struct_get(t, 0);
-            }
-            ArgCodec::Scalar(_) => {
-                a.get(f);
-                a.struct_get(frame, fi);
-            }
-        }
-        fi += u32::try_from(c.vts().len()).expect("vts");
-        imp.push(c.import());
-    }
+    let imp = marshal(&mut a, args, &|a, i, v| {
+        a.get(f);
+        a.struct_get(frame, F_SAVED - 1 + i);
+        a.conv(&v.dflt(), v);
+    });
     a.call(Sym::Import {
         module: module.to_owned(),
         name: format!("{method}.start"),
@@ -1543,21 +1789,7 @@ fn host_poll(
     a.i32(DONE);
     a.struct_set(frame, F_FLAGS);
     a.i32(1);
-    if tags {
-        // An enum of tags (runtime-and-host.md §17.4): the variant index,
-        // then a payload variant index when present.
-        a.i32(0);
-        a.mem8_load(0);
-        a.get(n);
-        a.i32(1);
-        a.s().i32_gt_s();
-        a.s().if_(BlockType::Result(wasm_encoder::ValType::I32));
-        a.i32(0);
-        a.mem8_load(1);
-        a.else_();
-        a.i32(0);
-        a.end();
-    }
+    unmarshal(&mut a, result, n);
     Ok(a.finish(res))
 }
 
