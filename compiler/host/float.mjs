@@ -165,3 +165,15 @@ export function fixed(value, places) {
   const whole = text.slice(0, text.length - places);
   return `${negative ? "-" : ""}${whole}${places > 0 ? "." + text.slice(text.length - places) : ""}`;
 }
+
+// Unicode Default Case Conversion with full mappings
+// (spec/std/text.md#r-std-text.string.lower): `toLowerCase` and
+// `toUpperCase` are that conversion with no locale, `ß` giving `SS`, and
+// the final sigma by its context.
+export function lower(text) {
+  return text.toLowerCase();
+}
+
+export function upper(text) {
+  return text.toUpperCase();
+}

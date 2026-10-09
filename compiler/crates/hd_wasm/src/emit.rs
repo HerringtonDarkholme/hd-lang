@@ -2245,36 +2245,48 @@ impl Em<'_> {
             // `hd:prim` imports (`std` README, "Host"): the scalars go
             // in as parameters and the string comes back in the exchange
             // buffer.
-            "format_f64" | "format_f32" | "format_f64_fixed" => {
+            "format_f64" | "format_f32" | "format_f64_fixed" | "string_lower" | "string_upper" => {
                 self.host_primitive(i, key, args, ty)
             }
             other => unsupported(format!("the intrinsic `{other}`")),
         }
     }
 
-    /// A call of a host primitive that takes scalars and returns a
-    /// string: the `hd:prim` import named `name`, called with the
-    /// arguments, then the result decoded from the exchange buffer.
+    /// A call of a host primitive: the `hd:prim` import named `name`. A
+    /// scalar argument goes in as itself and a string argument in the
+    /// exchange buffer (its length is the import's parameter). A string
+    /// result is decoded from the exchange buffer and a scalar result is
+    /// the import's own.
     fn host_primitive(&mut self, i: u32, name: &str, args: &[u32], ty: Ty) -> StageResult<()> {
         let mut vts = Vec::new();
         let mut codecs = Vec::new();
         for a in args {
             let v = self.vts(self.ty_of(*a))?;
-            let [one @ (VT::I32 | VT::I64 | VT::F32 | VT::F64)] = v.as_slice() else {
-                return unsupported("a host primitive argument that is not a scalar");
-            };
-            codecs.push(crate::rt::ArgCodec::Scalar(one.clone()));
-            vts.push(one.clone());
+            if matches!(self.lay.shape(self.ty_of(*a))?, Shape::Str) {
+                codecs.push(crate::rt::ArgCodec::Str);
+            } else if let [one @ (VT::I32 | VT::I64 | VT::F32 | VT::F64)] = v.as_slice() {
+                codecs.push(crate::rt::ArgCodec::Scalar(one.clone()));
+            } else {
+                return unsupported("a host primitive argument that is neither scalar nor string");
+            }
+            vts.extend(v);
         }
         let result = self.vts(ty)?;
+        let res = match (self.lay.shape(ty)?, result.as_slice()) {
+            (Shape::Str, _) => crate::rt::ResCodec::Buf(crate::boundary::BTy::of(&self.lay, ty)?),
+            (_, [one @ (VT::I32 | VT::I64 | VT::F32 | VT::F64)]) => {
+                crate::rt::ResCodec::Scalar(one.clone())
+            }
+            _ => return unsupported("a host primitive result that is neither scalar nor string"),
+        };
         let helper = Helper::HostPrim {
-            sig: WTy::Func(vts.clone(), result.clone()),
+            sig: WTy::Func(vts, result.clone()),
             name: name.to_owned(),
             args: codecs,
-            result: crate::rt::ResCodec::Buf(crate::boundary::BTy::of(&self.lay, ty)?),
+            result: res,
         };
-        for (a, v) in args.iter().zip(&vts) {
-            self.comp(*a, 0, v)?;
+        for a in args {
+            self.load(*a)?;
         }
         self.a.call(Sym::Helper(helper));
         self.store_from(i, &result)

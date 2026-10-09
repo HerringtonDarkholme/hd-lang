@@ -1,5 +1,5 @@
-//! The float text primitives (`format_f64`, `format_f32`,
-//! `format_f64_fixed`; spec 04 `types.display.*`, std `num` fixed-point
+//! The float and case primitives (`format_f64`, `format_f32`,
+//! `format_f64_fixed`, `string_lower`, `string_upper`; spec 04 `types.display.*`, std `num` fixed-point
 //! text): the host's text against Rust's own float printing, which is an
 //! independent shortest round-trip and an exact fixed-point writer, then
 //! the same texts through compiled programs.
@@ -122,18 +122,23 @@ fn display_f32(x: f32) -> String {
 }
 
 /// Runs `float.mjs` on one request per line (`s32 BITS`, `s64 BITS`, or
-/// `fixed BITS DIGITS`, bits in hex) and returns one answer per line.
+/// `fixed BITS DIGITS`, bits in hex; `lower HEX` and
+/// `upper HEX`, the UTF-8 bytes in hex) and returns one answer per line.
 fn host_text(requests: &[String]) -> Vec<String> {
     let float = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/float.mjs");
     let float = std::fs::canonicalize(float).expect("float.mjs");
-    let script = r#"const { shortest, fixed } = await import(process.argv[1]);
+    let script = r#"const { shortest, fixed, lower, upper } = await import(process.argv[1]);
 import { readFileSync } from "node:fs";
 const view = new DataView(new ArrayBuffer(8));
 const out = [];
 for (const line of readFileSync(0, "utf8").split("\n")) {
   if (!line) continue;
   const [kind, bits, digits] = line.split(" ");
-  if (kind === "s32") {
+  if (kind === "lower" || kind === "upper") {
+    const text = Buffer.from(bits, "hex").toString("utf8");
+    const mapped = kind === "lower" ? lower(text) : upper(text);
+    out.push(Buffer.from(mapped, "utf8").toString("hex"));
+  } else if (kind === "s32") {
     view.setUint32(0, Number("0x" + bits));
     out.push(shortest(view.getFloat32(0), 32));
   } else {
@@ -471,6 +476,73 @@ tests:
         assert_equal((zero / zero).to_fixed(2), "NaN", reason="NaN")
         assert_equal((1.0 / zero).to_fixed(2), "inf", reason="infinity")
         assert_equal((-1.0 / zero).to_fixed(2), "-inf", reason="negative infinity")
+"#,
+    );
+}
+
+/// The UTF-8 bytes of `text` in hex.
+fn hex(text: &str) -> String {
+    use std::fmt::Write as _;
+    text.bytes().fold(String::new(), |mut out, b| {
+        write!(out, "{b:02x}").expect("write to a string");
+        out
+    })
+}
+
+/// `string_lower` and `string_upper` against fixed expectations of Unicode
+/// Default Case Conversion with full mappings.
+#[test]
+fn case_mapping_of_host_matches_unicode() {
+    let cases: [(&str, &str, &str); 9] = [
+        ("Hello, World", "hello, world", "HELLO, WORLD"),
+        ("stra\u{df}e", "stra\u{df}e", "STRASSE"),
+        ("\u{3a3}A\u{3a3}", "\u{3c3}a\u{3c2}", "\u{3a3}A\u{3a3}"),
+        ("\u{130}", "i\u{307}", "\u{130}"),
+        ("\u{fb01}", "\u{fb01}", "FI"),
+        ("\u{e9}\u{c9}", "\u{e9}\u{e9}", "\u{c9}\u{c9}"),
+        (
+            "\u{1f600}\u{10400}",
+            "\u{1f600}\u{10428}",
+            "\u{1f600}\u{10400}",
+        ),
+        ("", "", ""),
+        ("\u{1c5}", "\u{1c6}", "\u{1c4}"),
+    ];
+    let mut requests = Vec::new();
+    for (text, _, _) in &cases {
+        requests.push(format!("lower {}", hex(text)));
+        requests.push(format!("upper {}", hex(text)));
+    }
+    let got = host_text(&requests);
+    for (k, (_, lower, upper)) in cases.iter().enumerate() {
+        assert_eq!(got[2 * k], hex(lower), "lower, case {k}");
+        assert_eq!(got[2 * k + 1], hex(upper), "upper, case {k}");
+    }
+}
+
+#[test]
+fn case_mapping_through_programs() {
+    all_pass(
+        "case",
+        r#"use std.testing.assert_equal
+
+tests:
+    it("maps ASCII"):
+        assert_equal("Hello, World 42".lower(), "hello, world 42", reason="lower")
+        assert_equal("Hello, World 42".upper(), "HELLO, WORLD 42", reason="upper")
+        assert_equal("".lower(), "", reason="empty")
+    it("maps beyond ASCII"):
+        assert_equal("\u{c9}COLE".lower(), "\u{e9}cole", reason="e acute")
+        assert_equal("\u{e9}cole".upper(), "\u{c9}COLE", reason="e acute up")
+        assert_equal("\u{41f}\u{440}\u{438}\u{432}\u{435}\u{442}".upper(), "\u{41f}\u{420}\u{418}\u{412}\u{415}\u{422}", reason="Cyrillic")
+        assert_equal("\u{1f600}".upper(), "\u{1f600}", reason="no case")
+    it("changes the length with full mappings"):
+        assert_equal("stra\u{df}e".upper(), "STRASSE", reason="sharp s")
+        assert_equal("stra\u{df}e".upper().len(), 7, reason="seven bytes")
+        assert_equal("\u{fb01}".upper(), "FI", reason="ligature")
+        assert_equal("\u{130}".lower(), "i\u{307}", reason="dotted capital I")
+        assert_equal("\u{3a3}A\u{3a3}".lower(), "\u{3c3}a\u{3c2}", reason="final sigma")
+        assert_equal("\u{3a3}".lower(), "\u{3c3}", reason="lone sigma")
 "#,
     );
 }
