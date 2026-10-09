@@ -364,7 +364,7 @@ impl Ck<'_, '_> {
         }
         let mut parts: Vec<Ref> = Vec::new();
         let mut kids = n.children();
-        for t in self.cx.src.tokens(n).collect::<Vec<_>>() {
+        for t in n.direct_tokens().collect::<Vec<_>>() {
             let Some(k) = self.cx.src.tkind(t) else {
                 continue;
             };

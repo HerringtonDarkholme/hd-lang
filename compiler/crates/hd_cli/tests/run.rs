@@ -1279,3 +1279,42 @@ fn source_root_moves_the_modules_and_paths_stay_as_on_disk() {
         r.err
     );
 }
+
+/// A string literal nested inside `${...}` is its own expression: its text
+/// appears once, in the nested value, and never as a part of the outer
+/// string (lex.interp.expression, expr.interp.order).
+#[test]
+fn nested_string_literals_in_interpolation_print_once() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-nested-interp");
+    std::fs::create_dir_all(&dir).expect("dir");
+    let file = dir.join("nested.hd");
+    std::fs::write(
+        &file,
+        "data W:\n\
+         \x20   s: string\n\
+         \n\
+         data Account:\n\
+         \x20   owner: string\n\
+         \n\
+         pub fn main() -> void $ Console:\n\
+         \x20   println(\"[${W { s: \"cd\" }.s}]\")\n\
+         \x20   accounts := {\"ada\": Account { owner: \"ada\" }}\n\
+         \x20   println(\"${accounts[\"ada\"].owner}\")\n\
+         \x20   x := +7\n\
+         \x20   println(\"a ${\"b ${x} c\"} d\")\n",
+    )
+    .expect("write");
+    let output = hd(&cache("hd-cache-nested-interp"))
+        .arg(&file)
+        .output()
+        .expect("run hd");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "[cd]\nada\na b 7 c d\n"
+    );
+}

@@ -8,14 +8,14 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1814 | 689 | 341 | 2844 |
+| 1822 | 681 | 341 | 2844 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
-| `lang/01-lexical-structure.md` | 130 | 14 | 1 | 145 |
-| `lang/02-grammar.md` | 185 | 15 | 14 | 214 |
+| `lang/01-lexical-structure.md` | 133 | 11 | 1 | 145 |
+| `lang/02-grammar.md` | 187 | 13 | 14 | 214 |
 | `lang/03-names-and-scopes.md` | 76 | 14 | 11 | 101 |
 | `lang/04-type-system.md` | 265 | 72 | 15 | 352 |
 | `lang/05-expressions.md` | 159 | 76 | 42 | 277 |
@@ -26,7 +26,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/10-modules.md` | 141 | 77 | 40 | 258 |
 | `lang/11-requirements-and-suspension.md` | 119 | 62 | 78 | 259 |
 | `lang/14-annotations.md` | 89 | 56 | 8 | 153 |
-| `std/cli.md` | 4 | 1 | 0 | 5 |
+| `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 13 | 0 | 1 | 14 |
 | `std/collections.md` | 24 | 5 | 0 | 29 |
 | `std/console.md` | 6 | 1 | 0 | 7 |
@@ -39,7 +39,7 @@ fixture; unsupported surface records progress without failing.
 | `std/host.md` | 2 | 0 | 0 | 2 |
 | `std/http.md` | 0 | 0 | 2 | 2 |
 | `std/iter.md` | 15 | 7 | 3 | 25 |
-| `std/json.md` | 6 | 10 | 3 | 19 |
+| `std/json.md` | 8 | 8 | 3 | 19 |
 | `std/net.md` | 1 | 0 | 0 | 1 |
 | `std/num.md` | 8 | 10 | 0 | 18 |
 | `std/ops.md` | 2 | 3 | 8 | 13 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 66 | 28 | 11 | 105 |
-| `runtime/valid` | 521 | 185 | 223 | 929 |
+| `runtime/valid` | 529 | 177 | 223 | 929 |
 | `typing/invalid` | 578 | 419 | 77 | 1074 |
 | `typing/valid` | 351 | 34 | 30 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -105,8 +105,8 @@ compiler stage that first declined the case.
 | `fail:placeholder-outside-pipe` | 1 |
 | `fail:private-main` | 7 |
 | `fail:re-export-loop` | 1 |
-| `fail:runtime-exit` | 69 |
-| `fail:stdout` | 9 |
+| `fail:runtime-exit` | 66 |
+| `fail:stdout` | 4 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
@@ -651,7 +651,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (69)</summary>
+<details><summary><code>fail:runtime-exit</code> (66)</summary>
 
 - `runtime/panic/for-loop-iterator-invalidated.hd`
 - `runtime/panic/invalid-shift.hd`
@@ -696,9 +696,7 @@ compiler stage that first declined the case.
 - `runtime/valid/num-bit-counts.hd`
 - `runtime/valid/digest-sha256-vectors.hd`
 - `runtime/valid/digest-sha256-long.hd`
-- `runtime/valid/json-escapes.hd`
 - `runtime/valid/json-numbers.hd`
-- `runtime/valid/json-object-order.hd`
 - `runtime/valid/json-suite.hd`
 - `runtime/valid/json-float-text.hd`
 - `runtime/valid/json-typed-round-trip.hd`
@@ -711,7 +709,6 @@ compiler stage that first declined the case.
 - `runtime/valid/list-pop.hd`
 - `runtime/valid/list-insert-remove-clear.hd`
 - `runtime/valid/num-to-fixed.hd`
-- `runtime/valid/cli-errors.hd`
 - `runtime/valid/requirement-row-order-stored-suspension.hd`
 - `runtime/valid/requirement-row-order-trait-value.hd`
 - `runtime/valid/requirement-row-order-data-field.hd`
@@ -725,17 +722,12 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:stdout</code> (9)</summary>
+<details><summary><code>fail:stdout</code> (4)</summary>
 
 - `runtime/valid/crlf-line-endings.hd`
 - `runtime/valid/string-and-char-literal-contents.hd`
-- `runtime/valid/interpolation-forms.hd`
-- `runtime/valid/interpolation-expression-spacing.hd`
 - `runtime/valid/escape-sequences.hd`
-- `runtime/valid/colons-in-brackets-and-trailing-blocks.hd`
 - `runtime/valid/type-expression-forms.hd`
-- `runtime/valid/data-expression-forms.hd`
-- `runtime/valid/header-and-bracket-expression-positions.hd`
 
 </details>
 
@@ -1858,6 +1850,7 @@ runtime/valid/char-unicode-digits.hd
 runtime/valid/char-unicode-letters.hd
 runtime/valid/char-unicode-whitespace.hd
 runtime/valid/character-literals.hd
+runtime/valid/cli-errors.hd
 runtime/valid/cli-flag-forms.hd
 runtime/valid/cli-parse-args.hd
 runtime/valid/cli-usage.hd
@@ -1879,6 +1872,7 @@ runtime/valid/cmp-min-max-distinguishable-tie.hd
 runtime/valid/cmp-min-max.hd
 runtime/valid/cmp-ordering-eq.hd
 runtime/valid/cmp-reverse.hd
+runtime/valid/colons-in-brackets-and-trailing-blocks.hd
 runtime/valid/comments-hide-code-from-the-parser.hd
 runtime/valid/comparisons-beside-brackets.hd
 runtime/valid/compound-assign-index-once.hd
@@ -1904,6 +1898,7 @@ runtime/valid/copy-update-copies-embedded-part.hd
 runtime/valid/copy-update-evaluation-order.hd
 runtime/valid/copy-update-skips-defaults.hd
 runtime/valid/copy-update-source-order-observed.hd
+runtime/valid/data-expression-forms.hd
 runtime/valid/data-field-evaluation-order.hd
 runtime/valid/data-field-shorthand.hd
 runtime/valid/data-fields-named-in-any-order.hd
@@ -2011,6 +2006,7 @@ runtime/valid/hash-bytes-result.hd
 runtime/valid/hash-bytes-scalars.hd
 runtime/valid/hash-bytes-sequences.hd
 runtime/valid/hash-of-reference-values.hd
+runtime/valid/header-and-bracket-expression-positions.hd
 runtime/valid/heap-order.hd
 runtime/valid/heap-reverse.hd
 runtime/valid/heterogeneous-tuples.hd
@@ -2037,11 +2033,15 @@ runtime/valid/inherent-method-beats-trait-method.hd
 runtime/valid/inherent-methods.hd
 runtime/valid/init-read-through-trait-dispatch.hd
 runtime/valid/integer-literal-forms.hd
+runtime/valid/interpolation-expression-spacing.hd
+runtime/valid/interpolation-forms.hd
 runtime/valid/iterator-drives-loops.hd
 runtime/valid/iterator-search-count.hd
 runtime/valid/iterator-single-pass.hd
 runtime/valid/json-errors.hd
+runtime/valid/json-escapes.hd
 runtime/valid/json-number-grammar.hd
+runtime/valid/json-object-order.hd
 runtime/valid/json-pretty.hd
 runtime/valid/json-round-trip.hd
 runtime/valid/leading-dot-chain.hd
