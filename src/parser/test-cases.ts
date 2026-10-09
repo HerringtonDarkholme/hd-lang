@@ -317,14 +317,17 @@ export function testCase(statement: Statement, fail: Fail): TestDecl {
 // `Result[void, Error]`, as the test case does
 // (spec/std/testing.md#r-std-testing.try.test.row-body). A body without a
 // written row is bound to `TestRunner` by the checker, so another capability
-// used without a provider scope is diagnosed inside the written body.
+// used without a provider scope is diagnosed inside the written body. A
+// property body is not: `prop: fn!(T) -> R` takes no row
+// (spec/lang/10-modules.md#r-module.testing.reg.calls).
 function libraryCase(
   written: Closure,
   run: (closure: Closure) => Expression,
   timeout: Expression | undefined,
   errorName: string,
+  bindRunner = true,
 ): Partial<TestDecl> & Pick<TestDecl, "body"> {
-  const body: Closure = { ...written, testBody: true };
+  const body: Closure = bindRunner ? { ...written, testBody: true } : written;
   const propagates = !body.result && usesPropagation(body.body);
   const closure: Closure = propagates
     ? { ...body, result: { name: `Result[void,${errorName}]`, span: body.span } }
@@ -400,17 +403,21 @@ function propertyTest(
     );
   const span = call.span;
   const integer = (value: number): Expression => ({ kind: "integer", value: BigInt(value), span });
-  const caps = [named.cases ?? integer(100), named.shrink ?? integer(500)];
+  // Arguments by name, `prop` before `examples`, so the closure fixes
+  // `T` before an omitted `examples` defaults to `[]`.
+  const caps = { cases: named.cases ?? integer(100), shrink: named.shrink ?? integer(500) };
+  const examples = named.examples ?? { kind: "list", elements: [], span };
   const run = (closure: Closure): Expression =>
-    generator
-      ? testingCall("prop_with_case", [...caps, generator, closure], span, {
-          examples: named.examples,
-        })
-      : testingCall("prop_case", [...caps, closure], span, { examples: named.examples });
+    testingCall(generator ? "prop_with_case" : "prop_case", [], span, {
+      ...(generator ? { gen: generator } : {}),
+      ...caps,
+      prop: closure,
+      examples,
+    });
   return {
     kind: "test",
     name,
-    ...libraryCase(body, run, timeout, errorName),
+    ...libraryCase(body, run, timeout, errorName, false),
     property: true,
     ...optionFields(options),
     span: statement.span,
