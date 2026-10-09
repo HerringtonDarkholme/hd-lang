@@ -117,17 +117,6 @@ breaks, and say which stage produces the wrong value (print the TIR or
 the Wasm text if the driver can). Add the findings to
 `audit/compiler/triage-wrong-runs.md`. Read only; timebox 45 minutes.
 
-### R20. Design Note: Union Rows At Joins (#48, Design Text)
-
-An `if`/`match` or closure result gets one branch's requirement row
-instead of the union, so a call passes too few providers
-(`row-union-branches-run`, `row-union-closure-result-runs`, the
-`row-union-*` fixtures). Read the row-union rules in spec chapter 11 and
-the checker design (`checking-and-tir.md`, rows, least common type) and
-add to `checking-and-tir.md` where the union is formed (list literals,
-`if`/`match` joins, closure results, inferred results), how it meets an
-expected row, and what TIR records it. Timebox 45 minutes.
-
 ### R21. Design Note: Method Choice Among Several Traits (#42, Design Text)
 
 A method name provided by more than one available trait is unsupported
@@ -409,3 +398,13 @@ on the block. Recommend asking the owner for a code
    provider is named (missing-key and collision reports), print
    Repo[User], not Repo. The alternative (trait-only names) repeats
    the confusion this design removes. Recommend full spelling.
+
+### Q-R20: loop value joins take the union too (R20, 2026-10-09)
+
+**Recommend yes.** A loop-else value joining with break-carried
+function values is a least-common-type site like any other, so
+break values with rows should union exactly as if/match arms do.
+The alternative (first-break-wins row) repeats the too-few-providers
+bug this design removes. The spec lists branches, arms, and
+closure/fn results but not loop joins; recommend the same rule
+rather than a carve-out.

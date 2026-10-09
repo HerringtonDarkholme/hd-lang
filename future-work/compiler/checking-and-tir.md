@@ -174,6 +174,25 @@ design:
 - A pattern with one unknown row parameter takes the least solution
   ([Least Row Solutions](../../spec/lang/11-requirements-and-suspension.md#least-row-solutions)).
 - `$.with` blocks push lexical keys onto the body's `available` set.
+- **Row unions form at four join sites.** A list or map literal with
+  no expected type whose elements are function values, the branches
+  of a value-producing `if`, the arms of a value-producing `match`,
+  and the final value plus `return` operands of a closure or
+  result-inferred function (`req.row.union.literal`,
+  `req.row.union.sites`) all take the union of their rows — today
+  they keep one branch's row, so the call passes too few providers
+  (`row-union-branches-run`). At each site the checker collects the
+  function-valued members, unions their rows, widens each to the
+  union, takes the least common type (`req.row.union.sites.type`),
+  and records one `RowSubsume` per widened value; anything holding
+  function values (rather than being one) keeps its own type or
+  errors `no-common-type` (`req.row.union.literal.direct`,
+  `req.row.union.sites.direct`). With an expected type there is no
+  union: each member checks against it directly, and a key outside it
+  is `type-mismatch` (`req.row.union.literal.expected`,
+  `req.row.subsume.missing`). The union forms during Body checking
+  at the join, once every member's type is known; no new TIR node —
+  `RowSubsume` already carries `fn $ R1` to `fn $ R2`.
 
 #### 4.13.5 Suspension
 
