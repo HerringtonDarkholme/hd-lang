@@ -18,3 +18,4 @@ it does until the owner picks items from this list.
 | 2026-10-08 | Row parameters in messages | Rows print as `owner#index`, not by their declared name. Was task #51. | Internal form |
 | 2026-10-08 | `trailing-block-position` (and `syntax-error`) | The message is the code repeated (`trailing-block-position: trailing-block-position`). Seen when a named argument is written `name: value` inside parentheses (hd uses `name=value`); the message could say that `:` there starts a trailing block, which brackets do not allow. | Code only |
 | 2026-10-08 | `unknown-trait` on an impl head | Cascades into `error: :1:1: unsupported: stage Body: body of … has no header`, with an empty file path. Was task #94. | Extra junk error |
+| 2026-10-08 | `identity-requires-references` on `x is x` | Reported twice, once per operand, for one mistake. | Two errors |

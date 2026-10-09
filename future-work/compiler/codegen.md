@@ -958,12 +958,24 @@ There are no variadic generics (§4.13.7). Tuples are ordinary types:
   std's written impls, trait-solver.md §3.9). Those with methods get a
   body that D2 generates per primitive or shape, such as `type_id` and
   `downcast` for `Inspectable`.
-- Not done: a tuple's `Structure`. A tuple template's body calls
-  `Structure::walk` (and the other `Structure` methods) on its `T`, a
-  `Bound` choice; at a concrete tuple no impl answers it
-  (`annot.tuple.structure`: the compiler generates it while it
-  instantiates the template), so collection stops at `select`. Nothing
-  designs where those per-tuple-type bodies are generated.
+- **A tuple's `Structure` (design, 2026-10-08).** A tuple template's
+  body calls `Structure::walk` (and `describe`, `build`, `name`, `facts`)
+  on its `T`, a `Bound` choice, and the spec has the compiler generate the
+  tuple's `Structure` while it instantiates the template
+  (`annot.tuple.structure`, `.members`, `.rest`, `.build`). Checking keeps
+  the `Bound` choice; only codegen meets a concrete tuple. There, the
+  trait-solver §3.9 `Structure` row answers a concrete tuple type with
+  `Builtin(Structure)` (a declared type still gets its derivation's
+  generated methods, §12.3). Collection lowers each `Builtin(Structure)`
+  method per tuple type as a compiler-supplied instance, keyed by the
+  tuple type like any instance and cached the same way. Its body comes from
+  the same generator that writes a declared type's `Structure` at check
+  time (#119, `hd_check/src/structure.rs`): the generator moves to where
+  both checking and collection can call it (a TIR builder over a target's
+  member list, with no checker state), and a tuple's members are its
+  elements `_0`, `_1`… (`annot.tuple.members`), and a rest element is its last member, of type `List[T]` (`annot.tuple.rest`). No body is
+  generated per arity; one is generated per tuple type that a program's
+  instances reach.
 - `all!` is one intrinsic frame instance per tuple of child result types
   (§14.5). `race!` is an ordinary generic intrinsic over `T`.
 
