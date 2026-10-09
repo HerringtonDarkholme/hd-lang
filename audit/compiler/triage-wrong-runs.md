@@ -146,3 +146,45 @@ first step of the task is logging which intrinsic each site calls.
   (`1 passed`) under `hd test` in the scratch package. Possibly
   runner/host flakiness or environment; needs an orchestrator rerun,
   not a compiler task yet.
+
+## R18 shrinks: wrong-value minimals (2026-10-09)
+
+Each item of §B (real wrong outputs) and §F shrunk in a scratch
+package via `hd run`; every minimal below reproduces, and each
+stated smaller variant passes. Spec frozen, so rules are cited,
+not changed.
+
+1. **`\'` in a char literal is `\`** (escape-sequences line 4,
+   string-and-char-literal-contents line 2). Minimal:
+   `println('\'')` prints `\` (0x5C) instead of `'`. Rule:
+   escape sequences in char literals. Stage: lexer escape decoding —
+   the literal's value is wrong before any checking or emission.
+2. **Negative float literal patterns never match**
+   (literal-patterns, 29 vs 32). Minimal: `match value: -1.5 => 3;
+   _ => 0` applied to `-1.5` gives 0, while `1.5` matches,
+   negative `-1` (int) matches, and `value == -1.5` is true. Rule:
+   `flow.match.literal`. Stage: Check — pattern-literal
+   evaluation folds the negation wrong (the comparison itself is
+   fine, so not Emit).
+3. **Map literals keep duplicate keys** (map-lookup-and-duplicate-keys).
+   Minimal: `{"a": 20, "a": 40}` has length 2 (should be 1) and
+   reads back the first value. Rule: `expr.map.duplicate.last`.
+   Stage: Emit — `NewMap` construction inserts without replacing.
+4. **Nested captures read zero** (nested-closure-captures, 2 vs 42;
+   also type-expression-forms' `adder`, 10 vs 11, as 0+2+8).
+   Minimal: `base := +40` outside, `make := fn() -> fn(i32) -> i32:
+   fn(value: i32) -> i32: base + value`, `make()(1)` gives 1,
+   expected 41 (a middle param alone, e.g. `delta`, reads fine).
+   Rule: `fn.capture.locals`. Stage: Emit — the inner closure's
+   environment chain misses the middle closure's captures.
+5. **Nested strings break interpolation** (interpolation-forms,
+   interpolation-expression-spacing, type-expression-forms'
+   `halves`, header-and-bracket-expression-positions, and the
+   `"[${W { s: "cd" }}]"` shape). Minimal: `"${"x"}"` prints
+   `xx` instead of `x`; with a key variable instead of a nested
+   literal the same program prints right. The inner literal's text
+   leaks into the output alongside its value. Rule: string
+   interpolation literal parts. Stage: interpolation
+   splitting/lowering (Check) — it compiles, so not the lexer
+   rejecting it; print the TIR `Interp` parts as the first
+   diagnostic step (no CLI dump exists yet).
