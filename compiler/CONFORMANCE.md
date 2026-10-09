@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2134 | 508 | 203 | 2845 |
+| 2142 | 506 | 197 | 2845 |
 
 ## By Chapter
 
@@ -23,8 +23,8 @@ fixture; unsupported surface records progress without failing.
 | `lang/07-functions.md` | 89 | 30 | 11 | 130 |
 | `lang/08-data-and-enums.md` | 78 | 37 | 8 | 123 |
 | `lang/09-traits.md` | 258 | 86 | 15 | 359 |
-| `lang/10-modules.md` | 196 | 44 | 18 | 258 |
-| `lang/11-requirements-and-suspension.md` | 140 | 51 | 68 | 259 |
+| `lang/10-modules.md` | 201 | 43 | 14 | 258 |
+| `lang/11-requirements-and-suspension.md` | 141 | 51 | 67 | 259 |
 | `lang/14-annotations.md` | 104 | 42 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 13 | 0 | 1 | 14 |
@@ -52,7 +52,7 @@ fixture; unsupported surface records progress without failing.
 | `std/serde.md` | 3 | 0 | 5 | 8 |
 | `std/sys.md` | 1 | 0 | 0 | 1 |
 | `std/task.md` | 7 | 0 | 0 | 7 |
-| `std/testing.md` | 32 | 5 | 2 | 39 |
+| `std/testing.md` | 34 | 4 | 1 | 39 |
 | `std/text.md` | 29 | 5 | 1 | 35 |
 | `std/time.md` | 16 | 1 | 0 | 17 |
 
@@ -62,9 +62,9 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 76 | 24 | 5 | 105 |
-| `runtime/valid` | 704 | 87 | 138 | 929 |
-| `typing/invalid` | 681 | 355 | 39 | 1075 |
+| `runtime/panic` | 77 | 24 | 4 | 105 |
+| `runtime/valid` | 709 | 87 | 133 | 929 |
+| `typing/invalid` | 683 | 353 | 39 | 1075 |
 | `typing/valid` | 375 | 19 | 21 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -94,7 +94,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 1 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 214 |
+| `fail:no-diagnostic` | 212 |
 | `fail:nonexhaustive-match` | 4 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:not-callable` | 1 |
@@ -129,9 +129,9 @@ compiler stage that first declined the case.
 | `unsupported:Collect` | 29 |
 | `unsupported:Emit` | 28 |
 | `unsupported:FolderIface` | 34 |
-| `unsupported:Link` | 1 |
-| `unsupported:RunCase` | 36 |
-| `unsupported:TestCase` | 6 |
+| `unsupported:Link` | 4 |
+| `unsupported:RunCase` | 28 |
+| `unsupported:TestCase` | 5 |
 
 <details><summary><code>fail:ambiguous-method</code> (1)</summary>
 
@@ -292,7 +292,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (214)</summary>
+<details><summary><code>fail:no-diagnostic</code> (212)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -374,7 +374,6 @@ compiler stage that first declined the case.
 - `typing/invalid/structure-without-use.hd`
 - `typing/invalid/duplicate-tests-block.hd`
 - `typing/invalid/it-shadowed.hd`
-- `typing/invalid/test-timeout-string.hd`
 - `typing/invalid/block-on-in-fact.hd`
 - `typing/invalid/block-on-in-metadata.hd`
 - `typing/invalid/duplicate-declaration-fact.hd`
@@ -451,7 +450,6 @@ compiler stage that first declined the case.
 - `typing/invalid/row-parameter-marked-on-data.hd`
 - `typing/invalid/row-slot-bare-alias-argument.hd`
 - `typing/invalid/row-slot-bare-explicit-argument.hd`
-- `typing/invalid/test-body-uses-property-runner.hd`
 - `typing/invalid/default-names-later-beside-forward-bound.hd`
 - `typing/warnings/unsigned-comparison-countdown.hd`
 - `typing/warnings/unsigned-comparison-explicit.hd`
@@ -1071,13 +1069,16 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Link</code> (1)</summary>
+<details><summary><code>unsupported:Link</code> (4)</summary>
 
 - `runtime/valid/suspending-result-propagation.hd`
+- `runtime/valid/boundary-derived-round-trip.hd`
+- `runtime/panic/boundary-deserialize-error.hd`
+- `runtime/valid/boundary-redacted-round-trip.hd`
 
 </details>
 
-<details><summary><code>unsupported:RunCase</code> (36)</summary>
+<details><summary><code>unsupported:RunCase</code> (28)</summary>
 
 - `runtime/valid/cancellation-unwinds-nested-frames.hd`
 - `runtime/valid/cancellation-unwinds-suspending-closure.hd`
@@ -1092,11 +1093,6 @@ compiler stage that first declined the case.
 - `runtime/valid/cancellation-provider-scope-cleanup.hd`
 - `runtime/valid/folder-graph-test-edges.hd`
 - `runtime/valid/integration-shared-use.hd`
-- `runtime/panic/host-result-out-of-range.hd`
-- `runtime/valid/println-pending-write.hd`
-- `runtime/valid/block-on-pending-write.hd`
-- `runtime/valid/boundary-derived-round-trip.hd`
-- `runtime/valid/host-result-special-floats.hd`
 - `runtime/valid/pending-first-poll-argument-order.hd`
 - `runtime/valid/pending-first-poll-branches.hd`
 - `runtime/valid/pending-first-poll-comprehension-propagation.hd`
@@ -1110,21 +1106,17 @@ compiler stage that first declined the case.
 - `runtime/valid/pending-first-poll-return-wide-result.hd`
 - `runtime/valid/pending-first-poll-void-return-operand.hd`
 - `runtime/valid/pending-first-poll-void-return.hd`
-- `runtime/panic/boundary-deserialize-error.hd`
-- `runtime/valid/boundary-public-fields-cross.hd`
-- `runtime/valid/boundary-redacted-round-trip.hd`
 - `runtime/valid/integration-test-public-view.hd`
 - `runtime/valid/test-module-uses-test-module.hd`
 
 </details>
 
-<details><summary><code>unsupported:TestCase</code> (6)</summary>
+<details><summary><code>unsupported:TestCase</code> (5)</summary>
 
 - `runtime/valid/test-block-propagation.hd`
 - `runtime/valid/termination-report.hd`
 - `runtime/valid/test-body-explicit-closure.hd`
 - `runtime/valid/it-body-by-name.hd`
-- `runtime/valid/test-timeout-options.hd`
 - `runtime/valid/it-each-propagation.hd`
 
 </details>
@@ -1450,6 +1442,7 @@ runtime/panic/explicit-panic.hd
 runtime/panic/for-map-insert-invalidates.hd
 runtime/panic/for-map-remove-invalidates.hd
 runtime/panic/generic-i32-overflow.hd
+runtime/panic/host-result-out-of-range.hd
 runtime/panic/i32-add-overflow-in-function.hd
 runtime/panic/i32-min-divided-by-minus-one.hd
 runtime/panic/index-trait-map-missing.hd
@@ -1529,6 +1522,7 @@ runtime/valid/binding-expression-tuple-value.hd
 runtime/valid/blanket-impl-dynamic-and-bound.hd
 runtime/valid/blanket-impl-for-list.hd
 runtime/valid/block-on-inside-driver.hd
+runtime/valid/block-on-pending-write.hd
 runtime/valid/block-on-stored-suspension.hd
 runtime/valid/bom-inside-comment.hd
 runtime/valid/bool-match.hd
@@ -1538,6 +1532,7 @@ runtime/valid/bound-inference-default.hd
 runtime/valid/bound-inference-explicit.hd
 runtime/valid/bound-inference-two-bounds.hd
 runtime/valid/bound-inference-user-trait.hd
+runtime/valid/boundary-public-fields-cross.hd
 runtime/valid/bounded-blanket-impl.hd
 runtime/valid/bounded-blanket-supertraits.hd
 runtime/valid/branch-scopes-shadow.hd
@@ -1763,6 +1758,7 @@ runtime/valid/heap-reverse.hd
 runtime/valid/heterogeneous-tuples.hd
 runtime/valid/homogeneous-varargs.hd
 runtime/valid/host-args-env.hd
+runtime/valid/host-result-special-floats.hd
 runtime/valid/http-scripted-provider.hd
 runtime/valid/http-scripted-unknown-url.hd
 runtime/valid/i32-extremes-through-generics.hd
@@ -1980,6 +1976,7 @@ runtime/valid/primitive-integer-cmp-method-direct.hd
 runtime/valid/primitive-string-cmp-method-direct.hd
 runtime/valid/println-console-stdout.hd
 runtime/valid/println-in-test-body.hd
+runtime/valid/println-pending-write.hd
 runtime/valid/println-provider-suspending-body.hd
 runtime/valid/println-recording-provider.hd
 runtime/valid/println-under-main-driver.hd
@@ -2144,6 +2141,7 @@ runtime/valid/test-expect-panic.hd
 runtime/valid/test-module-top-level-cases.hd
 runtime/valid/test-registration-qualified-call.hd
 runtime/valid/test-registration-qualified-prop.hd
+runtime/valid/test-timeout-options.hd
 runtime/valid/tests-block-items.hd
 runtime/valid/tests-block-use-shadow.hd
 runtime/valid/text-join-builder.hd
@@ -2804,10 +2802,12 @@ typing/invalid/supertrait-impl-bounds.hd
 typing/invalid/supertrait-widening-not-reversed.hd
 typing/invalid/suspension-constructor-to-bang-function.hd
 typing/invalid/task-retry-row-missing.hd
+typing/invalid/test-body-uses-property-runner.hd
 typing/invalid/test-module-name-not-imported.hd
 typing/invalid/test-option-not-literal.hd
 typing/invalid/test-registration-qualified-duplicate.hd
 typing/invalid/test-registration-renamed-misplaced.hd
+typing/invalid/test-timeout-string.hd
 typing/invalid/tests-block-binding.hd
 typing/invalid/tests-block-item-outside.hd
 typing/invalid/tests-block-name-collision.hd
@@ -3279,7 +3279,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 80 | 22 | 0 | 102 |
+| 81 | 21 | 0 | 102 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3360,6 +3360,7 @@ cli/test-every-case
 cli/test-integration-env
 cli/test-snapshot-file
 cli/test-tasks
+cli/test-timeout
 cli/test-unit-fakes
 cli/toolchain-too-old
 cli/wasm-cap-flags-only
