@@ -8,13 +8,13 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1742 | 693 | 409 | 2844 |
+| 1745 | 690 | 409 | 2844 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
-| `lang/01-lexical-structure.md` | 127 | 16 | 2 | 145 |
+| `lang/01-lexical-structure.md` | 130 | 13 | 2 | 145 |
 | `lang/02-grammar.md` | 184 | 14 | 16 | 214 |
 | `lang/03-names-and-scopes.md` | 76 | 14 | 11 | 101 |
 | `lang/04-type-system.md` | 257 | 72 | 23 | 352 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 57 | 32 | 16 | 105 |
-| `runtime/valid` | 482 | 185 | 262 | 929 |
+| `runtime/valid` | 485 | 182 | 262 | 929 |
 | `typing/invalid` | 566 | 419 | 89 | 1074 |
 | `typing/valid` | 339 | 34 | 42 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -106,7 +106,7 @@ compiler stage that first declined the case.
 | `fail:private-main` | 7 |
 | `fail:re-export-loop` | 1 |
 | `fail:runtime-exit` | 71 |
-| `fail:stdout` | 10 |
+| `fail:stdout` | 7 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
@@ -727,16 +727,13 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:stdout</code> (10)</summary>
+<details><summary><code>fail:stdout</code> (7)</summary>
 
 - `runtime/valid/crlf-line-endings.hd`
-- `runtime/valid/tab-only-as-content.hd`
 - `runtime/valid/string-and-char-literal-contents.hd`
-- `runtime/valid/multiline-string-literals.hd`
 - `runtime/valid/interpolation-forms.hd`
 - `runtime/valid/interpolation-expression-spacing.hd`
 - `runtime/valid/escape-sequences.hd`
-- `runtime/valid/prefixed-string-template.hd`
 - `runtime/valid/type-expression-forms.hd`
 - `runtime/valid/header-and-bracket-expression-positions.hd`
 
@@ -2138,6 +2135,7 @@ runtime/valid/module-qualified-prelude-function.hd
 runtime/valid/module-qualified-type.hd
 runtime/valid/module-qualified-variant-pattern.hd
 runtime/valid/module-scope-before-initialization.hd
+runtime/valid/multiline-string-literals.hd
 runtime/valid/multiple-bounds-dispatch.hd
 runtime/valid/multiple-dedents-at-once.hd
 runtime/valid/multiple-inline-closures.hd
@@ -2190,6 +2188,7 @@ runtime/valid/partial-ordering-dispatch.hd
 runtime/valid/path-operations.hd
 runtime/valid/pipe-suspending-substitution-step.hd
 runtime/valid/plain-dollar-text.hd
+runtime/valid/prefixed-string-template.hd
 runtime/valid/prelude-cmp-method-direct.hd
 runtime/valid/prelude-eq-method-direct.hd
 runtime/valid/prelude-hash-method-direct.hd
@@ -2303,6 +2302,7 @@ runtime/valid/suspending-calls-in-binary-expression.hd
 runtime/valid/suspending-test-body.hd
 runtime/valid/suspending-trait-default-method.hd
 runtime/valid/suspending-trait-dispatch.hd
+runtime/valid/tab-only-as-content.hd
 runtime/valid/task-all-list-empty.hd
 runtime/valid/template-derived-trait-self.hd
 runtime/valid/termination-void-reports-zero.hd

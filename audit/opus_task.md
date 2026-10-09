@@ -89,16 +89,6 @@ When the queue is empty, say so under "Questions" and wait.
 
 ## Jobs
 
-### O18. Conformance Harness: Decode Expected Standard Output (#136)
-
-Four runtime programs print the right bytes and still fail:
-`hd_driver/tests/conformance.rs` `expected_stdout` joins the directive
-lines without decoding the escapes the conformance README's Standard
-Output section defines (`\\`, `\t`, `\u{H}`; Muse R2 §A:
-`crlf-line-endings`, `multiline-string-literals`,
-`prefixed-string-template`, `tab-only-as-content`). Implement exactly
-the README's rule; the pass list may only grow.
-
 ### O19. Wire Doc Tests (After #74)
 
 Your O15 status: once top-level `it(...)` runs (#74 on main), add one

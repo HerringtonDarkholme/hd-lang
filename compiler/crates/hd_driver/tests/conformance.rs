@@ -391,15 +391,69 @@ fn has_runtime_harness(text: &str) -> bool {
         || directive(text, "fixture-package-tree").is_some()
 }
 
-fn expected_stdout(text: &str) -> Option<String> {
+/// The README's Standard Output: each `# expect-stdout: TEXT` line, or
+/// `# expect-stdout:` for an empty one, decoded and followed by a newline.
+/// An invalid escape makes the fixture invalid: `Err`.
+fn expected_stdout(text: &str) -> Option<Result<String, String>> {
     if directive(text, "expect-empty-stdout") == Some("true") {
-        return Some(String::new());
+        return Some(Ok(String::new()));
     }
     let lines: Vec<&str> = text
         .lines()
-        .filter_map(|line| line.strip_prefix("# expect-stdout: "))
+        .filter_map(|line| {
+            line.strip_prefix("# expect-stdout: ")
+                .or_else(|| (line == "# expect-stdout:").then_some(""))
+        })
         .collect();
-    (!lines.is_empty()).then(|| format!("{}\n", lines.join("\n")))
+    if lines.is_empty() {
+        return None;
+    }
+    let mut out = String::new();
+    for line in lines {
+        match decode_stdout_line(line) {
+            Ok(decoded) => out.push_str(&decoded),
+            Err(e) => return Some(Err(e)),
+        }
+        out.push('\n');
+    }
+    Some(Ok(out))
+}
+
+/// `TEXT` taken literally, except `\\` (a backslash), `\t` (U+0009) and
+/// `\u{H}` (the scalar value of 1 to 6 hexadecimal digits).
+fn decode_stdout_line(text: &str) -> Result<String, String> {
+    let mut out = String::new();
+    let mut chars = text.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('\\') => out.push('\\'),
+            Some('t') => out.push('\t'),
+            Some('u') => {
+                if chars.next() != Some('{') {
+                    return Err(format!("bad escape in `{text}`"));
+                }
+                let mut digits = String::new();
+                loop {
+                    match chars.next() {
+                        Some('}') if !digits.is_empty() => break,
+                        Some(d) if d.is_ascii_hexdigit() && digits.len() < 6 => digits.push(d),
+                        _ => return Err(format!("bad \\u escape in `{text}`")),
+                    }
+                }
+                let scalar = u32::from_str_radix(&digits, 16)
+                    .ok()
+                    .and_then(char::from_u32)
+                    .ok_or_else(|| format!("bad \\u scalar in `{text}`"))?;
+                out.push(scalar);
+            }
+            _ => return Err(format!("bad escape in `{text}`")),
+        }
+    }
+    Ok(out)
 }
 
 fn run_wasm(wasm: &[u8], serial: usize) -> std::io::Result<std::process::Output> {
@@ -579,8 +633,12 @@ fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usi
         }
     } else if !run.status.success() {
         Verdict::Fail("runtime-exit".to_owned())
-    } else if expected_stdout(&fixture.text).is_some_and(|expected| stdout != expected) {
-        Verdict::Fail("stdout".to_owned())
+    } else if let Some(expected) = expected_stdout(&fixture.text) {
+        match expected {
+            Ok(expected) if stdout == expected => Verdict::Pass,
+            Ok(_) => Verdict::Fail("stdout".to_owned()),
+            Err(_) => Verdict::Fail("invalid-expect-stdout".to_owned()),
+        }
     } else {
         Verdict::Pass
     }
