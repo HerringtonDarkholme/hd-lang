@@ -43,6 +43,48 @@ thread is unproven — first step of the compiler task is shrinking one
 (e.g. `suspending-calls-in-loops` main). Suspected stage: Emit. These
 are Wasm traps (host `node` rejects the module), not hd panics.
 
+### R12 shrinks (2026-10-09): one shared shape
+
+All five shrink to the same construct: a suspending (`!`) call inside
+a branching position leaves its value on the stack at the join. Plain
+statement position (`_ := inner!()` as a body tail) and `for` loops
+with suspending calls validate fine; `while` loops, `if` branches,
+`break` values and guarded comprehensions do not. Each minimal below
+was verified to fail validation (`fallthru, found 1`) via `hd test`
+in a scratch package; each stated smaller variant passes.
+
+1. **Guarded comprehension** (`comprehension-bang-calls`):
+   `fn fetch!(n: i32) -> i32: n` +
+   `fn names!(ids: List[i32]) -> List[i32]: [for id in ids if id != 2 => fetch!(id)]`.
+   Without the `if` guard it passes; with a plain (non-`!`) call it
+   fails differently (`local.set` type error — a second Emit bug in
+   the same construct).
+2. **Discarded call in a trailing `if`** (`console-error-line-override`):
+   `fn inner!() -> i32: 1` +
+   `fn work!() -> void: if true: _ := inner!()`.
+   Without the `if` it passes; with a trailing `0` (non-void) it
+   still fails.
+3. **Discarded call in a `while` body** (`scripted-input`):
+   `fn gen!() -> i32?: .None` +
+   `fn count!() -> i32: let count = +0; while count < 1: _ := gen!(); count = count + 1; count`.
+   No match or `return` needed (the fixture's match/`return` reduce
+   away); a `for` loop with the same body passes.
+4. **Suspending call as a `break` value** (`suspending-calls-in-loops`):
+   `fn step!(value: i32) -> i32: value` +
+   `fn main!() -> i32: total := while true: break step!(1); else: 0; total`.
+5. **Suspending call as a branch tail value**
+   (`suspending-call-in-scoped-defer`):
+   `fn child!() -> i32: 2` +
+   `fn main!() -> i32: if true: child!() else: 0`.
+   The fixture's `defer` reduces away.
+
+Likely one cause in `Await` lowering: the suspension state machine
+leaves the call's value (or resume state) on the operand stack when
+the call sits in a branch/loop arm rather than in tail or plain
+statement position. The `for`-loop and plain-statement positions
+already balance the stack, so the fix is in whatever joins the
+suspending arms, not in call emission itself.
+
 ## D. Sub-word-width arithmetic runs at full width, checked (7)
 
 All integer arithmetic behaves as checked 32/64-bit: no wrapping, no
