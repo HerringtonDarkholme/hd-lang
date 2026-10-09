@@ -104,6 +104,14 @@ args, stdin, the test grant and its table), `cli.test.seed*`, `hd test
 --cap` and `cli.cap.total.test`; CLI cases `test-integration-env`,
 `test-tasks`, `cap-*` test steps, and the dev-dependency run steps. If
 #74 is not on main yet, skip to the next job and come back.
+Also from #74's report: each integration test file must be built and run
+as its own program (today all cases go into one package test program);
+the host needs a default `TestRunner` provider
+(`module.testing.runner-provider`; `test-snapshot-file`,
+`snapshot-file-missing` stop at Link without it); and `test-timeout`,
+`test-report` exit 0 where 1 is expected, `test-integration-env`,
+`test-tasks` exit 101 with no message. Fix what is in your lane, name
+the rest under "Questions".
 
 ## Questions
 
