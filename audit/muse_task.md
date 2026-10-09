@@ -105,17 +105,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### R11. Census Of Unimplemented Runtime Intrinsics (#148, Research)
-
-About 13 programs compile and then panic with `explicit-panic:
-intrinsic` (your R2 §E). For each case, find which intrinsic or host
-hook the panicking site calls (read the emitted module's imports or the
-`@intrinsic` keys `lib/std` names, and the emitter's intrinsic table),
-and write one table: intrinsic key, the std function that declares it,
-the cases that hit it, and what it must do per the spec rule. Group them
-so one compiler task can take one group. Write
-`audit/compiler/intrinsic-census.md`. Read only; timebox 45 minutes.
-
 ### R12. Shrink The Wasm Fallthrough Traps (#146, Research)
 
 Five programs fail Wasm validation ("expected 0 elements on the stack
@@ -156,6 +145,30 @@ add to `codegen.md` how a profile reaches Emit (a goal field, part of
 each code key so the caches stay apart), what changes per profile
 (overflow checks, `dbg`, the name section), and the footprint. Timebox
 30 minutes.
+
+### R16. Shrink The Downcast Exhaustiveness Errors (#139, Research)
+
+12 `inspectable-*` programs get a false `nonexhaustive-match` ("no arm
+matches `_`") on `.Some`/`.None` matches over a downcast result (your R1
+cause 4). Shrink one to the smallest program, read the spec's
+exhaustiveness rules (`spec/lang/06-control-flow.md`) and the downcast
+signatures in `spec/std/`, and say what type the checker gives the
+scrutinee (print it with `hd check` on variants of the program) and why
+exhaustiveness then fails. Add the finding to
+`audit/compiler/triage-false-errors.md` under cause 4. Read only;
+timebox 30 minutes.
+
+### R17. Design Note: Static Generic Calls `Type::f::[T]()` (#140, Design Text)
+
+8 programs fail on `TypeId::of::[T]()` ("no method of on TypeId"; your
+R1 cause 5). Read the spec's qualified-call and explicit type-argument
+rules (`spec/lang/07-functions.md`, `05-expressions.md`) and how
+`TypeId::of` is declared in `lib/std`, then add to
+`checking-and-tir.md` how a qualified associated call with explicit type
+arguments resolves (owner first, then the member, then the type
+arguments) and what TIR it produces, reusing what #150's
+`hd_check/src/fnref.rs` does for `Owner::name::[T]` as a value.
+Timebox 30 minutes.
 
 ### P1. Profile The New Compiler (After S4; Standing Job)
 
