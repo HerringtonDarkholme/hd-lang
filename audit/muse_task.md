@@ -115,17 +115,6 @@ statement, a `defer`, a loop body, ...). If they share one cause, say so.
 Add the minimal programs and findings to
 `audit/compiler/triage-wrong-runs.md` §C. Read only; timebox 30 minutes.
 
-### R15. Design Note: The Release Profile In Codegen (#109, Design Text)
-
-`--release` parses, but no codegen setting changes: `+` still panics on
-overflow (`types.arith.release`, CLI cases `release-wraps`,
-`release-test-checked`, `dbg-release`). Read the spec's profile rules
-(`spec/cli/command-line.md` profiles, `types.arith.*`, `cli.dbg.*`) and
-add to `codegen.md` how a profile reaches Emit (a goal field, part of
-each code key so the caches stay apart), what changes per profile
-(overflow checks, `dbg`, the name section), and the footprint. Timebox
-30 minutes.
-
 ### R16. Shrink The Downcast Exhaustiveness Errors (#139, Research)
 
 12 `inspectable-*` programs get a false `nonexhaustive-match` ("no arm
@@ -359,3 +348,14 @@ on the block. Recommend asking the owner for a code
    (payload, child vtable) pair as-is instead of materializing a
    parent-vtable pair. The alternative costs a struct build per
    widening for no observable difference. Recommend free.
+
+### Q-R15: default pipeline and test name section (R15, 2026-10-09)
+
+1. **Fast-build pipeline by default everywhere (recommended).** Only
+   --release asks for the optimized pipeline; debug, test, and REPL
+   builds use the fast one. The alternative (optimized by default
+   with an opt-out) trades build latency every run. Recommend
+   fast-by-default.
+2. **Test builds keep the name section (recommended).** Only release
+   omits the standard name section; test output and failure stacks
+   stay readable. Recommend keeping it everywhere else.

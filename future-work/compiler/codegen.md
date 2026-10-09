@@ -1609,3 +1609,34 @@ Footprint per trait value stays two words. Per (type, trait) in the
 used hierarchies there is one vtable of own slots plus parent
 fields; method bodies are shared with the direct-call instances,
 and identical vtables fold (§13.7).
+
+### 13.17 Build Profiles And Pipelines
+
+`--release` parses on every command that takes it, but the profile
+reaches nothing: `Goal` carries no profile, so release still panics
+on overflow and `dbg` still builds. The spec has three profiles —
+debug (checked), release (wrapping), test (always checked) — and a
+separate pipeline choice (fast-build vs optimized, unobservable).
+
+The profile rides the goal: `Goal::Program` gains the build profile
+(debug/release), and `Goal::Tests` implies the test profile with a
+separate pipeline flag (`hd test --release` stays checked and only
+switches pipelines). Profile and pipeline both join the pipeline
+hash and every code key, so debug, release and test entries — and
+dev vs optimized pipelines — never share cache entries (extends the
+§13.15 rule).
+
+Per profile, at Emit: debug and test emit the checked arithmetic
+sequences of §13.15; release emits the wrapping ones. `dbg` never
+reaches Emit in a release build: Check rejects it there
+(`module.dbg.release`), while test builds — including
+`hd test --release` — always accept it. The link already omits the
+standard `name` section in release builds (step 9); `hd test` output
+keeps it. A prebuilt module keeps whichever behavior built it; the
+module records nothing further.
+
+Footprint: release drops every overflow branch and the `name`
+section, and shares the wrapping instances; checked builds pay one
+widen-compare per narrowing operation plus the section. The default
+pipeline everywhere is the fast-build one; `--release` is the only
+way to ask for the optimized pipeline (see Questions).
