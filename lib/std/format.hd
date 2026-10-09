@@ -695,7 +695,8 @@ fn dbg_here(head: string) -> void:
 fn dbg_nested[T < Debug](value: T, out: mut DebugWriter) -> void:
     value.debug(out)
 
-# Writes `value` into `out` the way `dbg` prints a part (r-module.dbg.value.*):
+# Writes `value` into `out` the way `dbg` prints a part (r-module.dbg.value.debug,
+# r-module.dbg.value.structural):
 # through `Debug` when its static type implements it, else structurally, each
 # part by these same rules. The compiler supplies the body at each concrete
 # type, since it needs the type's declaration.
