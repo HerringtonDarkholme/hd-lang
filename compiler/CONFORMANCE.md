@@ -8,20 +8,20 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2240 | 462 | 143 | 2845 |
+| 2248 | 454 | 143 | 2845 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
 | `lang/01-lexical-structure.md` | 133 | 12 | 0 | 145 |
-| `lang/02-grammar.md` | 191 | 15 | 9 | 215 |
+| `lang/02-grammar.md` | 193 | 13 | 9 | 215 |
 | `lang/03-names-and-scopes.md` | 92 | 8 | 1 | 101 |
-| `lang/04-type-system.md` | 299 | 48 | 5 | 352 |
-| `lang/05-expressions.md` | 210 | 61 | 6 | 277 |
+| `lang/04-type-system.md` | 300 | 47 | 5 | 352 |
+| `lang/05-expressions.md` | 213 | 58 | 6 | 277 |
 | `lang/06-control-flow.md` | 129 | 24 | 4 | 157 |
-| `lang/07-functions.md` | 92 | 30 | 8 | 130 |
-| `lang/08-data-and-enums.md` | 79 | 36 | 8 | 123 |
+| `lang/07-functions.md` | 93 | 29 | 8 | 130 |
+| `lang/08-data-and-enums.md` | 80 | 35 | 8 | 123 |
 | `lang/09-traits.md` | 272 | 72 | 15 | 359 |
 | `lang/10-modules.md` | 202 | 42 | 14 | 258 |
 | `lang/11-requirements-and-suspension.md` | 166 | 48 | 45 | 259 |
@@ -63,8 +63,8 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 78 | 23 | 4 | 105 |
-| `runtime/valid` | 762 | 56 | 111 | 929 |
-| `typing/invalid` | 714 | 344 | 17 | 1075 |
+| `runtime/valid` | 768 | 50 | 111 | 929 |
+| `typing/invalid` | 716 | 342 | 17 | 1075 |
 | `typing/valid` | 388 | 16 | 11 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -114,7 +114,7 @@ compiler stage that first declined the case.
 | `fail:trait-used-as-type` | 2 |
 | `fail:type-mismatch` | 56 |
 | `fail:type-used-as-value` | 1 |
-| `fail:unknown-data-field` | 14 |
+| `fail:unknown-data-field` | 6 |
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 15 |
 | `fail:unknown-module` | 1 |
@@ -715,22 +715,14 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-data-field</code> (14)</summary>
+<details><summary><code>fail:unknown-data-field</code> (6)</summary>
 
-- `typing/invalid/tuple-element-assignment.hd`
-- `runtime/valid/string-concatenation-and-numeric-selectors.hd`
 - `typing/invalid/tuple-index-out-of-range.hd`
-- `runtime/valid/underscore-tuple-members.hd`
-- `typing/invalid/enum-shared-field-assignment.hd`
 - `typing/valid/type-default-declarations.hd`
 - `typing/valid/let-pattern-mut.hd`
 - `typing/invalid/let-pattern-mut-readonly-field.hd`
-- `runtime/valid/tuple-rest-literal.hd`
-- `runtime/valid/tuple-vararg-rest.hd`
 - `runtime/valid/impl-owned-target-and-trait-argument.hd`
 - `typing/invalid/default-body-self-field.hd`
-- `runtime/valid/data-and-enum-declaration-forms.hd`
-- `runtime/valid/tuple-rest-spread-list.hd`
 
 </details>
 
@@ -1498,6 +1490,7 @@ runtime/valid/copy-update-shallow.hd
 runtime/valid/copy-update-skips-defaults.hd
 runtime/valid/copy-update-source-order-observed.hd
 runtime/valid/covariant-readonly-weakening.hd
+runtime/valid/data-and-enum-declaration-forms.hd
 runtime/valid/data-expression-forms.hd
 runtime/valid/data-field-defaults.hd
 runtime/valid/data-field-evaluation-order.hd
@@ -2020,6 +2013,7 @@ runtime/valid/std-errors-erased.hd
 runtime/valid/stored-suspension-parameter.hd
 runtime/valid/stored-suspension-single-drive.hd
 runtime/valid/string-byte-methods.hd
+runtime/valid/string-concatenation-and-numeric-selectors.hd
 runtime/valid/string-count.hd
 runtime/valid/string-interpolation-built-ins.hd
 runtime/valid/string-length-counts-bytes.hd
@@ -2107,12 +2101,15 @@ runtime/valid/tuple-element-permission.hd
 runtime/valid/tuple-ordering-nan-unordered.hd
 runtime/valid/tuple-rebuild.hd
 runtime/valid/tuple-rest-derived.hd
+runtime/valid/tuple-rest-literal.hd
 runtime/valid/tuple-rest-map-key.hd
+runtime/valid/tuple-rest-spread-list.hd
 runtime/valid/tuple-spread-candidate.hd
 runtime/valid/tuple-spread-rest.hd
 runtime/valid/tuple-thirteen-elements.hd
 runtime/valid/tuple-vararg-function-value.hd
 runtime/valid/tuple-vararg-infer.hd
+runtime/valid/tuple-vararg-rest.hd
 runtime/valid/tuple-vararg.hd
 runtime/valid/type-arguments-in-expressions.hd
 runtime/valid/type-expression-forms.hd
@@ -2124,6 +2121,7 @@ runtime/valid/typeid-of-equality.hd
 runtime/valid/typeid-qualified-trait-name.hd
 runtime/valid/typeid-same-name-modules.hd
 runtime/valid/u8-checked-add.hd
+runtime/valid/underscore-tuple-members.hd
 runtime/valid/unicode-function-names.hd
 runtime/valid/unit-pattern-void-success.hd
 runtime/valid/unit-test-manual-clock.hd
@@ -2323,6 +2321,7 @@ typing/invalid/enum-bound-bare-trait.hd
 typing/invalid/enum-match-missing-variant.hd
 typing/invalid/enum-payload-bare-trait.hd
 typing/invalid/enum-shared-constructor-payload.hd
+typing/invalid/enum-shared-field-assignment.hd
 typing/invalid/eprintln-without-console.hd
 typing/invalid/erase-readonly-to-mut-inspectable.hd
 typing/invalid/error-argument-identifier.hd
@@ -2808,6 +2807,7 @@ typing/invalid/trait-variance-marker.hd
 typing/invalid/transitive-uninitialized-binding.hd
 typing/invalid/tuple-binding-non-tuple.hd
 typing/invalid/tuple-bound-non-tuple.hd
+typing/invalid/tuple-element-assignment.hd
 typing/invalid/tuple-no-inherent-member.hd
 typing/invalid/tuple-option-parameter-bare-trait.hd
 typing/invalid/tuple-rest-assign.hd

@@ -246,3 +246,82 @@ fn plain(values: (i32, List[i32]...)) -> (i32, List[i32]):
 ";
     assert_eq!(codes_of(main), [Code::TypeMismatch]);
 }
+
+#[test]
+fn selection_reads_fixed_elements_and_the_rest_list() {
+    let main = "\
+fn rest_len(t: (usize, string, List[i32]...)) -> usize:
+    t._0 + t._2.len()
+
+pub fn main() -> void $ Console:
+    let t: (usize, string, List[i32]...) = (1, \"a\", 5, 6, 7)
+    println(t._1)
+    println(rest_len(t))
+    println(t._2[1])
+    println(rest_len((2, \"b\")))
+    pair := (+3, \"x\")
+    println(pair._0)
+";
+    assert_eq!(output_of("select", main), "a\n4\n6\n2\n3\n");
+}
+
+#[test]
+fn selection_past_the_tuple_is_unknown() {
+    let fixed = "\
+fn f(t: (i32, i32)) -> i32: t._2
+";
+    assert_eq!(codes_of(fixed), [Code::UnknownDataField]);
+    let rest = "\
+fn f(t: (i32, List[i32]...)) -> i32: t._2
+";
+    assert_eq!(codes_of(rest), [Code::UnknownDataField]);
+    let inside = "\
+fn f(t: (i32, i32)) -> i32: t._1
+";
+    assert!(codes_of(inside).is_empty());
+}
+
+#[test]
+fn tuple_elements_and_shared_data_are_not_assignable() {
+    let tuple = "\
+fn f(t: (i32, List[i32]...)):
+    t._0 = 1
+";
+    assert_eq!(codes_of(tuple), [Code::InvalidAssignmentTarget]);
+    let rest = "\
+fn f(t: (i32, List[i32]...)):
+    t._1 = [+1]
+";
+    assert_eq!(codes_of(rest), [Code::InvalidAssignmentTarget]);
+    let shared = "\
+enum Code(i32):
+    Missing -> Code(404)
+
+fn f(c: mut Code):
+    c._0 = 1
+";
+    assert_eq!(codes_of(shared), [Code::InvalidAssignmentTarget]);
+}
+
+#[test]
+fn unnamed_shared_enum_parameters_select_as_underscore_members() {
+    let main = "\
+enum Code(i32, string):
+    Missing -> Code(404, \"gone\")
+    Moved -> Code(301, \"moved\")
+
+pub fn main() -> void $ Console:
+    c := Code.Moved
+    println(c._0)
+    println(c._1)
+    println(Code.Missing._0)
+";
+    assert_eq!(output_of("shared", main), "301\nmoved\n404\n");
+    let out_of_range = "\
+enum Code(i32):
+    Missing -> Code(404)
+
+fn f(c: Code) -> i32: c._1
+";
+    assert_eq!(codes_of(out_of_range), [Code::UnknownDataField]);
+}

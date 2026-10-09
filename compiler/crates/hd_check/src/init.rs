@@ -396,6 +396,30 @@ impl Ck<'_, '_> {
         Ok(out)
     }
 
+    /// The shared parameter of an enum type that `name` selects: its
+    /// stored name and type. An unnamed parameter is selected as `_N` and
+    /// is stored under its position `N` (`data.shared.parameters`).
+    pub(crate) fn shared_param(&self, t: Ty, name: &str) -> Option<(Symbol, Ty)> {
+        let pool = self.pool();
+        let t = self.infer.resolve(pool, t);
+        let hd_types::TyData::Adt { def, .. } = pool.get(t) else {
+            return None;
+        };
+        let ItemData::Enum { shared, .. } = &self.cx.lookup.item(def)?.data else {
+            return None;
+        };
+        let sym = self.cx.names.syms.intern(name);
+        let position = name
+            .strip_prefix('_')
+            .filter(|d| d.parse::<usize>().is_ok())
+            .map(|d| self.cx.names.syms.intern(d));
+        shared
+            .iter()
+            .find(|f| f.name == sym)
+            .or_else(|| shared.iter().find(|f| Some(f.name) == position))
+            .map(|f| (f.name, f.ty))
+    }
+
     /// A shared field read on an enum value (`data.shared.per-variant`):
     /// the global of the value's variant, chosen by a `SwitchTag` chain.
     pub(crate) fn shared_field(
@@ -405,6 +429,9 @@ impl Ck<'_, '_> {
         name: &str,
         n: NodeRef<'_>,
     ) -> StageResult<Option<(Ref, Ty)>> {
+        let Some((field, ft)) = self.shared_param(t, name) else {
+            return Ok(None);
+        };
         let pool = self.pool();
         let hd_types::TyData::Adt { def, .. } = pool.get(t) else {
             return Ok(None);
@@ -412,17 +439,14 @@ impl Ck<'_, '_> {
         let Some(item) = self.cx.lookup.item(def) else {
             return Ok(None);
         };
-        let ItemData::Enum { shared, variants } = &item.data else {
+        let ItemData::Enum { variants, .. } = &item.data else {
             return Ok(None);
         };
-        let sym = self.cx.names.syms.intern(name);
-        let Some(f) = shared.iter().find(|f| f.name == sym) else {
-            return Ok(None);
-        };
+        let name = self.cx.names.text(field).to_owned();
+        let name = name.as_str();
         if !item.generics.is_empty() {
             return unsupported("a shared field of a generic enum");
         }
-        let ft = f.ty;
         let globals: Vec<DefId> = variants
             .iter()
             .map(|v| shared_global(&self.cx.names, v.def, name))

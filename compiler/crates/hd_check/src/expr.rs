@@ -911,6 +911,25 @@ impl Ck<'_, '_> {
         Some((u32::try_from(i).ok()?, ft))
     }
 
+    /// Whether `name` selects a tuple element (rest list included) or a
+    /// shared enum parameter of `t`: a member that reads but is no place.
+    pub(crate) fn is_read_only_member(&self, t: Ty, name: &str) -> bool {
+        let pool = self.pool();
+        let t = self.infer.resolve(pool, t);
+        let t = match pool.get(t) {
+            TyData::Mut(i) => i,
+            _ => t,
+        };
+        if let TyData::Tuple { elems, rest } = pool.get(t) {
+            let n = pool.list_items(elems).len();
+            return name
+                .strip_prefix('_')
+                .and_then(|d| d.parse::<usize>().ok())
+                .is_some_and(|i| i < n || (i == n && rest.is_some()));
+        }
+        self.shared_param(t, name).is_some()
+    }
+
     fn field_expr(&mut self, n: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let Some(base) = kids.first() else {
@@ -934,11 +953,17 @@ impl Ck<'_, '_> {
         if matches!(inner, Ty::NEVER | Ty::POISON) {
             return Ok((Ref(NONE), Ty::NEVER));
         }
-        if let TyData::Tuple { elems, .. } = pool.get(inner)
+        if let TyData::Tuple { elems, rest } = pool.get(inner)
             && let Ok(i) = name.trim_start_matches('_').parse::<usize>()
         {
+            // `types.tuple.rest.value`: the rest list follows the fixed
+            // elements and is selected like any other element.
             let items = pool.list_items(elems);
-            let Some(t) = items.get(i).copied() else {
+            let Some(t) = items
+                .get(i)
+                .copied()
+                .or_else(|| rest.filter(|_| i == items.len()))
+            else {
                 let msg = format!("no field `{name}` on {}", self.show(bt));
                 self.err(Code::UnknownDataField, n, &msg);
                 return Ok((Ref(NONE), Ty::NEVER));

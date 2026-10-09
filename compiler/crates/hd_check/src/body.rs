@@ -1490,6 +1490,13 @@ impl Ck<'_, '_> {
                 let fname = self.cx.src.text(self.cx.src.last(*lhs)).to_owned();
                 let (pr, pt) = self.promote_base(br, bt, &fname, *lhs);
                 let Some((idx, ft)) = self.field_of(pt, &fname) else {
+                    // Tuple elements and shared enum data are selected but
+                    // never stored through (`expr.place.enum-shared-field`).
+                    if self.is_read_only_member(bt, &fname) {
+                        let msg = format!("`{fname}` of {} cannot be assigned", self.show(bt));
+                        self.err(Code::InvalidAssignmentTarget, *lhs, &msg);
+                        return Ok(());
+                    }
                     let msg = format!("no field `{fname}` on {}", self.show(bt));
                     self.err(Code::UnknownDataField, *lhs, &msg);
                     return Ok(());
