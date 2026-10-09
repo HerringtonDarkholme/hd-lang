@@ -515,6 +515,27 @@ impl Em<'_> {
                 self.a.struct_new(&st);
                 self.store(i)?;
             }
+            Tag::CopyData => {
+                let Shape::Data { ty: st, fields } = self.lay.shape(ty)? else {
+                    return unsupported("a copied value without a struct layout");
+                };
+                // Replacements are `(field, value)` pairs; every other field
+                // is read from the source (codegen.md `CopyData`).
+                let words = self.rec(bw);
+                let repl: Vec<(u32, u32)> = words.chunks(2).map(|w| (w[0], w[1])).collect();
+                for (idx, (start, vs)) in fields.iter().enumerate() {
+                    if let Some((_, v)) = repl.iter().find(|(f, _)| *f as usize == idx) {
+                        self.load_as(*v, vs)?;
+                    } else {
+                        for k in 0..vs.len() {
+                            self.comp(a, 0, &VT::r(st.clone()))?;
+                            self.a.struct_get(&st, start + u32_of(k));
+                        }
+                    }
+                }
+                self.a.struct_new(&st);
+                self.store(i)?;
+            }
             Tag::Field | Tag::FieldSet => {
                 let base_t = self.ty_of(a);
                 let Shape::Data { ty: st, fields } = self.lay.shape(base_t)? else {

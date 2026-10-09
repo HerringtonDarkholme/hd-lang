@@ -67,6 +67,7 @@ fn id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
         | Tag::AwaitRace
         | Tag::Intrinsic
         | Tag::NewData
+        | Tag::CopyData
         | Tag::NewVariant
         | Tag::NewTuple
         | Tag::NewList

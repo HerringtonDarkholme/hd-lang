@@ -220,7 +220,7 @@ fn unsupported_error_names_its_file() {
     let file = dir.join("spread.hd");
     std::fs::write(
         &file,
-        "data Point:\n    x: i32\n    y: i32\n\npub fn main() -> void:\n    p := Point { x: +1, y: +2 }\n    q := Point { ...p, x: +3 }\n    pass\n",
+        "pub fn main() -> void:\n    xs := [+1, +2]\n    ys := [+0, xs...]\n    pass\n",
     )
     .expect("write");
     let output = hd(&cache("hd-cache-unsupported"))
@@ -230,7 +230,7 @@ fn unsupported_error_names_its_file() {
     assert!(!output.status.success());
     let err = String::from_utf8_lossy(&output.stderr);
     assert!(err.contains("spread.hd:"), "{err}");
-    assert!(err.contains("a data literal spread"), "{err}");
+    assert!(err.contains("a list spread"), "{err}");
     assert!(!err.contains(":0..0"), "{err}");
 }
 

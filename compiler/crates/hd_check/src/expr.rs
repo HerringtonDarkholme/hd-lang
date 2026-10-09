@@ -1205,9 +1205,48 @@ impl Ck<'_, '_> {
         let mut vals = vec![Ref(NONE); fields.len()];
         let mut seen = vec![false; fields.len()];
         let mut fresh_mut = true;
+        // `expr.update.form`: a leading spread supplies every field the
+        // literal does not name. The fields it names are replaced.
+        let spread = kids[1..]
+            .iter()
+            .find(|a| a.kind() == SyntaxKind::SpreadExpr)
+            .copied();
+        let replaced: Vec<bool> = fields
+            .iter()
+            .map(|f| {
+                kids[1..]
+                    .iter()
+                    .any(|a| a.kind() != SyntaxKind::SpreadExpr && self.sym_of(*a) == f.name)
+            })
+            .collect();
+        let mut source = None;
         for a in &kids[1..] {
             if a.kind() == SyntaxKind::SpreadExpr {
-                return unsupported("a data literal spread");
+                if source.is_some() {
+                    continue;
+                }
+                let target = pool.intern_ty(&TyData::Adt {
+                    def,
+                    args: pool.list(&targs),
+                });
+                let Some(inner) = a.children().next() else {
+                    return unsupported("a spread without a source");
+                };
+                // `expr.update.spread-first`, `expr.update.exact-type`.
+                let (sr, st) = self.expr(inner, Some(target))?;
+                if matches!(self.infer.resolve(pool, st), Ty::NEVER | Ty::POISON) {
+                    return Ok((Ref(NONE), Ty::NEVER));
+                }
+                if !self.copy_source_fits(st, target, inner) {
+                    return Ok((Ref(NONE), Ty::NEVER));
+                }
+                // `data.part.copy-time`: the parts are copied now, before
+                // any explicit field expression runs.
+                if !self.copy_parts((sr, st), &replaced, &mut vals, *a) {
+                    fresh_mut = false;
+                }
+                source = Some((sr, st));
+                continue;
             }
             let fname = self.sym_of(*a);
             let Some(i) = fields.iter().position(|f| f.name == fname) else {
@@ -1230,6 +1269,25 @@ impl Ck<'_, '_> {
                 };
                 self.read_local(l, d, *a)
             };
+            // `E: ...e` stores the copy-update `T { ...e }`
+            // (`data.part.construct`).
+            let copies = fields[i].embedded
+                && self
+                    .cx
+                    .src
+                    .tokens(*a)
+                    .nth(2)
+                    .and_then(|t| self.cx.src.tkind(t))
+                    == Some(TokenKind::Ellipsis);
+            let (r, t) = if copies {
+                let (cr, ct) = self.copy_value((r, t), *a);
+                if !self.has_mut_access(ct) {
+                    fresh_mut = false;
+                }
+                (cr, ct)
+            } else {
+                (r, t)
+            };
             // A readonly value in a direct `mut U` field makes the literal
             // readonly (types.fresh.readonly-field).
             let ft = if matches!(pool.get(fields[i].ty), TyData::Mut(_))
@@ -1248,7 +1306,8 @@ impl Ck<'_, '_> {
         }
         let targ_list = pool.list(&targs);
         for (i, f) in fields.iter().enumerate() {
-            if !seen[i] {
+            // `data.update.supplies-all`, `data.update.no-defaults`.
+            if !seen[i] && source.is_none() {
                 if f.has_default {
                     // The field's default body, at each construction that
                     // omits it (checking-and-tir.md "Default calls").
@@ -1272,6 +1331,22 @@ impl Ck<'_, '_> {
             def,
             args: pool.list(&targs),
         });
+        if let Some((sr, st)) = source {
+            // `expr.update.access-view`, `expr.update.readonly-source`,
+            // `expr.update.readonly-fill`: a readonly source reads a
+            // direct `mut U` field as `U`, so the copy is readonly.
+            if self.reads_readonly_edge(st, &replaced) {
+                fresh_mut = false;
+            }
+            let ty = if fresh_mut {
+                pool.intern_ty(&TyData::Mut(ty))
+            } else {
+                ty
+            };
+            let rec = self.copy_record(&vals);
+            let at = spread.map_or(n, |s| s);
+            return Ok((self.b.emit(Tag::CopyData, sr.0, rec, ty, at.index()), ty));
+        }
         let ty = if fresh_mut {
             pool.intern_ty(&TyData::Mut(ty))
         } else {

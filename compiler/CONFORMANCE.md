@@ -8,20 +8,20 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1792 | 689 | 363 | 2844 |
+| 1814 | 689 | 341 | 2844 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
 | `lang/01-lexical-structure.md` | 130 | 14 | 1 | 145 |
-| `lang/02-grammar.md` | 185 | 14 | 15 | 214 |
+| `lang/02-grammar.md` | 185 | 15 | 14 | 214 |
 | `lang/03-names-and-scopes.md` | 76 | 14 | 11 | 101 |
-| `lang/04-type-system.md` | 259 | 72 | 21 | 352 |
-| `lang/05-expressions.md` | 155 | 76 | 46 | 277 |
+| `lang/04-type-system.md` | 265 | 72 | 15 | 352 |
+| `lang/05-expressions.md` | 159 | 76 | 42 | 277 |
 | `lang/06-control-flow.md` | 108 | 33 | 16 | 157 |
 | `lang/07-functions.md` | 73 | 34 | 23 | 130 |
-| `lang/08-data-and-enums.md` | 56 | 40 | 27 | 123 |
+| `lang/08-data-and-enums.md` | 68 | 39 | 16 | 123 |
 | `lang/09-traits.md` | 207 | 117 | 35 | 359 |
 | `lang/10-modules.md` | 141 | 77 | 40 | 258 |
 | `lang/11-requirements-and-suspension.md` | 119 | 62 | 78 | 259 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 66 | 28 | 11 | 105 |
-| `runtime/valid` | 514 | 185 | 230 | 929 |
-| `typing/invalid` | 570 | 419 | 85 | 1074 |
-| `typing/valid` | 344 | 34 | 37 | 415 |
+| `runtime/valid` | 521 | 185 | 223 | 929 |
+| `typing/invalid` | 578 | 419 | 77 | 1074 |
+| `typing/valid` | 351 | 34 | 30 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -95,7 +95,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 9 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 258 |
+| `fail:no-diagnostic` | 259 |
 | `fail:nonexhaustive-match` | 16 |
 | `fail:not-callable` | 1 |
 | `fail:orphan-impl` | 1 |
@@ -105,8 +105,8 @@ compiler stage that first declined the case.
 | `fail:placeholder-outside-pipe` | 1 |
 | `fail:private-main` | 7 |
 | `fail:re-export-loop` | 1 |
-| `fail:runtime-exit` | 70 |
-| `fail:stdout` | 8 |
+| `fail:runtime-exit` | 69 |
+| `fail:stdout` | 9 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
@@ -124,10 +124,10 @@ compiler stage that first declined the case.
 | `fail:unknown-type` | 4 |
 | `fail:unknown-variant` | 1 |
 | `fail:unsatisfied-trait-bound` | 30 |
-| `fail:unused-local-binding` | 7 |
-| `unsupported:Body` | 163 |
+| `fail:unused-local-binding` | 6 |
+| `unsupported:Body` | 140 |
 | `unsupported:Collect` | 25 |
-| `unsupported:Emit` | 72 |
+| `unsupported:Emit` | 73 |
 | `unsupported:FolderIface` | 34 |
 | `unsupported:Link` | 2 |
 | `unsupported:RunCase` | 61 |
@@ -307,7 +307,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (258)</summary>
+<details><summary><code>fail:no-diagnostic</code> (259)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -557,6 +557,7 @@ compiler stage that first declined the case.
 - `typing/invalid/concrete-value-binding-mismatch.hd`
 - `typing/invalid/shared-enum-payload-name-duplicate.hd`
 - `typing/invalid/data-literal-private-field-other-module.hd`
+- `typing/invalid/copy-update-private-field-other-module.hd`
 - `typing/invalid/entry-point-parameters.hd`
 - `typing/invalid/generic-entry-point.hd`
 - `typing/invalid/module-path-not-identifier.hd`
@@ -650,7 +651,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (70)</summary>
+<details><summary><code>fail:runtime-exit</code> (69)</summary>
 
 - `runtime/panic/for-loop-iterator-invalidated.hd`
 - `runtime/panic/invalid-shift.hd`
@@ -670,7 +671,6 @@ compiler stage that first declined the case.
 - `runtime/valid/empty-string-operations.hd`
 - `runtime/valid/multibyte-scalar-strings.hd`
 - `runtime/valid/interpolation-display-order.hd`
-- `runtime/valid/embedded-part-follows-container.hd`
 - `runtime/valid/replace-empty-old.hd`
 - `runtime/panic/duration-suffix-overflow.hd`
 - `runtime/valid/narrowing-cast-wraps.hd`
@@ -725,7 +725,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:stdout</code> (8)</summary>
+<details><summary><code>fail:stdout</code> (9)</summary>
 
 - `runtime/valid/crlf-line-endings.hd`
 - `runtime/valid/string-and-char-literal-contents.hd`
@@ -734,6 +734,7 @@ compiler stage that first declined the case.
 - `runtime/valid/escape-sequences.hd`
 - `runtime/valid/colons-in-brackets-and-trailing-blocks.hd`
 - `runtime/valid/type-expression-forms.hd`
+- `runtime/valid/data-expression-forms.hd`
 - `runtime/valid/header-and-bracket-expression-positions.hd`
 
 </details>
@@ -1060,11 +1061,10 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unused-local-binding</code> (7)</summary>
+<details><summary><code>fail:unused-local-binding</code> (6)</summary>
 
 - `typing/invalid/least-type-weakening-variance.hd`
 - `typing/invalid/closure-parameter-without-type.hd`
-- `typing/invalid/readonly-embedded-source-with-mutable-edge.hd`
 - `typing/invalid/mut-map-key.hd`
 - `typing/invalid/all-function-value.hd`
 - `typing/invalid/range-float-bound.hd`
@@ -1072,19 +1072,12 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (163)</summary>
+<details><summary><code>unsupported:Body</code> (140)</summary>
 
 - `typing/invalid/nonfinal-spread.hd`
 - `typing/valid/enums.hd`
 - `typing/valid/local-functions.hd`
 - `typing/valid/local-types.hd`
-- `typing/valid/readonly-outer-mutable-field-init.hd`
-- `typing/valid/data-types.hd`
-- `typing/valid/copy-update-permissions.hd`
-- `typing/valid/generic-field-permission.hd`
-- `typing/invalid/readonly-spread-mutable-field.hd`
-- `typing/invalid/copy-update-readonly-child.hd`
-- `typing/valid/data-field-defaults.hd`
 - `typing/invalid/local-impl-nonlocal-pair.hd`
 - `typing/valid/numeric-corners.hd`
 - `typing/invalid/mixed-numeric-power.hd`
@@ -1101,19 +1094,12 @@ compiler stage that first declined the case.
 - `runtime/valid/varargs-in-trait-and-suspending-methods.hd`
 - `typing/invalid/literal-payload-pattern-nonexhaustive.hd`
 - `runtime/valid/literal-payload-patterns.hd`
-- `runtime/valid/copy-update-evaluation-order.hd`
-- `typing/invalid/copy-update-source-type-mismatch.hd`
-- `runtime/valid/copy-update-skips-defaults.hd`
-- `runtime/valid/data-field-shorthand.hd`
 - `runtime/valid/binding-expressions.hd`
 - `runtime/valid/named-local-functions.hd`
 - `typing/invalid/positional-after-spread.hd`
 - `runtime/valid/suspending-generic-method.hd`
 - `runtime/valid/named-local-suspending-function.hd`
 - `runtime/valid/nested-provider-restoration.hd`
-- `runtime/valid/copy-update-source-order-observed.hd`
-- `runtime/valid/copy-update-shallow.hd`
-- `typing/invalid/readonly-spread-mut-field-twins.hd`
 - `runtime/valid/generic-suspending-associated-function-qualified-call.hd`
 - `typing/invalid/positional-spread-without-vararg.hd`
 - `typing/invalid/positional-spread-duplicates-vararg.hd`
@@ -1123,10 +1109,7 @@ compiler stage that first declined the case.
 - `runtime/valid/list-suffix-spread.hd`
 - `typing/invalid/list-spread-non-list.hd`
 - `typing/invalid/private-own-method-nothing-visible.hd`
-- `runtime/valid/copy-update-copies-embedded-part.hd`
-- `typing/invalid/copy-update-readonly-embedded-mutable-edge.hd`
 - `runtime/valid/embedded-store-copies.hd`
-- `runtime/valid/embedded-copy-at-field-position.hd`
 - `typing/invalid/copy-assignment-ordinary-field.hd`
 - `runtime/valid/part-copy-is-copy-update.hd`
 - `typing/invalid/negative-literal-exponent.hd`
@@ -1142,9 +1125,6 @@ compiler stage that first declined the case.
 - `typing/invalid/callable-value-no-update.hd`
 - `typing/invalid/callable-value-short-binding-store.hd`
 - `typing/invalid/callable-value-readonly-parameter.hd`
-- `typing/valid/let-mut-infer.hd`
-- `typing/invalid/let-mut-spread-mut-field.hd`
-- `typing/valid/let-mut-spread-fresh-field.hd`
 - `typing/valid/collect-targets.hd`
 - `typing/valid/type-default-trait-method.hd`
 - `typing/valid/newtype-unwrap-permission.hd`
@@ -1223,13 +1203,10 @@ compiler stage that first declined the case.
 - `typing/invalid/set-type-not-prelude.hd`
 - `typing/invalid/local-inherent-impl-nonlocal-target.hd`
 - `typing/invalid/local-method-captures-local.hd`
-- `typing/invalid/copy-update-private-field-other-module.hd`
-- `typing/invalid/copy-update-readonly-source-mut-field.hd`
 - `runtime/valid/operators-longest-match.hd`
 - `runtime/valid/let-patterns-and-let-else.hd`
 - `runtime/valid/binding-chain-with-suite.hd`
 - `runtime/valid/precedence-and-associativity.hd`
-- `runtime/valid/data-expression-forms.hd`
 - `runtime/valid/spread-forms-and-positions.hd`
 - `runtime/valid/tuple-rest-spread-list.hd`
 - `runtime/valid/pattern-forms.hd`
@@ -1270,7 +1247,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Emit</code> (72)</summary>
+<details><summary><code>unsupported:Emit</code> (73)</summary>
 
 - `runtime/valid/float-display.hd`
 - `runtime/valid/nested-block-on.hd`
@@ -1292,6 +1269,7 @@ compiler stage that first declined the case.
 - `runtime/valid/composite-identity-and-views.hd`
 - `runtime/valid/covariant-readonly-weakening.hd`
 - `runtime/valid/defaults-reference-earlier-parameters.hd`
+- `runtime/valid/copy-update-shallow.hd`
 - `runtime/valid/write-line-suspending-call-argument.hd`
 - `runtime/valid/write-line-around-suspending-provider-scope.hd`
 - `runtime/valid/embedded-construction-copies.hd`
@@ -1922,7 +1900,12 @@ runtime/valid/contextual-variant-expressions.hd
 runtime/valid/contextual-variant-patterns.hd
 runtime/valid/contextual-words-as-names.hd
 runtime/valid/continuation-line-opens-with-a-bracket.hd
+runtime/valid/copy-update-copies-embedded-part.hd
+runtime/valid/copy-update-evaluation-order.hd
+runtime/valid/copy-update-skips-defaults.hd
+runtime/valid/copy-update-source-order-observed.hd
 runtime/valid/data-field-evaluation-order.hd
+runtime/valid/data-field-shorthand.hd
 runtime/valid/data-fields-named-in-any-order.hd
 runtime/valid/data-patterns.hd
 runtime/valid/data-visibility-across-packages.hd
@@ -1956,7 +1939,9 @@ runtime/valid/duration-order.hd
 runtime/valid/dyn-inherent-methods.hd
 runtime/valid/dynamic-suspending-method.hd
 runtime/valid/else-if-chain.hd
+runtime/valid/embedded-copy-at-field-position.hd
 runtime/valid/embedded-field-satisfies-trait.hd
+runtime/valid/embedded-part-follows-container.hd
 runtime/valid/embedded-part-mut-alias.hd
 runtime/valid/embedded-trait-method-via-part.hd
 runtime/valid/encoding-base64-vectors.hd
@@ -2426,6 +2411,10 @@ typing/invalid/continue-outside-loop.hd
 typing/invalid/contravariant-enum-requirement-row.hd
 typing/invalid/contravariant-method-requirement-row.hd
 typing/invalid/contravariant-method-result.hd
+typing/invalid/copy-update-readonly-child.hd
+typing/invalid/copy-update-readonly-embedded-mutable-edge.hd
+typing/invalid/copy-update-readonly-source-mut-field.hd
+typing/invalid/copy-update-source-type-mismatch.hd
 typing/invalid/covariant-data-requirement-row.hd
 typing/invalid/covariant-embedded-field.hd
 typing/invalid/covariant-enum-method-parameter.hd
@@ -2604,6 +2593,7 @@ typing/invalid/let-mut-readonly-annotation.hd
 typing/invalid/let-mut-readonly-call-result.hd
 typing/invalid/let-mut-readonly-mut-field.hd
 typing/invalid/let-mut-readonly-value.hd
+typing/invalid/let-mut-spread-mut-field.hd
 typing/invalid/let-mut-tuple.hd
 typing/invalid/let-readonly-fresh-literal.hd
 typing/invalid/let-refutable-literal-field.hd
@@ -2755,6 +2745,7 @@ typing/invalid/readonly-bound-value-for-mut-bound.hd
 typing/invalid/readonly-closure-capture-mutation.hd
 typing/invalid/readonly-data-mutating-trait-method.hd
 typing/invalid/readonly-edge-mut-self-call.hd
+typing/invalid/readonly-embedded-source-with-mutable-edge.hd
 typing/invalid/readonly-function-result.hd
 typing/invalid/readonly-generic-field-init.hd
 typing/invalid/readonly-iterator-in-comprehension.hd
@@ -2771,6 +2762,8 @@ typing/invalid/readonly-mutation.hd
 typing/invalid/readonly-parent-mut-field-argument.hd
 typing/invalid/readonly-provider-mut-method.hd
 typing/invalid/readonly-requirement-trait-mut-use.hd
+typing/invalid/readonly-spread-mut-field-twins.hd
+typing/invalid/readonly-spread-mutable-field.hd
 typing/invalid/readonly-trait-value-mut-bound.hd
 typing/invalid/readonly-trait-value-mutating-method.hd
 typing/invalid/reassign-parameter.hd
@@ -2945,13 +2938,16 @@ typing/valid/console-recording-provider.hd
 typing/valid/contextual-some-constructor.hd
 typing/valid/contextual-variants.hd
 typing/valid/control-flow.hd
+typing/valid/copy-update-permissions.hd
 typing/valid/covariant-callback-parameter.hd
 typing/valid/covariant-inferred-private-result.hd
 typing/valid/covariant-unrelated-requirement-row.hd
 typing/valid/data-decorator.hd
+typing/valid/data-field-defaults.hd
 typing/valid/data-field-row-any-trait.hd
 typing/valid/data-pattern-colon-labels.hd
 typing/valid/data-patterns.hd
+typing/valid/data-types.hd
 typing/valid/debug-writer-builders.hd
 typing/valid/declaration-owns-requirement-clause.hd
 typing/valid/declared-key-bounds.hd
@@ -3013,6 +3009,7 @@ typing/valid/generic-argument-placeholder.hd
 typing/valid/generic-bound-names-later-parameter.hd
 typing/valid/generic-call-fresh-list-of-boxes.hd
 typing/valid/generic-data-embedding.hd
+typing/valid/generic-field-permission.hd
 typing/valid/generic-join-fresh-list-elements.hd
 typing/valid/generic-join-mut-and-readonly.hd
 typing/valid/generic-map-key.hd
@@ -3048,8 +3045,10 @@ typing/valid/let-data-pattern.hd
 typing/valid/let-else-diverging-forms.hd
 typing/valid/let-else-scope.hd
 typing/valid/let-else.hd
+typing/valid/let-mut-infer.hd
 typing/valid/let-mut-optional.hd
 typing/valid/let-mut-pattern.hd
+typing/valid/let-mut-spread-fresh-field.hd
 typing/valid/let-nested-pattern.hd
 typing/valid/let-pattern-read.hd
 typing/valid/let-readonly-rebind.hd
@@ -3148,6 +3147,7 @@ typing/valid/readonly-embedded-source-mutable-result.hd
 typing/valid/readonly-embedded-source-with-mutable-edge-readonly-result.hd
 typing/valid/readonly-list-mutable-elements.hd
 typing/valid/readonly-map-mutable-values.hd
+typing/valid/readonly-outer-mutable-field-init.hd
 typing/valid/readonly-part-nested-data-literal.hd
 typing/valid/readonly-value-direct-mut-field.hd
 typing/valid/reference-generic-identity.hd
