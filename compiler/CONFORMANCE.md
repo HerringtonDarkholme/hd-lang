@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1862 | 678 | 304 | 2844 |
+| 1875 | 654 | 315 | 2844 |
 
 ## By Chapter
 
@@ -25,14 +25,14 @@ fixture; unsupported surface records progress without failing.
 | `lang/09-traits.md` | 208 | 116 | 35 | 359 |
 | `lang/10-modules.md` | 143 | 77 | 38 | 258 |
 | `lang/11-requirements-and-suspension.md` | 126 | 60 | 73 | 259 |
-| `lang/14-annotations.md` | 90 | 56 | 7 | 153 |
+| `lang/14-annotations.md` | 103 | 42 | 8 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 13 | 0 | 1 | 14 |
 | `std/collections.md` | 24 | 5 | 0 | 29 |
 | `std/console.md` | 7 | 0 | 0 | 7 |
 | `std/digest.md` | 0 | 2 | 0 | 2 |
 | `std/encoding.md` | 3 | 0 | 0 | 3 |
-| `std/error.md` | 2 | 11 | 1 | 14 |
+| `std/error.md` | 2 | 1 | 11 | 14 |
 | `std/format.md` | 7 | 1 | 0 | 8 |
 | `std/fs.md` | 3 | 1 | 0 | 4 |
 | `std/hash.md` | 7 | 2 | 0 | 9 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 68 | 28 | 9 | 105 |
-| `runtime/valid` | 560 | 172 | 197 | 929 |
-| `typing/invalid` | 584 | 421 | 69 | 1074 |
-| `typing/valid` | 352 | 34 | 29 | 415 |
+| `runtime/valid` | 560 | 161 | 208 | 929 |
+| `typing/invalid` | 593 | 412 | 69 | 1074 |
+| `typing/valid` | 356 | 30 | 29 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -86,7 +86,6 @@ compiler stage that first declined the case.
 | `fail:identity-requires-references` | 9 |
 | `fail:implicit-narrowing` | 1 |
 | `fail:integer-literal-range` | 1 |
-| `fail:invalid-result-propagation` | 2 |
 | `fail:invalid-test-statement` | 2 |
 | `fail:invalid-token` | 2 |
 | `fail:let-else-falls-through` | 1 |
@@ -96,8 +95,8 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 9 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 259 |
-| `fail:nonexhaustive-match` | 16 |
+| `fail:no-diagnostic` | 250 |
+| `fail:nonexhaustive-match` | 17 |
 | `fail:not-callable` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
@@ -124,11 +123,11 @@ compiler stage that first declined the case.
 | `fail:unknown-trait` | 9 |
 | `fail:unknown-type` | 4 |
 | `fail:unknown-variant` | 1 |
-| `fail:unsatisfied-trait-bound` | 30 |
+| `fail:unsatisfied-trait-bound` | 16 |
 | `fail:unused-local-binding` | 6 |
 | `unsupported:Body` | 124 |
 | `unsupported:Collect` | 26 |
-| `unsupported:Emit` | 51 |
+| `unsupported:Emit` | 62 |
 | `unsupported:FolderIface` | 34 |
 | `unsupported:Link` | 2 |
 | `unsupported:RunCase` | 61 |
@@ -233,13 +232,6 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:invalid-result-propagation</code> (2)</summary>
-
-- `runtime/valid/error-context.hd`
-- `runtime/valid/context-error-debug.hd`
-
-</details>
-
 <details><summary><code>fail:invalid-test-statement</code> (2)</summary>
 
 - `runtime/valid/tests-block-items.hd`
@@ -314,7 +306,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (259)</summary>
+<details><summary><code>fail:no-diagnostic</code> (250)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -462,16 +454,7 @@ compiler stage that first declined the case.
 - `typing/invalid/ambiguous-projection.hd`
 - `typing/invalid/ambiguous-projection-binding.hd`
 - `typing/invalid/requirement-key-unbound.hd`
-- `typing/invalid/error-hand-written-display.hd`
-- `typing/invalid/error-hand-written-from.hd`
 - `typing/invalid/error-marker-outside.hd`
-- `typing/invalid/error-message-unknown-name.hd`
-- `typing/invalid/error-message-not-display.hd`
-- `typing/invalid/error-from-same-type.hd`
-- `typing/invalid/error-cause-not-error.hd`
-- `typing/invalid/error-transparent-not-error.hd`
-- `typing/invalid/error-message-self.hd`
-- `typing/invalid/error-message-shared-unnamed.hd`
 - `typing/invalid/foreign-inherent-impl.hd`
 - `typing/invalid/tuple-inherent-impl.hd`
 - `typing/invalid/alias-inherent-impl.hd`
@@ -578,7 +561,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:nonexhaustive-match</code> (16)</summary>
+<details><summary><code>fail:nonexhaustive-match</code> (17)</summary>
 
 - `runtime/valid/inspectable-downcast-success-and-failure.hd`
 - `runtime/valid/inspectable-generic-arguments-exact.hd`
@@ -596,6 +579,7 @@ compiler stage that first declined the case.
 - `runtime/valid/sealed-supertrait-extension.hd`
 - `runtime/valid/inspectable-primitives-collections-options.hd`
 - `typing/invalid/downcast-result-readonly.hd`
+- `typing/invalid/error-find-concrete-receiver.hd`
 
 </details>
 
@@ -1021,7 +1005,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unsatisfied-trait-bound</code> (30)</summary>
+<details><summary><code>fail:unsatisfied-trait-bound</code> (16)</summary>
 
 - `typing/invalid/provider-value-type-mismatch.hd`
 - `runtime/valid/private-function-inferred-result.hd`
@@ -1032,27 +1016,13 @@ compiler stage that first declined the case.
 - `typing/invalid/closure-not-inspectable.hd`
 - `typing/invalid/spelled-function-type-not-inspectable.hd`
 - `runtime/valid/iterator-adapters-run.hd`
-- `typing/valid/error-derivation.hd`
-- `runtime/valid/error-derivation-run.hd`
-- `typing/valid/error-generated-bounds.hd`
-- `typing/valid/error-without-import.hd`
-- `typing/valid/error-interpolated-bound.hd`
 - `runtime/valid/fs-helpers.hd`
-- `runtime/valid/error-chain.hd`
-- `runtime/valid/error-report.hd`
-- `runtime/valid/error-find.hd`
-- `runtime/valid/error-root-cause.hd`
-- `runtime/valid/error-find-erased.hd`
-- `runtime/valid/error-find-trait-value.hd`
 - `runtime/valid/iterator-zip-iterable.hd`
 - `runtime/valid/iterator-chain-iterable.hd`
 - `runtime/valid/iterator-flat-map.hd`
 - `typing/invalid/list-slice-negative-literal.hd`
-- `runtime/valid/error-chain-derived-causes.hd`
 - `typing/invalid/trait-generic-instantiations-unrelated.hd`
 - `typing/invalid/inspectable-child-trait-without-impl.hd`
-- `typing/invalid/error-find-concrete-receiver.hd`
-- `runtime/valid/error-chain-method.hd`
 
 </details>
 
@@ -1227,7 +1197,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Emit</code> (51)</summary>
+<details><summary><code>unsupported:Emit</code> (62)</summary>
 
 - `runtime/valid/float-display.hd`
 - `runtime/valid/nested-block-on.hd`
@@ -1255,6 +1225,7 @@ compiler stage that first declined the case.
 - `runtime/valid/primitive-operator-calls-method.hd`
 - `runtime/valid/float-remainder-run.hd`
 - `runtime/valid/requirement-key-binding-run.hd`
+- `runtime/valid/error-derivation-run.hd`
 - `runtime/valid/generic-inference-explicit-conversions.hd`
 - `runtime/valid/default-standard-types.hd`
 - `runtime/valid/default-tuple-thirteen-elements.hd`
@@ -1263,7 +1234,15 @@ compiler stage that first declined the case.
 - `runtime/valid/primitive-float-cmp-method-direct.hd`
 - `runtime/valid/std-errors-erased.hd`
 - `runtime/valid/process-error-display.hd`
+- `runtime/valid/error-chain.hd`
+- `runtime/valid/error-report.hd`
+- `runtime/valid/error-find.hd`
+- `runtime/valid/error-root-cause.hd`
+- `runtime/valid/error-find-erased.hd`
+- `runtime/valid/error-find-trait-value.hd`
+- `runtime/valid/error-context.hd`
 - `runtime/valid/json-typed-primitives.hd`
+- `runtime/valid/context-error-debug.hd`
 - `runtime/valid/regex-literals-escapes.hd`
 - `runtime/valid/regex-classes.hd`
 - `runtime/valid/regex-anchors-groups.hd`
@@ -1275,11 +1254,13 @@ compiler stage that first declined the case.
 - `runtime/valid/regex-split.hd`
 - `runtime/valid/generic-storage-callable-list-identity.hd`
 - `runtime/valid/numeric-casts-in-range.hd`
+- `runtime/valid/error-chain-derived-causes.hd`
 - `runtime/valid/serde-std-reads.hd`
 - `runtime/valid/associated-binding-positions.hd`
 - `runtime/valid/trait-value-binding-identity.hd`
 - `runtime/valid/trait-value-satisfies-instantiated-bound.hd`
 - `runtime/valid/erased-error-result.hd`
+- `runtime/valid/error-chain-method.hd`
 
 </details>
 
@@ -2488,14 +2469,23 @@ typing/invalid/error-argument-identifier.hd
 typing/invalid/error-argument-number.hd
 typing/invalid/error-bare-before-data.hd
 typing/invalid/error-before-function.hd
+typing/invalid/error-cause-not-error.hd
 typing/invalid/error-extra-argument.hd
 typing/invalid/error-find-non-error.hd
 typing/invalid/error-form-other-rule.hd
 typing/invalid/error-from-beside-other-member.hd
 typing/invalid/error-from-marker-argument.hd
+typing/invalid/error-from-same-type.hd
 typing/invalid/error-from-type-parameter.hd
+typing/invalid/error-hand-written-display.hd
+typing/invalid/error-hand-written-from.hd
 typing/invalid/error-message-before-enum.hd
+typing/invalid/error-message-not-display.hd
+typing/invalid/error-message-self.hd
+typing/invalid/error-message-shared-unnamed.hd
+typing/invalid/error-message-unknown-name.hd
 typing/invalid/error-second-cause.hd
+typing/invalid/error-transparent-not-error.hd
 typing/invalid/expected-i32-found-usize.hd
 typing/invalid/facts-find-unbounded-key.hd
 typing/invalid/facts-of-without-import.hd
@@ -2992,7 +2982,11 @@ typing/valid/eq-contextual-right-operand.hd
 typing/valid/eq-fresh-literal-readonly-operand.hd
 typing/valid/equality.hd
 typing/valid/erased-error-entry-point.hd
+typing/valid/error-derivation.hd
+typing/valid/error-generated-bounds.hd
+typing/valid/error-interpolated-bound.hd
 typing/valid/error-value-newtype.hd
+typing/valid/error-without-import.hd
 typing/valid/expect-panic-host-contract.hd
 typing/valid/explicit-discard-and-void-result.hd
 typing/valid/explicit-empty-row.hd

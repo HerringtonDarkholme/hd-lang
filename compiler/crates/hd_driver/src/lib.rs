@@ -1667,22 +1667,28 @@ impl Run<'_> {
             hd_resolve::lower::misplaced_impl(&names, &names.module_of(it.def), it).is_none()
         });
         let u = hd_resolve::Universe::new(names, placed);
-        // Content order (§4.12.3): the later impl is the one reported. A
+        // Content order (§4.12.3): the later impl is the one reported. What
+        // `@error` generates ranks first, so a hand-written impl beside it
+        // is the one reported (spec 14 `annot.error.hand-written`); a
         // `@derive` ranks after written impls, a derivation block after both.
         let order = |d: DefId| {
             let rank = all
                 .iter()
                 .find_map(|i| i.item(d))
-                .map_or(0, |it| match &it.data {
+                .map_or(1, |it| match &it.data {
+                    ItemData::Impl {
+                        kind: hd_resolve::ImplKind::Error,
+                        ..
+                    } => 0,
                     ItemData::Impl {
                         kind: hd_resolve::ImplKind::Derived,
                         ..
-                    } => 1,
+                    } => 2,
                     ItemData::Impl {
                         kind: hd_resolve::ImplKind::Derivation,
                         ..
-                    } => 2,
-                    _ => 0,
+                    } => 3,
+                    _ => 1,
                 });
             let at = all
                 .iter()
@@ -2081,6 +2087,43 @@ impl Run<'_> {
                     if !self.analyze() {
                         break;
                     }
+                }
+            }
+        }
+        // The method bodies of the implementations `@error` generates
+        // (spec 14 `annot.error.generates`, codegen.md §13.14).
+        for h in heads.iter().filter(|h| {
+            matches!(
+                h.kind,
+                hd_resolve::HeadKind::Data | hd_resolve::HeadKind::Enum
+            )
+        }) {
+            if failed.is_some() && !self.analyze() {
+                break;
+            }
+            let Some(shape) = hd_resolve::error_type::shape(&src, h.node) else {
+                continue;
+            };
+            match hd_check::error::error_bodies(&cx, h.def, &shape, &mut diags) {
+                Ok(bs) => {
+                    lock(&self.report).body_ok += bs.len();
+                    for b in &bs {
+                        let path = names.path(b.item);
+                        if self.host.render_tir.iter().any(|p| *p == path) {
+                            lock(&self.tir_text).insert(path, hd_check::render(&names, b));
+                        }
+                    }
+                    bodies.extend(bs);
+                }
+                Err(e) => {
+                    let mut r = lock(&self.report);
+                    r.body_failed += 1;
+                    let short: String = e.what.chars().take(90).collect();
+                    *r.body_reasons.entry(short).or_default() += 1;
+                    r.body_failures
+                        .push(format!("{} @error: {}", names.path(h.def), e.what));
+                    drop(r);
+                    failed.get_or_insert(e);
                 }
             }
         }

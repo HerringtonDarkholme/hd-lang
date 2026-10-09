@@ -1779,6 +1779,203 @@ impl Lower<'_, '_, '_> {
         }
     }
 
+    /// `@error` on a data type or an enum: the heads of the generated
+    /// `impl Display`, `impl Error` and one `impl From[P]` per `@from`
+    /// member (spec 14 `annot.error.generates`), each an ordinary
+    /// implementation with one method, whose body the checker writes
+    /// (codegen.md §13.14). `fields` are each variant's members (a data
+    /// type's fields as its one variant), over the declaration's
+    /// parameters. A generic error type gets the generated bounds
+    /// (`annot.error.bound.*`).
+    fn error_impls(
+        &mut self,
+        h: &Head<'_>,
+        generics: &[Generic],
+        fields: &[&[Field]],
+        out: &mut Vec<Item>,
+    ) {
+        use crate::error_type::{Generated, Message, interpolated, label, shape};
+        let Some(shape) = shape(&self.src, h.node) else {
+            return;
+        };
+        let pool = self.names.pool;
+        let known = self.names.known;
+        let param_of = |t: Ty| match pool.get(t) {
+            TyData::Param(p) if p.owner == h.def => Some(usize::from(p.index)),
+            _ => None,
+        };
+        // Which roles each parameter plays: the type of an interpolated, a
+        // transparent, or a cause member.
+        let n = generics.len();
+        let (mut shown, mut transparent, mut cause) =
+            (vec![false; n], vec![false; n], vec![false; n]);
+        for (v, fs) in shape.variants.iter().zip(fields) {
+            if v.members.len() != fs.len() {
+                continue;
+            }
+            match v.message {
+                Message::Text(msg) => {
+                    let used = interpolated(&self.src, msg);
+                    for f in *fs {
+                        if used.contains(&label(&self.names, f))
+                            && let Some(i) = param_of(f.ty)
+                        {
+                            shown[i] = true;
+                        }
+                    }
+                }
+                Message::Transparent => {
+                    if let Some(i) = fs.first().and_then(|f| param_of(f.ty)) {
+                        transparent[i] = true;
+                    }
+                }
+                Message::Absent => {}
+            }
+            if let Some(c) = v.cause() {
+                let t = fs[c].ty;
+                let inner = match pool.get(t) {
+                    TyData::Option(x) => x,
+                    _ => t,
+                };
+                if let Some(i) = param_of(inner) {
+                    cause[i] = true;
+                }
+            }
+        }
+        let display_bounds: Vec<Vec<DefId>> = (0..n)
+            .map(|i| {
+                if shown[i] || transparent[i] {
+                    vec![known.display]
+                } else {
+                    vec![]
+                }
+            })
+            .collect();
+        let error_bounds: Vec<Vec<DefId>> = (0..n)
+            .map(|i| {
+                if cause[i] || transparent[i] {
+                    vec![known.error]
+                } else if shown[i] {
+                    vec![known.display, known.inspectable]
+                } else {
+                    vec![known.inspectable]
+                }
+            })
+            .collect();
+        let error_ty = pool.intern_ty(&TyData::TraitValue {
+            def: known.error,
+            args: TyList::EMPTY,
+            bindings: vec![],
+        });
+        let cause_ty = pool.intern_ty(&TyData::Option(error_ty));
+        let mut heads = Vec::new();
+        for g in shape.generated() {
+            heads.push(match g {
+                Generated::Display => (g, known.display, None, display_bounds.clone()),
+                Generated::Error => (g, known.error, None, error_bounds.clone()),
+                Generated::From { variant, member } => {
+                    let Some(f) = fields.get(variant).and_then(|fs| fs.get(member)) else {
+                        continue;
+                    };
+                    // A `@from` of a bare type parameter generates no `From`
+                    // (`annot.error.from.type-parameter`, already reported).
+                    if param_of(f.ty).is_some() || pool.has_poison(f.ty) {
+                        continue;
+                    }
+                    (g, known.from, Some(f.ty), vec![vec![]; n])
+                }
+            });
+        }
+        for (g, tr, arg, bounds) in heads {
+            let def = g.def(&self.names, h.def);
+            let mut gs = Vec::new();
+            let mut params = Vec::new();
+            for (i, decl) in generics.iter().enumerate() {
+                let index = u16::try_from(i).unwrap_or(u16::MAX);
+                let param = pool.intern_ty(&TyData::Param(ParamRef { owner: def, index }));
+                params.push(param);
+                let mut g2 = Generic::plain(decl.name);
+                g2.row = decl.row;
+                if !decl.row {
+                    g2.bound = bounds[i].first().copied();
+                    g2.bounds = bounds[i]
+                        .iter()
+                        .map(|&b| {
+                            pool.intern_ty(&TyData::TraitValue {
+                                def: b,
+                                args: self.r.fill_trait_args(b, TyList::EMPTY, Some(param)),
+                                bindings: vec![],
+                            })
+                        })
+                        .collect();
+                }
+                gs.push(g2);
+            }
+            let own = |t: Ty| {
+                pool.subst(t, &|p: ParamRef| {
+                    (p.owner == h.def).then(|| params.get(usize::from(p.index)).copied())?
+                })
+            };
+            let self_ty = pool.intern_ty(&TyData::Adt {
+                def: h.def,
+                args: pool.list(&params),
+            });
+            let arg = arg.map(own);
+            let trait_args = self.r.fill_trait_args(
+                tr,
+                arg.map_or(TyList::EMPTY, |a| pool.list(&[a])),
+                Some(self_ty),
+            );
+            let method = g.method();
+            let mdef = self.names.member(def, PathKind::Member, method);
+            let sig = match (g, arg) {
+                (Generated::Display, _) => {
+                    FnSig::simple(vec![], vec![(self.sym("self"), self_ty)], Ty::STRING)
+                }
+                (Generated::Error, _) => {
+                    FnSig::simple(vec![], vec![(self.sym("self"), self_ty)], cause_ty)
+                }
+                (Generated::From { .. }, a) => FnSig::simple(
+                    vec![],
+                    vec![(self.sym("value"), a.unwrap_or(Ty::POISON))],
+                    self_ty,
+                ),
+            };
+            let methods = if g == Generated::Error && !shape.has_cause() {
+                Vec::new()
+            } else {
+                out.push(Item::new(
+                    mdef,
+                    self.sym(method),
+                    true,
+                    ItemData::Method {
+                        owner: def,
+                        sig,
+                        has_body: true,
+                    },
+                ));
+                vec![(self.sym(method), mdef)]
+            };
+            let seg = g.segment(self.names.display_name(h.def));
+            let mut it = Item::new(
+                def,
+                self.sym(&seg),
+                true,
+                ItemData::Impl {
+                    trait_: tr,
+                    trait_args,
+                    self_ty,
+                    methods,
+                    assoc: vec![],
+                    by: None,
+                    kind: ImplKind::Error,
+                },
+            );
+            it.generics = gs;
+            out.push(it);
+        }
+    }
+
     /// A trait's `Self` (its parameter 0), the scope of its header, and
     /// its declared parameters.
     fn trait_generics(&mut self, h: &Head<'_>) -> (Ty, Gen, Vec<Generic>) {
@@ -1816,6 +2013,7 @@ impl Lower<'_, '_, '_> {
                     self.field_variance(h.def, &generics, block, &fields);
                 }
                 self.derived(h, &generics, out);
+                self.error_impls(h, &generics, &[fields.as_slice()], out);
                 let mut it = Item::new(h.def, h.name, h.public, ItemData::Data(fields));
                 it.generics = generics;
                 it.targets = self.annotate_mask(n);
@@ -1852,6 +2050,9 @@ impl Lower<'_, '_, '_> {
                     });
                 }
                 self.derived(h, &generics, out);
+                let payloads: Vec<&[Field]> =
+                    variants.iter().map(|v| v.fields.as_slice()).collect();
+                self.error_impls(h, &generics, &payloads, out);
                 let mut it =
                     Item::new(h.def, h.name, h.public, ItemData::Enum { shared, variants });
                 it.generics = generics;

@@ -276,16 +276,21 @@ pub enum ImplKind {
     Derivation,
     /// `@derive(Tr)` on a declaration.
     Derived,
+    /// `Display`, `Error` or a `From` that `@error` generates for an error
+    /// type (spec 14 `annot.error.generates`): an ordinary implementation
+    /// whose method bodies the checker writes (codegen.md §13.14).
+    Error,
 }
 
 impl ImplKind {
-    const ALL: [ImplKind; 6] = [
+    const ALL: [ImplKind; 7] = [
         ImplKind::Written,
         ImplKind::Delegated,
         ImplKind::Template,
         ImplKind::TupleTemplate,
         ImplKind::Derivation,
         ImplKind::Derived,
+        ImplKind::Error,
     ];
     /// Whether the head takes a coherence slot and an impl-table row.
     #[must_use]
@@ -1225,7 +1230,7 @@ pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
             ImplKind::TupleTemplate => ImplOrigin::TupleTemplate,
             ImplKind::Delegated => ImplOrigin::Delegated { field: 0 },
             ImplKind::Derived | ImplKind::Derivation => ImplOrigin::Derived { template: trait_ },
-            ImplKind::Written | ImplKind::Template => ImplOrigin::Written,
+            ImplKind::Written | ImplKind::Template | ImplKind::Error => ImplOrigin::Written,
         });
         t.rank
             .push(u64::try_from(rank.0 & u128::from(u64::MAX)).expect("rank"));

@@ -11,6 +11,7 @@ mod call;
 pub mod conflicts;
 mod conform;
 pub mod derive;
+pub mod error;
 mod expr;
 mod fnref;
 pub mod header;

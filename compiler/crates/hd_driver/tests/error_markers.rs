@@ -38,7 +38,7 @@ const DISK: &str = "@error(\"disk full\")\ndata DiskError:\n    free: i64\n\n";
 #[test]
 fn valid_forms_are_clean() {
     let src = format!(
-        "{DISK}@error\nenum SaveError[E]:\n    @error(\"cannot save\")\n    Write(@from error: DiskError)\n    @error(transparent)\n    Wrap(@source inner: List[E])\n    @error(\"two\")\n    Pair(a: string, @source b: DiskError)\n    @error(\"opt\")\n    Opt(@source c: DiskError?)\n"
+        "{DISK}@error\nenum SaveError[E]:\n    @error(\"cannot save\")\n    Write(@from error: DiskError)\n    @error(transparent)\n    Wrap(@source inner: E)\n    @error(\"two\")\n    Pair(a: string, @source b: DiskError)\n    @error(\"opt\")\n    Opt(@source c: DiskError?)\n"
     );
     assert_eq!(codes(&src), vec![]);
 }
@@ -104,7 +104,7 @@ fn from_type_parameter_is_rejected() {
 #[test]
 fn from_type_parameter_is_by_resolution_not_spelling() {
     let src = format!(
-        "{DISK}@error\nenum App[E]:\n    @error(\"inner\")\n    Inner(@from error: DiskError)\n    @error(\"list\")\n    Items(@source items: List[E])\n"
+        "{DISK}@error\nenum App[E]:\n    @error(\"inner\")\n    Inner(@from error: DiskError)\n    @error(\"list\")\n    Items(@source items: E?)\n"
     );
     assert_eq!(codes(&src), vec![]);
     let src =

@@ -206,6 +206,9 @@ pub(crate) fn collect(
         if matches!(h.kind, HeadKind::Data | HeadKind::Enum | HeadKind::Newtype) {
             derived(&mut cx, names, h, items, index, start);
         }
+        if matches!(h.kind, HeadKind::Data | HeadKind::Enum) {
+            error_impls(&mut cx, names, h);
+        }
     }
     cx.out
 }
@@ -260,6 +263,24 @@ fn derived(
                 cx.push(it.def, slot, Some(a));
             }
         }
+    }
+}
+
+/// The implementations `@error` generates sit at the type's `@error` line
+/// (`Display`, `Error`) or at the `@from` member (`From`), where an
+/// overlap with them is reported (spec 14 `annot.error.from.same-type`).
+fn error_impls(cx: &mut Ctx<'_, '_>, names: &Names<'_>, h: &Head<'_>) {
+    use crate::error_type::{Generated, shape};
+    let Some(shape) = shape(cx.src, h.node) else {
+        return;
+    };
+    for g in shape.generated() {
+        let node = match g {
+            Generated::From { variant, member } => shape.variants[variant].members[member].node,
+            Generated::Display | Generated::Error => shape.line,
+        };
+        let a = cx.at(h.node, 0, node, false);
+        cx.push(g.def(names, h.def), 0, a);
     }
 }
 
