@@ -141,6 +141,22 @@ minimal program and the stage you suspect (Emit, runtime host).
 Write `audit/compiler/triage-wrong-runs.md`. Read only; timebox 45
 minutes.
 
+### Y4. Accept `concat_all` (A1): Spec Row Only (#112)
+
+Orchestrator, 2026-10-08, proceeding on Y2's recommendation (owner: "don't
+be blocked by me"). Add the `string_concat_all` row to the Representation
+primitives table in `spec/std/README.md` (`Standard Library Primitives`),
+in the table's own style, with the declaration from
+`representation-runtime.md` (`@intrinsic("string_concat_all") fn
+concat_all(parts: List[string]) -> string`, private). Change that design
+section's heading from "Proposal, Not Accepted" to "Accepted (A1,
+2026-10-08)" and keep its text. Do **not** touch `lib/std` yet: the
+intrinsic does not exist in the compiler, and the orchestrator's agent
+adds it together with the `join`/`StringBuilder.build` rewrite. This job
+lifts the spec rule for that one table row and the design file for that
+heading. Checks: `bash spec/check.sh` (realign `examples.tsv` if a
+```text block moves). Timebox 20 minutes.
+
 ### R3. Design Note: Functions As Values (#46, Design Text)
 
 Next compiler task after the current one. 41 programs stop at Emit on an
