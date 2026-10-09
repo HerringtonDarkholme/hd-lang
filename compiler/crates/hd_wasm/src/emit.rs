@@ -1385,29 +1385,44 @@ impl Em<'_> {
             }
             return Ok(());
         }
-        if *vt != VT::F64 {
-            return unsupported("f32 arithmetic");
-        }
+        // The basic operations and comparisons are the Wasm instructions of
+        // the operand's own width (`expr.float.basic`, `expr.eq.float`):
+        // IEEE 754 single or double, with its NaN, infinity and signed zero.
+        let single = *vt == VT::F32;
         if op == PrimOp::Neg {
             self.comp(ops[0], 0, vt)?;
-            self.a.s().f64_neg();
+            if single {
+                self.a.s().f32_neg();
+            } else {
+                self.a.s().f64_neg();
+            }
             return Ok(());
         }
         for r in ops {
             self.comp(*r, 0, vt)?;
         }
         let mut x = self.a.s();
-        match op {
-            PrimOp::Add => x.f64_add(),
-            PrimOp::Sub => x.f64_sub(),
-            PrimOp::Mul => x.f64_mul(),
-            PrimOp::Div => x.f64_div(),
-            PrimOp::Eq => x.f64_eq(),
-            PrimOp::Ne => x.f64_ne(),
-            PrimOp::Lt => x.f64_lt(),
-            PrimOp::Le => x.f64_le(),
-            PrimOp::Gt => x.f64_gt(),
-            PrimOp::Ge => x.f64_ge(),
+        match (op, single) {
+            (PrimOp::Add, false) => x.f64_add(),
+            (PrimOp::Sub, false) => x.f64_sub(),
+            (PrimOp::Mul, false) => x.f64_mul(),
+            (PrimOp::Div, false) => x.f64_div(),
+            (PrimOp::Eq, false) => x.f64_eq(),
+            (PrimOp::Ne, false) => x.f64_ne(),
+            (PrimOp::Lt, false) => x.f64_lt(),
+            (PrimOp::Le, false) => x.f64_le(),
+            (PrimOp::Gt, false) => x.f64_gt(),
+            (PrimOp::Ge, false) => x.f64_ge(),
+            (PrimOp::Add, true) => x.f32_add(),
+            (PrimOp::Sub, true) => x.f32_sub(),
+            (PrimOp::Mul, true) => x.f32_mul(),
+            (PrimOp::Div, true) => x.f32_div(),
+            (PrimOp::Eq, true) => x.f32_eq(),
+            (PrimOp::Ne, true) => x.f32_ne(),
+            (PrimOp::Lt, true) => x.f32_lt(),
+            (PrimOp::Le, true) => x.f32_le(),
+            (PrimOp::Gt, true) => x.f32_gt(),
+            (PrimOp::Ge, true) => x.f32_ge(),
             _ => return unsupported(format!("the float operator {op:?}")),
         };
         Ok(())
