@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2301 | 408 | 136 | 2845 |
+| 2303 | 406 | 136 | 2845 |
 
 ## By Chapter
 
@@ -38,7 +38,7 @@ fixture; unsupported surface records progress without failing.
 | `std/hash.md` | 8 | 1 | 0 | 9 |
 | `std/host.md` | 2 | 0 | 0 | 2 |
 | `std/http.md` | 2 | 0 | 0 | 2 |
-| `std/iter.md` | 21 | 3 | 1 | 25 |
+| `std/iter.md` | 23 | 1 | 1 | 25 |
 | `std/json.md` | 18 | 0 | 1 | 19 |
 | `std/net.md` | 1 | 0 | 0 | 1 |
 | `std/num.md` | 16 | 2 | 0 | 18 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 86 | 15 | 4 | 105 |
-| `runtime/valid` | 797 | 24 | 108 | 929 |
+| `runtime/valid` | 798 | 23 | 108 | 929 |
 | `typing/invalid` | 727 | 332 | 16 | 1075 |
-| `typing/valid` | 393 | 14 | 8 | 415 |
+| `typing/valid` | 394 | 13 | 8 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -85,7 +85,6 @@ compiler stage that first declined the case.
 | `fail:duplicate-data-pattern-field` | 1 |
 | `fail:identity-requires-references` | 9 |
 | `fail:implicit-narrowing` | 1 |
-| `fail:invalid-result-propagation` | 2 |
 | `fail:invalid-test-statement` | 1 |
 | `fail:invalid-token` | 2 |
 | `fail:let-else-falls-through` | 1 |
@@ -208,13 +207,6 @@ compiler stage that first declined the case.
 <details><summary><code>fail:implicit-narrowing</code> (1)</summary>
 
 - `typing/invalid/no-widening-list-literal.hd`
-
-</details>
-
-<details><summary><code>fail:invalid-result-propagation</code> (2)</summary>
-
-- `typing/valid/collect-targets.hd`
-- `runtime/valid/collect-target-from-try-hint.hd`
 
 </details>
 
@@ -1413,6 +1405,7 @@ runtime/valid/cmp-min-max-distinguishable-tie.hd
 runtime/valid/cmp-min-max.hd
 runtime/valid/cmp-ordering-eq.hd
 runtime/valid/cmp-reverse.hd
+runtime/valid/collect-target-from-try-hint.hd
 runtime/valid/collect-targets-run.hd
 runtime/valid/colons-in-brackets-and-trailing-blocks.hd
 runtime/valid/comments-hide-code-from-the-parser.hd
@@ -2876,6 +2869,7 @@ typing/valid/closure-assigns-captured-let.hd
 typing/valid/closure-mutable-capture-argument.hd
 typing/valid/closure-mutable-capture.hd
 typing/valid/closure-with-ignores-outer-key.hd
+typing/valid/collect-targets.hd
 typing/valid/collections.hd
 typing/valid/comparison-traits.hd
 typing/valid/composite-ordering.hd
