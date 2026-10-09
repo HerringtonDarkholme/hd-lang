@@ -105,15 +105,19 @@ args, stdin, the test grant and its table), `cli.test.seed*`, `hd test
 `test-tasks`, `cap-*` test steps, and the dev-dependency run steps. If
 #74 is not on main yet, skip to the next job and come back.
 
-### O22. Workspace Leftovers
-
-Whatever O6/O12 left unbuilt: globs in workspace `members`/`exclude`,
-the workspace's shared selection and `hd.sum`
-(`cli.mode.member.shared`), and the effects of `[toolchain] pin` and
-`[test.capabilities]`. One commit per item; skip an item whose spec
-needs a design `commands.md` lacks and say so under "Questions".
-
 ## Questions
+
+- **O22, every item skipped.** As O22 allows: globs in workspace
+  `members` and `exclude` have no spec rule (the spec lists member
+  directories only); the shared selection and `hd.sum`
+  (`cli.mode.member.shared`) are part of the fetch design the
+  2026-10-09 answer put off; what `[toolchain] pin` does when the
+  running `hd` differs is not specified (`module.toolchain.pin` says
+  only that a root manifest may pin); and `[test.capabilities]` already
+  feeds `Grants::for_test`, which acts once integration programs run,
+  so it belongs to O20 after #74. Nothing in O22 is buildable now.
+- **Waiting.** O19 and O20 wait on #74; every other job is on
+  `origin/main`.
 
 - **O17, a use of a test module from other code (needs `hd_resolve`).**
   The test unit is one folder per package (`PKG.$tests`), and a
