@@ -105,15 +105,6 @@ args, stdin, the test grant and its table), `cli.test.seed*`, `hd test
 `test-tasks`, `cap-*` test steps, and the dev-dependency run steps. If
 #74 is not on main yet, skip to the next job and come back.
 
-### O21. Resolver Lowering Lookups (#118; `hd_resolve` Lowering Lent For This Job)
-
-`hd_resolve` lowering does per-item linear finds (ownership, placement,
-`misplaced_block`, anchors, `related_derives`). Replace them with one
-`DefId`-to-index map per module, built once. No behaviour change: the
-pass list and every diagnostic stay identical. Report `hd check` time on
-the std library and the 30,000-line bench before and after
-(`cargo run --release -p hd_driver --example bench N`).
-
 ### O22. Workspace Leftovers
 
 Whatever O6/O12 left unbuilt: globs in workspace `members`/`exclude`,

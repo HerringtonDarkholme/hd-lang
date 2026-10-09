@@ -120,7 +120,13 @@ impl<'t> Ctx<'_, 't> {
 
 /// The anchors of every item one module's heads produce.
 #[must_use]
-pub fn collect(names: &Names<'_>, src: &Src<'_>, heads: &[Head<'_>], items: &[Item]) -> Anchors {
+pub(crate) fn collect(
+    names: &Names<'_>,
+    src: &Src<'_>,
+    heads: &[Head<'_>],
+    items: &[Item],
+    index: &crate::lower::ItemIndex,
+) -> Anchors {
     let order: HashMap<usize, u32> = src
         .root()
         .children()
@@ -198,7 +204,7 @@ pub fn collect(names: &Names<'_>, src: &Src<'_>, heads: &[Head<'_>], items: &[It
             HeadKind::Alias => {}
         }
         if matches!(h.kind, HeadKind::Data | HeadKind::Enum | HeadKind::Newtype) {
-            derived(&mut cx, names, h, items, start);
+            derived(&mut cx, names, h, items, index, start);
         }
     }
     cx.out
@@ -207,15 +213,20 @@ pub fn collect(names: &Names<'_>, src: &Src<'_>, heads: &[Head<'_>], items: &[It
 /// A derived implementation sits at the `@derive` argument list that names
 /// it; its slots repeat those of the type it derives for, the rows of
 /// `cx.out` from `start`.
-fn derived(cx: &mut Ctx<'_, '_>, names: &Names<'_>, h: &Head<'_>, items: &[Item], start: usize) {
+fn derived(
+    cx: &mut Ctx<'_, '_>,
+    names: &Names<'_>,
+    h: &Head<'_>,
+    items: &[Item],
+    index: &crate::lower::ItemIndex,
+    start: usize,
+) {
     let src = cx.src;
-    for it in items {
-        let ItemData::Impl { kind, self_ty, .. } = &it.data else {
+    for it in index.impls_for(items, h.def) {
+        let ItemData::Impl { kind, .. } = &it.data else {
             continue;
         };
-        if *kind != ImplKind::Derived
-            || !matches!(names.pool.get(*self_ty), hd_types::TyData::Adt { def, .. } if def == h.def)
-        {
+        if *kind != ImplKind::Derived {
             continue;
         }
         let seg = names.text(it.name);

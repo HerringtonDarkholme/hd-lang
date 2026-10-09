@@ -2027,6 +2027,49 @@ pub fn misplaced_template(names: &Names<'_>, module: &str, it: &Item) -> bool {
     )
 }
 
+/// One module's items by `DefId`, and its impls by the type they target,
+/// built once per module so the per-item checks look items up instead of
+/// scanning them (#118). Lists keep item order, so every report keeps its
+/// order.
+pub(crate) struct ItemIndex {
+    by_def: HashMap<DefId, usize>,
+    by_target: HashMap<DefId, Vec<usize>>,
+}
+
+impl ItemIndex {
+    pub(crate) fn new(names: &Names<'_>, items: &[Item]) -> Self {
+        let mut by_def = HashMap::with_capacity(items.len());
+        let mut by_target: HashMap<DefId, Vec<usize>> = HashMap::new();
+        for (i, it) in items.iter().enumerate() {
+            by_def.entry(it.def).or_insert(i);
+            if let ItemData::Impl { self_ty, .. } = &it.data
+                && let TyData::Adt { def, .. } = names.pool.get(*self_ty)
+            {
+                by_target.entry(def).or_default().push(i);
+            }
+        }
+        ItemIndex { by_def, by_target }
+    }
+
+    /// The item `d`, the first with that `DefId` as a scan would find it.
+    pub(crate) fn get<'a>(&self, items: &'a [Item], d: DefId) -> Option<&'a Item> {
+        self.by_def.get(&d).and_then(|&i| items.get(i))
+    }
+
+    /// The impls whose target is the data type or enum `d`, in item order.
+    pub(crate) fn impls_for<'a>(
+        &self,
+        items: &'a [Item],
+        d: DefId,
+    ) -> impl Iterator<Item = &'a Item> {
+        self.by_target
+            .get(&d)
+            .into_iter()
+            .flatten()
+            .filter_map(|&i| items.get(i))
+    }
+}
+
 /// Why a derivation block is rejected, if it is: it is declared outside the
 /// module of its target (`annot.block.module`, `annot.no-trait.module`),
 /// targets a newtype (`annot.block.newtype.error`) or, with no trait, any
@@ -2038,6 +2081,16 @@ pub fn misplaced_block(
     names: &Names<'_>,
     module: &str,
     items: &[Item],
+    it: &Item,
+) -> Option<&'static str> {
+    misplaced_block_in(names, module, &|d| items.iter().find(|i| i.def == d), it)
+}
+
+/// `misplaced_block`, with `item` finding an item of `module` by `DefId`.
+fn misplaced_block_in<'a>(
+    names: &Names<'_>,
+    module: &str,
+    item: &dyn Fn(DefId) -> Option<&'a Item>,
     it: &Item,
 ) -> Option<&'static str> {
     let pool = names.pool;
@@ -2060,7 +2113,7 @@ pub fn misplaced_block(
     if names.module_of(def) != module {
         return Some("a derivation block belongs in the module that declares its target");
     }
-    let target = items.iter().find(|i| i.def == def)?;
+    let target = item(def)?;
     match &target.data {
         ItemData::Newtype(_) => {
             return Some("a derivation block cannot target a newtype; derive it with `@derive`");
@@ -2146,27 +2199,22 @@ fn related_traits(known: &KnownItems, a: DefId, b: DefId) -> bool {
 fn related_derives(
     names: &Names<'_>,
     items: &[Item],
+    index: &ItemIndex,
     heads: &[Head<'_>],
     scope: &ModuleScope,
     src: &Src<'_>,
     diags: &mut DiagBuf,
 ) {
-    let pool = names.pool;
     let known = names.known;
     for h in heads {
-        let written: Vec<DefId> = items
-            .iter()
+        let written: Vec<DefId> = index
+            .impls_for(items, h.def)
             .filter_map(|i| match &i.data {
                 ItemData::Impl {
                     trait_,
-                    self_ty,
                     kind: ImplKind::Written | ImplKind::Delegated,
                     ..
-                } if *trait_ != DefId::NONE
-                    && matches!(pool.get(*self_ty), TyData::Adt { def, .. } if def == h.def) =>
-                {
-                    Some(*trait_)
-                }
+                } if *trait_ != DefId::NONE => Some(*trait_),
                 _ => None,
             })
             .collect();
@@ -2228,15 +2276,15 @@ pub(crate) fn derivation_block(names: &Names<'_>, it: &Item) -> bool {
 fn derivation_nodes(
     names: &Names<'_>,
     items: &[Item],
+    index: &ItemIndex,
     heads: &[Head<'_>],
 ) -> Vec<hd_base::NodeIdx> {
     heads
         .iter()
         .filter(|h| h.kind == HeadKind::Impl)
         .filter(|h| {
-            items
-                .iter()
-                .find(|i| i.def == h.def)
+            index
+                .get(items, h.def)
                 .is_some_and(|it| derivation_block(names, it))
         })
         .map(|h| h.node.index())
@@ -2251,12 +2299,13 @@ fn placement(
     names: &Names<'_>,
     module: &str,
     items: &[Item],
+    index: &ItemIndex,
     heads: &[Head<'_>],
     src: &Src<'_>,
     diags: &mut DiagBuf,
 ) {
     for h in heads.iter().filter(|h| h.kind == HeadKind::Impl) {
-        let Some(it) = items.iter().find(|i| i.def == h.def) else {
+        let Some(it) = index.get(items, h.def) else {
             continue;
         };
         let ItemData::Impl { trait_, by, .. } = &it.data else {
@@ -2265,7 +2314,7 @@ fn placement(
         let msg = if misplaced_template(names, module, it) {
             Some("a template belongs in the module that declares its trait")
         } else {
-            misplaced_block(names, module, items, it)
+            misplaced_block_in(names, module, &|d| index.get(items, d), it)
         };
         if let Some(msg) = msg {
             diags.error(Code::MisplacedDerivation, src.span(h.node), msg);
@@ -2313,13 +2362,13 @@ fn ownership(
     src: &Src<'_>,
     diags: &mut DiagBuf,
 ) {
+    let head_of: HashMap<DefId, &Head<'_>> = heads.iter().rev().map(|h| (h.def, h)).collect();
     for it in items {
         let Some(code) = misplaced_impl(names, module, it) else {
             continue;
         };
-        let span = heads
-            .iter()
-            .find(|h| h.def == it.def)
+        let span = head_of
+            .get(&it.def)
             .map_or(src.span(src.root()), |h| src.span(h.node));
         let what = if code == Code::NonlocalImpl {
             "nonlocal-impl"
@@ -2463,18 +2512,20 @@ pub fn build_folder(
                 unsupported = low.unsupported.take();
             }
         }
+        let mut have: HashSet<DefId> = items.iter().map(|i| i.def).collect();
         for s in &m.seeds {
-            if !items.iter().any(|i| i.def == s.def) {
+            if have.insert(s.def) {
                 items.push(s.clone());
             }
         }
+        let index = ItemIndex::new(names, &items);
         ownership(names, &m.path, &items, hs, &m.src, diags);
         if r.frozen.is_none() {
-            placement(names, &m.path, &items, hs, &m.src, diags);
-            related_derives(names, &items, hs, &scope, &m.src, diags);
+            placement(names, &m.path, &items, &index, hs, &m.src, diags);
+            related_derives(names, &items, &index, hs, &scope, &m.src, diags);
         }
-        let anchors = crate::anchor::collect(names, &m.src, hs, &items);
-        let blocks = derivation_nodes(names, &items, hs);
+        let anchors = crate::anchor::collect(names, &m.src, hs, &items, &index);
+        let blocks = derivation_nodes(names, &items, &index, hs);
         out.modules.push(ModOut {
             items,
             scope,
