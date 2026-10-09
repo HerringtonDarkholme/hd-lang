@@ -284,6 +284,15 @@ pub enum Helper {
     HostCancel { frame: WTy },
     /// A slot the compiler does not lower yet: panics when called.
     Unlowered { sig: WTy, what: String },
+    /// A vtable slot of a host handle (`boundary::BTy::Handle`): reads the
+    /// handle number from the receiver, a `payload` struct, and calls
+    /// `inner`, a host call whose first argument after the receiver is
+    /// that number.
+    HandleSlot {
+        sig: WTy,
+        payload: WTy,
+        inner: Box<Helper>,
+    },
     /// `Inspectable.runtime_type`'s slot in a vtable built at a concrete
     /// type (trait.inspect.dynamic): the `TypeId` (`ty`) whose key is
     /// `name`, the erased value's recorded type.
@@ -547,6 +556,16 @@ impl Helper {
                 enc_wty(sig, w);
                 w.str(what);
             }
+            Helper::HandleSlot {
+                sig,
+                payload,
+                inner,
+            } => {
+                w.u8(32);
+                enc_wty(sig, w);
+                enc_wty(payload, w);
+                inner.encode(w);
+            }
             Helper::RuntimeType { sig, ty, name } => {
                 w.u8(25);
                 enc_wty(sig, w);
@@ -720,6 +739,11 @@ impl Helper {
             12 => Helper::Unlowered {
                 sig: dec_wty(r)?,
                 what: r.str().to_owned(),
+            },
+            32 => Helper::HandleSlot {
+                sig: dec_wty(r)?,
+                payload: dec_wty(r)?,
+                inner: Box::new(Helper::decode(r)?),
             },
             25 => Helper::RuntimeType {
                 sig: dec_wty(r)?,
@@ -1195,6 +1219,25 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
                 "unsupported: {what} is not lowered yet"
             ))));
             a.s().unreachable();
+            a.finish(results.clone())
+        }
+        Helper::HandleSlot {
+            sig,
+            payload,
+            inner,
+        } => {
+            let WTy::Func(params, results) = sig else {
+                return unsupported("a handle slot without a signature");
+            };
+            let mut a = Asm::new(params.clone());
+            a.get(0);
+            a.get(0);
+            a.ref_cast(payload, false);
+            a.struct_get(payload, 0);
+            for k in 1..params.len() {
+                a.get(u32::try_from(k).expect("k"));
+            }
+            a.call(Sym::Helper((**inner).clone()));
             a.finish(results.clone())
         }
         Helper::RuntimeType { sig, ty, name } => {

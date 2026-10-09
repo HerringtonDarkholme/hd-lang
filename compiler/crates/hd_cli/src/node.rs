@@ -23,6 +23,8 @@ const RUN: &str = include_str!("../../../host/run.mjs");
 const TEST: &str = include_str!("../../../host/test.mjs");
 /// The `Http` provider's client thread.
 const HTTP: &str = include_str!("../../../host/http.mjs");
+/// The `Net` provider's client thread, which holds the sockets.
+const NET: &str = include_str!("../../../host/net.mjs");
 
 pub struct NodeEngine;
 
@@ -84,6 +86,7 @@ impl Scratch {
             ("run.mjs", RUN),
             ("test.mjs", TEST),
             ("http.mjs", HTTP),
+            ("net.mjs", NET),
         ] {
             std::fs::write(s.0.join(name), text).map_err(|e| format!("{}: {e}", s.0.display()))?;
         }

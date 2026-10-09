@@ -666,3 +666,132 @@ fn http_reaches_a_granted_host_from_an_integration_test() {
     );
     assert!(out.status.success());
 }
+
+const NET_PROGRAM: &str = "use std.net.{Net, NetError}
+use std.host.{Args, args}
+use std.num.parse_u32
+
+fn port(i: usize) -> u16 $ Args:
+    match parse_u32(args()[i]):
+        .Ok(p) => u16(p)
+        .Err(_) => 0
+
+pub fn main!() -> void $ Console + Net + Args:
+    let mut net = $.use(Net)
+    tcp := port(0)
+    udp := port(1)
+    match net.lookup!(\"127.0.0.1\"):
+        .Ok(found) => println(\"lookup ${debug(found)}\")
+        .Err(e) => println(\"${e}\")
+    let mut server = match net.listen!(\"127.0.0.1\", tcp):
+        .Ok(l) => l
+        .Err(e) => return println(\"${e}\")
+    let mut client = match net.connect!(\"127.0.0.1\", tcp):
+        .Ok(s) => s
+        .Err(e) => return println(\"${e}\")
+    let mut peer = match server.accept!():
+        .Ok(s) => s
+        .Err(e) => return println(\"${e}\")
+    _ := client.write!(\"ping\".to_utf8())
+    match peer.read!(2):
+        .Ok(bytes) => println(\"read ${debug(bytes)}\")
+        .Err(e) => println(\"${e}\")
+    _ := peer.write!(\"pong\".to_utf8())
+    match client.read!(100):
+        .Ok(bytes) => println(\"reply ${bytes.len()}\")
+        .Err(e) => println(\"${e}\")
+    _ := client.close()
+    match peer.read!(100):
+        .Ok(bytes) => println(\"rest ${bytes.len()}\")
+        .Err(e) => println(\"${e}\")
+    match peer.read!(100):
+        .Ok(bytes) => println(\"at end ${bytes.len()}\")
+        .Err(e) => println(\"${e}\")
+    match client.read!(1):
+        .Ok(_) => println(\"read after close\")
+        .Err(e) => println(\"${debug(e)}\")
+    match client.close():
+        .Ok(_) => println(\"closed twice\")
+        .Err(e) => println(\"${e}\")
+    _ := server.close()
+    match net.listen!(\"127.0.0.1\", tcp):
+        .Ok(_) => println(\"listening again\")
+        .Err(e) => println(\"${e}\")
+    match net.connect!(\"example.com\", 80):
+        .Ok(_) => println(\"connected\")
+        .Err(e) => println(\"${debug(e)}\")
+    match net.lookup!(\"example.com\"):
+        .Ok(_) => println(\"looked up\")
+        .Err(e) => println(\"${debug(e)}\")
+    match net.connect!(\"bad host\", 80):
+        .Ok(_) => println(\"connected\")
+        .Err(e) => println(\"${debug(e)}\")
+    let mut a = match net.bind_udp!(\"127.0.0.1\", 0):
+        .Ok(s) => s
+        .Err(e) => return println(\"${e}\")
+    let mut b = match net.bind_udp!(\"127.0.0.1\", udp):
+        .Ok(s) => s
+        .Err(e) => return println(\"${e}\")
+    _ := a.send_to!(\"127.0.0.1\", udp, \"hey\".to_utf8())
+    match b.receive!(2):
+        .Ok(d) => println(\"datagram ${debug(d.bytes)} from ${d.host}\")
+        .Err(e) => println(\"${e}\")
+    match a.send_to!(\"example.com\", 53, [1]):
+        .Ok(_) => println(\"sent\")
+        .Err(e) => println(\"${e}\")
+";
+
+/// A free loopback port.
+fn free_port() -> u16 {
+    std::net::TcpListener::bind("127.0.0.1:0")
+        .and_then(|l| l.local_addr())
+        .expect("a free port")
+        .port()
+}
+
+/// `Net` and its handles (`std-net.*`, `cli.cap.scope.net`): a lookup, a
+/// TCP listener, connection and stream that read at most `max` bytes and
+/// an empty list at the end, every operation after `close` `Disposed`, an
+/// address in use refused, an address or host outside the grant and one
+/// that is no host refused before any connection, and a UDP datagram.
+/// Everything stays on the loopback interface.
+#[test]
+fn net_opens_sockets_inside_the_grant() {
+    let (tcp, udp) = (free_port(), free_port());
+    let dir = work("host-net");
+    write(&dir.join("main.hd"), NET_PROGRAM);
+    let out = run(
+        &dir,
+        &[
+            "--cap",
+            "Net=127.0.0.1",
+            "main.hd",
+            "--",
+            &tcp.to_string(),
+            &udp.to_string(),
+        ],
+    );
+    assert_eq!(text(&out.stderr), "");
+    assert_eq!(
+        text(&out.stdout),
+        "lookup [\"127.0.0.1\"]\n\
+         read [112, 105]\n\
+         reply 4\n\
+         rest 2\n\
+         at end 0\n\
+         ResourceError.Disposed\n\
+         resource disposed\n\
+         listening again\n\
+         NetError.NotGranted(address=\"example.com:80\")\n\
+         NetError.NotGranted(address=\"example.com\")\n\
+         NetError.InvalidAddress(address=\"bad host:80\")\n\
+         datagram [104, 101] from 127.0.0.1\n\
+         net access to example.com:53 is not granted; run with --cap Net=example.com:53\n"
+    );
+    assert!(out.status.success());
+    // A socket's methods import from `hd:Net`, so `Net = false` refuses
+    // the program before it starts (`cli.cap.total.refuse`).
+    let denied = run(&dir, &["--cap", "Net=false", "main.hd", "--", "1", "2"]);
+    assert_eq!(text(&denied.stdout), "");
+    assert_eq!(denied.status.code(), Some(101));
+}

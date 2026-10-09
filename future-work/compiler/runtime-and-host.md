@@ -231,8 +231,16 @@ with its `Enc` and `Dec` classes.
   its range; a failure is the `host-contract` panic.
 - **Tuples** (task #222) cross as their elements in order, from their
   values or their box (`BTy::Tuple`).
-- Maps, functions, trait values and recursive types do not cross yet; a
-  host method over one stops at Link as unsupported.
+- **Host handles** (task #222) cross from the host as their handle
+  number, an unsigned LEB128. A handle trait (`hd_host_abi::HANDLES`,
+  `Net`'s `TcpStream`, `TcpListener` and `UdpSocket`) becomes a trait
+  value whose payload is a struct of the number and whose vtable's slots
+  (`Helper::HandleSlot`) call `hd:Net` `<Trait>.<method>` with the number
+  first. The host keeps a closed handle's number, so every later call on
+  it is `Disposed`
+  ([`std-net.handles.closable`](../../spec/std/net.md#r-std-net.handles.closable)).
+- Maps, functions, other trait values and recursive types do not cross
+  yet; a host method over one stops at Link as unsupported.
 
 The structured values of the ABI table, byte by byte:
 
@@ -253,6 +261,9 @@ The structured values of the ABI table, byte by byte:
 | `SysError` | the variant index (`NotGranted` 0, `Unsupported` 1), then its name (task #222) |
 | `Request` | its method's index (`Get` 0 to `Options` 6, then `Other` 7 and its name), its URL, its header pairs (a count, then each name and value), its body, and its timeout as a `Duration?` (a `Duration` is its milliseconds, zigzag) |
 | `Response` | its status, its header pairs, its body |
+| `NetError` | the variant index (`NotGranted` 0, `InvalidAddress` 1, `Dns` 2, `Refused` 3, `Other` 4), then its text |
+| `ResourceError[NetError]` | `0` (`Operation`) and the `NetError`, or `1` (`Disposed`) |
+| `Datagram` | its bytes, its host, its port |
 | `HttpError` | the variant index (`NotGranted` 0, `InvalidUrl` 1, `Dns` 2, `Connect` 3, `Tls` 4, `Timeout` 5, `TooManyRedirects` 6, `Other` 7), then its text, which `Timeout` lacks |
 
 So `Result[string?, ConsoleError]` is `0 0` at the end of input, `0 1`
@@ -361,6 +372,15 @@ the variant index and the path.
   client checks the grant for the URL and for each redirect target
   ([`cli.cap.scope.redirect`](../../spec/cli/command-line.md#r-cli.cap.scope.redirect))
   before it connects.
+- **As built (task #222), `Net` on Node.** Each instance has a client
+  thread of its own (`compiler/host/net.mjs`) that holds its sockets and
+  is stopped when the instance ends. Every operation finishes inside its
+  `.start`, as `Http.send!` does: `read!`, `accept!` and `receive!` hold
+  the program until data, a connection or a datagram arrives. The
+  program's thread checks the host's form and the grant
+  ([`cli.cap.scope.net`](../../spec/cli/command-line.md#r-cli.cap.scope.net),
+  `.net.lookup`, [`std-net.send-to.grant`](../../spec/std/net.md#r-std-net.send-to.grant))
+  before it posts an operation.
 
 ### 17.8 Resource Limits
 

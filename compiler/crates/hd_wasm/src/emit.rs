@@ -4841,7 +4841,7 @@ fn root_poll(
             else {
                 return unsupported(format!("the host method `{name}`"));
             };
-            slots.push(host_slot(&lay, host.key, hm, m, sig)?);
+            slots.push(host_slot(&lay, host.key, hm, m, sig, false)?);
         }
         providers.push((vt, slots));
     }
@@ -4861,16 +4861,54 @@ fn root_poll(
     })
 }
 
+/// The vtable slots of a host handle trait (`hd_host_abi::HANDLES`), in
+/// the trait's method order: each reads the handle number from its
+/// receiver and calls the host method `<Trait>.<method>` with it first
+/// (`boundary::BTy::Handle`).
+pub(crate) fn handle_slots(
+    lay: &Lay<'_>,
+    trait_: DefId,
+    host: &hd_host_abi::HostTrait,
+) -> StageResult<Vec<Helper>> {
+    let tp = (lay.path)(trait_);
+    let tname = tp.rsplit(['.', '/']).next().unwrap_or("");
+    let mut slots = Vec::new();
+    for m in lay.env.trait_methods(trait_) {
+        let sig = lay.slot_sig(trait_, TyList::EMPTY, m)?;
+        let mp = (lay.path)(m);
+        let name = format!("{tname}.{}", mp.rsplit(['.', '/']).next().unwrap_or(""));
+        let Some(hm) = host.methods.iter().find(|x| x.name == name) else {
+            return unsupported(format!("the host method `{name}`"));
+        };
+        let WTy::Func(params, results) = &sig else {
+            return unsupported("a handle slot without a signature");
+        };
+        // The inner call takes the receiver, then the handle number.
+        let mut inner = params.clone();
+        inner.insert(1, VT::I32);
+        let inner = WTy::Func(inner, results.clone());
+        slots.push(Helper::HandleSlot {
+            sig,
+            payload: crate::boundary::handle_payload(),
+            inner: Box::new(host_slot(lay, host.key, hm, m, inner, true)?),
+        });
+    }
+    Ok(slots)
+}
+
 /// One vtable slot of a default-profile provider (runtime-and-host.md
 /// §17.2): a host call for a method that never waits, a host leaf frame
 /// for one that may, or a stub that panics for a method whose declaration
-/// and ABI row disagree.
+/// and ABI row disagree. With `handle`, the method's first ABI argument
+/// is a host handle's number, the slot's first parameter after the
+/// receiver (`handle_slots`).
 fn host_slot(
     lay: &Lay<'_>,
     key: &str,
     hm: &hd_host_abi::HostMethod,
     m: DefId,
     sig: WTy,
+    handle: bool,
 ) -> StageResult<Helper> {
     use crate::boundary::BTy;
     use crate::rt::{ArgCodec, ResCodec};
@@ -4894,10 +4932,16 @@ fn host_slot(
         .into_iter()
         .skip(1)
         .collect();
-    if params.len() != hm.params.len() {
+    let codecs = if handle {
+        args.push(ArgCodec::Scalar(VT::I32));
+        hm.params.get(1..).unwrap_or_default()
+    } else {
+        hm.params
+    };
+    if params.len() != codecs.len() {
         return unlowered(sig);
     }
-    for (p, c) in params.iter().zip(hm.params) {
+    for (p, c) in params.iter().zip(codecs) {
         let pt = subst(pool, env, m, full, *p);
         let vts = lay.vts(pt)?;
         args.push(match (c, vts.as_slice()) {

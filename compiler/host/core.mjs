@@ -47,6 +47,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { isIP } from "node:net";
 import { MessageChannel, receiveMessageOnPort, Worker } from "node:worker_threads";
 import { randomBytes } from "node:crypto";
 import { arch as osArch, availableParallelism, hostname, platform, tmpdir } from "node:os";
@@ -89,6 +90,13 @@ export function resolvePath(path) {
   }
 }
 
+// Whether `host` is a name or an IP address
+// (std-net.error.invalid-address).
+export function validHost(host) {
+  const name = /^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\.?$/;
+  return isIP(host) !== 0 || name.test(host);
+}
+
 // A program's capability grant as `hd` resolved it (Grant Precedence):
 // each trait with a limit maps to `false`, a total deny, or the list of its
 // scope entries, whose paths are absolute and resolved; a trait it leaves
@@ -121,6 +129,16 @@ export function createGrant(limits = {}) {
           ? host.endsWith(h.slice(1)) && host.length > h.length - 1
           : h.toLowerCase() === host.toLowerCase();
         return hostOk && (p === null || Number(p) === port);
+      }),
+    // cli.cap.scope.net.lookup: the host match alone, whatever port an
+    // entry names.
+    coversHostName: (key, host) =>
+      check(key, (e) => {
+        const v6 = /^\[([^\]]*)\]/.exec(e);
+        const h = v6 ? v6[1] : e.split(":").length === 2 ? e.split(":")[0] : e;
+        return h.startsWith("*.")
+          ? host.endsWith(h.slice(1)) && host.length > h.length - 1
+          : h.toLowerCase() === host.toLowerCase();
       }),
     // cli.cap.scope.env, .process, .sys.
     coversName: (key, name) =>
@@ -256,27 +274,45 @@ const HTTP = {
   Other: 7,
 };
 
-// The client thread of `http.mjs`, started on the first request; each
-// request waits for it synchronously, so it finishes inside `.start`.
-let httpClient = null;
-const httpSend = (request) => {
-  if (httpClient === null) {
-    const { port1, port2 } = new MessageChannel();
-    const flag = new Int32Array(new SharedArrayBuffer(4));
-    const worker = new Worker(new URL("./http.mjs", import.meta.url), {
-      workerData: { port: port2, flag },
-      transferList: [port2],
-    });
-    worker.unref();
-    port1.unref();
-    httpClient = { port: port1, flag };
-  }
-  const { port, flag } = httpClient;
-  Atomics.store(flag, 0, 0);
-  port.postMessage(request);
-  Atomics.wait(flag, 0, 0);
-  return receiveMessageOnPort(port).message;
+// A client thread running `file` (`http.mjs`, `net.mjs`), started on its
+// first call. `call(request)` posts the request and waits for the thread's
+// answer synchronously, so an operation finishes inside its `.start`.
+const syncClient = (file) => {
+  let client = null;
+  return {
+    call: (request) => {
+      if (client === null) {
+        const { port1, port2 } = new MessageChannel();
+        const flag = new Int32Array(new SharedArrayBuffer(4));
+        const worker = new Worker(new URL(`./${file}`, import.meta.url), {
+          workerData: { port: port2, flag },
+          transferList: [port2],
+        });
+        worker.unref();
+        port1.unref();
+        client = { port: port1, flag, worker };
+      }
+      const { port, flag } = client;
+      Atomics.store(flag, 0, 0);
+      port.postMessage(request);
+      Atomics.wait(flag, 0, 0);
+      return receiveMessageOnPort(port).message;
+    },
+    // Stops the thread, closing whatever it holds open.
+    stop: () => {
+      client?.worker.terminate();
+      client = null;
+    },
+  };
 };
+
+// HTTP requests hold nothing open, so one client serves every instance.
+const httpClient = syncClient("http.mjs");
+const httpSend = (request) => httpClient.call(request);
+
+// `NetError`'s variants (std.net), and `ResourceError`'s.
+const NET = { NotGranted: 0, InvalidAddress: 1, Dns: 2, Refused: 3, Other: 4 };
+const RES = { Operation: 0, Disposed: 1 };
 
 // `SysError`'s variants (std.sys).
 const SYS = { NotGranted: 0, Unsupported: 1 };
@@ -579,6 +615,40 @@ export function createHost(sink, env = {}) {
       .bytes(r.body);
   };
 
+  // `Net` and its socket handles (spec/std/net.md) on a client thread of
+  // this instance's own, which holds its sockets; `close` stops it.
+  const netClient = syncClient("net.mjs");
+  // `.Err(NetError)`, for a `Net` method, from a client outcome.
+  const netErr = (e, [variant, text]) => e.leb(NET[variant]).str(text);
+  // `Result[T, NetError]` of a `Net` method: `ok(e, value)` encodes `T`.
+  const netResult = (r, ok) => {
+    const e = new Enc();
+    return r.error ? netErr(e.leb(1), r.error) : ok(e.leb(0), r.ok);
+  };
+  // `Result[T, ResourceError[NetError]]` of a handle's method.
+  const handleResult = (r, ok) => {
+    const e = new Enc();
+    if (r.unknown) throw new HostContract("an operation on a handle the host never made");
+    if (r.disposed) return e.leb(1).leb(RES.Disposed);
+    return r.error ? netErr(e.leb(1).leb(RES.Operation), r.error) : ok(e.leb(0), r.ok);
+  };
+  const handle = (e, h) => e.leb(h);
+  const none = (e) => e;
+  // A call names its address `host:port` (std-net.error.address): one
+  // whose host is no host is `InvalidAddress`, and one the grant does not
+  // cover `NotGranted` (cli.cap.scope.net), before any socket opens.
+  const netAt = (op, host, port, more = {}) => {
+    const address = `${host}:${port}`;
+    if (!validHost(host)) return { error: ["InvalidAddress", address] };
+    if (!grant.coversHost("Net", host, port)) return { error: ["NotGranted", address] };
+    return netClient.call({ op, host, port, address, ...more });
+  };
+  const closeHandle = (h) => put(handleResult(netClient.call({ op: "close", handle: h }), none));
+  const opened = (op) => (port, len) => {
+    const host = argsOf(len).str();
+    return ready(netResult(netAt(op, host, port), handle));
+  };
+
   const imports = {
     "hd:rt": {
       stderr: (len) => {
@@ -650,6 +720,66 @@ export function createHost(sink, env = {}) {
     "hd:Http": waiting({
       send: { start: (len) => ready(httpRequest(argsOf(len))), finish: never },
     }),
+    "hd:Net": {
+      ...waiting({
+        // cli.cap.scope.net.lookup: an entry covers a lookup of its host.
+        lookup: {
+          start: (len) => {
+            const host = text(len);
+            const r = !validHost(host)
+              ? { error: ["InvalidAddress", host] }
+              : grant.coversHostName("Net", host)
+                ? netClient.call({ op: "lookup", host })
+                : { error: ["NotGranted", host] };
+            return ready(netResult(r, (e, found) => e.list(found, (e, a) => e.str(a))));
+          },
+          finish: never,
+        },
+        connect: { start: opened("connect"), finish: never },
+        listen: { start: opened("listen"), finish: never },
+        bind_udp: { start: opened("bind_udp"), finish: never },
+        "TcpStream.read": {
+          start: (h, max) =>
+            ready(handleResult(netClient.call({ op: "read", handle: h, max }), (e, b) => e.bytes(b))),
+          finish: never,
+        },
+        "TcpStream.write": {
+          start: (h, len) => {
+            const bytes = Uint8Array.from(argsOf(len).bytes());
+            return ready(handleResult(netClient.call({ op: "write", handle: h, bytes }), none));
+          },
+          finish: never,
+        },
+        "TcpListener.accept": {
+          start: (h) => ready(handleResult(netClient.call({ op: "accept", handle: h }), handle)),
+          finish: never,
+        },
+        // std-net.send-to.grant: each datagram's own address.
+        "UdpSocket.send_to": {
+          start: (h, port, len) => {
+            const d = argsOf(len);
+            const host = d.str();
+            const bytes = Uint8Array.from(d.bytes());
+            const r = netAt("send_to", host, port, { handle: h, bytes });
+            return ready(handleResult(r, none));
+          },
+          finish: never,
+        },
+        "UdpSocket.receive": {
+          start: (h, max) =>
+            ready(
+              handleResult(netClient.call({ op: "receive", handle: h, max }), (e, d) =>
+                e.bytes(d.bytes).str(d.host).leb(d.port),
+              ),
+            ),
+          finish: never,
+        },
+      }),
+      // A second `close` is `Disposed` (std-net.handles.closable).
+      "TcpStream.close": (h) => closeHandle(h),
+      "TcpListener.close": (h) => closeHandle(h),
+      "UdpSocket.close": (h) => closeHandle(h),
+    },
     "hd:Args": {
       program: () => put(new Enc().str(program)),
       list: () => put(new Enc().list(args, (e, a) => e.str(a))),
@@ -850,8 +980,9 @@ export function createHost(sink, env = {}) {
     return { status, trapped, ended };
   };
 
-  // Removes a directory the host made for itself.
+  // Removes a directory the host made for itself, and closes its sockets.
   const close = () => {
+    netClient.stop();
     if (ownTemp) {
       try {
         rmSync(ownTemp, { recursive: true, force: true });

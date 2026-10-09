@@ -64,6 +64,25 @@ pub enum BTy {
         boxed: Option<WTy>,
         elems: Vec<BTy>,
     },
+    /// A host handle (`hd_host_abi::HANDLES`), such as a socket: its
+    /// handle number. It only crosses from the host.
+    Handle(Box<HandleB>),
+}
+
+/// A host handle's trait value: its payload is a `payload` struct of the
+/// handle number, and its vtable `vt` holds `slots`, host calls that take
+/// the number first.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct HandleB {
+    pub payload: WTy,
+    pub vt: WTy,
+    pub slots: Vec<Helper>,
+}
+
+/// The payload struct of a host handle: its handle number.
+#[must_use]
+pub fn handle_payload() -> WTy {
+    crate::layout::box_of(&[VT::I32])
 }
 
 /// An enum's layout (`layout::EnumShape`) with its payloads' boundary types.
@@ -179,6 +198,17 @@ impl BTy {
                     variants,
                 }))
             }
+            Shape::Dyn { trait_, args, vt } if args == hd_types::TyList::EMPTY => {
+                let path = (lay.path)(trait_).replace('/', ".");
+                let Some(host) = hd_host_abi::handle_trait(&path) else {
+                    return unsupported(what());
+                };
+                BTy::Handle(Box::new(HandleB {
+                    payload: handle_payload(),
+                    slots: crate::emit::handle_slots(lay, trait_, host)?,
+                    vt,
+                }))
+            }
             Shape::Tuple { boxed, .. } => {
                 let TyData::Tuple { elems, rest: None } = pool.get(t) else {
                     return unsupported(what());
@@ -226,6 +256,7 @@ impl BTy {
                 Some(b) => vec![VT::r(b.clone())],
                 None => elems.iter().flat_map(BTy::vts).collect(),
             },
+            BTy::Handle(h) => vec![VT::Eq, VT::r(h.vt.clone())],
         }
     }
 
@@ -329,6 +360,15 @@ impl BTy {
                     e.encode(w);
                 }
             }
+            BTy::Handle(h) => {
+                w.u8(11);
+                enc_wty(&h.payload, w);
+                enc_wty(&h.vt, w);
+                w.len_of(&h.slots);
+                for s in &h.slots {
+                    s.encode(w);
+                }
+            }
         }
     }
 
@@ -396,6 +436,13 @@ impl BTy {
                         .collect::<Option<Vec<_>>>()?,
                 }
             }
+            11 => BTy::Handle(Box::new(HandleB {
+                payload: dec_wty(r)?,
+                vt: dec_wty(r)?,
+                slots: (0..r.count())
+                    .map(|_| Helper::decode(r))
+                    .collect::<Option<Vec<_>>>()?,
+            })),
             _ => return None,
         })
     }
@@ -753,6 +800,7 @@ pub fn enc_code(b: &BTy) -> StageResult<Code> {
                 first += n;
             }
         }
+        BTy::Handle(_) => return unsupported("a host handle passed to the host"),
         BTy::Tuple { boxed, elems } => {
             let mut first = 0;
             for e in elems {
@@ -1154,6 +1202,14 @@ pub fn dec_code(b: &BTy) -> StageResult<Code> {
                 a.get(*v);
             }
             a.struct_new(ty);
+        }
+        BTy::Handle(h) => {
+            get_len(&mut a, 0);
+            a.struct_new(&h.payload);
+            for s in &h.slots {
+                a.ref_func(Sym::Helper(s.clone()));
+            }
+            a.struct_new(&h.vt);
         }
         BTy::Tuple { boxed, elems } => {
             let mut vals = Vec::new();

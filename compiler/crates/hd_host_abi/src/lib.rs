@@ -213,6 +213,40 @@ pub static TABLE: &[HostTrait] = &[
         )],
     },
     HostTrait {
+        key: "Net",
+        std_path: "std.net.Net",
+        methods: &[
+            m(
+                "lookup",
+                &[B("string")],
+                B("Result[List[string], NetError]"),
+                Wait::May,
+                Some(ResourceArg::Host),
+            ),
+            m(
+                "connect",
+                &[B("string"), S(Scalar::I32)],
+                B("Result[TcpStream, NetError]"),
+                Wait::May,
+                Some(ResourceArg::Addr),
+            ),
+            m(
+                "listen",
+                &[B("string"), S(Scalar::I32)],
+                B("Result[TcpListener, NetError]"),
+                Wait::May,
+                Some(ResourceArg::Addr),
+            ),
+            m(
+                "bind_udp",
+                &[B("string"), S(Scalar::I32)],
+                B("Result[UdpSocket, NetError]"),
+                Wait::May,
+                Some(ResourceArg::Addr),
+            ),
+        ],
+    },
+    HostTrait {
         key: "Process",
         std_path: "std.process.Process",
         methods: &[m(
@@ -318,10 +352,98 @@ pub static RUNNERS: &[HostTrait] = &[
     },
 ];
 
+/// Host handles (runtime-and-host.md §17.4): the traits of values that a
+/// host method returns as a handle number, such as `Net`'s sockets. In hd
+/// such a value is a trait value whose vtable's slots are host calls that
+/// take the handle first, as an `i32`; they are imported from the module
+/// of the capability that made the handle, named `<Trait>.<method>`.
+pub static HANDLES: &[HostTrait] = &[
+    HostTrait {
+        key: "Net",
+        std_path: "std.net.TcpStream",
+        methods: &[
+            m(
+                "TcpStream.read",
+                &[S(Scalar::I32), S(Scalar::I32)],
+                B("Result[List[u8], ResourceError[NetError]]"),
+                Wait::May,
+                None,
+            ),
+            m(
+                "TcpStream.write",
+                &[S(Scalar::I32), B("List[u8]")],
+                B("Result[void, ResourceError[NetError]]"),
+                Wait::May,
+                None,
+            ),
+            m(
+                "TcpStream.close",
+                &[S(Scalar::I32)],
+                B("Result[void, ResourceError[NetError]]"),
+                Wait::Never,
+                None,
+            ),
+        ],
+    },
+    HostTrait {
+        key: "Net",
+        std_path: "std.net.TcpListener",
+        methods: &[
+            m(
+                "TcpListener.accept",
+                &[S(Scalar::I32)],
+                B("Result[TcpStream, ResourceError[NetError]]"),
+                Wait::May,
+                None,
+            ),
+            m(
+                "TcpListener.close",
+                &[S(Scalar::I32)],
+                B("Result[void, ResourceError[NetError]]"),
+                Wait::Never,
+                None,
+            ),
+        ],
+    },
+    HostTrait {
+        key: "Net",
+        std_path: "std.net.UdpSocket",
+        methods: &[
+            m(
+                "UdpSocket.send_to",
+                &[S(Scalar::I32), B("string"), S(Scalar::I32), B("List[u8]")],
+                B("Result[void, ResourceError[NetError]]"),
+                Wait::May,
+                Some(ResourceArg::Addr),
+            ),
+            m(
+                "UdpSocket.receive",
+                &[S(Scalar::I32), S(Scalar::I32)],
+                B("Result[Datagram, ResourceError[NetError]]"),
+                Wait::May,
+                None,
+            ),
+            m(
+                "UdpSocket.close",
+                &[S(Scalar::I32)],
+                B("Result[void, ResourceError[NetError]]"),
+                Wait::Never,
+                None,
+            ),
+        ],
+    },
+];
+
 /// The host trait, capability or runner, whose std path is `std_path`.
 #[must_use]
 pub fn host_trait(std_path: &str) -> Option<&'static HostTrait> {
     TABLE.iter().chain(RUNNERS).find(|t| t.std_path == std_path)
+}
+
+/// The host handle trait whose std path is `std_path` (`HANDLES`).
+#[must_use]
+pub fn handle_trait(std_path: &str) -> Option<&'static HostTrait> {
+    HANDLES.iter().find(|t| t.std_path == std_path)
 }
 
 /// Non-capability import modules (§16.4).
@@ -431,7 +553,7 @@ pub fn is_known_import(module: &str, name: &str) -> bool {
                 .iter()
                 .any(|(_, l)| matches!(l, Lowering::HostPrimitive(n) if *n == name)))
         || (RUNTIME_MODULES.contains(&module) && module != "hd:rt")
-        || TABLE.iter().any(|t| {
+        || TABLE.iter().chain(HANDLES).any(|t| {
             t.methods.iter().any(|m| {
                 imports_of(t, m)
                     .iter()
@@ -478,7 +600,9 @@ pub fn generate_js_glue() -> StageResult<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Handle, INTRINSICS, RUNNERS, TABLE, imports_of, intrinsic, is_known_import};
+    use super::{
+        HANDLES, Handle, INTRINSICS, RUNNERS, TABLE, imports_of, intrinsic, is_known_import,
+    };
 
     #[test]
     fn waiting_methods_import_a_start_finish_pair() {
@@ -539,7 +663,7 @@ mod tests {
     #[test]
     fn table_mirrors_std_capability_traits() {
         let std = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../lib/std");
-        for t in TABLE.iter().chain(RUNNERS) {
+        for t in TABLE.iter().chain(RUNNERS).chain(HANDLES) {
             let (module, name) = t.std_path.rsplit_once('.').expect("path");
             let file = std.join(format!(
                 "{}.hd",
@@ -553,8 +677,10 @@ mod tests {
                 file.display()
             );
             for m in t.methods {
+                // A handle's method is named `<Trait>.<method>`.
+                let method = m.name.rsplit('.').next().unwrap_or(m.name);
                 assert!(
-                    text.contains(&format!("fn {}", m.name)),
+                    text.contains(&format!("fn {method}")),
                     "{}.{} missing",
                     t.key,
                     m.name
