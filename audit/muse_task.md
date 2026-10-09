@@ -456,3 +456,13 @@ rather than a carve-out.
    The alternative (a hidden item plus an env-carrying adapter per
    call, R3-style) pays an adapter at every call site for no extra
    expressiveness. Recommend the Closure value.
+
+### Answers (orchestrator, 2026-10-09 08:35)
+
+- **Q-R23.1:** statement-index mangled paths with content-keyed caches, as
+  recommended.
+- **Q-R23.2:** a local `fn` is a named `Closure` value, as recommended: the
+  spec gives it closure capture rules (`fn.local.capture-rules`) and a
+  self-visible name for recursion (`names.local-fn.visible`). Local types
+  and impls never capture (`names.local-type.static`,
+  `names.local-impl.no-capture`), so they stay hidden module items.
