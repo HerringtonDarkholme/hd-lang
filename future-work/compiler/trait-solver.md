@@ -1145,6 +1145,48 @@ and block expressions, empty collections, and any list, map, tuple or
 parenthesized argument holding one of those
 ([type-checking.md §2.4](type-checking.md#24-calls-and-use-site-type-arguments)).
 
+### 6.6 Choosing Among Several Traits
+
+A method name provided by more than one available trait resolves in
+four passes, all driven by one `Methods { receiver, name }` goal:
+
+1. **Gather.** The per-folder method index maps the name to the
+   available traits that declare it (or reach it through a
+   supertrait); the goal carries that trait list and asks one
+   `Instantiations` goal per trait. Unavailable traits never enter
+   the goal — they are listed in the answer for diagnostics only
+   (the `use` fix-it).
+2. **Narrow by shape.** Before any trial, candidates whose
+   parameter head constructors cannot match an argument whose type
+   is already known are dropped.
+3. **Narrow by bounds and fit.** Each surviving scheme instantiates
+   inside a checker trial (fresh variables, residual obligations as
+   goals); a candidate applies when the arguments check against its
+   method type with the instantiation substituted, plus the expected
+   result type when the call has one
+   (`trait.resolve.applies`, `trait.resolve.applies.expected`).
+   Failing candidates drop.
+4. **Decide.** Exactly one applicable candidate is selected
+   (`trait.resolve.one-applies`); instantiations of one generic
+   trait choose the same way, with literal-default resolution
+   breaking width ties (`trait.resolve.literal-arg`). Two or more
+   applicable candidates from different traits — or beside a
+   promoted candidate — are `ambiguous-method`, whatever the
+   signatures (`names.method-lookup.ambiguous`); a single candidate
+   with the wrong signature is still selected and the call is
+   checked against it. None applicable is `type-mismatch` (listing
+   the instantiations), none at all `unknown-method`.
+5. **Record for Emit.** The call keeps a callee record: `Item` for
+   inherent and direct callees, `TraitMethod` with the solver's
+   choice otherwise — `Impl` (direct call of the impl method),
+   `Bound` (`select` at the instance's types), `TraitValue`
+   (`CallDyn`, plus a witness for generic methods), `Builtin` (the
+   generated body). Collection pushes per §13.2 steps 3–4.
+6. **Memoize by availability.** Multi-trait answers depend on which
+   traits are available, so `Methods` goals key by `AvailKey` (with
+   `EnvKey`, `LocalVis` and the universe where applicable); without
+   it one module's answer would leak into another's scope.
+
 ## 7. Memoization And Budgets
 
 ### 7.1 Memo Keys And Eligibility

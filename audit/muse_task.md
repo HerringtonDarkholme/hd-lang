@@ -117,16 +117,6 @@ breaks, and say which stage produces the wrong value (print the TIR or
 the Wasm text if the driver can). Add the findings to
 `audit/compiler/triage-wrong-runs.md`. Read only; timebox 45 minutes.
 
-### R21. Design Note: Method Choice Among Several Traits (#42, Design Text)
-
-A method name provided by more than one available trait is unsupported
-today. Read the method-lookup rules (`spec/lang/03-names-and-scopes.md`,
-`09-traits.md`: candidates, availability, `ambiguous-method`, qualified
-calls) and `trait-solver.md` (Methods goals, AvailKey). Add to
-`trait-solver.md` how candidates are gathered and narrowed (receiver
-type, availability, bounds), when it is `ambiguous-method`, and what the
-call records for Emit. Timebox 45 minutes.
-
 ### R22. Plan The Remaining Body And Emit Stops (Research)
 
 After #46 and #74 land, list every remaining `unsupported:Body` and
@@ -408,3 +398,16 @@ The alternative (first-break-wins row) repeats the too-few-providers
 bug this design removes. The spec lists branches, arms, and
 closure/fn results but not loop joins; recommend the same rule
 rather than a carve-out.
+
+### Q-R21: fix-it cost and promotion ties (R21, 2026-10-09)
+
+1. **Compute unavailable-trait matches diagnostics-only with a fuel
+   cap (recommended).** Listing traits that would match but are not
+   available means solving in traits the module never imported; do it
+   only for the error path, capped, never memoized. The alternative
+   (always computing it) taxes every successful multi-trait lookup.
+   Recommend diagnostics-only.
+2. **Same-depth promotion ties are ambiguous (recommended).** The
+   promoted candidate wins at the smallest depth, but nothing breaks
+   a tie between two promotion paths at that depth. Recommend
+   ambiguous-method, consistent with trait-vs-trait ties.
