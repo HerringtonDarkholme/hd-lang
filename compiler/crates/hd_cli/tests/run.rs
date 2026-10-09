@@ -1323,3 +1323,32 @@ fn nested_string_literals_in_interpolation_print_once() {
         "[cd]\nada\na b 7 c d\n"
     );
 }
+
+/// A program that touches no host import still instantiates: the module
+/// declares its memory whatever it links, and the wake runtime is linked
+/// only when something suspends.
+#[test]
+fn programs_without_host_calls_instantiate() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-no-host-calls");
+    std::fs::create_dir_all(&dir).expect("dir");
+    for (name, source) in [
+        ("script.hd", "result := 1 << 3\n"),
+        (
+            "arith.hd",
+            "pub fn main() -> void:\n    total := (6 * 7) - (1 << 3)\n    if total < 0:\n        return\n",
+        ),
+    ] {
+        let file = dir.join(name);
+        std::fs::write(&file, source).expect("write");
+        let output = hd(&cache("hd-cache-no-host-calls"))
+            .arg(&file)
+            .output()
+            .expect("run hd");
+        assert!(
+            output.status.success(),
+            "{name}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(String::from_utf8_lossy(&output.stdout), "", "{name}");
+    }
+}

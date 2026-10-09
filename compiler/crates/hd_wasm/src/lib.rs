@@ -1138,7 +1138,14 @@ pub fn link(
     let mut helpers: BTreeMap<Helper, Code> = BTreeMap::new();
     let mut imports: BTreeSet<(String, String, Vec<VT>, Vec<VT>)> = BTreeSet::new();
     let mut gsyms: BTreeSet<GSym> = BTreeSet::new();
-    let mut todo: Vec<Helper> = exports.iter().map(|e| e.1.clone()).collect();
+    // `hd.wake` joins the exports only when the program can wait on a host
+    // handle, that is, when `WakeTake` is reachable from its code; a program
+    // that never suspends links no wake runtime (suspension.md §14.4).
+    let mut todo: Vec<Helper> = exports
+        .iter()
+        .filter(|e| e.1 != Helper::EntryWake)
+        .map(|e| e.1.clone())
+        .collect();
     let mut scan = |c: &Code, todo: &mut Vec<Helper>| {
         for (_, r) in &c.relocs {
             match r {
@@ -1166,14 +1173,26 @@ pub fn link(
     for (_, c, _) in &all {
         scan(c, &mut todo);
     }
-    while let Some(h) = todo.pop() {
-        if helpers.contains_key(&h) {
-            continue;
+    let mut wakes = false;
+    loop {
+        while let Some(h) = todo.pop() {
+            if helpers.contains_key(&h) {
+                continue;
+            }
+            let c = rt::helper_code(&h)?;
+            scan(&c, &mut todo);
+            helpers.insert(h, c);
         }
-        let c = rt::helper_code(&h)?;
-        scan(&c, &mut todo);
-        helpers.insert(h, c);
+        if wakes || !helpers.contains_key(&Helper::WakeTake) {
+            break;
+        }
+        wakes = true;
+        todo.push(Helper::EntryWake);
     }
+    let exports: Vec<&(String, Helper)> = exports
+        .iter()
+        .filter(|e| e.1 != Helper::EntryWake || wakes)
+        .collect();
     // Literals: one passive segment, deduplicated by content.
     let mut lits: BTreeMap<Vec<u8>, (u32, u32)> = BTreeMap::new();
     let mut data = Vec::new();
@@ -1328,16 +1347,16 @@ pub fn link(
         export_sec.export(name, ExportKind::Func, f);
     }
     let mut mems = MemorySection::new();
-    if !imports.is_empty() {
-        mems.memory(MemoryType {
-            minimum: 1,
-            maximum: None,
-            memory64: false,
-            shared: false,
-            page_size_log2: None,
-        });
-        export_sec.export("hd.x", ExportKind::Memory, 0);
-    }
+    // Linear memory is the exchange buffer (wasm-layout.md §15.4); every
+    // module declares it, so any helper that touches it validates.
+    mems.memory(MemoryType {
+        minimum: 1,
+        maximum: None,
+        memory64: false,
+        shared: false,
+        page_size_log2: None,
+    });
+    export_sec.export("hd.x", ExportKind::Memory, 0);
     let mut elems = ElementSection::new();
     if !declared.is_empty() {
         let fs: Vec<u32> = declared.into_iter().collect();
@@ -1347,9 +1366,7 @@ pub fn link(
     module.section(&types.sec);
     module.section(&imps);
     module.section(&funcs);
-    if !imports.is_empty() {
-        module.section(&mems);
-    }
+    module.section(&mems);
     module.section(&globals);
     module.section(&export_sec);
     module.section(&elems);
