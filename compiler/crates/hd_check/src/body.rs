@@ -44,6 +44,9 @@ pub struct BodyCx<'a> {
     /// The module's block-local declarations, lifted to hidden items
     /// (checking-and-tir.md "Local items lift to hidden module items").
     pub locals: &'a [hd_resolve::LocalItem],
+    /// The module's file as diagnostics name it, which a `dbg` line's
+    /// location starts with (`module.dbg.location`).
+    pub file_name: &'a str,
     /// When the module's test code is checked, its `tests:` block.
     pub tests: Option<TestsView<'a>>,
 }

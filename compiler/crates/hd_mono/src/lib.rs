@@ -95,6 +95,12 @@ pub trait ProgramEnv: LayoutEnv {
     /// self type, then the trait's and the method's own. `None` when
     /// emission lowers the method itself (trait-solver.md §3.9).
     fn supplied_body(&self, method: DefId, self_ty: Ty) -> StageResult<Option<Body>>;
+    /// The body of one of the `dbg` functions the compiler supplies per
+    /// concrete argument (`dbg_show[ty]`, `dbg[args]`; spec/lang/10-modules.md
+    /// "Debug Printing"). `debug`: `ty` implements `Debug`.
+    fn dbg_body(&self, item: DefId, key: &str, ty: Ty, debug: bool) -> StageResult<Body>;
+    /// `std.format.Debug`, which `dbg_show` prints through where it holds.
+    fn debug_trait(&self) -> DefId;
     /// The items a map key's hashing and equality call (codegen.md
     /// §13.12): the `Eq` trait and `std.hash.hash_of`.
     fn map_key_items(&self) -> (DefId, DefId);
@@ -993,6 +999,8 @@ impl Cx<'_> {
                 "task_race_frame"
                     | "panic"
                     | "entry_write"
+                    | "dbg_write"
+                    | "list_truncate"
                     | "bytes_len"
                     | "bytes_at"
                     | "bytes_slice"
@@ -1009,6 +1017,13 @@ impl Cx<'_> {
                 ret: subst(self.pool, self.env, def, args, ret),
                 kind: TargetKind::Intrinsic(key),
             });
+        }
+        if let Some(key) = self
+            .env
+            .intrinsic(def)
+            .filter(|k| matches!(k.as_str(), "dbg" | "dbg_show"))
+        {
+            return self.dbg_target(def, &key, args, parent);
         }
         if self.env.body(def).is_none() {
             let Some(key) = self.env.intrinsic(def) else {
@@ -1162,6 +1177,63 @@ impl Cx<'_> {
             ),
             kind: TargetKind::Instance,
         }))
+    }
+
+    /// A call of `dbg_show` or `dbg`, whose body the compiler writes at the
+    /// exact argument (`ProgramEnv::dbg_body`): an instance keyed like any
+    /// other, with no A1 class, since the body reads the type's declaration.
+    fn dbg_target(
+        &mut self,
+        def: DefId,
+        key: &str,
+        args: TyList,
+        parent: InstId,
+    ) -> StageResult<CallTarget> {
+        let Some(&ty) = self.pool.list_items(args).first() else {
+            return err("a `dbg` function without its type argument");
+        };
+        if !self.out.supplied.contains_key(&(def, ty)) {
+            // A class placeholder or a type parameter has no declaration to
+            // print: its text is implementation-defined (`module.dbg.value.generic`).
+            let debug = key == "dbg_show" && self.implements_debug(ty);
+            let body = self.env.dbg_body(def, key, ty, debug)?;
+            self.out.supplied.insert((def, ty), Arc::new(body));
+        }
+        let key = self.push(def, Sub::Body(0), args, parent)?;
+        Ok(CallTarget {
+            key,
+            item: def,
+            args,
+            ret: subst(
+                self.pool,
+                self.env,
+                def,
+                args,
+                self.env.ret(def).unwrap_or(Ty::VOID),
+            ),
+            kind: TargetKind::Instance,
+        })
+    }
+
+    /// Whether the concrete `ty` implements `Debug`, bounds included.
+    fn implements_debug(&mut self, ty: Ty) -> bool {
+        if is_class_ref(self.pool, ty) {
+            return false;
+        }
+        // A tuple's `Debug` is a template that checks its elements only when
+        // it is instantiated, so the elements decide here.
+        if let TyData::Tuple { elems, rest } = self.pool.get(ty) {
+            let parts: Vec<Ty> = self
+                .pool
+                .list_items(elems)
+                .iter()
+                .copied()
+                .chain(rest)
+                .collect();
+            return parts.into_iter().all(|t| self.implements_debug(t));
+        }
+        let debug = self.env.debug_trait();
+        self.select(debug, ty, TyList::EMPTY, None).is_ok()
     }
 
     /// A call of a method the compiler lowers per self type: a sealed
@@ -1383,15 +1455,12 @@ impl Cx<'_> {
         let env = self.env;
         // A compiler-supplied method's instance has no item body: its
         // TIR was generated at its self type (`supplied_target`).
-        let supplied = match env.body(item) {
-            Some(_) => None,
-            None => pool
-                .list_items(args)
-                .first()
-                .and_then(|t| self.out.supplied.get(&(item, *t)))
-                .cloned(),
-        };
-        let Some(body) = env.body(item).or(supplied.as_deref()) else {
+        let supplied = pool
+            .list_items(args)
+            .first()
+            .and_then(|t| self.out.supplied.get(&(item, *t)))
+            .cloned();
+        let Some(body) = supplied.as_deref().or(env.body(item)) else {
             return err("an instance whose item has no TIR");
         };
         let mut calls = HashMap::new();

@@ -1917,11 +1917,23 @@ impl Em<'_> {
             }
             // `std.rt`'s report of an entry point's or a test case's `.Err`
             // on standard error (`module.entry.err-stderr`).
-            "entry_write" => {
+            // `dbg`'s line, to the program's debug output, which is standard
+            // error (`module.dbg.stream`); the same write as an entry point's
+            // error report.
+            "entry_write" | "dbg_write" => {
                 self.load(args[0])?;
                 self.a.call(Sym::Helper(Helper::StrToBuf));
                 self.a.call(crate::rt::stderr_import());
                 crate::rt::write_lit(&mut self.a, "\n");
+                Ok(())
+            }
+            // std's `list_truncate(list, len)`: the list keeps its first
+            // `len` items. Its callers checked the bounds.
+            "list_truncate" => {
+                let (_, lt) = self.list_parts(self.ty_of(args[0]))?;
+                self.comp(args[0], 0, &VT::r(lt.clone()))?;
+                self.comp(args[1], 0, &VT::I32)?;
+                self.a.struct_set(&lt, 0);
                 Ok(())
             }
             "block_on" => {

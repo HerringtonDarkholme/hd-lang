@@ -64,6 +64,8 @@ pub struct KnownItems {
     pub hash_of: DefId,
     pub display: DefId,
     pub debug: DefId,
+    /// `std.format.dbg`, whose call the checker writes out (spec/lang/10-modules.md "Debug Printing").
+    pub dbg: DefId,
     // std.iter, std.convert, std.error
     pub iterator: DefId,
     pub iterable: DefId,
@@ -174,6 +176,7 @@ impl KnownItems {
             hash_of: item("std.hash", "hash_of"),
             display: item("std.format", "Display"),
             debug: item("std.format", "Debug"),
+            dbg: item("std.format", "dbg"),
             iterator: item("std.iter", "Iterator"),
             iterable: item("std.iter", "Iterable"),
             from: item("std.convert", "From"),

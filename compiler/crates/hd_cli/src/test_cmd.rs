@@ -887,7 +887,11 @@ fn judge(case: &TestCase, run: &CaseRun) -> CaseResult {
         if case.expect_panic.as_deref() == Some(category.as_str()) {
             return CaseResult::Passed { us: run.us };
         }
-        return CaseResult::Panicked { category, message };
+        return CaseResult::Panicked {
+            category,
+            message,
+            debug: debug_lines(&run.stderr),
+        };
     }
     if let Some(want) = &case.expect_panic {
         return CaseResult::Failed {
@@ -905,6 +909,16 @@ fn judge(case: &TestCase, run: &CaseRun) -> CaseResult {
             text.to_owned()
         },
     }
+}
+
+/// The `dbg` lines of a trapped case's standard error: everything but the
+/// panic report (`cli.dbg.test`).
+fn debug_lines(stderr: &str) -> String {
+    let mut lines: Vec<&str> = stderr.lines().collect();
+    if let Some(report) = lines.iter().rposition(|l| l.starts_with("panic: ")) {
+        lines.remove(report);
+    }
+    lines.join("\n")
 }
 
 /// The category and message of the host's panic report
@@ -977,7 +991,11 @@ impl Report {
                     let _ = writeln!(t, "    repro: {repro}");
                     ("failed", message)
                 }
-                CaseResult::Panicked { category, message } => {
+                CaseResult::Panicked {
+                    category,
+                    message,
+                    debug,
+                } => {
                     self.failed += 1;
                     let panic = if message.is_empty() {
                         format!("panic: {category}")
@@ -985,6 +1003,9 @@ impl Report {
                         format!("panic: {category}: {message}")
                     };
                     let _ = writeln!(t, "PANIC {at}: {name}\n    {panic}");
+                    for l in debug.lines() {
+                        let _ = writeln!(t, "    {l}");
+                    }
                     if let Some(input) = &input {
                         let _ = writeln!(t, "    input: {input}");
                     }
