@@ -67,7 +67,11 @@ const DEFER: &str = "5\nerr bad\nok 2\n7\nnormal: body\nnormal: second registere
 const GAPS: &str = "200 OK false\n404 Not Found false\n503 Service Unavailable true\n\
                     level 1 top 9\nhi\n0\n1\n2\n25\ntick\ntick\na\nb\n";
 
-const CASES: [(&str, &str); 12] = [
+/// #146: bang calls in branch and loop arms, on the ready path and then
+/// the resume path, validate and give the same values.
+const AWAIT_BRANCHES: &str = "2 10 30 3 41 50 60 31 3\n2 10 30 3 41 50 60 31 3\n";
+
+const CASES: [(&str, &str); 13] = [
     ("hello/hello.hd", "42\n"),
     ("arith/main.hd", "7\n9\n3\n55\n-1\n0\n1\n16\n-10\n"),
     ("data", "3\n-4\n7\n30\n"),
@@ -80,6 +84,7 @@ const CASES: [(&str, &str); 12] = [
     ("suspend/main.hd", SUSPEND),
     ("defer/main.hd", DEFER),
     ("gaps", GAPS),
+    ("await_branches/main.hd", AWAIT_BRANCHES),
 ];
 
 #[test]

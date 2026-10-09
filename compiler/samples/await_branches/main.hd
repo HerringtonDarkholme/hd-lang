@@ -1,0 +1,59 @@
+# Bang calls inside branches and loops (#146): a guarded comprehension,
+# a trailing `if`, a `while` body, a `break` value, a branch tail, a
+# `for` over a range followed by a value, and a retry loop. Each runs on
+# the ready path, then on the resume path.
+use std.time.{Clock, Duration, sleep}
+
+# Waits on the host timer when `ms` is positive (the resume path), else
+# completes at once (the ready path).
+fn fetch!(n: i32, ms: i64) -> i32 $ Clock:
+    if ms > 0:
+        sleep!(Duration::milliseconds(ms))
+    n * 10
+
+fn guarded!(ids: List[i32], ms: i64) -> List[i32] $ Clock:
+    [for id in ids if id != 2 => fetch!(id, ms)]
+
+fn trailing_if!(ms: i64) -> void $ Clock:
+    if true:
+        _ := fetch!(1, ms)
+
+fn while_body!(ms: i64) -> i32 $ Clock:
+    let count = +0
+    while count < 3:
+        _ := fetch!(count, ms)
+        count = count + 1
+    count
+
+fn break_value!(ms: i64) -> i32 $ Clock:
+    total := while true:
+        break fetch!(4, ms)
+    else:
+        0
+    total + 1
+
+fn branch_tail!(flag: bool, ms: i64) -> i32 $ Clock:
+    if flag:
+        fetch!(5, ms)
+    else:
+        fetch!(6, ms)
+
+fn range_sum!(ms: i64) -> i32 $ Clock:
+    let sum = +0
+    for k in 0..3:
+        sum = sum + fetch!(k, ms)
+    sum + 1
+
+fn retry!(ms: i64) -> i32 $ Clock:
+    let tries = +0
+    while true:
+        tries = tries + 1
+        if fetch!(tries, ms) >= 30:
+            break
+    tries
+
+pub fn main!() -> void $ Console + Clock:
+    for ms in [0, 1]:
+        xs := guarded!([1, 2, 3], ms)
+        trailing_if!(ms)
+        println("${xs.len()} ${xs[0]} ${xs[1]} ${while_body!(ms)} ${break_value!(ms)} ${branch_tail!(true, ms)} ${branch_tail!(false, ms)} ${range_sum!(ms)} ${retry!(ms)}")

@@ -638,19 +638,13 @@ impl Em<'_> {
                 self.comp(a, 0, &VT::I32)?;
                 if let Some((lo, hi)) = self.range(r[0]) {
                     // Resuming into the then block takes it; into the
-                    // else block, not (suspension.md §14.2).
-                    let c = self.a.local(VT::I32);
-                    self.a.set(c);
+                    // else block, not (suspension.md §14.2). A `select`,
+                    // since structured blocks here carry no values.
+                    self.in_range(lo, hi);
                     let pc = self.pc();
                     self.a.get(pc);
                     self.a.s().i32_eqz();
-                    self.a.if_();
-                    self.a.get(c);
-                    self.a.else_();
-                    self.in_range(lo, hi);
-                    self.a.end();
-                    self.a.set(c);
-                    self.a.get(c);
+                    self.a.s().select();
                 }
                 self.a.if_();
                 self.open(Ctl::Plain);

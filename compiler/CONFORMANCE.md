@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1854 | 686 | 304 | 2844 |
+| 1862 | 678 | 304 | 2844 |
 
 ## By Chapter
 
@@ -18,18 +18,18 @@ fixture; unsupported surface records progress without failing.
 | `lang/02-grammar.md` | 189 | 13 | 12 | 214 |
 | `lang/03-names-and-scopes.md` | 77 | 14 | 10 | 101 |
 | `lang/04-type-system.md` | 265 | 72 | 15 | 352 |
-| `lang/05-expressions.md` | 164 | 76 | 37 | 277 |
+| `lang/05-expressions.md` | 165 | 75 | 37 | 277 |
 | `lang/06-control-flow.md` | 108 | 33 | 16 | 157 |
 | `lang/07-functions.md` | 82 | 35 | 13 | 130 |
 | `lang/08-data-and-enums.md` | 70 | 39 | 14 | 123 |
 | `lang/09-traits.md` | 208 | 116 | 35 | 359 |
-| `lang/10-modules.md` | 142 | 78 | 38 | 258 |
-| `lang/11-requirements-and-suspension.md` | 124 | 62 | 73 | 259 |
+| `lang/10-modules.md` | 143 | 77 | 38 | 258 |
+| `lang/11-requirements-and-suspension.md` | 126 | 60 | 73 | 259 |
 | `lang/14-annotations.md` | 90 | 56 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 13 | 0 | 1 | 14 |
 | `std/collections.md` | 24 | 5 | 0 | 29 |
-| `std/console.md` | 6 | 1 | 0 | 7 |
+| `std/console.md` | 7 | 0 | 0 | 7 |
 | `std/digest.md` | 0 | 2 | 0 | 2 |
 | `std/encoding.md` | 3 | 0 | 0 | 3 |
 | `std/error.md` | 2 | 11 | 1 | 14 |
@@ -51,7 +51,7 @@ fixture; unsupported surface records progress without failing.
 | `std/result.md` | 4 | 1 | 0 | 5 |
 | `std/serde.md` | 3 | 0 | 5 | 8 |
 | `std/sys.md` | 1 | 0 | 0 | 1 |
-| `std/task.md` | 4 | 3 | 0 | 7 |
+| `std/task.md` | 7 | 0 | 0 | 7 |
 | `std/testing.md` | 19 | 18 | 2 | 39 |
 | `std/text.md` | 29 | 5 | 1 | 35 |
 | `std/time.md` | 15 | 2 | 0 | 17 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 68 | 28 | 9 | 105 |
-| `runtime/valid` | 552 | 180 | 197 | 929 |
+| `runtime/valid` | 560 | 172 | 197 | 929 |
 | `typing/invalid` | 584 | 421 | 69 | 1074 |
 | `typing/valid` | 352 | 34 | 29 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -106,7 +106,7 @@ compiler stage that first declined the case.
 | `fail:placeholder-outside-pipe` | 1 |
 | `fail:private-main` | 7 |
 | `fail:re-export-loop` | 1 |
-| `fail:runtime-exit` | 70 |
+| `fail:runtime-exit` | 62 |
 | `fail:stdout` | 3 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
@@ -658,7 +658,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (70)</summary>
+<details><summary><code>fail:runtime-exit</code> (62)</summary>
 
 - `runtime/panic/for-loop-iterator-invalidated.hd`
 - `runtime/panic/invalid-shift.hd`
@@ -668,8 +668,6 @@ compiler stage that first declined the case.
 - `runtime/panic/assert-equal-f64-unequal.hd`
 - `runtime/valid/literal-patterns.hd`
 - `runtime/valid/string-trim-and-lower.hd`
-- `runtime/valid/suspending-calls-in-loops.hd`
-- `runtime/valid/suspending-call-in-scoped-defer.hd`
 - `runtime/panic/for-iterator-invalidated-via-helper.hd`
 - `runtime/valid/signed-zero-and-infinity-through-generics.hd`
 - `runtime/panic/exhausted-iterator-invalidated-by-growth.hd`
@@ -687,15 +685,10 @@ compiler stage that first declined the case.
 - `runtime/panic/string-slice-inside-scalar.hd`
 - `runtime/panic/string-slice-past-end.hd`
 - `runtime/panic/string-slice-reversed.hd`
-- `runtime/valid/comprehension-bang-calls.hd`
-- `runtime/valid/task-retry.hd`
-- `runtime/valid/task-retry-at-least-once.hd`
 - `runtime/valid/display-tuples.hd`
 - `runtime/panic/list-view-reversed.hd`
 - `runtime/panic/list-view-index-out-of-bounds.hd`
 - `runtime/panic/list-view-invalidated.hd`
-- `runtime/valid/retry-with-backoff.hd`
-- `runtime/valid/scripted-input.hd`
 - `runtime/valid/string-more-methods.hd`
 - `runtime/valid/num-parse-f64-values.hd`
 - `runtime/valid/num-parse-f64-specials.hd`
@@ -729,7 +722,6 @@ compiler stage that first declined the case.
 - `runtime/valid/generic-data-pattern-in-generic-function.hd`
 - `runtime/panic/unbounded-recursion.hd`
 - `runtime/valid/json-typed-missing-key-ignores-default.hd`
-- `runtime/valid/console-error-line-override.hd`
 
 </details>
 
@@ -1858,11 +1850,13 @@ runtime/valid/compound-assign-map-run.hd
 runtime/valid/compound-assignment-alias.hd
 runtime/valid/compound-assignment-run.hd
 runtime/valid/compound-assignment-value-kind.hd
+runtime/valid/comprehension-bang-calls.hd
 runtime/valid/comprehension-forms.hd
 runtime/valid/comprehension-propagation.hd
 runtime/valid/comprehensions.hd
 runtime/valid/conditional-call-program.hd
 runtime/valid/console-error-line-default.hd
+runtime/valid/console-error-line-override.hd
 runtime/valid/console-error-traits.hd
 runtime/valid/console-input-helper.hd
 runtime/valid/construction-provider-capture.hd
@@ -2197,6 +2191,7 @@ runtime/valid/result-propagation-evaluates-once.hd
 runtime/valid/result-propagation.hd
 runtime/valid/result-tests-conversions.hd
 runtime/valid/result-type-candidate.hd
+runtime/valid/retry-with-backoff.hd
 runtime/valid/rng-from-random.hd
 runtime/valid/rng-int-range.hd
 runtime/valid/rng-seeded-sequence.hd
@@ -2215,6 +2210,7 @@ runtime/valid/row-variable-plus-key.hd
 runtime/valid/same-line-suite-body-forms.hd
 runtime/valid/same-line-suite-boundaries.hd
 runtime/valid/script-top-level-runs.hd
+runtime/valid/scripted-input.hd
 runtime/valid/scripted-process.hd
 runtime/valid/seeded-random.hd
 runtime/valid/self-interpolation.hd
@@ -2254,11 +2250,13 @@ runtime/valid/structure-self-ref.hd
 runtime/valid/suite-statement-right-sides.hd
 runtime/valid/suspending-argument-candidate.hd
 runtime/valid/suspending-blanket-impls.hd
+runtime/valid/suspending-call-in-scoped-defer.hd
 runtime/valid/suspending-call-preserves-locals.hd
 runtime/valid/suspending-call-with-defer.hd
 runtime/valid/suspending-call-with-requirement.hd
 runtime/valid/suspending-calls-as-arguments.hd
 runtime/valid/suspending-calls-in-binary-expression.hd
+runtime/valid/suspending-calls-in-loops.hd
 runtime/valid/suspending-closure-captures.hd
 runtime/valid/suspending-closure-requirement-row.hd
 runtime/valid/suspending-test-body.hd
@@ -2268,6 +2266,8 @@ runtime/valid/suspending-trait-dispatch.hd
 runtime/valid/tab-only-as-content.hd
 runtime/valid/task-all-list-empty.hd
 runtime/valid/task-all-list-order.hd
+runtime/valid/task-retry-at-least-once.hd
+runtime/valid/task-retry.hd
 runtime/valid/template-derived-trait-self.hd
 runtime/valid/termination-void-reports-zero.hd
 runtime/valid/test-block-on.hd
