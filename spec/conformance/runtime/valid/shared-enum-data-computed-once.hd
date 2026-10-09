@@ -11,7 +11,7 @@ enum Box[T](count: i32, seen: i32 = bump(), items: List[i32] = [1]):
     Full(value: T) -> Box(1)
     Empty -> Box(0)
 
-fn main() -> i32:
+fn main() -> void:
     let first: Box[string] = Box.Full("a")
     let second: Box[string] = Box.Full("b")
     let empty: Box[string] = Box.Empty

@@ -168,3 +168,30 @@ fast". The orchestrator writes `compiler/crates/*`; you measure it.
   the 3,000-line bench build before and after, so the std.task to
   std.time cost is on record.
 
+### Q-F1: 87 fixtures' tests assert `main()`'s i32 value (F1 partial: 34/122 done)
+
+F1's recipe (signature to `-> void`, bodies kept) is done and green for
+34 fixtures whose tests never use `main()`'s value (list in the commit).
+It cannot extend to the other 87: their `tests:` blocks assert the
+value, e.g. `assert_equal(main(), 42)`, and with `-> void` that is
+`unsatisfied-trait-bound: type 'void' does not implement Eq` (verified
+on `comprehensions.hd`, then reverted). "Do not change tests" and
+"rewrite each" conflict there. Also found while here: a trailing value
+in a `-> void` body is silently dropped (no mismatch error), and
+integer literals widen without the `i32` context, so two panic
+fixtures needed `let _: i32 = …` to keep their overflow (done), one
+marker file (`function-result-type-mismatch.hd`) tests the `i32`
+mismatch itself and was left alone, and the 2 `pub fn main() -> i32`
+fixtures (`expected-i32-found-usize`, `entry-result-not-termination`)
+are deliberate rule coverage, out of F1's grep. Options:
+
+1. **Leave the 87 as `-> i32` (recommended).** Non-pub `main` is an
+   ordinary function per `module.entry.private-main`; nothing rejects
+   its result type, so the F1 premise does not apply to them. The 34
+   already done still silence their `private-main` warnings.
+2. **Rewrite the 87 tests to not need the value.** Contradicts "do not
+   change tests"; a follow-up job with the fixture rule lifted could
+   rename the helpers (e.g. `compute()`) and keep every assertion.
+3. **Accept the breakage now, fix tests after.** Not recommended:
+   87 red suites for an intermediate commit.
+

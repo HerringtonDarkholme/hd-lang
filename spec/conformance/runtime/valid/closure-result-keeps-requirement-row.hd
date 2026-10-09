@@ -18,6 +18,6 @@ fn run() -> string $ Db:
     handler := pick(true)
     handler()
 
-fn main() -> i32:
+fn main() -> void:
     $.with(Db=MemoryDb {}):
         if run() == "db": 1 else: 0

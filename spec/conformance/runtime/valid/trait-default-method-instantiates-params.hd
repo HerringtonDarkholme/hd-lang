@@ -15,7 +15,7 @@ impl Source[i32] for Counter:
         self.n = self.n + 1
         .Some(self.n)
 
-fn main() -> i32:
+fn main() -> void:
     let counter: mut Counter = Counter { n: 0 }
     match counter.second():
         .Some(value) => value

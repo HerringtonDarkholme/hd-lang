@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1657 | 679 | 508 | 2844 |
+| 1661 | 679 | 504 | 2844 |
 
 ## By Chapter
 
@@ -17,12 +17,12 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 127 | 16 | 2 | 145 |
 | `lang/02-grammar.md` | 183 | 14 | 17 | 214 |
 | `lang/03-names-and-scopes.md` | 70 | 12 | 19 | 101 |
-| `lang/04-type-system.md` | 252 | 72 | 28 | 352 |
+| `lang/04-type-system.md` | 254 | 72 | 26 | 352 |
 | `lang/05-expressions.md` | 142 | 78 | 57 | 277 |
 | `lang/06-control-flow.md` | 100 | 33 | 24 | 157 |
 | `lang/07-functions.md` | 51 | 34 | 45 | 130 |
 | `lang/08-data-and-enums.md` | 52 | 40 | 31 | 123 |
-| `lang/09-traits.md` | 199 | 117 | 43 | 359 |
+| `lang/09-traits.md` | 201 | 117 | 41 | 359 |
 | `lang/10-modules.md` | 127 | 85 | 46 | 258 |
 | `lang/11-requirements-and-suspension.md` | 104 | 54 | 101 | 259 |
 | `lang/14-annotations.md` | 84 | 55 | 14 | 153 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 57 | 32 | 16 | 105 |
-| `runtime/valid` | 420 | 172 | 337 | 929 |
+| `runtime/valid` | 424 | 172 | 333 | 929 |
 | `typing/invalid` | 549 | 416 | 109 | 1074 |
 | `typing/valid` | 335 | 34 | 46 | 415 |
 | `typing/warnings` | 9 | 11 | 0 | 20 |
@@ -124,9 +124,9 @@ compiler stage that first declined the case.
 | `fail:unsatisfied-trait-bound` | 30 |
 | `fail:unused-local-binding` | 10 |
 | `unsupported:Body` | 202 |
-| `unsupported:Collect` | 30 |
+| `unsupported:Collect` | 25 |
 | `unsupported:Discover` | 13 |
-| `unsupported:Emit` | 164 |
+| `unsupported:Emit` | 165 |
 | `unsupported:FolderIface` | 35 |
 | `unsupported:Link` | 1 |
 | `unsupported:RunCase` | 57 |
@@ -1258,7 +1258,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Collect</code> (30)</summary>
+<details><summary><code>unsupported:Collect</code> (25)</summary>
 
 - `runtime/valid/reference-bounded-dynamic-method.hd`
 - `runtime/valid/trait-value-as-provider.hd`
@@ -1274,11 +1274,6 @@ compiler stage that first declined the case.
 - `runtime/valid/derived-default-declared-no-bound.hd`
 - `runtime/valid/derived-debug-newtype.hd`
 - `runtime/valid/handle-fact-exact-type.hd`
-- `runtime/valid/ord-supertrait-dispatch.hd`
-- `runtime/valid/generic-inherent-box.hd`
-- `runtime/valid/i64-widening-checked.hd`
-- `runtime/valid/u8-checked-add.hd`
-- `runtime/valid/closure-result-keeps-requirement-row.hd`
 - `runtime/valid/serde-std-writes.hd`
 - `runtime/valid/serde-derive-read-order.hd`
 - `runtime/valid/serde-variant-member-facts.hd`
@@ -1311,7 +1306,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Emit</code> (164)</summary>
+<details><summary><code>unsupported:Emit</code> (165)</summary>
 
 - `runtime/valid/float-display.hd`
 - `runtime/valid/partial-equality-dispatch.hd`
@@ -1465,6 +1460,7 @@ compiler stage that first declined the case.
 - `runtime/valid/optional-closure-arguments.hd`
 - `runtime/valid/nested-mutable-captures.hd`
 - `runtime/valid/loop-iteration-cells.hd`
+- `runtime/valid/closure-result-keeps-requirement-row.hd`
 - `runtime/valid/data-literal-evaluation-order.hd`
 - `runtime/valid/recursive-data-types.hd`
 - `runtime/valid/serde-std-reads.hd`
@@ -2106,6 +2102,7 @@ runtime/valid/generic-forward-bound-explicit-first-slot.hd
 runtime/valid/generic-inference-literal-any-position.hd
 runtime/valid/generic-inference-mut-weakening.hd
 runtime/valid/generic-inference-scalars-and-data.hd
+runtime/valid/generic-inherent-box.hd
 runtime/valid/generic-list-element.hd
 runtime/valid/generic-method-candidate-local.hd
 runtime/valid/generic-methods.hd
@@ -2129,6 +2126,7 @@ runtime/valid/i32-extremes-through-generics.hd
 runtime/valid/i32-minimum-literal.hd
 runtime/valid/i32-minimum-through-generic-optional.hd
 runtime/valid/i64-u64-precision-through-generics.hd
+runtime/valid/i64-widening-checked.hd
 runtime/valid/identifier-spellings.hd
 runtime/valid/impl-distinct-target-arguments.hd
 runtime/valid/impl-method-generics-renamed.hd
@@ -2229,6 +2227,7 @@ runtime/valid/operators-without-spaces.hd
 runtime/valid/option-tests-conversions.hd
 runtime/valid/optional-alias-mutation.hd
 runtime/valid/optional-mutable-match.hd
+runtime/valid/ord-supertrait-dispatch.hd
 runtime/valid/outer-field-beside-embedded-method.hd
 runtime/valid/parenthesized-nested-same-line-if.hd
 runtime/valid/partial-ordering-dispatch.hd
@@ -2354,6 +2353,7 @@ runtime/valid/tuple-thirteen-elements.hd
 runtime/valid/tuple-vararg-infer.hd
 runtime/valid/type-arguments-in-expressions.hd
 runtime/valid/typed-derivation-embedded-generic-walk.hd
+runtime/valid/u8-checked-add.hd
 runtime/valid/unicode-function-names.hd
 runtime/valid/unit-pattern-void-success.hd
 runtime/valid/unit-test-manual-clock.hd

@@ -1,6 +1,7 @@
 # test: integer power overflow
 
-fn main() -> i32: 2 ** 31  # panic: integer-overflow
+fn main() -> void:
+    let _: i32 = 2 ** 31  # panic: integer-overflow
 
 tests:
     it("an overflowing integer power panics"):

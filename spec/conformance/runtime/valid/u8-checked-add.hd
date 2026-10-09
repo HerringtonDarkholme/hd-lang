@@ -4,6 +4,6 @@ use std.testing.assert_equal
 
 fn add(a: u8, b: u8) -> u8: a + b
 
-fn main() -> i32:
+fn main() -> void:
     assert_equal(add(200, 55), 255, reason="u8 addition")
     0

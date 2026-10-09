@@ -1,6 +1,6 @@
 # test: explicit panic skips defer
 
-fn main() -> i32:
+fn main() -> void:
     defer:
         panic("cleanup must not run")
     panic("boom")  # panic: explicit-panic

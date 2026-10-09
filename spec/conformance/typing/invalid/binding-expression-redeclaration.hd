@@ -2,6 +2,6 @@
 # Spec 03 Bindings: names.scope.duplicate, names.scope.reassign,
 # names.bind.no-redeclare.
 
-fn main() -> i32:
+fn main() -> void:
     value := 1
     (value := 2)  # diagnostic: duplicate-binding
