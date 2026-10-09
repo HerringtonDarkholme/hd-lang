@@ -469,7 +469,7 @@ pub enum Lowering {
 /// `test_case` belong to the compiler-supplied `std.core.panic`,
 /// `std.task.all` and `std.testing.it`, `assert_equal` to
 /// `std.testing.assert_equal`, `entry_write` to `std.rt`, and
-/// `downcast_val`, `downcast` and `downcast_mut` to `std.inspect`.
+/// `downcast_val`, `downcast`, `downcast_mut` and `type_id_of` to `std.inspect`.
 pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("bytes_len", Lowering::Compiler),
     ("bytes_at", Lowering::Compiler),
@@ -483,6 +483,7 @@ pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("panic_message", Lowering::Compiler),
     ("facts_of", Lowering::Compiler),
     ("downcast_val", Lowering::Compiler),
+    ("type_id_of", Lowering::Compiler),
     ("downcast", Lowering::Compiler),
     ("downcast_mut", Lowering::Compiler),
     ("task_race_frame", Lowering::Compiler),

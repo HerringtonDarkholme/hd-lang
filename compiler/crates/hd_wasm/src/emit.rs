@@ -1767,7 +1767,7 @@ impl Em<'_> {
         if let Some(Target::Call(t)) = &target
             && let TargetKind::Intrinsic(key) = &t.kind
         {
-            return self.call_intrinsic(i, t.item, key, args, ty);
+            return self.call_intrinsic(i, (t.item, t.args), key, args, ty);
         }
         if let Callee::TraitMethod {
             trait_,
@@ -1785,7 +1785,7 @@ impl Em<'_> {
         };
         match &t.kind {
             TargetKind::Instance => self.call_instance(i, &t, args, ty, false),
-            TargetKind::Intrinsic(key) => self.call_intrinsic(i, t.item, key, args, ty),
+            TargetKind::Intrinsic(key) => self.call_intrinsic(i, (t.item, t.args), key, args, ty),
             TargetKind::Builtin { self_ty, .. } => {
                 let name = (self.lay.path)(t.item);
                 let name = name.rsplit(['.', '/']).next().unwrap_or("").to_owned();
@@ -1983,12 +1983,21 @@ impl Em<'_> {
     fn call_intrinsic(
         &mut self,
         i: u32,
-        item: DefId,
+        (item, targs): (DefId, TyList),
         key: &str,
         args: &[u32],
         ty: Ty,
     ) -> StageResult<()> {
         match key {
+            // `TypeId::of::[T]()` (trait.typeid.of): the same `TypeId`
+            // `runtime_type` builds for a value of type `T`.
+            "type_id_of" => {
+                let Some(&t) = self.pool().list_items(targs).last() else {
+                    return unsupported("a `TypeId::of` without its type argument");
+                };
+                self.push_type_id(t, ty)?;
+                self.store(i)
+            }
             "downcast_val" | "downcast" | "downcast_mut" => self.downcast(i, item, args[0], ty),
             "panic_message" => {
                 self.load(args[0])?;

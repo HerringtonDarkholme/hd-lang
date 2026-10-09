@@ -3,8 +3,9 @@
 # name, or `std.error.Error`, declares these under their standard names
 # (checker/standard-traits.ts); aliases are not supported. The compiler
 # implements the sealed `Inspectable` for every type, and supplies the
-# `downcast` methods, `downcast_val`, and `TypeId::of`, so the trait's
-# dictionary holds `runtime_type` alone.
+# `downcast` methods and `downcast_val`, so the trait's dictionary holds
+# `runtime_type` alone. `TypeId::of` is declared below; only its body is the
+# compiler's.
 
 use std.format.DebugWriter
 
@@ -19,6 +20,11 @@ pub trait Inspectable:
 ## See [module.prelude.inspect](../../spec/lang/10-modules.md#r-module.prelude.inspect).
 pub data TypeId:
     key: string
+
+impl TypeId:
+    ## The `TypeId` of `T`.
+    @intrinsic("type_id_of")
+    pub fn of[T < Inspectable]() -> TypeId: panic("intrinsic")
 
 impl Eq for TypeId:
     fn eq(self, other: TypeId) -> bool: self.key == other.key

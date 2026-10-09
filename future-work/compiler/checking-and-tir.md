@@ -607,10 +607,11 @@ checking: the value arguments check against the instantiated
 signature (inferring with them per `fn.type.generic.argument`), and
 the result is an ordinary `Call` — an `Item` callee, or a
 `TraitMethod` with the solver's choice for trait members. No new TIR
-node. Prerequisite: the member must be declared; `TypeId::of` is
-missing from `lib/std/inspect.hd` although the spec shows its `impl`
-block, so all eight `TypeId::of::[T]()` programs wait on that
-declaration as well as on this path (owner/orchestrator lane).
+node. As built (#182): `lib/std/inspect.hd` declares `TypeId::of` as
+the spec shows, with an `@intrinsic("type_id_of")` body that emission
+lowers the way `runtime_type` builds its `TypeId`; the qualified call
+path already existed, and `fresh_generics` now rejects a written list
+longer than the member's parameters (`argument-count`).
 
 D1's "readonly view" kind is `Weaken`, since the spec's marked form is
 `mut T` (data-structures.md §3.4).

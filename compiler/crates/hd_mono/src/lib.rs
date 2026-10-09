@@ -1007,6 +1007,7 @@ impl Cx<'_> {
             matches!(
                 k.as_str(),
                 "task_race_frame"
+                    | "type_id_of"
                     | "panic"
                     | "entry_write"
                     | "dbg_write"

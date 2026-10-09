@@ -186,7 +186,7 @@ impl Ck<'_, '_> {
             return Ok((Ref(NONE), Ty::NEVER));
         }
         let sig = self.with_result(def, sig.clone());
-        let vars = self.fresh_generics(&sig, explicit, 0);
+        let vars = self.fresh_generics(&sig, explicit, n);
         let m = Member {
             def,
             sig,
@@ -249,7 +249,7 @@ impl Ck<'_, '_> {
             None => self.infer.fresh(pool, VarKind::General),
         };
         let sig = self.sig_of(method)?;
-        let vars = self.fresh_generics(&sig, explicit, 0);
+        let vars = self.fresh_generics(&sig, explicit, n);
         let m = Member {
             def: method,
             sig,
@@ -292,7 +292,7 @@ impl Ck<'_, '_> {
                 impl_args,
             }) => {
                 let sig = self.sig_of(method)?;
-                let vars = self.fresh_generics(&sig, explicit, 0);
+                let vars = self.fresh_generics(&sig, explicit, n);
                 Member {
                     def: method,
                     sig,
@@ -311,7 +311,7 @@ impl Ck<'_, '_> {
             }) => {
                 let (self_ty, args, method) = trait_member(self, trait_, method, args);
                 let sig = self.sig_of(method)?;
-                let vars = self.fresh_generics(&sig, explicit, 0);
+                let vars = self.fresh_generics(&sig, explicit, n);
                 Member {
                     def: method,
                     sig,
@@ -329,7 +329,7 @@ impl Ck<'_, '_> {
             Some(Hit::Choice { trait_, method, .. }) => {
                 let (self_ty, args, method) = trait_member(self, trait_, method, vec![]);
                 let sig = self.sig_of(method)?;
-                let vars = self.fresh_generics(&sig, explicit, 0);
+                let vars = self.fresh_generics(&sig, explicit, n);
                 Member {
                     def: method,
                     sig,

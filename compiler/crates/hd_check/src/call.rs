@@ -265,16 +265,32 @@ impl Ck<'_, '_> {
         unsupported("a type with arguments used as a value")
     }
 
-    pub(crate) fn fresh_generics(&mut self, sig: &FnSig, explicit: &[Ty], skip: usize) -> Vec<Ty> {
+    /// The member's own type arguments: the written ones, the trailing
+    /// slots fresh (`fn.generic.explicit.trailing`). A list longer than
+    /// the member's parameters is an error at `n`
+    /// (`fn.generic.explicit.too-long-count`).
+    pub(crate) fn fresh_generics(
+        &mut self,
+        sig: &FnSig,
+        explicit: &[Ty],
+        n: NodeRef<'_>,
+    ) -> Vec<Ty> {
         let pool = self.pool();
+        if explicit.len() > sig.generics.len() {
+            let msg = format!(
+                "{} type arguments are written, but the function takes {}",
+                explicit.len(),
+                sig.generics.len()
+            );
+            self.err(Code::ArgumentCount, n, &msg);
+        }
         sig.generics
             .iter()
             .enumerate()
             .map(|(i, _)| {
                 explicit
-                    .get(i.saturating_sub(skip))
+                    .get(i)
                     .copied()
-                    .filter(|_| i >= skip)
                     .unwrap_or_else(|| self.infer.fresh(pool, VarKind::General))
             })
             .collect()
@@ -1072,7 +1088,7 @@ impl Ck<'_, '_> {
         match &item.data {
             ItemData::Fn(sig) => {
                 let sig = self.with_result(def, sig.clone());
-                let vars = self.fresh_generics(&sig, explicit, 0);
+                let vars = self.fresh_generics(&sig, explicit, n);
                 let inst = |t: Ty| subst_owner(pool, def, &vars, t);
                 let params: Vec<(Symbol, Ty)> =
                     sig.params.iter().map(|(s, t)| (*s, inst(*t))).collect();
@@ -1655,7 +1671,7 @@ impl Ck<'_, '_> {
         if !is_param && let Some((method, impl_def, impl_args)) = self.find_inherent(t, name) {
             let sig = self.sig_of(method)?;
             let explicit = std::mem::take(&mut self.method_targs);
-            let vars = self.fresh_generics(&sig, &explicit, 0);
+            let vars = self.fresh_generics(&sig, &explicit, n);
             let inst = |x: Ty| {
                 subst_owner(
                     pool,
@@ -2270,7 +2286,7 @@ impl Ck<'_, '_> {
             }) => {
                 let sig = self.sig_of(method)?;
                 let explicit = std::mem::take(&mut self.method_targs);
-                let vars = self.fresh_generics(&sig, &explicit, 0);
+                let vars = self.fresh_generics(&sig, &explicit, n);
                 let inst = |x: Ty| {
                     subst_owner(
                         pool,
@@ -2414,7 +2430,7 @@ impl Ck<'_, '_> {
             targs.push(self.infer.fresh(pool, VarKind::General));
         }
         let explicit = std::mem::take(&mut self.method_targs);
-        let vars = self.fresh_generics(&sig, &explicit, 0);
+        let vars = self.fresh_generics(&sig, &explicit, n);
         let tv = targs.clone();
         let tl = pool.list(&tv);
         let inst = |x: Ty| {
@@ -2597,7 +2613,7 @@ impl Ck<'_, '_> {
         };
         let sig = self.sig_of(method)?;
         let explicit = std::mem::take(&mut self.method_targs);
-        let vars = self.fresh_generics(&sig, &explicit, 0);
+        let vars = self.fresh_generics(&sig, &explicit, n);
         let ret = subst_owner(
             pool,
             method,
