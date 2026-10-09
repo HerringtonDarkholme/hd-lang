@@ -1,10 +1,10 @@
 //! Test registrations (spec/lang/10-modules.md, "Test Cases"; checking-and-
 //! tir.md §4.13.9): each registration call in test position, in a `tests:`
 //! block or at the top level of a test module or an integration test
-//! module, is listed by its literal name and options, and each runnable
-//! `it` body is checked as a `TestCase` body of its own synthesized
-//! function item, so collection and emission treat it as a root like
-//! `main`. An `it_each`, `it_prop` or `it_prop_with` call is checked
+//! module, is listed by its literal name and options, and each `it` body,
+//! a trailing block or an explicit closure that the case calls, is checked
+//! as a `TestCase` body of its own synthesized function item, so
+//! collection and emission treat it as a root like `main`. An `it_each`, `it_prop` or `it_prop_with` call is checked
 //! against its declaration in `lib/std/testing.hd`, and its test case runs
 //! the std body that drives the rows or the property's cases through the
 //! runner (`case_runner`).
@@ -16,10 +16,12 @@ use hd_diag::{Code, DiagBuf};
 use hd_resolve::{FnSig, Item, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::Body;
-use hd_tir::ir::{BodyKind, TirSink};
+use hd_tir::ir::{BodyKind, Ref, TirSink};
+use hd_types::solver::TraitRef;
 use hd_types::{RowData, RowId, Ty, TyData, TyList};
 
-use crate::body::{BodyCx, RowFrame, new_ck};
+use crate::body::{BodyCx, Ck, RowFrame, new_ck};
+use crate::call::Args;
 use crate::expr::literal_text;
 
 /// The stable panic categories (`flow.panic.stable-categories`), which an
@@ -55,7 +57,7 @@ pub struct TestReg {
     pub body: Option<String>,
     pub ignore: Option<String>,
     pub expect_panic: Option<String>,
-    /// Why this case cannot run yet (an explicit closure as an `it` body).
+    /// Why this case cannot run yet; every body form runs today.
     pub unsupported: Option<String>,
     /// The registration's byte offset in its file.
     pub at: u32,
@@ -247,41 +249,55 @@ pub fn check_tests(
         if kind == "it_each" {
             tables.insert(reg.name.clone());
         }
-        if kind != "it" {
-            // The body closure of the call: by name, or last in position.
-            let body = body_arg.or_else(|| positional.last().copied());
-            if reg.unsupported.is_none() {
-                let tries = body.is_some_and(|b| b.kind() == SyntaxKind::ClosureExpr && has_try(b));
-                let name = format!("$test{}", out.regs.len());
-                let Some(e) = s.children().next() else {
-                    continue;
-                };
-                let call = RegCall {
-                    name: &name,
-                    expr: e,
-                    kind: &kind,
-                    tries,
-                    timed: timeout.is_some(),
-                };
-                let (body, item) = check_registration(cx, module, &call, profile, diags)?;
-                out.bodies.push(body);
-                out.items.push(item);
-                reg.body = Some(name);
+        if kind == "it" {
+            // `it`'s body (`module.testing.it.form`): a trailing block,
+            // `body=`, or the argument after the name.
+            if positional.len() > 2 {
+                let msg = "`it` takes a name and a body";
+                diags.error(Code::ArgumentCount, src.span(call), msg);
+                continue;
             }
-        } else if body_arg.is_some() || block.is_none() {
-            reg.unsupported
-                .get_or_insert_with(|| "an explicit closure as a test body".into());
-        }
-        if reg.unsupported.is_none()
-            && let Some(block) = block
-        {
+            let mut given = positional.get(1).copied().into_iter().chain(body_arg);
+            let body = match (block, given.next(), given.next()) {
+                (Some(block), None, None) => CaseBody::Block(block),
+                (None, Some(e), None) => CaseBody::Value(e),
+                (None, None, None) => {
+                    let msg = "`it` takes a body";
+                    diags.error(Code::ArgumentCount, src.span(call), msg);
+                    continue;
+                }
+                _ => {
+                    let msg = "`body` is given twice";
+                    diags.error(Code::DuplicateArgument, src.span(call), msg);
+                    continue;
+                }
+            };
             let name = format!("$test{}", out.regs.len());
             let case = ItCase {
                 name: &name,
-                block,
+                body,
                 timeout,
             };
             let (body, item) = check_case(cx, module, &case, profile, diags)?;
+            out.bodies.push(body);
+            out.items.push(item);
+            reg.body = Some(name);
+        } else {
+            // The body closure of the call: by name, or last in position.
+            let body = body_arg.or_else(|| positional.last().copied());
+            let tries = body.is_some_and(|b| b.kind() == SyntaxKind::ClosureExpr && has_try(b));
+            let name = format!("$test{}", out.regs.len());
+            let Some(e) = s.children().next() else {
+                continue;
+            };
+            let call = RegCall {
+                name: &name,
+                expr: e,
+                kind: &kind,
+                tries,
+                timed: timeout.is_some(),
+            };
+            let (body, item) = check_registration(cx, module, &call, profile, diags)?;
             out.bodies.push(body);
             out.items.push(item);
             reg.body = Some(name);
@@ -292,21 +308,32 @@ pub fn check_tests(
 }
 
 /// An `it` call whose test case is checked: the case's item name, its
-/// body block, and its `timeout` argument, if it has one.
+/// body, and its `timeout` argument, if it has one.
 #[derive(Clone, Copy)]
 struct ItCase<'t> {
     name: &'t str,
-    block: NodeRef<'t>,
+    body: CaseBody<'t>,
     timeout: Option<NodeRef<'t>>,
 }
 
+/// The body of an `it` call: a trailing block, or an explicit closure (any
+/// function value) passed as `body=` or after the name.
+#[derive(Clone, Copy)]
+enum CaseBody<'t> {
+    Block(NodeRef<'t>),
+    Value(NodeRef<'t>),
+}
+
 /// One `it` body: a suspending function item with no parameters, whose
-/// result is `void`, or `Result[void, dyn Error]` when it uses `?`
-/// (`expr.try.test.with-try`), and whose row is the keys of `profile`
-/// that its body uses, which the runner binds for it. A `timeout`
-/// argument is evaluated first, in the case's instance, and reported to
-/// the runner (`std-testing.option.timeout-at-run`), so the row also
-/// holds `TestRunner`.
+/// row is the keys of `profile` that its body uses, which the runner binds
+/// for it. A trailing block is the item's body, with the fixed result
+/// `void`, or `Result[void, dyn Error]` when it uses `?`
+/// (`expr.try.test.fixed-result`). An explicit closure keeps its own
+/// result: the item's body calls it and returns what it returns
+/// (`expr.try.test.explicit-closure`). A `timeout` argument is evaluated
+/// first, in the case's instance, and reported to the runner
+/// (`std-testing.option.timeout-at-run`), so the row also holds
+/// `TestRunner`.
 fn check_case(
     cx: &BodyCx<'_>,
     module: &str,
@@ -316,12 +343,15 @@ fn check_case(
 ) -> StageResult<(Body, Item)> {
     let ItCase {
         name,
-        block,
+        body,
         timeout,
     } = *case;
     let pool = cx.names.pool;
     let def: DefId = cx.names.item(module, name);
-    let ret = case_result(cx, has_try(block));
+    let (node, fixed) = match body {
+        CaseBody::Block(b) => (b, case_result(cx, has_try(b))),
+        CaseBody::Value(e) => (e, Ty::VOID),
+    };
     let local = hd_types::LocalPool::new();
     let mut ck = new_ck(
         cx,
@@ -329,11 +359,11 @@ fn check_case(
         def,
         def,
         BodyKind::TestCase,
-        (ret, RowId::EMPTY),
+        (fixed, RowId::EMPTY),
         diags,
     );
     // The body sees what is in scope in its `tests:` block.
-    ck.move_to(cx.src.span(block).lo);
+    ck.move_to(cx.src.span(node).lo);
     ck.suspends = vec![true];
     ck.rows = vec![RowFrame::Profile {
         row: profile,
@@ -346,9 +376,17 @@ fn check_case(
         let (r, t) = ck.expr(e, Some(want))?;
         let r = ck.coerce(r, t, want, e, "argument");
         ck.report_timeout(r, e);
+        ck.move_to(cx.src.span(node).lo);
     }
-    let (tail, _) = ck.block_value(block, Some(ret))?;
-    let root = ck.b.close_block(blk, tail, ret, block.index());
+    let (tail, ret) = match body {
+        CaseBody::Block(block) => (ck.block_value(block, Some(fixed))?.0, fixed),
+        CaseBody::Value(e) => {
+            let (r, t) = call_body(&mut ck, e)?;
+            (Some(r), t)
+        }
+    };
+    ck.rets[0] = ret;
+    let root = ck.b.close_block(blk, tail, ret, node.index());
     let row = match ck.rows.first() {
         Some(RowFrame::Profile { used, .. }) => {
             let mut used = used.clone();
@@ -371,6 +409,38 @@ fn check_case(
     };
     let item = Item::new(def, cx.names.syms.intern(name), false, ItemData::Fn(sig));
     Ok((body, item))
+}
+
+/// Calls an explicit test body `e`, a bang call when it suspends, and
+/// gives its result `T`. The body is checked with no expected type, so it
+/// keeps its written or inferred result, which must implement
+/// `std.process.Termination`, the bound on `it`
+/// (`expr.try.test.explicit-closure`; `unsatisfied-trait-bound`). The
+/// call's row check adds the body's row to the case's.
+fn call_body(ck: &mut Ck<'_, '_>, e: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
+    let pool = ck.pool();
+    let (f, ft) = ck.expr(e, None)?;
+    let ft = ck.normalize_deep(ft)?;
+    let suspends = match pool.get(ck.strip_mut(ft)) {
+        TyData::Fn { suspends, .. } => suspends,
+        _ => false,
+    };
+    let none = Args {
+        positional: vec![],
+        spread: None,
+        after_spread: vec![],
+        named: vec![],
+        trailing: None,
+    };
+    let (r, t) = ck.call_value(f, ft, &none, e, suspends)?;
+    let t = ck.normalize_deep(t)?;
+    let tref = TraitRef {
+        trait_: ck.cx.names.item("std.process", "Termination"),
+        self_ty: t,
+        args: TyList::EMPTY,
+    };
+    ck.require_ref(tref, e)?;
+    Ok((r, t))
 }
 
 /// A test body's result: `void`, or `Result[void, dyn Error]` when it

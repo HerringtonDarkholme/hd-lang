@@ -463,7 +463,7 @@ impl Ck<'_, '_> {
     }
 
     /// A call of a function value.
-    fn call_value(
+    pub(crate) fn call_value(
         &mut self,
         f: Ref,
         ft: Ty,

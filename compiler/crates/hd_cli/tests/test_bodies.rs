@@ -102,3 +102,93 @@ test result: FAILED. 2 passed; 2 failed; 0 ignored
     );
     assert_eq!(text(&out.stderr), "");
 }
+
+/// `module.testing.it.form`, `expr.try.test.explicit-closure`: an explicit
+/// body, given by name or after the name, keeps its own `Termination`
+/// result. `ExitCode(0)` and `.Ok(())` pass, another code and an `.Err`
+/// fail. A plain function and a non-suspending closure are bodies too, a
+/// body with a `timeout` reports it first, and a body whose row holds
+/// `TestRunner` runs in a unit test (`module.testing.unit-row.test-runner`).
+#[test]
+fn an_explicit_body_keeps_its_own_result() {
+    let lib = "\
+use std.process.ExitCode
+use std.testing.TestRunner
+use std.time.s
+
+fn check_port(port: i32) -> Result[void, string]:
+    if port > 0: .Ok(()) else: .Err(\"bad port: ${port}\")
+
+fn exit_zero() -> ExitCode:
+    ExitCode(0)
+
+fn first_row(rows: List[string]) -> string $ TestRunner:
+    rows[$.use(TestRunner).row(rows.len())]
+
+tests:
+    use std.testing.assert_equal
+
+    it(\"passes with code zero\", body=fn!() -> ExitCode: ExitCode(0))
+
+    it(\"fails with code three\", body=fn!() -> ExitCode: ExitCode(3))
+
+    it(\"passes an ok port\", fn!() -> Result[void, string]: check_port(80))
+
+    it(\"fails a bad port\", body=fn!() -> Result[void, string]: check_port(0))
+
+    it(\"takes a function\", body=exit_zero)
+
+    it(\"takes a plain closure\", body=fn(): assert_equal(1 + 1, 2, reason=\"sums\"))
+
+    it(\"takes a timeout\", timeout=5s, body=fn!(): assert_equal(2 + 2, 4, reason=\"sums\"))
+
+    it(\"uses the runner\", body=fn!() -> void $ TestRunner: _ := first_row([\"a\"]))
+";
+    let root = package("test-bodies-explicit", lib);
+    let out = hd(&root, &["test"]);
+    assert_eq!(
+        text(&out.stdout),
+        "\
+FAIL src/lib.hd:19: fails with code three
+    `report()` returned `ExitCode(3)`
+    repro: hd test src/lib.hd --filter \"fails with code three\"
+FAIL src/lib.hd:23: fails a bad port
+    bad port: 0
+    repro: hd test src/lib.hd --filter \"fails a bad port\"
+test result: FAILED. 6 passed; 2 failed; 0 ignored
+",
+        "{}",
+        text(&out.stderr)
+    );
+    assert_eq!(text(&out.stderr), "");
+    assert_eq!(out.status.code(), Some(1));
+}
+
+/// Checking an explicit body: its result must implement `Termination`
+/// (`expr.try.test.explicit-closure`), its row may hold only what the
+/// runner binds for a unit test (`module.testing.unit-row.test-runner`),
+/// and `it` takes exactly one body.
+#[test]
+fn an_explicit_body_is_checked() {
+    for (body, code) in [
+        (
+            "it(\"an optional result\", body=fn!() -> i32?: .None)",
+            "unsatisfied-trait-bound",
+        ),
+        (
+            "it(\"prints\", body=fn!() -> void $ Console: println(1))",
+            "missing-requirement",
+        ),
+        ("it(\"no body\")", "argument-count"),
+        (
+            "it(\"two bodies\", fn!(): pass, body=fn!(): pass)",
+            "duplicate-argument",
+        ),
+    ] {
+        let root = package("test-bodies-checked", &format!("tests:\n    {body}\n"));
+        let out = hd(&root, &["check", "--tests"]);
+        let err = text(&out.stderr);
+        assert_eq!(out.status.code(), Some(101), "{body}: {err}");
+        assert!(err.contains(code), "{body}: {err}");
+    }
+}
