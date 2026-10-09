@@ -217,7 +217,7 @@ impl Ck<'_, '_> {
             SyntaxKind::PipeExpr => self.pipe(&kids, want)?,
             SyntaxKind::PlaceholderExpr => self.placeholder_value(n),
             SyntaxKind::ComprehensionExpr => self.comprehension(n, &kids, want)?,
-            SyntaxKind::TryExpr => self.try_expr(n, &kids)?,
+            SyntaxKind::TryExpr => self.try_expr(n, &kids, want)?,
             SyntaxKind::RangeExpr => self.range_expr(n, &kids, want)?,
             SyntaxKind::ContextExpr => self.context_expr(n, want)?,
             SyntaxKind::BindingExpr => {
@@ -2451,15 +2451,35 @@ impl Ck<'_, '_> {
     /// `e?` on a `Result` or an `Option`: the success payload, or an early
     /// return of the failure (converted by `From` when the error types
     /// differ).
-    fn try_expr(&mut self, n: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<(Ref, Ty)> {
+    fn try_expr(
+        &mut self,
+        n: NodeRef<'_>,
+        kids: &[NodeRef<'_>],
+        want: Option<Ty>,
+    ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let Some(e) = kids.first() else {
             return unsupported("a `?` without an operand");
         };
-        let (r, t) = self.expr(*e, None)?;
-        let t = self.infer.resolve(pool, t);
         let ret = self.infer.resolve(pool, *self.rets.last().expect("ret"));
         let result = self.cx.names.known.result;
+        // `expr.try.expected`: the operand's hint is `Result[T, E]` or `T?`,
+        // by the nearest function's result kind.
+        let hint = want
+            .map(|w| self.strip_mut(w))
+            .and_then(|w| match pool.get(ret) {
+                TyData::Option(_) => Some(pool.intern_ty(&TyData::Option(w))),
+                TyData::Adt { def, args } if def == result => {
+                    let err = pool.list_items(args)[1];
+                    Some(pool.intern_ty(&TyData::Adt {
+                        def,
+                        args: pool.list(&[w, err]),
+                    }))
+                }
+                _ => None,
+            });
+        let (r, t) = self.expr(*e, hint)?;
+        let t = self.infer.resolve(pool, t);
         match (pool.get(t), pool.get(ret)) {
             (TyData::Option(inner), TyData::Option(_)) => {
                 let ok_b = self.b.open_block();
