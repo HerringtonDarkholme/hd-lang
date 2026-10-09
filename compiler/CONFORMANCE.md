@@ -8,23 +8,23 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2290 | 412 | 143 | 2845 |
+| 2295 | 412 | 138 | 2845 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
 | `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
-| `lang/02-grammar.md` | 195 | 11 | 9 | 215 |
+| `lang/02-grammar.md` | 196 | 11 | 8 | 215 |
 | `lang/03-names-and-scopes.md` | 92 | 8 | 1 | 101 |
 | `lang/04-type-system.md` | 300 | 47 | 5 | 352 |
-| `lang/05-expressions.md` | 232 | 39 | 6 | 277 |
+| `lang/05-expressions.md` | 234 | 39 | 4 | 277 |
 | `lang/06-control-flow.md` | 130 | 23 | 4 | 157 |
 | `lang/07-functions.md` | 99 | 23 | 8 | 130 |
 | `lang/08-data-and-enums.md` | 85 | 30 | 8 | 123 |
 | `lang/09-traits.md` | 272 | 72 | 15 | 359 |
 | `lang/10-modules.md` | 205 | 39 | 14 | 258 |
-| `lang/11-requirements-and-suspension.md` | 166 | 48 | 45 | 259 |
+| `lang/11-requirements-and-suspension.md` | 168 | 48 | 43 | 259 |
 | `lang/14-annotations.md` | 104 | 42 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 86 | 15 | 4 | 105 |
-| `runtime/valid` | 789 | 29 | 111 | 929 |
-| `typing/invalid` | 726 | 332 | 17 | 1075 |
-| `typing/valid` | 391 | 13 | 11 | 415 |
+| `runtime/valid` | 791 | 29 | 109 | 929 |
+| `typing/invalid` | 727 | 332 | 16 | 1075 |
+| `typing/valid` | 393 | 13 | 9 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -123,7 +123,7 @@ compiler stage that first declined the case.
 | `fail:unknown-variant` | 1 |
 | `fail:unsatisfied-trait-bound` | 9 |
 | `fail:unused-local-binding` | 6 |
-| `unsupported:Body` | 57 |
+| `unsupported:Body` | 52 |
 | `unsupported:Collect` | 30 |
 | `unsupported:Emit` | 19 |
 | `unsupported:Link` | 4 |
@@ -782,7 +782,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (57)</summary>
+<details><summary><code>unsupported:Body</code> (52)</summary>
 
 - `typing/valid/enums.hd`
 - `typing/valid/requirements-and-suspension.hd`
@@ -799,15 +799,11 @@ compiler stage that first declined the case.
 - `typing/valid/mutable-provider-rows.hd`
 - `runtime/valid/tuple-impl-target.hd`
 - `runtime/valid/bang-call-explicit-type-arguments.hd`
-- `runtime/valid/list-suffix-spread.hd`
-- `typing/invalid/list-spread-non-list.hd`
 - `runtime/valid/embedded-store-copies.hd`
 - `typing/invalid/copy-assignment-ordinary-field.hd`
 - `runtime/valid/part-copy-is-copy-update.hd`
 - `typing/invalid/lowercase-list-type.hd`
 - `runtime/valid/row-alias-runs.hd`
-- `typing/valid/row-union-spread.hd`
-- `typing/valid/row-list-copy-wider.hd`
 - `typing/valid/row-alias-bare-slots.hd`
 - `runtime/valid/row-alias-bare-runs.hd`
 - `typing/valid/collect-targets.hd`
@@ -836,7 +832,6 @@ compiler stage that first declined the case.
 - `typing/invalid/set-type-not-prelude.hd`
 - `runtime/valid/let-patterns-and-let-else.hd`
 - `runtime/valid/binding-chain-with-suite.hd`
-- `runtime/valid/spread-forms-and-positions.hd`
 - `runtime/valid/pattern-forms.hd`
 - `runtime/valid/assignment-and-break-forms.hd`
 - `typing/invalid/grammar-assignment-nonplace.hd`
@@ -1709,6 +1704,7 @@ runtime/valid/list-partition-search.hd
 runtime/valid/list-pop.hd
 runtime/valid/list-slice-mutable.hd
 runtime/valid/list-sorted-by-key.hd
+runtime/valid/list-suffix-spread.hd
 runtime/valid/list-view-run.hd
 runtime/valid/list-view-to-list-mut.hd
 runtime/valid/literal-erased-fallback.hd
@@ -1985,6 +1981,7 @@ runtime/valid/slicing-full-run.hd
 runtime/valid/slicing-run.hd
 runtime/valid/spelled-function-type-values.hd
 runtime/valid/split-empty-input-nonempty-separator.hd
+runtime/valid/spread-forms-and-positions.hd
 runtime/valid/spread-pattern.hd
 runtime/valid/static-and-dynamic-trait-dispatch.hd
 runtime/valid/std-errors-erased-codecs.hd
@@ -2445,6 +2442,7 @@ typing/invalid/list-index-signed.hd
 typing/invalid/list-parameter-bare-trait.hd
 typing/invalid/list-slice-negative-literal.hd
 typing/invalid/list-slice-signed-bound.hd
+typing/invalid/list-spread-non-list.hd
 typing/invalid/list-view-assignment.hd
 typing/invalid/list-view-negative-literal.hd
 typing/invalid/literal-dependent-no-backward-annotation.hd
@@ -3143,6 +3141,7 @@ typing/valid/row-alias.hd
 typing/valid/row-extension-absent-key.hd
 typing/valid/row-extension-entailment.hd
 typing/valid/row-kinded-arguments.hd
+typing/valid/row-list-copy-wider.hd
 typing/valid/row-parameter-marked.hd
 typing/valid/row-pattern-fixed-by-parameter.hd
 typing/valid/row-polymorphic-callback.hd
@@ -3156,6 +3155,7 @@ typing/valid/row-union-map.hd
 typing/valid/row-union-match.hd
 typing/valid/row-union-omitted-result.hd
 typing/valid/row-union-private-result.hd
+typing/valid/row-union-spread.hd
 typing/valid/same-module-private-member-explicit-path.hd
 typing/valid/shared-enum-default-writes-state.hd
 typing/valid/shared-enum-defaults.hd
