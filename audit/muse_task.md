@@ -105,27 +105,58 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### R12. Shrink The Wasm Fallthrough Traps (#146, Research)
+### R18. Shrink The Wrong-Value Programs (#149, #130, Research)
 
-Five programs fail Wasm validation ("expected 0 elements on the stack
-for fallthru, found 1"; your R2 §C). Shrink each to the smallest program
-that still fails validation, run it with `compiler/target/release/hd`,
-and say which construct leaves the value (a suspending call as a
-statement, a `defer`, a loop body, ...). If they share one cause, say so.
-Add the minimal programs and findings to
-`audit/compiler/triage-wrong-runs.md` §C. Read only; timebox 30 minutes.
+Your R2 §B and §F list one-row wrong values: `'\''` evaluating to `\`,
+`literal-patterns` (29 vs 32), Map duplicate keys keeping the first
+value, `nested-closure-captures` (2 vs 42), bracket and type-expression
+evaluation, and the interpolation bugs (nested quotes doubling, a map
+value printing raw, `"[${W { s: "cd" }}]"` printing the inner literal
+twice). Shrink each to the smallest program, name the spec rule it
+breaks, and say which stage produces the wrong value (print the TIR or
+the Wasm text if the driver can). Add the findings to
+`audit/compiler/triage-wrong-runs.md`. Read only; timebox 45 minutes.
 
-### R16. Shrink The Downcast Exhaustiveness Errors (#139, Research)
+### R19. Design Note: Provider Keys For Instantiated Traits (#155, Design Text)
 
-12 `inspectable-*` programs get a false `nonexhaustive-match` ("no arm
-matches `_`") on `.Some`/`.None` matches over a downcast result (your R1
-cause 4). Shrink one to the smallest program, read the spec's
-exhaustiveness rules (`spec/lang/06-control-flow.md`) and the downcast
-signatures in `spec/std/`, and say what type the checker gives the
-scrutinee (print it with `hd check` on variants of the program) and why
-exhaustiveness then fails. Add the finding to
-`audit/compiler/triage-false-errors.md` under cause 4. Read only;
-timebox 30 minutes.
+`requirement-row-order-*` print 11 instead of 201: providers are keyed
+by the trait item only, so `Repo[User]` and `Repo[Post]` collapse into
+one. Read the requirement-row rules (`spec/lang/11-requirements-and-suspension.md`,
+`req.*`) and `codegen.md`/`suspension.md` on how providers are passed
+(keys, provider arrays). Add to `codegen.md` how a provider key carries
+the trait's type arguments, where keys are compared (Collect, Emit, the
+host), and the cost per call. Timebox 45 minutes.
+
+### R20. Design Note: Union Rows At Joins (#48, Design Text)
+
+An `if`/`match` or closure result gets one branch's requirement row
+instead of the union, so a call passes too few providers
+(`row-union-branches-run`, `row-union-closure-result-runs`, the
+`row-union-*` fixtures). Read the row-union rules in spec chapter 11 and
+the checker design (`checking-and-tir.md`, rows, least common type) and
+add to `checking-and-tir.md` where the union is formed (list literals,
+`if`/`match` joins, closure results, inferred results), how it meets an
+expected row, and what TIR records it. Timebox 45 minutes.
+
+### R21. Design Note: Method Choice Among Several Traits (#42, Design Text)
+
+A method name provided by more than one available trait is unsupported
+today. Read the method-lookup rules (`spec/lang/03-names-and-scopes.md`,
+`09-traits.md`: candidates, availability, `ambiguous-method`, qualified
+calls) and `trait-solver.md` (Methods goals, AvailKey). Add to
+`trait-solver.md` how candidates are gathered and narrowed (receiver
+type, availability, bounds), when it is `ambiguous-method`, and what the
+call records for Emit. Timebox 45 minutes.
+
+### R22. Plan The Remaining Body And Emit Stops (Research)
+
+After #46 and #74 land, list every remaining `unsupported:Body` and
+`unsupported:Emit` case from `compiler/CONFORMANCE.md` grouped by the
+construct named in the message, with counts, biggest first, and the
+known task number for each group (look at the task numbers named in
+`audit/compiler/*.md` and this file). Write
+`audit/compiler/stops-plan.md`. Read only; timebox 30 minutes. If #74
+is not on main yet, do R18-R21 first.
 
 ### P1. Profile The New Compiler (After S4; Standing Job)
 
@@ -361,3 +392,18 @@ on the block. Recommend asking the owner for a code
    the call form Type::member::[T](args). Recommend treating the
    combination as covering it (no frozen-spec change), rather than
    ruling the eight programs out of scope.
+
+### Answers (orchestrator, 2026-10-09 02:20)
+
+- **Q-R13:** canonical sub-word values (producers mask and extend);
+  code entries keyed per profile, made explicit with #109.
+- **Q-R14:** a trap stub for dynamically unavailable slots; widening
+  reuses the (payload, child vtable) pair.
+- **Q-R15:** the fast pipeline everywhere except `--release`; only
+  release omits the name section.
+- **Q-R17.1:** the spec already shows `TypeId::of`; declaring it in
+  `lib/std` belongs to the compiler task #140 (orchestrator's), not to a
+  research job.
+- **Q-R17.2:** covered, with no spec change: `fn.ref.generic` gives
+  `Type::member::[T]` as a reference and `fn.ref.call` makes a reference
+  followed by an argument clause an ordinary call.

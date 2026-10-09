@@ -97,6 +97,60 @@ with no edit does neither. Report warm-run timings before and after
 (the driver's stage timers; `cargo run --release -p hd_driver --example
 bench N`).
 
+### O17. The Test Unit (Your O13 Question)
+
+Yes, a job of its own. `module.cycle.test-code` and §4.8 ("test modules
+form one test unit per package ... after every folder"): test modules'
+uses must not make folder edges, so `folder-graph-test-edges` passes.
+Schedule the test unit after every folder interface, and give the folder
+interfaces what they need without the test-only folders; your two
+breaking fixtures (`hd-run-requires-process`,
+`relative-shared-test-module`) must keep passing. Read the spec rules
+first; scheduling is CLI-facing `hd_driver` plus `hd_project`.
+
+### O18. Conformance Harness: Decode Expected Standard Output (#136)
+
+Four runtime programs print the right bytes and still fail:
+`hd_driver/tests/conformance.rs` `expected_stdout` joins the directive
+lines without decoding the escapes the conformance README's Standard
+Output section defines (`\\`, `\t`, `\u{H}`; Muse R2 §A:
+`crlf-line-endings`, `multiline-string-literals`,
+`prefixed-string-template`, `tab-only-as-content`). Implement exactly
+the README's rule; the pass list may only grow.
+
+### O19. Wire Doc Tests (After #74)
+
+Your O15 status: once top-level `it(...)` runs (#74 on main), add one
+synthetic integration-view module per doc test (§4.13.9) to `hd test`
+and `hd check --tests`, run each as its own program with the
+integration environment, and map lines back. If #74 is not on main
+yet, skip to the next job and come back.
+
+### O20. The Integration Test Environment (After #74)
+
+`cli.test.env.*` (working directory, temp directory and its removal,
+args, stdin, the test grant and its table), `cli.test.seed*`, `hd test
+--cap` and `cli.cap.total.test`; CLI cases `test-integration-env`,
+`test-tasks`, `cap-*` test steps, and the dev-dependency run steps. If
+#74 is not on main yet, skip to the next job and come back.
+
+### O21. Resolver Lowering Lookups (#118; `hd_resolve` Lowering Lent For This Job)
+
+`hd_resolve` lowering does per-item linear finds (ownership, placement,
+`misplaced_block`, anchors, `related_derives`). Replace them with one
+`DefId`-to-index map per module, built once. No behaviour change: the
+pass list and every diagnostic stay identical. Report `hd check` time on
+the std library and the 30,000-line bench before and after
+(`cargo run --release -p hd_driver --example bench N`).
+
+### O22. Workspace Leftovers
+
+Whatever O6/O12 left unbuilt: globs in workspace `members`/`exclude`,
+the workspace's shared selection and `hd.sum`
+(`cli.mode.member.shared`), and the effects of `[toolchain] pin` and
+`[test.capabilities]`. One commit per item; skip an item whose spec
+needs a design `commands.md` lacks and say so under "Questions".
+
 ## Questions
 
 - **O8, fetching and selection (design).** `cli.dep.select`,
@@ -261,3 +315,9 @@ bench N`).
   closure test bodies, `timeout=`, `$ TestRunner` in `tests:`, the four
   package fixtures that stop in the checker, host methods such as
   `Args.list`, panic frames' line table). Thanks for the triage.
+
+
+### Answers (orchestrator, 2026-10-09 02:20)
+
+- **O13, the test unit:** yes, a job of its own: O17.
+- **O15 wiring:** O19, after #74 lands (in progress now).
