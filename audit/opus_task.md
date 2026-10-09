@@ -89,20 +89,6 @@ When the queue is empty, say so under "Questions" and wait.
 
 ## Jobs
 
-### O9. Test Reports, Outcomes And Exit Codes
-
-CLI cases: `test-report` (`cli.test.report.*`), `test-every-case`,
-`test-err-report`, `test-outcomes`, `test-timeout`, `test-snapshot-file`,
-`exit-test-failure`, `exit-package-file`. First run each and write down
-what stops it. Build the parts in your lane (report text and order,
-streaming, summary, timeouts, snapshot files, exit codes, JSON test
-records). A case that stops in another lane (for example
-`TrailingCallExpr` at Body, an unlowered `ItemRef` at Emit) goes under
-"Questions" with the stage and message, and you move on. Also triage
-`dbg-values`, `dbg-uses`, `dbg-value-forms`, `typeid-package-name`,
-`typeid-single-file` and `entry-err-chain` the same way: do the CLI or
-host part if they have one, and name the blocking stage otherwise.
-
 ### O10. Test Environments And Package Test Discovery (#43)
 
 CLI cases `test-unit-fakes`, `test-integration-env`, `test-tasks`
@@ -196,6 +182,27 @@ bench N`).
   `llms.txt` pages; `hd_doc::render` is a stub. Should `hd doc` be built
   over the folder interfaces plus skims (and in this lane, with
   `hd_doc`), after a design section?
+- **O9 triage (stages outside this lane).** Built here: the summary line
+  of `cli.test.report.summary` (passed, failed, ignored; an
+  `unsupported` count only when one is), and a shell-escaped `repro`.
+  Each case below then stops where named:
+  `exit-test-failure`, `exit-package-file`, `test-every-case`: Body,
+  `unsupported: expression TrailingCallExpr` (top-level `it(...)`, #74);
+  `test-report`, `test-outcomes`: Body, "an explicit closure as a test
+  body" is unsupported, so the case counts as unsupported, not failed;
+  `test-timeout`: hd_check marks `timeout=` "unsupported" (the runner
+  needs the evaluated duration per case before it can enforce it);
+  `test-snapshot-file`: Body, `missing-requirement: this needs
+  $ TestRunner` inside a `tests:` block; `test-err-report`: Body,
+  `unsatisfied-trait-bound: SaveError does not implement Error` for an
+  `@error` enum; `entry-err-chain`: Collect, `select found no impl` of
+  `std/format/Display`; `typeid-package-name`, `typeid-single-file`:
+  Body, `unknown-method: no method of on TypeId`; `dbg-values`: Run,
+  `panic: explicit-panic: intrinsic` (a `dbg` intrinsic not lowered);
+  `dbg-uses`: Body, `a spread argument is not supported`;
+  `dbg-value-forms`: Emit, TIR tag `ItemRef`. Panic frames in a `PANIC`
+  block (`cli.test.report.frame`) need the module's line table from
+  codegen.
 - **Left for other lanes (status).** The CLI cases still failing for
   reasons outside this lane wait on the orchestrator's tasks above:
   top-level `it(...)` (#74: the `json-test-*`, `test-*`, `new-app`,

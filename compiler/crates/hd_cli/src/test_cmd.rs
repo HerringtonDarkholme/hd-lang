@@ -403,7 +403,7 @@ impl Report {
                 continue;
             };
             let at = format!("{}:{}", c.file, c.line);
-            let repro = format!("hd test {} --filter \"{}\"", c.file, c.name);
+            let repro = format!("hd test {} --filter {}", c.file, shell_quoted(&c.name));
             let mut t = String::new();
             // The outcome and message of the case's test object.
             let (outcome, message) = match r {
@@ -479,13 +479,48 @@ impl Report {
                 self.ignored + self.unsupported,
             );
         }
+        // `cli.test.report.summary`: the verdict and the passed, failed and
+        // ignored counts; cases that cannot run yet are counted too, when
+        // there are any.
         let verdict = if self.failed > 0 { "FAILED" } else { "ok" };
-        let _ = writeln!(
+        let _ = write!(
             self.text,
-            "test result: {verdict}. {} passed; {} failed; {} ignored; {} unsupported",
-            self.passed, self.failed, self.ignored, self.unsupported
+            "test result: {verdict}. {} passed; {} failed; {} ignored",
+            self.passed, self.failed, self.ignored
         );
+        if self.unsupported > 0 {
+            let _ = write!(self.text, "; {} unsupported", self.unsupported);
+        }
+        self.text.push('\n');
         self.flush();
         ExitCode::from(status)
+    }
+}
+
+/// A word as a POSIX shell reads it back, in double quotes
+/// (`cli.test.report.repro`: "command-line escaped").
+fn shell_quoted(word: &str) -> String {
+    let mut out = String::from("\"");
+    for c in word.chars() {
+        if matches!(c, '"' | '\\' | '$' | '`') {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out.push('"');
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::shell_quoted;
+
+    #[test]
+    fn repro_names_survive_the_shell() {
+        assert_eq!(shell_quoted("sums prices"), "\"sums prices\"");
+        assert_eq!(
+            shell_quoted("costs $5 \"now\""),
+            "\"costs \\$5 \\\"now\\\"\""
+        );
     }
 }

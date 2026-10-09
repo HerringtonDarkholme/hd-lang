@@ -77,7 +77,7 @@ fn filter_selects_cases() {
     let out = hd_test(&dir, &["--filter", "fresh start"]);
     assert_eq!(
         text(&out.stdout),
-        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 unsupported\n"
+        "test result: ok. 2 passed; 0 failed; 0 ignored\n"
     );
     assert_eq!(out.status.code(), Some(0));
     let out = hd_test(&dir, &["cart.hd", "--filter", "cheapest"]);
@@ -86,7 +86,7 @@ fn filter_selects_cases() {
         "PANIC cart.hd:53: finds the cheapest of none\n    \
          panic: index-out-of-bounds: list index out of bounds\n    \
          repro: hd test cart.hd --filter \"finds the cheapest of none\"\n\
-         test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 unsupported\n"
+         test result: FAILED. 0 passed; 1 failed; 0 ignored\n"
     );
     assert_eq!(out.status.code(), Some(1));
 }
@@ -97,7 +97,7 @@ fn a_file_runs_its_module_and_a_missed_filter_is_an_error() {
     let out = hd_test(&dir, &["money.hd"]);
     assert_eq!(
         text(&out.stdout),
-        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 unsupported\n"
+        "test result: ok. 2 passed; 0 failed; 0 ignored\n"
     );
     assert_eq!(out.status.code(), Some(0));
     // cli.test.filter.none
