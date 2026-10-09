@@ -105,59 +105,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### R1. Triage False Errors On Valid Programs (#125, Research)
-
-About 160 valid fixtures (expectation `accept`) fail with an error the
-spec does not allow. Group them by **root cause**, so the orchestrator
-can queue one compiler task per cause.
-
-- Run the per-case listing from `compiler/`:
-  `HD_CONFORMANCE_ONLY=.hd cargo test -q --release -p hd_driver --test
-  conformance -- --nocapture > r1-cases.log` (each line: verdict, path,
-  expectation, first diagnostic). Keep the lines whose expectation is
-  `accept` and whose verdict is `fail:<code>`, leaving out
-  `fail:runtime-exit` and `fail:stdout` (those are R2).
-- For each group, find the cause: shrink one or two cases to the
-  smallest program that still shows the false error (run it with
-  `target/release/hd check` or `hd test` on a scratch file inside your
-  worktree), and name the spec rule the program relies on.
-- Write `audit/compiler/triage-false-errors.md`: one table row per root
-  cause with count, the cases, the minimal program, the spec rule, and
-  the stage that raises the error (Check, Collect, ...). Mark a cause that
-  matches a known task: private `main` taken as an entry (#127), void
-  final value (#128), literal-variable inference (#30), omitted result
-  type `fn f(): +42` (#80), slices (#58), method choice among several
-  traits (#42), header bounds and associated-type bindings (#15), row
-  aliases (#49), literal-kind canonicalization (#77). Biggest cause first.
-- Read only: never edit `compiler/crates/` or a fixture. A fixture you
-  think is wrong per the spec goes into `audit/compiler/diagnostic-notes.md` with the rule.
-- Timebox 60 minutes; push what you have, with the untriaged cases listed
-  at the end.
-
-### R2. Triage Wrong Run Results (Research)
-
-`fail:runtime-exit` (57) and `fail:stdout` (10): the program compiles but
-traps, panics or prints the wrong thing. Same method as R1 (same log,
-those two verdicts only). For each root cause record whether it is a
-Wasm trap, an hd panic with the wrong code, or wrong output, with a
-minimal program and the stage you suspect (Emit, runtime host).
-Write `audit/compiler/triage-wrong-runs.md`. Read only; timebox 45
-minutes.
-
-### R5. Triage Invalid Programs The Compiler Accepts (Research)
-
-`fail:no-diagnostic` (about 260): a fixture expects an error and the
-compiler reports none. Same method as R1 (the per-case log, expectation
-`reject:<code>`, verdict `fail:no-diagnostic`). Group by the missing
-check, with the spec rule, the expected code, a minimal program and the
-stage that should raise it. Mark causes that match a known task: must-use
-values (#19), typed facts (#20), duplicate-fact (#24), qualified
-decorators (#25), decorators by resolution (#27), private items in
-header checks (#38), stored-fn calls (#39), private members (#40),
-embedding shape checks (#41), associated-type header codes (#57), void
-final value (#128). Write `audit/compiler/triage-missing-errors.md`.
-Read only; timebox 60 minutes.
-
 ### R6. Design Note: Trailing-Block Calls (#74, Design Text)
 
 Same format as R3. 22 valid programs stop at Body on `TrailingCallExpr`,
