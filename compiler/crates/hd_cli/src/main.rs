@@ -6,6 +6,7 @@
 mod caps;
 mod check_cmd;
 mod disk;
+mod help;
 mod node;
 mod report;
 mod test_cmd;
@@ -46,7 +47,30 @@ fn main() -> ExitCode {
     let Some(command) = arguments.first().and_then(|c| c.to_str()) else {
         return usage();
     };
+    // `hd COMMAND --help`, before the program arguments' `--`.
+    let asks_help = arguments[1..]
+        .iter()
+        .take_while(|a| *a != "--")
+        .any(|a| a == "--help");
+    if asks_help && let Some(text) = help::command(command) {
+        print!("{text}");
+        return ExitCode::SUCCESS;
+    }
     match (command, &arguments[1..]) {
+        ("help" | "--help", []) => {
+            print!("{}", help::list());
+            ExitCode::SUCCESS
+        }
+        ("help", [name]) => match help::command(&name.to_string_lossy()) {
+            Some(text) => {
+                print!("{text}");
+                ExitCode::SUCCESS
+            }
+            None => fail(&format!(
+                "`{}` is no command of hd; `hd help` lists them",
+                name.to_string_lossy()
+            )),
+        },
         ("test", rest) => test_cmd::command(rest),
         ("run", rest) => run_command(rest),
         ("build", rest) => build_command(rest),

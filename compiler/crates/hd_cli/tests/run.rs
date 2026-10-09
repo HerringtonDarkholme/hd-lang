@@ -874,3 +874,40 @@ fn a_program_leaves_test_code_out() {
     let r = ran(&dir, &["build"]);
     assert_eq!(r.code, Some(0), "{}", r.err);
 }
+
+/// `cli.command.help`, `cli.command.help.command`: the command list names
+/// every command, and one command's help names its flags.
+#[test]
+fn help_lists_the_commands_and_each_commands_flags() {
+    let dir = scratch("hd-forms-help");
+    for args in [&["help"][..], &["--help"][..]] {
+        let r = ran(&dir, args);
+        assert_eq!(r.code, Some(0), "{}", r.err);
+        for name in [
+            "FILE.wasm",
+            "build",
+            "run",
+            "test",
+            "check",
+            "doc",
+            "new",
+            "add",
+            "update",
+            "remove",
+            "fetch",
+            "clean",
+            "fmt",
+            "fix",
+            "cache gc",
+            "help",
+        ] {
+            assert!(r.out.contains(&format!("\n  {name} ")), "{name}: {}", r.out);
+        }
+    }
+    let add = ran(&dir, &["help", "add"]);
+    assert_eq!(add.code, Some(0));
+    assert!(add.out.contains("--dev"), "{}", add.out);
+    assert_eq!(ran(&dir, &["add", "--help"]).out, add.out);
+    assert!(ran(&dir, &["clean", "--help"]).out.contains("--cache"));
+    assert_eq!(ran(&dir, &["help", "bogus"]).code, Some(101));
+}
