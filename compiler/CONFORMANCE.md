@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2160 | 507 | 178 | 2845 |
+| 2189 | 504 | 152 | 2845 |
 
 ## By Chapter
 
@@ -17,14 +17,14 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 133 | 12 | 0 | 145 |
 | `lang/02-grammar.md` | 191 | 15 | 9 | 215 |
 | `lang/03-names-and-scopes.md` | 92 | 8 | 1 | 101 |
-| `lang/04-type-system.md` | 287 | 53 | 12 | 352 |
+| `lang/04-type-system.md` | 289 | 53 | 10 | 352 |
 | `lang/05-expressions.md` | 205 | 63 | 9 | 277 |
 | `lang/06-control-flow.md` | 126 | 27 | 4 | 157 |
-| `lang/07-functions.md` | 89 | 31 | 10 | 130 |
+| `lang/07-functions.md` | 91 | 31 | 8 | 130 |
 | `lang/08-data-and-enums.md` | 78 | 37 | 8 | 123 |
 | `lang/09-traits.md` | 259 | 86 | 14 | 359 |
 | `lang/10-modules.md` | 201 | 43 | 14 | 258 |
-| `lang/11-requirements-and-suspension.md` | 141 | 51 | 67 | 259 |
+| `lang/11-requirements-and-suspension.md` | 166 | 48 | 45 | 259 |
 | `lang/14-annotations.md` | 104 | 42 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 77 | 24 | 4 | 105 |
-| `runtime/valid` | 717 | 90 | 122 | 929 |
-| `typing/invalid` | 692 | 351 | 32 | 1075 |
-| `typing/valid` | 376 | 19 | 20 | 415 |
+| `runtime/valid` | 719 | 90 | 120 | 929 |
+| `typing/invalid` | 709 | 349 | 17 | 1075 |
+| `typing/valid` | 386 | 18 | 11 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -94,7 +94,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 1 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 211 |
+| `fail:no-diagnostic` | 210 |
 | `fail:nonexhaustive-match` | 4 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
@@ -120,15 +120,14 @@ compiler stage that first declined the case.
 | `fail:unknown-method` | 33 |
 | `fail:unknown-module` | 1 |
 | `fail:unknown-name` | 12 |
-| `fail:unknown-trait` | 9 |
+| `fail:unknown-trait` | 7 |
 | `fail:unknown-type` | 4 |
 | `fail:unknown-variant` | 1 |
 | `fail:unsatisfied-trait-bound` | 12 |
 | `fail:unused-local-binding` | 6 |
-| `unsupported:Body` | 50 |
-| `unsupported:Collect` | 29 |
+| `unsupported:Body` | 57 |
+| `unsupported:Collect` | 30 |
 | `unsupported:Emit` | 28 |
-| `unsupported:FolderIface` | 34 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 28 |
 | `unsupported:TestCase` | 5 |
@@ -292,7 +291,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (211)</summary>
+<details><summary><code>fail:no-diagnostic</code> (210)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -447,7 +446,6 @@ compiler stage that first declined the case.
 - `typing/invalid/derived-default-several-variants.hd`
 - `typing/invalid/unconstrained-impl-parameter.hd`
 - `typing/invalid/row-parameter-marked-on-data.hd`
-- `typing/invalid/row-slot-bare-alias-argument.hd`
 - `typing/invalid/row-slot-bare-explicit-argument.hd`
 - `typing/invalid/default-names-later-beside-forward-bound.hd`
 - `typing/warnings/unsigned-comparison-countdown.hd`
@@ -833,14 +831,12 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-trait</code> (9)</summary>
+<details><summary><code>fail:unknown-trait</code> (7)</summary>
 
 - `typing/invalid/user-suspend-implementation.hd`
 - `typing/invalid/reference-trait-name-unknown.hd`
 - `typing/invalid/row-parameter-on-data.hd`
 - `typing/invalid/row-parameter-on-trait.hd`
-- `typing/valid/row-alias-one-key.hd`
-- `typing/invalid/row-alias-mut-key.hd`
 - `typing/valid/folder-cycle-leaf-folder.hd`
 - `typing/invalid/row-parameter-on-newtype.hd`
 - `typing/invalid/row-parameter-unmarked.hd`
@@ -890,9 +886,12 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (50)</summary>
+<details><summary><code>unsupported:Body</code> (57)</summary>
 
 - `typing/valid/enums.hd`
+- `typing/valid/requirements-and-suspension.hd`
+- `typing/valid/context-spread-normalization.hd`
+- `runtime/valid/context-values-install-providers.hd`
 - `typing/invalid/generic-provider-key-collision-spread.hd`
 - `typing/invalid/literal-payload-pattern-nonexhaustive.hd`
 - `runtime/valid/literal-payload-patterns.hd`
@@ -901,6 +900,7 @@ compiler stage that first declined the case.
 - `runtime/valid/nested-provider-restoration.hd`
 - `runtime/valid/generic-suspending-associated-function-qualified-call.hd`
 - `typing/invalid/for-over-non-iterable.hd`
+- `typing/valid/mutable-provider-rows.hd`
 - `runtime/valid/tuple-impl-target.hd`
 - `runtime/valid/bang-call-explicit-type-arguments.hd`
 - `runtime/valid/list-suffix-spread.hd`
@@ -909,8 +909,11 @@ compiler stage that first declined the case.
 - `typing/invalid/copy-assignment-ordinary-field.hd`
 - `runtime/valid/part-copy-is-copy-update.hd`
 - `typing/invalid/lowercase-list-type.hd`
+- `runtime/valid/row-alias-runs.hd`
 - `typing/valid/row-union-spread.hd`
 - `typing/valid/row-list-copy-wider.hd`
+- `typing/valid/row-alias-bare-slots.hd`
+- `runtime/valid/row-alias-bare-runs.hd`
 - `typing/valid/collect-targets.hd`
 - `typing/valid/type-default-trait-method.hd`
 - `typing/valid/newtype-unwrap-permission.hd`
@@ -945,7 +948,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Collect</code> (29)</summary>
+<details><summary><code>unsupported:Collect</code> (30)</summary>
 
 - `runtime/valid/reference-bounded-dynamic-method.hd`
 - `runtime/valid/trait-value-as-provider.hd`
@@ -976,6 +979,7 @@ compiler stage that first declined the case.
 - `runtime/panic/fact-evaluation-panics-on-read.hd`
 - `runtime/valid/derive-members-of-data-and-enums.hd`
 - `runtime/valid/trait-and-impl-declaration-forms.hd`
+- `runtime/valid/type-declaration-forms.hd`
 
 </details>
 
@@ -1009,45 +1013,6 @@ compiler stage that first declined the case.
 - `runtime/valid/associated-binding-positions.hd`
 - `runtime/valid/trait-value-binding-identity.hd`
 - `runtime/valid/trait-value-satisfies-instantiated-bound.hd`
-
-</details>
-
-<details><summary><code>unsupported:FolderIface</code> (34)</summary>
-
-- `typing/valid/requirements-and-suspension.hd`
-- `typing/valid/context-spread-normalization.hd`
-- `runtime/valid/context-values-install-providers.hd`
-- `typing/valid/mutable-provider-rows.hd`
-- `typing/invalid/alias-cycle.hd`
-- `typing/invalid/row-alias-cycle.hd`
-- `typing/invalid/row-parameter-in-context.hd`
-- `typing/valid/row-alias.hd`
-- `runtime/valid/row-alias-runs.hd`
-- `typing/valid/row-alias-nested.hd`
-- `typing/valid/row-alias-generic.hd`
-- `runtime/valid/row-alias-mutable-key.hd`
-- `typing/valid/row-alias-empty.hd`
-- `typing/invalid/row-alias-as-type.hd`
-- `typing/invalid/row-alias-in-use.hd`
-- `typing/invalid/row-alias-binding.hd`
-- `typing/valid/row-alias-bare-context.hd`
-- `typing/invalid/row-alias-generic-kind.hd`
-- `runtime/valid/installer-function-runs.hd`
-- `typing/valid/row-alias-bare-slots.hd`
-- `runtime/valid/row-alias-bare-runs.hd`
-- `typing/valid/row-alias-bare-impl-head.hd`
-- `typing/invalid/row-alias-type-argument.hd`
-- `typing/invalid/row-alias-explicit-type-argument.hd`
-- `typing/invalid/row-alias-bare-target.hd`
-- `typing/invalid/row-alias-bare-alias.hd`
-- `typing/valid/requirement-key-binding.hd`
-- `typing/valid/row-parameter-marked.hd`
-- `typing/valid/row-slots.hd`
-- `typing/invalid/row-slot-bare-context.hd`
-- `typing/invalid/row-slot-bare-function-type.hd`
-- `typing/invalid/context-row-unknown-trait.hd`
-- `typing/invalid/row-alias-unknown-key.hd`
-- `runtime/valid/type-declaration-forms.hd`
 
 </details>
 
@@ -1779,6 +1744,7 @@ runtime/valid/inspectable-generic-inner-mut-argument.hd
 runtime/valid/inspectable-generic-target-helper.hd
 runtime/valid/inspectable-inner-mut-identity.hd
 runtime/valid/inspectable-primitives-collections-options.hd
+runtime/valid/installer-function-runs.hd
 runtime/valid/integer-literal-forms.hd
 runtime/valid/integer-power-associativity.hd
 runtime/valid/interpolation-expression-spacing.hd
@@ -2030,6 +1996,7 @@ runtime/valid/rng-from-random.hd
 runtime/valid/rng-int-range.hd
 runtime/valid/rng-seeded-sequence.hd
 runtime/valid/rng-shuffle-choose-sample.hd
+runtime/valid/row-alias-mutable-key.hd
 runtime/valid/row-extension-absent-key-runs.hd
 runtime/valid/row-extension-provider-restoration.hd
 runtime/valid/row-extension-restores-provider.hd
@@ -2193,6 +2160,7 @@ runtime/valid/write-line-suspending-call-argument.hd
 typing/invalid/absolute-path-in-expression.hd
 typing/invalid/adapter-callback-scope-key.hd
 typing/invalid/alias-bound-bare-trait.hd
+typing/invalid/alias-cycle.hd
 typing/invalid/alias-unknown-target.hd
 typing/invalid/all-bang-child.hd
 typing/invalid/all-non-suspend-argument.hd
@@ -2280,6 +2248,7 @@ typing/invalid/compound-index-negative-literal.hd
 typing/invalid/comprehension-binding-does-not-leak.hd
 typing/invalid/comprehension-refutable-pattern.hd
 typing/invalid/console-readonly-binding-write-line.hd
+typing/invalid/context-row-unknown-trait.hd
 typing/invalid/contextual-variant-as-function-value.hd
 typing/invalid/contextual-variant-binding-without-type.hd
 typing/invalid/contextual-variant-without-type.hd
@@ -2739,12 +2708,27 @@ typing/invalid/root-file-lib-super.hd
 typing/invalid/root-file-super.hd
 typing/invalid/root-mod-file.hd
 typing/invalid/root-orphan-impl.hd
+typing/invalid/row-alias-as-type.hd
+typing/invalid/row-alias-bare-alias.hd
+typing/invalid/row-alias-bare-target.hd
+typing/invalid/row-alias-binding.hd
+typing/invalid/row-alias-cycle.hd
+typing/invalid/row-alias-explicit-type-argument.hd
+typing/invalid/row-alias-generic-kind.hd
+typing/invalid/row-alias-in-use.hd
+typing/invalid/row-alias-mut-key.hd
+typing/invalid/row-alias-type-argument.hd
+typing/invalid/row-alias-unknown-key.hd
 typing/invalid/row-extension-keeps-other-keys.hd
 typing/invalid/row-extension-unsound.hd
 typing/invalid/row-extension-without-provider.hd
 typing/invalid/row-inference-conflict.hd
 typing/invalid/row-inference-unavailable-provider.hd
+typing/invalid/row-parameter-in-context.hd
 typing/invalid/row-parameter-propagates-callback-requirement.hd
+typing/invalid/row-slot-bare-alias-argument.hd
+typing/invalid/row-slot-bare-context.hd
+typing/invalid/row-slot-bare-function-type.hd
 typing/invalid/row-subsumption-missing-key.hd
 typing/invalid/row-union-missing-requirement.hd
 typing/invalid/same-depth-promotion-conflict.hd
@@ -3153,6 +3137,7 @@ typing/valid/relative-self-main.hd
 typing/valid/relative-self-mod-file.hd
 typing/valid/relative-shared-test-module.hd
 typing/valid/requirement-key-any-trait.hd
+typing/valid/requirement-key-binding.hd
 typing/valid/requirement-key-dynamically-safe-generics.hd
 typing/valid/requirement-key-supertrait-any-trait.hd
 typing/valid/requirement-key-supertrait-binding.hd
@@ -3162,11 +3147,20 @@ typing/valid/requirement-row-duplicate-keys.hd
 typing/valid/requirement-row-plus-list.hd
 typing/valid/resource-disposed-result.hd
 typing/valid/retention-metadata.hd
+typing/valid/row-alias-bare-context.hd
+typing/valid/row-alias-bare-impl-head.hd
+typing/valid/row-alias-empty.hd
+typing/valid/row-alias-generic.hd
+typing/valid/row-alias-nested.hd
+typing/valid/row-alias-one-key.hd
+typing/valid/row-alias.hd
 typing/valid/row-extension-absent-key.hd
 typing/valid/row-extension-entailment.hd
 typing/valid/row-kinded-arguments.hd
+typing/valid/row-parameter-marked.hd
 typing/valid/row-pattern-fixed-by-parameter.hd
 typing/valid/row-polymorphic-callback.hd
+typing/valid/row-slots.hd
 typing/valid/row-subsumption-list.hd
 typing/valid/row-subsumption-sites.hd
 typing/valid/row-union-closure-result.hd
