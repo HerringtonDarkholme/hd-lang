@@ -992,6 +992,18 @@ impl Ck<'_, '_> {
         };
         self.note_call(def);
         let name = self.cx.names.text(item.name).to_owned();
+        // A registration function is called only by a test registration
+        // call in test position (`module.testing.direct-call`).
+        let registering = std::mem::take(&mut self.registering);
+        let runner = crate::tests::case_runner(self.cx.names.known, def);
+        if !registering && self.is_registration_fn(def) {
+            let msg = format!("`{name}` is called only as a test registration in test position");
+            self.err(Code::MisplacedTestCase, n, &msg);
+            return Ok((Ref(NONE), Ty::NEVER));
+        }
+        if def == self.cx.names.known.snapshot {
+            self.check_snapshot_expect(args);
+        }
         match &item.data {
             ItemData::Fn(sig) => {
                 let sig = self.with_result(def, sig.clone());
@@ -999,6 +1011,9 @@ impl Ck<'_, '_> {
                 let inst = |t: Ty| subst_owner(pool, def, &vars, t);
                 let params: Vec<(Symbol, Ty)> =
                     sig.params.iter().map(|(s, t)| (*s, inst(*t))).collect();
+                if runner.is_some() {
+                    self.registration_body_result(&params, args)?;
+                }
                 if item
                     .intrinsic
                     .is_some_and(|k| self.cx.names.text(k) == "task_all")
@@ -1064,6 +1079,35 @@ impl Ck<'_, '_> {
                 let ret = self.norm_ty(ret);
                 let row = self.call_row(def, &sig, &vars, 0);
                 self.check_row(row, n);
+                // A registration call's test case runs its std body with
+                // the arguments that body takes, and returns the result of
+                // the registration's body (checking-and-tir.md §4.13.9).
+                if let Some((body_fn, takes)) = runner {
+                    let mut picked = Vec::new();
+                    for t in takes {
+                        let at = params
+                            .iter()
+                            .position(|p| self.cx.names.text(p.0) == *t)
+                            .and_then(|i| refs.get(i));
+                        match at {
+                            Some(r) => picked.push(*r),
+                            None => return Ok((Ref(NONE), Ty::NEVER)),
+                        }
+                    }
+                    let last = match params.last() {
+                        Some((_, t)) => self.normalize_deep(*t)?,
+                        None => Ty::VOID,
+                    };
+                    let result = match pool.get(self.strip_mut(last)) {
+                        TyData::Fn { result, .. } => self.norm_ty(result),
+                        _ => Ty::VOID,
+                    };
+                    let c = Callee::Item {
+                        def: body_fn,
+                        targs: pool.list(&vars),
+                    };
+                    return Ok(self.emit_call(&c, &picked, result, true, true, n));
+                }
                 // A checked `assert_equal` call runs std's `check_equal`
                 // (lib/std/testing.hd), which has the same signature.
                 let def = if item
@@ -2868,6 +2912,79 @@ impl Ck<'_, '_> {
 /// yet (audit/compiler/diagnostic-notes.md), so it stays a stop.
 /// The arguments of a form that takes neither a trailing block nor a
 /// positional spread.
+impl Ck<'_, '_> {
+    /// Whether `def` is a test registration function: `it`, `it_each`,
+    /// `it_prop` or `it_prop_with` (`module.testing.direct-call`).
+    pub(crate) fn is_registration_fn(&self, def: DefId) -> bool {
+        crate::tests::case_runner(self.cx.names.known, def).is_some()
+            || self
+                .cx
+                .lookup
+                .item(def)
+                .and_then(|i| i.intrinsic)
+                .is_some_and(|k| self.cx.names.text(k) == "test_case")
+    }
+
+    /// `module.testing.snapshot.literal`: a `snapshot` call's `expect`,
+    /// named or second, is a string literal without interpolation.
+    fn check_snapshot_expect(&mut self, args: &Args<'_>) {
+        let expect = args
+            .named
+            .iter()
+            .find(|(name, _)| name == "expect")
+            .map(|(_, e)| *e)
+            .or_else(|| args.positional.get(1).copied());
+        if let Some(e) = expect
+            && crate::expr::literal_text(&self.cx.src, e).is_none()
+        {
+            self.err(
+                Code::NonLiteralTestArgument,
+                e,
+                "a snapshot's `expect` is a string literal",
+            );
+        }
+    }
+
+    /// `module.testing.reg.body-closure-result`: the body closure of a
+    /// registration call that writes no result type returns `void`, or
+    /// `Result[void, dyn Error]` when it uses `?`
+    /// (`expr.try.test.with-try`, `expr.try.test.without-try`). The body
+    /// is the final parameter, given by name, as a trailing block or last
+    /// in position.
+    fn registration_body_result(
+        &mut self,
+        params: &[(Symbol, Ty)],
+        args: &Args<'_>,
+    ) -> StageResult<()> {
+        let Some((pname, pty)) = params.last() else {
+            return Ok(());
+        };
+        let pname = self.cx.names.text(*pname).to_owned();
+        let body = args
+            .named
+            .iter()
+            .find(|(name, _)| *name == pname)
+            .map(|(_, e)| *e)
+            .or_else(|| args.positional.get(params.len() - 1).copied());
+        let Some(body) = body.filter(|b| b.kind() == SyntaxKind::ClosureExpr) else {
+            return Ok(());
+        };
+        let written = body
+            .children()
+            .any(|c| c.kind().is_type() && c.kind() != SyntaxKind::RequirementRow);
+        if written {
+            return Ok(());
+        }
+        let want = crate::tests::case_result(self.cx, crate::tests::has_try(body));
+        let pool = self.pool();
+        let pt = self.normalize_deep(*pty)?;
+        if let TyData::Fn { result, .. } = pool.get(self.strip_mut(pt)) {
+            let _ = self.infer.unify(pool, result, want);
+        }
+        Ok(())
+    }
+}
+
 fn plain_args(args: &Args<'_>, what: &str) -> StageResult<()> {
     if args.trailing.is_some() {
         return unsupported(format!("a trailing block for {what}"));

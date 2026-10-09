@@ -142,7 +142,8 @@ impl Instance for NodeInstance {
     }
 }
 
-/// One finished case as the test host reports it.
+/// One finished case, or one row of an `it_each` case, as the test host
+/// reports it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CaseRun {
     pub test: u32,
@@ -151,6 +152,22 @@ pub struct CaseRun {
     pub stdout: String,
     pub stderr: String,
     pub us: u64,
+    /// An `it_each` row: its index and the table's row count
+    /// (`std-testing.it-each.name`). A table with no rows is one result
+    /// with `rows` 0 and no outcome.
+    pub row: Option<(u32, u32)>,
+    /// A failed property's shrunk input, as `Debug` shows it
+    /// (`std-testing.prop.report`).
+    pub input: Option<String>,
+}
+
+impl CaseRun {
+    /// Whether this is the case's last result: a case's only one, or its
+    /// table's last row.
+    #[must_use]
+    pub fn last(&self) -> bool {
+        self.row.is_none_or(|(row, rows)| row + 1 >= rows)
+    }
 }
 
 /// One case as the test host runs it: its `hd.test.i` and `hd.init.j`
@@ -160,6 +177,9 @@ pub struct CaseRun {
 pub struct HostCase {
     pub test: u32,
     pub init: u32,
+    /// The registration function: `it`, `it_each`, `it_prop` or
+    /// `it_prop_with`. Only an `it_each` case runs rows.
+    pub kind: String,
     pub temp_dir: PathBuf,
     pub seed: Option<i64>,
     pub grants: Grants,
@@ -173,6 +193,9 @@ pub struct Snapshot {
     pub root: PathBuf,
     /// `__snapshots__/<module>`, as a message shows it.
     pub folder: String,
+    /// `__regressions__/<module>`, where a property case keeps its file
+    /// `<slug>` (`std-testing.prop.regression-file`).
+    pub regressions: String,
     pub slug: String,
     pub update: bool,
 }
@@ -205,11 +228,23 @@ fn host_config(env: &TestEnv<'_>, cases: &[HostCase]) -> String {
         }
         let seed = c.seed.map_or_else(|| "null".to_owned(), |s| s.to_string());
         let s = &c.snapshot;
+        // A property case's regression file (`std-testing.prop.regression-file`).
+        let regression = if c.seed.is_some() {
+            let shown = format!("{}/{}", s.regressions, s.slug);
+            format!(
+                "{{\"file\":{},\"shown\":{}}}",
+                quote(&s.root.join(&shown).to_string_lossy()),
+                quote(&shown)
+            )
+        } else {
+            "null".to_owned()
+        };
         let _ = write!(
             out,
-            "{{\"test\":{},\"init\":{},\"tempDir\":{},\"seed\":{seed},\"grants\":{},\"snapshot\":{{\"dir\":{},\"shown\":{},\"slug\":{},\"update\":{}}}}}",
+            "{{\"test\":{},\"init\":{},\"kind\":{},\"tempDir\":{},\"seed\":{seed},\"grants\":{},\"snapshot\":{{\"dir\":{},\"shown\":{},\"slug\":{},\"update\":{}}},\"regression\":{regression}}}",
             c.test,
             c.init,
+            quote(&c.kind),
             quote(&c.temp_dir.to_string_lossy()),
             grants_json(&c.grants),
             quote(&s.root.join(&s.folder).to_string_lossy()),
@@ -326,7 +361,7 @@ pub fn run_cases(
     for line in BufReader::new(stdout).lines() {
         let line = line.map_err(|e| format!("node: {e}"))?;
         let r = parse_case(&line).ok_or_else(|| format!("node: unreadable result `{line}`"))?;
-        seen += 1;
+        seen += usize::from(r.last());
         done(r);
     }
     let out = child.wait_with_output().map_err(|e| format!("node: {e}"))?;
@@ -352,6 +387,7 @@ fn parse_case(line: &str) -> Option<CaseRun> {
             match key.as_str() {
                 "stdout" => r.stdout = v,
                 "stderr" => r.stderr = v,
+                "input" => r.input = Some(v),
                 _ => {}
             }
             rest
@@ -363,6 +399,8 @@ fn parse_case(line: &str) -> Option<CaseRun> {
                 "status" => r.status = v.parse().ok()?,
                 "trapped" => r.trapped = v == "true",
                 "us" => r.us = v.parse().ok()?,
+                "row" => r.row = Some((v.parse().ok()?, r.row.map_or(0, |x| x.1))),
+                "rows" => r.row = Some((r.row.map_or(0, |x| x.0), v.parse().ok()?)),
                 _ => {}
             }
             &rest[end..]
@@ -428,6 +466,7 @@ mod tests {
         let cases = [HostCase {
             test: 2,
             init: 1,
+            kind: "it_prop".into(),
             temp_dir: PathBuf::from("/tmp/hd-test-1-0/4"),
             seed: Some(9),
             grants: Grants {
@@ -439,6 +478,7 @@ mod tests {
             snapshot: Snapshot {
                 root: PathBuf::from("/pkg"),
                 folder: "__snapshots__/tests.report".into(),
+                regressions: "__regressions__/tests.report".into(),
                 slug: "sums-prices".into(),
                 update: false,
             },
@@ -450,7 +490,7 @@ mod tests {
         };
         assert_eq!(
             host_config(&env, &cases),
-            r#"{"program":"tests/report.hd","args":[],"programs":null,"cases":[{"test":2,"init":1,"tempDir":"/tmp/hd-test-1-0/4","seed":9,"grants":{"Console":false,"FsWrite":["/tmp/a\"b"]},"snapshot":{"dir":"/pkg/__snapshots__/tests.report","shown":"__snapshots__/tests.report","slug":"sums-prices","update":false}}]}"#
+            r#"{"program":"tests/report.hd","args":[],"programs":null,"cases":[{"test":2,"init":1,"kind":"it_prop","tempDir":"/tmp/hd-test-1-0/4","seed":9,"grants":{"Console":false,"FsWrite":["/tmp/a\"b"]},"snapshot":{"dir":"/pkg/__snapshots__/tests.report","shown":"__snapshots__/tests.report","slug":"sums-prices","update":false},"regression":{"file":"/pkg/__regressions__/tests.report/sums-prices","shown":"__regressions__/tests.report/sums-prices"}}]}"#
         );
     }
 
@@ -466,5 +506,19 @@ mod tests {
         assert_eq!(r.stdout, "a\"b\n");
         assert_eq!(r.stderr, "x\u{e9}\u{1f600}");
         assert_eq!(r.us, 15);
+        assert!(r.last());
+        let row = parse_case(
+            r#"{"test":2,"row":1,"rows":3,"status":0,"trapped":false,"stdout":"","stderr":"","us":1}"#,
+        )
+        .expect("parses");
+        assert_eq!(row.row, Some((1, 3)));
+        assert!(!row.last());
+        let failed = parse_case(
+            r#"{"test":4,"status":3,"trapped":true,"stdout":"","stderr":"","us":1,"input":"Point { x: 50 }"}"#,
+        )
+        .expect("parses");
+        assert_eq!(failed.input.as_deref(), Some("Point { x: 50 }"));
+        let empty = parse_case(r#"{"test":2,"row":0,"rows":0}"#).expect("parses");
+        assert!(empty.last());
     }
 }

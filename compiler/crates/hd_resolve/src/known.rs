@@ -76,6 +76,23 @@ pub struct KnownItems {
     pub annotate: DefId,
     pub testing_module: PathId,
     pub check_equal: DefId,
+    /// The test registration functions besides `it`
+    /// (`module.testing.reg.calls`), and the private std bodies that their
+    /// test cases run, which take the generics of the registration
+    /// function in order.
+    pub it_each: DefId,
+    pub it_prop: DefId,
+    pub it_prop_with: DefId,
+    pub each_case: DefId,
+    pub prop_case: DefId,
+    pub prop_with_case: DefId,
+    /// `std.testing.snapshot`, whose `expect` is a literal
+    /// (`module.testing.snapshot.literal`).
+    pub snapshot: DefId,
+    /// The runner capabilities that a test case's std body uses
+    /// (`std-testing.runner.binding`).
+    pub test_runner: DefId,
+    pub property_runner: DefId,
     sealed: [DefId; 4],
 }
 
@@ -166,6 +183,15 @@ impl KnownItems {
             annotate: item("std.annotation", "annotate"),
             testing_module: module("std.testing"),
             check_equal: item("std.testing", "check_equal"),
+            it_each: item("std.testing", "it_each"),
+            it_prop: item("std.testing", "it_prop"),
+            it_prop_with: item("std.testing", "it_prop_with"),
+            each_case: item("std.testing", "each_case"),
+            prop_case: item("std.testing", "prop_case"),
+            prop_with_case: item("std.testing", "prop_with_case"),
+            snapshot: item("std.testing", "snapshot"),
+            test_runner: item("std.testing", "TestRunner"),
+            property_runner: item("std.testing", "PropertyRunner"),
             sealed: [any_val, any_ref, structure, tuple],
         }
     }

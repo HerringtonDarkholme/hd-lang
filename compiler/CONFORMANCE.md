@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2061 | 557 | 227 | 2845 |
+| 2078 | 540 | 227 | 2845 |
 
 ## By Chapter
 
@@ -23,7 +23,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/07-functions.md` | 89 | 31 | 10 | 130 |
 | `lang/08-data-and-enums.md` | 78 | 37 | 8 | 123 |
 | `lang/09-traits.md` | 258 | 86 | 15 | 359 |
-| `lang/10-modules.md` | 172 | 67 | 19 | 258 |
+| `lang/10-modules.md` | 178 | 62 | 18 | 258 |
 | `lang/11-requirements-and-suspension.md` | 140 | 51 | 68 | 259 |
 | `lang/14-annotations.md` | 104 | 42 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
@@ -52,7 +52,7 @@ fixture; unsupported surface records progress without failing.
 | `std/serde.md` | 3 | 0 | 5 | 8 |
 | `std/sys.md` | 1 | 0 | 0 | 1 |
 | `std/task.md` | 7 | 0 | 0 | 7 |
-| `std/testing.md` | 20 | 18 | 1 | 39 |
+| `std/testing.md` | 31 | 6 | 2 | 39 |
 | `std/text.md` | 29 | 5 | 1 | 35 |
 | `std/time.md` | 16 | 1 | 0 | 17 |
 
@@ -62,10 +62,10 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 74 | 24 | 7 | 105 |
-| `runtime/valid` | 673 | 112 | 144 | 929 |
-| `typing/invalid` | 645 | 379 | 51 | 1075 |
-| `typing/valid` | 371 | 19 | 25 | 415 |
+| `runtime/panic` | 75 | 24 | 6 | 105 |
+| `runtime/valid` | 685 | 99 | 145 | 929 |
+| `typing/invalid` | 647 | 377 | 51 | 1075 |
+| `typing/valid` | 373 | 17 | 25 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -94,7 +94,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 1 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 235 |
+| `fail:no-diagnostic` | 239 |
 | `fail:nonexhaustive-match` | 4 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:not-callable` | 1 |
@@ -106,7 +106,7 @@ compiler stage that first declined the case.
 | `fail:private-import` | 1 |
 | `fail:private-main` | 8 |
 | `fail:re-export-loop` | 1 |
-| `fail:runtime-exit` | 47 |
+| `fail:runtime-exit` | 48 |
 | `fail:stdout` | 3 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
@@ -116,19 +116,19 @@ compiler stage that first declined the case.
 | `fail:type-mismatch` | 53 |
 | `fail:type-used-as-value` | 2 |
 | `fail:unknown-data-field` | 13 |
-| `fail:unknown-import` | 21 |
+| `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 33 |
 | `fail:unknown-module` | 1 |
 | `fail:unknown-name` | 10 |
-| `fail:unknown-named-argument` | 3 |
+| `fail:unknown-named-argument` | 1 |
 | `fail:unknown-trait` | 9 |
 | `fail:unknown-type` | 4 |
 | `fail:unknown-variant` | 1 |
 | `fail:unsatisfied-trait-bound` | 10 |
 | `fail:unused-local-binding` | 6 |
 | `unsupported:Body` | 94 |
-| `unsupported:Collect` | 28 |
-| `unsupported:Emit` | 28 |
+| `unsupported:Collect` | 29 |
+| `unsupported:Emit` | 27 |
 | `unsupported:FolderIface` | 34 |
 | `unsupported:Link` | 1 |
 | `unsupported:RunCase` | 36 |
@@ -293,7 +293,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (235)</summary>
+<details><summary><code>fail:no-diagnostic</code> (239)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -390,6 +390,8 @@ compiler stage that first declined the case.
 - `typing/invalid/unknown-panic-category.hd`
 - `typing/invalid/test-case-as-value.hd`
 - `typing/invalid/it-each-name-clash.hd`
+- `typing/invalid/it-each-non-literal-name.hd`
+- `typing/invalid/snapshot-non-literal-expect.hd`
 - `typing/invalid/assert-equal-without-debug.hd`
 - `typing/invalid/test-timeout-string.hd`
 - `typing/invalid/block-on-in-fact.hd`
@@ -409,6 +411,7 @@ compiler stage that first declined the case.
 - `typing/invalid/facts-of-closure.hd`
 - `typing/invalid/facts-of-local-binding.hd`
 - `typing/invalid/facts-of-method.hd`
+- `typing/invalid/property-input-not-debug.hd`
 - `typing/invalid/row-union-list-no-convert.hd`
 - `typing/invalid/public-method-missing-result-type.hd`
 - `typing/invalid/intrinsic-method-user.hd`
@@ -437,6 +440,7 @@ compiler stage that first declined the case.
 - `typing/invalid/requirement-key-unbound.hd`
 - `typing/invalid/error-marker-outside.hd`
 - `typing/invalid/foreign-inherent-impl.hd`
+- `typing/invalid/property-examples-wrong-type.hd`
 - `typing/invalid/tuple-inherent-impl.hd`
 - `typing/invalid/alias-inherent-impl.hd`
 - `typing/invalid/closure-row-key-collision.hd`
@@ -614,7 +618,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (47)</summary>
+<details><summary><code>fail:runtime-exit</code> (48)</summary>
 
 - `runtime/panic/for-loop-iterator-invalidated.hd`
 - `runtime/panic/invalidated-iterator.hd`
@@ -656,6 +660,7 @@ compiler stage that first declined the case.
 - `runtime/valid/list-pop.hd`
 - `runtime/valid/list-insert-remove-clear.hd`
 - `runtime/valid/num-to-fixed.hd`
+- `runtime/valid/property-generators-scalars.hd`
 - `runtime/valid/dbg-prints-void.hd`
 - `runtime/valid/dbg-without-requirement.hd`
 - `runtime/valid/generic-data-let-pattern.hd`
@@ -798,29 +803,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-import</code> (21)</summary>
+<details><summary><code>fail:unknown-import</code> (1)</summary>
 
-- `runtime/valid/it-each-rows.hd`
-- `typing/invalid/it-each-outside-test-position.hd`
-- `typing/invalid/it-each-non-literal-name.hd`
-- `runtime/valid/test-timeout-options.hd`
-- `runtime/valid/it-each-propagation.hd`
-- `typing/valid/snapshot-inline.hd`
-- `typing/invalid/snapshot-non-literal-expect.hd`
-- `typing/invalid/property-input-not-debug.hd`
-- `runtime/valid/property-assume-discards.hd`
 - `typing/invalid/use-through-pub-use-loop.hd`
-- `runtime/valid/property-draw-budget.hd`
-- `runtime/valid/derived-arbitrary-with.hd`
-- `typing/invalid/property-examples-wrong-type.hd`
-- `runtime/valid/derived-arbitrary-recursive-members.hd`
-- `runtime/valid/derived-arbitrary-no-finite-value.hd`
-- `runtime/valid/derived-arbitrary-no-finite-data.hd`
-- `runtime/valid/choices-choose.hd`
-- `typing/invalid/test-registration-renamed-misplaced.hd`
-- `typing/valid/test-runner-every-registration-form.hd`
-- `runtime/valid/property-generators-scalars.hd`
-- `runtime/valid/property-generators-collections.hd`
 
 </details>
 
@@ -883,11 +868,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-named-argument</code> (3)</summary>
+<details><summary><code>fail:unknown-named-argument</code> (1)</summary>
 
 - `runtime/valid/tests-block-use-shadow.hd`
-- `runtime/valid/property-body-discard-message-fails.hd`
-- `runtime/valid/test-registration-qualified-prop.hd`
 
 </details>
 
@@ -1045,7 +1028,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Collect</code> (28)</summary>
+<details><summary><code>unsupported:Collect</code> (29)</summary>
 
 - `runtime/valid/reference-bounded-dynamic-method.hd`
 - `runtime/valid/trait-value-as-provider.hd`
@@ -1057,6 +1040,7 @@ compiler stage that first declined the case.
 - `runtime/valid/trait-less-block-facts.hd`
 - `runtime/valid/member-line-list-expression.hd`
 - `runtime/valid/init-group-order.hd`
+- `runtime/valid/derived-arbitrary-with.hd`
 - `runtime/valid/structure-qualified-self.hd`
 - `runtime/valid/trait-delegation-vararg.hd`
 - `runtime/valid/derived-default-enum.hd`
@@ -1078,14 +1062,13 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Emit</code> (28)</summary>
+<details><summary><code>unsupported:Emit</code> (27)</summary>
 
 - `runtime/valid/float-display.hd`
 - `runtime/valid/suspending-calls-in-branches.hd`
 - `runtime/valid/suspending-match-guards.hd`
 - `runtime/valid/f32-display-width-through-generics.hd`
 - `runtime/valid/dynamic-trait-value-satisfies-own-bound.hd`
-- `runtime/panic/snapshot-mismatch.hd`
 - `runtime/valid/string-prefix-std.hd`
 - `runtime/valid/float-cast-saturates.hd`
 - `runtime/valid/primitive-operator-calls-method.hd`
@@ -1203,8 +1186,8 @@ compiler stage that first declined the case.
 - `runtime/valid/termination-report.hd`
 - `runtime/valid/test-body-explicit-closure.hd`
 - `runtime/valid/it-body-by-name.hd`
-- `runtime/valid/it-each-options.hd`
-- `runtime/valid/test-registration-qualified-call.hd`
+- `runtime/valid/test-timeout-options.hd`
+- `runtime/valid/it-each-propagation.hd`
 
 </details>
 
@@ -1570,6 +1553,7 @@ runtime/panic/set-invalidated.hd
 runtime/panic/sign-fallback-balance-underflow.hd
 runtime/panic/signed-min-division-overflow.hd
 runtime/panic/snapshot-file-missing.hd
+runtime/panic/snapshot-mismatch.hd
 runtime/panic/string-index-out-of-bounds.hd
 runtime/panic/structure-variant-mismatch.hd
 runtime/panic/u8-add-overflow.hd
@@ -1633,6 +1617,7 @@ runtime/valid/char-unicode-digits.hd
 runtime/valid/char-unicode-letters.hd
 runtime/valid/char-unicode-whitespace.hd
 runtime/valid/character-literals.hd
+runtime/valid/choices-choose.hd
 runtime/valid/cli-errors.hd
 runtime/valid/cli-flag-forms.hd
 runtime/valid/cli-parse-args.hd
@@ -1711,6 +1696,9 @@ runtime/valid/defer-order.hd
 runtime/valid/definite-init-diverging-branch.hd
 runtime/valid/depth-two-promotion.hd
 runtime/valid/deque-ends.hd
+runtime/valid/derived-arbitrary-no-finite-data.hd
+runtime/valid/derived-arbitrary-no-finite-value.hd
+runtime/valid/derived-arbitrary-recursive-members.hd
 runtime/valid/derived-default-data.hd
 runtime/valid/derived-default-declared.hd
 runtime/valid/derived-eq-every-member.hd
@@ -1870,6 +1858,8 @@ runtime/valid/inspectable-primitives-collections-options.hd
 runtime/valid/integer-literal-forms.hd
 runtime/valid/interpolation-expression-spacing.hd
 runtime/valid/interpolation-forms.hd
+runtime/valid/it-each-options.hd
+runtime/valid/it-each-rows.hd
 runtime/valid/iterator-drives-loops.hd
 runtime/valid/iterator-from-fn.hd
 runtime/valid/iterator-search-count.hd
@@ -2054,6 +2044,10 @@ runtime/valid/propagation-from-two-domains.hd
 runtime/valid/propagation-in-closure-targets-closure.hd
 runtime/valid/propagation-into-erased-error.hd
 runtime/valid/propagation-prefers-assignability.hd
+runtime/valid/property-assume-discards.hd
+runtime/valid/property-body-discard-message-fails.hd
+runtime/valid/property-draw-budget.hd
+runtime/valid/property-generators-collections.hd
 runtime/valid/provider-capture-timing.hd
 runtime/valid/provider-from-suspending-call.hd
 runtime/valid/provider-scope-dynamic-callback.hd
@@ -2193,6 +2187,8 @@ runtime/valid/test-case-fresh-instance.hd
 runtime/valid/test-case-options.hd
 runtime/valid/test-expect-panic.hd
 runtime/valid/test-module-top-level-cases.hd
+runtime/valid/test-registration-qualified-call.hd
+runtime/valid/test-registration-qualified-prop.hd
 runtime/valid/text-join-builder.hd
 runtime/valid/text-prefix-helpers.hd
 runtime/valid/time-date-utc.hd
@@ -2520,6 +2516,7 @@ typing/invalid/integration-test-private-name.hd
 typing/invalid/integration-tests-root-use.hd
 typing/invalid/interpolation-without-display.hd
 typing/invalid/invalid-map-key.hd
+typing/invalid/it-each-outside-test-position.hd
 typing/invalid/it-outside-test-code.hd
 typing/invalid/iterator-adapter-readonly.hd
 typing/invalid/iterator-any-callback-row.hd
@@ -2825,6 +2822,7 @@ typing/invalid/supertrait-widening-not-reversed.hd
 typing/invalid/suspension-constructor-to-bang-function.hd
 typing/invalid/task-retry-row-missing.hd
 typing/invalid/test-module-name-not-imported.hd
+typing/invalid/test-registration-renamed-misplaced.hd
 typing/invalid/tests-block-item-outside.hd
 typing/invalid/top-level-defer.hd
 typing/invalid/top-level-let-annotation-type-mismatch.hd
@@ -3190,6 +3188,7 @@ typing/valid/shift-count-unsigned.hd
 typing/valid/sign-fallback-separate-groups.hd
 typing/valid/sign-fallback-signed.hd
 typing/valid/sign-fallback-unsigned.hd
+typing/valid/snapshot-inline.hd
 typing/valid/std-derivation-types-debug.hd
 typing/valid/std-host-types-debug.hd
 typing/valid/std-joined-types-debug.hd
@@ -3211,6 +3210,7 @@ typing/valid/task-retry-row.hd
 typing/valid/temp-dir-integration.hd
 typing/valid/test-body-uses-test-runner.hd
 typing/valid/test-runner-capabilities.hd
+typing/valid/test-runner-every-registration-form.hd
 typing/valid/test-timeout-call.hd
 typing/valid/test-timeout-duration.hd
 typing/valid/three-embedded-fields.hd
@@ -3285,7 +3285,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 77 | 25 | 0 | 102 |
+| 78 | 24 | 0 | 102 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3361,6 +3361,7 @@ cli/new-vcs
 cli/task-beside-dir
 cli/task-name-clash
 cli/test-every-case
+cli/test-integration-env
 cli/test-snapshot-file
 cli/test-tasks
 cli/test-unit-fakes

@@ -584,6 +584,10 @@ fn run_tests(built: &Output, serial: usize, run: &mut TestRun) -> Result<(), Ver
         .filter(|test| test.ignore.is_none())
         .filter_map(|test| test.run.map(|run| (test, run)))
         .collect();
+    // Every case is ignored: nothing runs, so there is no program.
+    if runs.is_empty() {
+        return Ok(());
+    }
     let Some(wasm) = &built.wasm else {
         return Err(Verdict::Unsupported("Link".to_owned()));
     };
@@ -594,7 +598,7 @@ fn run_tests(built: &Output, serial: usize, run: &mut TestRun) -> Result<(), Ver
     }
     let list: Vec<String> = runs
         .iter()
-        .map(|(_, (test, init))| format!("{test}:{init}"))
+        .map(|(case, (test, init))| format!("{test}:{init}:{}", case.kind))
         .collect();
     let result = Command::new("node")
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/test.mjs"))
@@ -607,15 +611,31 @@ fn run_tests(built: &Output, serial: usize, run: &mut TestRun) -> Result<(), Ver
         Err(error) => return Err(Verdict::Crash(error.to_string())),
     };
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let lines: Vec<&str> = stdout.lines().collect();
-    if lines.len() != runs.len() {
+    // One line per case, or per row of an `it_each` case, whose `test`
+    // field names its case's export; a table with no rows has one line
+    // with `"rows":0` and no outcome.
+    let index = |line: &str| -> Option<u32> {
+        let rest = line.strip_prefix("{\"test\":")?;
+        rest[..rest.find(',')?].parse().ok()
+    };
+    let mut lines: Vec<(&hd_driver::TestCase, &str)> = Vec::new();
+    for line in stdout.lines() {
+        let Some(case) = index(line).and_then(|i| runs.iter().find(|(_, (t, _))| *t == i)) else {
+            return Err(Verdict::Fail("runtime-exit".to_owned()));
+        };
+        if !line.contains("\"rows\":0}") {
+            lines.push((case.0, line));
+        }
+    }
+    let reported = |t: u32| stdout.lines().any(|line| index(line) == Some(t));
+    if runs.iter().any(|(_, (t, _))| !reported(*t)) {
         return Err(Verdict::Fail("runtime-exit".to_owned()));
     }
-    for ((test, _), line) in runs.iter().zip(&lines) {
+    for (test, line) in lines {
         if line.contains("\"trapped\":true") {
             match &test.expect_panic {
                 Some(code) if reports_panic(line, code) => {}
-                _ => run.panicked.push((*line).to_owned()),
+                _ => run.panicked.push(line.to_owned()),
             }
         } else if test.expect_panic.is_some() || !line.contains("\"status\":0,") {
             run.failed = true;

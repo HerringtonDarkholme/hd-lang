@@ -197,6 +197,7 @@ pub fn command(args: &[OsString]) -> ExitCode {
     };
     let mut report = Report {
         rep: Reporter::stdout(o.json),
+        inputs: std::collections::HashMap::new(),
         text: String::new(),
         passed: 0,
         failed: 0,
@@ -546,6 +547,7 @@ fn test_one(
         flags: &o.caps,
         seed: o.seed,
         update: o.update,
+        filter: o.filter.as_deref(),
     };
     // `cli.test.builds-executables`: when an integration test or a doc
     // test can start a program, the package's executables and tasks are
@@ -601,6 +603,16 @@ struct RunEnv<'a> {
     seed: Option<i64>,
     /// `--update`: snapshot files are recorded.
     update: bool,
+    /// `--filter PATTERN` (`cli.test.filter`), which also selects the rows
+    /// of an `it_each` case by their names `name[i]`.
+    filter: Option<&'a str>,
+}
+
+/// Whether row `row` of the `it_each` case `name` is selected: its name
+/// `name[row]` contains the filter (`cli.test.filter`,
+/// `std-testing.it-each.name`).
+fn row_selected(name: &str, row: u32, filter: Option<&str>) -> bool {
+    filter.is_none_or(|f| format!("{name}[{row}]").contains(f))
 }
 
 /// A test case name's slug (`std-testing.snapshot-file.slug`): lowercased,
@@ -785,10 +797,12 @@ fn run(
         let host_case = |i: usize, (test, init): (u32, u32)| HostCase {
             test,
             init,
+            kind: cases[i].kind.clone(),
             temp_dir: temp.case(i),
             seed: seeds[i],
             snapshot: Snapshot {
                 folder: format!("__snapshots__/{}", selected[i].snapshots),
+                regressions: format!("__regressions__/{}", selected[i].snapshots),
                 root: env.root.to_path_buf(),
                 slug: slug(&cases[i].name),
                 update: env.update,
@@ -825,9 +839,31 @@ fn run(
             for msg in rx {
                 match msg {
                     Ok((i, c)) => {
-                        temp.end(i);
+                        if c.last() {
+                            temp.end(i);
+                        }
+                        let mut k = key(i);
+                        // Each row of an `it_each` case is a case of its
+                        // own, which its first result lists
+                        // (`std-testing.it-each`).
+                        if let Some((row, rows)) = c.row {
+                            let name = &cases[i].name;
+                            if row == 0 {
+                                let kept: Vec<u32> = (0..rows)
+                                    .filter(|r| row_selected(name, *r, env.filter))
+                                    .collect();
+                                report.release(&cases, &seeds, cursor.rows(&k, &kept));
+                            }
+                            if rows == 0 || !row_selected(name, row, env.filter) {
+                                continue;
+                            }
+                            k.row = row;
+                        }
+                        if let Some(input) = &c.input {
+                            report.inputs.insert(k.clone(), input.clone());
+                        }
                         let r = judge(&cases[i], &c);
-                        report.release(&cases, &seeds, cursor.finish(key(i), r));
+                        report.release(&cases, &seeds, cursor.finish(k, r));
                     }
                     Err(e) => {
                         error.get_or_insert(e);
@@ -892,6 +928,8 @@ fn panic_of(stderr: &str) -> (String, String) {
 /// object per case instead (`cli.json.test.result`), then the summary.
 struct Report {
     rep: Reporter,
+    /// A failed property case's shrunk input (`std-testing.prop.report`).
+    inputs: std::collections::HashMap<CaseKey, String>,
     text: String,
     passed: usize,
     failed: usize,
@@ -912,7 +950,14 @@ impl Report {
                 continue;
             };
             let at = format!("{}:{}", c.file, c.line);
-            let repro = repro(c, seeds.get(i).copied().flatten());
+            // An `it_each` row is named `name[i]` (`std-testing.it-each.name`).
+            let name = if c.kind == "it_each" {
+                format!("{}[{}]", c.name, k.row)
+            } else {
+                c.name.clone()
+            };
+            let repro = repro(c, &name, seeds.get(i).copied().flatten());
+            let input = self.inputs.remove(&k);
             let mut t = String::new();
             // The outcome and message of the case's test object.
             let (outcome, message) = match r {
@@ -922,9 +967,12 @@ impl Report {
                 }
                 CaseResult::Failed { message } => {
                     self.failed += 1;
-                    let _ = writeln!(t, "FAIL {at}: {}", c.name);
+                    let _ = writeln!(t, "FAIL {at}: {name}");
                     for l in message.lines() {
                         let _ = writeln!(t, "    {l}");
+                    }
+                    if let Some(input) = &input {
+                        let _ = writeln!(t, "    input: {input}");
                     }
                     let _ = writeln!(t, "    repro: {repro}");
                     ("failed", message)
@@ -936,23 +984,26 @@ impl Report {
                     } else {
                         format!("panic: {category}: {message}")
                     };
-                    let _ = writeln!(t, "PANIC {at}: {}\n    {panic}", c.name);
+                    let _ = writeln!(t, "PANIC {at}: {name}\n    {panic}");
+                    if let Some(input) = &input {
+                        let _ = writeln!(t, "    input: {input}");
+                    }
                     let _ = writeln!(t, "    repro: {repro}");
                     ("failed", panic)
                 }
                 CaseResult::TimedOut => {
                     self.failed += 1;
-                    let _ = writeln!(t, "PANIC {at}: {}\n    panic: time-limit", c.name);
+                    let _ = writeln!(t, "PANIC {at}: {name}\n    panic: time-limit");
                     ("failed", "panic: time-limit".to_owned())
                 }
                 CaseResult::Ignored { reason } => {
                     self.ignored += 1;
-                    let _ = writeln!(t, "IGNORED {at}: {} ({reason})", c.name);
+                    let _ = writeln!(t, "IGNORED {at}: {name} ({reason})");
                     ("ignored", reason)
                 }
                 CaseResult::Unsupported { what } => {
                     self.unsupported += 1;
-                    let _ = writeln!(t, "UNSUPPORTED {at}: {} ({what} cannot run yet)", c.name);
+                    let _ = writeln!(t, "UNSUPPORTED {at}: {name} ({what} cannot run yet)");
                     // JSON has no fourth outcome; as in text, it fails nothing.
                     ("ignored", format!("unsupported: {what} cannot run yet"))
                 }
@@ -961,7 +1012,7 @@ impl Report {
                 let _ = writeln!(
                     self.text,
                     "{{\"kind\":\"test\",\"name\":{},\"outcome\":\"{outcome}\",\"message\":{}}}",
-                    report::quote(&c.name),
+                    report::quote(&name),
                     report::quote(&message)
                 );
             } else {
@@ -1006,15 +1057,11 @@ impl Report {
     }
 }
 
-/// The command that reruns a failed case (`cli.test.report.repro`). A
-/// property test case's names its base seed, so it draws the same cases
-/// (`cli.test.seed.report`).
-fn repro(case: &TestCase, seed: Option<i64>) -> String {
-    let mut out = format!(
-        "hd test {} --filter {}",
-        case.file,
-        shell_quoted(&case.name)
-    );
+/// The command that reruns a failed case `name`, a row's `name[i]` for an
+/// `it_each` row (`cli.test.report.repro`). A property test case's names
+/// its base seed, so it draws the same cases (`cli.test.seed.report`).
+fn repro(case: &TestCase, name: &str, seed: Option<i64>) -> String {
+    let mut out = format!("hd test {} --filter {}", case.file, shell_quoted(name));
     if let Some(seed) = seed {
         let _ = write!(out, " --seed {seed}");
     }
@@ -1071,11 +1118,11 @@ mod tests {
         assert_eq!(base_seed(&a, Some(7)), Some(7));
         assert_eq!(base_seed(&case("adds", "it"), Some(7)), None);
         assert_eq!(
-            repro(&a, Some(7)),
+            repro(&a, &a.name, Some(7)),
             "hd test tests/props.hd --filter \"sorts any list\" --seed 7"
         );
         assert_eq!(
-            repro(&case("adds", "it"), None),
+            repro(&case("adds", "it"), "adds", None),
             "hd test tests/props.hd --filter \"adds\""
         );
     }

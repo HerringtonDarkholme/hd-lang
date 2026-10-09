@@ -52,6 +52,11 @@ import { dirname, basename, join, resolve } from "node:path";
 
 export class Deadlock extends Error {}
 
+// Thrown by a test runner's `PropertyRunner.start` when the case has
+// nothing left to run: the instance ends, and the runner counts the case
+// as discarded (std-testing.runner.examples-done).
+export class EndCase extends Error {}
+
 // A host result that breaks the ABI: the `host-contract` panic.
 class HostContract extends Error {}
 
@@ -297,9 +302,11 @@ function lineReader(fd) {
 // standard input), and in a test case its `tempDir` (made on the first
 // `tempDir()` call, which `TestRunner.temp_dir` makes), the base `seed`
 // of a property test (Test Environments, cli.test.seed), its `snapshot`
-// files (`dir`, `shown`, `slug`, `update`), and the test runner's
+// files (`dir`, `shown`, `slug`, `update`), the test runner's
 // `programs`, the package's executables and tasks by name
-// (cli.test.process).
+// (cli.test.process), and its `runner`, the hooks through which
+// `TestRunner.row` and `PropertyRunner` reach it (`row`, `slugSuffix`,
+// `start`, `record`, `show`; test.mjs).
 export function createHost(sink, env = {}) {
   const args = env.args ?? [];
   const program = env.program ?? "";
@@ -424,8 +431,11 @@ export function createHost(sink, env = {}) {
     const s = env.snapshot;
     snapshots += 1;
     if (!s) return "no snapshot file: this run names no snapshot directory";
-    const file = join(s.dir, `${s.slug}-${snapshots}.snap`);
-    const shown = s.shown ? `${s.shown}/${s.slug}-${snapshots}.snap` : file;
+    // An `it_each` row's slug adds the row's index
+    // (std-testing.snapshot-file.row).
+    const slug = s.slug + (env.runner?.slugSuffix() ?? "");
+    const file = join(s.dir, `${slug}-${snapshots}.snap`);
+    const shown = s.shown ? `${s.shown}/${slug}-${snapshots}.snap` : file;
     if (existsSync(file)) {
       const expected = readFileSync(file, "utf8");
       if (expected === actual) return "";
@@ -637,12 +647,29 @@ export function createHost(sink, env = {}) {
       },
     }),
     "hd:TestRunner": {
-      // `it_each` rows and timeouts belong to the runner's case list; a
-      // case built by `hd test` runs row 0 under no limit here.
-      row: () => env.row ?? 0,
+      // The test runner (`env.runner`, test.mjs) picks the row an `it_each`
+      // case runs; without one, row 0. Timeouts run under no limit here.
+      row: (count) => (env.runner ? env.runner.row(count) : 0),
       report_timeout: () => {},
       snapshot_check: (len) => put(new Enc().str(snapshotCheck(text(len)))),
       temp_dir: () => put(new Enc().str(tempDir())),
+    },
+    // The property runner's side of a property case
+    // (std-testing.runner.start-case, .record, .show): the test runner
+    // decides each case and keeps its draws and its input's text.
+    "hd:PropertyRunner": {
+      start: (cases, shrink, examples) => {
+        if (!env.runner) throw new HostContract("no property runner binds this run");
+        const c = env.runner.start(cases, shrink, examples);
+        const e = new Enc();
+        if (c.example === null) e.leb(0);
+        else e.leb(1).leb(c.example);
+        e.zz(c.seed).zz(c.size);
+        e.list(c.replay, (e, v) => e.zz(v));
+        return put(e);
+      },
+      record: (value) => env.runner?.record(BigInt(value)),
+      show: (len) => env.runner?.show(text(len)),
     },
   };
 
@@ -653,6 +680,7 @@ export function createHost(sink, env = {}) {
     const ex = instance.exports;
     let status = 0;
     let trapped = false;
+    let ended = false;
     try {
       ex[init]();
       status = ex[poll]();
@@ -669,6 +697,9 @@ export function createHost(sink, env = {}) {
       }
     } catch (e) {
       flush();
+      if (e instanceof EndCase) {
+        return { status: 0, trapped: false, ended: true };
+      }
       if (e instanceof HostContract) {
         sink.err(`panic: host-contract: ${e.message}\n`);
         reported = true;
@@ -681,7 +712,7 @@ export function createHost(sink, env = {}) {
       trapped = true;
     }
     flush();
-    return { status, trapped };
+    return { status, trapped, ended };
   };
 
   // Removes a directory the host made for itself.

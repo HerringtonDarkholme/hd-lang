@@ -23,7 +23,7 @@ use hd_sched::SerialOrder;
 use hd_types::InternPool;
 
 /// Fields no interface declares today (see the loop below).
-const EXEMPT: &[&str] = &["check_equal"];
+const EXEMPT: &[&str] = &["check_equal", "each_case", "prop_case", "prop_with_case"];
 
 #[test]
 fn every_known_item_is_declared() {
@@ -118,12 +118,22 @@ fn every_known_item_is_declared() {
         ("block_on", known.block_on),
         ("annotate", known.annotate),
         ("check_equal", known.check_equal),
+        ("it_each", known.it_each),
+        ("it_prop", known.it_prop),
+        ("it_prop_with", known.it_prop_with),
+        ("each_case", known.each_case),
+        ("prop_case", known.prop_case),
+        ("prop_with_case", known.prop_with_case),
+        ("snapshot", known.snapshot),
+        ("test_runner", known.test_runner),
+        ("property_runner", known.property_runner),
     ];
     for (name, def) in fields {
-        // BUG: `check_equal` is declared without `pub` in
+        // BUG: `check_equal` (and the test case bodies `each_case`,
+        // `prop_case` and `prop_with_case`) are declared without `pub` in
         // lib/std/testing.hd, and interfaces carry only exported items
-        // (`interface_items`), so no interface declares it although the
-        // checker emits calls to it. Exempt until the declaration is
+        // (`interface_items`), so no interface declares them although the
+        // checker emits calls to them. Exempt until the declaration is
         // public; the guard below fails loudly if it ever resolves, so
         // the exemption cannot go stale unnoticed.
         if EXEMPT.contains(name) {

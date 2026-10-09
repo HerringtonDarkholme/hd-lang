@@ -173,6 +173,18 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
+        // A registration function is never a value (`module.testing.direct-call`).
+        if self.is_registration_fn(def) {
+            let name = self
+                .cx
+                .lookup
+                .item(def)
+                .map(|i| self.cx.names.text(i.name).to_owned())
+                .unwrap_or_default();
+            let msg = format!("`{name}` is called only as a test registration in test position");
+            self.err(Code::MisplacedTestCase, n, &msg);
+            return Ok((Ref(NONE), Ty::NEVER));
+        }
         let sig = self.with_result(def, sig.clone());
         let vars = self.fresh_generics(&sig, explicit, 0);
         let m = Member {

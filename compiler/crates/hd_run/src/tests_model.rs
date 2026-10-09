@@ -119,9 +119,26 @@ impl ReleaseCursor {
             next: 0,
         }
     }
+    /// An `it_each` case's rows are known (`std-testing.it-each`): its key
+    /// `key`, row 0, stands for the given rows, in order; none when the
+    /// table is empty or no row is selected. Returns the results now
+    /// releasable, in order.
+    pub fn rows(&mut self, key: &CaseKey, rows: &[u32]) -> Vec<(CaseKey, CaseResult)> {
+        if let Some(at) = self.order.iter().position(|k| k == key) {
+            let keys = rows.iter().map(|&row| CaseKey { row, ..key.clone() });
+            self.order.splice(at..=at, keys);
+        }
+        self.release()
+    }
+
     /// Records a finished case; returns the results now releasable, in order.
     pub fn finish(&mut self, key: CaseKey, r: CaseResult) -> Vec<(CaseKey, CaseResult)> {
         self.done.insert(key, r);
+        self.release()
+    }
+
+    /// The finished results whose earlier cases have all finished.
+    fn release(&mut self) -> Vec<(CaseKey, CaseResult)> {
         let mut out = Vec::new();
         while let Some(k) = self.order.get(self.next) {
             let Some(r) = self.done.remove(k) else { break };
@@ -167,6 +184,35 @@ mod tests {
             reason: "slow".into(),
         };
         assert_eq!(cur.finish(k(2), ignored).len(), 1);
+    }
+
+    #[test]
+    fn rows_stream_in_place_of_their_case() {
+        let plan = TestPlan::new(vec![case(1, "a"), case(2, "rows"), case(3, "c")], None);
+        let mut cur = ReleaseCursor::new(&plan);
+        let k = |i: usize| plan.cases[i].key.clone();
+        let row = |r: u32| CaseKey { row: r, ..k(1) };
+        let pass = CaseResult::Passed { us: 1 };
+        assert!(cur.finish(k(2), pass.clone()).is_empty());
+        assert!(cur.rows(&k(1), &[0, 1, 2]).is_empty());
+        assert_eq!(cur.finish(k(0), pass.clone()).len(), 1);
+        assert!(cur.finish(row(2), pass.clone()).is_empty());
+        assert_eq!(cur.finish(row(0), pass.clone()).len(), 1);
+        let out = cur.finish(row(1), pass.clone());
+        assert_eq!(
+            out.iter()
+                .map(|(k, _)| (k.registration, k.row))
+                .collect::<Vec<_>>(),
+            [(2, 1), (2, 2), (3, 0)]
+        );
+        // An empty table stands for no case.
+        let plan = TestPlan::new(vec![case(1, "rows"), case(2, "b")], None);
+        let mut cur = ReleaseCursor::new(&plan);
+        assert!(
+            cur.finish(plan.cases[1].key.clone(), pass.clone())
+                .is_empty()
+        );
+        assert_eq!(cur.rows(&plan.cases[0].key, &[]).len(), 1);
     }
 
     #[test]

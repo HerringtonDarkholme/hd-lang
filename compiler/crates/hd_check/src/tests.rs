@@ -4,7 +4,10 @@
 //! module, is listed by its literal name and options, and each runnable
 //! `it` body is checked as a `TestCase` body of its own synthesized
 //! function item, so collection and emission treat it as a root like
-//! `main`.
+//! `main`. An `it_each`, `it_prop` or `it_prop_with` call is checked
+//! against its declaration in `lib/std/testing.hd`, and its test case runs
+//! the std body that drives the rows or the property's cases through the
+//! runner (`case_runner`).
 
 use std::collections::HashSet;
 
@@ -78,9 +81,9 @@ pub fn tests_block_statements(root: NodeRef<'_>) -> Vec<NodeRef<'_>> {
         .collect()
 }
 
-/// Whether a block holds a `?` outside any nested closure or function
-/// (`expr.try.test.with-try`).
-fn has_try(n: NodeRef<'_>) -> bool {
+/// Whether a block, or a closure's body, holds a `?` outside any nested
+/// closure or function (`expr.try.test.with-try`).
+pub(crate) fn has_try(n: NodeRef<'_>) -> bool {
     n.children().any(|c| match c.kind() {
         SyntaxKind::TryExpr => true,
         SyntaxKind::ClosureExpr | SyntaxKind::FnDecl => false,
@@ -137,6 +140,8 @@ pub fn check_tests(
 ) -> StageResult<TestsOut> {
     let mut out = TestsOut::default();
     let mut seen = HashSet::new();
+    // The names of the module's `it_each` calls.
+    let mut tables: HashSet<String> = HashSet::new();
     let src = &cx.src;
     for s in stmts.iter().copied() {
         let Some((call, kind, block)) = registration(src, s) else {
@@ -188,10 +193,13 @@ pub fn check_tests(
                             reg.unsupported = Some("the `timeout` option".into());
                         }
                         "body" => body_arg = Some(e),
-                        other => {
+                        "prop" if kind != "it" => body_arg = Some(e),
+                        other if kind == "it" => {
                             let msg = format!("`{kind}` has no parameter `{other}`");
                             diags.error(Code::UnknownNamedArgument, src.span(a), &msg);
                         }
+                        // The call's own check reports any other name.
+                        _ => {}
                     }
                 }
                 _ => {}
@@ -212,8 +220,50 @@ pub fn check_tests(
             diags.error(Code::DuplicateTestName, src.span(call), &msg);
             continue;
         }
+        // `module.testing.reg.row-name-clash`: no other case is named like
+        // a row `name[i]` of an `it_each` call, before it or after it.
+        let clash = if kind == "it_each" {
+            seen.iter().find(|n| row_base(n) == Some(reg.name.as_str()))
+        } else {
+            row_base(&reg.name).and_then(|b| tables.get(b))
+        };
+        if let Some(other) = clash {
+            let msg = format!(
+                "`{}` and the rows of `{}` share a name",
+                reg.name,
+                row_base(other).unwrap_or(other)
+            );
+            diags.error(Code::DuplicateTestName, src.span(call), &msg);
+            continue;
+        }
+        if kind == "it_each" {
+            tables.insert(reg.name.clone());
+        }
         if kind != "it" {
-            reg.unsupported = Some(format!("`{kind}` test cases"));
+            // The body closure of the call: by name, or last in position.
+            let body = body_arg.or_else(|| positional.last().copied());
+            if reg.unsupported.is_none() {
+                let tries = body.is_some_and(|b| b.kind() == SyntaxKind::ClosureExpr && has_try(b));
+                let name = format!("$test{}", out.regs.len());
+                let Some(e) = s.children().next() else {
+                    continue;
+                };
+                let call = RegCall {
+                    name: &name,
+                    expr: e,
+                    kind: &kind,
+                    tries,
+                };
+                let (body, item) = check_registration(cx, module, &call, profile, diags)?;
+                out.bodies.push(body);
+                out.items.push(item);
+                // As for `it`: a `dyn Error` result cannot be emitted yet.
+                if tries {
+                    reg.unsupported = Some("a test body that uses `?`".into());
+                } else {
+                    reg.body = Some(name);
+                }
+            }
         } else if body_arg.is_some() || block.is_none() {
             reg.unsupported
                 .get_or_insert_with(|| "an explicit closure as a test body".into());
@@ -253,19 +303,7 @@ fn check_case(
 ) -> StageResult<(Body, Item)> {
     let pool = cx.names.pool;
     let def: DefId = cx.names.item(module, name);
-    let ret = if has_try(block) {
-        let error = pool.intern_ty(&TyData::TraitValue {
-            def: cx.names.item("std.error", "Error"),
-            args: TyList::EMPTY,
-            bindings: vec![],
-        });
-        pool.intern_ty(&TyData::Adt {
-            def: cx.names.item("std.core", "Result"),
-            args: pool.list(&[Ty::VOID, error]),
-        })
-    } else {
-        Ty::VOID
-    };
+    let ret = case_result(cx, has_try(block));
     let local = hd_types::LocalPool::new();
     let mut ck = new_ck(
         cx,
@@ -288,6 +326,148 @@ fn check_case(
         Some(RowFrame::Profile { used, .. }) => pool.row(used),
         _ => RowId::EMPTY,
     };
+    let body = ck.finish_body(root)?;
+    let sig = FnSig {
+        generics: vec![],
+        params: vec![],
+        defaults: vec![],
+        ret,
+        row,
+        suspends: true,
+        variadic: false,
+    };
+    let item = Item::new(def, cx.names.syms.intern(name), false, ItemData::Fn(sig));
+    Ok((body, item))
+}
+
+/// A test body's result: `void`, or `Result[void, dyn Error]` when it
+/// uses `?` (`expr.try.test.with-try`, `expr.try.test.without-try`).
+pub(crate) fn case_result(cx: &BodyCx<'_>, tries: bool) -> Ty {
+    let pool = cx.names.pool;
+    if !tries {
+        return Ty::VOID;
+    }
+    let error = pool.intern_ty(&TyData::TraitValue {
+        def: cx.names.item("std.error", "Error"),
+        args: TyList::EMPTY,
+        bindings: vec![],
+    });
+    pool.intern_ty(&TyData::Adt {
+        def: cx.names.item("std.core", "Result"),
+        args: pool.list(&[Ty::VOID, error]),
+    })
+}
+
+/// The std body that a test case of registration function `def` runs, and
+/// the registration's parameters it takes, in order (lib/std/testing.hd;
+/// checking-and-tir.md §4.13.9). Its generics are the registration's.
+pub(crate) fn case_runner(
+    known: &hd_resolve::KnownItems,
+    def: DefId,
+) -> Option<(DefId, &'static [&'static str])> {
+    if def == known.it_each {
+        Some((known.each_case, &["rows", "body"]))
+    } else if def == known.it_prop {
+        Some((known.prop_case, &["cases", "shrink", "examples", "prop"]))
+    } else if def == known.it_prop_with {
+        Some((
+            known.prop_with_case,
+            &["gen", "cases", "shrink", "examples", "prop"],
+        ))
+    } else {
+        None
+    }
+}
+
+/// The table name of a row name `name[i]` (`std-testing.it-each.name`).
+fn row_base(name: &str) -> Option<&str> {
+    let (base, rest) = name.rsplit_once('[')?;
+    let index = rest.strip_suffix(']')?;
+    (!index.is_empty() && index.bytes().all(|b| b.is_ascii_digit())).then_some(base)
+}
+
+/// A registration call whose test case is checked: the case's item name,
+/// the call expression, the registration function's name, and whether its
+/// body closure uses `?`.
+#[derive(Clone, Copy)]
+struct RegCall<'t> {
+    name: &'t str,
+    expr: NodeRef<'t>,
+    kind: &'t str,
+    tries: bool,
+}
+
+/// The test case of an `it_each`, `it_prop` or `it_prop_with` call: a
+/// suspending function item with no parameters, whose body checks the call
+/// `e` against the registration function's signature and runs the std body
+/// of its test case with the arguments it takes (`case_runner`). Its result
+/// is the registration body's, `void` or, when that body uses `?`,
+/// `Result[void, dyn Error]` (`module.testing.reg.body-closure-result`). Its
+/// row is the keys of `profile` that the body uses, and the runner
+/// capability that the std body uses: `TestRunner` for a table,
+/// `PropertyRunner` for a property, which the runner binds for that std
+/// code alone (`std-testing.runner.binding`, `.runner.body-property`).
+fn check_registration(
+    cx: &BodyCx<'_>,
+    module: &str,
+    call: &RegCall<'_>,
+    profile: RowId,
+    diags: &mut DiagBuf,
+) -> StageResult<(Body, Item)> {
+    let RegCall {
+        name,
+        expr: e,
+        kind,
+        tries,
+    } = *call;
+    let pool = cx.names.pool;
+    let def: DefId = cx.names.item(module, name);
+    let ret = case_result(cx, tries);
+    let local = hd_types::LocalPool::new();
+    let mut ck = new_ck(
+        cx,
+        &local,
+        def,
+        def,
+        BodyKind::TestCase,
+        (ret, RowId::EMPTY),
+        diags,
+    );
+    ck.suspends = vec![true];
+    ck.rows = vec![RowFrame::Profile {
+        row: profile,
+        used: RowData::default(),
+    }];
+    let blk = ck.b.open_block();
+    ck.move_to(cx.src.span(e).lo);
+    let start = ck.infer.var_count();
+    ck.registering = true;
+    let (r, t) = ck.expr(e, Some(ret))?;
+    ck.registering = false;
+    ck.close_literals(start);
+    ck.close_open_params(0);
+    ck.close_ref_params(0);
+    let r = ck.coerce(r, t, ret, e, "result");
+    let root = ck.b.close_block(blk, Some(r), ret, e.index());
+    let mut used = match ck.rows.first() {
+        Some(RowFrame::Profile { used, .. }) => used.clone(),
+        _ => RowData::default(),
+    };
+    let known = &cx.names.known;
+    let runner = if kind == "it_each" {
+        known.test_runner
+    } else {
+        known.property_runner
+    };
+    let key = pool.intern_ty(&TyData::TraitValue {
+        def: runner,
+        args: TyList::EMPTY,
+        bindings: vec![],
+    });
+    if !used.keys.contains(&key) {
+        used.keys.push(key);
+    }
+    let row = pool.row(&used);
     let body = ck.finish_body(root)?;
     let sig = FnSig {
         generics: vec![],

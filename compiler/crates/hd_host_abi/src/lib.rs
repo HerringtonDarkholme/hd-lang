@@ -238,24 +238,42 @@ pub static TABLE: &[HostTrait] = &[
     },
 ];
 
-/// The test runner's host traits (§16.4, engines-and-test-runner.md §19):
-/// imported from `hd:<Key>` like a capability, but no grant names them.
-pub static RUNNERS: &[HostTrait] = &[HostTrait {
-    key: "TestRunner",
-    std_path: "std.testing.TestRunner",
-    methods: &[
-        m("row", &[S(Scalar::I32)], S(Scalar::I32), Wait::Never, None),
-        m("report_timeout", &[S(Scalar::I64)], V, Wait::Never, None),
-        m(
-            "snapshot_check",
-            &[B("string")],
-            B("string"),
-            Wait::Never,
-            None,
-        ),
-        m("temp_dir", &[], B("string"), Wait::Never, None),
-    ],
-}];
+/// The test runner's host traits (§16.4, engines-and-test-runner.md §19;
+/// `std-testing.runner.declares`): imported from `hd:<Key>` like a
+/// capability, but no grant names them.
+pub static RUNNERS: &[HostTrait] = &[
+    HostTrait {
+        key: "TestRunner",
+        std_path: "std.testing.TestRunner",
+        methods: &[
+            m("row", &[S(Scalar::I32)], S(Scalar::I32), Wait::Never, None),
+            m("report_timeout", &[S(Scalar::I64)], V, Wait::Never, None),
+            m(
+                "snapshot_check",
+                &[B("string")],
+                B("string"),
+                Wait::Never,
+                None,
+            ),
+            m("temp_dir", &[], B("string"), Wait::Never, None),
+        ],
+    },
+    HostTrait {
+        key: "PropertyRunner",
+        std_path: "std.testing.PropertyRunner",
+        methods: &[
+            m(
+                "start",
+                &[S(Scalar::I32), S(Scalar::I32), S(Scalar::I32)],
+                B("PropertyCase"),
+                Wait::Never,
+                None,
+            ),
+            m("record", &[S(Scalar::I64)], V, Wait::Never, None),
+            m("show", &[B("string")], V, Wait::Never, None),
+        ],
+    },
+];
 
 /// The host trait, capability or runner, whose std path is `std_path`.
 #[must_use]

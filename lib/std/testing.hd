@@ -1,10 +1,11 @@
 # std.testing, the part written in hd (spec/lang/10-modules.md#standard-testing).
-# `assert_equal`, `snapshot`, `it_each`, `it_prop`, and `it_prop_with` are
-# checked by the compiler; `Choices`, `Arbitrary`, and
-# `snapshot_file` are declared here (Testing T53), with the bodies that the
-# compiler gives an `it_each`, `it_prop`, or `it_prop_with` test case and
-# the runner capabilities they use. `std.testing.arbitrary` is
-# `lib/std/testing/arbitrary.hd`.
+# `it` and `assert_equal` are compiler-provided. `it_each`, `it_prop`,
+# `it_prop_with`, and `snapshot` are declared here, and the compiler checks
+# their calls (spec/lang/10-modules.md#registration-calls, #snapshots);
+# `Choices`, `Arbitrary`, and `snapshot_file` too (Testing T53), with the
+# bodies that the compiler gives an `it_each`, `it_prop`, or `it_prop_with`
+# test case and the runner capabilities they use. `std.testing.arbitrary`
+# is `lib/std/testing/arbitrary.hd`.
 use std.format.debug
 use std.hash.Hash
 use std.num.{Float, Integer, parse_i64}
@@ -15,7 +16,7 @@ use std.structure.{Structure, Variant, Field, Members, Key, Source, SelfRef}
 # (spec/lang/10-modules.md#r-module.path.no-std-child-import). These re-exports
 # are the way to its items.
 pub use std.testing.arbitrary.{With, with}
-use std.process.Process
+use std.process.{Process, Termination}
 use std.time.Duration
 use std.format.DebugWriter
 use std.path.Path
@@ -496,25 +497,47 @@ impl[A < Arbitrary, B < Arbitrary, C < Arbitrary] Arbitrary for (A, B, C):
     fn arbitrary(c: mut Choices) -> (A, B, C):
         (A::arbitrary(c), B::arbitrary(c), C::arbitrary(c))
 
+# The test registration functions besides `it`
+# (spec/lang/10-modules.md#registration-calls), with the signatures the
+# language tier gives them. A call in test position registers test cases:
+# the compiler checks it against the signature, then gives each test case
+# the body of `each_case!`, `prop_case!`, or `prop_with_case!` below, with
+# the call's arguments that body takes. Any other call is an error
+# (module.testing.direct-call), so these bodies never run.
+## Registers one test case for each element of `rows`, named `name[i]`, which runs `body` with that element.
+## See [module.testing.reg.calls](../../spec/lang/10-modules.md#r-module.testing.reg.calls).
+pub fn it_each[A, T < Termination, $R](name: string, rows: List[A], ignore: string? = .None, expect_panic: string? = .None, timeout: Duration? = .None, body: fn!(A) -> T $ R) -> void $ R:
+    panic("std.testing: it_each registers test cases only in test position")
+
+## Registers one property test case, whose inputs `T`'s `Arbitrary` draws.
+## See [module.testing.reg.calls](../../spec/lang/10-modules.md#r-module.testing.reg.calls).
+pub fn it_prop[T < Arbitrary & Debug, R < Termination](name: string, ignore: string? = .None, expect_panic: string? = .None, timeout: Duration? = .None, cases: usize = 100, shrink: usize = 500, examples: List[T] = [], prop: fn!(T) -> R) -> void:
+    panic("std.testing: it_prop registers a test case only in test position")
+
+## Registers one property test case, whose inputs `gen` draws.
+## See [module.testing.reg.calls](../../spec/lang/10-modules.md#r-module.testing.reg.calls).
+pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None, expect_panic: string? = .None, timeout: Duration? = .None, cases: usize = 100, shrink: usize = 500, examples: List[T] = [], prop: fn!(T) -> R) -> void:
+    panic("std.testing: it_prop_with registers a test case only in test position")
+
 # The body of an `it_each` test case (spec/std/testing.md#table-test-rows).
-# The runner calls the one test function once per row, each in a fresh
-# instance: the function reports the row count to the runner's
-# `TestRunner`, which returns the row it selected, and runs `body` with that
-# row. With no rows, row 0 panics with `index-out-of-bounds` after the
-# runner heard count 0, which it reads as an empty table
-# (src/test-runner.ts).
-fn each_case![T, R, $Q](rows: List[T], body: fn!(T) -> R $ Q) -> R $ Q + TestRunner:
+# Its generics are those of `it_each`, in order. The runner calls the one
+# test function once per row, each in a fresh instance: the function
+# reports the row count to the runner's `TestRunner`, which returns the row
+# it selected, and runs `body` with that row. With no rows, row 0 panics
+# with `index-out-of-bounds` after the runner heard count 0, which it reads
+# as an empty table.
+fn each_case![A, T, $R](rows: List[A], body: fn!(A) -> T $ R) -> T $ R + TestRunner:
     index := $.use(TestRunner).row(rows.len())
     body!(rows[index])
 
-# The body of an `it_prop` test case (spec/std/testing.md#property-tests):
-# the runner calls it once per generated case, each in a fresh instance
-# (src/property-tests.ts). It reports its case and shrink caps and its
-# examples to the runner's `PropertyRunner`, takes the example the case
-# names or draws the input with `T`'s `Arbitrary` from a fresh `Choices`,
-# shows the input's `Debug` text, and runs `prop`
+# The body of an `it_prop` test case (spec/std/testing.md#property-tests).
+# Its generics are those of `it_prop`, in order. The runner calls it once
+# per case, each in a fresh instance. It reports its case and shrink caps
+# and its count of examples to the runner's `PropertyRunner`, takes the
+# example the case names or draws the input with `T`'s `Arbitrary` from a
+# fresh `Choices`, shows the input's `Debug` text, and runs `prop`
 # (r-std-testing.runner.show-before-body).
-fn prop_case![T < Arbitrary & Debug, R, $Q](cases: usize, shrink: usize, prop: fn!(T) -> R $ Q, examples: List[T] = []) -> R $ Q + PropertyRunner:
+fn prop_case![T < Arbitrary & Debug, R](cases: usize, shrink: usize, examples: List[T], prop: fn!(T) -> R) -> R $ PropertyRunner:
     let mut runner = $.use(PropertyRunner)
     current := runner.start(cases, shrink, examples.len())
     value := match current.example:
@@ -524,7 +547,7 @@ fn prop_case![T < Arbitrary & Debug, R, $Q](cases: usize, shrink: usize, prop: f
     prop!(value)
 
 # The same for `it_prop_with`, which draws the input with `gen`.
-fn prop_with_case![T < Debug, R, $Q](cases: usize, shrink: usize, gen: fn(mut Choices) -> T, prop: fn!(T) -> R $ Q, examples: List[T] = []) -> R $ Q + PropertyRunner:
+fn prop_with_case![T < Debug, R](gen: fn(mut Choices) -> T, cases: usize, shrink: usize, examples: List[T], prop: fn!(T) -> R) -> R $ PropertyRunner:
     let mut runner = $.use(PropertyRunner)
     current := runner.start(cases, shrink, examples.len())
     value := match current.example:
@@ -583,6 +606,16 @@ fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
 @intrinsic("panic")
 fn panic_with(category: string, message: string) -> void:
     panic("intrinsic")
+
+# `snapshot(text, expect)` compares `text` with the literal expectation
+# written in the source; the compiler checks that `expect` is a literal
+# (module.testing.snapshot.literal). A difference is a failed assertion
+# (r-std-testing.snapshot.mismatch).
+## Compares `text` with `expect`, the expected text written in the source; a difference is a failed assertion.
+## See [std-testing.snapshot](../../spec/std/testing.md#r-std-testing.snapshot).
+pub fn snapshot(text: string, expect: string = "") -> void:
+    if text != expect:
+        panic_with("assertion-failed", "the text differs from the snapshot's expectation: expected ${debug(expect)}, actual ${debug(text)}")
 
 # `snapshot_file(text)` (spec/std/testing.md#snapshot-files) compares `text` with
 # the file the runner names from the running test case,

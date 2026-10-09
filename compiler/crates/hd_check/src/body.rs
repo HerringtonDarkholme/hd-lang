@@ -187,6 +187,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// The module the body is written in: a member is visible from it
     /// when declared there or `pub` (`names.visible.field-method`).
     pub module: hd_base::PathId,
+    /// Checking a test registration call in test position: the next call
+    /// of a registration function registers test cases instead of being
+    /// misplaced (`module.testing.direct-call`).
+    pub registering: bool,
 }
 
 /// A node index kept for a later diagnostic.
@@ -252,6 +256,7 @@ pub(crate) fn new_ck<'a, 'c>(
         at: 0,
         hidden: Vec::new(),
         module: cx.names.module_node(item),
+        registering: false,
     };
     // No local declaration holds byte 0: every local impl starts hidden.
     ck.move_to(0);

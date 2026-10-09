@@ -3229,7 +3229,8 @@ impl Run<'_> {
 
     /// The selected registrations of a test run, in content order: module
     /// order, then registration order (§19.2). `--filter` keeps the names
-    /// that contain it (`cli.test.filter`).
+    /// that contain it (`cli.test.filter`), and an `it_each` call whose row
+    /// names `name[i]` may contain it.
     fn test_plan(&self) -> Vec<(usize, hd_check::tests::TestReg)> {
         let Goal::Tests { module, filter } = &self.goal else {
             return Vec::new();
@@ -3240,7 +3241,16 @@ impl Run<'_> {
                 continue;
             }
             for r in self.regs[m].get().into_iter().flatten() {
-                if filter.as_ref().is_none_or(|f| r.name.contains(f.as_str())) {
+                // A row name `name[i]` selects its `it_each` case, whose
+                // rows the runner selects by name.
+                let row_of = |f: &str| {
+                    r.kind == "it_each"
+                        && f.rsplit_once('[').is_some_and(|(n, _)| r.name.ends_with(n))
+                };
+                if filter
+                    .as_ref()
+                    .is_none_or(|f| r.name.contains(f.as_str()) || row_of(f))
+                {
                     out.push((m, r.clone()));
                 }
             }
