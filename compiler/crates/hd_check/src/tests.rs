@@ -55,7 +55,7 @@ pub struct TestReg {
     pub body: Option<String>,
     pub ignore: Option<String>,
     pub expect_panic: Option<String>,
-    /// Why this case cannot run yet (a body that uses `?`, an explicit closure).
+    /// Why this case cannot run yet (an explicit closure as an `it` body).
     pub unsupported: Option<String>,
     /// The registration's byte offset in its file.
     pub at: u32,
@@ -266,12 +266,7 @@ pub fn check_tests(
                 let (body, item) = check_registration(cx, module, &call, profile, diags)?;
                 out.bodies.push(body);
                 out.items.push(item);
-                // As for `it`: a `dyn Error` result cannot be emitted yet.
-                if tries {
-                    reg.unsupported = Some("a test body that uses `?`".into());
-                } else {
-                    reg.body = Some(name);
-                }
+                reg.body = Some(name);
             }
         } else if body_arg.is_some() || block.is_none() {
             reg.unsupported
@@ -289,14 +284,7 @@ pub fn check_tests(
             let (body, item) = check_case(cx, module, &case, profile, diags)?;
             out.bodies.push(body);
             out.items.push(item);
-            // A `?` makes the result `Result[void, dyn Error]`, and a
-            // `dyn Error` value cannot be emitted yet (its vtable's type
-            // is recursive): checked, but not run.
-            if has_try(block) {
-                reg.unsupported = Some("a test body that uses `?`".into());
-            } else {
-                reg.body = Some(name);
-            }
+            reg.body = Some(name);
         }
         out.regs.push(reg);
     }

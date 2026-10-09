@@ -1,5 +1,6 @@
 //! `hd test` on `compiler/samples/testing` (M4c): exact output and exit
-//! status of passing, failing, panicking, ignored and unsupported cases,
+//! status of passing, failing, panicking and ignored cases, a body whose
+//! `?` returns an error (`module.testing.err-print`),
 //! `--filter`, a warm second run, and the same output on one thread and
 //! on several (`cli.jobs.result`).
 
@@ -45,8 +46,10 @@ IGNORED cart.hd:62: waits for a slow price service (needs the price service)
 PANIC cart.hd:65: adds two and two
     panic: assertion-failed: two and two make five
     repro: hd test cart.hd --filter \"adds two and two\"
-UNSUPPORTED cart.hd:68: parses quantities (a test body that uses `?` cannot run yet)
-test result: FAILED. 6 passed; 4 failed; 1 ignored; 1 unsupported
+FAIL cart.hd:68: parses quantities
+    not a quantity: lots
+    repro: hd test cart.hd --filter \"parses quantities\"
+test result: FAILED. 6 passed; 5 failed; 1 ignored
 ";
 
 #[test]
@@ -113,8 +116,9 @@ fn a_file_runs_its_module_and_a_missed_filter_is_an_error() {
 }
 
 /// `cli.json.test.result`, `cli.json.test.order`: one test object per case
-/// in content order, an unsupported case as ignored, then the summary
-/// with the counts and status 1 when a case failed.
+/// in content order, then the summary with the counts and status 1 when a
+/// case failed. A body that returns an `.Err` fails with the error's
+/// report as its message, on standard output (`module.testing.err-print`).
 #[test]
 fn json_lists_test_objects_then_the_summary() {
     let out = hd_test(&cache("hd-cache-test-json"), &["--format", "json"]);
@@ -136,8 +140,12 @@ fn json_lists_test_objects_then_the_summary() {
         stdout.contains("\"name\":\"waits for a slow price service\",\"outcome\":\"ignored\",\"message\":\"needs the price service\"}"),
         "{stdout}"
     );
+    assert!(
+        stdout.contains("{\"kind\":\"test\",\"name\":\"parses quantities\",\"outcome\":\"failed\",\"message\":\"not a quantity: lots\"}"),
+        "{stdout}"
+    );
     assert_eq!(
         lines[12],
-        "{\"kind\":\"summary\",\"errors\":0,\"warnings\":0,\"passed\":6,\"failed\":4,\"ignored\":2,\"status\":1}"
+        "{\"kind\":\"summary\",\"errors\":0,\"warnings\":0,\"passed\":6,\"failed\":5,\"ignored\":1,\"status\":1}"
     );
 }
