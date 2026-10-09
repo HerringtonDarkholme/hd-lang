@@ -8,6 +8,7 @@ mod check_cmd;
 mod clean_cmd;
 mod dep_cmd;
 mod disk;
+mod fmt_cmd;
 mod help;
 mod new_cmd;
 mod node;
@@ -35,6 +36,7 @@ const USAGE: &str = "usage:
   hd clean [--cache]
   hd remove NAME
   hd fetch
+  hd fmt [--check] [FILE.hd]
   hd test [FILE.hd] [--filter PATTERN] [--jobs N] [--format json]";
 
 /// `cli.exit.hd-failure`: `hd` itself failed, or rejected its command line.
@@ -84,6 +86,7 @@ fn main() -> ExitCode {
         ("clean", rest) => clean_cmd::command(rest),
         ("remove", rest) => dep_cmd::remove(rest),
         ("fetch", rest) => dep_cmd::fetch(rest),
+        ("fmt", rest) => fmt_cmd::command(rest),
         ("run", rest) => run_command(rest),
         ("build", rest) => build_command(rest),
         ("check", rest) => check_cmd::command(rest),

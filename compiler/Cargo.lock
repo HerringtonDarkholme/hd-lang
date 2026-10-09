@@ -87,6 +87,7 @@ dependencies = [
  "hd_check",
  "hd_diag",
  "hd_driver",
+ "hd_fmt",
  "hd_project",
  "hd_run",
  "hd_sched",
@@ -133,6 +134,7 @@ name = "hd_fmt"
 version = "0.0.0"
 dependencies = [
  "hd_base",
+ "hd_diag",
  "hd_syntax",
 ]
 

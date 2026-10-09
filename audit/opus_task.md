@@ -89,13 +89,6 @@ When the queue is empty, say so under "Questions" and wait.
 
 ## Jobs
 
-### O8. CLI Commands (#108), One Command Per Commit
-
-`hd new`, `hd remove`, `hd clean`, `hd fetch`, `hd doc`, `hd fmt`,
-`hd --help`, flag-first `hd --release`, `hd FILE.wasm` (~24 CLI cases).
-One commit per command; skip a command whose spec needs a design that
-`commands.md` lacks and ask under "Questions".
-
 ### O9. Test Reports, Outcomes And Exit Codes
 
 CLI cases: `test-report` (`cli.test.report.*`), `test-every-case`,
@@ -187,6 +180,22 @@ bench N`).
   and drops the removed version's own `hd.sum` lines, and fetches
   nothing. Is a fetch design (a new `commands.md` section) wanted before
   `hd add`, `hd update` and a real `hd fetch`?
+- **O8, the formatter's layout (design).** `hd fmt` is built to
+  `cli.fmt.*`, but `hd_fmt` had no layout rules (commands.md §7.6 names a
+  Wadler-style document, nothing more). It now does only what every
+  layout shares: no trailing whitespace at a line's end and one newline
+  at the file's end, outside tokens and comments. Who designs and writes
+  the real layout (indentation, line width, breaking), and is `hd_fmt`
+  in this lane?
+- **O8, `hd doc` (design).** Skipped, as O8 says for a command whose
+  design `commands.md` lacks: §7.7 has three bullets, while the spec's
+  Documentation section needs each item's signature text and members,
+  every implementation head of a type across the package (derived ones
+  marked), link resolution in each module's scope (`broken-doc-link`),
+  doc tests in place (#135), `hd doc NAME` for `dep.` and `std.`, and the
+  `llms.txt` pages; `hd_doc::render` is a stub. Should `hd doc` be built
+  over the folder interfaces plus skims (and in this lane, with
+  `hd_doc`), after a design section?
 - **Left for other lanes (status).** The CLI cases still failing for
   reasons outside this lane wait on the orchestrator's tasks above:
   top-level `it(...)` (#74: the `json-test-*`, `test-*`, `new-app`,

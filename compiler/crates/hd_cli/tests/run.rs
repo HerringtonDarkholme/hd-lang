@@ -1103,3 +1103,42 @@ fn a_built_module_runs_on_its_own() {
     let r = ran(&dir, &["run", "--", "x"]);
     assert_eq!(r.code, Some(101), "the table denies Console: {}", r.err);
 }
+
+/// `cli.fmt.package`, `cli.fmt.check`, `cli.fmt.syntax-error`,
+/// `cli.exit.fmt-check`: `hd fmt --check` lists what would change and
+/// exits 1; `hd fmt` rewrites it and leaves a file that does not parse
+/// untouched, exiting 101; after it, `--check` finds nothing.
+#[test]
+fn fmt_formats_the_package_and_leaves_broken_files_alone() {
+    let dir = tree(
+        "hd-forms-fmt",
+        &[
+            ("hd.toml", "[package]\nname = \"shop\"\n"),
+            (
+                "src/main.hd",
+                "pub fn main() -> void $ Console:   \n    println(\"hi\")\n\n\n",
+            ),
+            ("src/broken.hd", "pub fn f(:\n"),
+        ],
+    );
+    let r = ran(&dir, &["fmt", "--check", "src/main.hd"]);
+    assert_eq!(
+        (r.code, r.out.as_str()),
+        (Some(1), "src/main.hd\n"),
+        "{}",
+        r.err
+    );
+    let r = ran(&dir, &["fmt"]);
+    assert_eq!(r.code, Some(101));
+    assert!(r.err.starts_with("error: src/broken.hd:1:"), "{}", r.err);
+    assert_eq!(
+        std::fs::read_to_string(dir.join("src/main.hd")).expect("read"),
+        "pub fn main() -> void $ Console:\n    println(\"hi\")\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.join("src/broken.hd")).expect("read"),
+        "pub fn f(:\n"
+    );
+    let r = ran(&dir, &["fmt", "--check", "src/main.hd"]);
+    assert_eq!((r.code, r.out.as_str()), (Some(0), ""), "{}", r.err);
+}

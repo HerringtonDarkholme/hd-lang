@@ -3278,7 +3278,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 52 | 50 | 0 | 102 |
+| 54 | 48 | 0 | 102 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3314,6 +3314,8 @@ cli/exit-package-check
 cli/exit-program-status
 cli/exit-test-empty
 cli/exit-usage-error
+cli/fmt-check
+cli/fmt-syntax-error
 cli/json-check-clean
 cli/json-check-error
 cli/json-check-modules-checked
