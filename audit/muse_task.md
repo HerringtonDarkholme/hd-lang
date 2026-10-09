@@ -102,16 +102,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### D2. Reconcile After Each Orchestrator Milestone (Standing)
-
-Each time a commit titled "M1:", "M2:", "M3:" or "M4:" lands on main,
-rerun the reconciliation of `future-work/compiler/reconciliation.md`
-against the new code: update its top-10 and table (mark fixed rows
-fixed, add new gaps), apply design-doc corrections the code proves
-right, and update `footprint.md` counts. Docs only. Timebox 45 minutes
-per milestone; push.
-
-
 ### L2. Std Gaps, Part 1: Backoff, retry_with!, Rng::from_seed, default()
 
 Your L1 inventory found plain-hd items the spec declares and `lib/std`
@@ -145,30 +135,6 @@ stop there; no host hooks, no `compiler/crates/` edits. Same checks and
 size report as L2; fixtures to watch: `runtime/valid/map-sys.hd`,
 `runtime/valid/net-own-provider.hd`. One commit; push. Timebox 45
 minutes.
-
-### P1. Profile The New Compiler (After S4; Standing Job)
-
-Owner, 2026-10-07: "you write the code, codex do the profiling. move
-fast". The orchestrator writes `compiler/crates/*`; you measure it.
-
-- Each time a new compiler commit lands on main (`git log -- compiler/`),
-  profile it: `hd run` / `hd build` on the samples and on the generated
-  bench (`cargo run --release -p hd_driver --example bench N`) at 3,000 and
-  30,000 lines, cold, warm, body edit, signature edit, comment edit.
-  Use `samply` or `cargo flamegraph` if installed, else `perf`-style
-  timers already in the driver's counters.
-- Write `audit/compiler/profile-<date>-<short hash>.md`: per-stage time,
-  the top 10 hot functions with their share, allocations if measurable,
-  and for each hotspot one line: **implementation slip** (name the fix)
-  or **architecture issue** (name the design section). Compare with the
-  previous report.
-- Only flag what is atrociously bad (order-of-magnitude, superlinear,
-  or a stage that dominates for no design reason). Perf is eyeballed,
-  not gated, and micro-tuning is out of scope.
-- You may add benchmark inputs or a harness under `compiler/bench/`
-  (new directory). Never edit `compiler/crates/`; the orchestrator
-  applies fixes from your report.
-- Push each report within 30 minutes of starting it.
 
 ### T2. Test: Every KnownItems Field Names A Real Std Item (#69)
 
@@ -237,6 +203,30 @@ same), which crate makes them (mono or emit), how `Self?`,
 `Result[Self, E]` and `List[Self]` positions are rewrapped, and the
 code-size cost per derived newtype. Add it to `codegen.md`. Research
 only; one commit; push. Timebox 40 minutes.
+
+### P1. Profile The New Compiler (After S4; Standing Job)
+
+Owner, 2026-10-07: "you write the code, codex do the profiling. move
+fast". The orchestrator writes `compiler/crates/*`; you measure it.
+
+- Each time a new compiler commit lands on main (`git log -- compiler/`),
+  profile it: `hd run` / `hd build` on the samples and on the generated
+  bench (`cargo run --release -p hd_driver --example bench N`) at 3,000 and
+  30,000 lines, cold, warm, body edit, signature edit, comment edit.
+  Use `samply` or `cargo flamegraph` if installed, else `perf`-style
+  timers already in the driver's counters.
+- Write `audit/compiler/profile-<date>-<short hash>.md`: per-stage time,
+  the top 10 hot functions with their share, allocations if measurable,
+  and for each hotspot one line: **implementation slip** (name the fix)
+  or **architecture issue** (name the design section). Compare with the
+  previous report.
+- Only flag what is atrociously bad (order-of-magnitude, superlinear,
+  or a stage that dominates for no design reason). Perf is eyeballed,
+  not gated, and micro-tuning is out of scope.
+- You may add benchmark inputs or a harness under `compiler/bench/`
+  (new directory). Never edit `compiler/crates/`; the orchestrator
+  applies fixes from your report.
+- Push each report within 30 minutes of starting it.
 
 ## Questions
 
