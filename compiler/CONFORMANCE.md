@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1875 | 654 | 315 | 2844 |
+| 1893 | 653 | 298 | 2844 |
 
 ## By Chapter
 
@@ -18,21 +18,21 @@ fixture; unsupported surface records progress without failing.
 | `lang/02-grammar.md` | 189 | 13 | 12 | 214 |
 | `lang/03-names-and-scopes.md` | 77 | 14 | 10 | 101 |
 | `lang/04-type-system.md` | 265 | 72 | 15 | 352 |
-| `lang/05-expressions.md` | 165 | 75 | 37 | 277 |
+| `lang/05-expressions.md` | 167 | 75 | 35 | 277 |
 | `lang/06-control-flow.md` | 108 | 33 | 16 | 157 |
 | `lang/07-functions.md` | 82 | 35 | 13 | 130 |
 | `lang/08-data-and-enums.md` | 70 | 39 | 14 | 123 |
-| `lang/09-traits.md` | 208 | 116 | 35 | 359 |
-| `lang/10-modules.md` | 143 | 77 | 38 | 258 |
-| `lang/11-requirements-and-suspension.md` | 126 | 60 | 73 | 259 |
-| `lang/14-annotations.md` | 103 | 42 | 8 | 153 |
+| `lang/09-traits.md` | 212 | 115 | 32 | 359 |
+| `lang/10-modules.md` | 144 | 77 | 37 | 258 |
+| `lang/11-requirements-and-suspension.md` | 129 | 60 | 70 | 259 |
+| `lang/14-annotations.md` | 104 | 42 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 13 | 0 | 1 | 14 |
 | `std/collections.md` | 24 | 5 | 0 | 29 |
 | `std/console.md` | 7 | 0 | 0 | 7 |
 | `std/digest.md` | 0 | 2 | 0 | 2 |
 | `std/encoding.md` | 3 | 0 | 0 | 3 |
-| `std/error.md` | 2 | 1 | 11 | 14 |
+| `std/error.md` | 8 | 1 | 5 | 14 |
 | `std/format.md` | 7 | 1 | 0 | 8 |
 | `std/fs.md` | 3 | 1 | 0 | 4 |
 | `std/hash.md` | 7 | 2 | 0 | 9 |
@@ -45,7 +45,7 @@ fixture; unsupported surface records progress without failing.
 | `std/ops.md` | 2 | 3 | 8 | 13 |
 | `std/option.md` | 3 | 0 | 0 | 3 |
 | `std/path.md` | 2 | 0 | 0 | 2 |
-| `std/process.md` | 2 | 0 | 1 | 3 |
+| `std/process.md` | 3 | 0 | 0 | 3 |
 | `std/random.md` | 8 | 0 | 0 | 8 |
 | `std/regex.md` | 4 | 0 | 9 | 13 |
 | `std/result.md` | 4 | 1 | 0 | 5 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 68 | 28 | 9 | 105 |
-| `runtime/valid` | 560 | 161 | 208 | 929 |
+| `runtime/valid` | 578 | 160 | 191 | 929 |
 | `typing/invalid` | 593 | 412 | 69 | 1074 |
 | `typing/valid` | 356 | 30 | 29 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -112,7 +112,7 @@ compiler stage that first declined the case.
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-method-signature` | 1 |
 | `fail:trait-used-as-type` | 2 |
-| `fail:type-mismatch` | 88 |
+| `fail:type-mismatch` | 87 |
 | `fail:type-used-as-value` | 2 |
 | `fail:unknown-data-field` | 13 |
 | `fail:unknown-import` | 25 |
@@ -127,7 +127,7 @@ compiler stage that first declined the case.
 | `fail:unused-local-binding` | 6 |
 | `unsupported:Body` | 124 |
 | `unsupported:Collect` | 26 |
-| `unsupported:Emit` | 62 |
+| `unsupported:Emit` | 45 |
 | `unsupported:FolderIface` | 34 |
 | `unsupported:Link` | 2 |
 | `unsupported:RunCase` | 61 |
@@ -758,7 +758,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (88)</summary>
+<details><summary><code>fail:type-mismatch</code> (87)</summary>
 
 - `runtime/valid/structural-equality.hd`
 - `runtime/valid/structural-ordering.hd`
@@ -776,7 +776,6 @@ compiler stage that first declined the case.
 - `typing/invalid/heterogeneous-map-values.hd`
 - `runtime/valid/generic-optional-and-result.hd`
 - `runtime/valid/optional-propagation.hd`
-- `runtime/valid/generic-supertraits.hd`
 - `runtime/valid/multi-provider-use-order.hd`
 - `runtime/valid/suspending-function-values.hd`
 - `runtime/valid/short-circuit-and-conditional-evaluation.hd`
@@ -1197,47 +1196,33 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Emit</code> (62)</summary>
+<details><summary><code>unsupported:Emit</code> (45)</summary>
 
 - `runtime/valid/float-display.hd`
-- `runtime/valid/nested-block-on.hd`
 - `runtime/valid/identity-ignores-permissions.hd`
 - `runtime/valid/fieldless-data-canonical.hd`
 - `runtime/valid/reference-identity.hd`
-- `runtime/valid/supertrait-methods.hd`
-- `runtime/valid/bounded-blanket-supertraits.hd`
 - `runtime/valid/suspending-calls-in-branches.hd`
 - `runtime/valid/suspending-match-guards.hd`
-- `runtime/valid/block-on-inside-driver.hd`
-- `runtime/valid/result-entry-point-ok.hd`
 - `runtime/valid/f32-display-width-through-generics.hd`
 - `runtime/valid/composite-identity-and-views.hd`
 - `runtime/valid/covariant-readonly-weakening.hd`
 - `runtime/valid/defaults-reference-earlier-parameters.hd`
 - `runtime/valid/copy-update-shallow.hd`
-- `runtime/valid/write-line-suspending-call-argument.hd`
-- `runtime/valid/write-line-around-suspending-provider-scope.hd`
 - `runtime/valid/embedded-construction-copies.hd`
-- `runtime/valid/propagation-into-erased-error.hd`
 - `runtime/panic/snapshot-mismatch.hd`
 - `runtime/valid/string-prefix-std.hd`
 - `runtime/valid/float-cast-saturates.hd`
 - `runtime/valid/primitive-operator-calls-method.hd`
 - `runtime/valid/float-remainder-run.hd`
 - `runtime/valid/requirement-key-binding-run.hd`
-- `runtime/valid/error-derivation-run.hd`
 - `runtime/valid/generic-inference-explicit-conversions.hd`
 - `runtime/valid/default-standard-types.hd`
 - `runtime/valid/default-tuple-thirteen-elements.hd`
 - `runtime/valid/derived-default-data.hd`
 - `runtime/valid/derived-default-declared.hd`
 - `runtime/valid/primitive-float-cmp-method-direct.hd`
-- `runtime/valid/std-errors-erased.hd`
-- `runtime/valid/process-error-display.hd`
-- `runtime/valid/error-chain.hd`
-- `runtime/valid/error-report.hd`
 - `runtime/valid/error-find.hd`
-- `runtime/valid/error-root-cause.hd`
 - `runtime/valid/error-find-erased.hd`
 - `runtime/valid/error-find-trait-value.hd`
 - `runtime/valid/error-context.hd`
@@ -1254,13 +1239,10 @@ compiler stage that first declined the case.
 - `runtime/valid/regex-split.hd`
 - `runtime/valid/generic-storage-callable-list-identity.hd`
 - `runtime/valid/numeric-casts-in-range.hd`
-- `runtime/valid/error-chain-derived-causes.hd`
 - `runtime/valid/serde-std-reads.hd`
 - `runtime/valid/associated-binding-positions.hd`
 - `runtime/valid/trait-value-binding-identity.hd`
 - `runtime/valid/trait-value-satisfies-instantiated-bound.hd`
-- `runtime/valid/erased-error-result.hd`
-- `runtime/valid/error-chain-method.hd`
 
 </details>
 
@@ -1774,6 +1756,7 @@ runtime/valid/bang-call-arguments-before-body.hd
 runtime/valid/binding-expression-tuple-value.hd
 runtime/valid/blanket-impl-dynamic-and-bound.hd
 runtime/valid/blanket-impl-for-list.hd
+runtime/valid/block-on-inside-driver.hd
 runtime/valid/block-on-stored-suspension.hd
 runtime/valid/bom-inside-comment.hd
 runtime/valid/bool-match.hd
@@ -1784,6 +1767,7 @@ runtime/valid/bound-inference-explicit.hd
 runtime/valid/bound-inference-two-bounds.hd
 runtime/valid/bound-inference-user-trait.hd
 runtime/valid/bounded-blanket-impl.hd
+runtime/valid/bounded-blanket-supertraits.hd
 runtime/valid/branch-scopes-shadow.hd
 runtime/valid/buffer-console-error-lines.hd
 runtime/valid/buffer-console.hd
@@ -1902,6 +1886,13 @@ runtime/valid/enum-payload-mut-shallow.hd
 runtime/valid/enum-shared-data-per-variant.hd
 runtime/valid/enum-value-fixed-at-construction.hd
 runtime/valid/eprintln-error-line.hd
+runtime/valid/erased-error-result.hd
+runtime/valid/error-chain-derived-causes.hd
+runtime/valid/error-chain-method.hd
+runtime/valid/error-chain.hd
+runtime/valid/error-derivation-run.hd
+runtime/valid/error-report.hd
+runtime/valid/error-root-cause.hd
 runtime/valid/evaluation-order-elements-and-indexing.hd
 runtime/valid/explicit-type-args-associated.hd
 runtime/valid/explicit-type-args-method.hd
@@ -1949,6 +1940,7 @@ runtime/valid/generic-parameter-forms.hd
 runtime/valid/generic-partial-eq-bound-primitives.hd
 runtime/valid/generic-requirement-key-substitution.hd
 runtime/valid/generic-storage-invokes-callables.hd
+runtime/valid/generic-supertraits.hd
 runtime/valid/generic-suspending-function-bound.hd
 runtime/valid/generic-suspending-function.hd
 runtime/valid/generic-trait-instantiation-by-argument.hd
@@ -2080,6 +2072,7 @@ runtime/valid/named-arguments-trait-dispatch.hd
 runtime/valid/named-enum-payload-evaluation-order.hd
 runtime/valid/named-enum-payload-patterns.hd
 runtime/valid/nan-equality-through-generics.hd
+runtime/valid/nested-block-on.hd
 runtime/valid/nested-closure-captures.hd
 runtime/valid/nested-control-flow-as-expressions.hd
 runtime/valid/nested-mutable-captures.hd
@@ -2135,12 +2128,14 @@ runtime/valid/println-provider-suspending-body.hd
 runtime/valid/println-recording-provider.hd
 runtime/valid/println-under-main-driver.hd
 runtime/valid/private-main-is-ordinary-function.hd
+runtime/valid/process-error-display.hd
 runtime/valid/process-error-results.hd
 runtime/valid/process-exit-data-eq.hd
 runtime/valid/process-not-granted.hd
 runtime/valid/process-scripted-provider.hd
 runtime/valid/promoted-method-no-override.hd
 runtime/valid/propagation-from-two-domains.hd
+runtime/valid/propagation-into-erased-error.hd
 runtime/valid/propagation-prefers-assignability.hd
 runtime/valid/provider-capture-timing.hd
 runtime/valid/provider-from-suspending-call.hd
@@ -2164,6 +2159,7 @@ runtime/valid/requirement-function-value.hd
 runtime/valid/requirement-row-duplicate-after-substitution.hd
 runtime/valid/requirement-row-forwarded-through-calls.hd
 runtime/valid/resource-error-operation-payload.hd
+runtime/valid/result-entry-point-ok.hd
 runtime/valid/result-enum-spellings.hd
 runtime/valid/result-map.hd
 runtime/valid/result-ok-unit.hd
@@ -2206,6 +2202,7 @@ runtime/valid/sized-integer-arithmetic.hd
 runtime/valid/split-empty-input-nonempty-separator.hd
 runtime/valid/static-and-dynamic-trait-dispatch.hd
 runtime/valid/std-errors-erased-codecs.hd
+runtime/valid/std-errors-erased.hd
 runtime/valid/stored-suspension-parameter.hd
 runtime/valid/stored-suspension-single-drive.hd
 runtime/valid/string-byte-methods.hd
@@ -2229,6 +2226,7 @@ runtime/valid/structure-self-ref-omitted.hd
 runtime/valid/structure-self-ref-type-arguments.hd
 runtime/valid/structure-self-ref.hd
 runtime/valid/suite-statement-right-sides.hd
+runtime/valid/supertrait-methods.hd
 runtime/valid/suspending-argument-candidate.hd
 runtime/valid/suspending-blanket-impls.hd
 runtime/valid/suspending-call-in-scoped-defer.hd
@@ -2308,6 +2306,8 @@ runtime/valid/varargs-in-trait-and-suspending-methods.hd
 runtime/valid/while-break-and-continue.hd
 runtime/valid/while-else-break-value.hd
 runtime/valid/while-else-exhaustion-value.hd
+runtime/valid/write-line-around-suspending-provider-scope.hd
+runtime/valid/write-line-suspending-call-argument.hd
 typing/invalid/absolute-path-in-expression.hd
 typing/invalid/adapter-callback-scope-key.hd
 typing/invalid/alias-bound-bare-trait.hd
@@ -3278,7 +3278,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 67 | 35 | 0 | 102 |
+| 68 | 34 | 0 | 102 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3308,6 +3308,7 @@ cli/dev-dependency-cyclic-unit
 cli/dev-dependency-integration
 cli/dev-dependency-non-test
 cli/dev-dependency-tests-block
+cli/entry-err-chain
 cli/entry-err-display
 cli/exe-main-unlisted
 cli/exe-missing-module

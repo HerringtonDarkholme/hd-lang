@@ -820,10 +820,10 @@ growing type) has no finite instance set.
   reference)` pair, so a coercion to a trait value never allocates a
   vtable.
 - **M4b gap 2.** The current emitter constructs a vtable with
-  `struct.new` at every trait-value coercion and includes only the
-  trait's own method slots. It neither reuses a constant global nor
-  builds direct-supertrait fields. The constant, complete vtable shape
-  above remains the intended rule.
+  `struct.new` at every trait-value coercion: its own method slots and
+  its direct-supertrait fields (#131), a diamond's shared supertrait
+  built once per coercion. It does not reuse a constant global yet.
+  The constant vtable above remains the intended rule.
 - **Trait values** are pairs: the value as `eqref` and its vtable
   (§15.2). A call through a trait value is one `struct.get` and one
   `call_ref`.

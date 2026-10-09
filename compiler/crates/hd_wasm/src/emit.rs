@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use hd_base::{DefId, Hash128, StageResult};
 use hd_mono::layout::inline_map_key;
-use hd_mono::{CallTarget, ProgramEnv, Target, TargetKind, subst};
+use hd_mono::{CallTarget, ProgramEnv, Target, TargetKind, VTable, subst};
 use hd_tir::ir::{
     Body, Callee, ChoiceKind, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags,
 };
@@ -23,6 +23,11 @@ use crate::layout::{
 };
 use crate::rt::{Helper, KeyOps, OptForm, block_import};
 use crate::{Code, GSym, Part, Sym, VT, WTy, unsupported};
+
+/// A path through a vtable's parent fields to a supertrait's vtable
+/// (codegen.md §13.16): each step's vtable type and parent field, then
+/// the supertrait's arguments.
+type SuperPath = (Vec<(WTy, u32)>, TyList);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Ctl {
@@ -1476,11 +1481,13 @@ impl Em<'_> {
         if let Callee::TraitMethod {
             trait_,
             method,
+            targs,
             choice: (ChoiceKind::TraitValue, _),
             ..
         } = c
         {
-            return self.call_dyn(i, trait_, method, args);
+            let rs = self.push_dyn(trait_, method, targs, args)?;
+            return self.store_from(i, &rs);
         }
         let Some(Target::Call(t)) = self.calls.get(&i).cloned() else {
             return unsupported("a call that collection did not resolve");
@@ -1797,34 +1804,50 @@ impl Em<'_> {
         }
     }
 
-    fn call_dyn(&mut self, i: u32, trait_: DefId, method: DefId, args: &[u32]) -> StageResult<()> {
-        let rs = self.push_dyn(trait_, method, args)?;
-        self.store_from(i, &rs)
-    }
-
-    /// A trait-value call, its results left on the stack.
-    fn push_dyn(&mut self, trait_: DefId, method: DefId, args: &[u32]) -> StageResult<Vec<VT>> {
+    /// A trait-value call, its results left on the stack: the method's
+    /// slot in the vtable of its declaring trait `trait_`, reached from
+    /// the receiver's vtable through the parent fields when `trait_` is a
+    /// supertrait (trait.dyn.value-methods, codegen.md §13.16). `targs`
+    /// are the callee's type arguments, the trait's first.
+    fn push_dyn(
+        &mut self,
+        trait_: DefId,
+        method: DefId,
+        targs: TyList,
+        args: &[u32],
+    ) -> StageResult<Vec<VT>> {
         let recv_t = self.ty_of(args[0]);
         let Shape::Dyn {
             trait_: recv_trait,
-            vt,
-            args: targs,
+            vt: value_vt,
+            args: recv_args,
         } = self.lay.shape(recv_t)?
         else {
             return unsupported("a trait-value call on a value that is not a trait value");
         };
-        // The receiver's vtable holds its own trait's methods only.
-        let slot = (recv_trait == trait_)
-            .then(|| {
-                self.env()
-                    .trait_methods(trait_)
-                    .iter()
-                    .position(|m| *m == method)
-            })
-            .flatten();
-        let Some(slot) = slot else {
-            return unsupported("a trait-value call of a supertrait's method");
+        let n = self.env().trait_arity(trait_);
+        let want: Vec<Ty> = self
+            .pool()
+            .list_items(targs)
+            .iter()
+            .take(n)
+            .map(|t| self.sub(*t))
+            .collect();
+        let want = self.pool().list(&want);
+        let Some((steps, targs)) = self.super_path(recv_trait, recv_args, trait_, want)? else {
+            return unsupported(
+                "a trait-value call of a method of a trait the value does not extend",
+            );
         };
+        let Some(slot) = self
+            .env()
+            .trait_methods(trait_)
+            .iter()
+            .position(|m| *m == method)
+        else {
+            return unsupported("a trait-value call of a method its trait does not declare");
+        };
+        let vt = self.lay.vtable(trait_, targs)?;
         let sig = self.lay.slot_sig(trait_, targs, method)?;
         let WTy::Func(ps, rs) = &sig else {
             return unsupported("a vtable slot type");
@@ -1833,7 +1856,10 @@ impl Em<'_> {
         let vl = self.a.local(VT::r(vt.clone()));
         self.comp(args[0], 0, &VT::Eq)?;
         self.a.set(rl);
-        self.comp(args[0], 1, &VT::r(vt.clone()))?;
+        self.comp(args[0], 1, &VT::r(value_vt))?;
+        for (svt, field) in &steps {
+            self.a.struct_get(svt, *field);
+        }
         self.a.set(vl);
         self.a.get(rl);
         let mut k = 1;
@@ -1939,49 +1965,43 @@ impl Em<'_> {
             return self.store(i);
         }
         if kind == Coercion::ToTraitValue as u32 {
-            let Some(Target::VTable(trait_, slots)) = self.calls.get(&i).cloned() else {
+            let Some(Target::VTable(table)) = self.calls.get(&i).cloned() else {
                 return unsupported("a trait-value coercion that collection did not record");
             };
-            let Shape::Dyn {
-                vt, args: targs, ..
-            } = self.lay.shape(ty)?
-            else {
+            let Shape::Dyn { args: targs, .. } = self.lay.shape(ty)? else {
                 return unsupported("a coercion to a non-trait type");
             };
             let from = self.ty_of(v);
             let fv = self.vts(from)?;
             self.erase(v, &fv)?;
-            let methods = self.env().trait_methods(trait_);
-            for (m, t) in methods.iter().zip(&slots) {
-                let sig = self.lay.slot_sig(trait_, targs, *m)?;
-                // A method the compiler supplies for every type
-                // (`Inspectable.runtime_type`) has no lowering yet: its
-                // slot panics when called, as a host slot does.
-                if matches!(t.kind, TargetKind::Builtin { .. }) {
-                    self.a.ref_func(Sym::Helper(Helper::Unlowered {
-                        sig,
-                        what: format!("the compiler-supplied `{}`", (self.lay.path)(*m)),
-                    }));
-                    continue;
-                }
-                let target = Self::adapter_target(t)?;
-                let mut ps = Vec::new();
-                for p in self.env().params(t.item).unwrap_or_default() {
-                    ps.extend(self.vts(subst(self.pool(), self.env(), t.item, t.args, p))?);
-                }
-                let mut results = self.vts(t.ret)?;
-                if self.env().suspends(*m) {
-                    results = vec![VT::r(suspend_base(&results).0)];
-                }
-                self.a.ref_func(Sym::Helper(Helper::Adapter {
-                    sig,
-                    self_vts: fv.clone(),
-                    target: Box::new(target),
-                    params: ps,
-                    results,
-                }));
+            self.vtable_value(&table, targs, &fv)?;
+            return self.store(i);
+        }
+        // Widening to a supertrait value (trait.dyn.widen, codegen.md
+        // §13.16): the payload unchanged, and the supertrait's vtable read
+        // through the parent fields of the child's.
+        if kind == Coercion::Supertrait as u32 {
+            let (
+                Shape::Dyn {
+                    trait_: from_trait,
+                    args: from_args,
+                    vt,
+                },
+                Shape::Dyn {
+                    trait_: def, args, ..
+                },
+            ) = (self.lay.shape(self.ty_of(v))?, self.lay.shape(ty)?)
+            else {
+                return unsupported("a supertrait coercion between non-trait types");
+            };
+            let Some((steps, _)) = self.super_path(from_trait, from_args, def, args)? else {
+                return unsupported("a supertrait coercion to a trait the value does not extend");
+            };
+            self.comp(v, 0, &VT::Eq)?;
+            self.comp(v, 1, &VT::r(vt))?;
+            for (svt, field) in &steps {
+                self.a.struct_get(svt, *field);
             }
-            self.a.struct_new(&vt);
             return self.store(i);
         }
         if kind == Coercion::Weaken as u32
@@ -3109,17 +3129,18 @@ impl<'a> Em<'a> {
         };
         let pairs = self.rec(rec);
         let mut pushed = 0;
-        for ((k, v), (trait_, slots)) in pairs.chunks(2).map(|c| (c[0], c[1])).zip(vts) {
+        for ((k, v), table) in pairs.chunks(2).map(|c| (c[0], c[1])).zip(vts) {
             let key_t = Ty(k);
             let TyData::TraitValue { args: targs, .. } = self.pool().get(key_t) else {
                 return unsupported("a `$.with` key that is not a trait");
             };
+            let trait_ = table.trait_;
             let vt = self.lay.vtable(trait_, targs)?;
             let ls = [self.a.local(VT::Eq), self.a.local(VT::r(vt.clone()))];
             let fv = self.vts(self.ty_of(v))?;
             self.erase(v, &fv)?;
             self.a.set(ls[0]);
-            self.vtable_value(trait_, targs, &vt, &slots, &fv)?;
+            self.vtable_value(&table, targs, &fv)?;
             self.a.set(ls[1]);
             self.providers.push((trait_, ls));
             pushed += 1;
@@ -3136,18 +3157,63 @@ impl<'a> Em<'a> {
         r
     }
 
-    /// Pushes a vtable struct of adapters over the slots' targets.
-    fn vtable_value(
-        &mut self,
-        trait_: DefId,
+    /// Pushes a vtable (codegen.md §13.5, §13.16) of adapters over the
+    /// slots' targets, for a payload of values `fv` erased to `eqref`: its
+    /// method slots, then its direct supertraits' vtables. A supertrait
+    /// reached twice, as `Display` is through two paths of a diamond, is
+    /// built once.
+    fn vtable_value(&mut self, table: &VTable, targs: TyList, fv: &[VT]) -> StageResult<()> {
+        let mut uses: HashMap<(DefId, TyList), u32> = HashMap::new();
+        self.count_tables(table, targs, &mut uses)?;
+        let mut built = HashMap::new();
+        self.push_table(table, targs, fv, &uses, &mut built)
+    }
+
+    /// How many times each `(trait, arguments)` occurs in a vtable tree.
+    fn count_tables(
+        &self,
+        table: &VTable,
         targs: TyList,
-        vt: &WTy,
-        slots: &[CallTarget],
-        fv: &[VT],
+        uses: &mut HashMap<(DefId, TyList), u32>,
     ) -> StageResult<()> {
+        *uses.entry((table.trait_, targs)).or_default() += 1;
+        let supers = self.lay.dyn_supers(table.trait_, targs)?;
+        if supers.len() != table.parents.len() {
+            return unsupported("a vtable whose parents collection did not record");
+        }
+        for (p, (_, a)) in table.parents.iter().zip(supers) {
+            self.count_tables(p, a, uses)?;
+        }
+        Ok(())
+    }
+
+    fn push_table(
+        &mut self,
+        table: &VTable,
+        targs: TyList,
+        fv: &[VT],
+        uses: &HashMap<(DefId, TyList), u32>,
+        built: &mut HashMap<(DefId, TyList), u32>,
+    ) -> StageResult<()> {
+        let trait_ = table.trait_;
+        if let Some(&l) = built.get(&(trait_, targs)) {
+            self.a.get(l);
+            return Ok(());
+        }
+        let vt = self.lay.vtable(trait_, targs)?;
         let methods = self.env().trait_methods(trait_);
-        for (m, t) in methods.iter().zip(slots) {
+        for (m, t) in methods.iter().zip(&table.slots) {
             let sig = self.lay.slot_sig(trait_, targs, *m)?;
+            // A method the compiler supplies for every type
+            // (`Inspectable.runtime_type`) has no lowering yet: its
+            // slot panics when called, as a host slot does.
+            if matches!(t.kind, TargetKind::Builtin { .. }) {
+                self.a.ref_func(Sym::Helper(Helper::Unlowered {
+                    sig,
+                    what: format!("the compiler-supplied `{}`", (self.lay.path)(*m)),
+                }));
+                continue;
+            }
             let target = Self::adapter_target(t)?;
             let mut ps = Vec::new();
             for p in self.env().params(t.item).unwrap_or_default() {
@@ -3165,8 +3231,68 @@ impl<'a> Em<'a> {
                 results,
             }));
         }
-        self.a.struct_new(vt);
+        let supers = self.lay.dyn_supers(trait_, targs)?;
+        for (p, (_, a)) in table.parents.iter().zip(supers) {
+            self.push_table(p, a, fv, uses, built)?;
+        }
+        self.a.struct_new(&vt);
+        if uses.get(&(trait_, targs)).is_some_and(|n| *n > 1) {
+            let l = self.a.local(VT::r(vt));
+            self.a.set(l);
+            self.a.get(l);
+            built.insert((trait_, targs), l);
+        }
         Ok(())
+    }
+
+    /// The parent-field path from the vtable of `from[args]` to that of
+    /// the supertrait `to` (codegen.md §13.16): each step's vtable type
+    /// and parent field, then the supertrait's arguments. `from` itself is
+    /// the empty path. The search runs depth first in declared order;
+    /// the supertrait at the arguments `want` wins over the same trait at
+    /// other arguments.
+    fn super_path(
+        &self,
+        from: DefId,
+        args: TyList,
+        to: DefId,
+        want: TyList,
+    ) -> StageResult<Option<SuperPath>> {
+        let mut found: Option<SuperPath> = None;
+        let mut path = Vec::new();
+        self.find_super(from, args, to, want, &mut path, &mut found)?;
+        Ok(found)
+    }
+
+    fn find_super(
+        &self,
+        at: DefId,
+        args: TyList,
+        to: DefId,
+        want: TyList,
+        path: &mut Vec<(WTy, u32)>,
+        found: &mut Option<SuperPath>,
+    ) -> StageResult<bool> {
+        if at == to {
+            if args == want {
+                *found = Some((path.clone(), args));
+                return Ok(true);
+            }
+            if found.is_none() {
+                *found = Some((path.clone(), args));
+            }
+        }
+        let vt = self.lay.vtable(at, args)?;
+        let own = self.env().trait_methods(at).len();
+        for (k, (d, a)) in self.lay.dyn_supers(at, args)?.into_iter().enumerate() {
+            path.push((vt.clone(), u32_of(own + k)));
+            let exact = self.find_super(d, a, to, want, path, found)?;
+            path.pop();
+            if exact {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     // ------------------------------------------------------ suspension
@@ -3326,12 +3452,13 @@ impl<'a> Em<'a> {
                 if let Callee::TraitMethod {
                     trait_,
                     method,
+                    targs,
                     choice: (ChoiceKind::TraitValue, _),
                     ..
                 } = c
                 {
                     return self.await_stored(i, k, &res, |em, _| {
-                        em.push_dyn(trait_, method, &args).map(|_| ())
+                        em.push_dyn(trait_, method, targs, &args).map(|_| ())
                     });
                 }
                 let Some(Target::Call(t)) = self.calls.get(&i).cloned() else {
@@ -4201,6 +4328,11 @@ fn root_poll(
         else {
             return unsupported(format!("a default provider for `{p}`"));
         };
+        if !lay.dyn_supers(k, TyList::EMPTY)?.is_empty() {
+            return unsupported(format!(
+                "a default provider for `{p}`, which has supertraits"
+            ));
+        }
         let vt = lay.vtable(k, TyList::EMPTY)?;
         let mut slots = Vec::new();
         for m in env.trait_methods(k) {

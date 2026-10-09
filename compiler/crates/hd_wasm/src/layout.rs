@@ -883,10 +883,30 @@ impl<'a> Lay<'a> {
                     }
                     out.push(subst(pool, env, m, full, env.ret(m).unwrap_or(Ty::VOID)));
                 }
+                for (d, a) in self.dyn_supers(def, args)? {
+                    out.push(self.dyn_ty(d, a));
+                }
                 out
             }
             _ => return unsupported("a nominal type that is not data or a trait value"),
         })
+    }
+
+    /// A trait value's direct supertraits (codegen.md §13.16), in declared
+    /// order, each as the supertrait and its arguments at the value's
+    /// arguments, `Self` being the class `REF`. They are the vtable's
+    /// parent fields, after its method slots.
+    pub fn dyn_supers(&self, trait_: DefId, args: TyList) -> StageResult<Vec<(DefId, TyList)>> {
+        let (pool, env) = (self.pool, self.env);
+        let full = self.dyn_args(args);
+        env.decls()
+            .supertraits(trait_)
+            .iter()
+            .map(|s| match pool.get(subst(pool, env, trait_, full, *s)) {
+                TyData::TraitValue { def, args, .. } => Ok((def, args)),
+                _ => unsupported("a supertrait that is not a trait"),
+            })
+            .collect()
     }
 
     /// A trait method's instance arguments at a trait value: `Self` as the
@@ -1116,8 +1136,10 @@ impl<'a> Lay<'a> {
         })
     }
 
-    /// A trait's vtable (codegen.md §13.5): one code reference per method of
-    /// the trait itself, in declaration order.
+    /// A trait's vtable (codegen.md §13.5, §13.16): one code reference per
+    /// method of the trait itself, in declaration order, then one
+    /// immutable reference per direct supertrait, in declared order, to
+    /// that supertrait's own vtable.
     fn vtable_struct(&self, t: Ty) -> StageResult<WTy> {
         let TyData::TraitValue { def, args, .. } = self.pool.get(t) else {
             return unsupported("a vtable of a type that is not a trait value");
@@ -1125,6 +1147,12 @@ impl<'a> Lay<'a> {
         let mut fields = Vec::new();
         for m in self.env.trait_methods(def) {
             fields.push(VT::r(self.slot_sig(def, args, m)?));
+        }
+        for (d, a) in self.dyn_supers(def, args)? {
+            match &self.vts(self.dyn_ty(d, a))?[..] {
+                [VT::Eq, vt @ VT::Ref(..)] => fields.push(vt.clone()),
+                _ => return unsupported("a supertrait value that is not a payload and a vtable"),
+            }
         }
         Ok(WTy::Struct {
             fields,
@@ -1421,8 +1449,8 @@ impl<'a> Lay<'a> {
         })
     }
 
-    /// A trait's vtable (codegen.md §13.5): one code reference per method of
-    /// the trait itself, in declaration order.
+    /// A trait's vtable (codegen.md §13.5, §13.16): its method slots, then
+    /// its direct supertraits' vtables.
     pub fn vtable(&self, trait_: DefId, args: TyList) -> StageResult<WTy> {
         match &self.vts(self.dyn_ty(trait_, args))?[..] {
             [VT::Eq, VT::Ref(vt, false)] => Ok((**vt).clone()),

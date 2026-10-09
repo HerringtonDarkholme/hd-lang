@@ -1883,18 +1883,15 @@ impl Ck<'_, '_> {
             let _ = p;
             return Ok(None);
         }
-        // A trait value: its trait and supertraits.
+        // A trait value: its trait and supertraits, a supertrait at the
+        // arguments the value's trait gives it (trait.dyn.value-methods).
         if let TyData::TraitValue { def, args, .. } = pool.get(t) {
             for (tr, m) in &traits {
-                if *tr == def || self.trait_extends(def, *tr, 0) {
+                if let Some(a) = self.super_args(def, t, args, *tr, 0) {
                     return Ok(Some(Hit::Trait {
                         trait_: *tr,
                         method: *m,
-                        args: if *tr == def {
-                            pool.list_items(args).to_vec()
-                        } else {
-                            vec![]
-                        },
+                        args: pool.list_items(a).to_vec(),
                         choice: (ChoiceKind::TraitValue, tr.raw()),
                     }));
                 }
@@ -2544,6 +2541,47 @@ impl Ck<'_, '_> {
             });
             if let TyData::TraitValue { def, args, .. } = pool.get(s)
                 && let Some(x) = self.assoc_decl(def, self_ty, args, name, depth + 1)
+            {
+                return Some(x);
+            }
+        }
+        None
+    }
+
+    /// The arguments of `target` as `trait_[args]` or one of its
+    /// transitive supertraits, `Self` replaced by `self_ty`: the first
+    /// found depth first in declared order.
+    fn super_args(
+        &self,
+        trait_: DefId,
+        self_ty: Ty,
+        args: TyList,
+        target: DefId,
+        depth: u32,
+    ) -> Option<TyList> {
+        if trait_ == target {
+            return Some(args);
+        }
+        let pool = self.pool();
+        let Some(ItemData::Trait(t)) = self.cx.lookup.item(trait_).map(|i| &i.data) else {
+            return None;
+        };
+        if depth > 16 {
+            return None;
+        }
+        let known = pool.list_items(args);
+        for s in &t.supers {
+            let s = pool.subst(*s, &|p: ParamRef| {
+                if p.owner != trait_ {
+                    None
+                } else if p.index == 0 {
+                    Some(self_ty)
+                } else {
+                    known.get(p.index as usize - 1).copied()
+                }
+            });
+            if let TyData::TraitValue { def, args, .. } = pool.get(s)
+                && let Some(x) = self.super_args(def, self_ty, args, target, depth + 1)
             {
                 return Some(x);
             }

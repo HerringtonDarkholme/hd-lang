@@ -139,12 +139,12 @@ pub enum Target {
         call: CallTarget,
         bracket: bool,
     },
-    /// A coercion to a trait value: the trait and one target per vtable slot.
-    VTable(DefId, Vec<CallTarget>),
+    /// A coercion to a trait value: its vtable's targets.
+    VTable(VTable),
     /// A closure's code instance.
     Closure(Hash128),
-    /// A `$.with`'s providers: per key, the trait and its vtable slots.
-    Withs(Vec<(DefId, Vec<CallTarget>)>),
+    /// A `$.with`'s providers: per key, its vtable's targets.
+    Withs(Vec<VTable>),
     /// A map operation on a key that is not inline
     /// (`layout::inline_map_key`): `hash_of` and `Eq.eq` at the key type
     /// (codegen.md §13.12).
@@ -152,6 +152,17 @@ pub enum Target {
         hash: CallTarget,
         eq: CallTarget,
     },
+}
+
+/// The targets of one vtable at a concrete type (codegen.md §13.5,
+/// §13.16): the trait, one target per method slot, and per direct
+/// supertrait, in declared order, that supertrait's vtable at the same
+/// type.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VTable {
+    pub trait_: DefId,
+    pub slots: Vec<CallTarget>,
+    pub parents: Vec<VTable>,
 }
 
 /// The output of `Collect` (codegen.md §11.3).
@@ -884,6 +895,46 @@ impl Cx<'_> {
         }
     }
 
+    /// The vtable of `trait_[trait_args]` at the concrete type `from`
+    /// (codegen.md §13.5, §13.16): a target per method slot, then each
+    /// direct supertrait's vtable at the same type, its arguments
+    /// substituted with `Self` as `from`. Each slot's key joins `reps`.
+    fn vtable(
+        &mut self,
+        trait_: DefId,
+        trait_args: TyList,
+        from: Ty,
+        depth: u8,
+        parent: InstId,
+        reps: &mut StableHasher,
+    ) -> StageResult<VTable> {
+        let (pool, env) = (self.pool, self.env);
+        let targs = pool.list_items(trait_args);
+        let mut slots = Vec::new();
+        for m in env.trait_methods(trait_) {
+            let t = self.method_target(trait_, m, from, targs, None, depth, parent)?;
+            reps.hash(t.key);
+            slots.push(t);
+        }
+        let mut full = vec![from];
+        full.extend(targs.iter().copied());
+        let full = pool.list(&full);
+        let mut parents = Vec::new();
+        for sup in env.decls().supertraits(trait_).to_vec() {
+            let TyData::TraitValue { def, args, .. } =
+                pool.get(subst(pool, env, trait_, full, sup))
+            else {
+                return err("a supertrait that is not a trait");
+            };
+            parents.push(self.vtable(def, args, from, depth, parent, reps)?);
+        }
+        Ok(VTable {
+            trait_,
+            slots,
+            parents,
+        })
+    }
+
     /// What a code entry reads of a call's target: the callee's identity,
     /// instance and signature (walking skeleton, SK-3).
     fn hash_target(&self, t: &CallTarget, reps: &mut StableHasher) {
@@ -1152,14 +1203,8 @@ impl Cx<'_> {
                     else {
                         return err("a trait-value coercion to a non-trait type");
                     };
-                    let targs = pool.list_items(trait_args);
-                    let mut slots = Vec::new();
-                    for m in env.trait_methods(trait_) {
-                        let t = self.method_target(trait_, m, from, targs, None, depth, id)?;
-                        reps.hash(t.key);
-                        slots.push(t);
-                    }
-                    calls.insert(ix, Target::VTable(trait_, slots));
+                    let vt = self.vtable(trait_, trait_args, from, depth, id, &mut reps)?;
+                    calls.insert(ix, Target::VTable(vt));
                 }
                 Tag::With => {
                     let rec = body.record(a).to_vec();
@@ -1181,14 +1226,7 @@ impl Cx<'_> {
                             TyData::Mut(x) => x,
                             _ => from,
                         };
-                        let targs = pool.list_items(trait_args);
-                        let mut slots = Vec::new();
-                        for m in env.trait_methods(trait_) {
-                            let t = self.method_target(trait_, m, from, targs, None, depth, id)?;
-                            reps.hash(t.key);
-                            slots.push(t);
-                        }
-                        withs.push((trait_, slots));
+                        withs.push(self.vtable(trait_, trait_args, from, depth, id, &mut reps)?);
                     }
                     calls.insert(ix, Target::Withs(withs));
                 }
