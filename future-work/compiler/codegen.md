@@ -1607,11 +1607,14 @@ witness travels per call, not per vtable. No flattening: parent
 method code is referenced once per (type, declaring trait), not once
 per child trait.
 
-Widening `dyn Sub` to `dyn Super` is free. Both values are the same
-`(payload, vtable)` pair shape, and the child vtable already reaches
-every supertrait method through its parent fields, so the value is
-reused as-is; child-only methods simply become unreachable
-(`trait.dyn.widen` drops them, `trait.dyn.no-narrow` never returns).
+Widening `dyn Sub` to `dyn Super` allocates nothing: it keeps the
+payload and reads the parent's vtable field from the child's vtable,
+one `struct.get` per level (the `Coerce` row's `Supertrait` case).
+Reusing the child vtable as-is would need the child's vtable type to
+be a Wasm GC subtype of the parent's, which only flattening gives, and
+this design does not flatten (corrected as built, #131). Child-only
+methods become unreachable (`trait.dyn.widen` drops them,
+`trait.dyn.no-narrow` never returns).
 Vtables exist per (concrete type, trait) pair (§13.2 step 5),
 extended by the associated-type bindings the pair carries.
 
