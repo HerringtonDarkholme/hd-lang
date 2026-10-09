@@ -669,6 +669,29 @@ and continues the same worklist from that body. A body-less method that
 has no registered intrinsic mapping is an internal unsupported case; it
 must not silently disappear from the reachable program.
 
+**Derived newtype methods reuse the base implementation (#117).** A
+derived newtype impl has a head and no method bodies, so five
+`runtime/valid` fixtures stop at Collect when selection picks it.
+Generate nothing: a newtype is erased to its base at runtime
+([Newtypes](lowering-catalog.md#newtypes) — no wrapper, no allocation,
+construction and unwrapping emit nothing, and instances over the
+newtype and the base fold). When collection selects a method of a
+derived newtype impl, it pushes the corresponding method of the base
+type's implementation with the same type arguments — the same rule as
+the intrinsic mapping above, with the base impl in place of a generated
+body. Rewrapping `Self?`, `Result[Self, E]` and `List[Self]` positions
+is a type-level fiction: at runtime those values already are base
+values, so no adapter runs. Positions outside that set never reach
+collection: any other `Self` position is a `newtype-derivation-self`
+error at the opt-in. This is sound only where the method means the
+same on both types — Eq, Hash, ordering, and Debug, whose derived form
+renders the wrapped value as the base type's Debug does. `TypeId`
+stays distinct (identity follows `canon`, not representation), and
+`Structure` methods are out of scope: a newtype gets no `Structure`
+(`trait.derive.newtype.templated`). Cost per derived newtype: no new
+code — the instances fold with the base type's — only the impl
+identity in the selection table.
+
 **A1 at collection (lowering pass; default adopted, decided by E1 and
 S1).** Each generic item carries a **representation summary** per type
 parameter, computed at check time and stored with its TIR, so the item's

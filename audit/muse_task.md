@@ -102,23 +102,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### Y3. Design Note: Derived Newtype Methods In Codegen (#117)
-
-`@derive` on a newtype now has an implementation head, and no method
-bodies: five `runtime/valid` fixtures stop at the Collect stage
-(`derived-newtype`, `derived-debug-newtype`, `serde-std-writes`,
-`json-typed-members`, `derive-members-of-data-and-enums`). Spec 09
-`trait.derive.newtype.*` says the method applies the base type's method
-to the wrapped values and rewraps the allowed `Self` positions. Read
-`future-work/compiler/codegen.md` and the newtype representation (is a
-newtype erased to its base at runtime?) and write a short design note:
-where the bodies come from (a generated adapter per instance, or the
-base implementation reused directly when the representation is the
-same), which crate makes them (mono or emit), how `Self?`,
-`Result[Self, E]` and `List[Self]` positions are rewrapped, and the
-code-size cost per derived newtype. Add it to `codegen.md`. Research
-only; one commit; push. Timebox 40 minutes.
-
 ### D2o. Design Text For Derive Codegen (#119)
 
 Commit "Codegen: derived implementations instantiate their template (#119)"

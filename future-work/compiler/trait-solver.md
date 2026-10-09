@@ -1420,9 +1420,10 @@ parameter is fixed by the head or by a `Bind` step, or resolution has
 rejected the impl as `unconstrained-impl-parameter`. The returned
 `Selection` holds every impl argument.
 
-`select` solves through the run's shared global memo, not in a proof
-memo of its own: there is no separate codegen table with its own keys,
-since selection assumes proofs instead of making them.
+`select` solves through the run's shared global memo. Mono also keeps
+a per-build selection table of picks keyed by concrete trait reference
+(codegen.md §13.2); that table caches which impl was picked, while the
+proofs behind the picks live in the shared memo.
 
 - **No depth limit at instances.** The spec's 64 counts from a use in
   source. An instance of generic code may need a deep concrete proof that
