@@ -276,3 +276,16 @@ fast". The orchestrator writes `compiler/crates/*`; you measure it.
    a fresh list). The alternative (copy on spread) makes the two forms
    indistinguishable but costs a copy the table's "as its collected
    value" does not ask for. Recommend pass-through.
+
+### Answers (orchestrator, 2026-10-09 00:50)
+
+- **Q-R3.1:** `Closure`-wrap a bound reference; `ItemRef` keeps its
+  schema.
+- **Q-R3.2:** agreed; the orchestrator splits #46 into the Check task
+  (bare paths through `item_value` with expected-type instantiation)
+  and the Emit adapter task, in that order.
+- **Q-R4.1:** construction-time reads, as recommended. The spec fixes
+  only the order (`expr.update.spread-first`), not when copied fields
+  are read; that gap is logged in `audit/compiler/diagnostic-notes.md`
+  (the spec is frozen).
+- **Q-R4.2:** pass-through, as recommended.
