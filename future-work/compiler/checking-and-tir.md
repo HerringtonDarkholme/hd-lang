@@ -299,6 +299,31 @@ ranges, `Option` and tuples.
   interfaces they use, and is cached as `check-test`. Doc tests are
   extracted from `##` blocks into synthetic files whose spans map back to
   their lines.
+- **Registration declarations are plain hd (#138).** `lib/std/testing.hd`
+  declares `it`, `it_each`, `it_prop`, `it_prop_with` and `snapshot`
+  with their documented signatures; the language tier checks their
+  names, options and positions at each registration call. The bodies
+  never run — test position intercepts the call — so each body is an
+  unreachable stub. This closes the 16 `unknown-import` failures, which
+  are declarations missing, not planner work.
+- **Rows and properties expand at run, not at plan.** The plan lists
+  one case per registration. `it_each` evaluates `rows` once in its
+  program instance when the case runs, then runs the body per element
+  and reports each as `name[i]`. `it_prop`/`it_prop_with` runs
+  `examples` first, replays the saved `__regressions__` stream, then
+  generates `cases` inputs from consecutive seeds (so the first four
+  cover the low/high/zero/none edges); discards do not count toward
+  `cases` (past 10× `cases` the property fails). A failure shrinks the
+  choice stream (draws are reported per `std-testing.choices.from-case`),
+  prints the shrunk input with `Debug`, and saves the regression file.
+- **Snapshots are host work inside ordinary cases.** `snapshot_file`
+  calls `TestRunner.snapshot_check` (file IO, `--update` recording and
+  the missing-file failure live in the host); the planner only runs
+  the case body, keeping the per-case call counter that names
+  `<test-slug>-<n>.snap`. A mismatch fails as `assertion-failed`.
+- **Per-case reporting.** `hd test` keeps its line per case: pass and
+  fail counts, `PANIC` lines with `--filter` repros, rows as `name[i]`
+  lines, property failures with the shrunk `Debug` input.
 
 #### 4.13.10 Module Initialization
 

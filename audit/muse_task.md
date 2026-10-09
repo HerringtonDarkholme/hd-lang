@@ -105,18 +105,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### R10. Design Note: Property And Snapshot Tests (#138, Design Text)
-
-16 valid programs import `it_each`, `it_prop`, `it_prop_with` or
-`snapshot` from `std.testing`, which `lib/std` lacks; two cannot even
-plan their test cases. Read `spec/std/testing.md` (Property Tests,
-snapshots) and `checking-and-tir.md` (test registration and planning).
-Say which parts are plain hd in `lib/std` and which need the test planner
-(registering one case per row or per generated input, seeds, shrinking,
-snapshot files and their paths), and what `hd test` reports per case.
-Add it to `checking-and-tir.md`. Do not write `lib/std` code. Timebox 45
-minutes.
-
 ### P1. Profile The New Compiler (After S4; Standing Job)
 
 Owner, 2026-10-07: "you write the code, codex do the profiling. move
@@ -270,3 +258,14 @@ on the block. Recommend asking the owner for a code
    member. The alternative (reject the combination) has no rule
    behind it - cause.one limits @from/@source only.
    Recommend allowing it.
+
+### Q-R10: property case counts and row failures (R10, 2026-10-09)
+
+1. **Default cases = 100 (recommended).** No rule states a default
+   count; the only example passes cases=8 explicitly. Recommend
+   cases = 100 by default on both it_prop and it_prop_with
+   (Hypothesis's example count), overridable per call.
+2. **Run all rows (recommended).** Each it_each element is its own
+   case name[i]; a failing row should not hide later rows.
+   Recommend running every row and reporting each, rather than
+   stopping at the first failure.
