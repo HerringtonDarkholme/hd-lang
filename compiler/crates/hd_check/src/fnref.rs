@@ -404,7 +404,7 @@ impl Ck<'_, '_> {
     /// (`fn.type.generic.instantiate-from`): each parameter and the
     /// result, one at a time. A part that does not unify is left to the
     /// coercion at the use, which reports it or adapts the value.
-    fn fit_expected(&mut self, ft: Ty, want: Option<Ty>) {
+    pub(crate) fn fit_expected(&mut self, ft: Ty, want: Option<Ty>) {
         let Some(w) = want else {
             return;
         };

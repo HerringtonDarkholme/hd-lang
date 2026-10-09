@@ -202,7 +202,7 @@ impl Ck<'_, '_> {
             | SyntaxKind::BitwiseXorExpr
             | SyntaxKind::ShiftExpr => self.binary(n, &kids)?,
             SyntaxKind::PowerExpr => self.power(n, &kids)?,
-            SyntaxKind::FieldExpr => self.field_expr(n, &kids)?,
+            SyntaxKind::FieldExpr => self.field_expr(n, &kids, want)?,
             SyntaxKind::IndexExpr => self.index_expr(n, &kids)?,
             SyntaxKind::CallExpr => self.call(n, &kids, want)?,
             SyntaxKind::DataExpr => self.data_expr(n, &kids, want)?,
@@ -956,7 +956,12 @@ impl Ck<'_, '_> {
         self.shared_param(t, name).is_some()
     }
 
-    fn field_expr(&mut self, n: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<(Ref, Ty)> {
+    fn field_expr(
+        &mut self,
+        n: NodeRef<'_>,
+        kids: &[NodeRef<'_>],
+        want: Option<Ty>,
+    ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let Some(base) = kids.first() else {
             return unsupported("a field without a base");
@@ -965,7 +970,7 @@ impl Ck<'_, '_> {
         // `Type.Variant`, `module.item`.
         if base.kind() == SyntaxKind::NameExpr
             && self.find_local(self.sym_of(*base)).is_none()
-            && let Some(v) = self.static_member_value(*base, &name, n)?
+            && let Some(v) = self.static_member_value(*base, &name, want, n)?
         {
             return Ok(v);
         }

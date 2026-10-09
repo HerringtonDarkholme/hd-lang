@@ -10,7 +10,9 @@ use hd_diag::Code;
 use hd_intern::PathKind;
 use hd_resolve::{FnSig, HeadKind, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind};
-use hd_tir::ir::{Callee, ChoiceKind, IntrinsicOp, NONE, PrimOp, Providers, Ref, Tag, TirSink};
+use hd_tir::ir::{
+    Callee, ChoiceKind, IntrinsicOp, NONE, PrimOp, Providers, Ref, Tag, TirSink, local_flags,
+};
 use hd_types::solver::{Answer, Candidate, Evidence, Goal, TraitRef};
 use hd_types::{ParamRef, Prim, Ty, TyData, TyList, VarKind, with_assoc_args};
 
@@ -1469,6 +1471,7 @@ impl Ck<'_, '_> {
         &mut self,
         base: NodeRef<'_>,
         name: &str,
+        want: Option<Ty>,
         n: NodeRef<'_>,
     ) -> StageResult<Option<(Ref, Ty)>> {
         let text = self.cx.src.text(self.cx.src.first(base)).to_owned();
@@ -1492,16 +1495,69 @@ impl Ck<'_, '_> {
                 {
                     return Ok(None);
                 }
-                let vnode = n;
-                Ok(Some(self.variant_by_name(
-                    t,
-                    name,
-                    &Args::empty(),
-                    vnode,
-                )?))
+                if let Some(v) = self.variant_fn_value(t, name, want, n) {
+                    return Ok(Some(v));
+                }
+                Ok(Some(self.variant_by_name(t, name, &Args::empty(), n)?))
             }
             _ => Ok(None),
         }
+    }
+
+    /// `Enum.Variant` without an argument clause as a function value
+    /// (`data.enum.fn-value`): a variant with one payload field is the
+    /// closure that builds it, typed from the expected function type
+    /// where there is one (`data.enum.fn-value.generic-argument`). One
+    /// with two or more fields is `unsaturated-enum-constructor`. `None`
+    /// for a payload-free variant, an enum value, and for an unknown one.
+    fn variant_fn_value(
+        &mut self,
+        t: Ty,
+        name: &str,
+        want: Option<Ty>,
+        n: NodeRef<'_>,
+    ) -> Option<(Ref, Ty)> {
+        let pool = self.pool();
+        let (index, fields) = self.variant_fields(t, name)?;
+        match fields.len() {
+            0 => return None,
+            1 => {}
+            _ => {
+                let msg = format!(
+                    "`{name}` takes {} values, so it is not a function value; call it",
+                    fields.len()
+                );
+                self.err(Code::UnsaturatedEnumConstructor, n, &msg);
+                return Some((Ref(NONE), Ty::NEVER));
+            }
+        }
+        let payload = fields[0];
+        let ft = pool.intern_ty(&TyData::Fn {
+            params: pool.list(&[payload]),
+            result: t,
+            row: hd_types::RowId::EMPTY,
+            suspends: false,
+        });
+        self.fit_expected(ft, want);
+        // The enum's own type arguments are decided like a reference's.
+        let targs = match pool.get(self.infer.resolve(pool, t)) {
+            TyData::Adt { args, .. } => pool.list_items(args).to_vec(),
+            TyData::Option(inner) => vec![inner],
+            _ => vec![],
+        };
+        for a in targs {
+            self.ref_params.push((a, None, n.index()));
+        }
+        let syn = n.index();
+        let sym = self.cx.names.syms.intern("$0");
+        let param = self.b.local(payload, sym, local_flags::PARAM, syn);
+        let mark = self.b.open_sub(&[param]);
+        let blk = self.b.open_block();
+        let value = self.b.get(param, payload, syn);
+        let rec = self.b.refs_record(&[value]);
+        let made = self.b.emit(Tag::NewVariant, index, rec, t, syn);
+        let root = self.b.close_block(blk, Some(made), t, syn);
+        Some((self.b.close_sub(mark, root, ft, syn), ft))
     }
 
     /// Whether `def` names an enum, or an alias that may expand to one
