@@ -243,6 +243,14 @@ plus the expanded keys, naming the missing one
 (`req.row.union.literal.diagnostics`,
 `req.row.alias.diagnostics.expanded`).
 
+As built (#175): a row alias is an alias item whose body is a row
+(`TyData::Row`), expanded at every use before the interface is written;
+all aliases of a folder lower first, in dependency order. `$.Context[$ R]`
+is its own type form, `TyData::Context(RowId)`, rather than an
+application of a std generic, so no std name is added for it; it has no
+value layout yet, and `$.context(...)` / `$.with(ctx...)` in bodies wait
+for a later task.
+
 **What the interface holds.** Public items, all impl heads, templates with
 their bodies, hidden items, and per parameter and field whether it has a
 default. It holds no private item record except hidden ones. Its
