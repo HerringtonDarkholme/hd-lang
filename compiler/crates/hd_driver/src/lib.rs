@@ -549,7 +549,7 @@ pub fn build_packages(
         .chain(std::iter::once(std_in))
         .collect()
     };
-    let table = ModuleTable::discover_all(&ins);
+    let mut table = ModuleTable::discover_all(&ins);
     let texts: Vec<Arc<str>> = table
         .sources
         .iter()
@@ -562,6 +562,7 @@ pub fn build_packages(
             )
         })
         .collect();
+    let folder_cycles = recover_folder_cycles(&mut table, &texts);
     let std_hash = sources_hash(&std);
     let n = table.modules.len();
     let nf = table.folders.len();
@@ -612,6 +613,18 @@ pub fn build_packages(
         table,
     };
     lock(&run.report).ok(Stage::Discover);
+    for names in &folder_cycles {
+        let span = Span {
+            file: FileId::from_raw(u32::MAX),
+            lo: 0,
+            hi: 0,
+        };
+        lock(&run.diags).error(
+            Code::FolderCycle,
+            span,
+            &format!("folders form a cycle: {}", names.join(" -> ")),
+        );
+    }
     for cycle in run.table.package_cycles() {
         let names: Vec<&str> = cycle
             .iter()
@@ -700,6 +713,46 @@ pub fn build_packages(
         tir_text: std::mem::take(&mut *lock(&run.tir_text)),
         pool_items: run.pool.len(),
         memo: run.memo.stats(),
+    }
+}
+
+/// Folder-cycle recovery (resolution-and-interfaces.md §4.8 rule 5): the
+/// folders of a cycle in the root package are merged into one folder, so
+/// they resolve together and their uses do not cascade; merging repeats
+/// until the folder graph is acyclic. Returns the cycles found first, as
+/// folder paths, for one `folder-cycle` error each.
+fn recover_folder_cycles(table: &mut ModuleTable, texts: &[Arc<str>]) -> Vec<Vec<String>> {
+    let uses: Vec<Vec<String>> = (0..table.modules.len())
+        .map(|m| {
+            if table.modules[m].package != 0 {
+                return Vec::new();
+            }
+            let roots = table.use_roots(ModuleId::from_raw(u32_of(m)));
+            written_uses(&texts[m], &skim(texts[m].as_bytes()).uses, &roots)
+        })
+        .collect();
+    let mut found: Vec<Vec<String>> = Vec::new();
+    loop {
+        let graph = FolderGraph::build(table, &uses);
+        let cycles: Vec<Vec<FolderId>> = graph
+            .cycles
+            .into_iter()
+            .filter(|c| c.iter().all(|f| table.folders[f.idx()].package == 0))
+            .collect();
+        if cycles.is_empty() {
+            return found;
+        }
+        if found.is_empty() {
+            found = cycles
+                .iter()
+                .map(|c| {
+                    c.iter()
+                        .map(|f| table.folders[f.idx()].path.clone())
+                        .collect()
+                })
+                .collect();
+        }
+        table.merge_folders(&cycles);
     }
 }
 

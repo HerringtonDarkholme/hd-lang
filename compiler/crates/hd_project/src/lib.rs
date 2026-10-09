@@ -648,6 +648,49 @@ impl ModuleTable {
         self.module(path).map(|m| self.modules[m.idx()].folder)
     }
 
+    /// Merges each group of folders into one folder, named after the
+    /// group's first folder in path order: folder-cycle recovery, which
+    /// resolves the folders of a cycle together as one folder
+    /// (resolution-and-interfaces.md §4.8 rule 5). Groups that share a
+    /// folder become one. Folder IDs are renumbered in path order.
+    pub fn merge_folders(&mut self, groups: &[Vec<FolderId>]) {
+        let n = self.folders.len();
+        let mut parent: Vec<usize> = (0..n).collect();
+        for g in groups {
+            let Some(first) = g.first() else { continue };
+            for f in &g[1..] {
+                let (a, b) = (find(&mut parent, first.idx()), find(&mut parent, f.idx()));
+                // The folder first in path order stays.
+                let (keep, gone) = if a < b { (a, b) } else { (b, a) };
+                parent[gone] = keep;
+            }
+        }
+        let old = std::mem::take(&mut self.folders);
+        let mut new_id = vec![usize::MAX; n];
+        for i in 0..n {
+            let r = find(&mut parent, i);
+            if r == i {
+                new_id[i] = self.folders.len();
+                let mut f = old[i].clone();
+                f.id = FolderId::from_raw(u32::try_from(self.folders.len()).expect("folders"));
+                f.modules.clear();
+                self.folders.push(f);
+            }
+        }
+        for i in 0..n {
+            let target = new_id[find(&mut parent, i)];
+            self.folders[target]
+                .modules
+                .extend(old[i].modules.iter().copied());
+        }
+        for f in &mut self.folders {
+            f.modules.sort_by_key(|m| m.raw());
+            for &m in &f.modules {
+                self.modules[m.idx()].folder = f.id;
+            }
+        }
+    }
+
     /// The module a `use` path names: its longest prefix that is a module.
     #[must_use]
     pub fn module_of_use(&self, use_path: &str) -> Option<ModuleId> {
@@ -659,6 +702,21 @@ impl ModuleTable {
             p = p.rsplit_once('.')?.0;
         }
     }
+}
+
+/// The representative of `x` in a union-find forest, with path compression.
+fn find(parent: &mut [usize], x: usize) -> usize {
+    let mut r = x;
+    while parent[r] != r {
+        r = parent[r];
+    }
+    let mut y = x;
+    while parent[y] != r {
+        let next = parent[y];
+        parent[y] = r;
+        y = next;
+    }
+    r
 }
 
 /// A bit set over the program graph's folders (scheduler.md §6.1).
@@ -1082,5 +1140,28 @@ mod tests {
             super::user_text("(in `shop/$tests/flow/main`)", &file_of),
             "(in `tests/flow/main`)"
         );
+    }
+
+    /// Folder-cycle recovery: two folders that use each other become one,
+    /// named after the first in path order.
+    #[test]
+    fn merged_folders_hold_both_modules() {
+        let mut s = MemorySources::default();
+        for f in ["src/a/x.hd", "src/b/y.hd", "src/c/z.hd"] {
+            s.insert(f, "");
+        }
+        let mut t = ModuleTable::discover("shop", &s);
+        let a = t.folder_of_module("shop.a.x").expect("a");
+        let b = t.folder_of_module("shop.b.y").expect("b");
+        t.merge_folders(&[vec![b, a]]);
+        assert_eq!(t.folders.len(), 2);
+        assert_eq!(
+            t.folder_of_module("shop.a.x"),
+            t.folder_of_module("shop.b.y")
+        );
+        let merged = t.folder_of_module("shop.a.x").expect("merged");
+        assert_eq!(t.folders[merged.idx()].path, "shop.a");
+        assert_eq!(t.folders[merged.idx()].modules.len(), 2);
+        assert_ne!(t.folder_of_module("shop.c.z"), Some(merged));
     }
 }

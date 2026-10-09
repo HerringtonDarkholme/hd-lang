@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1705 | 690 | 449 | 2844 |
+| 1707 | 688 | 449 | 2844 |
 
 ## By Chapter
 
@@ -23,7 +23,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/07-functions.md` | 59 | 34 | 37 | 130 |
 | `lang/08-data-and-enums.md` | 56 | 40 | 27 | 123 |
 | `lang/09-traits.md` | 206 | 117 | 36 | 359 |
-| `lang/10-modules.md` | 133 | 79 | 46 | 258 |
+| `lang/10-modules.md` | 135 | 77 | 46 | 258 |
 | `lang/11-requirements-and-suspension.md` | 105 | 56 | 98 | 259 |
 | `lang/14-annotations.md` | 89 | 56 | 8 | 153 |
 | `std/cli.md` | 1 | 0 | 4 | 5 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 57 | 32 | 16 | 105 |
 | `runtime/valid` | 447 | 181 | 301 | 929 |
-| `typing/invalid` | 564 | 420 | 90 | 1074 |
+| `typing/invalid` | 566 | 418 | 90 | 1074 |
 | `typing/valid` | 339 | 34 | 42 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -82,6 +82,7 @@ compiler stage that first declined the case.
 | `fail:cannot-infer-type` | 8 |
 | `fail:discarded-must-use-value` | 1 |
 | `fail:duplicate-data-pattern-field` | 1 |
+| `fail:folder-cycle` | 1 |
 | `fail:identity-requires-references` | 9 |
 | `fail:implicit-narrowing` | 1 |
 | `fail:integer-literal-range` | 1 |
@@ -117,7 +118,6 @@ compiler stage that first declined the case.
 | `fail:unknown-data-field` | 13 |
 | `fail:unknown-import` | 25 |
 | `fail:unknown-method` | 33 |
-| `fail:unknown-module` | 3 |
 | `fail:unknown-name` | 12 |
 | `fail:unknown-named-argument` | 3 |
 | `fail:unknown-trait` | 9 |
@@ -197,6 +197,12 @@ compiler stage that first declined the case.
 <details><summary><code>fail:duplicate-data-pattern-field</code> (1)</summary>
 
 - `typing/invalid/duplicate-data-pattern-field.hd`
+
+</details>
+
+<details><summary><code>fail:folder-cycle</code> (1)</summary>
+
+- `runtime/valid/folder-graph-test-edges.hd`
 
 </details>
 
@@ -961,14 +967,6 @@ compiler stage that first declined the case.
 - `typing/invalid/typeid-of-never.hd`
 - `typing/invalid/typeid-of-any.hd`
 - `runtime/valid/typeid-mut-names.hd`
-
-</details>
-
-<details><summary><code>fail:unknown-module</code> (3)</summary>
-
-- `typing/invalid/folder-cycle-facade.hd`
-- `typing/invalid/folder-cycle-nested.hd`
-- `runtime/valid/folder-graph-test-edges.hd`
 
 </details>
 
@@ -2527,6 +2525,8 @@ typing/invalid/float-map-key.hd
 typing/invalid/float-misses-ord-bound.hd
 typing/invalid/float-ord-bound.hd
 typing/invalid/fn-row-argument-unknown-trait.hd
+typing/invalid/folder-cycle-facade.hd
+typing/invalid/folder-cycle-nested.hd
 typing/invalid/for-binding-arity.hd
 typing/invalid/for-binding-not-visible-in-else.hd
 typing/invalid/for-over-string.hd

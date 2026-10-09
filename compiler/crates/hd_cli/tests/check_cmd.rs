@@ -488,3 +488,35 @@ fn dev_dependencies_are_for_test_code_only() {
     assert_eq!(r.code, Some(101));
     assert!(r.err.starts_with("error: src/lib.hd:1:1:"), "{}", r.err);
 }
+
+/// resolution-and-interfaces.md §4.8 rule 5: the folders of a cycle
+/// resolve together, so the cycle is reported and the uses across it
+/// still resolve; a body error in one of them is still found.
+#[test]
+fn a_folder_cycle_is_one_error_and_bodies_still_check() {
+    let dir = scratch("hd-check-cycle");
+    for (file, text) in [
+        ("hd.toml", "[package]\nname = \"shop\"\n"),
+        (
+            "src/a/x.hd",
+            "use pkg.b.y.{two}\n\npub fn one() -> i32:\n    two() - 1\n",
+        ),
+        (
+            "src/b/y.hd",
+            "use pkg.a.x.{one}\n\npub fn two() -> i32:\n    one() + missing\n",
+        ),
+    ] {
+        let path = dir.join(file);
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
+        std::fs::write(path, text).expect("write");
+    }
+    let r = check(&dir, "hd-check-cache-cycle", &[]);
+    assert_eq!(r.code, Some(101));
+    assert!(r.err.contains("folder-cycle"), "{}", r.err);
+    assert!(r.err.contains("src/b/y.hd:4:13: unknown-name"), "{}", r.err);
+    assert!(
+        !r.err.contains("unknown-module") && !r.err.contains("unknown-import"),
+        "{}",
+        r.err
+    );
+}

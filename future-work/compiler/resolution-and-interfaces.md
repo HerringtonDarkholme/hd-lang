@@ -63,7 +63,12 @@ deleted file is never served from the cache (Gleam #4320).
    `x/mod.hd` ([Cycle Diagnostic](../../spec/lang/10-modules.md#cycle-diagnostic)).
 5. **Recovery (mine).** The folders of a cyclic SCC are resolved together
    as if they were one folder. Bodies still check, and the cycle is the
-   only error.
+   only error. Built (#133): before scheduling, the driver skims the root
+   package, finds its folder cycles, and merges each cycle's folders into
+   one folder of the module table (`ModuleTable::merge_folders`, named
+   after the first in path order), repeating until the graph is acyclic;
+   each cycle found first is one `folder-cycle` error. The interface,
+   cache keys and scheduling then see one ordinary folder.
 
 Test code makes no edges. `tests:` blocks and doc tests are checked in a
 **test overlay** after the folders they use (§4.13.9). Test modules form

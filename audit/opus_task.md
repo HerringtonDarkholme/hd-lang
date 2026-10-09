@@ -89,17 +89,6 @@ When the queue is empty, say so under "Questions" and wait.
 
 ## Jobs
 
-### O13. Folder-Cycle Recovery (#133; `hd_resolve` Interface Lowering Lent For This Job)
-
-Your O7 question. `resolution-and-interfaces.md` §4.8 rule 5: a cyclic
-SCC's folders resolve together, as one folder, after the `folder-cycle`
-error, so their uses don't cascade (`folder-cycle-facade` today shows
-`unknown-module` after `folder-cycle`). Build the interface over several
-folders in `hd_resolve`'s interface lowering and the `FolderIface`
-scheduling in `hd_driver`. This job lends you `hd_resolve` interface
-lowering only; body lowering stays the orchestrator's. Read the spec's
-folder-cycle rules in `spec/lang/10-modules.md` first.
-
 ### O14. Dev Dependencies In The Resolver (#134; Same Loan)
 
 Your O7 question: the `test-only-use` and `cyclic-test-dependency` codes
@@ -213,6 +202,19 @@ bench N`).
   manifest has one by `module.toolchain.pin`). `[test.capabilities]`
   feeds the test grant (`Grants::for_test`), which applies once
   integration programs run. `dep-workspace-fetch` passes.
+- **O13, test code and folder edges (design).** Folder-cycle recovery
+  merges the folders of each cycle (`folder-cycle-facade` and
+  `folder-cycle-nested` pass). The folder graph still takes edges from
+  test modules' uses, against `module.cycle.test-code`, so
+  `folder-graph-test-edges` now fails on a `folder-cycle` that only test
+  code makes (it failed before too, with `unknown-module`). Dropping
+  those edges needs the test-overlay scheduling of §4.8 ("test modules
+  form one test unit per package ... after every folder"): when I tried
+  it with test modules simply waiting for every interface, the folder
+  interfaces still resolved their headers without the test-only folders,
+  and two fixtures stopped passing (`hd-run-requires-process`,
+  `relative-shared-test-module`), so it is not in. Is the test unit a job
+  of its own?
 - **Left for other lanes (status).** The CLI cases still failing for
   reasons outside this lane wait on the orchestrator's tasks above:
   top-level `it(...)` (#74: the `json-test-*`, `test-*`, `new-app`,
