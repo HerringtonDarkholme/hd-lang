@@ -174,3 +174,11 @@ One commit per command; skip a command whose spec needs a design that
   `release-wraps` gets to running; it then panics with
   `integer-overflow`, since `--release` does not select the wrapping
   profile in codegen yet.
+- **O8, the release profile (needs codegen).** `hd --release FILE`,
+  `hd run --release` and `hd build --release` parse the flag, and
+  `hd build` writes `build/release/`, but no goal or codegen setting
+  selects the release profile: `+` still panics on overflow
+  (`types.arith.release`, `release-wraps`, `release-test-checked`'s
+  first step). `hd test --release` is right as is: the test profile
+  stays checked, with one pipeline. A release flag on `Goal::Program`
+  would need hd_mono/hd_wasm to emit wrapping arithmetic; who takes it?

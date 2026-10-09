@@ -59,6 +59,12 @@ fn parse(args: &[OsString]) -> Result<Options, String> {
             i += 1;
             Ok(v)
         };
+        if text == "--release" {
+            // `cli.profile.test.release`: the test profile stays checked,
+            // and the flag selects only the pipeline, of which there is one
+            // (`cli.profile.pipeline.one`).
+            continue;
+        }
         if text == "--filter" || text.starts_with("--filter=") {
             o.filter = Some(value("--filter")?);
         } else if text == "--jobs" || text.starts_with("--jobs=") {

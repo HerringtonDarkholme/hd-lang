@@ -911,3 +911,21 @@ fn help_lists_the_commands_and_each_commands_flags() {
     assert!(ran(&dir, &["clean", "--help"]).out.contains("--cache"));
     assert_eq!(ran(&dir, &["help", "bogus"]).code, Some(101));
 }
+
+/// `cli.profile.release.commands`, `cli.profile.test.release`: `hd FILE`
+/// and `hd test` take `--release`, before FILE too; a test build stays
+/// checked, so overflow still panics.
+#[test]
+fn release_comes_before_file_and_keeps_tests_checked() {
+    let dir = scratch("hd-forms-release");
+    std::fs::write(
+        dir.join("main.hd"),
+        "fn next(value: i32) -> i32:\n    value + 1\n\npub fn main() -> void $ Console:\n    println(next(1))\n\ntests:\n    use std.testing.assert_equal\n\n    it(\"overflows\"):\n        assert_equal(next(2147483647), 0, reason=\"panics first\")\n",
+    )
+    .expect("write");
+    let r = ran(&dir, &["--release", "main.hd"]);
+    assert_eq!((r.code, r.out.as_str()), (Some(0), "2\n"), "{}", r.err);
+    let r = ran(&dir, &["test", "--release", "main.hd"]);
+    assert_eq!(r.code, Some(1), "{}", r.out);
+    assert!(r.out.contains("integer-overflow"), "{}", r.out);
+}

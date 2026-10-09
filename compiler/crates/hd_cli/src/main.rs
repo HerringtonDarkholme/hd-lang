@@ -23,7 +23,7 @@ use hd_run::{Grants, HostSetup, Limits, Outcome, run_program};
 use crate::report::Reporter;
 
 const USAGE: &str = "usage:
-  hd [--format json] [--cap NAME=VALUE]... FILE.hd
+  hd [--release] [--format json] [--cap NAME=VALUE]... FILE.hd
   hd run [--release] [--format json] [--cap NAME=VALUE]... [NAME]
   hd build [--release] [--format json] [FILE.hd]
   hd check [FILE.hd] [--tests | --all] [--format json]
@@ -201,8 +201,8 @@ fn execute(
     }
 }
 
-/// `hd [--format json] [--cap NAME=VALUE]... FILE.hd` (`cli.file.run`):
-/// FILE as a single-file program.
+/// `hd [--release] [--format json] [--cap NAME=VALUE]... FILE.hd`
+/// (`cli.file.run`): FILE as a single-file program.
 fn run_file_command(args: &[OsString]) -> ExitCode {
     let mut json = false;
     let mut flags = Vec::new();
@@ -226,6 +226,12 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
             }
             Some(Err(e)) => return fail(&e),
             None => {}
+        }
+        // `cli.profile.release.file`: accepted; the release profile is not
+        // in codegen yet, so the build is the debug one.
+        if args[i] == "--release" {
+            i += 1;
+            continue;
         }
         if file.replace(Path::new(&args[i])).is_some() {
             return usage();
