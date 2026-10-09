@@ -9,7 +9,7 @@ mod imports;
 pub mod journal;
 pub mod tests_model;
 
-pub use imports::{module_imports, needs};
+pub use imports::{module_exports, module_imports, needs, unknown_import};
 
 use std::task::Poll;
 
@@ -98,6 +98,9 @@ pub struct HostSetup {
     pub providers: Vec<Box<dyn Provider>>,
     pub grants: Grants,
     pub limits: Limits,
+    /// The program's arguments, the words after `--` (`cli.args.pass`),
+    /// which an `Args` provider hands to the program.
+    pub args: Vec<String>,
 }
 
 /// A running instance (§17.9).

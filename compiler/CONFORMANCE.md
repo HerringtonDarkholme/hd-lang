@@ -3272,7 +3272,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 51 | 51 | 0 | 102 |
+| 52 | 50 | 0 | 102 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3328,6 +3328,7 @@ cli/new-vcs
 cli/task-beside-dir
 cli/task-name-clash
 cli/toolchain-too-old
+cli/wasm-cap-flags-only
 cli/wasm-invalid
 ```
 <!-- cli-pass-list-end -->

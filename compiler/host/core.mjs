@@ -21,8 +21,9 @@
 export class Deadlock extends Error {}
 
 // One host per instance: `sink.out(text)` and `sink.err(text)` receive the
-// program's standard output and standard error.
-export function createHost(sink) {
+// program's standard output and standard error; `args` are the program's
+// arguments, for the `Args` provider once the emitter lowers its methods.
+export function createHost(sink, args = []) {
   const out = [];
   let memory = null;
   let reported = false;
@@ -150,5 +151,5 @@ export function createHost(sink) {
     return { status, trapped };
   };
 
-  return { imports, run };
+  return { imports, run, args };
 }

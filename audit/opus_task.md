@@ -193,8 +193,10 @@ bench N`).
   `new-lib` and dev-dependency run steps), the release profile (#109:
   `release-wraps`, `release-test-checked`), `instantiation-too-deep`
   (#132), folder cycles and the resolver's dev-dependency codes (#133,
-  #134), doc tests (#135), host methods not lowered yet (`cap-*`), and
-  `ItemRef` emission (`dbg-release`). Not built in this lane yet:
+  #134), doc tests (#135), host methods not lowered yet (`cap-*`), `ItemRef` emission (`dbg-release`), and
+  the `Args` methods (`wasm-run-built`: `Args.list` is not lowered; the
+  CLI passes the words after `--` to the Node host, which holds them for
+  an `Args` provider). Not built in this lane yet:
   `[source] root`, globs in workspace `members`, `-p NAME`, the
   workspace's shared selection and `hd.sum`, and the effect of
   `[toolchain] pin` and `[test.capabilities]`; `hd test` takes no

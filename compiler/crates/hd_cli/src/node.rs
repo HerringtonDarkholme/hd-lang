@@ -27,6 +27,9 @@ pub struct NodeModule {
 
 struct NodeInstance {
     wasm: Vec<u8>,
+    /// The program's arguments, after the module's path on Node's command
+    /// line.
+    args: Vec<String>,
     done: Option<Outcome>,
 }
 
@@ -43,10 +46,11 @@ impl Engine for NodeEngine {
     fn instantiate(
         &self,
         m: &NodeModule,
-        _host: &HostSetup,
+        host: &HostSetup,
     ) -> Result<Box<dyn Instance>, StartError> {
         Ok(Box::new(NodeInstance {
             wasm: m.wasm.clone(),
+            args: host.args.clone(),
             done: None,
         }))
     }
@@ -88,6 +92,7 @@ impl NodeInstance {
         let out = Command::new("node")
             .arg(dir.0.join("run.mjs"))
             .arg(dir.0.join("main.wasm"))
+            .args(&self.args)
             .output();
         match out {
             Ok(o) => {

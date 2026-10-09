@@ -26,7 +26,8 @@ use hd_run::{Grants, HostSetup, Limits, Outcome, run_program};
 use crate::report::Reporter;
 
 const USAGE: &str = "usage:
-  hd [--release] [--format json] [--cap NAME=VALUE]... FILE.hd
+  hd [--release] [--format json] [--cap NAME=VALUE]... FILE.hd [-- ARGS]
+  hd [--cap NAME=VALUE]... FILE.wasm [-- ARGS]
   hd run [--release] [--format json] [--cap NAME=VALUE]... [NAME]
   hd build [--release] [--format json] [FILE.hd]
   hd check [FILE.hd] [--tests | --all] [--format json]
@@ -86,15 +87,28 @@ fn main() -> ExitCode {
         ("run", rest) => run_command(rest),
         ("build", rest) => build_command(rest),
         ("check", rest) => check_cmd::command(rest),
-        _ if arguments.iter().any(is_hd_file) => run_file_command(&arguments),
+        _ if arguments
+            .iter()
+            .take_while(|a| *a != "--")
+            .any(|a| has_extension(a, "wasm")) =>
+        {
+            run_wasm_command(&arguments)
+        }
+        _ if arguments
+            .iter()
+            .take_while(|a| *a != "--")
+            .any(|a| has_extension(a, "hd")) =>
+        {
+            run_file_command(&arguments)
+        }
         _ => usage(),
     }
 }
 
-fn is_hd_file(word: &OsString) -> bool {
+fn has_extension(word: &OsString, ext: &str) -> bool {
     Path::new(word)
         .extension()
-        .is_some_and(|e| e.eq_ignore_ascii_case("hd"))
+        .is_some_and(|e| e.eq_ignore_ascii_case(ext))
 }
 
 pub(crate) struct Wall(pub(crate) Instant);
@@ -193,11 +207,12 @@ fn compile(program: &disk::Program, rep: &mut Reporter) -> Result<Vec<u8>, ExitC
 /// (`cli.cap.total.refuse`).
 fn execute(
     wasm: &[u8],
-    program: &disk::Program,
+    table: &[(String, hd_project::Grant)],
     flags: &[caps::CapFlag],
+    args: &[OsString],
     rep: &mut Reporter,
 ) -> ExitCode {
-    if let Some(d) = caps::refusal(wasm, &program.capabilities, flags) {
+    if let Some(d) = caps::refusal(wasm, table, flags) {
         rep.diag(&d);
         return rep.finish(HD_FAILURE);
     }
@@ -206,6 +221,10 @@ fn execute(
         providers: Vec::new(),
         grants: Grants::default(),
         limits: Limits::default(),
+        args: args
+            .iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect(),
     };
     match run_program(&node::NodeEngine, wasm, &store, &host) {
         Ok(Outcome::Exit(code)) => rep.finish(code),
@@ -218,31 +237,40 @@ fn execute(
     }
 }
 
-/// `hd [--release] [--format json] [--cap NAME=VALUE]... FILE.hd`
-/// (`cli.file.run`): FILE as a single-file program.
-fn run_file_command(args: &[OsString]) -> ExitCode {
-    let mut json = false;
-    let mut flags = Vec::new();
-    let mut file = None;
+/// The words of `hd FILE` and `hd FILE.wasm`: flags before `--`, one
+/// FILE, and the program arguments after `--` (`cli.args.separator`).
+struct FileWords {
+    json: bool,
+    caps: Vec<caps::CapFlag>,
+    file: Option<PathBuf>,
+    /// The program's arguments (`cli.args.pass`).
+    program_args: Vec<OsString>,
+}
+
+fn file_words(args: &[OsString]) -> Result<FileWords, String> {
+    let mut w = FileWords {
+        json: false,
+        caps: Vec::new(),
+        file: None,
+        program_args: Vec::new(),
+    };
     let mut i = 0;
     while i < args.len() {
-        match report::format_flag(args, i) {
-            Some(Ok((j, used))) => {
-                json = j;
-                i += used;
-                continue;
-            }
-            Some(Err(e)) => return fail(&e),
-            None => {}
+        if args[i] == "--" {
+            w.program_args = args[i + 1..].to_vec();
+            break;
         }
-        match caps::cap_flag(args, i) {
-            Some(Ok((f, used))) => {
-                flags.push(f);
-                i += used;
-                continue;
-            }
-            Some(Err(e)) => return fail(&e),
-            None => {}
+        if let Some(format) = report::format_flag(args, i) {
+            let (json, used) = format?;
+            w.json = json;
+            i += used;
+            continue;
+        }
+        if let Some(cap) = caps::cap_flag(args, i) {
+            let (flag, used) = cap?;
+            w.caps.push(flag);
+            i += used;
+            continue;
         }
         // `cli.profile.release.file`: accepted; the release profile is not
         // in codegen yet, so the build is the debug one.
@@ -250,13 +278,24 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
             i += 1;
             continue;
         }
-        if file.replace(Path::new(&args[i])).is_some() {
-            return usage();
+        if w.file.replace(PathBuf::from(&args[i])).is_some() {
+            return Err(
+                "`hd FILE` takes one FILE; put the program's arguments after `--`".to_owned(),
+            );
         }
         i += 1;
     }
-    let mut rep = Reporter::stderr(json);
-    let Some(file) = file else {
+    Ok(w)
+}
+
+/// `hd [--release] [--format json] [--cap NAME=VALUE]... FILE.hd [-- ARGS]`
+/// (`cli.file.run`): FILE as a single-file program.
+fn run_file_command(args: &[OsString]) -> ExitCode {
+    let Ok(w) = file_words(args) else {
+        return usage();
+    };
+    let mut rep = Reporter::stderr(w.json);
+    let Some(file) = &w.file else {
         return usage();
     };
     let program = match disk::load_file(file) {
@@ -264,9 +303,59 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
         Err(e) => return rep.fail(&e),
     };
     match compile(&program, &mut rep) {
-        Ok(wasm) => execute(&wasm, &program, &flags, &mut rep),
+        Ok(wasm) => execute(
+            &wasm,
+            &program.capabilities,
+            &w.caps,
+            &w.program_args,
+            &mut rep,
+        ),
         Err(code) => code,
     }
+}
+
+/// `hd [--cap NAME=VALUE]... FILE.wasm [-- ARGS]` (Prebuilt Modules,
+/// `cli.wasm.*`): a module that `hd build` wrote. It is checked first: a
+/// valid module (`cli.wasm.invalid`), with the entry exports and only
+/// imports `hd` provides (`cli.wasm.not-hd.*`). Its grant comes from the
+/// flags alone (`cli.wasm.grant`).
+fn run_wasm_command(args: &[OsString]) -> ExitCode {
+    let w = match file_words(args) {
+        Ok(w) => w,
+        Err(e) => return fail(&e),
+    };
+    let mut rep = Reporter::stderr(w.json);
+    let Some(file) = &w.file else {
+        return usage();
+    };
+    let shown = file.display();
+    let wasm = match std::fs::read(file) {
+        Ok(b) => b,
+        Err(e) => return rep.fail(&format!("{shown}: {e}")),
+    };
+    let checked = hd_run::module_imports(&wasm).and_then(|imports| {
+        let exports = hd_run::module_exports(&wasm)?;
+        Ok((imports, exports))
+    });
+    let (imports, exports) = match checked {
+        Ok(ie) => ie,
+        Err(e) => return rep.fail(&format!("`{shown}` is not a valid Wasm module: {e}")),
+    };
+    let rebuild = "it was not written by this `hd build`; rebuild it with `hd build`";
+    if let Some(missing) = ["hd.init", "hd.poll"]
+        .into_iter()
+        .find(|e| !exports.iter().any(|x| x == e))
+    {
+        return rep.fail(&format!(
+            "`{shown}` has no entry export `{missing}`: {rebuild}"
+        ));
+    }
+    if let Some((m, n)) = hd_run::unknown_import(&imports) {
+        return rep.fail(&format!(
+            "`{shown}` imports `{m}` `{n}`, which `hd` does not provide: {rebuild}"
+        ));
+    }
+    execute(&wasm, &[], &w.caps, &w.program_args, &mut rep)
 }
 
 /// The words and flags of `hd run` and `hd build`.
@@ -276,6 +365,8 @@ struct Words {
     /// `--cap` flags; only `hd run` takes them (`cli.cap.flag.commands`).
     caps: Vec<caps::CapFlag>,
     positional: Vec<OsString>,
+    /// The words after `--`; only `hd run` takes them (`cli.args.separator`).
+    program_args: Vec<OsString>,
 }
 
 fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
@@ -284,9 +375,14 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         json: false,
         caps: Vec::new(),
         positional: Vec::new(),
+        program_args: Vec::new(),
     };
     let mut i = 0;
     while i < args.len() {
+        if command == "run" && args[i] == "--" {
+            w.program_args = args[i + 1..].to_vec();
+            break;
+        }
         if let Some(format) = report::format_flag(args, i) {
             let (json, used) = format?;
             w.json = json;
@@ -422,7 +518,13 @@ fn run_command(args: &[OsString]) -> ExitCode {
     {
         return rep.fail(&format!("{}: {e}", root.display()));
     }
-    execute(&wasm, &program, &w.caps, &mut rep)
+    execute(
+        &wasm,
+        &program.capabilities,
+        &w.caps,
+        &w.program_args,
+        &mut rep,
+    )
 }
 
 /// In workspace mode, the member whose executable or task `hd run NAME`

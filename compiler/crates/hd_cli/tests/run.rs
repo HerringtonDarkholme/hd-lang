@@ -1067,3 +1067,39 @@ fn fetch_with_path_requirements_only_has_nothing_to_do() {
     .expect("write");
     assert_eq!(ran(&dir, &["fetch"]).code, Some(101));
 }
+
+/// `cli.wasm.run`, `cli.wasm.grant`, `cli.wasm.invalid`, `cli.wasm.not-hd`,
+/// `cli.args.separator`: `hd FILE.wasm` runs what `hd build` wrote, with a
+/// grant from flags alone, and rejects a file that is no Wasm module or
+/// no module of `hd`; words after `--` are the program's.
+#[test]
+fn a_built_module_runs_on_its_own() {
+    let dir = shop("hd-forms-wasm");
+    std::fs::write(
+        dir.join("hd.toml"),
+        "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = false\n",
+    )
+    .expect("write");
+    let r = ran(&dir, &["build"]);
+    assert_eq!(r.code, Some(0), "{}", r.err);
+    let module = "build/debug/shop.wasm";
+    let r = ran(&dir, &[module, "--", "a", "b"]);
+    assert_eq!((r.code, r.out.as_str()), (Some(0), "main\n"), "{}", r.err);
+    let r = ran(&dir, &["--cap", "Console=false", module]);
+    assert_eq!((r.code, r.out.as_str()), (Some(101), ""));
+    assert!(r.err.contains("denied-capability"), "{}", r.err);
+    std::fs::write(dir.join("notes.wasm"), "not wasm").expect("write");
+    let r = ran(&dir, &["notes.wasm"]);
+    assert_eq!(r.code, Some(101));
+    assert!(r.err.contains("notes.wasm"), "{}", r.err);
+    std::fs::write(dir.join("empty.wasm"), b"\0asm\x01\0\0\0").expect("write");
+    let r = ran(&dir, &["empty.wasm"]);
+    assert_eq!(r.code, Some(101));
+    assert!(
+        r.err.contains("hd.init") && r.err.contains("hd build"),
+        "{}",
+        r.err
+    );
+    let r = ran(&dir, &["run", "--", "x"]);
+    assert_eq!(r.code, Some(101), "the table denies Console: {}", r.err);
+}

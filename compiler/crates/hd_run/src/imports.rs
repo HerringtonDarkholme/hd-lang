@@ -1,6 +1,7 @@
-//! A module's import list (`cli.cap.total.needs`): read from its import
-//! section alone, so it holds alike for a program built from source and for
-//! a prebuilt module (`cli.cap.total.any-module`).
+//! A module's import list (`cli.cap.total.needs`) and export names, read
+//! from its sections alone, so they hold alike for a program built from
+//! source and for a prebuilt module (`cli.cap.total.any-module`,
+//! `cli.wasm.not-hd.detect`).
 
 /// A reader over a module's bytes.
 struct Bytes<'a> {
@@ -59,29 +60,40 @@ impl Bytes<'_> {
     }
 }
 
-/// Each import of a Wasm module, as (module, name), in order.
-pub fn module_imports(wasm: &[u8]) -> Result<Vec<(String, String)>, String> {
+/// The body of each section of a Wasm module with id `want`, in order.
+fn sections(wasm: &[u8], want: u8) -> Result<Vec<&[u8]>, String> {
     if wasm.get(..8) != Some(b"\0asm\x01\0\0\0") {
         return Err("not a Wasm module".to_owned());
     }
     let mut r = Bytes { b: wasm, at: 8 };
+    let mut out = Vec::new();
     while r.at < wasm.len() {
         let id = r.byte()?;
         let size = r.len()?;
         let end = r.at.checked_add(size).ok_or("a section is too long")?;
-        if id != 2 {
-            r.at = end;
-            continue;
+        let body = wasm.get(r.at..end).ok_or("the module ends early")?;
+        if id == want {
+            out.push(body);
         }
-        let mut out = Vec::new();
+        r.at = end;
+    }
+    Ok(out)
+}
+
+/// Each import of a Wasm module, as (module, name), in order.
+pub fn module_imports(wasm: &[u8]) -> Result<Vec<(String, String)>, String> {
+    let mut out = Vec::new();
+    for body in sections(wasm, 2)? {
+        let mut r = Bytes { b: body, at: 0 };
         for _ in 0..r.len()? {
             let module = r.name()?;
             let name = r.name()?;
             match r.byte()? {
-                // A function or a tag: a type index (a tag's after its attribute).
+                // A function: a type index.
                 0x00 => {
                     r.leb()?;
                 }
+                // A tag: an attribute, then a type index.
                 0x04 => {
                     r.byte()?;
                     r.leb()?;
@@ -99,9 +111,31 @@ pub fn module_imports(wasm: &[u8]) -> Result<Vec<(String, String)>, String> {
             }
             out.push((module, name));
         }
-        return Ok(out);
     }
-    Ok(Vec::new())
+    Ok(out)
+}
+
+/// The name of each export of a Wasm module, in order.
+pub fn module_exports(wasm: &[u8]) -> Result<Vec<String>, String> {
+    let mut out = Vec::new();
+    for body in sections(wasm, 7)? {
+        let mut r = Bytes { b: body, at: 0 };
+        for _ in 0..r.len()? {
+            out.push(r.name()?);
+            r.byte()?;
+            r.leb()?;
+        }
+    }
+    Ok(out)
+}
+
+/// The first import that `hd` provides no host function for
+/// (`cli.wasm.not-hd.detect`), or `None`.
+#[must_use]
+pub fn unknown_import(imports: &[(String, String)]) -> Option<&(String, String)> {
+    imports
+        .iter()
+        .find(|(m, n)| !hd_host_abi::is_known_import(m, n))
 }
 
 /// The host capability traits a module needs: those whose methods its
@@ -120,7 +154,7 @@ pub fn needs(imports: &[(String, String)]) -> Vec<&'static str> {
 
 #[cfg(test)]
 mod tests {
-    use super::{module_imports, needs};
+    use super::{module_exports, module_imports, needs, unknown_import};
 
     /// A module that imports `hd:Console.write_line.start` (a function), a
     /// memory and a global, by hand.
@@ -148,6 +182,16 @@ mod tests {
         assert_eq!(imports.len(), 3);
         assert_eq!(imports[0].0, "hd:Console");
         assert_eq!(needs(&imports), ["Console"]);
+        assert_eq!(
+            unknown_import(&imports).map(|(m, _)| m.as_str()),
+            Some("env")
+        );
         assert!(module_imports(b"not wasm").is_err());
+        // An export section with `hd.init`, a function.
+        let mut e = b"\0asm\x01\0\0\0".to_vec();
+        e.extend([7, 11, 1, 7]);
+        e.extend(b"hd.init");
+        e.extend([0, 0]);
+        assert_eq!(module_exports(&e).expect("exports"), ["hd.init"]);
     }
 }
