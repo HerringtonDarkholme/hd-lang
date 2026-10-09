@@ -102,24 +102,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### D2n. Design Text For The Derivation Instance Check (#17a, #17d)
-
-Two commits landed: `2f8cf104` (the instantiated-template check at
-each derivation opt-in: `member-not-derivable`) and the
-`derive-field-missing-trait` commit after it (comparison traits report
-at the field; derived newtypes get an implementation head; the base
-type is checked through the solver; derived implementations repeat
-their type's anchor slots). Read both diffs and write what they do into
-the design text where derivation checking belongs (find it in
-`future-work/compiler/checking-and-tir.md` or
-`resolution-and-interfaces.md`): the walker/describer/source record, the
-finish-time obligation pass, the driver's re-check of template methods
-with a scratch buffer, the cache-key widening for template modules, the
-one-error-per-field rule, and the open gaps (derivation blocks report at
-the block header; derived newtype methods have no bodies yet, #117).
-Mark any matching `reconciliation.md` row. Docs only; one commit; push.
-Timebox 40 minutes.
-
 ### Y2. Proposal: The Intrinsic A Single-Pass `join` Needs (#112)
 
 Owner decision: string appends get a builder now, a rope in phase 3.

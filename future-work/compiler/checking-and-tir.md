@@ -222,6 +222,52 @@ ranges, `Option` and tuples.
   The result is part of the target module's `check` entry. A template edit
   changes the trait folder's deep hash, which rechecks exactly the modules
   that derive from it.
+- **The instantiated-template check at each opt-in (#17a).** Every
+  `@derive(X)` and every derivation block re-checks `X`'s template
+  methods once more, in the target's Body task after ordinary checking
+  passes, in the template module's scope with the opt-in's parameters
+  and bounds in the environment
+  ([`annot.template.checked`](../../spec/lang/14-annotations.md#r-annot.template.checked)).
+  Ordinary checking infers the walker, describer or source type at each
+  `walk`, `describe` or `build` call, however the template obtains it,
+  and records each call's Structure method and walker/describer/source
+  type (`structure_calls`); a finish-time obligation pass then holds
+  each member's type to the bounds of that implementation's `member[F]`
+  (`annot.walker.obligation`). A failing member is one
+  `member-not-derivable` at the opt-in naming it; every other
+  diagnostic of the instance check is dropped into a scratch buffer,
+  since the template's own module reports its own mistakes. Members
+  with a declared default (`name = pass`) contribute no obligation, as
+  a derived `Default` exempts them.
+- **Re-checking another module's template.** The driver groups opt-ins
+  by template module: same-module groups check in the module's own
+  context, while each foreign template module is lowered once per run
+  (`template_mods`) and checked under a fresh body context built from
+  its scope, the opt-in module's items, and the union of both folders'
+  closures — never in the template's own task.
+- **Cache keys widen by template sources.** No interface carries
+  template bodies yet, so an opt-in module's check key also hashes the
+  source of every non-std template module in its closure
+  (`template_sources`; std sources are already in the toolchain key).
+  A module whose text names neither `derive` nor `Structure` opts in
+  nowhere and skips the scan.
+- **One error per field (#17d).** Comparison derivations (`Eq`,
+  `PartialOrd`, `Ord`, `Hash`) run the same instance check and report
+  `derive-field-missing-trait` at the field: the driver dedups by
+  (type, slot) and reports a field that misses several traits once,
+  for the first trait. Other derivations report `member-not-derivable`
+  at the opt-in. A derived newtype gets an implementation head, and
+  its base type is checked against the derived trait through the
+  solver in header checks (`trait.derive.newtype.requires`, slot 1 is
+  the base type); anchor slots repeat the type's field positions (and
+  a newtype's base slot) onto the derived implementation, so field
+  errors point at the field even when the private type has no
+  interface item of its own.
+- **Open gaps.** Derivation blocks (`impl X for D by Structure`) carry
+  no field anchors — anchor repeats are found through the `@derive`
+  decorator, which a block lacks — so their member failures report at
+  the block header, not the member line. Derived newtype methods have
+  no bodies yet (#117).
 - **No coinductive assumption.** The derived head is already in the
   target module's impl table, so a member goal such as `List[Tree[T]]:
   Eq` reaches it as an ordinary `Impl` and the search meets no cycle
