@@ -611,7 +611,7 @@ through matching.
 | `Tuple` | every tuple type | none | `Builtin(Tuple)` |
 | `Num`, `Integer`, `Float` | the fixed primitive lists of [Numeric Traits](../../spec/lang/09-traits.md#numeric-traits): std writes one impl per type (`lib/std/num.hd`, with the bodies of `zero`, `one`, `from_i64`), so the impl tables answer them | the impl's | `Impl` |
 | `Suspend[T]` | compiler frames and the `std.task` types | none | `Builtin(Suspend)`; no row while std declares no such trait |
-| `Structure` | only the target of a template instance, through that instance's environment | none | `Bound` |
+| `Structure` | the target of a template instance, through that instance's environment; and every concrete tuple type (#126), since the compiler generates a tuple's `Structure` while it instantiates a tuple template (`annot.tuple.structure`) | none | `Bound` in a template; `Builtin(Structure)` at a tuple, lowered per tuple type (codegen.md §13.6) |
 
 For a parameter or a rigid projection, every row above but `Any`
 answers through the environment only
@@ -1819,9 +1819,16 @@ owner disagrees.
    cycle has no finite proof, so the spec's depth rule already rejects it.
 3. **No depth limit at instances.** Codegen's concrete proofs are not
    source uses (section 8.3).
-4. **`Structure` holds only through a template instance's environment**,
-   never as a written or compiler-wide impl
+4. **`Structure` holds through a template instance's environment**,
+   never as a written impl
    ([`annot.structure.generated`](../../spec/lang/14-annotations.md#r-annot.structure.generated)).
+   The one compiler-wide answer is a concrete tuple type (#126): its row is
+   shared by checking and codegen because row memo entries carry no mode.
+   Checking cannot reach it from user code, since naming `Structure`
+   outside a template is `structure-outside-template` and a template's `T`
+   is a parameter its environment answers. A template body that names
+   `Structure` at a concrete tuple would get the tuple answer; nothing
+   writes that today.
 
 ### 16.3 Inconsistencies Found
 
