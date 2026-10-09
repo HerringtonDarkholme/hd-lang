@@ -8,26 +8,26 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2142 | 506 | 197 | 2845 |
+| 2160 | 507 | 178 | 2845 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
 | `lang/01-lexical-structure.md` | 133 | 12 | 0 | 145 |
-| `lang/02-grammar.md` | 191 | 14 | 10 | 215 |
+| `lang/02-grammar.md` | 191 | 15 | 9 | 215 |
 | `lang/03-names-and-scopes.md` | 92 | 8 | 1 | 101 |
-| `lang/04-type-system.md` | 286 | 54 | 12 | 352 |
-| `lang/05-expressions.md` | 196 | 62 | 19 | 277 |
-| `lang/06-control-flow.md` | 122 | 28 | 7 | 157 |
-| `lang/07-functions.md` | 89 | 30 | 11 | 130 |
+| `lang/04-type-system.md` | 287 | 53 | 12 | 352 |
+| `lang/05-expressions.md` | 205 | 63 | 9 | 277 |
+| `lang/06-control-flow.md` | 126 | 27 | 4 | 157 |
+| `lang/07-functions.md` | 89 | 31 | 10 | 130 |
 | `lang/08-data-and-enums.md` | 78 | 37 | 8 | 123 |
-| `lang/09-traits.md` | 258 | 86 | 15 | 359 |
+| `lang/09-traits.md` | 259 | 86 | 14 | 359 |
 | `lang/10-modules.md` | 201 | 43 | 14 | 258 |
 | `lang/11-requirements-and-suspension.md` | 141 | 51 | 67 | 259 |
 | `lang/14-annotations.md` | 104 | 42 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
-| `std/cmp.md` | 13 | 0 | 1 | 14 |
+| `std/cmp.md` | 14 | 0 | 0 | 14 |
 | `std/collections.md` | 24 | 5 | 0 | 29 |
 | `std/console.md` | 7 | 0 | 0 | 7 |
 | `std/digest.md` | 2 | 0 | 0 | 2 |
@@ -35,14 +35,14 @@ fixture; unsupported surface records progress without failing.
 | `std/error.md` | 13 | 1 | 0 | 14 |
 | `std/format.md` | 7 | 1 | 0 | 8 |
 | `std/fs.md` | 3 | 1 | 0 | 4 |
-| `std/hash.md` | 7 | 1 | 1 | 9 |
+| `std/hash.md` | 8 | 1 | 0 | 9 |
 | `std/host.md` | 2 | 0 | 0 | 2 |
 | `std/http.md` | 2 | 0 | 0 | 2 |
 | `std/iter.md` | 15 | 7 | 3 | 25 |
 | `std/json.md` | 14 | 3 | 2 | 19 |
 | `std/net.md` | 1 | 0 | 0 | 1 |
 | `std/num.md` | 12 | 6 | 0 | 18 |
-| `std/ops.md` | 7 | 3 | 3 | 13 |
+| `std/ops.md` | 8 | 3 | 2 | 13 |
 | `std/option.md` | 3 | 0 | 0 | 3 |
 | `std/path.md` | 2 | 0 | 0 | 2 |
 | `std/process.md` | 3 | 0 | 0 | 3 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 77 | 24 | 4 | 105 |
-| `runtime/valid` | 709 | 87 | 133 | 929 |
-| `typing/invalid` | 683 | 353 | 39 | 1075 |
-| `typing/valid` | 375 | 19 | 21 | 415 |
+| `runtime/valid` | 717 | 90 | 122 | 929 |
+| `typing/invalid` | 692 | 351 | 32 | 1075 |
+| `typing/valid` | 376 | 19 | 20 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -94,18 +94,18 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 1 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 212 |
+| `fail:no-diagnostic` | 211 |
 | `fail:nonexhaustive-match` | 4 |
 | `fail:nonlocal-impl` | 1 |
-| `fail:not-callable` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
-| `fail:pattern-arity` | 2 |
+| `fail:pattern-arity` | 1 |
 | `fail:pipe-step-needs-placeholder` | 5 |
 | `fail:placeholder-outside-pipe` | 1 |
 | `fail:private-import` | 1 |
 | `fail:private-main` | 7 |
 | `fail:re-export-loop` | 1 |
+| `fail:readonly-root` | 1 |
 | `fail:runtime-exit` | 38 |
 | `fail:stdout` | 3 |
 | `fail:suspension-forbidden-context` | 1 |
@@ -115,7 +115,7 @@ compiler stage that first declined the case.
 | `fail:trait-used-as-type` | 2 |
 | `fail:type-mismatch` | 56 |
 | `fail:type-used-as-value` | 2 |
-| `fail:unknown-data-field` | 11 |
+| `fail:unknown-data-field` | 14 |
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 33 |
 | `fail:unknown-module` | 1 |
@@ -125,7 +125,7 @@ compiler stage that first declined the case.
 | `fail:unknown-variant` | 1 |
 | `fail:unsatisfied-trait-bound` | 12 |
 | `fail:unused-local-binding` | 6 |
-| `unsupported:Body` | 69 |
+| `unsupported:Body` | 50 |
 | `unsupported:Collect` | 29 |
 | `unsupported:Emit` | 28 |
 | `unsupported:FolderIface` | 34 |
@@ -292,7 +292,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (212)</summary>
+<details><summary><code>fail:no-diagnostic</code> (211)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -425,7 +425,6 @@ compiler stage that first declined the case.
 - `typing/invalid/function-type-rest-not-list.hd`
 - `typing/invalid/vararg-type-not-collection.hd`
 - `typing/invalid/function-type-unbounded-inputs.hd`
-- `typing/invalid/tuple-rest-not-list.hd`
 - `typing/invalid/vararg-function-value-list.hd`
 - `typing/invalid/display-tuple-element-without-display.hd`
 - `typing/invalid/default-tuple-element-without-default.hd`
@@ -524,12 +523,6 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:not-callable</code> (1)</summary>
-
-- `typing/invalid/callable-value-arguments.hd`
-
-</details>
-
 <details><summary><code>fail:orphan-impl</code> (1)</summary>
 
 - `typing/invalid/from-reflexive-impl.hd`
@@ -542,10 +535,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:pattern-arity</code> (2)</summary>
+<details><summary><code>fail:pattern-arity</code> (1)</summary>
 
 - `typing/invalid/tuple-binding-arity.hd`
-- `typing/invalid/spread-pattern-required.hd`
 
 </details>
 
@@ -586,6 +578,12 @@ compiler stage that first declined the case.
 <details><summary><code>fail:re-export-loop</code> (1)</summary>
 
 - `typing/invalid/pub-use-loop.hd`
+
+</details>
+
+<details><summary><code>fail:readonly-root</code> (1)</summary>
+
+- `typing/invalid/callable-value-short-binding-store.hd`
 
 </details>
 
@@ -749,7 +747,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-data-field</code> (11)</summary>
+<details><summary><code>fail:unknown-data-field</code> (14)</summary>
 
 - `typing/invalid/tuple-element-assignment.hd`
 - `runtime/valid/string-concatenation-and-numeric-selectors.hd`
@@ -759,9 +757,12 @@ compiler stage that first declined the case.
 - `typing/valid/type-default-declarations.hd`
 - `typing/valid/let-pattern-mut.hd`
 - `typing/invalid/let-pattern-mut-readonly-field.hd`
+- `runtime/valid/tuple-rest-literal.hd`
+- `runtime/valid/tuple-vararg-rest.hd`
 - `runtime/valid/impl-owned-target-and-trait-argument.hd`
 - `typing/invalid/default-body-self-field.hd`
 - `runtime/valid/data-and-enum-declaration-forms.hd`
+- `runtime/valid/tuple-rest-spread-list.hd`
 
 </details>
 
@@ -889,7 +890,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (69)</summary>
+<details><summary><code>unsupported:Body</code> (50)</summary>
 
 - `typing/valid/enums.hd`
 - `typing/invalid/generic-provider-key-collision-spread.hd`
@@ -910,12 +911,6 @@ compiler stage that first declined the case.
 - `typing/invalid/lowercase-list-type.hd`
 - `typing/valid/row-union-spread.hd`
 - `typing/valid/row-list-copy-wider.hd`
-- `typing/invalid/compound-assign-not-place.hd`
-- `typing/valid/callable-values.hd`
-- `runtime/valid/callable-values-run.hd`
-- `typing/invalid/callable-value-no-update.hd`
-- `typing/invalid/callable-value-short-binding-store.hd`
-- `typing/invalid/callable-value-readonly-parameter.hd`
 - `typing/valid/collect-targets.hd`
 - `typing/valid/type-default-trait-method.hd`
 - `typing/valid/newtype-unwrap-permission.hd`
@@ -927,20 +922,8 @@ compiler stage that first declined the case.
 - `runtime/valid/tuple-spread-fixed.hd`
 - `typing/invalid/race-no-tasks.hd`
 - `typing/invalid/all-explicit-type-arguments.hd`
-- `runtime/valid/tuple-rest-literal.hd`
-- `typing/invalid/tuple-spread-tuple-operand.hd`
-- `runtime/valid/tuple-spread-rest.hd`
 - `runtime/valid/call-rest-inference.hd`
-- `runtime/valid/tuple-vararg-rest.hd`
 - `runtime/valid/tuple-vararg-spread-tail.hd`
-- `runtime/valid/tuple-rest-derived.hd`
-- `runtime/valid/debug-tuple-rest.hd`
-- `runtime/valid/display-tuple-rest.hd`
-- `runtime/valid/spread-pattern.hd`
-- `typing/invalid/spread-pattern-fixed-tuple.hd`
-- `typing/invalid/spread-pattern-arity.hd`
-- `runtime/valid/default-tuple-rest.hd`
-- `runtime/valid/tuple-rest-map-key.hd`
 - `typing/invalid/race-empty-list-literal.hd`
 - `runtime/valid/module-qualified-variant.hd`
 - `runtime/valid/module-qualified-associated-call.hd`
@@ -955,7 +938,6 @@ compiler stage that first declined the case.
 - `runtime/valid/let-patterns-and-let-else.hd`
 - `runtime/valid/binding-chain-with-suite.hd`
 - `runtime/valid/spread-forms-and-positions.hd`
-- `runtime/valid/tuple-rest-spread-list.hd`
 - `runtime/valid/pattern-forms.hd`
 - `runtime/valid/assignment-and-break-forms.hd`
 - `typing/invalid/grammar-assignment-nonplace.hd`
@@ -1540,6 +1522,7 @@ runtime/valid/buffer-console-error-lines.hd
 runtime/valid/buffer-console.hd
 runtime/valid/buffered-println-program-console.hd
 runtime/valid/call-and-closure-forms.hd
+runtime/valid/callable-values-run.hd
 runtime/valid/callee-and-operand-evaluation-order.hd
 runtime/valid/candidate-closure-selection-reversed.hd
 runtime/valid/candidate-closure-selection.hd
@@ -1618,10 +1601,12 @@ runtime/valid/dbg-prints-void.hd
 runtime/valid/dbg-without-requirement.hd
 runtime/valid/debug-derive-data.hd
 runtime/valid/debug-derive-variants.hd
+runtime/valid/debug-tuple-rest.hd
 runtime/valid/default-body-supertrait-member.hd
 runtime/valid/default-hasher.hd
 runtime/valid/default-method-conflict-inherent-resolves.hd
 runtime/valid/default-standard-types.hd
+runtime/valid/default-tuple-rest.hd
 runtime/valid/default-tuple-thirteen-elements.hd
 runtime/valid/defaults-reference-earlier-parameters.hd
 runtime/valid/defer-after-return-value.hd
@@ -1648,6 +1633,7 @@ runtime/valid/direct-member-hides-promoted.hd
 runtime/valid/directory-module-and-child.hd
 runtime/valid/discard-propagated-void-result.hd
 runtime/valid/display-dispatch.hd
+runtime/valid/display-tuple-rest.hd
 runtime/valid/display-tuple-thirteen-elements.hd
 runtime/valid/doc-test-compile-fail.hd
 runtime/valid/doc-test-passes.hd
@@ -2081,6 +2067,7 @@ runtime/valid/sibling-module-std-name-imported.hd
 runtime/valid/sibling-module-trait-imported.hd
 runtime/valid/sized-integer-arithmetic.hd
 runtime/valid/split-empty-input-nonempty-separator.hd
+runtime/valid/spread-pattern.hd
 runtime/valid/static-and-dynamic-trait-dispatch.hd
 runtime/valid/std-errors-erased-codecs.hd
 runtime/valid/std-errors-erased.hd
@@ -2170,7 +2157,10 @@ runtime/valid/tuple-derived-order.hd
 runtime/valid/tuple-element-permission.hd
 runtime/valid/tuple-ordering-nan-unordered.hd
 runtime/valid/tuple-rebuild.hd
+runtime/valid/tuple-rest-derived.hd
+runtime/valid/tuple-rest-map-key.hd
 runtime/valid/tuple-spread-candidate.hd
+runtime/valid/tuple-spread-rest.hd
 runtime/valid/tuple-thirteen-elements.hd
 runtime/valid/tuple-vararg-function-value.hd
 runtime/valid/tuple-vararg-infer.hd
@@ -2270,6 +2260,9 @@ typing/invalid/break-value-in-void-loop.hd
 typing/invalid/break-value-without-else.hd
 typing/invalid/bytes-prefix-unknown.hd
 typing/invalid/call-missing-requirement.hd
+typing/invalid/callable-value-arguments.hd
+typing/invalid/callable-value-no-update.hd
+typing/invalid/callable-value-readonly-parameter.hd
 typing/invalid/cannot-infer-type.hd
 typing/invalid/cast-literal-out-of-range.hd
 typing/invalid/closure-argument-type-mismatch.hd
@@ -2279,6 +2272,7 @@ typing/invalid/closure-not-inspectable.hd
 typing/invalid/collect-target-not-fromiterator.hd
 typing/invalid/compound-assign-data-no-operator.hd
 typing/invalid/compound-assign-index-no-read.hd
+typing/invalid/compound-assign-not-place.hd
 typing/invalid/compound-assign-readonly.hd
 typing/invalid/compound-assign-value-no-operator.hd
 typing/invalid/compound-assign-value-parameter.hd
@@ -2783,6 +2777,9 @@ typing/invalid/slice-assignment.hd
 typing/invalid/snapshot-file-needs-test-runner.hd
 typing/invalid/snapshot-non-literal-expect.hd
 typing/invalid/spelled-function-type-not-inspectable.hd
+typing/invalid/spread-pattern-arity.hd
+typing/invalid/spread-pattern-fixed-tuple.hd
+typing/invalid/spread-pattern-required.hd
 typing/invalid/str-prefix-before-data.hd
 typing/invalid/strengthened-missing-bound.hd
 typing/invalid/string-index-assignment.hd
@@ -2843,9 +2840,11 @@ typing/invalid/tuple-no-inherent-member.hd
 typing/invalid/tuple-option-parameter-bare-trait.hd
 typing/invalid/tuple-rest-assign.hd
 typing/invalid/tuple-rest-literal-short.hd
+typing/invalid/tuple-rest-not-list.hd
 typing/invalid/tuple-spread-arity.hd
 typing/invalid/tuple-spread-plain-into-vararg.hd
 typing/invalid/tuple-spread-rest-into-plain.hd
+typing/invalid/tuple-spread-tuple-operand.hd
 typing/invalid/tuple-trait-user-impl.hd
 typing/invalid/tuple-vararg-arity.hd
 typing/invalid/type-default-impl-mismatch.hd
@@ -2898,6 +2897,7 @@ typing/valid/associated-type-bindings.hd
 typing/valid/bindings.hd
 typing/valid/blanket-impl-and-associated-function.hd
 typing/valid/bound-implies-supertrait.hd
+typing/valid/callable-values.hd
 typing/valid/child-trait-distinct-member-names.hd
 typing/valid/choices-arbitrary.hd
 typing/valid/choices-generic-draws.hd
