@@ -245,4 +245,44 @@ fast". The orchestrator writes `compiler/crates/*`; you measure it.
 
 ## Questions
 
-(none)
+### Q-L3: bare vs `dyn` socket returns in `std.net` (from L3, blocks `net-own-provider.hd`)
+
+`spec/std/net.md` declares `Net::connect!/listen!/bind_udp!` returning
+`Result[mut TcpStream, …]` (bare trait names), and the
+`net-own-provider.hd` fixture implements them that way. But
+`trait.dyn.keyword` (`spec/lang/09-traits.md#r-trait.dyn.keyword`) and
+`types.trait.value.dyn-required`
+(`spec/lang/04-type-system.md#r-types.trait.value.dyn-required`) say a
+bare trait name in a type position is an error (`trait-used-as-type`,
+fix-it inserts `dyn`); only `accept!`'s `mut dyn TcpStream` complies.
+The new compiler rejects the bare forms, so `lib/std/net.hd` (L3, held
+locally with L2 on `muse/work`) spells them `mut dyn Tcp…`/`mut dyn
+UdpSocket` and the fixture cannot pass until this is decided. Options:
+
+1. **Fix net.md + fixture to `dyn` (recommended).** The two language
+   rules stand; the std chapter and the fixture have three missing
+   `dyn`s each. Smallest diff, no compiler change, and `mut dyn`
+   already appears in `accept!`.
+2. **Carve `mut Trait` out of `dyn-required`.** Read `mut TcpStream`
+   as the mutable trait-value view (parallel to `types.trait.value.mut`
+   for `mut dyn`). Needs a spec rule edit plus a compiler change
+   (orchestrator lane); then net.hd goes back to the printed bare
+   spellings.
+3. **Leave sockets undeclared.** Drop the three socket traits from
+   `lib/std/net.hd` until decided (Net's methods cannot name their
+   returns without them, so Net goes too). Not recommended: hollows
+   the module for a spelling question.
+
+### Q-L2/L3: unblocking the held std work (prototype auto-declare + checker count)
+
+L2 (`Backoff`/`retry_with!`, `Rng::from_seed`) and L3 (`sys.hd`,
+`net.hd`) are implemented, verified, and held unpushed on `muse/work`
+(commits `3f9a1f6e`, `703d4d0e`; full evidence in their messages).
+Three orchestrator-lane items block them: (1) the frozen prototype's
+Inspectable auto-declare (`src/checker/standard-traits.ts`) regresses
+`requirement-key-user-trait-named-inspectable.hd` and
+`inspectable-needs-import.hd` via any new lib edge to `error.hd`;
+(2) `hd_driver/tests/checker.rs` hardcodes 38 std modules (now 40,
+all checking with zero diagnostics); (3) Q-L3 above. The prototype
+also needs 2 whitelist lines (`sys`, `net` in
+`src/checker/standard-sources.ts`) to see the new files at all.
