@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1947 | 618 | 279 | 2844 |
+| 1951 | 619 | 274 | 2844 |
 
 ## By Chapter
 
@@ -23,7 +23,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/07-functions.md` | 86 | 32 | 12 | 130 |
 | `lang/08-data-and-enums.md` | 73 | 39 | 11 | 123 |
 | `lang/09-traits.md` | 227 | 101 | 31 | 359 |
-| `lang/10-modules.md` | 144 | 77 | 37 | 258 |
+| `lang/10-modules.md` | 148 | 78 | 32 | 258 |
 | `lang/11-requirements-and-suspension.md` | 138 | 51 | 70 | 259 |
 | `lang/14-annotations.md` | 104 | 42 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
@@ -62,8 +62,8 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 68 | 28 | 9 | 105 |
-| `runtime/valid` | 614 | 143 | 172 | 929 |
+| `runtime/panic` | 69 | 28 | 8 | 105 |
+| `runtime/valid` | 617 | 144 | 168 | 929 |
 | `typing/invalid` | 601 | 404 | 69 | 1074 |
 | `typing/valid` | 366 | 20 | 29 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -94,7 +94,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 1 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 250 |
+| `fail:no-diagnostic` | 251 |
 | `fail:nonexhaustive-match` | 4 |
 | `fail:not-callable` | 1 |
 | `fail:orphan-impl` | 1 |
@@ -129,7 +129,7 @@ compiler stage that first declined the case.
 | `unsupported:Emit` | 27 |
 | `unsupported:FolderIface` | 34 |
 | `unsupported:Link` | 2 |
-| `unsupported:RunCase` | 61 |
+| `unsupported:RunCase` | 56 |
 | `unsupported:TestCase` | 6 |
 
 <details><summary><code>fail:ambiguous-method</code> (1)</summary>
@@ -291,7 +291,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (250)</summary>
+<details><summary><code>fail:no-diagnostic</code> (251)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -484,6 +484,7 @@ compiler stage that first declined the case.
 - `typing/invalid/impl-target-key-bound-not-implied.hd`
 - `typing/invalid/signature-key-bound-not-implied.hd`
 - `typing/invalid/field-key-bound-not-implied.hd`
+- `runtime/valid/doc-test-compile-fail.hd`
 - `typing/invalid/inspectable-requirement-function-type.hd`
 - `typing/invalid/inspectable-requirement-provider-scope.hd`
 - `typing/invalid/requirement-key-missing-generic-argument.hd`
@@ -1232,7 +1233,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:RunCase</code> (61)</summary>
+<details><summary><code>unsupported:RunCase</code> (56)</summary>
 
 - `runtime/valid/cancellation-unwinds-nested-frames.hd`
 - `runtime/valid/cancellation-unwinds-suspending-closure.hd`
@@ -1257,11 +1258,6 @@ compiler stage that first declined the case.
 - `runtime/valid/boundary-derived-round-trip.hd`
 - `runtime/valid/host-result-special-floats.hd`
 - `runtime/valid/string-prefix-imported-by-name.hd`
-- `runtime/valid/doc-test-passes.hd`
-- `runtime/panic/doc-test-failing-assert.hd`
-- `runtime/valid/doc-test-compile-fail.hd`
-- `runtime/valid/doc-test-private-item.hd`
-- `runtime/valid/doc-test-text-fence.hd`
 - `runtime/valid/pending-first-poll-argument-order.hd`
 - `runtime/valid/pending-first-poll-branches.hd`
 - `runtime/valid/pending-first-poll-comprehension-propagation.hd`
@@ -1621,6 +1617,7 @@ runtime/panic/char-to-digit-radix-low.hd
 runtime/panic/cli-duplicate-option.hd
 runtime/panic/cmp-clamp-reversed.hd
 runtime/panic/compound-assign-map-missing-key.hd
+runtime/panic/doc-test-failing-assert.hd
 runtime/panic/duration-add-overflow.hd
 runtime/panic/explicit-panic-skips-defer.hd
 runtime/panic/explicit-panic.hd
@@ -1813,6 +1810,9 @@ runtime/valid/direct-member-hides-promoted.hd
 runtime/valid/discard-propagated-void-result.hd
 runtime/valid/display-dispatch.hd
 runtime/valid/display-tuple-thirteen-elements.hd
+runtime/valid/doc-test-passes.hd
+runtime/valid/doc-test-private-item.hd
+runtime/valid/doc-test-text-fence.hd
 runtime/valid/duration-api.hd
 runtime/valid/duration-arithmetic.hd
 runtime/valid/duration-display.hd

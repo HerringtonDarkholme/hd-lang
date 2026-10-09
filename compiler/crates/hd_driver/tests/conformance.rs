@@ -223,9 +223,20 @@ fn first_unsupported(report: &PipelineReport, back_half: bool) -> Option<String>
 }
 
 fn build_fixture(fixture: &Fixture, store: &MemoryStore, goal: &Goal) -> Output {
+    build_sources(fixture, &fixture.sources, store, goal)
+}
+
+/// Builds `sources` as the fixture's package, with the fixture's
+/// dependencies.
+fn build_sources(
+    fixture: &Fixture,
+    sources: &MemorySources,
+    store: &MemoryStore,
+    goal: &Goal,
+) -> Output {
     let host = Host {
         render_tir: &[],
-        sources: &fixture.sources,
+        sources,
         store,
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
@@ -492,31 +503,56 @@ fn reports_panic(line: &str, code: &str) -> bool {
         .any(|end| line.contains(&format!("panic: {code}{end}")))
 }
 
-/// `test FILE`: each case of the fixture's `tests:` block in its own
-/// instance (spec/conformance/README.md, Runtime Execution steps 2 and 3).
-fn tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize) -> Verdict {
-    let built = build_fixture(
-        fixture,
-        store,
-        &Goal::Tests {
-            module: None,
-            filter: None,
-        },
-    );
-    if built.diags.has_errors() {
-        let index = first_error(&built);
-        if built.diags.code[index].as_str() == "unsupported" {
-            return Verdict::Unsupported(
-                first_unsupported(&built.report, true).unwrap_or_else(|| "Build".to_owned()),
-            );
-        }
-        return Verdict::Fail(built.diags.code[index].as_str().to_owned());
+/// A package-tree fixture whose only harness is its tree and the doc
+/// comments of its primary file, with or without a `tests:` block (README
+/// "Package Trees": its test cases include the primary file's doc tests).
+fn doc_tests_harness(fixture: &Fixture) -> bool {
+    fixture.tree
+        && fixture.text.lines().any(|line| line.starts_with("## "))
+        && [
+            "fixture-runtime-profile",
+            "fixture-runtime-scenario",
+            "fixture-runtime-pending-function",
+        ]
+        .iter()
+        .all(|name| directive(&fixture.text, name).is_none())
+}
+
+/// What the test programs of one case did: the result lines of cases that
+/// panicked against their expectation, and whether any other case failed.
+#[derive(Default)]
+struct TestRun {
+    panicked: Vec<String>,
+    failed: bool,
+}
+
+/// The verdict of a build that reports an error: unsupported when the
+/// first error is `unsupported`, else a failure with its code.
+fn build_error(built: &Output) -> Option<Verdict> {
+    if !built.diags.has_errors() {
+        return None;
+    }
+    let index = first_error(built);
+    if built.diags.code[index].as_str() == "unsupported" {
+        return Some(Verdict::Unsupported(
+            first_unsupported(&built.report, true).unwrap_or_else(|| "Build".to_owned()),
+        ));
+    }
+    Some(Verdict::Fail(built.diags.code[index].as_str().to_owned()))
+}
+
+/// Runs each case of a `Goal::Tests` build in its own instance and adds
+/// what they did to `run`; `Err` is the case's verdict when the build
+/// cannot run.
+fn run_tests(built: &Output, serial: usize, run: &mut TestRun) -> Result<(), Verdict> {
+    if let Some(verdict) = build_error(built) {
+        return Err(verdict);
     }
     if built.tests.is_empty() {
-        return Verdict::Unsupported("TestPlan".to_owned());
+        return Err(Verdict::Unsupported("TestPlan".to_owned()));
     }
     if built.tests.iter().any(|test| test.unsupported.is_some()) {
-        return Verdict::Unsupported("TestCase".to_owned());
+        return Err(Verdict::Unsupported("TestCase".to_owned()));
     }
     let runs: Vec<_> = built
         .tests
@@ -524,13 +560,13 @@ fn tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize
         .filter(|test| test.ignore.is_none())
         .filter_map(|test| test.run.map(|run| (test, run)))
         .collect();
-    let Some(wasm) = built.wasm else {
-        return Verdict::Unsupported("Link".to_owned());
+    let Some(wasm) = &built.wasm else {
+        return Err(Verdict::Unsupported("Link".to_owned()));
     };
     let path =
         PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("conformance-{serial}.wasm"));
-    if let Err(error) = std::fs::write(&path, &wasm) {
-        return Verdict::Crash(error.to_string());
+    if let Err(error) = std::fs::write(&path, wasm) {
+        return Err(Verdict::Crash(error.to_string()));
     }
     let list: Vec<String> = runs
         .iter()
@@ -542,38 +578,112 @@ fn tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize
         .arg(list.join(","))
         .output();
     let _ = std::fs::remove_file(path);
-    let run = match result {
-        Ok(run) => run,
-        Err(error) => return Verdict::Crash(error.to_string()),
+    let output = match result {
+        Ok(output) => output,
+        Err(error) => return Err(Verdict::Crash(error.to_string())),
     };
-    let stdout = String::from_utf8_lossy(&run.stdout);
+    let stdout = String::from_utf8_lossy(&output.stdout);
     let lines: Vec<&str> = stdout.lines().collect();
     if lines.len() != runs.len() {
-        return Verdict::Fail("runtime-exit".to_owned());
+        return Err(Verdict::Fail("runtime-exit".to_owned()));
     }
-    let mut panicked = Vec::new();
-    let mut failed = false;
     for ((test, _), line) in runs.iter().zip(&lines) {
         if line.contains("\"trapped\":true") {
             match &test.expect_panic {
                 Some(code) if reports_panic(line, code) => {}
-                _ => panicked.push(*line),
+                _ => run.panicked.push((*line).to_owned()),
             }
         } else if test.expect_panic.is_some() || !line.contains("\"status\":0,") {
-            failed = true;
+            run.failed = true;
         }
     }
+    Ok(())
+}
+
+/// The case's verdict from what its test programs did: `panic:CODE` needs
+/// a case that panicked with `CODE`; any other expectation needs every
+/// case to pass.
+fn judge_tests(case: &Case, run: &TestRun) -> Verdict {
     if let Some(code) = case.expectation.strip_prefix("panic:") {
-        if panicked.iter().any(|line| reports_panic(line, code)) {
+        if run.panicked.iter().any(|line| reports_panic(line, code)) {
             Verdict::Pass
         } else {
             Verdict::Fail("runtime-exit".to_owned())
         }
-    } else if failed || !panicked.is_empty() {
+    } else if run.failed || !run.panicked.is_empty() {
         Verdict::Fail("runtime-exit".to_owned())
     } else {
         Verdict::Pass
     }
+}
+
+/// `test FILE`: each case of the fixture's `tests:` block in its own
+/// instance (spec/conformance/README.md, Runtime Execution steps 2 and 3).
+fn tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize) -> Verdict {
+    let built = build_fixture(
+        fixture,
+        store,
+        &Goal::Tests {
+            module: None,
+            filter: None,
+        },
+    );
+    let mut run = TestRun::default();
+    match run_tests(&built, serial, &mut run) {
+        Ok(()) => judge_tests(case, &run),
+        Err(verdict) => verdict,
+    }
+}
+
+/// `test FILE` for a package-tree fixture with doc comments: the primary
+/// module's `tests:` cases, then each doc test of the primary file as a
+/// program of its own, an integration-view module at `tests/$docN.hd`
+/// (README "Package Trees"; `module.test.doc.program`). A compile-fail doc
+/// test never runs: it passes when its build reports its code
+/// (`module.test.doc.compile-fail`).
+fn doc_tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize) -> Verdict {
+    let mut run = TestRun::default();
+    if fixture.text.lines().any(|line| line.starts_with("tests:")) {
+        let built = build_fixture(
+            fixture,
+            store,
+            &Goal::Tests {
+                module: Some(hd_project::module_path("fixture", &fixture.primary)),
+                filter: None,
+            },
+        );
+        if let Err(verdict) = run_tests(&built, serial, &mut run) {
+            return verdict;
+        }
+    }
+    for (index, doc) in hd_project::doc_tests(&fixture.primary, &fixture.text)
+        .into_iter()
+        .enumerate()
+    {
+        let path = format!("tests/$doc{index}.hd");
+        let mut sources = fixture.sources.clone();
+        sources.insert(&path, &doc.program);
+        let built = build_sources(
+            fixture,
+            &sources,
+            store,
+            &Goal::Tests {
+                module: Some(hd_project::module_path("fixture", &path)),
+                filter: None,
+            },
+        );
+        if let Some(code) = &doc.compile_fail {
+            if !built.diags.code.iter().any(|found| found.as_str() == code) {
+                return build_error(&built)
+                    .unwrap_or_else(|| Verdict::Fail("no-diagnostic".to_owned()));
+            }
+            continue;
+        }
+        if let Err(verdict) = run_tests(&built, serial, &mut run) {
+            return verdict;
+        }
+    }
+    judge_tests(case, &run)
 }
 
 fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize) -> Verdict {
@@ -586,10 +696,13 @@ fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usi
         return Verdict::Unsupported(stage);
     }
     if has_runtime_harness(&fixture.text) {
-        if !plain_tests(&fixture.text) {
+        let verdict = if doc_tests_harness(fixture) {
+            doc_tests_case(case, fixture, store, serial)
+        } else if plain_tests(&fixture.text) {
+            tests_case(case, fixture, store, serial)
+        } else {
             return Verdict::Unsupported("RunCase".to_owned());
-        }
-        let verdict = tests_case(case, fixture, store, serial);
+        };
         if verdict != Verdict::Pass || expected_stdout(&fixture.text).is_none() {
             return verdict;
         }
@@ -803,7 +916,7 @@ fn detail(case: &Case, store: &MemoryStore) -> String {
     }
     let mut output = build_fixture(&fixture, store, &Goal::Analyze);
     if case.phase == Phase::Runtime && !output.diags.has_errors() {
-        let goal = if plain_tests(&fixture.text) {
+        let goal = if plain_tests(&fixture.text) || doc_tests_harness(&fixture) {
             Goal::Tests {
                 module: None,
                 filter: None,

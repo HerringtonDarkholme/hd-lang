@@ -18,17 +18,32 @@ const TOOLCHAIN: &str = env!("CARGO_PKG_VERSION");
 /// source root as `src`; a package whose `[source] root` names another
 /// directory (`module.manifest.source-root`) has its files listed under
 /// `src/`, and `display` and `disk_path` name them as they are on disk.
+#[derive(Clone)]
 pub struct DiskSources {
     root: PathBuf,
     files: Vec<SourceEntry>,
     /// The source root on disk, when it is not `src`.
     src: Option<String>,
+    /// Files no disk holds, such as the program of a doc test, by path.
+    synthetic: Vec<(String, Arc<[u8]>)>,
 }
 
 impl DiskSources {
     /// Keeps the files whose package-relative path `keep` accepts.
     pub fn retain(&mut self, keep: impl Fn(&str) -> bool) {
         self.files.retain(|e| keep(&e.path));
+    }
+
+    /// Adds a file no disk holds, listed at `path` (a doc test's program,
+    /// checking-and-tir.md §4.13.9).
+    pub fn add_synthetic(&mut self, path: &str, text: &str) {
+        self.files.push(SourceEntry {
+            path: path.to_owned(),
+            size: text.len() as u64,
+        });
+        self.files.sort_by(|a, b| a.path.cmp(&b.path));
+        self.synthetic
+            .push((path.to_owned(), Arc::from(text.as_bytes())));
     }
 
     /// A listed path as it is on disk, relative to the package directory.
@@ -61,6 +76,9 @@ impl SourceSet for DiskSources {
         self.files.clone()
     }
     fn read(&self, path: &str) -> Option<Arc<[u8]>> {
+        if let Some((_, text)) = self.synthetic.iter().find(|(p, _)| p == path) {
+            return Some(text.clone());
+        }
         std::fs::read(self.disk_path(path)).ok().map(Arc::from)
     }
 }
@@ -471,6 +489,7 @@ pub fn sources_of(root: &Path) -> Result<(DiskSources, String), String> {
         root: root.to_path_buf(),
         files: Vec::new(),
         src: (src != "src").then_some(src),
+        synthetic: Vec::new(),
     };
     sources.files = files
         .into_iter()
@@ -515,6 +534,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
             root: root.to_path_buf(),
             files,
             src: None,
+            synthetic: Vec::new(),
         },
         package,
         entry: module_below(&name),

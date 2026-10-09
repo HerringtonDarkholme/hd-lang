@@ -1,0 +1,5 @@
+use pkg.text.{slugify}
+use std.testing.assert_equal
+
+it("slugifies a title"):
+    assert_equal(slugify("a b c"), "a-b-c", reason="each space")

@@ -1,0 +1,38 @@
+## Turns a title into a URL slug: each space becomes a hyphen.
+##
+## ```hd
+## use pkg.text.{slugify}
+## use std.testing.assert_equal
+##
+## assert_equal(slugify("Ship It"), "Ship-It", reason="a space becomes a hyphen")
+## ```
+##
+## A stale example: slugs no longer use underscores.
+##
+## ```hd
+## use pkg.text.{slugify}
+## use std.testing.assert_equal
+##
+## assert_equal(slugify("Ship It"), "Ship_It", reason="stale")
+## ```
+pub fn slugify(title: string) -> string:
+    let slug = ""
+    for letter in title.chars():
+        if letter == ' ':
+            slug = "${slug}-"
+        else:
+            slug = "${slug}${letter}"
+    slug
+
+## The length of a slug, which is a number, not text.
+##
+## ```hd
+## use pkg.text.{slug_len}
+##
+## let n: string = slug_len("a b")  # error: type-mismatch
+## ```
+pub fn slug_len(title: string) -> i32:
+    let n: i32 = 0
+    for _letter in slugify(title).chars():
+        n += 1
+    n

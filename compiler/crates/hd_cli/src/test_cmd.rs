@@ -196,8 +196,83 @@ pub fn command(args: &[OsString]) -> ExitCode {
     report.finish()
 }
 
-/// Tests one package: checks it with its test code, then runs the selected
-/// cases into `report`. A member's case files start with its directory.
+/// One program of a test run (engines-and-test-runner.md §19.1): the
+/// unit-test program, an integration test file (`module.test.integration`)
+/// or a doc test (`module.test.doc.program`), each built on its own.
+struct Built {
+    wasm: Option<Vec<u8>>,
+    /// An integration test or a doc test runs with the package directory as
+    /// its working directory and a closed standard input
+    /// (`cli.test.env.cwd`, `cli.test.env.stdin`).
+    cwd: Option<PathBuf>,
+}
+
+/// A selected case: its program, the case as the driver lists it, and a
+/// result known without running it (a compile-fail doc test).
+struct Selected {
+    program: usize,
+    case: TestCase,
+    fixed: Option<CaseResult>,
+}
+
+/// A doc test's program, added to the sources at `path`.
+pub(crate) struct Doc {
+    pub(crate) path: String,
+    /// The source file it came from, as the package lists it.
+    file: String,
+    pub(crate) test: hd_project::DocTest,
+}
+
+impl Doc {
+    /// The source line of a line of the program (`cli.test.doc.location`).
+    fn line(&self, program_line: usize) -> usize {
+        program_line
+            .checked_sub(1)
+            .and_then(|i| self.test.lines.get(i))
+            .map_or(1, |&l| l as usize)
+    }
+
+    /// Moves a diagnostic of the program to the source file and the `##`
+    /// line it came from (`cli.test.doc.location`). Its column and its
+    /// fixes name the program's text, so they go.
+    pub(crate) fn relocate(&self, d: &mut report::Diag) {
+        if d.file.as_deref() == Some(self.path.as_str()) {
+            d.file = Some(self.file.clone());
+            d.line = d.line.map(|l| self.line(l));
+            d.column = None;
+            d.fixes.clear();
+        }
+    }
+}
+
+/// The doc tests of the package's source files, or of FILE's module
+/// (`cli.test.doc.default`), each as a synthetic integration-view module
+/// under the test root (checking-and-tir.md §4.13.9).
+pub(crate) fn doc_tests(sources: &disk::DiskSources, file: Option<&str>) -> Vec<Doc> {
+    let mut out = Vec::new();
+    for e in sources.list() {
+        if file.is_some_and(|f| f != e.path) || !e.path.starts_with("src/") {
+            continue;
+        }
+        let Some(text) = sources.read(&e.path) else {
+            continue;
+        };
+        for test in hd_project::doc_tests(&e.path, &String::from_utf8_lossy(&text)) {
+            out.push(Doc {
+                path: format!("tests/$doc{}.hd", out.len()),
+                file: e.path.clone(),
+                test,
+            });
+        }
+    }
+    out
+}
+
+/// Tests one package: builds its unit-test program, each integration test
+/// file and each doc test as programs of their own, reports their
+/// diagnostics, then runs the selected cases into `report`, in the order of
+/// their files' paths and lines (`cli.test.report.order`). A member's case
+/// files start with its directory.
 fn test_one(
     root: &Path,
     file: Option<&str>,
@@ -209,12 +284,6 @@ fn test_one(
     let mut program = disk::load_package(root, "main").map_err(|e| rep.fail(&e))?;
     if rep.diags(&program.problems) {
         return Err(rep.finish(HD_FAILURE));
-    }
-    // `cli.package.file`: FILE's module, linked with what it uses; the rest
-    // of the package is neither checked nor built.
-    if let Some(f) = file {
-        let keep = hd_driver::use_closure(&program.package, &program.sources, f);
-        program.sources.retain(|p| keep.iter().any(|k| k == p));
     }
     // `cli.test.tasks.no-tests`: a task or an executable's entry module
     // without a `tests:` block gets no test build.
@@ -241,28 +310,152 @@ fn test_one(
         })
         .collect();
     program.sources.retain(|p| !untested.iter().any(|u| u == p));
-    let (sources, package) = (&program.sources, &program.package);
+    let integration_file = |p: &str| {
+        p.strip_prefix("tests/")
+            .is_some_and(|rest| !rest.contains('/'))
+    };
+    let docs = if file.is_some_and(integration_file) {
+        Vec::new()
+    } else {
+        doc_tests(&program.sources, file)
+    };
+    for d in &docs {
+        program.sources.add_synthetic(&d.path, &d.test.program);
+    }
+    // The programs: the unit-test program unless FILE is an integration
+    // test file; each integration test file, or FILE alone; each doc test.
+    let mut specs: Vec<(Option<String>, Option<&Doc>)> = Vec::new();
+    if !file.is_some_and(integration_file) {
+        specs.push((None, None));
+    }
+    for e in program.sources.list() {
+        let doc = docs.iter().find(|d| d.path == e.path);
+        let wanted = match file {
+            Some(f) if integration_file(f) => e.path == f,
+            Some(_) => doc.is_some(),
+            None => integration_file(&e.path),
+        };
+        if wanted {
+            specs.push((Some(e.path), doc));
+        }
+    }
     let store = DiskStore { root: cache_dir() };
     let clock = Wall(Instant::now());
-    let host = Host {
-        render_tir: &[],
-        sources,
-        store: &store,
-        clock: &clock,
-        executor: if o.jobs == 1 {
-            Executor::Serial(hd_sched::SerialOrder::Priority)
-        } else {
-            Executor::Pool(o.jobs)
-        },
+    let executor = if o.jobs == 1 {
+        Executor::Serial(hd_sched::SerialOrder::Priority)
+    } else {
+        Executor::Pool(o.jobs)
     };
-    let goal = Goal::Tests {
-        module: file.map(|f| hd_project::module_path(package, f)),
-        filter: o.filter.clone(),
-    };
-    let out = build_packages(&host, package, &program.packages(), &goal);
-    // Warnings are shown; only errors stop the command.
-    let mut diags = report::from_output(&out, sources, None);
-    report::relocate(&mut diags, |f| sources.display(f));
+    let packages = program.packages();
+    let package = &program.package;
+    let mut built: Vec<Built> = Vec::new();
+    let mut selected: Vec<Selected> = Vec::new();
+    let mut diags: Vec<report::Diag> = Vec::new();
+    for (path, doc) in &specs {
+        let mut sources = program.sources.clone();
+        match path {
+            // `cli.package.file`: FILE's module, linked with what it uses.
+            None => {
+                if let Some(f) = file {
+                    let keep = hd_driver::use_closure(package, &sources, f);
+                    sources.retain(|p| keep.iter().any(|k| k == p));
+                } else {
+                    sources.retain(|p| !p.starts_with("tests/"));
+                }
+            }
+            Some(p) => {
+                let keep = hd_driver::use_closure(package, &sources, p);
+                sources.retain(|q| keep.iter().any(|k| k == q));
+            }
+        }
+        let host = Host {
+            render_tir: &[],
+            sources: &sources,
+            store: &store,
+            clock: &clock,
+            executor,
+        };
+        let module = match path {
+            Some(p) => Some(hd_project::module_path(package, p)),
+            None => file.map(|f| hd_project::module_path(package, f)),
+        };
+        let goal = Goal::Tests {
+            module,
+            filter: o.filter.clone(),
+        };
+        let out = build_packages(&host, package, &packages, &goal);
+        let mut found = report::from_output(&out, &sources, None);
+        // `module.test.doc.compile-fail`: it never runs, and passes only
+        // when compiling it reports its code.
+        if let Some(d) = doc
+            && let Some(code) = &d.test.compile_fail
+        {
+            if o.filter
+                .as_ref()
+                .is_some_and(|f| !d.test.name.contains(f.as_str()))
+            {
+                continue;
+            }
+            let reported = found
+                .iter()
+                .any(|x| x.code.is_some_and(|c| c.as_str() == code));
+            let fixed = if reported {
+                CaseResult::Passed { us: 0 }
+            } else {
+                CaseResult::Failed {
+                    message: format!(
+                        "the doc test does not compile with `{code}`, as its `# error:` line says"
+                    ),
+                }
+            };
+            selected.push(Selected {
+                program: built.len(),
+                case: TestCase {
+                    module: String::new(),
+                    file: d.file.clone(),
+                    line: u32::try_from(d.line(1)).unwrap_or(u32::MAX),
+                    name: d.test.name.clone(),
+                    kind: "it".to_owned(),
+                    ignore: None,
+                    expect_panic: None,
+                    unsupported: None,
+                    run: None,
+                },
+                fixed: Some(fixed),
+            });
+            built.push(Built {
+                wasm: None,
+                cwd: None,
+            });
+            continue;
+        }
+        if let Some(d) = doc {
+            for x in &mut found {
+                d.relocate(x);
+            }
+        }
+        report::relocate(&mut found, |f| sources.display(f));
+        for x in found {
+            if !diags.iter().any(|y| y.text() == x.text()) {
+                diags.push(x);
+            }
+        }
+        for mut case in out.tests {
+            if let Some(d) = doc {
+                case.file.clone_from(&d.file);
+                case.line = u32::try_from(d.line(case.line as usize)).unwrap_or(u32::MAX);
+            }
+            selected.push(Selected {
+                program: built.len(),
+                case,
+                fixed: None,
+            });
+        }
+        built.push(Built {
+            wasm: out.wasm,
+            cwd: path.as_ref().map(|_| root.to_path_buf()),
+        });
+    }
     if let Some(m) = member {
         for d in &mut diags {
             if let Some(f) = &mut d.file {
@@ -270,11 +463,12 @@ fn test_one(
             }
         }
     }
+    // Warnings are shown; only errors stop the command.
     if rep.diags(&diags) {
         return Err(rep.finish(HD_FAILURE));
     }
     if let Some(f) = &o.file
-        && out.tests.is_empty()
+        && selected.is_empty()
     {
         // cli.test.file-empty, cli.test.filter.none
         return Err(rep.fail(&match &o.filter {
@@ -285,24 +479,27 @@ fn test_one(
             None => format!("`{}` registers no test case", f.display()),
         }));
     }
-    let mut cases = out.tests.clone();
-    for c in &mut cases {
-        c.file = sources.display(&c.file);
+    for s in &mut selected {
+        s.case.file = program.sources.display(&s.case.file);
         if let Some(m) = member {
-            c.file = format!("{m}/{}", c.file);
+            s.case.file = format!("{m}/{}", s.case.file);
         }
     }
-    run(&cases, out.wasm.as_deref(), o.jobs, report)
+    // `cli.test.report.order`: file path, then line, then registration.
+    selected.sort_by(|a, b| (&a.case.file, a.case.line).cmp(&(&b.case.file, b.case.line)));
+    run(&selected, &built, o.jobs, report)
 }
 
-/// Runs the cases on up to `jobs` Node workers, round robin in content
-/// order, and prints the results in content order.
+/// Runs the cases program by program on up to `jobs` Node workers, round
+/// robin in content order, and prints the results in content order
+/// (`cli.test.report.stream`), whatever order the workers finish in.
 fn run(
-    cases: &[TestCase],
-    wasm: Option<&[u8]>,
+    selected: &[Selected],
+    built: &[Built],
     jobs: usize,
     report: &mut Report,
 ) -> Result<(), ExitCode> {
+    let cases: Vec<TestCase> = selected.iter().map(|s| s.case.clone()).collect();
     let plan = TestPlan::new(
         cases
             .iter()
@@ -325,55 +522,48 @@ fn run(
     );
     let mut cursor = ReleaseCursor::new(&plan);
     let key = |i: usize| plan.cases[i].key.clone();
-    let mut running: Vec<(usize, (u32, u32))> = Vec::new();
-    for (i, c) in cases.iter().enumerate() {
-        let r = if let Some(what) = &c.unsupported {
+    // Per program: (case index, (test export, init export)).
+    let mut running: Vec<Vec<(usize, (u32, u32))>> = built.iter().map(|_| Vec::new()).collect();
+    for (i, s) in selected.iter().enumerate() {
+        let c = &s.case;
+        let r = if let Some(r) = &s.fixed {
+            r.clone()
+        } else if let Some(what) = &c.unsupported {
             CaseResult::Unsupported { what: what.clone() }
         } else if let Some(reason) = &c.ignore {
             CaseResult::Ignored {
                 reason: reason.clone(),
             }
         } else if let Some(run) = c.run {
-            running.push((i, run));
+            running[s.program].push((i, run));
             continue;
         } else {
             CaseResult::Unsupported {
                 what: "a case without a checked body".into(),
             }
         };
-        report.release(cases, cursor.finish(key(i), r));
+        report.release(&cases, cursor.finish(key(i), r));
     }
-    if !running.is_empty() {
-        let Some(wasm) = wasm else {
-            return Err(report.rep.fail("internal: the test program was not built"));
+    for (prog, running) in built.iter().zip(&running) {
+        if running.is_empty() {
+            continue;
+        }
+        let Some(wasm) = prog.wasm.as_deref() else {
+            return Err(report.rep.fail("internal: a test program was not built"));
         };
         let workers = jobs.min(running.len()).max(1);
         let (tx, rx) = mpsc::channel::<Result<(usize, CaseRun), String>>();
-        let by_test: Vec<usize> = {
-            let mut v = vec![usize::MAX; running.len()];
-            for (i, (_, (t, _))) in running.iter().enumerate() {
-                if let Some(x) = v.get_mut(*t as usize) {
-                    *x = i;
-                }
-            }
-            v
-        };
         let mut error = None;
         std::thread::scope(|s| {
             for w in 0..workers {
                 let tx = tx.clone();
-                let chunk: Vec<(u32, u32)> = running
-                    .iter()
-                    .skip(w)
-                    .step_by(workers)
-                    .map(|(_, r)| *r)
-                    .collect();
-                let by_test = &by_test;
-                let running = &running;
+                let chunk: Vec<(usize, (u32, u32))> =
+                    running.iter().skip(w).step_by(workers).copied().collect();
+                let cwd = prog.cwd.as_deref();
                 s.spawn(move || {
-                    let r = run_cases(wasm, &chunk, &mut |c: CaseRun| {
-                        let at = by_test.get(c.test as usize).copied().unwrap_or(usize::MAX);
-                        if let Some((i, _)) = running.get(at) {
+                    let exports: Vec<(u32, u32)> = chunk.iter().map(|(_, r)| *r).collect();
+                    let r = run_cases(wasm, &exports, cwd, &mut |c: CaseRun| {
+                        if let Some((i, _)) = chunk.iter().find(|(_, (t, _))| *t == c.test) {
                             let _ = tx.send(Ok((*i, c)));
                         }
                     });
@@ -387,7 +577,7 @@ fn run(
                 match msg {
                     Ok((i, c)) => {
                         let r = judge(&cases[i], &c);
-                        report.release(cases, cursor.finish(key(i), r));
+                        report.release(&cases, cursor.finish(key(i), r));
                     }
                     Err(e) => {
                         error.get_or_insert(e);

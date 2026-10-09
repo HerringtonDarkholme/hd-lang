@@ -89,14 +89,6 @@ When the queue is empty, say so under "Questions" and wait.
 
 ## Jobs
 
-### O19. Wire Doc Tests (After #74)
-
-Your O15 status: once top-level `it(...)` runs (#74 on main), add one
-synthetic integration-view module per doc test (§4.13.9) to `hd test`
-and `hd check --tests`, run each as its own program with the
-integration environment, and map lines back. If #74 is not on main
-yet, skip to the next job and come back.
-
 ### O20. The Integration Test Environment (After #74)
 
 `cli.test.env.*` (working directory, temp directory and its removal,

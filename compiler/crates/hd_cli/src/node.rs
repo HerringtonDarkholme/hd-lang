@@ -149,14 +149,24 @@ pub struct CaseRun {
 pub fn run_cases(
     wasm: &[u8],
     cases: &[(u32, u32)],
+    cwd: Option<&std::path::Path>,
     done: &mut dyn FnMut(CaseRun),
 ) -> Result<(), String> {
     let dir = Scratch::new(wasm)?;
     let list: Vec<String> = cases.iter().map(|(t, i)| format!("{t}:{i}")).collect();
-    let mut child = Command::new("node")
+    let mut command = Command::new("node");
+    command
         .arg(dir.0.join("test.mjs"))
         .arg(dir.0.join("main.wasm"))
-        .arg(list.join(","))
+        .arg(list.join(","));
+    // An integration test's working directory is the package directory
+    // (`cli.test.env.cwd`); every case's standard input is closed
+    // (`cli.test.env.stdin`).
+    if let Some(cwd) = cwd {
+        command.current_dir(cwd);
+    }
+    let mut child = command
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()

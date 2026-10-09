@@ -186,6 +186,18 @@ fn check_one(mut t: Target, o: &Options) -> (Vec<Diag>, usize) {
         return (t.program.problems, 0);
     }
     let (tests, left_out) = scope(&mut t, o);
+    // `cli.check.tests.doc`: the doc tests too, but for compile-fail ones.
+    let docs: Vec<crate::test_cmd::Doc> = if tests && t.program.as_written.is_none() {
+        crate::test_cmd::doc_tests(&t.program.sources, t.only.as_deref())
+            .into_iter()
+            .filter(|d| d.test.compile_fail.is_none())
+            .collect()
+    } else {
+        Vec::new()
+    };
+    for d in &docs {
+        t.program.sources.add_synthetic(&d.path, &d.test.program);
+    }
     let goal = if tests {
         Goal::CheckTests
     } else {
@@ -201,7 +213,12 @@ fn check_one(mut t: Target, o: &Options) -> (Vec<Diag>, usize) {
         executor: executor(),
     };
     let out = build_packages(&host, &t.program.package, &t.program.packages(), &goal);
-    let mut shown = shown(&out, &t);
+    let mut shown = shown(&out, &t, &docs);
+    for x in &mut shown {
+        if let Some(d) = docs.iter().find(|d| x.file.as_ref() == Some(&d.path)) {
+            d.relocate(x);
+        }
+    }
     report::relocate(&mut shown, |f| t.program.sources.display(f));
     let mut diags = t.program.problems;
     diags.extend(left_out);
@@ -293,8 +310,9 @@ fn scope(t: &mut Target, o: &Options) -> (bool, Vec<Diag>) {
 
 /// The diagnostics this run reports, in content order. A FILE in a package
 /// narrows them to its module and the modules it uses, deeply
-/// (`cli.package.file`); a diagnostic of no file is kept.
-fn shown(out: &Output, t: &Target) -> Vec<Diag> {
+/// (`cli.package.file`), and the doc tests of its module; a diagnostic of
+/// no file is kept.
+fn shown(out: &Output, t: &Target, docs: &[crate::test_cmd::Doc]) -> Vec<Diag> {
     let all = report::from_output(out, &t.program.sources, t.program.as_written.as_deref());
     let Some(only) = &t.only else {
         return all;
@@ -303,8 +321,9 @@ fn shown(out: &Output, t: &Target) -> Vec<Diag> {
     let mut stack: Vec<usize> = out
         .files
         .iter()
-        .position(|f| f == only)
-        .into_iter()
+        .enumerate()
+        .filter(|(_, f)| *f == only || docs.iter().any(|d| d.path == **f))
+        .map(|(i, _)| i)
         .collect();
     while let Some(f) = stack.pop() {
         if !std::mem::replace(&mut reached[f], true) {
