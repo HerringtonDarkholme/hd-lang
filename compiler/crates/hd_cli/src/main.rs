@@ -188,7 +188,9 @@ fn build_goal(
     };
     let out: Output = build_packages(&host, &program.package, &program.packages(), goal);
     let as_written = program.as_written.as_deref().filter(|_| rep.json);
-    if rep.diags(&report::from_output(&out, &program.sources, as_written)) {
+    let mut diags = report::from_output(&out, &program.sources, as_written);
+    report::relocate(&mut diags, |f| program.sources.display(f));
+    if rep.diags(&diags) {
         return Err(rep.finish(HD_FAILURE));
     }
     Ok(out)
@@ -719,7 +721,7 @@ fn build_file(file: &Path, release: bool, rep: &mut Reporter) -> Result<(), Exit
     let Ok(rel) = full.strip_prefix(&root) else {
         return Err(rep.fail("FILE is outside its package"));
     };
-    let rel = rel.to_string_lossy().replace('\\', "/");
+    let rel = disk::listed_path(&root, &rel.to_string_lossy().replace('\\', "/"));
     let mut program = disk::load_package(&root, &rel).map_err(|e| rep.fail(&e))?;
     program.only_program(&rel);
     let wasm = compile(&program, rep)?;

@@ -51,7 +51,7 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
             Ok((sources, _)) => sources
                 .list()
                 .into_iter()
-                .map(|e| (root.join(&e.path), e.path))
+                .map(|e| (sources.disk_path(&e.path), sources.display(&e.path)))
                 .collect(),
             Err(e) => return fail(&e),
         }

@@ -1223,3 +1223,59 @@ fn p_selects_workspace_members_from_anywhere() {
     assert_eq!(r.code, Some(101));
     assert!(r.err.contains("`-p nope` names no member"), "{}", r.err);
 }
+
+/// `module.manifest.source-root`: `[source] root` moves the source root;
+/// its files are modules as `src`'s would be, and every path `hd` prints
+/// is the one on disk.
+#[test]
+fn source_root_moves_the_modules_and_paths_stay_as_on_disk() {
+    let dir = tree(
+        "hd-forms-source-root",
+        &[
+            (
+                "hd.toml",
+                "[package]\nname = \"shop\"\n\n[source]\nroot = \"code\"\n",
+            ),
+            (
+                "code/main.hd",
+                "use pkg.util.{double}\n\npub fn main() -> void $ Console:\n    println(double(21))\n",
+            ),
+            (
+                "code/util.hd",
+                "pub fn double(v: i32) -> i32:\n    v * 2\n\ntests:\n    use std.testing.assert_equal\n\n    it(\"doubles\"):\n        assert_equal(double(2), 5, reason=\"d\")\n",
+            ),
+            ("code/broken.hd", "pub fn f() -> i32:\n    missing   \n"),
+        ],
+    );
+    let r = ran(&dir, &["check"]);
+    assert_eq!(r.code, Some(101));
+    assert!(
+        r.err.starts_with("error: code/broken.hd:2:5: unknown-name"),
+        "{}",
+        r.err
+    );
+    let r = ran(&dir, &["check", "code/util.hd"]);
+    assert_eq!(r.code, Some(0), "{}", r.err);
+    std::fs::remove_file(dir.join("code/broken.hd")).expect("remove");
+    let r = ran(&dir, &["run"]);
+    assert_eq!((r.code, r.out.as_str()), (Some(0), "42\n"), "{}", r.err);
+    let r = ran(&dir, &["test", "code/util.hd"]);
+    assert_eq!(r.code, Some(1));
+    assert!(
+        r.out.starts_with("PANIC code/util.hd:7: doubles"),
+        "{}",
+        r.out
+    );
+    std::fs::write(
+        dir.join("code/util.hd"),
+        "pub fn double(v: i32) -> i32:  \n    v * 2\n",
+    )
+    .expect("write");
+    let r = ran(&dir, &["fmt", "--check"]);
+    assert_eq!(
+        (r.code, r.out.as_str()),
+        (Some(1), "code/util.hd\n"),
+        "{}",
+        r.err
+    );
+}

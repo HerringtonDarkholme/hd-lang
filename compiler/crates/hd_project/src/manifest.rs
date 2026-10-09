@@ -21,6 +21,9 @@ pub struct Manifest {
     pub hd: Option<(String, u32)>,
     /// `[toolchain] pin` (`module.toolchain.pin`) and its line.
     pub pin: Option<(String, u32)>,
+    /// `[source] root`, the source root when it is not `src`
+    /// (`module.manifest.source-root`), and its line.
+    pub source_root: Option<(String, u32)>,
     pub dependencies: Vec<Requirement>,
     pub dev_dependencies: Vec<Requirement>,
     /// `[capabilities]` (`cli.cap.table`): each key as written, its grant
@@ -265,8 +268,7 @@ fn strings(v: Option<&toml::Value>) -> Vec<String> {
 
 /// Parses `hd.toml` by the Package Tooling table: each table and key it
 /// lists is read, and every other one is recorded as unknown
-/// (`cli.manifest.unknown-key`). `[source] root`, which moves the source
-/// root, is not implemented yet.
+/// (`cli.manifest.unknown-key`).
 pub fn parse_manifest(text: &str) -> StageResult<Manifest> {
     let table: toml::Table = text.parse().map_err(|e: toml::de::Error| {
         NotImplemented::new(Stage::Discover, format!("manifest: {}", e.message()))
@@ -345,11 +347,11 @@ pub fn parse_manifest(text: &str) -> StageResult<Manifest> {
                     });
                 }
             }
-            ("source", _) => {
-                return Err(NotImplemented::new(
-                    Stage::Discover,
-                    "manifest section [source]".to_owned(),
-                ));
+            ("source", toml::Value::Table(t)) => {
+                only(&mut unknowns, "source", t, &["root"]);
+                if let Some(toml::Value::String(v)) = t.get("root") {
+                    m.source_root = Some((v.clone(), at("source.root")));
+                }
             }
             (other, _) => unknowns.push((other.to_owned(), at(other))),
         }
@@ -637,6 +639,23 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
                 severity: Severity::Error,
                 line: Some(*line),
                 message,
+            });
+        }
+    }
+    if let Some((root, line)) = &m.source_root {
+        let plain = !root.is_empty()
+            && !root.starts_with('/')
+            && root
+                .split('/')
+                .all(|seg| !seg.is_empty() && seg != "." && seg != "..");
+        if !plain || matches!(root.as_str(), "tests" | "tasks" | "build") {
+            out.push(Problem {
+                code: None,
+                severity: Severity::Error,
+                line: Some(*line),
+                message: format!(
+                    "`[source] root = \"{root}\"` is no source root: it is a directory below the package directory, other than `tests`, `tasks` and `build`"
+                ),
             });
         }
     }

@@ -130,7 +130,7 @@ fn target(file: Option<&Path>) -> Result<(PathBuf, Option<String>), String> {
         .map_err(|e| e.to_string())?
         .to_string_lossy()
         .replace('\\', "/");
-    Ok((root, Some(rel)))
+    Ok((root.clone(), Some(disk::listed_path(&root, &rel))))
 }
 
 /// One package `hd test` tests: its root, FILE relative to it, and in
@@ -262,6 +262,7 @@ fn test_one(
     let out = build_packages(&host, package, &program.packages(), &goal);
     // Warnings are shown; only errors stop the command.
     let mut diags = report::from_output(&out, sources, None);
+    report::relocate(&mut diags, |f| sources.display(f));
     if let Some(m) = member {
         for d in &mut diags {
             if let Some(f) = &mut d.file {
@@ -285,8 +286,9 @@ fn test_one(
         }));
     }
     let mut cases = out.tests.clone();
-    if let Some(m) = member {
-        for c in &mut cases {
+    for c in &mut cases {
+        c.file = sources.display(&c.file);
+        if let Some(m) = member {
             c.file = format!("{m}/{}", c.file);
         }
     }

@@ -881,7 +881,8 @@ mod tests {
         assert!(!w.declares_package);
         assert_eq!(w.workspace.map(|w| w.members), Some(vec!["app".to_owned()]));
         assert_eq!(w.unknown, [("workspace.x".to_owned(), 3)]);
-        assert!(parse_manifest("[source]\nroot = \"lib\"\n").is_err());
+        let src = parse_manifest("[source]\nroot = \"lib\"\n").expect("manifest");
+        assert_eq!(src.source_root, Some(("lib".to_owned(), 2)));
     }
 
     #[test]

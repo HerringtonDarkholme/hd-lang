@@ -89,14 +89,6 @@ When the queue is empty, say so under "Questions" and wait.
 
 ## Jobs
 
-### O12. Workspaces
-
-`dep-workspace-fetch` and the gaps you listed in O6: `-p NAME`
-(`cli.workspace.select.*`), the workspace's shared selection and `hd.sum`
-(`cli.mode.member.shared`), `members`/`exclude` globs, `[source] root`,
-`[toolchain] pin`, `[test.capabilities]`. One commit per item if they
-are independent.
-
 ### O13. Folder-Cycle Recovery (#133; `hd_resolve` Interface Lowering Lent For This Job)
 
 Your O7 question. `resolution-and-interfaces.md` §4.8 rule 5: a cyclic
@@ -212,6 +204,15 @@ bench N`).
   (`Env.get` not lowered). Once those import, the JS host's providers
   call these checks and print the notice; `cli.cap.total.test` waits on
   integration programs.
+- **O12 status.** Built: `-p NAME` (`556c19e7`) and `[source] root`.
+  Left as they are, under "nothing new for now": the workspace's shared
+  selection and `hd.sum` (`cli.mode.member.shared`, part of the fetch
+  design), and two things the spec does not define: globs in `members`
+  and `exclude` (directories match exactly), and what `[toolchain] pin`
+  does when the running `hd` differs (it parses, and only a root
+  manifest has one by `module.toolchain.pin`). `[test.capabilities]`
+  feeds the test grant (`Grants::for_test`), which applies once
+  integration programs run. `dep-workspace-fetch` passes.
 - **Left for other lanes (status).** The CLI cases still failing for
   reasons outside this lane wait on the orchestrator's tasks above:
   top-level `it(...)` (#74: the `json-test-*`, `test-*`, `new-app`,

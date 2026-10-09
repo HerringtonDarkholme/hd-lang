@@ -14,16 +14,45 @@ use crate::report::{Diag, Edit, Fix};
 /// compared with (`module.toolchain.graph-minimum`).
 const TOOLCHAIN: &str = env!("CARGO_PKG_VERSION");
 
-/// Every `.hd` file under a root, read on demand.
+/// Every `.hd` file under a root, read on demand. Discovery knows the
+/// source root as `src`; a package whose `[source] root` names another
+/// directory (`module.manifest.source-root`) has its files listed under
+/// `src/`, and `display` and `disk_path` name them as they are on disk.
 pub struct DiskSources {
     root: PathBuf,
     files: Vec<SourceEntry>,
+    /// The source root on disk, when it is not `src`.
+    src: Option<String>,
 }
 
 impl DiskSources {
     /// Keeps the files whose package-relative path `keep` accepts.
     pub fn retain(&mut self, keep: impl Fn(&str) -> bool) {
         self.files.retain(|e| keep(&e.path));
+    }
+
+    /// A listed path as it is on disk, relative to the package directory.
+    pub fn display(&self, path: &str) -> String {
+        match (&self.src, path.strip_prefix("src/")) {
+            (Some(dir), Some(rest)) => format!("{dir}/{rest}"),
+            _ => path.to_owned(),
+        }
+    }
+
+    /// A path relative to the package directory as discovery lists it.
+    pub fn listed(&self, path: &str) -> String {
+        match &self.src {
+            Some(dir) => path
+                .strip_prefix(dir.as_str())
+                .and_then(|rest| rest.strip_prefix('/'))
+                .map_or_else(|| path.to_owned(), |rest| format!("src/{rest}")),
+            None => path.to_owned(),
+        }
+    }
+
+    /// Where a listed path is on disk.
+    pub fn disk_path(&self, path: &str) -> PathBuf {
+        self.root.join(self.display(path))
     }
 }
 
@@ -32,8 +61,34 @@ impl SourceSet for DiskSources {
         self.files.clone()
     }
     fn read(&self, path: &str) -> Option<Arc<[u8]>> {
-        std::fs::read(self.root.join(path)).ok().map(Arc::from)
+        std::fs::read(self.disk_path(path)).ok().map(Arc::from)
     }
+}
+
+/// A path relative to the package directory at `root`, as discovery lists
+/// it: under `src/` when it lies in the package's source root.
+pub fn listed_path(root: &Path, rel: &str) -> String {
+    let src = source_dir(root);
+    match rel
+        .strip_prefix(src.as_str())
+        .and_then(|r| r.strip_prefix('/'))
+    {
+        Some(rest) if src != "src" => format!("src/{rest}"),
+        _ => rel.to_owned(),
+    }
+}
+
+/// A package's source root on disk: its `[source] root`, or `src`
+/// (`module.manifest.source-root`).
+pub fn source_dir(root: &Path) -> String {
+    manifest_of(root)
+        .ok()
+        .flatten()
+        .and_then(|m| m.source_root)
+        .map_or_else(
+            || "src".to_owned(),
+            |(dir, _)| dir.trim_end_matches('/').to_owned(),
+        )
 }
 
 fn walk(root: &Path, dir: &Path, out: &mut Vec<SourceEntry>) -> Result<(), String> {
@@ -401,9 +456,10 @@ pub fn package_name(root: &Path) -> Result<String, String> {
 /// layout has every file under it.
 pub fn sources_of(root: &Path) -> Result<(DiskSources, String), String> {
     let package = package_name(root)?;
+    let src = source_dir(root);
     let mut files = Vec::new();
-    if root.join("hd.toml").is_file() && root.join("src").is_dir() {
-        for dir in ["src", "tasks", "tests"] {
+    if root.join("hd.toml").is_file() && root.join(&src).is_dir() {
+        for dir in [src.as_str(), "tasks", "tests"] {
             if root.join(dir).is_dir() {
                 walk(root, &root.join(dir), &mut files)?;
             }
@@ -411,13 +467,19 @@ pub fn sources_of(root: &Path) -> Result<(DiskSources, String), String> {
     } else {
         walk(root, root, &mut files)?;
     }
-    Ok((
-        DiskSources {
-            root: root.to_path_buf(),
-            files,
-        },
-        package,
-    ))
+    let mut sources = DiskSources {
+        root: root.to_path_buf(),
+        files: Vec::new(),
+        src: (src != "src").then_some(src),
+    };
+    sources.files = files
+        .into_iter()
+        .map(|e| SourceEntry {
+            path: sources.listed(&e.path),
+            size: e.size,
+        })
+        .collect();
+    Ok((sources, package))
 }
 
 /// A single-file program, or a module of the package that holds FILE:
@@ -452,6 +514,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
         sources: DiskSources {
             root: root.to_path_buf(),
             files,
+            src: None,
         },
         package,
         entry: module_below(&name),
@@ -548,7 +611,11 @@ fn manifest_problems(root: &Path, package: &str) -> Result<Vec<Diag>, String> {
                         r.key
                     ),
                 ))
-            } else if !dir_path.join("src/lib.hd").is_file() {
+            } else if !dir_path
+                .join(source_dir(&dir_path))
+                .join("lib.hd")
+                .is_file()
+            {
                 Some((
                     Code::InvalidRequirement,
                     format!(
@@ -627,7 +694,8 @@ fn executable_problems(root: &Path, m: &Manifest) -> Vec<(Option<u32>, Diag)> {
                 Diag::error(
                     Some(Code::MissingEntryPoint),
                     &format!(
-                        "the executable `{name}` names the module `{module}`, and the package has no `src/{}.hd`",
+                        "the executable `{name}` names the module `{module}`, and the package has no `{}/{}.hd`",
+                        source_dir(root),
                         module.replace('.', "/")
                     ),
                 )
@@ -650,7 +718,8 @@ fn executable_problems(root: &Path, m: &Manifest) -> Vec<(Option<u32>, Diag)> {
         .executables
         .iter()
         .any(|e| e.module.as_deref() == Some("main"));
-    if !m.executables.is_empty() && !listed && root.join("src/main.hd").is_file() {
+    if !m.executables.is_empty() && !listed && root.join(source_dir(root)).join("main.hd").is_file()
+    {
         let end = std::fs::metadata(root.join(FILE))
             .map_or(0, |f| u32::try_from(f.len()).unwrap_or(u32::MAX));
         let mut d = Diag::error(
@@ -682,9 +751,11 @@ fn executable_problems(root: &Path, m: &Manifest) -> Vec<(Option<u32>, Diag)> {
 /// or `src/a/b/mod.hd`, whichever exists.
 fn module_file(root: &Path, module: &str) -> Option<String> {
     let below = module.replace('.', "/");
-    [format!("src/{below}.hd"), format!("src/{below}/mod.hd")]
+    let src = source_dir(root);
+    [format!("{below}.hd"), format!("{below}/mod.hd")]
         .into_iter()
-        .find(|f| root.join(f).is_file())
+        .find(|f| root.join(&src).join(f).is_file())
+        .map(|f| format!("src/{f}"))
 }
 
 /// What `hd run NAME` can run: its name, the package-relative file of its
@@ -717,16 +788,20 @@ pub fn executables(root: &Path, package: &str) -> Vec<Runnable> {
             })
             .collect();
     }
-    ["src/main.hd", "main.hd"]
-        .iter()
-        .find(|f| root.join(f).is_file())
-        .map(|f| Runnable {
-            name: package.to_owned(),
-            file: (*f).to_owned(),
-            is_task: false,
-        })
-        .into_iter()
-        .collect()
+    let src = source_dir(root);
+    [
+        ("src/main.hd", root.join(&src).join("main.hd")),
+        ("main.hd", root.join("main.hd")),
+    ]
+    .into_iter()
+    .find(|(_, disk)| disk.is_file())
+    .map(|(f, _)| Runnable {
+        name: package.to_owned(),
+        file: f.to_owned(),
+        is_task: false,
+    })
+    .into_iter()
+    .collect()
 }
 
 /// The package's tasks: each file `tasks/NAME.hd` (`cli.task.file`).

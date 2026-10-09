@@ -158,10 +158,12 @@ fn targets(file: Option<&OsString>, packages: &[String]) -> Result<Vec<Target>, 
     match disk::package_root(dir) {
         Some(root) => {
             let only = full.strip_prefix(&root).ok().map(|rel| {
-                rel.components()
+                let rel = rel
+                    .components()
                     .map(|c| c.as_os_str().to_string_lossy())
                     .collect::<Vec<_>>()
-                    .join("/")
+                    .join("/");
+                disk::listed_path(&root, &rel)
             });
             Ok(vec![Target {
                 program: disk::load_package(&root, "main")?,
@@ -199,7 +201,8 @@ fn check_one(mut t: Target, o: &Options) -> (Vec<Diag>, usize) {
         executor: executor(),
     };
     let out = build_packages(&host, &t.program.package, &t.program.packages(), &goal);
-    let shown = shown(&out, &t);
+    let mut shown = shown(&out, &t);
+    report::relocate(&mut shown, |f| t.program.sources.display(f));
     let mut diags = t.program.problems;
     diags.extend(left_out);
     diags.extend(shown);

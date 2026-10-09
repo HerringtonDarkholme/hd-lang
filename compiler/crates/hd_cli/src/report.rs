@@ -186,6 +186,19 @@ pub(crate) fn from_output(
         .collect()
 }
 
+/// Renames the files of diagnostics and their fix-its, as a package with
+/// another source root names them on disk (`DiskSources::display`).
+pub(crate) fn relocate(diags: &mut [Diag], display: impl Fn(&str) -> String) {
+    for d in diags {
+        if let Some(f) = &mut d.file {
+            *f = display(f);
+        }
+        for e in d.fixes.iter_mut().flat_map(|f| &mut f.edits) {
+            e.file = display(&e.file);
+        }
+    }
+}
+
 /// The counts of a JSON summary (`cli.json.summary.result.fields`).
 #[derive(Default)]
 pub(crate) struct Summary {
