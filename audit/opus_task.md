@@ -134,15 +134,6 @@ names. This job lends you `hd_mono`'s Collect only. The pass list may
 only grow; report the case's time before (bounded by a timeout) and
 after.
 
-### O26. CLI Tier Triage After #74
-
-Rerun the CLI tier (`cargo test -q --release -p hd_cli --test
-cli_conformance`) and list every failing case with its first blocking
-stage and message, and who owns it (you, a task number of the
-orchestrator's, or "needs a design" for `hd doc`, `hd fmt` layout and
-fetching). Build any part that is in your lane; put the table under
-"Questions" so the orchestrator can queue the rest.
-
 ## Questions
 
 - **O22, every item skipped.** As O22 allows: globs in workspace
@@ -154,8 +145,37 @@ fetching). Build any part that is in your lane; put the table under
   only that a root manifest may pin); and `[test.capabilities]` already
   feeds `Grants::for_test`, which acts once integration programs run,
   so it belongs to O20 after #74. Nothing in O22 is buildable now.
-- **Waiting.** O19 and O20 wait on #74; every other job is on
-  `origin/main`.
+- **O26, CLI tier triage after #74 and O19.** 102 cases: 68 pass, 34
+  fail. No failure stops first in my lane; my part comes after another
+  lane's step (the host imports in `compiler/host/*.mjs`, grants into
+  the host, per-case temp dirs, timeouts), and I build each once its
+  first step lands. Doc tests changed no CLI case (none has a doc test).
+
+  | Case | First stop | Message | Owner |
+  | --- | --- | --- | --- |
+  | new-app (`hd test`), test-tasks (step 2) | Link | the host method `run` is not supported (`Process` row of `hd_host_abi::TABLE` has no methods) | hd_wasm + hd_host_abi, then me (`hd:Process` in the Node host) |
+  | test-every-case, cap-partial-deny | Link | the host method `write_bytes` is not supported (empty `FsWrite` row) | hd_wasm + hd_host_abi, then me (`hd:FsWrite`, grants) |
+  | cap-flag-overrides-table | run | the host method `FsRead.read_text` is not lowered yet (`Path` codec) | hd_wasm, then me (`hd:FsRead`) |
+  | cap-env-notice, wasm-run-built | run | `Env.get` / `Args.list` is not lowered yet (`host_slot` lowers only `Wait::May`) | hd_wasm, then me (`hd:Env`, `hd:Args`) |
+  | test-snapshot-file | Link | a default provider for `std/testing/TestRunner` is not supported | hd_wasm, then me (`hd:TestRunner` in test.mjs, temp dirs) |
+  | test-integration-env | Link | as test-snapshot-file; then `unknown-import` `it_each`, `it_prop`, `it_prop_with` in `std.testing` | hd_wasm + lib/std, then me (O20) |
+  | test-timeout | check | `timeout=` marked unsupported, so the case is ignored and exits 0 | hd_check, then me (enforce the limit in the runner) |
+  | test-outcomes, test-report | check | an explicit closure as a test body cannot run yet | hd_check |
+  | test-err-report | check | a test body that uses `?` cannot run yet (`dyn Error` vtable) | hd_check / hd_wasm |
+  | dbg-values, dbg-uses, dbg-value-forms, dbg-release | run | `panic: explicit-panic: intrinsic` (no `@intrinsic("dbg")` rewrite) | hd_check |
+  | typeid-package-name, typeid-single-file | check | `unknown-method`: no method `of` on TypeId | hd_resolve seed + hd_wasm |
+  | release-wraps, release-test-checked | run | `integer-overflow` (`--release` is accepted and ignored) | #109 |
+  | build-instantiation-too-deep | collect | timed out after 10 seconds (`MAX_DEPTH` in `hd_mono/src/layout.rs` never reached) | O25 (#132) |
+  | command-help | stdout | the fixture lists `explain`/`def`/`repl`/`debug` and omits `(none)`/`fmt`/`fix`/`cache gc`, against `cli.command.help`; step 2's options differ too | fixture (owner) |
+  | ambiguous-import | stdout-json | the fixture asks for `notes`/`related`/`rule`/`rules`, which `cli.json.diagnostic.fields` does not list, and a fixed message text | fixture (owner) |
+  | doc-out, doc-name, doc-private, doc-main-page, doc-broken-link, doc-index-module, doc-outside-package, doc-check-error | CLI | `hd doc` is not a command | needs a design |
+  | dep-invalid-add, dep-dev-invalid-add | CLI | `hd add` is not a command | needs a design (fetch) |
+
+  `doc-outside-package`, `doc-check-error` and the two `dep-*-add`
+  cases test only errors raised before any fetch or rendering, so their
+  error paths could be built without the designs. The 01:25 answer says
+  to leave `hd add` and `hd doc` alone, so I have not: say if you want
+  those four.
 
 - **O17, a use of a test module from other code (needs `hd_resolve`).**
   The test unit is one folder per package (`PKG.$tests`), and a
