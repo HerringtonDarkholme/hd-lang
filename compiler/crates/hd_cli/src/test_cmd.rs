@@ -21,7 +21,7 @@ use hd_run::tests_model::{
 };
 
 use crate::caps::CapFlag;
-use crate::node::{CaseRun, HostCase, Snapshot, TestEnv, run_cases};
+use crate::node::{CaseRun, HostCase, Programs, Snapshot, TestEnv, run_cases};
 use crate::report::{self, Reporter};
 use crate::{HD_FAILURE, Wall, cache_dir, disk, fail};
 
@@ -547,7 +547,48 @@ fn test_one(
         seed: o.seed,
         update: o.update,
     };
-    run(&selected, &built, &env, o.jobs, report)
+    // `cli.test.builds-executables`: when an integration test or a doc
+    // test can start a program, the package's executables and tasks are
+    // built first, for the runner's `Process` provider.
+    let starts = built.iter().any(|b| {
+        b.cwd.is_some()
+            && b.wasm.as_deref().is_some_and(|w| {
+                hd_run::module_imports(w).is_ok_and(|i| i.iter().any(|(m, _)| m == "hd:Process"))
+            })
+    });
+    let programs = if starts {
+        Some(build_programs(root, &program.package, &mut report.rep)?)
+    } else {
+        None
+    };
+    run(&selected, &built, &env, programs.as_ref(), o.jobs, report)
+}
+
+/// The package's executables and tasks, built for the test runner's
+/// `Process` provider (`cli.test.process`, `.process.tasks`). Each gets
+/// the package's `[capabilities]` table and no flags, as `hd run NAME`
+/// would (`cli.cap.source.hd-run`).
+fn build_programs(
+    root: &Path,
+    package: &str,
+    rep: &mut report::Reporter,
+) -> Result<Programs, ExitCode> {
+    let mut list = Vec::new();
+    for r in disk::executables(root, package)
+        .into_iter()
+        .chain(disk::tasks(root))
+    {
+        let mut p = disk::load_package(root, &r.file).map_err(|e| rep.fail(&e))?;
+        p.only_program(&r.file);
+        let wasm = crate::compile(&p, rep)?;
+        let grants = crate::caps::grants(
+            &p.capabilities,
+            p.package_dir.as_deref().unwrap_or(root),
+            &[],
+        );
+        list.push((r.name, wasm, grants));
+    }
+    Programs::new(&list, root).map_err(|e| rep.fail(&e))
 }
 
 /// What a test case's environment comes from (Test Environments): the
@@ -656,6 +697,7 @@ fn run(
     selected: &[Selected],
     built: &[Built],
     env: &RunEnv<'_>,
+    programs: Option<&Programs>,
     jobs: usize,
     report: &mut Report,
 ) -> Result<(), ExitCode> {
@@ -736,6 +778,7 @@ fn run(
         let test_env = TestEnv {
             cwd: prog.cwd.as_deref(),
             program: &prog.program,
+            programs: programs.filter(|_| prog.cwd.is_some()),
         };
         // An integration test or a doc test gets the test grant; a unit test
         // gets no host provider, so no grant limits it.

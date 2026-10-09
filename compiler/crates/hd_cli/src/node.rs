@@ -186,13 +186,17 @@ pub struct Snapshot {
 pub struct TestEnv<'a> {
     pub cwd: Option<&'a Path>,
     pub program: &'a str,
+    /// The programs its `Process` provider starts by name, an integration
+    /// test's or a doc test's (`cli.test.process`).
+    pub programs: Option<&'a Programs>,
 }
 
 /// The test host's configuration: the program's shared environment, then
 /// each case's.
 fn host_config(env: &TestEnv<'_>, cases: &[HostCase]) -> String {
+    let programs = env.programs.map_or("null", |p| p.json.as_str());
     let mut out = format!(
-        "{{\"program\":{},\"args\":[],\"cases\":[",
+        "{{\"program\":{},\"args\":[],\"programs\":{programs},\"cases\":[",
         quote(env.program)
     );
     for (i, c) in cases.iter().enumerate() {
@@ -216,6 +220,46 @@ fn host_config(env: &TestEnv<'_>, cases: &[HostCase]) -> String {
     }
     out.push_str("]}");
     out
+}
+
+/// The package's executables and tasks as the test runner's `Process`
+/// provider starts them (`cli.test.process`, `.process.tasks`): each built
+/// module, with the run host and a configuration of its `Args.program` and
+/// grant, in a scratch directory that lives as long as this value.
+pub struct Programs {
+    _dir: Scratch,
+    json: String,
+}
+
+impl Programs {
+    /// `list` holds each program's name, module and grant; each runs with
+    /// `cwd`, the package directory, as its working directory
+    /// (`cli.test.process.cwd`).
+    pub fn new(list: &[(String, Vec<u8>, Grants)], cwd: &Path) -> Result<Programs, String> {
+        let dir = Scratch::new(&[])?;
+        let mut json = String::from("{");
+        for (i, (name, wasm, grants)) in list.iter().enumerate() {
+            let module = dir.0.join(format!("program-{i}.wasm"));
+            let config = dir.0.join(format!("program-{i}.json"));
+            std::fs::write(&module, wasm).map_err(|e| format!("{}: {e}", module.display()))?;
+            std::fs::write(&config, run_config(name, grants))
+                .map_err(|e| format!("{}: {e}", config.display()))?;
+            if i > 0 {
+                json.push(',');
+            }
+            let _ = write!(
+                json,
+                "{}:{{\"host\":{},\"wasm\":{},\"config\":{},\"cwd\":{}}}",
+                quote(name),
+                quote(&dir.0.join("run.mjs").to_string_lossy()),
+                quote(&module.to_string_lossy()),
+                quote(&config.to_string_lossy()),
+                quote(&cwd.to_string_lossy())
+            );
+        }
+        json.push('}');
+        Ok(Programs { _dir: dir, json })
+    }
 }
 
 /// The run host's configuration (`run.mjs`): the program's `Args.program`
@@ -402,10 +446,11 @@ mod tests {
         let env = TestEnv {
             cwd: Some(Path::new("/pkg")),
             program: "tests/report.hd",
+            programs: None,
         };
         assert_eq!(
             host_config(&env, &cases),
-            r#"{"program":"tests/report.hd","args":[],"cases":[{"test":2,"init":1,"tempDir":"/tmp/hd-test-1-0/4","seed":9,"grants":{"Console":false,"FsWrite":["/tmp/a\"b"]},"snapshot":{"dir":"/pkg/__snapshots__/tests.report","shown":"__snapshots__/tests.report","slug":"sums-prices","update":false}}]}"#
+            r#"{"program":"tests/report.hd","args":[],"programs":null,"cases":[{"test":2,"init":1,"tempDir":"/tmp/hd-test-1-0/4","seed":9,"grants":{"Console":false,"FsWrite":["/tmp/a\"b"]},"snapshot":{"dir":"/pkg/__snapshots__/tests.report","shown":"__snapshots__/tests.report","slug":"sums-prices","update":false}}]}"#
         );
     }
 

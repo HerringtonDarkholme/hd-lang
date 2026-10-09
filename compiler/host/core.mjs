@@ -296,8 +296,10 @@ function lineReader(fd) {
 // scope checks, `stdin` (a file descriptor, or `null` for a closed
 // standard input), and in a test case its `tempDir` (made on the first
 // `tempDir()` call, which `TestRunner.temp_dir` makes), the base `seed`
-// of a property test (Test Environments, cli.test.seed), and its
-// `snapshot` files (`dir`, `shown`, `slug`, `update`).
+// of a property test (Test Environments, cli.test.seed), its `snapshot`
+// files (`dir`, `shown`, `slug`, `update`), and the test runner's
+// `programs`, the package's executables and tasks by name
+// (cli.test.process).
 export function createHost(sink, env = {}) {
   const args = env.args ?? [];
   const program = env.program ?? "";
@@ -437,12 +439,24 @@ export function createHost(sink, env = {}) {
     writeFileSync(file, actual);
     return "";
   };
-  // `Process.run!` (cli.host.default-profile): the default profile's
-  // provider starts a host program in the working directory.
+  // `Process.run!` (cli.host.default-profile, cli.test.process): the test
+  // runner's provider starts the package's executables and tasks by name,
+  // the default profile's a host program.
   const runProcess = (name, argv, input) => {
     const e = new Enc();
     if (!grant.coversName("Process", name)) return e.leb(1).leb(PROC.NotGranted);
-    const r = spawnSync(name, argv, { input, cwd: process.cwd(), env: process.env, maxBuffer: 1 << 30 });
+    let r;
+    if (env.programs) {
+      const p = env.programs[name];
+      if (!p) return e.leb(1).leb(PROC.NotFound);
+      r = spawnSync(process.execPath, [p.host, p.wasm, p.config, ...argv], {
+        input,
+        cwd: p.cwd,
+        maxBuffer: 1 << 30,
+      });
+    } else {
+      r = spawnSync(name, argv, { input, cwd: process.cwd(), env: process.env, maxBuffer: 1 << 30 });
+    }
     if (r.error) {
       const code = r.error.code;
       if (code === "ENOENT") return e.leb(1).leb(PROC.NotFound);

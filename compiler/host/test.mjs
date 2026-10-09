@@ -3,10 +3,11 @@
 // init export first, then its test export polled to completion
 // (engines-and-test-runner.md §19.3). `argv[3]` is the run's
 // configuration, a `.json` file that `hd test` writes: the program's
-// `Args.program` and `args` (Test Environments), then per case its `test`
-// and `init` export indices, its own `tempDir`, the base `seed` of a
-// property test, its `grants`, and its `snapshot` files. Standard input
-// is closed (cli.test.env.stdin).
+// `Args.program` and `args` (Test Environments), the package's executables
+// and tasks that its `Process` provider starts by name (`programs`,
+// cli.test.process), then per case its `test` and `init` export indices,
+// its own `tempDir`, the base `seed` of a property test, its `grants`, and
+// its `snapshot` files. Standard input is closed (cli.test.env.stdin).
 // One JSON line per case goes to standard output as the case ends: its
 // index, status, whether it trapped, its captured output and its time.
 import { readFileSync, writeSync } from "node:fs";
@@ -44,6 +45,7 @@ for (const c of config.cases) {
     {
       args: config.args,
       program: config.program,
+      programs: config.programs ?? null,
       stdin: null,
       grants: c.grants,
       tempDir: c.tempDir,

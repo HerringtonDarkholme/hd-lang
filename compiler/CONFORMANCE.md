@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2022 | 574 | 248 | 2844 |
+| 2023 | 574 | 247 | 2844 |
 
 ## By Chapter
 
@@ -52,7 +52,7 @@ fixture; unsupported surface records progress without failing.
 | `std/serde.md` | 3 | 0 | 5 | 8 |
 | `std/sys.md` | 1 | 0 | 0 | 1 |
 | `std/task.md` | 7 | 0 | 0 | 7 |
-| `std/testing.md` | 19 | 18 | 2 | 39 |
+| `std/testing.md` | 20 | 18 | 1 | 39 |
 | `std/text.md` | 29 | 5 | 1 | 35 |
 | `std/time.md` | 16 | 1 | 0 | 17 |
 
@@ -62,7 +62,7 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 73 | 24 | 8 | 105 |
+| `runtime/panic` | 74 | 24 | 7 | 105 |
 | `runtime/valid` | 656 | 111 | 162 | 929 |
 | `typing/invalid` | 624 | 397 | 53 | 1074 |
 | `typing/valid` | 371 | 19 | 25 | 415 |
@@ -127,7 +127,7 @@ compiler stage that first declined the case.
 | `unsupported:Collect` | 26 |
 | `unsupported:Emit` | 28 |
 | `unsupported:FolderIface` | 34 |
-| `unsupported:Link` | 2 |
+| `unsupported:Link` | 1 |
 | `unsupported:RunCase` | 56 |
 | `unsupported:TestCase` | 6 |
 
@@ -1149,10 +1149,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Link</code> (2)</summary>
+<details><summary><code>unsupported:Link</code> (1)</summary>
 
 - `runtime/valid/suspending-result-propagation.hd`
-- `runtime/panic/snapshot-file-missing.hd`
 
 </details>
 
@@ -1589,6 +1588,7 @@ runtime/panic/second-suspension-drive.hd
 runtime/panic/set-invalidated.hd
 runtime/panic/sign-fallback-balance-underflow.hd
 runtime/panic/signed-min-division-overflow.hd
+runtime/panic/snapshot-file-missing.hd
 runtime/panic/string-index-out-of-bounds.hd
 runtime/panic/structure-variant-mismatch.hd
 runtime/panic/u8-add-overflow.hd
@@ -3266,7 +3266,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 69 | 33 | 0 | 102 |
+| 77 | 25 | 0 | 102 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3275,6 +3275,9 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 cli/build-instantiation-too-deep
 cli/build-library-only
 cli/build-output
+cli/cap-env-notice
+cli/cap-flag-overrides-table
+cli/cap-partial-deny
 cli/cap-total-deny
 cli/check-summary
 cli/clean-build
@@ -3327,6 +3330,7 @@ cli/json-test-order
 cli/json-test-pass
 cli/manifest-unknown-key
 cli/member-unlisted
+cli/new-app
 cli/new-existing
 cli/new-lib
 cli/new-no-kind
@@ -3337,9 +3341,13 @@ cli/new-path
 cli/new-vcs
 cli/task-beside-dir
 cli/task-name-clash
+cli/test-every-case
+cli/test-snapshot-file
+cli/test-tasks
 cli/test-unit-fakes
 cli/toolchain-too-old
 cli/wasm-cap-flags-only
 cli/wasm-invalid
+cli/wasm-run-built
 ```
 <!-- cli-pass-list-end -->

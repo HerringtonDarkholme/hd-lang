@@ -344,6 +344,10 @@ the variant index and the path.
   `compiler/host/core.mjs` asks `createGrant`'s checks before it touches
   a resource, and `rename!` checks both paths
   ([`cli.cap.scope.rename`](../../spec/cli/command-line.md#r-cli.cap.scope.rename)).
+  The test runner's `Process` provider starts the package's executables
+  and tasks, built by `hd test` with the package's `[capabilities]` table
+  ([`cli.cap.source.hd-run`](../../spec/cli/command-line.md#r-cli.cap.source.hd-run)),
+  in the package directory.
 
 ### 17.8 Resource Limits
 

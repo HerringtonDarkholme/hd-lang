@@ -284,3 +284,45 @@ fn the_default_test_runner_keeps_snapshot_files() {
         text(&out.stdout)
     );
 }
+
+/// The test runner's `Process` (`cli.test.process.tasks`,
+/// `std-testing.hd-run.*`): an integration test runs a task by its name,
+/// with arguments and standard input, in the package directory; a name
+/// that names no executable or task panics.
+#[test]
+fn the_test_runner_runs_a_task_by_name() {
+    let dir = work("host-tasks");
+    write(&dir.join("hd.toml"), "[package]\nname = \"shop\"\n");
+    write(&dir.join("src/lib.hd"), "pub fn rows() -> i32:\n    2\n");
+    write(&dir.join("data.txt"), "from the package");
+    write(
+        &dir.join("tasks/seed.hd"),
+        "use std.host.{Args, args}\nuse std.console.{ConsoleInput, read_line}\n\
+         use std.fs.{FsRead, read_text}\nuse std.path.Path\n\n\
+         pub fn main!() -> void $ Console + Args + ConsoleInput + FsRead:\n    \
+         match read_line!():\n        .Ok(.Some(line)) => println(\"seeded ${args().len()} ${line}\")\n        \
+         _ => println(\"no input\")\n    \
+         match read_text!(Path(\"data.txt\")):\n        .Ok(text) => println(text)\n        \
+         .Err(e) => println(\"${e}\")\n",
+    );
+    write(
+        &dir.join("tests/run.hd"),
+        "use std.testing.{assert_equal, hd_run}\n\nit(\"runs the seed task\"):\n    \
+         out := hd_run!(\"seed\", [\"x\"], \"rows\\n\")\n    \
+         assert_equal(out.stdout, \"seeded 1 rows\\nfrom the package\\n\", reason=\"the task's report\")\n    \
+         assert_equal(out.status, 0, reason=\"a clean exit\")\n\n\
+         it(\"names no program\"):\n    _ := hd_run!(\"nothing\")\n",
+    );
+    let out = run(&dir, &["test", "--format", "json"]);
+    let stdout = text(&out.stdout);
+    assert!(
+        stdout.contains(r#"{"kind":"test","name":"runs the seed task","outcome":"passed""#),
+        "{stdout}{}",
+        text(&out.stderr)
+    );
+    assert!(
+        stdout.contains("the package has no executable or task named 'nothing'"),
+        "{stdout}"
+    );
+    assert_eq!(out.status.code(), Some(1), "{stdout}");
+}
