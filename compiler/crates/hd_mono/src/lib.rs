@@ -1019,6 +1019,8 @@ impl Cx<'_> {
                     | "string_from_bytes"
                     | "char_scalar"
                     | "char_from_scalar"
+                    | "format_f64"
+                    | "format_f32"
             )
         }) {
             return Ok(CallTarget {

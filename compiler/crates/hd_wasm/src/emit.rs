@@ -1906,6 +1906,10 @@ impl Em<'_> {
                 }));
                 self.store(i)
             }
+            // A float's text is std's `f64_text` and `f32_text`, the same
+            // host primitives its `Display` implementation calls.
+            ("to_string", Shape::Scalar(VT::F64)) => self.host_primitive(i, "format_f64", args, ty),
+            ("to_string", Shape::Scalar(VT::F32)) => self.host_primitive(i, "format_f32", args, ty),
             ("to_string", Shape::Str) => {
                 self.load(args[0])?;
                 self.store(i)
@@ -2128,8 +2132,41 @@ impl Em<'_> {
                 }));
                 self.store_from(i, &[VT::r(base)])
             }
+            // The float text primitives, which the host supplies as
+            // `hd:prim` imports (`std` README, "Host"): the scalars go
+            // in as parameters and the string comes back in the exchange
+            // buffer.
+            "format_f64" | "format_f32" => self.host_primitive(i, key, args, ty),
             other => unsupported(format!("the intrinsic `{other}`")),
         }
+    }
+
+    /// A call of a host primitive that takes scalars and returns a
+    /// string: the `hd:prim` import named `name`, called with the
+    /// arguments, then the result decoded from the exchange buffer.
+    fn host_primitive(&mut self, i: u32, name: &str, args: &[u32], ty: Ty) -> StageResult<()> {
+        let mut vts = Vec::new();
+        let mut codecs = Vec::new();
+        for a in args {
+            let v = self.vts(self.ty_of(*a))?;
+            let [one @ (VT::I32 | VT::I64 | VT::F32 | VT::F64)] = v.as_slice() else {
+                return unsupported("a host primitive argument that is not a scalar");
+            };
+            codecs.push(crate::rt::ArgCodec::Scalar(one.clone()));
+            vts.push(one.clone());
+        }
+        let result = self.vts(ty)?;
+        let helper = Helper::HostPrim {
+            sig: WTy::Func(vts.clone(), result.clone()),
+            name: name.to_owned(),
+            args: codecs,
+            result: crate::rt::ResCodec::Buf(crate::boundary::BTy::of(&self.lay, ty)?),
+        };
+        for (a, v) in args.iter().zip(&vts) {
+            self.comp(*a, 0, v)?;
+        }
+        self.a.call(Sym::Helper(helper));
+        self.store_from(i, &result)
     }
 
     /// The `Inspectable` trait and its `runtime_type` method, from the

@@ -268,6 +268,15 @@ pub enum Helper {
         args: Vec<ArgCodec>,
         result: ResCodec,
     },
+    /// A host primitive of std (`hd:prim`, `format_f64` and its kin): one
+    /// import call that never waits. Unlike a provider's method it has no
+    /// receiver, so `sig` holds the arguments alone.
+    HostPrim {
+        sig: WTy,
+        name: String,
+        args: Vec<ArgCodec>,
+        result: ResCodec,
+    },
     /// The encoder of a boundary type (`boundary::enc_code`).
     Enc(BTy),
     /// The decoder of a boundary type (`boundary::dec_code`).
@@ -535,6 +544,21 @@ impl Helper {
                 }
                 result.encode(w);
             }
+            Helper::HostPrim {
+                sig,
+                name,
+                args,
+                result,
+            } => {
+                w.u8(34);
+                enc_wty(sig, w);
+                w.str(name);
+                w.len_of(args);
+                for a in args {
+                    a.encode(w);
+                }
+                result.encode(w);
+            }
             Helper::Enc(b) => {
                 w.u8(27);
                 b.encode(w);
@@ -724,6 +748,14 @@ impl Helper {
                 sig: dec_wty(r)?,
                 module: r.str().to_owned(),
                 method: r.str().to_owned(),
+                args: (0..r.count())
+                    .map(|_| ArgCodec::decode(r))
+                    .collect::<Option<Vec<_>>>()?,
+                result: ResCodec::decode(r)?,
+            },
+            34 => Helper::HostPrim {
+                sig: dec_wty(r)?,
+                name: r.str().to_owned(),
                 args: (0..r.count())
                     .map(|_| ArgCodec::decode(r))
                     .collect::<Option<Vec<_>>>()?,
@@ -1172,7 +1204,13 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             method,
             args,
             result,
-        } => host_call(sig, module, method, args, result)?,
+        } => host_call(sig, module, method, args, result, 1)?,
+        Helper::HostPrim {
+            sig,
+            name,
+            args,
+            result,
+        } => host_call(sig, "hd:prim", name, args, result, 0)?,
         Helper::Enc(b) => crate::boundary::enc_code(b)?,
         Helper::Dec(b) => crate::boundary::dec_code(b)?,
         Helper::LebPut => crate::boundary::leb_put_code(),
@@ -1719,19 +1757,21 @@ fn unmarshal(a: &mut Asm, result: &ResCodec, n: u32) {
 
 /// A host method that never waits (runtime-and-host.md §17.2): one import
 /// call, its arguments and result marshalled as `marshal` and `unmarshal`
-/// do.
+/// do. The first `skip` parameters of `sig` are not arguments (a provider
+/// method's receiver).
 fn host_call(
     sig: &WTy,
     module: &str,
     method: &str,
     args: &[ArgCodec],
     result: &ResCodec,
+    skip: u32,
 ) -> StageResult<Code> {
     let WTy::Func(params, results) = sig else {
         return unsupported("a host stub without a signature");
     };
     let mut a = Asm::new(params.clone());
-    let imp = marshal(&mut a, args, &|a, i, _| a.get(1 + i));
+    let imp = marshal(&mut a, args, &|a, i, _| a.get(skip + i));
     let out = result.import();
     a.call(Sym::Import {
         module: module.to_owned(),

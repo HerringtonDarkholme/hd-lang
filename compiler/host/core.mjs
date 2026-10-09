@@ -52,6 +52,7 @@ import { MessageChannel, receiveMessageOnPort, Worker } from "node:worker_thread
 import { randomBytes } from "node:crypto";
 import { arch as osArch, availableParallelism, hostname, platform, tmpdir } from "node:os";
 import { dirname, basename, join, resolve } from "node:path";
+import { shortest } from "./float.mjs";
 
 export class Deadlock extends Error {}
 
@@ -676,6 +677,13 @@ export function createHost(sink, env = {}) {
       abort: (h) => {
         ops.delete(h);
       },
+    },
+    // The host primitives of std (spec/std/README.md#standard-library-
+    // primitives): a float arrives as its value, and the text goes back
+    // in the exchange buffer as a string.
+    "hd:prim": {
+      format_f64: (value) => put(new Enc().str(shortest(value, 64))),
+      format_f32: (value) => put(new Enc().str(shortest(value, 32))),
     },
     "hd:Console": {
       "write_line.start": (len) => {

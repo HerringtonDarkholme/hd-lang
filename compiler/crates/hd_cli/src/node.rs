@@ -25,6 +25,8 @@ const TEST: &str = include_str!("../../../host/test.mjs");
 const HTTP: &str = include_str!("../../../host/http.mjs");
 /// The `Net` provider's client thread, which holds the sockets.
 const NET: &str = include_str!("../../../host/net.mjs");
+/// The float text of the host primitives (`core.mjs` imports it).
+const FLOAT: &str = include_str!("../../../host/float.mjs");
 
 pub struct NodeEngine;
 
@@ -87,6 +89,7 @@ impl Scratch {
             ("test.mjs", TEST),
             ("http.mjs", HTTP),
             ("net.mjs", NET),
+            ("float.mjs", FLOAT),
         ] {
             std::fs::write(s.0.join(name), text).map_err(|e| format!("{}: {e}", s.0.display()))?;
         }
