@@ -219,7 +219,7 @@ impl string:
     ## See [module.string.slice](../../spec/lang/10-modules.md#r-module.string.slice).
     pub fn slice(self, start: usize, end: usize) -> string:
         if start > end || !boundary(self, start) || !boundary(self, end):
-            panic_with("index-out-of-bounds", "")
+            panic_with("index-out-of-bounds", "string slice out of bounds")
         bytes_slice(self, start, end)
 
     # A copy of the bytes.

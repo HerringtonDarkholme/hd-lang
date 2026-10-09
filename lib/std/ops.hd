@@ -273,10 +273,10 @@ fn slice_stop(size: usize, start: u64, end: u64, inclusive: bool) -> usize:
     let stop = end
     if inclusive:
         if end >= u64(size):
-            panic_with("index-out-of-bounds", "")
+            panic_with("index-out-of-bounds", "slice out of bounds")
         stop = end + 1
     if stop > u64(size) || start > stop:
-        panic_with("index-out-of-bounds", "")
+        panic_with("index-out-of-bounds", "slice out of bounds")
     usize(stop)
 
 # A string slice shares its bytes and checks scalar boundaries.
