@@ -108,13 +108,19 @@ impl Names<'_> {
     /// package ancestor is `module`), without rendering any path.
     #[must_use]
     pub fn declared_in(&self, d: DefId, module: PathId) -> bool {
+        self.module_node(d) == module
+    }
+    /// The trie node of the module that declares `d`: its nearest module
+    /// or package ancestor.
+    #[must_use]
+    pub fn module_node(&self, d: DefId) -> PathId {
         let mut p = PathId::from_raw(d.raw());
         while p.get().is_some()
             && !matches!(self.paths.kind(p), PathKind::Module | PathKind::Package)
         {
             p = self.paths.parent(p);
         }
-        p == module
+        p
     }
     /// The stable path of an item, for messages and relocations.
     #[must_use]
@@ -567,6 +573,11 @@ pub struct FolderIface {
     /// Where each item and written type sits: `(item, slot)` to (module
     /// index in the folder, anchor). Outside every hash; diagnostics only.
     pub spans: HashMap<(DefId, u32), (u32, crate::anchor::Anchor)>,
+    /// The private-name index (resolution-and-interfaces.md §4.9): each
+    /// top-level declaration without `pub`, as (module path, name). A
+    /// failed export lookup that finds a row is `private-import`. Outside
+    /// every hash; diagnostics only.
+    pub private_names: std::collections::HashSet<(String, Symbol)>,
 }
 
 impl FolderIface {
@@ -585,6 +596,37 @@ impl FolderIface {
     pub fn exports_of(&self, module: &str) -> Vec<&Export> {
         self.exports.iter().filter(|e| e.module == module).collect()
     }
+    /// Whether `module` declares `name` without `pub`.
+    #[must_use]
+    pub fn is_private(&self, module: &str, name: Symbol) -> bool {
+        self.private_names.contains(&(module.to_owned(), name))
+    }
+}
+
+/// The private-name index section of an interface entry: (module path,
+/// name) rows, sorted.
+#[must_use]
+pub fn encode_private_names(names: &Names<'_>, rows: &[(String, Symbol)]) -> Vec<u8> {
+    let mut w = Writer::default();
+    w.len_of(rows);
+    for (module, name) in rows {
+        w.str(module);
+        w.str(names.text(*name));
+    }
+    w.bytes
+}
+
+/// Reads [`encode_private_names`].
+#[must_use]
+pub fn decode_private_names(names: &Names<'_>, b: &[u8]) -> Option<Vec<(String, Symbol)>> {
+    let mut r = Reader::new(b);
+    let mut out = Vec::new();
+    for _ in 0..r.count() {
+        let module = r.str().to_owned();
+        let name = names.syms.intern(r.str());
+        out.push((module, name));
+    }
+    r.ok().then_some(out)
 }
 
 fn put_generics(w: &mut Writer, t: &mut TableWriter<'_>, gs: &[Generic]) -> StageResult<()> {
@@ -1159,6 +1201,7 @@ pub fn folder_iface(
         api_hash,
         deep_hash,
         spans: HashMap::new(),
+        private_names: std::collections::HashSet::new(),
     }
 }
 

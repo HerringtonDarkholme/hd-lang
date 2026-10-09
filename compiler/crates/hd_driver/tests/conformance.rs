@@ -257,9 +257,29 @@ fn build_sources(
                 requires: Vec::new(),
             })
             .collect(),
+        profile: profile(fixture),
         ..Packages::default()
     };
     build_packages(&host, "fixture", &packages, goal)
+}
+
+/// The host capability traits of the fixture's runtime profile, as the
+/// runner passes it to `check` and `test` (README "Runtime Profiles"): the
+/// fixture's own traits it names, in the primary module, or the prelude
+/// `Console`. `console`, the profile of a fixture that names none, selects
+/// no profile.
+fn profile(fixture: &Fixture) -> Option<Vec<String>> {
+    let module = hd_project::module_path("fixture", &fixture.primary);
+    let own = |traits: &[&str]| Some(traits.iter().map(|t| format!("{module}.{t}")).collect());
+    match directive(&fixture.text, "fixture-runtime-profile")? {
+        "serde-vault" => own(&["Vault"]),
+        "disposed-file" => own(&["Files", "FileHandle"]),
+        "pending-gate" => own(&["Gate"]),
+        "misbehaving-host" => own(&["Gauge"]),
+        "special-float-host" => own(&["Sensor"]),
+        "pending-write" => Some(vec!["std.console.Console".to_owned()]),
+        _ => None,
+    }
 }
 
 fn marker_line(text: &str, kind: &str) -> Option<usize> {
@@ -503,12 +523,16 @@ fn reports_panic(line: &str, code: &str) -> bool {
         .any(|end| line.contains(&format!("panic: {code}{end}")))
 }
 
-/// A package-tree fixture whose only harness is its tree and the doc
-/// comments of its primary file, with or without a `tests:` block (README
-/// "Package Trees": its test cases include the primary file's doc tests).
+/// A package-tree fixture whose only harness is its tree, the `tests:`
+/// block and the doc comments of its primary file (README "Package
+/// Trees": its test cases are the primary module's, the primary file's
+/// doc tests included).
 fn doc_tests_harness(fixture: &Fixture) -> bool {
     fixture.tree
-        && fixture.text.lines().any(|line| line.starts_with("## "))
+        && fixture
+            .text
+            .lines()
+            .any(|line| line.starts_with("## ") || line.starts_with("tests:"))
         && [
             "fixture-runtime-profile",
             "fixture-runtime-scenario",

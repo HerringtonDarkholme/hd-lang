@@ -129,8 +129,7 @@ impl Ck<'_, '_> {
                 Some(Named::Poison) => return Ok(self.poison_value(n)),
                 Some(Named::Module(m)) => {
                     let Some(def) = self.export(m, &name) else {
-                        let msg = format!("`{text}::{name}` is not defined");
-                        self.err(Code::UnknownName, n, &msg);
+                        self.missing_export(m, &name, n);
                         return Ok((Ref(NONE), Ty::NEVER));
                     };
                     if let Some(ItemData::Fn(sig)) = self.cx.lookup.item(def).map(|i| &i.data) {
@@ -358,7 +357,7 @@ impl Ck<'_, '_> {
                 } else {
                     format!("no method `{name}` on {}", self.show(t))
                 };
-                self.err(Code::UnknownMethod, n, &msg);
+                self.no_method(t, name, n, &msg);
                 return Ok(None);
             }
         };

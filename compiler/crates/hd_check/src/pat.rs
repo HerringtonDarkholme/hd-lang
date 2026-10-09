@@ -222,6 +222,7 @@ impl Ck<'_, '_> {
                         self.err(Code::UnknownDataField, f, &msg);
                         continue;
                     };
+                    self.check_field_visible(t, &fname, f);
                     if let Some(sub) = f.children().next() {
                         self.declare_pattern(sub, ft, binds)?;
                     } else {

@@ -896,6 +896,7 @@ impl Ck<'_, '_> {
         }
         let (r, bt) = self.promote_base(r, bt, &name, n);
         if let Some((idx, ft)) = self.field_of(bt, &name) {
+            self.check_field_visible(bt, &name, n);
             let ft = self.field_access(bt, &name, ft);
             return Ok((self.b.emit(Tag::Field, r.0, idx, ft, n.index()), ft));
         }
@@ -1158,6 +1159,7 @@ impl Ck<'_, '_> {
             self.err(Code::UnknownType, *name_node, &msg);
             return Ok((Ref(NONE), Ty::NEVER));
         };
+        self.check_literal_visible(def, n);
         let mut targs = Vec::new();
         for t in &targ_nodes {
             targs.push(self.ty_node(*t)?);

@@ -17,10 +17,10 @@ pub trait Supplier:
     fn get(self) -> Self::Item
 
 pub data Ints:
-    value: i32
+    pub value: i32
 
 pub data Words:
-    value: string
+    pub value: string
 
 impl Supplier for Ints:
     type Item = i32

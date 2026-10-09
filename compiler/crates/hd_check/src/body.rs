@@ -184,6 +184,9 @@ pub(crate) struct Ck<'a, 'c> {
     pub at: u32,
     /// The local impls not in scope at `at` (`trait.impl.local.lookup`).
     pub hidden: Vec<DefId>,
+    /// The module the body is written in: a member is visible from it
+    /// when declared there or `pub` (`names.visible.field-method`).
+    pub module: hd_base::PathId,
 }
 
 /// A node index kept for a later diagnostic.
@@ -248,6 +251,7 @@ pub(crate) fn new_ck<'a, 'c>(
         joins: Vec::new(),
         at: 0,
         hidden: Vec::new(),
+        module: cx.names.module_node(item),
     };
     // No local declaration holds byte 0: every local impl starts hidden.
     ck.move_to(0);
@@ -1429,6 +1433,7 @@ impl Ck<'_, '_> {
                     self.err(Code::UnknownDataField, *lhs, &msg);
                     return Ok(());
                 };
+                self.check_field_visible(pt, &fname, *lhs);
                 self.check_store_target(base, (br, bt), *lhs);
                 let br = pr;
                 let v = match compound {

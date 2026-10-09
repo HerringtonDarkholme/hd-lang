@@ -431,6 +431,9 @@ struct Run<'a> {
     host: &'a Host<'a>,
     package: String,
     goal: Goal,
+    /// The host capability traits of the run's runtime profile, by item
+    /// path ([`Packages::profile`]).
+    profile: Vec<String>,
     table: ModuleTable,
     texts: Vec<Arc<str>>,
     pool: InternPool,
@@ -501,6 +504,27 @@ pub struct Packages<'a> {
     pub entries: Vec<String>,
     /// The root's dev dependencies, as `requires` (`module.test.dev-dependency`).
     pub dev_requires: Vec<(String, u16)>,
+    /// The host capability traits of the selected runtime profile, by item
+    /// path (`app.Vault`), whose signatures are boundaries
+    /// (`module.profile.definition`, `module.boundary.direction`); `None`
+    /// selects the default profile, whose traits the host ABI table lists
+    /// (`module.profile.default`).
+    pub profile: Option<Vec<String>>,
+}
+
+/// The root package's key: its name, and the traits of a runtime profile
+/// other than the default one, whose boundary checks its entries hold.
+fn root_package_key(package: &str, profile: Option<&[String]>) -> Hash128 {
+    let base = hd_cache::package_key(package);
+    let Some(traits) = profile else {
+        return base;
+    };
+    let mut k = hd_base::StableHasher::new("pkg-profile");
+    k.hash(base);
+    for t in traits {
+        k.str(t);
+    }
+    k.finish()
 }
 
 /// One run with the caller's sources, store, executor and clock.
@@ -572,6 +596,12 @@ pub fn build_packages(
     let pipeline = hd_mono::passes::validate(&hd_mono::passes::DEV).unwrap_or_default();
     let paths = PathTable::new();
     let known = hd_resolve::KnownItems::new(&paths);
+    let profile = packages.profile.clone().unwrap_or_else(|| {
+        hd_host_abi::TABLE
+            .iter()
+            .map(|t| t.std_path.to_owned())
+            .collect()
+    });
     let run = Run {
         host,
         package: package.to_owned(),
@@ -590,7 +620,8 @@ pub fn build_packages(
             TARGET,
             &format!("a1=bounded;std={:032x}", std_hash.0),
         ),
-        package_key: hd_cache::package_key(package),
+        package_key: root_package_key(package, packages.profile.as_deref()),
+        profile,
         pipeline,
         skim: (0..n).map(|_| OnceLock::new()).collect(),
         parse: (0..n).map(|_| OnceLock::new()).collect(),
@@ -1362,6 +1393,9 @@ impl Run<'_> {
             && let Some((items, exports)) = hd_resolve::decode_items(&names, blob)
             && let Some(diags) = decode_iface_diags(dsec)
             && let Some(rows) = sections.get(2).and_then(|b| hd_resolve::anchor::decode(b))
+            && let Some(private) = sections
+                .get(3)
+                .and_then(|b| hd_resolve::decode_private_names(&names, b))
             && let Some(mentions) = self.mentions(fid, &items, &exports)
         {
             let mut iface = hd_resolve::folder_iface(
@@ -1372,6 +1406,7 @@ impl Run<'_> {
                 &mentions,
             );
             iface.spans = spans_of(&iface.items, &rows);
+            iface.private_names = private.into_iter().collect();
             self.emit_iface_diags(fi, &diags);
             self.note_iface(&folder.path, &iface, false);
             lock(&self.report).ok(Stage::FolderIface);
@@ -1464,7 +1499,8 @@ impl Run<'_> {
             .filter_map(|(d, m, slot, a)| Some((*by_def.get(&d)?, m, slot, a)))
             .collect();
         let asec = hd_resolve::anchor::encode(&rows);
-        self.put(EntryKind::Iface, key, &[&blob, &dsec, &asec]);
+        let psec = hd_resolve::encode_private_names(&names, &out.private_names);
+        self.put(EntryKind::Iface, key, &[&blob, &dsec, &asec, &psec]);
         let Some(mentions) = self.mentions(fid, &items, &out.exports) else {
             self.blocked(Stage::FolderIface);
             let _ = self.iface[fi].set(None);
@@ -1473,6 +1509,7 @@ impl Run<'_> {
         let mut iface =
             hd_resolve::folder_iface(&folder.path, items, out.exports, Arc::from(blob), &mentions);
         iface.spans = spans_of(&iface.items, &rows);
+        iface.private_names = out.private_names.into_iter().collect();
         lock(&self.diags).append(&diags);
         self.note_iface(&folder.path, &iface, true);
         lock(&self.report).ok(Stage::FolderIface);
@@ -2311,6 +2348,8 @@ impl Run<'_> {
         if !init_facts.is_empty() {
             hd_check::init::definite_init(&cx, &stmts, &init_facts, &mut diags);
         }
+        self.private_headers(&cx, &heads, &mut diags);
+        self.profile_boundaries(&cx, &heads, &mut diags);
         // Each derivation opt-in checks its template's instance
         // (spec 14 `annot.template.checked`, checking-and-tir.md §4.13.9),
         // whose bodies join the module's.
@@ -2334,6 +2373,80 @@ impl Run<'_> {
         lock(&self.report).ok(Stage::Body);
         let inferred = hd_check::results::inferred(&cx);
         let _ = self.body[m].set(Some((bodies, diags, derived.items, inferred)));
+    }
+
+    /// Stage B (§4.10.1) over the module's items that `HeaderCheck` cannot
+    /// see: its private items and the impls that name one, under the
+    /// module's own lookup (`hd_check::header::private_items`).
+    fn private_headers(
+        &self,
+        cx: &BodyCx<'_>,
+        heads: &[hd_resolve::Head<'_>],
+        diags: &mut DiagBuf,
+    ) {
+        let hcx = hd_check::header::HeaderCx {
+            names: cx.names,
+            lookup: cx.lookup,
+            impls: cx.impls,
+            global: cx.global,
+            solver: cx.solver,
+        };
+        let Ok(findings) = hd_check::header::private_items(&hcx, cx.lookup.own) else {
+            return;
+        };
+        for f in findings {
+            let span = hd_resolve::anchor::span_in_module(
+                &cx.names,
+                &cx.src,
+                heads,
+                cx.lookup.own,
+                (f.item, f.slot),
+            )
+            .unwrap_or_else(|| self.item_span(f.item, f.slot));
+            diags.error(f.code, span, &f.message);
+        }
+    }
+
+    /// The boundary checks of the host capability traits of the run's
+    /// runtime profile that this module declares
+    /// (`hd_check::header::boundary`, `module.boundary.error`).
+    fn profile_boundaries(
+        &self,
+        cx: &BodyCx<'_>,
+        heads: &[hd_resolve::Head<'_>],
+        diags: &mut DiagBuf,
+    ) {
+        let traits: Vec<DefId> = self
+            .profile
+            .iter()
+            .filter_map(|p| {
+                let (module, name) = p.rsplit_once('.')?;
+                Some(cx.names.item(module, name))
+            })
+            .collect();
+        let hcx = hd_check::header::HeaderCx {
+            names: cx.names,
+            lookup: cx.lookup,
+            impls: cx.impls,
+            global: cx.global,
+            solver: cx.solver,
+        };
+        for it in cx.lookup.own.iter().filter(|it| traits.contains(&it.def)) {
+            let Ok(findings) = hd_check::header::boundary(&hcx, it) else {
+                continue;
+            };
+            for f in findings {
+                let span = hd_resolve::anchor::span_in_module(
+                    &cx.names,
+                    &cx.src,
+                    heads,
+                    cx.lookup.own,
+                    (f.item, f.slot),
+                )
+                .unwrap_or_else(|| self.item_span(f.item, f.slot));
+                diags.error(f.code, span, &f.message);
+            }
+        }
     }
 
     /// The derivation opt-ins of module `m`, its derived implementations

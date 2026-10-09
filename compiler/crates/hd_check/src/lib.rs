@@ -19,6 +19,7 @@ pub mod init;
 mod literals;
 mod local;
 mod pat;
+mod privacy;
 mod promote;
 mod render;
 pub mod results;

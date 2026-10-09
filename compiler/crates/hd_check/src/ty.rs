@@ -3,6 +3,7 @@
 //! and the closure's interfaces. An `_` is a fresh variable.
 
 use hd_base::{DefId, StageResult};
+use hd_diag::Code;
 use hd_intern::PathKind;
 use hd_resolve::{BindingKind, HeadKind, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
@@ -77,6 +78,34 @@ impl Ck<'_, '_> {
                 let d = self.cx.names.item(m, name);
                 self.cx.lookup.item(d).map(|_| d)
             })
+    }
+
+    /// A module path `module.name` whose module exports no `name`:
+    /// `private-import` when the module declares it without `pub`
+    /// (`expr.name.qualified.private`), else `unknown-import`
+    /// (`expr.name.qualified.missing`).
+    pub(crate) fn missing_export(&mut self, module: u32, name: &str, n: NodeRef<'_>) {
+        let path = self
+            .cx
+            .scope
+            .modules
+            .get(module as usize)
+            .cloned()
+            .unwrap_or_default();
+        let sym = self.cx.names.syms.intern(name);
+        if self
+            .cx
+            .lookup
+            .ifaces
+            .iter()
+            .any(|f| f.is_private(&path, sym))
+        {
+            let msg = format!("`{path}` declares `{name}` without `pub`");
+            self.err(Code::PrivateImport, n, &msg);
+        } else {
+            let msg = format!("`{path}` declares no `{name}`");
+            self.err(Code::UnknownImport, n, &msg);
+        }
     }
 
     /// A type parameter or `Self` in scope by name.

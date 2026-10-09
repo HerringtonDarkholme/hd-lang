@@ -125,6 +125,26 @@ impl<'t> Ctx<'_, 't> {
     }
 }
 
+/// Where `(def, slot)` of one module's items sits in its source, slot 0
+/// when the item has no such slot: a body task's view of its private
+/// items, which no interface anchors.
+#[must_use]
+pub fn span_in_module(
+    names: &Names<'_>,
+    src: &Src<'_>,
+    heads: &[Head<'_>],
+    items: &[Item],
+    (def, slot): (DefId, u32),
+) -> Option<Span> {
+    let index = crate::lower::ItemIndex::new(names, items);
+    let rows = collect(names, src, heads, items, &index);
+    let row = rows
+        .iter()
+        .find(|r| r.0 == def && r.1 == slot)
+        .or_else(|| rows.iter().find(|r| r.0 == def && r.1 == 0))?;
+    resolve(src, &row.2)
+}
+
 /// The anchors of every item one module's heads produce.
 #[must_use]
 pub(crate) fn collect(

@@ -315,6 +315,12 @@ contract. Every header rule runs in exactly one of three stages:
   member or a supertrait is reported, in the dependency's file, even by
   `hd check`. When a dependency's bodies are checked is the command's
   policy ([commands.md](commands.md)), not the interface's.
+- **Private items (#208).** The interface holds no private item record,
+  so `HeaderCheck(F)` checks only the items whose header names nothing
+  but interface items. A private item, and an impl or public item that
+  names one, gets its stage-B checks in its module's body task, whose
+  lookup holds the module's own items (`hd_check::header::private_items`).
+  Each item is checked in exactly one of the two places.
 - **Caching.** Stage A's diagnostics are in the blob's `diags` section,
   outside every api hash. Stage B's are the `HeaderCheck(F)` task's
   result; its key is F's interface key plus the deep hashes of the

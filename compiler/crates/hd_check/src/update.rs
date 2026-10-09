@@ -26,6 +26,7 @@ impl Ck<'_, '_> {
         let Some(n) = self.data_field_count(st) else {
             return (sr, st);
         };
+        self.check_copy_visible(st, at);
         let skip = vec![false; n];
         let mut vals = vec![Ref(NONE); n];
         let fresh_parts = self.copy_parts((sr, st), &skip, &mut vals, at);

@@ -200,6 +200,7 @@ impl Program {
                 .collect(),
             entries: self.entries.clone(),
             dev_requires: self.dev_requires.clone(),
+            profile: None,
         }
     }
 }

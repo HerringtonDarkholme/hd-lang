@@ -1315,8 +1315,7 @@ impl Ck<'_, '_> {
             Some(Named::Poison) => Ok(Some(self.poison_value(n))),
             Some(Named::Module(m)) => {
                 let Some(def) = self.export(m, name) else {
-                    let msg = format!("`{text}.{name}` is not defined");
-                    self.err(Code::UnknownName, n, &msg);
+                    self.missing_export(m, name, n);
                     return Ok(Some((Ref(NONE), Ty::NEVER)));
                 };
                 if let Some(ItemData::Fn(sig)) = self.cx.lookup.item(def).map(|i| &i.data) {
@@ -1456,8 +1455,7 @@ impl Ck<'_, '_> {
                 Some(Named::Poison) => return Ok(self.poison_value(n)),
                 Some(Named::Module(m)) => {
                     let Some(def) = self.export(m, &name) else {
-                        let msg = format!("`{text}.{name}` is not defined");
-                        self.err(Code::UnknownName, callee, &msg);
+                        self.missing_export(m, &name, callee);
                         return Ok((Ref(NONE), Ty::NEVER));
                     };
                     return self.call_item(def, &explicit, args, n, bang, want);
@@ -1608,7 +1606,7 @@ impl Ck<'_, '_> {
                 }
                 _ => {
                     let msg = format!("no method `{name}` on {}", self.show(t));
-                    self.err(Code::UnknownMethod, n, &msg);
+                    self.no_method(t, name, n, &msg);
                     return Ok((Ref(NONE), Ty::NEVER));
                 }
             }
@@ -1641,7 +1639,7 @@ impl Ck<'_, '_> {
             }
         }
         let msg = format!("no method `{name}` on {}", self.show(t));
-        self.err(Code::UnknownMethod, n, &msg);
+        self.no_method(t, name, n, &msg);
         Ok((Ref(NONE), Ty::NEVER))
     }
 
@@ -1736,8 +1734,47 @@ impl Ck<'_, '_> {
         Ok(())
     }
 
-    /// An inherent method of a type: (method, impl, impl arguments).
+    /// An inherent method of a type that is visible here
+    /// (`names.method-lookup.inherent`): (method, impl, impl arguments).
     pub(crate) fn find_inherent(&mut self, t: Ty, name: &str) -> Option<(DefId, DefId, Vec<Ty>)> {
+        self.inherent_where(t, name, true)
+    }
+
+    /// An inherent method of a type, whatever its visibility: what the
+    /// compiler's own desugarings call.
+    pub(crate) fn find_inherent_any(
+        &mut self,
+        t: Ty,
+        name: &str,
+    ) -> Option<(DefId, DefId, Vec<Ty>)> {
+        self.inherent_where(t, name, false)
+    }
+
+    /// No member was selected for `t.name(..)`: `private-member` when `t`
+    /// itself has an inherent method `name` that is not visible here
+    /// (`names.method-lookup.private`), else `unknown-method` with `msg`
+    /// (`names.method-lookup.unknown`).
+    pub(crate) fn no_method(&mut self, t: Ty, name: &str, n: NodeRef<'_>, msg: &str) {
+        let snap = self.infer.snapshot();
+        let private = self.find_inherent_any(t, name).is_some();
+        self.infer.rollback(snap);
+        if private {
+            let msg = format!(
+                "the method `{name}` of {} is private to its module",
+                self.show(t)
+            );
+            self.err(Code::PrivateMember, n, &msg);
+        } else {
+            self.err(Code::UnknownMethod, n, msg);
+        }
+    }
+
+    fn inherent_where(
+        &mut self,
+        t: Ty,
+        name: &str,
+        visible_only: bool,
+    ) -> Option<(DefId, DefId, Vec<Ty>)> {
         let pool = self.pool();
         let sym = self.cx.names.syms.intern(name);
         let cands = self.method_index().inherent.get(&sym).cloned()?;
@@ -1748,7 +1785,7 @@ impl Ck<'_, '_> {
         for (impl_def, method) in cands {
             // A local impl's methods are found only in its extent
             // (`trait.impl.local.lookup`).
-            if self.hidden.contains(&impl_def) {
+            if self.hidden.contains(&impl_def) || (visible_only && !self.method_visible(method)) {
                 continue;
             }
             let Some(item) = self.cx.lookup.item(impl_def) else {
@@ -2199,11 +2236,12 @@ impl Ck<'_, '_> {
                 if let Some((idx, ft)) = self.field_of(rt, name)
                     && matches!(pool.get(self.infer.resolve(pool, ft)), TyData::Fn { .. })
                 {
+                    self.check_field_visible(rt, name, n);
                     let f = self.b.emit(Tag::Field, recv.0, idx, ft, n.index());
                     return self.call_value(f, ft, args, n, bang);
                 }
                 let msg = format!("no method `{name}` on {}", self.show(rt));
-                self.err(Code::UnknownMethod, n, &msg);
+                self.no_method(rt, name, n, &msg);
                 Ok((Ref(NONE), Ty::NEVER))
             }
         }
@@ -2410,7 +2448,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        let Some((method, impl_def, impl_args)) = self.find_inherent(t, name) else {
+        let Some((method, impl_def, impl_args)) = self.find_inherent_any(t, name) else {
             return unsupported(format!("the inherent method `{name}`"));
         };
         let sig = self.sig_of(method)?;

@@ -23,8 +23,9 @@ pub mod view;
 pub use header::Universe;
 pub use iface::{
     Export, Field, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item, ItemData, Lookup,
-    LookupDecls, Names, TraitData, Variant, decode_items, deep_hash, encode_items, fill_trait_args,
-    folder_iface, impl_table, interface_items, mentioned_defs, show_ty, show_ty_in,
+    LookupDecls, Names, TraitData, Variant, decode_items, decode_private_names, deep_hash,
+    encode_items, encode_private_names, fill_trait_args, folder_iface, impl_table, interface_items,
+    mentioned_defs, show_ty, show_ty_in,
 };
 pub use known::KnownItems;
 pub use lower::{

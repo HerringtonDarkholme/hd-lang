@@ -41,10 +41,49 @@ pub struct Finding {
     pub message: String,
 }
 
-/// Stage B over a folder's items, in item order: bounds of written header
-/// types (`trait.bound.no-implied`), the supertraits of each impl
+/// Stage B over a folder's interface items that `HeaderCheck(F)` covers
+/// ([`in_interface_check`]), in item order: bounds of written header types
+/// (`trait.bound.no-implied`), the supertraits of each impl
 /// (`trait.super.impl-bounds`), and delegation targets.
 pub fn stage_b(cx: &HeaderCx<'_>, items: &[Item]) -> StageResult<Vec<Finding>> {
+    stage_b_over(
+        cx,
+        items
+            .iter()
+            .filter(|it| in_interface_check(&cx.names, cx.lookup, it)),
+    )
+}
+
+/// Stage B over the items of one module that `HeaderCheck` leaves out
+/// ([`in_interface_check`]): its private items, and its impls that name
+/// one. `cx`'s lookup holds the module's own items, private ones included:
+/// a body check's view, not an interface's.
+pub fn private_items(cx: &HeaderCx<'_>, items: &[Item]) -> StageResult<Vec<Finding>> {
+    stage_b_over(
+        cx,
+        items
+            .iter()
+            .filter(|it| !in_interface_check(&cx.names, cx.lookup, it)),
+    )
+}
+
+/// Whether `HeaderCheck(F)` checks `it`: an item that the interfaces of
+/// `lookup` hold, whose header names only items they hold. Any other item,
+/// a private one or an impl that names one, is checked with its module's
+/// bodies ([`private_items`]), where its private names are seen.
+#[must_use]
+pub fn in_interface_check(names: &Names<'_>, lookup: &Lookup<'_>, it: &Item) -> bool {
+    let held = |d: DefId| lookup.ifaces.iter().any(|f| f.item(d).is_some());
+    held(it.def)
+        && hd_resolve::mentioned_defs(names.pool, std::slice::from_ref(it), &[])
+            .into_iter()
+            .all(held)
+}
+
+fn stage_b_over<'i>(
+    cx: &HeaderCx<'_>,
+    items: impl Iterator<Item = &'i Item>,
+) -> StageResult<Vec<Finding>> {
     let mut out = Vec::new();
     for it in items {
         let mut env = environment(cx, it);
@@ -479,4 +518,118 @@ impl<'a> ItemCheck<'_, 'a> {
 
 fn sig_tys(sig: &FnSig) -> Vec<Ty> {
     sig.params.iter().map(|p| p.1).chain([sig.ret]).collect()
+}
+
+/// A host capability trait of the run's runtime profile
+/// (`module.profile.definition`): each method's arguments cross out of hd
+/// and its result crosses in (`module.boundary.direction`). A value of a
+/// data type with a field that is not `pub` crosses out only through
+/// `std.serde.Serialize` and in only through `std.serde.Deserialize`
+/// (`module.boundary.out`, `module.boundary.in`). A signature with a type
+/// that would cross without it is an error there, once per signature
+/// (`module.boundary.error`).
+pub fn boundary(cx: &HeaderCx<'_>, trait_: &Item) -> StageResult<Vec<Finding>> {
+    let mut out = Vec::new();
+    let ItemData::Trait(t) = &trait_.data else {
+        return Ok(out);
+    };
+    let serialize = cx.names.item("std.serde", "Serialize");
+    let deserialize = cx.names.item("std.serde", "Deserialize");
+    for &(_, m) in &t.methods {
+        let Some(mi) = cx.lookup.item(m) else {
+            continue;
+        };
+        let Some(sig) = mi.sig() else {
+            continue;
+        };
+        let mut env = environment(cx, mi);
+        env.key = Some(cx.global.env_key(&env));
+        let mut hc = ItemCheck {
+            cx,
+            env,
+            memo: BodyMemo::default(),
+            fuel: Fuel::new(Fuel::BODY_DEFAULT),
+            item: m,
+            out: &mut out,
+        };
+        let crossing: Vec<(Ty, DefId)> = sig
+            .params
+            .iter()
+            .filter(|p| cx.names.text(p.0) != "self")
+            .map(|p| (p.1, serialize))
+            .chain([(sig.ret, deserialize)])
+            .collect();
+        for (t, tr) in crossing {
+            if let Some(bad) = hc.crosses_without(t, tr, &mut Vec::new())? {
+                let way = if tr == serialize { "out of" } else { "into" };
+                let message = format!(
+                    "{} has a private field and does not implement {}, so it cannot cross {way} hd here",
+                    hc.show(bad),
+                    cx.names.display_name(tr)
+                );
+                hc.report(0, Code::BoundaryPrivateField, message);
+                break;
+            }
+        }
+    }
+    Ok(out)
+}
+
+impl ItemCheck<'_, '_> {
+    /// The first type in `t` that has a field that is not `pub` and does
+    /// not implement `tr`. Such a type that implements `tr` crosses as its
+    /// implementation writes or builds it (`module.boundary.serialize.exact`,
+    /// `module.boundary.deserialize.exact`). A data type whose fields are
+    /// all `pub` crosses through its fields, an enum through its payloads
+    /// (`module.boundary.public`), and the other types that may cross
+    /// through their contents (`module.boundary.allowed`).
+    fn crosses_without(&mut self, t: Ty, tr: DefId, seen: &mut Vec<Ty>) -> StageResult<Option<Ty>> {
+        let pool = self.pool();
+        if seen.contains(&t) {
+            return Ok(None);
+        }
+        seen.push(t);
+        let parts: Vec<Ty> = match pool.get(t) {
+            TyData::Option(i) | TyData::Mut(i) => vec![i],
+            TyData::Tuple { elems, rest } => {
+                pool.list_items(elems).iter().copied().chain(rest).collect()
+            }
+            TyData::Adt { def, args } => {
+                let argv = pool.list_items(args);
+                let sub = |x: Ty| {
+                    pool.subst(x, &|p: ParamRef| {
+                        (p.owner == def).then(|| argv.get(usize::from(p.index)).copied())?
+                    })
+                };
+                let known = self.cx.names.known;
+                match self.cx.lookup.item(def).map(|i| &i.data) {
+                    _ if def == known.list || def == known.map => argv.to_vec(),
+                    Some(ItemData::Data(fields)) => {
+                        if fields.iter().any(|f| !f.public && !f.embedded) {
+                            let bound = pool.intern_ty(&TyData::TraitValue {
+                                def: tr,
+                                args: TyList::EMPTY,
+                                bindings: vec![],
+                            });
+                            return Ok(self.fails(t, bound)?.then_some(t));
+                        }
+                        fields.iter().map(|f| sub(f.ty)).collect()
+                    }
+                    Some(ItemData::Enum { shared, variants }) => shared
+                        .iter()
+                        .chain(variants.iter().flat_map(|v| &v.fields))
+                        .map(|f| sub(f.ty))
+                        .collect(),
+                    _ => Vec::new(),
+                }
+            }
+            _ => Vec::new(),
+        };
+        for p in parts {
+            if let Some(bad) = self.crosses_without(p, tr, seen)? {
+                return Ok(Some(bad));
+            }
+        }
+        Ok(None)
+    }
 }

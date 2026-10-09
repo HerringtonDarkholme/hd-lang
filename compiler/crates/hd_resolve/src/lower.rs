@@ -496,6 +496,9 @@ pub struct ModOut {
 pub struct FolderOut {
     pub modules: Vec<ModOut>,
     pub exports: Vec<Export>,
+    /// The interface's private-name index: each top-level declaration
+    /// without `pub`, as (module path, name), sorted (§4.9).
+    pub private_names: Vec<(String, Symbol)>,
 }
 
 /// What one resolution needs from the run.
@@ -542,18 +545,21 @@ impl Resolver<'_, '_> {
         else {
             return Err(Code::UnknownModule);
         };
+        let frozen = |i: &FolderIface| {
+            i.export(module, name)
+                .map(|e| (e.def, e.kind))
+                .ok_or(if i.is_private(module, name) {
+                    Code::PrivateImport
+                } else {
+                    Code::UnknownImport
+                })
+        };
         if f != self.cx.folder {
             let i = self.cx.world.iface(f).ok_or(Code::UnknownModule)?;
-            return i
-                .export(module, name)
-                .map(|e| (e.def, e.kind))
-                .ok_or(Code::UnknownImport);
+            return frozen(&i);
         }
         if let Some(i) = &self.frozen {
-            return i
-                .export(module, name)
-                .map(|e| (e.def, e.kind))
-                .ok_or(Code::UnknownImport);
+            return frozen(i);
         }
         let key = (module.to_owned(), name);
         if let Some(r) = self.memo.borrow().get(&key) {
@@ -2920,6 +2926,7 @@ pub fn build_folder(
     let mut out = FolderOut {
         modules: Vec::new(),
         exports: Vec::new(),
+        private_names: Vec::new(),
     };
     let mut unsupported = None;
     let scopes: Vec<(ModuleScope, Kinds)> = mods
@@ -3056,6 +3063,14 @@ pub fn build_folder(
         out.exports.sort_by(|a, b| {
             (a.module.as_str(), names.text(a.name)).cmp(&(b.module.as_str(), names.text(b.name)))
         });
+        out.private_names = r
+            .own
+            .iter()
+            .filter(|(_, (_, _, public))| !public)
+            .map(|(key, _)| key.clone())
+            .collect();
+        out.private_names
+            .sort_by(|a, b| (a.0.as_str(), names.text(a.1)).cmp(&(b.0.as_str(), names.text(b.1))));
     }
     match unsupported {
         Some(what) => Err(NotImplemented::new(stage, what)),
