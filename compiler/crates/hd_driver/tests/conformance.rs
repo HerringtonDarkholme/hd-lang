@@ -468,15 +468,17 @@ fn run_wasm(wasm: &[u8], serial: usize) -> std::io::Result<std::process::Output>
     result
 }
 
-/// A fixture whose only harness is a single-file `tests:` block.
+/// A fixture whose only harness is a single-file `tests:` block, or a
+/// single test module or integration test file whose top-level
+/// registrations are its test cases.
 fn plain_tests(text: &str) -> bool {
-    text.lines().any(|line| line.starts_with("tests:"))
+    (text.lines().any(|line| line.starts_with("tests:"))
+        || directive(text, "fixture-test-layout").is_some())
         && !text.lines().any(|line| line.starts_with("## "))
         && [
             "fixture-runtime-profile",
             "fixture-runtime-scenario",
             "fixture-runtime-pending-function",
-            "fixture-test-layout",
             "fixture-package-tree",
         ]
         .iter()

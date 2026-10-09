@@ -130,7 +130,7 @@ impl Ck<'_, '_> {
         }
         let args = Args {
             positional: vec![n],
-            named: Vec::new(),
+            ..Args::empty()
         };
         self.lit_arg = Some(n.index());
         let r = self.call_item(def, &[], &args, n, false, want);

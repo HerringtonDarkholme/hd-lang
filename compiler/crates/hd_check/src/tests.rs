@@ -1,8 +1,10 @@
-//! `tests:` blocks (spec/lang/10-modules.md, "Test Cases"; checking-and-
-//! tir.md §4.13.9): each registration call in test position is listed by
-//! its literal name and options, and each runnable `it` body is checked as
-//! a `TestCase` body of its own synthesized function item, so collection
-//! and emission treat it as a root like `main`.
+//! Test registrations (spec/lang/10-modules.md, "Test Cases"; checking-and-
+//! tir.md §4.13.9): each registration call in test position, in a `tests:`
+//! block or at the top level of a test module or an integration test
+//! module, is listed by its literal name and options, and each runnable
+//! `it` body is checked as a `TestCase` body of its own synthesized
+//! function item, so collection and emission treat it as a root like
+//! `main`.
 
 use std::collections::HashSet;
 
@@ -12,9 +14,9 @@ use hd_resolve::{FnSig, Item, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::Body;
 use hd_tir::ir::{BodyKind, TirSink};
-use hd_types::{RowId, Ty, TyData, TyList};
+use hd_types::{RowData, RowId, Ty, TyData, TyList};
 
-use crate::body::{BodyCx, new_ck};
+use crate::body::{BodyCx, RowFrame, new_ck};
 use crate::expr::literal_text;
 
 /// The stable panic categories (`flow.panic.stable-categories`), which an
@@ -64,8 +66,9 @@ pub struct TestsOut {
     pub regs: Vec<TestReg>,
 }
 
-/// The registration statements of a module's `tests:` blocks.
-fn statements(root: NodeRef<'_>) -> Vec<NodeRef<'_>> {
+/// The statements of a module's `tests:` blocks.
+#[must_use]
+pub fn tests_block_statements(root: NodeRef<'_>) -> Vec<NodeRef<'_>> {
     root.children()
         .filter(|c| c.kind() == SyntaxKind::TestsBlock)
         .flat_map(hd_syntax::NodeRef::children)
@@ -85,30 +88,58 @@ fn has_try(n: NodeRef<'_>) -> bool {
     })
 }
 
-/// Checks the `tests:` blocks of `module` (spec/lang/10-modules.md
-/// `module.testing.*`).
-pub fn check_tests(cx: &BodyCx<'_>, module: &str, diags: &mut DiagBuf) -> StageResult<TestsOut> {
+/// A test registration call statement (`module.testing.position-statements`):
+/// its call node, the registration function's name, and its trailing
+/// block, if any.
+fn registration<'t>(
+    src: &Src<'_>,
+    s: NodeRef<'t>,
+) -> Option<(NodeRef<'t>, String, Option<NodeRef<'t>>)> {
+    let e = (s.kind() == SyntaxKind::ExprStmt)
+        .then(|| s.children().next())
+        .flatten()?;
+    let (call, block) = match e.kind() {
+        SyntaxKind::TrailingCallExpr => (
+            e.children().find(|c| c.kind() == SyntaxKind::CallExpr)?,
+            e.children().find(|c| c.kind() == SyntaxKind::Block),
+        ),
+        SyntaxKind::CallExpr => (e, None),
+        _ => return None,
+    };
+    let kind = src.text(src.last(call.children().next()?)).to_owned();
+    matches!(kind.as_str(), "it" | "it_each" | "it_prop" | "it_prop_with")
+        .then_some((call, kind, block))
+}
+
+/// Whether a top-level statement is a test registration call: in a test
+/// module or an integration test module, such a statement registers a
+/// test case, as in a `tests:` block (`module.testing.test-position`),
+/// and is not a module initialization statement.
+#[must_use]
+pub fn is_registration(src: &Src<'_>, s: NodeRef<'_>) -> bool {
+    registration(src, s).is_some()
+}
+
+/// Checks the statements in test position of `module`
+/// (spec/lang/10-modules.md `module.testing.*`): its top-level
+/// registrations when it is test code, then its `tests:` blocks'
+/// statements. `profile` holds the keys the runner binds for a case body:
+/// `TestRunner` alone for a unit test case
+/// (`module.testing.unit-row.test-runner`), and the test profile's host
+/// traits too for an integration test case
+/// (`module.testing.integration-row`).
+pub fn check_tests(
+    cx: &BodyCx<'_>,
+    module: &str,
+    stmts: &[NodeRef<'_>],
+    profile: RowId,
+    diags: &mut DiagBuf,
+) -> StageResult<TestsOut> {
     let mut out = TestsOut::default();
     let mut seen = HashSet::new();
     let src = &cx.src;
-    for s in statements(src.root()) {
-        let call = match s.kind() {
-            SyntaxKind::ExprStmt => s.children().next(),
-            _ => None,
-        };
-        let (call, block) = match call {
-            Some(t) if t.kind() == SyntaxKind::TrailingCallExpr => (
-                t.children().find(|c| c.kind() == SyntaxKind::CallExpr),
-                t.children().find(|c| c.kind() == SyntaxKind::Block),
-            ),
-            Some(c) if c.kind() == SyntaxKind::CallExpr => (Some(c), None),
-            _ => (None, None),
-        };
-        let callee = call.and_then(|c| c.children().next());
-        let kind = callee
-            .map(|c| src.text(src.last(c)).to_owned())
-            .filter(|k| matches!(k.as_str(), "it" | "it_each" | "it_prop" | "it_prop_with"));
-        let (Some(call), Some(kind)) = (call, kind) else {
+    for s in stmts.iter().copied() {
+        let Some((call, kind, block)) = registration(src, s) else {
             diags.error(
                 Code::InvalidTestStatement,
                 src.span(s),
@@ -191,7 +222,7 @@ pub fn check_tests(cx: &BodyCx<'_>, module: &str, diags: &mut DiagBuf) -> StageR
             && let Some(block) = block
         {
             let name = format!("$test{}", out.regs.len());
-            let (body, item) = check_case(cx, module, &name, block, diags)?;
+            let (body, item) = check_case(cx, module, &name, block, profile, diags)?;
             out.bodies.push(body);
             out.items.push(item);
             // A `?` makes the result `Result[void, dyn Error]`, and a
@@ -210,13 +241,14 @@ pub fn check_tests(cx: &BodyCx<'_>, module: &str, diags: &mut DiagBuf) -> StageR
 
 /// One `it` body: a suspending function item with no parameters, whose
 /// result is `void`, or `Result[void, dyn Error]` when it uses `?`
-/// (`expr.try.test.with-try`), and whose row is empty: a unit test case
-/// gets `TestRunner` alone (`module.testing.unit-row.test-runner`).
+/// (`expr.try.test.with-try`), and whose row is the keys of `profile`
+/// that its body uses, which the runner binds for it.
 fn check_case(
     cx: &BodyCx<'_>,
     module: &str,
     name: &str,
     block: NodeRef<'_>,
+    profile: RowId,
     diags: &mut DiagBuf,
 ) -> StageResult<(Body, Item)> {
     let pool = cx.names.pool;
@@ -234,15 +266,6 @@ fn check_case(
     } else {
         Ty::VOID
     };
-    let sig = FnSig {
-        generics: vec![],
-        params: vec![],
-        defaults: vec![],
-        ret,
-        row: RowId::EMPTY,
-        suspends: true,
-        variadic: false,
-    };
     let local = hd_types::LocalPool::new();
     let mut ck = new_ck(
         cx,
@@ -254,10 +277,27 @@ fn check_case(
         diags,
     );
     ck.suspends = vec![true];
+    ck.rows = vec![RowFrame::Profile {
+        row: profile,
+        used: RowData::default(),
+    }];
     let blk = ck.b.open_block();
     let (tail, _) = ck.block_value(block, Some(ret))?;
     let root = ck.b.close_block(blk, tail, ret, block.index());
+    let row = match ck.rows.first() {
+        Some(RowFrame::Profile { used, .. }) => pool.row(used),
+        _ => RowId::EMPTY,
+    };
     let body = ck.finish_body(root)?;
+    let sig = FnSig {
+        generics: vec![],
+        params: vec![],
+        defaults: vec![],
+        ret,
+        row,
+        suspends: true,
+        variadic: false,
+    };
     let item = Item::new(def, cx.names.syms.intern(name), false, ItemData::Fn(sig));
     Ok((body, item))
 }

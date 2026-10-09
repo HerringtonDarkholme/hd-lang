@@ -86,6 +86,22 @@ impl Ck<'_, '_> {
                     continue;
                 }
                 RowFrame::Any => return true,
+                RowFrame::Profile { row, .. } => {
+                    let row = *row;
+                    let have = match need {
+                        Need::Key(k) => self
+                            .pool()
+                            .row_data(row)
+                            .keys
+                            .into_iter()
+                            .find(|h| self.key_supplies(*h, k)),
+                        Need::Param(_) => None,
+                    };
+                    if let (Some(h), RowFrame::Profile { used, .. }) = (have, &mut self.rows[i]) {
+                        used.keys.push(h);
+                    }
+                    have.is_some()
+                }
                 RowFrame::Declared(r)
                 | RowFrame::Closure {
                     written: Some(r), ..
@@ -109,10 +125,16 @@ impl Ck<'_, '_> {
     /// `missing-requirement` otherwise.
     pub(crate) fn require_key(&mut self, key: Ty, n: NodeRef<'_>) {
         if !self.available(Need::Key(key)) {
-            let msg = format!(
-                "this needs `$ {}`, which the enclosing function's row does not name",
-                hd_resolve::show_ty_in(&self.cx.names, self.pool(), key)
-            );
+            let shown = hd_resolve::show_ty_in(&self.cx.names, self.pool(), key);
+            // `module.testing.unit-row.test-runner`,
+            // `module.testing.integration-row.unbound.error`.
+            let msg = if matches!(self.rows.first(), Some(RowFrame::Profile { .. })) {
+                format!(
+                    "this needs `$ {shown}`, which the runner does not bind for this test case: bind it with $.with({shown}=...)"
+                )
+            } else {
+                format!("this needs `$ {shown}`, which the enclosing function's row does not name")
+            };
             self.err(Code::MissingRequirement, n, &msg);
         }
     }

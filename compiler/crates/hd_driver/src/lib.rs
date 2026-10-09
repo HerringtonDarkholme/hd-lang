@@ -1950,7 +1950,16 @@ impl Run<'_> {
         let mut failed = None;
         // Top-level statements first: their bindings are visible to every
         // function body of the module (checking-and-tir.md §4.13.10).
-        let stmts = hd_check::init::init_statements(src.root());
+        let mut stmts = hd_check::init::init_statements(src.root());
+        // In test code, a top-level registration call is in test position
+        // (`module.testing.test-position`): it registers a test case below,
+        // and is not a module initialization statement.
+        let mut test_stmts = Vec::new();
+        if module.role == Role::Test {
+            (test_stmts, stmts) = stmts
+                .into_iter()
+                .partition(|s| hd_check::tests::is_registration(&src, *s));
+        }
         let mut init_facts = Vec::new();
         if !stmts.is_empty() {
             // A test program has no entry module: every top level is
@@ -2076,9 +2085,16 @@ impl Run<'_> {
             }
         }
         // A test run checks the `tests:` blocks too, into the module's
-        // test-role `check` entry (`check_key` role "test").
-        if self.role(m) == "test" && failed.is_none() {
-            match hd_check::tests::check_tests(&cx, &module.path, &mut diags) {
+        // test-role `check` entry (`check_key` role "test"). A test module
+        // or an integration test module is test code throughout: its
+        // top-level registrations are checked in every role.
+        if self.role(m) == "test" {
+            test_stmts.extend(hd_check::tests::tests_block_statements(src.root()));
+        }
+        if !test_stmts.is_empty() && failed.is_none() {
+            let profile = self.test_profile(m);
+            match hd_check::tests::check_tests(&cx, &module.path, &test_stmts, profile, &mut diags)
+            {
                 Ok(t) => {
                     lock(&self.report).body_ok += t.bodies.len();
                     bodies.extend(t.bodies);
@@ -2884,6 +2900,43 @@ impl Run<'_> {
         } else {
             ROLE
         }
+    }
+
+    /// The keys the runner binds for a test case of module `m`: the
+    /// test profile's `TestRunner` for every case
+    /// (`module.testing.runner-provider`), which is all a unit test case
+    /// gets (`module.testing.unit-row.test-runner`); an integration test
+    /// case also gets the host capability traits of the default profile
+    /// (`module.testing.integration-row`, `module.profile.default`), as the
+    /// host ABI table lists them. The kind decides (`module.testing.kind-decides`).
+    fn test_profile(&self, m: usize) -> hd_types::RowId {
+        let module = &self.table.modules[m];
+        let integration = module.role == Role::Test
+            && self
+                .table
+                .sources
+                .get(module.file.idx())
+                .is_some_and(|(_, file)| hd_project::Root::of(file).0 == hd_project::Root::Test);
+        let mut paths = vec!["std.testing.TestRunner"];
+        if integration {
+            paths.extend(hd_host_abi::TABLE.iter().map(|t| t.std_path));
+        }
+        let names = self.names();
+        let keys = paths
+            .iter()
+            .filter_map(|p| {
+                let (owner, name) = p.rsplit_once('.')?;
+                Some(self.pool.intern_ty(&TyData::TraitValue {
+                    def: names.item(owner, name),
+                    args: TyList::EMPTY,
+                    bindings: vec![],
+                }))
+            })
+            .collect();
+        self.pool.row(&hd_types::RowData {
+            keys,
+            params: vec![],
+        })
     }
 
     /// The selected registrations of a test run, in content order: module

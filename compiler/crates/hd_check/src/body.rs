@@ -80,6 +80,11 @@ pub(crate) enum RowFrame {
     },
     /// The keys a `$.with` block binds.
     With(RowId),
+    /// A test case's body: the keys the runner binds for it, and those of
+    /// them the body uses so far, which become the case's row
+    /// (`module.testing.unit-row.test-runner`,
+    /// `module.testing.integration-row`).
+    Profile { row: RowId, used: hd_types::RowData },
 }
 
 pub(crate) struct OpenSub {

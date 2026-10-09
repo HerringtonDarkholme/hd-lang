@@ -208,6 +208,7 @@ impl Ck<'_, '_> {
             SyntaxKind::ForExpr => self.for_expr(n, want)?,
             SyntaxKind::MatchExpr => self.match_expr(n, want)?,
             SyntaxKind::ClosureExpr => self.closure(n, want)?,
+            SyntaxKind::TrailingCallExpr => self.trailing_call(n, want)?,
             SyntaxKind::PipeExpr => self.pipe(&kids, want)?,
             SyntaxKind::PlaceholderExpr => self.placeholder_value(n),
             SyntaxKind::ComprehensionExpr => self.comprehension(n, &kids, want)?,
@@ -1847,6 +1848,60 @@ impl Ck<'_, '_> {
 
     /// `fn(params) -> R: body`: a sub-body with its captures.
     fn closure(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
+        let body = match Src::child(n, SyntaxKind::Block) {
+            Some(b) => b,
+            // An inline suite: one expression.
+            None => match n.children().filter(|c| !c.kind().is_type()).last() {
+                Some(e) => e,
+                None => return unsupported("a closure without a body"),
+            },
+        };
+        let parts = ClosureParts {
+            params: Src::child(n, SyntaxKind::ParameterList),
+            ret: n
+                .children()
+                .find(|c| c.kind().is_type() && c.kind() != SyntaxKind::RequirementRow),
+            row: Src::child(n, SyntaxKind::RequirementRow),
+            body,
+            suspends: n
+                .direct_token(&self.cx.src.parse.tokens, TokenKind::Bang)
+                .is_some(),
+        };
+        self.closure_of(n, &parts, want)
+    }
+
+    /// A trailing block (`fn.trailing.closure`): a zero-argument closure
+    /// whose result and row come from `want`, the callee's final
+    /// parameter, and which suspends when that parameter does
+    /// (`fn.trailing.suspending`, `fn.trailing.suspending.body`).
+    pub(crate) fn trailing_closure(
+        &mut self,
+        block: NodeRef<'_>,
+        want: Ty,
+    ) -> StageResult<(Ref, Ty)> {
+        let pool = self.pool();
+        let w = self.infer.resolve(pool, want);
+        let suspends = match pool.get(self.strip_mut(w)) {
+            TyData::Fn { suspends, .. } => suspends,
+            _ => false,
+        };
+        let parts = ClosureParts {
+            params: None,
+            ret: None,
+            row: None,
+            body: block,
+            suspends,
+        };
+        self.closure_of(block, &parts, Some(want))
+    }
+
+    /// A closure from its parts; `n` is the node its `Closure` names.
+    fn closure_of(
+        &mut self,
+        n: NodeRef<'_>,
+        parts: &ClosureParts<'_>,
+        want: Option<Ty>,
+    ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let wanted = want
             .map(|w| self.infer.resolve(pool, w))
@@ -1860,13 +1915,11 @@ impl Ck<'_, '_> {
             }
             _ => (vec![], None),
         };
-        let suspends = n
-            .direct_token(&self.cx.src.parse.tokens, TokenKind::Bang)
-            .is_some();
+        let suspends = parts.suspends;
         let mut params = Vec::new();
         let mut ptys = Vec::new();
         self.scopes.push(HashMap::new());
-        if let Some(pl) = Src::child(n, SyntaxKind::ParameterList) {
+        if let Some(pl) = parts.params {
             for (i, p) in pl
                 .children()
                 .filter(|c| c.kind() == SyntaxKind::Parameter)
@@ -1892,17 +1945,14 @@ impl Ck<'_, '_> {
                 ptys.push(t);
             }
         }
-        let ret = match n
-            .children()
-            .find(|c| c.kind().is_type() && c.kind() != SyntaxKind::RequirementRow)
-        {
+        let ret = match parts.ret {
             Some(rt) => self.ty_node(rt)?,
             None => wret.unwrap_or_else(|| self.infer.fresh(pool, VarKind::General)),
         };
         // A written row, or the least row of the keys the body uses
         // (`req.row.omitted.closure-row`); the expected row is matched
         // against it afterwards, by row subsumption.
-        let written = match Src::child(n, SyntaxKind::RequirementRow) {
+        let written = match parts.row {
             Some(r) => Some(self.row_of(r)?),
             None => None,
         };
@@ -1919,14 +1969,10 @@ impl Ck<'_, '_> {
         self.suspends.push(suspends);
         let saved_loops = std::mem::take(&mut self.loops);
         let blk = self.b.open_block();
-        let body = Src::child(n, SyntaxKind::Block);
-        let (tail, _) = if let Some(bn) = body {
-            self.block_value(bn, Some(ret))?
+        let e = parts.body;
+        let (tail, _) = if e.kind() == SyntaxKind::Block {
+            self.block_value(e, Some(ret))?
         } else {
-            // An inline suite: one expression.
-            let Some(e) = n.children().filter(|c| !c.kind().is_type()).last() else {
-                return unsupported("a closure without a body");
-            };
             let (r, t) = self.expr(e, Some(ret))?;
             (Some(self.coerce(r, t, ret, e, "result")), ret)
         };
@@ -2181,4 +2227,15 @@ impl Ck<'_, '_> {
     pub(crate) fn trait_extends(&self, a: hd_base::DefId, b: hd_base::DefId, depth: u32) -> bool {
         crate::body::trait_extends(self.cx.lookup, self.pool(), a, b, depth)
     }
+}
+
+/// The source parts of a closure: a `fn(...)` expression's, or a trailing
+/// block's, which has only a body.
+struct ClosureParts<'t> {
+    params: Option<NodeRef<'t>>,
+    ret: Option<NodeRef<'t>>,
+    row: Option<NodeRef<'t>>,
+    /// A `Block`, or an inline suite's one expression.
+    body: NodeRef<'t>,
+    suspends: bool,
 }

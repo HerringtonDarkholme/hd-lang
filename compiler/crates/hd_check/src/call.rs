@@ -103,10 +103,12 @@ pub(crate) struct TraitTarget {
     pub args: Vec<Ty>,
 }
 
-/// Argument nodes of a call: positional values, then named ones.
+/// Argument nodes of a call: positional values, then named ones, then a
+/// trailing block (`fn.trailing.form`), which supplies the final parameter.
 pub(crate) struct Args<'t> {
     pub positional: Vec<NodeRef<'t>>,
     pub named: Vec<(String, NodeRef<'t>)>,
+    pub trailing: Option<NodeRef<'t>>,
 }
 
 impl Args<'_> {
@@ -114,16 +116,14 @@ impl Args<'_> {
         Args {
             positional: Vec::new(),
             named: Vec::new(),
+            trailing: None,
         }
     }
 }
 
 impl Ck<'_, '_> {
     pub(crate) fn args_of<'t>(&self, al: Option<NodeRef<'t>>) -> StageResult<Args<'t>> {
-        let mut a = Args {
-            positional: Vec::new(),
-            named: Vec::new(),
-        };
+        let mut a = Args::empty();
         for c in al.iter().flat_map(|l| l.children()) {
             match c.kind() {
                 SyntaxKind::Argument => {
@@ -258,10 +258,45 @@ impl Ck<'_, '_> {
         ) else {
             return unsupported("a call shape");
         };
-        if kids.iter().any(|k| k.kind() == SyntaxKind::Block) {
-            return unsupported("a trailing-block call");
-        }
         let args = self.args_of(al)?;
+        self.call_args(n, callee, &args, want)
+    }
+
+    /// `f(a): block` and `f: block` (`fn.trailing.form`,
+    /// `fn.trailing.empty-parentheses`): the call with one more final
+    /// argument, the block, which `check_args` checks as a zero-argument
+    /// closure typed by the callee's final parameter (checking-and-tir.md,
+    /// "What The Checker Desugars").
+    pub(crate) fn trailing_call(
+        &mut self,
+        n: NodeRef<'_>,
+        want: Option<Ty>,
+    ) -> StageResult<(Ref, Ty)> {
+        let (Some(head), Some(block)) = (n.children().next(), Src::child(n, SyntaxKind::Block))
+        else {
+            return unsupported("a trailing-block call shape");
+        };
+        let (call, callee, al) = if head.kind() == SyntaxKind::CallExpr {
+            let Some(callee) = head.children().next() else {
+                return unsupported("a call shape");
+            };
+            (head, callee, Src::child(head, SyntaxKind::ArgumentList))
+        } else {
+            (n, head, None)
+        };
+        let mut args = self.args_of(al)?;
+        args.trailing = Some(block);
+        self.call_args(call, callee, &args, want)
+    }
+
+    /// A call of `callee` with `args`; `n` is the call node.
+    fn call_args(
+        &mut self,
+        n: NodeRef<'_>,
+        callee: NodeRef<'_>,
+        args: &Args<'_>,
+        want: Option<Ty>,
+    ) -> StageResult<(Ref, Ty)> {
         let (callee, bang) = if callee.kind() == SyntaxKind::SuspendExpr {
             match callee.children().next() {
                 Some(c) => (c, true),
@@ -271,19 +306,19 @@ impl Ck<'_, '_> {
             (callee, false)
         };
         match callee.kind() {
-            SyntaxKind::VariantExpr => self.variant_value(callee, &args, want, Some(n)),
+            SyntaxKind::VariantExpr => self.variant_value(callee, args, want, Some(n)),
             SyntaxKind::NameExpr => {
                 let s = self.sym_of(callee);
                 if let Some((l, d)) = self.find_local(s) {
                     let (f, ft) = self.read_local(l, d, callee);
-                    return self.call_value(f, ft, &args, n, bang);
+                    return self.call_value(f, ft, args, n, bang);
                 }
                 let text = self.cx.names.text(s).to_owned();
                 if let Some(p) = Prim::ALL.iter().find(|p| p.name() == text) {
-                    return self.conversion(Ty::prim(*p), &args, n);
+                    return self.conversion(Ty::prim(*p), args, n);
                 }
                 if let Some(Named::Item(def)) = self.scope_name(&text) {
-                    return self.call_item(def, &[], &args, n, bang, want);
+                    return self.call_item(def, &[], args, n, bang, want);
                 }
                 if self.is_poison_name(&text) {
                     return Ok(self.poison_value(n));
@@ -313,26 +348,27 @@ impl Ck<'_, '_> {
                             Some(ItemData::Fn(_))
                         ) =>
                     {
-                        self.call_item(def, &explicit, &args, n, bang, want)
+                        self.call_item(def, &explicit, args, n, bang, want)
                     }
                     _ if matches!(inner.kind(), SyntaxKind::FieldExpr | SyntaxKind::PathExpr) => {
-                        self.member_call(n, inner, &args, bang, want, explicit)
+                        self.member_call(n, inner, args, bang, want, explicit)
                     }
                     _ => unsupported("a call through explicit type arguments of a type"),
                 }
             }
             SyntaxKind::FieldExpr | SyntaxKind::PathExpr => {
-                self.member_call(n, callee, &args, bang, want, vec![])
+                self.member_call(n, callee, args, bang, want, vec![])
             }
             _ => {
                 let (f, ft) = self.expr(callee, None)?;
-                self.call_value(f, ft, &args, n, bang)
+                self.call_value(f, ft, args, n, bang)
             }
         }
     }
 
     /// `i64(x)`: a numeric conversion.
     fn conversion(&mut self, to: Ty, args: &Args<'_>, n: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
+        no_trailing(args, "a conversion")?;
         let [e] = args.positional.as_slice() else {
             return unsupported("a conversion shape");
         };
@@ -394,6 +430,7 @@ impl Ck<'_, '_> {
             && def == suspend
             && bang
             && args.positional.is_empty()
+            && args.trailing.is_none()
         {
             // Driving a suspension advances it (`mut self`).
             if !self.has_mut_access(full) {
@@ -425,7 +462,8 @@ impl Ck<'_, '_> {
             return unsupported("named arguments to a function value");
         }
         let ps = pool.list_items(params);
-        if ps.len() != args.positional.len() {
+        let given = args.positional.len() + usize::from(args.trailing.is_some());
+        if ps.len() != given {
             let msg = format!("the function takes {} arguments", ps.len());
             self.err(Code::ArgumentCount, n, &msg);
         }
@@ -437,6 +475,11 @@ impl Ck<'_, '_> {
                 Some(w) => self.coerce(r, t, w, *e, "argument"),
                 None => r,
             });
+        }
+        if let Some(block) = args.trailing {
+            let w = self.trailing_param(ps.last().copied(), "the function value")?;
+            let (r, t) = self.trailing_closure(block, w)?;
+            refs.push(self.coerce(r, t, w, block, "argument"));
         }
         self.check_row(row, n);
         let rec = self.b.refs_record(&refs);
@@ -467,6 +510,26 @@ impl Ck<'_, '_> {
         Ok((cold, st))
     }
 
+    /// The type of the final parameter `last` that a trailing block fills,
+    /// which must be a zero-argument function type (`fn.trailing.form`,
+    /// `grammar.call.trailing-block.eligible`). No diagnostic code names a
+    /// callee without one yet (audit/compiler/diagnostic-notes.md), so it
+    /// stays a stop.
+    fn trailing_param(&mut self, last: Option<Ty>, name: &str) -> StageResult<Ty> {
+        let pool = self.pool();
+        if let Some(t) = last {
+            let r = self.infer.resolve(pool, t);
+            if let TyData::Fn { params, .. } = pool.get(self.strip_mut(r))
+                && pool.list_items(params).is_empty()
+            {
+                return Ok(t);
+            }
+        }
+        unsupported(format!(
+            "a trailing block for `{name}`, whose final parameter is not a zero-argument function"
+        ))
+    }
+
     /// Checks arguments against parameters (positional, then named by
     /// parameter name), skipping `skip` leading parameters already given.
     fn check_args(
@@ -482,7 +545,10 @@ impl Ck<'_, '_> {
         let owner = self.default_owner.take();
         let rest = params.get(skip..).unwrap_or(&[]);
         let mut slots: Vec<Option<Ref>> = vec![None; rest.len()];
-        if args.positional.len() > rest.len() {
+        // A trailing block supplies the final parameter, so positional
+        // arguments fill the ones before it (`fn.trailing.arguments`).
+        let room = rest.len() - usize::from(args.trailing.is_some() && !rest.is_empty());
+        if args.positional.len() > room {
             let msg = format!("`{name}` takes {} arguments", rest.len());
             self.err(Code::ArgumentCount, n, &msg);
         }
@@ -525,7 +591,9 @@ impl Ck<'_, '_> {
                 ),
                 None => r,
             };
-            if let Some(s) = slots.get_mut(i) {
+            if i < room
+                && let Some(s) = slots.get_mut(i)
+            {
                 *s = Some(r);
             }
         }
@@ -559,6 +627,22 @@ impl Ck<'_, '_> {
                     "argument"
                 },
             ));
+        }
+        if let Some(block) = args.trailing {
+            let w = match rest.last() {
+                Some(p) => Some(self.normalize_deep(p.1)?),
+                None => None,
+            };
+            let w = self.trailing_param(w, name)?;
+            let last = rest.len() - 1;
+            if slots[last].is_some() {
+                let pname = self.cx.names.text(rest[last].0).to_owned();
+                let msg = format!("`{pname}` is given twice");
+                self.err(Code::DuplicateArgument, block, &msg);
+            } else {
+                let (r, t) = self.trailing_closure(block, w)?;
+                slots[last] = Some(self.coerce(r, t, w, block, "argument"));
+            }
         }
         let mut out = Vec::new();
         for (i, s) in slots.into_iter().enumerate() {
@@ -694,6 +778,7 @@ impl Ck<'_, '_> {
             }
             ItemData::Newtype(inner) => {
                 let inner = *inner;
+                no_trailing(args, "a newtype constructor")?;
                 let [e] = args.positional.as_slice() else {
                     return unsupported("a newtype constructor shape");
                 };
@@ -754,6 +839,7 @@ impl Ck<'_, '_> {
     /// `all!(a(), b())`: cold suspensions, then one `AwaitAll` whose
     /// value is the tuple of their results (suspension.md §14.5).
     fn await_all(&mut self, args: &Args<'_>, n: NodeRef<'_>, bang: bool) -> StageResult<(Ref, Ty)> {
+        no_trailing(args, "`all`")?;
         let pool = self.pool();
         if !bang {
             self.err(Code::NotSuspending, n, "`all` is called as `all!(...)`");
@@ -810,6 +896,7 @@ impl Ck<'_, '_> {
         if !args.named.is_empty() {
             return unsupported("named arguments to a vararg function");
         }
+        no_trailing(args, "a vararg function")?;
         let inst = |t: Ty| subst_owner(pool, def, vars, t);
         let mut refs = Vec::new();
         for (i, e) in args.positional.iter().take(fixed.len()).enumerate() {
@@ -907,6 +994,7 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
         call: Option<NodeRef<'_>>,
     ) -> StageResult<(Ref, Ty)> {
+        no_trailing(args, "a variant")?;
         let pool = self.pool();
         let at = call.unwrap_or(v);
         let name = self.cx.src.text(self.cx.src.last(v)).to_owned();
@@ -2445,6 +2533,16 @@ impl Ck<'_, '_> {
 }
 
 /// Substitutes one owner's parameters.
+/// A callee with no final function parameter takes no trailing block
+/// (`grammar.call.trailing-block.eligible`); no diagnostic code names that
+/// yet (audit/compiler/diagnostic-notes.md), so it stays a stop.
+fn no_trailing(args: &Args<'_>, what: &str) -> StageResult<()> {
+    match args.trailing {
+        Some(_) => unsupported(format!("a trailing block for {what}")),
+        None => Ok(()),
+    }
+}
+
 pub(crate) fn subst_owner(pool: hd_types::Types<'_>, owner: DefId, args: &[Ty], t: Ty) -> Ty {
     pool.subst(t, &|p: ParamRef| {
         (p.owner == owner)
