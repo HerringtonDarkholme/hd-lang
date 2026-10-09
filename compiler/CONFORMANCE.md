@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2276 | 426 | 143 | 2845 |
+| 2290 | 412 | 143 | 2845 |
 
 ## By Chapter
 
@@ -18,12 +18,12 @@ fixture; unsupported surface records progress without failing.
 | `lang/02-grammar.md` | 195 | 11 | 9 | 215 |
 | `lang/03-names-and-scopes.md` | 92 | 8 | 1 | 101 |
 | `lang/04-type-system.md` | 300 | 47 | 5 | 352 |
-| `lang/05-expressions.md` | 221 | 50 | 6 | 277 |
+| `lang/05-expressions.md` | 232 | 39 | 6 | 277 |
 | `lang/06-control-flow.md` | 130 | 23 | 4 | 157 |
 | `lang/07-functions.md` | 99 | 23 | 8 | 130 |
 | `lang/08-data-and-enums.md` | 85 | 30 | 8 | 123 |
 | `lang/09-traits.md` | 272 | 72 | 15 | 359 |
-| `lang/10-modules.md` | 202 | 42 | 14 | 258 |
+| `lang/10-modules.md` | 205 | 39 | 14 | 258 |
 | `lang/11-requirements-and-suspension.md` | 166 | 48 | 45 | 259 |
 | `lang/14-annotations.md` | 104 | 42 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
@@ -62,10 +62,10 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 78 | 23 | 4 | 105 |
-| `runtime/valid` | 786 | 32 | 111 | 929 |
-| `typing/invalid` | 725 | 333 | 17 | 1075 |
-| `typing/valid` | 389 | 15 | 11 | 415 |
+| `runtime/panic` | 86 | 15 | 4 | 105 |
+| `runtime/valid` | 789 | 29 | 111 | 929 |
+| `typing/invalid` | 726 | 332 | 17 | 1075 |
+| `typing/valid` | 391 | 13 | 11 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -104,14 +104,14 @@ compiler stage that first declined the case.
 | `fail:private-main` | 7 |
 | `fail:re-export-loop` | 1 |
 | `fail:readonly-root` | 1 |
-| `fail:runtime-exit` | 15 |
+| `fail:runtime-exit` | 12 |
 | `fail:stdout` | 1 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-method-signature` | 1 |
 | `fail:trait-used-as-type` | 2 |
-| `fail:type-mismatch` | 51 |
+| `fail:type-mismatch` | 41 |
 | `fail:type-used-as-value` | 1 |
 | `fail:unknown-data-field` | 6 |
 | `fail:unknown-import` | 1 |
@@ -121,7 +121,7 @@ compiler stage that first declined the case.
 | `fail:unknown-trait` | 7 |
 | `fail:unknown-type` | 4 |
 | `fail:unknown-variant` | 1 |
-| `fail:unsatisfied-trait-bound` | 10 |
+| `fail:unsatisfied-trait-bound` | 9 |
 | `fail:unused-local-binding` | 6 |
 | `unsupported:Body` | 57 |
 | `unsupported:Collect` | 30 |
@@ -554,7 +554,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (15)</summary>
+<details><summary><code>fail:runtime-exit</code> (12)</summary>
 
 - `runtime/panic/for-loop-iterator-invalidated.hd`
 - `runtime/panic/invalidated-iterator.hd`
@@ -563,9 +563,6 @@ compiler stage that first declined the case.
 - `runtime/panic/exhausted-iterator-invalidated-by-growth.hd`
 - `runtime/panic/alias-growth-invalidates-readonly-iterator.hd`
 - `runtime/valid/pipe-nested-placeholder.hd`
-- `runtime/panic/string-slice-inside-scalar.hd`
-- `runtime/panic/string-slice-past-end.hd`
-- `runtime/panic/string-slice-reversed.hd`
 - `runtime/panic/list-view-reversed.hd`
 - `runtime/panic/list-view-index-out-of-bounds.hd`
 - `runtime/panic/list-view-invalidated.hd`
@@ -621,7 +618,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (51)</summary>
+<details><summary><code>fail:type-mismatch</code> (41)</summary>
 
 - `typing/invalid/unknown-associated-type.hd`
 - `typing/invalid/heterogeneous-list.hd`
@@ -650,19 +647,9 @@ compiler stage that first declined the case.
 - `typing/invalid/placeholder-outside-pipe.hd`
 - `typing/invalid/generic-inference-trait-value.hd`
 - `typing/invalid/range-mixed-signedness.hd`
-- `typing/valid/slice-types.hd`
-- `runtime/valid/slicing-run.hd`
-- `runtime/panic/string-slice-range-boundary.hd`
-- `runtime/panic/string-slice-range-reversed.hd`
-- `runtime/panic/string-slice-range-out-of-range.hd`
-- `runtime/panic/list-slice-out-of-range.hd`
-- `runtime/panic/list-slice-reversed.hd`
-- `typing/valid/slice-full-types.hd`
-- `runtime/valid/slicing-full-run.hd`
 - `typing/invalid/generic-inference-supertrait-widening.hd`
 - `typing/invalid/no-widening-operator.hd`
 - `typing/invalid/no-widening-float.hd`
-- `runtime/valid/range-inclusive-field.hd`
 - `runtime/valid/lct-optional-injection.hd`
 - `typing/invalid/lct-optional-two-layers.hd`
 - `typing/invalid/num-abs-diff-unsigned.hd`
@@ -770,7 +757,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unsatisfied-trait-bound</code> (10)</summary>
+<details><summary><code>fail:unsatisfied-trait-bound</code> (9)</summary>
 
 - `typing/invalid/provider-value-type-mismatch.hd`
 - `typing/invalid/propagation-no-chained-conversion.hd`
@@ -781,7 +768,6 @@ compiler stage that first declined the case.
 - `runtime/valid/iterator-zip-iterable.hd`
 - `runtime/valid/iterator-chain-iterable.hd`
 - `runtime/valid/iterator-flat-map.hd`
-- `typing/invalid/list-slice-negative-literal.hd`
 
 </details>
 
@@ -1310,6 +1296,8 @@ runtime/panic/list-insert-out-of-range.hd
 runtime/panic/list-remove-at-out-of-range.hd
 runtime/panic/list-set-out-of-bounds.hd
 runtime/panic/list-set-u64-beyond-u32.hd
+runtime/panic/list-slice-out-of-range.hd
+runtime/panic/list-slice-reversed.hd
 runtime/panic/list-sum-overflow.hd
 runtime/panic/list-windows-size.hd
 runtime/panic/literal-var-fallback-overflow.hd
@@ -1336,6 +1324,12 @@ runtime/panic/signed-min-division-overflow.hd
 runtime/panic/snapshot-file-missing.hd
 runtime/panic/snapshot-mismatch.hd
 runtime/panic/string-index-out-of-bounds.hd
+runtime/panic/string-slice-inside-scalar.hd
+runtime/panic/string-slice-past-end.hd
+runtime/panic/string-slice-range-boundary.hd
+runtime/panic/string-slice-range-out-of-range.hd
+runtime/panic/string-slice-range-reversed.hd
+runtime/panic/string-slice-reversed.hd
 runtime/panic/structure-variant-mismatch.hd
 runtime/panic/u8-add-overflow.hd
 runtime/panic/usize-len-underflow.hd
@@ -1905,6 +1899,7 @@ runtime/valid/pub-use-same-declaration.hd
 runtime/valid/qualified-calls-beside-promoted-method.hd
 runtime/valid/question-mark-finds-std-from.hd
 runtime/valid/range-eq.hd
+runtime/valid/range-inclusive-field.hd
 runtime/valid/range-iteration.hd
 runtime/valid/range-pattern-exclusive-to.hd
 runtime/valid/range-pattern-run.hd
@@ -1986,6 +1981,8 @@ runtime/valid/sibling-module-trait-imported.hd
 runtime/valid/signed-zero-and-infinity-through-generics.hd
 runtime/valid/single-payload-variant-function-value.hd
 runtime/valid/sized-integer-arithmetic.hd
+runtime/valid/slicing-full-run.hd
+runtime/valid/slicing-run.hd
 runtime/valid/spelled-function-type-values.hd
 runtime/valid/split-empty-input-nonempty-separator.hd
 runtime/valid/spread-pattern.hd
@@ -2446,6 +2443,7 @@ typing/invalid/list-helper-callback-row.hd
 typing/invalid/list-index-negative-literal.hd
 typing/invalid/list-index-signed.hd
 typing/invalid/list-parameter-bare-trait.hd
+typing/invalid/list-slice-negative-literal.hd
 typing/invalid/list-slice-signed-bound.hd
 typing/invalid/list-view-assignment.hd
 typing/invalid/list-view-negative-literal.hd
@@ -3165,6 +3163,8 @@ typing/valid/shift-count-unsigned.hd
 typing/valid/sign-fallback-separate-groups.hd
 typing/valid/sign-fallback-signed.hd
 typing/valid/sign-fallback-unsigned.hd
+typing/valid/slice-full-types.hd
+typing/valid/slice-types.hd
 typing/valid/snapshot-inline.hd
 typing/valid/std-derivation-types-debug.hd
 typing/valid/std-host-types-debug.hd
