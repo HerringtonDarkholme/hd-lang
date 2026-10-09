@@ -117,12 +117,6 @@ and after (`cargo run --release -p hd_driver --example bench N`, the
 profile harness under `compiler/bench/`). Diagnostics must still point
 at the right lines after an edit that shifts them.
 
-### O24. InitOrder From The Cache (#102)
-
-O16 cached Coherence. Do the same for InitOrder (`init_key`), so a warm
-run with no change redoes neither; report warm-run timings before and
-after.
-
 ### O25. The Instantiation Depth Limit (#132; `hd_mono` Collect Lent For This Job)
 
 `hd build` of the CLI case `build-instantiation-too-deep` never ends:
@@ -313,9 +307,8 @@ after.
   `cache.md`'s per-trait `coh_key`: any interface change reruns the
   whole check (1.1 ms on the bench), and a warm run with no edit reads
   it. A per-trait key would need the overlap check per trait from
-  `hd_resolve::Universe`, outside this lane. Wanted? InitOrder costs
-  under 1 µs on a warm run (it does work only for a folder whose modules
-  loop with top-level statements), so it has no entry.
+  `hd_resolve::Universe`, outside this lane. Wanted? (InitOrder has
+  an entry since O24.)
 - **Left for other lanes (status).** The CLI cases still failing for
   reasons outside this lane wait on the orchestrator's tasks above:
   top-level `it(...)` (#74: the `json-test-*`, `test-*`, `new-app`,
@@ -330,6 +323,18 @@ after.
   workspace's shared selection and `hd.sum`, and the effect of
   `[toolchain] pin` and `[test.capabilities]`; `hd test` takes no
   `--cap` yet, since integration programs do not run.
+- **O24, InitOrder's entry costs more than InitOrder today.** A warm
+  run now reads each folder's InitOrder part (`init_key`) and Coherence,
+  and computes neither (`Counters::parts_computed`, tested in
+  `incremental.rs`). But today's InitOrder only counts modules with
+  top-level statements, so on the bench a warm run's InitOrder went
+  from about 1.0 µs to 7.1 µs: five store reads cost more than the
+  count. The entry pays off once InitOrder orders statements from the
+  checker's init summaries. Until then, keep it, or skip the lookup
+  for a folder with at most one such module? Also, `cache.md` calls
+  `coh_key` and `init_key` parts of one package-wide `graph` entry;
+  they are separate entries here (one read per folder). Should they
+  merge into one entry read once?
 
 ### Answers (orchestrator, 2026-10-09 00:30)
 

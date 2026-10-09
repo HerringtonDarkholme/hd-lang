@@ -97,6 +97,9 @@ pub struct Counters {
     /// Per folder: the hash of its interface blob bytes.
     pub iface_blobs: BTreeMap<String, Hash128>,
     pub check_keys: BTreeMap<String, Hash128>,
+    /// Per stage: the `graph` parts (`Coherence`, `InitOrder`) this run
+    /// computed instead of reading their entries.
+    pub parts_computed: BTreeMap<&'static str, usize>,
 }
 
 impl Counters {
@@ -111,6 +114,10 @@ impl Counters {
     #[must_use]
     pub fn ran(&self, task: &str) -> usize {
         self.tasks.get(task).copied().unwrap_or(0)
+    }
+    #[must_use]
+    pub fn computed(&self, stage: &str) -> usize {
+        self.parts_computed.get(stage).copied().unwrap_or(0)
     }
     /// Sorts the unit lists, so a parallel run reports like a serial one.
     pub(crate) fn sort(&mut self) {

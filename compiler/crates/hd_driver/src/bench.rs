@@ -18,6 +18,7 @@ fn report(out: &mut String, label: &str, c: &Counters, total_ns: u64) {
     );
     let _ = writeln!(out, "   tasks {:?}", c.tasks);
     let _ = writeln!(out, "   hits {:?} misses {:?}", c.hits, c.misses);
+    let _ = writeln!(out, "   graph parts computed {:?}", c.parts_computed);
     let _ = writeln!(
         out,
         "   modules checked {:?}, interfaces built {:?}, TIR decoded {:?}, emitted {}",

@@ -104,6 +104,21 @@ fn incremental(executor: Executor) {
         "a check hit parses nothing (SK-4)"
     );
     assert_eq!(warm.wasm.as_deref(), Some(cold_wasm.as_slice()));
+    // The package-wide graph parts are computed cold and read warm.
+    assert_eq!(
+        cold.counters.computed("InitOrder"),
+        cold.counters.ran("InitOrder")
+    );
+    assert_eq!(cold.counters.computed("Coherence"), 1);
+    assert_eq!(
+        warm.counters.ran("InitOrder"),
+        cold.counters.ran("InitOrder")
+    );
+    assert!(
+        warm.counters.parts_computed.is_empty(),
+        "a warm run redoes neither InitOrder nor Coherence: {:?}",
+        warm.counters.parts_computed
+    );
 
     // 1. Private body edit in geo: only its module is rechecked.
     let edited = GEO.replace("        return -v\n", "        return 0 - v\n");
@@ -130,6 +145,11 @@ fn incremental(executor: Executor) {
     assert!(c.ifaces_built.is_empty());
     assert_eq!(c.modules_checked, vec!["demo.geo.shapes".to_owned()]);
     assert_eq!(c.hit("link"), 1, "prog_key hits after a comment edit");
+    assert!(
+        c.parts_computed.is_empty(),
+        "a comment changes no module fact or interface: {:?}",
+        c.parts_computed
+    );
     assert_eq!(c.emitted, 0);
     assert_eq!(r.wasm.as_deref(), Some(cold_wasm.as_slice()));
 
@@ -150,6 +170,10 @@ fn incremental(executor: Executor) {
         c.modules_checked,
         vec!["demo.app.main".to_owned(), "demo.geo.shapes".to_owned()]
     );
+    // An interface changed, so Coherence reruns; no module's init facts
+    // did, so every InitOrder part is read.
+    assert_eq!(c.computed("Coherence"), 1);
+    assert_eq!(c.computed("InitOrder"), 0);
 
     // 3b. The same edit with main untouched rechecks main, which reports
     // the argument count.

@@ -23,8 +23,8 @@ use hd_base::{
     DefId, FileId, FolderId, Hash128, ModuleId, NotImplemented, Span, Stage, StageResult,
 };
 use hd_cache::{
-    CacheStore, EntryKind, FileApi, MemoryStore, check_key, code_key, hdr_key, iface_key, prog_key,
-    toolchain_key,
+    CacheStore, EntryKind, FileApi, MemoryStore, check_key, code_key, hdr_key, iface_key, init_key,
+    prog_key, toolchain_key,
 };
 use hd_check::BodyCx;
 use hd_check::stages::{ModuleFacts, init_order, test_overlay};
@@ -1617,15 +1617,43 @@ impl Run<'_> {
         }
     }
 
+    /// `InitOrder(F)` (§4.13.10). Its statement order is a `graph` part
+    /// keyed by `init_key`, so a warm run with no change to what it reads
+    /// reads it (cache.md, "Part keys"). What it reads is each module's
+    /// facts, which stand in for the init summary until the checker writes
+    /// one.
     fn init_order(&self, fi: usize) {
         let folder = &self.table.folders[fi];
-        let facts: Vec<&ModuleFacts> = folder
+        let mut facts: Vec<&ModuleFacts> = folder
             .modules
             .iter()
             .map(|m| &self.skim_of(m.idx()).facts)
             .collect();
+        facts.sort_by(|a, b| a.path.cmp(&b.path));
+        let summaries: Vec<(&str, Hash128)> = facts
+            .iter()
+            .map(|f| (f.path.as_str(), facts_hash(f)))
+            .collect();
+        let key = init_key(self.toolchain, &folder.path, &summaries);
+        if let Some(sections) = self.lookup(EntryKind::Graph, key)
+            && sections.first().and_then(|b| decode_order(b)).is_some()
+        {
+            lock(&self.report).ok(Stage::InitOrder);
+            return;
+        }
+        self.computed(Stage::InitOrder);
         let r = init_order(&folder.path, &facts);
-        self.stage(Stage::InitOrder, r);
+        if let Some(order) = self.stage(Stage::InitOrder, r) {
+            self.put(EntryKind::Graph, key, &[&encode_order(&order)]);
+        }
+    }
+
+    /// Counts a `graph` part this run computed instead of reading.
+    fn computed(&self, s: Stage) {
+        *lock(&self.counters)
+            .parts_computed
+            .entry(s.name())
+            .or_default() += 1;
     }
 
     /// `Coherence`: the overlap check (§4.12.3) over the impl heads of
@@ -1661,6 +1689,7 @@ impl Run<'_> {
             }
             return;
         }
+        self.computed(Stage::Coherence);
         let names = self.names();
         // Impls the orphan check rejected (`orphan-impl`, `nonlocal-impl`)
         // are already one error; they stay out of the overlap check.
@@ -3394,7 +3423,39 @@ fn decode_regs(r: &mut Reader<'_>) -> Vec<hd_check::tests::TestReg> {
     out
 }
 
-/// Stage-B findings by item index in the folder's interface.
+/// A module's part of `init_key`: every fact `InitOrder` reads. The
+/// destructuring names each field, so a new fact cannot miss the key.
+fn facts_hash(f: &ModuleFacts) -> Hash128 {
+    let ModuleFacts {
+        path,
+        has_tests_block,
+        top_level_statements,
+        impls,
+    } = f;
+    let mut k = hd_base::StableHasher::new("init-facts");
+    k.str(path);
+    k.u8(u8::from(*has_tests_block));
+    k.u64(u64::try_from(*top_level_statements).unwrap_or(u64::MAX));
+    k.u64(u64::try_from(*impls).unwrap_or(u64::MAX));
+    k.finish()
+}
+
+/// `InitOrder`'s statement order for one folder.
+fn encode_order(order: &[String]) -> Vec<u8> {
+    let mut w = Writer::default();
+    w.len_of(order);
+    for s in order {
+        w.str(s);
+    }
+    w.bytes
+}
+
+fn decode_order(b: &[u8]) -> Option<Vec<String>> {
+    let mut r = Reader::new(b);
+    let order = (0..r.count()).map(|_| r.str().to_owned()).collect();
+    r.ok().then_some(order)
+}
+
 /// The overlaps of a coherence run, each reported impl as its folder's
 /// index and its item's index in that folder's interface.
 fn encode_overlaps(found: &[(DefId, String)], all: &[Arc<FolderIface>]) -> Vec<u8> {
@@ -3431,6 +3492,7 @@ fn decode_overlaps(b: &[u8], all: &[Arc<FolderIface>]) -> Option<Vec<(DefId, Str
     Some(out)
 }
 
+/// Stage-B findings by item index in the folder's interface.
 fn encode_header_findings(found: &[hd_check::header::Finding], items: &[Item]) -> Vec<u8> {
     let mut w = Writer::default();
     w.len_of(found);

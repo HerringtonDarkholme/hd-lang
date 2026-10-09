@@ -116,6 +116,21 @@ pub fn hdr_key(
     k.finish()
 }
 
+/// `init_key(F) = H("init", toolchain, F, [(module, init summary hash)])`,
+/// the modules sorted by path: a part key of the `graph` entry
+/// (`InitOrder`'s statement order, one entry per folder here).
+#[must_use]
+pub fn init_key(toolchain: Hash128, folder: &str, modules: &[(&str, Hash128)]) -> Hash128 {
+    let mut k = StableHasher::new("init");
+    k.hash(toolchain);
+    k.str(folder);
+    for (m, h) in modules {
+        k.str(m);
+        k.hash(*h);
+    }
+    k.finish()
+}
+
 /// `prog_key = H("prog", toolchain, pipeline, entry, [(module, TIR content
 /// hash)])` (codegen.md §11.3).
 #[must_use]
@@ -184,5 +199,9 @@ mod tests {
             )
         );
         assert_ne!(package_key("a"), package_key("b"));
+        let i = init_key(tc, "pkg", &[("pkg.a", Hash128(1))]);
+        assert_ne!(i, init_key(tc, "pkg", &[("pkg.a", Hash128(2))]));
+        assert_ne!(i, init_key(tc, "pkg", &[("pkg.b", Hash128(1))]));
+        assert_ne!(i, init_key(tc, "app", &[("pkg.a", Hash128(1))]));
     }
 }
