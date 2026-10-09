@@ -227,6 +227,8 @@ pub struct Output {
     /// Per file, the files of the modules its `use`s reach (from the
     /// skims this run made; empty for a file it did not skim).
     pub uses: Vec<Vec<usize>>,
+    /// Per file, its module's path.
+    pub modules: Vec<String>,
     pub counters: Counters,
     pub report: PipelineReport,
     /// Each built folder interface's blob, by folder path.
@@ -259,6 +261,16 @@ impl Output {
         self.diags.render_compact(&|s: Span| {
             let (file, line, column) = self.locate(sources, s);
             format!("{file}:{line}:{column}")
+        })
+    }
+
+    /// Text for the user: each internal module path of test or task code
+    /// named by its file (`hd_project::user_text`).
+    #[must_use]
+    pub fn user_text(&self, text: &str) -> String {
+        hd_project::user_text(text, &|path| {
+            let i = self.modules.iter().position(|m| m == path)?;
+            self.files.get(i).cloned()
         })
     }
 
@@ -637,6 +649,7 @@ pub fn build_packages(
         diags,
         files: run.table.files.clone(),
         uses,
+        modules: run.table.modules.iter().map(|m| m.path.clone()).collect(),
         counters,
         report,
         ifaces,

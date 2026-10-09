@@ -2,7 +2,8 @@
 //! found it (a manifest rule, the command line, or the compiler), written
 //! as text (`severity: file:line:column: code: message`) or as a JSON line
 //! (`cli.json.diagnostic.*`, `cli.json.fix.*`), and the JSON summary
-//! (`cli.json.summary.*`).
+//! (`cli.json.summary.*`). Messages name test and task code by file
+//! (`module.test.integration.no-path`, `cli.task.no-path`).
 
 use std::fmt::Write as _;
 
@@ -156,7 +157,7 @@ pub(crate) fn from_output(
             let fixes = d.fixes[i];
             let fixes = (fixes.start as usize..(fixes.start + fixes.len) as usize)
                 .map(|f| Fix {
-                    message: d.get_text(d.fix_title[f]).to_owned(),
+                    message: out.user_text(d.get_text(d.fix_title[f])),
                     edits: d.edits[d.fix_edits[f].range()]
                         .iter()
                         .map(|e| Edit {
@@ -171,7 +172,7 @@ pub(crate) fn from_output(
             Diag {
                 code: Some(code),
                 severity: d.severity[i],
-                message: message.to_owned(),
+                message: out.user_text(message),
                 file,
                 line,
                 column,

@@ -432,3 +432,26 @@ fn tests_and_all_widen_what_check_covers() {
     let flow = check(&dir, cache, &["tests/flow.hd"]);
     assert_eq!(missing(&flow.err), ["in_integration"], "{}", flow.err);
 }
+
+/// `module.test.integration.no-path`, `cli.task.no-path`: test and task
+/// code has no module path, so no message names one; a use that misses
+/// names the directory instead.
+#[test]
+fn messages_name_test_and_task_code_by_file() {
+    let dir = code_kinds("hd-check-no-path");
+    std::fs::write(dir.join("tasks/seed.hd"), "use self.nothing\n").expect("write");
+    std::fs::create_dir_all(dir.join("tests/common")).expect("dir");
+    std::fs::write(dir.join("tests/common/mod.hd"), "use super.up\n").expect("write");
+    for format in ["text", "json"] {
+        let r = check(
+            &dir,
+            "hd-check-cache-no-path",
+            &["--all", "--format", format],
+        );
+        assert_eq!(r.code, Some(101));
+        let all = format!("{}{}", r.out, r.err);
+        assert!(!all.contains('$'), "{all}");
+        assert!(all.contains("no module named `tasks`"), "{all}");
+        assert!(all.contains("no module named `tests`"), "{all}");
+    }
+}

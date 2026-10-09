@@ -119,6 +119,45 @@ pub fn package_ident(name: &str) -> String {
     name.replace('-', "_")
 }
 
+/// User text with each internal module path of test or task code named
+/// by its file instead (`module.test.integration.no-path`,
+/// `cli.task.no-path`). Such a path has a `$tests` or `$tasks` segment,
+/// which no source spells, after a `.` (or a `/` in an item path such as
+/// `shop/$tests/flow/main`); `file_of` gives the file of a module that
+/// exists, and any other path is named by its directory under the root, as
+/// `tests/common`.
+#[must_use]
+pub fn user_text(text: &str, file_of: &dyn Fn(&str) -> Option<String>) -> String {
+    let word = |c: char| matches!(c, '.' | '/' | '$' | '_') || c.is_alphanumeric();
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = [".$tests", ".$tasks", "/$tests", "/$tasks"]
+        .iter()
+        .filter_map(|seg| rest.find(seg))
+        .min()
+    {
+        let start = rest[..at]
+            .char_indices()
+            .rev()
+            .find(|&(_, c)| !word(c))
+            .map_or(0, |(i, c)| i + c.len_utf8());
+        let end = rest[at + 1..]
+            .char_indices()
+            .find(|&(_, c)| !word(c))
+            .map_or(rest.len(), |(i, _)| at + 1 + i);
+        let path = rest[start..end].trim_end_matches(['.', '/']);
+        let end = start + path.len();
+        out.push_str(&rest[..start]);
+        out.push_str(&file_of(path).unwrap_or_else(|| {
+            let below = path.split_once('$').map_or(path, |(_, b)| b);
+            below.replace('.', "/")
+        }));
+        rest = &rest[end..];
+    }
+    out.push_str(rest);
+    out
+}
+
 /// A package-relative file's module path below its package root module
 /// (`module.path.*`): `src/user/types.hd` is `user.types`,
 /// `src/user/mod.hd` is `user`, `src/lib.hd` is the root itself (empty),
@@ -957,6 +996,26 @@ mod tests {
         assert_eq!(
             found,
             [("tasks/shared.hd", hd_diag::Code::DuplicateModuleName)]
+        );
+    }
+
+    #[test]
+    fn user_text_names_test_and_task_code_by_file() {
+        let file_of = |p: &str| (p == "shop.$tests.flow").then(|| "tests/flow.hd".to_owned());
+        assert_eq!(
+            super::user_text(
+                "no module named `shop.$tests` or shop.$tasks.seed.x; see shop.$tests.flow.",
+                &file_of
+            ),
+            "no module named `tests` or tasks/seed/x; see tests/flow.hd."
+        );
+        assert_eq!(
+            super::user_text("`shop.util` is fine", &file_of),
+            "`shop.util` is fine"
+        );
+        assert_eq!(
+            super::user_text("(in `shop/$tests/flow/main`)", &file_of),
+            "(in `tests/flow/main`)"
         );
     }
 }

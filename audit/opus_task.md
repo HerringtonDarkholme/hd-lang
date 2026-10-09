@@ -87,14 +87,6 @@ When the queue is empty, say so under "Questions" and wait.
 
 ## Jobs
 
-### O4. Test And Task Modules Have No Module Path (#114)
-
-Owner, 2026-10-08: as in Rust, integration test programs, shared test
-modules and tasks have no module path (`module.test.integration.no-path`,
-`cli.task.no-path`). `hd_project` gives them internal `$tests`/`$tasks`
-segments; keep those internal and drop them from everything a user sees
-(diagnostics, test names, JSON, `hd test` output), naming them by file.
-
 ### O5. `denied-capability` Refusal (#86)
 
 `hd run`/`hd test` refuse a totally denied capability with
