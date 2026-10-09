@@ -127,18 +127,6 @@ order-of-magnitude problems, with the hot function if you can find it.
 Write `audit/compiler/runtime-<date>-<short hash>.md`. Timebox 45
 minutes.
 
-### R28. Design Note: Header Trait Bounds And Associated-Type Bindings (Design Text)
-
-About 26 valid programs fail with `unsatisfied-trait-bound` because header
-bounds and associated-type bindings (`where`-style bounds on items, `T <
-Trait[Item = U]`, bounds on impl headers) are not carried into bodies and
-call sites. Shrink 3-4 to minimal programs, read the spec's bound and
-associated-type rules (`spec/lang/09-traits.md`, `04-type-system.md`) and
-`trait-solver.md` (bounds as subgoals §3.6, projections), and add to
-`trait-solver.md` where each header bound enters the environment of a
-body and of a call, and how a binding constrains a projection. Questions
-with a recommendation. Timebox 45 minutes.
-
 ### R29. Design Note: Requirement-Row Aliases In Interfaces (Design Text)
 
 About 26 programs stop at FolderIface on row aliases and 8 on context
@@ -176,3 +164,14 @@ fast". The orchestrator writes `compiler/crates/*`; you measure it.
 ## Questions
 
 (none open; earlier questions and answers are in git history)
+
+### Q-R28: re-split the 5 leftover bound failures (R28, 2026-10-09)
+
+**Recommend two new tasks.** The briefs 26 header-bound failures
+are gone (fixed by #155/#48/#57); the 5 remaining
+unsatisfied-trait-bound accepts are different causes:
+FromIterator for mut List (4 programs, a missing impl, not
+bounds) and Result[void, FsError] vs Eq (1 program, a void value,
+#128 territory). Recommend one std/impl task for the former and
+folding the latter into #128, rather than keeping a header-bounds
+task open.

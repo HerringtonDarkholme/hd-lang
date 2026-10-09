@@ -862,6 +862,37 @@ as `unconstrained-impl-parameter`, since `I` appears only under a
 projection. A parameter that appears only inside a projection is not
 constrained. No new code.
 
+### 4.5 Header Bounds In Bodies And Calls
+
+The 26 `unsatisfied-trait-bound` failures behind #155 are gone (a fresh
+per-case listing finds 5, all with other causes — see R28 note below),
+so this records the working shape, not a fix. A declared bound enters
+solving in exactly two places:
+
+- **Body environment.** `elaborate` runs once per item signature and
+  the resulting `ParamEnv` travels with the body (`EnvKey` in the
+  solve context): every clause — the bound itself, its supertrait
+  expansion, and its bindings — is available to goals the body asks,
+  so a call on `T` with `T < Display` solves through the environment
+  clause, never by searching impls.
+- **Call sites.** The caller's arguments must satisfy the callee's
+  bounds (`trait.bound.unsatisfied`), checked as obligations under
+  the call; the callee body then solves from its own environment.
+  `T::f(args)` resolves through the bounds for the same reason
+  (`trait.assoc-call.parameter`).
+
+A binding constrains a projection by orientation: `I::Item` under a
+`Store[Item = T]` bound normalizes to `T` through the merged binding
+(§4.2 step 3, §4.3), so projections never need a search of their own.
+`Bind` plan steps (§3.6) solve an impl's open trait arguments from
+its bindings the same way.
+
+R28 note: the brief's 26 programs all pass today (fixed by the #155
+/ #48 / #57 work); the 5 remaining `unsatisfied-trait-bound`
+accepts are `FromIterator` for `mut List` (×4, missing impl, not
+bounds) and `Result[void, FsError]` vs `Eq` (×1, void value). No
+header-bound case remains to shrink.
+
 ## 5. Coherence
 
 ### 5.1 What Runs When
