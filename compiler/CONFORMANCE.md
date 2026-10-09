@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2230 | 472 | 143 | 2845 |
+| 2240 | 462 | 143 | 2845 |
 
 ## By Chapter
 
@@ -39,9 +39,9 @@ fixture; unsupported surface records progress without failing.
 | `std/host.md` | 2 | 0 | 0 | 2 |
 | `std/http.md` | 2 | 0 | 0 | 2 |
 | `std/iter.md` | 15 | 7 | 3 | 25 |
-| `std/json.md` | 16 | 2 | 1 | 19 |
+| `std/json.md` | 18 | 0 | 1 | 19 |
 | `std/net.md` | 1 | 0 | 0 | 1 |
-| `std/num.md` | 14 | 4 | 0 | 18 |
+| `std/num.md` | 16 | 2 | 0 | 18 |
 | `std/ops.md` | 8 | 3 | 2 | 13 |
 | `std/option.md` | 3 | 0 | 0 | 3 |
 | `std/path.md` | 2 | 0 | 0 | 2 |
@@ -53,8 +53,8 @@ fixture; unsupported surface records progress without failing.
 | `std/sys.md` | 1 | 0 | 0 | 1 |
 | `std/task.md` | 7 | 0 | 0 | 7 |
 | `std/testing.md` | 35 | 3 | 1 | 39 |
-| `std/text.md` | 29 | 5 | 1 | 35 |
-| `std/time.md` | 16 | 1 | 0 | 17 |
+| `std/text.md` | 34 | 0 | 1 | 35 |
+| `std/time.md` | 17 | 0 | 0 | 17 |
 
 ## By Directory
 
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 78 | 23 | 4 | 105 |
-| `runtime/valid` | 752 | 66 | 111 | 929 |
+| `runtime/valid` | 762 | 56 | 111 | 929 |
 | `typing/invalid` | 714 | 344 | 17 | 1075 |
 | `typing/valid` | 388 | 16 | 11 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -105,7 +105,7 @@ compiler stage that first declined the case.
 | `fail:private-main` | 7 |
 | `fail:re-export-loop` | 1 |
 | `fail:readonly-root` | 1 |
-| `fail:runtime-exit` | 26 |
+| `fail:runtime-exit` | 16 |
 | `fail:stdout` | 4 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
@@ -577,19 +577,15 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (26)</summary>
+<details><summary><code>fail:runtime-exit</code> (16)</summary>
 
 - `runtime/panic/for-loop-iterator-invalidated.hd`
 - `runtime/panic/invalidated-iterator.hd`
 - `runtime/panic/defer-block-on-indirect.hd`
 - `runtime/valid/literal-patterns.hd`
-- `runtime/valid/string-trim-and-lower.hd`
 - `runtime/panic/for-iterator-invalidated-via-helper.hd`
 - `runtime/panic/exhausted-iterator-invalidated-by-growth.hd`
 - `runtime/panic/alias-growth-invalidates-readonly-iterator.hd`
-- `runtime/valid/empty-string-operations.hd`
-- `runtime/valid/multibyte-scalar-strings.hd`
-- `runtime/valid/replace-empty-old.hd`
 - `runtime/valid/pipe-nested-placeholder.hd`
 - `runtime/panic/string-slice-inside-scalar.hd`
 - `runtime/panic/string-slice-past-end.hd`
@@ -597,12 +593,6 @@ compiler stage that first declined the case.
 - `runtime/panic/list-view-reversed.hd`
 - `runtime/panic/list-view-index-out-of-bounds.hd`
 - `runtime/panic/list-view-invalidated.hd`
-- `runtime/valid/string-more-methods.hd`
-- `runtime/valid/num-parse-f64-values.hd`
-- `runtime/valid/num-parse-f64-round-trip.hd`
-- `runtime/valid/json-suite.hd`
-- `runtime/valid/json-float-text.hd`
-- `runtime/valid/time-serde-forms.hd`
 - `runtime/panic/deque-invalidated.hd`
 - `runtime/panic/unbounded-recursion.hd`
 
@@ -1573,6 +1563,7 @@ runtime/valid/embedded-field-satisfies-trait.hd
 runtime/valid/embedded-part-follows-container.hd
 runtime/valid/embedded-part-mut-alias.hd
 runtime/valid/embedded-trait-method-via-part.hd
+runtime/valid/empty-string-operations.hd
 runtime/valid/encoding-base64-vectors.hd
 runtime/valid/encoding-decode-errors.hd
 runtime/valid/encoding-hex-vectors.hd
@@ -1723,12 +1714,14 @@ runtime/valid/iterator-shape-versus-value-changes.hd
 runtime/valid/iterator-single-pass.hd
 runtime/valid/json-errors.hd
 runtime/valid/json-escapes.hd
+runtime/valid/json-float-text.hd
 runtime/valid/json-number-grammar.hd
 runtime/valid/json-numbers.hd
 runtime/valid/json-object-order.hd
 runtime/valid/json-pretty.hd
 runtime/valid/json-round-trip.hd
 runtime/valid/json-serde-private-round-trip.hd
+runtime/valid/json-suite.hd
 runtime/valid/json-typed-enum.hd
 runtime/valid/json-typed-errors.hd
 runtime/valid/json-typed-missing-key-ignores-default.hd
@@ -1809,6 +1802,7 @@ runtime/valid/module-qualified-prelude-function.hd
 runtime/valid/module-qualified-type.hd
 runtime/valid/module-qualified-variant-pattern.hd
 runtime/valid/module-scope-before-initialization.hd
+runtime/valid/multibyte-scalar-strings.hd
 runtime/valid/multiline-string-literals.hd
 runtime/valid/multiple-bounds-dispatch.hd
 runtime/valid/multiple-dedents-at-once.hd
@@ -1853,7 +1847,9 @@ runtime/valid/num-is-finite.hd
 runtime/valid/num-is-nan.hd
 runtime/valid/num-ordered-display.hd
 runtime/valid/num-parse-f64-errors.hd
+runtime/valid/num-parse-f64-round-trip.hd
 runtime/valid/num-parse-f64-specials.hd
+runtime/valid/num-parse-f64-values.hd
 runtime/valid/num-parse-integers.hd
 runtime/valid/num-parse-unsigned.hd
 runtime/valid/num-rotate.hd
@@ -1952,6 +1948,7 @@ runtime/valid/regex-linear-time.hd
 runtime/valid/regex-repetition.hd
 runtime/valid/relative-self-current.hd
 runtime/valid/relative-self-top-level.hd
+runtime/valid/replace-empty-old.hd
 runtime/valid/replace-non-overlapping.hd
 runtime/valid/requirement-function-value.hd
 runtime/valid/requirement-row-duplicate-after-substitution.hd
@@ -2027,6 +2024,7 @@ runtime/valid/string-count.hd
 runtime/valid/string-interpolation-built-ins.hd
 runtime/valid/string-length-counts-bytes.hd
 runtime/valid/string-lines.hd
+runtime/valid/string-more-methods.hd
 runtime/valid/string-ordering.hd
 runtime/valid/string-pad-default-fill.hd
 runtime/valid/string-pad.hd
@@ -2037,6 +2035,7 @@ runtime/valid/string-repeat.hd
 runtime/valid/string-split-once.hd
 runtime/valid/string-split-whitespace.hd
 runtime/valid/string-split.hd
+runtime/valid/string-trim-and-lower.hd
 runtime/valid/strings-and-comments-hide-keywords-and-operators.hd
 runtime/valid/structural-equality.hd
 runtime/valid/structural-ordering.hd
@@ -2086,6 +2085,7 @@ runtime/valid/time-date-utc.hd
 runtime/valid/time-parse-errors.hd
 runtime/valid/time-rfc3339-parse.hd
 runtime/valid/time-rfc3339-text.hd
+runtime/valid/time-serde-forms.hd
 runtime/valid/time-unix-milliseconds.hd
 runtime/valid/trailing-block-return-targets-callback.hd
 runtime/valid/trailing-block-right-hand-sides.hd
