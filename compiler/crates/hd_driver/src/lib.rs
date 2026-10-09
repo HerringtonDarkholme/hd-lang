@@ -306,6 +306,27 @@ fn line_column(text: &[u8], offset: usize) -> (usize, usize) {
     (line, column)
 }
 
+/// Whether a top-level function header declares `main` or `main!`, and if
+/// so whether it is `pub`. The header is read as tokens, so spacing and
+/// comments between `pub`, `fn` and the name do not matter.
+fn main_visibility(header: &str) -> Option<bool> {
+    let lexed = hd_syntax::lex(header.as_bytes());
+    let t = &lexed.tokens;
+    let kinds = &t.kind;
+    let public = kinds.first() == Some(&hd_syntax::TokenKind::KwPub);
+    let at = usize::from(public);
+    let named_main = kinds.get(at) == Some(&hd_syntax::TokenKind::KwFn)
+        && kinds.get(at + 1) == Some(&hd_syntax::TokenKind::Ident)
+        && header.get(t.start[at + 1] as usize..t.end[at + 1] as usize) == Some("main");
+    let after = at + 2 + usize::from(kinds.get(at + 2) == Some(&hd_syntax::TokenKind::Bang));
+    (named_main
+        && matches!(
+            kinds.get(after),
+            Some(hd_syntax::TokenKind::LParen | hd_syntax::TokenKind::LBracket)
+        ))
+    .then_some(public)
+}
+
 struct SkimOut {
     source_hash: Hash128,
     api_text_hash: Hash128,
@@ -875,7 +896,7 @@ impl Run<'_> {
                 .filter(|b| b.kind == HeaderKind::Impl && b.header_indent == 0)
                 .count(),
         };
-        let main_header = |prefixes: &[&str]| {
+        let main_header = |public: bool| {
             sk.bodies
                 .iter()
                 .filter(|b| b.kind == HeaderKind::Function && b.header_indent == 0)
@@ -883,12 +904,12 @@ impl Run<'_> {
                     let header = text
                         .get(b.header_start as usize..b.body_start as usize)
                         .unwrap_or("");
-                    prefixes.iter().any(|p| header.trim_start().starts_with(p))
+                    main_visibility(header) == Some(public)
                 })
                 .map(|b| (b.header_start, b.body_start))
         };
-        let public_main = main_header(&["pub fn main(", "pub fn main!(", "pub fn main["]);
-        let private_main = main_header(&["fn main(", "fn main!(", "fn main[", "fn main!["]);
+        let public_main = main_header(true);
+        let private_main = main_header(false);
         SkimOut {
             source_hash: sk.source_hash,
             api_text_hash: sk.api_text_hash,

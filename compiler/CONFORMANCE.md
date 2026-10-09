@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1685 | 686 | 473 | 2844 |
+| 1686 | 685 | 473 | 2844 |
 
 ## By Chapter
 
@@ -17,7 +17,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 127 | 16 | 2 | 145 |
 | `lang/02-grammar.md` | 184 | 14 | 16 | 214 |
 | `lang/03-names-and-scopes.md` | 70 | 12 | 19 | 101 |
-| `lang/04-type-system.md` | 253 | 73 | 26 | 352 |
+| `lang/04-type-system.md` | 254 | 72 | 26 | 352 |
 | `lang/05-expressions.md` | 142 | 78 | 57 | 277 |
 | `lang/06-control-flow.md` | 101 | 33 | 23 | 157 |
 | `lang/07-functions.md` | 51 | 35 | 44 | 130 |
@@ -66,7 +66,7 @@ fixture; unsupported surface records progress without failing.
 | `runtime/valid` | 444 | 179 | 306 | 929 |
 | `typing/invalid` | 552 | 417 | 105 | 1074 |
 | `typing/valid` | 335 | 34 | 46 | 415 |
-| `typing/warnings` | 10 | 10 | 0 | 20 |
+| `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
 
@@ -102,7 +102,7 @@ compiler stage that first declined the case.
 | `fail:pattern-arity` | 2 |
 | `fail:pipe-step-needs-placeholder` | 5 |
 | `fail:placeholder-outside-pipe` | 1 |
-| `fail:private-main` | 9 |
+| `fail:private-main` | 8 |
 | `fail:re-export-loop` | 1 |
 | `fail:runtime-exit` | 66 |
 | `fail:stdout` | 10 |
@@ -624,14 +624,13 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:private-main</code> (9)</summary>
+<details><summary><code>fail:private-main</code> (8)</summary>
 
 - `typing/invalid/unresolved-generic-return-placeholder.hd`
 - `typing/invalid/provider-spread-of-non-context.hd`
 - `typing/invalid/context-result-type-mismatch.hd`
 - `typing/invalid/power-mixed-numeric-types.hd`
 - `typing/invalid/prelude-shadow-hash-local.hd`
-- `typing/warnings/unused-nested-optional-binding.hd`
 - `typing/invalid/unused-cold-suspension.hd`
 - `typing/invalid/block-on-in-defer.hd`
 - `typing/invalid/trait-reference-unsolved-self.hd`
@@ -3268,6 +3267,7 @@ typing/warnings/redundant-let-mut.hd
 typing/warnings/same-line-let-list-unused.hd
 typing/warnings/unused-after-rejected-trials.hd
 typing/warnings/unused-local-binding.hd
+typing/warnings/unused-nested-optional-binding.hd
 ```
 <!-- pass-list-end -->
 

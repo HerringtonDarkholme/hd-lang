@@ -263,33 +263,41 @@ fn diagnostic_verdict(case: &Case, fixture: &Fixture, output: &Output) -> Option
         .expectation
         .split_once(':')
         .unwrap_or((case.expectation.as_str(), ""));
-    let selected = if kind == "warn" { &warnings } else { &errors };
-    let other_errors_ok = kind != "warn" || errors.is_empty();
-    let only_one = selected.len() == 1;
-    let code_ok = selected
-        .first()
-        .is_some_and(|index| output.diags.code[*index].as_str() == expected);
     let line_kind = if kind == "warn" {
         "warning"
     } else {
         "diagnostic"
     };
-    let line_ok = fixture.tree
-        || marker_line(&fixture.text, line_kind).is_none_or(|line| {
-            selected.first().is_some_and(|index| {
-                let span = output.diags.primary[*index];
+    let on_marker = |index: usize| {
+        fixture.tree
+            || marker_line(&fixture.text, line_kind).is_none_or(|line| {
+                let span = output.diags.primary[index];
                 output.files.get(span.file.idx()) == Some(&fixture.primary)
                     && byte_line(&fixture.text, span.lo) == line
             })
-        });
-    if other_errors_ok && only_one && code_ok && line_ok {
-        Some(Verdict::Pass)
+    };
+    if kind == "warn" {
+        // `warn:CODE`: "exit 0, and a located warning `CODE` on the marker
+        // line"; warnings never fail a case, so other warnings are allowed.
+        let found = warnings
+            .iter()
+            .any(|index| output.diags.code[*index].as_str() == expected && on_marker(*index));
+        if errors.is_empty() && found {
+            return Some(Verdict::Pass);
+        }
     } else {
-        errors
+        let only_one = errors.len() == 1;
+        let code_ok = errors
             .first()
-            .or_else(|| warnings.first())
-            .map(|index| Verdict::Fail(output.diags.code[*index].as_str().to_owned()))
+            .is_some_and(|index| output.diags.code[*index].as_str() == expected);
+        if only_one && code_ok && errors.first().is_some_and(|index| on_marker(*index)) {
+            return Some(Verdict::Pass);
+        }
     }
+    errors
+        .first()
+        .or_else(|| warnings.first())
+        .map(|index| Verdict::Fail(output.diags.code[*index].as_str().to_owned()))
 }
 
 fn type_case(case: &Case, fixture: &Fixture, store: &MemoryStore) -> Verdict {

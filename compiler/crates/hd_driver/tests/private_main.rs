@@ -98,6 +98,31 @@ fn private_main_i32_in_a_program_owes_no_termination() {
 }
 
 #[test]
+fn spacing_between_header_tokens_does_not_matter() {
+    let program = run(
+        "pub  fn  main ( ) -> void:\n    pass\n",
+        &Goal::Program {
+            entry: "main".into(),
+        },
+    );
+    assert!(!program.diags.has_errors(), "{}", program.render());
+    assert!(program.wasm.is_some());
+    assert!(!codes(&program).contains(&"private-main"));
+    let private = run("fn  main() -> void:\n    pass\n", &Goal::Analyze);
+    assert!(
+        codes(&private).contains(&"private-main"),
+        "{}",
+        private.render()
+    );
+}
+
+#[test]
+fn a_suspending_private_main_warns() {
+    let out = run("fn main!() -> void:\n    pass\n", &Goal::Analyze);
+    assert!(codes(&out).contains(&"private-main"), "{}", out.render());
+}
+
+#[test]
 fn public_main_is_still_the_entry() {
     let program = run(
         "pub fn main() -> void:\n    pass\n",
