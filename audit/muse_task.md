@@ -156,6 +156,49 @@ lowers to, the evaluation order (spec rules), and the emitted code
 (emission); this job lifts the rule for those two files. Timebox 45
 minutes.
 
+### R5. Triage Invalid Programs The Compiler Accepts (Research)
+
+`fail:no-diagnostic` (about 260): a fixture expects an error and the
+compiler reports none. Same method as R1 (the per-case log, expectation
+`reject:<code>`, verdict `fail:no-diagnostic`). Group by the missing
+check, with the spec rule, the expected code, a minimal program and the
+stage that should raise it. Mark causes that match a known task: must-use
+values (#19), typed facts (#20), duplicate-fact (#24), qualified
+decorators (#25), decorators by resolution (#27), private items in
+header checks (#38), stored-fn calls (#39), private members (#40),
+embedding shape checks (#41), associated-type header codes (#57), void
+final value (#128). Write `audit/compiler/triage-missing-errors.md`.
+Read only; timebox 60 minutes.
+
+### R6. Design Note: Trailing-Block Calls (#74, Design Text)
+
+Same format as R3. 22 valid programs stop at Body on `TrailingCallExpr`,
+and so does every top-level `it(...)` in an integration test (a fresh
+`hd new` package fails `hd test` on it). Read the spec's trailing-block
+rules (grammar and functions chapters) and say how the call lowers to
+TIR (the block becomes a closure argument? which parameter?), how
+`it(...)` registers a test, and what the emitter needs. Add it to
+`checking-and-tir.md`; this job lifts the rule for that file. Timebox
+45 minutes.
+
+### R7. Design Note: Map Iteration And Removal (#124, Design Text)
+
+19 programs stop at Emit on `MapIter`, 3 on `MapRemove`, 3 on map keys
+that are not `int` or `string`. Read `representation-runtime.md` (the
+Map layout) and the spec's Map rules (iteration order, removal), then
+add to `codegen.md`: the iterator state, the order it yields, how removal
+keeps that order, and hashing and equality for other key types through
+their `Hash`/`Eq` impls. Timebox 45 minutes.
+
+### R8. Design Note: Default Arguments At Run Time (#32, Design Text)
+
+9 programs stop at Emit on `DefaultCall`, plus derive defaults and facts
+left by #119. Read the spec's default-argument rules (evaluation time and
+order, what a default may refer to) and add to `codegen.md` how a call
+that omits arguments is emitted (a per-function default thunk, inlined
+expressions, or a wrapper), with the footprint per function. Timebox 30
+minutes.
+
 ### P1. Profile The New Compiler (After S4; Standing Job)
 
 Owner, 2026-10-07: "you write the code, codex do the profiling. move

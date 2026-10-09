@@ -141,6 +141,42 @@ list them under "Questions" and build the grant logic around them.
 `[toolchain] pin`, `[test.capabilities]`. One commit per item if they
 are independent.
 
+### O13. Folder-Cycle Recovery (#133; `hd_resolve` Interface Lowering Lent For This Job)
+
+Your O7 question. `resolution-and-interfaces.md` §4.8 rule 5: a cyclic
+SCC's folders resolve together, as one folder, after the `folder-cycle`
+error, so their uses don't cascade (`folder-cycle-facade` today shows
+`unknown-module` after `folder-cycle`). Build the interface over several
+folders in `hd_resolve`'s interface lowering and the `FolderIface`
+scheduling in `hd_driver`. This job lends you `hd_resolve` interface
+lowering only; body lowering stays the orchestrator's. Read the spec's
+folder-cycle rules in `spec/lang/10-modules.md` first.
+
+### O14. Dev Dependencies In The Resolver (#134; Same Loan)
+
+Your O7 question: the `test-only-use` and `cyclic-test-dependency` codes
+(a `UseRootError` arm in `hd_resolve` lowering), and dev dependencies
+inside a library module's `tests:` block (`dev-dependency-tests-block`).
+CLI cases `dev-dependency-non-test`, `dev-dependency-cyclic-unit`,
+`dev-dependency-cyclic-integration`, `dev-dependency-integration`,
+`dev-dependency-tests-block`. Read the spec rules first.
+
+### O15. Doc Tests (#135)
+
+`cli.check.tests.doc` and the doc-test rules in the spec: extract the
+examples in `##` blocks as synthetic test files whose spans map back to
+the source (`checking-and-tir.md` §4.13.9), for `hd test` and `hd check
+--tests`. Extraction and scheduling are `hd_project`/`hd_driver` work. If
+the checker itself needs a change, stop and ask under "Questions".
+
+### O16. Cache Coherence And InitOrder Results (#102)
+
+Warm runs redo about 1.1 ms of Coherence and InitOrder work. Cache them
+under keys (`coh_key`, `init_key`) as `cache.md` describes, so a warm run
+with no edit does neither. Report warm-run timings before and after
+(the driver's stage timers; `cargo run --release -p hd_driver --example
+bench N`).
+
 ## Questions
 
 - **O8, fetching and selection (design).** `cli.dep.select`,
