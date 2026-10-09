@@ -8,17 +8,17 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2110 | 505 | 230 | 2845 |
+| 2122 | 506 | 217 | 2845 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
-| `lang/01-lexical-structure.md` | 133 | 11 | 1 | 145 |
-| `lang/02-grammar.md` | 191 | 13 | 11 | 215 |
+| `lang/01-lexical-structure.md` | 133 | 12 | 0 | 145 |
+| `lang/02-grammar.md` | 191 | 14 | 10 | 215 |
 | `lang/03-names-and-scopes.md` | 92 | 8 | 1 | 101 |
-| `lang/04-type-system.md` | 285 | 54 | 13 | 352 |
-| `lang/05-expressions.md` | 183 | 61 | 33 | 277 |
+| `lang/04-type-system.md` | 286 | 54 | 12 | 352 |
+| `lang/05-expressions.md` | 194 | 60 | 23 | 277 |
 | `lang/06-control-flow.md` | 113 | 28 | 16 | 157 |
 | `lang/07-functions.md` | 89 | 30 | 11 | 130 |
 | `lang/08-data-and-enums.md` | 78 | 37 | 8 | 123 |
@@ -62,10 +62,10 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 75 | 24 | 6 | 105 |
-| `runtime/valid` | 697 | 84 | 148 | 929 |
-| `typing/invalid` | 668 | 356 | 51 | 1075 |
-| `typing/valid` | 372 | 18 | 25 | 415 |
+| `runtime/panic` | 76 | 24 | 5 | 105 |
+| `runtime/valid` | 700 | 86 | 143 | 929 |
+| `typing/invalid` | 675 | 355 | 45 | 1075 |
+| `typing/valid` | 373 | 18 | 24 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -104,7 +104,7 @@ compiler stage that first declined the case.
 | `fail:pipe-step-needs-placeholder` | 5 |
 | `fail:placeholder-outside-pipe` | 1 |
 | `fail:private-import` | 1 |
-| `fail:private-main` | 8 |
+| `fail:private-main` | 7 |
 | `fail:re-export-loop` | 1 |
 | `fail:runtime-exit` | 38 |
 | `fail:stdout` | 3 |
@@ -123,11 +123,11 @@ compiler stage that first declined the case.
 | `fail:unknown-trait` | 9 |
 | `fail:unknown-type` | 4 |
 | `fail:unknown-variant` | 1 |
-| `fail:unsatisfied-trait-bound` | 10 |
+| `fail:unsatisfied-trait-bound` | 12 |
 | `fail:unused-local-binding` | 6 |
-| `unsupported:Body` | 97 |
+| `unsupported:Body` | 83 |
 | `unsupported:Collect` | 29 |
-| `unsupported:Emit` | 27 |
+| `unsupported:Emit` | 28 |
 | `unsupported:FolderIface` | 34 |
 | `unsupported:Link` | 1 |
 | `unsupported:RunCase` | 36 |
@@ -573,12 +573,11 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:private-main</code> (8)</summary>
+<details><summary><code>fail:private-main</code> (7)</summary>
 
 - `typing/invalid/unresolved-generic-return-placeholder.hd`
 - `typing/invalid/provider-spread-of-non-context.hd`
 - `typing/invalid/context-result-type-mismatch.hd`
-- `typing/invalid/power-mixed-numeric-types.hd`
 - `typing/invalid/prelude-shadow-hash-local.hd`
 - `typing/invalid/unused-cold-suspension.hd`
 - `typing/invalid/block-on-in-defer.hd`
@@ -862,7 +861,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unsatisfied-trait-bound</code> (10)</summary>
+<details><summary><code>fail:unsatisfied-trait-bound</code> (12)</summary>
 
 - `typing/invalid/provider-value-type-mismatch.hd`
 - `typing/invalid/propagation-no-chained-conversion.hd`
@@ -874,6 +873,8 @@ compiler stage that first declined the case.
 - `runtime/valid/iterator-chain-iterable.hd`
 - `runtime/valid/iterator-flat-map.hd`
 - `typing/invalid/list-slice-negative-literal.hd`
+- `runtime/valid/operators-longest-match.hd`
+- `runtime/valid/precedence-and-associativity.hd`
 
 </details>
 
@@ -888,18 +889,10 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (97)</summary>
+<details><summary><code>unsupported:Body</code> (83)</summary>
 
 - `typing/valid/enums.hd`
-- `typing/valid/numeric-corners.hd`
-- `typing/invalid/mixed-numeric-power.hd`
-- `runtime/valid/unsigned-exponent.hd`
-- `typing/invalid/signed-exponent.hd`
 - `typing/invalid/generic-provider-key-collision-spread.hd`
-- `typing/invalid/signed-integer-exponent.hd`
-- `runtime/panic/integer-power-overflow.hd`
-- `runtime/valid/integer-power-associativity.hd`
-- `runtime/valid/floating-power.hd`
 - `typing/invalid/literal-payload-pattern-nonexhaustive.hd`
 - `runtime/valid/literal-payload-patterns.hd`
 - `runtime/valid/binding-expressions.hd`
@@ -914,11 +907,9 @@ compiler stage that first declined the case.
 - `runtime/valid/embedded-store-copies.hd`
 - `typing/invalid/copy-assignment-ordinary-field.hd`
 - `runtime/valid/part-copy-is-copy-update.hd`
-- `typing/invalid/negative-literal-exponent.hd`
 - `typing/invalid/lowercase-list-type.hd`
 - `typing/valid/row-union-spread.hd`
 - `typing/valid/row-list-copy-wider.hd`
-- `typing/invalid/operator-power-user.hd`
 - `typing/invalid/compound-assign-not-place.hd`
 - `typing/valid/callable-values.hd`
 - `runtime/valid/callable-values-run.hd`
@@ -965,8 +956,6 @@ compiler stage that first declined the case.
 - `typing/invalid/race-empty-list-literal.hd`
 - `runtime/valid/list-slice-mutable.hd`
 - `runtime/valid/range-eq.hd`
-- `typing/invalid/power-float-widths.hd`
-- `runtime/valid/numeric-explicit-widening.hd`
 - `runtime/valid/module-qualified-variant.hd`
 - `runtime/valid/module-qualified-associated-call.hd`
 - `typing/invalid/local-annotation-row-unknown-trait.hd`
@@ -977,10 +966,8 @@ compiler stage that first declined the case.
 - `runtime/valid/iterator-list-sum.hd`
 - `typing/invalid/sibling-module-requirement-key-not-imported.hd`
 - `typing/invalid/set-type-not-prelude.hd`
-- `runtime/valid/operators-longest-match.hd`
 - `runtime/valid/let-patterns-and-let-else.hd`
 - `runtime/valid/binding-chain-with-suite.hd`
-- `runtime/valid/precedence-and-associativity.hd`
 - `runtime/valid/spread-forms-and-positions.hd`
 - `runtime/valid/tuple-rest-spread-list.hd`
 - `runtime/valid/pattern-forms.hd`
@@ -1024,7 +1011,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Emit</code> (27)</summary>
+<details><summary><code>unsupported:Emit</code> (28)</summary>
 
 - `runtime/valid/float-display.hd`
 - `runtime/valid/suspending-calls-in-branches.hd`
@@ -1038,6 +1025,7 @@ compiler stage that first declined the case.
 - `runtime/valid/requirement-key-binding-run.hd`
 - `runtime/valid/generic-inference-explicit-conversions.hd`
 - `runtime/valid/primitive-float-cmp-method-direct.hd`
+- `runtime/valid/numeric-explicit-widening.hd`
 - `runtime/valid/json-typed-primitives.hd`
 - `runtime/valid/regex-literals-escapes.hd`
 - `runtime/valid/regex-classes.hd`
@@ -1480,6 +1468,7 @@ runtime/panic/index-trait-map-missing.hd
 runtime/panic/integer-add-overflow.hd
 runtime/panic/integer-divide-by-zero.hd
 runtime/panic/integer-negation-overflow.hd
+runtime/panic/integer-power-overflow.hd
 runtime/panic/intrinsic-method-overflow.hd
 runtime/panic/invalid-shift.hd
 runtime/panic/iterator-sum-overflow.hd
@@ -1731,6 +1720,7 @@ runtime/valid/fieldless-data-argument.hd
 runtime/valid/fieldless-data-canonical.hd
 runtime/valid/float-eq-bound.hd
 runtime/valid/float-literal-forms.hd
+runtime/valid/floating-power.hd
 runtime/valid/for-loops-lists-and-maps.hd
 runtime/valid/for-patterns.hd
 runtime/valid/from-direct-call.hd
@@ -1820,6 +1810,7 @@ runtime/valid/inspectable-generic-target-helper.hd
 runtime/valid/inspectable-inner-mut-identity.hd
 runtime/valid/inspectable-primitives-collections-options.hd
 runtime/valid/integer-literal-forms.hd
+runtime/valid/integer-power-associativity.hd
 runtime/valid/interpolation-expression-spacing.hd
 runtime/valid/interpolation-forms.hd
 runtime/valid/it-each-options.hd
@@ -2203,6 +2194,7 @@ runtime/valid/unicode-function-names.hd
 runtime/valid/unit-pattern-void-success.hd
 runtime/valid/unit-test-manual-clock.hd
 runtime/valid/unsafe-trait-static-bound.hd
+runtime/valid/unsigned-exponent.hd
 runtime/valid/use-declaration-position-independent.hd
 runtime/valid/use-module-member-beside-root-declaration.hd
 runtime/valid/user-iterable-for-loop.hd
@@ -2592,6 +2584,7 @@ typing/invalid/missing-return-value.hd
 typing/invalid/missing-supertrait-implementation.hd
 typing/invalid/missing-trait-method.hd
 typing/invalid/mixed-derived-law.hd
+typing/invalid/mixed-numeric-power.hd
 typing/invalid/module-file-and-directory-module.hd
 typing/invalid/module-path-missing-member.hd
 typing/invalid/module-path-private-member.hd
@@ -2614,6 +2607,7 @@ typing/invalid/mutable-impl-target.hd
 typing/invalid/mutable-provider-install-readonly-field.hd
 typing/invalid/mutable-provider-install-readonly-value.hd
 typing/invalid/mutual-recursion-omitted-results.hd
+typing/invalid/negative-literal-exponent.hd
 typing/invalid/nested-optional-needs-some.hd
 typing/invalid/newtype-bound-bare-trait.hd
 typing/invalid/newtype-derivation-block.hd
@@ -2636,6 +2630,7 @@ typing/invalid/num-suffix-before-data.hd
 typing/invalid/num-trait-needs-import.hd
 typing/invalid/numeric-candidate-no-fit.hd
 typing/invalid/operator-newtype-no-inherit.hd
+typing/invalid/operator-power-user.hd
 typing/invalid/operator-rhs-default-mismatch.hd
 typing/invalid/operator-trait-needs-import.hd
 typing/invalid/option-invariant.hd
@@ -2665,6 +2660,8 @@ typing/invalid/payload-free-enum-equality.hd
 typing/invalid/plain-break-in-value-loop.hd
 typing/invalid/positional-spread-duplicates-vararg.hd
 typing/invalid/positional-spread-without-vararg.hd
+typing/invalid/power-float-widths.hd
+typing/invalid/power-mixed-numeric-types.hd
 typing/invalid/prelude-shadow-println-function.hd
 typing/invalid/prelude-shadow-renamed-use.hd
 typing/invalid/prelude-shadow-usize-alias.hd
@@ -2783,6 +2780,8 @@ typing/invalid/sibling-module-private-method.hd
 typing/invalid/sibling-module-std-name-not-imported.hd
 typing/invalid/sibling-module-trait-name-not-imported.hd
 typing/invalid/sign-fallback-no-instantiation.hd
+typing/invalid/signed-exponent.hd
+typing/invalid/signed-integer-exponent.hd
 typing/invalid/single-file-self-use.hd
 typing/invalid/slice-assignment.hd
 typing/invalid/snapshot-file-needs-test-runner.hd
@@ -3098,6 +3097,7 @@ typing/valid/nonpublic-main-ordinary.hd
 typing/valid/num-families.hd
 typing/valid/num-trait-imported.hd
 typing/valid/num-traits.hd
+typing/valid/numeric-corners.hd
 typing/valid/numeric-literal-adopts-width.hd
 typing/valid/numeric-literal-left-operand.hd
 typing/valid/numeric-widening-and-display-list.hd
