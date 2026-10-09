@@ -3518,6 +3518,17 @@ impl Env<'_> {
         self.p.items.get(&def)?.sig()
     }
 
+    /// A default body (codegen.md §13.13): a body of its own, whose
+    /// parameters are the earlier parameters and whose result is the
+    /// parameter's or field's declared type.
+    fn default_body(&self, def: DefId) -> Option<&Body> {
+        self.p
+            .bodies
+            .get(&def)
+            .map(|b| &b.0)
+            .filter(|b| b.kind == hd_tir::BodyKind::Default)
+    }
+
     /// The row keys of a module init, which has no signature. An entry
     /// module's init has an inferred entry row (`module.init.script-row`),
     /// so its keys are those of the callees its top level calls.
@@ -3560,9 +3571,20 @@ impl ProgramEnv for Env<'_> {
             .map(|s| s.generics.iter().map(|g| g.bound.is_some()).collect())
     }
     fn ret(&self, def: DefId) -> Option<Ty> {
+        if let Some(b) = self.default_body(def) {
+            return b.sub_root.first().map(|&r| b.ty[r as usize]);
+        }
         self.sig(def).map(|s| s.ret)
     }
     fn params(&self, def: DefId) -> Option<Vec<Ty>> {
+        if let Some(b) = self.default_body(def) {
+            return Some(
+                (0..b.local_ty.len())
+                    .filter(|&l| b.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0)
+                    .map(|l| b.local_ty[l])
+                    .collect(),
+            );
+        }
         self.sig(def)
             .map(|s| s.params.iter().map(|p| p.1).collect())
     }
@@ -3608,6 +3630,17 @@ impl ProgramEnv for Env<'_> {
             ItemData::Trait(_) => Some((*owner, 1 + o.generics.len())),
             _ => None,
         }
+    }
+    fn generics_owner(&self, def: DefId) -> DefId {
+        if self.default_body(def).is_some() {
+            let p = self
+                .run
+                .names()
+                .paths
+                .parent(hd_base::PathId::from_raw(def.raw()));
+            return DefId::from_raw(p.raw());
+        }
+        def
     }
     fn impl_head(&self, impl_: DefId) -> Option<(Ty, TyList, usize)> {
         let it = self.p.items.get(&impl_)?;

@@ -473,6 +473,7 @@ impl Em<'_> {
                 self.a.end();
             }
             Tag::Call => self.call(i, a, bw, ty)?,
+            Tag::DefaultCall => self.default_call(i, bw, ty)?,
             Tag::CallValue => {
                 let Shape::Fn { base, code } = self.lay.shape(self.ty_of(a))? else {
                     return unsupported("a call of a value that is not a closure");
@@ -1491,27 +1492,7 @@ impl Em<'_> {
             return unsupported("a call that collection did not resolve");
         };
         match &t.kind {
-            TargetKind::Instance => {
-                let pool = self.pool();
-                let mut ps = Vec::new();
-                for p in self.env().params(t.item).unwrap_or_default() {
-                    ps.push(subst(pool, self.env(), t.item, t.args, p));
-                }
-                for (r, p) in args.iter().zip(&ps) {
-                    let want = self.vts(*p)?;
-                    self.load_as(*r, &want)?;
-                }
-                let keys = self.env().row_keys(t.item, t.args);
-                self.push_providers(&keys)?;
-                self.a.call(Sym::Inst(t.key));
-                // A suspending callee's plain call is its cold constructor.
-                let got = if self.env().suspends(t.item) {
-                    self.vts(ty)?
-                } else {
-                    self.vts(t.ret)?
-                };
-                self.store_from(i, &got)
-            }
+            TargetKind::Instance => self.call_instance(i, &t, args, ty, false),
             TargetKind::Intrinsic(key) => self.call_intrinsic(i, key, args, ty),
             TargetKind::Builtin { self_ty, .. } => {
                 let name = (self.lay.path)(t.item);
@@ -1519,6 +1500,64 @@ impl Em<'_> {
                 self.builtin(i, &name, *self_ty, args, ty)
             }
         }
+    }
+
+    /// A direct `call` of a collected instance: the arguments at the
+    /// callee's parameter types, then its providers. `bracket` counts the
+    /// call as a forbidden context (suspension.md §14.9), so `block_on`
+    /// reached inside it panics.
+    fn call_instance(
+        &mut self,
+        i: u32,
+        t: &CallTarget,
+        args: &[u32],
+        ty: Ty,
+        bracket: bool,
+    ) -> StageResult<()> {
+        let pool = self.pool();
+        let mut ps = Vec::new();
+        for p in self.env().params(t.item).unwrap_or_default() {
+            ps.push(subst(pool, self.env(), t.item, t.args, p));
+        }
+        for (r, p) in args.iter().zip(&ps) {
+            let want = self.vts(*p)?;
+            self.load_as(*r, &want)?;
+        }
+        let keys = self.env().row_keys(t.item, t.args);
+        self.push_providers(&keys)?;
+        if bracket {
+            self.forbid(1);
+        }
+        self.a.call(Sym::Inst(t.key));
+        if bracket {
+            self.forbid(-1);
+        }
+        // A suspending callee's plain call is its cold constructor.
+        let got = if self.env().suspends(t.item) {
+            self.vts(ty)?
+        } else {
+            self.vts(t.ret)?
+        };
+        self.store_from(i, &got)
+    }
+
+    /// Adds `by` to the forbidden-context counter.
+    fn forbid(&mut self, by: i32) {
+        self.a.global_get(crate::rt::forbid_global());
+        self.a.i32(by);
+        self.a.s().i32_add();
+        self.a.global_set(crate::rt::forbid_global());
+    }
+
+    /// An omitted argument (`fn.default.eval`, codegen.md §13.13): a
+    /// direct `call` of its default body's instance with the earlier
+    /// argument values, bracketed when the body makes a call (§12.3).
+    fn default_call(&mut self, i: u32, args_at: u32, ty: Ty) -> StageResult<()> {
+        let Some(Target::Default { call, bracket }) = self.calls.get(&i).cloned() else {
+            return unsupported("a default call that collection did not resolve");
+        };
+        let args = self.rec(args_at);
+        self.call_instance(i, &call, &args, ty, bracket)
     }
 
     fn builtin(
@@ -1696,6 +1735,12 @@ impl Em<'_> {
                 let s = self.a.local(VT::r(base.clone()));
                 self.comp(args[0], 0, &VT::r(base.clone()))?;
                 self.a.set(s);
+                // The indirect ban (`req.drive.block-on.indirect`): reached
+                // while a forbidden context runs, it panics.
+                self.a.global_get(crate::rt::forbid_global());
+                self.a.if_();
+                self.panic("suspension-forbidden-context: block_on in a forbidden context");
+                self.a.end();
                 let ready = self.a.local(VT::I32);
                 let tmp: Vec<u32> = result.iter().map(|v| self.a.local(v.dflt())).collect();
                 self.a.block();

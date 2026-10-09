@@ -45,6 +45,10 @@ pub trait ProgramEnv: LayoutEnv {
     /// arguments are the owner's: an impl's parameters, or a trait's
     /// `Self` and parameters.
     fn parent(&self, def: DefId) -> Option<(DefId, usize)>;
+    /// The item whose type parameters `def`'s types name: a default body's
+    /// declaring function, method or data type, whose instance arguments
+    /// it shares (codegen.md §13.13); `def` itself for every other item.
+    fn generics_owner(&self, def: DefId) -> DefId;
     /// An impl's head: self type, trait arguments, parameter count.
     fn impl_head(&self, impl_: DefId) -> Option<(Ty, TyList, usize)>;
     /// The method of `impl_` that implements the trait method `method`.
@@ -128,6 +132,13 @@ pub struct CallTarget {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Target {
     Call(CallTarget),
+    /// An omitted argument's default body (codegen.md §13.13): its
+    /// instance, and whether the body makes a call, so emission brackets
+    /// it with the forbidden-context counter (§12.3).
+    Default {
+        call: CallTarget,
+        bracket: bool,
+    },
     /// A coercion to a trait value: the trait and one target per vtable slot.
     VTable(DefId, Vec<CallTarget>),
     /// A closure's code instance.
@@ -193,6 +204,7 @@ impl DefIdOrd {
 /// base becomes concrete resolves to the impl's binding (codegen.md §13).
 #[must_use]
 pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList, t: Ty) -> Ty {
+    let item = env.generics_owner(item);
     let a = pool.list_items(args);
     let parent = env.parent(item);
     let n = parent.map_or(0, |p| p.1);
@@ -1078,6 +1090,22 @@ impl Cx<'_> {
                     self.hash_target(&t, &mut reps);
                     calls.insert(ix, Target::Call(t));
                 }
+                // An omitted argument (codegen.md §13.2 step 6, §13.13): the
+                // default body's instance at the call's type arguments.
+                Tag::DefaultCall => {
+                    let (Some(&d), Some(&l)) = (body.record(a).first(), body.record(a).get(1))
+                    else {
+                        return err("a malformed default call record");
+                    };
+                    let def = DefId::from_raw(d);
+                    let targs: Vec<Ty> =
+                        pool.list_items(TyList(l)).iter().copied().map(s).collect();
+                    let t = self.target(def, pool.list(&targs), depth, id)?;
+                    let bracket = env.body(def).is_some_and(makes_call);
+                    reps.u8(u8::from(bracket));
+                    self.hash_target(&t, &mut reps);
+                    calls.insert(ix, Target::Default { call: t, bracket });
+                }
                 Tag::Closure => {
                     let sub_k = u16::try_from(a).expect("subs");
                     let key = self.push(item, Sub::Body(sub_k), args, depth, id)?;
@@ -1202,6 +1230,34 @@ impl Cx<'_> {
         self.out.callee_reps[id.idx()] = reps.finish();
         Ok(())
     }
+}
+
+/// Whether a body may run other code: a call of any form, or a map
+/// operation that hashes and compares its key through impls (§13.12). A
+/// body that does not can never reach `block_on`, so its `DefaultCall`
+/// needs no forbidden-context bracket (codegen.md §12.3).
+fn makes_call(body: &Body) -> bool {
+    (0..body.len()).any(|i| match body.tags[i] {
+        Tag::Call
+        | Tag::CallValue
+        | Tag::CallDyn
+        | Tag::DefaultCall
+        | Tag::Await
+        | Tag::AwaitValue
+        | Tag::AwaitAll
+        | Tag::AwaitRace => true,
+        Tag::NewMap => !body.record(body.data[i][1]).is_empty(),
+        Tag::Intrinsic => matches!(
+            IntrinsicOp::from_u32(body.data[i][0]),
+            Some(
+                IntrinsicOp::MapGet
+                    | IntrinsicOp::MapSet
+                    | IntrinsicOp::MapIndex
+                    | IntrinsicOp::MapRemove
+            )
+        ),
+        _ => false,
+    })
 }
 
 /// Marks in `out` each own parameter of `def` that `t` holds where its

@@ -72,6 +72,13 @@ pub fn wake_table() -> GSym {
     GSym::Rt("wake".into(), VT::rn(WTy::Array(VT::I32)))
 }
 
+/// The forbidden-context counter (suspension.md §14.9): how many forbidden
+/// contexts are running; `block_on` panics while it is not zero.
+#[must_use]
+pub fn forbid_global() -> GSym {
+    GSym::Rt("forbid".into(), VT::I32)
+}
+
 /// The entry's root suspension, for `main!` (suspension.md §14.4).
 #[must_use]
 pub fn root_global() -> GSym {
