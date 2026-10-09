@@ -89,17 +89,6 @@ When the queue is empty, say so under "Questions" and wait.
 
 ## Jobs
 
-### O17. The Test Unit (Your O13 Question)
-
-Yes, a job of its own. `module.cycle.test-code` and §4.8 ("test modules
-form one test unit per package ... after every folder"): test modules'
-uses must not make folder edges, so `folder-graph-test-edges` passes.
-Schedule the test unit after every folder interface, and give the folder
-interfaces what they need without the test-only folders; your two
-breaking fixtures (`hd-run-requires-process`,
-`relative-shared-test-module`) must keep passing. Read the spec rules
-first; scheduling is CLI-facing `hd_driver` plus `hd_project`.
-
 ### O18. Conformance Harness: Decode Expected Standard Output (#136)
 
 Four runtime programs print the right bytes and still fail:
@@ -144,6 +133,17 @@ the workspace's shared selection and `hd.sum`
 needs a design `commands.md` lacks and say so under "Questions".
 
 ## Questions
+
+- **O17, a use of a test module from other code (needs `hd_resolve`).**
+  The test unit is one folder per package (`PKG.$tests`), and a
+  non-test module's use of a test module makes no edge, so
+  `folder-graph-test-edges` no longer fails on a cycle (it now stops on
+  #74) and the two fixtures that broke stay passing.
+  `non-test-code-uses-test-module` now reports `unknown-module` (the
+  module is outside the user's closure) where the spec wants
+  `test-only-use` (`module.test.non-test-use.test-module`); that is a
+  third `UseRootError` with its own message in `hd_resolve` lowering.
+  May I take it, as in O14?
 
 
 - **O8, fetching and selection (design).** `cli.dep.select`,

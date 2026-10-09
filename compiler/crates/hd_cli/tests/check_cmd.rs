@@ -533,3 +533,28 @@ fn a_folder_cycle_is_one_error_and_bodies_still_check() {
         r.err
     );
 }
+
+/// `module.cycle.test-code`: a test module may use a helper folder that
+/// uses its own folder; test code makes no folder edge, so no cycle.
+#[test]
+fn test_code_makes_no_folder_cycle() {
+    let dir = scratch("hd-check-test-edges");
+    for (file, text) in [
+        ("hd.toml", "[package]\nname = \"shop\"\n"),
+        ("src/shop/cart.hd", "pub fn total() -> i32:\n    3\n"),
+        (
+            "src/testkit/kit.hd",
+            "use pkg.shop.cart.{total}\n\npub fn twice() -> i32:\n    total() * 2\n",
+        ),
+        (
+            "src/shop/cart_test.hd",
+            "use pkg.testkit.kit.{twice}\n\nfn six() -> i32:\n    twice()\n",
+        ),
+    ] {
+        let path = dir.join(file);
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
+        std::fs::write(path, text).expect("write");
+    }
+    let r = check(&dir, "hd-check-cache-test-edges", &["--tests"]);
+    assert_eq!(r.code, Some(0), "{}", r.err);
+}

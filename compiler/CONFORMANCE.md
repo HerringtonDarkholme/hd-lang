@@ -63,8 +63,8 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 57 | 32 | 16 | 105 |
-| `runtime/valid` | 482 | 186 | 261 | 929 |
-| `typing/invalid` | 566 | 418 | 90 | 1074 |
+| `runtime/valid` | 482 | 185 | 262 | 929 |
+| `typing/invalid` | 566 | 419 | 89 | 1074 |
 | `typing/valid` | 339 | 34 | 42 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -82,7 +82,6 @@ compiler stage that first declined the case.
 | `fail:cannot-infer-type` | 8 |
 | `fail:discarded-must-use-value` | 1 |
 | `fail:duplicate-data-pattern-field` | 1 |
-| `fail:folder-cycle` | 1 |
 | `fail:identity-requires-references` | 9 |
 | `fail:implicit-narrowing` | 1 |
 | `fail:integer-literal-range` | 1 |
@@ -118,6 +117,7 @@ compiler stage that first declined the case.
 | `fail:unknown-data-field` | 13 |
 | `fail:unknown-import` | 25 |
 | `fail:unknown-method` | 33 |
+| `fail:unknown-module` | 1 |
 | `fail:unknown-name` | 12 |
 | `fail:unknown-named-argument` | 3 |
 | `fail:unknown-trait` | 9 |
@@ -197,12 +197,6 @@ compiler stage that first declined the case.
 <details><summary><code>fail:duplicate-data-pattern-field</code> (1)</summary>
 
 - `typing/invalid/duplicate-data-pattern-field.hd`
-
-</details>
-
-<details><summary><code>fail:folder-cycle</code> (1)</summary>
-
-- `runtime/valid/folder-graph-test-edges.hd`
 
 </details>
 
@@ -975,6 +969,12 @@ compiler stage that first declined the case.
 
 </details>
 
+<details><summary><code>fail:unknown-module</code> (1)</summary>
+
+- `typing/invalid/non-test-code-uses-test-module.hd`
+
+</details>
+
 <details><summary><code>fail:unknown-name</code> (12)</summary>
 
 - `typing/valid/recursive-local-closure.hd`
@@ -1154,6 +1154,7 @@ compiler stage that first declined the case.
 - `typing/invalid/callable-value-no-update.hd`
 - `typing/invalid/callable-value-short-binding-store.hd`
 - `typing/invalid/callable-value-readonly-parameter.hd`
+- `runtime/valid/folder-graph-test-edges.hd`
 - `typing/valid/let-mut-infer.hd`
 - `typing/invalid/let-mut-spread-mut-field.hd`
 - `typing/valid/let-mut-spread-fresh-field.hd`
@@ -1243,7 +1244,6 @@ compiler stage that first declined the case.
 - `runtime/valid/local-inherent-and-trait-impls.hd`
 - `typing/invalid/local-impl-second-pair.hd`
 - `runtime/valid/integration-test-public-view.hd`
-- `typing/invalid/non-test-code-uses-test-module.hd`
 - `runtime/valid/test-module-uses-test-module.hd`
 - `typing/invalid/set-type-not-prelude.hd`
 - `typing/invalid/local-inherent-impl-nonlocal-target.hd`

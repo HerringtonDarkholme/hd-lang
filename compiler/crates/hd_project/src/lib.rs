@@ -490,7 +490,13 @@ impl ModuleTable {
                 let id = ModuleId::from_raw(u32::try_from(t.modules.len()).expect("modules"));
                 let stem = e.path.trim_end_matches(".hd");
                 let mod_file = e.path == "mod.hd" || e.path.ends_with("/mod.hd");
-                let folder = if mod_file || dirs.contains(stem) {
+                // The test unit (resolution-and-interfaces.md §4.8): every
+                // test module of a package, wherever its file lies, is one
+                // folder, after the folders its uses reach; so no library
+                // folder holds test code (`module.cycle.test-code`).
+                let folder = if !executable && role_of(&e.path) == Role::Test {
+                    format!("{root}.$tests")
+                } else if mod_file || dirs.contains(stem) {
                     path.clone()
                 } else {
                     folder_of(&path).to_owned()
@@ -853,10 +859,14 @@ impl FolderGraph {
         };
         for (m, uses) in module_uses.iter().enumerate() {
             let from = table.modules[m].folder;
+            let test_code = table.modules[m].role == Role::Test;
             for u in uses {
                 if let Some(target) = table.module_of_use(u) {
                     let to = table.modules[target.idx()].folder;
-                    if to != from {
+                    // Only test code may use a test module; another use is
+                    // an error of its own and makes no edge.
+                    let into_tests = table.modules[target.idx()].role == Role::Test;
+                    if to != from && (test_code || !into_tests) {
                         let u = &mut g.uses[from.idx()];
                         if let Err(at) = u.binary_search_by_key(&to.raw(), |f| f.raw()) {
                             u.insert(at, to);

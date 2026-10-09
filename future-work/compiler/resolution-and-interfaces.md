@@ -72,7 +72,11 @@ deleted file is never served from the cache (Gleam #4320).
 
 Test code makes no edges. `tests:` blocks and doc tests are checked in a
 **test overlay** after the folders they use (§4.13.9). Test modules form
-one test unit per package, which may loop internally, after every folder.
+one test unit per package, which may loop internally, after every folder. Built (O17): discovery puts
+every test module of a package, wherever its file lies, in one folder,
+`PKG.$tests`, so no library folder holds test code and the unit's
+interface follows the folders its uses reach; a use of a test module
+from other code makes no edge.
 Integration test programs are their own roots. The package graph comes
 from manifests, and `package-cycle` is found the same way.
 
