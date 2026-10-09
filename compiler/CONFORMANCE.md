@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2195 | 498 | 152 | 2845 |
+| 2208 | 484 | 153 | 2845 |
 
 ## By Chapter
 
@@ -20,9 +20,9 @@ fixture; unsupported surface records progress without failing.
 | `lang/04-type-system.md` | 293 | 49 | 10 | 352 |
 | `lang/05-expressions.md` | 205 | 63 | 9 | 277 |
 | `lang/06-control-flow.md` | 126 | 27 | 4 | 157 |
-| `lang/07-functions.md` | 91 | 31 | 8 | 130 |
+| `lang/07-functions.md` | 92 | 30 | 8 | 130 |
 | `lang/08-data-and-enums.md` | 79 | 36 | 8 | 123 |
-| `lang/09-traits.md` | 259 | 86 | 14 | 359 |
+| `lang/09-traits.md` | 271 | 73 | 15 | 359 |
 | `lang/10-modules.md` | 201 | 43 | 14 | 258 |
 | `lang/11-requirements-and-suspension.md` | 166 | 48 | 45 | 259 |
 | `lang/14-annotations.md` | 104 | 42 | 7 | 153 |
@@ -63,8 +63,8 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 77 | 24 | 4 | 105 |
-| `runtime/valid` | 722 | 87 | 120 | 929 |
-| `typing/invalid` | 710 | 348 | 17 | 1075 |
+| `runtime/valid` | 731 | 77 | 121 | 929 |
+| `typing/invalid` | 714 | 344 | 17 | 1075 |
 | `typing/valid` | 388 | 16 | 11 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -94,7 +94,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 1 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 210 |
+| `fail:no-diagnostic` | 212 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
@@ -116,7 +116,7 @@ compiler stage that first declined the case.
 | `fail:type-used-as-value` | 1 |
 | `fail:unknown-data-field` | 14 |
 | `fail:unknown-import` | 1 |
-| `fail:unknown-method` | 31 |
+| `fail:unknown-method` | 15 |
 | `fail:unknown-module` | 1 |
 | `fail:unknown-name` | 12 |
 | `fail:unknown-trait` | 7 |
@@ -126,7 +126,7 @@ compiler stage that first declined the case.
 | `fail:unused-local-binding` | 6 |
 | `unsupported:Body` | 57 |
 | `unsupported:Collect` | 30 |
-| `unsupported:Emit` | 28 |
+| `unsupported:Emit` | 29 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 28 |
 | `unsupported:TestCase` | 5 |
@@ -290,7 +290,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (210)</summary>
+<details><summary><code>fail:no-diagnostic</code> (212)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -350,6 +350,7 @@ compiler stage that first declined the case.
 - `typing/invalid/embedding-cycle-indirect.hd`
 - `typing/invalid/embedding-cycle-generic.hd`
 - `typing/invalid/inspectable-requirement-key.hd`
+- `typing/invalid/inspectable-user-implementation.hd`
 - `typing/invalid/inspectable-member-redeclared.hd`
 - `typing/invalid/embedded-non-data.hd`
 - `typing/invalid/embedded-collection-type.hd`
@@ -407,7 +408,6 @@ compiler stage that first declined the case.
 - `typing/invalid/trait-value-unbound-associated-type.hd`
 - `typing/invalid/dyn-associated-function-bound.hd`
 - `typing/invalid/binding-on-non-trait.hd`
-- `typing/invalid/type-argument-list-too-long.hd`
 - `typing/invalid/written-type-too-many-arguments.hd`
 - `typing/invalid/requirement-key-binding-provider.hd`
 - `typing/invalid/requirement-key-unknown-binding.hd`
@@ -476,6 +476,8 @@ compiler stage that first declined the case.
 - `typing/invalid/assoc-call-parameter-two-bounds.hd`
 - `typing/invalid/duplicate-associated-binding-two-bounds.hd`
 - `typing/invalid/dyn-self-parameter-unavailable.hd`
+- `typing/invalid/sealed-member-written-in-impl.hd`
+- `typing/invalid/typeid-of-never.hd`
 - `typing/invalid/child-trait-redeclares-associated-type.hd`
 - `typing/invalid/child-trait-redeclares-associated-function.hd`
 - `typing/invalid/from-trait-value-target.hd`
@@ -760,7 +762,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-method</code> (31)</summary>
+<details><summary><code>fail:unknown-method</code> (15)</summary>
 
 - `typing/valid/mutable-suspension.hd`
 - `typing/invalid/readonly-suspension-cancel.hd`
@@ -771,28 +773,12 @@ compiler stage that first declined the case.
 - `runtime/panic/block-on-cancelled-suspension.hd`
 - `runtime/valid/cancel-cold-and-completed-suspension.hd`
 - `runtime/panic/defer-cancels-active-ancestor.hd`
-- `runtime/valid/inspectable-erasure-example.hd`
-- `runtime/valid/inspectable-alias-and-newtype-identity.hd`
-- `runtime/valid/typeid-of-equality.hd`
-- `typing/invalid/inspectable-user-implementation.hd`
 - `runtime/valid/bare-marker-decorator.hd`
 - `runtime/valid/facts-of-read.hd`
 - `typing/invalid/literal-var-method-missing.hd`
-- `runtime/valid/inspectable-dynamic-vs-static-identity.hd`
-- `runtime/valid/typeid-nested-mut-trait-argument.hd`
 - `runtime/valid/facts-of-literal-generic-none.hd`
 - `typing/invalid/iterator-sum-non-numeric.hd`
 - `typing/invalid/list-sum-non-numeric.hd`
-- `typing/invalid/sealed-member-written-in-impl.hd`
-- `runtime/valid/sealed-supertrait-extension.hd`
-- `runtime/valid/sealed-member-name-inherent-method.hd`
-- `runtime/valid/typeid-qualified-trait-name.hd`
-- `runtime/valid/typeid-same-name-modules.hd`
-- `typing/invalid/typeid-of-unbounded-parameter.hd`
-- `typing/invalid/typeid-of-function-argument.hd`
-- `typing/invalid/typeid-of-never.hd`
-- `typing/invalid/typeid-of-any.hd`
-- `runtime/valid/typeid-mut-names.hd`
 
 </details>
 
@@ -971,7 +957,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Emit</code> (28)</summary>
+<details><summary><code>unsupported:Emit</code> (29)</summary>
 
 - `runtime/valid/float-display.hd`
 - `runtime/valid/suspending-calls-in-branches.hd`
@@ -996,6 +982,7 @@ compiler stage that first declined the case.
 - `runtime/valid/regex-named-groups.hd`
 - `runtime/valid/regex-replace.hd`
 - `runtime/valid/regex-split.hd`
+- `runtime/valid/inspectable-dynamic-vs-static-identity.hd`
 - `runtime/valid/numeric-casts-in-range.hd`
 - `runtime/valid/serde-std-reads.hd`
 - `runtime/valid/associated-binding-positions.hd`
@@ -1723,8 +1710,10 @@ runtime/valid/inherent-method-beats-trait-method.hd
 runtime/valid/inherent-methods.hd
 runtime/valid/init-read-through-trait-dispatch.hd
 runtime/valid/init-ready-groups-by-identity.hd
+runtime/valid/inspectable-alias-and-newtype-identity.hd
 runtime/valid/inspectable-downcast-mut.hd
 runtime/valid/inspectable-downcast-success-and-failure.hd
+runtime/valid/inspectable-erasure-example.hd
 runtime/valid/inspectable-function-fields-and-trait-arguments.hd
 runtime/valid/inspectable-generic-arguments-exact.hd
 runtime/valid/inspectable-generic-downcast-targets.hd
@@ -2007,6 +1996,8 @@ runtime/valid/same-line-suite-boundaries.hd
 runtime/valid/script-top-level-runs.hd
 runtime/valid/scripted-input.hd
 runtime/valid/scripted-process.hd
+runtime/valid/sealed-member-name-inherent-method.hd
+runtime/valid/sealed-supertrait-extension.hd
 runtime/valid/seeded-random.hd
 runtime/valid/self-interpolation.hd
 runtime/valid/sequential-suspending-calls.hd
@@ -2127,6 +2118,11 @@ runtime/valid/type-arguments-in-expressions.hd
 runtime/valid/type-expression-forms.hd
 runtime/valid/typed-derivation-build-defaults.hd
 runtime/valid/typed-derivation-embedded-generic-walk.hd
+runtime/valid/typeid-mut-names.hd
+runtime/valid/typeid-nested-mut-trait-argument.hd
+runtime/valid/typeid-of-equality.hd
+runtime/valid/typeid-qualified-trait-name.hd
+runtime/valid/typeid-same-name-modules.hd
 runtime/valid/u8-checked-add.hd
 runtime/valid/unicode-function-names.hd
 runtime/valid/unit-pattern-void-success.hd
@@ -2823,9 +2819,13 @@ typing/invalid/tuple-spread-rest-into-plain.hd
 typing/invalid/tuple-spread-tuple-operand.hd
 typing/invalid/tuple-trait-user-impl.hd
 typing/invalid/tuple-vararg-arity.hd
+typing/invalid/type-argument-list-too-long.hd
 typing/invalid/type-default-impl-mismatch.hd
 typing/invalid/type-name-as-value.hd
 typing/invalid/typed-fact-not-field.hd
+typing/invalid/typeid-of-any.hd
+typing/invalid/typeid-of-function-argument.hd
+typing/invalid/typeid-of-unbounded-parameter.hd
 typing/invalid/u32-to-usize-binding.hd
 typing/invalid/unary-minus-string.hd
 typing/invalid/unary-plus-i32-literal-range.hd
@@ -3267,7 +3267,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 81 | 21 | 0 | 102 |
+| 82 | 20 | 0 | 102 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3351,6 +3351,7 @@ cli/test-tasks
 cli/test-timeout
 cli/test-unit-fakes
 cli/toolchain-too-old
+cli/typeid-package-name
 cli/wasm-cap-flags-only
 cli/wasm-invalid
 cli/wasm-run-built
