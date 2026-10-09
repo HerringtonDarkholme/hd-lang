@@ -2,7 +2,6 @@ path	reason	finding
 runtime/valid/shared-enum-fact-evaluation.hd	the prototype evaluates shared enum data lazily on first read, so module initialization leaves only the dependency event instead of running the constructor and defaults (data.shared.module-init)	ENUMINIT
 typing/invalid/integration-tests-root-use.hd	the prototype treats reserved `tests` as a parsed use root and reports unknown-module, but grammar.use.needs-root makes the line a syntax-error	D2B
 runtime/valid/resource-disposed-result.hd	check exits 101 with no located diagnostic: the prototype has no disposed-file runtime profile, so its adapter rejects it	F-259
-runtime/valid/retry-with-backoff.hd	held: implementing it makes std.task import std.time, which costs every program a std.time check (owner, batch 73)	RETRY-WITH
 cli/doc-out	`hd doc` takes only a NAME: `hd doc --out site` exits 101 with 'unknown flag --out' (cli.doc.command, cli.doc.files, cli.doc.root-page: no `pkg.md`)	CLI-DOC
 cli/doc-name	`hd doc` takes only a NAME: `hd doc --out site text.slugify` exits 101 with 'unknown flag --out' (cli.doc.name, and `hd doc std.text.split` by cli.doc.name.std)	CLI-DOC
 cli/doc-private	`hd doc text.helper` exits 0 and prints the private function's signature; cli.doc.private wants 101 for a private item	CLI-DOC

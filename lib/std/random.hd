@@ -78,6 +78,14 @@ impl Rng:
     pub fn new(seed: u64) -> mut Rng:
         Rng { source: SeededRandom::new(seed) }
 
+    # The direct constructor that `rng()` uses for its draw
+    # (r-std-random.rng.from-random): the spec names no distinct behavior
+    # for it, so it builds the generator exactly as `new` does.
+    ## Returns the generator of a raw draw, as `rng()` seeds one.
+    ## See [std-random.rng.from-random](../../spec/std/random.md#r-std-random.rng.from-random).
+    pub fn from_seed(seed: u64) -> mut Rng:
+        Rng { source: SeededRandom::new(seed) }
+
     ## The next random `u64`.
     ## See [std-random.rng.next-u64](../../spec/std/random.md#r-std-random.rng.next-u64).
     pub fn next_u64(mut self) -> u64:

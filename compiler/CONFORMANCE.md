@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 1638 | 681 | 525 | 2844 |
+| 1638 | 680 | 526 | 2844 |
 
 ## By Chapter
 
@@ -51,7 +51,7 @@ fixture; unsupported surface records progress without failing.
 | `std/result.md` | 4 | 1 | 0 | 5 |
 | `std/serde.md` | 2 | 0 | 6 | 8 |
 | `std/sys.md` | 0 | 1 | 0 | 1 |
-| `std/task.md` | 1 | 1 | 5 | 7 |
+| `std/task.md` | 1 | 0 | 6 | 7 |
 | `std/testing.md` | 17 | 19 | 3 | 39 |
 | `std/text.md` | 27 | 5 | 3 | 35 |
 | `std/time.md` | 15 | 1 | 1 | 17 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 56 | 32 | 17 | 105 |
-| `runtime/valid` | 402 | 174 | 353 | 929 |
+| `runtime/valid` | 402 | 173 | 354 | 929 |
 | `typing/invalid` | 549 | 416 | 109 | 1074 |
 | `typing/valid` | 335 | 34 | 46 | 415 |
 | `typing/warnings` | 9 | 11 | 0 | 20 |
@@ -113,7 +113,7 @@ compiler stage that first declined the case.
 | `fail:type-mismatch` | 86 |
 | `fail:type-used-as-value` | 2 |
 | `fail:unknown-data-field` | 13 |
-| `fail:unknown-import` | 26 |
+| `fail:unknown-import` | 25 |
 | `fail:unknown-method` | 33 |
 | `fail:unknown-module` | 5 |
 | `fail:unknown-name` | 11 |
@@ -123,7 +123,7 @@ compiler stage that first declined the case.
 | `fail:unknown-variant` | 1 |
 | `fail:unsatisfied-trait-bound` | 30 |
 | `fail:unused-local-binding` | 10 |
-| `unsupported:Body` | 201 |
+| `unsupported:Body` | 202 |
 | `unsupported:Collect` | 63 |
 | `unsupported:Discover` | 13 |
 | `unsupported:Emit` | 149 |
@@ -871,7 +871,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-import</code> (26)</summary>
+<details><summary><code>fail:unknown-import</code> (25)</summary>
 
 - `runtime/valid/it-each-rows.hd`
 - `typing/invalid/it-each-outside-test-position.hd`
@@ -892,7 +892,6 @@ compiler stage that first declined the case.
 - `typing/invalid/private-std-function.hd`
 - `typing/invalid/private-std-type.hd`
 - `typing/invalid/private-std-name-in-group.hd`
-- `runtime/valid/retry-with-backoff.hd`
 - `runtime/valid/choices-choose.hd`
 - `typing/invalid/test-registration-renamed-misplaced.hd`
 - `typing/valid/test-runner-every-registration-form.hd`
@@ -1053,7 +1052,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (201)</summary>
+<details><summary><code>unsupported:Body</code> (202)</summary>
 
 - `typing/invalid/nonfinal-spread.hd`
 - `typing/valid/enums.hd`
@@ -1195,6 +1194,7 @@ compiler stage that first declined the case.
 - `runtime/panic/race-empty-at-run-time.hd`
 - `typing/valid/hd-run-integration.hd`
 - `runtime/valid/list-slice-mutable.hd`
+- `runtime/valid/retry-with-backoff.hd`
 - `runtime/valid/range-eq.hd`
 - `typing/invalid/power-float-widths.hd`
 - `runtime/valid/numeric-explicit-widening.hd`

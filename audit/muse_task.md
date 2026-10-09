@@ -102,28 +102,6 @@ When the queue is empty, report that and wait.
 
 ## Jobs
 
-### L2. Std Gaps, Part 1: Backoff, retry_with!, Rng::from_seed, default()
-
-Your L1 inventory found plain-hd items the spec declares and `lib/std`
-lacks. Add them to `lib/std` (this job lifts the read-only rule for
-these files only), with the exact signatures the spec states:
-
-- `std.task`: `Backoff` (rule `std-task.backoff.decl-usize`) and
-  `retry_with!` (`std-task.retry-with.decl`), a loop over `Clock.sleep!`
-  written like the existing `retry!`.
-- `std.random`: `Rng::from_seed`, as `std-random.rng.from-random` uses it.
-- `std.ops`: the free `default()` that makes the `@default` fact
-  (`std-ops.default.derive.marker`).
-
-Where the spec leaves a detail open, take the simplest body that meets
-the rule text and list it in your commit message; never add API the
-spec does not name. Checks: `pnpm run check` (lib/std feeds the
-prototype too), the full `cargo test -q --release --workspace` in
-`compiler/`, and `HD_UPDATE_CONFORMANCE=1` for the driver conformance
-test (the CONFORMANCE.md diff may only add cases; say which, e.g.
-`runtime/valid/retry-with-backoff.hd`). Report hello-world size before
-and after (it should not change). One commit; push. Timebox 45 minutes.
-
 ### L3. Std Gaps, Part 2: std.sys And std.net Declarations
 
 Add `lib/std/sys.hd` with what the spec declares as plain hd: the `Sys`
