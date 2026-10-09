@@ -51,13 +51,16 @@ research's "dependency bodies skipped" now holds cold as well as warm.
 
 1. As steps 1 to 6 above, but only for the folders that FILE's module
    deeply depends on, plus its own folder.
-2. Check only FILE's module (its `check` entry, and its test overlay when
-   FILE is test code).
+2. Check FILE's module and every module it uses, deeply: FILE's module
+   "linked with the rest of the package" (`cli.package.file`). A module
+   FILE does not reach stays silent, so a sibling's error is not
+   reported (`cli/check-summary`), and a used module's is
+   (`cli/json-file-location`). FILE's test overlay is checked too when
+   FILE is test code.
 3. Coherence runs only for traits with an impl in FILE.
-4. Output: FILE's diagnostics, plus one note per used folder whose
-   interface has errors ("src/shop has 2 errors; run hd check").
-   A FILE inside a package reports only that file's module
-   (`cli.package.file`). JSON output keeps its contract: each
+4. Output: the diagnostics of those modules, in content order, plus one
+   note per used folder whose interface has errors ("src/shop has 2
+   errors; run hd check"). JSON output keeps its contract: each
    diagnostic, then the summary.
 5. A FILE under no root is a single-file program
    ([`cli.package.no-root`](../../spec/cli/command-line.md#r-cli.package.no-root)):

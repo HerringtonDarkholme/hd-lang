@@ -96,92 +96,26 @@ One commit per command; skip a command whose spec needs a design that
 
 ## Questions
 
-- **O1, `hd check FILE` in a package (design).** `commands.md` §7.2
-  says "Check only FILE's module", but `cli/json-file-location` expects
-  the `type-mismatch` in `src/util.hd` when checking `src/main.hd`, which
-  uses it (`cli.package.file`: "linked with the rest of the package"),
-  while `cli/check-summary` expects siblings that FILE does not use to
-  stay silent. I took the reading that fits both: FILE's module and every
-  module it uses, deeply. §7.2 step 2 could say so.
-- **O1 left for later jobs.** The other `hd check --format json` cases
-  wait on `[[executable]]` and `[workspace]` (O6: `exe-*`,
-  `json-diagnostic-fixes`, `manifest-unknown-key`, `member-unlisted`,
-  `ambiguous-import`), dev-dependency loading (O7:
-  `dev-dependency-non-test`, whose `unknown-module` line becomes
-  `test-only-use`), `hd remove` (O8: `dep-missing-sum`, whose check step
-  now passes), and `hd build --format json` (O2:
-  `build-instantiation-too-deep`).
-- **O2 left for other lanes.** `hd run`, `hd build`, `hd test` and
-  `hd FILE` take `--format json` now. Their remaining JSON cases fail
-  outside the CLI: `json-test-pass`, `json-test-fail`,
-  `json-test-ignored`, `json-test-order`, `test-tasks` and
-  `dev-dependency-tests-block` stop on `unsupported: stage Body:
-  expression TrailingCallExpr` in a top-level integration test `it(...)`
-  (hd_check); `test-outcomes` on "an explicit closure as a test body";
-  `dbg-release` on emitting TIR tag `ItemRef` (hd_wasm). In
-  `build-instantiation-too-deep`, `hd build` never ends (still running
-  after 60 s), so monomorphization has no `instantiation-too-deep` limit
-  yet (hd_mono). `cap-total-deny` waits on `[capabilities]` (O5, O6).
-- **O3, the test overlay (design).** `checking-and-tir.md` §4.13.9
-  has a `TestOverlay(m)` task, cached as `check-test`; in `hd_driver` it
-  is still a stub, and `hd test` checks `tests:` blocks inside `Body(m)`
-  under the check role "test". `hd check --tests` now reuses that path
-  (`Goal::CheckTests`), so it shares `hd test`'s entries, not the plain
-  check's. Splitting it into its own task would move the registrations
-  out of the check entry, which `hd test`'s collection reads. Is that
-  split wanted now, or is sharing `hd test`'s role enough?
-- **O3, doc tests (`cli.check.tests.doc`).** Nothing extracts doc tests
-  from `##` blocks yet, in `hd test` or anywhere else, so `hd check
-  --tests` checks none. Extraction is checker work (synthetic files
-  whose spans map back, §4.13.9). Should it be a job of its own?
-- **O5 scope.** `hd run` and `hd FILE` read the built module's import
-  list (a small import-section reader in `hd_run`, which `hd FILE.wasm`
-  can reuse) and refuse a totally denied need with `denied-capability`.
-  `hd test` does not take `--cap` yet: its unit-test program gets no host
-  provider, and integration test programs, whose refusal
-  `cli.cap.total.test` covers, do not run yet. The other `cap-*` cases
-  stop on host methods not lowered yet (`FsRead.read_text`, `Env.get`,
-  `write_bytes`) or on `hd FILE.wasm` (O8).
-- **O6 left out.** `[source] root` is still "not implemented" (it moves
-  the source root, which discovery assumes is `src`). `members` and
-  `exclude` match directories exactly, with no globs. `-p NAME`
-  (`cli.workspace.select.*`) and the workspace's shared selection and
-  `hd.sum` (`cli.mode.member.shared`) are not built; dependency
-  selection itself is still local. `[toolchain] pin` and
-  `[test.capabilities]` parse but have no effect yet. The samples under
-  `compiler/samples` lost their `version = "0.1.0"` line, which is now an
-  `unknown-manifest-key` warning.
-- **O7, folder-cycle recovery (needs `hd_resolve`).** §4.8 rule 5
-  resolves a cyclic SCC's folders together, as one folder. In
-  `hd_driver`, `FolderIface(F)` builds one folder's interface through
-  `hd_resolve::Cx { folder, .. }` and needs every other folder of its
-  closure built first, so a cycle leaves a member blocked and its uses
-  cascade (`folder-cycle-facade`: `unknown-module` after
-  `folder-cycle`). Recovery means an interface over several folders in
-  `hd_resolve`'s interface lowering, which is not my lane. Who takes it?
-- **O7, dev dependencies (needs `hd_resolve`).** The root's
-  `[dev-dependencies]` now load, and test modules, integration tests and
-  tasks see them (`hd_project::ModuleTable::use_roots`); library code
-  does not, and a unit test module does not see one that depends back on
-  the package. Two parts need the resolver: the `test-only-use` and
-  `cyclic-test-dependency` codes (a new `UseRootError` arm in
-  `hd_resolve` lowering), and dev dependencies inside a library module's
-  `tests:` block, whose uses `use_decls` joins to the module's scope
-  (`dev-dependency-tests-block`). The run-time cases also need top-level
-  `it(...)` in test modules (`TrailingCallExpr`, hd_check).
-- **O7, `hd run --release`.** `hd run`, `hd build` and `hd FILE` now
-  leave test code and other tasks out of the program, so
-  `release-wraps` gets to running; it then panics with
-  `integer-overflow`, since `--release` does not select the wrapping
-  profile in codegen yet.
-- **O8, the release profile (needs codegen).** `hd --release FILE`,
-  `hd run --release` and `hd build --release` parse the flag, and
-  `hd build` writes `build/release/`, but no goal or codegen setting
-  selects the release profile: `+` still panics on overflow
-  (`types.arith.release`, `release-wraps`, `release-test-checked`'s
-  first step). `hd test --release` is right as is: the test profile
-  stays checked, with one pipeline. A release flag on `Goal::Program`
-  would need hd_mono/hd_wasm to emit wrapping arithmetic; who takes it?
+- **O8, fetching and selection (design).** `cli.dep.select`,
+  `cli.dep.tidy`, `cli.dep.fetch`, `hd add` and `hd update` need version
+  selection over fetched manifests, git fetches of tags and pseudo
+  versions, tree hashes and the read-only cache layout; `commands.md`
+  §7.1 step 1 names them but has no design. `hd remove` deletes the key
+  and drops the removed version's own `hd.sum` lines, and fetches
+  nothing. Is a fetch design (a new `commands.md` section) wanted before
+  `hd add`, `hd update` and a real `hd fetch`?
+- **Left for other lanes (status).** The CLI cases still failing for
+  reasons outside this lane wait on the orchestrator's tasks above:
+  top-level `it(...)` (#74: the `json-test-*`, `test-*`, `new-app`,
+  `new-lib` and dev-dependency run steps), the release profile (#109:
+  `release-wraps`, `release-test-checked`), `instantiation-too-deep`
+  (#132), folder cycles and the resolver's dev-dependency codes (#133,
+  #134), doc tests (#135), host methods not lowered yet (`cap-*`), and
+  `ItemRef` emission (`dbg-release`). Not built in this lane yet:
+  `[source] root`, globs in workspace `members`, `-p NAME`, the
+  workspace's shared selection and `hd.sum`, and the effect of
+  `[toolchain] pin` and `[test.capabilities]`; `hd test` takes no
+  `--cap` yet, since integration programs do not run.
 
 ### Answers (orchestrator, 2026-10-09 00:30)
 

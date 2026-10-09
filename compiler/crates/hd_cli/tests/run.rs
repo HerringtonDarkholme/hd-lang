@@ -1003,3 +1003,38 @@ fn clean_cache_empties_only_an_hd_cache() {
     assert_eq!(foreign.status.code(), Some(101));
     assert!(dir.join("notes.txt").is_file());
 }
+
+/// `cli.dep.remove`, `cli.dep.edit`, `cli.dep.edit.empty-table`,
+/// `cli.dep.tidy`: `hd remove` deletes the key's line and an emptied
+/// table's header, keeps the other lines, and drops the version's
+/// `hd.sum` entries; a NAME of neither table is an error.
+#[test]
+fn remove_deletes_a_requirement_line_by_line() {
+    let dir = tree(
+        "hd-forms-remove",
+        &[
+            (
+                "hd.toml",
+                "[package]\nname = \"app\"  # mine\n\n[dependencies]\nmoney = { path = \"money\" }\n\n[dev-dependencies]\njson = \"github.com/acme/json@2.1.0\"\n",
+            ),
+            (
+                "hd.sum",
+                "github.com/acme/json@2.1.0 h1:a=\ngithub.com/acme/json@2.1.0/hd.toml h1:b=\ngithub.com/acme/yaml@1.0.0 h1:c=\n",
+            ),
+            ("src/main.hd", HELLO),
+        ],
+    );
+    let r = ran(&dir, &["remove", "json"]);
+    assert_eq!(r.code, Some(0), "{}", r.err);
+    assert_eq!(
+        std::fs::read_to_string(dir.join("hd.toml")).expect("read"),
+        "[package]\nname = \"app\"  # mine\n\n[dependencies]\nmoney = { path = \"money\" }\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.join("hd.sum")).expect("read"),
+        "github.com/acme/yaml@1.0.0 h1:c=\n"
+    );
+    let r = ran(&dir, &["remove", "json"]);
+    assert_eq!(r.code, Some(101));
+    assert!(r.err.contains("`json` is no key"), "{}", r.err);
+}
