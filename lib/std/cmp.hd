@@ -299,6 +299,11 @@ impl[S] Walker[S] for EqualWalker[S]:
             return .Ok(())
         .Err(false)
 
+    # A rest member is one `List[T]` member (annot.walk.rest.default),
+    # which needs `T < Eq` here, as `member` needs `F < Eq`.
+    fn rest[T < Eq](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, bool]:
+        self.member(h, items)
+
     fn member[F < Eq](mut self, h: Field[S, F], value: F) -> Result[void, bool]:
         if value == h.get(self.other):
             return .Ok(())
@@ -335,6 +340,10 @@ impl[S] Walker[S] for VariantIndex[S]:
         self.index = v.info.index
         .Err(true)
 
+    # A rest member is one `List[T]` member (annot.walk.rest.default).
+    fn rest[T](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, bool]:
+        self.member(h, items)
+
     fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, bool]:
         .Ok(())
 
@@ -358,6 +367,11 @@ impl[S] Walker[S] for PartialOrderWalker[S]:
 
     # An unordered member, such as NaN, makes the values unordered
     # (r-std-cmp.derive.ord.partial).
+    # A rest member is one `List[T]` member (annot.walk.rest.default),
+    # which needs `T < PartialOrd` here, as `member` needs `F < PartialOrd`.
+    fn rest[T < PartialOrd](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, bool]:
+        self.member(h, items)
+
     fn member[F < PartialOrd](mut self, h: Field[S, F], value: F) -> Result[void, bool]:
         let order = value.partial_cmp(h.get(self.other))
         match order:
@@ -385,6 +399,11 @@ impl[S] Walker[S] for OrderWalker[S]:
         else:
             self.result = .Greater
         .Err(true)
+
+    # A rest member is one `List[T]` member (annot.walk.rest.default),
+    # which needs `T < Ord` here, as `member` needs `F < Ord`.
+    fn rest[T < Ord](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, bool]:
+        self.member(h, items)
 
     fn member[F < Ord](mut self, h: Field[S, F], value: F) -> Result[void, bool]:
         let order = value.cmp(h.get(self.other))

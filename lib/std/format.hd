@@ -810,6 +810,10 @@ impl[S] Walker[S] for DebugShape[S]:
         self.of_data = v.info.of_data
         .Ok(())
 
+    # A rest member is one `List[T]` member (annot.walk.rest.default).
+    fn rest[T](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, never]:
+        self.member(h, items)
+
     fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.members = self.members + 1
         if h.info.positional:
@@ -825,6 +829,11 @@ impl[S] Walker[S] for DebugNamed[S]:
 
     fn variant(mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
+
+    # A rest member is one `List[T]` member (annot.walk.rest.default),
+    # which needs `T < Debug` here, as `member` needs `F < Debug`.
+    fn rest[T < Debug](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, never]:
+        self.member(h, items)
 
     fn member[F < Debug](mut self, h: Field[S, F], value: F) -> Result[void, never]:
         _ := self.fields.field(h.info.name, value)

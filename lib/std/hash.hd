@@ -192,6 +192,11 @@ impl[S] Walker[S] for HashWalker[S]:
             u32(v.info.index).hash(self.state)
         .Ok(())
 
+    # A rest member is one `List[T]` member (annot.walk.rest.default),
+    # which needs `T < Hash` here, as `member` needs `F < Hash`.
+    fn rest[T < Hash](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, never]:
+        self.member(h, items)
+
     fn member[F < Hash](mut self, h: Field[S, F], value: F) -> Result[void, never]:
         value.hash(self.state)
         .Ok(())
