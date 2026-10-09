@@ -93,8 +93,8 @@ and list it under Questions.
 
 ## Don't Touch
 
-- `src/`, `lib/`, `test/`, `spec/conformance/` (fixtures and indexes), and
-  `audit/codex_task.md`: other agents work there. The one exception is
+- `src/`, `lib/`, `test/`, `spec/conformance/` (fixtures and indexes):
+  other agents work there. The one exception is
   realigning `spec/conformance/examples.tsv` rows after you add, remove or
   move a ```text or ```hd block in a spec chapter.
 - Rule IDs: never rename, add, or remove an `r[...]` ID. Rewording a rule's

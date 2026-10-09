@@ -127,11 +127,6 @@ cargo run -p hd_syntax --example parse_check -- samples/hello
 cargo run -p hd_syntax --example parse_check -- --tree samples/hello/hello.hd
 ```
 
-The `bench` invocation is wired but is not usable at this commit: its generated
-`main` calls `println` without declaring `$ Console`, so checking stops with
-`missing-requirement`. This is recorded in `audit/codex_task.md`; do not treat
-its partial timing as a benchmark result.
-
 ## Tests And Snapshots
 
 - Unit tests live beside each crate's source. Integration tests live under
