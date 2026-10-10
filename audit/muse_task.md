@@ -43,6 +43,54 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
+### M18. Implement: Core Host Providers On wasmtime (W2, #244, Code)
+
+You own the wasmtime runtime lane from here (the orchestrator's agents
+work on the parser, checker and CLI checks). W1 is on main:
+`compiler/crates/hd_run_wasmtime` runs Console, ConsoleInput, Clock,
+Args, Env and the `hd:prim` primitives (`engines-and-test-runner.md`
+§18.7); your §20 host-port design is the plan. Port the remaining core
+providers from `compiler/host/*.mjs` to Rust: FsRead, FsWrite (with
+cap-std or plain std under the grant checks), Process, Random, Sys, and
+their handle traits, with grants applied exactly as the Node host does.
+Files you may edit: `compiler/crates/hd_run_wasmtime/**`,
+`compiler/crates/hd_cli/src/engine.rs`,
+`compiler/crates/hd_cli/tests/wasmtime_engine.rs`, the workspace and
+crate `Cargo.toml` for new dependencies, and §18-§20 of
+`engines-and-test-runner.md`. Ask (Questions section) before touching
+any other crate. Extend the parity test (same stdout, stderr and status
+on both engines) to every provider, and report how many driver
+conformance runtime programs match Node under
+`HD_CONFORMANCE_ENGINE=wasmtime` before and after. Node stays the
+default. Hello world wasm must not grow.
+
+### M19. Implement: Http And Net On wasmtime (W3, #245, Code)
+
+After M18. Port `compiler/host/http.mjs` and `net.mjs` per §20.4 (client
+threads, no async runtime): grant checks per request and per redirect,
+the `Host` header (see commit abbd5395), timeouts, TCP/UDP handles.
+Same files and rules as M18. Tests must use local servers only, never
+the network.
+
+### M20. Fix: Show A Prompt Before Reading Input (#277, Code)
+
+Both engines hold stdout until stderr is written or the run ends, so a
+prompt printed before `read_line!` does not show before the wait. Check
+`spec/std/console.md` for the buffering rule first (the spec wins), then
+flush held stdout before a ConsoleInput read starts, on both engines.
+Files: `compiler/crates/hd_run_wasmtime/**`, `compiler/host/core.mjs`,
+the two engines' tests. Add a test that pipes input and checks the
+prompt order.
+
+### M21. Implement: Resource Limits On wasmtime (#269, Code)
+
+After M18-M20, implement your M15 design (§ of
+`engines-and-test-runner.md`): `--time-limit`, `--max-heap` and the
+other program limits on wasmtime, with the panics or errors the spec
+names. Same files as M18, plus the flag parsing in
+`compiler/crates/hd_cli/src/main.rs` (the `--engine` flag code is the
+model). Node behavior stays as is until W5.
+
 ### M16. Design: `hd fix` And `hd cache gc` (#267, #268, Design Text)
 
 Read the spec's Rewriting Source / Fixing and Compiled Cache sections,
