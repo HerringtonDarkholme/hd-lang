@@ -63,6 +63,8 @@ pub trait ProgramEnv: LayoutEnv {
     fn trait_methods(&self, trait_: DefId) -> Vec<DefId>;
     /// A trait's own parameter count, `Self` excluded.
     fn trait_arity(&self, trait_: DefId) -> usize;
+    /// The associated types a trait itself declares.
+    fn trait_assocs(&self, trait_: DefId) -> Vec<DefId>;
     /// The compiler's lowering key of a body-less std function
     /// (`@intrinsic("key")`, or a compiler-supplied item by name).
     fn intrinsic(&self, def: DefId) -> Option<String>;
@@ -573,7 +575,9 @@ fn items_in(pool: &InternPool, t: Ty, out: &mut Vec<DefId>, seen: &mut HashSet<T
 }
 
 /// An item's declared types that layouts read: a data type's fields, an
-/// enum's payloads, a trait's method parameters and results, as declared.
+/// enum's payloads, a trait's method parameters and results and its
+/// supertraits (a vtable's parent fields, with the bindings they fix), as
+/// declared.
 fn declared_types(env: &dyn ProgramEnv, def: DefId) -> Vec<Ty> {
     if let Some(fs) = env.data_fields(def) {
         return fs;
@@ -581,7 +585,7 @@ fn declared_types(env: &dyn ProgramEnv, def: DefId) -> Vec<Ty> {
     if let Some(vs) = env.enum_declared(def) {
         return vs.into_iter().flatten().collect();
     }
-    let mut out = Vec::new();
+    let mut out = env.decls().supertraits(def).to_vec();
     for m in env.trait_methods(def) {
         out.extend(env.params(m).unwrap_or_default());
         out.extend(env.ret(m));

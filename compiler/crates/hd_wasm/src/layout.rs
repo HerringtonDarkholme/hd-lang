@@ -65,8 +65,8 @@ pub fn key_id(pool: &InternPool, env: &dyn ProgramEnv, k: Ty) -> i64 {
 
 /// A path through a vtable's parent fields to a supertrait's vtable
 /// (codegen.md §13.16): each step's vtable type and parent field, then
-/// the supertrait's arguments.
-pub(crate) type SuperPath = (Vec<(WTy, u32)>, TyList);
+/// the supertrait's vtable key.
+pub(crate) type SuperPath = (Vec<(WTy, u32)>, Ty);
 
 /// A trait-value call's dispatch ([`Lay::dyn_slot`]): the receiver's
 /// vtable type, the parent-field steps to the declaring trait's vtable,
@@ -160,6 +160,8 @@ pub enum Shape {
         trait_: DefId,
         args: TyList,
         vt: WTy,
+        /// The vtable key (`Lay::dyn_key`).
+        key: Ty,
     },
     Suspend {
         base: WTy,
@@ -554,14 +556,197 @@ impl<'a> Lay<'a> {
         }
     }
 
-    /// A trait value's type as its vtable reads it: the trait and its
-    /// arguments (the vtable never reads associated bindings).
-    fn dyn_ty(&self, trait_: DefId, args: TyList) -> Ty {
-        self.pool.intern_ty(&TyData::TraitValue {
+    /// A trait value's vtable key (codegen.md §13.5, "As built (#193)"):
+    /// the trait, its arguments and the binding of every associated type
+    /// the trait reaches, so a slot naming `Self::Item` has a concrete
+    /// signature (trait.dyn.binding.signatures). The value type's own
+    /// bindings join those its supertrait list fixes
+    /// (trait.binding.super.meaning), so `dyn PriceFeed` and
+    /// `dyn PriceFeed[Item = i32]` under `PriceFeed < Feed[Item = i32]`
+    /// share one key. `t` is a trait value type, readonly or `mut`.
+    pub(crate) fn dyn_key(&self, t: Ty) -> Ty {
+        let pool = self.pool;
+        let TyData::TraitValue {
+            def,
+            args,
+            mut bindings,
+        } = pool.get(self.strip(t))
+        else {
+            return t;
+        };
+        let reach = self.reached_assocs(def);
+        bindings.retain(|(a, _)| reach.contains(a));
+        for s in self.super_keys(def, args, &bindings) {
+            if let TyData::TraitValue { bindings: sb, .. } = pool.get(s) {
+                for (a, b) in sb {
+                    if !bindings.iter().any(|(x, _)| *x == a) {
+                        bindings.push((a, b));
+                    }
+                }
+            }
+        }
+        pool.intern_ty(&TyData::TraitValue {
+            def,
+            args,
+            bindings,
+        })
+    }
+
+    /// The vtable key of a trait at arguments with no bindings written: a
+    /// requirement key's or a host trait's.
+    pub fn trait_key(&self, trait_: DefId, args: TyList) -> Ty {
+        self.dyn_key(self.pool.intern_ty(&TyData::TraitValue {
             def: trait_,
             args,
             bindings: Vec::new(),
-        })
+        }))
+    }
+
+    /// The associated types a trait declares or reaches through its
+    /// supertraits (trait.binding.name-reach).
+    fn reached_assocs(&self, trait_: DefId) -> Vec<DefId> {
+        let mut out = Vec::new();
+        let mut todo = vec![trait_];
+        let mut seen = std::collections::HashSet::new();
+        while let Some(t) = todo.pop() {
+            if !seen.insert(t) {
+                continue;
+            }
+            out.extend(self.env.trait_assocs(t));
+            for s in self.env.decls().supertraits(t) {
+                if let TyData::TraitValue { def, .. } = self.pool.get(*s) {
+                    todo.push(def);
+                }
+            }
+        }
+        out
+    }
+
+    /// A trait value's direct supertraits' keys, in declared order: each
+    /// supertrait at the value's arguments (`Self` being the class `REF`),
+    /// with the supertrait list's bindings and those of `bindings` that
+    /// the supertrait reaches (trait.dyn.binding.widen).
+    fn super_keys(&self, trait_: DefId, args: TyList, bindings: &[(DefId, Ty)]) -> Vec<Ty> {
+        let (pool, env) = (self.pool, self.env);
+        let full = self.dyn_args(args);
+        let mut out = Vec::new();
+        for s in env.decls().supertraits(trait_) {
+            let TyData::TraitValue {
+                def,
+                args: a,
+                bindings: mut sb,
+            } = pool.get(subst(pool, env, trait_, full, *s))
+            else {
+                continue;
+            };
+            let reach = self.reached_assocs(def);
+            for (x, b) in bindings {
+                if reach.contains(x) && !sb.iter().any(|(y, _)| y == x) {
+                    sb.push((*x, *b));
+                }
+            }
+            let sb = sb
+                .into_iter()
+                .map(|(x, b)| (x, self.at_value(bindings, b)))
+                .collect();
+            out.push(self.dyn_key(pool.intern_ty(&TyData::TraitValue {
+                def,
+                args: a,
+                bindings: sb,
+            })));
+        }
+        out
+    }
+
+    /// A trait method's declared type at a trait value: each projection
+    /// of the class `REF` (`Self::Item`) read from the value's bindings
+    /// (trait.dyn.binding.signatures).
+    fn at_value(&self, bindings: &[(DefId, Ty)], t: Ty) -> Ty {
+        let pool = self.pool;
+        if !pool.has_assoc(t) {
+            return t;
+        }
+        let list = |l: TyList| {
+            pool.list(
+                &pool
+                    .list_items(l)
+                    .iter()
+                    .map(|x| self.at_value(bindings, *x))
+                    .collect::<Vec<_>>(),
+            )
+        };
+        let d = match pool.get(t) {
+            TyData::Assoc {
+                assoc,
+                trait_,
+                self_ty,
+                args,
+            } => {
+                let self_ty = self.at_value(bindings, self_ty);
+                if is_class_ref(pool, self.strip(self_ty))
+                    && let Some((_, b)) = bindings.iter().find(|(a, _)| *a == assoc)
+                {
+                    return *b;
+                }
+                TyData::Assoc {
+                    assoc,
+                    trait_,
+                    self_ty,
+                    args: list(args),
+                }
+            }
+            TyData::Adt { def, args } => TyData::Adt {
+                def,
+                args: list(args),
+            },
+            TyData::Tuple { elems, rest } => TyData::Tuple {
+                elems: list(elems),
+                rest: rest.map(|r| self.at_value(bindings, r)),
+            },
+            TyData::Option(i) => TyData::Option(self.at_value(bindings, i)),
+            TyData::Mut(i) => TyData::Mut(self.at_value(bindings, i)),
+            TyData::Fn {
+                params,
+                result,
+                row,
+                suspends,
+                inputs,
+            } => TyData::Fn {
+                params: list(params),
+                result: self.at_value(bindings, result),
+                row,
+                suspends,
+                inputs,
+            },
+            TyData::TraitValue {
+                def,
+                args,
+                bindings: bs,
+            } => TyData::TraitValue {
+                def,
+                args: list(args),
+                bindings: bs
+                    .into_iter()
+                    .map(|(a, b)| (a, self.at_value(bindings, b)))
+                    .collect(),
+            },
+            _ => return t,
+        };
+        let r = pool.intern_ty(&d);
+        if pool.has_assoc(r) {
+            hd_types::solver::normalize_concrete(pool.types(), self.env.impls(), r)
+        } else {
+            r
+        }
+    }
+
+    /// A trait method's declared type `t` at the vtable key `key`.
+    fn member_at(&self, key: Ty, m: DefId, t: Ty) -> Ty {
+        let TyData::TraitValue { args, bindings, .. } = self.pool.get(key) else {
+            return t;
+        };
+        let s = subst(self.pool, self.env, m, self.dyn_args(args), t);
+        self.at_value(&bindings, s)
     }
 
     /// The Wasm values of a type in locals, parameters and results.
@@ -648,9 +833,7 @@ impl<'a> Lay<'a> {
                     &self.code_ty(params, result, suspends)?,
                 ))]
             }
-            TyData::TraitValue { def, args, .. } => {
-                self.nominal(self.dyn_ty(def, args), Nominal::Dyn, def)?
-            }
+            TyData::TraitValue { def, .. } => self.nominal(self.dyn_key(t), Nominal::Dyn, def)?,
             // Per key in key order, its payload and vtable
             // (codegen.md §12.4, "Context values").
             TyData::Context(_) => vec![VT::r(ctx_provs())],
@@ -877,8 +1060,8 @@ impl<'a> Lay<'a> {
                     todo.extend(pool.list_items(params));
                     todo.push(result);
                 }
-                TyData::TraitValue { def, args, .. } => {
-                    out.push((self.dyn_ty(def, args), Nominal::Dyn, def));
+                TyData::TraitValue { def, .. } => {
+                    out.push((self.dyn_key(x), Nominal::Dyn, def));
                 }
                 _ => {}
             }
@@ -898,39 +1081,34 @@ impl<'a> Lay<'a> {
                 .into_iter()
                 .map(|f| subst(pool, env, def, args, f))
                 .collect(),
-            (Nominal::Dyn, TyData::TraitValue { def, args, .. }) => {
-                let full = self.dyn_args(args);
+            (Nominal::Dyn, TyData::TraitValue { def, .. }) => {
                 let mut out = Vec::new();
                 for m in env.trait_methods(def) {
                     for p in env.params(m).unwrap_or_default().into_iter().skip(1) {
-                        out.push(subst(pool, env, m, full, p));
+                        out.push(self.member_at(t, m, p));
                     }
-                    out.push(subst(pool, env, m, full, env.ret(m).unwrap_or(Ty::VOID)));
+                    out.push(self.member_at(t, m, env.ret(m).unwrap_or(Ty::VOID)));
                 }
-                for (d, a) in self.dyn_supers(def, args)? {
-                    out.push(self.dyn_ty(d, a));
-                }
+                out.extend(self.dyn_supers(t));
                 out
             }
             _ => return unsupported("a nominal type that is not data or a trait value"),
         })
     }
 
-    /// A trait value's direct supertraits (codegen.md §13.16), in declared
-    /// order, each as the supertrait and its arguments at the value's
-    /// arguments, `Self` being the class `REF`. They are the vtable's
-    /// parent fields, after its method slots.
-    pub fn dyn_supers(&self, trait_: DefId, args: TyList) -> StageResult<Vec<(DefId, TyList)>> {
-        let (pool, env) = (self.pool, self.env);
-        let full = self.dyn_args(args);
-        env.decls()
-            .supertraits(trait_)
-            .iter()
-            .map(|s| match pool.get(subst(pool, env, trait_, full, *s)) {
-                TyData::TraitValue { def, args, .. } => Ok((def, args)),
-                _ => unsupported("a supertrait that is not a trait"),
-            })
-            .collect()
+    /// A vtable key's direct supertraits (codegen.md §13.16), in declared
+    /// order, each the supertrait's key at the value's arguments, `Self`
+    /// being the class `REF`, with the bindings it reaches. They are the
+    /// vtable's parent fields, after its method slots.
+    pub fn dyn_supers(&self, key: Ty) -> Vec<Ty> {
+        match self.pool.get(key) {
+            TyData::TraitValue {
+                def,
+                args,
+                bindings,
+            } => self.super_keys(def, args, &bindings),
+            _ => Vec::new(),
+        }
     }
 
     /// A trait method's instance arguments at a trait value: `Self` as the
@@ -1162,15 +1340,15 @@ impl<'a> Lay<'a> {
     /// immutable reference per direct supertrait, in declared order, to
     /// that supertrait's own vtable.
     fn vtable_struct(&self, t: Ty) -> StageResult<WTy> {
-        let TyData::TraitValue { def, args, .. } = self.pool.get(t) else {
+        let TyData::TraitValue { def, .. } = self.pool.get(t) else {
             return unsupported("a vtable of a type that is not a trait value");
         };
         let mut fields = Vec::new();
         for m in self.env.trait_methods(def) {
-            fields.push(VT::r(self.slot_sig(def, args, m)?));
+            fields.push(VT::r(self.slot_sig(t, m)?));
         }
-        for (d, a) in self.dyn_supers(def, args)? {
-            match &self.vts(self.dyn_ty(d, a))?[..] {
+        for s in self.dyn_supers(t) {
+            match &self.vts(s)?[..] {
                 [VT::Eq, vt @ VT::Ref(..)] => fields.push(vt.clone()),
                 _ => return unsupported("a supertrait value that is not a payload and a vtable"),
             }
@@ -1414,11 +1592,15 @@ impl<'a> Lay<'a> {
                     code,
                 }
             }
-            TyData::TraitValue { def, args, .. } => Shape::Dyn {
-                trait_: def,
-                args,
-                vt: self.vtable(def, args)?,
-            },
+            TyData::TraitValue { def, args, .. } => {
+                let key = self.dyn_key(t);
+                Shape::Dyn {
+                    trait_: def,
+                    args,
+                    vt: self.vtable(key)?,
+                    key,
+                }
+            }
             _ => {
                 return unsupported(format!(
                     "the layout of the non-concrete type {}",
@@ -1469,10 +1651,10 @@ impl<'a> Lay<'a> {
         })
     }
 
-    /// A trait's vtable (codegen.md §13.5, §13.16): its method slots, then
-    /// its direct supertraits' vtables.
-    pub fn vtable(&self, trait_: DefId, args: TyList) -> StageResult<WTy> {
-        match &self.vts(self.dyn_ty(trait_, args))?[..] {
+    /// A vtable key's vtable (codegen.md §13.5, §13.16): its method slots,
+    /// then its direct supertraits' vtables.
+    pub fn vtable(&self, key: Ty) -> StageResult<WTy> {
+        match &self.vts(key)?[..] {
             [VT::Eq, VT::Ref(vt, false)] => Ok((**vt).clone()),
             _ => unsupported("a trait value that is not a payload and a vtable"),
         }
@@ -1482,7 +1664,7 @@ impl<'a> Lay<'a> {
     /// trait at the key's arguments, as `$.with` builds it.
     pub fn key_vtable(&self, k: Ty) -> StageResult<WTy> {
         match self.pool.get(k) {
-            TyData::TraitValue { def, args, .. } => self.vtable(def, args),
+            TyData::TraitValue { .. } => self.vtable(self.dyn_key(k)),
             _ => unsupported("a requirement key that is not a trait"),
         }
     }
@@ -1502,16 +1684,16 @@ impl<'a> Lay<'a> {
         method: DefId,
     ) -> StageResult<DynSlot> {
         let Shape::Dyn {
-            trait_: recv_trait,
             vt: value_vt,
-            args: recv_args,
+            key: recv_key,
+            ..
         } = self.shape(recv)?
         else {
             return unsupported("a trait-value call on a value that is not a trait value");
         };
         let n = self.env.trait_arity(trait_);
         let want = self.pool.list(&targs[..n.min(targs.len())]);
-        let Some((steps, targs)) = self.super_path(recv_trait, recv_args, trait_, want)? else {
+        let Some((steps, key)) = self.super_path(recv_key, trait_, want)? else {
             return unsupported(
                 "a trait-value call of a method of a trait the value does not extend",
             );
@@ -1527,54 +1709,55 @@ impl<'a> Lay<'a> {
         Ok(DynSlot {
             value_vt,
             steps,
-            vt: self.vtable(trait_, targs)?,
+            vt: self.vtable(key)?,
             slot: u32::try_from(slot).expect("slot"),
-            sig: self.slot_sig(trait_, targs, method)?,
+            sig: self.slot_sig(key, method)?,
         })
     }
 
-    /// The parent-field path from the vtable of `from[args]` to that of
+    /// The parent-field path from the vtable of the key `from` to that of
     /// the supertrait `to` (codegen.md §13.16): each step's vtable type
-    /// and parent field, then the supertrait's arguments. `from` itself is
-    /// the empty path. The search runs depth first in declared order;
-    /// the supertrait at the arguments `want` wins over the same trait at
+    /// and parent field, then the supertrait's key. `from` itself is the
+    /// empty path. The search runs depth first in declared order; the
+    /// supertrait at the arguments `want` wins over the same trait at
     /// other arguments.
     pub(crate) fn super_path(
         &self,
-        from: DefId,
-        args: TyList,
+        from: Ty,
         to: DefId,
         want: TyList,
     ) -> StageResult<Option<SuperPath>> {
         let mut found: Option<SuperPath> = None;
         let mut path = Vec::new();
-        self.find_super(from, args, to, want, &mut path, &mut found)?;
+        self.find_super(from, to, want, &mut path, &mut found)?;
         Ok(found)
     }
 
     fn find_super(
         &self,
-        at: DefId,
-        args: TyList,
+        at: Ty,
         to: DefId,
         want: TyList,
         path: &mut Vec<(WTy, u32)>,
         found: &mut Option<SuperPath>,
     ) -> StageResult<bool> {
-        if at == to {
+        let TyData::TraitValue { def, args, .. } = self.pool.get(at) else {
+            return unsupported("a supertrait path from a type that is not a trait value");
+        };
+        if def == to {
             if args == want {
-                *found = Some((path.clone(), args));
+                *found = Some((path.clone(), at));
                 return Ok(true);
             }
             if found.is_none() {
-                *found = Some((path.clone(), args));
+                *found = Some((path.clone(), at));
             }
         }
-        let vt = self.vtable(at, args)?;
-        let own = self.env.trait_methods(at).len();
-        for (k, (d, a)) in self.dyn_supers(at, args)?.into_iter().enumerate() {
+        let vt = self.vtable(at)?;
+        let own = self.env.trait_methods(def).len();
+        for (k, s) in self.dyn_supers(at).into_iter().enumerate() {
             path.push((vt.clone(), u32::try_from(own + k).expect("field")));
-            let exact = self.find_super(d, a, to, want, path, found)?;
+            let exact = self.find_super(s, to, want, path, found)?;
             path.pop();
             if exact {
                 return Ok(true);
@@ -1585,15 +1768,13 @@ impl<'a> Lay<'a> {
 
     /// A vtable slot's signature: `(eqref self, params...) -> results`; a
     /// suspending method's slot returns its cold `mut Suspend[T]`.
-    pub fn slot_sig(&self, trait_: DefId, args: TyList, m: DefId) -> StageResult<WTy> {
-        let pool = self.pool;
-        let full = self.dyn_args(args);
-        let _ = trait_;
+    /// `key` is the vtable key of the trait declaring `m`.
+    pub fn slot_sig(&self, key: Ty, m: DefId) -> StageResult<WTy> {
         let mut ps = vec![VT::Eq];
         for p in self.env.params(m).unwrap_or_default().into_iter().skip(1) {
-            ps.extend(self.vts(subst(pool, self.env, m, full, p))?);
+            ps.extend(self.vts(self.member_at(key, m, p))?);
         }
-        let ret = subst(pool, self.env, m, full, self.env.ret(m).unwrap_or(Ty::VOID));
+        let ret = self.member_at(key, m, self.env.ret(m).unwrap_or(Ty::VOID));
         let mut rs = self.vts(ret)?;
         if self.env.suspends(m) {
             rs = vec![VT::r(suspend_base(&rs).0)];

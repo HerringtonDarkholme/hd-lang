@@ -2509,21 +2509,15 @@ impl Em<'_> {
             }
             return self.none_into(i);
         };
-        let Shape::Dyn {
-            trait_: from,
-            args: from_args,
-            vt,
-        } = self.lay.shape(recv_t)?
-        else {
+        let Shape::Dyn { vt, key: from, .. } = self.lay.shape(recv_t)? else {
             return unsupported("a downcast of a trait value without a vtable");
         };
         let (insp, rt) = self.inspectable_of(item)?;
-        let Some((steps, iargs)) = self.lay.super_path(from, from_args, insp, TyList::EMPTY)?
-        else {
+        let Some((steps, ikey)) = self.lay.super_path(from, insp, TyList::EMPTY)? else {
             return unsupported("a downcast of a trait value that is not `Inspectable`");
         };
-        let ivt = self.lay.vtable(insp, iargs)?;
-        let sig = self.lay.slot_sig(insp, iargs, rt)?;
+        let ivt = self.lay.vtable(ikey)?;
+        let sig = self.lay.slot_sig(ikey, rt)?;
         let Some(id_ty) = self.env().ret(rt) else {
             return unsupported("a `runtime_type` without its result");
         };
@@ -2730,13 +2724,13 @@ impl Em<'_> {
             let Some(Target::VTable(table)) = self.calls.get(&i).cloned() else {
                 return unsupported("a trait-value coercion that collection did not record");
             };
-            let Shape::Dyn { args: targs, .. } = self.lay.shape(ty)? else {
+            let Shape::Dyn { key, .. } = self.lay.shape(ty)? else {
                 return unsupported("a coercion to a non-trait type");
             };
             let from = self.ty_of(v);
             let fv = self.vts(from)?;
             self.erase(v, &fv)?;
-            self.vtable_value(&table, targs, &fv)?;
+            self.vtable_value(&table, key, &fv)?;
             return self.store(i);
         }
         if kind == Coercion::Weaken as u32
@@ -2754,11 +2748,7 @@ impl Em<'_> {
     /// through the parent fields of the child's.
     fn widen(&mut self, i: u32, v: u32, ty: Ty) -> StageResult<()> {
         let (
-            Shape::Dyn {
-                trait_: from_trait,
-                args: from_args,
-                vt,
-            },
+            Shape::Dyn { vt, key: from, .. },
             Shape::Dyn {
                 trait_: def, args, ..
             },
@@ -2766,7 +2756,7 @@ impl Em<'_> {
         else {
             return unsupported("a supertrait coercion between non-trait types");
         };
-        let Some((steps, _)) = self.lay.super_path(from_trait, from_args, def, args)? else {
+        let Some((steps, _)) = self.lay.super_path(from, def, args)? else {
             return unsupported("a supertrait coercion to a trait the value does not extend");
         };
         self.comp(v, 0, &VT::Eq)?;
@@ -4027,27 +4017,27 @@ impl<'a> Em<'a> {
     /// method slots, then its direct supertraits' vtables. A supertrait
     /// reached twice, as `Display` is through two paths of a diamond, is
     /// built once.
-    fn vtable_value(&mut self, table: &VTable, targs: TyList, fv: &[VT]) -> StageResult<()> {
-        let mut uses: HashMap<(DefId, TyList), u32> = HashMap::new();
-        self.count_tables(table, targs, &mut uses)?;
+    fn vtable_value(&mut self, table: &VTable, key: Ty, fv: &[VT]) -> StageResult<()> {
+        let mut uses: HashMap<Ty, u32> = HashMap::new();
+        self.count_tables(table, key, &mut uses)?;
         let mut built = HashMap::new();
-        self.push_table(table, targs, fv, &uses, &mut built)
+        self.push_table(table, key, fv, &uses, &mut built)
     }
 
-    /// How many times each `(trait, arguments)` occurs in a vtable tree.
+    /// How many times each vtable key occurs in a vtable tree.
     fn count_tables(
         &self,
         table: &VTable,
-        targs: TyList,
-        uses: &mut HashMap<(DefId, TyList), u32>,
+        key: Ty,
+        uses: &mut HashMap<Ty, u32>,
     ) -> StageResult<()> {
-        *uses.entry((table.trait_, targs)).or_default() += 1;
-        let supers = self.lay.dyn_supers(table.trait_, targs)?;
+        *uses.entry(key).or_default() += 1;
+        let supers = self.lay.dyn_supers(key);
         if supers.len() != table.parents.len() {
             return unsupported("a vtable whose parents collection did not record");
         }
-        for (p, (_, a)) in table.parents.iter().zip(supers) {
-            self.count_tables(p, a, uses)?;
+        for (p, s) in table.parents.iter().zip(supers) {
+            self.count_tables(p, s, uses)?;
         }
         Ok(())
     }
@@ -4055,20 +4045,20 @@ impl<'a> Em<'a> {
     fn push_table(
         &mut self,
         table: &VTable,
-        targs: TyList,
+        key: Ty,
         fv: &[VT],
-        uses: &HashMap<(DefId, TyList), u32>,
-        built: &mut HashMap<(DefId, TyList), u32>,
+        uses: &HashMap<Ty, u32>,
+        built: &mut HashMap<Ty, u32>,
     ) -> StageResult<()> {
         let trait_ = table.trait_;
-        if let Some(&l) = built.get(&(trait_, targs)) {
+        if let Some(&l) = built.get(&key) {
             self.a.get(l);
             return Ok(());
         }
-        let vt = self.lay.vtable(trait_, targs)?;
+        let vt = self.lay.vtable(key)?;
         let methods = self.env().trait_methods(trait_);
         for (m, t) in methods.iter().zip(&table.slots) {
-            let sig = self.lay.slot_sig(trait_, targs, *m)?;
+            let sig = self.lay.slot_sig(key, *m)?;
             // A method the compiler supplies for every type: the vtable's
             // `runtime_type` answers the recorded type, the concrete type
             // the vtable is built at (trait.inspect.dynamic). Any other
@@ -4105,16 +4095,16 @@ impl<'a> Em<'a> {
                 results,
             }));
         }
-        let supers = self.lay.dyn_supers(trait_, targs)?;
-        for (p, (_, a)) in table.parents.iter().zip(supers) {
-            self.push_table(p, a, fv, uses, built)?;
+        let supers = self.lay.dyn_supers(key);
+        for (p, s) in table.parents.iter().zip(supers) {
+            self.push_table(p, s, fv, uses, built)?;
         }
         self.a.struct_new(&vt);
-        if uses.get(&(trait_, targs)).is_some_and(|n| *n > 1) {
+        if uses.get(&key).is_some_and(|n| *n > 1) {
             let l = self.a.local(VT::r(vt));
             self.a.set(l);
             self.a.get(l);
-            built.insert((trait_, targs), l);
+            built.insert(key, l);
         }
         Ok(())
     }
@@ -5227,15 +5217,16 @@ fn root_poll(
         };
         let p = path(k);
         let host = hd_host_abi::host_trait(&p.replace('/', "."));
-        if !lay.dyn_supers(k, TyList::EMPTY)?.is_empty() {
+        let tk = lay.trait_key(k, TyList::EMPTY);
+        if !lay.dyn_supers(tk).is_empty() {
             return unsupported(format!(
                 "a default provider for `{p}`, which has supertraits"
             ));
         }
-        let vt = lay.vtable(k, TyList::EMPTY)?;
+        let vt = lay.vtable(tk)?;
         let mut slots = Vec::new();
         for m in env.trait_methods(k) {
-            let sig = lay.slot_sig(k, TyList::EMPTY, m)?;
+            let sig = lay.slot_sig(tk, m)?;
             let mp = path(m);
             let name = mp.rsplit(['.', '/']).next().unwrap_or("");
             // A trait the ABI table does not list is a runtime profile's
@@ -5287,8 +5278,9 @@ pub(crate) fn handle_slots(
     let tp = (lay.path)(trait_);
     let tname = tp.rsplit(['.', '/']).next().unwrap_or("");
     let mut slots = Vec::new();
+    let key = lay.trait_key(trait_, TyList::EMPTY);
     for m in lay.env.trait_methods(trait_) {
-        let sig = lay.slot_sig(trait_, TyList::EMPTY, m)?;
+        let sig = lay.slot_sig(key, m)?;
         let mp = (lay.path)(m);
         let name = format!("{tname}.{}", mp.rsplit(['.', '/']).next().unwrap_or(""));
         let Some(hm) = host.methods.iter().find(|x| x.name == name) else {

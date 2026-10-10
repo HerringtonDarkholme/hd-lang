@@ -846,6 +846,24 @@ growing type) has no finite instance set.
 - **Trait values** are pairs: the value as `eqref` and its vtable
   (§15.2). A call through a trait value is one `struct.get` and one
   `call_ref`.
+- **As built (#193): bindings live in the vtable key.** A `dyn Tr[A,
+  Item = T]` type keeps its bindings in the pool (`TraitValue.bindings`,
+  interned in sorted order, so binding order never makes two types,
+  `trait.dyn.binding.identity`). Emission lays a vtable out per *key*:
+  the trait, its arguments, and the binding of every associated type the
+  trait reaches (`Lay::dyn_key`). The value's own bindings join those its
+  supertrait list fixes (`trait C < S[Out = U]`), so the key is the same
+  however the bindings were spelled. A slot's signature substitutes the
+  class `REF` for `Self` and then reads each projection of `REF`
+  (`Self::Item`) from the key's bindings
+  (`trait.dyn.binding.signatures`), so the slot of `get` in `dyn
+  Supplier[Item = i32]` is `(eqref) -> i32`, and `dyn Supplier[Item =
+  string]` gets a vtable of its own. A parent field's key is the
+  supertrait with its supertrait-list bindings plus those of the child's
+  bindings it reaches (`trait.dyn.binding.widen`), so widening still
+  reads one parent field. Requirement-key vtables use the same key, so a
+  `$ Store[Item = User]` provider's `load` returns a `User`. A trait's
+  layout hash covers its supertrait list, whose bindings shape the key.
 - **GADT evidence.** Removed with GADTs (owner, 2026-10-07).
 - **Generic methods called through a `dyn` value** use the type-witness
   ABI below.

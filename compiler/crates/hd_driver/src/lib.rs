@@ -4085,6 +4085,12 @@ impl ProgramEnv for Env<'_> {
     fn trait_arity(&self, trait_: DefId) -> usize {
         self.p.items.get(&trait_).map_or(0, |i| i.generics.len())
     }
+    fn trait_assocs(&self, trait_: DefId) -> Vec<DefId> {
+        match self.p.items.get(&trait_).map(|i| &i.data) {
+            Some(ItemData::Trait(t)) => t.assoc.iter().map(|a| a.1).collect(),
+            _ => Vec::new(),
+        }
+    }
     fn intrinsic(&self, def: DefId) -> Option<String> {
         let it = self.p.items.get(&def)?;
         if let Some(k) = it.intrinsic {

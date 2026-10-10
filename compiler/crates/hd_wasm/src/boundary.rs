@@ -235,7 +235,9 @@ impl BTy {
                     variants,
                 }))
             }
-            Shape::Dyn { trait_, args, vt } if args == hd_types::TyList::EMPTY => {
+            Shape::Dyn {
+                trait_, args, vt, ..
+            } if args == hd_types::TyList::EMPTY => {
                 let path = (lay.path)(trait_).replace('/', ".");
                 let Some(host) = hd_host_abi::handle_trait(&path) else {
                     return unsupported(what());
