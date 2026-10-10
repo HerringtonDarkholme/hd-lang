@@ -43,18 +43,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M8. Triage The Missing And Wrong Errors (Research)
-
-282 invalid conformance fixtures fail: 130 with no diagnostic and 152
-with a wrong code (`compiler/CONFORMANCE.md`, Failure Buckets; the gap
-audit `audit/compiler/gap-audit-2026-10-10.md`, Tier 4). Group them by
-root cause in the Rust compiler (read the checker, don't guess from the
-fixture name), one group per feature-sized fix, each with its fixtures,
-the crate and function where the check belongs, a size estimate, and
-whether it matters for soundness. Name groups the task list already has
-(#203-#214, #224, #232, #273-#275) so they can be merged into them.
-Output: `audit/compiler/missing-errors-triage.md`. No code changes.
-
 ### M9. Design: The Test Runner On wasmtime (W4, #246, Design Text)
 
 W1 is on main: `compiler/crates/hd_run_wasmtime`, as built in
