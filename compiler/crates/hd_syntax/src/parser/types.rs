@@ -2,7 +2,7 @@
 
 use hd_diag::Code;
 
-use super::{Done, Parser};
+use super::{Done, Parser, REST_ELSEWHERE};
 use crate::{SyntaxKind, TokenKind};
 
 impl Parser<'_> {
@@ -39,7 +39,7 @@ impl Parser<'_> {
                 || self.at(TokenKind::LParen) && self.nth(1) == Some(TokenKind::KwFn)
             {
                 // grammar.type.mut.no-function
-                self.error(Code::SyntaxError);
+                self.error(Code::SyntaxError, "'mut' cannot directly precede 'fn'");
             }
             self.ty_reference(rows);
             self.complete(marker, SyntaxKind::MutType)
@@ -62,7 +62,10 @@ impl Parser<'_> {
                 self.bump();
                 if self.at(TokenKind::KwMut) {
                     // grammar.type.dyn.mut
-                    self.error(Code::SyntaxError);
+                    self.error(
+                        Code::SyntaxError,
+                        "'mut' goes before 'dyn': write 'mut dyn Trait'",
+                    );
                     self.bump();
                 }
                 self.ty_bound_trait(true);
@@ -74,12 +77,12 @@ impl Parser<'_> {
                 self.bump();
                 self.bump();
                 if !(self.at(TokenKind::Ident) && self.nth_text(0) == "Context") {
-                    self.error(Code::SyntaxError);
+                    self.expected("'Context' after '$.'");
                 }
                 self.bump();
-                if self.expect(TokenKind::LBracket) {
+                if self.expect(TokenKind::LBracket, "'['") {
                     self.ty_argument();
-                    self.expect(TokenKind::RBracket);
+                    self.expect(TokenKind::RBracket, "']'");
                 }
                 self.complete(marker, SyntaxKind::ContextType)
             }
@@ -88,14 +91,14 @@ impl Parser<'_> {
                 if self.at(TokenKind::ColonColon) {
                     let marker = self.precede(done);
                     self.bump();
-                    self.expect_name();
+                    self.expect_name("an associated type name");
                     return self.complete(marker, SyntaxKind::ProjectionType);
                 }
                 done
             }
             _ => {
                 let marker = self.start();
-                self.error(Code::SyntaxError);
+                self.expected("a type");
                 if self.current().is_some_and(|kind| {
                     !kind.closes()
                         && !matches!(kind, TokenKind::Comma | TokenKind::Colon | TokenKind::Eq)
@@ -111,7 +114,7 @@ impl Parser<'_> {
     pub(crate) fn ty_named(&mut self, bindings: bool) -> Done {
         let marker = self.start();
         if !self.eat(TokenKind::KwSelfType) {
-            self.expect_name();
+            self.expect_name("a type name");
             while self.at(TokenKind::Dot)
                 && matches!(self.nth(1), Some(TokenKind::Ident | TokenKind::RawIdent))
             {
@@ -129,7 +132,10 @@ impl Parser<'_> {
     pub(crate) fn ty_bound_trait(&mut self, bindings: bool) -> Done {
         if self.at(TokenKind::KwMut) {
             // grammar.type.row.no-mut-key and friends.
-            self.error(Code::SyntaxError);
+            self.error(
+                Code::SyntaxError,
+                "a requirement key or bound takes no 'mut' prefix",
+            );
             self.bump();
         }
         self.ty_named(bindings)
@@ -147,7 +153,10 @@ impl Parser<'_> {
             {
                 if !bindings {
                     // grammar.generic.binding.trait-type-only
-                    self.error(Code::SyntaxError);
+                    self.error(
+                        Code::SyntaxError,
+                        "a trait type takes no associated-type binding here",
+                    );
                 }
                 saw_binding = true;
                 let binding = self.start();
@@ -158,18 +167,21 @@ impl Parser<'_> {
             } else {
                 if saw_binding {
                     // grammar.generic.binding.order
-                    self.error(Code::SyntaxError);
+                    self.error(
+                        Code::SyntaxError,
+                        "bindings follow every positional type argument",
+                    );
                 }
                 self.ty_argument();
                 if self.at(TokenKind::Ellipsis) {
                     // grammar.type.rest.elsewhere
-                    self.error(Code::SyntaxError);
+                    self.error(Code::SyntaxError, REST_ELSEWHERE);
                     self.bump();
                 }
             }
             if !self.eat(TokenKind::Comma) {
                 if !self.at(TokenKind::RBracket) {
-                    self.error(Code::SyntaxError);
+                    self.expected("',' or ']'");
                     self.skip_to_list_end(TokenKind::RBracket);
                     if self.eat(TokenKind::Comma) {
                         continue;
@@ -181,7 +193,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RBracket);
+        self.expect(TokenKind::RBracket, "']'");
         self.complete(marker, SyntaxKind::TypeArgumentList)
     }
 
@@ -192,7 +204,7 @@ impl Parser<'_> {
         }
         if self.at(TokenKind::Placeholder) {
             // grammar.primary.placeholder: `_` is no type.
-            self.error(Code::SyntaxError);
+            self.error(Code::SyntaxError, "'_' is no type; name the type argument");
             return self.token_node(SyntaxKind::InferType);
         }
         self.ty()
@@ -213,7 +225,10 @@ impl Parser<'_> {
             let before = self.pos();
             if rest_seen {
                 // grammar.type.rest: a rest element is last.
-                self.error(Code::SyntaxError);
+                self.error(
+                    Code::SyntaxError,
+                    "a rest element must be the last element of a tuple type",
+                );
             }
             let element = self.ty();
             if self.at(TokenKind::Ellipsis) {
@@ -233,9 +248,12 @@ impl Parser<'_> {
         }
         if rest_seen && !comma {
             // `(T...)`: a rest element alone keeps the comma.
-            self.error(Code::SyntaxError);
+            self.error(
+                Code::SyntaxError,
+                "a lone rest element keeps its trailing comma: write '(T...,)'",
+            );
         }
-        self.expect(TokenKind::RParen);
+        self.expect(TokenKind::RParen, "')'");
         let kind = if count == 1 && !comma {
             SyntaxKind::ParenType
         } else {
@@ -251,12 +269,15 @@ impl Parser<'_> {
         if self.at(TokenKind::Bang) {
             self.bump();
         }
-        if self.expect(TokenKind::LParen) {
+        if self.expect(TokenKind::LParen, "'('") {
             let mut rest_seen = false;
             while !self.at(TokenKind::RParen) && self.current().is_some() {
                 let before = self.pos();
                 if rest_seen {
-                    self.error(Code::SyntaxError);
+                    self.error(
+                        Code::SyntaxError,
+                        "a rest element must be the last parameter type",
+                    );
                 }
                 let element = self.ty();
                 if self.at(TokenKind::Ellipsis) {
@@ -269,9 +290,9 @@ impl Parser<'_> {
                     break;
                 }
             }
-            self.expect(TokenKind::RParen);
+            self.expect(TokenKind::RParen, "')'");
         }
-        if self.expect(TokenKind::Arrow) {
+        if self.expect(TokenKind::Arrow, "'->'") {
             self.ty_with(rows);
         }
         if rows && self.at(TokenKind::Dollar) {
@@ -280,7 +301,10 @@ impl Parser<'_> {
         let done = self.complete(marker, SyntaxKind::FunctionType);
         if self.at(TokenKind::Question) {
             // grammar.type.optional.function: `?` needs a group.
-            self.error(Code::SyntaxError);
+            self.error(
+                Code::SyntaxError,
+                "an optional function type needs parentheses: write '(fn() -> T)?'",
+            );
         }
         done
     }
@@ -297,11 +321,18 @@ impl Parser<'_> {
                     if self.at(TokenKind::Comma) {
                         // grammar.type.row.old-separator
                         let at = self.pos();
-                        self.error_at(Code::OldRowSeparator, at);
+                        self.error_at(
+                            Code::OldRowSeparator,
+                            at,
+                            "requirement keys are joined with '+': write '$ A + B'",
+                        );
                         self.bump();
                     } else if self.at(TokenKind::Plus) {
                         // grammar.type.row.no-parentheses
-                        self.error(Code::SyntaxError);
+                        self.error(
+                            Code::SyntaxError,
+                            "parentheses never surround a requirement row: write '$ A + B'",
+                        );
                         self.bump();
                     } else {
                         break;
@@ -309,7 +340,7 @@ impl Parser<'_> {
                     self.ty_bound_trait(true);
                 }
             }
-            self.expect(TokenKind::RParen);
+            self.expect(TokenKind::RParen, "')'");
         } else {
             self.ty_bound_trait(true);
             while self.eat(TokenKind::Plus) {

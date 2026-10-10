@@ -19,6 +19,7 @@ use hd_intern::Interner;
 
 use crate::green::{Event, build};
 use crate::layout::SuiteKind;
+use crate::lexer::NESTING_TOO_DEEP;
 use crate::{
     CommentKind, GreenTree, Layout, LayoutCursor, SyntaxKind, TokenBuf, TokenKind, TokenOrLayout,
     lex,
@@ -145,13 +146,24 @@ impl Done {
 
 const MAX_NESTING: u32 = 160;
 
+/// `grammar.type.rest.elsewhere`.
+const REST_ELSEWHERE: &str =
+    "a rest element is only allowed last in a tuple type or a function parameter list";
+
+/// `grammar.pattern.mut-let-only`.
+const MUT_LET_ONLY: &str = "'mut' before a binding name is only valid in a 'let' pattern";
+
+/// `grammar.impl.pub-method`.
+const TRAIT_METHOD_VISIBILITY: &str =
+    "trait methods inherit the trait's visibility and cannot be declared pub";
+
 pub(crate) struct Parser<'t> {
     src: &'t str,
     toks: &'t TokenBuf,
     cur: LayoutCursor<'t>,
     events: Vec<Event>,
     layouts: Vec<(TokenIdx, Layout)>,
-    errors: Vec<(Code, u32, u32)>,
+    errors: Vec<(Code, u32, u32, String)>,
     /// Spans the lexer already reported: no second diagnostic there.
     lexed: Vec<(u32, u32)>,
     /// The first opener the lexer found unclosed.
@@ -176,7 +188,7 @@ impl<'t> Parser<'t> {
         Self {
             src,
             toks,
-            cur: LayoutCursor::new(toks),
+            cur: LayoutCursor::new(toks, src),
             events: Vec::with_capacity(toks.len() * 3),
             layouts: Vec::new(),
             errors: Vec::new(),
@@ -197,14 +209,14 @@ impl<'t> Parser<'t> {
 
     fn finish_diagnostics(&mut self) -> Vec<Diagnostic> {
         let mut out = Vec::new();
-        for &(code, at) in &self.cur.errors {
-            let (lo, hi) = self.token_span(at);
+        for (code, at, message) in &self.cur.errors {
+            let (lo, hi) = self.token_span(*at);
             if !self.lexed_covers(lo) {
-                out.push(diag(code, lo, hi));
+                out.push(diag(*code, lo, hi, message.clone()));
             }
         }
-        for &(code, lo, hi) in &self.errors {
-            out.push(diag(code, lo, hi));
+        for (code, lo, hi, message) in &self.errors {
+            out.push(diag(*code, *lo, *hi, message.clone()));
         }
         self.doc_comments(&mut out);
         out
@@ -306,11 +318,13 @@ impl<'t> Parser<'t> {
         }
     }
 
-    pub(crate) fn expect(&mut self, kind: TokenKind) -> bool {
+    /// Eats `kind`, or reports "expected `what`, found ...". `what` is the
+    /// token as written, in quotes.
+    pub(crate) fn expect(&mut self, kind: TokenKind, what: &str) -> bool {
         if self.eat(kind) {
             return true;
         }
-        self.error(Code::SyntaxError);
+        self.expected(what);
         false
     }
 
@@ -323,11 +337,12 @@ impl<'t> Parser<'t> {
         }
     }
 
-    pub(crate) fn expect_name(&mut self) -> bool {
+    /// Eats a name, or reports "expected `what`, found ...".
+    pub(crate) fn expect_name(&mut self, what: &str) -> bool {
         if self.eat_name() {
             return true;
         }
-        self.error(Code::SyntaxError);
+        self.expected(what);
         false
     }
 
@@ -405,12 +420,29 @@ impl<'t> Parser<'t> {
 
     /// Reports `code` at the current token, once per statement, and never
     /// where the lexer already reported.
-    pub(crate) fn error(&mut self, code: Code) {
+    pub(crate) fn error(&mut self, code: Code, message: &str) {
         let at = self.pos();
-        self.error_at(code, at);
+        self.error_at(code, at, message);
     }
 
-    pub(crate) fn error_at(&mut self, code: Code, at: usize) {
+    pub(crate) fn error_at(&mut self, code: Code, at: usize, message: &str) {
+        self.raise(code, at, |_| message.to_owned());
+    }
+
+    /// A `syntax-error` at the current token: "expected `what`, found X".
+    pub(crate) fn expected(&mut self, what: &str) {
+        let at = self.pos();
+        self.expected_at(what, at);
+    }
+
+    /// A `syntax-error` at token `at`: "expected `what`, found X".
+    pub(crate) fn expected_at(&mut self, what: &str, at: usize) {
+        self.raise(Code::SyntaxError, at, |parser| {
+            format!("expected {what}, found {}", parser.found(at))
+        });
+    }
+
+    fn raise(&mut self, code: Code, at: usize, message: impl FnOnce(&Self) -> String) {
         if self.stmt_errored {
             return;
         }
@@ -427,16 +459,33 @@ impl<'t> Parser<'t> {
         if self.lexed_covers(lo) {
             return;
         }
-        self.errors.push((code, lo, hi));
+        self.cur.peek();
+        let message = message(self);
+        self.errors.push((code, lo, hi, message));
     }
 
     /// A diagnostic that does not end the statement's reporting (a rule
     /// with its own code whose construct still parses).
-    pub(crate) fn report(&mut self, code: Code, at: usize) {
+    pub(crate) fn report(&mut self, code: Code, at: usize, message: &str) {
         let (lo, hi) = self.token_span(at);
         if !self.lexed_covers(lo) {
-            self.errors.push((code, lo, hi));
+            self.errors.push((code, lo, hi, message.to_owned()));
         }
+    }
+
+    /// What stands at token `at`, for an "expected ..., found ..." message:
+    /// the layout the cursor would produce there, else the token.
+    fn found(&self, at: usize) -> String {
+        if at == self.cur.pos() {
+            match self.cur.queued() {
+                Some(Layout::Newline) => return "a line ending".to_owned(),
+                Some(Layout::Indent) => return "an indented block".to_owned(),
+                Some(Layout::Dedent) => return "the end of an indented block".to_owned(),
+                Some(Layout::SuiteEnd) => return "the end of a same-line body".to_owned(),
+                None => {}
+            }
+        }
+        self.toks.describe(at, self.src)
     }
 
     /// Skips to the end of the statement: the next `NEWLINE` at this
@@ -492,7 +541,10 @@ impl<'t> Parser<'t> {
                 self.suite_inline = false;
             }
             SuiteKind::Missing => {
-                self.error(Code::SyntaxError);
+                self.error(
+                    Code::SyntaxError,
+                    "expected an indented suite, found a line that is not indented deeper",
+                );
                 self.suite_inline = false;
             }
         }
@@ -549,7 +601,7 @@ impl<'t> Parser<'t> {
         {
             return;
         }
-        self.error(Code::SyntaxError);
+        self.expected("a line ending");
         self.recover_line();
         self.eat_layout(Layout::Newline);
     }
@@ -558,7 +610,7 @@ impl<'t> Parser<'t> {
     /// part of the current suite.
     pub(crate) fn stray_indent(&mut self) {
         self.stmt_errored = false;
-        self.error(Code::SyntaxError);
+        self.error(Code::SyntaxError, "unexpected indentation");
         let marker = self.start();
         self.bump();
         self.statements();
@@ -572,7 +624,7 @@ impl<'t> Parser<'t> {
         if self.nesting >= MAX_NESTING {
             let at = self.pos();
             if !self.errors.iter().any(|e| e.0 == Code::NestingTooDeep) {
-                self.report(Code::NestingTooDeep, at);
+                self.report(Code::NestingTooDeep, at, NESTING_TOO_DEEP);
             }
             self.stmt_errored = true;
             return false;
@@ -671,13 +723,14 @@ impl<'t> Parser<'t> {
                     Code::DocCommentWithoutTarget,
                     lo,
                     self.toks.com_end[index],
+                    "documentation comments must attach to a declaration or member",
                 ));
             }
         }
     }
 }
 
-fn diag(code: Code, lo: u32, hi: u32) -> Diagnostic {
+fn diag(code: Code, lo: u32, hi: u32, message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(
         code,
         Span {
@@ -685,6 +738,7 @@ fn diag(code: Code, lo: u32, hi: u32) -> Diagnostic {
             lo,
             hi,
         },
+        message,
     )
 }
 

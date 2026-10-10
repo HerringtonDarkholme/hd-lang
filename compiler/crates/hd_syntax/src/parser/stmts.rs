@@ -11,7 +11,10 @@ impl Parser<'_> {
     pub(crate) fn statement(&mut self) {
         if self.at(TokenKind::KwTests) {
             // grammar.tests.top-level
-            self.error(Code::SyntaxError);
+            self.error(
+                Code::SyntaxError,
+                "a 'tests:' block may appear only at module top level",
+            );
             self.recover_line();
             if self.eat_layout(Layout::Newline) && self.at_layout(Layout::Indent) {
                 self.stray_indent_quiet();
@@ -25,7 +28,11 @@ impl Parser<'_> {
         if self.at(TokenKind::Colon) {
             // grammar.call.trailing-block.not-header: a second block.
             let at = self.pos();
-            self.error_at(Code::TrailingBlockPosition, at);
+            self.error_at(
+                Code::TrailingBlockPosition,
+                at,
+                "a call accepts only one trailing callback block",
+            );
             self.recover_line();
             if self.eat_layout(Layout::Newline) && self.at_layout(Layout::Indent) {
                 self.stray_indent_quiet();
@@ -89,7 +96,7 @@ impl Parser<'_> {
             Some(TokenKind::KwDefer) => {
                 let marker = self.start();
                 self.bump();
-                if self.expect(TokenKind::Colon) {
+                if self.expect(TokenKind::Colon, "':'") {
                     self.suite(false, Ctx::Inline);
                 }
                 self.complete(marker, SyntaxKind::DeferStmt);
@@ -100,7 +107,10 @@ impl Parser<'_> {
                     && self.nth(2) == Some(TokenKind::ColonEq)
                 {
                     // grammar.stmt.let-mut.only-let
-                    self.error(Code::SyntaxError);
+                    self.error(
+                        Code::SyntaxError,
+                        "'mut' is only accepted by 'let': write 'let mut name = ...'",
+                    );
                     self.junk();
                 }
                 let marker = self.start();
@@ -109,14 +119,21 @@ impl Parser<'_> {
                     Some(TokenKind::ColonEq) => {
                         // grammar.stmt.short-binding.let-only
                         let at = self.pos();
-                        let code = if matches!(ctx, Ctx::Stmt | Ctx::Inline)
+                        if matches!(ctx, Ctx::Stmt | Ctx::Inline)
                             && lhs.kind() != SyntaxKind::ParenExpr
                         {
-                            Code::MissingLet
+                            self.error_at(
+                                Code::MissingLet,
+                                at,
+                                "':=' binds one name; a pattern before it needs 'let', as in 'let (a, b) = pair'",
+                            );
                         } else {
-                            Code::SyntaxError
-                        };
-                        self.error_at(code, at);
+                            self.error_at(
+                                Code::SyntaxError,
+                                at,
+                                "':=' binds one name; several names need 'let', as in 'let (a, b) = pair'",
+                            );
+                        }
                         self.bump();
                         self.expr(Self::rhs(ctx));
                         self.complete(marker, SyntaxKind::ExprStmt);
@@ -153,7 +170,14 @@ impl Parser<'_> {
         self.pattern(true);
         if !matches!(self.current(), Some(TokenKind::Colon | TokenKind::Eq)) {
             // grammar.stmt.let-list.bare and friends.
-            self.error(Code::SyntaxError);
+            if self.at(TokenKind::Comma) {
+                self.error(
+                    Code::SyntaxError,
+                    "several names after 'let' need parentheses: write 'let (a, b) = ...'",
+                );
+            } else {
+                self.expected("':' or '=' after the pattern");
+            }
             self.recover_line();
             self.complete(marker, SyntaxKind::LetStmt);
             return;
@@ -161,13 +185,13 @@ impl Parser<'_> {
         if self.eat(TokenKind::Colon) {
             self.ty();
         }
-        if self.expect(TokenKind::Eq) {
+        if self.expect(TokenKind::Eq, "'='") {
             self.expr(Self::rhs(ctx));
         }
         if ctx != Ctx::Inline && self.at(TokenKind::KwElse) && !self.suite_closed {
             let clause = self.start();
             self.bump();
-            if self.expect(TokenKind::Colon) {
+            if self.expect(TokenKind::Colon, "':'") {
                 self.suite(false, Ctx::Inline);
             }
             self.complete(clause, SyntaxKind::ElseClause);

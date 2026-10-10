@@ -201,6 +201,21 @@ impl TokenBuf {
         &source[start as usize..end as usize]
     }
 
+    /// How a message names the token at `index`: its text in quotes
+    /// (shortened when long), or the end of the file past the last token.
+    pub(crate) fn describe(&self, index: usize, source: &str) -> String {
+        if index >= self.len() {
+            return "the end of the file".to_owned();
+        }
+        let text = &source[self.start[index] as usize..self.end[index] as usize];
+        let first_line = text.lines().next().unwrap_or_default();
+        let mut shown: String = first_line.chars().take(24).collect();
+        if shown.len() < text.len() {
+            shown.push_str("...");
+        }
+        format!("'{shown}'")
+    }
+
     #[must_use]
     pub fn is_line_first(&self, token: TokenIdx) -> bool {
         let raw = token.raw() as usize;
@@ -270,7 +285,12 @@ pub struct Lexed {
 pub fn lex(source: &[u8]) -> Lexed {
     let Ok(text) = core::str::from_utf8(source) else {
         return Lexed {
-            diagnostics: vec![diagnostic(Code::InvalidToken, 0, source.len())],
+            diagnostics: vec![diagnostic(
+                Code::InvalidToken,
+                0,
+                source.len(),
+                "source text is not valid UTF-8",
+            )],
             ..Lexed::default()
         };
     };
@@ -294,6 +314,11 @@ struct Lexer<'s> {
     /// Open string frames: a newline inside one continues the string's line.
     string_depth: u32,
 }
+
+const TAB_IN_LITERAL: &str = "a tab inside a literal must be written as the '\\t' escape";
+
+/// `grammar.limit.nesting.error`, for the lexer and the parser alike.
+pub(crate) const NESTING_TOO_DEEP: &str = "source nests deeper than the implementation limit";
 
 /// Interpolations nested deeper than this are text (`nesting-too-deep`).
 const MAX_STRING_DEPTH: u32 = 64;
@@ -340,7 +365,12 @@ impl<'s> Lexer<'s> {
         match self.bytes[self.pos] {
             b' ' => self.pos += 1,
             b'\t' => {
-                self.error(Code::TabWhitespace, self.pos, self.pos + 1);
+                let message = if self.in_indentation() {
+                    "indentation must contain spaces only"
+                } else {
+                    "tab characters are not permitted as whitespace"
+                };
+                self.error(Code::TabWhitespace, self.pos, self.pos + 1, message);
                 self.pos += 1;
             }
             b'\n' => {
@@ -352,7 +382,12 @@ impl<'s> Lexer<'s> {
                 self.new_line();
             }
             b'\r' => {
-                self.error(Code::InvalidToken, self.pos, self.pos + 1);
+                self.error(
+                    Code::InvalidToken,
+                    self.pos,
+                    self.pos + 1,
+                    "a bare carriage return is not a line ending",
+                );
                 self.pos += 1;
                 self.new_line();
             }
@@ -432,7 +467,9 @@ impl<'s> Lexer<'s> {
                 });
                 if !matches {
                     let (lo, hi) = (self.tokens.start[index], self.tokens.end[index]);
-                    self.error(Code::UnmatchedDelimiter, lo as usize, hi as usize);
+                    let closer = &self.source[lo as usize..hi as usize];
+                    let message = format!("unexpected '{closer}' delimiter");
+                    self.error(Code::UnmatchedDelimiter, lo as usize, hi as usize, message);
                 }
                 // A wrong closer still closes the innermost opener, so one
                 // mistake reports once.
@@ -441,7 +478,9 @@ impl<'s> Lexer<'s> {
         }
         for (_, index) in stack {
             let (lo, hi) = (self.tokens.start[index], self.tokens.end[index]);
-            self.error(Code::UnclosedDelimiter, lo as usize, hi as usize);
+            let opener = &self.source[lo as usize..hi as usize];
+            let message = format!("unclosed '{opener}' delimiter");
+            self.error(Code::UnclosedDelimiter, lo as usize, hi as usize, message);
         }
     }
 
@@ -473,7 +512,12 @@ impl<'s> Lexer<'s> {
             if self.peek_byte(0) == Some(b'`') {
                 self.pos += 1;
             }
-            self.error(Code::InvalidToken, start, self.pos);
+            self.error(
+                Code::InvalidToken,
+                start,
+                self.pos,
+                "a backtick must enclose an identifier or reserved word",
+            );
             self.tokens
                 .push(TokenKind::Error, start, self.pos, self.line);
             return;
@@ -481,8 +525,16 @@ impl<'s> Lexer<'s> {
         let content_end = self.pos;
         self.pos += 1;
         let content = &self.source[content_start..content_end];
-        if content == "_" || (!content.is_ascii() && !is_nfc(content)) {
-            self.error(Code::InvalidToken, start, self.pos);
+        if content == "_" {
+            self.error(
+                Code::InvalidToken,
+                start,
+                self.pos,
+                "a backtick must enclose an identifier or reserved word",
+            );
+        } else if !content.is_ascii() && !is_nfc(content) {
+            let message = format!("identifier '{content}' is not NFC-normalized");
+            self.error(Code::InvalidToken, start, self.pos, message);
         }
         self.tokens
             .push(TokenKind::RawIdent, start, self.pos, self.line);
@@ -498,7 +550,10 @@ impl<'s> Lexer<'s> {
                 return;
             }
             // lex.literal-fn.reserved-glued: a reserved word in prefix position.
-            self.error(Code::SyntaxError, start, self.pos);
+            let message = format!(
+                "'{text}' is a reserved word, so it cannot prefix a string: write '{text} \"...'"
+            );
+            self.error(Code::SyntaxError, start, self.pos, message);
         }
         let kind = keyword(text).unwrap_or_else(|| {
             if text == "_" {
@@ -508,7 +563,8 @@ impl<'s> Lexer<'s> {
             }
         });
         if !text.is_ascii() && !is_nfc(text) {
-            self.error(Code::InvalidToken, start, self.pos);
+            let message = format!("identifier '{text}' is not NFC-normalized");
+            self.error(Code::InvalidToken, start, self.pos, message);
         }
         self.tokens.push(kind, start, self.pos, self.line);
     }
@@ -625,11 +681,20 @@ impl<'s> Lexer<'s> {
                 self.consume_identifier_chars();
                 if keyword(&self.source[suffix..self.pos]).is_some() {
                     // lex.literal-fn.reserved-glued: a reserved word as a suffix.
-                    self.error(Code::SyntaxError, start, self.pos);
+                    let number = &self.source[start..suffix];
+                    let word = &self.source[suffix..self.pos];
+                    let message = format!(
+                        "'{word}' is a reserved word, so '{number}{word}' needs a space: write '{number} {word}'"
+                    );
+                    self.error(Code::SyntaxError, start, self.pos, message);
                 }
             }
         } else if self.pos == start + 2 {
-            self.error(Code::SyntaxError, start, self.pos);
+            let message = format!(
+                "invalid integer literal '{}'",
+                &self.source[start..self.pos]
+            );
+            self.error(Code::SyntaxError, start, self.pos, message);
         } else if self.source[self.pos..]
             .chars()
             .next()
@@ -642,10 +707,16 @@ impl<'s> Lexer<'s> {
             {
                 self.pos += char_len(self.source, self.pos);
             }
-            self.error(Code::SyntaxError, start, self.pos);
+            let message = format!(
+                "invalid integer literal '{}'",
+                &self.source[start..self.pos]
+            );
+            self.error(Code::SyntaxError, start, self.pos, message);
         }
         if bad_separator {
-            self.error(Code::InvalidToken, start, self.pos);
+            let kind = if radix == 10 { "numeric" } else { "integer" };
+            let message = format!("invalid {kind} literal '{}'", &self.source[start..self.pos]);
+            self.error(Code::InvalidToken, start, self.pos, message);
         }
         self.tokens
             .push(TokenKind::Number, start, self.pos, self.line);
@@ -692,7 +763,7 @@ impl<'s> Lexer<'s> {
                 break;
             }
             if byte == b'\t' {
-                self.error(Code::TabWhitespace, self.pos, self.pos + 1);
+                self.error(Code::TabWhitespace, self.pos, self.pos + 1, TAB_IN_LITERAL);
             }
             if byte == b'$' && !escaped {
                 if self.peek_byte(1) == Some(b'{') && self.string_depth <= MAX_STRING_DEPTH {
@@ -707,7 +778,12 @@ impl<'s> Lexer<'s> {
                     if !self.interpolation() {
                         // End of input inside the code: no tail piece.
                         self.string_depth -= 1;
-                        self.error(Code::UnterminatedString, start, self.pos);
+                        self.error(
+                            Code::UnterminatedString,
+                            start,
+                            self.pos,
+                            "unterminated '${...}' interpolation",
+                        );
                         return;
                     }
                     piece_start = self.pos;
@@ -716,7 +792,12 @@ impl<'s> Lexer<'s> {
                     continue;
                 }
                 if self.peek_byte(1) == Some(b'{') {
-                    self.error(Code::NestingTooDeep, self.pos, self.pos + 2);
+                    self.error(
+                        Code::NestingTooDeep,
+                        self.pos,
+                        self.pos + 2,
+                        NESTING_TOO_DEEP,
+                    );
                 }
                 self.dollar_name();
                 continue;
@@ -735,11 +816,7 @@ impl<'s> Lexer<'s> {
             }
             if !prefixed && byte == b'\\' && !escaped {
                 if !valid_escape(self.bytes, self.pos) {
-                    self.error(
-                        Code::InvalidEscape,
-                        self.pos,
-                        (self.pos + 2).min(self.bytes.len()),
-                    );
+                    self.invalid_escape();
                 }
                 escaped = true;
             } else {
@@ -749,7 +826,12 @@ impl<'s> Lexer<'s> {
         }
         self.string_depth -= 1;
         if !closed {
-            self.error(Code::UnterminatedString, start, self.pos);
+            self.error(
+                Code::UnterminatedString,
+                start,
+                self.pos,
+                "unterminated literal",
+            );
         }
         let kind = if interpolated {
             TokenKind::StrTail
@@ -776,7 +858,12 @@ impl<'s> Lexer<'s> {
         self.consume_identifier_chars();
         let text = &self.source[name..self.pos];
         if text != "self" && keyword(text).is_some() {
-            self.error(Code::SyntaxError, dollar, self.pos);
+            self.error(
+                Code::SyntaxError,
+                dollar,
+                self.pos,
+                "an unescaped '$' must be followed by an identifier, 'self', or '{'",
+            );
         }
     }
 
@@ -807,7 +894,7 @@ impl<'s> Lexer<'s> {
                 break;
             }
             if byte == b'\t' {
-                self.error(Code::TabWhitespace, self.pos, self.pos + 1);
+                self.error(Code::TabWhitespace, self.pos, self.pos + 1, TAB_IN_LITERAL);
             }
             if byte == b'\'' {
                 self.pos += 1;
@@ -817,11 +904,7 @@ impl<'s> Lexer<'s> {
             scalars += 1;
             if byte == b'\\' {
                 if !valid_escape(self.bytes, self.pos) {
-                    self.error(
-                        Code::InvalidEscape,
-                        self.pos,
-                        (self.pos + 2).min(self.bytes.len()),
-                    );
+                    self.invalid_escape();
                 }
                 self.pos += 1;
                 if self.peek_byte(0) == Some(b'u') && self.peek_byte(1) == Some(b'{') {
@@ -842,10 +925,20 @@ impl<'s> Lexer<'s> {
             self.pos += char_len(self.source, self.pos);
         }
         if !closed {
-            self.error(Code::UnterminatedString, start, self.pos);
+            self.error(
+                Code::UnterminatedString,
+                start,
+                self.pos,
+                "unterminated literal",
+            );
         } else if scalars != 1 {
             // lex.char.one-scalar
-            self.error(Code::InvalidToken, start, self.pos);
+            self.error(
+                Code::InvalidToken,
+                start,
+                self.pos,
+                "a character literal must contain one Unicode scalar value",
+            );
         }
         self.tokens
             .push(TokenKind::Char, start, self.pos, self.line);
@@ -919,17 +1012,25 @@ impl<'s> Lexer<'s> {
             self.pos = start + char_len(self.source, start);
         }
         if kind == TokenKind::Error {
+            let text = &self.source[start..self.pos];
+            if text.starts_with('\u{feff}') {
+                self.error(
+                    Code::UnexpectedBom,
+                    start,
+                    self.pos,
+                    "a byte-order mark is only allowed at the start of a file",
+                );
+            } else {
+                let message = format!("unexpected character '{text}'");
+                self.error(Code::InvalidToken, start, self.pos, message);
+            }
+        } else if kind == TokenKind::Semicolon {
             self.error(
-                if self.source[start..self.pos].starts_with('\u{feff}') {
-                    Code::UnexpectedBom
-                } else {
-                    Code::InvalidToken
-                },
+                Code::ReservedSemicolon,
                 start,
                 self.pos,
+                "semicolon is reserved and cannot separate statements",
             );
-        } else if kind == TokenKind::Semicolon {
-            self.error(Code::ReservedSemicolon, start, self.pos);
         }
         self.tokens.push(kind, start, self.pos, self.line);
     }
@@ -938,8 +1039,33 @@ impl<'s> Lexer<'s> {
         self.bytes.get(self.pos + ahead).copied()
     }
 
-    fn error(&mut self, code: Code, start: usize, end: usize) {
-        self.diagnostics.push(diagnostic(code, start, end));
+    fn error(&mut self, code: Code, start: usize, end: usize, message: impl Into<String>) {
+        self.diagnostics.push(diagnostic(code, start, end, message));
+    }
+
+    /// Whether only spaces and tabs precede the cursor on its line.
+    fn in_indentation(&self) -> bool {
+        self.bytes[..self.pos]
+            .iter()
+            .rev()
+            .find(|byte| !matches!(byte, b' ' | b'\t'))
+            .is_none_or(|byte| matches!(byte, b'\n' | b'\r'))
+    }
+
+    /// The escape at the cursor (a backslash) is not one the language has.
+    fn invalid_escape(&mut self) {
+        let end = (self.pos + 2).min(self.bytes.len());
+        let message = if self.peek_byte(1) == Some(b'u') {
+            "invalid Unicode escape sequence".to_owned()
+        } else {
+            let next = self.source[self.pos + 1..]
+                .chars()
+                .next()
+                .filter(|ch| !ch.is_control());
+            let shown = next.map_or(String::new(), |ch| ch.to_string());
+            format!("invalid escape sequence '\\{shown}'")
+        };
+        self.error(Code::InvalidEscape, self.pos, end, message);
     }
 }
 
@@ -1073,7 +1199,7 @@ fn char_len(source: &str, pos: usize) -> usize {
     source[pos..].chars().next().map_or(1, char::len_utf8)
 }
 
-fn diagnostic(code: Code, start: usize, end: usize) -> Diagnostic {
+fn diagnostic(code: Code, start: usize, end: usize, message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(
         code,
         Span {
@@ -1081,6 +1207,7 @@ fn diagnostic(code: Code, start: usize, end: usize) -> Diagnostic {
             lo: to_u32(start),
             hi: to_u32(end),
         },
+        message,
     )
 }
 

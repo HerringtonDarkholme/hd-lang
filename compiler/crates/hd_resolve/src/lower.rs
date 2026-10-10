@@ -920,7 +920,7 @@ fn bind_uses(
                             kinds.insert(d, k);
                         }
                         Err(code) => {
-                            let msg = format!("{} `{}` in `{module}`", code.as_str(), g.name);
+                            let msg = export_failure(code, &g.name, &module);
                             diags.error(code, g.span, &msg);
                             let local = names.syms.intern(g.alias.as_deref().unwrap_or(&g.name));
                             bind_poison(scope, local, use_origin(u), row);
@@ -970,12 +970,21 @@ fn bind_uses(
                         .export(&parent, names.syms.intern(last))
                         .err()
                         .unwrap_or(Code::UnknownImport);
-                    let msg = format!("{} `{last}` in `{parent}`", code.as_str());
+                    let msg = export_failure(code, last, &parent);
                     diags.error(code, u.span, &msg);
                     bind_poison(scope, local, use_origin(u), row);
                 }
             }
         }
+    }
+}
+
+/// What the user reads when `module` does not give `name` to an import.
+fn export_failure(code: Code, name: &str, module: &str) -> String {
+    match code {
+        Code::PrivateImport => format!("'{name}' is private to module '{module}'"),
+        Code::UnknownModule => format!("no module named '{module}'"),
+        _ => format!("module '{module}' declares no '{name}'"),
     }
 }
 
@@ -1177,7 +1186,7 @@ impl Lower<'_, '_, '_> {
         match self.r.export(&module, self.sym(last)) {
             Ok(x) => Some(x),
             Err(code) => {
-                let msg = format!("{} `{last}` in `{module}`", code.as_str());
+                let msg = export_failure(code, last, &module);
                 self.diags.error(code, span, &msg);
                 None
             }

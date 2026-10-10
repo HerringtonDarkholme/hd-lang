@@ -137,12 +137,21 @@ impl Parser<'_> {
             };
             if bad {
                 // grammar.closed.*, grammar.inline.no-if
-                self.error(Code::SyntaxError);
+                let message = if ctx == Ctx::Closed {
+                    "an expression followed by another token outside brackets cannot end in a suite"
+                        .to_owned()
+                } else {
+                    format!(
+                        "a same-line suite cannot contain '{}'; put the body on an indented line",
+                        self.nth_text(0)
+                    )
+                };
+                self.error(Code::SyntaxError, &message);
             }
             let done = self.suite_expr(ctx);
             if ctx == Ctx::Continued && self.suite_inline {
                 // grammar.continued.no-same-line-suite
-                self.error(Code::SyntaxError);
+                self.error(Code::SyntaxError, "a same-line suite cannot end an expression that is followed by another token inside brackets");
             }
             return done;
         }
@@ -157,17 +166,21 @@ impl Parser<'_> {
     fn trailing_block(&mut self, callee: Done, ctx: Ctx) -> Done {
         if !is_postfix(callee.kind()) {
             // grammar.call.trailing-block.accepted
-            self.error(Code::SyntaxError);
+            self.expected("a line ending");
             return callee;
         }
         if !self.nth_line_first(1) && self.nth(1).is_some() {
             // grammar.call.trailing-block.next-line, grammar.stmt.typed-binding.let
-            let code = if ctx == Ctx::Stmt && callee.kind() == SyntaxKind::NameExpr {
-                Code::MissingLet
+            if ctx == Ctx::Stmt && callee.kind() == SyntaxKind::NameExpr {
+                self.error(
+                    Code::MissingLet,
+                    "a binding with a type annotation must begin with 'let'; write `let x: T = ...`, or `x := ...` without the type",
+                );
             } else {
-                Code::SyntaxError
-            };
-            self.error(code);
+                let found = self.toks.describe(self.pos() + 1, self.src);
+                let message = format!("expected a line ending after ':', found {found}");
+                self.error(Code::SyntaxError, &message);
+            }
             self.recover_line();
             return callee;
         }
@@ -227,7 +240,7 @@ impl Parser<'_> {
         let marker = self.start();
         self.bump(); // if
         self.expr(ctx.header());
-        if self.expect(TokenKind::Colon) {
+        if self.expect(TokenKind::Colon, "':'") {
             self.suite(false, Ctx::Inline);
             if self.at_else() {
                 let clause = self.start();
@@ -239,7 +252,7 @@ impl Parser<'_> {
                     } else {
                         self.skip_balanced();
                     }
-                } else if self.expect(TokenKind::Colon) {
+                } else if self.expect(TokenKind::Colon, "':'") {
                     self.suite(false, Ctx::Inline);
                 }
                 self.complete(clause, SyntaxKind::ElseClause);
@@ -252,7 +265,7 @@ impl Parser<'_> {
         if self.at_else() {
             let clause = self.start();
             self.bump();
-            if self.expect(TokenKind::Colon) {
+            if self.expect(TokenKind::Colon, "':'") {
                 self.suite(false, Ctx::Inline);
             }
             self.complete(clause, SyntaxKind::ElseClause);
@@ -263,9 +276,9 @@ impl Parser<'_> {
         let marker = self.start();
         self.bump(); // for
         self.pattern(false);
-        if self.expect(TokenKind::KwIn) {
+        if self.expect(TokenKind::KwIn, "'in'") {
             self.expr(ctx.header());
-            if self.expect(TokenKind::Colon) {
+            if self.expect(TokenKind::Colon, "':'") {
                 self.suite(false, Ctx::Inline);
                 self.loop_else();
             }
@@ -277,7 +290,7 @@ impl Parser<'_> {
         let marker = self.start();
         self.bump(); // while
         self.expr(ctx.header());
-        if self.expect(TokenKind::Colon) {
+        if self.expect(TokenKind::Colon, "':'") {
             self.suite(false, Ctx::Inline);
             self.loop_else();
         }
@@ -288,7 +301,7 @@ impl Parser<'_> {
         let marker = self.start();
         self.bump(); // match
         self.expr(ctx.header());
-        if self.expect(TokenKind::Colon) {
+        if self.expect(TokenKind::Colon, "':'") {
             match self.cur.open_suite(false) {
                 SuiteKind::Indented => {
                     self.eat_layout(Layout::Newline);
@@ -299,10 +312,13 @@ impl Parser<'_> {
                 SuiteKind::SameLine => {
                     // A match takes an indented arm list.
                     self.cur.close_inline();
-                    self.error(Code::SyntaxError);
+                    self.expected("a line ending after the match header");
                     self.recover_line();
                 }
-                SuiteKind::Missing => self.error(Code::SyntaxError),
+                SuiteKind::Missing => self.error(
+                    Code::SyntaxError,
+                    "expected indented match arms, found a line that is not indented deeper",
+                ),
             }
         }
         self.suite_closed = true;
@@ -348,7 +364,7 @@ impl Parser<'_> {
             self.expr(Ctx::Closed);
             self.complete(guard, SyntaxKind::MatchGuard);
         }
-        if self.expect(TokenKind::FatArrow) {
+        if self.expect(TokenKind::FatArrow, "'=>'") {
             let body = self.start();
             match self.cur.open_arm() {
                 SuiteKind::Indented => {
@@ -357,7 +373,10 @@ impl Parser<'_> {
                     self.suite_inline = false;
                 }
                 SuiteKind::SameLine => self.simple_statement(Ctx::Stmt),
-                SuiteKind::Missing => self.error(Code::SyntaxError),
+                SuiteKind::Missing => self.error(
+                    Code::SyntaxError,
+                    "expected an indented match arm body, found a line that is not indented deeper",
+                ),
             }
             self.complete(body, SyntaxKind::Block);
         } else {
@@ -380,7 +399,7 @@ impl Parser<'_> {
         if self.at(TokenKind::Dollar) {
             self.requirement_clause();
         }
-        if self.expect(TokenKind::Colon) {
+        if self.expect(TokenKind::Colon, "':'") {
             self.suite(true, Ctx::Inline);
         }
         self.complete(marker, SyntaxKind::ClosureExpr)
@@ -390,18 +409,18 @@ impl Parser<'_> {
     fn context_expr(&mut self) -> Done {
         let marker = self.start();
         self.bump(); // $
-        if !self.expect(TokenKind::Dot) {
+        if !self.expect(TokenKind::Dot, "'.'") {
             return self.complete(marker, SyntaxKind::ContextExpr);
         }
         let word = self.nth_text(0);
         if !self.at(TokenKind::Ident) {
-            self.error(Code::SyntaxError);
+            self.expected("a provider-context operation after '$.'");
             return self.complete(marker, SyntaxKind::ContextExpr);
         }
         self.bump();
         match word {
             "use" => {
-                if self.expect(TokenKind::LParen) {
+                if self.expect(TokenKind::LParen, "'('") {
                     while !self.at(TokenKind::RParen) && self.current().is_some() {
                         let before = self.pos();
                         self.ty_bound_trait(true);
@@ -409,26 +428,26 @@ impl Parser<'_> {
                             break;
                         }
                     }
-                    self.expect(TokenKind::RParen);
+                    self.expect(TokenKind::RParen, "')'");
                 }
             }
             "context" | "with" => {
                 if self.at(TokenKind::LParen) {
                     self.context_entries();
                 } else {
-                    self.error(Code::SyntaxError);
+                    self.expected("'(' after the context operation");
                 }
-                if word == "with" && self.expect(TokenKind::Colon) {
+                if word == "with" && self.expect(TokenKind::Colon, "':'") {
                     self.suite(false, Ctx::Inline);
                 }
             }
             "Context" => {
-                if self.expect(TokenKind::LBracket) {
+                if self.expect(TokenKind::LBracket, "'['") {
                     self.ty_argument();
-                    self.expect(TokenKind::RBracket);
+                    self.expect(TokenKind::RBracket, "']'");
                 }
             }
-            _ => self.error(Code::SyntaxError),
+            _ => self.error(Code::SyntaxError, &format!("unknown provider-context operation '$.{word}'; expected 'use', 'context', 'with', or 'Context'")),
         }
         self.complete(marker, SyntaxKind::ContextExpr)
     }
@@ -441,13 +460,16 @@ impl Parser<'_> {
             let entry = self.start();
             if self.key_entry_ahead() {
                 self.ty_bound_trait(true);
-                if self.expect(TokenKind::Eq) {
+                if self.expect(TokenKind::Eq, "'='") {
                     self.expr(Ctx::Expr);
                 }
             } else {
                 if self.at(TokenKind::Ellipsis) {
                     // grammar.primary.prefix-elsewhere
-                    self.error(Code::SyntaxError);
+                    self.error(
+                        Code::SyntaxError,
+                        "a spread is written after its value: write 'value...'",
+                    );
                     self.bump();
                 }
                 let value = self.expr(Ctx::Continued);
@@ -456,7 +478,10 @@ impl Parser<'_> {
                     self.bump();
                     self.complete(spread, SyntaxKind::SpreadExpr);
                 } else {
-                    self.error(Code::SyntaxError);
+                    self.error(
+                        Code::SyntaxError,
+                        "a provider entry is 'Key = value' or a spread 'value...'",
+                    );
                 }
             }
             self.complete(entry, SyntaxKind::ContextEntry);
@@ -464,7 +489,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RParen);
+        self.expect(TokenKind::RParen, "')'");
         self.complete(list, SyntaxKind::ArgumentList);
     }
 
@@ -522,7 +547,10 @@ impl Parser<'_> {
                 self.binary(0);
             } else if inclusive {
                 // grammar.expr.range.inclusive-needs-end
-                self.error(Code::SyntaxError);
+                self.error(
+                    Code::SyntaxError,
+                    "an inclusive range needs an end bound: write 'a..=b'",
+                );
             }
             return self.complete(marker, SyntaxKind::RangeExpr);
         }
@@ -537,7 +565,10 @@ impl Parser<'_> {
             if self.can_begin_operand() {
                 self.binary(0);
             } else if inclusive {
-                self.error(Code::SyntaxError);
+                self.error(
+                    Code::SyntaxError,
+                    "an inclusive range needs an end bound: write 'a..=b'",
+                );
             }
             let done = self.complete(marker, SyntaxKind::RangeExpr);
             if matches!(
@@ -545,7 +576,10 @@ impl Parser<'_> {
                 Some(TokenKind::DotDot | TokenKind::DotDotEq)
             ) {
                 // grammar.expr.range.non-assoc
-                self.error(Code::SyntaxError);
+                self.error(
+                    Code::SyntaxError,
+                    "ranges do not chain: parenthesize a range used as a bound",
+                );
             }
             return done;
         }
@@ -570,7 +604,7 @@ impl Parser<'_> {
             {
                 // grammar.expr.no-comparison-chain
                 let at = self.pos();
-                self.error_at(Code::ComparisonChaining, at);
+                self.error_at(Code::ComparisonChaining, at, "comparisons do not chain");
             }
         }
         lhs
@@ -623,7 +657,7 @@ impl Parser<'_> {
                         Some(TokenKind::String | TokenKind::StrHead) if self.prefixed_string(1) => {
                             // grammar.primary.prefix-after-dot
                             let at = self.pos() + 1;
-                            self.error_at(Code::QualifiedStringPrefix, at);
+                            self.error_at(Code::QualifiedStringPrefix, at, "a string prefix is a bare name in scope: write 'tag\"...\"' without the qualifier");
                             let marker = self.precede(lhs);
                             self.bump();
                             self.primary();
@@ -632,7 +666,7 @@ impl Parser<'_> {
                         _ => {
                             // grammar.expr.no-numeric-member, lex.raw.*
                             let at = self.pos() + 1;
-                            self.error_at(Code::SyntaxError, at);
+                            self.expected_at("a member name after '.'", at);
                             let marker = self.precede(lhs);
                             self.bump();
                             if self
@@ -654,7 +688,7 @@ impl Parser<'_> {
                     let marker = self.precede(lhs);
                     self.bump();
                     self.expr(Ctx::Expr);
-                    self.expect(TokenKind::RBracket);
+                    self.expect(TokenKind::RBracket, "']'");
                     lhs = self.complete(marker, SyntaxKind::IndexExpr);
                 }
                 TokenKind::Question if same_line => {
@@ -672,7 +706,7 @@ impl Parser<'_> {
                 {
                     if lhs.kind() == SyntaxKind::TypeArgsExpr {
                         // grammar.primary.method-reference.no-bang
-                        self.error(Code::SyntaxError);
+                        self.error(Code::SyntaxError, "a bang call puts '!' before the type arguments: write 'name!::[T](...)'");
                     }
                     let marker = self.precede(lhs);
                     self.bump();
@@ -689,7 +723,10 @@ impl Parser<'_> {
                     );
                     if !qualifier {
                         // grammar.expr.type-arguments.unmarked
-                        self.error(Code::SyntaxError);
+                        self.error(
+                            Code::SyntaxError,
+                            "'::' follows a name or a path, not another expression",
+                        );
                     }
                     let marker = self.precede(lhs);
                     self.bump();
@@ -697,7 +734,7 @@ impl Parser<'_> {
                         self.function_type_arguments();
                         lhs = self.complete(marker, SyntaxKind::TypeArgsExpr);
                     } else {
-                        self.expect_name();
+                        self.expect_name("an associated function name");
                         if self.at(TokenKind::Bang)
                             && self.nth_glued(0)
                             && matches!(
@@ -718,7 +755,7 @@ impl Parser<'_> {
                     ) {
                         if lhs.kind() == SyntaxKind::IndexExpr {
                             // grammar.expr.type-arguments.unmarked
-                            self.error(Code::SyntaxError);
+                            self.error(Code::SyntaxError, "type arguments in an expression follow '::', as in 'Box::[i32] { ... }'");
                         } else {
                             break;
                         }
@@ -745,7 +782,10 @@ impl Parser<'_> {
                 && self.nth(1) == Some(TokenKind::Eq)
             {
                 // grammar.generic.binding.trait-type-only
-                self.error(Code::SyntaxError);
+                self.error(
+                    Code::SyntaxError,
+                    "a type-argument list in an expression takes no 'Name = type' binding",
+                );
                 let binding = self.start();
                 self.bump();
                 self.bump();
@@ -758,7 +798,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RBracket);
+        self.expect(TokenKind::RBracket, "']'");
         self.complete(marker, SyntaxKind::TypeArgumentList);
     }
 
@@ -782,7 +822,11 @@ impl Parser<'_> {
                 if named {
                     // grammar.call.positional-first
                     let at = self.pos();
-                    self.error_at(Code::ArgumentOrder, at);
+                    self.error_at(
+                        Code::ArgumentOrder,
+                        at,
+                        "positional arguments must precede named arguments",
+                    );
                 }
                 let argument = self.start();
                 self.element(Ctx::Expr);
@@ -790,7 +834,7 @@ impl Parser<'_> {
             }
             if !self.eat(TokenKind::Comma) {
                 if !self.at(TokenKind::RParen) {
-                    self.list_error();
+                    self.list_error(')');
                     self.skip_to_list_end(TokenKind::RParen);
                     if self.eat(TokenKind::Comma) {
                         continue;
@@ -802,7 +846,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RParen);
+        self.expect(TokenKind::RParen, "')'");
         self.complete(marker, SyntaxKind::ArgumentList);
     }
 
@@ -818,13 +862,17 @@ impl Parser<'_> {
     }
 
     /// A list element was not followed by `,` or the closer.
-    fn list_error(&mut self) {
+    fn list_error(&mut self, closer: char) {
         if self.at(TokenKind::Colon) {
             // grammar.call.trailing-block.not-header: inside brackets.
             let at = self.pos();
-            self.error_at(Code::TrailingBlockPosition, at);
+            self.error_at(
+                Code::TrailingBlockPosition,
+                at,
+                "a trailing callback block is not valid inside brackets",
+            );
         } else {
-            self.error(Code::SyntaxError);
+            self.expected(&format!("',' or '{closer}'"));
         }
     }
 
@@ -853,13 +901,17 @@ impl Parser<'_> {
                 if self.nth(1) == Some(TokenKind::Number) && self.nth_glued(1) {
                     // lex.float.no-bare-point
                     let at = self.pos();
-                    self.error_at(Code::InvalidToken, at);
+                    self.error_at(
+                        Code::InvalidToken,
+                        at,
+                        "a number needs a digit before '.': write '0.5'",
+                    );
                     self.bump();
                     self.bump();
                     return self.complete(marker, SyntaxKind::Error);
                 }
                 self.bump();
-                self.expect_name();
+                self.expect_name("an enum variant name after '.'");
                 self.complete(marker, SyntaxKind::VariantExpr)
             }
             Some(TokenKind::LParen) => self.paren(),
@@ -874,7 +926,11 @@ impl Parser<'_> {
                 | TokenKind::KwFn,
             ) => {
                 // A suite expression as an operand needs parentheses.
-                self.error(Code::SyntaxError);
+                let message = format!(
+                    "a '{}' expression used as an operand needs parentheses",
+                    self.nth_text(0)
+                );
+                self.error(Code::SyntaxError, &message);
                 if self.suite_start() {
                     self.suite_expr(Ctx::Closed)
                 } else {
@@ -885,7 +941,7 @@ impl Parser<'_> {
             }
             _ => {
                 let marker = self.start();
-                self.error(Code::SyntaxError);
+                self.expected("an expression");
                 if self.current().is_some_and(|kind| {
                     !kind.closes()
                         && !matches!(
@@ -912,7 +968,7 @@ impl Parser<'_> {
                 self.expr(Ctx::Expr);
             }
             if !matches!(self.current(), Some(TokenKind::StrMid | TokenKind::StrTail)) {
-                self.error(Code::SyntaxError);
+                self.expected("the end of an interpolation expression");
                 self.skip_balanced();
             }
             self.complete(part, SyntaxKind::Interpolation);
@@ -939,14 +995,17 @@ impl Parser<'_> {
             let before = self.pos();
             if spread_seen {
                 // grammar.primary.tuple-spread
-                self.error(Code::SyntaxError);
+                self.error(
+                    Code::SyntaxError,
+                    "a spread must be the last element of a tuple",
+                );
             }
             let element = self.element(Ctx::Expr);
             spread_seen |= element.kind() == SyntaxKind::SpreadExpr;
             count += 1;
             if !self.eat(TokenKind::Comma) {
                 if !self.at(TokenKind::RParen) {
-                    self.list_error();
+                    self.list_error(')');
                     self.skip_to_list_end(TokenKind::RParen);
                     if self.eat(TokenKind::Comma) {
                         comma = true;
@@ -961,9 +1020,12 @@ impl Parser<'_> {
             }
         }
         if spread_seen && !comma {
-            self.error(Code::SyntaxError);
+            self.error(
+                Code::SyntaxError,
+                "a lone spread in a tuple keeps its trailing comma: write '(xs...,)'",
+            );
         }
-        self.expect(TokenKind::RParen);
+        self.expect(TokenKind::RParen, "')'");
         let kind = if count == 1 && !comma {
             SyntaxKind::ParenExpr
         } else {
@@ -977,10 +1039,10 @@ impl Parser<'_> {
         self.bump(); // [
         if self.at(TokenKind::KwFor) && self.comprehension_ahead() {
             self.comprehension_clauses();
-            if self.expect(TokenKind::FatArrow) {
+            if self.expect(TokenKind::FatArrow, "'=>'") {
                 self.expr(Ctx::Expr);
             }
-            self.expect(TokenKind::RBracket);
+            self.expect(TokenKind::RBracket, "']'");
             return self.complete(marker, SyntaxKind::ComprehensionExpr);
         }
         while !self.at(TokenKind::RBracket) && self.current().is_some() {
@@ -988,7 +1050,7 @@ impl Parser<'_> {
             self.element(Ctx::Expr);
             if !self.eat(TokenKind::Comma) {
                 if !self.at(TokenKind::RBracket) {
-                    self.list_error();
+                    self.list_error(']');
                     self.skip_to_list_end(TokenKind::RBracket);
                     if self.eat(TokenKind::Comma) {
                         continue;
@@ -1000,7 +1062,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RBracket);
+        self.expect(TokenKind::RBracket, "']'");
         self.complete(marker, SyntaxKind::ListExpr)
     }
 
@@ -1009,28 +1071,28 @@ impl Parser<'_> {
         self.bump(); // {
         if self.at(TokenKind::KwFor) {
             self.comprehension_clauses();
-            if self.expect(TokenKind::FatArrow) {
+            if self.expect(TokenKind::FatArrow, "'=>'") {
                 let entry = self.start();
                 self.expr(Ctx::Continued);
-                if self.expect(TokenKind::Colon) {
+                if self.expect(TokenKind::Colon, "':'") {
                     self.expr(Ctx::Expr);
                 }
                 self.complete(entry, SyntaxKind::MapEntry);
             }
-            self.expect(TokenKind::RBrace);
+            self.expect(TokenKind::RBrace, "'}'");
             return self.complete(marker, SyntaxKind::ComprehensionExpr);
         }
         while !self.at(TokenKind::RBrace) && self.current().is_some() {
             let before = self.pos();
             let entry = self.start();
             self.expr(Ctx::Continued);
-            if self.expect(TokenKind::Colon) {
+            if self.expect(TokenKind::Colon, "':'") {
                 self.expr(Ctx::Expr);
             }
             self.complete(entry, SyntaxKind::MapEntry);
             if !self.eat(TokenKind::Comma) {
                 if !self.at(TokenKind::RBrace) {
-                    self.error(Code::SyntaxError);
+                    self.expected("',' or '}'");
                     self.skip_to_list_end(TokenKind::RBrace);
                     if self.eat(TokenKind::Comma) {
                         continue;
@@ -1042,7 +1104,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RBrace);
+        self.expect(TokenKind::RBrace, "'}'");
         self.complete(marker, SyntaxKind::MapExpr)
     }
 
@@ -1073,7 +1135,7 @@ impl Parser<'_> {
                 let clause = self.start();
                 self.bump();
                 self.pattern(false);
-                if self.expect(TokenKind::KwIn) {
+                if self.expect(TokenKind::KwIn, "'in'") {
                     self.expr(Ctx::Continued);
                 }
                 self.complete(clause, SyntaxKind::ComprehensionFor);
@@ -1097,7 +1159,10 @@ impl Parser<'_> {
             if self.at(TokenKind::Ellipsis) {
                 if !first {
                     // grammar: the copy-update spread comes first.
-                    self.error(Code::SyntaxError);
+                    self.error(
+                        Code::SyntaxError,
+                        "the copy-update spread '...base' comes first in a data expression",
+                    );
                 }
                 let spread = self.start();
                 self.bump();
@@ -1105,7 +1170,7 @@ impl Parser<'_> {
                 self.complete(spread, SyntaxKind::SpreadExpr);
             } else {
                 let field = self.start();
-                self.expect_name();
+                self.expect_name("a data field name");
                 if self.eat(TokenKind::Colon) {
                     self.eat(TokenKind::Ellipsis);
                     self.expr(Ctx::Expr);
@@ -1115,7 +1180,7 @@ impl Parser<'_> {
             first = false;
             if !self.eat(TokenKind::Comma) {
                 if !self.at(TokenKind::RBrace) {
-                    self.error(Code::SyntaxError);
+                    self.expected("',' or '}'");
                     self.skip_to_list_end(TokenKind::RBrace);
                     if self.eat(TokenKind::Comma) {
                         continue;
@@ -1127,6 +1192,6 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RBrace);
+        self.expect(TokenKind::RBrace, "'}'");
     }
 }

@@ -27,15 +27,18 @@ pub struct Diagnostic {
     pub code: Code,
     pub severity: Severity,
     pub primary: Span,
+    /// What the user reads: the situation, not the code.
+    pub message: String,
 }
 
 impl Diagnostic {
     #[must_use]
-    pub const fn error(code: Code, primary: Span) -> Self {
+    pub fn error(code: Code, primary: Span, message: impl Into<String>) -> Self {
         Self {
             code,
             severity: Severity::Error,
             primary,
+            message: message.into(),
         }
     }
 }

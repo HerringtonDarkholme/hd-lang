@@ -1164,7 +1164,7 @@ impl Run<'_> {
                         file: FileId::from_raw(u32_of(m)),
                         ..x.primary
                     };
-                    d.push(x.code, x.severity, span, x.code.as_str(), None);
+                    d.push(x.code, x.severity, span, &x.message, None);
                 }
             }
             p

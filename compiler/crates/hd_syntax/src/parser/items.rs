@@ -4,7 +4,7 @@
 
 use hd_diag::Code;
 
-use super::{Ctx, Marker, Parser};
+use super::{Ctx, Marker, Parser, REST_ELSEWHERE, TRAIT_METHOD_VISIBILITY};
 use crate::layout::SuiteKind;
 use crate::{Layout, SyntaxKind, TokenKind};
 
@@ -92,14 +92,20 @@ impl Parser<'_> {
             && matches!(self.nth(1), Some(TokenKind::Ident))
             && !self.nth_line_first(1)
         {
-            let code = match self.nth_text(0) {
-                "import" => Some(Code::OldImportDeclaration),
-                "export" => Some(Code::OldExportDeclaration),
-                "struct" => Some(Code::OldStructDeclaration),
+            let old = match self.nth_text(0) {
+                "import" => Some((Code::OldImportDeclaration, "'import' was replaced by 'use'")),
+                "export" => Some((
+                    Code::OldExportDeclaration,
+                    "'export' was replaced by 'pub use'",
+                )),
+                "struct" => Some((
+                    Code::OldStructDeclaration,
+                    "'struct' was replaced by 'data'",
+                )),
                 _ => None,
             };
-            if let Some(code) = code {
-                self.error(code);
+            if let Some((code, message)) = old {
+                self.error(code, message);
                 self.recover_line();
                 if self.eat_layout(Layout::Newline) && self.at_layout(Layout::Indent) {
                     self.stray_skip();
@@ -111,7 +117,10 @@ impl Parser<'_> {
             if place == Place::Top {
                 self.tests_block();
             } else {
-                self.error(Code::SyntaxError);
+                self.error(
+                    Code::SyntaxError,
+                    "a 'tests:' block may appear only at module top level",
+                );
                 self.skip_item();
             }
             return;
@@ -209,13 +218,13 @@ impl Parser<'_> {
                 if public {
                     // grammar.decl.impl-no-pub
                     let at = self.pos() - 1;
-                    self.error_at(Code::SyntaxError, at);
+                    self.error_at(Code::SyntaxError, at, "'pub' is not accepted before 'impl'");
                 }
                 self.impl_decl(marker);
             }
             Some(TokenKind::KwType) => self.type_decl(marker, decorated),
             _ => {
-                self.error(Code::SyntaxError);
+                self.expected("a declaration");
                 self.recover_line();
                 self.complete(marker, SyntaxKind::Error);
             }
@@ -229,14 +238,18 @@ impl Parser<'_> {
             any = true;
             if local {
                 let at = self.pos();
-                self.error_at(Code::DecoratorNotTopLevel, at);
+                self.error_at(
+                    Code::DecoratorNotTopLevel,
+                    at,
+                    "decorators are only valid on top-level declarations",
+                );
             }
             let marker = self.start();
             self.bump();
             self.expr(Ctx::Closed);
             self.complete(marker, SyntaxKind::Decorator);
             if !self.eat_layout(Layout::Newline) {
-                self.error(Code::SyntaxError);
+                self.expected("a line ending after a decorator");
                 self.recover_line();
                 self.eat_layout(Layout::Newline);
             }
@@ -256,8 +269,8 @@ impl Parser<'_> {
         // use_root
         if self.at_word("dep") {
             self.bump();
-            if self.expect(TokenKind::Dot) {
-                self.expect_name();
+            if self.expect(TokenKind::Dot, "'.'") {
+                self.expect_name("a dependency name");
             }
         } else if self.at_word("super") {
             self.bump();
@@ -274,18 +287,22 @@ impl Parser<'_> {
                 grouped = true;
                 break;
             }
-            if !self.expect_name() {
+            if !self.expect_name("a module path component") {
                 break;
             }
         }
         if !grouped && self.at_word("as") {
             self.bump();
-            self.expect_name();
+            self.expect_name("an import alias");
         }
         if public && !grouped {
             // grammar: `pub use` takes a group.
             let at = self.pos().saturating_sub(1);
-            self.error_at(Code::SyntaxError, at);
+            self.error_at(
+                Code::SyntaxError,
+                at,
+                "only the grouped use form accepts 'pub'; write 'pub use module.{Name}'",
+            );
         }
         self.complete(marker, SyntaxKind::UseDecl);
     }
@@ -295,27 +312,31 @@ impl Parser<'_> {
         self.bump();
         while !self.at(TokenKind::RBrace) && self.current().is_some() {
             let item = self.start();
-            if !self.expect_name() {
+            if !self.expect_name("an imported declaration name") {
                 self.abandon(item);
                 break;
             }
             if self.at(TokenKind::Dot) {
                 let at = self.pos();
-                self.error_at(Code::DirectVariantUse, at);
+                self.error_at(
+                    Code::DirectVariantUse,
+                    at,
+                    "enum variants cannot be imported directly",
+                );
                 while self.eat(TokenKind::Dot) {
                     self.eat_name();
                 }
             }
             if self.at_word("as") {
                 self.bump();
-                self.expect_name();
+                self.expect_name("an import alias");
             }
             self.complete(item, SyntaxKind::UseItem);
             if !self.eat(TokenKind::Comma) {
                 break;
             }
         }
-        self.expect(TokenKind::RBrace);
+        self.expect(TokenKind::RBrace, "'}'");
         self.complete(marker, SyntaxKind::UseGroup);
     }
 
@@ -324,7 +345,7 @@ impl Parser<'_> {
     /// `fn name[!] [generics] (params) [-> result] [$ row] (: suite | NEWLINE)`.
     pub(crate) fn fn_decl(&mut self, marker: Marker, owner: Owner) {
         self.bump(); // fn
-        self.expect_name();
+        self.expect_name("a function name");
         if self.at(TokenKind::Bang) && self.nth_glued(0) {
             self.bump();
         }
@@ -334,7 +355,7 @@ impl Parser<'_> {
         if self.at(TokenKind::LParen) {
             self.param_list(Params::Function);
         } else {
-            self.error(Code::SyntaxError);
+            self.expected("'(' after the function name");
         }
         if self.eat(TokenKind::Arrow) {
             self.ty_result();
@@ -344,7 +365,11 @@ impl Parser<'_> {
             if self.at(TokenKind::Comma) {
                 // grammar.type.row.old-separator
                 let at = self.pos();
-                self.error_at(Code::OldRowSeparator, at);
+                self.error_at(
+                    Code::OldRowSeparator,
+                    at,
+                    "requirement keys are joined with '+': write '$ A + B'",
+                );
                 while self.eat(TokenKind::Comma) {
                     self.ty_bound_trait(true);
                 }
@@ -356,11 +381,11 @@ impl Parser<'_> {
             || self.at_eof()
             || self.at_layout(Layout::Dedent))
         {
-            self.error(Code::SyntaxError);
+            self.expected("':' or a line ending after the function signature");
             self.recover_line();
         } else if owner == Owner::Free {
             // A free function needs a body.
-            self.error(Code::SyntaxError);
+            self.expected("':' and a function body");
         }
         self.complete(marker, SyntaxKind::FnDecl);
     }
@@ -378,23 +403,29 @@ impl Parser<'_> {
                 self.bump();
             }
             let row = self.eat(TokenKind::Dollar);
-            self.expect_name();
+            self.expect_name("a generic parameter name");
             if self.at(TokenKind::Lt) {
                 if row {
                     // grammar.generic.row-marker.no-bound
-                    self.error(Code::SyntaxError);
+                    self.error(Code::SyntaxError, "a row parameter takes no bound");
                 }
                 self.bound_list();
             } else if self.at(TokenKind::Colon) {
                 // grammar.decl.bound-vs-colon
-                self.error(Code::SyntaxError);
+                self.error(
+                    Code::SyntaxError,
+                    "a generic parameter bound is written with '<', not ':'",
+                );
                 self.bump();
                 self.ty();
             }
             if self.at(TokenKind::Eq) {
                 if mode == Generics::Impl {
                     // grammar.generic.default.impl
-                    self.error(Code::SyntaxError);
+                    self.error(
+                        Code::SyntaxError,
+                        "generic parameters of an implementation take no default",
+                    );
                 }
                 let default = self.start();
                 self.bump();
@@ -404,7 +435,7 @@ impl Parser<'_> {
             self.complete(param, SyntaxKind::GenericParameter);
             if !self.eat(TokenKind::Comma) {
                 if !self.at(TokenKind::RBracket) {
-                    self.error(Code::SyntaxError);
+                    self.expected("',' or ']'");
                     self.skip_to_list_end(TokenKind::RBracket);
                 }
                 break;
@@ -413,7 +444,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RBracket);
+        self.expect(TokenKind::RBracket, "']'");
         self.complete(marker, SyntaxKind::GenericParameterList);
     }
 
@@ -429,7 +460,11 @@ impl Parser<'_> {
             } else if self.at(TokenKind::Plus) {
                 // grammar.generic.bound.old-plus
                 let at = self.pos();
-                self.error_at(Code::OldBoundOperator, at);
+                self.error_at(
+                    Code::OldBoundOperator,
+                    at,
+                    "several bounds are joined with '&': write 'A & B'",
+                );
                 self.bump();
                 self.ty_bound_trait(true);
             } else {
@@ -467,7 +502,7 @@ impl Parser<'_> {
             self.parameter(mode, &mut named_default);
             if !self.eat(TokenKind::Comma) {
                 if !self.at(TokenKind::RParen) {
-                    self.error(Code::SyntaxError);
+                    self.expected("',' or ')'");
                     self.skip_to_list_end(TokenKind::RParen);
                     if self.eat(TokenKind::Comma) {
                         continue;
@@ -479,7 +514,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RParen);
+        self.expect(TokenKind::RParen, "')'");
         self.complete(marker, SyntaxKind::ParameterList);
     }
 
@@ -502,34 +537,34 @@ impl Parser<'_> {
                     if !self.eat(TokenKind::KwSelfValue) {
                         // grammar: only the receiver takes `mut`.
                         let at = self.pos() - 1;
-                        self.error_at(Code::SyntaxError, at);
+                        self.error_at(Code::SyntaxError, at, "'mut' goes on the parameter's type, not its name; only the receiver is 'mut self'");
                         self.eat_name();
                         if self.eat(TokenKind::Colon) {
                             self.ty();
                         }
                     }
                 } else {
-                    self.expect_name();
+                    self.expect_name("a parameter name");
                     let vararg = self.eat(TokenKind::Ellipsis);
-                    if self.expect(TokenKind::Colon) {
+                    if self.expect(TokenKind::Colon, "':'") {
                         self.ty();
                     }
                     if self.at(TokenKind::Ellipsis) {
                         // grammar.type.rest.elsewhere
-                        self.error(Code::SyntaxError);
+                        self.error(Code::SyntaxError, REST_ELSEWHERE);
                         self.bump();
                     }
                     if self.at(TokenKind::Eq) {
                         if vararg {
                             // grammar.fn.vararg-name
-                            self.error(Code::SyntaxError);
+                            self.error(Code::SyntaxError, "a vararg parameter takes no default");
                         }
                         self.default_value(Ctx::Expr);
                     }
                 }
             }
             Params::Closure => {
-                self.expect_name();
+                self.expect_name("a closure parameter name");
                 if self.eat(TokenKind::Colon) {
                     self.ty();
                 }
@@ -545,7 +580,10 @@ impl Parser<'_> {
                 if self.at(TokenKind::Eq) {
                     if mode == Params::Variant {
                         // grammar.enum.defaults
-                        self.error(Code::SyntaxError);
+                        self.error(
+                            Code::SyntaxError,
+                            "only shared enum constructor parameters declare defaults",
+                        );
                     }
                     self.default_value(Ctx::Expr);
                 }
@@ -566,11 +604,11 @@ impl Parser<'_> {
 
     fn data_decl(&mut self, marker: Marker) {
         self.bump(); // data
-        self.expect_name();
+        self.expect_name("a data type name");
         if self.at(TokenKind::LBracket) {
             self.generic_params(Generics::Type);
         }
-        if self.expect(TokenKind::Colon) {
+        if self.expect(TokenKind::Colon, "':'") {
             self.member_block(true, Self::data_member);
         }
         self.complete(marker, SyntaxKind::DataDecl);
@@ -592,7 +630,15 @@ impl Parser<'_> {
         if self.at(TokenKind::KwMut) {
             // grammar.data.no-mut-modifier
             let at = self.pos();
-            self.error_at(Code::MutableFieldModifier, at);
+            let name = 1 + usize::from(self.nth(1) == Some(TokenKind::KwPub));
+            let field = matches!(self.nth(name), Some(TokenKind::Ident | TokenKind::RawIdent))
+                && self.nth(name + 1) == Some(TokenKind::Colon);
+            let message = if field {
+                "data fields express mutable access in their type rather than with a field modifier"
+            } else {
+                "an embedded field takes no 'mut': access to an embedded part follows its container"
+            };
+            self.error_at(Code::MutableFieldModifier, at, message);
             self.bump();
         }
         let public = self.eat(TokenKind::KwPub);
@@ -611,28 +657,28 @@ impl Parser<'_> {
         if public {
             // grammar.data.embedded.no-pub
             let at = self.pos() - 1;
-            self.error_at(Code::SyntaxError, at);
+            self.error_at(Code::SyntaxError, at, "an embedded field takes no 'pub'");
         }
         if matches!(self.current(), Some(TokenKind::Ident)) {
             self.ty();
             self.complete(marker, SyntaxKind::EmbeddedField);
             return;
         }
-        self.error(Code::SyntaxError);
+        self.expected("a data field name");
         self.recover_line();
         self.complete(marker, SyntaxKind::Error);
     }
 
     fn enum_decl(&mut self, marker: Marker) {
         self.bump(); // enum
-        self.expect_name();
+        self.expect_name("an enum type name");
         if self.at(TokenKind::LBracket) {
             self.generic_params(Generics::Type);
         }
         if self.at(TokenKind::LParen) {
             self.param_list(Params::Enum);
         }
-        if self.expect(TokenKind::Colon) {
+        if self.expect(TokenKind::Colon, "':'") {
             self.member_block(false, Self::enum_variant);
         }
         self.complete(marker, SyntaxKind::EnumDecl);
@@ -643,11 +689,15 @@ impl Parser<'_> {
         let marker = self.start();
         self.decorators(false);
         self.attach_docs();
-        self.expect_name();
+        self.expect_name("an enum variant name");
         if self.at(TokenKind::LBracket) {
             // grammar.enum.no-type-params
             let at = self.pos();
-            self.error_at(Code::VariantResultTypeRemoved, at);
+            self.error_at(
+                Code::VariantResultTypeRemoved,
+                at,
+                "enum variants take no type parameters",
+            );
             self.generic_params(Generics::Function);
         }
         if self.at(TokenKind::LParen) {
@@ -656,22 +706,30 @@ impl Parser<'_> {
         if self.eat(TokenKind::Arrow) {
             let shared = self.start();
             let at = self.pos();
-            self.expect_name();
+            self.expect_name("the enum name after '->'");
             if self.at(TokenKind::LBracket) {
                 // grammar.enum.no-result-type
-                self.error_at(Code::VariantResultTypeRemoved, at);
+                self.error_at(
+                    Code::VariantResultTypeRemoved,
+                    at,
+                    "a variant result names its enum and gives arguments, not a result type",
+                );
                 self.ty_arguments(true);
             }
             if self.at(TokenKind::LParen) {
                 self.arguments();
             } else {
-                self.error_at(Code::VariantResultTypeRemoved, at);
+                self.error_at(
+                    Code::VariantResultTypeRemoved,
+                    at,
+                    "a variant result names its enum and gives an argument clause",
+                );
             }
             self.complete(shared, SyntaxKind::VariantSharedData);
         }
         if self.at(TokenKind::Colon) {
             // A variant takes no block.
-            self.error(Code::SyntaxError);
+            self.expected("a line ending after an enum variant");
             self.skip_item();
         }
         self.complete(marker, SyntaxKind::EnumVariant);
@@ -684,7 +742,11 @@ impl Parser<'_> {
         match self.cur.open_suite(false) {
             SuiteKind::SameLine => {
                 if !(pass_inline && self.eat(TokenKind::KwPass)) {
-                    self.error(Code::SyntaxError);
+                    self.expected(if pass_inline {
+                        "a line ending or 'pass' after ':'"
+                    } else {
+                        "a line ending after ':'"
+                    });
                     self.recover_line();
                 }
                 self.cur.close_inline();
@@ -724,7 +786,10 @@ impl Parser<'_> {
                 self.eat_layout(Layout::Dedent);
                 self.suite_inline = false;
             }
-            SuiteKind::Missing => self.error(Code::SyntaxError),
+            SuiteKind::Missing => self.error(
+                Code::SyntaxError,
+                "expected an indented block, found a line that is not indented deeper",
+            ),
         }
         self.suite_closed = true;
         self.complete(block, SyntaxKind::Block);
@@ -734,7 +799,7 @@ impl Parser<'_> {
 
     fn trait_decl(&mut self, marker: Marker) {
         self.bump(); // trait
-        self.expect_name();
+        self.expect_name("a trait name");
         if self.at(TokenKind::LBracket) {
             self.generic_params(Generics::Type);
         }
@@ -746,7 +811,7 @@ impl Parser<'_> {
                 self.member_block(false, Self::trait_member);
             } else {
                 // grammar.trait.supertrait: `:` opens the body.
-                self.error(Code::SyntaxError);
+                self.expected("a line ending after the trait header");
                 self.recover_line();
             }
         }
@@ -764,13 +829,13 @@ impl Parser<'_> {
         if self.at(TokenKind::KwPub) {
             // grammar.impl.pub-method
             let at = self.pos();
-            self.error_at(Code::TraitMethodVisibility, at);
+            self.error_at(Code::TraitMethodVisibility, at, TRAIT_METHOD_VISIBILITY);
             self.bump();
         }
         if self.at(TokenKind::KwFn) {
             self.fn_decl(marker, Owner::Trait);
         } else {
-            self.error(Code::SyntaxError);
+            self.expected("'fn' or 'type'");
             self.recover_line();
             self.complete(marker, SyntaxKind::Error);
         }
@@ -779,10 +844,13 @@ impl Parser<'_> {
     fn associated_type(&mut self, with_value: bool) {
         let marker = self.start();
         self.bump(); // type
-        self.expect_name();
+        self.expect_name("an associated type name");
         if self.at(TokenKind::Eq) {
             if !with_value {
-                self.error(Code::SyntaxError);
+                self.error(
+                    Code::SyntaxError,
+                    "an associated type in a trait declares no value",
+                );
             }
             self.bump();
             self.ty();
@@ -815,7 +883,7 @@ impl Parser<'_> {
         }
         if self.at_word("by") {
             self.bump();
-            self.expect_name();
+            self.expect_name("an embedded field name");
         }
         let owner = if trait_impl {
             Owner::TraitImpl
@@ -839,7 +907,7 @@ impl Parser<'_> {
         if self.at(TokenKind::KwPub) {
             if owner == Owner::TraitImpl {
                 let at = self.pos();
-                self.error_at(Code::TraitMethodVisibility, at);
+                self.error_at(Code::TraitMethodVisibility, at, TRAIT_METHOD_VISIBILITY);
             }
             self.bump();
         }
@@ -859,7 +927,7 @@ impl Parser<'_> {
             self.complete(marker, SyntaxKind::Derivation);
             return;
         }
-        self.error(Code::SyntaxError);
+        self.expected("a method, an associated type, or a derivation");
         self.recover_line();
         self.complete(marker, SyntaxKind::Error);
     }
@@ -868,19 +936,23 @@ impl Parser<'_> {
 
     fn type_decl(&mut self, marker: Marker, decorated: bool) {
         self.bump(); // type
-        self.expect_name();
+        self.expect_name("a type name");
         if self.at(TokenKind::LBracket) {
             self.generic_params(Generics::Type);
         }
         if self.at(TokenKind::LParen) {
             self.bump();
             self.ty();
-            self.expect(TokenKind::RParen);
+            self.expect(TokenKind::RParen, "')'");
         } else if self.eat(TokenKind::Eq) {
             if decorated {
                 // grammar.annot.alias-no-decorator
                 let at = self.pos() - 1;
-                self.error_at(Code::SyntaxError, at);
+                self.error_at(
+                    Code::SyntaxError,
+                    at,
+                    "a transparent alias takes no decorator",
+                );
             }
             if self.at(TokenKind::Dollar) {
                 self.requirement_clause();
@@ -898,7 +970,7 @@ impl Parser<'_> {
                 }
             }
         } else {
-            self.error(Code::SyntaxError);
+            self.expected("'=' or '('");
         }
         self.complete(marker, SyntaxKind::TypeDecl);
     }
@@ -906,11 +978,14 @@ impl Parser<'_> {
     fn tests_block(&mut self) {
         let marker = self.start();
         self.bump(); // tests
-        if self.expect(TokenKind::Colon) {
+        if self.expect(TokenKind::Colon, "':'") {
             self.member_block(false, |p| {
                 if p.at(TokenKind::KwTests) {
                     // grammar.tests.top-level
-                    p.error(Code::SyntaxError);
+                    p.error(
+                        Code::SyntaxError,
+                        "a 'tests:' block may appear only at module top level",
+                    );
                     p.skip_item();
                 } else {
                     p.item(Place::Tests);

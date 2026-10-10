@@ -2,7 +2,7 @@
 
 use hd_diag::Code;
 
-use super::{Done, Parser};
+use super::{Done, MUT_LET_ONLY, Parser};
 use crate::{SyntaxKind, TokenKind};
 
 impl Parser<'_> {
@@ -46,21 +46,24 @@ impl Parser<'_> {
                     Some(TokenKind::DotDot | TokenKind::DotDotEq)
                 ) {
                     // grammar.pattern.range.bound
-                    self.error(Code::SyntaxError);
+                    self.error(
+                        Code::SyntaxError,
+                        "a range pattern bound is an integer literal",
+                    );
                 }
                 done
             }
             Some(TokenKind::String) => {
                 if self.prefixed_string(0) {
                     // grammar.pattern.no-literal-call
-                    self.error(Code::SyntaxError);
+                    self.error(Code::SyntaxError, "a prefixed string cannot be a pattern");
                 }
                 self.token_node(SyntaxKind::LiteralPattern)
             }
             Some(TokenKind::Dot) => {
                 let marker = self.start();
                 self.bump();
-                self.expect_name();
+                self.expect_name("a variant name after '.'");
                 if self.at(TokenKind::LParen) && !self.nth_line_first(0) {
                     self.pattern_arguments();
                 }
@@ -70,10 +73,10 @@ impl Parser<'_> {
                 let marker = self.start();
                 if !let_pattern {
                     // grammar.pattern.mut-let-only
-                    self.error(Code::SyntaxError);
+                    self.error(Code::SyntaxError, MUT_LET_ONLY);
                 }
                 self.bump();
-                self.expect_name();
+                self.expect_name("a binding name after 'mut'");
                 if self.at(TokenKind::Ellipsis) {
                     self.bump();
                     return self.complete(marker, SyntaxKind::SpreadPattern);
@@ -86,7 +89,7 @@ impl Parser<'_> {
             Some(TokenKind::LParen) => self.tuple_pattern(let_pattern),
             _ => {
                 let marker = self.start();
-                self.error(Code::SyntaxError);
+                self.expected("a pattern");
                 if self.current().is_some_and(|kind| {
                     !kind.closes()
                         && !matches!(
@@ -113,14 +116,20 @@ impl Parser<'_> {
             Some(TokenKind::DotDot | TokenKind::DotDotEq)
         ) {
             if !integer {
-                self.error(Code::SyntaxError);
+                self.error(
+                    Code::SyntaxError,
+                    "a range pattern bound is an integer literal",
+                );
             }
             let inclusive = self.at(TokenKind::DotDotEq);
             self.bump();
             if matches!(self.current(), Some(TokenKind::Minus | TokenKind::Number)) {
                 self.range_bound();
             } else if inclusive {
-                self.error(Code::SyntaxError);
+                self.error(
+                    Code::SyntaxError,
+                    "an inclusive range pattern needs an end bound",
+                );
             }
             return self.complete(marker, SyntaxKind::RangePattern);
         }
@@ -131,13 +140,13 @@ impl Parser<'_> {
     fn range_bound(&mut self) -> bool {
         self.eat(TokenKind::Minus);
         if !self.at(TokenKind::Number) {
-            self.error(Code::SyntaxError);
+            self.expected("an integer literal");
             return false;
         }
         let text = self.nth_text(0);
         if number_has_suffix(text) {
             // grammar.pattern.no-literal-call
-            self.error(Code::SyntaxError);
+            self.error(Code::SyntaxError, "a suffixed literal cannot be a pattern");
         }
         let integer = !text.contains('.') && !is_decimal_exponent(text);
         self.bump();
@@ -193,13 +202,17 @@ impl Parser<'_> {
                 if named {
                     // grammar.pattern.named-last
                     let at = self.pos();
-                    self.error_at(Code::PatternOrder, at);
+                    self.error_at(
+                        Code::PatternOrder,
+                        at,
+                        "positional patterns must precede named patterns",
+                    );
                 }
                 self.pattern(false);
             }
             if !self.eat(TokenKind::Comma) {
                 if !self.at(TokenKind::RParen) {
-                    self.error(Code::SyntaxError);
+                    self.expected("',' or ')'");
                     self.skip_to_list_end(TokenKind::RParen);
                 }
                 break;
@@ -208,7 +221,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RParen);
+        self.expect(TokenKind::RParen, "')'");
         self.complete(marker, SyntaxKind::PatternArgumentList);
     }
 
@@ -219,17 +232,20 @@ impl Parser<'_> {
             let field = self.start();
             if self.at(TokenKind::KwMut) {
                 if !let_pattern {
-                    self.error(Code::SyntaxError);
+                    self.error(Code::SyntaxError, MUT_LET_ONLY);
                 }
                 self.bump();
-                self.expect_name();
+                self.expect_name("a field name after 'mut'");
             } else {
-                self.expect_name();
+                self.expect_name("a data pattern field name");
                 if self.eat(TokenKind::Colon) {
                     self.pattern(let_pattern);
                 } else if self.at(TokenKind::Eq) {
                     // grammar.label.data-pattern-equals
-                    self.error(Code::SyntaxError);
+                    self.error(
+                        Code::SyntaxError,
+                        "a data pattern field is written 'field: pattern', not 'field = pattern'",
+                    );
                     self.bump();
                     self.pattern(let_pattern);
                 }
@@ -237,7 +253,7 @@ impl Parser<'_> {
             self.complete(field, SyntaxKind::DataPatternField);
             if !self.eat(TokenKind::Comma) {
                 if !self.at(TokenKind::RBrace) {
-                    self.error(Code::SyntaxError);
+                    self.expected("',' or '}'");
                     self.skip_to_list_end(TokenKind::RBrace);
                 }
                 break;
@@ -246,7 +262,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RBrace);
+        self.expect(TokenKind::RBrace, "'}'");
     }
 
     /// `()`, `(p,)`, `(p, q, rest...)`; `(p)` alone is no pattern.
@@ -260,7 +276,10 @@ impl Parser<'_> {
             let before = self.pos();
             if spread_seen {
                 // grammar.pattern.tuple-spread: a spread is last.
-                self.error(Code::SyntaxError);
+                self.error(
+                    Code::SyntaxError,
+                    "a spread pattern must be the last element of a tuple pattern",
+                );
             }
             let element = self.pattern(let_pattern);
             spread_seen |= element.kind() == SyntaxKind::SpreadPattern;
@@ -275,9 +294,12 @@ impl Parser<'_> {
         }
         if count > 0 && !comma {
             // grammar.stmt.let-pattern.parenthesized, grammar.pattern.tuple-spread
-            self.error(Code::SyntaxError);
+            self.error(
+                Code::SyntaxError,
+                "a one-element tuple pattern keeps its trailing comma: write '(p,)'",
+            );
         }
-        self.expect(TokenKind::RParen);
+        self.expect(TokenKind::RParen, "')'");
         self.complete(marker, SyntaxKind::TuplePattern)
     }
 }

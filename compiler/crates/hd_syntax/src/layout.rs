@@ -59,6 +59,7 @@ struct Block {
 
 pub struct LayoutCursor<'t> {
     tokens: &'t TokenBuf,
+    source: &'t str,
     pos: usize,
     depth: u16,
     blocks: Vec<Block>,
@@ -69,14 +70,15 @@ pub struct LayoutCursor<'t> {
     prepared: usize,
     opening: Option<bool>,
     eof: bool,
-    pub(crate) errors: Vec<(Code, usize)>,
+    pub(crate) errors: Vec<(Code, usize, String)>,
 }
 
 impl<'t> LayoutCursor<'t> {
     #[must_use]
-    pub fn new(tokens: &'t TokenBuf) -> Self {
+    pub fn new(tokens: &'t TokenBuf, source: &'t str) -> Self {
         Self {
             tokens,
+            source,
             pos: 0,
             depth: 0,
             blocks: vec![Block {
@@ -115,6 +117,12 @@ impl<'t> LayoutCursor<'t> {
         } else {
             TokenOrLayout::Eof
         }
+    }
+
+    /// The layout token `peek` would return, if it is already prepared.
+    #[must_use]
+    pub fn queued(&self) -> Option<Layout> {
+        self.pending.front().copied()
     }
 
     /// The layout queued before the next token, without consuming it.
@@ -163,7 +171,12 @@ impl<'t> LayoutCursor<'t> {
                 && self.tokens.kind[self.pos] != TokenKind::Comma
             {
                 // lex.nested.body-depth: the body is still read as one.
-                self.errors.push((Code::UnexpectedIndentation, self.pos));
+                self.errors.push((
+                    Code::UnexpectedIndentation,
+                    self.pos,
+                    "a nested suite's body must be deeper than the statement that contains its header"
+                        .to_owned(),
+                ));
                 self.opening = Some(closure);
                 self.force_open(header);
                 return SuiteKind::Indented;
@@ -273,7 +286,12 @@ impl<'t> LayoutCursor<'t> {
             }
             if block.closure && self.prepared != self.pos {
                 // lex.closure.closer-on-body.
-                self.errors.push((Code::SyntaxError, self.pos));
+                let found = self.tokens.describe(self.pos, self.source);
+                self.errors.push((
+                    Code::SyntaxError,
+                    self.pos,
+                    format!("expected a line ending before {found} after a closure body"),
+                ));
             }
             if !newline {
                 self.pending.push_back(Layout::Newline);
@@ -329,7 +347,16 @@ impl<'t> LayoutCursor<'t> {
                 } else {
                     Code::InvalidDedent
                 };
-                self.errors.push((code, self.pos));
+                let message = if block.closure {
+                    format!(
+                        "expected a closure body line at column {}, found a line at column {}",
+                        block.indent + 1,
+                        column + 1
+                    )
+                } else {
+                    not_active_level(column)
+                };
+                self.errors.push((code, self.pos, message));
             }
             if !newline {
                 self.pending.push_back(Layout::Newline);
@@ -343,12 +370,20 @@ impl<'t> LayoutCursor<'t> {
                 && !(kind.closes() || kind == TokenKind::Comma)
             {
                 // lex.closure.end-token.
-                self.errors.push((Code::SyntaxError, self.pos));
+                let found = self.tokens.describe(self.pos, self.source);
+                self.errors.push((
+                    Code::SyntaxError,
+                    self.pos,
+                    format!(
+                        "expected ',' or a closing delimiter after the closure body, found {found}"
+                    ),
+                ));
             }
             let parent = *self.blocks.last().expect("root block");
             if !nested && parent.depth == self.depth && column > parent.indent {
                 // lex.indent.unknown-column: go on at the parent's level.
-                self.errors.push((Code::InvalidDedent, self.pos));
+                self.errors
+                    .push((Code::InvalidDedent, self.pos, not_active_level(column)));
                 let parent = self.blocks.last_mut().expect("block");
                 parent.logical = column;
                 parent.piped = false;
@@ -371,12 +406,30 @@ impl<'t> LayoutCursor<'t> {
         if matches!(previous, TokenKind::Colon | TokenKind::FatArrow) {
             return false;
         }
-        if self.inline.last().is_some_and(|&depth| depth == self.depth) || dot && block.piped {
-            // lex.dot.open-suite, lex.pipe.open-suite, lex.pipe.no-dot-line
-            self.errors.push((Code::SyntaxError, self.pos));
+        if self.inline.last().is_some_and(|&depth| depth == self.depth) {
+            // lex.dot.open-suite, lex.pipe.open-suite
+            let what = if dot { "leading-dot" } else { "leading-'|>'" };
+            self.errors.push((
+                Code::SyntaxError,
+                self.pos,
+                format!("a {what} line cannot continue a line whose same-line suite is still open"),
+            ));
+        } else if dot && block.piped {
+            // lex.pipe.no-dot-line
+            self.errors.push((
+                Code::SyntaxError,
+                self.pos,
+                "a leading-dot line cannot continue a pipe chain; write the call as a step, such as '|> _.name()'"
+                    .to_owned(),
+            ));
         }
         true
     }
+}
+
+/// `lex.indent.unknown-column`, with the 1-based column the line starts at.
+fn not_active_level(column: u16) -> String {
+    format!("column {} is not an active indentation level", column + 1)
 }
 
 #[cfg(test)]
@@ -385,7 +438,7 @@ mod tests {
 
     fn layouts(source: &str) -> Vec<Layout> {
         let lexed = lex(source.as_bytes());
-        let mut cursor = LayoutCursor::new(&lexed.tokens);
+        let mut cursor = LayoutCursor::new(&lexed.tokens, source);
         let mut layouts = Vec::new();
         loop {
             match cursor.peek() {
