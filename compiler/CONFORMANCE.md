@@ -8,23 +8,23 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2476 | 290 | 79 | 2845 |
+| 2480 | 293 | 72 | 2845 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
 | `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
-| `lang/02-grammar.md` | 200 | 11 | 4 | 215 |
+| `lang/02-grammar.md` | 201 | 11 | 3 | 215 |
 | `lang/03-names-and-scopes.md` | 97 | 3 | 1 | 101 |
 | `lang/04-type-system.md` | 312 | 38 | 2 | 352 |
 | `lang/05-expressions.md` | 244 | 32 | 1 | 277 |
 | `lang/06-control-flow.md` | 138 | 15 | 4 | 157 |
-| `lang/07-functions.md` | 113 | 14 | 3 | 130 |
+| `lang/07-functions.md` | 115 | 14 | 1 | 130 |
 | `lang/08-data-and-enums.md` | 90 | 28 | 5 | 123 |
 | `lang/09-traits.md` | 318 | 38 | 3 | 359 |
 | `lang/10-modules.md` | 216 | 31 | 11 | 258 |
-| `lang/11-requirements-and-suspension.md` | 199 | 29 | 31 | 259 |
+| `lang/11-requirements-and-suspension.md` | 200 | 32 | 27 | 259 |
 | `lang/14-annotations.md` | 116 | 30 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
@@ -63,8 +63,8 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 93 | 8 | 4 | 105 |
-| `runtime/valid` | 852 | 17 | 60 | 929 |
-| `typing/invalid` | 829 | 233 | 13 | 1075 |
+| `runtime/valid` | 856 | 17 | 56 | 929 |
+| `typing/invalid` | 829 | 236 | 10 | 1075 |
 | `typing/valid` | 404 | 9 | 2 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -75,7 +75,7 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:argument-count` | 5 |
+| `fail:argument-count` | 6 |
 | `fail:bang-call-outside-suspension` | 2 |
 | `fail:bare-variant-pattern` | 3 |
 | `fail:boundary-private-field` | 1 |
@@ -91,7 +91,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 4 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 130 |
+| `fail:no-diagnostic` | 132 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
@@ -117,19 +117,20 @@ compiler stage that first declined the case.
 | `fail:unknown-type` | 3 |
 | `fail:unknown-variant` | 1 |
 | `fail:unused-local-binding` | 6 |
-| `unsupported:Body` | 30 |
+| `unsupported:Body` | 23 |
 | `unsupported:Collect` | 16 |
 | `unsupported:Emit` | 2 |
 | `unsupported:Link` | 3 |
 | `unsupported:RunCase` | 28 |
 
-<details><summary><code>fail:argument-count</code> (5)</summary>
+<details><summary><code>fail:argument-count</code> (6)</summary>
 
 - `runtime/valid/map-grow-and-remove.hd`
 - `typing/invalid/variant-duplicate-argument.hd`
 - `typing/invalid/duplicate-argument.hd`
 - `typing/invalid/unknown-named-argument.hd`
 - `typing/invalid/variant-unknown-payload-field.hd`
+- `typing/invalid/all-explicit-type-arguments.hd`
 
 </details>
 
@@ -245,7 +246,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (130)</summary>
+<details><summary><code>fail:no-diagnostic</code> (132)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/float-literal-range.hd`
@@ -320,6 +321,7 @@ compiler stage that first declined the case.
 - `typing/invalid/foreign-inherent-impl.hd`
 - `typing/invalid/function-type-rest-not-list.hd`
 - `typing/invalid/vararg-type-not-collection.hd`
+- `typing/invalid/race-no-tasks.hd`
 - `typing/invalid/display-tuple-element-without-display.hd`
 - `typing/invalid/default-tuple-element-without-default.hd`
 - `typing/invalid/typed-fact-mismatch.hd`
@@ -337,6 +339,7 @@ compiler stage that first declined the case.
 - `typing/invalid/generic-inference-variance-conflict.hd`
 - `typing/invalid/generic-inference-optional-conflict.hd`
 - `typing/invalid/list-float-map-key.hd`
+- `typing/invalid/race-empty-list-literal.hd`
 - `typing/invalid/row-slot-bare-explicit-argument.hd`
 - `typing/warnings/unsigned-comparison-countdown.hd`
 - `typing/warnings/unsigned-comparison-explicit.hd`
@@ -623,14 +626,11 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (30)</summary>
+<details><summary><code>unsupported:Body</code> (23)</summary>
 
 - `runtime/valid/binding-expressions.hd`
-- `runtime/valid/suspending-generic-method.hd`
-- `runtime/valid/generic-suspending-associated-function-qualified-call.hd`
 - `typing/invalid/for-over-non-iterable.hd`
 - `runtime/valid/tuple-impl-target.hd`
-- `runtime/valid/bang-call-explicit-type-arguments.hd`
 - `runtime/valid/embedded-store-copies.hd`
 - `typing/invalid/copy-assignment-ordinary-field.hd`
 - `runtime/valid/part-copy-is-copy-update.hd`
@@ -638,9 +638,6 @@ compiler stage that first declined the case.
 - `typing/valid/type-default-trait-method.hd`
 - `typing/valid/newtype-unwrap-permission.hd`
 - `typing/invalid/newtype-unwrap-readonly.hd`
-- `typing/invalid/race-no-tasks.hd`
-- `typing/invalid/all-explicit-type-arguments.hd`
-- `typing/invalid/race-empty-list-literal.hd`
 - `runtime/valid/module-qualified-variant.hd`
 - `runtime/valid/module-qualified-associated-call.hd`
 - `typing/invalid/local-annotation-row-unknown-trait.hd`
@@ -654,7 +651,6 @@ compiler stage that first declined the case.
 - `runtime/valid/binding-chain-with-suite.hd`
 - `runtime/valid/assignment-and-break-forms.hd`
 - `typing/invalid/grammar-assignment-nonplace.hd`
-- `runtime/valid/bang-call-and-prefix-not.hd`
 
 </details>
 
@@ -1140,7 +1136,9 @@ runtime/valid/associated-function-qualified-call.hd
 runtime/valid/associated-type-bindings.hd
 runtime/valid/associated-type-projections.hd
 runtime/valid/available-trait-method-across-packages.hd
+runtime/valid/bang-call-and-prefix-not.hd
 runtime/valid/bang-call-arguments-before-body.hd
+runtime/valid/bang-call-explicit-type-arguments.hd
 runtime/valid/bare-marker-decorator.hd
 runtime/valid/binding-expression-tuple-value.hd
 runtime/valid/blanket-impl-dynamic-and-bound.hd
@@ -1395,6 +1393,7 @@ runtime/valid/generic-requirement-key-substitution.hd
 runtime/valid/generic-storage-callable-list-identity.hd
 runtime/valid/generic-storage-invokes-callables.hd
 runtime/valid/generic-supertraits.hd
+runtime/valid/generic-suspending-associated-function-qualified-call.hd
 runtime/valid/generic-suspending-function-bound.hd
 runtime/valid/generic-suspending-function.hd
 runtime/valid/generic-trait-instantiation-by-argument.hd
@@ -1856,6 +1855,7 @@ runtime/valid/suspending-calls-in-binary-expression.hd
 runtime/valid/suspending-calls-in-loops.hd
 runtime/valid/suspending-closure-captures.hd
 runtime/valid/suspending-closure-requirement-row.hd
+runtime/valid/suspending-generic-method.hd
 runtime/valid/suspending-result-propagation.hd
 runtime/valid/suspending-test-body.hd
 runtime/valid/suspending-trailing-block.hd

@@ -426,6 +426,15 @@ impl Ck<'_, '_> {
                 let Some(inner) = callee.children().next() else {
                     return unsupported("a type-argument call shape");
                 };
+                // `f!::[T](..)`: the bang sits before the type arguments,
+                // inside the type-argument node (`grammar.expr.bang-suffix`).
+                let (inner, bang) = match inner.kind() {
+                    SyntaxKind::SuspendExpr => match inner.children().next() {
+                        Some(c) => (c, true),
+                        None => return unsupported("a bang call shape"),
+                    },
+                    _ => (inner, bang),
+                };
                 let mut explicit = Vec::new();
                 if let Some(tl) = Src::child(callee, SyntaxKind::TypeArgumentList) {
                     for t in tl.children().filter(|c| c.kind().is_type()) {
