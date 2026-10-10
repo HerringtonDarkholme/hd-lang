@@ -56,8 +56,10 @@ fn has_assoc(pool: Types<'_>, t: Ty, depth: u32) -> bool {
 
 /// The names of the trait methods that the written implementation `imp`
 /// omits: a trait method with no default body that the impl does not write
-/// (spec 09 `trait.impl.required`). Delegated, derived and template
-/// implementations supply their methods another way and yield none.
+/// (spec 09 `trait.impl.required`). A delegating implementation forwards
+/// every method with a receiver, so it can omit only an associated
+/// function (trait.by.assoc-fn). Derived and template implementations
+/// supply their methods another way and yield none.
 #[must_use]
 pub fn omitted_trait_methods(names: &Names<'_>, lookup: &Lookup<'_>, imp: DefId) -> Vec<String> {
     let Some(ItemData::Impl {
@@ -69,7 +71,7 @@ pub fn omitted_trait_methods(names: &Names<'_>, lookup: &Lookup<'_>, imp: DefId)
     else {
         return Vec::new();
     };
-    if *trait_ == DefId::NONE || *kind != ImplKind::Written {
+    if *trait_ == DefId::NONE || !matches!(kind, ImplKind::Written | ImplKind::Delegated) {
         return Vec::new();
     }
     // A written implementation of a sealed trait is already
@@ -80,6 +82,7 @@ pub fn omitted_trait_methods(names: &Names<'_>, lookup: &Lookup<'_>, imp: DefId)
     let Some(ItemData::Trait(td)) = lookup.item(*trait_).map(|t| &t.data) else {
         return Vec::new();
     };
+    let delegated = *kind == ImplKind::Delegated;
     td.methods
         .iter()
         .filter(|(name, def)| {
@@ -88,8 +91,9 @@ pub fn omitted_trait_methods(names: &Names<'_>, lookup: &Lookup<'_>, imp: DefId)
                     lookup.item(*def).map(|m| &m.data),
                     Some(ItemData::Method {
                         has_body: false,
+                        sig,
                         ..
-                    })
+                    }) if !delegated || sig.params.first().is_none_or(|p| names.text(p.0) != "self")
                 )
         })
         .map(|(name, _)| names.text(*name).to_owned())

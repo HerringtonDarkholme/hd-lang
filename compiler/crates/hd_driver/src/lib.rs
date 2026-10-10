@@ -2311,6 +2311,38 @@ impl Run<'_> {
                 }
             }
         }
+        // The forwarding methods of the delegating implementations
+        // (spec 09 `trait.by.generated`).
+        for h in heads
+            .iter()
+            .filter(|h| h.kind == hd_resolve::HeadKind::Impl)
+        {
+            if failed.is_some() && !self.analyze() {
+                break;
+            }
+            match hd_check::delegate::forwarder_bodies(&cx, h.def, h.node, &mut diags) {
+                Ok(bs) => {
+                    lock(&self.report).body_ok += bs.len();
+                    for b in &bs {
+                        let path = names.path(b.item);
+                        if self.host.render_tir.iter().any(|p| *p == path) {
+                            lock(&self.tir_text).insert(path, hd_check::render(&names, b));
+                        }
+                    }
+                    bodies.extend(bs);
+                }
+                Err(e) => {
+                    let mut r = lock(&self.report);
+                    r.body_failed += 1;
+                    let short: String = e.what.chars().take(90).collect();
+                    *r.body_reasons.entry(short).or_default() += 1;
+                    r.body_failures
+                        .push(format!("{} by: {}", names.path(h.def), e.what));
+                    drop(r);
+                    failed.get_or_insert(e);
+                }
+            }
+        }
         // A test run checks the `tests:` blocks too, into the module's
         // test-role `check` entry (`check_key` role "test"). A test module
         // or an integration test module is test code throughout: its

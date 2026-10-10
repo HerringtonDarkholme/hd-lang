@@ -871,6 +871,22 @@ growing type) has no finite instance set.
   the lookup is by item, never by name. A `dyn` type also takes the
   bindings its supertrait lists fix, so `dyn Count` under `Count <
   Supplier[Item = i32]` is `dyn Count[Item = i32]`.
+- **As built (#193): delegated implementations are ordinary ones.**
+  Once a folder's items are lowered, `impl Tr for C by E` gets, for each
+  associated type of `Tr`, the binding `<F as Tr[A]>::Name`, where `F` is
+  the embedded field `E`'s type at `C`'s arguments (trait-solver.md
+  §3.10), and, for each method of `Tr` with a receiver that its body does
+  not write, a forwarding method item with the trait method's signature
+  at `Self = C[...]` (`hd_resolve::lower::delegations`). The checker
+  writes each forwarder's TIR as `Tr::m(self.E, arguments...)`, a
+  trait-method call at the part's type with the part's evidence
+  (`hd_check::delegate`), as it writes `@error` bodies (§13.14). So
+  selection, instances and vtable slots see a written impl: a slot
+  points at the forwarder's instance, which calls the part's method; a
+  rest parameter passes on as the list it is, and a default method runs
+  the part's default with the part as receiver (no overriding). A part
+  that does not implement `Tr` gets no forwarders; the header reports
+  `invalid-delegation`.
 - **GADT evidence.** Removed with GADTs (owner, 2026-10-07).
 - **Generic methods called through a `dyn` value** use the type-witness
   ABI below.

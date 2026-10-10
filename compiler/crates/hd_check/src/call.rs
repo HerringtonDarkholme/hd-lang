@@ -1432,7 +1432,7 @@ impl Ck<'_, '_> {
 
     /// Emits a `Call`, or an `Await` for a bang call of a suspending
     /// callee; a plain call of one is a cold `mut Suspend[T]`.
-    fn emit_call(
+    pub(crate) fn emit_call(
         &mut self,
         c: &Callee,
         refs: &[Ref],

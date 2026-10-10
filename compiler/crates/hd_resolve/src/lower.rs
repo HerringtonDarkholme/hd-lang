@@ -2250,6 +2250,32 @@ impl Lower<'_, '_, '_> {
             Some(_) => ImplKind::Delegated,
             None => ImplKind::Written,
         };
+        if self.r.frozen.is_none() {
+            // A header without a trait never delegates
+            // (trait.by.no-trait.error).
+            if trait_ == DefId::NONE && kind == ImplKind::Delegated {
+                self.diags.error(
+                    Code::InvalidDelegation,
+                    self.src.span(n),
+                    "an implementation without a trait has nothing to delegate; only `by Structure` may follow it",
+                );
+            }
+            // A delegating implementation takes its associated types from
+            // the part (trait.by.assoc-binding).
+            if trait_ != DefId::NONE && kind == ImplKind::Delegated {
+                for c in Src::child(n, SyntaxKind::Block)
+                    .iter()
+                    .flat_map(|b| b.children())
+                    .filter(|c| c.kind() == SyntaxKind::AssociatedTypeDecl)
+                {
+                    self.diags.error(
+                        Code::InvalidDelegation,
+                        self.src.span(c),
+                        "a delegating implementation takes its associated types from the part, so it binds none",
+                    );
+                }
+            }
+        }
         // A block with no trait writes metadata only and declares no
         // members (`annot.no-trait.not-inherent`).
         let block = if trait_ == DefId::NONE && by.as_deref() == Some("Structure") {
@@ -3680,6 +3706,7 @@ pub fn build_folder(
             blocks,
         });
     }
+    delegations(&r, &mut out.modules);
     if r.frozen.is_none() {
         let items: HashMap<DefId, &Item> = out
             .modules
@@ -3793,6 +3820,173 @@ fn own_trait_generics(
         }
     }
     out
+}
+
+/// The members a delegating implementation `impl Tr for C by E` takes
+/// from its part (spec 09 "Delegation", trait-solver.md §3.10), once every
+/// item of the folder is lowered:
+///
+/// - each associated type of `Tr` is bound to the projection
+///   `<F as Tr[A]>::Name`, where `F` is the embedded field `E`'s type at
+///   `C`'s arguments (trait.by.assoc-types); normalizing it is an ordinary
+///   projection;
+/// - each method of `Tr` with a receiver that the body does not write
+///   gets a forwarding method, with the trait method's signature at
+///   `Self = C[...]` (trait.by.generated), whose body the checker writes
+///   as `Tr::m(self.E, arguments...)` (`hd_check::delegate`).
+///
+/// An implementation whose part is not an embedded field of a data type
+/// takes nothing: the checker reports it (`invalid-delegation`).
+fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
+    let names = &r.cx.names;
+    let pool = names.pool;
+    let item = |d: DefId| -> Option<Item> {
+        modules
+            .iter()
+            .flat_map(|m| m.items.iter())
+            .find(|i| i.def == d)
+            .cloned()
+            .or_else(|| r.item(d))
+    };
+    let mut found: Vec<Taken> = Vec::new();
+    for (mi, m) in modules.iter().enumerate() {
+        for (ii, it) in m.items.iter().enumerate() {
+            let ItemData::Impl {
+                trait_,
+                trait_args,
+                self_ty,
+                methods,
+                assoc,
+                by: Some(by),
+                kind: ImplKind::Delegated,
+            } = &it.data
+            else {
+                continue;
+            };
+            let (trait_, trait_args, self_ty) = (*trait_, *trait_args, *self_ty);
+            let TyData::Adt {
+                def: c,
+                args: cargs,
+            } = pool.get(self_ty)
+            else {
+                continue;
+            };
+            let Some(ItemData::Data(fields)) = item(c).map(|i| i.data) else {
+                continue;
+            };
+            let Some(field) = fields.iter().find(|f| f.embedded && f.name == *by) else {
+                continue;
+            };
+            let ca = pool.list_items(cargs);
+            let part = pool.subst(field.ty, &|q: ParamRef| {
+                (q.owner == c)
+                    .then(|| ca.get(q.index as usize).copied())
+                    .flatten()
+            });
+            let Some(ItemData::Trait(td)) = item(trait_).map(|i| i.data) else {
+                continue;
+            };
+            let binds: Vec<(DefId, Ty)> = td
+                .assoc
+                .iter()
+                .filter(|(_, a)| !assoc.iter().any(|(x, _)| x == a))
+                .map(|&(_, a)| {
+                    (
+                        a,
+                        pool.intern_ty(&TyData::Assoc {
+                            assoc: a,
+                            trait_,
+                            self_ty: part,
+                            args: trait_args,
+                        }),
+                    )
+                })
+                .collect();
+            let targs = pool.list_items(trait_args);
+            let mut fwd = Vec::new();
+            for &(name, tm) in &td.methods {
+                if methods.iter().any(|(w, _)| *w == name) {
+                    continue;
+                }
+                let Some(sig) = item(tm).and_then(|i| i.sig().cloned()) else {
+                    continue;
+                };
+                if sig.params.first().is_none_or(|p| names.text(p.0) != "self") {
+                    continue;
+                }
+                let def = names.member(it.def, PathKind::Member, names.text(name));
+                // The trait's `Self` and parameters at the implementation's,
+                // the method's own parameters as the forwarder's.
+                let at = |q: ParamRef| {
+                    if q.owner == trait_ {
+                        if q.index == 0 {
+                            Some(self_ty)
+                        } else {
+                            targs.get(usize::from(q.index) - 1).copied()
+                        }
+                    } else if q.owner == tm {
+                        Some(pool.intern_ty(&TyData::Param(ParamRef {
+                            owner: def,
+                            index: q.index,
+                        })))
+                    } else {
+                        None
+                    }
+                };
+                let ty = |t: Ty| pool.subst(t, &at);
+                let generics = sig
+                    .generics
+                    .iter()
+                    .map(|g| Generic {
+                        bounds: g.bounds.iter().map(|b| ty(*b)).collect(),
+                        default: g.default.map(ty),
+                        ..g.clone()
+                    })
+                    .collect();
+                let fsig = FnSig {
+                    generics,
+                    params: sig.params.iter().map(|(n, t)| (*n, ty(*t))).collect(),
+                    defaults: sig.defaults.clone(),
+                    ret: ty(sig.ret),
+                    row: pool.subst_row(sig.row, &at),
+                    suspends: sig.suspends,
+                    variadic: sig.variadic,
+                };
+                fwd.push(Item::new(
+                    def,
+                    name,
+                    true,
+                    ItemData::Method {
+                        owner: it.def,
+                        sig: fsig,
+                        has_body: true,
+                    },
+                ));
+            }
+            found.push(Taken {
+                at: (mi, ii),
+                binds,
+                forwarders: fwd,
+            });
+        }
+    }
+    for t in found {
+        let items = &mut modules[t.at.0].items;
+        if let ItemData::Impl { methods, assoc, .. } = &mut items[t.at.1].data {
+            assoc.extend(t.binds);
+            methods.extend(t.forwarders.iter().map(|f| (f.name, f.def)));
+        }
+        items.extend(t.forwarders);
+    }
+}
+
+/// What one delegating implementation takes from its part: where it is
+/// (module, item), its associated-type bindings and its forwarding
+/// methods.
+struct Taken {
+    at: (usize, usize),
+    binds: Vec<(DefId, Ty)>,
+    forwarders: Vec<Item>,
 }
 
 /// The supertraits of the traits of `mods` (`Resolver::own_supers`).

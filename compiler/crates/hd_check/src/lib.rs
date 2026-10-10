@@ -12,6 +12,7 @@ mod callable;
 pub mod conflicts;
 mod conform;
 mod dbg;
+pub mod delegate;
 pub mod derive;
 pub mod error;
 mod expr;
