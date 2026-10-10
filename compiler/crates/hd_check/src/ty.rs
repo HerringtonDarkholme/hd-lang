@@ -269,16 +269,7 @@ impl Ck<'_, '_> {
             let (bindings, bad) =
                 hd_resolve::assoc::resolve_bindings(pool, &view, (def, args, None), bound);
             for b in bad {
-                let (code, how) = if b.ambiguous {
-                    (Code::AmbiguousAssociatedType, "two associated types")
-                } else {
-                    (Code::UnknownAssociatedType, "no associated type")
-                };
-                let msg = format!(
-                    "`{}` reaches {how} named `{}`",
-                    self.cx.names.display_name(def),
-                    b.name
-                );
+                let (code, msg) = b.diagnostic(self.cx.names.display_name(def));
                 self.err(code, n, &msg);
             }
             let t = pool.intern_ty(&TyData::TraitValue {

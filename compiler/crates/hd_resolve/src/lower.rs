@@ -1242,16 +1242,7 @@ impl Lower<'_, '_, '_> {
             written,
         );
         for b in bad {
-            let (code, how) = if b.ambiguous {
-                (Code::AmbiguousAssociatedType, "two associated types")
-            } else {
-                (Code::UnknownAssociatedType, "no associated type")
-            };
-            let msg = format!(
-                "`{}` reaches {how} named `{}`",
-                self.names.display_name(def),
-                b.name
-            );
+            let (code, msg) = b.diagnostic(self.names.display_name(def));
             self.diags.error(code, span, &msg);
         }
         Some(self.names.pool.intern_ty(&TyData::TraitValue {
@@ -1803,6 +1794,9 @@ impl Lower<'_, '_, '_> {
                     if let Some(t) = self.trait_value(b, gn, me) {
                         bounds.push(t);
                     }
+                }
+                if let Some(me) = me {
+                    self.bound_clashes(me, &bounds, self.src.span(bl));
                 }
             }
             if !row

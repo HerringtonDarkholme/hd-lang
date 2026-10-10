@@ -7,6 +7,7 @@
 use std::collections::HashSet;
 
 use hd_base::DefId;
+use hd_diag::Code;
 use hd_types::{ParamRef, Ty, TyData, TyList, Types};
 
 use crate::iface::{Names, show_ty};
@@ -88,17 +89,51 @@ pub fn assoc_decls(
     out
 }
 
-/// A written binding whose name reaches no associated type, or two
-/// (`unknown-associated-type`, `ambiguous-associated-type`).
+/// Why a written binding is wrong.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Fault {
+    /// Its name reaches no associated type (`unknown-associated-type`).
+    Unknown,
+    /// Its name reaches two (`ambiguous-associated-type`).
+    Ambiguous,
+    /// It binds an associated type that an earlier binding of the same
+    /// bound binds (`duplicate-associated-binding`).
+    Duplicate,
+}
+
+/// A written binding that is wrong.
 pub struct BadBinding {
     pub name: String,
-    pub ambiguous: bool,
+    pub fault: Fault,
+}
+
+impl BadBinding {
+    /// The error for this binding in a use of the trait `trait_name`.
+    #[must_use]
+    pub fn diagnostic(&self, trait_name: &str) -> (Code, String) {
+        let (code, how) = match self.fault {
+            Fault::Unknown => (
+                Code::UnknownAssociatedType,
+                "reaches no associated type named",
+            ),
+            Fault::Ambiguous => (
+                Code::AmbiguousAssociatedType,
+                "reaches two associated types named",
+            ),
+            Fault::Duplicate => (
+                Code::DuplicateAssociatedBinding,
+                "binds twice the type named",
+            ),
+        };
+        (code, format!("`{trait_name}` {how} `{}`", self.name))
+    }
 }
 
 /// The written bindings of `trait_[args]`, each keyed by the associated
-/// type its name reaches (trait.binding.name-reach). After a bad name,
-/// every associated type left unbound is bound to poison, so the uses of
-/// its projections report nothing more.
+/// type its name reaches (trait.binding.name-reach), the first of an
+/// associated type kept (trait.binding.once). After a bad name, every
+/// associated type left unbound is bound to poison, so the uses of its
+/// projections report nothing more.
 #[must_use]
 pub fn resolve_bindings(
     pool: Types<'_>,
@@ -106,18 +141,26 @@ pub fn resolve_bindings(
     (trait_, args, self_ty): (DefId, TyList, Option<Ty>),
     written: Vec<(String, Ty)>,
 ) -> (Vec<(DefId, Ty)>, Vec<BadBinding>) {
-    let mut bindings = Vec::new();
+    let mut bindings: Vec<(DefId, Ty)> = Vec::new();
     let mut bad = Vec::new();
     for (name, t) in written {
         match assoc_decls(pool, view, trait_, args, self_ty, &name)[..] {
+            [(_, _, assoc)] if bindings.iter().any(|(x, _)| *x == assoc) => bad.push(BadBinding {
+                name,
+                fault: Fault::Duplicate,
+            }),
             [(_, _, assoc)] => bindings.push((assoc, t)),
             ref decls => bad.push(BadBinding {
                 name,
-                ambiguous: !decls.is_empty(),
+                fault: if decls.is_empty() {
+                    Fault::Unknown
+                } else {
+                    Fault::Ambiguous
+                },
             }),
         }
     }
-    if !bad.is_empty() {
+    if bad.iter().any(|b| b.fault != Fault::Duplicate) {
         for a in reached_assocs(pool, view, trait_) {
             if !bindings.iter().any(|(x, _)| *x == a) {
                 bindings.push((a, Ty::POISON));

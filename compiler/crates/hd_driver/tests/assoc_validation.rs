@@ -147,6 +147,69 @@ fn a_conflict_through_a_longer_path_is_reported_once_at_the_declaring_trait() {
     assert_eq!(errors(&bad), vec![Code::DuplicateAssociatedBinding]);
 }
 
+// trait.binding.once
+
+#[test]
+fn a_bound_binds_a_projection_once() {
+    let twice = format!(
+        "{SUPPLIER}fn first[T, I < Supplier[Item = T, Item = T]](source: I) -> T:\n    source.get()\n"
+    );
+    assert_eq!(errors(&twice), vec![Code::DuplicateAssociatedBinding]);
+    let other = format!(
+        "{SUPPLIER}fn first[T, I < Supplier[Item = T, Item = i32]](source: I) -> T:\n    source.get()\n"
+    );
+    assert_eq!(errors(&other), vec![Code::DuplicateAssociatedBinding]);
+    let once = format!(
+        "{SUPPLIER}fn first[T, I < Supplier[Item = T]](source: I) -> T:\n    source.get()\n"
+    );
+    assert_eq!(errors(&once), vec![]);
+}
+
+#[test]
+fn two_bounds_of_one_parameter_bind_a_projection_once() {
+    let feed = "trait Feed:\n    type Item\n    fn next(mut self) -> Self::Item?\n\ntrait NamedFeed < Feed:\n    fn name(self) -> string\n\n";
+    let twice = format!(
+        "{feed}fn drain[T, F < Feed[Item = T] & NamedFeed[Item = T]](feed: mut F) -> T?:\n    feed.next()\n"
+    );
+    assert_eq!(errors(&twice), vec![Code::DuplicateAssociatedBinding]);
+    let once = format!(
+        "{feed}fn drain[T, F < Feed[Item = T] & NamedFeed](feed: mut F) -> T?:\n    feed.next()\n"
+    );
+    assert_eq!(errors(&once), vec![]);
+}
+
+#[test]
+fn separate_parameters_bind_the_same_projection_each() {
+    let src = format!(
+        "{SUPPLIER}fn pair[A < Supplier[Item = i32], B < Supplier[Item = i32]](a: A, b: B) -> i32:\n    a.get() + b.get()\n"
+    );
+    assert_eq!(errors(&src), vec![]);
+}
+
+#[test]
+fn a_written_binding_and_a_supertrait_binding_must_agree() {
+    let prices = format!("{SUPPLIER}trait Prices < Supplier[Item = i32]\n\n");
+    let bad = format!(
+        "{prices}fn first[S < Supplier[Item = string] & Prices](source: S) -> void:\n    pass\n"
+    );
+    assert_eq!(errors(&bad), vec![Code::DuplicateAssociatedBinding]);
+    let good = format!(
+        "{prices}fn first[S < Supplier[Item = i32] & Prices](source: S) -> void:\n    pass\n"
+    );
+    assert_eq!(errors(&good), vec![]);
+}
+
+// req.key.binding.names
+
+#[test]
+fn a_requirement_key_binds_a_projection_once() {
+    let store = "trait Store:\n    type Item\n    fn load(self, id: string) -> Self::Item\n\n";
+    let twice = format!("{store}fn count() -> i32 $ Store[Item = i32, Item = i32]:\n    0\n");
+    assert_eq!(errors(&twice), vec![Code::DuplicateAssociatedBinding]);
+}
+
+// trait.binding.super.merge
+
 #[test]
 fn two_supertrait_paths_that_bind_the_same_type_merge() {
     let good =
