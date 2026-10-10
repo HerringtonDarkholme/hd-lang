@@ -8,24 +8,24 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2412 | 345 | 88 | 2845 |
+| 2459 | 298 | 88 | 2845 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
 | `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
-| `lang/02-grammar.md` | 197 | 11 | 7 | 215 |
-| `lang/03-names-and-scopes.md` | 94 | 6 | 1 | 101 |
-| `lang/04-type-system.md` | 305 | 45 | 2 | 352 |
+| `lang/02-grammar.md` | 198 | 10 | 7 | 215 |
+| `lang/03-names-and-scopes.md` | 97 | 3 | 1 | 101 |
+| `lang/04-type-system.md` | 311 | 39 | 2 | 352 |
 | `lang/05-expressions.md` | 244 | 32 | 1 | 277 |
-| `lang/06-control-flow.md` | 131 | 22 | 4 | 157 |
-| `lang/07-functions.md` | 107 | 20 | 3 | 130 |
-| `lang/08-data-and-enums.md` | 86 | 29 | 8 | 123 |
-| `lang/09-traits.md` | 304 | 50 | 5 | 359 |
-| `lang/10-modules.md` | 208 | 39 | 11 | 258 |
-| `lang/11-requirements-and-suspension.md` | 196 | 32 | 31 | 259 |
-| `lang/14-annotations.md` | 112 | 34 | 7 | 153 |
+| `lang/06-control-flow.md` | 133 | 20 | 4 | 157 |
+| `lang/07-functions.md` | 113 | 14 | 3 | 130 |
+| `lang/08-data-and-enums.md` | 87 | 28 | 8 | 123 |
+| `lang/09-traits.md` | 315 | 39 | 5 | 359 |
+| `lang/10-modules.md` | 216 | 31 | 11 | 258 |
+| `lang/11-requirements-and-suspension.md` | 199 | 29 | 31 | 259 |
+| `lang/14-annotations.md` | 116 | 30 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
 | `std/collections.md` | 24 | 5 | 0 | 29 |
@@ -42,7 +42,7 @@ fixture; unsupported surface records progress without failing.
 | `std/json.md` | 18 | 0 | 1 | 19 |
 | `std/net.md` | 1 | 0 | 0 | 1 |
 | `std/num.md` | 16 | 2 | 0 | 18 |
-| `std/ops.md` | 8 | 3 | 2 | 13 |
+| `std/ops.md` | 10 | 1 | 2 | 13 |
 | `std/option.md` | 3 | 0 | 0 | 3 |
 | `std/path.md` | 2 | 0 | 0 | 2 |
 | `std/process.md` | 3 | 0 | 0 | 3 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 86 | 15 | 4 | 105 |
 | `runtime/valid` | 845 | 17 | 67 | 929 |
-| `typing/invalid` | 780 | 281 | 14 | 1075 |
+| `typing/invalid` | 827 | 234 | 14 | 1075 |
 | `typing/valid` | 403 | 9 | 3 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -91,14 +91,14 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 4 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 176 |
+| `fail:no-diagnostic` | 131 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
 | `fail:pattern-arity` | 1 |
 | `fail:placeholder-outside-pipe` | 1 |
 | `fail:private-import` | 1 |
-| `fail:private-main` | 5 |
+| `fail:private-main` | 4 |
 | `fail:re-export-loop` | 1 |
 | `fail:readonly-root` | 1 |
 | `fail:runtime-exit` | 11 |
@@ -106,7 +106,6 @@ compiler stage that first declined the case.
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
-| `fail:trait-method-signature` | 1 |
 | `fail:trait-used-as-type` | 1 |
 | `fail:type-mismatch` | 37 |
 | `fail:unknown-data-field` | 6 |
@@ -246,12 +245,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (176)</summary>
+<details><summary><code>fail:no-diagnostic</code> (131)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
-- `typing/invalid/shared-enum-default-order.hd`
-- `typing/invalid/forward-module-binding.hd`
-- `typing/invalid/possibly-uninitialized-binding.hd`
 - `typing/invalid/float-literal-range.hd`
 - `typing/invalid/tuple-map-key.hd`
 - `typing/invalid/overload.hd`
@@ -260,35 +256,22 @@ compiler stage that first declined the case.
 - `typing/warnings/unreachable-code.hd`
 - `typing/invalid/duplicate-field.hd`
 - `typing/invalid/unknown-annotation-member.hd`
-- `typing/invalid/partial-generic-arguments.hd`
 - `typing/invalid/bare-parameter-impl-target.hd`
 - `typing/invalid/child-trait-redeclares-supertrait-member.hd`
 - `typing/invalid/child-trait-redeclares-transitive-supertrait-member.hd`
 - `typing/invalid/nonhost-entry-requirement.hd`
-- `typing/invalid/row-kind-mismatch.hd`
 - `typing/warnings/variant-binding-name-mismatch.hd`
 - `typing/invalid/private-requirement-row.hd`
-- `typing/invalid/supertrait-cycle.hd`
 - `typing/invalid/duplicate-inherent-member.hd`
 - `typing/invalid/suspension-forbidden-context.hd`
 - `typing/invalid/nondisplay-entry-error.hd`
-- `typing/invalid/init-read-through-generic-bound.hd`
-- `typing/invalid/init-read-through-trait-value.hd`
-- `typing/invalid/indirect-supertrait-cycle.hd`
-- `typing/invalid/nonfinal-vararg-declaration.hd`
-- `typing/invalid/nonfinal-vararg-then-parameter.hd`
-- `typing/invalid/prelude-shadow-console-parameter.hd`
-- `typing/invalid/prelude-shadow-result-generic.hd`
 - `typing/warnings/unreachable-after-infinite-loop.hd`
 - `typing/warnings/variant-binding-names-swapped.hd`
 - `typing/invalid/generic-supertrait-upcast-mismatch.hd`
 - `typing/invalid/enum-default-requires-provider.hd`
-- `typing/invalid/public-function-missing-result-type.hd`
-- `typing/invalid/parameter-default-order.hd`
 - `typing/invalid/duplicate-literal-match-arm.hd`
 - `typing/invalid/incompatible-identity-operands.hd`
 - `typing/invalid/function-typed-field-method-call.hd`
-- `typing/invalid/trait-value-impl-target.hd`
 - `typing/invalid/embedded-copy-required.hd`
 - `typing/invalid/embedded-copy-required-fresh-literal.hd`
 - `typing/invalid/embedded-assignment-copy-required.hd`
@@ -313,43 +296,29 @@ compiler stage that first declined the case.
 - `typing/invalid/duplicate-fact.hd`
 - `typing/invalid/member-line-payload-member.hd`
 - `typing/invalid/invalid-member-line.hd`
-- `typing/invalid/omitted-member-without-default.hd`
 - `typing/invalid/generic-member-call.hd`
 - `typing/invalid/newtype-derivation-self.hd`
 - `typing/warnings/derivation-line-drift.hd`
 - `typing/invalid/structure-without-use.hd`
 - `typing/invalid/duplicate-tests-block.hd`
-- `typing/invalid/it-shadowed.hd`
-- `typing/invalid/block-on-in-fact.hd`
-- `typing/invalid/block-on-in-metadata.hd`
 - `typing/invalid/duplicate-declaration-fact.hd`
 - `typing/invalid/trait-less-block-omit.hd`
 - `typing/invalid/trait-less-block-duplicate-fact.hd`
-- `typing/invalid/omitted-embedded-part.hd`
 - `typing/invalid/duplicate-type-level-fact.hd`
 - `typing/invalid/trait-less-block-second.hd`
 - `typing/invalid/member-line-not-list.hd`
-- `typing/invalid/println-in-defer.hd`
 - `typing/invalid/test-module-tests-block.hd`
 - `typing/invalid/integration-test-tests-block.hd`
 - `typing/invalid/duplicate-function-fact.hd`
 - `typing/invalid/row-union-list-no-convert.hd`
-- `typing/invalid/public-method-missing-result-type.hd`
 - `typing/invalid/intrinsic-method-user.hd`
 - `typing/invalid/init-group-cycle.hd`
 - `typing/invalid/operator-function-left-exact.hd`
 - `typing/invalid/pipe-placeholder-in-closure.hd`
 - `typing/invalid/pipe-multi-line-step.hd`
-- `typing/invalid/type-default-order.hd`
-- `typing/invalid/type-default-later-parameter.hd`
 - `typing/invalid/type-default-bound.hd`
-- `typing/invalid/type-default-kind.hd`
-- `typing/invalid/trait-value-self-default.hd`
-- `typing/invalid/written-type-too-many-arguments.hd`
 - `typing/invalid/error-marker-outside.hd`
 - `typing/invalid/foreign-inherent-impl.hd`
-- `typing/invalid/tuple-inherent-impl.hd`
-- `typing/invalid/alias-inherent-impl.hd`
 - `typing/invalid/function-type-rest-not-list.hd`
 - `typing/invalid/vararg-type-not-collection.hd`
 - `typing/invalid/display-tuple-element-without-display.hd`
@@ -369,12 +338,7 @@ compiler stage that first declined the case.
 - `typing/invalid/generic-inference-variance-conflict.hd`
 - `typing/invalid/generic-inference-optional-conflict.hd`
 - `typing/invalid/list-float-map-key.hd`
-- `typing/invalid/derived-default-no-variant.hd`
-- `typing/invalid/derived-default-several-variants.hd`
-- `typing/invalid/unconstrained-impl-parameter.hd`
-- `typing/invalid/row-parameter-marked-on-data.hd`
 - `typing/invalid/row-slot-bare-explicit-argument.hd`
-- `typing/invalid/default-names-later-beside-forward-bound.hd`
 - `typing/warnings/unsigned-comparison-countdown.hd`
 - `typing/warnings/unsigned-comparison-explicit.hd`
 - `typing/invalid/impl-target-key-bound-not-implied.hd`
@@ -382,7 +346,6 @@ compiler stage that first declined the case.
 - `typing/invalid/field-key-bound-not-implied.hd`
 - `typing/invalid/inspectable-requirement-function-type.hd`
 - `typing/invalid/inspectable-requirement-provider-scope.hd`
-- `typing/invalid/requirement-key-missing-generic-argument.hd`
 - `typing/invalid/nested-local-annotation-bare-trait.hd`
 - `typing/invalid/contravariant-inferred-private-result.hd`
 - `typing/invalid/contravariant-inferred-invariant-result.hd`
@@ -391,22 +354,16 @@ compiler stage that first declined the case.
 - `typing/invalid/module-named-pkg.hd`
 - `typing/invalid/duplicate-variant.hd`
 - `typing/warnings/mixed-script-identifier.hd`
-- `typing/invalid/defer-propagate-query.hd`
-- `typing/invalid/defer-propagate-query-suspending.hd`
-- `typing/invalid/std-child-path-through-parent.hd`
 - `typing/invalid/script-test-init-requirement.hd`
 - `typing/warnings/unused-debug-text.hd`
 - `typing/invalid/duplicate-field-declaration.hd`
 - `typing/invalid/data-field-shorthand-duplicate.hd`
-- `typing/invalid/unconstrained-impl-parameter-unused.hd`
 - `typing/invalid/assoc-call-parameter-two-bounds.hd`
 - `typing/invalid/dyn-self-parameter-unavailable.hd`
 - `typing/invalid/sealed-member-written-in-impl.hd`
 - `typing/invalid/typeid-of-never.hd`
 - `typing/invalid/child-trait-redeclares-associated-type.hd`
 - `typing/invalid/child-trait-redeclares-associated-function.hd`
-- `typing/invalid/from-trait-value-target.hd`
-- `typing/invalid/child-module-not-in-parent.hd`
 - `typing/invalid/private-type-leak-data-field.hd`
 - `typing/invalid/private-type-leak-enum-payload.hd`
 - `typing/invalid/private-type-leak-trait-bound.hd`
@@ -418,12 +375,9 @@ compiler stage that first declined the case.
 - `typing/invalid/entry-point-parameters.hd`
 - `typing/invalid/generic-entry-point.hd`
 - `typing/invalid/module-path-not-identifier.hd`
-- `typing/invalid/impl-head-projection.hd`
 - `typing/invalid/template-helper-missing-result.hd`
 - `typing/invalid/dyn-inherent-nonlocal.hd`
 - `typing/invalid/template-names-binding.hd`
-- `typing/invalid/impl-target-row-extension.hd`
-- `typing/invalid/println-direct-forbidden-context-rule.hd`
 
 </details>
 
@@ -463,12 +417,11 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:private-main</code> (5)</summary>
+<details><summary><code>fail:private-main</code> (4)</summary>
 
 - `typing/invalid/unresolved-generic-return-placeholder.hd`
 - `typing/invalid/prelude-shadow-hash-local.hd`
 - `typing/invalid/unused-cold-suspension.hd`
-- `typing/invalid/block-on-in-defer.hd`
 - `typing/invalid/trailing-block-ineligible.hd`
 
 </details>
@@ -532,12 +485,6 @@ compiler stage that first declined the case.
 
 - `parse/invalid/tab-indentation.hd`
 - `parse/invalid/tab-in-function-body.hd`
-
-</details>
-
-<details><summary><code>fail:trait-method-signature</code> (1)</summary>
-
-- `typing/invalid/trait-impl-method-missing-result-type.hd`
 
 </details>
 
@@ -2025,6 +1972,7 @@ typing/invalid/absolute-path-in-expression.hd
 typing/invalid/adapter-callback-scope-key.hd
 typing/invalid/alias-bound-bare-trait.hd
 typing/invalid/alias-cycle.hd
+typing/invalid/alias-inherent-impl.hd
 typing/invalid/alias-unknown-target.hd
 typing/invalid/all-bang-child.hd
 typing/invalid/all-non-suspend-argument.hd
@@ -2074,6 +2022,9 @@ typing/invalid/binding-on-non-trait.hd
 typing/invalid/bitwise-and-bool.hd
 typing/invalid/bitwise-or-float.hd
 typing/invalid/bitwise-xor-string.hd
+typing/invalid/block-on-in-defer.hd
+typing/invalid/block-on-in-fact.hd
+typing/invalid/block-on-in-metadata.hd
 typing/invalid/bodyless-impl-via-promotion.hd
 typing/invalid/bool-match-missing-false.hd
 typing/invalid/bool-ordering.hd
@@ -2101,6 +2052,7 @@ typing/invalid/callable-value-no-update.hd
 typing/invalid/callable-value-readonly-parameter.hd
 typing/invalid/cannot-infer-type.hd
 typing/invalid/cast-literal-out-of-range.hd
+typing/invalid/child-module-not-in-parent.hd
 typing/invalid/closure-argument-type-mismatch.hd
 typing/invalid/closure-escapes-provider-scope.hd
 typing/invalid/closure-inferred-row-missing-requirement.hd
@@ -2164,6 +2116,9 @@ typing/invalid/decorator-target-kind.hd
 typing/invalid/decorator-target-member-line.hd
 typing/invalid/decorator-target-newtype.hd
 typing/invalid/default-body-inherent-method.hd
+typing/invalid/default-names-later-beside-forward-bound.hd
+typing/invalid/defer-propagate-query-suspending.hd
+typing/invalid/defer-propagate-query.hd
 typing/invalid/defer-return.hd
 typing/invalid/defer-suspends.hd
 typing/invalid/delegation-associated-function-missing.hd
@@ -2181,6 +2136,8 @@ typing/invalid/derived-arbitrary-function-member.hd
 typing/invalid/derived-arbitrary-generic-bound.hd
 typing/invalid/derived-arbitrary-tuned-member-not-arbitrary.hd
 typing/invalid/derived-default-member-not-default.hd
+typing/invalid/derived-default-no-variant.hd
+typing/invalid/derived-default-several-variants.hd
 typing/invalid/derived-eq-enum-payload-missing-trait.hd
 typing/invalid/derived-hash-field-not-hash.hd
 typing/invalid/derived-hash-without-eq.hd
@@ -2261,11 +2218,13 @@ typing/invalid/for-binding-arity.hd
 typing/invalid/for-binding-not-visible-in-else.hd
 typing/invalid/for-over-string.hd
 typing/invalid/for-refutable-pattern.hd
+typing/invalid/forward-module-binding.hd
 typing/invalid/fresh-element-not-weakened.hd
 typing/invalid/from-implementation-suspending.hd
 typing/invalid/from-implementation-with-requirement.hd
 typing/invalid/from-iterator-not-prelude.hd
 typing/invalid/from-no-fitting-instantiation.hd
+typing/invalid/from-trait-value-target.hd
 typing/invalid/function-anyref-bound.hd
 typing/invalid/function-equality.hd
 typing/invalid/function-identity-against-any.hd
@@ -2302,23 +2261,28 @@ typing/invalid/hd-run-requires-process.hd
 typing/invalid/if-branch-misses-expected-type.hd
 typing/invalid/impl-bound-bare-trait.hd
 typing/invalid/impl-duplicate-exact-pair.hd
+typing/invalid/impl-head-projection.hd
 typing/invalid/impl-iterator-trait.hd
 typing/invalid/impl-method-generic-bound-added.hd
 typing/invalid/impl-method-generic-bound-changed.hd
 typing/invalid/impl-method-generic-bound-dropped.hd
 typing/invalid/impl-method-generic-bounds-reordered.hd
 typing/invalid/impl-method-generic-count.hd
+typing/invalid/impl-target-row-extension.hd
 typing/invalid/implicit-data-equality.hd
 typing/invalid/implicit-data-ordering.hd
 typing/invalid/implicit-narrowing-i64.hd
 typing/invalid/index-missing.hd
 typing/invalid/index-set-missing.hd
 typing/invalid/index-set-string.hd
+typing/invalid/indirect-supertrait-cycle.hd
 typing/invalid/indirect-top-level-forward-read.hd
 typing/invalid/inferred-mutable-upgrade.hd
 typing/invalid/inferred-row-reaches-public-caller.hd
 typing/invalid/infinite-loop-break-missing-return.hd
 typing/invalid/infinite-loop-variable-condition.hd
+typing/invalid/init-read-through-generic-bound.hd
+typing/invalid/init-read-through-trait-value.hd
 typing/invalid/inspectable-child-trait-without-impl.hd
 typing/invalid/inspectable-needs-import.hd
 typing/invalid/integer-literal-match-without-catch-all.hd
@@ -2336,6 +2300,7 @@ typing/invalid/it-each-name-clash.hd
 typing/invalid/it-each-non-literal-name.hd
 typing/invalid/it-each-outside-test-position.hd
 typing/invalid/it-outside-test-code.hd
+typing/invalid/it-shadowed.hd
 typing/invalid/iterator-adapter-readonly.hd
 typing/invalid/iterator-any-callback-row.hd
 typing/invalid/iterator-chain-iterator-arg.hd
@@ -2474,11 +2439,15 @@ typing/invalid/non-entry-top-level-println.hd
 typing/invalid/non-literal-test-name.hd
 typing/invalid/nonexhaustive-bool-match.hd
 typing/invalid/nonexhaustive-match.hd
+typing/invalid/nonfinal-vararg-declaration.hd
+typing/invalid/nonfinal-vararg-then-parameter.hd
 typing/invalid/nonnumeric-unary-plus.hd
 typing/invalid/num-bound-newtype.hd
 typing/invalid/num-suffix-before-data.hd
 typing/invalid/num-trait-needs-import.hd
 typing/invalid/numeric-candidate-no-fit.hd
+typing/invalid/omitted-embedded-part.hd
+typing/invalid/omitted-member-without-default.hd
 typing/invalid/operator-newtype-no-inherit.hd
 typing/invalid/operator-power-user.hd
 typing/invalid/operator-rhs-default-mismatch.hd
@@ -2501,11 +2470,13 @@ typing/invalid/overlapping-impl-unifying-targets.hd
 typing/invalid/overlapping-option-impl.hd
 typing/invalid/overlapping-tuple-impl.hd
 typing/invalid/parameter-bare-trait.hd
+typing/invalid/parameter-default-order.hd
 typing/invalid/parameter-default-type-mismatch.hd
 typing/invalid/parent-declaration-not-in-child.hd
 typing/invalid/part-trait-method-beside-method-promoted-into-part.hd
 typing/invalid/part-trait-method-not-promoted.hd
 typing/invalid/partial-eq-removed.hd
+typing/invalid/partial-generic-arguments.hd
 typing/invalid/partial-ord-requires-eq.hd
 typing/invalid/payload-free-enum-equality.hd
 typing/invalid/pipe-brackets-after-bare-step.hd
@@ -2515,12 +2486,17 @@ typing/invalid/pipe-suspending-method-reference.hd
 typing/invalid/plain-break-in-value-loop.hd
 typing/invalid/positional-spread-duplicates-vararg.hd
 typing/invalid/positional-spread-without-vararg.hd
+typing/invalid/possibly-uninitialized-binding.hd
 typing/invalid/power-float-widths.hd
 typing/invalid/power-mixed-numeric-types.hd
+typing/invalid/prelude-shadow-console-parameter.hd
 typing/invalid/prelude-shadow-println-function.hd
 typing/invalid/prelude-shadow-renamed-use.hd
+typing/invalid/prelude-shadow-result-generic.hd
 typing/invalid/prelude-shadow-usize-alias.hd
 typing/invalid/prelude-shadow.hd
+typing/invalid/println-direct-forbidden-context-rule.hd
+typing/invalid/println-in-defer.hd
 typing/invalid/println-without-console.hd
 typing/invalid/private-embedded-field-nothing-visible.hd
 typing/invalid/private-field-nothing-visible.hd
@@ -2550,6 +2526,8 @@ typing/invalid/property-input-not-debug.hd
 typing/invalid/provider-spread-of-non-context.hd
 typing/invalid/provider-value-type-mismatch.hd
 typing/invalid/pub-use-private-declaration.hd
+typing/invalid/public-function-missing-result-type.hd
+typing/invalid/public-method-missing-result-type.hd
 typing/invalid/public-method-without-requirement-clause.hd
 typing/invalid/public-test-item.hd
 typing/invalid/qualified-string-prefix-call.hd
@@ -2606,6 +2584,7 @@ typing/invalid/requirement-key-binding-row-unknown-trait.hd
 typing/invalid/requirement-key-binding-subsumption.hd
 typing/invalid/requirement-key-binding-unknown-type.hd
 typing/invalid/requirement-key-duplicate-binding.hd
+typing/invalid/requirement-key-missing-generic-argument.hd
 typing/invalid/requirement-key-unbound.hd
 typing/invalid/requirement-key-unknown-argument-type.hd
 typing/invalid/requirement-key-unknown-binding-rule.hd
@@ -2637,7 +2616,9 @@ typing/invalid/row-extension-unsound.hd
 typing/invalid/row-extension-without-provider.hd
 typing/invalid/row-inference-conflict.hd
 typing/invalid/row-inference-unavailable-provider.hd
+typing/invalid/row-kind-mismatch.hd
 typing/invalid/row-parameter-in-context.hd
+typing/invalid/row-parameter-marked-on-data.hd
 typing/invalid/row-parameter-propagates-callback-requirement.hd
 typing/invalid/row-slot-bare-alias-argument.hd
 typing/invalid/row-slot-bare-context.hd
@@ -2653,6 +2634,7 @@ typing/invalid/serde-derive-member-not-deserialize.hd
 typing/invalid/serde-derive-member-not-serialize.hd
 typing/invalid/serde-map-key-not-string.hd
 typing/invalid/shared-enum-constructor-missing-argument.hd
+typing/invalid/shared-enum-default-order.hd
 typing/invalid/shared-enum-payload-field-access.hd
 typing/invalid/shared-enum-readonly-collection.hd
 typing/invalid/shared-enum-variant-without-constructor.hd
@@ -2679,6 +2661,7 @@ typing/invalid/spelled-function-type-not-inspectable.hd
 typing/invalid/spread-pattern-arity.hd
 typing/invalid/spread-pattern-fixed-tuple.hd
 typing/invalid/spread-pattern-required.hd
+typing/invalid/std-child-path-through-parent.hd
 typing/invalid/str-prefix-before-data.hd
 typing/invalid/strengthened-missing-bound.hd
 typing/invalid/string-index-assignment.hd
@@ -2697,6 +2680,7 @@ typing/invalid/structure-implementation.hd
 typing/invalid/supertrait-binding-conflict.hd
 typing/invalid/supertrait-binding-mismatch.hd
 typing/invalid/supertrait-binding-unknown.hd
+typing/invalid/supertrait-cycle.hd
 typing/invalid/supertrait-impl-bounds.hd
 typing/invalid/supertrait-widening-not-reversed.hd
 typing/invalid/suspension-constructor-to-bang-function.hd
@@ -2719,6 +2703,7 @@ typing/invalid/top-level-let-annotation-type-mismatch.hd
 typing/invalid/top-level-return.hd
 typing/invalid/trait-associated-reference-unsolved-self.hd
 typing/invalid/trait-generic-instantiations-unrelated.hd
+typing/invalid/trait-impl-method-missing-result-type.hd
 typing/invalid/trait-impl-missing-method.hd
 typing/invalid/trait-less-block-generic-argument.hd
 typing/invalid/trait-less-block-generic-bound.hd
@@ -2737,6 +2722,8 @@ typing/invalid/trait-qualified-supertrait-call.hd
 typing/invalid/trait-qualified-supertrait-reference.hd
 typing/invalid/trait-reference-unsolved-self.hd
 typing/invalid/trait-value-binding-mismatch.hd
+typing/invalid/trait-value-impl-target.hd
+typing/invalid/trait-value-self-default.hd
 typing/invalid/trait-value-unbound-associated-type.hd
 typing/invalid/trait-value-unrelated-bound.hd
 typing/invalid/trait-variance-marker.hd
@@ -2744,6 +2731,7 @@ typing/invalid/transitive-uninitialized-binding.hd
 typing/invalid/tuple-binding-non-tuple.hd
 typing/invalid/tuple-bound-non-tuple.hd
 typing/invalid/tuple-element-assignment.hd
+typing/invalid/tuple-inherent-impl.hd
 typing/invalid/tuple-no-inherent-member.hd
 typing/invalid/tuple-option-parameter-bare-trait.hd
 typing/invalid/tuple-rest-assign.hd
@@ -2759,6 +2747,9 @@ typing/invalid/tuple-vararg-no-auto-spread.hd
 typing/invalid/two-payload-variant-as-function-value.hd
 typing/invalid/type-argument-list-too-long.hd
 typing/invalid/type-default-impl-mismatch.hd
+typing/invalid/type-default-kind.hd
+typing/invalid/type-default-later-parameter.hd
+typing/invalid/type-default-order.hd
 typing/invalid/type-name-as-value.hd
 typing/invalid/typed-fact-not-field.hd
 typing/invalid/typeid-of-any.hd
@@ -2768,6 +2759,8 @@ typing/invalid/u32-to-usize-binding.hd
 typing/invalid/unary-minus-string.hd
 typing/invalid/unary-plus-i32-literal-range.hd
 typing/invalid/unavailable-trait-method-not-found.hd
+typing/invalid/unconstrained-impl-parameter-unused.hd
+typing/invalid/unconstrained-impl-parameter.hd
 typing/invalid/unit-pattern-non-void.hd
 typing/invalid/unit-test-missing-requirement.hd
 typing/invalid/unit-test-real-clock.hd
@@ -2801,6 +2794,7 @@ typing/invalid/variance-covariant-target-parameter.hd
 typing/invalid/variance-position.hd
 typing/invalid/variant-pattern-missing-payload.hd
 typing/invalid/variant-result-owner.hd
+typing/invalid/written-type-too-many-arguments.hd
 typing/valid/adapter-callback-captured-provider.hd
 typing/valid/all-tuple-result.hd
 typing/valid/ambiguous-requirement-key-annotated.hd
