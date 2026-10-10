@@ -83,7 +83,7 @@ pub enum StdKind {
 /// std's fixed ones. Every other key calls its own impls.
 #[must_use]
 pub fn inline_map_key(pool: &InternPool, t: Ty) -> bool {
-    matches!(pool.get(t), TyData::Prim(p) if !matches!(p, Prim::F32 | Prim::F64 | Prim::Void))
+    matches!(pool.get(t), TyData::Prim(p) if !matches!(p, Prim::F32 | Prim::F64))
 }
 
 /// What layouts need to know about declared types (enum shapes).
@@ -178,11 +178,6 @@ fn layout_in(
             Prim::String => Layout {
                 class: LayoutClass::Multi,
                 values: vec![ValType::Ref { nullable: false }, ValType::I64],
-                packed_bits: None,
-            },
-            Prim::Void => Layout {
-                class: LayoutClass::Void,
-                values: vec![],
                 packed_bits: None,
             },
         },

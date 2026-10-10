@@ -126,9 +126,7 @@ impl Ck<'_, '_> {
     /// (`fn.type.ctor.inputs-tuple`).
     fn inputs_tuple(&self, t: Ty) -> bool {
         match self.pool().get(t) {
-            TyData::Tuple { .. } | TyData::Poison | TyData::Infer(_) | TyData::Prim(Prim::Void) => {
-                true
-            }
+            TyData::Tuple { .. } | TyData::Poison | TyData::Infer(_) => true,
             TyData::Param(_) => {
                 let tuple = self.cx.names.known.tuple;
                 (0..self.env.clause_self.len())
@@ -203,6 +201,9 @@ impl Ck<'_, '_> {
             }
             if name == "never" {
                 return Ok(Ty::NEVER);
+            }
+            if name == "void" {
+                return Ok(Ty::VOID);
             }
             if let Some(p) = Prim::ALL.iter().find(|p| p.name() == name) {
                 return Ok(Ty::prim(*p));

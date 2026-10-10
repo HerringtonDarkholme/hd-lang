@@ -11,7 +11,7 @@ std/option/impl [ T ] T ?.map (Fn)
   %6 = NewVariant #0 [] : map#0?
   %7 = Block [%6] %6 : map#0?
   %8 = Unwrap %0 : impl [ T ] T ?#0
-  %9 = LocalSet $2 %8 : void
+  %9 = LocalSet $2 %8 : ()
   %10 = ToArm #0 : never
   %11 = Block [%8 %9 %10] - : never
   %12 = ToArm #1 : never

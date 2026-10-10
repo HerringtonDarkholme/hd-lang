@@ -651,8 +651,6 @@ impl Ck<'_, '_> {
                 }
                 Ok(Some(refs))
             }
-            // `void` is the empty tuple (`types.void`).
-            TyData::Prim(Prim::Void) => Ok(Some(Vec::new())),
             TyData::Infer(_) => unsupported("a call of a value whose inputs are not yet known"),
             _ => Ok(Some(vec![r])),
         }

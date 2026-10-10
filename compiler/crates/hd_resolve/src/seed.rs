@@ -66,6 +66,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 item(p.name(), vec![], ItemData::Alias(Ty::prim(p)));
             }
             item("never", vec![], ItemData::Alias(Ty::NEVER));
+            item("void", vec![], ItemData::Alias(Ty::VOID));
             item("List", gens(names, &["T"]), ItemData::Data(vec![]));
             item("Map", gens(names, &["K", "V"]), ItemData::Data(vec![]));
             let opt = names.item(module, "Option");

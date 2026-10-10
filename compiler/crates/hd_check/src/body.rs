@@ -1199,8 +1199,9 @@ impl Ck<'_, '_> {
                     && self.infer.shallow(self.pool(), t) == Ty::VOID
                     && !matches!(
                         self.pool().get(self.infer.shallow(self.pool(), w)),
-                        TyData::Infer(_) | TyData::Prim(hd_types::Prim::Void)
+                        TyData::Infer(_)
                     )
+                    && self.infer.shallow(self.pool(), w) != Ty::VOID
                 {
                     let msg = format!("this path ends without a {} value", self.show(w));
                     self.err(Code::MissingReturnValue, s, &msg);

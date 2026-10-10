@@ -147,7 +147,7 @@ fn made() -> void:
     assert!(!out.diags.has_errors(), "{}", out.render());
     let want = [
         ("app/main/reader", ": fn(Counter) -> i32"),
-        ("app/main/stepper", ": fn(mut Counter, i32) -> void"),
+        ("app/main/stepper", ": fn(mut Counter, i32) -> ()"),
         ("app/main/maker", ": fn() -> Counter"),
         ("app/main/factory", ": fn() -> Counter"),
         ("app/main/labels", ": fn(labels#0) -> string"),
@@ -176,7 +176,7 @@ fn bumper(counter: mut Counter) -> fn(i32) -> void:
     let out = analyze(&src, &["app/main/bumper"]);
     assert!(!out.diags.has_errors(), "{}", out.render());
     let closure = line_of(&out, "app/main/bumper", "Closure");
-    assert!(closure.ends_with(": fn(i32) -> void"), "{closure}");
+    assert!(closure.ends_with(": fn(i32) -> ()"), "{closure}");
     let call = line_of(&out, "app/main/bumper", "Call");
     assert!(call.contains("bump"), "{call}");
     let text = &out.tir_text["app/main/bumper"];

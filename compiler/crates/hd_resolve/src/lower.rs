@@ -1409,6 +1409,9 @@ impl Lower<'_, '_, '_> {
             if first == "never" {
                 return Ty::NEVER;
             }
+            if first == "void" {
+                return Ty::VOID;
+            }
             if let Some(p) = Prim::ALL.iter().find(|p| p.name() == first) {
                 return Ty::prim(*p);
             }
@@ -1438,7 +1441,7 @@ impl Lower<'_, '_, '_> {
     /// (`fn.type.ctor.inputs-tuple`).
     fn inputs_tuple(&self, t: Ty, gn: &Gen) -> bool {
         match self.names.pool.get(t) {
-            TyData::Tuple { .. } | TyData::Poison | TyData::Prim(Prim::Void) => true,
+            TyData::Tuple { .. } | TyData::Poison => true,
             TyData::Param(_) => {
                 gn.pending.contains(&t)
                     || gn.tys.iter().any(|(_, p, bounds)| {

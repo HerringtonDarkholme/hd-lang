@@ -163,7 +163,7 @@ impl BTy {
                     Prim::U64 => int(64, false),
                     Prim::Bool => int(1, false),
                     Prim::Char => int(21, false),
-                    Prim::String | Prim::Void => return unsupported(what()),
+                    Prim::String => return unsupported(what()),
                 },
                 _ => return unsupported(what()),
             },
@@ -254,7 +254,13 @@ impl BTy {
                 for e in pool.list_items(elems) {
                     es.push(Self::of_at(lay, *e, depth + 1)?);
                 }
-                BTy::Tuple { boxed, elems: es }
+                // `void` is the empty tuple (`types.void`): it crosses as
+                // no value.
+                if es.is_empty() {
+                    BTy::Void
+                } else {
+                    BTy::Tuple { boxed, elems: es }
+                }
             }
             _ => return unsupported(what()),
         })

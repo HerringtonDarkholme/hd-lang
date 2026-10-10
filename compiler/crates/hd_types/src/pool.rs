@@ -40,11 +40,10 @@ pub enum Prim {
     Bool,
     Char,
     String,
-    Void,
 }
 
 impl Prim {
-    pub const ALL: [Prim; 15] = [
+    pub const ALL: [Prim; 14] = [
         Prim::I8,
         Prim::I16,
         Prim::I32,
@@ -59,7 +58,6 @@ impl Prim {
         Prim::Bool,
         Prim::Char,
         Prim::String,
-        Prim::Void,
     ];
     #[must_use]
     pub const fn name(self) -> &'static str {
@@ -78,7 +76,6 @@ impl Prim {
             Prim::Bool => "bool",
             Prim::Char => "char",
             Prim::String => "string",
-            Prim::Void => "void",
         }
     }
     #[must_use]
@@ -491,6 +488,11 @@ impl Default for InternPool {
         p.intern_ty(&TyData::Poison);
         p.list(&[]);
         p.row(&RowData::default());
+        // `void` is the empty tuple (`types.void`).
+        p.intern_ty(&TyData::Tuple {
+            elems: TyList::EMPTY,
+            rest: None,
+        });
         p
     }
 }
@@ -645,17 +647,18 @@ impl Ty {
     pub const I32: Ty = Ty::prim(Prim::I32);
     pub const BOOL: Ty = Ty::prim(Prim::Bool);
     pub const STRING: Ty = Ty::prim(Prim::String);
-    pub const VOID: Ty = Ty::prim(Prim::Void);
-    pub const NEVER: Ty = Ty(15);
-    pub const POISON: Ty = Ty(16);
+    pub const NEVER: Ty = Ty(14);
+    pub const POISON: Ty = Ty(15);
+    /// `void`, the empty tuple type `()` (`types.void`).
+    pub const VOID: Ty = Ty(18);
 }
 
 impl TyList {
-    pub const EMPTY: TyList = TyList(17);
+    pub const EMPTY: TyList = TyList(16);
 }
 
 impl RowId {
-    pub const EMPTY: RowId = RowId(18);
+    pub const EMPTY: RowId = RowId(17);
 }
 
 impl InternPool {
@@ -880,12 +883,7 @@ impl<'a> Types<'a> {
             inputs: Inputs::Tuple,
         } = t
             && let [one] = self.list_items(*params)
-            && let Some((elems, rest)) = match self.get(*one) {
-                TyData::Tuple { elems, rest } => Some((elems, rest)),
-                // `void` is the empty tuple (`types.void`).
-                TyData::Prim(Prim::Void) => Some((TyList::EMPTY, None)),
-                _ => None,
-            }
+            && let TyData::Tuple { elems, rest } = self.get(*one)
         {
             let (params, inputs) = match rest {
                 None => (elems, Inputs::Fixed),
@@ -1335,6 +1333,13 @@ mod tests {
         assert_eq!(p.get(Ty::POISON), TyData::Poison);
         assert_eq!(p.list(&[]), TyList::EMPTY);
         assert_eq!(p.row(&RowData::default()), RowId::EMPTY);
+        assert_eq!(
+            p.intern_ty(&TyData::Tuple {
+                elems: TyList::EMPTY,
+                rest: None,
+            }),
+            Ty::VOID
+        );
     }
 
     /// Threads racing on the same content get one item, through the
@@ -1350,9 +1355,9 @@ mod tests {
                         (0..2000u32)
                             .map(|n| {
                                 let o = p.intern_ty(&TyData::Option(Ty::prim(
-                                    Prim::ALL[(n % 15) as usize],
+                                    Prim::ALL[(n % 14) as usize],
                                 )));
-                                p.list(&[o, Ty::prim(Prim::ALL[(n / 15 % 15) as usize])])
+                                p.list(&[o, Ty::prim(Prim::ALL[(n / 14 % 14) as usize])])
                             })
                             .collect()
                     })

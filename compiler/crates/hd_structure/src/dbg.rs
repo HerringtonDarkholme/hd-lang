@@ -266,7 +266,6 @@ impl Gen<'_, '_> {
         }
         let opaque = |g: &mut Self, text: &str| g.write(out, text);
         match pool.get(ty) {
-            TyData::Prim(Prim::Void) => opaque(self, "()"),
             TyData::Never => opaque(self, "never"),
             TyData::Fn { .. } | TyData::TraitValue { .. } => {
                 opaque(self, &format!("<{}>", pool.display(ty)));

@@ -4,16 +4,16 @@ std/iter/impl [ T ] Iterator [ T ].take (Fn)
   local $2 left: usize flags=27
   sub 1 root %13 captures [$2 Shared $0 Copy]
   %0 = LocalGet $1 : usize
-  %1 = LocalSet $2 %0 : void
+  %1 = LocalSet $2 %0 : ()
   %2 = LocalGet $2 : usize
   %3 = Prim #8 [%2 0:usize] : bool
   %4 = NewVariant #0 [] : impl [ T ] Iterator [ T ]#0?
   %5 = Return %4 : never
   %6 = Block [%4 %5] - : never
-  %7 = If %3 [%6 -] : void
+  %7 = If %3 [%6 -] : ()
   %8 = LocalGet $2 : usize
   %9 = Prim #1 [%8 1:usize] : usize
-  %10 = LocalSet $2 %9 : void
+  %10 = LocalSet $2 %9 : ()
   %11 = LocalGet $0 : mut Iterator[impl [ T ] Iterator [ T ]#0]
   %12 = Call std/iter/impl [ T ] Iterator [ T ].next[impl [ T ] Iterator [ T ]#0] (%11) : impl [ T ] Iterator [ T ]#0?
   %13 = Block [%2 %3 %6 %7 %8 %9 %10 %11 %12] %12 : impl [ T ] Iterator [ T ]#0?

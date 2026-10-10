@@ -178,7 +178,7 @@ fn num(pool: &InternPool, t: Ty) -> (u8, bool, bool) {
             Prim::U64 => (64, false, false),
             Prim::F32 => (32, true, true),
             Prim::F64 => (64, true, true),
-            _ => (32, true, false),
+            Prim::String => (32, true, false),
         },
         _ => (32, false, false),
     }
