@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2377 | 378 | 90 | 2845 |
+| 2385 | 370 | 90 | 2845 |
 
 ## By Chapter
 
@@ -21,10 +21,10 @@ fixture; unsupported surface records progress without failing.
 | `lang/05-expressions.md` | 244 | 32 | 1 | 277 |
 | `lang/06-control-flow.md` | 130 | 23 | 4 | 157 |
 | `lang/07-functions.md` | 106 | 21 | 3 | 130 |
-| `lang/08-data-and-enums.md` | 85 | 30 | 8 | 123 |
+| `lang/08-data-and-enums.md` | 86 | 29 | 8 | 123 |
 | `lang/09-traits.md` | 294 | 60 | 5 | 359 |
 | `lang/10-modules.md` | 208 | 39 | 11 | 258 |
-| `lang/11-requirements-and-suspension.md` | 183 | 45 | 31 | 259 |
+| `lang/11-requirements-and-suspension.md` | 190 | 38 | 31 | 259 |
 | `lang/14-annotations.md` | 104 | 42 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
@@ -64,8 +64,8 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 86 | 15 | 4 | 105 |
 | `runtime/valid` | 839 | 21 | 69 | 929 |
-| `typing/invalid` | 755 | 306 | 14 | 1075 |
-| `typing/valid` | 399 | 13 | 3 | 415 |
+| `typing/invalid` | 761 | 300 | 14 | 1075 |
+| `typing/valid` | 401 | 11 | 3 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -93,7 +93,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 10 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 196 |
+| `fail:no-diagnostic` | 190 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
@@ -116,7 +116,7 @@ compiler stage that first declined the case.
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 15 |
 | `fail:unknown-module` | 1 |
-| `fail:unknown-name` | 13 |
+| `fail:unknown-name` | 11 |
 | `fail:unknown-trait` | 7 |
 | `fail:unknown-type` | 3 |
 | `fail:unknown-variant` | 1 |
@@ -268,7 +268,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (196)</summary>
+<details><summary><code>fail:no-diagnostic</code> (190)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -291,7 +291,6 @@ compiler stage that first declined the case.
 - `typing/invalid/row-kind-mismatch.hd`
 - `typing/warnings/variant-binding-name-mismatch.hd`
 - `typing/invalid/private-requirement-row.hd`
-- `typing/invalid/generic-requirement-key-collision.hd`
 - `typing/invalid/supertrait-cycle.hd`
 - `typing/invalid/duplicate-inherent-member.hd`
 - `typing/invalid/suspension-forbidden-context.hd`
@@ -300,15 +299,12 @@ compiler stage that first declined the case.
 - `typing/invalid/init-read-through-trait-value.hd`
 - `typing/invalid/indirect-supertrait-cycle.hd`
 - `typing/invalid/nonfinal-vararg-declaration.hd`
-- `typing/invalid/generic-provider-key-collision-nested.hd`
-- `typing/invalid/generic-provider-key-collision-spread.hd`
 - `typing/invalid/nonfinal-vararg-then-parameter.hd`
 - `typing/invalid/prelude-shadow-console-parameter.hd`
 - `typing/invalid/prelude-shadow-result-generic.hd`
 - `typing/warnings/variant-binding-names-swapped.hd`
 - `typing/invalid/generic-supertrait-upcast-mismatch.hd`
 - `typing/invalid/enum-default-requires-provider.hd`
-- `typing/invalid/declared-generic-key-lexical-collision.hd`
 - `typing/invalid/public-function-missing-result-type.hd`
 - `typing/invalid/parameter-default-order.hd`
 - `typing/invalid/duplicate-literal-match-arm.hd`
@@ -379,13 +375,11 @@ compiler stage that first declined the case.
 - `typing/invalid/trait-value-unbound-associated-type.hd`
 - `typing/invalid/dyn-associated-function-bound.hd`
 - `typing/invalid/written-type-too-many-arguments.hd`
-- `typing/invalid/requirement-key-binding-collision.hd`
 - `typing/invalid/requirement-key-unbound.hd`
 - `typing/invalid/error-marker-outside.hd`
 - `typing/invalid/foreign-inherent-impl.hd`
 - `typing/invalid/tuple-inherent-impl.hd`
 - `typing/invalid/alias-inherent-impl.hd`
-- `typing/invalid/closure-row-key-collision.hd`
 - `typing/invalid/function-type-rest-not-list.hd`
 - `typing/invalid/vararg-type-not-collection.hd`
 - `typing/invalid/display-tuple-element-without-display.hd`
@@ -680,13 +674,11 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-name</code> (13)</summary>
+<details><summary><code>fail:unknown-name</code> (11)</summary>
 
 - `typing/valid/recursive-local-closure.hd`
 - `typing/invalid/recursive-closure-inferred-result.hd`
 - `typing/valid/numeric-types.hd`
-- `typing/valid/data-default-calls-function-value.hd`
-- `typing/valid/requirements-and-suspension.hd`
 - `typing/invalid/parameter-default-later-parameter.hd`
 - `runtime/valid/recursive-local-closure.hd`
 - `typing/invalid/positional-after-spread.hd`
@@ -2152,6 +2144,7 @@ typing/invalid/closure-argument-type-mismatch.hd
 typing/invalid/closure-escapes-provider-scope.hd
 typing/invalid/closure-inferred-row-missing-requirement.hd
 typing/invalid/closure-not-inspectable.hd
+typing/invalid/closure-row-key-collision.hd
 typing/invalid/collect-target-not-fromiterator.hd
 typing/invalid/compound-assign-data-no-operator.hd
 typing/invalid/compound-assign-index-no-read.hd
@@ -2205,6 +2198,7 @@ typing/invalid/data-pattern-unknown-field.hd
 typing/invalid/dbg-void-binding.hd
 typing/invalid/debug-missing-derive.hd
 typing/invalid/declaration-requirement-not-on-result.hd
+typing/invalid/declared-generic-key-lexical-collision.hd
 typing/invalid/decorator-target-kind.hd
 typing/invalid/decorator-target-member-line.hd
 typing/invalid/decorator-target-newtype.hd
@@ -2322,7 +2316,10 @@ typing/invalid/generic-function-value-argument-unsolved.hd
 typing/invalid/generic-function-value-without-arguments.hd
 typing/invalid/generic-inference-conflict.hd
 typing/invalid/generic-inference-numeric-widening.hd
+typing/invalid/generic-provider-key-collision-nested.hd
+typing/invalid/generic-provider-key-collision-spread.hd
 typing/invalid/generic-readonly-argument-to-mut-parameter.hd
+typing/invalid/generic-requirement-key-collision.hd
 typing/invalid/generic-trait-instantiation-no-fit.hd
 typing/invalid/generic-trait-instantiations-ambiguous.hd
 typing/invalid/generic-trait-literal-without-default.hd
@@ -2629,6 +2626,7 @@ typing/invalid/relative-above-package-root.hd
 typing/invalid/relative-path-into-std.hd
 typing/invalid/relative-shared-test-above-test-root.hd
 typing/invalid/requirement-key-argument-bare-trait.hd
+typing/invalid/requirement-key-binding-collision.hd
 typing/invalid/requirement-key-binding-missing.hd
 typing/invalid/requirement-key-binding-provider.hd
 typing/invalid/requirement-key-binding-row-unknown-trait.hd
@@ -2863,6 +2861,7 @@ typing/valid/covariant-callback-parameter.hd
 typing/valid/covariant-inferred-private-result.hd
 typing/valid/covariant-unrelated-requirement-row.hd
 typing/valid/data-decorator.hd
+typing/valid/data-default-calls-function-value.hd
 typing/valid/data-field-defaults.hd
 typing/valid/data-field-row-any-trait.hd
 typing/valid/data-pattern-colon-labels.hd
@@ -3107,6 +3106,7 @@ typing/valid/requirement-key-trait-value-argument.hd
 typing/valid/requirement-key-user-trait-named-inspectable.hd
 typing/valid/requirement-row-duplicate-keys.hd
 typing/valid/requirement-row-plus-list.hd
+typing/valid/requirements-and-suspension.hd
 typing/valid/resource-disposed-result.hd
 typing/valid/retention-metadata.hd
 typing/valid/row-alias-bare-context.hd
