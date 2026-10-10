@@ -3219,7 +3219,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 85 | 17 | 0 | 102 |
+| 87 | 15 | 0 | 102 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3239,7 +3239,9 @@ cli/clean-workspace
 cli/dbg-uses
 cli/dbg-value-forms
 cli/dbg-values
+cli/dep-dev-invalid-add
 cli/dep-dev-remove
+cli/dep-invalid-add
 cli/dep-invalid-manifest
 cli/dep-key-collision
 cli/dep-missing-sum

@@ -1031,6 +1031,8 @@ fn remove_deletes_a_requirement_line_by_line() {
                     "github.com/acme/json@2.1.0 {H}\ngithub.com/acme/json@2.1.0/hd.toml {H}\ngithub.com/acme/yaml@1.0.0 {H}\n"
                 ),
             ),
+            ("money/hd.toml", "[package]\nname = \"money\"\n"),
+            ("money/src/lib.hd", "pub fn one() -> i32:\n    1\n"),
             ("src/main.hd", HELLO),
         ],
     );
