@@ -2,7 +2,7 @@
 //! (`cli.dep.implicit-fetch`, `cli.dep.fetch`). A version the cache holds
 //! needs no git and no network (`cli.dep.offline`).
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 
 use hd_diag::Code;
@@ -18,9 +18,14 @@ use crate::version::{PseudoCommit, pseudo_base, pseudo_commit, tag_name, tag_ver
 pub struct Remote<'a> {
     cache: Cache,
     git: Git,
-    /// The tags of each repository URL listed so far, or why listing
-    /// failed.
-    tags: HashMap<String, Result<BTreeMap<String, String>, GitError>>,
+    /// The tags of each repository listed so far, or why listing failed.
+    tags: HashMap<String, Result<BTreeMap<String, String>, Unreachable>>,
+    /// The URL that answered for each repository, which its later git
+    /// commands use too.
+    answered: HashMap<String, String>,
+    /// The hosts that answered over SSH in this run, which are tried over
+    /// SSH first from then on.
+    ssh_hosts: HashSet<String>,
     /// Called with `HOST_PATH@VERSION` before each fetch.
     progress: &'a mut dyn FnMut(&str),
 }
@@ -28,23 +33,112 @@ pub struct Remote<'a> {
 /// The code and message of an error.
 pub type Failure = (Option<Code>, String);
 
+/// The host of a repository part, as `github.com` of `github.com/acme/tools`.
+fn host_of(repository: &str) -> &str {
+    repository.split('/').next().unwrap_or(repository)
+}
+
+/// The URLs tried for a repository, each with why git could not use it.
+#[derive(Clone, Debug)]
+struct Unreachable {
+    host: String,
+    tried: Vec<(String, GitError)>,
+}
+
+impl Unreachable {
+    fn new(repository: &str, tried: Vec<(String, GitError)>) -> Unreachable {
+        Unreachable {
+            host: host_of(repository).to_owned(),
+            tried,
+        }
+    }
+
+    /// The message of what `hd` could not do, as `fetch KEY`, naming each
+    /// URL with git's last line, and how to settle on one scheme
+    /// (`cli.dep.no-secret`).
+    fn message(&self, what: &str) -> String {
+        match self.tried.as_slice() {
+            [(url, e)] => format!(
+                "cannot {what} from {url}: {}; `hd` uses git and git's own credentials, so check that `git ls-remote {url}` works",
+                e.0
+            ),
+            tried => {
+                let host = &self.host;
+                let failures: Vec<String> = tried
+                    .iter()
+                    .map(|(url, e)| format!("{url} failed: {}", e.0))
+                    .collect();
+                format!(
+                    "cannot {what}: {}; to use SSH only, run `git config --global url.\"git@{host}:\".insteadOf \"https://{host}/\"`; to use HTTPS, configure a git credential helper",
+                    failures.join("; ")
+                )
+            }
+        }
+    }
+}
+
 impl<'a> Remote<'a> {
     pub fn new(cache: Cache, progress: &'a mut dyn FnMut(&str)) -> Remote<'a> {
         Remote {
             cache,
             git: Git::new(),
             tags: HashMap::new(),
+            answered: HashMap::new(),
+            ssh_hosts: HashSet::new(),
             progress,
         }
     }
 
-    /// The tags of the repository at `url`, listed once, with `repo` as
-    /// the repository git runs in.
-    fn tags_of(&mut self, url: &str, repo: &Path) -> Result<BTreeMap<String, String>, GitError> {
-        self.tags
-            .entry(url.to_owned())
-            .or_insert_with(|| self.git.list_tags(repo, url))
-            .clone()
+    /// Runs `run` with the URL of `repository`: `https://` first, then
+    /// `ssh://git@` when that fails for any reason, in the other order for
+    /// a host that answered over SSH earlier in this run. A repository
+    /// that answered keeps its URL (`cli.dep.repo-url`).
+    fn reach<T>(
+        &mut self,
+        repository: &str,
+        mut run: impl FnMut(&Git, &str) -> Result<T, GitError>,
+    ) -> Result<T, Unreachable> {
+        let host = host_of(repository);
+        let urls = if let Some(url) = self.answered.get(repository) {
+            vec![url.clone()]
+        } else {
+            let https = format!("https://{repository}");
+            let ssh = format!("ssh://git@{repository}");
+            if self.ssh_hosts.contains(host) {
+                vec![ssh, https]
+            } else {
+                vec![https, ssh]
+            }
+        };
+        let mut tried = Vec::new();
+        for url in urls {
+            match run(&self.git, &url) {
+                Ok(done) => {
+                    if url.starts_with("ssh://") {
+                        self.ssh_hosts.insert(host.to_owned());
+                    }
+                    self.answered.insert(repository.to_owned(), url);
+                    return Ok(done);
+                }
+                Err(e) => tried.push((url, e)),
+            }
+        }
+        Err(Unreachable::new(repository, tried))
+    }
+
+    /// The tags of `host`'s repository, listed once, with `repo` as the
+    /// repository git runs in.
+    fn tags_of(
+        &mut self,
+        host: &HostPath,
+        repo: &Path,
+    ) -> Result<BTreeMap<String, String>, Unreachable> {
+        if let Some(listed) = self.tags.get(&host.repository) {
+            return listed.clone();
+        }
+        let listed = self.reach(&host.repository, |git, url| git.list_tags(repo, url));
+        self.tags.insert(host.repository.clone(), listed.clone());
+        listed
     }
 
     /// Every version that a tag of the package's repository names for it,
@@ -52,52 +146,45 @@ impl<'a> Remote<'a> {
     /// `cli.dep.update.network`). The list is read from the network once
     /// per repository.
     pub fn versions(&mut self, host: &HostPath) -> Result<Vec<Version>, Failure> {
-        let url = format!("https://{}", host.repository);
-        let failed = |e: String| {
-            (
-                Some(Code::FetchFailed),
-                format!(
-                    "cannot list the tags of {} at {url}: {e}; `hd` reads them with git and git's own credentials, so check that `git ls-remote {url}` works",
-                    host.path
-                ),
-            )
-        };
-        let tags = if let Some(listed) = self.tags.get(&url) {
+        let what = format!("list the tags of {}", host.path);
+        let failed = |message: String| (Some(Code::FetchFailed), message);
+        let tags = if let Some(listed) = self.tags.get(&host.repository) {
             listed.clone()
         } else {
             let scratch = self.cache.scratch().map_err(|e| (None, e))?;
             let repo = scratch.path.join("repo.git");
-            self.git.init(&repo).map_err(|e| failed(e.0))?;
-            self.tags_of(&url, &repo)
+            self.git
+                .init(&repo)
+                .map_err(|e| failed(format!("cannot {what}: {}", e.0)))?;
+            self.tags_of(host, &repo)
         }
-        .map_err(|e| failed(e.0))?;
+        .map_err(|e| failed(e.message(&what)))?;
         Ok(tags.keys().filter_map(|t| tag_version(host, t)).collect())
     }
 
     /// Fetches a version into the cache.
     fn fetch(&mut self, host: &HostPath, version: &Version, key: &str) -> Result<Entry, Failure> {
-        // `cli.dep.repo-url`.
-        let url = format!("https://{}", host.repository);
-        let failed = |e: GitError| {
-            (
-                Some(Code::FetchFailed),
-                format!(
-                    "cannot fetch {key} from {url}: {}; `hd` fetches with git and git's own credentials, so check that `git ls-remote {url}` works",
-                    e.0
-                ),
-            )
-        };
+        let what = format!("fetch {key}");
+        let failed = |message: String| (Some(Code::FetchFailed), message);
         let scratch = self.cache.scratch().map_err(|e| (None, e))?;
         let repo = scratch.path.join("repo.git");
-        self.git.init(&repo).map_err(failed)?;
+        self.git
+            .init(&repo)
+            .map_err(|e| failed(format!("cannot {what}: {}", e.0)))?;
+        let local = |e: GitError| failed(format!("cannot {what}: {}", e.0));
+        // `cli.dep.repo-url`: the URL that answered the first git command
+        // on the repository serves the later ones.
         let rev = if let Some(commit) = pseudo_commit(version) {
             (self.progress)(key);
-            self.git.fetch_all(&repo, &url).map_err(failed)?;
+            self.reach(&host.repository, |git, url| git.fetch_all(&repo, url))
+                .map_err(|e| failed(e.message(&what)))?;
             self.pseudo_rev(&repo, host, version, &commit)
-                .map_err(|e| e.unwrap_or_else(&failed))?
+                .map_err(|e| e.unwrap_or_else(&local))?
         } else {
             let tag = tag_name(host, version);
-            let tags = self.tags_of(&url, &repo).map_err(failed)?;
+            let tags = self
+                .tags_of(host, &repo)
+                .map_err(|e| failed(e.message(&what)))?;
             // A missing tag is an error, with no fallback
             // (`module.version.tag-missing`, `module.version.no-fallback`).
             if !tags.contains_key(&tag) {
@@ -123,14 +210,15 @@ impl<'a> Remote<'a> {
                 ));
             }
             (self.progress)(key);
-            self.git.fetch_tag(&repo, &url, &tag).map_err(failed)?;
+            self.reach(&host.repository, |git, url| git.fetch_tag(&repo, url, &tag))
+                .map_err(|e| failed(e.message(&what)))?;
             "FETCH_HEAD".to_owned()
         };
         let tree = scratch.path.join("tree");
         let found = self
             .git
             .export_tree(&repo, &rev, &host.subdirectory, &tree)
-            .map_err(failed)?;
+            .map_err(local)?;
         if !found || !tree.join("hd.toml").is_file() {
             let at = match pseudo_commit(version) {
                 Some(c) => format!("the commit {}", c.hash),

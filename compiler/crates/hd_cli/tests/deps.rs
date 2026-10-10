@@ -30,15 +30,78 @@ impl World {
             root.join("remotes").display()
         );
         std::fs::write(root.join("gitconfig"), config).expect("write");
-        World { root }
+        let world = World { root };
+        world.install_ssh();
+        world
+    }
+
+    /// A fake `ssh` first on `PATH`, so no test reaches a real host, and
+    /// a test sees what `hd` asked ssh for. It logs its arguments to
+    /// `ssh.log`, then serves `example.com` from the test's remotes by
+    /// running the command it is given on the local path; any other host
+    /// does not answer.
+    fn install_ssh(&self) {
+        let bin = self.root.join("bin");
+        std::fs::create_dir_all(&bin).expect("mkdir");
+        let script = "#!/bin/sh\n\
+            here=$(dirname \"$0\")\n\
+            echo \"$*\" >> \"$here/../ssh.log\"\n\
+            while [ \"$1\" = -o ]; do shift 2; done\n\
+            case \"$1\" in\n\
+            git@example.com) ;;\n\
+            *) echo 'ssh: Could not resolve hostname' >&2; exit 255 ;;\n\
+            esac\n\
+            command=$(printf '%s' \"$2\" | sed \"s|'/|'$here/../remotes/|; s|^git-upload-pack|git upload-pack|\")\n\
+            exec sh -c \"$command\"\n";
+        write(&bin, &[("ssh", script)]);
+        // The user's own ssh command of a test, which logs and delegates.
+        let user = "#!/bin/sh\n\
+            here=$(dirname \"$0\")\n\
+            echo user-ssh >> \"$here/../ssh.log\"\n\
+            exec \"$here/ssh\" \"$@\"\n";
+        write(&bin, &[("user-ssh", user)]);
+        for name in ["ssh", "user-ssh"] {
+            let path = bin.join(name);
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+        }
+    }
+
+    /// The arguments of each call of the fake ssh, one string each, and
+    /// of the user's command, as `user-ssh`.
+    fn ssh_calls(&self) -> Vec<String> {
+        std::fs::read_to_string(self.root.join("ssh.log"))
+            .unwrap_or_default()
+            .lines()
+            .map(str::to_owned)
+            .collect()
+    }
+
+    /// Adds `text` to the test's global git configuration.
+    fn configure(&self, text: &str) {
+        let path = self.root.join("gitconfig");
+        let old = std::fs::read_to_string(&path).expect("read");
+        std::fs::write(path, format!("{old}{text}")).expect("write");
+    }
+
+    /// Maps the URL prefix `from` to the local path `to`, as git's
+    /// `insteadOf`.
+    fn map(&self, from: &str, to: &Path) {
+        self.configure(&format!(
+            "[url \"file://{}\"]\n\tinsteadOf = {from}\n",
+            to.display()
+        ));
     }
 
     /// A command with only the test's environment.
     fn command(&self, program: &str, cwd: &Path) -> Command {
+        let path = std::env::join_paths(std::iter::once(self.root.join("bin")).chain(
+            std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()),
+        ))
+        .expect("PATH");
         let mut c = Command::new(program);
         c.env_clear()
             .current_dir(cwd)
-            .env("PATH", std::env::var_os("PATH").unwrap_or_default())
+            .env("PATH", path)
             .env("HOME", self.root.join("home"))
             .env("HD_CACHE", self.cache())
             .env("GIT_CONFIG_GLOBAL", self.root.join("gitconfig"))
@@ -402,7 +465,14 @@ fn selection_takes_the_largest_minimum() {
         stderr.contains("fetch-failed: cannot fetch github.com/acme/private@1.0.0"),
         "{stderr}"
     );
-    assert!(stderr.contains("git's own credentials"), "{stderr}");
+    assert!(
+        stderr.contains("ssh://git@github.com/acme/private failed"),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("configure a git credential helper"),
+        "{stderr}"
+    );
 }
 
 /// At a workspace root, `hd fetch` selects for every member at once and
@@ -889,4 +959,131 @@ fn edits_belong_to_a_member() {
         let (_, stderr) = fails(&world.hd(&empty, args));
         assert!(stderr.contains("hd new"), "{args:?}: {stderr}");
     }
+}
+
+/// A directory no repository is in, which a host's HTTPS URLs map to in a
+/// test where HTTPS fails.
+fn no_remotes(world: &World) -> PathBuf {
+    world.root.join("no-such-remotes")
+}
+
+/// HTTPS answers: `hd` never starts ssh (`cli.dep.repo-url`).
+#[test]
+fn https_answers_without_ssh() {
+    let world = World::new("https-first");
+    world.remote("text", &[("v1.0.0", TEXT_V1)]);
+    let dir = app(
+        &world,
+        "app",
+        "text = \"github.com/acme/text@1.0.0\"\n",
+        APP_MAIN,
+    );
+    ok(&world.hd(&dir, &["fetch"]));
+    assert!(world.ssh_calls().is_empty(), "{:?}", world.ssh_calls());
+}
+
+/// HTTPS fails, and the SSH URL `ssh://git@HOST/REPO` answers; the
+/// `insteadOf` of the user's configuration applies to it as to the HTTPS
+/// one, so ssh itself never starts here.
+#[test]
+fn ssh_answers_when_https_fails() {
+    let world = World::new("ssh-fallback");
+    world.remote("text.git", &[("v1.0.0", TEXT_V1)]);
+    world.map("https://example.com/", &no_remotes(&world));
+    world.map("ssh://git@example.com/", &world.root.join("remotes/"));
+    let dir = app(
+        &world,
+        "app",
+        "text = \"example.com/acme/text.git@1.0.0\"\n",
+        APP_MAIN,
+    );
+    ok(&world.hd(&dir, &["fetch"]));
+    assert!(read(&dir, "hd.sum").contains("example.com/acme/text.git@1.0.0"));
+    assert!(world.ssh_calls().is_empty(), "{:?}", world.ssh_calls());
+}
+
+/// Once a host answers over SSH, its later repositories try SSH first:
+/// the HTTPS URL of `b.git` would answer, and is not used. ssh runs in
+/// batch mode with a connect timeout, and the ls-remote and the fetch of
+/// one repository use the same scheme.
+#[test]
+fn a_host_that_answered_over_ssh_is_tried_over_ssh_first() {
+    let world = World::new("ssh-memory");
+    world.remote("a.git", &[("v1.0.0", TEXT_V1)]);
+    world.remote("b.git", &[("v1.0.0", TEXT_V1)]);
+    world.map("https://example.com/acme/a.git", &no_remotes(&world));
+    world.map(
+        "https://example.com/acme/b.git",
+        &world.root.join("remotes/acme/b.git"),
+    );
+    let dir = app(
+        &world,
+        "app",
+        "first = \"example.com/acme/a.git@1.0.0\"\nsecond = \"example.com/acme/b.git@1.0.0\"\n",
+        APP_MAIN,
+    );
+    ok(&world.hd(&dir, &["fetch"]));
+    let calls = world.ssh_calls();
+    let of = |repo: &str| calls.iter().filter(|c| c.contains(repo)).count();
+    assert_eq!(of("acme/a.git"), 2, "{calls:?}");
+    assert_eq!(of("acme/b.git"), 2, "{calls:?}");
+    for call in &calls {
+        assert!(
+            call.starts_with("-o BatchMode=yes -o ConnectTimeout=10 "),
+            "{call}"
+        );
+    }
+}
+
+/// Both URLs fail: one `fetch-failed` names the version, both URLs and
+/// git's last line of each, and says how to settle on one scheme.
+#[test]
+fn both_urls_failing_is_one_error() {
+    let world = World::new("ssh-both-fail");
+    world.map("https://example.org/", &no_remotes(&world));
+    let dir = app(
+        &world,
+        "app",
+        "text = \"example.org/acme/gone.git@1.0.0\"\n",
+        APP_MAIN,
+    );
+    let (_, stderr) = fails(&world.hd(&dir, &["fetch"]));
+    for part in [
+        "fetch-failed: cannot fetch example.org/acme/gone.git@1.0.0: ",
+        "https://example.org/acme/gone.git failed: ",
+        "; ssh://git@example.org/acme/gone.git failed: ",
+        "; to use SSH only, run `git config --global url.\"git@example.org:\".insteadOf \"https://example.org/\"`; to use HTTPS, configure a git credential helper",
+    ] {
+        assert!(stderr.contains(part), "{part}: {stderr}");
+    }
+    assert_eq!(stderr.matches("fetch-failed").count(), 1, "{stderr}");
+}
+
+/// An ssh command the user set stays as it is.
+#[test]
+fn a_user_ssh_command_is_kept() {
+    let world = World::new("ssh-user-command");
+    world.remote("text.git", &[("v1.0.0", TEXT_V1)]);
+    world.map("https://example.com/", &no_remotes(&world));
+    let dir = app(
+        &world,
+        "app",
+        "text = \"example.com/acme/text.git@1.0.0\"\n",
+        APP_MAIN,
+    );
+    let out = world
+        .command(env!("CARGO_BIN_EXE_hd"), &dir)
+        .env("GIT_SSH_COMMAND", world.root.join("bin/user-ssh"))
+        .arg("fetch")
+        .output()
+        .expect("hd");
+    ok(&out);
+    let calls = world.ssh_calls();
+    assert!(calls.iter().any(|c| c == "user-ssh"), "{calls:?}");
+    assert!(
+        calls
+            .iter()
+            .all(|c| !c.contains("BatchMode") && !c.contains("ConnectTimeout")),
+        "{calls:?}"
+    );
 }

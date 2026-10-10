@@ -92,18 +92,16 @@ impl Git {
     }
 
     /// A git command: prompts off (`GIT_TERMINAL_PROMPT=0`, no credential
-    /// manager dialog), and ssh in batch mode unless the user set an ssh
-    /// command, so a passphrase or an unknown host fails instead of asking.
+    /// manager dialog), and ssh in batch mode with a connect timeout unless
+    /// the user set an ssh command, so a passphrase, an unknown host or an
+    /// unreachable one fails instead of asking or hanging.
     fn command(&self) -> Command {
-        let mut c = Command::new("git");
-        for v in REPOSITORY_VARIABLES {
-            c.env_remove(v);
-        }
+        let mut c = git_command();
         c.env("GIT_TERMINAL_PROMPT", "0")
             .env("GCM_INTERACTIVE", "never")
             .stdin(Stdio::null());
         if *self.batch_ssh.get_or_init(no_ssh_command) {
-            c.env("GIT_SSH_COMMAND", "ssh -o BatchMode=yes");
+            c.env("GIT_SSH_COMMAND", SSH_COMMAND);
         }
         c
     }
@@ -371,6 +369,21 @@ impl Git {
     }
 }
 
+/// The ssh command `hd` sets when the user set none: it never asks and
+/// gives up on a host that does not answer.
+const SSH_COMMAND: &str = "ssh -o BatchMode=yes -o ConnectTimeout=10";
+
+/// A `git` child, run without the repository variables and in the C
+/// locale, so its messages read the same on every machine.
+fn git_command() -> Command {
+    let mut c = Command::new("git");
+    for v in REPOSITORY_VARIABLES {
+        c.env_remove(v);
+    }
+    c.env("LC_ALL", "C");
+    c
+}
+
 /// Whether the user set an ssh command, which then stays as it is: the
 /// variables `GIT_SSH_COMMAND` or `GIT_SSH`, or git's `core.sshCommand`.
 fn no_ssh_command() -> bool {
@@ -380,11 +393,7 @@ fn no_ssh_command() -> bool {
     {
         return false;
     }
-    let mut c = Command::new("git");
-    for v in REPOSITORY_VARIABLES {
-        c.env_remove(v);
-    }
-    let configured = c
+    let configured = git_command()
         .args(["config", "--global", "--get", "core.sshCommand"])
         .stdin(Stdio::null())
         .stderr(Stdio::null())
