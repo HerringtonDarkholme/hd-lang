@@ -108,9 +108,23 @@ struct Node {
     edges: Vec<Edge>,
 }
 
-/// The manifest in `dir` when it declares a package.
-fn package_manifest(dir: &Path) -> Option<Manifest> {
-    let text = std::fs::read_to_string(dir.join("hd.toml")).ok()?;
+/// A manifest that a command is about to write: selection reads `text` as
+/// the `hd.toml` of the package in `dir`, so the command writes nothing
+/// before selection succeeds (`cli.dep.unchanged-on-error`).
+#[derive(Clone, Copy, Debug)]
+pub struct Edited<'a> {
+    pub dir: &'a Path,
+    pub text: &'a str,
+}
+
+/// The manifest in `dir` when it declares a package, from `edited` when
+/// that replaces it.
+fn package_manifest(dir: &Path, edited: Option<Edited<'_>>) -> Option<Manifest> {
+    let replaced = edited.filter(|e| std::fs::canonicalize(e.dir).ok().as_deref() == Some(dir));
+    let text = match replaced {
+        Some(e) => e.text.to_owned(),
+        None => std::fs::read_to_string(dir.join("hd.toml")).ok()?,
+    };
     parse_manifest(&text)
         .ok()
         .filter(|m| m.declares_package && !m.name.is_empty())
@@ -158,7 +172,7 @@ fn local_edges(dir: &Path, m: &Manifest, member: bool, toolchain: &str) -> Vec<E
         let target = match &r.path {
             Some(p) => std::fs::canonicalize(dir.join(p))
                 .ok()
-                .filter(|d| package_manifest(d).is_some())
+                .filter(|d| package_manifest(d, None).is_some())
                 .map(Target::Local),
             None => host_target(r),
         };
@@ -257,6 +271,18 @@ pub fn select(
     source: &mut dyn Source,
     toolchain: &str,
 ) -> Selection {
+    select_edited(members, None, sum, mode, source, toolchain)
+}
+
+/// `select`, with the manifest of one package read from `edited`.
+pub fn select_edited(
+    members: &[PathBuf],
+    edited: Option<Edited<'_>>,
+    sum: &Sum,
+    mode: Mode,
+    source: &mut dyn Source,
+    toolchain: &str,
+) -> Selection {
     let mut sel = Selection::default();
     let mut nodes: Vec<Node> = Vec::new();
     let mut local_index: HashMap<PathBuf, usize> = HashMap::new();
@@ -267,7 +293,7 @@ pub fn select(
         if local_index.contains_key(&dir) {
             continue;
         }
-        let Some(manifest) = package_manifest(&dir) else {
+        let Some(manifest) = package_manifest(&dir, edited) else {
             continue;
         };
         let edges = local_edges(&dir, &manifest, true, toolchain);
@@ -296,7 +322,7 @@ pub fn select(
             if local_index.contains_key(&dir) {
                 continue;
             }
-            let Some(manifest) = package_manifest(&dir) else {
+            let Some(manifest) = package_manifest(&dir, edited) else {
                 continue;
             };
             let edges = local_edges(&dir, &manifest, false, toolchain);
@@ -411,7 +437,7 @@ pub fn select(
                 continue;
             }
             sel.sums.insert(manifest_line, hash);
-            let Some(manifest) = package_manifest(&entry.dir) else {
+            let Some(manifest) = package_manifest(&entry.dir, None) else {
                 failed.insert(key.clone());
                 problem(
                     &mut sel,
@@ -585,7 +611,7 @@ mod tests {
     use hd_diag::Code;
     use hd_project::{HostPath, Version};
 
-    use super::{Mode, Selection, Source, select};
+    use super::{Edited, Mode, Selection, Source, select, select_edited};
     use crate::cache::Entry;
     use crate::sum::{Sum, manifest_hash, tree_hash, tree_key};
 
@@ -685,6 +711,34 @@ mod tests {
             .iter()
             .map(|p| (p.code, p.place.line))
             .collect()
+    }
+
+    #[test]
+    fn an_edited_manifest_is_selected_without_being_written() {
+        let dir = temp("edited");
+        let old = "[dependencies]\njson = \"github.com/acme/json@2.1.0\"\n";
+        let root = root_package(&dir, old);
+        let mut fake = Fake::new(&dir);
+        fake.version("github.com/acme/json@2.1.0", "json", "")
+            .version("github.com/acme/json@2.0.0", "json", "");
+        let text =
+            "[package]\nname = \"app\"\n\n[dependencies]\njson = \"github.com/acme/json@2.0.0\"\n";
+        let members = [root.clone()];
+        let edited = Edited { dir: &root, text };
+        let sel = select_edited(
+            &members,
+            Some(edited),
+            &Sum::default(),
+            Mode::Record,
+            &mut fake,
+            "9.9.9",
+        );
+        assert_eq!(codes(&sel), []);
+        assert_eq!(selected(&sel), ["github.com/acme/json@2.0.0"]);
+        assert_eq!(fake.asked, ["github.com/acme/json@2.0.0"]);
+        // The file on disk is the old one.
+        let on_disk = std::fs::read_to_string(root.join("hd.toml")).expect("read");
+        assert!(on_disk.contains("json@2.1.0"), "{on_disk}");
     }
 
     #[test]

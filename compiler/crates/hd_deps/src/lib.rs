@@ -7,6 +7,7 @@
 //! `hd_project`'s, which checks a manifest on its own.
 
 pub mod cache;
+mod change;
 mod fetch;
 pub mod git;
 mod select;
@@ -14,6 +15,7 @@ pub mod sum;
 pub mod version;
 
 pub use cache::{Cache, Entry};
-pub use fetch::Remote;
-pub use select::{Mode, Package, Place, Problem, Selection, Source, select};
+pub use change::{lowered, newest_release};
+pub use fetch::{Failure, Remote};
+pub use select::{Edited, Mode, Package, Place, Problem, Selection, Source, select, select_edited};
 pub use sum::{Sum, SumError};

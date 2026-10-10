@@ -25,7 +25,8 @@ pub struct Remote<'a> {
     progress: &'a mut dyn FnMut(&str),
 }
 
-type Failure = (Option<Code>, String);
+/// The code and message of an error.
+pub type Failure = (Option<Code>, String);
 
 impl<'a> Remote<'a> {
     pub fn new(cache: Cache, progress: &'a mut dyn FnMut(&str)) -> Remote<'a> {
@@ -35,6 +36,42 @@ impl<'a> Remote<'a> {
             tags: HashMap::new(),
             progress,
         }
+    }
+
+    /// The tags of the repository at `url`, listed once, with `repo` as
+    /// the repository git runs in.
+    fn tags_of(&mut self, url: &str, repo: &Path) -> Result<BTreeMap<String, String>, GitError> {
+        self.tags
+            .entry(url.to_owned())
+            .or_insert_with(|| self.git.list_tags(repo, url))
+            .clone()
+    }
+
+    /// Every version that a tag of the package's repository names for it,
+    /// in no order, from the repository's tag list (`cli.dep.update`,
+    /// `cli.dep.update.network`). The list is read from the network once
+    /// per repository.
+    pub fn versions(&mut self, host: &HostPath) -> Result<Vec<Version>, Failure> {
+        let url = format!("https://{}", host.repository);
+        let failed = |e: String| {
+            (
+                Some(Code::FetchFailed),
+                format!(
+                    "cannot list the tags of {} at {url}: {e}; `hd` reads them with git and git's own credentials, so check that `git ls-remote {url}` works",
+                    host.path
+                ),
+            )
+        };
+        let tags = if let Some(listed) = self.tags.get(&url) {
+            listed.clone()
+        } else {
+            let scratch = self.cache.scratch().map_err(|e| (None, e))?;
+            let repo = scratch.path.join("repo.git");
+            self.git.init(&repo).map_err(|e| failed(e.0))?;
+            self.tags_of(&url, &repo)
+        }
+        .map_err(|e| failed(e.0))?;
+        Ok(tags.keys().filter_map(|t| tag_version(host, t)).collect())
     }
 
     /// Fetches a version into the cache.
@@ -60,12 +97,7 @@ impl<'a> Remote<'a> {
                 .map_err(|e| e.unwrap_or_else(&failed))?
         } else {
             let tag = tag_name(host, version);
-            let tags = self
-                .tags
-                .entry(url.clone())
-                .or_insert_with(|| self.git.list_tags(&repo, &url))
-                .clone()
-                .map_err(failed)?;
+            let tags = self.tags_of(&url, &repo).map_err(failed)?;
             // A missing tag is an error, with no fallback
             // (`module.version.tag-missing`, `module.version.no-fallback`).
             if !tags.contains_key(&tag) {

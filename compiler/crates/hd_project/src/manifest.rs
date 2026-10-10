@@ -563,6 +563,27 @@ fn version_problem(text: &str) -> Option<String> {
     ))
 }
 
+/// Why `key` cannot be a dependency key, or `None` (`module.dep.key-name`):
+/// source writes it as `dep.NAME`, so `NAME` is one identifier, and a bare
+/// TOML key has only letters, digits, `_` and `-`.
+#[must_use]
+pub fn key_problem(key: &str) -> Option<String> {
+    let name = key.replace('-', "_");
+    let bare = !key.is_empty()
+        && key
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-');
+    let lexed = hd_syntax::lex(name.as_bytes());
+    let one_identifier = lexed.diagnostics.is_empty()
+        && lexed.tokens.kind.first() == Some(&hd_syntax::TokenKind::Ident)
+        && lexed.tokens.end.first().map(|&e| e as usize) == Some(name.len());
+    (!(bare && one_identifier)).then(|| {
+        format!(
+            "the dependency key `{key}` is not a name source can write as `dep.{name}`; use letters, digits, `_` and `-`, starting with a letter"
+        )
+    })
+}
+
 /// Why one requirement breaks `module.dep.requirement-form` or
 /// `module.path-dep.form`, or `None`.
 fn form_problem(r: &Requirement) -> Option<String> {
@@ -582,6 +603,22 @@ fn form_problem(r: &Requirement) -> Option<String> {
         ));
     };
     host_path(path).err().or_else(|| version_problem(version))
+}
+
+/// Why the key and the string `text` cannot be a dependency requirement
+/// `PATH@VERSION`, or `None` (`cli.dep.invalid`).
+#[must_use]
+pub fn requirement_problem(key: &str, text: &str) -> Option<String> {
+    key_problem(key).or_else(|| {
+        form_problem(&Requirement {
+            key: key.to_owned(),
+            path: None,
+            text: text.to_owned(),
+            table: false,
+            version: None,
+            line: 1,
+        })
+    })
 }
 
 /// What one package is to `module.dep.one-key-per-line`: a host path and
@@ -615,7 +652,7 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
         message,
     };
     for r in m.dependencies.iter().chain(&m.dev_dependencies) {
-        if let Some(why) = form_problem(r) {
+        if let Some(why) = key_problem(&r.key).or_else(|| form_problem(r)) {
             out.push(invalid(r.line, why));
             continue;
         }
@@ -713,7 +750,7 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Version, parse_manifest, problems};
+    use super::{Version, key_problem, parse_manifest, problems};
     use hd_diag::Code;
 
     #[test]
@@ -773,5 +810,25 @@ mod tests {
         );
         let lines: Vec<Option<u32>> = problems(&m, "0.1.0").into_iter().map(|p| p.line).collect();
         assert_eq!(lines, [Some(6), Some(7), Some(8)]);
+    }
+
+    #[test]
+    fn a_key_is_a_name_source_can_write() {
+        for ok in ["json", "my-app", "my_app", "_x", "json2"] {
+            assert_eq!(key_problem(ok), None, "{ok}");
+        }
+        for bad in [
+            "9json",
+            "",
+            "a b",
+            "fn",
+            "if",
+            "self",
+            "_",
+            "a.b",
+            "json\u{e9}",
+        ] {
+            assert!(key_problem(bad).is_some(), "{bad}");
+        }
     }
 }
