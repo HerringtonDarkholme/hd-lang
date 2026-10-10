@@ -83,6 +83,7 @@ impl BodyCx<'_> {
             lookup: self.lookup,
             sealed: self.names.known.sealed(),
             paths: self.names.paths,
+            syms: self.names.syms,
         }
     }
 

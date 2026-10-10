@@ -536,6 +536,28 @@ pub struct LookupDecls<'a> {
     pub lookup: &'a Lookup<'a>,
     pub sealed: SealedTraits,
     pub paths: &'a PathTable,
+    pub syms: &'a ShardedInterner,
+}
+
+/// Whether the trait `trait_` declares an associated function, a member
+/// with no `self` receiver, which cannot work through a `dyn` value
+/// (`trait.dyn.member.assoc-function`). `item` reads a declaration.
+#[must_use]
+pub fn declares_assoc_function<'i>(
+    syms: &ShardedInterner,
+    item: impl Fn(DefId) -> Option<&'i Item>,
+    trait_: DefId,
+) -> bool {
+    let Some(ItemData::Trait(t)) = item(trait_).map(|i| &i.data) else {
+        return false;
+    };
+    t.methods.iter().any(|(_, m)| {
+        matches!(
+            item(*m).map(|i| &i.data),
+            Some(ItemData::Method { sig, .. })
+                if sig.params.first().is_none_or(|p| syms.resolve(p.0) != "self")
+        )
+    })
 }
 
 impl Declarations for LookupDecls<'_> {
@@ -549,6 +571,9 @@ impl Declarations for LookupDecls<'_> {
     }
     fn supertraits(&self, trait_: DefId) -> &[Ty] {
         self.lookup.item(trait_).map_or(&[], Item::supertraits)
+    }
+    fn has_unavailable_member(&self, trait_: DefId) -> bool {
+        declares_assoc_function(self.syms, |d| self.lookup.item(d), trait_)
     }
     fn is_local(&self, def: DefId) -> bool {
         is_local_path(self.paths, def)

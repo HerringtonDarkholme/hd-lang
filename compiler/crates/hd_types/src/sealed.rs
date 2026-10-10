@@ -72,6 +72,10 @@ pub trait Declarations {
     /// A trait's direct supertraits, as trait value types over the trait's
     /// parameters (`Self` is parameter 0).
     fn supertraits(&self, trait_: DefId) -> &[Ty];
+    /// Whether the trait itself declares a member that cannot work through
+    /// a `dyn` value, so a `dyn` type does not satisfy a bound on it
+    /// (`trait.dyn.member.unavailable`, `trait.dyn.bound.available`).
+    fn has_unavailable_member(&self, trait_: DefId) -> bool;
     /// Whether a declaration is local to a block suite, which is never
     /// inspectable (`trait.inspectable.not.local`).
     fn is_local(&self, def: DefId) -> bool;

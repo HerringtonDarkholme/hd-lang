@@ -84,3 +84,29 @@ fn a_requirement_key_must_bind_every_associated_type() {
     let bound = format!("{store}fn count(id: string) -> i32 $ Store[Item = i32]:\n    0\n");
     assert_eq!(errors(&bound), vec![]);
 }
+
+// trait.dyn.bound.available
+
+const FACTORY: &str = "trait Factory:\n    type Item\n    fn count() -> i32\n\nfn total[F < Factory[Item = i32]]() -> i32:\n    F::count()\n\n";
+
+#[test]
+fn a_dyn_type_does_not_satisfy_a_bound_on_a_trait_with_an_associated_function() {
+    let src = format!(
+        "{FACTORY}fn with_function(factory: dyn Factory[Item = i32]) -> i32:\n    total::[dyn Factory[Item = i32]]()\n"
+    );
+    assert_eq!(errors(&src), vec![Code::UnsatisfiedTraitBound]);
+}
+
+#[test]
+fn a_dyn_type_does_not_satisfy_a_bound_on_a_supertrait_with_an_associated_function() {
+    let src = format!(
+        "{FACTORY}trait Named < Factory:\n    fn name(self) -> string\n\nfn with_named(source: dyn Named[Item = i32]) -> i32:\n    total::[dyn Named[Item = i32]]()\n"
+    );
+    assert_eq!(errors(&src), vec![Code::UnsatisfiedTraitBound]);
+}
+
+#[test]
+fn a_dyn_type_satisfies_a_bound_on_a_trait_of_methods() {
+    let src = "trait Sized:\n    type Item\n    fn size(self) -> i32\n\nfn measure[S < Sized[Item = i32]](value: S) -> i32:\n    value.size()\n\nfn with_value(value: dyn Sized[Item = i32]) -> i32:\n    measure(value)\n";
+    assert_eq!(errors(src), vec![]);
+}

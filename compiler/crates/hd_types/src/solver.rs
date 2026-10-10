@@ -2105,6 +2105,11 @@ fn trait_value_holds(
         if def == goal.trait_ {
             let m = match_list(pool, DefId::NONE, args, goal.args, &mut Vec::new());
             if m != M::No {
+                // The bound holds only when every member of its trait and
+                // supertraits works through the value (trait.dyn.bound.available).
+                if !all_members_available(pool, decls, goal.trait_) {
+                    return None;
+                }
                 return Some(learned_from(pool, args, goal.args));
             }
         }
@@ -2129,6 +2134,27 @@ fn trait_value_holds(
         }
     }
     None
+}
+
+/// Whether no member of `trait_` or of its supertraits is unavailable on a
+/// `dyn` value (trait.dyn.bound.available).
+fn all_members_available(pool: Types<'_>, decls: &dyn Declarations, trait_: DefId) -> bool {
+    let mut seen = vec![trait_];
+    let mut todo = vec![trait_];
+    while let Some(t) = todo.pop() {
+        if decls.has_unavailable_member(t) {
+            return false;
+        }
+        for s in decls.supertraits(t) {
+            if let TyData::TraitValue { def, .. } = pool.get(*s)
+                && !seen.contains(&def)
+            {
+                seen.push(def);
+                todo.push(def);
+            }
+        }
+    }
+    true
 }
 
 /// Whether `t` names an impl parameter of `owner` that `fixed` leaves open.
@@ -2634,6 +2660,9 @@ mod tests {
                 .iter()
                 .find(|(d, _)| *d == trait_)
                 .map_or(&[], |(_, s)| s.as_slice())
+        }
+        fn has_unavailable_member(&self, _: DefId) -> bool {
+            false
         }
         fn is_local(&self, _: DefId) -> bool {
             false

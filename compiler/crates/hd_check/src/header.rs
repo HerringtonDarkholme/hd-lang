@@ -421,6 +421,7 @@ impl<'a> ItemCheck<'_, 'a> {
             lookup: self.cx.lookup,
             sealed: self.cx.names.known.sealed(),
             paths: self.cx.names.paths,
+            syms: self.cx.names.syms,
         };
         let mut scx = SolveCx {
             pool,

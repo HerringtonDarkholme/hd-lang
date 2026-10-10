@@ -4229,6 +4229,9 @@ impl Declarations for Env<'_> {
     fn supertraits(&self, trait_: DefId) -> &[Ty] {
         self.p.items.get(&trait_).map_or(&[], Item::supertraits)
     }
+    fn has_unavailable_member(&self, trait_: DefId) -> bool {
+        hd_resolve::declares_assoc_function(self.run.names().syms, |d| self.p.items.get(&d), trait_)
+    }
     fn is_local(&self, def: DefId) -> bool {
         self.run.names().is_local(def)
     }
