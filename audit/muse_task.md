@@ -43,7 +43,62 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-(none — queue empty)
+### M8. Triage The Missing And Wrong Errors (Research)
+
+282 invalid conformance fixtures fail: 130 with no diagnostic and 152
+with a wrong code (`compiler/CONFORMANCE.md`, Failure Buckets; the gap
+audit `audit/compiler/gap-audit-2026-10-10.md`, Tier 4). Group them by
+root cause in the Rust compiler (read the checker, don't guess from the
+fixture name), one group per feature-sized fix, each with its fixtures,
+the crate and function where the check belongs, a size estimate, and
+whether it matters for soundness. Name groups the task list already has
+(#203-#214, #224, #232, #273-#275) so they can be merged into them.
+Output: `audit/compiler/missing-errors-triage.md`. No code changes.
+
+### M9. Design: The Test Runner On wasmtime (W4, #246, Design Text)
+
+W1 is on main: `compiler/crates/hd_run_wasmtime`, as built in
+`future-work/compiler/engines-and-test-runner.md` §18.7; your M3 host-port
+design is in the same doc. Design `hd test` on wasmtime: TestRunner and
+PropertyRunner providers, a `Linker` per host kind with `InstancePre`,
+the pooling allocator, per-test timeouts through epochs, panic frames
+(your M6 line table), and running the driver and CLI conformance runtime
+tiers in-process instead of one `node` process per case. Price each
+choice (startup per test, memory per instance, parallelism). Output: a
+new section of `engines-and-test-runner.md`. No code changes.
+
+### M10. Catalogue Diagnostics Without A Message (Research)
+
+The Rust compiler prints some diagnostics with the code as the whole
+message: `syntax-error: syntax-error`, `old-row-separator:
+old-row-separator`. Find every code path that emits a diagnostic with no
+message text (start in `compiler/crates/hd_syntax`), and for each, the
+message the TS prototype prints in the same situation (`src/`, run
+`pnpm run hd -- FILE` on a probe file; never `pnpm install`). Output a
+table in `audit/compiler/diagnostic-messages.md`: code, emitting
+function, situation, TS text, proposed Rust text. This feeds task #252.
+No code changes.
+
+### M11. Design: `hd doc` (#266, Design Text)
+
+`hd doc` and `hd doc NAME` have no implementation. Read the spec's
+Documentation section in `spec/cli/command-line.md` (pages, links, scope,
+looking up one item, output) and whatever the TS prototype has. Design
+the Rust implementation: which crate, what the checker must expose (doc
+comments, signatures, visibility), page and link generation, the
+`--private`, `--out` and `--open` flags, and the CLI cases it must pass.
+Output: `future-work/compiler/doc.md`. No code changes.
+
+### M12. Probe The Untested Rules Of Chapters 04-07 (Research)
+
+The gap audit found 1594 spec rules with no fixture and no citation in
+the compiler. For `spec/lang/04-type-system.md` through
+`07-functions.md`, write a small probe program for each such rule that
+describes observable behavior (skip pure definitions), run it on the
+Rust `hd` and the TS prototype, and list every rule where Rust rejects a
+valid program, accepts an invalid one, or prints different output. Keep
+probes in your worktree, uncommitted. Output: a "Probed rules" section
+appended to `audit/compiler/gap-audit-2026-10-10.md`. No code changes.
 
 ## Questions
 
