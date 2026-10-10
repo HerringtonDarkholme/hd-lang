@@ -1,7 +1,8 @@
 //! Declaration rules that compare several declarations: module names
 //! (`names.module.unique`, `names.tests.unique`), supertrait member names
 //! (`trait.super.no-redeclare`), inherent member names
-//! (`trait.inherent.unique-unifying`). They run once the
+//! (`trait.inherent.unique-unifying`) and embedded types
+//! (`data.embed.data-only`, `data.embed.depth`, `data.embed.depth.self`). They run once the
 //! folder's items are lowered, over every module of the folder; a type
 //! or trait from another folder is read from its frozen interface.
 
@@ -17,6 +18,9 @@ use super::{Head, ModIn, ModOut, Resolver, member_name};
 use crate::header::Universe;
 use crate::iface::{HeadKind, ImplKind, Item, ItemData, Names};
 use crate::view::Src;
+
+/// The embedding chain limit of `data.embed.depth`.
+const MAX_EMBED_DEPTH: usize = 3;
 
 /// The folder's modules with their heads and lowered items.
 struct Folder<'a, 't> {
@@ -55,6 +59,7 @@ pub(super) fn check(
     f.module_names(diags);
     f.supertrait_members(&item, diags);
     f.inherent_members(diags);
+    f.embedding(&item, diags);
 }
 
 impl Folder<'_, '_> {
@@ -204,6 +209,194 @@ impl Folder<'_, '_> {
                         "`{name}` is already an inherent member of a type this one unifies with"
                     );
                     diags.error(Code::DuplicateInherentMember, *span, &msg);
+                }
+            }
+        }
+    }
+
+    /// An embedded field names a data type, generic or not: not an enum, a
+    /// newtype, a trait value, a built-in or collection type, a function
+    /// type, or a type parameter (`data.embed.data-only`).
+    fn embedded_data_only<'i>(
+        &self,
+        item: &dyn Fn(DefId) -> Option<Cow<'i, Item>>,
+        diags: &mut DiagBuf,
+    ) {
+        let pool = self.names.pool;
+        let known = self.names.known;
+        let is_data = |ty| match pool.get(ty) {
+            TyData::Adt { def, .. } => {
+                def != known.list
+                    && def != known.map
+                    && item(def).is_none_or(|i| i.kind() == Some(HeadKind::Data))
+            }
+            _ => false,
+        };
+        for (m, heads) in self.mods.iter().zip(self.heads) {
+            for h in heads.iter().filter(|h| h.kind == HeadKind::Data) {
+                let Some(Item {
+                    data: ItemData::Data(fields),
+                    ..
+                }) = self.own.get(&h.def).copied()
+                else {
+                    continue;
+                };
+                let nodes = Src::child(h.node, SyntaxKind::Block)
+                    .into_iter()
+                    .flat_map(NodeRef::children)
+                    .filter(|c| c.kind() == SyntaxKind::EmbeddedField);
+                for (f, node) in fields.iter().filter(|f| f.embedded).zip(nodes) {
+                    if !pool.has_poison(f.ty) && !is_data(f.ty) {
+                        let msg = format!(
+                            "`{}` is not a data type, so it cannot be embedded",
+                            self.names.text(f.name)
+                        );
+                        diags.error(Code::EmbeddedNonData, m.src.span(node), &msg);
+                    }
+                }
+            }
+        }
+    }
+
+    /// A data type embeds no chain deeper than three levels, and never
+    /// itself: a cycle is reported on its first declared type, in place of
+    /// the depth error.
+    fn embedding<'i>(&self, item: &dyn Fn(DefId) -> Option<Cow<'i, Item>>, diags: &mut DiagBuf) {
+        let pool = self.names.pool;
+        // The data types embedded by `d`, by embedded field, in order.
+        let parts = |d: DefId| -> Vec<Option<DefId>> {
+            let Some(it) = item(d) else {
+                return Vec::new();
+            };
+            let ItemData::Data(fields) = &it.data else {
+                return Vec::new();
+            };
+            fields
+                .iter()
+                .filter(|f| f.embedded)
+                .map(|f| match pool.get(f.ty) {
+                    TyData::Adt { def, .. }
+                        if matches!(item(def).map(|i| i.kind()), Some(Some(HeadKind::Data))) =>
+                    {
+                        Some(def)
+                    }
+                    _ => None,
+                })
+                .collect()
+        };
+        let reaches = |from: DefId, to: DefId| -> Option<Vec<DefId>> {
+            // A path of embedded types from `from` to `to`, if any.
+            let mut seen = HashSet::new();
+            let mut stack = vec![vec![from]];
+            while let Some(path) = stack.pop() {
+                let last = path[path.len() - 1];
+                if last == to && path.len() > 1 {
+                    return Some(path);
+                }
+                if !seen.insert(last) {
+                    continue;
+                }
+                for p in parts(last).into_iter().rev().flatten() {
+                    let mut next = path.clone();
+                    next.push(p);
+                    stack.push(next);
+                }
+            }
+            None
+        };
+        self.embedded_data_only(item, diags);
+        // The declaration order of every data type of the folder.
+        let order: Vec<DefId> = self
+            .heads
+            .iter()
+            .flatten()
+            .filter(|h| h.kind == HeadKind::Data)
+            .map(|h| h.def)
+            .collect();
+        let rank = |d: DefId| order.iter().position(|o| *o == d).unwrap_or(usize::MAX);
+        let show = |path: &[DefId]| {
+            path.iter()
+                .map(|d| self.names.display_name(*d))
+                .collect::<Vec<_>>()
+                .join(" > ")
+        };
+        for (m, heads) in self.mods.iter().zip(self.heads) {
+            for h in heads.iter().filter(|h| h.kind == HeadKind::Data) {
+                let embedded = parts(h.def);
+                if embedded.is_empty() {
+                    continue;
+                }
+                let nodes: Vec<NodeRef<'_>> = Src::child(h.node, SyntaxKind::Block)
+                    .into_iter()
+                    .flat_map(NodeRef::children)
+                    .filter(|c| c.kind() == SyntaxKind::EmbeddedField)
+                    .collect();
+                // A cycle through `h`, reported by the first declared type
+                // of its members, on the field that begins it.
+                let cycle = embedded.iter().enumerate().find_map(|(i, p)| {
+                    let path = if *p == Some(h.def) {
+                        Some(vec![h.def, h.def])
+                    } else {
+                        p.and_then(|p| reaches(p, h.def)).map(|mut rest| {
+                            rest.insert(0, h.def);
+                            rest
+                        })
+                    };
+                    path.map(|p| (i, p))
+                });
+                if let Some((i, path)) = cycle {
+                    let first = path.iter().map(|d| rank(*d)).min().unwrap_or(usize::MAX);
+                    if first == rank(h.def)
+                        && let Some(node) = nodes.get(i)
+                    {
+                        let msg = format!(
+                            "`{}` embeds itself: {}",
+                            self.names.text(h.name),
+                            show(&path)
+                        );
+                        diags.error(Code::EmbeddingCycle, m.src.span(*node), &msg);
+                    }
+                    continue;
+                }
+                // The longest chain below `h`; a type on a cycle cuts it.
+                let deepest = |from: DefId| -> Vec<DefId> {
+                    fn go(
+                        d: DefId,
+                        parts: &dyn Fn(DefId) -> Vec<Option<DefId>>,
+                        path: &mut Vec<DefId>,
+                    ) -> Vec<DefId> {
+                        let mut best = vec![d];
+                        path.push(d);
+                        for p in parts(d).into_iter().flatten() {
+                            if path.contains(&p) {
+                                continue;
+                            }
+                            let mut chain = vec![d];
+                            chain.extend(go(p, parts, path));
+                            if chain.len() > best.len() {
+                                best = chain;
+                            }
+                        }
+                        path.pop();
+                        best
+                    }
+                    go(from, &parts, &mut Vec::new())
+                };
+                let too_deep = embedded.iter().enumerate().find_map(|(i, p)| {
+                    let mut via = vec![h.def];
+                    via.extend(deepest((*p)?));
+                    (via.len() > MAX_EMBED_DEPTH + 1).then_some((i, via))
+                });
+                if let Some((i, chain)) = too_deep
+                    && let Some(node) = nodes.get(i)
+                {
+                    let msg = format!(
+                        "`{}` reaches an embedded part at depth {}, past the limit of {MAX_EMBED_DEPTH}: {}",
+                        self.names.text(h.name),
+                        chain.len() - 1,
+                        show(&chain)
+                    );
+                    diags.error(Code::EmbeddingTooDeep, m.src.span(*node), &msg);
                 }
             }
         }

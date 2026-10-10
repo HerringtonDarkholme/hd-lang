@@ -2215,10 +2215,12 @@ impl Lower<'_, '_, '_> {
         })
     }
 
-    /// A data type's field names are unique (`data.field.unique`,
-    /// `data.embed.unique`).
+    /// The shape rules of a data type's fields: names are unique
+    /// (`data.field.unique`, `data.embed.unique`), and a type embeds at
+    /// most three fields (`data.embed.width`).
     fn data_fields(&mut self, holder: Option<NodeRef<'_>>, fields: &[Field]) {
         let mut first: HashMap<Symbol, usize> = HashMap::new();
+        let mut embedded = 0;
         for (i, (node, f)) in Self::field_nodes(holder).zip(fields).enumerate() {
             let span = self.src.span(node);
             let name = self.names.text(f.name).to_owned();
@@ -2232,6 +2234,14 @@ impl Lower<'_, '_, '_> {
                 self.diags.error(code, span, &msg);
             } else {
                 first.insert(f.name, i);
+            }
+            if f.embedded {
+                embedded += 1;
+                if embedded == 4 {
+                    let msg =
+                        format!("`{name}` is a fourth embedded field; a type embeds at most three");
+                    self.diags.error(Code::TooManyEmbeddedFields, span, &msg);
+                }
             }
         }
     }

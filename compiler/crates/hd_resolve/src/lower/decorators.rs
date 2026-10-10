@@ -393,36 +393,96 @@ impl Lower<'_, '_, '_> {
         );
     }
 
+    /// Whether a member line's right side is the omit form `pass`.
+    fn is_omit(&self, rhs: NodeRef<'_>) -> bool {
+        rhs.kind() == SyntaxKind::LiteralExpr
+            && self
+                .src
+                .tokens(rhs)
+                .any(|t| self.src.tkind(t) == Some(TokenKind::KwPass))
+    }
+
+    /// The form of a member line (`annot.line.right.error`,
+    /// `annot.line.right.not-list`, `annot.no-trait.no-omit`): `pass` omits
+    /// a member by `=` alone, and not in a block with no trait; `Self` and
+    /// a whole variant cannot be omitted; any other right side is a list.
+    /// A right side whose form can never have a list type is rejected here;
+    /// one that might (a name, a call) waits for the line's type.
+    fn check_line_form(&mut self, line: NodeRef<'_>, variant: bool, traitless: bool) {
+        let Some(rhs) = line.children().last() else {
+            return;
+        };
+        let toks = &self.src.parse.tokens;
+        let on_self = self
+            .src
+            .tokens(line)
+            .next()
+            .is_some_and(|t| self.src.tkind(t) == Some(TokenKind::KwSelfType));
+        let why = if self.is_omit(rhs) {
+            if line.direct_token(toks, TokenKind::PlusEq).is_some() {
+                "`+=` extends a list and cannot take `pass`"
+            } else if on_self {
+                "`Self` cannot be omitted"
+            } else if variant {
+                "a whole variant cannot be omitted"
+            } else if traitless {
+                "a block with no trait writes only metadata, so it cannot omit a member"
+            } else {
+                return;
+            }
+        } else if matches!(
+            rhs.kind(),
+            SyntaxKind::LiteralExpr
+                | SyntaxKind::StringExpr
+                | SyntaxKind::TupleExpr
+                | SyntaxKind::MapExpr
+                | SyntaxKind::DataExpr
+                | SyntaxKind::ClosureExpr
+                | SyntaxKind::ComparisonExpr
+                | SyntaxKind::LogicalAndExpr
+                | SyntaxKind::LogicalOrExpr
+        ) {
+            "the right side of a member line is a list"
+        } else {
+            return;
+        };
+        self.diags
+            .error(Code::InvalidMemberLine, self.src.span(line), why);
+    }
+
     /// The members of a derivation block's `Name = [values]` line.
     fn check_member_line(
         &mut self,
         line: NodeRef<'_>,
         target: Option<(DefId, HeadKind)>,
+        traitless: bool,
         items: &HashMap<DefId, &Item>,
     ) {
         let Some((def, hk)) = target else { return };
         let Some(first) = self.src.tokens(line).next() else {
             return;
         };
+        let is_variant = hk == HeadKind::Enum
+            && self.src.tkind(first) != Some(TokenKind::KwSelfType)
+            && items.get(&def).is_some_and(|i| match &i.data {
+                ItemData::Enum { variants, .. } => variants
+                    .iter()
+                    .any(|v| self.names.text(v.name) == self.src.text(first)),
+                _ => false,
+            });
+        self.check_line_form(line, is_variant, traitless);
+        // Fact targets are checked in a block with no trait.
+        if !traitless {
+            return;
+        }
         let k = if self.src.tkind(first) == Some(TokenKind::KwSelfType) {
             if hk == HeadKind::Enum {
                 kind::ENUM
             } else {
                 kind::DATA
             }
-        } else if hk == HeadKind::Enum {
-            let name = self.src.text(first);
-            let is_variant = items.get(&def).is_some_and(|i| match &i.data {
-                ItemData::Enum { variants, .. } => {
-                    variants.iter().any(|v| self.names.text(v.name) == name)
-                }
-                _ => false,
-            });
-            if is_variant {
-                kind::VARIANT
-            } else {
-                kind::FIELD
-            }
+        } else if is_variant {
+            kind::VARIANT
         } else {
             kind::FIELD
         };
@@ -556,19 +616,17 @@ impl Lower<'_, '_, '_> {
                     };
                     self.check_decorators(n, place, items);
                     let tys: Vec<_> = n.children().filter(|c| c.kind().is_type()).collect();
-                    let target = match tys.as_slice() {
-                        [t] => {
-                            let segs = self.segments(*t);
-                            match segs.as_slice() {
-                                [(name, _)] => self
-                                    .scope_item(name, items)
-                                    .and_then(|(d, i)| i.kind().map(|k| (d, k))),
-                                _ => None,
-                            }
+                    let target = tys.last().and_then(|t| {
+                        let segs = self.segments(*t);
+                        match segs.as_slice() {
+                            [(name, _)] => self
+                                .scope_item(name, items)
+                                .and_then(|(d, i)| i.kind().map(|k| (d, k))),
+                            _ => None,
                         }
-                        _ => None,
-                    };
+                    });
                     let by = n.direct_tokens().any(|t| self.src.text(t) == "by");
+                    let traitless = tys.len() == 1;
                     for m in Src::child(n, SyntaxKind::Block)
                         .into_iter()
                         .flat_map(NodeRef::children)
@@ -576,7 +634,7 @@ impl Lower<'_, '_, '_> {
                         match m.kind() {
                             SyntaxKind::FnDecl => self.check_fn(m, kind::METHOD, items),
                             SyntaxKind::Derivation if by => {
-                                self.check_member_line(m, target, items);
+                                self.check_member_line(m, target, traitless, items);
                             }
                             _ => {}
                         }

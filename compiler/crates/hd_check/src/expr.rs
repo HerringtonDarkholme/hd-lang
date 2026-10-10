@@ -1637,14 +1637,29 @@ impl Ck<'_, '_> {
             };
             // `E: ...e` stores the copy-update `T { ...e }`
             // (`data.part.construct`).
-            let copies = fields[i].embedded
-                && self
-                    .cx
-                    .src
-                    .tokens(*a)
-                    .nth(2)
-                    .and_then(|t| self.cx.src.tkind(t))
-                    == Some(TokenKind::Ellipsis);
+            let marker = self
+                .cx
+                .src
+                .tokens(*a)
+                .nth(2)
+                .and_then(|t| self.cx.src.tkind(t))
+                == Some(TokenKind::Ellipsis);
+            // `data.part.marker-required`: the marker fills an embedded
+            // field and no other.
+            if fields[i].embedded && !marker {
+                let msg = format!(
+                    "the embedded field `{}` is filled with `...`",
+                    self.cx.names.text(fname)
+                );
+                self.err(Code::EmbeddedCopyRequired, *a, &msg);
+            } else if marker && !fields[i].embedded {
+                let msg = format!(
+                    "`...` fills an embedded field, and `{}` is not one",
+                    self.cx.names.text(fname)
+                );
+                self.err(Code::CopyIntoOrdinaryField, *a, &msg);
+            }
+            let copies = fields[i].embedded && marker;
             let (r, t) = if copies {
                 let (cr, ct) = self.copy_value((r, t), *a);
                 if !self.has_mut_access(ct) {
