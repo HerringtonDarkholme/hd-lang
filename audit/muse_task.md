@@ -43,24 +43,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M2. wasmtime Feature Audit And Spike (Research + Bench)
-
-The owner committed to wasmtime (2026-10-10): the CLI must not need Node.
-Before the port starts:
-1. List every Wasm feature and proposal our emitter uses (read
-   `compiler/crates/hd_wasm/src/`: GC types, typed function references,
-   `br_on_cast`, tail calls, exceptions, `array.copy`, i31, multi-value,
-   anything else), with the code location of each.
-2. Pick the newest wasmtime release that supports all of them (check its
-   docs/release notes) and the `Config` flags each needs; note anything
-   unsupported and how our emitter would avoid it.
-3. Spike under `compiler/bench/wasmtime/` (a new directory; no
-   `compiler/crates/` edits): build the six programs in
-   `compiler/bench/runtime/progs/` and the samples with the current `hd`,
-   run them with the wasmtime CLI (GC flags on) where they have no host
-   imports, and time wasmtime vs Node (startup and steady state).
-Write `audit/compiler/wasmtime-audit-<date>.md`. Timebox 60 minutes.
-
 ### M3. Design: Porting The Node Host To Rust (Design Text)
 
 The host lives in `compiler/host/*.mjs` (core, float, http, net, test,
