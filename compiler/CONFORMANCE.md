@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2395 | 360 | 90 | 2845 |
+| 2397 | 360 | 88 | 2845 |
 
 ## By Chapter
 
@@ -17,7 +17,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
 | `lang/02-grammar.md` | 197 | 11 | 7 | 215 |
 | `lang/03-names-and-scopes.md` | 93 | 7 | 1 | 101 |
-| `lang/04-type-system.md` | 303 | 45 | 4 | 352 |
+| `lang/04-type-system.md` | 305 | 45 | 2 | 352 |
 | `lang/05-expressions.md` | 244 | 32 | 1 | 277 |
 | `lang/06-control-flow.md` | 130 | 23 | 4 | 157 |
 | `lang/07-functions.md` | 106 | 21 | 3 | 130 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 86 | 15 | 4 | 105 |
-| `runtime/valid` | 839 | 21 | 69 | 929 |
+| `runtime/valid` | 841 | 21 | 67 | 929 |
 | `typing/invalid` | 771 | 290 | 14 | 1075 |
 | `typing/valid` | 401 | 11 | 3 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -122,7 +122,7 @@ compiler stage that first declined the case.
 | `fail:unknown-variant` | 1 |
 | `fail:unused-local-binding` | 6 |
 | `unsupported:Body` | 35 |
-| `unsupported:Collect` | 22 |
+| `unsupported:Collect` | 20 |
 | `unsupported:Emit` | 2 |
 | `unsupported:Link` | 3 |
 | `unsupported:RunCase` | 28 |
@@ -757,9 +757,8 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Collect</code> (22)</summary>
+<details><summary><code>unsupported:Collect</code> (20)</summary>
 
-- `runtime/valid/reference-bounded-dynamic-method.hd`
 - `runtime/valid/derived-newtype.hd`
 - `runtime/valid/typed-derivation-walk.hd`
 - `runtime/valid/data-variant-facts-empty.hd`
@@ -777,7 +776,6 @@ compiler stage that first declined the case.
 - `runtime/valid/serde-variant-member-facts.hd`
 - `runtime/valid/json-typed-members.hd`
 - `runtime/valid/init-group-statements-by-identity.hd`
-- `runtime/valid/trait-value-generic-method-value-args.hd`
 - `runtime/panic/fact-evaluation-panics-on-read.hd`
 - `runtime/valid/derive-members-of-data-and-enums.hd`
 - `runtime/valid/type-declaration-forms.hd`
@@ -1805,6 +1803,7 @@ runtime/valid/raw-identifiers.hd
 runtime/valid/readonly-root-generic-mutable-path.hd
 runtime/valid/recursive-data-types.hd
 runtime/valid/recursive-private-functions-least-row.hd
+runtime/valid/reference-bounded-dynamic-method.hd
 runtime/valid/reference-cycles-are-ordinary-data.hd
 runtime/valid/reference-identity.hd
 runtime/valid/regex-anchors-groups.hd
@@ -1997,6 +1996,7 @@ runtime/valid/trait-qualified-associated-and-named-calls.hd
 runtime/valid/trait-qualified-calls.hd
 runtime/valid/trait-value-as-provider.hd
 runtime/valid/trait-value-binding-identity.hd
+runtime/valid/trait-value-generic-method-value-args.hd
 runtime/valid/trait-value-satisfies-instantiated-bound.hd
 runtime/valid/trim-unicode-white-space.hd
 runtime/valid/try-operand-expected-type.hd
