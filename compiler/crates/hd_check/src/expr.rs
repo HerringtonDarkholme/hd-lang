@@ -2667,8 +2667,19 @@ impl Ck<'_, '_> {
     /// bind (checking-and-tir.md §4.13.4, "Context values"). The keys are
     /// `None` when an entry's keys are unknown because it is already in
     /// error, so the caller reports nothing more about them.
-    fn provider_entries(&mut self, al: NodeRef<'_>) -> StageResult<(Vec<Ref>, Option<Vec<Ty>>)> {
+    fn provider_entries(
+        &mut self,
+        al: NodeRef<'_>,
+        lexical: bool,
+    ) -> StageResult<(Vec<Ref>, Option<Vec<Ty>>)> {
         let pool = self.pool();
+        // A `$.with` block also compares with the keys its scopes show
+        // (`req.with.collision.compared`).
+        let visible = if lexical {
+            self.visible_keys()
+        } else {
+            Vec::new()
+        };
         let mut pairs = Vec::new();
         let mut keys = Vec::new();
         let mut known = true;
@@ -2677,12 +2688,14 @@ impl Ck<'_, '_> {
             .filter(|c| c.kind() == SyntaxKind::ContextEntry)
         {
             let kids: Vec<NodeRef<'_>> = entry.children().collect();
+            let before = keys.len();
             let (kn, vn) = match kids.as_slice() {
                 [kn, vn] => (kn, vn),
                 [sn] if sn.kind() == SyntaxKind::SpreadExpr => {
                     if let Some(vn) = sn.children().next() {
                         known &= self.context_spread(vn, &mut pairs, &mut keys)?;
                     }
+                    self.check_key_collision(entry, &keys[before..], &keys[..before], &visible);
                     continue;
                 }
                 // The parser reported the malformed entry.
@@ -2714,6 +2727,7 @@ impl Ck<'_, '_> {
             let r = self.coerce(r, t, key, *vn, "provider");
             pairs.push(Ref(key.0));
             pairs.push(r);
+            self.check_key_collision(entry, &[key], &keys, &visible);
             keys.push(key);
         }
         Ok((pairs, known.then_some(keys)))
@@ -2766,7 +2780,7 @@ impl Ck<'_, '_> {
         let Some(al) = Src::child(n, SyntaxKind::ArgumentList) else {
             return unsupported("a `$.with` without providers");
         };
-        let (pairs, keys) = self.provider_entries(al)?;
+        let (pairs, keys) = self.provider_entries(al, true)?;
         let Some(body) = Src::child(n, SyntaxKind::Block) else {
             return unsupported("a `$.with` without a block");
         };
@@ -2797,7 +2811,7 @@ impl Ck<'_, '_> {
         let Some(al) = Src::child(n, SyntaxKind::ArgumentList) else {
             return unsupported("a `$.context` without providers");
         };
-        let (pairs, keys) = self.provider_entries(al)?;
+        let (pairs, keys) = self.provider_entries(al, false)?;
         // An entry in error leaves the context's row unknown.
         let t = match keys {
             Some(keys) => pool.intern_ty(&TyData::Context(pool.row(&hd_types::RowData {

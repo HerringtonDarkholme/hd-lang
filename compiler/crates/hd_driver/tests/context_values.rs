@@ -439,3 +439,73 @@ pub fn main() -> void $ Console:
     );
     assert_eq!(output_in(&store, "row-second", &second), "42\n");
 }
+
+const REPO: &str = "
+trait Repo[T]
+
+data User: pass
+data Post: pass
+";
+
+/// A spread's keys collide with a later entry whose key can become the
+/// same key (`req.with.collision.context`, `req.context.spread`).
+#[test]
+fn a_spread_key_collides_with_a_generic_entry() {
+    let collide = format!(
+        "{REPO}
+fn choose[T, U](first: dyn Repo[T], second: dyn Repo[U]) -> void:
+    base := $.context(Repo[T]=first)
+    _ := $.context(base..., Repo[U]=second)
+"
+    );
+    assert_eq!(codes(&collide), vec![Code::GenericRequirementKeyCollision]);
+    let with = format!(
+        "{REPO}
+fn choose[T, U](first: dyn Repo[T], second: dyn Repo[U]) -> void:
+    base := $.context(Repo[T]=first)
+    $.with(base..., Repo[U]=second):
+        pass
+"
+    );
+    assert_eq!(codes(&with), vec![Code::GenericRequirementKeyCollision]);
+}
+
+/// A `$.with` spread collides with a key of the enclosing block, and a
+/// repeated key of one expression stays the ordinary override
+/// (`req.with.collision.compared`, `req.with.collision.exact`).
+#[test]
+fn a_spread_key_collides_with_an_enclosing_block() {
+    let nested = format!(
+        "{REPO}
+fn choose[T, U](first: dyn Repo[T], second: dyn Repo[U]) -> void:
+    $.with(Repo[T]=first):
+        ctx := $.context(Repo[U]=second)
+        $.with(ctx...):
+            pass
+"
+    );
+    assert_eq!(codes(&nested), vec![Code::GenericRequirementKeyCollision]);
+    let exact = format!(
+        "{REPO}
+fn choose[T](first: dyn Repo[T], second: dyn Repo[T]) -> void:
+    base := $.context(Repo[T]=first)
+    $.with(base..., Repo[T]=second):
+        pass
+"
+    );
+    assert_eq!(codes(&exact), vec![]);
+}
+
+/// Distinct concrete keys stay valid (`req.with.collision.concrete`).
+#[test]
+fn concrete_spread_keys_do_not_collide() {
+    let ok = format!(
+        "{REPO}
+fn choose(users: dyn Repo[User], posts: dyn Repo[Post]) -> void:
+    base := $.context(Repo[User]=users)
+    $.with(base..., Repo[Post]=posts):
+        pass
+"
+    );
+    assert_eq!(codes(&ok), vec![]);
+}

@@ -9,6 +9,7 @@ mod access;
 pub mod body;
 mod call;
 mod callable;
+mod collide;
 pub mod conflicts;
 mod conform;
 mod dbg;
