@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2314 | 400 | 131 | 2845 |
+| 2321 | 399 | 125 | 2845 |
 
 ## By Chapter
 
@@ -18,9 +18,9 @@ fixture; unsupported surface records progress without failing.
 | `lang/02-grammar.md` | 196 | 11 | 8 | 215 |
 | `lang/03-names-and-scopes.md` | 92 | 8 | 1 | 101 |
 | `lang/04-type-system.md` | 300 | 47 | 5 | 352 |
-| `lang/05-expressions.md` | 242 | 33 | 2 | 277 |
+| `lang/05-expressions.md` | 243 | 33 | 1 | 277 |
 | `lang/06-control-flow.md` | 130 | 23 | 4 | 157 |
-| `lang/07-functions.md` | 99 | 23 | 8 | 130 |
+| `lang/07-functions.md` | 105 | 22 | 3 | 130 |
 | `lang/08-data-and-enums.md` | 85 | 30 | 8 | 123 |
 | `lang/09-traits.md` | 272 | 72 | 15 | 359 |
 | `lang/10-modules.md` | 208 | 39 | 11 | 258 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 86 | 15 | 4 | 105 |
-| `runtime/valid` | 803 | 23 | 103 | 929 |
-| `typing/invalid` | 733 | 326 | 16 | 1075 |
-| `typing/valid` | 394 | 13 | 8 | 415 |
+| `runtime/valid` | 807 | 23 | 99 | 929 |
+| `typing/invalid` | 736 | 324 | 15 | 1075 |
+| `typing/valid` | 394 | 14 | 7 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -94,7 +94,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 1 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 209 |
+| `fail:no-diagnostic` | 207 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
@@ -121,9 +121,9 @@ compiler stage that first declined the case.
 | `fail:unknown-trait` | 7 |
 | `fail:unknown-type` | 4 |
 | `fail:unknown-variant` | 1 |
-| `fail:unsatisfied-trait-bound` | 2 |
+| `fail:unsatisfied-trait-bound` | 3 |
 | `fail:unused-local-binding` | 6 |
-| `unsupported:Body` | 50 |
+| `unsupported:Body` | 44 |
 | `unsupported:Collect` | 30 |
 | `unsupported:Emit` | 19 |
 | `unsupported:Link` | 4 |
@@ -275,7 +275,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (209)</summary>
+<details><summary><code>fail:no-diagnostic</code> (207)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -342,7 +342,6 @@ compiler stage that first declined the case.
 - `typing/invalid/embedded-type-parameter.hd`
 - `typing/invalid/inherent-member-unifying-targets.hd`
 - `typing/invalid/trait-resolution-depth.hd`
-- `typing/invalid/function-type-non-tuple-inputs.hd`
 - `typing/invalid/entry-result-not-termination.hd`
 - `typing/invalid/structure-outside-template.hd`
 - `typing/invalid/marker-template.hd`
@@ -405,7 +404,6 @@ compiler stage that first declined the case.
 - `typing/invalid/closure-row-key-collision.hd`
 - `typing/invalid/function-type-rest-not-list.hd`
 - `typing/invalid/vararg-type-not-collection.hd`
-- `typing/invalid/function-type-unbounded-inputs.hd`
 - `typing/invalid/display-tuple-element-without-display.hd`
 - `typing/invalid/default-tuple-element-without-default.hd`
 - `typing/invalid/typed-fact-mismatch.hd`
@@ -751,9 +749,10 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unsatisfied-trait-bound</code> (2)</summary>
+<details><summary><code>fail:unsatisfied-trait-bound</code> (3)</summary>
 
 - `typing/invalid/provider-value-type-mismatch.hd`
+- `typing/valid/tuple-trait-bound.hd`
 - `runtime/valid/fs-helpers.hd`
 
 </details>
@@ -769,7 +768,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (50)</summary>
+<details><summary><code>unsupported:Body</code> (44)</summary>
 
 - `typing/valid/enums.hd`
 - `typing/valid/requirements-and-suspension.hd`
@@ -796,14 +795,8 @@ compiler stage that first declined the case.
 - `typing/valid/type-default-trait-method.hd`
 - `typing/valid/newtype-unwrap-permission.hd`
 - `typing/invalid/newtype-unwrap-readonly.hd`
-- `typing/invalid/tuple-vararg-no-auto-spread.hd`
-- `typing/valid/tuple-trait-bound.hd`
-- `runtime/valid/tuple-bound-vararg-call.hd`
-- `runtime/valid/tuple-spread-fixed.hd`
 - `typing/invalid/race-no-tasks.hd`
 - `typing/invalid/all-explicit-type-arguments.hd`
-- `runtime/valid/call-rest-inference.hd`
-- `runtime/valid/tuple-vararg-spread-tail.hd`
 - `typing/invalid/race-empty-list-literal.hd`
 - `runtime/valid/module-qualified-variant.hd`
 - `runtime/valid/module-qualified-associated-call.hd`
@@ -1353,6 +1346,7 @@ runtime/valid/buffer-console-error-lines.hd
 runtime/valid/buffer-console.hd
 runtime/valid/buffered-println-program-console.hd
 runtime/valid/call-and-closure-forms.hd
+runtime/valid/call-rest-inference.hd
 runtime/valid/callable-values-run.hd
 runtime/valid/callee-and-operand-evaluation-order.hd
 runtime/valid/candidate-closure-selection-reversed.hd
@@ -2060,6 +2054,7 @@ runtime/valid/trait-qualified-associated-and-named-calls.hd
 runtime/valid/trait-qualified-calls.hd
 runtime/valid/trim-unicode-white-space.hd
 runtime/valid/try-operand-expected-type.hd
+runtime/valid/tuple-bound-vararg-call.hd
 runtime/valid/tuple-derived-order.hd
 runtime/valid/tuple-element-permission.hd
 runtime/valid/tuple-ordering-nan-unordered.hd
@@ -2069,11 +2064,13 @@ runtime/valid/tuple-rest-literal.hd
 runtime/valid/tuple-rest-map-key.hd
 runtime/valid/tuple-rest-spread-list.hd
 runtime/valid/tuple-spread-candidate.hd
+runtime/valid/tuple-spread-fixed.hd
 runtime/valid/tuple-spread-rest.hd
 runtime/valid/tuple-thirteen-elements.hd
 runtime/valid/tuple-vararg-function-value.hd
 runtime/valid/tuple-vararg-infer.hd
 runtime/valid/tuple-vararg-rest.hd
+runtime/valid/tuple-vararg-spread-tail.hd
 runtime/valid/tuple-vararg.hd
 runtime/valid/type-arguments-in-expressions.hd
 runtime/valid/type-expression-forms.hd
@@ -2336,9 +2333,11 @@ typing/invalid/function-anyref-bound.hd
 typing/invalid/function-equality.hd
 typing/invalid/function-identity-against-any.hd
 typing/invalid/function-result-type-mismatch.hd
+typing/invalid/function-type-non-tuple-inputs.hd
 typing/invalid/function-type-orphan-impl.hd
 typing/invalid/function-type-overlapping-impl.hd
 typing/invalid/function-type-row-unknown-trait-nested.hd
+typing/invalid/function-type-unbounded-inputs.hd
 typing/invalid/function-value-no-default-arguments.hd
 typing/invalid/generic-bound-unsatisfied.hd
 typing/invalid/generic-call-built-nested-mut-not-weakened.hd
@@ -2797,6 +2796,7 @@ typing/invalid/tuple-spread-rest-into-plain.hd
 typing/invalid/tuple-spread-tuple-operand.hd
 typing/invalid/tuple-trait-user-impl.hd
 typing/invalid/tuple-vararg-arity.hd
+typing/invalid/tuple-vararg-no-auto-spread.hd
 typing/invalid/two-payload-variant-as-function-value.hd
 typing/invalid/type-argument-list-too-long.hd
 typing/invalid/type-default-impl-mismatch.hd
