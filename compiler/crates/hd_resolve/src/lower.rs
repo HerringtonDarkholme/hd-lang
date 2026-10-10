@@ -1780,7 +1780,9 @@ impl Lower<'_, '_, '_> {
             out.push((generic, *g, row));
         }
         let mut done = Vec::new();
-        for (mut g, node, row) in out {
+        let mut defaulted = false;
+        for (position, (mut g, node, row)) in out.into_iter().enumerate() {
+            self.generic_default_rules(&params, position, row, &mut defaulted);
             let mut bounds = Vec::new();
             if let Some(bl) = Src::child(node, SyntaxKind::BoundList) {
                 g.mut_bound = bl
@@ -1835,6 +1837,97 @@ impl Lower<'_, '_, '_> {
         done
     }
 
+    /// `types.generic.default.order`, `.later`, `.kind`: the
+    /// parameter at `position` of a generic list follows a defaulted one
+    /// only with a default of its own, and a default names neither its own
+    /// parameter nor a later one. `defaulted`: an earlier parameter had one.
+    fn generic_default_rules(
+        &mut self,
+        params: &[NodeRef<'_>],
+        position: usize,
+        row: bool,
+        defaulted: &mut bool,
+    ) {
+        let node = params[position];
+        let Some(default) = Src::child(node, SyntaxKind::TypeDefault) else {
+            if *defaulted {
+                let msg = format!(
+                    "`{}` follows a parameter with a default, so it needs one too",
+                    self.src.text(
+                        node.name(&self.src.parse.tokens)
+                            .unwrap_or(self.src.first(node))
+                    )
+                );
+                self.diags
+                    .error(Code::DefaultOrder, self.src.span(node), &msg);
+            }
+            return;
+        };
+        *defaulted = true;
+        let toks = &self.src.parse.tokens;
+        // `types.generic.default.kind`: a row after `$` for a row parameter,
+        // a type for a type parameter.
+        let row_default = default.children().any(|c| {
+            c.kind() == SyntaxKind::RequirementRow
+                && c.direct_token(toks, TokenKind::Dollar).is_some()
+        });
+        if row_default != row {
+            let (has, wants) = if row {
+                ("a type", "row")
+            } else {
+                ("a row", "type")
+            };
+            let msg = format!("the default is {has}, but its parameter is a {wants} parameter");
+            self.diags
+                .error(Code::GenericKindMismatch, self.src.span(default), &msg);
+        }
+        let later: Vec<&str> = params[position..]
+            .iter()
+            .filter_map(|p| p.name(toks))
+            .map(|t| self.src.text(t))
+            .collect();
+        for c in default
+            .descendants()
+            .filter(|c| c.kind() == SyntaxKind::NamedType)
+        {
+            let segs = self.segments(c);
+            if let [(first, _)] = segs.as_slice()
+                && later.contains(&first.as_str())
+            {
+                let msg =
+                    format!("a default cannot name `{first}`, its own parameter or a later one");
+                self.diags
+                    .error(Code::BindingNotYetVisible, self.src.span(c), &msg);
+            }
+        }
+    }
+
+    /// `fn.default.order-final-function`, `data.shared.default.order`:
+    /// after the first parameter with a default, every following
+    /// parameter has one. A variadic parameter never needs one; a final
+    /// parameter of function type does not either, when `final_fn`.
+    fn parameter_default_order(&mut self, params: &[NodeRef<'_>], final_fn: bool) {
+        let toks = &self.src.parse.tokens;
+        let mut defaulted = false;
+        for (i, p) in params.iter().enumerate() {
+            if Src::child(*p, SyntaxKind::DefaultValue).is_some() {
+                defaulted = true;
+                continue;
+            }
+            let exempt = p.direct_token(toks, TokenKind::Ellipsis).is_some()
+                || (final_fn
+                    && i + 1 == params.len()
+                    && Src::type_child(*p).is_some_and(|t| t.kind() == SyntaxKind::FunctionType));
+            if defaulted && !exempt {
+                let name = p.name(toks).map_or("a parameter", |t| self.src.text(t));
+                let msg =
+                    format!("`{name}` follows a parameter with a default, so it needs one too");
+                self.diags
+                    .error(Code::DefaultOrder, self.src.span(*p), &msg);
+            }
+        }
+    }
+
     /// A function header: generics, parameters, result, row, `!`.
     fn sig(&mut self, f: NodeRef<'_>, owner: DefId, gn: &Gen) -> FnSig {
         let mut gn = gn.clone();
@@ -1848,11 +1941,12 @@ impl Lower<'_, '_, '_> {
         let mut defaults = Vec::new();
         let mut variadic = false;
         if let Some(pl) = Src::child(f, SyntaxKind::ParameterList) {
-            for (i, p) in pl
+            let nodes: Vec<NodeRef<'_>> = pl
                 .children()
                 .filter(|c| c.kind() == SyntaxKind::Parameter)
-                .enumerate()
-            {
+                .collect();
+            self.parameter_default_order(&nodes, true);
+            for (i, p) in nodes.into_iter().enumerate() {
                 let toks = &self.src.parse.tokens;
                 if p.direct_token(toks, TokenKind::KwSelfValue).is_some() {
                     let st = gn.self_ty.unwrap_or(Ty::POISON);
@@ -2691,7 +2785,14 @@ impl Lower<'_, '_, '_> {
             HeadKind::Enum => {
                 let mut gn = Gen::default();
                 let generics = self.generics(gl, h.def, 0, &mut gn);
-                let shared = self.fields(Src::child(n, SyntaxKind::ParameterList), &gn);
+                let shared_params = Src::child(n, SyntaxKind::ParameterList);
+                let nodes: Vec<NodeRef<'_>> = shared_params
+                    .iter()
+                    .flat_map(|pl| pl.children())
+                    .filter(|c| c.kind() == SyntaxKind::Parameter)
+                    .collect();
+                self.parameter_default_order(&nodes, false);
+                let shared = self.fields(shared_params, &gn);
                 let check = self.r.frozen.is_none();
                 if check {
                     let holder = Src::child(n, SyntaxKind::ParameterList);
