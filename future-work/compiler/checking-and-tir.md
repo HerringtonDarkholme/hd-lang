@@ -105,6 +105,54 @@ Then it runs the deferred checks, patches each pending call's providers
 and sweeps the pending rows out of every type
 ([data-structures.md §3.9.5](data-structures.md#395-building-scratch-buffer-checkpoints-truncation)).
 
+**M3: inferred rows, as built (#194).** The first release keeps the
+facts and the solve but not the pending rows in types or in the TIR:
+codegen picks a call's providers from the callee's signature row
+(`Providers::None` in every call), so a row must be final before the
+module's items are written. A private function or inherent method
+without a `$` clause joins M1's registry (local `fn`s are closures,
+§4.13.4). Its body's bottom frame is `Inferred`: it takes each key and
+row parameter the body uses outside its own `$.with` blocks.
+
+- **Order.** Rows never order checking. M1 checks a body early only for
+  an omitted result, or when a closure, a test case or a function value
+  needs the row now (then also the unchecked bodies its row waits on).
+  A body checked during the top-level statements sees the annotated
+  bindings of later statements, declared ahead, so its read of one is
+  `top-level-read-before-initialization`, not an unknown name. A call
+  of a callee whose row is open (not checked, being checked, or
+  waiting) records an edge: the callee, the call's type arguments by
+  owner, and the keys of the `$.with` blocks around the call. Under a written row (the top level, or a body M1 checked for
+  its result), the call records a deferred entailment check instead. A
+  closure call or function value of a group member still being checked
+  is a structured "not implemented".
+- **Strongly connected groups.** When a body finishes, its row waits if
+  an edge reaches a callable not yet checked, directly or through a
+  waiting row. Otherwise it is solved with every other ready waiting
+  row: a monotone pass over the edges in source order, `row(f) =
+  uses(f) ∪ subst(row(g)) − minus` per edge, until nothing grows. That
+  is the least solution
+  ([`req.row.omitted.cycle`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.omitted.cycle)),
+  and solving a ready set together needs no explicit SCCs. Then the
+  deferred checks whose callees are solved run, `missing-requirement`
+  at the call. M1's sweep checks every registered body, so every row is
+  solved before `Body(m)` reads one.
+- **Termination.** The solve only adds keys, and keys come from a
+  finite set unless a generic member calls itself at a growing argument
+  (`g[T]` calling `g[List[T]]`). A key nested past the instantiation
+  depth limit (32) is not added and is `instantiation-too-deep` at the
+  call. A body that stops with "not implemented" has the empty row.
+- **Cache.** `ModuleFinish` writes each solved row into the module's
+  items next to the inferred results, so the `check` entry's items
+  carry it. Keys are types, so type arguments and associated-type
+  bindings stay. A row never enters a folder interface: only private
+  callables infer, so no `iface` hash and no other module's `check_key`
+  sees it, and a row changes only with the module's source, which
+  `check_key(m)` covers. D2 reads rows from the items. `row_keys` feeds
+  the callable's own code key (its signature, #229) and each caller's
+  (`hash_target`), so an edit that changes an inferred row misses the
+  code entries of the callable and of its callers.
+
 #### 4.13.2 The Inference Engine
 
 - **Bidirectional and local to the body.** `check(expr, expected)` and
