@@ -2662,15 +2662,16 @@ impl Ck<'_, '_> {
         Ok((self.b.emit(Tag::NewData, NONE, rec, t, n.index()), t))
     }
 
-    /// `$.use(K)`: the covering provider of `K`, which the body's row must
-    /// name (spec/lang/11-requirements-and-suspension.md).
     /// The entries of `$.with(...)` or `$.context(...)` in source order
     /// (`req.context.order`), as `(key, value)` pairs, and every key they
-    /// bind (checking-and-tir.md §4.13.4, "Context values").
-    fn provider_entries(&mut self, al: NodeRef<'_>) -> StageResult<(Vec<Ref>, Vec<Ty>)> {
+    /// bind (checking-and-tir.md §4.13.4, "Context values"). The keys are
+    /// `None` when an entry's keys are unknown because it is already in
+    /// error, so the caller reports nothing more about them.
+    fn provider_entries(&mut self, al: NodeRef<'_>) -> StageResult<(Vec<Ref>, Option<Vec<Ty>>)> {
         let pool = self.pool();
         let mut pairs = Vec::new();
         let mut keys = Vec::new();
+        let mut known = true;
         for entry in al
             .children()
             .filter(|c| c.kind() == SyntaxKind::ContextEntry)
@@ -2680,15 +2681,19 @@ impl Ck<'_, '_> {
                 [kn, vn] => (kn, vn),
                 [sn] if sn.kind() == SyntaxKind::SpreadExpr => {
                     if let Some(vn) = sn.children().next() {
-                        self.context_spread(vn, &mut pairs, &mut keys)?;
+                        known &= self.context_spread(vn, &mut pairs, &mut keys)?;
                     }
                     continue;
                 }
                 // The parser reported the malformed entry.
-                _ => continue,
+                _ => {
+                    known = false;
+                    continue;
+                }
             };
             let key = self.ty_node(*kn)?;
             if key == Ty::POISON {
+                known = false;
                 continue;
             }
             let TyData::TraitValue { def, .. } = pool.get(key) else {
@@ -2711,19 +2716,19 @@ impl Ck<'_, '_> {
             pairs.push(r);
             keys.push(key);
         }
-        Ok((pairs, keys))
+        Ok((pairs, known.then_some(keys)))
     }
 
     /// A spread entry `ctx...` (`req.context.spread`): the pair keeps the
     /// context value under its own context type, and the entry binds
     /// that context's keys. Anything but a context value is
-    /// `type-mismatch`.
+    /// `type-mismatch`. Returns whether the entry's keys are known.
     fn context_spread(
         &mut self,
         vn: NodeRef<'_>,
         pairs: &mut Vec<Ref>,
         keys: &mut Vec<Ty>,
-    ) -> StageResult<()> {
+    ) -> StageResult<bool> {
         let pool = self.pool();
         let (r, t) = self.expr(vn, None)?;
         let ct = self.strip_mut(self.infer.resolve(pool, t));
@@ -2732,6 +2737,7 @@ impl Ck<'_, '_> {
                 pairs.push(Ref(ct.0));
                 pairs.push(r);
                 keys.extend(pool.row_data(row).keys);
+                return Ok(true);
             }
             TyData::Poison | TyData::Never => {}
             TyData::Infer(_)
@@ -2750,7 +2756,7 @@ impl Ck<'_, '_> {
                 self.err(Code::TypeMismatch, vn, &msg);
             }
         }
-        Ok(())
+        Ok(false)
     }
 
     /// `$.with(K = p, ctx..., ...): block` (`req.with`): each provider is
@@ -2764,11 +2770,16 @@ impl Ck<'_, '_> {
         let Some(body) = Src::child(n, SyntaxKind::Block) else {
             return unsupported("a `$.with` without a block");
         };
-        let row = pool.row(&hd_types::RowData {
-            keys,
-            params: vec![],
-        });
-        self.rows.push(crate::body::RowFrame::With(row));
+        // An entry in error covers every key, so its block reports no
+        // missing key on its account.
+        let frame = match keys {
+            Some(keys) => crate::body::RowFrame::With(pool.row(&hd_types::RowData {
+                keys,
+                params: vec![],
+            })),
+            None => crate::body::RowFrame::Any,
+        };
+        self.rows.push(frame);
         let bm = self.b.open_block();
         let r = self.block_value(body, want);
         self.rows.pop();
@@ -2787,15 +2798,21 @@ impl Ck<'_, '_> {
             return unsupported("a `$.context` without providers");
         };
         let (pairs, keys) = self.provider_entries(al)?;
-        let row = pool.row(&hd_types::RowData {
-            keys,
-            params: vec![],
-        });
-        let t = pool.intern_ty(&TyData::Context(row));
+        // An entry in error leaves the context's row unknown.
+        let t = match keys {
+            Some(keys) => pool.intern_ty(&TyData::Context(pool.row(&hd_types::RowData {
+                keys,
+                params: vec![],
+            }))),
+            None => Ty::POISON,
+        };
         let rec = self.b.refs_record(&pairs);
         Ok((self.b.emit(Tag::ContextNew, rec, NONE, t, n.index()), t))
     }
 
+    /// `$.use(K)`: the covering provider of `K`, which the body's row must
+    /// name (spec/lang/11-requirements-and-suspension.md); `$.with` and
+    /// `$.context` go to their own checks.
     fn context_expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let toks: Vec<String> = self
