@@ -74,39 +74,6 @@ module next to them if you need one).
    after, on an otherwise idle machine (`uptime` low), and put both in the
    commit message.
 
-M2 below replaces the per-case Node process.
-
-### M2. Run Programs In Long-Lived Node Servers, Not One Process Each
-
-Each runtime case starts `node host/run.mjs` (`run_wasm` in
-`hd_driver/tests/conformance.rs`, and the CLI tier's runs), and Node
-startup costs about 30 ms, about 30 s of every conformance pass. Owner,
-2026-10-10: stop spawning a process per program.
-
-You may edit, for this job only: the two runner files named in M1, a new
-`compiler/host/serve.mjs`, and `compiler/host/run.mjs` only to share code
-with it (its command-line behaviour must not change; `hd run` and
-`hd test` keep starting Node once per command).
-
-1. `compiler/host/serve.mjs`: a long-lived process that reads one JSON
-   request per line on stdin (Wasm path, profile or config path, program
-   arguments, stdin text, timeout) and writes one JSON response per line
-   on stdout (stdout text, stderr text, exit code, how it ended).
-2. Run each program in a `worker_threads` Worker, not in the server's own
-   context: a program's `process.exit`, timers, host client threads
-   (`http.mjs`, `net.mjs`) and grants must not reach the next program.
-   On timeout, `worker.terminate()` and answer; the server keeps running.
-   A Worker may be reused only if its program ended cleanly; otherwise
-   start a fresh one.
-3. The runners start one server per worker thread at the start of the run
-   (lazily, on the first runtime case) and send requests to it; if a
-   server dies, restart it and rerun that case once.
-4. Output must stay **identical**: `compiler/CONFORMANCE.md` regenerated
-   after the change is byte-for-byte the same. Every runtime fixture's
-   stdout, stderr and exit code must match what the per-process run gave.
-5. Measure: wall time of one full driver pass and one CLI pass before and
-   after (machine idle), in the commit message.
-
 ## Questions
 
 (none open)
