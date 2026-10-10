@@ -868,3 +868,53 @@ fn block_on_and_println_are_forbidden_in_direct_contexts() {
         );
     }
 }
+
+/// After the first parameter with a default, every following parameter
+/// needs one, except a vararg and a final function-typed parameter; the
+/// same holds for generic parameters and shared enum parameters
+/// (`fn.default.order-final-function`, `types.generic.default.order`,
+/// `data.shared.default.order`).
+#[test]
+fn defaults_must_not_be_followed_by_a_required_parameter() {
+    for ok in [
+        "fn f(a: i32 = 1, b: i32 = 2) -> i32: a + b",
+        "fn f(a: i32, b: i32 = 2) -> i32: a + b",
+        "fn f(a: i32 = 1, rest...: i32) -> i32: a",
+        "fn f(a: i32 = 1, body: fn() -> void) -> i32: a",
+        "fn f[A = i32, B = i64](v: A) -> A: v",
+        "fn f[A, B = i64](v: A) -> A: v",
+        "enum Status(code: i32 = 0, phrase: string = \"\"):\n    Unknown -> Status(phrase=\"u\")",
+    ] {
+        assert_eq!(item_codes(ok), [], "{ok}");
+    }
+    for bad in [
+        "fn f(a: i32 = 1, b: i32) -> i32: b",
+        "fn f(a: i32 = 1, c: i32, body: fn() -> void) -> i32: a",
+        "fn f[A = i32, B](v: B) -> B: v",
+        "enum Status(code: i32 = 0, phrase: string):\n    Unknown -> Status(phrase=\"u\")",
+    ] {
+        assert_eq!(item_codes(bad), [Code::DefaultOrder], "{bad}");
+    }
+}
+
+/// A generic default names earlier parameters only and has its parameter's
+/// kind (`types.generic.default.later`, `types.generic.default.kind`).
+#[test]
+fn generic_defaults_see_earlier_parameters_of_their_own_kind() {
+    for ok in [
+        "fn f[A = i32, B = A](a: A, b: B) -> A: a",
+        "data Box[T = i32]:\n    value: T",
+    ] {
+        assert_eq!(item_codes(ok), [], "{ok}");
+    }
+    for bad in [
+        "fn f[A = B, B = i32](v: B) -> B: v",
+        "fn f[A = A](v: A) -> A: v",
+    ] {
+        assert_eq!(item_codes(bad), [Code::BindingNotYetVisible], "{bad}");
+    }
+    assert_eq!(
+        item_codes("data Box[T = $()]:\n    value: T"),
+        [Code::GenericKindMismatch]
+    );
+}
