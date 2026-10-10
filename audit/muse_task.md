@@ -43,19 +43,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M14. Design: Package Identity In The Driver (#279, Design Text)
-
-Two packages with one manifest name collide with `duplicate-module-name`:
-two compatibility lines of one package (`json` and `json_v1`,
-module.dep.two-lines) and a fetched version beside a same-named workspace
-member (module.workspace.fetched-member.two). Read `hd_driver`,
-`hd_resolve`, `hd_cli/src/disk.rs` and `hd_deps`. Design keying packages
-by identity (host path and version, or local path) instead of name:
-module paths, cache keys, diagnostics that name a package, and the
-`dep.KEY` import root. Price the change. Output: a section in
-`future-work/compiler/design-overview.md` or a new
-`future-work/compiler/package-identity.md`. No code changes.
-
 ### M15. Design: Resource Limits On wasmtime (#269, Design Text)
 
 The spec's Resource Limits section (program limits, compiler memory) has
