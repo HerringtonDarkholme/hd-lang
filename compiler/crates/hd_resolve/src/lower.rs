@@ -18,7 +18,9 @@ use hd_diag::{Code, DiagBuf};
 use hd_intern::PathKind;
 use hd_project::{UseRootError, UseRoots};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
-use hd_types::{Inputs, ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList};
+use hd_types::{
+    Inputs, InternPool, ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList,
+};
 
 use crate::iface::{
     Export, Field, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item, ItemData, Names,
@@ -1928,6 +1930,19 @@ impl Lower<'_, '_, '_> {
         }
     }
 
+    /// `fn.vararg.final`: a vararg is the last positional parameter.
+    fn vararg_final(&mut self, params: &[NodeRef<'_>]) {
+        let toks = &self.src.parse.tokens;
+        for p in params.iter().rev().skip(1) {
+            if p.direct_token(toks, TokenKind::Ellipsis).is_some() {
+                let name = p.name(toks).map_or("a parameter", |t| self.src.text(t));
+                let msg = format!("`{name}` is a vararg, so it must be the last parameter");
+                self.diags
+                    .error(Code::NonfinalVararg, self.src.span(*p), &msg);
+            }
+        }
+    }
+
     /// A function header: generics, parameters, result, row, `!`.
     fn sig(&mut self, f: NodeRef<'_>, owner: DefId, gn: &Gen) -> FnSig {
         let mut gn = gn.clone();
@@ -1946,6 +1961,7 @@ impl Lower<'_, '_, '_> {
                 .filter(|c| c.kind() == SyntaxKind::Parameter)
                 .collect();
             self.parameter_default_order(&nodes, true);
+            self.vararg_final(&nodes);
             for (i, p) in nodes.into_iter().enumerate() {
                 let toks = &self.src.parse.tokens;
                 if p.direct_token(toks, TokenKind::KwSelfValue).is_some() {

@@ -1067,3 +1067,16 @@ fn omitted_derivation_members_need_defaults() {
         );
     }
 }
+
+/// A vararg is the last positional parameter (`fn.vararg.final`).
+#[test]
+fn a_vararg_must_be_the_last_parameter() {
+    assert_eq!(
+        item_codes("fn f(first: i32, values...: List[i32]) -> i32: first"),
+        []
+    );
+    assert_eq!(
+        item_codes("fn f(values...: List[i32], factor: i32) -> i32: factor"),
+        [Code::NonfinalVararg]
+    );
+}
