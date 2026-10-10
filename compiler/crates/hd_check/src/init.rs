@@ -17,17 +17,29 @@ use hd_types::{RowData, RowId, Ty};
 
 use crate::body::{BodyCx, Ck, new_ck, unsupported};
 
+type Set = std::collections::HashSet<hd_base::LocalId>;
+
 /// A top-level binding: its item, type and the statement that initializes it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Global {
     pub def: DefId,
     pub ty: Ty,
     pub stmt: usize,
-    /// Bound with `:=`: not reassignable (expr.bind.one-name).
-    pub short: bool,
     /// The byte where the statement starts: a body written before it
     /// cannot see the binding (`names.exec.not-before`).
     pub at: u32,
+    /// Bound with `:=`: not reassignable (expr.bind.one-name).
+    pub short: bool,
+}
+
+/// What a condition leaves on its two paths: the `:=` bindings that may
+/// be uninitialized after it is true, and after it is false
+/// (`names.definite.path`, `names.definite.merge`).
+#[derive(Clone, Debug)]
+pub(crate) struct CondFlow {
+    pub node: NodeIdx,
+    pub on_true: std::collections::HashSet<hd_base::LocalId>,
+    pub on_false: std::collections::HashSet<hd_base::LocalId>,
 }
 
 /// What one body or top-level statement reaches directly.
@@ -161,6 +173,52 @@ pub fn check_init(
 }
 
 impl Ck<'_, '_> {
+    /// The bindings that may be uninitialized after `cond` is true and
+    /// after it is false; one state for both when `cond` is not a
+    /// short-circuit chain.
+    pub(crate) fn take_cond_flow(&mut self, cond: NodeRef<'_>) -> (Set, Set) {
+        match self.cond_flow.take() {
+            Some(f) if f.node == cond.index() => (f.on_true, f.on_false),
+            _ => (self.uninit.clone(), self.uninit.clone()),
+        }
+    }
+
+    /// `l && r` and `l || r`: `r` runs only on the path where `l` is
+    /// true (`&&`) or false (`||`), so the bindings `r` declares in the
+    /// enclosing scope are skipped on the other path
+    /// (`names.definite.skipped`).
+    pub(crate) fn short_circuit(
+        &mut self,
+        n: NodeRef<'_>,
+        (l, r): (NodeRef<'_>, NodeRef<'_>),
+        and: bool,
+        check_rhs: impl FnOnce(&mut Self) -> StageResult<()>,
+    ) -> StageResult<()> {
+        let (lt, lf) = self.take_cond_flow(l);
+        self.uninit = if and { lt.clone() } else { lf.clone() };
+        let (mark, depth) = (self.bound.len(), self.scopes.len());
+        check_rhs(self)?;
+        let (rt, rf) = self.take_cond_flow(r);
+        let skipped: Set = self.bound[mark..]
+            .iter()
+            .filter(|(_, d)| d + 1 == depth)
+            .map(|(l, _)| *l)
+            .collect();
+        let union = |sets: [&Set; 3]| sets.into_iter().flatten().copied().collect::<Set>();
+        let (on_true, on_false) = if and {
+            (rt, union([&lf, &skipped, &rf]))
+        } else {
+            (union([&lt, &skipped, &rt]), rf)
+        };
+        self.uninit = on_true.union(&on_false).copied().collect();
+        self.cond_flow = Some(CondFlow {
+            node: n.index(),
+            on_true,
+            on_false,
+        });
+        Ok(())
+    }
+
     /// Declares statement `i`'s binding ahead of its statement when it is
     /// a simple `let` with a type annotation that resolves without error;
     /// the statement declares it again when it runs.
@@ -206,6 +264,7 @@ impl Ck<'_, '_> {
                 def,
                 ty,
                 stmt: i,
+                at: self.cx.src.span(s).lo,
                 short: false,
             },
         );
@@ -264,7 +323,6 @@ impl Ck<'_, '_> {
         };
         if pat.kind() != SyntaxKind::BindingPattern || pat.children().next().is_some() {
             return unsupported("a top-level binding with a pattern");
-                at: self.cx.src.span(s).lo,
         }
         let Some(nt) = pat.direct_tokens().find(|t| {
             matches!(
@@ -305,6 +363,7 @@ impl Ck<'_, '_> {
                 def,
                 ty: t,
                 stmt: self.init_stmt,
+                at: self.cx.src.span(s).lo,
                 short: s.kind() == SyntaxKind::ExprStmt,
             },
         );
@@ -363,7 +422,6 @@ impl Ck<'_, '_> {
                 self.err(Code::VariantResultOwner, sd, &msg);
                 continue;
             }
-                at: self.cx.src.span(s).lo,
             let al = sd.children().find(|c| c.kind() == SyntaxKind::ArgumentList);
             let args = self.args_of(al);
             let vals = self.shared_args(s, &params, &args, sd, &ename)?;
@@ -547,6 +605,16 @@ impl Ck<'_, '_> {
         if self.module_init.is_some() && g.stmt >= self.init_stmt {
             return None;
         }
+        // `names.exec.not-before`: a function declared before the binding
+        // does not see it, though it runs later.
+        if self.module_init.is_none() && self.at < g.at {
+            let msg = format!(
+                "`{}` is bound further down the module, so it is not visible here",
+                self.cx.names.text(name)
+            );
+            self.err(Code::BindingNotYetVisible, n, &msg);
+            return Some(self.poison_value(n));
+        }
         // Read by a body M1 checks while the top level is being checked,
         // a binding whose type is still open holds the init body's
         // variables: it has no type yet.
@@ -568,6 +636,31 @@ impl Ck<'_, '_> {
     /// (`module.init.definite.dispatch`).
     pub(crate) fn note_call(&mut self, def: DefId) {
         self.facts.calls.insert(def);
+        let lookup = self.cx.lookup;
+        let Some(item) = lookup.item(def) else { return };
+        let ItemData::Method { owner, .. } = &item.data else {
+            return;
+        };
+        if !matches!(
+            lookup.item(*owner).map(|o| &o.data),
+            Some(ItemData::Trait(_))
+        ) {
+            return;
+        }
+        for it in lookup.own {
+            if it.name != item.name {
+                continue;
+            }
+            let ItemData::Method { owner: imp, .. } = &it.data else {
+                continue;
+            };
+            if matches!(
+                lookup.item(*imp).map(|i| &i.data),
+                Some(ItemData::Impl { trait_, .. }) if trait_ == owner
+            ) {
+                self.facts.calls.insert(it.def);
+            }
+        }
     }
 }
 
@@ -607,16 +700,6 @@ pub fn definite_init(
             .filter_map(|g| at.get(g).filter(|s| **s >= i).map(|s| (*s, seg(g))))
             .collect();
         late.sort();
-        // `names.exec.not-before`: a function declared before the binding
-        // does not see it, though it runs later.
-        if self.module_init.is_none() && self.at < g.at {
-            let msg = format!(
-                "`{}` is bound further down the module, so it is not visible here",
-                self.cx.names.text(name)
-            );
-            self.err(Code::BindingNotYetVisible, n, &msg);
-            return Some(self.poison_value(n));
-        }
         if let Some((_, late)) = late.first()
             && let Some(s) = stmts.get(i)
         {
@@ -629,28 +712,3 @@ pub fn definite_init(
         }
     }
 }
-        let lookup = self.cx.lookup;
-        let Some(item) = lookup.item(def) else { return };
-        let ItemData::Method { owner, .. } = &item.data else {
-            return;
-        };
-        if !matches!(
-            lookup.item(*owner).map(|o| &o.data),
-            Some(ItemData::Trait(_))
-        ) {
-            return;
-        }
-        for it in lookup.own {
-            if it.name != item.name {
-                continue;
-            }
-            let ItemData::Method { owner: imp, .. } = &it.data else {
-                continue;
-            };
-            if matches!(
-                lookup.item(*imp).map(|i| &i.data),
-                Some(ItemData::Impl { trait_, .. }) if trait_ == owner
-            ) {
-                self.facts.calls.insert(it.def);
-            }
-        }

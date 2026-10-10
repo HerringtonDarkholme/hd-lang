@@ -182,9 +182,29 @@ impl Ck<'_, '_> {
                     }
                 }
             }
-            SyntaxKind::UnaryExpr => self.unary(n, &kids, want)?,
+            SyntaxKind::UnaryExpr => {
+                let v = self.unary(n, &kids, want)?;
+                // `!c` swaps the paths of `c`.
+                let negation = self.cx.src.tkind(self.cx.src.first(n)) == Some(TokenKind::Bang);
+                if negation
+                    && let Some(f) = self.cond_flow.as_mut()
+                    && kids.first().is_some_and(|k| f.node == k.index())
+                {
+                    f.node = n.index();
+                    std::mem::swap(&mut f.on_true, &mut f.on_false);
+                }
+                v
+            }
             SyntaxKind::ParenExpr => match kids.as_slice() {
-                [e] => self.expr(*e, want)?,
+                [e] => {
+                    let v = self.expr(*e, want)?;
+                    if let Some(f) = self.cond_flow.as_mut()
+                        && f.node == e.index()
+                    {
+                        f.node = n.index();
+                    }
+                    v
+                }
                 _ => return unsupported("a parenthesized expression shape"),
             },
             SyntaxKind::TupleExpr => self.tuple_expr(n, &kids, want)?,
@@ -239,6 +259,9 @@ impl Ck<'_, '_> {
                     self.err(Code::DuplicateBinding, *pat, &msg);
                 }
                 self.let_pattern(*pat, None, *rhs, None, n)?;
+                if let Some((l, depth)) = name.and_then(|name| self.find_local(name)) {
+                    self.bound.push((l, depth));
+                }
                 // `expr.bind.one-name`: the binding is not reassignable,
                 // and the expression's value is the initializer's.
                 match name.and_then(|name| self.find_local(name)) {
@@ -560,8 +583,14 @@ impl Ck<'_, '_> {
             let (a, at) = self.expr(*l, Some(Ty::BOOL))?;
             self.expect(at, Ty::BOOL, *l, "operand");
             let m = self.b.open_block();
-            let (c, ct) = self.expr(*r, Some(Ty::BOOL))?;
-            self.expect(ct, Ty::BOOL, *r, "operand");
+            let mut rhs = None;
+            self.short_circuit(n, (*l, *r), op == TokenKind::AndAnd, |ck| {
+                let (c, ct) = ck.expr(*r, Some(Ty::BOOL))?;
+                ck.expect(ct, Ty::BOOL, *r, "operand");
+                rhs = Some(c);
+                Ok(())
+            })?;
+            let c = rhs.unwrap_or(Ref(NONE));
             let blk = self.b.close_block(m, Some(c), Ty::BOOL, r.index());
             let tag = if op == TokenKind::AndAnd {
                 Tag::And
@@ -1711,6 +1740,7 @@ impl Ck<'_, '_> {
         let clause = Src::child(e, SyntaxKind::ElseClause);
         let (c, ct) = self.expr(cond, Some(Ty::BOOL))?;
         self.expect(ct, Ty::BOOL, cond, "condition");
+        let (when_true, when_false) = self.take_cond_flow(cond);
         // A value `if` needs an `else`; without one it is a statement.
         let want = if clause.is_none() {
             Some(Ty::VOID)
@@ -1719,8 +1749,10 @@ impl Ck<'_, '_> {
         };
         let result = self.join_target(want);
         let tb = self.b.open_block();
+        self.uninit = when_true;
         let (tt, tty) = self.block_value(then_node, Some(result))?;
         let then = self.b.close_block(tb, tt, tty, then_node.index());
+        let after_then = std::mem::replace(&mut self.uninit, when_false);
         let (els, ety) = if let Some(clause) = clause {
             let eb = self.b.open_block();
             let (tail, ty) = if let Some(nested) = Src::child(clause, SyntaxKind::IfExpr) {
@@ -1742,6 +1774,14 @@ impl Ck<'_, '_> {
             (Ref(NONE), Ty::VOID)
         };
         let both_never = tty == Ty::NEVER && ety == Ty::NEVER;
+        // `names.definite.merge`, `names.definite.diverging`: a branch that
+        // diverges is not an incoming path.
+        let after_else = std::mem::take(&mut self.uninit);
+        self.uninit = [(tty, after_then), (ety, after_else)]
+            .into_iter()
+            .filter(|(t, _)| *t != Ty::NEVER)
+            .flat_map(|(_, s)| s)
+            .collect();
         let ty = if both_never { Ty::NEVER } else { result };
         let rec = self.b.refs_record(&[then, els]);
         Ok((self.b.emit(Tag::If, c.0, rec, ty, e.index()), ty))
@@ -1761,9 +1801,12 @@ impl Ck<'_, '_> {
         let lb = self.b.open_block();
         let (c, ct) = self.expr(cond, Some(Ty::BOOL))?;
         self.expect(ct, Ty::BOOL, cond, "condition");
+        let (when_true, when_false) = self.take_cond_flow(cond);
         self.loops.push((lp, result));
         let tb = self.b.open_block();
+        self.uninit = when_true;
         self.block_value(body, Some(Ty::VOID))?;
+        self.uninit.extend(when_false);
         let then = self.b.close_block(tb, None, Ty::VOID, body.index());
         self.loops.pop();
         let eb = self.b.open_block();

@@ -35,6 +35,8 @@ pub(crate) struct Checkpoint {
     /// The flags of the locals older than the trial (a read marks them).
     flags: Vec<u8>,
     facts: crate::init::InitFacts,
+    uninit: std::collections::HashSet<hd_base::LocalId>,
+    bound: usize,
     /// A closure frame's used keys grow when an argument uses a key.
     rows: Vec<RowFrame>,
     depths: [usize; 5],
@@ -67,6 +69,8 @@ impl Ck<'_, '_> {
             row_waits: self.row_waits.len(),
             flags: self.b.body_mut().local_flags[..tir.locals as usize].to_vec(),
             facts: self.facts.clone(),
+            uninit: self.uninit.clone(),
+            bound: self.bound.len(),
             rows: self.rows.clone(),
             depths: self.depths(),
         }
@@ -86,6 +90,9 @@ impl Ck<'_, '_> {
         self.joins.truncate(c.joins);
         self.row_waits.truncate(c.row_waits);
         self.facts = c.facts;
+        self.uninit = c.uninit;
+        self.bound.truncate(c.bound);
+        self.cond_flow = None;
         self.rows = c.rows;
         // A check that stopped with "not implemented" may leave frames
         // open; the body is abandoned then, so only shrink.

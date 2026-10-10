@@ -180,6 +180,13 @@ pub(crate) struct Ck<'a, 'c> {
     /// suspend in: a default or fact expression, or a non-entry module's
     /// initialization (`req.drive.block-on.forbidden-contexts`).
     pub forbidden: Option<&'static str>,
+    /// The `:=` bindings that a path to this point may have skipped
+    /// (`names.definite.skipped`).
+    pub uninit: std::collections::HashSet<LocalId>,
+    /// The `:=` bindings declared so far, with their scope's depth.
+    pub bound: Vec<(LocalId, usize)>,
+    /// What the condition just checked leaves on its true and false paths.
+    pub cond_flow: Option<crate::init::CondFlow>,
     /// The node of each literal constant, for range diagnostics, and
     /// whether a `-` negated it.
     pub lit_nodes: Vec<(Ref, hd_base::NodeIdx, bool)>,
@@ -300,6 +307,9 @@ pub(crate) fn new_ck<'a, 'c>(
         suspends: vec![false],
         defer_base: None,
         defer_subs: 0,
+        uninit: std::collections::HashSet::new(),
+        bound: Vec::new(),
+        cond_flow: None,
         forbidden: (kind == BodyKind::Default).then_some("a default or fact expression"),
         lit_nodes: Vec::new(),
         read_poison_name: false,
@@ -822,6 +832,14 @@ impl Ck<'_, '_> {
 
     /// Reads a local, capturing it into every open closure it crosses.
     pub(crate) fn read_local(&mut self, l: LocalId, depth: usize, n: NodeRef<'_>) -> (Ref, Ty) {
+        // `names.definite.reject`: reported once per binding.
+        if self.uninit.remove(&l) {
+            self.err(
+                Code::PossiblyUninitializedBinding,
+                n,
+                "this binding may not have been initialized on every path to here",
+            );
+        }
         let mut captured = false;
         for s in &self.subs {
             if s.depth > depth {

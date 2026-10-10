@@ -986,6 +986,33 @@ fn top_level_bindings_are_read_in_order() {
     }
 }
 
+/// A `:=` name bound in the operand of `&&` or `||` that may be skipped is
+/// usable only on the paths that ran it (`names.definite.path`,
+/// `names.definite.merge`, `names.definite.skipped`,
+/// `names.definite.proof`, `names.definite.diverging`).
+#[test]
+fn skipped_bindings_are_not_initialized() {
+    for ok in [
+        "fn f(flag: bool) -> string:\n    if flag && (name := \"Ada\") != \"\":\n        name\n    else:\n        \"none\"",
+        "fn f(args: List[string]) -> string:\n    if args.len() < 2 || (name := args[1]) == \"\":\n        return \"usage\"\n    \"hello $name\"",
+        "fn f() -> i32:\n    if (size := 3) > 0:\n        size\n    else:\n        size",
+        "fn f(flag: bool) -> string:\n    if !(flag && (name := \"x\") != \"\"):\n        return \"no\"\n    name",
+    ] {
+        assert_eq!(item_codes(ok), [], "{ok}");
+    }
+    for bad in [
+        "fn f(flag: bool) -> string:\n    if flag && (name := \"Ada\") != \"\":\n        pass\n    name",
+        "fn f(flag: bool) -> string:\n    if flag || (name := \"Ada\") != \"\":\n        return name\n    \"x\"",
+        "fn f(flag: bool) -> string:\n    if flag && (name := \"Ada\") != \"\":\n        pass\n    else:\n        return name\n    \"x\"",
+    ] {
+        assert_eq!(
+            item_codes(bad),
+            [Code::PossiblyUninitializedBinding],
+            "{bad}"
+        );
+    }
+}
+
 /// A derived `Default` enum marks exactly one variant `@default`
 /// (`std-ops.default.derive.one-variant`).
 #[test]
