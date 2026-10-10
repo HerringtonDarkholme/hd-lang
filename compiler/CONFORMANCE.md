@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2397 | 360 | 88 | 2845 |
+| 2405 | 352 | 88 | 2845 |
 
 ## By Chapter
 
@@ -25,7 +25,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/09-traits.md` | 302 | 52 | 5 | 359 |
 | `lang/10-modules.md` | 208 | 39 | 11 | 258 |
 | `lang/11-requirements-and-suspension.md` | 192 | 36 | 31 | 259 |
-| `lang/14-annotations.md` | 104 | 42 | 7 | 153 |
+| `lang/14-annotations.md` | 112 | 34 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
 | `std/collections.md` | 24 | 5 | 0 | 29 |
@@ -63,8 +63,8 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 86 | 15 | 4 | 105 |
-| `runtime/valid` | 841 | 21 | 67 | 929 |
-| `typing/invalid` | 771 | 290 | 14 | 1075 |
+| `runtime/valid` | 844 | 18 | 67 | 929 |
+| `typing/invalid` | 776 | 285 | 14 | 1075 |
 | `typing/valid` | 401 | 11 | 3 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -80,7 +80,7 @@ compiler stage that first declined the case.
 | `fail:bang-call-outside-suspension` | 2 |
 | `fail:bare-variant-pattern` | 3 |
 | `fail:boundary-private-field` | 1 |
-| `fail:cannot-infer-type` | 6 |
+| `fail:cannot-infer-type` | 5 |
 | `fail:duplicate-argument` | 1 |
 | `fail:duplicate-data-pattern-field` | 1 |
 | `fail:identity-requires-references` | 9 |
@@ -93,7 +93,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 10 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 180 |
+| `fail:no-diagnostic` | 177 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
@@ -111,10 +111,9 @@ compiler stage that first declined the case.
 | `fail:trait-method-signature` | 1 |
 | `fail:trait-used-as-type` | 1 |
 | `fail:type-mismatch` | 37 |
-| `fail:type-used-as-value` | 1 |
 | `fail:unknown-data-field` | 6 |
 | `fail:unknown-import` | 1 |
-| `fail:unknown-method` | 15 |
+| `fail:unknown-method` | 12 |
 | `fail:unknown-module` | 1 |
 | `fail:unknown-name` | 11 |
 | `fail:unknown-trait` | 7 |
@@ -164,11 +163,10 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:cannot-infer-type</code> (6)</summary>
+<details><summary><code>fail:cannot-infer-type</code> (5)</summary>
 
 - `typing/invalid/none-to-any.hd`
 - `typing/invalid/none-without-expected-type.hd`
-- `typing/invalid/facts-of-as-value.hd`
 - `typing/invalid/handle-fact-pattern-mismatch.hd`
 - `typing/invalid/eq-contextual-both-operands.hd`
 - `typing/invalid/any-bare-none.hd`
@@ -268,7 +266,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (180)</summary>
+<details><summary><code>fail:no-diagnostic</code> (177)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -355,9 +353,6 @@ compiler stage that first declined the case.
 - `typing/invalid/test-module-tests-block.hd`
 - `typing/invalid/integration-test-tests-block.hd`
 - `typing/invalid/duplicate-function-fact.hd`
-- `typing/invalid/facts-of-closure.hd`
-- `typing/invalid/facts-of-local-binding.hd`
-- `typing/invalid/facts-of-method.hd`
 - `typing/invalid/row-union-list-no-convert.hd`
 - `typing/invalid/public-method-missing-result-type.hd`
 - `typing/invalid/intrinsic-method-user.hd`
@@ -615,12 +610,6 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-used-as-value</code> (1)</summary>
-
-- `typing/invalid/facts-of-type-name.hd`
-
-</details>
-
 <details><summary><code>fail:unknown-data-field</code> (6)</summary>
 
 - `typing/invalid/tuple-index-out-of-range.hd`
@@ -638,7 +627,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-method</code> (15)</summary>
+<details><summary><code>fail:unknown-method</code> (12)</summary>
 
 - `typing/valid/mutable-suspension.hd`
 - `typing/invalid/readonly-suspension-cancel.hd`
@@ -649,10 +638,7 @@ compiler stage that first declined the case.
 - `runtime/panic/block-on-cancelled-suspension.hd`
 - `runtime/valid/cancel-cold-and-completed-suspension.hd`
 - `runtime/panic/defer-cancels-active-ancestor.hd`
-- `runtime/valid/bare-marker-decorator.hd`
-- `runtime/valid/facts-of-read.hd`
 - `typing/invalid/literal-var-method-missing.hd`
-- `runtime/valid/facts-of-literal-generic-none.hd`
 - `typing/invalid/iterator-sum-non-numeric.hd`
 - `typing/invalid/list-sum-non-numeric.hd`
 
@@ -1237,6 +1223,7 @@ runtime/valid/associated-type-bindings.hd
 runtime/valid/associated-type-projections.hd
 runtime/valid/available-trait-method-across-packages.hd
 runtime/valid/bang-call-arguments-before-body.hd
+runtime/valid/bare-marker-decorator.hd
 runtime/valid/binding-expression-tuple-value.hd
 runtime/valid/blanket-impl-dynamic-and-bound.hd
 runtime/valid/blanket-impl-for-list.hd
@@ -1430,6 +1417,8 @@ runtime/valid/f32-display-width-through-generics.hd
 runtime/valid/f64-nan-ordering.hd
 runtime/valid/f64-ordering-operators.hd
 runtime/valid/fact-unread-never-evaluated.hd
+runtime/valid/facts-of-literal-generic-none.hd
+runtime/valid/facts-of-read.hd
 runtime/valid/failed-trial-no-leak.hd
 runtime/valid/field-and-inherent-method-share-name.hd
 runtime/valid/field-and-trait-method-share-name.hd
@@ -2272,6 +2261,11 @@ typing/invalid/error-transparent-not-error.hd
 typing/invalid/expected-i32-found-usize.hd
 typing/invalid/extra-associated-type.hd
 typing/invalid/facts-find-unbounded-key.hd
+typing/invalid/facts-of-as-value.hd
+typing/invalid/facts-of-closure.hd
+typing/invalid/facts-of-local-binding.hd
+typing/invalid/facts-of-method.hd
+typing/invalid/facts-of-type-name.hd
 typing/invalid/facts-of-without-import.hd
 typing/invalid/field-reference.hd
 typing/invalid/float-literal-map-key.hd
