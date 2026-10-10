@@ -828,3 +828,43 @@ fn word() -> Result[i32, string]:
         );
     }
 }
+
+/// A `block_on` or `println` call written directly in a `defer` suite, a
+/// default expression, a fact or metadata expression, or a non-entry
+/// module's initialization is an error; one inside a closure declared
+/// there, or outside those contexts, is not
+/// (`req.drive.block-on.direct`, `module.console.println-block-on.direct`,
+/// `annot.fact.block-on.direct`).
+#[test]
+fn block_on_and_println_are_forbidden_in_direct_contexts() {
+    const HEAD: &str = "use std.task.block_on\n\n\
+        fn ready!() -> i32: 42\n\
+        data Tag:\n    name: string\n\
+        fn tag_of(name: string) -> Tag: Tag { name: name }\n\
+        fn text!() -> string: \"t\"\n";
+    for ok in [
+        // Outside a forbidden context, and in a closure inside one.
+        "fn f() -> i32:\n    let s: mut Suspend[i32] = ready()\n    block_on(s)",
+        "fn f() -> void $ Console:\n    defer:\n        let g = fn() -> void $ Console: println(\"x\")\n        g()\n    pass",
+        "fn f(v: i32 = (fn() -> i32: 1)()) -> i32: v",
+        "@tag_of(\"a\")\ndata D:\n    id: i32",
+        // A call that only reaches `block_on` is indirect: a panic, not an error.
+        "fn wait() -> i32:\n    let s: mut Suspend[i32] = ready()\n    block_on(s)\nfn f(v: i32 = wait()) -> i32: v",
+    ] {
+        assert_eq!(item_codes(&format!("{HEAD}\n{ok}\n")), [], "{ok}");
+    }
+    for bad in [
+        "fn f() -> void:\n    let s: mut Suspend[i32] = ready()\n    defer:\n        _ := block_on(s)\n    pass",
+        "fn f() -> void $ Console:\n    defer:\n        println(\"x\")\n    pass",
+        "fn f(v: i32 = block_on(ready())) -> i32: v",
+        "@tag_of(block_on(text()))\ndata D:\n    id: i32",
+        "data D:\n    @tag_of(block_on(text()))\n    id: i32",
+        "data D:\n    id: i32 = block_on(ready())",
+    ] {
+        assert_eq!(
+            item_codes(&format!("{HEAD}\n{bad}\n")),
+            [Code::SuspensionForbiddenContext],
+            "{bad}"
+        );
+    }
+}

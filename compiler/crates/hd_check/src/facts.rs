@@ -86,7 +86,64 @@ pub fn check_facts(
     ck.finish_body(root)
 }
 
+/// `annot.fact.block-on.direct`, `annot.metadata.eval-as-fact`: the fact
+/// and metadata expressions of the declaration `node` and its members
+/// (`owner`) may not call `block_on` or `println` directly. Only the
+/// expressions' own source is read (`req.drive.block-on.direct.syntax`).
+pub fn check_decl_facts(cx: &BodyCx<'_>, owner: DefId, node: NodeRef<'_>, diags: &mut DiagBuf) {
+    let lines: Vec<NodeRef<'_>> = std::iter::once(node)
+        .chain(node.descendants())
+        .flat_map(|d| fact_lines(&cx.src, d))
+        .collect();
+    if lines.is_empty() {
+        return;
+    }
+    let def = cx.names.member(owner, PathKind::Hidden, "facts");
+    let local = hd_types::LocalPool::new();
+    let mut ck = new_ck(
+        cx,
+        &local,
+        owner,
+        def,
+        BodyKind::Default,
+        (Ty::VOID, RowId::EMPTY),
+        diags,
+    );
+    for e in lines {
+        ck.move_to(cx.src.span(e).lo);
+        ck.forbidden_calls(e);
+    }
+}
+
 impl Ck<'_, '_> {
+    /// Reports each call of `block_on` or `println` written directly in
+    /// the expression `e`, not inside a closure or local function.
+    fn forbidden_calls(&mut self, e: NodeRef<'_>) {
+        if matches!(e.kind(), SyntaxKind::ClosureExpr | SyntaxKind::FnDecl) {
+            return;
+        }
+        if e.kind() == SyntaxKind::CallExpr
+            && let Some(callee) = e.children().next()
+        {
+            let callee = match callee.kind() {
+                SyntaxKind::TypeArgsExpr => callee.children().next(),
+                _ => Some(callee),
+            };
+            if let Some(c) = callee.filter(|c| c.kind() == SyntaxKind::NameExpr) {
+                let segs = self.segments_expr(c);
+                if let Some(def) = self.resolve_path(&segs)
+                    && let Some(item) = self.cx.lookup.item(def)
+                {
+                    let name = self.cx.names.text(item.name).to_owned();
+                    self.check_forbidden_call(def, &name, e);
+                }
+            }
+        }
+        for c in e.children() {
+            self.forbidden_calls(c);
+        }
+    }
+
     /// Whether the decorator line calls a function whose result is a typed
     /// fact type (`annot.typed-fact.declare`).
     fn typed_fact_line(&self, e: NodeRef<'_>) -> bool {
