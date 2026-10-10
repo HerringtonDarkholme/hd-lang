@@ -2717,7 +2717,13 @@ impl Em<'_> {
             }
             return self.store(i);
         }
-        if kind == Coercion::Supertrait as u32 {
+        // A trait value reaches a trait-value conversion when a type
+        // parameter is instantiated with one: it widens, keeping its
+        // payload and recorded type (trait.erase.keeps).
+        if kind == Coercion::Supertrait as u32
+            || (kind == Coercion::ToTraitValue as u32
+                && matches!(self.lay.shape(self.ty_of(v))?, Shape::Dyn { .. }))
+        {
             return self.widen(i, v, ty);
         }
         if kind == Coercion::ToTraitValue as u32 {

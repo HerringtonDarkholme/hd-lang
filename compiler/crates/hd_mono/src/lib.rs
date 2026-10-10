@@ -1693,6 +1693,13 @@ impl Cx<'_> {
                         continue;
                     }
                     let from = s(value_ty(body, a));
+                    // A trait value converted to a trait value, as at
+                    // `T = dyn Error` erased to `dyn Inspectable`, is a
+                    // widening: no implementation, no vtable
+                    // (trait.erase.keeps, trait.dyn.widen).
+                    if is_trait_value(pool, from) {
+                        continue;
+                    }
                     let from = match pool.get(from) {
                         TyData::Mut(x) => x,
                         _ => from,

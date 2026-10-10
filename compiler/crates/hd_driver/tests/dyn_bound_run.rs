@@ -235,3 +235,56 @@ pub fn main() -> void $ Console:
 ";
     assert_eq!(output_of("mut-bound", main), "3\n3\n");
 }
+
+/// A generic erasure and an error type for the erasure cases below.
+const ERASURE: &str = "\
+use std.error.Error
+use std.inspect.{Inspectable, TypeId}
+
+data Missing:
+    path: string
+
+impl Display for Missing:
+    fn to_string(self) -> string: \"missing ${self.path}\"
+
+impl Error for Missing
+
+fn erase[T < Inspectable](value: T) -> dyn Inspectable:
+    value
+
+fn is_missing(value: dyn Inspectable) -> bool:
+    value.runtime_type() == TypeId::of::[Missing]()
+
+fn describe[E < Error](error: E) -> string:
+    error.to_string()
+";
+
+#[test]
+fn the_checker_accepts_erasing_a_dyn_error_through_a_generic() {
+    let main = format!(
+        "{ERASURE}
+pub fn main() -> void:
+    let failure: dyn Error = Missing {{ path: \"a.txt\" }}
+    _ := erase(failure)
+"
+    );
+    assert_eq!(codes_of(&main), Vec::<Code>::new());
+}
+
+#[test]
+fn erasing_a_trait_value_through_a_generic_keeps_its_recorded_type() {
+    let main = format!(
+        "{ERASURE}
+pub fn main() -> void $ Console:
+    let failure: dyn Error = Missing {{ path: \"a.txt\" }}
+    println(is_missing(erase(failure)))
+    println(is_missing(erase(Missing {{ path: \"b.txt\" }})))
+    println(is_missing(erase(3)))
+    println(describe(failure))
+"
+    );
+    assert_eq!(
+        output_of("erase-dyn", &main),
+        "true\ntrue\nfalse\nmissing a.txt\n"
+    );
+}
