@@ -496,6 +496,7 @@ version = "0.0.0"
 dependencies = [
  "hd_cache",
  "hd_check",
+ "hd_deps",
  "hd_diag",
  "hd_driver",
  "hd_fmt",

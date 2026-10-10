@@ -29,6 +29,7 @@ the crate manifests. The design links explain each crate's intended boundary.
 | `hd_mono` | Reachable-instance collection and monomorphization; `hd_base`, `hd_tir`, `hd_types` | [Monomorphization and merging](../future-work/compiler/codegen.md#13-monomorphization-and-merging) |
 | `hd_wasm` | Wasm GC emission and linking; `hd_base`, `hd_host_abi`, `hd_mono`, `hd_tir`, `hd_types` | [Emitting from TIR](../future-work/compiler/codegen.md#12-emitting-from-tir), [Wasm layout](../future-work/compiler/wasm-layout.md) |
 | `hd_cache` | Cache keys, entry framing, memory store, and optional disk store; `hd_base` | [Cache](../future-work/compiler/cache.md#5-cache) |
+| `hd_deps` | Remote dependencies for `hd_cli`: version selection, fetching with `git`, the version cache, tree hashes, and `hd.sum`; `hd_diag`, `hd_project` | [Dependencies](../spec/cli/command-line.md#dependencies) |
 | `hd_run` | Engine-neutral program loading and run outcomes; `hd_base`, `hd_cache`, `hd_wasm` | [Runtime](../future-work/compiler/runtime-and-host.md#16-runtime), [execution engines](../future-work/compiler/engines-and-test-runner.md#18-execution-engines-and-tiers) |
 | `hd_run_wasmtime` | Wasmtime-side engine boundary; `hd_cache`, `hd_run` | [Wasmtime configuration](../future-work/compiler/engines-and-test-runner.md#181-wasmtime-configuration) |
 | `hd_sched` | Serial, stepping, and threaded task executors; leaf workspace crate | [Scheduler](../future-work/compiler/scheduler.md) |

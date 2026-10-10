@@ -12,7 +12,7 @@ use crate::report::{Diag, Edit, Fix};
 
 /// This toolchain's version, which a manifest's `[package] hd` minimum is
 /// compared with (`module.toolchain.graph-minimum`).
-const TOOLCHAIN: &str = env!("CARGO_PKG_VERSION");
+pub(crate) const TOOLCHAIN: &str = env!("CARGO_PKG_VERSION");
 
 /// Every `.hd` file under a root, read on demand. Discovery knows the
 /// source root as `src`; a package whose `[source] root` names another
@@ -215,73 +215,145 @@ fn manifest_of(dir: &Path) -> Result<Option<Manifest>, String> {
     }
 }
 
-/// The packages a root's path requirements reach, transitively
-/// (`module.path-dep.form`), in the order they are first reached, and the
-/// root's own requirements and dev requirements. Only the root's
-/// `[dev-dependencies]` are read (`module.select.dev-dependencies`). One
-/// directory is one package, so a requirement that reaches a package read
-/// before names it again: a cycle stays finite, and the build reports it
-/// (`module.cycle.package`). A host requirement needs a fetch, and a path
-/// with no manifest is no package; neither is read here.
-fn dependencies(root: &Path) -> Result<(Requires, Requires, Vec<DiskPackage>), String> {
-    let Some(manifest) = manifest_of(root)? else {
-        return Ok((Vec::new(), Vec::new(), Vec::new()));
+/// Where selection starts for the package at `root`, and the directory of
+/// its `hd.sum`: the package and the other members of its workspace, with
+/// the workspace root (`module.workspace.selection`,
+/// `module.workspace.sum`), or the package alone (`module.sum.file`).
+pub fn selection_start(root: &Path) -> (PathBuf, Vec<PathBuf>) {
+    let Some((ws, members)) = enclosing_workspace(root) else {
+        return (root.to_path_buf(), vec![root.to_path_buf()]);
     };
-    let mut dirs: Vec<PathBuf> = vec![std::fs::canonicalize(root).map_err(|e| e.to_string())?];
-    let mut requires: Vec<Requires> = Vec::new();
-    let mut dev = Vec::new();
-    let mut manifests = vec![manifest];
-    let mut deps: Vec<DiskPackage> = Vec::new();
-    let mut next = 0;
-    while next < dirs.len() {
-        let mut own = Vec::new();
-        let reqs = manifests[next].dependencies.clone();
-        let dev_reqs = if next == 0 {
-            manifests[0].dev_dependencies.clone()
-        } else {
-            Vec::new()
-        };
-        for (is_dev, r) in reqs
+    let same = |a: &Path, b: &Path| {
+        std::fs::canonicalize(a)
+            .ok()
+            .is_some_and(|a| std::fs::canonicalize(b).ok() == Some(a))
+    };
+    let mut all = vec![root.to_path_buf()];
+    all.extend(members.into_iter().filter(|m| !same(m, root)));
+    (ws, all)
+}
+
+/// The `hd.sum` in `dir`, empty when it has none, or the line and message
+/// of why it cannot be read.
+pub fn read_sum(dir: &Path) -> Result<hd_deps::Sum, (u32, String)> {
+    match std::fs::read_to_string(dir.join("hd.sum")) {
+        Ok(text) => hd_deps::Sum::parse(&text).map_err(|e| (e.line, e.message)),
+        Err(_) => Ok(hd_deps::Sum::default()),
+    }
+}
+
+/// `path` as shown from the directory `from`: relative to it when both
+/// are below one directory, else as it is.
+pub fn shown_from(from: &Path, path: &Path) -> String {
+    let from: Vec<_> = from.components().collect();
+    let to: Vec<_> = path.components().collect();
+    let common = from.iter().zip(&to).take_while(|(a, b)| a == b).count();
+    if common == 0 {
+        return path.display().to_string();
+    }
+    let mut parts: Vec<String> = vec!["..".to_owned(); from.len() - common];
+    parts.extend(
+        to[common..]
             .iter()
-            .map(|r| (false, r))
-            .chain(dev_reqs.iter().map(|r| (true, r)))
-        {
-            let Some(path) = &r.path else { continue };
-            let Ok(dir) = std::fs::canonicalize(dirs[next].join(path)) else {
-                continue;
-            };
-            let index = if let Some(i) = dirs.iter().position(|d| *d == dir) {
-                i
-            } else {
-                let Some(m) = manifest_of(&dir)? else {
-                    continue;
-                };
-                let (sources, name) = sources_of(&dir)?;
-                deps.push(DiskPackage {
-                    name,
-                    sources,
-                    requires: Vec::new(),
-                });
-                dirs.push(dir);
-                manifests.push(m);
-                dirs.len() - 1
-            };
-            let edge = (r.name(), u16::try_from(index).map_err(|e| e.to_string())?);
-            if is_dev {
-                dev.push(edge);
-            } else {
-                own.push(edge);
+            .map(|c| c.as_os_str().to_string_lossy().into_owned()),
+    );
+    parts.join("/")
+}
+
+/// A dependency problem as a diagnostic at its line of `hd.toml`, shown
+/// from the directory `from`.
+pub fn problem_diag(from: &Path, p: &hd_deps::Problem) -> Diag {
+    let file = shown_from(from, &p.place.dir.join("hd.toml"));
+    Diag::error(p.code, &p.message).at(&file, Some(p.place.line as usize))
+}
+
+/// The packages the root's requirements reach, selected and fetched
+/// (`cli.dep.implicit-fetch`), in the order they are first reached, and
+/// the root's own requirements and dev requirements, with the problems of
+/// the selection at their lines. Only the root's `[dev-dependencies]` are
+/// linked (`module.select.dev-dependencies`). One directory or version is
+/// one package, so a cycle stays finite, and the build reports it
+/// (`module.cycle.package`). It never writes `hd.sum`
+/// (`cli.dep.no-sum-write`).
+fn dependencies(root: &Path) -> Result<Dependencies, String> {
+    if manifest_of(root)?.is_none() {
+        return Ok(Dependencies::default());
+    }
+    let canonical = std::fs::canonicalize(root).map_err(|e| e.to_string())?;
+    let (sum_dir, members) = selection_start(root);
+    let mut problems = Vec::new();
+    let sum = read_sum(&sum_dir).unwrap_or_else(|(line, message)| {
+        let file = shown_from(&canonical, &sum_dir.join("hd.sum"));
+        problems.push((
+            None,
+            Diag::error(None, &message).at(&file, Some(line as usize)),
+        ));
+        hd_deps::Sum::default()
+    });
+    let mut progress = |key: &str| eprintln!("hd: fetching {key}");
+    let mut remote = hd_deps::Remote::new(hd_deps::Cache::new(crate::cache_root()), &mut progress);
+    let sel = hd_deps::select(
+        &members,
+        &sum,
+        hd_deps::Mode::Verify,
+        &mut remote,
+        TOOLCHAIN,
+    );
+    for p in &sel.problems {
+        let line = (p.place.dir == canonical).then_some(p.place.line);
+        problems.push((line, problem_diag(&canonical, p)));
+    }
+    let Some(first) = sel.packages.first().filter(|p| p.dir == canonical) else {
+        return Ok(Dependencies {
+            problems,
+            ..Dependencies::default()
+        });
+    };
+    // The root's part of the graph, the root first.
+    let mut index: std::collections::HashMap<usize, u16> = [(0, 0)].into();
+    let mut order = vec![0];
+    let mut next = 0;
+    while next < order.len() {
+        let p = &sel.packages[order[next]];
+        let dev: &[(String, usize)] = if next == 0 { &p.dev_requires } else { &[] };
+        for (_, t) in p.requires.iter().chain(dev) {
+            if !index.contains_key(t) {
+                index.insert(*t, u16::try_from(order.len()).map_err(|e| e.to_string())?);
+                order.push(*t);
             }
         }
-        requires.push(own);
         next += 1;
     }
-    let mut requires = requires.into_iter();
-    let root_requires = requires.next().unwrap_or_default();
-    for (d, r) in deps.iter_mut().zip(requires) {
-        d.requires = r;
+    let edges = |list: &[(String, usize)]| -> Requires {
+        list.iter().map(|(n, t)| (n.clone(), index[t])).collect()
+    };
+    let mut deps = Vec::new();
+    for &i in &order[1..] {
+        let p = &sel.packages[i];
+        let (sources, name) = sources_of(&p.dir)?;
+        deps.push(DiskPackage {
+            name,
+            sources,
+            requires: edges(&p.requires),
+        });
     }
-    Ok((root_requires, dev, deps))
+    Ok(Dependencies {
+        requires: edges(&first.requires),
+        dev_requires: edges(&first.dev_requires),
+        deps,
+        problems,
+    })
+}
+
+/// What `dependencies` finds for a package.
+#[derive(Default)]
+struct Dependencies {
+    requires: Requires,
+    dev_requires: Requires,
+    deps: Vec<DiskPackage>,
+    /// The selection's problems, with the line of the root's `hd.toml`
+    /// each is at, if any.
+    problems: Vec<(Option<u32>, Diag)>,
 }
 
 /// A package name for a root without `hd.toml`: its directory's name.
@@ -557,8 +629,13 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
 /// package-relative file `entry` as its entry module.
 pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
     let (sources, package) = sources_of(root)?;
-    let problems = manifest_problems(root, &package)?;
-    let (requires, dev_requires, deps) = dependencies(root)?;
+    let Dependencies {
+        requires,
+        dev_requires,
+        deps,
+        problems,
+    } = dependencies(root)?;
+    let problems = manifest_problems(root, &package, problems)?;
     let entries = executables(root, &package)
         .iter()
         .filter(|e| e.file.starts_with("src/"))
@@ -615,24 +692,28 @@ fn valid_grants(table: Vec<(String, Option<Grant>, u32)>) -> Vec<(String, Grant)
 
 /// Whether `dir` holds a manifest that declares a package
 /// (`module.path-dep.no-package`).
-fn declares_package(dir: &Path) -> Result<bool, String> {
+pub(crate) fn declares_package(dir: &Path) -> Result<bool, String> {
     Ok(manifest_of(dir)?.is_some_and(|m| !m.name.is_empty()))
 }
 
 /// What the root manifest breaks, in line order: the rules of the manifest
 /// alone (`hd_project::problems`), then those that need the disk: a path
 /// requirement's package and library (`module.path-dep.no-package`,
-/// `cli.dep.no-library`), a dependency requirement's `hd.sum` entry
-/// (`cli.dep.missing-sum`), and a task named as an executable
+/// `cli.dep.no-library`), the selection's `dependency` problems, such as a
+/// missing or differing `hd.sum` entry (`cli.dep.missing-sum`,
+/// `cli.dep.verify`), and a task named as an executable
 /// (`cli.task.name-clash`).
-fn manifest_problems(root: &Path, package: &str) -> Result<Vec<Diag>, String> {
+fn manifest_problems(
+    root: &Path,
+    package: &str,
+    dependency: Vec<(Option<u32>, Diag)>,
+) -> Result<Vec<Diag>, String> {
     const FILE: &str = "hd.toml";
     let Some(m) = manifest_of(root)? else {
         return Ok(Vec::new());
     };
     let own = hd_project::problems(&m, TOOLCHAIN);
-    let mut out: Vec<(Option<u32>, Diag)> = Vec::new();
-    let sum = std::fs::read_to_string(root.join("hd.sum")).unwrap_or_default();
+    let mut out: Vec<(Option<u32>, Diag)> = dependency;
     for r in m.dependencies.iter().chain(&m.dev_dependencies) {
         if own
             .iter()
@@ -640,49 +721,29 @@ fn manifest_problems(root: &Path, package: &str) -> Result<Vec<Diag>, String> {
         {
             continue;
         }
-        let why = if let Some(dir) = &r.path {
-            let dir_path = root.join(dir);
-            if !declares_package(&dir_path)? {
-                Some((
-                    Code::InvalidRequirement,
-                    format!(
-                        "`{}` requires the directory `{dir}`, which holds no package: it has no `hd.toml` with a `[package]` section",
-                        r.key
-                    ),
-                ))
-            } else if !dir_path
-                .join(source_dir(&dir_path))
-                .join("lib.hd")
-                .is_file()
-            {
-                Some((
-                    Code::InvalidRequirement,
-                    format!(
-                        "`{}` requires the package in `{dir}`, which has no library (`src/lib.hd`), so no package can depend on it",
-                        r.key
-                    ),
-                ))
-            } else {
-                None
-            }
+        let Some(dir) = &r.path else { continue };
+        let dir_path = root.join(dir);
+        let message = if !declares_package(&dir_path)? {
+            format!(
+                "`{}` requires the directory `{dir}`, which holds no package: it has no `hd.toml` with a `[package]` section",
+                r.key
+            )
+        } else if !dir_path
+            .join(source_dir(&dir_path))
+            .join("lib.hd")
+            .is_file()
+        {
+            format!(
+                "`{}` requires the package in `{dir}`, which has no library (`src/lib.hd`), so no package can depend on it",
+                r.key
+            )
         } else {
-            let entry = format!("{} ", r.text);
-            (!sum.lines().any(|l| l.starts_with(&entry))).then(|| {
-                (
-                    Code::MissingSumEntry,
-                    format!(
-                        "`{}` has no `hd.sum` entry; run `hd fetch` to fetch it and record its hash, or `hd add` to require it",
-                        r.text
-                    ),
-                )
-            })
+            continue;
         };
-        if let Some((code, message)) = why {
-            out.push((
-                Some(r.line),
-                Diag::error(Some(code), &message).at(FILE, Some(r.line as usize)),
-            ));
-        }
+        out.push((
+            Some(r.line),
+            Diag::error(Some(Code::InvalidRequirement), &message).at(FILE, Some(r.line as usize)),
+        ));
     }
     for p in own {
         out.push((

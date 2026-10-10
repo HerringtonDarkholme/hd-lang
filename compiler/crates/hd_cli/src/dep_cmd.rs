@@ -1,13 +1,14 @@
-//! The dependency commands that need no fetch design yet (Dependency
-//! Commands, `cli.dep.*`): `hd remove NAME`, and `hd fetch` for a
-//! selection with nothing to fetch.
+//! The dependency commands (Dependency Commands, `cli.dep.*`):
+//! `hd remove NAME` and `hd fetch`.
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use crate::fail;
-use crate::report::{Reporter, format_flag};
+use hd_diag::{Code, Severity};
+
+use crate::report::{Diag, Reporter, format_flag};
+use crate::{HD_FAILURE, disk, fail};
 
 /// The package a dependency command edits (`cli.dep.package-only`,
 /// `cli.dep.workspace-member-only`).
@@ -113,9 +114,13 @@ fn remove_in(root: &Path, name: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// `hd fetch` (`cli.dep.fetch`, `cli.dep.workspace-fetch`): with only path
-/// requirements there is nothing to fetch and no `hd.sum` line to add
-/// (`cli.dep.path`); fetching a dependency requirement is not built yet.
+/// `hd fetch` (`cli.dep.fetch`, `cli.dep.workspace-fetch`): selects for the
+/// package, or for every member of its workspace, fetches each version
+/// the cache lacks, and adds each `hd.sum` line the selection needs and
+/// the file lacks. It changes no entry (`cli.sum.keep`), and on an error
+/// it writes nothing (`cli.dep.unchanged-on-error`). With only path
+/// requirements there is no line to add, and no `hd.sum` is written
+/// (`cli.dep.path`).
 pub(crate) fn fetch(args: &[OsString]) -> ExitCode {
     let (json, words) = match words(args) {
         Ok(w) => w,
@@ -129,33 +134,92 @@ pub(crate) fn fetch(args: &[OsString]) -> ExitCode {
         Ok(c) => c,
         Err(e) => return rep.fail(&e.to_string()),
     };
-    let roots = if let Some((_, members)) = crate::disk::workspace_root(&cwd) {
-        members
-    } else if let Some(root) = crate::disk::package_root(&cwd) {
-        vec![root]
+    let (shown, sum_dir, members) = if let Some((ws, members)) = disk::workspace_root(&cwd) {
+        (ws.clone(), ws, members)
+    } else if let Some(root) = disk::package_root(&cwd) {
+        let (sum_dir, members) = disk::selection_start(&root);
+        (root, sum_dir, members)
     } else {
         return rep.fail(
             "`hd fetch` works on a package, and no `hd.toml` is at or above here; create a package with `hd new`",
         );
     };
-    for root in roots {
-        let m = match std::fs::read_to_string(root.join("hd.toml"))
+    let shown = std::fs::canonicalize(&shown).unwrap_or(shown);
+    // Each member's requirements that break a rule of the manifest alone
+    // (`cli.dep.invalid`), which selection leaves out.
+    let mut diags = Vec::new();
+    for dir in &members {
+        let path = dir.join("hd.toml");
+        let m = match std::fs::read_to_string(&path)
             .map_err(|e| e.to_string())
             .and_then(|t| hd_project::parse_manifest(&t).map_err(|e| e.to_string()))
         {
             Ok(m) => m,
-            Err(e) => return rep.fail(&format!("{}: {e}", root.join("hd.toml").display())),
+            Err(e) => return rep.fail(&format!("{}: {e}", path.display())),
         };
-        if let Some(r) = m
-            .dependencies
-            .iter()
-            .chain(&m.dev_dependencies)
-            .find(|r| r.path.is_none())
-        {
-            return rep.fail(&format!(
-                "fetching `{}` ({}) is not implemented yet",
-                r.key, r.text
-            ));
+        let file = disk::shown_from(&shown, &std::fs::canonicalize(&path).unwrap_or(path));
+        let own = hd_project::problems(&m, disk::TOOLCHAIN);
+        for p in &own {
+            if p.code == Some(Code::InvalidRequirement) && p.severity == Severity::Error {
+                diags.push(Diag::error(p.code, &p.message).at(&file, p.line.map(|l| l as usize)));
+            }
+        }
+        // A path requirement names a package (`module.path-dep.no-package`).
+        for r in m.dependencies.iter().chain(&m.dev_dependencies) {
+            let Some(path) = &r.path else { continue };
+            if own.iter().any(|p| p.line == Some(r.line)) {
+                continue;
+            }
+            match disk::declares_package(&dir.join(path)) {
+                Ok(true) => {}
+                Ok(false) => diags.push(
+                    Diag::error(
+                        Some(Code::InvalidRequirement),
+                        &format!(
+                            "`{}` requires the directory `{path}`, which holds no package: it has no `hd.toml` with a `[package]` section",
+                            r.key
+                        ),
+                    )
+                    .at(&file, Some(r.line as usize)),
+                ),
+                Err(e) => return rep.fail(&e),
+            }
+        }
+    }
+    if rep.diags(&diags) {
+        return rep.finish(HD_FAILURE);
+    }
+    let sum = match disk::read_sum(&sum_dir) {
+        Ok(s) => s,
+        Err((line, message)) => {
+            let file = disk::shown_from(&shown, &sum_dir.join("hd.sum"));
+            rep.diag(&Diag::error(None, &message).at(&file, Some(line as usize)));
+            return rep.finish(HD_FAILURE);
+        }
+    };
+    let mut progress = |key: &str| eprintln!("hd: fetching {key}");
+    let mut remote = hd_deps::Remote::new(hd_deps::Cache::new(crate::cache_root()), &mut progress);
+    let sel = hd_deps::select(
+        &members,
+        &sum,
+        hd_deps::Mode::Record,
+        &mut remote,
+        crate::disk::TOOLCHAIN,
+    );
+    if !sel.problems.is_empty() {
+        for p in &sel.problems {
+            rep.diag(&disk::problem_diag(&shown, p));
+        }
+        return rep.finish(HD_FAILURE);
+    }
+    let mut added = sum.clone();
+    for (key, hash) in sel.sums {
+        added.entries.entry(key).or_insert(hash);
+    }
+    if added != sum {
+        let path = sum_dir.join("hd.sum");
+        if let Err(e) = std::fs::write(&path, added.text()) {
+            return rep.fail(&format!("{}: {e}", path.display()));
         }
     }
     rep.finish(0)
