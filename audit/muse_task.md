@@ -43,17 +43,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M15. Design: Resource Limits On wasmtime (#269, Design Text)
-
-The spec's Resource Limits section (program limits, compiler memory) has
-nothing built. W1 (`hd_run_wasmtime`, engines-and-test-runner.md §18.7)
-sets epoch interruption with a far deadline and a fixed stack. Design
-`--time-limit`, `--max-heap` and the other program limits through
-wasmtime (epoch deadlines, `ResourceLimiter`, GC heap caps) and the
-compiler-memory rule, with the panic or error each limit produces and how
-the Node path behaves until W5. Output: a section in
-`engines-and-test-runner.md`. No code changes.
-
 ### M16. Design: `hd fix` And `hd cache gc` (#267, #268, Design Text)
 
 Read the spec's Rewriting Source / Fixing and Compiled Cache sections,

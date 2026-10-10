@@ -696,3 +696,88 @@ Recommendation: build in §21.1 → §21.2 → §21.3 order (providers, then
 linkers, then pooling), flip conformance tiers (§21.6) before making
 wasmtime the `hd test` default, and keep Node until the differential
 pass is green.
+
+## 22. Resource Limits On wasmtime (M15, 2026-10-10, #269)
+
+The spec's Resource Limits (`cli.limit.*`, `cli.memory.*`,
+`flow.panic.heap-exhausted`, `flow.panic.time-limit`) have nothing
+built: W1 sets epoch interruption with a far deadline, a fixed 4 MiB
+stack, and a 64 MiB initial GC heap, and only the exchange-buffer
+growth refusal panics `heap-exhausted` today. This designs the flags
+through wasmtime, the panic or error each limit produces, and Node
+behavior until W5. No code changes.
+
+### 22.1 `--time-limit` through epochs
+
+`--time-limit DURATION` sets the run's epoch deadline
+(`Store::set_epoch_deadline`) on top of the shared ticker thread from
+§21.4; a busy loop traps at the next back-edge check and the reactor
+cuts a parked host wait at the same instant, exactly as
+`report_timeout` does. The trap maps to `panic: time-limit`
+(`flow.panic.time-limit`), never to a host `internal error`. In
+`hd test` the flag applies per case per instance (`cli.limit.test`),
+composing with (not replacing) `report_timeout`: the earlier deadline
+wins. No flag means no deadline (`cli.limit.none`), as today. Invalid
+durations are usage errors (`cli.limit.forms`).
+
+### 22.2 `--max-heap` through `ResourceLimiter` and heap accounting
+
+`--max-heap SIZE` caps the program's heap: linear-memory growth past
+the cap is refused in `ResourceLimiter::memory_growing`, and the
+resulting trap maps to `panic: heap-exhausted`
+(`flow.panic.heap-exhausted`), the same category the exchange-buffer
+refusal already produces. GC-heap growth counts against the same cap
+through the pooling allocator's heap accounting; the exact accounting
+call is an implementation check (Q2), but the observable contract is
+fixed: any allocation past the cap panics `heap-exhausted`, in every
+profile, with no default cap. `--max-memory` (compiler) is separate by
+rule (`cli.memory.cap.program`): it stays a process-level cap (§22.3).
+
+### 22.3 Compiler memory: `--max-memory` / `HD_MAX_MEMORY`
+
+A counting global allocator tracks heap bytes held by checking and
+building; past the cap the driver stops and reports one `memory-limit`
+error naming its stage (`cli.memory.cap.error`). Heap-only accounting
+is documented as approximate (RSS includes stacks, mapped `cwasm`, and
+the engine); platform RSS sampling is explicitly out of scope. Off
+unless asked (`cli.memory.cap.default`), since scheduling makes the
+trip point nondeterministic by rule. The env var is the fallback when
+no flag is given.
+
+### 22.4 Stack and the remaining panics
+
+`max_wasm_stack` (profile's limit, W1's 4 MiB default) already traps as
+`stack-exhausted`. No new stack flag: the profile owns the limit
+(§18.1). Fuel stays off (simulation, Later).
+
+### 22.5 Node until W5
+
+Node keeps what it has: `report_timeout` per test case (grace-padded,
+§21.4) and no heap cap (V8 heap; an over-allocation kills the process
+instead of panicking). `--time-limit` on Node is approximated by the
+existing supervisor termination (a kill, not a `time-limit` panic);
+`--max-heap` on Node is accepted and ignored with a warning until W5,
+since V8 exposes no per-instance heap cap. wasmtime is the precise
+path; the flags' parsing and forms are engine-independent from day
+one, so CLI cases assert behavior only where the engine can deliver
+and skip otherwise.
+
+## Questions with a recommendation
+
+- **Q1. Epoch granularity for short limits?** Keep the §21.4 shared
+  ticker (recommended): per-run timer threads would multiply with
+  `--jobs`; sub-10 ms limits are inherently approximate.
+- **Q2. GC-heap accounting call?** Confirm at implementation whether
+  the pooling allocator exposes GC bytes directly or needs sampling
+  (recommended: take whichever exists in wasmtime 49; the panic
+  contract does not depend on it).
+- **Q3. Warn or reject `--max-heap` on Node?** Warn and ignore
+  (recommended): the flag parses everywhere, but failing a run Node
+  cannot limit would break the differential period.
+- **Q4. Counting allocator vs RSS sampling for `--max-memory`?**
+  Counting allocator (recommended): portable, deterministic enough for
+  a best-effort cap the spec already calls nondeterministic.
+
+Recommendation: implement §22.1–22.2 on wasmtime first (both are pure
+driver/host work on the W1 engine), then §22.3, keeping the Node
+approximations of §22.5 until W5.
