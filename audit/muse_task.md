@@ -43,15 +43,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M4. Re-Triage The Failure Buckets (Research)
-
-The buckets in `compiler/CONFORMANCE.md` moved a lot (2420 pass, about
-336 fail, 84 unsupported). For every bucket with 3 or more cases, group
-the cases by first cause (one minimal program each, run with the current
-`hd`) and propose a task row per group ("[impl]" or "[check]", N
-programs, rule IDs, stage). Write `audit/compiler/triage-<date>.md`.
-Read only; timebox 60 minutes.
-
 ### M5. Design: The Release Profile In Codegen (#200, Design Text)
 
 `--release` must change codegen per the spec (wrapping or checked
