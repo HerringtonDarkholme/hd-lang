@@ -367,6 +367,11 @@ impl Ck<'_, '_> {
                     let (f, ft) = self.read_local(l, d, callee);
                     return self.call_value(f, ft, args, n, bang);
                 }
+                // A top-level binding holding a function value
+                // (`names.module.declarations`, `module.init.binding`).
+                if let Some((f, ft)) = self.global_get(s, callee) {
+                    return self.call_value(f, ft, args, n, bang);
+                }
                 let text = self.cx.names.text(s).to_owned();
                 if let Some(p) = Prim::ALL.iter().find(|p| p.name() == text) {
                     return self.conversion(Ty::prim(*p), args, n);

@@ -204,6 +204,24 @@ fn top_level_statements_are_checked_in_order() {
     );
 }
 
+/// A top-level binding that holds a function value, plain or suspending,
+/// is callable by name from a function body (`names.module.declarations`,
+/// `module.init.binding`), with `f(x)`, `f!(x)` or as a value.
+#[test]
+fn top_level_function_values_are_callable() {
+    let out = program(
+        "twice := fn(n: i32) -> i32:\n    n * +2\n\nfetch := fn!(n: i32) -> i32:\n    n\n\npub fn main!() -> void $ Console:\n    println(twice(+3))\n    println(fetch!(+4))\n    pending := fetch(+5)\n    println(pending!())\n",
+    );
+    assert!(
+        !codes(&out)
+            .iter()
+            .any(|c| matches!(c, Code::UnknownName | Code::TypeMismatch)),
+        "{}",
+        out.render()
+    );
+    assert_eq!(out.report.body_failed, 0, "{:?}", out.report.body_failures);
+}
+
 /// `$.with` covers its keys in its block, and each provider must
 /// implement its key (`req.with.type`): a value that does not convert to
 /// the key's trait value is `type-mismatch`, as the fixture
