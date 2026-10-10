@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2303 | 406 | 136 | 2845 |
+| 2314 | 400 | 131 | 2845 |
 
 ## By Chapter
 
@@ -18,12 +18,12 @@ fixture; unsupported surface records progress without failing.
 | `lang/02-grammar.md` | 196 | 11 | 8 | 215 |
 | `lang/03-names-and-scopes.md` | 92 | 8 | 1 | 101 |
 | `lang/04-type-system.md` | 300 | 47 | 5 | 352 |
-| `lang/05-expressions.md` | 234 | 39 | 4 | 277 |
+| `lang/05-expressions.md` | 242 | 33 | 2 | 277 |
 | `lang/06-control-flow.md` | 130 | 23 | 4 | 157 |
 | `lang/07-functions.md` | 99 | 23 | 8 | 130 |
 | `lang/08-data-and-enums.md` | 85 | 30 | 8 | 123 |
 | `lang/09-traits.md` | 272 | 72 | 15 | 359 |
-| `lang/10-modules.md` | 205 | 39 | 14 | 258 |
+| `lang/10-modules.md` | 208 | 39 | 11 | 258 |
 | `lang/11-requirements-and-suspension.md` | 168 | 48 | 43 | 259 |
 | `lang/14-annotations.md` | 104 | 42 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
@@ -63,8 +63,8 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 86 | 15 | 4 | 105 |
-| `runtime/valid` | 798 | 23 | 108 | 929 |
-| `typing/invalid` | 727 | 332 | 16 | 1075 |
+| `runtime/valid` | 803 | 23 | 103 | 929 |
+| `typing/invalid` | 733 | 326 | 16 | 1075 |
 | `typing/valid` | 394 | 13 | 8 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -94,7 +94,7 @@ compiler stage that first declined the case.
 | `fail:missing-return-value` | 1 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 211 |
+| `fail:no-diagnostic` | 209 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
@@ -111,7 +111,7 @@ compiler stage that first declined the case.
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-method-signature` | 1 |
 | `fail:trait-used-as-type` | 2 |
-| `fail:type-mismatch` | 41 |
+| `fail:type-mismatch` | 40 |
 | `fail:type-used-as-value` | 1 |
 | `fail:unknown-data-field` | 6 |
 | `fail:unknown-import` | 1 |
@@ -121,14 +121,13 @@ compiler stage that first declined the case.
 | `fail:unknown-trait` | 7 |
 | `fail:unknown-type` | 4 |
 | `fail:unknown-variant` | 1 |
-| `fail:unsatisfied-trait-bound` | 5 |
+| `fail:unsatisfied-trait-bound` | 2 |
 | `fail:unused-local-binding` | 6 |
 | `unsupported:Body` | 50 |
 | `unsupported:Collect` | 30 |
 | `unsupported:Emit` | 19 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 28 |
-| `unsupported:TestCase` | 5 |
 
 <details><summary><code>fail:ambiguous-method</code> (1)</summary>
 
@@ -276,7 +275,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (211)</summary>
+<details><summary><code>fail:no-diagnostic</code> (209)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -344,8 +343,6 @@ compiler stage that first declined the case.
 - `typing/invalid/inherent-member-unifying-targets.hd`
 - `typing/invalid/trait-resolution-depth.hd`
 - `typing/invalid/function-type-non-tuple-inputs.hd`
-- `typing/invalid/test-body-error-not-display.hd`
-- `typing/invalid/test-body-optional-result.hd`
 - `typing/invalid/entry-result-not-termination.hd`
 - `typing/invalid/structure-outside-template.hd`
 - `typing/invalid/marker-template.hd`
@@ -616,7 +613,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (41)</summary>
+<details><summary><code>fail:type-mismatch</code> (40)</summary>
 
 - `typing/invalid/unknown-associated-type.hd`
 - `typing/invalid/heterogeneous-list.hd`
@@ -636,7 +633,6 @@ compiler stage that first declined the case.
 - `typing/invalid/none-branch-needs-expected-type.hd`
 - `typing/invalid/least-common-type-supertrait-widening.hd`
 - `typing/invalid/function-result-representation-change.hd`
-- `typing/invalid/test-body-string-error.hd`
 - `typing/invalid/row-union-other-parts.hd`
 - `typing/invalid/row-union-nested-lists.hd`
 - `typing/invalid/row-union-if-nested-lists.hd`
@@ -755,12 +751,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unsatisfied-trait-bound</code> (5)</summary>
+<details><summary><code>fail:unsatisfied-trait-bound</code> (2)</summary>
 
 - `typing/invalid/provider-value-type-mismatch.hd`
-- `typing/invalid/propagation-no-chained-conversion.hd`
-- `typing/invalid/propagation-conversion-then-injection.hd`
-- `typing/invalid/propagation-error-without-conversion.hd`
 - `runtime/valid/fs-helpers.hd`
 
 </details>
@@ -929,16 +922,6 @@ compiler stage that first declined the case.
 - `runtime/valid/pending-first-poll-void-return.hd`
 - `runtime/valid/integration-test-public-view.hd`
 - `runtime/valid/test-module-uses-test-module.hd`
-
-</details>
-
-<details><summary><code>unsupported:TestCase</code> (5)</summary>
-
-- `runtime/valid/test-block-propagation.hd`
-- `runtime/valid/termination-report.hd`
-- `runtime/valid/test-body-explicit-closure.hd`
-- `runtime/valid/it-body-by-name.hd`
-- `runtime/valid/it-each-propagation.hd`
 
 </details>
 
@@ -1652,7 +1635,9 @@ runtime/valid/integer-power-associativity.hd
 runtime/valid/interpolation-display-order.hd
 runtime/valid/interpolation-expression-spacing.hd
 runtime/valid/interpolation-forms.hd
+runtime/valid/it-body-by-name.hd
 runtime/valid/it-each-options.hd
+runtime/valid/it-each-propagation.hd
 runtime/valid/it-each-rows.hd
 runtime/valid/iterator-adapters-run.hd
 runtime/valid/iterator-chain-iterable.hd
@@ -2037,8 +2022,11 @@ runtime/valid/task-all-list-order.hd
 runtime/valid/task-retry-at-least-once.hd
 runtime/valid/task-retry.hd
 runtime/valid/template-derived-trait-self.hd
+runtime/valid/termination-report.hd
 runtime/valid/termination-void-reports-zero.hd
 runtime/valid/test-block-on.hd
+runtime/valid/test-block-propagation.hd
+runtime/valid/test-body-explicit-closure.hd
 runtime/valid/test-body-return.hd
 runtime/valid/test-case-fresh-instance.hd
 runtime/valid/test-case-options.hd
@@ -2608,7 +2596,10 @@ typing/invalid/promoted-field-conflict-at-declaration.hd
 typing/invalid/promoted-method-conflict-at-declaration.hd
 typing/invalid/promoted-mut-method-on-readonly-receiver.hd
 typing/invalid/promoted-mut-self-method.hd
+typing/invalid/propagation-conversion-then-injection.hd
+typing/invalid/propagation-error-without-conversion.hd
 typing/invalid/propagation-nearest-function-target.hd
+typing/invalid/propagation-no-chained-conversion.hd
 typing/invalid/propagation-operand-not-optional.hd
 typing/invalid/propagation-without-target.hd
 typing/invalid/property-examples-wrong-type.hd
@@ -2754,6 +2745,9 @@ typing/invalid/supertrait-impl-bounds.hd
 typing/invalid/supertrait-widening-not-reversed.hd
 typing/invalid/suspension-constructor-to-bang-function.hd
 typing/invalid/task-retry-row-missing.hd
+typing/invalid/test-body-error-not-display.hd
+typing/invalid/test-body-optional-result.hd
+typing/invalid/test-body-string-error.hd
 typing/invalid/test-body-uses-property-runner.hd
 typing/invalid/test-module-name-not-imported.hd
 typing/invalid/test-option-not-literal.hd
@@ -3261,7 +3255,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 83 | 19 | 0 | 102 |
+| 85 | 17 | 0 | 102 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3339,8 +3333,10 @@ cli/new-path
 cli/new-vcs
 cli/task-beside-dir
 cli/task-name-clash
+cli/test-err-report
 cli/test-every-case
 cli/test-integration-env
+cli/test-report
 cli/test-snapshot-file
 cli/test-tasks
 cli/test-timeout
