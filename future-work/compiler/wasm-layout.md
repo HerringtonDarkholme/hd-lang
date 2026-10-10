@@ -580,3 +580,77 @@ content hashes (§15.4, §15.5,
 [lowering-catalog.md](lowering-catalog.md#numbering)). Numbers kept from
 earlier builds would make the bytes depend on history, so they are not
 used.
+
+### 15.9 The Line Table
+
+`cli.test.report.frame` prints a panic's source frame in `hd test`
+reports: `FILE:LINE FUNCTION` lines, panic site first. This section
+says what codegen emits for that, where it is stored, how the runner
+reads it, and what it costs when nothing panics. The pieces already
+exist as designs (§15.5, codegen.md §13.8 "Code Entries" and
+"Positions"); this pins the mapping rule and the read path.
+
+**What maps to what.** Three tables, all keyed without program-wide
+dense numbers:
+
+- `hd.lines`: per function index, the sorted code offsets of every
+  statement that can call or trap, each with its anchor (item path
+  row, TIR instruction index). A frame whose address falls between
+  two recorded offsets belongs to the lower one (Q1): a return
+  address points past its call.
+- `hd.sites`: per (function index, code offset of the stub `call`),
+  the panic category or kind with its anchor. An explicit panic
+  resolves through its caller frame — the stub frame itself is never
+  reported — so the panic site prints first, as the rule asks.
+- `hd.names`: per function index, a path-table index plus
+  type-argument indices, printing the same names as the dev `name`
+  section (`shop.cart/Cart.total`, `std.list/List.push[i32]`).
+
+Anchors resolve to `FILE:LINE` against the current sources at print
+time (codegen.md §13.8): `hd run` and `hd test` keep anchors and look
+them up in the module's current `check` entry; `hd build` resolves
+them once into the written file (file table plus line and column).
+
+**Where it is stored.** The three tables travel as custom sections of
+the linked module (`hd.lines`, `hd.sites`, `hd.names`), sorted for
+deterministic bytes (§15.8), and in the `link` cache entry still
+anchored; columns exist only in written files. Pre-link, the same
+rows live in each `CodeEntry` (`sites`, `lines`), so folding (§13.7)
+and the link step carry them without re-deriving. Engine-trap
+mapping (the §15.5 table) needs no storage: trap code plus code
+offset is enough. Release builds keep all three sections (§15.5, and
+codegen.md §13.17 Q2): dropping the dev `name` section does not drop
+symbolized panics.
+
+**How the runner reads it.** Only on a trap, never on a clean run.
+`hd_run` parses the three sections once per module and caches the
+parsed tables beside the instance: it reads the category global and
+the exchange-buffer message, walks the engine backtrace (wasmtime
+function index plus module offset; V8 `wasm-function[i]:0xOFF`),
+maps each frame through `hd.lines`/`hd.names` (explicit panics
+through `hd.sites` at the caller frame), and prints the text `PANIC`
+block. Machine output carries the category and message only; frames
+are a text-report feature. `PanicReport.sites` (`hd_run`) is the
+parsed per-case frame list before rendering.
+
+**Cost when unused.** Emission records one anchor per call/trap
+statement during the one emission walk — negligible. Size is the
+sections: about 300 B of the 800 B tiny program (§15.6), and
+`hd.names` about 30 KB against 150 KB for `name` at 10k lines. Read
+cost is zero on clean runs (lazy parse; the engine never touches the
+sections), microseconds per printed location on a panic. Cache cost
+is zero by construction: anchors hold no lines or columns, so a
+comment edit changes the reported line and nothing compiled or
+cached.
+
+**Questions.** Q1: greatest-recorded-offset `<=` frame address, or
+exact-offset match with a fallback? `<=` (recommended): return
+addresses always overshoot their call. Q2: parse the sections at
+instantiation or lazily on first trap? Lazily (recommended): clean
+runs, the common case for `hd test`, pay nothing. Q3: store columns
+in `hd.lines`, or lines only? Lines only in linked modules
+(recommended): the rule prints `FILE:LINE`, and columns are resolved
+from the `check` entry when writing files. Q4: cap the frame list?
+A `stack-exhausted` backtrace can hold thousands of frames; the spec
+names no cap. Recommended: print all frames the rule asks for, and
+raise the cap as an owner question if reports get unwieldy.

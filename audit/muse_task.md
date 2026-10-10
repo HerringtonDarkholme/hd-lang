@@ -43,14 +43,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M6. Design: Panic Frames In Test Reports (#201, Design Text)
-
-`cli.test.report.frame` wants a panic's source frame in `hd test`
-reports. Read that rule and wasm-layout.md / codegen.md, then add a
-section on the line table codegen should emit (what maps to what, where
-it is stored, how the runner reads it, cost when unused). Questions with
-a recommendation. Timebox 45 minutes.
-
 ### M7. Spec Audit Prep (Research, Read Only)
 
 `audit/compiler/diagnostic-notes.md` holds the spec questions logged
