@@ -43,14 +43,7 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M7. Spec Audit Prep (Research, Read Only)
-
-`audit/compiler/diagnostic-notes.md` holds the spec questions logged
-while the spec is frozen (about 35 rows: gaps, contradictory fixtures,
-missing codes, the 60d16179 change). For each row write one entry in
-`audit/compiler/spec-audit-proposal.md`: the rules and fixtures involved,
-the options, and a recommendation with its reason, grouped by chapter.
-Do not edit `spec/`. Timebox 60 minutes.
+(none — queue empty)
 
 ## Questions
 
