@@ -911,7 +911,11 @@ impl Ck<'_, '_> {
             };
             // A value whose type lacks the impl does not convert: the
             // binding's type does not fit (`trait.dyn.convert`).
+            let before = self.diags.len();
             let _ = self.require_ref_as(tref, n, Code::TypeMismatch);
+            if self.diags.len() == before {
+                self.check_value_bindings(gs, ws, n);
+            }
             return self
                 .b
                 .coerce(Coercion::ToTraitValue, NONE, r, want, n.index());
@@ -1011,6 +1015,52 @@ impl Ck<'_, '_> {
         let ok = self.infer.unify(self.pool(), a, b).is_ok();
         self.infer.rollback(snap);
         ok
+    }
+
+    /// A concrete value of type `got` converts to the trait value type
+    /// `want` only when its implementation binds each associated type to
+    /// the bound type (trait.dyn.binding.convert): otherwise the vtable's
+    /// slots would read another type than the value's methods return.
+    fn check_value_bindings(&mut self, got: Ty, want: Ty, n: NodeRef<'_>) {
+        let pool = self.pool();
+        let TyData::TraitValue { bindings, .. } = pool.get(want) else {
+            return;
+        };
+        for (assoc, bound) in bindings {
+            let Some(hd_resolve::ItemData::AssocType { owner, .. }) =
+                self.cx.lookup.item(assoc).map(|i| &i.data)
+            else {
+                continue;
+            };
+            let proj = pool.intern_ty(&TyData::Assoc {
+                assoc,
+                trait_: *owner,
+                self_ty: got,
+                args: TyList::EMPTY,
+            });
+            let Ok(t) = self.normalize(proj) else {
+                continue;
+            };
+            // The bound type may fix what inference left open, as a
+            // literal's type in `Pair { key: 1 }`.
+            if matches!(pool.get(t), TyData::Assoc { .. })
+                || pool.has_poison(t)
+                || pool.has_poison(bound)
+                || self.infer.unify(pool, t, bound).is_ok()
+            {
+                continue;
+            }
+            let t = self.infer.resolve(pool, t);
+            let msg = format!(
+                "{} binds `{}` to {}, but the trait value type binds it to {}",
+                self.show(got),
+                self.cx.names.display_name(assoc),
+                self.show(t),
+                self.show(bound)
+            );
+            self.err(Code::TypeMismatch, n, &msg);
+            return;
+        }
     }
 
     /// Solves `tref` now, learning what the answer fixes; `Ok(None)` when

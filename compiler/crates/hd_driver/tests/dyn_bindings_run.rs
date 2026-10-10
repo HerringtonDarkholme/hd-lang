@@ -107,6 +107,43 @@ impl Lookup for Squares:
 ";
 
 #[test]
+fn a_value_converts_only_when_its_implementation_binds_the_bound_types() {
+    let main = format!(
+        "{LOOKUP}
+data Pair[K]:
+    key: K
+
+impl[K] Lookup for Pair[K]:
+    type Key = K
+    type Value = K
+    fn find(self, key: K) -> K?: .Some(self.key)
+    fn keys(self) -> List[K]: [self.key]
+
+fn numbers(book: dyn Lookup[Key = string, Value = i32]) -> void:
+    pass
+
+fn same(pair: dyn Lookup[Key = i32, Value = i32]) -> void:
+    pass
+
+pub fn main() -> void:
+    numbers(PhoneBook {{ names: [], numbers: [] }})
+    same(Pair {{ key: 1 }})
+"
+    );
+    assert_eq!(codes_of(&main), Vec::<Code>::new());
+    let wrong = format!(
+        "{LOOKUP}
+fn numbers(book: dyn Lookup[Key = string, Value = i32]) -> void:
+    pass
+
+pub fn main() -> void:
+    numbers(Squares {{ size: 1 }})
+"
+    );
+    assert_eq!(codes_of(&wrong), vec![Code::TypeMismatch]);
+}
+
+#[test]
 fn the_checker_reads_a_projection_through_a_trait_value_as_its_bound_type() {
     let main = format!(
         "{LOOKUP}
