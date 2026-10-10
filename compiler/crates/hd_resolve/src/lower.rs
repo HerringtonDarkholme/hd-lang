@@ -2670,6 +2670,7 @@ impl Lower<'_, '_, '_> {
                 let mut it = Item::new(h.def, h.name, h.public, ItemData::Fn(sig));
                 it.intrinsic = self.intrinsic(n);
                 it.literal_fn = self.literal_fn(n);
+                it.has_facts = !crate::facts::fact_lines(&self.src, n).is_empty();
                 out.push(it);
             }
             HeadKind::Data => {
@@ -2684,6 +2685,7 @@ impl Lower<'_, '_, '_> {
                 let mut it = Item::new(h.def, h.name, h.public, ItemData::Data(fields));
                 it.generics = generics;
                 it.targets = self.annotate_mask(n);
+                it.typed_fact = self.annotate_typed(n);
                 out.push(it);
             }
             HeadKind::Enum => {
@@ -2724,6 +2726,7 @@ impl Lower<'_, '_, '_> {
                     Item::new(h.def, h.name, h.public, ItemData::Enum { shared, variants });
                 it.generics = generics;
                 it.targets = self.annotate_mask(n);
+                it.typed_fact = self.annotate_typed(n);
                 out.push(it);
             }
             HeadKind::Trait => {

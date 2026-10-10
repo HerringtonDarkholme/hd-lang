@@ -1192,6 +1192,12 @@ impl Ck<'_, '_> {
                 {
                     return self.await_all(args, n, bang);
                 }
+                if item
+                    .intrinsic
+                    .is_some_and(|k| self.cx.names.text(k) == "facts_of")
+                {
+                    return self.facts_of_call(args, n);
+                }
                 // A direct `dbg` call prints with its call site.
                 if def == self.cx.names.known.dbg && crate::dbg::is_direct(args, explicit) {
                     return self.dbg_call(args, n);

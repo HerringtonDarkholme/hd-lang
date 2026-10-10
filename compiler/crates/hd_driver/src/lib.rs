@@ -2448,6 +2448,28 @@ impl Run<'_> {
                 }
             }
         }
+        // The facts body of each function whose decorators attach values,
+        // which `facts_of` reads (spec 14 `annot.facts-of.result`).
+        for h in heads
+            .iter()
+            .filter(|h| h.kind == hd_resolve::HeadKind::Fn)
+            .filter(|h| !hd_resolve::facts::fact_lines(&src, h.node).is_empty())
+        {
+            match hd_check::check_facts(&cx, h.def, h.node, &mut diags) {
+                Ok(b) => {
+                    lock(&self.report).body_ok += 1;
+                    bodies.push(b);
+                }
+                Err(err) => {
+                    let mut r = lock(&self.report);
+                    r.body_failed += 1;
+                    r.body_failures
+                        .push(format!("{} facts: {}", names.path(h.def), err.what));
+                    drop(r);
+                    failed.get_or_insert(err);
+                }
+            }
+        }
         if !init_facts.is_empty() {
             hd_check::init::definite_init(&cx, &stmts, &init_facts, &mut diags);
         }

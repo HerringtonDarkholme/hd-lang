@@ -387,6 +387,12 @@ pub struct Item {
     /// A function marked `@num_suffix` (`LITERAL_SUFFIX`) or `@str_prefix`
     /// (`LITERAL_PREFIX`), or 0 (`expr.literal-fn.marker`).
     pub literal_fn: u8,
+    /// A function whose decorators attach values: `facts_of` of it reads
+    /// its facts body (`annot.facts-of.result`).
+    pub has_facts: bool,
+    /// A fact type whose `@annotate::[pattern]` line types its targets
+    /// (`annot.typed-fact.declare`).
+    pub typed_fact: bool,
     pub data: ItemData,
 }
 
@@ -406,6 +412,8 @@ impl Item {
             intrinsic: None,
             targets: None,
             literal_fn: 0,
+            has_facts: false,
+            typed_fact: false,
             data,
         }
     }
@@ -826,6 +834,8 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
     w.u32(it.intrinsic.map_or(u32::MAX, |s| t.sym(s)));
     w.u32(it.targets.map_or(u32::MAX, u32::from));
     w.u8(it.literal_fn);
+    w.u8(u8::from(it.has_facts));
+    w.u8(u8::from(it.typed_fact));
     match &it.data {
         ItemData::Fn(s) => {
             w.u8(0);
@@ -921,6 +931,8 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         m => Some(u16::try_from(m).ok()?),
     };
     let literal_fn = r.u8();
+    let has_facts = r.u8() != 0;
+    let typed_fact = r.u8() != 0;
     let data = match r.u8() {
         0 => ItemData::Fn(get_sig(r, t)?),
         1 => ItemData::Data(get_fields(r, t)?),
@@ -1001,6 +1013,8 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         intrinsic,
         targets,
         literal_fn,
+        has_facts,
+        typed_fact,
         data,
     })
 }

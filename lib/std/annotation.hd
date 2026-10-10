@@ -3,18 +3,17 @@
 # `annotate` are imported, not prelude names (r-annot.facts-of.declared,
 # r-annot.target.declarations).
 use std.format.DebugWriter
+use std.structure.Facts
 
 # The facts that decorators attach to the module-level function `f`, in
 # source order, as a `std.structure.Facts` (r-annot.facts-of.result). The
 # compiler checks that the argument names such a function, without
-# evaluating it, and lowers each call to that function's facts
-# (src/checker/function-facts.ts), so this body never runs and the call has
-# type `Facts`. The written result is `Any` because the modules that use
-# `std.annotation`, such as `std.ops`, do not declare `std.structure`.
+# evaluating it, and lowers each call to that function's facts, so this body
+# never runs.
 @intrinsic("facts_of")
 ## The facts attached to the module-level function `f`; a compiler intrinsic.
 ## See [annot.facts-of.declared](../../spec/lang/14-annotations.md#r-annot.facts-of.declared).
-pub fn facts_of[F](f: F) -> dyn Any:
+pub fn facts_of[F](f: F) -> Facts:
     panic("intrinsic")
 
 # The kinds of target a decorator value attaches to (r-annot.target.kind.fn

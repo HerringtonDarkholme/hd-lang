@@ -117,7 +117,18 @@ impl Lower<'_, '_, '_> {
     /// lists (`annot.target.limit`); a typed fact type attaches only to a
     /// field or a function (`annot.typed-fact.targets`).
     pub(super) fn annotate_mask(&self, n: NodeRef<'_>) -> Option<u16> {
+        self.annotate_line(n).map(|(mask, _)| mask)
+    }
+
+    /// Whether the `@annotate::[pattern](...)` line makes a typed fact type
+    /// (`annot.typed-fact.declare`).
+    pub(super) fn annotate_typed(&self, n: NodeRef<'_>) -> bool {
+        self.annotate_line(n).is_some_and(|(_, typed)| typed)
+    }
+
+    fn annotate_line(&self, n: NodeRef<'_>) -> Option<(u16, bool)> {
         let mut mask = None;
+        let mut typed_line = false;
         for d in n.children().filter(|c| c.kind() == SyntaxKind::Decorator) {
             let Some(deco) = self.deco(d) else { continue };
             if deco.name != "annotate" {
@@ -147,10 +158,11 @@ impl Lower<'_, '_, '_> {
             }
             if deco.typed {
                 m &= kind::FN | kind::FIELD;
+                typed_line = true;
             }
             mask = Some(mask.unwrap_or(0) | m);
         }
-        mask
+        mask.map(|m| (m, typed_line))
     }
 
     /// The fact type a decorator's value has: the result type of the

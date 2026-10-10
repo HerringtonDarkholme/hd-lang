@@ -185,6 +185,16 @@ impl Ck<'_, '_> {
             self.err(Code::MisplacedTestCase, n, &msg);
             return Ok((Ref(NONE), Ty::NEVER));
         }
+        // `facts_of` is only the callee of a direct call (`annot.facts-of.target.error`).
+        if self
+            .cx
+            .lookup
+            .item(def)
+            .and_then(|i| i.intrinsic)
+            .is_some_and(|k| self.cx.names.text(k) == "facts_of")
+        {
+            return Ok(self.bad_facts_target(n, "it is called, not used as a value"));
+        }
         let sig = self.with_result(def, sig.clone());
         let vars = self.fresh_generics(&sig, explicit, n);
         let m = Member {
