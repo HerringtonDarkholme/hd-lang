@@ -43,16 +43,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M11. Design: `hd doc` (#266, Design Text)
-
-`hd doc` and `hd doc NAME` have no implementation. Read the spec's
-Documentation section in `spec/cli/command-line.md` (pages, links, scope,
-looking up one item, output) and whatever the TS prototype has. Design
-the Rust implementation: which crate, what the checker must expose (doc
-comments, signatures, visibility), page and link generation, the
-`--private`, `--out` and `--open` flags, and the CLI cases it must pass.
-Output: `future-work/compiler/doc.md`. No code changes.
-
 ### M12. Probe The Untested Rules Of Chapters 04-07 (Research)
 
 The gap audit found 1594 spec rules with no fixture and no citation in
