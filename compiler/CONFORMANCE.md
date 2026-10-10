@@ -8,21 +8,21 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2420 | 337 | 88 | 2845 |
+| 2425 | 336 | 84 | 2845 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
 | `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
-| `lang/02-grammar.md` | 197 | 11 | 7 | 215 |
+| `lang/02-grammar.md` | 198 | 11 | 6 | 215 |
 | `lang/03-names-and-scopes.md` | 94 | 6 | 1 | 101 |
 | `lang/04-type-system.md` | 306 | 44 | 2 | 352 |
 | `lang/05-expressions.md` | 244 | 32 | 1 | 277 |
 | `lang/06-control-flow.md` | 136 | 17 | 4 | 157 |
 | `lang/07-functions.md` | 107 | 20 | 3 | 130 |
 | `lang/08-data-and-enums.md` | 86 | 29 | 8 | 123 |
-| `lang/09-traits.md` | 304 | 50 | 5 | 359 |
+| `lang/09-traits.md` | 307 | 49 | 3 | 359 |
 | `lang/10-modules.md` | 208 | 39 | 11 | 258 |
 | `lang/11-requirements-and-suspension.md` | 196 | 32 | 31 | 259 |
 | `lang/14-annotations.md` | 112 | 34 | 7 | 153 |
@@ -49,7 +49,7 @@ fixture; unsupported surface records progress without failing.
 | `std/random.md` | 8 | 0 | 0 | 8 |
 | `std/regex.md` | 13 | 0 | 0 | 13 |
 | `std/result.md` | 5 | 0 | 0 | 5 |
-| `std/serde.md` | 5 | 0 | 3 | 8 |
+| `std/serde.md` | 6 | 0 | 2 | 8 |
 | `std/sys.md` | 1 | 0 | 0 | 1 |
 | `std/task.md` | 7 | 0 | 0 | 7 |
 | `std/testing.md` | 35 | 3 | 1 | 39 |
@@ -63,8 +63,8 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 93 | 8 | 4 | 105 |
-| `runtime/valid` | 846 | 16 | 67 | 929 |
-| `typing/invalid` | 780 | 281 | 14 | 1075 |
+| `runtime/valid` | 850 | 16 | 63 | 929 |
+| `typing/invalid` | 781 | 280 | 14 | 1075 |
 | `typing/valid` | 403 | 9 | 3 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -91,7 +91,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 4 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 176 |
+| `fail:no-diagnostic` | 175 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
@@ -119,7 +119,7 @@ compiler stage that first declined the case.
 | `fail:unknown-variant` | 1 |
 | `fail:unused-local-binding` | 6 |
 | `unsupported:Body` | 35 |
-| `unsupported:Collect` | 20 |
+| `unsupported:Collect` | 16 |
 | `unsupported:Emit` | 2 |
 | `unsupported:Link` | 3 |
 | `unsupported:RunCase` | 28 |
@@ -246,7 +246,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (176)</summary>
+<details><summary><code>fail:no-diagnostic</code> (175)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -315,7 +315,6 @@ compiler stage that first declined the case.
 - `typing/invalid/invalid-member-line.hd`
 - `typing/invalid/omitted-member-without-default.hd`
 - `typing/invalid/generic-member-call.hd`
-- `typing/invalid/newtype-derivation-self.hd`
 - `typing/warnings/derivation-line-drift.hd`
 - `typing/invalid/structure-without-use.hd`
 - `typing/invalid/duplicate-tests-block.hd`
@@ -716,9 +715,8 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Collect</code> (20)</summary>
+<details><summary><code>unsupported:Collect</code> (16)</summary>
 
-- `runtime/valid/derived-newtype.hd`
 - `runtime/valid/typed-derivation-walk.hd`
 - `runtime/valid/data-variant-facts-empty.hd`
 - `runtime/valid/trait-less-block-facts.hd`
@@ -728,16 +726,13 @@ compiler stage that first declined the case.
 - `runtime/valid/structure-qualified-self.hd`
 - `runtime/valid/derived-default-enum.hd`
 - `runtime/valid/derived-default-declared-no-bound.hd`
-- `runtime/valid/derived-debug-newtype.hd`
 - `runtime/valid/handle-fact-exact-type.hd`
-- `runtime/valid/serde-std-writes.hd`
 - `runtime/valid/serde-derive-read-order.hd`
 - `runtime/valid/serde-variant-member-facts.hd`
 - `runtime/valid/json-typed-members.hd`
 - `runtime/valid/init-group-statements-by-identity.hd`
 - `runtime/panic/fact-evaluation-panics-on-read.hd`
 - `runtime/valid/derive-members-of-data-and-enums.hd`
-- `runtime/valid/type-declaration-forms.hd`
 
 </details>
 
@@ -1331,11 +1326,13 @@ runtime/valid/deque-ends.hd
 runtime/valid/derived-arbitrary-no-finite-data.hd
 runtime/valid/derived-arbitrary-no-finite-value.hd
 runtime/valid/derived-arbitrary-recursive-members.hd
+runtime/valid/derived-debug-newtype.hd
 runtime/valid/derived-default-data.hd
 runtime/valid/derived-default-declared.hd
 runtime/valid/derived-eq-every-member.hd
 runtime/valid/derived-equality-generic.hd
 runtime/valid/derived-equality-members.hd
+runtime/valid/derived-newtype.hd
 runtime/valid/derived-ordering-run.hd
 runtime/valid/diamond-shallower-copy-wins.hd
 runtime/valid/digest-sha256-long.hd
@@ -1845,6 +1842,7 @@ runtime/valid/self-interpolation.hd
 runtime/valid/sequential-suspending-calls.hd
 runtime/valid/serde-derive-call-order.hd
 runtime/valid/serde-std-reads.hd
+runtime/valid/serde-std-writes.hd
 runtime/valid/serde-writer-first-error.hd
 runtime/valid/set-basics.hd
 runtime/valid/shared-enum-data-defaults.hd
@@ -1989,6 +1987,7 @@ runtime/valid/tuple-vararg-rest.hd
 runtime/valid/tuple-vararg-spread-tail.hd
 runtime/valid/tuple-vararg.hd
 runtime/valid/type-arguments-in-expressions.hd
+runtime/valid/type-declaration-forms.hd
 runtime/valid/type-expression-forms.hd
 runtime/valid/typed-derivation-build-defaults.hd
 runtime/valid/typed-derivation-embedded-generic-walk.hd
@@ -2461,6 +2460,7 @@ typing/invalid/negative-literal-exponent.hd
 typing/invalid/nested-optional-needs-some.hd
 typing/invalid/newtype-bound-bare-trait.hd
 typing/invalid/newtype-derivation-block.hd
+typing/invalid/newtype-derivation-self.hd
 typing/invalid/newtype-over-data-permission.hd
 typing/invalid/newtype-value-category.hd
 typing/invalid/nil-is-unknown-name.hd
