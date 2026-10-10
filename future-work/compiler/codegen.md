@@ -725,6 +725,13 @@ stays distinct (identity follows `canon`, not representation), and
 code — the instances fold with the base type's — only the impl
 identity in the selection table.
 
+As built (#195): the emitter does not erase newtypes yet; a newtype value
+is a one-field struct (`NewData`/`Field`). So a derived newtype impl gets
+generated adapter methods (`hd_check/src/newtype.rs`) that unwrap `Self`
+arguments, call the base type's method and rewrap `Self`, `Self?`,
+`Result[Self, E]` and `List[Self]` results. Erasing newtypes as above
+(task in the P4 list) makes these adapters unnecessary.
+
 **A1 at collection (lowering pass; default adopted, decided by E1 and
 S1).** Each generic item carries a **representation summary** per type
 parameter, computed at check time and stored with its TIR, so the item's
