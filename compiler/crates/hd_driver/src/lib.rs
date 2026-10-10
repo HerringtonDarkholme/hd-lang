@@ -2632,11 +2632,19 @@ impl Run<'_> {
             let Some(tm) = self.table.module(&names.module_of(template)) else {
                 continue;
             };
-            let omitted = heads
-                .iter()
-                .find(|h| h.def == it.def)
-                .map(|h| hd_check::derive::omitted_members(&cx.src, h.node))
+            let block = heads.iter().find(|h| h.def == it.def).map(|h| h.node);
+            let omitted = block
+                .map(|b| hd_check::derive::omitted_members(&cx.src, b))
                 .unwrap_or_default();
+            if let Some(b) = block {
+                hd_check::derive::check_omitted_defaults(
+                    &names,
+                    cx.lookup,
+                    &cx.src,
+                    (it, b),
+                    diags,
+                );
+            }
             if let Some(mut opt) =
                 hd_check::derive::OptIn::new(&names, cx.lookup, it, template, &omitted)
             {

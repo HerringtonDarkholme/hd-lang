@@ -27,7 +27,7 @@
 use std::cell::RefCell;
 
 use hd_base::{DefId, StageResult};
-use hd_diag::DiagBuf;
+use hd_diag::{Code, DiagBuf};
 use hd_resolve::{Item, ItemData, Lookup, Names};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_types::solver::{Answer, Evidence, TraitRef};
@@ -162,9 +162,9 @@ impl OptIn {
     }
 }
 
-/// The members a derivation block's member lines omit: `name = pass`.
-#[must_use]
-pub fn omitted_members(src: &hd_resolve::Src<'_>, block: NodeRef<'_>) -> Vec<String> {
+/// The member lines of a derivation block that omit their member
+/// (`name = pass`), with the member's name.
+fn omit_lines<'t>(src: &hd_resolve::Src<'t>, block: NodeRef<'t>) -> Vec<(String, NodeRef<'t>)> {
     let mut out = Vec::new();
     let Some(body) = hd_resolve::Src::child(block, SyntaxKind::Block) else {
         return out;
@@ -186,10 +186,47 @@ pub fn omitted_members(src: &hd_resolve::Src<'_>, block: NodeRef<'_>) -> Vec<Str
                     .any(|t| src.tkind(t) == Some(TokenKind::KwPass))
         });
         if pass {
-            out.push(src.text(first).to_owned());
+            out.push((src.text(first).to_owned(), line));
         }
     }
     out
+}
+
+/// The members a derivation block's member lines omit: `name = pass`.
+#[must_use]
+pub fn omitted_members(src: &hd_resolve::Src<'_>, block: NodeRef<'_>) -> Vec<String> {
+    omit_lines(src, block).into_iter().map(|(n, _)| n).collect()
+}
+
+/// `annot.omit.no-default`: a member omitted with `= pass` declares a
+/// default for `build` to fill it with, and an embedded part, which has
+/// no default syntax, never does. The error is on the member line.
+pub fn check_omitted_defaults(
+    names: &Names<'_>,
+    lookup: &Lookup<'_>,
+    src: &hd_resolve::Src<'_>,
+    (it, block): (&Item, NodeRef<'_>),
+    diags: &mut DiagBuf,
+) {
+    let pool = names.pool.types();
+    let ItemData::Impl { self_ty, .. } = &it.data else {
+        return;
+    };
+    let TyData::Adt { def, .. } = pool.get(*self_ty) else {
+        return;
+    };
+    let Some(ItemData::Data(fields)) = lookup.item(def).map(|i| &i.data) else {
+        return;
+    };
+    for (name, line) in omit_lines(src, block) {
+        if fields
+            .iter()
+            .any(|f| names.text(f.name) == name && !f.has_default)
+        {
+            let msg = format!("`{name}` is omitted but declares no default for `build` to use");
+            diags.error(Code::OmittedMemberWithoutDefault, src.span(line), &msg);
+        }
+    }
 }
 
 /// Whether a derivation block carries a member line that edits facts:

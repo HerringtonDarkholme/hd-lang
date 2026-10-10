@@ -511,7 +511,9 @@ impl Lower<'_, '_, '_> {
                     let variants = Src::child(n, SyntaxKind::Block)
                         .into_iter()
                         .flat_map(NodeRef::children)
-                        .filter(|c| c.kind() == SyntaxKind::EnumVariant);
+                        .filter(|c| c.kind() == SyntaxKind::EnumVariant)
+                        .collect::<Vec<_>>();
+                    self.check_default_variant(n, &variants);
                     let declared = match self.item_of(n, TokenKind::KwEnum, items) {
                         Some(Item {
                             data: ItemData::Enum { variants, .. },
@@ -519,7 +521,7 @@ impl Lower<'_, '_, '_> {
                         }) => variants.as_slice(),
                         _ => &[],
                     };
-                    for (i, v) in variants.enumerate() {
+                    for (i, v) in variants.into_iter().enumerate() {
                         let place = Place {
                             kind: kind::VARIANT,
                             error_type,
@@ -581,6 +583,58 @@ impl Lower<'_, '_, '_> {
                     }
                 }
                 _ => {}
+            }
+        }
+    }
+
+    /// `std-ops.default.derive.one-variant`: an enum that derives `Default`
+    /// marks exactly one variant `@default`. None is an error on the
+    /// `@derive` line, several on the second marker.
+    fn check_default_variant(&mut self, n: NodeRef<'_>, variants: &[NodeRef<'_>]) {
+        let known = self.names.known;
+        let is = |name: &str, def: DefId| {
+            matches!(
+                self.scope.lookup(self.sym(name)),
+                Some(Binding { kind: BindingKind::Item, value }) if DefId::from_raw(value) == def
+            )
+        };
+        let derive = n
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::Decorator)
+            .find(|d| {
+                self.deco(*d).is_some_and(|deco| {
+                    deco.name == "derive"
+                        && deco.args.into_iter().flat_map(NodeRef::children).any(|a| {
+                            a.descendants()
+                                .filter(|x| x.kind() == SyntaxKind::NameExpr)
+                                .filter_map(|x| self.src.first_ident(x))
+                                .any(|t| is(self.src.text(t), known.default))
+                        })
+                })
+            });
+        let Some(derive) = derive else { return };
+        let marker = self.names.item("std.ops", "default");
+        let marks: Vec<NodeRef<'_>> = variants
+            .iter()
+            .flat_map(|v| v.children().filter(|c| c.kind() == SyntaxKind::Decorator))
+            .filter(|d| {
+                self.deco(*d)
+                    .is_some_and(|deco| deco.bare && is(&deco.name, marker))
+            })
+            .collect();
+        match marks.as_slice() {
+            [_] => {}
+            [] => {
+                let msg =
+                    "a derived `Default` enum marks one variant `@default`, and none is marked";
+                self.diags
+                    .error(Code::InvalidDefaultVariant, self.src.span(derive), msg);
+            }
+            [_, second, ..] => {
+                let msg =
+                    "a derived `Default` enum marks one variant `@default`, and a second is marked";
+                self.diags
+                    .error(Code::InvalidDefaultVariant, self.src.span(*second), msg);
             }
         }
     }

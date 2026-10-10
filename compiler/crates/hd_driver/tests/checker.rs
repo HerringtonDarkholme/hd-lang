@@ -949,3 +949,58 @@ fn written_types_may_omit_only_defaulted_slots() {
         );
     }
 }
+
+/// A derived `Default` enum marks exactly one variant `@default`
+/// (`std-ops.default.derive.one-variant`).
+#[test]
+fn derived_default_enums_mark_one_variant() {
+    const DERIVE: &str = "use std.ops.{Default, default}\n";
+    for ok in [
+        "@derive(Default)\nenum Mode:\n    @default\n    Fast\n    Slow",
+        "enum Mode:\n    Fast\n    Slow",
+    ] {
+        assert_eq!(item_codes(&format!("{DERIVE}{ok}\n")), [], "{ok}");
+    }
+    for bad in [
+        "@derive(Default)\nenum Mode:\n    Fast\n    Slow",
+        "@derive(Default)\nenum Mode:\n    @default\n    Fast\n    @default\n    Slow",
+    ] {
+        assert_eq!(
+            item_codes(&format!("{DERIVE}{bad}\n")),
+            [Code::InvalidDefaultVariant],
+            "{bad}"
+        );
+    }
+}
+
+/// A derivation block's `name = pass` line omits a member, which needs a
+/// declared default for `build` to use; an embedded part never has one
+/// (`annot.omit.no-default`).
+#[test]
+fn omitted_derivation_members_need_defaults() {
+    const HEAD: &str = "use std.structure.{Structure, Field, Variant, Walker}\n\n\
+        trait Show:\n    fn show(self) -> string\n\n\
+        impl Show for i64:\n    fn show(self) -> string:\n        \"$self\"\n\n\
+        data Shower:\n    out: string\n\n\
+        impl[S] Walker[S] for Shower:\n    type Error = never\n\n\
+        \x20   fn variant(mut self, v: Variant[S]) -> Result[void, never]:\n        .Ok(())\n\n\
+        \x20   fn member[F < Show](mut self, h: Field[S, F], value: F) -> Result[void, never]:\n\
+        \x20       self.out = self.out + value.show() + \";\"\n        .Ok(())\n\n\
+        impl[T] Show for T by Structure:\n    fn show(self) -> string:\n\
+        \x20       let w: mut Shower = Shower { out: \"\" }\n        _ := Structure::walk(self, w)\n        w.out\n\n\
+        data Token:\n    value: string\n\n\
+        data Audit:\n    at: i64\n\n";
+    let legal = "data Account:\n    id: i64\n    token: Token = Token { value: \"\" }\n\n\
+        impl Show for Account by Structure:\n    token = pass\n";
+    assert_eq!(item_codes(&format!("{HEAD}{legal}")), []);
+    for bad in [
+        "data Account:\n    id: i64\n    token: Token\n\nimpl Show for Account by Structure:\n    token = pass\n",
+        "data Account:\n    Audit\n    id: i64\n\nimpl Show for Account by Structure:\n    Audit = pass\n",
+    ] {
+        assert_eq!(
+            item_codes(&format!("{HEAD}{bad}")),
+            [Code::OmittedMemberWithoutDefault],
+            "{bad}"
+        );
+    }
+}
