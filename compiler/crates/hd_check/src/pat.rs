@@ -438,7 +438,8 @@ impl Ck<'_, '_> {
         if kids.iter().all(|k| k.kind() != SyntaxKind::NamedPattern) {
             return Ok(kids.into_iter().map(Some).collect());
         }
-        // Named fields: by the variant's field names.
+        // Positional sub-patterns fill fields by position, named ones by
+        // the variant's field names (data.enum.payload.order).
         let pool = self.pool();
         let tt = self.infer.resolve(pool, t);
         let tt = match pool.get(tt) {
@@ -456,19 +457,36 @@ impl Ck<'_, '_> {
         let Some(v) = variants.iter().find(|v| v.name == sym) else {
             return Ok(vec![]);
         };
-        let mut out = vec![None; v.fields.len()];
-        for k in kids {
-            if k.kind() != SyntaxKind::NamedPattern {
-                return unsupported("mixed positional and named variant fields");
+        let positional = kids
+            .iter()
+            .take_while(|k| k.kind() != SyntaxKind::NamedPattern)
+            .count();
+        // Extra positional sub-patterns stay in the list, so the caller
+        // reports the arity.
+        let mut out = vec![None; v.fields.len().max(positional)];
+        let mut filled = vec![false; out.len()];
+        for (i, k) in kids.into_iter().enumerate() {
+            let (slot, sub) = if i < positional {
+                (Some(i), Some(k))
+            } else if k.kind() == SyntaxKind::NamedPattern {
+                let fname = self
+                    .cx
+                    .names
+                    .syms
+                    .intern(self.cx.src.text(self.cx.src.first(k)));
+                let slot = v.fields.iter().position(|f| f.name == fname);
+                (slot, k.children().next().or(Some(k)))
+            } else {
+                // A positional pattern after a named one: `pattern-order`
+                // is already reported by the parser.
+                (None, None)
+            };
+            let Some(slot) = slot else { continue };
+            if std::mem::replace(&mut filled[slot], true) {
+                // The spec gives no diagnostic for a field matched twice.
+                return unsupported("a variant field matched twice in one pattern");
             }
-            let fname = self
-                .cx
-                .names
-                .syms
-                .intern(self.cx.src.text(self.cx.src.first(k)));
-            if let Some(i) = v.fields.iter().position(|f| f.name == fname) {
-                out[i] = k.children().next().or(Some(k));
-            }
+            out[slot] = sub;
         }
         Ok(out)
     }

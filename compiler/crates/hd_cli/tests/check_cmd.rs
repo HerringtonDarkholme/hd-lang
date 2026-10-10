@@ -76,9 +76,9 @@ fn package_error_exits_101_and_prints_it() {
     );
 }
 
-/// A program the checker cannot take yet: a pattern that mixes a positional
-/// and a named variant field. `hd build` stops on it with the same error.
-const UNSUPPORTED: &str = "enum Shape:\n    Rect(w: i32, h: i32)\n\nfn area(s: Shape) -> i32:\n    match s:\n        Shape.Rect(w, h=height) => w * height\n\npub fn main() -> void $ Console:\n    println(area(Shape.Rect(2, 3)))\n";
+/// A program the checker cannot take yet: a variant pattern with a rest
+/// (`Shape.Rect(w, rest...)`). `hd build` stops on it with the same error.
+const UNSUPPORTED: &str = "enum Shape:\n    Rect(w: i32, h: i32)\n\nfn area(s: Shape) -> i32:\n    match s:\n        Shape.Rect(w, rest...) => w\n\npub fn main() -> void $ Console:\n    println(area(Shape.Rect(2, 3)))\n";
 
 #[test]
 fn unsupported_program_fails_the_check() {
@@ -87,7 +87,7 @@ fn unsupported_program_fails_the_check() {
     assert_eq!(r.code, Some(101), "{}", r.err);
     assert_eq!(
         r.err,
-        "error: main.hd:5:5: unsupported: stage Body: mixed positional and named variant fields is not supported\n\
+        "error: main.hd:5:5: unsupported: stage Body: a variant pattern with a rest is not supported\n\
          check result: FAILED. errors: 1; warnings: 0\n"
     );
     assert!(!dir.join("build").exists(), "check writes no build output");

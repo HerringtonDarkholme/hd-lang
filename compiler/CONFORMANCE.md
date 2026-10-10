@@ -8,20 +8,20 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2472 | 289 | 84 | 2845 |
+| 2476 | 290 | 79 | 2845 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
 | `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
-| `lang/02-grammar.md` | 199 | 10 | 6 | 215 |
+| `lang/02-grammar.md` | 200 | 11 | 4 | 215 |
 | `lang/03-names-and-scopes.md` | 97 | 3 | 1 | 101 |
 | `lang/04-type-system.md` | 312 | 38 | 2 | 352 |
 | `lang/05-expressions.md` | 244 | 32 | 1 | 277 |
 | `lang/06-control-flow.md` | 138 | 15 | 4 | 157 |
 | `lang/07-functions.md` | 113 | 14 | 3 | 130 |
-| `lang/08-data-and-enums.md` | 87 | 28 | 8 | 123 |
+| `lang/08-data-and-enums.md` | 90 | 28 | 5 | 123 |
 | `lang/09-traits.md` | 318 | 38 | 3 | 359 |
 | `lang/10-modules.md` | 216 | 31 | 11 | 258 |
 | `lang/11-requirements-and-suspension.md` | 199 | 29 | 31 | 259 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 93 | 8 | 4 | 105 |
-| `runtime/valid` | 850 | 16 | 63 | 929 |
-| `typing/invalid` | 828 | 233 | 14 | 1075 |
-| `typing/valid` | 403 | 9 | 3 | 415 |
+| `runtime/valid` | 852 | 17 | 60 | 929 |
+| `typing/invalid` | 829 | 233 | 13 | 1075 |
+| `typing/valid` | 404 | 9 | 2 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -108,7 +108,7 @@ compiler stage that first declined the case.
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-used-as-type` | 1 |
 | `fail:type-mismatch` | 36 |
-| `fail:unknown-data-field` | 6 |
+| `fail:unknown-data-field` | 7 |
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 14 |
 | `fail:unknown-module` | 1 |
@@ -117,7 +117,7 @@ compiler stage that first declined the case.
 | `fail:unknown-type` | 3 |
 | `fail:unknown-variant` | 1 |
 | `fail:unused-local-binding` | 6 |
-| `unsupported:Body` | 35 |
+| `unsupported:Body` | 30 |
 | `unsupported:Collect` | 16 |
 | `unsupported:Emit` | 2 |
 | `unsupported:Link` | 3 |
@@ -527,7 +527,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-data-field</code> (6)</summary>
+<details><summary><code>fail:unknown-data-field</code> (7)</summary>
 
 - `typing/invalid/tuple-index-out-of-range.hd`
 - `typing/valid/type-default-declarations.hd`
@@ -535,6 +535,7 @@ compiler stage that first declined the case.
 - `typing/invalid/let-pattern-mut-readonly-field.hd`
 - `runtime/valid/impl-owned-target-and-trait-argument.hd`
 - `typing/invalid/default-body-self-field.hd`
+- `runtime/valid/let-patterns-and-let-else.hd`
 
 </details>
 
@@ -622,11 +623,8 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (35)</summary>
+<details><summary><code>unsupported:Body</code> (30)</summary>
 
-- `typing/valid/enums.hd`
-- `typing/invalid/literal-payload-pattern-nonexhaustive.hd`
-- `runtime/valid/literal-payload-patterns.hd`
 - `runtime/valid/binding-expressions.hd`
 - `runtime/valid/suspending-generic-method.hd`
 - `runtime/valid/generic-suspending-associated-function-qualified-call.hd`
@@ -653,9 +651,7 @@ compiler stage that first declined the case.
 - `runtime/valid/iterator-list-sum.hd`
 - `typing/invalid/sibling-module-requirement-key-not-imported.hd`
 - `typing/invalid/set-type-not-prelude.hd`
-- `runtime/valid/let-patterns-and-let-else.hd`
 - `runtime/valid/binding-chain-with-suite.hd`
-- `runtime/valid/pattern-forms.hd`
 - `runtime/valid/assignment-and-break-forms.hd`
 - `typing/invalid/grammar-assignment-nonplace.hd`
 - `runtime/valid/bang-call-and-prefix-not.hd`
@@ -1521,6 +1517,7 @@ runtime/valid/list-view-to-list-mut.hd
 runtime/valid/literal-erased-fallback.hd
 runtime/valid/literal-fallback-hint-fix.hd
 runtime/valid/literal-patterns.hd
+runtime/valid/literal-payload-patterns.hd
 runtime/valid/literal-receiver-params-differ-annotated.hd
 runtime/valid/literal-suffix-call.hd
 runtime/valid/literal-suffix-calls.hd
@@ -1654,6 +1651,7 @@ runtime/valid/parenthesized-nested-same-line-if.hd
 runtime/valid/partial-equality-dispatch.hd
 runtime/valid/partial-ordering-dispatch.hd
 runtime/valid/path-operations.hd
+runtime/valid/pattern-forms.hd
 runtime/valid/pipe-bare-method-step.hd
 runtime/valid/pipe-evaluation-order.hd
 runtime/valid/pipe-method-reference-step.hd
@@ -2348,6 +2346,7 @@ typing/invalid/literal-first-use-other-body.hd
 typing/invalid/literal-first-use-range.hd
 typing/invalid/literal-integer-into-float.hd
 typing/invalid/literal-operand-negation-unsigned.hd
+typing/invalid/literal-payload-pattern-nonexhaustive.hd
 typing/invalid/literal-receiver-params-differ.hd
 typing/invalid/literal-several-fit-bound.hd
 typing/invalid/literal-suffix-extra-parameter.hd
@@ -2876,6 +2875,7 @@ typing/valid/embedding-depth-three.hd
 typing/valid/empty-literal-field-context.hd
 typing/valid/entry-exit-code.hd
 typing/valid/enum-closed-exhaustive-match.hd
+typing/valid/enums.hd
 typing/valid/eq-contextual-left-operand.hd
 typing/valid/eq-contextual-right-operand.hd
 typing/valid/eq-fresh-literal-readonly-operand.hd
