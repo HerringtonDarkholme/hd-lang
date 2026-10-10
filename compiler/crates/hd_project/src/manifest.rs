@@ -416,6 +416,17 @@ impl Version {
     }
 }
 
+/// The version as a requirement writes it, as `2.1.0` or `1.0.0-rc.1`.
+impl std::fmt::Display for Version {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)?;
+        if !self.pre.is_empty() {
+            write!(f, "-{}", self.pre.join("."))?;
+        }
+        Ok(())
+    }
+}
+
 impl PartialOrd for Version {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -462,9 +473,23 @@ pub fn compatibility_line(v: &Version) -> String {
     }
 }
 
-/// Why a host path breaks [Host Paths] (`module.repo.*`,
-/// `module.dep.no-major-suffix`), or `None` when it names a repository.
-fn host_path_problem(path: &str) -> Option<String> {
+/// A host path split into the repository it names and the package's
+/// directory inside it (`module.repo.github`, `module.repo.git-suffix`,
+/// `module.repo.subdirectory`).
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct HostPath {
+    /// The host path as written, as `github.com/acme/tools/lint`.
+    pub path: String,
+    /// The repository part, as `github.com/acme/tools`.
+    pub repository: String,
+    /// The package's directory in the repository, as `lint`; empty at its
+    /// root.
+    pub subdirectory: String,
+}
+
+/// A host path, or why it breaks [Host Paths] (`module.repo.*`,
+/// `module.dep.no-major-suffix`).
+pub fn host_path(path: &str) -> Result<HostPath, String> {
     let segments: Vec<&str> = path.split('/').collect();
     let segment_ok = |s: &&str| {
         !s.is_empty()
@@ -474,19 +499,19 @@ fn host_path_problem(path: &str) -> Option<String> {
                 .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'~' | b'-'))
     };
     if !segments.iter().all(segment_ok) {
-        return Some(format!(
+        return Err(format!(
             "`{path}` is not a host path: each segment is letters, digits, `.`, `_`, `~` or `-`, separated by single `/`"
         ));
     }
     let host = segments[0];
     if !host.contains('.') || host.starts_with('.') || host.ends_with('.') {
-        return Some(format!(
+        return Err(format!(
             "`{path}` does not start with a host name, such as `github.com`"
         ));
     }
     let parts = if host == "github.com" {
         if segments.len() < 3 {
-            return Some(format!(
+            return Err(format!(
                 "`{path}` names no repository: on github.com, a host path is `github.com/OWNER/REPOSITORY`"
             ));
         }
@@ -499,7 +524,7 @@ fn host_path_problem(path: &str) -> Option<String> {
         {
             Some(i) => i + 2,
             None => {
-                return Some(format!(
+                return Err(format!(
                     "`{path}` names no repository: on a host other than github.com, the repository part ends with a segment that ends in `.git`"
                 ));
             }
@@ -510,11 +535,15 @@ fn host_path_problem(path: &str) -> Option<String> {
             .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
     };
     if segments[parts..].iter().any(suffix) {
-        return Some(format!(
+        return Err(format!(
             "`{path}` has a major-version suffix; a host path carries none, so a second compatibility line takes a second key"
         ));
     }
-    None
+    Ok(HostPath {
+        path: path.to_owned(),
+        repository: segments[..parts].join("/"),
+        subdirectory: segments[parts..].join("/"),
+    })
 }
 
 /// Why a version in a requirement is malformed, or `None`.
@@ -552,7 +581,7 @@ fn form_problem(r: &Requirement) -> Option<String> {
             r.text
         ));
     };
-    host_path_problem(path).or_else(|| version_problem(version))
+    host_path(path).err().or_else(|| version_problem(version))
 }
 
 /// What one package is to `module.dep.one-key-per-line`: a host path and
