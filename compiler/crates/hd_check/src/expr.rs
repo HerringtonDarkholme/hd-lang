@@ -2685,7 +2685,7 @@ impl Ck<'_, '_> {
             if key == Ty::POISON {
                 continue;
             }
-            let TyData::TraitValue { def, args, .. } = pool.get(key) else {
+            let TyData::TraitValue { def, .. } = pool.get(key) else {
                 return unsupported("a `$.with` key that is not a trait");
             };
             let (r, t) = self.expr(*vn, None)?;
@@ -2698,12 +2698,9 @@ impl Ck<'_, '_> {
                 );
                 self.err(Code::MutableUpgrade, *vn, &msg);
             }
-            let tref = hd_types::solver::TraitRef {
-                trait_: def,
-                self_ty: self.strip_mut(t),
-                args,
-            };
-            self.require_ref(tref, *vn)?;
+            // The provider becomes a trait value of its key
+            // (`req.with.type`), so codegen converts nothing at the block.
+            let r = self.coerce(r, t, key, *vn, "provider");
             pairs.push(Ref(key.0));
             pairs.push(r);
             keys.push(key);

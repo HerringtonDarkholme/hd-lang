@@ -185,8 +185,6 @@ pub enum Target {
     VTable(VTable),
     /// A closure's code instance.
     Closure(Hash128),
-    /// A `$.with`'s providers: per key, its vtable's targets.
-    Withs(Vec<VTable>),
     /// A map operation on a key that is not inline
     /// (`layout::inline_map_key`): `hash_of` and `Eq.eq` at the key type
     /// (codegen.md §13.12).
@@ -1659,30 +1657,6 @@ impl Cx<'_> {
                     };
                     let vt = self.vtable(trait_, trait_args, from, id, &mut reps)?;
                     calls.insert(ix, Target::VTable(vt));
-                }
-                Tag::With => {
-                    let rec = body.record(a).to_vec();
-                    let mut withs = Vec::new();
-                    for pair in rec.chunks(2) {
-                        let [k, v] = pair else {
-                            return err("a malformed `$.with` record");
-                        };
-                        let TyData::TraitValue {
-                            def: trait_,
-                            args: trait_args,
-                            ..
-                        } = pool.get(s(Ty(*k)))
-                        else {
-                            return err("a `$.with` key that is not a trait");
-                        };
-                        let from = s(value_ty(body, *v));
-                        let from = match pool.get(from) {
-                            TyData::Mut(x) => x,
-                            _ => from,
-                        };
-                        withs.push(self.vtable(trait_, trait_args, from, id, &mut reps)?);
-                    }
-                    calls.insert(ix, Target::Withs(withs));
                 }
                 // A map's key operations (codegen.md §13.12): a literal
                 // inserts each entry, and lookup, insertion and removal

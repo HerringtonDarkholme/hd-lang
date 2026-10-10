@@ -3908,27 +3908,25 @@ impl<'a> Em<'a> {
         Ok(())
     }
 
-    /// `$.with(K = p, ...): block`: each provider becomes a trait value
-    /// that covers its key in the block.
+    /// `$.with(K = p, ...): block`: each provider, a trait value of its
+    /// key since checking, covers its key in the block (codegen.md §12.4,
+    /// "Context values").
     fn with(&mut self, i: u32, rec: u32, body: u32) -> StageResult<()> {
-        let Some(Target::Withs(vts)) = self.calls.get(&i).cloned() else {
-            return unsupported("a `$.with` that collection did not record");
-        };
         let pairs = self.rec(rec);
         let mut pushed = 0;
-        for ((k, v), table) in pairs.chunks(2).map(|c| (c[0], c[1])).zip(vts) {
+        for (k, v) in pairs.chunks(2).map(|c| (c[0], c[1])) {
             let key_t = self.sub(Ty(k));
-            let TyData::TraitValue { args: targs, .. } = self.pool().get(key_t) else {
+            if !matches!(self.pool().get(key_t), TyData::TraitValue { .. }) {
                 return unsupported("a `$.with` key that is not a trait");
+            }
+            let vs = self.vts(key_t)?;
+            let [pv, vv] = vs.as_slice() else {
+                return unsupported("a trait value that is not two values");
             };
-            let trait_ = table.trait_;
-            let vt = self.lay.vtable(trait_, targs)?;
-            let ls = [self.a.local(VT::Eq), self.a.local(VT::r(vt.clone()))];
-            let fv = self.vts(self.ty_of(v))?;
-            self.erase(v, &fv)?;
-            self.a.set(ls[0]);
-            self.vtable_value(&table, targs, &fv)?;
+            let ls = [self.a.local(pv.clone()), self.a.local(vv.clone())];
+            self.load_as(v, &vs)?;
             self.a.set(ls[1]);
+            self.a.set(ls[0]);
             self.providers.push((key_t, ls));
             pushed += 1;
         }
