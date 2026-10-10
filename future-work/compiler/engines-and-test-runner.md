@@ -130,6 +130,107 @@ These engine settings are decided by measurements, not here:
 - a null collector for short test instances (the research's experiment):
   adopted only if it measurably cuts `unit-test-perf`.
 
+### 18.7 As Built (W1, #243): wasmtime Runs `hd run`
+
+Owner, 2026-10-10: the `hd` CLI must not need Node. W1 links wasmtime
+and runs programs in-process behind a switch; Node stays the default.
+
+- **Engine.** `wasmtime = "=49.0.2"` (the newest release; the feature
+  audit is `audit/compiler/wasmtime-audit-2026-10-10.md`), with default
+  features off and `cranelift`, `gc`, `gc-copying`,
+  `parallel-compilation`, `runtime` and `std` on: no component model, no
+  async, no WASI, no pooling allocator, no `cwasm` cache yet. The
+  `Config` of `hd_run_wasmtime::WasmtimeEngine::new`: `wasm_gc`,
+  function references, reference types, multi-value, bulk memory and
+  extended-const on; tail calls, exceptions and stack switching off; the
+  copying collector with a 64 MiB initial GC heap; epoch interruption on
+  (each store's deadline is far away until `--time-limit` exists);
+  `max_wasm_stack` 4 MiB, on a thread of its own with 12 MiB of native
+  stack; parallel compilation. The dev pipeline is Cranelift
+  `OptLevel::None` with the backtracking allocator (spike T1 has not
+  chosen the single-pass one, which wasmtime calls not production-ready);
+  `--release` selects `OptLevel::Speed`.
+- **Switch.** `hd run --engine wasmtime`, `hd FILE.hd --engine wasmtime`
+  and `hd FILE.wasm --engine wasmtime`, or `HD_ENGINE=wasmtime` for any
+  of them; `--engine node` or no setting keeps Node. The flag is a
+  development switch and is not in `hd help`. Grants (`--cap`, the
+  `[capabilities]` table) are resolved and the startup refusal checked
+  before either engine runs, and the wasmtime providers ask the same
+  `hd_run::Grants`.
+- **Host.** `hd_run_wasmtime/src/host.rs` ports `compiler/host/core.mjs`
+  for `hd:rt` (`block`, `abort`, `stderr`), `hd:prim` (`prim.rs` ports
+  `float.mjs`: Burger and Dybvig shortest text and exact fixed-point text
+  over a small big integer; `parse_f64` checks the grammar and uses
+  Rust's correctly rounded parse; case mapping is Rust's full Unicode
+  mapping with the final sigma), `Console`, `ConsoleInput`, `Clock`
+  (`now`, `monotonic`, `sleep`), `Args` and `Env` (grant check and the
+  once-per-name notice). Each import is bound with `Linker::func_new` at
+  the module's own import type, so a width difference (`usize` digits as
+  `i32`) needs no second signature. The output contract is the Node
+  host's: standard output is held until standard error is written or the
+  run ends, a panic stub's report and status 3, an entry's own status
+  (`.Err` is 1, `ExitCode(n)` is n), `internal error: <V8's trap text>`
+  and status 3 for any other trap, the deadlock report, and
+  `panic: host-contract: ...`. Two traps Node cannot report are spec
+  panics here: a stack overflow is `stack-exhausted` (Node ends with V8's
+  `RangeError` and status 1) and a refused exchange-buffer growth is
+  `heap-exhausted`.
+- **Waiting (`reactor.rs`).** No host call blocks on an operation that is
+  intrinsically asynchronous: `sleep.start` and `write_line.start` return
+  a handle (status 1), and `read_line.start` is pending too while a
+  reader thread of its own reads the next line of standard input. The
+  driver loop and `hd:rt` `block` wait on one condition variable for the
+  earlier of the next timer deadline and a delivered line. A read that
+  is aborted loses no input: a line read for it goes to the next read.
+  Console writes complete at once and reach the stream when the held
+  output is written, as on Node. Http and Net deliver to the same
+  reactor from their client threads (§20.4); no async runtime is linked.
+- **Not yet on wasmtime.** `FsRead`, `FsWrite`, `Process`, `Random`,
+  `Sys`, `Http`, `Net`, the handle traits, `TestRunner` and
+  `PropertyRunner`, and the conformance runtime profiles. A module that
+  imports one is refused at load: ``the program uses `FsRead` (`hd:FsRead`
+  `read_text.start`), which is not yet on wasmtime; run it on Node,
+  without `--engine wasmtime` `` (status 101). `hd test` stays on Node.
+- **Tests.** `hd_cli/tests/wasmtime_engine.rs` runs the samples and
+  programs for arithmetic, panics, `.Err` from `main`, `ExitCode`, `Args`,
+  `Env` under grants, float text, a suspending entry with `sleep!`, and
+  console input on both engines and asserts the same standard output,
+  standard error and status. `hd_driver/tests/float_text.rs` checks
+  `prim.rs` against `float.mjs` on its 38,000 samples.
+  `HD_CONFORMANCE_ENGINE=wasmtime` runs the driver conformance suite with
+  every runtime entry program whose imports all run on wasmtime on both
+  engines, judged by its wasmtime run: 129 programs, 128 identical to
+  Node; the one difference is `runtime/panic/unbounded-recursion.hd`,
+  which passes on wasmtime (`stack-exhausted`) and fails on Node. Five
+  runtime-profile programs stay on Node.
+- **Measured** (aarch64 macOS, load about 10, median of 5 runs of `hd
+  FILE.wasm`, prebuilt debug modules, wall ms, Node v24.19.0):
+
+  | Program | Node | wasmtime | wasmtime `--release` |
+  | --- | ---: | ---: | ---: |
+  | hello (startup) | 41 | 7 | 8 |
+  | closures | 374 | 1337 | 1186 |
+  | int-loop | 2397 | 1054 | 1372 |
+  | list-sort | 1623 | 1293 | 546 |
+  | map-count | 48 | 14 | 13 |
+  | string-build | 2611 | 166 | 167 |
+  | trait-dispatch | 895 | 811 | 711 |
+
+  Startup is about 6x faster: no Node process, and Cranelift compiles a
+  5 KB module in a few milliseconds. `closures` (20 million `call_ref`
+  closure calls over a list) is 3.6x slower than V8, which inlines the
+  closures; a 1 GiB initial GC heap did not change it, so it is code, not
+  collection. The `hd` binary grows from 7.90 MB to 19.02 MB (6.57 MB to
+  14.68 MB stripped). The hello module is unchanged (5,209 bytes).
+- **Left for W2.** The other host traits (files under `cap-std`, process,
+  random, sys, then Http and Net on client threads, as §20 plans), `hd test` on
+  wasmtime (a `Linker` per host kind, `InstancePre`, the pooling
+  allocator, test timeouts through epochs), the `cwasm` and incremental
+  compile caches of §18.2, `--max-heap` and `--time-limit` through a
+  `ResourceLimiter` and epoch deadlines, the conformance runtime profiles
+  as Rust providers, making wasmtime the default, and then dropping
+  Node.
+
 ## 19. Test Runner
 
 ### 19.1 Building
