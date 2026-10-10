@@ -950,6 +950,42 @@ fn written_types_may_omit_only_defaulted_slots() {
     }
 }
 
+/// Reading a top-level binding from a function declared above it is an
+/// error, and so is one reached by trait dispatch before the binding
+/// exists (`names.exec.not-before`, `module.init.definite.dispatch`).
+#[test]
+fn top_level_bindings_are_read_in_order() {
+    const READER: &str = "data Box:\n    value: i32\n\
+        trait Reader:\n    fn read(self) -> i32\n\
+        fn via_bound[T < Reader](value: T) -> i32:\n    value.read()\n";
+    for ok in [
+        "count := +0\n\nfn read() -> i32:\n    count",
+        &format!(
+            "{READER}later := +5\nimpl Reader for Box:\n    fn read(self) -> i32:\n        later\nbounded := via_bound(Box {{ value: 2 }})"
+        ),
+    ] {
+        assert_eq!(item_codes(ok), [], "{ok}");
+    }
+    assert_eq!(
+        item_codes("fn read() -> i32:\n    count\n\ncount := +0"),
+        [Code::BindingNotYetVisible]
+    );
+    for bad in [
+        format!(
+            "{READER}bounded := via_bound(Box {{ value: 2 }})\nlater := +5\nimpl Reader for Box:\n    fn read(self) -> i32:\n        later"
+        ),
+        format!(
+            "{READER}let reader: dyn Reader = Box {{ value: 3 }}\ndynamic := reader.read()\nlater := +5\nimpl Reader for Box:\n    fn read(self) -> i32:\n        later"
+        ),
+    ] {
+        assert_eq!(
+            item_codes(&bad),
+            [Code::TopLevelReadBeforeInitialization],
+            "{bad}"
+        );
+    }
+}
+
 /// A derived `Default` enum marks exactly one variant `@default`
 /// (`std-ops.default.derive.one-variant`).
 #[test]

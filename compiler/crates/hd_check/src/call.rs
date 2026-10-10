@@ -2687,6 +2687,7 @@ impl Ck<'_, '_> {
             self_ty,
             args: mut targs,
         } = target;
+        self.note_call(method);
         let sig = self.sig_of(method)?;
         let n_trait = self.cx.lookup.item(trait_).map_or(0, |i| i.generics.len());
         while targs.len() < n_trait {
