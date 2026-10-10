@@ -185,7 +185,7 @@ and runs programs in-process behind a switch; Node stays the default.
   Console writes complete at once and reach the stream when the held
   output is written, as on Node. Http and Net deliver to the same
   reactor from their client threads (§20.4); no async runtime is linked.
-- **Not yet on wasmtime.** `FsRead`, `FsWrite`, `Process`, `Random`,
+- **Not yet on wasmtime at W1.** `FsRead`, `FsWrite`, `Process`, `Random`,
   `Sys`, `Http`, `Net`, the handle traits, `TestRunner` and
   `PropertyRunner`, and the conformance runtime profiles. A module that
   imports one is refused at load: ``the program uses `FsRead` (`hd:FsRead`
@@ -222,7 +222,7 @@ and runs programs in-process behind a switch; Node stays the default.
   closures; a 1 GiB initial GC heap did not change it, so it is code, not
   collection. The `hd` binary grows from 7.90 MB to 19.02 MB (6.57 MB to
   14.68 MB stripped). The hello module is unchanged (5,209 bytes).
-- **Left for W2.** The other host traits (files under `cap-std`, process,
+- **Left after W1.** The other host traits (files under `cap-std`, process,
   random, sys, then Http and Net on client threads, as §20 plans), `hd test` on
   wasmtime (a `Linker` per host kind, `InstancePre`, the pooling
   allocator, test timeouts through epochs), the `cwasm` and incremental
@@ -230,6 +230,75 @@ and runs programs in-process behind a switch; Node stays the default.
   `ResourceLimiter` and epoch deadlines, the conformance runtime profiles
   as Rust providers, making wasmtime the default, and then dropping
   Node.
+
+### 18.8 As Built (W2, #244): Core Host Providers
+
+W2 adds `FsRead`, `FsWrite`, `Process`, `Random` and `Sys` to
+`hd_run_wasmtime`. Node remains the default engine.
+The import signatures, exchange buffer and generated program code stay
+unchanged.
+
+| Provider | Implementation and grant checks |
+| --- | --- |
+| `FsRead`, `FsWrite` | Synchronous `std::fs` calls; `Grants::covers_path` resolves symlinks and existing ancestors before access. Rename checks both paths. |
+| `Process` | Safe `nix` spawn wrappers on Unix, `std::process::Command` elsewhere; inherited environment and working directory, with `Grants::covers_name` before spawning. Pipes are drained concurrently while input is written. |
+| `Random` | `getrandom 0.4` reads operating-system randomness; total denial remains the CLI's startup check. |
+| `Sys` | `std` platform, architecture and CPU reads, plus fallible `hostname 0.4`; each method checks `Grants::covers_name`. |
+
+File and process operations return status zero and an encoded result
+inside `.start`, as on Node. Their `.finish` imports report a stale
+operation as `host-contract`.
+The decoder copies arguments before results overwrite the exchange
+buffer, and rejects truncated encodings.
+
+Filesystem results preserve byte-sorted listings, symlink metadata,
+strict UTF-8 text decoding and the initial BOM behavior.
+`libc` supplies errno constants for Node's error spelling; the host
+contains no unsafe code.
+Process captures both streams as lossy UTF-8, preserves exit status,
+and maps termination by signal to 128.
+Unix pipe workers cancel together at the aggregate output cap, including
+pipes retained by descendants. Non-Unix blocking pipes lack that cancellation;
+the limitation is recorded in Diagnostic Notes.
+Unix uses the [safe POSIX spawn wrapper](https://docs.rs/nix/0.31.3/nix/spawn/index.html)
+to preserve Node's executable-format errors; `Command` can implicitly
+invoke a shell for an executable without a shebang on macOS.
+
+The owner approved the corresponding Node host correction for invalid
+process arguments. Both engines return `NotFound` for an empty program
+and `Other` for NUL-containing names or arguments, after grant checks.
+
+The current ABI declares handle traits only for Net.
+Those move with Http and Net in W3; W2 introduces no new handle API.
+The runner providers and conformance runtime profiles remain on Node.
+
+`hd_run_wasmtime/tests/core_parity.rs` runs 23 native ABI parity tests
+on both engines, comparing stdout, stderr, status and encoded results.
+They cover every core method, scoped grants, filesystem failures,
+process pipe pressure, malformed encodings and stale operation handles.
+Random tests compare lengths and entropy properties instead of random bytes.
+
+Native validation runs on macOS. The full runtime library also passes
+a Windows cross-target `cargo check`; Windows execution remains untested.
+Linux's full cross-check needs the unavailable `aarch64-linux-gnu-gcc`.
+An isolated check compiles the exact core and codec sources against
+Linux dependencies and Wasmtime types; it is not a full engine check.
+Static review found Node's Windows path-prefix check and libuv's nested
+Linux CPU-quota calculation can diverge from Rust's implementations.
+These platform-specific issues are recorded in
+[Diagnostic Notes](../../audit/compiler/diagnostic-notes.md), not claimed as verified parity.
+
+The 12 CLI engine tests pass, including startup denial for every core
+provider. Driver conformance before and after W2 runs 129 runtime
+programs on both engines: 128 match exactly, and the documented
+unbounded-recursion case differs.
+Five runtime-profile programs remain on Node; the profile providers
+belong to the test-runner port.
+
+The hello sample is unchanged at 5,210 bytes in both fresh caches,
+with SHA-256 `abe5f22751445776579828facd8bce6d7ae7d29dd2cf56f8bad906556f883c1a`.
+W1 reported 5,209 bytes; these current before and after modules are
+byte-identical.
 
 ## 19. Test Runner
 
@@ -461,7 +530,7 @@ below pays its way.
 | `hd:Console`, `hd:ConsoleInput` | `Buffer`, stdout/stderr writes | `std::io` (`StdoutLock`/`StdinLock`); line buffering matches `out.push(line)` |
 | `hd:Clock` (`now`, `monotonic`, `sleep`) | `Date.now`, `performance.now`, pending deadline | `std::time::{SystemTime, Instant}`; `sleep.start` is a pending op with `at = now + ms` (§20.3) |
 | `hd:Random` | `crypto.randomBytes` | `getrandom 0.4` (XS, audited, no RNG state): `fill` reads bytes, `next_u64` reads 8 LE bytes |
-| `hd:Sys` | `os.{arch,platform,hostname}`, `availableParallelism` | `std::env::consts::{ARCH, OS}`, `std::thread::available_parallelism`; hostname has no std API, so `gethostname 1.1` (XS) |
+| `hd:Sys` | `os.{arch,platform,hostname}`, `availableParallelism` | `std::env::consts::{ARCH, OS}`, `std::thread::available_parallelism`; W2 uses fallible `hostname 0.4` (XS), so failure returns `SysError.Unsupported` |
 | `hd:Http` | `node:http/https` + a worker thread (§20.4) | `ureq 3.4` (M, blocking, rustls TLS, no runtime): redirect policy off with a manual ≤10-hop loop for per-hop grant rechecks and the 303/301/302+POST→GET rewrite; per-hop `timeout(remaining)`; bodies fully buffered (`Vec<u8>`), as today |
 | `hd:Net` | `node:net`, `node:dgram`, `dns.promises`, a worker thread (§20.4) | `std::net` (`TcpListener`/`TcpStream`/`UdpSocket`) + `ToSocketAddrs` DNS on a per-instance worker thread; `Inbox` becomes `mpsc` channels with per-op reply senders |
 | `hd:Args`, `hd:Env` | `process.argv`, `process.env` | `std::env::{args, vars}`; grant checks reuse `hd_run::Grants::covers_name`, path mapping reuses `resolve_path` |
@@ -531,7 +600,10 @@ decision):
 | `serde_json` | 1.0 | S | test-runner JSON lines and JSON configs (Q6) |
 | `num-bigint` | 0.5 | S | `float.mjs` decimal scaling (Q3) |
 | `getrandom` | 0.4 | XS | `hd:Random` without RNG state |
-| `gethostname` | 1.1 | XS | `hd:Sys.hostname` (no std API) |
+| `hostname` | 0.4 | XS | fallible `hd:Sys.hostname` (no std API) |
+| `libc` | 0.2 | XS, already transitive | platform errno constants for Node-compatible filesystem and process errors; no unsafe calls |
+| `nix` | 0.31.3 | S, Unix only | safe POSIX spawn and wait wrappers, avoiding `Command`'s implicit shell fallback |
+| `windows-sys` | 0.61 | already transitive, Windows only | filesystem flags and native error constants; no unsafe calls |
 
 Everything else is `std`. Deliberately absent: Tokio (no async host
 calls), reqwest/hyper (async runtimes or larger trees than `ureq` for

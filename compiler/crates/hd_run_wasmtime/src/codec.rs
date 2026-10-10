@@ -11,6 +11,9 @@ pub struct Enc {
 }
 
 impl Enc {
+    pub fn zz(&mut self, v: i64) -> &mut Self {
+        self.leb((v.unsigned_abs() << 1).wrapping_sub(u64::from(v < 0)))
+    }
     pub fn leb(&mut self, mut v: u64) -> &mut Self {
         loop {
             let byte = u8::try_from(v & 0x7f).unwrap_or(0);
@@ -46,9 +49,83 @@ impl Enc {
     }
 }
 
+/// A checked decoder over copied exchange-buffer arguments. Malformed
+/// input reports the same host-contract text as Node's `Dec`.
+pub struct Dec<'a> {
+    bytes: &'a [u8],
+    at: usize,
+}
+
+impl<'a> Dec<'a> {
+    pub fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes, at: 0 }
+    }
+
+    pub fn leb(&mut self) -> wasmtime::Result<u64> {
+        let mut value = 0_u64;
+        for shift in (0..70).step_by(7) {
+            let byte = *self.bytes.get(self.at).ok_or_else(decode_error)?;
+            self.at += 1;
+            if shift == 63 && byte > 1 {
+                return Err(decode_error());
+            }
+            value |= u64::from(byte & 127) << shift;
+            if byte & 128 == 0 {
+                return Ok(value);
+            }
+        }
+        Err(decode_error())
+    }
+
+    pub fn bytes(&mut self) -> wasmtime::Result<&'a [u8]> {
+        let len = usize::try_from(self.leb()?).map_err(|_| decode_error())?;
+        let end = self.at.checked_add(len).ok_or_else(decode_error)?;
+        let bytes = self.bytes.get(self.at..end).ok_or_else(decode_error)?;
+        self.at = end;
+        Ok(bytes)
+    }
+
+    pub fn str(&mut self) -> wasmtime::Result<String> {
+        Ok(String::from_utf8_lossy(self.bytes()?).into_owned())
+    }
+
+    pub fn strings(&mut self) -> wasmtime::Result<Vec<String>> {
+        let count = self.leb()?;
+        (0..count).map(|_| self.str()).collect()
+    }
+}
+
+fn decode_error() -> wasmtime::Error {
+    crate::host::Stop::Contract("an argument does not decode".into()).into()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::Enc;
+    use super::{Dec, Enc};
+
+    #[test]
+    fn decodes_lengths_strings_and_signed_extremes() {
+        let mut e = Enc::default();
+        e.list(&["a", "hé", ""], |e, s| {
+            e.str(s);
+        });
+        assert_eq!(
+            Dec::new(e.done()).strings().expect("strings"),
+            ["a", "hé", ""]
+        );
+        for n in [i64::MIN, -1, 0, 1, i64::MAX] {
+            let mut e = Enc::default();
+            e.zz(n);
+            let v = Dec::new(e.done()).leb().expect("zigzag");
+            let decoded =
+                i64::from_le_bytes((v >> 1).to_le_bytes()) ^ -i64::try_from(v & 1).expect("bit");
+            assert_eq!(decoded, n);
+        }
+        for bad in [&[128][..], &[3, b'a'][..], &[255; 11][..]] {
+            let err = Dec::new(bad).bytes().expect_err("truncated arguments");
+            assert_eq!(err.to_string(), "an argument does not decode");
+        }
+    }
 
     #[test]
     fn encodes_as_the_node_host_does() {

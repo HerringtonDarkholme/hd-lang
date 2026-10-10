@@ -43,27 +43,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M18. Implement: Core Host Providers On wasmtime (W2, #244, Code)
-
-You own the wasmtime runtime lane from here (the orchestrator's agents
-work on the parser, checker and CLI checks). W1 is on main:
-`compiler/crates/hd_run_wasmtime` runs Console, ConsoleInput, Clock,
-Args, Env and the `hd:prim` primitives (`engines-and-test-runner.md`
-§18.7); your §20 host-port design is the plan. Port the remaining core
-providers from `compiler/host/*.mjs` to Rust: FsRead, FsWrite (with
-cap-std or plain std under the grant checks), Process, Random, Sys, and
-their handle traits, with grants applied exactly as the Node host does.
-Files you may edit: `compiler/crates/hd_run_wasmtime/**`,
-`compiler/crates/hd_cli/src/engine.rs`,
-`compiler/crates/hd_cli/tests/wasmtime_engine.rs`, the workspace and
-crate `Cargo.toml` for new dependencies, and §18-§20 of
-`engines-and-test-runner.md`. Ask (Questions section) before touching
-any other crate. Extend the parity test (same stdout, stderr and status
-on both engines) to every provider, and report how many driver
-conformance runtime programs match Node under
-`HD_CONFORMANCE_ENGINE=wasmtime` before and after. Node stays the
-default. Hello world wasm must not grow.
-
 ### M19. Implement: Http And Net On wasmtime (W3, #245, Code)
 
 After M18. Port `compiler/host/http.mjs` and `net.mjs` per §20.4 (client

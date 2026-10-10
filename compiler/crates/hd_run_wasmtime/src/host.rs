@@ -31,6 +31,7 @@ use wasmtime::{Caller, FuncType, Linker, Memory, Val, ValType};
 use crate::codec::Enc;
 use crate::prim;
 use crate::reactor::{Line, NS_PER_MS, Reactor, Work, now_ns};
+use crate::{core, fs};
 
 /// Where a run's standard streams go: the process's own, or buffers a
 /// caller reads afterwards.
@@ -219,6 +220,16 @@ enum Ret {
 /// The imports that run on wasmtime.
 #[derive(Clone, Copy, Debug)]
 enum Kind {
+    Fs {
+        key: &'static str,
+        method: &'static str,
+        finish: bool,
+    },
+    ProcessStart,
+    NeverFinish,
+    RandomNext,
+    RandomFill,
+    Sys(&'static str),
     Block,
     Abort,
     Stderr,
@@ -244,7 +255,36 @@ enum Kind {
 
 impl Kind {
     fn of(module: &str, name: &str) -> Option<Kind> {
+        if let Some((key, methods)) = match module {
+            "hd:FsRead" => Some(("FsRead", fs::READ)),
+            "hd:FsWrite" => Some(("FsWrite", fs::WRITE)),
+            _ => None,
+        } {
+            let (method, suffix) = name.rsplit_once('.')?;
+            let method = *methods.iter().find(|m| **m == method)?;
+            return match suffix {
+                "start" => Some(Kind::Fs {
+                    key,
+                    method,
+                    finish: false,
+                }),
+                "finish" => Some(Kind::Fs {
+                    key,
+                    method,
+                    finish: true,
+                }),
+                _ => None,
+            };
+        }
         Some(match (module, name) {
+            ("hd:Process", "run.start") => Kind::ProcessStart,
+            ("hd:Process", "run.finish") => Kind::NeverFinish,
+            ("hd:Random", "next_u64") => Kind::RandomNext,
+            ("hd:Random", "fill") => Kind::RandomFill,
+            ("hd:Sys", "os") => Kind::Sys("os"),
+            ("hd:Sys", "arch") => Kind::Sys("arch"),
+            ("hd:Sys", "hostname") => Kind::Sys("hostname"),
+            ("hd:Sys", "cpu_count") => Kind::Sys("cpu_count"),
             ("hd:rt", "block") => Kind::Block,
             ("hd:rt", "abort") => Kind::Abort,
             ("hd:rt", "stderr") => Kind::Stderr,
@@ -307,6 +347,44 @@ fn int_val(ty: &ValType, v: i64) -> Val {
 
 fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::Result<Ret> {
     Ok(match kind {
+        Kind::Fs { finish: true, .. } | Kind::NeverFinish => {
+            return Err(
+                Stop::Contract("a finish of an operation that is not pending".into()).into(),
+            );
+        }
+        Kind::Fs {
+            key,
+            method,
+            finish: false,
+        } => {
+            let b = bytes(caller, int_arg(params, 0)?)?;
+            let e = fs::call(key, method, &b, &caller.data().grants)?;
+            Ret::Pair(0, result_len(put(caller, &e)?)?)
+        }
+        Kind::ProcessStart => {
+            let b = bytes(caller, int_arg(params, 0)?)?;
+            let e = core::process(&b, &caller.data().grants)?;
+            Ret::Pair(0, result_len(put(caller, &e)?)?)
+        }
+        Kind::RandomNext => {
+            let b: [u8; 8] = core::random(8)?
+                .try_into()
+                .map_err(|_| Stop::Internal("random byte count".into()))?;
+            Ret::Int(i64::from_le_bytes(b))
+        }
+        Kind::RandomFill => {
+            // count >>> 0, as on Node.
+            let b = core::random(u32::from_le_bytes(
+                int_arg(params, 0)?.to_le_bytes()[..4]
+                    .try_into()
+                    .unwrap_or([0; 4]),
+            ) as usize)?;
+            Ret::Int(put(caller, Enc::default().bytes(&b))?)
+        }
+        Kind::Sys(name) => {
+            let e = core::sys(name, &caller.data().grants);
+            Ret::Int(put(caller, &e)?)
+        }
         Kind::Stderr => {
             let t = text(caller, int_arg(params, 0)?)?;
             let host = caller.data_mut();
@@ -454,6 +532,10 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
     })
 }
 
+fn result_len(len: i64) -> wasmtime::Result<i32> {
+    i32::try_from(len).map_err(|_| Stop::HeapExhausted.into())
+}
+
 /// A handle argument; one that no `i32` holds names no operation.
 fn handle(h: i64) -> i32 {
     i32::try_from(h).unwrap_or(-1)
@@ -494,8 +576,14 @@ pub fn capability(module: &str) -> Option<&str> {
 /// Defines each import of `module` in `linker`, or names the first one
 /// that does not run on wasmtime yet.
 pub fn define(linker: &mut Linker<Host>, module: &wasmtime::Module) -> Result<(), String> {
+    let mut defined = HashSet::new();
     for import in module.imports() {
         let (m, n) = (import.module(), import.name());
+        // Wasm permits repeated imports. Node reuses the same property;
+        // the linker likewise needs only one definition for that name.
+        if !defined.insert((m.to_owned(), n.to_owned())) {
+            continue;
+        }
         let Some(kind) = Kind::of(m, n) else {
             return Err(unsupported_message(m, n));
         };

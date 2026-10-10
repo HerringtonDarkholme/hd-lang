@@ -571,7 +571,12 @@ export function createHost(sink, env = {}) {
         maxBuffer: 1 << 30,
       });
     } else {
-      r = spawnSync(name, argv, { input, cwd: process.cwd(), env: process.env, maxBuffer: 1 << 30 });
+      try {
+        r = spawnSync(name, argv, { input, cwd: process.cwd(), env: process.env, maxBuffer: 1 << 30 });
+      } catch (error) {
+        if (name === "") return e.leb(1).leb(PROC.NotFound);
+        return e.leb(1).leb(PROC.Other).str(String(error.message));
+      }
     }
     if (r.error) {
       const code = r.error.code;

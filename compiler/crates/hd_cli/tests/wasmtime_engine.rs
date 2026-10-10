@@ -306,9 +306,9 @@ pub fn main!() -> void $ Console + ConsoleInput:
     );
 }
 
-/// A host trait that does not run on wasmtime yet is refused by name.
+/// The existing file sample now runs on both engines.
 #[test]
-fn a_trait_not_on_wasmtime_is_named() {
+fn fs_read_is_available_on_both_engines() {
     let dir = program(
         "fs",
         "use std.fs.{FsRead, read_text}
@@ -320,13 +320,67 @@ pub fn main!() -> void $ Console + FsRead:
         .Err(e) => println(\"${e}\")
 ",
     );
-    let out = run(hd(&dir), &["--engine", "wasmtime", "main.hd"], "");
-    assert_eq!(out.status.code(), Some(101));
-    assert!(
-        text(&out.stderr).contains("`FsRead`") && text(&out.stderr).contains("not yet on wasmtime"),
-        "{}",
-        text(&out.stderr)
-    );
+    let out = both(&dir, &["main.hd"]);
+    assert_eq!(out.status.code(), Some(0));
+    assert!(text(&out.stdout).contains('x'), "{}", text(&out.stdout));
+    let denied = both(&dir, &["--cap", "FsRead=false", "main.hd"]);
+    assert_eq!(denied.status.code(), Some(101));
+    assert!(denied.stdout.is_empty());
+}
+
+/// Startup refuses every totally denied core provider on either engine,
+/// including Random, whose methods have no per-call scope checks.
+#[test]
+fn core_providers_follow_total_denial_on_both_engines() {
+    fn section(module: &mut Vec<u8>, id: u8, bytes: &[u8]) {
+        module.push(id);
+        module.push(u8::try_from(bytes.len()).expect("small section"));
+        module.extend(bytes);
+    }
+    fn string(bytes: &mut Vec<u8>, text: &str) {
+        bytes.push(u8::try_from(text.len()).expect("small name"));
+        bytes.extend(text.as_bytes());
+    }
+    for (key, method, params, results) in [
+        ("FsRead", "read_bytes.start", &[0x7f][..], &[0x7f, 0x7f][..]),
+        (
+            "FsWrite",
+            "write_bytes.start",
+            &[0x7f][..],
+            &[0x7f, 0x7f][..],
+        ),
+        ("Process", "run.start", &[0x7f][..], &[0x7f, 0x7f][..]),
+        ("Random", "next_u64", &[][..], &[0x7e][..]),
+        ("Sys", "os", &[][..], &[0x7f][..]),
+    ] {
+        let mut module = b"\0asm\x01\0\0\0".to_vec();
+        let mut types = vec![3, 0x60, u8::try_from(params.len()).unwrap()];
+        types.extend(params);
+        types.push(u8::try_from(results.len()).unwrap());
+        types.extend(results);
+        types.extend([0x60, 0, 0, 0x60, 0, 1, 0x7f]);
+        section(&mut module, 1, &types);
+        let mut imports = vec![1];
+        string(&mut imports, &format!("hd:{key}"));
+        string(&mut imports, method);
+        imports.extend([0, 0]);
+        section(&mut module, 2, &imports);
+        section(&mut module, 3, &[2, 1, 2]);
+        let mut exports = vec![2];
+        string(&mut exports, "hd.init");
+        exports.extend([0, 1]);
+        string(&mut exports, "hd.poll");
+        exports.extend([0, 2]);
+        section(&mut module, 7, &exports);
+        section(&mut module, 10, &[2, 2, 0, 0x0b, 4, 0, 0x41, 0, 0x0b]);
+        let dir = work(&format!("denied-{key}"));
+        std::fs::write(dir.join("main.wasm"), module).expect("write ABI program");
+        let cap = format!("{key}=false");
+        let out = both(&dir, &["--cap", &cap, "main.wasm"]);
+        assert_eq!(out.status.code(), Some(101), "{key}: {}", text(&out.stderr));
+        assert!(out.stdout.is_empty());
+        assert!(text(&out.stderr).contains(key), "{}", text(&out.stderr));
+    }
 }
 
 /// Exhausting the stack is the `stack-exhausted` panic on wasmtime
