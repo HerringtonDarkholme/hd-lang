@@ -53,6 +53,10 @@ pub const PRELUDE: &[(&str, &[&str])] = &[
     ("std.task", &["Suspend", "Poll", "PollContext", "Waker"]),
 ];
 
+/// The prelude names of test code (`module.prelude.test-only`): bound only
+/// in test code, but no declaration of a module may take their place.
+const TEST_PRELUDE: &[(&str, &[&str])] = &[("std.testing", &["it"])];
+
 /// The modules the prelude's names come from: each module's folder gets an
 /// edge to theirs (`module.prelude.fixed-uses`).
 #[must_use]
@@ -1018,6 +1022,24 @@ fn prelude(
             }
         }
     }
+    // The test names are not bound here, yet a declaration of the module
+    // cannot take one (`module.prelude.no-shadow`). The module that
+    // declares them is the prelude's source.
+    for (module, list) in TEST_PRELUDE {
+        if m.path == *module {
+            continue;
+        }
+        for name in *list {
+            let sym = names.syms.intern(name);
+            for h in heads
+                .iter()
+                .filter(|h| h.name == sym && h.local.is_none() && h.test.is_none())
+            {
+                let msg = format!("`{name}` shadows a prelude name");
+                diags.error(Code::PreludeNameShadow, m.src.span(h.node), &msg);
+            }
+        }
+    }
 }
 
 /// An associated type declared in a trait or bound in an impl body.
@@ -1758,6 +1780,9 @@ impl Lower<'_, '_, '_> {
                 continue;
             };
             let name = self.sym(self.src.text(t));
+            if self.r.frozen.is_none() {
+                self.prelude_shadow(*g, self.src.text(t));
+            }
             let index = offset + u16::try_from(i).unwrap_or(u16::MAX);
             let row = g
                 .direct_token(&self.src.parse.tokens, TokenKind::Dollar)
@@ -1930,6 +1955,19 @@ impl Lower<'_, '_, '_> {
         }
     }
 
+    /// `module.prelude.no-shadow`: a parameter or a type parameter does not
+    /// bind a prelude name.
+    fn prelude_shadow(&mut self, node: NodeRef<'_>, name: &str) {
+        let prelude = PRELUDE
+            .iter()
+            .any(|(module, list)| list.contains(&name) && self.r.module_exists(module));
+        if prelude {
+            let msg = format!("`{name}` shadows a prelude name");
+            self.diags
+                .error(Code::PreludeNameShadow, self.src.span(node), &msg);
+        }
+    }
+
     /// `fn.vararg.final`: a vararg is the last positional parameter.
     fn vararg_final(&mut self, params: &[NodeRef<'_>]) {
         let toks = &self.src.parse.tokens;
@@ -1981,6 +2019,9 @@ impl Lower<'_, '_, '_> {
                 let name = p
                     .name(toks)
                     .map_or_else(|| i.to_string(), |t| self.src.text(t).to_owned());
+                if self.r.frozen.is_none() {
+                    self.prelude_shadow(p, &name);
+                }
                 let ty = self.ty(Src::type_child(p), &gn);
                 params.push((self.sym(&name), ty));
                 defaults.push(Src::child(p, SyntaxKind::DefaultValue).is_some());
