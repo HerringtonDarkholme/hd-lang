@@ -22,7 +22,19 @@ const HEADING: &str = "\n## CLI Conformance\n";
 const PASS_START: &str = "<!-- cli-pass-list-start -->";
 const PASS_END: &str = "<!-- cli-pass-list-end -->";
 const LIMIT: Duration = Duration::from_secs(10);
-const WORKERS: usize = 4;
+
+/// Worker count, like the TS runner (`spec/tools/run-conformance.ts`):
+/// `HD_TEST_JOBS` if set to a positive integer, else
+/// `min(8, available_parallelism())`.
+fn jobs() -> usize {
+    if let Ok(value) = std::env::var("HD_TEST_JOBS")
+        && let Ok(n) = value.trim().parse::<usize>()
+        && n >= 1
+    {
+        return n;
+    }
+    std::thread::available_parallelism().map_or(8, |n| n.get().min(8))
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Verdict {
@@ -579,11 +591,12 @@ fn case_names() -> Vec<String> {
 fn run_all(names: &[String]) -> Vec<Verdict> {
     let root = work_root();
     std::fs::create_dir_all(&root).expect("work directory");
+    let count = jobs().min(names.len().max(1));
     let next = AtomicUsize::new(0);
     let results: Vec<std::sync::Mutex<Option<Verdict>>> =
         names.iter().map(|_| std::sync::Mutex::new(None)).collect();
     std::thread::scope(|scope| {
-        for _ in 0..WORKERS {
+        for _ in 0..count {
             scope.spawn(|| {
                 loop {
                     let index = next.fetch_add(1, Ordering::Relaxed);

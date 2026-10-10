@@ -12,6 +12,7 @@ use std::fmt::Write as _;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use hd_base::Stage;
 use hd_cache::MemoryStore;
@@ -1071,23 +1072,62 @@ fn print_filtered(cases: &[Case], results: &[Verdict], store: &MemoryStore) {
     }
 }
 
+/// Worker count, like the TS runner (`spec/tools/run-conformance.ts`):
+/// `HD_TEST_JOBS` if set to a positive integer, else
+/// `min(8, available_parallelism())`. The shared `MemoryStore` stays
+/// correct under concurrent use: both of its maps sit behind a `Mutex`
+/// (`CacheStore` is `Sync`), so workers share one store.
+fn workers() -> usize {
+    if let Ok(value) = std::env::var("HD_TEST_JOBS")
+        && let Ok(n) = value.trim().parse::<usize>()
+        && n >= 1
+    {
+        return n;
+    }
+    std::thread::available_parallelism().map_or(8, |n| n.get().min(8))
+}
+
+/// Runs every case on a pool of worker threads. Results stay in case
+/// order, so the report is identical to the sequential run. `serial` is
+/// the case index, so each runtime case still gets unique
+/// `conformance-{serial}.wasm` and `.json` names under
+/// `CARGO_TARGET_TMPDIR` and workers never share a file.
+fn run_all(cases: &[Case], store: &MemoryStore) -> Vec<Verdict> {
+    let count = workers().min(cases.len().max(1));
+    let next = AtomicUsize::new(0);
+    let slots: Vec<std::sync::Mutex<Option<Verdict>>> =
+        cases.iter().map(|_| std::sync::Mutex::new(None)).collect();
+    std::thread::scope(|scope| {
+        for _ in 0..count {
+            scope.spawn(|| {
+                loop {
+                    let serial = next.fetch_add(1, Ordering::Relaxed);
+                    let Some(case) = cases.get(serial) else { break };
+                    let verdict = catch_unwind(AssertUnwindSafe(|| run_case(case, store, serial)))
+                        .unwrap_or_else(|panic| {
+                            let message = panic
+                                .downcast_ref::<&str>()
+                                .map_or("panic", |message| *message);
+                            Verdict::Crash(message.to_owned())
+                        });
+                    *slots[serial].lock().expect("results lock") = Some(verdict);
+                }
+            });
+        }
+    });
+    slots
+        .into_iter()
+        .map(|slot| slot.into_inner().expect("results lock").expect("verdict"))
+        .collect()
+}
+
 #[test]
 fn specification_conformance_does_not_regress() {
     let all = cases();
     let only = filtered(all.clone());
     let cases = only.clone().unwrap_or(all);
     let store = MemoryStore::default();
-    let mut results = Vec::with_capacity(cases.len());
-    for (serial, case) in cases.iter().enumerate() {
-        let verdict = catch_unwind(AssertUnwindSafe(|| run_case(case, &store, serial)))
-            .unwrap_or_else(|panic| {
-                let message = panic
-                    .downcast_ref::<&str>()
-                    .map_or("panic", |message| *message);
-                Verdict::Crash(message.to_owned())
-            });
-        results.push(verdict);
-    }
+    let results = run_all(&cases, &store);
     let crashes: Vec<_> = cases
         .iter()
         .zip(&results)

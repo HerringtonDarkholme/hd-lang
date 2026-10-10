@@ -43,37 +43,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M1. Run The Conformance Suites In Parallel
-
-The Rust conformance runner checks, builds and runs its 2845 cases one at
-a time on one core (about 100 s per pass), while the TS runner
-(`spec/tools/run-conformance.ts`) runs up to 8 at once. Every merge runs
-the suite twice, so this is the slowest part of each gate.
-
-You may edit, for this job only:
-`compiler/crates/hd_driver/tests/conformance.rs` and
-`compiler/crates/hd_cli/tests/cli_conformance.rs` (plus a small helper
-module next to them if you need one).
-
-1. Run the cases on a pool of worker threads, sized like the TS runner:
-   `HD_TEST_JOBS` if set, else `min(8, available_parallelism())`. Use
-   `std::thread::scope` (no new dependency unless the workspace already
-   has one that fits). The cases are independent; the shared
-   `MemoryStore` cache must stay correct under concurrent use (check its
-   locking; if it is not thread-safe, give each worker its own store and
-   say so).
-2. Keep the output **identical**: `compiler/CONFORMANCE.md` regenerated
-   after your change must be byte-for-byte the same as before it (same
-   pass list, buckets and order). Sort results by case before writing.
-   Keep `HD_CONFORMANCE_ONLY` working.
-3. Each runtime case writes `conformance-{serial}.wasm` and `.json` under
-   `CARGO_TARGET_TMPDIR`; keep the names unique per case so workers never
-   share a file.
-4. Do the same for the CLI tier if it is also sequential.
-5. Measure: wall time of one full driver pass and one CLI pass before and
-   after, on an otherwise idle machine (`uptime` low), and put both in the
-   commit message.
-
 ### M2. wasmtime Feature Audit And Spike (Research + Bench)
 
 The owner committed to wasmtime (2026-10-10): the CLI must not need Node.
