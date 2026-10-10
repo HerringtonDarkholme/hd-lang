@@ -1200,6 +1200,7 @@ impl Ck<'_, '_> {
         };
         self.note_call(def);
         let name = self.cx.names.text(item.name).to_owned();
+        self.check_forbidden_call(def, &name, n);
         // A registration function is called only by a test registration
         // call in test position (`module.testing.direct-call`).
         let registering = std::mem::take(&mut self.registering);
@@ -1390,6 +1391,32 @@ impl Ck<'_, '_> {
                 Ok((Ref(NONE), Ty::NEVER))
             }
         }
+    }
+
+    /// `req.drive.block-on.direct`, `req.drive.block-on.println`: a call of
+    /// `block_on` or `println` written directly in a `defer` suite, a
+    /// default or fact expression, or a non-entry module's initialization.
+    /// A closure or local function declared there is not direct.
+    pub(crate) fn check_forbidden_call(&mut self, def: DefId, name: &str, n: NodeRef<'_>) {
+        let known = self.cx.names.known;
+        if def != known.block_on && def != known.println {
+            return;
+        }
+        let context = if self.defer_base.is_some() && self.subs.len() == self.defer_subs {
+            "a `defer` suite"
+        } else if self.subs.is_empty()
+            && let Some(c) = self.forbidden
+            // `module.console.println-block-on.direct` names a `defer`
+            // suite, a default and a fact expression; a `println` in a
+            // non-entry module's initialization is a `missing-requirement`.
+            && !(def == known.println && self.module_init.is_some())
+        {
+            c
+        } else {
+            return;
+        };
+        let msg = format!("`{name}` cannot be called directly in {context}");
+        self.err(Code::SuspensionForbiddenContext, n, &msg);
     }
 
     /// A bang call needs a suspending callee (`not-suspending`) and a

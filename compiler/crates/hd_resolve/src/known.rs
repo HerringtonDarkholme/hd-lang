@@ -77,6 +77,7 @@ pub struct KnownItems {
     // std.task
     pub suspend: DefId,
     pub block_on: DefId,
+    pub println: DefId,
     // std.annotation, std.testing
     pub annotate: DefId,
     pub testing_module: PathId,
@@ -189,6 +190,7 @@ impl KnownItems {
             error: item("std.error", "Error"),
             suspend: item("std.task", "Suspend"),
             block_on: item("std.task", "block_on"),
+            println: item("std.console", "println"),
             annotate: item("std.annotation", "annotate"),
             testing_module: module("std.testing"),
             check_equal: item("std.testing", "check_equal"),

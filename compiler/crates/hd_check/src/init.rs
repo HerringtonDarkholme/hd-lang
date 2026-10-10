@@ -109,6 +109,7 @@ pub fn check_init(
         diags,
     );
     ck.module_init = Some(module.to_owned());
+    ck.forbidden = (!entry).then_some("a module's initialization");
     let blk = ck.b.open_block();
     // A body that M1 checks for a statement may read a later binding. An
     // annotated one has its type before its statement runs, so that read

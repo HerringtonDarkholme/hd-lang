@@ -18,7 +18,7 @@ pub mod derive;
 pub mod error;
 mod expr;
 mod facts;
-pub use facts::check_facts;
+pub use facts::{check_decl_facts, check_facts};
 
 mod fnref;
 pub mod header;

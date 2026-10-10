@@ -2475,6 +2475,11 @@ impl Run<'_> {
                 }
             }
         }
+        // The fact and metadata expressions of the other declarations and
+        // their members (spec 14 `annot.fact.block-on.direct`).
+        for h in heads.iter().filter(|h| h.kind != hd_resolve::HeadKind::Fn) {
+            hd_check::check_decl_facts(&cx, h.def, h.node, &mut diags);
+        }
         if !init_facts.is_empty() {
             hd_check::init::definite_init(&cx, &stmts, &init_facts, &mut diags);
         }

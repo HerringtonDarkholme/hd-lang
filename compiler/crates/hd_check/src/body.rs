@@ -173,6 +173,13 @@ pub(crate) struct Ck<'a, 'c> {
     pub suspends: Vec<bool>,
     /// Inside a `defer` suite: the loop depth at its start.
     pub defer_base: Option<usize>,
+    /// The open closures at the start of that `defer` suite: a call in a
+    /// closure declared inside it is not written directly in it.
+    pub defer_subs: usize,
+    /// The context a call written directly in this body is forbidden to
+    /// suspend in: a default or fact expression, or a non-entry module's
+    /// initialization (`req.drive.block-on.forbidden-contexts`).
+    pub forbidden: Option<&'static str>,
     /// The node of each literal constant, for range diagnostics, and
     /// whether a `-` negated it.
     pub lit_nodes: Vec<(Ref, hd_base::NodeIdx, bool)>,
@@ -292,6 +299,8 @@ pub(crate) fn new_ck<'a, 'c>(
         default_owner: None,
         suspends: vec![false],
         defer_base: None,
+        defer_subs: 0,
+        forbidden: (kind == BodyKind::Default).then_some("a default or fact expression"),
         lit_nodes: Vec::new(),
         read_poison_name: false,
         lit_arg: None,
@@ -1487,8 +1496,10 @@ impl Ck<'_, '_> {
                 };
                 let m = self.b.open_block();
                 let saved = self.defer_base.replace(self.loops.len());
+                let saved_subs = std::mem::replace(&mut self.defer_subs, self.subs.len());
                 self.block_value(blk, Some(Ty::VOID))?;
                 self.defer_base = saved;
+                self.defer_subs = saved_subs;
                 let suite = self.b.close_block(m, None, Ty::VOID, blk.index());
                 self.b.defer(suite, s.index());
             }

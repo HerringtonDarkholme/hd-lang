@@ -119,6 +119,7 @@ fn every_known_item_is_declared() {
         ("error", known.error),
         ("suspend", known.suspend),
         ("block_on", known.block_on),
+        ("println", known.println),
         ("annotate", known.annotate),
         ("check_equal", known.check_equal),
         ("it_each", known.it_each),
