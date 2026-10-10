@@ -43,19 +43,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M3. Design: Porting The Node Host To Rust (Design Text)
-
-The host lives in `compiler/host/*.mjs` (core, float, http, net, test,
-profiles, run) and will move behind `compiler/crates/hd_run_wasmtime`.
-Add a section to `future-work/compiler/engines-and-test-runner.md`: for
-each provider and helper, the Node API it uses and its Rust replacement
-(std, or a named crate with version, size and why), how the exchange
-buffer and `hd_host_abi` codecs are reused, how suspension
-(`block_on`, wakes, timers) maps onto wasmtime (sync host calls vs async
-support, epoch interruption for timeouts), and how Http/Net client
-threads and grants carry over. Include a dependency budget (crates and
-binary size). Questions with a recommendation. Timebox 60 minutes.
-
 ### M4. Re-Triage The Failure Buckets (Research)
 
 The buckets in `compiler/CONFORMANCE.md` moved a lot (2420 pass, about

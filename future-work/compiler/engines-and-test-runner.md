@@ -335,3 +335,142 @@ The playground runs a program's tests in its program worker with the same
 Wasm. The JS glue implements `TestRunner` and `PropertyRunner`, and each
 case gets a fresh `WebAssembly.Instance` of the compiled module.
 Instantiation in a worker is synchronous for any module size.
+
+## 20. Porting The Node Host To Rust (M3, 2026-10-10)
+
+The host today is `compiler/host/*.mjs` (core, float, http, net, test,
+profiles, run; 2156 lines). It moves behind
+`compiler/crates/hd_run_wasmtime` as wasmtime `Linker` definitions plus a
+reactor, reusing two crates that already exist: `hd_host_abi` (the
+capability tables, codecs, import names, handles) and `hd_run` (the
+`Engine`/`Instance` traits, `Grants`, the test-runner model). The
+wasmtime crate itself is not a dependency yet (owner approval pending,
+SK-10); the version below is the input to that decision. Ground rules
+for the port: host functions stay **synchronous** (no `async_support`,
+no Tokio), the workspace lint `unsafe_code = "deny"` applies, and the
+workspace today has zero third-party dependencies, so every new crate
+below pays its way.
+
+### 20.1 Provider by provider
+
+| Provider / helper | Node API it uses | Rust replacement (version, size, why) |
+| --- | --- | --- |
+| `hd:rt` (`stderr`, `block`, `abort`) | `Atomics.wait` sleep loop, `process.stderr` | `std`: driver parks on `Condvar`/`mpsc::recv_timeout` (§20.3); stderr is `std::io::Write` to the sink |
+| `hd:prim` (float format/parse, case) | pure ECMAScript (`float.mjs`, no `node:` import) | exact Rust port of `float.mjs` + `num-bigint 0.5` (S; replaces `BigInt` decimal scaling). `f64::log10` etc. are the same IEEE ops in the same order; any divergence is a conformance bug, caught by Q3 |
+| `hd:Console`, `hd:ConsoleInput` | `Buffer`, stdout/stderr writes | `std::io` (`StdoutLock`/`StdinLock`); line buffering matches `out.push(line)` |
+| `hd:Clock` (`now`, `monotonic`, `sleep`) | `Date.now`, `performance.now`, pending deadline | `std::time::{SystemTime, Instant}`; `sleep.start` is a pending op with `at = now + ms` (§20.3) |
+| `hd:Random` | `crypto.randomBytes` | `getrandom 0.4` (XS, audited, no RNG state): `fill` reads bytes, `next_u64` reads 8 LE bytes |
+| `hd:Sys` | `os.{arch,platform,hostname}`, `availableParallelism` | `std::env::consts::{ARCH, OS}`, `std::thread::available_parallelism`; hostname has no std API, so `gethostname 1.1` (XS) |
+| `hd:Http` | `node:http/https` + a worker thread (§20.4) | `ureq 3.4` (M, blocking, rustls TLS, no runtime): redirect policy off with a manual ≤10-hop loop for per-hop grant rechecks and the 303/301/302+POST→GET rewrite; per-hop `timeout(remaining)`; bodies fully buffered (`Vec<u8>`), as today |
+| `hd:Net` | `node:net`, `node:dgram`, `dns.promises`, a worker thread (§20.4) | `std::net` (`TcpListener`/`TcpStream`/`UdpSocket`) + `ToSocketAddrs` DNS on a per-instance worker thread; `Inbox` becomes `mpsc` channels with per-op reply senders |
+| `hd:Args`, `hd:Env` | `process.argv`, `process.env` | `std::env::{args, vars}`; grant checks reuse `hd_run::Grants::covers_name`, path mapping reuses `resolve_path` |
+| `hd:FsRead`, `hd:FsWrite` | sync `node:fs` (every call completes at once) | `std::fs`/`std::path` 1:1 (all calls are already synchronous, so they stay `Wait::Never`); `runProcess` becomes `std::process::Command` with piped stdio and the same 1 GiB cap |
+| `hd:TestRunner`, `hd:PropertyRunner` | `node:fs` (regressions, snapshots, temp dirs) | `std::fs`; result JSON lines and `expect.txt`-style configs via `serde_json 1.0` (S; Q6); temp dirs via `std::env::temp_dir` + unique names (no crate) |
+| `profiles.mjs` (conformance-only) | none | plain Rust closures over `put`/`Enc`, as today over `io` |
+| `run.mjs` / `test.mjs` drivers | `WebAssembly.instantiate`, worker supervisor, `setTimeout` grace | `hd_cli` wiring over `hd_run_wasmtime`: one `Store` per case on the `--jobs` pool; supervisor timeouts via epoch deadlines (§20.3), no processes |
+
+### 20.2 Exchange buffer and `hd_host_abi` codecs are reused
+
+`hd_host_abi` is already the source of truth: the `Codec`/`Wait` tables
+drive the import names (`imports_of`, `is_known_import`), and the
+`Handle` type models the slot+generation scheme. The port adds the
+Rust half that `generate_js_glue` is for the browser: `Enc`/`Dec`
+operating on wasmtime `Memory` bytes (little-endian LEB128/zigzag/f64,
+UTF-8 via `str`, same `HostContract` truncation errors), `put` writing
+the framed result at offset 0 and growing with `Memory::grow`, and
+completion words as LE `i32`s. The `Linker` definitions are generated
+from the same tables, so a new capability touches one row, not N call
+sites. `hd.wake`, `hd.init`/`hd.poll` keep their names and protocol
+(§17.2, §19.3).
+
+### 20.3 Suspension maps onto sync host calls plus epochs
+
+The Node driver (`run` in core.mjs, `runOnce` in test.mjs) ports 1:1 to
+a Rust reactor owning the `Store`: `init`, then `poll` until the status
+is not `-1`, running due completions, calling `hd.wake(n)`, and parking
+with the next deadline. `block_on` parks the calling thread
+(`recv_timeout`), so wasmtime's `async_support` stays **off** and Tokio
+is not a dependency: from the program's view every `.start` still
+completes synchronously, exactly as the worker-thread blocking does
+today. Timeouts use epoch interruption (`Config::epoch_interruption`,
+already on in §18.1 and assumed by §19.4): a timer thread calls
+`Engine::increment_epoch`, and `report_timeout`/`--time-limit` set
+`Store::set_epoch_deadline` plus a reactor deadline, so a busy loop
+traps and a parked host wait is cut at the same moment. `deadlock`,
+`TimeLimit`→status 3, and the `stderr` panic lines keep their bytes, so
+`hd test` output does not change.
+
+### 20.4 Http/Net client threads and grants carry over
+
+- **Http** keeps one lazily started client thread per process (as
+  `httpClient` today): the program thread sends the request over `mpsc`
+  and blocks on the reply. The manual redirect loop re-resolves and
+  re-checks `Grants::covers_host` per hop (already unit-tested in
+  `hd_run`), preserving the `*.suffix`/`:port` semantics.
+- **Net** keeps one worker thread per host instance owning all sockets
+  in a `handles` map, with `Inbox` ported to channels; `read`/`accept`/
+  `receive` hold until data arrives, `close` marks disposed, async socket
+  errors finish sticky errors. Grant checks stay on the program thread
+  before posting (`connect`/`listen`/`bind_udp`/`send_to` re-checked per
+  datagram, `lookup` by name only), reusing `covers_host`/`covers_name`.
+- `stop` (today `worker.terminate`) becomes joining the threads on host
+  `close`; in-flight blocking socket calls are woken by closing the
+  socket first, as today.
+
+### 20.5 Dependency budget
+
+The `hd` release binary is 7.5 MiB today. Estimated additions (to be
+measured at link time; the wasmtime row dominates and is the SK-10
+decision):
+
+| Crate | Version | Size | Why |
+| --- | --- | --- | --- |
+| `wasmtime` | 49.0 (stable; CLI spike used 49.0.2) | L (~100 transitive crates, Cranelift) | the engine; sync `Linker`/`Store`/epoch APIs cover §20.2-20.4 with no async runtime |
+| `ureq` | 3.4 | M (rustls, no Tokio) | blocking HTTP matching the sync model; manual redirects for grant rechecks |
+| `serde_json` | 1.0 | S | test-runner JSON lines and JSON configs (Q6) |
+| `num-bigint` | 0.5 | S | `float.mjs` decimal scaling (Q3) |
+| `getrandom` | 0.4 | XS | `hd:Random` without RNG state |
+| `gethostname` | 1.1 | XS | `hd:Sys.hostname` (no std API) |
+
+Everything else is `std`. Deliberately absent: Tokio (no async host
+calls), reqwest/hyper (async runtimes or larger trees than `ureq` for
+the same buffered semantics), `rand` (no distribution sampling; seeds
+are discussed in Q4), TLS crates beyond what `ureq` pulls (Net is
+plain TCP/UDP, as today).
+
+### 20.6 Questions with a recommendation
+
+- **Q1. Sync host calls only?** Yes (recommended): the Node host already
+  presents synchronous `.start` semantics via worker-thread blocking;
+  sync `Linker` functions plus a driver thread preserve them with no
+  Tokio. Revisit only if a future capability needs true async I/O
+  (e.g. streaming bodies).
+- **Q2. `ureq` vs `reqwest::blocking` vs `hyper`?** `ureq` (recommended)
+  for the smallest tree that fits the blocking model. Open
+  implementation checks: `Host`-header override, raw header
+  order/repeat preservation, and disabling connection reuse to match
+  `agent:false`; if `ureq` cannot do any of them, fall back to
+  `reqwest::blocking` (larger tree, Tokio inside, same sync surface).
+- **Q3. Float bit-fidelity?** Port `float.mjs` op-for-op and add a
+  differential conformance run (Node vs Rust over the std float corpus)
+  before switching `hd test` to the Rust host; any divergence fails the
+  gate.
+- **Q4. Property-test PRNG?** `test.mjs` draws from seeded streams that
+  replay from regression files. Recommended: hand-roll SplitMix64 in
+  `hd_run` (30 lines, no dependency, identical streams on every
+  engine) rather than adding `rand`/`rand_chacha`.
+- **Q5. Net parity details?** Confirm at implementation: listen backlog
+  (`std` 128 vs Node 511 default), IPv4/IPv6 dual-stack and
+  `verbatim:true` DNS parity, and `read(max == 0)`/spillover edge
+  semantics, each with a conformance probe.
+- **Q6. `serde_json` or hand-rolled JSON?** `serde_json` (recommended):
+  the test protocol is flat JSON lines and the team already audits
+  small trees; hand-rolling saves kilobytes and risks divergence.
+- **Q7. Pin wasmtime 49.0?** Yes (recommended): it is the newest stable
+  that validates every module the emitter produces (M2 spike), pending
+  the SK-10 linkage approval already recorded in `hd_run_wasmtime`.
+
+Recommendation: approve the sync-only design with the §20.5 crate set
+on wasmtime 49.0, and start with the reactor + `hd:rt`/`hd:Console`/
+`hd:Clock` providers (no new dependencies), then Http/Net, then the
+test-runner supervisor.
