@@ -36,6 +36,8 @@ const USAGE: &str = "usage:
   hd check [FILE.hd] [--tests | --all] [--format json]
   hd new [--app | --lib] [--pages] [--vcs none] [PATH]
   hd clean [--cache]
+  hd add [--dev] NAME PATH@VERSION
+  hd update [NAME]
   hd remove NAME
   hd fetch
   hd fmt [--check] [FILE.hd]
@@ -86,6 +88,8 @@ fn main() -> ExitCode {
         ("test", rest) => test_cmd::command(rest),
         ("new", rest) => new_cmd::command(rest),
         ("clean", rest) => clean_cmd::command(rest),
+        ("add", rest) => dep_cmd::add(rest),
+        ("update", rest) => dep_cmd::update(rest),
         ("remove", rest) => dep_cmd::remove(rest),
         ("fetch", rest) => dep_cmd::fetch(rest),
         ("fmt", rest) => fmt_cmd::command(rest),

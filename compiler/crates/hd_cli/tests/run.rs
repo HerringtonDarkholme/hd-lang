@@ -1009,10 +1009,13 @@ fn clean_cache_empties_only_an_hd_cache() {
     assert!(dir.join("notes.txt").is_file());
 }
 
+/// A tree hash's form, which `hd.sum` lines hold.
+const H: &str = "h1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+
 /// `cli.dep.remove`, `cli.dep.edit`, `cli.dep.edit.empty-table`,
 /// `cli.dep.tidy`: `hd remove` deletes the key's line and an emptied
-/// table's header, keeps the other lines, and drops the version's
-/// `hd.sum` entries; a NAME of neither table is an error.
+/// table's header, keeps the other lines, and tidies `hd.sum` to the
+/// selection; a NAME of neither table is an error.
 #[test]
 fn remove_deletes_a_requirement_line_by_line() {
     let dir = tree(
@@ -1024,7 +1027,9 @@ fn remove_deletes_a_requirement_line_by_line() {
             ),
             (
                 "hd.sum",
-                "github.com/acme/json@2.1.0 h1:a=\ngithub.com/acme/json@2.1.0/hd.toml h1:b=\ngithub.com/acme/yaml@1.0.0 h1:c=\n",
+                &format!(
+                    "github.com/acme/json@2.1.0 {H}\ngithub.com/acme/json@2.1.0/hd.toml {H}\ngithub.com/acme/yaml@1.0.0 {H}\n"
+                ),
             ),
             ("src/main.hd", HELLO),
         ],
@@ -1035,9 +1040,11 @@ fn remove_deletes_a_requirement_line_by_line() {
         std::fs::read_to_string(dir.join("hd.toml")).expect("read"),
         "[package]\nname = \"app\"  # mine\n\n[dependencies]\nmoney = { path = \"money\" }\n"
     );
+    // Tidy keeps one entry per selected version and read manifest, and no
+    // other: nothing is selected now, so not even yaml's line stays.
     assert_eq!(
         std::fs::read_to_string(dir.join("hd.sum")).expect("read"),
-        "github.com/acme/yaml@1.0.0 h1:c=\n"
+        ""
     );
     let r = ran(&dir, &["remove", "json"]);
     assert_eq!(r.code, Some(101));

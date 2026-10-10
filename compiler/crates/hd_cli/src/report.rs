@@ -325,6 +325,17 @@ impl Reporter {
         self.finish(crate::HD_FAILURE)
     }
 
+    /// `fail` for a package command, whose error line in text mode names
+    /// the command: `hd add: text is in [dependencies]; ...`.
+    pub(crate) fn command_fail(&mut self, command: &str, message: &str) -> std::process::ExitCode {
+        if self.json {
+            return self.fail(message);
+        }
+        self.errors += 1;
+        self.line(&format!("hd {command}: {message}"));
+        self.finish(crate::HD_FAILURE)
+    }
+
     /// The end of the command: in JSON mode its summary
     /// (`cli.json.summary.result`), then `status`.
     pub(crate) fn finish(&mut self, status: u8) -> std::process::ExitCode {
