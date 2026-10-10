@@ -8,6 +8,38 @@ use hd_syntax::{NodeRef, SyntaxKind};
 use hd_types::{RowData, RowId, RowParamRef, Ty, TyData, VarKind};
 
 use crate::body::{Ck, RowFrame};
+use crate::results::{RowEdge, RowFacts};
+
+/// Whether the listed key `have` supplies the needed key `want`: the same
+/// key, or a key whose trait has `want`'s trait as a supertrait.
+pub(crate) fn key_supplies(
+    lookup: &hd_resolve::Lookup<'_>,
+    pool: hd_types::Types<'_>,
+    have: Ty,
+    want: Ty,
+) -> bool {
+    if have == want {
+        return true;
+    }
+    match (pool.get(have), pool.get(want)) {
+        (
+            TyData::TraitValue {
+                def: d1,
+                args: a1,
+                bindings: b1,
+            },
+            TyData::TraitValue {
+                def: d2,
+                args: a2,
+                bindings: b2,
+            },
+        ) => {
+            (d1 == d2 && a1 == a2 && (b1.is_empty() || b2.is_empty() || b1 == b2))
+                || (d1 != d2 && crate::body::trait_extends(lookup, pool, d1, d2, 0))
+        }
+        _ => false,
+    }
+}
 
 /// One requirement a body needs: a key or a row parameter.
 #[derive(Clone, Copy)]
@@ -17,31 +49,9 @@ enum Need {
 }
 
 impl Ck<'_, '_> {
-    /// Whether the listed key `have` supplies the needed key `want`: the
-    /// same key, or a key whose trait has `want`'s trait as a supertrait.
+    /// Whether the listed key `have` supplies the needed key `want`.
     fn key_supplies(&self, have: Ty, want: Ty) -> bool {
-        if have == want {
-            return true;
-        }
-        let pool = self.pool();
-        match (pool.get(have), pool.get(want)) {
-            (
-                TyData::TraitValue {
-                    def: d1,
-                    args: a1,
-                    bindings: b1,
-                },
-                TyData::TraitValue {
-                    def: d2,
-                    args: a2,
-                    bindings: b2,
-                },
-            ) => {
-                (d1 == d2 && a1 == a2 && (b1.is_empty() || b2.is_empty() || b1 == b2))
-                    || (d1 != d2 && self.trait_extends(d1, d2, 0))
-            }
-            _ => false,
-        }
+        key_supplies(self.cx.lookup, self.pool(), have, want)
     }
 
     /// `key_supplies`, solving type variables inside a generic key: the
@@ -106,8 +116,10 @@ impl Ck<'_, '_> {
                 | RowFrame::Closure {
                     written: Some(r), ..
                 } => self.row_supplies(*r, need),
-                RowFrame::Closure { written: None, .. } => {
-                    if let RowFrame::Closure { used, .. } = &mut self.rows[i] {
+                RowFrame::Closure { written: None, .. } | RowFrame::Inferred { .. } => {
+                    if let RowFrame::Closure { used, .. } | RowFrame::Inferred { used, .. } =
+                        &mut self.rows[i]
+                    {
                         match need {
                             Need::Key(k) => used.keys.push(k),
                             Need::Param(p) => used.params.push(p),
@@ -448,5 +460,140 @@ impl Ck<'_, '_> {
                 );
             }
         }
+    }
+
+    /// An inherent method call's row: the method's row under the call's
+    /// type arguments, the implementation's and the method's own, so a
+    /// generic key keeps them (`req.row.entail.generic`).
+    pub(crate) fn inherent_row(
+        &mut self,
+        method: hd_base::DefId,
+        sig: &FnSig,
+        (owner, owner_args): (hd_base::DefId, &[Ty]),
+        vars: &[Ty],
+        n: NodeRef<'_>,
+    ) -> hd_base::StageResult<()> {
+        let pool = self.pool();
+        let row = self.call_row(method, sig, vars, 0);
+        let row = pool.subst_row(row, &|p| {
+            (p.owner == owner)
+                .then(|| owner_args.get(p.index as usize).copied())
+                .flatten()
+        });
+        let row = self.infer.resolve_row(pool, row);
+        let args = vec![(method, vars.to_vec()), (owner, owner_args.to_vec())];
+        self.callee_row(method, row, args, n)
+    }
+
+    /// The row a call of `callee` needs, `row` as its signature shows it
+    /// with the call's type arguments `args` (by owner) applied. A written
+    /// or solved row is checked here. A private callable's row that is
+    /// still open (checking-and-tir.md "M3: inferred rows") is recorded
+    /// instead: an inferred row takes an edge to it, and a written row
+    /// checks it once it is solved, each without the keys of the `$.with`
+    /// blocks around the call. A closure or a test case needs the row now,
+    /// so the callee's body is checked first.
+    pub(crate) fn callee_row(
+        &mut self,
+        callee: hd_base::DefId,
+        row: RowId,
+        args: Vec<(hd_base::DefId, Vec<Ty>)>,
+        n: NodeRef<'_>,
+    ) -> hd_base::StageResult<()> {
+        if !crate::results::row_open(self.cx, callee) {
+            self.check_row(row, n);
+            return Ok(());
+        }
+        let pool = self.pool();
+        let mut minus = Vec::new();
+        for i in (0..self.rows.len()).rev() {
+            match &mut self.rows[i] {
+                RowFrame::With(r) => minus.extend(pool.row_data(*r).keys),
+                RowFrame::Any => return Ok(()),
+                RowFrame::Inferred { edges, .. } => {
+                    edges.push(RowEdge {
+                        callee,
+                        args,
+                        minus,
+                        at: n.index(),
+                    });
+                    return Ok(());
+                }
+                RowFrame::Declared(r) => {
+                    let row = *r;
+                    let edge = RowEdge {
+                        callee,
+                        args,
+                        minus,
+                        at: n.index(),
+                    };
+                    self.row_waits.push((edge, row));
+                    return Ok(());
+                }
+                RowFrame::Closure { .. } | RowFrame::Profile { .. } => break,
+            }
+        }
+        let Some(solved) = crate::results::row_now(self.cx, callee) else {
+            return self.gap(
+                n,
+                "a closure calling a private function of its recursive group, whose row is still inferred",
+            );
+        };
+        let row = pool.subst_row(solved, &|p| {
+            args.iter()
+                .find(|(o, _)| *o == p.owner)
+                .and_then(|(_, a)| a.get(p.index as usize).copied())
+        });
+        let row = self.infer.resolve_row(pool, row);
+        self.check_row(row, n);
+        Ok(())
+    }
+
+    /// The body's row facts at its end, with their types resolved: the
+    /// keys and row parameters an inferred row used, and its edges.
+    pub(crate) fn row_facts(&mut self) -> RowFacts {
+        let pool = self.pool();
+        let (used, edges) = match self.rows.first_mut() {
+            Some(RowFrame::Inferred { used, edges }) => {
+                (std::mem::take(used), std::mem::take(edges))
+            }
+            _ => Default::default(),
+        };
+        let mut keys = Vec::new();
+        for k in used.keys {
+            let k = self.zonk(k);
+            if !pool.has_poison(k) && !keys.contains(&k) {
+                keys.push(k);
+            }
+        }
+        let mut params = used.params;
+        params.sort_by_key(|p| (p.owner.raw(), p.index));
+        params.dedup();
+        let edges = edges.into_iter().map(|e| self.zonk_edge(e)).collect();
+        RowFacts {
+            used: hd_types::RowData { keys, params },
+            edges,
+        }
+    }
+
+    /// The written row's calls of open rows at the body's end, with their
+    /// types resolved.
+    pub(crate) fn row_waits(&mut self) -> Vec<(RowEdge, RowId)> {
+        std::mem::take(&mut self.row_waits)
+            .into_iter()
+            .map(|(e, r)| (self.zonk_edge(e), r))
+            .collect()
+    }
+
+    fn zonk_edge(&mut self, mut e: RowEdge) -> RowEdge {
+        for (_, a) in &mut e.args {
+            for t in a.iter_mut() {
+                *t = self.zonk(*t);
+            }
+        }
+        for t in &mut e.minus {
+            *t = self.zonk(*t);
+        }
+        e
     }
 }

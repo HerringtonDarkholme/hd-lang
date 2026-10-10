@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2406 | 351 | 88 | 2845 |
+| 2412 | 345 | 88 | 2845 |
 
 ## By Chapter
 
@@ -19,12 +19,12 @@ fixture; unsupported surface records progress without failing.
 | `lang/03-names-and-scopes.md` | 94 | 6 | 1 | 101 |
 | `lang/04-type-system.md` | 305 | 45 | 2 | 352 |
 | `lang/05-expressions.md` | 244 | 32 | 1 | 277 |
-| `lang/06-control-flow.md` | 130 | 23 | 4 | 157 |
-| `lang/07-functions.md` | 106 | 21 | 3 | 130 |
+| `lang/06-control-flow.md` | 131 | 22 | 4 | 157 |
+| `lang/07-functions.md` | 107 | 20 | 3 | 130 |
 | `lang/08-data-and-enums.md` | 86 | 29 | 8 | 123 |
 | `lang/09-traits.md` | 304 | 50 | 5 | 359 |
 | `lang/10-modules.md` | 208 | 39 | 11 | 258 |
-| `lang/11-requirements-and-suspension.md` | 192 | 36 | 31 | 259 |
+| `lang/11-requirements-and-suspension.md` | 196 | 32 | 31 | 259 |
 | `lang/14-annotations.md` | 112 | 34 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 86 | 15 | 4 | 105 |
-| `runtime/valid` | 844 | 18 | 67 | 929 |
-| `typing/invalid` | 778 | 283 | 14 | 1075 |
-| `typing/valid` | 400 | 12 | 3 | 415 |
+| `runtime/valid` | 845 | 17 | 67 | 929 |
+| `typing/invalid` | 780 | 281 | 14 | 1075 |
+| `typing/valid` | 403 | 9 | 3 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -86,13 +86,12 @@ compiler stage that first declined the case.
 | `fail:implicit-narrowing` | 1 |
 | `fail:invalid-test-statement` | 1 |
 | `fail:invalid-token` | 2 |
-| `fail:let-else-falls-through` | 1 |
 | `fail:missing-entry-point` | 1 |
 | `fail:missing-required-field` | 2 |
-| `fail:missing-requirement` | 10 |
+| `fail:missing-requirement` | 4 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 175 |
+| `fail:no-diagnostic` | 176 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
@@ -211,12 +210,6 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:let-else-falls-through</code> (1)</summary>
-
-- `typing/invalid/let-else-falls-through.hd`
-
-</details>
-
 <details><summary><code>fail:missing-entry-point</code> (1)</summary>
 
 - `runtime/valid/script-empty-run.hd`
@@ -230,17 +223,11 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:missing-requirement</code> (10)</summary>
+<details><summary><code>fail:missing-requirement</code> (4)</summary>
 
-- `typing/warnings/unreachable-after-infinite-loop.hd`
 - `typing/invalid/parameter-default-requires-provider.hd`
 - `typing/invalid/data-default-requires-provider.hd`
 - `typing/invalid/missing-requirement-cold-construction.hd`
-- `typing/invalid/inferred-row-reaches-public-caller.hd`
-- `typing/valid/inferred-row-through-private-callers.hd`
-- `runtime/valid/private-function-inferred-row.hd`
-- `typing/valid/mutable-provider-rows.hd`
-- `typing/valid/private-method-infers-result-and-row.hd`
 - `typing/invalid/hd-run-outside-integration.hd`
 
 </details>
@@ -259,7 +246,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (175)</summary>
+<details><summary><code>fail:no-diagnostic</code> (176)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -292,6 +279,7 @@ compiler stage that first declined the case.
 - `typing/invalid/nonfinal-vararg-then-parameter.hd`
 - `typing/invalid/prelude-shadow-console-parameter.hd`
 - `typing/invalid/prelude-shadow-result-generic.hd`
+- `typing/warnings/unreachable-after-infinite-loop.hd`
 - `typing/warnings/variant-binding-names-swapped.hd`
 - `typing/invalid/generic-supertrait-upcast-mismatch.hd`
 - `typing/invalid/enum-default-requires-provider.hd`
@@ -1749,6 +1737,7 @@ runtime/valid/println-provider-suspending-body.hd
 runtime/valid/println-recording-provider.hd
 runtime/valid/println-under-main-driver.hd
 runtime/valid/private-function-inferred-result.hd
+runtime/valid/private-function-inferred-row.hd
 runtime/valid/private-main-is-ordinary-function.hd
 runtime/valid/process-error-display.hd
 runtime/valid/process-error-results.hd
@@ -2327,6 +2316,7 @@ typing/invalid/index-set-missing.hd
 typing/invalid/index-set-string.hd
 typing/invalid/indirect-top-level-forward-read.hd
 typing/invalid/inferred-mutable-upgrade.hd
+typing/invalid/inferred-row-reaches-public-caller.hd
 typing/invalid/infinite-loop-break-missing-return.hd
 typing/invalid/infinite-loop-variable-condition.hd
 typing/invalid/inspectable-child-trait-without-impl.hd
@@ -2356,6 +2346,7 @@ typing/invalid/iterator-take-negative-literal.hd
 typing/invalid/json-decode-not-derived.hd
 typing/invalid/json-encode-not-derived.hd
 typing/invalid/json-map-key-not-string.hd
+typing/invalid/let-else-falls-through.hd
 typing/invalid/let-else-irrefutable.hd
 typing/invalid/let-else-name-in-else.hd
 typing/invalid/let-mut-pattern-readonly-annotation.hd
@@ -2947,6 +2938,7 @@ typing/valid/index-traits-builtin.hd
 typing/valid/index-traits.hd
 typing/valid/index-unsigned-widths.hd
 typing/valid/inferred-mutable-from-mutable.hd
+typing/valid/inferred-row-through-private-callers.hd
 typing/valid/inherited-mut-method-requirement.hd
 typing/valid/inner-mut-trait-instantiations.hd
 typing/valid/iteration-protocol.hd
@@ -3017,6 +3009,7 @@ typing/valid/mutable-access-bound.hd
 typing/valid/mutable-closure-capture.hd
 typing/valid/mutable-loop-element-mutation.hd
 typing/valid/mutable-paths.hd
+typing/valid/mutable-provider-rows.hd
 typing/valid/mutual-recursion-one-annotated.hd
 typing/valid/named-variant-bindings.hd
 typing/valid/names-and-scopes.hd
@@ -3059,6 +3052,7 @@ typing/valid/prelude-surface.hd
 typing/valid/println-top-level-script.hd
 typing/valid/private-data-embeds-private-type.hd
 typing/valid/private-function-inferred-void.hd
+typing/valid/private-method-infers-result-and-row.hd
 typing/valid/private-own-member-beside-private-part-member.hd
 typing/valid/private-type-in-public-body.hd
 typing/valid/property-runner-capabilities.hd

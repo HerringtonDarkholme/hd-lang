@@ -114,6 +114,14 @@ pub(crate) enum RowFrame {
         written: Option<RowId>,
         used: hd_types::RowData,
     },
+    /// A private function's omitted row (`req.row.omitted.inferred-private`):
+    /// the keys its body uses so far outside its own `$.with` blocks, and
+    /// its calls of rows still open (checking-and-tir.md "M3: inferred
+    /// rows").
+    Inferred {
+        used: hd_types::RowData,
+        edges: Vec<crate::results::RowEdge>,
+    },
     /// The keys a `$.with` block binds.
     With(RowId),
     /// A test case's body: the keys the runner binds for it, and those of
@@ -236,6 +244,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// of a registration function registers test cases instead of being
     /// misplaced (`module.testing.direct-call`).
     pub registering: bool,
+    /// Calls of open rows under a written row: each edge and that row,
+    /// checked once the open rows are solved.
+    pub row_waits: Vec<(crate::results::RowEdge, RowId)>,
 }
 
 /// A node index kept for a later diagnostic.
@@ -306,6 +317,7 @@ pub(crate) fn new_ck<'a, 'c>(
         hidden: Vec::new(),
         module: cx.names.module_node(item),
         registering: false,
+        row_waits: Vec::new(),
     };
     // No local declaration holds byte 0: every local impl starts hidden.
     ck.move_to(0);
@@ -485,21 +497,31 @@ pub(crate) fn check_fn_in(
     diags: &mut DiagBuf,
     opt_in: Option<&crate::derive::OptIn>,
 ) -> StageResult<Body> {
-    check_fn_body(cx, def, node, diags, opt_in, false).map(|(b, _)| b)
+    check_fn_body(cx, def, node, diags, opt_in, Infer::default()).map(|(b, ..)| b)
 }
 
-/// Checks one function body and returns its TIR and its result type.
-/// With `infer`, the written result is omitted: the result is a join
-/// variable, so the final value and every `return` operand take their
-/// least common type (`fn.decl.result-inferred.common`).
+/// What a body checks for its declaration: an omitted result type, an
+/// omitted row.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Infer {
+    pub ret: bool,
+    pub row: bool,
+}
+
+/// Checks one function body and returns its TIR, its result type and its
+/// row facts. With `infer.ret`, the written result is omitted: the result
+/// is a join variable, so the final value and every `return` operand take
+/// their least common type (`fn.decl.result-inferred.common`). With
+/// `infer.row`, the row is omitted: the body's bottom frame takes every
+/// key it uses (`req.row.omitted.inferred-private`).
 pub(crate) fn check_fn_body(
     cx: &BodyCx<'_>,
     def: DefId,
     node: NodeRef<'_>,
     diags: &mut DiagBuf,
     opt_in: Option<&crate::derive::OptIn>,
-    infer: bool,
-) -> StageResult<(Body, Ty)> {
+    infer: Infer,
+) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
     let Some(item) = cx.lookup.item(def) else {
         return unsupported(format!("body of {} has no header", cx.names.path(def)));
     };
@@ -518,6 +540,12 @@ pub(crate) fn check_fn_body(
     );
     if let Some(o) = opt_in {
         ck.enter_opt_in(o);
+    }
+    if infer.row {
+        ck.rows[0] = RowFrame::Inferred {
+            used: hd_types::RowData::default(),
+            edges: Vec::new(),
+        };
     }
     // A local impl's method, or a local trait's default, sees what is in
     // scope where it is written (`trait.impl.local.lookup`).
@@ -538,7 +566,7 @@ pub(crate) fn check_fn_body(
     let Some(body) = Src::child(node, SyntaxKind::Block) else {
         return unsupported("a function without a body");
     };
-    let ret = if infer {
+    let ret = if infer.ret {
         ck.join_target(None)
     } else {
         ck.norm_ty(sig.ret)
@@ -1779,6 +1807,10 @@ impl Ck<'_, '_> {
                 bindings,
             } => {
                 let a = self.zonk_list(args);
+                let bindings = bindings
+                    .into_iter()
+                    .map(|(d, b)| (d, self.zonk(b)))
+                    .collect();
                 pool.intern_ty(&TyData::TraitValue {
                     def,
                     args: a,
@@ -1875,12 +1907,17 @@ impl Ck<'_, '_> {
 
     fn finish(self, root: Ref) -> StageResult<Body> {
         let ret = self.rets[0];
-        self.finish_with(root, ret).map(|(b, _)| b)
+        self.finish_with(root, ret).map(|(b, ..)| b)
     }
 
     /// Finishes the body and returns it with `ret` resolved: a function's
-    /// result type, inferred when its declaration omits it.
-    fn finish_with(mut self, root: Ref, ret: Ty) -> StageResult<(Body, Ty)> {
+    /// result type, inferred when its declaration omits it. Its row facts
+    /// are resolved too.
+    fn finish_with(
+        mut self,
+        root: Ref,
+        ret: Ty,
+    ) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
         self.unused_locals();
         if self.module_init.is_none() {
             let item = self.b.body_mut().item;
@@ -2045,10 +2082,16 @@ impl Ck<'_, '_> {
                 })
                 .collect()
         };
+        let facts = self.row_facts();
+        let waits = self.row_waits();
+        if !waits.is_empty() {
+            let item = self.b.body_mut().item;
+            crate::results::add_waits(self.cx, item, waits);
+        }
         let body = self
             .b
             .finish(root, &modes)
             .map_err(|e| NotImplemented::new(Stage::Body, format!("TIR verifier: {e:?}")))?;
-        Ok((body, ret))
+        Ok((body, ret, facts))
     }
 }

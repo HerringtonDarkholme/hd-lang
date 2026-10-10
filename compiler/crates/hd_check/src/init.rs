@@ -110,6 +110,13 @@ pub fn check_init(
     );
     ck.module_init = Some(module.to_owned());
     let blk = ck.b.open_block();
+    // A body that M1 checks for a statement may read a later binding. An
+    // annotated one has its type before its statement runs, so that read
+    // is a read before initialization (`module.init.definite`), not an
+    // unknown name.
+    for (i, s) in stmts.iter().enumerate() {
+        ck.declare_annotated(i, *s);
+    }
     let mut per_stmt = Vec::new();
     for (i, s) in stmts.iter().enumerate() {
         ck.init_stmt = i;
@@ -150,6 +157,56 @@ pub fn check_init(
 }
 
 impl Ck<'_, '_> {
+    /// Declares statement `i`'s binding ahead of its statement when it is
+    /// a simple `let` with a type annotation that resolves without error;
+    /// the statement declares it again when it runs.
+    fn declare_annotated(&mut self, i: usize, s: NodeRef<'_>) {
+        if s.kind() != SyntaxKind::LetStmt {
+            return;
+        }
+        let kids: Vec<NodeRef<'_>> = s.children().collect();
+        let (Some(pat), Some(tn)) = (
+            kids.first().copied(),
+            kids.iter().copied().find(|k| k.kind().is_type()),
+        ) else {
+            return;
+        };
+        if pat.kind() != SyntaxKind::BindingPattern || pat.children().next().is_some() {
+            return;
+        }
+        let Some(nt) = pat.direct_tokens().find(|t| {
+            matches!(
+                self.cx.src.tkind(*t),
+                Some(TokenKind::Ident | TokenKind::RawIdent)
+            )
+        }) else {
+            return;
+        };
+        // Its statement resolves the annotation again and reports its
+        // errors once.
+        let mark = self.diags.mark();
+        let ty = self.ty_node(tn);
+        let failed = self.diags.errors_since(mark) > 0;
+        self.diags.truncate(mark);
+        let Ok(ty) = ty else { return };
+        if failed || ty.is_local() {
+            return;
+        }
+        let text = self.cx.src.text(nt).to_owned();
+        let name = self.cx.names.syms.intern(&text);
+        let module = self.module_init.clone().unwrap_or_default();
+        let def = self.cx.names.item(&module, &text);
+        self.cx.init.borrow_mut().globals.insert(
+            name,
+            Global {
+                def,
+                ty,
+                stmt: i,
+                short: false,
+            },
+        );
+    }
+
     /// A top-level statement: a simple binding becomes a global.
     fn top_level(&mut self, s: NodeRef<'_>) -> StageResult<()> {
         match s.kind() {

@@ -397,6 +397,20 @@ impl Ck<'_, '_> {
     /// The member's function type without its first `skip` parameters.
     fn member_fn_ty(&mut self, m: &Member, skip: usize) -> StageResult<Ty> {
         let pool = self.pool();
+        // The function type carries the row: a private callable's omitted
+        // row is solved first, which a member of this body's recursive
+        // group is not yet.
+        let mut row = m.sig.row;
+        if crate::results::row_open(self.cx, m.def) {
+            match crate::results::row_now(self.cx, m.def) {
+                Some(r) => row = r,
+                None => {
+                    return unsupported(
+                        "a function value of a private function of its recursive group, whose row is still inferred",
+                    );
+                }
+            }
+        }
         let mut params = Vec::with_capacity(m.sig.params.len());
         for p in m.sig.params.iter().skip(skip) {
             params.push(self.normalize_deep(inst(pool, m, p.1))?);
@@ -413,7 +427,7 @@ impl Ck<'_, '_> {
         Ok(pool.intern_ty(&TyData::Fn {
             params: pool.list(&params),
             result,
-            row: inst_row(pool, m, m.sig.row),
+            row: inst_row(pool, m, row),
             suspends: m.sig.suspends,
             inputs: if rest { Inputs::Rest } else { Inputs::Fixed },
         }))

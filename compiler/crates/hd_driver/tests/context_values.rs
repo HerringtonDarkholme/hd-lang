@@ -356,12 +356,13 @@ fn run() -> void:
 }
 
 /// A key the context does not provide is still missing in the block
-/// (`req.mut.row.missing-key`).
+/// (`req.mut.row.missing-key`). `run` is public, so its row is the
+/// empty one it writes, not one inferred from its body.
 #[test]
 fn a_key_the_context_lacks_is_missing() {
     let main = format!(
         "{TAGS}
-fn run(ctx: $.Context[$ Tag]) -> string:
+pub fn run(ctx: $.Context[$ Tag]) -> string:
     $.with(ctx...):
         both()
 "

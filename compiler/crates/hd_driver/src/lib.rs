@@ -364,8 +364,13 @@ type IfaceDiags = Vec<(usize, Code, hd_resolve::anchor::Anchor, String)>;
 
 /// A module's TIR and body diagnostics after `Body(m)`, the hidden
 /// methods its derivations add (checking-and-tir.md §4.13.9), and the
-/// results M1 inferred for its private callables (§4.13.1).
-type BodyOut = (Vec<Body>, DiagBuf, Vec<Item>, Vec<(DefId, Ty)>);
+/// results and rows inferred for its private callables (§4.13.1).
+type BodyOut = (
+    Vec<Body>,
+    DiagBuf,
+    Vec<Item>,
+    Vec<hd_check::results::Inferred>,
+);
 
 /// What a module's derivations add to its `check` entry: the derived
 /// implementations' methods and their bodies (codegen.md §12.3).
@@ -2175,7 +2180,7 @@ impl Run<'_> {
         }
         // The rest of M1, in source order; each body it checks is final.
         hd_check::results::infer_results(&cx);
-        diags.append(&hd_check::results::cycles(&cx));
+        diags.append(&hd_check::results::module_diags(&cx));
         // A written implementation writes every required trait method
         // (spec 09 `trait.impl.required`), reported at its header.
         for h in heads
@@ -2841,14 +2846,21 @@ impl Run<'_> {
         };
         let mut all_items: Vec<Item> = prep.items.iter().chain(case_items).cloned().collect();
         add_derived_methods(&names, &mut all_items, derived);
-        // An omitted result type is the inferred one in the module's items,
-        // which `Collect` and the program's emission read.
-        let inferred: HashMap<DefId, Ty> = inferred.iter().copied().collect();
+        // An omitted result type or row is the inferred one in the module's
+        // items, which `Collect` and the program's emission read: a body's
+        // code key and its callers' hold its row's keys (codegen.md §12.4).
+        let inferred: HashMap<DefId, hd_check::results::Inferred> =
+            inferred.iter().map(|i| (i.def, *i)).collect();
         for it in &mut all_items {
-            if let Some(&ret) = inferred.get(&it.def)
+            if let Some(inf) = inferred.get(&it.def)
                 && let ItemData::Fn(sig) | ItemData::Method { sig, .. } = &mut it.data
             {
-                sig.ret = ret;
+                if let Some(ret) = inf.ret {
+                    sig.ret = ret;
+                }
+                if let Some(row) = inf.row {
+                    sig.row = row;
+                }
             }
         }
         let mut rw = Writer::default();

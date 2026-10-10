@@ -127,6 +127,7 @@ impl Ck<'_, '_> {
                 }
                 RowFrame::Any
                 | RowFrame::Closure { written: None, .. }
+                | RowFrame::Inferred { .. }
                 | RowFrame::Profile { .. } => break,
             }
         }

@@ -1296,7 +1296,7 @@ impl Ck<'_, '_> {
                 // The arguments fixed the parameters a projection waited on.
                 let ret = self.norm_ty(ret);
                 let row = self.call_row(def, &sig, &vars, 0);
-                self.check_row(row, n);
+                self.callee_row(def, row, vec![(def, vars.clone())], n)?;
                 // A registration call's test case runs its std body with
                 // the arguments that body takes, and returns the result of
                 // the registration's body (checking-and-tir.md §4.13.9).
@@ -1893,7 +1893,7 @@ impl Ck<'_, '_> {
             };
             let refs = self.check_args(&formals, 0, args, n, name)?;
             self.bounds_of(&sig, &vars, &inst, n)?;
-            self.check_row(sig.row, n);
+            self.inherent_row(method, &sig, (impl_def, &impl_args), &vars, n)?;
             let mut targs = impl_args.clone();
             targs.extend(&vars);
             let c = Callee::Item {
@@ -2564,7 +2564,7 @@ impl Ck<'_, '_> {
                 if !handle_fact {
                     self.bounds_of(&sig, &vars, &inst, n)?;
                 }
-                self.check_row(sig.row, n);
+                self.inherent_row(method, &sig, (impl_def, &impl_args), &vars, n)?;
                 let mut targs = impl_args.clone();
                 targs.extend(&vars);
                 let c = Callee::Item {
