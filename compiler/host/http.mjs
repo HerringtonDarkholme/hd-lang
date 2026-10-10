@@ -68,7 +68,12 @@ const once = (url, method, headers, body, ms) =>
     // A body is sent with its length, as `fetch` sends a byte body,
     // unless the request gives its own framing.
     const framed = headers.some(([n]) => /^(content-length|transfer-encoding)$/i.test(n));
-    const all = body.length && !framed ? [...headers, ["Content-Length", String(body.length)]] : headers;
+    const sized = body.length && !framed ? [...headers, ["Content-Length", String(body.length)]] : headers;
+    // Headers go to Node as a raw list, which keeps repeated names in
+    // order but makes Node skip its own `Host`; an HTTP/1.1 request
+    // needs one (RFC 9112 3.2), so the URL's authority supplies it unless
+    // the request names its own.
+    const all = sized.some(([n]) => /^host$/i.test(n)) ? sized : [["Host", url.host], ...sized];
     const req = lib.request(url, { method, headers: all.flat(), agent: false });
     const timer = setTimeout(() => {
       settle(err("Timeout"));

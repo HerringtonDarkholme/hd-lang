@@ -516,15 +516,18 @@ fn http_server() -> u16 {
                     parts.next().unwrap_or("").to_owned(),
                 );
                 let mut length = 0;
+                let mut host = String::new();
                 loop {
                     let mut h = String::new();
                     if reader.read_line(&mut h).is_err() || h.trim().is_empty() {
                         break;
                     }
-                    if let Some((n, v)) = h.split_once(':')
-                        && n.eq_ignore_ascii_case("content-length")
-                    {
-                        length = v.trim().parse().unwrap_or(0);
+                    if let Some((n, v)) = h.split_once(':') {
+                        if n.eq_ignore_ascii_case("content-length") {
+                            length = v.trim().parse().unwrap_or(0);
+                        } else if n.eq_ignore_ascii_case("host") {
+                            v.trim().clone_into(&mut host);
+                        }
                     }
                 }
                 let mut body = vec![0; length];
@@ -544,6 +547,7 @@ fn http_server() -> u16 {
                         ("302 Found", "Location: /ok\r\n".to_owned(), String::new())
                     }
                     (_, "/loop") => ("302 Found", "Location: /loop\r\n".to_owned(), String::new()),
+                    (_, "/host") => ("200 OK", String::new(), format!("host {host}")),
                     (_, "/slow") => {
                         std::thread::sleep(std::time::Duration::from_secs(3));
                         ("200 OK", String::new(), String::new())
@@ -794,4 +798,35 @@ fn net_opens_sockets_inside_the_grant() {
     let denied = run(&dir, &["--cap", "Net=false", "main.hd", "--", "1", "2"]);
     assert_eq!(text(&denied.stdout), "");
     assert_eq!(denied.status.code(), Some(101));
+}
+
+/// An HTTP/1.1 request carries `Host` from the URL's authority, as a
+/// server requires (a real server answers 400 without one); a request
+/// that names its own `Host` keeps it.
+#[test]
+fn http_requests_carry_a_host_header() {
+    let port = http_server();
+    let dir = work("host-http-host");
+    write(
+        &dir.join("main.hd"),
+        "use std.http.{Http, Request, get, send}
+use std.host.{Args, args}
+
+pub fn main!() -> void $ Console + Http + Args:
+    base := args()[0]
+    match get!(\"${base}/host\"):
+        .Ok(r) => println(r.text())
+        .Err(e) => println(debug(e))
+    match send!(Request { url: \"${base}/host\", headers: [(\"Host\", \"example.test\")] }):
+        .Ok(r) => println(r.text())
+        .Err(e) => println(debug(e))
+",
+    );
+    let base = format!("http://127.0.0.1:{port}");
+    let out = run(&dir, &["--cap", "Http=127.0.0.1", "main.hd", "--", &base]);
+    assert_eq!(text(&out.stderr), "");
+    assert_eq!(
+        text(&out.stdout),
+        format!("host 127.0.0.1:{port}\nhost example.test\n")
+    );
 }
