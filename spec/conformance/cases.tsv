@@ -249,6 +249,7 @@ typing/invalid/supertrait-cycle.hd	type	reject:supertrait-cycle	lang/09-traits.m
 typing/invalid/missing-trait-method.hd	type	reject:missing-trait-method	lang/09-traits.md#trait-implementations
 typing/invalid/trait-method-signature.hd	type	reject:trait-method-signature	lang/09-traits.md#trait-implementations
 typing/invalid/duplicate-inherent-member.hd	type	reject:duplicate-inherent-member	lang/09-traits.md#inherent-implementations
+typing/invalid/variant-pattern-unsolved-scrutinee.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.generic.default.unsolved
 typing/invalid/variant-result-owner.hd	type	reject:variant-result-owner	lang/08-data-and-enums.md#r-data.shared.owner
 typing/invalid/duplicate-trait-member.hd	type	reject:duplicate-trait-member	lang/09-traits.md#trait-declarations
 typing/valid/resource-disposed-result.hd	type	accept	lang/10-modules.md#wasm-boundary

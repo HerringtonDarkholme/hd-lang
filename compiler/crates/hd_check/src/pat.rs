@@ -262,7 +262,11 @@ impl Ck<'_, '_> {
                 }
                 let Some((_, fields)) = self.variant_fields(t, &name) else {
                     if matches!(pool.get(inner), TyData::Infer(_)) {
-                        return unsupported("a variant pattern on a value whose type is not known");
+                        let msg = format!(
+                            "the type of the matched value is not known here; annotate it so `.{name}` can be checked"
+                        );
+                        self.err(Code::CannotInferType, p, &msg);
+                        return self.declare_poisoned_fields(p, binds);
                     }
                     let msg = format!("no variant `.{name}` of {}", self.show(t));
                     self.err(Code::UnknownVariant, p, &msg);
