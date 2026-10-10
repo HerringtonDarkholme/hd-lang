@@ -1043,6 +1043,32 @@ generic helper, and returns an escaping `fn(T) -> T`. It validates and
 runs on wasmtime and V8. The caller sees its own list mutated in place
 and the returned buffer's identity preserved.
 
+**As built (#238).**
+
+- A slot takes its method row's providers after the arguments and the
+  witness (`Lay::slot_keys`), so a suspending method with a row works
+  through `dyn`; the slot adapter passes the impl method's keys on.
+- Open parameter `k` is the placeholder `Canon(0xE0 + k)` (`open_param`),
+  laid out as `eqref`. The erased body is the instance `Sub::Erased` of
+  the impl's method, or of the trait's default, at the impl's arguments
+  and open parameters; thunk `k` is `Sub::Thunk(k)` at the caller's
+  type arguments (`hd_mono::erased`).
+- A family is the trait method with its trait's arguments. Its witness
+  is an immutable `(array (mut eqref))` holding one struct of thunk
+  references per erased body. The body reads its field at the index in
+  an `i32` constant global (`GSym::WitnessField`) that link assigns, in
+  place of a `Field` relocation and a per-family struct type, so its code
+  does not depend on the program's other impls.
+- A non-reference value crosses in a `box_of` struct of its values, as a
+  trait value's payload does; there is no `i31ref` form yet.
+- A tag switch over an open value outlines its tag read; `Match` does
+  not read its scrutinee and stays.
+- Not erased yet, each an `unsupported` stop: a closure in a body with
+  open instructions (the escaping `fn(T) -> T` of the first test), a
+  suspending generic method, a loop or a non-tag switch over an open
+  value, a method row parameter, and a function reference to a generic
+  method at a trait-value `Self`.
+
 ### 13.6 Tuples, Arity And `all!`
 
 There are no variadic generics (§4.13.7). Tuples are ordinary types:

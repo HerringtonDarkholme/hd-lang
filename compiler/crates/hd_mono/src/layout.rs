@@ -665,11 +665,18 @@ pub enum Sub {
     /// §13.11): its code forwards to one call that collection records as
     /// instruction 0.
     Adapter,
+    /// The erased body of a generic method that a vtable slot holds
+    /// (codegen.md §13.5.1): the item's body at its owner's concrete
+    /// arguments, its own type parameters open (`open_param`).
+    Erased,
+    /// Thunk `k` of an erased body: its open instruction `k`, in TIR
+    /// order, at concrete method type arguments (§13.5.1).
+    Thunk(u16),
 }
 
 impl Sub {
-    /// The kind, then the body index: an adapter never shares a key or a
-    /// code-entry hash with a body.
+    /// The kind, then the body or thunk index: an adapter, an erased body
+    /// or a thunk never shares a key or a code-entry hash with a body.
     pub fn hash_into(self, h: &mut StableHasher) {
         match self {
             Sub::Body(k) => {
@@ -677,6 +684,11 @@ impl Sub {
                 h.u16(k);
             }
             Sub::Adapter => h.u8(1),
+            Sub::Erased => h.u8(2),
+            Sub::Thunk(k) => {
+                h.u8(3);
+                h.u16(k);
+            }
         }
     }
 }
@@ -686,6 +698,8 @@ impl std::fmt::Display for Sub {
         match self {
             Sub::Body(k) => write!(f, "{k}"),
             Sub::Adapter => f.write_str("adapter"),
+            Sub::Erased => f.write_str("erased"),
+            Sub::Thunk(k) => write!(f, "thunk{k}"),
         }
     }
 }

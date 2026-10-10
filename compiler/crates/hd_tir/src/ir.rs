@@ -480,6 +480,40 @@ impl Body {
         &self.extra[at as usize + 1..at as usize + 1 + n]
     }
 
+    /// The value operands of instruction `i` that compute one result from
+    /// values and own no block, label or local (an erased body outlines
+    /// such an instruction, codegen.md §13.5.1), in the order emission
+    /// reads them; constants included. `None` for any other instruction.
+    #[must_use]
+    pub fn value_operands(&self, i: usize) -> Option<Vec<u32>> {
+        let [a, w] = self.data[i];
+        let one = |v: u32| if v == NONE { vec![] } else { vec![v] };
+        Some(match self.tags[i] {
+            Tag::Prim | Tag::NewData | Tag::NewVariant | Tag::NewMap | Tag::DefaultCall => {
+                self.record(w).to_vec()
+            }
+            // The last three words are the call's providers.
+            Tag::Call => {
+                let r = self.record(w);
+                r[..r.len().saturating_sub(3)].to_vec()
+            }
+            Tag::CallValue => [one(a), self.record(w).to_vec()].concat(),
+            Tag::Intrinsic | Tag::Interp => self.record(w).to_vec(),
+            Tag::Is => [one(a), one(w)].concat(),
+            Tag::Coerce | Tag::Field | Tag::TupleGet | Tag::Unwrap | Tag::Payload => one(a),
+            Tag::GlobalSet => one(w),
+            Tag::FieldSet => [one(a), self.record(w).get(1..2).unwrap_or(&[]).to_vec()].concat(),
+            Tag::CopyData => {
+                let pairs = self.record(w).iter().skip(1).step_by(2).copied();
+                one(a).into_iter().chain(pairs).collect()
+            }
+            Tag::NewTuple => [self.record(w).to_vec(), one(a)].concat(),
+            Tag::NewList if a == NONE => self.record(w).to_vec(),
+            Tag::GlobalGet | Tag::ProviderGet | Tag::ItemRef => vec![],
+            _ => return None,
+        })
+    }
+
     #[must_use]
     pub fn len(&self) -> usize {
         self.tags.len()

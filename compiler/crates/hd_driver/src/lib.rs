@@ -3605,6 +3605,34 @@ impl Run<'_> {
             hd_mono::Sub::Adapter => {
                 hd_wasm::emit_adapter(&self.pool, &env, &path, &c.layouts, item, args, calls)
             }
+            // A generic method's erased body and its thunks (§13.5.1).
+            hd_mono::Sub::Erased | hd_mono::Sub::Thunk(_) => match p.bodies.get(&item) {
+                Some((body, _)) if sub == hd_mono::Sub::Erased => hd_wasm::emit_erased(
+                    &self.pool,
+                    &env,
+                    &path,
+                    &c.layouts,
+                    body,
+                    args,
+                    ret,
+                    calls,
+                    c.collected.table.key[id.idx()],
+                ),
+                Some((body, _)) => hd_wasm::emit_thunk(
+                    &self.pool,
+                    &env,
+                    &path,
+                    &c.layouts,
+                    body,
+                    args,
+                    calls,
+                    c.collected.table.key[id.idx()],
+                ),
+                None => Err(NotImplemented::new(
+                    Stage::Emit,
+                    "an erased body without TIR",
+                )),
+            },
         };
         // The instance's item names where emission stopped.
         let r = r.map_err(|mut e| {
@@ -3667,7 +3695,10 @@ impl Run<'_> {
         let Some(entry) = self.stage(Stage::Link, exports) else {
             return;
         };
-        let Some(wasm) = self.stage(Stage::Link, hd_wasm::link(&codes, &fnames, &entry)) else {
+        let Some(wasm) = self.stage(
+            Stage::Link,
+            hd_wasm::link(&codes, &fnames, &entry, &c.collected.witnesses),
+        ) else {
             return;
         };
         self.put(EntryKind::Link, c.prog_key, &[&wasm]);
@@ -4038,6 +4069,11 @@ impl ProgramEnv for Env<'_> {
     fn bounded(&self, def: DefId) -> Option<Vec<bool>> {
         self.sig(def)
             .map(|s| s.generics.iter().map(|g| g.bound.is_some()).collect())
+    }
+    fn generic_rows(&self, def: DefId) -> Vec<bool> {
+        self.sig(def)
+            .map(|s| s.generics.iter().map(|g| g.row).collect())
+            .unwrap_or_default()
     }
     fn ret(&self, def: DefId) -> Option<Ty> {
         if let Some(b) = self.default_body(def) {

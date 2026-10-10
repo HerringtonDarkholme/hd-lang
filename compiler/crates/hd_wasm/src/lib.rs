@@ -34,7 +34,7 @@ use wasm_encoder::{
     ValType,
 };
 
-pub use emit::{emit, emit_adapter, entry, script_entry, test_entry};
+pub use emit::{emit, emit_adapter, emit_erased, emit_thunk, entry, script_entry, test_entry};
 pub use rt::Helper;
 
 /// A Wasm value type, with references to structural type descriptors.
@@ -494,13 +494,25 @@ pub enum GSym {
     /// global, named by the canonical encoding of the type, holding the
     /// struct `VT` (`expr.is.canonical-data`).
     Canon(Hash128, VT),
+    /// A witness (codegen.md §13.5.1): an immutable constant global per
+    /// `(family, method type arguments)`, which link fills from the
+    /// collected thunks; `VT` is `(ref $witness)`.
+    Witness(Hash128, Hash128, VT),
+    /// An erased body's field in its family's witnesses: an immutable
+    /// constant `i32` that link assigns, by family and the body's
+    /// instance key.
+    WitnessField(Hash128, Hash128, VT),
 }
 
 impl GSym {
     #[must_use]
     pub fn vt(&self) -> &VT {
         match self {
-            GSym::Binding(_, _, v) | GSym::Rt(_, v) | GSym::Canon(_, v) => v,
+            GSym::Binding(_, _, v)
+            | GSym::Rt(_, v)
+            | GSym::Canon(_, v)
+            | GSym::Witness(_, _, v)
+            | GSym::WitnessField(_, _, v) => v,
         }
     }
     fn encode(&self, w: &mut Writer) {
@@ -521,6 +533,18 @@ impl GSym {
                 w.hash(*h);
                 v.encode(w);
             }
+            GSym::Witness(f, a, v) => {
+                w.u8(3);
+                w.hash(*f);
+                w.hash(*a);
+                v.encode(w);
+            }
+            GSym::WitnessField(f, e, v) => {
+                w.u8(4);
+                w.hash(*f);
+                w.hash(*e);
+                v.encode(w);
+            }
         }
     }
     fn decode(r: &mut Reader<'_>) -> Option<GSym> {
@@ -528,6 +552,8 @@ impl GSym {
             0 => GSym::Binding(r.hash(), r.u32(), VT::decode(r, 0)?),
             1 => GSym::Rt(r.str().to_owned(), VT::decode(r, 0)?),
             2 => GSym::Canon(r.hash(), VT::decode(r, 0)?),
+            3 => GSym::Witness(r.hash(), r.hash(), VT::decode(r, 0)?),
+            4 => GSym::WitnessField(r.hash(), r.hash(), VT::decode(r, 0)?),
             _ => return None,
         })
     }
@@ -1128,6 +1154,7 @@ pub fn link(
     codes: &[(Hash128, Code)],
     names: &[String],
     exports: &[(String, Helper)],
+    witnesses: &hd_mono::Witnesses,
 ) -> StageResult<Vec<u8>> {
     // Every function body: instances, then their parts.
     let mut all: Vec<(Sym, &Code, String)> = Vec::new();
@@ -1258,7 +1285,23 @@ pub fn link(
         lit_global.insert(bytes.clone(), u32::try_from(i).expect("globals"));
     }
     let mut global_idx: BTreeMap<GSym, u32> = BTreeMap::new();
+    let code_of: HashMap<Hash128, &Code> = codes.iter().map(|(k, c)| (*k, c)).collect();
     for g in &gsyms {
+        if let Some(init) = witness_init(g, &code_of, witnesses, &func_idx, &mut types)? {
+            globals.global(
+                GlobalType {
+                    val_type: types.val(g.vt()),
+                    mutable: false,
+                    shared: false,
+                },
+                &init,
+            );
+            global_idx.insert(
+                g.clone(),
+                u32::try_from(lits.len() + global_idx.len()).expect("globals"),
+            );
+            continue;
+        }
         if let GSym::Canon(_, VT::Ref(t, _)) = g {
             let idx = types.of(t);
             globals.global(
@@ -1400,6 +1443,66 @@ pub fn link(
     ns.functions(&fnames);
     module.section(&ns);
     Ok(module.finish())
+}
+
+/// The constant initializer of a witness global (codegen.md §13.5.1):
+/// per erased body of its family, in field order, a struct of that body's
+/// thunks at the witness's arguments; or of an erased body's field
+/// index. `None` for any other global.
+fn witness_init(
+    g: &GSym,
+    code_of: &HashMap<Hash128, &Code>,
+    witnesses: &hd_mono::Witnesses,
+    func_idx: &BTreeMap<Sym, u32>,
+    types: &mut Types,
+) -> StageResult<Option<ConstExpr>> {
+    match g {
+        GSym::WitnessField(family, erased, _) => {
+            let at = witnesses
+                .families
+                .iter()
+                .find(|f| f.0 == *family)
+                .and_then(|f| f.1.iter().position(|k| k == erased));
+            let Some(at) = at else {
+                return unsupported("an erased body outside its witness family");
+            };
+            Ok(Some(ConstExpr::i32_const(
+                i32::try_from(at).expect("witness fields"),
+            )))
+        }
+        GSym::Witness(family, args, _) => {
+            let Some((_, _, fields)) = witnesses
+                .witnesses
+                .iter()
+                .find(|w| w.0 == *family && w.1 == *args)
+            else {
+                return unsupported("a witness that collection did not record");
+            };
+            let mut ins = Vec::new();
+            for thunks in fields {
+                let mut sigs = Vec::new();
+                for k in thunks {
+                    let (Some(f), Some(c)) = (func_idx.get(&Sym::Inst(*k)), code_of.get(k)) else {
+                        return unsupported("a witness thunk without code");
+                    };
+                    ins.push(Instruction::RefFunc(*f));
+                    sigs.push(VT::r(WTy::Func(c.params.clone(), c.results.clone())));
+                }
+                let ops = types.of(&WTy::Struct {
+                    fields: sigs,
+                    sup: None,
+                    open: false,
+                });
+                ins.push(Instruction::StructNew(ops));
+            }
+            ins.push(Instruction::ArrayNewFixed {
+                array_type_index: types.of(&layout::witness_ty()),
+                array_size: u32::try_from(fields.len()).expect("witness fields"),
+            });
+            Ok(Some(ConstExpr::extended(ins)))
+        }
+        _ => Ok(None),
+    }
 }
 
 #[cfg(test)]

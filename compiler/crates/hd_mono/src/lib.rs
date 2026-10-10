@@ -7,6 +7,7 @@
 //! emission never selects again. Reads TIR and interfaces only, never
 //! syntax. Bodies of every package (std included) are collected alike.
 
+pub mod erased;
 pub mod layout;
 pub mod passes;
 
@@ -33,6 +34,8 @@ pub trait ProgramEnv: LayoutEnv {
     /// Per type parameter of the item itself: has a bound (A1, codegen.md
     /// §13.2: exact).
     fn bounded(&self, def: DefId) -> Option<Vec<bool>>;
+    /// Per type parameter of the item itself: is a row parameter (`$R`).
+    fn generic_rows(&self, def: DefId) -> Vec<bool>;
     /// The declared result type.
     fn ret(&self, def: DefId) -> Option<Ty>;
     /// The declared parameter types (`self` first for a method).
@@ -207,7 +210,22 @@ pub enum Target {
         hash: CallTarget,
         eq: CallTarget,
     },
+    /// An open instruction of an erased body (codegen.md §13.5.1): it
+    /// calls thunk `k` of the witness the body was passed.
+    Open(u32),
+    /// At [`INFO`] of an erased body: its witness family.
+    Erased {
+        family: Hash128,
+    },
+    /// At [`INFO`] of a thunk: the instruction it emits.
+    Thunk {
+        at: u32,
+    },
 }
+
+/// The `calls` entry of an instance that describes the instance itself
+/// (an erased body's family, a thunk's instruction), not an instruction.
+pub const INFO: u32 = u32::MAX;
 
 /// The targets of one vtable at a concrete type (codegen.md §13.5,
 /// §13.16): the trait, one target per method slot, and per direct
@@ -240,6 +258,9 @@ pub struct Collected {
     /// The compiler-supplied methods' bodies (`ProgramEnv::supplied_body`)
     /// the program reaches, by `(trait method, self type)`.
     pub supplied: HashMap<(DefId, Ty), Arc<Body>>,
+    /// The witnesses of generic methods called through trait values
+    /// (codegen.md §13.5.1), which link writes.
+    pub witnesses: Witnesses,
 }
 
 impl Collected {
@@ -252,6 +273,10 @@ impl Collected {
     }
 }
 
+pub use erased::{
+    Witnesses, erased_args, is_open, open_insts, open_param, own_count, thunk_operands,
+    witness_args, witness_family,
+};
 pub use layout::InstanceTable;
 
 /// A `DefId` ordered by its stable path hash, never by run ID.
@@ -767,6 +792,8 @@ struct Cx<'a> {
     too_deep: Option<TooDeep>,
     out: Collected,
     work: Vec<InstId>,
+    /// Erased bodies, `dyn` call pairs and their thunks (§13.5.1).
+    witness: erased::WitnessCx,
 }
 
 /// Collection stopped at an instantiation limit (codegen.md §13.4):
@@ -1362,7 +1389,12 @@ impl Cx<'_> {
         let targs = pool.list_items(trait_args);
         let mut slots = Vec::new();
         for m in env.trait_methods(trait_) {
-            let t = self.method_target(trait_, m, from, targs, None, parent)?;
+            // A generic method's slot holds its erased body (§13.5.1).
+            let t = if erased::own_count(env, m) > 0 {
+                self.erased_target(trait_, m, from, targs, parent)?
+            } else {
+                self.method_target(trait_, m, from, targs, None, parent)?
+            };
             reps.hash(t.key);
             slots.push(t);
         }
@@ -1468,6 +1500,7 @@ impl Cx<'_> {
                 // the receiver's table (trait.dyn.bound.dispatch).
                 if is_trait_value(pool, self_ty) {
                     reps.hash(env.path_hash(item));
+                    self.record_pair(trait_, item, targs)?;
                     Target::Dyn
                 } else {
                     Target::Call(self.method_target(trait_, item, self_ty, targs, None, id)?)
@@ -1530,7 +1563,7 @@ impl Cx<'_> {
         );
         match sub {
             Sub::Adapter => return self.scan_adapter(id),
-            Sub::Body(_) => {}
+            Sub::Body(_) | Sub::Erased | Sub::Thunk(_) => {}
         }
         let pool = self.pool;
         let env = self.env;
@@ -1548,7 +1581,47 @@ impl Cx<'_> {
         let mut reps = StableHasher::new("callee-reps");
         let mut seen = std::collections::HashSet::new();
         let s = |t: Ty| subst(pool, env, item, args, t);
+        // An erased body outlines its open instructions, and a thunk is
+        // one of them at concrete arguments (codegen.md §13.5.1).
+        let mut open: HashMap<u32, u32> = HashMap::new();
+        let mut only = None;
+        match sub {
+            Sub::Erased => {
+                for (k, ix) in open_insts(pool, env, body, item, args)?
+                    .into_iter()
+                    .enumerate()
+                {
+                    open.insert(ix, u32::try_from(k).expect("open instructions"));
+                }
+                let key = self.out.table.key[id.idx()];
+                let Some(&family) = self.witness.family_of.get(&key) else {
+                    return err("an erased body outside every witness family");
+                };
+                reps.hash(family);
+                calls.insert(INFO, Target::Erased { family });
+            }
+            Sub::Thunk(k) => {
+                let erased = erased_args(pool, env, item, args);
+                let opens = open_insts(pool, env, body, item, erased)?;
+                let Some(&ix) = opens.get(usize::from(k)) else {
+                    return err("a thunk past its erased body's open instructions");
+                };
+                only = Some(ix as usize);
+                reps.u32(ix);
+                // Its signature is the erased body's view of its operands
+                // and result: open ones cross as `eqref`.
+                for w in thunk_operands(body, ix).into_iter().chain([ix]) {
+                    let t = value_ty(body, w);
+                    reps.u8(u8::from(is_open(pool, subst(pool, env, item, erased, t))));
+                }
+                calls.insert(INFO, Target::Thunk { at: ix });
+            }
+            Sub::Body(_) | Sub::Adapter => {}
+        }
         for i in 0..body.len() {
+            if only.is_some_and(|o| o != i) {
+                continue;
+            }
             let ty = s(body.ty[i]);
             if seen.insert(ty) {
                 reps.hash(layout_hash(
@@ -1567,6 +1640,10 @@ impl Cx<'_> {
                 .filter(|n| supplied.is_none() && **n != NodeIdx::NONE)
                 .map(|&n| (item, n));
             let ix = u32::try_from(i).expect("insts");
+            if let Some(&k) = open.get(&ix) {
+                calls.insert(ix, Target::Open(k));
+                continue;
+            }
             let [a, b] = body.data[i];
             match body.tags[i] {
                 Tag::CallHost => {
@@ -1614,6 +1691,7 @@ impl Cx<'_> {
                             // included (trait.dyn.bound.dispatch).
                             if is_trait_value(pool, self_ty) {
                                 reps.hash(env.path_hash(method));
+                                self.record_pair(trait_, method, &targs)?;
                                 calls.insert(ix, Target::Dyn);
                                 continue;
                             }
@@ -1909,6 +1987,7 @@ pub fn collect(
         too_deep: None,
         out: Collected::default(),
         work: Vec::new(),
+        witness: erased::WitnessCx::default(),
     };
     if let Err(e) = cx.run(root, inits, extra) {
         return match cx.too_deep.take() {
@@ -1917,6 +1996,7 @@ pub fn collect(
         };
     }
     let mut out = cx.out;
+    out.witnesses = cx.witness.finish();
     out.calls.resize_with(out.table.len(), HashMap::new);
     out.callee_reps.resize(out.table.len(), Hash128(0));
     Ok(Ok(out))

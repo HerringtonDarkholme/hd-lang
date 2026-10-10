@@ -9,7 +9,10 @@ use std::collections::HashMap;
 
 use hd_base::{DefId, Hash128, StableHasher, StageResult};
 use hd_mono::layout::{CanonMemo, canon, inline_map_key};
-use hd_mono::{CallTarget, ProgramEnv, Target, TargetKind, VTable, key_order, subst};
+use hd_mono::{
+    CallTarget, INFO, ProgramEnv, Target, TargetKind, VTable, erased_args, key_order, subst,
+    thunk_operands, witness_args, witness_family,
+};
 use hd_tir::ir::{Body, Callee, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags};
 use hd_types::{Inputs, InternPool, Prim, RowId, Ty, TyData, TyList};
 
@@ -17,9 +20,9 @@ use crate::asm::Asm;
 use crate::layout::{
     ACTIVE, CANCELLED, DONE, DynSlot, EnumShape, F_CANCEL, F_CHILD, F_FLAGS, F_POLL, F_SAVED,
     F_STATE, Lay, Layouts, M_HASHES, M_KEYS, M_LIVE, M_USED, OptShape, Shape, box_of, cancel_fn,
-    ctx_keys, ctx_provs, frame_of, key_id, storage, suspend_base, task_base,
+    ctx_keys, ctx_provs, frame_of, key_id, storage, suspend_base, task_base, witness_ty,
 };
-use crate::rt::{Helper, KeyOps, OptForm, block_import};
+use crate::rt::{Helper, KeyOps, OptForm, block_import, unerase};
 use crate::{Code, GSym, Part, Sym, VT, WTy, unsupported};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -95,6 +98,10 @@ struct Em<'a> {
     /// Each `defer` suite's "registered" flag local.
     defer_flags: HashMap<u32, u32>,
     susp: Option<Susp>,
+    /// An erased body's thunks (codegen.md §13.5.1): the local holding
+    /// its witness field, that field's struct type, and each open
+    /// instruction's thunk type.
+    ops: Option<(u32, WTy, Vec<WTy>)>,
 }
 
 /// The locals a closure captures by shared cell, each with its first
@@ -481,6 +488,12 @@ impl Em<'_> {
     }
 
     fn inst(&mut self, i: u32) -> StageResult<()> {
+        if let Some(&Target::Open(k)) = self.calls.get(&i)
+            && self.b.tags[i as usize] != Tag::SwitchTag
+        {
+            let rs = self.open_call(i, k)?;
+            return self.store_from(i, &rs);
+        }
         let [a, bw] = self.b.data[i as usize];
         let ty = self.sub(self.b.ty[i as usize]);
         match self.b.tags[i as usize] {
@@ -881,7 +894,12 @@ impl Em<'_> {
             Tag::SwitchTag => {
                 let r = self.rec(bw);
                 self.result(i)?;
-                self.tag_of(a)?;
+                // Over an open value, the tag read is a thunk (§13.5.1).
+                if let Some(&Target::Open(k)) = self.calls.get(&i) {
+                    self.open_call(i, k)?;
+                } else {
+                    self.tag_of(a)?;
+                }
                 self.a.i32(r[0].cast_signed());
                 self.a.s().i32_eq();
                 self.a.if_();
@@ -2027,7 +2045,7 @@ impl Em<'_> {
             },
         ) = (&target, c)
         {
-            let rs = self.push_dyn(trait_, method, targs, args)?;
+            let rs = self.push_dyn(trait_, method, targs, args, ty)?;
             return self.store_from(i, &rs);
         }
         let Some(Target::Call(t)) = target else {
@@ -2573,13 +2591,17 @@ impl Em<'_> {
     /// slot in the vtable of its declaring trait `trait_`, reached from
     /// the receiver's vtable through the parent fields when `trait_` is a
     /// supertrait (trait.dyn.value-methods, codegen.md §13.16). `targs`
-    /// are the callee's type arguments, the trait's first.
+    /// are the callee's type arguments, the trait's first. A generic
+    /// method's slot takes its open arguments as `eqref` and the witness
+    /// of the call's method type arguments, and its open result, unboxed
+    /// here, has the type `ret` (codegen.md §13.5.1).
     fn push_dyn(
         &mut self,
         trait_: DefId,
         method: DefId,
         targs: TyList,
         args: &[u32],
+        ret: Ty,
     ) -> StageResult<Vec<VT>> {
         let targs: Vec<Ty> = self
             .pool()
@@ -2594,12 +2616,16 @@ impl Em<'_> {
             slot,
             sig,
             keys,
+            open,
         } = self
             .lay
             .dyn_slot(self.ty_of(args[0]), trait_, &targs, method)?;
         let WTy::Func(ps, rs) = &sig else {
             return unsupported("a vtable slot type");
         };
+        if open.is_some() && self.env().suspends(method) {
+            return unsupported("a suspending generic method called through a trait value");
+        }
         let rl = self.a.local(VT::Eq);
         let vl = self.a.local(VT::r(vt.clone()));
         self.comp(args[0], 0, &VT::Eq)?;
@@ -2611,15 +2637,102 @@ impl Em<'_> {
         self.a.set(vl);
         self.a.get(rl);
         let mut k = 1;
-        for r in &args[1..] {
-            let n = self.vts(self.ty_of(*r))?.len();
+        for (j, r) in args[1..].iter().enumerate() {
+            let have = self.vts(self.ty_of(*r))?;
+            if open
+                .as_ref()
+                .is_some_and(|o| o.params.get(j) == Some(&true))
+            {
+                self.erase(*r, &have)?;
+                k += 1;
+                continue;
+            }
+            let n = have.len();
             let want = ps[k..k + n].to_vec();
             self.load_as(*r, &want)?;
             k += n;
         }
+        if open.is_some() {
+            let n = self.env().trait_arity(trait_).min(targs.len());
+            let env = self.env();
+            let ph = |d: DefId| env.path_hash(d);
+            let mut memo = CanonMemo::default();
+            let family = witness_family(self.pool(), &ph, &mut memo, method, &targs[..n]);
+            let name = witness_args(self.pool(), &ph, &mut memo, &targs[n..]);
+            self.a
+                .global_get(GSym::Witness(family, name, VT::r(witness_ty())));
+        }
         self.push_providers(&keys)?;
         self.a.get(vl);
         self.a.struct_get(&vt, slot);
+        self.a.call_ref(&sig);
+        if open.is_some_and(|o| o.ret) {
+            let want = self.vts(ret)?;
+            let tmp = self.a.local(VT::Eq);
+            self.a.set(tmp);
+            unerase(&mut self.a, tmp, &want);
+            return Ok(want);
+        }
+        Ok(rs.clone())
+    }
+
+    /// An erased body's prologue (codegen.md §13.5.1): its field of the
+    /// witness parameter `w`, cast to the struct of its thunks.
+    fn read_ops(&mut self, w: u32, family: Hash128) -> StageResult<()> {
+        let mut opens: Vec<(u32, u32)> = self
+            .calls
+            .iter()
+            .filter_map(|(ix, t)| match t {
+                Target::Open(k) => Some((*k, *ix)),
+                _ => None,
+            })
+            .collect();
+        if opens.is_empty() {
+            return Ok(());
+        }
+        opens.sort_unstable();
+        let erased = self.args;
+        let mut sigs = Vec::new();
+        for (_, ix) in opens {
+            sigs.push(thunk_sig(&self.lay, self.b, erased, ix)?);
+        }
+        let ops_ty = WTy::Struct {
+            fields: sigs.iter().map(|s| VT::r(s.clone())).collect(),
+            sup: None,
+            open: false,
+        };
+        let l = self.a.local(VT::r(ops_ty.clone()));
+        self.a.get(w);
+        self.a
+            .global_get(GSym::WitnessField(family, self.key, VT::I32));
+        self.a.array_get(&witness_ty());
+        self.a.ref_cast(&ops_ty, false);
+        self.a.set(l);
+        self.ops = Some((l, ops_ty, sigs));
+        Ok(())
+    }
+
+    /// An open instruction of an erased body (codegen.md §13.5.1): its
+    /// operands, open ones as `eqref`, and the body's providers go to
+    /// its thunk in the witness field the prologue read, whose results
+    /// are left on the stack.
+    fn open_call(&mut self, i: u32, k: u32) -> StageResult<Vec<VT>> {
+        let Some((ops, ops_ty, sigs)) = self.ops.clone() else {
+            return unsupported("an open instruction outside an erased body");
+        };
+        let Some(sig) = sigs.get(k as usize).cloned() else {
+            return unsupported("an open instruction past its body's thunks");
+        };
+        let WTy::Func(_, rs) = &sig else {
+            return unsupported("a thunk type");
+        };
+        for r in thunk_operands(self.b, i) {
+            self.load(r)?;
+        }
+        let keys = self.env().row_keys(self.item, self.args);
+        self.push_providers(&keys)?;
+        self.a.get(ops);
+        self.a.struct_get(&ops_ty, k);
         self.a.call_ref(&sig);
         Ok(rs.clone())
     }
@@ -3714,6 +3827,7 @@ impl<'a> Em<'a> {
             scopes: HashMap::new(),
             defer_flags: HashMap::new(),
             susp: None,
+            ops: None,
         }
     }
 
@@ -4085,6 +4199,10 @@ impl<'a> Em<'a> {
             for p in self.env().params(t.item).unwrap_or_default() {
                 ps.extend(self.vts(subst(self.pool(), self.env(), t.item, t.args, p))?);
             }
+            // An erased body takes its witness after its parameters.
+            if self.lay.slot_open(key, *m).is_some() {
+                ps.push(VT::r(witness_ty()));
+            }
             let mut results = self.vts(t.ret)?;
             if self.env().suspends(*m) {
                 results = vec![VT::r(suspend_base(&results).0)];
@@ -4291,7 +4409,7 @@ impl<'a> Em<'a> {
                 ) = (self.calls.get(&i), c)
                 {
                     return self.await_stored(i, k, &res, |em, _| {
-                        em.push_dyn(trait_, method, targs, &args).map(|_| ())
+                        em.push_dyn(trait_, method, targs, &args, ty).map(|_| ())
                     });
                 }
                 let Some(Target::Call(t)) = self.calls.get(&i).cloned() else {
@@ -4506,6 +4624,141 @@ pub fn emit(
     calls: &HashMap<u32, Target>,
     key: Hash128,
 ) -> StageResult<Code> {
+    emit_body(
+        pool, env, path, layouts, b, sub, args, ret, calls, key, None,
+    )
+}
+
+/// The erased body of a generic method a vtable slot holds (codegen.md
+/// §13.5.1): the item's body with its own type parameters open, its
+/// witness after its parameters, its open instructions calling the
+/// thunks of the witness field of the body's family.
+pub fn emit_erased(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    path: &dyn Fn(DefId) -> String,
+    layouts: &Layouts,
+    b: &Body,
+    args: TyList,
+    ret: Ty,
+    calls: &HashMap<u32, Target>,
+    key: Hash128,
+) -> StageResult<Code> {
+    let Some(Target::Erased { family }) = calls.get(&INFO) else {
+        return unsupported("an erased body that collection did not record");
+    };
+    emit_body(
+        pool,
+        env,
+        path,
+        layouts,
+        b,
+        0,
+        args,
+        ret,
+        calls,
+        key,
+        Some(*family),
+    )
+}
+
+/// The type of thunk `at` of the erased body of `item` at `erased`
+/// (codegen.md §13.5.1): its operands as the erased body holds them,
+/// open ones as `eqref`, then the body's providers; its result likewise.
+fn thunk_sig(lay: &Lay, b: &Body, erased: TyList, at: u32) -> StageResult<WTy> {
+    let (pool, env) = (lay.pool, lay.env);
+    let s = |t: Ty| subst(pool, env, b.item, erased, t);
+    let mut ps = Vec::new();
+    for r in thunk_operands(b, at) {
+        ps.extend(lay.vts(s(b.ty[r as usize]))?);
+    }
+    for k in env.row_keys(b.item, erased) {
+        ps.push(VT::Eq);
+        ps.push(VT::r(lay.key_vtable(k)?));
+    }
+    // A tag switch's thunk is its scrutinee's tag read.
+    if b.tags[at as usize] == Tag::SwitchTag {
+        return Ok(WTy::Func(ps, vec![VT::I32]));
+    }
+    Ok(WTy::Func(ps, lay.vts(s(b.ty[at as usize]))?))
+}
+
+/// Thunk `k` of an erased body at concrete method type arguments
+/// (codegen.md §13.5.1): the one open instruction collection recorded,
+/// emitted at the caller's types, its open operands unboxed or cast on
+/// the way in and its open result boxed or upcast on the way out.
+pub fn emit_thunk(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    path: &dyn Fn(DefId) -> String,
+    layouts: &Layouts,
+    b: &Body,
+    args: TyList,
+    calls: &HashMap<u32, Target>,
+    key: Hash128,
+) -> StageResult<Code> {
+    let Some(&Target::Thunk { at }) = calls.get(&INFO) else {
+        return unsupported("a thunk that collection did not record");
+    };
+    let lay = Lay::new(pool, env, path, layouts);
+    let erased = erased_args(pool, env, b.item, args);
+    let WTy::Func(ps, rs) = thunk_sig(&lay, b, erased, at)? else {
+        return unsupported("a thunk type");
+    };
+    let mut em = Em::new(lay, b, args, calls, key, Asm::new(ps), rs.clone());
+    let mut next = 0;
+    for r in thunk_operands(b, at) {
+        let crossing = em
+            .lay
+            .vts(subst(pool, env, b.item, erased, b.ty[r as usize]))?;
+        let have = em.vts(em.ty_of(r))?;
+        let params: Vec<u32> = (next..next + u32_of(crossing.len())).collect();
+        next += u32_of(crossing.len());
+        if crossing == have {
+            em.vals.insert(r, (params, have));
+            continue;
+        }
+        let ls: Vec<u32> = have.iter().map(|v| em.a.local(v.clone())).collect();
+        unerase(&mut em.a, params[0], &have);
+        for l in ls.iter().rev() {
+            em.a.set(*l);
+        }
+        em.vals.insert(r, (ls, have));
+    }
+    for k in env.row_keys(b.item, args) {
+        em.providers.push((k, [next, next + 1]));
+        next += 2;
+    }
+    em.ctrl.push(Ctl::Plain);
+    if b.tags[at as usize] == Tag::SwitchTag {
+        em.tag_of(b.data[at as usize][0])?;
+        return Ok(em.a.finish(rs));
+    }
+    em.inst(at)?;
+    let have = em.vts(em.sub(b.ty[at as usize]))?;
+    if have == rs {
+        em.load_as(at, &rs)?;
+    } else {
+        em.erase(at, &have)?;
+    }
+    Ok(em.a.finish(rs))
+}
+
+/// An item or closure body; `erased` is the witness family of an erased
+/// body (codegen.md §13.5.1).
+fn emit_body(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    path: &dyn Fn(DefId) -> String,
+    layouts: &Layouts,
+    b: &Body,
+    sub: u16,
+    args: TyList,
+    ret: Ty,
+    calls: &HashMap<u32, Target>,
+    key: Hash128,
+    erased: Option<Hash128>,
+) -> StageResult<Code> {
     let lay = Lay::new(pool, env, path, layouts);
     let s = |t: Ty| subst(pool, env, b.item, args, t);
     let suspends = if sub == 0 {
@@ -4515,9 +4768,16 @@ pub fn emit(
         matches!(pool.get(s(b.ty[ci])), TyData::Fn { suspends: true, .. })
     };
     if suspends {
+        if erased.is_some() {
+            return unsupported("a suspending generic method called through a trait value");
+        }
         return emit_suspending(&lay, b, sub, args, ret, calls, key);
     }
-    let (params, results, plocals) = signature(&lay, b, sub, args, ret)?;
+    let (mut params, results, plocals) = signature(&lay, b, sub, args, ret)?;
+    if erased.is_some() {
+        let at = params.len() - 2 * env.row_keys(b.item, args).len();
+        params.insert(at, VT::r(witness_ty()));
+    }
     let mut em = Em::new(
         Lay::new(pool, env, path, layouts),
         b,
@@ -4551,9 +4811,16 @@ pub fn emit(
         }
     }
     if sub == 0 {
+        let witness = next;
+        if erased.is_some() {
+            next += 1;
+        }
         for k in env.row_keys(b.item, args) {
             em.providers.push((k, [next, next + 1]));
             next += 2;
+        }
+        if let Some(family) = erased {
+            em.read_ops(witness, family)?;
         }
     } else {
         // The closure's environment: captured values into their locals.
@@ -4761,10 +5028,14 @@ fn emit_dyn_adapter(lay: &Lay, item: DefId, args: TyList) -> StageResult<Code> {
         slot,
         sig,
         keys,
+        open,
     } = lay.dyn_slot(recv, trait_, targs, item)?;
     let WTy::Func(ps, rs) = &sig else {
         return unsupported("a vtable slot type");
     };
+    if open.is_some() {
+        return unsupported("a function reference to a generic method through a trait value");
+    }
     let (cps, crs) = adapter_code(lay, item, args)?;
     // `(env, payload, vtable, rest..., keys, providers)` against the slot's
     // `(payload, rest..., providers...)`.

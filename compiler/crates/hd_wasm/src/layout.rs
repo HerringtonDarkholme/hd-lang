@@ -24,7 +24,7 @@ use std::sync::Arc;
 
 use hd_base::{DefId, StableHasher, StageResult};
 use hd_mono::layout::{CanonMemo, LayoutEnv, StdKind, canon, sccs, value_enums};
-use hd_mono::{ProgramEnv, class_ref, is_class_ref, key_order, subst};
+use hd_mono::{ProgramEnv, class_ref, is_class_ref, is_open, key_order, own_count, subst};
 use hd_types::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
 
 use crate::{Group, VT, WTy, unsupported};
@@ -71,7 +71,9 @@ pub(crate) type SuperPath = (Vec<(WTy, u32)>, Ty);
 /// A trait-value call's dispatch ([`Lay::dyn_slot`]): the receiver's
 /// vtable type, the parent-field steps to the declaring trait's vtable,
 /// that vtable's type, the method's slot, the slot's function type and
-/// the row keys whose providers it takes last ([`Lay::slot_keys`]).
+/// the row keys whose providers it takes last ([`Lay::slot_keys`]). A
+/// generic method's slot also takes a witness, and its open parameters
+/// and result cross as `eqref` ([`SlotOpen`]).
 pub(crate) struct DynSlot {
     pub value_vt: WTy,
     pub steps: Vec<(WTy, u32)>,
@@ -79,6 +81,23 @@ pub(crate) struct DynSlot {
     pub slot: u32,
     pub sig: WTy,
     pub keys: Vec<Ty>,
+    pub open: Option<SlotOpen>,
+}
+
+/// The open parts of a generic method's slot (codegen.md §13.5.1): per
+/// declared parameter after `self`, whether its type names a method type
+/// parameter, and whether the result does. The witness follows the
+/// arguments.
+pub(crate) struct SlotOpen {
+    pub params: Vec<bool>,
+    pub ret: bool,
+}
+
+/// A witness (codegen.md §13.5.1): per erased body of its family, that
+/// body's thunks as a struct of function references, viewed as `eqref`.
+#[must_use]
+pub fn witness_ty() -> WTy {
+    WTy::Array(VT::Eq)
 }
 
 /// What emission reads about the program's types.
@@ -755,7 +774,9 @@ impl<'a> Lay<'a> {
     pub fn vts(&self, t: Ty) -> StageResult<Vec<VT>> {
         let pool = self.pool;
         let t = self.strip(t);
-        if is_class_ref(pool, t) {
+        // An open value is the caller's representation, viewed as `eqref`
+        // (codegen.md §13.5.1).
+        if is_class_ref(pool, t) || is_open(pool, t) {
             return Ok(vec![VT::Eq]);
         }
         Ok(match pool.get(t) {
@@ -1086,10 +1107,20 @@ impl<'a> Lay<'a> {
             (Nominal::Dyn, TyData::TraitValue { def, .. }) => {
                 let mut out = Vec::new();
                 for m in env.trait_methods(def) {
-                    for p in env.params(m).unwrap_or_default().into_iter().skip(1) {
-                        out.push(self.member_at(t, m, p));
+                    let mut tys: Vec<Ty> = env
+                        .params(m)
+                        .unwrap_or_default()
+                        .into_iter()
+                        .skip(1)
+                        .collect();
+                    tys.push(env.ret(m).unwrap_or(Ty::VOID));
+                    // A type naming the method's own parameters is an
+                    // `eqref` in the slot (codegen.md §13.5.1).
+                    for p in tys {
+                        if !self.names_own(t, m, p) {
+                            out.push(self.member_at(t, m, p));
+                        }
                     }
-                    out.push(self.member_at(t, m, env.ret(m).unwrap_or(Ty::VOID)));
                     out.extend(self.slot_keys(t, m));
                 }
                 out.extend(self.dyn_supers(t));
@@ -1716,6 +1747,7 @@ impl<'a> Lay<'a> {
             slot: u32::try_from(slot).expect("slot"),
             sig: self.slot_sig(key, method)?,
             keys: self.slot_keys(key, method),
+            open: self.slot_open(key, method),
         })
     }
 
@@ -1785,21 +1817,59 @@ impl<'a> Lay<'a> {
         key_order(pool, &|d| env.path_hash(d), keys)
     }
 
+    /// Whether a generic method's slot type at `key` names one of the
+    /// method's own type parameters in `t` (codegen.md §13.5.1).
+    fn names_own(&self, key: Ty, m: DefId, t: Ty) -> bool {
+        let mut ps = Vec::new();
+        params_in(self.pool, self.member_at(key, m, t), &mut ps);
+        ps.iter().any(|p| p.owner == m)
+    }
+
+    /// The open parts of `m`'s slot at `key`; `None` for a method with no
+    /// type parameters of its own.
+    pub(crate) fn slot_open(&self, key: Ty, m: DefId) -> Option<SlotOpen> {
+        if own_count(self.env, m) == 0 {
+            return None;
+        }
+        let params = self.env.params(m).unwrap_or_default();
+        Some(SlotOpen {
+            params: params
+                .into_iter()
+                .skip(1)
+                .map(|p| self.names_own(key, m, p))
+                .collect(),
+            ret: self.names_own(key, m, self.env.ret(m).unwrap_or(Ty::VOID)),
+        })
+    }
+
+    /// The values of a slot parameter or result of type `t`: `eqref` for
+    /// one that names a method type parameter (codegen.md §13.5.1).
+    fn slot_vts(&self, key: Ty, m: DefId, t: Ty) -> StageResult<Vec<VT>> {
+        if self.names_own(key, m, t) {
+            return Ok(vec![VT::Eq]);
+        }
+        self.vts(self.member_at(key, m, t))
+    }
+
     /// A vtable slot's signature: `(eqref self, params..., providers...)
     /// -> results`, a provider per key of the method's row (`slot_keys`);
-    /// a suspending method's slot returns its cold `mut Suspend[T]`.
-    /// `key` is the vtable key of the trait declaring `m`.
+    /// a suspending method's slot returns its cold `mut Suspend[T]`. A
+    /// generic method's open parameters and result are `eqref`, and its
+    /// witness comes after the parameters (codegen.md §13.5.1). `key` is
+    /// the vtable key of the trait declaring `m`.
     pub fn slot_sig(&self, key: Ty, m: DefId) -> StageResult<WTy> {
         let mut ps = vec![VT::Eq];
         for p in self.env.params(m).unwrap_or_default().into_iter().skip(1) {
-            ps.extend(self.vts(self.member_at(key, m, p))?);
+            ps.extend(self.slot_vts(key, m, p)?);
+        }
+        if own_count(self.env, m) > 0 {
+            ps.push(VT::r(witness_ty()));
         }
         for k in self.slot_keys(key, m) {
             ps.push(VT::Eq);
             ps.push(VT::r(self.key_vtable(k)?));
         }
-        let ret = self.member_at(key, m, self.env.ret(m).unwrap_or(Ty::VOID));
-        let mut rs = self.vts(ret)?;
+        let mut rs = self.slot_vts(key, m, self.env.ret(m).unwrap_or(Ty::VOID))?;
         if self.env.suspends(m) {
             rs = vec![VT::r(suspend_base(&rs).0)];
         }
