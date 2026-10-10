@@ -1,0 +1,9 @@
+# test: a variant pattern on a scrutinee whose type is still unsolved asks for an annotation
+# Spec 04 Type-Argument Defaults: types.generic.default.unsolved; nothing solves T in make(), so `.Some` has no enum to resolve against.
+fn make[T]() -> T:
+    panic("unreachable")
+
+fn check() $ Console:
+    match make():
+        .Some(_) => println("some")  # diagnostic: cannot-infer-type
+        _ => println("none")
