@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2405 | 352 | 88 | 2845 |
+| 2406 | 351 | 88 | 2845 |
 
 ## By Chapter
 
@@ -16,13 +16,13 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
 | `lang/02-grammar.md` | 197 | 11 | 7 | 215 |
-| `lang/03-names-and-scopes.md` | 93 | 7 | 1 | 101 |
+| `lang/03-names-and-scopes.md` | 94 | 6 | 1 | 101 |
 | `lang/04-type-system.md` | 305 | 45 | 2 | 352 |
 | `lang/05-expressions.md` | 244 | 32 | 1 | 277 |
 | `lang/06-control-flow.md` | 130 | 23 | 4 | 157 |
 | `lang/07-functions.md` | 106 | 21 | 3 | 130 |
 | `lang/08-data-and-enums.md` | 86 | 29 | 8 | 123 |
-| `lang/09-traits.md` | 302 | 52 | 5 | 359 |
+| `lang/09-traits.md` | 304 | 50 | 5 | 359 |
 | `lang/10-modules.md` | 208 | 39 | 11 | 258 |
 | `lang/11-requirements-and-suspension.md` | 192 | 36 | 31 | 259 |
 | `lang/14-annotations.md` | 112 | 34 | 7 | 153 |
@@ -33,8 +33,8 @@ fixture; unsupported surface records progress without failing.
 | `std/digest.md` | 2 | 0 | 0 | 2 |
 | `std/encoding.md` | 3 | 0 | 0 | 3 |
 | `std/error.md` | 14 | 0 | 0 | 14 |
-| `std/format.md` | 8 | 0 | 0 | 8 |
-| `std/fs.md` | 4 | 0 | 0 | 4 |
+| `std/format.md` | 7 | 1 | 0 | 8 |
+| `std/fs.md` | 3 | 1 | 0 | 4 |
 | `std/hash.md` | 8 | 1 | 0 | 9 |
 | `std/host.md` | 2 | 0 | 0 | 2 |
 | `std/http.md` | 2 | 0 | 0 | 2 |
@@ -64,8 +64,8 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 86 | 15 | 4 | 105 |
 | `runtime/valid` | 844 | 18 | 67 | 929 |
-| `typing/invalid` | 776 | 285 | 14 | 1075 |
-| `typing/valid` | 401 | 11 | 3 | 415 |
+| `typing/invalid` | 778 | 283 | 14 | 1075 |
+| `typing/valid` | 400 | 12 | 3 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -75,7 +75,6 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:ambiguous-method` | 1 |
 | `fail:argument-count` | 5 |
 | `fail:bang-call-outside-suspension` | 2 |
 | `fail:bare-variant-pattern` | 3 |
@@ -93,7 +92,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 10 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 177 |
+| `fail:no-diagnostic` | 175 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
@@ -113,7 +112,7 @@ compiler stage that first declined the case.
 | `fail:type-mismatch` | 37 |
 | `fail:unknown-data-field` | 6 |
 | `fail:unknown-import` | 1 |
-| `fail:unknown-method` | 12 |
+| `fail:unknown-method` | 14 |
 | `fail:unknown-module` | 1 |
 | `fail:unknown-name` | 11 |
 | `fail:unknown-trait` | 7 |
@@ -125,12 +124,6 @@ compiler stage that first declined the case.
 | `unsupported:Emit` | 2 |
 | `unsupported:Link` | 3 |
 | `unsupported:RunCase` | 28 |
-
-<details><summary><code>fail:ambiguous-method</code> (1)</summary>
-
-- `runtime/valid/unavailable-trait-method-invisible.hd`
-
-</details>
 
 <details><summary><code>fail:argument-count</code> (5)</summary>
 
@@ -266,7 +259,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (177)</summary>
+<details><summary><code>fail:no-diagnostic</code> (175)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/shared-enum-default-order.hd`
@@ -306,7 +299,6 @@ compiler stage that first declined the case.
 - `typing/invalid/parameter-default-order.hd`
 - `typing/invalid/duplicate-literal-match-arm.hd`
 - `typing/invalid/incompatible-identity-operands.hd`
-- `typing/invalid/unavailable-trait-method-not-found.hd`
 - `typing/invalid/function-typed-field-method-call.hd`
 - `typing/invalid/trait-value-impl-target.hd`
 - `typing/invalid/embedded-copy-required.hd`
@@ -416,7 +408,6 @@ compiler stage that first declined the case.
 - `typing/invalid/std-child-path-through-parent.hd`
 - `typing/invalid/script-test-init-requirement.hd`
 - `typing/warnings/unused-debug-text.hd`
-- `typing/invalid/sibling-module-trait-not-imported.hd`
 - `typing/invalid/duplicate-field-declaration.hd`
 - `typing/invalid/data-field-shorthand-duplicate.hd`
 - `typing/invalid/unconstrained-impl-parameter-unused.hd`
@@ -627,7 +618,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-method</code> (12)</summary>
+<details><summary><code>fail:unknown-method</code> (14)</summary>
 
 - `typing/valid/mutable-suspension.hd`
 - `typing/invalid/readonly-suspension-cancel.hd`
@@ -638,6 +629,8 @@ compiler stage that first declined the case.
 - `runtime/panic/block-on-cancelled-suspension.hd`
 - `runtime/valid/cancel-cold-and-completed-suspension.hd`
 - `runtime/panic/defer-cancels-active-ancestor.hd`
+- `runtime/valid/memory-fs-directories.hd`
+- `typing/valid/std-types-debug.hd`
 - `typing/invalid/literal-var-method-missing.hd`
 - `typing/invalid/iterator-sum-non-numeric.hd`
 - `typing/invalid/list-sum-non-numeric.hd`
@@ -1627,7 +1620,6 @@ runtime/valid/map-remove-absent-key.hd
 runtime/valid/map-sys.hd
 runtime/valid/match-arm-binding-reuse.hd
 runtime/valid/match-guards.hd
-runtime/valid/memory-fs-directories.hd
 runtime/valid/memory-fs.hd
 runtime/valid/method-call-never-selects-field.hd
 runtime/valid/method-receiver-before-arguments.hd
@@ -2017,6 +2009,7 @@ runtime/valid/typeid-of-equality.hd
 runtime/valid/typeid-qualified-trait-name.hd
 runtime/valid/typeid-same-name-modules.hd
 runtime/valid/u8-checked-add.hd
+runtime/valid/unavailable-trait-method-invisible.hd
 runtime/valid/underscore-tuple-members.hd
 runtime/valid/unicode-function-names.hd
 runtime/valid/unit-pattern-void-success.hd
@@ -2682,6 +2675,7 @@ typing/invalid/sibling-module-private-function-import.hd
 typing/invalid/sibling-module-private-method.hd
 typing/invalid/sibling-module-std-name-not-imported.hd
 typing/invalid/sibling-module-trait-name-not-imported.hd
+typing/invalid/sibling-module-trait-not-imported.hd
 typing/invalid/sibling-module-type-not-imported.hd
 typing/invalid/sign-fallback-no-instantiation.hd
 typing/invalid/signed-exponent.hd
@@ -2782,6 +2776,7 @@ typing/invalid/typeid-of-unbounded-parameter.hd
 typing/invalid/u32-to-usize-binding.hd
 typing/invalid/unary-minus-string.hd
 typing/invalid/unary-plus-i32-literal-range.hd
+typing/invalid/unavailable-trait-method-not-found.hd
 typing/invalid/unit-pattern-non-void.hd
 typing/invalid/unit-test-missing-requirement.hd
 typing/invalid/unit-test-real-clock.hd
@@ -3143,7 +3138,6 @@ typing/valid/std-derivation-types-debug.hd
 typing/valid/std-host-types-debug.hd
 typing/valid/std-joined-types-debug.hd
 typing/valid/std-reexported-child-item.hd
-typing/valid/std-types-debug.hd
 typing/valid/stored-suspension-driving.hd
 typing/valid/string-bytes.hd
 typing/valid/string-prefix-generic.hd
