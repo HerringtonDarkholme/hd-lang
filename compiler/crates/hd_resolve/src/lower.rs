@@ -3132,6 +3132,68 @@ fn lower_aliases(
     (out, unsupported)
 }
 
+/// `trait.super.acyclic`, `trait.super.cycle-report`: the supertrait graph
+/// of the folder's traits has no cycle. A cycle is one error, on its trait
+/// that comes first by module and then by source position.
+fn supertrait_cycles(
+    r: &Resolver<'_, '_>,
+    mods: &[ModIn<'_>],
+    all_heads: &[Vec<Head<'_>>],
+    diags: &mut DiagBuf,
+) {
+    let mut sites: Vec<(usize, &Head<'_>)> = Vec::new();
+    for (mi, hs) in all_heads.iter().enumerate() {
+        sites.extend(
+            hs.iter()
+                .filter(|h| h.kind == HeadKind::Trait)
+                .map(|h| (mi, h)),
+        );
+    }
+    let index: HashMap<DefId, usize> = sites
+        .iter()
+        .enumerate()
+        .map(|(i, (_, h))| (h.def, i))
+        .collect();
+    let pool = r.cx.names.pool;
+    let edges: Vec<Vec<usize>> = sites
+        .iter()
+        .map(|(_, h)| {
+            r.own_supers
+                .get(&h.def)
+                .into_iter()
+                .flatten()
+                .filter_map(|t| match pool.get(*t) {
+                    TyData::TraitValue { def, .. } => index.get(&def).copied(),
+                    _ => None,
+                })
+                .collect()
+        })
+        .collect();
+    for comp in components(&edges) {
+        if comp.len() < 2 && !edges[comp[0]].contains(&comp[0]) {
+            continue;
+        }
+        let first = comp.iter().copied().min().unwrap_or(0);
+        let (mi, h) = sites[first];
+        let names = r.cx.names;
+        let others: Vec<String> = comp
+            .iter()
+            .filter(|&&j| j != first)
+            .map(|&j| format!("`{}`", names.text(sites[j].1.name)))
+            .collect();
+        let msg = if others.is_empty() {
+            format!("`{}` is its own supertrait", names.text(h.name))
+        } else {
+            format!(
+                "`{}` is its own supertrait through {}",
+                names.text(h.name),
+                others.join(", ")
+            )
+        };
+        diags.error(Code::SupertraitCycle, mods[mi].src.span(h.node), &msg);
+    }
+}
+
 /// The strongly connected components of a graph (Tarjan's algorithm),
 /// each after every component it reaches: dependencies first. Members of
 /// a component are in index order.
@@ -3851,6 +3913,7 @@ pub fn build_folder(
             .flat_map(|m| m.items.iter())
             .map(|i| (i.def, i))
             .collect();
+        supertrait_cycles(&r, mods, &all_heads, diags);
         for (m, o) in mods.iter().zip(&out.modules) {
             let mut low = Lower {
                 r: &r,
