@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2339 | 393 | 113 | 2845 |
+| 2354 | 393 | 98 | 2845 |
 
 ## By Chapter
 
@@ -17,12 +17,12 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
 | `lang/02-grammar.md` | 196 | 11 | 8 | 215 |
 | `lang/03-names-and-scopes.md` | 93 | 7 | 1 | 101 |
-| `lang/04-type-system.md` | 302 | 45 | 5 | 352 |
+| `lang/04-type-system.md` | 303 | 45 | 4 | 352 |
 | `lang/05-expressions.md` | 244 | 32 | 1 | 277 |
 | `lang/06-control-flow.md` | 130 | 23 | 4 | 157 |
 | `lang/07-functions.md` | 106 | 21 | 3 | 130 |
 | `lang/08-data-and-enums.md` | 85 | 30 | 8 | 123 |
-| `lang/09-traits.md` | 272 | 72 | 15 | 359 |
+| `lang/09-traits.md` | 276 | 72 | 11 | 359 |
 | `lang/10-modules.md` | 208 | 39 | 11 | 258 |
 | `lang/11-requirements-and-suspension.md` | 179 | 48 | 32 | 259 |
 | `lang/14-annotations.md` | 104 | 42 | 7 | 153 |
@@ -47,13 +47,13 @@ fixture; unsupported surface records progress without failing.
 | `std/path.md` | 2 | 0 | 0 | 2 |
 | `std/process.md` | 3 | 0 | 0 | 3 |
 | `std/random.md` | 8 | 0 | 0 | 8 |
-| `std/regex.md` | 4 | 0 | 9 | 13 |
+| `std/regex.md` | 13 | 0 | 0 | 13 |
 | `std/result.md` | 5 | 0 | 0 | 5 |
 | `std/serde.md` | 5 | 0 | 3 | 8 |
 | `std/sys.md` | 1 | 0 | 0 | 1 |
 | `std/task.md` | 7 | 0 | 0 | 7 |
 | `std/testing.md` | 35 | 3 | 1 | 39 |
-| `std/text.md` | 34 | 0 | 1 | 35 |
+| `std/text.md` | 35 | 0 | 0 | 35 |
 | `std/time.md` | 17 | 0 | 0 | 17 |
 
 ## By Directory
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 86 | 15 | 4 | 105 |
-| `runtime/valid` | 816 | 21 | 92 | 929 |
+| `runtime/valid` | 831 | 21 | 77 | 929 |
 | `typing/invalid` | 741 | 320 | 14 | 1075 |
 | `typing/valid` | 398 | 14 | 3 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -122,8 +122,8 @@ compiler stage that first declined the case.
 | `fail:unknown-variant` | 1 |
 | `fail:unused-local-binding` | 6 |
 | `unsupported:Body` | 35 |
-| `unsupported:Collect` | 28 |
-| `unsupported:Emit` | 19 |
+| `unsupported:Collect` | 27 |
+| `unsupported:Emit` | 5 |
 | `unsupported:Link` | 3 |
 | `unsupported:RunCase` | 28 |
 
@@ -790,7 +790,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Collect</code> (28)</summary>
+<details><summary><code>unsupported:Collect</code> (27)</summary>
 
 - `runtime/valid/reference-bounded-dynamic-method.hd`
 - `runtime/valid/trait-delegation-forwards.hd`
@@ -813,7 +813,6 @@ compiler stage that first declined the case.
 - `runtime/valid/serde-variant-member-facts.hd`
 - `runtime/valid/json-typed-members.hd`
 - `runtime/valid/delegation-associated-function-written.hd`
-- `runtime/valid/mut-trait-value-satisfies-mut-bound.hd`
 - `runtime/valid/init-group-statements-by-identity.hd`
 - `runtime/valid/trait-value-generic-method-value-args.hd`
 - `runtime/panic/fact-evaluation-panics-on-read.hd`
@@ -823,27 +822,13 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Emit</code> (19)</summary>
+<details><summary><code>unsupported:Emit</code> (5)</summary>
 
 - `runtime/valid/suspending-calls-in-branches.hd`
 - `runtime/valid/suspending-match-guards.hd`
-- `runtime/valid/dynamic-trait-value-satisfies-own-bound.hd`
-- `runtime/valid/string-prefix-std.hd`
 - `runtime/valid/requirement-key-binding-run.hd`
-- `runtime/valid/generic-inference-explicit-conversions.hd`
-- `runtime/valid/regex-literals-escapes.hd`
-- `runtime/valid/regex-classes.hd`
-- `runtime/valid/regex-anchors-groups.hd`
-- `runtime/valid/regex-errors.hd`
-- `runtime/valid/regex-find-all.hd`
-- `runtime/valid/regex-captures.hd`
-- `runtime/valid/regex-named-groups.hd`
-- `runtime/valid/regex-replace.hd`
-- `runtime/valid/regex-split.hd`
-- `runtime/valid/inspectable-dynamic-vs-static-identity.hd`
 - `runtime/valid/associated-binding-positions.hd`
 - `runtime/valid/trait-value-binding-identity.hd`
-- `runtime/valid/trait-value-satisfies-instantiated-bound.hd`
 
 </details>
 
@@ -1447,6 +1432,7 @@ runtime/valid/duration-negation.hd
 runtime/valid/duration-order.hd
 runtime/valid/dyn-inherent-methods.hd
 runtime/valid/dynamic-suspending-method.hd
+runtime/valid/dynamic-trait-value-satisfies-own-bound.hd
 runtime/valid/else-if-chain.hd
 runtime/valid/embedded-construction-copies.hd
 runtime/valid/embedded-copy-at-field-position.hd
@@ -1524,6 +1510,7 @@ runtime/valid/generic-enum-payloads.hd
 runtime/valid/generic-forward-bound-explicit-first-slot.hd
 runtime/valid/generic-function-value-argument-inference.hd
 runtime/valid/generic-function-value-instantiation.hd
+runtime/valid/generic-inference-explicit-conversions.hd
 runtime/valid/generic-inference-from-requirement-key.hd
 runtime/valid/generic-inference-literal-any-position.hd
 runtime/valid/generic-inference-mut-weakening.hd
@@ -1587,6 +1574,7 @@ runtime/valid/init-ready-groups-by-identity.hd
 runtime/valid/inspectable-alias-and-newtype-identity.hd
 runtime/valid/inspectable-downcast-mut.hd
 runtime/valid/inspectable-downcast-success-and-failure.hd
+runtime/valid/inspectable-dynamic-vs-static-identity.hd
 runtime/valid/inspectable-erasure-example.hd
 runtime/valid/inspectable-function-fields-and-trait-arguments.hd
 runtime/valid/inspectable-generic-arguments-exact.hd
@@ -1717,6 +1705,7 @@ runtime/valid/multiply-by-zero-64.hd
 runtime/valid/mut-bound-value-passed-on.hd
 runtime/valid/mut-self-primitive-arithmetic.hd
 runtime/valid/mut-trait-value-from-mut.hd
+runtime/valid/mut-trait-value-satisfies-mut-bound.hd
 runtime/valid/mutable-data-paths-share-identity.hd
 runtime/valid/mutable-provider-state.hd
 runtime/valid/mutable-receivers.hd
@@ -1857,10 +1846,19 @@ runtime/valid/recursive-data-types.hd
 runtime/valid/recursive-private-functions-least-row.hd
 runtime/valid/reference-cycles-are-ordinary-data.hd
 runtime/valid/reference-identity.hd
+runtime/valid/regex-anchors-groups.hd
 runtime/valid/regex-captures-linear-time.hd
+runtime/valid/regex-captures.hd
+runtime/valid/regex-classes.hd
+runtime/valid/regex-errors.hd
+runtime/valid/regex-find-all.hd
 runtime/valid/regex-leftmost-first.hd
 runtime/valid/regex-linear-time.hd
+runtime/valid/regex-literals-escapes.hd
+runtime/valid/regex-named-groups.hd
 runtime/valid/regex-repetition.hd
+runtime/valid/regex-replace.hd
+runtime/valid/regex-split.hd
 runtime/valid/relative-self-current.hd
 runtime/valid/relative-self-top-level.hd
 runtime/valid/replace-empty-old.hd
@@ -1956,6 +1954,7 @@ runtime/valid/string-pad-default-fill.hd
 runtime/valid/string-pad.hd
 runtime/valid/string-prefix-imported-by-name.hd
 runtime/valid/string-prefix-plain-dollar-digit.hd
+runtime/valid/string-prefix-std.hd
 runtime/valid/string-prefix-template.hd
 runtime/valid/string-repeat.hd
 runtime/valid/string-split-once.hd
@@ -2031,6 +2030,7 @@ runtime/valid/trait-default-method-overridden.hd
 runtime/valid/trait-qualified-associated-and-named-calls.hd
 runtime/valid/trait-qualified-calls.hd
 runtime/valid/trait-value-as-provider.hd
+runtime/valid/trait-value-satisfies-instantiated-bound.hd
 runtime/valid/trim-unicode-white-space.hd
 runtime/valid/try-operand-expected-type.hd
 runtime/valid/tuple-bound-vararg-call.hd
