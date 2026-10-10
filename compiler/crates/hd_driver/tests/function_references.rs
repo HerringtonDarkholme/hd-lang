@@ -204,6 +204,16 @@ fn reference_errors_are_reported() {
             "data Counter:\n    value: i32\n\nimpl Counter:\n    fn bump(mut self, by: i32) -> void:\n        self.value = self.value + by\n\nfn frozen(counter: Counter) -> fn(i32) -> void:\n    counter::bump\n",
             Code::MutableReceiverRequired,
         ),
+        // `fn.ref.bound.mut`, for a built-in method.
+        (
+            "fn frozen(items: List[i32]) -> fn(i32) -> void:\n    items::push\n",
+            Code::MutableReceiverRequired,
+        ),
+        // `fn.ref.unbound`, for a built-in method whose type nothing solves.
+        (
+            "fn unsolved() -> void:\n    _ := List::len\n",
+            Code::CannotInferType,
+        ),
         // `fn.ref.trait-self.unsolved`.
         (
             "fn unsolved() -> void:\n    _ := Display::to_string\n",

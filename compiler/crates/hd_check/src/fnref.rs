@@ -16,7 +16,9 @@ use hd_base::{DefId, StageResult};
 use hd_diag::Code;
 use hd_resolve::{FnSig, HeadKind, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind};
-use hd_tir::ir::{Callee, ChoiceKind, NONE, Providers, Ref, Tag, TirSink, local_flags};
+use hd_tir::ir::{
+    Callee, ChoiceKind, IntrinsicOp, NONE, Providers, Ref, Tag, TirSink, local_flags,
+};
 use hd_types::solver::TraitRef;
 use hd_types::{Inputs, ParamRef, Prim, RowId, Ty, TyData, VarKind, with_assoc_args};
 
@@ -47,6 +49,19 @@ struct Member {
     sig: FnSig,
     vars: Vec<Ty>,
     owner: Owner,
+}
+
+/// What a reference's `::` name finds: a declared member, or a
+/// language-tier built-in method of `List` or `Map`, which has no
+/// declaration (spec/lang/10-modules.md#built-in-methods).
+enum Found {
+    Member(Member),
+    Builtin {
+        op: IntrinsicOp,
+        params: Vec<Ty>,
+        ret: Ty,
+        self_ty: Ty,
+    },
 }
 
 /// `t` under the member's instantiation.
@@ -217,7 +232,13 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
         match self.member_of(t, name, explicit, n)? {
-            Some(m) => self.unbound(m, want, n),
+            Some(Found::Member(m)) => self.unbound(m, want, n),
+            Some(Found::Builtin {
+                op,
+                params,
+                ret,
+                self_ty,
+            }) => Ok(self.builtin_ref(None, self_ty, op, &params, ret, want, n)),
             None => Ok((Ref(NONE), Ty::NEVER)),
         }
     }
@@ -282,7 +303,7 @@ impl Ck<'_, '_> {
         name: &str,
         explicit: &[Ty],
         n: NodeRef<'_>,
-    ) -> StageResult<Option<Member>> {
+    ) -> StageResult<Option<Found>> {
         let pool = self.pool();
         let t = self.norm_ty(t);
         if matches!(self.strip_mut(t), Ty::NEVER | Ty::POISON) {
@@ -352,7 +373,15 @@ impl Ck<'_, '_> {
                     },
                 }
             }
-            Some(Hit::Builtin { .. }) => return self.gap(n, "a reference to a built-in method"),
+            Some(Hit::Builtin { op, params, ret }) => {
+                let self_ty = self.strip_mut(t);
+                return Ok(Some(Found::Builtin {
+                    op,
+                    params,
+                    ret,
+                    self_ty,
+                }));
+            }
             Some(Hit::Ambiguous(traits)) => {
                 let names: Vec<String> = self
                     .cx
@@ -383,7 +412,7 @@ impl Ck<'_, '_> {
                 return Ok(None);
             }
         };
-        Ok(Some(m))
+        Ok(Some(Found::Member(m)))
     }
 
     /// Whether the member takes `self`.
@@ -599,6 +628,84 @@ impl Ck<'_, '_> {
         Ok((self.b.emit(Tag::ItemRef, a, bw, ft, n.index()), ft))
     }
 
+    /// A reference to a built-in method of `List` or `Map`
+    /// (`List::len`, `xs::push`): a closure whose body is the intrinsic
+    /// the method call is, since the method has no declaration to point
+    /// an `ItemRef` at. An unbound reference takes the receiver first
+    /// (`fn.ref.unbound.receiver`); a bound one captures the receiver
+    /// once, as any bound reference does (`fn.ref.bound.capture`).
+    fn builtin_ref(
+        &mut self,
+        bound: Option<(Ref, Ty)>,
+        self_ty: Ty,
+        op: IntrinsicOp,
+        params: &[Ty],
+        ret: Ty,
+        want: Option<Ty>,
+        n: NodeRef<'_>,
+    ) -> (Ref, Ty) {
+        let pool = self.pool();
+        let syn = n.index();
+        // `push` and `remove` change the receiver (`fn.ref.unbound.mut-self`).
+        let mutates = matches!(op, IntrinsicOp::ListPush | IntrinsicOp::MapRemove);
+        let recv_ty = if mutates {
+            pool.intern_ty(&TyData::Mut(self_ty))
+        } else {
+            self_ty
+        };
+        let mut ptys = Vec::new();
+        let mut captured = None;
+        if let Some((recv, rt)) = bound {
+            // `fn.ref.bound.mut`.
+            self.check_receiver(recv_ty, rt, n);
+            let receiver = self.cx.names.syms.intern("$receiver");
+            let rl = self.b.local(rt, receiver, local_flags::ASSIGNED, syn);
+            self.b.set(rl, recv, syn);
+            captured = Some((rl, rt));
+        } else {
+            ptys.push(recv_ty);
+            if let TyData::Adt { args, .. } = pool.get(self_ty) {
+                for a in pool.list_items(args) {
+                    self.ref_params.push((*a, None, syn));
+                }
+            }
+        }
+        ptys.extend(params);
+        let ft = pool.intern_ty(&TyData::Fn {
+            params: pool.list(&ptys),
+            result: ret,
+            row: RowId::EMPTY,
+            suspends: false,
+            inputs: Inputs::Fixed,
+        });
+        self.fit_expected(ft, want);
+        let locals: Vec<_> = ptys
+            .iter()
+            .enumerate()
+            .map(|(i, t)| {
+                let s = self.cx.names.syms.intern(&format!("${i}"));
+                self.b.local(*t, s, local_flags::PARAM, syn)
+            })
+            .collect();
+        let mark = self.b.open_sub(&locals);
+        if let Some((rl, _)) = captured {
+            self.b.capture(mark, rl);
+            self.b.body_mut().local_flags[rl.idx()] |= local_flags::READ | local_flags::CAPTURED;
+        }
+        let blk = self.b.open_block();
+        let mut refs = Vec::new();
+        if let Some((rl, rt)) = captured {
+            refs.push(self.b.get(rl, rt, syn));
+        }
+        for (l, t) in locals.iter().zip(&ptys) {
+            refs.push(self.b.get(*l, *t, syn));
+        }
+        let rec = self.b.refs_record(&refs);
+        let r = self.b.emit(Tag::Intrinsic, op as u32, rec, ret, syn);
+        let root = self.b.close_block(blk, Some(r), ret, syn);
+        (self.b.close_sub(mark, root, ft, syn), ft)
+    }
+
     /// `value::name`: the receiver is evaluated once, into a local the
     /// closure captures (`fn.ref.bound.capture`); calling the closure
     /// calls the method on it (`fn.ref.bound.type`).
@@ -613,8 +720,12 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let rt = self.norm_ty(rt);
-        let Some(mut m) = self.member_of(rt, name, explicit, n)? else {
-            return Ok((Ref(NONE), Ty::NEVER));
+        let mut m = match self.member_of(rt, name, explicit, n)? {
+            Some(Found::Member(m)) => m,
+            Some(Found::Builtin {
+                op, params, ret, ..
+            }) => return Ok(self.builtin_ref(Some((recv, rt)), rt, op, &params, ret, want, n)),
+            None => return Ok((Ref(NONE), Ty::NEVER)),
         };
         // `fn.ref.bound.associated`.
         if !self.has_self(&m) {
