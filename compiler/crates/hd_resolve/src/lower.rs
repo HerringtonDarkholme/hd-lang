@@ -3615,7 +3615,8 @@ pub fn misplaced_impl(names: &Names<'_>, module: &str, it: &Item) -> Option<Code
 
 /// Whether a syntax node is `impl X by Structure`, a derivation block with
 /// no trait (`annot.no-trait.form`).
-fn traitless_block(src: &Src<'_>, n: NodeRef<'_>) -> bool {
+#[must_use]
+pub fn traitless_block(src: &Src<'_>, n: NodeRef<'_>) -> bool {
     if n.kind() != SyntaxKind::ImplDecl || n.children().filter(|c| c.kind().is_type()).count() != 1
     {
         return false;

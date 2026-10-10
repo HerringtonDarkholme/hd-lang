@@ -76,6 +76,59 @@ fn package_error_exits_101_and_prints_it() {
     );
 }
 
+/// A program the checker cannot take yet: a pattern that mixes a positional
+/// and a named variant field. `hd build` stops on it with the same error.
+const UNSUPPORTED: &str = "enum Shape:\n    Rect(w: i32, h: i32)\n\nfn area(s: Shape) -> i32:\n    match s:\n        Shape.Rect(w, h=height) => w * height\n\npub fn main() -> void $ Console:\n    println(area(Shape.Rect(2, 3)))\n";
+
+#[test]
+fn unsupported_program_fails_the_check() {
+    let dir = package("hd-check-unsupported", UNSUPPORTED);
+    let r = check(&dir, "hd-check-cache-unsupported", &[]);
+    assert_eq!(r.code, Some(101), "{}", r.err);
+    assert_eq!(
+        r.err,
+        "error: main.hd:5:5: unsupported: stage Body: mixed positional and named variant fields is not supported\n\
+         check result: FAILED. errors: 1; warnings: 0\n"
+    );
+    assert!(!dir.join("build").exists(), "check writes no build output");
+}
+
+#[test]
+fn unsupported_program_fails_the_check_in_json() {
+    let dir = package("hd-check-unsupported-json", UNSUPPORTED);
+    let r = check(
+        &dir,
+        "hd-check-cache-unsupported-json",
+        &["--format", "json"],
+    );
+    assert_eq!(r.code, Some(101), "{}", r.err);
+    let lines: Vec<&str> = r.out.lines().collect();
+    assert_eq!(lines.len(), 2, "{}", r.out);
+    assert!(
+        lines[0].starts_with(
+            "{\"kind\":\"diagnostic\",\"code\":\"unsupported\",\"severity\":\"error\",\"message\":\"stage Body: "
+        ),
+        "{}",
+        lines[0]
+    );
+    assert!(
+        lines[1].starts_with("{\"kind\":\"summary\",\"errors\":1,\"warnings\":0,"),
+        "{}",
+        lines[1]
+    );
+}
+
+#[test]
+fn an_error_in_a_header_adds_no_unsupported_for_its_methods() {
+    let source = "data Counter:\n    current: i32\n\nimpl Missing for Counter:\n    fn next(self) -> i32: self.current\n\npub fn main() -> void:\n    pass\n";
+    let dir = package("hd-check-header-error", source);
+    let r = check(&dir, "hd-check-cache-header-error", &[]);
+    assert_eq!(r.code, Some(101), "{}", r.err);
+    assert!(r.err.contains("unknown-trait"), "{}", r.err);
+    assert!(!r.err.contains("unsupported"), "{}", r.err);
+    assert!(r.err.ends_with("errors: 1; warnings: 0\n"), "{}", r.err);
+}
+
 #[test]
 fn check_works_from_a_directory_below_the_package() {
     let dir = package("hd-check-below", BROKEN);

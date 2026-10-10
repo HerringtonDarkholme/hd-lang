@@ -11,9 +11,9 @@
 //! store, the executor and the clock come from the caller (design-overview
 //! §2.2 rules 1 and 3).
 //!
-//! A build stops when a stage it needs answers "not implemented": the
-//! answer becomes an internal `unsupported` diagnostic. `analyze_package`
-//! runs the same code and only counts such answers.
+//! A run stops at a stage that answers "not implemented": the answer
+//! becomes an internal `unsupported` diagnostic, which is an error.
+//! `analyze_package` runs the same code and only reports the counts.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -957,8 +957,9 @@ impl Run<'_> {
         *c.stage_ns.entry(kind.name()).or_default() += self.host.clock.now_ns().saturating_sub(t0);
     }
 
-    /// Records a stage's answer. A "not implemented" answer stops a build
-    /// with an internal `unsupported` diagnostic; analysis only counts it.
+    /// Records a stage's answer. A "not implemented" answer is counted and
+    /// reported as an internal `unsupported` diagnostic, in analysis too: a
+    /// package whose checking stops at a construct is not a checked package.
     fn stage<T>(&self, s: Stage, r: StageResult<T>) -> Option<T> {
         match r {
             Ok(v) => {
@@ -967,9 +968,7 @@ impl Run<'_> {
             }
             Err(e) => {
                 lock(&self.report).not_implemented(s, &e.what);
-                if !self.analyze() {
-                    self.stop(s, &e.what, e.span);
-                }
+                self.stop(s, &e.what, e.span);
                 None
             }
         }
@@ -2055,6 +2054,17 @@ impl Run<'_> {
         (folders, universe, extra)
     }
 
+    /// Whether a module's file already has an error: its header errors are
+    /// reported by the folder interface, before any body of it.
+    fn file_has_errors(&self, m: usize) -> bool {
+        let d = lock(&self.diags);
+        let file = FileId::from_raw(u32_of(m));
+        d.severity
+            .iter()
+            .zip(&d.primary)
+            .any(|(s, at)| *s == Severity::Error && at.file == file)
+    }
+
     /// `Body(m)`: every body of the module, in source order.
     fn body(&self, m: usize) {
         let Some(Some(prep)) = self.prep[m].get() else {
@@ -2267,6 +2277,12 @@ impl Run<'_> {
             // A body-less method of a built-in family (`impl[N < Num] Add
             // for N`) is the compiler's: there is no source to check.
             if hd_resolve::Src::child(node, hd_syntax::SyntaxKind::Block).is_none() {
+                continue;
+            }
+            // A method whose impl header was rejected has no item
+            // (`unknown-trait`): that error is the answer, there is no
+            // signature to check the body against.
+            if lookup.item(def).is_none() && self.file_has_errors(m) {
                 continue;
             }
             let checked = match hd_check::results::take(&cx, def) {

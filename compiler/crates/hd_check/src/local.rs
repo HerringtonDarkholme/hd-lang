@@ -21,6 +21,11 @@ impl Ck<'_, '_> {
     pub(crate) fn local_decl(&mut self, s: NodeRef<'_>) -> StageResult<()> {
         let lo = self.cx.src.span(s).lo;
         let Some(l) = self.cx.locals.iter().find(|l| l.lo == lo).copied() else {
+            // A local derivation block with no trait is no item; lowering
+            // reports it as `misplaced-derivation` (`annot.no-trait.local`).
+            if hd_resolve::traitless_block(&self.cx.src, s) {
+                return Ok(());
+            }
             return unsupported(format!("statement {:?}", s.kind()));
         };
         if l.kind == HeadKind::Impl {
