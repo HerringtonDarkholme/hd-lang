@@ -43,16 +43,7 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M12. Probe The Untested Rules Of Chapters 04-07 (Research)
-
-The gap audit found 1594 spec rules with no fixture and no citation in
-the compiler. For `spec/lang/04-type-system.md` through
-`07-functions.md`, write a small probe program for each such rule that
-describes observable behavior (skip pure definitions), run it on the
-Rust `hd` and the TS prototype, and list every rule where Rust rejects a
-valid program, accepts an invalid one, or prints different output. Keep
-probes in your worktree, uncommitted. Output: a "Probed rules" section
-appended to `audit/compiler/gap-audit-2026-10-10.md`. No code changes.
+(none — queue empty)
 
 ## Questions
 
