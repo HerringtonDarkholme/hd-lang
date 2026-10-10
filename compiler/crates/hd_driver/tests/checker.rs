@@ -1219,6 +1219,17 @@ fn public_callables_declare_their_result_type() {
     }
 }
 
+/// A written type has no more arguments than its declaration has type
+/// parameters (`types.generic.too-long`).
+#[test]
+fn a_written_type_has_no_extra_arguments() {
+    assert_eq!(item_codes("fn f(names: List[string]) -> i32: 0"), []);
+    assert_eq!(
+        item_codes("fn f(names: List[string, i32]) -> i32: 0"),
+        [Code::ArgumentCount]
+    );
+}
+
 /// A `use` of a module does not bring in its child modules
 /// (`module.path.no-std-child-import`).
 #[test]

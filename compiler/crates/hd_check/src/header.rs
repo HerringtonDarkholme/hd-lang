@@ -492,6 +492,16 @@ impl<'a> ItemCheck<'_, 'a> {
                     // `types.generic.default.written-missing`: a slot left
                     // out of a written type needs a default.
                     let slots: Vec<&Generic> = target.generics.iter().filter(|g| !g.row).collect();
+                    // `types.generic.too-long`: no more arguments than parameters.
+                    if args_v.len() > slots.len() {
+                        let message = format!(
+                            "`{}` takes {} type arguments, not {}",
+                            self.cx.names.display_name(def),
+                            slots.len(),
+                            args_v.len()
+                        );
+                        self.report(slot, Code::ArgumentCount, message);
+                    }
                     if let Some(g) = slots
                         .get(args_v.len()..)
                         .and_then(|rest| rest.iter().find(|g| g.default.is_none()))
