@@ -205,7 +205,9 @@ fn top_level_statements_are_checked_in_order() {
 }
 
 /// `$.with` covers its keys in its block, and each provider must
-/// implement its key (`req.with.type`).
+/// implement its key (`req.with.type`): a value that does not convert to
+/// the key's trait value is `type-mismatch`, as the fixture
+/// `provider-value-type-mismatch` expects.
 #[test]
 fn with_blocks_provide_requirements() {
     let out = program(
@@ -221,7 +223,7 @@ fn with_blocks_provide_requirements() {
         "fn show() -> void:\n    $.with(Console = 5):\n        println(1)\n\npub fn main() -> void $ Console:\n    show()\n",
     );
     assert!(
-        codes(&out).contains(&Code::UnsatisfiedTraitBound),
+        codes(&out).contains(&Code::TypeMismatch),
         "{}",
         out.render()
     );
