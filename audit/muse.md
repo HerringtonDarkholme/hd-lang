@@ -74,6 +74,73 @@ module next to them if you need one).
    after, on an otherwise idle machine (`uptime` low), and put both in the
    commit message.
 
+### M2. wasmtime Feature Audit And Spike (Research + Bench)
+
+The owner committed to wasmtime (2026-10-10): the CLI must not need Node.
+Before the port starts:
+1. List every Wasm feature and proposal our emitter uses (read
+   `compiler/crates/hd_wasm/src/`: GC types, typed function references,
+   `br_on_cast`, tail calls, exceptions, `array.copy`, i31, multi-value,
+   anything else), with the code location of each.
+2. Pick the newest wasmtime release that supports all of them (check its
+   docs/release notes) and the `Config` flags each needs; note anything
+   unsupported and how our emitter would avoid it.
+3. Spike under `compiler/bench/wasmtime/` (a new directory; no
+   `compiler/crates/` edits): build the six programs in
+   `compiler/bench/runtime/progs/` and the samples with the current `hd`,
+   run them with the wasmtime CLI (GC flags on) where they have no host
+   imports, and time wasmtime vs Node (startup and steady state).
+Write `audit/compiler/wasmtime-audit-<date>.md`. Timebox 60 minutes.
+
+### M3. Design: Porting The Node Host To Rust (Design Text)
+
+The host lives in `compiler/host/*.mjs` (core, float, http, net, test,
+profiles, run) and will move behind `compiler/crates/hd_run_wasmtime`.
+Add a section to `future-work/compiler/engines-and-test-runner.md`: for
+each provider and helper, the Node API it uses and its Rust replacement
+(std, or a named crate with version, size and why), how the exchange
+buffer and `hd_host_abi` codecs are reused, how suspension
+(`block_on`, wakes, timers) maps onto wasmtime (sync host calls vs async
+support, epoch interruption for timeouts), and how Http/Net client
+threads and grants carry over. Include a dependency budget (crates and
+binary size). Questions with a recommendation. Timebox 60 minutes.
+
+### M4. Re-Triage The Failure Buckets (Research)
+
+The buckets in `compiler/CONFORMANCE.md` moved a lot (2420 pass, about
+336 fail, 84 unsupported). For every bucket with 3 or more cases, group
+the cases by first cause (one minimal program each, run with the current
+`hd`) and propose a task row per group ("[impl]" or "[check]", N
+programs, rule IDs, stage). Write `audit/compiler/triage-<date>.md`.
+Read only; timebox 60 minutes.
+
+### M5. Design: The Release Profile In Codegen (#200, Design Text)
+
+`--release` must change codegen per the spec (wrapping or checked
+arithmetic as the spec says, `dbg` in release and in dependencies is an
+error, the name section, code cache keys per profile). Read the profile
+rules in spec/cli/command-line.md and spec/lang, and codegen.md / cache.md,
+then add a "Release profile" section to codegen.md: what differs, where
+the profile enters `Goal`, and how cache keys separate the profiles.
+Questions with a recommendation. Timebox 45 minutes.
+
+### M6. Design: Panic Frames In Test Reports (#201, Design Text)
+
+`cli.test.report.frame` wants a panic's source frame in `hd test`
+reports. Read that rule and wasm-layout.md / codegen.md, then add a
+section on the line table codegen should emit (what maps to what, where
+it is stored, how the runner reads it, cost when unused). Questions with
+a recommendation. Timebox 45 minutes.
+
+### M7. Spec Audit Prep (Research, Read Only)
+
+`audit/compiler/diagnostic-notes.md` holds the spec questions logged
+while the spec is frozen (about 35 rows: gaps, contradictory fixtures,
+missing codes, the 60d16179 change). For each row write one entry in
+`audit/compiler/spec-audit-proposal.md`: the rules and fixtures involved,
+the options, and a recommendation with its reason, grouped by chapter.
+Do not edit `spec/`. Timebox 60 minutes.
+
 ## Questions
 
 (none open)
