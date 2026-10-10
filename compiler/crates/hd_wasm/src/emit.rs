@@ -3303,7 +3303,7 @@ impl Em<'_> {
         );
         let base = crate::layout::closure_base(&code);
         let env = WTy::Struct {
-            fields: vec![VT::r(code.clone()), VT::r(lt.clone()), VT::I32],
+            fields: vec![VT::r(code.clone()), VT::r(lt.clone()), VT::I32, VT::I32],
             sup: Some(Box::new(base)),
             open: false,
         };
@@ -3317,8 +3317,11 @@ impl Em<'_> {
             elem,
             opt,
         }));
-        self.comp(list, 0, &VT::r(lt))?;
+        self.comp(list, 0, &VT::r(lt.clone()))?;
         self.a.i32(0);
+        // The length at creation (`flow.for.length`).
+        self.comp(list, 0, &VT::r(lt.clone()))?;
+        self.a.struct_get(&lt, 0);
         self.a.struct_new(&env);
         self.a.struct_new(&it);
         self.store(i)

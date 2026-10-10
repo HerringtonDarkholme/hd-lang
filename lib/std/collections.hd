@@ -447,7 +447,7 @@ impl[T] ListView[T]:
 
     fn check(self) -> void:
         if self.items.len() != self.len:
-            panic_with("iterator-invalidated", "")
+            panic_with("iterator-invalidated", "the list changed length while a view of it was in use")
 
 impl[T] Index[usize] for ListView[T]:
     type Out = T
@@ -588,7 +588,7 @@ impl[T] Iterable[T] for Deque[T]:
         let at: usize = 0
         Iterator::from_fn(fn() -> T?:
             if self.version != version:
-                panic_with("iterator-invalidated", "")
+                panic_with("iterator-invalidated", "the deque changed while it was being iterated")
             if at >= self.count:
                 return .None
             at = at + 1

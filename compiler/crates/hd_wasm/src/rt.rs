@@ -1128,6 +1128,20 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             a.get(e);
             a.struct_get(env, 1);
             a.set(l);
+            // A length other than the captured one is the
+            // `iterator-invalidated` panic, checked on every call so an
+            // exhausted iterator panics too (`flow.for.invalidate.panic`).
+            a.get(l);
+            a.struct_get(list, 0);
+            a.get(e);
+            a.struct_get(env, 3);
+            a.s().i32_ne();
+            a.if_();
+            a.call(Sym::Helper(Helper::Panic(
+                "iterator-invalidated: list changed during iteration".into(),
+            )));
+            a.s().unreachable();
+            a.end();
             a.get(e);
             a.struct_get(env, 2);
             a.set(i);
