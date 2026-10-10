@@ -2552,6 +2552,13 @@ impl Ck<'_, '_> {
             });
         let (r, t) = self.expr(*e, hint)?;
         let t = self.infer.resolve(pool, t);
+        if self.defer_base.is_some() && self.subs.len() == self.defer_subs {
+            self.err(
+                Code::DeferControlFlow,
+                n,
+                "a `defer` suite cannot leave through `?`",
+            );
+        }
         match (pool.get(t), pool.get(ret)) {
             (TyData::Option(inner), TyData::Option(_)) => {
                 let ok_b = self.b.open_block();
