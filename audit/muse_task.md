@@ -43,18 +43,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M9. Design: The Test Runner On wasmtime (W4, #246, Design Text)
-
-W1 is on main: `compiler/crates/hd_run_wasmtime`, as built in
-`future-work/compiler/engines-and-test-runner.md` §18.7; your M3 host-port
-design is in the same doc. Design `hd test` on wasmtime: TestRunner and
-PropertyRunner providers, a `Linker` per host kind with `InstancePre`,
-the pooling allocator, per-test timeouts through epochs, panic frames
-(your M6 line table), and running the driver and CLI conformance runtime
-tiers in-process instead of one `node` process per case. Price each
-choice (startup per test, memory per instance, parallelism). Output: a
-new section of `engines-and-test-runner.md`. No code changes.
-
 ### M10. Catalogue Diagnostics Without A Message (Research)
 
 The Rust compiler prints some diagnostics with the code as the whole

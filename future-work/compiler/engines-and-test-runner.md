@@ -575,3 +575,124 @@ Recommendation: approve the sync-only design with the §20.5 crate set
 on wasmtime 49.0, and start with the reactor + `hd:rt`/`hd:Console`/
 `hd:Clock` providers (no new dependencies), then Http/Net, then the
 test-runner supervisor.
+
+## 21. The Test Runner On wasmtime (W4, M9, 2026-10-10)
+
+W1 (§18.7) runs `hd run` in-process; §19 fixes the runner model
+(InstancePre, pooling slot per case, epoch timeouts, symbolized
+reports). This section is the W4 build plan for `hd test` on wasmtime:
+what gets built, in what order, and what each choice costs. No new
+crates beyond §20.5 (`serde_json` for the JSON lines is already
+budgeted). No code changes.
+
+### 21.1 TestRunner and PropertyRunner providers
+
+Port of the provider side of `compiler/host/test.mjs` (the supervisor
+process model goes away; §21.5): `row(count)`, `report_timeout(millis)`,
+`snapshot_check(len)`, `temp_dir()`, and `start/cases/shrink/examples`
+plus `record(value)` / `show(len)`, as sync `Linker` functions over the
+same exchange-buffer codecs as §20.2. `record` stays scalar (tens of
+nanoseconds a draw, §19.4 throughput); `show` crosses one short string.
+`temp_dir` makes the case directory on first call; the runner removes it
+at case end (`cli.test.env.temp-dir`). Regression files and snapshot
+comparisons are `std::fs` on the supervisor thread, not guest code.
+`EndCase` (property exhaustion) becomes a Rust-side early return with
+status 0, not an exception: wasmtime traps cannot resume, so the
+provider records `ended` and the driver stops polling that case.
+
+### 21.2 A `Linker` per host kind, one `InstancePre` each
+
+Unit, integration/doc, and profile-bearing cases import different sets
+(§19.3 host setups), and a `Linker` bakes its imports at
+`instantiate_pre` time. So `hd_run_wasmtime` keeps three linkers —
+unit (`TestRunner` alone), integration (`TestRunner` + default profile
++ test `Process` + test grants + cwd), doc/profile (plus the
+conformance runtime profiles as Rust providers, closing the W1 gap) —
+and one `InstancePre` per built test program per linker. A case takes
+the program's `InstancePre` for its kind; a kind mismatch is a build
+error, never a runtime trap. Host functions are shared across linkers
+(one definition each, §20); only the import tables differ.
+
+### 21.3 The pooling allocator
+
+`hd test` uses the pooling allocator (§18.1): slots sized to the
+`--jobs` worker count plus one spare per in-flight property shrink,
+each slot with the test profile's small heaps (`unit-test-perf`,
+§18.3), memories capped by `--max-memory` through a `ResourceLimiter`,
+`max_wasm_stack` from the profile. Pooling makes instantiate +
+teardown a slot checkout (the §19.3 5–20 µs budget) and bounds total
+memory to slots × per-slot maxima — the property-shrink burst cannot
+grow the process. One `Store` per case per worker, as §19.3 sketches;
+stores never cross threads. Non-test `hd run` keeps on-demand
+allocation (§18.1): pooling is a test-runner (and later server) choice,
+not a global one.
+
+### 21.4 Per-test timeouts through epochs
+
+As §19.4 specifies, `report_timeout(millis)` sets the case store's
+epoch deadline, and the supervisor arms a reactor timer for the same
+instant: a busy loop traps on the epoch check, a parked host wait is
+cut by the timer, both report `time-limit`. One epoch-increment thread
+per `hd test` process ticks all worker stores (the W1 engine already
+enables `epoch_interruption`); `--time-limit` sets the same deadline
+for cases without `timeout`. The 50 ms supervisor grace of `test.mjs`
+goes away with the worker processes: in-process, the trap is observed
+at the next `poll`, so timeout accounting is exact, not grace-padded.
+A timed-out case's store is dropped (slot reset), never reused
+mid-flight.
+
+### 21.5 Panic frames via the M6 line table
+
+On a trap or a failing `expect_panic` mismatch, the runner reads the
+case through wasm-layout.md §15.9: category global + message buffer,
+`hd.sites` at the caller frame, backtrace frames through `hd.lines` /
+`hd.names`, panic site first, rendered as the `cli.test.report.frame`
+`FILE:LINE FUNCTION` lines. The section tables are parsed once per
+test program (not per case) and shared across workers; per-case cost
+is the anchor resolution (microseconds, trap path only). Property
+shrink replays reuse the same parsed tables. This replaces the
+`panicMessage` stderr-scraping of `test.mjs`.
+
+### 21.6 Conformance runtime tiers in-process
+
+The driver conformance runner (`run_wasm`, `run_tests`) and the CLI
+tier stop spawning one `node` process per case: with
+`HD_CONFORMANCE_ENGINE=wasmtime` (W1 precedent: 129 programs, 128
+identical) they instantiate the built module in-process on the same
+`--jobs` pool (§18.7 "Left for W2" closes the five runtime-profile
+programs once §21.2 lands them). Expected saving: one process spawn
+(~40 ms, M2) per case per pass — the suite's slowest gate (M1) gets
+faster without changing a verdict: outputs are compared byte for byte
+before the switch flips, as W1 did for `hd run`. Node stays as the
+differential oracle until the outputs match for a full pass.
+
+### 21.7 Pricing
+
+Anchors (measured §18.7, aarch64 macOS): process start 41 ms Node vs
+7 ms wasmtime; steady compute at parity or better except
+closure-heavy code (3.6x slower under Cranelift `OptLevel::None` —
+matters for property bodies that are all closures).
+
+| Choice | Startup per test | Memory per instance | Parallelism |
+| --- | --- | --- | --- |
+| In-process wasmtime, pooling, `InstancePre` (§21.2–21.3) | ~0.1 ms (§19.3 budget: slot + instantiate + init) vs ~40 ms `node` spawn | slots × per-slot maxima, bounded; constants per instantiation as §19.1 prices | `--jobs` workers × one `Store` each; properties pin one worker (§19.4 D3) |
+| Epoch timeouts (§21.4) | one shared ticker thread; zero per-case threads (vs one worker process per case today) | none per case | exact accounting, no 50 ms grace padding |
+| Parsed line tables shared per program (§21.5) | once per program (~ms) | one parsed table per program across workers | trap path only; clean runs untouched |
+| Conformance in-process (§21.6) | removes ~40 ms spawn × cases × 2 passes | test `hd` process only | same pool sizing as M1 (`HD_TEST_JOBS`/8) |
+
+**Questions.** Q1: three linkers, or one linker with optional imports
+resolved to traps? Three (recommended): a kind mismatch must fail at
+build time, and `InstancePre` needs exact imports. Q2: pool sizing —
+slots = workers, or workers + shrink spare? Plus spare (recommended):
+a shrinking property otherwise stalls its worker. Q3: keep the Node
+runner behind a flag after the switch? Yes until one green full pass
+on wasmtime, then delete (recommended): the differential is the only
+proof the outputs match. Q4: `OptLevel::None` closure gap — accept,
+or move tests to `Speed`? Accept for W4 (recommended): correctness
+first; `test-latency` will say whether properties need the optimized
+pipeline (`hd test --release` already pairs test profile with it).
+
+Recommendation: build in §21.1 → §21.2 → §21.3 order (providers, then
+linkers, then pooling), flip conformance tiers (§21.6) before making
+wasmtime the `hd test` default, and keep Node until the differential
+pass is green.
