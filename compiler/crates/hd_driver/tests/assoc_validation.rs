@@ -216,3 +216,32 @@ fn two_supertrait_paths_that_bind_the_same_type_merge() {
         format!("{SOURCE}trait Counts < Source[Item = i32]\n\ntrait Both < Numbers & Counts\n");
     assert_eq!(errors(&good), vec![]);
 }
+
+// trait.impl.required, trait.impl.extra-methods
+
+const NAMES: &str = "data Names: pass\n\n";
+
+#[test]
+fn an_implementation_binds_every_associated_type() {
+    let bad =
+        format!("{SUPPLIER}{NAMES}impl Supplier for Names:\n    fn get(self) -> string: \"Ada\"\n");
+    assert_eq!(errors(&bad), vec![Code::MissingTraitMethod]);
+    let good = format!(
+        "{SUPPLIER}{NAMES}impl Supplier for Names:\n    type Item = string\n    fn get(self) -> string: \"Ada\"\n"
+    );
+    assert_eq!(errors(&good), vec![]);
+}
+
+#[test]
+fn an_implementation_missing_a_method_and_a_type_reports_once() {
+    let bad = format!("{SUPPLIER}{NAMES}impl Supplier for Names:\n    pass\n");
+    assert_eq!(errors(&bad), vec![Code::MissingTraitMethod]);
+}
+
+#[test]
+fn an_implementation_binds_no_associated_type_the_trait_lacks() {
+    let bad = format!(
+        "{SUPPLIER}{NAMES}impl Supplier for Names:\n    type Item = string\n    type Key = i32\n    fn get(self) -> string: \"Ada\"\n"
+    );
+    assert_eq!(errors(&bad), vec![Code::ExtraTraitMember]);
+}

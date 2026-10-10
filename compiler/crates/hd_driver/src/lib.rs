@@ -2183,12 +2183,41 @@ impl Run<'_> {
             .filter(|h| h.kind == hd_resolve::HeadKind::Impl)
         {
             let missing = hd_check::omitted_trait_methods(&names, &lookup, h.def);
+            let faults = hd_check::assoc_faults(&names, &lookup, h.def);
+            let mut omitted = Vec::new();
             if !missing.is_empty() {
+                omitted.push(format!("write `{}`", missing.join("`, `")));
+            }
+            if !faults.omitted.is_empty() {
+                let types: Vec<&str> = faults
+                    .omitted
+                    .iter()
+                    .map(|d| names.display_name(*d))
+                    .collect();
+                omitted.push(format!("bind `{}`", types.join("`, `")));
+            }
+            if !omitted.is_empty() {
                 let msg = format!(
-                    "the implementation does not write `{}`",
-                    missing.join("`, `")
+                    "the implementation does not {}",
+                    omitted.join(" and does not ")
                 );
                 diags.error(Code::MissingTraitMethod, src.span(h.node), &msg);
+            }
+            // An associated type the trait does not declare
+            // (spec 09 `trait.impl.extra-methods`), at its binding.
+            for extra in faults.extra {
+                let name = names.display_name(extra);
+                let decl = hd_resolve::Src::child(h.node, hd_syntax::SyntaxKind::Block)
+                    .into_iter()
+                    .flat_map(hd_syntax::NodeRef::children)
+                    .find(|c| {
+                        c.kind() == hd_syntax::SyntaxKind::AssociatedTypeDecl
+                            && c.name(&src.parse.tokens)
+                                .is_some_and(|t| src.text(t) == name)
+                    });
+                let msg = format!("the trait does not declare an associated type `{name}`");
+                let at = decl.map_or_else(|| src.span(h.node), |d| src.span(d));
+                diags.error(Code::ExtraTraitMember, at, &msg);
             }
         }
         // Member promotion conflicts are declaration errors (spec 03

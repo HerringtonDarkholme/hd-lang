@@ -100,6 +100,62 @@ pub fn omitted_trait_methods(names: &Names<'_>, lookup: &Lookup<'_>, imp: DefId)
         .collect()
 }
 
+/// How the associated types of a written implementation differ from its
+/// trait's.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct AssocFaults {
+    /// The trait's associated types the implementation binds no type for
+    /// and the trait gives no default (`trait.impl.required`).
+    pub omitted: Vec<DefId>,
+    /// The implementation's bindings of associated types the trait does
+    /// not declare (`trait.impl.extra-methods`).
+    pub extra: Vec<DefId>,
+}
+
+/// The associated types of the written implementation `imp` against the
+/// trait's. Derived, template and delegating implementations take their
+/// associated types another way and yield none.
+#[must_use]
+pub fn assoc_faults(names: &Names<'_>, lookup: &Lookup<'_>, imp: DefId) -> AssocFaults {
+    let Some(ItemData::Impl {
+        trait_,
+        assoc,
+        kind: ImplKind::Written,
+        ..
+    }) = lookup.item(imp).map(|i| &i.data)
+    else {
+        return AssocFaults::default();
+    };
+    if *trait_ == DefId::NONE || names.known.is_sealed(*trait_) {
+        return AssocFaults::default();
+    }
+    let Some(ItemData::Trait(td)) = lookup.item(*trait_).map(|t| &t.data) else {
+        return AssocFaults::default();
+    };
+    let has_default = |d: DefId| {
+        matches!(
+            lookup.item(d).map(|i| &i.data),
+            Some(ItemData::AssocType {
+                default: Some(_),
+                ..
+            })
+        )
+    };
+    AssocFaults {
+        omitted: td
+            .assoc
+            .iter()
+            .map(|(_, d)| *d)
+            .filter(|d| !assoc.iter().any(|(b, _)| b == d) && !has_default(*d))
+            .collect(),
+        extra: assoc
+            .iter()
+            .map(|(b, _)| *b)
+            .filter(|b| !td.assoc.iter().any(|(_, d)| d == b))
+            .collect(),
+    }
+}
+
 impl Ck<'_, '_> {
     /// Compares the method `def` of a written trait implementation with
     /// the trait's method of its name; reports at `node`.
