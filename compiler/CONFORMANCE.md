@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2335 | 396 | 114 | 2845 |
+| 2339 | 393 | 113 | 2845 |
 
 ## By Chapter
 
@@ -17,10 +17,10 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
 | `lang/02-grammar.md` | 196 | 11 | 8 | 215 |
 | `lang/03-names-and-scopes.md` | 93 | 7 | 1 | 101 |
-| `lang/04-type-system.md` | 301 | 46 | 5 | 352 |
+| `lang/04-type-system.md` | 302 | 45 | 5 | 352 |
 | `lang/05-expressions.md` | 244 | 32 | 1 | 277 |
 | `lang/06-control-flow.md` | 130 | 23 | 4 | 157 |
-| `lang/07-functions.md` | 105 | 22 | 3 | 130 |
+| `lang/07-functions.md` | 106 | 21 | 3 | 130 |
 | `lang/08-data-and-enums.md` | 85 | 30 | 8 | 123 |
 | `lang/09-traits.md` | 272 | 72 | 15 | 359 |
 | `lang/10-modules.md` | 208 | 39 | 11 | 258 |
@@ -34,7 +34,7 @@ fixture; unsupported surface records progress without failing.
 | `std/encoding.md` | 3 | 0 | 0 | 3 |
 | `std/error.md` | 14 | 0 | 0 | 14 |
 | `std/format.md` | 8 | 0 | 0 | 8 |
-| `std/fs.md` | 3 | 1 | 0 | 4 |
+| `std/fs.md` | 4 | 0 | 0 | 4 |
 | `std/hash.md` | 8 | 1 | 0 | 9 |
 | `std/host.md` | 2 | 0 | 0 | 2 |
 | `std/http.md` | 2 | 0 | 0 | 2 |
@@ -49,7 +49,7 @@ fixture; unsupported surface records progress without failing.
 | `std/random.md` | 8 | 0 | 0 | 8 |
 | `std/regex.md` | 4 | 0 | 9 | 13 |
 | `std/result.md` | 5 | 0 | 0 | 5 |
-| `std/serde.md` | 4 | 0 | 4 | 8 |
+| `std/serde.md` | 5 | 0 | 3 | 8 |
 | `std/sys.md` | 1 | 0 | 0 | 1 |
 | `std/task.md` | 7 | 0 | 0 | 7 |
 | `std/testing.md` | 35 | 3 | 1 | 39 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 86 | 15 | 4 | 105 |
-| `runtime/valid` | 814 | 22 | 93 | 929 |
+| `runtime/valid` | 816 | 21 | 92 | 929 |
 | `typing/invalid` | 741 | 320 | 14 | 1075 |
-| `typing/valid` | 396 | 16 | 3 | 415 |
+| `typing/valid` | 398 | 14 | 3 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -91,7 +91,6 @@ compiler stage that first declined the case.
 | `fail:missing-entry-point` | 1 |
 | `fail:missing-required-field` | 2 |
 | `fail:missing-requirement` | 10 |
-| `fail:missing-return-value` | 1 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
 | `fail:no-diagnostic` | 208 |
@@ -121,10 +120,9 @@ compiler stage that first declined the case.
 | `fail:unknown-trait` | 7 |
 | `fail:unknown-type` | 3 |
 | `fail:unknown-variant` | 1 |
-| `fail:unsatisfied-trait-bound` | 2 |
 | `fail:unused-local-binding` | 6 |
 | `unsupported:Body` | 35 |
-| `unsupported:Collect` | 29 |
+| `unsupported:Collect` | 28 |
 | `unsupported:Emit` | 19 |
 | `unsupported:Link` | 3 |
 | `unsupported:RunCase` | 28 |
@@ -253,12 +251,6 @@ compiler stage that first declined the case.
 - `typing/valid/mutable-provider-rows.hd`
 - `typing/valid/private-method-infers-result-and-row.hd`
 - `typing/invalid/hd-run-outside-integration.hd`
-
-</details>
-
-<details><summary><code>fail:missing-return-value</code> (1)</summary>
-
-- `typing/valid/void-unit-alias.hd`
 
 </details>
 
@@ -747,13 +739,6 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unsatisfied-trait-bound</code> (2)</summary>
-
-- `typing/valid/tuple-trait-bound.hd`
-- `runtime/valid/fs-helpers.hd`
-
-</details>
-
 <details><summary><code>fail:unused-local-binding</code> (6)</summary>
 
 - `typing/invalid/least-type-weakening-variance.hd`
@@ -805,7 +790,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Collect</code> (29)</summary>
+<details><summary><code>unsupported:Collect</code> (28)</summary>
 
 - `runtime/valid/reference-bounded-dynamic-method.hd`
 - `runtime/valid/trait-delegation-forwards.hd`
@@ -826,7 +811,6 @@ compiler stage that first declined the case.
 - `runtime/valid/serde-std-writes.hd`
 - `runtime/valid/serde-derive-read-order.hd`
 - `runtime/valid/serde-variant-member-facts.hd`
-- `runtime/valid/serde-writer-first-error.hd`
 - `runtime/valid/json-typed-members.hd`
 - `runtime/valid/delegation-associated-function-written.hd`
 - `runtime/valid/mut-trait-value-satisfies-mut-bound.hd`
@@ -1518,6 +1502,7 @@ runtime/valid/for-loops-lists-and-maps.hd
 runtime/valid/for-patterns.hd
 runtime/valid/from-direct-call.hd
 runtime/valid/from-propagation-and-panic.hd
+runtime/valid/fs-helpers.hd
 runtime/valid/function-field-returns-mutable-data.hd
 runtime/valid/function-type-impl-method.hd
 runtime/valid/function-type-sugar-without-import.hd
@@ -1931,6 +1916,7 @@ runtime/valid/self-interpolation.hd
 runtime/valid/sequential-suspending-calls.hd
 runtime/valid/serde-derive-call-order.hd
 runtime/valid/serde-std-reads.hd
+runtime/valid/serde-writer-first-error.hd
 runtime/valid/set-basics.hd
 runtime/valid/shared-enum-data-defaults.hd
 runtime/valid/shared-enum-fact-evaluation.hd
@@ -3201,6 +3187,7 @@ typing/valid/traits.hd
 typing/valid/transitive-initialized-binding.hd
 typing/valid/tuple-derived-traits.hd
 typing/valid/tuple-template.hd
+typing/valid/tuple-trait-bound.hd
 typing/valid/tuple-trait-rest.hd
 typing/valid/type-default-calls.hd
 typing/valid/type-default-function-value.hd
@@ -3234,6 +3221,7 @@ typing/valid/variance-permission-weakening.hd
 typing/valid/variance-receiverless-function.hd
 typing/valid/variance-separate-trait-impl.hd
 typing/valid/variant-pattern-lists-payload.hd
+typing/valid/void-unit-alias.hd
 typing/warnings/derivation-block-decorator-std.hd
 typing/warnings/derivation-block-decorator.hd
 typing/warnings/let-list-redundant-mut.hd
