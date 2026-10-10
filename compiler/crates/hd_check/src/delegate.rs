@@ -19,7 +19,8 @@ use hd_tir::ir::{BodyKind, Callee, TirSink, local_flags};
 use hd_types::solver::TraitRef;
 use hd_types::{ParamRef, Ty, TyData, TyList, with_assoc_args};
 
-use crate::body::{BodyCx, new_ck};
+use crate::body::{BodyCx, Ck, new_ck};
+use crate::newtype::Conversion;
 
 /// The bodies of the forwarding methods of the implementation `imp`,
 /// declared at `node`. A part that is not an embedded field of a data
@@ -90,34 +91,50 @@ pub fn forwarder_bodies(
             trait_: *trait_,
             trait_args: *trait_args,
             part,
-            part_name: &part_name,
+            part_name: Some(&part_name),
+            newtype: None,
             def,
             tm,
         };
-        out.extend(fwd.body(cx, &sig, node, diags)?);
+        if let Forwarded::Body(b) = fwd.body(cx, &sig, node, diags)? {
+            out.push(*b);
+        }
     }
     Ok(out)
 }
 
 /// One forwarding method: `def` forwards to the trait method `tm` at the
 /// part's type.
-struct Forwarder<'s> {
-    trait_: DefId,
-    trait_args: TyList,
-    part: Ty,
-    part_name: &'s str,
-    def: DefId,
-    tm: DefId,
+pub(crate) struct Forwarder<'s> {
+    pub(crate) trait_: DefId,
+    pub(crate) trait_args: TyList,
+    pub(crate) part: Ty,
+    /// The embedded field a delegation forwards to. `None` for a derived
+    /// newtype, whose part is its base type.
+    pub(crate) part_name: Option<&'s str>,
+    /// The derived newtype's own type, when this forwards for one.
+    pub(crate) newtype: Option<Ty>,
+    pub(crate) def: DefId,
+    pub(crate) tm: DefId,
+}
+
+/// What a forwarding method comes to: its body, the derivation problem
+/// that stops it (`newtype-derivation-self`), or nothing (the part does
+/// not implement the trait, which the header check reports).
+pub(crate) enum Forwarded {
+    Body(Box<Body>),
+    Position(String),
+    Nothing,
 }
 
 impl Forwarder<'_> {
-    fn body(
+    pub(crate) fn body(
         &self,
         cx: &BodyCx<'_>,
         sig: &FnSig,
         node: NodeRef<'_>,
         diags: &mut DiagBuf,
-    ) -> StageResult<Option<Body>> {
+    ) -> StageResult<Forwarded> {
         let local = hd_types::LocalPool::new();
         let mut ck = new_ck(
             cx,
@@ -137,6 +154,7 @@ impl Forwarder<'_> {
         ck.suspends = vec![sig.suspends];
         let ret = ck.norm_ty(sig.ret);
         ck.rets[0] = ret;
+        let sig_ret = ret;
         let blk = ck.b.open_block();
         let params: Vec<_> = sig
             .params
@@ -146,19 +164,21 @@ impl Forwarder<'_> {
                 (ck.b.local(t, n, local_flags::PARAM, at), t)
             })
             .collect();
-        let Some(&(sl, st)) = params.first() else {
-            return crate::body::unsupported("a forwarding method without a receiver");
-        };
-        // The receiver `self.E`, with `self`'s access.
-        let sv = ck.b.get(sl, st, at);
-        let Some((idx, ft)) = ck.field_of(st, self.part_name) else {
-            return crate::body::unsupported("a forwarding method whose part is not a field");
-        };
-        let ft = ck.field_access(st, self.part_name, ft);
-        let recv = ck.b.emit(hd_tir::ir::Tag::Field, sv.0, idx, ft, at);
-        let mut refs = vec![recv];
-        for &(l, t) in &params[1..] {
-            refs.push(ck.b.get(l, t, at));
+        let mut refs = Vec::new();
+        if let Some(part_name) = self.part_name {
+            let Some(&(sl, st)) = params.first() else {
+                return crate::body::unsupported("a forwarding method without a receiver");
+            };
+            // The receiver `self.E`, with `self`'s access.
+            let sv = ck.b.get(sl, st, at);
+            let Some((idx, ft)) = ck.field_of(st, part_name) else {
+                return crate::body::unsupported("a forwarding method whose part is not a field");
+            };
+            let ft = ck.field_access(st, part_name, ft);
+            refs.push(ck.b.emit(hd_tir::ir::Tag::Field, sv.0, idx, ft, at));
+            for &(l, t) in &params[1..] {
+                refs.push(ck.b.get(l, t, at));
+            }
         }
         // `Tr::m` at the part: the trait's arguments, then the method's
         // own parameters as the forwarder's.
@@ -179,7 +199,7 @@ impl Forwarder<'_> {
         // A part that does not implement the trait is the header's
         // `invalid-delegation` (trait.by.part-impl): nothing to forward to.
         let hd_types::solver::Answer::Holds { evidence, .. } = ck.solve(tref)? else {
-            return Ok(None);
+            return Ok(Forwarded::Nothing);
         };
         let choice = ck.choice_of(Some(&evidence));
         let tsig = ck.sig_of(self.tm)?;
@@ -202,6 +222,26 @@ impl Forwarder<'_> {
             with_assoc_args(pool, x, trait_, self.trait_args)
         };
         let ret = ck.normalize_deep(inst(tsig.ret))?;
+        // A derived newtype applies the base type's method to the wrapped
+        // values (trait.derive.newtype.base): each argument at its base
+        // form, the result back at the newtype's.
+        let conv = self.newtype.map(|newtype| Conversion {
+            newtype,
+            base: self.part,
+        });
+        if let Some(conv) = &conv {
+            for (&(l, t), (_, want)) in params.iter().zip(&tsig.params) {
+                let want = ck.normalize_deep(inst(*want))?;
+                if !conv.can(&ck, t, want) {
+                    return Ok(Forwarded::Position(self.position_message(&ck, t)));
+                }
+                let v = ck.b.get(l, t, at);
+                refs.push(conv.apply(&mut ck, v, (t, want), node)?);
+            }
+            if !conv.can(&ck, ret, sig_ret) {
+                return Ok(Forwarded::Position(self.position_message(&ck, sig_ret)));
+            }
+        }
         targs.extend(&own);
         let callee = Callee::TraitMethod {
             trait_,
@@ -212,7 +252,21 @@ impl Forwarder<'_> {
         };
         let (r, rt) = ck.emit_call(&callee, &refs, ret, tsig.suspends, tsig.suspends, node);
         let r = ck.coerce(r, rt, ret, node, "a forwarded result");
+        let (r, ret) = match &conv {
+            Some(conv) => (conv.apply(&mut ck, r, (ret, sig_ret), node)?, sig_ret),
+            None => (r, ret),
+        };
         let root = ck.b.close_block(blk, Some(r), ret, at);
-        ck.finish_body(root).map(Some)
+        ck.finish_body(root).map(|b| Forwarded::Body(Box::new(b)))
+    }
+
+    /// The error for a method position the derivation cannot forward
+    /// (`trait.derive.newtype.self-error`).
+    fn position_message(&self, ck: &Ck<'_, '_>, at: Ty) -> String {
+        format!(
+            "`{}` has `{}` where a newtype forwards only the receiver, Self, Self?, Result[Self, E] and List[Self]",
+            ck.cx.names.display_name(self.tm),
+            ck.show(at)
+        )
     }
 }

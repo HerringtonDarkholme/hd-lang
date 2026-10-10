@@ -3855,6 +3855,11 @@ fn own_trait_generics(
 ///   `Self = C[...]` (trait.by.generated), whose body the checker writes
 ///   as `Tr::m(self.E, arguments...)` (`hd_check::delegate`).
 ///
+/// A `@derive` on a newtype takes every method of its trait, receiver or
+/// not, from the base type the same way, over the newtype's base in place
+/// of a field (`trait.derive.newtype.base`; `hd_check::newtype` writes the
+/// bodies, which wrap and unwrap the `Self` positions).
+///
 /// An implementation whose part is not an embedded field of a data type
 /// takes nothing: the checker reports it (`invalid-delegation`).
 fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
@@ -3877,8 +3882,8 @@ fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
                 self_ty,
                 methods,
                 assoc,
-                by: Some(by),
-                kind: ImplKind::Delegated,
+                by,
+                kind: kind @ (ImplKind::Delegated | ImplKind::Derived),
             } = &it.data
             else {
                 continue;
@@ -3891,18 +3896,27 @@ fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
             else {
                 continue;
             };
-            let Some(ItemData::Data(fields)) = item(c).map(|i| i.data) else {
-                continue;
-            };
-            let Some(field) = fields.iter().find(|f| f.embedded && f.name == *by) else {
-                continue;
-            };
             let ca = pool.list_items(cargs);
-            let part = pool.subst(field.ty, &|q: ParamRef| {
-                (q.owner == c)
-                    .then(|| ca.get(q.index as usize).copied())
-                    .flatten()
-            });
+            let at_args = |t: Ty| {
+                pool.subst(t, &|q: ParamRef| {
+                    (q.owner == c)
+                        .then(|| ca.get(q.index as usize).copied())
+                        .flatten()
+                })
+            };
+            // A delegating implementation takes the methods with a receiver
+            // from an embedded field. A derived newtype takes every method
+            // from its base type (trait.derive.newtype.base).
+            let (part, receivers_only) = match (kind, by, item(c).map(|i| i.data)) {
+                (ImplKind::Delegated, Some(by), Some(ItemData::Data(fields))) => {
+                    let Some(field) = fields.iter().find(|f| f.embedded && f.name == *by) else {
+                        continue;
+                    };
+                    (at_args(field.ty), true)
+                }
+                (ImplKind::Derived, _, Some(ItemData::Newtype(inner))) => (at_args(inner), false),
+                _ => continue,
+            };
             let Some(ItemData::Trait(td)) = item(trait_).map(|i| i.data) else {
                 continue;
             };
@@ -3931,7 +3945,7 @@ fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
                 let Some(sig) = item(tm).and_then(|i| i.sig().cloned()) else {
                     continue;
                 };
-                if sig.params.first().is_none_or(|p| names.text(p.0) != "self") {
+                if receivers_only && sig.params.first().is_none_or(|p| names.text(p.0) != "self") {
                     continue;
                 }
                 let def = names.member(it.def, PathKind::Member, names.text(name));

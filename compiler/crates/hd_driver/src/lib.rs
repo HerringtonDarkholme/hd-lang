@@ -2377,6 +2377,45 @@ impl Run<'_> {
                 }
             }
         }
+        // The methods of `@derive` on a newtype: the base type's, applied
+        // to the wrapped values (spec 09 `trait.derive.newtype.base`).
+        for h in heads
+            .iter()
+            .filter(|h| h.kind == hd_resolve::HeadKind::Newtype)
+        {
+            if failed.is_some() && !self.analyze() {
+                break;
+            }
+            match hd_check::newtype::derived_newtype_bodies(&cx, h.def, h.node, &mut diags) {
+                Ok((bs, findings)) => {
+                    lock(&self.report).body_ok += bs.len();
+                    for b in &bs {
+                        let path = names.path(b.item);
+                        if self.host.render_tir.iter().any(|p| *p == path) {
+                            lock(&self.tir_text).insert(path, hd_check::render(&names, b));
+                        }
+                    }
+                    bodies.extend(bs);
+                    for f in findings {
+                        diags.error(
+                            Code::NewtypeDerivationSelf,
+                            self.item_span(f.impl_, 0),
+                            &f.message,
+                        );
+                    }
+                }
+                Err(e) => {
+                    let mut r = lock(&self.report);
+                    r.body_failed += 1;
+                    let short: String = e.what.chars().take(90).collect();
+                    *r.body_reasons.entry(short).or_default() += 1;
+                    r.body_failures
+                        .push(format!("{} derive: {}", names.path(h.def), e.what));
+                    drop(r);
+                    failed.get_or_insert(e);
+                }
+            }
+        }
         // A test run checks the `tests:` blocks too, into the module's
         // test-role `check` entry (`check_key` role "test"). A test module
         // or an integration test module is test code throughout: its

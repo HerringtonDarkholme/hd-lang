@@ -18,6 +18,7 @@ pub mod derive;
 pub mod error;
 mod expr;
 mod facts;
+pub mod newtype;
 pub use facts::check_facts;
 
 mod fnref;
