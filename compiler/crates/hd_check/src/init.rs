@@ -25,6 +25,9 @@ pub struct Global {
     pub stmt: usize,
     /// Bound with `:=`: not reassignable (expr.bind.one-name).
     pub short: bool,
+    /// The byte where the statement starts: a body written before it
+    /// cannot see the binding (`names.exec.not-before`).
+    pub at: u32,
 }
 
 /// What one body or top-level statement reaches directly.
@@ -261,6 +264,7 @@ impl Ck<'_, '_> {
         };
         if pat.kind() != SyntaxKind::BindingPattern || pat.children().next().is_some() {
             return unsupported("a top-level binding with a pattern");
+                at: self.cx.src.span(s).lo,
         }
         let Some(nt) = pat.direct_tokens().find(|t| {
             matches!(
@@ -359,6 +363,7 @@ impl Ck<'_, '_> {
                 self.err(Code::VariantResultOwner, sd, &msg);
                 continue;
             }
+                at: self.cx.src.span(s).lo,
             let al = sd.children().find(|c| c.kind() == SyntaxKind::ArgumentList);
             let args = self.args_of(al);
             let vals = self.shared_args(s, &params, &args, sd, &ename)?;
@@ -558,7 +563,9 @@ impl Ck<'_, '_> {
         Some((self.b.emit(Tag::GlobalGet, a, NONE, g.ty, n.index()), g.ty))
     }
 
-    /// Records a call or reference of a same-module function.
+    /// Records a call or reference of a same-module function. A call of a
+    /// trait method reaches every implementation of it in the module
+    /// (`module.init.definite.dispatch`).
     pub(crate) fn note_call(&mut self, def: DefId) {
         self.facts.calls.insert(def);
     }
@@ -600,6 +607,16 @@ pub fn definite_init(
             .filter_map(|g| at.get(g).filter(|s| **s >= i).map(|s| (*s, seg(g))))
             .collect();
         late.sort();
+        // `names.exec.not-before`: a function declared before the binding
+        // does not see it, though it runs later.
+        if self.module_init.is_none() && self.at < g.at {
+            let msg = format!(
+                "`{}` is bound further down the module, so it is not visible here",
+                self.cx.names.text(name)
+            );
+            self.err(Code::BindingNotYetVisible, n, &msg);
+            return Some(self.poison_value(n));
+        }
         if let Some((_, late)) = late.first()
             && let Some(s) = stmts.get(i)
         {
@@ -612,3 +629,28 @@ pub fn definite_init(
         }
     }
 }
+        let lookup = self.cx.lookup;
+        let Some(item) = lookup.item(def) else { return };
+        let ItemData::Method { owner, .. } = &item.data else {
+            return;
+        };
+        if !matches!(
+            lookup.item(*owner).map(|o| &o.data),
+            Some(ItemData::Trait(_))
+        ) {
+            return;
+        }
+        for it in lookup.own {
+            if it.name != item.name {
+                continue;
+            }
+            let ItemData::Method { owner: imp, .. } = &it.data else {
+                continue;
+            };
+            if matches!(
+                lookup.item(*imp).map(|i| &i.data),
+                Some(ItemData::Impl { trait_, .. }) if trait_ == owner
+            ) {
+                self.facts.calls.insert(it.def);
+            }
+        }
