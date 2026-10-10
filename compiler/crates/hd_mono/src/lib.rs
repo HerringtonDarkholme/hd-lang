@@ -575,9 +575,9 @@ fn items_in(pool: &InternPool, t: Ty, out: &mut Vec<DefId>, seen: &mut HashSet<T
 }
 
 /// An item's declared types that layouts read: a data type's fields, an
-/// enum's payloads, a trait's method parameters and results and its
-/// supertraits (a vtable's parent fields, with the bindings they fix), as
-/// declared.
+/// enum's payloads, a trait's method parameters, results and row keys (a
+/// slot's provider parameters) and its supertraits (a vtable's parent
+/// fields, with the bindings they fix), as declared.
 fn declared_types(env: &dyn ProgramEnv, def: DefId) -> Vec<Ty> {
     if let Some(fs) = env.data_fields(def) {
         return fs;
@@ -589,6 +589,7 @@ fn declared_types(env: &dyn ProgramEnv, def: DefId) -> Vec<Ty> {
     for m in env.trait_methods(def) {
         out.extend(env.params(m).unwrap_or_default());
         out.extend(env.ret(m));
+        out.extend(env.row_keys(m, TyList::EMPTY));
     }
     out
 }

@@ -2593,6 +2593,7 @@ impl Em<'_> {
             vt,
             slot,
             sig,
+            keys,
         } = self
             .lay
             .dyn_slot(self.ty_of(args[0]), trait_, &targs, method)?;
@@ -2616,6 +2617,7 @@ impl Em<'_> {
             self.load_as(*r, &want)?;
             k += n;
         }
+        self.push_providers(&keys)?;
         self.a.get(vl);
         self.a.struct_get(&vt, slot);
         self.a.call_ref(&sig);
@@ -4087,12 +4089,27 @@ impl<'a> Em<'a> {
             if self.env().suspends(*m) {
                 results = vec![VT::r(suspend_base(&results).0)];
             }
+            // The impl's row keys among the slot's: the impl method's row
+            // is the trait method's (trait.impl.signature).
+            let keys = self.lay.slot_keys(key, *m);
+            let mut provs = Vec::new();
+            for k in self.env().row_keys(t.item, t.args) {
+                let Some(at) = keys.iter().position(|x| *x == k) else {
+                    return unsupported(format!(
+                        "a vtable slot whose implementation's row has `{}`, which the trait method's lacks",
+                        self.pool().display(k)
+                    ));
+                };
+                provs.push(u32_of(at));
+            }
             self.a.ref_func(Sym::Helper(Helper::Adapter {
                 sig,
                 self_vts: fv.to_vec(),
                 target: Box::new(target),
                 params: ps,
                 results,
+                keys: u32_of(keys.len()),
+                provs,
             }));
         }
         let supers = self.lay.dyn_supers(key);
@@ -4743,17 +4760,34 @@ fn emit_dyn_adapter(lay: &Lay, item: DefId, args: TyList) -> StageResult<Code> {
         vt,
         slot,
         sig,
+        keys,
     } = lay.dyn_slot(recv, trait_, targs, item)?;
     let WTy::Func(ps, rs) = &sig else {
         return unsupported("a vtable slot type");
     };
     let (cps, crs) = adapter_code(lay, item, args)?;
-    // `(env, payload, vtable, rest..., keys, providers)`.
+    // `(env, payload, vtable, rest..., keys, providers)` against the slot's
+    // `(payload, rest..., providers...)`.
     let n = cps.len();
-    if lay.vts(recv)?.len() != 2 || n < 5 || n - 5 + 1 != ps.len() || rs.len() != crs.len() {
+    let rest = ps.len().saturating_sub(1 + 2 * keys.len());
+    if lay.vts(recv)?.len() != 2 || n < 5 || n - 5 != rest || rs.len() != crs.len() {
         return unsupported("a dynamic function reference whose slot has another shape");
     }
     let mut a = Asm::new(cps.clone());
+    // The slot's providers, from the context the caller passed.
+    let mut provs = Vec::new();
+    for k in &keys {
+        let kvt = lay.key_vtable(*k)?;
+        provs.push(ctx_provider(
+            &mut a,
+            pool,
+            env,
+            *k,
+            &kvt,
+            u32_of(n - 2),
+            u32_of(n - 1),
+        ));
+    }
     let vl = a.local(VT::r(vt.clone()));
     a.get(2);
     a.conv(&cps[2], &VT::r(value_vt));
@@ -4763,9 +4797,13 @@ fn emit_dyn_adapter(lay: &Lay, item: DefId, args: TyList) -> StageResult<Code> {
     a.set(vl);
     a.get(1);
     a.conv(&cps[1], &ps[0]);
-    for (j, w) in ps[1..].iter().enumerate() {
+    for (j, w) in ps[1..=rest].iter().enumerate() {
         a.get(u32_of(j + 3));
         a.conv(&cps[j + 3], w);
+    }
+    for [pl, pv] in provs {
+        a.get(pl);
+        a.get(pv);
     }
     a.get(vl);
     a.struct_get(&vt, slot);

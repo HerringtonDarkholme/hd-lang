@@ -24,7 +24,7 @@ use std::sync::Arc;
 
 use hd_base::{DefId, StableHasher, StageResult};
 use hd_mono::layout::{CanonMemo, LayoutEnv, StdKind, canon, sccs, value_enums};
-use hd_mono::{ProgramEnv, class_ref, is_class_ref, subst};
+use hd_mono::{ProgramEnv, class_ref, is_class_ref, key_order, subst};
 use hd_types::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
 
 use crate::{Group, VT, WTy, unsupported};
@@ -70,13 +70,15 @@ pub(crate) type SuperPath = (Vec<(WTy, u32)>, Ty);
 
 /// A trait-value call's dispatch ([`Lay::dyn_slot`]): the receiver's
 /// vtable type, the parent-field steps to the declaring trait's vtable,
-/// that vtable's type, the method's slot and the slot's function type.
+/// that vtable's type, the method's slot, the slot's function type and
+/// the row keys whose providers it takes last ([`Lay::slot_keys`]).
 pub(crate) struct DynSlot {
     pub value_vt: WTy,
     pub steps: Vec<(WTy, u32)>,
     pub vt: WTy,
     pub slot: u32,
     pub sig: WTy,
+    pub keys: Vec<Ty>,
 }
 
 /// What emission reads about the program's types.
@@ -1070,8 +1072,8 @@ impl<'a> Lay<'a> {
     }
 
     /// The types whose values make a nominal type's heap type: a data
-    /// type's fields, or a trait's method parameters (after `self`) and
-    /// results at the trait value's arguments.
+    /// type's fields, or a trait's method parameters (after `self`),
+    /// results and row keys at the trait value's arguments.
     fn member_tys(&self, &(t, kind, _): &Node) -> StageResult<Vec<Ty>> {
         let (pool, env) = (self.pool, self.env);
         Ok(match (kind, pool.get(t)) {
@@ -1088,6 +1090,7 @@ impl<'a> Lay<'a> {
                         out.push(self.member_at(t, m, p));
                     }
                     out.push(self.member_at(t, m, env.ret(m).unwrap_or(Ty::VOID)));
+                    out.extend(self.slot_keys(t, m));
                 }
                 out.extend(self.dyn_supers(t));
                 out
@@ -1712,6 +1715,7 @@ impl<'a> Lay<'a> {
             vt: self.vtable(key)?,
             slot: u32::try_from(slot).expect("slot"),
             sig: self.slot_sig(key, method)?,
+            keys: self.slot_keys(key, method),
         })
     }
 
@@ -1766,13 +1770,33 @@ impl<'a> Lay<'a> {
         Ok(false)
     }
 
-    /// A vtable slot's signature: `(eqref self, params...) -> results`; a
-    /// suspending method's slot returns its cold `mut Suspend[T]`.
+    /// The requirement keys of `m`'s row at the vtable key `key`, in key
+    /// order: the providers its slot takes after the arguments, as a
+    /// direct call passes its callee's (codegen.md §12.4, §13.5.1).
+    pub fn slot_keys(&self, key: Ty, m: DefId) -> Vec<Ty> {
+        let (pool, env) = (self.pool, self.env);
+        let TyData::TraitValue { args, bindings, .. } = pool.get(key) else {
+            return Vec::new();
+        };
+        let keys = env
+            .row_keys(m, self.dyn_args(args))
+            .into_iter()
+            .map(|k| self.at_value(&bindings, k));
+        key_order(pool, &|d| env.path_hash(d), keys)
+    }
+
+    /// A vtable slot's signature: `(eqref self, params..., providers...)
+    /// -> results`, a provider per key of the method's row (`slot_keys`);
+    /// a suspending method's slot returns its cold `mut Suspend[T]`.
     /// `key` is the vtable key of the trait declaring `m`.
     pub fn slot_sig(&self, key: Ty, m: DefId) -> StageResult<WTy> {
         let mut ps = vec![VT::Eq];
         for p in self.env.params(m).unwrap_or_default().into_iter().skip(1) {
             ps.extend(self.vts(self.member_at(key, m, p))?);
+        }
+        for k in self.slot_keys(key, m) {
+            ps.push(VT::Eq);
+            ps.push(VT::r(self.key_vtable(k)?));
         }
         let ret = self.member_at(key, m, self.env.ret(m).unwrap_or(Ty::VOID));
         let mut rs = self.vts(ret)?;

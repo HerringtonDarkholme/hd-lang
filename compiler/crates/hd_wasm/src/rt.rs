@@ -333,12 +333,16 @@ pub enum Helper {
         result: Vec<VT>,
     },
     /// A vtable slot over a concrete impl method: unerases the receiver.
+    /// The slot's last `2 * keys` parameters are its row's providers; the
+    /// target takes, per key of its own row, provider `provs[j]` of them.
     Adapter {
         sig: WTy,
         self_vts: Vec<VT>,
         target: Box<Sym>,
         params: Vec<VT>,
         results: Vec<VT>,
+        keys: u32,
+        provs: Vec<u32>,
     },
     /// `hd.init`: every reachable group's init, in order.
     EntryInit { inits: Vec<Hash128> },
@@ -636,6 +640,8 @@ impl Helper {
                 target,
                 params,
                 results,
+                keys,
+                provs,
             } => {
                 w.u8(9);
                 enc_wty(sig, w);
@@ -643,6 +649,11 @@ impl Helper {
                 target.encode(w);
                 encode_vts(params, w);
                 encode_vts(results, w);
+                w.u32(*keys);
+                w.len_of(provs);
+                for p in provs {
+                    w.u32(*p);
+                }
             }
             Helper::EntryInit { inits } => {
                 w.u8(18);
@@ -823,6 +834,8 @@ impl Helper {
                 target: Box::new(Sym::decode(r)?),
                 params: decode_vts(r, 0)?,
                 results: decode_vts(r, 0)?,
+                keys: r.u32(),
+                provs: (0..r.count()).map(|_| r.u32()).collect(),
             },
             10 => {
                 let main = r.hash();
@@ -1350,17 +1363,25 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             target,
             params,
             results,
+            keys,
+            provs,
         } => {
             let WTy::Func(sp, sr) = sig else {
                 return unsupported("an adapter without a signature");
             };
+            let at = sp.len() - 2 * *keys as usize;
             let mut a = Asm::new(sp.clone());
             unerase(&mut a, 0, self_vts);
-            for (k, (j, p)) in (self_vts.len()..).zip(sp.iter().enumerate().skip(1)) {
+            for (k, (j, p)) in (self_vts.len()..).zip(sp[..at].iter().enumerate().skip(1)) {
                 a.get(u32::try_from(j).expect("j"));
                 if let Some(want) = params.get(k) {
                     a.conv(p, want);
                 }
+            }
+            for p in provs {
+                let j = u32::try_from(at).expect("at") + 2 * p;
+                a.get(j);
+                a.get(j + 1);
             }
             a.call((**target).clone());
             let tmp: Vec<u32> = results.iter().map(|v| a.local(v.clone())).collect();
