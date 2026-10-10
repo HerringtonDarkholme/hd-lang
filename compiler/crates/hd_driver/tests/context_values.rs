@@ -13,14 +13,13 @@ use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
-fn run(main: &str, goal: &Goal) -> Output {
+fn run(store: &MemoryStore, main: &str, goal: &Goal) -> Output {
     let mut src = MemorySources::default();
     src.insert("main.hd", main);
-    let store = MemoryStore::default();
     let host = Host {
         render_tir: &[],
         sources: &src,
-        store: &store,
+        store,
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };
@@ -28,15 +27,23 @@ fn run(main: &str, goal: &Goal) -> Output {
 }
 
 fn codes(main: &str) -> Vec<Code> {
-    run(main, &Goal::Analyze).diags.code.clone()
+    run(&MemoryStore::default(), main, &Goal::Analyze)
+        .diags
+        .code
+        .clone()
 }
 
 /// The standard output of a one-file program that must build and succeed.
 fn output_of(name: &str, main: &str) -> String {
+    output_in(&MemoryStore::default(), name, main)
+}
+
+/// [`output_of`], building against `store`, which earlier builds filled.
+fn output_in(store: &MemoryStore, name: &str, main: &str) -> String {
     let goal = Goal::Program {
         entry: "main".into(),
     };
-    let out = run(main, &goal);
+    let out = run(store, main, &goal);
     assert!(out.diags.is_empty(), "{name}: {}", out.render());
     let wasm = out.wasm.expect("wasm");
     let path = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("context-{name}.wasm"));
@@ -382,4 +389,53 @@ fn counters() -> $.Context[$ Counter]:
     $.context(Counter=counter)
 ";
     assert_eq!(codes(main), vec![Code::MutableUpgrade]);
+}
+
+/// A context entry already in error reports nothing more: a spread of a
+/// parameter whose context type is in error covers its block's keys,
+/// and the parameter's reads infer nothing (`req.row.param.context`).
+#[test]
+fn a_context_in_error_is_reported_once() {
+    let main = "
+fn run_job[$R](providers: $.Context[$ R], job: fn() -> void $ R) -> void:
+    $.with(providers...):
+        job()
+    _ := $.context(providers...)
+";
+    assert_eq!(codes(main), vec![Code::RowParameterInContext]);
+}
+
+/// One item path with one body under two rows takes two code entries: a
+/// body's code key covers its own signature, whose row keys are its
+/// provider parameters (codegen.md §12.4). A program whose `read` needs
+/// `Tag` must not lend its code to one whose `read` also needs `Log`.
+#[test]
+fn one_body_under_two_rows_shares_no_code() {
+    let store = MemoryStore::default();
+    let first = format!(
+        "{TAGS}
+fn read() -> i32 $ Tag: 42
+
+fn call(job: fn() -> i32 $ Tag) -> i32 $ Tag:
+    job()
+
+pub fn main() -> void $ Console:
+    $.with($.context(Tag=Named {{ label: \"a\" }})...):
+        println(call(read))
+"
+    );
+    assert_eq!(output_in(&store, "row-first", &first), "42\n");
+    let second = format!(
+        "{TAGS}
+fn read() -> i32 $ Tag + Log: 42
+
+fn call(job: fn() -> i32 $ Tag + Log) -> i32 $ Tag + Log:
+    job()
+
+pub fn main() -> void $ Console:
+    $.with(Tag=Named {{ label: \"a\" }}, Log=Named {{ label: \"b\" }}):
+        println(call(read))
+"
+    );
+    assert_eq!(output_in(&store, "row-second", &second), "42\n");
 }

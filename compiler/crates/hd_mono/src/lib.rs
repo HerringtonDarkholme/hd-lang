@@ -1387,6 +1387,33 @@ impl Cx<'_> {
         }
     }
 
+    /// What an item body's code reads of its own signature, which its TIR
+    /// does not hold: its parameter and result layouts, whether it
+    /// suspends, and its row's keys, which are its provider parameters
+    /// (codegen.md §12.4). Two programs may give one item path one body
+    /// under two rows, as `fn read() -> i32 $ Clock: 42` and
+    /// `fn read() -> i32 $ Clock + Logger: 42`, and must not share code.
+    fn hash_signature(&mut self, item: DefId, args: TyList, reps: &mut StableHasher) {
+        let (pool, env) = (self.pool, self.env);
+        let s = |t: Ty| subst(pool, env, item, args, t);
+        let mut types: Vec<Ty> = env.params(item).unwrap_or_default();
+        types.extend(env.ret(item));
+        for t in types {
+            reps.hash(layout_hash(
+                pool,
+                env,
+                s(t),
+                &mut self.canons,
+                &mut self.layouts,
+            ));
+        }
+        reps.u8(u8::from(env.suspends(item)));
+        let ph = |d: DefId| env.path_hash(d);
+        for k in env.row_keys(item, args) {
+            reps.hash(canon(pool, &ph, &mut self.canons, k));
+        }
+    }
+
     /// A function reference's adapter (codegen.md §13.11): its one call,
     /// of the item at the instance's arguments, recorded as instruction
     /// 0. A trait member's arguments are `[Self, trait args..., own...]`,
@@ -1686,6 +1713,9 @@ impl Cx<'_> {
                 }
                 _ => {}
             }
+        }
+        if sub == Sub::Body(0) {
+            self.hash_signature(item, args, &mut reps);
         }
         sub.hash_into(&mut reps);
         if self.out.calls.len() <= id.idx() {
