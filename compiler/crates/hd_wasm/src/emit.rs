@@ -156,6 +156,10 @@ fn u32_of(i: usize) -> u32 {
     u32::try_from(i).expect("index")
 }
 
+fn i32_of(i: usize) -> i32 {
+    i32::try_from(i).expect("index")
+}
+
 /// The integer kind of a scalar type: bits, signed, float.
 fn num(pool: &InternPool, t: Ty) -> (u8, bool, bool) {
     let t = match pool.get(t) {
@@ -1927,19 +1931,64 @@ impl Em<'_> {
         let keys = self.context_keys(ty)?;
         let pairs = self.rec(rec);
         for k in &keys {
-            let Some(v) = pairs
-                .chunks(2)
-                .rev()
-                .find(|c| self.sub(Ty(c[0])) == *k)
-                .map(|c| c[1])
-            else {
-                return unsupported("a context key that no entry binds");
-            };
-            let vs = self.vts(*k)?;
-            self.load_as(v, &vs)?;
+            let mut from = None;
+            for c in pairs.chunks(2).rev() {
+                let kt = self.sub(Ty(c[0]));
+                if kt == *k {
+                    from = Some((c[1], None));
+                    break;
+                }
+                if matches!(self.pool().get(kt), TyData::Context(_))
+                    && let Some(at) = self.context_keys(kt)?.iter().position(|x| x == k)
+                {
+                    from = Some((c[1], Some(at)));
+                    break;
+                }
+            }
+            match from {
+                Some((v, None)) => {
+                    let vs = self.vts(*k)?;
+                    self.load_as(v, &vs)?;
+                }
+                // A spread context's payload and vtable, kept erased.
+                Some((v, Some(at))) => {
+                    for slot in [2 * at, 2 * at + 1] {
+                        self.comp(v, 0, &VT::r(ctx_provs()))?;
+                        self.a.i32(i32_of(slot));
+                        self.a.array_get(&ctx_provs());
+                    }
+                }
+                None => return unsupported("a context key that no entry binds"),
+            }
         }
         self.a.array_new_fixed(&ctx_provs(), u32_of(2 * keys.len()));
         self.store(i)
+    }
+
+    /// Pushes the providers of a spread context value `v` of type `ct`,
+    /// key by key in key order, as provider locals: the payload, and the
+    /// vtable cast back to the key's (`req.context.spread`). Returns how
+    /// many it pushed.
+    fn push_context(&mut self, v: u32, ct: Ty) -> StageResult<usize> {
+        let keys = self.context_keys(ct)?;
+        let c = self.a.local(VT::r(ctx_provs()));
+        self.comp(v, 0, &VT::r(ctx_provs()))?;
+        self.a.set(c);
+        for (at, k) in keys.iter().enumerate() {
+            let vt = self.lay.key_vtable(*k)?;
+            let ls = [self.a.local(VT::Eq), self.a.local(VT::r(vt.clone()))];
+            self.a.get(c);
+            self.a.i32(i32_of(2 * at));
+            self.a.array_get(&ctx_provs());
+            self.a.set(ls[0]);
+            self.a.get(c);
+            self.a.i32(i32_of(2 * at + 1));
+            self.a.array_get(&ctx_provs());
+            self.a.ref_cast(&vt, false);
+            self.a.set(ls[1]);
+            self.providers.push((*k, ls));
+        }
+        Ok(keys.len())
     }
 
     /// The context a call of a function value of type `callee` passes:
@@ -3946,14 +3995,19 @@ impl<'a> Em<'a> {
         Ok(())
     }
 
-    /// `$.with(K = p, ...): block`: each provider, a trait value of its
-    /// key since checking, covers its key in the block (codegen.md §12.4,
-    /// "Context values").
+    /// `$.with(K = p, ctx..., ...): block`: each provider, a trait value
+    /// of its key since checking, and each spread context's providers
+    /// cover their keys in the block, later entries innermost
+    /// (codegen.md §12.4, "Context values").
     fn with(&mut self, i: u32, rec: u32, body: u32) -> StageResult<()> {
         let pairs = self.rec(rec);
         let mut pushed = 0;
         for (k, v) in pairs.chunks(2).map(|c| (c[0], c[1])) {
             let key_t = self.sub(Ty(k));
+            if matches!(self.pool().get(key_t), TyData::Context(_)) {
+                pushed += self.push_context(v, key_t)?;
+                continue;
+            }
             if !matches!(self.pool().get(key_t), TyData::TraitValue { .. }) {
                 return unsupported("a `$.with` key that is not a trait");
             }

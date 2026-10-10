@@ -1,0 +1,337 @@
+//! Context values in bodies (checking-and-tir.md §4.13.4 and codegen.md
+//! §12.4, "Context values"; spec 11 "Reusable Contexts"): `$.context`
+//! builds a value of `$.Context[$ Row]`, one provider per key, and
+//! `$.with(ctx...)` installs its providers. Entries apply left to right
+//! and a later one wins (`req.context.order`).
+
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use hd_cache::MemoryStore;
+use hd_diag::Code;
+use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
+use hd_project::MemorySources;
+use hd_sched::SerialOrder;
+
+fn run(main: &str, goal: &Goal) -> Output {
+    let mut src = MemorySources::default();
+    src.insert("main.hd", main);
+    let store = MemoryStore::default();
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    build(&host, "app", goal)
+}
+
+fn codes(main: &str) -> Vec<Code> {
+    run(main, &Goal::Analyze).diags.code.clone()
+}
+
+/// The standard output of a one-file program that must build and succeed.
+fn output_of(name: &str, main: &str) -> String {
+    let goal = Goal::Program {
+        entry: "main".into(),
+    };
+    let out = run(main, &goal);
+    assert!(out.diags.is_empty(), "{name}: {}", out.render());
+    let wasm = out.wasm.expect("wasm");
+    let path = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("context-{name}.wasm"));
+    std::fs::write(&path, wasm).expect("write wasm");
+    let ran = Command::new("node")
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
+        .arg(&path)
+        .output()
+        .expect("node");
+    let _ = std::fs::remove_file(&path);
+    assert!(
+        ran.status.success(),
+        "{name}: {}",
+        String::from_utf8_lossy(&ran.stderr)
+    );
+    String::from_utf8(ran.stdout).expect("UTF-8")
+}
+
+const TAGS: &str = "
+trait Tag:
+    fn name(self) -> string
+
+trait Log:
+    fn tag(self) -> string
+
+data Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string: self.label
+
+impl Log for Named:
+    fn tag(self) -> string: \"log:\" + self.label
+
+fn current() -> string $ Tag:
+    $.use(Tag).name()
+
+fn both() -> string $ Tag + Log:
+    $.use(Tag).name() + \",\" + $.use(Log).tag()
+";
+
+/// A context built in one function and installed in another serves every
+/// key of its row (`req.context.create`, `req.context.spread`).
+#[test]
+fn a_built_context_installs_its_providers() {
+    let main = format!(
+        "{TAGS}
+fn make() -> $.Context[$ Tag + Log]:
+    $.context(Tag=Named {{ label: \"t\" }}, Log=Named {{ label: \"l\" }})
+
+fn install(ctx: $.Context[$ Log + Tag]) -> string:
+    $.with(ctx...):
+        both()
+
+pub fn main() -> void $ Console:
+    println(install(make()))
+"
+    );
+    assert_eq!(output_of("install", &main), "t,log:l\n");
+}
+
+/// Spreads and bindings apply left to right in `$.context` and in
+/// `$.with`, and a later entry wins (`req.context.order`).
+#[test]
+fn a_later_entry_wins_over_a_spread() {
+    let main = format!(
+        "{TAGS}
+pub fn main() -> void $ Console:
+    base := $.context(Tag=Named {{ label: \"base\" }}, Log=Named {{ label: \"base\" }})
+    over := $.context(base..., Tag=Named {{ label: \"over\" }})
+    $.with(over...):
+        println(both())
+    $.with(Tag=Named {{ label: \"explicit\" }}, base...):
+        println(current())
+    $.with(base..., Tag=Named {{ label: \"explicit\" }}):
+        println(current())
+    $.with(base..., over...):
+        println(both())
+"
+    );
+    assert_eq!(
+        output_of("order", &main),
+        "over,log:base\nbase\nexplicit\nover,log:base\n"
+    );
+}
+
+/// A provider value of a subtrait serves its supertrait's key in a
+/// context, and a trait value of the key's own trait installs as it is.
+#[test]
+fn trait_values_serve_as_context_providers() {
+    let main = "
+trait Clock:
+    fn now(self) -> i32
+
+trait Backup < Clock:
+    fn label(self) -> i32
+
+data Fixed: pass
+
+impl Clock for Fixed:
+    fn now(self) -> i32: 7
+
+impl Backup for Fixed:
+    fn label(self) -> i32: 1
+
+fn make() -> $.Context[$ Clock + Backup] $ Backup:
+    $.context(Clock=$.use(Backup), Backup=$.use(Backup))
+
+fn read() -> i32 $ Clock + Backup:
+    $.use(Clock).now() * 10 + $.use(Backup).label()
+
+pub fn main() -> void $ Console:
+    $.with(Backup=Fixed {}):
+        ctx := make()
+        $.with(ctx...):
+            println(read())
+";
+    assert_eq!(output_of("subtrait", main), "71\n");
+}
+
+/// A mutable provider installed through a context keeps one value for the
+/// whole block, so each call sees the last one's change
+/// (`req.mut.install-mutable`, `req.mut.use-mutable`).
+#[test]
+fn a_mutable_provider_through_a_context_keeps_its_state() {
+    let main = "
+trait Counter:
+    fn count(self) -> i32
+    fn bump(mut self) -> void
+
+data Memory:
+    value: i32
+
+impl Counter for Memory:
+    fn count(self) -> i32: self.value
+
+    fn bump(mut self) -> void:
+        self.value = self.value + 1
+
+fn tick() -> i32 $ Counter:
+    $.use(Counter).bump()
+    $.use(Counter).count()
+
+fn counters() -> $.Context[$ Counter]:
+    $.context(Counter=Memory { value: 0 })
+
+pub fn main() -> void $ Console:
+    ctx := counters()
+    $.with(ctx...):
+        _ := tick()
+        println(tick())
+    $.with(ctx...):
+        println(tick())
+";
+    assert_eq!(output_of("mutable", main), "2\n3\n");
+}
+
+/// A context value is an ordinary value: it is stored in a field and in a
+/// list, and a closure called inside the block finds the installed keys
+/// (`req.context.ordinary-values`).
+#[test]
+fn a_context_value_flows_like_any_value() {
+    let main = format!(
+        "{TAGS}
+data Holder:
+    ctx: $.Context[$ Tag]
+
+fn run(job: fn() -> string $ Tag) -> string $ Tag:
+    job()
+
+pub fn main() -> void $ Console:
+    holder := Holder {{ ctx: $.context(Tag=Named {{ label: \"held\" }}) }}
+    all := [holder.ctx, $.context(Tag=Named {{ label: \"listed\" }})]
+    for ctx in all:
+        $.with(ctx...):
+            println(run(current))
+    $.with(holder.ctx...):
+        println(run(fn(): $.use(Tag).name() + \"!\"))
+"
+    );
+    assert_eq!(output_of("flow", &main), "held\nlisted\nheld!\n");
+}
+
+/// Installed providers reach a suspending call, plain or bang, inside the
+/// block, and the block resumes with them (`req.with.nearest.suspending`).
+#[test]
+fn a_spread_context_serves_suspending_calls() {
+    let main = format!(
+        "{TAGS}
+fn load!() -> string $ Tag:
+    $.use(Tag).name()
+
+pub fn main!() -> void $ Console:
+    ctx := $.context(Tag=Named {{ label: \"async\" }})
+    $.with(ctx...):
+        let pending: mut Suspend[string] = load()
+        println(pending!())
+        println(load!() + current())
+"
+    );
+    assert_eq!(output_of("suspend", &main), "async\nasyncasync\n");
+}
+
+/// The empty context installs nothing (`req.context.empty`).
+#[test]
+fn the_empty_context_installs_nothing() {
+    let main = format!(
+        "{TAGS}
+fn none() -> $.Context[$()]:
+    $.context()
+
+pub fn main() -> void $ Console:
+    $.with(Tag=Named {{ label: \"outer\" }}):
+        $.with(none()...):
+            println(current())
+"
+    );
+    assert_eq!(output_of("empty", &main), "outer\n");
+}
+
+/// A context's type is its row: a context of another row where one is
+/// expected is `type-mismatch`, and duplicate keys merge
+/// (`req.context.row`, `req.context.one-per-key`).
+#[test]
+fn a_context_type_is_its_row() {
+    let ok = format!(
+        "{TAGS}
+fn make() -> $.Context[$ Tag] $ Tag:
+    base := $.context(Tag=$.use(Tag))
+    $.context(base..., Tag=$.use(Tag))
+"
+    );
+    assert_eq!(codes(&ok), vec![]);
+    let wrong = format!(
+        "{TAGS}
+fn make() -> $.Context[$ Tag + Log] $ Tag:
+    $.context(Tag=$.use(Tag))
+"
+    );
+    assert_eq!(codes(&wrong), vec![Code::TypeMismatch]);
+}
+
+/// Only a context value spreads, and each binding still has to implement
+/// its key (`req.context.spread`, `req.with.type`).
+#[test]
+fn spreads_take_only_contexts() {
+    let spread = format!(
+        "{TAGS}
+fn run(tag: Named) -> void:
+    $.with(tag...):
+        pass
+"
+    );
+    assert_eq!(codes(&spread), vec![Code::TypeMismatch]);
+    let entry = format!(
+        "{TAGS}
+fn run() -> void:
+    _ := $.context(Tag=42)
+"
+    );
+    assert_eq!(codes(&entry), vec![Code::TypeMismatch]);
+}
+
+/// A key the context does not provide is still missing in the block
+/// (`req.mut.row.missing-key`).
+#[test]
+fn a_key_the_context_lacks_is_missing() {
+    let main = format!(
+        "{TAGS}
+fn run(ctx: $.Context[$ Tag]) -> string:
+    $.with(ctx...):
+        both()
+"
+    );
+    assert_eq!(codes(&main), vec![Code::MissingRequirement]);
+}
+
+/// A mutable requirement trait needs a `mut` value in `$.context` too
+/// (`req.mut.install-mutable`).
+#[test]
+fn a_readonly_value_for_a_mutable_key_is_an_upgrade() {
+    let main = "
+trait Counter:
+    fn bump(mut self) -> void
+
+data Memory:
+    value: i32
+
+impl Counter for Memory:
+    fn bump(mut self) -> void:
+        self.value = self.value + 1
+
+fn counters() -> $.Context[$ Counter]:
+    counter := Memory { value: 0 }
+    $.context(Counter=counter)
+";
+    assert_eq!(codes(main), vec![Code::MutableUpgrade]);
+}

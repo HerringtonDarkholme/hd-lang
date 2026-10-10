@@ -2676,8 +2676,16 @@ impl Ck<'_, '_> {
             .filter(|c| c.kind() == SyntaxKind::ContextEntry)
         {
             let kids: Vec<NodeRef<'_>> = entry.children().collect();
-            let [kn, vn] = kids.as_slice() else {
-                return unsupported("a provider spread of a context");
+            let (kn, vn) = match kids.as_slice() {
+                [kn, vn] => (kn, vn),
+                [sn] if sn.kind() == SyntaxKind::SpreadExpr => {
+                    if let Some(vn) = sn.children().next() {
+                        self.context_spread(vn, &mut pairs, &mut keys)?;
+                    }
+                    continue;
+                }
+                // The parser reported the malformed entry.
+                _ => continue,
             };
             let key = self.ty_node(*kn)?;
             if key == Ty::POISON {
@@ -2706,7 +2714,46 @@ impl Ck<'_, '_> {
         Ok((pairs, keys))
     }
 
-    /// `$.with(K = p, ...): block` (`req.with`): each provider is
+    /// A spread entry `ctx...` (`req.context.spread`): the pair keeps the
+    /// context value under its own context type, and the entry binds
+    /// that context's keys. Anything but a context value is
+    /// `type-mismatch`.
+    fn context_spread(
+        &mut self,
+        vn: NodeRef<'_>,
+        pairs: &mut Vec<Ref>,
+        keys: &mut Vec<Ty>,
+    ) -> StageResult<()> {
+        let pool = self.pool();
+        let (r, t) = self.expr(vn, None)?;
+        let ct = self.strip_mut(self.infer.resolve(pool, t));
+        match pool.get(ct) {
+            TyData::Context(row) => {
+                pairs.push(Ref(ct.0));
+                pairs.push(r);
+                keys.extend(pool.row_data(row).keys);
+            }
+            TyData::Poison | TyData::Never => {}
+            TyData::Infer(_)
+                if self
+                    .infer
+                    .kind_of(pool, ct)
+                    .is_none_or(|k| k.literal_default().is_none()) =>
+            {
+                return unsupported("a provider spread whose type is not yet known");
+            }
+            _ => {
+                let msg = format!(
+                    "a provider spread needs a context value `$.Context[...]`, found {}",
+                    self.show(t)
+                );
+                self.err(Code::TypeMismatch, vn, &msg);
+            }
+        }
+        Ok(())
+    }
+
+    /// `$.with(K = p, ctx..., ...): block` (`req.with`): each provider is
     /// evaluated, must implement its key, and covers the key in the block.
     fn with_expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
@@ -2731,8 +2778,8 @@ impl Ck<'_, '_> {
         Ok((self.b.emit(Tag::With, rec, blk.0, ty, n.index()), ty))
     }
 
-    /// `$.context(K = p, ...)` (`req.context.create`): a context value
-    /// over every key its entries bind, one provider per key
+    /// `$.context(K = p, ctx..., ...)` (`req.context.create`): a context
+    /// value over every key its entries bind, one provider per key
     /// (`req.context.one-per-key`).
     fn context_new(&mut self, n: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
