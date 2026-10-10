@@ -250,7 +250,11 @@ impl<'a> ItemCheck<'_, 'a> {
 
     fn item(&mut self, it: &Item) -> StageResult<()> {
         let tys: Vec<Ty> = match &it.data {
-            ItemData::Fn(s) | ItemData::Method { sig: s, .. } => sig_tys(s),
+            ItemData::Fn(s) | ItemData::Method { sig: s, .. } => {
+                let mut tys = sig_tys(s);
+                tys.extend(self.pool().row_data(s.row).keys.iter().copied());
+                tys
+            }
             ItemData::Data(fs) => fs.iter().map(|f| f.ty).collect(),
             ItemData::Enum { shared, variants } => shared
                 .iter()
@@ -485,6 +489,20 @@ impl<'a> ItemCheck<'_, 'a> {
             TyData::Adt { def, args } => {
                 let args_v = pool.list_items(args);
                 if let Some(target) = self.cx.lookup.item(def) {
+                    // `types.generic.default.written-missing`: a slot left
+                    // out of a written type needs a default.
+                    let slots: Vec<&Generic> = target.generics.iter().filter(|g| !g.row).collect();
+                    if let Some(g) = slots
+                        .get(args_v.len()..)
+                        .and_then(|rest| rest.iter().find(|g| g.default.is_none()))
+                    {
+                        let message = format!(
+                            "`{}` is written without its parameter `{}`, which has no default",
+                            self.cx.names.display_name(def),
+                            self.cx.names.text(g.name)
+                        );
+                        self.report(slot, Code::PartialGenericArguments, message);
+                    }
                     for (i, g) in target.generics.iter().enumerate() {
                         let Some(&a) = args_v.get(i) else { continue };
                         for b in &g.bounds {
@@ -506,6 +524,24 @@ impl<'a> ItemCheck<'_, 'a> {
                 }
                 for &a in args_v {
                     self.check_ty(a, slot)?;
+                }
+            }
+            TyData::TraitValue { def, args, .. } => {
+                // A trait value type or requirement key keeps only the
+                // arguments written or filled from defaults; a default that
+                // names `Self` cannot fill (`trait.dyn.generic-trait`).
+                let have = pool.list_items(args).len();
+                let want = self
+                    .cx
+                    .lookup
+                    .item(def)
+                    .map_or(0, |t| t.generics.iter().filter(|g| !g.row).count());
+                if have < want {
+                    let message = format!(
+                        "`{}` is written without all of its generic arguments",
+                        self.cx.names.display_name(def)
+                    );
+                    self.report(slot, Code::PartialGenericArguments, message);
                 }
             }
             TyData::Option(i) | TyData::Mut(i) => self.check_ty(i, slot)?,
