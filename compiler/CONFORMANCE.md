@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2412 | 345 | 88 | 2845 |
+| 2419 | 338 | 88 | 2845 |
 
 ## By Chapter
 
@@ -19,7 +19,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/03-names-and-scopes.md` | 94 | 6 | 1 | 101 |
 | `lang/04-type-system.md` | 305 | 45 | 2 | 352 |
 | `lang/05-expressions.md` | 244 | 32 | 1 | 277 |
-| `lang/06-control-flow.md` | 131 | 22 | 4 | 157 |
+| `lang/06-control-flow.md` | 136 | 17 | 4 | 157 |
 | `lang/07-functions.md` | 107 | 20 | 3 | 130 |
 | `lang/08-data-and-enums.md` | 86 | 29 | 8 | 123 |
 | `lang/09-traits.md` | 304 | 50 | 5 | 359 |
@@ -28,7 +28,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/14-annotations.md` | 112 | 34 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
-| `std/collections.md` | 24 | 5 | 0 | 29 |
+| `std/collections.md` | 26 | 3 | 0 | 29 |
 | `std/console.md` | 7 | 0 | 0 | 7 |
 | `std/digest.md` | 2 | 0 | 0 | 2 |
 | `std/encoding.md` | 3 | 0 | 0 | 3 |
@@ -62,7 +62,7 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 86 | 15 | 4 | 105 |
+| `runtime/panic` | 93 | 8 | 4 | 105 |
 | `runtime/valid` | 845 | 17 | 67 | 929 |
 | `typing/invalid` | 780 | 281 | 14 | 1075 |
 | `typing/valid` | 403 | 9 | 3 | 415 |
@@ -101,7 +101,7 @@ compiler stage that first declined the case.
 | `fail:private-main` | 5 |
 | `fail:re-export-loop` | 1 |
 | `fail:readonly-root` | 1 |
-| `fail:runtime-exit` | 11 |
+| `fail:runtime-exit` | 4 |
 | `fail:stdout` | 1 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
@@ -485,18 +485,11 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (11)</summary>
+<details><summary><code>fail:runtime-exit</code> (4)</summary>
 
-- `runtime/panic/for-loop-iterator-invalidated.hd`
-- `runtime/panic/invalidated-iterator.hd`
 - `runtime/panic/defer-block-on-indirect.hd`
-- `runtime/panic/for-iterator-invalidated-via-helper.hd`
-- `runtime/panic/exhausted-iterator-invalidated-by-growth.hd`
-- `runtime/panic/alias-growth-invalidates-readonly-iterator.hd`
 - `runtime/panic/list-view-reversed.hd`
 - `runtime/panic/list-view-index-out-of-bounds.hd`
-- `runtime/panic/list-view-invalidated.hd`
-- `runtime/panic/deque-invalidated.hd`
 - `runtime/panic/unbounded-recursion.hd`
 
 </details>
@@ -1090,6 +1083,7 @@ parse/valid/uses.hd
 parse/valid/utf8-bom.hd
 parse/valid/vararg-and-spread.hd
 parse/valid/while-else.hd
+runtime/panic/alias-growth-invalidates-readonly-iterator.hd
 runtime/panic/assert-equal-bool-unequal.hd
 runtime/panic/assert-equal-char-unequal.hd
 runtime/panic/assert-equal-f64-unequal.hd
@@ -1111,11 +1105,15 @@ runtime/panic/char-to-digit-radix-low.hd
 runtime/panic/cli-duplicate-option.hd
 runtime/panic/cmp-clamp-reversed.hd
 runtime/panic/compound-assign-map-missing-key.hd
+runtime/panic/deque-invalidated.hd
 runtime/panic/doc-test-failing-assert.hd
 runtime/panic/duration-add-overflow.hd
 runtime/panic/duration-suffix-overflow.hd
+runtime/panic/exhausted-iterator-invalidated-by-growth.hd
 runtime/panic/explicit-panic-skips-defer.hd
 runtime/panic/explicit-panic.hd
+runtime/panic/for-iterator-invalidated-via-helper.hd
+runtime/panic/for-loop-iterator-invalidated.hd
 runtime/panic/for-map-insert-invalidates.hd
 runtime/panic/for-map-remove-invalidates.hd
 runtime/panic/generic-i32-overflow.hd
@@ -1129,6 +1127,7 @@ runtime/panic/integer-negation-overflow.hd
 runtime/panic/integer-power-overflow.hd
 runtime/panic/intrinsic-method-overflow.hd
 runtime/panic/invalid-shift.hd
+runtime/panic/invalidated-iterator.hd
 runtime/panic/iterator-sum-overflow.hd
 runtime/panic/list-chunks-zero.hd
 runtime/panic/list-index-out-of-bounds.hd
@@ -1141,6 +1140,7 @@ runtime/panic/list-set-u64-beyond-u32.hd
 runtime/panic/list-slice-out-of-range.hd
 runtime/panic/list-slice-reversed.hd
 runtime/panic/list-sum-overflow.hd
+runtime/panic/list-view-invalidated.hd
 runtime/panic/list-windows-size.hd
 runtime/panic/literal-var-fallback-overflow.hd
 runtime/panic/manual-clock-negative-sleep.hd
