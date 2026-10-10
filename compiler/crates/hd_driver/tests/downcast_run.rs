@@ -264,7 +264,8 @@ pub fn main() -> void $ Console:
 #[test]
 fn runtime_type_names_the_recorded_type() {
     let main = format!(
-        "{ERRORS}
+        "use std.inspect.Inspectable
+{ERRORS}
 data User:
     name: string
 

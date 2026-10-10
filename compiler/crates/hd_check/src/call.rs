@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use hd_base::{DefId, StageResult, Symbol};
 use hd_diag::Code;
 use hd_intern::PathKind;
-use hd_resolve::{FnSig, HeadKind, ItemData, Src};
+use hd_resolve::{BindingKind, FnSig, HeadKind, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::ir::{
     Callee, ChoiceKind, IntrinsicOp, NONE, PrimOp, Providers, Ref, Tag, TirSink, local_flags,
@@ -190,6 +190,42 @@ impl Ck<'_, '_> {
         self.cx
             .methods
             .get_or_init(|| crate::MethodIndex::build(self.cx.lookup))
+    }
+
+    /// The traits declaring a method `sym`, with their method, in the
+    /// program: what the per-folder method index maps the name to.
+    fn traits_declaring(&self, sym: Symbol) -> Vec<(DefId, DefId)> {
+        self.method_index()
+            .traits
+            .get(&sym)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Whether the trait's name is bound at the call: declared in the
+    /// module or in an enclosing block, introduced by a `use`, or supplied
+    /// by the prelude (`trait.avail.module`, `trait.avail.scope`,
+    /// `trait.avail.prelude`).
+    fn trait_available(&self, tr: DefId) -> bool {
+        self.cx
+            .locals
+            .iter()
+            .any(|l| l.def == tr && l.covers(self.at))
+            || self
+                .cx
+                .scope_at(self.at)
+                .binding
+                .iter()
+                .any(|b| b.kind == BindingKind::Item && b.value == tr.raw())
+    }
+
+    /// The traits declaring `sym` that are available to a dot call or a
+    /// type-qualified call here. A trait that is not available is not a
+    /// candidate (`trait.avail.not-candidate`).
+    fn available_traits(&self, sym: Symbol) -> Vec<(DefId, DefId)> {
+        let mut traits = self.traits_declaring(sym);
+        traits.retain(|&(tr, _)| self.trait_available(tr));
+        traits
     }
 
     // ------------------------------------------------------------ names
@@ -1869,17 +1905,12 @@ impl Ck<'_, '_> {
         }
         // A trait method with no receiver through a bound (`N::zero()`).
         let sym = self.cx.names.syms.intern(name);
-        let traits: Vec<(DefId, DefId)> = self
-            .method_index()
-            .traits
-            .get(&sym)
-            .cloned()
-            .unwrap_or_default();
+        let traits = self.traits_declaring(sym);
         // Through a type, the trait part of `Methods`
         // (`trait.assoc-call.type.traits`): `X::from(v)` chooses among
         // `X`'s instantiations of `From` like a dot call.
         if !is_param {
-            match self.trait_part(t, sym, &traits)? {
+            match self.trait_part(t, sym, &self.available_traits(sym))? {
                 Some(Hit::Ambiguous(found)) => {
                     let names: Vec<String> = self
                         .cx
@@ -2090,8 +2121,52 @@ impl Ck<'_, '_> {
             );
             self.err(Code::PrivateMember, n, &msg);
         } else {
-            self.err(Code::UnknownMethod, n, msg);
+            let hidden = self.unavailable_traits_of(t, name);
+            if hidden.is_empty() {
+                self.err(Code::UnknownMethod, n, msg);
+            } else {
+                let names = self.cx.names.display_names(&hidden).join("`, `");
+                let msg = format!(
+                    "{msg}; `{names}` supplies it but is not available here, add a `use` for it"
+                );
+                self.err(Code::UnknownMethod, n, &msg);
+            }
         }
+    }
+
+    /// The traits with a method `name` that `t` implements and whose
+    /// names are not bound here, for the `use` suggestion
+    /// (`names.method-lookup.hint.use`).
+    fn unavailable_traits_of(&mut self, t: Ty, name: &str) -> Vec<DefId> {
+        let sym = self.cx.names.syms.intern(name);
+        let asked: Vec<DefId> = self
+            .traits_declaring(sym)
+            .into_iter()
+            .map(|(tr, _)| tr)
+            .filter(|&tr| !self.trait_available(tr))
+            .collect();
+        if asked.is_empty() {
+            return asked;
+        }
+        let snap = self.infer.snapshot();
+        let goal = Goal::Methods {
+            receiver: self.strip_mut(t),
+            name: sym,
+            traits: asked,
+        };
+        let mut found: Vec<DefId> = Vec::new();
+        if let Ok(Answer::Candidates(cands)) = self.solve_goal(&goal) {
+            for c in cands {
+                if let Some(table) = self.cx.impl_table(c.row.module) {
+                    let tr = table.trait_[c.row.row as usize];
+                    if !found.contains(&tr) {
+                        found.push(tr);
+                    }
+                }
+            }
+        }
+        self.infer.rollback(snap);
+        found
     }
 
     fn inherent_where(
@@ -2225,12 +2300,7 @@ impl Ck<'_, '_> {
             return Ok(Some(Hit::Builtin { op, params, ret }));
         }
         let sym = self.cx.names.syms.intern(name);
-        let traits = self
-            .method_index()
-            .traits
-            .get(&sym)
-            .cloned()
-            .unwrap_or_default();
+        let traits = self.traits_declaring(sym);
         // A parameter: its bounds, supertraits included.
         if let TyData::Param(p) = pool.get(t) {
             for i in 0..self.env.clause_self.len() {
@@ -2284,7 +2354,7 @@ impl Ck<'_, '_> {
                 "a method on a value whose type is not yet known",
             ));
         }
-        self.trait_part(t, sym, &traits)
+        self.trait_part(t, sym, &self.available_traits(sym))
     }
 
     /// The trait methods named `sym` of a concrete type: the
