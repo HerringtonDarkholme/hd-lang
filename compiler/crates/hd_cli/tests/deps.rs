@@ -39,7 +39,7 @@ impl World {
     /// a test sees what `hd` asked ssh for. It logs its arguments to
     /// `ssh.log`, then serves `example.com` from the test's remotes by
     /// running the command it is given on the local path; any other host
-    /// does not answer.
+    /// is refused, as `Permission denied (publickey)`.
     fn install_ssh(&self) {
         let bin = self.root.join("bin");
         std::fs::create_dir_all(&bin).expect("mkdir");
@@ -49,7 +49,7 @@ impl World {
             while [ \"$1\" = -o ]; do shift 2; done\n\
             case \"$1\" in\n\
             git@example.com) ;;\n\
-            *) echo 'ssh: Could not resolve hostname' >&2; exit 255 ;;\n\
+            *) echo \"$1: Permission denied (publickey).\" >&2; exit 255 ;;\n\
             esac\n\
             command=$(printf '%s' \"$2\" | sed \"s|'/|'$here/../remotes/|; s|^git-upload-pack|git upload-pack|\")\n\
             exec sh -c \"$command\"\n";
@@ -1051,12 +1051,14 @@ fn both_urls_failing_is_one_error() {
     for part in [
         "fetch-failed: cannot fetch example.org/acme/gone.git@1.0.0: ",
         "https://example.org/acme/gone.git failed: ",
-        "; ssh://git@example.org/acme/gone.git failed: ",
-        "; to use SSH only, run `git config --global url.\"git@example.org:\".insteadOf \"https://example.org/\"`; to use HTTPS, configure a git credential helper",
+        "does not appear to be a git repository; ssh://git@example.org/acme/gone.git failed: ",
+        "failed: git@example.org: Permission denied (publickey); to use SSH only, run `git config --global url.\"git@example.org:\".insteadOf \"https://example.org/\"`; to use HTTPS, configure a git credential helper",
     ] {
         assert!(stderr.contains(part), "{part}: {stderr}");
     }
     assert_eq!(stderr.matches("fetch-failed").count(), 1, "{stderr}");
+    // git's generic trailer does not stand for the cause.
+    assert!(!stderr.contains("Could not read from remote"), "{stderr}");
 }
 
 /// An ssh command the user set stays as it is.

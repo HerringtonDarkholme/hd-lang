@@ -423,24 +423,58 @@ fn io_error(path: &Path, e: &std::io::Error) -> GitError {
     GitError(format!("{}: {e}", PathBuf::from(path).display()))
 }
 
-/// git's last line of complaint, masked, for a message.
+/// The lines git adds to every failed connection, which say nothing about
+/// the cause.
+const GENERIC_COMPLAINTS: &[&str] = &[
+    "Could not read from remote repository",
+    "Please make sure you have the correct access rights",
+    "and the repository exists",
+];
+
+/// git's complaint, masked, for a message (never the decision to fall
+/// back, which needs only that git failed).
 fn complaint(out: &Output) -> GitError {
     let stderr = String::from_utf8_lossy(&out.stderr);
-    let lines = || stderr.lines().map(str::trim);
-    // git's own error line, as `fatal: ...`, before the advice it may add;
-    // else its last line.
-    let last = lines()
-        .rev()
-        .find_map(|l| {
-            l.strip_prefix("fatal: ")
-                .or_else(|| l.strip_prefix("error: "))
+    GitError(mask_credentials(
+        &cause(&stderr).unwrap_or_else(|| format!("git exited with {}", out.status)),
+    ))
+}
+
+/// The text of a line git prints as `fatal: TEXT` or `error: TEXT`.
+fn message(line: &str) -> Option<&str> {
+    line.strip_prefix("fatal: ")
+        .or_else(|| line.strip_prefix("error: "))
+}
+
+/// The line of git's `stderr` that names the cause, as ssh's `Permission
+/// denied (publickey)` or `fatal: repository ... not found`, not the
+/// generic lines or the `hint:` advice around it: the last of git's own
+/// `fatal:` or `error:` lines if there are any, else the last line, and
+/// the generic ones only when nothing else is left.
+fn cause(stderr: &str) -> Option<String> {
+    let lines: Vec<&str> = stderr
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with("hint:"))
+        .collect();
+    let informative: Vec<&str> = lines
+        .iter()
+        .copied()
+        .filter(|l| {
+            let text = message(l).unwrap_or(l);
+            !GENERIC_COMPLAINTS.iter().any(|g| text.starts_with(g))
         })
-        .or_else(|| lines().rfind(|l| !l.is_empty() && !l.starts_with("hint:")))
-        .map(|l| l.trim_end_matches('.'));
-    GitError(mask_credentials(&last.map_or_else(
-        || format!("git exited with {}", out.status),
-        str::to_owned,
-    )))
+        .collect();
+    let pool = if informative.is_empty() {
+        &lines
+    } else {
+        &informative
+    };
+    pool.iter()
+        .rev()
+        .find_map(|l| message(l))
+        .or_else(|| pool.last().copied())
+        .map(|l| l.trim_end_matches('.').to_owned())
 }
 
 /// Whether a path of a tree is one a package file can have: relative
@@ -479,7 +513,44 @@ fn utc_stamp(seconds: i64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{mask_credentials, safe_path, utc_stamp};
+    use super::{cause, mask_credentials, safe_path, utc_stamp};
+
+    #[test]
+    fn the_cause_is_not_the_generic_trailer() {
+        let denied = "git@github.com: Permission denied (publickey).\n\
+            fatal: Could not read from remote repository.\n\n\
+            Please make sure you have the correct access rights\n\
+            and the repository exists.\n";
+        assert_eq!(
+            cause(denied).as_deref(),
+            Some("git@github.com: Permission denied (publickey)")
+        );
+        let prompt =
+            "fatal: could not read Username for 'https://github.com': terminal prompts disabled\n";
+        assert_eq!(
+            cause(prompt).as_deref(),
+            Some("could not read Username for 'https://github.com': terminal prompts disabled")
+        );
+        let missing = "remote: Repository not found.\n\
+            fatal: repository 'https://github.com/acme/x/' not found\n\
+            hint: check the URL\n";
+        assert_eq!(
+            cause(missing).as_deref(),
+            Some("repository 'https://github.com/acme/x/' not found")
+        );
+        let timeout = "ssh: connect to host example.com port 22: Connection timed out\n\
+            fatal: Could not read from remote repository.\n";
+        assert_eq!(
+            cause(timeout).as_deref(),
+            Some("ssh: connect to host example.com port 22: Connection timed out")
+        );
+        // Nothing else is left: the generic line stays.
+        assert_eq!(
+            cause("fatal: Could not read from remote repository.\n").as_deref(),
+            Some("Could not read from remote repository")
+        );
+        assert_eq!(cause(""), None);
+    }
 
     #[test]
     fn credentials_are_masked() {
