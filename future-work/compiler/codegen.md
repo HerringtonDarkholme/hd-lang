@@ -368,6 +368,25 @@ Requirement rows never become type arguments
   callee records).
 - **Cold suspensions** capture their providers in the frame at
   construction ([`req.bind.construction`](../../spec/lang/11-requirements-and-suspension.md#r-req.bind.construction)).
+- **Context values** (#229). A value of `$.Context[$ R]` holds one
+  provider per key of `R`. Its row is concrete
+  (`req.row.param.context`), so its key order is known statically and
+  the value needs no key ids. It is one `(ref $CtxProvs)`, the
+  providers array of the function-value context (`array eqref`): for
+  key number `i` in key order, the provider's payload at `2i` and its
+  vtable at `2i + 1`. `$.Context[$()]` is an empty array. Contexts
+  have no subsumption, so a context's array always matches its type.
+  `ContextNew` builds the array once: for each key of its type, the
+  last pair that binds it supplies the provider, as a trait value
+  checking already converted, or as two `array.get`s from a spread
+  context (`req.context.order`). A `$.with` pair pushes provider locals
+  as before, with no conversion of its own, since checking already
+  made each value a trait value of its key. A spread pair reads each
+  key of the spread context's row into a payload local and a vtable
+  local (`ref.cast` to the key's vtable) and pushes them. The pairs
+  are pushed left to right and lookup takes the innermost, so a later
+  entry wins. Building costs one allocation of `2n` slots; installing
+  costs `2n` reads and casts, and no allocation.
 
 ### 12.5 Counted Loops And Checks
 

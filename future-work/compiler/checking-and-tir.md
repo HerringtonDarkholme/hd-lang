@@ -235,6 +235,24 @@ design:
   `break`/`else` joins are not a `types.lct.sites` site and take no
   union (Q-R20).
 
+**Context values** (#229). `$.Context[$ R]` is `TyData::Context(row)`
+with a concrete row (#175). `$.with(...)` and `$.context(...)` check
+their entries alike, in source order. An entry `K=e` checks `e`, keeps
+the `mutable-upgrade` test of `req.mut.install-mutable`, and then
+coerces `e` to the key's trait value type `K` (`ToTraitValue`, or
+`Supertrait` from a subtrait value, or nothing from a `K` value), so a
+value whose type lacks the impl is `type-mismatch`. An entry `ctx...`
+needs a value of a context type, else `type-mismatch`. Both forms
+record `(key, value)` pairs, where a spread's key word is the spread
+value's own context type. `ContextNew` has the type
+`$.Context[$ keys]` over every key the entries bind, duplicates
+merged (`req.context.one-per-key`). `With` pushes the same key set as
+its lexical frame. An expected context type is matched by type
+equality, so `$.Context[$ Backup]` where `$.Context[$ Clock]` is
+expected is `type-mismatch`. The order of the pairs is the source
+order, which is all that `req.context.order` needs: codegen applies
+them left to right.
+
 #### 4.13.5 Suspension
 
 - `!` is part of the name, so suspension needs no inference.
@@ -757,8 +775,8 @@ it (§14.2).
 
 | Tag | Operands | Type rule |
 | --- | --- | --- |
-| `With` | a: `[(key, provider value)]`, b: body `Block` | the block's type (`$.with`) |
-| `ContextNew` | a: `[(key, provider value)]` | the reusable context's type (`$.context`) |
+| `With` | a: `[(key, provider value)]`, b: body `Block` | the block's type (`$.with`). Each value is a trait value of its key; a pair whose key is a context type spreads that context value |
+| `ContextNew` | a: `[(key, provider value)]`, as for `With` | the reusable context's type (`$.context`) |
 | `ContextFor` | a: a row | the context passed to a row-polymorphic callee, built from the providers in scope |
 
 **Control flow and cleanup**
