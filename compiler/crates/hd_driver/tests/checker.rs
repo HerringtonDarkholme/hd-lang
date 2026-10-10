@@ -1170,3 +1170,23 @@ fn a_defer_suite_cannot_propagate_with_a_query() {
         [Code::DeferControlFlow]
     );
 }
+
+/// No declaration, parameter or type parameter takes a prelude name
+/// (`module.prelude.no-shadow`).
+#[test]
+fn prelude_names_cannot_be_shadowed() {
+    for ok in [
+        "fn consume(console: i32) -> i32: console",
+        "fn identity[T](value: T) -> T: value",
+        "fn lookup(name: string) -> string: name",
+    ] {
+        assert_eq!(item_codes(ok), [], "{ok}");
+    }
+    for bad in [
+        "fn it(name: string) -> void:\n    pass",
+        "fn consume(Console: i32) -> i32: Console",
+        "fn identity[Result](value: Result) -> Result: value",
+    ] {
+        assert_eq!(item_codes(bad), [Code::PreludeNameShadow], "{bad}");
+    }
+}
