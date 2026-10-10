@@ -43,18 +43,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M10. Catalogue Diagnostics Without A Message (Research)
-
-The Rust compiler prints some diagnostics with the code as the whole
-message: `syntax-error: syntax-error`, `old-row-separator:
-old-row-separator`. Find every code path that emits a diagnostic with no
-message text (start in `compiler/crates/hd_syntax`), and for each, the
-message the TS prototype prints in the same situation (`src/`, run
-`pnpm run hd -- FILE` on a probe file; never `pnpm install`). Output a
-table in `audit/compiler/diagnostic-messages.md`: code, emitting
-function, situation, TS text, proposed Rust text. This feeds task #252.
-No code changes.
-
 ### M11. Design: `hd doc` (#266, Design Text)
 
 `hd doc` and `hd doc NAME` have no implementation. Read the spec's
