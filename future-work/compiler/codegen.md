@@ -1777,16 +1777,34 @@ Per profile, at Emit: debug and test emit the checked arithmetic
 sequences of §13.15; release emits the wrapping ones. `dbg` never
 reaches Emit in a release build: Check rejects it there
 (`module.dbg.release`), while test builds — including
-`hd test --release` — always accept it. The link already omits the
-standard `name` section in release builds (step 9); `hd test` output
-keeps it. A prebuilt module keeps whichever behavior built it; the
-module records nothing further.
+`hd test --release` — always accept it. A dependency `dbg` call takes
+the third path: accepted with `dbg-in-dependency`
+(`module.dbg.dependency`), it lowers to argument evaluation with no
+print — Emit drops the print sequence but keeps left-to-right
+evaluation, so deleting the call later changes no types. As built, the
+link always emits the standard `name` section (step 9), since the
+profile reaches nothing; under this design, release builds omit it
+while `hd test` output keeps it. A prebuilt module keeps whichever
+behavior built it; the module records nothing further.
 
 Footprint: release drops every overflow branch and the `name`
 section, and shares the wrapping instances; checked builds pay one
 widen-compare per narrowing operation plus the section. The default
 pipeline everywhere is the fast-build one; `--release` is the only
-way to ask for the optimized pipeline (see Questions).
+way to ask for the optimized pipeline.
+
+**Questions.** Q1: Goal-carried profile or a separate codegen flag?
+Goal-carried (recommended): the profile already must join every code
+key, and keys are computed from the goal, so a flag beside the goal
+would need shadowing into the keys anyway. Q2: omit the `name`
+section in release, or keep it for panic frames? Omit
+(recommended), but keep the M6 line-table storage separate from the
+`name` section, so release drops names without dropping whatever
+panic-frame mapping M6 designs. Q3: record the profile in a
+prebuilt module, or rely on key separation? Keys only
+(recommended): a module records nothing further, and a release link
+never maps a checked entry, so a mismatch is a miss, never a
+miscompile.
 
 ### 13.18 Provider Keys Carry Their Type Arguments
 

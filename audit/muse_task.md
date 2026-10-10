@@ -43,16 +43,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M5. Design: The Release Profile In Codegen (#200, Design Text)
-
-`--release` must change codegen per the spec (wrapping or checked
-arithmetic as the spec says, `dbg` in release and in dependencies is an
-error, the name section, code cache keys per profile). Read the profile
-rules in spec/cli/command-line.md and spec/lang, and codegen.md / cache.md,
-then add a "Release profile" section to codegen.md: what differs, where
-the profile enters `Goal`, and how cache keys separate the profiles.
-Questions with a recommendation. Timebox 45 minutes.
-
 ### M6. Design: Panic Frames In Test Reports (#201, Design Text)
 
 `cli.test.report.frame` wants a panic's source frame in `hd test`
