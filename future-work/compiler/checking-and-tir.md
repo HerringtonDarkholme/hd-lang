@@ -262,6 +262,36 @@ Tuple rest elements are the `rest` field of the tuple type. Tuple `Eq`,
 evidence of the template at the tuple type, like any impl
 ([trait-solver.md §3.9](trait-solver.md#39-compiler-supplied-impls)).
 
+**Arity-generic function types.** A function type's `params` spell its
+inputs tuple in one of three forms (`Inputs`): one parameter per element,
+the same with the last a rest element's `List` (`fn.type.vararg-rest`), or
+one type that is the whole inputs tuple of an arity not known there.
+`Fn[Args, O, $ R]` with `Args < Tuple` takes the third form, as does its
+inference variable at a call. A written inputs argument that is neither a
+tuple type nor a `Tuple`-bounded parameter is `generic-kind-mismatch`
+(`fn.type.ctor.inputs-tuple`). Interning a function type whose one input
+is a tuple type gives the first or second form. So substitution,
+resolution and canonicalization all land on one type, and
+`Fn[(A, B), O, $()]` stays `fn(A, B) -> O`. Unifying, matching an impl
+head, or fitting an expected type, a whole input against the other
+side's inputs tuple unifies the two tuples. So `?Args` meeting `add2`
+becomes `(i32, i32)`, meeting `g` becomes `(usize, usize, List[i32]...)`,
+and meeting `zero` becomes `()` (`fn.vararg.tuple-param.expected`). A
+call of `f: Fn[Args, O, $ R]` takes one positional spread whose operand
+has the inputs' type (`expr.call.spread.inputs`). Separate arguments
+there are `type-mismatch`, since the arity is unknown. A spread of a
+value of unknown arity before fixed parameters is `type-mismatch` too,
+since `Args` is not the type of those inputs. When unifying the operand
+solves the inputs as a tuple, the spread fills each parameter with one
+`TupleGet`, as for any tuple. Otherwise the checker emits `CallValue f,
+[args]`: one argument, the inputs tuple, under a callee whose TIR type
+keeps the third form. Instantiation substitutes a tuple for every
+`Args`, so the callee's instance type has one parameter per element. The
+emitter sees the third form on the callee's unsubstituted type and
+passes the tuple's elements as the arguments, read as `TupleGet` reads
+them, boxed tuple or not. There is no runtime machinery and no new TIR
+instruction.
+
 #### 4.13.8 Exhaustiveness
 
 Maranget's usefulness algorithm over the pattern matrix, with literal
