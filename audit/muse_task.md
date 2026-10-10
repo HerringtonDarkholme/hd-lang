@@ -1,7 +1,7 @@
 # Muse
 
-Muse's work queue (owner, 2026-10-10: one task file, `audit/muse.md`;
-the older `muse_task.md`, `opus_task.md` and `kimi_task.md` are gone, and
+Muse's work queue (owner, 2026-10-10: one task file, `audit/muse_task.md`;
+the older `opus_task.md` and `kimi_task.md` are gone, and
 git history keeps them). The orchestrating session adds jobs here. Do
 them top to bottom, one commit per job, and delete a job's section in the
 commit that finishes it. When the queue is empty, report that and wait.
