@@ -2950,6 +2950,11 @@ impl Ck<'_, '_> {
     /// A projection's normal form, itself normalized once more; a cycle of
     /// bindings stops at the depth limit.
     fn normalized(&mut self, x: Ty) -> StageResult<Ty> {
+        // A binding in error (a header's unknown binding name) is poison:
+        // its poison types come from that error, as a poisoned name's do.
+        if self.pool().has_poison(x) {
+            self.read_poison_name = true;
+        }
         if self.norm_depth > 32 {
             return Ok(x);
         }

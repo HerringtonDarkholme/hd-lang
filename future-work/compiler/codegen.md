@@ -864,6 +864,13 @@ growing type) has no finite instance set.
   reads one parent field. Requirement-key vtables use the same key, so a
   `$ Store[Item = User]` provider's `load` returns a `User`. A trait's
   layout hash covers its supertrait list, whose bindings shape the key.
+  A projection and a binding name the item of the trait that declares
+  the associated type, which resolution finds through the supertraits
+  (`hd_resolve::assoc`, trait-solver.md §4.1): `dyn NamedSupplier[Item =
+  i32]` binds `Supplier.Item`, the item `Self::Item` in `get` names, so
+  the lookup is by item, never by name. A `dyn` type also takes the
+  bindings its supertrait lists fix, so `dyn Count` under `Count <
+  Supplier[Item = i32]` is `dyn Count[Item = i32]`.
 - **GADT evidence.** Removed with GADTs (owner, 2026-10-07).
 - **Generic methods called through a `dyn` value** use the type-witness
   ABI below.

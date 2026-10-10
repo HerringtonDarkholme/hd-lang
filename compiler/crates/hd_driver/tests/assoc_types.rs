@@ -167,3 +167,116 @@ fn wrong[S < Supplier](s: S) -> i32:
     ));
     assert_eq!(codes, vec![Code::UnknownMethod, Code::TypeMismatch]);
 }
+
+/// A child trait that reaches `Supplier`'s `Item` through its supertrait
+/// list, and one whose supertrait list binds it.
+const CHILDREN: &str = "
+trait NamedSupplier < Supplier:
+    fn name(self) -> string
+
+trait Count < Supplier[Item = i32]:
+    fn label(self) -> string
+
+impl NamedSupplier for Counter:
+    fn name(self) -> string: \"counter\"
+
+impl Count for Counter:
+    fn label(self) -> string: \"count\"
+";
+
+#[test]
+fn a_binding_and_a_projection_name_the_supertrait_that_declares_the_type() {
+    let codes = errors(&format!(
+        "{SUPPLIERS}{CHILDREN}
+fn first[T, S < NamedSupplier[Item = T]](s: S) -> T:
+    s.get()
+
+fn item[S < NamedSupplier](s: S) -> S::Item:
+    s.get()
+
+fn read(s: dyn NamedSupplier[Item = i32]) -> i32:
+    s.get() + item(s)
+
+fn counted(s: dyn Count) -> dyn Count[Item = i32]:
+    s
+
+pub fn main() -> void:
+    _ := first(Counter {{ start: 1 }}) + item(Counter {{ start: 2 }})
+    _ := read(Counter {{ start: 3 }})
+    _ := counted(Counter {{ start: 4 }}).get() + 1
+"
+    ));
+    assert_eq!(codes, Vec::<Code>::new());
+}
+
+#[test]
+fn a_projection_through_a_supertrait_runs_at_each_binding() {
+    let out = run_main(
+        "supertrait-projection",
+        &format!(
+            "{SUPPLIERS}{CHILDREN}
+fn item[S < NamedSupplier](s: S) -> S::Item:
+    s.get()
+
+fn read(s: dyn NamedSupplier[Item = i32]) -> i32:
+    s.get() + 1
+
+fn widen(s: dyn NamedSupplier[Item = i32]) -> dyn Supplier[Item = i32]:
+    s
+
+fn twice(c: dyn Count) -> i32:
+    c.get() * 2
+
+pub fn main() -> void $ Console:
+    c := Counter {{ start: 20 }}
+    println(item(c))
+    println(read(c))
+    println(widen(c).get())
+    println(twice(c))
+    let s: dyn NamedSupplier[Item = i32] = c
+    println(item(s))
+"
+        ),
+    );
+    assert_eq!(out, "20\n21\n20\n40\n20\n");
+}
+
+#[test]
+fn a_binding_name_must_reach_one_associated_type() {
+    let unknown = errors(&format!(
+        "{SUPPLIERS}
+fn first[T, S < Supplier[Element = T]](s: S) -> T:
+    s.get()
+
+fn read(s: dyn Supplier[Element = i32]) -> i32:
+    s.get()
+"
+    ));
+    assert_eq!(
+        unknown,
+        vec![Code::UnknownAssociatedType, Code::UnknownAssociatedType]
+    );
+    let ambiguous = errors(
+        "\
+trait Named:
+    type Item
+
+trait Keyed:
+    type Item
+
+trait Record < Named & Keyed
+
+fn third[T, R < Record[Item = T]](record: R) -> T:
+    panic(\"unreachable\")
+
+fn pick[I < Named & Keyed](value: I) -> I::Item:
+    panic(\"unreachable\")
+",
+    );
+    assert_eq!(
+        ambiguous,
+        vec![Code::AmbiguousAssociatedType, Code::AmbiguousAssociatedType]
+    );
+    let not_a_trait = errors("fn count(items: List[i32, Item = i32]) -> i32: 0\n");
+    assert_eq!(not_a_trait, vec![Code::UnknownAssociatedType]);
+}

@@ -577,6 +577,12 @@ struct Resolver<'a, 'b> {
     /// defaults whatever the declaration order, and a private trait (which
     /// a frozen interface leaves out) is filled as while it was built.
     own_traits: HashMap<DefId, Vec<Generic>>,
+    /// The supertraits of the traits of the modules being lowered, as
+    /// trait-value types over each trait's `Self`, lowered before any
+    /// other header, so a projection or a binding finds the trait that
+    /// declares its associated type (trait.binding.name-reach) whatever
+    /// the declaration order.
+    own_supers: HashMap<DefId, Vec<Ty>>,
 }
 
 impl Resolver<'_, '_> {
@@ -663,6 +669,17 @@ impl Resolver<'_, '_> {
         }
     }
 
+    /// A trait's direct supertraits as trait-value types over its `Self`.
+    fn supers_of(&self, tr: DefId) -> Vec<Ty> {
+        if let Some(v) = self.own_supers.get(&tr) {
+            return v.clone();
+        }
+        match self.item(tr).map(|i| i.data) {
+            Some(ItemData::Trait(t)) => t.supers,
+            _ => Vec::new(),
+        }
+    }
+
     fn trait_has_assoc(&self, tr: DefId, name: Symbol) -> bool {
         if let Some(v) = self.trait_assoc.get(&tr) {
             return v.contains(&name);
@@ -671,6 +688,30 @@ impl Resolver<'_, '_> {
             Some(ItemData::Trait(t)) => t.assoc.iter().any(|a| a.0 == name),
             _ => false,
         }
+    }
+}
+
+impl crate::assoc::TraitView for Resolver<'_, '_> {
+    fn supers(&self, trait_: DefId) -> Vec<Ty> {
+        self.supers_of(trait_)
+    }
+    fn own_assoc(&self, trait_: DefId, name: &str) -> Option<DefId> {
+        let names = &self.cx.names;
+        self.trait_has_assoc(trait_, names.syms.intern(name))
+            .then(|| names.member(trait_, PathKind::Member, name))
+    }
+    fn own_assocs(&self, trait_: DefId) -> Vec<DefId> {
+        let names = &self.cx.names;
+        let syms = match self.trait_assoc.get(&trait_) {
+            Some(v) => v.clone(),
+            None => match self.item(trait_).map(|i| i.data) {
+                Some(ItemData::Trait(t)) => t.assoc.iter().map(|a| a.0).collect(),
+                _ => Vec::new(),
+            },
+        };
+        syms.into_iter()
+            .map(|s| names.member(trait_, PathKind::Member, names.text(s)))
+            .collect()
     }
 }
 
@@ -1183,22 +1224,39 @@ impl Lower<'_, '_, '_> {
             self.diags.error(Code::UnknownTrait, span, &msg);
             return None;
         }
-        let (mut args, bindings, _) = self.type_args(n, gn);
+        let (mut args, written, _) = self.type_args(n, gn);
         args.retain(|a| !matches!(self.names.pool.get(*a), TyData::Row(_)));
-        let bindings = bindings
+        let args = self
+            .r
+            .fill_trait_args(def, self.names.pool.list(&args), self_ty);
+        // A binding names an associated type the trait declares or
+        // reaches through its supertraits (trait.binding.name-reach).
+        let written = written
             .into_iter()
-            .map(|(name, t)| {
-                (
-                    self.names
-                        .member(def, PathKind::Member, self.names.text(name)),
-                    t,
-                )
-            })
+            .map(|(name, t)| (self.names.text(name).to_owned(), t))
             .collect();
-        let args = self.names.pool.list(&args);
+        let (bindings, bad) = crate::assoc::resolve_bindings(
+            self.names.pool.types(),
+            self.r,
+            (def, args, self_ty),
+            written,
+        );
+        for b in bad {
+            let (code, how) = if b.ambiguous {
+                (Code::AmbiguousAssociatedType, "two associated types")
+            } else {
+                (Code::UnknownAssociatedType, "no associated type")
+            };
+            let msg = format!(
+                "`{}` reaches {how} named `{}`",
+                self.names.display_name(def),
+                b.name
+            );
+            self.diags.error(code, span, &msg);
+        }
         Some(self.names.pool.intern_ty(&TyData::TraitValue {
             def,
-            args: self.r.fill_trait_args(def, args, self_ty),
+            args,
             bindings,
         }))
     }
@@ -1432,7 +1490,18 @@ impl Lower<'_, '_, '_> {
             }
             return Ty::POISON;
         };
-        let (args, _, row) = self.type_args(n, gn);
+        let (args, bindings, row) = self.type_args(n, gn);
+        // Only a trait has associated types (trait.binding.non-trait).
+        if matches!(kind, HeadKind::Data | HeadKind::Enum | HeadKind::Newtype)
+            && let Some((name, _)) = bindings.first()
+        {
+            let msg = format!(
+                "`{}` is not a trait, so it has no associated type `{}`",
+                self.names.display_name(def),
+                self.names.text(*name)
+            );
+            self.diags.error(Code::UnknownAssociatedType, span, &msg);
+        }
         self.ctor(def, (kind, gn), &args, row, span)
     }
 
@@ -1539,7 +1608,9 @@ impl Lower<'_, '_, '_> {
                 let Some(c) = Src::child(n, SyntaxKind::NamedType) else {
                     return Ty::POISON;
                 };
-                self.trait_value(c, gn, None).unwrap_or(Ty::POISON)
+                self.trait_value(c, gn, None).map_or(Ty::POISON, |t| {
+                    crate::assoc::with_super_bindings(self.names.pool.types(), self.r, t)
+                })
             }
             SyntaxKind::FunctionType => {
                 let arrow = n
@@ -1600,19 +1671,39 @@ impl Lower<'_, '_, '_> {
                 if let Some((_, _, bounds)) = gn.tys.iter().find(|(_, t, _)| *t == base) {
                     cands.extend(bounds.iter().copied());
                 }
-                let tr = cands
-                    .iter()
-                    .copied()
-                    .find(|(tr, _)| self.r.trait_has_assoc(*tr, name))
-                    .or_else(|| cands.first().copied());
-                let Some((trait_, args)) = tr else {
+                // The projection names the trait that declares the
+                // associated type, which a bound may reach through its
+                // supertraits (trait-solver.md §4.1).
+                let mut decls: Vec<(DefId, TyList, DefId)> = Vec::new();
+                for &(tr, a) in &cands {
+                    for d in self.assoc_decls(tr, a, Some(base), name) {
+                        if !decls.iter().any(|x| x.2 == d.2) {
+                            decls.push(d);
+                        }
+                    }
+                }
+                if decls.len() > 1 {
+                    let msg = format!(
+                        "`{}` names an associated type that two bounds declare",
+                        self.names.text(name)
+                    );
+                    self.diags
+                        .error(Code::AmbiguousAssociatedType, self.src.span(n), &msg);
+                }
+                let found = decls.first().copied().or_else(|| {
+                    cands.first().map(|&(tr, a)| {
+                        let d = self
+                            .names
+                            .member(tr, PathKind::Member, self.names.text(name));
+                        (tr, a, d)
+                    })
+                });
+                let Some((trait_, args, assoc)) = found else {
                     self.gap("a projection on a type without a bound naming it");
                     return Ty::POISON;
                 };
                 pool.intern_ty(&TyData::Assoc {
-                    assoc: self
-                        .names
-                        .member(trait_, PathKind::Member, self.names.text(name)),
+                    assoc,
                     trait_,
                     self_ty: base,
                     args,
@@ -2491,6 +2582,34 @@ impl Lower<'_, '_, '_> {
         (self_ty, gn, generics)
     }
 
+    /// A trait declaration's supertrait list, as trait-value types over
+    /// its `Self`.
+    fn supers(&mut self, n: NodeRef<'_>, gn: &Gen, self_ty: Ty) -> Vec<Ty> {
+        let mut supers = Vec::new();
+        if let Some(bl) = Src::child(n, SyntaxKind::BoundList) {
+            for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
+                if let Some(t) = self.trait_value(b, gn, Some(self_ty)) {
+                    supers.push(t);
+                }
+            }
+        }
+        supers
+    }
+
+    /// The declarations of the associated type `name` that `tr[args]`
+    /// declares or reaches through its supertraits
+    /// (`assoc::assoc_decls`).
+    fn assoc_decls(
+        &self,
+        tr: DefId,
+        args: TyList,
+        self_ty: Option<Ty>,
+        name: Symbol,
+    ) -> Vec<(DefId, TyList, DefId)> {
+        let pool = self.names.pool.types();
+        crate::assoc::assoc_decls(pool, self.r, tr, args, self_ty, self.names.text(name))
+    }
+
     fn item(&mut self, h: &Head<'_>, out: &mut Vec<Item>) {
         let n = h.node;
         // The local declarations in scope are those visible where this one
@@ -2584,14 +2703,7 @@ impl Lower<'_, '_, '_> {
                         }
                     }
                 }
-                let mut supers = Vec::new();
-                if let Some(bl) = Src::child(n, SyntaxKind::BoundList) {
-                    for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
-                        if let Some(t) = self.trait_value(b, &gn, Some(self_ty)) {
-                            supers.push(t);
-                        }
-                    }
-                }
+                let supers = self.supers(n, &gn, self_ty);
                 self.duplicate_members(block);
                 let (methods, assoc_decls) = self.members(block, h.def, h.public, &gn, out);
                 let mut assoc = Vec::new();
@@ -3385,6 +3497,7 @@ pub fn build_folder(
         aliases: RefCell::new(HashMap::new()),
         seeds: HashMap::new(),
         own_traits: HashMap::new(),
+        own_supers: HashMap::new(),
     };
     for (m, hs) in mods.iter().zip(&all_heads) {
         for h in hs {
@@ -3480,6 +3593,10 @@ pub fn build_folder(
         })
         .collect();
     r.own_traits = own_trait_generics(&r, mods, &all_heads, &scopes);
+    // Twice: the first round finds each supertrait; the second resolves
+    // the bindings that name a supertrait's supertrait's associated type.
+    r.own_supers = own_trait_supers(&r, mods, &all_heads, &scopes);
+    r.own_supers = own_trait_supers(&r, mods, &all_heads, &scopes);
     let (alias_items, alias_gap) = lower_aliases(&r, mods, &all_heads, &mut scopes, diags);
     let mut unsupported = alias_gap;
     for (((m, hs), s), mut items) in mods.iter().zip(&all_heads).zip(scopes).zip(alias_items) {
@@ -3673,6 +3790,43 @@ fn own_trait_generics(
             };
             let (_, _, generics) = low.trait_generics(h);
             out.entry(h.def).or_insert(generics);
+        }
+    }
+    out
+}
+
+/// The supertraits of the traits of `mods` (`Resolver::own_supers`).
+fn own_trait_supers(
+    r: &Resolver<'_, '_>,
+    mods: &[ModIn<'_>],
+    all_heads: &[Vec<Head<'_>>],
+    scopes: &[ModScopes],
+) -> HashMap<DefId, Vec<Ty>> {
+    let mut out = HashMap::new();
+    let mut scratch = DiagBuf::default();
+    for ((m, hs), s) in mods.iter().zip(all_heads).zip(scopes) {
+        let locals = local_items(hs);
+        for h in hs.iter().filter(|h| h.kind == HeadKind::Trait) {
+            let scope = match (h.test, &s.tests) {
+                (Some(_), Some(tests)) => tests,
+                _ => &s.scope,
+            };
+            let mut low = Lower {
+                r,
+                names: r.cx.names,
+                src: m.src,
+                module: &m.path,
+                scope,
+                kinds: &s.kinds,
+                diags: &mut scratch,
+                unsupported: None,
+                locals: &locals,
+                at: m.src.span(h.node).lo,
+                outer: Vec::new(),
+            };
+            let (self_ty, gn, _) = low.trait_generics(h);
+            let supers = low.supers(h.node, &gn, self_ty);
+            out.entry(h.def).or_insert(supers);
         }
     }
     out

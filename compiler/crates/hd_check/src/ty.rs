@@ -247,10 +247,6 @@ impl Ck<'_, '_> {
             }
         }
         if self.kind_of_item(def) == Some(HeadKind::Trait) {
-            let bindings = bound
-                .into_iter()
-                .map(|(name, t)| (self.cx.names.member(def, PathKind::Member, &name), t))
-                .collect();
             // A written trait value omits its defaulted trailing arguments
             // (`types.generic.default.written`); no `Self` is known here.
             let args = match self.cx.lookup.item(def) {
@@ -263,11 +259,34 @@ impl Ck<'_, '_> {
                 ),
                 None => pool.list(&args),
             };
-            return Ok(pool.intern_ty(&TyData::TraitValue {
+            // A binding names the associated type the trait declares or
+            // reaches through its supertraits (trait.binding.name-reach),
+            // as header lowering resolves it.
+            let view = hd_resolve::assoc::LookupView {
+                lookup: self.cx.lookup,
+                names: &self.cx.names,
+            };
+            let (bindings, bad) =
+                hd_resolve::assoc::resolve_bindings(pool, &view, (def, args, None), bound);
+            for b in bad {
+                let (code, how) = if b.ambiguous {
+                    (Code::AmbiguousAssociatedType, "two associated types")
+                } else {
+                    (Code::UnknownAssociatedType, "no associated type")
+                };
+                let msg = format!(
+                    "`{}` reaches {how} named `{}`",
+                    self.cx.names.display_name(def),
+                    b.name
+                );
+                self.err(code, n, &msg);
+            }
+            let t = pool.intern_ty(&TyData::TraitValue {
                 def,
                 args,
                 bindings,
-            }));
+            });
+            return Ok(t);
         }
         if def == self.cx.names.known.map
             && let Some(k) = args.first()
@@ -446,7 +465,14 @@ impl Ck<'_, '_> {
                 })
             }
             SyntaxKind::DynType => match Src::child(n, SyntaxKind::NamedType) {
-                Some(c) => self.named_ty(c)?,
+                Some(c) => {
+                    let t = self.named_ty(c)?;
+                    let view = hd_resolve::assoc::LookupView {
+                        lookup: self.cx.lookup,
+                        names: &self.cx.names,
+                    };
+                    hd_resolve::assoc::with_super_bindings(pool, &view, t)
+                }
                 None => return unsupported("this `dyn` form"),
             },
             SyntaxKind::FunctionType => {
