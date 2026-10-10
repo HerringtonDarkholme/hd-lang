@@ -2364,6 +2364,16 @@ impl Lower<'_, '_, '_> {
             self.diags
                 .error(Code::SealedTraitImplementation, self.src.span(n), &msg);
         }
+        if self.r.frozen.is_none() {
+            let head = ImplHead {
+                has_trait: trait_node.is_some(),
+                by: by.is_some(),
+                target,
+                trait_args,
+                self_ty,
+            };
+            self.impl_head_rules(h, &generics, &head);
+        }
         let bare_param = matches!(pool.get(self_ty), TyData::Param(p) if p.owner == h.def);
         let tuple_bound = bare_param
             && generics
@@ -2445,6 +2455,114 @@ impl Lower<'_, '_, '_> {
         );
         it.generics = generics;
         out.push(it);
+    }
+
+    /// What an implementation head must satisfy: no trait value type or
+    /// row extension as a target (`trait.target.trait-value.error`,
+    /// `trait.target.row-argument.extension`), no inherent target that is a
+    /// tuple or a transparent alias (`trait.own.inherent.tuple-alias`), and
+    /// every type parameter constrained by the head
+    /// (`trait.overlap.constrained-head`, `trait.overlap.head-projection`).
+    fn impl_head_rules(&mut self, h: &Head<'_>, generics: &[Generic], head: &ImplHead<'_>) {
+        let pool = self.names.pool;
+        let span = self.src.span(h.node);
+        let args: Vec<Ty> = pool.list_items(head.trait_args).to_vec();
+        let roots: Vec<Ty> = args.iter().copied().chain([head.self_ty]).collect();
+        if head.has_trait && matches!(pool.get(head.self_ty), TyData::TraitValue { .. }) {
+            self.diags.error(
+                Code::TraitValueImplTarget,
+                self.src.span(head.target),
+                "a trait value type is never an implementation target",
+            );
+        }
+        if !head.has_trait && !head.by {
+            // A primitive name is no alias, whatever the prelude binds it to.
+            let segs = self.segments(head.target);
+            let alias = head.target.kind() == SyntaxKind::NamedType
+                && matches!(segs.as_slice(), [(first, _)]
+                    if !Prim::ALL.iter().any(|p| p.name() == first)
+                        && self.resolve_path(&segs, span).is_some_and(|(_, k)| k == HeadKind::Alias));
+            if alias || matches!(pool.get(head.self_ty), TyData::Tuple { .. }) {
+                self.diags.error(
+                    Code::InvalidImplTarget,
+                    span,
+                    "an inherent implementation cannot target a tuple or a transparent alias",
+                );
+            }
+        }
+        if roots.iter().any(|t| {
+            ty_any(pool, *t, &mut |d| match d {
+                TyData::Fn { row, .. } | TyData::Row(row) => {
+                    let r = pool.row_data(row);
+                    !r.params.is_empty() && !r.keys.is_empty()
+                }
+                _ => false,
+            })
+        }) {
+            self.diags.error(
+                Code::InvalidImplTarget,
+                span,
+                "a row argument in an implementation head cannot extend a row parameter",
+            );
+        }
+        let own = |d: &TyData| matches!(d, TyData::Param(p) if p.owner == h.def);
+        let projects = roots.iter().any(|t| {
+            ty_any(pool, *t, &mut |d| {
+                matches!(d, TyData::Assoc { self_ty, .. } if ty_any(pool, self_ty, &mut |x| own(&x)))
+            })
+        });
+        if projects {
+            self.diags.error(
+                Code::UnconstrainedImplParameter,
+                span,
+                "an implementation head cannot project one of its type parameters",
+            );
+            return;
+        }
+        let mut constrained: HashSet<u16> = HashSet::new();
+        let note = |t: Ty, set: &mut HashSet<u16>| {
+            ty_any(pool, t, &mut |d| {
+                if let TyData::Param(p) = d
+                    && p.owner == h.def
+                {
+                    set.insert(p.index);
+                }
+                false
+            });
+        };
+        for t in &roots {
+            note(*t, &mut constrained);
+        }
+        // An associated-type binding in the bound of a constrained
+        // parameter constrains the parameter it names.
+        loop {
+            let before = constrained.len();
+            for (i, g) in generics.iter().enumerate() {
+                if g.row || !constrained.contains(&u16::try_from(i).unwrap_or(u16::MAX)) {
+                    continue;
+                }
+                for b in &g.bounds {
+                    if let TyData::TraitValue { bindings, .. } = pool.get(*b) {
+                        for (_, t) in bindings {
+                            note(t, &mut constrained);
+                        }
+                    }
+                }
+            }
+            if constrained.len() == before {
+                break;
+            }
+        }
+        for (i, g) in generics.iter().enumerate() {
+            if !g.row && !constrained.contains(&u16::try_from(i).unwrap_or(u16::MAX)) {
+                let msg = format!(
+                    "the type parameter `{}` appears in neither the trait arguments nor the target",
+                    self.names.text(g.name)
+                );
+                self.diags
+                    .error(Code::UnconstrainedImplParameter, span, &msg);
+            }
+        }
     }
 
     /// `@derive(X, ...)`: the head `impl[T < X, ...] X for D[T, ...]`
@@ -3130,6 +3248,53 @@ fn lower_aliases(
         }
     }
     (out, unsupported)
+}
+
+/// The written head of an implementation, as `impl_head_rules` reads it.
+struct ImplHead<'t> {
+    has_trait: bool,
+    by: bool,
+    target: NodeRef<'t>,
+    trait_args: TyList,
+    self_ty: Ty,
+}
+
+/// Whether `pred` holds of `t` or of any type inside it.
+fn ty_any(pool: &InternPool, t: Ty, pred: &mut dyn FnMut(TyData) -> bool) -> bool {
+    let d = pool.get(t);
+    if pred(d.clone()) {
+        return true;
+    }
+    let mut kids: Vec<Ty> = Vec::new();
+    match d {
+        TyData::Adt { args, .. } => kids.extend(pool.list_items(args)),
+        TyData::Tuple { elems, rest } => {
+            kids.extend(pool.list_items(elems));
+            kids.extend(rest);
+        }
+        TyData::Option(i) | TyData::Mut(i) => kids.push(i),
+        TyData::Fn {
+            params,
+            result,
+            row,
+            ..
+        } => {
+            kids.extend(pool.list_items(params));
+            kids.push(result);
+            kids.extend(pool.row_data(row).keys.iter());
+        }
+        TyData::TraitValue { args, bindings, .. } => {
+            kids.extend(pool.list_items(args));
+            kids.extend(bindings.iter().map(|b| b.1));
+        }
+        TyData::Assoc { self_ty, args, .. } => {
+            kids.push(self_ty);
+            kids.extend(pool.list_items(args));
+        }
+        TyData::Row(r) | TyData::Context(r) => kids.extend(pool.row_data(r).keys.iter()),
+        _ => {}
+    }
+    kids.into_iter().any(|k| ty_any(pool, k, pred))
 }
 
 /// `trait.super.acyclic`, `trait.super.cycle-report`: the supertrait graph

@@ -1096,3 +1096,59 @@ fn supertraits_form_no_cycle() {
         assert_eq!(item_codes(bad), [Code::SupertraitCycle], "{bad}");
     }
 }
+
+/// An implementation head names no trait value type or row extension as
+/// its target, an inherent one no tuple or alias, and each of its type
+/// parameters is constrained by the head (`trait.target.trait-value.error`,
+/// `trait.target.row-argument.extension`, `trait.own.inherent.tuple-alias`,
+/// `trait.overlap.constrained-head`, `trait.overlap.head-projection`).
+#[test]
+fn implementation_heads_are_well_formed() {
+    const HEAD: &str = "use std.function.Fn\n\n\
+        trait Marker\n\
+        trait Log:\n    fn write(self, text: string) -> void\n\
+        trait Holder[T]:\n    fn get(self) -> T\n\
+        trait Store:\n    type Item\n    fn first(self) -> Self::Item\n\
+        trait Summary:\n    fn summary(self) -> string\n\
+        data User:\n    name: string\n\
+        data Feed[I]:\n    items: I\n\
+        type Person = User\n";
+    for ok in [
+        "impl User:\n    fn label(self) -> string: self.name",
+        "impl[T < Display] Summary for Feed[T]:\n    fn summary(self) -> string: \"x\"",
+        "impl[T < Display, I < Store[Item = T]] Summary for Feed[I]:\n    fn summary(self) -> string: \"x\"",
+        "impl[$ R] Marker for Fn[(), i32, $ R]",
+        "impl Marker for List[dyn Display]",
+    ] {
+        assert_eq!(item_codes(&format!("{HEAD}\n{ok}\n")), [], "{ok}");
+    }
+    for (bad, code) in [
+        ("impl Marker for dyn Display", Code::TraitValueImplTarget),
+        (
+            "impl (i32, i32):\n    fn sum(self) -> i32: self._0",
+            Code::InvalidImplTarget,
+        ),
+        (
+            "impl Person:\n    fn label(self) -> string: self.name",
+            Code::InvalidImplTarget,
+        ),
+        (
+            "impl[$ R] Marker for Fn[(), i32, $ R + Log]",
+            Code::InvalidImplTarget,
+        ),
+        (
+            "impl[T < Display, I < Holder[T]] Summary for Feed[I]:\n    fn summary(self) -> string: \"x\"",
+            Code::UnconstrainedImplParameter,
+        ),
+        (
+            "impl[T < Display] Summary for User:\n    fn summary(self) -> string: \"x\"",
+            Code::UnconstrainedImplParameter,
+        ),
+        (
+            "impl[I < Store] Summary for Feed[I::Item]:\n    fn summary(self) -> string: \"x\"",
+            Code::UnconstrainedImplParameter,
+        ),
+    ] {
+        assert_eq!(item_codes(&format!("{HEAD}\n{bad}\n")), [code], "{bad}");
+    }
+}
