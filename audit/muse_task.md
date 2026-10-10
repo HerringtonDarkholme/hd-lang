@@ -43,7 +43,62 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-(none — queue empty)
+### M13. Design: Typed Derivation Lowering (#253, Design Text)
+
+Nine valid fixtures fail because `std/structure/Structure.walk`,
+`facts`, `describe` and `build` are body-less and not intrinsics in the
+Rust compiler (`derive-members-of-data-and-enums`, `typed-derivation-walk`,
+`serde-derive-read-order`, `json-typed-members`, `derived-arbitrary-with`,
+`derived-default-*`, `serde-variant-member-facts`). Read
+`spec/lang/14-annotations.md` (Typed Derivation), `lib/std/structure.hd`,
+how the TS prototype lowers them, and the Rust checker and mono crates.
+Design the Rust lowering: which stage generates the per-type bodies, what
+they look like in TIR, how they stay cached per type, and the footprint
+cost for a program that derives nothing. Output:
+`future-work/compiler/typed-derivation.md`. No code changes.
+
+### M14. Design: Package Identity In The Driver (#279, Design Text)
+
+Two packages with one manifest name collide with `duplicate-module-name`:
+two compatibility lines of one package (`json` and `json_v1`,
+module.dep.two-lines) and a fetched version beside a same-named workspace
+member (module.workspace.fetched-member.two). Read `hd_driver`,
+`hd_resolve`, `hd_cli/src/disk.rs` and `hd_deps`. Design keying packages
+by identity (host path and version, or local path) instead of name:
+module paths, cache keys, diagnostics that name a package, and the
+`dep.KEY` import root. Price the change. Output: a section in
+`future-work/compiler/design-overview.md` or a new
+`future-work/compiler/package-identity.md`. No code changes.
+
+### M15. Design: Resource Limits On wasmtime (#269, Design Text)
+
+The spec's Resource Limits section (program limits, compiler memory) has
+nothing built. W1 (`hd_run_wasmtime`, engines-and-test-runner.md §18.7)
+sets epoch interruption with a far deadline and a fixed stack. Design
+`--time-limit`, `--max-heap` and the other program limits through
+wasmtime (epoch deadlines, `ResourceLimiter`, GC heap caps) and the
+compiler-memory rule, with the panic or error each limit produces and how
+the Node path behaves until W5. Output: a section in
+`engines-and-test-runner.md`. No code changes.
+
+### M16. Design: `hd fix` And `hd cache gc` (#267, #268, Design Text)
+
+Read the spec's Rewriting Source / Fixing and Compiled Cache sections,
+the fix-its the Rust checker already attaches (`hd_cli/src/report.rs`
+`Fix`), and the compiled cache in `hd_cache`. Design both commands: which
+fix-its are safe, how edits are applied without conflicts, the cache
+size cap and eviction order, and the CLI cases each must pass. Output:
+`future-work/compiler/fix-and-cache-gc.md`. No code changes.
+
+### M17. Triage The M12 Probe Divergences Into Tasks (Research)
+
+Your M12 section of `audit/compiler/gap-audit-2026-10-10.md` lists
+divergences for chapters 04-07. Group every (a) and (b) item into
+feature-sized fixes with the crate and function where each belongs and a
+size estimate, and name the existing task each joins (#203-#214,
+#252-#279) or say it needs a new one. Then probe chapters 08-11 the same
+way and append their section. Output: appended to the gap audit. No
+code changes.
 
 ## Questions
 
