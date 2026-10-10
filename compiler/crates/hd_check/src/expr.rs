@@ -1615,6 +1615,11 @@ impl Ck<'_, '_> {
                 self.err(Code::UnknownDataField, *a, &msg);
                 continue;
             };
+            // `data.literal.duplicate`: a field is given once.
+            if seen[i] {
+                let msg = format!("the field `{}` is given twice", self.cx.names.text(fname));
+                self.err(Code::DuplicateField, *a, &msg);
+            }
             let ft = inst(fields[i].ty);
             let (r, t) = if let Some(e) = a.children().next() {
                 self.expr(e, Some(ft))?

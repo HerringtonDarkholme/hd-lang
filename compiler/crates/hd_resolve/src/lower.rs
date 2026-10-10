@@ -30,6 +30,7 @@ use crate::known::KnownItems;
 use crate::variance::{self, Seen};
 use crate::view::Src;
 
+mod decls;
 mod decorators;
 use crate::{Binding, BindingKind, ModuleScope, Origin};
 
@@ -318,6 +319,16 @@ fn decl_kind(src: &Src<'_>, n: NodeRef<'_>) -> Option<(HeadKind, TokenKind)> {
         }
         SyntaxKind::ImplDecl => (HeadKind::Impl, TokenKind::KwImpl),
         _ => return None,
+    })
+}
+
+/// The name token of a member of a trait, an implementation or a block: a
+/// function or an associated type.
+fn member_name(src: &Src<'_>, f: NodeRef<'_>) -> Option<hd_base::TokenIdx> {
+    f.name(&src.parse.tokens).or_else(|| {
+        (f.kind() == SyntaxKind::FnDecl)
+            .then(|| src.name_after(f, TokenKind::KwFn))
+            .flatten()
     })
 }
 
@@ -834,6 +845,12 @@ fn test_scope_of(
             .map(|&row| scope.origin[row as usize]);
         if matches!(outside, Some(Origin::Own | Origin::Use | Origin::PubUse)) {
             let msg = format!("the module already declares `{name}` outside its `tests:` block");
+            diags.error(Code::DuplicateModuleName, span, &msg);
+            continue;
+        }
+        // And no module name twice inside it (`names.module.unique`).
+        if inner.lookup(h.name).is_some() {
+            let msg = format!("`{name}` is already declared in the `tests:` block");
             diags.error(Code::DuplicateModuleName, span, &msg);
             continue;
         }
@@ -1849,6 +1866,20 @@ impl Lower<'_, '_, '_> {
             if self.r.frozen.is_none() {
                 self.prelude_shadow(*g, self.src.text(t));
             }
+            // No type parameter reuses the name of one in scope: an
+            // enclosing implementation's or trait's, or an earlier one of
+            // this list (`names.type-param.no-redeclare`).
+            if self.r.frozen.is_none()
+                && (gn.tys.iter().any(|(s, _, _)| *s == name)
+                    || gn.rows.iter().any(|(s, _)| *s == name))
+            {
+                let msg = format!(
+                    "`{}` is already a type parameter in scope",
+                    self.src.text(t)
+                );
+                self.diags
+                    .error(Code::DuplicateBinding, self.src.span(*g), &msg);
+            }
             let index = offset + u16::try_from(i).unwrap_or(u16::MAX);
             let row = g
                 .direct_token(&self.src.parse.tokens, TokenKind::Dollar)
@@ -2173,6 +2204,83 @@ impl Lower<'_, '_, '_> {
         }
     }
 
+    /// The field nodes under `holder`, in the order [`Self::fields`] lowers
+    /// them.
+    fn field_nodes(holder: Option<NodeRef<'_>>) -> impl Iterator<Item = NodeRef<'_>> {
+        holder.into_iter().flat_map(NodeRef::children).filter(|c| {
+            matches!(
+                c.kind(),
+                SyntaxKind::DataField | SyntaxKind::Parameter | SyntaxKind::EmbeddedField
+            )
+        })
+    }
+
+    /// A data type's field names are unique (`data.field.unique`,
+    /// `data.embed.unique`).
+    fn data_fields(&mut self, holder: Option<NodeRef<'_>>, fields: &[Field]) {
+        let mut first: HashMap<Symbol, usize> = HashMap::new();
+        for (i, (node, f)) in Self::field_nodes(holder).zip(fields).enumerate() {
+            let span = self.src.span(node);
+            let name = self.names.text(f.name).to_owned();
+            if let Some(&j) = first.get(&f.name) {
+                let code = if f.embedded || fields[j].embedded {
+                    Code::DuplicateEmbeddedField
+                } else {
+                    Code::DuplicateField
+                };
+                let msg = format!("the field `{name}` is declared twice");
+                self.diags.error(code, span, &msg);
+            } else {
+                first.insert(f.name, i);
+            }
+        }
+    }
+
+    /// An enum's variants are unique (`data.enum.unique`), and a variant's
+    /// named payload parameter does not repeat a named shared parameter
+    /// (`data.shared.payload-names`).
+    fn enum_names(
+        &mut self,
+        shared: &[Field],
+        shared_node: Option<NodeRef<'_>>,
+        block: Option<NodeRef<'_>>,
+    ) {
+        let shared_named: HashSet<Symbol> = Self::field_nodes(shared_node)
+            .zip(shared)
+            .filter(|(n, _)| n.name(&self.src.parse.tokens).is_some())
+            .map(|(_, f)| f.name)
+            .collect();
+        let mut seen = HashSet::new();
+        for v in block
+            .iter()
+            .flat_map(|b| b.children())
+            .filter(|c| c.kind() == SyntaxKind::EnumVariant)
+        {
+            let Some(t) = v.name(&self.src.parse.tokens) else {
+                continue;
+            };
+            let text = self.src.text(t).to_owned();
+            if !seen.insert(text.clone()) {
+                let msg = format!("the variant `{text}` is declared twice");
+                self.diags
+                    .error(Code::DuplicateVariant, self.src.span(v), &msg);
+            }
+            for p in Self::field_nodes(Src::child(v, SyntaxKind::ParameterList)) {
+                let Some(pt) = p.name(&self.src.parse.tokens) else {
+                    continue;
+                };
+                let name = self.src.text(pt).to_owned();
+                if shared_named.contains(&self.sym(&name)) {
+                    let msg = format!(
+                        "the payload parameter `{name}` repeats a shared parameter of the enum"
+                    );
+                    self.diags
+                        .error(Code::DuplicateField, self.src.span(p), &msg);
+                }
+            }
+        }
+    }
+
     /// A declaration's declared parameter variances (types.variance.list,
     /// types.variance.map for the built-in collections).
     fn variances(&self, def: DefId) -> Vec<i8> {
@@ -2350,10 +2458,7 @@ impl Lower<'_, '_, '_> {
         for f in block.iter().flat_map(|b| b.children()) {
             match f.kind() {
                 SyntaxKind::FnDecl => {
-                    let Some(t) = f
-                        .name(&self.src.parse.tokens)
-                        .or_else(|| self.src.name_after(f, TokenKind::KwFn))
-                    else {
+                    let Some(t) = member_name(&self.src, f) else {
                         continue;
                     };
                     let text = self.src.text(t).to_owned();
@@ -2405,10 +2510,7 @@ impl Lower<'_, '_, '_> {
             ) {
                 continue;
             }
-            let Some(t) = f
-                .name(&self.src.parse.tokens)
-                .or_else(|| self.src.name_after(f, TokenKind::KwFn))
-            else {
+            let Some(t) = member_name(&self.src, f) else {
                 continue;
             };
             let text = self.src.text(t).to_owned();
@@ -2993,6 +3095,16 @@ impl Lower<'_, '_, '_> {
         if let Some(bl) = Src::child(n, SyntaxKind::BoundList) {
             for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
                 if let Some(t) = self.trait_value(b, gn, Some(self_ty)) {
+                    // A supertrait bound lists a trait once
+                    // (`trait.super.unique`).
+                    if self.r.frozen.is_none() && supers.contains(&t) {
+                        let msg = format!(
+                            "the supertrait `{}` is listed twice",
+                            show_ty(&self.names, t)
+                        );
+                        self.diags
+                            .error(Code::DuplicateSupertrait, self.src.span(b), &msg);
+                    }
                     supers.push(t);
                 }
             }
@@ -3043,6 +3155,7 @@ impl Lower<'_, '_, '_> {
                 let fields = self.fields(block, &gn);
                 if self.r.frozen.is_none() {
                     self.field_variance(h.def, &generics, block, &fields);
+                    self.data_fields(block, &fields);
                 }
                 self.derived(h, &generics, out);
                 self.error_impls(h, &generics, &[fields.as_slice()], out);
@@ -3068,6 +3181,7 @@ impl Lower<'_, '_, '_> {
                 if check {
                     let holder = Src::child(n, SyntaxKind::ParameterList);
                     self.field_variance(h.def, &generics, holder, &shared);
+                    self.enum_names(&shared, holder, block);
                 }
                 let mut variants = Vec::new();
                 for v in block
@@ -4241,6 +4355,7 @@ pub fn build_folder(
             };
             low.check_module_decorators(&items, &o.blocks);
         }
+        decls::check(&r, mods, &all_heads, &out.modules, diags);
         let mut seen = HashSet::new();
         for (m, us) in mods.iter().zip(&all_uses) {
             let mut publics: Vec<Symbol> = r

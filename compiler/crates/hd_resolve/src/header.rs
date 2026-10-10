@@ -128,7 +128,7 @@ impl<'a> Universe<'a> {
         (!members.is_empty()).then_some((p, members))
     }
 
-    fn unify(
+    pub(crate) fn unify(
         &self,
         a: Ty,
         b: Ty,
