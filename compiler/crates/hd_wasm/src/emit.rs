@@ -7,13 +7,15 @@
 
 use std::collections::HashMap;
 
-use hd_base::{DefId, Hash128, StableHasher, StageResult};
+use hd_base::{DefId, Hash128, NodeIdx, StableHasher, StageResult};
 use hd_mono::layout::{CanonMemo, canon, inline_map_key};
 use hd_mono::{
     CallTarget, INFO, ProgramEnv, Target, TargetKind, VTable, erased_args, key_order, subst,
     thunk_operands, witness_args, witness_family,
 };
-use hd_tir::ir::{Body, Callee, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags};
+use hd_tir::ir::{
+    Body, BodyKind, Callee, ChoiceKind, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags,
+};
 use hd_types::{Inputs, InternPool, Prim, RowId, Ty, TyData, TyList};
 
 use crate::asm::Asm;
@@ -4935,7 +4937,12 @@ pub fn emit_adapter(
         _ => return unsupported("a function reference that collection did not resolve"),
     };
     if t.kind != TargetKind::Instance {
-        return unsupported("a function reference to a compiler lowering");
+        let callee = Callee::Item {
+            def: item,
+            targs: args,
+        };
+        let keys = env.row_keys(item, args);
+        return emit_call_adapter(&lay, item, args, Target::Call(t.clone()), &callee, &keys);
     }
     let (cps, crs) = adapter_code(&lay, item, args)?;
     let mut want = Vec::new();
@@ -4971,6 +4978,85 @@ pub fn emit_adapter(
     a.call(Sym::Inst(t.key));
     convert_results(&mut a, &got, &crs);
     Ok(a.finish(crs))
+}
+
+/// A function reference's adapter to a target the compiler lowers at each
+/// call: an intrinsic, a built-in family's method, or a trait method at a
+/// trait-value `Self`. The adapter is the call itself, as a body of one
+/// `Call` whose operands are the parameters, so the reference lowers
+/// exactly as a direct call at the same types does (codegen.md §13.11).
+/// The closure's parameters are the call's operands, receiver first;
+/// `keys` are the row keys the call's providers come from, which the
+/// adapter takes from the context its caller passed.
+fn emit_call_adapter(
+    lay: &Lay,
+    item: DefId,
+    args: TyList,
+    target: Target,
+    callee: &Callee,
+    keys: &[Ty],
+) -> StageResult<Code> {
+    let (pool, env) = (lay.pool, lay.env);
+    let (cps, crs) = adapter_code(lay, item, args)?;
+    let ptys = env.params(item).unwrap_or_default();
+    let n = u32_of(ptys.len());
+    let mut b = Body::new(item, BodyKind::Fn);
+    // One placeholder instruction per parameter, then the call.
+    for p in &ptys {
+        b.tags.push(Tag::Poison);
+        b.data.push([NONE, NONE]);
+        b.ty.push(*p);
+        b.syn.push(NodeIdx::NONE);
+    }
+    let callee = callee.words();
+    let callee_at = u32_of(b.extra.len());
+    b.extra.push(u32_of(callee.len()));
+    b.extra.extend(callee);
+    // The operands, then the three words of a call's providers.
+    let args_at = u32_of(b.extra.len());
+    b.extra.push(n + 3);
+    b.extra.extend(0..n);
+    b.extra.extend([0, 0, 0]);
+    let ret = env.ret(item).unwrap_or(Ty::VOID);
+    b.tags.push(Tag::Call);
+    b.data.push([callee_at, args_at]);
+    b.ty.push(ret);
+    b.syn.push(NodeIdx::NONE);
+    let calls = HashMap::from([(n, target)]);
+    let mut em = Em::new(
+        Lay::new(pool, env, lay.path, lay.shared),
+        &b,
+        args,
+        &calls,
+        Hash128(0),
+        Asm::new(cps.clone()),
+        crs.clone(),
+    );
+    let mut next = 1;
+    for (j, p) in ptys.iter().enumerate() {
+        let vts = em.vts(em.sub(*p))?;
+        let ls: Vec<u32> = (next..next + u32_of(vts.len())).collect();
+        next += u32_of(vts.len());
+        em.vals.insert(u32_of(j), (ls, vts));
+    }
+    if next + 2 != u32_of(cps.len()) {
+        return unsupported("a function reference whose call has another shape");
+    }
+    let (keys_at, provs_at) = (next, next + 1);
+    for k in keys {
+        let vt = em.lay.key_vtable(*k)?;
+        let ls = ctx_provider(&mut em.a, pool, env, *k, &vt, keys_at, provs_at);
+        em.providers.push((*k, ls));
+    }
+    em.ctrl.push(Ctl::Plain);
+    // The call's result is the closure's: a suspending item's call is its
+    // cold constructor, whose frame the closure returns
+    // (`fn.ref.suspending`), not a value of the declared result type.
+    let ls: Vec<u32> = crs.iter().map(|v| em.a.local(v.clone())).collect();
+    em.vals.insert(n, (ls, crs.clone()));
+    em.call(n, callee_at, args_at, em.sub(ret))?;
+    em.load_as(n, &crs)?;
+    Ok(em.a.finish(crs))
 }
 
 /// The closure code type of a function reference to `item` at `args`:
@@ -5013,8 +5099,8 @@ fn convert_results(a: &mut Asm, got: &[VT], crs: &[VT]) {
 }
 
 /// A function reference to a trait method at a trait-value `Self`, as
-/// `T::name` at `T = dyn Named` (trait.dyn.bound.dispatch): the code
-/// calls the method's slot in the receiver's vtable.
+/// `T::name` at `T = dyn Named` (trait.dyn.bound.dispatch): the call
+/// goes through the method's slot in the receiver's vtable.
 fn emit_dyn_adapter(lay: &Lay, item: DefId, args: TyList) -> StageResult<Code> {
     let (pool, env) = (lay.pool, lay.env);
     let Some((trait_, _)) = env.parent(item) else {
@@ -5024,66 +5110,15 @@ fn emit_dyn_adapter(lay: &Lay, item: DefId, args: TyList) -> StageResult<Code> {
     let Some((&recv, targs)) = all.split_first() else {
         return unsupported("a trait member reference without `Self`");
     };
-    let DynSlot {
-        value_vt,
-        steps,
-        vt,
-        slot,
-        sig,
-        keys,
-        open,
-    } = lay.dyn_slot(recv, trait_, targs, item)?;
-    let WTy::Func(ps, rs) = &sig else {
-        return unsupported("a vtable slot type");
+    let slot = lay.dyn_slot(recv, trait_, targs, item)?;
+    let callee = Callee::TraitMethod {
+        trait_,
+        method: item,
+        self_ty: recv,
+        targs: pool.list(targs),
+        choice: (ChoiceKind::TraitValue, 0),
     };
-    if open.is_some() {
-        return unsupported("a function reference to a generic method through a trait value");
-    }
-    let (cps, crs) = adapter_code(lay, item, args)?;
-    // `(env, payload, vtable, rest..., keys, providers)` against the slot's
-    // `(payload, rest..., providers...)`.
-    let n = cps.len();
-    let rest = ps.len().saturating_sub(1 + 2 * keys.len());
-    if lay.vts(recv)?.len() != 2 || n < 5 || n - 5 != rest || rs.len() != crs.len() {
-        return unsupported("a dynamic function reference whose slot has another shape");
-    }
-    let mut a = Asm::new(cps.clone());
-    // The slot's providers, from the context the caller passed.
-    let mut provs = Vec::new();
-    for k in &keys {
-        let kvt = lay.key_vtable(*k)?;
-        provs.push(ctx_provider(
-            &mut a,
-            pool,
-            env,
-            *k,
-            &kvt,
-            u32_of(n - 2),
-            u32_of(n - 1),
-        ));
-    }
-    let vl = a.local(VT::r(vt.clone()));
-    a.get(2);
-    a.conv(&cps[2], &VT::r(value_vt));
-    for (svt, field) in &steps {
-        a.struct_get(svt, *field);
-    }
-    a.set(vl);
-    a.get(1);
-    a.conv(&cps[1], &ps[0]);
-    for (j, w) in ps[1..=rest].iter().enumerate() {
-        a.get(u32_of(j + 3));
-        a.conv(&cps[j + 3], w);
-    }
-    for [pl, pv] in provs {
-        a.get(pl);
-        a.get(pv);
-    }
-    a.get(vl);
-    a.struct_get(&vt, slot);
-    a.call_ref(&sig);
-    convert_results(&mut a, rs, &crs);
-    Ok(a.finish(crs))
+    emit_call_adapter(lay, item, args, Target::Dyn, &callee, &slot.keys)
 }
 
 /// What a suspending closure's cold constructor binds besides its
