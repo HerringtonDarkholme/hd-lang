@@ -1080,3 +1080,19 @@ fn a_vararg_must_be_the_last_parameter() {
         [Code::NonfinalVararg]
     );
 }
+
+/// The supertrait graph is acyclic, and a cycle is one error
+/// (`trait.super.acyclic`, `trait.super.cycle-report`).
+#[test]
+fn supertraits_form_no_cycle() {
+    assert_eq!(
+        item_codes("trait A:\n    fn a(self) -> void\n\ntrait B < A:\n    fn b(self) -> void\n"),
+        []
+    );
+    for bad in [
+        "trait Loop < Loop:\n    fn step(self) -> void\n",
+        "trait First < Third:\n    fn first(self) -> void\n\ntrait Second < First:\n    fn second(self) -> void\n\ntrait Third < Second:\n    fn third(self) -> void\n",
+    ] {
+        assert_eq!(item_codes(bad), [Code::SupertraitCycle], "{bad}");
+    }
+}
