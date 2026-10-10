@@ -1161,6 +1161,14 @@ impl Lower<'_, '_, '_> {
         for (s, _) in &segs[1..segs.len() - 1] {
             module.push('.');
             module.push_str(s);
+        // A `use` of a module brings in that module alone, not its children
+        // (`module.path.no-child-import`, `module.path.no-std-child-import`);
+        // only a root module's name leads to them.
+        if segs.len() > 2 && module.contains('.') {
+            let msg = format!("`{first}` does not bring in the child modules of `{module}`");
+            self.diags.error(Code::UnknownImport, span, &msg);
+            return None;
+        }
         }
         let (last, _) = segs.last()?;
         match self.r.export(&module, self.sym(last)) {
