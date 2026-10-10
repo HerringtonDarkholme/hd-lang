@@ -1345,62 +1345,63 @@ impl Ck<'_, '_> {
             _ => None,
         };
         let inferred = elem.is_none();
-        let elem = self.join_target(elem);
-        let mut refs = Vec::new();
-        let mut spreads = Vec::new();
-        for (k, e) in kids.iter().enumerate() {
-            if e.kind() == SyntaxKind::ComprehensionFor {
-                return unsupported("a list comprehension");
-            }
-            if e.kind() == SyntaxKind::SpreadExpr {
-                let Some(operand) = e.children().next() else {
-                    return unsupported("a spread without an operand");
-                };
-                let list_ty = pool.intern_ty(&TyData::Adt {
-                    def: list,
-                    args: pool.list(&[elem]),
-                });
-                let (r, t) = self.expr(operand, Some(list_ty))?;
-                // `expr.list.spread.type`: the operand is a list.
-                let Some(item) = self.list_item(self.infer.resolve(pool, t)) else {
-                    if !matches!(self.strip_mut(t), Ty::NEVER | Ty::POISON) {
-                        let msg = format!("in spread: expected a list, found {}", self.show(t));
-                        self.err(Code::TypeMismatch, operand, &msg);
-                    }
-                    return Ok((Ref(NONE), Ty::NEVER));
-                };
-                // `expr.list.spread.expected`, `expr.list.spread.inferred`.
-                if self.coerce(r, item, elem, operand, "list spread") != r {
-                    return unsupported("a list spread that converts its elements");
+        self.join_site(elem, |this, elem| {
+            let mut refs = Vec::new();
+            let mut spreads = Vec::new();
+            for (k, e) in kids.iter().enumerate() {
+                if e.kind() == SyntaxKind::ComprehensionFor {
+                    return unsupported("a list comprehension");
                 }
-                spreads.push(u32::try_from(k).unwrap_or(0));
-                refs.push(r);
-                continue;
+                if e.kind() == SyntaxKind::SpreadExpr {
+                    let Some(operand) = e.children().next() else {
+                        return unsupported("a spread without an operand");
+                    };
+                    let list_ty = pool.intern_ty(&TyData::Adt {
+                        def: list,
+                        args: pool.list(&[elem]),
+                    });
+                    let (r, t) = this.expr(operand, Some(list_ty))?;
+                    // `expr.list.spread.type`: the operand is a list.
+                    let Some(item) = this.list_item(this.infer.resolve(pool, t)) else {
+                        if !matches!(this.strip_mut(t), Ty::NEVER | Ty::POISON) {
+                            let msg = format!("in spread: expected a list, found {}", this.show(t));
+                            this.err(Code::TypeMismatch, operand, &msg);
+                        }
+                        return Ok((Ref(NONE), Ty::NEVER));
+                    };
+                    // `expr.list.spread.expected`, `expr.list.spread.inferred`.
+                    if this.coerce(r, item, elem, operand, "list spread") != r {
+                        return unsupported("a list spread that converts its elements");
+                    }
+                    spreads.push(u32::try_from(k).unwrap_or(0));
+                    refs.push(r);
+                    continue;
+                }
+                let (r, t) = this.expr(*e, Some(elem))?;
+                refs.push(this.coerce(r, t, elem, *e, "list element"));
             }
-            let (r, t) = self.expr(*e, Some(elem))?;
-            refs.push(self.coerce(r, t, elem, *e, "list element"));
-        }
-        // An element type solved from the elements alone is their readonly
-        // view, as before permissions were tracked in inference. This keeps
-        // `typing/invalid/orphan-impl-nested-trait-argument.hd` at one error;
-        // types.fresh.element-permission would keep `mut` (reported).
-        if inferred && let TyData::Mut(x) = pool.get(self.infer.shallow(pool, elem)) {
-            self.infer.rebind(pool, elem, x);
-        }
-        // A fresh list has mutable access to its new outer object
-        // (types.fresh.mutable-outer).
-        let t = pool.intern_ty(&TyData::Adt {
-            def: list,
-            args: pool.list(&[elem]),
-        });
-        let t = pool.intern_ty(&TyData::Mut(t));
-        let rec = self.b.refs_record(&refs);
-        let marks = if spreads.is_empty() {
-            NONE
-        } else {
-            self.b.words_record(&spreads)
-        };
-        Ok((self.b.emit(Tag::NewList, marks, rec, t, n.index()), t))
+            // An element type solved from the elements alone is their readonly
+            // view, as before permissions were tracked in inference. This keeps
+            // `typing/invalid/orphan-impl-nested-trait-argument.hd` at one error;
+            // types.fresh.element-permission would keep `mut` (reported).
+            if inferred && let TyData::Mut(x) = pool.get(this.infer.shallow(pool, elem)) {
+                this.infer.rebind(pool, elem, x);
+            }
+            // A fresh list has mutable access to its new outer object
+            // (types.fresh.mutable-outer).
+            let t = pool.intern_ty(&TyData::Adt {
+                def: list,
+                args: pool.list(&[elem]),
+            });
+            let t = pool.intern_ty(&TyData::Mut(t));
+            let rec = this.b.refs_record(&refs);
+            let marks = if spreads.is_empty() {
+                NONE
+            } else {
+                this.b.words_record(&spreads)
+            };
+            Ok((this.b.emit(Tag::NewList, marks, rec, t, n.index()), t))
+        })
     }
 
     fn map_expr(
@@ -1717,34 +1718,37 @@ impl Ck<'_, '_> {
         } else {
             want
         };
-        let result = self.join_target(want);
-        let tb = self.b.open_block();
-        let (tt, tty) = self.block_value(then_node, Some(result))?;
-        let then = self.b.close_block(tb, tt, tty, then_node.index());
-        let (els, ety) = if let Some(clause) = clause {
-            let eb = self.b.open_block();
-            let (tail, ty) = if let Some(nested) = Src::child(clause, SyntaxKind::IfExpr) {
-                let (r, t) = self.if_expr(nested, Some(result))?;
-                let t = self.infer.shallow(pool, t);
-                if t == Ty::VOID || r.0 == NONE {
-                    (None, t)
+        self.join_site(want, |this, result| {
+            let tb = this.b.open_block();
+            let (tt, tty) = this.block_value(then_node, Some(result))?;
+            let then = this.b.close_block(tb, tt, tty, then_node.index());
+            let (els, ety) = if let Some(clause) = clause {
+                let eb = this.b.open_block();
+                let (tail, ty) = if let Some(nested) = Src::child(clause, SyntaxKind::IfExpr) {
+                    let (r, t) = this.if_expr(nested, Some(result))?;
+                    let t = this.infer.shallow(pool, t);
+                    if t == Ty::VOID || r.0 == NONE {
+                        (None, t)
+                    } else {
+                        // A nested site that restarted wider has a type of
+                        // its own, which then joins this site's.
+                        (Some(this.coerce(r, t, result, nested, "result")), t)
+                    }
                 } else {
-                    (Some(r), t)
-                }
-            } else {
-                let Some(blk) = Src::child(clause, SyntaxKind::Block) else {
-                    return unsupported("an `else` without a block");
+                    let Some(blk) = Src::child(clause, SyntaxKind::Block) else {
+                        return unsupported("an `else` without a block");
+                    };
+                    this.block_value(blk, Some(result))?
                 };
-                self.block_value(blk, Some(result))?
+                (this.b.close_block(eb, tail, ty, clause.index()), ty)
+            } else {
+                (Ref(NONE), Ty::VOID)
             };
-            (self.b.close_block(eb, tail, ty, clause.index()), ty)
-        } else {
-            (Ref(NONE), Ty::VOID)
-        };
-        let both_never = tty == Ty::NEVER && ety == Ty::NEVER;
-        let ty = if both_never { Ty::NEVER } else { result };
-        let rec = self.b.refs_record(&[then, els]);
-        Ok((self.b.emit(Tag::If, c.0, rec, ty, e.index()), ty))
+            let both_never = tty == Ty::NEVER && ety == Ty::NEVER;
+            let ty = if both_never { Ty::NEVER } else { result };
+            let rec = this.b.refs_record(&[then, els]);
+            Ok((this.b.emit(Tag::If, c.0, rec, ty, e.index()), ty))
+        })
     }
 
     /// `while c: body` is `Loop { Block { if c { body } else { break } } }`.

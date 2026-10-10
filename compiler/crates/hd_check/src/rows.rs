@@ -2,6 +2,7 @@
 //! available-keys stack, closure rows, row subsumption, and the least
 //! solution of a callee's row parameters.
 
+use hd_base::StageResult;
 use hd_diag::Code;
 use hd_resolve::{FnSig, HeadKind, Src};
 use hd_syntax::{NodeRef, SyntaxKind};
@@ -344,6 +345,33 @@ impl Ck<'_, '_> {
         let v = self.infer.fresh(pool, VarKind::General);
         self.joins.push(v);
         v
+    }
+
+    /// Checks a least-common-type site's branches with `run`, which gets the
+    /// site's type. An optional branch after a plain one of its inner type
+    /// makes the site's type optional (`types.lct.optional`); the branches
+    /// already checked took the plain type, so the site starts over with the
+    /// optional type as its expected type and every branch converts to it.
+    pub(crate) fn join_site<T>(
+        &mut self,
+        want: Option<Ty>,
+        mut run: impl FnMut(&mut Self, Ty) -> StageResult<T>,
+    ) -> StageResult<T> {
+        let result = self.join_target(want);
+        if !self.joins.contains(&result) {
+            return run(self, result);
+        }
+        let cp = self.checkpoint();
+        self.restarts.push(result);
+        let out = run(self, result);
+        let at = self.widen.iter().position(|(v, _)| *v == result);
+        self.restarts.pop();
+        let Some(at) = at else {
+            return out;
+        };
+        let wide = self.widen[at].1;
+        self.rollback(cp);
+        run(self, wide)
     }
 
     /// A value of type `got` joined the site variable `var`, whose type is

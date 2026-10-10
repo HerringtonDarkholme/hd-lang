@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2419 | 338 | 88 | 2845 |
+| 2420 | 337 | 88 | 2845 |
 
 ## By Chapter
 
@@ -17,7 +17,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
 | `lang/02-grammar.md` | 197 | 11 | 7 | 215 |
 | `lang/03-names-and-scopes.md` | 94 | 6 | 1 | 101 |
-| `lang/04-type-system.md` | 305 | 45 | 2 | 352 |
+| `lang/04-type-system.md` | 306 | 44 | 2 | 352 |
 | `lang/05-expressions.md` | 244 | 32 | 1 | 277 |
 | `lang/06-control-flow.md` | 136 | 17 | 4 | 157 |
 | `lang/07-functions.md` | 107 | 20 | 3 | 130 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 93 | 8 | 4 | 105 |
-| `runtime/valid` | 845 | 17 | 67 | 929 |
+| `runtime/valid` | 846 | 16 | 67 | 929 |
 | `typing/invalid` | 780 | 281 | 14 | 1075 |
 | `typing/valid` | 403 | 9 | 3 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -108,7 +108,7 @@ compiler stage that first declined the case.
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-method-signature` | 1 |
 | `fail:trait-used-as-type` | 1 |
-| `fail:type-mismatch` | 37 |
+| `fail:type-mismatch` | 36 |
 | `fail:unknown-data-field` | 6 |
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 14 |
@@ -540,7 +540,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (37)</summary>
+<details><summary><code>fail:type-mismatch</code> (36)</summary>
 
 - `typing/invalid/heterogeneous-list.hd`
 - `typing/invalid/mixed-signedness.hd`
@@ -569,7 +569,6 @@ compiler stage that first declined the case.
 - `typing/invalid/generic-inference-supertrait-widening.hd`
 - `typing/invalid/no-widening-operator.hd`
 - `typing/invalid/no-widening-float.hd`
-- `runtime/valid/lct-optional-injection.hd`
 - `typing/invalid/lct-optional-two-layers.hd`
 - `typing/invalid/num-abs-diff-unsigned.hd`
 - `typing/invalid/num-bit-count-u32.hd`
@@ -1549,6 +1548,7 @@ runtime/valid/json-typed-optional.hd
 runtime/valid/json-typed-primitives.hd
 runtime/valid/json-typed-round-trip.hd
 runtime/valid/lazy-result-candidate.hd
+runtime/valid/lct-optional-injection.hd
 runtime/valid/leading-dot-chain.hd
 runtime/valid/leading-dot-deeper-continues.hd
 runtime/valid/leading-dot-lines-join-the-chain.hd

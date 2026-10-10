@@ -232,6 +232,12 @@ pub(crate) struct Ck<'a, 'c> {
     /// (`types.lct.sites`): a function value that joins one widens its
     /// row to the union (`types.lct.row-union-every-site`).
     pub joins: Vec<Ty>,
+    /// The join variables of the sites now checking their branches that
+    /// can restart with a wider type (`join_site`).
+    pub restarts: Vec<Ty>,
+    /// A join variable met an optional value of its solved inner type: the
+    /// site must start over with the optional as its type (`types.lct.optional`).
+    pub widen: Vec<(Ty, Ty)>,
     /// The byte of the statement being checked: the local declarations
     /// whose extent holds it are in scope (`names.local-type.name`).
     pub at: u32,
@@ -313,6 +319,8 @@ pub(crate) fn new_ck<'a, 'c>(
         opt_in: None,
         structure_calls: Vec::new(),
         joins: Vec::new(),
+        restarts: Vec::new(),
+        widen: Vec::new(),
         at: 0,
         hidden: Vec::new(),
         module: cx.names.module_node(item),
@@ -958,6 +966,23 @@ impl Ck<'_, '_> {
                 self.show(got)
             );
             self.err(Code::TypeMismatch, n, &msg);
+        }
+        // `types.lct.optional`: an optional value joining a site whose
+        // type is already solved to the optional's inner type. The site
+        // starts over with the optional type, so every branch is checked
+        // against the final type.
+        if joined
+            && self.restarts.contains(&target)
+            && let TyData::Option(inner) = pool.get(gs)
+            && !matches!(pool.get(ws), TyData::Option(_))
+            && !self.can_unify(got, want)
+            && self.can_unify(inner, want)
+        {
+            let full = self.infer.resolve(pool, gs);
+            if !pool.has_infer(full) {
+                self.widen.push((target, full));
+                return r;
+            }
         }
         // A function value joining a least-common-type site widens the
         // site's row to the union (`req.row.union.sites.type`).

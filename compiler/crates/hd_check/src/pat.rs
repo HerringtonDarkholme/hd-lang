@@ -750,67 +750,68 @@ impl Ck<'_, '_> {
         // failed expression is one diagnostic.
         let failed = sr.0 == NONE || self.infer.resolve(self.pool(), st) == Ty::POISON;
         let st = if failed { Ty::POISON } else { st };
-        let result = self.join_target(want);
-        let mut rows = Vec::new();
-        let mut arms = Vec::new();
-        let mut all_never = true;
-        let arm_nodes: Vec<NodeRef<'_>> = n
-            .children()
-            .filter(|c| c.kind() == SyntaxKind::MatchArm)
-            .collect();
-        for (i, arm) in arm_nodes.iter().enumerate() {
-            let Some(pat) = arm.children().next() else {
-                return unsupported("an arm without a pattern");
-            };
-            self.scopes.push(HashMap::new());
-            let mut binds = Vec::new();
-            self.declare_pattern(pat, st, &mut binds)?;
-            let guard = match Src::child(*arm, SyntaxKind::MatchGuard) {
-                Some(g) => {
-                    let Some(ge) = g.children().next() else {
-                        return unsupported("an empty guard");
-                    };
-                    let gb = self.b.open_block();
-                    let (gr, gt) = self.expr(ge, Some(Ty::BOOL))?;
-                    self.expect(gt, Ty::BOOL, ge, "guard");
-                    Some(self.b.close_block(gb, Some(gr), Ty::BOOL, g.index()))
+        self.join_site(want, |this, result| {
+            let mut rows = Vec::new();
+            let mut arms = Vec::new();
+            let mut all_never = true;
+            let arm_nodes: Vec<NodeRef<'_>> = n
+                .children()
+                .filter(|c| c.kind() == SyntaxKind::MatchArm)
+                .collect();
+            for (i, arm) in arm_nodes.iter().enumerate() {
+                let Some(pat) = arm.children().next() else {
+                    return unsupported("an arm without a pattern");
+                };
+                this.scopes.push(HashMap::new());
+                let mut binds = Vec::new();
+                this.declare_pattern(pat, st, &mut binds)?;
+                let guard = match Src::child(*arm, SyntaxKind::MatchGuard) {
+                    Some(g) => {
+                        let Some(ge) = g.children().next() else {
+                            return unsupported("an empty guard");
+                        };
+                        let gb = this.b.open_block();
+                        let (gr, gt) = this.expr(ge, Some(Ty::BOOL))?;
+                        this.expect(gt, Ty::BOOL, ge, "guard");
+                        Some(this.b.close_block(gb, Some(gr), Ty::BOOL, g.index()))
+                    }
+                    None => None,
+                };
+                let Some(body) = Src::child(*arm, SyntaxKind::Block) else {
+                    return unsupported("an arm without a body");
+                };
+                let ab = this.b.open_block();
+                let (tail, ty) = this.block_value(body, Some(result))?;
+                if ty != Ty::NEVER {
+                    all_never = false;
                 }
-                None => None,
-            };
-            let Some(body) = Src::child(*arm, SyntaxKind::Block) else {
-                return unsupported("an arm without a body");
-            };
-            let ab = self.b.open_block();
-            let (tail, ty) = self.block_value(body, Some(result))?;
-            if ty != Ty::NEVER {
-                all_never = false;
+                arms.push(this.b.close_block(ab, tail, ty, body.index()));
+                this.scopes.pop();
+                rows.push(Row {
+                    pat: Some(pat),
+                    wrap_some: false,
+                    binds,
+                    guard,
+                    arm: u32::try_from(i).unwrap_or(u32::MAX),
+                });
             }
-            arms.push(self.b.close_block(ab, tail, ty, body.index()));
-            self.scopes.pop();
-            rows.push(Row {
-                pat: Some(pat),
-                wrap_some: false,
-                binds,
-                guard,
-                arm: u32::try_from(i).unwrap_or(u32::MAX),
-            });
-        }
-        if !failed {
-            self.check_exhaustive(n, &rows, st);
-            self.check_reachable(&rows, st);
-        }
-        let db = self.b.open_block();
-        self.decide(&rows, 0, sr, st)?;
-        let dec = self.b.close_block(db, None, Ty::NEVER, n.index());
-        let mut rec = vec![dec];
-        rec.extend(arms);
-        let rec = self.b.refs_record(&rec);
-        let ty = if all_never && !arm_nodes.is_empty() {
-            Ty::NEVER
-        } else {
-            result
-        };
-        Ok((self.b.emit(Tag::Match, sr.0, rec, ty, n.index()), ty))
+            if !failed {
+                this.check_exhaustive(n, &rows, st);
+                this.check_reachable(&rows, st);
+            }
+            let db = this.b.open_block();
+            this.decide(&rows, 0, sr, st)?;
+            let dec = this.b.close_block(db, None, Ty::NEVER, n.index());
+            let mut rec = vec![dec];
+            rec.extend(arms);
+            let rec = this.b.refs_record(&rec);
+            let ty = if all_never && !arm_nodes.is_empty() {
+                Ty::NEVER
+            } else {
+                result
+            };
+            Ok((this.b.emit(Tag::Match, sr.0, rec, ty, n.index()), ty))
+        })
     }
 
     // ------------------------------------------------------------ decisions
