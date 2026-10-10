@@ -1,0 +1,216 @@
+%YAML 1.2
+---
+# Sublime Text syntax definition for hd. bat and other syntect-based tools
+# can load this file directly. Keep the reserved-word and primitive-type
+# lists in sync with src/lexer.ts and src/highlight.ts.
+name: hd
+scope: source.hd
+version: 2
+file_extensions:
+  - hd
+
+variables:
+  identifier: '[\p{L}_][\p{L}\p{N}_]*'
+  lower_identifier: '[\p{Ll}_][\p{L}\p{N}_]*'
+
+contexts:
+  main:
+    - include: comments
+
+    # Raw identifiers must win over the words and quotes inside them.
+    - match: '`{{identifier}}`'
+      scope: variable.other.hd
+
+    # Declaration names and suspension markers.
+    - match: '\b(fn)(\s+)({{identifier}})(!?)(?=\s*(?:\[[^\]\n]*\]\s*)?\()'
+      captures:
+        1: keyword.declaration.function.hd
+        3: entity.name.function.hd
+        4: keyword.operator.suspension.hd
+
+    # Contextual words whose position can be recognized lexically.
+    - match: '^(\s*)(?:(pub)(\s+))?(use)(?=\s+(?:pkg|std|dep|self|super)\b)'
+      captures:
+        2: storage.modifier.hd
+        4: keyword.control.import.hd
+      push: use-declaration
+    - match: '(\$\.)(use|with|context|Context)\b'
+      captures:
+        1: keyword.operator.requirement.hd
+        2: keyword.other.context.hd
+    - match: '(@)(derive)\b'
+      captures:
+        1: punctuation.definition.annotation.hd
+        2: keyword.other.annotation.hd
+
+    # Literals and reserved words. These precede prefixed strings so an
+    # invalid reserved prefix such as return"done" is not colored as valid.
+    - match: '\b(?:true|false)\b'
+      scope: constant.language.boolean.hd
+    - match: '\b(?:self|Self)\b'
+      scope: variable.language.hd
+    - match: '\b(?:if|else|match)\b'
+      scope: keyword.control.conditional.hd
+    - match: '\b(?:for|while|in)\b'
+      scope: keyword.control.loop.hd
+    - match: '\b(?:return|break|continue|pass|defer)\b'
+      scope: keyword.control.flow.hd
+    - match: '\b(?:data|enum|trait|impl|type)\b'
+      scope: keyword.declaration.hd
+    - match: '\b(?:pub|mut|dyn)\b'
+      scope: storage.modifier.hd
+    - match: '\b(?:fn|let|is|tests)\b'
+      scope: keyword.other.hd
+
+    # Prefixed strings are raw but still support hd interpolation.
+    - match: '({{identifier}})(""")'
+      captures:
+        1: storage.type.string-prefix.hd
+        2: punctuation.definition.string.begin.hd
+      push: raw-triple-string
+    - match: '({{identifier}})(")'
+      captures:
+        1: storage.type.string-prefix.hd
+        2: punctuation.definition.string.begin.hd
+      push: raw-string
+
+    # Interpreted strings and character literals.
+    - match: '"""'
+      scope: punctuation.definition.string.begin.hd
+      push: triple-string
+    - match: '"'
+      scope: punctuation.definition.string.begin.hd
+      push: string
+    - match: "'(?:[^'\\\\\n]|\\\\(?:[\\\\\"'nrt0$]|u\\{[0-9A-Fa-f]{1,6}\\}))'"
+      scope: string.quoted.single.hd
+
+    # Radix integers take no suffix. Decimal integers and floats may carry
+    # a literal suffix such as 250ms.
+    - match: '\b0[xX]_?[0-9A-Fa-f](?:_?[0-9A-Fa-f])*\b'
+      scope: constant.numeric.integer.hexadecimal.hd
+    - match: '\b0[oO]_?[0-7](?:_?[0-7])*\b'
+      scope: constant.numeric.integer.octal.hd
+    - match: '\b0[bB]_?[01](?:_?[01])*\b'
+      scope: constant.numeric.integer.binary.hd
+    - match: '\b\d(?:_?\d)*(?:\.\d(?:_?\d)*)?(?:[eE][+-]?\d(?:_?\d)*)?(?:[\p{L}_][\p{L}\p{N}_]*)?\b'
+      scope: constant.numeric.hd
+
+    # Built-in type names are ordinary names in the language but receive
+    # type coloring, as do user names beginning with an uppercase letter.
+    - match: '\b(?:i8|i16|i32|i64|u8|u16|u32|u64|usize|f32|f64|bool|char|string|void|never)\b'
+      scope: storage.type.primitive.hd
+    - match: '\.\K\p{Lu}[\p{L}\p{N}_]*\b'
+      scope: constant.other.variant.hd
+    - match: '\b\p{Lu}[\p{L}\p{N}_]*\b'
+      scope: entity.name.type.hd
+
+    # Lowercase calls, including generic and suspending calls.
+    - match: '\b({{lower_identifier}})(!?)(?=\s*(?:\[[^\]\n]*\]\s*)?\()'
+      captures:
+        1: variable.function.hd
+        2: keyword.operator.suspension.hd
+
+    - match: '@{{identifier}}?'
+      scope: meta.annotation.hd
+    - match: '\$'
+      scope: keyword.operator.requirement.hd
+    - match: '\.\.\.=|\.\.\.|\.\.=|\.\.|<<=|>>=|\+=|-=|\*=|/=|%=|&=|\|=|\^=|:=|->|=>|::|==|!=|<=|>=|<<|>>|\*\*|&&|\|\||\|>|[+\-*/%<>&|^~!?=]'
+      scope: keyword.operator.hd
+    - match: '[()\[\]{},.:;]'
+      scope: punctuation.separator.hd
+
+  comments:
+    - match: '^(\s*)(##)'
+      captures:
+        2: punctuation.definition.comment.hd
+      push: doc-comment
+    - match: '#'
+      scope: punctuation.definition.comment.hd
+      push: line-comment
+
+  line-comment:
+    - meta_scope: comment.line.number-sign.hd
+    - match: '\b(?:TODO|FIXME|XXX|NOTE)\b'
+      scope: keyword.other.todo.hd
+    - match: '$'
+      pop: true
+
+  doc-comment:
+    - meta_scope: comment.line.documentation.hd
+    - match: '\b(?:TODO|FIXME|XXX|NOTE)\b'
+      scope: keyword.other.todo.hd
+    - match: '$'
+      pop: true
+
+  use-declaration:
+    - match: '$'
+      pop: true
+    - include: comments
+    - match: '\b(?:pkg|std|dep|self|super|as)\b'
+      scope: keyword.control.import.hd
+    - include: main
+
+  string:
+    - meta_scope: string.quoted.double.hd
+    - match: '\\(?:[\\"''nrt0$]|u\{[0-9A-Fa-f]{1,6}\})'
+      scope: constant.character.escape.hd
+    - include: interpolation
+    - match: '"'
+      scope: punctuation.definition.string.end.hd
+      pop: true
+
+  triple-string:
+    - meta_scope: string.quoted.triple.hd
+    - match: '\\(?:[\\"''nrt0$]|u\{[0-9A-Fa-f]{1,6}\})'
+      scope: constant.character.escape.hd
+    - include: interpolation
+    - match: '"""'
+      scope: punctuation.definition.string.end.hd
+      pop: true
+
+  raw-string:
+    - meta_scope: string.quoted.double.raw.hd
+    - match: '\\.'
+      scope: string.quoted.double.raw.hd
+    - include: interpolation
+    - match: '"'
+      scope: punctuation.definition.string.end.hd
+      pop: true
+
+  raw-triple-string:
+    - meta_scope: string.quoted.triple.raw.hd
+    - match: '\\.'
+      scope: string.quoted.triple.raw.hd
+    - include: interpolation
+    - match: '"""'
+      scope: punctuation.definition.string.end.hd
+      pop: true
+
+  interpolation:
+    - match: '\$({{identifier}})'
+      captures:
+        0: variable.other.interpolation.hd
+    - match: '\$\{'
+      scope: punctuation.section.interpolation.begin.hd
+      push: interpolation-expression
+
+  interpolation-expression:
+    - meta_scope: meta.interpolation.hd
+    - meta_content_scope: source.hd
+    - match: '\}'
+      scope: punctuation.section.interpolation.end.hd
+      pop: true
+    - match: '\{'
+      scope: punctuation.section.block.begin.hd
+      push: interpolation-braces
+    - include: main
+
+  interpolation-braces:
+    - meta_scope: source.hd
+    - match: '\}'
+      scope: punctuation.section.block.end.hd
+      pop: true
+    - match: '\{'
+      scope: punctuation.section.block.begin.hd
+      push: interpolation-braces
+    - include: main
