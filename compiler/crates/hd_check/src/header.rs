@@ -332,9 +332,51 @@ impl<'a> ItemCheck<'_, 'a> {
                     self.show(s)
                 );
                 self.report(0, Code::MissingSupertraitImplementation, message);
+            } else {
+                self.super_bindings(*trait_, *self_ty, s);
             }
         }
         Ok(())
+    }
+
+    /// The target's implementation of the supertrait `s` binds each
+    /// associated type its supertrait list fixes to that type
+    /// (`trait.binding.super.mismatch`). A binding that depends on a type
+    /// parameter is left as it is.
+    fn super_bindings(&mut self, trait_: DefId, self_ty: Ty, s: Ty) {
+        let pool = self.pool();
+        let TyData::TraitValue {
+            def,
+            args,
+            bindings,
+        } = pool.get(s)
+        else {
+            return;
+        };
+        let impls = Impls::Owned(self.cx.impls);
+        for (assoc, want) in bindings {
+            let proj = pool.intern_ty(&TyData::Assoc {
+                assoc,
+                trait_: def,
+                self_ty,
+                args,
+            });
+            let got = hd_types::solver::normalize_concrete(pool, impls, proj);
+            let want = hd_types::solver::normalize_concrete(pool, impls, want);
+            let open = |t: Ty| pool.has_assoc(t) || pool.has_param(t) || pool.has_poison(t);
+            if got != want && !open(got) && !open(want) {
+                let message = format!(
+                    "{} implements {} with `{}` as {}, but {} requires {}",
+                    self.show(self_ty),
+                    self.cx.names.display_name(def),
+                    self.cx.names.display_name(assoc),
+                    self.show(got),
+                    self.cx.names.display_name(trait_),
+                    self.show(want)
+                );
+                self.report(0, Code::MissingSupertraitImplementation, message);
+            }
+        }
     }
 
     /// A derived newtype's base type must implement the derived trait

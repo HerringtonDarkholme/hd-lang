@@ -1261,6 +1261,17 @@ impl Lower<'_, '_, '_> {
         }))
     }
 
+    /// Two bounds of one list fix one associated type
+    /// (`trait.binding.once.error`, `trait.binding.super.conflict`).
+    fn bound_clashes(&mut self, self_ty: Ty, bounds: &[Ty], span: Span) {
+        let pool = self.names.pool.types();
+        for c in crate::assoc::bound_clashes(pool, self.r, self_ty, bounds) {
+            let msg = crate::assoc::clash_message(&self.names, &c);
+            self.diags
+                .error(Code::DuplicateAssociatedBinding, span, &msg);
+        }
+    }
+
     /// A trait value type binds every associated type of its trait and
     /// supertraits (trait.dyn.binding.complete, req.key.binding.complete).
     fn require_complete(&mut self, t: Ty, span: Span) {
@@ -2629,6 +2640,7 @@ impl Lower<'_, '_, '_> {
                     supers.push(t);
                 }
             }
+            self.bound_clashes(self_ty, &supers, self.src.span(bl));
         }
         supers
     }

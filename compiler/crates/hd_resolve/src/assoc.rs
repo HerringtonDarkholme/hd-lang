@@ -127,15 +127,19 @@ pub fn resolve_bindings(
     (bindings, bad)
 }
 
+/// An associated type that a bound fixes, the type it gets, and a flag:
+/// for [`super_fixed`] whether the type names a `Self` on the way, for
+/// [`bound_clashes`] whether the binding is written.
+type Fixed = (DefId, Ty, bool);
+
 /// The bindings the supertrait lists above `trait_[args]` fix, each with
 /// whether it names the `Self` of a trait on the way (trait.binding.super.meaning).
 fn super_fixed(
     pool: Types<'_>,
     view: &dyn TraitView,
-    trait_: DefId,
-    args: TyList,
-) -> Vec<(DefId, Ty, bool)> {
-    let mut out: Vec<(DefId, Ty, bool)> = Vec::new();
+    (trait_, args, self_ty): (DefId, TyList, Option<Ty>),
+) -> Vec<Fixed> {
+    let mut out: Vec<Fixed> = Vec::new();
     let mut seen: HashSet<(DefId, TyList)> = HashSet::new();
     let mut todo = vec![(trait_, args)];
     while let Some((tr, a)) = todo.pop() {
@@ -145,9 +149,13 @@ fn super_fixed(
         let known = pool.list_items(a);
         for s in view.supers(tr) {
             let s = pool.subst(s, &|p: ParamRef| {
-                (p.owner == tr && p.index > 0)
-                    .then(|| known.get(p.index as usize - 1).copied())
-                    .flatten()
+                if p.owner != tr {
+                    None
+                } else if p.index == 0 {
+                    self_ty
+                } else {
+                    known.get(p.index as usize - 1).copied()
+                }
             });
             let TyData::TraitValue {
                 def: sd,
@@ -191,7 +199,7 @@ pub fn with_super_bindings(pool: Types<'_>, view: &dyn TraitView, t: Ty) -> Ty {
     else {
         return t;
     };
-    for (assoc, b, names_self) in super_fixed(pool, view, def, args) {
+    for (assoc, b, names_self) in super_fixed(pool, view, (def, args, None)) {
         if !names_self && !bindings.iter().any(|(x, _)| *x == assoc) {
             bindings.push((assoc, b));
         }
@@ -217,7 +225,7 @@ pub fn unbound_assocs(pool: Types<'_>, view: &dyn TraitView, t: Ty) -> Vec<DefId
     else {
         return Vec::new();
     };
-    let fixed = super_fixed(pool, view, def, args);
+    let fixed = super_fixed(pool, view, (def, args, None));
     reached_assocs(pool, view, def)
         .into_iter()
         .filter(|a| !bindings.iter().any(|(x, _)| x == a) && !fixed.iter().any(|(x, _, _)| x == a))
@@ -238,6 +246,98 @@ pub fn incomplete_message(names: &Names<'_>, view: &dyn TraitView, t: Ty) -> Opt
         show_ty(names, t),
         list.join("`, `")
     ))
+}
+
+/// One associated type that two bounds of a list fix, in a generic
+/// parameter's bounds or a trait's supertrait list.
+pub struct BoundClash {
+    pub assoc: DefId,
+    /// The two bounds' traits, in list order, and the types they give it.
+    pub first: (DefId, Ty),
+    pub second: (DefId, Ty),
+    /// Both bindings are written (`trait.binding.once.error`); otherwise
+    /// two supertrait paths bind it to different types
+    /// (`trait.binding.super.conflict`).
+    pub written: bool,
+}
+
+/// The associated types that two bounds of one list both fix, `self_ty`
+/// being the bounded type (`Self` of a trait for its supertrait list). A
+/// written binding repeated in another bound is a clash even when it
+/// names the same type; bindings that arrive through supertraits merge
+/// when they name the same type and clash when they do not
+/// (`trait.binding.once.elaborated`, `trait.binding.super.merge`).
+#[must_use]
+pub fn bound_clashes(
+    pool: Types<'_>,
+    view: &dyn TraitView,
+    self_ty: Ty,
+    bounds: &[Ty],
+) -> Vec<BoundClash> {
+    let fixed: Vec<(DefId, Vec<Fixed>)> = bounds
+        .iter()
+        .filter_map(|b| {
+            let TyData::TraitValue {
+                def,
+                args,
+                bindings,
+            } = pool.get(*b)
+            else {
+                return None;
+            };
+            let mut all: Vec<Fixed> = bindings.into_iter().map(|(a, t)| (a, t, true)).collect();
+            for (a, t, _) in super_fixed(pool, view, (def, args, Some(self_ty))) {
+                if !all.iter().any(|x| x.0 == a) {
+                    all.push((a, t, false));
+                }
+            }
+            Some((def, all))
+        })
+        .collect();
+    let mut out: Vec<BoundClash> = Vec::new();
+    for (i, (d1, f1)) in fixed.iter().enumerate() {
+        for (d2, f2) in &fixed[i + 1..] {
+            for &(assoc, t1, w1) in f1 {
+                let Some(&(_, t2, w2)) = f2.iter().find(|x| x.0 == assoc) else {
+                    continue;
+                };
+                let same = t1 == t2;
+                if pool.has_poison(t1)
+                    || pool.has_poison(t2)
+                    || (same && !(w1 && w2))
+                    || out.iter().any(|c| c.assoc == assoc)
+                {
+                    continue;
+                }
+                out.push(BoundClash {
+                    assoc,
+                    first: (*d1, t1),
+                    second: (*d2, t2),
+                    written: w1 && w2,
+                });
+            }
+        }
+    }
+    out
+}
+
+/// The error for a [`BoundClash`], naming both bounds.
+#[must_use]
+pub fn clash_message(names: &Names<'_>, c: &BoundClash) -> String {
+    let name = names.display_name(c.assoc);
+    let (a, b) = (
+        names.display_name(c.first.0),
+        names.display_name(c.second.0),
+    );
+    if c.written {
+        format!("`{name}` is bound in both `{a}` and `{b}`, and a projection is bound once")
+    } else {
+        format!(
+            "`{name}` is `{}` through `{a}` and `{}` through `{b}`",
+            show_ty(names, c.first.1),
+            show_ty(names, c.second.1)
+        )
+    }
 }
 
 /// Traits as a body sees them: through its module's items and the

@@ -110,3 +110,46 @@ fn a_dyn_type_satisfies_a_bound_on_a_trait_of_methods() {
     let src = "trait Sized:\n    type Item\n    fn size(self) -> i32\n\nfn measure[S < Sized[Item = i32]](value: S) -> i32:\n    value.size()\n\nfn with_value(value: dyn Sized[Item = i32]) -> i32:\n    measure(value)\n";
     assert_eq!(errors(src), vec![]);
 }
+
+// trait.binding.super.mismatch
+
+const SUMMABLE: &str =
+    "use std.ops.Add\n\ntrait Summable < Add[Out = Self]\n\ndata Money:\n    cents: i64\n\n";
+
+#[test]
+fn an_implementation_must_bind_its_supertrait_bindings() {
+    let bad = format!(
+        "{SUMMABLE}impl Add for Money:\n    type Out = i64\n    fn add(self, rhs: Money) -> i64:\n        self.cents + rhs.cents\n\nimpl Summable for Money\n"
+    );
+    assert_eq!(errors(&bad), vec![Code::MissingSupertraitImplementation]);
+    let good = format!(
+        "{SUMMABLE}impl Add for Money:\n    type Out = Money\n    fn add(self, rhs: Money) -> Money:\n        self\n\nimpl Summable for Money\n"
+    );
+    assert_eq!(errors(&good), vec![]);
+}
+
+// trait.binding.super.conflict
+
+const SOURCE: &str = "trait Source:\n    type Item\n    fn get(self) -> Self::Item\n\ntrait Numbers < Source[Item = i32]\n\n";
+
+#[test]
+fn two_supertrait_paths_must_not_bind_one_type_to_different_types() {
+    let bad =
+        format!("{SOURCE}trait Words < Source[Item = string]\n\ntrait Both < Numbers & Words\n");
+    assert_eq!(errors(&bad), vec![Code::DuplicateAssociatedBinding]);
+}
+
+#[test]
+fn a_conflict_through_a_longer_path_is_reported_once_at_the_declaring_trait() {
+    let bad = format!(
+        "{SOURCE}trait Wide < Numbers\n\ntrait Words < Source[Item = string]\n\ntrait Both < Wide & Words\n"
+    );
+    assert_eq!(errors(&bad), vec![Code::DuplicateAssociatedBinding]);
+}
+
+#[test]
+fn two_supertrait_paths_that_bind_the_same_type_merge() {
+    let good =
+        format!("{SOURCE}trait Counts < Source[Item = i32]\n\ntrait Both < Numbers & Counts\n");
+    assert_eq!(errors(&good), vec![]);
+}
