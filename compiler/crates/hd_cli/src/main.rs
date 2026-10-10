@@ -1,13 +1,15 @@
 #![forbid(unsafe_code)]
 //! The `hd` command. It owns everything outside the core (design-overview
 //! §2.2): the file system (`DiskSources`, the disk `CacheStore`), the clock,
-//! the executor and the engine (`node::NodeEngine`, an `hd_run::Engine`).
+//! the executor and the engine (`node::NodeEngine`, an `hd_run::Engine`,
+//! or wasmtime in-process with `--engine wasmtime`; `engine.rs`).
 
 mod caps;
 mod check_cmd;
 mod clean_cmd;
 mod dep_cmd;
 mod disk;
+mod engine;
 mod fmt_cmd;
 mod help;
 mod new_cmd;
@@ -22,7 +24,7 @@ use std::time::Instant;
 
 use hd_cache::DiskStore;
 use hd_driver::{Clock, Executor, Goal, Host, Output, build_packages};
-use hd_run::{HostSetup, Limits, Outcome, run_program};
+use hd_run::{HostSetup, Limits, Outcome};
 
 use crate::report::Reporter;
 
@@ -209,7 +211,8 @@ fn compile(program: &disk::Program, rep: &mut Reporter) -> Result<Vec<u8>, ExitC
 
 /// Runs compiled Wasm and ends with the program's status
 /// (`cli.exit.program`), unless a need is totally denied
-/// (`cli.cap.total.refuse`). `program` is what its `Args.program` returns.
+/// (`cli.cap.total.refuse`). `program` is what its `Args.program` returns;
+/// `engine` runs it, with wasmtime's optimized pipeline when `release`.
 fn execute(
     wasm: &[u8],
     program: &str,
@@ -217,13 +220,13 @@ fn execute(
     table_dir: Option<&Path>,
     flags: &[caps::CapFlag],
     args: &[OsString],
+    (engine, release): (engine::EngineKind, bool),
     rep: &mut Reporter,
 ) -> ExitCode {
     if let Some(d) = caps::refusal(wasm, table, flags) {
         rep.diag(&d);
         return rep.finish(HD_FAILURE);
     }
-    let store = DiskStore { root: cache_dir() };
     let cwd = std::env::current_dir().unwrap_or_default();
     let host = HostSetup {
         providers: Vec::new(),
@@ -235,14 +238,13 @@ fn execute(
             .collect(),
         program: program.to_owned(),
     };
-    match run_program(&node::NodeEngine, wasm, &store, &host) {
+    match engine::run(engine, release, wasm, &host) {
         Ok(Outcome::Exit(code)) => rep.finish(code),
         Ok(Outcome::Panic(p)) => {
             eprintln!("panic: {}: {}", p.category, p.message);
             rep.finish(HD_FAILURE)
         }
-        Ok(Outcome::Internal(e)) => rep.fail(&e),
-        Err(e) => rep.fail(&e.to_string()),
+        Ok(Outcome::Internal(e)) | Err(e) => rep.fail(&e),
     }
 }
 
@@ -254,6 +256,9 @@ struct FileWords {
     file: Option<PathBuf>,
     /// The program's arguments (`cli.args.pass`).
     program_args: Vec<OsString>,
+    /// `--engine NAME`, else `HD_ENGINE`, else Node.
+    engine: engine::EngineKind,
+    release: bool,
 }
 
 fn file_words(args: &[OsString]) -> Result<FileWords, String> {
@@ -262,6 +267,8 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
         caps: Vec::new(),
         file: None,
         program_args: Vec::new(),
+        engine: engine::from_env()?,
+        release: false,
     };
     let mut i = 0;
     while i < args.len() {
@@ -281,9 +288,17 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
             i += used;
             continue;
         }
+        if let Some(e) = engine::engine_flag(args, i) {
+            let (kind, used) = e?;
+            w.engine = kind;
+            i += used;
+            continue;
+        }
         // `cli.profile.release.file`: accepted; the release profile is not
-        // in codegen yet, so the build is the debug one.
+        // in codegen yet, so the build is the debug one (wasmtime compiles
+        // it with its optimized pipeline).
         if args[i] == "--release" {
+            w.release = true;
             i += 1;
             continue;
         }
@@ -319,6 +334,7 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
             program.package_dir.as_deref(),
             &w.caps,
             &w.program_args,
+            (w.engine, w.release),
             &mut rep,
         ),
         Err(code) => code,
@@ -373,6 +389,7 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
         None,
         &w.caps,
         &w.program_args,
+        (w.engine, w.release),
         &mut rep,
     )
 }
@@ -388,6 +405,8 @@ struct Words {
     program_args: Vec<OsString>,
     /// The members `-p NAME` selects (`cli.workspace.select.anywhere`).
     packages: Vec<String>,
+    /// `--engine NAME`, else `HD_ENGINE`, else Node; only `hd run` takes it.
+    engine: engine::EngineKind,
 }
 
 fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
@@ -398,6 +417,11 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         positional: Vec::new(),
         program_args: Vec::new(),
         packages: Vec::new(),
+        engine: if command == "run" {
+            engine::from_env()?
+        } else {
+            engine::EngineKind::Node
+        },
     };
     let mut i = 0;
     while i < args.len() {
@@ -414,6 +438,14 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         if let Some(p) = disk::package_flag(args, i) {
             let (name, used) = p?;
             w.packages.push(name);
+            i += used;
+            continue;
+        }
+        if command == "run"
+            && let Some(e) = engine::engine_flag(args, i)
+        {
+            let (kind, used) = e?;
+            w.engine = kind;
             i += used;
             continue;
         }
@@ -553,6 +585,7 @@ fn run_command(args: &[OsString]) -> ExitCode {
         program.package_dir.as_deref(),
         &w.caps,
         &w.program_args,
+        (w.engine, w.release),
         &mut rep,
     )
 }
