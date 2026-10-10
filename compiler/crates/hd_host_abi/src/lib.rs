@@ -4,8 +4,10 @@
 //! import names they produce; and operation handles.
 //!
 //! The table mirrors std's capability traits in `lib/std`. `hd_wasm`
-//! generates the hd-side provider stubs of the default profile from it;
-//! the wasmtime stubs and the JS glue generator are not written yet.
+//! generates the hd-side provider stubs of the default profile from it.
+//! The wasmtime host (`hd_run_wasmtime`) and the JS host
+//! (`compiler/host/core.mjs`) are written by hand against it; the
+//! generators of §17.1 are not written yet.
 
 use hd_base::{NotImplemented, Stage, StageResult};
 

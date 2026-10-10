@@ -7,7 +7,19 @@ rust-version.workspace = true
 
 [dependencies]
 hd_cache = { path = "../hd_cache" }
+hd_host_abi = { path = "../hd_host_abi" }
 hd_run = { path = "../hd_run" }
+# The engine of engines-and-test-runner.md §18.1: Cranelift, Wasm GC with
+# the copying collector, and nothing the CLI does not use (no component
+# model, no async, no WASI, no pooling allocator yet).
+wasmtime = { version = "=49.0.2", default-features = false, features = [
+    "cranelift",
+    "gc",
+    "gc-copying",
+    "parallel-compilation",
+    "runtime",
+    "std",
+] }
 
 [lints]
 workspace = true
