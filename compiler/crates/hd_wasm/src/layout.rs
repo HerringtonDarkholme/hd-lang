@@ -63,6 +63,22 @@ pub fn key_id(pool: &InternPool, env: &dyn ProgramEnv, k: Ty) -> i64 {
     i64::from_le_bytes(bytes[..8].try_into().unwrap_or_default())
 }
 
+/// A path through a vtable's parent fields to a supertrait's vtable
+/// (codegen.md §13.16): each step's vtable type and parent field, then
+/// the supertrait's arguments.
+pub(crate) type SuperPath = (Vec<(WTy, u32)>, TyList);
+
+/// A trait-value call's dispatch ([`Lay::dyn_slot`]): the receiver's
+/// vtable type, the parent-field steps to the declaring trait's vtable,
+/// that vtable's type, the method's slot and the slot's function type.
+pub(crate) struct DynSlot {
+    pub value_vt: WTy,
+    pub steps: Vec<(WTy, u32)>,
+    pub vt: WTy,
+    pub slot: u32,
+    pub sig: WTy,
+}
+
 /// What emission reads about the program's types.
 pub struct Lay<'a> {
     pub pool: &'a InternPool,
@@ -1469,6 +1485,102 @@ impl<'a> Lay<'a> {
             TyData::TraitValue { def, args, .. } => self.vtable(def, args),
             _ => unsupported("a requirement key that is not a trait"),
         }
+    }
+
+    /// Where a call of `method`, declared by `trait_`, goes through a
+    /// receiver of the trait-value type `recv` (trait.dyn.value-methods,
+    /// trait.dyn.bound.dispatch, codegen.md §13.16): the method's slot in
+    /// the vtable of `trait_`, reached from the receiver's vtable through
+    /// the parent fields when `trait_` is a supertrait. `targs` are the
+    /// callee's type arguments under the caller's substitution, the
+    /// trait's first.
+    pub(crate) fn dyn_slot(
+        &self,
+        recv: Ty,
+        trait_: DefId,
+        targs: &[Ty],
+        method: DefId,
+    ) -> StageResult<DynSlot> {
+        let Shape::Dyn {
+            trait_: recv_trait,
+            vt: value_vt,
+            args: recv_args,
+        } = self.shape(recv)?
+        else {
+            return unsupported("a trait-value call on a value that is not a trait value");
+        };
+        let n = self.env.trait_arity(trait_);
+        let want = self.pool.list(&targs[..n.min(targs.len())]);
+        let Some((steps, targs)) = self.super_path(recv_trait, recv_args, trait_, want)? else {
+            return unsupported(
+                "a trait-value call of a method of a trait the value does not extend",
+            );
+        };
+        let Some(slot) = self
+            .env
+            .trait_methods(trait_)
+            .iter()
+            .position(|m| *m == method)
+        else {
+            return unsupported("a trait-value call of a method its trait does not declare");
+        };
+        Ok(DynSlot {
+            value_vt,
+            steps,
+            vt: self.vtable(trait_, targs)?,
+            slot: u32::try_from(slot).expect("slot"),
+            sig: self.slot_sig(trait_, targs, method)?,
+        })
+    }
+
+    /// The parent-field path from the vtable of `from[args]` to that of
+    /// the supertrait `to` (codegen.md §13.16): each step's vtable type
+    /// and parent field, then the supertrait's arguments. `from` itself is
+    /// the empty path. The search runs depth first in declared order;
+    /// the supertrait at the arguments `want` wins over the same trait at
+    /// other arguments.
+    pub(crate) fn super_path(
+        &self,
+        from: DefId,
+        args: TyList,
+        to: DefId,
+        want: TyList,
+    ) -> StageResult<Option<SuperPath>> {
+        let mut found: Option<SuperPath> = None;
+        let mut path = Vec::new();
+        self.find_super(from, args, to, want, &mut path, &mut found)?;
+        Ok(found)
+    }
+
+    fn find_super(
+        &self,
+        at: DefId,
+        args: TyList,
+        to: DefId,
+        want: TyList,
+        path: &mut Vec<(WTy, u32)>,
+        found: &mut Option<SuperPath>,
+    ) -> StageResult<bool> {
+        if at == to {
+            if args == want {
+                *found = Some((path.clone(), args));
+                return Ok(true);
+            }
+            if found.is_none() {
+                *found = Some((path.clone(), args));
+            }
+        }
+        let vt = self.vtable(at, args)?;
+        let own = self.env.trait_methods(at).len();
+        for (k, (d, a)) in self.dyn_supers(at, args)?.into_iter().enumerate() {
+            path.push((vt.clone(), u32::try_from(own + k).expect("field")));
+            let exact = self.find_super(d, a, to, want, path, found)?;
+            path.pop();
+            if exact {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     /// A vtable slot's signature: `(eqref self, params...) -> results`; a

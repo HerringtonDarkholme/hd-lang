@@ -123,6 +123,15 @@ pub fn is_class_ref(pool: &InternPool, t: Ty) -> bool {
     pool.get(t) == TyData::Canon(0xF0)
 }
 
+/// Whether `t` is a trait value, readonly or `mut`.
+fn is_trait_value(pool: &InternPool, t: Ty) -> bool {
+    let t = match pool.get(t) {
+        TyData::Mut(x) => x,
+        _ => t,
+    };
+    matches!(pool.get(t), TyData::TraitValue { .. })
+}
+
 /// How a call is lowered.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TargetKind {
@@ -183,6 +192,10 @@ pub enum Target {
     },
     /// A coercion to a trait value: its vtable's targets.
     VTable(VTable),
+    /// A trait method call at a trait-value receiver: it dispatches
+    /// through the receiver's table (codegen.md §13.5,
+    /// trait.dyn.bound.dispatch), so collection pushes nothing.
+    Dyn,
     /// A closure's code instance.
     Closure(Hash128),
     /// A map operation on a key that is not inline
@@ -1446,20 +1459,26 @@ impl Cx<'_> {
                 let Some((&self_ty, targs)) = all.split_first() else {
                     return err("a trait member reference without `Self`");
                 };
-                if matches!(pool.get(self_ty), TyData::TraitValue { .. }) {
-                    return err("a trait member reference whose `Self` is a trait value");
+                // At a trait-value `Self`, the adapter dispatches through
+                // the receiver's table (trait.dyn.bound.dispatch).
+                if is_trait_value(pool, self_ty) {
+                    reps.hash(env.path_hash(item));
+                    Target::Dyn
+                } else {
+                    Target::Call(self.method_target(trait_, item, self_ty, targs, None, id)?)
                 }
-                self.method_target(trait_, item, self_ty, targs, None, id)?
             }
-            _ => self.target(item, args, id)?,
+            _ => Target::Call(self.target(item, args, id)?),
         };
-        self.hash_target(&t, &mut reps);
+        if let Target::Call(c) = &t {
+            self.hash_target(c, &mut reps);
+        }
         Sub::Adapter.hash_into(&mut reps);
         if self.out.calls.len() <= id.idx() {
             self.out.calls.resize_with(id.idx() + 1, HashMap::new);
             self.out.callee_reps.resize(id.idx() + 1, Hash128(0));
         }
-        self.out.calls[id.idx()] = HashMap::from([(0, Target::Call(t))]);
+        self.out.calls[id.idx()] = HashMap::from([(0, t)]);
         self.out.callee_reps[id.idx()] = reps.finish();
         Ok(())
     }
@@ -1584,6 +1603,15 @@ impl Cx<'_> {
                                 calls.insert(ix, Target::Call(t));
                                 continue;
                             }
+                            // A call at a trait-value receiver goes
+                            // through the value's table, whatever the
+                            // checker chose: a bound at `T = dyn Tr`
+                            // included (trait.dyn.bound.dispatch).
+                            if is_trait_value(pool, self_ty) {
+                                reps.hash(env.path_hash(method));
+                                calls.insert(ix, Target::Dyn);
+                                continue;
+                            }
                             let supplied = match choice.0 {
                                 ChoiceKind::Builtin => {
                                     self.supplied_target(method, self_ty, &targs, id)?
@@ -1596,7 +1624,9 @@ impl Cx<'_> {
                                 let pick = match choice.0 {
                                     ChoiceKind::Impl => Some(DefId::from_raw(choice.1)),
                                     ChoiceKind::Bound => None,
-                                    ChoiceKind::TraitValue => continue,
+                                    ChoiceKind::TraitValue => {
+                                        return err("a trait-value choice at a concrete receiver");
+                                    }
                                     ChoiceKind::Builtin => {
                                         let name = env.path_hash(method);
                                         reps.hash(name);
@@ -1616,9 +1646,6 @@ impl Cx<'_> {
                                         continue;
                                     }
                                 };
-                                if matches!(pool.get(self_ty), TyData::TraitValue { .. }) {
-                                    continue;
-                                }
                                 self.method_target(trait_, method, self_ty, &targs, pick, id)?
                             }
                         }

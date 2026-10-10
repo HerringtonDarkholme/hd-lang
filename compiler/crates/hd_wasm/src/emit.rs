@@ -10,24 +10,17 @@ use std::collections::HashMap;
 use hd_base::{DefId, Hash128, StableHasher, StageResult};
 use hd_mono::layout::{CanonMemo, canon, inline_map_key};
 use hd_mono::{CallTarget, ProgramEnv, Target, TargetKind, VTable, key_order, subst};
-use hd_tir::ir::{
-    Body, Callee, ChoiceKind, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags,
-};
+use hd_tir::ir::{Body, Callee, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags};
 use hd_types::{Inputs, InternPool, Prim, RowId, Ty, TyData, TyList};
 
 use crate::asm::Asm;
 use crate::layout::{
-    ACTIVE, CANCELLED, DONE, EnumShape, F_CANCEL, F_CHILD, F_FLAGS, F_POLL, F_SAVED, F_STATE, Lay,
-    Layouts, M_HASHES, M_KEYS, M_LIVE, M_USED, OptShape, Shape, box_of, cancel_fn, ctx_keys,
-    ctx_provs, frame_of, key_id, storage, suspend_base, task_base,
+    ACTIVE, CANCELLED, DONE, DynSlot, EnumShape, F_CANCEL, F_CHILD, F_FLAGS, F_POLL, F_SAVED,
+    F_STATE, Lay, Layouts, M_HASHES, M_KEYS, M_LIVE, M_USED, OptShape, Shape, box_of, cancel_fn,
+    ctx_keys, ctx_provs, frame_of, key_id, storage, suspend_base, task_base,
 };
 use crate::rt::{Helper, KeyOps, OptForm, block_import};
 use crate::{Code, GSym, Part, Sym, VT, WTy, unsupported};
-
-/// A path through a vtable's parent fields to a supertrait's vtable
-/// (codegen.md §13.16): each step's vtable type and parent field, then
-/// the supertrait's arguments.
-type SuperPath = (Vec<(WTy, u32)>, TyList);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Ctl {
@@ -2024,13 +2017,15 @@ impl Em<'_> {
         {
             return self.call_intrinsic(i, (t.item, t.args), key, args, ty);
         }
-        if let Callee::TraitMethod {
-            trait_,
-            method,
-            targs,
-            choice: (ChoiceKind::TraitValue, _),
-            ..
-        } = c
+        if let (
+            Some(Target::Dyn),
+            Callee::TraitMethod {
+                trait_,
+                method,
+                targs,
+                ..
+            },
+        ) = (&target, c)
         {
             let rs = self.push_dyn(trait_, method, targs, args)?;
             return self.store_from(i, &rs);
@@ -2523,7 +2518,8 @@ impl Em<'_> {
             return unsupported("a downcast of a trait value without a vtable");
         };
         let (insp, rt) = self.inspectable_of(item)?;
-        let Some((steps, iargs)) = self.super_path(from, from_args, insp, TyList::EMPTY)? else {
+        let Some((steps, iargs)) = self.lay.super_path(from, from_args, insp, TyList::EMPTY)?
+        else {
             return unsupported("a downcast of a trait value that is not `Inspectable`");
         };
         let ivt = self.lay.vtable(insp, iargs)?;
@@ -2591,39 +2587,21 @@ impl Em<'_> {
         targs: TyList,
         args: &[u32],
     ) -> StageResult<Vec<VT>> {
-        let recv_t = self.ty_of(args[0]);
-        let Shape::Dyn {
-            trait_: recv_trait,
-            vt: value_vt,
-            args: recv_args,
-        } = self.lay.shape(recv_t)?
-        else {
-            return unsupported("a trait-value call on a value that is not a trait value");
-        };
-        let n = self.env().trait_arity(trait_);
-        let want: Vec<Ty> = self
+        let targs: Vec<Ty> = self
             .pool()
             .list_items(targs)
             .iter()
-            .take(n)
             .map(|t| self.sub(*t))
             .collect();
-        let want = self.pool().list(&want);
-        let Some((steps, targs)) = self.super_path(recv_trait, recv_args, trait_, want)? else {
-            return unsupported(
-                "a trait-value call of a method of a trait the value does not extend",
-            );
-        };
-        let Some(slot) = self
-            .env()
-            .trait_methods(trait_)
-            .iter()
-            .position(|m| *m == method)
-        else {
-            return unsupported("a trait-value call of a method its trait does not declare");
-        };
-        let vt = self.lay.vtable(trait_, targs)?;
-        let sig = self.lay.slot_sig(trait_, targs, method)?;
+        let DynSlot {
+            value_vt,
+            steps,
+            vt,
+            slot,
+            sig,
+        } = self
+            .lay
+            .dyn_slot(self.ty_of(args[0]), trait_, &targs, method)?;
         let WTy::Func(ps, rs) = &sig else {
             return unsupported("a vtable slot type");
         };
@@ -2645,7 +2623,7 @@ impl Em<'_> {
             k += n;
         }
         self.a.get(vl);
-        self.a.struct_get(&vt, u32_of(slot));
+        self.a.struct_get(&vt, slot);
         self.a.call_ref(&sig);
         Ok(rs.clone())
     }
@@ -2739,6 +2717,9 @@ impl Em<'_> {
             }
             return self.store(i);
         }
+        if kind == Coercion::Supertrait as u32 {
+            return self.widen(i, v, ty);
+        }
         if kind == Coercion::ToTraitValue as u32 {
             let Some(Target::VTable(table)) = self.calls.get(&i).cloned() else {
                 return unsupported("a trait-value coercion that collection did not record");
@@ -2752,33 +2733,6 @@ impl Em<'_> {
             self.vtable_value(&table, targs, &fv)?;
             return self.store(i);
         }
-        // Widening to a supertrait value (trait.dyn.widen, codegen.md
-        // §13.16): the payload unchanged, and the supertrait's vtable read
-        // through the parent fields of the child's.
-        if kind == Coercion::Supertrait as u32 {
-            let (
-                Shape::Dyn {
-                    trait_: from_trait,
-                    args: from_args,
-                    vt,
-                },
-                Shape::Dyn {
-                    trait_: def, args, ..
-                },
-            ) = (self.lay.shape(self.ty_of(v))?, self.lay.shape(ty)?)
-            else {
-                return unsupported("a supertrait coercion between non-trait types");
-            };
-            let Some((steps, _)) = self.super_path(from_trait, from_args, def, args)? else {
-                return unsupported("a supertrait coercion to a trait the value does not extend");
-            };
-            self.comp(v, 0, &VT::Eq)?;
-            self.comp(v, 1, &VT::r(vt))?;
-            for (svt, field) in &steps {
-                self.a.struct_get(svt, *field);
-            }
-            return self.store(i);
-        }
         if kind == Coercion::Weaken as u32
             || kind == Coercion::Variance as u32
             || kind == Coercion::RowSubsume as u32
@@ -2787,6 +2741,34 @@ impl Em<'_> {
             return self.store(i);
         }
         unsupported(format!("the coercion kind {kind}"))
+    }
+
+    /// Widening to a supertrait value (trait.dyn.widen, codegen.md
+    /// §13.16): the payload unchanged, and the supertrait's vtable read
+    /// through the parent fields of the child's.
+    fn widen(&mut self, i: u32, v: u32, ty: Ty) -> StageResult<()> {
+        let (
+            Shape::Dyn {
+                trait_: from_trait,
+                args: from_args,
+                vt,
+            },
+            Shape::Dyn {
+                trait_: def, args, ..
+            },
+        ) = (self.lay.shape(self.ty_of(v))?, self.lay.shape(ty)?)
+        else {
+            return unsupported("a supertrait coercion between non-trait types");
+        };
+        let Some((steps, _)) = self.lay.super_path(from_trait, from_args, def, args)? else {
+            return unsupported("a supertrait coercion to a trait the value does not extend");
+        };
+        self.comp(v, 0, &VT::Eq)?;
+        self.comp(v, 1, &VT::r(vt))?;
+        for (svt, field) in &steps {
+            self.a.struct_get(svt, *field);
+        }
+        self.store(i)
     }
 
     fn adapter_target(t: &CallTarget) -> StageResult<Sym> {
@@ -4131,56 +4113,6 @@ impl<'a> Em<'a> {
         Ok(())
     }
 
-    /// The parent-field path from the vtable of `from[args]` to that of
-    /// the supertrait `to` (codegen.md §13.16): each step's vtable type
-    /// and parent field, then the supertrait's arguments. `from` itself is
-    /// the empty path. The search runs depth first in declared order;
-    /// the supertrait at the arguments `want` wins over the same trait at
-    /// other arguments.
-    fn super_path(
-        &self,
-        from: DefId,
-        args: TyList,
-        to: DefId,
-        want: TyList,
-    ) -> StageResult<Option<SuperPath>> {
-        let mut found: Option<SuperPath> = None;
-        let mut path = Vec::new();
-        self.find_super(from, args, to, want, &mut path, &mut found)?;
-        Ok(found)
-    }
-
-    fn find_super(
-        &self,
-        at: DefId,
-        args: TyList,
-        to: DefId,
-        want: TyList,
-        path: &mut Vec<(WTy, u32)>,
-        found: &mut Option<SuperPath>,
-    ) -> StageResult<bool> {
-        if at == to {
-            if args == want {
-                *found = Some((path.clone(), args));
-                return Ok(true);
-            }
-            if found.is_none() {
-                *found = Some((path.clone(), args));
-            }
-        }
-        let vt = self.lay.vtable(at, args)?;
-        let own = self.env().trait_methods(at).len();
-        for (k, (d, a)) in self.lay.dyn_supers(at, args)?.into_iter().enumerate() {
-            path.push((vt.clone(), u32_of(own + k)));
-            let exact = self.find_super(d, a, to, want, path, found)?;
-            path.pop();
-            if exact {
-                return Ok(true);
-            }
-        }
-        Ok(false)
-    }
-
     // ------------------------------------------------------ suspension
 
     fn susp_parts(&self) -> StageResult<(WTy, WTy, u32, u32)> {
@@ -4335,13 +4267,15 @@ impl<'a> Em<'a> {
                 };
                 let rec = self.rec(bw);
                 let args = rec[..rec.len().saturating_sub(3)].to_vec();
-                if let Callee::TraitMethod {
-                    trait_,
-                    method,
-                    targs,
-                    choice: (ChoiceKind::TraitValue, _),
-                    ..
-                } = c
+                if let (
+                    Some(Target::Dyn),
+                    Callee::TraitMethod {
+                        trait_,
+                        method,
+                        targs,
+                        ..
+                    },
+                ) = (self.calls.get(&i), c)
                 {
                     return self.await_stored(i, k, &res, |em, _| {
                         em.push_dyn(trait_, method, targs, &args).map(|_| ())
@@ -4712,32 +4646,15 @@ pub fn emit_adapter(
     calls: &HashMap<u32, Target>,
 ) -> StageResult<Code> {
     let lay = Lay::new(pool, env, path, layouts);
-    let Some(Target::Call(t)) = calls.get(&0) else {
-        return unsupported("a function reference that collection did not resolve");
+    let t = match calls.get(&0) {
+        Some(Target::Call(t)) => t,
+        Some(Target::Dyn) => return emit_dyn_adapter(&lay, item, args),
+        _ => return unsupported("a function reference that collection did not resolve"),
     };
     if t.kind != TargetKind::Instance {
         return unsupported("a function reference to a compiler lowering");
     }
-    let s = |x: Ty| subst(pool, env, item, args, x);
-    let params: Vec<Ty> = env
-        .params(item)
-        .unwrap_or_default()
-        .into_iter()
-        .map(s)
-        .collect();
-    let ft = pool.intern_ty(&TyData::Fn {
-        params: pool.list(&params),
-        result: s(env.ret(item).unwrap_or(Ty::VOID)),
-        row: RowId::EMPTY,
-        suspends: env.suspends(item),
-        inputs: hd_types::Inputs::Fixed,
-    });
-    let Shape::Fn { code, .. } = lay.shape(ft)? else {
-        return unsupported("a function reference without a function type");
-    };
-    let WTy::Func(cps, crs) = code else {
-        return unsupported("a closure code type");
-    };
+    let (cps, crs) = adapter_code(&lay, item, args)?;
     let mut want = Vec::new();
     for p in env.params(t.item).unwrap_or_default() {
         want.extend(lay.vts(subst(pool, env, t.item, t.args, p))?);
@@ -4769,14 +4686,95 @@ pub fn emit_adapter(
         a.get(vl);
     }
     a.call(Sym::Inst(t.key));
+    convert_results(&mut a, &got, &crs);
+    Ok(a.finish(crs))
+}
+
+/// The closure code type of a function reference to `item` at `args`:
+/// its parameters `(env, params..., keys, providers)` and results.
+fn adapter_code(lay: &Lay, item: DefId, args: TyList) -> StageResult<(Vec<VT>, Vec<VT>)> {
+    let (pool, env) = (lay.pool, lay.env);
+    let s = |x: Ty| subst(pool, env, item, args, x);
+    let params: Vec<Ty> = env
+        .params(item)
+        .unwrap_or_default()
+        .into_iter()
+        .map(s)
+        .collect();
+    let ft = pool.intern_ty(&TyData::Fn {
+        params: pool.list(&params),
+        result: s(env.ret(item).unwrap_or(Ty::VOID)),
+        row: RowId::EMPTY,
+        suspends: env.suspends(item),
+        inputs: hd_types::Inputs::Fixed,
+    });
+    let Shape::Fn { code, .. } = lay.shape(ft)? else {
+        return unsupported("a function reference without a function type");
+    };
+    let WTy::Func(cps, crs) = code else {
+        return unsupported("a closure code type");
+    };
+    Ok((cps, crs))
+}
+
+/// Converts the results `got` on the stack to the closure results `crs`.
+fn convert_results(a: &mut Asm, got: &[VT], crs: &[VT]) {
     let tmp: Vec<u32> = got.iter().map(|v| a.local(v.clone())).collect();
     for l in tmp.iter().rev() {
         a.set(*l);
     }
-    for (l, (have, w)) in tmp.iter().zip(got.iter().zip(&crs)) {
+    for (l, (have, w)) in tmp.iter().zip(got.iter().zip(crs)) {
         a.get(*l);
         a.conv(have, w);
     }
+}
+
+/// A function reference to a trait method at a trait-value `Self`, as
+/// `T::name` at `T = dyn Named` (trait.dyn.bound.dispatch): the code
+/// calls the method's slot in the receiver's vtable.
+fn emit_dyn_adapter(lay: &Lay, item: DefId, args: TyList) -> StageResult<Code> {
+    let (pool, env) = (lay.pool, lay.env);
+    let Some((trait_, _)) = env.parent(item) else {
+        return unsupported("a dynamic function reference to a method outside a trait");
+    };
+    let all = pool.list_items(args);
+    let Some((&recv, targs)) = all.split_first() else {
+        return unsupported("a trait member reference without `Self`");
+    };
+    let DynSlot {
+        value_vt,
+        steps,
+        vt,
+        slot,
+        sig,
+    } = lay.dyn_slot(recv, trait_, targs, item)?;
+    let WTy::Func(ps, rs) = &sig else {
+        return unsupported("a vtable slot type");
+    };
+    let (cps, crs) = adapter_code(lay, item, args)?;
+    // `(env, payload, vtable, rest..., keys, providers)`.
+    let n = cps.len();
+    if lay.vts(recv)?.len() != 2 || n < 5 || n - 5 + 1 != ps.len() || rs.len() != crs.len() {
+        return unsupported("a dynamic function reference whose slot has another shape");
+    }
+    let mut a = Asm::new(cps.clone());
+    let vl = a.local(VT::r(vt.clone()));
+    a.get(2);
+    a.conv(&cps[2], &VT::r(value_vt));
+    for (svt, field) in &steps {
+        a.struct_get(svt, *field);
+    }
+    a.set(vl);
+    a.get(1);
+    a.conv(&cps[1], &ps[0]);
+    for (j, w) in ps[1..].iter().enumerate() {
+        a.get(u32_of(j + 3));
+        a.conv(&cps[j + 3], w);
+    }
+    a.get(vl);
+    a.struct_get(&vt, slot);
+    a.call_ref(&sig);
+    convert_results(&mut a, rs, &crs);
     Ok(a.finish(crs))
 }
 
