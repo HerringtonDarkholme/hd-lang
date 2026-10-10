@@ -918,3 +918,34 @@ fn generic_defaults_see_earlier_parameters_of_their_own_kind() {
         [Code::GenericKindMismatch]
     );
 }
+
+/// A written type that leaves out a slot with no default is an error, for
+/// a data type, a `dyn` type whose default names `Self`, and a requirement
+/// key (`types.generic.default.written-missing`).
+#[test]
+fn written_types_may_omit_only_defaulted_slots() {
+    const HEAD: &str = "data Pair[A, B = A]:\n    first: A\n    second: B\n\
+        trait Same[Other = Self]:\n    fn same(self, other: Other) -> bool\n\
+        trait Repo[T]:\n    fn find(self, id: string) -> T?\n";
+    for ok in [
+        "fn f(p: Pair[i32, i64]) -> void: pass",
+        "fn f(p: Pair[i32]) -> void: pass",
+        "fn f(r: dyn Repo[i32]) -> void: pass",
+        "fn f() -> void $ Repo[i32]: pass",
+    ] {
+        assert_eq!(item_codes(&format!("{HEAD}\n{ok}\n")), [], "{ok}");
+    }
+    for bad in [
+        "fn f(m: Map[string]) -> void: pass",
+        "fn f(p: Pair) -> void: pass",
+        "fn f(r: dyn Same) -> void: pass",
+        "fn f(r: dyn Repo) -> void: pass",
+        "fn f() -> void $ Repo: pass",
+    ] {
+        assert_eq!(
+            item_codes(&format!("{HEAD}\n{bad}\n")),
+            [Code::PartialGenericArguments],
+            "{bad}"
+        );
+    }
+}
