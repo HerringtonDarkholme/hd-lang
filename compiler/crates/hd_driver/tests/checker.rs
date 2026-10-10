@@ -1152,3 +1152,21 @@ fn implementation_heads_are_well_formed() {
         assert_eq!(item_codes(&format!("{HEAD}\n{bad}\n")), [code], "{bad}");
     }
 }
+
+/// `?` cannot leave a `defer` suite, but a closure inside the suite may use
+/// it (`flow.defer.control`).
+#[test]
+fn a_defer_suite_cannot_propagate_with_a_query() {
+    for ok in [
+        "fn f() -> Result[i32, string]:\n    let r: Result[i32, string] = .Ok(1)\n    defer:\n        let g = fn() -> Result[i32, string]:\n            v := r?\n            .Ok(v)\n        _ := g()\n    .Ok(42)",
+        "fn f() -> Result[i32, string]:\n    let r: Result[i32, string] = .Ok(1)\n    v := r?\n    .Ok(v)",
+    ] {
+        assert_eq!(item_codes(ok), [], "{ok}");
+    }
+    assert_eq!(
+        item_codes(
+            "fn f() -> Result[i32, string]:\n    defer:\n        let r: Result[i32, string] = .Err(\"x\")\n        _ := r?\n    .Ok(42)"
+        ),
+        [Code::DeferControlFlow]
+    );
+}
