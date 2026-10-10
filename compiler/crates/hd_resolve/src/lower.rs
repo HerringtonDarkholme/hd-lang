@@ -574,6 +574,9 @@ struct Resolver<'a, 'b> {
     trait_assoc: HashMap<DefId, Vec<Symbol>>,
     /// The declared variance markers of the folder's own declarations.
     variances: HashMap<DefId, Vec<i8>>,
+    /// Whether each generic parameter of the folder's own declarations is
+    /// a row parameter, from their heads.
+    row_params: HashMap<DefId, Vec<bool>>,
     /// This folder's aliases, each lowered after the aliases it names:
     /// whether each generic parameter is a row parameter, and the body.
     aliases: RefCell<HashMap<DefId, (Vec<bool>, Ty)>>,
@@ -1158,9 +1161,6 @@ impl Lower<'_, '_, '_> {
             return None;
         };
         let mut module = self.scope.modules.get(value as usize)?.clone();
-        for (s, _) in &segs[1..segs.len() - 1] {
-            module.push('.');
-            module.push_str(s);
         // A `use` of a module brings in that module alone, not its children
         // (`module.path.no-child-import`, `module.path.no-std-child-import`);
         // only a root module's name leads to them.
@@ -1169,6 +1169,9 @@ impl Lower<'_, '_, '_> {
             self.diags.error(Code::UnknownImport, span, &msg);
             return None;
         }
+        for (s, _) in &segs[1..segs.len() - 1] {
+            module.push('.');
+            module.push_str(s);
         }
         let (last, _) = segs.last()?;
         match self.r.export(&module, self.sym(last)) {
@@ -1463,6 +1466,25 @@ impl Lower<'_, '_, '_> {
                 t
             }
             HeadKind::Data | HeadKind::Enum | HeadKind::Newtype => {
+                // Each argument has the kind of its parameter
+                // (`grammar.type.row-argument.kind`).
+                if let Some((i, row)) = args
+                    .iter()
+                    .zip(self.generic_rows(def))
+                    .enumerate()
+                    .find_map(|(i, (a, row))| {
+                        (matches!(pool.get(*a), TyData::Row(_)) != row).then_some((i, row))
+                    })
+                {
+                    let name = self.names.display_name(def);
+                    let msg = if row {
+                        format!("argument {} of `{name}` is a row parameter: write it after `$`", i + 1)
+                    } else {
+                        format!("argument {} of `{name}` is a type parameter, not a row", i + 1)
+                    };
+                    self.diags.error(Code::GenericKindMismatch, span, &msg);
+                    return Ty::POISON;
+                }
                 let args: Vec<Ty> = args
                     .iter()
                     .copied()
@@ -1763,6 +1785,27 @@ impl Lower<'_, '_, '_> {
             _ => {
                 self.gap("this type form");
                 Ty::POISON
+            }
+        }
+    }
+
+    /// `req.row.param.no-data.marked`: the generic parameters of a data
+    /// type, an enum, a trait or a newtype are type-kinded, so none is
+    /// marked `$`.
+    fn type_kinded(&mut self, gl: Option<NodeRef<'_>>) {
+        if self.r.frozen.is_some() {
+            return;
+        }
+        let toks = &self.src.parse.tokens;
+        for g in gl.iter().flat_map(|gl| gl.children()) {
+            if g.kind() == SyntaxKind::GenericParameter
+                && g.direct_token(toks, TokenKind::Dollar).is_some()
+            {
+                self.diags.error(
+                    Code::GenericKindMismatch,
+                    self.src.span(g),
+                    "a data type, enum, trait or newtype declares no row parameter: drop the `$`",
+                );
             }
         }
     }
@@ -2101,6 +2144,18 @@ impl Lower<'_, '_, '_> {
             }
         }
         out
+    }
+
+    /// Whether each generic parameter of a declaration is a row parameter.
+    fn generic_rows(&self, def: DefId) -> Vec<bool> {
+        match self.r.row_params.get(&def) {
+            Some(rows) => rows.clone(),
+            None => self
+                .r
+                .item(def)
+                .map(|i| i.generics.iter().map(|g| g.row).collect())
+                .unwrap_or_default(),
+        }
     }
 
     /// A declaration's declared parameter variances (types.variance.list,
@@ -2911,6 +2966,7 @@ impl Lower<'_, '_, '_> {
             ..Gen::default()
         };
         let gl = Src::child(h.node, SyntaxKind::GenericParameterList);
+        self.type_kinded(gl);
         let generics = self.generics(gl, h.def, 1, &mut gn);
         (self_ty, gn, generics)
     }
@@ -2967,6 +3023,7 @@ impl Lower<'_, '_, '_> {
             }
             HeadKind::Data => {
                 let mut gn = Gen::default();
+                self.type_kinded(gl);
                 let generics = self.generics(gl, h.def, 0, &mut gn);
                 let fields = self.fields(block, &gn);
                 if self.r.frozen.is_none() {
@@ -2982,6 +3039,7 @@ impl Lower<'_, '_, '_> {
             }
             HeadKind::Enum => {
                 let mut gn = Gen::default();
+                self.type_kinded(gl);
                 let generics = self.generics(gl, h.def, 0, &mut gn);
                 let shared_params = Src::child(n, SyntaxKind::ParameterList);
                 let nodes: Vec<NodeRef<'_>> = shared_params
@@ -3082,6 +3140,7 @@ impl Lower<'_, '_, '_> {
             HeadKind::Alias => self.alias_item(h, false, out),
             HeadKind::Newtype => {
                 let mut gn = Gen::default();
+                self.type_kinded(gl);
                 let generics = self.generics(gl, h.def, 0, &mut gn);
                 let t = self.ty(n.children().find(|c| c.kind().is_type()), &gn);
                 // `@derive` on a newtype names implementations from the
@@ -3948,6 +4007,7 @@ pub fn build_folder(
         visiting: RefCell::new(HashSet::new()),
         trait_assoc: HashMap::new(),
         variances: HashMap::new(),
+        row_params: HashMap::new(),
         aliases: RefCell::new(HashMap::new()),
         seeds: HashMap::new(),
         own_traits: HashMap::new(),
@@ -3981,6 +4041,12 @@ pub fn build_folder(
                     })
                     .collect();
                 r.variances.insert(h.def, vs);
+                let rows = gl
+                    .children()
+                    .filter(|c| c.kind() == SyntaxKind::GenericParameter)
+                    .map(|g| g.direct_token(toks, TokenKind::Dollar).is_some())
+                    .collect();
+                r.row_params.insert(h.def, rows);
             }
             if h.kind == HeadKind::Trait {
                 let assoc = Src::child(h.node, SyntaxKind::Block)

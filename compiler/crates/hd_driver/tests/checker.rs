@@ -1219,6 +1219,28 @@ fn public_callables_declare_their_result_type() {
     }
 }
 
+/// A generic argument has the kind of its parameter, and a data type,
+/// enum, trait or newtype declares no row parameter
+/// (`grammar.type.row-argument.kind`, `req.row.param.no-data.marked`).
+#[test]
+fn generic_arguments_and_parameters_have_a_kind() {
+    for ok in [
+        "data Box[T]:\n    value: T\nfn f(value: Box[i32]) -> void: pass",
+        "fn run[$ R](callback: fn() -> void $ R) -> void $ R: callback()",
+    ] {
+        assert_eq!(item_codes(ok), [], "{ok}");
+    }
+    for bad in [
+        "data Box[T]:\n    value: T\nfn f(value: Box[$()]) -> void: pass",
+        "data Job[$R]:\n    name: string",
+        "trait Handler[$R]",
+        "type Job[$R](i32)",
+        "enum Mode[$R]:\n    A",
+    ] {
+        assert_eq!(item_codes(bad), [Code::GenericKindMismatch], "{bad}");
+    }
+}
+
 /// A written type has no more arguments than its declaration has type
 /// parameters (`types.generic.too-long`).
 #[test]
