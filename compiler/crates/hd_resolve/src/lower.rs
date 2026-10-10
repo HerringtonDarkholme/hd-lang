@@ -1955,6 +1955,19 @@ impl Lower<'_, '_, '_> {
         }
     }
 
+    /// `fn.decl.result-required-pub`: a public function, a public inherent
+    /// method, and a trait method or the method of a trait implementation
+    /// declare their result type.
+    fn result_required(&mut self, f: NodeRef<'_>, public: bool) {
+        if public && self.r.frozen.is_none() && Src::type_child(f).is_none() {
+            self.diags.error(
+                Code::MissingResultType,
+                self.src.span(f),
+                "a public declaration states its result type: write `-> T`",
+            );
+        }
+    }
+
     /// `module.prelude.no-shadow`: a parameter or a type parameter does not
     /// bind a prelude name.
     fn prelude_shadow(&mut self, node: NodeRef<'_>, name: &str) {
@@ -2268,6 +2281,7 @@ impl Lower<'_, '_, '_> {
                     let text = self.src.text(t).to_owned();
                     let name = self.sym(&text);
                     let def = self.names.member(owner, PathKind::Member, &text);
+                    self.result_required(f, public || self.src.is_pub(f));
                     let sig = self.sig(f, def, gn);
                     let mut it = Item::new(
                         def,
@@ -2935,6 +2949,7 @@ impl Lower<'_, '_, '_> {
         let gl = Src::child(n, SyntaxKind::GenericParameterList);
         match h.kind {
             HeadKind::Fn => {
+                self.result_required(n, h.public);
                 let sig = self.sig(n, h.def, &Gen::default());
                 let mut it = Item::new(h.def, h.name, h.public, ItemData::Fn(sig));
                 it.intrinsic = self.intrinsic(n);

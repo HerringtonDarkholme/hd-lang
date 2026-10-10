@@ -1190,3 +1190,31 @@ fn prelude_names_cannot_be_shadowed() {
         assert_eq!(item_codes(bad), [Code::PreludeNameShadow], "{bad}");
     }
 }
+
+/// A public function, a public inherent method and a trait implementation
+/// method declare their result type (`fn.decl.result-required-pub`).
+#[test]
+fn public_callables_declare_their_result_type() {
+    const HEAD: &str = "trait Sized:\n    fn size(self) -> i32\n\
+        data Box:\n    width: i32\n";
+    for ok in [
+        "fn private():\n    pass",
+        "pub fn shown() -> i32: 1",
+        "impl Box:\n    fn width_of(self): self.width",
+        "impl Box:\n    pub fn width_of(self) -> i32: self.width",
+        "impl Sized for Box:\n    fn size(self) -> i32: self.width",
+    ] {
+        assert_eq!(item_codes(&format!("{HEAD}\n{ok}\n")), [], "{ok}");
+    }
+    for bad in [
+        "pub fn shown(): 1",
+        "impl Box:\n    pub fn width_of(self): self.width",
+        "impl Sized for Box:\n    fn size(self): self.width",
+    ] {
+        assert_eq!(
+            item_codes(&format!("{HEAD}\n{bad}\n")),
+            [Code::MissingResultType],
+            "{bad}"
+        );
+    }
+}

@@ -216,7 +216,11 @@ impl Ck<'_, '_> {
         let free_bounds =
             (trait_ == known.walker || trait_ == known.describer || trait_ == known.source)
                 && (mname == "member" || (mname == "rest" && trait_ == known.walker));
-        if let Some(why) = Self::sig_differs(pool, (tsig, sig), free_bounds, &inst) {
+        // A result left out is `missing-result-type` already.
+        let omitted = hd_resolve::Src::type_child(node).is_none();
+        if let Some(why) = Self::sig_differs(pool, (tsig, sig), free_bounds, &inst)
+            && !(omitted && why == "the result type")
+        {
             let msg = format!(
                 "`{}` differs from the trait's declaration: {why}",
                 self.cx.names.text(it.name)
