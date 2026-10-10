@@ -43,20 +43,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M13. Design: Typed Derivation Lowering (#253, Design Text)
-
-Nine valid fixtures fail because `std/structure/Structure.walk`,
-`facts`, `describe` and `build` are body-less and not intrinsics in the
-Rust compiler (`derive-members-of-data-and-enums`, `typed-derivation-walk`,
-`serde-derive-read-order`, `json-typed-members`, `derived-arbitrary-with`,
-`derived-default-*`, `serde-variant-member-facts`). Read
-`spec/lang/14-annotations.md` (Typed Derivation), `lib/std/structure.hd`,
-how the TS prototype lowers them, and the Rust checker and mono crates.
-Design the Rust lowering: which stage generates the per-type bodies, what
-they look like in TIR, how they stay cached per type, and the footprint
-cost for a program that derives nothing. Output:
-`future-work/compiler/typed-derivation.md`. No code changes.
-
 ### M14. Design: Package Identity In The Driver (#279, Design Text)
 
 Two packages with one manifest name collide with `duplicate-module-name`:
