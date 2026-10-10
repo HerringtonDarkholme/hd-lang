@@ -1323,6 +1323,8 @@ function type, never to the body that creates it.
 
 ### 5.5 Private Rows And The M3 Fixpoint
 
+> As built (#194): rows are solved before the module's items are written, with no pending rows in types or TIR; see checking-and-tir.md §4.13.1 "M3: inferred rows, as built". The text below is the original plan.
+
 A non-public function, method or local `fn` without a `$` clause has an
 inferred row
 ([`req.row.omitted.inferred-private`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.omitted.inferred-private)).
