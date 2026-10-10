@@ -6,12 +6,20 @@
 //! and its embedded pass list with the current result. The CLI tier runs in
 //! `hd_cli/tests/cli_conformance.rs`, which owns the last section of the
 //! report; this test keeps that section when it rewrites the file.
+//!
+//! `HD_CONFORMANCE_ENGINE=wasmtime` runs each runtime program whose
+//! imports all run on wasmtime (`hd_run_wasmtime`) on both engines, judges
+//! it by its wasmtime run, and prints how many runs match Node's exactly
+//! (standard output, standard error and status); a program under a
+//! runtime profile, or with an import not on wasmtime yet, runs on Node
+//! alone. That mode never rewrites the report.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use hd_base::Stage;
@@ -494,6 +502,107 @@ fn decode_stdout_line(text: &str) -> Result<String, String> {
     Ok(out)
 }
 
+/// A program run's standard output and error, and its status.
+struct Ran {
+    stdout: Vec<u8>,
+    stderr: Vec<u8>,
+    status: Option<i32>,
+}
+
+impl Ran {
+    fn success(&self) -> bool {
+        self.status == Some(0)
+    }
+}
+
+/// Whether runtime programs also run on wasmtime
+/// (`HD_CONFORMANCE_ENGINE=wasmtime`).
+fn on_wasmtime() -> bool {
+    std::env::var("HD_CONFORMANCE_ENGINE").is_ok_and(|e| e == "wasmtime")
+}
+
+/// What the wasmtime mode saw: runs on both engines, those that matched,
+/// runs left on Node, and each mismatch.
+static WASMTIME_RUNS: AtomicUsize = AtomicUsize::new(0);
+static WASMTIME_MATCHES: AtomicUsize = AtomicUsize::new(0);
+static NODE_ONLY: AtomicUsize = AtomicUsize::new(0);
+static WASMTIME_DIFFS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// Runs a program's entry on the run host, and in the wasmtime mode on
+/// wasmtime too, whose run then decides the verdict.
+fn run_program(
+    case: &Case,
+    wasm: &[u8],
+    serial: usize,
+    profile: Option<&str>,
+) -> std::io::Result<Ran> {
+    let node = run_wasm(wasm, serial, profile)?;
+    let node = Ran {
+        stdout: node.stdout,
+        stderr: node.stderr,
+        status: node.status.code(),
+    };
+    if !on_wasmtime() {
+        return Ok(node);
+    }
+    if profile.is_some() {
+        NODE_ONLY.fetch_add(1, Ordering::Relaxed);
+        return Ok(node);
+    }
+    let setup = hd_run::HostSetup {
+        providers: Vec::new(),
+        grants: hd_run::Grants::default(),
+        limits: hd_run::Limits::default(),
+        args: Vec::new(),
+        program: String::new(),
+    };
+    let config = hd_run_wasmtime::EngineConfig::default();
+    let Ok(w) = hd_run_wasmtime::run_captured(config, wasm, &setup) else {
+        NODE_ONLY.fetch_add(1, Ordering::Relaxed);
+        return Ok(node);
+    };
+    let w = Ran {
+        stdout: w.stdout,
+        stderr: w.stderr,
+        status: Some(i32::from(w.status)),
+    };
+    WASMTIME_RUNS.fetch_add(1, Ordering::Relaxed);
+    if (&w.stdout, &w.stderr, w.status) == (&node.stdout, &node.stderr, node.status) {
+        WASMTIME_MATCHES.fetch_add(1, Ordering::Relaxed);
+    } else {
+        let line = |r: &Ran| {
+            format!(
+                "{:?} out {:?} err {:?}",
+                r.status,
+                String::from_utf8_lossy(&r.stdout),
+                String::from_utf8_lossy(&r.stderr)
+            )
+        };
+        WASMTIME_DIFFS.lock().expect("diffs lock").push(format!(
+            "{}\n  node     {}\n  wasmtime {}",
+            case.path,
+            line(&node),
+            line(&w)
+        ));
+    }
+    Ok(w)
+}
+
+/// Prints what the wasmtime mode saw.
+fn report_wasmtime() {
+    let diffs = WASMTIME_DIFFS.lock().expect("diffs lock");
+    for d in diffs.iter() {
+        println!("wasmtime differs: {d}");
+    }
+    println!(
+        "wasmtime: {} runtime programs ran on both engines, {} match Node exactly, {} differ; {} ran on Node alone (a runtime profile or an import not on wasmtime)",
+        WASMTIME_RUNS.load(Ordering::Relaxed),
+        WASMTIME_MATCHES.load(Ordering::Relaxed),
+        diffs.len(),
+        NODE_ONLY.load(Ordering::Relaxed),
+    );
+}
+
 /// Runs a program's entry on the run host, under the fixture's runtime
 /// `profile` when it names one: the run configuration names it, and the
 /// host's `profiles.mjs` supplies its providers (README "Runtime
@@ -819,19 +928,19 @@ fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usi
         return Verdict::Unsupported("Link".to_owned());
     };
     let profile = directive(&fixture.text, "fixture-runtime-profile");
-    let run = match run_wasm(&wasm, serial, profile) {
+    let run = match run_program(case, &wasm, serial, profile) {
         Ok(run) => run,
         Err(error) => return Verdict::Crash(error.to_string()),
     };
     let stdout = String::from_utf8_lossy(&run.stdout);
     let stderr = String::from_utf8_lossy(&run.stderr);
     if let Some(expected) = case.expectation.strip_prefix("panic:") {
-        if !run.status.success() && stderr.contains(&format!("panic: {expected}:")) {
+        if !run.success() && stderr.contains(&format!("panic: {expected}:")) {
             Verdict::Pass
         } else {
             Verdict::Fail("runtime-exit".to_owned())
         }
-    } else if !run.status.success() {
+    } else if !run.success() {
         Verdict::Fail("runtime-exit".to_owned())
     } else if let Some(expected) = expected_stdout(&fixture.text) {
         match expected {
@@ -1140,11 +1249,14 @@ fn specification_conformance_does_not_regress() {
         crashes.join("\n")
     );
 
+    if on_wasmtime() {
+        report_wasmtime();
+    }
     if only.is_some() {
         print_filtered(&cases, &results, &store);
         return;
     }
-    if std::env::var_os("HD_UPDATE_CONFORMANCE").is_some() {
+    if std::env::var_os("HD_UPDATE_CONFORMANCE").is_some() && !on_wasmtime() {
         let mut report = render_report(&cases, &results);
         if let Ok(old) = std::fs::read_to_string(report_path())
             && let Some((_, cli)) = old.split_once(CLI_HEADING)
