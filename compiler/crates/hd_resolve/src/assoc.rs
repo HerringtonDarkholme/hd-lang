@@ -9,6 +9,8 @@ use std::collections::HashSet;
 use hd_base::DefId;
 use hd_types::{ParamRef, Ty, TyData, TyList, Types};
 
+use crate::iface::{Names, show_ty};
+
 /// How the two callers see traits: each trait's direct supertraits, as
 /// trait-value types over its `Self` (parameter 0) and its parameters, and
 /// the items a trait itself declares as associated types.
@@ -125,23 +127,17 @@ pub fn resolve_bindings(
     (bindings, bad)
 }
 
-/// A `dyn` type with the bindings its trait's supertrait lists fix added
-/// (trait.binding.super.meaning): every implementation of the trait binds
-/// them so, so `dyn PriceFeed` under `PriceFeed < Feed[Item = i32]` is
-/// `dyn PriceFeed[Item = i32]` (trait.dyn.binding.identity). A binding
-/// that names `Self` is not one a value can carry, and stays a projection.
-#[must_use]
-pub fn with_super_bindings(pool: Types<'_>, view: &dyn TraitView, t: Ty) -> Ty {
-    let TyData::TraitValue {
-        def,
-        args,
-        mut bindings,
-    } = pool.get(t)
-    else {
-        return t;
-    };
+/// The bindings the supertrait lists above `trait_[args]` fix, each with
+/// whether it names the `Self` of a trait on the way (trait.binding.super.meaning).
+fn super_fixed(
+    pool: Types<'_>,
+    view: &dyn TraitView,
+    trait_: DefId,
+    args: TyList,
+) -> Vec<(DefId, Ty, bool)> {
+    let mut out: Vec<(DefId, Ty, bool)> = Vec::new();
     let mut seen: HashSet<(DefId, TyList)> = HashSet::new();
-    let mut todo = vec![(def, args)];
+    let mut todo = vec![(trait_, args)];
     while let Some((tr, a)) = todo.pop() {
         if !seen.insert((tr, a)) {
             continue;
@@ -170,11 +166,34 @@ pub fn with_super_bindings(pool: Types<'_>, view: &dyn TraitView, t: Ty) -> Ty {
                     }
                     None
                 });
-                if !names_self.get() && !bindings.iter().any(|(x, _)| *x == assoc) {
-                    bindings.push((assoc, b));
+                if !out.iter().any(|x| x.0 == assoc) {
+                    out.push((assoc, b, names_self.get()));
                 }
             }
             todo.push((sd, sa));
+        }
+    }
+    out
+}
+
+/// A `dyn` type with the bindings its trait's supertrait lists fix added
+/// (trait.binding.super.meaning): every implementation of the trait binds
+/// them so, so `dyn PriceFeed` under `PriceFeed < Feed[Item = i32]` is
+/// `dyn PriceFeed[Item = i32]` (trait.dyn.binding.identity). A binding
+/// that names `Self` is not one a value can carry, and stays a projection.
+#[must_use]
+pub fn with_super_bindings(pool: Types<'_>, view: &dyn TraitView, t: Ty) -> Ty {
+    let TyData::TraitValue {
+        def,
+        args,
+        mut bindings,
+    } = pool.get(t)
+    else {
+        return t;
+    };
+    for (assoc, b, names_self) in super_fixed(pool, view, def, args) {
+        if !names_self && !bindings.iter().any(|(x, _)| *x == assoc) {
+            bindings.push((assoc, b));
         }
     }
     pool.intern_ty(&TyData::TraitValue {
@@ -182,6 +201,43 @@ pub fn with_super_bindings(pool: Types<'_>, view: &dyn TraitView, t: Ty) -> Ty {
         args,
         bindings,
     })
+}
+
+/// The associated types a trait value type leaves unbound: those of its
+/// trait and its supertraits that neither it nor a supertrait list binds
+/// (trait.dyn.binding.complete, req.key.binding.complete). A binding that
+/// names `Self` still fixes its type.
+#[must_use]
+pub fn unbound_assocs(pool: Types<'_>, view: &dyn TraitView, t: Ty) -> Vec<DefId> {
+    let TyData::TraitValue {
+        def,
+        args,
+        bindings,
+    } = pool.get(t)
+    else {
+        return Vec::new();
+    };
+    let fixed = super_fixed(pool, view, def, args);
+    reached_assocs(pool, view, def)
+        .into_iter()
+        .filter(|a| !bindings.iter().any(|(x, _)| x == a) && !fixed.iter().any(|(x, _, _)| x == a))
+        .collect()
+}
+
+/// The error for a trait value type that leaves associated types unbound,
+/// or `None` when it binds them all.
+#[must_use]
+pub fn incomplete_message(names: &Names<'_>, view: &dyn TraitView, t: Ty) -> Option<String> {
+    let unbound = unbound_assocs(names.pool.types(), view, t);
+    if unbound.is_empty() {
+        return None;
+    }
+    let list: Vec<&str> = unbound.iter().map(|a| names.display_name(*a)).collect();
+    Some(format!(
+        "`{}` leaves `{}` unbound, so it is not dynamically safe",
+        show_ty(names, t),
+        list.join("`, `")
+    ))
 }
 
 /// Traits as a body sees them: through its module's items and the

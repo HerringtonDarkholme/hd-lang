@@ -358,9 +358,22 @@ impl Ck<'_, '_> {
                 continue;
             }
             let t = self.named_ty(c)?;
+            self.require_complete(t, c);
             data.keys.push(t);
         }
         Ok(self.pool().row(&data))
+    }
+
+    /// A trait value type binds every associated type of its trait and
+    /// supertraits (trait.dyn.binding.complete, req.key.binding.complete).
+    fn require_complete(&mut self, t: Ty, at: NodeRef<'_>) {
+        let view = hd_resolve::assoc::LookupView {
+            lookup: self.cx.lookup,
+            names: &self.cx.names,
+        };
+        if let Some(msg) = hd_resolve::assoc::incomplete_message(&self.cx.names, &view, t) {
+            self.err(Code::TraitNotDynamicallySafe, at, &msg);
+        }
     }
 
     /// The type a type node names.
@@ -471,7 +484,9 @@ impl Ck<'_, '_> {
                         lookup: self.cx.lookup,
                         names: &self.cx.names,
                     };
-                    hd_resolve::assoc::with_super_bindings(pool, &view, t)
+                    let t = hd_resolve::assoc::with_super_bindings(pool, &view, t);
+                    self.require_complete(t, n);
+                    t
                 }
                 None => return unsupported("this `dyn` form"),
             },

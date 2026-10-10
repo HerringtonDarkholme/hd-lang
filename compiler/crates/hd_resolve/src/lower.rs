@@ -1261,6 +1261,14 @@ impl Lower<'_, '_, '_> {
         }))
     }
 
+    /// A trait value type binds every associated type of its trait and
+    /// supertraits (trait.dyn.binding.complete, req.key.binding.complete).
+    fn require_complete(&mut self, t: Ty, span: Span) {
+        if let Some(msg) = crate::assoc::incomplete_message(&self.names, self.r, t) {
+            self.diags.error(Code::TraitNotDynamicallySafe, span, &msg);
+        }
+    }
+
     fn trait_of(&self, t: Ty) -> Option<DefId> {
         match self.names.pool.get(t) {
             TyData::TraitValue { def, .. } => Some(def),
@@ -1294,6 +1302,7 @@ impl Lower<'_, '_, '_> {
                 continue;
             }
             if let Some(t) = self.trait_value_from(c, gn, None, found) {
+                self.require_complete(t, self.src.span(c));
                 data.keys.push(t);
             }
         }
@@ -1609,7 +1618,9 @@ impl Lower<'_, '_, '_> {
                     return Ty::POISON;
                 };
                 self.trait_value(c, gn, None).map_or(Ty::POISON, |t| {
-                    crate::assoc::with_super_bindings(self.names.pool.types(), self.r, t)
+                    let t = crate::assoc::with_super_bindings(self.names.pool.types(), self.r, t);
+                    self.require_complete(t, self.src.span(n));
+                    t
                 })
             }
             SyntaxKind::FunctionType => {
