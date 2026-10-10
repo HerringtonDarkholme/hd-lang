@@ -1013,6 +1013,36 @@ fn skipped_bindings_are_not_initialized() {
     }
 }
 
+/// A join site that restarts with an optional type (a plain branch, then an
+/// optional one: `types.lct.optional`) rechecks its branches from the same
+/// skipped bindings, so `names.definite.skipped` reports the same errors
+/// once each.
+#[test]
+fn restarted_joins_keep_skipped_bindings() {
+    for ok in [
+        // The condition's `&&` skips `n` on the else path only.
+        "fn f(flag: bool, found: i32?) -> i32?:\n    r := if flag && (n := 3) > 0:\n        n\n    else:\n        found\n    r",
+        "fn f(flag: bool, found: i32?) -> i32?:\n    r := if flag || (n := 3) > 0:\n        found\n    else:\n        n\n    r",
+    ] {
+        assert_eq!(item_codes(ok), [], "{ok}");
+    }
+    for bad in [
+        // After the restarted `if`, `n` is skipped on the else path.
+        "fn f(flag: bool, found: i32?) -> (i32?, i32):\n    r := if flag && (n := 3) > 0:\n        n\n    else:\n        found\n    (r, n)",
+        // Read in the else branch, which is the branch that restarts.
+        "fn f(flag: bool, found: i32?) -> i32?:\n    r := if flag && (n := 3) > 0:\n        n\n    else:\n        if n > 0:\n            found\n        else:\n            found\n    r",
+        // A list literal restarts the same way, and the skipped read in its
+        // first element is checked again.
+        "fn f(flag: bool, found: i32?):\n    if flag && (n := +3) > 0:\n        pass\n    xs := [n, found]\n    xs",
+    ] {
+        assert_eq!(
+            item_codes(bad),
+            [Code::PossiblyUninitializedBinding],
+            "{bad}"
+        );
+    }
+}
+
 /// A derived `Default` enum marks exactly one variant `@default`
 /// (`std-ops.default.derive.one-variant`).
 #[test]

@@ -1478,9 +1478,15 @@ impl Lower<'_, '_, '_> {
                 {
                     let name = self.names.display_name(def);
                     let msg = if row {
-                        format!("argument {} of `{name}` is a row parameter: write it after `$`", i + 1)
+                        format!(
+                            "argument {} of `{name}` is a row parameter: write it after `$`",
+                            i + 1
+                        )
                     } else {
-                        format!("argument {} of `{name}` is a type parameter, not a row", i + 1)
+                        format!(
+                            "argument {} of `{name}` is a type parameter, not a row",
+                            i + 1
+                        )
                     };
                     self.diags.error(Code::GenericKindMismatch, span, &msg);
                     return Ty::POISON;
