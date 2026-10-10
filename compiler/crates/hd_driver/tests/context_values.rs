@@ -240,6 +240,54 @@ pub fn main!() -> void $ Console:
     assert_eq!(output_of("suspend", &main), "async\nasyncasync\n");
 }
 
+/// A generic callee's context parameter fixes its type argument from the
+/// argument's keys, and the instance installs that key
+/// (`req.context.row`).
+#[test]
+fn a_context_argument_fixes_a_generic_key() {
+    let main = "
+trait Repo[T]:
+    fn get(self) -> T
+
+data Ints: pass
+
+impl Repo[i32] for Ints:
+    fn get(self) -> i32: 5
+
+data Words: pass
+
+impl Repo[string] for Words:
+    fn get(self) -> string: \"five\"
+
+fn fetch[T](ctx: $.Context[$ Repo[T]]) -> T:
+    $.with(ctx...):
+        $.use(Repo[T]).get()
+
+pub fn main() -> void $ Console:
+    println(fetch($.context(Repo[i32]=Ints {})))
+    println(fetch($.context(Repo[string]=Words {})))
+";
+    assert_eq!(output_of("generic", main), "5\nfive\n");
+    let wrong = "
+trait Repo[T]
+
+trait Log
+
+data Ints: pass
+
+impl Repo[i32] for Ints
+
+impl Log for Ints
+
+fn take[T](ctx: $.Context[$ Repo[T]]) -> void:
+    pass
+
+fn run() -> void:
+    take($.context(Repo[i32]=Ints {}, Log=Ints {}))
+";
+    assert_eq!(codes(wrong), vec![Code::TypeMismatch]);
+}
+
 /// The empty context installs nothing (`req.context.empty`).
 #[test]
 fn the_empty_context_installs_nothing() {

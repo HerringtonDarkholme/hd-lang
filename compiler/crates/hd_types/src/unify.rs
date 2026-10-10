@@ -478,10 +478,59 @@ impl InferTable {
                 }
                 self.unify(pool, r1, r2)
             }
+            (TyData::Context(r1), TyData::Context(r2)) => {
+                self.unify_context_rows(pool, r1, r2, a, b)
+            }
             _ => Err(UnifyError::Mismatch {
                 expected: a,
                 found: b,
             }),
+        }
+    }
+
+    /// Two context types are equal when their rows are one key set
+    /// (`req.context.row`). A key whose trait occurs once in each row
+    /// unifies with its counterpart, so `$.Context[$ Repo[T]]` against
+    /// `$.Context[$ Repo[User]]` fixes `T`; every other key must already
+    /// be in both rows.
+    fn unify_context_rows(
+        &mut self,
+        pool: Types<'_>,
+        r1: crate::RowId,
+        r2: crate::RowId,
+        a: Ty,
+        b: Ty,
+    ) -> Result<(), UnifyError> {
+        let mismatch = UnifyError::Mismatch {
+            expected: a,
+            found: b,
+        };
+        let d1 = pool.row_data(self.resolve_row(pool, r1));
+        let d2 = pool.row_data(self.resolve_row(pool, r2));
+        if d1.keys.len() != d2.keys.len() || d1.params != d2.params {
+            return Err(mismatch);
+        }
+        let trait_of = |k: Ty| match pool.get(k) {
+            TyData::TraitValue { def, .. } => Some(def),
+            _ => None,
+        };
+        let only = |keys: &[Ty], d: hd_base::DefId| {
+            let mut of = keys.iter().copied().filter(|k| trait_of(*k) == Some(d));
+            match (of.next(), of.next()) {
+                (Some(k), None) => Some(k),
+                _ => None,
+            }
+        };
+        for &k1 in &d1.keys {
+            let Some(d) = trait_of(k1) else { continue };
+            if let (Some(_), Some(k2)) = (only(&d1.keys, d), only(&d2.keys, d)) {
+                self.unify(pool, k1, k2)?;
+            }
+        }
+        if self.resolve_row(pool, r1) == self.resolve_row(pool, r2) {
+            Ok(())
+        } else {
+            Err(mismatch)
         }
     }
 
@@ -701,6 +750,45 @@ mod tests {
         assert!(matches!(
             t.unify(p, c, rest_tuple(c, Ty::I32)),
             Err(UnifyError::Occurs { .. })
+        ));
+    }
+
+    /// `req.context.row`: context types unify as key sets, a key whose
+    /// trait occurs once on each side fixing its arguments.
+    #[test]
+    fn context_types_unify_as_key_sets() {
+        let (gp, lp) = (InternPool::new(), LocalPool::new());
+        let p = Types::with_local(&gp, &lp);
+        let mut t = InferTable::default();
+        let key = |d: u32, args: &[Ty]| {
+            p.intern_ty(&TyData::TraitValue {
+                def: hd_base::DefId::from_raw(d),
+                args: p.list(args),
+                bindings: Vec::new(),
+            })
+        };
+        let ctx = |keys: Vec<Ty>| {
+            p.intern_ty(&TyData::Context(p.row(&crate::RowData {
+                keys,
+                params: Vec::new(),
+            })))
+        };
+        let a = t.fresh(p, VarKind::General);
+        let log = key(3, &[]);
+        t.unify(
+            p,
+            ctx(vec![key(2, &[a]), log]),
+            ctx(vec![log, key(2, &[Ty::I32])]),
+        )
+        .expect("one Repo key on each side");
+        assert_eq!(t.resolve(p, a), Ty::I32);
+        assert!(matches!(
+            t.unify(p, ctx(vec![key(2, &[Ty::I32])]), ctx(vec![log])),
+            Err(UnifyError::Mismatch { .. })
+        ));
+        assert!(matches!(
+            t.unify(p, ctx(vec![log]), ctx(vec![log, key(2, &[Ty::I32])])),
+            Err(UnifyError::Mismatch { .. })
         ));
     }
 }
