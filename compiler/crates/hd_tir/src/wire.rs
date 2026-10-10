@@ -45,8 +45,8 @@ fn id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
         // `ProviderGet` and `ItemRef` keep their IDs in one-word records.
         Tag::ProviderGet => vec![IdWord::Ty(a as usize + 1)],
         Tag::GlobalGet | Tag::GlobalSet => vec![IdWord::Def(a as usize + 1)],
-        // `With`: (key type, provider) pairs.
-        Tag::With => {
+        // `With` and `ContextNew`: (key type, provider) pairs.
+        Tag::With | Tag::ContextNew => {
             let n = b.extra.get(a as usize).copied().unwrap_or(0) as usize;
             (0..n / 2)
                 .map(|k| IdWord::Ty(a as usize + 1 + 2 * k))

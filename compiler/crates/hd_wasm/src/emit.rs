@@ -866,6 +866,7 @@ impl Em<'_> {
                 self.a.br(d);
             }
             Tag::With => self.with(i, a, bw)?,
+            Tag::ContextNew => self.context_new(i, a, ty)?,
             Tag::Guard => {
                 if self.range(i).is_some() {
                     return unsupported("a suspension point in a match guard");
@@ -1902,6 +1903,43 @@ impl Em<'_> {
         };
         let env = self.env();
         key_order(pool, &|d| env.path_hash(d), pool.row_data(row).keys)
+    }
+
+    /// The keys of a context type's row, whole and in key order: the
+    /// order of its providers array (codegen.md §12.4, "Context values").
+    fn context_keys(&self, t: Ty) -> StageResult<Vec<Ty>> {
+        let pool = self.pool();
+        let TyData::Context(row) = pool.get(self.lay.strip(t)) else {
+            return unsupported("a context entry of a type that is not a context");
+        };
+        let env = self.env();
+        Ok(key_order(
+            pool,
+            &|d| env.path_hash(d),
+            pool.row_data(row).keys,
+        ))
+    }
+
+    /// `$.context(...)`: one providers array, per key of the context's
+    /// row in key order, the provider of the last pair that binds it
+    /// (`req.context.order`).
+    fn context_new(&mut self, i: u32, rec: u32, ty: Ty) -> StageResult<()> {
+        let keys = self.context_keys(ty)?;
+        let pairs = self.rec(rec);
+        for k in &keys {
+            let Some(v) = pairs
+                .chunks(2)
+                .rev()
+                .find(|c| self.sub(Ty(c[0])) == *k)
+                .map(|c| c[1])
+            else {
+                return unsupported("a context key that no entry binds");
+            };
+            let vs = self.vts(*k)?;
+            self.load_as(v, &vs)?;
+        }
+        self.a.array_new_fixed(&ctx_provs(), u32_of(2 * keys.len()));
+        self.store(i)
     }
 
     /// The context a call of a function value of type `callee` passes:

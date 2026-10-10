@@ -958,7 +958,7 @@ impl Cx<'_> {
             types.extend(b.ty.iter().copied());
             types.extend(b.local_ty.iter().copied());
             for i in 0..b.len() {
-                if b.tags[i] == Tag::With {
+                if matches!(b.tags[i], Tag::With | Tag::ContextNew) {
                     types.extend(b.record(b.data[i][0]).chunks(2).map(|c| Ty(c[0])));
                     continue;
                 }

@@ -1937,7 +1937,7 @@ impl Ck<'_, '_> {
                     self.b.body_mut().extra[at] = self.zonk(t).0;
                     continue;
                 }
-                Tag::With => {
+                Tag::With | Tag::ContextNew => {
                     let len = self.b.body_mut().extra[a as usize] as usize;
                     for k in 0..len / 2 {
                         let at = a as usize + 1 + 2 * k;

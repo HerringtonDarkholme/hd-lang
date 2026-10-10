@@ -2664,13 +2664,11 @@ impl Ck<'_, '_> {
 
     /// `$.use(K)`: the covering provider of `K`, which the body's row must
     /// name (spec/lang/11-requirements-and-suspension.md).
-    /// `$.with(K = p, ...): block` (`req.with`): each provider is
-    /// evaluated, must implement its key, and covers the key in the block.
-    fn with_expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
+    /// The entries of `$.with(...)` or `$.context(...)` in source order
+    /// (`req.context.order`), as `(key, value)` pairs, and every key they
+    /// bind (checking-and-tir.md §4.13.4, "Context values").
+    fn provider_entries(&mut self, al: NodeRef<'_>) -> StageResult<(Vec<Ref>, Vec<Ty>)> {
         let pool = self.pool();
-        let Some(al) = Src::child(n, SyntaxKind::ArgumentList) else {
-            return unsupported("a `$.with` without providers");
-        };
         let mut pairs = Vec::new();
         let mut keys = Vec::new();
         for entry in al
@@ -2679,14 +2677,14 @@ impl Ck<'_, '_> {
         {
             let kids: Vec<NodeRef<'_>> = entry.children().collect();
             let [kn, vn] = kids.as_slice() else {
-                return unsupported("a `$.with` spread of a context");
+                return unsupported("a provider spread of a context");
             };
             let key = self.ty_node(*kn)?;
             if key == Ty::POISON {
                 continue;
             }
             let TyData::TraitValue { def, .. } = pool.get(key) else {
-                return unsupported("a `$.with` key that is not a trait");
+                return unsupported("a provider key that is not a trait");
             };
             let (r, t) = self.expr(*vn, None)?;
             // A mutable requirement trait needs a `mut` provider.
@@ -2699,12 +2697,23 @@ impl Ck<'_, '_> {
                 self.err(Code::MutableUpgrade, *vn, &msg);
             }
             // The provider becomes a trait value of its key
-            // (`req.with.type`), so codegen converts nothing at the block.
+            // (`req.with.type`), so codegen converts nothing later.
             let r = self.coerce(r, t, key, *vn, "provider");
             pairs.push(Ref(key.0));
             pairs.push(r);
             keys.push(key);
         }
+        Ok((pairs, keys))
+    }
+
+    /// `$.with(K = p, ...): block` (`req.with`): each provider is
+    /// evaluated, must implement its key, and covers the key in the block.
+    fn with_expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
+        let pool = self.pool();
+        let Some(al) = Src::child(n, SyntaxKind::ArgumentList) else {
+            return unsupported("a `$.with` without providers");
+        };
+        let (pairs, keys) = self.provider_entries(al)?;
         let Some(body) = Src::child(n, SyntaxKind::Block) else {
             return unsupported("a `$.with` without a block");
         };
@@ -2722,6 +2731,24 @@ impl Ck<'_, '_> {
         Ok((self.b.emit(Tag::With, rec, blk.0, ty, n.index()), ty))
     }
 
+    /// `$.context(K = p, ...)` (`req.context.create`): a context value
+    /// over every key its entries bind, one provider per key
+    /// (`req.context.one-per-key`).
+    fn context_new(&mut self, n: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
+        let pool = self.pool();
+        let Some(al) = Src::child(n, SyntaxKind::ArgumentList) else {
+            return unsupported("a `$.context` without providers");
+        };
+        let (pairs, keys) = self.provider_entries(al)?;
+        let row = pool.row(&hd_types::RowData {
+            keys,
+            params: vec![],
+        });
+        let t = pool.intern_ty(&TyData::Context(row));
+        let rec = self.b.refs_record(&pairs);
+        Ok((self.b.emit(Tag::ContextNew, rec, NONE, t, n.index()), t))
+    }
+
     fn context_expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let toks: Vec<String> = self
@@ -2734,8 +2761,11 @@ impl Ck<'_, '_> {
         if toks.get(2).map(String::as_str) == Some("with") {
             return self.with_expr(n, want);
         }
+        if toks.get(2).map(String::as_str) == Some("context") {
+            return self.context_new(n);
+        }
         if toks.get(2).map(String::as_str) != Some("use") {
-            return unsupported("`$.context` and context types");
+            return unsupported("this `$.` form in an expression");
         }
         let Some(kn) = n.children().find(|c| c.kind().is_type()) else {
             return unsupported("`$.use` without a key");

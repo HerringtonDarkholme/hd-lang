@@ -636,6 +636,9 @@ impl<'a> Lay<'a> {
             TyData::TraitValue { def, args, .. } => {
                 self.nominal(self.dyn_ty(def, args), Nominal::Dyn, def)?
             }
+            // Per key in key order, its payload and vtable
+            // (codegen.md §12.4, "Context values").
+            TyData::Context(_) => vec![VT::r(ctx_provs())],
             _ => {
                 return unsupported(format!(
                     "the layout of the non-concrete type {}",
@@ -707,7 +710,7 @@ impl<'a> Lay<'a> {
                     OptKind::Boxed => vec![Flat::Ref(true)],
                 }
             }
-            TyData::Fn { .. } => vec![Flat::Ref(false)],
+            TyData::Fn { .. } | TyData::Context(_) => vec![Flat::Ref(false)],
             TyData::TraitValue { .. } => vec![Flat::V(VT::Eq), Flat::Ref(false)],
             _ => {
                 return unsupported(format!(

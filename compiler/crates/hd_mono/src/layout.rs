@@ -301,12 +301,8 @@ fn layout_in(
                 "the layout of a requirement row",
             ));
         }
-        TyData::Context(_) => {
-            return Err(NotImplemented::new(
-                Stage::Emit,
-                "the layout of a context value",
-            ));
-        }
+        // One providers array (codegen.md §12.4, "Context values").
+        TyData::Context(_) => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
         TyData::Param(_)
         | TyData::Assoc { .. }
         | TyData::Infer(_)
