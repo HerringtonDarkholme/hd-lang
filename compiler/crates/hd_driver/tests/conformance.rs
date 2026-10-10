@@ -348,13 +348,23 @@ fn first_error(output: &Output) -> usize {
         .unwrap_or(0)
 }
 
-fn diagnostic_verdict(case: &Case, fixture: &Fixture, output: &Output) -> Option<Verdict> {
-    let errors: Vec<usize> = output
+/// The errors of a check in content order, but for `unsupported`: a stage
+/// that declines is progress data, which the report's stage tallies carry
+/// (`first_unsupported`), not a diagnostic the fixture is judged on.
+fn check_errors(output: &Output) -> Vec<usize> {
+    output
         .diags
         .content_order()
         .into_iter()
-        .filter(|index| output.diags.severity[*index] == Severity::Error)
-        .collect();
+        .filter(|index| {
+            output.diags.severity[*index] == Severity::Error
+                && output.diags.code[*index].as_str() != "unsupported"
+        })
+        .collect()
+}
+
+fn diagnostic_verdict(case: &Case, fixture: &Fixture, output: &Output) -> Option<Verdict> {
+    let errors = check_errors(output);
     let warnings: Vec<usize> = output
         .diags
         .content_order()
@@ -881,9 +891,8 @@ fn doc_tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: u
 
 fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize) -> Verdict {
     let checked = check_fixture(fixture, store);
-    if checked.diags.has_errors() {
-        let index = first_error(&checked);
-        return Verdict::Fail(checked.diags.code[index].as_str().to_owned());
+    if let Some(index) = check_errors(&checked).first() {
+        return Verdict::Fail(checked.diags.code[*index].as_str().to_owned());
     }
     if let Some(stage) = first_unsupported(&checked.report, false) {
         return Verdict::Unsupported(stage);
@@ -1109,7 +1118,7 @@ fn detail(case: &Case, store: &MemoryStore) -> String {
         return String::new();
     }
     let mut output = check_fixture(&fixture, store);
-    if case.phase == Phase::Runtime && !output.diags.has_errors() {
+    if case.phase == Phase::Runtime && check_errors(&output).is_empty() {
         let goal = if plain_tests(&fixture.text) || doc_tests_harness(&fixture) {
             Goal::Tests {
                 module: None,
