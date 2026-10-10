@@ -13,7 +13,7 @@ use hd_mono::{CallTarget, ProgramEnv, Target, TargetKind, VTable, key_order, sub
 use hd_tir::ir::{
     Body, Callee, ChoiceKind, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags,
 };
-use hd_types::{InternPool, Prim, RowId, Ty, TyData, TyList};
+use hd_types::{Inputs, InternPool, Prim, RowId, Ty, TyData, TyList};
 
 use crate::asm::Asm;
 use crate::layout::{
@@ -396,6 +396,51 @@ impl Em<'_> {
         Ok(())
     }
 
+    /// Whether the value `r`, as checked, has a function type whose inputs
+    /// are one tuple of an arity not known there, as in
+    /// `f: Fn[Args, O, $ R]`: a call of it passes that tuple.
+    fn tuple_inputs(&self, r: u32) -> bool {
+        let pool = self.lay.pool;
+        let Some(i) = Ref(r).as_inst() else {
+            return false;
+        };
+        let t = self.b.ty[i.0 as usize];
+        let t = match pool.get(t) {
+            TyData::Mut(inner) => inner,
+            _ => t,
+        };
+        matches!(
+            pool.get(t),
+            TyData::Fn {
+                inputs: Inputs::Tuple,
+                ..
+            }
+        )
+    }
+
+    /// Pushes the components of every element of the tuple `r`, as the
+    /// leading value types of `want`.
+    fn spread_elems(&mut self, r: u32, want: &[VT]) -> StageResult<()> {
+        let Shape::Tuple { elems, boxed } = self.lay.shape(self.ty_of(r))? else {
+            return unsupported("a spread of a non-tuple");
+        };
+        let have: Vec<VT> = elems.into_iter().flatten().collect();
+        let Some(want) = want.get(..have.len()) else {
+            return unsupported("a spread tuple that does not fit the callee's inputs");
+        };
+        for (k, (h, w)) in have.iter().zip(want).enumerate() {
+            match &boxed {
+                Some(b) => {
+                    self.comp(r, 0, &VT::r(b.clone()))?;
+                    self.a.struct_get(b, u32_of(k));
+                    self.a.conv(h, w);
+                }
+                None => self.comp(r, k, w)?,
+            }
+        }
+        Ok(())
+    }
+
     fn rec(&self, at: u32) -> Vec<u32> {
         self.b.record(at).to_vec()
     }
@@ -520,12 +565,20 @@ impl Em<'_> {
                 self.a.set(f);
                 self.a.get(f);
                 let args = self.rec(bw);
-                let mut k = 1;
-                for r in args {
-                    let n = self.vts(self.ty_of(r))?.len();
-                    let want: Vec<VT> = ps[k..k + n].to_vec();
-                    self.load_as(r, &want)?;
-                    k += n;
+                if let [tuple] = args[..]
+                    && self.tuple_inputs(a)
+                {
+                    // Instantiation fixed the inputs tuple: its elements
+                    // are the arguments (`fn.type.ctor.inputs`).
+                    self.spread_elems(tuple, &ps[1..])?;
+                } else {
+                    let mut k = 1;
+                    for r in args {
+                        let n = self.vts(self.ty_of(r))?.len();
+                        let want: Vec<VT> = ps[k..k + n].to_vec();
+                        self.load_as(r, &want)?;
+                        k += n;
+                    }
                 }
                 let callee = self.ty_of(a);
                 self.push_ctx(callee)?;
@@ -4587,7 +4640,7 @@ pub fn emit_adapter(
         result: s(env.ret(item).unwrap_or(Ty::VOID)),
         row: RowId::EMPTY,
         suspends: env.suspends(item),
-        vararg: false,
+        inputs: hd_types::Inputs::Fixed,
     });
     let Shape::Fn { code, .. } = lay.shape(ft)? else {
         return unsupported("a function reference without a function type");

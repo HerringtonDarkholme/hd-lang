@@ -20,7 +20,7 @@ pub use crate::lookup::{
     FolderImpls, ImplView, Impls, OWN_TABLE, OwnerMap, RefTable, UniverseImpls, UniverseReads,
     folder_table, open_arg,
 };
-use crate::pool::{ParamRef, Prim, Ty, TyData, TyList, Types};
+use crate::pool::{Inputs, ParamRef, Prim, Ty, TyData, TyList, Types};
 use crate::sealed::Row;
 pub use crate::sealed::{Declarations, SealedTraits, TypeDecl};
 use crate::unify::VarKind;
@@ -957,13 +957,13 @@ fn fold_vars(
             result,
             row,
             suspends,
-            vararg,
+            inputs,
         } => TyData::Fn {
             params: fold_list(pool, params, canon, f)?,
             result: fold_vars(pool, result, canon, f)?,
             row: fold_row(pool, row, canon, f)?,
             suspends,
-            vararg,
+            inputs,
         },
         TyData::TraitValue {
             def,
@@ -1245,20 +1245,27 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
                 params: p1,
                 result: r1,
                 suspends: s1,
-                vararg: v1,
+                inputs: i1,
                 ..
             },
             TyData::Fn {
                 params: p2,
                 result: r2,
                 suspends: s2,
-                vararg: v2,
+                inputs: i2,
                 ..
             },
-        ) if s1 == s2 && v1 == v2 => both(
-            match_list(pool, owner, p1, p2, binds),
-            match_ty(pool, owner, r1, r2, binds),
-        ),
+        ) if s1 == s2 && (i1 == i2 || i1 == Inputs::Tuple || i2 == Inputs::Tuple) => {
+            let inputs = if i1 == i2 {
+                match_list(pool, owner, p1, p2, binds)
+            } else {
+                // An inputs tuple of unknown arity matches the other
+                // side's whole inputs (`fn.type.ctor.inputs`).
+                let (t1, t2) = (pool.inputs_tuple(p1, i1), pool.inputs_tuple(p2, i2));
+                match_ty(pool, owner, t1, t2, binds)
+            };
+            both(inputs, match_ty(pool, owner, r1, r2, binds))
+        }
         (
             TyData::TraitValue {
                 def: d1, args: a1, ..
@@ -2508,13 +2515,13 @@ fn norm_concrete(pool: Types<'_>, impls: Impls<'_>, t: Ty, depth: u32, reads: &m
             result,
             row,
             suspends,
-            vararg,
+            inputs,
         } => TyData::Fn {
             params: norm_list(pool, impls, params, depth, reads),
             result: norm_concrete(pool, impls, result, depth, reads),
             row,
             suspends,
-            vararg,
+            inputs,
         },
         TyData::TraitValue {
             def,
@@ -4529,7 +4536,7 @@ mod tests {
             result: Ty::I32,
             row: crate::pool::RowId::EMPTY,
             suspends: false,
-            vararg: false,
+            inputs: crate::pool::Inputs::Fixed,
         });
         let tuple = |elems: &[Ty]| {
             p.intern_ty(&TyData::Tuple {

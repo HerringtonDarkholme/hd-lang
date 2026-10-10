@@ -4,7 +4,7 @@
 
 use hd_base::InferVar;
 
-use crate::pool::{Ty, TyData, Types};
+use crate::pool::{Inputs, Ty, TyData, Types};
 
 /// A variable's kind: general, integer literal or float literal (§3.1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -230,13 +230,13 @@ impl InferTable {
                 result,
                 row,
                 suspends,
-                vararg,
+                inputs,
             } => TyData::Fn {
                 params: rl(params),
                 result: r(result),
                 row: self.resolve_row(pool, row),
                 suspends,
-                vararg,
+                inputs,
             },
             TyData::Row(row) => TyData::Row(self.resolve_row(pool, row)),
             TyData::Context(row) => TyData::Context(self.resolve_row(pool, row)),
@@ -452,18 +452,30 @@ impl InferTable {
                     params: p1,
                     result: r1,
                     suspends: s1,
-                    vararg: v1,
+                    inputs: i1,
                     ..
                 },
                 TyData::Fn {
                     params: p2,
                     result: r2,
                     suspends: s2,
-                    vararg: v2,
+                    inputs: i2,
                     ..
                 },
-            ) if s1 == s2 && v1 == v2 => {
-                self.unify_lists(pool, p1, p2, a, b)?;
+            ) if s1 == s2 => {
+                if i1 == i2 {
+                    self.unify_lists(pool, p1, p2, a, b)?;
+                } else if i1 == Inputs::Tuple || i2 == Inputs::Tuple {
+                    // An inputs tuple of unknown arity against the other
+                    // side's whole inputs (`fn.type.ctor.inputs`).
+                    let (t1, t2) = (pool.inputs_tuple(p1, i1), pool.inputs_tuple(p2, i2));
+                    self.unify(pool, t1, t2)?;
+                } else {
+                    return Err(UnifyError::Mismatch {
+                        expected: a,
+                        found: b,
+                    });
+                }
                 self.unify(pool, r1, r2)
             }
             _ => Err(UnifyError::Mismatch {
@@ -498,7 +510,69 @@ impl InferTable {
 #[cfg(test)]
 mod tests {
     use super::{InferTable, UnifyError, VarKind};
-    use crate::pool::{InternPool, LocalPool, Ty, TyData, Types};
+    use crate::pool::{Inputs, InternPool, LocalPool, RowId, Ty, TyData, Types};
+
+    /// `Fn[?A, i32, $()]` against a function type of any arity solves
+    /// `?A` as that type's inputs tuple; against a different result or a
+    /// suspending type it fails.
+    #[test]
+    fn tuple_inputs_unify_with_any_arity() {
+        let (gp, lp) = (InternPool::new(), LocalPool::new());
+        let p = Types::with_local(&gp, &lp);
+        let func = |params: &[Ty], inputs: Inputs, result: Ty, suspends: bool| {
+            p.intern_ty(&TyData::Fn {
+                params: p.list(params),
+                result,
+                row: RowId::EMPTY,
+                suspends,
+                inputs,
+            })
+        };
+        let tuple = |elems: &[Ty], rest: Option<Ty>| {
+            p.intern_ty(&TyData::Tuple {
+                elems: p.list(elems),
+                rest,
+            })
+        };
+        let cases = [
+            (vec![], Inputs::Fixed, tuple(&[], None)),
+            (vec![Ty::I32], Inputs::Fixed, tuple(&[Ty::I32], None)),
+            (
+                vec![Ty::I32, Ty::STRING, Ty::BOOL],
+                Inputs::Fixed,
+                tuple(&[Ty::I32, Ty::STRING, Ty::BOOL], None),
+            ),
+            (
+                vec![Ty::I32, Ty::STRING],
+                Inputs::Rest,
+                tuple(&[Ty::I32], Some(Ty::STRING)),
+            ),
+        ];
+        for (params, inputs, want) in cases {
+            let mut t = InferTable::default();
+            let a = t.fresh(p, VarKind::General);
+            let generic = func(&[a], Inputs::Tuple, Ty::I32, false);
+            let concrete = func(&params, inputs, Ty::I32, false);
+            t.unify(p, generic, concrete).expect("unify");
+            assert_eq!(t.resolve(p, a), want);
+            assert_eq!(t.resolve(p, generic), concrete);
+            let mut t = InferTable::default();
+            let b = t.fresh(p, VarKind::General);
+            let back = func(&[b], Inputs::Tuple, Ty::I32, false);
+            t.unify(p, concrete, back).expect("either side");
+            assert_eq!(t.resolve(p, b), want);
+        }
+        let mut t = InferTable::default();
+        let a = t.fresh(p, VarKind::General);
+        let generic = func(&[a], Inputs::Tuple, Ty::I32, false);
+        let wrong_result = func(&[Ty::I32], Inputs::Fixed, Ty::STRING, false);
+        assert!(t.unify(p, generic, wrong_result).is_err());
+        let suspending = func(&[Ty::I32], Inputs::Fixed, Ty::I32, true);
+        assert!(t.unify(p, generic, suspending).is_err());
+        let plain = func(&[Ty::I32], Inputs::Fixed, Ty::I32, false);
+        let rest = func(&[Ty::I32], Inputs::Rest, Ty::I32, false);
+        assert!(t.unify(p, plain, rest).is_err());
+    }
 
     #[test]
     fn unify_resolve_rollback_and_occurs() {

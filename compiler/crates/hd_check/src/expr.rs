@@ -2344,9 +2344,21 @@ impl Ck<'_, '_> {
                 TyData::Mut(i) => pool.get(i),
                 d => d,
             });
+        // Expected inputs of an arity not known here give no parameter
+        // its type (`fn.type.ctor.inputs`).
         let (wparams, wret) = match wanted {
-            Some(TyData::Fn { params, result, .. }) => {
-                (pool.list_items(params).to_vec(), Some(result))
+            Some(TyData::Fn {
+                params,
+                result,
+                inputs,
+                ..
+            }) => {
+                let ps = if inputs == hd_types::Inputs::Tuple {
+                    vec![]
+                } else {
+                    pool.list_items(params).to_vec()
+                };
+                (ps, Some(result))
             }
             _ => (vec![], None),
         };
@@ -2399,7 +2411,7 @@ impl Ck<'_, '_> {
                 result: ret,
                 row: own_row,
                 suspends,
-                vararg: false,
+                inputs: hd_types::Inputs::Fixed,
             });
             let flags = local_flags::ASSIGNED | local_flags::SHORT;
             let l = self.b.local(t, name, flags, n.index());
@@ -2446,7 +2458,7 @@ impl Ck<'_, '_> {
             result: ret,
             row,
             suspends,
-            vararg: false,
+            inputs: hd_types::Inputs::Fixed,
         });
         // A local function that calls itself captures its own name: the
         // name is declared, a fresh shared cell, before the closure exists,

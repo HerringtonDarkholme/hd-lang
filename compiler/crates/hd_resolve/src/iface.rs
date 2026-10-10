@@ -1357,6 +1357,20 @@ pub fn show_ty_in(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty) -> String
         ),
         TyData::Option(i) => format!("{}?", show_ty_in(names, pool, i)),
         TyData::Mut(i) => format!("mut {}", show_ty_in(names, pool, i)),
+        // Inputs of an arity not known here have no sugar form.
+        TyData::Fn {
+            params,
+            result,
+            row,
+            suspends,
+            inputs: hd_types::Inputs::Tuple,
+        } => format!(
+            "{}[{}, {}, {}]",
+            if suspends { "SuspendFn" } else { "Fn" },
+            list(params),
+            show_ty_in(names, pool, result),
+            show_row_in(names, pool, row)
+        ),
         TyData::Fn {
             params,
             result,

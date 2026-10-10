@@ -471,21 +471,36 @@ fn unify(pool: &InternPool, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<Opti
             TyData::Fn {
                 params: a,
                 result: r,
+                inputs: ai,
                 ..
             },
             TyData::Fn {
                 params: b,
                 result: s,
+                inputs: bi,
                 ..
             },
         ) => {
-            for (x, y) in pool
-                .list_items(a)
-                .iter()
-                .copied()
-                .zip(pool.list_items(b).iter().copied())
-            {
-                unify(pool, owner, x, y, out);
+            if ai == bi {
+                for (x, y) in pool
+                    .list_items(a)
+                    .iter()
+                    .copied()
+                    .zip(pool.list_items(b).iter().copied())
+                {
+                    unify(pool, owner, x, y, out);
+                }
+            } else {
+                // `Fn[Args, O, $ R]` against a concrete function type:
+                // `Args` is its whole inputs tuple (`fn.type.ctor.inputs`).
+                let p = pool.types();
+                unify(
+                    pool,
+                    owner,
+                    p.inputs_tuple(a, ai),
+                    p.inputs_tuple(b, bi),
+                    out,
+                );
             }
             unify(pool, owner, r, s, out);
         }

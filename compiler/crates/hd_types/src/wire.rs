@@ -9,7 +9,9 @@ use hd_base::wire::{Reader, Writer};
 use hd_base::{DefId, NotImplemented, PathId, Stage, StageResult, Symbol};
 use hd_intern::{PathKind, PathTable, ShardedInterner};
 
-use crate::pool::{InternPool, ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList};
+use crate::pool::{
+    Inputs, InternPool, ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList,
+};
 
 const NONE: u32 = u32::MAX;
 
@@ -181,14 +183,14 @@ impl<'a> TableWriter<'a> {
                 result,
                 row,
                 suspends,
-                vararg,
+                inputs,
             } => (
                 tag::FN,
                 vec![
                     self.list(params)?,
                     self.ty(result)?,
                     self.row_id(row)?,
-                    u32::from(suspends) | u32::from(vararg) << 1,
+                    inputs.word(suspends),
                 ],
             ),
             TyData::TraitValue {
@@ -337,7 +339,7 @@ impl Tables {
                         result: Ty(row(1)?),
                         row: RowId(row(2)?),
                         suspends: *words.get(3)? & 1 != 0,
-                        vararg: *words.get(3)? & 2 != 0,
+                        inputs: Inputs::from_bits(*words.get(3)?),
                     })
                     .0
                 }

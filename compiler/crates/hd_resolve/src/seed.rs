@@ -326,7 +326,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 result: Ty::VOID,
                 row: RowId::EMPTY,
                 suspends: false,
-                vararg: false,
+                inputs: hd_types::Inputs::Fixed,
             });
             item(
                 "it",

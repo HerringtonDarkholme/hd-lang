@@ -503,7 +503,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             result,
             row: hd_types::RowId::EMPTY,
             suspends: false,
-            vararg: false,
+            inputs: hd_types::Inputs::Fixed,
         })
     }
 

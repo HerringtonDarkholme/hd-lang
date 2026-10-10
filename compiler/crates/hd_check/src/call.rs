@@ -14,7 +14,7 @@ use hd_tir::ir::{
     Callee, ChoiceKind, IntrinsicOp, NONE, PrimOp, Providers, Ref, Tag, TirSink, local_flags,
 };
 use hd_types::solver::{Answer, Candidate, Evidence, Goal, TraitRef};
-use hd_types::{ParamRef, Prim, Ty, TyData, TyList, VarKind, with_assoc_args};
+use hd_types::{Inputs, ParamRef, Prim, Ty, TyData, TyList, VarKind, with_assoc_args};
 
 use crate::body::{Ck, unsupported};
 use crate::ty::Named;
@@ -503,7 +503,7 @@ impl Ck<'_, '_> {
             result,
             row,
             suspends,
-            vararg,
+            inputs,
         } = pool.get(ft)
         else {
             if matches!(pool.get(ft), TyData::Infer(_)) {
@@ -520,7 +520,12 @@ impl Ck<'_, '_> {
             return unsupported("named arguments to a function value");
         }
         let ps = pool.list_items(params);
-        let refs = if vararg {
+        let refs = if inputs == Inputs::Tuple {
+            match self.tuple_inputs_args(ft, ps[0], args, n)? {
+                Some(refs) => refs,
+                None => return Ok((Ref(NONE), Ty::NEVER)),
+            }
+        } else if inputs == Inputs::Rest {
             // The inputs end in a rest element: the arguments are
             // collected as a vararg call collects them
             // (`fn.type.rest-call`).
@@ -590,6 +595,67 @@ impl Ck<'_, '_> {
             ));
         }
         Ok((cold, st))
+    }
+
+    /// The arguments of a call through a function value whose inputs are
+    /// the tuple `input`, of an arity not known here, as in
+    /// `f: Fn[Args, O, $ R]`: one positional spread of that same type
+    /// (`expr.call.spread.inputs`). Where its type then solves `input` as
+    /// a tuple, the spread fills each parameter with one element; else
+    /// the call passes the tuple, which instantiation spreads.
+    fn tuple_inputs_args(
+        &mut self,
+        ft: Ty,
+        input: Ty,
+        args: &Args<'_>,
+        n: NodeRef<'_>,
+    ) -> StageResult<Option<Vec<Ref>>> {
+        let pool = self.pool();
+        let spread = match args.spread {
+            Some(s)
+                if args.positional.is_empty()
+                    && args.after_spread.is_empty()
+                    && args.trailing.is_none() =>
+            {
+                s
+            }
+            _ => {
+                let msg = format!(
+                    "{} takes its inputs `{}` as one spread, as in `f(args...)`: their arity is not known here",
+                    self.show(ft),
+                    self.show(input)
+                );
+                self.err(Code::TypeMismatch, n, &msg);
+                let given = args.positional.iter().chain(&args.spread);
+                for e in given.chain(&args.after_spread) {
+                    self.expr(*e, None)?;
+                }
+                return Ok(None);
+            }
+        };
+        let (r, t) = self.arg_value(spread, Some(input))?;
+        let r = self.coerce(r, t, input, spread, "argument");
+        let solved = self.infer.resolve(pool, input);
+        match pool.get(solved) {
+            TyData::Tuple { elems, rest } => {
+                let mut refs = Vec::new();
+                for (k, et) in pool
+                    .list_items(elems)
+                    .iter()
+                    .copied()
+                    .chain(rest)
+                    .enumerate()
+                {
+                    let idx = u32::try_from(k).unwrap_or(0);
+                    refs.push(self.b.emit(Tag::TupleGet, r.0, idx, et, spread.index()));
+                }
+                Ok(Some(refs))
+            }
+            // `void` is the empty tuple (`types.void`).
+            TyData::Prim(Prim::Void) => Ok(Some(Vec::new())),
+            TyData::Infer(_) => unsupported("a call of a value whose inputs are not yet known"),
+            _ => Ok(Some(vec![r])),
+        }
     }
 
     /// The type of the final parameter `last` that a trailing block fills,
@@ -1025,8 +1091,8 @@ impl Ck<'_, '_> {
                 );
                 poison(slots, &free);
             }
-            TyData::Infer(_) | TyData::Param(_) => {
-                return unsupported("a spread of a value whose arity is not known");
+            TyData::Infer(_) => {
+                return unsupported("a spread of a value whose type is not yet known");
             }
             _ => {
                 let msg = format!("in spread: expected a tuple, found {}", self.show(t));
@@ -1554,7 +1620,7 @@ impl Ck<'_, '_> {
             result: t,
             row: hd_types::RowId::EMPTY,
             suspends: false,
-            vararg: false,
+            inputs: hd_types::Inputs::Fixed,
         });
         self.fit_expected(ft, want);
         // The enum's own type arguments are decided like a reference's.
@@ -3069,13 +3135,13 @@ impl Ck<'_, '_> {
                 result,
                 row,
                 suspends,
-                vararg,
+                inputs,
             } => TyData::Fn {
                 params: list(self, params)?,
                 result: self.normalize_deep(result)?,
                 row,
                 suspends,
-                vararg,
+                inputs,
             },
             _ => return Ok(t),
         };

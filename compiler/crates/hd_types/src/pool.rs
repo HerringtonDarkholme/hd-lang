@@ -131,6 +131,52 @@ pub struct RowData {
     pub params: Vec<RowParamRef>,
 }
 
+/// How a function type's `params` spell its inputs tuple
+/// (`fn.type.ctor.inputs`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Inputs {
+    /// One parameter per element.
+    Fixed,
+    /// The inputs end in a rest element `List[T]...`: the last of
+    /// `params` is that `List[T]` and a call collects its arguments
+    /// (`fn.type.vararg-rest`).
+    Rest,
+    /// `params` holds one type that is the whole inputs tuple, of an arity
+    /// not known here: a `Tuple`-bounded parameter, an inference variable,
+    /// a placeholder or a projection, as in `Fn[Args, O, $ R]`
+    /// (`fn.type.ctor.inputs`). Interning a tuple there gives the
+    /// `Fixed` or `Rest` form, so `Fn[(A, B), O, $()]` is `fn(A, B) -> O`.
+    Tuple,
+}
+
+impl Inputs {
+    fn bits(self) -> u32 {
+        match self {
+            Inputs::Fixed => 0,
+            Inputs::Rest => 2,
+            Inputs::Tuple => 4,
+        }
+    }
+
+    /// Decodes the flag word of a function type (`bits`).
+    #[must_use]
+    pub fn from_bits(w: u32) -> Inputs {
+        if w & 4 != 0 {
+            Inputs::Tuple
+        } else if w & 2 != 0 {
+            Inputs::Rest
+        } else {
+            Inputs::Fixed
+        }
+    }
+
+    /// The flag word of a function type: bit 0 suspends, then the inputs.
+    #[must_use]
+    pub fn word(self, suspends: bool) -> u32 {
+        u32::from(suspends) | self.bits()
+    }
+}
+
 /// The decoded view of one type (§3.4 `TyView`), owned for simplicity.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TyData {
@@ -151,10 +197,8 @@ pub enum TyData {
         result: Ty,
         row: RowId,
         suspends: bool,
-        /// Whether the inputs end in a rest element `List[T]...`: the
-        /// last of `params` is that `List[T]` and a call collects its
-        /// arguments (`fn.type.vararg-rest`).
-        vararg: bool,
+        /// How `params` spell the inputs tuple.
+        inputs: Inputs,
     },
     TraitValue {
         def: DefId,
@@ -822,10 +866,43 @@ impl<'a> Types<'a> {
     }
 
     /// Interns a type: in the body's local pool when it holds an inference
-    /// variable, else in the global pool (§3.4).
+    /// variable, else in the global pool (§3.4). A function type whose
+    /// inputs tuple is a tuple type takes its one-parameter-per-element
+    /// form ([`Inputs::Tuple`]).
     #[must_use]
     pub fn intern_ty(self, t: &TyData) -> Ty {
         use PoolTag as T;
+        if let TyData::Fn {
+            params,
+            result,
+            row,
+            suspends,
+            inputs: Inputs::Tuple,
+        } = t
+            && let [one] = self.list_items(*params)
+            && let Some((elems, rest)) = match self.get(*one) {
+                TyData::Tuple { elems, rest } => Some((elems, rest)),
+                // `void` is the empty tuple (`types.void`).
+                TyData::Prim(Prim::Void) => Some((TyList::EMPTY, None)),
+                _ => None,
+            }
+        {
+            let (params, inputs) = match rest {
+                None => (elems, Inputs::Fixed),
+                Some(r) => {
+                    let mut all = self.list_items(elems).to_vec();
+                    all.push(r);
+                    (self.list(&all), Inputs::Rest)
+                }
+            };
+            return self.intern_ty(&TyData::Fn {
+                params,
+                result: *result,
+                row: *row,
+                suspends: *suspends,
+                inputs,
+            });
+        }
         let (tag, data, meta): (PoolTag, u32, u32) = match t {
             TyData::Prim(p) => (T::Prim, *p as u32, 0),
             TyData::Never => (T::Never, 0, 0),
@@ -884,14 +961,9 @@ impl<'a> Types<'a> {
                 result,
                 row,
                 suspends,
-                vararg,
+                inputs,
             } => {
-                buf = [
-                    params.0,
-                    result.0,
-                    row.0,
-                    u32::from(*suspends) | u32::from(*vararg) << 1,
-                ];
+                buf = [params.0, result.0, row.0, inputs.word(*suspends)];
                 &buf
             }
             TyData::Param(p) => {
@@ -926,6 +998,25 @@ impl<'a> Types<'a> {
         Ty(self.intern(tag, data, (rec, &[]), meta))
     }
 
+    /// The inputs tuple of a function type with these `params`
+    /// (`fn.type.ctor.inputs`): `(A, B)`, `(A, List[T]...)`, or the one
+    /// type that stands for it.
+    #[must_use]
+    pub fn inputs_tuple(self, params: TyList, inputs: Inputs) -> Ty {
+        let ps = self.list_items(params);
+        match (inputs, ps) {
+            (Inputs::Tuple, [one]) => *one,
+            (Inputs::Rest, [init @ .., last]) => self.intern_ty(&TyData::Tuple {
+                elems: self.list(init),
+                rest: Some(*last),
+            }),
+            _ => self.intern_ty(&TyData::Tuple {
+                elems: params,
+                rest: None,
+            }),
+        }
+    }
+
     /// Decodes a type (§3.4 `TyView`).
     #[must_use]
     pub fn get(self, t: Ty) -> TyData {
@@ -954,7 +1045,7 @@ impl<'a> Types<'a> {
                 result: Ty(x[1]),
                 row: RowId(x[2]),
                 suspends: x[3] & 1 != 0,
-                vararg: x[3] & 2 != 0,
+                inputs: Inputs::from_bits(x[3]),
             },
             PoolTag::TraitValue => TyData::TraitValue {
                 def: DefId::from_raw(x[0]),
@@ -1034,13 +1125,13 @@ impl<'a> Types<'a> {
                 result,
                 row,
                 suspends,
-                vararg,
+                inputs,
             } => TyData::Fn {
                 params: l(params),
                 result: self.subst(result, f),
                 row: self.subst_row(row, f),
                 suspends,
-                vararg,
+                inputs,
             },
             TyData::Row(r) => TyData::Row(self.subst_row(r, f)),
             TyData::Context(r) => TyData::Context(self.subst_row(r, f)),
@@ -1125,6 +1216,20 @@ impl<'a> Types<'a> {
                 params,
                 result,
                 suspends,
+                inputs: Inputs::Tuple,
+                ..
+            } => {
+                format!(
+                    "{}[{}, {}]",
+                    if suspends { "SuspendFn" } else { "Fn" },
+                    list(params),
+                    self.display(result)
+                )
+            }
+            TyData::Fn {
+                params,
+                result,
+                suspends,
                 ..
             } => {
                 format!(
@@ -1204,13 +1309,13 @@ pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> T
             result,
             row,
             suspends,
-            vararg,
+            inputs,
         } => TyData::Fn {
             params: list(params),
             result: with_assoc_args(pool, result, trait_, args),
             row,
             suspends,
-            vararg,
+            inputs,
         },
         _ => return t,
     };
@@ -1219,7 +1324,7 @@ pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> T
 
 #[cfg(test)]
 mod tests {
-    use super::{InternPool, LocalPool, Prim, RowData, RowId, Ty, TyData, TyList, Types};
+    use super::{Inputs, InternPool, LocalPool, Prim, RowData, RowId, Ty, TyData, TyList, Types};
     use hd_base::DefId;
 
     #[test]
@@ -1287,7 +1392,14 @@ mod tests {
                 result: Ty::VOID,
                 row,
                 suspends: true,
-                vararg: false,
+                inputs: Inputs::Fixed,
+            },
+            TyData::Fn {
+                params: list,
+                result: Ty::VOID,
+                row,
+                suspends: false,
+                inputs: Inputs::Rest,
             },
             TyData::TraitValue {
                 def,
@@ -1313,6 +1425,78 @@ mod tests {
             assert_eq!(p.intern_ty(&f), t, "hash-consed");
         }
         assert_eq!(p.row_data(row).keys.len(), 2);
+        let opt = p.intern_ty(&TyData::Option(Ty::POISON));
+        assert!(p.has_poison(opt));
+    }
+
+    /// `Fn[Args, O, $()]` keeps `Args` as its one input until `Args` is a
+    /// tuple, which then gives the plain or rest form.
+    #[test]
+    fn tuple_inputs_take_the_plain_form() {
+        let p = InternPool::new();
+        let param = p.intern_ty(&TyData::Param(super::ParamRef {
+            owner: DefId::from_raw(7),
+            index: 0,
+        }));
+        let of = |input: Ty| {
+            p.intern_ty(&TyData::Fn {
+                params: p.list(&[input]),
+                result: Ty::I32,
+                row: RowId::EMPTY,
+                suspends: false,
+                inputs: Inputs::Tuple,
+            })
+        };
+        let generic = of(param);
+        assert!(matches!(
+            p.get(generic),
+            TyData::Fn {
+                inputs: Inputs::Tuple,
+                ..
+            }
+        ));
+        let pair = p.list(&[Ty::I32, Ty::STRING]);
+        let plain = p.intern_ty(&TyData::Fn {
+            params: pair,
+            result: Ty::I32,
+            row: RowId::EMPTY,
+            suspends: false,
+            inputs: Inputs::Fixed,
+        });
+        let tuple = p.intern_ty(&TyData::Tuple {
+            elems: pair,
+            rest: None,
+        });
+        assert_eq!(of(tuple), plain);
+        assert_eq!(p.subst(generic, &|_| Some(tuple)), plain);
+        assert_eq!(p.types().inputs_tuple(pair, Inputs::Fixed), tuple);
+        let rest = p.intern_ty(&TyData::Tuple {
+            elems: p.list(&[Ty::I32]),
+            rest: Some(Ty::STRING),
+        });
+        let TyData::Fn { params, inputs, .. } = p.get(of(rest)) else {
+            panic!("a function type");
+        };
+        assert_eq!((params, inputs), (pair, Inputs::Rest));
+        assert_eq!(p.types().inputs_tuple(params, inputs), rest);
+        let unit = p.intern_ty(&TyData::Tuple {
+            elems: TyList::EMPTY,
+            rest: None,
+        });
+        assert!(matches!(
+            p.get(of(unit)),
+            TyData::Fn {
+                params: TyList::EMPTY,
+                inputs: Inputs::Fixed,
+                ..
+            }
+        ));
+        assert_eq!(of(Ty::VOID), of(unit), "`void` is `()`");
+    }
+
+    #[test]
+    fn poison_marks_its_holders() {
+        let p = InternPool::new();
         let opt = p.intern_ty(&TyData::Option(Ty::POISON));
         assert!(p.has_poison(opt));
     }

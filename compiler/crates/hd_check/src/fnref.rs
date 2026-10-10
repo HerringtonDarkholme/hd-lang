@@ -18,7 +18,7 @@ use hd_resolve::{FnSig, HeadKind, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::ir::{Callee, ChoiceKind, NONE, Providers, Ref, Tag, TirSink, local_flags};
 use hd_types::solver::TraitRef;
-use hd_types::{ParamRef, Prim, RowId, Ty, TyData, VarKind, with_assoc_args};
+use hd_types::{Inputs, ParamRef, Prim, RowId, Ty, TyData, VarKind, with_assoc_args};
 
 use crate::body::{Ck, unsupported};
 use crate::call::{Hit, subst_owner};
@@ -395,7 +395,7 @@ impl Ck<'_, '_> {
         // A `List` vararg stays a rest element of the inputs
         // (`fn.type.vararg-rest`); a tuple vararg is an ordinary input.
         let list = self.cx.names.known.list;
-        let vararg = m.sig.variadic
+        let rest = m.sig.variadic
             && params.len() + skip == m.sig.params.len()
             && params
                 .last()
@@ -405,7 +405,7 @@ impl Ck<'_, '_> {
             result,
             row: inst_row(pool, m, m.sig.row),
             suspends: m.sig.suspends,
-            vararg,
+            inputs: if rest { Inputs::Rest } else { Inputs::Fixed },
         }))
     }
 
@@ -423,19 +423,29 @@ impl Ck<'_, '_> {
             TyData::Fn {
                 params: wp,
                 result: wr,
+                inputs: wi,
                 ..
             },
             TyData::Fn {
                 params: fp,
                 result: fr,
+                inputs: fi,
                 ..
             },
         ) = (pool.get(w), pool.get(ft))
         else {
             return;
         };
-        let wp = pool.list_items(wp).to_vec();
-        let fp = pool.list_items(fp).to_vec();
+        // An inputs tuple of unknown arity is solved whole
+        // (`fn.type.ctor.inputs`).
+        let (wp, fp) = if wi != fi && (wi == Inputs::Tuple || fi == Inputs::Tuple) {
+            (
+                vec![pool.inputs_tuple(wp, wi)],
+                vec![pool.inputs_tuple(fp, fi)],
+            )
+        } else {
+            (pool.list_items(wp).to_vec(), pool.list_items(fp).to_vec())
+        };
         if wp.len() != fp.len() {
             return;
         }

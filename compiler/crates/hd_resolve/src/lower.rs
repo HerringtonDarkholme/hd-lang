@@ -18,7 +18,7 @@ use hd_diag::{Code, DiagBuf};
 use hd_intern::PathKind;
 use hd_project::{UseRootError, UseRoots};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
-use hd_types::{ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList};
+use hd_types::{Inputs, ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList};
 
 use crate::iface::{
     Export, Field, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item, ItemData, Names,
@@ -994,6 +994,9 @@ struct Gen {
     self_trait: Option<DefId>,
     /// Type parameters written with a bound list (types.generic.no-mut-t).
     bounded: Vec<Ty>,
+    /// Type parameters of the list being lowered whose bounds are not
+    /// lowered yet: whether one is bounded by `Tuple` is not known.
+    pending: Vec<Ty>,
 }
 
 struct Lower<'a, 'r, 'x> {
@@ -1313,7 +1316,7 @@ impl Lower<'_, '_, '_> {
     fn ctor(
         &mut self,
         def: DefId,
-        kind: HeadKind,
+        (kind, gn): (HeadKind, &Gen),
         args: &[Ty],
         row: Option<RowId>,
         span: Span,
@@ -1325,27 +1328,22 @@ impl Lower<'_, '_, '_> {
         {
             let name = self.names.paths.segment(PathId::from_raw(def.raw()));
             if name == "Fn" || name == "SuspendFn" {
-                // A rest element ends the inputs as the `List` it is
-                // (`fn.type.vararg-rest`).
-                let (params, vararg) = match args.first().map(|a| pool.get(*a)) {
-                    Some(TyData::Tuple { elems, rest: None }) => (elems, false),
-                    Some(TyData::Tuple {
-                        elems,
-                        rest: Some(r),
-                    }) => {
-                        let mut all = pool.list_items(elems).to_vec();
-                        all.push(r);
-                        (pool.list(&all), true)
-                    }
-                    Some(_) => (pool.list(&args[..1]), false),
-                    None => (TyList::EMPTY, false),
-                };
+                let inputs = args.first().copied().unwrap_or(Ty::POISON);
+                if !self.inputs_tuple(inputs, gn) {
+                    let msg = format!(
+                        "the inputs of `{name}` are a tuple type or a type parameter bounded by `Tuple`, as in `{name}[(A, B), O, $()]`"
+                    );
+                    self.diags.error(Code::GenericKindMismatch, span, &msg);
+                    return Ty::POISON;
+                }
+                // Interning gives a tuple its parameter-per-element form,
+                // a rest element the `List` it is (`fn.type.vararg-rest`).
                 return pool.intern_ty(&TyData::Fn {
-                    params,
+                    params: pool.list(&[inputs]),
                     result: args.get(1).copied().unwrap_or(Ty::VOID),
                     row: row.unwrap_or(RowId::EMPTY),
                     suspends: name == "SuspendFn",
-                    vararg,
+                    inputs: Inputs::Tuple,
                 });
             }
         }
@@ -1432,7 +1430,23 @@ impl Lower<'_, '_, '_> {
             return Ty::POISON;
         };
         let (args, _, row) = self.type_args(n, gn);
-        self.ctor(def, kind, &args, row, span)
+        self.ctor(def, (kind, gn), &args, row, span)
+    }
+
+    /// Whether `t` may be the inputs argument of `Fn` or `SuspendFn`: a
+    /// tuple type, or a type parameter bounded by `Tuple`
+    /// (`fn.type.ctor.inputs-tuple`).
+    fn inputs_tuple(&self, t: Ty, gn: &Gen) -> bool {
+        match self.names.pool.get(t) {
+            TyData::Tuple { .. } | TyData::Poison | TyData::Prim(Prim::Void) => true,
+            TyData::Param(_) => {
+                gn.pending.contains(&t)
+                    || gn.tys.iter().any(|(_, p, bounds)| {
+                        *p == t && bounds.iter().any(|(def, _)| *def == self.names.known.tuple)
+                    })
+            }
+            _ => false,
+        }
     }
 
     /// Whether a `mut` type wraps the written name `Self`, which is no
@@ -1534,7 +1548,7 @@ impl Lower<'_, '_, '_> {
                 let mut params = Vec::new();
                 let mut result = Ty::VOID;
                 let mut row = RowId::EMPTY;
-                let mut vararg = false;
+                let mut inputs = Inputs::Fixed;
                 for c in n.children() {
                     if c.kind() == SyntaxKind::RequirementRow {
                         row = self.row(Some(c), gn);
@@ -1546,7 +1560,11 @@ impl Lower<'_, '_, '_> {
                         } else {
                             // `fn.type.vararg-rest`: a rest element is a
                             // `List`, and the inputs' last.
-                            vararg = c.kind() == SyntaxKind::RestType;
+                            inputs = if c.kind() == SyntaxKind::RestType {
+                                Inputs::Rest
+                            } else {
+                                Inputs::Fixed
+                            };
                             params.push(t);
                         }
                     }
@@ -1556,7 +1574,7 @@ impl Lower<'_, '_, '_> {
                     result,
                     row,
                     suspends,
-                    vararg,
+                    inputs,
                 })
             }
             SyntaxKind::ProjectionType => {
@@ -1638,13 +1656,12 @@ impl Lower<'_, '_, '_> {
             if row {
                 gn.rows.push((name, RowParamRef { owner, index }));
             } else {
-                gn.tys.push((
-                    name,
-                    self.names
-                        .pool
-                        .intern_ty(&TyData::Param(ParamRef { owner, index })),
-                    Vec::new(),
-                ));
+                let t = self
+                    .names
+                    .pool
+                    .intern_ty(&TyData::Param(ParamRef { owner, index }));
+                gn.tys.push((name, t, Vec::new()));
+                gn.pending.push(t);
             }
             let mut generic = Generic::plain(name);
             let toks = &self.src.parse.tokens;
@@ -1688,6 +1705,10 @@ impl Lower<'_, '_, '_> {
                         _ => None,
                     })
                     .collect();
+            }
+            if let Some((_, t, _)) = gn.tys[start..].iter().find(|(s, _, _)| *s == g.name) {
+                let t = *t;
+                gn.pending.retain(|p| *p != t);
             }
             g.bounds = bounds;
             if let Some(d) = Src::child(node, SyntaxKind::TypeDefault) {
