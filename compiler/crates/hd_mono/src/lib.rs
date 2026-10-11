@@ -1066,6 +1066,7 @@ impl Cx<'_> {
             matches!(
                 k.as_str(),
                 "task_race_frame"
+                    | "suspend_cancel"
                     | "type_id_of"
                     | "panic"
                     | "entry_write"

@@ -17,6 +17,24 @@ pub fn race![T](tasks...: List[mut Suspend[T]]) -> T:
     let frame: mut Suspend[T] = race_frame(tasks)
     frame!()
 
+# The `Suspend[T]` protocol's `cancel` (r-req.cancel.steps,
+# r-req.check.cancel-idempotent). The method is plain hd over `suspend_cancel`,
+# the one primitive, so that the prototype's checker, which answers `cancel`
+# itself, reads the same std.
+impl[T] Suspend[T]:
+    ## Cancels the suspension synchronously; cancelling a completed or cancelled one has no effect.
+    ## See [req.cancel.steps](../../spec/lang/11-requirements-and-suspension.md#r-req.cancel.steps).
+    pub fn cancel(mut self) -> void:
+        suspend_cancel(self)
+
+# Runs the suspension's own cancel function. A cold frame is only marked
+# cancelled and never runs; a started one runs its registered `defer`
+# suites and cancels its child; a completed or cancelled one is left as it
+# is. The compiler supplies the body.
+@intrinsic("suspend_cancel")
+fn suspend_cancel[T](task: mut Suspend[T]) -> void:
+    panic("intrinsic")
+
 # The polling frame of `race!`. Each poll polls the unfinished tasks in
 # order. The first to complete is the result, and the frame then cancels
 # every other task, in order, before it completes. Cancelling the frame
