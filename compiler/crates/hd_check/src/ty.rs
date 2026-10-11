@@ -455,10 +455,33 @@ impl Ck<'_, '_> {
                 continue;
             }
             let t = self.named_ty_as(c, NameRole::Trait)?;
+            if self.inspectable_key(t, c) {
+                continue;
+            }
             self.require_complete(t, c);
             data.keys.push(t);
         }
         Ok(self.pool().row(&data))
+    }
+
+    /// Reports `t` written as a requirement key when it is `Inspectable`
+    /// or has it as a supertrait (`req.key.inspectable.error`).
+    fn inspectable_key(&mut self, t: Ty, at: NodeRef<'_>) -> bool {
+        let pool = self.pool();
+        let found = crate::body::is_inspectable_key(
+            self.cx.lookup,
+            pool,
+            self.cx.names.known.inspectable,
+            t,
+        );
+        if found {
+            let msg = format!(
+                "{} is `Inspectable` or extends it, so it cannot be a requirement key",
+                self.show(t)
+            );
+            self.err(Code::InspectableRequirement, at, &msg);
+        }
+        found
     }
 
     /// A trait value type binds every associated type of its trait and
@@ -480,7 +503,12 @@ impl Ck<'_, '_> {
 
     /// The type a requirement key names: a trait.
     pub(crate) fn key_node(&mut self, n: NodeRef<'_>) -> StageResult<Ty> {
-        self.ty_node_as(n, NameRole::Trait)
+        let t = self.ty_node_as(n, NameRole::Trait)?;
+        Ok(if self.inspectable_key(t, n) {
+            Ty::POISON
+        } else {
+            t
+        })
     }
 
     fn ty_node_as(&mut self, n: NodeRef<'_>, role: NameRole) -> StageResult<Ty> {

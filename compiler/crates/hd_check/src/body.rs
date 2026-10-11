@@ -164,6 +164,10 @@ pub(crate) struct Ck<'a, 'c> {
     pub subs: Vec<OpenSub>,
     /// Bounds on types not yet known at their use: solved at the end.
     pub pending: Vec<(TraitRef, NodeRefIdx)>,
+    /// Type parameters an argument of type `never` was passed for, with no
+    /// earlier error to have left that `never`: one that nothing else
+    /// solves is `never` at the end of the body.
+    pub never_args: Vec<Ty>,
     /// A member call's explicit method type arguments (`x.f::[T]()`),
     /// taken by the method's instantiation.
     pub method_targs: Vec<Ty>,
@@ -320,6 +324,7 @@ pub(crate) fn new_ck<'a, 'c>(
         row_gens: Vec::new(),
         subs: Vec::new(),
         pending: Vec::new(),
+        never_args: Vec::new(),
         method_targs: Vec::new(),
         default_owner: None,
         suspends: vec![false],
@@ -458,6 +463,21 @@ pub(crate) fn trait_extends(
         }
         _ => false,
     })
+}
+
+/// Whether `key` may not be a requirement key: `Inspectable` itself, or a
+/// trait with it among its supertraits (`req.key.inspectable`).
+pub(crate) fn is_inspectable_key(
+    lookup: &Lookup<'_>,
+    pool: hd_types::Types<'_>,
+    inspectable: DefId,
+    key: Ty,
+) -> bool {
+    let TyData::TraitValue { def, .. } = pool.get(key) else {
+        return false;
+    };
+    inspectable != DefId::NONE
+        && (def == inspectable || trait_extends(lookup, pool, def, inspectable, 0))
 }
 
 /// Elaborates one declared bound into an environment (trait-solver.md
@@ -1292,7 +1312,11 @@ impl Ck<'_, '_> {
                     .collect::<Vec<_>>(),
             ),
         };
-        if matches!(self.strip_mut(tref.self_ty), Ty::NEVER) {
+        // Error recovery leaves a `never` where an earlier error in this
+        // body found no type, which adds no diagnostic. Without such an
+        // error, `never` is a real type that implements no sealed trait
+        // (`types.sealed.never`, `trait.inspectable.not.never`).
+        if self.strip_mut(tref.self_ty) == Ty::NEVER && self.diags.has_errors() {
             return Ok(Some(hd_types::solver::Evidence::Poison));
         }
         match self.solve(tref)? {
@@ -2150,6 +2174,13 @@ impl Ck<'_, '_> {
         // A tail expression's call parameters are decided here.
         self.close_open_params(0);
         self.close_ref_params(0);
+        // A parameter only `never` arguments met is `never`
+        // (`types.lct.never.all`); its bounds then fail like any other's.
+        for v in std::mem::take(&mut self.never_args) {
+            if matches!(pool.get(self.infer.shallow(pool, v)), TyData::Infer(_)) {
+                let _ = self.infer.unify(pool, v, Ty::NEVER);
+            }
+        }
         // Bounds that waited for inference.
         let pending = std::mem::take(&mut self.pending);
         for (tref, at) in pending {

@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2631 | 190 | 24 | 2845 |
+| 2635 | 186 | 24 | 2845 |
 
 ## By Chapter
 
@@ -22,9 +22,9 @@ fixture; unsupported surface records progress without failing.
 | `lang/06-control-flow.md` | 140 | 13 | 4 | 157 |
 | `lang/07-functions.md` | 120 | 10 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 113 | 9 | 1 | 123 |
-| `lang/09-traits.md` | 340 | 17 | 2 | 359 |
+| `lang/09-traits.md` | 341 | 16 | 2 | 359 |
 | `lang/10-modules.md` | 223 | 30 | 5 | 258 |
-| `lang/11-requirements-and-suspension.md` | 236 | 15 | 8 | 259 |
+| `lang/11-requirements-and-suspension.md` | 239 | 12 | 8 | 259 |
 | `lang/14-annotations.md` | 125 | 26 | 2 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 98 | 4 | 3 | 105 |
 | `runtime/valid` | 900 | 10 | 19 | 929 |
-| `typing/invalid` | 927 | 147 | 1 | 1075 |
+| `typing/invalid` | 931 | 143 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -89,7 +89,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:no-common-type` | 2 |
-| `fail:no-diagnostic` | 81 |
+| `fail:no-diagnostic` | 77 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-import` | 1 |
 | `fail:private-main` | 4 |
@@ -217,7 +217,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (81)</summary>
+<details><summary><code>fail:no-diagnostic</code> (77)</summary>
 
 - `typing/invalid/private-type-leak.hd`
 - `typing/invalid/private-type-embedded-in-public-data.hd`
@@ -233,7 +233,6 @@ compiler stage that first declined the case.
 - `typing/invalid/generic-supertrait-upcast-mismatch.hd`
 - `typing/invalid/enum-default-requires-provider.hd`
 - `typing/invalid/duplicate-literal-match-arm.hd`
-- `typing/invalid/inspectable-requirement-key.hd`
 - `typing/invalid/trait-resolution-depth.hd`
 - `typing/invalid/entry-result-not-termination.hd`
 - `typing/invalid/structure-outside-template.hd`
@@ -276,8 +275,6 @@ compiler stage that first declined the case.
 - `typing/invalid/row-slot-bare-explicit-argument.hd`
 - `typing/warnings/unsigned-comparison-countdown.hd`
 - `typing/warnings/unsigned-comparison-explicit.hd`
-- `typing/invalid/inspectable-requirement-function-type.hd`
-- `typing/invalid/inspectable-requirement-provider-scope.hd`
 - `typing/invalid/nested-local-annotation-bare-trait.hd`
 - `typing/invalid/contravariant-inferred-private-result.hd`
 - `typing/invalid/contravariant-inferred-invariant-result.hd`
@@ -288,7 +285,6 @@ compiler stage that first declined the case.
 - `typing/warnings/unused-debug-text.hd`
 - `typing/invalid/assoc-call-parameter-two-bounds.hd`
 - `typing/invalid/dyn-self-parameter-unavailable.hd`
-- `typing/invalid/typeid-of-never.hd`
 - `typing/invalid/private-type-leak-data-field.hd`
 - `typing/invalid/private-type-leak-enum-payload.hd`
 - `typing/invalid/private-type-leak-trait-bound.hd`
@@ -2183,6 +2179,9 @@ typing/invalid/init-read-through-trait-value.hd
 typing/invalid/inspectable-child-trait-without-impl.hd
 typing/invalid/inspectable-member-redeclared.hd
 typing/invalid/inspectable-needs-import.hd
+typing/invalid/inspectable-requirement-function-type.hd
+typing/invalid/inspectable-requirement-key.hd
+typing/invalid/inspectable-requirement-provider-scope.hd
 typing/invalid/inspectable-user-implementation.hd
 typing/invalid/integer-literal-match-without-catch-all.hd
 typing/invalid/integer-literal-range.hd
@@ -2699,6 +2698,7 @@ typing/invalid/type-name-as-value.hd
 typing/invalid/typed-fact-not-field.hd
 typing/invalid/typeid-of-any.hd
 typing/invalid/typeid-of-function-argument.hd
+typing/invalid/typeid-of-never.hd
 typing/invalid/typeid-of-unbounded-parameter.hd
 typing/invalid/u32-to-usize-binding.hd
 typing/invalid/unary-minus-string.hd

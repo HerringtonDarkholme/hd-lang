@@ -17,7 +17,7 @@ use hd_resolve::{FnSig, Generic, ImplKind, Item, ItemData, Lookup, LookupDecls, 
 use hd_types::solver::{
     Answer, BodyMemo, GlobalMemo, Goal, ImplView, Impls, ParamEnv, SolveCx, Solver, TraitRef,
 };
-use hd_types::{ParamRef, Ty, TyData, TyList, Types};
+use hd_types::{ParamRef, RowId, Ty, TyData, TyList, Types};
 
 use crate::body::add_bound;
 
@@ -249,9 +249,12 @@ impl<'a> ItemCheck<'_, 'a> {
     }
 
     fn item(&mut self, it: &Item) -> StageResult<()> {
+        // Where the signature's row keys start in `tys`.
+        let mut keys_from = usize::MAX;
         let tys: Vec<Ty> = match &it.data {
             ItemData::Fn(s) | ItemData::Method { sig: s, .. } => {
                 let mut tys = sig_tys(s);
+                keys_from = tys.len();
                 tys.extend(self.pool().row_data(s.row).keys.iter().copied());
                 tys
             }
@@ -288,6 +291,9 @@ impl<'a> ItemCheck<'_, 'a> {
             } else {
                 0
             };
+            if i >= keys_from {
+                self.check_key(t, slot);
+            }
             self.check_ty(t, slot)?;
         }
         let ItemData::Impl {
@@ -489,6 +495,33 @@ impl<'a> ItemCheck<'_, 'a> {
         Ok(matches!(answer, Answer::Fails(_)))
     }
 
+    /// A written requirement key may not be `Inspectable` or extend it
+    /// (`req.key.inspectable.error`).
+    fn check_key(&mut self, key: Ty, slot: u32) {
+        let pool = self.pool();
+        if crate::body::is_inspectable_key(
+            self.cx.lookup,
+            pool,
+            self.cx.names.known.inspectable,
+            key,
+        ) {
+            let message = format!(
+                "{} is `Inspectable` or extends it, so it cannot be a requirement key",
+                self.show(key)
+            );
+            self.report(slot, Code::InspectableRequirement, message);
+        }
+    }
+
+    /// The keys of a row written in a header type.
+    fn check_row(&mut self, row: RowId, slot: u32) -> StageResult<()> {
+        for key in self.pool().row_data(row).keys {
+            self.check_key(key, slot);
+            self.check_ty(key, slot)?;
+        }
+        Ok(())
+    }
+
     /// Written types against their declared bounds (`trait.bound.no-implied`).
     fn check_ty(&mut self, t: Ty, slot: u32) -> StageResult<()> {
         let pool = self.pool();
@@ -581,12 +614,19 @@ impl<'a> ItemCheck<'_, 'a> {
                     self.check_ty(e, slot)?;
                 }
             }
-            TyData::Fn { params, result, .. } => {
+            TyData::Fn {
+                params,
+                result,
+                row,
+                ..
+            } => {
                 for e in pool.list_items(params).iter().copied() {
                     self.check_ty(e, slot)?;
                 }
                 self.check_ty(result, slot)?;
+                self.check_row(row, slot)?;
             }
+            TyData::Row(row) | TyData::Context(row) => self.check_row(row, slot)?,
             _ => {}
         }
         Ok(())

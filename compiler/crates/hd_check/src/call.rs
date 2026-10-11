@@ -892,6 +892,13 @@ impl Ck<'_, '_> {
             let (r, t) = self.arg_value(*e, w)?;
             if let Some(p) = rest.get(i)
                 && open.get(i).copied().unwrap_or(false)
+                && self.infer.resolve(pool, t) == Ty::NEVER
+                && !self.diags.has_errors()
+            {
+                self.never_args.push(p.1);
+            }
+            if let Some(p) = rest.get(i)
+                && open.get(i).copied().unwrap_or(false)
                 && self.join_down(p.1, t)
             {
                 w = Some(self.normalize_deep(p.1)?);
@@ -964,6 +971,9 @@ impl Ck<'_, '_> {
             let rejoin =
                 open[i] && !matches!(pool.get(self.infer.shallow(pool, w)), TyData::Infer(_));
             let (r, t) = self.arg_value(*e, Some(w))?;
+            if open[i] && self.infer.resolve(pool, t) == Ty::NEVER && !self.diags.has_errors() {
+                self.never_args.push(rest[i].1);
+            }
             if open[i] && self.join_down(rest[i].1, t) {
                 w = self.normalize_deep(rest[i].1)?;
             }
