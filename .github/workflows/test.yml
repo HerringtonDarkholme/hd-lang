@@ -23,9 +23,7 @@ jobs:
   compiler:
     name: Rust compiler front end
     runs-on: ubuntu-latest
-    # Dev-profile tests (debug assertions, overflow checks) run longer
-    # than the old release run did.
-    timeout-minutes: 45
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: compiler
@@ -61,12 +59,17 @@ jobs:
       - name: Lint
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      # Tests run in the dev profile: debug assertions and overflow checks on.
+      # CI tests in release for speed (owner, 2026-10-11: dev took 26 min,
+      # release 6). Local gates stay in the dev profile, where debug
+      # assertions and overflow checks are on.
+      - name: Build release compiler
+        run: cargo build --release --bin hd
+
       - name: Test
-        run: cargo test --workspace -- --skip specification_conformance_does_not_regress
+        run: cargo test --release --workspace -- --skip specification_conformance_does_not_regress
 
       - name: New compiler conformance gate
-        run: cargo test -p hd_driver --test conformance
+        run: cargo test --release -p hd_driver --test conformance
 
       - name: Build browser-safe syntax crate
         run: cargo build -p hd_syntax --target wasm32-unknown-unknown
