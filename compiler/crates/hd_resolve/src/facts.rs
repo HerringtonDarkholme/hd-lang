@@ -50,3 +50,24 @@ pub fn fact_lines<'t>(src: &Src<'t>, node: NodeRef<'t>) -> Vec<NodeRef<'t>> {
         .map(|(_, e)| e)
         .collect()
 }
+
+/// Whether an expression of this form can never have a list type: a
+/// literal, string, tuple, map, data literal, closure, comparison or
+/// logical expression. A member line's right side of such a form is an
+/// `invalid-member-line` error (`annot.line.right.not-list`) found from
+/// syntax alone; any other form is typed.
+#[must_use]
+pub fn never_a_list(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::LiteralExpr
+            | SyntaxKind::StringExpr
+            | SyntaxKind::TupleExpr
+            | SyntaxKind::MapExpr
+            | SyntaxKind::DataExpr
+            | SyntaxKind::ClosureExpr
+            | SyntaxKind::ComparisonExpr
+            | SyntaxKind::LogicalAndExpr
+            | SyntaxKind::LogicalOrExpr
+    )
+}

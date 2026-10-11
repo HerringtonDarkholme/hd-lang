@@ -595,6 +595,19 @@ impl<'a> Lay<'a> {
         else {
             return t;
         };
+        // A `dyn Any` is laid out as a `dyn Inspectable`, so that its
+        // payload keeps the recorded type that `Facts` finds a fact by
+        // (`annot.line.right-typed`): a list of one is read as a list of
+        // the other, and the language still has no way back from `Any`
+        // (`types.any.one-way`).
+        let sealed = self.env.decls().sealed();
+        if def == sealed.any && sealed.inspectable != DefId::NONE {
+            return pool.intern_ty(&TyData::TraitValue {
+                def: sealed.inspectable,
+                args: TyList::EMPTY,
+                bindings: Vec::new(),
+            });
+        }
         let reach = self.reached_assocs(def);
         bindings.retain(|(a, _)| reach.contains(a));
         for s in self.super_keys(def, args, &bindings) {

@@ -67,6 +67,7 @@ mod map_duplicates_run;
 mod map_key_bounds;
 mod map_run;
 mod match_cascade;
+mod member_line_lists_run;
 mod method_choice;
 mod misplaced_derivation;
 mod mixed_variant_patterns_run;

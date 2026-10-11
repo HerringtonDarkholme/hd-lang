@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2655 | 168 | 22 | 2845 |
+| 2656 | 168 | 21 | 2845 |
 
 ## By Chapter
 
@@ -25,7 +25,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/09-traits.md` | 341 | 16 | 2 | 359 |
 | `lang/10-modules.md` | 223 | 30 | 5 | 258 |
 | `lang/11-requirements-and-suspension.md` | 239 | 12 | 8 | 259 |
-| `lang/14-annotations.md` | 143 | 9 | 1 | 153 |
+| `lang/14-annotations.md` | 144 | 9 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
 | `std/collections.md` | 26 | 3 | 0 | 29 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 99 | 3 | 3 | 105 |
-| `runtime/valid` | 902 | 10 | 17 | 929 |
+| `runtime/valid` | 903 | 10 | 16 | 929 |
 | `typing/invalid` | 948 | 126 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -111,7 +111,7 @@ compiler stage that first declined the case.
 | `fail:unknown-variant` | 1 |
 | `fail:unused-local-binding` | 4 |
 | `unsupported:Body` | 5 |
-| `unsupported:Collect` | 3 |
+| `unsupported:Collect` | 2 |
 | `unsupported:Link` | 3 |
 | `unsupported:RunCase` | 11 |
 
@@ -468,9 +468,8 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Collect</code> (3)</summary>
+<details><summary><code>unsupported:Collect</code> (2)</summary>
 
-- `runtime/valid/member-line-list-expression.hd`
 - `runtime/valid/init-group-order.hd`
 - `runtime/valid/init-group-statements-by-identity.hd`
 
@@ -1348,6 +1347,7 @@ runtime/valid/map-remove-absent-key.hd
 runtime/valid/map-sys.hd
 runtime/valid/match-arm-binding-reuse.hd
 runtime/valid/match-guards.hd
+runtime/valid/member-line-list-expression.hd
 runtime/valid/memory-fs.hd
 runtime/valid/method-call-never-selects-field.hd
 runtime/valid/method-receiver-before-arguments.hd

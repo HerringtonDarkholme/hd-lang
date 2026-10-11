@@ -192,8 +192,16 @@ fn derivation_repeats<'t>(cx: &BodyCx<'t>, heads: &[Head<'t>], h: &Head<'t>, dia
                     single: true,
                     report: false,
                 }),
+                // Only a literal's own elements are known here: a list
+                // expression, and what a spread brings into a literal, hold
+                // facts only when the program runs, so a repeat among them
+                // is not found (`annot.line.duplicate`).
+                FactSource::List(list) if list.kind() != SyntaxKind::ListExpr => {}
                 FactSource::List(list) => {
-                    for node in list.children() {
+                    for node in list
+                        .children()
+                        .filter(|e| e.kind() != SyntaxKind::SpreadExpr)
+                    {
                         let at = cx.src.span(node);
                         elems.push(Elem {
                             node,

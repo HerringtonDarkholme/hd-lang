@@ -430,7 +430,8 @@ impl Lower<'_, '_, '_> {
     /// a member by `=` alone, and not in a block with no trait; `Self` and
     /// a whole variant cannot be omitted; any other right side is a list.
     /// A right side whose form can never have a list type is rejected here;
-    /// one that might (a name, a call) waits for the line's type.
+    /// one that might (a name, a call) is typed with the module's bodies
+    /// (`hd_check::check_decl_facts`).
     fn check_line_form(&mut self, line: NodeRef<'_>, variant: bool, traitless: bool) {
         let Some(rhs) = line.children().last() else {
             return;
@@ -453,18 +454,7 @@ impl Lower<'_, '_, '_> {
             } else {
                 return;
             }
-        } else if matches!(
-            rhs.kind(),
-            SyntaxKind::LiteralExpr
-                | SyntaxKind::StringExpr
-                | SyntaxKind::TupleExpr
-                | SyntaxKind::MapExpr
-                | SyntaxKind::DataExpr
-                | SyntaxKind::ClosureExpr
-                | SyntaxKind::ComparisonExpr
-                | SyntaxKind::LogicalAndExpr
-                | SyntaxKind::LogicalOrExpr
-        ) {
+        } else if crate::facts::never_a_list(rhs.kind()) {
             "the right side of a member line is a list"
         } else {
             return;

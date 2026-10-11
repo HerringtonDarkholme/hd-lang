@@ -18,10 +18,15 @@
 //! (`annot.typed-fact.check`), and holds the value at the fact type that
 //! type infers, which a handle's `fact` finds (`annot.handle.fact.exact`).
 //!
-//! Not generated yet, each a structured "not implemented" that leaves the
+//! A member line's list that is not a list literal, and a spread in one, is
+//! evaluated with the place's other facts when the facts body runs, `=`
+//! having dropped the facts before it at check time and `+=` keeping them
+//! (`annot.line.right-typed`). Its facts are not known to the checker, so a
+//! repeated type among them is not reported (`annot.line.duplicate`).
+//!
+//! Not generated yet, a structured "not implemented" that leaves the
 //! derivation's `Structure` without bodies (a call of it then stops at
-//! collection): a member line whose list is not a list literal, and the
-//! shared constructor data of a generic enum.
+//! collection): the shared constructor data of a generic enum.
 
 use hd_base::{DefId, Stage, StageResult};
 use hd_diag::DiagBuf;
@@ -225,7 +230,11 @@ pub fn member_fact_sites<'t>(
             };
             let Some(ty) = ty else { continue };
             let ty = subst_owner(cx.names.pool.types(), data, &args, ty);
-            out.extend(list.children().map(|e| (e, ty, false)));
+            out.extend(
+                list.children()
+                    .filter(|e| e.kind() != SyntaxKind::SpreadExpr)
+                    .map(|e| (e, ty, false)),
+            );
         }
         return out;
     }

@@ -19,7 +19,7 @@ use hd_base::{DefId, StageResult};
 use hd_diag::{Code, DiagBuf};
 use hd_intern::PathKind;
 use hd_resolve::ItemData;
-use hd_resolve::facts::fact_lines;
+use hd_resolve::facts::{fact_lines, never_a_list};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::Body;
 use hd_tir::ir::{BodyKind, Coercion, NONE, Ref, Tag, TirSink};
@@ -132,24 +132,42 @@ pub fn check_fact_list(
     );
     let blk = ck.b.open_block();
     let mut refs = Vec::new();
+    // The positions of `refs` that hold a whole list of facts, which the
+    // list of facts spreads in place.
+    let mut spreads = Vec::new();
     for source in sources {
         let (values, single) = match *source {
             FactSource::Value(e) => (vec![e], true),
             FactSource::List(e) if e.kind() == SyntaxKind::ListExpr => {
                 (e.children().collect(), false)
             }
-            FactSource::List(_) => {
-                return unsupported("a member line whose list is not a list literal");
+            // A list expression other than a literal: its facts are known
+            // when the body runs (`annot.line.right-typed`).
+            FactSource::List(e) => {
+                ck.move_to(cx.src.span(e).lo);
+                if let Some(r) = ck.fact_list(e, Code::InvalidMemberLine, items_ty)? {
+                    spreads.push(u32::try_from(refs.len()).unwrap_or(0));
+                    refs.push(r);
+                }
+                continue;
             }
         };
         for e in values {
-            if matches!(
-                e.kind(),
-                SyntaxKind::SpreadExpr | SyntaxKind::ComprehensionFor
-            ) {
-                return unsupported("a member line list with a spread or a comprehension");
+            if e.kind() == SyntaxKind::ComprehensionFor {
+                return unsupported("a member line list with a comprehension");
             }
             ck.move_to(cx.src.span(e).lo);
+            if e.kind() == SyntaxKind::SpreadExpr {
+                let Some(operand) = e.children().next() else {
+                    return unsupported("a spread without an operand");
+                };
+                ck.move_to(cx.src.span(operand).lo);
+                if let Some(r) = ck.fact_list(operand, Code::TypeMismatch, items_ty)? {
+                    spreads.push(u32::try_from(refs.len()).unwrap_or(0));
+                    refs.push(r);
+                }
+                continue;
+            }
             if let Some(fact) = ck.typed_fact_type(e) {
                 let Some(target) = ck.fact_target(target, owner)? else {
                     continue;
@@ -172,7 +190,12 @@ pub fn check_fact_list(
         }
     }
     let rec = ck.b.refs_record(&refs);
-    let list = ck.b.emit(Tag::NewList, NONE, rec, items_ty, at.index());
+    let marks = if spreads.is_empty() {
+        NONE
+    } else {
+        ck.b.words_record(&spreads)
+    };
+    let list = ck.b.emit(Tag::NewList, marks, rec, items_ty, at.index());
     let rec = ck.b.refs_record(&[list]);
     let value = ck.b.emit(Tag::NewData, NONE, rec, facts_ty, at.index());
     let root = ck.b.close_block(blk, Some(value), facts_ty, at.index());
@@ -190,6 +213,7 @@ pub fn check_fact_list(
 /// against the member's type instead (`annot.typed-fact.check`), which
 /// reports such a call as part of its value.
 pub fn check_decl_facts(cx: &BodyCx<'_>, owner: DefId, node: NodeRef<'_>, diags: &mut DiagBuf) {
+    check_line_lists(cx, owner, node, diags);
     let typed = typed_sites(cx, owner, node);
     let lines: Vec<NodeRef<'_>> = std::iter::once(node)
         .chain(node.descendants())
@@ -217,6 +241,64 @@ pub fn check_decl_facts(cx: &BodyCx<'_>, owner: DefId, node: NodeRef<'_>, diags:
         ck.move_to(cx.src.span(e).lo);
         ck.forbidden_calls(e);
     }
+}
+
+/// The attach-time check of the lists of facts that the member lines of the
+/// derivation block `node` of `owner` write as expressions: a right side
+/// that is not a list literal, and the operand of a spread in one
+/// (`annot.line.right-typed`, `annot.line.typed`,
+/// `annot.line.right.not-list`). Each is checked once, in a body of its own
+/// that nothing calls. A right side whose form never has a list type is
+/// already an `invalid-member-line` error from syntax.
+fn check_line_lists(cx: &BodyCx<'_>, owner: DefId, node: NodeRef<'_>, diags: &mut DiagBuf) {
+    if !matches!(
+        cx.lookup.item(owner).map(|i| &i.data),
+        Some(ItemData::Impl { by: Some(_), .. })
+    ) {
+        return;
+    }
+    let mut lists = Vec::new();
+    for line in crate::derive::member_lines(&cx.src, node) {
+        let Some(list) = line.list else { continue };
+        if list.kind() != SyntaxKind::ListExpr {
+            if !never_a_list(list.kind()) {
+                lists.push((list, Code::InvalidMemberLine));
+            }
+            continue;
+        }
+        for spread in list
+            .children()
+            .filter(|e| e.kind() == SyntaxKind::SpreadExpr)
+        {
+            lists.extend(spread.children().next().map(|e| (e, Code::TypeMismatch)));
+        }
+    }
+    if lists.is_empty() {
+        return;
+    }
+    let Ok((_, items_ty)) = facts_types(cx) else {
+        return;
+    };
+    let def = cx.names.member(owner, PathKind::Hidden, "line list");
+    let local = hd_types::LocalPool::new();
+    let mut ck = new_ck(
+        cx,
+        &local,
+        owner,
+        def,
+        BodyKind::Default,
+        (Ty::VOID, RowId::EMPTY),
+        diags,
+    );
+    let blk = ck.b.open_block();
+    for (e, not_list) in lists {
+        ck.move_to(cx.src.span(e).lo);
+        if ck.fact_list(e, not_list, items_ty).is_err() {
+            return;
+        }
+    }
+    let root = ck.b.close_block(blk, None, Ty::VOID, node.index());
+    let _ = ck.finish_body(root);
 }
 
 /// The typed facts among the fact expressions that attach to a member of
@@ -289,6 +371,52 @@ fn check_typed_site(
 }
 
 impl Ck<'_, '_> {
+    /// A list of facts that is an expression, not a list literal, or a
+    /// spread's operand in a literal (`annot.line.right-typed`,
+    /// `annot.line.typed`): `e` checked as `List[dyn Any]`, and its
+    /// elements as the `items_ty` of a `Facts`, which they are laid out as
+    /// (`hd_wasm::layout::dyn_key`). A value that is not a list is
+    /// `not_list` (`annot.line.right.not-list`); one of a different element
+    /// type is a type mismatch. `None` when it does not check.
+    fn fact_list(
+        &mut self,
+        e: NodeRef<'_>,
+        not_list: Code,
+        items_ty: Ty,
+    ) -> StageResult<Option<Ref>> {
+        let pool = self.pool();
+        let any = pool.intern_ty(&TyData::TraitValue {
+            def: self.cx.names.known.any,
+            args: TyList::EMPTY,
+            bindings: vec![],
+        });
+        let want = pool.intern_ty(&TyData::Adt {
+            def: self.cx.names.known.list,
+            args: pool.list(&[any]),
+        });
+        let (r, t) = self.expr(e, Some(want))?;
+        let t = self.infer.resolve(pool, t);
+        if self.list_item(t).is_none() {
+            if !matches!(self.strip_mut(t), Ty::NEVER | Ty::POISON) {
+                let msg = format!("expected a list of facts, found {}", self.show(t));
+                self.err(not_list, e, &msg);
+            }
+            return Ok(None);
+        }
+        let mark = self.diags.mark();
+        let r = self.coerce(r, t, want, e, "member line list");
+        if self.diags.errors_since(mark) > 0 {
+            return Ok(None);
+        }
+        Ok(Some(self.b.coerce(
+            Coercion::Variance,
+            NONE,
+            r,
+            items_ty,
+            e.index(),
+        )))
+    }
+
     /// Reports each call of `block_on` or `println` written directly in
     /// the expression `e`, not inside a closure or local function.
     fn forbidden_calls(&mut self, e: NodeRef<'_>) {

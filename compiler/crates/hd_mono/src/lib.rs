@@ -1819,6 +1819,15 @@ impl Cx<'_> {
                     else {
                         return err("a trait-value coercion to a non-trait type");
                     };
+                    // A `dyn Any` is laid out as a `dyn Inspectable`, so its
+                    // vtable is `Inspectable`'s (`hd_wasm::layout::dyn_key`).
+                    let sealed = env.decls().sealed();
+                    let (trait_, trait_args) =
+                        if trait_ == sealed.any && sealed.inspectable != DefId::NONE {
+                            (sealed.inspectable, TyList::EMPTY)
+                        } else {
+                            (trait_, trait_args)
+                        };
                     let vt = self.vtable(trait_, trait_args, from, id, &mut reps)?;
                     calls.insert(ix, Target::VTable(vt));
                 }
