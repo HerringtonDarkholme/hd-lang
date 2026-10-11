@@ -9,7 +9,8 @@
 // An outcome is `{ ok }`, `{ error: [variant, text] }` for a `NetError`,
 // or `{ disposed: true }` for an operation on a closed handle
 // (std-net.handles.closable). The program's thread checks the host's form
-// and the grant before it posts an operation that names an address.
+// and the grant before it posts an operation that accesses an address;
+// a metadata-only check may first reject a closed or unknown handle.
 import dgram from "node:dgram";
 import { promises as dns } from "node:dns";
 import net from "node:net";
@@ -174,6 +175,7 @@ const ops = {
     h.closed = true;
     return { ok: null };
   },
+  check: () => ({ ok: null }),
 };
 
 const run = async (r) => {

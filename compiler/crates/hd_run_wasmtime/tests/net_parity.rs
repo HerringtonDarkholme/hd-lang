@@ -10,7 +10,7 @@ use std::sync::{
 use std::time::{Duration, Instant};
 
 use hd_run::{Engine, Grants, HostSetup, Instance, Limit, Limits, Outcome};
-use hd_run_wasmtime::{EngineConfig, HostIo, WasmtimeEngine, run_captured};
+use hd_run_wasmtime::{EngineConfig, HostIo, WasmtimeEngine};
 use support::*;
 use wasm_encoder::{Instruction as I, ValType};
 
@@ -416,27 +416,46 @@ fn net_unknown_handles_and_stale_finish_calls_are_contract_panics() {
 }
 
 #[test]
-fn closed_udp_disposed_precedes_denied_or_invalid_destination_on_wasmtime() {
+fn closed_udp_disposed_precedes_denied_or_invalid_destination() {
+    let scratch = Scratch::new();
     let mut p = Program::new();
     open(&mut p, "bind_udp", "127.0.0.1", 0, vec![0, 1]);
     handle(&mut p, "UdpSocket.close", &[1], None, vec![0]);
     send(&mut p, "127.0.0.2", 9, b"denied", vec![1, 1]);
     send(&mut p, "bad host", 9, b"invalid", vec![1, 1]);
-    let (wasm, expected) = p.finish(7);
-    let setup = HostSetup {
-        providers: vec![],
-        grants: Grants {
-            limits: vec![("Net".into(), Limit::Entries(vec!["127.0.0.1:0".into()]))],
-        },
-        limits: Limits::default(),
-        args: vec![],
-        program: String::new(),
-    };
-    // Node still checks the destination first; its correction needs owner
-    // approval. This regression checks the decided closable-handle rule.
-    let r = run_captured(EngineConfig::default(), &wasm, &setup).unwrap();
-    assert_eq!(r.status, 7);
-    assert_eq!(r.stderr, expected.as_bytes());
+    assert_program(
+        &scratch,
+        p,
+        vec![("Net", Limit::Entries(vec!["127.0.0.1:0".into()]))],
+        || {},
+    );
+}
+
+#[test]
+fn unknown_udp_handle_precedes_denied_or_invalid_destination() {
+    let scratch = Scratch::new();
+    for host in ["127.0.0.2", "bad host"] {
+        let mut p = Program::new();
+        handle(
+            &mut p,
+            "UdpSocket.send_to",
+            &[99, 9],
+            Some(&Enc::default().str(host).bytes(b"x").0),
+            vec![],
+        );
+        let (wasm, _) = p.finish(7);
+        let r = parity(
+            &scratch,
+            &wasm,
+            vec![("Net", Limit::Entries(vec![]))],
+            || {},
+        );
+        assert_eq!(r.status, 3);
+        assert_eq!(
+            r.stderr,
+            b"panic: host-contract: an operation on a handle the host never made\n"
+        );
+    }
 }
 
 #[derive(Clone, Default)]

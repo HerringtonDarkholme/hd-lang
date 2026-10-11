@@ -154,8 +154,8 @@ impl Client {
             return encode(Outcome::Unknown, true);
         }
         // Closable Handles requires Disposed through every alias before any
-        // destination validation or grant check. Node currently checks a UDP
-        // send's destination first; this is a documented spec correction.
+        // destination validation or grant check. Node's metadata-only worker
+        // preflight enforces the same precedence for UDP sends.
         if resource && self.closed.contains(&scalar(0)?) {
             return encode(Outcome::Disposed, true);
         }
@@ -196,7 +196,7 @@ impl Client {
                 let host = d.str()?;
                 let bytes = d.bytes()?.to_vec();
                 let port = port(scalar(1)?)?;
-                // Node checks the destination before checking the handle.
+                // A live send always validates its own destination grant.
                 if let Some(error) = at(grants, &host, port) {
                     return encode(Outcome::Error(error), true);
                 }

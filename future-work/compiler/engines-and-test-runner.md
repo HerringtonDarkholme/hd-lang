@@ -328,6 +328,9 @@ That worker owns safe nonblocking `std::net` sockets configured through
 `socket2`, with queued arrivals and retained EOF or error states.
 Handles retain their closed state, and each UDP destination receives its
 own grant check.
+The owner-approved M19 Q1 follow-up adds a metadata-only Node preflight.
+Closed UDP handles return `Disposed` before destination validation;
+unknown handles remain `host-contract`, and every live send checks its grant.
 
 Hostname connections alternate deduplicated resolver families, preferring
 the first returned family.
@@ -341,8 +344,8 @@ The `.finish` imports reject stale operations as `host-contract`.
 Ending a run stops its Net worker and releases its shared Http worker
 guard, even when an embedding retains the ended instance.
 
-The network suites contain 18 Http and 11 Net tests, using local servers
-only. Twenty-five compare both engines; four separately check decided
+The network suites contain 18 Http and 12 Net tests, using local servers
+only. Twenty-seven compare both engines; three separately check decided
 spec behavior or retained-instance cleanup.
 
 Certificate-failure tests compare the error category, not provider-specific
@@ -350,8 +353,9 @@ TLS messages. The original 23 core parity tests remain unchanged.
 Twenty-three Http and nine Net unit tests cover internal protocol and lifecycle
 edges. Native validation runs on macOS.
 
-The Windows cross-check currently stops while building `ring`, because
-`x86_64-w64-mingw32-gcc` is unavailable; native Windows execution is unverified.
+The original M19 Windows cross-check stopped while building `ring`.
+M21's pinned Zig-backed cross-target checks passed; native Windows execution
+remains unverified.
 DNS cancellation and observed Node/spec discrepancies are recorded in
 [Diagnostic Notes](../../audit/compiler/diagnostic-notes.md).
 

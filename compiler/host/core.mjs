@@ -786,6 +786,11 @@ export function createHost(sink, env = {}) {
             const d = argsOf(len);
             const host = d.str();
             const bytes = Uint8Array.from(d.bytes());
+            // Preserve ABI decoding, then reject closed and unknown handles
+            // before destination validation. This checks metadata only.
+            const checked = netClient.call({ op: "check", handle: h });
+            if (checked.unknown || checked.disposed) return ready(handleResult(checked, none));
+            // Each live send still checks its destination grant.
             const r = netAt("send_to", host, port, { handle: h, bytes });
             return ready(handleResult(r, none));
           },
