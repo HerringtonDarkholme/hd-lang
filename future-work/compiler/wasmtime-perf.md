@@ -109,3 +109,76 @@ structurally cheaper per run; the remaining wasmtime-specific time is
 almost entirely recompilation (causes 1-2) plus unoptimized guest exec
 (cause 3). The suite wall itself is dominated by fixture check+build,
 which is engine-independent.
+
+## Cranelift optimization levels
+
+M32 measurement (2026-10-11): `OptLevel::None` against `Speed` and
+`SpeedAndSize` for guest code, compile and execute split. Nothing was
+shipped: no setting wins everywhere (details below), so the engine
+config is unchanged and the temporary measurement shim was reverted.
+
+### Method and conditions
+
+- Same machine/profile as above (dev `hd`, 8 suite workers, ambient
+  load; all figures min-of-5, so they are best-case).
+- Micro table: each `test/perf/micro/*.hd` built once to fixed bytes,
+  then one compilation plus min-of-7 executions per level in-process
+  (fresh process per level, so the M29 cache never hides a compile).
+- `hd run` walls: hot-cache `hd run --engine wasmtime` min-of-5 per
+  case/level (includes hd startup plus a cache-hit check, constant
+  across levels).
+- Suite walls: wasmtime-only conformance per level (the runner always
+  uses `EngineConfig::default()`, temporarily overridden per run).
+- Verdicts were identical at all three levels (lang 763/11/20, std
+  235/3/2, 0 differences), so optimization is behavior-preserving here.
+
+### Micro cases: compile and execute (ms)
+
+| case | compile None | compile Speed | compile S&S | exec None | exec Speed | exec S&S |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| fib | 2.27 | 2.56 | 2.87 | 4.44 | 4.46 | 4.48 |
+| sum | 1.96 | 2.13 | 2.02 | 14.90 | 12.46 | 12.60 |
+| string-build | 2.65 | 3.24 | 3.17 | 14.37 | 13.17 | 13.11 |
+| map | 2.71 | 3.07 | 3.39 | 6.27 | 4.53 | 4.58 |
+| sort | 4.38 | 4.74 | 4.82 | 85.23 | 69.99 | 70.23 |
+
+None compiles fastest everywhere (Speed costs ~0.2-0.6 ms, SpeedAndSize
+about the same again). Speed executes fastest-or-tied everywhere
+(fib ties at ~4.5 ms of call overhead; sum 16% faster, map 28%, sort
+18%); SpeedAndSize ties Speed on all five (no size pressure at these
+sizes).
+
+### `hd run` walls (ms, min-of-5, hot cache)
+
+| case | None | Speed | S&S |
+| --- | ---: | ---: | ---: |
+| fib | 23 | 20 | 20 |
+| sum | 32 | 33 | 33 |
+| string-build | 34 | 35 | 38 |
+| map | 26 | 27 | 26 |
+| sort | 107 | 113 | 108 |
+
+Flat within noise: hd startup plus the cache-hit check (~20 ms)
+dominate these small cases, so the level barely moves the user-facing
+wall. The exec differences only surface past ~50 ms of guest work.
+
+### Suite walls, wasmtime-only (dev)
+
+| level | suite wall | exec sum lang | exec sum std |
+| --- | ---: | ---: | ---: |
+| None | 13.73 s | 11.11 s | 27.34 s |
+| Speed | 12.73 s | 12.85 s | 20.57 s |
+| SpeedAndSize | 12.26 s | 11.80 s | 20.19 s |
+
+(Lang exec rises at Speed while std falls hard; both are sums across 8
+workers, so scheduling noise applies — but the direction is consistent:
+test bodies execute faster than the extra compile costs.)
+
+### Recommendation
+
+Keep `None` for `hd test` and conformance: thousands of tiny modules
+make turnaround compile-dominated, None compiles fastest, and verdicts
+are identical. Keep `Speed` for `hd run --release` through the existing
+`pipeline(release)` mapping: it executes 0-28% faster where guest work
+dominates, at ~0.5 ms extra compile. Do not add a `SpeedAndSize` mode:
+it ties `Speed` on compile and execute across everything measured.

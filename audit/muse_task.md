@@ -56,20 +56,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
 
-### M32. Measure Cranelift optimization for wasmtime runs (#278)
-
-Your M28 note says the engine compiles with Cranelift `OptLevel::None`, and
-heavy programs run 4-5x slower than on V8 (sort: about 100 ms against
-22 ms). Measure, do not ship yet:
-- `hd run` wall time for `test/perf/micro/*.hd` with `OptLevel::None`,
-  `Speed` and `SpeedAndSize`, split into compile and execute;
-- the same for the wasmtime-only conformance suite (suite wall).
-Write a table and a recommendation (for example, None for `hd test` and
-conformance, Speed for `hd run --release`) as a new section in
-`future-work/compiler/wasmtime-perf.md`. You may change the engine config
-only if one setting wins everywhere; otherwise just report. Files:
-`crates/hd_run_wasmtime/src/**`, `future-work/compiler/wasmtime-perf.md`.
-
 ### M33. Trim the hd binary's wasmtime features (#278)
 
 The `hd` binary grew from 7.9 MB to 19.1 MB with wasmtime. List the
