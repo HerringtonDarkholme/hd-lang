@@ -21,6 +21,14 @@ pub(crate) enum Named {
     Poison,
 }
 
+/// What a written name must be: a type, or a trait (a requirement key,
+/// a `dyn` type). It decides the code of a name that reaches nothing.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NameRole {
+    Type,
+    Trait,
+}
+
 impl Ck<'_, '_> {
     /// The identifier segments of a path node, in order.
     pub(crate) fn segments(&self, n: NodeRef<'_>) -> Vec<String> {
@@ -171,7 +179,7 @@ impl Ck<'_, '_> {
         })
     }
 
-    fn named_ty(&mut self, n: NodeRef<'_>) -> StageResult<Ty> {
+    fn named_ty_as(&mut self, n: NodeRef<'_>, role: NameRole) -> StageResult<Ty> {
         let pool = self.pool();
         let segs = self.segments(n);
         let mut args = Vec::new();
@@ -213,6 +221,16 @@ impl Ck<'_, '_> {
             return Ok(Ty::POISON);
         }
         let Some(def) = self.resolve_path(&segs) else {
+            // A single name that reaches nothing is `unknown-type`, or
+            // `unknown-trait` where a trait is written (`req.key.in-scope`).
+            if let [name] = segs.as_slice() {
+                let (code, what) = match role {
+                    NameRole::Type => (Code::UnknownType, "type"),
+                    NameRole::Trait => (Code::UnknownTrait, "trait"),
+                };
+                self.err(code, n, &format!("no {what} named `{name}`"));
+                return Ok(Ty::POISON);
+            }
             return unsupported(format!("the type name `{}`", segs.join(".")));
         };
         if self
@@ -348,7 +366,7 @@ impl Ck<'_, '_> {
                 data.params.push(*p);
                 continue;
             }
-            let t = self.named_ty(c)?;
+            let t = self.named_ty_as(c, NameRole::Trait)?;
             self.require_complete(t, c);
             data.keys.push(t);
         }
@@ -369,6 +387,15 @@ impl Ck<'_, '_> {
 
     /// The type a type node names.
     pub(crate) fn ty_node(&mut self, n: NodeRef<'_>) -> StageResult<Ty> {
+        self.ty_node_as(n, NameRole::Type)
+    }
+
+    /// The type a requirement key names: a trait.
+    pub(crate) fn key_node(&mut self, n: NodeRef<'_>) -> StageResult<Ty> {
+        self.ty_node_as(n, NameRole::Trait)
+    }
+
+    fn ty_node_as(&mut self, n: NodeRef<'_>, role: NameRole) -> StageResult<Ty> {
         let pool = self.pool();
         let first = |me: &mut Self, n: NodeRef<'_>| -> StageResult<Ty> {
             match n.children().find(|c| c.kind().is_type()) {
@@ -378,7 +405,7 @@ impl Ck<'_, '_> {
         };
         Ok(match n.kind() {
             SyntaxKind::NamedType => {
-                let t = self.named_ty(n)?;
+                let t = self.named_ty_as(n, role)?;
                 // A row alias is row-kinded (`req.row.alias.type-or-key`).
                 if matches!(pool.get(t), TyData::Row(_)) {
                     let name = self.segments(n).join(".");
@@ -470,7 +497,7 @@ impl Ck<'_, '_> {
             }
             SyntaxKind::DynType => match Src::child(n, SyntaxKind::NamedType) {
                 Some(c) => {
-                    let t = self.named_ty(c)?;
+                    let t = self.named_ty_as(c, NameRole::Trait)?;
                     let view = hd_resolve::assoc::LookupView {
                         lookup: self.cx.lookup,
                         names: &self.cx.names,

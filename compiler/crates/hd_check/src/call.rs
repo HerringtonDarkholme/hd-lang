@@ -449,7 +449,13 @@ impl Ck<'_, '_> {
                     Some(def)
                         if matches!(
                             self.cx.lookup.item(def).map(|i| &i.data),
-                            Some(ItemData::Fn(_))
+                            Some(
+                                ItemData::Fn(_)
+                                    | ItemData::Data(_)
+                                    | ItemData::Enum { .. }
+                                    | ItemData::Newtype(_)
+                                    | ItemData::Alias(_)
+                            )
                         ) =>
                     {
                         self.call_item(def, &explicit, args, n, bang, want)
@@ -470,6 +476,76 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// The type a newtype value wraps, with the newtype's arguments
+    /// applied; `None` for a value of any other type.
+    fn newtype_base(&self, t: Ty) -> Option<Ty> {
+        let pool = self.pool();
+        let t = self.infer.resolve(pool, t);
+        let TyData::Adt { def, args } = pool.get(match pool.get(t) {
+            TyData::Mut(i) => i,
+            _ => t,
+        }) else {
+            return None;
+        };
+        let Some(ItemData::Newtype(inner)) = self.cx.lookup.item(def).map(|i| &i.data) else {
+            return None;
+        };
+        Some(subst_owner(pool, def, pool.list_items(args), *inner))
+    }
+
+    /// The base type's constructor unwraps a newtype value `r` of type `t`
+    /// (`types.newtype.construct`). A base that is an object carries the
+    /// newtype value's permission (`types.newtype.unwrap-permission`).
+    fn unwrap_newtype(
+        &mut self,
+        r: Ref,
+        t: Ty,
+        to: Ty,
+        arg: NodeRef<'_>,
+        n: NodeRef<'_>,
+    ) -> Option<(Ref, Ty)> {
+        let inner = self.newtype_base(t)?;
+        if !self.can_unify(inner, to) {
+            return None;
+        }
+        self.expect(inner, to, arg, "conversion");
+        let result = if self.is_composite(to) && self.has_mut_access(t) {
+            self.pool().intern_ty(&TyData::Mut(to))
+        } else {
+            to
+        };
+        Some((self.b.emit(Tag::Field, r.0, 0, result, n.index()), result))
+    }
+
+    /// A call of the data type, enum or alias `name`, which expands to
+    /// `to`. Only the unwrapping of a newtype is a call of a type name
+    /// (`types.newtype.construct`); any other is a type used as a value
+    /// (`names.type-as-value`).
+    fn type_name_call(
+        &mut self,
+        name: &str,
+        to: Ty,
+        args: &Args<'_>,
+        n: NodeRef<'_>,
+    ) -> StageResult<(Ref, Ty)> {
+        if let [e] = args.positional.as_slice()
+            && args.named.is_empty()
+            && args.spread.is_none()
+            && args.trailing.is_none()
+        {
+            let (r, t) = self.expr(*e, None)?;
+            if let Some(v) = self.unwrap_newtype(r, t, to, *e, n) {
+                return Ok(v);
+            }
+            if matches!(self.infer.resolve(self.pool(), t), Ty::POISON | Ty::NEVER) {
+                return Ok((Ref(NONE), Ty::NEVER));
+            }
+        }
+        let msg = format!("`{name}` is a type, not a value");
+        self.err(Code::TypeUsedAsValue, n, &msg);
+        Ok((Ref(NONE), Ty::NEVER))
+    }
+
     /// `i64(x)`: a numeric conversion.
     fn conversion(&mut self, to: Ty, args: &Args<'_>, n: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
         plain_args(args, "a conversion")?;
@@ -478,21 +554,14 @@ impl Ck<'_, '_> {
         };
         let (r, t) = self.expr(*e, None)?;
         // A newtype converts to the type it wraps (`string(path)`).
-        let pool = self.pool();
-        let tr = self.infer.resolve(pool, t);
-        if let TyData::Adt { def, .. } = pool.get(match pool.get(tr) {
-            TyData::Mut(i) => i,
-            _ => tr,
-        }) && let Some(ItemData::Newtype(inner)) = self.cx.lookup.item(def).map(|i| &i.data)
+        if let Some(v) = self.unwrap_newtype(r, t, to, *e, n) {
+            return Ok(v);
+        }
+        if let Some(inner) = self.newtype_base(t)
+            && self.numeric(inner)
         {
-            let inner = *inner;
-            if self.can_unify(inner, to) {
-                return Ok((self.b.emit(Tag::Field, r.0, 0, to, n.index()), to));
-            }
-            if self.numeric(inner) {
-                let v = self.b.emit(Tag::Field, r.0, 0, inner, n.index());
-                return Ok((self.b.prim(PrimOp::Conv as u32, &[v], to, n.index()), to));
-            }
+            let v = self.b.emit(Tag::Field, r.0, 0, inner, n.index());
+            return Ok((self.b.prim(PrimOp::Conv as u32, &[v], to, n.index()), to));
         }
         if !self.numeric(t) && self.infer.shallow(self.pool(), t) != Ty::BOOL {
             let msg = format!("in conversion: {} is not a number", self.show(t));
@@ -522,6 +591,10 @@ impl Ck<'_, '_> {
         bang: bool,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
+        // A callee that already failed has been reported.
+        if f.0 == NONE && ft == Ty::NEVER {
+            return Ok((f, ft));
+        }
         let full = ft;
         let ft = self.infer.resolve(pool, ft);
         let ft = match pool.get(ft) {
@@ -1392,7 +1465,15 @@ impl Ck<'_, '_> {
                 Ok((self.b.emit(Tag::NewData, NONE, rec, t, n.index()), t))
             }
             ItemData::Data(_) | ItemData::Enum { .. } | ItemData::Alias(_) => {
-                unsupported("a call of a type name")
+                let to = self.ctor(def, explicit)?;
+                match pool.get(to) {
+                    // An alias calls the type it expands to.
+                    TyData::Adt { def: base, args: a } if base != def => {
+                        self.call_item(base, pool.list_items(a), args, n, bang, want)
+                    }
+                    TyData::Prim(_) => self.conversion(to, args, n),
+                    _ => self.type_name_call(&name, to, args, n),
+                }
             }
             _ => {
                 let msg = format!("`{name}` is not a function");

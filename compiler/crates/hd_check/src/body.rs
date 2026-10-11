@@ -382,7 +382,7 @@ pub(crate) fn new_ck<'a, 'c>(
                         ck.add_bound(*self_ty, tv, 0);
                     }
                 }
-                ck.add_generics(*owner, &o.generics);
+                ck.add_generics(*owner, 0, &o.generics);
             }
             ItemData::Trait(_) => {
                 let p = pool.intern_ty(&TyData::Param(ParamRef {
@@ -407,6 +407,8 @@ pub(crate) fn new_ck<'a, 'c>(
                     bindings: vec![],
                 });
                 ck.add_bound(p, tv, 0);
+                // The trait's own parameters, by name, with their bounds.
+                ck.add_generics(*owner, 1, &o.generics);
             }
             _ => {}
         }
@@ -415,7 +417,7 @@ pub(crate) fn new_ck<'a, 'c>(
         Some(sig) => sig.generics.clone(),
         None => it.generics.clone(),
     };
-    ck.add_generics(env, &gs);
+    ck.add_generics(env, 0, &gs);
     // The environment is frozen from here: its memo key, once per body.
     ck.env.key = Some(cx.global.env_key(&ck.env));
     ck
@@ -787,22 +789,17 @@ impl Ck<'_, '_> {
     }
 
     /// Declares an item's type parameters with their bounds.
-    fn add_generics(&mut self, owner: DefId, gs: &[hd_resolve::Generic]) {
+    /// `offset` is the index of the first parameter: a trait's own
+    /// parameters follow its `Self`.
+    fn add_generics(&mut self, owner: DefId, offset: usize, gs: &[hd_resolve::Generic]) {
         let pool = self.pool();
         for (i, g) in gs.iter().enumerate() {
-            let p = pool.intern_ty(&TyData::Param(ParamRef {
-                owner,
-                index: u16::try_from(i).unwrap_or(u16::MAX),
-            }));
+            let index = u16::try_from(offset + i).unwrap_or(u16::MAX);
+            let p = pool.intern_ty(&TyData::Param(ParamRef { owner, index }));
             self.gens.push((g.name, p));
             if g.row {
-                self.row_gens.push((
-                    g.name,
-                    hd_types::RowParamRef {
-                        owner,
-                        index: u16::try_from(i).unwrap_or(u16::MAX),
-                    },
-                ));
+                self.row_gens
+                    .push((g.name, hd_types::RowParamRef { owner, index }));
             }
             let first = self.env.clause_self.len();
             for b in &g.bounds {

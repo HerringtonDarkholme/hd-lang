@@ -1116,6 +1116,11 @@ impl Ck<'_, '_> {
             return unsupported("an index shape");
         };
         let (br, bt) = self.expr(*base, None)?;
+        // A base that already failed, such as a type name written where a
+        // value is needed, leaves nothing to index.
+        if br.0 == NONE && bt == Ty::NEVER {
+            return Ok((br, bt));
+        }
         let builtin = self.index_kind(bt);
         let (kr, kt) = self.index_key_value(*key, builtin)?;
         // `expr.index.slice.call`: a list or string indexed by a range
@@ -2760,7 +2765,7 @@ impl Ck<'_, '_> {
                     continue;
                 }
             };
-            let key = self.ty_node(*kn)?;
+            let key = self.key_node(*kn)?;
             if key == Ty::POISON {
                 known = false;
                 continue;
@@ -2904,7 +2909,7 @@ impl Ck<'_, '_> {
         let Some(kn) = n.children().find(|c| c.kind().is_type()) else {
             return unsupported("`$.use` without a key");
         };
-        let key = self.ty_node(kn)?;
+        let key = self.key_node(kn)?;
         if key == Ty::POISON {
             return Ok((Ref(NONE), Ty::POISON));
         }

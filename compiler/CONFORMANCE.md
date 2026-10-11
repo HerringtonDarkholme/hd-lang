@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2480 | 293 | 72 | 2845 |
+| 2489 | 293 | 63 | 2845 |
 
 ## By Chapter
 
@@ -17,14 +17,14 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
 | `lang/02-grammar.md` | 201 | 11 | 3 | 215 |
 | `lang/03-names-and-scopes.md` | 97 | 3 | 1 | 101 |
-| `lang/04-type-system.md` | 312 | 38 | 2 | 352 |
+| `lang/04-type-system.md` | 314 | 38 | 0 | 352 |
 | `lang/05-expressions.md` | 244 | 32 | 1 | 277 |
 | `lang/06-control-flow.md` | 138 | 15 | 4 | 157 |
 | `lang/07-functions.md` | 115 | 14 | 1 | 130 |
 | `lang/08-data-and-enums.md` | 90 | 28 | 5 | 123 |
-| `lang/09-traits.md` | 318 | 38 | 3 | 359 |
-| `lang/10-modules.md` | 216 | 31 | 11 | 258 |
-| `lang/11-requirements-and-suspension.md` | 200 | 32 | 27 | 259 |
+| `lang/09-traits.md` | 319 | 38 | 2 | 359 |
+| `lang/10-modules.md` | 218 | 31 | 9 | 258 |
+| `lang/11-requirements-and-suspension.md` | 204 | 32 | 23 | 259 |
 | `lang/14-annotations.md` | 116 | 30 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 93 | 8 | 4 | 105 |
-| `runtime/valid` | 856 | 17 | 56 | 929 |
-| `typing/invalid` | 829 | 236 | 10 | 1075 |
-| `typing/valid` | 404 | 9 | 2 | 415 |
+| `runtime/valid` | 857 | 17 | 55 | 929 |
+| `typing/invalid` | 836 | 236 | 3 | 1075 |
+| `typing/valid` | 405 | 9 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -117,7 +117,7 @@ compiler stage that first declined the case.
 | `fail:unknown-type` | 3 |
 | `fail:unknown-variant` | 1 |
 | `fail:unused-local-binding` | 6 |
-| `unsupported:Body` | 23 |
+| `unsupported:Body` | 14 |
 | `unsupported:Collect` | 16 |
 | `unsupported:Emit` | 2 |
 | `unsupported:Link` | 3 |
@@ -626,7 +626,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (23)</summary>
+<details><summary><code>unsupported:Body</code> (14)</summary>
 
 - `runtime/valid/binding-expressions.hd`
 - `typing/invalid/for-over-non-iterable.hd`
@@ -634,20 +634,11 @@ compiler stage that first declined the case.
 - `runtime/valid/embedded-store-copies.hd`
 - `typing/invalid/copy-assignment-ordinary-field.hd`
 - `runtime/valid/part-copy-is-copy-update.hd`
-- `typing/invalid/lowercase-list-type.hd`
 - `typing/valid/type-default-trait-method.hd`
-- `typing/valid/newtype-unwrap-permission.hd`
-- `typing/invalid/newtype-unwrap-readonly.hd`
 - `runtime/valid/module-qualified-variant.hd`
 - `runtime/valid/module-qualified-associated-call.hd`
-- `typing/invalid/local-annotation-row-unknown-trait.hd`
-- `typing/invalid/closure-row-unknown-trait.hd`
-- `typing/invalid/provider-scope-unknown-trait.hd`
 - `runtime/valid/shared-enum-data-computed-once.hd`
-- `runtime/valid/trait-default-method-instantiates-params.hd`
 - `runtime/valid/iterator-list-sum.hd`
-- `typing/invalid/sibling-module-requirement-key-not-imported.hd`
-- `typing/invalid/set-type-not-prelude.hd`
 - `runtime/valid/binding-chain-with-suite.hd`
 - `runtime/valid/assignment-and-break-forms.hd`
 - `typing/invalid/grammar-assignment-nonplace.hd`
@@ -1901,6 +1892,7 @@ runtime/valid/trait-associated-function-reference.hd
 runtime/valid/trait-associated-functions.hd
 runtime/valid/trait-availability-prelude-and-scope.hd
 runtime/valid/trait-default-method-inherited.hd
+runtime/valid/trait-default-method-instantiates-params.hd
 runtime/valid/trait-default-method-overridden.hd
 runtime/valid/trait-delegation-as-written.hd
 runtime/valid/trait-delegation-forwards.hd
@@ -2055,6 +2047,7 @@ typing/invalid/closure-escapes-provider-scope.hd
 typing/invalid/closure-inferred-row-missing-requirement.hd
 typing/invalid/closure-not-inspectable.hd
 typing/invalid/closure-row-key-collision.hd
+typing/invalid/closure-row-unknown-trait.hd
 typing/invalid/collect-target-not-fromiterator.hd
 typing/invalid/compound-assign-data-no-operator.hd
 typing/invalid/compound-assign-index-no-read.hd
@@ -2365,6 +2358,7 @@ typing/invalid/literal-var-range-bound-conflict.hd
 typing/invalid/literal-var-structure-conflict.hd
 typing/invalid/literal-var-top-level-undecided.hd
 typing/invalid/literal-var-tuple-fallback.hd
+typing/invalid/local-annotation-row-unknown-trait.hd
 typing/invalid/local-data-later-declaration.hd
 typing/invalid/local-data-reuses-type-parameter.hd
 typing/invalid/local-impl-after-field-default.hd
@@ -2381,6 +2375,7 @@ typing/invalid/local-inherent-impl-nonlocal-target.hd
 typing/invalid/local-method-captures-local.hd
 typing/invalid/local-supertrait-impl-after-child.hd
 typing/invalid/local-value-reuses-type-parameter.hd
+typing/invalid/lowercase-list-type.hd
 typing/invalid/main-not-importable.hd
 typing/invalid/marker-bound-unproven.hd
 typing/invalid/match-arm-after-catch-all.hd
@@ -2426,6 +2421,7 @@ typing/invalid/newtype-bound-bare-trait.hd
 typing/invalid/newtype-derivation-block.hd
 typing/invalid/newtype-derivation-self.hd
 typing/invalid/newtype-over-data-permission.hd
+typing/invalid/newtype-unwrap-readonly.hd
 typing/invalid/newtype-value-category.hd
 typing/invalid/nil-is-unknown-name.hd
 typing/invalid/no-fit-candidate.hd
@@ -2522,6 +2518,7 @@ typing/invalid/propagation-operand-not-optional.hd
 typing/invalid/propagation-without-target.hd
 typing/invalid/property-examples-wrong-type.hd
 typing/invalid/property-input-not-debug.hd
+typing/invalid/provider-scope-unknown-trait.hd
 typing/invalid/provider-spread-of-non-context.hd
 typing/invalid/provider-value-type-mismatch.hd
 typing/invalid/pub-use-private-declaration.hd
@@ -2632,6 +2629,7 @@ typing/invalid/self-receiver-is-readonly.hd
 typing/invalid/serde-derive-member-not-deserialize.hd
 typing/invalid/serde-derive-member-not-serialize.hd
 typing/invalid/serde-map-key-not-string.hd
+typing/invalid/set-type-not-prelude.hd
 typing/invalid/shared-enum-constructor-missing-argument.hd
 typing/invalid/shared-enum-default-order.hd
 typing/invalid/shared-enum-payload-field-access.hd
@@ -2645,6 +2643,7 @@ typing/invalid/sibling-module-private-field.hd
 typing/invalid/sibling-module-private-function-bare.hd
 typing/invalid/sibling-module-private-function-import.hd
 typing/invalid/sibling-module-private-method.hd
+typing/invalid/sibling-module-requirement-key-not-imported.hd
 typing/invalid/sibling-module-std-name-not-imported.hd
 typing/invalid/sibling-module-trait-name-not-imported.hd
 typing/invalid/sibling-module-trait-not-imported.hd
@@ -3009,6 +3008,7 @@ typing/valid/named-variant-bindings.hd
 typing/valid/names-and-scopes.hd
 typing/valid/nested-data-argument-from-field-type.hd
 typing/valid/nested-dynamically-safe-trait-values.hd
+typing/valid/newtype-unwrap-permission.hd
 typing/valid/newtype-value-category.hd
 typing/valid/newtypes-and-widening.hd
 typing/valid/nonpublic-main-ordinary.hd
