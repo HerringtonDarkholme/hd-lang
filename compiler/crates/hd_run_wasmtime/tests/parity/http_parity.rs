@@ -375,10 +375,16 @@ fn http_delayed_response_times_out() {
 fn http_timeout_budget_is_shared_across_redirect_hops() {
     let _deadline = DEADLINE_FIXTURES.lock().unwrap();
     let scratch = Scratch::new();
+    // Generous margins under load: each hop (2 s) fits well within the 3 s
+    // whole-request budget (1 s margin), while their sum (4 s) exceeds it by
+    // 1 s. Previously 1.2 s delays with a 2 s budget left only a 400 ms
+    // margin for the second hop, so a late timeout under load could return
+    // Ok instead of Timeout. The test still proves the budget is shared:
+    // resetting per hop would succeed.
     let target = HttpFixture::new(|_| {
         (
             raw(200, &[("Content-Length", "0")], b""),
-            Duration::from_millis(1200),
+            Duration::from_secs(2),
         )
     });
     let destination = target.url("/final");
@@ -389,16 +395,16 @@ fn http_timeout_budget_is_shared_across_redirect_hops() {
                 &[("Location", &destination), ("Content-Length", "0")],
                 b"",
             ),
-            Duration::from_millis(1200),
+            Duration::from_secs(2),
         )
     });
     let mut p = Program::new();
-    // Each individual response fits within 2 s, but their cumulative delay
+    // Each individual response fits within 3 s, but their cumulative delay
     // exceeds it. Resetting the timeout at the redirect would return Ok.
     p.call(
         "hd:Http",
         "send",
-        request(0, &from.url("/start"), &[], b"", Some(2000)),
+        request(0, &from.url("/start"), &[], b"", Some(3000)),
         error(5, ""),
     );
     assert_program(
@@ -459,7 +465,14 @@ fn http_timeout_still_applies_after_response_headers_arrive() {
         peer.write_all(b"HTTP/1.1 200 Test\r\nContent-Length: 4\r\n\r\n")
             .unwrap();
         recorded.fetch_add(1, Ordering::SeqCst);
-        std::thread::sleep(Duration::from_millis(2200));
+        // Generous margin under load: headers arrive immediately, the body
+        // follows 3 s later, and the 2 s request timeout fires 1 s before the
+        // body. Previously 2.2 s vs 1.5 s left only 700 ms, so a late timeout
+        // under load could observe the body and return Ok. The serial fixture
+        // still satisfies 3 s < 2*2 s, so the second engine's headers (delayed
+        // by the first handler's sleep) arrive ~1 s after its start, well
+        // before its 2 s timeout.
+        std::thread::sleep(Duration::from_secs(3));
         // Both clients must close before the body completes. BrokenPipe is
         // expected; the fixture always returns and drops its peer.
         let _ = peer.write_all(b"late");
@@ -473,7 +486,7 @@ fn http_timeout_still_applies_after_response_headers_arrive() {
             &format!("http://{}/body", server.address),
             &[],
             b"",
-            Some(1500),
+            Some(2000),
         ),
         error(5, ""),
     );

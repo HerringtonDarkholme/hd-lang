@@ -846,7 +846,7 @@ mod tests {
                 );
                 let _ = tx.send(result);
             });
-            let result = rx.recv_timeout(Duration::from_secs(5));
+            let result = rx.recv_timeout(Duration::from_secs(10));
             let elapsed = start.elapsed();
             let ready = path.with_extension("ready").is_file();
             // Release only our own descendant even if cancellation regresses.
@@ -854,7 +854,9 @@ mod tests {
             // watchdog. No taskkill quoting or unsafe handle APIs are needed.
             std::fs::write(&path, []).unwrap();
             worker.join().unwrap();
-            let cleanup_deadline = Instant::now() + Duration::from_secs(1);
+            // Generous cleanup bound under load; the deadline itself (2 s) is
+            // the behaviour under test.
+            let cleanup_deadline = Instant::now() + Duration::from_secs(5);
             while !path.with_extension("closed").is_file() && Instant::now() < cleanup_deadline {
                 std::thread::sleep(Duration::from_millis(5));
             }
@@ -867,7 +869,9 @@ mod tests {
                 "fixture failed to create its inherited-pipe descendant"
             );
             assert_eq!(result.unwrap().unwrap_err().kind(), io::ErrorKind::TimedOut);
-            assert!(elapsed < Duration::from_secs(3));
+            // Generous completion bound: the 2 s program deadline is the
+            // behaviour under test; the 5 s wall bound only proves no hang.
+            assert!(elapsed < Duration::from_secs(5));
             assert!(closed, "fixture descendant did not acknowledge cleanup");
         }
 
@@ -1056,9 +1060,11 @@ mod tests {
                 let result = run_process_with_limit("/bin/sh", &args, &vec![0; 262_144], 8);
                 let _ = tx.send(result);
             });
-            let result = rx.recv_timeout(std::time::Duration::from_secs(2));
+            let result = rx.recv_timeout(std::time::Duration::from_secs(10));
             // Always release the test-owned descendant before asserting, so
             // a regression fails promptly instead of leaving blocked workers.
+            // The 10 s bound is generous under load; overflow itself is
+            // event-driven (the 9-byte write), not wall-clock.
             let pid = std::fs::read_to_string(&pid_file)
                 .unwrap()
                 .parse::<i32>()
@@ -1151,9 +1157,10 @@ mod tests {
                     .send((result, cancelled.load(Ordering::Relaxed)))
                     .unwrap();
             });
-            let result = completion.recv_timeout(std::time::Duration::from_secs(2));
+            let result = completion.recv_timeout(std::time::Duration::from_secs(10));
             // This external bound also releases the fixture if the controller
             // forgets cancellation, leaving quiet descendant pipes blocked.
+            // Generous under load; the overflow itself is event-driven.
             let pid = std::fs::read_to_string(&pid_file)
                 .unwrap()
                 .parse::<i32>()
@@ -1167,7 +1174,9 @@ mod tests {
             let (status, cancelled) = result.unwrap();
             assert_eq!(status.unwrap(), (128, true));
             assert!(cancelled);
-            assert!(start.elapsed() < std::time::Duration::from_secs(1));
+            // Generous completion bound: overflow cancellation is prompt via
+            // the event channel; the 5 s wall bound only proves no hang.
+            assert!(start.elapsed() < std::time::Duration::from_secs(5));
         }
 
         fn ready_process<T>(
@@ -1180,7 +1189,10 @@ mod tests {
             use std::time::{Duration, Instant};
 
             let mut spawned = spawn_process("/bin/sh", args, None)?;
-            let until = Instant::now() + Duration::from_secs(2);
+            // Generous setup bound: under load (e.g. conformance running
+            // alongside) child startup plus pipe polling can exceed 2 s.
+            // The test proves deadline/overflow cancellation, not fast setup.
+            let until = Instant::now() + Duration::from_secs(10);
             let ready = (|| {
                 let mut bytes = Vec::new();
                 let mut buffer = [0u8; 64];
@@ -1262,7 +1274,7 @@ mod tests {
                 );
                 let _ = tx.send(result);
             });
-            let result = rx.recv_timeout(std::time::Duration::from_secs(2));
+            let result = rx.recv_timeout(std::time::Duration::from_secs(10));
             // On regression, release this test's child before joining the
             // worker, so failure cannot leave a TERM-ignoring busy loop behind.
             if result.is_err() {
@@ -1270,7 +1282,10 @@ mod tests {
             }
             worker.join().unwrap();
             assert_eq!(result.unwrap().unwrap_err().kind(), io::ErrorKind::TimedOut);
-            assert!(start.elapsed() < std::time::Duration::from_secs(1));
+            // Generous completion bound: the 250 ms program deadline is the
+            // behaviour under test; the 5 s wall bound only proves the worker
+            // does not hang under load.
+            assert!(start.elapsed() < std::time::Duration::from_secs(5));
             assert_eq!(
                 nix::sys::wait::waitpid(pid, Some(nix::sys::wait::WaitPidFlag::WNOHANG)),
                 Err(nix::errno::Errno::ECHILD),
@@ -1344,14 +1359,17 @@ mod tests {
                 );
                 let _ = tx.send(result);
             });
-            let result = rx.recv_timeout(std::time::Duration::from_secs(2));
+            let result = rx.recv_timeout(std::time::Duration::from_secs(10));
             // The descendant is intentionally independent of the direct
             // child. Release the fixture even if cancellation regresses.
             let _ = nix::sys::signal::kill(pid, nix::sys::signal::Signal::SIGKILL);
             worker.join().unwrap();
             std::fs::remove_file(pid_file).unwrap();
             assert_eq!(result.unwrap().unwrap_err().kind(), io::ErrorKind::TimedOut);
-            assert!(start.elapsed() < std::time::Duration::from_secs(1));
+            // Generous completion bound: the 250 ms program deadline is the
+            // behaviour under test; the 5 s wall bound only proves the worker
+            // does not hang under load.
+            assert!(start.elapsed() < std::time::Duration::from_secs(5));
         }
 
         #[test]

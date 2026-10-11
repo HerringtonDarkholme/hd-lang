@@ -44,7 +44,7 @@ impl RefusedPort {
     pub fn new() -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let client =
-            TcpStream::connect_timeout(&listener.local_addr().unwrap(), Duration::from_secs(1))
+            TcpStream::connect_timeout(&listener.local_addr().unwrap(), Duration::from_secs(5))
                 .unwrap();
         let (peer, _) = listener.accept().unwrap();
         Self {
@@ -594,11 +594,15 @@ impl TcpFixture {
                     break;
                 }
                 let stream = incoming.unwrap();
+                // Generous fixture timeouts: under load (e.g. conformance
+                // running alongside) a guest engine can take several seconds
+                // to connect and exchange bytes. The tests prove framing and
+                // partial-read behaviour, not fast loopback.
                 stream
-                    .set_read_timeout(Some(Duration::from_secs(2)))
+                    .set_read_timeout(Some(Duration::from_secs(10)))
                     .unwrap();
                 stream
-                    .set_write_timeout(Some(Duration::from_secs(2)))
+                    .set_write_timeout(Some(Duration::from_secs(10)))
                     .unwrap();
                 handler(stream);
             }
@@ -614,7 +618,8 @@ impl TcpFixture {
 impl Drop for TcpFixture {
     fn drop(&mut self) {
         self.stopped.store(true, Ordering::Relaxed);
-        let _ = TcpStream::connect_timeout(&self.address, Duration::from_secs(1));
+        // Generous wake-up bound under load.
+        let _ = TcpStream::connect_timeout(&self.address, Duration::from_secs(5));
         if let Some(thread) = self.thread.take()
             && let Err(error) = thread.join()
             && !std::thread::panicking()

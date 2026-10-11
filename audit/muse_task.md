@@ -56,21 +56,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
 
-### M25. Make the wasmtime host timing tests deterministic (#293)
-
-These tests fail now and then under load and pass alone:
-- the deadline and overflow tests in `crates/hd_run_wasmtime/src/core.rs`;
-- the two `http_timeout_*` tests;
-- the `net_parity` partial-read tests, which fail on Linux.
-For each one, find what it waits on (wall-clock sleeps, real sockets,
-thread timing). Make it wait on an event or a generous bound instead of a
-tight one, keeping what the test proves. No test may be deleted or weakened
-to "always pass". Files: `crates/hd_run_wasmtime/src/**` test code and
-`crates/hd_run_wasmtime/tests/**` only. Done when each test passes 20 times
-in a row under `cargo test -q -p hd_run_wasmtime <name>` while another
-`cargo test -p hd_driver --test conformance` runs at the same time. Say in
-the commit body which tests you changed and why.
-
 ### M26. Fix the microbench runner (#297)
 
 `test/perf/micro/run.ts` still points at the old TS prototype and an output

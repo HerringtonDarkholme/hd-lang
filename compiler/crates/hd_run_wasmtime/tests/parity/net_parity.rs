@@ -86,6 +86,11 @@ fn net_invalid_addresses_precede_grants_and_all_open_methods_obey_scopes() {
 #[test]
 fn tcp_binary_write_read_zero_partial_reads_eof_and_disposal() {
     let scratch = Scratch::new();
+    // All waits here are event-driven: the fixture blocks in read_exact until
+    // the guest writes, and the guest blocks in each read until bytes or EOF
+    // arrive. No wall-clock sleep is asserted. The shared TcpFixture's socket
+    // timeouts are generous (10 s) so a slow guest under load (e.g. while
+    // conformance runs) cannot trip them on Linux or elsewhere.
     let server = TcpFixture::new(|mut peer| {
         let mut received = [0; 4];
         peer.read_exact(&mut received).unwrap();
@@ -163,7 +168,11 @@ fn tcp_listener_accept_write_close_and_disposed_accept() {
     let clients = Mutex::new(Vec::new());
     assert_program(&scratch, p, vec![], || {
         clients.lock().unwrap().push(std::thread::spawn(move || {
-            let deadline = Instant::now() + Duration::from_secs(5);
+            // Generous start bound: under load (e.g. conformance running
+            // alongside) the guest engine can take many seconds to compile
+            // and bind. The test proves accept/write/close framing, not fast
+            // startup; the peer polls until the listener appears.
+            let deadline = Instant::now() + Duration::from_secs(20);
             let mut peer = loop {
                 if let Ok(peer) = TcpStream::connect_timeout(&address, Duration::from_millis(50)) {
                     break peer;
@@ -174,7 +183,8 @@ fn tcp_listener_accept_write_close_and_disposed_accept() {
                 );
                 std::thread::sleep(Duration::from_millis(5));
             };
-            peer.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            peer.set_read_timeout(Some(Duration::from_secs(10)))
+                .unwrap();
             peer.write_all(b"x").unwrap();
             let mut bytes = Vec::new();
             peer.read_to_end(&mut bytes).unwrap();
