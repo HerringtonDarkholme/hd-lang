@@ -56,13 +56,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
 
-### M43. Split `fs.rs` in the wasmtime host
-
-The same for `crates/hd_run_wasmtime/src/fs.rs` (1501 lines): an `fs/`
-module, code moved verbatim, no file over about 600 lines, tests and
-verdicts unchanged. Files: `crates/hd_run_wasmtime/src/fs.rs` and
-`crates/hd_run_wasmtime/src/fs/**`.
-
 ### M44. Review Codex's M24 commits (#292)
 
 Codex's last job, M24 (commits 53f476b4..8895174b), was a self-review
