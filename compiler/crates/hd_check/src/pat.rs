@@ -262,7 +262,14 @@ impl Ck<'_, '_> {
                 }
                 let Some((_, fields)) = self.variant_fields(t, &name) else {
                     if matches!(pool.get(inner), TyData::Infer(_)) {
-                        return unsupported("a variant pattern on a value whose type is not known");
+                        let msg = format!(
+                            "the type of the matched value is not known here; annotate it so `.{name}` can be checked"
+                        );
+                        self.err(Code::CannotInferType, p, &msg);
+                        // The value's type is now poisoned: later arms and
+                        // the exhaustiveness check stay silent.
+                        self.infer.rebind(pool, inner, Ty::POISON);
+                        return self.declare_poisoned_fields(p, binds);
                     }
                     let msg = format!("no variant `.{name}` of {}", self.show(t));
                     self.err(Code::UnknownVariant, p, &msg);
@@ -869,6 +876,8 @@ impl Ck<'_, '_> {
                     arm: u32::try_from(i).unwrap_or(u32::MAX),
                 });
             }
+            // An arm that could not name its variants poisoned the type.
+            let failed = failed || this.infer.resolve(this.pool(), st) == Ty::POISON;
             if !failed {
                 this.check_exhaustive(n, &rows, st);
                 this.check_reachable(&rows, st);

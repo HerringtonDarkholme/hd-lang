@@ -108,6 +108,7 @@ mod tuple_structure;
 mod tuple_template_bounds;
 mod type_name_forms_run;
 mod typeid_of;
+mod unsolved_scrutinee;
 mod vararg_value_run;
 mod variant_value_run;
 mod void_unit_run;
