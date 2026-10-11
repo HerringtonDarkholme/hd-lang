@@ -2814,6 +2814,17 @@ impl Ck<'_, '_> {
                     && self.cx.names.text(s) == "self"
                 {
                     self.check_receiver(st, rt, n);
+                } else if choice.0 == ChoiceKind::TraitValue {
+                    // An associated function has no receiver for a trait
+                    // value to dispatch on (trait.dyn.member.assoc-function).
+                    for e in &args.positional {
+                        self.expr(*e, None)?;
+                    }
+                    let msg = format!(
+                        "`{name}` is an associated function, which is unavailable on a trait value"
+                    );
+                    self.err(Code::DynMemberUnavailable, n, &msg);
+                    return Ok((Ref(NONE), Ty::NEVER));
                 }
                 self.trait_method_call(
                     TraitTarget {

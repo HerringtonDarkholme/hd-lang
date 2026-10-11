@@ -63,7 +63,8 @@ pub trait ProgramEnv: LayoutEnv {
     fn impl_method(&self, impl_: DefId, method: DefId) -> Option<DefId>;
     /// A trait's own methods, in declaration order (the vtable shape),
     /// without those the compiler lowers at each call (an intrinsic
-    /// member, `Inspectable.downcast`).
+    /// member, `Inspectable.downcast`) and the associated functions,
+    /// which a trait value cannot dispatch (trait.dyn.member.assoc-function).
     fn trait_methods(&self, trait_: DefId) -> Vec<DefId>;
     /// A trait's own parameter count, `Self` excluded.
     fn trait_arity(&self, trait_: DefId) -> usize;

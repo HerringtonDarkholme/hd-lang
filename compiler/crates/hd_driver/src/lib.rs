@@ -4501,6 +4501,14 @@ impl Env<'_> {
         self.p.items.get(&def)?.sig()
     }
 
+    /// Whether a method has a `self` receiver; one without is an
+    /// associated function.
+    fn takes_self(&self, item: &Item) -> bool {
+        item.sig()
+            .and_then(|s| s.params.first())
+            .is_some_and(|(name, _)| self.run.syms.resolve(*name) == "self")
+    }
+
     /// A default body (codegen.md §13.13): a body of its own, whose
     /// parameters are the earlier parameters and whose result is the
     /// parameter's or field's declared type. A facts body is one that takes
@@ -4646,12 +4654,19 @@ impl ProgramEnv for Env<'_> {
     fn trait_methods(&self, trait_: DefId) -> Vec<DefId> {
         match self.p.items.get(&trait_).map(|i| &i.data) {
             // A method the compiler lowers at each call (`Inspectable`'s
-            // `downcast`) has no slot.
+            // `downcast`) has no slot, nor has an associated function: it
+            // has no receiver to dispatch on, so it is unavailable on a
+            // trait value (trait.dyn.member.assoc-function).
             Some(ItemData::Trait(t)) => t
                 .methods
                 .iter()
                 .map(|m| m.1)
-                .filter(|m| self.p.items.get(m).is_none_or(|i| i.intrinsic.is_none()))
+                .filter(|m| {
+                    self.p
+                        .items
+                        .get(m)
+                        .is_none_or(|i| i.intrinsic.is_none() && self.takes_self(i))
+                })
                 .collect(),
             _ => Vec::new(),
         }
