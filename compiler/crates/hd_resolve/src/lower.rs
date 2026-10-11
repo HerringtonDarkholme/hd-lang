@@ -4454,6 +4454,7 @@ pub fn build_folder(
             blocks,
         });
     }
+    drop_extra_methods(&r, &mut out.modules);
     delegations(&r, &mut out.modules);
     if r.frozen.is_none() {
         let items: HashMap<DefId, &Item> = out
@@ -4570,6 +4571,53 @@ fn own_trait_generics(
         }
     }
     out
+}
+
+/// Leaves out of a written or delegating implementation each method its
+/// trait does not declare (spec 09 `trait.impl.extra-methods`): such a
+/// method is no part of the trait implementation, so a later call to it is
+/// the ordinary unknown method. The checker reports it once, where its body
+/// is checked.
+fn drop_extra_methods(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
+    let mut drops: Vec<(usize, usize, Vec<DefId>)> = Vec::new();
+    for (mi, m) in modules.iter().enumerate() {
+        for (ii, it) in m.items.iter().enumerate() {
+            let ItemData::Impl {
+                trait_,
+                methods,
+                kind: ImplKind::Written | ImplKind::Delegated,
+                ..
+            } = &it.data
+            else {
+                continue;
+            };
+            if *trait_ == DefId::NONE {
+                continue;
+            }
+            let found = modules
+                .iter()
+                .flat_map(|m| m.items.iter())
+                .find(|i| i.def == *trait_)
+                .map(|i| i.data.clone())
+                .or_else(|| r.item(*trait_).map(|i| i.data));
+            let Some(ItemData::Trait(td)) = found else {
+                continue;
+            };
+            let extra: Vec<DefId> = methods
+                .iter()
+                .filter(|(n, _)| !td.methods.iter().any(|(t, _)| t == n))
+                .map(|(_, d)| *d)
+                .collect();
+            if !extra.is_empty() {
+                drops.push((mi, ii, extra));
+            }
+        }
+    }
+    for (mi, ii, extra) in drops {
+        if let ItemData::Impl { methods, .. } = &mut modules[mi].items[ii].data {
+            methods.retain(|(_, d)| !extra.contains(d));
+        }
+    }
 }
 
 /// The members a delegating implementation `impl Tr for C by E` takes

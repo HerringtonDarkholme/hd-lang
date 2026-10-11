@@ -172,13 +172,39 @@ impl Ck<'_, '_> {
         else {
             return;
         };
-        if *trait_ == DefId::NONE || *kind != ImplKind::Written {
+        if *trait_ == DefId::NONE || !matches!(kind, ImplKind::Written | ImplKind::Delegated) {
             return;
         }
         let Some(ItemData::Trait(td)) = self.cx.lookup.item(*trait_).map(|t| &t.data) else {
             return;
         };
         let Some(&(_, tm)) = td.methods.iter().find(|(n, _)| *n == it.name) else {
+            // A method the trait does not declare (`trait.impl.extra-methods`),
+            // unless a sealed supertrait declares it: that is reported as
+            // `sealed-trait-implementation` already.
+            if self.sealed_super_declares(*trait_, it.name) {
+                return;
+            }
+            let msg = format!(
+                "`{}` is not a member of `{}`; write it in an inherent `impl`",
+                self.cx.names.text(it.name),
+                self.cx.names.display_name(*trait_)
+            );
+            let src = self.cx.src;
+            let name = src
+                .name_after(node, hd_syntax::TokenKind::KwFn)
+                .map_or_else(
+                    || src.span(node),
+                    |t| {
+                        let (lo, hi) = src.parse.tokens.span(t);
+                        hd_base::Span {
+                            file: src.file,
+                            lo,
+                            hi,
+                        }
+                    },
+                );
+            self.diags.error(Code::ExtraTraitMember, name, &msg);
             return;
         };
         let Some(tsig) = self.cx.lookup.item(tm).and_then(|i| i.sig()) else {
@@ -222,6 +248,34 @@ impl Ck<'_, '_> {
             );
             self.err(Code::TraitMethodSignature, node, &msg);
         }
+    }
+
+    /// Whether a sealed transitive supertrait of `trait_` declares a method
+    /// named `name`.
+    fn sealed_super_declares(&self, trait_: DefId, name: hd_base::Symbol) -> bool {
+        let pool = self.pool();
+        let mut visited = vec![trait_];
+        let mut todo = match self.cx.lookup.item(trait_).map(|t| &t.data) {
+            Some(ItemData::Trait(td)) => td.supers.clone(),
+            _ => Vec::new(),
+        };
+        while let Some(s) = todo.pop() {
+            let TyData::TraitValue { def, .. } = pool.get(s) else {
+                continue;
+            };
+            if visited.contains(&def) {
+                continue;
+            }
+            visited.push(def);
+            if let Some(ItemData::Trait(st)) = self.cx.lookup.item(def).map(|t| &t.data) {
+                if self.cx.names.known.is_sealed(def) && st.methods.iter().any(|(n, _)| *n == name)
+                {
+                    return true;
+                }
+                todo.extend(st.supers.iter().copied());
+            }
+        }
+        false
     }
 
     fn sig_differs(

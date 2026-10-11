@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2656 | 168 | 21 | 2845 |
+| 2657 | 167 | 21 | 2845 |
 
 ## By Chapter
 
@@ -22,7 +22,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/06-control-flow.md` | 140 | 13 | 4 | 157 |
 | `lang/07-functions.md` | 120 | 10 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 113 | 9 | 1 | 123 |
-| `lang/09-traits.md` | 341 | 16 | 2 | 359 |
+| `lang/09-traits.md` | 342 | 15 | 2 | 359 |
 | `lang/10-modules.md` | 223 | 30 | 5 | 258 |
 | `lang/11-requirements-and-suspension.md` | 239 | 12 | 8 | 259 |
 | `lang/14-annotations.md` | 144 | 9 | 0 | 153 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 99 | 3 | 3 | 105 |
 | `runtime/valid` | 903 | 10 | 16 | 929 |
-| `typing/invalid` | 948 | 126 | 1 | 1075 |
+| `typing/invalid` | 949 | 125 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -89,7 +89,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:no-common-type` | 2 |
-| `fail:no-diagnostic` | 61 |
+| `fail:no-diagnostic` | 60 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-import` | 1 |
 | `fail:private-main` | 4 |
@@ -216,7 +216,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (61)</summary>
+<details><summary><code>fail:no-diagnostic</code> (60)</summary>
 
 - `typing/invalid/private-type-leak.hd`
 - `typing/invalid/private-type-embedded-in-public-data.hd`
@@ -272,7 +272,6 @@ compiler stage that first declined the case.
 - `typing/invalid/private-type-leak-enum-payload.hd`
 - `typing/invalid/private-type-leak-trait-bound.hd`
 - `typing/invalid/uninhabited-binding.hd`
-- `typing/invalid/extra-trait-member.hd`
 - `typing/invalid/trait-assoc-call-self-undetermined.hd`
 - `typing/invalid/entry-point-parameters.hd`
 - `typing/invalid/generic-entry-point.hd`
@@ -2064,6 +2063,7 @@ typing/invalid/error-second-cause.hd
 typing/invalid/error-transparent-not-error.hd
 typing/invalid/expected-i32-found-usize.hd
 typing/invalid/extra-associated-type.hd
+typing/invalid/extra-trait-member.hd
 typing/invalid/facts-find-unbounded-key.hd
 typing/invalid/facts-of-as-value.hd
 typing/invalid/facts-of-closure.hd

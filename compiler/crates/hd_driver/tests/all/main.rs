@@ -33,6 +33,7 @@ mod error_derive_run;
 mod error_markers;
 mod exit;
 mod explicit_type_arguments_run;
+mod extra_trait_members;
 mod fact_eval_run;
 mod facts_of_check;
 mod facts_of_run;
