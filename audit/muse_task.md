@@ -43,34 +43,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M22a. Implement: Conformance Runtime Tiers On wasmtime (W4 Part 1, #246, Code)
-
-Do this before M22. Goal: run the conformance runtime tiers on wasmtime
-in-process, without a `node` process per case, so the gates get faster
-and stop depending on Node. Today `HD_CONFORMANCE_ENGINE=wasmtime` in
-`hd_driver/tests/conformance.rs` (W1) runs eligible programs on BOTH
-engines and judges by wasmtime; fixture profiles and test-runner
-fixtures stay on Node; the CLI tier has no wasmtime mode.
-1. Add a wasmtime-only mode (`HD_CONFORMANCE_ENGINE=wasmtime-only` or
-   similar): every runtime case runs in-process on wasmtime, no Node.
-2. Port the fixture runtime profiles (the five that stay on Node today:
-   `compiler/host/profiles.mjs`) to Rust providers in
-   `hd_run_wasmtime`, so no runtime case needs Node.
-3. Fixtures that need TestRunner/PropertyRunner: either run them through
-   a minimal in-process test runner here, or report them as the only
-   remaining Node cases, to be closed by M22.
-4. Same for `hd_cli/tests/cli_conformance.rs` where cases run programs.
-5. Report: cases per tier on wasmtime-only, matches against Node, any
-   differences (each a logged Node bug or a fix), and wall time per tier,
-   Node vs wasmtime-only.
-Do not change the default engine of the runners (that is M23). Keep the
-report (`compiler/CONFORMANCE.md`) identical. Files: the two conformance
-runners (engine mode only), `compiler/crates/hd_run_wasmtime/**`, their
-tests, and §18-§20 of `engines-and-test-runner.md`. Ask before touching
-any other file. Note the owner's quality bar (audit/compiler/later.md,
-"Wasmtime host code quality"): new providers go in small files with
-shared codecs, not another large hand-written file.
-
 ### M22. Implement: `hd test` On wasmtime (W4, #246, Code)
 
 After M21. Implement your M9 design (`engines-and-test-runner.md` §19,

@@ -1183,6 +1183,83 @@ mod tests {
     }
 
     #[cfg(unix)]
+    fn fifo_peer_writer(path: &str, deadline: Instant) -> std::io::Result<fs::File> {
+        use std::os::unix::fs::OpenOptionsExt;
+        loop {
+            if Instant::now() >= deadline {
+                return Err(std::io::ErrorKind::TimedOut.into());
+            }
+            match fs::OpenOptions::new()
+                .write(true)
+                .custom_flags(libc::O_NONBLOCK)
+                .open(path)
+            {
+                Err(error)
+                    if error.raw_os_error() == Some(libc::ENXIO)
+                        || error.kind() == std::io::ErrorKind::Interrupted =>
+                {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                result => return result,
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    fn fifo_peer_write(path: &str, mut bytes: &[u8], deadline: Instant) -> std::io::Result<()> {
+        let mut writer = fifo_peer_writer(path, deadline)?;
+        while !bytes.is_empty() {
+            if Instant::now() >= deadline {
+                return Err(std::io::ErrorKind::TimedOut.into());
+            }
+            match writer.write(bytes) {
+                Ok(0) => return Err(std::io::ErrorKind::WriteZero.into()),
+                Ok(n) => bytes = &bytes[n..],
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    fn fifo_peer_read(
+        path: &str,
+        reader_ready: &std::sync::mpsc::Sender<()>,
+        writer_done: &std::sync::mpsc::Receiver<()>,
+        deadline: Instant,
+    ) -> std::io::Result<Vec<u8>> {
+        let mut reader = fifo_reader(path);
+        reader_ready
+            .send(())
+            .map_err(|_| std::io::ErrorKind::BrokenPipe)?;
+        let mut bytes = Vec::new();
+        let mut buffer = [0u8; 8 * 1024];
+        let mut finished = false;
+        loop {
+            if Instant::now() >= deadline {
+                return Err(std::io::ErrorKind::TimedOut.into());
+            }
+            finished |= writer_done.try_recv().is_ok();
+            match reader.read(&mut buffer) {
+                Ok(0) if finished => return Ok(bytes),
+                // No writer yet is not EOF: the main thread signals only
+                // after its write call has returned and closed the writer.
+                Ok(0) => std::thread::sleep(Duration::from_millis(5)),
+                Ok(n) => bytes.extend_from_slice(&buffer[..n]),
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
+    #[cfg(unix)]
     #[test]
     fn fifo_without_peer_times_out_in_read_and_write_open() {
         let dir = TempDir::new();
@@ -1250,55 +1327,59 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn fifo_delayed_peers_preserve_successful_read_and_write() {
+    fn fifo_delayed_writer_and_ready_reader_preserve_successful_transfers() {
         let dir = TempDir::new();
         let path = fifo(&dir);
         let writer_path = path.clone();
-        let writer = std::thread::spawn(move || {
+        let (sent, written) = std::sync::mpsc::channel();
+        let _writer = std::thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(2);
             std::thread::sleep(Duration::from_millis(20));
-            fs::OpenOptions::new()
-                .write(true)
-                .open(writer_path)
-                .unwrap()
-                .write_all(b"hello")
-                .unwrap();
+            let result = fifo_peer_write(&writer_path, b"hello", deadline);
+            let _ = sent.send(result);
         });
         let mut expected = Enc::default();
         expected.leb(0).bytes(b"hello");
-        assert_eq!(
-            limited(
-                "read_bytes",
-                &path,
-                None,
-                Instant::now() + Duration::from_secs(2)
-            )
-            .unwrap()
-            .done(),
-            expected.done()
+        let actual = limited(
+            "read_bytes",
+            &path,
+            None,
+            Instant::now() + Duration::from_secs(2),
         );
-        writer.join().unwrap();
+        written
+            .recv_timeout(Duration::from_secs(3))
+            .expect("delayed writer did not finish")
+            .expect("delayed writer failed");
+        assert_eq!(actual.unwrap().done(), expected.done());
+
         let reader_path = path.clone();
-        let reader = std::thread::spawn(move || {
+        let (reader_ready, ready) = std::sync::mpsc::channel();
+        let (writer_done, finished) = std::sync::mpsc::channel();
+        let (received, read) = std::sync::mpsc::channel();
+        let _reader = std::thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(2);
             std::thread::sleep(Duration::from_millis(20));
-            let mut bytes = Vec::new();
-            fs::File::open(reader_path)
-                .unwrap()
-                .read_to_end(&mut bytes)
-                .unwrap();
-            bytes
+            let result = fifo_peer_read(&reader_path, &reader_ready, &finished, deadline);
+            let _ = received.send(result);
         });
-        assert_eq!(
-            limited(
-                "append_text",
-                &path,
-                Some(b"world"),
-                Instant::now() + Duration::from_secs(2)
-            )
-            .unwrap()
-            .done(),
-            &[0]
+        // This direction tests a connected append, not an overlapping peer
+        // open. Keep that lifecycle explicit before the short-lived writer.
+        ready
+            .recv_timeout(Duration::from_secs(3))
+            .expect("reader did not become ready");
+        let actual = limited(
+            "append_text",
+            &path,
+            Some(b"world"),
+            Instant::now() + Duration::from_secs(2),
         );
-        assert_eq!(reader.join().unwrap(), b"world");
+        writer_done.send(()).expect("delayed reader stopped early");
+        let bytes = read
+            .recv_timeout(Duration::from_secs(3))
+            .expect("delayed reader did not finish")
+            .expect("delayed reader failed");
+        assert_eq!(actual.unwrap().done(), &[0]);
+        assert_eq!(bytes, b"world");
     }
 
     #[cfg(unix)]
@@ -1307,24 +1388,24 @@ mod tests {
         let dir = TempDir::new();
         let path = fifo(&dir);
         let writer_path = path.clone();
-        let writer = std::thread::spawn(move || {
+        let (sent, closed) = std::sync::mpsc::channel();
+        let _writer = std::thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(2);
             std::thread::sleep(Duration::from_millis(20));
-            drop(
-                fs::OpenOptions::new()
-                    .write(true)
-                    .open(writer_path)
-                    .unwrap(),
-            );
+            let result = fifo_peer_writer(&writer_path, deadline).map(drop);
+            let _ = sent.send(result);
         });
         let actual = limited(
             "read_bytes",
             &path,
             None,
             Instant::now() + Duration::from_secs(2),
-        )
-        .unwrap();
-        assert_eq!(actual.done(), &[0, 0]);
-        writer.join().unwrap();
+        );
+        closed
+            .recv_timeout(Duration::from_secs(3))
+            .expect("empty writer did not finish")
+            .expect("empty writer failed");
+        assert_eq!(actual.unwrap().done(), &[0, 0]);
     }
 
     #[test]

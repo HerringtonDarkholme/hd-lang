@@ -469,6 +469,75 @@ Windows CLI/runtime all-target Clippy passed with the pinned Rust 1.97.1 toolcha
 and `x86_64-pc-windows-gnu`, including seven polling-backend unit tests in compilation.
 Windows-native execution remains unverified; cross-compilation is not runtime evidence.
 
+### 18.11 Conformance Runtime Tiers (M22a, W4 Part 1)
+
+`HD_CONFORMANCE_ENGINE=wasmtime-only` runs built entry programs in-process.
+The driver never silently falls back to Node when Wasmtime refuses a program.
+`wasmtime` compares both engines, including the fixture runtime profiles.
+Unset, empty or `node` keeps the existing Node default.
+
+Fixture providers are explicitly scoped to a selected engine.
+The small `profiles.rs` module uses the shared exchange-buffer codec.
+Gauge returns 300, Sensor returns NaN, infinity and negative zero,
+and Vault returns its input length without changing the boundary bytes.
+
+Sensor state resets for each instance; the default host rejects these imports.
+
+`pending-write` uses the existing pending Console provider.
+The other profile directives absent from Node's `profiles.mjs` are not invented here.
+Their existing compiler/spec failures remain visible in conformance results.
+Nine raw-Wasm provider tests and the engine-selection tests pass on macOS.
+
+TestRunner and PropertyRunner fixtures remain on Node under M22a's explicit deferral.
+The driver reports each remaining path and invocation count.
+`HD_CONFORMANCE_TIER=lang` or `std` selects runtime cases for isolated timing.
+Neither non-default engine modes nor tier-filtered measurements rewrite `CONFORMANCE.md`.
+
+The following single samples use eight workers on the shared macOS machine, from main commit `00018201` plus M22a.
+Times include selected-suite compilation and execution, but exclude Cargo compilation.
+They are not stable benchmarks: external load varied, and most fixtures still use Node.
+The mode does not yet establish an overall speedup.
+
+| Tier | Indexed cases | Wasmtime entry programs | Remaining Node test cases | Node wall | Wasmtime-only wall |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| language | 794 | 130 | 595 | 11.512 s | 8.618 s |
+| stdlib | 240 | 7 | 230 | 4.716 s | 4.453 s |
+| CLI | 102 | 44 attempted program commands | 24 | 4.501 s | 5.606 s |
+
+Of 137 entry programs compared, 136 match standard output, standard error and status exactly.
+Language results are 733 pass, 22 fail and 39 unsupported on Wasmtime.
+Stdlib results are 235 pass, three fail and two unsupported on both engines.
+The only entry-program difference is the previously observed Node stack-overflow bug.
+
+Node 24.19.0 reports an uncaught `RangeError` and status 1 for `unbounded-recursion.hd`.
+Wasmtime reports the required `stack-exhausted` panic and status 3.
+Consequently, Node has one fewer passing language case; frozen fixtures remain unchanged.
+
+The CLI mode selects Wasmtime only for program-command routes.
+It preserves explicit engine flags, non-runtime commands and arguments after `--`.
+Both measured modes have 87 passing and 15 failing CLI cases.
+The selected run attempts 44 Wasmtime program commands and 38 Node test commands.
+
+Attempted commands are not guest-execution counts: compilation or usage can fail first.
+Twenty-four CLI case paths still invoke `hd test`; none selects a Node entry program.
+Exact remaining paths are printed by the runners with `--nocapture`.
+M22 closes these test-runner dependencies before M23 changes the default engine.
+
+CLI comparison runs each complete fixture twice, resetting fixture and cache at identical paths between engines.
+It compares original output bytes, native exit status and timeout state for program-command steps only.
+All 44 observed program-command pairs match, with no differences, missing pairs or explicit-engine exclusions in this suite.
+The comparison sample takes 9.571 seconds; ordinary fixture judging retains its existing text policy.
+
+Validation found the existing FIFO test joining a peer blocked in `open`, after the runtime write had returned successfully.
+Bounded peers then exposed one empty-read assertion failure during a full gate; ten subsequent 89-test runtime-suite runs passed.
+Isolated probes passed 400 Node transfers and 1,600 Rust transfers, including FIFO reuse and overlapping open-return publication.
+No production defect or definitive cause was established.
+
+The success fixture now confirms reader-open readiness before append, retaining exact bytes and EOF assertions.
+Its writer remains delayed; the separate no-peer write-open timeout test retains deadline-retry coverage.
+All peer I/O and completion waits are bounded; the append success assertion covers a connected reader, not delayed-reader arrival.
+Production filesystem behavior and the documented high-descriptor limitation are unchanged.
+
 ## 19. Test Runner
 
 ### 19.1 Building

@@ -7,12 +7,13 @@
 //! `hd_cli/tests/cli_conformance.rs`, which owns the last section of the
 //! report; this test keeps that section when it rewrites the file.
 //!
-//! `HD_CONFORMANCE_ENGINE=wasmtime` runs each runtime program whose
-//! imports all run on wasmtime (`hd_run_wasmtime`) on both engines, judges
-//! it by its wasmtime run, and prints how many runs match Node's exactly
-//! (standard output, standard error and status); a program under a
-//! runtime profile, or with an import not on wasmtime yet, runs on Node
-//! alone. That mode never rewrites the report.
+//! `HD_CONFORMANCE_ENGINE=wasmtime` compares runtime programs, including
+//! fixture profiles, on both engines and judges by wasmtime.
+//! `wasmtime-only` never launches Node for those programs. `TestRunner` and
+//! `PropertyRunner` fixtures still use Node and are listed explicitly.
+//! Neither mode rewrites the report or falls back after a wasmtime error.
+//! `HD_CONFORMANCE_TIER=lang|std` selects that tier's runtime cases for
+//! timing, without rewriting the report or checking the full pass list.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -21,6 +22,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::{Duration, Instant};
 
 use hd_base::Stage;
 use hd_cache::MemoryStore;
@@ -525,39 +527,106 @@ impl Ran {
     }
 }
 
-/// Whether runtime programs also run on wasmtime
-/// (`HD_CONFORMANCE_ENGINE=wasmtime`).
-fn on_wasmtime() -> bool {
-    std::env::var("HD_CONFORMANCE_ENGINE").is_ok_and(|e| e == "wasmtime")
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum EngineMode {
+    Node,
+    Compare,
+    WasmtimeOnly,
 }
 
-/// What the wasmtime mode saw: runs on both engines, those that matched,
-/// runs left on Node, and each mismatch.
-static WASMTIME_RUNS: AtomicUsize = AtomicUsize::new(0);
-static WASMTIME_MATCHES: AtomicUsize = AtomicUsize::new(0);
-static NODE_ONLY: AtomicUsize = AtomicUsize::new(0);
+impl EngineMode {
+    fn from_value(value: Option<&str>) -> Self {
+        match value {
+            None | Some("" | "node") => Self::Node,
+            Some("wasmtime") => Self::Compare,
+            Some("wasmtime-only") => Self::WasmtimeOnly,
+            Some(other) => panic!("unknown HD_CONFORMANCE_ENGINE: {other}"),
+        }
+    }
+}
+
+fn engine_mode() -> EngineMode {
+    EngineMode::from_value(selection_env("HD_CONFORMANCE_ENGINE").as_deref())
+}
+
+fn selection_env(name: &str) -> Option<String> {
+    match std::env::var(name) {
+        Ok(value) => Some(value),
+        Err(std::env::VarError::NotPresent) => None,
+        Err(std::env::VarError::NotUnicode(_)) => panic!("{name} must contain valid UTF-8"),
+    }
+}
+
+#[test]
+fn engine_selection_is_explicit() {
+    for value in [None, Some(""), Some("node")] {
+        assert_eq!(EngineMode::from_value(value), EngineMode::Node);
+    }
+    assert_eq!(
+        EngineMode::from_value(Some("wasmtime")),
+        EngineMode::Compare
+    );
+    assert_eq!(
+        EngineMode::from_value(Some("wasmtime-only")),
+        EngineMode::WasmtimeOnly
+    );
+}
+
+#[test]
+#[should_panic(expected = "unknown HD_CONFORMANCE_ENGINE: typo")]
+fn unknown_engine_is_not_a_node_fallback() {
+    EngineMode::from_value(Some("typo"));
+}
+
+fn tier(case: &Case) -> &'static str {
+    if case.specification.starts_with("std/") {
+        "std"
+    } else {
+        assert!(case.specification.starts_with("lang/"));
+        "lang"
+    }
+}
+
+#[derive(Default)]
+struct RuntimeStats {
+    node_programs: BTreeSet<String>,
+    wasmtime_programs: BTreeSet<String>,
+    node_harness: BTreeMap<String, usize>,
+    node_elapsed: Duration,
+    wasmtime_elapsed: Duration,
+    matches: usize,
+}
+
+static RUNTIME_STATS: Mutex<BTreeMap<&str, RuntimeStats>> = Mutex::new(BTreeMap::new());
 static WASMTIME_DIFFS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
-/// Runs a program's entry on the run host, and in the wasmtime mode on
-/// wasmtime too, whose run then decides the verdict.
+/// Runs only the selected engines. A failed wasmtime setup/run is an
+/// error, never an implicit Node fallback.
 fn run_program(
     case: &Case,
     wasm: &[u8],
     serial: usize,
     profile: Option<&str>,
 ) -> std::io::Result<Ran> {
-    let node = run_wasm(wasm, serial, profile)?;
-    let node = Ran {
-        stdout: node.stdout,
-        stderr: node.stderr,
-        status: node.status.code(),
+    let mode = engine_mode();
+    let node = if mode == EngineMode::WasmtimeOnly {
+        None
+    } else {
+        let started = Instant::now();
+        let output = run_wasm(wasm, serial, profile);
+        let mut stats = RUNTIME_STATS.lock().expect("runtime stats lock");
+        let stats = stats.entry(tier(case)).or_default();
+        stats.node_elapsed += started.elapsed();
+        stats.node_programs.insert(case.path.clone());
+        let output = output?;
+        Some(Ran {
+            stdout: output.stdout,
+            stderr: output.stderr,
+            status: output.status.code(),
+        })
     };
-    if !on_wasmtime() {
-        return Ok(node);
-    }
-    if profile.is_some() {
-        NODE_ONLY.fetch_add(1, Ordering::Relaxed);
-        return Ok(node);
+    if mode == EngineMode::Node {
+        return Ok(node.expect("Node mode ran Node"));
     }
     let setup = hd_run::HostSetup {
         providers: Vec::new(),
@@ -567,18 +636,30 @@ fn run_program(
         program: String::new(),
     };
     let config = hd_run_wasmtime::EngineConfig::default();
-    let Ok(w) = hd_run_wasmtime::run_captured(config, wasm, &setup) else {
-        NODE_ONLY.fetch_add(1, Ordering::Relaxed);
-        return Ok(node);
-    };
+    let profile = hd_run_wasmtime::RuntimeProfile::from_name(profile.unwrap_or("default"))
+        .map_err(std::io::Error::other)?;
+    let started = Instant::now();
+    let result = hd_run_wasmtime::run_captured_with_profile(config, profile, wasm, &setup);
+    {
+        let mut stats = RUNTIME_STATS.lock().expect("runtime stats lock");
+        let stats = stats.entry(tier(case)).or_default();
+        stats.wasmtime_elapsed += started.elapsed();
+        stats.wasmtime_programs.insert(case.path.clone());
+    }
+    let w = result.map_err(|error| std::io::Error::other(format!("wasmtime: {error}")))?;
     let w = Ran {
         stdout: w.stdout,
         stderr: w.stderr,
         status: Some(i32::from(w.status)),
     };
-    WASMTIME_RUNS.fetch_add(1, Ordering::Relaxed);
+    let Some(node) = node else { return Ok(w) };
     if (&w.stdout, &w.stderr, w.status) == (&node.stdout, &node.stderr, node.status) {
-        WASMTIME_MATCHES.fetch_add(1, Ordering::Relaxed);
+        RUNTIME_STATS
+            .lock()
+            .expect("runtime stats lock")
+            .entry(tier(case))
+            .or_default()
+            .matches += 1;
     } else {
         let line = |r: &Ran| {
             format!(
@@ -598,19 +679,56 @@ fn run_program(
     Ok(w)
 }
 
-/// Prints what the wasmtime mode saw.
-fn report_wasmtime() {
+/// Execution durations are sums across workers, not elapsed suite wall
+/// time. The selected-suite duration includes compilation and all phases.
+fn report_runtime(cases: &[Case], results: &[Verdict], elapsed: Duration) {
     let diffs = WASMTIME_DIFFS.lock().expect("diffs lock");
     for d in diffs.iter() {
         println!("wasmtime differs: {d}");
     }
     println!(
-        "wasmtime: {} runtime programs ran on both engines, {} match Node exactly, {} differ; {} ran on Node alone (a runtime profile or an import not on wasmtime)",
-        WASMTIME_RUNS.load(Ordering::Relaxed),
-        WASMTIME_MATCHES.load(Ordering::Relaxed),
-        diffs.len(),
-        NODE_ONLY.load(Ordering::Relaxed),
+        "conformance {:?}: selected suite wall {:.3}s (including compilation; {} workers), {} output/status differences",
+        engine_mode(),
+        elapsed.as_secs_f64(),
+        workers(),
+        diffs.len()
     );
+    let stats = RUNTIME_STATS.lock().expect("runtime stats lock");
+    for name in ["lang", "std"] {
+        let selected: Vec<_> = cases
+            .iter()
+            .zip(results)
+            .filter(|(case, _)| case.phase == Phase::Runtime && tier(case) == name)
+            .collect();
+        if selected.is_empty() {
+            continue;
+        }
+        let mut counts = Counts::default();
+        for (_, verdict) in &selected {
+            add_count(&mut counts, verdict);
+        }
+        let empty = RuntimeStats::default();
+        let stats = stats.get(name).unwrap_or(&empty);
+        println!(
+            "{name}: {} runtime cases; pass {} fail {} unsupported {}; {} wasmtime programs, {} Node programs, {} exact matches; {} remaining Node TestRunner/PropertyRunner cases ({} invocations); aggregate execution wall Node {:.3}s, wasmtime {:.3}s",
+            selected.len(),
+            counts.pass,
+            counts.fail,
+            counts.unsupported,
+            stats.wasmtime_programs.len(),
+            stats.node_programs.len(),
+            stats.matches,
+            stats.node_harness.len(),
+            stats.node_harness.values().sum::<usize>(),
+            stats.node_elapsed.as_secs_f64(),
+            stats.wasmtime_elapsed.as_secs_f64()
+        );
+        for (path, invocations) in &stats.node_harness {
+            println!(
+                "remaining Node TestRunner/PropertyRunner: {path} ({invocations} invocations)"
+            );
+        }
+    }
 }
 
 /// Runs a program's entry on the run host, under the fixture's runtime
@@ -727,7 +845,7 @@ fn build_error(built: &Output) -> Option<Verdict> {
 /// Runs each case of a `Goal::Tests` build in its own instance and adds
 /// what they did to `run`; `Err` is the case's verdict when the build
 /// cannot run.
-fn run_tests(built: &Output, serial: usize, run: &mut TestRun) -> Result<(), Verdict> {
+fn run_tests(case: &Case, built: &Output, serial: usize, run: &mut TestRun) -> Result<(), Verdict> {
     if let Some(verdict) = build_error(built) {
         return Err(verdict);
     }
@@ -759,11 +877,18 @@ fn run_tests(built: &Output, serial: usize, run: &mut TestRun) -> Result<(), Ver
         .iter()
         .map(|(case, (test, init))| format!("{test}:{init}:{}", case.kind))
         .collect();
+    let started = Instant::now();
     let result = Command::new("node")
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/test.mjs"))
         .arg(&path)
         .arg(list.join(","))
         .output();
+    {
+        let mut stats = RUNTIME_STATS.lock().expect("runtime stats lock");
+        let stats = stats.entry(tier(case)).or_default();
+        stats.node_elapsed += started.elapsed();
+        *stats.node_harness.entry(case.path.clone()).or_default() += 1;
+    }
     let _ = std::fs::remove_file(path);
     let output = match result {
         Ok(output) => output,
@@ -832,7 +957,7 @@ fn tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize
         },
     );
     let mut run = TestRun::default();
-    match run_tests(&built, serial, &mut run) {
+    match run_tests(case, &built, serial, &mut run) {
         Ok(()) => judge_tests(case, &run),
         Err(verdict) => verdict,
     }
@@ -855,7 +980,7 @@ fn doc_tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: u
                 filter: None,
             },
         );
-        if let Err(verdict) = run_tests(&built, serial, &mut run) {
+        if let Err(verdict) = run_tests(case, &built, serial, &mut run) {
             return verdict;
         }
     }
@@ -882,7 +1007,7 @@ fn doc_tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: u
             }
             continue;
         }
-        if let Err(verdict) = run_tests(&built, serial, &mut run) {
+        if let Err(verdict) = run_tests(case, &built, serial, &mut run) {
             return verdict;
         }
     }
@@ -1241,11 +1366,25 @@ fn run_all(cases: &[Case], store: &MemoryStore) -> Vec<Verdict> {
 
 #[test]
 fn specification_conformance_does_not_regress() {
+    let mode = engine_mode();
     let all = cases();
     let only = filtered(all.clone());
-    let cases = only.clone().unwrap_or(all);
+    let mut cases = only.clone().unwrap_or(all);
+    let selected_tier = selection_env("HD_CONFORMANCE_TIER");
+    if let Some(name) = &selected_tier {
+        assert!(
+            matches!(name.as_str(), "lang" | "std"),
+            "HD_CONFORMANCE_TIER must be lang or std"
+        );
+        cases.retain(|case| case.phase == Phase::Runtime && tier(case) == name);
+    }
     let store = MemoryStore::default();
+    let started = Instant::now();
     let results = run_all(&cases, &store);
+    let elapsed = started.elapsed();
+    if mode != EngineMode::Node || selected_tier.is_some() {
+        report_runtime(&cases, &results, elapsed);
+    }
     let crashes: Vec<_> = cases
         .iter()
         .zip(&results)
@@ -1258,14 +1397,11 @@ fn specification_conformance_does_not_regress() {
         crashes.join("\n")
     );
 
-    if on_wasmtime() {
-        report_wasmtime();
-    }
-    if only.is_some() {
+    if only.is_some() || selected_tier.is_some() {
         print_filtered(&cases, &results, &store);
         return;
     }
-    if std::env::var_os("HD_UPDATE_CONFORMANCE").is_some() && !on_wasmtime() {
+    if std::env::var_os("HD_UPDATE_CONFORMANCE").is_some() && mode == EngineMode::Node {
         let mut report = render_report(&cases, &results);
         if let Ok(old) = std::fs::read_to_string(report_path())
             && let Some((_, cli)) = old.split_once(CLI_HEADING)

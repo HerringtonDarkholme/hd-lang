@@ -30,6 +30,7 @@ use wasmtime::{Caller, FuncType, Linker, Memory, Val, ValType};
 
 use crate::codec::Enc;
 use crate::prim;
+use crate::profiles::{self, RuntimeProfile};
 use crate::reactor::{Line, NS_PER_MS, Reactor, Work, now_ns};
 use crate::{core, fs, http, net};
 
@@ -107,6 +108,7 @@ pub struct Host {
     net: net::Client,
     pub(crate) heap: crate::limits::HeapBudget,
     deadline: Option<Instant>,
+    fixture: profiles::State,
 }
 
 impl Host {
@@ -134,6 +136,7 @@ impl Host {
             net: net::Client::default(),
             heap: crate::limits::HeapBudget::new(memory_bytes),
             deadline: wall_ms.and_then(|ms| Instant::now().checked_add(Duration::from_millis(ms))),
+            fixture: profiles::State::default(),
         }
     }
 
@@ -262,6 +265,7 @@ enum Ret {
 /// The imports that run on wasmtime.
 #[derive(Clone, Copy, Debug)]
 enum Kind {
+    Fixture(profiles::Method),
     Fs {
         key: &'static str,
         method: &'static str,
@@ -302,6 +306,10 @@ enum Kind {
 }
 
 impl Kind {
+    fn with_profile(module: &str, name: &str, profile: RuntimeProfile) -> Option<Self> {
+        Self::of(module, name).or_else(|| profile.method(module, name).map(Self::Fixture))
+    }
+
     fn of(module: &str, name: &str) -> Option<Kind> {
         if module == "hd:Net" {
             for &method in net::CLOSE {
@@ -391,8 +399,8 @@ impl Kind {
 
 /// Whether an import runs on wasmtime.
 #[must_use]
-pub fn supported(module: &str, name: &str) -> bool {
-    Kind::of(module, name).is_some()
+pub fn supported(module: &str, name: &str, profile: RuntimeProfile) -> bool {
+    Kind::with_profile(module, name, profile).is_some()
 }
 
 fn int_arg(params: &[Val], i: usize) -> wasmtime::Result<i64> {
@@ -426,6 +434,17 @@ fn int_val(ty: &ValType, v: i64) -> Val {
 fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::Result<Ret> {
     caller.data().check_deadline()?;
     let result = match kind {
+        Kind::Fixture(method) => {
+            let length = if matches!(method, profiles::Method::VaultKeep) {
+                int_arg(params, 0)?
+            } else {
+                0
+            };
+            match caller.data_mut().fixture.call(method, length) {
+                profiles::Reply::Encoded(encoded) => Ret::Int(put(caller, &encoded)?),
+                profiles::Reply::EchoLength(length) => Ret::Int(length),
+            }
+        }
         Kind::Fs { finish: true, .. } | Kind::NeverFinish => {
             return Err(
                 Stop::Contract("a finish of an operation that is not pending".into()).into(),
@@ -695,7 +714,11 @@ pub fn capability(module: &str) -> Option<&str> {
 
 /// Defines each import of `module` in `linker`, or names the first one
 /// that does not run on wasmtime yet.
-pub fn define(linker: &mut Linker<Host>, module: &wasmtime::Module) -> Result<(), String> {
+pub fn define(
+    linker: &mut Linker<Host>,
+    module: &wasmtime::Module,
+    profile: RuntimeProfile,
+) -> Result<(), String> {
     let mut defined = HashSet::new();
     for import in module.imports() {
         let (m, n) = (import.module(), import.name());
@@ -704,7 +727,7 @@ pub fn define(linker: &mut Linker<Host>, module: &wasmtime::Module) -> Result<()
         if !defined.insert((m.to_owned(), n.to_owned())) {
             continue;
         }
-        let Some(kind) = Kind::of(m, n) else {
+        let Some(kind) = Kind::with_profile(m, n, profile) else {
             return Err(unsupported_message(m, n));
         };
         let Some(ty) = import.ty().func().cloned() else {

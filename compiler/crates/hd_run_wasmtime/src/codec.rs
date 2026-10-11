@@ -36,6 +36,12 @@ impl Enc {
         self.bytes(s.as_bytes())
     }
 
+    /// Raw IEEE 754 bits, little-endian, including NaN payloads and signed zero.
+    pub fn f64(&mut self, value: f64) -> &mut Self {
+        self.buf.extend_from_slice(&value.to_le_bytes());
+        self
+    }
+
     pub fn list<T>(&mut self, xs: &[T], each: impl Fn(&mut Enc, &T)) -> &mut Self {
         self.leb(xs.len() as u64);
         for x in xs {
@@ -145,5 +151,14 @@ mod tests {
                 0, 0xac, 0x02, 3, b'h', 0xc3, 0xa9, 2, 1, b'a', 2, b'b', b'c'
             ]
         );
+    }
+
+    #[test]
+    fn float_encoding_preserves_ieee_payload_and_negative_zero() {
+        for bits in [0x7ff8_0000_0000_0001, 0x7ff0_0000_0000_0000, 1 << 63] {
+            let mut encoded = Enc::default();
+            encoded.f64(f64::from_bits(bits));
+            assert_eq!(encoded.done(), bits.to_le_bytes());
+        }
     }
 }

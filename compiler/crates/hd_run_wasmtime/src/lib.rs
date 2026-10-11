@@ -30,6 +30,7 @@ mod http;
 mod limits;
 mod net;
 pub mod prim;
+mod profiles;
 mod reactor;
 #[cfg(windows)]
 mod windows_pipe;
@@ -43,6 +44,7 @@ use wasmtime::{Linker, Store, Trap, TypedFunc};
 
 pub use host::HostIo;
 use host::{Host, Stop};
+pub use profiles::RuntimeProfile;
 
 /// The wasmtime configuration of §18.1, as data.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -96,11 +98,21 @@ pub fn thread_stack(config: &EngineConfig) -> usize {
 pub struct WasmtimeEngine {
     pub config: EngineConfig,
     engine: Arc<wasmtime::Engine>,
+    profile: RuntimeProfile,
 }
 
 impl WasmtimeEngine {
     /// The engine of `config`, or the reason wasmtime refused it.
     pub fn new(config: EngineConfig) -> Result<WasmtimeEngine, String> {
+        Self::new_with_profile(config, RuntimeProfile::Default)
+    }
+
+    /// Creates an engine with explicitly scoped conformance fixture providers.
+    /// Ordinary engines never accept the fixture-only imports.
+    pub fn new_with_profile(
+        config: EngineConfig,
+        profile: RuntimeProfile,
+    ) -> Result<WasmtimeEngine, String> {
         host::start_clock();
         let mut c = wasmtime::Config::new();
         c.wasm_gc(true)
@@ -125,7 +137,11 @@ impl WasmtimeEngine {
                 OptLevel::Speed => wasmtime::OptLevel::Speed,
             });
         let engine = Arc::new(wasmtime::Engine::new(&c).map_err(|e| e.to_string())?);
-        Ok(WasmtimeEngine { config, engine })
+        Ok(WasmtimeEngine {
+            config,
+            engine,
+            profile,
+        })
     }
 
     /// Instantiates `m` with its standard streams on `io`.
@@ -162,7 +178,7 @@ impl WasmtimeEngine {
             store.set_epoch_deadline(u64::MAX / 2);
         }
         let mut linker = Linker::new(&self.engine);
-        host::define(&mut linker, &m.0).map_err(StartError::Engine)?;
+        host::define(&mut linker, &m.0, self.profile).map_err(StartError::Engine)?;
         let instance = match linker.instantiate(&mut store, &m.0) {
             Ok(instance) => instance,
             Err(error)
@@ -223,7 +239,10 @@ impl Engine for WasmtimeEngine {
             return Err(LoadError::NotHd("not a Wasm module".into()));
         }
         let imports = hd_run::module_imports(wasm).map_err(LoadError::NotHd)?;
-        if let Some((m, n)) = imports.iter().find(|(m, n)| !host::supported(m, n)) {
+        if let Some((m, n)) = imports
+            .iter()
+            .find(|(m, n)| !host::supported(m, n, self.profile))
+        {
             return Err(LoadError::Engine(host::unsupported_message(m, n)));
         }
         wasmtime::Module::new(&self.engine, wasm)
@@ -457,13 +476,24 @@ pub fn run_captured(
     wasm: &[u8],
     setup: &HostSetup,
 ) -> Result<Captured, String> {
+    run_captured_with_profile(config, RuntimeProfile::Default, wasm, setup)
+}
+
+/// Runs a module with explicitly selected conformance fixture providers.
+/// Standard streams are captured and standard input is closed.
+pub fn run_captured_with_profile(
+    config: EngineConfig,
+    profile: RuntimeProfile,
+    wasm: &[u8],
+    setup: &HostSetup,
+) -> Result<Captured, String> {
     let (out, err) = (Shared::default(), Shared::default());
     let io = HostIo {
         out: Box::new(out.clone()),
         err: Box::new(err.clone()),
         input: None,
     };
-    let outcome = run(config, wasm, setup, io)?;
+    let outcome = run_with_profile(config, profile, wasm, setup, io)?;
     let status = match outcome {
         Outcome::Exit(code) => code,
         Outcome::Panic(p) => {
@@ -486,13 +516,45 @@ pub fn run(
     setup: &HostSetup,
     io: HostIo,
 ) -> Result<Outcome, String> {
-    run_with_guards(config, wasm, setup, io, || (), || ())
+    run_with_profile(config, RuntimeProfile::Default, wasm, setup, io)
+}
+
+/// Runs a module with explicitly selected conformance fixture providers and
+/// caller-supplied standard streams, on a thread with the required stack.
+pub fn run_with_profile(
+    config: EngineConfig,
+    profile: RuntimeProfile,
+    wasm: &[u8],
+    setup: &HostSetup,
+    io: HostIo,
+) -> Result<Outcome, String> {
+    run_profile_with_guards(config, profile, wasm, setup, io, || (), || ())
 }
 
 /// Runs with caller-owned guards around native compilation and guest execution.
 /// The guest guard remains alive until the instance and its host are dropped.
 pub fn run_with_guards<P, G>(
+    config: EngineConfig,
+    wasm: &[u8],
+    setup: &HostSetup,
+    io: HostIo,
+    preparing: impl FnOnce() -> P + Send,
+    guest: impl FnOnce() -> G + Send,
+) -> Result<Outcome, String> {
+    run_profile_with_guards(
+        config,
+        RuntimeProfile::Default,
+        wasm,
+        setup,
+        io,
+        preparing,
+        guest,
+    )
+}
+
+fn run_profile_with_guards<P, G>(
     mut config: EngineConfig,
+    profile: RuntimeProfile,
     wasm: &[u8],
     setup: &HostSetup,
     io: HostIo,
@@ -510,7 +572,7 @@ pub fn run_with_guards<P, G>(
             .stack_size(thread_stack(&config))
             .spawn_scoped(scope, move || {
                 let preparing = preparing();
-                let engine = WasmtimeEngine::new(config)?;
+                let engine = WasmtimeEngine::new_with_profile(config, profile)?;
                 let module = engine
                     .load(wasm, &hd_cache::MemoryStore::default())
                     .map_err(|e| match e {
