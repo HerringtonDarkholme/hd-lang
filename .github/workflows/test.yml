@@ -37,18 +37,13 @@ jobs:
           node-version-file: package.json
           package-manager-cache: false
 
+      # Caches the cargo registry and third-party build output only; the
+      # workspace's own crates and test binaries are not cached (they were
+      # most of a 7 GB cache).
       - name: Cache Rust build
-        uses: actions/cache@v4
+        uses: Swatinem/rust-cache@v2.9.2
         with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-            compiler/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('compiler/Cargo.lock', 'compiler/rust-toolchain.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          workspaces: compiler
 
       - name: Install browser target
         run: rustup target add wasm32-unknown-unknown
