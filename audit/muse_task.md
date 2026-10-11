@@ -55,3 +55,31 @@ commit that finishes it. When the queue is empty, report that and wait.
 (Owner, 2026-10-11: Codex is offline; a weaker Muse is back temporarily.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
+
+### M45. Fix your M44 review findings 1-4
+
+`future-work/compiler/wasmtime-review.md` findings 1-4: the fixture release
+runs after its assertions (core.rs), the budget assert races the read it
+guards (http), `empty_wake_batch_does_not_require_an_exchange_buffer`
+does not prove what its name says, and the malformed-reply-shape test
+covers a narrow table. Fix each as the review suggests, so every test
+proves what its name claims. Files: `crates/hd_run_wasmtime/src/**` and
+`crates/hd_run_wasmtime/tests/**`. Done when `cargo test -q -p
+hd_run_wasmtime` passes 10 times in a row under load and the review file
+marks each finding "Fixed (M45)". Finding 5 (memory cap) is the
+orchestrator's; leave it.
+
+### M46. Split `core.rs` in the wasmtime host
+
+`crates/hd_run_wasmtime/src/core.rs` is 1437 lines. Split it into a
+`core/` module the way M36 split http.rs: one file per concern, code
+moved verbatim, visibility tightened, no file over about 600 lines. Tests
+and the wasmtime-only conformance verdicts unchanged. Files:
+`crates/hd_run_wasmtime/src/core.rs` and `crates/hd_run_wasmtime/src/core/**`.
+
+### M47. Split `host.rs` and `test_engine.rs`
+
+The same for `crates/hd_run_wasmtime/src/host.rs` (1121 lines) and
+`test_engine.rs` (1066 lines): modules with files of at most about 600
+lines, code moved verbatim, tests and verdicts unchanged. One commit per
+file.
