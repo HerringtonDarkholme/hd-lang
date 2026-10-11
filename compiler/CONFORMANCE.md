@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2495 | 292 | 58 | 2845 |
+| 2497 | 292 | 56 | 2845 |
 
 ## By Chapter
 
@@ -18,9 +18,9 @@ fixture; unsupported surface records progress without failing.
 | `lang/02-grammar.md` | 203 | 11 | 1 | 215 |
 | `lang/03-names-and-scopes.md` | 97 | 3 | 1 | 101 |
 | `lang/04-type-system.md` | 314 | 38 | 0 | 352 |
-| `lang/05-expressions.md` | 244 | 32 | 1 | 277 |
+| `lang/05-expressions.md` | 245 | 32 | 0 | 277 |
 | `lang/06-control-flow.md` | 138 | 15 | 4 | 157 |
-| `lang/07-functions.md` | 115 | 14 | 1 | 130 |
+| `lang/07-functions.md` | 116 | 14 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 94 | 27 | 2 | 123 |
 | `lang/09-traits.md` | 319 | 38 | 2 | 359 |
 | `lang/10-modules.md` | 218 | 31 | 9 | 258 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 93 | 8 | 4 | 105 |
-| `runtime/valid` | 860 | 17 | 52 | 929 |
+| `runtime/valid` | 862 | 17 | 50 | 929 |
 | `typing/invalid` | 839 | 235 | 1 | 1075 |
 | `typing/valid` | 405 | 9 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -117,7 +117,7 @@ compiler stage that first declined the case.
 | `fail:unknown-type` | 3 |
 | `fail:unknown-variant` | 1 |
 | `fail:unused-local-binding` | 6 |
-| `unsupported:Body` | 9 |
+| `unsupported:Body` | 7 |
 | `unsupported:Collect` | 16 |
 | `unsupported:Emit` | 2 |
 | `unsupported:Link` | 3 |
@@ -625,14 +625,12 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (9)</summary>
+<details><summary><code>unsupported:Body</code> (7)</summary>
 
 - `runtime/valid/binding-expressions.hd`
 - `typing/invalid/for-over-non-iterable.hd`
 - `runtime/valid/tuple-impl-target.hd`
 - `typing/valid/type-default-trait-method.hd`
-- `runtime/valid/module-qualified-variant.hd`
-- `runtime/valid/module-qualified-associated-call.hd`
 - `runtime/valid/shared-enum-data-computed-once.hd`
 - `runtime/valid/iterator-list-sum.hd`
 - `runtime/valid/binding-chain-with-suite.hd`
@@ -1542,6 +1540,7 @@ runtime/valid/method-references-run.hd
 runtime/valid/module-alias-function-value.hd
 runtime/valid/module-binding-shared-with-functions.hd
 runtime/valid/module-initialization-before-main.hd
+runtime/valid/module-qualified-associated-call.hd
 runtime/valid/module-qualified-beside-direct-use.hd
 runtime/valid/module-qualified-function-call.hd
 runtime/valid/module-qualified-function-value-parenthesized.hd
@@ -1550,6 +1549,7 @@ runtime/valid/module-qualified-generic-function-value.hd
 runtime/valid/module-qualified-prelude-function.hd
 runtime/valid/module-qualified-type.hd
 runtime/valid/module-qualified-variant-pattern.hd
+runtime/valid/module-qualified-variant.hd
 runtime/valid/module-scope-before-initialization.hd
 runtime/valid/multibyte-scalar-strings.hd
 runtime/valid/multiline-string-literals.hd
