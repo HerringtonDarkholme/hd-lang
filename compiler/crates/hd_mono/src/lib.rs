@@ -114,8 +114,9 @@ pub trait ProgramEnv: LayoutEnv {
     /// `std.format.Debug`, which `dbg_show` prints through where it holds.
     fn debug_trait(&self) -> DefId;
     /// The items a map key's hashing and equality call (codegen.md
-    /// §13.12): the `Eq` trait and `std.hash.hash_of`.
-    fn map_key_items(&self) -> (DefId, DefId);
+    /// §13.12): the `Eq` trait, its method (which has no vtable slot, as it
+    /// names `Self`) and `std.hash.hash_of`.
+    fn map_key_items(&self) -> Option<(DefId, DefId, DefId)>;
 }
 
 /// The A1 class `REF` as a type argument: a reserved canonical
@@ -1565,8 +1566,7 @@ impl Cx<'_> {
         if layout::inline_map_key(pool, key) {
             return Ok(None);
         }
-        let (eq_trait, hash_of) = self.env.map_key_items();
-        let Some(&eq_method) = self.env.trait_methods(eq_trait).first() else {
+        let Some((eq_trait, eq_method, hash_of)) = self.env.map_key_items() else {
             return err("an `Eq` trait without its method");
         };
         let eq = self.method_target(eq_trait, eq_method, key, &[], None, parent)?;

@@ -1084,6 +1084,58 @@ impl<'a> Types<'a> {
     pub fn has_param(self, t: Ty) -> bool {
         self.meta_of(t) & meta::HAS_PARAM != 0
     }
+    /// Whether a type names `Self` of `trait_` (parameter 0 of the trait),
+    /// outside the base of an associated-type projection.
+    #[must_use]
+    pub fn names_trait_self(self, t: Ty, trait_: DefId) -> bool {
+        if !self.has_param(t) {
+            return false;
+        }
+        let list = |l: TyList| {
+            self.list_items(l)
+                .iter()
+                .any(|e| self.names_trait_self(*e, trait_))
+        };
+        let is_self = |p: ParamRef| p.owner == trait_ && p.index == 0;
+        match self.get(t) {
+            TyData::Param(p) => is_self(p),
+            TyData::Adt { args, .. } => list(args),
+            TyData::Tuple { elems, rest } => {
+                list(elems) || rest.is_some_and(|r| self.names_trait_self(r, trait_))
+            }
+            TyData::Option(i) | TyData::Mut(i) => self.names_trait_self(i, trait_),
+            TyData::Fn {
+                params,
+                result,
+                row,
+                ..
+            } => {
+                list(params)
+                    || self.names_trait_self(result, trait_)
+                    || self.row_names_trait_self(row, trait_)
+            }
+            TyData::Row(r) | TyData::Context(r) => self.row_names_trait_self(r, trait_),
+            TyData::TraitValue { args, bindings, .. } => {
+                list(args)
+                    || bindings
+                        .iter()
+                        .any(|(_, b)| self.names_trait_self(*b, trait_))
+            }
+            TyData::Assoc { self_ty, args, .. } => {
+                let base_is_self = matches!(self.get(self_ty), TyData::Param(p) if is_self(p));
+                (!base_is_self && self.names_trait_self(self_ty, trait_)) || list(args)
+            }
+            _ => false,
+        }
+    }
+    /// [`Self::names_trait_self`] over a row's keys.
+    #[must_use]
+    pub fn row_names_trait_self(self, r: RowId, trait_: DefId) -> bool {
+        self.row_data(r)
+            .keys
+            .iter()
+            .any(|k| self.names_trait_self(*k, trait_))
+    }
     #[must_use]
     pub fn has_assoc(self, t: Ty) -> bool {
         self.meta_of(t) & meta::HAS_ASSOC != 0

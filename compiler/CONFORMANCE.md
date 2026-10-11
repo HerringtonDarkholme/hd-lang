@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2667 | 157 | 21 | 2845 |
+| 2668 | 156 | 21 | 2845 |
 
 ## By Chapter
 
@@ -22,7 +22,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/06-control-flow.md` | 140 | 13 | 4 | 157 |
 | `lang/07-functions.md` | 120 | 10 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 114 | 8 | 1 | 123 |
-| `lang/09-traits.md` | 342 | 15 | 2 | 359 |
+| `lang/09-traits.md` | 343 | 14 | 2 | 359 |
 | `lang/10-modules.md` | 232 | 21 | 5 | 258 |
 | `lang/11-requirements-and-suspension.md` | 240 | 11 | 8 | 259 |
 | `lang/14-annotations.md` | 144 | 9 | 0 | 153 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 99 | 3 | 3 | 105 |
 | `runtime/valid` | 903 | 10 | 16 | 929 |
-| `typing/invalid` | 959 | 115 | 1 | 1075 |
+| `typing/invalid` | 960 | 114 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -89,7 +89,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:no-common-type` | 2 |
-| `fail:no-diagnostic` | 49 |
+| `fail:no-diagnostic` | 48 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-import` | 1 |
 | `fail:private-main` | 4 |
@@ -217,7 +217,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (49)</summary>
+<details><summary><code>fail:no-diagnostic</code> (48)</summary>
 
 - `typing/warnings/unreachable-code.hd`
 - `typing/invalid/unknown-annotation-member.hd`
@@ -262,7 +262,6 @@ compiler stage that first declined the case.
 - `typing/invalid/script-test-init-requirement.hd`
 - `typing/warnings/unused-debug-text.hd`
 - `typing/invalid/assoc-call-parameter-two-bounds.hd`
-- `typing/invalid/dyn-self-parameter-unavailable.hd`
 - `typing/invalid/uninhabited-binding.hd`
 - `typing/invalid/trait-assoc-call-self-undetermined.hd`
 - `typing/invalid/module-path-not-identifier.hd`
@@ -2009,6 +2008,7 @@ typing/invalid/duplicate-variant.hd
 typing/invalid/dyn-associated-function-bound.hd
 typing/invalid/dyn-inherent-method-on-concrete.hd
 typing/invalid/dyn-inherent-nonlocal.hd
+typing/invalid/dyn-self-parameter-unavailable.hd
 typing/invalid/dyn-unknown-associated-binding.hd
 typing/invalid/embedded-assignment-copy-required.hd
 typing/invalid/embedded-collection-type.hd

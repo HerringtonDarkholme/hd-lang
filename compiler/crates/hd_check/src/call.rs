@@ -2814,6 +2814,20 @@ impl Ck<'_, '_> {
                     && self.cx.names.text(s) == "self"
                 {
                     self.check_receiver(st, rt, n);
+                    if choice.0 == ChoiceKind::TraitValue
+                        && self.names_self_beyond_receiver(method, trait_)?
+                    {
+                        // The receiver is the only place a trait value can
+                        // supply `Self` (trait.dyn.member.self).
+                        for e in &args.positional {
+                            self.expr(*e, None)?;
+                        }
+                        let msg = format!(
+                            "`{name}` names `Self` outside its receiver, which is unavailable on a trait value"
+                        );
+                        self.err(Code::DynMemberUnavailable, n, &msg);
+                        return Ok((Ref(NONE), Ty::NEVER));
+                    }
                 } else if choice.0 == ChoiceKind::TraitValue {
                     // An associated function has no receiver for a trait
                     // value to dispatch on (trait.dyn.member.assoc-function).
@@ -2853,6 +2867,26 @@ impl Ck<'_, '_> {
                 Ok((Ref(NONE), Ty::NEVER))
             }
         }
+    }
+
+    /// Whether a trait method's signature names `Self` anywhere but its
+    /// receiver (trait.dyn.member.self). `Self::Assoc` projections do not
+    /// count: the associated type is bound by the `dyn` type.
+    fn names_self_beyond_receiver(&self, method: DefId, trait_: DefId) -> StageResult<bool> {
+        let pool = self.pool();
+        let sig = self.sig_of(method)?;
+        let has_receiver = sig
+            .params
+            .first()
+            .is_some_and(|p| self.cx.names.text(p.0) == "self");
+        let rest = sig.params.iter().skip(usize::from(has_receiver));
+        let tys = rest
+            .map(|p| p.1)
+            .chain([sig.ret])
+            .chain(sig.generics.iter().flat_map(|g| g.bounds.iter().copied()));
+        let mut found = tys.into_iter().any(|t| pool.names_trait_self(t, trait_));
+        found |= pool.row_names_trait_self(sig.row, trait_);
+        Ok(found)
     }
 
     /// A trait method call: `Self` is `self_ty`, the trait's parameters

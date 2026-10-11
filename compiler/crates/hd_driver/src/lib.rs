@@ -4509,6 +4509,22 @@ impl Env<'_> {
             .is_some_and(|(name, _)| self.run.syms.resolve(*name) == "self")
     }
 
+    /// Whether a method's signature names `Self` outside its receiver; such
+    /// a method is unavailable on a trait value (trait.dyn.member.self).
+    fn names_self(&self, item: &Item, trait_: DefId) -> bool {
+        let Some(sig) = item.sig() else { return false };
+        let pool = self.run.pool.types();
+        let has_receiver = self.takes_self(item);
+        sig.params
+            .iter()
+            .skip(usize::from(has_receiver))
+            .map(|p| p.1)
+            .chain([sig.ret])
+            .chain(sig.generics.iter().flat_map(|g| g.bounds.iter().copied()))
+            .any(|t| pool.names_trait_self(t, trait_))
+            || pool.row_names_trait_self(sig.row, trait_)
+    }
+
     /// A default body (codegen.md §13.13): a body of its own, whose
     /// parameters are the earlier parameters and whose result is the
     /// parameter's or field's declared type. A facts body is one that takes
@@ -4662,10 +4678,9 @@ impl ProgramEnv for Env<'_> {
                 .iter()
                 .map(|m| m.1)
                 .filter(|m| {
-                    self.p
-                        .items
-                        .get(m)
-                        .is_none_or(|i| i.intrinsic.is_none() && self.takes_self(i))
+                    self.p.items.get(m).is_none_or(|i| {
+                        i.intrinsic.is_none() && self.takes_self(i) && !self.names_self(i, trait_)
+                    })
                 })
                 .collect(),
             _ => Vec::new(),
@@ -4748,8 +4763,15 @@ impl ProgramEnv for Env<'_> {
         };
         hd_structure::supplied(&cx, &target, method)
     }
-    fn map_key_items(&self) -> (DefId, DefId) {
-        (self.run.known.eq, self.run.known.hash_of)
+    fn map_key_items(&self) -> Option<(DefId, DefId, DefId)> {
+        // `Eq`'s method names `Self` in its parameter, so it has no vtable
+        // slot; the map lowering reads it from the declaration.
+        let eq = self.run.known.eq;
+        let Some(ItemData::Trait(t)) = self.p.items.get(&eq).map(|i| &i.data) else {
+            return None;
+        };
+        let method = t.methods.first()?.1;
+        Some((eq, method, self.run.known.hash_of))
     }
     fn dbg_body(&self, item: DefId, key: &str, ty: Ty, debug: bool) -> StageResult<Body> {
         // `dbg`'s printing bodies (spec/lang/10-modules.md "Debug Printing"):
