@@ -613,6 +613,15 @@ The single ABI listener port handoff remains a documented lease race; cleanup ch
 Detached OS DNS/stdin reads and Windows-native execution remain separately unverified or OS-limited.
 Focused dev verification passes 128 runtime units, 18 HTTP tests and 12 socket tests.
 
+Reply delivery now owns encoded exchange-buffer writes at import dispatch.
+Malformed result signatures fail before provider effects, while existing integer-width compatibility remains.
+Wake delivery writes exactly its supplied handles; completion no longer preloads guest memory.
+Existing abort, exit and trap cleanup share a named control boundary.
+These boundaries enable later instrumentation; no recorder, journal or cancellation export is implemented here.
+Reactor completion still advances operation state and holds Console output, without claiming replay suppression of those effects.
+Focused dev verification passes 205 native runtime tests, including malformed-signature and supplied-wake regressions.
+Final full gates remain pending on this completed code tree.
+
 ## 19. Test Runner
 
 ### 19.1 Building

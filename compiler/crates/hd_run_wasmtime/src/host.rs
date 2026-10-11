@@ -1,7 +1,5 @@
-//! The host of `hd run` on wasmtime: the import functions of the ABI in
-//! `hd_host_abi` that run here, with the behavior of the Node host
-//! (`compiler/host/core.mjs`) they replace, so a program writes the same
-//! bytes and ends with the same status on either engine.
+//! Native providers for `hd run` on wasmtime, implementing the imports
+//! described by `hd_host_abi` and the specification's result contracts.
 //!
 //! - `hd:rt`: `block()` waits for at least one completion and writes the
 //!   completed handles to the exchange buffer; `stderr(len)` writes the
@@ -19,13 +17,13 @@
 //!   (`cli.cap.env.notice`).
 //!
 //! Standard output is held until input starts, standard error is written,
-//! a deadlock is reported, or the run ends, as the Node host holds it.
+//! a deadlock is reported, or the run ends.
 
 use std::collections::HashSet;
 use std::io::{BufRead, Write};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use hd_run::Grants;
+use hd_run::{Grants, Outcome};
 use wasmtime::{Caller, FuncType, Linker, Memory, Val, ValType};
 
 use crate::codec::Enc;
@@ -55,8 +53,7 @@ impl HostIo {
     }
 }
 
-/// Why the host stopped the instance: each is a trap that the driver
-/// reports as Node's host does.
+/// Why the host stopped the instance, for the driver's panic report.
 #[derive(Debug)]
 pub enum Stop {
     /// A host result or call that breaks the ABI: the `host-contract` panic.
@@ -67,7 +64,7 @@ pub enum Stop {
     HeapExhausted,
     /// The program's wall-clock deadline has elapsed.
     TimeLimit,
-    /// A bug in std or the host (Node throws a JS error here).
+    /// A bug in std or the host.
     Internal(String),
     /// Property exhaustion is successful early termination, not a panic.
     EndCase,
@@ -86,6 +83,16 @@ impl std::fmt::Display for Stop {
 }
 
 impl std::error::Error for Stop {}
+
+/// Existing host control events, distinct from reply and wake delivery.
+/// Deadlines become traps through import dispatch or the engine driver;
+/// this boundary owns their final flush and bounded provider cleanup.
+#[derive(Clone, Copy)]
+pub(crate) enum Control {
+    Abort(i32),
+    Exit { status: i32, close: bool },
+    Trap { close: bool },
+}
 
 /// Starts the monotonic clock, so it counts from the process's start.
 pub fn start_clock() {
@@ -222,9 +229,26 @@ impl Host {
         Ok(())
     }
 
-    /// Releases the run's sockets and HTTP worker guard at its end, even
-    /// when the caller keeps the ended instance alive.
-    pub fn close(&mut self) {
+    /// The one boundary for operation abort and completed-run cleanup.
+    /// Reusable test instances retain providers only when close is false.
+    pub(crate) fn control(&mut self, event: Control) -> Option<Outcome> {
+        let (status, close) = match event {
+            Control::Abort(handle) => {
+                self.reactor.remove(handle);
+                return None;
+            }
+            Control::Exit { status, close } => (status, close),
+            Control::Trap { close } => (3, close),
+        };
+        self.flush();
+        if close {
+            self.close();
+        }
+        Some(Outcome::Exit(u8::try_from(status & 0xff).unwrap_or(1)))
+    }
+
+    /// Releases sockets and HTTP worker guards even for a retained instance.
+    fn close(&mut self) {
         self.net.stop();
         self.http = http::Client::default();
     }
@@ -261,20 +285,44 @@ impl Host {
     }
 }
 
-/// Completes the due operations, writing their handles to the exchange
-/// buffer as little-endian `i32`s, and returns them.
+/// Collects due handles without writing the guest's exchange buffer.
+/// Reactor completion still advances operation state and holds completed
+/// Console output; recording/replay of those effects is a separate change.
 pub fn complete(
     caller: &mut impl wasmtime::AsContextMut<Data = Host>,
-) -> wasmtime::Result<Vec<i32>> {
+) -> wasmtime::Result<Vec<u32>> {
     let mut cx = caller.as_context_mut();
     let host = cx.data_mut();
     host.check_deadline()?;
-    let handles = host.reactor.due(&mut host.out);
+    Ok(host
+        .reactor
+        .due(&mut host.out)
+        .into_iter()
+        .map(|handle| u32::from_le_bytes(handle.to_le_bytes()))
+        .collect())
+}
+
+/// Delivers precisely the supplied batch, shared by driver wake and block.
+/// Collection must not preload memory: an embedding may supply a recorded
+/// batch without polling live providers, or overwrite the buffer meanwhile.
+pub(crate) fn deliver_batch(
+    caller: &mut impl wasmtime::AsContextMut<Data = Host>,
+    handles: &[u32],
+) -> wasmtime::Result<i32> {
+    let (count, bytes) = encode_batch(handles)?;
     if !handles.is_empty() {
-        let bytes: Vec<u8> = handles.iter().flat_map(|h| h.to_le_bytes()).collect();
         put_bytes(caller, &bytes)?;
     }
-    Ok(handles)
+    Ok(count)
+}
+fn encode_batch(handles: &[u32]) -> wasmtime::Result<(i32, Vec<u8>)> {
+    let count = i32::try_from(handles.len())
+        .map_err(|_| Stop::Contract("the wake batch exceeds the i32 count range".into()))?;
+    let bytes = handles
+        .iter()
+        .flat_map(|handle| handle.to_le_bytes())
+        .collect();
+    Ok((count, bytes))
 }
 
 /// Writes `bytes` at offset 0 of the exchange buffer, growing it to fit.
@@ -297,10 +345,6 @@ fn put_bytes(
     Ok(i64::try_from(bytes.len()).unwrap_or(i64::MAX))
 }
 
-fn put(caller: &mut Caller<'_, Host>, e: &Enc) -> wasmtime::Result<i64> {
-    put_bytes(caller, e.done())
-}
-
 /// The exchange buffer's first `len` bytes.
 fn bytes(caller: &mut Caller<'_, Host>, len: i64) -> wasmtime::Result<Vec<u8>> {
     let Some(memory) = caller.data().memory else {
@@ -320,14 +364,70 @@ fn text(caller: &mut Caller<'_, Host>, len: i64) -> wasmtime::Result<String> {
     Ok(String::from_utf8_lossy(&bytes(caller, len)?).into_owned())
 }
 
-/// What an import returns, before it is matched to the import's result
-/// types.
-enum Ret {
+/// An import reply before the one dispatch-side exchange-buffer write.
+struct Ret {
+    value: Value,
+    payload: Option<Vec<u8>>,
+}
+enum Value {
     Void,
     Int(i64),
     F64(f64),
-    /// A `.start`'s status and value.
     Pair(i32, i32),
+}
+impl Ret {
+    fn scalar(value: Value) -> Self {
+        Self {
+            value,
+            payload: None,
+        }
+    }
+    fn void() -> Self {
+        Self::scalar(Value::Void)
+    }
+    fn int(value: i64) -> Self {
+        Self::scalar(Value::Int(value))
+    }
+    fn float(value: f64) -> Self {
+        Self::scalar(Value::F64(value))
+    }
+    fn pair(status: i32, value: i32) -> Self {
+        Self::scalar(Value::Pair(status, value))
+    }
+    fn bytes(bytes: Vec<u8>) -> Self {
+        Self {
+            value: Value::Int(i64::try_from(bytes.len()).unwrap_or(i64::MAX)),
+            payload: Some(bytes),
+        }
+    }
+    fn encoded(encoded: Enc) -> Self {
+        Self::bytes(encoded.into_bytes())
+    }
+    fn text(text: &str) -> Self {
+        let mut encoded = Enc::default();
+        encoded.str(text);
+        Self::encoded(encoded)
+    }
+    fn byte_list(bytes: &[u8]) -> Self {
+        let mut encoded = Enc::default();
+        encoded.bytes(bytes);
+        Self::encoded(encoded)
+    }
+    fn ready(encoded: Enc) -> wasmtime::Result<Self> {
+        let bytes = encoded.into_bytes();
+        let length = result_len(i64::try_from(bytes.len()).unwrap_or(i64::MAX))?;
+        Ok(Self {
+            value: Value::Pair(0, length),
+            payload: Some(bytes),
+        })
+    }
+    fn batch(handles: &[u32]) -> wasmtime::Result<Self> {
+        let (count, bytes) = encode_batch(handles)?;
+        Ok(Self {
+            value: Value::Int(i64::from(count)),
+            payload: (!handles.is_empty()).then_some(bytes),
+        })
+    }
 }
 
 /// The imports that run on wasmtime.
@@ -386,6 +486,37 @@ enum TestMethod {
 }
 
 impl Kind {
+    /// Reject malformed result shapes before executing any provider effects.
+    /// Integer width compatibility is retained; floats/references are never
+    /// silently filled with integer values.
+    fn validate_results(self, results: &[ValType]) -> wasmtime::Result<()> {
+        let integer = |ty: &ValType| matches!(ty, ValType::I32 | ValType::I64);
+        let valid = match self {
+            Self::Test(TestMethod::Timeout | TestMethod::Record | TestMethod::Show)
+            | Self::Abort
+            | Self::Stderr => results.is_empty(),
+            Self::ParseF64 => matches!(results, [ValType::F64]),
+            Self::Fs { finish: false, .. }
+            | Self::ProcessStart
+            | Self::HttpStart
+            | Self::Net { close: false, .. }
+            | Self::WriteLineStart
+            | Self::ReadLineStart
+            | Self::SleepStart => match results {
+                [status, value] => integer(status) && integer(value),
+                _ => false,
+            },
+            _ => match results {
+                [value] => integer(value),
+                _ => false,
+            },
+        };
+        if valid {
+            Ok(())
+        } else {
+            Err(Stop::Contract(format!("the import {self:?} has an unexpected signature")).into())
+        }
+    }
     fn with_test(module: &str, name: &str, kind: crate::test_engine::TestHostKind) -> Option<Self> {
         let test = match (module, name) {
             ("hd:TestRunner", "row") => Some(TestMethod::Row),
@@ -542,7 +673,7 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
                 .ok_or_else(|| Stop::Contract("no test runner binds this run".into()))?;
             state.set_io_deadline(caller.data().deadline());
             match method {
-                TestMethod::Row => Ret::Int(i64::from(
+                TestMethod::Row => Ret::int(i64::from(
                     state.row(
                         u32::try_from(int_arg(params, 0)?)
                             .map_err(|_| Stop::Contract("invalid row count".into()))?,
@@ -554,28 +685,28 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
                     caller.data_mut().report_timeout(millis);
                     state.set_io_deadline(caller.data().deadline());
                     wasmtime::AsContextMut::as_context_mut(caller).set_epoch_deadline(1);
-                    Ret::Void
+                    Ret::void()
                 }
                 TestMethod::Snapshot | TestMethod::Show => {
                     let value =
                         String::from_utf8_lossy(&bytes(caller, int_arg(params, 0)?)?).into_owned();
                     if matches!(method, TestMethod::Show) {
                         state.show(&value);
-                        Ret::Void
+                        Ret::void()
                     } else {
                         let message = state.snapshot_check(&value);
                         caller.data().check_deadline()?;
                         let message = message.map_err(Stop::Internal)?;
                         let mut encoded = Enc::default();
                         encoded.str(&message);
-                        Ret::Int(put(caller, &encoded)?)
+                        Ret::encoded(encoded)
                     }
                 }
                 TestMethod::TempDir => {
                     let path = state.temp_dir().map_err(Stop::Internal)?;
                     let mut encoded = Enc::default();
                     encoded.str(&path);
-                    Ret::Int(put(caller, &encoded)?)
+                    Ret::encoded(encoded)
                 }
                 TestMethod::Start => {
                     let mut counts = [0; 3];
@@ -586,11 +717,11 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
                     let encoded = state.start(counts[0], counts[1], counts[2]);
                     caller.data().check_deadline()?;
                     let encoded = encoded.map_err(Stop::Internal)?.ok_or(Stop::EndCase)?;
-                    Ret::Int(put(caller, &encoded)?)
+                    Ret::encoded(encoded)
                 }
                 TestMethod::Record => {
                     state.record(int_arg(params, 0)?);
-                    Ret::Void
+                    Ret::void()
                 }
             }
         }
@@ -601,8 +732,8 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
                 0
             };
             match caller.data_mut().fixture.call(method, length) {
-                profiles::Reply::Encoded(encoded) => Ret::Int(put(caller, &encoded)?),
-                profiles::Reply::EchoLength(length) => Ret::Int(length),
+                profiles::Reply::Encoded(encoded) => Ret::encoded(encoded),
+                profiles::Reply::EchoLength(length) => Ret::int(length),
             }
         }
         Kind::Fs { finish: true, .. } | Kind::NeverFinish => {
@@ -633,7 +764,7 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
                     None => fs::call(key, method, &b, &host.grants)?,
                 },
             };
-            Ret::Pair(0, result_len(put(caller, &e)?)?)
+            Ret::ready(e)?
         }
         Kind::ProcessStart => {
             let b = bytes(caller, int_arg(params, 0)?)?;
@@ -654,13 +785,13 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
                 )?,
                 None => core::process_with_deadline(&b, &host.grants, host.deadline())?,
             };
-            Ret::Pair(0, result_len(put(caller, &e)?)?)
+            Ret::ready(e)?
         }
         Kind::HttpStart => {
             let b = bytes(caller, int_arg(params, 0)?)?;
             let host = caller.data_mut();
             let e = host.http.send_until(&b, &host.grants, host.deadline)?;
-            Ret::Pair(0, result_len(put(caller, &e)?)?)
+            Ret::ready(e)?
         }
         Kind::Net {
             method,
@@ -678,43 +809,42 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
             let e = host
                 .net
                 .call_until(method, &args, &b, &host.grants, host.deadline)?;
-            let len = put(caller, &e)?;
             if close {
-                Ret::Int(len)
+                Ret::encoded(e)
             } else {
-                Ret::Pair(0, result_len(len)?)
+                Ret::ready(e)?
             }
         }
         Kind::RandomNext => {
             let b: [u8; 8] = core::random(8)?
                 .try_into()
                 .map_err(|_| Stop::Internal("random byte count".into()))?;
-            Ret::Int(i64::from_le_bytes(b))
+            Ret::int(i64::from_le_bytes(b))
         }
         Kind::RandomFill => {
-            // count >>> 0, as on Node.
+            // The ABI count is an unsigned 32-bit value.
             let b = core::random(u32::from_le_bytes(
                 int_arg(params, 0)?.to_le_bytes()[..4]
                     .try_into()
                     .unwrap_or([0; 4]),
             ) as usize)?;
-            Ret::Int(put(caller, Enc::default().bytes(&b))?)
+            Ret::byte_list(&b)
         }
         Kind::Sys(name) => {
             let e = core::sys(name, &caller.data().grants);
-            Ret::Int(put(caller, &e)?)
+            Ret::encoded(e)
         }
         Kind::Stderr => {
             let t = text(caller, int_arg(params, 0)?)?;
             let host = caller.data_mut();
             host.reported = true;
             host.err(&t);
-            Ret::Void
+            Ret::void()
         }
         Kind::Block => loop {
-            let n = complete(caller)?.len();
-            if n > 0 {
-                return Ok(Ret::Int(i64::try_from(n).unwrap_or(i64::MAX)));
+            let handles = complete(caller)?;
+            if !handles.is_empty() {
+                return Ret::batch(&handles);
             }
             if !caller.data().wait()? {
                 return Err(deadlock(caller.data_mut()));
@@ -722,26 +852,26 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
         },
         Kind::Abort => {
             let h = int_arg(params, 0)?;
-            caller.data_mut().reactor.remove(handle(h));
-            Ret::Void
+            caller.data_mut().control(Control::Abort(handle(h)));
+            Ret::void()
         }
         Kind::FormatF64 => {
             let s = prim::shortest_f64(float_arg(params, 0)?);
-            Ret::Int(put(caller, Enc::default().str(&s))?)
+            Ret::text(&s)
         }
         Kind::FormatF32 => {
             let s = match params.first() {
                 Some(Val::F32(bits)) => prim::shortest_f32(f32::from_bits(*bits)),
                 _ => return Err(Stop::Contract("format_f32 takes an f32".into()).into()),
             };
-            Ret::Int(put(caller, Enc::default().str(&s))?)
+            Ret::text(&s)
         }
         Kind::FormatFixed => {
             let value = float_arg(params, 0)?;
             let places = u32::try_from(int_arg(params, 1)?)
                 .map_err(|_| Stop::Internal("format_f64_fixed: digits out of range".into()))?;
             let s = prim::fixed(value, places);
-            Ret::Int(put(caller, Enc::default().str(&s))?)
+            Ret::text(&s)
         }
         Kind::Lower | Kind::Upper => {
             let t = text(caller, int_arg(params, 0)?)?;
@@ -750,12 +880,12 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
             } else {
                 prim::upper(&t)
             };
-            Ret::Int(put(caller, Enc::default().str(&s))?)
+            Ret::text(&s)
         }
         Kind::ParseF64 => {
             let t = text(caller, int_arg(params, 0)?)?;
             match prim::parse(&t) {
-                Some(v) => Ret::F64(v),
+                Some(v) => Ret::float(v),
                 None => {
                     return Err(Stop::Internal(format!(
                         "parse_f64: text outside the grammar: {t}"
@@ -766,22 +896,22 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
         }
         Kind::WriteLineStart => {
             let line = bytes(caller, int_arg(params, 0)?)?;
-            // Decoded and encoded again, as the Node host's string is.
+            // Normalize invalid UTF-8 through the text boundary.
             let line = String::from_utf8_lossy(&line).into_owned().into_bytes();
-            Ret::Pair(1, caller.data_mut().reactor.write_line(line))
+            Ret::pair(1, caller.data_mut().reactor.write_line(line))
         }
         Kind::WriteLineFinish => {
             let h = int_arg(params, 0)?;
             caller.data_mut().reactor.remove(handle(h));
             // `.Ok(())`.
-            Ret::Int(put_bytes(caller, &[0])?)
+            Ret::bytes(vec![0])
         }
         // Make a completed prompt visible before asking the reader thread
         // for input. Pending until that thread delivers the line.
         Kind::ReadLineStart => {
             let host = caller.data_mut();
             host.flush();
-            Ret::Pair(1, host.reactor.read_line())
+            Ret::pair(1, host.reactor.read_line())
         }
         // `Result[string?, ConsoleError]`: the line, `.None` at the end of
         // input, `.Err(.Closed)` when it cannot be read.
@@ -795,27 +925,27 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
                 )
                 .into());
             };
-            Ret::Int(put(caller, &encode_line(&line))?)
+            Ret::encoded(encode_line(&line))
         }
         Kind::Now => {
             let ms = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX));
-            Ret::Int(ms)
+            Ret::int(ms)
         }
-        Kind::Monotonic => Ret::Int(i64::try_from(now_ns() / NS_PER_MS).unwrap_or(i64::MAX)),
+        Kind::Monotonic => Ret::int(i64::try_from(now_ns() / NS_PER_MS).unwrap_or(i64::MAX)),
         Kind::SleepStart => {
             let ms = int_arg(params, 0)?;
-            Ret::Pair(1, caller.data_mut().reactor.sleep(ms))
+            Ret::pair(1, caller.data_mut().reactor.sleep(ms))
         }
         Kind::SleepFinish => {
             let h = int_arg(params, 0)?;
             caller.data_mut().reactor.remove(handle(h));
-            Ret::Int(0)
+            Ret::int(0)
         }
         Kind::Program => {
             let p = caller.data().program.clone();
-            Ret::Int(put(caller, Enc::default().str(&p))?)
+            Ret::text(&p)
         }
         Kind::ArgsList => {
             let args = caller.data().args.clone();
@@ -823,7 +953,7 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
             e.list(&args, |e, a| {
                 e.str(a);
             });
-            Ret::Int(put(caller, &e)?)
+            Ret::encoded(e)
         }
         Kind::EnvGet => {
             let name = text(caller, int_arg(params, 0)?)?;
@@ -840,7 +970,7 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
             } else {
                 e.leb(0);
             }
-            Ret::Int(put(caller, &e)?)
+            Ret::encoded(e)
         }
         Kind::EnvNames => {
             let names: Vec<String> = std::env::vars_os()
@@ -851,7 +981,7 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
             e.list(&names, |e, n| {
                 e.str(n);
             });
-            Ret::Int(put(caller, &e)?)
+            Ret::encoded(e)
         }
     };
     caller.data().check_deadline()?;
@@ -877,8 +1007,7 @@ fn encode_line(line: &Line) -> Enc {
     e
 }
 
-/// A variable's value, as Node's `process.env` reads it: a name the
-/// environment cannot hold is unset.
+/// A variable's value; a name the environment cannot hold is unset.
 fn env_var(name: &str) -> Option<String> {
     if name.is_empty() || name.contains(['=', '\0']) {
         return None;
@@ -886,7 +1015,7 @@ fn env_var(name: &str) -> Option<String> {
     std::env::var_os(name).map(|v| v.to_string_lossy().into_owned())
 }
 
-/// Reports the deadlock, as the Node host does, and stops the instance.
+/// Reports the deadlock and stops the instance.
 pub fn deadlock(host: &mut Host) -> wasmtime::Error {
     host.err("panic: deadlock: the program waits, but no host operation is pending\n");
     host.reported = true;
@@ -947,21 +1076,25 @@ fn define_with(
                 n,
                 FuncType::clone(&ty),
                 move |mut caller, params, out| {
-                    let ret = call(kind, &mut caller, params)?;
-                    match (ret, out) {
-                        (Ret::Void, []) => {}
-                        (Ret::Int(v), [one]) => *one = int_val(&results[0], v),
-                        (Ret::F64(v), [one]) => *one = Val::F64(v.to_bits()),
-                        (Ret::Pair(s, v), [a, b]) => {
+                    kind.validate_results(&results)?;
+                    let Ret { value, payload } = call(kind, &mut caller, params)?;
+                    match (value, out) {
+                        (Value::Void, []) => {}
+                        (Value::Int(v), [one]) => *one = int_val(&results[0], v),
+                        (Value::F64(v), [one]) => *one = Val::F64(v.to_bits()),
+                        (Value::Pair(s, v), [a, b]) => {
                             *a = int_val(&results[0], i64::from(s));
                             *b = int_val(&results[1], i64::from(v));
                         }
                         _ => {
                             return Err(Stop::Contract(format!(
-                                "the import `{kind:?}` has an unexpected signature"
+                                "the import {kind:?} has an unexpected signature"
                             ))
                             .into());
                         }
+                    }
+                    if let Some(bytes) = payload {
+                        put_bytes(&mut caller, &bytes)?;
                     }
                     Ok(())
                 },

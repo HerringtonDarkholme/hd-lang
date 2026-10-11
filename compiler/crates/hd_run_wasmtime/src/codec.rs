@@ -53,6 +53,11 @@ impl Enc {
     pub fn done(&self) -> &[u8] {
         &self.buf
     }
+
+    /// Transfers the encoded reply without copying its payload.
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.buf
+    }
 }
 
 /// A checked decoder over copied exchange-buffer arguments. Malformed
