@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2509 | 293 | 43 | 2845 |
+| 2520 | 282 | 43 | 2845 |
 
 ## By Chapter
 
@@ -19,12 +19,12 @@ fixture; unsupported surface records progress without failing.
 | `lang/03-names-and-scopes.md` | 97 | 3 | 1 | 101 |
 | `lang/04-type-system.md` | 314 | 38 | 0 | 352 |
 | `lang/05-expressions.md` | 245 | 32 | 0 | 277 |
-| `lang/06-control-flow.md` | 138 | 15 | 4 | 157 |
+| `lang/06-control-flow.md` | 139 | 14 | 4 | 157 |
 | `lang/07-functions.md` | 116 | 14 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 95 | 27 | 1 | 123 |
 | `lang/09-traits.md` | 319 | 38 | 2 | 359 |
 | `lang/10-modules.md` | 218 | 31 | 9 | 258 |
-| `lang/11-requirements-and-suspension.md` | 206 | 32 | 21 | 259 |
+| `lang/11-requirements-and-suspension.md` | 216 | 22 | 21 | 259 |
 | `lang/14-annotations.md` | 120 | 31 | 2 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
@@ -62,10 +62,10 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 93 | 9 | 3 | 105 |
-| `runtime/valid` | 874 | 17 | 38 | 929 |
-| `typing/invalid` | 839 | 235 | 1 | 1075 |
-| `typing/valid` | 405 | 9 | 1 | 415 |
+| `runtime/panic` | 97 | 5 | 3 | 105 |
+| `runtime/valid` | 876 | 15 | 38 | 929 |
+| `typing/invalid` | 843 | 231 | 1 | 1075 |
+| `typing/valid` | 406 | 8 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -88,7 +88,7 @@ compiler stage that first declined the case.
 | `fail:invalid-token` | 2 |
 | `fail:missing-entry-point` | 1 |
 | `fail:missing-required-field` | 2 |
-| `fail:missing-requirement` | 4 |
+| `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
 | `fail:no-diagnostic` | 131 |
@@ -103,14 +103,13 @@ compiler stage that first declined the case.
 | `fail:readonly-root` | 1 |
 | `fail:runtime-exit` | 5 |
 | `fail:stdout` | 1 |
-| `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-used-as-type` | 1 |
 | `fail:type-mismatch` | 36 |
 | `fail:unknown-data-field` | 7 |
 | `fail:unknown-import` | 1 |
-| `fail:unknown-method` | 14 |
+| `fail:unknown-method` | 5 |
 | `fail:unknown-module` | 1 |
 | `fail:unknown-name` | 11 |
 | `fail:unknown-trait` | 7 |
@@ -222,11 +221,10 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:missing-requirement</code> (4)</summary>
+<details><summary><code>fail:missing-requirement</code> (3)</summary>
 
 - `typing/invalid/parameter-default-requires-provider.hd`
 - `typing/invalid/data-default-requires-provider.hd`
-- `typing/invalid/missing-requirement-cold-construction.hd`
 - `typing/invalid/hd-run-outside-integration.hd`
 
 </details>
@@ -454,12 +452,6 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:suspension-forbidden-context</code> (1)</summary>
-
-- `typing/invalid/defer-bang-call-cold-twin.hd`
-
-</details>
-
 <details><summary><code>fail:syntax-error</code> (10)</summary>
 
 - `parse/invalid/old-and-operator.hd`
@@ -547,17 +539,8 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-method</code> (14)</summary>
+<details><summary><code>fail:unknown-method</code> (5)</summary>
 
-- `typing/valid/mutable-suspension.hd`
-- `typing/invalid/readonly-suspension-cancel.hd`
-- `runtime/panic/reentrant-cancel.hd`
-- `runtime/valid/cold-suspension-cancel-idempotent.hd`
-- `runtime/panic/drive-cancelled-suspension.hd`
-- `typing/invalid/cancel-readonly-suspension.hd`
-- `runtime/panic/block-on-cancelled-suspension.hd`
-- `runtime/valid/cancel-cold-and-completed-suspension.hd`
-- `runtime/panic/defer-cancels-active-ancestor.hd`
 - `runtime/valid/memory-fs-directories.hd`
 - `typing/valid/std-types-debug.hd`
 - `typing/invalid/literal-var-method-missing.hd`
@@ -997,14 +980,17 @@ runtime/panic/assert-equal-result-unequal.hd
 runtime/panic/assert-equal-string-unequal.hd
 runtime/panic/assert-equal-tuple-unequal.hd
 runtime/panic/assert-failure-in-main.hd
+runtime/panic/block-on-cancelled-suspension.hd
 runtime/panic/block-on-completed-suspension.hd
 runtime/panic/char-to-digit-radix-high.hd
 runtime/panic/char-to-digit-radix-low.hd
 runtime/panic/cli-duplicate-option.hd
 runtime/panic/cmp-clamp-reversed.hd
 runtime/panic/compound-assign-map-missing-key.hd
+runtime/panic/defer-cancels-active-ancestor.hd
 runtime/panic/deque-invalidated.hd
 runtime/panic/doc-test-failing-assert.hd
+runtime/panic/drive-cancelled-suspension.hd
 runtime/panic/duration-add-overflow.hd
 runtime/panic/duration-suffix-overflow.hd
 runtime/panic/exhausted-iterator-invalidated-by-growth.hd
@@ -1052,6 +1038,7 @@ runtime/panic/println-console-closed.hd
 runtime/panic/println-in-default-indirect.hd
 runtime/panic/race-empty-at-run-time.hd
 runtime/panic/range-from-overflow.hd
+runtime/panic/reentrant-cancel.hd
 runtime/panic/removed-map-iterator-invalidated.hd
 runtime/panic/result-expect-err.hd
 runtime/panic/rng-int-empty-range.hd
@@ -1131,6 +1118,7 @@ runtime/valid/call-and-closure-forms.hd
 runtime/valid/call-rest-inference.hd
 runtime/valid/callable-values-run.hd
 runtime/valid/callee-and-operand-evaluation-order.hd
+runtime/valid/cancel-cold-and-completed-suspension.hd
 runtime/valid/candidate-closure-selection-reversed.hd
 runtime/valid/candidate-closure-selection.hd
 runtime/valid/candidate-scope-isolation-reversed.hd
@@ -1164,6 +1152,7 @@ runtime/valid/cmp-min-max-distinguishable-tie.hd
 runtime/valid/cmp-min-max.hd
 runtime/valid/cmp-ordering-eq.hd
 runtime/valid/cmp-reverse.hd
+runtime/valid/cold-suspension-cancel-idempotent.hd
 runtime/valid/collect-target-from-try-hint.hd
 runtime/valid/collect-targets-run.hd
 runtime/valid/colons-in-brackets-and-trailing-blocks.hd
@@ -2030,6 +2019,7 @@ typing/invalid/call-missing-requirement.hd
 typing/invalid/callable-value-arguments.hd
 typing/invalid/callable-value-no-update.hd
 typing/invalid/callable-value-readonly-parameter.hd
+typing/invalid/cancel-readonly-suspension.hd
 typing/invalid/cannot-infer-type.hd
 typing/invalid/cast-literal-out-of-range.hd
 typing/invalid/child-module-not-in-parent.hd
@@ -2099,6 +2089,7 @@ typing/invalid/decorator-target-member-line.hd
 typing/invalid/decorator-target-newtype.hd
 typing/invalid/default-body-inherent-method.hd
 typing/invalid/default-names-later-beside-forward-bound.hd
+typing/invalid/defer-bang-call-cold-twin.hd
 typing/invalid/defer-propagate-query-suspending.hd
 typing/invalid/defer-propagate-query.hd
 typing/invalid/defer-return.hd
@@ -2381,6 +2372,7 @@ typing/invalid/method-without-requirement-clause.hd
 typing/invalid/missing-associated-type-binding.hd
 typing/invalid/missing-mutable-edge.hd
 typing/invalid/missing-required-data-field.hd
+typing/invalid/missing-requirement-cold-construction.hd
 typing/invalid/missing-requirement.hd
 typing/invalid/missing-return-value.hd
 typing/invalid/missing-supertrait-implementation.hd
@@ -2554,6 +2546,7 @@ typing/invalid/readonly-provider-mut-method.hd
 typing/invalid/readonly-requirement-trait-mut-use.hd
 typing/invalid/readonly-spread-mut-field-twins.hd
 typing/invalid/readonly-spread-mutable-field.hd
+typing/invalid/readonly-suspension-cancel.hd
 typing/invalid/readonly-trait-value-mut-bound.hd
 typing/invalid/readonly-trait-value-mutating-method.hd
 typing/invalid/reassign-parameter.hd
@@ -2997,6 +2990,7 @@ typing/valid/mutable-closure-capture.hd
 typing/valid/mutable-loop-element-mutation.hd
 typing/valid/mutable-paths.hd
 typing/valid/mutable-provider-rows.hd
+typing/valid/mutable-suspension.hd
 typing/valid/mutual-recursion-one-annotated.hd
 typing/valid/named-variant-bindings.hd
 typing/valid/names-and-scopes.hd
