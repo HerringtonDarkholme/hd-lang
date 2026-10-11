@@ -732,6 +732,20 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// The expected and the found type as a mismatch shows them. Two types
+    /// that differ only in a function type's row would read the same, so
+    /// they show their rows.
+    pub(crate) fn show_pair(&self, want: Ty, got: Ty) -> (String, String) {
+        let (w, g) = (self.show(want), self.show(got));
+        if w != g {
+            return (w, g);
+        }
+        let pool = self.pool();
+        let rows =
+            |t: Ty| hd_resolve::show_ty_rows_in(&self.cx.names, pool, self.infer.resolve(pool, t));
+        (rows(want), rows(got))
+    }
+
     /// `unused-local-binding` (flow.unused.warning): a local the source
     /// binds and never reads; a name beginning with `_` is exempt.
     fn unused_locals(&mut self) {
@@ -1082,11 +1096,15 @@ impl Ck<'_, '_> {
         }
         let before = self.diags.len();
         self.expect(got, want, n, what);
+        // A row parameter inside a type argument takes its solution from
+        // the argument's nested row, exactly (`types.variance.function`).
+        if self.diags.len() == before && !joined {
+            self.solve_nested_rows(got, want, 0);
+        }
         if self.diags.len() == before && !joined && !self.perm_fits(got, want, true, 0) {
+            let (want_s, got_s) = self.show_pair(want, got);
             let msg = format!(
-                "in {what}: expected {}, found {}; permissions inside a type convert only by declared variance, and a function type inside a type keeps its row",
-                self.show(want),
-                self.show(got)
+                "in {what}: expected {want_s}, found {got_s}; permissions inside a type convert only by declared variance, and a function type inside a type keeps its row"
             );
             self.err(Code::TypeMismatch, n, &msg);
         }
@@ -1124,11 +1142,8 @@ impl Ck<'_, '_> {
                 self.err(Code::ImplicitNarrowing, n, &msg);
                 return;
             }
-            let msg = format!(
-                "in {what}: expected {}, found {}",
-                self.show(want),
-                self.show(got)
-            );
+            let (want_s, got_s) = self.show_pair(want, got);
+            let msg = format!("in {what}: expected {want_s}, found {got_s}");
             self.err(Code::TypeMismatch, n, &msg);
         }
     }

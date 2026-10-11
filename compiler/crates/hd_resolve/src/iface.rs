@@ -1366,11 +1366,23 @@ pub fn show_ty(names: &Names<'_>, t: Ty) -> String {
 /// [`show_ty`] for a type that may live in a body's local pool.
 #[must_use]
 pub fn show_ty_in(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty) -> String {
+    show_ty_opts(names, pool, t, false)
+}
+
+/// [`show_ty_in`] with the requirement row of every function type written
+/// after its result, as `fn() -> string $ Db`. A mismatch between types
+/// that differ only in rows reads with these.
+#[must_use]
+pub fn show_ty_rows_in(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty) -> String {
+    show_ty_opts(names, pool, t, true)
+}
+
+fn show_ty_opts(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty, rows: bool) -> String {
     let seg = |d: DefId| names.display_name(d).to_owned();
     let list = |l: TyList| {
         pool.list_items(l)
             .iter()
-            .map(|x| show_ty_in(names, pool, *x))
+            .map(|x| show_ty_opts(names, pool, *x, rows))
             .collect::<Vec<_>>()
             .join(", ")
     };
@@ -1391,11 +1403,11 @@ pub fn show_ty_in(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty) -> String
             list(elems),
             rest.map_or(String::new(), |r| format!(
                 ", {}...",
-                show_ty_in(names, pool, r)
+                show_ty_opts(names, pool, r, rows)
             ))
         ),
-        TyData::Option(i) => format!("{}?", show_ty_in(names, pool, i)),
-        TyData::Mut(i) => format!("mut {}", show_ty_in(names, pool, i)),
+        TyData::Option(i) => format!("{}?", show_ty_opts(names, pool, i, rows)),
+        TyData::Mut(i) => format!("mut {}", show_ty_opts(names, pool, i, rows)),
         // Inputs of an arity not known here have no sugar form.
         TyData::Fn {
             params,
@@ -1407,23 +1419,35 @@ pub fn show_ty_in(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty) -> String
             "{}[{}, {}, {}]",
             if suspends { "SuspendFn" } else { "Fn" },
             list(params),
-            show_ty_in(names, pool, result),
+            show_ty_opts(names, pool, result, rows),
             show_row_in(names, pool, row)
         ),
         TyData::Fn {
             params,
             result,
+            row,
             suspends,
             ..
-        } => format!(
-            "fn{}({}) -> {}",
-            if suspends { "!" } else { "" },
-            list(params),
-            show_ty_in(names, pool, result)
-        ),
+        } => {
+            let shown = if rows && row != hd_types::RowId::EMPTY {
+                format!(" {}", show_row_in(names, pool, row))
+            } else {
+                String::new()
+            };
+            format!(
+                "fn{}({}) -> {}{shown}",
+                if suspends { "!" } else { "" },
+                list(params),
+                show_ty_opts(names, pool, result, rows)
+            )
+        }
         TyData::Param(p) => format!("{}#{}", seg(p.owner), p.index),
         TyData::Assoc { assoc, self_ty, .. } => {
-            format!("{}::{}", show_ty_in(names, pool, self_ty), seg(assoc))
+            format!(
+                "{}::{}",
+                show_ty_opts(names, pool, self_ty, rows),
+                seg(assoc)
+            )
         }
         TyData::Infer(_) | TyData::Canon(_) => "?".into(),
         TyData::Row(r) => show_row_in(names, pool, r),

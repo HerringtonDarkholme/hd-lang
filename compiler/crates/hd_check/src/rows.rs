@@ -78,8 +78,9 @@ impl Ck<'_, '_> {
 
     /// Whether two requirement rows are the same row after resolution
     /// (`types.fn.same`): each lists only keys the other supplies, with the
-    /// same row parameters. A row still holding an open variable is not
-    /// compared yet; it takes its value from the other side later.
+    /// same row parameters. A row variable still open is a key that only
+    /// itself supplies: [`Ck::solve_nested_rows`] solves the variables of
+    /// a value's type before this compares.
     pub(crate) fn rows_equal(&self, a: RowId, b: RowId) -> bool {
         let pool = self.pool();
         let (a, b) = (
@@ -90,16 +91,152 @@ impl Ck<'_, '_> {
             return true;
         }
         let (da, db) = (pool.row_data(a), pool.row_data(b));
-        let open = |d: &hd_types::RowData| d.keys.iter().any(|k| pool.has_infer(*k));
-        if open(&da) || open(&db) {
-            return true;
-        }
         let within = |x: &hd_types::RowData, y: &hd_types::RowData| {
             x.keys
                 .iter()
                 .all(|k| y.keys.iter().any(|h| self.key_supplies(*h, *k)))
         };
         da.params == db.params && within(&da, &db) && within(&db, &da)
+    }
+
+    /// Solves the row variables of the function types that `got` and
+    /// `want` hold inside type arguments, pairing them as `perm_fits`
+    /// does. The row is invariant there (`types.variance.function`), so a
+    /// variable takes exactly what the other row lists beyond the keys
+    /// both name. A variable an earlier occurrence solved is already its
+    /// row, and a disagreeing row stays unequal for `perm_fits` to report.
+    /// A function type at the top keeps `fit_row`'s least solution.
+    pub(crate) fn solve_nested_rows(&mut self, got: Ty, want: Ty, depth: u32) {
+        let pool = self.pool();
+        let (g, w) = (
+            self.infer.resolve(pool, got),
+            self.infer.resolve(pool, want),
+        );
+        if depth > 32 || g == w {
+            return;
+        }
+        let strip = |t: Ty| match pool.get(t) {
+            TyData::Mut(i) => i,
+            _ => t,
+        };
+        let (g, w) = (strip(g), strip(w));
+        let d = depth + 1;
+        let pairs = |a: hd_types::TyList, b: hd_types::TyList| -> Vec<(Ty, Ty)> {
+            pool.list_items(a)
+                .iter()
+                .copied()
+                .zip(pool.list_items(b).iter().copied())
+                .collect()
+        };
+        let items = match (pool.get(g), pool.get(w)) {
+            (TyData::Adt { def, args: a }, TyData::Adt { def: e, args: b }) if def == e => {
+                pairs(a, b)
+            }
+            (TyData::Option(a), TyData::Option(b)) => vec![(a, b)],
+            (TyData::Tuple { elems: a, .. }, TyData::Tuple { elems: b, .. })
+            | (TyData::TraitValue { args: a, .. }, TyData::TraitValue { args: b, .. }) => {
+                pairs(a, b)
+            }
+            (
+                TyData::Fn {
+                    params: a,
+                    result: ar,
+                    row: aw,
+                    ..
+                },
+                TyData::Fn {
+                    params: b,
+                    result: br,
+                    row: bw,
+                    ..
+                },
+            ) => {
+                if depth > 0 {
+                    self.solve_exact_row(aw, bw);
+                }
+                let mut v = pairs(a, b);
+                v.push((ar, br));
+                v
+            }
+            _ => return,
+        };
+        for (x, y) in items {
+            self.solve_nested_rows(x, y, d);
+        }
+    }
+
+    /// Makes the rows `a` and `b` one row by solving the variables in them.
+    /// A variable in one row takes the keys and row parameters the other
+    /// row lists that this row does not; a second variable in the same row
+    /// takes the empty row. Two rows that are each one variable join.
+    fn solve_exact_row(&mut self, a: RowId, b: RowId) {
+        let pool = self.pool();
+        let (a, b) = (
+            self.infer.resolve_row(pool, a),
+            self.infer.resolve_row(pool, b),
+        );
+        if a == b {
+            return;
+        }
+        let (da, db) = (pool.row_data(a), pool.row_data(b));
+        let is_var = |k: &Ty| matches!(pool.get(*k), TyData::Infer(_));
+        let (va, vb): (Vec<Ty>, Vec<Ty>) = (
+            da.keys.iter().copied().filter(is_var).collect(),
+            db.keys.iter().copied().filter(is_var).collect(),
+        );
+        if va.is_empty() && vb.is_empty() {
+            return;
+        }
+        let (ka, kb): (Vec<Ty>, Vec<Ty>) = (
+            da.keys.iter().copied().filter(|k| !is_var(k)).collect(),
+            db.keys.iter().copied().filter(|k| !is_var(k)).collect(),
+        );
+        // What each row lists that the other does not.
+        let mut beyond_a = RowData::default();
+        for k in &ka {
+            if !kb.iter().any(|h| self.key_fits(*h, *k)) {
+                beyond_a.keys.push(*k);
+            }
+        }
+        beyond_a
+            .params
+            .extend(da.params.iter().copied().filter(|p| !db.params.contains(p)));
+        let mut beyond_b = RowData::default();
+        for k in &kb {
+            if !ka.iter().any(|h| self.key_fits(*h, *k)) {
+                beyond_b.keys.push(*k);
+            }
+        }
+        beyond_b
+            .params
+            .extend(db.params.iter().copied().filter(|p| !da.params.contains(p)));
+        let empty = pool.intern_ty(&TyData::Row(RowId::EMPTY));
+        match (va.split_first(), vb.split_first()) {
+            (Some((x, _)), Some((y, _)))
+                if beyond_a.keys.is_empty()
+                    && beyond_a.params.is_empty()
+                    && beyond_b.keys.is_empty()
+                    && beyond_b.params.is_empty() =>
+            {
+                let _ = self.infer.unify(pool, *x, *y);
+            }
+            (Some(_), Some(_)) => {}
+            (None, Some((first, rest))) => {
+                let sol = pool.intern_ty(&TyData::Row(pool.row(&beyond_a)));
+                let _ = self.infer.unify(pool, *first, sol);
+                for v in rest {
+                    let _ = self.infer.unify(pool, *v, empty);
+                }
+            }
+            (Some((first, rest)), None) => {
+                let sol = pool.intern_ty(&TyData::Row(pool.row(&beyond_b)));
+                let _ = self.infer.unify(pool, *first, sol);
+                for v in rest {
+                    let _ = self.infer.unify(pool, *v, empty);
+                }
+            }
+            (None, None) => {}
+        }
     }
 
     fn row_supplies(&self, row: RowId, need: Need) -> bool {
