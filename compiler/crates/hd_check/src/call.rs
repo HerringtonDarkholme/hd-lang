@@ -2875,9 +2875,10 @@ impl Ck<'_, '_> {
             .to_owned();
         refs.extend(self.check_args(&formals, skip, args, n, &method_name)?);
         self.bounds_of(&sig, &vars, &inst, n)?;
-        // At an opt-in, a `walk`, `describe` or `build` call's walker,
-        // describer or source type carries the member obligations.
-        if self.opt_in.is_some()
+        // At an opt-in, or in a tuple template's plan, a `walk`,
+        // `describe` or `build` call's walker, describer or source type
+        // carries the member obligations.
+        if (self.opt_in.is_some() || self.plan_sink.is_some())
             && trait_ == self.cx.names.known.structure
             && let Some(&w) = vars.first()
         {

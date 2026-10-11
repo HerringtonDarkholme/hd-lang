@@ -248,6 +248,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// The structure protocol calls of an opt-in's template body: the
     /// `Structure` method and its walker, describer or source type.
     pub structure_calls: Vec<(DefId, Ty)>,
+    /// Checking a tuple template's method for its plan: where its member
+    /// steps go (trait-solver.md §3.9).
+    pub plan_sink: Option<&'c std::cell::RefCell<Vec<hd_types::solver::MemberStep>>>,
     /// The type variables of the least-common-type sites being joined
     /// (`types.lct.sites`): a function value that joins one widens its
     /// row to the union (`types.lct.row-union-every-site`).
@@ -344,6 +347,7 @@ pub(crate) fn new_ck<'a, 'c>(
         ref_params: Vec::new(),
         opt_in: None,
         structure_calls: Vec::new(),
+        plan_sink: None,
         joins: Vec::new(),
         restarts: Vec::new(),
         widen: Vec::new(),
@@ -533,7 +537,20 @@ pub(crate) fn check_fn_in(
     diags: &mut DiagBuf,
     opt_in: Option<&crate::derive::OptIn>,
 ) -> StageResult<Body> {
-    check_fn_body(cx, def, node, diags, opt_in, Infer::default()).map(|(b, ..)| b)
+    check_fn_body(cx, def, node, diags, (opt_in, None), Infer::default()).map(|(b, ..)| b)
+}
+
+/// Checks a tuple template's method for the template's plan: the member
+/// steps of its `walk`, `describe` and `build` calls go to `sink`
+/// (trait-solver.md §3.9). Diagnostics go to `diags`.
+pub fn check_tuple_template_method(
+    cx: &BodyCx<'_>,
+    def: DefId,
+    node: NodeRef<'_>,
+    diags: &mut DiagBuf,
+    sink: &std::cell::RefCell<Vec<hd_types::solver::MemberStep>>,
+) -> StageResult<()> {
+    check_fn_body(cx, def, node, diags, (None, Some(sink)), Infer::default()).map(|_| ())
 }
 
 /// What a body checks for its declaration: an omitted result type, an
@@ -555,7 +572,10 @@ pub(crate) fn check_fn_body(
     def: DefId,
     node: NodeRef<'_>,
     diags: &mut DiagBuf,
-    opt_in: Option<&crate::derive::OptIn>,
+    (opt_in, plan_sink): (
+        Option<&crate::derive::OptIn>,
+        Option<&std::cell::RefCell<Vec<hd_types::solver::MemberStep>>>,
+    ),
     infer: Infer,
 ) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
     let Some(item) = cx.lookup.item(def) else {
@@ -577,6 +597,7 @@ pub(crate) fn check_fn_body(
     if let Some(o) = opt_in {
         ck.enter_opt_in(o);
     }
+    ck.plan_sink = plan_sink;
     if infer.row {
         ck.rows[0] = RowFrame::Inferred {
             used: hd_types::RowData::default(),
@@ -2021,7 +2042,8 @@ impl Ck<'_, '_> {
 
     /// A call's choice once inference is done: a `Builtin` choice made
     /// while the self type was still a literal's variable (`Box { value:
-    /// 1 } == ...`) becomes the impl the solver finds at the defaulted
+    /// 1 } == ...`, or `(1, "b") < (2, "a")`, whose tuple template waits
+    /// on its elements) becomes the impl the solver finds at the defaulted
     /// type. A choice the solver does not answer with an impl stays.
     fn settle_choice(
         &mut self,
@@ -2032,7 +2054,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<(hd_tir::ir::ChoiceKind, u32)> {
         let pool = self.pool();
         if choice.0 != hd_tir::ir::ChoiceKind::Builtin
-            || !matches!(pool.get(self_ty), TyData::Adt { .. })
+            || !matches!(pool.get(self_ty), TyData::Adt { .. } | TyData::Tuple { .. })
         {
             return Ok(choice);
         }
@@ -2109,6 +2131,7 @@ impl Ck<'_, '_> {
             }
         }
         self.opt_in_obligations()?;
+        self.tuple_plan_steps()?;
         for i in 0..n {
             let t = self.b.body_mut().ty[i];
             let z = self.zonk(t);

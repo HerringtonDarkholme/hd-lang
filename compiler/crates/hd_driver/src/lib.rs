@@ -38,7 +38,8 @@ use hd_syntax::{HeaderKind, Parse, parse, skim};
 use hd_tir::Body;
 use hd_types::solver::{
     Declarations, FolderImpls, GlobalMemo, ImplRef, ImplUniverseId, ImplUniverses, ImplView, Impls,
-    OwnerMap, SealedTraits, TableSolver, TypeDecl, UniverseImpls, folder_table,
+    MemberStep, OwnerMap, SealedTraits, TableSolver, TuplePlans, TypeDecl, UniverseImpls,
+    folder_table,
 };
 use hd_types::{InternPool, Ty, TyData, TyList};
 use hd_wasm::Code as WasmCode;
@@ -476,6 +477,10 @@ enum Roots {
 /// registrations.
 type TestsOut = (Vec<Item>, Vec<hd_check::tests::TestReg>);
 
+/// One tuple template's member steps, computed once (trait-solver.md
+/// §3.9); `None` for a template whose body does not check.
+type PlanCell = Arc<OnceLock<Option<Arc<[MemberStep]>>>>;
+
 struct Run<'a> {
     host: &'a Host<'a>,
     observer: Option<&'a dyn StageObserver>,
@@ -510,8 +515,12 @@ struct Run<'a> {
     /// lowered once per run for the opt-ins that instantiate it.
     template_mods: Vec<OnceLock<Option<ModOut>>>,
     /// Per folder: the modules outside std that declare a derivation
-    /// template, from its interface, found on first use.
-    folder_templates: Vec<OnceLock<Vec<String>>>,
+    /// template, from its interface, found on first use; `true` for a
+    /// module that declares a tuple template.
+    folder_templates: Vec<OnceLock<Vec<(String, bool)>>>,
+    /// Per tuple template: its member steps (trait-solver.md §3.9),
+    /// computed once per run from its body on first use.
+    tuple_plans: Mutex<HashMap<DefId, PlanCell>>,
     body: Vec<OnceLock<Option<BodyOut>>>,
     check: Vec<OnceLock<Option<CheckOut>>>,
     /// Per module, in a test run: the checked `tests:` blocks (a miss).
@@ -704,6 +713,7 @@ fn build_packages_inner(
         prep: (0..n).map(|_| OnceLock::new()).collect(),
         template_mods: (0..n).map(|_| OnceLock::new()).collect(),
         folder_templates: (0..nf).map(|_| OnceLock::new()).collect(),
+        tuple_plans: Mutex::default(),
         body: (0..n).map(|_| OnceLock::new()).collect(),
         check: (0..n).map(|_| OnceLock::new()).collect(),
         tests: (0..n).map(|_| OnceLock::new()).collect(),
@@ -1765,6 +1775,7 @@ impl Run<'_> {
             extra: &extra,
             arity: &arity,
             hidden: &[],
+            plans: Some(self),
         };
         let cx = hd_check::header::HeaderCx {
             names,
@@ -1956,18 +1967,18 @@ impl Run<'_> {
     /// interface carries yet (spec 14 `annot.limit.interfaces`), so a
     /// template edit must reach the key of every module that opts in. A
     /// module whose text names neither `derive` nor `Structure` opts in
-    /// nowhere. std's sources are in the toolchain key already.
+    /// nowhere, but any module may use a tuple template, whose member
+    /// steps come from its body (trait-solver.md §3.9). std's sources are
+    /// in the toolchain key already.
     fn template_sources(&self, m: usize) -> Option<Vec<(String, Hash128)>> {
         let text = &self.texts[m];
-        if !text.contains("derive") && !text.contains("Structure") {
-            return Some(Vec::new());
-        }
+        let opts_in = text.contains("derive") || text.contains("Structure");
         let mut out = std::collections::BTreeMap::new();
         for c in self.closure(self.table.modules[m].folder) {
             let iface = self.iface_of(c)?;
             let paths = self.folder_templates[c.idx()].get_or_init(|| {
                 let names = self.names();
-                let mut ps: Vec<String> = iface
+                let mut ps: Vec<(String, bool)> = iface
                     .items
                     .iter()
                     .filter(|it| {
@@ -1980,14 +1991,26 @@ impl Run<'_> {
                             }
                         )
                     })
-                    .map(|it| names.module_of(it.def))
-                    .filter(|p| !p.starts_with("std."))
+                    .map(|it| {
+                        let tuple = matches!(
+                            it.data,
+                            ItemData::Impl {
+                                kind: hd_resolve::ImplKind::TupleTemplate,
+                                ..
+                            }
+                        );
+                        (names.module_of(it.def), tuple)
+                    })
+                    .filter(|(p, _)| !p.starts_with("std."))
                     .collect();
                 ps.sort();
                 ps.dedup();
                 ps
             });
-            for p in paths {
+            for (p, tuple) in paths {
+                if !opts_in && !tuple {
+                    continue;
+                }
                 if let Some(tm) = self.table.module(p) {
                     out.insert(format!("template {p}"), self.skim_of(tm.idx()).token_hash);
                 }
@@ -2179,6 +2202,7 @@ impl Run<'_> {
             extra: &extra,
             arity: &arity,
             hidden: &[],
+            plans: Some(self),
         };
         let src = self.src(m);
         // A test run checks the `tests:` block's items with the module's
@@ -2832,6 +2856,7 @@ impl Run<'_> {
                 extra: &extra,
                 arity: &arity,
                 hidden: &[],
+                plans: Some(self),
             };
             let src = self.src(tm);
             let theads = hd_resolve::heads(&names, &src, &self.table.modules[tm].path, false);
@@ -2889,6 +2914,89 @@ impl Run<'_> {
             }
         }
         derived
+    }
+
+    /// A tuple template's member steps (trait-solver.md §3.9): its
+    /// methods checked once in its own module, with `T` its parameter,
+    /// and the bounds of each walker, describer or source a `walk`,
+    /// `describe` or `build` call there chose. That check sees no tuple
+    /// template's plan and keeps a memo of its own, so it never asks the
+    /// plan it computes and none of its answers reach the run's memo. A
+    /// template whose body has an error, which its module reports, has no
+    /// plan.
+    fn compute_tuple_plan(&self, template: DefId) -> Option<Arc<[MemberStep]>> {
+        let names = self.names();
+        let tm = self.table.module(&names.module_of(template))?.idx();
+        let tmod = self.template_mods[tm]
+            .get_or_init(|| {
+                self.lower_module(tm, Stage::Body, &mut DiagBuf::default())
+                    .ok()
+                    .flatten()
+            })
+            .as_ref()?;
+        let closure = self.closure(self.table.modules[tm].folder);
+        let ifaces: Vec<Arc<FolderIface>> =
+            closure.iter().filter_map(|f| self.iface_of(*f)).collect();
+        let lookup = Lookup::new(&tmod.items, ifaces.iter().map(AsRef::as_ref).collect());
+        let own_impls: Vec<&Item> = tmod
+            .items
+            .iter()
+            .filter(|i| matches!(i.data, ItemData::Impl { .. }))
+            .collect();
+        let own_table = hd_resolve::impl_table(&names, &own_impls);
+        let (folders, universe, extra) = self.closure_impls(&closure);
+        let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
+        let view = ImplView {
+            paths: &self.paths,
+            owners: self.owners(),
+            own: Some(&own_table),
+            folders: &folders,
+            universe,
+            extra: &extra,
+            arity: &arity,
+            hidden: &[],
+            plans: None,
+        };
+        let memo = GlobalMemo::default();
+        let src = self.src(tm);
+        let theads = hd_resolve::heads(&names, &src, &self.table.modules[tm].path, false);
+        let tlocals = hd_resolve::local_items(&theads);
+        let tcx = BodyCx {
+            names,
+            src,
+            scope: &tmod.scope,
+            lookup: &lookup,
+            impls: &view,
+            global: &memo,
+            solver: &TableSolver,
+            methods: std::cell::OnceCell::new(),
+            init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
+            results: std::cell::RefCell::default(),
+            locals: &tlocals,
+            tests: None,
+            file_name: &self.table.files[tm],
+        };
+        let ItemData::Impl { methods, .. } = &lookup.item(template)?.data else {
+            return None;
+        };
+        let bodies = hd_resolve::body_nodes(&names, &tcx.src, &theads);
+        let sink = std::cell::RefCell::new(Vec::new());
+        for (_, d) in methods {
+            let Some(&(def, node)) = bodies.iter().find(|b| b.0 == *d) else {
+                continue;
+            };
+            let mut scratch = DiagBuf::default();
+            hd_check::body::check_tuple_template_method(&tcx, def, node, &mut scratch, &sink)
+                .ok()?;
+            if scratch.has_errors() {
+                return None;
+            }
+        }
+        let mut steps = sink.into_inner();
+        // Two calls through one walker ask the same of each member.
+        let mut seen = std::collections::HashSet::new();
+        steps.retain(|s| seen.insert(s.clone()));
+        Some(Arc::from(steps))
     }
 
     /// Checks opt-ins whose template module `tcx` sees: each checks the
@@ -3209,6 +3317,7 @@ impl Run<'_> {
             extra: &p.extra,
             arity,
             hidden: &[],
+            plans: Some(self),
         }
     }
 
@@ -3901,6 +4010,14 @@ impl Run<'_> {
         };
         self.put(EntryKind::Link, c.prog_key, &[&wasm]);
         let _ = self.wasm.set(wasm);
+    }
+}
+
+impl TuplePlans for Run<'_> {
+    fn tuple_plan(&self, template: DefId) -> Option<Arc<[MemberStep]>> {
+        let cell = Arc::clone(lock(&self.tuple_plans).entry(template).or_default());
+        cell.get_or_init(|| self.compute_tuple_plan(template))
+            .clone()
     }
 }
 

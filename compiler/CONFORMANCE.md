@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2597 | 224 | 24 | 2845 |
+| 2600 | 221 | 24 | 2845 |
 
 ## By Chapter
 
@@ -17,8 +17,8 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
 | `lang/02-grammar.md` | 205 | 10 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 100 | 1 | 0 | 101 |
-| `lang/04-type-system.md` | 320 | 32 | 0 | 352 |
-| `lang/05-expressions.md` | 257 | 20 | 0 | 277 |
+| `lang/04-type-system.md` | 321 | 31 | 0 | 352 |
+| `lang/05-expressions.md` | 258 | 19 | 0 | 277 |
 | `lang/06-control-flow.md` | 139 | 14 | 4 | 157 |
 | `lang/07-functions.md` | 119 | 11 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 113 | 9 | 1 | 123 |
@@ -42,7 +42,7 @@ fixture; unsupported surface records progress without failing.
 | `std/json.md` | 19 | 0 | 0 | 19 |
 | `std/net.md` | 1 | 0 | 0 | 1 |
 | `std/num.md` | 16 | 2 | 0 | 18 |
-| `std/ops.md` | 11 | 1 | 1 | 13 |
+| `std/ops.md` | 12 | 0 | 1 | 13 |
 | `std/option.md` | 3 | 0 | 0 | 3 |
 | `std/path.md` | 2 | 0 | 0 | 2 |
 | `std/process.md` | 3 | 0 | 0 | 3 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 97 | 5 | 3 | 105 |
 | `runtime/valid` | 899 | 11 | 19 | 929 |
-| `typing/invalid` | 895 | 179 | 1 | 1075 |
+| `typing/invalid` | 898 | 176 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -91,7 +91,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 92 |
+| `fail:no-diagnostic` | 89 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
@@ -234,9 +234,8 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (92)</summary>
+<details><summary><code>fail:no-diagnostic</code> (89)</summary>
 
-- `typing/invalid/tuple-map-key.hd`
 - `typing/invalid/private-type-leak.hd`
 - `typing/invalid/private-type-embedded-in-public-data.hd`
 - `typing/warnings/unreachable-code.hd`
@@ -282,8 +281,6 @@ compiler stage that first declined the case.
 - `typing/invalid/function-type-rest-not-list.hd`
 - `typing/invalid/vararg-type-not-collection.hd`
 - `typing/invalid/race-no-tasks.hd`
-- `typing/invalid/display-tuple-element-without-display.hd`
-- `typing/invalid/default-tuple-element-without-default.hd`
 - `typing/invalid/typed-fact-mismatch.hd`
 - `typing/invalid/typed-fact-expected-mismatch.hd`
 - `typing/invalid/tuple-template-overlap.hd`
@@ -2036,6 +2033,7 @@ typing/invalid/decorator-target-member-line.hd
 typing/invalid/decorator-target-newtype.hd
 typing/invalid/default-body-inherent-method.hd
 typing/invalid/default-names-later-beside-forward-bound.hd
+typing/invalid/default-tuple-element-without-default.hd
 typing/invalid/defer-bang-call-cold-twin.hd
 typing/invalid/defer-propagate-query-suspending.hd
 typing/invalid/defer-propagate-query.hd
@@ -2066,6 +2064,7 @@ typing/invalid/diamond-same-depth-conflict.hd
 typing/invalid/discarded-optional-result.hd
 typing/invalid/discarded-result.hd
 typing/invalid/discarded-suspension.hd
+typing/invalid/display-tuple-element-without-display.hd
 typing/invalid/distinct-traits-not-overloads.hd
 typing/invalid/downcast-mut-readonly-value.hd
 typing/invalid/downcast-result-readonly.hd
@@ -2708,6 +2707,7 @@ typing/invalid/tuple-bound-non-tuple.hd
 typing/invalid/tuple-element-assignment.hd
 typing/invalid/tuple-identity.hd
 typing/invalid/tuple-inherent-impl.hd
+typing/invalid/tuple-map-key.hd
 typing/invalid/tuple-no-inherent-member.hd
 typing/invalid/tuple-option-parameter-bare-trait.hd
 typing/invalid/tuple-rest-assign.hd

@@ -10,7 +10,7 @@ use hd_base::{DefId, FolderId, ModuleId, PathId};
 use hd_intern::{PathKind, PathTable};
 
 use crate::pool::{Ty, TyData, Types};
-use crate::solver::{HeadKey, ImplRef, ImplTable, ImplUniverseId};
+use crate::solver::{HeadKey, ImplRef, ImplTable, ImplUniverseId, MemberStep, TuplePlans};
 
 /// The table id of the asking module's own impls. Its rows sit in its
 /// folder's table too; this table is read first, as before owner lookup.
@@ -278,6 +278,10 @@ pub struct ImplView<'a> {
     /// to hidden module items"). They stay rows of their tables, so a
     /// probe that meets one is never answered from the run's memo.
     pub hidden: &'a [DefId],
+    /// The member steps of the tuple templates (trait-solver.md §3.9).
+    /// `None` only where a tuple template's own plan is computed, under a
+    /// memo of its own.
+    pub plans: Option<&'a dyn TuplePlans>,
 }
 
 impl<'a> ImplView<'a> {
@@ -293,6 +297,7 @@ impl<'a> ImplView<'a> {
             extra: self.extra,
             arity: self.arity,
             hidden,
+            plans: self.plans,
         }
     }
 }
@@ -326,6 +331,16 @@ impl<'a> Impls<'a> {
                 .copied()
                 .flatten()
                 .map(|f| &f.table),
+        }
+    }
+
+    /// The member steps of a tuple template's plan (§3.9), when this
+    /// context has them.
+    #[must_use]
+    pub fn tuple_plan(self, template: DefId) -> Option<std::sync::Arc<[MemberStep]>> {
+        match self {
+            Impls::All(_) => None,
+            Impls::Owned(v) => v.plans.and_then(|p| p.tuple_plan(template)),
         }
     }
 

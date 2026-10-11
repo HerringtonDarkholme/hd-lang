@@ -520,7 +520,8 @@ fn seen(cx: &BodyCx<'_>, def: DefId, force: bool) -> Option<Seen> {
         row: omits.row,
     };
     // A body that stops with "not implemented" has the empty row.
-    let (checked, ret, facts) = match check_fn_body(cx, def, node, &mut diags, None, infer) {
+    let (checked, ret, facts) = match check_fn_body(cx, def, node, &mut diags, (None, None), infer)
+    {
         Ok((b, t, f)) => (Ok(b), t, f),
         Err(e) => (Err(e), Ty::POISON, RowFacts::default()),
     };

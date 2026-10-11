@@ -9,7 +9,9 @@ use hd_diag::{Code, DiagMark};
 use hd_resolve::FnSig;
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::ir::{ChoiceKind, NONE, Ref, TirCheckpoint, TirSink};
-use hd_types::solver::{Answer, Candidate, Goal, TraitRef, plan_goals};
+use hd_types::solver::{
+    Answer, Candidate, Goal, ImplOrigin, Impls, TraitRef, plan_goals, tuple_goals,
+};
 use hd_types::unify::TrialMark;
 use hd_types::{ParamRef, Ty, TyData, VarKind};
 
@@ -299,7 +301,17 @@ impl Ck<'_, '_> {
             .map(|x| inst(*x))
             .collect();
         let targs: Vec<Ty> = pool.list_items(c.args).iter().map(|x| inst(*x)).collect();
-        let residual: Vec<TraitRef> = plan_goals(pool, table, row, &impl_args)
+        // A tuple template's member steps number on after its bound
+        // plan's, at the receiver's tuple type (trait-solver.md §3.9).
+        let mut goals = plan_goals(pool, table, row, &impl_args);
+        if table.origin[row] == ImplOrigin::TupleTemplate
+            && let Some(steps) = Impls::Owned(self.cx.impls).tuple_plan(impl_def)
+        {
+            let first = u16::try_from(table.plan[row].len()).unwrap_or(u16::MAX);
+            let tuple = self.strip_mut(self_ty);
+            goals.extend(tuple_goals(pool, impl_def, &steps, tuple, first));
+        }
+        let residual: Vec<TraitRef> = goals
             .into_iter()
             .filter(|(i, _)| c.residual.contains(i))
             .map(|(_, g)| g)

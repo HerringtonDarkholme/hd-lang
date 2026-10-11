@@ -264,6 +264,121 @@ pub enum PlanStep {
     },
 }
 
+/// The member placeholder of a tuple template's member steps: the
+/// parameter of the template at this index stands for the member that a
+/// step asks about. The template's `T`, its parameter 0, stands for the
+/// tuple.
+pub const MEMBER_PARAM: u16 = u16::MAX;
+
+/// Which members of a tuple a member step asks about
+/// (`annot.walker.obligation`, `annot.walker.obligation.rest`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum MemberOn {
+    /// Every element before a rest element.
+    Elements,
+    /// A rest element `List[I]...`, through its item type `I`: the walker
+    /// implements `rest`, and the bound is `rest`'s.
+    RestItem,
+    /// A rest element `List[I]...`, as its `List[I]` member: the walker,
+    /// describer or source does not implement `rest`, and the bound is
+    /// `member`'s.
+    RestList,
+}
+
+/// One member step of a tuple template's bound plan (§3.9): the
+/// strengthened bound of the walker, describer or source the template
+/// passes, over the template's `T` and [`MEMBER_PARAM`].
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct MemberStep {
+    pub on: MemberOn,
+    pub trait_: DefId,
+    pub args: TyList,
+}
+
+/// The member steps of tuple templates, computed once per template from
+/// its body and the walker bounds it names (`annot.limit.interfaces`).
+/// `None` when a context has no plan for the template: its member steps
+/// are then not asked.
+pub trait TuplePlans {
+    fn tuple_plan(&self, template: DefId) -> Option<Arc<[MemberStep]>>;
+}
+
+/// The member goals of a tuple template's plan at the tuple `tuple`, each
+/// with its step index, numbered from `first` in the order the steps and
+/// the members come (§3.9). A tuple type that is not a tuple asks none.
+#[must_use]
+pub fn tuple_goals(
+    pool: Types<'_>,
+    template: DefId,
+    steps: &[MemberStep],
+    tuple: Ty,
+    first: u16,
+) -> Vec<(u16, TraitRef)> {
+    let TyData::Tuple { elems, rest } = pool.get(tuple) else {
+        return Vec::new();
+    };
+    let elems = pool.list_items(elems);
+    // The item type of a rest element `List[I]`.
+    let item = rest.and_then(|r| match pool.get(r) {
+        TyData::Adt { args, .. } => match pool.list_items(args) {
+            [i] => Some(*i),
+            _ => None,
+        },
+        _ => None,
+    });
+    let mut out = Vec::new();
+    let ask = |member: Ty, step: &MemberStep, out: &mut Vec<(u16, TraitRef)>| {
+        let args = pool.list(
+            &pool
+                .list_items(step.args)
+                .iter()
+                .map(|a| {
+                    pool.subst(*a, &|p: ParamRef| {
+                        if p.owner != template {
+                            None
+                        } else if p.index == MEMBER_PARAM {
+                            Some(member)
+                        } else if p.index == 0 {
+                            Some(tuple)
+                        } else {
+                            None
+                        }
+                    })
+                })
+                .collect::<Vec<_>>(),
+        );
+        let at = first.saturating_add(u16::try_from(out.len()).unwrap_or(u16::MAX));
+        out.push((
+            at,
+            TraitRef {
+                trait_: step.trait_,
+                self_ty: member,
+                args,
+            },
+        ));
+    };
+    for step in steps {
+        match step.on {
+            MemberOn::Elements => {
+                for e in elems {
+                    ask(*e, step, &mut out);
+                }
+            }
+            MemberOn::RestItem => {
+                if let Some(i) = item {
+                    ask(i, step, &mut out);
+                }
+            }
+            MemberOn::RestList => {
+                if let Some(r) = rest {
+                    ask(r, step, &mut out);
+                }
+            }
+        }
+    }
+    out
+}
+
 /// Fills the impl parameters that `Bind` steps fix from the projections
 /// of parameters the head fixed; a projection that is not concrete yet
 /// leaves its target as it was.
@@ -1382,6 +1497,29 @@ pub fn plan_goals(pool: Types<'_>, t: &ImplTable, row: usize, args: &[Ty]) -> Ve
         .collect()
 }
 
+/// A committed row's goals in plan order (§3.6): the bound plan's, then
+/// for a tuple template, whose one argument is the tuple, its member
+/// steps' (§3.9), when the context has the template's plan. Step indices
+/// go on after the bound plan's.
+#[must_use]
+pub fn row_goals(
+    pool: Types<'_>,
+    impls: Impls<'_>,
+    t: &ImplTable,
+    row: usize,
+    args: &[Ty],
+) -> Vec<(u16, TraitRef)> {
+    let mut goals = plan_goals(pool, t, row, args);
+    if t.origin[row] == ImplOrigin::TupleTemplate
+        && let Some(&tuple) = args.first()
+        && let Some(steps) = impls.tuple_plan(t.def[row])
+    {
+        let first = u16::try_from(t.plan[row].len()).unwrap_or(u16::MAX);
+        goals.extend(tuple_goals(pool, t.def[row], &steps, tuple, first));
+    }
+    goals
+}
+
 /// The impl probes of one frame (§3.2, §7.1): whether it read the
 /// candidate directory or unowned rows, and which `(trait, head key)`
 /// buckets it probed.
@@ -1818,9 +1956,11 @@ impl<'s, 'a> Search<'s, 'a> {
         let heads = u16::try_from(cands.len()).unwrap_or(u16::MAX);
         for (at, t) in cands {
             let r = at.row as usize;
+            // A tuple template's head is every tuple (§3.9); its `T` is
+            // the tuple.
             if t.origin[r] == ImplOrigin::TupleTemplate {
                 if matches!(pool.get(self_ty), TyData::Tuple { .. }) {
-                    yes.push((at, Vec::new(), t));
+                    yes.push((at, vec![self_ty], t));
                 }
                 continue;
             }
@@ -1986,7 +2126,7 @@ impl<'s, 'a> Search<'s, 'a> {
         let pool = self.cx.pool;
         let r = row.row as usize;
         let mut height = 1;
-        for (step, sub) in plan_goals(pool, t, r, &args) {
+        for (step, sub) in row_goals(pool, self.cx.impls, t, r, &args) {
             let o = self.goal(Ask::Implements(sub, false), depth + 1, false, true)?;
             height = height.max(above(o.height));
             match o.answer {
@@ -2252,13 +2392,44 @@ impl Search<'_, '_> {
         for (at, t, fixed) in matched {
             let r = at.row as usize;
             let Some(fixed) = fixed else {
-                out.push(Candidate {
-                    row: at,
-                    n_fresh: 0,
-                    impl_args: TyList::EMPTY,
-                    args: t.head_args[r],
-                    residual: vec![],
-                });
+                // A tuple template at a tuple (§3.9): its member steps
+                // decide, as a fixed parameter's plan steps do below.
+                let first = u16::try_from(t.plan[r].len()).unwrap_or(u16::MAX);
+                let goals = impls
+                    .tuple_plan(t.def[r])
+                    .map(|steps| tuple_goals(pool, t.def[r], &steps, self_ty, first))
+                    .unwrap_or_default();
+                let mut residual = Vec::new();
+                let mut dropped = false;
+                for (i, sub) in goals {
+                    let o = self.goal(Ask::Implements(sub, false), depth + 1, false, true)?;
+                    height = height.max(above(o.height));
+                    match o.answer {
+                        Answer::Holds { .. } => {}
+                        Answer::Fails(_) => {
+                            dropped = true;
+                            break;
+                        }
+                        Answer::Stalled { .. } => residual.push(i),
+                        other => {
+                            let o = Outcome {
+                                answer: other,
+                                height,
+                                cut: o.cut,
+                            };
+                            return Ok((o, heads));
+                        }
+                    }
+                }
+                if !dropped {
+                    out.push(Candidate {
+                        row: at,
+                        n_fresh: 0,
+                        impl_args: TyList::EMPTY,
+                        args: t.head_args[r],
+                        residual,
+                    });
+                }
                 continue;
             };
             let owner = t.def[r];
@@ -2915,6 +3086,7 @@ mod tests {
                 extra: &extra,
                 arity: &arity,
                 hidden: &[],
+                plans: None,
             };
             let local = LocalPool::new();
             let p = Types::with_local(&gp, &local);
@@ -3063,6 +3235,7 @@ mod tests {
                 extra: &extra,
                 arity: &arity,
                 hidden: &[],
+                plans: None,
             };
             let local = LocalPool::new();
             let p = Types::with_local(&gp, &local);
@@ -3224,6 +3397,7 @@ mod tests {
             extra: &extra,
             arity: &arity,
             hidden: &[],
+            plans: None,
         };
         let tref = TraitRef {
             trait_: pick,
@@ -4264,6 +4438,7 @@ mod tests {
             extra: &extra,
             arity: &arity,
             hidden: &[],
+            plans: None,
         };
         let (in_base, in_user) = (view(Some(&own)), view(None));
         let ask = |global: &GlobalMemo, v: &ImplView<'_>, self_ty| {
@@ -4689,5 +4864,333 @@ mod tests {
         );
         let s = TableSolver.select(&mut cx, ConcreteTraitRef(on(3, Ty::I32)));
         assert!(s.is_err(), "i32 is no AnyRef");
+    }
+
+    /// A tuple template's member steps, for the tests below.
+    struct TestPlans(DefId, std::sync::Arc<[super::MemberStep]>);
+
+    impl super::TuplePlans for TestPlans {
+        fn tuple_plan(&self, template: DefId) -> Option<std::sync::Arc<[super::MemberStep]>> {
+            (template == self.0).then(|| std::sync::Arc::clone(&self.1))
+        }
+    }
+
+    /// The paths and owners of the tuple-template tests: `Hash`, `List`,
+    /// the `List` impl and the tuple template, all in folder 0.
+    struct TupleWorld {
+        paths: hd_intern::PathTable,
+        owners: super::OwnerMap,
+        hash: DefId,
+        list: DefId,
+        list_impl: DefId,
+        template: DefId,
+    }
+
+    fn tuple_world() -> TupleWorld {
+        use hd_base::PathId;
+        use hd_intern::{PathKind, PathTable};
+        let paths = PathTable::new();
+        let pkg = paths.intern(PathId::NONE, PathKind::Package, "pkg");
+        let base = paths.intern(pkg, PathKind::Module, "base");
+        let mut owners = super::OwnerMap::default();
+        owners.insert(base, FolderId::from_raw(0));
+        let item = |name: &str| DefId::from_raw(paths.intern(base, PathKind::Item, name).raw());
+        let (hash, list, list_impl, template) = (
+            item("Hash"),
+            item("List"),
+            item("impl List"),
+            item("impl Tuple"),
+        );
+        TupleWorld {
+            paths,
+            owners,
+            hash,
+            list,
+            list_impl,
+            template,
+        }
+    }
+
+    /// Over `w`: row 0 `impl Hash for i32`, row 1 `impl Hash for string`,
+    /// row 2 `impl[T < Hash] Hash for List[T]` and row 3 the tuple
+    /// template `impl[T < Tuple] Hash for T by Structure`, whose walker
+    /// asks `F < Hash` of each element and, through `rest`, of a rest
+    /// element's items (`walks_rest`) or else of its list. Solves `goal`
+    /// under `env` through owner lookup, with the template's plan unless
+    /// `plans` is false.
+    fn tuple_ask(
+        p: Types<'_>,
+        w: &TupleWorld,
+        (walks_rest, plans): (bool, bool),
+        env: &ParamEnv,
+        goal: &Goal,
+    ) -> super::Answer {
+        use super::{FolderImpls, ImplView, Impls, MemberOn, MemberStep, UniverseImpls};
+        let mut t = ImplTable::default();
+        for (i, self_ty) in [Ty::I32, Ty::STRING].into_iter().enumerate() {
+            push_row(
+                &mut t,
+                p,
+                (w.hash, DefId::from_raw(70 + u32::try_from(i).expect("row"))),
+                self_ty,
+                TyList::EMPTY,
+                (0, vec![]),
+            );
+        }
+        push_row(
+            &mut t,
+            p,
+            (w.hash, w.list_impl),
+            adt(p, w.list, &[param(p, w.list_impl, 0)]),
+            TyList::EMPTY,
+            (1, bound(0, w.hash)),
+        );
+        push_row(
+            &mut t,
+            p,
+            (w.hash, w.template),
+            param(p, w.template, 0),
+            TyList::EMPTY,
+            (1, vec![]),
+        );
+        t.head_key[3] = HeadKey::TupleAny;
+        t.origin[3] = ImplOrigin::TupleTemplate;
+        t.index();
+        let fi = FolderImpls::new(FolderId::from_raw(0), t, p, &w.paths, &w.owners);
+        let folders = [Some(&fi)];
+        let extra = UniverseImpls::default();
+        let arity = |_: DefId| 0;
+        let step = |on| MemberStep {
+            on,
+            trait_: w.hash,
+            args: TyList::EMPTY,
+        };
+        let rest = if walks_rest {
+            MemberOn::RestItem
+        } else {
+            MemberOn::RestList
+        };
+        let provider = TestPlans(
+            w.template,
+            std::sync::Arc::from(vec![step(MemberOn::Elements), step(rest)]),
+        );
+        let (universe, _) = ImplUniverses::default().intern(&[]);
+        let view = ImplView {
+            paths: &w.paths,
+            owners: &w.owners,
+            own: None,
+            folders: &folders,
+            universe,
+            extra: &extra,
+            arity: &arity,
+            hidden: &[],
+            plans: plans.then_some(&provider as &dyn super::TuplePlans),
+        };
+        let global = GlobalMemo::default();
+        let mut body = BodyMemo::default();
+        let mut cx = SolveCx {
+            pool: p,
+            env,
+            universe,
+            impls: Impls::Owned(&view),
+            decls: &TestDecls::default(),
+            body_memo: &mut body,
+            global: &global,
+        };
+        TableSolver
+            .solve(&mut cx, goal, &mut Fuel::new(100))
+            .expect("solves")
+    }
+
+    fn tuple(p: Types<'_>, elems: &[Ty], rest: Option<Ty>) -> Ty {
+        p.intern_ty(&TyData::Tuple {
+            elems: p.list(elems),
+            rest,
+        })
+    }
+
+    /// §3.9, `annot.template.tuple.implements` and `.unmet`: a tuple
+    /// implements the trait through its tuple template exactly when every
+    /// element meets the walker's bound, nested tuples through the same
+    /// template; a failing element fails the goal, with the template in
+    /// its chain, and is no error by itself.
+    #[test]
+    fn a_tuple_template_holds_exactly_when_every_element_meets_the_walker_bound() {
+        use super::{Answer, Evidence, FailReason, ImplOrigin};
+        let gp = InternPool::new();
+        let p = gp.types();
+        let w = tuple_world();
+        let hash = w.hash;
+        let f64_ty = p.intern_ty(&TyData::Prim(Prim::F64));
+        let env = ParamEnv::default();
+        let holds = |self_ty| {
+            let goal = implements(TraitRef {
+                trait_: hash,
+                self_ty,
+                args: TyList::EMPTY,
+            });
+            tuple_ask(p, &w, (true, true), &env, &goal)
+        };
+        let pair = tuple(p, &[Ty::I32, Ty::STRING], None);
+        match holds(pair) {
+            Answer::Holds {
+                evidence: Evidence::Impl { row, args },
+                ..
+            } => {
+                assert_eq!(row.row, 3, "the tuple template");
+                assert_eq!(p.list_items(args), [pair], "its `T` is the tuple");
+            }
+            other => panic!("expected the template: {other:?}"),
+        }
+        let unhashable = tuple(p, &[Ty::I32, f64_ty], None);
+        match holds(unhashable) {
+            Answer::Fails(info) => {
+                assert_eq!(info.reason, FailReason::NoImpl);
+                assert_eq!(info.leaf.self_ty, f64_ty, "the element is the leaf");
+                assert_eq!(info.chain.len(), 1);
+                assert_eq!(info.chain[0].origin, ImplOrigin::TupleTemplate);
+            }
+            other => panic!("expected a failure: {other:?}"),
+        }
+        assert!(matches!(
+            holds(tuple(p, &[pair, Ty::I32], None)),
+            Answer::Holds { .. }
+        ));
+        match holds(tuple(p, &[Ty::I32, unhashable], None)) {
+            Answer::Fails(info) => {
+                assert_eq!(info.leaf.self_ty, f64_ty, "the nested element");
+                assert_eq!(info.chain.len(), 2, "both tuples' templates");
+            }
+            other => panic!("expected a failure: {other:?}"),
+        }
+        assert!(matches!(holds(tuple(p, &[], None)), Answer::Holds { .. }));
+    }
+
+    /// `annot.walker.obligation.rest`: a walker that implements `rest`
+    /// asks its bound of a rest element's items; one that does not asks
+    /// `member`'s of the rest element's list.
+    #[test]
+    fn a_rest_element_meets_the_bound_through_its_items_or_its_list() {
+        use super::Answer;
+        let gp = InternPool::new();
+        let p = gp.types();
+        let w = tuple_world();
+        let (hash, list) = (w.hash, w.list);
+        let f64_ty = p.intern_ty(&TyData::Prim(Prim::F64));
+        let env = ParamEnv::default();
+        let ask = |walks_rest, self_ty| {
+            let goal = implements(TraitRef {
+                trait_: hash,
+                self_ty,
+                args: TyList::EMPTY,
+            });
+            tuple_ask(p, &w, (walks_rest, true), &env, &goal)
+        };
+        let ints = tuple(p, &[Ty::I32], Some(adt(p, list, &[Ty::I32])));
+        let floats = tuple(p, &[Ty::I32], Some(adt(p, list, &[f64_ty])));
+        for walks_rest in [true, false] {
+            assert!(matches!(ask(walks_rest, ints), Answer::Holds { .. }));
+            match ask(walks_rest, floats) {
+                Answer::Fails(info) => {
+                    // Through `rest` the item fails at once; through
+                    // `member` the list's impl asks the item one level on.
+                    let chain = if walks_rest { 1 } else { 2 };
+                    assert_eq!(info.leaf.self_ty, f64_ty);
+                    assert_eq!(info.chain.len(), chain);
+                }
+                other => panic!("expected a failure: {other:?}"),
+            }
+        }
+    }
+
+    /// A generic element is answered through the environment: `(T, i32)`
+    /// holds under `T < Hash` and fails without it.
+    #[test]
+    fn a_generic_element_is_answered_through_the_environment() {
+        use super::Answer;
+        let gp = InternPool::new();
+        let p = gp.types();
+        let w = tuple_world();
+        let hash = w.hash;
+        let tp = param(p, DefId::from_raw(99), 0);
+        let goal = implements(TraitRef {
+            trait_: hash,
+            self_ty: tuple(p, &[tp, Ty::I32], None),
+            args: TyList::EMPTY,
+        });
+        let mut bounded = ParamEnv::default();
+        bounded.clause_self.push(tp);
+        bounded.clause_trait.push(hash);
+        bounded.clause_args.push(TyList::EMPTY);
+        bounded.clause_bindings.push(vec![]);
+        bounded.clause_mut.push(false);
+        bounded.clause_origin.push(0);
+        assert!(matches!(
+            tuple_ask(p, &w, (true, true), &bounded, &goal),
+            Answer::Holds { .. }
+        ));
+        assert!(matches!(
+            tuple_ask(p, &w, (true, true), &ParamEnv::default(), &goal),
+            Answer::Fails(_)
+        ));
+    }
+
+    /// `Instantiations` (§6.5) keeps the tuple template as a candidate
+    /// only for a tuple whose elements meet its member steps; a context
+    /// with no plan for the template asks none.
+    #[test]
+    fn instantiations_drop_a_tuple_template_whose_elements_fail() {
+        use super::Answer;
+        let gp = InternPool::new();
+        let p = gp.types();
+        let w = tuple_world();
+        let hash = w.hash;
+        let f64_ty = p.intern_ty(&TyData::Prim(Prim::F64));
+        let env = ParamEnv::default();
+        let cands = |self_ty, plans| {
+            let goal = Goal::Instantiations {
+                self_ty,
+                trait_: hash,
+                mut_: false,
+            };
+            match tuple_ask(p, &w, (true, plans), &env, &goal) {
+                Answer::Candidates(c) => c.len(),
+                Answer::Fails(_) => 0,
+                other => panic!("expected candidates: {other:?}"),
+            }
+        };
+        assert_eq!(cands(tuple(p, &[Ty::I32, Ty::STRING], None), true), 1);
+        assert_eq!(cands(tuple(p, &[Ty::I32, f64_ty], None), true), 0);
+        assert_eq!(cands(tuple(p, &[Ty::I32, f64_ty], None), false), 1);
+    }
+
+    /// `tuple_goals` puts the member for [`super::MEMBER_PARAM`] and the
+    /// tuple for the template's `T` in a step's arguments, and numbers
+    /// the goals on from the bound plan's steps.
+    #[test]
+    fn member_steps_substitute_the_member_and_the_tuple() {
+        use super::{MEMBER_PARAM, MemberOn, MemberStep, tuple_goals};
+        let gp = InternPool::new();
+        let p = gp.types();
+        let (template, tr) = (DefId::from_raw(7), DefId::from_raw(8));
+        let step = MemberStep {
+            on: MemberOn::Elements,
+            trait_: tr,
+            args: p.list(&[param(p, template, MEMBER_PARAM), param(p, template, 0)]),
+        };
+        let pair = tuple(p, &[Ty::I32, Ty::STRING], None);
+        let goals = tuple_goals(p, template, &[step], pair, 1);
+        let got: Vec<(u16, Ty, Vec<Ty>)> = goals
+            .iter()
+            .map(|(i, g)| (*i, g.self_ty, p.list_items(g.args).to_vec()))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                (1, Ty::I32, vec![Ty::I32, pair]),
+                (2, Ty::STRING, vec![Ty::STRING, pair])
+            ]
+        );
+        assert!(tuple_goals(p, template, &[], Ty::I32, 0).is_empty());
     }
 }

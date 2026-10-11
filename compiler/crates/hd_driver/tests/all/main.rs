@@ -99,6 +99,7 @@ mod trials;
 mod try_hint_run;
 mod tuple_rest_run;
 mod tuple_structure;
+mod tuple_template_bounds;
 mod type_name_forms_run;
 mod typeid_of;
 mod vararg_value_run;

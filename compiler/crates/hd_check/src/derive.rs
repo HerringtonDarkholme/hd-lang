@@ -30,7 +30,7 @@ use hd_base::{DefId, StageResult};
 use hd_diag::{Code, DiagBuf};
 use hd_resolve::{Item, ItemData, Lookup, Names};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
-use hd_types::solver::{Answer, Evidence, TraitRef};
+use hd_types::solver::{Answer, Evidence, MEMBER_PARAM, MemberOn, MemberStep, TraitRef};
 use hd_types::{ParamRef, Ty, TyData};
 
 use crate::body::{BodyCx, Ck, check_fn_in};
@@ -434,6 +434,16 @@ pub fn instance(
     Ok((item, body))
 }
 
+/// What a template's `walk`, `describe` or `build` call asks of each
+/// member: the protocol, and the bounds of the chosen implementation's
+/// `member` and `rest` (for a walker that implements `rest`), each with
+/// the method whose own parameter stands for the member.
+struct WalkerBounds {
+    protocol: DefId,
+    member: Vec<(DefId, Ty)>,
+    rest: Option<Vec<(DefId, Ty)>>,
+}
+
 impl<'c> Ck<'_, 'c> {
     /// Enters an opt-in's instance: its parameters' bounds join the
     /// environment, under which the members' obligations are solved.
@@ -461,6 +471,96 @@ impl<'c> Ck<'_, 'c> {
         self.env.key = Some(self.cx.global.env_key(&self.env));
     }
 
+    /// The walker, describer or source implementation that a `walk`,
+    /// `describe` or `build` call of a template body chose
+    /// (`annot.walker.obligation`): its protocol, its `member`'s bounds and,
+    /// for a walker that implements `rest`, `rest`'s, each over the
+    /// implementation's arguments, the template's `T` and the method's own
+    /// parameter. `None` for another call, and for a generic walker, whose
+    /// `member` is the trait's and bounds nothing
+    /// (`annot.walker.generic-member-call`).
+    fn walker_bounds(
+        &mut self,
+        template: DefId,
+        (method, w): (DefId, Ty),
+    ) -> StageResult<Option<WalkerBounds>> {
+        let pool = self.pool();
+        let k = self.cx.names.known;
+        let t = pool.intern_ty(&TyData::Param(ParamRef {
+            owner: template,
+            index: 0,
+        }));
+        let w = self.zonk(w);
+        let w = self.strip_mut(w);
+        let Some(name) = self.cx.lookup.item(method).map(|i| i.name) else {
+            return Ok(None);
+        };
+        let protocol = match self.cx.names.text(name) {
+            "walk" => k.walker,
+            "describe" => k.describer,
+            "build" => k.source,
+            _ => return Ok(None),
+        };
+        let tref = TraitRef {
+            trait_: protocol,
+            self_ty: w,
+            args: pool.list(&[t]),
+        };
+        let Answer::Holds {
+            evidence: Evidence::Impl { row, args },
+            ..
+        } = self.solve(tref)?
+        else {
+            return Ok(None);
+        };
+        let Some(def) = self
+            .cx
+            .impl_table(row.module)
+            .and_then(|tb| tb.def.get(row.row as usize).copied())
+        else {
+            return Ok(None);
+        };
+        let impl_args = pool.list_items(args).to_vec();
+        // A method's bounds on its own first parameter, with the
+        // implementation's parameters replaced by its arguments.
+        let bounds = |m: DefId| -> Option<Vec<(DefId, Ty)>> {
+            let gs = self
+                .cx
+                .lookup
+                .item(m)
+                .and_then(Item::sig)?
+                .generics
+                .first()?
+                .bounds
+                .clone();
+            Some(
+                gs.into_iter()
+                    .map(|b| {
+                        let b = pool.subst(b, &|p: ParamRef| {
+                            (p.owner == def)
+                                .then(|| impl_args.get(usize::from(p.index)).copied())
+                                .flatten()
+                        });
+                        (m, b)
+                    })
+                    .collect(),
+            )
+        };
+        let Some(member) = self.impl_method(def, "member").and_then(bounds) else {
+            return Ok(None);
+        };
+        let rest = if protocol == k.walker {
+            self.impl_method(def, "rest").and_then(bounds)
+        } else {
+            None
+        };
+        Ok(Some(WalkerBounds {
+            protocol,
+            member,
+            rest,
+        }))
+    }
+
     /// The member obligations of the instance's `walk`, `describe` and
     /// `build` calls (`annot.walker.obligation`): each member's type
     /// against the bounds of the `member` of the walker, describer or
@@ -473,69 +573,20 @@ impl<'c> Ck<'_, 'c> {
         let calls = std::mem::take(&mut self.structure_calls);
         let pool = self.pool();
         let k = self.cx.names.known;
-        let t = pool.intern_ty(&TyData::Param(ParamRef {
-            owner: opt.template,
-            index: 0,
-        }));
-        for (method, w) in calls {
-            let w = self.zonk(w);
-            let w = self.strip_mut(w);
-            let Some(name) = self.cx.lookup.item(method).map(|i| i.name) else {
+        for call in calls {
+            let Some(wb) = self.walker_bounds(opt.template, call)? else {
                 continue;
             };
-            let protocol = match self.cx.names.text(name) {
-                "walk" => k.walker,
-                "describe" => k.describer,
-                "build" => k.source,
-                _ => continue,
-            };
-            let tref = TraitRef {
-                trait_: protocol,
-                self_ty: w,
-                args: pool.list(&[t]),
-            };
-            // A generic walker's `member` is the trait's, which bounds
-            // nothing (`annot.walker.generic-member-call`).
-            let Answer::Holds {
-                evidence: Evidence::Impl { row, args },
-                ..
-            } = self.solve(tref)?
-            else {
-                continue;
-            };
-            let Some(def) = self
-                .cx
-                .impl_table(row.module)
-                .and_then(|tb| tb.def.get(row.row as usize).copied())
-            else {
-                continue;
-            };
-            let Some(m) = self.impl_member(def) else {
-                continue;
-            };
-            let Some(bounds) = self
-                .cx
-                .lookup
-                .item(m)
-                .and_then(Item::sig)
-                .and_then(|s| s.generics.first())
-                .map(|g| g.bounds.clone())
-            else {
-                continue;
-            };
-            let impl_args = pool.list_items(args).to_vec();
             // A derived `Default` asks nothing of a member that declares a
             // default (`std-ops.default.derive.member-bound.declared`).
-            let declared_exempt = protocol == k.source && opt.trait_ == k.default;
+            let declared_exempt = wb.protocol == k.source && opt.trait_ == k.default;
             for (i, mem) in opt.members.iter().enumerate() {
                 if declared_exempt && mem.has_default {
                     continue;
                 }
-                for &b in &bounds {
+                for &(m, b) in &wb.member {
                     let b = pool.subst(b, &|p: ParamRef| {
-                        if p.owner == def {
-                            impl_args.get(usize::from(p.index)).copied()
-                        } else if p.owner == m && p.index == 0 {
+                        if p.owner == m && p.index == 0 {
                             Some(mem.ty)
                         } else if p.owner == opt.template && p.index == 0 {
                             Some(opt.target)
@@ -552,14 +603,74 @@ impl<'c> Ck<'_, 'c> {
         Ok(())
     }
 
-    /// The `member` method of a walker, describer or source implementation.
-    fn impl_member(&self, impl_: DefId) -> Option<DefId> {
+    /// A tuple template's member steps (trait-solver.md §3.9): the bounds
+    /// of each walker, describer or source its body passes, on every
+    /// element, and on a rest element by `annot.walker.obligation.rest`.
+    /// The template's `T` stays; the method's parameter becomes
+    /// [`MEMBER_PARAM`].
+    pub(crate) fn tuple_plan_steps(&mut self) -> StageResult<()> {
+        let Some(sink) = self.plan_sink else {
+            return Ok(());
+        };
+        let item = self.b.body_mut().item;
+        let Some(ItemData::Method {
+            owner: template, ..
+        }) = self.cx.lookup.item(item).map(|i| i.data.clone())
+        else {
+            return Ok(());
+        };
+        let calls = std::mem::take(&mut self.structure_calls);
+        let pool = self.pool();
+        let step = |on: MemberOn, (m, b): (DefId, Ty)| {
+            let b = pool.subst(b, &|p: ParamRef| {
+                (p.owner == m && p.index == 0).then(|| {
+                    pool.intern_ty(&TyData::Param(ParamRef {
+                        owner: template,
+                        index: MEMBER_PARAM,
+                    }))
+                })
+            });
+            match pool.get(b) {
+                TyData::TraitValue { def, args, .. } => Some(MemberStep {
+                    on,
+                    trait_: def,
+                    args,
+                }),
+                _ => None,
+            }
+        };
+        let mut out = Vec::new();
+        for call in calls {
+            let Some(wb) = self.walker_bounds(template, call)? else {
+                continue;
+            };
+            out.extend(
+                wb.member
+                    .iter()
+                    .filter_map(|b| step(MemberOn::Elements, *b)),
+            );
+            match &wb.rest {
+                Some(rest) => out.extend(rest.iter().filter_map(|b| step(MemberOn::RestItem, *b))),
+                None => out.extend(
+                    wb.member
+                        .iter()
+                        .filter_map(|b| step(MemberOn::RestList, *b)),
+                ),
+            }
+        }
+        sink.borrow_mut().extend(out);
+        Ok(())
+    }
+
+    /// The method `name` that a walker, describer or source
+    /// implementation writes.
+    fn impl_method(&self, impl_: DefId, name: &str) -> Option<DefId> {
         let ItemData::Impl { methods, .. } = &self.cx.lookup.item(impl_)?.data else {
             return None;
         };
         methods
             .iter()
-            .find(|(n, _)| self.cx.names.text(*n) == "member")
+            .find(|(n, _)| self.cx.names.text(*n) == name)
             .map(|(_, d)| *d)
     }
 
