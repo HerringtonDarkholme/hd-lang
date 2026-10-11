@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2499 | 292 | 54 | 2845 |
+| 2509 | 293 | 43 | 2845 |
 
 ## By Chapter
 
@@ -21,11 +21,11 @@ fixture; unsupported surface records progress without failing.
 | `lang/05-expressions.md` | 245 | 32 | 0 | 277 |
 | `lang/06-control-flow.md` | 138 | 15 | 4 | 157 |
 | `lang/07-functions.md` | 116 | 14 | 0 | 130 |
-| `lang/08-data-and-enums.md` | 94 | 27 | 2 | 123 |
+| `lang/08-data-and-enums.md` | 95 | 27 | 1 | 123 |
 | `lang/09-traits.md` | 319 | 38 | 2 | 359 |
 | `lang/10-modules.md` | 218 | 31 | 9 | 258 |
 | `lang/11-requirements-and-suspension.md` | 206 | 32 | 21 | 259 |
-| `lang/14-annotations.md` | 116 | 30 | 7 | 153 |
+| `lang/14-annotations.md` | 120 | 31 | 2 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
 | `std/collections.md` | 26 | 3 | 0 | 29 |
@@ -39,20 +39,20 @@ fixture; unsupported surface records progress without failing.
 | `std/host.md` | 2 | 0 | 0 | 2 |
 | `std/http.md` | 2 | 0 | 0 | 2 |
 | `std/iter.md` | 23 | 1 | 1 | 25 |
-| `std/json.md` | 18 | 0 | 1 | 19 |
+| `std/json.md` | 19 | 0 | 0 | 19 |
 | `std/net.md` | 1 | 0 | 0 | 1 |
 | `std/num.md` | 16 | 2 | 0 | 18 |
-| `std/ops.md` | 10 | 1 | 2 | 13 |
+| `std/ops.md` | 11 | 1 | 1 | 13 |
 | `std/option.md` | 3 | 0 | 0 | 3 |
 | `std/path.md` | 2 | 0 | 0 | 2 |
 | `std/process.md` | 3 | 0 | 0 | 3 |
 | `std/random.md` | 8 | 0 | 0 | 8 |
 | `std/regex.md` | 13 | 0 | 0 | 13 |
 | `std/result.md` | 5 | 0 | 0 | 5 |
-| `std/serde.md` | 6 | 0 | 2 | 8 |
+| `std/serde.md` | 8 | 0 | 0 | 8 |
 | `std/sys.md` | 1 | 0 | 0 | 1 |
 | `std/task.md` | 7 | 0 | 0 | 7 |
-| `std/testing.md` | 35 | 3 | 1 | 39 |
+| `std/testing.md` | 36 | 3 | 0 | 39 |
 | `std/text.md` | 35 | 0 | 0 | 35 |
 | `std/time.md` | 17 | 0 | 0 | 17 |
 
@@ -62,8 +62,8 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 93 | 8 | 4 | 105 |
-| `runtime/valid` | 864 | 17 | 48 | 929 |
+| `runtime/panic` | 93 | 9 | 3 | 105 |
+| `runtime/valid` | 874 | 17 | 38 | 929 |
 | `typing/invalid` | 839 | 235 | 1 | 1075 |
 | `typing/valid` | 405 | 9 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -101,7 +101,7 @@ compiler stage that first declined the case.
 | `fail:private-main` | 4 |
 | `fail:re-export-loop` | 1 |
 | `fail:readonly-root` | 1 |
-| `fail:runtime-exit` | 4 |
+| `fail:runtime-exit` | 5 |
 | `fail:stdout` | 1 |
 | `fail:suspension-forbidden-context` | 1 |
 | `fail:syntax-error` | 10 |
@@ -118,7 +118,7 @@ compiler stage that first declined the case.
 | `fail:unknown-variant` | 1 |
 | `fail:unused-local-binding` | 6 |
 | `unsupported:Body` | 7 |
-| `unsupported:Collect` | 16 |
+| `unsupported:Collect` | 5 |
 | `unsupported:Link` | 3 |
 | `unsupported:RunCase` | 28 |
 
@@ -438,12 +438,13 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (4)</summary>
+<details><summary><code>fail:runtime-exit</code> (5)</summary>
 
 - `runtime/panic/defer-block-on-indirect.hd`
 - `runtime/panic/list-view-reversed.hd`
 - `runtime/panic/list-view-index-out-of-bounds.hd`
 - `runtime/panic/unbounded-recursion.hd`
+- `runtime/panic/fact-evaluation-panics-on-read.hd`
 
 </details>
 
@@ -636,24 +637,13 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Collect</code> (16)</summary>
+<details><summary><code>unsupported:Collect</code> (5)</summary>
 
-- `runtime/valid/typed-derivation-walk.hd`
-- `runtime/valid/data-variant-facts-empty.hd`
-- `runtime/valid/trait-less-block-facts.hd`
 - `runtime/valid/member-line-list-expression.hd`
 - `runtime/valid/init-group-order.hd`
-- `runtime/valid/derived-arbitrary-with.hd`
-- `runtime/valid/structure-qualified-self.hd`
-- `runtime/valid/derived-default-enum.hd`
 - `runtime/valid/derived-default-declared-no-bound.hd`
 - `runtime/valid/handle-fact-exact-type.hd`
-- `runtime/valid/serde-derive-read-order.hd`
-- `runtime/valid/serde-variant-member-facts.hd`
-- `runtime/valid/json-typed-members.hd`
 - `runtime/valid/init-group-statements-by-identity.hd`
-- `runtime/panic/fact-evaluation-panics-on-read.hd`
-- `runtime/valid/derive-members-of-data-and-enums.hd`
 
 </details>
 
@@ -1217,6 +1207,7 @@ runtime/valid/data-field-shorthand.hd
 runtime/valid/data-fields-named-in-any-order.hd
 runtime/valid/data-literal-evaluation-order.hd
 runtime/valid/data-patterns.hd
+runtime/valid/data-variant-facts-empty.hd
 runtime/valid/data-visibility-across-packages.hd
 runtime/valid/dbg-prints-void.hd
 runtime/valid/dbg-without-requirement.hd
@@ -1240,12 +1231,15 @@ runtime/valid/definite-init-diverging-branch.hd
 runtime/valid/delegation-associated-function-written.hd
 runtime/valid/depth-two-promotion.hd
 runtime/valid/deque-ends.hd
+runtime/valid/derive-members-of-data-and-enums.hd
 runtime/valid/derived-arbitrary-no-finite-data.hd
 runtime/valid/derived-arbitrary-no-finite-value.hd
 runtime/valid/derived-arbitrary-recursive-members.hd
+runtime/valid/derived-arbitrary-with.hd
 runtime/valid/derived-debug-newtype.hd
 runtime/valid/derived-default-data.hd
 runtime/valid/derived-default-declared.hd
+runtime/valid/derived-default-enum.hd
 runtime/valid/derived-eq-every-member.hd
 runtime/valid/derived-equality-generic.hd
 runtime/valid/derived-equality-members.hd
@@ -1459,6 +1453,7 @@ runtime/valid/json-serde-private-round-trip.hd
 runtime/valid/json-suite.hd
 runtime/valid/json-typed-enum.hd
 runtime/valid/json-typed-errors.hd
+runtime/valid/json-typed-members.hd
 runtime/valid/json-typed-missing-key-ignores-default.hd
 runtime/valid/json-typed-optional.hd
 runtime/valid/json-typed-primitives.hd
@@ -1765,8 +1760,10 @@ runtime/valid/seeded-random.hd
 runtime/valid/self-interpolation.hd
 runtime/valid/sequential-suspending-calls.hd
 runtime/valid/serde-derive-call-order.hd
+runtime/valid/serde-derive-read-order.hd
 runtime/valid/serde-std-reads.hd
 runtime/valid/serde-std-writes.hd
+runtime/valid/serde-variant-member-facts.hd
 runtime/valid/serde-writer-first-error.hd
 runtime/valid/set-basics.hd
 runtime/valid/shared-enum-data-defaults.hd
@@ -1818,6 +1815,7 @@ runtime/valid/strings-and-comments-hide-keywords-and-operators.hd
 runtime/valid/structural-equality.hd
 runtime/valid/structural-ordering.hd
 runtime/valid/structure-name.hd
+runtime/valid/structure-qualified-self.hd
 runtime/valid/structure-self-ref-enum.hd
 runtime/valid/structure-self-ref-omitted.hd
 runtime/valid/structure-self-ref-type-arguments.hd
@@ -1888,6 +1886,7 @@ runtime/valid/trait-default-method-overridden.hd
 runtime/valid/trait-delegation-as-written.hd
 runtime/valid/trait-delegation-forwards.hd
 runtime/valid/trait-delegation-vararg.hd
+runtime/valid/trait-less-block-facts.hd
 runtime/valid/trait-qualified-associated-and-named-calls.hd
 runtime/valid/trait-qualified-calls.hd
 runtime/valid/trait-value-as-provider.hd
@@ -1919,6 +1918,7 @@ runtime/valid/type-declaration-forms.hd
 runtime/valid/type-expression-forms.hd
 runtime/valid/typed-derivation-build-defaults.hd
 runtime/valid/typed-derivation-embedded-generic-walk.hd
+runtime/valid/typed-derivation-walk.hd
 runtime/valid/typeid-mut-names.hd
 runtime/valid/typeid-nested-mut-trait-argument.hd
 runtime/valid/typeid-of-equality.hd
