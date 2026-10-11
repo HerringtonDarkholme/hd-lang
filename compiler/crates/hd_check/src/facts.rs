@@ -19,7 +19,7 @@ use hd_base::{DefId, StageResult};
 use hd_diag::{Code, DiagBuf};
 use hd_intern::PathKind;
 use hd_resolve::ItemData;
-use hd_resolve::facts::{fact_lines, never_a_list};
+use hd_resolve::facts::fact_lines;
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::Body;
 use hd_tir::ir::{BodyKind, Coercion, NONE, Ref, Tag, TirSink};
@@ -28,6 +28,7 @@ use hd_types::{ParamRef, RowId, Ty, TyData, TyList, VarKind};
 
 use crate::body::{BodyCx, Ck, new_ck, unsupported};
 use crate::call::{Args, subst_owner};
+use crate::structure::FactLines;
 use crate::ty::Named;
 
 /// `Facts` and the type of its `items`.
@@ -205,169 +206,63 @@ pub fn check_fact_list(
     Ok(body)
 }
 
-/// `annot.fact.block-on.direct`, `annot.metadata.eval-as-fact`: the fact
-/// and metadata expressions of the declaration `node` and its members
-/// (`owner`) may not call `block_on` or `println` directly. Only the
-/// expressions' own source is read (`req.drive.block-on.direct.syntax`).
-/// A typed fact on a member, by decorator or member line, is checked
-/// against the member's type instead (`annot.typed-fact.check`), which
-/// reports such a call as part of its value.
+/// Checks every fact and metadata expression written on the declaration
+/// `node` of `owner` and on its members, at check time, though nothing
+/// reads them (`annot.metadata.eval-as-fact`, `annot.fact.eval.unread`,
+/// `cli.build.facts-at-run-time`): its decorators, the decorators of its
+/// variants, members, parameters and methods, and the elements and list
+/// expressions of the member lines of a derivation block. Nothing is
+/// evaluated; each expression is type-checked as the code of `owner`'s
+/// module, in the same bodies that a `Structure` builds its facts from, so
+/// that the same errors are reported here once and dropped there. This
+/// includes the block-on ban (`annot.fact.block-on.direct`) and a typed
+/// fact against its member's type (`annot.typed-fact.check`). The
+/// decorators of a module-level function are its facts body, which
+/// [`check_facts`] checks.
 pub fn check_decl_facts(cx: &BodyCx<'_>, owner: DefId, node: NodeRef<'_>, diags: &mut DiagBuf) {
-    check_line_lists(cx, owner, node, diags);
-    let typed = typed_sites(cx, owner, node);
-    let lines: Vec<NodeRef<'_>> = std::iter::once(node)
-        .chain(node.descendants())
-        .flat_map(|d| fact_lines(&cx.src, d))
-        .filter(|e| !typed.iter().any(|(t, ..)| t.index() == e.index()))
-        .collect();
-    for &(e, target, single) in &typed {
-        check_typed_site(cx, owner, (e, single), target, diags);
-    }
-    if lines.is_empty() {
-        return;
-    }
-    let def = cx.names.member(owner, PathKind::Hidden, "facts");
-    let local = hd_types::LocalPool::new();
-    let mut ck = new_ck(
-        cx,
-        &local,
-        owner,
-        def,
-        BodyKind::Default,
-        (Ty::VOID, RowId::EMPTY),
-        diags,
-    );
-    for e in lines {
-        ck.move_to(cx.src.span(e).lo);
-        ck.forbidden_calls(e);
-    }
-}
-
-/// The attach-time check of the lists of facts that the member lines of the
-/// derivation block `node` of `owner` write as expressions: a right side
-/// that is not a list literal, and the operand of a spread in one
-/// (`annot.line.right-typed`, `annot.line.typed`,
-/// `annot.line.right.not-list`). Each is checked once, in a body of its own
-/// that nothing calls. A right side whose form never has a list type is
-/// already an `invalid-member-line` error from syntax.
-fn check_line_lists(cx: &BodyCx<'_>, owner: DefId, node: NodeRef<'_>, diags: &mut DiagBuf) {
-    if !matches!(
-        cx.lookup.item(owner).map(|i| &i.data),
-        Some(ItemData::Impl { by: Some(_), .. })
-    ) {
-        return;
-    }
-    let mut lists = Vec::new();
-    for line in crate::derive::member_lines(&cx.src, node) {
-        let Some(list) = line.list else { continue };
-        if list.kind() != SyntaxKind::ListExpr {
-            if !never_a_list(list.kind()) {
-                lists.push((list, Code::InvalidMemberLine));
+    let data = cx.lookup.item(owner).map(|i| &i.data);
+    let is_fn = matches!(data, Some(ItemData::Fn(_)));
+    let lines = match (cx.lookup.item(owner), data) {
+        (Some(item), Some(ItemData::Data(_) | ItemData::Enum { .. })) => {
+            crate::structure::declaration_facts(cx, item, node, None)
+        }
+        (_, Some(ItemData::Impl { by: Some(_), .. })) => {
+            crate::structure::block_facts(cx, owner, node).unwrap_or_default()
+        }
+        _ => FactLines::default(),
+    };
+    // The decorators no slot holds: the declaration's own for a block,
+    // trait, newtype or function (whose own are in its facts body), and
+    // those of methods and parameters.
+    let mut held = Vec::new();
+    for (_, sources) in lines.slots() {
+        for source in sources {
+            if let FactSource::Value(e) = *source {
+                held.push(e.index());
             }
-            continue;
-        }
-        for spread in list
-            .children()
-            .filter(|e| e.kind() == SyntaxKind::SpreadExpr)
-        {
-            lists.extend(spread.children().next().map(|e| (e, Code::TypeMismatch)));
         }
     }
-    if lists.is_empty() {
-        return;
-    }
-    let Ok((_, items_ty)) = facts_types(cx) else {
-        return;
-    };
-    let def = cx.names.member(owner, PathKind::Hidden, "line list");
-    let local = hd_types::LocalPool::new();
-    let mut ck = new_ck(
-        cx,
-        &local,
-        owner,
-        def,
-        BodyKind::Default,
-        (Ty::VOID, RowId::EMPTY),
-        diags,
-    );
-    let blk = ck.b.open_block();
-    for (e, not_list) in lists {
-        ck.move_to(cx.src.span(e).lo);
-        if ck.fact_list(e, not_list, items_ty).is_err() {
-            return;
-        }
-    }
-    let root = ck.b.close_block(blk, None, Ty::VOID, node.index());
-    let _ = ck.finish_body(root);
-}
-
-/// The typed facts among the fact expressions that attach to a member of
-/// the declaration `node` of `owner`, with the member's type.
-fn typed_sites<'t>(
-    cx: &BodyCx<'t>,
-    owner: DefId,
-    node: NodeRef<'t>,
-) -> Vec<(NodeRef<'t>, Ty, bool)> {
-    let sites = crate::structure::member_fact_sites(cx, owner, node);
-    if sites.is_empty() {
-        return sites;
-    }
-    let def = cx.names.member(owner, PathKind::Hidden, "facts");
-    let local = hd_types::LocalPool::new();
-    let mut scratch = DiagBuf::default();
-    let mut ck = new_ck(
-        cx,
-        &local,
-        owner,
-        def,
-        BodyKind::Default,
-        (Ty::VOID, RowId::EMPTY),
-        &mut scratch,
-    );
-    sites
+    let mut places = Vec::new();
+    crate::dupfacts::decorated(node, &mut places);
+    let rest: Vec<FactSource<'_>> = places
         .into_iter()
-        .filter(|(e, ..)| {
-            ck.move_to(cx.src.span(*e).lo);
-            ck.typed_fact_type(*e).is_some()
-        })
-        .collect()
-}
-
-/// The attach-time check of the one typed fact `e`, a decorator (`single`)
-/// or a member-line element of `owner`, against the member type `target`,
-/// in a body of its own that nothing calls
-/// (`annot.typed-fact.check.reported`). A part not generated yet leaves
-/// the value unchecked here.
-fn check_typed_site(
-    cx: &BodyCx<'_>,
-    owner: DefId,
-    (e, single): (NodeRef<'_>, bool),
-    target: Ty,
-    diags: &mut DiagBuf,
-) {
-    let def = cx.names.member(owner, PathKind::Hidden, "typed fact");
-    let local = hd_types::LocalPool::new();
-    let mut ck = new_ck(
-        cx,
-        &local,
-        owner,
-        def,
-        BodyKind::Default,
-        (Ty::VOID, RowId::EMPTY),
-        diags,
-    );
-    let blk = ck.b.open_block();
-    ck.move_to(cx.src.span(e).lo);
-    let Some(fact) = ck.typed_fact_type(e) else {
-        return;
-    };
-    // Nothing follows an error the check reported, nor a part not
-    // generated yet.
-    if !matches!(ck.typed_fact(fact, e, target, single), Ok(Some(_))) {
-        return;
+        .filter(|p| !(is_fn && p.index() == node.index()))
+        .flat_map(|p| fact_lines(&cx.src, p))
+        .filter(|e| !held.contains(&e.index()))
+        .map(FactSource::Value)
+        .collect();
+    let def = cx.names.member(owner, PathKind::Hidden, "facts");
+    let slots = lines.slots();
+    let groups = slots
+        .iter()
+        .map(|(slot, sources)| (lines.target(*slot), *sources))
+        .chain(std::iter::once((FactTarget::Other, rest.as_slice())));
+    for (target, sources) in groups {
+        if !sources.is_empty() {
+            // A fact the checker cannot type yet leaves its list unchecked.
+            let _ = check_fact_list(cx, (owner, def), sources, (target, ""), node, diags);
+        }
     }
-    let root = ck.b.close_block(blk, None, Ty::VOID, e.index());
-    let _ = ck.finish_body(root);
 }
 
 impl Ck<'_, '_> {
@@ -415,34 +310,6 @@ impl Ck<'_, '_> {
             items_ty,
             e.index(),
         )))
-    }
-
-    /// Reports each call of `block_on` or `println` written directly in
-    /// the expression `e`, not inside a closure or local function.
-    fn forbidden_calls(&mut self, e: NodeRef<'_>) {
-        if matches!(e.kind(), SyntaxKind::ClosureExpr | SyntaxKind::FnDecl) {
-            return;
-        }
-        if e.kind() == SyntaxKind::CallExpr
-            && let Some(callee) = e.children().next()
-        {
-            let callee = match callee.kind() {
-                SyntaxKind::TypeArgsExpr => callee.children().next(),
-                _ => Some(callee),
-            };
-            if let Some(c) = callee.filter(|c| c.kind() == SyntaxKind::NameExpr) {
-                let segs = self.segments_expr(c);
-                if let Some(def) = self.resolve_path(&segs)
-                    && let Some(item) = self.cx.lookup.item(def)
-                {
-                    let name = self.cx.names.text(item.name).to_owned();
-                    self.check_forbidden_call(def, &name, e);
-                }
-            }
-        }
-        for c in e.children() {
-            self.forbidden_calls(c);
-        }
     }
 
     /// The typed fact type of the value that the decorator line or

@@ -85,7 +85,7 @@ fn report_repeats(
 /// The nodes of the declaration `n` that decorators may precede: itself,
 /// its members, variants, parameters and methods, but not the code inside
 /// a function body, whose local declarations are heads of their own.
-fn decorated<'t>(n: NodeRef<'t>, out: &mut Vec<NodeRef<'t>>) {
+pub(crate) fn decorated<'t>(n: NodeRef<'t>, out: &mut Vec<NodeRef<'t>>) {
     if n.children().any(|c| c.kind() == SyntaxKind::Decorator) {
         out.push(n);
     }

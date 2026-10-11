@@ -287,6 +287,55 @@ pub fn declaration_facts<'t>(
     out
 }
 
+/// The facts that the member lines of the derivation block `node`, the
+/// implementation `owner`, write by themselves: its target's slots with no
+/// declaration facts, then its lines, in `owner`'s scope. A line whose
+/// right side never has a list type is left out, as its form is already an
+/// error. `None` when `owner` is not a derivation block of a data type or
+/// enum.
+#[must_use]
+pub fn block_facts<'t>(cx: &BodyCx<'t>, owner: DefId, node: NodeRef<'t>) -> Option<FactLines<'t>> {
+    let pool = cx.names.pool;
+    let ItemData::Impl {
+        by: Some(_),
+        self_ty,
+        ..
+    } = &cx.lookup.item(owner)?.data
+    else {
+        return None;
+    };
+    let TyData::Adt { def: data, args } = pool.get(*self_ty) else {
+        return None;
+    };
+    let target = cx.lookup.item(data)?;
+    let tys: Vec<Vec<Ty>> = match &target.data {
+        ItemData::Data(fields) => vec![fields.iter().map(|f| f.ty).collect()],
+        ItemData::Enum { variants, .. } => variants
+            .iter()
+            .map(|v| v.fields.iter().map(|f| f.ty).collect())
+            .collect(),
+        _ => return None,
+    };
+    let mut out = FactLines {
+        variants: vec![Vec::new(); tys.len()],
+        members: tys.iter().map(|t| vec![Vec::new(); t.len()]).collect(),
+        member_tys: tys,
+        ..FactLines::default()
+    };
+    let lines: Vec<MemberLine<'t>> = crate::derive::member_lines(&cx.src, node)
+        .into_iter()
+        .filter(|l| {
+            l.list
+                .is_none_or(|list| !hd_resolve::facts::never_a_list(list.kind()))
+        })
+        // Every line is kept, so a `=` line does not drop the lines before it.
+        .map(|l| MemberLine { extend: true, ..l })
+        .collect();
+    edit_facts(cx, target, &mut out, &lines);
+    out.retarget(cx, data, pool.list_items(args));
+    Some(out)
+}
+
 /// The labels of the variants and members of the data type or enum `item`
 /// named `ty`, in declaration order.
 fn place_labels(cx: &BodyCx<'_>, item: &Item, ty: &str) -> (Vec<String>, Vec<Vec<String>>) {
