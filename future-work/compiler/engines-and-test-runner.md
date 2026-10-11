@@ -541,7 +541,7 @@ Production filesystem behavior and the documented high-descriptor limitation are
 
 ### 18.12 Host Quality Review (M24, 2026-10-11)
 
-Status: source review; fixes below remain pending until verified and pushed.
+Status: implemented and verified; this review establishes no new accepted language or library behavior.
 This review changes no language or library rules.
 It covers commits `3707b290`, `43993c72`, `91337f6f`, `0f319ffc`,
 `0613e39f`, `3459768f`, `ec517898`, and W4's current integration.
@@ -554,6 +554,7 @@ The feedback is in [Muse's queue](../../audit/muse_task.md).
 | Grants | Agree that extensions need explicit approval. The owner approved the stage observer and CLI adapters in this thread; W4 separately received compiler-root and lockfile approvals. That approval does not grant unrelated edits. | Keep each fix within M24's named files; ask before ABI, compiler or CLI adapter expansion. |
 | Global allocator cost | Agree. `startup` installs tracking and starts a reporter on every invocation. The dependency also wraps allocations even when tracking is disabled. | Enable callbacks and the reporter only when a compiler cap is requested. Keep balanced accounting once enabled; do not claim zero wrapper overhead. |
 | Test robustness | Agree. The port-rebind race was fixed, but some HTTP accepts remain unbounded. Process PID-file assertions start their deadline before fixture readiness. | Use bounded accepts and explicit readiness. Test Process worker-creation failures with deterministic injection, not longer sleeps. |
+| Linux CI failures | Agree that these failures need fixes, but the cited logs show a write-after-peer-EOF error, not different partial-read bytes. The PID-file races were reproduced locally. | Preserve TCP's write half after read EOF and test explicit half-close acknowledgment. Prove child readiness before arming the Process deadline. |
 | Owner's quality assessment | Agree with the underlying criticism. Exact parity accumulated avoidable policy and hid native failure paths. | Prioritize removals, explicit ownership and failure cleanup over cosmetic file moves. Remove unused dependency features; retain libraries only for demonstrated capabilities. |
 | Replay readiness | Agree with the required boundaries, not a claim that replay is implemented. `wake(handles)` ignores handle values; completion wrote them earlier. Import replies mix scalar returns with direct memory writes. Abort and termination lack named central controls. | Make wake delivery consume its batch, centralize encoded import replies and existing abort/stop cleanup. Add no recorder, cancellation export or journal feature. |
 
@@ -567,6 +568,7 @@ Rust's std filesystem, process and socket APIs remain the first choice.
 The engine, TLS/HTTP, entropy, hostname and JSON dependencies supply substantive functionality.
 Safe descriptor polling and Windows pipe adapters provide cancellation that std lacks.
 Typed TLS and initial engine-allocation errors justify the direct rustls/rustix dependencies.
+
 The currently used socket2 APIs need no `all` feature.
 `hd_host_abi` has codec names, not structural schemas; moving codec.rs there would not eliminate handwritten domain layouts.
 
@@ -575,31 +577,34 @@ fallible Process workers and bounded fixtures; explicit reply/wake/control bound
 Each code fix gets focused dev regressions and lint checks.
 The owner approved full gates once on the completed M24 tree, before its push, on 2026-10-11.
 Owner direction now forbids `--release`, including gates and lint checks.
+
 Native Windows/Linux execution and the owner-deferred workspace compilation split remain unverified or deferred, not fixed by this review.
 
 The allocator fix conditionally enables the tracker and reporter.
 It recognizes global compiler caps and `HD_MAX_MEMORY`, but not guest arguments after `--`.
 Thirteen focused dev-profile allocator tests pass, including disabled tracking,
 pre-existing untracked frees, stage diagnostics and retained guest allocations.
-Full dev-profile gate results remain pending.
+
 The first full dev run reproduced both Process fixture startup races.
 Their deadlines preceded child readiness, allowing expiry before PID-file creation.
 The runtime unit suite passed 123 tests and failed those two setup assertions.
 Driver conformance passed; the observed failures do not establish a production timeout defect.
+
 The Process fix uses fallible pipe-worker creation and cleanup before scoped joins.
 Both deadline fixtures prove readiness before arming their unchanged 250ms budget.
 Eleven focused Unix dev-profile tests pass, including all three injected worker-start failures.
 Focused tests and workspace lint checks pass for this separate runtime fix.
-Full gates remain pending on the completed M24 tree.
 
 The native-error fix removes filesystem, Process and Net errno-message emulation.
 Rust's native error text carries operation and path/address context; spec-defined variants remain stable.
 Three Windows access-refusal codes retain `PermissionDenied` classification when std leaves them unclassified.
 UTF-8 BOMs remain file content, and a started child's stdin `BrokenPipe` preserves output and status.
+
 Net retains native UDP-send failures and informative candidate errors, without Node preflight messages or empty aggregates.
 Read EOF no longer closes TCP's write half: only explicit close disposes the handle.
 TCP fixtures accumulate partial reads under a bound rather than assuming message-sized reads.
 Native-only regressions cover these intentional Node differences; shared-shape differential tests remain.
+
 Focused dev verification passes 127 runtime units, 25 core-provider tests and 12 socket tests.
 The unused `socket2` all-features flag is removed; no dependency or unsafe code is added.
 Other post-start Process I/O failures and output-cap failures still return `Other`; their result policy remains a follow-up.
@@ -608,6 +613,7 @@ Fixture cleanup bounds HTTP accept, request reads and response writes, including
 Deadline fixtures release and join their servers before assertions, including failure paths.
 A backpressured-response regression checks the writer's whole-operation budget.
 The FIFO fixture fills its pipe before arming the deadline; it no longer assumes short-budget write progress.
+
 Socket-owner cleanup assertions allow bounded acknowledgment after production teardown detaches a delayed owner.
 The single ABI listener port handoff remains a documented lease race; cleanup checks do not rebind released ports.
 Detached OS DNS/stdin reads and Windows-native execution remain separately unverified or OS-limited.
@@ -617,10 +623,42 @@ Reply delivery now owns encoded exchange-buffer writes at import dispatch.
 Malformed result signatures fail before provider effects, while existing integer-width compatibility remains.
 Wake delivery writes exactly its supplied handles; completion no longer preloads guest memory.
 Existing abort, exit and trap cleanup share a named control boundary.
+
 These boundaries enable later instrumentation; no recorder, journal or cancellation export is implemented here.
 Reactor completion still advances operation state and holds Console output, without claiming replay suppression of those effects.
 Focused dev verification passes 205 native runtime tests, including malformed-signature and supplied-wake regressions.
-Final full gates remain pending on this completed code tree.
+
+The first final workspace attempt hit the existing one-second instantiation-depth assertion at 1.416 seconds.
+The isolated suite passed, while the workspace-feature binary took 1.108 seconds under competing conformance load.
+No threshold or compiler code was changed.
+Final gates resumed after competing runs ended; the unchanged timing suite passed in both completed runs.
+
+The Linux note added by `8997eb5e` cites [run 38109190128](https://github.com/HerringtonDarkholme/hd-lang/actions/runs/38109190128)
+and [run 38110824226](https://github.com/HerringtonDarkholme/hd-lang/actions/runs/38110824226).
+Both logs contain the same read bytes; the differing write result decodes to `This socket has been ended by the other party`.
+The parity fixture already requests one byte per nonempty read, avoiding kernel chunk-size assumptions.
+M24 removes the premature write-half shutdown and tests acknowledgment after an explicit peer half-close.
+
+The final rebase adds only that audit note; the verified compiler tree remains `0e8ff13fcab5dffbcba0274d55feead6370a75cf`.
+No code changed after the full pair, so only documentation gates are repeated after the rebase.
+Linux CI on the pushed fixes remains pending; macOS verification is not evidence of a Linux pass.
+
+Final verification covers main `8997eb5e` plus the completed M24 fixes on aarch64 macOS.
+Every Cargo invocation uses the dev profile and the worktree's scratch `HD_CACHE`.
+
+| Final gate | Result |
+| --- | --- |
+| `cargo fmt --check` | Pass |
+| `cargo clippy --workspace --all-targets -- -D warnings` | Pass |
+| `HD_UPDATE_CONFORMANCE=1 cargo test --workspace` | Pass |
+| `cargo test --workspace` | Pass |
+| `bash spec/check.sh` | Pass; existing citation warnings remain |
+| `pnpm run website:build` | Pass |
+| `node --experimental-strip-types test/run-portable.ts --changed` | Pass; no changed fixtures |
+
+Both completed workspace runs pass all 205 native runtime tests and leave `compiler/CONFORMANCE.md` unchanged.
+Driver conformance takes 69.98 seconds with report updating and 96.92 seconds without updates; these are not benchmarks.
+M24 adds no dependency or unsafe code, and leaves frozen specification and fixture files unchanged.
 
 ## 19. Test Runner
 
