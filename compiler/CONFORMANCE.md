@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2497 | 292 | 56 | 2845 |
+| 2499 | 292 | 54 | 2845 |
 
 ## By Chapter
 
@@ -24,7 +24,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/08-data-and-enums.md` | 94 | 27 | 2 | 123 |
 | `lang/09-traits.md` | 319 | 38 | 2 | 359 |
 | `lang/10-modules.md` | 218 | 31 | 9 | 258 |
-| `lang/11-requirements-and-suspension.md` | 204 | 32 | 23 | 259 |
+| `lang/11-requirements-and-suspension.md` | 206 | 32 | 21 | 259 |
 | `lang/14-annotations.md` | 116 | 30 | 7 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 93 | 8 | 4 | 105 |
-| `runtime/valid` | 862 | 17 | 50 | 929 |
+| `runtime/valid` | 864 | 17 | 48 | 929 |
 | `typing/invalid` | 839 | 235 | 1 | 1075 |
 | `typing/valid` | 405 | 9 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -119,7 +119,6 @@ compiler stage that first declined the case.
 | `fail:unused-local-binding` | 6 |
 | `unsupported:Body` | 7 |
 | `unsupported:Collect` | 16 |
-| `unsupported:Emit` | 2 |
 | `unsupported:Link` | 3 |
 | `unsupported:RunCase` | 28 |
 
@@ -655,13 +654,6 @@ compiler stage that first declined the case.
 - `runtime/valid/init-group-statements-by-identity.hd`
 - `runtime/panic/fact-evaluation-panics-on-read.hd`
 - `runtime/valid/derive-members-of-data-and-enums.hd`
-
-</details>
-
-<details><summary><code>unsupported:Emit</code> (2)</summary>
-
-- `runtime/valid/suspending-calls-in-branches.hd`
-- `runtime/valid/suspending-match-guards.hd`
 
 </details>
 
@@ -1840,10 +1832,12 @@ runtime/valid/suspending-call-with-defer.hd
 runtime/valid/suspending-call-with-requirement.hd
 runtime/valid/suspending-calls-as-arguments.hd
 runtime/valid/suspending-calls-in-binary-expression.hd
+runtime/valid/suspending-calls-in-branches.hd
 runtime/valid/suspending-calls-in-loops.hd
 runtime/valid/suspending-closure-captures.hd
 runtime/valid/suspending-closure-requirement-row.hd
 runtime/valid/suspending-generic-method.hd
+runtime/valid/suspending-match-guards.hd
 runtime/valid/suspending-result-propagation.hd
 runtime/valid/suspending-test-body.hd
 runtime/valid/suspending-trailing-block.hd

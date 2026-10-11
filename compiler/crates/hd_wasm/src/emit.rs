@@ -546,14 +546,12 @@ impl Em<'_> {
             }
             Tag::Prim => self.prim(i, a, bw)?,
             Tag::And | Tag::Or => {
-                if self.range(i).is_some() {
-                    return unsupported("a suspension point in the right operand of `and`/`or`");
-                }
                 let r = self.result(i)?;
                 self.comp(a, 0, &VT::I32)?;
                 if self.b.tags[i as usize] == Tag::Or {
                     self.a.s().i32_eqz();
                 }
+                self.resume_branch(i, bw);
                 self.a.if_();
                 self.open(Ctl::Plain);
                 self.block_into(bw, Some(i))?;
@@ -754,16 +752,7 @@ impl Em<'_> {
                 let r = self.rec(bw);
                 self.result(i)?;
                 self.comp(a, 0, &VT::I32)?;
-                if let Some((lo, hi)) = self.range(r[0]) {
-                    // Resuming into the then block takes it; into the
-                    // else block, not (suspension.md §14.2). A `select`,
-                    // since structured blocks here carry no values.
-                    self.in_range(lo, hi);
-                    let pc = self.pc();
-                    self.a.get(pc);
-                    self.a.s().i32_eqz();
-                    self.a.s().select();
-                }
+                self.resume_branch(i, r[0]);
                 self.a.if_();
                 self.open(Ctl::Plain);
                 self.block_into(r[0], Some(i))?;
@@ -846,9 +835,6 @@ impl Em<'_> {
                     self.a.block();
                     self.open(Ctl::Arm(i, u32_of(k)));
                 }
-                if self.range(blocks[0]).is_some() {
-                    return unsupported("a suspension point in a match decision (a guard)");
-                }
                 for (k, arm) in blocks[1..].iter().enumerate() {
                     if let Some((lo, hi)) = self.range(*arm) {
                         self.in_range(lo, hi);
@@ -880,11 +866,21 @@ impl Em<'_> {
             Tag::With => self.with(i, a, bw)?,
             Tag::ContextNew => self.context_new(i, a, ty)?,
             Tag::Guard => {
-                if self.range(i).is_some() {
-                    return unsupported("a suspension point in a match guard");
-                }
                 let r = self.rec(bw);
-                self.block_value(a)?;
+                if self.range(i).is_some() {
+                    // The condition runs once: fresh, or resuming into
+                    // it; a resume into the failure branch skips it.
+                    let c = self.a.local(VT::I32);
+                    self.entered(a, |em| {
+                        em.block_value(a)?;
+                        em.a.set(c);
+                        Ok(())
+                    })?;
+                    self.a.get(c);
+                    self.resume_branch(i, r[0]);
+                } else {
+                    self.block_value(a)?;
+                }
                 self.a.if_();
                 self.open(Ctl::Plain);
                 self.block_into(r[0], None)?;
@@ -904,6 +900,7 @@ impl Em<'_> {
                 }
                 self.a.i32(r[0].cast_signed());
                 self.a.s().i32_eq();
+                self.resume_branch(i, r[1]);
                 self.a.if_();
                 self.open(Ctl::Plain);
                 self.block_into(r[1], Some(i))?;
@@ -918,6 +915,7 @@ impl Em<'_> {
                 self.comp(a, 0, &VT::I32)?;
                 self.a.i32(r[0].cast_signed());
                 self.a.s().i32_eq();
+                self.resume_branch(i, r[1]);
                 self.a.if_();
                 self.open(Ctl::Plain);
                 self.block_into(r[1], Some(i))?;
@@ -959,8 +957,15 @@ impl Em<'_> {
     /// A block's tail value on the stack (a guard's condition).
     fn block_value(&mut self, blk: u32) -> StageResult<()> {
         let [list, tail] = self.b.data[blk as usize];
-        for i in self.rec(list) {
-            if self.b.tags[i as usize] != Tag::Block {
+        let items: Vec<u32> = self
+            .rec(list)
+            .into_iter()
+            .filter(|i| self.b.tags[*i as usize] != Tag::Block)
+            .collect();
+        if self.range(blk).is_some() {
+            self.resume_list(&items)?;
+        } else {
+            for i in items {
                 self.inst(i)?;
             }
         }
@@ -3873,6 +3878,44 @@ impl<'a> Em<'a> {
         Ok(())
     }
 
+    /// `if pc == 0 || lo <= pc <= hi` around code that holds the states
+    /// `x` covers: it runs fresh or when resuming into it, never when
+    /// resuming past it. Code without a state is fresh-path-only.
+    fn entered(&mut self, x: u32, f: impl FnOnce(&mut Self) -> StageResult<()>) -> StageResult<()> {
+        let Some((lo, hi)) = self.range(x) else {
+            return self.fresh_only(f);
+        };
+        let pc = self.pc();
+        self.a.get(pc);
+        self.a.s().i32_eqz();
+        self.in_range(lo, hi);
+        self.a.s().i32_or();
+        self.a.if_();
+        self.open(Ctl::Plain);
+        f(self)?;
+        self.ctrl.pop();
+        self.a.end();
+        Ok(())
+    }
+
+    /// With the branch condition of `i` on the stack: on resume, replaces
+    /// it by whether the resumed state is in `then`, so a resumed branch
+    /// enters the side that holds the point (suspension.md §14.2). A
+    /// `select`, since structured blocks here carry no values.
+    fn resume_branch(&mut self, i: u32, then: u32) {
+        if self.range(i).is_none() {
+            return;
+        }
+        match self.range(then) {
+            Some((lo, hi)) => self.in_range(lo, hi),
+            None => self.a.i32(0),
+        }
+        let pc = self.pc();
+        self.a.get(pc);
+        self.a.s().i32_eqz();
+        self.a.s().select();
+    }
+
     /// A block list that contains a suspension point (suspension.md
     /// §14.2): on resume, the code before the point is skipped, and each
     /// construct on the way enters the branch that holds the point.
@@ -3881,17 +3924,8 @@ impl<'a> Em<'a> {
         let mut j = 0;
         while j < items.len() {
             let i = items[j];
-            if let Some((lo, hi)) = self.range(i) {
-                let pc = self.pc();
-                self.a.get(pc);
-                self.a.s().i32_eqz();
-                self.in_range(lo, hi);
-                self.a.s().i32_or();
-                self.a.if_();
-                self.open(Ctl::Plain);
-                self.inst(i)?;
-                self.ctrl.pop();
-                self.a.end();
+            if self.range(i).is_some() {
+                self.entered(i, |em| em.inst(i))?;
                 j += 1;
                 continue;
             }
