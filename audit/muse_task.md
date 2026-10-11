@@ -55,19 +55,3 @@ commit that finishes it. When the queue is empty, report that and wait.
 (Owner, 2026-10-11: Codex is offline; a weaker Muse is back temporarily.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
-
-### M28. Measure why conformance is slow on wasmtime (#278)
-
-In release, driver conformance takes about 110 s with
-`HD_CONFORMANCE_ENGINE=wasmtime-only` against 15.6 s on Node. Measure
-where the time goes; do not fix it. Answer these questions:
-- how long Cranelift compilation takes per fixture against execution;
-- whether the same module is compiled more than once;
-- whether wasmtime's `Engine` and `Module` are reused across cases or made
-  per case;
-- whether its compilation cache is on.
-Use `perf`/`samply`/timing logs, whichever works. Write the numbers and
-the top three causes, each with a suggested fix and its expected gain, as a
-new section "Conformance on wasmtime" at the end of
-`future-work/compiler/wasmtime-perf.md` (create the file if missing). No
-code changes. Use one target dir; delete any extra build output you make.
