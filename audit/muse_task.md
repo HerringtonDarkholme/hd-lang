@@ -43,16 +43,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M20. Fix: Show A Prompt Before Reading Input (#277, Code)
-
-Both engines hold stdout until stderr is written or the run ends, so a
-prompt printed before `read_line!` does not show before the wait. Check
-`spec/std/console.md` for the buffering rule first (the spec wins), then
-flush held stdout before a ConsoleInput read starts, on both engines.
-Files: `compiler/crates/hd_run_wasmtime/**`, `compiler/host/core.mjs`,
-the two engines' tests. Add a test that pipes input and checks the
-prompt order.
-
 ### M21. Implement: Resource Limits On wasmtime (#269, Code)
 
 After M18-M20, implement your M15 design (§ of

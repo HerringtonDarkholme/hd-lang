@@ -709,6 +709,8 @@ export function createHost(sink, env = {}) {
       // `Result[string?, ConsoleError]`: the next line, `.None` at the end
       // of input, `.Err(.Closed)` when it cannot be read.
       "read_line.start": () => {
+        // A completed prompt must reach the sink before this read blocks.
+        flush();
         const line = readLine();
         const e = new Enc();
         if (line === false) return ready(e.leb(1).leb(0));

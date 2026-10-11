@@ -18,8 +18,8 @@
 //!   outside it as unset, with a notice once per name
 //!   (`cli.cap.env.notice`).
 //!
-//! Standard output is held until standard error is written, a deadlock is
-//! reported, or the run ends, as the Node host holds it.
+//! Standard output is held until input starts, standard error is written,
+//! a deadlock is reported, or the run ends, as the Node host holds it.
 
 use std::collections::HashSet;
 use std::io::{BufRead, Write};
@@ -531,8 +531,13 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
             // `.Ok(())`.
             Ret::Int(put_bytes(caller, &[0])?)
         }
-        // Pending until the reader thread delivers the line.
-        Kind::ReadLineStart => Ret::Pair(1, caller.data_mut().reactor.read_line()),
+        // Make a completed prompt visible before asking the reader thread
+        // for input. Pending until that thread delivers the line.
+        Kind::ReadLineStart => {
+            let host = caller.data_mut();
+            host.flush();
+            Ret::Pair(1, host.reactor.read_line())
+        }
         // `Result[string?, ConsoleError]`: the line, `.None` at the end of
         // input, `.Err(.Closed)` when it cannot be read.
         Kind::ReadLineFinish => {
