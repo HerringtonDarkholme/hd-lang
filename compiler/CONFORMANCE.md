@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2663 | 161 | 21 | 2845 |
+| 2667 | 157 | 21 | 2845 |
 
 ## By Chapter
 
@@ -17,14 +17,14 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
 | `lang/02-grammar.md` | 205 | 10 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 100 | 1 | 0 | 101 |
-| `lang/04-type-system.md` | 328 | 24 | 0 | 352 |
+| `lang/04-type-system.md` | 327 | 25 | 0 | 352 |
 | `lang/05-expressions.md` | 261 | 16 | 0 | 277 |
 | `lang/06-control-flow.md` | 140 | 13 | 4 | 157 |
 | `lang/07-functions.md` | 120 | 10 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 114 | 8 | 1 | 123 |
 | `lang/09-traits.md` | 342 | 15 | 2 | 359 |
-| `lang/10-modules.md` | 228 | 25 | 5 | 258 |
-| `lang/11-requirements-and-suspension.md` | 239 | 12 | 8 | 259 |
+| `lang/10-modules.md` | 232 | 21 | 5 | 258 |
+| `lang/11-requirements-and-suspension.md` | 240 | 11 | 8 | 259 |
 | `lang/14-annotations.md` | 144 | 9 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 99 | 3 | 3 | 105 |
 | `runtime/valid` | 903 | 10 | 16 | 929 |
-| `typing/invalid` | 955 | 119 | 1 | 1075 |
+| `typing/invalid` | 959 | 115 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -89,7 +89,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:no-common-type` | 2 |
-| `fail:no-diagnostic` | 54 |
+| `fail:no-diagnostic` | 49 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-import` | 1 |
 | `fail:private-main` | 4 |
@@ -109,6 +109,7 @@ compiler stage that first declined the case.
 | `fail:unknown-trait` | 5 |
 | `fail:unknown-type` | 3 |
 | `fail:unknown-variant` | 1 |
+| `fail:unsatisfied-trait-bound` | 1 |
 | `fail:unused-local-binding` | 4 |
 | `unsupported:Body` | 4 |
 | `unsupported:Collect` | 3 |
@@ -216,21 +217,18 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (54)</summary>
+<details><summary><code>fail:no-diagnostic</code> (49)</summary>
 
 - `typing/warnings/unreachable-code.hd`
 - `typing/invalid/unknown-annotation-member.hd`
-- `typing/invalid/nonhost-entry-requirement.hd`
 - `typing/warnings/variant-binding-name-mismatch.hd`
 - `typing/invalid/suspension-forbidden-context.hd`
-- `typing/invalid/nondisplay-entry-error.hd`
 - `typing/warnings/unreachable-after-infinite-loop.hd`
 - `typing/warnings/variant-binding-names-swapped.hd`
 - `typing/invalid/generic-supertrait-upcast-mismatch.hd`
 - `typing/invalid/enum-default-requires-provider.hd`
 - `typing/invalid/duplicate-literal-match-arm.hd`
 - `typing/invalid/trait-resolution-depth.hd`
-- `typing/invalid/entry-result-not-termination.hd`
 - `typing/invalid/structure-outside-template.hd`
 - `typing/invalid/marker-template.hd`
 - `typing/invalid/member-line-payload-member.hd`
@@ -267,8 +265,6 @@ compiler stage that first declined the case.
 - `typing/invalid/dyn-self-parameter-unavailable.hd`
 - `typing/invalid/uninhabited-binding.hd`
 - `typing/invalid/trait-assoc-call-self-undetermined.hd`
-- `typing/invalid/entry-point-parameters.hd`
-- `typing/invalid/generic-entry-point.hd`
 - `typing/invalid/module-path-not-identifier.hd`
 - `typing/invalid/template-helper-missing-result.hd`
 - `typing/invalid/template-names-binding.hd`
@@ -439,6 +435,12 @@ compiler stage that first declined the case.
 <details><summary><code>fail:unknown-variant</code> (1)</summary>
 
 - `typing/invalid/some-pattern-nonoptional.hd`
+
+</details>
+
+<details><summary><code>fail:unsatisfied-trait-bound</code> (1)</summary>
+
+- `typing/invalid/expected-i32-found-usize.hd`
 
 </details>
 
@@ -2024,6 +2026,8 @@ typing/invalid/embedding-depth-four.hd
 typing/invalid/empty-list-without-context.hd
 typing/invalid/empty-literal-generic-field-unsolved.hd
 typing/invalid/empty-map-without-context.hd
+typing/invalid/entry-point-parameters.hd
+typing/invalid/entry-result-not-termination.hd
 typing/invalid/enum-bound-bare-trait.hd
 typing/invalid/enum-identity.hd
 typing/invalid/enum-match-missing-variant.hd
@@ -2055,7 +2059,6 @@ typing/invalid/error-message-shared-unnamed.hd
 typing/invalid/error-message-unknown-name.hd
 typing/invalid/error-second-cause.hd
 typing/invalid/error-transparent-not-error.hd
-typing/invalid/expected-i32-found-usize.hd
 typing/invalid/extra-associated-type.hd
 typing/invalid/extra-trait-member.hd
 typing/invalid/facts-find-unbounded-key.hd
@@ -2105,6 +2108,7 @@ typing/invalid/generic-bound-unsatisfied.hd
 typing/invalid/generic-call-built-nested-mut-not-weakened.hd
 typing/invalid/generic-call-readonly-into-mut-part.hd
 typing/invalid/generic-data-field-type-mismatch.hd
+typing/invalid/generic-entry-point.hd
 typing/invalid/generic-enum-variant-without-context.hd
 typing/invalid/generic-erasure-without-bound.hd
 typing/invalid/generic-function-value-argument-unsolved.hd
@@ -2336,10 +2340,12 @@ typing/invalid/no-widening-return.hd
 typing/invalid/nominal-map-key.hd
 typing/invalid/non-entry-top-level-println.hd
 typing/invalid/non-literal-test-name.hd
+typing/invalid/nondisplay-entry-error.hd
 typing/invalid/nonexhaustive-bool-match.hd
 typing/invalid/nonexhaustive-match.hd
 typing/invalid/nonfinal-vararg-declaration.hd
 typing/invalid/nonfinal-vararg-then-parameter.hd
+typing/invalid/nonhost-entry-requirement.hd
 typing/invalid/nonlocal-impl.hd
 typing/invalid/nonnumeric-unary-plus.hd
 typing/invalid/num-bound-newtype.hd

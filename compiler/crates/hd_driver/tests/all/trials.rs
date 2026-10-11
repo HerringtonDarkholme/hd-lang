@@ -49,10 +49,10 @@ const MAIN: &str = "pub fn main() -> i32:\n    item := Item { value: 40 }\n    o
 /// no error, and the call is checked for real against it.
 #[test]
 fn of_two_candidates_the_one_whose_trial_fits_is_chosen() {
-    let src = "trait Pick[T]:\n    fn pick(self, value: T) -> i32\n\ndata Item: pass\n\nimpl Pick[bool] for Item:\n    fn pick(self, value: bool) -> i32: 0\n\nimpl Pick[i32] for Item:\n    fn pick(self, value: i32) -> i32: value\n\npub fn main(n: i32) -> i32:\n    Item {}.pick(n)\n";
-    let out = analyze(src, &["app/main/main"]);
+    let src = "trait Pick[T]:\n    fn pick(self, value: T) -> i32\n\ndata Item: pass\n\nimpl Pick[bool] for Item:\n    fn pick(self, value: bool) -> i32: 0\n\nimpl Pick[i32] for Item:\n    fn pick(self, value: i32) -> i32: value\n\npub fn run(n: i32) -> i32:\n    Item {}.pick(n)\n";
+    let out = analyze(src, &["app/main/run"]);
     assert_eq!(errors(&out), vec![], "{}", out.render());
-    let tir = out.tir_text.get("app/main/main").expect("main's TIR");
+    let tir = out.tir_text.get("app/main/run").expect("run's TIR");
     assert!(tir.contains("Pick"), "{tir}");
     assert!(
         !tir.contains("bool"),

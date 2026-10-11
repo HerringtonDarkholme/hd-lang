@@ -165,6 +165,105 @@ pub fn derived_newtypes(cx: &HeaderCx<'_>, items: &[Item]) -> StageResult<Vec<Fi
     Ok(out)
 }
 
+/// Where an entry-point finding sits in the declaration.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EntryAt {
+    /// The function's name.
+    Name,
+    /// The written result type.
+    Result,
+    /// A requirement key, by its trait.
+    Key(DefId),
+}
+
+/// One problem with an entry point (`module.entry.*`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EntryFinding {
+    pub at: EntryAt,
+    pub code: Code,
+    pub message: String,
+}
+
+/// The rules of a public `main` or `main!` in an entry module
+/// (`module.entry.parameters`, `.result-termination`, `.row.host`). A
+/// function with parameters or generic parameters is one error and nothing
+/// more: its result and row are not checked. Otherwise each requirement
+/// key must be one of the `host` capability traits of the runtime profile,
+/// and the result must implement `std.process.Termination`, asked of the
+/// solver as an ordinary trait bound.
+pub fn entry_point(cx: &HeaderCx<'_>, it: &Item, host: &[DefId]) -> StageResult<Vec<EntryFinding>> {
+    let mut out = Vec::new();
+    let ItemData::Fn(sig) = &it.data else {
+        return Ok(out);
+    };
+    let pool = cx.names.pool.types();
+    let name = if sig.suspends { "main!" } else { "main" };
+    if !sig.params.is_empty() || !sig.generics.is_empty() {
+        out.push(EntryFinding {
+            at: EntryAt::Name,
+            code: Code::EntryPointParameters,
+            message: format!(
+                "the entry point `{name}` takes no parameters and no generic parameters"
+            ),
+        });
+        return Ok(out);
+    }
+    for key in pool.row_data(sig.row).keys {
+        let bare = match pool.get(key) {
+            TyData::Mut(inner) => inner,
+            _ => key,
+        };
+        let def = match pool.get(bare) {
+            TyData::TraitValue { def, .. } => def,
+            _ => DefId::NONE,
+        };
+        if def == DefId::NONE || !host.contains(&def) {
+            out.push(EntryFinding {
+                at: if def == DefId::NONE {
+                    EntryAt::Name
+                } else {
+                    EntryAt::Key(def)
+                },
+                code: Code::NonhostEntryRequirement,
+                message: format!(
+                    "`{}` is not a host capability trait of the runtime profile, so the entry point `{name}` cannot require it",
+                    hd_resolve::show_ty(&cx.names, key)
+                ),
+            });
+        }
+    }
+    if pool.has_poison(sig.ret) {
+        return Ok(out);
+    }
+    let mut env = environment(cx, it);
+    env.key = Some(cx.global.env_key(&env));
+    let mut findings = Vec::new();
+    let mut hc = ItemCheck {
+        cx,
+        env,
+        memo: BodyMemo::default(),
+        fuel: Fuel::new(Fuel::BODY_DEFAULT),
+        item: it.def,
+        out: &mut findings,
+    };
+    let termination = pool.intern_ty(&TyData::TraitValue {
+        def: cx.names.item("std.process", "Termination"),
+        args: TyList::EMPTY,
+        bindings: vec![],
+    });
+    if hc.fails(sig.ret, termination)? {
+        out.push(EntryFinding {
+            at: EntryAt::Result,
+            code: Code::UnsatisfiedTraitBound,
+            message: format!(
+                "{} does not implement `Termination`, so the entry point `{name}` cannot return it",
+                hd_resolve::show_ty(&cx.names, sig.ret)
+            ),
+        });
+    }
+    Ok(out)
+}
+
 /// The parameter environment of an item: its own parameters' bounds,
 /// after its owner's (an impl's parameters, or a trait's `Self` bounded
 /// by the trait and the trait's parameters).

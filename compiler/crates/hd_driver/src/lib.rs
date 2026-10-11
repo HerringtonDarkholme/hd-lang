@@ -1292,6 +1292,20 @@ impl Run<'_> {
         }
     }
 
+    /// Whether module `m` of the root package is an entry module that the
+    /// entry-point rules cover (`module.entry.private-main.warn`,
+    /// `module.entry.parameters`): a root file other than the library
+    /// root, an executable's module, or the file of a single-file program.
+    fn entry_module(&self, m: usize) -> bool {
+        let module = &self.table.modules[m];
+        let single_file = self
+            .table
+            .sources
+            .get(module.file.idx())
+            .is_some_and(|(_, file)| hd_project::Root::of(file).0 == hd_project::Root::Flat);
+        module.package == 0 && (module.entry || single_file)
+    }
+
     fn folder_graph(&self, sp: &dyn Spawn) {
         let uses: Vec<Vec<String>> = (0..self.table.modules.len())
             .map(|m| self.skim_of(m).uses.clone())
@@ -1323,9 +1337,7 @@ impl Run<'_> {
         // `module.entry.private-main.warn`: a `main` or `main!` that is not
         // `pub` in an entry module is an ordinary function.
         for (m, module) in self.table.modules.iter().enumerate() {
-            let flat_main =
-                module.path == format!("{}.main", hd_project::package_ident(&self.package));
-            if module.package != 0 || !(module.entry || flat_main) {
+            if !self.entry_module(m) {
                 continue;
             }
             if let Some((lo, hi)) = self.skim_of(m).private_main {
@@ -1991,11 +2003,17 @@ impl Run<'_> {
             k.hash(self.package_key_of(module.package));
             k.finish()
         };
+        // An entry module's check holds its entry-point findings.
+        let role = if self.entry_module(m) {
+            format!("{}+entry", self.role(m))
+        } else {
+            self.role(m).to_owned()
+        };
         Some(check_key(
             self.toolchain,
             package,
             &module.path,
-            self.role(m),
+            &role,
             self.skim_of(m).token_hash,
             &closure,
         ))
@@ -2709,6 +2727,7 @@ impl Run<'_> {
         }
         self.private_headers(&cx, &heads, &mut diags);
         self.profile_boundaries(&cx, &heads, &mut diags);
+        self.entry_points(m, &cx, &heads, &mut diags);
         // Each derivation opt-in checks its template's instance
         // (spec 14 `annot.template.checked`, checking-and-tir.md §4.13.9),
         // whose bodies join the module's.
@@ -2804,6 +2823,89 @@ impl Run<'_> {
                 )
                 .unwrap_or_else(|| self.item_span(f.item, f.slot));
                 diags.error(f.code, span, &f.message);
+            }
+        }
+    }
+
+    /// The entry point of module `m`, when it is an entry module with a
+    /// public top-level `main` or `main!`: its parameters, requirement row
+    /// and result are checked once here, so `check` reports them
+    /// (`hd_check::header::entry_point`, `module.entry.definition`).
+    fn entry_points(
+        &self,
+        m: usize,
+        cx: &BodyCx<'_>,
+        heads: &[hd_resolve::Head<'_>],
+        diags: &mut DiagBuf,
+    ) {
+        if !self.entry_module(m) || self.table.modules[m].role == Role::Test {
+            return;
+        }
+        let host: Vec<DefId> = self
+            .profile
+            .iter()
+            .filter_map(|p| {
+                let (module, name) = p.rsplit_once('.')?;
+                Some(cx.names.item(module, name))
+            })
+            .collect();
+        let hcx = hd_check::header::HeaderCx {
+            names: cx.names,
+            lookup: cx.lookup,
+            impls: cx.impls,
+            global: cx.global,
+            solver: cx.solver,
+        };
+        for h in heads.iter().filter(|h| {
+            h.kind == hd_resolve::HeadKind::Fn
+                && h.public
+                && h.local.is_none()
+                && h.test.is_none()
+                && cx.names.display_name(h.def) == "main"
+        }) {
+            let Some(it) = cx.lookup.own.iter().find(|i| i.def == h.def) else {
+                continue;
+            };
+            let Ok(findings) = hd_check::header::entry_point(&hcx, it, &host) else {
+                continue;
+            };
+            for f in findings {
+                let span = Self::entry_span(cx, h.node, &f);
+                diags.error(f.code, span, &f.message);
+            }
+        }
+    }
+
+    /// Where an entry-point finding points: the function's name, its
+    /// written result type, or the requirement key that names the trait.
+    /// A key written under another name points at the name.
+    fn entry_span(
+        cx: &BodyCx<'_>,
+        node: hd_syntax::NodeRef<'_>,
+        f: &hd_check::header::EntryFinding,
+    ) -> Span {
+        use hd_check::header::EntryAt;
+        let name = cx
+            .src
+            .name_after(node, hd_syntax::TokenKind::KwFn)
+            .map_or_else(|| cx.src.span(node), |t| cx.src.token_span(t));
+        match f.at {
+            EntryAt::Name => name,
+            EntryAt::Result => hd_resolve::Src::type_child(node).map_or(name, |t| cx.src.span(t)),
+            EntryAt::Key(def) => {
+                let wanted = cx.names.display_name(def);
+                hd_resolve::Src::child(node, hd_syntax::SyntaxKind::RequirementRow)
+                    .into_iter()
+                    .flat_map(hd_syntax::NodeRef::children)
+                    .filter(|c| c.kind().is_type())
+                    .find(|c| {
+                        cx.src
+                            .tokens(*c)
+                            .filter(|t| cx.src.tkind(*t) == Some(hd_syntax::TokenKind::Ident))
+                            .last()
+                            .is_some_and(|t| cx.src.text(t) == wanted)
+                    })
+                    .map_or(name, |c| cx.src.span(c))
             }
         }
     }
