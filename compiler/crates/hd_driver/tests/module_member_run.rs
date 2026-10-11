@@ -39,6 +39,11 @@ impl Counter:
 pub data Marker:
     pass
 
+pub trait Describe:
+    fn describe(self) -> string
+
+pub type Tally = Counter
+
 enum Hidden:
     Only
 
@@ -185,6 +190,42 @@ pub fn main() -> void:
     pass
 ";
     assert_eq!(errors(main), ["type-used-as-value"]);
+}
+
+#[test]
+fn a_trait_or_alias_through_a_module_is_not_a_value() {
+    let tr = "use pkg.shapes
+
+pub fn main() -> void:
+    d := shapes.Describe
+    pass
+";
+    assert_eq!(errors(tr), ["type-used-as-value"]);
+    let alias = "use pkg.shapes
+
+pub fn main() -> void:
+    t := shapes.Tally
+    pass
+";
+    assert_eq!(errors(alias), ["type-used-as-value"]);
+}
+
+#[test]
+fn a_bare_trait_or_alias_is_not_a_value() {
+    let tr = "use pkg.shapes.{Describe}
+
+pub fn main() -> void:
+    d := Describe
+    pass
+";
+    assert_eq!(errors(tr), ["type-used-as-value"]);
+    let alias = "use pkg.shapes.{Tally}
+
+pub fn main() -> void:
+    t := Tally
+    pass
+";
+    assert_eq!(errors(alias), ["type-used-as-value"]);
 }
 
 #[test]

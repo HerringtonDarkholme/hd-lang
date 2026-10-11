@@ -253,8 +253,8 @@ impl Ck<'_, '_> {
     }
 
     /// The declaration `def`, written as `name`, used as a value: a
-    /// function, or a data type without fields. A type is an error
-    /// (`names.type-as-value`); `None` for any other declaration.
+    /// function, or a data type without fields. A type, alias or trait is
+    /// an error (`names.type-as-value`); `None` for any other declaration.
     pub(crate) fn declaration_value(
         &mut self,
         def: DefId,
@@ -278,8 +278,14 @@ impl Ck<'_, '_> {
                 )));
             }
         }
-        if self.kind_of_item(def).is_some_and(HeadKind::is_type) {
-            let msg = format!("`{name}` is a type, not a value");
+        let kind = self.kind_of_item(def);
+        if kind.is_some_and(|k| k.is_type() || k == HeadKind::Trait) {
+            let what = if kind == Some(HeadKind::Trait) {
+                "a trait"
+            } else {
+                "a type"
+            };
+            let msg = format!("`{name}` is {what}, not a value");
             self.err(Code::TypeUsedAsValue, n, &msg);
             return Ok(Some((Ref(NONE), Ty::NEVER)));
         }
