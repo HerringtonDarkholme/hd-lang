@@ -15,7 +15,7 @@ fn cache(name: &str) -> PathBuf {
 /// A test-only global git configuration that sends every remote URL `hd`
 /// tries (HTTPS and SSH) to a local path that does not exist, so a test
 /// that names a remote requirement fails at once and never reaches the
-/// network. `hd_cli/tests/deps.rs` serves real local remotes instead.
+/// network. `hd_cli/tests/all/deps.rs` serves real local remotes instead.
 fn offline_git_config() -> PathBuf {
     static CONFIG: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
     CONFIG.get_or_init(write_offline_git_config).clone()

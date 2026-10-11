@@ -1,5 +1,4 @@
 //! Socket ABI parity. Every peer binds loopback; DNS uses numeric addresses.
-mod support;
 
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream, UdpSocket};
@@ -9,9 +8,9 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
+use crate::support::*;
 use hd_run::{Engine, Grants, HostSetup, Instance, Limit, Limits, Outcome};
 use hd_run_wasmtime::{EngineConfig, HostIo, WasmtimeEngine};
-use support::*;
 use wasm_encoder::{Instruction as I, ValType};
 
 fn net_error(variant: u64, text: &str) -> Vec<u8> {

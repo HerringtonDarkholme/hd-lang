@@ -1,10 +1,9 @@
 //! Exact exchange-buffer HTTP parity against deterministic loopback servers.
-mod support;
 
+use crate::support::*;
 use hd_run::Limit;
 use std::fmt::Write;
 use std::time::Duration;
-use support::*;
 
 // These fixtures deliberately keep the shared Http worker busy. Serialize
 // them so one case cannot expire in the other's queue before reaching the

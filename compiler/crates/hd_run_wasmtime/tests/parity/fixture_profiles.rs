@@ -1,15 +1,14 @@
 //! Fixture providers are opt-in, isolated per instance, and use the shared ABI.
-mod support;
 
 use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 
+use crate::support::{MEM, Program};
 use hd_cache::MemoryStore;
 use hd_run::{Engine, Grants, HostSetup, Instance, Limits, Outcome};
 use hd_run_wasmtime::{
     EngineConfig, HostIo, RuntimeProfile, WasmtimeEngine, run_captured, run_captured_with_profile,
 };
-use support::{MEM, Program};
 use wasm_encoder::{BlockType, Instruction as I, ValType};
 
 fn setup() -> HostSetup {

@@ -138,7 +138,7 @@ cargo run -p hd_syntax --example parse_check -- --tree samples/hello/hello.hd
   `crates/hd_driver/tests/`. Golden TIR is in
   `crates/hd_driver/tests/tir/`.
 - CLI compile/run samples are in `samples/` and exercised by
-  `crates/hd_cli/tests/run.rs`.
+  `crates/hd_cli/tests/all/run.rs`.
 - The implementation-neutral suite is in `../spec/conformance/`; temporary
   disagreements with this compiler are listed in
   [`KNOWN_FAILURES.tsv`](KNOWN_FAILURES.tsv).
@@ -147,8 +147,8 @@ From `compiler/`, run the Rust workspace tests with `cargo test --workspace`.
 Only update checked-in output after reviewing the diff:
 
 ```sh
-HD_BLESS=1 cargo test -p hd_syntax --test snapshots
-HD_UPDATE_GOLDEN=1 cargo test -p hd_driver --test checker std_bodies_match_golden_tir
+HD_BLESS=1 cargo test -p hd_syntax --test all snapshots::
+HD_UPDATE_GOLDEN=1 cargo test -p hd_driver --test all checker::std_bodies_match_golden_tir
 ```
 
 `HD_BLESS=1` rewrites parser `.tree` snapshots.

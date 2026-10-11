@@ -94,19 +94,32 @@ mod tests {
 
     #[test]
     fn every_sample_is_byte_identical_under_every_executor() {
-        for (dir, entry) in [
+        let samples = [
             ("hello", "hello"),
             ("arith", "main"),
             ("data", "main"),
             ("generic", "main"),
             ("trait", "main"),
             ("fib", "main"),
-        ] {
-            let src = sample(dir);
-            assert!(
-                determinism_matrix(&|e| wasm(&src, entry, e)).is_ok(),
-                "{dir}"
-            );
+        ];
+        // Each sample's matrix is independent, so the samples run side by side.
+        let results: Vec<(&str, bool)> = std::thread::scope(|scope| {
+            let handles: Vec<_> = samples
+                .iter()
+                .map(|(dir, entry)| {
+                    scope.spawn(move || {
+                        let src = sample(dir);
+                        (*dir, determinism_matrix(&|e| wasm(&src, entry, e)).is_ok())
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .map(|handle| handle.join().expect("sample matrix"))
+                .collect()
+        });
+        for (dir, identical) in results {
+            assert!(identical, "{dir}");
         }
         assert!(determinism_matrix(&|e| format!("{e:?}").into_bytes()).is_err());
     }

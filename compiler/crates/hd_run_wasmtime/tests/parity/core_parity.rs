@@ -1,8 +1,6 @@
 //! Spec-defined core provider shape parity and native-host regressions.
 //! Native OS messages and UTF-8 BOM preservation are not Node contracts.
 
-mod support;
-
 use std::fs;
 #[cfg(unix)]
 use std::path::PathBuf;
@@ -10,7 +8,7 @@ use std::path::PathBuf;
 use hd_run::Limit;
 use wasm_encoder::{BlockType, Instruction as I, ValType};
 
-use support::*;
+use crate::support::*;
 
 #[test]
 fn fs_read_all_methods_binary_text_entries_and_errors() {

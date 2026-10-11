@@ -1,6 +1,6 @@
 //! `.tree` snapshots of `tests/trees/*.hd`: the outline of each green tree
-//! plus its diagnostics. `HD_BLESS=1 cargo test -p hd_syntax --test
-//! snapshots` rewrites them.
+//! plus its diagnostics. `HD_BLESS=1 cargo test -p hd_syntax --test all
+//! snapshots::` rewrites them.
 
 use std::fmt::Write;
 use std::fs;
