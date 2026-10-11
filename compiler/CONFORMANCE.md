@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2650 | 173 | 22 | 2845 |
+| 2655 | 168 | 22 | 2845 |
 
 ## By Chapter
 
@@ -25,7 +25,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/09-traits.md` | 341 | 16 | 2 | 359 |
 | `lang/10-modules.md` | 223 | 30 | 5 | 258 |
 | `lang/11-requirements-and-suspension.md` | 239 | 12 | 8 | 259 |
-| `lang/14-annotations.md` | 138 | 14 | 1 | 153 |
+| `lang/14-annotations.md` | 143 | 9 | 1 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
 | `std/collections.md` | 26 | 3 | 0 | 29 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 99 | 3 | 3 | 105 |
 | `runtime/valid` | 902 | 10 | 17 | 929 |
-| `typing/invalid` | 943 | 131 | 1 | 1075 |
+| `typing/invalid` | 948 | 126 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -89,7 +89,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:no-common-type` | 2 |
-| `fail:no-diagnostic` | 66 |
+| `fail:no-diagnostic` | 61 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-import` | 1 |
 | `fail:private-main` | 4 |
@@ -216,7 +216,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (66)</summary>
+<details><summary><code>fail:no-diagnostic</code> (61)</summary>
 
 - `typing/invalid/private-type-leak.hd`
 - `typing/invalid/private-type-embedded-in-public-data.hd`
@@ -236,18 +236,13 @@ compiler stage that first declined the case.
 - `typing/invalid/entry-result-not-termination.hd`
 - `typing/invalid/structure-outside-template.hd`
 - `typing/invalid/marker-template.hd`
-- `typing/invalid/duplicate-fact.hd`
 - `typing/invalid/member-line-payload-member.hd`
 - `typing/invalid/generic-member-call.hd`
 - `typing/warnings/derivation-line-drift.hd`
 - `typing/invalid/structure-without-use.hd`
 - `typing/invalid/duplicate-tests-block.hd`
-- `typing/invalid/duplicate-declaration-fact.hd`
-- `typing/invalid/trait-less-block-duplicate-fact.hd`
-- `typing/invalid/duplicate-type-level-fact.hd`
 - `typing/invalid/test-module-tests-block.hd`
 - `typing/invalid/integration-test-tests-block.hd`
-- `typing/invalid/duplicate-function-fact.hd`
 - `typing/invalid/intrinsic-method-user.hd`
 - `typing/invalid/init-group-cycle.hd`
 - `typing/invalid/operator-function-left-exact.hd`
@@ -2003,14 +1998,18 @@ typing/invalid/duplicate-associated-binding-two-bounds.hd
 typing/invalid/duplicate-associated-binding.hd
 typing/invalid/duplicate-binding-in-one-pattern.hd
 typing/invalid/duplicate-bool-match-arm.hd
+typing/invalid/duplicate-declaration-fact.hd
+typing/invalid/duplicate-fact.hd
 typing/invalid/duplicate-field-declaration.hd
 typing/invalid/duplicate-field.hd
+typing/invalid/duplicate-function-fact.hd
 typing/invalid/duplicate-generic-embedded-name.hd
 typing/invalid/duplicate-impl-member.hd
 typing/invalid/duplicate-inherent-member.hd
 typing/invalid/duplicate-supertrait.hd
 typing/invalid/duplicate-test-name.hd
 typing/invalid/duplicate-trait-member.hd
+typing/invalid/duplicate-type-level-fact.hd
 typing/invalid/duplicate-variant.hd
 typing/invalid/dyn-associated-function-bound.hd
 typing/invalid/dyn-inherent-method-on-concrete.hd
@@ -2634,6 +2633,7 @@ typing/invalid/trait-associated-reference-unsolved-self.hd
 typing/invalid/trait-generic-instantiations-unrelated.hd
 typing/invalid/trait-impl-method-missing-result-type.hd
 typing/invalid/trait-impl-missing-method.hd
+typing/invalid/trait-less-block-duplicate-fact.hd
 typing/invalid/trait-less-block-generic-argument.hd
 typing/invalid/trait-less-block-generic-bound.hd
 typing/invalid/trait-less-block-local.hd

@@ -24,6 +24,7 @@ mod derived_default_declared;
 mod diagnostic_messages;
 mod downcast_check;
 mod downcast_run;
+mod duplicate_facts;
 mod dyn_bindings_run;
 mod dyn_bound_run;
 mod dyn_generic_run;

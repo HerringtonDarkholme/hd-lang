@@ -2700,6 +2700,9 @@ impl Run<'_> {
         for h in heads.iter().filter(|h| h.kind != hd_resolve::HeadKind::Fn) {
             hd_check::check_decl_facts(&cx, h.def, h.node, &mut diags);
         }
+        for h in &heads {
+            hd_check::check_duplicate_facts(&cx, &heads, h, &mut diags);
+        }
         if !init_facts.is_empty() {
             hd_check::init::definite_init(&cx, &stmts, &init_facts, &mut diags);
         }

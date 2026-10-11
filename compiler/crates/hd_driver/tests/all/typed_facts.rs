@@ -181,7 +181,7 @@ enum Shape:
     Tagged(@max_len(2) tags: List[string])
 
 impl Account by Structure:
-    a += [fact(6)]
+    a = [fact(6)]
 
 @fn_fact
 fn ms(n: i32) -> i64:

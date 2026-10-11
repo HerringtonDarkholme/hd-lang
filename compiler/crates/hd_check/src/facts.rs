@@ -532,6 +532,32 @@ impl Ck<'_, '_> {
         Ok((self.diags.len() == before).then_some((r, want)))
     }
 
+    /// The concrete type of the fact `e` written for `target`, or `None`
+    /// once it does not check (the error is reported elsewhere) or its type
+    /// is not settled. `single` marks a decorator's value.
+    pub(crate) fn fact_type(
+        &mut self,
+        e: NodeRef<'_>,
+        (target, owner): (FactTarget, DefId),
+        single: bool,
+    ) -> Option<Ty> {
+        let before = self.diags.len();
+        let ty = if let Some(fact) = self.typed_fact_type(e) {
+            let target = self.fact_target(target, owner).ok().flatten()?;
+            self.typed_fact(fact, e, target, single).ok().flatten()?.1
+        } else if single {
+            self.fact_value(e, None).ok()?.1
+        } else {
+            self.expr(e, None).ok()?.1
+        };
+        if self.diags.len() != before {
+            return None;
+        }
+        let ty = self.zonk(ty);
+        let pool = self.pool();
+        (!pool.has_poison(ty) && !pool.has_infer(ty)).then_some(ty)
+    }
+
     /// The value one decorator line attaches, expected to be `want`.
     fn fact_value(&mut self, e: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         if e.kind() == SyntaxKind::NameExpr {

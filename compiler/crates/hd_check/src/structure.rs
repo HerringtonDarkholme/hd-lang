@@ -94,7 +94,7 @@ impl<'t> FactLines<'t> {
     }
 
     /// The target a slot's typed facts check against.
-    fn target(&self, s: Slot) -> FactTarget {
+    pub(crate) fn target(&self, s: Slot) -> FactTarget {
         match s {
             Slot::Member(v, m) => self
                 .member_tys
@@ -115,7 +115,7 @@ impl<'t> FactLines<'t> {
         found.map_or(self.type_label.as_str(), String::as_str)
     }
 
-    fn slots(&self) -> Vec<(Slot, &[FactSource<'t>])> {
+    pub(crate) fn slots(&self) -> Vec<(Slot, &[FactSource<'t>])> {
         let mut out = vec![(Slot::Type, self.of_type.as_slice())];
         for (v, fs) in self.variants.iter().enumerate() {
             out.push((Slot::Variant(v), fs.as_slice()));
