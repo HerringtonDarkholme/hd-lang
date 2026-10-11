@@ -12,9 +12,36 @@ fn cache(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name)
 }
 
+/// A test-only global git configuration that sends every remote URL `hd`
+/// tries (HTTPS and SSH) to a local path that does not exist, so a test
+/// that names a remote requirement fails at once and never reaches the
+/// network. `hd_cli/tests/deps.rs` serves real local remotes instead.
+fn offline_git_config() -> PathBuf {
+    static CONFIG: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    CONFIG.get_or_init(write_offline_git_config).clone()
+}
+
+fn write_offline_git_config() -> PathBuf {
+    let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
+    let nowhere = root.join("no-such-remote");
+    let path = root.join("offline-gitconfig");
+    let text = format!(
+        "[url \"file://{0}/\"]\n\tinsteadOf = https://\n\tinsteadOf = ssh://git@\n\tinsteadOf = git@\n",
+        nowhere.display()
+    );
+    if std::fs::read_to_string(&path).ok().as_deref() != Some(text.as_str()) {
+        let temp = root.join(format!("offline-gitconfig.{}", std::process::id()));
+        std::fs::write(&temp, text).expect("write git config");
+        std::fs::rename(&temp, &path).expect("install git config");
+    }
+    path
+}
+
 fn hd(cache_dir: &Path) -> Command {
     let mut c = Command::new(env!("CARGO_BIN_EXE_hd"));
-    c.env("HD_CACHE", cache_dir);
+    c.env("HD_CACHE", cache_dir)
+        .env("GIT_CONFIG_GLOBAL", offline_git_config())
+        .env("GIT_CONFIG_NOSYSTEM", "1");
     c
 }
 
@@ -1079,7 +1106,10 @@ fn fetch_with_path_requirements_only_has_nothing_to_do() {
         "[package]\nname = \"shop\"\n\n[dependencies]\njson = \"github.com/acme/json@2.1.0\"\n",
     )
     .expect("write");
-    assert_eq!(ran(&dir, &["fetch"]).code, Some(101));
+    // The remote is unreachable at once: both its URLs map to a missing path.
+    let r = ran(&dir, &["fetch"]);
+    assert_eq!(r.code, Some(101), "{}", r.err);
+    assert!(r.err.contains("fetch-failed"), "{}", r.err);
 }
 
 /// `cli.wasm.run`, `cli.wasm.grant`, `cli.wasm.invalid`, `cli.wasm.not-hd`,
