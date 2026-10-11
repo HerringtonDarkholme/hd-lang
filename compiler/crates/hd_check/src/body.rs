@@ -25,6 +25,8 @@ use hd_types::solver::{
 };
 use hd_types::{InferTable, ParamRef, RowId, Ty, TyData, TyList, VarKind};
 
+use crate::access::FieldKind;
+
 /// What a body sees: the run's tables, its module's scope, the items of
 /// its closure and its view of the impls (owner tables and its impl
 /// universe, trait-solver.md §3.2).
@@ -1561,11 +1563,27 @@ impl Ck<'_, '_> {
         };
         let op_tok = hd_base::TokenIdx::from_raw(self.cx.src.last(*lhs).raw() + 1);
         let op = self.cx.src.tkind(op_tok);
+        let copy = op == Some(TokenKind::EllipsisEq);
         let compound = match op {
-            Some(TokenKind::Eq) => None,
+            Some(TokenKind::Eq | TokenKind::EllipsisEq) => None,
             Some(k) => Some(k),
             None => return unsupported("an assignment operator"),
         };
+        // `grammar.stmt.copy-assign`, `data.part.marker-required`: `...=`
+        // stores into an embedded field and into no other place.
+        if copy
+            && matches!(
+                lhs.kind(),
+                SyntaxKind::NameExpr | SyntaxKind::IndexExpr | SyntaxKind::CallExpr
+            )
+        {
+            self.err(
+                Code::CopyIntoOrdinaryField,
+                *lhs,
+                "`...=` stores into an embedded field; use `=` for this place",
+            );
+            return Ok(());
+        }
         match lhs.kind() {
             SyntaxKind::NameExpr => {
                 let name = self.sym_of(*lhs);
@@ -1646,9 +1664,34 @@ impl Ck<'_, '_> {
                     return Ok(());
                 };
                 self.check_field_visible(pt, &fname, *lhs);
+                let embedded = self.field_kind(pt, &fname) == Some(FieldKind::Embedded);
+                // `data.part.marker-required`: a part is stored with `...=`
+                // and no other place takes it.
+                if copy && !embedded {
+                    let msg = format!(
+                        "`{fname}` is not an embedded field, so `...=` cannot store into it"
+                    );
+                    self.err(Code::CopyIntoOrdinaryField, *lhs, &msg);
+                    return Ok(());
+                }
+                if !copy && compound.is_none() && embedded {
+                    let msg = format!("`{fname}` is an embedded field; store it with `...=`");
+                    self.err(Code::EmbeddedCopyRequired, *lhs, &msg);
+                    return Ok(());
+                }
                 self.check_store_target(base, (br, bt), *lhs);
                 let br = pr;
                 let v = match compound {
+                    None if copy => {
+                        // `data.part.construct`, `types.path.store-embedded`:
+                        // stores the copy-update `T { ...value }`, which must
+                        // have the mutable access of the part.
+                        let (r, t) = self.expr(*rhs, Some(ft))?;
+                        let (cr, ct) = self.copy_value((r, t), *rhs);
+                        let want = self.field_access(pt, &fname, ft);
+                        self.check_upgrade(ct, want, *rhs, "assignment");
+                        self.coerce(cr, ct, ft, *rhs, "assignment")
+                    }
                     None => {
                         let (r, t) = self.expr(*rhs, Some(ft))?;
                         self.coerce(r, t, ft, *rhs, "assignment")
@@ -1711,7 +1754,12 @@ impl Ck<'_, '_> {
                     .emit(Tag::Intrinsic, op_set as u32, rec, Ty::VOID, s.index());
             }
             SyntaxKind::CallExpr => self.call_place(*lhs, *rhs, compound, s)?,
-            _ => return unsupported("assignment to this target"),
+            // `grammar.stmt.assign-place`: any other left side is no place.
+            _ => self.err(
+                Code::InvalidAssignmentTarget,
+                *lhs,
+                "this expression is not a place that can be assigned",
+            ),
         }
         Ok(())
     }
