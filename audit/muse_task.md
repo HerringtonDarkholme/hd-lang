@@ -91,30 +91,6 @@ parity tests and full gates green after each. Same file grants as M22,
 plus `compiler/crates/hd_cli/src/memory_cap.rs` and `main.rs` for the
 allocator change; ask before touching anything else.
 
-### M23. Implement: wasmtime As The Default (W5, #247, Code)
-
-After M22, when every runtime and CLI conformance case matches Node on
-wasmtime (or each difference is a logged Node bug): make wasmtime the
-default engine for `hd FILE`, `hd run`, `hd test` and prebuilt `.wasm`;
-keep `--engine node` working for one release; report what still needs
-Node (the website/TS side is out of scope). Same files as M22 plus
-`compiler/crates/hd_cli/src/main.rs` (engine default only).
-
-### M16. Design: `hd fix` And `hd cache gc` (#267, #268, Design Text)
-
-Read the spec's Rewriting Source / Fixing and Compiled Cache sections,
-the fix-its the Rust checker already attaches (`hd_cli/src/report.rs`
-`Fix`), and the compiled cache in `hd_cache`. Design both commands: which
-fix-its are safe, how edits are applied without conflicts, the cache
-size cap and eviction order, and the CLI cases each must pass. Output:
-`future-work/compiler/fix-and-cache-gc.md`. No code changes.
-
-### M17. Triage The M12 Probe Divergences Into Tasks (Research)
-
-Your M12 section of `audit/compiler/gap-audit-2026-10-10.md` lists
-divergences for chapters 04-07. Group every (a) and (b) item into
-feature-sized fixes with the crate and function where each belongs and a
-size estimate, and name the existing task each joins (#203-#214,
-#252-#279) or say it needs a new one. Then probe chapters 08-11 the same
-way and append their section. Output: appended to the gap audit. No
-code changes.
+(Owner, 2026-10-11: Codex finishes M24 and then goes offline. M23, M16 and
+M17 moved back to the orchestrator's task list; git history keeps their
+text. Stop after M24.)
