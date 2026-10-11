@@ -139,6 +139,9 @@ fn tcp_binary_write_read_zero_partial_reads_eof_and_disposal() {
 #[test]
 fn tcp_listener_accept_write_close_and_disposed_accept() {
     let scratch = Scratch::new();
+    // The ABI exposes no listener local_addr, so the peer needs a selected
+    // port before the guest binds it. This setup still requires a lease
+    // handoff; cleanup tests below never rebind a released guest port.
     let address = TcpListener::bind("127.0.0.1:0")
         .unwrap()
         .local_addr()
@@ -325,11 +328,8 @@ fn net_refused_connect_and_occupied_tcp_udp_bind_addresses() {
     let tcp_port = occupied.local_addr().unwrap().port();
     let udp = UdpSocket::bind("127.0.0.1:0").unwrap();
     let udp_port = udp.local_addr().unwrap().port();
-    let refused = TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port();
+    let reservation = RefusedPort::new();
+    let refused = reservation.address.port();
     let mut p = Program::new();
     open(
         &mut p,
@@ -471,35 +471,45 @@ impl Write for Sink {
 }
 
 #[test]
-fn ended_instance_releases_listener_while_embedding_retains_instance() {
-    retained_instance_releases_network_resources(false);
+fn ended_instance_stops_socket_owner_while_embedding_retains_instance() {
+    retained_instance_stops_socket_owner(false);
 }
 
 #[test]
-fn trapped_instance_releases_listener_and_udp_while_embedding_retains_instance() {
-    retained_instance_releases_network_resources(true);
+fn trapped_instance_stops_socket_owner_while_embedding_retains_instance() {
+    retained_instance_stops_socket_owner(true);
 }
 
-fn retained_instance_releases_network_resources(trap: bool) {
+fn retained_instance_stops_socket_owner(trap: bool) {
     let _spawn = CHILD_SPAWN.lock().unwrap();
-    let tcp_lease = TcpListener::bind("127.0.0.1:0").unwrap();
-    let address = tcp_lease.local_addr().unwrap();
-    let udp_lease = UdpSocket::bind("127.0.0.1:0").unwrap();
-    let udp_address = udp_lease.local_addr().unwrap();
+    let (closed, peer_closed) = std::sync::mpsc::channel();
+    let peer = TcpFixture::new(move |mut peer| {
+        assert_eq!(
+            peer.read(&mut [0]).unwrap(),
+            0,
+            "ending the guest stops its socket owner and closes the peer stream"
+        );
+        closed.send(()).unwrap();
+    });
     let mut p = Program::new();
-    open(&mut p, "listen", "127.0.0.1", address.port(), vec![0, 1]);
+    open(&mut p, "listen", "127.0.0.1", 0, vec![0, 1]);
+    open(&mut p, "bind_udp", "127.0.0.1", 0, vec![0, 2]);
     open(
         &mut p,
-        "bind_udp",
+        "connect",
         "127.0.0.1",
-        udp_address.port(),
-        vec![0, 2],
+        peer.address.port(),
+        vec![0, 3],
     );
     if trap {
         p.instructions(&[I::Unreachable]);
     }
-    // No explicit handle close: ending the instance must release the port.
-    // hd:rt.stderr has already emitted the proof of both successful binds,
+    // No explicit handle close: ending the instance stops the worker that
+    // exclusively owns all three socket kinds. Observe stream EOF while
+    // retaining the instance, without racing another test to rebind its ports.
+    // Unit tests separately prove this owner's request receiver is dropped
+    // after State::serve clears every handle. hd:rt.stderr has already emitted
+    // the proof of all successful opens,
     // so a subsequent raw trap does not append another panic diagnostic.
     let (wasm, expected) = p.finish(7);
     let setup = HostSetup {
@@ -522,8 +532,6 @@ fn retained_instance_releases_network_resources(trap: bool) {
     };
     let mut instance: Box<dyn Instance> =
         Box::new(engine.instantiate_with(&module, &setup, io).unwrap());
-    drop(tcp_lease);
-    drop(udp_lease);
     assert_eq!(instance.init(), Outcome::Exit(if trap { 3 } else { 0 }));
     assert_eq!(
         hd_run::drive(instance.as_mut(), 5),
@@ -531,13 +539,9 @@ fn retained_instance_releases_network_resources(trap: bool) {
     );
     assert_eq!(*errors.0.lock().unwrap(), expected.as_bytes());
     assert_eq!(*output.0.lock().unwrap(), b"core-parity\n");
-    let rebound = TcpListener::bind(address).unwrap_or_else(|error| {
-        panic!("ended listener {address} released while its instance remains alive: {error}")
-    });
-    assert_eq!(rebound.local_addr().unwrap(), address);
-    let udp_rebound = UdpSocket::bind(udp_address)
-        .expect("ended UDP socket released while its instance remains alive");
-    assert_eq!(udp_rebound.local_addr().unwrap(), udp_address);
+    peer_closed
+        .recv_timeout(Duration::from_secs(3))
+        .expect("guest socket owner stops while its ended instance remains alive");
     drop(instance);
 }
 

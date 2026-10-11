@@ -489,11 +489,8 @@ fn http_timeout_still_applies_after_response_headers_arrive() {
 #[test]
 fn http_refused_connection_keeps_node_message() {
     let scratch = Scratch::new();
-    let port = std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port();
+    let reservation = RefusedPort::new();
+    let port = reservation.address.port();
     let url = format!("http://127.0.0.1:{port}/");
     let mut p = Program::new();
     p.call(

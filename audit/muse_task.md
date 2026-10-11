@@ -43,18 +43,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M21b. Fix: Racy UDP Port Test (Code, Small)
-
-Do this first. `hd_run_wasmtime` test
-`net::tests::udp_receives_one_datagram_and_zero_max_still_consumes_one`
-failed once in a full workspace run (2026-10-10, merge gate for #258):
-`stop releases the bound UDP address: AddrInUse` at net.rs:1388. It
-passes alone. The test re-binds an ephemeral port after `stop`, but a
-parallel test can take that port in between. Prove the release another
-way (for example, the handle state or a closed-socket error), with no
-port reuse across tests, and check the other network tests for the same
-pattern.
-
 ### M22a. Implement: Conformance Runtime Tiers On wasmtime (W4 Part 1, #246, Code)
 
 Do this before M22. Goal: run the conformance runtime tiers on wasmtime

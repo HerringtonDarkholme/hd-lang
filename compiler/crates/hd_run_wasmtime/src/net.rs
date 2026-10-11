@@ -1158,7 +1158,7 @@ mod tests {
     use socket2::Socket;
     use std::collections::{HashSet, VecDeque};
     use std::io::{Read, Write};
-    use std::net::{Shutdown, TcpListener, UdpSocket};
+    use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream, UdpSocket};
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::mpsc;
@@ -1169,6 +1169,18 @@ mod tests {
         let mut e = Enc::default();
         e.str(host);
         e
+    }
+
+    fn reserved_refused_port() -> (SocketAddr, [TcpStream; 2]) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let client =
+            TcpStream::connect_timeout(&listener.local_addr().unwrap(), Duration::from_secs(1))
+                .unwrap();
+        let (peer, _) = listener.accept().unwrap();
+        // An established client's source port stays reserved but has no
+        // listener, so an unrelated connection tuple is refused. Merely
+        // binding an unlistening socket would instead time out on Darwin.
+        (client.local_addr().unwrap(), [client, peer])
     }
 
     fn opened(client: &mut Client, method: &str, port: u16) -> i64 {
@@ -1189,6 +1201,30 @@ mod tests {
         let mut d = Dec::new(e.done());
         assert_eq!(d.leb().unwrap(), 0);
         d.bytes().unwrap().to_vec()
+    }
+
+    fn owner_requests(client: &Client) -> mpsc::Sender<Request> {
+        client.worker.as_ref().unwrap().requests.clone()
+    }
+
+    fn assert_owner_stopped(client: &Client, requests: &mpsc::Sender<Request>) {
+        assert!(client.worker.is_none());
+        assert!(client.known.is_empty());
+        assert!(client.closed.is_empty());
+        let (reply, _result) = mpsc::channel();
+        // The receiver is owned by the worker's closure. It disconnects only
+        // after State::serve has returned and cleared every owned socket.
+        // This proves cleanup without racing another test for a freed port.
+        assert!(
+            requests
+                .send(Request {
+                    op: Op::Close(1),
+                    reply,
+                    deadline: None,
+                })
+                .is_err(),
+            "stopped socket owner has dropped its receiver"
+        );
     }
 
     #[test]
@@ -1351,10 +1387,10 @@ mod tests {
             peer.send_to(b"hello", from).unwrap();
             peer.send_to(b"", from).unwrap();
             peer.send_to(b"wide", from).unwrap();
-            from
         });
         let mut client = Client::default();
         let handle = opened(&mut client, "bind_udp", 0);
+        let requests = owner_requests(&client);
         let mut args = host_args("127.0.0.1");
         args.bytes(b"ping");
         assert_eq!(
@@ -1383,9 +1419,9 @@ mod tests {
             assert_eq!(d.str().unwrap(), "127.0.0.1");
             assert_eq!(d.leb().unwrap(), u64::from(port));
         }
-        let address = server.join().unwrap();
+        server.join().unwrap();
         client.stop();
-        UdpSocket::bind(address).expect("stop releases the bound UDP address");
+        assert_owner_stopped(&client, &requests);
     }
 
     #[test]
@@ -1534,9 +1570,10 @@ mod tests {
 
     #[test]
     fn connection_candidates_advance_on_local_refusal_and_preserve_aggregate_code() {
-        let refused = TcpListener::bind("127.0.0.1:0").unwrap();
-        let refused_address = refused.local_addr().unwrap();
-        drop(refused);
+        // Retain both established pairs, keeping their source ports reserved
+        // without listeners throughout all connection attempts.
+        let (refused_address, _refused) = reserved_refused_port();
+        let (also_refused_address, _also_refused) = reserved_refused_port();
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = server.local_addr().unwrap();
         let stop = AtomicBool::new(false);
@@ -1552,10 +1589,9 @@ mod tests {
         assert_eq!(socket.peer_addr().unwrap(), address);
         let (_, _) = server.accept().unwrap();
         drop(socket);
-        drop(server);
         let error = state
             .connect_candidates(
-                vec![refused_address, address],
+                vec![refused_address, also_refused_address],
                 "localhost",
                 address.port(),
                 &stop,
@@ -1663,13 +1699,13 @@ mod tests {
     #[test]
     fn program_deadline_interrupts_accept_and_releases_listener_before_returning() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let address = listener.local_addr().unwrap();
         listener.set_nonblocking(true).unwrap();
         let mut client = client_with_bound_socket(SocketKind::Listener {
             socket: Some(listener),
             inbox: VecDeque::default(),
             end: None,
         });
+        let requests = owner_requests(&client);
         let start = Instant::now();
         let error = client
             .call_until(
@@ -1686,14 +1722,12 @@ mod tests {
             Some(Stop::TimeLimit)
         ));
         assert!(start.elapsed() < Duration::from_millis(500));
-        assert!(client.worker.is_none());
-        TcpListener::bind(address).expect("deadline cleanup releases listener immediately");
+        assert_owner_stopped(&client, &requests);
     }
 
     #[test]
     fn program_deadline_interrupts_receive_and_releases_udp_before_returning() {
         let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
-        let address = socket.local_addr().unwrap();
         socket.set_nonblocking(true).unwrap();
         let mut client = client_with_bound_socket(SocketKind::Udp {
             socket: Some(socket),
@@ -1701,6 +1735,7 @@ mod tests {
             end: None,
             ipv6: false,
         });
+        let requests = owner_requests(&client);
         let start = Instant::now();
         let error = client
             .call_until(
@@ -1717,8 +1752,7 @@ mod tests {
             Some(Stop::TimeLimit)
         ));
         assert!(start.elapsed() < Duration::from_millis(500));
-        assert!(client.worker.is_none());
-        UdpSocket::bind(address).expect("deadline cleanup releases UDP socket immediately");
+        assert_owner_stopped(&client, &requests);
     }
 
     #[test]

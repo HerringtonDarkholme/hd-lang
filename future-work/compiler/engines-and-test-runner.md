@@ -348,6 +348,14 @@ The network suites contain 18 Http and 12 Net tests, using local servers
 only. Twenty-seven compare both engines; three separately check decided
 spec behavior or retained-instance cleanup.
 
+M21b removes post-stop port-rebinding assertions from network cleanup tests.
+Unit tests observe the socket owner's disconnected request channel after teardown.
+Retained-instance tests observe peer EOF while the ended instance remains alive.
+Refusal fixtures retain established connections whose source ports reject new connections.
+
+The listener-accept parity fixture still needs a temporary port handoff:
+the Net ABI exposes no listener-address query for a guest that binds port zero.
+
 Certificate-failure tests compare the error category, not provider-specific
 TLS messages. The original 23 core parity tests remain unchanged.
 Twenty-three Http and nine Net unit tests cover internal protocol and lifecycle

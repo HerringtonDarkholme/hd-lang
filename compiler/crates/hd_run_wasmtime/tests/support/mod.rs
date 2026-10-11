@@ -29,8 +29,30 @@ pub const MEM: MemArg = MemArg {
 
 // An unrelated test's child can briefly inherit CLOEXEC socket descriptors
 // between process creation and exec. Resource-release tests hold this same
-// lock so immediate rebind observes only descriptors owned by the instance.
+// lock so peer EOF observes only descriptors owned by the instance.
 pub static CHILD_SPAWN: Mutex<()> = Mutex::new(());
+
+/// Reserves a TCP port that refuses unrelated connections without releasing
+/// it for another parallel fixture to claim. Keep both established endpoints
+/// alive: a bound but unlistening socket would time out instead on Darwin.
+pub struct RefusedPort {
+    pub address: std::net::SocketAddr,
+    _connection: [TcpStream; 2],
+}
+
+impl RefusedPort {
+    pub fn new() -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let client =
+            TcpStream::connect_timeout(&listener.local_addr().unwrap(), Duration::from_secs(1))
+                .unwrap();
+        let (peer, _) = listener.accept().unwrap();
+        Self {
+            address: client.local_addr().unwrap(),
+            _connection: [client, peer],
+        }
+    }
+}
 
 /// Exchange-buffer encoding, independent of the implementation's codec.
 #[derive(Default)]
