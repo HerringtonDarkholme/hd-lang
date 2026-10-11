@@ -22,7 +22,7 @@
 //! The caches are intentionally in-process only. wasmtime's serialized
 //! modules are `unsafe` to deserialize, so no cross-run artifact cache.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 use crate::{EngineConfig, OptLevel};
@@ -36,18 +36,41 @@ struct OnDemandKey {
     gc_init: u64,
 }
 
-/// Compiled modules for one engine. Lookups hash and compare the source
-/// bytes; compilation happens outside the map lock so parallel workers
-/// compiling distinct modules never serialize, and a lost race compiles
-/// twice but still shares one winner.
+/// Compiled modules for one engine, bound to a small LRU so a process
+/// that loads many distinct modules (a future REPL reading one program
+/// per input) cannot retain all of them. Lookups hash and compare the
+/// source bytes; compilation happens outside the map lock so parallel
+/// workers compiling distinct modules never serialize, and a lost race
+/// compiles twice but still shares one winner.
+///
+/// Why an entry count, and why this size: adjacent repeats (the
+/// pending-first-poll pairs, compiled twice in a row) hit with any bound
+/// past one; 128 entries is about sixteen full rounds of eight workers,
+/// so recurring modules (named children reused across cases) usually
+/// survive the interleaving; and 128 artifacts bound our retention to
+/// tens of megabytes worst case. Eviction drops only our reference:
+/// live instances keep their code alive through wasmtime itself, and the
+/// engine's own code memory is wasmtime's domain, not ours.
 pub(crate) struct ModuleCache {
-    modules: Mutex<HashMap<Arc<[u8]>, Arc<wasmtime::Module>>>,
+    modules: Mutex<CacheState>,
+}
+
+/// Fits in the suite's noise: the suite compiles about a thousand
+/// distinct modules, so almost every load is a miss either way; the bound
+/// pays off wherever bytes repeat.
+const CAPACITY: usize = 128;
+
+#[derive(Default)]
+struct CacheState {
+    map: HashMap<Arc<[u8]>, Arc<wasmtime::Module>>,
+    /// Least-recently used first; every hit moves its key to the back.
+    order: VecDeque<Arc<[u8]>>,
 }
 
 impl ModuleCache {
     pub(crate) fn new() -> Self {
         Self {
-            modules: Mutex::new(HashMap::new()),
+            modules: Mutex::new(CacheState::default()),
         }
     }
 
@@ -56,22 +79,38 @@ impl ModuleCache {
         engine: &wasmtime::Engine,
         wasm: &[u8],
     ) -> Result<Arc<wasmtime::Module>, wasmtime::Error> {
-        if let Some(hit) = self
-            .modules
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .get(wasm)
         {
-            return Ok(Arc::clone(hit));
+            let mut state = self.modules.lock().unwrap_or_else(PoisonError::into_inner);
+            if let Some(hit) = state.map.get(wasm).map(Arc::clone) {
+                Self::touch(&mut state.order, wasm);
+                return Ok(hit);
+            }
         }
         let compiled = wasmtime::Module::new(engine, wasm)?;
         let compiled = Arc::new(compiled);
-        let mut modules = self.modules.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Some(hit) = modules.get(wasm) {
-            return Ok(Arc::clone(hit));
+        let mut state = self.modules.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(hit) = state.map.get(wasm).map(Arc::clone) {
+            Self::touch(&mut state.order, wasm);
+            return Ok(hit);
         }
-        modules.insert(wasm.into(), Arc::clone(&compiled));
+        let key: Arc<[u8]> = wasm.into();
+        state.map.insert(Arc::clone(&key), Arc::clone(&compiled));
+        state.order.push_back(key);
+        while state.map.len() > CAPACITY {
+            if let Some(oldest) = state.order.pop_front() {
+                state.map.remove(&oldest);
+            } else {
+                break;
+            }
+        }
         Ok(compiled)
+    }
+
+    fn touch(order: &mut VecDeque<Arc<[u8]>>, wasm: &[u8]) {
+        if let Some(position) = order.iter().position(|key| &key[..] == wasm) {
+            let key = order.remove(position).expect("found position");
+            order.push_back(key);
+        }
     }
 }
 
@@ -165,5 +204,39 @@ mod tests {
         let a = default_engine.load(&bytes, &store).unwrap();
         let b = release_engine.load(&bytes, &store).unwrap();
         assert!(!Arc::ptr_eq(&a.0, &b.0));
+    }
+
+    fn numbered_module(n: u32) -> Vec<u8> {
+        // Distinct import-free bytes per number.
+        let data = n.to_le_bytes();
+        let mut module = wasm_encoder::Module::new();
+        module.section(&wasm_encoder::CustomSection {
+            name: std::borrow::Cow::Borrowed("m31-probe"),
+            data: data.as_slice().into(),
+        });
+        module.finish()
+    }
+
+    #[test]
+    fn entries_past_the_bound_evict_oldest_first() {
+        const EXTRA: u32 = 8;
+        let total = u32::try_from(super::CAPACITY).unwrap() + EXTRA;
+        let engine = WasmtimeEngine::new(EngineConfig::default()).unwrap();
+        let store = MemoryStore::default();
+        // Fill past the bound with distinct modules, hitting each once.
+        let first = engine.load(&numbered_module(0), &store).unwrap();
+        for n in 1..total {
+            engine.load(&numbered_module(n), &store).unwrap();
+        }
+        // The oldest entry evicted: reloading recompiles.
+        let recompiled = engine.load(&numbered_module(0), &store).unwrap();
+        assert!(!Arc::ptr_eq(&first.0, &recompiled.0));
+        // A recent entry still hits the shared compilation, twice in a row.
+        let last = total - 1;
+        let kept = engine.load(&numbered_module(last), &store).unwrap();
+        assert!(Arc::ptr_eq(
+            &kept.0,
+            &engine.load(&numbered_module(last), &store).unwrap().0
+        ));
     }
 }
