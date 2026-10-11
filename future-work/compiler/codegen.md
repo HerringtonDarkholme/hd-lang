@@ -303,14 +303,32 @@ cancel function (§14.6).
   direct, so a derived `encode` is straight-line code
   ([`annot.walk.members`](../../spec/lang/14-annotations.md#r-annot.walk.members)).
   Member handles are constant globals (§15.4).
-- **The derivation's own `Structure` (#119).** Each derivation gets its
-  own `Structure` for its target, generated as ordinary TIR in the
-  target module (`hd_check/src/structure.rs`): the bodies of `facts`,
-  `name`, `walk`, `describe` and `build`, plus one hidden method per
-  handle whose closures instantiate once per derivation. Not carried
-  yet: facts (declaration facts and member lines), doc comments
-  (`doc` is `.None`), and shared constructor data — a call of those
-  stops at collection with a structured "not implemented".
+- **The derivation's own `Structure` (#119, #253).** Each derivation sees
+  a `Structure` for its target, generated as ordinary TIR in the target
+  module (`hd_check/src/structure.rs`): the bodies of `facts`, `name`,
+  `walk`, `describe` and `build`, plus one hidden method per handle whose
+  closures instantiate once per owner. The owner is the data type or enum
+  for the declaration's `Structure`, generated once per module and shared
+  by every derivation without member lines; a derivation block with
+  member lines owns its own (`annot.structure.per-derivation`). A derive
+  instance calls the owner's methods directly, so one instance per
+  (method, owner's arguments, walker) serves every derivation and call
+  site that sees one `Structure`. Each `Facts` (type, variant, member) is
+  a hidden body of the owner with no parameter that evaluates the slot's
+  decorator values, then its trait-less block's line, then the
+  derivation block's line, in source order; a slot the block does not
+  edit reuses the declaration's body. `VariantInfo.shared` reads the
+  variant's shared-data globals. The bodies are in the module's TIR, so
+  a field edit changes the module's content hash, the program key and
+  the generated instances' code keys (`hd_driver/tests/structure_run.rs`).
+  Not carried yet, each a structured "not implemented" that stops a call
+  at collection: a typed fact (`annot.typed-fact.check` needs the fact
+  type's pattern), a member line whose list is not a list literal (a
+  `List[dyn Any]` value has no conversion to `Facts`' `dyn Inspectable`
+  items), and the shared data of a generic enum. Doc comments are not
+  carried (`doc` is `.None`). As built, a facts body runs at each read,
+  as `facts_of`'s does, not through the first-read getter above, so a
+  panic in it keeps its own category.
 - **Test registrations.** A `TestCase` body evaluates its registration
   call's run-time arguments (`rows`, `timeout`, examples) and calls the
   std registration function, which drives the test body (§19.3).
