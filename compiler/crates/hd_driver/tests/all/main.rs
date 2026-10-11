@@ -67,6 +67,7 @@ mod misplaced_derivation;
 mod mixed_variant_patterns_run;
 mod module_member_run;
 mod nested_interpolation_run;
+mod nested_optional_run;
 mod newtype_derive_run;
 mod optional_join_run;
 mod pipe_bare_steps;

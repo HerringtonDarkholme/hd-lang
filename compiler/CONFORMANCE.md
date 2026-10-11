@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2613 | 208 | 24 | 2845 |
+| 2614 | 207 | 24 | 2845 |
 
 ## By Chapter
 
@@ -17,7 +17,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
 | `lang/02-grammar.md` | 205 | 10 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 100 | 1 | 0 | 101 |
-| `lang/04-type-system.md` | 327 | 25 | 0 | 352 |
+| `lang/04-type-system.md` | 328 | 24 | 0 | 352 |
 | `lang/05-expressions.md` | 261 | 16 | 0 | 277 |
 | `lang/06-control-flow.md` | 139 | 14 | 4 | 157 |
 | `lang/07-functions.md` | 120 | 10 | 0 | 130 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 97 | 5 | 3 | 105 |
-| `runtime/valid` | 899 | 11 | 19 | 929 |
+| `runtime/valid` | 900 | 10 | 19 | 929 |
 | `typing/invalid` | 911 | 163 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -105,7 +105,7 @@ compiler stage that first declined the case.
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-used-as-type` | 1 |
-| `fail:type-mismatch` | 20 |
+| `fail:type-mismatch` | 19 |
 | `fail:unknown-data-field` | 4 |
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 5 |
@@ -424,14 +424,13 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (20)</summary>
+<details><summary><code>fail:type-mismatch</code> (19)</summary>
 
 - `typing/invalid/mixed-signedness.hd`
 - `typing/invalid/variance-representation-change.hd`
 - `typing/invalid/derived-generic-bound.hd`
 - `typing/invalid/contravariant-representation-change.hd`
 - `runtime/valid/suspending-function-values.hd`
-- `runtime/valid/nested-optional-layers.hd`
 - `typing/invalid/function-result-representation-change.hd`
 - `typing/invalid/operator-left-literal.hd`
 - `runtime/valid/intrinsic-method-calls.hd`
@@ -1464,6 +1463,7 @@ runtime/valid/nested-block-on.hd
 runtime/valid/nested-closure-captures.hd
 runtime/valid/nested-control-flow-as-expressions.hd
 runtime/valid/nested-mutable-captures.hd
+runtime/valid/nested-optional-layers.hd
 runtime/valid/nested-provider-restoration.hd
 runtime/valid/nested-provider-scope.hd
 runtime/valid/nested-suspending-call.hd

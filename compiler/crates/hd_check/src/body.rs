@@ -977,6 +977,28 @@ impl Ck<'_, '_> {
         l
     }
 
+    /// How many optional layers `t` has: `0` for an `i32`, `2` for an
+    /// `i32??`. A layer still an unsolved variable ends the count.
+    pub(crate) fn option_layers(&self, mut t: Ty) -> usize {
+        let pool = self.pool();
+        let mut n = 0;
+        while let TyData::Option(inner) = pool.get(self.infer.shallow(pool, t)) {
+            n += 1;
+            t = inner;
+        }
+        n
+    }
+
+    /// Whether a value of type `got` takes one optional injection into the
+    /// optional `want`: `got` has exactly one optional layer fewer, so an
+    /// `i32` goes into an `i32?` and an `i32?` into an `i32??`
+    /// (`types.assign.optional`, `types.option.nest.accept`). An `i32` is
+    /// no injection into an `i32??`, and a value with as many layers as
+    /// `want` must match it.
+    fn injects_into(&self, got: Ty, want: Ty) -> bool {
+        self.option_layers(got) + 1 == self.option_layers(want)
+    }
+
     /// Unifies `got` with `want`, inserting the coercions of
     /// type-checking.md §4.2 (`never`, `.Some` wrapping, trait values).
     pub(crate) fn coerce(&mut self, r: Ref, got: Ty, want: Ty, n: NodeRef<'_>, what: &str) -> Ref {
@@ -1013,7 +1035,7 @@ impl Ck<'_, '_> {
         let open = matches!(pool.get(gs), TyData::Infer(_)) && lit.is_none();
         if let TyData::Option(inner) = pool.get(ws)
             && !open
-            && !matches!(pool.get(gs), TyData::Option(_))
+            && self.injects_into(gs, ws)
         {
             if !self.check_upgrade(got, inner, n, what) {
                 self.expect(got, inner, n, what);

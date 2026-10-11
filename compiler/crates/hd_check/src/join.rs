@@ -235,7 +235,7 @@ impl Ck<'_, '_> {
         // `types.lct.optional`: a plain value joins an optional site by
         // injection, one layer only (`types.lct.optional.one-layer`).
         if let TyData::Option(inner) = pool.get(cur)
-            && !matches!(pool.get(gs), TyData::Option(_))
+            && self.option_layers(gs) < self.option_layers(cur)
             && !(open(gs) && self.infer.kind_of(pool, gs) == Some(VarKind::General))
         {
             let snap = self.infer.snapshot();
@@ -251,7 +251,7 @@ impl Ck<'_, '_> {
         // An optional value joins a plain site of its inner type: the site
         // starts over with the optional type (`join_site`).
         if let TyData::Option(inner) = pool.get(gs)
-            && !matches!(pool.get(cur), TyData::Option(_))
+            && self.option_layers(cur) < self.option_layers(gs)
             && self.restarts.contains(&var)
         {
             let snap = self.infer.snapshot();
@@ -585,7 +585,7 @@ impl Ck<'_, '_> {
         let t = self.infer.resolve(pool, t);
         match pool.get(t) {
             TyData::Option(inner) => {
-                !matches!(pool.get(self.strip_mut(v)), TyData::Option(_))
+                self.option_layers(self.strip_mut(v)) < self.option_layers(t)
                     && self.lct_converts(v, inner, true, 0)
             }
             _ => false,
