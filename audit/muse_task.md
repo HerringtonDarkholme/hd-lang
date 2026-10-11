@@ -52,6 +52,30 @@ names. Same files as M18, plus the flag parsing in
 `compiler/crates/hd_cli/src/main.rs` (the `--engine` flag code is the
 model). Node behavior stays as is until W5.
 
+### M22. Implement: `hd test` On wasmtime (W4, #246, Code)
+
+After M21. Implement your M9 design (`engines-and-test-runner.md` §19,
+"Test Runner"): TestRunner and PropertyRunner providers on wasmtime, a
+`Linker` per host kind with `InstancePre`, per-test timeouts through
+epochs, and `hd test --engine wasmtime` (Node stays the default). Then
+run the driver and CLI conformance runtime tiers in-process on wasmtime
+behind an env switch, and report the match count and the time per tier
+against Node. Files: `compiler/crates/hd_run_wasmtime/**`,
+`compiler/crates/hd_cli/src/engine.rs`, `compiler/crates/hd_cli/src/test_cmd.rs`
+(engine selection only), the two conformance runners
+(`hd_driver/tests/conformance.rs`, `hd_cli/tests/cli_conformance.rs`, the
+engine switch only), their tests, and §18-§20 of the doc. Ask before
+touching any other file.
+
+### M23. Implement: wasmtime As The Default (W5, #247, Code)
+
+After M22, when every runtime and CLI conformance case matches Node on
+wasmtime (or each difference is a logged Node bug): make wasmtime the
+default engine for `hd FILE`, `hd run`, `hd test` and prebuilt `.wasm`;
+keep `--engine node` working for one release; report what still needs
+Node (the website/TS side is out of scope). Same files as M22 plus
+`compiler/crates/hd_cli/src/main.rs` (engine default only).
+
 ### M16. Design: `hd fix` And `hd cache gc` (#267, #268, Design Text)
 
 Read the spec's Rewriting Source / Fixing and Compiled Cache sections,
