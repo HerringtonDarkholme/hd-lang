@@ -13,6 +13,8 @@
 //! `no-common-type`, or `no-least-common-type` when the values do have a
 //! common type that these rules cannot reach.
 
+use std::collections::HashMap;
+
 use hd_base::{DefId, StageResult};
 use hd_diag::Code;
 use hd_syntax::NodeRef;
@@ -20,6 +22,94 @@ use hd_tir::ir::{Coercion, NONE, Ref, TirSink};
 use hd_types::{Ty, TyData, VarKind};
 
 use crate::body::Ck;
+
+/// The least-common-type sites of a body, by join variable. A site keeps
+/// the values joined so far, each reaching the site's type by one admitted
+/// conversion; they are compared again only when that type changes, which
+/// happens a bounded number of times per site, so a value that leaves it
+/// unchanged costs a constant. An undo log lets a trial roll back.
+#[derive(Default)]
+pub(crate) struct Joins {
+    sites: HashMap<Ty, Site>,
+    log: Vec<Undo>,
+}
+
+#[derive(Default)]
+struct Site {
+    /// The types of the values joined so far, unresolved.
+    values: Vec<Ty>,
+    /// A value did not join and was reported: the site reports once.
+    failed: bool,
+}
+
+enum Undo {
+    Open(Ty),
+    Value(Ty),
+    Failed(Ty),
+}
+
+impl Joins {
+    /// Whether `var` is a site's join variable.
+    pub(crate) fn is_site(&self, var: Ty) -> bool {
+        self.sites.contains_key(&var)
+    }
+
+    fn open(&mut self, var: Ty) {
+        self.sites.insert(var, Site::default());
+        self.log.push(Undo::Open(var));
+    }
+
+    fn push(&mut self, var: Ty, t: Ty) {
+        if let Some(site) = self.sites.get_mut(&var) {
+            site.values.push(t);
+            self.log.push(Undo::Value(var));
+        }
+    }
+
+    fn fail(&mut self, var: Ty) {
+        if let Some(site) = self.sites.get_mut(&var)
+            && !site.failed
+        {
+            site.failed = true;
+            self.log.push(Undo::Failed(var));
+        }
+    }
+
+    fn failed(&self, var: Ty) -> bool {
+        self.sites.get(&var).is_some_and(|s| s.failed)
+    }
+
+    fn values(&self, var: Ty) -> &[Ty] {
+        self.sites.get(&var).map_or(&[], |s| &s.values)
+    }
+
+    /// A position in the log to roll back to.
+    pub(crate) fn mark(&self) -> usize {
+        self.log.len()
+    }
+
+    /// Undoes everything logged after `mark`.
+    pub(crate) fn rollback(&mut self, mark: usize) {
+        while self.log.len() > mark {
+            match self.log.pop() {
+                Some(Undo::Open(v)) => {
+                    self.sites.remove(&v);
+                }
+                Some(Undo::Value(v)) => {
+                    if let Some(site) = self.sites.get_mut(&v) {
+                        site.values.pop();
+                    }
+                }
+                Some(Undo::Failed(v)) => {
+                    if let Some(site) = self.sites.get_mut(&v) {
+                        site.failed = false;
+                    }
+                }
+                None => break,
+            }
+        }
+    }
+}
 
 /// The direction of a meet: the least type both convert to, or, in a
 /// contravariant position, the greatest type that converts to both.
@@ -51,12 +141,12 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         if let Some(w) = want
             && (!matches!(pool.get(self.infer.shallow(pool, w)), TyData::Infer(_))
-                || self.joins.contains(&w))
+                || self.joins.is_site(w))
         {
             return w;
         }
         let v = self.infer.fresh(pool, VarKind::General);
-        self.joins.push(v);
+        self.joins.open(v);
         v
     }
 
@@ -71,7 +161,7 @@ impl Ck<'_, '_> {
         mut run: impl FnMut(&mut Self, Ty) -> StageResult<T>,
     ) -> StageResult<T> {
         let result = self.join_target(want);
-        if !self.joins.contains(&result) {
+        if !self.joins.is_site(result) {
             return run(self, result);
         }
         let cp = self.checkpoint();
@@ -94,7 +184,7 @@ impl Ck<'_, '_> {
     /// (`req.row.union.literal.direct`) rather than checking `orders`
     /// against the first list's element type.
     pub(crate) fn literal_want(&self, want: Option<Ty>) -> Option<Ty> {
-        want.filter(|w| !self.joins.contains(w))
+        want.filter(|w| !self.joins.is_site(*w))
     }
 
     /// A value of type `got` at the site whose join variable is `var`.
@@ -118,7 +208,7 @@ impl Ck<'_, '_> {
         }
         // A site reports once: after a value that does not join, the
         // others are not compared.
-        if self.join_vals.contains(&(var, Ty::POISON)) {
+        if self.joins.failed(var) {
             return r;
         }
         // The first value solves the site; an open literal class has solved
@@ -129,7 +219,7 @@ impl Ck<'_, '_> {
         {
             let snap = self.infer.snapshot();
             if self.infer.unify(pool, var, got).is_ok() {
-                self.join_vals.push((var, got));
+                self.joins.push(var, got);
                 return r;
             }
             self.infer.rollback(snap);
@@ -151,7 +241,7 @@ impl Ck<'_, '_> {
             let snap = self.infer.snapshot();
             if self.infer.unify(pool, inner, got).is_ok() && self.lct_converts(got, inner, true, 0)
             {
-                self.join_vals.push((var, got));
+                self.joins.push(var, got);
                 return self.b.coerce(Coercion::WrapSome, NONE, r, var, n.index());
             }
             self.infer.rollback(snap);
@@ -184,18 +274,25 @@ impl Ck<'_, '_> {
             return r;
         }
         let (cur, g) = (self.infer.resolve(pool, var), self.infer.resolve(pool, got));
-        let met = self.lct_meet(cur, g, Dir::Least, true, 0);
-        let earlier = self.joined_types(var);
+        // `types.lct.no-combine`: each value reaches the least type by one
+        // admitted conversion. The meet builds the type so that this value
+        // does, and the earlier values reach the current type, so they are
+        // compared again only when the type changes.
+        let met = self.lct_meet(cur, g, Dir::Least, true, 0).filter(|t| {
+            *t == cur
+                || self
+                    .joined_types(var)
+                    .iter()
+                    .all(|v| self.lct_reaches(*v, *t))
+        });
         match met {
-            // `types.lct.no-combine`: each value reaches the least type by
-            // one admitted conversion, the earlier ones included.
-            Some(t) if earlier.iter().all(|v| self.lct_reaches(*v, t)) => {
+            Some(t) => {
                 if t != cur {
                     self.infer.rebind(pool, var, t);
                 }
-                self.join_vals.push((var, got));
+                self.joins.push(var, got);
             }
-            _ => self.no_common_type(var, got, true, n, what),
+            None => self.no_common_type(var, got, true, n, what),
         }
         r
     }
@@ -203,10 +300,10 @@ impl Ck<'_, '_> {
     /// The types of the values joined so far at `var`'s site, resolved.
     fn joined_types(&self, var: Ty) -> Vec<Ty> {
         let pool = self.pool();
-        self.join_vals
+        self.joins
+            .values(var)
             .iter()
-            .filter(|(v, t)| *v == var && *t != Ty::POISON)
-            .map(|(_, t)| self.infer.resolve(pool, *t))
+            .map(|t| self.infer.resolve(pool, *t))
             .collect()
     }
 
@@ -252,7 +349,7 @@ impl Ck<'_, '_> {
             );
             self.err(Code::NoCommonType, n, &msg);
         }
-        self.join_vals.push((var, Ty::POISON));
+        self.joins.fail(var);
     }
 
     /// `t` with a `mut` that grants nothing removed: permissions matter on

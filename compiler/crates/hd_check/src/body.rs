@@ -251,21 +251,15 @@ pub(crate) struct Ck<'a, 'c> {
     /// Checking a tuple template's method for its plan: where its member
     /// steps go (trait-solver.md §3.9).
     pub plan_sink: Option<&'c std::cell::RefCell<Vec<hd_types::solver::MemberStep>>>,
-    /// The type variables of the least-common-type sites being joined
-    /// (`types.lct.sites`): a function value that joins one widens its
-    /// row to the union (`types.lct.row-union-every-site`).
-    pub joins: Vec<Ty>,
+    /// The least-common-type sites being joined (`types.lct.sites`), by
+    /// join variable, with the values each has joined.
+    pub joins: crate::join::Joins,
     /// The join variables of the sites now checking their branches that
     /// can restart with a wider type (`join_site`).
     pub restarts: Vec<Ty>,
     /// A join variable met an optional value of its solved inner type: the
     /// site must start over with the optional as its type (`types.lct.optional`).
     pub widen: Vec<(Ty, Ty)>,
-    /// Each value joined at a site so far, as its join variable and the
-    /// value's type: the least type must be reachable from every one
-    /// (`types.lct.no-combine`). A `POISON` type marks a site that has
-    /// reported a value that does not join.
-    pub join_vals: Vec<(Ty, Ty)>,
     /// The byte of the statement being checked: the local declarations
     /// whose extent holds it are in scope (`names.local-type.name`).
     pub at: u32,
@@ -353,10 +347,9 @@ pub(crate) fn new_ck<'a, 'c>(
         opt_in: None,
         structure_calls: Vec::new(),
         plan_sink: None,
-        joins: Vec::new(),
+        joins: crate::join::Joins::default(),
         restarts: Vec::new(),
         widen: Vec::new(),
-        join_vals: Vec::new(),
         at: 0,
         hidden: Vec::new(),
         module: cx.names.module_node(item),
@@ -997,7 +990,7 @@ impl Ck<'_, '_> {
         }
         // A least-common-type site's variable is not a declared type: the
         // value joins the others instead (types.lct).
-        if self.joins.contains(&target) {
+        if self.joins.is_site(target) {
             return self.join_value(r, got, target, n, what);
         }
         // A variable a generic call solves is not a declared type either:

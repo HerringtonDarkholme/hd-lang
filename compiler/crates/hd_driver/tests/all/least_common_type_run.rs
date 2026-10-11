@@ -343,3 +343,22 @@ fn count() -> i32 $ Clock:
     let main = format!("{rows}\nfn f() -> void:\n    _v := [health, orders]\n");
     assert_eq!(codes_of(&main), vec![]);
 }
+
+/// A value that leaves a site's type unchanged costs a constant, so a
+/// 20000-element list literal checks in linear time. The bound is generous
+/// for the dev profile: it catches a quadratic join, not a slow machine.
+#[test]
+fn a_long_list_literal_joins_in_linear_time() {
+    let elems: Vec<String> = (0..20_000).map(|i| format!("+{i}")).collect();
+    let main = format!(
+        "fn f() -> usize:\n    xs := [{}]\n    xs.len()\n",
+        elems.join(", ")
+    );
+    let start = std::time::Instant::now();
+    assert_eq!(codes_of(&main), vec![]);
+    let took = start.elapsed();
+    assert!(
+        took < std::time::Duration::from_secs(5),
+        "20000 elements took {took:?}"
+    );
+}
