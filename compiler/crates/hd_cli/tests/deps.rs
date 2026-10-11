@@ -158,6 +158,14 @@ impl World {
     }
 }
 
+/// The test's cache entries are read-only (`cli.cache.read-only`), so a
+/// directory left behind makes `cargo clean` fail; each test removes its own.
+impl Drop for World {
+    fn drop(&mut self) {
+        let _ = hd_deps::cache::remove_tree(&self.root);
+    }
+}
+
 fn write(dir: &Path, files: &[(&str, &str)]) {
     for (path, text) in files {
         let p = dir.join(path);
