@@ -771,6 +771,7 @@ fn a_dependency_diagnostic_is_located_in_its_file() {
         requires: vec![("ext".to_owned(), 1)],
         deps: vec![Dependency {
             name: "ext".to_owned(),
+            identity: "ext".to_owned(),
             sources: &dep,
             requires: Vec::new(),
         }],

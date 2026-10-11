@@ -163,6 +163,32 @@ pub fn user_text(text: &str, file_of: &dyn Fn(&str) -> Option<String>) -> String
     out
 }
 
+/// `text` with each module root of `renamed` written as its package's
+/// identifier (`ModuleTable::renamed_roots`). A root is replaced where no
+/// identifier character comes before it and no digit after it.
+#[must_use]
+pub fn rename_roots(text: &str, renamed: &[(String, String)]) -> String {
+    let mut out = text.to_owned();
+    for (root, ident) in renamed {
+        let mut next = String::with_capacity(out.len());
+        let mut rest = out.as_str();
+        while let Some(at) = rest.find(root.as_str()) {
+            let end = at + root.len();
+            let before = rest[..at]
+                .chars()
+                .next_back()
+                .is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '$');
+            let after = rest[end..].starts_with(|c: char| c.is_ascii_digit());
+            next.push_str(&rest[..at]);
+            next.push_str(if before || after { root } else { ident });
+            rest = &rest[end..];
+        }
+        next.push_str(rest);
+        out = next;
+    }
+    out
+}
+
 /// A package-relative file's module path below its package root module
 /// (`module.path.*`): `src/user/types.hd` is `user.types`,
 /// `src/user/mod.hd` is `user`, `src/lib.hd` is the root itself (empty),
@@ -225,8 +251,15 @@ pub enum Scope {
 
 /// One package as discovery reads it.
 pub struct PackageIn<'a> {
-    /// The manifest name; module paths start with its `package_ident`.
+    /// The manifest name; module paths start with its `package_ident`,
+    /// unless an earlier package holds it (`ModuleTable::roots`).
     pub name: &'a str,
+    /// What tells it from another package of the same name
+    /// (`module.dep.identity`): a fetched version's host path and
+    /// compatibility line, a local dependency's canonical directory, or
+    /// the name of the root package and of std. It keys the package's
+    /// cached outputs, and names its files when its name is shared.
+    pub identity: &'a str,
     pub sources: &'a dyn SourceSet,
     pub scope: Scope,
     /// Each dependency, by the name source writes after `dep.`, and the
@@ -397,6 +430,11 @@ pub struct ModuleTable {
     pub package: String,
     /// Package names: the root, then each dependency.
     pub packages: Vec<String>,
+    /// Per package: its identity, as `PackageIn::identity`.
+    pub identities: Vec<String>,
+    /// Per package: its module root, which its module paths start with,
+    /// unique in the table (`module_roots`).
+    pub roots: Vec<String>,
     /// Per package: each dependency name and its package index.
     pub requires: Vec<Vec<(String, u16)>>,
     /// Per package: its dev dependencies, in the same form; only the root
@@ -419,13 +457,44 @@ pub struct ModuleTable {
 /// `module_below`.
 #[must_use]
 pub fn module_path(package: &str, file: &str) -> String {
+    rooted_path(&package_ident(package), file)
+}
+
+/// A package-relative file's module path below the module root `root`.
+fn rooted_path(root: &str, file: &str) -> String {
     let below = module_below(file);
-    let ident = package_ident(package);
     if below.is_empty() {
-        ident
+        root.to_owned()
     } else {
-        format!("{ident}.{below}")
+        format!("{root}.{below}")
     }
+}
+
+/// Each package's module root: the identifier form of its name, unique
+/// among the packages. Packages are told apart by identity, not by name
+/// (`module.dep.identity`, `module.package.no-sharing`), so the second and
+/// later packages of one identifier get `IDENT$N`, the `N`th of them, a
+/// segment no source spells. The root package claims its identifier
+/// first, then the last package (std, in a build), then the others in
+/// order.
+fn module_roots(packages: &[PackageIn<'_>]) -> Vec<String> {
+    let n = packages.len();
+    let mut roots = vec![String::new(); n];
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
+    let claims = (0..n.min(1))
+        .chain((1..n).rev().take(1))
+        .chain(1..n.saturating_sub(1));
+    for i in claims {
+        let ident = package_ident(packages[i].name);
+        let count = seen.entry(ident.clone()).or_insert(0);
+        *count += 1;
+        roots[i] = if *count == 1 {
+            ident
+        } else {
+            format!("{ident}${count}")
+        };
+    }
+    roots
 }
 
 /// The folder path of a module path: everything before its last segment.
@@ -442,6 +511,7 @@ impl ModuleTable {
     pub fn discover(package: &str, sources: &dyn SourceSet) -> Self {
         Self::discover_all(&[PackageIn {
             name: package,
+            identity: package,
             sources,
             scope: Scope::All,
             requires: Vec::new(),
@@ -457,9 +527,11 @@ impl ModuleTable {
     /// (`module.folder.parent-file`), and `x/mod.hd` is module `x`.
     #[must_use]
     pub fn discover_all(packages: &[PackageIn<'_>]) -> Self {
+        let roots = module_roots(packages);
         let mut t = ModuleTable {
             package: packages.first().map_or("", |p| p.name).to_owned(),
             packages: packages.iter().map(|p| p.name.to_owned()).collect(),
+            identities: packages.iter().map(|p| p.identity.to_owned()).collect(),
             requires: packages.iter().map(|p| p.requires.clone()).collect(),
             dev_requires: packages.iter().map(|p| p.dev_requires.clone()).collect(),
             ..Self::default()
@@ -483,9 +555,21 @@ impl ModuleTable {
                     d = parent;
                 }
             }
-            let root = package_ident(p.name);
+            let root = roots[usize::from(pi)].clone();
+            // A file of a package whose name another package shares is
+            // named by the package's identity.
+            let ident = package_ident(p.name);
+            let shown = if packages
+                .iter()
+                .enumerate()
+                .any(|(j, o)| j != usize::from(pi) && package_ident(o.name) == ident)
+            {
+                p.identity
+            } else {
+                p.name
+            };
             for e in &entries {
-                let path = module_path(p.name, &e.path);
+                let path = rooted_path(&root, &e.path);
                 let executable = Root::of(&e.path).0 == Root::Source
                     && p.entries.contains(&module_below(&e.path));
                 let id = ModuleId::from_raw(u32::try_from(t.modules.len()).expect("modules"));
@@ -554,7 +638,7 @@ impl ModuleTable {
                 t.files.push(if pi == 0 {
                     e.path.clone()
                 } else {
-                    format!("<{}>/{}", p.name, e.path)
+                    format!("<{shown}>/{}", e.path)
                 });
                 t.sources.push((pi, e.path.clone()));
                 let floor = match Root::of(&e.path).0.segment() {
@@ -582,6 +666,7 @@ impl ModuleTable {
                 });
             }
         }
+        t.roots = roots;
         for (i, (path, (package, mods))) in folders.into_iter().enumerate() {
             let id = FolderId::from_raw(u32::try_from(i).expect("folders"));
             for &m in &mods {
@@ -627,9 +712,9 @@ impl ModuleTable {
             Role::Test => DevAccess::All,
             Role::Lib | Role::Exe => DevAccess::None,
         };
-        let ident = |p: u16| package_ident(&self.packages[usize::from(p)]);
+        let ident = |p: u16| self.roots[usize::from(p)].clone();
         UseRoots {
-            pkg: package_ident(&self.packages[package]),
+            pkg: self.roots[package].clone(),
             base: module.base.clone(),
             floor: module.floor.clone(),
             deps: self.requires[package]
@@ -645,6 +730,18 @@ impl ModuleTable {
                 .collect(),
             access,
         }
+    }
+
+    /// The module roots that differ from their package's identifier, each
+    /// with that identifier: what user text shows for them.
+    #[must_use]
+    pub fn renamed_roots(&self) -> Vec<(String, String)> {
+        self.roots
+            .iter()
+            .zip(&self.packages)
+            .map(|(root, name)| (root.clone(), package_ident(name)))
+            .filter(|(root, ident)| root != ident)
+            .collect()
     }
 
     /// Whether package `from` reaches package `to` through requirements.
@@ -1058,6 +1155,7 @@ mod tests {
         let t = ModuleTable::discover_all(&[
             PackageIn {
                 name: "acme-shop",
+                identity: "acme-shop",
                 sources: &shop,
                 scope: Scope::All,
                 requires: vec![("cash".to_owned(), 1)],
@@ -1066,6 +1164,7 @@ mod tests {
             },
             PackageIn {
                 name: "money",
+                identity: "money",
                 sources: &money,
                 scope: Scope::Library,
                 requires: Vec::new(),
@@ -1147,11 +1246,60 @@ mod tests {
         );
     }
 
+    /// Two packages of one name are two packages (`module.dep.identity`,
+    /// `module.package.no-sharing`): each has its own module root, its
+    /// dependers reach it by their own keys (`module.dep.key-name`), and
+    /// people still read its name.
+    #[test]
+    fn same_named_packages_get_their_own_roots() {
+        let mut lib = MemorySources::default();
+        lib.insert("src/lib.hd", "");
+        lib.insert("src/rates.hd", "");
+        let p = |name, identity, requires| PackageIn {
+            name,
+            identity,
+            sources: &lib,
+            scope: Scope::Library,
+            requires,
+            entries: Vec::new(),
+            dev_requires: Vec::new(),
+        };
+        let t = ModuleTable::discover_all(&[
+            p(
+                "money",
+                "money",
+                vec![("money".to_owned(), 1), ("cash".to_owned(), 2)],
+            ),
+            p("money", "/w/a", Vec::new()),
+            p("money", "/w/b", vec![("fx".to_owned(), 3)]),
+            p("std", "std", Vec::new()),
+        ]);
+        assert!(t.problems.is_empty(), "{:?}", t.problems);
+        assert_eq!(t.roots, ["money", "money$2", "money$3", "std"]);
+        assert!(t.module("money$3.rates").is_some());
+        assert_eq!(t.files[2], "</w/a>/src/lib.hd");
+        let roots = t.use_roots(t.module("money").expect("root"));
+        assert_eq!(roots.pkg, "money");
+        assert_eq!(
+            roots.absolute(&["dep", "cash", "rates"]),
+            Ok(vec!["money$3".to_owned(), "rates".to_owned()])
+        );
+        assert_eq!(
+            t.use_roots(t.module("money$3").expect("b")).deps,
+            [("fx".to_owned(), "std".to_owned())]
+        );
+        assert_eq!(
+            super::rename_roots("`money$2.f` and `money$23` x$2", &t.renamed_roots()),
+            "`money.f` and `money$23` x$2"
+        );
+    }
+
     #[test]
     fn package_cycles_are_found_once() {
         let s = MemorySources::default();
         let p = |name, requires| PackageIn {
             name,
+            identity: name,
             sources: &s,
             scope: Scope::Library,
             requires,
@@ -1255,6 +1403,7 @@ mod tests {
         let t = ModuleTable::discover_all(&[
             PackageIn {
                 name: "shop",
+                identity: "shop",
                 sources: &shop,
                 scope: Scope::All,
                 requires: Vec::new(),
@@ -1263,6 +1412,7 @@ mod tests {
             },
             PackageIn {
                 name: "back",
+                identity: "back",
                 sources: &back,
                 scope: Scope::Library,
                 requires: vec![("shop".to_owned(), 0)],
@@ -1271,6 +1421,7 @@ mod tests {
             },
             PackageIn {
                 name: "plain",
+                identity: "plain",
                 sources: &plain,
                 scope: Scope::Library,
                 requires: Vec::new(),

@@ -170,6 +170,8 @@ pub struct Program {
 /// A package that a path requirement reaches.
 pub struct DiskPackage {
     pub name: String,
+    /// Its identity, as `hd_deps::Package::identity`.
+    pub identity: String,
     pub sources: DiskSources,
     pub requires: Requires,
 }
@@ -194,6 +196,7 @@ impl Program {
                 .iter()
                 .map(|d| Dependency {
                     name: d.name.clone(),
+                    identity: d.identity.clone(),
                     sources: &d.sources,
                     requires: d.requires.clone(),
                 })
@@ -333,6 +336,7 @@ fn dependencies(root: &Path) -> Result<Dependencies, String> {
         let (sources, name) = sources_of(&p.dir)?;
         deps.push(DiskPackage {
             name,
+            identity: p.identity.clone(),
             sources,
             requires: edges(&p.requires),
         });

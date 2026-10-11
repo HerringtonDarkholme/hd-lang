@@ -266,6 +266,7 @@ fn build_sources(
             .iter()
             .map(|(name, sources)| Dependency {
                 name: name.clone(),
+                identity: name.clone(),
                 sources,
                 requires: Vec::new(),
             })

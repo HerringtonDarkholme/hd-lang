@@ -1156,3 +1156,138 @@ fn a_user_ssh_command_is_kept() {
         "{calls:?}"
     );
 }
+
+/// Two compatibility lines of one host path are two packages under two
+/// keys, though both manifests name `text` (`module.dep.two-lines`,
+/// `module.dep.identity`); so is a workspace member of that name beside
+/// them.
+#[test]
+fn two_lines_and_a_member_of_one_name_are_three_packages() {
+    let world = World::new("two-lines");
+    world.remote("text", &[("v1.0.0", TEXT_V1), ("v2.0.0", TEXT_V2)]);
+    let ws = world.package(
+        "ws",
+        &[("hd.toml", "[workspace]\nmembers = [\"app\", \"text\"]\n")],
+    );
+    world.package(
+        "ws/text",
+        &[
+            ("hd.toml", "[package]\nname = \"text\"\n"),
+            (
+                "src/lib.hd",
+                "pub fn greeting() -> string: \"hello from the member\"\n",
+            ),
+        ],
+    );
+    app(
+        &world,
+        "ws/app",
+        "text = \"github.com/acme/text@1.0.0\"\n\
+         text_v2 = \"github.com/acme/text@2.0.0\"\n\
+         mine = { path = \"../text\" }\n",
+        "use dep.text\nuse dep.text_v2\nuse dep.mine\n\n\
+         pub fn main() -> void $ Console:\n\
+         \x20   println(text.greeting())\n\
+         \x20   println(text_v2.greeting())\n\
+         \x20   println(mine.greeting())\n",
+    );
+    ok(&world.hd(&ws, &["fetch"]));
+    let (stdout, _) = ok(&world.hd(&ws.join("app"), &["run"]));
+    assert_eq!(
+        stdout,
+        "hello from 1.0\nhello from 2.0\nhello from the member\n"
+    );
+}
+
+/// Two path dependencies whose manifests share a name are two packages:
+/// each key reaches its own, and declarations spelled alike stay apart
+/// (`module.dep.key-name`, `module.package.no-sharing`).
+#[test]
+fn same_named_path_dependencies_are_two_packages() {
+    let world = World::new("same-name");
+    let lib = |scale: &str| {
+        format!(
+            "pub data Coin:\n    pub cents: i32\n\n\
+             pub fn make(n: i32) -> Coin:\n    Coin {{ cents: n * {scale} }}\n"
+        )
+    };
+    for (dir, scale) in [("a", "100"), ("b", "1000")] {
+        world.package(
+            dir,
+            &[
+                ("hd.toml", "[package]\nname = \"money\"\n"),
+                ("src/lib.hd", &lib(scale)),
+            ],
+        );
+    }
+    let main = "use dep.euro\nuse dep.yen\nuse dep.euro.{Coin as Euro}\nuse dep.yen.{Coin as Yen}\n\
+                use std.inspect.TypeId\n\n\
+                pub fn main() -> void $ Console:\n\
+                \x20   println(euro.make(1).cents + yen.make(1).cents)\n\
+                \x20   println(TypeId::of::[Euro]() == TypeId::of::[Yen]())\n";
+    let dir = app(
+        &world,
+        "app",
+        "euro = { path = \"../a\" }\nyen = { path = \"../b\" }\n",
+        main,
+    );
+    let (stdout, _) = ok(&world.hd(&dir, &["run"]));
+    assert_eq!(stdout, "1100\nfalse\n");
+    // A mistake names the package by its manifest name.
+    std::fs::write(
+        dir.join("src/main.hd"),
+        "use dep.yen\n\npub fn main() -> void $ Console:\n    println(yen.nothing())\n",
+    )
+    .expect("write");
+    let (stdout, stderr) = fails(&world.hd(&dir, &["check"]));
+    let all = stdout + &stderr;
+    assert!(all.contains("`money` declares no `nothing`"), "{all}");
+}
+
+/// A package that two dependers reach through the same directory is one
+/// package: a value one makes, the other takes.
+#[test]
+fn a_package_reached_twice_is_one_package() {
+    let world = World::new("diamond");
+    world.package(
+        "money",
+        &[
+            ("hd.toml", "[package]\nname = \"money\"\n"),
+            ("src/lib.hd", "pub data Coin:\n    pub cents: i32\n"),
+        ],
+    );
+    world.package(
+        "mint",
+        &[
+            (
+                "hd.toml",
+                "[package]\nname = \"mint\"\n\n[dependencies]\nmoney = { path = \"../money\" }\n",
+            ),
+            (
+                "src/lib.hd",
+                "use dep.money.{Coin}\n\npub fn make() -> Coin: Coin { cents: 5 }\n",
+            ),
+        ],
+    );
+    world.package(
+        "bank",
+        &[
+            (
+                "hd.toml",
+                "[package]\nname = \"bank\"\n\n[dependencies]\ncash = { path = \"../money\" }\n",
+            ),
+            (
+                "src/lib.hd",
+                "use dep.cash.{Coin}\n\npub fn take(c: Coin) -> i32: c.cents\n",
+            ),
+        ],
+    );
+    let dir = app(
+        &world,
+        "app",
+        "mint = { path = \"../mint\" }\nbank = { path = \"../bank\" }\n",
+        "use dep.mint\nuse dep.bank\n\npub fn main() -> void $ Console:\n    println(bank.take(mint.make()))\n",
+    );
+    let (stdout, _) = ok(&world.hd(&dir, &["run"]));
+    assert_eq!(stdout, "5\n");
+}

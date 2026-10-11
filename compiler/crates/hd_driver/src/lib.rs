@@ -265,6 +265,9 @@ pub struct Output {
     pub uses: Vec<Vec<usize>>,
     /// Per file, its module's path.
     pub modules: Vec<String>,
+    /// The module roots that differ from their package's identifier, each
+    /// with that identifier (`ModuleTable::renamed_roots`).
+    pub renamed: Vec<(String, String)>,
     pub counters: Counters,
     pub report: PipelineReport,
     /// Each built folder interface's blob, by folder path.
@@ -301,13 +304,19 @@ impl Output {
     }
 
     /// Text for the user: each internal module path of test or task code
-    /// named by its file (`hd_project::user_text`).
+    /// named by its file (`hd_project::user_text`), and each package named
+    /// by its name (`hd_project::rename_roots`).
     #[must_use]
     pub fn user_text(&self, text: &str) -> String {
-        hd_project::user_text(text, &|path| {
+        let text = hd_project::user_text(text, &|path| {
             let i = self.modules.iter().position(|m| m == path)?;
             self.files.get(i).cloned()
-        })
+        });
+        if self.renamed.is_empty() {
+            text
+        } else {
+            hd_project::rename_roots(&text, &self.renamed)
+        }
     }
 
     /// The package-relative file, 1-based line and column of a span's start.
@@ -542,8 +551,14 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 
 /// A package the root package reaches through its requirements (§4.7).
 pub struct Dependency<'a> {
-    /// Its manifest name; its module paths start with its identifier form.
+    /// Its manifest name; its module paths start with its identifier form,
+    /// unless an earlier package holds it (`ModuleTable::roots`).
     pub name: String,
+    /// What tells it from another package of the same name
+    /// (`module.dep.identity`): a fetched version's host path and
+    /// compatibility line, or a local package's canonical directory. It
+    /// keys the package's cached outputs.
+    pub identity: String,
     /// Its files, package-relative; only its library is built.
     pub sources: &'a dyn SourceSet,
     /// Its own requirements, as in [`Packages::requires`].
@@ -630,6 +645,7 @@ fn build_packages_inner(
     };
     let std_in = PackageIn {
         name: "std",
+        identity: "std",
         sources: &std,
         scope: Scope::All,
         requires: Vec::new(),
@@ -641,6 +657,7 @@ fn build_packages_inner(
     } else {
         std::iter::once(PackageIn {
             name: package,
+            identity: package,
             sources: host.sources,
             scope: Scope::All,
             requires: packages.requires.clone(),
@@ -649,6 +666,7 @@ fn build_packages_inner(
         })
         .chain(packages.deps.iter().map(|d| PackageIn {
             name: &d.name,
+            identity: &d.identity,
             sources: d.sources,
             scope: Scope::Library,
             requires: d.requires.clone(),
@@ -827,6 +845,7 @@ fn build_packages_inner(
         texts: run.texts.clone(),
         uses,
         modules: run.table.modules.iter().map(|m| m.path.clone()).collect(),
+        renamed: run.table.renamed_roots(),
         counters,
         report,
         ifaces,
@@ -913,6 +932,7 @@ pub fn has_tests_block(text: &str) -> bool {
 pub fn use_closure(package: &str, sources: &dyn SourceSet, file: &str) -> Vec<String> {
     let table = ModuleTable::discover_all(&[PackageIn {
         name: package,
+        identity: package,
         sources,
         scope: Scope::All,
         requires: Vec::new(),
@@ -1410,12 +1430,14 @@ impl Run<'_> {
             .flatten()
     }
 
-    /// The package key of a folder's package.
+    /// The package key of a folder's package: the root's, or another
+    /// package's identity, so two packages of one name never share an
+    /// entry (`module.dep.identity`).
     fn package_key_of(&self, package: u16) -> Hash128 {
         if package == 0 {
             self.package_key
         } else {
-            hd_cache::package_key(&self.table.packages[usize::from(package)])
+            hd_cache::package_key(&self.table.identities[usize::from(package)])
         }
     }
 
@@ -1959,9 +1981,19 @@ impl Run<'_> {
             ));
         }
         closure.extend(templates.iter().map(|(p, h)| (p.as_str(), *h)));
+        // A dependency's module is checked against the root's profile, so
+        // its key holds both packages.
+        let package = if module.package == 0 {
+            self.package_key
+        } else {
+            let mut k = hd_base::StableHasher::new("pkg-dep");
+            k.hash(self.package_key);
+            k.hash(self.package_key_of(module.package));
+            k.finish()
+        };
         Some(check_key(
             self.toolchain,
-            self.package_key,
+            package,
             &module.path,
             self.role(m),
             self.skim_of(m).token_hash,
@@ -4560,6 +4592,9 @@ impl ProgramEnv for Env<'_> {
             return name.to_owned();
         }
         // A package name's `-` is written `_` (trait.typeid.name.package).
+        // The name is also the identity a `TypeId` compares, so a package
+        // that shares its name with an earlier one keeps its own module
+        // root here (`module.package.identity-part`).
         format!("{}.{name}", module.replace('-', "_"))
     }
     fn describe(&self, def: DefId) -> String {

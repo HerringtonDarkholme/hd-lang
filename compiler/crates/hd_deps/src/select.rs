@@ -66,6 +66,10 @@ pub struct Package {
     pub manifest: Manifest,
     /// A fetched version's `HOST_PATH@VERSION`; `None` for a local package.
     pub fetched: Option<String>,
+    /// Its identity (`module.dep.identity`): a fetched version's host path
+    /// and compatibility line, as `github.com/acme/json@2`, or a local
+    /// package's canonical directory.
+    pub identity: String,
     /// Each requirement's source name and the index of its package.
     pub requires: Vec<(String, usize)>,
     /// The dev requirements of a member, in the same form; empty for any
@@ -596,6 +600,10 @@ pub fn select_edited(
             dir: node.dir.clone(),
             manifest: node.manifest.clone(),
             fetched: node.fetched.as_ref().map(|(h, v, _)| tree_key(&h.path, v)),
+            identity: node.fetched.as_ref().map_or_else(
+                || node.dir.display().to_string(),
+                |(h, v, _)| format!("{}@{}", h.path, compatibility_line(v)),
+            ),
             requires: edges(false),
             dev_requires: edges(true),
         });

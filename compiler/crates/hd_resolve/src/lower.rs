@@ -186,6 +186,14 @@ fn use_decl(src: &Src<'_>, item: NodeRef<'_>, roots: &UseRoots, tests: bool) -> 
     } else {
         roots.absolute(&path)
     };
+    // `use dep.NAME` binds `NAME`, the final component as written
+    // (`names.use.final-component`), not the root of the package it names,
+    // which another package of the same name may change
+    // (`module.dep.key-name`).
+    let alias = match (&alias, &group, path.as_slice()) {
+        (None, None, [root, name]) if root == "dep" => Some(name.clone()),
+        _ => alias,
+    };
     let (path, root_error) = match absolute {
         Ok(abs) => (abs, None),
         Err(e) => (path, Some(e)),

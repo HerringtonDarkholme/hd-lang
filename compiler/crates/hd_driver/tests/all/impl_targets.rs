@@ -46,6 +46,7 @@ fn analyze_with_dependency(main: &str, ext: &str) -> Output {
         requires: vec![("ext".to_owned(), 1)],
         deps: vec![Dependency {
             name: "ext".to_owned(),
+            identity: "ext".to_owned(),
             sources: &dep,
             requires: Vec::new(),
         }],

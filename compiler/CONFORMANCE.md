@@ -3171,7 +3171,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 107 | 16 | 0 | 123 |
+| 108 | 15 | 0 | 123 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3193,6 +3193,7 @@ cli/dbg-value-forms
 cli/dbg-values
 cli/dep-add-clash-remote
 cli/dep-add-inferred-key
+cli/dep-add-key-clash
 cli/dep-add-latest
 cli/dep-add-name-flag
 cli/dep-add-name-invalid
