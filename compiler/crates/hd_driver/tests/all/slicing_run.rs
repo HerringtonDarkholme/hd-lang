@@ -3,8 +3,10 @@
 //! as the expected type of the range's bounds. Programs build through the
 //! driver and run on V8 (`host/run.mjs`), as the conformance runner does.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Output as Process};
+
+use hd_testkit::Scratch;
 
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
@@ -35,7 +37,7 @@ fn run(name: &str, main: &str) -> Process {
     );
     assert!(out.diags.is_empty(), "{name}: {}", out.render());
     let wasm = out.wasm.expect("wasm");
-    let path = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("slicing-{name}.wasm"));
+    let path = Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), &format!("slicing-{name}.wasm"));
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))

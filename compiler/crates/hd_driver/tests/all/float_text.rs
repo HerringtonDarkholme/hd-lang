@@ -7,8 +7,10 @@
 //! host's on every sample.
 
 use std::io::Write as _;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Stdio};
+
+use hd_testkit::Scratch;
 
 use hd_driver::{Executor, Goal, Host, NoClock, build};
 use hd_project::MemorySources;
@@ -386,8 +388,10 @@ fn run_tests(name: &str, src: &str) -> Vec<String> {
         .collect();
     assert!(!runs.is_empty(), "no tests ran");
     let wasm = out.wasm.expect("wasm");
-    let path: PathBuf =
-        PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("float-text-{name}.wasm"));
+    let path: Scratch = Scratch::unmade(
+        env!("CARGO_TARGET_TMPDIR"),
+        &format!("float-text-{name}.wasm"),
+    );
     std::fs::write(&path, wasm).expect("write wasm");
     let result = Command::new("node")
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/test.mjs"))

@@ -632,36 +632,37 @@ struct Ran {
     timed_out: bool,
 }
 
-/// A test-only global git configuration that sends every HTTPS and SSH
-/// remote URL to a local path that does not exist, so a case that names a
-/// remote requirement fails at once and never reaches the network.
-fn offline_git_config() -> PathBuf {
-    static CONFIG: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    CONFIG.get_or_init(write_offline_git_config).clone()
-}
-
-fn write_offline_git_config() -> PathBuf {
-    let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
-    let path = root.join("offline-gitconfig");
-    let text = format!(
-        "[url \"file://{}/\"]\n\tinsteadOf = https://\n\tinsteadOf = ssh://git@\n\tinsteadOf = git@\n",
-        root.join("no-such-remote").display()
-    );
-    if std::fs::read_to_string(&path).ok().as_deref() != Some(text.as_str()) {
-        let temp = root.join(format!("offline-gitconfig.{}", std::process::id()));
-        std::fs::write(&temp, text).expect("write git config");
-        std::fs::rename(&temp, &path).expect("install git config");
+/// Points `command`'s git at no global configuration and sends every
+/// remote URL `hd` tries (HTTPS and SSH) to a local path that does not
+/// exist, so a test that names a remote requirement fails at once and never
+/// reaches the network. Git reads the rewrite from the environment, so no
+/// file is left behind.
+fn offline_git(command: &mut Command) {
+    let nowhere = "file:///hd-no-such-remote/";
+    command
+        .env(
+            "GIT_CONFIG_GLOBAL",
+            if cfg!(windows) { "NUL" } else { "/dev/null" },
+        )
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_COUNT", "3");
+    for (i, from) in ["https://", "ssh://git@", "git@"].into_iter().enumerate() {
+        command
+            .env(
+                format!("GIT_CONFIG_KEY_{i}"),
+                format!("url.{nowhere}.insteadOf"),
+            )
+            .env(format!("GIT_CONFIG_VALUE_{i}"), from);
     }
-    path
 }
 
 fn run_hd(dir: &Path, cache: &Path, words: &[String]) -> std::io::Result<Ran> {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_hd"))
+    let mut command = Command::new(env!("CARGO_BIN_EXE_hd"));
+    offline_git(&mut command);
+    let mut child = command
         .args(words)
         .current_dir(dir)
         .env("HD_CACHE", cache)
-        .env("GIT_CONFIG_GLOBAL", offline_git_config())
-        .env("GIT_CONFIG_NOSYSTEM", "1")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -985,7 +986,7 @@ fn run_all(names: &[String], mode: EngineMode) -> Vec<Verdict> {
             });
         }
     });
-    let _ = std::fs::remove_dir_all(&root);
+    let _ = hd_deps::cache::remove_tree(&root);
     let results = results
         .into_iter()
         .map(|slot| slot.into_inner().expect("results lock").expect("verdict"))

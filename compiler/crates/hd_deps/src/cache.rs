@@ -208,19 +208,18 @@ mod tests {
     use super::Cache;
     use crate::sum::tree_hash;
 
-    /// A directory under the workspace's `target/tmp`.
-    fn temp(name: &str) -> std::path::PathBuf {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target/tmp")
-            .join(format!("hd-deps-cache-{name}-{}", std::process::id()));
-        let _ = super::remove_tree(&dir);
-        dir
+    /// A directory under the workspace's `target/tmp`, removed on drop.
+    fn temp(name: &str) -> hd_testkit::Scratch {
+        hd_testkit::Scratch::unmade(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/tmp"),
+            &format!("hd-deps-cache-{name}"),
+        )
     }
 
     #[test]
     fn an_entry_is_read_only_and_records_its_hash() {
         let root = temp("store");
-        let cache = Cache::new(root.clone());
+        let cache = Cache::new(root.to_path_buf());
         let key = "github.com/acme/text@1.0.0";
         assert_eq!(cache.cached(key).expect("read"), None);
         let scratch = cache.scratch().expect("scratch");

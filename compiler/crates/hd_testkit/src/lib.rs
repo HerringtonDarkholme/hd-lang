@@ -4,9 +4,94 @@
 //! matrix runs one build under several executors (serial orders and the
 //! pool) and compares bytes; the fuzzer and the harness are not written yet.
 
+use std::ops::Deref;
+use std::path::{Path, PathBuf};
+
 use hd_base::{NotImplemented, Stage, StageResult};
 use hd_driver::Executor;
 use hd_sched::SerialOrder;
+
+/// A fresh scratch directory that removes itself, read-only entries
+/// included, when it drops, so a test run leaves nothing under
+/// `target/tmp`. It derefs to its path.
+///
+/// `base` is the caller's `env!("CARGO_TARGET_TMPDIR")`; `name` must be
+/// unique per test within one test binary, so parallel tests never share a
+/// directory.
+#[derive(Debug)]
+pub struct Scratch {
+    path: PathBuf,
+}
+
+impl Scratch {
+    /// Creates an empty directory `base/name`, replacing a leftover.
+    ///
+    /// # Panics
+    /// If the directory cannot be made.
+    #[must_use]
+    pub fn new(base: &str, name: &str) -> Scratch {
+        let scratch = Scratch::unmade(base, name);
+        std::fs::create_dir_all(&scratch.path).expect("scratch directory");
+        scratch
+    }
+
+    /// Names a directory `base/name` without creating it; it is removed on
+    /// drop like a made one. For output paths and caches that a command
+    /// creates itself.
+    #[must_use]
+    pub fn unmade(base: &str, name: &str) -> Scratch {
+        let scratch = Scratch {
+            path: Path::new(base).join(name),
+        };
+        scratch.clear();
+        scratch
+    }
+
+    /// The conventional build-cache directory of a package under test: the
+    /// path with the extension `cache`, beside it. It is removed too.
+    #[must_use]
+    pub fn cache(&self) -> PathBuf {
+        self.path.with_extension("cache")
+    }
+
+    /// Removes everything under the directory and its cache, then the
+    /// directory itself.
+    pub fn clear(&self) {
+        let _ = hd_deps::cache::remove_tree(&self.path);
+        let _ = hd_deps::cache::remove_tree(&self.cache());
+    }
+
+    /// The directory's path.
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Deref for Scratch {
+    type Target = Path;
+    fn deref(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl AsRef<Path> for Scratch {
+    fn as_ref(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl AsRef<std::ffi::OsStr> for Scratch {
+    fn as_ref(&self) -> &std::ffi::OsStr {
+        self.path.as_os_str()
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        self.clear();
+    }
+}
 
 /// The executors of the matrix (§8.1): every serial order, shuffled with
 /// several seeds, and the pool.

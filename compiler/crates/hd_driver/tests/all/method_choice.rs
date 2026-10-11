@@ -4,8 +4,10 @@
 //! `ambiguous-method`, a trait-qualified call or a bound resolves it, and a
 //! trait that is not available is not a candidate at all.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
+
+use hd_testkit::Scratch;
 
 use hd_diag::{Code, Severity};
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
@@ -205,8 +207,10 @@ fn run_tests(name: &str, files: &[(&str, &str)]) {
         .collect();
     assert!(!runs.is_empty(), "no tests ran");
     let wasm = out.wasm.expect("wasm");
-    let path =
-        PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("method-choice-{name}.wasm"));
+    let path = Scratch::unmade(
+        env!("CARGO_TARGET_TMPDIR"),
+        &format!("method-choice-{name}.wasm"),
+    );
     std::fs::write(&path, wasm).expect("write wasm");
     let result = Command::new("node")
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/test.mjs"))

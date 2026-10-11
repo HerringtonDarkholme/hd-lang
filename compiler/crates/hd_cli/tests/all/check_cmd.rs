@@ -1,18 +1,17 @@
 //! `hd check` (`cli.check.*`, `cli.file.check-test`, `cli.json.*`): package
 //! and file mode, the exit status, the JSON lines, and the warm second run.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
-fn scratch(name: &str) -> PathBuf {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("dir");
-    dir
+use hd_testkit::Scratch;
+
+fn scratch(name: &str) -> Scratch {
+    Scratch::new(env!("CARGO_TARGET_TMPDIR"), name)
 }
 
 /// A package `shop` whose `main.hd` holds `main_source`.
-fn package(name: &str, main_source: &str) -> PathBuf {
+fn package(name: &str, main_source: &str) -> Scratch {
     let dir = scratch(name);
     std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("write");
     std::fs::write(dir.join("main.hd"), main_source).expect("write");
@@ -25,11 +24,16 @@ struct Ran {
     err: String,
 }
 
-fn check(dir: &Path, cache: &str, args: &[&str]) -> Ran {
-    let cache = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(cache);
+fn check(dir: &Scratch, args: &[&str]) -> Ran {
+    check_at(dir, dir, args)
+}
+
+/// `hd check` run in `cwd`, with the build cache of `dir`.
+fn check_at(cwd: &Path, dir: &Scratch, args: &[&str]) -> Ran {
+    let cache = dir.cache();
     let output = Command::new(env!("CARGO_BIN_EXE_hd"))
         .env("HD_CACHE", cache)
-        .current_dir(dir)
+        .current_dir(cwd)
         .arg("check")
         .args(args)
         .output()
@@ -56,7 +60,7 @@ fn modules_checked(out: &str) -> u32 {
 #[test]
 fn clean_package_exits_zero() {
     let dir = package("hd-check-clean", CLEAN);
-    let r = check(&dir, "hd-check-cache-clean", &[]);
+    let r = check(&dir, &[]);
     assert_eq!(r.code, Some(0), "{}", r.err);
     assert_eq!(r.err, "check result: ok. errors: 0; warnings: 0\n");
     assert_eq!(r.out, "");
@@ -66,7 +70,7 @@ fn clean_package_exits_zero() {
 #[test]
 fn package_error_exits_101_and_prints_it() {
     let dir = package("hd-check-error", BROKEN);
-    let r = check(&dir, "hd-check-cache-error", &[]);
+    let r = check(&dir, &[]);
     assert_eq!(r.code, Some(101), "{}", r.err);
     assert!(
         r.err
@@ -83,7 +87,7 @@ const UNSUPPORTED: &str = "enum Shape:\n    Rect(w: i32, h: i32)\n\nfn area(s: S
 #[test]
 fn unsupported_program_fails_the_check() {
     let dir = package("hd-check-unsupported", UNSUPPORTED);
-    let r = check(&dir, "hd-check-cache-unsupported", &[]);
+    let r = check(&dir, &[]);
     assert_eq!(r.code, Some(101), "{}", r.err);
     assert_eq!(
         r.err,
@@ -96,11 +100,7 @@ fn unsupported_program_fails_the_check() {
 #[test]
 fn unsupported_program_fails_the_check_in_json() {
     let dir = package("hd-check-unsupported-json", UNSUPPORTED);
-    let r = check(
-        &dir,
-        "hd-check-cache-unsupported-json",
-        &["--format", "json"],
-    );
+    let r = check(&dir, &["--format", "json"]);
     assert_eq!(r.code, Some(101), "{}", r.err);
     let lines: Vec<&str> = r.out.lines().collect();
     assert_eq!(lines.len(), 2, "{}", r.out);
@@ -122,7 +122,7 @@ fn unsupported_program_fails_the_check_in_json() {
 fn an_error_in_a_header_adds_no_unsupported_for_its_methods() {
     let source = "data Counter:\n    current: i32\n\nimpl Missing for Counter:\n    fn next(self) -> i32: self.current\n\npub fn main() -> void:\n    pass\n";
     let dir = package("hd-check-header-error", source);
-    let r = check(&dir, "hd-check-cache-header-error", &[]);
+    let r = check(&dir, &[]);
     assert_eq!(r.code, Some(101), "{}", r.err);
     assert!(r.err.contains("unknown-trait"), "{}", r.err);
     assert!(!r.err.contains("unsupported"), "{}", r.err);
@@ -133,7 +133,7 @@ fn an_error_in_a_header_adds_no_unsupported_for_its_methods() {
 fn check_works_from_a_directory_below_the_package() {
     let dir = package("hd-check-below", BROKEN);
     std::fs::create_dir_all(dir.join("docs")).expect("dir");
-    let r = check(&dir.join("docs"), "hd-check-cache-below", &[]);
+    let r = check_at(&dir.join("docs"), &dir, &[]);
     assert_eq!(r.code, Some(101), "{}", r.err);
     assert!(r.err.contains("main.hd:2:13"), "{}", r.err);
 }
@@ -143,9 +143,9 @@ fn file_outside_a_package_is_a_single_file_program() {
     let dir = scratch("hd-check-file");
     std::fs::write(dir.join("ok.hd"), CLEAN).expect("write");
     std::fs::write(dir.join("bad.hd"), BROKEN).expect("write");
-    let ok = check(&dir, "hd-check-cache-file", &["ok.hd"]);
+    let ok = check(&dir, &["ok.hd"]);
     assert_eq!(ok.code, Some(0), "{}", ok.err);
-    let bad = check(&dir, "hd-check-cache-file", &["bad.hd"]);
+    let bad = check(&dir, &["bad.hd"]);
     assert_eq!(bad.code, Some(101), "{}", bad.err);
     assert!(bad.err.contains("bad.hd:2:13: unknown-name"), "{}", bad.err);
 }
@@ -153,7 +153,7 @@ fn file_outside_a_package_is_a_single_file_program() {
 #[test]
 fn no_file_outside_a_package_suggests_a_file_or_hd_new() {
     let dir = scratch("hd-check-nopkg");
-    let r = check(&dir, "hd-check-cache-nopkg", &[]);
+    let r = check(&dir, &[]);
     assert_eq!(r.code, Some(101));
     assert!(r.err.contains("hd new"), "{}", r.err);
     assert!(r.err.contains("FILE"), "{}", r.err);
@@ -162,7 +162,7 @@ fn no_file_outside_a_package_suggests_a_file_or_hd_new() {
 #[test]
 fn unknown_option_is_a_usage_error() {
     let dir = package("hd-check-usage", CLEAN);
-    let r = check(&dir, "hd-check-cache-usage", &["--bogus"]);
+    let r = check(&dir, &["--bogus"]);
     assert_eq!(r.code, Some(101));
     assert!(r.err.contains("--bogus"), "{}", r.err);
 }
@@ -170,7 +170,7 @@ fn unknown_option_is_a_usage_error() {
 #[test]
 fn json_lines_have_diagnostics_then_a_summary() {
     let dir = package("hd-check-json", BROKEN);
-    let r = check(&dir, "hd-check-cache-json", &["--format", "json"]);
+    let r = check(&dir, &["--format", "json"]);
     assert_eq!(r.code, Some(101), "{}", r.err);
     assert_eq!(r.err, "");
     let lines: Vec<&str> = r.out.lines().collect();
@@ -199,7 +199,7 @@ fn json_lines_have_diagnostics_then_a_summary() {
 #[test]
 fn json_summary_of_a_clean_package_is_written_on_success() {
     let dir = package("hd-check-json-clean", CLEAN);
-    let r = check(&dir, "hd-check-cache-json-clean", &["--format=json"]);
+    let r = check(&dir, &["--format=json"]);
     assert_eq!(r.code, Some(0), "{}", r.err);
     assert_eq!(r.out.lines().count(), 1, "{}", r.out);
     assert!(
@@ -213,25 +213,18 @@ fn json_summary_of_a_clean_package_is_written_on_success() {
 fn json_file_outside_a_package_is_the_path_as_written() {
     let dir = scratch("hd-check-json-file");
     std::fs::write(dir.join("bad.hd"), BROKEN).expect("write");
-    let r = check(
-        &dir,
-        "hd-check-cache-json-file",
-        &["--format", "json", "bad.hd"],
-    );
+    let r = check(&dir, &["--format", "json", "bad.hd"]);
     assert_eq!(r.code, Some(101), "{}", r.err);
     assert!(r.out.contains("\"file\":\"bad.hd\""), "{}", r.out);
 }
 
 #[test]
 fn second_run_is_warm() {
-    let _ = std::fs::remove_dir_all(
-        PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-check-cache-warm"),
-    );
     let dir = package("hd-check-warm", CLEAN);
     let args = ["--format", "json"];
-    let cold = check(&dir, "hd-check-cache-warm", &args);
+    let cold = check(&dir, &args);
     assert_eq!(cold.code, Some(0), "{}", cold.err);
-    let warm = check(&dir, "hd-check-cache-warm", &args);
+    let warm = check(&dir, &args);
     assert_eq!(warm.code, Some(0), "{}", warm.err);
     assert!(modules_checked(&cold.out) > 0, "{}", cold.out);
     assert_eq!(modules_checked(&warm.out), 0, "{}", warm.out);
@@ -240,7 +233,7 @@ fn second_run_is_warm() {
 /// A library package with one clean module and three modules with problems:
 /// `a.hd` has two `unknown-name` errors and a warning, `b.hd` a
 /// `type-mismatch` error, and `c.hd` an `unknown-name` error.
-fn broken_library(name: &str) -> PathBuf {
+fn broken_library(name: &str) -> Scratch {
     let dir = scratch(name);
     std::fs::write(dir.join("hd.toml"), "[package]\nname = \"lib\"\n").expect("write");
     std::fs::create_dir_all(dir.join("src")).expect("dir");
@@ -262,7 +255,7 @@ fn broken_library(name: &str) -> PathBuf {
 #[test]
 fn text_summary_line_says_ok_or_failed_with_both_counts() {
     let dir = broken_library("hd-check-line");
-    let bad = check(&dir, "hd-check-cache-line", &[]);
+    let bad = check(&dir, &[]);
     assert_eq!(bad.code, Some(101), "{}", bad.err);
     assert_eq!(bad.out, "");
     assert_eq!(
@@ -271,7 +264,7 @@ fn text_summary_line_says_ok_or_failed_with_both_counts() {
         "{}",
         bad.err
     );
-    let ok = check(&dir, "hd-check-cache-line", &["src/util.hd"]);
+    let ok = check(&dir, &["src/util.hd"]);
     assert_eq!(ok.code, Some(0), "{}", ok.err);
     assert_eq!(ok.err, "check result: ok. errors: 0; warnings: 0\n");
 }
@@ -279,7 +272,7 @@ fn text_summary_line_says_ok_or_failed_with_both_counts() {
 #[test]
 fn summary_mode_counts_per_file_and_code_in_path_then_code_order() {
     let dir = broken_library("hd-check-summary");
-    let r = check(&dir, "hd-check-cache-summary", &["--summary"]);
+    let r = check(&dir, &["--summary"]);
     assert_eq!(r.code, Some(101), "{}", r.err);
     assert_eq!(r.out, "");
     assert_eq!(
@@ -295,8 +288,8 @@ fn summary_mode_counts_per_file_and_code_in_path_then_code_order() {
 #[test]
 fn max_errors_stops_printing_but_not_counting_or_the_status() {
     let dir = broken_library("hd-check-max");
-    let all = check(&dir, "hd-check-cache-max", &[]);
-    let two = check(&dir, "hd-check-cache-max", &["--max-errors", "2"]);
+    let all = check(&dir, &[]);
+    let two = check(&dir, &["--max-errors", "2"]);
     assert_eq!(two.code, all.code);
     assert_eq!(two.code, Some(101));
     let shown = two.err.lines().filter(|l| l.contains(": src/")).count();
@@ -307,9 +300,9 @@ fn max_errors_stops_printing_but_not_counting_or_the_status() {
         two.err.lines().last(),
         Some("check result: FAILED. errors: 4; warnings: 1")
     );
-    let eq = check(&dir, "hd-check-cache-max", &["--max-errors=2"]);
+    let eq = check(&dir, &["--max-errors=2"]);
     assert_eq!(eq.err, two.err);
-    let big = check(&dir, "hd-check-cache-max", &["--max-errors", "9"]);
+    let big = check(&dir, &["--max-errors", "9"]);
     assert_eq!(big.err, all.err);
 }
 
@@ -317,7 +310,7 @@ fn max_errors_stops_printing_but_not_counting_or_the_status() {
 fn max_errors_rejects_zero_and_text() {
     let dir = broken_library("hd-check-max-bad");
     for bad in ["0", "many"] {
-        let r = check(&dir, "hd-check-cache-max-bad", &["--max-errors", bad]);
+        let r = check(&dir, &["--max-errors", bad]);
         assert_eq!(r.code, Some(101), "{}", r.err);
         assert!(r.err.contains("--max-errors"), "{}", r.err);
     }
@@ -326,10 +319,9 @@ fn max_errors_rejects_zero_and_text() {
 #[test]
 fn json_ignores_summary_and_max_errors() {
     let dir = broken_library("hd-check-json-opts");
-    let plain = check(&dir, "hd-check-cache-json-opts", &["--format", "json"]);
+    let plain = check(&dir, &["--format", "json"]);
     let opts = check(
         &dir,
-        "hd-check-cache-json-opts",
         &["--format", "json", "--summary", "--max-errors", "1"],
     );
     assert_eq!(plain.out.lines().count(), 6, "{}", plain.out);
@@ -347,7 +339,7 @@ fn file_in_a_package_reports_the_modules_it_uses_and_not_the_others() {
         "use pkg.b.{h}\n\npub fn u() -> i32:\n    h()\n",
     )
     .expect("write");
-    let r = check(&dir, "hd-check-cache-file-uses", &["src/user.hd"]);
+    let r = check(&dir, &["src/user.hd"]);
     assert_eq!(r.code, Some(101), "{}", r.err);
     assert!(r.err.contains("src/b.hd:2:5: type-mismatch"), "{}", r.err);
     assert!(!r.err.contains("src/a.hd"), "{}", r.err);
@@ -361,7 +353,7 @@ fn file_in_a_package_reports_the_modules_it_uses_and_not_the_others() {
 /// A package whose manifest has the `invalid-requirement` of a github.com
 /// path without a repository on line 5 and a requirement on line 6 that
 /// has no `hd.sum` entry.
-fn bad_manifest(name: &str) -> PathBuf {
+fn bad_manifest(name: &str) -> Scratch {
     let dir = package(name, BROKEN);
     std::fs::write(
         dir.join("hd.toml"),
@@ -374,7 +366,7 @@ fn bad_manifest(name: &str) -> PathBuf {
 #[test]
 fn manifest_errors_stop_the_check_before_compiling() {
     let dir = bad_manifest("hd-check-manifest");
-    let r = check(&dir, "hd-check-cache-manifest", &[]);
+    let r = check(&dir, &[]);
     assert_eq!(r.code, Some(101), "{}", r.err);
     let lines: Vec<&str> = r.err.lines().collect();
     assert_eq!(lines.len(), 3, "{}", r.err);
@@ -391,7 +383,7 @@ fn manifest_errors_stop_the_check_before_compiling() {
         r.err
     );
     assert_eq!(lines[2], "check result: FAILED. errors: 2; warnings: 0");
-    let json = check(&dir, "hd-check-cache-manifest", &["--format", "json"]);
+    let json = check(&dir, &["--format", "json"]);
     assert_eq!(json.code, Some(101), "{}", json.err);
     let lines: Vec<&str> = json.out.lines().collect();
     assert_eq!(lines.len(), 3, "{}", json.out);
@@ -407,7 +399,7 @@ fn manifest_errors_stop_the_check_before_compiling() {
 #[test]
 fn json_mode_reports_a_command_error_as_a_diagnostic_with_no_code() {
     let dir = scratch("hd-check-json-nopkg");
-    let r = check(&dir, "hd-check-cache-json-nopkg", &["--format", "json"]);
+    let r = check(&dir, &["--format", "json"]);
     assert_eq!(r.code, Some(101), "{}", r.err);
     assert_eq!(r.err, "");
     let lines: Vec<&str> = r.out.lines().collect();
@@ -423,7 +415,7 @@ fn json_mode_reports_a_command_error_as_a_diagnostic_with_no_code() {
 
 /// A package with one error in each kind of code: a `tests:` block, a test
 /// module, an integration test file, and a task.
-fn code_kinds(name: &str) -> PathBuf {
+fn code_kinds(name: &str) -> Scratch {
     let dir = scratch(name);
     std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("write");
     let files = [
@@ -461,10 +453,9 @@ fn missing(err: &str) -> Vec<&str> {
 #[test]
 fn tests_and_all_widen_what_check_covers() {
     let dir = code_kinds("hd-check-kinds");
-    let cache = "hd-check-cache-kinds";
-    let plain = check(&dir, cache, &[]);
+    let plain = check(&dir, &[]);
     assert_eq!(plain.code, Some(0), "{}", plain.err);
-    let tests = check(&dir, cache, &["--tests"]);
+    let tests = check(&dir, &["--tests"]);
     assert_eq!(tests.code, Some(101));
     assert_eq!(
         missing(&tests.err),
@@ -472,16 +463,16 @@ fn tests_and_all_widen_what_check_covers() {
         "{}",
         tests.err
     );
-    let all = check(&dir, cache, &["--all"]);
+    let all = check(&dir, &["--all"]);
     assert_eq!(
         missing(&all.err),
         ["in_block", "in_unit", "in_task", "in_integration"],
         "{}",
         all.err
     );
-    let task = check(&dir, cache, &["tasks/seed.hd"]);
+    let task = check(&dir, &["tasks/seed.hd"]);
     assert_eq!(missing(&task.err), ["in_task"], "{}", task.err);
-    let flow = check(&dir, cache, &["tests/flow.hd"]);
+    let flow = check(&dir, &["tests/flow.hd"]);
     assert_eq!(missing(&flow.err), ["in_integration"], "{}", flow.err);
 }
 
@@ -495,11 +486,7 @@ fn messages_name_test_and_task_code_by_file() {
     std::fs::create_dir_all(dir.join("tests/common")).expect("dir");
     std::fs::write(dir.join("tests/common/mod.hd"), "use super.up\n").expect("write");
     for format in ["text", "json"] {
-        let r = check(
-            &dir,
-            "hd-check-cache-no-path",
-            &["--all", "--format", format],
-        );
+        let r = check(&dir, &["--all", "--format", format]);
         assert_eq!(r.code, Some(101));
         let all = format!("{}{}", r.out, r.err);
         assert!(!all.contains('$'), "{all}");
@@ -530,14 +517,14 @@ fn dev_dependencies_are_for_test_code_only() {
         std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
         std::fs::write(path, text).expect("write");
     }
-    let r = check(&dir, "hd-check-cache-dev", &["--tests"]);
+    let r = check(&dir, &["--tests"]);
     assert_eq!(r.code, Some(0), "{}", r.err);
     std::fs::write(
         dir.join("src/lib.hd"),
         "use dep.fixtures.{sample}\n\npub fn double(v: i32) -> i32:\n    v * sample()\n",
     )
     .expect("write");
-    let r = check(&dir, "hd-check-cache-dev", &[]);
+    let r = check(&dir, &[]);
     assert_eq!(r.code, Some(101));
     assert!(
         r.err.starts_with("error: src/lib.hd:1:1: test-only-use: ")
@@ -551,7 +538,7 @@ fn dev_dependencies_are_for_test_code_only() {
         "pub fn double(v: i32) -> i32:\n    v * 2\n\ntests:\n    use dep.fixtures.{sample}\n\n    it(\"doubles the sample\"):\n        _ := double(sample())\n",
     )
     .expect("write");
-    let r = check(&dir, "hd-check-cache-dev", &["--tests"]);
+    let r = check(&dir, &["--tests"]);
     assert_eq!(r.code, Some(0), "{}", r.err);
 }
 
@@ -576,7 +563,7 @@ fn a_folder_cycle_is_one_error_and_bodies_still_check() {
         std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
         std::fs::write(path, text).expect("write");
     }
-    let r = check(&dir, "hd-check-cache-cycle", &[]);
+    let r = check(&dir, &[]);
     assert_eq!(r.code, Some(101));
     assert!(r.err.contains("folder-cycle"), "{}", r.err);
     assert!(r.err.contains("src/b/y.hd:4:13: unknown-name"), "{}", r.err);
@@ -608,6 +595,6 @@ fn test_code_makes_no_folder_cycle() {
         std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
         std::fs::write(path, text).expect("write");
     }
-    let r = check(&dir, "hd-check-cache-test-edges", &["--tests"]);
+    let r = check(&dir, &["--tests"]);
     assert_eq!(r.code, Some(0), "{}", r.err);
 }

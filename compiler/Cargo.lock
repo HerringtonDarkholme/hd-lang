@@ -570,6 +570,7 @@ dependencies = [
  "hd_run",
  "hd_run_wasmtime",
  "hd_sched",
+ "hd_testkit",
  "libc",
  "tracking-allocator",
 ]
@@ -580,6 +581,7 @@ version = "0.0.0"
 dependencies = [
  "hd_diag",
  "hd_project",
+ "hd_testkit",
  "sha2",
 ]
 
@@ -616,6 +618,7 @@ dependencies = [
  "hd_sched",
  "hd_structure",
  "hd_syntax",
+ "hd_testkit",
  "hd_tir",
  "hd_types",
  "hd_wasm",
@@ -757,6 +760,7 @@ version = "0.0.0"
 dependencies = [
  "hd_base",
  "hd_cache",
+ "hd_deps",
  "hd_driver",
  "hd_project",
  "hd_sched",

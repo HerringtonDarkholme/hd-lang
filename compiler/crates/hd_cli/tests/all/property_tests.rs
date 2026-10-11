@@ -7,13 +7,14 @@
 //! replays it on the next run; `it_prop_with` takes its generator and
 //! `cases`.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Output};
 
+use hd_testkit::Scratch;
+
 /// A fresh package `shop` whose `src/lib.hd` is `lib`.
-fn package(name: &str, lib: &str) -> PathBuf {
-    let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);
-    let _ = std::fs::remove_dir_all(&root);
+fn package(name: &str, lib: &str) -> Scratch {
+    let root = Scratch::new(env!("CARGO_TARGET_TMPDIR"), name);
     std::fs::create_dir_all(root.join("src")).expect("src");
     std::fs::write(root.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("hd.toml");
     std::fs::write(root.join("src/lib.hd"), lib).expect("lib");

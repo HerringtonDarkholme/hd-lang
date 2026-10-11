@@ -13,3 +13,6 @@ sha2 = { version = "0.10", default-features = false }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+hd_testkit = { path = "../hd_testkit" }

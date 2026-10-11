@@ -5,8 +5,10 @@
 //! slot, and widening reads the parent field. Programs build through the
 //! driver and run on V8 (`host/run.mjs`), as the conformance runner does.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
+
+use hd_testkit::Scratch;
 
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
@@ -37,8 +39,10 @@ fn output_of(name: &str, main: &str) -> String {
     let out = built(main);
     assert!(out.diags.is_empty(), "{name}: {}", out.render());
     let wasm = out.wasm.expect("wasm");
-    let path =
-        PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("supertrait-call-{name}.wasm"));
+    let path = Scratch::unmade(
+        env!("CARGO_TARGET_TMPDIR"),
+        &format!("supertrait-call-{name}.wasm"),
+    );
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))

@@ -3,12 +3,13 @@
 //! `hd test` shows its lines. The spec's own fixtures are in
 //! `spec/conformance/cli`; these cover the value forms they leave out.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
-fn scratch(name: &str) -> PathBuf {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);
-    let _ = std::fs::remove_dir_all(&dir);
+use hd_testkit::Scratch;
+
+fn scratch(name: &str) -> Scratch {
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), name);
     std::fs::create_dir_all(dir.join("src")).expect("dir");
     std::fs::write(dir.join("hd.toml"), "[package]\nname = \"probe\"\n").expect("write");
     dir

@@ -32,3 +32,6 @@ libc = "0.2"
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+hd_testkit = { path = "../hd_testkit" }

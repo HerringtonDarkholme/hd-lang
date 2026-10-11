@@ -4,44 +4,44 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use hd_testkit::Scratch;
+
 fn samples() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../samples")
 }
 
-fn cache(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name)
+fn cache(name: &str) -> Scratch {
+    Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), name)
 }
 
-/// A test-only global git configuration that sends every remote URL `hd`
-/// tries (HTTPS and SSH) to a local path that does not exist, so a test
-/// that names a remote requirement fails at once and never reaches the
-/// network. `hd_cli/tests/all/deps.rs` serves real local remotes instead.
-fn offline_git_config() -> PathBuf {
-    static CONFIG: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    CONFIG.get_or_init(write_offline_git_config).clone()
-}
-
-fn write_offline_git_config() -> PathBuf {
-    let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
-    let nowhere = root.join("no-such-remote");
-    let path = root.join("offline-gitconfig");
-    let text = format!(
-        "[url \"file://{0}/\"]\n\tinsteadOf = https://\n\tinsteadOf = ssh://git@\n\tinsteadOf = git@\n",
-        nowhere.display()
-    );
-    if std::fs::read_to_string(&path).ok().as_deref() != Some(text.as_str()) {
-        let temp = root.join(format!("offline-gitconfig.{}", std::process::id()));
-        std::fs::write(&temp, text).expect("write git config");
-        std::fs::rename(&temp, &path).expect("install git config");
+/// Points `command`'s git at no global configuration and sends every
+/// remote URL `hd` tries (HTTPS and SSH) to a local path that does not
+/// exist, so a test that names a remote requirement fails at once and never
+/// reaches the network. Git reads the rewrite from the environment, so no
+/// file is left behind.
+fn offline_git(command: &mut Command) {
+    let nowhere = "file:///hd-no-such-remote/";
+    command
+        .env(
+            "GIT_CONFIG_GLOBAL",
+            if cfg!(windows) { "NUL" } else { "/dev/null" },
+        )
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_COUNT", "3");
+    for (i, from) in ["https://", "ssh://git@", "git@"].into_iter().enumerate() {
+        command
+            .env(
+                format!("GIT_CONFIG_KEY_{i}"),
+                format!("url.{nowhere}.insteadOf"),
+            )
+            .env(format!("GIT_CONFIG_VALUE_{i}"), from);
     }
-    path
 }
 
 fn hd(cache_dir: &Path) -> Command {
     let mut c = Command::new(env!("CARGO_BIN_EXE_hd"));
-    c.env("HD_CACHE", cache_dir)
-        .env("GIT_CONFIG_GLOBAL", offline_git_config())
-        .env("GIT_CONFIG_NOSYSTEM", "1");
+    c.env("HD_CACHE", cache_dir);
+    offline_git(&mut c);
     c
 }
 
@@ -148,8 +148,7 @@ fn main_returning_err_exits_with_its_report() {
 
 #[test]
 fn run_reports_check_errors() {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-error");
-    std::fs::create_dir_all(&dir).expect("dir");
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-error");
     let file = dir.join("bad.hd");
     std::fs::write(
         &file,
@@ -172,8 +171,7 @@ fn run_reports_check_errors() {
 /// message must not repeat the code.
 #[test]
 fn rendered_diagnostics_do_not_repeat_their_code() {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-no-repeat");
-    std::fs::create_dir_all(&dir).expect("dir");
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-no-repeat");
     let file = dir.join("twice.hd");
     std::fs::write(
         &file,
@@ -199,8 +197,7 @@ fn rendered_diagnostics_do_not_repeat_their_code() {
 /// `file:line:column`, the code once, and the message.
 #[test]
 fn warning_and_error_print_severity_location_code_and_message() {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-severity");
-    std::fs::create_dir_all(&dir).expect("dir");
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-severity");
     let file = dir.join("mixed.hd");
     std::fs::write(
         &file,
@@ -224,8 +221,7 @@ fn warning_and_error_print_severity_location_code_and_message() {
 /// its statements are the whole program (module.init.script).
 #[test]
 fn script_runs_its_top_level_statements() {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-script");
-    std::fs::create_dir_all(&dir).expect("dir");
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-script");
     let file = dir.join("hello.hd");
     std::fs::write(&file, "x := 40 + 2\nprintln(x)\n").expect("write");
     assert_eq!(hd_run(&cache("hd-cache-script"), &file), "42\n");
@@ -235,8 +231,7 @@ fn script_runs_its_top_level_statements() {
 /// in the same directory is not part of the program (cli.file.run).
 #[test]
 fn run_file_ignores_broken_siblings() {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-sibling");
-    std::fs::create_dir_all(&dir).expect("dir");
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-sibling");
     let file = dir.join("good.hd");
     std::fs::write(&file, "println(\"fine\")\n").expect("write");
     std::fs::write(dir.join("broken.hd"), "fn broken( :\n").expect("write");
@@ -247,8 +242,7 @@ fn run_file_ignores_broken_siblings() {
 /// not the sentinel span `:0..0`.
 #[test]
 fn unsupported_error_names_its_file() {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-unsupported");
-    std::fs::create_dir_all(&dir).expect("dir");
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-unsupported");
     let file = dir.join("pattern.hd");
     std::fs::write(
         &file,
@@ -266,15 +260,12 @@ fn unsupported_error_names_its_file() {
     assert!(!err.contains(":0..0"), "{err}");
 }
 
-fn scratch(name: &str) -> PathBuf {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("dir");
-    dir
+fn scratch(name: &str) -> Scratch {
+    Scratch::new(env!("CARGO_TARGET_TMPDIR"), name)
 }
 
 /// A package `shop` with one executable (`main.hd`) and one task (`seed`).
-fn shop(name: &str) -> PathBuf {
+fn shop(name: &str) -> Scratch {
     let dir = scratch(name);
     std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("write");
     std::fs::write(
@@ -454,8 +445,7 @@ fn build_rejects_the_output_flag() {
 /// the view panics with `index-out-of-bounds` at the call site.
 #[test]
 fn string_index_and_slice_on_views() {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-str-index");
-    std::fs::create_dir_all(&dir).expect("dir");
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-str-index");
     let file = dir.join("views.hd");
     std::fs::write(
         &file,
@@ -490,8 +480,7 @@ fn string_index_and_slice_on_views() {
 /// A slice that is not on scalar boundaries, or is reversed, panics.
 #[test]
 fn string_slice_off_boundary_panics() {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-str-slice");
-    std::fs::create_dir_all(&dir).expect("dir");
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-str-slice");
     let file = dir.join("bad.hd");
     std::fs::write(
         &file,
@@ -516,8 +505,7 @@ fn string_slice_off_boundary_panics() {
 /// value afterwards.
 #[test]
 fn closure_mutating_a_captured_let_shares_a_cell() {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-shared-cell");
-    std::fs::create_dir_all(&dir).expect("dir");
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-shared-cell");
     let file = dir.join("counter.hd");
     std::fs::write(
         &file,
@@ -548,8 +536,7 @@ fn closure_mutating_a_captured_let_shares_a_cell() {
 /// loop gets a fresh cell per iteration.
 #[test]
 fn shared_cells_outlive_their_function_and_renew_per_iteration() {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-shared-cell-more");
-    std::fs::create_dir_all(&dir).expect("dir");
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-shared-cell-more");
     let file = dir.join("more.hd");
     std::fs::write(
         &file,
@@ -587,8 +574,7 @@ fn shared_cells_outlive_their_function_and_renew_per_iteration() {
 /// `chars` is built on a mutably capturing closure (`Iterator::from_fn`).
 #[test]
 fn chars_walks_a_non_ascii_string() {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-chars");
-    std::fs::create_dir_all(&dir).expect("dir");
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-chars");
     let file = dir.join("chars.hd");
     std::fs::write(
         &file,
@@ -612,8 +598,7 @@ fn chars_walks_a_non_ascii_string() {
 /// `bytes` is another `Iterator::from_fn` over a captured, assigned offset.
 #[test]
 fn bytes_walks_a_non_ascii_string() {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-bytes");
-    std::fs::create_dir_all(&dir).expect("dir");
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-bytes");
     let file = dir.join("bytes.hd");
     std::fs::write(
         &file,
@@ -637,8 +622,7 @@ fn bytes_walks_a_non_ascii_string() {
 /// `join` concatenates a list of strings through `bytes_concat`.
 #[test]
 fn join_list_of_strings() {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-join");
-    std::fs::create_dir_all(&dir).expect("dir");
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-join");
     let file = dir.join("join.hd");
     std::fs::write(
         &file,
@@ -663,8 +647,7 @@ fn join_list_of_strings() {
 /// back through `string_from_bytes`.
 #[test]
 fn utf8_bytes_round_trip() {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-utf8");
-    std::fs::create_dir_all(&dir).expect("dir");
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-utf8");
     let file = dir.join("utf8.hd");
     std::fs::write(
         &file,
@@ -803,7 +786,7 @@ fn a_grant_must_name_a_host_trait_and_fit_its_kind() {
 }
 
 /// Writes `files` under a fresh directory.
-fn tree(name: &str, files: &[(&str, &str)]) -> PathBuf {
+fn tree(name: &str, files: &[(&str, &str)]) -> Scratch {
     let dir = scratch(name);
     for (file, text) in files {
         let path = dir.join(file);
@@ -1329,8 +1312,7 @@ fn source_root_moves_the_modules_and_paths_stay_as_on_disk() {
 /// string (lex.interp.expression, expr.interp.order).
 #[test]
 fn nested_string_literals_in_interpolation_print_once() {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-run-nested-interp");
-    std::fs::create_dir_all(&dir).expect("dir");
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-nested-interp");
     let file = dir.join("nested.hd");
     std::fs::write(
         &file,
@@ -1368,8 +1350,7 @@ fn nested_string_literals_in_interpolation_print_once() {
 /// only when something suspends.
 #[test]
 fn programs_without_host_calls_instantiate() {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hd-no-host-calls");
-    std::fs::create_dir_all(&dir).expect("dir");
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-no-host-calls");
     for (name, source) in [
         ("script.hd", "result := 1 << 3\n"),
         (

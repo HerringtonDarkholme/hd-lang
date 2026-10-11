@@ -34,6 +34,7 @@ use hd_driver::{
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 use hd_syntax::parse;
+use hd_testkit::Scratch;
 
 const START_COMMIT: &str = "103dd1e3";
 const PASS_START: &str = "<!-- pass-list-start -->";
@@ -732,22 +733,19 @@ fn run_wasm(
     serial: usize,
     profile: Option<&str>,
 ) -> std::io::Result<std::process::Output> {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
-    let path = dir.join(format!("conformance-{serial}.wasm"));
+    let dir = env!("CARGO_TARGET_TMPDIR");
+    let path = Scratch::unmade(dir, &format!("conformance-{serial}.wasm"));
     std::fs::write(&path, wasm)?;
     let mut command = Command::new("node");
     command
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
         .arg(&path);
-    let config = dir.join(format!("conformance-{serial}.json"));
+    let config = Scratch::unmade(dir, &format!("conformance-{serial}.json"));
     if let Some(name) = profile {
         std::fs::write(&config, format!("{{\"profile\":{name:?}}}"))?;
         command.arg(&config);
     }
-    let result = command.output();
-    let _ = std::fs::remove_file(path);
-    let _ = std::fs::remove_file(config);
-    result
+    command.output()
 }
 
 /// A fixture whose only harness is its runtime profile: its entry runs
@@ -866,8 +864,10 @@ fn run_tests(case: &Case, built: &Output, serial: usize, run: &mut TestRun) -> R
     let node = if mode == EngineMode::WasmtimeOnly {
         None
     } else {
-        let path =
-            PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("conformance-{serial}.wasm"));
+        let path = Scratch::unmade(
+            env!("CARGO_TARGET_TMPDIR"),
+            &format!("conformance-{serial}.wasm"),
+        );
         std::fs::write(&path, wasm).map_err(|e| Verdict::Crash(e.to_string()))?;
         let list: Vec<String> = runs
             .iter()
@@ -885,7 +885,7 @@ fn run_tests(case: &Case, built: &Output, serial: usize, run: &mut TestRun) -> R
             stats.node_elapsed += started.elapsed();
             *stats.node_harness.entry(case.path.clone()).or_default() += 1;
         }
-        let _ = std::fs::remove_file(path);
+        drop(path);
         let output = result.map_err(|e| Verdict::Crash(e.to_string()))?;
         Some(String::from_utf8_lossy(&output.stdout).into_owned())
     };

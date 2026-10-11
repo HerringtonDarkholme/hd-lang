@@ -8,24 +8,20 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
+use hd_testkit::Scratch;
+
 fn samples() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../samples")
 }
 
-fn work(name: &str) -> PathBuf {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("wasmtime-{name}"));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("work directory");
-    dir
+fn work(name: &str) -> Scratch {
+    Scratch::new(env!("CARGO_TARGET_TMPDIR"), &format!("wasmtime-{name}"))
 }
 
 fn hd(dir: &Path) -> Command {
     let mut c = Command::new(env!("CARGO_BIN_EXE_hd"));
     c.current_dir(dir)
-        .env(
-            "HD_CACHE",
-            PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("wasmtime-cache"),
-        )
+        .env("HD_CACHE", dir.with_extension("cache"))
         .env_remove("HD_ENGINE");
     c
 }
@@ -85,7 +81,7 @@ fn both(dir: &Path, args: &[&str]) -> Output {
 }
 
 /// A single-file program in a fresh directory.
-fn program(name: &str, source: &str) -> PathBuf {
+fn program(name: &str, source: &str) -> Scratch {
     let dir = work(name);
     std::fs::write(dir.join("main.hd"), source).expect("write program");
     dir

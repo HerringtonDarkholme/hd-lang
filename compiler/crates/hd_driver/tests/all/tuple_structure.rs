@@ -6,8 +6,10 @@
 //! a user's tuple template run. Programs build through the driver and run
 //! on V8 (`host/run.mjs`), as the conformance runner does.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Output as Ran};
+
+use hd_testkit::Scratch;
 
 use hd_driver::{Executor, Goal, Host, NoClock, build};
 use hd_project::MemorySources;
@@ -34,7 +36,7 @@ fn run(name: &str, main: &str) -> Ran {
     );
     assert!(out.diags.is_empty(), "{name}: {}", out.render());
     let wasm = out.wasm.as_ref().expect("wasm");
-    let path = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("tuple-{name}.wasm"));
+    let path = Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), &format!("tuple-{name}.wasm"));
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))

@@ -1,13 +1,13 @@
 //! CLI flag routing and observable Wasmtime limit failures, using raw Wasm.
 //! The tests that run Wasmtime need the `wasmtime` feature.
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
-fn work(name: &str) -> PathBuf {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("m21-{name}"));
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
+use hd_testkit::Scratch;
+
+fn work(name: &str) -> Scratch {
+    Scratch::new(env!("CARGO_TARGET_TMPDIR"), &format!("m21-{name}"))
 }
 
 fn hd(dir: &Path) -> Command {

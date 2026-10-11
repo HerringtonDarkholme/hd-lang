@@ -8,8 +8,10 @@
 
 use std::cmp::Ordering;
 use std::fmt::Write as _;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
+
+use hd_testkit::Scratch;
 
 use hd_driver::{Executor, Goal, Host, NoClock, build};
 use hd_project::MemorySources;
@@ -84,7 +86,7 @@ impl Case {
         let name = self.name;
         assert!(out.diags.is_empty(), "{name}: {}", out.render());
         let wasm = out.wasm.expect("wasm");
-        let path = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("float-{name}.wasm"));
+        let path = Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), &format!("float-{name}.wasm"));
         std::fs::write(&path, wasm).expect("write wasm");
         let ran = Command::new("node")
             .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))

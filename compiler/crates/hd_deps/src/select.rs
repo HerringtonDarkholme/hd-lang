@@ -615,14 +615,13 @@ mod tests {
     use crate::cache::Entry;
     use crate::sum::{Sum, manifest_hash, tree_hash, tree_key};
 
-    /// A directory under the workspace's `target/tmp`, empty.
-    fn temp(name: &str) -> PathBuf {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target/tmp")
-            .join(format!("hd-deps-select-{name}-{}", std::process::id()));
-        let _ = crate::cache::remove_tree(&dir);
-        std::fs::create_dir_all(&dir).expect("mkdir");
-        dir
+    /// A directory under the workspace's `target/tmp`, empty and removed on
+    /// drop.
+    fn temp(name: &str) -> hd_testkit::Scratch {
+        hd_testkit::Scratch::new(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/tmp"),
+            &format!("hd-deps-select-{name}"),
+        )
     }
 
     fn write(dir: &Path, path: &str, text: &str) {

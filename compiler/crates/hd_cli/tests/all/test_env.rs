@@ -7,18 +7,19 @@
 //! the JS host's side of them: the lazily made temporary directory and the
 //! grant's scope checks.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Output};
 
-fn tmp(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name)
+use hd_testkit::Scratch;
+
+fn tmp(name: &str) -> Scratch {
+    Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), name)
 }
 
 /// A fresh package `shop` with `manifest` after its `[package]` table and
 /// one integration test file that prints.
-fn package(name: &str, manifest: &str) -> PathBuf {
+fn package(name: &str, manifest: &str) -> Scratch {
     let root = tmp(name);
-    let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(root.join("src")).expect("src");
     std::fs::create_dir_all(root.join("tests")).expect("tests");
     std::fs::write(

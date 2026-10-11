@@ -5,8 +5,10 @@
 //! conformance runner does, so each module also validates there.
 
 use std::fmt::Write as _;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
+
+use hd_testkit::Scratch;
 
 use hd_cache::MemoryStore;
 use hd_driver::{Executor, Goal, Host, NoClock, build};
@@ -44,7 +46,10 @@ fn output_of(name: &str, main: &str) -> String {
     let (again, emitted) = wasm(&store, Executor::Serial(SerialOrder::Priority));
     assert_eq!(emitted, 0, "{name}: re-emitted");
     assert_eq!(again, serial, "{name}: warm bytes");
-    let path = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("recursive-{name}.wasm"));
+    let path = Scratch::unmade(
+        env!("CARGO_TARGET_TMPDIR"),
+        &format!("recursive-{name}.wasm"),
+    );
     std::fs::write(&path, &serial).expect("write wasm");
     let ran = Command::new("node")
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))

@@ -4,8 +4,10 @@
 //! `$.with(ctx...)` installs its providers. Entries apply left to right
 //! and a later one wins (`req.context.order`).
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
+
+use hd_testkit::Scratch;
 
 use hd_cache::MemoryStore;
 use hd_diag::Code;
@@ -46,7 +48,7 @@ fn output_in(store: &MemoryStore, name: &str, main: &str) -> String {
     let out = run(store, main, &goal);
     assert!(out.diags.is_empty(), "{name}: {}", out.render());
     let wasm = out.wasm.expect("wasm");
-    let path = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("context-{name}.wasm"));
+    let path = Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), &format!("context-{name}.wasm"));
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))

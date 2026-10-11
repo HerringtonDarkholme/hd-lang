@@ -6,8 +6,10 @@
 //! and an integration test, which sees the package built without its test
 //! code (`module.test.integration.view`), cannot import one.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Output};
+
+use hd_testkit::Scratch;
 
 /// The library with a `tests:` block that declares a use, a data type and
 /// a function, which its test cases use.
@@ -33,10 +35,8 @@ tests:
 
 /// A fresh package `shop` whose `src/lib.hd` is `lib`, with the given
 /// integration test files.
-fn package(name: &str, lib: &str, tests: &[(&str, &str)]) -> PathBuf {
-    let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);
-    let _ = std::fs::remove_dir_all(&root);
-    let _ = std::fs::remove_dir_all(root.with_extension("cache"));
+fn package(name: &str, lib: &str, tests: &[(&str, &str)]) -> Scratch {
+    let root = Scratch::new(env!("CARGO_TARGET_TMPDIR"), name);
     std::fs::create_dir_all(root.join("src")).expect("src");
     std::fs::create_dir_all(root.join("tests")).expect("tests");
     std::fs::write(root.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("hd.toml");

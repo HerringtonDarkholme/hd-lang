@@ -5,8 +5,10 @@
 //! `facts`) is generated as ordinary bodies. Programs build through the
 //! driver and run on V8 (`host/run.mjs`), as the conformance runner does.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
+
+use hd_testkit::Scratch;
 
 use hd_cache::MemoryStore;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
@@ -39,7 +41,10 @@ fn build_with(store: &MemoryStore, files: &[(&str, &str)]) -> Output {
 /// Runs a built program on V8 and returns its standard output.
 fn run(out: &Output, name: &str) -> String {
     let wasm = out.wasm.as_ref().expect("wasm");
-    let path = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("derive-run-{name}.wasm"));
+    let path = Scratch::unmade(
+        env!("CARGO_TARGET_TMPDIR"),
+        &format!("derive-run-{name}.wasm"),
+    );
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))

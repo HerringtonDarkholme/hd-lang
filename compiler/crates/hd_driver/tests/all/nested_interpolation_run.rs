@@ -3,8 +3,10 @@
 //! contributes its value once, and braces and quotes stay text.
 //! Programs build through the driver and run on V8 (`host/run.mjs`).
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
+
+use hd_testkit::Scratch;
 
 use hd_driver::{Executor, Goal, Host, NoClock, build};
 use hd_project::MemorySources;
@@ -31,8 +33,10 @@ fn output_of(name: &str, main: &str) -> String {
     );
     assert!(out.diags.is_empty(), "{}", out.render());
     let wasm = out.wasm.expect("wasm");
-    let path =
-        PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("nested-interp-{name}.wasm"));
+    let path = Scratch::unmade(
+        env!("CARGO_TARGET_TMPDIR"),
+        &format!("nested-interp-{name}.wasm"),
+    );
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))

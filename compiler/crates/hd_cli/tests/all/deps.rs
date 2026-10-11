@@ -11,16 +11,18 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 use hd_deps::sum::summary_hash;
+use hd_testkit::Scratch;
 
-/// A test's directory: its remotes, home, cache and packages.
+/// A test's directory: its remotes, home, cache and packages. The cache
+/// entries are read-only (`cli.cache.read-only`); the scratch removes them
+/// when the test ends.
 struct World {
-    root: PathBuf,
+    root: Scratch,
 }
 
 impl World {
     fn new(name: &str) -> World {
-        let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("hd-deps-{name}"));
-        let _ = hd_deps::cache::remove_tree(&root);
+        let root = Scratch::new(env!("CARGO_TARGET_TMPDIR"), &format!("hd-deps-{name}"));
         std::fs::create_dir_all(root.join("home")).expect("mkdir");
         std::fs::create_dir_all(root.join("remotes")).expect("mkdir");
         let config = format!(
@@ -155,14 +157,6 @@ impl World {
             .args(args)
             .output()
             .expect("hd")
-    }
-}
-
-/// The test's cache entries are read-only (`cli.cache.read-only`), so a
-/// directory left behind makes `cargo clean` fail; each test removes its own.
-impl Drop for World {
-    fn drop(&mut self) {
-        let _ = hd_deps::cache::remove_tree(&self.root);
     }
 }
 

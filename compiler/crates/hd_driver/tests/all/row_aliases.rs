@@ -7,8 +7,10 @@
 //! two spellings of one row give one interface; and a missing key names
 //! the row as written and its expanded keys.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
+
+use hd_testkit::Scratch;
 
 use hd_cache::MemoryStore;
 use hd_diag::Code;
@@ -55,7 +57,10 @@ fn output_of(name: &str, main: &str) -> String {
     );
     assert!(out.diags.is_empty(), "{name}: {}", out.render());
     let wasm = out.wasm.expect("wasm");
-    let path = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("row-alias-{name}.wasm"));
+    let path = Scratch::unmade(
+        env!("CARGO_TARGET_TMPDIR"),
+        &format!("row-alias-{name}.wasm"),
+    );
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))

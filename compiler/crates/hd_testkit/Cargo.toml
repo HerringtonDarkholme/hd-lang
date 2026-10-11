@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 hd_base = { path = "../hd_base" }
+hd_deps = { path = "../hd_deps" }
 hd_driver = { path = "../hd_driver" }
 hd_sched = { path = "../hd_sched" }
 

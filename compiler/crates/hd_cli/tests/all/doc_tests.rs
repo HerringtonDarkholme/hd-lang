@@ -9,16 +9,16 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
+use hd_testkit::Scratch;
+
 fn package() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../samples/doctests")
 }
 
 fn hd(cache: &str, args: &[&str]) -> Output {
+    let cache = Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), cache);
     Command::new(env!("CARGO_BIN_EXE_hd"))
-        .env(
-            "HD_CACHE",
-            PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(cache),
-        )
+        .env("HD_CACHE", &*cache)
         .env_remove("HD_JOBS")
         .current_dir(package())
         .args(args)

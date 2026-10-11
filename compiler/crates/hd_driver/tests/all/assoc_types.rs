@@ -3,8 +3,10 @@
 //! impl's binding at its instances, a bound's binding infers a parameter,
 //! and an impl whose binding does not fit a bound is rejected.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
+
+use hd_testkit::Scratch;
 
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
@@ -44,7 +46,7 @@ fn run_main(name: &str, src: &str) -> String {
     );
     assert!(!out.diags.has_errors(), "{}", out.render());
     let wasm = out.wasm.expect("wasm");
-    let path = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("assoc-{name}.wasm"));
+    let path = Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), &format!("assoc-{name}.wasm"));
     std::fs::write(&path, wasm).expect("write wasm");
     let result = Command::new("node")
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))

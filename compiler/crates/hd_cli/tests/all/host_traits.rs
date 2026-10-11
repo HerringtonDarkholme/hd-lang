@@ -6,15 +6,14 @@
 //! directory below the target directory.
 
 use std::io::Write as _;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Output, Stdio};
 
+use hd_testkit::Scratch;
+
 /// A fresh, empty work directory.
-fn work(name: &str) -> PathBuf {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("work dir");
-    std::fs::canonicalize(&dir).expect("work dir")
+fn work(name: &str) -> Scratch {
+    Scratch::new(env!("CARGO_TARGET_TMPDIR"), name)
 }
 
 fn hd(dir: &Path, args: &[&str]) -> Command {

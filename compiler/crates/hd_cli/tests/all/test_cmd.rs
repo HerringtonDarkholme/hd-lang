@@ -7,12 +7,14 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
+use hd_testkit::Scratch;
+
 fn package() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../samples/testing")
 }
 
-fn cache(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name)
+fn cache(name: &str) -> Scratch {
+    Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), name)
 }
 
 fn hd_test(cache_dir: &Path, args: &[&str]) -> Output {

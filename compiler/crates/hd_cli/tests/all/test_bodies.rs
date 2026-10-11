@@ -3,14 +3,14 @@
 //! runs each form of an `it` body and reports its outcome, and checking
 //! holds each form to its rules.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Output};
 
+use hd_testkit::Scratch;
+
 /// A fresh package `notes` whose `src/lib.hd` is `lib`.
-fn package(name: &str, lib: &str) -> PathBuf {
-    let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);
-    let _ = std::fs::remove_dir_all(&root);
-    let _ = std::fs::remove_dir_all(root.with_extension("cache"));
+fn package(name: &str, lib: &str) -> Scratch {
+    let root = Scratch::new(env!("CARGO_TARGET_TMPDIR"), name);
     std::fs::create_dir_all(root.join("src")).expect("src");
     std::fs::write(root.join("hd.toml"), "[package]\nname = \"notes\"\n").expect("hd.toml");
     std::fs::write(root.join("src/lib.hd"), lib).expect("lib");
