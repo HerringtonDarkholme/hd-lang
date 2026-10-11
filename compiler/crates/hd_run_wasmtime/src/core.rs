@@ -1,4 +1,4 @@
-//! Random, Sys and Process providers of the Node default host profile.
+//! Random, Sys and Process providers using scoped grants and native I/O.
 
 use std::io::{self, Read, Write};
 #[cfg(not(any(unix, windows)))]
@@ -132,14 +132,14 @@ fn process_impl(
                 .zz(status);
         }
         Err(err) => {
-            let variant = match err.kind() {
+            let variant = match crate::native_io::error_kind(&err) {
                 io::ErrorKind::NotFound => 0,
                 io::ErrorKind::PermissionDenied => 1,
                 _ => 3,
             };
             e.leb(1).leb(variant);
             if variant == 3 {
-                e.str(&format!("spawnSync {name} {}", process_error(&err)));
+                e.str(&format!("cannot run {name:?}: {err}"));
             }
         }
     }
@@ -147,66 +147,16 @@ fn process_impl(
 }
 
 fn validate_process(name: &str, argv: &[String]) -> Option<String> {
-    for (argument, value) in std::iter::once(("file".into(), name)).chain(
-        argv.iter()
-            .enumerate()
-            .map(|(i, arg)| (format!("args[{i}]"), arg.as_str())),
-    ) {
-        if value.contains('\0') {
-            return Some(format!(
-                "The argument '{argument}' must be a string without null bytes. Received {}",
-                crate::fs::inspect_string(value)
-            ));
-        }
+    if name.contains('\0') {
+        return Some("program name contains a NUL byte".into());
     }
-    None
-}
-
-fn process_error(err: &io::Error) -> String {
-    #[cfg(unix)]
-    if let Some(code) = err.raw_os_error() {
-        // Node uses libuv's symbolic errno name in spawnSync's message.
-        let name = match code {
-            libc::E2BIG => Some("E2BIG"),
-            libc::EAGAIN => Some("EAGAIN"),
-            libc::EBADF => Some("EBADF"),
-            libc::EIO => Some("EIO"),
-            libc::ELOOP => Some("ELOOP"),
-            libc::EMFILE => Some("EMFILE"),
-            libc::ENAMETOOLONG => Some("ENAMETOOLONG"),
-            libc::ENFILE => Some("ENFILE"),
-            libc::ENOBUFS => Some("ENOBUFS"),
-            libc::ENOEXEC => Some("ENOEXEC"),
-            libc::ENOMEM => Some("ENOMEM"),
-            libc::ENOSYS => Some("ENOSYS"),
-            libc::ENOTDIR => Some("ENOTDIR"),
-            libc::ETXTBSY => Some("ETXTBSY"),
-            libc::EINVAL => Some("EINVAL"),
-            _ => None,
-        };
-        if let Some(name) = name {
-            return name.into();
-        }
-    }
-    match err.kind() {
-        io::ErrorKind::FileTooLarge => "ENOBUFS".into(),
-        io::ErrorKind::InvalidInput => "EINVAL".into(),
-        io::ErrorKind::ArgumentListTooLong => "E2BIG".into(),
-        io::ErrorKind::OutOfMemory => "ENOMEM".into(),
-        io::ErrorKind::NotADirectory => "ENOTDIR".into(),
-        io::ErrorKind::TooManyLinks => "ELOOP".into(),
-        io::ErrorKind::InvalidFilename => "ENAMETOOLONG".into(),
-        io::ErrorKind::ExecutableFileBusy => "ETXTBSY".into(),
-        io::ErrorKind::ResourceBusy => "EBUSY".into(),
-        io::ErrorKind::WouldBlock => "EAGAIN".into(),
-        io::ErrorKind::Interrupted => "EINTR".into(),
-        io::ErrorKind::BrokenPipe => "EPIPE".into(),
-        _ => err.to_string(),
-    }
+    argv.iter()
+        .position(|arg| arg.contains('\0'))
+        .map(|index| format!("process argument {index} contains a NUL byte"))
 }
 
 /// Drain both pipes while feeding input: a child may write before reading.
-/// Node's spawnSync keeps at most 1 GiB across the output streams.
+/// The host keeps at most 1 GiB across the output streams.
 #[cfg(test)]
 fn run_process(name: &str, argv: &[String], input: &[u8]) -> io::Result<(Vec<u8>, Vec<u8>, i64)> {
     run_process_with_limit(name, argv, input, 1 << 30)
@@ -316,9 +266,13 @@ fn run_process_workers(
         if overflow {
             return Err(io::Error::from(io::ErrorKind::FileTooLarge));
         }
-        // spawnSync reports EPIPE when a child closes stdin while input
-        // remains, even if the child itself exits successfully.
-        input_result?;
+        // A started child may close stdin without consuming every byte.
+        // BrokenPipe does not invalidate its captured output or exit status.
+        if let Err(error) = input_result
+            && error.kind() != io::ErrorKind::BrokenPipe
+        {
+            return Err(error);
+        }
         Ok((out?, err?, status))
     })
 }
@@ -744,15 +698,11 @@ mod tests {
     #[test]
     fn process_invalid_names_and_arguments_are_typed_errors() {
         for (name, argv, expected) in [
-            (
-                "a\0b",
-                vec![],
-                "The argument 'file' must be a string without null bytes. Received 'a\\x00b'",
-            ),
+            ("a\0b", vec![], "program name contains a NUL byte"),
             (
                 "sh",
                 vec!["first", "a\0b"],
-                "The argument 'args[1]' must be a string without null bytes. Received 'a\\x00b'",
+                "process argument 1 contains a NUL byte",
             ),
         ] {
             let mut args = Enc::default();
@@ -782,7 +732,7 @@ mod tests {
 
     #[cfg(windows)]
     mod windows {
-        use super::super::{process_error, run_process, run_process_with_limit_and_deadline};
+        use super::super::{run_process, run_process_with_limit_and_deadline};
         use std::io::{self, Read, Write};
         use std::path::PathBuf;
         use std::process::{Command, Stdio};
@@ -858,15 +808,17 @@ mod tests {
         }
 
         #[test]
-        fn no_limit_process_reports_epipe_when_the_child_closes_stdin() {
+        fn no_limit_process_preserves_output_when_the_child_closes_stdin() {
             bounded(|| {
-                let error = run_process(
+                let (out, err, status) = run_process(
                     std::env::current_exe().unwrap().to_str().unwrap(),
                     &fixture_args("child_exit", None),
                     &vec![0; 262_144],
                 )
-                .unwrap_err();
-                assert_eq!(process_error(&error), "EPIPE");
+                .unwrap();
+                assert!(out.ends_with(b"early stdout"));
+                assert_eq!(err, b"early stderr");
+                assert_eq!(status, 17);
             });
         }
 
@@ -934,7 +886,9 @@ mod tests {
         #[test]
         #[ignore = "subprocess fixture, invoked by the Windows Process tests"]
         fn child_exit() {
-            std::process::exit(0);
+            io::stdout().write_all(b"early stdout").unwrap();
+            io::stderr().write_all(b"early stderr").unwrap();
+            std::process::exit(17);
         }
 
         #[test]
@@ -968,7 +922,7 @@ mod tests {
 
     #[cfg(unix)]
     mod unix {
-        use super::super::{process_error, run_process, run_process_with_limit};
+        use super::super::{run_process, run_process_with_limit};
         use std::io;
 
         fn shell(script: &str) -> Vec<String> {
@@ -1034,7 +988,7 @@ mod tests {
         }
 
         #[test]
-        fn process_drains_output_while_writing_input_and_reports_closed_stdin() {
+        fn process_drains_output_while_writing_input_and_preserves_early_exit() {
             let script = "dd if=/dev/zero bs=65536 count=4 2>/dev/null; \
                           dd if=/dev/zero bs=65536 count=4 >&2 2>/dev/null; \
                           wc -c";
@@ -1045,8 +999,15 @@ mod tests {
             assert_eq!(String::from_utf8_lossy(&out[262_144..]).trim(), "262144");
             assert_eq!(err.len(), 262_144);
             assert!(err.iter().all(|b| *b == 0));
-            let err = run_process("/bin/sh", &shell("exit 0"), &vec![0; 262_144]).unwrap_err();
-            assert_eq!(process_error(&err), "EPIPE");
+            let (out, err, status) = run_process(
+                "/bin/sh",
+                &shell("exec 0<&-; printf out; printf err >&2; exit 7"),
+                &vec![0; 262_144],
+            )
+            .unwrap();
+            assert_eq!(out, b"out");
+            assert_eq!(err, b"err");
+            assert_eq!(status, 7);
         }
 
         #[test]
@@ -1063,9 +1024,9 @@ mod tests {
             let err =
                 run_process_with_limit("/bin/sh", &shell("printf 12345; printf 67890 >&2"), &[], 9)
                     .unwrap_err();
-            assert_eq!(process_error(&err), "ENOBUFS");
+            assert_eq!(err.kind(), io::ErrorKind::FileTooLarge);
             let err = run_process_with_limit("/bin/sh", &shell("yes"), &[], 8192).unwrap_err();
-            assert_eq!(process_error(&err), "ENOBUFS");
+            assert_eq!(err.kind(), io::ErrorKind::FileTooLarge);
         }
 
         #[test]
@@ -1108,7 +1069,10 @@ mod tests {
             );
             std::fs::remove_file(pid_file).unwrap();
             worker.join().unwrap();
-            assert_eq!(process_error(&result.unwrap().unwrap_err()), "ENOBUFS");
+            assert_eq!(
+                result.unwrap().unwrap_err().kind(),
+                io::ErrorKind::FileTooLarge
+            );
         }
 
         #[test]
@@ -1388,18 +1352,6 @@ mod tests {
             std::fs::remove_file(pid_file).unwrap();
             assert_eq!(result.unwrap().unwrap_err().kind(), io::ErrorKind::TimedOut);
             assert!(start.elapsed() < std::time::Duration::from_secs(1));
-        }
-
-        #[test]
-        fn spawn_error_text_uses_node_errno_names() {
-            assert_eq!(
-                process_error(&io::Error::from_raw_os_error(libc::ENOTDIR)),
-                "ENOTDIR"
-            );
-            assert_eq!(
-                process_error(&io::Error::from_raw_os_error(libc::E2BIG)),
-                "E2BIG"
-            );
         }
 
         #[test]

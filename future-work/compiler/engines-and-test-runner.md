@@ -592,6 +592,18 @@ Eleven focused Unix dev-profile tests pass, including all three injected worker-
 Focused tests and workspace lint checks pass for this separate runtime fix.
 Full gates remain pending on the completed M24 tree.
 
+The native-error fix removes filesystem, Process and Net errno-message emulation.
+Rust's native error text carries operation and path/address context; spec-defined variants remain stable.
+Three Windows access-refusal codes retain `PermissionDenied` classification when std leaves them unclassified.
+UTF-8 BOMs remain file content, and a started child's stdin `BrokenPipe` preserves output and status.
+Net retains native UDP-send failures and informative candidate errors, without Node preflight messages or empty aggregates.
+Read EOF no longer closes TCP's write half: only explicit close disposes the handle.
+TCP fixtures accumulate partial reads under a bound rather than assuming message-sized reads.
+Native-only regressions cover these intentional Node differences; shared-shape differential tests remain.
+Focused dev verification passes 127 runtime units, 25 core-provider tests and 12 socket tests.
+The unused `socket2` all-features flag is removed; no dependency or unsafe code is added.
+Other post-start Process I/O failures and output-cap failures still return `Other`; their result policy remains a follow-up.
+
 ## 19. Test Runner
 
 ### 19.1 Building

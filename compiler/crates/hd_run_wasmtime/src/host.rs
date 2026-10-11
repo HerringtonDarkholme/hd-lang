@@ -217,7 +217,7 @@ impl Host {
             .as_ref()
             .is_some_and(|flag| flag.load(std::sync::atomic::Ordering::Relaxed))
         {
-            return Err(Stop::Internal("spawnSync ENOBUFS".into()).into());
+            return Err(Stop::Internal("process output exceeds the host limit".into()).into());
         }
         Ok(())
     }

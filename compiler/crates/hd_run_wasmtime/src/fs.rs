@@ -1,4 +1,4 @@
-//! Synchronous filesystem providers, matching `core.mjs`'s `fsOp`.
+//! Synchronous filesystem providers with native errors and scoped grants.
 //! Grants are checked against resolved paths before any filesystem access.
 //! Limited Unix calls use nonblocking descriptors and deadline-bounded FIFO
 //! polling. Ordinary filesystem syscalls (including network filesystem access)
@@ -65,32 +65,25 @@ pub fn call_until_at(
             return Ok(error(p, 2));
         }
     }
-    // Decode payloads only after grants, as fsOp does on Node.
+    // Refusal takes precedence over decoding write payloads.
     let payload = if matches!(method, "write_bytes" | "write_text" | "append_text") {
         Some(d.bytes()?)
     } else {
         None
     };
-    // Node validates path arguments after the grant check, before touching
-    // the filesystem. In particular, a NUL is not an OS EINVAL error.
+    // Reject NUL before OS access, after checking the grant.
     for (p, name) in std::iter::once((
         &path,
         if method == "rename" {
-            "oldPath"
+            "source path"
         } else {
             "path"
         },
     ))
-    .chain(to.iter().map(|p| (p, "newPath")))
+    .chain(to.iter().map(|p| (p, "destination path")))
     {
         if p.contains('\0') {
-            return Ok(error(
-                &format!(
-                    "The argument '{name}' must be a string, Uint8Array, or URL without null bytes. Received {}",
-                    inspect_string(p)
-                ),
-                7,
-            ));
+            return Ok(error(&format!("{name} contains a NUL byte"), 7));
         }
     }
     let mut e = Enc::default();
@@ -131,8 +124,7 @@ fn run(
             let bytes = read(&actual, deadline)?;
             check_deadline(deadline)?;
             if let Ok(text) = std::str::from_utf8(&bytes) {
-                // TextDecoder strips the initial UTF-8 BOM.
-                e.leb(0).str(text.strip_prefix('\u{feff}').unwrap_or(text));
+                e.leb(0).str(text);
             } else {
                 *e = error(path, 6);
             }
@@ -707,346 +699,29 @@ fn failure(path: &str, method: &str, from: &str, failure: &Failure) -> Enc {
             path,
         } => (error, *syscall, path),
     };
-    let translated = node_errno(err, syscall);
-    let variant = match translated.map(|(code, _)| code) {
-        Some("ENOENT") => 0,
-        Some("EACCES" | "EPERM") => 1,
-        Some("EEXIST") => 3,
-        Some("ENOTDIR") => 4,
-        Some("EISDIR") => 5,
-        Some(_) => 7,
-        None => match err.kind() {
-            io::ErrorKind::NotFound => 0,
-            io::ErrorKind::PermissionDenied => 1,
-            io::ErrorKind::AlreadyExists => 3,
-            io::ErrorKind::NotADirectory => 4,
-            io::ErrorKind::IsADirectory => 5,
-            _ => 7,
-        },
+    let variant = match crate::native_io::error_kind(err) {
+        io::ErrorKind::NotFound => 0,
+        io::ErrorKind::PermissionDenied => 1,
+        io::ErrorKind::AlreadyExists => 3,
+        io::ErrorKind::NotADirectory => 4,
+        io::ErrorKind::IsADirectory => 5,
+        _ => 7,
     };
     if variant != 7 {
         return error(path, variant);
     }
-    // libuv's descriptions deliberately differ from strerror (for example
-    // ELOOP and EXDEV). Raw errno retains distinctions Rust ErrorKind merges.
-    let (code, message) = translated.unwrap_or(("UNKNOWN", "unknown error"));
     let path = error_path.as_deref().unwrap_or(path);
     let paths = if method == "rename" {
-        format!("'{from}' -> '{path}'")
+        format!("{from:?} -> {path:?}")
     } else {
-        format!("'{path}'")
+        format!("{path:?}")
     };
-    // Node descriptor-operation errors do not include a path, unlike open.
-    let message = if matches!(syscall, "read" | "write" | "fstat") {
-        format!("{code}: {message}, {syscall}")
-    } else {
-        format!("{code}: {message}, {syscall} {paths}")
-    };
-    error(&message, 7)
-}
-
-fn node_errno(err: &io::Error, syscall: &str) -> Option<(&'static str, &'static str)> {
-    #[cfg(windows)]
-    if let Some(code) = err.raw_os_error().and_then(|code| u32::try_from(code).ok()) {
-        return Some(node_windows_errno(code, syscall));
-    }
-    #[cfg(not(windows))]
-    let _ = syscall;
-    #[cfg(unix)]
-    if let Some(code) = err.raw_os_error() {
-        // POSIX errno numbers vary between macOS and Linux. libc supplies
-        // the target constants; this table uses libuv's stable spellings.
-        let errors = [
-            (libc::E2BIG, "E2BIG", "argument list too long"),
-            (libc::EADDRINUSE, "EADDRINUSE", "address already in use"),
-            (
-                libc::EADDRNOTAVAIL,
-                "EADDRNOTAVAIL",
-                "address not available",
-            ),
-            (
-                libc::EAFNOSUPPORT,
-                "EAFNOSUPPORT",
-                "address family not supported",
-            ),
-            (libc::EAGAIN, "EAGAIN", "resource temporarily unavailable"),
-            (libc::EALREADY, "EALREADY", "connection already in progress"),
-            (libc::EBADF, "EBADF", "bad file descriptor"),
-            (libc::EBUSY, "EBUSY", "resource busy or locked"),
-            (libc::ECANCELED, "ECANCELED", "operation canceled"),
-            (
-                libc::ECONNABORTED,
-                "ECONNABORTED",
-                "software caused connection abort",
-            ),
-            (libc::ECONNREFUSED, "ECONNREFUSED", "connection refused"),
-            (libc::ECONNRESET, "ECONNRESET", "connection reset by peer"),
-            (
-                libc::EDESTADDRREQ,
-                "EDESTADDRREQ",
-                "destination address required",
-            ),
-            (
-                libc::EFAULT,
-                "EFAULT",
-                "bad address in system call argument",
-            ),
-            (libc::EFBIG, "EFBIG", "file too large"),
-            (libc::EHOSTDOWN, "EHOSTDOWN", "host is down"),
-            (libc::EHOSTUNREACH, "EHOSTUNREACH", "host is unreachable"),
-            (libc::EINTR, "EINTR", "interrupted system call"),
-            (libc::EINVAL, "EINVAL", "invalid argument"),
-            (libc::EIO, "EIO", "i/o error"),
-            (libc::EISCONN, "EISCONN", "socket is already connected"),
-            (libc::ELOOP, "ELOOP", "too many symbolic links encountered"),
-            (libc::EMFILE, "EMFILE", "too many open files"),
-            (libc::EMSGSIZE, "EMSGSIZE", "message too long"),
-            (libc::ENAMETOOLONG, "ENAMETOOLONG", "name too long"),
-            (libc::ENFILE, "ENFILE", "file table overflow"),
-            (libc::ENETDOWN, "ENETDOWN", "network is down"),
-            (libc::ENETUNREACH, "ENETUNREACH", "network is unreachable"),
-            (libc::ENOBUFS, "ENOBUFS", "no buffer space available"),
-            (libc::ENODATA, "ENODATA", "no data available"),
-            (libc::ENODEV, "ENODEV", "no such device"),
-            (libc::ENOMEM, "ENOMEM", "not enough memory"),
-            (libc::ENOPROTOOPT, "ENOPROTOOPT", "protocol not available"),
-            (libc::ENOSPC, "ENOSPC", "no space left on device"),
-            (libc::ENOSYS, "ENOSYS", "function not implemented"),
-            (libc::ENOTCONN, "ENOTCONN", "socket is not connected"),
-            (libc::ENOTEMPTY, "ENOTEMPTY", "directory not empty"),
-            (libc::ENOTSOCK, "ENOTSOCK", "socket operation on non-socket"),
-            (
-                libc::ENOTSUP,
-                "ENOTSUP",
-                "operation not supported on socket",
-            ),
-            (
-                libc::EOVERFLOW,
-                "EOVERFLOW",
-                "value too large for defined data type",
-            ),
-            (libc::EPIPE, "EPIPE", "broken pipe"),
-            (libc::EPROTO, "EPROTO", "protocol error"),
-            (
-                libc::EPROTONOSUPPORT,
-                "EPROTONOSUPPORT",
-                "protocol not supported",
-            ),
-            (
-                libc::EPROTOTYPE,
-                "EPROTOTYPE",
-                "protocol wrong type for socket",
-            ),
-            (libc::ERANGE, "ERANGE", "result too large"),
-            (libc::EROFS, "EROFS", "read-only file system"),
-            (
-                libc::ESHUTDOWN,
-                "ESHUTDOWN",
-                "cannot send after transport endpoint shutdown",
-            ),
-            (
-                libc::ESOCKTNOSUPPORT,
-                "ESOCKTNOSUPPORT",
-                "socket type not supported",
-            ),
-            (libc::ESPIPE, "ESPIPE", "invalid seek"),
-            (libc::ESRCH, "ESRCH", "no such process"),
-            (libc::ETIMEDOUT, "ETIMEDOUT", "connection timed out"),
-            (libc::ETXTBSY, "ETXTBSY", "text file is busy"),
-            (libc::EXDEV, "EXDEV", "cross-device link not permitted"),
-            (libc::ENXIO, "ENXIO", "no such device or address"),
-            (libc::EMLINK, "EMLINK", "too many links"),
-            (libc::ENOTTY, "ENOTTY", "inappropriate ioctl for device"),
-            (libc::EILSEQ, "EILSEQ", "illegal byte sequence"),
-            (libc::ENOEXEC, "ENOEXEC", "exec format error"),
-        ];
-        if let Some((_, name, message)) = errors.iter().find(|(errno, _, _)| *errno == code) {
-            return Some((name, message));
-        }
-        #[cfg(any(
-            target_os = "macos",
-            target_os = "freebsd",
-            target_os = "openbsd",
-            target_os = "netbsd",
-            target_os = "dragonfly"
-        ))]
-        if code == libc::EFTYPE {
-            return Some(("EFTYPE", "inappropriate file type or format"));
-        }
-        #[cfg(any(target_os = "linux", target_os = "android"))]
-        {
-            if code == libc::EREMOTEIO {
-                return Some(("EREMOTEIO", "remote I/O error"));
-            }
-            if code == libc::ENONET {
-                return Some(("ENONET", "machine is not on the network"));
-            }
-            if code == libc::EUNATCH {
-                return Some(("EUNATCH", "protocol driver not attached"));
-            }
-        }
-    }
-    // Also cover errors produced by std itself, without raw errno.
-    match err.kind() {
-        io::ErrorKind::DirectoryNotEmpty => Some(("ENOTEMPTY", "directory not empty")),
-        io::ErrorKind::InvalidInput => Some(("EINVAL", "invalid argument")),
-        io::ErrorKind::StorageFull => Some(("ENOSPC", "no space left on device")),
-        io::ErrorKind::ReadOnlyFilesystem => Some(("EROFS", "read-only file system")),
-        _ => None,
-    }
-}
-
-#[cfg(windows)]
-fn node_windows_errno(code: u32, syscall: &str) -> (&'static str, &'static str) {
-    use windows_sys::Win32::Foundation::{
-        ERROR_ACCESS_DENIED, ERROR_ALREADY_EXISTS, ERROR_BAD_EXE_FORMAT, ERROR_BAD_PATHNAME,
-        ERROR_BAD_PIPE, ERROR_BEGINNING_OF_MEDIA, ERROR_BROKEN_PIPE, ERROR_BUFFER_OVERFLOW,
-        ERROR_BUS_RESET, ERROR_CANNOT_MAKE, ERROR_CANT_ACCESS_FILE, ERROR_CANT_RESOLVE_FILENAME,
-        ERROR_CONNECTION_ABORTED, ERROR_CONNECTION_REFUSED, ERROR_CRC, ERROR_DEVICE_DOOR_OPEN,
-        ERROR_DEVICE_REQUIRES_CLEANING, ERROR_DIR_NOT_EMPTY, ERROR_DIRECTORY, ERROR_DISK_CORRUPT,
-        ERROR_DISK_FULL, ERROR_EA_TABLE_FULL, ERROR_ELEVATION_REQUIRED, ERROR_END_OF_MEDIA,
-        ERROR_ENVVAR_NOT_FOUND, ERROR_EOM_OVERFLOW, ERROR_FILE_EXISTS, ERROR_FILE_NOT_FOUND,
-        ERROR_FILEMARK_DETECTED, ERROR_FILENAME_EXCED_RANGE, ERROR_GEN_FAILURE,
-        ERROR_HANDLE_DISK_FULL, ERROR_HOST_UNREACHABLE, ERROR_INSUFFICIENT_BUFFER,
-        ERROR_INVALID_BLOCK_LENGTH, ERROR_INVALID_DATA, ERROR_INVALID_DRIVE, ERROR_INVALID_FLAGS,
-        ERROR_INVALID_FUNCTION, ERROR_INVALID_HANDLE, ERROR_INVALID_NAME, ERROR_INVALID_PARAMETER,
-        ERROR_INVALID_REPARSE_DATA, ERROR_IO_DEVICE, ERROR_LOCK_VIOLATION,
-        ERROR_META_EXPANSION_TOO_LONG, ERROR_MOD_NOT_FOUND, ERROR_NETNAME_DELETED,
-        ERROR_NETWORK_UNREACHABLE, ERROR_NO_DATA, ERROR_NO_DATA_DETECTED, ERROR_NO_SIGNAL_SENT,
-        ERROR_NO_UNICODE_TRANSLATION, ERROR_NOACCESS, ERROR_NOT_CONNECTED, ERROR_NOT_ENOUGH_MEMORY,
-        ERROR_NOT_SAME_DEVICE, ERROR_NOT_SUPPORTED, ERROR_OPEN_FAILED, ERROR_OPERATION_ABORTED,
-        ERROR_OUTOFMEMORY, ERROR_PATH_NOT_FOUND, ERROR_PIPE_BUSY, ERROR_PIPE_NOT_CONNECTED,
-        ERROR_PRIVILEGE_NOT_HELD, ERROR_SEM_TIMEOUT, ERROR_SETMARK_DETECTED,
-        ERROR_SHARING_VIOLATION, ERROR_SIGNAL_REFUSED, ERROR_SYMLINK_NOT_SUPPORTED,
-        ERROR_TOO_MANY_OPEN_FILES, ERROR_WRITE_PROTECT,
-    };
-    // libuv's filesystem-specific overrides in src/win/fs.c take precedence
-    // over uv_translate_sys_error in src/win/error.c.
-    if syscall == "mkdir" && matches!(code, ERROR_INVALID_NAME | ERROR_DIRECTORY) {
-        return ("EINVAL", "invalid argument");
-    }
-    if syscall == "open" && code == ERROR_FILE_EXISTS {
-        return ("EISDIR", "illegal operation on a directory");
-    }
-    if syscall == "write" && matches!(code, ERROR_BROKEN_PIPE | ERROR_NO_DATA) {
-        return ("EPIPE", "broken pipe");
-    }
-    match code {
-        ERROR_ELEVATION_REQUIRED | ERROR_CANT_ACCESS_FILE => ("EACCES", "permission denied"),
-        ERROR_ACCESS_DENIED | ERROR_PRIVILEGE_NOT_HELD => ("EPERM", "operation not permitted"),
-        ERROR_ALREADY_EXISTS | ERROR_FILE_EXISTS => ("EEXIST", "file already exists"),
-        ERROR_BAD_PATHNAME
-        | ERROR_DIRECTORY
-        | ERROR_ENVVAR_NOT_FOUND
-        | ERROR_FILE_NOT_FOUND
-        | ERROR_INVALID_NAME
-        | ERROR_INVALID_DRIVE
-        | ERROR_INVALID_REPARSE_DATA
-        | ERROR_MOD_NOT_FOUND
-        | ERROR_PATH_NOT_FOUND => ("ENOENT", "no such file or directory"),
-        ERROR_NO_DATA => ("EAGAIN", "resource temporarily unavailable"),
-        ERROR_INVALID_FLAGS | ERROR_INVALID_HANDLE => ("EBADF", "bad file descriptor"),
-        ERROR_LOCK_VIOLATION | ERROR_PIPE_BUSY | ERROR_SHARING_VIOLATION => {
-            ("EBUSY", "resource busy or locked")
-        }
-        ERROR_OPERATION_ABORTED => ("ECANCELED", "operation canceled"),
-        ERROR_NO_UNICODE_TRANSLATION => ("ECHARSET", "invalid Unicode character"),
-        ERROR_CONNECTION_ABORTED => ("ECONNABORTED", "software caused connection abort"),
-        ERROR_CONNECTION_REFUSED => ("ECONNREFUSED", "connection refused"),
-        ERROR_NETNAME_DELETED => ("ECONNRESET", "connection reset by peer"),
-        ERROR_HOST_UNREACHABLE => ("EHOSTUNREACH", "host is unreachable"),
-        ERROR_NETWORK_UNREACHABLE => ("ENETUNREACH", "network is unreachable"),
-        ERROR_NOT_CONNECTED => ("ENOTCONN", "socket is not connected"),
-        ERROR_NOACCESS => ("EFAULT", "bad address in system call argument"),
-        ERROR_INSUFFICIENT_BUFFER
-        | ERROR_INVALID_DATA
-        | ERROR_INVALID_PARAMETER
-        | ERROR_SYMLINK_NOT_SUPPORTED => ("EINVAL", "invalid argument"),
-        ERROR_BEGINNING_OF_MEDIA
-        | ERROR_BUS_RESET
-        | ERROR_CRC
-        | ERROR_DEVICE_DOOR_OPEN
-        | ERROR_DEVICE_REQUIRES_CLEANING
-        | ERROR_DISK_CORRUPT
-        | ERROR_EOM_OVERFLOW
-        | ERROR_FILEMARK_DETECTED
-        | ERROR_GEN_FAILURE
-        | ERROR_INVALID_BLOCK_LENGTH
-        | ERROR_IO_DEVICE
-        | ERROR_NO_DATA_DETECTED
-        | ERROR_NO_SIGNAL_SENT
-        | ERROR_OPEN_FAILED
-        | ERROR_SETMARK_DETECTED
-        | ERROR_SIGNAL_REFUSED => ("EIO", "i/o error"),
-        ERROR_CANT_RESOLVE_FILENAME => ("ELOOP", "too many symbolic links encountered"),
-        ERROR_TOO_MANY_OPEN_FILES => ("EMFILE", "too many open files"),
-        ERROR_BUFFER_OVERFLOW | ERROR_FILENAME_EXCED_RANGE => ("ENAMETOOLONG", "name too long"),
-        ERROR_NOT_ENOUGH_MEMORY | ERROR_OUTOFMEMORY => ("ENOMEM", "not enough memory"),
-        ERROR_CANNOT_MAKE
-        | ERROR_DISK_FULL
-        | ERROR_EA_TABLE_FULL
-        | ERROR_END_OF_MEDIA
-        | ERROR_HANDLE_DISK_FULL => ("ENOSPC", "no space left on device"),
-        ERROR_DIR_NOT_EMPTY => ("ENOTEMPTY", "directory not empty"),
-        ERROR_NOT_SUPPORTED => ("ENOTSUP", "operation not supported on socket"),
-        ERROR_BROKEN_PIPE => ("EOF", "end of file"),
-        ERROR_BAD_PIPE | ERROR_PIPE_NOT_CONNECTED => ("EPIPE", "broken pipe"),
-        ERROR_WRITE_PROTECT => ("EROFS", "read-only file system"),
-        ERROR_SEM_TIMEOUT => ("ETIMEDOUT", "connection timed out"),
-        ERROR_NOT_SAME_DEVICE => ("EXDEV", "cross-device link not permitted"),
-        ERROR_INVALID_FUNCTION => ("EISDIR", "illegal operation on a directory"),
-        ERROR_META_EXPANSION_TOO_LONG => ("E2BIG", "argument list too long"),
-        ERROR_BAD_EXE_FORMAT => ("EFTYPE", "inappropriate file type or format"),
-        _ => ("UNKNOWN", "unknown error"),
-    }
-}
-
-// The string inspection used by Node's ERR_INVALID_ARG_VALUE: choose an
-// unescaped quote when possible, escape controls, then limit to 128 UTF-16
-// code units. This is only used for invalid paths containing NUL.
-pub(crate) fn inspect_string(path: &str) -> String {
-    let quote = if !path.contains('\'') {
-        '\''
-    } else if !path.contains('"') {
-        '"'
-    } else if !path.contains('`') && !path.contains("${") {
-        '`'
-    } else {
-        '\''
-    };
-    let mut out = String::new();
-    out.push(quote);
-    for c in path.chars() {
-        match c {
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            '\u{8}' => out.push_str("\\b"),
-            '\u{c}' => out.push_str("\\f"),
-            c if c == quote => {
-                out.push('\\');
-                out.push(c);
-            }
-            c if c <= '\u{1f}' || ('\u{7f}'..='\u{9f}').contains(&c) => {
-                use std::fmt::Write as _;
-                let _ = write!(out, "\\x{:02X}", u32::from(c));
-            }
-            c => out.push(c),
-        }
-    }
-    out.push(quote);
-    if out.encode_utf16().count() > 128 {
-        let units = out.encode_utf16().take(128).collect::<Vec<_>>();
-        out = String::from_utf16_lossy(&units);
-        out.push_str("...");
-    }
-    out
+    error(&format!("{syscall} {paths}: {err}"), 7)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Failure, call, call_until, call_until_at, error, inspect_string};
+    use super::{Failure, call, call_until, call_until_at, error};
     use crate::codec::Dec;
     use crate::codec::Enc;
     use hd_run::{Grants, Limit};
@@ -1577,13 +1252,13 @@ mod tests {
     }
 
     #[test]
-    fn reads_text_fatally_and_removes_only_the_first_bom() {
+    fn reads_text_strictly_and_preserves_every_bom() {
         let dir = TempDir::new();
         let path = dir.path("text");
         fs::write(&path, "\u{feff}\u{feff}hé").unwrap();
         let actual = invoke("read_text", &path, None);
         let mut expected = Enc::default();
-        expected.leb(0).str("\u{feff}hé");
+        expected.leb(0).str("\u{feff}\u{feff}hé");
         assert_eq!(actual.done(), expected.done());
         for bytes in [&[0xc0, 0xaf][..], &[0xed, 0xa0, 0x80], &[0xe2, 0x82]] {
             fs::write(&path, bytes).unwrap();
@@ -1680,26 +1355,18 @@ mod tests {
     }
 
     #[test]
-    fn nul_path_errors_keep_nodes_argument_names_and_inspection() {
-        assert_eq!(inspect_string("a\0\n\u{1b}"), "'a\\x00\\n\\x1B'");
-        assert_eq!(inspect_string("a\0'"), "\"a\\x00'\"");
-        assert_eq!(inspect_string("a\0'\""), "`a\\x00'\"`");
-        assert_eq!(inspect_string("a\0'\"`"), "'a\\x00\\'\"`'");
-        assert_eq!(inspect_string(&format!("\0{}", "a".repeat(200))).len(), 131);
-        for (from, to, argument) in [("a\0b", "to", "oldPath"), ("from", "a\0b", "newPath")] {
+    fn nul_paths_have_readable_validation_errors() {
+        for (from, to, argument) in [
+            ("a\0b", "to", "source path"),
+            ("from", "a\0b", "destination path"),
+        ] {
             let mut args = Enc::default();
             args.str(from).str(to);
-            let expected = error(
-                &format!(
-                    "The argument '{argument}' must be a string, Uint8Array, or URL without null bytes. Received 'a\\x00b'"
-                ),
-                7,
-            );
             assert_eq!(
                 call("FsWrite", "rename", args.done(), &Grants::default())
                     .unwrap()
                     .done(),
-                expected.done()
+                error(&format!("{argument} contains a NUL byte"), 7).done()
             );
         }
     }
@@ -1737,127 +1404,73 @@ mod tests {
         );
     }
 
-    #[cfg(unix)]
     #[test]
-    fn other_errors_preserve_libuv_descriptions_and_syscalls() {
-        let dir = TempDir::new();
-        fs::write(dir.path("child"), "x").unwrap();
-        let path = dir.0.to_string_lossy();
-        assert_eq!(
-            invoke("remove", &path, None).done(),
-            error(
-                &format!("ENOTEMPTY: directory not empty, rmdir '{path}'"),
-                7
-            )
-            .done()
-        );
-        for (code, description, syscall) in [
-            (
-                libc::ELOOP,
-                "ELOOP: too many symbolic links encountered",
-                "open",
-            ),
-            (libc::ENAMETOOLONG, "ENAMETOOLONG: name too long", "lstat"),
-            (
-                libc::EXDEV,
-                "EXDEV: cross-device link not permitted",
-                "rename",
-            ),
+    fn other_errors_keep_native_messages_and_operation_paths() {
+        for (method, syscall) in [
+            ("read_bytes", "read"),
+            ("write_text", "write"),
+            ("rename", "rename"),
         ] {
-            let failure = Failure::new(syscall, std::io::Error::from_raw_os_error(code));
-            let paths = if syscall == "rename" {
-                "'from' -> 'to'"
+            let native = std::io::Error::other("native failure");
+            let failure = Failure::new(syscall, native);
+            let paths = if method == "rename" {
+                "\"from\" -> \"to\""
             } else {
-                "'to'"
+                "\"to\""
             };
             assert_eq!(
-                super::failure("to", syscall, "from", &failure).done(),
-                error(&format!("{description}, {syscall} {paths}"), 7).done()
+                super::failure("to", method, "from", &failure).done(),
+                error(&format!("{syscall} {paths}: native failure"), 7).done()
             );
         }
-        let failure = Failure::new("write", std::io::Error::from_raw_os_error(libc::ENOSPC));
-        assert_eq!(
-            super::failure("to", "write_text", "to", &failure).done(),
-            error("ENOSPC: no space left on device, write", 7).done()
-        );
     }
 
     #[cfg(target_os = "linux")]
     #[test]
-    fn write_errors_report_the_write_syscall_without_a_path() {
+    fn write_errors_keep_the_native_message_and_path() {
+        let native = std::io::Error::from_raw_os_error(libc::ENOSPC);
         assert_eq!(
             invoke("write_text", "/dev/full", Some(b"x")).done(),
-            error("ENOSPC: no space left on device, write", 7).done()
+            error(&format!("write \"/dev/full\": {native}"), 7).done()
         );
     }
 
     #[cfg(windows)]
     #[test]
-    fn windows_errors_use_libuv_translation_before_rust_error_kinds() {
+    fn windows_errors_use_rust_error_categories_and_native_messages() {
+        use std::io::ErrorKind;
         use windows_sys::Win32::Foundation::{
-            ERROR_ACCESS_DENIED, ERROR_BROKEN_PIPE, ERROR_DIRECTORY, ERROR_DISK_FULL,
-            ERROR_FILENAME_EXCED_RANGE, ERROR_INVALID_NAME, ERROR_NO_DATA, ERROR_NOT_SAME_DEVICE,
-            ERROR_SHARING_VIOLATION, ERROR_WRITE_PROTECT,
+            ERROR_ACCESS_DENIED, ERROR_ALREADY_EXISTS, ERROR_DIRECTORY,
+            ERROR_DIRECTORY_NOT_SUPPORTED, ERROR_FILE_NOT_FOUND, ERROR_INVALID_NAME, ERROR_NO_DATA,
+            ERROR_SHARING_VIOLATION,
         };
-        for (native, syscall, description) in [
-            (
-                ERROR_SHARING_VIOLATION,
-                "open",
-                "EBUSY: resource busy or locked",
-            ),
-            (
-                ERROR_FILENAME_EXCED_RANGE,
-                "lstat",
-                "ENAMETOOLONG: name too long",
-            ),
-            (
-                ERROR_NOT_SAME_DEVICE,
-                "rename",
-                "EXDEV: cross-device link not permitted",
-            ),
-            (ERROR_WRITE_PROTECT, "open", "EROFS: read-only file system"),
-            (ERROR_INVALID_NAME, "mkdir", "EINVAL: invalid argument"),
-            (ERROR_DIRECTORY, "mkdir", "EINVAL: invalid argument"),
+        // Rust std's Windows decode_error_kind, not libuv's translation.
+        for (code, kind, variant) in [
+            (ERROR_ACCESS_DENIED, ErrorKind::PermissionDenied, 1),
+            (ERROR_ALREADY_EXISTS, ErrorKind::AlreadyExists, 3),
+            (ERROR_FILE_NOT_FOUND, ErrorKind::NotFound, 0),
+            (ERROR_DIRECTORY, ErrorKind::NotADirectory, 4),
+            (ERROR_DIRECTORY_NOT_SUPPORTED, ErrorKind::IsADirectory, 5),
+            (ERROR_INVALID_NAME, ErrorKind::InvalidFilename, 7),
+            (ERROR_NO_DATA, ErrorKind::BrokenPipe, 7),
         ] {
-            let failure = Failure::new(
-                syscall,
-                std::io::Error::from_raw_os_error(i32::try_from(native).unwrap()),
-            );
-            let paths = if syscall == "rename" {
-                "'from' -> 'to'"
-            } else {
-                "'to'"
-            };
+            let native = std::io::Error::from_raw_os_error(i32::try_from(code).unwrap());
+            assert_eq!(native.kind(), kind);
+            let message = format!("open \"to\": {native}");
+            let failure = Failure::new("open", native);
             assert_eq!(
-                super::failure("to", syscall, "from", &failure).done(),
-                error(&format!("{description}, {syscall} {paths}"), 7).done()
+                super::failure("to", "read_text", "to", &failure).done(),
+                error(if variant == 7 { &message } else { "to" }, variant).done()
             );
         }
-        for native in [ERROR_BROKEN_PIPE, ERROR_NO_DATA] {
-            let failure = Failure::new(
-                "write",
-                std::io::Error::from_raw_os_error(i32::try_from(native).unwrap()),
-            );
-            assert_eq!(
-                super::failure("to", "write_text", "to", &failure).done(),
-                error("EPIPE: broken pipe, write", 7).done()
-            );
-        }
-        let failure = Failure::new(
-            "write",
-            std::io::Error::from_raw_os_error(i32::try_from(ERROR_DISK_FULL).unwrap()),
-        );
-        assert_eq!(
-            super::failure("to", "write_text", "to", &failure).done(),
-            error("ENOSPC: no space left on device, write", 7).done()
-        );
-        let failure = Failure::new(
-            "open",
-            std::io::Error::from_raw_os_error(i32::try_from(ERROR_ACCESS_DENIED).unwrap()),
-        );
+        // Unclassified platform errors remain informative Other values.
+        let native =
+            std::io::Error::from_raw_os_error(i32::try_from(ERROR_SHARING_VIOLATION).unwrap());
+        let message = format!("open \"to\": {native}");
+        let failure = Failure::new("open", native);
         assert_eq!(
             super::failure("to", "read_text", "to", &failure).done(),
-            error("to", 1).done()
+            error(&message, 7).done()
         );
     }
 }

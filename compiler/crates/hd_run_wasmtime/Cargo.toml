@@ -12,7 +12,7 @@ hd_run = { path = "../hd_run" }
 getrandom = "0.4"
 hostname = "0.4"
 libc = "0.2"
-socket2 = { version = "0.6", features = ["all"] }
+socket2 = "0.6"
 ureq = { version = "=3.4.2", default-features = false, features = ["rustls"] }
 url = "2"
 rustls = { version = "0.23", default-features = false, features = ["std"] }

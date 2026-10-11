@@ -1,5 +1,5 @@
 //! Per-instance synchronous Net client. One worker owns every socket,
-//! buffers arrivals and preserves the first end/error, as net.mjs does.
+//! buffers arrivals and preserves the first read end/error.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::{self, Read, Write};
@@ -112,7 +112,8 @@ impl NetError {
 }
 
 impl Client {
-    /// Stops and joins the per-instance socket owner, releasing every socket.
+    /// Requests owner shutdown and waits up to the bounded cleanup budget.
+    /// A delayed owner finishes releasing sockets after this method returns.
     pub fn stop(&mut self) {
         self.worker.take();
         self.known.clear();
@@ -559,7 +560,7 @@ impl State {
         stop: &AtomicBool,
     ) -> Result<TcpStream, NetError> {
         let attempts = connect_attempts(addresses);
-        let aggregate = attempts.len() > 1;
+
         let mut first_error = None;
         for attempt in attempts {
             if cancelled(stop, self.deadline) {
@@ -577,14 +578,7 @@ impl State {
                 break;
             }
         }
-        let mut error = first_error.unwrap_or_else(|| NetError::new(2, host));
-        // NodeAggregateError adopts the first failure's code but has an empty
-        // message. Refused still names the original destination through Net's
-        // error mapping; Other exposes that empty aggregate message.
-        if aggregate && error.variant == 4 {
-            error.text.clear();
-        }
-        Err(error)
+        Err(first_error.unwrap_or_else(|| NetError::new(2, host)))
     }
 
     fn connect(&mut self, attempt: ConnectAttempt, stop: &AtomicBool) -> io::Result<TcpStream> {
@@ -656,12 +650,6 @@ impl State {
             return Outcome::Ok(Value::None);
         }
         if let Op::Send { host, port, .. } = op {
-            if *port == 0 {
-                return Outcome::Error(NetError::new(
-                    4,
-                    "Port should be > 0 and < 65536. Received type number (0).",
-                ));
-            }
             let addresses = match resolve(host, *port, stop, self.deadline) {
                 Ok(a) => a,
                 Err(e) => return Outcome::Error(e),
@@ -682,13 +670,7 @@ impl State {
             let Some(address) = address else {
                 return Outcome::Error(NetError::new(2, host));
             };
-            // Node's udp4/udp6 bindings parse the destination with the
-            // socket's family, rejecting a literal of the other family
-            // before send. std may instead expose a platform-specific
-            // routing error; keep the provider's EINVAL spelling.
-            if address.is_ipv6() != *ipv6 {
-                return Outcome::Error(NetError::new(4, format!("send EINVAL {host}:{port}")));
-            }
+
             let Op::Send { bytes, .. } = op else {
                 unreachable!()
             };
@@ -758,21 +740,22 @@ impl State {
                     if matches!(end, Some(End::Error(_))) {
                         return Outcome::Error(NetError::new(
                             4,
-                            "Cannot call write after a stream was destroyed",
+                            "cannot write to a failed TCP stream",
                         ));
                     }
-                    if matches!(end, Some(End::Eof)) {
-                        return Outcome::Error(NetError::new(
-                            4,
-                            "This socket has been ended by the other party",
-                        ));
-                    }
+
                     if written == bytes.len() {
                         return Outcome::Ok(Value::None);
                     }
                     match socket.write(&bytes[written..]) {
                         Ok(0) => {
-                            let error = NetError::new(4, "write EPIPE");
+                            let error = socket_error(
+                                &io::Error::from(io::ErrorKind::WriteZero),
+                                "write",
+                                None,
+                                "",
+                                0,
+                            );
                             *end = Some(End::Error(error.clone()));
                             let _ = socket.shutdown(Shutdown::Both);
                             return Outcome::Error(error);
@@ -834,8 +817,7 @@ impl State {
                         match socket.read(&mut bytes) {
                             Ok(0) => {
                                 *end = Some(End::Eof);
-                                // Node sockets default to allowHalfOpen=false.
-                                let _ = socket.shutdown(Shutdown::Write);
+
                                 break;
                             }
                             Ok(n) => {
@@ -1085,65 +1067,11 @@ fn socket_error(
         };
         return NetError::new(3, address);
     }
-    let raw = network_errno(error);
-    let (code, description) = if raw.0 == "UNKNOWN" {
-        match error.kind() {
-            io::ErrorKind::PermissionDenied => ("EACCES", "permission denied"),
-            io::ErrorKind::ConnectionReset => ("ECONNRESET", "connection reset by peer"),
-            io::ErrorKind::ConnectionAborted => {
-                ("ECONNABORTED", "software caused connection abort")
-            }
-            io::ErrorKind::NotConnected => ("ENOTCONN", "socket is not connected"),
-            io::ErrorKind::BrokenPipe => ("EPIPE", "broken pipe"),
-            io::ErrorKind::AddrNotAvailable => ("EADDRNOTAVAIL", "address not available"),
-            io::ErrorKind::NetworkUnreachable => ("ENETUNREACH", "network is unreachable"),
-            io::ErrorKind::HostUnreachable => ("EHOSTUNREACH", "host is unreachable"),
-            io::ErrorKind::TimedOut => ("ETIMEDOUT", "connection timed out"),
-            io::ErrorKind::InvalidInput => ("EINVAL", "invalid argument"),
-            io::ErrorKind::Unsupported => ("ENOTSUP", "operation not supported on socket"),
-            io::ErrorKind::OutOfMemory => ("ENOMEM", "not enough memory"),
-            _ => raw,
-        }
-    } else {
-        raw
-    };
-    let text = if let Some(address) = actual {
-        let suffix = format!("{}:{}", address.ip(), address.port());
-        if matches!(syscall, "listen" | "bind") {
-            format!("{syscall} {code}: {description} {suffix}")
-        } else {
-            format!("{syscall} {code} {suffix}")
-        }
-    } else {
-        format!("{syscall} {code}")
-    };
+    let text = actual.map_or_else(
+        || format!("{syscall}: {error}"),
+        |address| format!("{syscall} {address}: {error}"),
+    );
     NetError::new(4, text)
-}
-
-fn network_errno(error: &io::Error) -> (&'static str, &'static str) {
-    #[cfg(unix)]
-    match error.raw_os_error() {
-        Some(libc::EMSGSIZE) => return ("EMSGSIZE", "message too long"),
-        Some(libc::EAFNOSUPPORT) => return ("EAFNOSUPPORT", "address family not supported"),
-        Some(libc::ENOBUFS) => return ("ENOBUFS", "no buffer space available"),
-        Some(libc::ENOMEM) => return ("ENOMEM", "not enough memory"),
-        Some(libc::EMFILE) => return ("EMFILE", "too many open files"),
-        Some(libc::ENFILE) => return ("ENFILE", "file table overflow"),
-        Some(libc::EBADF) => return ("EBADF", "bad file descriptor"),
-        Some(libc::ENOTSOCK) => return ("ENOTSOCK", "socket operation on non-socket"),
-        Some(libc::EPERM) => return ("EPERM", "operation not permitted"),
-        _ => {}
-    }
-    #[cfg(windows)]
-    match error.raw_os_error() {
-        Some(10040) => return ("EMSGSIZE", "message too long"),
-        Some(10047) => return ("EAFNOSUPPORT", "address family not supported"),
-        Some(10055) => return ("ENOBUFS", "no buffer space available"),
-        Some(10024) => return ("EMFILE", "too many open files"),
-        Some(10038) => return ("ENOTSOCK", "socket operation on non-socket"),
-        _ => {}
-    }
-    ("UNKNOWN", "unknown error")
 }
 
 #[cfg(test)]
@@ -1201,6 +1129,28 @@ mod tests {
         let mut d = Dec::new(e.done());
         assert_eq!(d.leb().unwrap(), 0);
         d.bytes().unwrap().to_vec()
+    }
+
+    // TCP returns at most max bytes, not an entire application message.
+    fn read_n(client: &mut Client, handle: i64, count: usize, max: i64) -> Vec<u8> {
+        let until = Instant::now() + Duration::from_secs(2);
+        let mut bytes = Vec::new();
+        while bytes.len() < count {
+            let encoded = client
+                .call_until(
+                    "TcpStream.read",
+                    &[handle, max],
+                    &[],
+                    &Grants::default(),
+                    Some(until),
+                )
+                .unwrap();
+            let chunk = result_bytes(&encoded);
+            assert!(!chunk.is_empty(), "peer ended before the fixture message");
+            bytes.extend(chunk);
+        }
+        assert_eq!(bytes.len(), count);
+        bytes
     }
 
     fn owner_requests(client: &Client) -> mpsc::Sender<Request> {
@@ -1320,22 +1270,28 @@ mod tests {
         let port = server.local_addr().unwrap().port();
         let writer = thread::spawn(move || {
             let (mut socket, _) = server.accept().unwrap();
+            socket
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
             socket.write_all(b"abcdef").unwrap();
             socket.shutdown(Shutdown::Write).unwrap();
+            let mut ack = [0; 1];
+            socket.read_exact(&mut ack).unwrap();
+            assert_eq!(ack, *b"x");
         });
         let mut client = Client::default();
         let handle = opened(&mut client, "connect", port);
-        for (max, expected) in [
-            (2, &b"ab"[..]),
-            (0, &b""[..]),
-            (i64::from(i32::MIN), &b"cdef"[..]),
-            (5, &b""[..]),
-            (5, &b""[..]),
-        ] {
-            let actual = client
-                .call("TcpStream.read", &[handle, max], &[], &Grants::default())
+        assert_eq!(read_n(&mut client, handle, 2, 2), b"ab");
+        let empty = client
+            .call("TcpStream.read", &[handle, 0], &[], &Grants::default())
+            .unwrap();
+        assert!(result_bytes(&empty).is_empty());
+        assert_eq!(read_n(&mut client, handle, 4, i64::from(i32::MIN)), b"cdef");
+        for _ in 0..2 {
+            let eof = client
+                .call("TcpStream.read", &[handle, 5], &[], &Grants::default())
                 .unwrap();
-            assert_eq!(result_bytes(&actual), expected);
+            assert!(result_bytes(&eof).is_empty());
         }
         let actual = client
             .call(
@@ -1345,13 +1301,11 @@ mod tests {
                 &Grants::default(),
             )
             .unwrap();
-        let mut expected = Enc::default();
-        expected
-            .leb(1)
-            .leb(0)
-            .leb(4)
-            .str("This socket has been ended by the other party");
-        assert_eq!(actual.done(), expected.done());
+        assert_eq!(
+            actual.done(),
+            &[0],
+            "read EOF does not close the write half"
+        );
         assert_eq!(
             client
                 .call("TcpStream.close", &[handle], &[], &Grants::default())
@@ -1493,27 +1447,25 @@ mod tests {
         });
         let mut client = Client::default();
         let handle = opened(&mut client, "connect", port);
-        assert_eq!(
-            result_bytes(
-                &client
-                    .call("TcpStream.read", &[handle, 3], &[], &Grants::default())
-                    .unwrap()
-            ),
-            b"abc"
-        );
+        assert_eq!(read_n(&mut client, handle, 3, 3), b"abc");
         ack.send(()).unwrap();
         peer.join().unwrap();
-        let mut expected = Enc::default();
-        expected.leb(1).leb(0).leb(4).str("read ECONNRESET");
-        for _ in 0..2 {
-            assert_eq!(
-                client
-                    .call("TcpStream.read", &[handle, 3], &[], &Grants::default())
-                    .unwrap()
-                    .done(),
-                expected.done()
-            );
-        }
+        let first = client
+            .call("TcpStream.read", &[handle, 3], &[], &Grants::default())
+            .unwrap();
+        let mut decoded = Dec::new(first.done());
+        assert_eq!(decoded.leb().unwrap(), 1);
+        assert_eq!(decoded.leb().unwrap(), 0);
+        assert_eq!(decoded.leb().unwrap(), 4);
+        assert!(decoded.str().unwrap().starts_with("read: "));
+        let again = client
+            .call("TcpStream.read", &[handle, 3], &[], &Grants::default())
+            .unwrap();
+        assert_eq!(
+            again.done(),
+            first.done(),
+            "the native read error remains sticky"
+        );
         let mut args = Enc::default();
         args.bytes(b"x");
         let mut expected = Enc::default();
@@ -1521,7 +1473,7 @@ mod tests {
             .leb(1)
             .leb(0)
             .leb(4)
-            .str("Cannot call write after a stream was destroyed");
+            .str("cannot write to a failed TCP stream");
         assert_eq!(
             client
                 .call(
@@ -1534,6 +1486,26 @@ mod tests {
                 .done(),
             expected.done()
         );
+    }
+
+    #[test]
+    fn socket_errors_keep_spec_categories_and_native_context() {
+        use std::io::{Error, ErrorKind};
+        for kind in [ErrorKind::ConnectionRefused, ErrorKind::AddrInUse] {
+            let error = super::socket_error(
+                &Error::from(kind),
+                "connect",
+                Some("127.0.0.1:9".parse().unwrap()),
+                "example.test",
+                9,
+            );
+            assert_eq!(error.variant, 3);
+            assert_eq!(error.text, "example.test:9");
+        }
+        let native = Error::from(ErrorKind::ConnectionReset);
+        let error = super::socket_error(&native, "read", None, "", 0);
+        assert_eq!(error.variant, 4);
+        assert_eq!(error.text, format!("read: {native}"));
     }
 
     #[test]

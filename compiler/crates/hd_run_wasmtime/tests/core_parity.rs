@@ -1,4 +1,5 @@
-//! Exact Node/wasmtime parity for the core host providers.
+//! Spec-defined core provider shape parity and native-host regressions.
+//! Native OS messages and UTF-8 BOM preservation are not Node contracts.
 
 mod support;
 
@@ -12,7 +13,7 @@ use wasm_encoder::{BlockType, Instruction as I, ValType};
 use support::*;
 
 #[test]
-fn fs_read_all_methods_binary_text_bom_entries_and_errors() {
+fn fs_read_all_methods_binary_text_entries_and_errors() {
     let scratch = Scratch::new();
     let dir = scratch.at("entries");
     fs::create_dir(&dir).unwrap();
@@ -21,7 +22,7 @@ fn fs_read_all_methods_binary_text_bom_entries_and_errors() {
     let sub = dir.join("z");
     fs::create_dir(&sub).unwrap();
     let text = scratch.at("text");
-    fs::write(&text, "\u{feff}héllo").unwrap();
+    fs::write(&text, "héllo").unwrap();
     let bad = scratch.at("bad");
     fs::write(&bad, [0xff, 0xfe]).unwrap();
     let missing = scratch.at("absent");
@@ -178,13 +179,6 @@ fn fs_write_all_methods_success_and_os_errors() {
         "rename",
         Enc::default().str(path(&missing)).str(path(&moved)).0,
         fs_error(&moved, 0),
-    );
-    let message = format!("ENOTEMPTY: directory not empty, rmdir '{}'", path(&area));
-    p.call(
-        "hd:FsWrite",
-        "remove",
-        one(&area),
-        Enc::default().leb(1).leb(7).str(&message).0,
     );
     assert_program(&scratch, p, vec![], || {
         if area.exists() {
@@ -386,14 +380,15 @@ fn fs_create_dir_broken_symlink_reports_not_found() {
 }
 
 #[test]
-fn filesystem_invalid_paths_match_node_error_argument_names() {
-    let scratch = Scratch::new();
+fn filesystem_invalid_paths_have_readable_native_validation() {
     let mut p = Program::new();
     let nul = "a\0b";
     let other = |argument: &str| {
-        Enc::default().leb(1).leb(7).str(&format!(
-        "The argument '{argument}' must be a string, Uint8Array, or URL without null bytes. Received 'a\\x00b'"
-    )).0
+        Enc::default()
+            .leb(1)
+            .leb(7)
+            .str(&format!("{argument} contains a NUL byte"))
+            .0
     };
     p.call(
         "hd:FsRead",
@@ -411,13 +406,13 @@ fn filesystem_invalid_paths_match_node_error_argument_names() {
         "hd:FsWrite",
         "rename",
         Enc::default().str(nul).str("to").0,
-        other("oldPath"),
+        other("source path"),
     );
     p.call(
         "hd:FsWrite",
         "rename",
         Enc::default().str("from").str(nul).0,
-        other("newPath"),
+        other("destination path"),
     );
     p.call(
         "hd:FsWrite",
@@ -425,12 +420,12 @@ fn filesystem_invalid_paths_match_node_error_argument_names() {
         Enc::default().str("").0,
         Enc::default().leb(1).leb(0).str("").0,
     );
-    assert_program(&scratch, p, vec![], || {});
+    assert_native_program(p);
 }
 
 #[cfg(unix)]
 #[test]
-fn filesystem_long_paths_preserve_errno_and_syscall() {
+fn filesystem_long_paths_keep_native_errors_and_operation_context() {
     let scratch = Scratch::new();
     let too_long = scratch.at(&"x".repeat(300));
     let mut p = Program::new();
@@ -440,10 +435,8 @@ fn filesystem_long_paths_preserve_errno_and_syscall() {
         ("hd:FsRead", "list_dir", "scandir"),
         ("hd:FsWrite", "create_dir_all", "mkdir"),
     ] {
-        let error = format!(
-            "ENAMETOOLONG: name too long, {syscall} '{}'",
-            path(&too_long)
-        );
+        let native = std::io::Error::from_raw_os_error(libc::ENAMETOOLONG);
+        let error = format!("{syscall} {:?}: {native}", path(&too_long));
         p.call(
             module,
             method,
@@ -451,13 +444,12 @@ fn filesystem_long_paths_preserve_errno_and_syscall() {
             Enc::default().leb(1).leb(7).str(&error).0,
         );
     }
-    assert_program(&scratch, p, vec![], || {});
+    assert_native_program(p);
 }
 
 #[cfg(target_os = "linux")]
 #[test]
-fn filesystem_write_failure_names_the_write_syscall_without_path() {
-    let scratch = Scratch::new();
+fn filesystem_write_failure_keeps_the_native_message_and_path() {
     let mut p = Program::new();
     p.call(
         "hd:FsWrite",
@@ -466,10 +458,13 @@ fn filesystem_write_failure_names_the_write_syscall_without_path() {
         Enc::default()
             .leb(1)
             .leb(7)
-            .str("ENOSPC: no space left on device, write")
+            .str(&format!(
+                "write \"/dev/full\": {}",
+                std::io::Error::from_raw_os_error(libc::ENOSPC)
+            ))
             .0,
     );
-    assert_program(&scratch, p, vec![], || {});
+    assert_native_program(p);
 }
 
 #[cfg(unix)]
@@ -562,24 +557,19 @@ fn process_drains_both_pipes_while_child_waits_for_large_input() {
 
 #[cfg(unix)]
 #[test]
-fn process_child_closing_stdin_returns_epipe() {
-    let scratch = Scratch::new();
+fn process_child_closing_stdin_retains_output_and_status() {
     let mut p = Program::new();
     p.call(
         "hd:Process",
         "run",
         process_args(
             "/bin/sh",
-            &["-c", "exec 0<&-; sleep 0.1; exit 0"],
+            &["-c", "exec 0<&-; printf out; printf err >&2; exit 7"],
             &vec![42; 262_144],
         ),
-        Enc::default()
-            .leb(1)
-            .leb(3)
-            .str("spawnSync /bin/sh EPIPE")
-            .0,
+        Enc::default().leb(0).str("out").str("err").leb(14).0,
     );
-    assert_program(&scratch, p, vec![], || {});
+    assert_native_program(p);
 }
 
 #[cfg(unix)]
@@ -687,15 +677,10 @@ fn process_executable_without_shebang_uses_rust_standard_spawning_behavior() {
             .str(&String::from_utf8_lossy(&output.stdout))
             .str(&String::from_utf8_lossy(&output.stderr))
             .leb(u64::try_from(output.status.code().unwrap_or(128)).unwrap() * 2),
-        Err(error) => Enc::default().leb(1).leb(3).str(&format!(
-            "spawnSync {} {}",
-            path(&script),
-            if error.raw_os_error() == Some(libc::ENOEXEC) {
-                "ENOEXEC".into()
-            } else {
-                error.to_string()
-            }
-        )),
+        Err(error) => Enc::default()
+            .leb(1)
+            .leb(3)
+            .str(&format!("cannot run {:?}: {error}", path(&script))),
     };
     p.call(
         "hd:Process",
@@ -723,21 +708,24 @@ fn process_executable_without_shebang_uses_rust_standard_spawning_behavior() {
 
 #[test]
 fn process_invalid_names_and_arguments_return_typed_errors() {
-    let scratch = Scratch::new();
     let mut p = Program::new();
     p.call("hd:Process", "run", process_args("", &[], b""), vec![1, 0]);
-    for (name, args, argument) in [("a\0b", vec![], "file"), ("node", vec!["a\0b"], "args[0]")] {
-        let message = format!(
-            "The argument '{argument}' must be a string without null bytes. Received 'a\\x00b'"
-        );
+    for (name, args, message) in [
+        ("a\0b", vec![], "program name contains a NUL byte"),
+        (
+            "node",
+            vec!["a\0b"],
+            "process argument 0 contains a NUL byte",
+        ),
+    ] {
         p.call(
             "hd:Process",
             "run",
             process_args(name, &args, b""),
-            Enc::default().leb(1).leb(3).str(&message).0,
+            Enc::default().leb(1).leb(3).str(message).0,
         );
     }
-    assert_program(&scratch, p, vec![], || {});
+    assert_native_program(p);
 }
 
 #[test]
@@ -745,7 +733,7 @@ fn process_grant_refusal_precedes_invalid_name_and_argument_validation() {
     let scratch = Scratch::new();
     for (name, args) in [("", vec![]), ("a\0b", vec![]), ("node", vec!["a\0b"])] {
         let bytes = process_args(name, &args, b"");
-        // Refusal must occur before spawnSync validates its program/argv.
+        // Refusal takes precedence over native argument validation.
         let mut p = Program::new();
         p.call("hd:Process", "run", bytes, vec![1, 2]);
         assert_program(
@@ -1012,4 +1000,58 @@ fn filesystem_listing_uses_utf8_byte_order_and_preserves_trailing_slash() {
         expected.0,
     );
     assert_program(&scratch, p, vec![], || {});
+}
+
+/// Native messages are verified without treating another engine as authority.
+fn assert_native_program(p: Program) {
+    let (wasm, expected) = p.finish(7);
+    let result = hd_run_wasmtime::run_captured(
+        hd_run_wasmtime::EngineConfig::default(),
+        &wasm,
+        &hd_run::HostSetup {
+            providers: vec![],
+            grants: hd_run::Grants::default(),
+            limits: hd_run::Limits::default(),
+            args: vec![],
+            program: String::new(),
+        },
+    )
+    .unwrap();
+    assert_eq!(result.status, 7);
+    assert_eq!(result.stdout, b"core-parity\n");
+    assert_eq!(result.stderr, expected.as_bytes());
+}
+
+#[test]
+fn filesystem_text_preserves_utf8_bom_content() {
+    let scratch = Scratch::new();
+    let file = scratch.at("bom");
+    fs::write(&file, "\u{feff}\u{feff}héllo").unwrap();
+    let mut p = Program::new();
+    p.call(
+        "hd:FsRead",
+        "read_text",
+        one(&file),
+        Enc::default().leb(0).str("\u{feff}\u{feff}héllo").0,
+    );
+    assert_native_program(p);
+}
+
+#[test]
+fn filesystem_remove_nonempty_directory_keeps_native_context() {
+    let scratch = Scratch::new();
+    let dir = scratch.at("nonempty");
+    fs::create_dir(&dir).unwrap();
+    fs::write(dir.join("child"), b"keep").unwrap();
+    let native = fs::remove_dir(&dir).unwrap_err();
+    let message = format!("rmdir {:?}: {native}", path(&dir));
+    let mut p = Program::new();
+    p.call(
+        "hd:FsWrite",
+        "remove",
+        one(&dir),
+        Enc::default().leb(1).leb(7).str(&message).0,
+    );
+    assert_native_program(p);
+    assert_eq!(fs::read(dir.join("child")).unwrap(), b"keep");
 }

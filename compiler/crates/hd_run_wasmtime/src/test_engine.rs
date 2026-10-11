@@ -458,7 +458,10 @@ fn process_with_limit(
         return Err(Stop::TimeLimit.into());
     }
     if overflow.load(Ordering::Relaxed) {
-        encoded.leb(1).leb(3).str("spawnSync ENOBUFS");
+        encoded
+            .leb(1)
+            .leb(3)
+            .str("process output exceeds the host limit");
         return Ok(encoded);
     }
     match result {

@@ -28,6 +28,7 @@ mod fs;
 mod host;
 mod http;
 mod limits;
+mod native_io;
 mod net;
 pub mod prim;
 mod profiles;

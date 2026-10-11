@@ -547,8 +547,9 @@ fn retained_instance_stops_socket_owner(trap: bool) {
 
 #[cfg(unix)]
 #[test]
-fn udp_ipv4_socket_to_numeric_ipv6_reports_exact_other_error() {
-    let scratch = Scratch::new();
+fn udp_ipv4_socket_to_numeric_ipv6_reports_the_native_error() {
+    let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
+    let native = socket.send_to(b"x", "[::1]:9").unwrap_err();
     let mut p = Program::new();
     open(&mut p, "bind_udp", "127.0.0.1", 0, vec![0, 1]);
     // A UDP4 socket cannot reach an IPv6 destination; this fails locally
@@ -558,8 +559,23 @@ fn udp_ipv4_socket_to_numeric_ipv6_reports_exact_other_error() {
         "::1",
         9,
         b"x",
-        operation_error(4, "send EINVAL ::1:9"),
+        operation_error(4, &format!("send [::1]:9: {native}")),
     );
     handle(&mut p, "UdpSocket.close", &[1], None, vec![0]);
-    assert_program(&scratch, p, vec![], || {});
+    let (wasm, expected) = p.finish(7);
+    let result = hd_run_wasmtime::run_captured(
+        EngineConfig::default(),
+        &wasm,
+        &HostSetup {
+            providers: vec![],
+            grants: Grants::default(),
+            limits: Limits::default(),
+            args: vec![],
+            program: "native-udp-error".into(),
+        },
+    )
+    .unwrap();
+    assert_eq!(result.status, 7);
+    assert_eq!(result.stdout, b"core-parity\n");
+    assert_eq!(result.stderr, expected.as_bytes());
 }
