@@ -56,19 +56,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
 
-### M34. Find what holds 3.5 GB during the wasmtime conformance suite
-
-M31 measured a peak RSS of about 3.5 GiB for the wasmtime-only driver
-conformance run, mostly engine code memory. With 8 workers, that is
-about 440 MB each. Measure where it goes: per-engine reservations
-(pooling allocator slots, linear memory reservations, stack sizes), the
-number of engines alive at once, and whether stores or instances outlive
-their case. Report the top causes with suggested fixes and expected
-savings in `future-work/compiler/wasmtime-perf.md`. Change code only for
-an obvious leak (an engine, store or instance kept after its case
-finishes), with a unit test. Files: `crates/hd_run_wasmtime/src/**`,
-`future-work/compiler/wasmtime-perf.md`.
-
 ### M35. Split `createHost` in the Node host (#227)
 
 `compiler/host/core.mjs` `createHost` is one very large function. Split it

@@ -182,3 +182,79 @@ are identical. Keep `Speed` for `hd run --release` through the existing
 `pipeline(release)` mapping: it executes 0-28% faster where guest work
 dominates, at ~0.5 ms extra compile. Do not add a `SpeedAndSize` mode:
 it ties `Speed` on compile and execute across everything measured.
+
+## What holds 3.5 GB in the wasmtime suite
+
+M34 measurement (2026-10-11): where the wasmtime-only suite's peak RSS
+goes. No code was changed: nothing leaks, so there was nothing to fix.
+
+### Method and conditions
+
+- Peak RSS via `/usr/bin/time -l` on the test binary itself (children
+  such as Node subprocesses are not included), dev profile, 8 workers
+  unless noted, ambient load. One figure per line below is one run.
+- `HD_CONFORMANCE_ONLY` selects subsets by path substring;
+  `HD_TEST_JOBS=1` serializes workers. `typing` (1510 cases) exercises
+  check only: no builds, no guests, no wasmtime engines.
+
+### The ladder (GiB peak RSS)
+
+| run | peak RSS |
+| --- | ---: |
+| typing only, check-only, no guests | 0.08 |
+| full suite, Node engine (check + build, no wasmtime) | 1.15 |
+| full suite, wasmtime-only, 1 worker | 2.06 |
+| full suite, wasmtime-only, 8 workers | 3.47 / 3.60 (two runs) |
+
+Subsets at 8 workers scale with case count (16 cases: 0.16 GB;
+105 cases: 0.18 GB; 1034 cases: ~3.5 GB), i.e. roughly 3.5 MB retained
+per runtime case on top of a ~0.15 GB fixed base (33 MB test binary,
+engines, pools, compiler warmup).
+
+### The four questions, answered
+
+- **Per-engine reservations.** One pooled engine (16 slots, 32
+  memories, 16 tables, 16 GC heaps; 4 GiB virtual reservations each —
+  virtual, not resident) plus one shared on-demand engine. Guest
+  threads run on 12 MB stacks. None of these is resident at scale;
+  reservations are not where the gigabytes are.
+- **Engines alive at once.** Two, for the whole run: the shared
+  on-demand engine (one per config since M29) and the single
+  process-wide pooled `TestEngine`. Per-case `WasmtimeEngine` wrappers
+  are tiny handles, not engines.
+- **Stores and instances outliving their case.** None found, by
+  tracing: the entry path joins its scoped thread per run
+  (`run_profile_with_guards`); test bodies drop their instance in
+  `NativeBodyRunner::finish` and `execute_case` releases the only slot
+  (covered by unit test); `InstancePre` maps die with their per-case
+  `TestModule`. At most ~16 stores/instances are alive at once (8
+  workers). No leak, so no code change.
+- **Where it goes, then.** About 1.1 GB is the shared compiler store:
+  every case's `Check`/`Code`/`Link` artifacts stay in the process-wide
+  `MemoryStore` (the typing-only run holds 0.08 GB; the Node-mode full
+  run holds 1.15 GB with no wasmtime at all). About 0.5-1 GB is engine
+  code memory: wasmtime never frees compiled code while an engine
+  lives, and both suite engines live for the whole run, so all ~992
+  modules' native code accumulates (~1 MB per test module at
+  `OptLevel::None` codegen bloat). About 1.5 GB is 8-worker transient:
+  parallel Cranelift arenas, concurrent stores and 12 MB stacks, and
+  allocator duplication — serializing to one worker drops peak from
+  ~3.5 GB to 2.06 GB (wall climbs 13-16 s to 74 s). The M29/M31 module
+  caches are tens of megabytes at most (128 entries), inside the noise.
+
+### Top causes, fixes, expected savings
+
+1. **Compiler artifacts retained for every case (~1.1 GB, in both
+   engines' runs).** Fix: scope or drain the shared `MemoryStore` per
+   phase/chapter, or bound it like the module caches. Expected: up to
+   ~1 GB off peak; needs care since/and because other driver tests
+   intentionally share the store for outputs.
+2. **Engine code memory grows for the whole run (~0.5-1 GB).**
+   Fix: retire and recreate the suite engines per chapter (recompiling
+   after each rotation), trading memory for time. Expected: several
+   hundred MB off peak at the cost of some recompilation; unmeasured,
+   flagged for whoever picks it up.
+3. **Eight-way concurrency transient (~1.5 GB).** Fix: fewer workers.
+   Measured, not inferred: `HD_TEST_JOBS=1` peaks at 2.06 GB (saves
+   ~1.5 GB) for a wall of 74 s against 13-16 s. A middle setting (2-4
+   workers) splits the difference; not measured here.
