@@ -817,16 +817,18 @@ fn reports_panic(line: &str, code: &str) -> bool {
         .any(|end| line.contains(&format!("panic: {code}{end}")))
 }
 
-/// A package-tree fixture whose only harness is its tree, the `tests:`
-/// block and the doc comments of its primary file (README "Package
-/// Trees": its test cases are the primary module's, the primary file's
-/// doc tests included).
-fn doc_tests_harness(fixture: &Fixture) -> bool {
+/// A package-tree fixture whose only harness is its tree and its primary
+/// file: the `tests:` block and the doc comments of the file, or its
+/// top-level registrations when it is a test module or an integration test
+/// file (README "Package Trees": its test cases are the primary module's,
+/// the primary file's doc tests included).
+fn tree_tests_harness(fixture: &Fixture) -> bool {
     fixture.tree
-        && fixture
+        && (fixture
             .text
             .lines()
             .any(|line| line.starts_with("## ") || line.starts_with("tests:"))
+            || hd_project::role_of(&fixture.primary) == hd_project::Role::Test)
         && [
             "fixture-runtime-profile",
             "fixture-runtime-scenario",
@@ -1101,15 +1103,18 @@ fn tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize
     }
 }
 
-/// `test FILE` for a package-tree fixture with doc comments: the primary
-/// module's `tests:` cases, then each doc test of the primary file as a
+/// `test FILE` for a package-tree fixture: the primary module's test cases
+/// (its `tests:` block, or the registrations of a test module or an
+/// integration test file), then each doc test of the primary file as a
 /// program of its own, an integration-view module at `tests/$docN.hd`
 /// (README "Package Trees"; `module.test.doc.program`). A compile-fail doc
 /// test never runs: it passes when its build reports its code
 /// (`module.test.doc.compile-fail`).
-fn doc_tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize) -> Verdict {
+fn tree_tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize) -> Verdict {
     let mut run = TestRun::default();
-    if fixture.text.lines().any(|line| line.starts_with("tests:")) {
+    if fixture.text.lines().any(|line| line.starts_with("tests:"))
+        || hd_project::role_of(&fixture.primary) == hd_project::Role::Test
+    {
         let built = build_fixture(
             fixture,
             store,
@@ -1161,8 +1166,8 @@ fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usi
         return Verdict::Unsupported(stage);
     }
     if has_runtime_harness(&fixture.text) && !profile_entry(&fixture.text) {
-        let verdict = if doc_tests_harness(fixture) {
-            doc_tests_case(case, fixture, store, serial)
+        let verdict = if tree_tests_harness(fixture) {
+            tree_tests_case(case, fixture, store, serial)
         } else if plain_tests(&fixture.text) {
             tests_case(case, fixture, store, serial)
         } else {
@@ -1372,6 +1377,57 @@ fn scenarios_that_replace_execution_stay_unsupported() {
     );
 }
 
+/// A case of the suite's own fixture `path`, for the runner's own tests.
+fn suite_case(path: &str, serial: usize) -> Case {
+    Case {
+        path: path.to_owned(),
+        ..unit_case("accept", serial)
+    }
+}
+
+#[test]
+fn a_package_tree_fixture_takes_its_place_in_the_tree() {
+    // README "Package Trees": the primary file takes the package path of
+    // the header, next to the tree's files, which are not cases.
+    let case = suite_case("runtime/valid/integration-shared-use.hd", 5);
+    let fixture = fixture(&case).expect("a package-tree fixture");
+    assert!(fixture.tree);
+    assert!(fixture.deps.is_empty());
+    assert_eq!(fixture.primary, "tests/checkout.hd");
+    let files: Vec<String> = hd_project::SourceSet::list(&fixture.sources)
+        .into_iter()
+        .map(|entry| entry.path)
+        .collect();
+    assert_eq!(
+        files,
+        ["tests/checkout.hd", "tests/common/mod.hd", "tests/smoke.hd"]
+    );
+    let primary = hd_project::SourceSet::read(&fixture.sources, "tests/checkout.hd")
+        .expect("the primary file");
+    assert_eq!(String::from_utf8_lossy(&primary), fixture.text);
+    // Its harness is the tree: the primary file is an integration test.
+    assert!(tree_tests_harness(&fixture));
+    let store = MemoryStore::default();
+    assert_eq!(
+        runtime_case(&case, &fixture, &store, (1 << 40) + 5),
+        Verdict::Pass
+    );
+}
+
+#[test]
+fn a_package_tree_fixture_that_is_not_test_code_is_no_test_run() {
+    // A library file in a tree with no `tests:` block or doc comment has
+    // no test cases to run.
+    let mut fixture = unit_fixture("pub fn answer() -> i32: 42\n");
+    fixture.tree = true;
+    fixture.primary = "src/answer.hd".to_owned();
+    assert!(!tree_tests_harness(&fixture));
+    fixture.primary = "src/answer_test.hd".to_owned();
+    assert!(tree_tests_harness(&fixture));
+    fixture.primary = "tests/answer.hd".to_owned();
+    assert!(tree_tests_harness(&fixture));
+}
+
 fn chapter(case: &Case) -> String {
     case.specification
         .split('#')
@@ -1517,7 +1573,7 @@ fn detail(case: &Case, store: &MemoryStore) -> String {
     }
     let mut output = check_fixture(&fixture, store);
     if case.phase == Phase::Runtime && check_errors(&output).is_empty() {
-        let goal = if plain_tests(&fixture.text) || doc_tests_harness(&fixture) {
+        let goal = if plain_tests(&fixture.text) || tree_tests_harness(&fixture) {
             Goal::Tests {
                 module: None,
                 filter: None,

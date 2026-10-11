@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2573 | 244 | 28 | 2845 |
+| 2577 | 244 | 24 | 2845 |
 
 ## By Chapter
 
@@ -23,7 +23,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/07-functions.md` | 119 | 11 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 113 | 9 | 1 | 123 |
 | `lang/09-traits.md` | 326 | 31 | 2 | 359 |
-| `lang/10-modules.md` | 218 | 31 | 9 | 258 |
+| `lang/10-modules.md` | 222 | 31 | 5 | 258 |
 | `lang/11-requirements-and-suspension.md` | 231 | 20 | 8 | 259 |
 | `lang/14-annotations.md` | 123 | 28 | 2 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 97 | 5 | 3 | 105 |
-| `runtime/valid` | 895 | 11 | 23 | 929 |
+| `runtime/valid` | 899 | 11 | 19 | 929 |
 | `typing/invalid` | 875 | 199 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -120,7 +120,7 @@ compiler stage that first declined the case.
 | `unsupported:Body` | 5 |
 | `unsupported:Collect` | 5 |
 | `unsupported:Link` | 3 |
-| `unsupported:RunCase` | 15 |
+| `unsupported:RunCase` | 11 |
 
 <details><summary><code>fail:argument-count</code> (6)</summary>
 
@@ -604,7 +604,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:RunCase</code> (15)</summary>
+<details><summary><code>unsupported:RunCase</code> (11)</summary>
 
 - `runtime/valid/cancellation-unwinds-nested-frames.hd`
 - `runtime/valid/cancellation-unwinds-suspending-closure.hd`
@@ -617,10 +617,6 @@ compiler stage that first declined the case.
 - `runtime/valid/cancellation-lifo-across-three-frames.hd`
 - `runtime/valid/cancellation-loop-and-branch-scopes.hd`
 - `runtime/valid/cancellation-provider-scope-cleanup.hd`
-- `runtime/valid/folder-graph-test-edges.hd`
-- `runtime/valid/integration-shared-use.hd`
-- `runtime/valid/integration-test-public-view.hd`
-- `runtime/valid/test-module-uses-test-module.hd`
 
 </details>
 
@@ -1265,6 +1261,7 @@ runtime/valid/float-eq-bound.hd
 runtime/valid/float-literal-forms.hd
 runtime/valid/float-remainder-run.hd
 runtime/valid/floating-power.hd
+runtime/valid/folder-graph-test-edges.hd
 runtime/valid/for-loops-lists-and-maps.hd
 runtime/valid/for-patterns.hd
 runtime/valid/from-direct-call.hd
@@ -1368,6 +1365,8 @@ runtime/valid/inspectable-primitives-collections-options.hd
 runtime/valid/installer-function-runs.hd
 runtime/valid/integer-literal-forms.hd
 runtime/valid/integer-power-associativity.hd
+runtime/valid/integration-shared-use.hd
+runtime/valid/integration-test-public-view.hd
 runtime/valid/interpolation-display-order.hd
 runtime/valid/interpolation-expression-spacing.hd
 runtime/valid/interpolation-forms.hd
@@ -1818,6 +1817,7 @@ runtime/valid/test-case-fresh-instance.hd
 runtime/valid/test-case-options.hd
 runtime/valid/test-expect-panic.hd
 runtime/valid/test-module-top-level-cases.hd
+runtime/valid/test-module-uses-test-module.hd
 runtime/valid/test-registration-qualified-call.hd
 runtime/valid/test-registration-qualified-prop.hd
 runtime/valid/test-timeout-options.hd
