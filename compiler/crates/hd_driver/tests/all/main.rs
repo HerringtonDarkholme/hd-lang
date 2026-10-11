@@ -20,6 +20,7 @@ mod default_args_run;
 mod delegation_run;
 mod derive_members;
 mod derive_run;
+mod derived_default_declared;
 mod diagnostic_messages;
 mod downcast_check;
 mod downcast_run;

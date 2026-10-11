@@ -64,6 +64,12 @@ pub struct OptIn {
     pub members: Vec<OptInMember>,
     /// The members its member lines omit (`name = pass`).
     pub omitted: Vec<String>,
+    /// Whether its `build` fills a member that declares a default from
+    /// that default, as an omitted member is
+    /// (`std-ops.default.derive.member-bound.declared`): the `Default`
+    /// template does. Such a member is not offered to the source, so its
+    /// type owes the source's bounds nothing (`annot.omit.exempt`).
+    pub fills_declared: bool,
     /// Whether its block carries a member line, which gives it a
     /// `Structure` of its own (`annot.structure.per-derivation`).
     pub lines: bool,
@@ -104,6 +110,7 @@ impl OptIn {
         let TyData::Adt { def, args } = pool.get(*self_ty) else {
             return None;
         };
+        let fills_declared = *trait_ == names.known.default;
         let args = pool.list_items(args);
         let ty = |t: Ty| {
             pool.subst(t, &|p: ParamRef| {
@@ -127,7 +134,7 @@ impl OptIn {
             ItemData::Data(fields) => {
                 for (i, f) in fields.iter().enumerate() {
                     let l = label(f);
-                    if omitted.contains(&l) {
+                    if omitted.contains(&l) || (fills_declared && f.has_default) {
                         continue;
                     }
                     members.push(OptInMember {
@@ -165,6 +172,7 @@ impl OptIn {
             target: *self_ty,
             members,
             omitted: omitted.to_vec(),
+            fills_declared,
             lines: false,
             failed: RefCell::new(Vec::new()),
         })
@@ -435,11 +443,10 @@ pub fn instance(
 }
 
 /// What a template's `walk`, `describe` or `build` call asks of each
-/// member: the protocol, and the bounds of the chosen implementation's
+/// member: the bounds of the chosen implementation's
 /// `member` and `rest` (for a walker that implements `rest`), each with
 /// the method whose own parameter stands for the member.
 struct WalkerBounds {
-    protocol: DefId,
     member: Vec<(DefId, Ty)>,
     rest: Option<Vec<(DefId, Ty)>>,
 }
@@ -473,7 +480,7 @@ impl<'c> Ck<'_, 'c> {
 
     /// The walker, describer or source implementation that a `walk`,
     /// `describe` or `build` call of a template body chose
-    /// (`annot.walker.obligation`): its protocol, its `member`'s bounds and,
+    /// (`annot.walker.obligation`): its `member`'s bounds and,
     /// for a walker that implements `rest`, `rest`'s, each over the
     /// implementation's arguments, the template's `T` and the method's own
     /// parameter. `None` for another call, and for a generic walker, whose
@@ -554,11 +561,7 @@ impl<'c> Ck<'_, 'c> {
         } else {
             None
         };
-        Ok(Some(WalkerBounds {
-            protocol,
-            member,
-            rest,
-        }))
+        Ok(Some(WalkerBounds { member, rest }))
     }
 
     /// The member obligations of the instance's `walk`, `describe` and
@@ -572,18 +575,11 @@ impl<'c> Ck<'_, 'c> {
         };
         let calls = std::mem::take(&mut self.structure_calls);
         let pool = self.pool();
-        let k = self.cx.names.known;
         for call in calls {
             let Some(wb) = self.walker_bounds(opt.template, call)? else {
                 continue;
             };
-            // A derived `Default` asks nothing of a member that declares a
-            // default (`std-ops.default.derive.member-bound.declared`).
-            let declared_exempt = wb.protocol == k.source && opt.trait_ == k.default;
             for (i, mem) in opt.members.iter().enumerate() {
-                if declared_exempt && mem.has_default {
-                    continue;
-                }
                 for &(m, b) in &wb.member {
                     let b = pool.subst(b, &|p: ParamRef| {
                         if p.owner == m && p.index == 0 {

@@ -329,7 +329,8 @@ pub fn owner_args(cx: &BodyCx<'_>, opt: &OptIn) -> TyList {
 
 /// The variants and members of `ty`, the target over the owner's
 /// parameters, with the derivation's omitted members marked
-/// (`annot.omit.skip`) and their facts bodies.
+/// (`annot.omit.skip`), as is a member whose declared default its `build`
+/// fills (`OptIn::fills_declared`), and their facts bodies.
 fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> StageResult<Vec<Var>> {
     let names = &cx.names;
     let pool = names.pool;
@@ -379,7 +380,8 @@ fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> StageRe
                 .iter()
                 .enumerate()
                 .map(|(i, f)| {
-                    let omitted = opt.omitted.contains(&label(names.text(f.name)));
+                    let omitted = opt.omitted.contains(&label(names.text(f.name)))
+                        || (opt.fills_declared && f.has_default);
                     member(0, i, f, omitted)
                 })
                 .collect();

@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2635 | 186 | 24 | 2845 |
+| 2636 | 186 | 23 | 2845 |
 
 ## By Chapter
 
@@ -42,7 +42,7 @@ fixture; unsupported surface records progress without failing.
 | `std/json.md` | 19 | 0 | 0 | 19 |
 | `std/net.md` | 1 | 0 | 0 | 1 |
 | `std/num.md` | 16 | 2 | 0 | 18 |
-| `std/ops.md` | 12 | 0 | 1 | 13 |
+| `std/ops.md` | 13 | 0 | 0 | 13 |
 | `std/option.md` | 3 | 0 | 0 | 3 |
 | `std/path.md` | 2 | 0 | 0 | 2 |
 | `std/process.md` | 3 | 0 | 0 | 3 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 98 | 4 | 3 | 105 |
-| `runtime/valid` | 900 | 10 | 19 | 929 |
+| `runtime/valid` | 901 | 10 | 18 | 929 |
 | `typing/invalid` | 931 | 143 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -111,7 +111,7 @@ compiler stage that first declined the case.
 | `fail:unknown-variant` | 1 |
 | `fail:unused-local-binding` | 4 |
 | `unsupported:Body` | 5 |
-| `unsupported:Collect` | 5 |
+| `unsupported:Collect` | 4 |
 | `unsupported:Link` | 3 |
 | `unsupported:RunCase` | 11 |
 
@@ -486,11 +486,10 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Collect</code> (5)</summary>
+<details><summary><code>unsupported:Collect</code> (4)</summary>
 
 - `runtime/valid/member-line-list-expression.hd`
 - `runtime/valid/init-group-order.hd`
-- `runtime/valid/derived-default-declared-no-bound.hd`
 - `runtime/valid/handle-fact-exact-type.hd`
 - `runtime/valid/init-group-statements-by-identity.hd`
 
@@ -1079,6 +1078,7 @@ runtime/valid/derived-arbitrary-recursive-members.hd
 runtime/valid/derived-arbitrary-with.hd
 runtime/valid/derived-debug-newtype.hd
 runtime/valid/derived-default-data.hd
+runtime/valid/derived-default-declared-no-bound.hd
 runtime/valid/derived-default-declared.hd
 runtime/valid/derived-default-enum.hd
 runtime/valid/derived-eq-every-member.hd
