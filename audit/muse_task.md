@@ -56,19 +56,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
 
-### M36. Split `http.rs` in the wasmtime host
-
-`crates/hd_run_wasmtime/src/http.rs` is 2610 lines (owner, 2026-10-10:
-the wasmtime host code is low quality; see `audit/compiler/later.md`).
-Split it into a `http/` module with one file per concern (for example
-request building, the client and timeouts, the server side, the
-host-call glue, and tests), with no behaviour change: move code and
-tighten visibility (`pub(crate)` or private), but do not rewrite logic.
-Done when `cargo test -q -p hd_run_wasmtime` and the http parity tests
-pass, the wasmtime-only conformance verdicts are unchanged, and no file
-is over about 600 lines. Files: `crates/hd_run_wasmtime/src/http.rs` and
-the new `crates/hd_run_wasmtime/src/http/**`.
-
 ### M37. Profile the closures benchmark on wasmtime (#278)
 
 `test/perf/micro/closures.hd` takes about 3.6x as long on wasmtime as on V8
