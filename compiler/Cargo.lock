@@ -570,6 +570,7 @@ dependencies = [
  "hd_run",
  "hd_run_wasmtime",
  "hd_sched",
+ "libc",
  "tracking-allocator",
 ]
 

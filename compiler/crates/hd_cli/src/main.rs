@@ -1,4 +1,5 @@
-#![forbid(unsafe_code)]
+// `unsafe_code` is denied workspace-wide; the one allowed use is
+// `memory_cap::exit_now` (owner-approved, see its comment).
 //! The `hd` command. It owns everything outside the core (design-overview
 //! §2.2): the file system (`DiskSources`, the disk `CacheStore`), the clock,
 //! the executor and the engine (`node::NodeEngine`, an `hd_run::Engine`,

@@ -267,7 +267,31 @@ fn emergency_exit() -> ! {
             let _ = stream.write_all(line);
         }
     }
-    std::process::exit(101);
+    exit_now(101)
+}
+
+/// Ends the process without std's exit cleanup.
+///
+/// Why `unsafe` here (owner-approved, 2026-10-11, task #298): on linux-gnu,
+/// `std::process::exit` runs cleanup that takes std's lock for per-thread
+/// stack-overflow info. A thread that is starting holds that lock while it
+/// allocates; if that allocation is the one that crosses the compiler memory
+/// cap, the tracking allocator spins in it forever with the lock held, and
+/// `process::exit` then blocks forever after the report is written. `_exit`
+/// takes no lock and runs no cleanup. Nothing is lost: the report went to a
+/// duplicated raw descriptor above, not through std's buffered stdout.
+#[cfg(unix)]
+#[allow(unsafe_code)]
+fn exit_now(code: i32) -> ! {
+    // SAFETY: `_exit` only terminates the process; it touches no Rust state,
+    // and nothing runs after it.
+    unsafe { libc::_exit(code) }
+}
+
+/// Elsewhere std's exit cleanup takes no such lock.
+#[cfg(not(unix))]
+fn exit_now(code: i32) -> ! {
+    std::process::exit(code)
 }
 
 fn stage_index(stage: Stage) -> usize {

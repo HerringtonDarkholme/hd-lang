@@ -22,5 +22,8 @@ hd_run_wasmtime = { path = "../hd_run_wasmtime" }
 hd_sched = { path = "../hd_sched", features = ["threads"] }
 tracking-allocator = { version = "=0.4.0", default-features = false }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [lints]
 workspace = true
