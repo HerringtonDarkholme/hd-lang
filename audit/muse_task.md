@@ -56,21 +56,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
 
-### M33. Trim the hd binary's wasmtime features (#278)
-
-The `hd` binary grew from 7.9 MB to 19.1 MB with wasmtime. List the
-wasmtime cargo features `hd_run_wasmtime` enables
-(`crates/hd_run_wasmtime/Cargo.toml`). Turn off every one the code does
-not need (for example `cache`, `wat`, `parallel-compilation` if unused,
-`addr2line`, `coredump`, `profiling`, unused component-model parts), and
-keep everything the tests use. Done when `cargo test -q -p
-hd_run_wasmtime` and the wasmtime-only driver conformance verdicts are
-unchanged, and the commit body gives the release `hd` binary size
-(`cargo build --release --features wasmtime --bin hd`, benchmark-style
-build, allowed for this measurement) and the cold build CPU time, before
-and after. Files: `crates/hd_run_wasmtime/Cargo.toml` and any `cfg` lines
-in `crates/hd_run_wasmtime/src/**` that the features require.
-
 ### M34. Find what holds 3.5 GB during the wasmtime conformance suite
 
 M31 measured a peak RSS of about 3.5 GiB for the wasmtime-only driver

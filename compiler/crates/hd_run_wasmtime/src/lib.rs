@@ -195,7 +195,10 @@ pub(crate) fn wasmtime_config(config: EngineConfig) -> wasmtime::Config {
         // No fiber runs Wasm (no async support); wasmtime still checks
         // the Wasm stack against this size.
         .async_stack_size(config.max_wasm_stack)
-        .parallel_compilation(true)
+        // Single-threaded compilation: the `parallel-compilation` cargo
+        // feature (rayon) is off, so every module compiles on one thread.
+        // Fixture modules are kilobytes; pool spin-up costs more than it
+        // saves, and the suite compiles about a thousand of them.
         .cranelift_opt_level(match config.cranelift_opt {
             OptLevel::None => wasmtime::OptLevel::None,
             OptLevel::Speed => wasmtime::OptLevel::Speed,
