@@ -1117,6 +1117,12 @@ impl Lower<'_, '_, '_> {
         self.unsupported.get_or_insert_with(|| what.into());
     }
 
+    /// Whether the module belongs to the standard library, which is the
+    /// one package allowed to implement a sealed trait.
+    fn in_std(&self) -> bool {
+        self.module.split('.').next() == Some("std")
+    }
+
     fn sym(&self, text: &str) -> Symbol {
         self.names.syms.intern(text)
     }
@@ -1917,12 +1923,18 @@ impl Lower<'_, '_, '_> {
                     .flatten()
                     .map(|(_, t, _)| *t);
                 for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
-                    if let Some(t) = self.trait_value(b, gn, me) {
-                        bounds.push(t);
-                    }
+                    // A bound that names no trait is already reported. It
+                    // stays as poison, so that the parameter satisfies
+                    // every trait and adds no second error.
+                    bounds.push(self.trait_value(b, gn, me).unwrap_or(Ty::POISON));
                 }
                 if let Some(me) = me {
-                    self.bound_clashes(me, &bounds, self.src.span(bl));
+                    let resolved: Vec<Ty> = bounds
+                        .iter()
+                        .copied()
+                        .filter(|b| *b != Ty::POISON)
+                        .collect();
+                    self.bound_clashes(me, &resolved, self.src.span(bl));
                 }
             }
             if !row
@@ -1932,7 +1944,10 @@ impl Lower<'_, '_, '_> {
                 let t = *t;
                 gn.bounded.push(t);
             }
-            g.bound = bounds.first().and_then(|b| self.trait_of(*b));
+            g.bound = bounds
+                .iter()
+                .find(|b| **b != Ty::POISON)
+                .and_then(|b| self.trait_of(*b));
             if !row && let Some(slot) = gn.tys[start..].iter_mut().find(|(s, _, _)| *s == g.name) {
                 slot.2 = bounds
                     .iter()
@@ -2553,6 +2568,20 @@ impl Lower<'_, '_, '_> {
             .and_then(|(_, a)| a.first().map(|k| self.sym(k)))
     }
 
+    /// Reports a user `impl` of the sealed trait `trait_`, on the `impl`
+    /// (`trait.sealed.user-impl`).
+    fn sealed_impl_rejected(&mut self, imp: NodeRef<'_>, trait_: DefId) {
+        if self.r.frozen.is_some() {
+            return;
+        }
+        let msg = format!(
+            "`{}` is sealed: only the compiler and the standard library implement it",
+            self.names.display_name(trait_)
+        );
+        self.diags
+            .error(Code::SealedTraitImplementation, self.src.span(imp), &msg);
+    }
+
     fn impl_item(&mut self, h: &Head<'_>, out: &mut Vec<Item>) {
         let n = h.node;
         let pool = self.names.pool;
@@ -2587,27 +2616,41 @@ impl Lower<'_, '_, '_> {
             .map(|t| self.src.text(*t).to_owned());
         let (trait_, trait_args, header_bindings) = match trait_node {
             None => (DefId::NONE, TyList::EMPTY, Vec::new()),
-            Some(tn) => match self.trait_value(tn, &gn, Some(self_ty)) {
-                Some(tv) => match pool.get(tv) {
-                    TyData::TraitValue {
-                        def,
-                        args,
-                        bindings,
-                    } => (def, args, bindings),
-                    _ => return,
-                },
-                None => return,
-            },
+            Some(tn) => {
+                let segs = self.segments(tn);
+                if segs.first().is_some_and(|s| self.is_poisoned(&s.0)) {
+                    return;
+                }
+                let found = self.resolve_path(&segs, self.src.span(tn));
+                // `Suspend[T]` is the compiler's suspension type, not a
+                // declared trait, but it is a sealed trait all the same.
+                if let Some((def, kind)) = found
+                    && kind != HeadKind::Trait
+                    && self.names.known.is_sealed(def)
+                    && !self.in_std()
+                {
+                    self.sealed_impl_rejected(n, def);
+                    return;
+                }
+                match self.trait_value_from(tn, &gn, Some(self_ty), found) {
+                    Some(tv) => match pool.get(tv) {
+                        TyData::TraitValue {
+                            def,
+                            args,
+                            bindings,
+                        } => (def, args, bindings),
+                        _ => return,
+                    },
+                    None => return,
+                }
+            }
         };
-        // The compiler-implemented sealed traits take no written
-        // implementation (types.sealed.no-impl).
-        if self.r.frozen.is_none() && by.is_none() && self.names.known.is_sealed(trait_) {
-            let msg = format!(
-                "`{}` is implemented by the compiler only",
-                self.names.display_name(trait_)
-            );
-            self.diags
-                .error(Code::SealedTraitImplementation, self.src.span(n), &msg);
+        // Only the compiler and the standard library implement a sealed
+        // trait (`trait.sealed.user-impl`). The rejected implementation
+        // is left out, so nothing else is reported about it.
+        if self.names.known.is_sealed(trait_) && !self.in_std() {
+            self.sealed_impl_rejected(n, trait_);
+            return;
         }
         if self.r.frozen.is_none() {
             let head = ImplHead {

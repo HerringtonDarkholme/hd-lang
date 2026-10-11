@@ -89,6 +89,7 @@ mod row_union_run;
 mod rows_determinism;
 mod runtime;
 mod sealed_rows;
+mod sealed_user_impls;
 mod slicing_run;
 mod spread_args_run;
 mod std_interfaces;

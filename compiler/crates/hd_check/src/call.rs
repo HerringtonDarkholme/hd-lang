@@ -2287,6 +2287,18 @@ impl Ck<'_, '_> {
     /// (`names.method-lookup.private`), else `unknown-method` with `msg`
     /// (`names.method-lookup.unknown`).
     pub(crate) fn no_method(&mut self, t: Ty, name: &str, n: NodeRef<'_>, msg: &str) {
+        // A parameter bound by a trait that does not exist has the methods
+        // of that trait, whatever they are; the bound is the one error.
+        let bare = self.strip_mut(t);
+        if self
+            .env
+            .clause_self
+            .iter()
+            .zip(&self.env.clause_trait)
+            .any(|(s, tr)| *s == bare && *tr == DefId::NONE)
+        {
+            return;
+        }
         let snap = self.infer.snapshot();
         let private = self.find_inherent_any(t, name).is_some();
         self.infer.rollback(snap);

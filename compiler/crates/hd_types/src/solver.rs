@@ -1911,6 +1911,15 @@ impl<'s, 'a> Search<'s, 'a> {
         if let TyData::Param(param) = pool.get(self_ty) {
             let env = self.cx.env;
             for i in 0..env.clause_self.len() {
+                // A bound that names no trait, already reported, holds
+                // every trait for its parameter.
+                if env.clause_self[i] == self_ty && env.clause_trait[i] == DefId::NONE {
+                    let holds = Answer::Holds {
+                        evidence: Evidence::Poison,
+                        learned: vec![],
+                    };
+                    return Ok(self.leaf(key, root, holds));
+                }
                 if env.clause_self[i] == self_ty && env.clause_trait[i] == tref.trait_ {
                     let mut binds = Vec::new();
                     let m =

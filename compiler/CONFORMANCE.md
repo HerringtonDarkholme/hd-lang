@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2616 | 205 | 24 | 2845 |
+| 2623 | 198 | 24 | 2845 |
 
 ## By Chapter
 
@@ -22,9 +22,9 @@ fixture; unsupported surface records progress without failing.
 | `lang/06-control-flow.md` | 140 | 13 | 4 | 157 |
 | `lang/07-functions.md` | 120 | 10 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 113 | 9 | 1 | 123 |
-| `lang/09-traits.md` | 329 | 28 | 2 | 359 |
-| `lang/10-modules.md` | 222 | 31 | 5 | 258 |
-| `lang/11-requirements-and-suspension.md` | 235 | 16 | 8 | 259 |
+| `lang/09-traits.md` | 334 | 23 | 2 | 359 |
+| `lang/10-modules.md` | 223 | 30 | 5 | 258 |
+| `lang/11-requirements-and-suspension.md` | 236 | 15 | 8 | 259 |
 | `lang/14-annotations.md` | 123 | 28 | 2 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 98 | 4 | 3 | 105 |
 | `runtime/valid` | 900 | 10 | 19 | 929 |
-| `typing/invalid` | 912 | 162 | 1 | 1075 |
+| `typing/invalid` | 919 | 155 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -82,19 +82,17 @@ compiler stage that first declined the case.
 | `fail:cannot-infer-type` | 5 |
 | `fail:duplicate-argument` | 1 |
 | `fail:duplicate-data-pattern-field` | 1 |
-| `fail:duplicate-trait-member` | 1 |
 | `fail:invalid-test-statement` | 1 |
 | `fail:invalid-token` | 2 |
 | `fail:missing-entry-point` | 1 |
 | `fail:missing-required-field` | 2 |
 | `fail:missing-requirement` | 3 |
-| `fail:missing-supertrait-implementation` | 3 |
+| `fail:missing-supertrait-implementation` | 2 |
 | `fail:mutable-impl-target` | 1 |
 | `fail:no-common-type` | 2 |
-| `fail:no-diagnostic` | 88 |
+| `fail:no-diagnostic` | 86 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
-| `fail:overlapping-impl` | 1 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-import` | 1 |
 | `fail:private-main` | 4 |
@@ -111,7 +109,7 @@ compiler stage that first declined the case.
 | `fail:unknown-method` | 5 |
 | `fail:unknown-module` | 1 |
 | `fail:unknown-name` | 8 |
-| `fail:unknown-trait` | 7 |
+| `fail:unknown-trait` | 5 |
 | `fail:unknown-type` | 3 |
 | `fail:unknown-variant` | 1 |
 | `fail:unused-local-binding` | 4 |
@@ -174,12 +172,6 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:duplicate-trait-member</code> (1)</summary>
-
-- `typing/invalid/inspectable-member-redeclared.hd`
-
-</details>
-
 <details><summary><code>fail:invalid-test-statement</code> (1)</summary>
 
 - `runtime/valid/test-registration-renamed-import.hd`
@@ -214,10 +206,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:missing-supertrait-implementation</code> (3)</summary>
+<details><summary><code>fail:missing-supertrait-implementation</code> (2)</summary>
 
 - `typing/invalid/derive-error-trait.hd`
-- `typing/invalid/num-sealed-impl.hd`
 - `typing/invalid/derived-ord-without-partial-ord.hd`
 
 </details>
@@ -235,7 +226,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (88)</summary>
+<details><summary><code>fail:no-diagnostic</code> (86)</summary>
 
 - `typing/invalid/private-type-leak.hd`
 - `typing/invalid/private-type-embedded-in-public-data.hd`
@@ -253,7 +244,6 @@ compiler stage that first declined the case.
 - `typing/invalid/enum-default-requires-provider.hd`
 - `typing/invalid/duplicate-literal-match-arm.hd`
 - `typing/invalid/inspectable-requirement-key.hd`
-- `typing/invalid/inspectable-user-implementation.hd`
 - `typing/invalid/trait-resolution-depth.hd`
 - `typing/invalid/entry-result-not-termination.hd`
 - `typing/invalid/structure-outside-template.hd`
@@ -311,7 +301,6 @@ compiler stage that first declined the case.
 - `typing/warnings/unused-debug-text.hd`
 - `typing/invalid/assoc-call-parameter-two-bounds.hd`
 - `typing/invalid/dyn-self-parameter-unavailable.hd`
-- `typing/invalid/sealed-member-written-in-impl.hd`
 - `typing/invalid/typeid-of-never.hd`
 - `typing/invalid/private-type-leak-data-field.hd`
 - `typing/invalid/private-type-leak-enum-payload.hd`
@@ -337,12 +326,6 @@ compiler stage that first declined the case.
 <details><summary><code>fail:orphan-impl</code> (1)</summary>
 
 - `typing/invalid/from-reflexive-impl.hd`
-
-</details>
-
-<details><summary><code>fail:overlapping-impl</code> (1)</summary>
-
-- `typing/invalid/num-sealed-user-number.hd`
 
 </details>
 
@@ -490,10 +473,8 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-trait</code> (7)</summary>
+<details><summary><code>fail:unknown-trait</code> (5)</summary>
 
-- `typing/invalid/user-suspend-implementation.hd`
-- `typing/invalid/reference-trait-name-unknown.hd`
 - `typing/invalid/row-parameter-on-data.hd`
 - `typing/invalid/row-parameter-on-trait.hd`
 - `typing/valid/folder-cycle-leaf-folder.hd`
@@ -2222,7 +2203,9 @@ typing/invalid/inherent-member-unifying-targets.hd
 typing/invalid/init-read-through-generic-bound.hd
 typing/invalid/init-read-through-trait-value.hd
 typing/invalid/inspectable-child-trait-without-impl.hd
+typing/invalid/inspectable-member-redeclared.hd
 typing/invalid/inspectable-needs-import.hd
+typing/invalid/inspectable-user-implementation.hd
 typing/invalid/integer-literal-match-without-catch-all.hd
 typing/invalid/integer-literal-range.hd
 typing/invalid/integer-narrowing.hd
@@ -2398,6 +2381,8 @@ typing/invalid/nonfinal-vararg-declaration.hd
 typing/invalid/nonfinal-vararg-then-parameter.hd
 typing/invalid/nonnumeric-unary-plus.hd
 typing/invalid/num-bound-newtype.hd
+typing/invalid/num-sealed-impl.hd
+typing/invalid/num-sealed-user-number.hd
 typing/invalid/num-suffix-before-data.hd
 typing/invalid/num-trait-needs-import.hd
 typing/invalid/numeric-candidate-no-fit.hd
@@ -2537,6 +2522,7 @@ typing/invalid/recursive-closure-inferred-result.hd
 typing/invalid/recursive-data-optional-field-required.hd
 typing/invalid/redeclare-core-type.hd
 typing/invalid/reference-bound-unsatisfied.hd
+typing/invalid/reference-trait-name-unknown.hd
 typing/invalid/relative-above-package-root.hd
 typing/invalid/relative-path-into-std.hd
 typing/invalid/relative-shared-test-above-test-root.hd
@@ -2597,6 +2583,7 @@ typing/invalid/same-depth-promotion-conflict.hd
 typing/invalid/same-module-private-field-not-promoted.hd
 typing/invalid/same-module-private-method-not-promoted.hd
 typing/invalid/script-top-level-bang-call.hd
+typing/invalid/sealed-member-written-in-impl.hd
 typing/invalid/self-receiver-is-readonly.hd
 typing/invalid/serde-derive-member-not-deserialize.hd
 typing/invalid/serde-derive-member-not-serialize.hd
@@ -2762,6 +2749,7 @@ typing/invalid/use-without-provider.hd
 typing/invalid/user-anyref-implementation.hd
 typing/invalid/user-anyval-implementation.hd
 typing/invalid/user-map-key-bound.hd
+typing/invalid/user-suspend-implementation.hd
 typing/invalid/usize-to-u32-argument.hd
 typing/invalid/vararg-function-value-arity.hd
 typing/invalid/vararg-function-value-list.hd

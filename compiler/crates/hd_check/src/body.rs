@@ -468,6 +468,25 @@ pub(crate) fn add_bound(
     (self_ty, bound): (Ty, Ty),
     depth: u32,
 ) {
+    // A bound that names no trait, already reported, is a clause on no
+    // trait: the parameter satisfies every trait (`implements`).
+    if bound == Ty::POISON {
+        if !env
+            .clause_self
+            .iter()
+            .zip(&env.clause_trait)
+            .any(|(s, t)| *s == self_ty && *t == DefId::NONE)
+        {
+            env.clause_self.push(self_ty);
+            env.clause_trait.push(DefId::NONE);
+            env.clause_args.push(hd_types::TyList::EMPTY);
+            env.clause_bindings.push(Vec::new());
+            env.clause_mut.push(false);
+            env.clause_origin
+                .push(u16::try_from(env.clause_origin.len()).unwrap_or(u16::MAX));
+        }
+        return;
+    }
     let TyData::TraitValue {
         def,
         args,

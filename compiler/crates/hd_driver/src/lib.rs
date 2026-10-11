@@ -2336,7 +2336,7 @@ impl Run<'_> {
             .filter(|h| h.kind == hd_resolve::HeadKind::Impl)
         {
             let missing = hd_check::omitted_trait_methods(&names, &lookup, h.def);
-            let faults = hd_check::assoc_faults(&names, &lookup, h.def);
+            let faults = hd_check::assoc_faults(&lookup, h.def);
             let mut omitted = Vec::new();
             if !missing.is_empty() {
                 omitted.push(format!("write `{}`", missing.join("`, `")));

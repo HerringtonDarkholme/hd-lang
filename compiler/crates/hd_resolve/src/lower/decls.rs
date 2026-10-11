@@ -1,6 +1,6 @@
 //! Declaration rules that compare several declarations: module names
 //! (`names.module.unique`, `names.tests.unique`), supertrait member names
-//! (`trait.super.no-redeclare`), inherent member names
+//! (`trait.super.no-redeclare`, `trait.sealed.member-names`), inherent member names
 //! (`trait.inherent.unique-unifying`) and embedded types
 //! (`data.embed.data-only`, `data.embed.depth`, `data.embed.depth.self`). They run once the
 //! folder's items are lowered, over every module of the folder; a type
@@ -9,7 +9,7 @@
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
-use hd_base::{DefId, Span};
+use hd_base::{DefId, Span, Symbol};
 use hd_diag::{Code, DiagBuf};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_types::TyData;
@@ -58,6 +58,7 @@ pub(super) fn check(
     };
     f.module_names(diags);
     f.supertrait_members(&item, diags);
+    f.impl_sealed_members(&item, diags);
     f.inherent_members(diags);
     f.embedding(&item, diags);
 }
@@ -92,7 +93,6 @@ impl Folder<'_, '_> {
         item: &dyn Fn(DefId) -> Option<Cow<'i, Item>>,
         diags: &mut DiagBuf,
     ) {
-        let pool = self.names.pool;
         for (m, heads) in self.mods.iter().zip(self.heads) {
             for h in heads.iter().filter(|h| h.kind == HeadKind::Trait) {
                 let Some(it) = self.own.get(&h.def) else {
@@ -101,25 +101,7 @@ impl Folder<'_, '_> {
                 let ItemData::Trait(t) = &it.data else {
                     continue;
                 };
-                // The member names of the transitive supertraits.
-                let mut inherited = HashSet::new();
-                let mut visited = HashSet::from([h.def]);
-                let mut todo: Vec<_> = t.supers.clone();
-                while let Some(s) = todo.pop() {
-                    let TyData::TraitValue { def, .. } = pool.get(s) else {
-                        continue;
-                    };
-                    if !visited.insert(def) {
-                        continue;
-                    }
-                    if let Some(sup) = item(def)
-                        && let ItemData::Trait(st) = &sup.data
-                    {
-                        inherited.extend(st.methods.iter().map(|(n, _)| *n));
-                        inherited.extend(st.assoc.iter().map(|(n, _)| *n));
-                        todo.extend(st.supers.iter().copied());
-                    }
-                }
+                let inherited = self.inherited_members(item, h.def, &t.supers);
                 if inherited.is_empty() {
                     continue;
                 }
@@ -137,12 +119,113 @@ impl Folder<'_, '_> {
                         continue;
                     };
                     let name = m.src.text(t);
-                    if inherited.contains(&self.names.syms.intern(name)) {
+                    if let Some(&sealed) = inherited.get(&self.names.syms.intern(name)) {
+                        // `trait.sealed.member-names.error`: a sealed
+                        // trait's member has its own error code.
+                        let (code, msg) = if sealed {
+                            (
+                                Code::SealedTraitImplementation,
+                                format!(
+                                    "`{name}` is a member of a sealed supertrait of `{}`, which the compiler supplies",
+                                    self.names.text(h.name)
+                                ),
+                            )
+                        } else {
+                            (
+                                Code::DuplicateTraitMember,
+                                format!(
+                                    "`{name}` is already a member of a supertrait of `{}`",
+                                    self.names.text(h.name)
+                                ),
+                            )
+                        };
+                        diags.error(code, m.src.span(f), &msg);
+                    }
+                }
+            }
+        }
+    }
+
+    /// The member names of the transitive supertraits `supers` of `owner`,
+    /// each with whether a sealed trait declares it.
+    fn inherited_members<'i>(
+        &self,
+        item: &dyn Fn(DefId) -> Option<Cow<'i, Item>>,
+        owner: DefId,
+        supers: &[hd_types::Ty],
+    ) -> HashMap<Symbol, bool> {
+        let pool = self.names.pool;
+        let mut inherited: HashMap<Symbol, bool> = HashMap::new();
+        let mut visited = HashSet::from([owner]);
+        let mut todo = supers.to_vec();
+        while let Some(s) = todo.pop() {
+            let TyData::TraitValue { def, .. } = pool.get(s) else {
+                continue;
+            };
+            if !visited.insert(def) {
+                continue;
+            }
+            if let Some(sup) = item(def)
+                && let ItemData::Trait(st) = &sup.data
+            {
+                let sealed = self.names.known.is_sealed(def);
+                let names = st
+                    .methods
+                    .iter()
+                    .map(|(n, _)| *n)
+                    .chain(st.assoc.iter().map(|(n, _)| *n));
+                for n in names {
+                    *inherited.entry(n).or_default() |= sealed;
+                }
+                todo.extend(st.supers.iter().copied());
+            }
+        }
+        inherited
+    }
+
+    /// An implementation of a trait with a sealed supertrait writes no
+    /// member of that sealed trait (`trait.sealed.member-names.impl`),
+    /// reported on the member.
+    fn impl_sealed_members<'i>(
+        &self,
+        item: &dyn Fn(DefId) -> Option<Cow<'i, Item>>,
+        diags: &mut DiagBuf,
+    ) {
+        for (m, heads) in self.mods.iter().zip(self.heads) {
+            for h in heads.iter().filter(|h| h.kind == HeadKind::Impl) {
+                let Some(Item {
+                    data:
+                        ItemData::Impl {
+                            trait_,
+                            kind: ImplKind::Written,
+                            ..
+                        },
+                    ..
+                }) = self.own.get(&h.def).copied()
+                else {
+                    continue;
+                };
+                let Some(tr) = item(*trait_) else {
+                    continue;
+                };
+                let ItemData::Trait(t) = &tr.data else {
+                    continue;
+                };
+                let inherited = self.inherited_members(item, *trait_, &t.supers);
+                for f in Src::child(h.node, SyntaxKind::Block)
+                    .into_iter()
+                    .flat_map(NodeRef::children)
+                    .filter(|c| c.kind() == SyntaxKind::FnDecl)
+                {
+                    let Some(t) = member_name(&m.src, f) else {
+                        continue;
+                    };
+                    let name = m.src.text(t);
+                    if inherited.get(&self.names.syms.intern(name)) == Some(&true) {
                         let msg = format!(
-                            "`{name}` is already a member of a supertrait of `{}`",
-                            self.names.text(h.name)
+                            "`{name}` is a member of a sealed supertrait, which the compiler supplies"
                         );
-                        diags.error(Code::DuplicateTraitMember, m.src.span(f), &msg);
+                        diags.error(Code::SealedTraitImplementation, m.src.span(f), &msg);
                     }
                 }
             }

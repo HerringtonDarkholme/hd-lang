@@ -99,7 +99,9 @@ pub struct KnownItems {
     /// (`std-testing.runner.binding`).
     pub test_runner: DefId,
     pub property_runner: DefId,
-    sealed: [DefId; 4],
+    /// The sealed traits, in the order of the table in spec/lang/09-traits.md
+    /// "Sealed Traits" (`trait.sealed.list`).
+    sealed: [DefId; 10],
 }
 
 impl KnownItems {
@@ -131,12 +133,18 @@ impl KnownItems {
         };
         let item =
             |m: &str, n: &str| DefId::from_raw(paths.intern(module(m), PathKind::Item, n).raw());
+        let any = item("std.core", "Any");
         let any_val = item("std.core", "AnyVal");
         let any_ref = item("std.core", "AnyRef");
         let structure = item("std.structure", "Structure");
         let tuple = item("std.function", "Tuple");
+        let suspend = item("std.task", "Suspend");
+        let inspectable = item("std.inspect", "Inspectable");
+        let num = item("std.num", "Num");
+        let integer = item("std.num", "Integer");
+        let float = item("std.num", "Float");
         Self {
-            any: item("std.core", "Any"),
+            any,
             any_val,
             any_ref,
             result: item("std.core", "Result"),
@@ -149,10 +157,10 @@ impl KnownItems {
             walker: item("std.structure", "Walker"),
             describer: item("std.structure", "Describer"),
             source: item("std.structure", "Source"),
-            inspectable: item("std.inspect", "Inspectable"),
-            num: item("std.num", "Num"),
-            integer: item("std.num", "Integer"),
-            float: item("std.num", "Float"),
+            inspectable,
+            num,
+            integer,
+            float,
             default: item("std.ops", "Default"),
             range: item("std.ops", "Range"),
             range_from: item("std.ops", "RangeFrom"),
@@ -188,7 +196,7 @@ impl KnownItems {
             iterable: item("std.iter", "Iterable"),
             from: item("std.convert", "From"),
             error: item("std.error", "Error"),
-            suspend: item("std.task", "Suspend"),
+            suspend,
             block_on: item("std.task", "block_on"),
             println: item("std.console", "println"),
             annotate: item("std.annotation", "annotate"),
@@ -203,11 +211,23 @@ impl KnownItems {
             snapshot: item("std.testing", "snapshot"),
             test_runner: item("std.testing", "TestRunner"),
             property_runner: item("std.testing", "PropertyRunner"),
-            sealed: [any_val, any_ref, structure, tuple],
+            sealed: [
+                any,
+                any_val,
+                any_ref,
+                suspend,
+                inspectable,
+                structure,
+                num,
+                integer,
+                float,
+                tuple,
+            ],
         }
     }
 
-    /// The compiler-implemented sealed traits (types.sealed.no-impl).
+    /// The sealed traits (`trait.sealed.list`), which only the compiler
+    /// and the standard library implement (`types.sealed.no-impl`).
     #[must_use]
     pub fn is_sealed(&self, d: DefId) -> bool {
         self.sealed.contains(&d)

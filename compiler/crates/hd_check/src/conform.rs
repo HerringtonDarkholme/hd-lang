@@ -74,11 +74,6 @@ pub fn omitted_trait_methods(names: &Names<'_>, lookup: &Lookup<'_>, imp: DefId)
     if *trait_ == DefId::NONE || !matches!(kind, ImplKind::Written | ImplKind::Delegated) {
         return Vec::new();
     }
-    // A written implementation of a sealed trait is already
-    // `sealed-trait-implementation`; its methods are the compiler's.
-    if names.known.is_sealed(*trait_) {
-        return Vec::new();
-    }
     let Some(ItemData::Trait(td)) = lookup.item(*trait_).map(|t| &t.data) else {
         return Vec::new();
     };
@@ -116,7 +111,7 @@ pub struct AssocFaults {
 /// trait's. Derived, template and delegating implementations take their
 /// associated types another way and yield none.
 #[must_use]
-pub fn assoc_faults(names: &Names<'_>, lookup: &Lookup<'_>, imp: DefId) -> AssocFaults {
+pub fn assoc_faults(lookup: &Lookup<'_>, imp: DefId) -> AssocFaults {
     let Some(ItemData::Impl {
         trait_,
         assoc,
@@ -126,7 +121,7 @@ pub fn assoc_faults(names: &Names<'_>, lookup: &Lookup<'_>, imp: DefId) -> Assoc
     else {
         return AssocFaults::default();
     };
-    if *trait_ == DefId::NONE || names.known.is_sealed(*trait_) {
+    if *trait_ == DefId::NONE {
         return AssocFaults::default();
     }
     let Some(ItemData::Trait(td)) = lookup.item(*trait_).map(|t| &t.data) else {
