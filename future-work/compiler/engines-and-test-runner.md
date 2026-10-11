@@ -539,6 +539,43 @@ Its writer remains delayed; the separate no-peer write-open timeout test retains
 All peer I/O and completion waits are bounded; the append success assertion covers a connected reader, not delayed-reader arrival.
 Production filesystem behavior and the documented high-descriptor limitation are unchanged.
 
+### 18.12 Host Quality Review (M24, 2026-10-11)
+
+Status: source review; fixes below remain pending until verified and pushed.
+This review changes no language or library rules.
+It covers commits `3707b290`, `43993c72`, `91337f6f`, `0f319ffc`,
+`0613e39f`, `3459768f`, `ec517898`, and W4's current integration.
+The feedback is in [Muse's queue](../../audit/muse_task.md#m24-review-your-own-wasmtime-work-m18-m22a-review-then-fixes).
+
+| Feedback | Assessment and evidence | Action |
+| --- | --- | --- |
+| Size and shape | Agree. Large commits obscured review boundaries. File totals include substantial tests; HTTP transport/parsing and provider policy remain distinct production concerns. A shared primitive codec already exists, but domain variants are handwritten. | Use small concern-specific commits. Remove compatibility tables before moving files. Validate import signatures before effects; keep genuine ABI schema generation outside this grant. |
+| Node parity versus spec | Agree. Fs, Process and Net emulate Node messages without a spec requirement. `read_text` also strips an initial BOM, contradicting content preservation in `std-fs.read.text`. | Use native contextual errors while preserving specified error variants, grants and deadline behavior. Preserve the BOM. Record cross-engine differences rather than reproducing Node. |
+| Grants | Agree that extensions need explicit approval. The owner approved the stage observer and CLI adapters in this thread; W4 separately received compiler-root and lockfile approvals. That approval does not grant unrelated edits. | Keep each fix within M24's named files; ask before ABI, compiler or CLI adapter expansion. |
+| Global allocator cost | Agree. `startup` installs tracking and starts a reporter on every invocation. The dependency also wraps allocations even when tracking is disabled. | Enable callbacks and the reporter only when a compiler cap is requested. Keep balanced accounting once enabled; do not claim zero wrapper overhead. |
+| Test robustness | Agree. The port-rebind race was fixed, but some HTTP accepts remain unbounded. Process PID-file assertions start their deadline before fixture readiness. | Use bounded accepts and explicit readiness. Test Process worker-creation failures with deterministic injection, not longer sleeps. |
+| Owner's quality assessment | Agree with the underlying criticism. Exact parity accumulated avoidable policy and hid native failure paths. | Prioritize removals, explicit ownership and failure cleanup over cosmetic file moves. Remove unused dependency features; retain libraries only for demonstrated capabilities. |
+| Replay readiness | Agree with the required boundaries, not a claim that replay is implemented. `wake(handles)` ignores handle values; completion wrote them earlier. Import replies mix scalar returns with direct memory writes. Abort and termination lack named central controls. | Make wake delivery consume its batch, centralize encoded import replies and existing abort/stop cleanup. Add no recorder, cancellation export or journal feature. |
+
+The replay check follows [Live Execution §§5–6](live-execution.md#5-replay).
+HTTP and Net timeout outcomes already return through dispatch.
+Their private clock reads need not become separate journal events.
+Busy epoch deadlines are nonreplayable stops, not deterministic root cancellation,
+as [§7.3](live-execution.md#73-stops-ctrl-c-while-running) distinguishes.
+
+Rust's std filesystem, process and socket APIs remain the first choice.
+The engine, TLS/HTTP, entropy, hostname and JSON dependencies supply substantive functionality.
+Safe descriptor polling and Windows pipe adapters provide cancellation that std lacks.
+Typed TLS and initial engine-allocation errors justify the direct rustls/rustix dependencies.
+The currently used socket2 APIs need no `all` feature.
+`hd_host_abi` has codec names, not structural schemas; moving codec.rs there would not eliminate handwritten domain layouts.
+
+Fix order: conditional allocator setup; native Fs/Process/Net errors and BOM preservation;
+fallible Process workers and bounded fixtures; explicit reply/wake/control boundaries.
+Each code fix gets focused regressions and dev-profile commit gates.
+Owner direction now forbids `--release`, including gates and lint checks.
+Native Windows/Linux execution and the owner-deferred workspace compilation split remain unverified or deferred, not fixed by this review.
+
 ## 19. Test Runner
 
 ### 19.1 Building
