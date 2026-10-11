@@ -115,16 +115,39 @@ fn is_bare_path(n: NodeRef<'_>) -> bool {
     }
 }
 
-/// Whether a pipe step holds a `_` of its own: one in a nested pipe's
-/// step belongs to that pipe (`expr.pipe.slot.nested`).
-fn has_slot(n: NodeRef<'_>) -> bool {
-    if n.kind() == SyntaxKind::PlaceholderExpr {
-        return true;
+/// The `_` nodes a pipe step holds, split into its own and those inside a
+/// closure nested in it. A nested pipe's step belongs to that pipe, so
+/// only its left side is searched (`expr.pipe.slot.nested`).
+fn step_slots<'t>(
+    n: NodeRef<'t>,
+    in_closure: bool,
+    own: &mut Vec<NodeRef<'t>>,
+    closed: &mut Vec<NodeRef<'t>>,
+) {
+    match n.kind() {
+        SyntaxKind::PlaceholderExpr => {
+            if in_closure {
+                closed.push(n);
+            } else {
+                own.push(n);
+            }
+        }
+        SyntaxKind::PipeExpr => {
+            if let Some(lhs) = n.children().next() {
+                step_slots(lhs, in_closure, own, closed);
+            }
+        }
+        SyntaxKind::ClosureExpr => {
+            for c in n.children() {
+                step_slots(c, true, own, closed);
+            }
+        }
+        _ => {
+            for c in n.children() {
+                step_slots(c, in_closure, own, closed);
+            }
+        }
     }
-    if n.kind() == SyntaxKind::PipeExpr {
-        return n.children().next().is_some_and(has_slot);
-    }
-    n.children().any(has_slot)
 }
 
 /// The text of a plain string literal without interpolation, as a test
@@ -2213,7 +2236,7 @@ impl Ck<'_, '_> {
             n,
             "`_` stands for a pipe's value only in its step",
         );
-        (Ref(NONE), Ty::NEVER)
+        self.poison_value(n)
     }
 
     /// `a |> f(_, b)`: `a` first, then the step with `a` in the
@@ -2235,7 +2258,29 @@ impl Ck<'_, '_> {
             self.pipe_arg = saved;
             return r;
         }
-        if !has_slot(*step) {
+        let (mut own, mut closed) = (Vec::new(), Vec::new());
+        step_slots(*step, false, &mut own, &mut closed);
+        let mut rejected = false;
+        for slot in &closed {
+            self.err(
+                Code::PipePlaceholderInClosure,
+                *slot,
+                "a closure cannot use the pipe's `_`; bind the value first",
+            );
+            rejected = true;
+        }
+        if let Some(second) = own.get(1) {
+            self.err(
+                Code::DuplicatePipePlaceholder,
+                *second,
+                "a pipe step takes exactly one `_`",
+            );
+            rejected = true;
+        }
+        if rejected {
+            return Ok(self.poison_value(*step));
+        }
+        if own.is_empty() {
             // `expr.pipe.bare.needs-placeholder`: not a bare step, no `_`.
             self.err(
                 Code::PipeStepNeedsPlaceholder,

@@ -1363,6 +1363,14 @@ impl Ck<'_, '_> {
                     variadic: sig.variadic,
                 };
                 let refs = self.check_args(&formals, 0, args, n, &name)?;
+                // A rejected argument makes the call an error value, so
+                // its context reports nothing more.
+                if refs.iter().any(|r| {
+                    r.as_inst()
+                        .is_some_and(|i| self.b.body_mut().tags[i.0 as usize] == Tag::Poison)
+                }) {
+                    return Ok(self.poison_value(n));
+                }
                 // Parameters named only in bounds, then defaults (§2.4
                 // steps 7 and 8); a bound naming one still open waits.
                 let open = self.infer_through_bounds(def, &sig, &vars, n)?;

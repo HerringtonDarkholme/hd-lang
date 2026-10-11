@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2589 | 232 | 24 | 2845 |
+| 2592 | 229 | 24 | 2845 |
 
 ## By Chapter
 
@@ -18,7 +18,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/02-grammar.md` | 205 | 10 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 100 | 1 | 0 | 101 |
 | `lang/04-type-system.md` | 319 | 33 | 0 | 352 |
-| `lang/05-expressions.md` | 254 | 23 | 0 | 277 |
+| `lang/05-expressions.md` | 257 | 20 | 0 | 277 |
 | `lang/06-control-flow.md` | 139 | 14 | 4 | 157 |
 | `lang/07-functions.md` | 119 | 11 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 113 | 9 | 1 | 123 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 97 | 5 | 3 | 105 |
 | `runtime/valid` | 899 | 11 | 19 | 929 |
-| `typing/invalid` | 887 | 187 | 1 | 1075 |
+| `typing/invalid` | 890 | 184 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -91,12 +91,11 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 97 |
+| `fail:no-diagnostic` | 96 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
 | `fail:pattern-arity` | 1 |
-| `fail:placeholder-outside-pipe` | 1 |
 | `fail:private-import` | 1 |
 | `fail:private-main` | 4 |
 | `fail:re-export-loop` | 1 |
@@ -106,7 +105,7 @@ compiler stage that first declined the case.
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-used-as-type` | 1 |
-| `fail:type-mismatch` | 34 |
+| `fail:type-mismatch` | 33 |
 | `fail:unknown-data-field` | 4 |
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 5 |
@@ -235,7 +234,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (97)</summary>
+<details><summary><code>fail:no-diagnostic</code> (96)</summary>
 
 - `typing/invalid/tuple-map-key.hd`
 - `typing/invalid/private-type-leak.hd`
@@ -276,7 +275,6 @@ compiler stage that first declined the case.
 - `typing/invalid/intrinsic-method-user.hd`
 - `typing/invalid/init-group-cycle.hd`
 - `typing/invalid/operator-function-left-exact.hd`
-- `typing/invalid/pipe-placeholder-in-closure.hd`
 - `typing/invalid/pipe-multi-line-step.hd`
 - `typing/invalid/type-default-bound.hd`
 - `typing/invalid/error-marker-outside.hd`
@@ -361,12 +359,6 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:placeholder-outside-pipe</code> (1)</summary>
-
-- `typing/invalid/pipe-duplicate-placeholder.hd`
-
-</details>
-
 <details><summary><code>fail:private-import</code> (1)</summary>
 
 - `typing/invalid/private-std-name-in-group.hd`
@@ -438,7 +430,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (34)</summary>
+<details><summary><code>fail:type-mismatch</code> (33)</summary>
 
 - `typing/invalid/heterogeneous-list.hd`
 - `typing/invalid/mixed-signedness.hd`
@@ -459,7 +451,6 @@ compiler stage that first declined the case.
 - `typing/invalid/row-union-if-nested-lists.hd`
 - `typing/invalid/operator-left-literal.hd`
 - `runtime/valid/intrinsic-method-calls.hd`
-- `typing/invalid/placeholder-outside-pipe.hd`
 - `typing/invalid/generic-inference-trait-value.hd`
 - `typing/invalid/range-mixed-signedness.hd`
 - `typing/invalid/generic-inference-supertrait-widening.hd`
@@ -2453,8 +2444,11 @@ typing/invalid/partial-ord-requires-eq.hd
 typing/invalid/payload-free-enum-equality.hd
 typing/invalid/pipe-brackets-after-bare-step.hd
 typing/invalid/pipe-call-step-without-placeholder.hd
+typing/invalid/pipe-duplicate-placeholder.hd
+typing/invalid/pipe-placeholder-in-closure.hd
 typing/invalid/pipe-suspending-bare-step.hd
 typing/invalid/pipe-suspending-method-reference.hd
+typing/invalid/placeholder-outside-pipe.hd
 typing/invalid/plain-break-in-value-loop.hd
 typing/invalid/positional-spread-duplicates-vararg.hd
 typing/invalid/positional-spread-without-vararg.hd

@@ -68,6 +68,7 @@ mod nested_interpolation_run;
 mod newtype_derive_run;
 mod optional_join_run;
 mod pipe_bare_steps;
+mod pipe_placeholder;
 mod power_run;
 mod privacy;
 mod private_main;
