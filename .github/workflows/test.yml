@@ -23,7 +23,9 @@ jobs:
   compiler:
     name: Rust compiler front end
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Dev-profile tests (debug assertions, overflow checks) run longer
+    # than the old release run did.
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: compiler
