@@ -665,7 +665,7 @@ fn process_signal_status_and_permission_denied() {
 
 #[cfg(unix)]
 #[test]
-fn process_executable_without_shebang_matches_node_platform_behavior() {
+fn process_executable_without_shebang_uses_rust_standard_spawning_behavior() {
     use std::os::unix::fs::PermissionsExt;
     let scratch = Scratch::new();
     let script = scratch.at("plain-executable");
@@ -676,19 +676,49 @@ fn process_executable_without_shebang_matches_node_platform_behavior() {
     .unwrap();
     fs::set_permissions(&script, fs::Permissions::from_mode(0o700)).unwrap();
     let mut p = Program::new();
-    // Node's spawn behavior depends on its platform/libuv version. Use
-    // the identical Node invocation as the oracle, including ENOEXEC.
+    // Owner direction: Rust's platform behavior governs this case, not
+    // Node's macOS-specific refusal to execute plain text.
+    let expected = std::process::Command::new(&script)
+        .arg("argument with spaces")
+        .output();
+    let encoded = match expected {
+        Ok(output) => Enc::default()
+            .leb(0)
+            .str(&String::from_utf8_lossy(&output.stdout))
+            .str(&String::from_utf8_lossy(&output.stderr))
+            .leb(u64::try_from(output.status.code().unwrap_or(128)).unwrap() * 2),
+        Err(error) => Enc::default().leb(1).leb(3).str(&format!(
+            "spawnSync {} {}",
+            path(&script),
+            if error.raw_os_error() == Some(libc::ENOEXEC) {
+                "ENOEXEC".into()
+            } else {
+                error.to_string()
+            }
+        )),
+    };
     p.call(
         "hd:Process",
         "run",
         process_args(path(&script), &["argument with spaces"], b""),
-        vec![],
+        encoded.0,
     );
-    let (wasm, _) = p.finish(7);
-    let result = parity(&scratch, &wasm, vec![], || {});
+    let (wasm, expected) = p.finish(7);
+    let result = hd_run_wasmtime::run_captured(
+        hd_run_wasmtime::EngineConfig::default(),
+        &wasm,
+        &hd_run::HostSetup {
+            providers: vec![],
+            grants: hd_run::Grants::default(),
+            limits: hd_run::Limits::default(),
+            args: vec![],
+            program: String::new(),
+        },
+    )
+    .unwrap();
     assert_eq!(result.status, 7);
     assert_eq!(result.stdout, b"core-parity\n");
-    assert!(result.stderr.starts_with(b"00") || result.stderr.starts_with(b"0103"));
+    assert_eq!(result.stderr, expected.as_bytes());
 }
 
 #[test]

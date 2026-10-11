@@ -3,7 +3,6 @@
 use std::io::{self, Read, Write};
 #[cfg(not(any(unix, windows)))]
 use std::process::Stdio;
-#[cfg(not(unix))]
 use std::process::{Child, Command};
 use std::time::{Duration, Instant};
 
@@ -72,7 +71,7 @@ fn sys_read(name: &str, grants: &Grants, read: impl FnOnce(&mut Enc) -> bool) ->
 }
 
 pub fn process(bytes: &[u8], grants: &Grants) -> wasmtime::Result<Enc> {
-    process_impl(bytes, grants, None)
+    process_impl(bytes, grants, None, None)
 }
 
 pub fn process_with_deadline(
@@ -81,12 +80,26 @@ pub fn process_with_deadline(
     deadline: Option<Instant>,
 ) -> wasmtime::Result<Enc> {
     match deadline {
-        Some(deadline) => process_impl(bytes, grants, Some(deadline)),
+        Some(deadline) => process_impl(bytes, grants, Some(deadline), None),
         None => process(bytes, grants),
     }
 }
 
-fn process_impl(bytes: &[u8], grants: &Grants, deadline: Option<Instant>) -> wasmtime::Result<Enc> {
+pub(crate) fn process_with_deadline_at(
+    bytes: &[u8],
+    grants: &Grants,
+    deadline: Option<Instant>,
+    cwd: &std::path::Path,
+) -> wasmtime::Result<Enc> {
+    process_impl(bytes, grants, deadline, Some(cwd))
+}
+
+fn process_impl(
+    bytes: &[u8],
+    grants: &Grants,
+    deadline: Option<Instant>,
+    cwd: Option<&std::path::Path>,
+) -> wasmtime::Result<Enc> {
     if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
         return Err(Stop::TimeLimit.into());
     }
@@ -107,12 +120,7 @@ fn process_impl(bytes: &[u8], grants: &Grants, deadline: Option<Instant>) -> was
         e.leb(1).leb(3).str(&message);
         return Ok(e);
     }
-    let result = match deadline {
-        Some(deadline) => {
-            run_process_with_limit_and_deadline(&name, &argv, input, 1 << 30, Some(deadline))
-        }
-        None => run_process(&name, &argv, input),
-    };
+    let result = run_process_at(&name, &argv, input, 1 << 30, deadline, cwd);
     if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
         return Err(Stop::TimeLimit.into());
     }
@@ -199,10 +207,12 @@ fn process_error(err: &io::Error) -> String {
 
 /// Drain both pipes while feeding input: a child may write before reading.
 /// Node's spawnSync keeps at most 1 GiB across the output streams.
+#[cfg(test)]
 fn run_process(name: &str, argv: &[String], input: &[u8]) -> io::Result<(Vec<u8>, Vec<u8>, i64)> {
     run_process_with_limit(name, argv, input, 1 << 30)
 }
 
+#[cfg(test)]
 fn run_process_with_limit(
     name: &str,
     argv: &[String],
@@ -212,12 +222,24 @@ fn run_process_with_limit(
     run_process_with_limit_and_deadline(name, argv, input, output_limit, None)
 }
 
+#[cfg(test)]
 fn run_process_with_limit_and_deadline(
     name: &str,
     argv: &[String],
     input: &[u8],
     output_limit: usize,
     deadline: Option<Instant>,
+) -> io::Result<(Vec<u8>, Vec<u8>, i64)> {
+    run_process_at(name, argv, input, output_limit, deadline, None)
+}
+
+fn run_process_at(
+    name: &str,
+    argv: &[String],
+    input: &[u8],
+    output_limit: usize,
+    deadline: Option<Instant>,
+    cwd: Option<&std::path::Path>,
 ) -> io::Result<(Vec<u8>, Vec<u8>, i64)> {
     if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
         return Err(io::ErrorKind::TimedOut.into());
@@ -227,7 +249,7 @@ fn run_process_with_limit_and_deadline(
         mut stdin,
         mut stdout,
         mut stderr,
-    } = spawn_process(name, argv)?;
+    } = spawn_process(name, argv, cwd)?;
     let count = std::sync::atomic::AtomicUsize::new(0);
     let cancelled = std::sync::atomic::AtomicBool::new(false);
     std::thread::scope(|scope| {
@@ -289,7 +311,7 @@ fn wait_process_and_pipes(
             cancelled.store(true, std::sync::atomic::Ordering::Relaxed);
             // Never signal an already-reaped PID, which might have been reused.
             if status.is_none() {
-                let _ = force_kill_process(child);
+                let _ = kill_process(child);
                 wait_process(child)?;
             }
             return Err(io::ErrorKind::TimedOut.into());
@@ -299,7 +321,7 @@ fn wait_process_and_pipes(
                 Ok(result) => status = result,
                 Err(error) => {
                     cancelled.store(true, std::sync::atomic::Ordering::Relaxed);
-                    let _ = force_kill_process(child);
+                    let _ = kill_process(child);
                     let _ = wait_process(child);
                     return Err(error);
                 }
@@ -339,9 +361,6 @@ fn wait_process_and_pipes(
     }
 }
 
-#[cfg(unix)]
-type Process = nix::unistd::Pid;
-#[cfg(not(unix))]
 type Process = Child;
 
 #[cfg(unix)]
@@ -370,7 +389,11 @@ struct Spawned {
 }
 
 #[cfg(windows)]
-fn spawn_process(name: &str, argv: &[String]) -> io::Result<Spawned> {
+fn spawn_process(
+    name: &str,
+    argv: &[String],
+    cwd: Option<&std::path::Path>,
+) -> io::Result<Spawned> {
     use crate::windows_pipe::Pipe;
 
     // Parent ends are synchronous nonblocking pipes; the child ends stay
@@ -380,7 +403,11 @@ fn spawn_process(name: &str, argv: &[String]) -> io::Result<Spawned> {
     let (stdin, child_stdin) = Pipe::child_pair(false)?;
     let (stdout, child_stdout) = Pipe::child_pair(true)?;
     let (stderr, child_stderr) = Pipe::child_pair(true)?;
-    let child = Command::new(name)
+    let mut command = Command::new(name);
+    if let Some(cwd) = cwd {
+        command.current_dir(cwd);
+    }
+    let child = command
         .args(argv)
         .stdin(child_stdin)
         .stdout(child_stdout)
@@ -395,8 +422,16 @@ fn spawn_process(name: &str, argv: &[String]) -> io::Result<Spawned> {
 }
 
 #[cfg(not(any(unix, windows)))]
-fn spawn_process(name: &str, argv: &[String]) -> io::Result<Spawned> {
-    let mut child = Command::new(name)
+fn spawn_process(
+    name: &str,
+    argv: &[String],
+    cwd: Option<&std::path::Path>,
+) -> io::Result<Spawned> {
+    let mut command = Command::new(name);
+    if let Some(cwd) = cwd {
+        command.current_dir(cwd);
+    }
+    let mut child = command
         .args(argv)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -426,127 +461,28 @@ fn spawn_process(name: &str, argv: &[String]) -> io::Result<Spawned> {
 }
 
 #[cfg(unix)]
-fn spawn_process(name: &str, argv: &[String]) -> io::Result<Spawned> {
-    use nix::spawn::{PosixSpawnAttr, PosixSpawnFileActions, PosixSpawnFlags, posix_spawn};
-    use nix::sys::signal::SigSet;
-    use std::ffi::{CString, OsStr};
-    use std::os::fd::AsRawFd;
-    use std::os::unix::ffi::OsStrExt;
-
+fn spawn_process(
+    name: &str,
+    argv: &[String],
+    cwd: Option<&std::path::Path>,
+) -> io::Result<Spawned> {
     let (stdin_read, stdin) = io::pipe()?;
     let (stdout, stdout_write) = io::pipe()?;
     let (stderr, stderr_write) = io::pipe()?;
-    // Only the parent ends are nonblocking. Each pipe's two ends have
-    // distinct open-file descriptions, so the child's stdio stays blocking.
+    // Parent pipe ends are nonblocking; child ends remain blocking.
     set_nonblocking(&stdin)?;
     set_nonblocking(&stdout)?;
     set_nonblocking(&stderr)?;
-    let mut actions = PosixSpawnFileActions::init()?;
-    for (source, target) in [
-        (stdin_read.as_raw_fd(), 0),
-        (stdout_write.as_raw_fd(), 1),
-        (stderr_write.as_raw_fd(), 2),
-    ] {
-        actions.add_dup2(source, target)?;
+    let mut command = Command::new(name);
+    command
+        .args(argv)
+        .stdin(stdin_read)
+        .stdout(stdout_write)
+        .stderr(stderr_write);
+    if let Some(cwd) = cwd {
+        command.current_dir(cwd);
     }
-    let mut attrs = PosixSpawnAttr::init()?;
-    attrs.set_sigdefault(&SigSet::all())?;
-    attrs.set_sigmask(&SigSet::empty())?;
-    let flags = PosixSpawnFlags::POSIX_SPAWN_SETSIGDEF | PosixSpawnFlags::POSIX_SPAWN_SETSIGMASK;
-    #[cfg(target_vendor = "apple")]
-    let flags = flags | PosixSpawnFlags::from_bits_retain(libc::POSIX_SPAWN_CLOEXEC_DEFAULT);
-    attrs.set_flags(flags)?;
-    let c_args = std::iter::once(name)
-        .chain(argv.iter().map(String::as_str))
-        .map(CString::new)
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
-    let env = std::env::vars_os()
-        .map(|(key, value)| {
-            let mut bytes = key.as_bytes().to_vec();
-            bytes.push(b'=');
-            bytes.extend_from_slice(value.as_bytes());
-            CString::new(bytes).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))
-        })
-        .collect::<io::Result<Vec<_>>>()?;
-    let spawn = |path: &OsStr| {
-        let result = loop {
-            match posix_spawn(path, &actions, &attrs, &c_args, &env) {
-                Err(nix::errno::Errno::EINTR) => (),
-                result => break result,
-            }
-        };
-        #[cfg(any(
-            all(target_os = "linux", target_env = "gnu"),
-            target_os = "freebsd",
-            target_os = "openbsd",
-            target_os = "netbsd",
-            target_os = "dragonfly"
-        ))]
-        if result == Err(nix::errno::Errno::ENOEXEC) {
-            // Node/libuv 1.52 uses execvp outside Apple platforms. glibc
-            // and BSD libc run executable text through /bin/sh; musl
-            // instead propagates ENOEXEC, as does Apple's libuv path.
-            let file = CString::new(path.as_bytes())
-                .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
-            let shell_args = std::iter::once(c"/bin/sh")
-                .chain(std::iter::once(file.as_c_str()))
-                .chain(c_args.iter().skip(1).map(CString::as_c_str))
-                .collect::<Vec<_>>();
-            return loop {
-                match posix_spawn(OsStr::new("/bin/sh"), &actions, &attrs, &shell_args, &env) {
-                    Err(nix::errno::Errno::EINTR) => (),
-                    result => break result.map_err(io::Error::from),
-                }
-            };
-        }
-        result.map_err(io::Error::from)
-    };
-    // libuv deliberately implements PATH search over posix_spawn, since
-    // Apple's posix_spawnp silently executes non-executable-format files
-    // through a shell instead of returning ENOEXEC.
-    let child = if name.contains('/') {
-        spawn(OsStr::new(name))?
-    } else {
-        // libuv uses NAME_MAX, or 255 where headers omit that constant.
-        if name.len() > 255 {
-            return Err(io::Error::from_raw_os_error(libc::ENAMETOOLONG));
-        }
-        let path = env
-            .iter()
-            .find_map(|entry| entry.as_bytes().strip_prefix(b"PATH="))
-            .unwrap_or(b"/usr/bin:/bin");
-        let mut last = io::Error::from(io::ErrorKind::NotFound);
-        let mut denied = false;
-        let mut found = None;
-        for entry in path.split(|b| *b == b':') {
-            if entry.len() >= usize::try_from(libc::PATH_MAX).unwrap_or(4096) {
-                continue;
-            }
-            let path = std::path::Path::new(OsStr::from_bytes(entry)).join(name);
-            match spawn(path.as_os_str()) {
-                Ok(pid) => {
-                    found = Some(pid);
-                    break;
-                }
-                Err(err) if err.raw_os_error() == Some(libc::EACCES) => {
-                    denied = true;
-                    last = err;
-                }
-                Err(err) if matches!(err.raw_os_error(), Some(libc::ENOENT | libc::ENOTDIR)) => {
-                    last = err;
-                }
-                Err(err) => return Err(err),
-            }
-        }
-        found.ok_or_else(|| {
-            if denied {
-                io::Error::from(io::ErrorKind::PermissionDenied)
-            } else {
-                last
-            }
-        })?
-    };
+    let child = command.spawn()?;
     Ok(Spawned {
         child,
         stdin: Box::new(stdin),
@@ -555,61 +491,16 @@ fn spawn_process(name: &str, argv: &[String]) -> io::Result<Spawned> {
     })
 }
 
-#[cfg(unix)]
 fn kill_process(child: &mut Process) -> io::Result<()> {
-    nix::sys::signal::kill(*child, nix::sys::signal::Signal::SIGTERM).map_err(io::Error::from)
-}
-
-#[cfg(unix)]
-fn force_kill_process(child: &mut Process) -> io::Result<()> {
-    nix::sys::signal::kill(*child, nix::sys::signal::Signal::SIGKILL).map_err(io::Error::from)
-}
-
-#[cfg(not(unix))]
-fn force_kill_process(child: &mut Process) -> io::Result<()> {
     child.kill()
 }
 
-#[cfg(unix)]
-fn try_wait_process(child: &mut Process) -> io::Result<Option<i64>> {
-    use nix::sys::wait::{WaitPidFlag, WaitStatus, waitpid};
-    loop {
-        match waitpid(*child, Some(WaitPidFlag::WNOHANG)) {
-            Ok(WaitStatus::Exited(_, status)) => return Ok(Some(i64::from(status))),
-            Ok(WaitStatus::Signaled(..)) => return Ok(Some(128)),
-            Ok(_) => return Ok(None),
-            Err(nix::errno::Errno::EINTR) => (),
-            Err(error) => return Err(error.into()),
-        }
-    }
-}
-
-#[cfg(not(unix))]
 fn try_wait_process(child: &mut Process) -> io::Result<Option<i64>> {
     child
         .try_wait()
         .map(|status| status.map(|status| i64::from(status.code().unwrap_or(128))))
 }
 
-#[cfg(not(unix))]
-fn kill_process(child: &mut Process) -> io::Result<()> {
-    child.kill()
-}
-
-#[cfg(unix)]
-fn wait_process(child: &mut Process) -> io::Result<i64> {
-    use nix::sys::wait::{WaitStatus, waitpid};
-    loop {
-        match waitpid(*child, None) {
-            Ok(WaitStatus::Exited(_, status)) => return Ok(i64::from(status)),
-            Ok(WaitStatus::Signaled(..)) => return Ok(128),
-            Ok(_) | Err(nix::errno::Errno::EINTR) => (),
-            Err(err) => return Err(err.into()),
-        }
-    }
-}
-
-#[cfg(not(unix))]
 fn wait_process(child: &mut Process) -> io::Result<i64> {
     Ok(i64::from(child.wait()?.code().unwrap_or(128)))
 }
@@ -1129,7 +1020,7 @@ mod tests {
                     mut stdin,
                     mut stdout,
                     mut stderr,
-                } = spawn_process("/bin/sh", &args).unwrap();
+                } = spawn_process("/bin/sh", &args, None).unwrap();
                 let cancelled = AtomicBool::new(false);
                 let count = AtomicUsize::new(0);
                 let result = std::thread::scope(|scope| {
@@ -1307,7 +1198,7 @@ mod tests {
         }
 
         #[test]
-        fn no_shebang_executable_matches_the_platforms_execvp_behavior() {
+        fn no_shebang_executable_uses_rust_standard_spawning_behavior() {
             use std::io::Write;
             use std::os::unix::fs::PermissionsExt;
             let path = std::env::temp_dir().join(format!(
@@ -1327,22 +1218,45 @@ mod tests {
             file.set_permissions(std::fs::Permissions::from_mode(0o700))
                 .unwrap();
             drop(file);
+            let expected = std::process::Command::new(&path).arg("argument").output();
             let result = run_process(path.to_str().unwrap(), &["argument".into()], &[]);
             std::fs::remove_file(&path).unwrap();
-            if cfg!(any(
-                all(target_os = "linux", target_env = "gnu"),
-                target_os = "freebsd",
-                target_os = "openbsd",
-                target_os = "netbsd",
-                target_os = "dragonfly"
-            )) {
+            if let Ok(expected) = expected {
                 let (out, err, status) = result.unwrap();
-                assert_eq!(out, b"argument");
-                assert!(err.is_empty());
-                assert_eq!(status, 6);
+                assert_eq!(out, expected.stdout);
+                assert_eq!(err, expected.stderr);
+                assert_eq!(status, i64::from(expected.status.code().unwrap_or(128)));
             } else {
-                assert_eq!(result.unwrap_err().raw_os_error(), Some(libc::ENOEXEC));
+                assert_eq!(result.unwrap_err().kind(), expected.unwrap_err().kind());
             }
+        }
+
+        #[test]
+        fn child_cwd_is_instance_local_and_arguments_are_not_shell_syntax() {
+            let owner = crate::testing::State::new(crate::testing::TestCase::default());
+            let cwd = std::path::PathBuf::from(owner.temp_dir().unwrap());
+            let parent = std::env::current_dir().unwrap();
+            let (out, err, status) =
+                super::super::run_process_at("/bin/sh", &shell("pwd"), &[], 1024, None, Some(&cwd))
+                    .unwrap();
+            assert_eq!(
+                String::from_utf8(out).unwrap().trim(),
+                cwd.canonicalize().unwrap().to_str().unwrap()
+            );
+            assert!(err.is_empty());
+            assert_eq!(status, 0);
+            let argument = "literal; $(echo not-executed)";
+            let args = vec![
+                "-c".into(),
+                "printf '%s' \"$1\"".into(),
+                "fixture".into(),
+                argument.into(),
+            ];
+            let (out, _, _) =
+                super::super::run_process_at("/bin/sh", &args, &[], 1024, None, Some(&cwd))
+                    .unwrap();
+            assert_eq!(out, argument.as_bytes());
+            assert_eq!(std::env::current_dir().unwrap(), parent);
         }
     }
 }

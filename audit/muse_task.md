@@ -8,6 +8,9 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## How To Work
 
+- Owner direction, 2026-10-10: do not align native runtime behavior to
+  Node.js. Node behavior is subject to change. Follow the spec and owner
+  decisions; cross-engine comparisons are evidence, not semantic authority.
 - Work in **one** long-lived git worktree of your own, for example
   `git worktree add /private/tmp/muse-work -b muse/work origin/main`
   the first time, and reuse it. Never write in the shared main checkout
@@ -43,20 +46,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M22. Implement: `hd test` On wasmtime (W4, #246, Code)
-
-After M21. Implement your M9 design (`engines-and-test-runner.md` §19,
-"Test Runner"): TestRunner and PropertyRunner providers on wasmtime, a
-`Linker` per host kind with `InstancePre`, per-test timeouts through
-epochs, and `hd test --engine wasmtime` (Node stays the default). Then
-run the driver and CLI conformance runtime tiers in-process on wasmtime
-behind an env switch, and report the match count and the time per tier
-against Node. Files: `compiler/crates/hd_run_wasmtime/**`,
-`compiler/crates/hd_cli/src/engine.rs`, `compiler/crates/hd_cli/src/test_cmd.rs`
-(engine selection only), the two conformance runners
-(`hd_driver/tests/conformance.rs`, `hd_cli/tests/cli_conformance.rs`, the
-engine switch only), their tests, and §18-§20 of the doc. Ask before
-touching any other file.
 
 ### M24. Review: Your Own wasmtime Work, M18-M22a (Review, Then Fixes)
 

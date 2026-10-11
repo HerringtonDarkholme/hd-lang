@@ -37,6 +37,22 @@ pub fn call_until(
     deadline: Option<Instant>,
 ) -> wasmtime::Result<Enc> {
     check_deadline(deadline).map_err(|_| crate::host::Stop::TimeLimit)?;
+    let cwd = std::env::current_dir().map_err(|e| crate::host::Stop::Internal(e.to_string()))?;
+    call_until_at(key, method, bytes, grants, deadline, &cwd)
+}
+
+/// Executes relative paths in the case's directory without changing the
+/// process-wide working directory. Encoded paths and errors retain the
+/// guest's original spelling.
+pub fn call_until_at(
+    key: &str,
+    method: &str,
+    bytes: &[u8],
+    grants: &Grants,
+    deadline: Option<Instant>,
+    cwd: &Path,
+) -> wasmtime::Result<Enc> {
+    check_deadline(deadline).map_err(|_| crate::host::Stop::TimeLimit)?;
     let mut d = Dec::new(bytes);
     let path = d.str()?;
     let to = if method == "rename" {
@@ -44,9 +60,8 @@ pub fn call_until(
     } else {
         None
     };
-    let cwd = std::env::current_dir().map_err(|e| crate::host::Stop::Internal(e.to_string()))?;
     for p in std::iter::once(&path).chain(to.iter()) {
-        if !grants.covers_path(key, Path::new(p), &cwd) {
+        if !grants.covers_path(key, Path::new(p), cwd) {
             return Ok(error(p, 2));
         }
     }
@@ -79,7 +94,7 @@ pub fn call_until(
         }
     }
     let mut e = Enc::default();
-    let result = run(method, &path, to.as_deref(), payload, &mut e, deadline);
+    let result = run(method, &path, to.as_deref(), payload, &mut e, deadline, cwd);
     check_deadline(deadline).map_err(|_| crate::host::Stop::TimeLimit)?;
     Ok(match result {
         Ok(()) => e,
@@ -95,14 +110,25 @@ fn run(
     payload: Option<&[u8]>,
     e: &mut Enc,
     deadline: Option<Instant>,
+    cwd: &Path,
 ) -> Result<(), Failure> {
     check_deadline(deadline)?;
+    // Keep an empty argument empty: Node rejects it instead of treating it
+    // as the working directory. Absolute paths are unchanged by join.
+    let at = |p: &str| {
+        if p.is_empty() {
+            std::path::PathBuf::new()
+        } else {
+            cwd.join(p)
+        }
+    };
+    let actual = at(path);
     match method {
         "read_bytes" => {
-            e.leb(0).bytes(&read(path, deadline)?);
+            e.leb(0).bytes(&read(&actual, deadline)?);
         }
         "read_text" => {
-            let bytes = read(path, deadline)?;
+            let bytes = read(&actual, deadline)?;
             check_deadline(deadline)?;
             if let Ok(text) = std::str::from_utf8(&bytes) {
                 // TextDecoder strips the initial UTF-8 BOM.
@@ -111,7 +137,7 @@ fn run(
                 *e = error(path, 6);
             }
         }
-        "stat" => match fs::symlink_metadata(path) {
+        "stat" => match fs::symlink_metadata(&actual) {
             Ok(st) => {
                 entry(e.leb(0).leb(1), path, &st);
             }
@@ -127,13 +153,13 @@ fn run(
         },
         "list_dir" => {
             #[cfg(windows)]
-            if fs::metadata(path).is_ok_and(|st| !st.is_dir()) {
+            if fs::metadata(&actual).is_ok_and(|st| !st.is_dir()) {
                 return Err(Failure::new("scandir", io::ErrorKind::NotADirectory.into()));
             }
             // Incremental heap ordering allows checks during ordering, not just
             // around one potentially large, uncancellable sort operation.
             let mut names = std::collections::BinaryHeap::new();
-            for item in fs::read_dir(path).map_err(|err| Failure::new("scandir", err))? {
+            for item in fs::read_dir(&actual).map_err(|err| Failure::new("scandir", err))? {
                 check_deadline(deadline)?;
                 let item = item.map_err(|err| Failure::new("scandir", err))?;
                 names.push(std::cmp::Reverse(
@@ -149,7 +175,7 @@ fn run(
             while let Some(std::cmp::Reverse(n)) = names.pop() {
                 check_deadline(deadline)?;
                 let p = format!("{under}{n}");
-                if let Ok(st) = fs::symlink_metadata(&p) {
+                if let Ok(st) = fs::symlink_metadata(actual.join(&n)) {
                     found.push((p, st));
                 }
             }
@@ -160,17 +186,17 @@ fn run(
             }
         }
         "write_bytes" | "write_text" => {
-            let mut file = open(path, true, false, deadline)?;
+            let mut file = open(&actual, true, false, deadline)?;
             write(&mut file, payload.unwrap_or_default(), deadline)?;
             e.leb(0);
         }
         "append_text" => {
-            let mut file = open(path, true, true, deadline)?;
+            let mut file = open(&actual, true, true, deadline)?;
             write(&mut file, payload.unwrap_or_default(), deadline)?;
             e.leb(0);
         }
         "create_dir_all" => {
-            if fs::metadata(path).is_ok_and(|st| !st.is_dir()) {
+            if fs::metadata(&actual).is_ok_and(|st| !st.is_dir()) {
                 *e = error(path, 4);
             } else {
                 if path.is_empty() {
@@ -178,25 +204,26 @@ fn run(
                     *e = error(path, 0);
                     return Ok(());
                 }
-                mkdir(Path::new(path), deadline)?;
+                mkdir(&actual, deadline).map_err(|err| shown_mkdir_failure(err, cwd, path))?;
                 e.leb(0);
             }
         }
         "remove" => {
-            if fs::symlink_metadata(path)
+            if fs::symlink_metadata(&actual)
                 .map_err(|err| Failure::new("lstat", err))?
                 .is_dir()
             {
                 check_deadline(deadline)?;
-                fs::remove_dir(path).map_err(|err| Failure::new("rmdir", err))?;
+                fs::remove_dir(&actual).map_err(|err| Failure::new("rmdir", err))?;
             } else {
                 check_deadline(deadline)?;
-                fs::remove_file(path).map_err(|err| Failure::new("unlink", err))?;
+                fs::remove_file(&actual).map_err(|err| Failure::new("unlink", err))?;
             }
             e.leb(0);
         }
         "rename" => {
-            fs::rename(path, to.unwrap_or_default()).map_err(|err| Failure::new("rename", err))?;
+            fs::rename(&actual, at(to.unwrap_or_default()))
+                .map_err(|err| Failure::new("rename", err))?;
             e.leb(0);
         }
         _ => unreachable!("registered filesystem method"),
@@ -231,6 +258,35 @@ fn check_deadline(deadline: Option<Instant>) -> Result<(), Failure> {
         Err(Failure::Deadline)
     } else {
         Ok(())
+    }
+}
+
+// Runner-owned snapshots/regressions use the same safe, cancellable pipe
+// operations as guest filesystem calls, but retain ordinary Rust I/O errors.
+pub(crate) fn read_file_until(path: &Path, deadline: Option<Instant>) -> io::Result<Vec<u8>> {
+    read(path, deadline).map_err(file_failure)
+}
+
+pub(crate) fn write_file_until(
+    path: &Path,
+    bytes: &[u8],
+    deadline: Option<Instant>,
+) -> io::Result<()> {
+    let result = (|| {
+        let mut file = open(path, true, false, deadline)?;
+        write(&mut file, bytes, deadline)
+    })();
+    result.map_err(file_failure)
+}
+
+fn file_failure(failure: Failure) -> io::Error {
+    match failure {
+        Failure::Deadline => io::Error::new(
+            io::ErrorKind::TimedOut,
+            "the program exceeded its time limit",
+        ),
+        Failure::System { error, .. } => error,
+        Failure::Message(message) => io::Error::other(message),
     }
 }
 
@@ -295,7 +351,7 @@ impl Write for OpenedFile {
     }
 }
 
-fn read(path: &str, deadline: Option<Instant>) -> Result<Vec<u8>, Failure> {
+fn read(path: &Path, deadline: Option<Instant>) -> Result<Vec<u8>, Failure> {
     let mut file = open(path, false, false, deadline)?;
     check_deadline(deadline)?;
     let st = file.metadata().map_err(|err| Failure::new("fstat", err))?;
@@ -457,16 +513,16 @@ fn pause(deadline: Option<Instant>) -> Result<(), Failure> {
 }
 
 fn open(
-    path: &str,
+    path: &Path,
     write: bool,
     append: bool,
     deadline: Option<Instant>,
 ) -> Result<OpenedFile, Failure> {
     #[cfg(windows)]
-    if deadline.is_some() && named_pipe_path(path) {
+    if deadline.is_some() && named_pipe_path(&path.to_string_lossy()) {
         loop {
             check_deadline(deadline)?;
-            match crate::windows_pipe::Pipe::open(path, write) {
+            match crate::windows_pipe::Pipe::open(&path.to_string_lossy(), write) {
                 Ok(pipe) => return Ok(OpenedFile::Pipe(pipe)),
                 Err(err)
                     if err.raw_os_error()
@@ -594,6 +650,33 @@ fn mkdir_failure(path: &Path, error: io::Error) -> Failure {
         error,
         syscall: "mkdir",
         path: Some(path.to_string_lossy().into_owned()),
+    }
+}
+
+fn shown_mkdir_failure(failure: Failure, cwd: &Path, original: &str) -> Failure {
+    match failure {
+        Failure::System {
+            error,
+            syscall,
+            path: Some(path),
+        } if Path::new(original).is_relative() => {
+            let failed = Path::new(&path);
+            let shown = if failed == cwd.join(original) {
+                original.to_owned()
+            } else {
+                failed
+                    .strip_prefix(cwd)
+                    .unwrap_or(failed)
+                    .to_string_lossy()
+                    .into_owned()
+            };
+            Failure::System {
+                error,
+                syscall,
+                path: Some(shown),
+            }
+        }
+        failure => failure,
     }
 }
 
@@ -963,8 +1046,7 @@ pub(crate) fn inspect_string(path: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{Failure, call, call_until, error, inspect_string};
-    #[cfg(unix)]
+    use super::{Failure, call, call_until, call_until_at, error, inspect_string};
     use crate::codec::Dec;
     use crate::codec::Enc;
     use hd_run::{Grants, Limit};
@@ -998,6 +1080,92 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn concurrent_case_directories_do_not_change_process_cwd() {
+        let before = std::env::current_dir().unwrap();
+        let left = TempDir::new();
+        let right = TempDir::new();
+        std::thread::scope(|scope| {
+            for (dir, payload) in [(&left, b"left".as_slice()), (&right, b"right".as_slice())] {
+                scope.spawn(move || {
+                    let mut args = Enc::default();
+                    args.str("value").bytes(payload);
+                    let result = call_until_at(
+                        "FsWrite",
+                        "write_bytes",
+                        args.done(),
+                        &Grants::default(),
+                        None,
+                        &dir.0,
+                    )
+                    .unwrap();
+                    assert_eq!(result.done(), &[0]);
+                    let mut args = Enc::default();
+                    args.str("value");
+                    let result = call_until_at(
+                        "FsRead",
+                        "read_bytes",
+                        args.done(),
+                        &Grants::default(),
+                        None,
+                        &dir.0,
+                    )
+                    .unwrap();
+                    let mut dec = Dec::new(result.done());
+                    assert_eq!(dec.leb().unwrap(), 0);
+                    assert_eq!(dec.bytes().unwrap(), payload);
+                });
+            }
+        });
+        assert_eq!(std::env::current_dir().unwrap(), before);
+        assert_eq!(fs::read(left.0.join("value")).unwrap(), b"left");
+        assert_eq!(fs::read(right.0.join("value")).unwrap(), b"right");
+    }
+
+    #[test]
+    fn case_directory_results_keep_guest_paths_and_grant_resolution() {
+        let dir = TempDir::new();
+        fs::write(dir.0.join("item"), b"x").unwrap();
+        let invoke = |key: &str, method: &str, path: &str, grants: &Grants| {
+            let mut args = Enc::default();
+            args.str(path);
+            call_until_at(key, method, args.done(), grants, None, &dir.0).unwrap()
+        };
+        let result = invoke("FsRead", "list_dir", ".", &Grants::default());
+        let mut dec = Dec::new(result.done());
+        assert_eq!(dec.leb().unwrap(), 0);
+        assert_eq!(dec.leb().unwrap(), 1);
+        assert_eq!(dec.str().unwrap(), "./item");
+        assert_eq!(dec.leb().unwrap(), 0);
+        assert_eq!(dec.leb().unwrap(), 1);
+        assert_eq!(
+            invoke("FsRead", "read_text", "absent", &Grants::default()).done(),
+            error("absent", 0).done()
+        );
+        let grants = Grants {
+            limits: vec![(
+                "FsRead".into(),
+                Limit::Entries(vec![
+                    hd_run::resolve_path(&dir.0.join("item"))
+                        .to_string_lossy()
+                        .into_owned(),
+                ]),
+            )],
+        };
+        assert_eq!(
+            invoke("FsRead", "read_text", "item", &grants).done(),
+            Enc::default().leb(0).str("x").done()
+        );
+        assert_eq!(
+            invoke("FsRead", "read_text", "../outside", &grants).done(),
+            error("../outside", 2).done()
+        );
+        assert_eq!(
+            invoke("FsWrite", "create_dir_all", "", &Grants::default()).done(),
+            error("", 0).done()
+        );
     }
 
     fn invoke(method: &str, path: &str, payload: Option<&[u8]>) -> Enc {

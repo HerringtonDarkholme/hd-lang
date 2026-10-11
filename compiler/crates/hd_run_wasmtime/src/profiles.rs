@@ -6,7 +6,7 @@ use crate::codec::Enc;
 
 /// An explicitly selected conformance fixture runtime profile.
 /// These providers are for fixtures, not additional default capabilities.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum RuntimeProfile {
     #[default]
     Default,

@@ -4,12 +4,213 @@
 //! profile's `Console`, `ConsoleInput`, `Clock`, `Args`, `Env`, `FsRead`,
 //! `FsWrite`, `Process`, `Random`, `Sys`, `Http`, `Net` and their handle traits; a
 //! program that imports another host trait is refused with a message that
-//! names it (engines-and-test-runner.md §18, W2/W3).
+//! names it (engines-and-test-runner.md §18, W2/W3). Tests use shared
+//! prepared programs and typed named children on Wasmtime, while Node
+//! keeps its existing subprocess protocol.
 
 use std::ffi::OsString;
 
 use hd_cache::DiskStore;
 use hd_run::{HostSetup, Limits, Outcome, run_program};
+
+pub(crate) use crate::node::{HostCase, Snapshot};
+pub(crate) use hd_run_wasmtime::testing::CaseRun;
+
+/// Named test children stay typed on the native engine; only Node needs
+/// its private scratch-file configuration.
+pub(crate) enum TestPrograms {
+    Node(crate::node::Programs),
+    Wasmtime(Vec<(String, Vec<u8>, hd_run::Grants)>),
+}
+
+impl TestPrograms {
+    pub(crate) fn new(
+        kind: EngineKind,
+        list: Vec<(String, Vec<u8>, hd_run::Grants)>,
+        cwd: &std::path::Path,
+    ) -> Result<Self, String> {
+        match kind {
+            EngineKind::Node => crate::node::Programs::new(&list, cwd).map(Self::Node),
+            EngineKind::Wasmtime => Ok(Self::Wasmtime(list)),
+        }
+    }
+}
+
+pub(crate) struct TestEnv<'a> {
+    pub(crate) cwd: Option<&'a std::path::Path>,
+    pub(crate) program: &'a str,
+    pub(crate) programs: Option<&'a TestPrograms>,
+}
+
+pub(crate) enum PreparedCases<'a> {
+    Node(&'a [u8]),
+    Wasmtime(hd_run_wasmtime::PreparedTest),
+}
+
+/// One engine and compiled child-program list for a package's test run.
+/// Every test module is prepared before any guest starts.
+pub(crate) enum TestSession {
+    Node,
+    Wasmtime {
+        engine: hd_run_wasmtime::TestEngine,
+        children: Vec<hd_run_wasmtime::NamedProgram>,
+    },
+}
+
+impl TestSession {
+    pub(crate) fn new(
+        kind: EngineKind,
+        release: bool,
+        jobs: usize,
+        limits: ProgramLimits,
+        programs: Option<&TestPrograms>,
+    ) -> Result<Self, String> {
+        if kind == EngineKind::Node {
+            return Ok(Self::Node);
+        }
+        let config = hd_run_wasmtime::EngineConfig::pipeline(release);
+        let workers = u32::try_from(jobs).map_err(|_| "too many test workers")?;
+        let engine = hd_run_wasmtime::TestEngine::new(
+            config,
+            hd_run_wasmtime::TestPoolConfig {
+                workers,
+                shrink_spares: workers,
+                max_memory_bytes: limits.heap_bytes.unwrap_or(u64::MAX),
+            },
+        )?;
+        let children = match programs {
+            Some(TestPrograms::Wasmtime(list)) => list
+                .iter()
+                .map(|(name, wasm, grants)| {
+                    hd_run_wasmtime::NamedProgram::compile(
+                        config,
+                        name.clone(),
+                        wasm,
+                        grants.clone(),
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+            None => Vec::new(),
+            Some(TestPrograms::Node(_)) => {
+                return Err("internal: Node child programs on Wasmtime".into());
+            }
+        };
+        Ok(Self::Wasmtime { engine, children })
+    }
+
+    pub(crate) fn prepare<'a>(
+        &self,
+        wasm: &'a [u8],
+        integration: bool,
+    ) -> Result<PreparedCases<'a>, String> {
+        match self {
+            Self::Node => Ok(PreparedCases::Node(wasm)),
+            Self::Wasmtime { engine, .. } => {
+                let module = engine.compile(wasm)?;
+                let kind = if integration {
+                    hd_run_wasmtime::TestHostKind::Integration
+                } else {
+                    hd_run_wasmtime::TestHostKind::Unit
+                };
+                engine.prepare(&module, kind).map(PreparedCases::Wasmtime)
+            }
+        }
+    }
+
+    pub(crate) fn run(
+        &self,
+        prepared: &PreparedCases<'_>,
+        env: &TestEnv<'_>,
+        cases: &[HostCase],
+        limits: ProgramLimits,
+        done: &mut dyn FnMut(CaseRun),
+    ) -> Result<(), String> {
+        match (self, prepared) {
+            (Self::Node, PreparedCases::Node(wasm)) => {
+                let programs = match env.programs {
+                    Some(TestPrograms::Node(programs)) => Some(programs),
+                    None => None,
+                    Some(TestPrograms::Wasmtime(_)) => {
+                        return Err("internal: Wasmtime child programs on Node".into());
+                    }
+                };
+                let env = crate::node::TestEnv {
+                    cwd: env.cwd,
+                    program: env.program,
+                    programs,
+                };
+                crate::node::run_cases(wasm, &env, cases, &mut |case| {
+                    done(CaseRun {
+                        test: case.test,
+                        status: case.status,
+                        trapped: case.trapped,
+                        stdout: case.stdout,
+                        stderr: case.stderr,
+                        us: case.us,
+                        row: case.row,
+                        input: case.input,
+                        panic: None,
+                    });
+                })
+            }
+            (Self::Wasmtime { children, .. }, PreparedCases::Wasmtime(prepared)) => {
+                let cwd = match env.cwd {
+                    Some(cwd) => cwd.to_path_buf(),
+                    None => std::env::current_dir().map_err(|error| error.to_string())?,
+                };
+                let environment = hd_run_wasmtime::TestEnvironment {
+                    cwd,
+                    program: env.program.to_owned(),
+                    children: if env.programs.is_some() {
+                        children.clone()
+                    } else {
+                        Vec::new()
+                    },
+                };
+                for case in cases {
+                    let snapshot = &case.snapshot;
+                    let test_case = hd_run_wasmtime::testing::TestCase {
+                        test: case.test,
+                        init: case.init,
+                        kind: case.kind.clone(),
+                        temp_dir: Some(case.temp_dir.clone()),
+                        seed: case.seed,
+                        snapshot: Some(hd_run_wasmtime::testing::Snapshot {
+                            dir: snapshot.root.join(&snapshot.folder),
+                            shown: Some(snapshot.folder.clone()),
+                            slug: snapshot.slug.clone(),
+                            update: snapshot.update,
+                        }),
+                        regression: case.seed.map(|_| {
+                            snapshot
+                                .root
+                                .join(&snapshot.regressions)
+                                .join(&snapshot.slug)
+                        }),
+                    };
+                    let setup = HostSetup {
+                        providers: Vec::new(),
+                        grants: case.grants.clone(),
+                        limits: limits.into(),
+                        args: Vec::new(),
+                        program: env.program.to_owned(),
+                    };
+                    let mut runner = hd_run_wasmtime::NativeBodyRunner::new(
+                        prepared.clone(),
+                        test_case.clone(),
+                        environment.clone(),
+                        setup,
+                    );
+                    hd_run_wasmtime::testing::execute_case(&test_case, &mut runner, &mut |case| {
+                        done(case);
+                    })?;
+                }
+                Ok(())
+            }
+            _ => Err("internal: prepared tests belong to another engine".into()),
+        }
+    }
+}
 
 /// Explicit program limits; neither has a default (`cli.limit.none`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -174,9 +375,32 @@ pub(crate) fn run(
 
 #[cfg(test)]
 mod tests {
-    use super::{LimitFlag, ProgramLimits, limit_flag, parse_duration, parse_size};
+    use super::{
+        EngineKind, LimitFlag, ProgramLimits, TestPrograms, limit_flag, parse_duration, parse_size,
+    };
     use hd_run::Limits;
     use std::ffi::OsString;
+
+    #[test]
+    fn native_named_children_retain_modules_and_grants_without_node_configuration() {
+        let grants = hd_run::Grants {
+            limits: vec![("Env".into(), hd_run::Limit::Deny)],
+        };
+        let list = vec![("tool".to_owned(), vec![0, 97, 115, 109], grants.clone())];
+        let programs = TestPrograms::new(
+            EngineKind::Wasmtime,
+            list,
+            std::path::Path::new("unused-native-cwd"),
+        )
+        .unwrap();
+        let TestPrograms::Wasmtime(list) = programs else {
+            panic!("native children must not use Node's scratch configuration");
+        };
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].0, "tool");
+        assert_eq!(list[0].1, [0, 97, 115, 109]);
+        assert_eq!(list[0].2.limits, grants.limits);
+    }
 
     #[test]
     fn sizes_use_exact_binary_units_and_allow_zero() {

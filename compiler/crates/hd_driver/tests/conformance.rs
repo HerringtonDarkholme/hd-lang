@@ -9,8 +9,8 @@
 //!
 //! `HD_CONFORMANCE_ENGINE=wasmtime` compares runtime programs, including
 //! fixture profiles, on both engines and judges by wasmtime.
-//! `wasmtime-only` never launches Node for those programs. `TestRunner` and
-//! `PropertyRunner` fixtures still use Node and are listed explicitly.
+//! `wasmtime-only` never launches Node for entries or test programs.
+//! Test outcomes are compared without their nondeterministic elapsed time.
 //! Neither mode rewrites the report or falls back after a wasmtime error.
 //! `HD_CONFORMANCE_TIER=lang|std` selects that tier's runtime cases for
 //! timing, without rewriting the report or checking the full pass list.
@@ -20,8 +20,8 @@ use std::fmt::Write as _;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use hd_base::Stage;
@@ -592,6 +592,9 @@ struct RuntimeStats {
     node_programs: BTreeSet<String>,
     wasmtime_programs: BTreeSet<String>,
     node_harness: BTreeMap<String, usize>,
+    wasmtime_harness: BTreeMap<String, usize>,
+    test_matches: usize,
+    test_comparisons: usize,
     node_elapsed: Duration,
     wasmtime_elapsed: Duration,
     matches: usize,
@@ -710,7 +713,7 @@ fn report_runtime(cases: &[Case], results: &[Verdict], elapsed: Duration) {
         let empty = RuntimeStats::default();
         let stats = stats.get(name).unwrap_or(&empty);
         println!(
-            "{name}: {} runtime cases; pass {} fail {} unsupported {}; {} wasmtime programs, {} Node programs, {} exact matches; {} remaining Node TestRunner/PropertyRunner cases ({} invocations); aggregate execution wall Node {:.3}s, wasmtime {:.3}s",
+            "{name}: {} runtime cases; pass {} fail {} unsupported {}; {} wasmtime entries, {} Node entries, {} exact entry matches; {} wasmtime test fixtures ({} invocations), {} Node test fixtures ({} invocations); {} / {} test outcome matches (timing excluded); aggregate execution wall Node {:.3}s, wasmtime {:.3}s",
             selected.len(),
             counts.pass,
             counts.fail,
@@ -718,16 +721,15 @@ fn report_runtime(cases: &[Case], results: &[Verdict], elapsed: Duration) {
             stats.wasmtime_programs.len(),
             stats.node_programs.len(),
             stats.matches,
+            stats.wasmtime_harness.len(),
+            stats.wasmtime_harness.values().sum::<usize>(),
             stats.node_harness.len(),
             stats.node_harness.values().sum::<usize>(),
+            stats.test_matches,
+            stats.test_comparisons,
             stats.node_elapsed.as_secs_f64(),
             stats.wasmtime_elapsed.as_secs_f64()
         );
-        for (path, invocations) in &stats.node_harness {
-            println!(
-                "remaining Node TestRunner/PropertyRunner: {path} ({invocations} invocations)"
-            );
-        }
     }
 }
 
@@ -827,6 +829,101 @@ struct TestRun {
     failed: bool,
 }
 
+fn native_test_results(
+    wasm: &[u8],
+    runs: &[(&hd_driver::TestCase, (u32, u32))],
+) -> Result<Vec<hd_run_wasmtime::testing::CaseRun>, String> {
+    use hd_run_wasmtime::{
+        NativeBodyRunner, RuntimeProfile, TestEngine, TestEnvironment, TestHostKind,
+        TestPoolConfig,
+        testing::{TestCase, execute_case},
+    };
+    static ENGINE: OnceLock<Result<TestEngine, String>> = OnceLock::new();
+    let engine = ENGINE
+        .get_or_init(|| {
+            let workers =
+                u32::try_from(workers()).map_err(|_| "too many test workers".to_owned())?;
+            TestEngine::new(
+                hd_run_wasmtime::EngineConfig::default(),
+                TestPoolConfig {
+                    workers,
+                    shrink_spares: workers,
+                    max_memory_bytes: u64::MAX,
+                },
+            )
+        })
+        .as_ref()
+        .map_err(Clone::clone)?;
+    let module = engine.compile(wasm)?;
+    let host_kind = |test: &hd_driver::TestCase| {
+        if test.file.starts_with("tests/$doc") {
+            TestHostKind::Doc(RuntimeProfile::Default)
+        } else if test.file.starts_with("tests/") {
+            TestHostKind::Integration
+        } else {
+            TestHostKind::Unit
+        }
+    };
+    let kind = host_kind(runs[0].0);
+    if runs.iter().any(|(test, _)| host_kind(test) != kind) {
+        return Err("a conformance test program mixes host kinds".into());
+    }
+    let prepared = engine.prepare(&module, kind)?;
+    let environment = TestEnvironment {
+        cwd: std::env::current_dir().map_err(|e| e.to_string())?,
+        program: String::new(),
+        children: Vec::new(),
+    };
+    let mut results = Vec::new();
+    for (test, (export, init)) in runs {
+        let case = TestCase {
+            test: *export,
+            init: *init,
+            kind: test.kind.clone(),
+            ..TestCase::default()
+        };
+        let mut runner = NativeBodyRunner::new(
+            prepared.clone(),
+            case.clone(),
+            environment.clone(),
+            hd_run::HostSetup {
+                providers: Vec::new(),
+                grants: hd_run::Grants::default(),
+                limits: hd_run::Limits::default(),
+                args: Vec::new(),
+                program: String::new(),
+            },
+        );
+        execute_case(&case, &mut runner, &mut |result| results.push(result))?;
+    }
+    Ok(results)
+}
+
+fn compare_test_results(
+    case: &Case,
+    node: &[hd_run_wasmtime::testing::CaseRun],
+    native: &[hd_run_wasmtime::testing::CaseRun],
+) {
+    let matches = node
+        .iter()
+        .zip(native)
+        .filter(|(n, w)| n.equivalent(w))
+        .count();
+    let comparisons = node.len().max(native.len());
+    {
+        let mut stats = RUNTIME_STATS.lock().expect("runtime stats lock");
+        let stats = stats.entry(tier(case)).or_default();
+        stats.test_matches += matches;
+        stats.test_comparisons += comparisons;
+    }
+    if matches != comparisons {
+        WASMTIME_DIFFS.lock().expect("diffs lock").push(format!(
+            "{} test outcomes (timing excluded)\n  node     {node:?}\n  wasmtime {native:?}",
+            case.path,
+        ));
+    }
+}
+
 /// The verdict of a build that reports an error: unsupported when the
 /// first error is `unsupported`, else a failure with its code.
 fn build_error(built: &Output) -> Option<Verdict> {
@@ -868,33 +965,59 @@ fn run_tests(case: &Case, built: &Output, serial: usize, run: &mut TestRun) -> R
     let Some(wasm) = &built.wasm else {
         return Err(Verdict::Unsupported("Link".to_owned()));
     };
-    let path =
-        PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("conformance-{serial}.wasm"));
-    if let Err(error) = std::fs::write(&path, wasm) {
-        return Err(Verdict::Crash(error.to_string()));
-    }
-    let list: Vec<String> = runs
-        .iter()
-        .map(|(case, (test, init))| format!("{test}:{init}:{}", case.kind))
-        .collect();
-    let started = Instant::now();
-    let result = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/test.mjs"))
-        .arg(&path)
-        .arg(list.join(","))
-        .output();
-    {
-        let mut stats = RUNTIME_STATS.lock().expect("runtime stats lock");
-        let stats = stats.entry(tier(case)).or_default();
-        stats.node_elapsed += started.elapsed();
-        *stats.node_harness.entry(case.path.clone()).or_default() += 1;
-    }
-    let _ = std::fs::remove_file(path);
-    let output = match result {
-        Ok(output) => output,
-        Err(error) => return Err(Verdict::Crash(error.to_string())),
+    let mode = engine_mode();
+    let node = if mode == EngineMode::WasmtimeOnly {
+        None
+    } else {
+        let path =
+            PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("conformance-{serial}.wasm"));
+        std::fs::write(&path, wasm).map_err(|e| Verdict::Crash(e.to_string()))?;
+        let list: Vec<String> = runs
+            .iter()
+            .map(|(case, (test, init))| format!("{test}:{init}:{}", case.kind))
+            .collect();
+        let started = Instant::now();
+        let result = Command::new("node")
+            .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/test.mjs"))
+            .arg(&path)
+            .arg(list.join(","))
+            .output();
+        {
+            let mut stats = RUNTIME_STATS.lock().expect("runtime stats lock");
+            let stats = stats.entry(tier(case)).or_default();
+            stats.node_elapsed += started.elapsed();
+            *stats.node_harness.entry(case.path.clone()).or_default() += 1;
+        }
+        let _ = std::fs::remove_file(path);
+        let output = result.map_err(|e| Verdict::Crash(e.to_string()))?;
+        Some(String::from_utf8_lossy(&output.stdout).into_owned())
     };
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = if mode == EngineMode::Node {
+        node.expect("Node mode ran Node")
+    } else {
+        let started = Instant::now();
+        let result = native_test_results(wasm, &runs);
+        {
+            let mut stats = RUNTIME_STATS.lock().expect("runtime stats lock");
+            let stats = stats.entry(tier(case)).or_default();
+            stats.wasmtime_elapsed += started.elapsed();
+            *stats.wasmtime_harness.entry(case.path.clone()).or_default() += 1;
+        }
+        let results = result.map_err(|e| Verdict::Crash(format!("wasmtime tests: {e}")))?;
+        if let Some(node) = &node {
+            let parsed = node
+                .lines()
+                .map(hd_run_wasmtime::testing::CaseRun::from_json_line)
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| Verdict::Crash(format!("Node test protocol: {e}")))?;
+            compare_test_results(case, &parsed, &results);
+        }
+        results
+            .iter()
+            .map(hd_run_wasmtime::testing::CaseRun::to_json_line)
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
     // One line per case, or per row of an `it_each` case, whose `test`
     // field names its case's export; a table with no rows has one line
     // with `"rows":0` and no outcome.
@@ -1342,20 +1465,31 @@ fn run_all(cases: &[Case], store: &MemoryStore) -> Vec<Verdict> {
         cases.iter().map(|_| std::sync::Mutex::new(None)).collect();
     std::thread::scope(|scope| {
         for _ in 0..count {
-            scope.spawn(|| {
-                loop {
-                    let serial = next.fetch_add(1, Ordering::Relaxed);
-                    let Some(case) = cases.get(serial) else { break };
-                    let verdict = catch_unwind(AssertUnwindSafe(|| run_case(case, store, serial)))
-                        .unwrap_or_else(|panic| {
-                            let message = panic
-                                .downcast_ref::<&str>()
-                                .map_or("panic", |message| *message);
-                            Verdict::Crash(message.to_owned())
-                        });
-                    *slots[serial].lock().expect("results lock") = Some(verdict);
-                }
-            });
+            let builder = std::thread::Builder::new();
+            let builder = if engine_mode() == EngineMode::Node {
+                builder
+            } else {
+                builder.stack_size(hd_run_wasmtime::thread_stack(
+                    &hd_run_wasmtime::EngineConfig::default(),
+                ))
+            };
+            builder
+                .spawn_scoped(scope, || {
+                    loop {
+                        let serial = next.fetch_add(1, Ordering::Relaxed);
+                        let Some(case) = cases.get(serial) else { break };
+                        let verdict =
+                            catch_unwind(AssertUnwindSafe(|| run_case(case, store, serial)))
+                                .unwrap_or_else(|panic| {
+                                    let message = panic
+                                        .downcast_ref::<&str>()
+                                        .map_or("panic", |message| *message);
+                                    Verdict::Crash(message.to_owned())
+                                });
+                        *slots[serial].lock().expect("results lock") = Some(verdict);
+                    }
+                })
+                .expect("spawn conformance worker");
         }
     });
     slots

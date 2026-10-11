@@ -11,9 +11,9 @@
 //! name contains one of the parts and prints each verdict.
 //! `HD_CONFORMANCE_ENGINE=wasmtime-only` selects Wasmtime for program commands
 //! without overriding explicit engine flags. `wasmtime` compares fresh complete
-//! Node/Wasmtime fixture runs at identical paths, judging by Wasmtime. `hd test`
-//! remains on Node until its runner is ported. Selected modes never rewrite the
-//! report; comparison excludes test/setup commands and explicit-engine steps.
+//! Node/Wasmtime fixture runs at identical paths, judging by Wasmtime. Program
+//! and test commands both select the engine. Selected modes never rewrite the
+//! report; comparison excludes setup commands and explicit-engine steps.
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -64,6 +64,8 @@ enum RuntimeRoute {
     NodeProgram,
     OtherProgram,
     NodeTest,
+    WasmtimeTest,
+    OtherTest,
 }
 
 /// Follow main's dispatch after removing the global compiler-memory option.
@@ -121,15 +123,12 @@ fn select_engine(
     let Some((command, test)) = runtime_command(words) else {
         return (selected, RuntimeRoute::None);
     };
-    if test {
-        return (selected, RuntimeRoute::NodeTest);
-    }
     let explicit = explicit_engine(words);
     let engine = if let Some(engine) = explicit {
         engine
     } else if let Some(engine) = mode.forced_engine() {
         // Keep `run` as the command; standalone files allow leading options.
-        let at = if words[command] == "run" {
+        let at = if matches!(words[command].as_str(), "run" | "test") {
             command + 1
         } else {
             0
@@ -139,11 +138,15 @@ fn select_engine(
     } else {
         fallback
     };
-    let route = match engine {
-        "wasmtime" => RuntimeRoute::Wasmtime,
-        "" if explicit.is_some() => RuntimeRoute::OtherProgram,
-        "" | "node" => RuntimeRoute::NodeProgram,
-        _ => RuntimeRoute::OtherProgram,
+    let route = match (engine, test) {
+        ("wasmtime", false) => RuntimeRoute::Wasmtime,
+        ("wasmtime", true) => RuntimeRoute::WasmtimeTest,
+        ("", false) if explicit.is_some() => RuntimeRoute::OtherProgram,
+        ("", true) if explicit.is_some() => RuntimeRoute::OtherTest,
+        ("" | "node", false) => RuntimeRoute::NodeProgram,
+        ("" | "node", true) => RuntimeRoute::NodeTest,
+        (_, false) => RuntimeRoute::OtherProgram,
+        (_, true) => RuntimeRoute::OtherTest,
     };
     (selected, route)
 }
@@ -154,16 +157,29 @@ struct RuntimeStats {
     node: AtomicUsize,
     other: AtomicUsize,
     tests: AtomicUsize,
+    wasmtime_tests: AtomicUsize,
+    node_time: std::sync::Mutex<Duration>,
+    wasmtime_time: std::sync::Mutex<Duration>,
     node_paths: std::sync::Mutex<BTreeSet<String>>,
     test_paths: std::sync::Mutex<BTreeSet<String>>,
 }
 
 impl RuntimeStats {
+    fn record_time(&self, route: RuntimeRoute, elapsed: Duration) {
+        let total = match route {
+            RuntimeRoute::Wasmtime | RuntimeRoute::WasmtimeTest => &self.wasmtime_time,
+            RuntimeRoute::NodeProgram | RuntimeRoute::NodeTest => &self.node_time,
+            _ => return,
+        };
+        *total.lock().expect("runtime command time") += elapsed;
+    }
+
     fn record(&self, name: &str, route: RuntimeRoute) {
         let counter = match route {
             RuntimeRoute::None => return,
             RuntimeRoute::Wasmtime => &self.wasmtime,
-            RuntimeRoute::OtherProgram => &self.other,
+            RuntimeRoute::OtherProgram | RuntimeRoute::OtherTest => &self.other,
+            RuntimeRoute::WasmtimeTest => &self.wasmtime_tests,
             RuntimeRoute::NodeProgram => {
                 self.node_paths
                     .lock()
@@ -194,10 +210,11 @@ impl RuntimeStats {
             results.len() - passes - unsupported,
         );
         println!(
-            "CLI runtime-command steps attempted: Wasmtime {}, Node programs {}, other/invalid engine {}, Node test commands {} (not a count of guest executions)",
+            "CLI runtime-command steps attempted: Wasmtime programs {}, Node programs {}, other/invalid engine {}, Wasmtime test commands {}, Node test commands {} (not a count of guest executions)",
             self.wasmtime.load(Ordering::Relaxed),
             self.node.load(Ordering::Relaxed),
             self.other.load(Ordering::Relaxed),
+            self.wasmtime_tests.load(Ordering::Relaxed),
             self.tests.load(Ordering::Relaxed),
         );
         if matches!(mode, EngineMode::WasmtimeOnly | EngineMode::Compare) {
@@ -717,16 +734,23 @@ fn git_missing() -> bool {
 
 struct Observation {
     step: usize,
+    test: bool,
     explicit: bool,
     output: Ran,
 }
 
 #[derive(Default)]
-struct ComparisonStats {
+struct ComparisonCounts {
     matched: AtomicUsize,
     different: AtomicUsize,
     missing: AtomicUsize,
     excluded: AtomicUsize,
+}
+
+#[derive(Default)]
+struct ComparisonStats {
+    programs: ComparisonCounts,
+    tests: ComparisonCounts,
 }
 
 impl ComparisonStats {
@@ -739,11 +763,20 @@ impl ComparisonStats {
         for step in indices {
             let node = node.iter().find(|o| o.step == step);
             let wasmtime = wasmtime.iter().find(|o| o.step == step);
+            let counts = if node
+                .into_iter()
+                .chain(wasmtime)
+                .any(|observation| observation.test)
+            {
+                &self.tests
+            } else {
+                &self.programs
+            };
             let counter = if node.into_iter().chain(wasmtime).any(|o| o.explicit) {
-                &self.excluded
+                &counts.excluded
             } else if let (Some(node), Some(wasmtime)) = (node, wasmtime) {
                 if node.output == wasmtime.output {
-                    &self.matched
+                    &counts.matched
                 } else {
                     println!(
                         "CLI engine difference cli/{name} step {}: Node {:?}; Wasmtime {:?}",
@@ -751,7 +784,7 @@ impl ComparisonStats {
                         node.output,
                         wasmtime.output,
                     );
-                    &self.different
+                    &counts.different
                 }
             } else {
                 println!(
@@ -760,20 +793,22 @@ impl ComparisonStats {
                     node.is_some(),
                     wasmtime.is_some(),
                 );
-                &self.missing
+                &counts.missing
             };
             counter.fetch_add(1, Ordering::Relaxed);
         }
     }
 
     fn print(&self) {
-        println!(
-            "CLI Node/Wasmtime program-command comparison: {} raw status/stdout/stderr matches, {} differences, {} missing pairs, {} explicit-engine exclusions (not a count of guest executions)",
-            self.matched.load(Ordering::Relaxed),
-            self.different.load(Ordering::Relaxed),
-            self.missing.load(Ordering::Relaxed),
-            self.excluded.load(Ordering::Relaxed),
-        );
+        for (label, counts) in [("program", &self.programs), ("test", &self.tests)] {
+            println!(
+                "CLI Node/Wasmtime {label}-command comparison: {} raw status/stdout/stderr matches, {} differences, {} missing pairs, {} explicit-engine exclusions (not a count of guest executions)",
+                counts.matched.load(Ordering::Relaxed),
+                counts.different.load(Ordering::Relaxed),
+                counts.missing.load(Ordering::Relaxed),
+                counts.excluded.load(Ordering::Relaxed),
+            );
+        }
     }
 }
 
@@ -817,17 +852,24 @@ fn run_case(
         let label = format!("hd {}", step.words.join(" "));
         let (words, route) = select_engine(&step.words, mode, fallback);
         stats.record(name, route);
-        let result = run_hd(&dir, &cache, &words)
+        let start = Instant::now();
+        let ran = run_hd(&dir, &cache, &words);
+        stats.record_time(route, start.elapsed());
+        let result = ran
             .map_err(|e| format!("spawn failed: {e}"))
             .and_then(|ran| {
                 let result = judge_step(&dir, step, &ran);
-                if matches!(
-                    route,
-                    RuntimeRoute::Wasmtime | RuntimeRoute::NodeProgram | RuntimeRoute::OtherProgram
-                ) && let Some(observations) = observations.as_mut()
+                if route != RuntimeRoute::None
+                    && let Some(observations) = observations.as_mut()
                 {
                     observations.push(Observation {
                         step: index,
+                        test: matches!(
+                            route,
+                            RuntimeRoute::WasmtimeTest
+                                | RuntimeRoute::NodeTest
+                                | RuntimeRoute::OtherTest
+                        ),
                         explicit: explicit_engine(&step.words).is_some(),
                         output: ran,
                     });
@@ -860,6 +902,7 @@ fn case_names() -> Vec<String> {
 fn run_all(names: &[String], mode: EngineMode) -> Vec<Verdict> {
     let start = Instant::now();
     let stats = RuntimeStats::default();
+    let node_stats = RuntimeStats::default();
     let comparison = ComparisonStats::default();
     let fallback = std::env::var("HD_ENGINE").unwrap_or_default();
     let root = work_root();
@@ -885,7 +928,7 @@ fn run_all(names: &[String], mode: EngineMode) -> Vec<Verdict> {
                             &root,
                             EngineMode::NodeBaseline,
                             &fallback,
-                            &RuntimeStats::default(),
+                            &node_stats,
                             Some(&mut node),
                         );
                         let verdict = run_case(
@@ -914,6 +957,11 @@ fn run_all(names: &[String], mode: EngineMode) -> Vec<Verdict> {
     stats.print(mode, &results, start.elapsed());
     if mode == EngineMode::Compare {
         comparison.print();
+        println!(
+            "CLI comparison aggregate runtime-command wall (including compilation and startup): Node {:.3?}, Wasmtime {:.3?}",
+            *node_stats.node_time.lock().expect("Node command time"),
+            *stats.wasmtime_time.lock().expect("Wasmtime command time"),
+        );
     }
     results
 }
@@ -1071,6 +1119,27 @@ fn engine_mode_parser_rejects_unknown_modes() {
 }
 
 #[test]
+fn runtime_timing_counts_programs_and_tests_but_not_setup_or_other_engines() {
+    let stats = RuntimeStats::default();
+    for (route, millis) in [
+        (RuntimeRoute::NodeProgram, 2),
+        (RuntimeRoute::NodeTest, 3),
+        (RuntimeRoute::Wasmtime, 7),
+        (RuntimeRoute::WasmtimeTest, 11),
+        (RuntimeRoute::None, 100),
+        (RuntimeRoute::OtherProgram, 100),
+        (RuntimeRoute::OtherTest, 100),
+    ] {
+        stats.record_time(route, Duration::from_millis(millis));
+    }
+    assert_eq!(*stats.node_time.lock().unwrap(), Duration::from_millis(5));
+    assert_eq!(
+        *stats.wasmtime_time.lock().unwrap(),
+        Duration::from_millis(18)
+    );
+}
+
+#[test]
 fn engine_selection_covers_files_packages_tasks_and_preserves_argument_boundary() {
     let words = |words: &[&str]| words.iter().map(|w| (*w).to_owned()).collect::<Vec<_>>();
     for before in [
@@ -1098,12 +1167,28 @@ fn engine_selection_covers_files_packages_tasks_and_preserves_argument_boundary(
         assert_eq!(selected, before);
         assert_eq!(route, RuntimeRoute::NodeProgram);
     }
+    for before in [
+        words(&["test", "main.hd"]),
+        words(&["--max-memory=1G", "test", "-p", "member"]),
+    ] {
+        let (selected, route) = select_engine(&before, EngineMode::WasmtimeOnly, "node");
+        assert_eq!(route, RuntimeRoute::WasmtimeTest);
+        let index = selected.iter().position(|word| word == "--engine").unwrap();
+        assert_eq!(selected[index + 1], "wasmtime");
+        let mut restored = selected;
+        restored.drain(index..index + 2);
+        assert_eq!(restored, before);
+    }
+    let explicit_test = words(&["test", "main.hd", "--engine=node"]);
+    assert_eq!(
+        select_engine(&explicit_test, EngineMode::WasmtimeOnly, "wasmtime"),
+        (explicit_test, RuntimeRoute::NodeTest)
+    );
 }
 
 #[test]
 fn engine_selection_leaves_nonruntime_commands_and_default_mode_unchanged() {
     for words in [
-        vec!["test", "main.hd"],
         vec!["check", "main.hd"],
         vec!["build", "main.hd"],
         vec!["fmt", "src/main.hd"],
@@ -1129,7 +1214,7 @@ fn engine_selection_leaves_nonruntime_commands_and_default_mode_unchanged() {
     let test = vec!["test".to_owned(), "--format".to_owned(), "json".to_owned()];
     assert_eq!(
         select_engine(&test, EngineMode::WasmtimeOnly, "wasmtime").1,
-        RuntimeRoute::NodeTest
+        RuntimeRoute::WasmtimeTest
     );
 }
 
@@ -1143,6 +1228,7 @@ fn engine_comparison_uses_raw_bytes_and_counts_exclusions_and_missing_pairs() {
 
     let observation = |step, explicit, stdout| Observation {
         step,
+        test: false,
         explicit,
         output: Ran {
             status: std::process::ExitStatus::from_raw(0),
@@ -1164,10 +1250,28 @@ fn engine_comparison_uses_raw_bytes_and_counts_exclusions_and_missing_pairs() {
     ];
     let stats = ComparisonStats::default();
     stats.compare("synthetic", &node, &wasmtime);
-    assert_eq!(stats.matched.load(Ordering::Relaxed), 1);
-    assert_eq!(stats.different.load(Ordering::Relaxed), 1);
-    assert_eq!(stats.missing.load(Ordering::Relaxed), 1);
-    assert_eq!(stats.excluded.load(Ordering::Relaxed), 1);
+    assert_eq!(stats.programs.matched.load(Ordering::Relaxed), 1);
+    assert_eq!(stats.programs.different.load(Ordering::Relaxed), 1);
+    assert_eq!(stats.programs.missing.load(Ordering::Relaxed), 1);
+    assert_eq!(stats.programs.excluded.load(Ordering::Relaxed), 1);
+    let test = |step, explicit, stdout| Observation {
+        test: true,
+        ..observation(step, explicit, stdout)
+    };
+    stats.compare(
+        "test-synthetic",
+        &[
+            test(0, false, b"test result: ok\n".to_vec()),
+            test(1, true, Vec::new()),
+        ],
+        &[
+            test(0, false, b"test result: ok\n".to_vec()),
+            test(1, true, Vec::new()),
+        ],
+    );
+    assert_eq!(stats.tests.matched.load(Ordering::Relaxed), 1);
+    assert_eq!(stats.tests.excluded.load(Ordering::Relaxed), 1);
+    assert_eq!(stats.programs.matched.load(Ordering::Relaxed), 1);
     let words = vec![
         "run".to_owned(),
         "task".to_owned(),

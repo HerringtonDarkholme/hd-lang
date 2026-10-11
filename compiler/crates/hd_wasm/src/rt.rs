@@ -148,7 +148,8 @@ pub fn forbid_global() -> GSym {
     GSym::Rt("forbid".into(), VT::I32)
 }
 
-/// The entry's root suspension, for `main!` (suspension.md §14.4).
+/// The entry's pending root suspension, for `main!` or a test body.
+/// Completion releases the root so a retained test instance can run again.
 #[must_use]
 pub fn root_global() -> GSym {
     GSym::Rt("root".into(), VT::rn(crate::layout::task_base()))
@@ -1478,6 +1479,11 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
                         a.set(status);
                         a.get(ready);
                         a.if_();
+                        // A completed entry no longer owns this suspension.
+                        // The next property body creates a fresh root while
+                        // retaining the rest of its instance's state.
+                        a.ref_null(base);
+                        a.global_set(root_global());
                         for (l, (have, want)) in tmp.iter().zip(prs[1..].iter().zip(want)) {
                             a.get(*l);
                             a.conv(have, want);
@@ -1490,6 +1496,14 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
                         for _ in 1..prs.len() {
                             a.s().drop();
                         }
+                        let ready = a.local(VT::I32);
+                        a.set(ready);
+                        a.get(ready);
+                        a.if_();
+                        a.ref_null(base);
+                        a.global_set(root_global());
+                        a.end();
+                        a.get(ready);
                         a.i32(1);
                         a.s().i32_sub();
                     }
@@ -2044,4 +2058,94 @@ fn wake_take() -> Code {
     a.array_set(&arr);
     a.i32(1);
     a.finish(vec![VT::I32])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Helper, helper_code, root_global};
+    use crate::asm::Asm;
+    use crate::{Reloc, Sym, VT};
+    use hd_base::Hash128;
+
+    /// Compare the post-poll instructions and relocations, not padded symbol
+    /// slots alone: pending must keep the root, ready must release it.
+    fn assert_poll_tail(report: bool) {
+        let results = if report {
+            vec![VT::I64, VT::Eq]
+        } else {
+            vec![]
+        };
+        let (base, poll) = crate::layout::suspend_base(&results);
+        let report_key = Hash128(2);
+        let code = helper_code(&Helper::EntryPoll {
+            main: Hash128(1),
+            providers: vec![],
+            results: u32::try_from(results.len()).unwrap(),
+            bang: Some((base.clone(), poll.clone())),
+            report: report.then_some((report_key, results)),
+        })
+        .unwrap();
+        let poll_at = code
+            .relocs
+            .iter()
+            .find_map(|(offset, reloc)| {
+                (*reloc == Reloc::Type(poll.clone()) && code.body[*offset as usize - 1] == 0x14)
+                    .then_some(*offset + 5)
+            })
+            .expect("root call_ref");
+        let mut expected = Asm::new(vec![]);
+        expected.local(VT::r(base.clone()));
+        if report {
+            let first = expected.local(VT::I64);
+            let second = expected.local(VT::Eq);
+            let ready = expected.local(VT::I32);
+            let status = expected.local(VT::I32);
+            expected.set(second);
+            expected.set(first);
+            expected.set(ready);
+            expected.i32(-1);
+            expected.set(status);
+            expected.get(ready);
+            expected.if_();
+            expected.ref_null(&base);
+            expected.global_set(root_global());
+            expected.get(first);
+            expected.get(second);
+            expected.call(Sym::Inst(report_key));
+            expected.set(status);
+            expected.end();
+            expected.get(status);
+        } else {
+            let ready = expected.local(VT::I32);
+            expected.set(ready);
+            expected.get(ready);
+            expected.if_();
+            expected.ref_null(&base);
+            expected.global_set(root_global());
+            expected.end();
+            expected.get(ready);
+            expected.i32(1);
+            expected.s().i32_sub();
+        }
+        expected.end();
+        assert_eq!(code.body[poll_at as usize..], expected.out);
+        let tail_relocs: Vec<_> = code
+            .relocs
+            .iter()
+            .filter(|(offset, _)| *offset >= poll_at)
+            .map(|(offset, reloc)| (*offset - poll_at, reloc.clone()))
+            .collect();
+        assert_eq!(tail_relocs, expected.relocs);
+        assert_eq!(code.results, vec![VT::I32]);
+    }
+
+    #[test]
+    fn completed_void_entry_releases_root_but_pending_entry_retains_it() {
+        assert_poll_tail(false);
+    }
+
+    #[test]
+    fn completed_reported_entry_releases_root_before_reporting_its_results() {
+        assert_poll_tail(true);
+    }
 }

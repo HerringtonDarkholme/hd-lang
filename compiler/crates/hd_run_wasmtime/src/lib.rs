@@ -31,7 +31,12 @@ mod limits;
 mod net;
 pub mod prim;
 mod profiles;
+mod property;
 mod reactor;
+mod test_engine;
+pub mod testing;
+mod testing_files;
+mod testing_json;
 #[cfg(windows)]
 mod windows_pipe;
 
@@ -45,6 +50,10 @@ use wasmtime::{Linker, Store, Trap, TypedFunc};
 pub use host::HostIo;
 use host::{Host, Stop};
 pub use profiles::RuntimeProfile;
+pub use test_engine::{
+    NamedProgram, NativeBodyRunner, PreparedTest, TestEngine, TestEnvironment, TestHostKind,
+    TestModule, TestPoolConfig,
+};
 
 /// The wasmtime configuration of §18.1, as data.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -114,28 +123,7 @@ impl WasmtimeEngine {
         profile: RuntimeProfile,
     ) -> Result<WasmtimeEngine, String> {
         host::start_clock();
-        let mut c = wasmtime::Config::new();
-        c.wasm_gc(true)
-            .wasm_function_references(true)
-            .wasm_reference_types(true)
-            .wasm_multi_value(true)
-            .wasm_bulk_memory(true)
-            .wasm_extended_const(true)
-            .wasm_tail_call(false)
-            .wasm_exceptions(false)
-            .wasm_stack_switching(false)
-            .collector(wasmtime::Collector::Copying)
-            .gc_heap_initial_size(config.gc_heap_initial)
-            .epoch_interruption(true)
-            .max_wasm_stack(config.max_wasm_stack)
-            // No fiber runs Wasm (no async support); wasmtime still checks
-            // the Wasm stack against this size.
-            .async_stack_size(config.max_wasm_stack)
-            .parallel_compilation(true)
-            .cranelift_opt_level(match config.cranelift_opt {
-                OptLevel::None => wasmtime::OptLevel::None,
-                OptLevel::Speed => wasmtime::OptLevel::Speed,
-            });
+        let c = wasmtime_config(config);
         let engine = Arc::new(wasmtime::Engine::new(&c).map_err(|e| e.to_string())?);
         Ok(WasmtimeEngine {
             config,
@@ -159,24 +147,11 @@ impl WasmtimeEngine {
             setup.limits.wall_ms,
             setup.limits.memory_bytes,
         );
-        // Store metadata is engine infrastructure, outside the guest's
-        // linear/GC backing-byte budget. Its typed allocation failure is a
-        // startup error, not a guest heap-exhausted panic or a Rust panic.
-        let mut store = Store::try_new(&self.engine, host).map_err(|error| {
-            StartError::Engine(format!("cannot create the wasmtime store: {error:#}"))
-        })?;
-        store.limiter(|host| &mut host.heap);
-        if setup.limits.wall_ms.is_some() {
-            deadline::register(&self.engine).map_err(StartError::Engine)?;
-            store.epoch_deadline_callback(|cx| {
-                cx.data().check_deadline()?;
-                Ok(wasmtime::UpdateDeadline::Continue(1))
-            });
-            store.set_epoch_deadline(1);
-        } else {
-            store.epoch_deadline_trap();
-            store.set_epoch_deadline(u64::MAX / 2);
-        }
+        self.instantiate_host(m, host)
+    }
+
+    fn instantiate_host(&self, m: &Module, host: Host) -> Result<WasmtimeInstance, StartError> {
+        let mut store = new_store(&self.engine, host)?;
         let mut linker = Linker::new(&self.engine);
         host::define(&mut linker, &m.0, self.profile).map_err(StartError::Engine)?;
         let instance = match linker.instantiate(&mut store, &m.0) {
@@ -185,32 +160,104 @@ impl WasmtimeEngine {
                 if limits::is_heap_exhausted(&error)
                     || matches!(error.downcast_ref::<Stop>(), Some(Stop::TimeLimit)) =>
             {
-                let mut stopped = WasmtimeInstance {
-                    store,
-                    _engine: Arc::clone(&self.engine),
-                    init: None,
-                    poll: None,
-                    wake: None,
-                    done: None,
-                };
+                let mut stopped = WasmtimeInstance::stopped(store, Arc::clone(&self.engine));
                 stopped.trapped(&error);
                 return Ok(stopped);
             }
             Err(error) => return Err(StartError::Engine(error.to_string())),
         };
-        let memory = instance.get_memory(&mut store, "hd.x");
-        store.data_mut().memory = memory;
+        WasmtimeInstance::from_instance(
+            store,
+            Arc::clone(&self.engine),
+            instance,
+            "hd.init",
+            "hd.poll",
+        )
+    }
+}
+
+fn wasmtime_config(config: EngineConfig) -> wasmtime::Config {
+    let mut c = wasmtime::Config::new();
+    c.wasm_gc(true)
+        .wasm_function_references(true)
+        .wasm_reference_types(true)
+        .wasm_multi_value(true)
+        .wasm_bulk_memory(true)
+        .wasm_extended_const(true)
+        .wasm_tail_call(false)
+        .wasm_exceptions(false)
+        .wasm_stack_switching(false)
+        .collector(wasmtime::Collector::Copying)
+        .gc_heap_initial_size(config.gc_heap_initial)
+        .epoch_interruption(true)
+        .max_wasm_stack(config.max_wasm_stack)
+        // No fiber runs Wasm (no async support); wasmtime still checks
+        // the Wasm stack against this size.
+        .async_stack_size(config.max_wasm_stack)
+        .parallel_compilation(true)
+        .cranelift_opt_level(match config.cranelift_opt {
+            OptLevel::None => wasmtime::OptLevel::None,
+            OptLevel::Speed => wasmtime::OptLevel::Speed,
+        });
+    c
+}
+
+fn new_store(engine: &Arc<wasmtime::Engine>, host: Host) -> Result<Store<Host>, StartError> {
+    // Store metadata is engine infrastructure, outside the guest's
+    // linear/GC backing-byte budget. Its typed allocation failure is a
+    // startup error, not a guest heap-exhausted panic or a Rust panic.
+    let mut store = Store::try_new(engine, host).map_err(|error| {
+        StartError::Engine(format!("cannot create the wasmtime store: {error:#}"))
+    })?;
+    store.limiter(|host| &mut host.heap);
+    if store.data().deadline().is_some() {
+        deadline::register(engine).map_err(StartError::Engine)?;
+        store.epoch_deadline_callback(|cx| {
+            cx.data().check_deadline()?;
+            Ok(wasmtime::UpdateDeadline::Continue(1))
+        });
+        store.set_epoch_deadline(1);
+    } else {
+        store.epoch_deadline_trap();
+        store.set_epoch_deadline(u64::MAX / 2);
+    }
+    Ok(store)
+}
+
+impl WasmtimeInstance {
+    fn stopped(store: Store<Host>, engine: Arc<wasmtime::Engine>) -> Self {
+        Self {
+            store,
+            _engine: engine,
+            init: None,
+            instance: None,
+            poll: None,
+            wake: None,
+            done: None,
+            close_on_end: true,
+            last_trapped: false,
+        }
+    }
+
+    fn from_instance(
+        mut store: Store<Host>,
+        engine: Arc<wasmtime::Engine>,
+        instance: wasmtime::Instance,
+        init_name: &str,
+        poll_name: &str,
+    ) -> Result<Self, StartError> {
+        store.data_mut().memory = instance.get_memory(&mut store, "hd.x");
         let export = |store: &mut Store<Host>, name: &str| {
             instance
                 .get_func(&mut *store, name)
                 .ok_or_else(|| StartError::Engine(format!("the module has no export `{name}`")))
         };
-        let init = export(&mut store, "hd.init")?
+        let init = export(&mut store, init_name)?
             .typed::<(), ()>(&store)
-            .map_err(|e| StartError::Engine(format!("`hd.init`: {e}")))?;
-        let poll = export(&mut store, "hd.poll")?
+            .map_err(|e| StartError::Engine(format!("`{init_name}`: {e}")))?;
+        let poll = export(&mut store, poll_name)?
             .typed::<(), i32>(&store)
-            .map_err(|e| StartError::Engine(format!("`hd.poll`: {e}")))?;
+            .map_err(|e| StartError::Engine(format!("`{poll_name}`: {e}")))?;
         let wake = match instance.get_func(&mut store, "hd.wake") {
             Some(f) => Some(
                 f.typed::<i32, ()>(&store)
@@ -220,11 +267,14 @@ impl WasmtimeEngine {
         };
         Ok(WasmtimeInstance {
             store,
-            _engine: Arc::clone(&self.engine),
+            _engine: engine,
             init: Some(init),
+            instance: Some(instance),
             poll: Some(poll),
             wake,
             done: None,
+            close_on_end: true,
+            last_trapped: false,
         })
     }
 }
@@ -266,10 +316,14 @@ pub struct WasmtimeInstance {
     /// embedding may drop `WasmtimeEngine` while its instance is still running.
     _engine: Arc<wasmtime::Engine>,
     init: Option<TypedFunc<(), ()>>,
+    instance: Option<wasmtime::Instance>,
     poll: Option<TypedFunc<(), i32>>,
     wake: Option<TypedFunc<i32, ()>>,
     /// How the run ended, once it has.
     done: Option<Outcome>,
+    /// A property keeps successful instances and their host state between bodies.
+    close_on_end: bool,
+    last_trapped: bool,
 }
 
 /// V8's text of a trap, which the Node host prints as an internal error.
@@ -293,7 +347,9 @@ impl WasmtimeInstance {
     /// Ends the run with status `status`, writing the held output.
     fn end(&mut self, status: i32) -> Outcome {
         self.store.data_mut().flush();
-        self.store.data_mut().close();
+        if self.close_on_end {
+            self.store.data_mut().close();
+        }
         let code = u8::try_from(status & 0xff).unwrap_or(1);
         let o = Outcome::Exit(code);
         self.done = Some(o.clone());
@@ -302,6 +358,10 @@ impl WasmtimeInstance {
 
     /// Reports a trap as the Node host does and ends the run with status 3.
     fn trapped(&mut self, e: &wasmtime::Error) -> Outcome {
+        if matches!(e.downcast_ref::<Stop>(), Some(Stop::EndCase)) {
+            return self.end(0);
+        }
+        self.last_trapped = true;
         let host = self.store.data_mut();
         host.flush();
         if limits::is_heap_exhausted(e) {
@@ -313,10 +373,12 @@ impl WasmtimeInstance {
                     host.err("panic: heap-exhausted: the exchange buffer cannot grow\n");
                 }
                 Stop::TimeLimit => {
-                    host.err("panic: time-limit: the program exceeded its time limit\n");
+                    let report = host.time_limit_report();
+                    host.err(&report);
                 }
                 Stop::Internal(m) => host.err(&format!("internal error: {m}\n")),
                 Stop::Deadlock => {}
+                Stop::EndCase => unreachable!("handled before panic reporting"),
             }
         } else if let Some(Trap::StackOverflow) = e.downcast_ref::<Trap>() {
             host.err(
@@ -396,10 +458,20 @@ impl Instance for WasmtimeInstance {
             self.trapped(&e);
         }
     }
-    fn call_test(&mut self, _: u32) -> Poll<Outcome> {
-        Poll::Ready(Outcome::Internal(
-            "test cases run on the Node engine".into(),
-        ))
+    fn call_test(&mut self, export: u32) -> Poll<Outcome> {
+        if let Some(outcome) = &self.done {
+            return Poll::Ready(outcome.clone());
+        }
+        let name = format!("hd.test.{export}");
+        let Some(instance) = self.instance else {
+            return Poll::Ready(Outcome::Internal("the instance has no live exports".into()));
+        };
+        let poll = match instance.get_typed_func::<(), i32>(&mut self.store, &name) {
+            Ok(poll) => poll,
+            Err(error) => return Poll::Ready(Outcome::Internal(format!("`{name}`: {error}"))),
+        };
+        self.poll = Some(poll);
+        self.step()
     }
     /// Waits for at least one completion and writes the handles to the
     /// exchange buffer, as `hd.wake` reads them. `poll` checked that

@@ -69,6 +69,8 @@ pub enum Stop {
     TimeLimit,
     /// A bug in std or the host (Node throws a JS error here).
     Internal(String),
+    /// Property exhaustion is successful early termination, not a panic.
+    EndCase,
 }
 
 impl std::fmt::Display for Stop {
@@ -78,6 +80,7 @@ impl std::fmt::Display for Stop {
             Stop::Deadlock => f.write_str("deadlock"),
             Stop::HeapExhausted => f.write_str("the exchange buffer cannot grow"),
             Stop::TimeLimit => f.write_str("the program exceeded its time limit"),
+            Stop::EndCase => f.write_str("the property has no remaining cases"),
         }
     }
 }
@@ -109,6 +112,13 @@ pub struct Host {
     pub(crate) heap: crate::limits::HeapBudget,
     deadline: Option<Instant>,
     fixture: profiles::State,
+    pub(crate) testing: Option<crate::testing::State>,
+    pub(crate) environment: Option<crate::test_engine::TestEnvironment>,
+    base_deadline: Option<Instant>,
+    memory_bytes: u64,
+    timeout_millis: Option<i64>,
+    pub(crate) output_overflow: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
+    pub(crate) output_budget: Option<(std::sync::Arc<std::sync::atomic::AtomicUsize>, usize)>,
 }
 
 impl Host {
@@ -121,6 +131,7 @@ impl Host {
         wall_ms: Option<u64>,
         memory_bytes: u64,
     ) -> Host {
+        let deadline = wall_ms.and_then(|ms| Instant::now().checked_add(Duration::from_millis(ms)));
         Host {
             out_stream: io.out,
             err_stream: io.err,
@@ -135,13 +146,51 @@ impl Host {
             http: http::Client::default(),
             net: net::Client::default(),
             heap: crate::limits::HeapBudget::new(memory_bytes),
-            deadline: wall_ms.and_then(|ms| Instant::now().checked_add(Duration::from_millis(ms))),
+            deadline,
             fixture: profiles::State::default(),
+            testing: None,
+            environment: None,
+            base_deadline: deadline,
+            memory_bytes,
+            timeout_millis: None,
+            output_overflow: None,
+            output_budget: None,
         }
     }
 
     pub fn deadline(&self) -> Option<Instant> {
         self.deadline
+    }
+
+    pub(crate) fn set_deadline(&mut self, deadline: Option<Instant>) {
+        self.deadline = deadline;
+        self.base_deadline = deadline;
+    }
+
+    pub(crate) fn begin_test_body(&mut self) {
+        self.deadline = self.base_deadline;
+        self.timeout_millis = None;
+    }
+
+    pub(crate) fn time_limit_report(&self) -> String {
+        match self.timeout_millis {
+            Some(millis) => format!(
+                "panic: time-limit: the test case ran longer than its timeout of {millis}ms\n"
+            ),
+            None => "panic: time-limit: the program exceeded its time limit\n".into(),
+        }
+    }
+
+    fn report_timeout(&mut self, millis: i64) {
+        let millis = u64::try_from(millis).unwrap_or(0);
+        let reported = Instant::now().checked_add(Duration::from_millis(millis));
+        self.timeout_millis = reported
+            .filter(|reported| self.base_deadline.is_none_or(|base| *reported <= base))
+            .map(|_| i64::try_from(millis).unwrap_or(i64::MAX));
+        self.deadline = match (self.base_deadline, reported) {
+            (Some(base), Some(reported)) => Some(base.min(reported)),
+            (base, reported) => base.or(reported),
+        };
     }
 
     pub fn check_deadline(&self) -> wasmtime::Result<()> {
@@ -150,6 +199,25 @@ impl Host {
             .is_some_and(|deadline| Instant::now() >= deadline)
         {
             return Err(Stop::TimeLimit.into());
+        }
+        // Console stdout is held until a flush. Count it before it reaches the
+        // capture sink as well, otherwise an endless write-only child could
+        // evade the shared stdout/stderr cap.
+        if self.output_budget.as_ref().is_some_and(|(count, limit)| {
+            count
+                .load(std::sync::atomic::Ordering::Relaxed)
+                .saturating_add(self.out.len())
+                > *limit
+        }) && let Some(flag) = &self.output_overflow
+        {
+            flag.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        if self
+            .output_overflow
+            .as_ref()
+            .is_some_and(|flag| flag.load(std::sync::atomic::Ordering::Relaxed))
+        {
+            return Err(Stop::Internal("spawnSync ENOBUFS".into()).into());
         }
         Ok(())
     }
@@ -265,6 +333,7 @@ enum Ret {
 /// The imports that run on wasmtime.
 #[derive(Clone, Copy, Debug)]
 enum Kind {
+    Test(TestMethod),
     Fixture(profiles::Method),
     Fs {
         key: &'static str,
@@ -305,7 +374,38 @@ enum Kind {
     EnvNames,
 }
 
+#[derive(Clone, Copy, Debug)]
+enum TestMethod {
+    Row,
+    Timeout,
+    Snapshot,
+    TempDir,
+    Start,
+    Record,
+    Show,
+}
+
 impl Kind {
+    fn with_test(module: &str, name: &str, kind: crate::test_engine::TestHostKind) -> Option<Self> {
+        let test = match (module, name) {
+            ("hd:TestRunner", "row") => Some(TestMethod::Row),
+            ("hd:TestRunner", "report_timeout") => Some(TestMethod::Timeout),
+            ("hd:TestRunner", "snapshot_check") => Some(TestMethod::Snapshot),
+            ("hd:TestRunner", "temp_dir") => Some(TestMethod::TempDir),
+            ("hd:PropertyRunner", "start") => Some(TestMethod::Start),
+            ("hd:PropertyRunner", "record") => Some(TestMethod::Record),
+            ("hd:PropertyRunner", "show") => Some(TestMethod::Show),
+            _ => None,
+        };
+        if let Some(method) = test {
+            return Some(Self::Test(method));
+        }
+        if kind == crate::test_engine::TestHostKind::Unit && !matches!(module, "hd:rt" | "hd:prim")
+        {
+            return None;
+        }
+        Self::with_profile(module, name, kind.profile())
+    }
     fn with_profile(module: &str, name: &str, profile: RuntimeProfile) -> Option<Self> {
         Self::of(module, name).or_else(|| profile.method(module, name).map(Self::Fixture))
     }
@@ -434,6 +534,66 @@ fn int_val(ty: &ValType, v: i64) -> Val {
 fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::Result<Ret> {
     caller.data().check_deadline()?;
     let result = match kind {
+        Kind::Test(method) => {
+            let state = caller
+                .data()
+                .testing
+                .clone()
+                .ok_or_else(|| Stop::Contract("no test runner binds this run".into()))?;
+            state.set_io_deadline(caller.data().deadline());
+            match method {
+                TestMethod::Row => Ret::Int(i64::from(
+                    state.row(
+                        u32::try_from(int_arg(params, 0)?)
+                            .map_err(|_| Stop::Contract("invalid row count".into()))?,
+                    ),
+                )),
+                TestMethod::Timeout => {
+                    let millis = int_arg(params, 0)?;
+                    state.report_timeout(millis);
+                    caller.data_mut().report_timeout(millis);
+                    state.set_io_deadline(caller.data().deadline());
+                    wasmtime::AsContextMut::as_context_mut(caller).set_epoch_deadline(1);
+                    Ret::Void
+                }
+                TestMethod::Snapshot | TestMethod::Show => {
+                    let value =
+                        String::from_utf8_lossy(&bytes(caller, int_arg(params, 0)?)?).into_owned();
+                    if matches!(method, TestMethod::Show) {
+                        state.show(&value);
+                        Ret::Void
+                    } else {
+                        let message = state.snapshot_check(&value);
+                        caller.data().check_deadline()?;
+                        let message = message.map_err(Stop::Internal)?;
+                        let mut encoded = Enc::default();
+                        encoded.str(&message);
+                        Ret::Int(put(caller, &encoded)?)
+                    }
+                }
+                TestMethod::TempDir => {
+                    let path = state.temp_dir().map_err(Stop::Internal)?;
+                    let mut encoded = Enc::default();
+                    encoded.str(&path);
+                    Ret::Int(put(caller, &encoded)?)
+                }
+                TestMethod::Start => {
+                    let mut counts = [0; 3];
+                    for (index, count) in counts.iter_mut().enumerate() {
+                        *count = u32::try_from(int_arg(params, index)?)
+                            .map_err(|_| Stop::Contract("invalid property count".into()))?;
+                    }
+                    let encoded = state.start(counts[0], counts[1], counts[2]);
+                    caller.data().check_deadline()?;
+                    let encoded = encoded.map_err(Stop::Internal)?.ok_or(Stop::EndCase)?;
+                    Ret::Int(put(caller, &encoded)?)
+                }
+                TestMethod::Record => {
+                    state.record(int_arg(params, 0)?);
+                    Ret::Void
+                }
+            }
+        }
         Kind::Fixture(method) => {
             let length = if matches!(method, profiles::Method::VaultKeep) {
                 int_arg(params, 0)?
@@ -457,16 +617,43 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
         } => {
             let b = bytes(caller, int_arg(params, 0)?)?;
             let host = caller.data();
-            let e = match host.deadline() {
-                Some(deadline) => fs::call_until(key, method, &b, &host.grants, Some(deadline))?,
-                None => fs::call(key, method, &b, &host.grants)?,
+            let e = match &host.environment {
+                Some(environment) => fs::call_until_at(
+                    key,
+                    method,
+                    &b,
+                    &host.grants,
+                    host.deadline(),
+                    &environment.cwd,
+                )?,
+                None => match host.deadline() {
+                    Some(deadline) => {
+                        fs::call_until(key, method, &b, &host.grants, Some(deadline))?
+                    }
+                    None => fs::call(key, method, &b, &host.grants)?,
+                },
             };
             Ret::Pair(0, result_len(put(caller, &e)?)?)
         }
         Kind::ProcessStart => {
             let b = bytes(caller, int_arg(params, 0)?)?;
             let host = caller.data();
-            let e = core::process_with_deadline(&b, &host.grants, host.deadline())?;
+            let e = match &host.environment {
+                Some(environment) if host.testing.is_some() => crate::test_engine::process(
+                    &b,
+                    &host.grants,
+                    environment,
+                    host.deadline(),
+                    host.memory_bytes,
+                )?,
+                Some(environment) => core::process_with_deadline_at(
+                    &b,
+                    &host.grants,
+                    host.deadline(),
+                    &environment.cwd,
+                )?,
+                None => core::process_with_deadline(&b, &host.grants, host.deadline())?,
+            };
             Ret::Pair(0, result_len(put(caller, &e)?)?)
         }
         Kind::HttpStart => {
@@ -719,6 +906,26 @@ pub fn define(
     module: &wasmtime::Module,
     profile: RuntimeProfile,
 ) -> Result<(), String> {
+    define_with(linker, module, |module, name| {
+        Kind::with_profile(module, name, profile)
+    })
+}
+
+pub(crate) fn define_test(
+    linker: &mut Linker<Host>,
+    module: &wasmtime::Module,
+    kind: crate::test_engine::TestHostKind,
+) -> Result<(), String> {
+    define_with(linker, module, |module, name| {
+        Kind::with_test(module, name, kind)
+    })
+}
+
+fn define_with(
+    linker: &mut Linker<Host>,
+    module: &wasmtime::Module,
+    kind_of: impl Fn(&str, &str) -> Option<Kind>,
+) -> Result<(), String> {
     let mut defined = HashSet::new();
     for import in module.imports() {
         let (m, n) = (import.module(), import.name());
@@ -727,7 +934,7 @@ pub fn define(
         if !defined.insert((m.to_owned(), n.to_owned())) {
             continue;
         }
-        let Some(kind) = Kind::with_profile(m, n, profile) else {
+        let Some(kind) = kind_of(m, n) else {
             return Err(unsupported_message(m, n));
         };
         let Some(ty) = import.ty().func().cloned() else {

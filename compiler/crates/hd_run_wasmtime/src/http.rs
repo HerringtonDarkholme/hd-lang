@@ -1421,6 +1421,10 @@ mod tests {
     }
 
     fn read_request(stream: &mut TcpStream) -> Vec<u8> {
+        // A socket accepted from a nonblocking listener can inherit that
+        // mode. Explicitly normalize fixture sockets so read timeouts bound
+        // blocking reads instead of racing the arrival of request bytes.
+        stream.set_nonblocking(false).unwrap();
         stream
             .set_read_timeout(Some(Duration::from_secs(2)))
             .unwrap();
@@ -2271,7 +2275,10 @@ mod tests {
         let until = Instant::now() + Duration::from_secs(2);
         loop {
             match listener.accept() {
-                Ok((stream, _)) => return stream,
+                Ok((stream, _)) => {
+                    stream.set_nonblocking(false).unwrap();
+                    return stream;
+                }
                 Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
                     assert!(Instant::now() < until, "request reaches loopback fixture");
                     std::thread::sleep(Duration::from_millis(1));
@@ -2279,6 +2286,17 @@ mod tests {
                 Err(error) => panic!("accept: {error}"),
             }
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bounded_accept_returns_a_blocking_fixture_socket() {
+        use nix::fcntl::{FcntlArg, OFlag, fcntl};
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let _peer = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let stream = bounded_accept(&listener);
+        let flags = OFlag::from_bits_retain(fcntl(&stream, FcntlArg::F_GETFL).unwrap());
+        assert!(!flags.contains(OFlag::O_NONBLOCK));
     }
 
     #[test]
@@ -2315,6 +2333,7 @@ mod tests {
                         Err(error) => panic!("accept: {error}"),
                     }
                 };
+                stream.set_nonblocking(false).unwrap();
                 if tls {
                     stream
                         .set_read_timeout(Some(Duration::from_secs(2)))

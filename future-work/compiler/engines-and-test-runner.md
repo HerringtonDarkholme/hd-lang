@@ -241,7 +241,7 @@ unchanged.
 | Provider | Implementation and grant checks |
 | --- | --- |
 | `FsRead`, `FsWrite` | Synchronous `std::fs` calls; `Grants::covers_path` resolves symlinks and existing ancestors before access. Rename checks both paths. |
-| `Process` | Safe `nix` spawn wrappers on Unix, `std::process::Command` elsewhere; inherited environment and working directory, with `Grants::covers_name` before spawning. Pipes are drained concurrently while input is written. |
+| `Process` | `std::process::Command`; inherited environment and instance-local working directory, with `Grants::covers_name` before spawning. Pipes are drained concurrently while input is written. |
 | `Random` | `getrandom 0.4` reads operating-system randomness; total denial remains the CLI's startup check. |
 | `Sys` | `std` platform, architecture and CPU reads, plus fallible `hostname 0.4`; each method checks `Grants::covers_name`. |
 
@@ -260,9 +260,10 @@ and maps termination by signal to 128.
 Unix pipe workers cancel together at the aggregate output cap, including
 pipes retained by descendants. Non-Unix blocking pipes lack that cancellation;
 the limitation is recorded in Diagnostic Notes.
-Unix uses the [safe POSIX spawn wrapper](https://docs.rs/nix/0.31.3/nix/spawn/index.html)
-to preserve Node's executable-format errors; `Command` can implicitly
-invoke a shell for an executable without a shebang on macOS.
+W2 originally used safe POSIX spawn wrappers to preserve Node's executable-format errors.
+The owner subsequently rejected Node behavior as the authority for W4.
+`Command` now supplies spawning and child cwd without additional dependencies or unsafe code.
+Its platform behavior can invoke a shell for executable text without a shebang on macOS.
 
 The owner approved the corresponding Node host correction for invalid
 process arguments. Both engines return `NotFound` for an empty program
@@ -744,6 +745,112 @@ Wasm. The JS glue implements `TestRunner` and `PropertyRunner`, and each
 case gets a fresh `WebAssembly.Instance` of the compiled module.
 Instantiation in a worker is synchronous for any module size.
 
+### 19.7 W4 Implementation Status (M22, 2026-10-10)
+
+Status: implemented, with the owner-approved deferrals below.
+All required gates passed on `c3f965e8` plus the M22 implementation.
+
+The owner approved connecting per-test `--max-heap` and `--time-limit`
+in W4, as deferred from M21. Node remains the default in M22.
+Explicit Node runtime limits warn and remain unenforced until W5.
+
+The owner deferred structured panic reports because their compiler
+prerequisites are missing. The current emitter exports functions and
+`hd.x`, but no panic category or message globals.
+It writes no `hd.sites`, `hd.lines` or `hd.names` tables.
+W4 therefore retains existing panic output; §21.5 awaits compiler work.
+This deferral does not establish symbolized-frame coverage.
+
+The Node property runner creates a fresh instance for every body run.
+The recorded §19.4 design instead retains the instance after a pass.
+W4 follows the recorded design: discard or failure replaces the instance.
+Differential results must distinguish this history-sensitive behavior
+from ordinary output or codec regressions.
+
+The bang `EntryPoll` previously retained its completed suspension root.
+A second body run therefore panicked `suspension-invalid-state`.
+The owner first deferred this prerequisite, then approved the compiler fix.
+The wrapper now clears the root only after a ready result.
+Pending polls retain their root; other instance state remains intact.
+Directly polling a completed or cancelled suspension still panics.
+
+The frozen scalar-generator and assume/discard fixtures reproduced the
+problem in all seven property registrations; Node passed them.
+Both ordinary registrations in `tests-block-items` matched.
+After the fix, all seven property registrations and both ordinary cases
+match Node. A broader selected comparison matches 15 test outcomes and
+three program entries, with zero differences and four compiler-unsupported
+fixtures. Runtime tests pass 116/116; emitter tests pass 5/5.
+Two new emitter regressions cover void and reported completion, including
+preservation of pending roots and report arguments.
+Scoped all-targets clippy passes for `hd_wasm` and `hd_run_wasmtime`.
+These early probes preceded the full conformance gates recorded below.
+
+Full driver comparison on `c3f965e8` plus M22 edits preserved the checked-in
+pass list. All 1,559 test outcomes matched, excluding elapsed-time fields.
+Ordinary entries matched 140/141; the exception remains Node's logged
+unbounded-recursion diagnostic, versus Wasmtime's `stack-exhausted` panic.
+
+| Runtime tier | Test fixtures | Matching test outcomes | Matching ordinary entries | Node aggregate execution wall | Wasmtime aggregate execution wall |
+| --- | --- | --- | --- | --- | --- |
+| Language | 600 | 914/914 | 133/134 | 95.092 s | 19.538 s |
+| Standard library | 230 | 645/645 | 7/7 | 38.511 s | 24.333 s |
+
+The eight-worker suite took 32.270 seconds, including compiler work.
+Aggregate execution time sums overlapping invocations, not suite elapsed
+time. This is one local measurement, not an established performance bound.
+Existing compiler failures and unsupported fixtures remain visible.
+
+The CLI comparison preserved its pass list: 87/102 fixtures pass, with
+15 existing failures and no unsupported fixtures. All 44 program-command
+steps and 38 test-command steps match raw status and output bytes.
+Neither missing pairs nor explicit-engine exclusions occurred.
+
+CLI runtime-command wall totals were Node 28.302 seconds and Wasmtime
+14.252 seconds; the eight-worker suite elapsed time was 9.242 seconds.
+These totals include compilation and process startup, unlike the driver
+execution measurements. Each engine received a fresh fixture and cache
+at identical paths; setup-only commands are excluded from those totals.
+
+Final formatting and workspace all-targets release clippy passed.
+Both required full release workspace test passes succeeded after the final fixes.
+The updating pass left `CONFORMANCE.md` unchanged; spec checks and the website build also passed.
+
+Review found snapshot and regression file operations bypassed host deadlines.
+Guest imports now reuse the filesystem provider's bounded pipe reads and writes.
+FIFO regressions cover snapshot reads and regression loading.
+Ordinary blocked kernel filesystem calls retain the OS limitation documented in §18.10.
+
+A shrink replay that never starts cannot replace the original counterexample.
+The shrink controller now stops without adopting that unavailable attempt.
+A regression preserves its recorded draws, displayed input and original failure.
+
+Regression persistence runs after guest execution, outside the completed body's deadline.
+It writes a new regular file and renames it over the saved stream.
+An expired body deadline therefore cannot erase the case report or abort later cases.
+Regressions cover expired-deadline reporting, FIFO replacement and failed-rename cleanup.
+
+The owner directed that Node behavior is subject to change, not an implementation authority.
+W4 now uses `std::process::Command` for external children, including their case cwd.
+Safe nonblocking pipe cancellation remains; no spawning dependency or unsafe wrapper was added.
+Native regressions cover child cwd, literal arguments and the named-child external Process path.
+
+The full updating gate exposed two HTTP fixture races, not a passing result.
+Accepted sockets inherited nonblocking mode, so request reads could fail with `WouldBlock`.
+Fixtures now explicitly select blocking reads with timeouts; a regression checks socket flags.
+Production HTTP behavior is unchanged; all 125 runtime unit tests pass afterward.
+Native heap regressions cover initial over-cap memory and independent growth limits across rows.
+
+The owner also deferred the workspace compiler-memory-cap lifecycle fix
+and requested logging it back to the orchestrator. Source review shows
+that the current compile/run-per-member loop enters native guest execution
+and permanently disarms the compiler cap before compiling later members.
+Preparing all members before execution is a proposed remedy, not an
+approved implementation: it changes user-facing `hd test` scheduling.
+No split was applied, and no end-to-end workspace regression was run.
+Normal `hd run` is outside this issue; this is separate from the completed
+test-suspension root prerequisite above.
+
 ## 20. Porting The Node Host To Rust (M3, 2026-10-10)
 
 The host today is `compiler/host/*.mjs` (core, float, http, net, test,
@@ -843,7 +950,7 @@ decision):
 | `getrandom` | 0.4 | XS | `hd:Random` without RNG state |
 | `hostname` | 0.4 | XS | fallible `hd:Sys.hostname` (no std API) |
 | `libc` | 0.2 | XS, already transitive | platform errno constants for Node-compatible filesystem and process errors; no unsafe calls |
-| `nix` | 0.31.3 | S, Unix only | safe POSIX spawn and wait wrappers, avoiding `Command`'s implicit shell fallback |
+| `nix` | 0.31.3 | S, Unix only | safe descriptor flags and readiness polling for bounded pipe I/O; signal helpers are test-only |
 | `windows-sys` | 0.61 | already transitive, Windows only | filesystem flags and native error constants; no unsafe calls |
 | `tracking-allocator` | 0.4.0, pinned | S | safe live Rust allocation callbacks for the approximate compiler cap |
 | `rustix` | 1.1.5, pinned, already transitive | Unix only | identify concrete native allocation errors; no unsafe calls |

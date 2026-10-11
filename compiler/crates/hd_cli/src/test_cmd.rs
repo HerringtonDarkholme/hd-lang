@@ -1,6 +1,6 @@
 //! `hd test [FILE] [--filter PATTERN] [--jobs N]` (spec/cli/command-line.md,
 //! "Test Runs"; engines-and-test-runner.md §19): build the package's
-//! unit-test program, run each selected case in a fresh instance on Node
+//! unit-test program, run each selected case in a fresh instance on the selected
 //! workers, and print the results through the release cursor in content
 //! order, whatever order the workers finish in.
 
@@ -23,7 +23,7 @@ use hd_run::tests_model::{
 };
 
 use crate::caps::CapFlag;
-use crate::node::{CaseRun, HostCase, Programs, Snapshot, TestEnv, run_cases};
+use crate::engine::{CaseRun, HostCase, Snapshot, TestEnv, TestPrograms, TestSession};
 use crate::report::{self, Reporter};
 use crate::{HD_FAILURE, Wall, cache_dir, disk, fail};
 
@@ -43,9 +43,19 @@ struct Options {
     /// `--update`: an update run, which records missing or differing
     /// snapshot files (`std-testing.snapshot-file.missing`).
     update: bool,
+    engine: crate::engine::EngineKind,
+    release: bool,
+    limits: crate::engine::ProgramLimits,
 }
 
 fn parse(args: &[OsString]) -> Result<Options, String> {
+    parse_with_engine(args, crate::engine::from_env()?)
+}
+
+fn parse_with_engine(
+    args: &[OsString],
+    engine: crate::engine::EngineKind,
+) -> Result<Options, String> {
     let mut o = Options {
         file: None,
         filter: None,
@@ -55,6 +65,9 @@ fn parse(args: &[OsString]) -> Result<Options, String> {
         caps: Vec::new(),
         seed: None,
         update: false,
+        engine,
+        release: false,
+        limits: crate::engine::ProgramLimits::default(),
     };
     let mut i = 0;
     while i < args.len() {
@@ -67,6 +80,24 @@ fn parse(args: &[OsString]) -> Result<Options, String> {
         if let Some(p) = disk::package_flag(args, i) {
             let (name, used) = p?;
             o.packages.push(name);
+            i += used;
+            continue;
+        }
+        if let Some(engine) = crate::engine::engine_flag(args, i) {
+            let (kind, used) = engine?;
+            o.engine = kind;
+            i += used;
+            continue;
+        }
+        if let Some(limit) = crate::engine::limit_flag(args, i) {
+            let (flag, used) = limit?;
+            match flag {
+                crate::engine::LimitFlag::Heap(bytes) => o.limits.heap_bytes = Some(bytes),
+                crate::engine::LimitFlag::Time(ms) => o.limits.wall_ms = Some(ms),
+                crate::engine::LimitFlag::CompilerMemory(_) => {
+                    return Err("--max-memory is a global compiler option".into());
+                }
+            }
             i += used;
             continue;
         }
@@ -95,8 +126,9 @@ fn parse(args: &[OsString]) -> Result<Options, String> {
         };
         if text == "--release" {
             // `cli.profile.test.release`: the test profile stays checked,
-            // and the flag selects only the pipeline, of which there is one
+            // and the flag selects only the pipeline
             // (`cli.profile.pipeline.one`).
+            o.release = true;
             continue;
         }
         if text == "--update" {
@@ -206,6 +238,22 @@ pub fn command(args: &[OsString]) -> ExitCode {
         ignored: 0,
         unsupported: 0,
     };
+    if o.engine == crate::engine::EngineKind::Node {
+        for (flag, present) in [
+            ("--max-heap", o.limits.heap_bytes.is_some()),
+            ("--time-limit", o.limits.wall_ms.is_some()),
+        ] {
+            if present {
+                report.rep.diag(&report::Diag::new(
+                    None,
+                    hd_diag::Severity::Warning,
+                    &format!(
+                        "{flag} is ignored on Node until W5; use --engine wasmtime for enforcement"
+                    ),
+                ));
+            }
+        }
+    }
     if o.file.is_some() && !o.packages.is_empty() {
         return report
             .rep
@@ -561,11 +609,16 @@ fn test_one(
             })
     });
     let programs = if starts {
-        Some(build_programs(root, &program.package, &mut report.rep)?)
+        Some(build_programs(
+            root,
+            &program.package,
+            o.engine,
+            &mut report.rep,
+        )?)
     } else {
         None
     };
-    run(&selected, &built, &env, programs.as_ref(), o.jobs, report)
+    run(&selected, &built, &env, programs.as_ref(), o, report)
 }
 
 /// The package's executables and tasks, built for the test runner's
@@ -575,8 +628,9 @@ fn test_one(
 fn build_programs(
     root: &Path,
     package: &str,
+    engine: crate::engine::EngineKind,
     rep: &mut report::Reporter,
-) -> Result<Programs, ExitCode> {
+) -> Result<TestPrograms, ExitCode> {
     let mut list = Vec::new();
     for r in disk::executables(root, package)
         .into_iter()
@@ -592,7 +646,7 @@ fn build_programs(
         );
         list.push((r.name, wasm, grants));
     }
-    Programs::new(&list, root).map_err(|e| rep.fail(&e))
+    TestPrograms::new(engine, list, root).map_err(|e| rep.fail(&e))
 }
 
 /// What a test case's environment comes from (Test Environments): the
@@ -702,7 +756,7 @@ impl Drop for TempDirs {
     }
 }
 
-/// Runs the cases program by program on up to `jobs` Node workers, round
+/// Runs the cases program by program on up to `jobs` workers, round
 /// robin in content order, and prints the results in content order
 /// (`cli.test.report.stream`), whatever order the workers finish in. An
 /// integration test program or a doc test with a totally denied need stops
@@ -711,8 +765,8 @@ fn run(
     selected: &[Selected],
     built: &[Built],
     env: &RunEnv<'_>,
-    programs: Option<&Programs>,
-    jobs: usize,
+    programs: Option<&TestPrograms>,
+    options: &Options,
     report: &mut Report,
 ) -> Result<(), ExitCode> {
     let cases: Vec<TestCase> = selected.iter().map(|s| s.case.clone()).collect();
@@ -781,12 +835,44 @@ fn run(
             report.release(&cases, &seeds, cursor.finish(key(i), r));
         }
     }
-    for (prog, running) in built.iter().zip(&running) {
+    if running.iter().all(Vec::is_empty) {
+        return Ok(());
+    }
+    let (session, prepared) = {
+        let _preparing = crate::memory_cap::stage("Precompile");
+        let session = TestSession::new(
+            options.engine,
+            options.release,
+            options.jobs,
+            options.limits,
+            programs,
+        )
+        .map_err(|error| report.rep.fail(&error))?;
+        let mut prepared = Vec::with_capacity(built.len());
+        for (program, running) in built.iter().zip(&running) {
+            if running.is_empty() {
+                prepared.push(None);
+                continue;
+            }
+            let wasm = program
+                .wasm
+                .as_deref()
+                .ok_or_else(|| report.rep.fail("internal: a test program was not built"))?;
+            prepared.push(Some(
+                session
+                    .prepare(wasm, program.cwd.is_some())
+                    .map_err(|error| report.rep.fail(&error))?,
+            ));
+        }
+        (session, prepared)
+    };
+    let _guest = crate::memory_cap::enter_guest();
+    for ((prog, running), prepared) in built.iter().zip(&running).zip(&prepared) {
         if running.is_empty() {
             continue;
         }
-        let Some(wasm) = prog.wasm.as_deref() else {
-            return Err(report.rep.fail("internal: a test program was not built"));
+        let Some(prepared) = prepared else {
+            return Err(report.rep.fail("internal: a test program was not prepared"));
         };
         let temp = TempDirs::new().map_err(|e| report.rep.fail(&e))?;
         let test_env = TestEnv {
@@ -815,7 +901,7 @@ fn run(
                 hd_run::Grants::default()
             },
         };
-        let workers = jobs.min(running.len()).max(1);
+        let workers = options.jobs.min(running.len()).max(1);
         let (tx, rx) = mpsc::channel::<Result<(usize, CaseRun), String>>();
         let mut error = None;
         std::thread::scope(|s| {
@@ -826,16 +912,34 @@ fn run(
                 let host_cases: Vec<HostCase> =
                     chunk.iter().map(|&(i, run)| host_case(i, run)).collect();
                 let test_env = &test_env;
-                s.spawn(move || {
-                    let r = run_cases(wasm, test_env, &host_cases, &mut |c: CaseRun| {
-                        if let Some((i, _)) = chunk.iter().find(|(_, (t, _))| *t == c.test) {
-                            let _ = tx.send(Ok((*i, c)));
-                        }
-                    });
+                let session = &session;
+                let mut builder = std::thread::Builder::new();
+                if options.engine == crate::engine::EngineKind::Wasmtime {
+                    builder = builder.stack_size(hd_run_wasmtime::thread_stack(
+                        &hd_run_wasmtime::EngineConfig::pipeline(options.release),
+                    ));
+                }
+                let worker = builder.spawn_scoped(s, move || {
+                    let r = session.run(
+                        prepared,
+                        test_env,
+                        &host_cases,
+                        options.limits,
+                        &mut |c: CaseRun| {
+                            if let Some((i, _)) = chunk.iter().find(|(_, (t, _))| *t == c.test) {
+                                let _ = tx.send(Ok((*i, c)));
+                            }
+                        },
+                    );
                     if let Err(e) = r {
                         let _ = tx.send(Err(e));
                     }
                 });
+                if let Err(spawn_error) = worker {
+                    error.get_or_insert_with(|| {
+                        format!("cannot start a test worker: {spawn_error}")
+                    });
+                }
             }
             drop(tx);
             for msg in rx {
@@ -1107,7 +1211,58 @@ fn shell_quoted(word: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{TempDirs, TestCase, base_seed, repro, shell_quoted};
+    use super::{TempDirs, TestCase, base_seed, parse_with_engine, repro, shell_quoted};
+
+    #[test]
+    fn test_engine_pipeline_and_limits_have_independent_selection() {
+        use crate::engine::{EngineKind, ProgramLimits};
+        let words = |words: &[&str]| {
+            words
+                .iter()
+                .map(|word| std::ffi::OsString::from(*word))
+                .collect::<Vec<_>>()
+        };
+        let default = parse_with_engine(&[], EngineKind::Node).unwrap();
+        assert_eq!(default.engine, EngineKind::Node);
+        assert!(!default.release);
+        assert_eq!(default.limits, ProgramLimits::default());
+        let native = parse_with_engine(
+            &words(&[
+                "tests/check.hd",
+                "--engine",
+                "wasmtime",
+                "--release",
+                "--max-heap=2M",
+                "--time-limit",
+                "0ms",
+            ]),
+            EngineKind::Node,
+        )
+        .unwrap();
+        assert_eq!(native.engine, EngineKind::Wasmtime);
+        assert!(native.release);
+        assert_eq!(
+            native.limits,
+            ProgramLimits {
+                heap_bytes: Some(2 * 1024 * 1024),
+                wall_ms: Some(0)
+            }
+        );
+        let explicit = parse_with_engine(
+            &words(&["--engine=wasmtime", "--engine=node"]),
+            EngineKind::Wasmtime,
+        )
+        .unwrap();
+        assert_eq!(explicit.engine, EngineKind::Node);
+        for words in [
+            words(&["--engine=unknown"]),
+            words(&["--engine"]),
+            words(&["--max-heap=bad"]),
+            words(&["--time-limit", "5"]),
+        ] {
+            assert!(parse_with_engine(&words, EngineKind::Node).is_err());
+        }
+    }
 
     fn case(name: &str, kind: &str) -> TestCase {
         TestCase {
