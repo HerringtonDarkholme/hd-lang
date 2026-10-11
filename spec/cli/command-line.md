@@ -37,7 +37,7 @@ says which program a command starts. Its diagnostic codes are in the
 | `hd check`, `hd test [--release]` | work on the [package](#building-and-checking), or on one FILE; `hd test` is [always checked](#r-cli.profile.test) |
 | `hd doc [--private] [--out DIR] [--open]`, `hd doc NAME` | [writes the package's documentation](#documentation), or prints one item's |
 | `hd new [--app \| --lib] [--pages] [--vcs none] [PATH]` | [creates a package](#creating-a-package) |
-| `hd add [--dev] NAME PATH@VERSION`, `hd update [NAME]`, `hd remove NAME`, `hd fetch` | [change or fetch the package's dependencies](#dependency-commands) |
+| `hd add [--dev] [--name NAME] TARGET[@QUERY]...`, `hd update [NAME[@QUERY]]`, `hd remove NAME`, `hd fetch` | [change or fetch the package's dependencies](#dependency-commands) |
 | `hd clean`, `hd clean --cache` | [removes the package's build directory, or the dependency cache](#cleaning) |
 | `hd fmt [--check] [FILE]` | [formats the package's source files](#formatting), or one FILE |
 | `hd fix` | [applies the package's safe fix-its](#fixing) |
@@ -45,12 +45,12 @@ says which program a command starts. Its diagnostic codes are in the
 | `hd help`, `hd --help`, `hd help COMMAND` | prints the command list, or one command's usage and flags |
 
 1. r[cli.command.help] `hd help` and `hd --help` print the command list. It names every command of the table above.
-2. r[cli.command.help.command] `hd help COMMAND` and `hd COMMAND --help` print the command's usage line and each flag it takes. So the help of `hd add` names `--dev` and the help of `hd clean` names `--cache`.
+2. r[cli.command.help.command] `hd help COMMAND` and `hd COMMAND --help` print the command's usage line and each flag it takes. So the help of `hd add` names `--dev` and `--name`, and the help of `hd clean` names `--cache`.
 3. r[cli.command.positional] A positional word of a command is a NAME or a FILE. A directory is neither: `hd test libs/ui` is an error, and its message suggests [`-p`](#selecting-members).
 
 ```sh
 hd help          # the command list
-hd help add      # the usage and flags of add, --dev included
+hd help add      # the usage and flags of add, --dev and --name included
 hd add --help    # the same text
 ```
 
@@ -1431,12 +1431,12 @@ hd> price(+2)
 as Go's `go` command does:
 
 ```sh
-hd add json github.com/acme/json@2.1.0   # requires json, fetches it, and records its hash
-hd check                                 # fetches each selected version that the cache lacks
-hd update json                           # moves json to the newest 2.x release
-hd remove json                           # deletes json's requirement and tidies hd.sum
-hd fetch                                 # fetches everything selected, as CI does before going offline
-hd clean --cache                         # deletes every fetched version; the next command fetches again
+hd add acme/json@2.1.0   # requires github.com/acme/json as json, fetches it, and records its hash
+hd check                 # fetches each selected version that the cache lacks
+hd update json           # moves json to the newest 2.x release
+hd remove json           # deletes json's requirement and tidies hd.sum
+hd fetch                 # fetches everything selected, as CI does before going offline
+hd clean --cache         # deletes every fetched version; the next command fetches again
 ```
 
 Source then uses the dependency through its key, as in
@@ -1572,45 +1572,61 @@ Selection reads the manifest of `json@2.0.0` but selects `2.1.0`.
 ### Dependency Commands
 
 ```sh
-hd add json github.com/acme/json@2.1.0   # hd.toml gains json = "github.com/acme/json@2.1.0"
-hd add json github.com/acme/json@2.0.0   # prints: lowered json 2.1.0 -> 2.0.0
-hd add --dev fixtures github.com/acme/fixtures@1.0.0   # fixtures goes to [dev-dependencies]
-hd update json                           # with a tag v2.3.0, json becomes "github.com/acme/json@2.3.0"
+hd add acme/json                         # hd.toml gains json = "github.com/acme/json@2.3.0", its newest release
+hd add acme/json@2.0.0                   # prints the new line, then: lowered json 2.3.0 -> 2.0.0
+hd add --dev acme/fixtures@1.0           # fixtures goes to [dev-dependencies], at its newest 1.0 release
+hd add --name json_v1 acme/json@1        # a second key, for the newest 1.x release
+hd add ../billing acme/pdf               # two targets: a path requirement and a fetched package
+hd update json                           # with a tag v2.4.0, json becomes "github.com/acme/json@2.4.0"
+hd update json@main                      # json becomes the pseudo-version of main's head commit
 hd remove json                           # json's line and its hd.sum entry go
 ```
 
 | Command | Effect |
 | --- | --- |
-| `hd add NAME PATH@VERSION` | adds the requirement `NAME = "PATH@VERSION"`, or changes NAME's, raising or lowering it, then fetches and records hashes |
-| `hd add --dev NAME PATH@VERSION` | does the same in `[dev-dependencies]` |
+| `hd add TARGET[@QUERY]...` | adds a requirement for each [target](#targets), or changes its key's, raising or lowering it, then fetches and records hashes |
+| `hd add --dev TARGET[@QUERY]...` | does the same in `[dev-dependencies]` |
+| `hd add --name NAME TARGET[@QUERY]` | uses the key NAME in place of the [package's name](#dependency-keys) |
 | `hd update` | moves every requirement, dev dependencies too, to the newest release on its compatibility line |
 | `hd update NAME` | moves only NAME's requirement |
+| `hd update NAME@QUERY` | sets NAME's requirement to the version that the [query](#version-queries) selects |
 | `hd remove NAME` | deletes NAME's requirement, from either table |
 | `hd fetch` | fetches every selected version that the cache lacks, and records missing hashes |
 
-1. r[cli.dep.add] `hd add NAME PATH@VERSION` sets the requirement of the key NAME in `[dependencies]` to `PATH@VERSION`. It adds the key when the manifest has none.
-2. r[cli.dep.add.check] `hd add` checks NAME and `PATH@VERSION` by [`cli.dep.invalid`](#r-cli.dep.invalid) before it fetches anything.
-3. r[cli.dep.add.lower] `hd add` may set NAME's requirement to an earlier version of the same host path, as `go get` does. It then prints that it lowered the requirement, as `lowered json 2.1.0 -> 2.0.0`.
+1. r[cli.dep.add.target] `hd add TARGET[@QUERY]...` sets, for each target, the requirement of its [key](#dependency-keys) in `[dependencies]`. It adds the key when the manifest has none.
+2. r[cli.dep.add.check] `hd add` checks the `--name` value and each target by [`cli.dep.invalid`](#r-cli.dep.invalid) before it fetches anything.
+3. r[cli.dep.add.lower] `hd add` may set a key's requirement to an earlier version of the same host path, as `go get` does. It then prints that it lowered the requirement, as `lowered json 2.1.0 -> 2.0.0`.
 4. r[cli.dep.add.lower.selection] A lowered requirement is still a minimum. Selection keeps a later version when another reached manifest, such as another member's, requires one, by [`module.select.largest`](../lang/10-modules.md#r-module.select.largest).
-5. r[cli.dep.add.dev] `hd add --dev NAME PATH@VERSION` sets the requirement in `[dev-dependencies]` instead, as [`cli.dep.add`](#r-cli.dep.add) does for `[dependencies]`. The other rules of `hd add` hold for it.
-6. r[cli.dep.add.other-table] When the key NAME is in the other table, `hd add` is an error. It reports `` NAME is in [dependencies]; run `hd remove NAME` first ``, or names `[dev-dependencies]` in the reverse case. It does not fetch or write, by [`cli.dep.unchanged-on-error`](#r-cli.dep.unchanged-on-error).
-7. r[cli.dep.select] After it changes the manifest, `hd add`, `hd update`, or `hd remove` selects versions again and fetches each version it needs that the cache lacks.
-8. r[cli.dep.tidy] It then writes `hd.sum` with one tree line for each selected version, one manifest line for each version selection read, and no other entry. A version's existing entry is kept, by [`cli.sum.keep`](#r-cli.sum.keep).
-9. r[cli.dep.update] `hd update` moves each dependency requirement of the manifest to the newest release tag on its [compatibility line](../lang/10-modules.md#r-module.version.line). `hd update NAME` moves only NAME's requirement.
-10. r[cli.dep.update.release] The newest release is the greatest tagged version without a pre-release suffix. A requirement already at or above it keeps its version.
-11. r[cli.dep.update.network] `hd update` lists the tags of each repository it moves, so it uses the network even when the cache holds every version.
-12. r[cli.dep.update.dev] `hd update` moves the requirements of `[dev-dependencies]` as it moves those of `[dependencies]`, and `hd update NAME` finds NAME in either table. A NAME that is no key of either table is an error.
-13. r[cli.dep.remove] `hd remove NAME` deletes the key NAME from `[dependencies]` or `[dev-dependencies]`. A NAME that is no key of either table is an error.
-14. r[cli.dep.fetch] `hd fetch` fetches every version that selection needs and the cache lacks. It adds each tree line and manifest line that [`cli.dep.tidy`](#r-cli.dep.tidy) would write and `hd.sum` lacks, and changes no other entry.
-15. r[cli.dep.edit.empty-table] When an edit deletes a dependency table's last key, it deletes that `[dependencies]` or `[dev-dependencies]` header line too.
-16. r[cli.dep.unchanged-on-error] When a dependency command reports an error, it writes neither `hd.toml` nor `hd.sum`.
-17. r[cli.dep.edit] A dependency command edits `hd.toml` line by line, so its comments and its other lines stay as they are.
-18. r[cli.dep.package-only] The dependency commands work on the package of [package mode](#package-mode). Outside any package, each is an error whose message suggests `hd new`.
-19. r[cli.dep.no-question] No dependency command asks a question.
-20. r[cli.dep.workspace-fetch] In [workspace mode](#workspace-mode), `hd fetch` works on the whole workspace. It fetches what the workspace's selection needs, and adds the missing lines to its `hd.sum`, by [`cli.dep.fetch`](#r-cli.dep.fetch).
-21. r[cli.dep.workspace-member-only] In workspace mode, `hd add`, `hd update`, and `hd remove` are errors whose message suggests running them in a member's directory.
-22. r[cli.dep.dev-selected] Selection reads the package's dev dependencies in every command, by [`module.select.dev-dependencies`](../lang/10-modules.md#r-module.select.dev-dependencies). So `hd build`, `hd check`, and `hd run` fetch them and need their `hd.sum` entries, although only test code and tasks may use them.
-23. r[cli.dep.dev-use.remove-first] Code that is not test code and uses a dev dependency is an error, by [`module.test.non-test-use.dev-dependency`](../lang/10-modules.md#r-module.test.non-test-use.dev-dependency). Its message says to run `hd remove NAME` first, then `hd add NAME PATH@VERSION`, to put the key in `[dependencies]`. Error: `test-only-use`.
+5. r[cli.dep.add.dev] `hd add --dev TARGET[@QUERY]...` sets the requirements in `[dev-dependencies]` instead, as [`cli.dep.add.target`](#r-cli.dep.add.target) does for `[dependencies]`. The other rules of `hd add` hold for it.
+6. r[cli.dep.add.other-table] When a target's key is in the other table, `hd add` is an error. It reports `` NAME is in [dependencies]; run `hd remove NAME` first ``, or names `[dev-dependencies]` in the reverse case. It writes nothing, by [`cli.dep.unchanged-on-error`](#r-cli.dep.unchanged-on-error), and fetches nothing when `--name` gives the key.
+7. r[cli.dep.add.several] `hd add` with several targets changes the manifest once, for all of them. When one target fails, it writes nothing, by [`cli.dep.unchanged-on-error`](#r-cli.dep.unchanged-on-error).
+8. r[cli.dep.add.report] Once it has written the manifest, `hd add` prints one line per target to stdout, in the targets' order. The line is the key's line of `hd.toml`, as `json = "github.com/acme/json@2.3.0"`.
+9. r[cli.dep.add.report.pseudo] For a pseudo-version, the line ends with a comment that names the commit and says it has no version tag, as `# commit 3f2c9e1a7b6d has no version tag`.
+10. r[cli.dep.add.report.order] The line of [`cli.dep.add.lower`](#r-cli.dep.add.lower) follows its target's line. With `--format json`, `hd add` prints none of these lines, by [`cli.json.lines.build`](#r-cli.json.lines.build).
+11. r[cli.dep.select] After it changes the manifest, `hd add`, `hd update`, or `hd remove` selects versions again and fetches each version it needs that the cache lacks.
+12. r[cli.dep.tidy] It then writes `hd.sum` with one tree line for each selected version, one manifest line for each version selection read, and no other entry. A version's existing entry is kept, by [`cli.sum.keep`](#r-cli.sum.keep).
+13. r[cli.dep.update] `hd update` moves each dependency requirement of the manifest to the newest release tag on its [compatibility line](../lang/10-modules.md#r-module.version.line). `hd update NAME` moves only NAME's requirement.
+14. r[cli.dep.update.release] The newest release is the greatest tagged version without a pre-release suffix. A requirement already at or above it keeps its version.
+15. r[cli.dep.update.network] `hd update` lists the tags of each repository it moves, so it uses the network even when the cache holds every version.
+16. r[cli.dep.update.dev] `hd update` moves the requirements of `[dev-dependencies]` as it moves those of `[dependencies]`, and `hd update NAME` finds NAME in either table. A NAME that is no key of either table is an error.
+17. r[cli.dep.update.query] `hd update NAME@QUERY` sets NAME's requirement to the version that QUERY selects on its host path, by [Version Queries](#version-queries). It may raise or lower the requirement, as `hd add` does by [`cli.dep.add.lower`](#r-cli.dep.add.lower).
+18. r[cli.dep.update.query.path] `hd update NAME@QUERY` is an error when NAME holds a path requirement. Error: `invalid-requirement`.
+19. r[cli.dep.remove] `hd remove NAME` deletes the key NAME from `[dependencies]` or `[dev-dependencies]`. A NAME that is no key of either table is an error.
+20. r[cli.dep.fetch] `hd fetch` fetches every version that selection needs and the cache lacks. It adds each tree line and manifest line that [`cli.dep.tidy`](#r-cli.dep.tidy) would write and `hd.sum` lacks, and changes no other entry.
+21. r[cli.dep.edit.empty-table] When an edit deletes a dependency table's last key, it deletes that `[dependencies]` or `[dev-dependencies]` header line too.
+22. r[cli.dep.unchanged-on-error] When a dependency command reports an error, it writes neither `hd.toml` nor `hd.sum`.
+23. r[cli.dep.edit] A dependency command edits `hd.toml` line by line, so its comments and its other lines stay as they are.
+24. r[cli.dep.package-only] The dependency commands work on the package of [package mode](#package-mode). Outside any package, each is an error whose message suggests `hd new`.
+25. r[cli.dep.no-question] No dependency command asks a question.
+26. r[cli.dep.no-code] No dependency command runs code from a dependency. It reads only git's data and the files of the trees it fetches, such as their `hd.toml`.
+27. r[cli.dep.workspace-fetch] In [workspace mode](#workspace-mode), `hd fetch` works on the whole workspace. It fetches what the workspace's selection needs, and adds the missing lines to its `hd.sum`, by [`cli.dep.fetch`](#r-cli.dep.fetch).
+28. r[cli.dep.workspace-member-only] In workspace mode, `hd add`, `hd update`, and `hd remove` are errors whose message suggests running them in a member's directory.
+29. r[cli.dep.dev-selected] Selection reads the package's dev dependencies in every command, by [`module.select.dev-dependencies`](../lang/10-modules.md#r-module.select.dev-dependencies). So `hd build`, `hd check`, and `hd run` fetch them and need their `hd.sum` entries, although only test code and tasks may use them.
+30. r[cli.dep.dev-use.remove-first] Code that is not test code and uses a dev dependency is an error, by [`module.test.non-test-use.dev-dependency`](../lang/10-modules.md#r-module.test.non-test-use.dev-dependency). Its message says to run `hd remove NAME` first, then `hd add --name NAME TARGET`, to put the key in `[dependencies]`. Error: `test-only-use`.
+
+> **Note.** A query may move a requirement to another compatibility line,
+> as `hd update json@latest` does when json has a newer major release.
+> `hd update NAME` without a query stays on the requirement's line.
 
 > **Why.** An agent adds a dependency with one command and gets a
 > manifest, a fetched tree, and a hash that agree. CI runs `hd fetch` once,
@@ -1625,6 +1641,124 @@ hd remove json                           # json's line and its hd.sum entry go
 > **Why.** Lowering a minimum is safe under minimal version selection, so
 > `hd add` does it as Go's `go get x@older` does. It says so, since a
 > lowered line is easy to miss in a diff.
+
+> **Why.** Several targets either all land or none do, so a failed command
+> leaves nothing to clean up. The printed line shows what `hd add` chose
+> for a target the user wrote without a version or a key. Adding a package
+> runs none of its code, unlike an npm install script or a Cargo build
+> script, so reviewing a dependency can wait until it is used.
+
+#### Targets
+
+A target names the package that `hd add` requires, in one of four
+forms:
+
+| Target | Requirement | Example |
+| --- | --- | --- |
+| `.`, `..`, a path that starts with `./` or `../`, or an absolute path | a [path requirement](../lang/10-modules.md#r-module.path-dep.form) on that directory | `../billing` is `{ path = "../billing" }` |
+| a repository URL, of the table below | the repository's host path | `https://github.com/acme/json.git` is `github.com/acme/json` |
+| a host path, whose first segment holds a dot | that [host path](../lang/10-modules.md#host-paths) | `git.example.com/shop/billing.git` |
+| `OWNER/REPO[/DIR...]`, whose first segment holds no dot | the host path `github.com/OWNER/REPO[/DIR...]` | `acme/tools/lint` is `github.com/acme/tools/lint` |
+
+| Repository URL | Host path |
+| --- | --- |
+| `https://HOST/PATH` | `HOST/PATH` |
+| `ssh://git@HOST/PATH` | `HOST/PATH` |
+| `git@HOST:PATH` | `HOST/PATH` |
+
+1. r[cli.dep.target.order] A target takes the first form of the table above that it matches.
+2. r[cli.dep.target.split] A target word splits at its first `@` that is not the `git@` of a repository URL. The text after it is the QUERY.
+3. r[cli.dep.target.path] A path target is relative to the working directory. `hd add` writes the path relative to the manifest's directory, with `/` between its segments.
+4. r[cli.dep.target.path.no-query] A path target with a QUERY, such as `../billing@1.0.0`, is an error. Error: `invalid-requirement`.
+5. r[cli.dep.target.self] A path target that names the package's own directory is an error. Error: `invalid-requirement`.
+6. r[cli.dep.target.url] A repository URL names a repository, and its target names the package at the repository's root.
+7. r[cli.dep.target.url.git-suffix] On `github.com`, a `.git` at the end of the URL is dropped. On any other host, the last segment gains `.git` when it lacks one, by [`module.repo.git-suffix`](../lang/10-modules.md#r-module.repo.git-suffix).
+8. r[cli.dep.target.github] A target whose first segment holds no dot names a `github.com` host path without its host. So `acme/json` is `github.com/acme/json`.
+9. r[cli.dep.target.github.only] `github.com` is the only host that a target may leave out, and no setting names another. A target on any other host is written in full.
+10. r[cli.dep.target.no-manifest] A fetched target whose directory holds no `hd.toml` in the selected commit is an error. Its message lists each directory below it that holds an `hd.toml`, as `found packages at cli/, core/`. Error: `invalid-requirement`.
+
+```sh
+hd add acme/json                                # github.com/acme/json
+hd add git@github.com:acme/json.git@2.1.0       # github.com/acme/json, at 2.1.0
+hd add https://git.example.com/shop/billing     # git.example.com/shop/billing.git
+hd add gitlab.com/acme/json.git                 # any other host is written in full
+hd add acme/tools                               # error: invalid-requirement, found packages at cli/, core/
+hd add .                                        # error: invalid-requirement, the package itself
+```
+
+> **Why.** Most packages live on `github.com`, so the short form saves
+> typing and matches what a repository page shows. A second default host,
+> or a setting for one, would make the same target name different packages
+> on different machines. A pasted URL works because people copy one.
+
+#### Version Queries
+
+A query says which version of a fetched target `hd add` or
+`hd update` requires:
+
+| Query | Selects |
+| --- | --- |
+| none, or `latest` | the newest release; else the newest pre-release; else the pseudo-version of the default branch's head commit |
+| `X.Y.Z`, `X.Y.Z-PRE`, or a pseudo-version | that version |
+| `X` or `X.Y` | the newest release on that major, or major and minor; else the newest such pre-release |
+| a branch name | the pseudo-version of the branch's head commit |
+| a commit hash, or a prefix of one | the pseudo-version of that commit |
+
+1. r[cli.dep.query.order] A query takes the first row of the table above that it matches. So `latest` and `2.1` never name a branch.
+2. r[cli.dep.query.tags] A query reads only the package's version tags, with its tag prefix, by [`module.version.tag`](../lang/10-modules.md#r-module.version.tag) and [`module.version.tag-prefix`](../lang/10-modules.md#r-module.version.tag-prefix). It ignores every other tag.
+3. r[cli.dep.query.latest] No query, or `latest`, selects the newest release: the greatest version without a pre-release suffix.
+4. r[cli.dep.query.latest.pre-release] When the package has no release, it selects the greatest pre-release.
+5. r[cli.dep.query.latest.untagged] When the package has no version tag, it selects the pseudo-version of the head commit of the repository's default branch.
+6. r[cli.dep.query.latest.note] In that case, `hd` prints a note to stderr that suggests tagging a version.
+7. r[cli.dep.query.v-prefix] A version or partial version may start with `v`, as `v2.1.0` or `v2`. `hd` drops it, so the manifest holds no `v`, by [`module.dep.requirement-form`](../lang/10-modules.md#r-module.dep.requirement-form).
+8. r[cli.dep.query.exact] A version or pseudo-version selects itself. Its tag or commit must exist, by [`cli.dep.unknown-version`](#r-cli.dep.unknown-version) and [`cli.dep.pseudo.unknown`](#r-cli.dep.pseudo.unknown).
+9. r[cli.dep.query.partial] A query `X` or `X.Y` selects the greatest release whose major, or major and minor, are those. With no such release, it selects the greatest such pre-release.
+10. r[cli.dep.query.revision] Any other query names a branch, or else a commit by its hash or a prefix of it. It selects that commit's [pseudo-version](../lang/10-modules.md#r-module.version.pseudo).
+11. r[cli.dep.query.revision.tagged] A commit that carries a version tag selects that tag's version instead, or the greatest one when it carries several.
+12. r[cli.dep.query.unknown] A query that selects no version is an error. Error: `unknown-version`.
+13. r[cli.dep.query.network] A query other than an exact version lists the repository's tags or branches, so it uses the network. An exact version that the cache holds needs none.
+14. r[cli.dep.query.offline] When git cannot reach the repository for such a query, the `fetch-failed` message of [`cli.dep.no-prompt`](#r-cli.dep.no-prompt) also suggests an exact version.
+
+```sh
+hd add acme/json              # 2.3.0, with the tags v2.3.0, v2.2.0, and v3.0.0-rc.1
+hd add acme/json@v2.2         # 2.2.0, the newest 2.2 release; the v is dropped
+hd add acme/beta              # 0.2.0-rc.2, when every tag is a pre-release
+hd add acme/pdf               # 0.0.0-20260912081500-3f2c9e1a7b6d, with no version tag, and a note to tag one
+hd add acme/json@main         # 2.3.1-0.20261002093000-9a1b2c3d4e5f, a commit on main after v2.3.0
+hd add acme/json@9a1b2c3      # the same commit, by a prefix of its hash
+hd add acme/tools/lint        # the newest lint/vX.Y.Z tag
+hd add acme/json@2.9          # error: unknown-version, with no 2.9 tag
+```
+
+> **Why.** These are the queries of Go's `go get`, by its
+> [version queries](https://go.dev/ref/mod#version-queries), and `hd`
+> follows Go wherever this list is silent. A release is preferred because
+> a pre-release may change. A package with no tag still works, since many
+> new repositories have none yet, and the note says how to fix it.
+
+#### Dependency Keys
+
+`hd add` takes a target's key from the package's own name unless
+`--name` gives one:
+
+```sh
+hd add acme/left-pad               # key left_pad, from name = "left-pad" in its hd.toml
+hd add --name pad acme/left-pad    # key pad
+hd add acme/json acme/json         # error: invalid-requirement, two targets with one key
+```
+
+1. r[cli.dep.key.name-flag] `--name NAME` makes NAME the target's key.
+2. r[cli.dep.key.name-flag.one] `--name` with more than one target is a usage error.
+3. r[cli.dep.key.inferred] Without `--name`, the key is the `name` of the `[package]` table in the target's `hd.toml`, with each `-` replaced by `_`, by [`module.dep.key-name`](../lang/10-modules.md#r-module.dep.key-name).
+4. r[cli.dep.key.inferred.invalid] An inferred key that source could not write as `dep.NAME`, as `9tools`, is an error whose message suggests `--name`. Error: `invalid-requirement`.
+5. r[cli.dep.key.same] When the key already holds a requirement on the target's host path, or a path requirement on its directory, `hd add` changes that requirement. Its version may rise or fall, also to another compatibility line.
+6. r[cli.dep.key.clash] A key that holds a requirement on another host path or directory, or that two targets share, is an error whose message suggests `--name`. Error: `invalid-requirement`.
+7. r[cli.dep.key.clash.other-table] When an inferred key is in the other table, the message of [`cli.dep.add.other-table`](#r-cli.dep.add.other-table) also suggests `--name`.
+
+> **Why.** A package's manifest already says what it is called, so the key
+> needs no typing, and the `-` rule is the one source uses. A key that
+> already names another package is never replaced silently: `--name`
+> picks a free key, and `hd remove` makes a replacement explicit.
 
 See also: [Package Manifest](../lang/10-modules.md#package-manifest),
 [Integrity](../lang/10-modules.md#integrity),
