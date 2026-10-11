@@ -55,14 +55,3 @@ commit that finishes it. When the queue is empty, report that and wait.
 (Owner, 2026-10-11: Codex is offline; a weaker Muse is back temporarily.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
-
-### M38. Measure Node's per-run cost in conformance
-
-M28 found each Node run costs about 101 ms, dominated by starting a
-`node` process per case. Measure: process start with an empty script,
-`compiler/host/run.mjs` load time, wasm compile, and the run itself, for a
-typical fixture. Then evaluate one fix: a long-lived Node worker that
-the driver conformance runner sends cases to over stdin (one process per
-worker thread). Estimate the gain from the measurements. Write it up as a
-section "Conformance on Node" in `future-work/compiler/wasmtime-perf.md`.
-No code changes in this job.

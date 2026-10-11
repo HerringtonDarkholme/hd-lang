@@ -326,3 +326,58 @@ wasmtime pays ~35 ns for it.
 3. **Engine config: nothing to ship.** `Speed` already helps exec
    14-19% here (801→685 ms) per M32, but the structural cost stays;
    verdicts are untouched since nothing changed.
+
+## Conformance on Node
+
+M38 measurement (2026-10-11): what a Node run costs in driver
+conformance, and what a long-lived worker would save. No code changes.
+
+### Per-run breakdown (ms, min-of-7 unless noted)
+
+Measured on three small entry fixtures (7-13 KB wasm) plus empty and
+import-only probes, dev profile, ambient load:
+
+| step | ms |
+| --- | ---: |
+| empty `node` process start | 30 |
+| `+` loading `host/core.mjs` (host parsing) | 5 (35 total) |
+| wasm compile (7-13 KB) | 0.1-0.5 |
+| instantiate + run (typical fixture) | ~0.5 |
+| full `node host/run.mjs prog.wasm` | 36-39 |
+| same, 8-way concurrent (mean / p90) | 43.8 / 49 |
+
+So a minimum ~38 ms run is ~35 ms process+host load, ~1 ms compile,
+~0.5 ms execution. Under 8-way concurrency the wall stretches modestly
+(p50 42, max 70). The suite average is 101 ms per run (100.5 s over 992
+runs: 155 entries, 837 test-harness invocations), the rest being driver
+overhead per run — temp file writes, process spawn latency under load,
+pipe threads, reaping — plus scheduling.
+
+A stdin round-trip of 10 KB through pipes measures sub-millisecond
+(30.1 ms total with a fresh `node` boot, i.e. ~0.1 ms of actual IPC),
+so messaging a persistent worker is essentially free.
+
+### Evaluated fix: one Node worker per driver thread
+
+Today every run spawns a `node` process (`run_wasm`, test harness).
+Instead, start one long-lived Node process per conformance worker
+thread (8, matching `workers()`), speaking length-prefixed JSON over
+stdin: `{wasm path, config, args}` in, `{status, stdout, stderr}` out.
+Estimated per-run cost: ~0.5 ms IPC + 0.5 ms compile + 0.5 ms run +
+~2 ms unchanged driver-side work ≈ 3-4 ms, against 101 ms average
+(38 ms best case) today — roughly a 25-30x per-run cut.
+
+Suite-wall arithmetic (dev): node sums 100.5 s → ~3.5 s; at 8 workers
+the node wall share drops from ~12.6 s to ~0.5 s, taking the suite wall
+from ~17 s toward ~5 s (check+build, ~4.5 s of wall share, is
+unchanged). Release should scale similarly from its 15.6 s. Caveats:
+sums and walls were measured at ambient load, and the 4.5 s
+check+build share is inferred, not directly timed.
+
+Correctness notes for whoever builds it: reuse the process, never the
+host — each case still gets a fresh `createHost` (grants, programs,
+temp dirs, socket owners must not leak across cases); respawn a dead
+worker and mark the case crashed; capture stdio per case; recycle
+workers periodically (every few hundred cases) as cheap insurance
+against V8 heap growth. A poorer alternative is batching several cases
+per spawn; it keeps the boot tax and complicates failure attribution.
