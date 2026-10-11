@@ -8,20 +8,20 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2489 | 293 | 63 | 2845 |
+| 2495 | 292 | 58 | 2845 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
 | `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
-| `lang/02-grammar.md` | 201 | 11 | 3 | 215 |
+| `lang/02-grammar.md` | 203 | 11 | 1 | 215 |
 | `lang/03-names-and-scopes.md` | 97 | 3 | 1 | 101 |
 | `lang/04-type-system.md` | 314 | 38 | 0 | 352 |
 | `lang/05-expressions.md` | 244 | 32 | 1 | 277 |
 | `lang/06-control-flow.md` | 138 | 15 | 4 | 157 |
 | `lang/07-functions.md` | 115 | 14 | 1 | 130 |
-| `lang/08-data-and-enums.md` | 90 | 28 | 5 | 123 |
+| `lang/08-data-and-enums.md` | 94 | 27 | 2 | 123 |
 | `lang/09-traits.md` | 319 | 38 | 2 | 359 |
 | `lang/10-modules.md` | 218 | 31 | 9 | 258 |
 | `lang/11-requirements-and-suspension.md` | 204 | 32 | 23 | 259 |
@@ -63,8 +63,8 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 93 | 8 | 4 | 105 |
-| `runtime/valid` | 857 | 17 | 55 | 929 |
-| `typing/invalid` | 836 | 236 | 3 | 1075 |
+| `runtime/valid` | 860 | 17 | 52 | 929 |
+| `typing/invalid` | 839 | 235 | 1 | 1075 |
 | `typing/valid` | 405 | 9 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -91,7 +91,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 4 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 132 |
+| `fail:no-diagnostic` | 131 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
@@ -117,7 +117,7 @@ compiler stage that first declined the case.
 | `fail:unknown-type` | 3 |
 | `fail:unknown-variant` | 1 |
 | `fail:unused-local-binding` | 6 |
-| `unsupported:Body` | 14 |
+| `unsupported:Body` | 9 |
 | `unsupported:Collect` | 16 |
 | `unsupported:Emit` | 2 |
 | `unsupported:Link` | 3 |
@@ -246,7 +246,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (132)</summary>
+<details><summary><code>fail:no-diagnostic</code> (131)</summary>
 
 - `typing/invalid/duplicate-generic-embedded-name.hd`
 - `typing/invalid/float-literal-range.hd`
@@ -275,7 +275,6 @@ compiler stage that first declined the case.
 - `typing/invalid/function-typed-field-method-call.hd`
 - `typing/invalid/embedded-copy-required.hd`
 - `typing/invalid/embedded-copy-required-fresh-literal.hd`
-- `typing/invalid/embedded-assignment-copy-required.hd`
 - `typing/invalid/copy-into-ordinary-field.hd`
 - `typing/invalid/embedding-depth-four.hd`
 - `typing/invalid/embedding-depth-four-generic.hd`
@@ -626,22 +625,17 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (14)</summary>
+<details><summary><code>unsupported:Body</code> (9)</summary>
 
 - `runtime/valid/binding-expressions.hd`
 - `typing/invalid/for-over-non-iterable.hd`
 - `runtime/valid/tuple-impl-target.hd`
-- `runtime/valid/embedded-store-copies.hd`
-- `typing/invalid/copy-assignment-ordinary-field.hd`
-- `runtime/valid/part-copy-is-copy-update.hd`
 - `typing/valid/type-default-trait-method.hd`
 - `runtime/valid/module-qualified-variant.hd`
 - `runtime/valid/module-qualified-associated-call.hd`
 - `runtime/valid/shared-enum-data-computed-once.hd`
 - `runtime/valid/iterator-list-sum.hd`
 - `runtime/valid/binding-chain-with-suite.hd`
-- `runtime/valid/assignment-and-break-forms.hd`
-- `typing/invalid/grammar-assignment-nonplace.hd`
 
 </details>
 
@@ -1119,6 +1113,7 @@ runtime/valid/assert-equal-result.hd
 runtime/valid/assert-equal-string.hd
 runtime/valid/assert-equal-tuple.hd
 runtime/valid/assert.hd
+runtime/valid/assignment-and-break-forms.hd
 runtime/valid/assignment-place-before-value.hd
 runtime/valid/associated-binding-positions.hd
 runtime/valid/associated-closure-named-args.hd
@@ -1294,6 +1289,7 @@ runtime/valid/embedded-copy-at-field-position.hd
 runtime/valid/embedded-field-satisfies-trait.hd
 runtime/valid/embedded-part-follows-container.hd
 runtime/valid/embedded-part-mut-alias.hd
+runtime/valid/embedded-store-copies.hd
 runtime/valid/embedded-trait-method-via-part.hd
 runtime/valid/empty-string-operations.hd
 runtime/valid/encoding-base64-vectors.hd
@@ -1638,6 +1634,7 @@ runtime/valid/own-module-private-members.hd
 runtime/valid/parameter-default-earlier-parameter.hd
 runtime/valid/parameter-defaults-after-explicit-arguments.hd
 runtime/valid/parenthesized-nested-same-line-if.hd
+runtime/valid/part-copy-is-copy-update.hd
 runtime/valid/partial-equality-dispatch.hd
 runtime/valid/partial-ordering-dispatch.hd
 runtime/valid/path-operations.hd
@@ -2069,6 +2066,7 @@ typing/invalid/continue-outside-loop.hd
 typing/invalid/contravariant-enum-requirement-row.hd
 typing/invalid/contravariant-method-requirement-row.hd
 typing/invalid/contravariant-method-result.hd
+typing/invalid/copy-assignment-ordinary-field.hd
 typing/invalid/copy-update-private-field-other-module.hd
 typing/invalid/copy-update-readonly-child.hd
 typing/invalid/copy-update-readonly-embedded-mutable-edge.hd
@@ -2152,6 +2150,7 @@ typing/invalid/duplicate-trait-member.hd
 typing/invalid/dyn-associated-function-bound.hd
 typing/invalid/dyn-inherent-method-on-concrete.hd
 typing/invalid/dyn-unknown-associated-binding.hd
+typing/invalid/embedded-assignment-copy-required.hd
 typing/invalid/embedded-field-not-called.hd
 typing/invalid/embedded-part-readonly-alias.hd
 typing/invalid/empty-list-without-context.hd
@@ -2243,6 +2242,7 @@ typing/invalid/generic-trait-instantiation-no-fit.hd
 typing/invalid/generic-trait-instantiations-ambiguous.hd
 typing/invalid/generic-trait-literal-without-default.hd
 typing/invalid/generic-variant-constructor-argument-unsolved.hd
+typing/invalid/grammar-assignment-nonplace.hd
 typing/invalid/grammar-mutable-field-modifier.hd
 typing/invalid/guarded-catch-all-not-exhaustive.hd
 typing/invalid/guarded-match-not-exhaustive.hd

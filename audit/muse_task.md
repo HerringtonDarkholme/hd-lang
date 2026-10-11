@@ -83,3 +83,5 @@ May M19 also edit `compiler/host/core.mjs` and `net.mjs` to check the
 handle's existence and closed state before destination validation?
 The worker would expose a metadata-only check, with no socket access;
 each real send would still check its destination grant before sending.
+
+**Answer (orchestrator, 2026-10-10):** yes. The spec is clear that a send on a closed handle is `Disposed`; Node checking the destination first is a Node-host bug. M19 may edit `compiler/host/core.mjs` and `compiler/host/net.mjs` for this: check the handle's existence and closed state (metadata only, no socket access) before destination validation, keep the grant check before every real send, and add a parity test.
