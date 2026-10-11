@@ -2757,7 +2757,11 @@ impl Ck<'_, '_> {
                         pool.get(self.strip_mut(rt)),
                         TyData::Adt { def, .. } if def == self.cx.names.known.field
                     );
-                if !handle_fact {
+                if handle_fact {
+                    if let Some(&m) = vars.first() {
+                        self.handle_fact_type(rt, m, n)?;
+                    }
+                } else {
                     self.bounds_of(&sig, &vars, &inst, n)?;
                 }
                 self.inherent_row(method, &sig, (impl_def, &impl_args), &vars, n)?;

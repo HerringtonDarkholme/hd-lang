@@ -3294,7 +3294,7 @@ impl Lower<'_, '_, '_> {
                 let mut it = Item::new(h.def, h.name, h.public, ItemData::Data(fields));
                 it.generics = generics;
                 it.targets = self.annotate_mask(n);
-                it.typed_fact = self.annotate_typed(n);
+                it.fact_pattern = self.annotate_pattern(n, &gn);
                 out.push(it);
             }
             HeadKind::Enum => {
@@ -3344,7 +3344,7 @@ impl Lower<'_, '_, '_> {
                     Item::new(h.def, h.name, h.public, ItemData::Enum { shared, variants });
                 it.generics = generics;
                 it.targets = self.annotate_mask(n);
-                it.typed_fact = self.annotate_typed(n);
+                it.fact_pattern = self.annotate_pattern(n, &gn);
                 out.push(it);
             }
             HeadKind::Trait => {

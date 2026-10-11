@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2636 | 186 | 23 | 2845 |
+| 2649 | 174 | 22 | 2845 |
 
 ## By Chapter
 
@@ -25,7 +25,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/09-traits.md` | 341 | 16 | 2 | 359 |
 | `lang/10-modules.md` | 223 | 30 | 5 | 258 |
 | `lang/11-requirements-and-suspension.md` | 239 | 12 | 8 | 259 |
-| `lang/14-annotations.md` | 125 | 26 | 2 | 153 |
+| `lang/14-annotations.md` | 137 | 15 | 1 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
 | `std/collections.md` | 26 | 3 | 0 | 29 |
@@ -52,7 +52,7 @@ fixture; unsupported surface records progress without failing.
 | `std/serde.md` | 8 | 0 | 0 | 8 |
 | `std/sys.md` | 1 | 0 | 0 | 1 |
 | `std/task.md` | 7 | 0 | 0 | 7 |
-| `std/testing.md` | 36 | 3 | 0 | 39 |
+| `std/testing.md` | 37 | 2 | 0 | 39 |
 | `std/text.md` | 35 | 0 | 0 | 35 |
 | `std/time.md` | 17 | 0 | 0 | 17 |
 
@@ -63,8 +63,8 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 98 | 4 | 3 | 105 |
-| `runtime/valid` | 901 | 10 | 18 | 929 |
-| `typing/invalid` | 931 | 143 | 1 | 1075 |
+| `runtime/valid` | 902 | 10 | 17 | 929 |
+| `typing/invalid` | 943 | 131 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -79,7 +79,7 @@ compiler stage that first declined the case.
 | `fail:bang-call-outside-suspension` | 2 |
 | `fail:bare-variant-pattern` | 3 |
 | `fail:boundary-private-field` | 1 |
-| `fail:cannot-infer-type` | 5 |
+| `fail:cannot-infer-type` | 4 |
 | `fail:duplicate-argument` | 1 |
 | `fail:duplicate-data-pattern-field` | 1 |
 | `fail:invalid-test-statement` | 1 |
@@ -89,7 +89,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:no-common-type` | 2 |
-| `fail:no-diagnostic` | 77 |
+| `fail:no-diagnostic` | 66 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-import` | 1 |
 | `fail:private-main` | 4 |
@@ -111,7 +111,7 @@ compiler stage that first declined the case.
 | `fail:unknown-variant` | 1 |
 | `fail:unused-local-binding` | 4 |
 | `unsupported:Body` | 5 |
-| `unsupported:Collect` | 4 |
+| `unsupported:Collect` | 3 |
 | `unsupported:Link` | 3 |
 | `unsupported:RunCase` | 11 |
 
@@ -147,11 +147,10 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:cannot-infer-type</code> (5)</summary>
+<details><summary><code>fail:cannot-infer-type</code> (4)</summary>
 
 - `typing/invalid/none-to-any.hd`
 - `typing/invalid/none-without-expected-type.hd`
-- `typing/invalid/handle-fact-pattern-mismatch.hd`
 - `typing/invalid/eq-contextual-both-operands.hd`
 - `typing/invalid/any-bare-none.hd`
 
@@ -217,7 +216,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (77)</summary>
+<details><summary><code>fail:no-diagnostic</code> (66)</summary>
 
 - `typing/invalid/private-type-leak.hd`
 - `typing/invalid/private-type-embedded-in-public-data.hd`
@@ -258,17 +257,6 @@ compiler stage that first declined the case.
 - `typing/invalid/function-type-rest-not-list.hd`
 - `typing/invalid/vararg-type-not-collection.hd`
 - `typing/invalid/race-no-tasks.hd`
-- `typing/invalid/typed-fact-mismatch.hd`
-- `typing/invalid/typed-fact-expected-mismatch.hd`
-- `typing/invalid/arbitrary-with-wrong-generator.hd`
-- `typing/invalid/typed-fact-function-suspending.hd`
-- `typing/invalid/typed-fact-bound.hd`
-- `typing/invalid/typed-fact-value-mismatch.hd`
-- `typing/invalid/typed-fact-fn-pattern-arity.hd`
-- `typing/invalid/typed-fact-fn-pattern-field.hd`
-- `typing/invalid/typed-fact-fn-pattern-bound.hd`
-- `typing/invalid/typed-fact-fn-pattern-suspending.hd`
-- `typing/invalid/typed-fact-concrete-pattern-mismatch.hd`
 - `typing/invalid/generic-inference-variance-conflict.hd`
 - `typing/invalid/generic-inference-optional-conflict.hd`
 - `typing/invalid/race-empty-list-literal.hd`
@@ -486,11 +474,10 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Collect</code> (4)</summary>
+<details><summary><code>unsupported:Collect</code> (3)</summary>
 
 - `runtime/valid/member-line-list-expression.hd`
 - `runtime/valid/init-group-order.hd`
-- `runtime/valid/handle-fact-exact-type.hd`
 - `runtime/valid/init-group-statements-by-identity.hd`
 
 </details>
@@ -1214,6 +1201,7 @@ runtime/valid/generic-trait-literal-default-instantiation.hd
 runtime/valid/generic-trait-method-qualified-call.hd
 runtime/valid/generic-trait-qualified-calls.hd
 runtime/valid/generic-variant-constructor-argument.hd
+runtime/valid/handle-fact-exact-type.hd
 runtime/valid/hash-bytes-derived.hd
 runtime/valid/hash-bytes-result.hd
 runtime/valid/hash-bytes-scalars.hd
@@ -1838,6 +1826,7 @@ typing/invalid/anyref-subtrait-value-newtype.hd
 typing/invalid/anyval-bound-rejects-data.hd
 typing/invalid/anyval-user-impl.hd
 typing/invalid/arbitrary-with-non-inspectable-member.hd
+typing/invalid/arbitrary-with-wrong-generator.hd
 typing/invalid/arithmetic-on-bool.hd
 typing/invalid/arithmetic-on-list.hd
 typing/invalid/assert-equal-fieldless-data-without-partial-eq.hd
@@ -2144,6 +2133,7 @@ typing/invalid/grammar-mutable-field-modifier.hd
 typing/invalid/guarded-catch-all-not-exhaustive.hd
 typing/invalid/guarded-match-not-exhaustive.hd
 typing/invalid/hand-written-hash-beside-derived-eq.hd
+typing/invalid/handle-fact-pattern-mismatch.hd
 typing/invalid/hd-run-requires-process.hd
 typing/invalid/heterogeneous-list-bool-int.hd
 typing/invalid/heterogeneous-list.hd
@@ -2695,7 +2685,17 @@ typing/invalid/type-default-kind.hd
 typing/invalid/type-default-later-parameter.hd
 typing/invalid/type-default-order.hd
 typing/invalid/type-name-as-value.hd
+typing/invalid/typed-fact-bound.hd
+typing/invalid/typed-fact-concrete-pattern-mismatch.hd
+typing/invalid/typed-fact-expected-mismatch.hd
+typing/invalid/typed-fact-fn-pattern-arity.hd
+typing/invalid/typed-fact-fn-pattern-bound.hd
+typing/invalid/typed-fact-fn-pattern-field.hd
+typing/invalid/typed-fact-fn-pattern-suspending.hd
+typing/invalid/typed-fact-function-suspending.hd
+typing/invalid/typed-fact-mismatch.hd
 typing/invalid/typed-fact-not-field.hd
+typing/invalid/typed-fact-value-mismatch.hd
 typing/invalid/typeid-of-any.hd
 typing/invalid/typeid-of-function-argument.hd
 typing/invalid/typeid-of-never.hd

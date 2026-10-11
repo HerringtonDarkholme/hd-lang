@@ -14,11 +14,14 @@
 //! derivation; a slot its lines do not edit reuses the declaration's facts
 //! body.
 //!
+//! A typed fact in a facts body is checked against its member's type
+//! (`annot.typed-fact.check`), and holds the value at the fact type that
+//! type infers, which a handle's `fact` finds (`annot.handle.fact.exact`).
+//!
 //! Not generated yet, each a structured "not implemented" that leaves the
 //! derivation's `Structure` without bodies (a call of it then stops at
-//! collection): a typed fact (`annot.typed-fact.check`), a member line
-//! whose list is not a list literal, and the shared constructor data of a
-//! generic enum.
+//! collection): a member line whose list is not a list literal, and the
+//! shared constructor data of a generic enum.
 
 use hd_base::{DefId, Stage, StageResult};
 use hd_diag::DiagBuf;
@@ -29,8 +32,9 @@ use hd_tir::Body;
 use hd_types::{ParamRef, Ty, TyData, TyList};
 
 use crate::body::{BodyCx, unsupported};
+use crate::call::subst_owner;
 use crate::derive::{MemberLine, OptIn};
-use crate::facts::{FactSource, TypedFacts, check_fact_list};
+use crate::facts::{FactSource, FactTarget, check_fact_list};
 
 pub use hd_structure::Generated;
 
@@ -60,6 +64,9 @@ pub struct FactLines<'t> {
     of_type: Vec<FactSource<'t>>,
     variants: Vec<Vec<FactSource<'t>>>,
     members: Vec<Vec<Vec<FactSource<'t>>>>,
+    /// Per variant, per member position: the member's declared type, which
+    /// a typed fact checks against (`annot.typed-fact.declared-type`).
+    member_tys: Vec<Vec<Ty>>,
 }
 
 impl<'t> FactLines<'t> {
@@ -68,6 +75,27 @@ impl<'t> FactLines<'t> {
             Slot::Type => Some(&mut self.of_type),
             Slot::Variant(v) => self.variants.get_mut(v),
             Slot::Member(v, m) => self.members.get_mut(v)?.get_mut(m),
+        }
+    }
+
+    /// The member types written over the type's own parameters, moved to
+    /// a derivation's scope: the data type or enum `data` at `args`.
+    pub fn retarget(&mut self, cx: &BodyCx<'_>, data: DefId, args: &[Ty]) {
+        let pool = cx.names.pool.types();
+        for t in self.member_tys.iter_mut().flatten() {
+            *t = subst_owner(pool, data, args, *t);
+        }
+    }
+
+    /// The target a slot's typed facts check against.
+    fn target(&self, s: Slot) -> FactTarget {
+        match s {
+            Slot::Member(v, m) => self
+                .member_tys
+                .get(v)
+                .and_then(|ms| ms.get(m))
+                .map_or(FactTarget::Other, |t| FactTarget::Field(*t)),
+            Slot::Type | Slot::Variant(_) => FactTarget::Other,
         }
     }
 
@@ -87,7 +115,7 @@ impl<'t> FactLines<'t> {
 
 /// The member nodes of a data type, or the variant nodes of an enum, in
 /// declaration order, which their item's fields and variants follow.
-fn member_nodes(decl: NodeRef<'_>) -> Vec<NodeRef<'_>> {
+pub(crate) fn member_nodes(decl: NodeRef<'_>) -> Vec<NodeRef<'_>> {
     hd_resolve::Src::child(decl, SyntaxKind::Block)
         .into_iter()
         .flat_map(NodeRef::children)
@@ -101,6 +129,100 @@ fn member_nodes(decl: NodeRef<'_>) -> Vec<NodeRef<'_>> {
             )
         })
         .collect()
+}
+
+/// Per variant of the data type or enum `item`, declared at `decl`: the
+/// variant's node (`None` for a data type's one variant, which has no
+/// facts, `annot.variant.data-facts`), and each member's node with its
+/// declared type, in position order.
+type MemberSites<'t> = Vec<(Option<NodeRef<'t>>, Vec<(NodeRef<'t>, Ty)>)>;
+
+fn member_sites<'t>(item: &Item, decl: NodeRef<'t>) -> MemberSites<'t> {
+    let nodes = member_nodes(decl);
+    match &item.data {
+        ItemData::Data(fields) => {
+            let members = nodes
+                .into_iter()
+                .zip(fields)
+                .map(|(n, f)| (n, f.ty))
+                .collect();
+            vec![(None, members)]
+        }
+        ItemData::Enum { variants, .. } => nodes
+            .into_iter()
+            .zip(variants)
+            .map(|(v, var)| {
+                let members = hd_resolve::Src::child(v, SyntaxKind::ParameterList)
+                    .into_iter()
+                    .flat_map(NodeRef::children)
+                    .filter(|c| c.kind() == SyntaxKind::Parameter)
+                    .zip(&var.fields)
+                    .map(|(n, f)| (n, f.ty))
+                    .collect();
+                (Some(v), members)
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// The fact expressions of the declaration `node` of `owner` that attach
+/// to a member, with the member's declared type in `owner`'s scope: its
+/// decorators, for a data type or enum, and the elements of its member
+/// lines, for a derivation block (`annot.typed-fact.targets`,
+/// `annot.typed-fact.check`). Each is marked when it is one decorator's
+/// value rather than a list element.
+#[must_use]
+pub fn member_fact_sites<'t>(
+    cx: &BodyCx<'t>,
+    owner: DefId,
+    node: NodeRef<'t>,
+) -> Vec<(NodeRef<'t>, Ty, bool)> {
+    let src = &cx.src;
+    let Some(item) = cx.lookup.item(owner) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    if let ItemData::Impl {
+        by: Some(_),
+        self_ty,
+        ..
+    } = &item.data
+    {
+        let TyData::Adt { def: data, args } = cx.names.pool.get(*self_ty) else {
+            return out;
+        };
+        let Some(target) = cx.lookup.item(data) else {
+            return out;
+        };
+        let args = cx.names.pool.list_items(args).to_vec();
+        for line in crate::derive::member_lines(src, node) {
+            let Some(list) = line.list.filter(|l| l.kind() == SyntaxKind::ListExpr) else {
+                continue;
+            };
+            let Some(Slot::Member(v, m)) = line_slot(cx, target, line.name) else {
+                continue;
+            };
+            let ty = match &target.data {
+                ItemData::Data(fields) if v == 0 => fields.get(m).map(|f| f.ty),
+                _ => None,
+            };
+            let Some(ty) = ty else { continue };
+            let ty = subst_owner(cx.names.pool.types(), data, &args, ty);
+            out.extend(list.children().map(|e| (e, ty, false)));
+        }
+        return out;
+    }
+    for (_, members) in member_sites(item, node) {
+        for (n, ty) in members {
+            out.extend(
+                hd_resolve::facts::fact_lines(src, n)
+                    .into_iter()
+                    .map(|e| (e, ty, true)),
+            );
+        }
+    }
+    out
 }
 
 /// The declaration facts of the data type or enum `item`, declared at
@@ -125,31 +247,40 @@ pub fn declaration_facts<'t>(
         of_type: values(decl),
         ..FactLines::default()
     };
-    let nodes = member_nodes(decl);
-    match &item.data {
-        // A data type's one variant has no facts (`annot.variant.data-facts`).
-        ItemData::Data(_) => {
-            out.variants.push(Vec::new());
-            out.members.push(nodes.into_iter().map(values).collect());
-        }
-        ItemData::Enum { .. } => {
-            for v in nodes {
-                out.variants.push(values(v));
-                let payloads = hd_resolve::Src::child(v, SyntaxKind::ParameterList)
-                    .into_iter()
-                    .flat_map(NodeRef::children)
-                    .filter(|c| c.kind() == SyntaxKind::Parameter)
-                    .map(values)
-                    .collect();
-                out.members.push(payloads);
-            }
-        }
-        _ => {}
+    for (variant, members) in member_sites(item, decl) {
+        out.variants.push(variant.map(values).unwrap_or_default());
+        out.member_tys
+            .push(members.iter().map(|(_, t)| *t).collect());
+        out.members
+            .push(members.into_iter().map(|(n, _)| values(n)).collect());
     }
     if let Some(block) = traitless {
         edit_facts(cx, item, &mut out, &crate::derive::member_lines(src, block));
     }
     out
+}
+
+/// The slot a member line named `name` edits in `item`: `Self`, a field
+/// of a data type, or a variant of an enum.
+fn line_slot(cx: &BodyCx<'_>, item: &Item, name: &str) -> Option<Slot> {
+    let names = &cx.names;
+    if name == "Self" {
+        return Some(Slot::Type);
+    }
+    match &item.data {
+        ItemData::Data(fields) => fields
+            .iter()
+            .position(|f| {
+                let n = names.text(f.name);
+                n == name || name.strip_prefix('_') == Some(n)
+            })
+            .map(|m| Slot::Member(0, m)),
+        ItemData::Enum { variants, .. } => variants
+            .iter()
+            .position(|v| names.text(v.name) == name)
+            .map(Slot::Variant),
+        _ => None,
+    }
 }
 
 /// Applies member lines to `facts` (`annot.line.extend`,
@@ -161,29 +292,12 @@ pub fn edit_facts<'t>(
     facts: &mut FactLines<'t>,
     lines: &[MemberLine<'t>],
 ) -> Vec<Slot> {
-    let names = &cx.names;
     let mut edited = Vec::new();
     for line in lines {
         let Some(list) = line.list else { continue };
-        let slot = if line.name == "Self" {
-            Some(Slot::Type)
-        } else {
-            match &item.data {
-                ItemData::Data(fields) => fields
-                    .iter()
-                    .position(|f| {
-                        let n = names.text(f.name);
-                        n == line.name || line.name.strip_prefix('_') == Some(n)
-                    })
-                    .map(|m| Slot::Member(0, m)),
-                ItemData::Enum { variants, .. } => variants
-                    .iter()
-                    .position(|v| names.text(v.name) == line.name)
-                    .map(Slot::Variant),
-                _ => None,
-            }
+        let Some(slot) = line_slot(cx, item, line.name) else {
+            continue;
         };
-        let Some(slot) = slot else { continue };
         let Some(sources) = facts.slot(slot) else {
             continue;
         };
@@ -242,7 +356,7 @@ pub fn fact_bodies(
                     cx,
                     (owner, def),
                     sources,
-                    TypedFacts::Unsupported,
+                    facts.target(slot),
                     decl,
                     &mut scratch,
                 )?;

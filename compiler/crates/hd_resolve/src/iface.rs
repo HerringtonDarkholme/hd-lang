@@ -390,9 +390,11 @@ pub struct Item {
     /// A function whose decorators attach values: `facts_of` of it reads
     /// its facts body (`annot.facts-of.result`).
     pub has_facts: bool,
-    /// A fact type whose `@annotate::[pattern]` line types its targets
-    /// (`annot.typed-fact.declare`).
-    pub typed_fact: bool,
+    /// A typed fact type's pattern: the type argument of its
+    /// `@annotate::[pattern]` line, over the type's own parameters
+    /// (`annot.typed-fact.declare`, `annot.typed-fact.pattern`); `None`
+    /// for an untyped fact type or any other item.
+    pub fact_pattern: Option<Ty>,
     pub data: ItemData,
 }
 
@@ -413,7 +415,7 @@ impl Item {
             targets: None,
             literal_fn: 0,
             has_facts: false,
-            typed_fact: false,
+            fact_pattern: None,
             data,
         }
     }
@@ -835,7 +837,7 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
     w.u32(it.targets.map_or(u32::MAX, u32::from));
     w.u8(it.literal_fn);
     w.u8(u8::from(it.has_facts));
-    w.u8(u8::from(it.typed_fact));
+    w.u32(opt_ty(t, it.fact_pattern)?);
     match &it.data {
         ItemData::Fn(s) => {
             w.u8(0);
@@ -932,7 +934,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
     };
     let literal_fn = r.u8();
     let has_facts = r.u8() != 0;
-    let typed_fact = r.u8() != 0;
+    let fact_pattern = get_opt_ty(r, t).ok()?;
     let data = match r.u8() {
         0 => ItemData::Fn(get_sig(r, t)?),
         1 => ItemData::Data(get_fields(r, t)?),
@@ -1014,7 +1016,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         targets,
         literal_fn,
         has_facts,
-        typed_fact,
+        fact_pattern,
         data,
     })
 }

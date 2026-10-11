@@ -4758,6 +4758,11 @@ fn derivation_facts<'t>(
     }
     let mut view = facts;
     let edited = hd_check::structure::edit_facts(cx, item, &mut view, lines);
+    // The derivation's bodies are in its own scope, where the target is
+    // the data type or enum at the derivation's arguments.
+    if let TyData::Adt { args, .. } = pool.get(opt.target) {
+        view.retarget(cx, data, pool.list_items(args));
+    }
     let (own, bodies) =
         hd_check::structure::fact_bodies(cx, opt.impl_, (&view, node), Some((&edited, &base)))
             .ok()?;

@@ -427,11 +427,13 @@ fn name_into(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut String, l
             out.push_str("mut ");
             name_into(pool, env, i, out, limit);
         }
-        // Not inspectable (trait.inspectable.not.*): never recorded, but a
-        // diagnostic spells them.
+        // Not inspectable (trait.inspectable.not.*), but a diagnostic
+        // spells them, and a typed fact's identity names its pattern's
+        // arguments (`annot.handle.fact.exact`): the row is part of it.
         TyData::Fn {
             params,
             result,
+            row,
             suspends,
             ..
         } => {
@@ -439,6 +441,11 @@ fn name_into(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut String, l
             list(pool.list_items(params), ", ", out);
             out.push_str(") -> ");
             name_into(pool, env, result, out, limit);
+            let keys = pool.row_data(row).keys;
+            if !keys.is_empty() {
+                out.push_str(" $ ");
+                list(&keys, " + ", out);
+            }
         }
         TyData::Row(r) => {
             out.push_str("$(");
@@ -1146,6 +1153,17 @@ impl Cx<'_> {
             return Ok(hit.clone());
         }
         let env = self.env;
+        // The sealed `Inspectable` is the compiler's at every concrete
+        // type: its one method spells the type, so selection needs no
+        // proof. Checking enforces where the language requires the bound
+        // (`trait.inspectable.*`); a compiler-made lookup that the checker
+        // exempts, a typed fact's read through a handle and its place in a
+        // `Facts`, needs a runtime identity whatever its type arguments
+        // are (`annot.handle.fact.key`, `annot.handle.fact.exact`).
+        if choice.is_none() && trait_ == env.decls().sealed().inspectable {
+            self.selected.insert(key, Picked::Builtin);
+            return Ok(Picked::Builtin);
+        }
         let view = env.impls();
         let at = if let Some(d) = choice {
             let Some(at) = env.impl_row(d) else {

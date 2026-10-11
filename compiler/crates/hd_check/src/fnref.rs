@@ -13,7 +13,7 @@
 //! own.
 
 use hd_base::{DefId, StageResult};
-use hd_diag::Code;
+use hd_diag::{Code, Severity};
 use hd_resolve::{FnSig, HeadKind, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::ir::{
@@ -436,6 +436,22 @@ impl Ck<'_, '_> {
     }
 
     /// The member's function type without its first `skip` parameters.
+    /// The signature type of the module-level function `def` in its own
+    /// generic scope, with its `!` and requirement row: the type a typed
+    /// fact on it checks against (`annot.typed-fact.declared-type`).
+    pub(crate) fn own_fn_ty(&mut self, def: DefId) -> StageResult<Ty> {
+        let Some(sig) = self.cx.lookup.item(def).and_then(|i| i.sig()).cloned() else {
+            return unsupported("a typed fact on a target that is not a function");
+        };
+        let m = Member {
+            def,
+            sig: self.with_result(def, sig),
+            vars: Vec::new(),
+            owner: Owner::Item,
+        };
+        self.member_fn_ty(&m, 0)
+    }
+
     fn member_fn_ty(&mut self, m: &Member, skip: usize) -> StageResult<Ty> {
         let pool = self.pool();
         // The function type carries the row: a private callable's omitted
@@ -579,6 +595,8 @@ impl Ck<'_, '_> {
     /// Steps 7 to 9 of a reference's instantiation for the variables
     /// recorded since `start`: an unsolved one takes its default, else it
     /// is `cannot-infer-type` (once per reference) and stands for poison.
+    /// A reference whose use is already an error at the reference itself,
+    /// such as a mismatch with its expected type, gets no second error.
     pub(crate) fn close_ref_params(&mut self, start: usize) {
         if self.ref_params.len() <= start {
             return;
@@ -600,11 +618,17 @@ impl Ck<'_, '_> {
             if reported != Some(at) {
                 reported = Some(at);
                 let node = self.cx.src.parse.tree.node(at);
-                self.err(
+                let span = self.cx.src.span(node);
+                let failed = (0..self.diags.len()).any(|i| {
+                    self.diags.severity[i] == Severity::Error && self.diags.primary[i] == span
+                });
+                if !failed {
+                    self.err(
                     Code::CannotInferType,
                     node,
                     "this function reference's type arguments have no solution; give it an expected function type or write them explicitly",
                 );
+                }
             }
             self.infer
                 .rebind(pool, self.infer.shallow(pool, v), Ty::POISON);

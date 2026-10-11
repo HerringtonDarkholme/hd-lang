@@ -19,7 +19,7 @@ pub mod error;
 mod expr;
 mod facts;
 pub mod newtype;
-pub use facts::{FactSource, TypedFacts, check_decl_facts, check_fact_list, check_facts};
+pub use facts::{FactSource, FactTarget, check_decl_facts, check_fact_list, check_facts};
 
 mod fnref;
 pub mod header;

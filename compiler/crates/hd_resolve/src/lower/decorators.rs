@@ -120,10 +120,33 @@ impl Lower<'_, '_, '_> {
         self.annotate_line(n).map(|(mask, _)| mask)
     }
 
-    /// Whether the `@annotate::[pattern](...)` line makes a typed fact type
-    /// (`annot.typed-fact.declare`).
-    pub(super) fn annotate_typed(&self, n: NodeRef<'_>) -> bool {
-        self.annotate_line(n).is_some_and(|(_, typed)| typed)
+    /// The pattern of the `@annotate::[pattern](...)` line that makes the
+    /// declaration `n` a typed fact type, lowered among its parameters
+    /// `gn` (`annot.typed-fact.declare`, `annot.typed-fact.pattern.scope`).
+    pub(super) fn annotate_pattern(&mut self, n: NodeRef<'_>, gn: &super::Gen) -> Option<Ty> {
+        if !self.annotate_line(n).is_some_and(|(_, typed)| typed) {
+            return None;
+        }
+        let node = n
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::Decorator)
+            .filter(|d| {
+                self.deco(*d)
+                    .is_some_and(|x| x.typed && x.name == "annotate")
+            })
+            .find_map(|d| {
+                let e = d.children().next()?;
+                let callee = match e.kind() {
+                    SyntaxKind::CallExpr => e.children().next()?,
+                    _ => e,
+                };
+                let list = Src::child(callee, SyntaxKind::TypeArgumentList)?;
+                list.children().find(|c| c.kind().is_type())
+            });
+        Some(match node {
+            Some(t) => self.ty(Some(t), gn),
+            None => Ty::POISON,
+        })
     }
 
     fn annotate_line(&self, n: NodeRef<'_>) -> Option<(u16, bool)> {

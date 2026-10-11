@@ -636,9 +636,36 @@ impl<'a, 'n> Gen<'a, 'n> {
             return self.no_facts();
         };
         let t = self.adt(self.std("Facts"), &[]);
-        let a = self.b.refs_record(&[Ref(def.raw()), Ref(TyList::EMPTY.0)]);
+        let targs = self.facts_args(def);
+        let a = self.b.refs_record(&[Ref(def.raw()), Ref(targs.0)]);
         let earlier = self.b.refs_record(&[]);
         Ok(self.b.emit(Tag::DefaultCall, a, earlier, t, SYN))
+    }
+
+    /// The instance arguments of the facts body `def` here: a typed fact
+    /// is a value at the member's type (`annot.typed-fact.check`), so a
+    /// generic target's facts body is generic too. A body of the data type
+    /// or enum itself takes the target's arguments; one of a derivation
+    /// that owns this `Structure` takes the derivation's own parameters.
+    fn facts_args(&self, def: DefId) -> TyList {
+        let names = self.names;
+        let pool = names.pool;
+        let owner = DefId::from_raw(
+            names
+                .paths
+                .parent(hd_base::PathId::from_raw(def.raw()))
+                .raw(),
+        );
+        if let TyData::Adt { def: data, args } = pool.get(strip_mut(names, self.target))
+            && data == owner
+        {
+            return args;
+        }
+        let n = self.cx.items.item(owner).map_or(0, |i| i.generics.len());
+        let own: Vec<Ty> = (0..n)
+            .map(|i| param(names, owner, u16::try_from(i).unwrap_or(u16::MAX)))
+            .collect();
+        pool.list(&own)
     }
 
     /// `VariantInfo.shared` of `v` (`annot.variant.shared-pairs`): each
