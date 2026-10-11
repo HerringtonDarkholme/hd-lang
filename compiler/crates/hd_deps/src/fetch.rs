@@ -2,24 +2,38 @@
 //! (`cli.dep.implicit-fetch`, `cli.dep.fetch`). A version the cache holds
 //! needs no git and no network (`cli.dep.offline`).
 
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::path::Path;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 
 use hd_diag::Code;
 use hd_project::{HostPath, Version, compatibility_line};
 
-use crate::cache::{Cache, Entry};
+use crate::cache::{Cache, Entry, Scratch};
 use crate::git::{Git, GitError, TagRelation};
+use crate::query::{Pick, Query, Refs, pick, pseudo_version, tagged_version};
 use crate::select::Source;
 use crate::sum::tree_key;
 use crate::version::{PseudoCommit, pseudo_base, pseudo_commit, tag_name, tag_version};
+
+/// The version a query selects (`cli.dep.query.*`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Resolved {
+    pub version: Version,
+    /// Whether the package has no version tag, so the version is the
+    /// pseudo-version of the default branch's head
+    /// (`cli.dep.query.latest.untagged`).
+    pub untagged: bool,
+}
 
 /// The cache, and git to fill it.
 pub struct Remote<'a> {
     cache: Cache,
     git: Git,
-    /// The tags of each repository listed so far, or why listing failed.
-    tags: HashMap<String, Result<BTreeMap<String, String>, Unreachable>>,
+    /// The refs of each repository listed so far, or why listing failed.
+    refs: HashMap<String, Result<Refs, Unreachable>>,
+    /// A scratch repository per repository whose branches and tags were
+    /// fetched in this run, which later pseudo-versions read too.
+    full: HashMap<String, Scratch>,
     /// The URL that answered for each repository, which its later git
     /// commands use too.
     answered: HashMap<String, String>,
@@ -82,7 +96,8 @@ impl<'a> Remote<'a> {
         Remote {
             cache,
             git: Git::new(),
-            tags: HashMap::new(),
+            refs: HashMap::new(),
+            full: HashMap::new(),
             answered: HashMap::new(),
             ssh_hosts: HashSet::new(),
             progress,
@@ -126,19 +141,20 @@ impl<'a> Remote<'a> {
         Err(Unreachable::new(repository, tried))
     }
 
-    /// The tags of `host`'s repository, listed once, with `repo` as the
-    /// repository git runs in.
-    fn tags_of(
-        &mut self,
-        host: &HostPath,
-        repo: &Path,
-    ) -> Result<BTreeMap<String, String>, Unreachable> {
-        if let Some(listed) = self.tags.get(&host.repository) {
-            return listed.clone();
+    /// The refs of `host`'s repository, listed once.
+    fn refs_of(&mut self, host: &HostPath, what: &str) -> Result<Refs, Failure> {
+        let failed = |message: String| (Some(Code::FetchFailed), message);
+        if let Some(listed) = self.refs.get(&host.repository) {
+            return listed.clone().map_err(|e| failed(e.message(what)));
         }
-        let listed = self.reach(&host.repository, |git, url| git.list_tags(repo, url));
-        self.tags.insert(host.repository.clone(), listed.clone());
-        listed
+        let scratch = self.cache.scratch().map_err(|e| (None, e))?;
+        let repo = scratch.path.join("repo.git");
+        self.git
+            .init(&repo)
+            .map_err(|e| failed(format!("cannot {what}: {}", e.0)))?;
+        let listed = self.reach(&host.repository, |git, url| git.list_refs(&repo, url));
+        self.refs.insert(host.repository.clone(), listed.clone());
+        listed.map_err(|e| failed(e.message(what)))
     }
 
     /// Every version that a tag of the package's repository names for it,
@@ -146,45 +162,131 @@ impl<'a> Remote<'a> {
     /// `cli.dep.update.network`). The list is read from the network once
     /// per repository.
     pub fn versions(&mut self, host: &HostPath) -> Result<Vec<Version>, Failure> {
-        let what = format!("list the tags of {}", host.path);
-        let failed = |message: String| (Some(Code::FetchFailed), message);
-        let tags = if let Some(listed) = self.tags.get(&host.repository) {
-            listed.clone()
-        } else {
-            let scratch = self.cache.scratch().map_err(|e| (None, e))?;
-            let repo = scratch.path.join("repo.git");
-            self.git
-                .init(&repo)
-                .map_err(|e| failed(format!("cannot {what}: {}", e.0)))?;
-            self.tags_of(host, &repo)
-        }
-        .map_err(|e| failed(e.message(&what)))?;
-        Ok(tags.keys().filter_map(|t| tag_version(host, t)).collect())
+        let refs = self.refs_of(host, &format!("list the tags of {}", host.path))?;
+        Ok(refs
+            .tags
+            .keys()
+            .filter_map(|t| tag_version(host, t))
+            .collect())
     }
 
-    /// Fetches a version into the cache.
-    fn fetch(&mut self, host: &HostPath, version: &Version, key: &str) -> Result<Entry, Failure> {
-        let what = format!("fetch {key}");
+    /// A repository with every branch and tag of `host`'s repository,
+    /// fetched once per run (`cli.dep.pseudo`).
+    fn full_repo(&mut self, host: &HostPath, what: &str) -> Result<PathBuf, Failure> {
+        if let Some(scratch) = self.full.get(&host.repository) {
+            return Ok(scratch.path.join("repo.git"));
+        }
         let failed = |message: String| (Some(Code::FetchFailed), message);
         let scratch = self.cache.scratch().map_err(|e| (None, e))?;
         let repo = scratch.path.join("repo.git");
         self.git
             .init(&repo)
             .map_err(|e| failed(format!("cannot {what}: {}", e.0)))?;
+        self.reach(&host.repository, |git, url| git.fetch_all(&repo, url))
+            .map_err(|e| failed(e.message(what)))?;
+        self.full.insert(host.repository.clone(), scratch);
+        Ok(repo)
+    }
+
+    /// The version that `query` selects for the package at `host`
+    /// (Version Queries). An exact version selects itself and needs no
+    /// network (`cli.dep.query.exact`, `cli.dep.query.network`); its tag
+    /// is checked when it is fetched. Any other query lists the
+    /// repository's refs, and a branch or a commit fetches its history to
+    /// make the commit's pseudo-version (`cli.dep.query.revision`,
+    /// `cli.dep.query.revision.tagged`).
+    pub fn resolve(&mut self, host: &HostPath, query: &Query) -> Result<Resolved, Failure> {
+        if let Query::Exact(version) = query {
+            return Ok(Resolved {
+                version: version.clone(),
+                untagged: false,
+            });
+        }
+        let refs = self.refs_of(host, &format!("list the tags of {}", host.path))?;
+        let unknown = |message: String| (Some(Code::UnknownVersion), message);
+        let picked = pick(host, &refs, query, &host.path).map_err(unknown)?;
+        let what = format!("fetch the history of {}", host.path);
+        let failed = |e: GitError| (Some(Code::FetchFailed), format!("cannot {what}: {}", e.0));
+        let (commit, untagged) = match picked {
+            Pick::Version(version) => {
+                return Ok(Resolved {
+                    version,
+                    untagged: false,
+                });
+            }
+            Pick::Commit { commit, untagged } => {
+                // A branch's head may carry a version tag.
+                if let Some(version) = tagged_version(host, &refs, &commit).filter(|_| !untagged) {
+                    return Ok(Resolved {
+                        version,
+                        untagged: false,
+                    });
+                }
+                let repo = self.full_repo(host, &what)?;
+                (self.git.commit(&repo, &commit).map_err(failed)?, untagged)
+            }
+            Pick::Prefix(prefix) => {
+                let repo = self.full_repo(host, &what)?;
+                let Some(full) = self.git.commit(&repo, &prefix).map_err(failed)? else {
+                    return Err(unknown(format!(
+                        "{} has no branch `{prefix}` and no commit whose hash starts with {prefix} on a branch or tag",
+                        host.path
+                    )));
+                };
+                if let Some(version) = tagged_version(host, &refs, &full) {
+                    return Ok(Resolved {
+                        version,
+                        untagged: false,
+                    });
+                }
+                (Some(full), false)
+            }
+        };
+        let Some(commit) = commit else {
+            return Err(unknown(format!(
+                "{} lists a commit that its history does not hold",
+                host.path
+            )));
+        };
+        let repo = self.full_repo(host, &what)?;
+        let time = self.git.commit_time(&repo, &commit).map_err(failed)?;
+        let base = if untagged {
+            None
+        } else {
+            self.git
+                .merged_tags(&repo, &commit)
+                .map_err(failed)?
+                .iter()
+                .filter_map(|t| tag_version(host, t))
+                .max()
+        };
+        let version = pseudo_version(base.as_ref(), &time, &commit).ok_or_else(|| {
+            unknown(format!(
+                "the commit {commit} of {} has no pseudo-version",
+                host.path
+            ))
+        })?;
+        Ok(Resolved { version, untagged })
+    }
+
+    /// Fetches a version into the cache.
+    fn fetch(&mut self, host: &HostPath, version: &Version, key: &str) -> Result<Entry, Failure> {
+        let what = format!("fetch {key}");
+        let failed = |message: String| (Some(Code::FetchFailed), message);
         let local = |e: GitError| failed(format!("cannot {what}: {}", e.0));
+        let scratch = self.cache.scratch().map_err(|e| (None, e))?;
         // `cli.dep.repo-url`: the URL that answered the first git command
         // on the repository serves the later ones.
-        let rev = if let Some(commit) = pseudo_commit(version) {
+        let (repo, rev) = if let Some(commit) = pseudo_commit(version) {
             (self.progress)(key);
-            self.reach(&host.repository, |git, url| git.fetch_all(&repo, url))
-                .map_err(|e| failed(e.message(&what)))?;
-            self.pseudo_rev(&repo, host, version, &commit)
-                .map_err(|e| e.unwrap_or_else(&local))?
+            let repo = self.full_repo(host, &what)?;
+            let rev = self
+                .pseudo_rev(&repo, host, version, &commit)
+                .map_err(|e| e.unwrap_or_else(&local))?;
+            (repo, rev)
         } else {
             let tag = tag_name(host, version);
-            let tags = self
-                .tags_of(host, &repo)
-                .map_err(|e| failed(e.message(&what)))?;
+            let tags = self.refs_of(host, &what)?.tags;
             // A missing tag is an error, with no fallback
             // (`module.version.tag-missing`, `module.version.no-fallback`).
             if !tags.contains_key(&tag) {
@@ -209,10 +311,12 @@ impl<'a> Remote<'a> {
                     ),
                 ));
             }
+            let repo = scratch.path.join("repo.git");
+            self.git.init(&repo).map_err(local)?;
             (self.progress)(key);
             self.reach(&host.repository, |git, url| git.fetch_tag(&repo, url, &tag))
                 .map_err(|e| failed(e.message(&what)))?;
-            "FETCH_HEAD".to_owned()
+            (repo, "FETCH_HEAD".to_owned())
         };
         let tree = scratch.path.join("tree");
         let found = self
@@ -229,9 +333,24 @@ impl<'a> Remote<'a> {
             } else {
                 format!("{}/hd.toml", host.subdirectory)
             };
+            // `cli.dep.target.no-manifest`: the packages below it.
+            let below = self
+                .git
+                .manifest_dirs(&repo, &rev, &host.subdirectory)
+                .map_err(local)?;
+            let found = if below.is_empty() {
+                String::new()
+            } else {
+                let first = below[0].trim_end_matches('/');
+                format!(
+                    "; found packages at {}; add one by its directory, as {}/{first}",
+                    below.join(", "),
+                    host.path
+                )
+            };
             return Err((
                 Some(Code::InvalidRequirement),
-                format!("{key} is no package: {at} has no {manifest}"),
+                format!("{key} is no package: {at} has no {manifest}{found}"),
             ));
         }
         self.cache.store(key, &tree).map_err(|e| (None, e))

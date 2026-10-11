@@ -12,13 +12,14 @@
 //! version's files are read from git's objects, not checked out, so no
 //! attribute, filter or line-ending setting changes their bytes.
 
-use std::collections::BTreeMap;
 use std::io::{ErrorKind, Read, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
+
+use crate::query::Refs;
 
 /// How long listing a repository's tags (`git ls-remote`) may take.
 const LIST_LIMIT: Duration = Duration::from_mins(1);
@@ -276,24 +277,25 @@ impl Git {
         .map(drop)
     }
 
-    /// The tags of the repository at `url`, each with the object it names.
-    /// A repository git cannot reach or read is an error.
-    pub fn list_tags(&self, repo: &Path, url: &str) -> Result<BTreeMap<String, String>, GitError> {
+    /// The refs of the repository at `url`: its default branch's head, and
+    /// each branch and tag with its commit, an annotated tag peeled
+    /// (`cli.dep.query.network`). A repository git cannot reach or read is
+    /// an error.
+    pub fn list_refs(&self, repo: &Path, url: &str) -> Result<Refs, GitError> {
         let out = self.must(
             "ls-remote",
             network_limit(LIST_LIMIT),
-            &[&git_dir(repo), "ls-remote", "--tags", "--refs", url],
+            &[
+                &git_dir(repo),
+                "ls-remote",
+                "--",
+                url,
+                "HEAD",
+                "refs/heads/*",
+                "refs/tags/*",
+            ],
         )?;
-        Ok(out
-            .lines()
-            .filter_map(|l| {
-                let (object, name) = l.split_once('\t')?;
-                Some((
-                    name.strip_prefix("refs/tags/")?.to_owned(),
-                    object.to_owned(),
-                ))
-            })
-            .collect())
+        Ok(parse_refs(&out))
     }
 
     /// Fetches the commit of `tag` from `url` into `repo`, shallowly, as
@@ -309,6 +311,7 @@ impl Git {
                 "--depth",
                 "1",
                 "--no-tags",
+                "--",
                 url,
                 &format!("refs/tags/{tag}"),
             ],
@@ -327,6 +330,7 @@ impl Git {
                 "fetch",
                 "--quiet",
                 "--no-tags",
+                "--",
                 url,
                 "+refs/heads/*:refs/remotes/origin/*",
                 "+refs/tags/*:refs/tags/*",
@@ -406,6 +410,62 @@ impl Git {
             Some(1) => Ok(TagRelation::Unrelated),
             _ => Err(complaint(&ancestor)),
         }
+    }
+
+    /// The tags of `repo` whose commit is `commit` or an ancestor of it,
+    /// for the base of a pseudo-version (`module.version.pseudo`).
+    /// `commit` is a full hash that `commit` found.
+    pub fn merged_tags(&self, repo: &Path, commit: &str) -> Result<Vec<String>, GitError> {
+        let out = self.must(
+            "for-each-ref",
+            LOCAL_LIMIT,
+            &[
+                &git_dir(repo),
+                "for-each-ref",
+                &format!("--merged={commit}"),
+                "--format=%(refname)",
+                "refs/tags/",
+            ],
+        )?;
+        Ok(out
+            .lines()
+            .filter_map(|l| l.strip_prefix("refs/tags/"))
+            .map(str::to_owned)
+            .collect())
+    }
+
+    /// Each directory below `subdirectory` in the commit `rev` that holds an
+    /// `hd.toml`, relative to `subdirectory` and ending in `/`, sorted
+    /// (`cli.dep.target.no-manifest`). Empty when the commit has no such
+    /// directory.
+    pub fn manifest_dirs(
+        &self,
+        repo: &Path,
+        rev: &str,
+        subdirectory: &str,
+    ) -> Result<Vec<String>, GitError> {
+        let tree = if subdirectory.is_empty() {
+            format!("{rev}^{{tree}}")
+        } else {
+            format!("{rev}:{subdirectory}")
+        };
+        let listing = self.run(
+            "ls-tree",
+            &[&git_dir(repo), "ls-tree", "-r", "-z", "--name-only", &tree],
+        )?;
+        if !listing.status.success() {
+            return Ok(Vec::new());
+        }
+        let mut dirs: Vec<String> = listing
+            .stdout
+            .split(|&b| b == 0)
+            .filter_map(|r| {
+                let path = String::from_utf8_lossy(r);
+                path.strip_suffix("/hd.toml").map(|d| format!("{d}/"))
+            })
+            .collect();
+        dirs.sort();
+        Ok(dirs)
     }
 
     /// Writes the package directory `subdirectory` of the commit `rev` of
@@ -552,6 +612,34 @@ fn no_ssh_command() -> bool {
     !configured
 }
 
+/// The refs that `git ls-remote` printed: `HEAD`, branches, and tags, each
+/// annotated tag's `^{}` line giving its commit.
+fn parse_refs(listing: &str) -> Refs {
+    let mut refs = Refs::default();
+    for line in listing.lines() {
+        let Some((object, name)) = line.split_once('\t') else {
+            continue;
+        };
+        if object.starts_with("ref:") {
+            continue;
+        }
+        if name == "HEAD" {
+            refs.head = Some(object.to_owned());
+        } else if let Some(branch) = name.strip_prefix("refs/heads/") {
+            refs.heads.insert(branch.to_owned(), object.to_owned());
+        } else if let Some(tag) = name.strip_prefix("refs/tags/") {
+            if let Some(peeled) = tag.strip_suffix("^{}") {
+                refs.tags.insert(peeled.to_owned(), object.to_owned());
+            } else {
+                refs.tags
+                    .entry(tag.to_owned())
+                    .or_insert_with(|| object.to_owned());
+            }
+        }
+    }
+    refs
+}
+
 /// `--git-dir=REPO`.
 fn git_dir(repo: &Path) -> String {
     format!("--git-dir={}", repo.display())
@@ -663,7 +751,7 @@ fn utc_stamp(seconds: i64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{cause, mask_credentials, run_bounded, safe_path, utc_stamp};
+    use super::{cause, mask_credentials, parse_refs, run_bounded, safe_path, utc_stamp};
     use std::process::Command;
     use std::time::{Duration, Instant};
 
@@ -781,6 +869,24 @@ mod tests {
         ] {
             assert!(!safe_path(bad), "{bad}");
         }
+    }
+
+    #[test]
+    fn refs_peel_annotated_tags() {
+        let listing = "ref: refs/heads/main\tHEAD\n\
+            aaa\tHEAD\n\
+            aaa\trefs/heads/main\n\
+            bbb\trefs/heads/feature/x\n\
+            ccc\trefs/tags/v1.0.0\n\
+            ddd\trefs/tags/v1.1.0\n\
+            eee\trefs/tags/v1.1.0^{}\n\
+            fff\trefs/remotes/origin/HEAD\n";
+        let refs = parse_refs(listing);
+        assert_eq!(refs.head.as_deref(), Some("aaa"));
+        assert_eq!(refs.heads.len(), 2);
+        assert_eq!(refs.heads.get("feature/x").map(String::as_str), Some("bbb"));
+        assert_eq!(refs.tags.get("v1.0.0").map(String::as_str), Some("ccc"));
+        assert_eq!(refs.tags.get("v1.1.0").map(String::as_str), Some("eee"));
     }
 
     #[test]
