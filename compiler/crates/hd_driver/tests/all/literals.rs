@@ -295,3 +295,35 @@ fn float_literal_in_range_is_accepted() {
         );
     }
 }
+
+/// `expr.arith.unary-minus`: unary `-` on an unsigned operand is a
+/// `type-mismatch`, including when the type is fixed after the operand.
+#[test]
+fn unary_minus_on_unsigned_is_rejected() {
+    for body in [
+        "fn f(n: u64) -> u64:\n    -n\n",
+        "fn f(n: u8) -> u8:\n    -(n + 1)\n",
+        "fn f() -> u32:\n    let x: u32 = -(2 + 2)\n    x\n",
+        "fn g() -> usize:\n    1\n\nfn f() -> usize:\n    -g()\n",
+        "fn f() -> usize:\n    let z = -(2 + 2)\n    z\n",
+        "fn f() -> u16:\n    let x: u16 = -(1)\n    x\n",
+    ] {
+        let src = format!("{body}{MAIN}");
+        let out = program(&src);
+        assert_eq!(codes(&out), [Code::TypeMismatch], "{src}\n{}", out.render());
+    }
+}
+
+#[test]
+fn unary_minus_on_signed_and_float_is_valid() {
+    for body in [
+        "fn f(n: i32) -> i32:\n    -n\n",
+        "fn f() -> i32:\n    let x: i32 = -(2 + 2)\n    x\n",
+        "fn f(z: i64) -> i64:\n    -(z + 2)\n",
+        "fn f() -> i8:\n    -(-128 + 1)\n",
+        "fn f(x: f32) -> f32:\n    -x\n",
+        "fn f() -> f64:\n    -(1.5 + 2.0)\n",
+    ] {
+        assert_clean(&format!("{body}{MAIN}"));
+    }
+}

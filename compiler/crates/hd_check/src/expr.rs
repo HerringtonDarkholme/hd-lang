@@ -535,6 +535,7 @@ impl Ck<'_, '_> {
                     self.lit_nodes.push((nr, n.index(), true));
                     (nr, t)
                 } else {
+                    self.neg_nodes.push((t, n.index()));
                     (self.b.prim(PrimOp::Neg as u32, &[r], t, n.index()), t)
                 }
             }

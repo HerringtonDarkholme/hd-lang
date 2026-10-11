@@ -192,6 +192,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// The node of each literal constant, for range diagnostics, and
     /// whether a `-` negated it.
     pub lit_nodes: Vec<(Ref, hd_base::NodeIdx, bool)>,
+    /// Each `-` applied to a number whose type was still open, with its
+    /// operand type: checked once the type is final
+    /// (`expr.arith.unary-minus`).
+    pub neg_nodes: Vec<(Ty, hd_base::NodeIdx)>,
     /// The literal node being checked as the argument of its literal
     /// function (`expr.literal-fn.ordinary-call`).
     pub lit_arg: Option<hd_base::NodeIdx>,
@@ -320,6 +324,7 @@ pub(crate) fn new_ck<'a, 'c>(
         cond_flow: None,
         forbidden: (kind == BodyKind::Default).then_some("a default or fact expression"),
         lit_nodes: Vec::new(),
+        neg_nodes: Vec::new(),
         read_poison_name: false,
         lit_arg: None,
         module_init: None,
@@ -735,6 +740,22 @@ impl Ck<'_, '_> {
                 &msg,
                 None,
             );
+        }
+    }
+
+    /// `expr.arith.unary-minus`: `-` on an operand whose type turned out
+    /// unsigned once inference finished is a `type-mismatch`.
+    fn check_negated_unsigned(&mut self) {
+        for (t, at) in std::mem::take(&mut self.neg_nodes) {
+            let t = self.strip_mut(t);
+            let pool = self.pool();
+            if let TyData::Prim(p) = pool.get(t)
+                && p.is_unsigned()
+            {
+                let node = self.cx.src.parse.tree.node(at);
+                let msg = format!("unary `-` does not apply to {}", p.name());
+                self.err(Code::TypeMismatch, node, &msg);
+            }
         }
     }
 
@@ -2190,6 +2211,7 @@ impl Ck<'_, '_> {
                 }
             }
         }
+        self.check_negated_unsigned();
         self.check_literal_ranges();
         // Capture modes (checking-and-tir.md "Data and closures"): `Copy`
         // when no side assigns the local after its declaration, `Shared`

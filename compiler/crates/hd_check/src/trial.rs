@@ -26,6 +26,7 @@ pub(crate) struct Checkpoint {
     diags: DiagMark,
     pending: usize,
     lit_nodes: usize,
+    neg_nodes: usize,
     user_locals: usize,
     pre_args: usize,
     open_params: usize,
@@ -63,6 +64,7 @@ impl Ck<'_, '_> {
             diags: self.diags.mark(),
             pending: self.pending.len(),
             lit_nodes: self.lit_nodes.len(),
+            neg_nodes: self.neg_nodes.len(),
             user_locals: self.user_locals.len(),
             pre_args: self.pre_args.len(),
             open_params: self.open_params.len(),
@@ -87,6 +89,7 @@ impl Ck<'_, '_> {
         self.diags.truncate(c.diags);
         self.pending.truncate(c.pending);
         self.lit_nodes.truncate(c.lit_nodes);
+        self.neg_nodes.truncate(c.neg_nodes);
         self.user_locals.truncate(c.user_locals);
         self.pre_args.truncate(c.pre_args);
         self.open_params.truncate(c.open_params);
