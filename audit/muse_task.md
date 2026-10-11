@@ -55,3 +55,34 @@ commit that finishes it. When the queue is empty, report that and wait.
 (Owner, 2026-10-11: Codex is offline; a weaker Muse is back temporarily.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
+
+### M39. Long-lived Node workers for driver conformance
+
+Your M38 note ("Conformance on Node" in `future-work/compiler/wasmtime-perf.md`)
+estimated about 3-4 ms per run with a long-lived Node worker, against
+about 38 ms with a process per case. Build it:
+- One Node process per conformance worker thread, started once. It
+  loads the host and takes cases over stdin (wasm bytes, the profile, args
+  and stdin text), one framed message per case. It returns stdout,
+  stderr, the exit status and any panic report exactly as a fresh process
+  would.
+- Process-global state must not leak between cases: reset the host state
+  per case; a case that hangs, crashes the worker or calls exit must kill
+  and restart that worker and report the same verdict as today.
+- Files: `compiler/crates/hd_driver/tests/conformance.rs` (the Node engine
+  path only) and `compiler/host/*.mjs` (a new worker entry is fine; rebuild
+  `hd` after editing, since it embeds the host files).
+- Done when the driver conformance verdicts on Node are identical
+  (`cargo test -q -p hd_driver --test conformance`, default engine),
+  `cargo test -q -p hd_cli` passes, and the commit body has the suite wall
+  time before and after.
+
+### M40. Measure the same worker idea for `hd test` on Node
+
+Find out whether `hd test` on the Node engine starts one `node` process per
+test module, per case or per run (`compiler/crates/hd_cli/src/test_cmd.rs`,
+`engine/`). Measure a test-heavy package (for example the std tests or
+`spec/conformance` std test fixtures) and estimate the gain of a long-lived
+worker. Report in `future-work/compiler/wasmtime-perf.md`. Implement it only
+if the gain is over 2x on a realistic package and the change stays inside
+the Node engine files; otherwise report only.
