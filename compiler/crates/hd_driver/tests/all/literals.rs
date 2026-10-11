@@ -236,3 +236,62 @@ fn an_integer_literal_never_takes_a_float_type() {
         "fn f() -> f64:\n    let r: f64 = 1.0\n    r * 2.0\n{MAIN}"
     ));
 }
+
+fn float_main(body: &str) -> String {
+    format!("pub fn main() -> void:\n{body}\n    pass\n")
+}
+
+#[test]
+fn float_literal_past_f64_range_is_rejected() {
+    for body in [
+        "    large := 1.5e1_000",
+        "    let x: f64 = 1e999",
+        "    let x: f64 = -1e999",
+        "    x := 1.8e308",
+    ] {
+        assert_code(&float_main(body), Code::FloatLiteralRange);
+    }
+}
+
+#[test]
+fn float_literal_past_f32_range_is_rejected() {
+    for body in [
+        "    let x: f32 = 1e40",
+        "    let x: f32 = -1e40",
+        "    let x: f32 = 3.5e38",
+        "    let x: f32 = 3.4028236e38",
+    ] {
+        assert_code(&float_main(body), Code::FloatLiteralRange);
+    }
+}
+
+#[test]
+fn float_literal_takes_f32_from_expected_type() {
+    let src =
+        "fn take(x: f32) -> f32:\n    x\n\npub fn main() -> void:\n    take(1e40)\n    pass\n";
+    assert_code(src, Code::FloatLiteralRange);
+    let src = "fn give() -> f32:\n    -1e40\n\npub fn main() -> void:\n    pass\n";
+    assert_code(src, Code::FloatLiteralRange);
+}
+
+#[test]
+fn float_literal_in_range_is_accepted() {
+    for body in [
+        "    let a: f64 = 1.7976931348623157e308",
+        "    let b: f64 = -1.7976931348623157e308",
+        "    let c: f64 = 1e-999",
+        "    let d: f32 = 3.4028234663852886e38",
+        "    let e: f32 = 3.4028235e38",
+        "    let f: f32 = 1e-60",
+        "    let g: f32 = 1e38",
+        "    h := 1e300",
+    ] {
+        let src = float_main(body);
+        let out = program(&src);
+        assert!(
+            !codes(&out).contains(&Code::FloatLiteralRange),
+            "{src}\n{}",
+            out.render()
+        );
+    }
+}

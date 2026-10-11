@@ -750,6 +750,29 @@ impl Ck<'_, '_> {
                 continue;
             };
             let node = self.cx.src.parse.tree.node(at);
+            if p.is_float() {
+                // `types.literal.float-finite`: the decimal text converts
+                // directly to the final width and must stay finite.
+                let finite = if p == Prim::F32 {
+                    let span = self.cx.src.span(node);
+                    let source = self.cx.src.text;
+                    let lo = usize::try_from(span.lo).unwrap_or(0).min(source.len());
+                    let hi = usize::try_from(span.hi)
+                        .unwrap_or(0)
+                        .clamp(lo, source.len());
+                    float_text_f32(source.get(lo..hi).unwrap_or("")).map_or_else(
+                        || f64::from_bits(bits).abs() <= f64::from(f32::MAX),
+                        f32::is_finite,
+                    )
+                } else {
+                    f64::from_bits(bits).is_finite()
+                };
+                if !finite {
+                    let msg = format!("floating-point literal is out of range for {}", p.name());
+                    self.err(Code::FloatLiteralRange, node, &msg);
+                }
+                continue;
+            }
             // A literal under `-` was negated by the checker: `bits`
             // holds the negated value (`types.literal.negation`).
             let v = bits.cast_signed();
@@ -2197,4 +2220,12 @@ impl Ck<'_, '_> {
             .map_err(|e| NotImplemented::new(Stage::Body, format!("TIR verifier: {e:?}")))?;
         Ok((body, ret, facts))
     }
+}
+
+/// The first number in a literal node's source text, converted straight
+/// to `f32` (one rounding, not via `f64`).
+fn float_text_f32(text: &str) -> Option<f32> {
+    let start = text.find(|c: char| c.is_ascii_digit())?;
+    let number = crate::literals::split_suffix(&text[start..]).0;
+    number.replace('_', "").parse::<f32>().ok()
 }
