@@ -21,11 +21,17 @@ commit that finishes it. When the queue is empty, report that and wait.
   run and every cargo test run. Never run two full test runs at once, and
   don't start one while another agent's full run is going (check `uptime`;
   above ~30, wait).
-- **Gates before every push** (always the dev profile, never `--release`; owner, 2026-10-11) (from `compiler/`): `cargo fmt --check`;
-  `cargo clippy --workspace --all-targets -- -D warnings`;
-  `HD_UPDATE_CONFORMANCE=1 cargo test -q --workspace`, then the
-  same without the env var; and `bash spec/check.sh` from the repository
-  root. Never push with any of them red.
+- **Gates before every push** (owner, 2026-10-11: dev profile only, never
+  `--release`; the dev profile is opt-level 1; wasmtime is an off-by-default
+  cargo feature and plain cargo commands skip it). From `compiler/`:
+  `cargo fmt --check`; `cargo clippy --all-targets -- -D warnings`;
+  `HD_UPDATE_CONFORMANCE=1 cargo test -q` ONCE (no second run; then
+  `git diff compiler/CONFORMANCE.md` must only add passes); and
+  `bash spec/check.sh` from the repository root. A job that changes
+  `crates/hd_run_wasmtime` also runs `cargo clippy -p hd_run_wasmtime
+  --all-targets -- -D warnings` and `cargo test -q -p hd_run_wasmtime`.
+  Never `--workspace --all-features` locally: CI covers it. Never push with
+  a gate red.
 - Push with `git fetch origin && git rebase origin/main`, rerun the gates
   if main moved, then `git push origin HEAD:main`. Never force-push. Add
   files by name, never `git add -A`. A job is done only when its commit
@@ -46,8 +52,63 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-No jobs remain.
+(Owner, 2026-10-11: Codex is offline; a weaker Muse is back temporarily.
+Jobs are small and each names the files it may change. If a job turns out
+bigger than described, stop, push nothing, and report what you found.)
 
-(Owner, 2026-10-11: Codex finishes M24 and then goes offline. M23, M16 and
-M17 moved back to the orchestrator's task list; git history keeps their
-text. Stop after M24.)
+### M25. Make the wasmtime host timing tests deterministic (#293)
+
+These tests fail now and then under load and pass alone:
+- the deadline and overflow tests in `crates/hd_run_wasmtime/src/core.rs`;
+- the two `http_timeout_*` tests;
+- the `net_parity` partial-read tests, which fail on Linux.
+For each one, find what it waits on (wall-clock sleeps, real sockets,
+thread timing). Make it wait on an event or a generous bound instead of a
+tight one, keeping what the test proves. No test may be deleted or weakened
+to "always pass". Files: `crates/hd_run_wasmtime/src/**` test code and
+`crates/hd_run_wasmtime/tests/**` only. Done when each test passes 20 times
+in a row under `cargo test -q -p hd_run_wasmtime <name>` while another
+`cargo test -p hd_driver --test conformance` runs at the same time. Say in
+the commit body which tests you changed and why.
+
+### M26. Fix the microbench runner (#297)
+
+`test/perf/micro/run.ts` still points at the old TS prototype and an output
+path that moved. `test/perf/micro/sort.hd` overflows a 32-bit `usize`.
+Make the runner build each `test/perf/micro/*.hd` with the Rust `hd`
+(`compiler/target/release/hd build`; building the release binary is fine
+for this benchmark job only), run the wasm on Node, and print one table
+(case, min of 7 runs in ms, wasm bytes), with the existing JS and Python
+baselines beside it. Fix `sort.hd` so it stays inside `usize` on wasm32
+(smaller sizes or a `u64` index), keeping it a sort benchmark. Files:
+`test/perf/micro/**` only. Done when `node test/perf/micro/run.ts` (or the
+command its README names) prints the table for every case, with no
+crashes. Put the table in the commit body.
+
+### M27. Find which engine is right on unbounded recursion
+
+`spec/conformance/runtime/panic/unbounded-recursion.hd` passes with
+`HD_CONFORMANCE_ENGINE=wasmtime-only` and fails on Node, in the driver
+conformance runner (`crates/hd_driver/tests/conformance.rs`, build with
+`--features wasmtime`). Find out what each engine prints and exits with,
+what the fixture and spec require (search spec/ for the panic code it
+names), and why Node differs (stack size, how a V8 RangeError maps to a
+panic). Report only: add one row to `audit/compiler/diagnostic-notes.md`
+with the cause and a proposed fix. Change code only if the fix is inside
+`compiler/host/*.mjs` and is a few lines; otherwise just report.
+
+### M28. Measure why conformance is slow on wasmtime (#278)
+
+In release, driver conformance takes about 110 s with
+`HD_CONFORMANCE_ENGINE=wasmtime-only` against 15.6 s on Node. Measure
+where the time goes; do not fix it. Answer these questions:
+- how long Cranelift compilation takes per fixture against execution;
+- whether the same module is compiled more than once;
+- whether wasmtime's `Engine` and `Module` are reused across cases or made
+  per case;
+- whether its compilation cache is on.
+Use `perf`/`samply`/timing logs, whichever works. Write the numbers and
+the top three causes, each with a suggested fix and its expected gain, as a
+new section "Conformance on wasmtime" at the end of
+`future-work/compiler/wasmtime-perf.md` (create the file if missing). No
+code changes. Use one target dir; delete any extra build output you make.
