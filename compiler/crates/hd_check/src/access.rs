@@ -328,19 +328,27 @@ impl Ck<'_, '_> {
                 TyData::Fn {
                     params: a,
                     result: ar,
+                    row: aw,
                     ..
                 },
                 TyData::Fn {
                     params: b,
                     result: br,
+                    row: bw,
                     ..
                 },
             ) => {
-                pool.list_items(a)
-                    .iter()
-                    .copied()
-                    .zip(pool.list_items(b).iter().copied())
-                    .all(|(x, y)| self.perm_fits(y, x, true, d))
+                // `types.variance.function`: the row is invariant, so only
+                // a function value at the top widens it
+                // (`req.row.subsume`); a function type inside another type
+                // keeps its row exactly.
+                (depth == 0 || self.rows_equal(aw, bw))
+                    && pool
+                        .list_items(a)
+                        .iter()
+                        .copied()
+                        .zip(pool.list_items(b).iter().copied())
+                        .all(|(x, y)| self.perm_fits(y, x, true, d))
                     && self.perm_fits(ar, br, true, d)
             }
             _ => true,

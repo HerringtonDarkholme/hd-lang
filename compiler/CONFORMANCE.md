@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2614 | 207 | 24 | 2845 |
+| 2615 | 206 | 24 | 2845 |
 
 ## By Chapter
 
@@ -24,7 +24,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/08-data-and-enums.md` | 113 | 9 | 1 | 123 |
 | `lang/09-traits.md` | 329 | 28 | 2 | 359 |
 | `lang/10-modules.md` | 222 | 31 | 5 | 258 |
-| `lang/11-requirements-and-suspension.md` | 234 | 17 | 8 | 259 |
+| `lang/11-requirements-and-suspension.md` | 235 | 16 | 8 | 259 |
 | `lang/14-annotations.md` | 123 | 28 | 2 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 97 | 5 | 3 | 105 |
 | `runtime/valid` | 900 | 10 | 19 | 929 |
-| `typing/invalid` | 911 | 163 | 1 | 1075 |
+| `typing/invalid` | 912 | 162 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -91,7 +91,7 @@ compiler stage that first declined the case.
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
 | `fail:no-common-type` | 2 |
-| `fail:no-diagnostic` | 89 |
+| `fail:no-diagnostic` | 88 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
@@ -235,7 +235,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (89)</summary>
+<details><summary><code>fail:no-diagnostic</code> (88)</summary>
 
 - `typing/invalid/private-type-leak.hd`
 - `typing/invalid/private-type-embedded-in-public-data.hd`
@@ -271,7 +271,6 @@ compiler stage that first declined the case.
 - `typing/invalid/test-module-tests-block.hd`
 - `typing/invalid/integration-test-tests-block.hd`
 - `typing/invalid/duplicate-function-fact.hd`
-- `typing/invalid/row-union-list-no-convert.hd`
 - `typing/invalid/intrinsic-method-user.hd`
 - `typing/invalid/init-group-cycle.hd`
 - `typing/invalid/operator-function-left-exact.hd`
@@ -2590,6 +2589,7 @@ typing/invalid/row-slot-bare-context.hd
 typing/invalid/row-slot-bare-function-type.hd
 typing/invalid/row-subsumption-missing-key.hd
 typing/invalid/row-union-if-nested-lists.hd
+typing/invalid/row-union-list-no-convert.hd
 typing/invalid/row-union-missing-requirement.hd
 typing/invalid/row-union-nested-lists.hd
 typing/invalid/row-union-other-parts.hd

@@ -1084,7 +1084,7 @@ impl Ck<'_, '_> {
         self.expect(got, want, n, what);
         if self.diags.len() == before && !joined && !self.perm_fits(got, want, true, 0) {
             let msg = format!(
-                "in {what}: expected {}, found {}; permissions inside a type convert only by declared variance",
+                "in {what}: expected {}, found {}; permissions inside a type convert only by declared variance, and a function type inside a type keeps its row",
                 self.show(want),
                 self.show(got)
             );

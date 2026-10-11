@@ -83,6 +83,7 @@ mod recursive_closure_run;
 mod recursive_layouts;
 mod related_traits;
 mod row_aliases;
+mod row_invariant_nested;
 mod row_union_run;
 mod rows_determinism;
 mod runtime;

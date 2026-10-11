@@ -76,6 +76,32 @@ impl Ck<'_, '_> {
         false
     }
 
+    /// Whether two requirement rows are the same row after resolution
+    /// (`types.fn.same`): each lists only keys the other supplies, with the
+    /// same row parameters. A row still holding an open variable is not
+    /// compared yet; it takes its value from the other side later.
+    pub(crate) fn rows_equal(&self, a: RowId, b: RowId) -> bool {
+        let pool = self.pool();
+        let (a, b) = (
+            self.infer.resolve_row(pool, a),
+            self.infer.resolve_row(pool, b),
+        );
+        if a == b {
+            return true;
+        }
+        let (da, db) = (pool.row_data(a), pool.row_data(b));
+        let open = |d: &hd_types::RowData| d.keys.iter().any(|k| pool.has_infer(*k));
+        if open(&da) || open(&db) {
+            return true;
+        }
+        let within = |x: &hd_types::RowData, y: &hd_types::RowData| {
+            x.keys
+                .iter()
+                .all(|k| y.keys.iter().any(|h| self.key_supplies(*h, *k)))
+        };
+        da.params == db.params && within(&da, &db) && within(&db, &da)
+    }
+
     fn row_supplies(&self, row: RowId, need: Need) -> bool {
         let d = self.pool().row_data(row);
         match need {
