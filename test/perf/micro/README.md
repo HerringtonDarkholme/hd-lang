@@ -9,11 +9,12 @@ dead-code elimination cannot skip the work.
 node --experimental-strip-types test/perf/micro/run.ts
 ```
 
-The runner builds each hd program with `hd build --release` in a scratch
-package (which reports the release Wasm size), then times three runs of its
-entry point, compile excluded, and prints the median. The Python and Node
-programs time themselves the same way, each in its own process. A missing
-`python3` or `node` skips that column.
+The runner builds each hd program with the Rust `hd`
+(`compiler/target/release/hd build --release`, built with cargo when
+missing) in a scratch package (which reports the release Wasm size), then
+times seven runs of its entry point on Node, compile excluded, and prints
+the minimum. The Python and Node programs time themselves the same way,
+each in its own process. A missing `python3` or `node` skips that column.
 
 A case's hd file spells `-` as `_` (`string-build` → `string_build.hd`),
 since hd module paths are identifiers.

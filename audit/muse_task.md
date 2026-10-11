@@ -56,20 +56,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
 
-### M26. Fix the microbench runner (#297)
-
-`test/perf/micro/run.ts` still points at the old TS prototype and an output
-path that moved. `test/perf/micro/sort.hd` overflows a 32-bit `usize`.
-Make the runner build each `test/perf/micro/*.hd` with the Rust `hd`
-(`compiler/target/release/hd build`; building the release binary is fine
-for this benchmark job only), run the wasm on Node, and print one table
-(case, min of 7 runs in ms, wasm bytes), with the existing JS and Python
-baselines beside it. Fix `sort.hd` so it stays inside `usize` on wasm32
-(smaller sizes or a `u64` index), keeping it a sort benchmark. Files:
-`test/perf/micro/**` only. Done when `node test/perf/micro/run.ts` (or the
-command its README names) prints the table for every case, with no
-crashes. Put the table in the commit body.
-
 ### M27. Find which engine is right on unbounded recursion
 
 `spec/conformance/runtime/panic/unbounded-recursion.hd` passes with
