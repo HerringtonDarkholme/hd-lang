@@ -289,17 +289,7 @@ impl Ck<'_, '_> {
         let d = depth + 1;
         match (pool.get(gi), pool.get(wi)) {
             (TyData::Adt { def, args: ga }, TyData::Adt { def: d2, args: wa }) if def == d2 => {
-                let known = self.cx.names.known;
-                let vs: Vec<i8> = match def {
-                    d if d == known.list => vec![1],
-                    d if d == known.map => vec![0, 1],
-                    _ => self
-                        .cx
-                        .lookup
-                        .item(def)
-                        .map(|i| i.generics.iter().map(|g| g.variance).collect())
-                        .unwrap_or_default(),
-                };
+                let vs = self.declared_variances(def);
                 pool.list_items(ga)
                     .iter()
                     .copied()

@@ -261,6 +261,11 @@ pub(crate) struct Ck<'a, 'c> {
     /// A join variable met an optional value of its solved inner type: the
     /// site must start over with the optional as its type (`types.lct.optional`).
     pub widen: Vec<(Ty, Ty)>,
+    /// Each value joined at a site so far, as its join variable and the
+    /// value's type: the least type must be reachable from every one
+    /// (`types.lct.no-combine`). A `POISON` type marks a site that has
+    /// reported a value that does not join.
+    pub join_vals: Vec<(Ty, Ty)>,
     /// The byte of the statement being checked: the local declarations
     /// whose extent holds it are in scope (`names.local-type.name`).
     pub at: u32,
@@ -351,6 +356,7 @@ pub(crate) fn new_ck<'a, 'c>(
         joins: Vec::new(),
         restarts: Vec::new(),
         widen: Vec::new(),
+        join_vals: Vec::new(),
         at: 0,
         hidden: Vec::new(),
         module: cx.names.module_node(item),
@@ -623,15 +629,17 @@ pub(crate) fn check_fn_body(
     let Some(body) = Src::child(node, SyntaxKind::Block) else {
         return unsupported("a function without a body");
     };
-    let ret = if infer.ret {
-        ck.join_target(None)
-    } else {
-        ck.norm_ty(sig.ret)
-    };
-    ck.rets[0] = ret;
     ck.fn_body = Some(body.index());
     ck.written_row = Src::child(node, SyntaxKind::RequirementRow).map(NodeRef::index);
-    let (tail, _) = ck.block_value(body, Some(ret))?;
+    // `types.lct.sites`: an omitted result type joins the final value and
+    // the `return` operands, and starts over when an optional one widens
+    // it (`join_site`).
+    let want = (!infer.ret).then(|| ck.norm_ty(sig.ret));
+    let (tail, ret) = ck.join_site(want, |ck, ret| {
+        ck.rets[0] = ret;
+        let (tail, _) = ck.block_value(body, Some(ret))?;
+        Ok((tail, ret))
+    })?;
     let root = ck.b.close_block(blk, tail, ret, body.index());
     ck.finish_with(root, ret)
 }
@@ -987,8 +995,13 @@ impl Ck<'_, '_> {
         if g == Ty::NEVER || w == Ty::NEVER || g == w {
             return r;
         }
-        // A join variable (a branch or element already seen) is not a declared
-        // type: the least common type weakens instead (types.lct).
+        // A least-common-type site's variable is not a declared type: the
+        // value joins the others instead (types.lct).
+        if self.joins.contains(&target) {
+            return self.join_value(r, got, target, n, what);
+        }
+        // A variable a generic call solves is not a declared type either:
+        // permissions inside it weaken (types.generic.infer.join).
         let joined = matches!(pool.get(want), TyData::Infer(_));
         if !joined && self.check_upgrade(got, want, n, what) {
             return r;
@@ -1061,28 +1074,6 @@ impl Ck<'_, '_> {
                 self.show(got)
             );
             self.err(Code::TypeMismatch, n, &msg);
-        }
-        // `types.lct.optional`: an optional value joining a site whose
-        // type is already solved to the optional's inner type. The site
-        // starts over with the optional type, so every branch is checked
-        // against the final type.
-        if joined
-            && self.restarts.contains(&target)
-            && let TyData::Option(inner) = pool.get(gs)
-            && !matches!(pool.get(ws), TyData::Option(_))
-            && !self.can_unify(got, want)
-            && self.can_unify(inner, want)
-        {
-            let full = self.infer.resolve(pool, gs);
-            if !pool.has_infer(full) {
-                self.widen.push((target, full));
-                return r;
-            }
-        }
-        // A function value joining a least-common-type site widens the
-        // site's row to the union (`req.row.union.sites.type`).
-        if self.diags.len() == before && joined {
-            self.join_row(target, got);
         }
         // A function value fits a wider row (`req.row.subsume`); an open
         // row variable takes the least solution (`req.row.least`).

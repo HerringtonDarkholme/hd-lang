@@ -174,8 +174,5 @@ pub fn main() -> void $ Console:
 ";
     let out = built(main);
     let shown = out.render();
-    assert!(
-        shown.contains("type-mismatch") || shown.contains("no-common-type"),
-        "{shown}"
-    );
+    assert!(shown.contains("no-common-type"), "{shown}");
 }

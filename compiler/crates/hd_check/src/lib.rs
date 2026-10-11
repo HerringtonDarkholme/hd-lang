@@ -24,6 +24,7 @@ pub use facts::{FactSource, TypedFacts, check_decl_facts, check_fact_list, check
 mod fnref;
 pub mod header;
 pub mod init;
+mod join;
 mod literals;
 mod local;
 mod pat;

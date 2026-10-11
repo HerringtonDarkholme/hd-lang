@@ -2,11 +2,10 @@
 //! available-keys stack, closure rows, row subsumption, and the least
 //! solution of a callee's row parameters.
 
-use hd_base::StageResult;
 use hd_diag::Code;
 use hd_resolve::{FnSig, HeadKind, Src};
 use hd_syntax::{NodeRef, SyntaxKind};
-use hd_types::{RowData, RowId, RowParamRef, Ty, TyData, VarKind};
+use hd_types::{RowData, RowId, RowParamRef, Ty, TyData};
 
 use crate::body::{Ck, RowFrame};
 use crate::results::{RowEdge, RowFacts};
@@ -326,94 +325,6 @@ impl Ck<'_, '_> {
                 "in {what}: the function's row lists `{k}`, which the expected row does not"
             );
             self.err(Code::TypeMismatch, n, &msg);
-        }
-    }
-
-    /// The type a least-common-type site (`types.lct.sites`) joins its
-    /// values into: the expected type, or else a fresh variable whose
-    /// values take the union of their function rows. A variable not yet
-    /// solved, such as a generic argument's, is no expected type: the site
-    /// joins on its own and the caller solves the variable from the result.
-    pub(crate) fn join_target(&mut self, want: Option<Ty>) -> Ty {
-        let pool = self.pool();
-        if let Some(w) = want
-            && (!matches!(pool.get(self.infer.shallow(pool, w)), TyData::Infer(_))
-                || self.joins.contains(&w))
-        {
-            return w;
-        }
-        let v = self.infer.fresh(pool, VarKind::General);
-        self.joins.push(v);
-        v
-    }
-
-    /// Checks a least-common-type site's branches with `run`, which gets the
-    /// site's type. An optional branch after a plain one of its inner type
-    /// makes the site's type optional (`types.lct.optional`); the branches
-    /// already checked took the plain type, so the site starts over with the
-    /// optional type as its expected type and every branch converts to it.
-    pub(crate) fn join_site<T>(
-        &mut self,
-        want: Option<Ty>,
-        mut run: impl FnMut(&mut Self, Ty) -> StageResult<T>,
-    ) -> StageResult<T> {
-        let result = self.join_target(want);
-        if !self.joins.contains(&result) {
-            return run(self, result);
-        }
-        let cp = self.checkpoint();
-        self.restarts.push(result);
-        let out = run(self, result);
-        let at = self.widen.iter().position(|(v, _)| *v == result);
-        self.restarts.pop();
-        let Some(at) = at else {
-            return out;
-        };
-        let wide = self.widen[at].1;
-        self.rollback(cp);
-        run(self, wide)
-    }
-
-    /// A value of type `got` joined the site variable `var`, whose type is
-    /// already solved. When both are function types, the site's row
-    /// becomes the union of the two rows (`req.row.union.sites.type`),
-    /// and each value fits it by row subsumption. A value that only holds
-    /// function values keeps its type (`req.row.union.sites.direct`).
-    pub(crate) fn join_row(&mut self, var: Ty, got: Ty) {
-        let pool = self.pool();
-        let cur = self.infer.shallow(pool, var);
-        let got = self.strip_mut(self.infer.shallow(pool, got));
-        let (
-            TyData::Fn {
-                params,
-                result,
-                suspends,
-                inputs,
-                row,
-            },
-            TyData::Fn { row: more, .. },
-        ) = (pool.get(cur), pool.get(got))
-        else {
-            return;
-        };
-        if !self.joins.contains(&var) {
-            return;
-        }
-        let row = self.infer.resolve_row(pool, row);
-        let mut union = pool.row_data(row);
-        let more = pool.row_data(self.infer.resolve_row(pool, more));
-        union.keys.extend(more.keys);
-        union.params.extend(more.params);
-        let union = pool.row(&union);
-        if union != row {
-            let widened = pool.intern_ty(&TyData::Fn {
-                params,
-                result,
-                suspends,
-                inputs,
-                row: union,
-            });
-            self.infer.rebind(pool, var, widened);
         }
     }
 

@@ -1293,6 +1293,7 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
+        let want = self.literal_want(want);
         let (wants, want_rest) = match want.map(|w| pool.get(self.infer.shallow(pool, w))) {
             Some(TyData::Tuple { elems, rest }) => (
                 pool.list_items(elems).iter().copied().map(Some).collect(),
@@ -1430,7 +1431,8 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let list = self.cx.names.known.list;
-        let elem = match want
+        let elem = match self
+            .literal_want(want)
             .map(|w| self.infer.resolve(pool, w))
             .map(|w| match pool.get(w) {
                 TyData::Mut(i) => pool.get(i),
@@ -1509,46 +1511,47 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let map = self.cx.names.known.map;
-        let (k, v, expected) =
-            match want
-                .map(|w| self.infer.resolve(pool, w))
-                .map(|w| match pool.get(w) {
-                    TyData::Mut(i) => pool.get(i),
-                    d => d,
-                }) {
-                Some(TyData::Adt { def, args }) if def == map => {
-                    let a = pool.list_items(args);
-                    (a[0], self.join_target(Some(a[1])), true)
+        let (kw, vw) = match self
+            .literal_want(want)
+            .map(|w| self.infer.resolve(pool, w))
+            .map(|w| match pool.get(w) {
+                TyData::Mut(i) => pool.get(i),
+                d => d,
+            }) {
+            Some(TyData::Adt { def, args }) if def == map => {
+                let a = pool.list_items(args);
+                (Some(a[0]), Some(a[1]))
+            }
+            _ => (None, None),
+        };
+        // `types.lct.sites`: the keys join, and so do the values.
+        self.join_site(kw, |this, k| {
+            this.join_site(vw, |this, v| {
+                let mut refs = Vec::new();
+                for e in kids {
+                    let ek: Vec<NodeRef<'_>> = e.children().collect();
+                    let [ke, ve] = ek.as_slice() else {
+                        return unsupported("a map entry shape");
+                    };
+                    let (kr, kt) = this.expr(*ke, Some(k))?;
+                    refs.push(this.coerce(kr, kt, k, *ke, "map key"));
+                    let (vr, vt) = this.expr(*ve, Some(v))?;
+                    refs.push(this.coerce(vr, vt, v, *ve, "map value"));
                 }
-                _ => (
-                    self.infer.fresh(pool, VarKind::General),
-                    self.join_target(None),
-                    false,
-                ),
-            };
-        let mut refs = Vec::new();
-        for e in kids {
-            let ek: Vec<NodeRef<'_>> = e.children().collect();
-            let [ke, ve] = ek.as_slice() else {
-                return unsupported("a map entry shape");
-            };
-            let (kr, kt) = self.expr(*ke, Some(k))?;
-            refs.push(self.coerce(kr, kt, k, *ke, "map key"));
-            let (vr, vt) = self.expr(*ve, Some(v))?;
-            refs.push(self.coerce(vr, vt, v, *ve, "map value"));
-        }
-        // A key type an expected map type did not fix meets the key bound
-        // here (types.map-key.declared-bound).
-        if !kids.is_empty() && !expected {
-            self.check_map_key(k, n)?;
-        }
-        let t = pool.intern_ty(&TyData::Adt {
-            def: map,
-            args: pool.list(&[k, v]),
-        });
-        let t = pool.intern_ty(&TyData::Mut(t));
-        let rec = self.b.refs_record(&refs);
-        Ok((self.b.emit(Tag::NewMap, NONE, rec, t, n.index()), t))
+                // A key type an expected map type did not fix meets the key
+                // bound here (types.map-key.declared-bound).
+                if !kids.is_empty() && kw.is_none() {
+                    this.check_map_key(k, n)?;
+                }
+                let t = pool.intern_ty(&TyData::Adt {
+                    def: map,
+                    args: pool.list(&[k, v]),
+                });
+                let t = pool.intern_ty(&TyData::Mut(t));
+                let rec = this.b.refs_record(&refs);
+                Ok((this.b.emit(Tag::NewMap, NONE, rec, t, n.index()), t))
+            })
+        })
     }
 
     /// `Name { field: value, ... }`, with `Name::[T]` or inferred arguments.
@@ -2528,6 +2531,27 @@ impl Ck<'_, '_> {
             }
             _ => (vec![], None),
         };
+        // `types.lct.sites`: a closure whose result type is inferred joins
+        // its final value and `return` operands, and starts over when an
+        // optional one widens the result (`join_site`).
+        if parts.ret.is_some() {
+            return self.closure_body(n, parts, &wparams, None);
+        }
+        self.join_site(wret, |this, ret| {
+            this.closure_body(n, parts, &wparams, Some(ret))
+        })
+    }
+
+    /// [`Self::closure_with`] from its parameters on: `ret` is the joined
+    /// result type, or `None` for the written one.
+    fn closure_body(
+        &mut self,
+        n: NodeRef<'_>,
+        parts: &ClosureParts<'_>,
+        wparams: &[Ty],
+        ret: Option<Ty>,
+    ) -> StageResult<(Ref, Ty, Option<hd_base::LocalId>)> {
+        let pool = self.pool();
         let suspends = parts.suspends;
         let mut params = Vec::new();
         let mut ptys = Vec::new();
@@ -2558,9 +2582,10 @@ impl Ck<'_, '_> {
                 ptys.push(t);
             }
         }
-        let ret = match parts.ret {
-            Some(rt) => self.ty_node(rt)?,
-            None => self.join_target(wret),
+        let ret = match (ret, parts.ret) {
+            (Some(r), _) => r,
+            (None, Some(rt)) => self.ty_node(rt)?,
+            (None, None) => self.join_target(None),
         };
         // A written row, or the least row of the keys the body uses
         // (`req.row.omitted.closure-row`); the expected row is matched

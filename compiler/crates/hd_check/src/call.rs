@@ -883,6 +883,12 @@ impl Ck<'_, '_> {
                 Some(p) => Some(self.normalize_deep(p.1)?),
                 None => None,
             };
+            // An earlier argument solved this bare parameter: the two join
+            // (types.generic.infer.join).
+            let rejoin = open.get(i).copied().unwrap_or(false)
+                && w.is_some_and(|w| {
+                    !matches!(pool.get(self.infer.shallow(pool, w)), TyData::Infer(_))
+                });
             let (r, t) = self.arg_value(*e, w)?;
             if let Some(p) = rest.get(i)
                 && open.get(i).copied().unwrap_or(false)
@@ -891,6 +897,7 @@ impl Ck<'_, '_> {
                 w = Some(self.normalize_deep(p.1)?);
             }
             let r = match w {
+                Some(w) if rejoin && self.infer_join_conflict(w, t, *e) => r,
                 Some(w) => self.coerce(
                     r,
                     t,
@@ -954,9 +961,15 @@ impl Ck<'_, '_> {
                 continue;
             }
             let mut w = self.normalize_deep(rest[i].1)?;
+            let rejoin =
+                open[i] && !matches!(pool.get(self.infer.shallow(pool, w)), TyData::Infer(_));
             let (r, t) = self.arg_value(*e, Some(w))?;
             if open[i] && self.join_down(rest[i].1, t) {
                 w = self.normalize_deep(rest[i].1)?;
+            }
+            if rejoin && self.infer_join_conflict(w, t, *e) {
+                slots[i] = Some(r);
+                continue;
             }
             slots[i] = Some(self.coerce(
                 r,

@@ -36,6 +36,7 @@ pub(crate) struct Checkpoint {
     joins: usize,
     restarts: usize,
     widen: usize,
+    join_vals: usize,
     row_waits: usize,
     /// The flags of the locals older than the trial (a read marks them).
     flags: Vec<u8>,
@@ -74,6 +75,7 @@ impl Ck<'_, '_> {
             joins: self.joins.len(),
             restarts: self.restarts.len(),
             widen: self.widen.len(),
+            join_vals: self.join_vals.len(),
             row_waits: self.row_waits.len(),
             flags: self.b.body_mut().local_flags[..tir.locals as usize].to_vec(),
             facts: self.facts.clone(),
@@ -99,6 +101,7 @@ impl Ck<'_, '_> {
         self.joins.truncate(c.joins);
         self.restarts.truncate(c.restarts);
         self.widen.truncate(c.widen);
+        self.join_vals.truncate(c.join_vals);
         self.row_waits.truncate(c.row_waits);
         self.facts = c.facts;
         self.uninit = c.uninit;

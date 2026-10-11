@@ -175,10 +175,13 @@ fn f(xs: List[string]) -> List[i32]:
     [+1, xs...]
 ";
     assert_eq!(codes_of(expected), [Code::TypeMismatch]);
+    // Without an expected type the spread's element type joins the
+    // others (`expr.list.spread.inferred`), and `i32` and `string` have
+    // no common type (`types.lct.conversions`).
     let joined = "\
 fn f(xs: List[string]) -> usize:
     ys := [+1, xs...]
     ys.len()
 ";
-    assert_eq!(codes_of(joined), [Code::TypeMismatch]);
+    assert_eq!(codes_of(joined), [Code::NoCommonType]);
 }

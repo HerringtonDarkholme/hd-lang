@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2600 | 221 | 24 | 2845 |
+| 2613 | 208 | 24 | 2845 |
 
 ## By Chapter
 
@@ -17,14 +17,14 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
 | `lang/02-grammar.md` | 205 | 10 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 100 | 1 | 0 | 101 |
-| `lang/04-type-system.md` | 321 | 31 | 0 | 352 |
-| `lang/05-expressions.md` | 258 | 19 | 0 | 277 |
+| `lang/04-type-system.md` | 327 | 25 | 0 | 352 |
+| `lang/05-expressions.md` | 261 | 16 | 0 | 277 |
 | `lang/06-control-flow.md` | 139 | 14 | 4 | 157 |
-| `lang/07-functions.md` | 119 | 11 | 0 | 130 |
+| `lang/07-functions.md` | 120 | 10 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 113 | 9 | 1 | 123 |
 | `lang/09-traits.md` | 329 | 28 | 2 | 359 |
 | `lang/10-modules.md` | 222 | 31 | 5 | 258 |
-| `lang/11-requirements-and-suspension.md` | 231 | 20 | 8 | 259 |
+| `lang/11-requirements-and-suspension.md` | 234 | 17 | 8 | 259 |
 | `lang/14-annotations.md` | 123 | 28 | 2 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 97 | 5 | 3 | 105 |
 | `runtime/valid` | 899 | 11 | 19 | 929 |
-| `typing/invalid` | 898 | 176 | 1 | 1075 |
+| `typing/invalid` | 911 | 163 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -83,7 +83,6 @@ compiler stage that first declined the case.
 | `fail:duplicate-argument` | 1 |
 | `fail:duplicate-data-pattern-field` | 1 |
 | `fail:duplicate-trait-member` | 1 |
-| `fail:implicit-narrowing` | 1 |
 | `fail:invalid-test-statement` | 1 |
 | `fail:invalid-token` | 2 |
 | `fail:missing-entry-point` | 1 |
@@ -91,6 +90,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
+| `fail:no-common-type` | 2 |
 | `fail:no-diagnostic` | 89 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
@@ -105,7 +105,7 @@ compiler stage that first declined the case.
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-used-as-type` | 1 |
-| `fail:type-mismatch` | 33 |
+| `fail:type-mismatch` | 20 |
 | `fail:unknown-data-field` | 4 |
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 5 |
@@ -114,7 +114,7 @@ compiler stage that first declined the case.
 | `fail:unknown-trait` | 7 |
 | `fail:unknown-type` | 3 |
 | `fail:unknown-variant` | 1 |
-| `fail:unused-local-binding` | 5 |
+| `fail:unused-local-binding` | 4 |
 | `unsupported:Body` | 5 |
 | `unsupported:Collect` | 5 |
 | `unsupported:Link` | 3 |
@@ -180,12 +180,6 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:implicit-narrowing</code> (1)</summary>
-
-- `typing/invalid/no-widening-list-literal.hd`
-
-</details>
-
 <details><summary><code>fail:invalid-test-statement</code> (1)</summary>
 
 - `runtime/valid/test-registration-renamed-import.hd`
@@ -231,6 +225,13 @@ compiler stage that first declined the case.
 <details><summary><code>fail:mutable-impl-target</code> (1)</summary>
 
 - `typing/invalid/mutable-inherent-impl-target.hd`
+
+</details>
+
+<details><summary><code>fail:no-common-type</code> (2)</summary>
+
+- `typing/invalid/none-beside-values-needs-expected-type.hd`
+- `typing/invalid/none-branch-needs-expected-type.hd`
 
 </details>
 
@@ -423,33 +424,20 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (33)</summary>
+<details><summary><code>fail:type-mismatch</code> (20)</summary>
 
-- `typing/invalid/heterogeneous-list.hd`
 - `typing/invalid/mixed-signedness.hd`
 - `typing/invalid/variance-representation-change.hd`
 - `typing/invalid/derived-generic-bound.hd`
 - `typing/invalid/contravariant-representation-change.hd`
-- `typing/invalid/heterogeneous-list-bool-int.hd`
-- `typing/invalid/heterogeneous-map-values.hd`
 - `runtime/valid/suspending-function-values.hd`
-- `typing/invalid/closure-returns-without-common-type.hd`
 - `runtime/valid/nested-optional-layers.hd`
-- `typing/invalid/none-beside-values-needs-expected-type.hd`
-- `typing/invalid/none-branch-needs-expected-type.hd`
-- `typing/invalid/least-common-type-supertrait-widening.hd`
 - `typing/invalid/function-result-representation-change.hd`
-- `typing/invalid/row-union-other-parts.hd`
-- `typing/invalid/row-union-nested-lists.hd`
-- `typing/invalid/row-union-if-nested-lists.hd`
 - `typing/invalid/operator-left-literal.hd`
 - `runtime/valid/intrinsic-method-calls.hd`
-- `typing/invalid/generic-inference-trait-value.hd`
 - `typing/invalid/range-mixed-signedness.hd`
-- `typing/invalid/generic-inference-supertrait-widening.hd`
 - `typing/invalid/no-widening-operator.hd`
 - `typing/invalid/no-widening-float.hd`
-- `typing/invalid/lct-optional-two-layers.hd`
 - `typing/invalid/num-abs-diff-unsigned.hd`
 - `typing/invalid/num-bit-count-u32.hd`
 - `typing/valid/literal-one-fit-left-operand.hd`
@@ -531,9 +519,8 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unused-local-binding</code> (5)</summary>
+<details><summary><code>fail:unused-local-binding</code> (4)</summary>
 
-- `typing/invalid/least-type-weakening-variance.hd`
 - `typing/invalid/closure-parameter-without-type.hd`
 - `typing/invalid/all-function-value.hd`
 - `typing/invalid/range-float-bound.hd`
@@ -1969,6 +1956,7 @@ typing/invalid/closure-escapes-provider-scope.hd
 typing/invalid/closure-identity.hd
 typing/invalid/closure-inferred-row-missing-requirement.hd
 typing/invalid/closure-not-inspectable.hd
+typing/invalid/closure-returns-without-common-type.hd
 typing/invalid/closure-row-key-collision.hd
 typing/invalid/closure-row-unknown-trait.hd
 typing/invalid/collect-target-not-fromiterator.hd
@@ -2187,6 +2175,8 @@ typing/invalid/generic-function-value-argument-unsolved.hd
 typing/invalid/generic-function-value-without-arguments.hd
 typing/invalid/generic-inference-conflict.hd
 typing/invalid/generic-inference-numeric-widening.hd
+typing/invalid/generic-inference-supertrait-widening.hd
+typing/invalid/generic-inference-trait-value.hd
 typing/invalid/generic-provider-key-collision-nested.hd
 typing/invalid/generic-provider-key-collision-spread.hd
 typing/invalid/generic-readonly-argument-to-mut-parameter.hd
@@ -2201,6 +2191,9 @@ typing/invalid/guarded-catch-all-not-exhaustive.hd
 typing/invalid/guarded-match-not-exhaustive.hd
 typing/invalid/hand-written-hash-beside-derived-eq.hd
 typing/invalid/hd-run-requires-process.hd
+typing/invalid/heterogeneous-list-bool-int.hd
+typing/invalid/heterogeneous-list.hd
+typing/invalid/heterogeneous-map-values.hd
 typing/invalid/if-branch-misses-expected-type.hd
 typing/invalid/impl-bound-bare-trait.hd
 typing/invalid/impl-duplicate-exact-pair.hd
@@ -2258,6 +2251,9 @@ typing/invalid/iterator-take-negative-literal.hd
 typing/invalid/json-decode-not-derived.hd
 typing/invalid/json-encode-not-derived.hd
 typing/invalid/json-map-key-not-string.hd
+typing/invalid/lct-optional-two-layers.hd
+typing/invalid/least-common-type-supertrait-widening.hd
+typing/invalid/least-type-weakening-variance.hd
 typing/invalid/let-else-falls-through.hd
 typing/invalid/let-else-irrefutable.hd
 typing/invalid/let-else-name-in-else.hd
@@ -2391,6 +2387,7 @@ typing/invalid/nil-is-unknown-name.hd
 typing/invalid/no-fit-candidate.hd
 typing/invalid/no-widening-argument.hd
 typing/invalid/no-widening-assignment.hd
+typing/invalid/no-widening-list-literal.hd
 typing/invalid/no-widening-range-bounds.hd
 typing/invalid/no-widening-return.hd
 typing/invalid/nominal-map-key.hd
@@ -2592,7 +2589,10 @@ typing/invalid/row-slot-bare-alias-argument.hd
 typing/invalid/row-slot-bare-context.hd
 typing/invalid/row-slot-bare-function-type.hd
 typing/invalid/row-subsumption-missing-key.hd
+typing/invalid/row-union-if-nested-lists.hd
 typing/invalid/row-union-missing-requirement.hd
+typing/invalid/row-union-nested-lists.hd
+typing/invalid/row-union-other-parts.hd
 typing/invalid/same-depth-promotion-conflict.hd
 typing/invalid/same-module-private-field-not-promoted.hd
 typing/invalid/same-module-private-method-not-promoted.hd

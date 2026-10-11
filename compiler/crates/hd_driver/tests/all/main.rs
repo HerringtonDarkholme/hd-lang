@@ -52,6 +52,7 @@ mod instantiation_depth;
 mod int_widths_run;
 mod intrinsic_methods;
 mod item_names;
+mod least_common_type_run;
 mod let_pattern_mut_run;
 mod list_invalidation_run;
 mod list_spread_run;
