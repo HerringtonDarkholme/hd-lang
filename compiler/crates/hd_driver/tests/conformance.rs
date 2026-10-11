@@ -16,11 +16,13 @@
 //! `HD_CONFORMANCE_TIER=lang|std` selects that tier's runtime cases for
 //! timing, without rewriting the report or checking the full pass list.
 
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
+use std::io::{Read as _, Write as _};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
@@ -656,17 +658,13 @@ fn run_program(
         None
     } else {
         let started = Instant::now();
-        let output = run_wasm(wasm, serial, profile);
+        let ran = run_wasm(wasm, serial, profile);
         let mut stats = RUNTIME_STATS.lock().expect("runtime stats lock");
         let stats = stats.entry(tier(case)).or_default();
         stats.node_elapsed += started.elapsed();
         stats.node_programs.insert(case.path.clone());
-        let output = output?;
-        Some(Ran {
-            stdout: output.stdout,
-            stderr: output.stderr,
-            status: output.status.code(),
-        })
+        let ran = ran?;
+        Some(ran)
     };
     if mode == EngineMode::Node {
         return Ok(node.expect("Node mode ran Node"));
@@ -729,24 +727,202 @@ fn report_runtime(cases: &[Case], results: &[Verdict], elapsed: Duration) {
 /// `profile` when it names one: the run configuration names it, and the
 /// host's `profiles.mjs` supplies its providers (README "Runtime
 /// Profiles").
-fn run_wasm(
+///
+/// Entry runs go through one long-lived Node worker per conformance
+/// worker thread (`compiler/host/conformance-worker.mjs`), started once.
+/// Each case gets a fresh host; the worker never reuses one. A case that
+/// kills its worker restarts it and reports a plain runtime failure, the
+/// same verdict a fresh process's non-zero exit gives. The test harness
+/// below still spawns a fresh process per program.
+fn run_wasm(wasm: &[u8], serial: usize, profile: Option<&str>) -> std::io::Result<Ran> {
+    ENTRY_WORKER.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        ensure_worker(&mut slot)?;
+        if let Ok(ran) = worker_run(slot.as_mut().expect("entry worker"), wasm, serial, profile) {
+            Ok(ran)
+        } else {
+            *slot = None;
+            if ensure_worker(&mut slot).is_err() {
+                return Err(std::io::Error::other("node entry worker failed to start"));
+            }
+            if let Ok(ran) = worker_run(slot.as_mut().expect("entry worker"), wasm, serial, profile)
+            {
+                Ok(ran)
+            } else {
+                *slot = None;
+                // The case killed two workers: report what a fresh
+                // process crash reports, a runtime failure.
+                Ok(Ran {
+                    stdout: Vec::new(),
+                    stderr: Vec::new(),
+                    status: Some(1),
+                })
+            }
+        }
+    })
+}
+
+/// How many cases a worker handles before it is recycled as cheap
+/// insurance against V8 heap growth (wasmtime-perf.md, M38).
+const WORKER_USES: usize = 500;
+
+struct EntryWorker {
+    child: Child,
+    stdin: ChildStdin,
+    stdout: ChildStdout,
+    uses: usize,
+}
+
+impl Drop for EntryWorker {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+thread_local! {
+    static ENTRY_WORKER: RefCell<Option<EntryWorker>> = const { RefCell::new(None) };
+}
+
+fn worker_script() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/conformance-worker.mjs")
+}
+
+fn ensure_worker(slot: &mut Option<EntryWorker>) -> std::io::Result<()> {
+    let stale = slot
+        .as_mut()
+        .is_some_and(|w| w.uses >= WORKER_USES || w.child.try_wait().ok().flatten().is_some());
+    if stale {
+        *slot = None;
+    }
+    if slot.is_none() {
+        let mut child = Command::new("node")
+            .arg(worker_script())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
+            .spawn()?;
+        let stdin = child.stdin.take();
+        let stdout = child.stdout.take();
+        let (Some(stdin), Some(stdout)) = (stdin, stdout) else {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(std::io::Error::other("node entry worker has no pipes"));
+        };
+        *slot = Some(EntryWorker {
+            child,
+            stdin,
+            stdout,
+            uses: 0,
+        });
+    }
+    Ok(())
+}
+
+/// A JSON string literal of `text`.
+fn json_string(text: &str, out: &mut String) {
+    out.push('"');
+    for c in text.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => {
+                let _ = std::fmt::write(out, format_args!("\\u{:04x}", c as u32));
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+}
+
+fn request_header(serial: usize, wasm_len: usize, profile: Option<&str>) -> Vec<u8> {
+    let mut header = String::from("{\"id\":");
+    header.push_str(&serial.to_string());
+    header.push_str(",\"wasmLen\":");
+    header.push_str(&wasm_len.to_string());
+    header.push_str(",\"profile\":");
+    match profile {
+        Some(name) => json_string(name, &mut header),
+        None => header.push_str("null"),
+    }
+    header.push_str(",\"args\":[],\"stdinLen\":0}");
+    header.into_bytes()
+}
+
+/// The number after `"key":` in a response header of numbers only.
+fn header_number(header: &str, key: &str) -> Option<i64> {
+    let needle = format!("\"{key}\":");
+    let (_, rest) = header.split_once(&needle)?;
+    let rest = rest.trim_start();
+    let end = rest
+        .find(|c: char| !c.is_ascii_digit() && c != '-')
+        .unwrap_or(rest.len());
+    rest[..end].parse().ok()
+}
+
+fn read_response(worker: &mut EntryWorker) -> std::io::Result<(usize, Ran)> {
+    let mut len = [0; 4];
+    worker.stdout.read_exact(&mut len)?;
+    let len = u32::from_be_bytes(len);
+    let len = usize::try_from(len).map_err(std::io::Error::other)?;
+    let mut header = vec![0; len];
+    worker.stdout.read_exact(&mut header)?;
+    let header = String::from_utf8(header).map_err(|e| std::io::Error::other(e.to_string()))?;
+    let id = header_number(&header, "id")
+        .ok_or_else(|| std::io::Error::other(format!("node entry worker answered {header:?}")))?;
+    let status = header_number(&header, "status")
+        .ok_or_else(|| std::io::Error::other(format!("node entry worker answered {header:?}")))?;
+    let stdout_len = header_number(&header, "stdoutLen")
+        .ok_or_else(|| std::io::Error::other(format!("node entry worker answered {header:?}")))?;
+    let stderr_len = header_number(&header, "stderrLen")
+        .ok_or_else(|| std::io::Error::other(format!("node entry worker answered {header:?}")))?;
+    let stdout_len =
+        usize::try_from(stdout_len).map_err(|_| std::io::Error::other("negative stdoutLen"))?;
+    let stderr_len =
+        usize::try_from(stderr_len).map_err(|_| std::io::Error::other("negative stderrLen"))?;
+    let mut stdout = vec![0; stdout_len];
+    worker.stdout.read_exact(&mut stdout)?;
+    let mut stderr = vec![0; stderr_len];
+    worker.stdout.read_exact(&mut stderr)?;
+    let status = i32::try_from(status).map_err(|_| std::io::Error::other("status out of range"))?;
+    let id = usize::try_from(id).map_err(|_| std::io::Error::other("id out of range"))?;
+    worker.uses += 1;
+    Ok((
+        id,
+        Ran {
+            stdout,
+            stderr,
+            status: Some(status),
+        },
+    ))
+}
+
+fn worker_run(
+    worker: &mut EntryWorker,
     wasm: &[u8],
     serial: usize,
     profile: Option<&str>,
-) -> std::io::Result<std::process::Output> {
-    let dir = env!("CARGO_TARGET_TMPDIR");
-    let path = Scratch::unmade(dir, &format!("conformance-{serial}.wasm"));
-    std::fs::write(&path, wasm)?;
-    let mut command = Command::new("node");
-    command
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
-        .arg(&path);
-    let config = Scratch::unmade(dir, &format!("conformance-{serial}.json"));
-    if let Some(name) = profile {
-        std::fs::write(&config, format!("{{\"profile\":{name:?}}}"))?;
-        command.arg(&config);
+) -> std::io::Result<Ran> {
+    let header = request_header(serial, wasm.len(), profile);
+    let expected = serial;
+    worker
+        .stdin
+        .write_all(&(u32::try_from(header.len()).map_err(std::io::Error::other)?).to_be_bytes())?;
+    worker.stdin.write_all(&header)?;
+    worker.stdin.write_all(wasm)?;
+    worker.stdin.flush()?;
+    let (id, ran) = read_response(worker)?;
+    // The worker answers in order; a mismatched id means the stream lost
+    // sync, so the worker goes.
+    if id != expected {
+        return Err(std::io::Error::other(
+            "node entry worker answered out of order",
+        ));
     }
-    command.output()
+    Ok(ran)
 }
 
 /// A fixture whose only harness is its runtime profile: its entry runs
