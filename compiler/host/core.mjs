@@ -281,6 +281,47 @@ const HTTP = {
   TooManyRedirects: 6,
   Other: 7,
 };
+// `NetError`'s variants (std.net), and `ResourceError`'s.
+const NET = { NotGranted: 0, InvalidAddress: 1, Dns: 2, Refused: 3, Other: 4 };
+const RES = { Operation: 0, Disposed: 1 };
+// `SysError`'s variants (std.sys).
+const SYS = { NotGranted: 0, Unsupported: 1 };
+// The names `std.sys` gives Node's platforms and architectures
+// (std-sys.os, std-sys.arch); any other is Node's own name.
+const OS_NAMES = { darwin: "macos", win32: "windows" };
+const ARCH_NAMES = { x64: "x86_64", arm64: "aarch64", ia32: "x86" };
+// `ProcessError`'s variants (std.process).
+const PROC = { NotFound: 0, PermissionDenied: 1, NotGranted: 2, Other: 3 };
+
+// `.Err(FsError)` of a failed file operation on `path`.
+const fsErr = (e, path, variant) => {
+  e.leb(1).leb(variant);
+  return variant === FS.Other ? e : e.str(path);
+};
+const fsFail = (e, path, err) => {
+  const v = FS_CODES[err?.code];
+  return v === undefined ? e.leb(1).leb(FS.Other).str(String(err?.message ?? err)) : fsErr(e, path, v);
+};
+// An `Entry`: path, kind, size.
+const entry = (e, path, st) => {
+  const kind = st.isSymbolicLink() ? KIND.Symlink : st.isDirectory() ? KIND.Directory : KIND.File;
+  return e.str(path).leb(kind).leb(kind === KIND.Directory ? 0 : st.size);
+};
+// A waiting method's `.start`/`.finish` pair from one table.
+const waiting = (ops) => {
+  const o = {};
+  for (const [name, { start, finish }] of Object.entries(ops)) {
+    o[`${name}.start`] = start;
+    o[`${name}.finish`] = finish;
+  }
+  return o;
+};
+// A `.finish` of an operation that never pends: a stale handle.
+const never = () => {
+  throw new HostContract("a finish of an operation that is not pending");
+};
+// One path argument, decoded.
+const one = (d) => [d.str()];
 
 // A client thread running `file` (`http.mjs`, `net.mjs`), started on its
 // first call. `call(request)` posts the request and waits for the thread's
@@ -317,34 +358,6 @@ const syncClient = (file) => {
 // HTTP requests hold nothing open, so one client serves every instance.
 const httpClient = syncClient("http.mjs");
 const httpSend = (request) => httpClient.call(request);
-
-// `NetError`'s variants (std.net), and `ResourceError`'s.
-const NET = { NotGranted: 0, InvalidAddress: 1, Dns: 2, Refused: 3, Other: 4 };
-const RES = { Operation: 0, Disposed: 1 };
-
-// `SysError`'s variants (std.sys).
-const SYS = { NotGranted: 0, Unsupported: 1 };
-// The names `std.sys` gives Node's platforms and architectures
-// (std-sys.os, std-sys.arch); any other is Node's own name.
-const OS_NAMES = { darwin: "macos", win32: "windows" };
-const ARCH_NAMES = { x64: "x86_64", arm64: "aarch64", ia32: "x86" };
-// `ProcessError`'s variants (std.process).
-const PROC = { NotFound: 0, PermissionDenied: 1, NotGranted: 2, Other: 3 };
-
-// `.Err(FsError)` of a failed file operation on `path`.
-const fsErr = (e, path, variant) => {
-  e.leb(1).leb(variant);
-  return variant === FS.Other ? e : e.str(path);
-};
-const fsFail = (e, path, err) => {
-  const v = FS_CODES[err?.code];
-  return v === undefined ? e.leb(1).leb(FS.Other).str(String(err?.message ?? err)) : fsErr(e, path, v);
-};
-// An `Entry`: path, kind, size.
-const entry = (e, path, st) => {
-  const kind = st.isSymbolicLink() ? KIND.Symlink : st.isDirectory() ? KIND.Directory : KIND.File;
-  return e.str(path).leb(kind).leb(kind === KIND.Directory ? 0 : st.size);
-};
 
 // Reads standard input one line at a time, synchronously
 // (cli.host.default-profile.input-closed): the line without its ending,
@@ -392,206 +405,106 @@ function lineReader(fd) {
   };
 }
 
-// One host per instance: `sink.out(text)` and `sink.err(text)` receive the
-// program's standard output and standard error. `env` holds what the
-// providers hand out: `args` and `program` for `Args`, `grants` for the
-// scope checks, `stdin` (a file descriptor, or `null` for a closed
-// standard input), and in a test case its `tempDir` (made on the first
-// `tempDir()` call, which `TestRunner.temp_dir` makes), the base `seed`
-// of a property test (Test Environments, cli.test.seed), its `snapshot`
-// files (`dir`, `shown`, `slug`, `update`), the test runner's
-// `programs`, the package's executables and tasks by name
-// (cli.test.process), and its `runner`, the hooks through which
-// `TestRunner.row` and `PropertyRunner` reach it (`row`, `slugSuffix`,
-// `start`, `record`, `show`; test.mjs).
-export function createHost(sink, env = {}) {
-  const args = env.args ?? [];
-  const program = env.program ?? "";
-  const grant = createGrant(env.grants ?? {});
-  const seed = env.seed ?? null;
-  const readLine = lineReader(env.stdin === undefined ? 0 : env.stdin);
-  let tempMade = false;
-  let ownTemp = null;
-  const tempDir = () => {
-    if (!env.tempDir) {
-      // A run without a configured directory makes its own.
-      ownTemp ??= mkdtempSync(join(tmpdir(), "hd-case-"));
-      return ownTemp;
-    }
-    if (!tempMade) mkdirSync(env.tempDir, { recursive: true });
-    tempMade = true;
-    return env.tempDir;
-  };
-  const out = [];
-  let memory = null;
-  let reported = false;
-  // The case's timeout, which `TestRunner.report_timeout` reports before
-  // the body runs (std-testing.runner.timeout): its length, and the
-  // `performance.now()` time by which the body must end.
-  let timeoutMs = null;
-  let deadline = null;
-  const overran = () => deadline !== null && performance.now() > deadline;
-  // Waits at most until `d`, and never past the timeout: a pending host
-  // wait is cut at the deadline (runtime-and-host.md §17.8).
-  const until = (d) => (deadline === null ? d : Math.min(d, deadline));
-  const view = (len) => new Uint8Array(memory.buffer, 0, len);
-  // A copy of the argument bytes, which a result may overwrite.
-  const argsOf = (len) => new Dec(Uint8Array.from(view(len)));
-  const text = (len) => Buffer.from(view(len)).toString("utf8");
-  // Writes an encoded result at offset 0, growing the buffer to fit, and
-  // returns its length (§17.3).
-  const put = (e) => {
-    const bytes = e.done();
-    if (bytes.length > memory.buffer.byteLength) {
-      memory.grow(Math.ceil((bytes.length - memory.buffer.byteLength) / 65536));
-    }
-    new Uint8Array(memory.buffer, 0, bytes.length).set(bytes);
-    return bytes.length;
-  };
-  // A waiting method that finished at once (§17.2): status 0, the length.
-  const ready = (e) => [0, put(e)];
-  const flush = () => {
-    if (out.length) {
-      sink.out(out.join(""));
-      out.length = 0;
-    }
-  };
-  const noticed = new Set();
-
-  // Pending operations by handle: `at` is when it completes.
-  const ops = new Map();
-  let nextHandle = 1;
-  const pending = (at, done) => {
-    const h = nextHandle++;
-    ops.set(h, { at, done, completed: false });
-    return [1, h];
-  };
-  const nextDeadline = () => {
-    let d = null;
-    for (const o of ops.values()) {
-      if (!o.completed && (d === null || o.at < d)) d = o.at;
-    }
-    return d;
-  };
-  // Completes every due operation and writes the handles to the buffer.
-  const complete = () => {
-    const now = performance.now();
-    const due = [...ops]
-      .filter(([, o]) => !o.completed && o.at <= now)
-      .sort((a, b) => a[1].at - b[1].at || a[0] - b[0]);
-    if (due.length * 4 > memory.buffer.byteLength) {
-      memory.grow(Math.ceil((due.length * 4) / 65536));
-    }
-    const words = new DataView(memory.buffer);
-    due.forEach(([h, o], i) => {
-      o.completed = true;
-      if (o.done) o.done();
-      words.setInt32(4 * i, h, true);
-    });
-    return due.length;
-  };
-  const deadlock = () => {
-    flush();
-    sink.err("panic: deadlock: the program waits, but no host operation is pending\n");
-    reported = true;
-    throw new Deadlock();
-  };
+// `hd:rt`: the runtime imports both hosts share (§17.2, §17.10).
+function rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, until, overran }) {
   const sleeper = new Int32Array(new SharedArrayBuffer(4));
-  const finish = (h) => {
-    ops.delete(h);
-  };
-  // A `.finish` of an operation that never pends: a stale handle.
-  const never = () => {
-    throw new HostContract("a finish of an operation that is not pending");
-  };
-  // A waiting file operation on the paths that `paths(d)` reads from the
-  // arguments; `run(e, paths, d)` does it once the grant covers each path.
-  const fsOp = (key, paths, run) => ({
-    start: (len) => {
-      const d = argsOf(len);
-      const ps = paths(d);
-      const e = new Enc();
-      const refused = ps.find((p) => !grant.coversPath(key, p));
-      if (refused !== undefined) return ready(fsErr(e, refused, FS.NotGranted));
-      try {
-        run(e, ps, d);
-      } catch (err) {
-        return ready(fsFail(new Enc(), ps[ps.length - 1], err));
-      }
-      return ready(e);
+  return {
+    stderr: (len) => {
+      st.reported = true;
+      flush();
+      sink.err(Buffer.from(view(len)).toString("utf8"));
     },
-    finish: never,
-  });
-  const waiting = (ops) => {
-    const o = {};
-    for (const [name, { start, finish }] of Object.entries(ops)) {
-      o[`${name}.start`] = start;
-      o[`${name}.finish`] = finish;
-    }
-    return o;
-  };
-  const one = (d) => [d.str()];
-  // Snapshot files of the case (std-testing.snapshot-file.*).
-  let snapshots = 0;
-  const snapshotCheck = (actual) => {
-    const s = env.snapshot;
-    snapshots += 1;
-    if (!s) return "no snapshot file: this run names no snapshot directory";
-    // An `it_each` row's slug adds the row's index
-    // (std-testing.snapshot-file.row).
-    const slug = s.slug + (env.runner?.slugSuffix() ?? "");
-    const file = join(s.dir, `${slug}-${snapshots}.snap`);
-    const shown = s.shown ? `${s.shown}/${slug}-${snapshots}.snap` : file;
-    if (existsSync(file)) {
-      const expected = readFileSync(file, "utf8");
-      if (expected === actual) return "";
-      if (!s.update) {
-        return `the text differs from the snapshot file ${shown}: expected ${JSON.stringify(expected)}, actual ${JSON.stringify(actual)}; run \`hd test --update\` to record it`;
+    block: () => {
+      for (;;) {
+        const n = complete();
+        if (n) return n;
+        const d = nextDeadline();
+        if (d === null) deadlock();
+        Atomics.wait(sleeper, 0, 0, Math.max(0, until(d) - performance.now()));
+        if (overran()) throw new TimeLimit();
       }
-    } else if (!s.update) {
-      return `the snapshot file ${shown} is missing; run \`hd test --update\` to record it`;
-    }
-    mkdirSync(s.dir, { recursive: true });
-    writeFileSync(file, actual);
-    return "";
+    },
+    abort: (h) => {
+      st.ops.delete(h);
+    },
   };
-  // `Process.run!` (cli.host.default-profile, cli.test.process): the test
-  // runner's provider starts the package's executables and tasks by name,
-  // the default profile's a host program.
-  const runProcess = (name, argv, input) => {
-    const e = new Enc();
-    if (!grant.coversName("Process", name)) return e.leb(1).leb(PROC.NotGranted);
-    let r;
-    if (env.programs) {
-      const p = env.programs[name];
-      if (!p) return e.leb(1).leb(PROC.NotFound);
-      r = spawnSync(process.execPath, [p.host, p.wasm, p.config, ...argv], {
-        input,
-        cwd: p.cwd,
-        maxBuffer: 1 << 30,
-      });
-    } else {
-      try {
-        r = spawnSync(name, argv, { input, cwd: process.cwd(), env: process.env, maxBuffer: 1 << 30 });
-      } catch (error) {
-        if (name === "") return e.leb(1).leb(PROC.NotFound);
-        return e.leb(1).leb(PROC.Other).str(String(error.message));
-      }
-    }
-    if (r.error) {
-      const code = r.error.code;
-      if (code === "ENOENT") return e.leb(1).leb(PROC.NotFound);
-      if (code === "EACCES" || code === "EPERM") return e.leb(1).leb(PROC.PermissionDenied);
-      return e.leb(1).leb(PROC.Other).str(String(r.error.message));
-    }
-    const status = r.status ?? 128;
-    return e
-      .leb(0)
-      .str(r.stdout.toString("utf8"))
-      .str(r.stderr.toString("utf8"))
-      .zz(status);
-  };
+}
 
+// The host primitives of std (spec/std/README.md#standard-library-
+// primitives): a float arrives as its value, and the text goes back
+// in the exchange buffer as a string.
+function primImports({ put, text }) {
+  return {
+    format_f64: (value) => put(new Enc().str(shortest(value, 64))),
+    format_f32: (value) => put(new Enc().str(shortest(value, 32))),
+    format_f64_fixed: (value, digits) => put(new Enc().str(fixed(value, Number(digits)))),
+    string_lower: (len) => put(new Enc().str(lower(text(len)))),
+    string_upper: (len) => put(new Enc().str(upper(text(len)))),
+    parse_f64: (len) => parse(text(len)),
+  };
+}
+
+// `hd:Console`: one line per `write_line`, completed at once.
+function consoleImports({ text, pending, finish, view, st }) {
+  return {
+    "write_line.start": (len) => {
+      const line = text(len);
+      return pending(performance.now(), () => st.out.push(line + "\n"));
+    },
+    "write_line.finish": (h) => {
+      finish(h);
+      view(1)[0] = 0;
+      return 1;
+    },
+  };
+}
+
+// `hd:ConsoleInput`: the next input line, `.None` at the end, `.Err` when
+// it cannot be read.
+function consoleInputImports({ env, flush, ready }) {
+  const readLine = lineReader(env.stdin === undefined ? 0 : env.stdin);
+  return {
+    // `Result[string?, ConsoleError]`: the next line, `.None` at the end
+    // of input, `.Err(.Closed)` when it cannot be read.
+    "read_line.start": () => {
+      // A completed prompt must reach the sink before this read blocks.
+      flush();
+      const line = readLine();
+      const e = new Enc();
+      if (line === false) return ready(e.leb(1).leb(0));
+      return ready(line === null ? e.leb(0).leb(0) : e.leb(0).leb(1).str(line));
+    },
+    "read_line.finish": never,
+  };
+}
+
+// `hd:Clock`: the time, and sleeps that complete when due.
+function clockImports({ pending, finish }) {
+  return {
+    now: () => BigInt(Date.now()),
+    monotonic: () => BigInt(Math.floor(performance.now())),
+    "sleep.start": (ms) => pending(performance.now() + Number(ms), null),
+    "sleep.finish": (h) => {
+      finish(h);
+      return 0;
+    },
+  };
+}
+
+// The operating system's random source (cli.host.default-profile).
+// `Random` has no scope entries: a grant of `false` refuses the whole
+// program at startup (cli.cap.total.refuse).
+function randomImports({ put }) {
+  return {
+    next_u64: () => randomBytes(8).readBigInt64LE(0),
+    fill: (count) => put(new Enc().bytes(randomBytes(count >>> 0))),
+  };
+}
+
+// The host system's four reads (std-sys.*). The grant covers each by
+// its method's name (cli.cap.scope.sys); a refused or unanswerable
+// read is `.Err` with that name (std-sys.not-granted, .unsupported).
+function sysImports({ grant, put }) {
   // `Result[T, SysError]` of the read `name`: `.Ok` of what `value`
   // encodes, `.Err(.NotGranted(name))` outside the grant, or
   // `.Err(.Unsupported(name))` when the host cannot answer it.
@@ -604,7 +517,16 @@ export function createHost(sink, env = {}) {
       return put(e.leb(1).leb(SYS.Unsupported).str(name));
     }
   };
+  return {
+    os: () => sysRead("os", (e) => e.str(OS_NAMES[platform()] ?? platform())),
+    arch: () => sysRead("arch", (e) => e.str(ARCH_NAMES[osArch()] ?? osArch())),
+    hostname: () => sysRead("hostname", (e) => e.str(hostname())),
+    cpu_count: () => sysRead("cpu_count", (e) => e.leb(availableParallelism())),
+  };
+}
 
+// `hd:Http`: one `send`, decoded, made, and encoded (std-http.send.*).
+function httpImports({ argsOf, ready, grants }) {
   // `Http.send!` (std-http.send.*): decodes the `Request` (its method,
   // URL, header pairs, body, and timeout), makes it on the client thread
   // under the program's grant, and encodes `Result[Response, HttpError]`.
@@ -615,7 +537,7 @@ export function createHost(sink, env = {}) {
     const headers = d.list((d) => [d.str(), d.str()]);
     const body = Uint8Array.from(d.bytes());
     const timeout = d.num() === 1 ? Number(d.zz()) : null;
-    const r = httpSend({ method, url, headers, body, timeout, grants: env.grants ?? {} });
+    const r = httpSend({ method, url, headers, body, timeout, grants });
     const e = new Enc();
     if (r.error) {
       e.leb(1).leb(HTTP[r.error]);
@@ -627,10 +549,13 @@ export function createHost(sink, env = {}) {
       .list(r.headers, (e, [n, v]) => e.str(n).str(v))
       .bytes(r.body);
   };
+  return waiting({
+    send: { start: (len) => ready(httpRequest(argsOf(len))), finish: never },
+  });
+}
 
-  // `Net` and its socket handles (spec/std/net.md) on a client thread of
-  // this instance's own, which holds its sockets; `close` stops it.
-  const netClient = syncClient("net.mjs");
+// `hd:Net` and its socket handles (spec/std/net.md).
+function netImports({ argsOf, ready, put, grant, netClient, text }) {
   // `.Err(NetError)`, for a `Net` method, from a client outcome.
   const netErr = (e, [variant, text]) => e.leb(NET[variant]).str(text);
   // `Result[T, NetError]` of a `Net` method: `ok(e, value)` encodes `T`.
@@ -661,185 +586,114 @@ export function createHost(sink, env = {}) {
     const host = argsOf(len).str();
     return ready(netResult(netAt(op, host, port), handle));
   };
-
-  const imports = {
-    "hd:rt": {
-      stderr: (len) => {
-        reported = true;
-        flush();
-        sink.err(Buffer.from(view(len)).toString("utf8"));
-      },
-      block: () => {
-        for (;;) {
-          const n = complete();
-          if (n) return n;
-          const d = nextDeadline();
-          if (d === null) deadlock();
-          Atomics.wait(sleeper, 0, 0, Math.max(0, until(d) - performance.now()));
-          if (overran()) throw new TimeLimit();
-        }
-      },
-      abort: (h) => {
-        ops.delete(h);
-      },
-    },
-    // The host primitives of std (spec/std/README.md#standard-library-
-    // primitives): a float arrives as its value, and the text goes back
-    // in the exchange buffer as a string.
-    "hd:prim": {
-      format_f64: (value) => put(new Enc().str(shortest(value, 64))),
-      format_f32: (value) => put(new Enc().str(shortest(value, 32))),
-      format_f64_fixed: (value, digits) => put(new Enc().str(fixed(value, Number(digits)))),
-      string_lower: (len) => put(new Enc().str(lower(text(len)))),
-      string_upper: (len) => put(new Enc().str(upper(text(len)))),
-      parse_f64: (len) => parse(text(len)),
-    },
-    "hd:Console": {
-      "write_line.start": (len) => {
-        const line = text(len);
-        return pending(performance.now(), () => out.push(line + "\n"));
-      },
-      "write_line.finish": (h) => {
-        finish(h);
-        view(1)[0] = 0;
-        return 1;
-      },
-    },
-    "hd:ConsoleInput": {
-      // `Result[string?, ConsoleError]`: the next line, `.None` at the end
-      // of input, `.Err(.Closed)` when it cannot be read.
-      "read_line.start": () => {
-        // A completed prompt must reach the sink before this read blocks.
-        flush();
-        const line = readLine();
-        const e = new Enc();
-        if (line === false) return ready(e.leb(1).leb(0));
-        return ready(line === null ? e.leb(0).leb(0) : e.leb(0).leb(1).str(line));
-      },
-      "read_line.finish": never,
-    },
-    "hd:Clock": {
-      now: () => BigInt(Date.now()),
-      monotonic: () => BigInt(Math.floor(performance.now())),
-      "sleep.start": (ms) => pending(performance.now() + Number(ms), null),
-      "sleep.finish": (h) => {
-        finish(h);
-        return 0;
-      },
-    },
-    // The operating system's random source (cli.host.default-profile).
-    // `Random` has no scope entries: a grant of `false` refuses the whole
-    // program at startup (cli.cap.total.refuse).
-    "hd:Random": {
-      next_u64: () => randomBytes(8).readBigInt64LE(0),
-      fill: (count) => put(new Enc().bytes(randomBytes(count >>> 0))),
-    },
-    // The host system's four reads (std-sys.*). The grant covers each by
-    // its method's name (cli.cap.scope.sys); a refused or unanswerable
-    // read is `.Err` with that name (std-sys.not-granted, .unsupported).
-    "hd:Sys": {
-      os: () => sysRead("os", (e) => e.str(OS_NAMES[platform()] ?? platform())),
-      arch: () => sysRead("arch", (e) => e.str(ARCH_NAMES[osArch()] ?? osArch())),
-      hostname: () => sysRead("hostname", (e) => e.str(hostname())),
-      cpu_count: () => sysRead("cpu_count", (e) => e.leb(availableParallelism())),
-    },
-    "hd:Http": waiting({
-      send: { start: (len) => ready(httpRequest(argsOf(len))), finish: never },
-    }),
-    "hd:Net": {
-      ...waiting({
-        // cli.cap.scope.net.lookup: an entry covers a lookup of its host.
-        lookup: {
-          start: (len) => {
-            const host = text(len);
-            const r = !validHost(host)
-              ? { error: ["InvalidAddress", host] }
-              : grant.coversHostName("Net", host)
-                ? netClient.call({ op: "lookup", host })
-                : { error: ["NotGranted", host] };
-            return ready(netResult(r, (e, found) => e.list(found, (e, a) => e.str(a))));
-          },
-          finish: never,
+  return {
+    ...waiting({
+      // cli.cap.scope.net.lookup: an entry covers a lookup of its host.
+      lookup: {
+        start: (len) => {
+          const host = text(len);
+          const r = !validHost(host)
+            ? { error: ["InvalidAddress", host] }
+            : grant.coversHostName("Net", host)
+              ? netClient.call({ op: "lookup", host })
+              : { error: ["NotGranted", host] };
+          return ready(netResult(r, (e, found) => e.list(found, (e, a) => e.str(a))));
         },
-        connect: { start: opened("connect"), finish: never },
-        listen: { start: opened("listen"), finish: never },
-        bind_udp: { start: opened("bind_udp"), finish: never },
-        "TcpStream.read": {
-          start: (h, max) =>
-            ready(handleResult(netClient.call({ op: "read", handle: h, max }), (e, b) => e.bytes(b))),
-          finish: never,
+        finish: never,
+      },
+      connect: { start: opened("connect"), finish: never },
+      listen: { start: opened("listen"), finish: never },
+      bind_udp: { start: opened("bind_udp"), finish: never },
+      "TcpStream.read": {
+        start: (h, max) =>
+          ready(handleResult(netClient.call({ op: "read", handle: h, max }), (e, b) => e.bytes(b))),
+        finish: never,
+      },
+      "TcpStream.write": {
+        start: (h, len) => {
+          const bytes = Uint8Array.from(argsOf(len).bytes());
+          return ready(handleResult(netClient.call({ op: "write", handle: h, bytes }), none));
         },
-        "TcpStream.write": {
-          start: (h, len) => {
-            const bytes = Uint8Array.from(argsOf(len).bytes());
-            return ready(handleResult(netClient.call({ op: "write", handle: h, bytes }), none));
-          },
-          finish: never,
+        finish: never,
+      },
+      "TcpListener.accept": {
+        start: (h) => ready(handleResult(netClient.call({ op: "accept", handle: h }), handle)),
+        finish: never,
+      },
+      // std-net.send-to.grant: each datagram's own address.
+      "UdpSocket.send_to": {
+        start: (h, port, len) => {
+          const d = argsOf(len);
+          const host = d.str();
+          const bytes = Uint8Array.from(d.bytes());
+          // Preserve ABI decoding, then reject closed and unknown handles
+          // before destination validation. This checks metadata only.
+          const checked = netClient.call({ op: "check", handle: h });
+          if (checked.unknown || checked.disposed) return ready(handleResult(checked, none));
+          // Each live send still checks its destination grant.
+          const r = netAt("send_to", host, port, { handle: h, bytes });
+          return ready(handleResult(r, none));
         },
-        "TcpListener.accept": {
-          start: (h) => ready(handleResult(netClient.call({ op: "accept", handle: h }), handle)),
-          finish: never,
-        },
-        // std-net.send-to.grant: each datagram's own address.
-        "UdpSocket.send_to": {
-          start: (h, port, len) => {
-            const d = argsOf(len);
-            const host = d.str();
-            const bytes = Uint8Array.from(d.bytes());
-            // Preserve ABI decoding, then reject closed and unknown handles
-            // before destination validation. This checks metadata only.
-            const checked = netClient.call({ op: "check", handle: h });
-            if (checked.unknown || checked.disposed) return ready(handleResult(checked, none));
-            // Each live send still checks its destination grant.
-            const r = netAt("send_to", host, port, { handle: h, bytes });
-            return ready(handleResult(r, none));
-          },
-          finish: never,
-        },
-        "UdpSocket.receive": {
-          start: (h, max) =>
-            ready(
-              handleResult(netClient.call({ op: "receive", handle: h, max }), (e, d) =>
-                e.bytes(d.bytes).str(d.host).leb(d.port),
-              ),
+        finish: never,
+      },
+      "UdpSocket.receive": {
+        start: (h, max) =>
+          ready(
+            handleResult(netClient.call({ op: "receive", handle: h, max }), (e, d) =>
+              e.bytes(d.bytes).str(d.host).leb(d.port),
             ),
-          finish: never,
-        },
-      }),
-      // A second `close` is `Disposed` (std-net.handles.closable).
-      "TcpStream.close": (h) => closeHandle(h),
-      "TcpListener.close": (h) => closeHandle(h),
-      "UdpSocket.close": (h) => closeHandle(h),
-    },
-    "hd:Args": {
-      program: () => put(new Enc().str(program)),
-      list: () => put(new Enc().list(args, (e, a) => e.str(a))),
-    },
-    "hd:Env": {
-      // A variable outside the grant reads as unset; when it is set, a
-      // notice names the flag, once per name (cli.cap.env.notice).
-      get: (len) => {
-        const name = text(len);
-        const value = process.env[name];
-        const e = new Enc();
-        if (!grant.coversName("Env", name)) {
-          if (value !== undefined && !noticed.has(name)) {
-            noticed.add(name);
-            flush();
-            sink.err(`hd: env ${name} is set but not granted; run with --cap Env=${name}\n`);
-          }
-          return put(e.leb(0));
-        }
-        return put(value === undefined ? e.leb(0) : e.leb(1).str(value));
-      },
-      names: () =>
-        put(
-          new Enc().list(
-            Object.keys(process.env).filter((n) => grant.coversName("Env", n)),
-            (e, n) => e.str(n),
           ),
-        ),
+        finish: never,
+      },
+    }),
+    // A second `close` is `Disposed` (std-net.handles.closable).
+    "TcpStream.close": (h) => closeHandle(h),
+    "TcpListener.close": (h) => closeHandle(h),
+    "UdpSocket.close": (h) => closeHandle(h),
+  };
+}
+
+// `hd:Args`: the program's path and arguments.
+function argsImports({ put, program, args }) {
+  return {
+    program: () => put(new Enc().str(program)),
+    list: () => put(new Enc().list(args, (e, a) => e.str(a))),
+  };
+}
+
+// `hd:Env`: granted variables read, the rest read as unset with one
+// notice per name.
+function envImports({ grant, sink, st, flush, put, text }) {
+  return {
+    // A variable outside the grant reads as unset; when it is set, a
+    // notice names the flag, once per name (cli.cap.env.notice).
+    get: (len) => {
+      const name = text(len);
+      const value = process.env[name];
+      const e = new Enc();
+      if (!grant.coversName("Env", name)) {
+        if (value !== undefined && !st.noticed.has(name)) {
+          st.noticed.add(name);
+          flush();
+          sink.err(`hd: env ${name} is set but not granted; run with --cap Env=${name}\n`);
+        }
+        return put(e.leb(0));
+      }
+      return put(value === undefined ? e.leb(0) : e.leb(1).str(value));
     },
+    names: () =>
+      put(
+        new Enc().list(
+          Object.keys(process.env).filter((n) => grant.coversName("Env", n)),
+          (e, n) => e.str(n),
+        ),
+      ),
+  };
+}
+
+// `hd:FsRead` and `hd:FsWrite`: the file providers (std.fs).
+function fsImports({ fsOp }) {
+  return {
     "hd:FsRead": waiting({
       read_bytes: fsOp("FsRead", one, (e, [p]) => e.leb(0).bytes(readFileSync(p))),
       read_text: fsOp("FsRead", one, (e, [p]) => {
@@ -913,19 +767,98 @@ export function createHost(sink, env = {}) {
         },
       ),
     }),
-    "hd:Process": waiting({
-      run: {
-        start: (len) => {
-          const d = argsOf(len);
-          const name = d.str();
-          const argv = d.list((d) => d.str());
-          const input = Buffer.from(d.bytes());
-          return ready(runProcess(name, argv, input));
-        },
-        finish: never,
+  };
+}
+
+// `hd:Process`: running host programs (`Process.run!`).
+function processImports({ argsOf, grant, env, ready }) {
+  // `Process.run!` (cli.host.default-profile, cli.test.process): the test
+  // runner's provider starts the package's executables and tasks by name,
+  // the default profile's a host program.
+  const runProcess = (name, argv, input) => {
+    const e = new Enc();
+    if (!grant.coversName("Process", name)) return e.leb(1).leb(PROC.NotGranted);
+    let r;
+    if (env.programs) {
+      const p = env.programs[name];
+      if (!p) return e.leb(1).leb(PROC.NotFound);
+      r = spawnSync(process.execPath, [p.host, p.wasm, p.config, ...argv], {
+        input,
+        cwd: p.cwd,
+        maxBuffer: 1 << 30,
+      });
+    } else {
+      try {
+        r = spawnSync(name, argv, { input, cwd: process.cwd(), env: process.env, maxBuffer: 1 << 30 });
+      } catch (error) {
+        if (name === "") return e.leb(1).leb(PROC.NotFound);
+        return e.leb(1).leb(PROC.Other).str(String(error.message));
+      }
+    }
+    if (r.error) {
+      const code = r.error.code;
+      if (code === "ENOENT") return e.leb(1).leb(PROC.NotFound);
+      if (code === "EACCES" || code === "EPERM") return e.leb(1).leb(PROC.PermissionDenied);
+      return e.leb(1).leb(PROC.Other).str(String(r.error.message));
+    }
+    const status = r.status ?? 128;
+    return e
+      .leb(0)
+      .str(r.stdout.toString("utf8"))
+      .str(r.stderr.toString("utf8"))
+      .zz(status);
+  };
+  return waiting({
+    run: {
+      start: (len) => {
+        const d = argsOf(len);
+        const name = d.str();
+        const argv = d.list((d) => d.str());
+        const input = Buffer.from(d.bytes());
+        return ready(runProcess(name, argv, input));
       },
-    }),
-    "hd:TestRunner": {
+      finish: never,
+    },
+  });
+}
+
+// `hd:TestRunner`: the test runner's hooks (test.mjs) and case files.
+function testRunnerImports({ env, put, st, text }) {
+  // Snapshot files of the case (std-testing.snapshot-file.*).
+  const snapshotCheck = (actual) => {
+    const s = env.snapshot;
+    st.snapshots += 1;
+    if (!s) return "no snapshot file: this run names no snapshot directory";
+    // An `it_each` row's slug adds the row's index
+    // (std-testing.snapshot-file.row).
+    const slug = s.slug + (env.runner?.slugSuffix() ?? "");
+    const file = join(s.dir, `${slug}-${st.snapshots}.snap`);
+    const shown = s.shown ? `${s.shown}/${slug}-${st.snapshots}.snap` : file;
+    if (existsSync(file)) {
+      const expected = readFileSync(file, "utf8");
+      if (expected === actual) return "";
+      if (!s.update) {
+        return `the text differs from the snapshot file ${shown}: expected ${JSON.stringify(expected)}, actual ${JSON.stringify(actual)}; run \`hd test --update\` to record it`;
+      }
+    } else if (!s.update) {
+      return `the snapshot file ${shown} is missing; run \`hd test --update\` to record it`;
+    }
+    mkdirSync(s.dir, { recursive: true });
+    writeFileSync(file, actual);
+    return "";
+  };
+  const tempDir = () => {
+    if (!env.tempDir) {
+      // A run without a configured directory makes its own.
+      st.ownTemp ??= mkdtempSync(join(tmpdir(), "hd-case-"));
+      return st.ownTemp;
+    }
+    if (!st.tempMade) mkdirSync(env.tempDir, { recursive: true });
+    st.tempMade = true;
+    return env.tempDir;
+  };
+  return {
+    imports: {
       // The test runner (`env.runner`, test.mjs) picks the row an `it_each`
       // case runs; without one, row 0. Timeouts run under no limit here.
       row: (count) => (env.runner ? env.runner.row(count) : 0),
@@ -933,30 +866,174 @@ export function createHost(sink, env = {}) {
       // the end of the run or of a wait, and in test.mjs by stopping an
       // instance that never returns.
       report_timeout: (millis) => {
-        timeoutMs = Number(millis);
-        deadline = performance.now() + timeoutMs;
-        env.runner?.timeout?.(timeoutMs);
+        st.timeoutMs = Number(millis);
+        st.deadline = performance.now() + st.timeoutMs;
+        env.runner?.timeout?.(st.timeoutMs);
       },
       snapshot_check: (len) => put(new Enc().str(snapshotCheck(text(len)))),
       temp_dir: () => put(new Enc().str(tempDir())),
     },
+    tempDir,
+  };
+}
+
+// `hd:PropertyRunner`: property cases ask the test runner for draws.
+function propertyRunnerImports({ env, put, text }) {
+  return {
     // The property runner's side of a property case
     // (std-testing.runner.start-case, .record, .show): the test runner
     // decides each case and keeps its draws and its input's text.
-    "hd:PropertyRunner": {
-      start: (cases, shrink, examples) => {
-        if (!env.runner) throw new HostContract("no property runner binds this run");
-        const c = env.runner.start(cases, shrink, examples);
-        const e = new Enc();
-        if (c.example === null) e.leb(0);
-        else e.leb(1).leb(c.example);
-        e.zz(c.seed).zz(c.size);
-        e.list(c.replay, (e, v) => e.zz(v));
-        return put(e);
-      },
-      record: (value) => env.runner?.record(BigInt(value)),
-      show: (len) => env.runner?.show(text(len)),
+    start: (cases, shrink, examples) => {
+      if (!env.runner) throw new HostContract("no property runner binds this run");
+      const c = env.runner.start(cases, shrink, examples);
+      const e = new Enc();
+      if (c.example === null) e.leb(0);
+      else e.leb(1).leb(c.example);
+      e.zz(c.seed).zz(c.size);
+      e.list(c.replay, (e, v) => e.zz(v));
+      return put(e);
     },
+    record: (value) => env.runner?.record(BigInt(value)),
+    show: (len) => env.runner?.show(text(len)),
+  };
+}
+
+// One host per instance: `sink.out(text)` and `sink.err(text)` receive the
+// program's standard output and standard error. `env` holds what the
+// providers hand out: `args` and `program` for `Args`, `grants` for the
+// scope checks, `stdin` (a file descriptor, or `null` for a closed
+// standard input), and in a test case its `tempDir` (made on the first
+// `tempDir()` call, which `TestRunner.temp_dir` makes), the base `seed`
+// of a property test (Test Environments, cli.test.seed), its `snapshot`
+// files (`dir`, `shown`, `slug`, `update`), the test runner's
+// `programs`, the package's executables and tasks by name
+// (cli.test.process), and its `runner`, the hooks through which
+// `TestRunner.row` and `PropertyRunner` reach it (`row`, `slugSuffix`,
+// `start`, `record`, `show`; test.mjs).
+export function createHost(sink, env = {}) {
+  const args = env.args ?? [];
+  const program = env.program ?? "";
+  const grant = createGrant(env.grants ?? {});
+  const seed = env.seed ?? null;
+  // The instance's mutable state, shared with the provider functions
+  // below: the exchange memory, trap reporting, the test timeout, case
+  // files, pending operations, output, and noticed names.
+  const st = {
+    memory: null,
+    reported: false,
+    timeoutMs: null,
+    deadline: null,
+    snapshots: 0,
+    tempMade: false,
+    ownTemp: null,
+    nextHandle: 1,
+    out: [],
+    ops: new Map(),
+    noticed: new Set(),
+  };
+  // `Net` and its socket handles (spec/std/net.md) on a client thread of
+  // this instance's own, which holds its sockets; `close` stops it.
+  const netClient = syncClient("net.mjs");
+  const view = (len) => new Uint8Array(st.memory.buffer, 0, len);
+  // A copy of the argument bytes, which a result may overwrite.
+  const argsOf = (len) => new Dec(Uint8Array.from(view(len)));
+  const text = (len) => Buffer.from(view(len)).toString("utf8");
+  // Writes an encoded result at offset 0, growing the buffer to fit, and
+  // returns its length (§17.3).
+  const put = (e) => {
+    const bytes = e.done();
+    if (bytes.length > st.memory.buffer.byteLength) {
+      st.memory.grow(Math.ceil((bytes.length - st.memory.buffer.byteLength) / 65536));
+    }
+    new Uint8Array(st.memory.buffer, 0, bytes.length).set(bytes);
+    return bytes.length;
+  };
+  // A waiting method that finished at once (§17.2): status 0, the length.
+  const ready = (e) => [0, put(e)];
+  const flush = () => {
+    if (st.out.length) {
+      sink.out(st.out.join(""));
+      st.out.length = 0;
+    }
+  };
+  // Pending operations by handle: `at` is when it completes.
+  const pending = (at, done) => {
+    const h = st.nextHandle++;
+    st.ops.set(h, { at, done, completed: false });
+    return [1, h];
+  };
+  const nextDeadline = () => {
+    let d = null;
+    for (const o of st.ops.values()) {
+      if (!o.completed && (d === null || o.at < d)) d = o.at;
+    }
+    return d;
+  };
+  // Completes every due operation and writes the handles to the buffer.
+  const complete = () => {
+    const now = performance.now();
+    const due = [...st.ops]
+      .filter(([, o]) => !o.completed && o.at <= now)
+      .sort((a, b) => a[1].at - b[1].at || a[0] - b[0]);
+    if (due.length * 4 > st.memory.buffer.byteLength) {
+      st.memory.grow(Math.ceil((due.length * 4) / 65536));
+    }
+    const words = new DataView(st.memory.buffer);
+    due.forEach(([h, o], i) => {
+      o.completed = true;
+      if (o.done) o.done();
+      words.setInt32(4 * i, h, true);
+    });
+    return due.length;
+  };
+  const deadlock = () => {
+    flush();
+    sink.err("panic: deadlock: the program waits, but no host operation is pending\n");
+    st.reported = true;
+    throw new Deadlock();
+  };
+  const finish = (h) => {
+    st.ops.delete(h);
+  };
+  // Waits at most until `d`, and never past the timeout: a pending host
+  // wait is cut at the deadline (runtime-and-host.md §17.8).
+  const until = (d) => (st.deadline === null ? d : Math.min(d, st.deadline));
+  const overran = () => st.deadline !== null && performance.now() > st.deadline;
+  // A waiting file operation on the paths that `paths(d)` reads from the
+  // arguments; `run(e, paths, d)` does it once the grant covers each path.
+  const fsOp = (key, paths, run) => ({
+    start: (len) => {
+      const d = argsOf(len);
+      const ps = paths(d);
+      const e = new Enc();
+      const refused = ps.find((p) => !grant.coversPath(key, p));
+      if (refused !== undefined) return ready(fsErr(e, refused, FS.NotGranted));
+      try {
+        run(e, ps, d);
+      } catch (err) {
+        return ready(fsFail(new Enc(), ps[ps.length - 1], err));
+      }
+      return ready(e);
+    },
+    finish: never,
+  });
+  const testRunner = testRunnerImports({ env, put, st, text });
+  const imports = {
+    "hd:rt": rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, until, overran }),
+    "hd:prim": primImports({ put, text }),
+    "hd:Console": consoleImports({ text, pending, finish, view, st }),
+    "hd:ConsoleInput": consoleInputImports({ env, flush, ready }),
+    "hd:Clock": clockImports({ pending, finish }),
+    "hd:Random": randomImports({ put }),
+    "hd:Sys": sysImports({ grant, put }),
+    "hd:Http": httpImports({ argsOf, ready, grants: env.grants ?? {} }),
+    "hd:Net": netImports({ argsOf, ready, put, grant, netClient, text }),
+    "hd:Args": argsImports({ put, program, args }),
+    "hd:Env": envImports({ grant, sink, st, flush, put, text }),
+    ...fsImports({ fsOp }),
+    "hd:Process": processImports({ argsOf, grant, env, ready }),
+    "hd:TestRunner": testRunner.imports,
+    "hd:PropertyRunner": propertyRunnerImports({ env, put, text }),
   };
 
   // A runtime profile's own providers (`env.providers`, profiles.mjs).
@@ -965,7 +1042,7 @@ export function createHost(sink, env = {}) {
   // Runs `init`, then polls `poll` to completion. Returns the status (3
   // for a trap) and whether the instance trapped.
   const run = async (instance, init, poll) => {
-    memory = instance.exports["hd.x"] ?? null;
+    st.memory = instance.exports["hd.x"] ?? null;
     const ex = instance.exports;
     let status = 0;
     let trapped = false;
@@ -992,20 +1069,20 @@ export function createHost(sink, env = {}) {
       }
       if (e instanceof HostContract) {
         sink.err(`panic: host-contract: ${e.message}\n`);
-        reported = true;
+        st.reported = true;
       } else if (e instanceof TimeLimit) {
-        reported = true;
+        st.reported = true;
       } else if (e instanceof RangeError && /call stack size/i.test(e.message)) {
         // V8 reports a guest stack overflow as a RangeError ("Maximum call
         // stack size exceeded"), not a WebAssembly.RuntimeError; it is the
         // stack-exhausted panic. Other RangeErrors are host bugs and rethrow.
         sink.err("panic: stack-exhausted: the call stack ran out; check for recursion that never ends\n");
-        reported = true;
+        st.reported = true;
       } else if (!(e instanceof WebAssembly.RuntimeError) && !(e instanceof Deadlock)) {
         throw e;
       }
       // A panic stub wrote its report; any other trap is an internal error.
-      if (!reported) sink.err(`internal error: ${e.message}\n`);
+      if (!st.reported) sink.err(`internal error: ${e.message}\n`);
       status = 3;
       trapped = true;
     }
@@ -1013,7 +1090,7 @@ export function createHost(sink, env = {}) {
     // A body that ended after its deadline ran longer than its timeout,
     // whatever it did after the deadline.
     if (overran()) {
-      sink.err(timeLimitReport(timeoutMs));
+      sink.err(timeLimitReport(st.timeoutMs));
       status = 3;
       trapped = true;
     }
@@ -1023,14 +1100,14 @@ export function createHost(sink, env = {}) {
   // Removes a directory the host made for itself, and closes its sockets.
   const close = () => {
     netClient.stop();
-    if (ownTemp) {
+    if (st.ownTemp) {
       try {
-        rmSync(ownTemp, { recursive: true, force: true });
+        rmSync(st.ownTemp, { recursive: true, force: true });
       } catch {
         // Already gone.
       }
     }
   };
 
-  return { imports, run, close, args, program, grant, seed, tempDir };
+  return { imports, run, close, args, program, grant, seed, tempDir: testRunner.tempDir };
 }

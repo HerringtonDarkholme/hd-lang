@@ -56,16 +56,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
 
-### M35. Split `createHost` in the Node host (#227)
-
-`compiler/host/core.mjs` `createHost` is one very large function. Split it
-into one function per host provider (console, fs, time, random, sys,
-process, and so on) plus a small assembler, with no behaviour change.
-Done when the driver conformance verdicts on Node are identical
-(`cargo test -q -p hd_driver --test conformance`, default engine) and
-`cargo test -q -p hd_cli` passes. Rebuild `hd` after editing, since it
-embeds the host files. Files: `compiler/host/*.mjs` only.
-
 ### M36. Split `http.rs` in the wasmtime host
 
 `crates/hd_run_wasmtime/src/http.rs` is 2610 lines (owner, 2026-10-10:
