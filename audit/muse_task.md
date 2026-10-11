@@ -73,6 +73,14 @@ Feedback from the orchestrator's review (2026-10-10), to weigh, not rules:
   Consider enabling it only when a compiler memory limit is set.
 - **Test robustness.** The UDP port-reuse race (fixed in M21b) suggests
   checking the other network and pipe tests for timing assumptions.
+- **CI is red on Linux (fix first in M24).** `hd_run_wasmtime` test
+  `net_parity::tcp_binary_write_read_zero_partial_reads_eof_and_disposal`
+  failed in CI runs 38109190128 and 38110824226 ("stderr differs"): it
+  asserts the exact chunk boundaries of partial TCP reads, which the kernel
+  chooses and Linux splits differently from macOS. Compare the bytes and
+  the EOF/disposal outcome, not the read boundaries. Also: two `core.rs`
+  deadline tests read a PID file the child may not have written before a
+  250 ms deadline under load (NotFound).
 - **Owner's view** (`audit/compiler/later.md`, "Wasmtime host code
   quality"): the owner judged this code low quality and wants it
   revisited.
