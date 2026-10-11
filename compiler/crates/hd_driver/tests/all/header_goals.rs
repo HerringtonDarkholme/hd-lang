@@ -93,8 +93,7 @@ pub data Tagged[T < Tag]:
 ";
 
 /// Owns `Product`, and so `impl Pick[Product] for Receiver` through the
-/// trait argument; `impl Tag for i32` is misplaced here, which keeps it
-/// among the unowned rows of this folder only.
+/// trait argument and `impl Tag for Product` through the target.
 const PROD: &str = "\
 use pkg.lib.defs.{Pick, Receiver, Tag}
 
@@ -105,9 +104,9 @@ impl Pick[Product] for Receiver:
     fn pick(self) -> Product:
         Product { id: self.n }
 
-impl Tag for i32:
+impl Tag for Product:
     fn tag(self) -> i32:
-        self
+        self.id
 ";
 
 /// Sees `prod`: both impls answer its header goals.
@@ -118,15 +117,15 @@ use pkg.prod.defs.{Product}
 pub data Picks[T < Pick[Product]]:
     pub v: T
 
-pub fn first(p: Picks[Receiver], t: Tagged[i32]) -> i32:
+pub fn first(p: Picks[Receiver], t: Tagged[Product]) -> i32:
     1
 ";
 
-/// Does not see `prod`: `i32: Tag` fails here.
+/// Does not see `prod`, and `string: Tag` fails in every closure.
 const WITHOUT: &str = "\
 use pkg.lib.defs.{Tagged}
 
-pub fn second(t: Tagged[i32]) -> i32:
+pub fn second(t: Tagged[string]) -> i32:
     1
 ";
 
@@ -144,7 +143,7 @@ fn header_answers_follow_the_folder_closure_on_any_executor() {
     let without = analyze(&files, reference, "without/main.hd");
     assert_eq!(without.len(), 1, "{without:#?}");
     assert!(
-        without[0].contains("unsatisfied-trait-bound: i32 does not implement Tag"),
+        without[0].contains("unsatisfied-trait-bound: string does not implement Tag"),
         "{without:#?}"
     );
     for executor in [

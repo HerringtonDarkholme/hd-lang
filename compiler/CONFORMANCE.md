@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2623 | 198 | 24 | 2845 |
+| 2631 | 190 | 24 | 2845 |
 
 ## By Chapter
 
@@ -22,10 +22,10 @@ fixture; unsupported surface records progress without failing.
 | `lang/06-control-flow.md` | 140 | 13 | 4 | 157 |
 | `lang/07-functions.md` | 120 | 10 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 113 | 9 | 1 | 123 |
-| `lang/09-traits.md` | 334 | 23 | 2 | 359 |
+| `lang/09-traits.md` | 340 | 17 | 2 | 359 |
 | `lang/10-modules.md` | 223 | 30 | 5 | 258 |
 | `lang/11-requirements-and-suspension.md` | 236 | 15 | 8 | 259 |
-| `lang/14-annotations.md` | 123 | 28 | 2 | 153 |
+| `lang/14-annotations.md` | 125 | 26 | 2 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
 | `std/collections.md` | 26 | 3 | 0 | 29 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 98 | 4 | 3 | 105 |
 | `runtime/valid` | 900 | 10 | 19 | 929 |
-| `typing/invalid` | 919 | 155 | 1 | 1075 |
+| `typing/invalid` | 927 | 147 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -88,11 +88,8 @@ compiler stage that first declined the case.
 | `fail:missing-required-field` | 2 |
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 2 |
-| `fail:mutable-impl-target` | 1 |
 | `fail:no-common-type` | 2 |
-| `fail:no-diagnostic` | 86 |
-| `fail:nonlocal-impl` | 1 |
-| `fail:orphan-impl` | 1 |
+| `fail:no-diagnostic` | 81 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-import` | 1 |
 | `fail:private-main` | 4 |
@@ -213,12 +210,6 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:mutable-impl-target</code> (1)</summary>
-
-- `typing/invalid/mutable-inherent-impl-target.hd`
-
-</details>
-
 <details><summary><code>fail:no-common-type</code> (2)</summary>
 
 - `typing/invalid/none-beside-values-needs-expected-type.hd`
@@ -226,13 +217,12 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (86)</summary>
+<details><summary><code>fail:no-diagnostic</code> (81)</summary>
 
 - `typing/invalid/private-type-leak.hd`
 - `typing/invalid/private-type-embedded-in-public-data.hd`
 - `typing/warnings/unreachable-code.hd`
 - `typing/invalid/unknown-annotation-member.hd`
-- `typing/invalid/bare-parameter-impl-target.hd`
 - `typing/invalid/nonhost-entry-requirement.hd`
 - `typing/warnings/variant-binding-name-mismatch.hd`
 - `typing/invalid/private-requirement-row.hd`
@@ -257,7 +247,6 @@ compiler stage that first declined the case.
 - `typing/invalid/duplicate-declaration-fact.hd`
 - `typing/invalid/trait-less-block-duplicate-fact.hd`
 - `typing/invalid/duplicate-type-level-fact.hd`
-- `typing/invalid/trait-less-block-second.hd`
 - `typing/invalid/test-module-tests-block.hd`
 - `typing/invalid/integration-test-tests-block.hd`
 - `typing/invalid/duplicate-function-fact.hd`
@@ -267,13 +256,11 @@ compiler stage that first declined the case.
 - `typing/invalid/pipe-multi-line-step.hd`
 - `typing/invalid/type-default-bound.hd`
 - `typing/invalid/error-marker-outside.hd`
-- `typing/invalid/foreign-inherent-impl.hd`
 - `typing/invalid/function-type-rest-not-list.hd`
 - `typing/invalid/vararg-type-not-collection.hd`
 - `typing/invalid/race-no-tasks.hd`
 - `typing/invalid/typed-fact-mismatch.hd`
 - `typing/invalid/typed-fact-expected-mismatch.hd`
-- `typing/invalid/tuple-template-overlap.hd`
 - `typing/invalid/arbitrary-with-wrong-generator.hd`
 - `typing/invalid/typed-fact-function-suspending.hd`
 - `typing/invalid/typed-fact-bound.hd`
@@ -312,20 +299,7 @@ compiler stage that first declined the case.
 - `typing/invalid/generic-entry-point.hd`
 - `typing/invalid/module-path-not-identifier.hd`
 - `typing/invalid/template-helper-missing-result.hd`
-- `typing/invalid/dyn-inherent-nonlocal.hd`
 - `typing/invalid/template-names-binding.hd`
-
-</details>
-
-<details><summary><code>fail:nonlocal-impl</code> (1)</summary>
-
-- `typing/invalid/nonlocal-impl.hd`
-
-</details>
-
-<details><summary><code>fail:orphan-impl</code> (1)</summary>
-
-- `typing/invalid/from-reflexive-impl.hd`
 
 </details>
 
@@ -1888,6 +1862,7 @@ typing/invalid/bare-err-is-unknown-name.hd
 typing/invalid/bare-none-is-unknown-name.hd
 typing/invalid/bare-none-pattern.hd
 typing/invalid/bare-ok-is-unknown-name.hd
+typing/invalid/bare-parameter-impl-target.hd
 typing/invalid/bare-some-is-unknown-name.hd
 typing/invalid/bare-variant-pattern.hd
 typing/invalid/binding-expression-redeclaration.hd
@@ -2054,6 +2029,7 @@ typing/invalid/duplicate-trait-member.hd
 typing/invalid/duplicate-variant.hd
 typing/invalid/dyn-associated-function-bound.hd
 typing/invalid/dyn-inherent-method-on-concrete.hd
+typing/invalid/dyn-inherent-nonlocal.hd
 typing/invalid/dyn-unknown-associated-binding.hd
 typing/invalid/embedded-assignment-copy-required.hd
 typing/invalid/embedded-collection-type.hd
@@ -2125,6 +2101,7 @@ typing/invalid/for-binding-arity.hd
 typing/invalid/for-binding-not-visible-in-else.hd
 typing/invalid/for-over-string.hd
 typing/invalid/for-refutable-pattern.hd
+typing/invalid/foreign-inherent-impl.hd
 typing/invalid/forward-module-binding.hd
 typing/invalid/four-embedded-fields.hd
 typing/invalid/fresh-element-not-weakened.hd
@@ -2132,6 +2109,7 @@ typing/invalid/from-implementation-suspending.hd
 typing/invalid/from-implementation-with-requirement.hd
 typing/invalid/from-iterator-not-prelude.hd
 typing/invalid/from-no-fitting-instantiation.hd
+typing/invalid/from-reflexive-impl.hd
 typing/invalid/from-trait-value-target.hd
 typing/invalid/function-anyref-bound.hd
 typing/invalid/function-equality.hd
@@ -2353,6 +2331,7 @@ typing/invalid/mut-tuple-annotation.hd
 typing/invalid/mut-tuple-parameter.hd
 typing/invalid/mut-upgrade.hd
 typing/invalid/mutable-impl-target.hd
+typing/invalid/mutable-inherent-impl-target.hd
 typing/invalid/mutable-provider-install-readonly-field.hd
 typing/invalid/mutable-provider-install-readonly-value.hd
 typing/invalid/mutual-recursion-omitted-results.hd
@@ -2379,6 +2358,7 @@ typing/invalid/nonexhaustive-bool-match.hd
 typing/invalid/nonexhaustive-match.hd
 typing/invalid/nonfinal-vararg-declaration.hd
 typing/invalid/nonfinal-vararg-then-parameter.hd
+typing/invalid/nonlocal-impl.hd
 typing/invalid/nonnumeric-unary-plus.hd
 typing/invalid/num-bound-newtype.hd
 typing/invalid/num-sealed-impl.hd
@@ -2671,6 +2651,7 @@ typing/invalid/trait-less-block-local.hd
 typing/invalid/trait-less-block-method.hd
 typing/invalid/trait-less-block-newtype.hd
 typing/invalid/trait-less-block-omit.hd
+typing/invalid/trait-less-block-second.hd
 typing/invalid/trait-less-delegation.hd
 typing/invalid/trait-method-bare-trait.hd
 typing/invalid/trait-method-beside-promoted-method.hd
@@ -2704,6 +2685,7 @@ typing/invalid/tuple-spread-arity.hd
 typing/invalid/tuple-spread-plain-into-vararg.hd
 typing/invalid/tuple-spread-rest-into-plain.hd
 typing/invalid/tuple-spread-tuple-operand.hd
+typing/invalid/tuple-template-overlap.hd
 typing/invalid/tuple-trait-user-impl.hd
 typing/invalid/tuple-vararg-arity.hd
 typing/invalid/tuple-vararg-no-auto-spread.hd

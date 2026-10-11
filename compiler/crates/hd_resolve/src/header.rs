@@ -54,6 +54,21 @@ impl<'a> Universe<'a> {
             let mut heads: Vec<(DefId, Ty, TyList)> = Vec::new();
             let mut list: Vec<&&Item> = self.impls[tr].iter().collect();
             list.sort_by_key(|i| order(i.def));
+            let mut reported = std::collections::HashSet::new();
+            // A tuple template implements the trait for every tuple type,
+            // so an implementation written for a tuple overlaps it
+            // (`annot.template.tuple.overlap`).
+            if let Some(template) = list.iter().find(|i| is_tuple_template(i)) {
+                for imp in &list {
+                    if let ItemData::Impl { self_ty, kind, .. } = &imp.data
+                        && *kind != ImplKind::TupleTemplate
+                        && matches!(pool.get(*self_ty), TyData::Tuple { .. })
+                    {
+                        out.push((template.def, imp.def, self.show(*self_ty)));
+                        reported.insert(imp.def);
+                    }
+                }
+            }
             for imp in list {
                 let ItemData::Impl {
                     self_ty,
@@ -83,7 +98,6 @@ impl<'a> Universe<'a> {
                     None => heads.push((imp.def, *self_ty, *trait_args)),
                 }
             }
-            let mut reported = std::collections::HashSet::new();
             for (j, b) in heads.iter().enumerate() {
                 for a in &heads[..j] {
                     if a.0 == b.0 || reported.contains(&b.0) {
@@ -221,4 +235,15 @@ impl<'a> Universe<'a> {
                 .zip(y)
                 .all(|(a, b)| self.unify(*a, *b, oa, ob, sub))
     }
+}
+
+/// Whether an item is a tuple template, an implementation for every tuple.
+fn is_tuple_template(it: &Item) -> bool {
+    matches!(
+        it.data,
+        ItemData::Impl {
+            kind: ImplKind::TupleTemplate,
+            ..
+        }
+    )
 }

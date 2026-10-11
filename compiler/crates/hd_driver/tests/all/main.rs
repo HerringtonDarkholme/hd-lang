@@ -44,6 +44,7 @@ mod generics_determinism;
 mod header_goals;
 mod identity_operands;
 mod identity_run;
+mod impl_targets;
 mod impl_universe;
 mod incremental;
 mod inferred_results_run;

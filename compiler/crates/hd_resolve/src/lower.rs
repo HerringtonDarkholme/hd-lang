@@ -2599,12 +2599,17 @@ impl Lower<'_, '_, '_> {
             [] => return,
         };
         // An implementation target has no outer `mut` (trait.target.no-mut).
-        if target.kind() == SyntaxKind::MutType && self.r.frozen.is_none() {
-            self.diags.error(
-                Code::MutableImplTarget,
-                self.src.span(target),
-                "an implementation target cannot be a `mut` view",
-            );
+        // The rejected implementation is left out, so nothing else is
+        // reported about it.
+        if target.kind() == SyntaxKind::MutType {
+            if self.r.frozen.is_none() {
+                self.diags.error(
+                    Code::MutableImplTarget,
+                    self.src.span(target),
+                    "an implementation target cannot be a `mut` view",
+                );
+            }
+            return;
         }
         let self_ty = self.ty(Some(target), &gn);
         gn.self_ty = Some(self_ty);
@@ -2614,6 +2619,20 @@ impl Lower<'_, '_, '_> {
             .position(|t| self.src.tkind(*t) == Some(TokenKind::Ident) && self.src.text(*t) == "by")
             .and_then(|i| toks.get(i + 1))
             .map(|t| self.src.text(*t).to_owned());
+        let bare_param = matches!(pool.get(self_ty), TyData::Param(p) if p.owner == h.def);
+        // An inherent implementation cannot target a tuple or a transparent
+        // alias, whichever package owns the type it names
+        // (`trait.own.inherent.tuple-alias`).
+        if trait_node.is_none() && by.is_none() && self.tuple_or_alias_target(target, self_ty, n) {
+            if self.r.frozen.is_none() {
+                self.diags.error(
+                    Code::InvalidImplTarget,
+                    self.src.span(n),
+                    "an inherent implementation cannot target a tuple or a transparent alias",
+                );
+            }
+            return;
+        }
         let (trait_, trait_args, header_bindings) = match trait_node {
             None => (DefId::NONE, TyList::EMPTY, Vec::new()),
             Some(tn) => {
@@ -2652,17 +2671,23 @@ impl Lower<'_, '_, '_> {
             self.sealed_impl_rejected(n, trait_);
             return;
         }
-        if self.r.frozen.is_none() {
-            let head = ImplHead {
-                has_trait: trait_node.is_some(),
-                by: by.is_some(),
-                target,
-                trait_args,
-                self_ty,
-            };
-            self.impl_head_rules(h, &generics, &head);
+        // A target is a type constructor, never a bare type parameter
+        // (`trait.target.bare-parameter`). A derivation template is no
+        // implementation (`trait.target.template`), and a standard-library
+        // numeric family is the one exception (`trait.target.numeric-family`).
+        if bare_param
+            && by.as_deref() != Some("Structure")
+            && !(self.in_std() && self.numeric_family(&generics))
+        {
+            if self.r.frozen.is_none() {
+                self.diags.error(
+                    Code::BareParameterImplTarget,
+                    self.src.span(target),
+                    "an implementation target must start with a type constructor, not a bare type parameter",
+                );
+            }
+            return;
         }
-        let bare_param = matches!(pool.get(self_ty), TyData::Param(p) if p.owner == h.def);
         let tuple_bound = bare_param
             && generics
                 .first()
@@ -2674,6 +2699,34 @@ impl Lower<'_, '_, '_> {
             Some(_) => ImplKind::Delegated,
             None => ImplKind::Written,
         };
+        // The package and module that may declare the implementation
+        // (`trait.own.*`). The rejected implementation is left out, so no
+        // overlap or body error follows it.
+        if let Some(code) = impl_placement(
+            &self.names,
+            self.module,
+            (trait_, trait_args, self_ty),
+            kind,
+        ) {
+            if self.r.frozen.is_none() {
+                let name = self.names.display_name(h.def);
+                let msg = if code == Code::NonlocalImpl {
+                    format!("`{name}` belongs in the module of its trait or target")
+                } else {
+                    format!("`{name}` is in a package that owns neither its trait nor its target")
+                };
+                self.diags.error(code, self.src.span(n), &msg);
+            }
+            return;
+        }
+        if self.r.frozen.is_none() {
+            let head = ImplHead {
+                target,
+                trait_args,
+                self_ty,
+            };
+            self.impl_head_rules(h, &generics, &head, trait_node.is_some());
+        }
         if self.r.frozen.is_none() {
             // A header without a trait never delegates
             // (trait.by.no-trait.error).
@@ -2745,38 +2798,56 @@ impl Lower<'_, '_, '_> {
         out.push(it);
     }
 
+    /// Whether every type parameter is bounded by exactly one of `Num`,
+    /// `Integer` and `Float`: the standard library's numeric families
+    /// (`trait.target.numeric-family`).
+    fn numeric_family(&self, generics: &[Generic]) -> bool {
+        let known = &self.names.known;
+        generics.iter().filter(|g| !g.row).all(|g| {
+            matches!(g.bounds.as_slice(), [b]
+                if self.trait_of(*b).is_some_and(|t| [known.num, known.integer, known.float].contains(&t)))
+        })
+    }
+
+    /// Whether the target of an inherent implementation is a tuple or a
+    /// transparent alias. A primitive name is no alias, whatever the
+    /// prelude binds it to.
+    fn tuple_or_alias_target(
+        &mut self,
+        target: NodeRef<'_>,
+        self_ty: Ty,
+        imp: NodeRef<'_>,
+    ) -> bool {
+        let segs = self.segments(target);
+        let alias = target.kind() == SyntaxKind::NamedType
+            && matches!(segs.as_slice(), [(first, _)]
+                if !Prim::ALL.iter().any(|p| p.name() == first)
+                    && self.resolve_path(&segs, self.src.span(imp)).is_some_and(|(_, k)| k == HeadKind::Alias));
+        alias || matches!(self.names.pool.get(self_ty), TyData::Tuple { .. })
+    }
+
     /// What an implementation head must satisfy: no trait value type or
     /// row extension as a target (`trait.target.trait-value.error`,
-    /// `trait.target.row-argument.extension`), no inherent target that is a
-    /// tuple or a transparent alias (`trait.own.inherent.tuple-alias`), and
-    /// every type parameter constrained by the head
-    /// (`trait.overlap.constrained-head`, `trait.overlap.head-projection`).
-    fn impl_head_rules(&mut self, h: &Head<'_>, generics: &[Generic], head: &ImplHead<'_>) {
+    /// `trait.target.row-argument.extension`), and every type parameter
+    /// constrained by the head (`trait.overlap.constrained-head`,
+    /// `trait.overlap.head-projection`).
+    fn impl_head_rules(
+        &mut self,
+        h: &Head<'_>,
+        generics: &[Generic],
+        head: &ImplHead<'_>,
+        has_trait: bool,
+    ) {
         let pool = self.names.pool;
         let span = self.src.span(h.node);
         let args: Vec<Ty> = pool.list_items(head.trait_args).to_vec();
         let roots: Vec<Ty> = args.iter().copied().chain([head.self_ty]).collect();
-        if head.has_trait && matches!(pool.get(head.self_ty), TyData::TraitValue { .. }) {
+        if has_trait && matches!(pool.get(head.self_ty), TyData::TraitValue { .. }) {
             self.diags.error(
                 Code::TraitValueImplTarget,
                 self.src.span(head.target),
                 "a trait value type is never an implementation target",
             );
-        }
-        if !head.has_trait && !head.by {
-            // A primitive name is no alias, whatever the prelude binds it to.
-            let segs = self.segments(head.target);
-            let alias = head.target.kind() == SyntaxKind::NamedType
-                && matches!(segs.as_slice(), [(first, _)]
-                    if !Prim::ALL.iter().any(|p| p.name() == first)
-                        && self.resolve_path(&segs, span).is_some_and(|(_, k)| k == HeadKind::Alias));
-            if alias || matches!(pool.get(head.self_ty), TyData::Tuple { .. }) {
-                self.diags.error(
-                    Code::InvalidImplTarget,
-                    span,
-                    "an inherent implementation cannot target a tuple or a transparent alias",
-                );
-            }
         }
         if roots.iter().any(|t| {
             ty_any(pool, *t, &mut |d| match d {
@@ -3557,8 +3628,6 @@ fn lower_aliases(
 
 /// The written head of an implementation, as `impl_head_rules` reads it.
 struct ImplHead<'t> {
-    has_trait: bool,
-    by: bool,
     target: NodeRef<'t>,
     trait_args: TyList,
     self_ty: Ty,
@@ -3724,12 +3793,19 @@ fn components(edges: &[Vec<usize>]) -> Vec<Vec<usize>> {
     st.out
 }
 
-/// The placement error of one item, if it is an impl outside its owning
-/// module: `OrphanImpl` when no owner is in the impl's package,
-/// `NonlocalImpl` otherwise. `None` for everything else. Coherence calls
-/// this too, to leave rejected impls out of the overlap check.
+/// The placement error of an implementation head, if it is outside its
+/// owners (`trait.own.*`): `OrphanImpl` when no owner is in the impl's
+/// package, `NonlocalImpl` when one is but not in this module. An
+/// inherent implementation is owned by its target alone. `None` for the
+/// standard library, and for what is no implementation of its own: a
+/// template or a derivation block.
 #[must_use]
-pub fn misplaced_impl(names: &Names<'_>, module: &str, it: &Item) -> Option<Code> {
+pub fn impl_placement(
+    names: &Names<'_>,
+    module: &str,
+    (trait_, trait_args, self_ty): (DefId, TyList, Ty),
+    kind: ImplKind,
+) -> Option<Code> {
     let pool = names.pool;
     let package = module.split('.').next().unwrap_or("");
     if package == "std" {
@@ -3748,27 +3824,27 @@ pub fn misplaced_impl(names: &Names<'_>, module: &str, it: &Item) -> Option<Code
             _ => None,
         }
     };
-    let ItemData::Impl {
-        trait_,
-        trait_args,
-        self_ty,
-        kind,
-        ..
-    } = &it.data
-    else {
-        return None;
-    };
-    if *trait_ == DefId::NONE || !kind.is_impl() {
-        return None;
+    let mut owners = Vec::new();
+    if trait_ == DefId::NONE {
+        // `trait.own.inherent`, `trait.own.module.inherent-target`: only
+        // a written inherent block, and only the target's own module.
+        if kind != ImplKind::Written {
+            return None;
+        }
+        owners.extend(ctor_module(self_ty));
+    } else {
+        if !kind.is_impl() {
+            return None;
+        }
+        owners.push(names.module_of(trait_));
+        owners.extend(ctor_module(self_ty));
+        owners.extend(
+            pool.list_items(trait_args)
+                .iter()
+                .copied()
+                .filter_map(ctor_module),
+        );
     }
-    let mut owners = vec![names.module_of(*trait_)];
-    owners.extend(ctor_module(*self_ty));
-    owners.extend(
-        pool.list_items(*trait_args)
-            .iter()
-            .copied()
-            .filter_map(ctor_module),
-    );
     if owners.iter().any(|o| o == module) {
         return None;
     }
@@ -4084,11 +4160,19 @@ fn placement(
     src: &Src<'_>,
     diags: &mut DiagBuf,
 ) {
+    // The types that already have their one derivation block with no trait.
+    let mut blocked = HashSet::new();
     for h in heads.iter().filter(|h| h.kind == HeadKind::Impl) {
         let Some(it) = index.get(items, h.def) else {
             continue;
         };
-        let ItemData::Impl { trait_, by, .. } = &it.data else {
+        let ItemData::Impl {
+            trait_,
+            by,
+            self_ty,
+            ..
+        } = &it.data
+        else {
             continue;
         };
         let msg = if misplaced_template(names, module, it) {
@@ -4100,6 +4184,20 @@ fn placement(
             diags.error(Code::MisplacedDerivation, src.span(h.node), msg);
         }
         let traitless = *trait_ == DefId::NONE && by.is_some_and(|b| names.text(b) == "Structure");
+        // A type has at most one derivation block with no trait, so a
+        // second is an error (`annot.no-trait.unique`). A misplaced block
+        // is already one error and counts for nothing.
+        if traitless
+            && msg.is_none()
+            && let TyData::Adt { def, .. } = names.pool.get(*self_ty)
+            && !blocked.insert(def)
+        {
+            diags.error(
+                Code::OverlappingImpl,
+                src.span(h.node),
+                "a type has at most one derivation block with no trait",
+            );
+        }
         let block = derivation_block(names, it);
         for m in Src::child(h.node, SyntaxKind::Block)
             .into_iter()
@@ -4126,40 +4224,6 @@ fn placement(
                 "a derivation block with no trait cannot be local",
             );
         }
-    }
-}
-
-/// The owning-module rule (`trait.impl.module`, §4.9 "Orphan and coherence
-/// inputs"): an impl lives in the module of its trait, of its target's
-/// outer constructor, or of a trait argument's outer constructor. std may
-/// implement for built-in targets in any of its modules. Reports every
-/// misplaced impl of one module (see `misplaced_impl`).
-fn ownership(
-    names: &Names<'_>,
-    module: &str,
-    items: &[Item],
-    heads: &[Head<'_>],
-    src: &Src<'_>,
-    diags: &mut DiagBuf,
-) {
-    let head_of: HashMap<DefId, &Head<'_>> = heads.iter().rev().map(|h| (h.def, h)).collect();
-    for it in items {
-        let Some(code) = misplaced_impl(names, module, it) else {
-            continue;
-        };
-        let span = head_of
-            .get(&it.def)
-            .map_or(src.span(src.root()), |h| src.span(h.node));
-        let what = if code == Code::NonlocalImpl {
-            "nonlocal-impl"
-        } else {
-            "orphan-impl"
-        };
-        let msg = format!(
-            "{what}: `{}` belongs in the module of its trait or target",
-            names.display_name(it.def)
-        );
-        diags.error(code, span, &msg);
     }
 }
 
@@ -4366,7 +4430,6 @@ pub fn build_folder(
             }
         }
         let index = ItemIndex::new(names, &items);
-        ownership(names, &m.path, &items, hs, &m.src, diags);
         if r.frozen.is_none() {
             placement(names, &m.path, &items, &index, hs, &m.src, diags);
             related_derives(names, &items, &index, hs, &scope, &m.src, diags);

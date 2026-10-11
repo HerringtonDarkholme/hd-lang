@@ -1889,12 +1889,7 @@ impl Run<'_> {
         }
         self.computed(Stage::Coherence);
         let names = self.names();
-        // Impls the orphan check rejected (`orphan-impl`, `nonlocal-impl`)
-        // are already one error; they stay out of the overlap check.
-        let placed = all.iter().flat_map(|i| i.items.iter()).filter(|it| {
-            hd_resolve::lower::misplaced_impl(&names, &names.module_of(it.def), it).is_none()
-        });
-        let u = hd_resolve::Universe::new(names, placed);
+        let u = hd_resolve::Universe::new(names, all.iter().flat_map(|i| i.items.iter()));
         // Content order (§4.12.3): the later impl is the one reported. What
         // `@error` generates ranks first, so a hand-written impl beside it
         // is the one reported (spec 14 `annot.error.hand-written`); a
