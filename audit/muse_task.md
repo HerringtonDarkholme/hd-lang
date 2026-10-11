@@ -56,23 +56,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
 
-### M30. Find the flaky `run::fetch_with_path_requirements_only_has_nothing_to_do`
-
-`compiler/crates/hd_cli/tests/all/run.rs`: this test failed once with
-`Invalid argument (os error 22)` and passed alone and on rerun. That was
-right after tests moved to `hd_testkit::Scratch` scratch directories and
-the offline git config moved to `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n`
-environment variables (commit 5874b720).
-- Run it 50 times in a loop, and also under load (`cargo test -q -p
-  hd_cli` running at the same time), and find which call returns EINVAL.
-  Suspects: a scratch path reused across parallel tests, a removed
-  directory used as cwd, or a git child getting a bad environment.
-- Fix the cause in test code.
-- Files: `compiler/crates/hd_cli/tests/all/run.rs` and
-  `compiler/crates/hd_testkit/src/lib.rs` only.
-- Done when 50 runs in a row pass under load. Put the cause in the commit
-  body.
-
 ### M31. Bound the wasmtime module caches
 
 Your M29 caches (`crates/hd_run_wasmtime/src/cache.rs`, and the per-engine

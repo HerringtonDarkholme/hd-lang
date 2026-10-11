@@ -17,14 +17,21 @@ use hd_sched::SerialOrder;
 ///
 /// `base` is the caller's `env!("CARGO_TARGET_TMPDIR")`; `name` must be
 /// unique per test within one test binary, so parallel tests never share a
-/// directory.
+/// directory. The process id joins the name, so concurrently running test
+/// binaries (parallel `cargo test` runs) never share one either: without
+/// it, one process's `clear` or drop would remove the directory out from
+/// under another process's running child, failing it with whatever syscall
+/// lost the race (`ENOENT`, `EINVAL`, ...). The id goes before any file
+/// extension (`conformance-7.json` becomes `conformance-7-<pid>.json`),
+/// since callers such as the Node hosts match on it.
 #[derive(Debug)]
 pub struct Scratch {
     path: PathBuf,
 }
 
 impl Scratch {
-    /// Creates an empty directory `base/name`, replacing a leftover.
+    /// Creates an empty directory `base/name-PID` (before any file
+    /// extension, as `unmade` does), replacing a leftover.
     ///
     /// # Panics
     /// If the directory cannot be made.
@@ -35,13 +42,20 @@ impl Scratch {
         scratch
     }
 
-    /// Names a directory `base/name` without creating it; it is removed on
-    /// drop like a made one. For output paths and caches that a command
-    /// creates itself.
+    /// Names a directory `base/name-PID` without creating it (before any
+    /// file extension: `conformance-7.json` becomes
+    /// `conformance-7-<PID>.json`); it is removed on drop like a made one.
+    /// For output paths and caches that a command creates itself.
     #[must_use]
     pub fn unmade(base: &str, name: &str) -> Scratch {
+        let unique = match name.rsplit_once('.') {
+            Some((stem, ext)) if !stem.is_empty() && !ext.is_empty() => {
+                format!("{stem}-{}.{ext}", std::process::id())
+            }
+            _ => format!("{name}-{}", std::process::id()),
+        };
         let scratch = Scratch {
-            path: Path::new(base).join(name),
+            path: Path::new(base).join(unique),
         };
         scratch.clear();
         scratch
