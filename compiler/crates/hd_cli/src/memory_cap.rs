@@ -128,12 +128,8 @@ pub(crate) fn startup(
             if ready.send(std::thread::current()).is_err() {
                 return;
             }
-            loop {
-                std::thread::park();
-                if REPORT_READY.load(Ordering::Acquire) {
-                    emergency_exit();
-                }
-            }
+            await_report(&REPORT_READY);
+            emergency_exit();
         })
         .map_err(|_| "cannot start compiler memory reporter")?;
     let thread = prepared
@@ -143,6 +139,18 @@ pub(crate) fn startup(
         .set(thread)
         .map_err(|_| "compiler memory reporter already started")?;
     Ok(())
+}
+
+/// Block the reporter until a trip has published its report. The flag is
+/// checked before every park: a thread has one unpark token, and the
+/// rendezvous `send` above parks on the same token. When the sender arrives
+/// first, the receiver's wakeup and an immediate trip's wakeup (`--max-memory=0`
+/// trips while arming) merge into the one token `send` consumes, so parking
+/// before checking would sleep forever with the report ready.
+fn await_report(ready: &AtomicBool) {
+    while !ready.load(Ordering::Acquire) {
+        std::thread::park();
+    }
 }
 
 /// Configure once, after global options have been parsed but before project I/O.
@@ -377,16 +385,31 @@ mod tests {
 
     // An isolated process is required: a real allocator limit exits, and the
     // global tracker cannot be reset safely between parallel unit tests.
+    // A lost report wakeup leaves the child spinning, so bound every run.
     fn child(mode: &str) -> std::process::Output {
-        std::process::Command::new(std::env::current_exe().unwrap())
+        use std::process::Stdio;
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
             .args([
                 "--exact",
                 "memory_cap::tests::allocation_trip_child",
                 "--nocapture",
             ])
             .env("HD_MEMORY_CAP_UNIT_CHILD", mode)
-            .output()
-            .unwrap()
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let until = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        while child.try_wait().unwrap().is_none() {
+            if std::time::Instant::now() >= until {
+                let _ = child.kill();
+                let output = child.wait_with_output().unwrap();
+                panic!("memory-limit child `{mode}` hung: {output:?}");
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        child.wait_with_output().unwrap()
     }
 
     #[test]
@@ -412,6 +435,10 @@ mod tests {
         let before = LIVE.load(Ordering::SeqCst);
         drop(earlier);
         assert_eq!(LIVE.load(Ordering::SeqCst), before);
+        if mode == "arm" {
+            arm(Some(0), true, true);
+            panic!("arming over the cap returned to compiler");
+        }
         arm(Some(128 * 1024), mode == "json", true);
         if mode == "retained-guest" {
             let guest = enter_guest();
@@ -558,6 +585,48 @@ mod tests {
         assert_eq!(error.lines().count(), 1, "{error}");
         assert!(error.contains("while precompiling WebAssembly"), "{error}");
         assert!(!error.contains("starting compiler"), "{error}");
+    }
+
+    #[test]
+    fn reporter_wakes_when_its_unpark_token_was_already_spent() {
+        // Models the reporter's rendezvous: its `send` parks and consumes the
+        // single token that both the receiver's wakeup and the trip's wakeup
+        // set. The report must still be seen, without a further unpark.
+        let ready = std::sync::Arc::new(AtomicBool::new(false));
+        let (go, wait) = std::sync::mpsc::channel::<()>();
+        let (done, finished) = std::sync::mpsc::channel();
+        let flag = std::sync::Arc::clone(&ready);
+        let reporter = std::thread::spawn(move || {
+            wait.recv().unwrap();
+            std::thread::park();
+            await_report(&flag);
+            done.send(()).unwrap();
+        });
+        ready.store(true, Ordering::Release);
+        reporter.thread().unpark();
+        reporter.thread().unpark();
+        go.send(()).unwrap();
+        let woke = finished.recv_timeout(std::time::Duration::from_secs(10));
+        if woke.is_err() {
+            // Release the thread so the test process can still finish.
+            reporter.thread().unpark();
+        }
+        assert!(woke.is_ok(), "reporter slept through a ready report");
+        reporter.join().unwrap();
+    }
+
+    #[test]
+    fn real_allocator_trip_while_arming_reports_from_main_thread() {
+        // `--max-memory=0` trips inside `arm` on the main thread, right
+        // after the reporter rendezvous, as `hd check --max-memory=0` does.
+        for _ in 0..20 {
+            let output = child("arm");
+            assert_eq!(output.status.code(), Some(101), "{output:?}");
+            let error = String::from_utf8(output.stderr).unwrap();
+            assert_eq!(error.lines().count(), 2, "{error}");
+            assert!(error.contains("while starting compiler"), "{error}");
+            assert!(error.contains("\"status\":101"), "{error}");
+        }
     }
 
     #[test]
