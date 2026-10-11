@@ -473,3 +473,154 @@ fn interface_keys_ignore_a_comment_above_an_item() {
         cold.counters.iface_blobs["demo.geo"]
     );
 }
+
+/// A user tuple template that walks a tuple with one of two walkers. The
+/// strict walker's `member` needs `Show`, the lax one's needs nothing, and
+/// both stay declared in either text: the edit under test changes the
+/// template's body only, so no interface changes. Which tuples meet `Show`
+/// is read from that body, which no interface carries yet, so a header
+/// finding about a tuple depends on this text (trait-solver.md §3.9).
+fn show_module(strict: bool) -> String {
+    let walker = if strict { "Strict" } else { "Lax" };
+    format!(
+        "\
+use std.function.Tuple
+use std.structure.{{Structure, Field, Variant, Walker}}
+
+pub trait Show:
+    fn show(self) -> string
+
+impl Show for i64:
+    fn show(self) -> string:
+        \"$self\"
+
+data Strict:
+    out: string
+
+impl[S] Walker[S] for Strict:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F < Show](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + value.show() + \";\"
+        .Ok(())
+
+data Lax:
+    out: string
+
+impl[S] Walker[S] for Lax:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + \";\"
+        .Ok(())
+
+impl[T < Tuple] Show for T by Structure:
+    fn show(self) -> string:
+        let mut w = {walker} {{ out: \"\" }}
+        _ := Structure::walk(self, w)
+        w.out
+"
+    )
+}
+
+/// A table keyed by `Show`, as `Map` is by `Eq & Hash`, and a holder
+/// whose field keys one by a tuple: the header finding under test.
+const TUPLE_KEYED: &str = "\
+use pkg.tmpl.show.{Show}
+
+pub data Table[K < Show, V]:
+    pub key: K
+    pub value: V
+
+pub data Holder:
+    pub table: Table[(i64, string), i32]
+
+pub fn main() -> void $ Console:
+    println(1)
+";
+
+/// An unrelated module, for edits that must change nothing the tuple
+/// template's users read.
+const OTHER: &str = "\
+pub fn twice(v: i32) -> i32:
+    v + v
+";
+
+fn tuple_program(strict: bool, other: &str) -> MemorySources {
+    let mut s = MemorySources::default();
+    s.insert("app/main.hd", TUPLE_KEYED);
+    s.insert("tmpl/show.hd", &show_module(strict));
+    s.insert("other/util.hd", other);
+    s
+}
+
+/// The `unsatisfied-trait-bound` lines of the holder's field, or none.
+fn bound_lines(r: &Output) -> Vec<usize> {
+    lines_of(r, TUPLE_KEYED, "unsatisfied-trait-bound")
+}
+
+#[test]
+fn a_tuple_template_edit_reaches_the_header_findings_it_decides() {
+    let store = MemoryStore::default();
+    let executor = Executor::Serial(SerialOrder::Priority);
+    let field = line_of(TUPLE_KEYED, "pub table:");
+
+    // The strict walker needs `Show` of `string`, which has none.
+    let cold = run(&store, &tuple_program(true, OTHER), executor);
+    assert_eq!(bound_lines(&cold), vec![field], "{}", cold.render());
+    assert!(cold.counters.computed("HeaderCheck") >= 1);
+
+    // The same text on the warm store reads the finding.
+    let warm = run(&store, &tuple_program(true, OTHER), executor);
+    assert_eq!(bound_lines(&warm), vec![field], "{}", warm.render());
+    assert_eq!(warm.counters.computed("HeaderCheck"), 0);
+
+    // An edit elsewhere keeps the cached finding: no header is redone.
+    let other = "pub fn twice(v: i32) -> i32:\n    2 * v\n";
+    let unrelated = run(&store, &tuple_program(true, other), executor);
+    assert_eq!(bound_lines(&unrelated), vec![field]);
+    assert_eq!(
+        unrelated.counters.computed("HeaderCheck"),
+        0,
+        "{:?}",
+        unrelated.counters.parts_computed
+    );
+
+    // A comment in the template's module changes its tokens in no way.
+    let mut commented = tuple_program(true, OTHER);
+    commented.insert(
+        "tmpl/show.hd",
+        &format!("# the walker asks `Show`\n{}", show_module(true)),
+    );
+    let comment = run(&store, &commented, executor);
+    assert_eq!(bound_lines(&comment), vec![field]);
+    assert_eq!(comment.counters.computed("HeaderCheck"), 0);
+
+    // Dropping the walker's bound lets every tuple through: the finding
+    // goes on the warm run, as on a cold store.
+    let loose = run(&store, &tuple_program(false, OTHER), executor);
+    assert_eq!(
+        bound_lines(&loose),
+        Vec::<usize>::new(),
+        "{}",
+        loose.render()
+    );
+    assert!(loose.counters.computed("HeaderCheck") >= 1);
+    let fresh = run(
+        &MemoryStore::default(),
+        &tuple_program(false, OTHER),
+        executor,
+    );
+    assert_eq!(loose.render(), fresh.render());
+
+    // And back: the finding returns, as on a cold store.
+    let strict = run(&store, &tuple_program(true, OTHER), executor);
+    assert_eq!(bound_lines(&strict), vec![field], "{}", strict.render());
+    assert_eq!(strict.render(), cold.render());
+}

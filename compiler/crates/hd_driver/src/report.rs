@@ -97,8 +97,8 @@ pub struct Counters {
     /// Per folder: the hash of its interface blob bytes.
     pub iface_blobs: BTreeMap<String, Hash128>,
     pub check_keys: BTreeMap<String, Hash128>,
-    /// Per stage: the `graph` parts (`Coherence`, `InitOrder`) this run
-    /// computed instead of reading their entries.
+    /// Per stage: the `graph` parts (`Coherence`, `InitOrder`,
+    /// `HeaderCheck`) this run computed instead of reading their entries.
     pub parts_computed: BTreeMap<&'static str, usize>,
 }
 

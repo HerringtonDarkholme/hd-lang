@@ -110,7 +110,9 @@ pub fn parse_key(toolchain: Hash128, source_hash: Hash128) -> Hash128 {
 /// [(folder, deep_hash) for every folder of closure(F)])`: a part key of
 /// the `graph` entry (stage-B header findings, one entry per folder here).
 /// The deep hashes cover the interfaces, impl heads and `arg_impls`, which
-/// fix the impl universe of the solving context.
+/// fix the impl universe of the solving context. The driver adds the
+/// source hash of each user tuple-template module as a closure entry, as
+/// the template's body fixes the member steps its goals read.
 #[must_use]
 pub fn hdr_key(
     toolchain: Hash128,

@@ -787,7 +787,7 @@ rule TS-6):
 | --- | --- |
 | 1. Head match | match the concrete trait reference against the heads in its owner modules. Every trait argument is known, so the candidate directory is not read. Overlap is head-only and the checker proved the bounds generically, so at most one head matches. No match is an internal error (§12.7), never a diagnostic |
 | 2. `Bind` steps | run the impl's bound plan's `Bind` steps in plan order, through `normalize_concrete`. Each reads an associated-type binding at concrete types and fixes one impl parameter that the head does not fix |
-| 3. Skip `Bound` steps | the checker proved them; `select` proves no subgoal, has no depth limit and charges no fuel |
+| 3. Skip `Bound` steps | the design: the checker proved them, so `select` proves no subgoal, has no depth limit and charges no fuel. As built, `select` is the solver's own search over the concrete goal and proves all of it, including a tuple template's member steps ([trait-solver.md §3.9](trait-solver.md#39-compiler-supplied-impls)) |
 | 4. Return | the impl and every impl argument. In `impl[T < Display, I < Store[Item = T]] Summary for Feed[I]`, matching `Feed[ConcreteStore]` fixes `I`, and the `Bind` step fixes `T` |
 
 `select` and `normalize_concrete` keep their answers in one **selection

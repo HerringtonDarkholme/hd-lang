@@ -1746,6 +1746,17 @@ impl Run<'_> {
             .zip(&all)
             .map(|(c, i)| (self.table.folders[c.idx()].path.as_str(), i.deep_hash))
             .collect();
+        // A tuple template's member steps come from its body, which no
+        // interface carries (trait-solver.md §3.9): its source is a
+        // dependency of the findings, as it is of a module's check.
+        let Some(templates) = self.tuple_template_sources(fid) else {
+            self.blocked(Stage::HeaderCheck);
+            return;
+        };
+        let reach: Vec<(&str, Hash128)> = reach
+            .into_iter()
+            .chain(templates.iter().map(|(p, h)| (p.as_str(), *h)))
+            .collect();
         let key = hdr_key(
             self.toolchain,
             self.package_key_of(folder.package),
@@ -1762,6 +1773,7 @@ impl Run<'_> {
             self.emit_findings(&found);
             return;
         }
+        self.computed(Stage::HeaderCheck);
         let names = self.names();
         let lookup = Lookup::new(&[], all.iter().map(AsRef::as_ref).collect());
         let (folders, universe, extra) = self.closure_impls(&closure);
@@ -1973,8 +1985,26 @@ impl Run<'_> {
     fn template_sources(&self, m: usize) -> Option<Vec<(String, Hash128)>> {
         let text = &self.texts[m];
         let opts_in = text.contains("derive") || text.contains("Structure");
+        self.template_hashes(self.table.modules[m].folder, opts_in)
+    }
+
+    /// The source hashes of the user tuple-template modules in
+    /// `closure(folder)`: what `HeaderCheck(folder)` reads through a
+    /// template's member steps, which come from its body and from nothing
+    /// an interface carries (trait-solver.md §3.9). The walkers' bounds
+    /// are in the interfaces of the key's reach already, so the template
+    /// modules' text is all that is missing. std's templates are in the
+    /// toolchain key.
+    fn tuple_template_sources(&self, folder: FolderId) -> Option<Vec<(String, Hash128)>> {
+        self.template_hashes(folder, false)
+    }
+
+    /// The source hashes of the user template modules in
+    /// `closure(folder)`: every derivation template with `opts_in`, the
+    /// tuple templates always.
+    fn template_hashes(&self, folder: FolderId, opts_in: bool) -> Option<Vec<(String, Hash128)>> {
         let mut out = std::collections::BTreeMap::new();
-        for c in self.closure(self.table.modules[m].folder) {
+        for c in self.closure(folder) {
             let iface = self.iface_of(c)?;
             let paths = self.folder_templates[c.idx()].get_or_init(|| {
                 let names = self.names();

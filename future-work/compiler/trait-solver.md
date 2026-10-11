@@ -652,9 +652,17 @@ as ordinary rows with special head keys:
   `TupleAny`. Its bound plan is the walker obligation of
   [`annot.walker.obligation`](../../spec/lang/14-annotations.md#r-annot.walker.obligation):
   one subgoal per element, and for a rest element `List[T]...` either on
-  `T` or on `List[T]`, by whether the walker implements `rest`. Resolution
-  computes that plan once per template, from the walker's strengthened
-  bounds. The evidence is `Impl { def: template, args: [tuple] }`: the
+  `T` or on `List[T]`, by whether the walker implements `rest`. The
+  interface does not carry template bodies yet
+  ([`annot.limit.interfaces`](../../spec/lang/14-annotations.md#r-annot.limit.interfaces)),
+  so the driver computes the plan, a list of `MemberStep`s, from the
+  template body at first use: it checks the template's methods in their
+  own module and reads the `member` and `rest` bounds of each walker,
+  describer or source the body passes. The result is cached per template
+  `DefId` for the run, and a template whose body has an error has no plan.
+  The solver reads it through `ImplView::plans` after the row's bound
+  plan; a context without one (the plan's own check) asks no member goals.
+  The evidence is `Impl { def: template, args: [tuple] }`: the
   spec calls each tuple instance "an ordinary implementation"
   ([`annot.template.tuple.instance`](../../spec/lang/14-annotations.md#r-annot.template.tuple.instance)).
   A tuple whose elements fail the obligation does not implement the trait;
@@ -715,7 +723,7 @@ rule and an evidence form. The Codex review (A5) asked for this table.
 | Family | Descriptor (stable) | Head lives in | Invalidated by | Overlap | Evidence |
 | --- | --- | --- | --- | --- | --- |
 | `@derive(X)`, derivation block | target path, trait path, `Derived` | the target folder's `heads` section | the target folder's interface; the template body via the trait folder's deep hash | ordinary heads; beside a written impl, `overlapping-impl` at folder time or in `Coherence` | `Impl` |
-| tuple template of any trait | trait path, `TupleTemplate` | the trait folder's `heads` section, head key `TupleAny` | the trait folder's interface | `TupleAny` joins every tuple head: a written tuple impl of the trait is `overlapping-impl` ([`annot.template.tuple.overlap`](../../spec/lang/14-annotations.md#r-annot.template.tuple.overlap)) | `Impl` of the template at the tuple type |
+| tuple template of any trait | trait path, `TupleTemplate` | the trait folder's `heads` section, head key `TupleAny` | the trait folder's interface; for the member steps, the template module's source (std's through the toolchain key) | `TupleAny` joins every tuple head: a written tuple impl of the trait is `overlapping-impl` ([`annot.template.tuple.overlap`](../../spec/lang/14-annotations.md#r-annot.template.tuple.overlap)) | `Impl` of the template at the tuple type |
 | numeric family | impl path, `NumericFamily` | std's `heads` section, head key `Param` | std's interface | expanded per member type | `Impl` |
 | `@error`, `@from`, `@source` | target path, trait path, member index | the target folder's `heads` section | the target folder's interface | ordinary heads; two `@from` of one type at folder time | `Impl` |
 | delegation `by E` | impl path, `Delegated` | written head | the folder's interface | ordinary head | `Impl` |
@@ -726,7 +734,15 @@ rule and an evidence form. The Codex review (A5) asked for this table.
 
 A user library's tuple template is no different from std's: the module
 that uses `==` or `.encode()` on a tuple names the trait, so the trait
-folder is in its key, and a template edit rechecks it.
+folder is in its key. The member steps come from the template's body, so
+the source hash of every user tuple-template module in `closure(F)` joins
+the key of each module's `check` entry and of `HeaderCheck(F)`, whether or
+not the text opts in (`template_sources`). A walker's bounds are in the
+interfaces already in those keys. An edit to a template module redoes the
+header check of each folder that reaches it, and the cached result of an
+unrelated edit stays. `Collect` needs nothing more: its key holds the
+modules' TIR, and a check that passed under a changed plan picks the same
+impls, since the plan only decides provability.
 
 ## 4. Associated Types And Normalization
 
