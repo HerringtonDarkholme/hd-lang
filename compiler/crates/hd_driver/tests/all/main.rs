@@ -43,6 +43,7 @@ mod float_text;
 mod function_reference_builtin_methods;
 mod function_reference_lowered;
 mod function_references;
+mod generic_shared_data_run;
 mod generics_determinism;
 mod header_goals;
 mod identity_operands;

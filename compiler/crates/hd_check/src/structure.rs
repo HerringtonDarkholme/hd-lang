@@ -614,9 +614,10 @@ fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> StageRe
             });
         }
         ItemData::Enum { shared, variants } => {
-            // `init` holds no shared data of a generic enum yet.
-            if !shared.is_empty() && !item.generics.is_empty() {
-                return unsupported("the shared constructor data of a generic enum's variants");
+            // Shared data is one global per declared variant, so a
+            // parameter type naming a generic parameter has no one type.
+            if shared.iter().any(|f| pool.has_param(f.ty)) {
+                return unsupported("shared data whose type names a generic parameter");
             }
             for (k, v) in variants.iter().enumerate() {
                 let members: Vec<Mem> = v

@@ -110,8 +110,8 @@ compiler stage that first declined the case.
 | `fail:unknown-type` | 3 |
 | `fail:unknown-variant` | 1 |
 | `fail:unused-local-binding` | 4 |
-| `unsupported:Body` | 5 |
-| `unsupported:Collect` | 2 |
+| `unsupported:Body` | 4 |
+| `unsupported:Collect` | 3 |
 | `unsupported:Link` | 3 |
 | `unsupported:RunCase` | 11 |
 
@@ -458,19 +458,19 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (5)</summary>
+<details><summary><code>unsupported:Body</code> (4)</summary>
 
 - `typing/invalid/for-over-non-iterable.hd`
 - `runtime/valid/tuple-impl-target.hd`
 - `typing/valid/type-default-trait-method.hd`
-- `runtime/valid/shared-enum-data-computed-once.hd`
 - `runtime/valid/iterator-list-sum.hd`
 
 </details>
 
-<details><summary><code>unsupported:Collect</code> (2)</summary>
+<details><summary><code>unsupported:Collect</code> (3)</summary>
 
 - `runtime/valid/init-group-order.hd`
+- `runtime/valid/shared-enum-data-computed-once.hd`
 - `runtime/valid/init-group-statements-by-identity.hd`
 
 </details>

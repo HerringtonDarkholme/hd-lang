@@ -417,8 +417,8 @@ impl Ck<'_, '_> {
         let ItemData::Enum { shared, variants } = item.data.clone() else {
             return unsupported("shared data outside an enum");
         };
-        if !item.generics.is_empty() {
-            return unsupported("shared data of a generic enum");
+        if shared.iter().any(|f| self.pool().has_param(f.ty)) {
+            return unsupported("shared data whose type names a generic parameter");
         }
         let params: Vec<(Symbol, Ty)> = shared.iter().map(|f| (f.name, f.ty)).collect();
         for v in s
@@ -592,8 +592,8 @@ impl Ck<'_, '_> {
         };
         let name = self.cx.names.text(field).to_owned();
         let name = name.as_str();
-        if !item.generics.is_empty() {
-            return unsupported("a shared field of a generic enum");
+        if self.pool().has_param(ft) {
+            return unsupported("a shared field whose type names a generic parameter");
         }
         let globals: Vec<DefId> = variants
             .iter()
