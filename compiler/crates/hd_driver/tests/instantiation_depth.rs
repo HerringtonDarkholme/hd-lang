@@ -87,7 +87,7 @@ pub fn main() -> void:
 ";
 
 #[test]
-fn a_doubling_type_stops_well_under_a_second() {
+fn a_doubling_type_stops_without_exponential_work() {
     let start = Instant::now();
     let program = run(DOUBLING, &whole_program());
     let took = start.elapsed();
@@ -97,7 +97,10 @@ fn a_doubling_type_stops_well_under_a_second() {
         "{}",
         program.render()
     );
-    assert!(took < Duration::from_secs(1), "took {took:?}");
+    // The bound catches exponential work (the chain reaches 2^33 leaves
+    // without the depth limit), not speed: tests run in the dev profile,
+    // where this takes 1-2 s.
+    assert!(took < Duration::from_secs(10), "took {took:?}");
     let text = program.render();
     assert!(text.contains("33 deep, past the limit of 32"), "{text}");
     // The chain's first instances in full, the last one's 2^33-leaf
