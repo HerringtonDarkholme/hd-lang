@@ -72,3 +72,23 @@ environment variables (commit 5874b720).
   `compiler/crates/hd_testkit/src/lib.rs` only.
 - Done when 50 runs in a row pass under load. Put the cause in the commit
   body.
+
+### M31. Bound the wasmtime module caches
+
+Your M29 caches (`crates/hd_run_wasmtime/src/cache.rs`, and the per-engine
+cache in `test_engine.rs`) keep every compiled module for the life of the
+process, keyed by the module bytes. A process that loads many distinct
+modules (the conformance suite runs about 1000; a future REPL loads one per
+input) keeps all of them in memory. M29 also showed no wall-clock gain on
+the suite, since almost every module there is distinct.
+- Measure peak RSS of the wasmtime-only driver conformance run before and
+  after M29 (`/usr/bin/time -l` on macOS, `-v` on Linux).
+- Bound each cache: a small LRU by entry count, or by total wasm bytes,
+  sized so that repeated identical bytes in one run still hit (for
+  example, the pending-first-poll pairs and the test-wasm/program-wasm
+  pairs).
+- Files: `crates/hd_run_wasmtime/src/**` only.
+- Done when the unit tests still prove single compilation for a repeat, a
+  new test shows eviction past the bound, the suite verdicts are
+  unchanged, and the commit body gives peak RSS before M29, after M29 and
+  after this job.
