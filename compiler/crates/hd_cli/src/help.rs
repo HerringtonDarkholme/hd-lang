@@ -189,19 +189,26 @@ const COMMANDS: &[Command] = &[
     },
     Command {
         name: "add",
-        summary: "require the dependency NAME at PATH@VERSION, fetch it, and record its hash",
-        usage: "hd add [--dev] NAME PATH@VERSION",
+        summary: "require each TARGET, fetch it, and record its hash",
+        usage: "hd add [--dev] [--name NAME] TARGET[@QUERY]...",
         about: &[
-            "Set the requirement NAME in [dependencies], fetch it, and record its hash in hd.sum.",
+            "Require each TARGET in [dependencies] under its package's name, fetch it, and record its hash in hd.sum.",
+            "TARGET is OWNER/REPO[/DIR] on github.com, a host path, a repository URL, or a path that starts with ./ or ../.",
+            "QUERY is a version (2.1.0), a partial one (2 or 2.1), latest, a branch, or a commit; none means the newest release.",
         ],
-        flags: &[("--dev", "set it in [dev-dependencies] instead"), FORMAT],
+        flags: &[
+            ("--dev", "set them in [dev-dependencies] instead"),
+            ("--name NAME", "use the key NAME for the one TARGET"),
+            FORMAT,
+        ],
     },
     Command {
         name: "update",
         summary: "move dependencies to the newest release on their compatibility line",
-        usage: "hd update [NAME]",
+        usage: "hd update [NAME[@QUERY]]",
         about: &[
             "Move every dependency, or NAME, to the newest release on its compatibility line.",
+            "NAME@QUERY sets NAME to the version QUERY selects, as hd add's queries do.",
         ],
         flags: &[FORMAT],
     },

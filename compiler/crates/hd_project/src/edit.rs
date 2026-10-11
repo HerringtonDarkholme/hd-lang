@@ -157,7 +157,26 @@ fn header_end(text: &str, table: &str) -> Option<usize> {
 /// key is written in a form that has no such line, as `[table.key]`.
 #[must_use]
 pub fn set_key(text: &str, table: &str, key: &str, value: &str) -> Option<String> {
-    let written = quoted(value);
+    set_value(text, table, key, &quoted(value))
+}
+
+/// The value a path requirement on `dir` writes: `{ path = "DIR" }`
+/// (`module.path-dep.form`).
+#[must_use]
+pub fn path_value(dir: &str) -> String {
+    format!("{{ path = {} }}", quoted(dir))
+}
+
+/// The value a requirement `PATH@VERSION` writes: a TOML string.
+#[must_use]
+pub fn string_value(value: &str) -> String {
+    quoted(value)
+}
+
+/// `set_key`, with `written` as the value's TOML text as it is, such as
+/// [`path_value`]'s inline table.
+#[must_use]
+pub fn set_value(text: &str, table: &str, key: &str, written: &str) -> Option<String> {
     if let Some((span, _)) = spans(text, table, key) {
         return Some(format!(
             "{}{written}{}",
@@ -336,5 +355,25 @@ mod tests {
             remove_key(two, "dev-dependencies", "fix").as_deref(),
             Some("[dependencies]\n# why\njson = \"github.com/acme/json@2.1.0\"\n")
         );
+    }
+
+    #[test]
+    fn a_path_requirement_is_written_as_an_inline_table() {
+        let text =
+            "[package]\nname = \"shop\"\n\n[dependencies]\njson = \"github.com/acme/json@1.0.0\"\n";
+        let value = super::path_value("money-utils");
+        assert_eq!(value, "{ path = \"money-utils\" }");
+        let out = super::set_value(text, "dependencies", "money_utils", &value).expect("edit");
+        assert!(out.ends_with(
+            "json = \"github.com/acme/json@1.0.0\"\nmoney_utils = { path = \"money-utils\" }\n"
+        ));
+        let back = super::set_value(
+            &out,
+            "dependencies",
+            "money_utils",
+            &super::string_value("github.com/acme/m@1.0.0"),
+        )
+        .expect("edit");
+        assert!(back.contains("money_utils = \"github.com/acme/m@1.0.0\"\n"));
     }
 }

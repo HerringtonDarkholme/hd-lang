@@ -615,17 +615,18 @@ fn read(dir: &Path, file: &str) -> String {
     std::fs::read_to_string(dir.join(file)).expect(file)
 }
 
-/// `hd add` sets the requirement, fetches, and records the hashes; a lower
-/// version of the same host path lowers it, says so, and tidies the
-/// older version's lines away (`cli.dep.add`, `cli.dep.add.lower`,
-/// `cli.dep.select`, `cli.dep.tidy`, `cli.dep.edit`).
+/// `hd add` sets the requirement, fetches, records the hashes, and prints
+/// the key's line; a lower version of the same host path lowers it, says
+/// so, and tidies the older version's lines away (`cli.dep.add.target`,
+/// `cli.dep.add.report`, `cli.dep.add.lower`, `cli.dep.select`,
+/// `cli.dep.tidy`, `cli.dep.edit`).
 #[test]
 fn add_records_then_lowers() {
     let world = World::new("add");
     world.remote("text", &[("v1.0.0", TEXT_V1), ("v1.2.0", TEXT_V12)]);
     let dir = bare(&world, "app", "[package]\nname = \"app\"  # mine\n");
-    let (stdout, stderr) = ok(&world.hd(&dir, &["add", "text", "github.com/acme/text@1.2.0"]));
-    assert_eq!(stdout, "");
+    let (stdout, stderr) = ok(&world.hd(&dir, &["add", "acme/text@1.2.0"]));
+    assert_eq!(stdout, "text = \"github.com/acme/text@1.2.0\"\n");
     assert!(
         stderr.contains("hd: fetching github.com/acme/text@1.2.0"),
         "{stderr}"
@@ -641,8 +642,11 @@ fn add_records_then_lowers() {
     let (stdout, _) = ok(&world.hd(&dir, &["run"]));
     assert_eq!(stdout, "hello from 1.2\n");
 
-    let (stdout, _) = ok(&world.hd(&dir, &["add", "text", "github.com/acme/text@1.0.0"]));
-    assert_eq!(stdout, "lowered text 1.2.0 -> 1.0.0\n");
+    let (stdout, _) = ok(&world.hd(&dir, &["add", "acme/text@1.0.0"]));
+    assert_eq!(
+        stdout,
+        "text = \"github.com/acme/text@1.0.0\"\nlowered text 1.2.0 -> 1.0.0\n"
+    );
     assert_eq!(
         read(&dir, "hd.toml"),
         "[package]\nname = \"app\"  # mine\n\n[dependencies]\ntext = \"github.com/acme/text@1.0.0\"\n"
@@ -654,9 +658,9 @@ fn add_records_then_lowers() {
     let (stdout, _) = ok(&world.hd(&dir, &["run"]));
     assert_eq!(stdout, "hello from 1.0\n");
 
-    // Raising says nothing.
-    let (stdout, _) = ok(&world.hd(&dir, &["add", "text", "github.com/acme/text@1.2.0"]));
-    assert_eq!(stdout, "");
+    // Raising prints only the line.
+    let (stdout, _) = ok(&world.hd(&dir, &["add", "acme/text@1.2.0"]));
+    assert_eq!(stdout, "text = \"github.com/acme/text@1.2.0\"\n");
 }
 
 /// A lowered requirement is still a minimum: another member's higher one
@@ -687,11 +691,11 @@ fn a_lowered_requirement_stays_a_minimum() {
         ],
     );
     ok(&world.hd(&ws, &["fetch"]));
-    let (stdout, _) = ok(&world.hd(
-        &ws.join("app"),
-        &["add", "text", "github.com/acme/text@1.0.0"],
-    ));
-    assert_eq!(stdout, "lowered text 1.2.0 -> 1.0.0\n");
+    let (stdout, _) = ok(&world.hd(&ws.join("app"), &["add", "acme/text@1.0.0"]));
+    assert_eq!(
+        stdout,
+        "text = \"github.com/acme/text@1.0.0\"\nlowered text 1.2.0 -> 1.0.0\n"
+    );
     assert!(read(&ws.join("app"), "hd.toml").contains("text@1.0.0"));
     assert_eq!(
         read(&ws, "hd.sum"),
@@ -711,21 +715,19 @@ fn add_dev_and_the_other_table() {
     let world = World::new("add-dev");
     world.remote("text", &[("v1.0.0", TEXT_V1)]);
     let dir = bare(&world, "app", "[package]\nname = \"app\"\n");
-    ok(&world.hd(
-        &dir,
-        &["add", "--dev", "text", "github.com/acme/text@1.0.0"],
-    ));
+    ok(&world.hd(&dir, &["add", "--dev", "acme/text@1.0.0"]));
     let manifest =
         "[package]\nname = \"app\"\n\n[dev-dependencies]\ntext = \"github.com/acme/text@1.0.0\"\n";
     assert_eq!(read(&dir, "hd.toml"), manifest);
     let sum = read(&dir, "hd.sum");
     assert_eq!(sum, sum_lines("github.com/acme/text@1.0.0", TEXT_V1));
 
-    // The key is in `[dev-dependencies]`, so a plain add is an error.
-    let (_, stderr) = fails(&world.hd(&dir, &["add", "text", "github.com/acme/text@1.0.0"]));
+    // The key is in `[dev-dependencies]`, so a plain add is an error; an
+    // inferred key also suggests `--name`.
+    let (_, stderr) = fails(&world.hd(&dir, &["add", "acme/text@1.0.0"]));
     assert_eq!(
         stderr,
-        "hd add: text is in [dev-dependencies]; run `hd remove text` first\n"
+        "hd add: text is in [dev-dependencies]; run `hd remove text` first, or choose another key with `hd add --name NAME acme/text@1.0.0`\n"
     );
     assert_eq!(read(&dir, "hd.toml"), manifest);
     assert_eq!(read(&dir, "hd.sum"), sum);
@@ -738,7 +740,7 @@ fn add_dev_and_the_other_table() {
     );
     let (_, stderr) = fails(&world.hd(
         &other,
-        &["add", "--dev", "text", "github.com/acme/text@1.0.0"],
+        &["add", "--dev", "--name", "text", "acme/text@1.0.0"],
     ));
     assert_eq!(
         stderr,
@@ -761,42 +763,65 @@ fn a_failed_add_writes_nothing() {
     ok(&world.hd(&dir, &["fetch"]));
     let sum = read(&dir, "hd.sum");
     for (args, code) in [
+        (&["add", "acme/text@a..b"][..], "invalid-requirement"),
+        (&["add", "github.com/acme@1.0.0"], "invalid-requirement"),
         (
-            ["add", "text", "github.com/acme/text@v1.0.0"],
-            "invalid-requirement",
-        ),
-        (
-            ["add", "text", "github.com/acme@1.0.0"],
-            "invalid-requirement",
-        ),
-        (
-            ["add", "9text", "github.com/acme/text@1.0.0"],
+            &["add", "--name", "9text", "acme/text@1.0.0"],
             "invalid-requirement",
         ),
         // `tail` already names this package and compatibility line.
         (
-            ["add", "again", "github.com/acme/tail@0.1.0"],
+            &["add", "--name", "again", "acme/tail@0.1.0"],
             "invalid-requirement",
         ),
-        (
-            ["add", "text", "github.com/acme/text@1.9.0"],
-            "unknown-version",
-        ),
-        (
-            ["add", "text", "github.com/acme/missing@1.0.0"],
-            "fetch-failed",
-        ),
+        (&["add", "acme/text@1.9.0"], "unknown-version"),
+        (&["add", "acme/missing@1.0.0"], "fetch-failed"),
+        (&["add", "acme/text", "acme/missing"], "fetch-failed"),
     ] {
-        let (_, stderr) = fails(&world.hd(&dir, &args));
+        let (_, stderr) = fails(&world.hd(&dir, args));
         assert!(stderr.contains(code), "{args:?}: {stderr}");
         assert_eq!(read(&dir, "hd.toml"), manifest, "{args:?}");
         assert_eq!(read(&dir, "hd.sum"), sum, "{args:?}");
     }
     // The message of a requirement that is not in `hd.toml` has no line.
-    let (_, stderr) = fails(&world.hd(&dir, &["add", "text", "github.com/acme/text@1.9.0"]));
+    let (_, stderr) = fails(&world.hd(&dir, &["add", "acme/text@1.9.0"]));
     assert!(!stderr.contains("hd.toml:"), "{stderr}");
-    let (_, stderr) = fails(&world.hd(&dir, &["add", "text"]));
-    assert!(stderr.contains("takes NAME and PATH@VERSION"), "{stderr}");
+    let (_, stderr) = fails(&world.hd(&dir, &["add"]));
+    assert!(stderr.contains("one or more targets"), "{stderr}");
+}
+
+/// A package with no version tag gets the pseudo-version of its default
+/// branch's head: the printed line says the commit has no version tag, and
+/// a note on stderr suggests tagging one (`cli.dep.query.latest.untagged`,
+/// `cli.dep.query.latest.note`, `cli.dep.add.report.pseudo`). Once tagged,
+/// `hd update NAME@latest` moves to the tag (`cli.dep.update.query`).
+#[test]
+fn an_untagged_package_takes_a_pseudo_version_and_a_note() {
+    let world = World::new("untagged");
+    let repo = world.remote("text", &[("", TEXT_V1)]);
+    let dir = bare(&world, "app", "[package]\nname = \"app\"\n");
+    let (stdout, stderr) = ok(&world.hd(&dir, &["add", "acme/text"]));
+    let head = world.git(&repo, &["rev-parse", "HEAD"]);
+    let hash = &head.trim()[..12];
+    assert!(
+        stdout.starts_with("text = \"github.com/acme/text@0.0.0-")
+            && stdout.ends_with(&format!("-{hash}\" # commit {hash} has no version tag\n")),
+        "{stdout}"
+    );
+    assert!(
+        stderr.contains("has no version tag") && stderr.contains("git tag v0.1.0"),
+        "{stderr}"
+    );
+    let (stdout, _) = ok(&world.hd(&dir, &["run"]));
+    assert_eq!(stdout, "hello from 1.0\n");
+    world.git(&repo, &["tag", "v1.0.0"]);
+    let (stdout, stderr) = ok(&world.hd(&dir, &["update", "text@latest"]));
+    assert!(
+        stdout.starts_with("text: 0.0.0-") && stdout.ends_with(" -> 1.0.0\n"),
+        "{stdout}"
+    );
+    assert!(!stderr.contains("note"), "{stderr}");
+    assert!(read(&dir, "hd.toml").contains("text = \"github.com/acme/text@1.0.0\""));
 }
 
 /// `hd update` moves each requirement, dev ones too, to the newest release
@@ -941,7 +966,7 @@ fn edits_belong_to_a_member() {
     let ws = world.package("ws", &[("hd.toml", manifest)]);
     app(&world, "ws/app", "", APP_MAIN);
     for args in [
-        &["add", "text", "github.com/acme/text@1.0.0"][..],
+        &["add", "acme/text@1.0.0"][..],
         &["update"],
         &["remove", "text"],
     ] {
@@ -956,7 +981,7 @@ fn edits_belong_to_a_member() {
     let empty = world.root.join("nowhere");
     std::fs::create_dir_all(&empty).expect("mkdir");
     for args in [
-        &["add", "text", "github.com/acme/text@1.0.0"][..],
+        &["add", "acme/text@1.0.0"][..],
         &["update"],
         &["remove", "text"],
     ] {

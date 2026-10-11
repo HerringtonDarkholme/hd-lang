@@ -38,8 +38,8 @@ const USAGE: &str = "usage:
   hd check [FILE.hd] [--tests | --all] [--format json]
   hd new [--app | --lib] [--pages] [--vcs none] [PATH]
   hd clean [--cache]
-  hd add [--dev] NAME PATH@VERSION
-  hd update [NAME]
+  hd add [--dev] [--name NAME] TARGET[@QUERY]...
+  hd update [NAME[@QUERY]]
   hd remove NAME
   hd fetch
   hd fmt [--check] [FILE.hd]
