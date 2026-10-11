@@ -8,16 +8,16 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2557 | 247 | 41 | 2845 |
+| 2560 | 244 | 41 | 2845 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
 | `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
-| `lang/02-grammar.md` | 204 | 11 | 0 | 215 |
+| `lang/02-grammar.md` | 205 | 10 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 100 | 1 | 0 | 101 |
-| `lang/04-type-system.md` | 314 | 38 | 0 | 352 |
+| `lang/04-type-system.md` | 316 | 36 | 0 | 352 |
 | `lang/05-expressions.md` | 245 | 32 | 0 | 277 |
 | `lang/06-control-flow.md` | 139 | 14 | 4 | 157 |
 | `lang/07-functions.md` | 119 | 11 | 0 | 130 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 97 | 5 | 3 | 105 |
-| `runtime/valid` | 881 | 12 | 36 | 929 |
-| `typing/invalid` | 874 | 200 | 1 | 1075 |
-| `typing/valid` | 407 | 7 | 1 | 415 |
+| `runtime/valid` | 882 | 11 | 36 | 929 |
+| `typing/invalid` | 875 | 199 | 1 | 1075 |
+| `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -108,7 +108,7 @@ compiler stage that first declined the case.
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-used-as-type` | 1 |
 | `fail:type-mismatch` | 34 |
-| `fail:unknown-data-field` | 7 |
+| `fail:unknown-data-field` | 4 |
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 5 |
 | `fail:unknown-module` | 1 |
@@ -495,15 +495,12 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-data-field</code> (7)</summary>
+<details><summary><code>fail:unknown-data-field</code> (4)</summary>
 
 - `typing/invalid/tuple-index-out-of-range.hd`
 - `typing/valid/type-default-declarations.hd`
-- `typing/valid/let-pattern-mut.hd`
-- `typing/invalid/let-pattern-mut-readonly-field.hd`
 - `runtime/valid/impl-owned-target-and-trait-argument.hd`
 - `typing/invalid/default-body-self-field.hd`
-- `runtime/valid/let-patterns-and-let-else.hd`
 
 </details>
 
@@ -1426,6 +1423,7 @@ runtime/valid/leading-dot-lines-join-the-chain.hd
 runtime/valid/leading-dot-statement-indent-tail.hd
 runtime/valid/leading-pipe-lines-join-the-chain.hd
 runtime/valid/let-after-same-line-if-keeps-else.hd
+runtime/valid/let-patterns-and-let-else.hd
 runtime/valid/list-access-building.hd
 runtime/valid/list-and-optional-map.hd
 runtime/valid/list-append-grows.hd
@@ -2299,6 +2297,7 @@ typing/invalid/let-mut-readonly-mut-field.hd
 typing/invalid/let-mut-readonly-value.hd
 typing/invalid/let-mut-spread-mut-field.hd
 typing/invalid/let-mut-tuple.hd
+typing/invalid/let-pattern-mut-readonly-field.hd
 typing/invalid/let-readonly-fresh-literal.hd
 typing/invalid/let-refutable-literal-field.hd
 typing/invalid/let-refutable-without-else.hd
@@ -2941,6 +2940,7 @@ typing/valid/let-mut-optional.hd
 typing/valid/let-mut-pattern.hd
 typing/valid/let-mut-spread-fresh-field.hd
 typing/valid/let-nested-pattern.hd
+typing/valid/let-pattern-mut.hd
 typing/valid/let-pattern-read.hd
 typing/valid/let-readonly-rebind.hd
 typing/valid/let-underscore-discard.hd

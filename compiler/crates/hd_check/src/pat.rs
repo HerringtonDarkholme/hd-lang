@@ -289,7 +289,7 @@ impl Ck<'_, '_> {
                     .children()
                     .filter(|c| c.kind() == SyntaxKind::DataPatternField)
                 {
-                    let fname = self.cx.src.text(self.cx.src.first(f)).to_owned();
+                    let fname = self.data_field_name(f);
                     if seen.contains(&fname) {
                         let msg = format!("`{fname}` appears twice in this pattern");
                         self.err(Code::DuplicateDataPatternField, f, &msg);
@@ -302,12 +302,14 @@ impl Ck<'_, '_> {
                         continue;
                     };
                     self.check_field_visible(t, &fname, f);
+                    // `flow.match.data.readonly-mut`: a readonly subject
+                    // binds a direct `mut U` field as `U`.
+                    let ft = self.field_access(t, &fname, ft);
                     if let Some(sub) = f.children().next() {
                         self.declare_pattern(sub, ft, binds)?;
                     } else {
                         let name = self.cx.names.syms.intern(&fname);
-                        let l = self.bind_local(name, ft, f);
-                        binds.push((f.index(), l));
+                        self.bind_pattern_name(f, name, ft, binds)?;
                     }
                 }
             }
@@ -335,11 +337,7 @@ impl Ck<'_, '_> {
         for f in fields {
             match f.kind() {
                 SyntaxKind::DataPatternField if f.children().next().is_none() => {
-                    let name = self
-                        .cx
-                        .names
-                        .syms
-                        .intern(self.cx.src.text(self.cx.src.first(f)));
+                    let name = self.cx.names.syms.intern(&self.data_field_name(f));
                     let l = self.bind_local(name, Ty::POISON, f);
                     binds.push((f.index(), l));
                 }
@@ -405,6 +403,20 @@ impl Ck<'_, '_> {
         let l = self.bind_local(name, t, p);
         binds.push((p.index(), l));
         Ok(())
+    }
+
+    /// The field a data pattern field names: its first name token, past
+    /// the `mut` of `Point { mut tags }` (`grammar.stmt.let-pattern.mut`).
+    fn data_field_name(&self, f: NodeRef<'_>) -> String {
+        f.direct_tokens()
+            .find(|t| {
+                matches!(
+                    self.cx.src.tkind(*t),
+                    Some(TokenKind::Ident | TokenKind::RawIdent)
+                )
+            })
+            .map(|t| self.cx.src.text(t).to_owned())
+            .unwrap_or_default()
     }
 
     fn variant_pattern_name(&self, p: NodeRef<'_>) -> String {
@@ -965,7 +977,7 @@ impl Ck<'_, '_> {
                         .into_iter()
                         .rev()
                     {
-                        let fname = self.cx.src.text(self.cx.src.first(f)).to_owned();
+                        let fname = self.data_field_name(f);
                         let Some((idx, ft)) = self.field_of(t, &fname) else {
                             continue;
                         };
@@ -1163,11 +1175,7 @@ impl Ck<'_, '_> {
                     .children()
                     .filter(|c| c.kind() == SyntaxKind::DataPatternField)
                 {
-                    let fname = self
-                        .cx
-                        .names
-                        .syms
-                        .intern(self.cx.src.text(self.cx.src.first(f)));
+                    let fname = self.cx.names.syms.intern(&self.data_field_name(f));
                     if let Some(k) = fs.iter().position(|x| x.name == fname) {
                         args[k] = self.to_p(
                             f.children().next(),
