@@ -13,10 +13,141 @@
 //! attribute, filter or line-ending setting changes their bytes.
 
 use std::collections::BTreeMap;
-use std::io::{BufRead as _, BufReader, Read as _, Write as _};
+use std::io::{ErrorKind, Read, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
-use std::sync::OnceLock;
+use std::sync::mpsc::{self, Receiver};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
+use std::time::{Duration, Instant};
+
+/// How long listing a repository's tags (`git ls-remote`) may take.
+const LIST_LIMIT: Duration = Duration::from_mins(1);
+/// How long one `git fetch` may take: a pseudo-version's fetch brings the
+/// whole history.
+const FETCH_LIMIT: Duration = Duration::from_mins(10);
+/// How long a git command that reads only the local scratch repository may
+/// take.
+const LOCAL_LIMIT: Duration = Duration::from_mins(2);
+/// How long to wait for a finished (or killed) git's output after it ends:
+/// a process it left behind may still hold the pipes.
+const DRAIN_GRACE: Duration = Duration::from_secs(2);
+/// The variable that sets the limit of the two network commands, in whole
+/// seconds, for a slow link (or a test).
+const TIMEOUT_VARIABLE: &str = "HD_GIT_TIMEOUT";
+
+/// `default`, or the whole seconds of `HD_GIT_TIMEOUT` when it holds a
+/// positive number.
+fn network_limit(default: Duration) -> Duration {
+    std::env::var(TIMEOUT_VARIABLE)
+        .ok()
+        .and_then(|s| s.trim().parse::<u64>().ok())
+        .filter(|&n| n > 0)
+        .map_or(default, Duration::from_secs)
+}
+
+/// A pipe of a child, read on its own thread into a buffer the caller can
+/// take at any time.
+struct Pipe {
+    buffer: Arc<Mutex<Vec<u8>>>,
+    done: Receiver<()>,
+}
+
+impl Pipe {
+    fn drain(mut source: impl Read + Send + 'static) -> Pipe {
+        let buffer = Arc::new(Mutex::new(Vec::new()));
+        let shared = Arc::clone(&buffer);
+        let (sender, done) = mpsc::channel();
+        std::thread::spawn(move || {
+            let mut chunk = [0u8; 8192];
+            loop {
+                match source.read(&mut chunk) {
+                    Ok(0) => break,
+                    Ok(n) => shared
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .extend_from_slice(&chunk[..n]),
+                    Err(e) if e.kind() == ErrorKind::Interrupted => {}
+                    Err(_) => break,
+                }
+            }
+            let _ = sender.send(());
+        });
+        Pipe { buffer, done }
+    }
+
+    /// What the pipe held when it closed, or by `deadline`.
+    fn finish(self, deadline: Instant) -> Vec<u8> {
+        let _ = self
+            .done
+            .recv_timeout(deadline.saturating_duration_since(Instant::now()));
+        std::mem::take(&mut *self.buffer.lock().unwrap_or_else(PoisonError::into_inner))
+    }
+}
+
+/// Runs `command` (a git command, named `name` in messages) to its end
+/// within `limit`, feeding it `input`. A command that runs longer is killed
+/// and reaped, and is an error that says it timed out, so no step of a
+/// fetch can hang.
+fn run_bounded(
+    mut command: Command,
+    name: &str,
+    limit: Duration,
+    input: Option<Vec<u8>>,
+) -> Result<Output, GitError> {
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    if input.is_some() {
+        command.stdin(Stdio::piped());
+    }
+    let mut child = command.spawn().map_err(|e| spawn_error(&e))?;
+    if let (Some(bytes), Some(mut stdin)) = (input, child.stdin.take()) {
+        // Ends, closing the pipe, when the input is written or git is gone.
+        std::thread::spawn(move || {
+            let _ = stdin.write_all(&bytes);
+        });
+    }
+    let (Some(stdout), Some(stderr)) = (child.stdout.take(), child.stderr.take()) else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(GitError("git has no output pipes".to_owned()));
+    };
+    let (stdout, stderr) = (Pipe::drain(stdout), Pipe::drain(stderr));
+    let deadline = Instant::now() + limit;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break Some(status),
+            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(5)),
+            Ok(None) => break None,
+            Err(e) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(GitError(format!("waiting for git failed: {e}")));
+            }
+        }
+    };
+    if status.is_none() {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    let grace = Instant::now() + DRAIN_GRACE;
+    let (stdout, stderr) = (stdout.finish(grace), stderr.finish(grace));
+    match status {
+        Some(status) => Ok(Output {
+            status,
+            stdout,
+            stderr,
+        }),
+        None => Err(GitError(format!(
+            "`git {name}` timed out after {}",
+            seconds(limit)
+        ))),
+    }
+}
+
+/// A limit as `1 second` or `60 seconds`.
+fn seconds(limit: Duration) -> String {
+    let n = limit.as_secs().max(1);
+    format!("{n} second{}", if n == 1 { "" } else { "s" })
+}
 
 /// Why git could not do what `hd` asked: git's last words, masked.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -106,18 +237,28 @@ impl Git {
         c
     }
 
-    fn run(&self, args: &[&str]) -> Result<Output, GitError> {
-        self.command()
-            .args(args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
-            .map_err(|e| spawn_error(&e))
+    /// Runs a git command that reads only the local scratch repository.
+    fn run(&self, name: &str, args: &[&str]) -> Result<Output, GitError> {
+        self.run_limited(name, LOCAL_LIMIT, args, None)
+    }
+
+    /// Runs git, killed after `limit` (`name` is its subcommand, for the
+    /// message).
+    fn run_limited(
+        &self,
+        name: &str,
+        limit: Duration,
+        args: &[&str],
+        input: Option<Vec<u8>>,
+    ) -> Result<Output, GitError> {
+        let mut command = self.command();
+        command.args(args);
+        run_bounded(command, name, limit, input)
     }
 
     /// Runs git and fails with its complaint unless it succeeds.
-    fn must(&self, args: &[&str]) -> Result<String, GitError> {
-        let out = self.run(args)?;
+    fn must(&self, name: &str, limit: Duration, args: &[&str]) -> Result<String, GitError> {
+        let out = self.run_limited(name, limit, args, None)?;
         if out.status.success() {
             Ok(String::from_utf8_lossy(&out.stdout).into_owned())
         } else {
@@ -127,14 +268,22 @@ impl Git {
 
     /// Makes a new bare repository at `repo` to fetch into.
     pub fn init(&self, repo: &Path) -> Result<(), GitError> {
-        self.must(&["init", "--bare", "--quiet", &path_arg(repo)])
-            .map(drop)
+        self.must(
+            "init",
+            LOCAL_LIMIT,
+            &["init", "--bare", "--quiet", &path_arg(repo)],
+        )
+        .map(drop)
     }
 
     /// The tags of the repository at `url`, each with the object it names.
     /// A repository git cannot reach or read is an error.
     pub fn list_tags(&self, repo: &Path, url: &str) -> Result<BTreeMap<String, String>, GitError> {
-        let out = self.must(&[&git_dir(repo), "ls-remote", "--tags", "--refs", url])?;
+        let out = self.must(
+            "ls-remote",
+            network_limit(LIST_LIMIT),
+            &[&git_dir(repo), "ls-remote", "--tags", "--refs", url],
+        )?;
         Ok(out
             .lines()
             .filter_map(|l| {
@@ -150,44 +299,55 @@ impl Git {
     /// Fetches the commit of `tag` from `url` into `repo`, shallowly, as
     /// `FETCH_HEAD`.
     pub fn fetch_tag(&self, repo: &Path, url: &str, tag: &str) -> Result<(), GitError> {
-        self.must(&[
-            &git_dir(repo),
+        self.must(
             "fetch",
-            "--quiet",
-            "--depth",
-            "1",
-            "--no-tags",
-            url,
-            &format!("refs/tags/{tag}"),
-        ])
+            network_limit(FETCH_LIMIT),
+            &[
+                &git_dir(repo),
+                "fetch",
+                "--quiet",
+                "--depth",
+                "1",
+                "--no-tags",
+                url,
+                &format!("refs/tags/{tag}"),
+            ],
+        )
         .map(drop)
     }
 
     /// Fetches every branch and tag of `url` into `repo`, to find the
     /// commit of a pseudo-version (`cli.dep.pseudo`).
     pub fn fetch_all(&self, repo: &Path, url: &str) -> Result<(), GitError> {
-        self.must(&[
-            &git_dir(repo),
+        self.must(
             "fetch",
-            "--quiet",
-            "--no-tags",
-            url,
-            "+refs/heads/*:refs/remotes/origin/*",
-            "+refs/tags/*:refs/tags/*",
-        ])
+            network_limit(FETCH_LIMIT),
+            &[
+                &git_dir(repo),
+                "fetch",
+                "--quiet",
+                "--no-tags",
+                url,
+                "+refs/heads/*:refs/remotes/origin/*",
+                "+refs/tags/*:refs/tags/*",
+            ],
+        )
         .map(drop)
     }
 
     /// The full hash of the commit of `repo` whose hash starts with
     /// `prefix`, or `None` when it has none.
     pub fn commit(&self, repo: &Path, prefix: &str) -> Result<Option<String>, GitError> {
-        let out = self.run(&[
-            &git_dir(repo),
+        let out = self.run(
             "rev-parse",
-            "--verify",
-            "--quiet",
-            &format!("{prefix}^{{commit}}"),
-        ])?;
+            &[
+                &git_dir(repo),
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                &format!("{prefix}^{{commit}}"),
+            ],
+        )?;
         let hash = String::from_utf8_lossy(&out.stdout).trim().to_owned();
         Ok((out.status.success() && hash.starts_with(prefix)).then_some(hash))
     }
@@ -195,7 +355,11 @@ impl Git {
     /// A commit's committer time in UTC, as `yyyymmddhhmmss`
     /// (`module.version.pseudo.commit`).
     pub fn commit_time(&self, repo: &Path, commit: &str) -> Result<String, GitError> {
-        let out = self.must(&[&git_dir(repo), "log", "-1", "--format=%ct", commit, "--"])?;
+        let out = self.must(
+            "log",
+            LOCAL_LIMIT,
+            &[&git_dir(repo), "log", "-1", "--format=%ct", commit, "--"],
+        )?;
         let seconds: i64 = out
             .trim()
             .parse()
@@ -210,13 +374,16 @@ impl Git {
         tag: &str,
         commit: &str,
     ) -> Result<TagRelation, GitError> {
-        let found = self.run(&[
-            &git_dir(repo),
+        let found = self.run(
             "rev-parse",
-            "--verify",
-            "--quiet",
-            &format!("refs/tags/{tag}^{{commit}}"),
-        ])?;
+            &[
+                &git_dir(repo),
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                &format!("refs/tags/{tag}^{{commit}}"),
+            ],
+        )?;
         if !found.status.success() {
             return Ok(TagRelation::Missing);
         }
@@ -224,13 +391,16 @@ impl Git {
         if tagged == commit {
             return Ok(TagRelation::Same);
         }
-        let ancestor = self.run(&[
-            &git_dir(repo),
+        let ancestor = self.run(
             "merge-base",
-            "--is-ancestor",
-            &tagged,
-            commit,
-        ])?;
+            &[
+                &git_dir(repo),
+                "merge-base",
+                "--is-ancestor",
+                &tagged,
+                commit,
+            ],
+        )?;
         match ancestor.status.code() {
             Some(0) => Ok(TagRelation::Descends),
             Some(1) => Ok(TagRelation::Unrelated),
@@ -255,11 +425,11 @@ impl Git {
         } else {
             format!("{rev}:{subdirectory}")
         };
-        let kind = self.run(&[&git_dir(repo), "cat-file", "-t", &tree])?;
+        let kind = self.run("cat-file", &[&git_dir(repo), "cat-file", "-t", &tree])?;
         if !kind.status.success() || String::from_utf8_lossy(&kind.stdout).trim() != "tree" {
             return Ok(false);
         }
-        let listing = self.run(&[&git_dir(repo), "ls-tree", "-r", "-z", &tree])?;
+        let listing = self.run("ls-tree", &[&git_dir(repo), "ls-tree", "-r", "-z", &tree])?;
         if !listing.status.success() {
             return Err(complaint(&listing));
         }
@@ -313,65 +483,45 @@ impl Git {
     /// The contents of the blobs of `files`, in order, from one
     /// `git cat-file --batch`.
     fn blobs(&self, repo: &Path, files: &[(String, String)]) -> Result<Vec<Vec<u8>>, GitError> {
-        let mut child = self
-            .command()
-            .args([&git_dir(repo), "cat-file", "--batch"])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| spawn_error(&e))?;
         let mut input = String::new();
         for (_, object) in files {
             input.push_str(object);
             input.push('\n');
         }
-        let mut stdin = child
-            .stdin
-            .take()
-            .ok_or_else(|| GitError("no stdin".into()))?;
-        let writer = std::thread::spawn(move || stdin.write_all(input.as_bytes()));
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or_else(|| GitError("no stdout".into()))?;
-        let mut reader = BufReader::new(stdout);
-        let mut out = Vec::with_capacity(files.len());
+        let out = self.run_limited(
+            "cat-file",
+            LOCAL_LIMIT,
+            &[&git_dir(repo), "cat-file", "--batch"],
+            Some(input.into_bytes()),
+        )?;
+        if !out.status.success() {
+            return Err(complaint(&out));
+        }
+        let mut rest = out.stdout.as_slice();
+        let mut blobs = Vec::with_capacity(files.len());
         for (path, object) in files {
-            let mut header = String::new();
-            reader
-                .read_line(&mut header)
-                .map_err(|e| GitError(e.to_string()))?;
+            let end = rest.iter().position(|&b| b == b'\n').unwrap_or(rest.len());
+            let header = String::from_utf8_lossy(&rest[..end]).into_owned();
+            let cannot = || GitError(format!("git cannot read `{path}`: {}", header.trim()));
             let size = header
-                .trim_end()
                 .strip_prefix(object.as_str())
                 .and_then(|r| r.strip_prefix(" blob "))
                 .and_then(|n| n.parse::<usize>().ok())
-                .ok_or_else(|| GitError(format!("git cannot read `{path}`: {}", header.trim())))?;
-            let mut content = vec![0; size];
-            reader
-                .read_exact(&mut content)
-                .map_err(|e| GitError(e.to_string()))?;
-            let mut newline = [0u8; 1];
-            reader
-                .read_exact(&mut newline)
-                .map_err(|e| GitError(e.to_string()))?;
-            out.push(content);
+                .ok_or_else(cannot)?;
+            let body = rest.get(end + 1..end + 1 + size).ok_or_else(cannot)?;
+            blobs.push(body.to_vec());
+            rest = rest.get(end + 2 + size..).unwrap_or_default();
         }
-        let _ = writer.join();
-        let status = child
-            .wait_with_output()
-            .map_err(|e| GitError(e.to_string()))?;
-        if !status.status.success() {
-            return Err(complaint(&status));
-        }
-        Ok(out)
+        Ok(blobs)
     }
 }
 
-/// The ssh command `hd` sets when the user set none: it never asks and
-/// gives up on a host that does not answer.
-const SSH_COMMAND: &str = "ssh -o BatchMode=yes -o ConnectTimeout=10";
+/// The ssh command `hd` sets when the user set none: it never asks, gives
+/// up on a host that does not answer, and drops a connection whose peer
+/// stops answering (about 45 seconds). A server that stays alive and says
+/// nothing is bounded by the wall-clock limit of each git command instead.
+const SSH_COMMAND: &str = "ssh -o BatchMode=yes -o ConnectTimeout=10 \
+     -o ServerAliveInterval=15 -o ServerAliveCountMax=3";
 
 /// A `git` child, run without the repository variables and in the C
 /// locale, so its messages read the same on every machine.
@@ -393,11 +543,11 @@ fn no_ssh_command() -> bool {
     {
         return false;
     }
-    let configured = git_command()
+    let mut command = git_command();
+    command
         .args(["config", "--global", "--get", "core.sshCommand"])
-        .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
+        .stdin(Stdio::null());
+    let configured = run_bounded(command, "config", LOCAL_LIMIT, None)
         .is_ok_and(|o| o.status.success() && !o.stdout.trim_ascii().is_empty());
     !configured
 }
@@ -513,7 +663,53 @@ fn utc_stamp(seconds: i64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{cause, mask_credentials, safe_path, utc_stamp};
+    use super::{cause, mask_credentials, run_bounded, safe_path, utc_stamp};
+    use std::process::Command;
+    use std::time::{Duration, Instant};
+
+    fn shell(script: &str) -> Command {
+        let mut c = Command::new("sh");
+        c.args(["-c", script]);
+        c
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_command_that_outlives_its_limit_is_killed() {
+        let start = Instant::now();
+        let err = run_bounded(shell("sleep 30"), "fetch", Duration::from_secs(1), None)
+            .expect_err("times out");
+        assert_eq!(err.0, "`git fetch` timed out after 1 second");
+        assert!(start.elapsed() < Duration::from_secs(10));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_left_behind_process_does_not_hold_the_output() {
+        let start = Instant::now();
+        let out = run_bounded(
+            shell("sleep 30 >&2 & echo done"),
+            "fetch",
+            Duration::from_secs(20),
+            None,
+        )
+        .expect("exits");
+        assert_eq!(out.stdout, b"done\n");
+        assert!(start.elapsed() < Duration::from_secs(10));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn input_reaches_the_command() {
+        let out = run_bounded(
+            shell("cat"),
+            "cat-file",
+            Duration::from_secs(20),
+            Some(b"abc\n".to_vec()),
+        )
+        .expect("exits");
+        assert_eq!(out.stdout, b"abc\n");
+    }
 
     #[test]
     fn the_cause_is_not_the_generic_trailer() {

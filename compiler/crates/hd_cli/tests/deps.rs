@@ -38,8 +38,9 @@ impl World {
     /// A fake `ssh` first on `PATH`, so no test reaches a real host, and
     /// a test sees what `hd` asked ssh for. It logs its arguments to
     /// `ssh.log`, then serves `example.com` from the test's remotes by
-    /// running the command it is given on the local path; any other host
-    /// is refused, as `Permission denied (publickey)`.
+    /// running the command it is given on the local path; `hang.example.com`
+    /// connects and then never answers; any other host is refused, as
+    /// `Permission denied (publickey)`.
     fn install_ssh(&self) {
         let bin = self.root.join("bin");
         std::fs::create_dir_all(&bin).expect("mkdir");
@@ -49,6 +50,7 @@ impl World {
             while [ \"$1\" = -o ]; do shift 2; done\n\
             case \"$1\" in\n\
             git@example.com) ;;\n\
+            git@hang.example.com) exec sleep 20 ;;\n\
             *) echo \"$1: Permission denied (publickey).\" >&2; exit 255 ;;\n\
             esac\n\
             command=$(printf '%s' \"$2\" | sed \"s|'/|'$here/../remotes/|; s|^git-upload-pack|git upload-pack|\")\n\
@@ -1029,7 +1031,9 @@ fn a_host_that_answered_over_ssh_is_tried_over_ssh_first() {
     assert_eq!(of("acme/b.git"), 2, "{calls:?}");
     for call in &calls {
         assert!(
-            call.starts_with("-o BatchMode=yes -o ConnectTimeout=10 "),
+            call.starts_with(
+                "-o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 "
+            ),
             "{call}"
         );
     }
@@ -1059,6 +1063,42 @@ fn both_urls_failing_is_one_error() {
     assert_eq!(stderr.matches("fetch-failed").count(), 1, "{stderr}");
     // git's generic trailer does not stand for the cause.
     assert!(!stderr.contains("Could not read from remote"), "{stderr}");
+}
+
+/// A server that connects and then never answers cannot hang `hd fetch`:
+/// git is killed at the limit (`HD_GIT_TIMEOUT`, 2 seconds here), and the
+/// `fetch-failed` names the URL and says it timed out.
+#[test]
+fn a_silent_server_times_out() {
+    let world = World::new("ssh-silent");
+    world.map("https://hang.example.com/", &no_remotes(&world));
+    let dir = app(
+        &world,
+        "app",
+        "text = \"hang.example.com/acme/text.git@1.0.0\"\n",
+        APP_MAIN,
+    );
+    let start = std::time::Instant::now();
+    let out = world
+        .command(env!("CARGO_BIN_EXE_hd"), &dir)
+        .env("HD_GIT_TIMEOUT", "2")
+        .arg("fetch")
+        .output()
+        .expect("hd");
+    let (_, stderr) = fails(&out);
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(15),
+        "{:?}",
+        start.elapsed()
+    );
+    for part in [
+        "fetch-failed: cannot fetch hang.example.com/acme/text.git@1.0.0: ",
+        "https://hang.example.com/acme/text.git failed: ",
+        "ssh://git@hang.example.com/acme/text.git failed: `git ls-remote` timed out after 2 seconds",
+    ] {
+        assert!(stderr.contains(part), "{part}: {stderr}");
+    }
+    assert!(!dir.join("hd.sum").exists());
 }
 
 /// An ssh command the user set stays as it is.
