@@ -293,7 +293,7 @@ data Step:
     then: fn(Step) -> i32
 
 fn weigh(step: Step) -> i32:
-    step.then(step)
+    (step.then)(step)
 
 trait Link:
     fn label(self) -> string

@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2588 | 233 | 24 | 2845 |
+| 2589 | 232 | 24 | 2845 |
 
 ## By Chapter
 
@@ -18,7 +18,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/02-grammar.md` | 205 | 10 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 100 | 1 | 0 | 101 |
 | `lang/04-type-system.md` | 319 | 33 | 0 | 352 |
-| `lang/05-expressions.md` | 253 | 24 | 0 | 277 |
+| `lang/05-expressions.md` | 254 | 23 | 0 | 277 |
 | `lang/06-control-flow.md` | 139 | 14 | 4 | 157 |
 | `lang/07-functions.md` | 119 | 11 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 113 | 9 | 1 | 123 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 97 | 5 | 3 | 105 |
 | `runtime/valid` | 899 | 11 | 19 | 929 |
-| `typing/invalid` | 886 | 188 | 1 | 1075 |
+| `typing/invalid` | 887 | 187 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -91,7 +91,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 98 |
+| `fail:no-diagnostic` | 97 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
@@ -235,7 +235,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (98)</summary>
+<details><summary><code>fail:no-diagnostic</code> (97)</summary>
 
 - `typing/invalid/tuple-map-key.hd`
 - `typing/invalid/private-type-leak.hd`
@@ -253,7 +253,6 @@ compiler stage that first declined the case.
 - `typing/invalid/generic-supertrait-upcast-mismatch.hd`
 - `typing/invalid/enum-default-requires-provider.hd`
 - `typing/invalid/duplicate-literal-match-arm.hd`
-- `typing/invalid/function-typed-field-method-call.hd`
 - `typing/invalid/inspectable-requirement-key.hd`
 - `typing/invalid/inspectable-user-implementation.hd`
 - `typing/invalid/trait-resolution-depth.hd`
@@ -2190,6 +2189,7 @@ typing/invalid/function-type-orphan-impl.hd
 typing/invalid/function-type-overlapping-impl.hd
 typing/invalid/function-type-row-unknown-trait-nested.hd
 typing/invalid/function-type-unbounded-inputs.hd
+typing/invalid/function-typed-field-method-call.hd
 typing/invalid/function-value-no-default-arguments.hd
 typing/invalid/generic-bound-unsatisfied.hd
 typing/invalid/generic-call-built-nested-mut-not-weakened.hd

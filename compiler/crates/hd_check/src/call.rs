@@ -2610,8 +2610,6 @@ impl Ck<'_, '_> {
             }
             return Ok((Ref(NONE), Ty::NEVER));
         }
-        // A field holding a function: `(x.f)(...)` is written `x.f(...)` only
-        // when no method of that name exists.
         let hit = self.resolve_method(rt, name)?;
         if matches!(
             hit,
@@ -2783,15 +2781,15 @@ impl Ck<'_, '_> {
                 )
             }
             None => {
-                // A field of function type.
-                if let Some((idx, ft)) = self.field_of(rt, name)
-                    && matches!(pool.get(self.infer.resolve(pool, ft)), TyData::Fn { .. })
-                {
-                    self.check_field_visible(rt, name, n);
-                    let f = self.b.emit(Tag::Field, recv.0, idx, ft, n.index());
-                    return self.call_value(f, ft, args, n, bang);
-                }
-                let msg = format!("no method `{name}` on {}", self.show(rt));
+                // A method call never reads a field
+                // (`expr.member.no-field-call`); a field of that name only
+                // earns the hint (`expr.member.stored-fn.hint`).
+                let advice = if self.field_of(rt, name).is_some() {
+                    format!("; to call the field, write `(x.{name})(..)`")
+                } else {
+                    String::new()
+                };
+                let msg = format!("no method `{name}` on {}{advice}", self.show(rt));
                 self.no_method(rt, name, n, &msg);
                 Ok((Ref(NONE), Ty::NEVER))
             }

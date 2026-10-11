@@ -87,6 +87,7 @@ mod slicing_run;
 mod spread_args_run;
 mod std_interfaces;
 mod std_stages;
+mod stored_fn_call;
 mod structure_run;
 mod supertrait_calls_run;
 mod suspending_closures_run;
