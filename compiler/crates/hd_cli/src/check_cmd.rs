@@ -11,7 +11,9 @@ use std::time::Instant;
 
 use hd_cache::DiskStore;
 use hd_diag::Code;
-use hd_driver::{Goal, Host, Output, build_packages};
+use hd_driver::{Goal, Host, Output};
+
+use crate::memory_cap::build_packages;
 use hd_project::{ModuleTable, Role, role_of};
 
 use crate::report::{self, Diag, Summary};

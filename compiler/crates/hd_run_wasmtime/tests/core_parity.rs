@@ -3,6 +3,7 @@
 mod support;
 
 use std::fs;
+#[cfg(unix)]
 use std::path::PathBuf;
 
 use hd_run::Limit;

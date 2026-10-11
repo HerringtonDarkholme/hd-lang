@@ -12,6 +12,7 @@ mod disk;
 mod engine;
 mod fmt_cmd;
 mod help;
+mod memory_cap;
 mod new_cmd;
 mod node;
 mod report;
@@ -23,8 +24,8 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 use hd_cache::DiskStore;
-use hd_driver::{Clock, Executor, Goal, Host, Output, build_packages};
-use hd_run::{HostSetup, Limits, Outcome};
+use hd_driver::{Clock, Executor, Goal, Host, Output};
+use hd_run::{HostSetup, Outcome};
 
 use crate::report::Reporter;
 
@@ -41,7 +42,11 @@ const USAGE: &str = "usage:
   hd remove NAME
   hd fetch
   hd fmt [--check] [FILE.hd]
-  hd test [FILE.hd] [--filter PATTERN] [--jobs N] [--update] [--format json]";
+  hd test [FILE.hd] [--filter PATTERN] [--jobs N] [--update] [--format json]
+
+  FILE.hd, FILE.wasm and hd run accept --max-heap SIZE and --time-limit DURATION
+  checking, building and running accept --max-memory SIZE (else HD_MAX_MEMORY)
+  SIZE: whole bytes or K/M/G; DURATION: whole ms/s/min/h";
 
 /// `cli.exit.hd-failure`: `hd` itself failed, or rejected its command line.
 pub(crate) const HD_FAILURE: u8 = 101;
@@ -57,11 +62,18 @@ fn usage() -> ExitCode {
 }
 
 fn main() -> ExitCode {
+    if let Err(error) = memory_cap::startup() {
+        return fail(error);
+    }
     let arguments: Vec<OsString> = std::env::args_os().skip(1).collect();
+    let (arguments, memory) = match compiler_memory_flag(&arguments) {
+        Ok(parsed) => parsed,
+        Err(error) => return fail(&error),
+    };
     let Some(command) = arguments.first().and_then(|c| c.to_str()) else {
         return usage();
     };
-    // `hd COMMAND --help`, before the program arguments' `--`.
+    // Help performs no compilation and should not arm compiler enforcement.
     let asks_help = arguments[1..]
         .iter()
         .take_while(|a| *a != "--")
@@ -69,6 +81,27 @@ fn main() -> ExitCode {
     if asks_help && let Some(text) = help::command(command) {
         print!("{text}");
         return ExitCode::SUCCESS;
+    }
+    let compiling = compiles(command, &arguments);
+    if compiling {
+        let memory = match memory {
+            Some(bytes) => Some(bytes),
+            None => match std::env::var_os("HD_MAX_MEMORY") {
+                Some(value) => match value.to_str().map(engine::parse_size) {
+                    Some(Ok(bytes)) => Some(bytes),
+                    Some(Err(error)) => return fail(&format!("HD_MAX_MEMORY: {error}")),
+                    None => return fail("HD_MAX_MEMORY is not a valid SIZE"),
+                },
+                None => None,
+            },
+        };
+        let json = (0..arguments.len())
+            .take_while(|i| arguments[*i] != "--")
+            .filter_map(|i| report::format_flag(&arguments, i))
+            .any(|flag| matches!(flag, Ok((true, _))));
+        memory_cap::arm(memory, json, !matches!(command, "build" | "check" | "test"));
+    } else if memory.is_some() {
+        return fail("--max-memory applies to checking, building and running programs");
     }
     match (command, &arguments[1..]) {
         ("help" | "--help", []) => {
@@ -112,6 +145,45 @@ fn main() -> ExitCode {
         }
         _ => usage(),
     }
+}
+
+/// Follow command dispatch: a source argument to `fmt` is not a program run.
+fn compiles(command: &str, arguments: &[OsString]) -> bool {
+    match command {
+        "run" | "build" | "check" | "test" => true,
+        "help" | "--help" | "new" | "clean" | "add" | "update" | "remove" | "fetch" | "fmt" => {
+            false
+        }
+        _ => arguments
+            .iter()
+            .take_while(|a| *a != "--")
+            .any(|a| has_extension(a, "hd") || has_extension(a, "wasm")),
+    }
+}
+
+/// Compiler options are global, but words after `--` belong to the program.
+fn compiler_memory_flag(args: &[OsString]) -> Result<(Vec<OsString>, Option<u64>), String> {
+    let mut words = Vec::with_capacity(args.len());
+    let mut memory = None;
+    let mut i = 0;
+    while i < args.len() {
+        if args[i] == "--" {
+            words.extend_from_slice(&args[i..]);
+            break;
+        }
+        if args[i] == "--max-memory" || args[i].to_string_lossy().starts_with("--max-memory=") {
+            let (flag, used) = engine::limit_flag(args, i).expect("compiler limit flag")?;
+            let engine::LimitFlag::CompilerMemory(bytes) = flag else {
+                unreachable!()
+            };
+            memory = Some(bytes);
+            i += used;
+        } else {
+            words.push(args[i].clone());
+            i += 1;
+        }
+    }
+    Ok((words, memory))
 }
 
 fn has_extension(word: &OsString, ext: &str) -> bool {
@@ -192,7 +264,8 @@ fn build_goal(
         clock: &clock,
         executor: executor(),
     };
-    let out: Output = build_packages(&host, &program.package, &program.packages(), goal);
+    let out: Output =
+        memory_cap::build_packages(&host, &program.package, &program.packages(), goal);
     let as_written = program.as_written.as_deref().filter(|_| rep.json);
     let mut diags = report::from_output(&out, as_written);
     report::relocate(&mut diags, |f| program.sources.display(f));
@@ -224,18 +297,34 @@ fn execute(
     table_dir: Option<&Path>,
     flags: &[caps::CapFlag],
     args: &[OsString],
-    (engine, release): (engine::EngineKind, bool),
+    (engine, release, limits): (engine::EngineKind, bool, engine::ProgramLimits),
     rep: &mut Reporter,
 ) -> ExitCode {
     if let Some(d) = caps::refusal(wasm, table, flags) {
         rep.diag(&d);
         return rep.finish(HD_FAILURE);
     }
+    if engine == engine::EngineKind::Node {
+        for (flag, present) in [
+            ("--max-heap", limits.heap_bytes.is_some()),
+            ("--time-limit", limits.wall_ms.is_some()),
+        ] {
+            if present {
+                rep.diag(&report::Diag::new(
+                    None,
+                    hd_diag::Severity::Warning,
+                    &format!(
+                        "{flag} is ignored on Node until W5; use --engine wasmtime for enforcement"
+                    ),
+                ));
+            }
+        }
+    }
     let cwd = std::env::current_dir().unwrap_or_default();
     let host = HostSetup {
         providers: Vec::new(),
         grants: caps::grants(table, table_dir.unwrap_or(&cwd), flags),
-        limits: Limits::default(),
+        limits: limits.into(),
         args: args
             .iter()
             .map(|a| a.to_string_lossy().into_owned())
@@ -263,6 +352,7 @@ struct FileWords {
     /// `--engine NAME`, else `HD_ENGINE`, else Node.
     engine: engine::EngineKind,
     release: bool,
+    limits: engine::ProgramLimits,
 }
 
 fn file_words(args: &[OsString]) -> Result<FileWords, String> {
@@ -273,6 +363,7 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
         program_args: Vec::new(),
         engine: engine::from_env()?,
         release: false,
+        limits: engine::ProgramLimits::default(),
     };
     let mut i = 0;
     while i < args.len() {
@@ -298,6 +389,16 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
             i += used;
             continue;
         }
+        if let Some(limit) = engine::limit_flag(args, i) {
+            let (flag, used) = limit?;
+            match flag {
+                engine::LimitFlag::Heap(bytes) => w.limits.heap_bytes = Some(bytes),
+                engine::LimitFlag::Time(ms) => w.limits.wall_ms = Some(ms),
+                engine::LimitFlag::CompilerMemory(_) => unreachable!("global flag removed"),
+            }
+            i += used;
+            continue;
+        }
         // `cli.profile.release.file`: accepted; the release profile is not
         // in codegen yet, so the build is the debug one (wasmtime compiles
         // it with its optimized pipeline).
@@ -319,8 +420,9 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
 /// `hd [--release] [--format json] [--cap NAME=VALUE]... FILE.hd [-- ARGS]`
 /// (`cli.file.run`): FILE as a single-file program.
 fn run_file_command(args: &[OsString]) -> ExitCode {
-    let Ok(w) = file_words(args) else {
-        return usage();
+    let w = match file_words(args) {
+        Ok(w) => w,
+        Err(error) => return fail(&error),
     };
     let mut rep = Reporter::stderr(w.json);
     let Some(file) = &w.file else {
@@ -338,7 +440,7 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
             program.package_dir.as_deref(),
             &w.caps,
             &w.program_args,
-            (w.engine, w.release),
+            (w.engine, w.release, w.limits),
             &mut rep,
         ),
         Err(code) => code,
@@ -393,7 +495,7 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
         None,
         &w.caps,
         &w.program_args,
-        (w.engine, w.release),
+        (w.engine, w.release, w.limits),
         &mut rep,
     )
 }
@@ -411,6 +513,7 @@ struct Words {
     packages: Vec<String>,
     /// `--engine NAME`, else `HD_ENGINE`, else Node; only `hd run` takes it.
     engine: engine::EngineKind,
+    limits: engine::ProgramLimits,
 }
 
 fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
@@ -426,6 +529,7 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         } else {
             engine::EngineKind::Node
         },
+        limits: engine::ProgramLimits::default(),
     };
     let mut i = 0;
     while i < args.len() {
@@ -458,6 +562,18 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         {
             let (flag, used) = cap?;
             w.caps.push(flag);
+            i += used;
+            continue;
+        }
+        if command == "run"
+            && let Some(limit) = engine::limit_flag(args, i)
+        {
+            let (flag, used) = limit?;
+            match flag {
+                engine::LimitFlag::Heap(bytes) => w.limits.heap_bytes = Some(bytes),
+                engine::LimitFlag::Time(ms) => w.limits.wall_ms = Some(ms),
+                engine::LimitFlag::CompilerMemory(_) => unreachable!("global flag removed"),
+            }
             i += used;
             continue;
         }
@@ -589,7 +705,7 @@ fn run_command(args: &[OsString]) -> ExitCode {
         program.package_dir.as_deref(),
         &w.caps,
         &w.program_args,
-        (w.engine, w.release),
+        (w.engine, w.release, w.limits),
         &mut rep,
     )
 }
@@ -779,4 +895,69 @@ fn build_file(file: &Path, release: bool, rep: &mut Reporter) -> Result<(), Exit
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_default();
     write_module(&root, release, true, &stem, &wasm).map_err(|e| rep.fail(&e))
+}
+
+#[cfg(test)]
+mod limit_tests {
+    use super::{compiler_memory_flag, compiles};
+    use std::ffi::OsString;
+
+    fn args(words: &[&str]) -> Vec<OsString> {
+        words.iter().map(OsString::from).collect()
+    }
+
+    #[test]
+    fn compiler_cap_follows_dispatch_not_incidental_source_arguments() {
+        for command in ["run", "build", "check", "test"] {
+            assert!(compiles(command, &args(&[command])));
+        }
+        for command in [
+            "help", "--help", "new", "clean", "add", "update", "remove", "fetch", "fmt",
+        ] {
+            assert!(!compiles(command, &args(&[command, "main.hd"])));
+        }
+        assert!(compiles("--release", &args(&["--release", "main.hd"])));
+        assert!(compiles("main.wasm", &args(&["main.wasm"])));
+        assert!(!compiles("unknown", &args(&["unknown", "--", "main.hd"])));
+    }
+
+    #[test]
+    fn compiler_flags_are_global_and_last_explicit_value_wins() {
+        let (words, memory) = compiler_memory_flag(&args(&[
+            "--max-memory",
+            "1M",
+            "check",
+            "main.hd",
+            "--max-memory=2M",
+        ]))
+        .unwrap();
+        assert_eq!(words, args(&["check", "main.hd"]));
+        assert_eq!(memory, Some(2 * 1024 * 1024));
+    }
+
+    #[test]
+    fn separator_keeps_all_program_options_untouched() {
+        let words = args(&[
+            "main.hd",
+            "--time-limit=1s",
+            "--",
+            "--max-memory=bad",
+            "--max-heap",
+            "x",
+        ]);
+        let (remaining, memory) = compiler_memory_flag(&words).unwrap();
+        assert_eq!(remaining, words);
+        assert_eq!(memory, None);
+    }
+
+    #[test]
+    fn compiler_flag_rejects_missing_invalid_and_overflowing_sizes() {
+        for words in [
+            args(&["check", "--max-memory"]),
+            args(&["check", "--max-memory=-1"]),
+            args(&["check", "--max-memory=18446744073709551615G"]),
+        ] {
+            assert!(compiler_memory_flag(&words).is_err(), "{words:?}");
+        }
+    }
 }

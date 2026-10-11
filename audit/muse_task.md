@@ -43,15 +43,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M21. Implement: Resource Limits On wasmtime (#269, Code)
-
-After M18-M20, implement your M15 design (§ of
-`engines-and-test-runner.md`): `--time-limit`, `--max-heap` and the
-other program limits on wasmtime, with the panics or errors the spec
-names. Same files as M18, plus the flag parsing in
-`compiler/crates/hd_cli/src/main.rs` (the `--engine` flag code is the
-model). Node behavior stays as is until W5.
-
 ### M22. Implement: `hd test` On wasmtime (W4, #246, Code)
 
 After M21. Implement your M9 design (`engines-and-test-runner.md` §19,

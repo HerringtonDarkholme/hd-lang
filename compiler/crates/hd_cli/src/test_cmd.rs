@@ -14,7 +14,9 @@ use std::time::Instant;
 
 use hd_cache::DiskStore;
 use hd_check::tests::PANIC_CATEGORIES;
-use hd_driver::{Executor, Goal, Host, TestCase, build_packages};
+use hd_driver::{Executor, Goal, Host, TestCase};
+
+use crate::memory_cap::build_packages;
 use hd_project::SourceSet as _;
 use hd_run::tests_model::{
     Case, CaseKey, CaseKind, CaseResult, ProgramKey, ReleaseCursor, TestPlan,

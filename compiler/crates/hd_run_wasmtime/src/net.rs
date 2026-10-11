@@ -31,6 +31,7 @@ pub const CLOSE: &[&str] = &["TcpStream.close", "TcpListener.close", "UdpSocket.
 const TICK: Duration = Duration::from_millis(5);
 const CHUNK: usize = 65536;
 const CONNECT_ATTEMPT_TIMEOUT: Duration = Duration::from_millis(250);
+const CLEANUP_TIMEOUT: Duration = Duration::from_millis(250);
 
 #[derive(Default)]
 pub struct Client {
@@ -48,6 +49,7 @@ struct Worker {
 struct Request {
     op: Op,
     reply: Sender<Outcome>,
+    deadline: Option<Instant>,
 }
 
 enum Op {
@@ -117,6 +119,7 @@ impl Client {
         self.closed.clear();
     }
 
+    #[cfg(test)]
     pub fn call(
         &mut self,
         method: &str,
@@ -124,6 +127,21 @@ impl Client {
         bytes: &[u8],
         grants: &Grants,
     ) -> wasmtime::Result<Enc> {
+        self.call_until(method, params, bytes, grants, None)
+    }
+
+    /// Synchronous guest calls remain bounded by the program's deadline.
+    pub fn call_until(
+        &mut self,
+        method: &str,
+        params: &[i64],
+        bytes: &[u8],
+        grants: &Grants,
+        deadline: Option<Instant>,
+    ) -> wasmtime::Result<Enc> {
+        if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+            return Err(Stop::TimeLimit.into());
+        }
         let mut d = Dec::new(bytes);
         let scalar = |i: usize| {
             params
@@ -196,7 +214,7 @@ impl Client {
             "TcpStream.close" | "TcpListener.close" | "UdpSocket.close" => Op::Close(scalar(0)?),
             _ => return Err(Stop::Contract(format!("unknown Net method {method}")).into()),
         };
-        let outcome = self.request(op)?;
+        let outcome = self.request(op, deadline)?;
         if let Outcome::Ok(Value::Handle(handle)) = &outcome {
             self.known
                 .insert(i64::try_from(*handle).unwrap_or(i64::MAX));
@@ -207,7 +225,7 @@ impl Client {
         encode(outcome, resource)
     }
 
-    fn request(&mut self, op: Op) -> wasmtime::Result<Outcome> {
+    fn request(&mut self, op: Op, deadline: Option<Instant>) -> wasmtime::Result<Outcome> {
         if self.worker.is_none() {
             self.worker = Some(Worker::new()?);
         }
@@ -215,11 +233,33 @@ impl Client {
         let (reply, result) = mpsc::channel();
         worker
             .requests
-            .send(Request { op, reply })
+            .send(Request {
+                op,
+                reply,
+                deadline,
+            })
             .map_err(|_| Stop::Internal("the Net worker stopped".into()))?;
-        result
-            .recv()
-            .map_err(|_| Stop::Internal("the Net worker stopped".into()).into())
+        let outcome = if let Some(deadline) = deadline {
+            match result.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
+                Ok(_) | Err(mpsc::RecvTimeoutError::Timeout) if Instant::now() >= deadline => {
+                    self.stop();
+                    return Err(Stop::TimeLimit.into());
+                }
+                Ok(outcome) => outcome,
+                Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    return Err(Stop::Internal("the Net worker stopped".into()).into());
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    self.stop();
+                    return Err(Stop::TimeLimit.into());
+                }
+            }
+        } else {
+            result
+                .recv()
+                .map_err(|_| Stop::Internal("the Net worker stopped".into()))?
+        };
+        Ok(outcome)
     }
 }
 
@@ -244,7 +284,13 @@ impl Drop for Worker {
     fn drop(&mut self) {
         self.stopped.store(true, Ordering::Relaxed);
         if let Some(thread) = self.thread.take() {
-            let _ = thread.join();
+            let until = Instant::now() + CLEANUP_TIMEOUT;
+            while !thread.is_finished() && Instant::now() < until {
+                thread::sleep(TICK);
+            }
+            if thread.is_finished() {
+                let _ = thread.join();
+            }
         }
     }
 }
@@ -375,6 +421,7 @@ fn covers_lookup(grants: &Grants, host: &str) -> bool {
 struct State {
     handles: HashMap<i64, Handle>,
     next_handle: u64,
+    deadline: Option<Instant>,
 }
 
 struct Handle {
@@ -410,9 +457,10 @@ enum SocketKind {
 impl State {
     fn serve(&mut self, requests: &Receiver<Request>, stop: &AtomicBool) {
         while !stop.load(Ordering::Relaxed) {
-            self.arrivals();
+            self.arrivals(stop);
             match requests.recv_timeout(TICK) {
                 Ok(request) => {
+                    self.deadline = request.deadline;
                     let outcome = self.run(request.op, stop);
                     let _ = request.reply.send(outcome);
                 }
@@ -444,6 +492,9 @@ impl State {
     }
 
     fn run(&mut self, op: Op, stop: &AtomicBool) -> Outcome {
+        if cancelled(stop, self.deadline) {
+            return Outcome::Error(NetError::new(4, "the socket stopped"));
+        }
         match op {
             Op::Lookup(host) => {
                 // Node preserves a literal's spelling rather than formatting
@@ -451,7 +502,7 @@ impl State {
                 if ip_literal(&host) {
                     return Outcome::Ok(Value::Addresses(vec![host]));
                 }
-                match resolve(&host, 0) {
+                match resolve(&host, 0, stop, self.deadline) {
                     Ok(addresses) => Outcome::Ok(Value::Addresses(
                         addresses.iter().map(|a| a.ip().to_string()).collect(),
                     )),
@@ -464,10 +515,13 @@ impl State {
     }
 
     fn open_at(&mut self, method: &str, host: &str, port: u16, stop: &AtomicBool) -> Outcome {
-        let addresses = match resolve(host, port) {
+        let addresses = match resolve(host, port, stop, self.deadline) {
             Ok(a) => a,
             Err(e) => return Outcome::Error(e),
         };
+        if cancelled(stop, self.deadline) {
+            return Outcome::Error(NetError::new(4, "the socket stopped"));
+        }
         if method == "connect" {
             return match self.connect_candidates(addresses, host, port, stop) {
                 Ok(socket) => self.open(stream(socket)),
@@ -508,6 +562,9 @@ impl State {
         let aggregate = attempts.len() > 1;
         let mut first_error = None;
         for attempt in attempts {
+            if cancelled(stop, self.deadline) {
+                break;
+            }
             match self.connect(attempt, stop) {
                 Ok(socket) => return Ok(socket),
                 Err(error) => {
@@ -516,7 +573,7 @@ impl State {
                     });
                 }
             }
-            if stop.load(Ordering::Relaxed) {
+            if cancelled(stop, self.deadline) {
                 break;
             }
         }
@@ -531,6 +588,9 @@ impl State {
     }
 
     fn connect(&mut self, attempt: ConnectAttempt, stop: &AtomicBool) -> io::Result<TcpStream> {
+        if cancelled(stop, self.deadline) {
+            return Err(io::ErrorKind::Interrupted.into());
+        }
         let address = attempt.address;
         let socket = Socket::new(
             Domain::for_address(address),
@@ -545,7 +605,7 @@ impl State {
         }
         let started = Instant::now();
         loop {
-            if stop.load(Ordering::Relaxed) {
+            if cancelled(stop, self.deadline) {
                 return Err(io::ErrorKind::Interrupted.into());
             }
             if let Some(error) = socket.take_error()? {
@@ -559,7 +619,7 @@ impl State {
                 // attempted, exactly as Node's automatic-family timer does.
                 return Err(io::ErrorKind::TimedOut.into());
             }
-            self.arrivals();
+            self.arrivals(stop);
             thread::sleep(TICK);
         }
     }
@@ -602,7 +662,7 @@ impl State {
                     "Port should be > 0 and < 65536. Received type number (0).",
                 ));
             }
-            let addresses = match resolve(host, *port) {
+            let addresses = match resolve(host, *port, stop, self.deadline) {
                 Ok(a) => a,
                 Err(e) => return Outcome::Error(e),
             };
@@ -633,7 +693,7 @@ impl State {
                 unreachable!()
             };
             loop {
-                if stop.load(Ordering::Relaxed) {
+                if cancelled(stop, self.deadline) {
                     return Outcome::Error(NetError::new(4, "the socket stopped"));
                 }
                 let SocketKind::Udp {
@@ -657,16 +717,16 @@ impl State {
                         ));
                     }
                 }
-                self.arrivals();
+                self.arrivals(stop);
                 thread::sleep(TICK);
             }
         }
         let mut written = 0;
         loop {
-            if stop.load(Ordering::Relaxed) {
+            if cancelled(stop, self.deadline) {
                 return Outcome::Error(NetError::new(4, "the socket stopped"));
             }
-            self.arrivals();
+            self.arrivals(stop);
             let handle = self.handles.get_mut(&number).expect("existing handle");
             match (op, &mut handle.socket) {
                 (
@@ -754,8 +814,11 @@ impl State {
         }
     }
 
-    fn arrivals(&mut self) {
+    fn arrivals(&mut self, stop: &AtomicBool) {
         for handle in self.handles.values_mut() {
+            if cancelled(stop, self.deadline) {
+                return;
+            }
             match &mut handle.socket {
                 SocketKind::Stream {
                     socket, inbox, end, ..
@@ -764,6 +827,9 @@ impl State {
                         continue;
                     }
                     for _ in 0..64 {
+                        if cancelled(stop, self.deadline) {
+                            return;
+                        }
                         let mut bytes = vec![0; CHUNK];
                         match socket.read(&mut bytes) {
                             Ok(0) => {
@@ -794,6 +860,9 @@ impl State {
                         continue;
                     }
                     for _ in 0..64 {
+                        if cancelled(stop, self.deadline) {
+                            return;
+                        }
                         match socket.accept() {
                             Ok((socket, _)) => {
                                 if let Err(error) = socket.set_nonblocking(true) {
@@ -821,6 +890,9 @@ impl State {
                         continue;
                     }
                     for _ in 0..64 {
+                        if cancelled(stop, self.deadline) {
+                            return;
+                        }
                         let mut bytes = vec![0; CHUNK];
                         match socket.recv_from(&mut bytes) {
                             Ok((n, peer)) => {
@@ -890,11 +962,58 @@ pub(crate) fn connect_attempts(addresses: Vec<SocketAddr>) -> Vec<ConnectAttempt
     ordered
 }
 
-fn resolve(host: &str, port: u16) -> Result<Vec<SocketAddr>, NetError> {
-    (host, port)
-        .to_socket_addrs()
-        .map(Iterator::collect)
-        .map_err(|_| NetError::new(2, host))
+fn cancelled(stop: &AtomicBool, deadline: Option<Instant>) -> bool {
+    stop.load(Ordering::Relaxed) || deadline.is_some_and(|deadline| Instant::now() >= deadline)
+}
+
+fn resolve(
+    host: &str,
+    port: u16,
+    stop: &AtomicBool,
+    deadline: Option<Instant>,
+) -> Result<Vec<SocketAddr>, NetError> {
+    let owned = host.to_owned();
+    resolve_lookup(host, stop, deadline, move || {
+        (owned.as_str(), port)
+            .to_socket_addrs()
+            .map(Iterator::collect)
+    })
+}
+
+fn resolve_lookup(
+    host: &str,
+    stop: &AtomicBool,
+    deadline: Option<Instant>,
+    lookup: impl FnOnce() -> io::Result<Vec<SocketAddr>> + Send + 'static,
+) -> Result<Vec<SocketAddr>, NetError> {
+    if cancelled(stop, deadline) {
+        return Err(NetError::new(4, "the socket stopped"));
+    }
+    let (reply, result) = mpsc::sync_channel(1);
+    thread::Builder::new()
+        .name("hd-net-dns".into())
+        .spawn(move || {
+            // std's OS lookup cannot be aborted. The helper owns no socket or
+            // worker state, so its late result cannot cause network side effects.
+            let _ = reply.send(lookup());
+        })
+        .map_err(|_| NetError::new(2, host))?;
+    loop {
+        if cancelled(stop, deadline) {
+            return Err(NetError::new(4, "the socket stopped"));
+        }
+        let wait = deadline.map_or(TICK, |deadline| {
+            TICK.min(deadline.saturating_duration_since(Instant::now()))
+        });
+        match result.recv_timeout(wait) {
+            Ok(_) if cancelled(stop, deadline) => {
+                return Err(NetError::new(4, "the socket stopped"));
+            }
+            Ok(result) => return result.map_err(|_| NetError::new(2, host)),
+            Err(mpsc::RecvTimeoutError::Timeout) => {}
+            Err(mpsc::RecvTimeoutError::Disconnected) => return Err(NetError::new(2, host)),
+        }
+    }
 }
 
 fn bind(method: &str, address: SocketAddr) -> io::Result<SocketKind> {
@@ -1029,17 +1148,22 @@ fn network_errno(error: &io::Error) -> (&'static str, &'static str) {
 
 #[cfg(test)]
 mod tests {
-    use super::{Client, Op, Outcome, Request, State, connect_attempts, covers_lookup, valid_host};
+    use super::{
+        Client, Op, Outcome, Request, SocketKind, State, Worker, connect_attempts, covers_lookup,
+        resolve_lookup, valid_host,
+    };
     use crate::codec::{Dec, Enc};
     use crate::host::Stop;
     use hd_run::{Grants, Limit};
     use socket2::Socket;
+    use std::collections::{HashSet, VecDeque};
     use std::io::{Read, Write};
     use std::net::{Shutdown, TcpListener, UdpSocket};
-    use std::sync::atomic::AtomicBool;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::mpsc;
     use std::thread;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     fn host_args(host: &str) -> Enc {
         let mut e = Enc::default();
@@ -1281,6 +1405,7 @@ mod tests {
             .send(Request {
                 op: Op::Read { handle, max: 1 },
                 reply,
+                deadline: None,
             })
             .unwrap();
         client.stop();
@@ -1438,5 +1563,221 @@ mod tests {
             .unwrap_err();
         assert_eq!(error.variant, 3);
         assert_eq!(error.text, format!("localhost:{}", address.port()));
+    }
+
+    #[test]
+    fn expired_program_deadline_traps_without_starting_net_worker() {
+        let mut client = Client::default();
+        let error = client
+            .call_until(
+                "lookup",
+                &[],
+                b"127.0.0.1",
+                &Grants::default(),
+                Some(Instant::now()),
+            )
+            .err()
+            .expect("program deadline traps");
+        assert!(matches!(
+            error.downcast_ref::<Stop>(),
+            Some(Stop::TimeLimit)
+        ));
+        assert!(client.worker.is_none());
+    }
+
+    #[test]
+    fn program_deadline_interrupts_read_and_backpressured_write_and_releases_stream() {
+        for writing in [false, true] {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let mut client = Client::default();
+            let handle = opened(
+                &mut client,
+                "connect",
+                listener.local_addr().unwrap().port(),
+            );
+            let (mut peer, _) = listener.accept().unwrap();
+            peer.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
+            let mut payload = Enc::default();
+            if writing {
+                socket2::SockRef::from(&peer)
+                    .set_recv_buffer_size(4096)
+                    .unwrap();
+                payload.bytes(&vec![b'x'; 16 * 1024 * 1024]);
+            }
+            let method = if writing {
+                "TcpStream.write"
+            } else {
+                "TcpStream.read"
+            };
+            let start = Instant::now();
+            let error = client
+                .call_until(
+                    method,
+                    &[handle, 1],
+                    payload.done(),
+                    &Grants::default(),
+                    Some(start + Duration::from_millis(50)),
+                )
+                .err()
+                .expect("program deadline traps");
+            assert!(matches!(
+                error.downcast_ref::<Stop>(),
+                Some(Stop::TimeLimit)
+            ));
+            assert!(
+                client.worker.is_none(),
+                "timeout stops and releases guest's socket owner"
+            );
+            assert!(start.elapsed() < Duration::from_millis(500));
+            if !writing {
+                assert_eq!(
+                    peer.read(&mut [0; 1]).unwrap(),
+                    0,
+                    "read cancellation closes peer stream"
+                );
+            }
+        }
+    }
+
+    fn client_with_bound_socket(socket: SocketKind) -> Client {
+        let mut state = State::default();
+        assert!(matches!(
+            state.open(socket),
+            Outcome::Ok(super::Value::Handle(1))
+        ));
+        let (requests, input) = mpsc::channel();
+        let stopped = Arc::new(AtomicBool::new(false));
+        let stop = Arc::clone(&stopped);
+        let thread = thread::spawn(move || state.serve(&input, &stop));
+        Client {
+            worker: Some(Worker {
+                requests,
+                stopped,
+                thread: Some(thread),
+            }),
+            known: [1].into_iter().collect(),
+            closed: HashSet::default(),
+        }
+    }
+
+    #[test]
+    fn program_deadline_interrupts_accept_and_releases_listener_before_returning() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let mut client = client_with_bound_socket(SocketKind::Listener {
+            socket: Some(listener),
+            inbox: VecDeque::default(),
+            end: None,
+        });
+        let start = Instant::now();
+        let error = client
+            .call_until(
+                "TcpListener.accept",
+                &[1],
+                &[],
+                &Grants::default(),
+                Some(start + Duration::from_millis(50)),
+            )
+            .err()
+            .expect("program deadline traps");
+        assert!(matches!(
+            error.downcast_ref::<Stop>(),
+            Some(Stop::TimeLimit)
+        ));
+        assert!(start.elapsed() < Duration::from_millis(500));
+        assert!(client.worker.is_none());
+        TcpListener::bind(address).expect("deadline cleanup releases listener immediately");
+    }
+
+    #[test]
+    fn program_deadline_interrupts_receive_and_releases_udp_before_returning() {
+        let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let address = socket.local_addr().unwrap();
+        socket.set_nonblocking(true).unwrap();
+        let mut client = client_with_bound_socket(SocketKind::Udp {
+            socket: Some(socket),
+            inbox: VecDeque::default(),
+            end: None,
+            ipv6: false,
+        });
+        let start = Instant::now();
+        let error = client
+            .call_until(
+                "UdpSocket.receive",
+                &[1, 1],
+                &[],
+                &Grants::default(),
+                Some(start + Duration::from_millis(50)),
+            )
+            .err()
+            .expect("program deadline traps");
+        assert!(matches!(
+            error.downcast_ref::<Stop>(),
+            Some(Stop::TimeLimit)
+        ));
+        assert!(start.elapsed() < Duration::from_millis(500));
+        assert!(client.worker.is_none());
+        UdpSocket::bind(address).expect("deadline cleanup releases UDP socket immediately");
+    }
+
+    #[test]
+    fn blocked_os_lookup_does_not_hold_deadline_or_stop_cleanup() {
+        for stop_lookup in [false, true] {
+            let stop = Arc::new(AtomicBool::new(false));
+            let cancel = Arc::clone(&stop);
+            let (ready, arrived) = mpsc::channel();
+            let (release, released) = mpsc::channel();
+            let (finished, completion) = mpsc::channel();
+            let stopper = thread::spawn(move || {
+                arrived.recv_timeout(Duration::from_secs(1)).unwrap();
+                if stop_lookup {
+                    cancel.store(true, Ordering::Relaxed);
+                }
+            });
+            let start = Instant::now();
+            let deadline = (!stop_lookup).then_some(start + Duration::from_millis(20));
+            let error = resolve_lookup("local.test", &stop, deadline, move || {
+                ready.send(()).unwrap();
+                let _ = released.recv_timeout(Duration::from_secs(2));
+                let _ = finished.send(());
+                Ok(vec!["127.0.0.1:9".parse().unwrap()])
+            })
+            .expect_err("blocked lookup is cancelled");
+            assert_eq!(error.variant, 4);
+            assert_eq!(error.text, "the socket stopped");
+            assert!(start.elapsed() < Duration::from_millis(500));
+            assert_eq!(completion.try_recv(), Err(mpsc::TryRecvError::Empty));
+            release.send(()).unwrap();
+            completion.recv_timeout(Duration::from_secs(1)).unwrap();
+            stopper.join().unwrap();
+        }
+    }
+
+    #[test]
+    fn expired_resolution_and_connection_candidates_do_not_open_sockets() {
+        let stop = AtomicBool::new(false);
+        let deadline = Some(Instant::now());
+        let error = resolve_lookup("local.test", &stop, deadline, || {
+            panic!("expired request must not invoke OS lookup")
+        })
+        .expect_err("expired lookup");
+        assert_eq!(error.variant, 4);
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let address = listener.local_addr().unwrap();
+        let mut state = State {
+            deadline,
+            ..State::default()
+        };
+        assert!(
+            state
+                .connect_candidates(vec![address], "127.0.0.1", address.port(), &stop)
+                .is_err()
+        );
+        assert_eq!(
+            listener.accept().unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
     }
 }

@@ -1,8 +1,11 @@
 //! Random, Sys and Process providers of the Node default host profile.
 
 use std::io::{self, Read, Write};
+#[cfg(not(any(unix, windows)))]
+use std::process::Stdio;
 #[cfg(not(unix))]
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Command};
+use std::time::{Duration, Instant};
 
 use hd_run::Grants;
 
@@ -69,6 +72,24 @@ fn sys_read(name: &str, grants: &Grants, read: impl FnOnce(&mut Enc) -> bool) ->
 }
 
 pub fn process(bytes: &[u8], grants: &Grants) -> wasmtime::Result<Enc> {
+    process_impl(bytes, grants, None)
+}
+
+pub fn process_with_deadline(
+    bytes: &[u8],
+    grants: &Grants,
+    deadline: Option<Instant>,
+) -> wasmtime::Result<Enc> {
+    match deadline {
+        Some(deadline) => process_impl(bytes, grants, Some(deadline)),
+        None => process(bytes, grants),
+    }
+}
+
+fn process_impl(bytes: &[u8], grants: &Grants, deadline: Option<Instant>) -> wasmtime::Result<Enc> {
+    if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+        return Err(Stop::TimeLimit.into());
+    }
     let mut d = Dec::new(bytes);
     let name = d.str()?;
     let argv = d.strings()?;
@@ -86,7 +107,16 @@ pub fn process(bytes: &[u8], grants: &Grants) -> wasmtime::Result<Enc> {
         e.leb(1).leb(3).str(&message);
         return Ok(e);
     }
-    match run_process(&name, &argv, input) {
+    let result = match deadline {
+        Some(deadline) => {
+            run_process_with_limit_and_deadline(&name, &argv, input, 1 << 30, Some(deadline))
+        }
+        None => run_process(&name, &argv, input),
+    };
+    if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+        return Err(Stop::TimeLimit.into());
+    }
+    match result {
         Ok((out, err, status)) => {
             e.leb(0)
                 .str(&String::from_utf8_lossy(&out))
@@ -179,6 +209,19 @@ fn run_process_with_limit(
     input: &[u8],
     output_limit: usize,
 ) -> io::Result<(Vec<u8>, Vec<u8>, i64)> {
+    run_process_with_limit_and_deadline(name, argv, input, output_limit, None)
+}
+
+fn run_process_with_limit_and_deadline(
+    name: &str,
+    argv: &[String],
+    input: &[u8],
+    output_limit: usize,
+    deadline: Option<Instant>,
+) -> io::Result<(Vec<u8>, Vec<u8>, i64)> {
+    if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+        return Err(io::ErrorKind::TimedOut.into());
+    }
     let Spawned {
         mut child,
         mut stdin,
@@ -191,32 +234,23 @@ fn run_process_with_limit(
         let (tx, rx) = std::sync::mpsc::channel();
         let out_tx = tx.clone();
         let err_tx = tx.clone();
+        let input_tx = tx.clone();
         let out_count = &count;
         let err_count = &count;
         let stop = &cancelled;
         let out = scope.spawn(move || drain(&mut *stdout, out_count, &out_tx, output_limit, stop));
         let err = scope.spawn(move || drain(&mut *stderr, err_count, &err_tx, output_limit, stop));
-        let writer = scope.spawn(move || feed_input(&mut *stdin, input, stop));
+        let writer = scope.spawn(move || {
+            let result = feed_input(&mut *stdin, input, stop);
+            let _ = input_tx.send(ReadEvent::Done);
+            result
+        });
         drop(tx);
         // A reader reports overflow immediately; kill before joining
         // readers, otherwise a child with infinite output would hang.
         // Also stop all three pipe workers: descendants can retain the
         // quiet pipes even after the direct child exits.
-        let mut overflow = false;
-        for event in rx {
-            match event {
-                ReadEvent::Done => (),
-                ReadEvent::Overflow => {
-                    overflow = true;
-                    let _ = kill_process(&mut child);
-                }
-                ReadEvent::Failed => {
-                    cancelled.store(true, std::sync::atomic::Ordering::Relaxed);
-                    let _ = kill_process(&mut child);
-                }
-            }
-        }
-        let status = wait_process(&mut child)?;
+        let result = wait_process_and_pipes(&mut child, &rx, &cancelled, deadline);
         let input_result = writer
             .join()
             .map_err(|_| io::Error::other("stdin thread panicked"))?;
@@ -226,6 +260,7 @@ fn run_process_with_limit(
         let err = err
             .join()
             .map_err(|_| io::Error::other("stderr thread panicked"))?;
+        let (status, overflow) = result?;
         if overflow {
             return Err(io::Error::from(io::ErrorKind::FileTooLarge));
         }
@@ -234,6 +269,74 @@ fn run_process_with_limit(
         input_result?;
         Ok((out?, err?, status))
     })
+}
+
+/// Keep checking the child even after every stdio pipe has closed. A child
+/// can close its pipes, ignore SIGTERM, and keep running indefinitely.
+fn wait_process_and_pipes(
+    child: &mut Process,
+    rx: &std::sync::mpsc::Receiver<ReadEvent>,
+    cancelled: &std::sync::atomic::AtomicBool,
+    deadline: Option<Instant>,
+) -> io::Result<(i64, bool)> {
+    use std::sync::mpsc::RecvTimeoutError;
+
+    let mut status = None;
+    let mut disconnected = false;
+    let mut overflow = false;
+    loop {
+        if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+            cancelled.store(true, std::sync::atomic::Ordering::Relaxed);
+            // Never signal an already-reaped PID, which might have been reused.
+            if status.is_none() {
+                let _ = force_kill_process(child);
+                wait_process(child)?;
+            }
+            return Err(io::ErrorKind::TimedOut.into());
+        }
+        if status.is_none() {
+            match try_wait_process(child) {
+                Ok(result) => status = result,
+                Err(error) => {
+                    cancelled.store(true, std::sync::atomic::Ordering::Relaxed);
+                    let _ = force_kill_process(child);
+                    let _ = wait_process(child);
+                    return Err(error);
+                }
+            }
+        }
+        if disconnected && let Some(status) = status {
+            return Ok((status, overflow));
+        }
+        let wait = deadline.map_or(Duration::from_millis(50), |deadline| {
+            deadline
+                .saturating_duration_since(Instant::now())
+                .min(Duration::from_millis(50))
+        });
+        if disconnected {
+            // recv_timeout returns immediately after disconnection; avoid a
+            // busy wait while a child runs with all of its pipes closed.
+            std::thread::sleep(wait);
+            continue;
+        }
+        match rx.recv_timeout(wait) {
+            Ok(ReadEvent::Done) | Err(RecvTimeoutError::Timeout) => (),
+            Ok(ReadEvent::Overflow) => {
+                overflow = true;
+                cancelled.store(true, std::sync::atomic::Ordering::Relaxed);
+                if status.is_none() {
+                    let _ = kill_process(child);
+                }
+            }
+            Ok(ReadEvent::Failed) => {
+                cancelled.store(true, std::sync::atomic::Ordering::Relaxed);
+                if status.is_none() {
+                    let _ = kill_process(child);
+                }
+            }
+            Err(RecvTimeoutError::Disconnected) => disconnected = true,
+        }
+    }
 }
 
 #[cfg(unix)]
@@ -266,7 +369,32 @@ struct Spawned {
     stderr: Box<dyn ReadPipe>,
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+fn spawn_process(name: &str, argv: &[String]) -> io::Result<Spawned> {
+    use crate::windows_pipe::Pipe;
+
+    // Parent ends are synchronous nonblocking pipes; the child ends stay
+    // ordinary synchronous blocking stdio. Use this transport even without a
+    // deadline, so overflow can close quiet inherited pipes without a relay
+    // thread or a blocking flush during teardown.
+    let (stdin, child_stdin) = Pipe::child_pair(false)?;
+    let (stdout, child_stdout) = Pipe::child_pair(true)?;
+    let (stderr, child_stderr) = Pipe::child_pair(true)?;
+    let child = Command::new(name)
+        .args(argv)
+        .stdin(child_stdin)
+        .stdout(child_stdout)
+        .stderr(child_stderr)
+        .spawn()?;
+    Ok(Spawned {
+        child,
+        stdin: Box::new(stdin),
+        stdout: Box::new(stdout),
+        stderr: Box::new(stderr),
+    })
+}
+
+#[cfg(not(any(unix, windows)))]
 fn spawn_process(name: &str, argv: &[String]) -> io::Result<Spawned> {
     let mut child = Command::new(name)
         .args(argv)
@@ -432,6 +560,37 @@ fn kill_process(child: &mut Process) -> io::Result<()> {
     nix::sys::signal::kill(*child, nix::sys::signal::Signal::SIGTERM).map_err(io::Error::from)
 }
 
+#[cfg(unix)]
+fn force_kill_process(child: &mut Process) -> io::Result<()> {
+    nix::sys::signal::kill(*child, nix::sys::signal::Signal::SIGKILL).map_err(io::Error::from)
+}
+
+#[cfg(not(unix))]
+fn force_kill_process(child: &mut Process) -> io::Result<()> {
+    child.kill()
+}
+
+#[cfg(unix)]
+fn try_wait_process(child: &mut Process) -> io::Result<Option<i64>> {
+    use nix::sys::wait::{WaitPidFlag, WaitStatus, waitpid};
+    loop {
+        match waitpid(*child, Some(WaitPidFlag::WNOHANG)) {
+            Ok(WaitStatus::Exited(_, status)) => return Ok(Some(i64::from(status))),
+            Ok(WaitStatus::Signaled(..)) => return Ok(Some(128)),
+            Ok(_) => return Ok(None),
+            Err(nix::errno::Errno::EINTR) => (),
+            Err(error) => return Err(error.into()),
+        }
+    }
+}
+
+#[cfg(not(unix))]
+fn try_wait_process(child: &mut Process) -> io::Result<Option<i64>> {
+    child
+        .try_wait()
+        .map(|status| status.map(|status| i64::from(status.code().unwrap_or(128))))
+}
+
 #[cfg(not(unix))]
 fn kill_process(child: &mut Process) -> io::Result<()> {
     child.kill()
@@ -502,6 +661,12 @@ fn feed_input(
             Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
                 wait_pipe(output.as_fd(), nix::poll::PollFlags::POLLOUT, cancelled)?;
             }
+            #[cfg(windows)]
+            Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                // Named pipes have no safe readiness API here. Poll only on
+                // backpressure, never delay successfully flowing bytes.
+                std::thread::sleep(Duration::from_millis(5));
+            }
             Err(err) => return Err(err),
         }
     }
@@ -527,6 +692,11 @@ fn drain(
                 #[cfg(unix)]
                 Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
                     wait_pipe(input.as_fd(), nix::poll::PollFlags::POLLIN, cancelled)?;
+                    continue;
+                }
+                #[cfg(windows)]
+                Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(Duration::from_millis(5));
                     continue;
                 }
                 result => result?,
@@ -641,9 +811,197 @@ mod tests {
         );
     }
 
+    #[cfg(windows)]
+    mod windows {
+        use super::super::{process_error, run_process, run_process_with_limit_and_deadline};
+        use std::io::{self, Read, Write};
+        use std::path::PathBuf;
+        use std::process::{Command, Stdio};
+        use std::time::{Duration, Instant};
+
+        fn fixture_args(name: &str, path: Option<&std::path::Path>) -> Vec<String> {
+            let mut args = vec![
+                "--exact".into(),
+                format!("core::tests::windows::{name}"),
+                "--ignored".into(),
+                "--nocapture".into(),
+            ];
+            if let Some(path) = path {
+                // libtest accepts arbitrary skip filters. This one never
+                // matches the selected fixture and carries its private path
+                // without mutating the parent process's environment.
+                args.extend([
+                    "--skip".into(),
+                    format!("hd-process-fixture:{}", path.display()),
+                ]);
+            }
+            args
+        }
+
+        fn fixture_path() -> PathBuf {
+            std::env::args()
+                .find_map(|arg| arg.strip_prefix("hd-process-fixture:").map(PathBuf::from))
+                .expect("child fixture path")
+        }
+
+        fn fixture_watchdog() {
+            // A broken implementation must not leave this test executable
+            // alive indefinitely, even if the external assertion fires.
+            std::thread::spawn(|| {
+                std::thread::sleep(Duration::from_secs(8));
+                std::process::exit(99);
+            });
+        }
+
+        fn bounded(test: impl FnOnce() + Send + 'static) {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let worker = std::thread::spawn(move || {
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(test));
+                let _ = tx.send(result);
+            });
+            let result = rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("Windows Process fixture blocked");
+            worker.join().unwrap();
+            if let Err(panic) = result {
+                std::panic::resume_unwind(panic);
+            }
+        }
+
+        #[test]
+        fn no_limit_process_preserves_binary_output_input_and_exit_status() {
+            bounded(|| {
+                let input = vec![b'x'; 262_144];
+                let (out, err, status) = run_process(
+                    std::env::current_exe().unwrap().to_str().unwrap(),
+                    &fixture_args("child_echo", None),
+                    &input,
+                )
+                .unwrap();
+                // libtest prints a short preamble before running the fixture.
+                // The payload itself must remain binary-exact, not normalized.
+                let payload = &out[out.len() - 524_288..];
+                assert!(payload[..262_144].iter().all(|byte| *byte == 0xff));
+                assert_eq!(&payload[262_144..], input);
+                assert_eq!(err, vec![0; 262_144]);
+                assert_eq!(status, 23);
+            });
+        }
+
+        #[test]
+        fn no_limit_process_reports_epipe_when_the_child_closes_stdin() {
+            bounded(|| {
+                let error = run_process(
+                    std::env::current_exe().unwrap().to_str().unwrap(),
+                    &fixture_args("child_exit", None),
+                    &vec![0; 262_144],
+                )
+                .unwrap_err();
+                assert_eq!(process_error(&error), "EPIPE");
+            });
+        }
+
+        #[test]
+        fn deadline_closes_quiet_pipes_inherited_after_the_direct_child_exits() {
+            let path = std::env::temp_dir().join(format!(
+                "hd-process-windows-descendant-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            let args = fixture_args("child_descendant", Some(&path));
+            let start = Instant::now();
+            let deadline = start + Duration::from_secs(2);
+            let (tx, rx) = std::sync::mpsc::channel();
+            let worker = std::thread::spawn(move || {
+                let result = run_process_with_limit_and_deadline(
+                    std::env::current_exe().unwrap().to_str().unwrap(),
+                    &args,
+                    &vec![0; 262_144],
+                    8192,
+                    Some(deadline),
+                );
+                let _ = tx.send(result);
+            });
+            let result = rx.recv_timeout(Duration::from_secs(5));
+            let elapsed = start.elapsed();
+            let ready = path.with_extension("ready").is_file();
+            // Release only our own descendant even if cancellation regresses.
+            // It polls this file and also has an independent eight-second
+            // watchdog. No taskkill quoting or unsafe handle APIs are needed.
+            std::fs::write(&path, []).unwrap();
+            worker.join().unwrap();
+            let cleanup_deadline = Instant::now() + Duration::from_secs(1);
+            while !path.with_extension("closed").is_file() && Instant::now() < cleanup_deadline {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            let closed = path.with_extension("closed").is_file();
+            let _ = std::fs::remove_file(path.with_extension("ready"));
+            let _ = std::fs::remove_file(path.with_extension("closed"));
+            std::fs::remove_file(path).unwrap();
+            assert!(
+                ready,
+                "fixture failed to create its inherited-pipe descendant"
+            );
+            assert_eq!(result.unwrap().unwrap_err().kind(), io::ErrorKind::TimedOut);
+            assert!(elapsed < Duration::from_secs(3));
+            assert!(closed, "fixture descendant did not acknowledge cleanup");
+        }
+
+        #[test]
+        #[ignore = "subprocess fixture, invoked by the Windows Process tests"]
+        fn child_echo() {
+            fixture_watchdog();
+            io::stdout().write_all(&vec![0xff; 262_144]).unwrap();
+            io::stderr().write_all(&vec![0; 262_144]).unwrap();
+            let mut input = Vec::new();
+            io::stdin().read_to_end(&mut input).unwrap();
+            io::stdout().write_all(&input).unwrap();
+            std::process::exit(23);
+        }
+
+        #[test]
+        #[ignore = "subprocess fixture, invoked by the Windows Process tests"]
+        fn child_exit() {
+            std::process::exit(0);
+        }
+
+        #[test]
+        #[ignore = "subprocess fixture, invoked by the Windows Process tests"]
+        fn child_descendant() {
+            fixture_watchdog();
+            let path = fixture_path();
+            let _descendant = Command::new(std::env::current_exe().unwrap())
+                .args(fixture_args("child_quiet", Some(&path)))
+                .stdin(Stdio::inherit())
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
+                .spawn()
+                .unwrap();
+            std::fs::write(path.with_extension("ready"), []).unwrap();
+            std::process::exit(0);
+        }
+
+        #[test]
+        #[ignore = "subprocess fixture, invoked by the Windows Process tests"]
+        fn child_quiet() {
+            fixture_watchdog();
+            let path = fixture_path();
+            while !path.is_file() {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            std::fs::write(path.with_extension("closed"), []).unwrap();
+            std::process::exit(0);
+        }
+    }
+
     #[cfg(unix)]
     mod unix {
-        use super::super::{process_error, run_process, run_process_with_limit};
+        use super::super::{
+            process_error, run_process, run_process_with_limit, run_process_with_limit_and_deadline,
+        };
         use std::io;
 
         fn shell(script: &str) -> Vec<String> {
@@ -737,6 +1095,203 @@ mod tests {
             std::fs::remove_file(pid_file).unwrap();
             worker.join().unwrap();
             assert_eq!(process_error(&result.unwrap().unwrap_err()), "ENOBUFS");
+        }
+
+        #[test]
+        fn overflow_event_itself_cancels_inherited_quiet_pipe_workers() {
+            use super::super::{
+                ReadEvent, Spawned, drain, feed_input, spawn_process, wait_pipe,
+                wait_process_and_pipes,
+            };
+            use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+            let pid_file = std::env::temp_dir().join(format!(
+                "hd-process-overflow-event-{}-{}.pid",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            let args = vec![
+                "-c".into(),
+                "exec 3<&0; sleep 30 0<&3 1>/dev/null & \
+                 printf '%s' \"$!\" > \"$1\"; printf 123456789; wait"
+                    .into(),
+                "hd-overflow-event-test".into(),
+                pid_file.to_str().unwrap().into(),
+            ];
+            let start = std::time::Instant::now();
+            let (completed, completion) = std::sync::mpsc::channel();
+            let worker = std::thread::spawn(move || {
+                let Spawned {
+                    mut child,
+                    mut stdin,
+                    mut stdout,
+                    mut stderr,
+                } = spawn_process("/bin/sh", &args).unwrap();
+                let cancelled = AtomicBool::new(false);
+                let count = AtomicUsize::new(0);
+                let result = std::thread::scope(|scope| {
+                    let (tx, rx) = std::sync::mpsc::channel();
+                    let reader_tx = tx.clone();
+                    let writer_tx = tx.clone();
+                    let stop = &cancelled;
+                    let count = &count;
+                    let reader =
+                        scope.spawn(move || drain(&mut *stderr, count, &reader_tx, 8, stop));
+                    let writer = scope.spawn(move || {
+                        let result = feed_input(&mut *stdin, &vec![0; 262_144], stop);
+                        let _ = writer_tx.send(ReadEvent::Done);
+                        result
+                    });
+                    let mut bytes = [0; 9];
+                    let mut length = 0;
+                    while length < bytes.len() {
+                        match stdout.read(&mut bytes[length..]) {
+                            Ok(0) => panic!("child closed stdout before producing overflow"),
+                            Ok(n) => length += n,
+                            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                                wait_pipe(stdout.as_fd(), nix::poll::PollFlags::POLLIN, stop)
+                                    .unwrap();
+                            }
+                            Err(error) => panic!("reading child overflow: {error}"),
+                        }
+                    }
+                    assert_eq!(&bytes, b"123456789");
+                    assert!(!cancelled.load(Ordering::Relaxed));
+                    // Deliberately do NOT pre-set cancellation in the producer:
+                    // the controller must make an overflow event sufficient.
+                    tx.send(ReadEvent::Overflow).unwrap();
+                    drop(tx);
+                    let result = wait_process_and_pipes(&mut child, &rx, stop, None);
+                    reader.join().unwrap().unwrap();
+                    writer.join().unwrap().unwrap();
+                    result
+                });
+                completed
+                    .send((result, cancelled.load(Ordering::Relaxed)))
+                    .unwrap();
+            });
+            let result = completion.recv_timeout(std::time::Duration::from_secs(2));
+            // This external bound also releases the fixture if the controller
+            // forgets cancellation, leaving quiet descendant pipes blocked.
+            let pid = std::fs::read_to_string(&pid_file)
+                .unwrap()
+                .parse::<i32>()
+                .unwrap();
+            let _ = nix::sys::signal::kill(
+                nix::unistd::Pid::from_raw(pid),
+                nix::sys::signal::Signal::SIGKILL,
+            );
+            worker.join().unwrap();
+            std::fs::remove_file(pid_file).unwrap();
+            let (status, cancelled) = result.unwrap();
+            assert_eq!(status.unwrap(), (128, true));
+            assert!(cancelled);
+            assert!(start.elapsed() < std::time::Duration::from_secs(1));
+        }
+
+        #[test]
+        fn deadline_kills_and_reaps_a_term_ignoring_child_after_all_pipes_close() {
+            let pid_file = std::env::temp_dir().join(format!(
+                "hd-process-deadline-child-{}-{}.pid",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            let script = "trap '' TERM; printf '%s' \"$$\" > \"$1\"; \
+                          exec 0<&- 1>&- 2>&-; while :; do :; done";
+            let args = vec![
+                "-c".into(),
+                script.into(),
+                "hd-deadline-test".into(),
+                pid_file.to_str().unwrap().into(),
+            ];
+            let start = std::time::Instant::now();
+            let deadline = start + std::time::Duration::from_millis(250);
+            let (tx, rx) = std::sync::mpsc::channel();
+            let worker = std::thread::spawn(move || {
+                let result = run_process_with_limit_and_deadline(
+                    "/bin/sh",
+                    &args,
+                    &[],
+                    8192,
+                    Some(deadline),
+                );
+                let _ = tx.send(result);
+            });
+            let result = rx.recv_timeout(std::time::Duration::from_secs(2));
+            let pid = nix::unistd::Pid::from_raw(
+                std::fs::read_to_string(&pid_file)
+                    .unwrap()
+                    .parse::<i32>()
+                    .unwrap(),
+            );
+            // On regression, release this test's child before joining the
+            // worker, so failure cannot leave a TERM-ignoring busy loop behind.
+            if result.is_err() {
+                let _ = nix::sys::signal::kill(pid, nix::sys::signal::Signal::SIGKILL);
+            }
+            worker.join().unwrap();
+            std::fs::remove_file(pid_file).unwrap();
+            assert_eq!(result.unwrap().unwrap_err().kind(), io::ErrorKind::TimedOut);
+            assert!(start.elapsed() < std::time::Duration::from_secs(1));
+            assert_eq!(
+                nix::sys::wait::waitpid(pid, Some(nix::sys::wait::WaitPidFlag::WNOHANG)),
+                Err(nix::errno::Errno::ECHILD),
+                "the deadline path must reap its direct child"
+            );
+        }
+
+        #[test]
+        fn deadline_cancels_inherited_quiet_pipes_after_the_direct_child_exits() {
+            let pid_file = std::env::temp_dir().join(format!(
+                "hd-process-deadline-descendant-{}-{}.pid",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            let args = vec![
+                "-c".into(),
+                "exec 3<&0; sleep 30 0<&3 1>/dev/null & \
+                 printf '%s' \"$!\" > \"$1\"; exit 0"
+                    .into(),
+                "hd-deadline-test".into(),
+                pid_file.to_str().unwrap().into(),
+            ];
+            let start = std::time::Instant::now();
+            let deadline = start + std::time::Duration::from_millis(250);
+            let (tx, rx) = std::sync::mpsc::channel();
+            let worker = std::thread::spawn(move || {
+                let result = run_process_with_limit_and_deadline(
+                    "/bin/sh",
+                    &args,
+                    &vec![0; 262_144],
+                    8192,
+                    Some(deadline),
+                );
+                let _ = tx.send(result);
+            });
+            let result = rx.recv_timeout(std::time::Duration::from_secs(2));
+            // The descendant is intentionally independent of the direct
+            // child. Release the fixture even if cancellation regresses.
+            let pid = std::fs::read_to_string(&pid_file)
+                .unwrap()
+                .parse::<i32>()
+                .unwrap();
+            let _ = nix::sys::signal::kill(
+                nix::unistd::Pid::from_raw(pid),
+                nix::sys::signal::Signal::SIGKILL,
+            );
+            worker.join().unwrap();
+            std::fs::remove_file(pid_file).unwrap();
+            assert_eq!(result.unwrap().unwrap_err().kind(), io::ErrorKind::TimedOut);
+            assert!(start.elapsed() < std::time::Duration::from_secs(1));
         }
 
         #[test]

@@ -23,7 +23,7 @@
 
 use std::collections::HashSet;
 use std::io::{BufRead, Write};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use hd_run::Grants;
 use wasmtime::{Caller, FuncType, Linker, Memory, Val, ValType};
@@ -64,6 +64,8 @@ pub enum Stop {
     Deadlock,
     /// The exchange buffer cannot grow: the `heap-exhausted` panic.
     HeapExhausted,
+    /// The program's wall-clock deadline has elapsed.
+    TimeLimit,
     /// A bug in std or the host (Node throws a JS error here).
     Internal(String),
 }
@@ -74,6 +76,7 @@ impl std::fmt::Display for Stop {
             Stop::Contract(m) | Stop::Internal(m) => f.write_str(m),
             Stop::Deadlock => f.write_str("deadlock"),
             Stop::HeapExhausted => f.write_str("the exchange buffer cannot grow"),
+            Stop::TimeLimit => f.write_str("the program exceeded its time limit"),
         }
     }
 }
@@ -102,11 +105,20 @@ pub struct Host {
     noticed: HashSet<String>,
     http: http::Client,
     net: net::Client,
+    pub(crate) heap: crate::limits::HeapBudget,
+    deadline: Option<Instant>,
 }
 
 impl Host {
     #[must_use]
-    pub fn new(io: HostIo, args: Vec<String>, program: String, grants: Grants) -> Host {
+    pub fn new(
+        io: HostIo,
+        args: Vec<String>,
+        program: String,
+        grants: Grants,
+        wall_ms: Option<u64>,
+        memory_bytes: u64,
+    ) -> Host {
         Host {
             out_stream: io.out,
             err_stream: io.err,
@@ -120,7 +132,23 @@ impl Host {
             noticed: HashSet::new(),
             http: http::Client::default(),
             net: net::Client::default(),
+            heap: crate::limits::HeapBudget::new(memory_bytes),
+            deadline: wall_ms.and_then(|ms| Instant::now().checked_add(Duration::from_millis(ms))),
         }
+    }
+
+    pub fn deadline(&self) -> Option<Instant> {
+        self.deadline
+    }
+
+    pub fn check_deadline(&self) -> wasmtime::Result<()> {
+        if self
+            .deadline
+            .is_some_and(|deadline| Instant::now() >= deadline)
+        {
+            return Err(Stop::TimeLimit.into());
+        }
+        Ok(())
     }
 
     /// Releases the run's sockets and HTTP worker guard at its end, even
@@ -154,9 +182,11 @@ impl Host {
     }
 
     /// Waits for the next completion; `false` when nothing is pending.
-    #[must_use]
-    pub fn wait(&self) -> bool {
-        self.reactor.wait()
+    pub fn wait(&self) -> wasmtime::Result<bool> {
+        self.check_deadline()?;
+        let waiting = self.reactor.wait_until(self.deadline);
+        self.check_deadline()?;
+        Ok(waiting)
     }
 }
 
@@ -167,6 +197,7 @@ pub fn complete(
 ) -> wasmtime::Result<Vec<i32>> {
     let mut cx = caller.as_context_mut();
     let host = cx.data_mut();
+    host.check_deadline()?;
     let handles = host.reactor.due(&mut host.out);
     if !handles.is_empty() {
         let bytes: Vec<u8> = handles.iter().flat_map(|h| h.to_le_bytes()).collect();
@@ -393,7 +424,8 @@ fn int_val(ty: &ValType, v: i64) -> Val {
 }
 
 fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::Result<Ret> {
-    Ok(match kind {
+    caller.data().check_deadline()?;
+    let result = match kind {
         Kind::Fs { finish: true, .. } | Kind::NeverFinish => {
             return Err(
                 Stop::Contract("a finish of an operation that is not pending".into()).into(),
@@ -405,18 +437,23 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
             finish: false,
         } => {
             let b = bytes(caller, int_arg(params, 0)?)?;
-            let e = fs::call(key, method, &b, &caller.data().grants)?;
+            let host = caller.data();
+            let e = match host.deadline() {
+                Some(deadline) => fs::call_until(key, method, &b, &host.grants, Some(deadline))?,
+                None => fs::call(key, method, &b, &host.grants)?,
+            };
             Ret::Pair(0, result_len(put(caller, &e)?)?)
         }
         Kind::ProcessStart => {
             let b = bytes(caller, int_arg(params, 0)?)?;
-            let e = core::process(&b, &caller.data().grants)?;
+            let host = caller.data();
+            let e = core::process_with_deadline(&b, &host.grants, host.deadline())?;
             Ret::Pair(0, result_len(put(caller, &e)?)?)
         }
         Kind::HttpStart => {
             let b = bytes(caller, int_arg(params, 0)?)?;
             let host = caller.data_mut();
-            let e = host.http.send(&b, &host.grants)?;
+            let e = host.http.send_until(&b, &host.grants, host.deadline)?;
             Ret::Pair(0, result_len(put(caller, &e)?)?)
         }
         Kind::Net {
@@ -432,7 +469,9 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
                 None => Vec::new(),
             };
             let host = caller.data_mut();
-            let e = host.net.call(method, &args, &b, &host.grants)?;
+            let e = host
+                .net
+                .call_until(method, &args, &b, &host.grants, host.deadline)?;
             let len = put(caller, &e)?;
             if close {
                 Ret::Int(len)
@@ -471,7 +510,7 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
             if n > 0 {
                 return Ok(Ret::Int(i64::try_from(n).unwrap_or(i64::MAX)));
             }
-            if !caller.data().wait() {
+            if !caller.data().wait()? {
                 return Err(deadlock(caller.data_mut()));
             }
         },
@@ -608,7 +647,9 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
             });
             Ret::Int(put(caller, &e)?)
         }
-    })
+    };
+    caller.data().check_deadline()?;
+    Ok(result)
 }
 
 fn result_len(len: i64) -> wasmtime::Result<i32> {

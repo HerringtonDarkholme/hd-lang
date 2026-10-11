@@ -365,6 +365,98 @@ hello module, with SHA-256
 `abe5f22751445776579828facd8bce6d7ae7d29dd2cf56f8bad906556f883c1a`.
 The macOS release binary is 22,244,944 bytes, including W3's dependencies.
 
+### 18.10 Resource Limits (M21, #269): As Built
+
+M21 implements §22 for standalone source files, prebuilt Wasm and package runs.
+The owner deferred per-case runtime limits until W4 supplies the wasmtime runner.
+The owner also approved driver stage observation and CLI compiler-memory adapters.
+The required native push gates passed on 2026-10-10.
+
+`--time-limit` uses a shared 10-millisecond epoch ticker and an absolute
+per-store wall deadline. Actual wall-clock checks prevent an early ticker wake
+from expiring a fresh store. Initialization, polling and reactor waits share
+that deadline; expiry reports `panic: time-limit` with status 3.
+
+Http uses the earlier request or program deadline across queueing and each hop.
+An earlier request expiry remains an encoded Http timeout; program expiry panics.
+Net socket loops and DNS waits check the same program deadline.
+Uncancellable OS resolver helpers may finish later, but cannot open sockets.
+
+Unix Process expiry cancels nonblocking pipe workers, kills the direct child
+with SIGKILL when necessary, and reaps it. Unix filesystem pipe operations use
+nonblocking descriptors and deadline-aware polling. Native calls check deadlines
+between chunks and filesystem steps; mutations are never delegated to detached workers.
+
+Epochs cannot interrupt a single blocked native kernel call.
+Examples include filesystem access, output writes and entropy acquisition.
+Windows Process uses anonymous stdin and private named stdout/stderr byte pipes,
+with synchronous child handles and nonblocking parent handles.
+Anonymous stdin retains queued input after the parent writer closes normally.
+Filesystem named pipes use the same synchronous
+polling backend; `WouldBlock` retries check the remaining deadline.
+
+Pinned `interprocess 2.4.4` configures pipe wait mode through safe owned-handle
+conversions. The handles then use safe `FileExt` calls, preserving the distinction
+between an idle pipe and EOF. Consuming conversions avoid deferred flush workers;
+no pending I/O operation or userspace buffer survives a completed polling call.
+Anonymous stdin uses a private configure-only listener adapter, never an accept
+or creation operation. The pinned source calls only the documented mode-setting
+function, then returns the owned handle without flushing.
+Microsoft documents anonymous handles for
+[mode setting](https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-setnamedpipehandlestate)
+and buffered stdin delivery after
+[writer close](https://learn.microsoft.com/en-us/windows/win32/procthread/creating-a-child-process-with-redirected-input-and-output).
+
+Safe `winapi-util` handle classification catches named pipes reached through aliases.
+Pipe mode changes may require extra attribute rights; OS permission errors are
+returned rather than falling back to blocking I/O. Remote SMB pipe opens remain
+subject to the single-kernel-call limitation.
+
+Darwin poll/kqueue does not wake for an empty FIFO writer disconnect.
+Safe select and low-descriptor duplication fix ordinary descriptor cases.
+When all descriptors below 1024 are occupied, an empty writer disconnect may
+instead time out; data remains readable. The owner accepted documenting this
+rare edge rather than adding an unsafe dynamic-select wrapper.
+
+`--max-heap` installs `ResourceLimiter` before instantiation.
+Wasmtime 49.0.2 sends both linear and GC backing allocations through that limiter;
+no pooling or GC sampler is necessary. Initial backing bytes, growth and both
+copying semispaces share one cap, including page rounding and geometric growth.
+
+The backing-byte cap excludes reserved virtual address space, native tables and
+host/runtime metadata. Bounded runs initialize GC capacity lazily, rather than
+reserving the profile's 64 MiB immediately. A recovered GC expansion refusal
+does not panic; only a propagated allocation failure reports `heap-exhausted`.
+
+`--max-memory` overrides `HD_MAX_MEMORY`; omission leaves compiler enforcement off.
+The safe counting allocator tracks live wrapped Rust allocation bytes, not RSS.
+System allocation failure can abort before its callback; mapped memory, native
+allocations and stacks are outside this approximate compiler cap.
+
+Driver stage scopes identify allocations on each compiler worker.
+A precompilation fallback labels hidden Cranelift workers without overriding
+an explicitly observed stage. One prepared reporting thread writes the preallocated
+`memory-limit` diagnostic and exits 101, avoiding allocator-time stdio reentry.
+
+Compiler accounting continues during guest execution, but enforcement ends at
+guest entry. This avoids charging detached guest-worker or runtime-cache allocations
+after teardown; the command performs no subsequent compilation.
+Cranelift compilation remains under the compiler cap.
+Neither program limit has a default; the embedding API still honors supplied limits.
+Until W5, Node warns and ignores both explicit runtime limits, as the owner directed.
+
+Focused tests cover flag forms and routing, allocator-stage errors, combined heap
+growth, busy Wasm loops, reactor waits, native sockets and Unix process/pipe cleanup.
+Both full release workspace passes succeeded, first with conformance-report updates,
+then against the recorded passing-case baseline. The report required no changes.
+The runtime's 88 unit tests and nine bounded deadline regressions passed.
+The CLI's 28 binary unit tests and seven limit-routing regressions passed.
+
+Release formatting, workspace all-target Clippy, spec checks and website build passed.
+Windows CLI/runtime all-target Clippy passed with the pinned Rust 1.97.1 toolchain
+and `x86_64-pc-windows-gnu`, including seven polling-backend unit tests in compilation.
+Windows-native execution remains unverified; cross-compilation is not runtime evidence.
+
 ## 19. Test Runner
 
 ### 19.1 Building
@@ -672,6 +764,10 @@ decision):
 | `libc` | 0.2 | XS, already transitive | platform errno constants for Node-compatible filesystem and process errors; no unsafe calls |
 | `nix` | 0.31.3 | S, Unix only | safe POSIX spawn and wait wrappers, avoiding `Command`'s implicit shell fallback |
 | `windows-sys` | 0.61 | already transitive, Windows only | filesystem flags and native error constants; no unsafe calls |
+| `tracking-allocator` | 0.4.0, pinned | S | safe live Rust allocation callbacks for the approximate compiler cap |
+| `rustix` | 1.1.5, pinned, already transitive | Unix only | identify concrete native allocation errors; no unsafe calls |
+| `interprocess` | 2.4.4, pinned | S, Windows only | safe owned-pipe creation and wait-mode configuration; direct handle extraction avoids flush workers |
+| `winapi-util` | 0.1.11, pinned, already transitive | Windows only | safe handle classification catches filesystem pipe aliases |
 
 All remaining provider operations use `std`. Deliberately absent: Tokio (no async host
 calls), reqwest/hyper (async runtimes or larger trees than `ureq` for

@@ -11,6 +11,7 @@
 
 use std::collections::VecDeque;
 use std::net::{SocketAddr, ToSocketAddrs};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, Weak, mpsc};
 use std::time::{Duration, Instant};
 
@@ -37,8 +38,23 @@ pub struct Client {
 }
 
 impl Client {
+    #[cfg(test)]
     pub fn send(&mut self, bytes: &[u8], grants: &Grants) -> wasmtime::Result<Enc> {
+        self.send_until(bytes, grants, None)
+    }
+
+    /// The earlier request/program deadline includes queueing and every hop.
+    /// A program deadline traps, rather than becoming an Http error value.
+    pub fn send_until(
+        &mut self,
+        bytes: &[u8],
+        grants: &Grants,
+        program_deadline: Option<Instant>,
+    ) -> wasmtime::Result<Enc> {
         let started = Instant::now();
+        if program_deadline.is_some_and(|deadline| started >= deadline) {
+            return Err(Stop::TimeLimit.into());
+        }
         let request = Request::decode(bytes)?;
         // Preserve invalid-URL/grant precedence even if the shared worker
         // is busy. Queue time belongs to the whole-request deadline.
@@ -46,6 +62,12 @@ impl Client {
             return Ok(encode(Err(failure)));
         }
         let timeout = request.timeout();
+        let request_deadline = started.checked_add(timeout);
+        let deadline = match (request_deadline, program_deadline) {
+            (Some(request), Some(program)) => Some(request.min(program)),
+            (request, None) => request,
+            (None, program) => program,
+        };
         let remaining = timeout.saturating_sub(started.elapsed());
         if remaining.is_zero() {
             return Ok(encode(Err(Failure::Timeout)));
@@ -62,16 +84,24 @@ impl Client {
                 request,
                 grants: grants.clone(),
                 reply,
-                started,
+                deadline,
             })
             .map_err(|_| Stop::Internal("the Http client stopped".into()))?;
-        let remaining = timeout.saturating_sub(started.elapsed());
-        if Instant::now().checked_add(remaining).is_none() {
+        let Some(deadline) = deadline else {
             return receive.recv().map_err(|_| {
                 Stop::Internal("the Http client stopped without a reply".into()).into()
             });
-        }
-        match receive.recv_timeout(remaining) {
+        };
+        let program_first = program_deadline
+            .is_some_and(|program| request_deadline.is_none_or(|request| program <= request));
+        match receive.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
+            Ok(reply) if !(program_first && Instant::now() >= deadline) => Ok(reply),
+            Ok(_) | Err(mpsc::RecvTimeoutError::Timeout) if program_first => {
+                if let Some(worker) = &self.worker {
+                    worker.detach_on_drop.store(true, Ordering::Relaxed);
+                }
+                Err(Stop::TimeLimit.into())
+            }
             Ok(reply) => Ok(reply),
             Err(mpsc::RecvTimeoutError::Timeout) => Ok(encode(Err(Failure::Timeout))),
             Err(mpsc::RecvTimeoutError::Disconnected) => {
@@ -84,16 +114,20 @@ impl Client {
 struct Worker {
     sender: Option<mpsc::Sender<Job>>,
     thread: Option<std::thread::JoinHandle<()>>,
+    detach_on_drop: AtomicBool,
 }
 
 impl Drop for Worker {
     fn drop(&mut self) {
         // The worker owns no Arc<Worker>. Closing the final guard drops
         // the queue sender. Usually it is idle; a caller-side timeout may
-        // race the active job's same network deadline. Joining waits only
-        // for that deadline, then skips expired queued jobs without I/O.
+        // race the active job's same network deadline. A program must not
+        // exceed its budget waiting for worker teardown. Only that final
+        // join is detached; each expired job still skips all future I/O.
         self.sender.take();
-        if let Some(thread) = self.thread.take() {
+        if let Some(thread) = self.thread.take()
+            && (!self.detach_on_drop.load(Ordering::Relaxed) || thread.is_finished())
+        {
             let _ = thread.join();
         }
     }
@@ -103,7 +137,7 @@ struct Job {
     request: Request,
     grants: Grants,
     reply: mpsc::Sender<Enc>,
-    started: Instant,
+    deadline: Option<Instant>,
 }
 
 fn shared_worker() -> wasmtime::Result<Arc<Worker>> {
@@ -126,10 +160,13 @@ fn spawn_worker() -> wasmtime::Result<Arc<Worker>> {
         .name("hd-http".into())
         .spawn(move || {
             for job in receive {
-                let response = if job.started.elapsed() >= job.request.timeout() {
+                let response = if job
+                    .deadline
+                    .is_some_and(|deadline| Instant::now() >= deadline)
+                {
                     Err(Failure::Timeout)
                 } else {
-                    send(job.request, &job.grants, job.started)
+                    send(job.request, &job.grants, job.deadline)
                 };
                 let _ = job.reply.send(encode(response));
             }
@@ -138,6 +175,7 @@ fn spawn_worker() -> wasmtime::Result<Arc<Worker>> {
     let worker = Arc::new(Worker {
         sender: Some(sender),
         thread: Some(thread),
+        detach_on_drop: AtomicBool::new(false),
     });
     Ok(worker)
 }
@@ -245,15 +283,17 @@ fn granted_url(value: &str, grants: &Grants) -> Result<Url, Failure> {
     Ok(url)
 }
 
-fn send(mut request: Request, grants: &Grants, started: Instant) -> Result<Response, Failure> {
-    let timeout = request.timeout();
+fn send(
+    mut request: Request,
+    grants: &Grants,
+    deadline: Option<Instant>,
+) -> Result<Response, Failure> {
     for redirects in 0..=10 {
         let url = granted_url(&request.url, grants)?;
-        let remaining = timeout.saturating_sub(started.elapsed());
-        if remaining.is_zero() {
+        if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
             return Err(Failure::Timeout);
         }
-        let got = once(&url, &request, started.checked_add(timeout))?;
+        let got = once(&url, &request, deadline)?;
         let location = got
             .headers
             .iter()
@@ -1351,10 +1391,11 @@ fn response_pairs(bytes: &[u8]) -> Result<(u16, Headers), ureq::Error> {
 mod tests {
     use super::{
         ChunkScan, Client, Failure, HeaderScan, Headers, HttpResolver, HttpTcpConnector, Job,
-        Request, connect_candidates, encode, framing, header_end, outgoing, resolve_lookup,
+        Request, Worker, connect_candidates, encode, framing, header_end, outgoing, resolve_lookup,
         response_pairs, spawn_worker,
     };
     use crate::codec::{Dec, Enc};
+    use crate::host::Stop;
     use hd_run::{Grants, Limit};
     use socket2::{Domain, Protocol, Socket, Type};
     use std::io::{Read, Write};
@@ -1901,7 +1942,7 @@ mod tests {
                     .unwrap(),
                 grants: Grants::default(),
                 reply,
-                started: Instant::now(),
+                deadline: Some(Instant::now() + Duration::from_secs(1)),
             })
             .unwrap();
         let encoded = barrier.recv_timeout(Duration::from_secs(1)).unwrap();
@@ -2223,5 +2264,276 @@ mod tests {
         assert_eq!(d.leb().unwrap(), 1);
         assert_eq!(d.leb().unwrap(), 3);
         server.join().unwrap();
+    }
+
+    fn bounded_accept(listener: &TcpListener) -> TcpStream {
+        listener.set_nonblocking(true).unwrap();
+        let until = Instant::now() + Duration::from_secs(2);
+        loop {
+            match listener.accept() {
+                Ok((stream, _)) => return stream,
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    assert!(Instant::now() < until, "request reaches loopback fixture");
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+                Err(error) => panic!("accept: {error}"),
+            }
+        }
+    }
+
+    #[test]
+    fn expired_program_deadline_is_lazy_and_traps_instead_of_encoding_http_timeout() {
+        let mut client = Client::default();
+        let error = client
+            .send_until(&[], &Grants::default(), Some(Instant::now()))
+            .err()
+            .expect("program deadline traps");
+        assert!(matches!(
+            error.downcast_ref::<Stop>(),
+            Some(Stop::TimeLimit)
+        ));
+        assert!(client.worker.is_none());
+    }
+
+    #[test]
+    fn program_deadline_caps_headers_body_tls_and_final_worker_drop() {
+        for (tls, partial_body) in [(false, false), (false, true), (true, false)] {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            listener.set_nonblocking(true).unwrap();
+            let address = listener.local_addr().unwrap();
+            let (release, released) = std::sync::mpsc::channel();
+            let (ready, arrived) = std::sync::mpsc::channel();
+            let server = std::thread::spawn(move || {
+                let until = Instant::now() + Duration::from_secs(2);
+                let mut stream = loop {
+                    match listener.accept() {
+                        Ok((stream, _)) => break stream,
+                        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                            assert!(Instant::now() < until, "request reaches loopback fixture");
+                            std::thread::sleep(Duration::from_millis(1));
+                        }
+                        Err(error) => panic!("accept: {error}"),
+                    }
+                };
+                if tls {
+                    stream
+                        .set_read_timeout(Some(Duration::from_secs(2)))
+                        .unwrap();
+                    assert_eq!(stream.read(&mut [0; 1]).unwrap(), 1);
+                } else {
+                    read_request(&mut stream);
+                    if partial_body {
+                        stream
+                            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nx")
+                            .unwrap();
+                    }
+                }
+                ready.send(()).unwrap();
+                let _ = released.recv_timeout(Duration::from_secs(2));
+            });
+            let scheme = if tls { "https" } else { "http" };
+            let request = request(
+                "GET",
+                &format!("{scheme}://{address}/"),
+                &vec![],
+                &[],
+                30_000,
+            );
+            let mut client = Client {
+                worker: Some(spawn_worker().unwrap()),
+            };
+            let start = Instant::now();
+            let error = client
+                .send_until(
+                    request.done(),
+                    &Grants::default(),
+                    Some(start + Duration::from_millis(100)),
+                )
+                .err()
+                .expect("program deadline traps");
+            assert!(matches!(
+                error.downcast_ref::<Stop>(),
+                Some(Stop::TimeLimit)
+            ));
+            arrived.recv_timeout(Duration::from_secs(1)).unwrap();
+            drop(client);
+            assert!(
+                start.elapsed() < Duration::from_millis(500),
+                "caller and final drop use program budget"
+            );
+            release.send(()).unwrap();
+            server.join().unwrap();
+        }
+    }
+
+    #[test]
+    fn earlier_request_deadline_remains_an_http_error() {
+        let worker = spawn_worker().unwrap();
+        // Keep this isolated worker occupied: the queued request times out
+        // without any external DNS or loopback connection being attempted.
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let (release, released) = std::sync::mpsc::channel();
+        let (ready, arrived) = std::sync::mpsc::channel();
+        let server = std::thread::spawn(move || {
+            let mut stream = bounded_accept(&listener);
+            read_request(&mut stream);
+            ready.send(()).unwrap();
+            let _ = released.recv_timeout(Duration::from_secs(2));
+            let _ = stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+        });
+        let first_request = request("GET", &format!("http://{address}/"), &vec![], &[], 1000);
+        let mut first = Client {
+            worker: Some(worker.clone()),
+        };
+        let first_reply = std::thread::spawn(move || {
+            first
+                .send(first_request.done(), &Grants::default())
+                .unwrap()
+        });
+        arrived.recv_timeout(Duration::from_secs(1)).unwrap();
+        let mut second = Client {
+            worker: Some(worker),
+        };
+        let queued = request("GET", "http://127.0.0.1:9/", &vec![], &[], 20);
+        assert_eq!(
+            second
+                .send_until(
+                    queued.done(),
+                    &Grants::default(),
+                    Some(Instant::now() + Duration::from_secs(1))
+                )
+                .unwrap()
+                .done(),
+            [1, 5]
+        );
+        release.send(()).unwrap();
+        assert_eq!(response(first_reply.join().unwrap().done()).0, 200);
+        drop(second);
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn program_expiration_skips_queued_io_without_stopping_another_guest() {
+        let worker = spawn_worker().unwrap();
+        let mut first = Client {
+            worker: Some(worker.clone()),
+        };
+        let mut second = Client {
+            worker: Some(worker),
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let (ready, arrived) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel();
+        let server = std::thread::spawn(move || {
+            let mut stream = bounded_accept(&listener);
+            read_request(&mut stream);
+            ready.send(()).unwrap();
+            let _ = released.recv_timeout(Duration::from_secs(2));
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+        });
+        let first_request = request("GET", &format!("http://{address}/"), &vec![], &[], 1000);
+        let first_reply = std::thread::spawn(move || {
+            first
+                .send(first_request.done(), &Grants::default())
+                .unwrap()
+        });
+        arrived.recv_timeout(Duration::from_secs(1)).unwrap();
+        let target = TcpListener::bind("127.0.0.1:0").unwrap();
+        target.set_nonblocking(true).unwrap();
+        let queued = request(
+            "GET",
+            &format!("http://{}/", target.local_addr().unwrap()),
+            &vec![],
+            &[],
+            30_000,
+        );
+        let error = second
+            .send_until(
+                queued.done(),
+                &Grants::default(),
+                Some(Instant::now() + Duration::from_millis(20)),
+            )
+            .err()
+            .expect("program deadline traps");
+        assert!(matches!(
+            error.downcast_ref::<Stop>(),
+            Some(Stop::TimeLimit)
+        ));
+        release.send(()).unwrap();
+        assert_eq!(response(first_reply.join().unwrap().done()).0, 200);
+        // The subsequent FIFO reply proves the expired job was processed
+        // and skipped, rather than merely still waiting in the queue.
+        let invalid = request("GET", "relative", &vec![], &[], 1000);
+        let (reply, barrier) = std::sync::mpsc::channel();
+        second
+            .worker
+            .as_ref()
+            .unwrap()
+            .sender
+            .as_ref()
+            .unwrap()
+            .send(Job {
+                request: Request::decode(invalid.done()).unwrap(),
+                grants: Grants::default(),
+                reply,
+                deadline: Some(Instant::now() + Duration::from_secs(1)),
+            })
+            .unwrap();
+        assert_eq!(
+            barrier.recv_timeout(Duration::from_secs(1)).unwrap().done(),
+            encode(Err(Failure::InvalidUrl("relative".into()))).done()
+        );
+        assert_eq!(
+            target.accept().unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
+        drop(second);
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn expired_caller_does_not_join_a_worker_that_has_not_finished() {
+        let (sender, receive) = std::sync::mpsc::channel::<Job>();
+        let (release, released) = std::sync::mpsc::channel();
+        let (finished, completion) = std::sync::mpsc::channel();
+        let thread = std::thread::spawn(move || {
+            let _job = receive.recv_timeout(Duration::from_secs(1)).unwrap();
+            let _ = released.recv_timeout(Duration::from_secs(2));
+            let _ = finished.send(());
+        });
+        let worker = Arc::new(Worker {
+            sender: Some(sender),
+            thread: Some(thread),
+            detach_on_drop: std::sync::atomic::AtomicBool::new(false),
+        });
+        let mut client = Client {
+            worker: Some(worker),
+        };
+        let request = request("GET", "http://127.0.0.1:9/", &vec![], &[], 30_000);
+        let start = Instant::now();
+        let error = client
+            .send_until(
+                request.done(),
+                &Grants::default(),
+                Some(start + Duration::from_millis(20)),
+            )
+            .err()
+            .expect("program deadline traps");
+        assert!(matches!(
+            error.downcast_ref::<Stop>(),
+            Some(Stop::TimeLimit)
+        ));
+        drop(client);
+        assert!(start.elapsed() < Duration::from_millis(500));
+        assert_eq!(
+            completion.try_recv(),
+            Err(std::sync::mpsc::TryRecvError::Empty)
+        );
+        release.send(()).unwrap();
+        completion.recv_timeout(Duration::from_secs(1)).unwrap();
     }
 }

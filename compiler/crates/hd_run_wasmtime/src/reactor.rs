@@ -218,7 +218,13 @@ impl Reactor {
 
     /// Waits for the next timer deadline or delivery; `false` when nothing
     /// is pending, a deadlock.
+    #[cfg(test)]
     pub fn wait(&self) -> bool {
+        self.wait_until(None)
+    }
+
+    /// Like `wait`, but wakes no later than the program's wall deadline.
+    pub fn wait_until(&self, limit: Option<Instant>) -> bool {
         if !self.waiting() {
             return false;
         }
@@ -238,14 +244,20 @@ impl Reactor {
         }
         // The guard is dropped as soon as the wait ends; a spurious wakeup
         // only makes the caller look again.
-        match deadline {
-            Some(d) => {
-                let ns = u64::try_from((d - now_ns()).max(0)).unwrap_or(u64::MAX);
-                drop(
-                    self.inbox
-                        .ready
-                        .wait_timeout(lines, Duration::from_nanos(ns)),
-                );
+        let timeout = deadline.map(|d| {
+            let ns = u64::try_from((d - now_ns()).max(0)).unwrap_or(u64::MAX);
+            Duration::from_nanos(ns)
+        });
+        let timeout = match (timeout, limit) {
+            (Some(timeout), Some(limit)) => {
+                Some(timeout.min(limit.saturating_duration_since(Instant::now())))
+            }
+            (None, Some(limit)) => Some(limit.saturating_duration_since(Instant::now())),
+            (timeout, None) => timeout,
+        };
+        match timeout {
+            Some(timeout) => {
+                drop(self.inbox.ready.wait_timeout(lines, timeout));
             }
             None => drop(self.inbox.ready.wait(lines)),
         }

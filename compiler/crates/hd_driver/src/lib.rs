@@ -19,9 +19,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use hd_base::wire::{Reader, Writer};
-use hd_base::{
-    DefId, FileId, FolderId, Hash128, ModuleId, NotImplemented, Span, Stage, StageResult,
-};
+use hd_base::{DefId, FileId, FolderId, Hash128, ModuleId, NotImplemented, Span, StageResult};
 use hd_cache::{
     CacheStore, EntryKind, FileApi, MemoryStore, check_key, code_key, hdr_key, iface_key, init_key,
     parse_key, prog_key, toolchain_key,
@@ -138,6 +136,7 @@ fn sources_hash(sources: &dyn SourceSet) -> Hash128 {
     h.finish()
 }
 
+pub use hd_base::Stage;
 pub use report::{Counters, PipelineReport, Tally};
 
 /// The compiler build id: `build.rs` hashes the compiler crates' sources.
@@ -149,6 +148,37 @@ const LAYOUT: u16 = hd_cache::LAYOUT_VERSION;
 /// The caller's clock, for stage times only (never in an output).
 pub trait Clock: Sync {
     fn now_ns(&self) -> u64;
+}
+
+/// Observes the stage executing on the calling thread, including pool workers.
+/// `enter` returns an opaque restoration token, passed to `exit` on that same
+/// thread when the stage ends (also when unwinding). Nested stages restore the
+/// enclosing stage. Observers must not panic.
+pub trait StageObserver: Sync {
+    fn enter(&self, stage: Stage) -> usize;
+    fn exit(&self, token: usize);
+}
+
+struct ObservedStage<'a> {
+    observer: Option<&'a dyn StageObserver>,
+    token: usize,
+}
+
+impl<'a> ObservedStage<'a> {
+    fn new(observer: Option<&'a dyn StageObserver>, stage: Stage) -> Self {
+        Self {
+            observer,
+            token: observer.map_or(0, |o| o.enter(stage)),
+        }
+    }
+}
+
+impl Drop for ObservedStage<'_> {
+    fn drop(&mut self) {
+        if let Some(observer) = self.observer {
+            observer.exit(self.token);
+        }
+    }
 }
 
 /// A clock that reads zero: the browser and deterministic tests.
@@ -440,6 +470,7 @@ type TestsOut = (Vec<Item>, Vec<hd_check::tests::TestReg>);
 
 struct Run<'a> {
     host: &'a Host<'a>,
+    observer: Option<&'a dyn StageObserver>,
     package: String,
     goal: Goal,
     /// The host capability traits of the run's runtime profile, by item
@@ -552,6 +583,29 @@ pub fn build_packages(
     packages: &Packages<'_>,
     goal: &Goal,
 ) -> Output {
+    build_packages_inner(host, package, packages, goal, None)
+}
+
+/// `build_packages`, with thread-local stage observation for host accounting.
+#[must_use]
+pub fn build_packages_observed(
+    host: &Host<'_>,
+    package: &str,
+    packages: &Packages<'_>,
+    goal: &Goal,
+    observer: &dyn StageObserver,
+) -> Output {
+    build_packages_inner(host, package, packages, goal, Some(observer))
+}
+
+fn build_packages_inner(
+    host: &Host<'_>,
+    package: &str,
+    packages: &Packages<'_>,
+    goal: &Goal,
+    observer: Option<&dyn StageObserver>,
+) -> Output {
+    let _discover = ObservedStage::new(observer, Stage::Discover);
     let std = if package == "std" {
         with_core(host.sources)
     } else {
@@ -615,6 +669,7 @@ pub fn build_packages(
     });
     let run = Run {
         host,
+        observer,
         package: package.to_owned(),
         goal: goal.clone(),
         texts,
@@ -716,6 +771,7 @@ pub fn build_packages(
             None,
         );
     }
+    let _finish = ObservedStage::new(observer, Stage::PackageResult);
     let mut counters = lock(&run.counters).clone();
     counters.sort();
     let report = lock(&run.report).clone();
@@ -928,6 +984,26 @@ impl Run<'_> {
     }
 
     fn exec(&self, id: TaskId, kind: TaskKind, sp: &dyn Spawn) {
+        let stage = match kind {
+            TaskKind::Skim(_) => Stage::Skim,
+            TaskKind::Parse(_) => Stage::Parse,
+            TaskKind::FolderGraph => Stage::FolderGraph,
+            TaskKind::FolderIface(_) => Stage::FolderIface,
+            TaskKind::HeaderCheck(_) => Stage::HeaderCheck,
+            TaskKind::ModulePrep(_) => Stage::ModulePrep,
+            TaskKind::Body(_) => Stage::Body,
+            TaskKind::ModuleFinish(_) => Stage::ModuleFinish,
+            TaskKind::TestOverlay(_) => Stage::TestOverlay,
+            TaskKind::Coherence => Stage::Coherence,
+            TaskKind::InitOrder(_) => Stage::InitOrder,
+            TaskKind::PackageResult => Stage::PackageResult,
+            TaskKind::Ext(ExtTask::Collect) => Stage::Collect,
+            TaskKind::Ext(ExtTask::Emit(_)) => Stage::Emit,
+            TaskKind::Ext(ExtTask::Link) => Stage::Link,
+            TaskKind::Ext(ExtTask::Precompile) => Stage::Precompile,
+            TaskKind::Ext(ExtTask::RunCase(_)) => Stage::Run,
+        };
+        let _stage = ObservedStage::new(self.observer, stage);
         let t0 = self.host.clock.now_ns();
         match kind {
             TaskKind::Skim(f) => self.skim(f as usize),
