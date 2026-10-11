@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2560 | 244 | 41 | 2845 |
+| 2573 | 244 | 28 | 2845 |
 
 ## By Chapter
 
@@ -24,7 +24,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/08-data-and-enums.md` | 113 | 9 | 1 | 123 |
 | `lang/09-traits.md` | 326 | 31 | 2 | 359 |
 | `lang/10-modules.md` | 218 | 31 | 9 | 258 |
-| `lang/11-requirements-and-suspension.md` | 218 | 20 | 21 | 259 |
+| `lang/11-requirements-and-suspension.md` | 231 | 20 | 8 | 259 |
 | `lang/14-annotations.md` | 123 | 28 | 2 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 97 | 5 | 3 | 105 |
-| `runtime/valid` | 882 | 11 | 36 | 929 |
+| `runtime/valid` | 895 | 11 | 23 | 929 |
 | `typing/invalid` | 875 | 199 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -120,7 +120,7 @@ compiler stage that first declined the case.
 | `unsupported:Body` | 5 |
 | `unsupported:Collect` | 5 |
 | `unsupported:Link` | 3 |
-| `unsupported:RunCase` | 28 |
+| `unsupported:RunCase` | 15 |
 
 <details><summary><code>fail:argument-count</code> (6)</summary>
 
@@ -604,7 +604,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:RunCase</code> (28)</summary>
+<details><summary><code>unsupported:RunCase</code> (15)</summary>
 
 - `runtime/valid/cancellation-unwinds-nested-frames.hd`
 - `runtime/valid/cancellation-unwinds-suspending-closure.hd`
@@ -619,19 +619,6 @@ compiler stage that first declined the case.
 - `runtime/valid/cancellation-provider-scope-cleanup.hd`
 - `runtime/valid/folder-graph-test-edges.hd`
 - `runtime/valid/integration-shared-use.hd`
-- `runtime/valid/pending-first-poll-argument-order.hd`
-- `runtime/valid/pending-first-poll-branches.hd`
-- `runtime/valid/pending-first-poll-comprehension-propagation.hd`
-- `runtime/valid/pending-first-poll-dynamic-method.hd`
-- `runtime/valid/pending-first-poll-generic-callable-list.hd`
-- `runtime/valid/pending-first-poll-loops.hd`
-- `runtime/valid/pending-first-poll-match-guards.hd`
-- `runtime/valid/pending-first-poll-nested-return-defer.hd`
-- `runtime/valid/pending-first-poll-result-defer.hd`
-- `runtime/valid/pending-first-poll-result-propagation.hd`
-- `runtime/valid/pending-first-poll-return-wide-result.hd`
-- `runtime/valid/pending-first-poll-void-return-operand.hd`
-- `runtime/valid/pending-first-poll-void-return.hd`
 - `runtime/valid/integration-test-public-view.hd`
 - `runtime/valid/test-module-uses-test-module.hd`
 
@@ -1585,6 +1572,19 @@ runtime/valid/partial-equality-dispatch.hd
 runtime/valid/partial-ordering-dispatch.hd
 runtime/valid/path-operations.hd
 runtime/valid/pattern-forms.hd
+runtime/valid/pending-first-poll-argument-order.hd
+runtime/valid/pending-first-poll-branches.hd
+runtime/valid/pending-first-poll-comprehension-propagation.hd
+runtime/valid/pending-first-poll-dynamic-method.hd
+runtime/valid/pending-first-poll-generic-callable-list.hd
+runtime/valid/pending-first-poll-loops.hd
+runtime/valid/pending-first-poll-match-guards.hd
+runtime/valid/pending-first-poll-nested-return-defer.hd
+runtime/valid/pending-first-poll-result-defer.hd
+runtime/valid/pending-first-poll-result-propagation.hd
+runtime/valid/pending-first-poll-return-wide-result.hd
+runtime/valid/pending-first-poll-void-return-operand.hd
+runtime/valid/pending-first-poll-void-return.hd
 runtime/valid/pipe-bare-method-step.hd
 runtime/valid/pipe-evaluation-order.hd
 runtime/valid/pipe-method-reference-step.hd

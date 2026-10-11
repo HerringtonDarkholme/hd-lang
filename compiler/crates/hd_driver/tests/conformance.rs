@@ -439,11 +439,26 @@ fn type_case(case: &Case, fixture: &Fixture, store: &MemoryStore) -> Verdict {
     Verdict::Fail("no-diagnostic".to_owned())
 }
 
+/// The scenario that runs Runtime Execution steps 1 and 2 with its hook
+/// instead of replacing them (README "Runtime Scenarios").
+const PENDING_FIRST_POLL: &str = "pending-first-poll";
+
+/// Whether the fixture's runtime scenario replaces Runtime Execution steps
+/// 1 and 2 with its own procedure: every scenario but `pending-first-poll`
+/// (README "Runtime Execution").
+fn replacing_scenario(text: &str) -> bool {
+    directive(text, "fixture-runtime-scenario").is_some_and(|name| name != PENDING_FIRST_POLL)
+}
+
+fn pending_first_poll(text: &str) -> bool {
+    directive(text, "fixture-runtime-scenario") == Some(PENDING_FIRST_POLL)
+}
+
 fn has_runtime_harness(text: &str) -> bool {
     text.lines()
         .any(|line| line.starts_with("tests:") || line.starts_with("## "))
         || directive(text, "fixture-runtime-profile").is_some()
-        || directive(text, "fixture-runtime-scenario").is_some()
+        || replacing_scenario(text)
         || directive(text, "fixture-runtime-pending-function").is_some()
         || directive(text, "fixture-test-layout").is_some()
         || directive(text, "fixture-package-tree").is_some()
@@ -1151,6 +1166,11 @@ fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usi
         } else if plain_tests(&fixture.text) {
             tests_case(case, fixture, store, serial)
         } else {
+            // Among them every scenario but `pending-first-poll`, which
+            // needs program exports no build emits (a cancel of the root
+            // suspension, a call of `cleanup_ran`, a held or intercepted
+            // call, a second driver), and `pending-first-poll` with test
+            // cases, since the test hosts take no runtime profile.
             return Verdict::Unsupported("RunCase".to_owned());
         };
         if verdict != Verdict::Pass || expected_stdout(&fixture.text).is_none() {
@@ -1185,7 +1205,27 @@ fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usi
         return Verdict::Unsupported("Link".to_owned());
     };
     let profile = directive(&fixture.text, "fixture-runtime-profile");
-    let run = match run_program(case, &wasm, serial, profile) {
+    let verdict = entry_verdict(case, fixture, &wasm, serial, profile);
+    if verdict == Verdict::Pass && pending_first_poll(&fixture.text) {
+        // README "Runtime Scenarios", `pending-first-poll`: after the
+        // ordinary run, the entry again under the `console` profile with
+        // every `write_line!` pending on its first poll, which is the
+        // `pending-write` profile; both runs must succeed.
+        return entry_verdict(case, fixture, &wasm, serial, Some("pending-write"));
+    }
+    verdict
+}
+
+/// Runs the program's entry under `profile` and judges the run by the
+/// case's expectation and the fixture's expected standard output.
+fn entry_verdict(
+    case: &Case,
+    fixture: &Fixture,
+    wasm: &[u8],
+    serial: usize,
+    profile: Option<&str>,
+) -> Verdict {
+    let run = match run_program(case, wasm, serial, profile) {
         Ok(run) => run,
         Err(error) => return Verdict::Crash(error.to_string()),
     };
@@ -1220,6 +1260,116 @@ fn run_case(case: &Case, store: &MemoryStore, serial: usize) -> Verdict {
         Phase::Type => type_case(case, &fixture, store),
         Phase::Runtime => runtime_case(case, &fixture, store, serial),
     }
+}
+
+/// A single-file fixture with source `text`, for the runner's own tests.
+fn unit_fixture(text: &str) -> Fixture {
+    let mut sources = MemorySources::default();
+    sources.insert("main.hd", text);
+    Fixture {
+        sources,
+        primary: "main.hd".to_owned(),
+        text: text.to_owned(),
+        tree: false,
+        deps: Vec::new(),
+    }
+}
+
+/// A runtime case for the runner's own tests.
+fn unit_case(expectation: &str, serial: usize) -> Case {
+    Case {
+        path: format!("runner-unit/{serial}.hd"),
+        phase: Phase::Runtime,
+        expectation: expectation.to_owned(),
+        specification: "lang/11-requirements-and-suspension.md".to_owned(),
+    }
+}
+
+/// The verdict of the runtime case of `text`. Its serial stays clear of
+/// the suite's case indices, so its program files are its own.
+fn unit_runtime(text: &str, expectation: &str, serial: usize) -> Verdict {
+    let case = unit_case(expectation, serial);
+    let store = MemoryStore::default();
+    runtime_case(&case, &unit_fixture(text), &store, (1 << 40) + serial)
+}
+
+const PENDING_WRITES: &str = "\
+# fixture-runtime-scenario: pending-first-poll
+use std.testing.assert_equal
+
+let calls = +0
+
+fn note!(text: string) -> void $ Console:
+    let mut console = $.use(Console)
+    _ := console.write_line!(\"${text} ${calls}\")
+    calls = calls + 1
+
+pub fn main!() -> void $ Console:
+    note!(\"first\")
+    note!(\"second\")
+    assert_equal(calls, EXPECTED, reason=\"each call resumed after its pending write\")
+";
+
+#[test]
+fn pending_first_poll_runs_the_entry_again_with_pending_writes() {
+    let passing = PENDING_WRITES.replace("EXPECTED", "2");
+    assert_eq!(unit_runtime(&passing, "accept", 0), Verdict::Pass);
+    // The scenario run is the entry under `pending-write`: each write is
+    // pending once, then written in call order, and the run succeeds.
+    let built = build_fixture(
+        &unit_fixture(&passing),
+        &MemoryStore::default(),
+        &Goal::Program {
+            entry: "main".to_owned(),
+        },
+    );
+    let wasm = built.wasm.expect("the entry links");
+    let serial = (1 << 40) + 1;
+    let ran = run_program(
+        &unit_case("accept", 1),
+        &wasm,
+        serial,
+        Some("pending-write"),
+    )
+    .expect("runs");
+    assert!(ran.success(), "{}", String::from_utf8_lossy(&ran.stderr));
+    assert_eq!(String::from_utf8_lossy(&ran.stdout), "first 0\nsecond 1\n");
+    // A program whose result differs fails the case.
+    let failing = PENDING_WRITES.replace("EXPECTED", "3");
+    assert_eq!(
+        unit_runtime(&failing, "accept", 2),
+        Verdict::Fail("runtime-exit".to_owned())
+    );
+}
+
+#[test]
+fn scenarios_that_replace_execution_stay_unsupported() {
+    assert!(!replacing_scenario(PENDING_WRITES));
+    assert!(!replacing_scenario("pub fn main!() -> void: pass\n"));
+    for name in [
+        "cancellation-cleanup",
+        "competing-drivers",
+        "reentrant-poll",
+    ] {
+        let text = format!(
+            "# fixture-runtime-scenario: {name}\nfn ready!() -> i32: 42\n\npub fn main!() -> void:\n    _ := ready!()\n\npub fn cleanup_ran() -> bool: true\n"
+        );
+        assert!(replacing_scenario(&text));
+        assert_eq!(
+            unit_runtime(&text, "accept", 3),
+            Verdict::Unsupported("RunCase".to_owned())
+        );
+    }
+    // The test hosts take no runtime profile, so the scenario's run of
+    // test cases cannot hold a write pending.
+    let with_tests = format!(
+        "{}\ntests:\n    it(\"runs\"):\n        pass\n",
+        PENDING_WRITES.replace("EXPECTED", "2")
+    );
+    assert_eq!(
+        unit_runtime(&with_tests, "accept", 4),
+        Verdict::Unsupported("RunCase".to_owned())
+    );
 }
 
 fn chapter(case: &Case) -> String {
