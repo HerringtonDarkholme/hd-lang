@@ -22,3 +22,9 @@ fn_params_excessive_bools = "allow"
 implicit_hasher = "allow"
 many_single_char_names = "allow"
 match_same_arms = "allow"
+
+# Light optimization in dev keeps debug assertions and overflow checks on
+# while tests run about as fast as release (local gate ~81 s against
+# ~178 s at opt-level 0; owner, 2026-10-11, task #299).
+[profile.dev]
+opt-level = 1
