@@ -56,28 +56,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
 
-### M29. Cache compiled modules in the wasmtime engine
-
-Your M28 note (`future-work/compiler/wasmtime-perf.md`, "Conformance on
-wasmtime") found that `Engine::load` (`crates/hd_run_wasmtime/src/lib.rs`)
-ignores its `CacheStore` argument and calls `wasmtime::Module::new` on
-every call, and that `TestEngine::compile` (`test_engine.rs`) has no
-cache. So identical bytes are compiled again (pending-first-poll fixtures
-twice; test-harness cases twice, in two forms).
-- Add an in-process cache keyed by the wasm bytes' hash (plus anything else
-  that changes the compiled code, such as engine config), shared by both
-  paths, so identical bytes compile once per process.
-- If `CacheStore` is meant for compiled artifacts across runs, look at how
-  it is used elsewhere. Only use it when serialized modules are safe and
-  simple (wasmtime `Module::serialize`/`deserialize` is `unsafe` to
-  deserialize, and `unsafe` is banned except one approved site), so the
-  in-process cache is the expected scope.
-- Files: `crates/hd_run_wasmtime/src/**` only.
-- Done when the wasmtime-only driver conformance suite gives the same
-  verdicts, a unit test shows one compilation for repeated identical
-  bytes, and the commit body has before/after numbers for the suite wall
-  and the summed wasmtime execution time.
-
 ### M30. Find the flaky `run::fetch_with_path_requirements_only_has_nothing_to_do`
 
 `compiler/crates/hd_cli/tests/all/run.rs`: this test failed once with

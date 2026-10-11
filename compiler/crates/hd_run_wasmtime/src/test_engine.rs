@@ -47,13 +47,14 @@ pub struct TestPoolConfig {
 struct Inner {
     engine: Arc<wasmtime::Engine>,
     max_memory_bytes: u64,
+    cache: crate::cache::ModuleCache,
 }
 
 #[derive(Clone)]
 pub struct TestEngine(Arc<Inner>);
 
 struct Compiled {
-    module: wasmtime::Module,
+    module: Arc<wasmtime::Module>,
     engine: Arc<Inner>,
     prepared: Mutex<HashMap<TestHostKind, InstancePre<Host>>>,
 }
@@ -82,7 +83,10 @@ impl TestEngine {
         // Test heaps grow lazily. A fixed initial heap would falsely consume
         // small explicit budgets before a case allocates anything.
         config.gc_heap_initial = 0;
-        let mut config = crate::wasmtime_config(config);
+        // The engine stays per `TestEngine`: pool slots bound simultaneous
+        // stores, so sharing the pool would merge independent capacity
+        // contracts. Only compiled modules are shared, per engine below.
+        let mut base = crate::wasmtime_config(config);
         let mut allocator = PoolingAllocationConfig::default();
         allocator
             .total_core_instances(slots)
@@ -93,27 +97,31 @@ impl TestEngine {
             .total_gc_heaps(slots);
         // Pool GC and linear reservations must agree in pinned Wasmtime 49.
         // These are virtual reservations, not eagerly committed 4 GiB heaps.
-        config
-            .memory_reservation(1 << 32)
+        base.memory_reservation(1 << 32)
             .gc_heap_reservation(1 << 32)
             .memory_reservation_for_growth(0)
             .gc_heap_reservation_for_growth(0)
             .allocation_strategy(InstanceAllocationStrategy::Pooling(allocator));
-        let engine = Arc::new(wasmtime::Engine::new(&config).map_err(|error| error.to_string())?);
+        let engine = Arc::new(wasmtime::Engine::new(&base).map_err(|error| error.to_string())?);
         crate::deadline::register(&engine)?;
         Ok(Self(Arc::new(Inner {
             engine,
             max_memory_bytes: pool.max_memory_bytes,
+            cache: crate::cache::ModuleCache::new(),
         })))
     }
 
-    /// Compiles once; kind-specific imports are checked while preparing.
+    /// Compiles once per engine; kind-specific imports are checked while
+    /// preparing. Identical bytes return the shared compilation.
     pub fn compile(&self, wasm: &[u8]) -> Result<TestModule, String> {
         if wasm.get(..4) != Some(b"\0asm") {
             return Err("not a Wasm module".into());
         }
-        let module =
-            wasmtime::Module::new(&self.0.engine, wasm).map_err(|error| format!("{error:#}"))?;
+        let module = self
+            .0
+            .cache
+            .get_or_compile(&self.0.engine, wasm)
+            .map_err(|error| format!("{error:#}"))?;
         Ok(TestModule(Arc::new(Compiled {
             module,
             engine: Arc::clone(&self.0),
@@ -1005,6 +1013,23 @@ mod tests {
         assert!(engine.prepare(&denied, TestHostKind::Integration).is_ok());
         let other = self::engine();
         assert!(other.prepare(&module, TestHostKind::Unit).is_err());
+    }
+
+    #[test]
+    fn identical_bytes_share_one_compilation_per_engine() {
+        let pool = engine();
+        let bytes = wasm(Body::Counter, false);
+        let first = pool.compile(&bytes).unwrap();
+        let second = pool.compile(&bytes).unwrap();
+        assert!(Arc::ptr_eq(&first.0.module, &second.0.module));
+        // Pool capacity is per engine, so another engine of the same shape
+        // compiles separately — while each wrapper still owns its import
+        // table, as before.
+        let other = engine();
+        let third = other.compile(&bytes).unwrap();
+        assert!(!Arc::ptr_eq(&first.0.module, &third.0.module));
+        assert!(other.prepare(&first, TestHostKind::Unit).is_err());
+        assert!(other.prepare(&third, TestHostKind::Unit).is_ok());
     }
 
     #[test]

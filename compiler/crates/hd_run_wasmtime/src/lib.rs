@@ -21,6 +21,7 @@
 //! A module that imports any other is refused at
 //! load with a message naming it; `hd` runs those on Node.
 
+mod cache;
 mod codec;
 mod core;
 mod deadline;
@@ -66,7 +67,7 @@ pub struct EngineConfig {
     pub gc_heap_initial: u64,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum OptLevel {
     /// The dev pipeline: no optimization, backtracking register allocator
     /// (spike T1 has not chosen the single-pass allocator; §18.6).
@@ -124,11 +125,10 @@ impl WasmtimeEngine {
         profile: RuntimeProfile,
     ) -> Result<WasmtimeEngine, String> {
         host::start_clock();
-        let c = wasmtime_config(config);
-        let engine = Arc::new(wasmtime::Engine::new(&c).map_err(|e| e.to_string())?);
+        let shared = cache::ondemand(&config)?;
         Ok(WasmtimeEngine {
             config,
-            engine,
+            engine: Arc::clone(&shared.engine),
             profile,
         })
     }
@@ -177,7 +177,7 @@ impl WasmtimeEngine {
     }
 }
 
-fn wasmtime_config(config: EngineConfig) -> wasmtime::Config {
+pub(crate) fn wasmtime_config(config: EngineConfig) -> wasmtime::Config {
     let mut c = wasmtime::Config::new();
     c.wasm_gc(true)
         .wasm_function_references(true)
@@ -280,8 +280,9 @@ impl WasmtimeInstance {
     }
 }
 
-/// A compiled module.
-pub struct Module(wasmtime::Module);
+/// A compiled module. The artifact is shared: loading identical bytes
+/// returns the same compilation (see `cache`).
+pub struct Module(Arc<wasmtime::Module>);
 
 impl Engine for WasmtimeEngine {
     type Module = Module;
@@ -296,7 +297,10 @@ impl Engine for WasmtimeEngine {
         {
             return Err(LoadError::Engine(host::unsupported_message(m, n)));
         }
-        wasmtime::Module::new(&self.engine, wasm)
+        let shared = cache::ondemand(&self.config).map_err(LoadError::Engine)?;
+        shared
+            .cache
+            .get_or_compile(&shared.engine, wasm)
             .map(Module)
             .map_err(|e| LoadError::Engine(format!("{e:#}")))
     }
