@@ -1418,6 +1418,7 @@ impl Ck<'_, '_> {
                                 args: ta,
                             };
                             if waiting {
+                                self.note_impl_use(tr, None);
                                 self.pending.push((tref, n.index()));
                             } else {
                                 self.require_ref(tref, n)?;

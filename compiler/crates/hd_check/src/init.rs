@@ -9,10 +9,12 @@ use std::collections::{HashMap, HashSet};
 
 use hd_base::{DefId, NodeIdx, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
-use hd_resolve::ItemData;
+use hd_resolve::{ImplKind, ItemData};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::Body;
 use hd_tir::ir::{BodyKind, NONE, Ref, Tag, TirSink};
+use hd_types::lookup::OWN_TABLE;
+use hd_types::solver::{Evidence, PlanStep};
 use hd_types::{RowData, RowId, Ty};
 
 use crate::body::{BodyCx, Ck, new_ck, unsupported};
@@ -54,6 +56,9 @@ pub struct InitFacts {
 pub struct ModuleInit {
     pub globals: HashMap<Symbol, Global>,
     pub facts: HashMap<DefId, InitFacts>,
+    /// The methods of the module's own trait impls, by trait; built on
+    /// first use (`module.init.definite.dispatch`).
+    impl_methods: Option<HashMap<DefId, Vec<(Symbol, DefId)>>>,
 }
 
 /// The top-level executable statements of a module, in source order. An
@@ -668,25 +673,77 @@ impl Ck<'_, '_> {
         let ItemData::Method { owner, .. } = &item.data else {
             return;
         };
-        if !matches!(
+        if matches!(
             lookup.item(*owner).map(|o| &o.data),
             Some(ItemData::Trait(_))
         ) {
+            self.note_dispatch(*owner, Some(item.name));
+        }
+    }
+
+    /// Every method of the module's impls of `trait_`, or only those named
+    /// `name`: what a call through a bound, a trait value or an
+    /// implementation that is not known reaches.
+    fn note_dispatch(&mut self, trait_: DefId, name: Option<Symbol>) {
+        let cx = self.cx;
+        let mut init = cx.init.borrow_mut();
+        let by_trait = init.impl_methods.get_or_insert_with(|| {
+            let mut by_trait: HashMap<DefId, Vec<(Symbol, DefId)>> = HashMap::new();
+            for it in cx.lookup.own {
+                let ItemData::Method { owner, .. } = &it.data else {
+                    continue;
+                };
+                if let Some(ItemData::Impl { trait_, .. }) = cx.lookup.item(*owner).map(|i| &i.data)
+                    && *trait_ != DefId::NONE
+                {
+                    by_trait.entry(*trait_).or_default().push((it.name, it.def));
+                }
+            }
+            by_trait
+        });
+        for (n, d) in by_trait.get(&trait_).into_iter().flatten() {
+            if name.is_none_or(|x| x == *n) {
+                self.facts.calls.insert(*d);
+            }
+        }
+    }
+
+    /// Records that a body took the implementation `ev` of `trait_`, which
+    /// calls its methods now, as an operator, an interpolation, a `for`
+    /// or a `?` does, or later, as a generic function does with a bound
+    /// (`module.init.definite.implicit`). `None`: not decided yet. A
+    /// written impl of this module is reached by name; an implementation
+    /// that is not known reaches every impl of the traits it needs.
+    pub(crate) fn note_impl_use(&mut self, trait_: DefId, ev: Option<&Evidence>) {
+        let Some(Evidence::Impl { row, .. }) = ev else {
+            if !matches!(ev, Some(Evidence::Builtin(_) | Evidence::Poison)) {
+                self.note_dispatch(trait_, None);
+            }
+            return;
+        };
+        let Some(table) = self.cx.impl_table(row.module) else {
+            return self.note_dispatch(trait_, None);
+        };
+        let at = row.row as usize;
+        if row.module == OWN_TABLE
+            && let Some(ItemData::Impl {
+                kind: ImplKind::Written | ImplKind::Error,
+                methods,
+                ..
+            }) = self.cx.lookup.item(table.def[at]).map(|i| &i.data)
+        {
+            self.facts.calls.extend(methods.iter().map(|m| m.1));
             return;
         }
-        for it in lookup.own {
-            if it.name != item.name {
-                continue;
-            }
-            let ItemData::Method { owner: imp, .. } = &it.data else {
-                continue;
-            };
-            if matches!(
-                lookup.item(*imp).map(|i| &i.data),
-                Some(ItemData::Impl { trait_, .. }) if trait_ == owner
-            ) {
-                self.facts.calls.insert(it.def);
-            }
+        // An impl of another module has no body here. It reaches this
+        // module only through the types it is generic over.
+        if row.module != OWN_TABLE && table.plan[at].is_empty() {
+            return;
+        }
+        self.note_dispatch(trait_, None);
+        for step in &table.plan[at] {
+            let (PlanStep::Bound { trait_, .. } | PlanStep::Bind { trait_, .. }) = step;
+            self.note_dispatch(*trait_, None);
         }
     }
 }
@@ -702,7 +759,41 @@ pub fn definite_init(
 ) {
     let init = cx.init.borrow();
     let at: HashMap<DefId, usize> = init.globals.values().map(|g| (g.def, g.stmt)).collect();
+    // The latest statement among the bindings each function reads,
+    // through its calls: its callees' values pushed to the callers, so a
+    // statement is tested without walking the graph again.
+    let mut latest: HashMap<DefId, usize> = HashMap::new();
+    let mut callers: HashMap<DefId, Vec<DefId>> = HashMap::new();
+    let mut work = Vec::new();
+    for (d, f) in &init.facts {
+        if let Some(m) = f.reads.iter().filter_map(|g| at.get(g)).max() {
+            latest.insert(*d, *m);
+            work.push(*d);
+        }
+        for c in &f.calls {
+            callers.entry(*c).or_default().push(*d);
+        }
+    }
+    while let Some(d) = work.pop() {
+        let v = latest[&d];
+        for c in callers.get(&d).into_iter().flatten() {
+            if latest.get(c).is_none_or(|x| *x < v) {
+                latest.insert(*c, v);
+                work.push(*c);
+            }
+        }
+    }
     for (i, f) in per_stmt.iter().enumerate() {
+        let worst = f
+            .reads
+            .iter()
+            .filter_map(|g| at.get(g))
+            .chain(f.calls.iter().filter_map(|c| latest.get(c)))
+            .max();
+        if worst.is_none_or(|w| *w < i) {
+            continue;
+        }
+        // Only an error names the binding: the earliest one, by statement.
         let mut seen = HashSet::new();
         let mut reads = f.reads.clone();
         let mut work: Vec<DefId> = f.calls.iter().copied().collect();

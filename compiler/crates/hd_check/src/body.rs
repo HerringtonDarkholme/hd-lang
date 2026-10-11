@@ -1284,7 +1284,27 @@ impl Ck<'_, '_> {
         tref: TraitRef,
         at: NodeRef<'_>,
     ) -> StageResult<Option<hd_types::solver::Evidence>> {
-        self.require_ref_as(tref, at, Code::UnsatisfiedTraitBound)
+        self.require_ref_noting(tref, at, Code::UnsatisfiedTraitBound)
+    }
+
+    /// [`Self::require_ref_as`] for an obligation whose impl the body takes
+    /// to call it now or hand it to a callee: the module's initialization
+    /// reaches that impl (`module.init.definite.implicit`). An impl not
+    /// found yet is chosen after the statement's facts are taken, so it
+    /// stands for every impl of the trait. A failure adds nothing.
+    pub(crate) fn require_ref_noting(
+        &mut self,
+        tref: TraitRef,
+        at: NodeRef<'_>,
+        code: Code,
+    ) -> StageResult<Option<hd_types::solver::Evidence>> {
+        let trait_ = tref.trait_;
+        let waiting = self.pending.len();
+        let ev = self.require_ref_as(tref, at, code)?;
+        if ev.is_some() || self.pending.len() > waiting {
+            self.note_impl_use(trait_, ev.as_ref());
+        }
+        Ok(ev)
     }
 
     /// [`Self::require_ref`], reporting a failure with `code`.

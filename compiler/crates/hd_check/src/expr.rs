@@ -2757,7 +2757,7 @@ impl Ck<'_, '_> {
                     };
                     // An error that neither is assignable nor converts is
                     // `invalid-result-propagation` (`expr.try.convert.none`).
-                    let _ = self.require_ref_as(tref, n, Code::InvalidResultPropagation)?;
+                    let _ = self.require_ref_noting(tref, n, Code::InvalidResultPropagation)?;
                     let method = self.cx.names.member(from, PathKind::Member, "from");
                     let c = hd_tir::ir::Callee::TraitMethod {
                         trait_: from,

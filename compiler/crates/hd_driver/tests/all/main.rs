@@ -53,6 +53,7 @@ mod impl_universe;
 mod incremental;
 mod inferred_results_run;
 mod inferred_rows_run;
+mod initialization_implicit_run;
 mod inspectable_types;
 mod instantiation_depth;
 mod int_widths_run;
