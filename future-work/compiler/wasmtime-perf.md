@@ -258,3 +258,71 @@ engines, pools, compiler warmup).
    Measured, not inferred: `HD_TEST_JOBS=1` peaks at 2.06 GB (saves
    ~1.5 GB) for a wall of 74 s against 13-16 s. A middle setting (2-4
    workers) splits the difference; not measured here.
+
+## Closures on wasmtime vs V8
+
+M37 measurement (2026-10-11). Note on method: `test/perf/micro/closures.hd`
+does not exist in the tree (it never did; the 1337-vs-374 numbers come
+from the W1 table in engines-and-test-runner.md §18.7, measured on ad-hoc
+modules). This section profiles a synthetic reconstruction instead: 20
+million closure calls as `items.map(fn(x): x * factor + 1)` over a
+1M-element list (captured env), plus two variants — direct named-function
+calls in an explicit loop, and a non-capturing closure. No benchmark
+files were added; the vehicle lives outside the repo. It reproduces the
+reported gap (4.5x dev, 5.5x release here against 3.6x in W1), so the
+attribution below should transfer.
+
+### Walls (ms, min-of-5, startup included)
+
+| variant | Node | wasmtime | release Node | release wasmtime |
+| --- | ---: | ---: | ---: | ---: |
+| capturing closure | 181 | 821 | 121 | 667 |
+| direct calls | 198 | 108 | 197 | 101 |
+| non-capturing closure | 120 | 801 | 128 | 685 |
+
+Direct calls are *faster* on wasmtime than V8 (0.55x) while closures are
+4.5-6.7x slower — so the gap is the indirect-call path, not general
+codegen. Capture is irrelevant (nocap matches capturing on wasmtime),
+which rules out environment loads as the driver. Per-call cost on
+wasmtime is ~35-39 ns against ~4 ns on V8 (500M calls in 19.6 s).
+
+### Where wasmtime time goes (`sample`, 6443 samples, worker thread)
+
+| symbol | share |
+| --- | ---: |
+| `TypeRegistry::is_subtype` | 24.6% |
+| `get_interned_func_ref` (two frames) | 22.0% |
+| trap-handler wrapper around it | 7.1% |
+| `engine_type_index` | 5.0% |
+| JIT guest code (long tail of frames) | ~37% |
+| GC no-gc-scope enter/exit | ~3% |
+
+About 59% goes to funcref resolution: every `call_ref` calls out to
+`get_interned_func_ref` plus a full signature-subtype check. The wasm
+has no table section — closures compile to funcrefs, so there are no
+table checks to blame, only resolution plus the check. Host calls: none
+in this program. GC: ~3% (and 7% on the Node side), confirming the W1
+"not GC" note on both engines.
+
+### What V8 does (`--cpu-prof`, 307 samples)
+
+86% of samples sit in a single `List.map` frame: V8 fuses the closure
+into one optimized loop with no per-call dispatch visible. That plus
+the direct-call result above is the whole story: V8 deletes the call,
+wasmtime pays ~35 ns for it.
+
+### Fixes (for the orchestrator; compiler untouched)
+
+1. **Devirtualize closure calls in codegen (the big one).** Where the
+   callee is statically known — e.g. an inline closure literal passed
+   to `map` — emit a direct `call` instead of building a funcref and
+   `call_ref`-ing it. This removes the ~59% resolution cost and, as the
+   Node profile shows, unlocks inlining the body (the remaining upside
+   toward V8's ~5-9x on this shape).
+2. **Cache resolved callees for dynamic funcrefs.** Where the callee
+   truly is dynamic, a per-call-site monomorphic cache (or tables with
+   static type indices) avoids the full `is_subtype` walk per call.
+   Smaller win than (1); only matters for escaping closures.
+3. **Engine config: nothing to ship.** `Speed` already helps exec
+   14-19% here (801→685 ms) per M32, but the structural cost stays;
+   verdicts are untouched since nothing changed.

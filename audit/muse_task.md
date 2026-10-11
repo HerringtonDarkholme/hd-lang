@@ -56,19 +56,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
 
-### M37. Profile the closures benchmark on wasmtime (#278)
-
-`test/perf/micro/closures.hd` takes about 3.6x as long on wasmtime as on V8
-(1337 ms against 374 ms; not GC). After M32's opt-level numbers, profile
-it: does the time go to `call_indirect` or funcref table checks,
-signature checks, closure environment loads, or host calls? Compare with
-the same wasm under Node (`--cpu-prof`). Report the cause and one or two
-concrete fixes, either in our wasm codegen (list them for the
-orchestrator; do not change the compiler) or in the engine config, as a
-section of `future-work/compiler/wasmtime-perf.md`. No code changes unless
-it is an engine config setting with a measured win and unchanged
-conformance verdicts.
-
 ### M38. Measure Node's per-run cost in conformance
 
 M28 found each Node run costs about 101 ms, dominated by starting a
