@@ -2915,8 +2915,8 @@ impl Ck<'_, '_> {
         Ok((self.b.emit(Tag::ContextNew, rec, NONE, t, n.index()), t))
     }
 
-    /// `$.use(K)`: the covering provider of `K`, which the body's row must
-    /// name (spec/lang/11-requirements-and-suspension.md); `$.with` and
+    /// `$.use(K, ...)`: the covering provider of each `K`, which the body's
+    /// row must name (spec/lang/11-requirements-and-suspension.md); `$.with` and
     /// `$.context` go to their own checks.
     fn context_expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
@@ -2936,9 +2936,35 @@ impl Ck<'_, '_> {
         if toks.get(2).map(String::as_str) != Some("use") {
             return unsupported("this `$.` form in an expression");
         }
-        let Some(kn) = n.children().find(|c| c.kind().is_type()) else {
-            return unsupported("`$.use` without a key");
-        };
+        let mut refs = Vec::new();
+        let mut tys = Vec::new();
+        for kn in n.children().filter(|c| c.kind().is_type()) {
+            let (r, t) = self.provider_get(kn, n)?;
+            if t == Ty::POISON {
+                return Ok((Ref(NONE), Ty::POISON));
+            }
+            refs.push(r);
+            tys.push(t);
+        }
+        match tys[..] {
+            [] => unsupported("`$.use` without a key"),
+            [t] => Ok((refs[0], t)),
+            // `$.use(A, B)` is the tuple of the providers in the requested
+            // key order (`req.use.order`).
+            _ => {
+                let t = pool.intern_ty(&TyData::Tuple {
+                    elems: pool.list(&tys),
+                    rest: None,
+                });
+                let rec = self.b.refs_record(&refs);
+                Ok((self.b.emit(Tag::NewTuple, NONE, rec, t, n.index()), t))
+            }
+        }
+    }
+
+    /// The covering provider of the one key `kn` of `$.use` node `n`.
+    fn provider_get(&mut self, kn: NodeRef<'_>, n: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
+        let pool = self.pool();
         let key = self.key_node(kn)?;
         if key == Ty::POISON {
             return Ok((Ref(NONE), Ty::POISON));

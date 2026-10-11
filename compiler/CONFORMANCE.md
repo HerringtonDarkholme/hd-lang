@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2555 | 249 | 41 | 2845 |
+| 2557 | 247 | 41 | 2845 |
 
 ## By Chapter
 
@@ -24,7 +24,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/08-data-and-enums.md` | 113 | 9 | 1 | 123 |
 | `lang/09-traits.md` | 326 | 31 | 2 | 359 |
 | `lang/10-modules.md` | 218 | 31 | 9 | 258 |
-| `lang/11-requirements-and-suspension.md` | 216 | 22 | 21 | 259 |
+| `lang/11-requirements-and-suspension.md` | 218 | 20 | 21 | 259 |
 | `lang/14-annotations.md` | 123 | 28 | 2 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 97 | 5 | 3 | 105 |
-| `runtime/valid` | 879 | 14 | 36 | 929 |
+| `runtime/valid` | 881 | 12 | 36 | 929 |
 | `typing/invalid` | 874 | 200 | 1 | 1075 |
 | `typing/valid` | 407 | 7 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -107,7 +107,7 @@ compiler stage that first declined the case.
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-used-as-type` | 1 |
-| `fail:type-mismatch` | 36 |
+| `fail:type-mismatch` | 34 |
 | `fail:unknown-data-field` | 7 |
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 5 |
@@ -456,7 +456,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (36)</summary>
+<details><summary><code>fail:type-mismatch</code> (34)</summary>
 
 - `typing/invalid/heterogeneous-list.hd`
 - `typing/invalid/mixed-signedness.hd`
@@ -465,9 +465,7 @@ compiler stage that first declined the case.
 - `typing/invalid/contravariant-representation-change.hd`
 - `typing/invalid/heterogeneous-list-bool-int.hd`
 - `typing/invalid/heterogeneous-map-values.hd`
-- `runtime/valid/multi-provider-use-order.hd`
 - `runtime/valid/suspending-function-values.hd`
-- `runtime/valid/requirement-row-union-and-order.hd`
 - `typing/invalid/closure-returns-without-common-type.hd`
 - `runtime/valid/nested-optional-layers.hd`
 - `typing/invalid/none-beside-values-needs-expected-type.hd`
@@ -1500,6 +1498,7 @@ runtime/valid/module-qualified-type.hd
 runtime/valid/module-qualified-variant-pattern.hd
 runtime/valid/module-qualified-variant.hd
 runtime/valid/module-scope-before-initialization.hd
+runtime/valid/multi-provider-use-order.hd
 runtime/valid/multibyte-scalar-strings.hd
 runtime/valid/multiline-string-literals.hd
 runtime/valid/multiple-bounds-dispatch.hd
@@ -1679,6 +1678,7 @@ runtime/valid/requirement-row-forwarded-through-calls.hd
 runtime/valid/requirement-row-order-data-field.hd
 runtime/valid/requirement-row-order-stored-suspension.hd
 runtime/valid/requirement-row-order-trait-value.hd
+runtime/valid/requirement-row-union-and-order.hd
 runtime/valid/resource-error-operation-payload.hd
 runtime/valid/result-and-then.hd
 runtime/valid/result-entry-point-ok.hd

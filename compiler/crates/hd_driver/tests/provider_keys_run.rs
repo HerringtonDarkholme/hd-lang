@@ -223,3 +223,100 @@ pub fn main() -> void $ Console:
         "{text}"
     );
 }
+
+/// `$.use(A, B)` is the tuple of the providers in the requested key order
+/// (`req.use.order`), whatever order the row and the `$.with` name them
+/// in; a row written in another order is the same row (`req.row.set.union`).
+#[test]
+fn a_multi_key_use_returns_the_providers_in_requested_order() {
+    let main = format!(
+        "{PRELUDE}
+fn swapped() -> i32 $ Repo[User] + Repo[Post]:
+    let (posts, users) = $.use(Repo[Post], Repo[User])
+    posts.count() * 100 + users.count()
+
+fn reordered() -> i32 $ Repo[Post] + Repo[User]:
+    activity() * 1000 + swapped()
+
+pub fn main() -> void $ Console:
+    $.with(Repo[Post]=PostRepo {{}}, Repo[User]=UserRepo {{}}):
+        println(swapped())
+        println(reordered())
+"
+    );
+    assert_eq!(output_of("use-order", &main), "120\n201120\n");
+}
+
+/// The providers of a multi-key `$.use` keep their access: a mutable
+/// requirement trait's element is `mut K`, and it is the one provider a
+/// later `$.use` sees (`req.mut.use-mutable`).
+#[test]
+fn a_multi_key_use_keeps_each_provider_access() {
+    let main = "\
+trait Counter:
+    fn bump(mut self) -> void
+    fn count(self) -> i32
+
+trait Base:
+    fn value(self) -> i32
+
+data Cell:
+    n: i32
+
+impl Counter for Cell:
+    fn bump(mut self) -> void:
+        self.n = self.n + 1
+    fn count(self) -> i32: self.n
+
+data Fixed: pass
+
+impl Base for Fixed:
+    fn value(self) -> i32: 40
+
+fn tick() -> i32 $ Base + Counter:
+    let (base, mut counter) = $.use(Base, Counter)
+    counter.bump()
+    counter.bump()
+    base.value() + $.use(Counter).count()
+
+pub fn main() -> void $ Console:
+    $.with(Counter=Cell { n: 0 }, Base=Fixed {}):
+        println(tick())
+";
+    assert_eq!(output_of("use-access", main), "42\n");
+}
+
+/// Each key of a multi-key `$.use` must be in the row, and the tuple has
+/// one element per key.
+#[test]
+fn a_multi_key_use_checks_each_key_and_its_arity() {
+    let missing = format!(
+        "{PRELUDE}
+fn posts() -> i32 $ Repo[User]:
+    let (users, posts) = $.use(Repo[User], Repo[Post])
+    users.count() + posts.count()
+
+pub fn main() -> void $ Console:
+    $.with(Repo[User]=UserRepo {{}}, Repo[Post]=PostRepo {{}}):
+        println(posts())
+"
+    );
+    let text = rejected(&missing);
+    assert!(
+        text.contains("missing-requirement") && text.contains("`$ Repo[Post]`"),
+        "{text}"
+    );
+    let arity = format!(
+        "{PRELUDE}
+fn three() -> i32 $ Repo[User] + Repo[Post]:
+    let (users, posts, _extra) = $.use(Repo[User], Repo[Post])
+    users.count() + posts.count()
+
+pub fn main() -> void $ Console:
+    $.with(Repo[User]=UserRepo {{}}, Repo[Post]=PostRepo {{}}):
+        println(three())
+"
+    );
+    let text = rejected(&arity);
+    assert!(text.contains("pattern-arity"), "{text}");
+}

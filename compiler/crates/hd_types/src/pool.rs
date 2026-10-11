@@ -1434,6 +1434,32 @@ mod tests {
         assert!(p.has_poison(opt));
     }
 
+    /// Rows are sets (`req.row.set.union`, `req.row.set.duplicate`,
+    /// `req.row.set.parameter`): key order and repeats do not change the
+    /// interned row, a solved row key flattens into its keys, and a
+    /// different key set is a different row.
+    #[test]
+    fn rows_intern_as_sets() {
+        let p = InternPool::new();
+        let r = super::RowParamRef {
+            owner: DefId::from_raw(4),
+            index: 0,
+        };
+        let row = |keys: &[Ty], params: &[super::RowParamRef]| {
+            p.row(&RowData {
+                keys: keys.to_vec(),
+                params: params.to_vec(),
+            })
+        };
+        let ab = row(&[Ty::STRING, Ty::I32], &[r]);
+        assert_eq!(row(&[Ty::I32, Ty::STRING], &[r]), ab);
+        assert_eq!(row(&[Ty::I32, Ty::STRING, Ty::I32], &[r, r]), ab);
+        let inner = p.intern_ty(&TyData::Row(row(&[Ty::I32], &[r])));
+        assert_eq!(row(&[Ty::STRING, inner, Ty::I32], &[]), ab);
+        assert_ne!(row(&[Ty::I32], &[r]), ab, "a missing key is another row");
+        assert_ne!(row(&[Ty::I32, Ty::STRING], &[]), ab, "so is a missing R");
+    }
+
     /// `Fn[Args, O, $()]` keeps `Args` as its one input until `Args` is a
     /// tuple, which then gives the plain or rest form.
     #[test]
