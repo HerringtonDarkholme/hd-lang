@@ -26,6 +26,7 @@ use hd_cache::{
 };
 use hd_check::BodyCx;
 use hd_check::stages::{ModuleFacts, init_order, test_overlay};
+use hd_check::structure::FactBodies;
 use hd_diag::{Code, DiagBuf, Severity};
 use hd_intern::{PathTable, ShardedInterner};
 use hd_mono::layout::{LayoutEnv, StdKind};
@@ -408,7 +409,14 @@ type BodyOut = (
 struct Derived {
     items: Vec<Item>,
     bodies: Vec<Body>,
+    /// The owners whose `Structure` bodies are generated, each once.
+    structures: Vec<DefId>,
 }
+
+/// One derivation opt-in of a module: its item's index, the opt-in, and
+/// the facts bodies of the `Structure` it sees, or `None` when they are
+/// not generated (its `Structure` then gets no bodies).
+type OptInEntry = (usize, hd_check::derive::OptIn, Option<FactBodies>);
 
 /// A module's `check` entry, as far as `prog_key` needs it.
 struct CheckOut {
@@ -2731,10 +2739,12 @@ impl Run<'_> {
         diags: &mut DiagBuf,
     ) -> Derived {
         let names = self.names();
-        // Per template module, in module order: (item index, opt-in, the
-        // template methods it checks).
-        let mut groups: std::collections::BTreeMap<usize, Vec<(usize, hd_check::derive::OptIn)>> =
+        // Per template module, in module order: the opt-ins it checks.
+        let mut groups: std::collections::BTreeMap<usize, Vec<OptInEntry>> =
             std::collections::BTreeMap::new();
+        // Per data type or enum, its declaration facts bodies, built once.
+        let mut decl: HashMap<DefId, Option<FactBodies>> = HashMap::new();
+        let mut derived = Derived::default();
         for (i, it) in cx.lookup.own.iter().enumerate() {
             let ItemData::Impl { trait_, kind, .. } = &it.data else {
                 continue;
@@ -2779,12 +2789,15 @@ impl Run<'_> {
             if let Some(mut opt) =
                 hd_check::derive::OptIn::new(&names, cx.lookup, it, template, &omitted)
             {
-                opt.facts = derivation_facts(cx, heads, it.def, opt.data);
-                groups.entry(tm.idx()).or_default().push((i, opt));
+                let lines = block
+                    .map(|b| hd_check::derive::member_lines(&cx.src, b))
+                    .unwrap_or_default();
+                opt.lines = !lines.is_empty();
+                let facts = derivation_facts(cx, heads, (&opt, &lines), &mut decl, &mut derived);
+                groups.entry(tm.idx()).or_default().push((i, opt, facts));
             }
         }
         let mut found: Vec<OptInFinding> = Vec::new();
-        let mut derived = Derived::default();
         for (tm, opts) in groups {
             if tm == m {
                 found.extend(self.check_opt_ins(cx, heads, &opts, &mut derived));
@@ -2880,22 +2893,22 @@ impl Run<'_> {
 
     /// Checks opt-ins whose template module `tcx` sees: each checks the
     /// template methods its block does not write (`annot.block.methods`).
-    /// A clean opt-in adds its derive instances and its `Structure`'s
-    /// bodies to `derived` (codegen.md §12.3); a `Structure` the generator
-    /// does not carry yet adds no body, so a call of it stops at
-    /// collection.
+    /// A clean opt-in adds its derive instances and, once per owner, the
+    /// bodies of the `Structure` it sees to `derived` (codegen.md §12.3);
+    /// a `Structure` the generator does not carry yet adds no body, so a
+    /// call of it stops at collection.
     fn check_opt_ins(
         &self,
         tcx: &BodyCx<'_>,
         theads: &[hd_resolve::Head<'_>],
-        opts: &[(usize, hd_check::derive::OptIn)],
+        opts: &[OptInEntry],
         derived: &mut Derived,
     ) -> Vec<OptInFinding> {
         let names = self.names();
         let k = &self.known;
         let bodies = hd_resolve::body_nodes(&names, &tcx.src, theads);
         let mut out = Vec::new();
-        for (i, opt) in opts {
+        for (i, opt, facts) in opts {
             let methods_of = |d: DefId| match tcx.lookup.item(d).map(|it| &it.data) {
                 Some(ItemData::Impl { methods, .. }) => methods.clone(),
                 _ => Vec::new(),
@@ -2917,7 +2930,14 @@ impl Run<'_> {
                             derived.bodies.push(b);
                         }
                     }
-                    if let Ok(g) = hd_check::structure::structure_bodies(tcx, opt, opt.facts) {
+                    // The `Structure` this derivation sees, generated once
+                    // per owner (`annot.structure.per-derivation`).
+                    let owner = opt.structure_owner();
+                    if let Some(facts) = facts
+                        && !derived.structures.contains(&owner)
+                        && let Ok(g) = hd_check::structure::structure_bodies(tcx, opt, facts)
+                    {
+                        derived.structures.push(owner);
                         derived.items.extend(g.items);
                         derived.bodies.extend(g.bodies);
                     }
@@ -4298,7 +4318,11 @@ impl ProgramEnv for Env<'_> {
         };
         let o = self.p.items.get(owner)?;
         match &o.data {
-            ItemData::Impl { .. } => Some((*owner, o.generics.len())),
+            // A data type or enum owns its declaration `Structure`'s
+            // hidden methods (codegen.md §12.3).
+            ItemData::Impl { .. } | ItemData::Data(_) | ItemData::Enum { .. } => {
+                Some((*owner, o.generics.len()))
+            }
             ItemData::Trait(_) => Some((*owner, 1 + o.generics.len())),
             _ => None,
         }
@@ -4326,17 +4350,11 @@ impl ProgramEnv for Env<'_> {
         }
     }
     fn impl_method(&self, impl_: DefId, method: DefId) -> Option<DefId> {
-        let (name, owner) = match &self.p.items.get(&method)?.data {
-            ItemData::Method { owner, .. } => (self.p.items.get(&method)?.name, *owner),
-            _ => return None,
+        let item = self.p.items.get(&method)?;
+        let ItemData::Method { .. } = &item.data else {
+            return None;
         };
-        // A derivation's own `Structure` (codegen.md §12.3): the hidden
-        // methods of the derived implementation.
-        if owner == self.run.known.structure {
-            let names = self.run.names();
-            let d = names.member(impl_, hd_intern::PathKind::Hidden, names.text(name));
-            return self.p.items.contains_key(&d).then_some(d);
-        }
+        let name = item.name;
         match &self.p.items.get(&impl_)?.data {
             ItemData::Impl { methods, .. } => {
                 methods.iter().find(|(n, _)| *n == name).map(|(_, d)| *d)
@@ -4517,24 +4535,57 @@ fn add_derived_methods(names: &Names<'_>, items: &mut Vec<Item>, derived: &[Item
     items.extend(derived.iter().cloned());
 }
 
-/// Whether the derivation `impl_` of `data` sees a fact (annotations,
-/// "Facts"): a decorator on the declaration or a member, a member line of
-/// its block, or a trait-less block for the type.
-fn derivation_facts(
-    cx: &BodyCx<'_>,
-    heads: &[hd_resolve::Head<'_>],
-    impl_: DefId,
-    data: DefId,
-) -> bool {
+/// The facts bodies of the `Structure` that `opt` sees (annotations,
+/// "Facts"), checked in the target's module `cx`: the declaration facts
+/// of its data type or enum, edited by the type's block with no trait,
+/// built once per type into `decl`; and when the derivation's member
+/// `lines` edit them, the edited slots' own bodies. New bodies join
+/// `derived`. `None` when a fact is not generated yet.
+fn derivation_facts<'t>(
+    cx: &BodyCx<'t>,
+    heads: &[hd_resolve::Head<'t>],
+    (opt, lines): (
+        &hd_check::derive::OptIn,
+        &[hd_check::derive::MemberLine<'t>],
+    ),
+    decl: &mut HashMap<DefId, Option<FactBodies>>,
+    derived: &mut Derived,
+) -> Option<FactBodies> {
     let head = |d: DefId| heads.iter().find(|h| h.def == d).map(|h| h.node);
     let pool = cx.names.pool;
-    head(data).is_some_and(|n| hd_check::derive::has_decorator_facts(&cx.src, n))
-        || head(impl_).is_some_and(|n| hd_check::derive::has_fact_lines(&cx.src, n))
-        || cx.lookup.own.iter().any(|it| {
+    let data = opt.data;
+    let item = cx.lookup.item(data)?;
+    let node = head(data)?;
+    let traitless = cx
+        .lookup
+        .own
+        .iter()
+        .find(|it| {
             matches!(&it.data, ItemData::Impl { trait_, by: Some(_), self_ty, .. }
                 if *trait_ == DefId::NONE
                     && matches!(pool.get(*self_ty), TyData::Adt { def, .. } if def == data))
         })
+        .and_then(|it| head(it.def));
+    let facts = hd_check::structure::declaration_facts(cx, item, node, traitless);
+    let base = decl
+        .entry(data)
+        .or_insert_with(|| {
+            let (b, bodies) =
+                hd_check::structure::fact_bodies(cx, data, (&facts, node), None).ok()?;
+            derived.bodies.extend(bodies);
+            Some(b)
+        })
+        .clone()?;
+    if !opt.lines {
+        return Some(base);
+    }
+    let mut view = facts;
+    let edited = hd_check::structure::edit_facts(cx, item, &mut view, lines);
+    let (own, bodies) =
+        hd_check::structure::fact_bodies(cx, opt.impl_, (&view, node), Some((&edited, &base)))
+            .ok()?;
+    derived.bodies.extend(bodies);
+    Some(own)
 }
 
 /// The derivation template of `trait_` (`annot.template.form`), among a

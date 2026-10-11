@@ -48,9 +48,10 @@ pub trait ProgramEnv: LayoutEnv {
     /// the keys of each row parameter's argument, so providers are passed
     /// per instance.
     fn row_keys(&self, def: DefId, args: TyList) -> Vec<Ty>;
-    /// A method's owner (impl or trait) and how many of the instance's
-    /// arguments are the owner's: an impl's parameters, or a trait's
-    /// `Self` and parameters.
+    /// A method's owner (impl, trait, or the data type or enum that owns
+    /// its declaration `Structure`'s generated methods) and how many of
+    /// the instance's arguments are the owner's: an impl's or a type's
+    /// parameters, or a trait's `Self` and parameters.
     fn parent(&self, def: DefId) -> Option<(DefId, usize)>;
     /// The item whose type parameters `def`'s types name: a default body's
     /// declaring function, method or data type, whose instance arguments

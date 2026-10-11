@@ -64,14 +64,23 @@ pub struct OptIn {
     pub members: Vec<OptInMember>,
     /// The members its member lines omit (`name = pass`).
     pub omitted: Vec<String>,
-    /// Whether the derivation sees a fact: a decorator on the target or
-    /// one of its members, a member line, or a trait-less block.
-    pub facts: bool,
+    /// Whether its block carries a member line, which gives it a
+    /// `Structure` of its own (`annot.structure.per-derivation`).
+    pub lines: bool,
     /// Failing members found so far: member index and the bound it misses.
     failed: RefCell<Vec<(usize, Ty)>>,
 }
 
 impl OptIn {
+    /// The owner of the `Structure` this derivation sees
+    /// (`annot.structure.per-derivation`): the derivation itself when its
+    /// member lines edit it, else the data type or enum, whose declaration
+    /// `Structure` every such derivation shares.
+    #[must_use]
+    pub fn structure_owner(&self) -> DefId {
+        if self.lines { self.impl_ } else { self.data }
+    }
+
     /// The opt-in of `it`, a derived implementation or a derivation block,
     /// through `template`. `omitted` names the members its member lines
     /// omit (`name = pass`), which contribute no obligation
@@ -156,7 +165,7 @@ impl OptIn {
             target: *self_ty,
             members,
             omitted: omitted.to_vec(),
-            facts: false,
+            lines: false,
             failed: RefCell::new(Vec::new()),
         })
     }
@@ -229,32 +238,46 @@ pub fn check_omitted_defaults(
     }
 }
 
-/// Whether a derivation block carries a member line that edits facts:
-/// any line but `name = pass` (`annot.line.*`).
-#[must_use]
-pub fn has_fact_lines(src: &hd_resolve::Src<'_>, block: NodeRef<'_>) -> bool {
-    let Some(body) = hd_resolve::Src::child(block, SyntaxKind::Block) else {
-        return false;
-    };
-    let omitted = omitted_members(src, block).len();
-    body.children()
-        .filter(|c| c.kind() == SyntaxKind::Derivation)
-        .count()
-        > omitted
+/// One member line of a derivation block (`annot.line.*`): the member or
+/// variant it names, `Self` for the type; whether it extends (`+=`) or
+/// replaces (`=`); and its list, or `None` for `= pass`.
+#[derive(Clone, Copy)]
+pub struct MemberLine<'t> {
+    pub name: &'t str,
+    pub extend: bool,
+    pub list: Option<NodeRef<'t>>,
 }
 
-/// Whether a data or enum declaration attaches a fact: a decorator other
-/// than `@derive`, on the declaration or any member
-/// (`annot.fact.type-level-decorator`, `annot.fact.member-metadata`).
+/// The member lines of a derivation block, with or without a trait, in
+/// source order.
 #[must_use]
-pub fn has_decorator_facts(src: &hd_resolve::Src<'_>, decl: NodeRef<'_>) -> bool {
-    decl.descendants()
-        .filter(|d| d.kind() == SyntaxKind::Decorator)
-        .any(|d| {
-            src.tokens(d)
-                .find(|t| src.tkind(*t) == Some(TokenKind::Ident))
-                .is_none_or(|t| src.text(t) != "derive")
-        })
+pub fn member_lines<'t>(src: &hd_resolve::Src<'t>, block: NodeRef<'t>) -> Vec<MemberLine<'t>> {
+    let Some(body) = hd_resolve::Src::child(block, SyntaxKind::Block) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for line in body
+        .children()
+        .filter(|c| c.kind() == SyntaxKind::Derivation)
+    {
+        let mut toks = src.tokens(line);
+        let (Some(name), Some(op)) = (toks.next(), toks.next()) else {
+            continue;
+        };
+        let Some(value) = line.children().last() else {
+            continue;
+        };
+        let pass = value.kind() == SyntaxKind::LiteralExpr
+            && src
+                .tokens(value)
+                .any(|t| src.tkind(t) == Some(TokenKind::KwPass));
+        out.push(MemberLine {
+            name: src.text(name),
+            extend: src.tkind(op) == Some(TokenKind::PlusEq),
+            list: (!pass).then_some(value),
+        });
+    }
+    out
 }
 
 /// What one checked opt-in yields: one message per failing member, with
@@ -314,8 +337,11 @@ pub fn check_opt_in(
 /// derived implementation `opt.impl_` of the same name. The template's
 /// `T` becomes the target, the template method's own parameters the
 /// instance method's, and each `Structure` call, which the template
-/// answers from its `T < Structure` bound, chooses the derivation's own
-/// `Structure` (`annot.structure.per-derivation`).
+/// answers from its `T < Structure` bound, calls the generated method of
+/// the `Structure` this derivation sees (`annot.structure.per-derivation`):
+/// a hidden method of its `structure_owner`, at the owner's arguments and
+/// the call's own. So derivations that see one `Structure` share its
+/// instances (codegen.md §13.6).
 pub fn instance(
     cx: &BodyCx<'_>,
     opt: &OptIn,
@@ -344,6 +370,8 @@ pub fn instance(
         }
     };
     let structure = names.known.structure;
+    let owner = opt.structure_owner();
+    let owner_args = crate::structure::owner_args(cx, opt);
     for i in 0..body.len() {
         if !matches!(body.tags[i], hd_tir::Tag::Call | hd_tir::Tag::Await) {
             continue;
@@ -352,9 +380,9 @@ pub fn instance(
         let Some(hd_tir::Callee::TraitMethod {
             trait_,
             method: m,
-            self_ty,
             targs,
             choice: (hd_tir::ir::ChoiceKind::Bound, _),
+            ..
         }) = hd_tir::Callee::from_words(body.record(at))
         else {
             continue;
@@ -362,16 +390,21 @@ pub fn instance(
         if trait_ != structure {
             continue;
         }
-        let words = hd_tir::Callee::TraitMethod {
-            trait_,
-            method: m,
-            self_ty,
-            targs,
-            choice: (hd_tir::ir::ChoiceKind::Impl, opt.impl_.raw()),
+        let Some(name) = cx.lookup.item(m).map(|it| names.text(it.name)) else {
+            return crate::body::unsupported("a `Structure` method outside the module's view");
+        };
+        // The owner's parameters, then the method's own.
+        let mut all = pool.list_items(owner_args).to_vec();
+        all.extend_from_slice(pool.list_items(targs));
+        let words = hd_tir::Callee::Item {
+            def: hd_structure::hidden_method(names, owner, name),
+            targs: pool.list(&all),
         }
         .words();
-        let start = at as usize + 1;
-        body.extra[start..start + words.len()].copy_from_slice(&words);
+        let mut record = vec![u32::try_from(words.len()).unwrap_or(u32::MAX)];
+        record.extend(words);
+        body.data[i][0] = u32::try_from(body.extra.len()).unwrap_or(u32::MAX);
+        body.extra.extend(record);
     }
     body.kind = hd_tir::BodyKind::DeriveInstance;
     hd_tir::wire::map_ids(

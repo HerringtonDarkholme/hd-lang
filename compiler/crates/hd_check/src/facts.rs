@@ -47,6 +47,49 @@ pub fn check_facts(
     node: NodeRef<'_>,
     diags: &mut DiagBuf,
 ) -> StageResult<Body> {
+    let def = cx.names.member(owner, PathKind::Hidden, "facts");
+    // A typed fact's type arguments come from the target's type
+    // (`annot.typed-fact.infer`), which no body here infers yet.
+    let typed = TypedFacts::Skip;
+    let sources: Vec<FactSource<'_>> = fact_lines(&cx.src, node)
+        .into_iter()
+        .map(FactSource::Value)
+        .collect();
+    check_fact_list(cx, (owner, def), &sources, typed, node, diags)
+}
+
+/// Where one fact, or a list of facts, of a `Facts` value is written.
+#[derive(Clone, Copy)]
+pub enum FactSource<'t> {
+    /// A decorator line's expression: the one value it attaches
+    /// (`annot.decorator.bare-call` included).
+    Value(NodeRef<'t>),
+    /// A member line's right side: a list of facts (`annot.line.right-typed`).
+    List(NodeRef<'t>),
+}
+
+/// What a facts body does with a value of a typed fact type
+/// (`annot.typed-fact.check`), whose type arguments no body infers yet.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum TypedFacts {
+    /// Leaves it out, as `facts_of` does.
+    Skip,
+    /// Declines the body.
+    Unsupported,
+}
+
+/// Checks the body `def` that builds one `Facts` value from `sources`, in
+/// order, as ordinary code of `owner`'s module (`annot.fact.read`,
+/// `annot.structure.facts-contents`); `at` is the node its value is
+/// reported at.
+pub fn check_fact_list(
+    cx: &BodyCx<'_>,
+    (owner, def): (DefId, DefId),
+    sources: &[FactSource<'_>],
+    typed: TypedFacts,
+    at: NodeRef<'_>,
+    diags: &mut DiagBuf,
+) -> StageResult<Body> {
     let names = &cx.names;
     let pool = names.pool;
     let (facts_ty, items_ty) = facts_types(cx)?;
@@ -55,7 +98,6 @@ pub fn check_facts(
         args: TyList::EMPTY,
         bindings: vec![],
     });
-    let def = names.member(owner, PathKind::Hidden, "facts");
     let local = hd_types::LocalPool::new();
     let mut ck = new_ck(
         cx,
@@ -68,21 +110,45 @@ pub fn check_facts(
     );
     let blk = ck.b.open_block();
     let mut refs = Vec::new();
-    for e in fact_lines(&cx.src, node) {
-        ck.move_to(cx.src.span(e).lo);
-        // A typed fact's type arguments come from the target's type
-        // (`annot.typed-fact.infer`), which no body here infers yet.
-        if ck.typed_fact_line(e) {
-            continue;
+    for source in sources {
+        let (values, single) = match *source {
+            FactSource::Value(e) => (vec![e], true),
+            FactSource::List(e) if e.kind() == SyntaxKind::ListExpr => {
+                (e.children().collect(), false)
+            }
+            FactSource::List(_) => {
+                return unsupported("a member line whose list is not a list literal");
+            }
+        };
+        for e in values {
+            if matches!(
+                e.kind(),
+                SyntaxKind::SpreadExpr | SyntaxKind::ComprehensionFor
+            ) {
+                return unsupported("a member line list with a spread or a comprehension");
+            }
+            ck.move_to(cx.src.span(e).lo);
+            if ck.typed_fact_line(e) {
+                match typed {
+                    TypedFacts::Skip => continue,
+                    TypedFacts::Unsupported => {
+                        return unsupported("a typed fact on a derivation's target");
+                    }
+                }
+            }
+            let (r, t) = if single {
+                ck.fact_value(e)?
+            } else {
+                ck.expr(e, None)?
+            };
+            refs.push(ck.coerce(r, t, elem, e, "fact"));
         }
-        let (r, t) = ck.fact_value(e)?;
-        refs.push(ck.coerce(r, t, elem, e, "fact"));
     }
     let rec = ck.b.refs_record(&refs);
-    let list = ck.b.emit(Tag::NewList, NONE, rec, items_ty, node.index());
+    let list = ck.b.emit(Tag::NewList, NONE, rec, items_ty, at.index());
     let rec = ck.b.refs_record(&[list]);
-    let value = ck.b.emit(Tag::NewData, NONE, rec, facts_ty, node.index());
-    let root = ck.b.close_block(blk, Some(value), facts_ty, node.index());
+    let value = ck.b.emit(Tag::NewData, NONE, rec, facts_ty, at.index());
+    let root = ck.b.close_block(blk, Some(value), facts_ty, at.index());
     ck.finish_body(root)
 }
 

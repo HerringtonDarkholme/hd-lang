@@ -8,15 +8,21 @@
 //! checker state, so both of its callers use it:
 //!
 //! - **A derivation, at check time** ([`derivation`]): the checker builds
-//!   the target from the data type or enum and the derivation's omitted
-//!   members (`hd_check::structure`). Each derivation gets its own
-//!   `Structure` (`annot.structure.per-derivation`): the bodies are hidden
-//!   methods of the derived implementation `D` (`D`'s `walk` at the hidden
-//!   path `walk`). The derive instance's `Structure` calls choose `D`
-//!   itself (`Impl` choice), so collection calls these bodies directly.
-//!   Each handle is one more hidden method of `D` with no parameter
-//!   (`handle V`, `handle V M`), which the traversals call: its closures
-//!   are instantiated once per derivation, not once per walker.
+//!   the target from the data type or enum, the derivation's omitted
+//!   members and its facts bodies (`hd_check::structure`). The bodies are
+//!   hidden methods of the `Structure`'s owner (`walk` at the hidden path
+//!   `structure walk`, [`hidden_method`]): the data type or enum itself
+//!   for the declaration's `Structure`, which every derivation without
+//!   member lines shares, or the derivation whose member lines give it its
+//!   own (`annot.structure.per-derivation`). A derive instance's
+//!   `Structure` calls are direct calls of these methods, so one instance
+//!   per (method, owner's arguments, walker) serves every derivation and
+//!   call site that sees that `Structure`. Each handle is one more hidden
+//!   method of the owner with no parameter (`structure handle V`,
+//!   `structure handle V M`), which the traversals call: its closures are
+//!   instantiated once per owner, not once per walker. A `Facts` value is
+//!   a call of the facts body that the checker wrote for its slot, or
+//!   empty.
 //! - **A tuple type, at codegen** ([`supplied`]): the trait solver's
 //!   `Structure` row answers a concrete tuple with `Builtin(Structure)`,
 //!   and collection asks for one method's body at that tuple type
@@ -29,8 +35,9 @@
 //! declarations (`lib/std/structure.hd`), built field by field; their
 //! hidden fields (`hd_get`, `hd_holds`, `hd_default`) are closures over the
 //! target. The witness field, which no std body reads, holds the member's
-//! information as a `dyn Inspectable`. Doc comments are not carried: `doc`
-//! is `.None`.
+//! information as a `dyn Inspectable`. A variant's shared constructor
+//! data is read from the globals that hold it. Doc comments are not
+//! carried: `doc` is `.None`.
 
 mod dbg;
 
@@ -106,6 +113,19 @@ pub struct Mem {
     pub rest: bool,
     /// `SelfRef`'s variant index: 0 `Absent`, 1 `Optional`, 2 `Required`.
     pub self_ref: u32,
+    /// The body that builds the member's `Facts` (`annot.fact.read`), or
+    /// `None` when the derivation sees no fact on it.
+    pub facts: Option<DefId>,
+}
+
+/// A variant's shared constructor field (`annot.variant.shared-pairs`):
+/// its name (`_0`, `_1`... when unnamed), the global that holds the
+/// variant's value of it, and its type.
+#[derive(Clone, Debug)]
+pub struct Shared {
+    pub name: String,
+    pub global: DefId,
+    pub ty: Ty,
 }
 
 /// One variant; a data type or a tuple is one variant
@@ -120,6 +140,12 @@ pub struct Var {
     pub shape: Shape,
     pub members: Vec<Mem>,
     pub self_ref: u32,
+    /// The body that builds the variant's `Facts`, or `None` when the
+    /// derivation sees no fact on it (always for a data type's variant,
+    /// `annot.variant.data-facts`).
+    pub facts: Option<DefId>,
+    /// Its shared constructor data, in declaration order.
+    pub shared: Vec<Shared>,
 }
 
 impl Var {
@@ -135,6 +161,9 @@ pub struct Target {
     pub ty: Ty,
     pub name: String,
     pub vars: Vec<Var>,
+    /// The body that builds the type-level `Facts` (`T::facts()`), or
+    /// `None` when the derivation sees no type-level fact.
+    pub facts: Option<DefId>,
 }
 
 /// The `Structure` target of a tuple type (`annot.tuple.*`): one variant
@@ -163,6 +192,7 @@ pub fn tuple_target(pool: &InternPool, ty: Ty) -> Option<Target> {
             omitted: false,
             rest,
             self_ref: 0,
+            facts: None,
         }
     };
     let mut members: Vec<Mem> = elems
@@ -183,12 +213,15 @@ pub fn tuple_target(pool: &InternPool, ty: Ty) -> Option<Target> {
             shape: Shape::Tuple,
             members,
             self_ref: 0,
+            facts: None,
+            shared: Vec::new(),
         }],
+        facts: None,
     })
 }
 
-/// What a derivation adds to its module: hidden methods of the derived
-/// implementation and their bodies.
+/// What a derivation adds to its module: hidden methods of its
+/// `Structure`'s owner and their bodies.
 #[derive(Default)]
 pub struct Generated {
     pub items: Vec<Item>,
@@ -220,7 +253,7 @@ fn method_body(
     sig: &FnSig,
 ) -> StageResult<Option<(Body, Vec<Handle>)>> {
     Ok(Some(match name {
-        "facts" => g.facts_body(sig)?,
+        "facts" => g.facts_body(sig, target.facts)?,
         "name" => g.const_body(sig, &target.name)?,
         "walk" => g.walk_body(sig, &target.vars)?,
         "describe" => g.describe_body(sig, &target.vars)?,
@@ -229,16 +262,29 @@ fn method_body(
     }))
 }
 
-/// The `Structure` bodies of a derivation `impl_` over `target`
-/// (codegen.md §12.3): hidden methods of `impl_`, one per `Structure`
-/// method and one per handle the traversals pass.
-pub fn derivation(cx: &Cx<'_, '_>, target: &Target, impl_: DefId) -> StageResult<Generated> {
+/// The hidden method of a derivation's `Structure` owner that holds the
+/// generated body of `Structure`'s method `name` (codegen.md §12.3). The
+/// prefix keeps it apart from a field's default body, which a data type
+/// holds under the field's name.
+#[must_use]
+pub fn hidden_method(names: &Names<'_>, owner: DefId, name: &str) -> DefId {
+    names.member(owner, PathKind::Hidden, &format!("structure {name}"))
+}
+
+/// The `Structure` bodies of a derivation over `target` (codegen.md
+/// §12.3): hidden methods of `owner`, one per `Structure` method and one
+/// per handle the traversals pass. `owner` is the data type or enum
+/// itself for the declaration's `Structure`, which every derivation
+/// without member lines shares, or the derivation for one whose member
+/// lines edit its own `Structure` (`annot.structure.per-derivation`);
+/// `target` is over `owner`'s parameters.
+pub fn derivation(cx: &Cx<'_, '_>, target: &Target, owner: DefId) -> StageResult<Generated> {
     let names = cx.names;
     let st = names.known.structure;
     let mut out = Generated::default();
     let mut handles: Vec<Handle> = Vec::new();
     for (name, sdef, trait_sig) in structure_methods(cx)? {
-        let def = names.member(impl_, PathKind::Hidden, &name);
+        let def = hidden_method(names, owner, &name);
         let sig = subst_sig(names, &trait_sig, &|p: ParamRef| {
             if p.owner == st && p.index == 0 {
                 Some(target.ty)
@@ -248,7 +294,7 @@ pub fn derivation(cx: &Cx<'_, '_>, target: &Target, impl_: DefId) -> StageResult
                 None
             }
         });
-        let g = Gen::new(cx, target.ty, def, Handles::Methods(impl_));
+        let g = Gen::new(cx, target.ty, def, Handles::Methods(owner));
         let Some((body, wanted)) = method_body(g, target, &name, &sig)? else {
             continue;
         };
@@ -257,7 +303,7 @@ pub fn derivation(cx: &Cx<'_, '_>, target: &Target, impl_: DefId) -> StageResult
             names.syms.intern(&name),
             false,
             ItemData::Method {
-                owner: impl_,
+                owner,
                 sig,
                 has_body: true,
             },
@@ -271,7 +317,7 @@ pub fn derivation(cx: &Cx<'_, '_>, target: &Target, impl_: DefId) -> StageResult
     }
     // Each handle's own body.
     for h in handles {
-        let mut g = Gen::new(cx, target.ty, h.def, Handles::Methods(impl_));
+        let mut g = Gen::new(cx, target.ty, h.def, Handles::Methods(owner));
         let blk = g.b.open_block();
         let v = &target.vars[h.var];
         let x = match h.mem {
@@ -285,7 +331,7 @@ pub fn derivation(cx: &Cx<'_, '_>, target: &Target, impl_: DefId) -> StageResult
             names.syms.intern("handle"),
             false,
             ItemData::Method {
-                owner: impl_,
+                owner,
                 sig: FnSig::simple(Vec::new(), Vec::new(), h.ty),
                 has_body: true,
             },
@@ -356,8 +402,8 @@ pub fn strip_mut(names: &Names<'_>, t: Ty) -> Ty {
 /// Where a traversal's handles come from.
 #[derive(Clone, Copy)]
 enum Handles {
-    /// Calls of the derivation's hidden handle methods, whose bodies the
-    /// derivation adds once.
+    /// Calls of the hidden handle methods of the `Structure`'s owner,
+    /// whose bodies the derivation adds once.
     Methods(DefId),
     /// Built in place: the target has no implementation to hold them.
     Inline,
@@ -376,8 +422,9 @@ struct Gen<'a, 'n> {
 }
 
 /// One handle of a derivation (`annot.handle.constants`): a hidden method
-/// of the derivation with no parameter that builds it, so a handle's
-/// closures are instantiated once per derivation, not once per walker.
+/// of the `Structure`'s owner with no parameter that builds it, so a
+/// handle's closures are instantiated once per owner, not once per
+/// walker.
 #[derive(Clone, Copy, PartialEq)]
 struct Handle {
     var: usize,
@@ -404,12 +451,12 @@ impl<'a, 'n> Gen<'a, 'n> {
         }
     }
 
-    /// A call of the derivation's handle method for `h`.
-    fn handle_call(&mut self, impl_: DefId, h: Handle) -> Ref {
+    /// A call of the owner's handle method for `h`.
+    fn handle_call(&mut self, owner: DefId, h: Handle) -> Ref {
         let pool = self.names.pool;
-        let n = self.cx.items.item(impl_).map_or(0, |i| i.generics.len());
+        let n = self.cx.items.item(owner).map_or(0, |i| i.generics.len());
         let own: Vec<Ty> = (0..n)
-            .map(|i| param(self.names, impl_, u16::try_from(i).unwrap_or(u16::MAX)))
+            .map(|i| param(self.names, owner, u16::try_from(i).unwrap_or(u16::MAX)))
             .collect();
         if !self.wanted.contains(&h) {
             self.wanted.push(h);
@@ -428,17 +475,15 @@ impl<'a, 'n> Gen<'a, 'n> {
 
     /// The handle `Variant[S]` of `v`.
     fn variant_handle(&mut self, v: &Var) -> StageResult<Ref> {
-        let Handles::Methods(impl_) = self.handles else {
+        let Handles::Methods(owner) = self.handles else {
             return self.new_variant_handle(v);
         };
         // A variant's index is its place in the variant list.
         let var = v.index as usize;
         let ty = self.adt(self.std("Variant"), &[self.target]);
-        let def = self
-            .names
-            .member(impl_, PathKind::Hidden, &format!("handle {}", v.index));
+        let def = hidden_method(self.names, owner, &format!("handle {}", v.index));
         Ok(self.handle_call(
-            impl_,
+            owner,
             Handle {
                 var,
                 mem: None,
@@ -452,7 +497,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     /// The handle `Field[S, F]` of member `m` of `v`; a declared-type
     /// handle of a `mut` member is its own.
     fn field_handle(&mut self, v: &Var, m: &Mem, f: Ty) -> StageResult<Ref> {
-        let Handles::Methods(impl_) = self.handles else {
+        let Handles::Methods(owner) = self.handles else {
             return self.new_field_handle(v, m, f);
         };
         // A member's position is its place in the variant's members.
@@ -463,13 +508,13 @@ impl<'a, 'n> Gen<'a, 'n> {
         } else {
             " declared"
         };
-        let def = self.names.member(
-            impl_,
-            PathKind::Hidden,
+        let def = hidden_method(
+            self.names,
+            owner,
             &format!("handle {} {}{declared}", v.index, m.position),
         );
         Ok(self.handle_call(
-            impl_,
+            owner,
             Handle {
                 var,
                 mem: Some(mem),
@@ -583,6 +628,50 @@ impl<'a, 'n> Gen<'a, 'n> {
         self.new_data(facts, &[], &[("items", items)])
     }
 
+    /// The `Facts` that `body` builds (`annot.fact.read`): a call of it,
+    /// like a default's, since it takes no argument; or `Facts { items:
+    /// [] }` with no body.
+    fn facts_value(&mut self, body: Option<DefId>) -> StageResult<Ref> {
+        let Some(def) = body else {
+            return self.no_facts();
+        };
+        let t = self.adt(self.std("Facts"), &[]);
+        let a = self.b.refs_record(&[Ref(def.raw()), Ref(TyList::EMPTY.0)]);
+        let earlier = self.b.refs_record(&[]);
+        Ok(self.b.emit(Tag::DefaultCall, a, earlier, t, SYN))
+    }
+
+    /// `VariantInfo.shared` of `v` (`annot.variant.shared-pairs`): each
+    /// shared field's name with its value, read from its global.
+    fn shared_pairs(&mut self, v: &Var) -> StageResult<Ref> {
+        let pool = self.names.pool;
+        let lt = self.field_ty(self.std("VariantInfo"), "shared", &[])?;
+        let TyData::Adt { args, .. } = pool.get(strip_mut(self.names, lt)) else {
+            return self
+                .cx
+                .unsupported("a `VariantInfo.shared` that is not a list");
+        };
+        let pair_t = pool.list_items(args).first().copied().unwrap_or(Ty::POISON);
+        let TyData::Tuple { elems, .. } = pool.get(pair_t) else {
+            return self
+                .cx
+                .unsupported("a `VariantInfo.shared` item that is not a pair");
+        };
+        let value_t = pool.list_items(elems).get(1).copied().unwrap_or(Ty::POISON);
+        let mut pairs = Vec::new();
+        for f in &v.shared {
+            let name = self.str_(&f.name);
+            let rec = self.b.refs_record(&[Ref(f.global.raw())]);
+            let x = self.b.emit(Tag::GlobalGet, rec, NONE, f.ty, SYN);
+            let value = self.b.coerce(Coercion::ToTraitValue, NONE, x, value_t, SYN);
+            let rec = self.b.refs_record(&[name, value]);
+            pairs.push(self.b.emit(Tag::NewTuple, NONE, rec, pair_t, SYN));
+        }
+        let rec = self.b.refs_record(&pairs);
+        let t = self.fresh(strip_mut(self.names, lt));
+        Ok(self.b.emit(Tag::NewList, NONE, rec, t, SYN))
+    }
+
     fn self_ref(&mut self, k: u32) -> Ref {
         let t = self.adt(self.std("SelfRef"), &[]);
         self.unit_variant(k, t)
@@ -658,12 +747,11 @@ impl<'a, 'n> Gen<'a, 'n> {
         let vi = self.std("VariantInfo");
         let name = self.str_(&v.name);
         let index = self.i32_(v.index);
-        let facts = self.no_facts()?;
+        let facts = self.facts_value(v.facts)?;
         let dt = self.field_ty(vi, "doc", &[])?;
         let doc = self.unit_variant(0, dt);
         let of_data = self.bool_(v.of_data());
-        let st = self.field_ty(vi, "shared", &[])?;
-        let shared = self.empty_list(st);
+        let shared = self.shared_pairs(v)?;
         let self_ref = self.self_ref(v.self_ref);
         self.new_data(
             vi,
@@ -709,7 +797,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let mi = self.std("Member");
         let name = self.str_(&m.name);
         let position = self.i32_(m.position);
-        let facts = self.no_facts()?;
+        let facts = self.facts_value(m.facts)?;
         let dt = self.field_ty(mi, "doc", &[])?;
         let doc = self.unit_variant(0, dt);
         let embedded = self.bool_(m.embedded);
@@ -892,10 +980,11 @@ impl<'a, 'n> Gen<'a, 'n> {
         Ok((body, wanted))
     }
 
-    /// `facts()`: the type-level facts (none here).
-    fn facts_body(mut self, sig: &FnSig) -> StageResult<(Body, Vec<Handle>)> {
+    /// `facts()`: the type-level facts (`annot.fact.read`), which `body`
+    /// builds, or none.
+    fn facts_body(mut self, sig: &FnSig, body: Option<DefId>) -> StageResult<(Body, Vec<Handle>)> {
         let blk = self.b.open_block();
-        let f = self.no_facts()?;
+        let f = self.facts_value(body)?;
         let root = self.b.close_block(blk, Some(f), sig.ret, SYN);
         self.finish(root)
     }

@@ -397,6 +397,7 @@ impl Gen<'_, '_> {
                 omitted: false,
                 rest: false,
                 self_ref: 0,
+                facts: None,
             }
         };
         let (kind, vars) = match &item.data {
@@ -413,6 +414,8 @@ impl Gen<'_, '_> {
                         .map(|(i, f)| member(i, f))
                         .collect(),
                     self_ref: 0,
+                    facts: None,
+                    shared: Vec::new(),
                 }],
             ),
             ItemData::Newtype(base) => (
@@ -434,8 +437,11 @@ impl Gen<'_, '_> {
                         omitted: false,
                         rest: false,
                         self_ref: 0,
+                        facts: None,
                     }],
                     self_ref: 0,
+                    facts: None,
+                    shared: Vec::new(),
                 }],
             ),
             ItemData::Enum { shared, variants } if shared.is_empty() => (
@@ -455,6 +461,8 @@ impl Gen<'_, '_> {
                             .map(|(i, f)| member(i, f))
                             .collect(),
                         self_ref: 0,
+                        facts: None,
+                        shared: Vec::new(),
                     })
                     .collect(),
             ),
