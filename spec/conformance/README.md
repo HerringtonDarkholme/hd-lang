@@ -666,6 +666,8 @@ may run the language and stdlib tiers without it.
   directory with an `expect.txt`. `spec/check.sh` enforces both.
 - The `.hd` files of a case are inputs. They carry no fixture directives and
   have no row in `cases.tsv`.
+- A case may hold a `remotes/` directory of [local remotes](#local-remotes).
+  It is no input of the case.
 - A case's tier is CLI. A [selection manifest](#case-selection) lists it
   as `cli/NAME`.
 
@@ -673,21 +675,76 @@ may run the language and stdlib tiers without it.
 
 The runner:
 
-1. copies the case directory, without `expect.txt`, to a fresh directory
-   named `NAME`, so a package that a command creates there takes the name
-   `NAME`;
-2. runs each `run:` line of `expect.txt` in order, in that directory, with
+1. copies the case directory, without `expect.txt` and `remotes/`, to a
+   fresh directory named `NAME`, so a package that a command creates there
+   takes the name `NAME`;
+2. makes the case's [local remotes](#local-remotes), outside that
+   directory;
+3. runs each `run:` line of `expect.txt` in order, in that directory, with
    standard input closed. The first word, `hd`, stands for the
    implementation under test; the runner passes the other words as
    arguments, split at spaces, with no quoting;
-3. after each command, judges the lines that follow its `run:` line, and
+4. after each command, judges the lines that follow its `run:` line, and
    stops the case at the first failure;
-4. removes the directory.
+5. removes the directory and the local remotes.
 
 A command that runs longer than 10 seconds, or ends with a signal, fails the
 case. An implementation command that names a file by a relative path must
 work from any directory, so the runner makes such a path absolute. A case
-that expects a `.git` entry needs `git` on the `PATH`.
+that expects a `.git` entry, or has local remotes, needs `git` on the
+`PATH`.
+
+### Local Remotes
+
+A case that fetches a dependency serves its repositories from files, so
+it needs no network:
+
+```text
+cli/dep-add-latest/
+  expect.txt
+  hd.toml
+  src/main.hd
+  remotes/github.com/acme/json.fi    # serves https://github.com/acme/json
+```
+
+- `remotes/REPOSITORY.fi` holds one repository. `REPOSITORY` is the
+  [repository part](../lang/10-modules.md#host-paths) of a host path, such
+  as `github.com/acme/json` or `git.example.com/shop/billing.git`.
+- The file is a [`git fast-import`](https://git-scm.com/docs/git-fast-import)
+  stream. The runner makes a new bare repository with the SHA-1 object
+  format, whose `HEAD` names `refs/heads/main`, and imports the stream into
+  it as it is.
+- The stream fixes every identity and date, so each commit hash, and each
+  pseudo-version made from it, is the same on every run. It writes a file's
+  data in the delimited form `data <<END`, and it may start with `#`
+  comment lines.
+- A lightweight tag is `reset refs/tags/TAG` and `from :MARK`. An
+  annotated tag is a `tag` command with a fixed `tagger` line.
+- The implementation runs with no global or system git configuration. Every
+  URL it fetches by the HTTPS or SSH form of
+  [`cli.dep.repo-url`](../cli/command-line.md#r-cli.dep.repo-url) reaches
+  the local repository of the same `REPOSITORY`, by git's
+  `url.<base>.insteadOf`. A repository that the case holds no stream for
+  cannot be fetched, so naming one is the error `fetch-failed`.
+
+```text
+# A file of remotes/github.com/acme/json.fi: one commit, tagged v2.3.0.
+commit refs/heads/main
+mark :1
+author Fixture <fixture@example.com> 1790000000 +0000
+committer Fixture <fixture@example.com> 1790000000 +0000
+data <<END
+json 2.3.0
+END
+M 644 inline hd.toml
+data <<END
+[package]
+name = "json"
+END
+
+reset refs/tags/v2.3.0
+from :1
+```
 
 ### expect.txt
 

@@ -610,15 +610,107 @@ fn work_root() -> PathBuf {
     std::env::temp_dir().join(format!("hd-cli-conformance-{}", std::process::id()))
 }
 
+/// The directory of a case's local remotes, which is no part of its input
+/// (README, "Local Remotes").
+const REMOTES: &str = "remotes";
+
 fn copy_case(from: &Path, to: &Path) -> std::io::Result<()> {
+    copy_tree(from, to, true)
+}
+
+fn copy_tree(from: &Path, to: &Path, top: bool) -> std::io::Result<()> {
     std::fs::create_dir_all(to)?;
     for entry in std::fs::read_dir(from)? {
         let entry = entry?;
+        if top && entry.file_name() == REMOTES {
+            continue;
+        }
         let target = to.join(entry.file_name());
         if entry.file_type()?.is_dir() {
-            copy_case(&entry.path(), &target)?;
+            copy_tree(&entry.path(), &target, false)?;
         } else {
             std::fs::copy(entry.path(), target)?;
+        }
+    }
+    Ok(())
+}
+
+/// Every `.fi` file under `dir`, as its path below `dir` without `.fi`.
+fn streams(dir: &Path, below: &str, out: &mut Vec<(String, PathBuf)>) -> std::io::Result<()> {
+    let mut entries: Vec<_> = std::fs::read_dir(dir)?.collect::<Result<_, _>>()?;
+    entries.sort_by_key(std::fs::DirEntry::file_name);
+    for entry in entries {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let path = if below.is_empty() {
+            name.clone()
+        } else {
+            format!("{below}/{name}")
+        };
+        if entry.file_type()?.is_dir() {
+            streams(&entry.path(), &path, out)?;
+        } else if let Some(repository) = path.strip_suffix(".fi") {
+            out.push((repository.to_owned(), entry.path()));
+        }
+    }
+    Ok(())
+}
+
+/// A git command of the runner itself, with no global or system
+/// configuration.
+fn runner_git(args: &[&str]) -> Command {
+    let mut command = Command::new("git");
+    command
+        .args(args)
+        .env(
+            "GIT_CONFIG_GLOBAL",
+            if cfg!(windows) { "NUL" } else { "/dev/null" },
+        )
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("LC_ALL", "C")
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    command
+}
+
+/// Turns each `remotes/REPOSITORY.fi` of the case at `source` into a bare
+/// repository `into/REPOSITORY`, by `git fast-import`, whose `HEAD` names
+/// `refs/heads/main`.
+fn build_remotes(source: &Path, into: &Path) -> Result<(), String> {
+    let dir = source.join(REMOTES);
+    if !dir.is_dir() {
+        return Ok(());
+    }
+    let mut found = Vec::new();
+    streams(&dir, "", &mut found).map_err(|e| format!("remotes: {e}"))?;
+    for (repository, stream) in found {
+        let repo = into.join(&repository);
+        let repo_arg = repo.to_string_lossy().into_owned();
+        let init = runner_git(&[
+            "init",
+            "--bare",
+            "--quiet",
+            "--initial-branch=main",
+            "--object-format=sha1",
+            &repo_arg,
+        ])
+        .output()
+        .map_err(|e| format!("git init: {e}"))?;
+        if !init.status.success() {
+            return Err(format!(
+                "git init {repository}: {}",
+                String::from_utf8_lossy(&init.stderr)
+            ));
+        }
+        let input = std::fs::File::open(&stream).map_err(|e| format!("{repository}.fi: {e}"))?;
+        let imported = runner_git(&[&format!("--git-dir={repo_arg}"), "fast-import", "--quiet"])
+            .stdin(input)
+            .output()
+            .map_err(|e| format!("git fast-import: {e}"))?;
+        if !imported.status.success() {
+            return Err(format!(
+                "git fast-import {repository}.fi: {}",
+                String::from_utf8_lossy(&imported.stderr)
+            ));
         }
     }
     Ok(())
@@ -633,12 +725,16 @@ struct Ran {
 }
 
 /// Points `command`'s git at no global configuration and sends every
-/// remote URL `hd` tries (HTTPS and SSH) to a local path that does not
-/// exist, so a test that names a remote requirement fails at once and never
-/// reaches the network. Git reads the rewrite from the environment, so no
-/// file is left behind.
-fn offline_git(command: &mut Command) {
-    let nowhere = "file:///hd-no-such-remote/";
+/// remote URL `hd` tries (HTTPS and SSH) to the case's local remotes in
+/// `remotes`, a directory that may not exist, so a test never reaches the
+/// network: a repository the case has no stream for fails at once. Git
+/// reads the rewrite from the environment, so no file is left behind.
+fn offline_git(command: &mut Command, remotes: &Path) {
+    let mut base = remotes.to_string_lossy().replace('\\', "/");
+    if !base.starts_with('/') {
+        base.insert(0, '/');
+    }
+    let local = format!("file://{base}/");
     command
         .env(
             "GIT_CONFIG_GLOBAL",
@@ -650,15 +746,15 @@ fn offline_git(command: &mut Command) {
         command
             .env(
                 format!("GIT_CONFIG_KEY_{i}"),
-                format!("url.{nowhere}.insteadOf"),
+                format!("url.{local}.insteadOf"),
             )
             .env(format!("GIT_CONFIG_VALUE_{i}"), from);
     }
 }
 
-fn run_hd(dir: &Path, cache: &Path, words: &[String]) -> std::io::Result<Ran> {
+fn run_hd(dir: &Path, cache: &Path, remotes: &Path, words: &[String]) -> std::io::Result<Ran> {
     let mut command = Command::new(env!("CARGO_BIN_EXE_hd"));
-    offline_git(&mut command);
+    offline_git(&mut command, remotes);
     let mut child = command
         .args(words)
         .current_dir(dir)
@@ -872,15 +968,22 @@ fn run_case(
             Some(".git" | ".gitignore")
         )
     });
+    let needs_git = needs_git || source.join(REMOTES).is_dir();
     if needs_git && git_missing() {
         return Verdict::Unsupported("needs git on PATH".to_owned());
     }
     let dir = root.join(name);
     let cache = root.join(format!("cache-{name}"));
+    let remotes = root.join(format!("remotes-{name}"));
     let _ = std::fs::remove_dir_all(&dir);
     let _ = std::fs::remove_dir_all(&cache);
+    let _ = std::fs::remove_dir_all(&remotes);
     if let Err(e) = copy_case(&source, &dir) {
         return Verdict::Fail(format!("copy case: {e}"));
+    }
+    if let Err(e) = build_remotes(&source, &remotes) {
+        let _ = std::fs::remove_dir_all(&remotes);
+        return Verdict::Fail(e);
     }
     // `expect.txt` is not part of the case input.
     let _ = std::fs::remove_file(dir.join("expect.txt"));
@@ -890,7 +993,7 @@ fn run_case(
         let (words, route) = select_engine(&step.words, mode, fallback);
         stats.record(name, route);
         let start = Instant::now();
-        let ran = run_hd(&dir, &cache, &words);
+        let ran = run_hd(&dir, &cache, &remotes, &words);
         stats.record_time(route, start.elapsed());
         let result = ran
             .map_err(|e| format!("spawn failed: {e}"))
@@ -920,6 +1023,7 @@ fn run_case(
     }
     let _ = std::fs::remove_dir_all(&dir);
     let _ = std::fs::remove_dir_all(&cache);
+    let _ = hd_deps::cache::remove_tree(&remotes);
     verdict
 }
 
