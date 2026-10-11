@@ -65,7 +65,7 @@ impl Parser<'_> {
                 self.bump();
                 self.expect_name("a variant name after '.'");
                 if self.at(TokenKind::LParen) && !self.nth_line_first(0) {
-                    self.pattern_arguments();
+                    self.pattern_arguments(let_pattern);
                 }
                 self.complete(marker, SyntaxKind::VariantPattern)
             }
@@ -169,7 +169,7 @@ impl Parser<'_> {
             return self.complete(marker, SyntaxKind::DataPattern);
         }
         if self.at(TokenKind::LParen) && !self.nth_line_first(0) {
-            self.pattern_arguments();
+            self.pattern_arguments(let_pattern);
             return self.complete(marker, SyntaxKind::VariantPattern);
         }
         if qualified {
@@ -183,7 +183,7 @@ impl Parser<'_> {
     }
 
     /// `( positional, ..., name = pattern, ... )`.
-    fn pattern_arguments(&mut self) {
+    fn pattern_arguments(&mut self, let_pattern: bool) {
         let marker = self.start();
         self.bump(); // (
         let mut named = false;
@@ -196,7 +196,7 @@ impl Parser<'_> {
                 let field = self.start();
                 self.bump();
                 self.bump();
-                self.pattern(false);
+                self.pattern(let_pattern);
                 self.complete(field, SyntaxKind::NamedPattern);
             } else {
                 if named {
@@ -208,7 +208,7 @@ impl Parser<'_> {
                         "positional patterns must precede named patterns",
                     );
                 }
-                self.pattern(false);
+                self.pattern(let_pattern);
             }
             if !self.eat(TokenKind::Comma) {
                 if !self.at(TokenKind::RParen) {
