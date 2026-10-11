@@ -891,9 +891,9 @@ impl Ck<'_, '_> {
             .intern(self.cx.src.text(self.cx.src.first(n)))
     }
 
-    pub(crate) fn bind_local(&mut self, name: Symbol, t: Ty, at: NodeRef<'_>) -> LocalId {
-        // `names.type-param.no-redeclare`: a local value must not reuse an
-        // enclosing type parameter's name.
+    /// `names.type-param.no-redeclare`: a local value must not reuse an
+    /// enclosing type parameter's name.
+    pub(crate) fn check_local_name(&mut self, name: Symbol, at: NodeRef<'_>) {
         if self.gens.iter().any(|(g, _)| *g == name) {
             let msg = format!(
                 "`{}` is a type parameter in scope",
@@ -901,6 +901,10 @@ impl Ck<'_, '_> {
             );
             self.err(Code::DuplicateBinding, at, &msg);
         }
+    }
+
+    pub(crate) fn bind_local(&mut self, name: Symbol, t: Ty, at: NodeRef<'_>) -> LocalId {
+        self.check_local_name(name, at);
         let l = self.b.local(t, name, local_flags::ASSIGNED, at.index());
         self.scopes.last_mut().expect("scope").insert(name, l);
         self.user_locals.push(l);

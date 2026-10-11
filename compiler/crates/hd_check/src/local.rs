@@ -148,6 +148,7 @@ impl Ck<'_, '_> {
             body,
             suspends: n.direct_token(toks, TokenKind::Bang).is_some(),
             name: Some(name),
+            reassignable: false,
         };
         let (r, ft, own) = self.closure_with(n, &parts, None)?;
         let Some(l) = own else {

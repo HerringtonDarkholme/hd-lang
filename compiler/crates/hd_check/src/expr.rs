@@ -2340,6 +2340,12 @@ impl Ck<'_, '_> {
 
     /// `fn(params) -> R: body`: a sub-body with its captures.
     fn closure(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
+        let parts = self.closure_parts(n)?;
+        self.closure_of(n, &parts, want)
+    }
+
+    /// The source parts of the `fn(params) -> R: body` expression `n`.
+    pub(crate) fn closure_parts<'t>(&self, n: NodeRef<'t>) -> StageResult<ClosureParts<'t>> {
         let body = match Src::child(n, SyntaxKind::Block) {
             Some(b) => b,
             // An inline suite: one expression.
@@ -2348,7 +2354,7 @@ impl Ck<'_, '_> {
                 None => return unsupported("a closure without a body"),
             },
         };
-        let parts = ClosureParts {
+        Ok(ClosureParts {
             params: Src::child(n, SyntaxKind::ParameterList),
             ret: n
                 .children()
@@ -2359,8 +2365,8 @@ impl Ck<'_, '_> {
                 .direct_token(&self.cx.src.parse.tokens, TokenKind::Bang)
                 .is_some(),
             name: None,
-        };
-        self.closure_of(n, &parts, want)
+            reassignable: false,
+        })
     }
 
     /// A trailing block (`fn.trailing.closure`): a zero-argument closure
@@ -2385,6 +2391,7 @@ impl Ck<'_, '_> {
             body: block,
             suspends,
             name: None,
+            reassignable: false,
         };
         self.closure_of(block, &parts, Some(want))
     }
@@ -2486,7 +2493,11 @@ impl Ck<'_, '_> {
                 suspends,
                 inputs: hd_types::Inputs::Fixed,
             });
-            let flags = local_flags::ASSIGNED | local_flags::SHORT;
+            let flags = if parts.reassignable {
+                local_flags::ASSIGNED
+            } else {
+                local_flags::ASSIGNED | local_flags::SHORT
+            };
             let l = self.b.local(t, name, flags, n.index());
             // The scope around the parameters' is the declaration's.
             let at = self.scopes.len() - 2;
@@ -2961,7 +2972,11 @@ pub(crate) struct ClosureParts<'t> {
     /// A `Block`, or an inline suite's one expression.
     pub body: NodeRef<'t>,
     pub suspends: bool,
-    /// A local function's name, visible in its own body
-    /// (`names.local-fn.visible`).
+    /// The name of the local the closure initializes, visible in its own
+    /// body: a local function's (`names.local-fn.visible`) or a binding's
+    /// (`names.scope.recursive-closure`).
     pub name: Option<hd_base::Symbol>,
+    /// Whether that local is a `let` binding, which `=` may reassign
+    /// (`fn.recursion.closure.let`), not a `:=` or a local function.
+    pub reassignable: bool,
 }

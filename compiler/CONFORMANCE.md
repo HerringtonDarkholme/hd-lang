@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2552 | 252 | 41 | 2845 |
+| 2555 | 249 | 41 | 2845 |
 
 ## By Chapter
 
@@ -20,7 +20,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/04-type-system.md` | 314 | 38 | 0 | 352 |
 | `lang/05-expressions.md` | 245 | 32 | 0 | 277 |
 | `lang/06-control-flow.md` | 139 | 14 | 4 | 157 |
-| `lang/07-functions.md` | 116 | 14 | 0 | 130 |
+| `lang/07-functions.md` | 119 | 11 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 113 | 9 | 1 | 123 |
 | `lang/09-traits.md` | 326 | 31 | 2 | 359 |
 | `lang/10-modules.md` | 218 | 31 | 9 | 258 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 97 | 5 | 3 | 105 |
-| `runtime/valid` | 878 | 15 | 36 | 929 |
-| `typing/invalid` | 873 | 201 | 1 | 1075 |
-| `typing/valid` | 406 | 8 | 1 | 415 |
+| `runtime/valid` | 879 | 14 | 36 | 929 |
+| `typing/invalid` | 874 | 200 | 1 | 1075 |
+| `typing/valid` | 407 | 7 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -112,7 +112,7 @@ compiler stage that first declined the case.
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 5 |
 | `fail:unknown-module` | 1 |
-| `fail:unknown-name` | 11 |
+| `fail:unknown-name` | 8 |
 | `fail:unknown-trait` | 7 |
 | `fail:unknown-type` | 3 |
 | `fail:unknown-variant` | 1 |
@@ -531,13 +531,10 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-name</code> (11)</summary>
+<details><summary><code>fail:unknown-name</code> (8)</summary>
 
-- `typing/valid/recursive-local-closure.hd`
-- `typing/invalid/recursive-closure-inferred-result.hd`
 - `typing/valid/numeric-types.hd`
 - `typing/invalid/parameter-default-later-parameter.hd`
-- `runtime/valid/recursive-local-closure.hd`
 - `typing/invalid/positional-after-spread.hd`
 - `typing/invalid/default-later-parameter-earlier-twin.hd`
 - `typing/invalid/variant-pattern-unknown-field.hd`
@@ -1653,6 +1650,7 @@ runtime/valid/range-pattern-run.hd
 runtime/valid/raw-identifiers.hd
 runtime/valid/readonly-root-generic-mutable-path.hd
 runtime/valid/recursive-data-types.hd
+runtime/valid/recursive-local-closure.hd
 runtime/valid/recursive-private-functions-least-row.hd
 runtime/valid/reference-bounded-dynamic-method.hd
 runtime/valid/reference-cycles-are-ordinary-data.hd
@@ -2557,6 +2555,7 @@ typing/invalid/reassign-parameter.hd
 typing/invalid/reassign-short-binding-in-function.hd
 typing/invalid/reassign-short-binding.hd
 typing/invalid/reassign-short-module-binding.hd
+typing/invalid/recursive-closure-inferred-result.hd
 typing/invalid/recursive-data-optional-field-required.hd
 typing/invalid/redeclare-core-type.hd
 typing/invalid/reference-bound-unsatisfied.hd
@@ -3061,6 +3060,7 @@ typing/valid/readonly-map-mutable-values.hd
 typing/valid/readonly-outer-mutable-field-init.hd
 typing/valid/readonly-part-nested-data-literal.hd
 typing/valid/readonly-value-direct-mut-field.hd
+typing/valid/recursive-local-closure.hd
 typing/valid/reference-generic-identity.hd
 typing/valid/reimport-prelude-name.hd
 typing/valid/relative-repeated-super.hd

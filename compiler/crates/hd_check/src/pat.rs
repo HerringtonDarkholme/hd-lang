@@ -627,7 +627,45 @@ impl Ck<'_, '_> {
             Some(t) => Some(self.ty_node(t)?),
             None => None,
         };
-        let (r, t) = self.expr(rhs, annot)?;
+        let name = (pat.kind() == SyntaxKind::BindingPattern && els.is_none())
+            .then(|| {
+                pat.direct_tokens().find(|t| {
+                    matches!(
+                        self.cx.src.tkind(*t),
+                        Some(TokenKind::Ident | TokenKind::RawIdent)
+                    )
+                })
+            })
+            .flatten()
+            .map(|nt| self.cx.names.syms.intern(self.cx.src.text(nt)));
+        // `names.scope.recursive-closure`: a closure initializer's body may
+        // call the name being bound, which is a local before the body.
+        let (r, t, own) = match name {
+            Some(name) if rhs.kind() == SyntaxKind::ClosureExpr => {
+                self.check_local_name(name, pat);
+                let mut parts = self.closure_parts(rhs)?;
+                parts.name = Some(name);
+                parts.reassignable = at.kind() != SyntaxKind::BindingExpr;
+                let (r, t, own) = self.closure_with(rhs, &parts, annot)?;
+                // `fn.closure.recursive-result`
+                if let Some(l) = own
+                    && parts.ret.is_none()
+                    && self.b.body_mut().local_flags[l.idx()] & hd_tir::ir::local_flags::CAPTURED
+                        != 0
+                {
+                    self.err(
+                        Code::RecursiveFunctionNeedsResultType,
+                        rhs,
+                        "a recursive closure must write its result type",
+                    );
+                }
+                (r, t, own)
+            }
+            _ => {
+                let (r, t) = self.expr(rhs, annot)?;
+                (r, t, None)
+            }
+        };
         let (r, t) = match annot {
             Some(a) => (self.coerce(r, t, a, rhs, "binding"), a),
             None => (r, t),
@@ -661,17 +699,17 @@ impl Ck<'_, '_> {
         }
         // A plain name: a new local.
         if pat.kind() == SyntaxKind::BindingPattern && els.is_none() {
-            let name_tok = pat.direct_tokens().find(|t| {
-                matches!(
-                    self.cx.src.tkind(*t),
-                    Some(TokenKind::Ident | TokenKind::RawIdent)
-                )
-            });
-            let Some(nt) = name_tok else {
+            let Some(name) = name else {
                 return unsupported("a binding pattern without a name");
             };
-            let name = self.cx.names.syms.intern(self.cx.src.text(nt));
-            let l = self.bind_local(name, t, pat);
+            let l = match own {
+                Some(l) => {
+                    self.b.body_mut().local_ty[l.idx()] = t;
+                    self.user_locals.push(l);
+                    l
+                }
+                None => self.bind_local(name, t, pat),
+            };
             self.b.set(l, r, at.index());
             return Ok(());
         }
