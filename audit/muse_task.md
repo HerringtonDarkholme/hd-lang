@@ -55,16 +55,3 @@ commit that finishes it. When the queue is empty, report that and wait.
 (Owner, 2026-10-11: Codex is offline; a weaker Muse is back temporarily.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
-
-### M44. Review Codex's M24 commits (#292)
-
-Codex's last job, M24 (commits 53f476b4..8895174b), was a self-review
-of the wasmtime host plus Linux CI fixes. Read those commits and the
-code they touch, and list concrete problems: unsafe assumptions, error
-text copied from Node instead of the spec's panic and diagnostic forms,
-places that ignore a spec rule, tests that prove less than their name
-says, and dead code. Write the list, with file:line and a suggested fix
-for each, as a new section "Review of M24" in
-`future-work/compiler/wasmtime-perf.md`, or a new file
-`future-work/compiler/wasmtime-review.md` if that fits better. No code
-changes in this job.
