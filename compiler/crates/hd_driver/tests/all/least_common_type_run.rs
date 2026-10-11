@@ -185,6 +185,64 @@ fn every_site_reports_no_common_type() {
     }
 }
 
+/// A site that restarts to widen to an optional reports a later value
+/// that does not join as `no-common-type`, in any value order, not as a
+/// mismatch against the widened type.
+#[test]
+fn a_restarted_site_reports_no_common_type() {
+    let lists = [
+        "[1, a, \"s\"]",
+        "[1, \"s\", a]",
+        "[\"s\", 1, a]",
+        "[a, 1, \"s\"]",
+        "[1, a, x]",
+        "[1, x, a]",
+        "[x, 1, a]",
+        "[1, a, 2, x]",
+        "[1, a, true, 2]",
+    ];
+    for list in lists {
+        let main = format!("fn f(a: i32?, x: i32??) -> void:\n    _v := {list}\n");
+        assert_eq!(codes_of(&main), vec![Code::NoCommonType], "{list}");
+    }
+    let cases = [
+        (
+            "map value",
+            "fn f(a: i32?) -> void:\n    _v := {\"p\": 1, \"q\": a, \"r\": \"s\"}\n",
+        ),
+        (
+            "map key",
+            "fn f(a: i32?) -> void:\n    _v := {1: 0, a: 1, \"s\": 2}\n",
+        ),
+        (
+            "match, string first",
+            "fn f(k: i32, a: i32?) -> void:\n    _v := match k:\n        0 => \"s\"\n        1 => 1\n        _ => a\n",
+        ),
+        (
+            "match",
+            "fn f(k: i32, a: i32?) -> void:\n    _v := match k:\n        0 => 1\n        1 => a\n        _ => \"s\"\n",
+        ),
+        (
+            "closure",
+            "fn f(c: bool, a: i32?) -> void:\n    _g := fn():\n        if c:\n            return 1\n        if c:\n            return a\n        \"s\"\n",
+        ),
+        (
+            "omitted result",
+            "fn f(c: bool, a: i32?):\n    if c:\n        return 1\n    if c:\n        return a\n    \"s\"\n",
+        ),
+        (
+            "deeper optional",
+            "fn f(k: i32, a: i32?, x: i32??) -> void:\n    _v := match k:\n        0 => 1\n        1 => a\n        _ => x\n",
+        ),
+    ];
+    for (site, main) in cases {
+        assert_eq!(codes_of(main), vec![Code::NoCommonType], "{site}");
+    }
+    // A restart whose values all join still gives the optional type.
+    let ok = "fn f(c: bool, a: i32?) -> void:\n    let _v: List[i32?] = [1, a, 2]\n    _w := [1, a, 2, a]\n    _m := {\"p\": 1, \"q\": a}\n    _i := if c: 1 else: a\n";
+    assert_eq!(codes_of(ok), Vec::<Code>::new());
+}
+
 /// No trait-value conversion or supertrait widening joins values
 /// (`types.lct.no-trait-value`, `types.lct.no-supertrait-widening`), in
 /// either order, while an expected type may ask for one

@@ -153,8 +153,8 @@ impl Ck<'_, '_> {
     /// Checks a least-common-type site's values with `run`, which gets the
     /// site's type. An optional value after a plain one makes the site's
     /// type optional (`types.lct.optional`); the values already checked
-    /// took the plain type, so the site starts over with the optional type
-    /// as its expected type and every value converts to it.
+    /// took the plain type, so the site starts over as a site whose type is
+    /// the optional type, and every value joins it.
     pub(crate) fn join_site<T>(
         &mut self,
         want: Option<Ty>,
@@ -174,7 +174,16 @@ impl Ck<'_, '_> {
         };
         let wide = self.widen[at].1;
         self.rollback(cp);
-        run(self, wide)
+        // The second pass is a site again, already solved to the optional
+        // type, so a later value that does not join reports `no-common-type`
+        // as on the first pass, not a mismatch against an expected type.
+        let pool = self.pool();
+        let again = self.infer.fresh(pool, VarKind::General);
+        self.joins.open(again);
+        if self.infer.unify(pool, again, wide).is_err() {
+            return run(self, wide);
+        }
+        run(self, again)
     }
 
     /// The expected type a value at a site passes on to a literal it holds:
