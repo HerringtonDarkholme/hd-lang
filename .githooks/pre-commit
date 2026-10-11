@@ -6,8 +6,10 @@ if git diff --cached --name-only --diff-filter=ACMR | grep -qE '^compiler/.*(\.r
     echo "pre-commit: Rust files are not formatted. Run: (cd compiler && cargo fmt --all), then git add them." >&2
     exit 1
   fi
-  if ! (cd compiler && cargo clippy -q --workspace --all-targets --all-features -- -D warnings); then
-    echo "pre-commit: clippy failed (CI runs: cargo clippy --workspace --all-targets --all-features -- -D warnings)." >&2
+  # Default members only, so a commit never builds wasmtime; CI lints with
+  # --workspace --all-features.
+  if ! (cd compiler && cargo clippy -q --all-targets -- -D warnings); then
+    echo "pre-commit: clippy failed (cargo clippy --all-targets -- -D warnings)." >&2
     exit 1
   fi
 fi
