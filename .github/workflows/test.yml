@@ -20,8 +20,43 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  compiler:
-    name: Rust compiler front end
+  # The Rust jobs run side by side, so the check takes as long as the
+  # slowest one. Each restores third-party build output only (the
+  # workspace's own crates and test binaries are not cached; they were
+  # most of a 7 GB cache).
+  lint:
+    name: Rust format and lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: compiler
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2.9.2
+        with:
+          workspaces: compiler
+
+      - name: Install browser target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Lint
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Build browser-safe syntax crate
+        run: cargo build -p hd_syntax --target wasm32-unknown-unknown
+
+  # CI tests in release for speed (owner, 2026-10-11: dev took 26 min,
+  # release 6). Local gates stay in the dev profile, where debug
+  # assertions and overflow checks are on.
+  test:
+    name: Rust tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -37,37 +72,42 @@ jobs:
           node-version-file: package.json
           package-manager-cache: false
 
-      # Caches the cargo registry and third-party build output only; the
-      # workspace's own crates and test binaries are not cached (they were
-      # most of a 7 GB cache).
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2.9.2
         with:
           workspaces: compiler
 
-      - name: Install browser target
-        run: rustup target add wasm32-unknown-unknown
-
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-
-      - name: Lint
-        run: cargo clippy --workspace --all-targets -- -D warnings
-
-      # CI tests in release for speed (owner, 2026-10-11: dev took 26 min,
-      # release 6). Local gates stay in the dev profile, where debug
-      # assertions and overflow checks are on.
       - name: Build release compiler
         run: cargo build --release --bin hd
 
       - name: Test
         run: cargo test --release --workspace -- --skip specification_conformance_does_not_regress
 
+  # Split from the tests so the longest suite overlaps with the rest.
+  conformance:
+    name: Driver conformance
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: compiler
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2.9.2
+        with:
+          workspaces: compiler
+
       - name: New compiler conformance gate
         run: cargo test --release -p hd_driver --test conformance
-
-      - name: Build browser-safe syntax crate
-        run: cargo build -p hd_syntax --target wasm32-unknown-unknown
 
   # The TypeScript prototype's checks (pnpm run check, its perf gate and
   # the playground end-to-end run) are off: the prototype is a frozen test
