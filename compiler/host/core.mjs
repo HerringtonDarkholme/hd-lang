@@ -995,6 +995,11 @@ export function createHost(sink, env = {}) {
         reported = true;
       } else if (e instanceof TimeLimit) {
         reported = true;
+      } else if (e instanceof RangeError) {
+        // V8 reports a guest stack overflow as a RangeError, not a
+        // WebAssembly.RuntimeError; it is the stack-exhausted panic.
+        sink.err("panic: stack-exhausted: the call stack ran out; check for recursion that never ends\n");
+        reported = true;
       } else if (!(e instanceof WebAssembly.RuntimeError) && !(e instanceof Deadlock)) {
         throw e;
       }

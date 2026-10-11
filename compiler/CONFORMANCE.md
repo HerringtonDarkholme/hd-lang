@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2615 | 206 | 24 | 2845 |
+| 2616 | 205 | 24 | 2845 |
 
 ## By Chapter
 
@@ -19,7 +19,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/03-names-and-scopes.md` | 100 | 1 | 0 | 101 |
 | `lang/04-type-system.md` | 328 | 24 | 0 | 352 |
 | `lang/05-expressions.md` | 261 | 16 | 0 | 277 |
-| `lang/06-control-flow.md` | 139 | 14 | 4 | 157 |
+| `lang/06-control-flow.md` | 140 | 13 | 4 | 157 |
 | `lang/07-functions.md` | 120 | 10 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 113 | 9 | 1 | 123 |
 | `lang/09-traits.md` | 329 | 28 | 2 | 359 |
@@ -62,7 +62,7 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 97 | 5 | 3 | 105 |
+| `runtime/panic` | 98 | 4 | 3 | 105 |
 | `runtime/valid` | 900 | 10 | 19 | 929 |
 | `typing/invalid` | 912 | 162 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
@@ -100,7 +100,7 @@ compiler stage that first declined the case.
 | `fail:private-main` | 4 |
 | `fail:re-export-loop` | 1 |
 | `fail:readonly-root` | 1 |
-| `fail:runtime-exit` | 5 |
+| `fail:runtime-exit` | 4 |
 | `fail:stdout` | 1 |
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
@@ -379,12 +379,11 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (5)</summary>
+<details><summary><code>fail:runtime-exit</code> (4)</summary>
 
 - `runtime/panic/defer-block-on-indirect.hd`
 - `runtime/panic/list-view-reversed.hd`
 - `runtime/panic/list-view-index-out-of-bounds.hd`
-- `runtime/panic/unbounded-recursion.hd`
 - `runtime/panic/fact-evaluation-panics-on-read.hd`
 
 </details>
@@ -958,6 +957,7 @@ runtime/panic/string-slice-range-reversed.hd
 runtime/panic/string-slice-reversed.hd
 runtime/panic/structure-variant-mismatch.hd
 runtime/panic/u8-add-overflow.hd
+runtime/panic/unbounded-recursion.hd
 runtime/panic/usize-len-underflow.hd
 runtime/panic/usize-max-overflow-wasm32.hd
 runtime/valid/abrupt-assignment-stores-nothing.hd

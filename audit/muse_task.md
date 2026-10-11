@@ -56,18 +56,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
 
-### M27. Find which engine is right on unbounded recursion
-
-`spec/conformance/runtime/panic/unbounded-recursion.hd` passes with
-`HD_CONFORMANCE_ENGINE=wasmtime-only` and fails on Node, in the driver
-conformance runner (`crates/hd_driver/tests/conformance.rs`, build with
-`--features wasmtime`). Find out what each engine prints and exits with,
-what the fixture and spec require (search spec/ for the panic code it
-names), and why Node differs (stack size, how a V8 RangeError maps to a
-panic). Report only: add one row to `audit/compiler/diagnostic-notes.md`
-with the cause and a proposed fix. Change code only if the fix is inside
-`compiler/host/*.mjs` and is a few lines; otherwise just report.
-
 ### M28. Measure why conformance is slow on wasmtime (#278)
 
 In release, driver conformance takes about 110 s with
