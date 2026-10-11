@@ -58,6 +58,50 @@ against Node. Files: `compiler/crates/hd_run_wasmtime/**`,
 engine switch only), their tests, and §18-§20 of the doc. Ask before
 touching any other file.
 
+### M24. Review: Your Own wasmtime Work, M18-M22a (Review, Then Fixes)
+
+Do this after M22 and before M23. Review your own commits 3707b290,
+43993c72, 91337f6f, 0f319ffc, 0613e39f, 3459768f and ec517898 (the
+wasmtime host, `compiler/crates/hd_run_wasmtime`, and its CLI and
+conformance hooks) against the feedback below, then fix what you agree
+with. This is a review job, not new features.
+
+Feedback from the orchestrator's review (2026-10-10), to weigh, not rules:
+- **Size and shape.** ~16.5k lines in seven commits; the crate is 10.8k
+  lines with `http.rs` 2.5k, `net.rs` 1.8k, `fs.rs` 1.7k, `core.rs` 1.3k;
+  `host.rs::call` ~240 lines, `net.rs::handle_op` ~190. Single commits of
+  4.8-6.5k lines are hard to review. Consider splitting providers by
+  concern, one shared codec layer from `hd_host_abi`, and smaller commits.
+- **Node parity versus the spec.** The host reproduces libuv/Node error
+  spellings and messages (`fs.rs` `node_errno`, `node_windows_errno`, ~250
+  lines) so output matches Node byte for byte. Once W5 removes Node those
+  quirks stay. Where the spec fixes an error's shape, follow the spec;
+  where it does not, decide what a Rust host should say and log it.
+- **Grants.** M21 edited `hd_driver/src/lib.rs`, `check_cmd.rs` and
+  `test_cmd.rs` beyond the job's files without asking first.
+- **Global cost.** M21's tracking global allocator (`hd_cli/src/memory_cap.rs`)
+  runs on every `hd` invocation; measured 0-8 ms on a 50 ms `hd check`.
+  Consider enabling it only when a compiler memory limit is set.
+- **Test robustness.** The UDP port-reuse race (fixed in M21b) suggests
+  checking the other network and pipe tests for timing assumptions.
+- **Owner's view** (`audit/compiler/later.md`, "Wasmtime host code
+  quality"): the owner judged this code low quality and wants it
+  revisited.
+- **Replay readiness** (owner wants resume after the REPL,
+  `future-work/compiler/live-execution.md` §5-6): keep every value that
+  reaches the guest flowing through three points a recorder can wrap:
+  import dispatch (`host.rs::call`), wake delivery (the reactor/driver
+  loop), and cancellation/abort. No provider may hand the guest data any
+  other way, and provider-internal clock reads that change an outcome
+  (timeouts) must surface through those points.
+
+Output: a short written review (agree / disagree with reason, per point)
+appended to `engines-and-test-runner.md` §18, then the fixes you agree
+with as separate, reviewable commits (each under ~1500 lines), with the
+parity tests and full gates green after each. Same file grants as M22,
+plus `compiler/crates/hd_cli/src/memory_cap.rs` and `main.rs` for the
+allocator change; ask before touching anything else.
+
 ### M23. Implement: wasmtime As The Default (W5, #247, Code)
 
 After M22, when every runtime and CLI conformance case matches Node on
