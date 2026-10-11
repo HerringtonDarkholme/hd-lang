@@ -59,15 +59,12 @@ jobs:
       - name: Lint
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      # Release tests reuse this binary for the hd_cli integration tests.
-      - name: Build release compiler
-        run: cargo build --release --bin hd
-
+      # Tests run in the dev profile: debug assertions and overflow checks on.
       - name: Test
-        run: cargo test --release --workspace -- --skip specification_conformance_does_not_regress
+        run: cargo test --workspace -- --skip specification_conformance_does_not_regress
 
       - name: New compiler conformance gate
-        run: cargo test --release -p hd_driver --test conformance
+        run: cargo test -p hd_driver --test conformance
 
       - name: Build browser-safe syntax crate
         run: cargo build -p hd_syntax --target wasm32-unknown-unknown

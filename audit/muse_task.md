@@ -21,9 +21,9 @@ commit that finishes it. When the queue is empty, report that and wait.
   run and every cargo test run. Never run two full test runs at once, and
   don't start one while another agent's full run is going (check `uptime`;
   above ~30, wait).
-- **Gates before every push** (from `compiler/`): `cargo fmt --check`;
-  `cargo clippy --workspace --all-targets --release -- -D warnings`;
-  `HD_UPDATE_CONFORMANCE=1 cargo test -q --release --workspace`, then the
+- **Gates before every push** (always the dev profile, never `--release`; owner, 2026-10-11) (from `compiler/`): `cargo fmt --check`;
+  `cargo clippy --workspace --all-targets -- -D warnings`;
+  `HD_UPDATE_CONFORMANCE=1 cargo test -q --workspace`, then the
   same without the env var; and `bash spec/check.sh` from the repository
   root. Never push with any of them red.
 - Push with `git fetch origin && git rebase origin/main`, rerun the gates
