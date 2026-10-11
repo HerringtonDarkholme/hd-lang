@@ -141,6 +141,13 @@ pub fn wake_table() -> GSym {
     GSym::Rt("wake".into(), VT::rn(WTy::Array(VT::I32)))
 }
 
+/// The facts being evaluated (`annot.fact.eval.panic-runtime`): the label of
+/// the innermost facts body that runs, or null. A panic report names it.
+#[must_use]
+pub fn fact_global() -> GSym {
+    GSym::Rt("fact".into(), VT::rn(WTy::Bytes))
+}
+
 /// The forbidden-context counter (suspension.md §14.9): how many forbidden
 /// contexts are running; `block_on` panics while it is not zero.
 #[must_use]
@@ -207,6 +214,10 @@ pub enum Helper {
     Panic(String),
     /// `panic(message)`.
     PanicStr,
+    /// The start of a panic report, `panic: `. A program that evaluates
+    /// facts says first that the panic happened while one was evaluated
+    /// (`annot.fact.eval.panic-runtime`).
+    PanicHead,
     /// The cursor closure of `List.iter()`.
     ListStep {
         code: WTy,
@@ -451,6 +462,7 @@ impl Helper {
                 w.str(m);
             }
             Helper::PanicStr => w.u8(5),
+            Helper::PanicHead => w.u8(36),
             Helper::ListStep {
                 code,
                 env,
@@ -713,6 +725,7 @@ impl Helper {
             3 => Helper::StrToBuf,
             4 => Helper::Panic(r.str().to_owned()),
             5 => Helper::PanicStr,
+            36 => Helper::PanicHead,
             6 => Helper::ListStep {
                 code: dec_wty(r)?,
                 env: dec_wty(r)?,
@@ -915,8 +928,9 @@ pub fn lit_code(off: u32, len: u32, global: u32) -> Code {
     a.finish(vec![VT::r(WTy::Bytes)])
 }
 
-/// The code of a helper.
-pub fn helper_code(h: &Helper) -> StageResult<Code> {
+/// The code of a helper. `facts` is whether the program evaluates facts,
+/// so its panic reports name the facts being evaluated.
+pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
     Ok(match h {
         Helper::Lit(_) => lit_code(0, 0, 0),
         Helper::IntToStr { wide, signed } => {
@@ -1094,13 +1108,47 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
         }
         Helper::Panic(msg) => {
             let mut a = Asm::new(vec![]);
-            write_lit(&mut a, &format!("panic: {msg}\n"));
+            if facts {
+                a.call(Sym::Helper(Helper::PanicHead));
+                write_lit(&mut a, &format!("{msg}\n"));
+            } else {
+                write_lit(&mut a, &format!("panic: {msg}\n"));
+            }
             a.s().unreachable();
+            a.finish(vec![])
+        }
+        Helper::PanicHead => {
+            let mut a = Asm::new(vec![]);
+            write_lit(&mut a, "panic: ");
+            if facts {
+                let ctx = fact_global();
+                a.global_get(ctx.clone());
+                a.s().ref_is_null().i32_eqz();
+                a.if_();
+                write_lit(&mut a, "fact-evaluation-failed: the facts of `");
+                a.global_get(ctx.clone());
+                a.s().ref_as_non_null();
+                a.global_get(ctx);
+                a.s().ref_as_non_null();
+                a.array_len();
+                a.s().i64_extend_i32_u();
+                a.i64(32);
+                a.s().i64_shl();
+                a.call(Sym::Helper(Helper::StrToBuf));
+                a.call(stderr_import());
+                write_lit(&mut a, "` panicked with ");
+                a.end();
+            }
             a.finish(vec![])
         }
         Helper::PanicStr => {
             let mut a = Asm::new(str_vts());
-            write_lit(&mut a, "panic: explicit-panic: ");
+            if facts {
+                a.call(Sym::Helper(Helper::PanicHead));
+                write_lit(&mut a, "explicit-panic: ");
+            } else {
+                write_lit(&mut a, "panic: explicit-panic: ");
+            }
             a.get(0);
             a.get(1);
             a.call(Sym::Helper(Helper::StrToBuf));
@@ -2077,13 +2125,16 @@ mod tests {
         };
         let (base, poll) = crate::layout::suspend_base(&results);
         let report_key = Hash128(2);
-        let code = helper_code(&Helper::EntryPoll {
-            main: Hash128(1),
-            providers: vec![],
-            results: u32::try_from(results.len()).unwrap(),
-            bang: Some((base.clone(), poll.clone())),
-            report: report.then_some((report_key, results)),
-        })
+        let code = helper_code(
+            &Helper::EntryPoll {
+                main: Hash128(1),
+                providers: vec![],
+                results: u32::try_from(results.len()).unwrap(),
+                bang: Some((base.clone(), poll.clone())),
+                report: report.then_some((report_key, results)),
+            },
+            false,
+        )
         .unwrap();
         let poll_at = code
             .relocs

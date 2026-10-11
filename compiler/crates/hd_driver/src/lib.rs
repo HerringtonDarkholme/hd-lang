@@ -4397,13 +4397,14 @@ impl Env<'_> {
 
     /// A default body (codegen.md §13.13): a body of its own, whose
     /// parameters are the earlier parameters and whose result is the
-    /// parameter's or field's declared type.
+    /// parameter's or field's declared type. A facts body is one that takes
+    /// no parameter.
     fn default_body(&self, def: DefId) -> Option<&Body> {
         self.p
             .bodies
             .get(&def)
             .map(|b| &b.0)
-            .filter(|b| b.kind == hd_tir::BodyKind::Default)
+            .filter(|b| matches!(b.kind, hd_tir::BodyKind::Default | hd_tir::BodyKind::Fact))
     }
 
     /// The row keys of a module init, which has no signature. An entry

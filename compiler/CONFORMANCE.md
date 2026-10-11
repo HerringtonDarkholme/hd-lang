@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2649 | 174 | 22 | 2845 |
+| 2650 | 173 | 22 | 2845 |
 
 ## By Chapter
 
@@ -25,7 +25,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/09-traits.md` | 341 | 16 | 2 | 359 |
 | `lang/10-modules.md` | 223 | 30 | 5 | 258 |
 | `lang/11-requirements-and-suspension.md` | 239 | 12 | 8 | 259 |
-| `lang/14-annotations.md` | 137 | 15 | 1 | 153 |
+| `lang/14-annotations.md` | 138 | 14 | 1 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
 | `std/collections.md` | 26 | 3 | 0 | 29 |
@@ -62,7 +62,7 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 98 | 4 | 3 | 105 |
+| `runtime/panic` | 99 | 3 | 3 | 105 |
 | `runtime/valid` | 902 | 10 | 17 | 929 |
 | `typing/invalid` | 943 | 131 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
@@ -95,7 +95,7 @@ compiler stage that first declined the case.
 | `fail:private-main` | 4 |
 | `fail:re-export-loop` | 1 |
 | `fail:readonly-root` | 1 |
-| `fail:runtime-exit` | 4 |
+| `fail:runtime-exit` | 3 |
 | `fail:stdout` | 1 |
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
@@ -320,12 +320,11 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (4)</summary>
+<details><summary><code>fail:runtime-exit</code> (3)</summary>
 
 - `runtime/panic/defer-block-on-indirect.hd`
 - `runtime/panic/list-view-reversed.hd`
 - `runtime/panic/list-view-index-out-of-bounds.hd`
-- `runtime/panic/fact-evaluation-panics-on-read.hd`
 
 </details>
 
@@ -831,6 +830,7 @@ runtime/panic/duration-suffix-overflow.hd
 runtime/panic/exhausted-iterator-invalidated-by-growth.hd
 runtime/panic/explicit-panic-skips-defer.hd
 runtime/panic/explicit-panic.hd
+runtime/panic/fact-evaluation-panics-on-read.hd
 runtime/panic/for-iterator-invalidated-via-helper.hd
 runtime/panic/for-loop-iterator-invalidated.hd
 runtime/panic/for-map-insert-invalidates.hd

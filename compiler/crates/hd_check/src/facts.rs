@@ -60,7 +60,18 @@ pub fn check_facts(
         .into_iter()
         .map(FactSource::Value)
         .collect();
-    check_fact_list(cx, (owner, def), &sources, FactTarget::Fn, node, diags)
+    let label = cx
+        .lookup
+        .item(owner)
+        .map_or_else(String::new, |item| cx.names.text(item.name).to_owned());
+    check_fact_list(
+        cx,
+        (owner, def),
+        &sources,
+        (FactTarget::Fn, &label),
+        node,
+        diags,
+    )
 }
 
 /// Where one fact, or a list of facts, of a `Facts` value is written.
@@ -90,12 +101,14 @@ pub enum FactTarget {
 /// Checks the body `def` that builds one `Facts` value from `sources`, in
 /// order, as ordinary code of `owner`'s module (`annot.fact.read`,
 /// `annot.structure.facts-contents`); `at` is the node its value is
-/// reported at.
+/// reported at. The body is a `Fact` body: the program evaluates it once,
+/// on the first read (`annot.fact.eval.lazy`), and a panic in it names
+/// `label`, what the facts are attached to (`annot.fact.eval.panic-runtime`).
 pub fn check_fact_list(
     cx: &BodyCx<'_>,
     (owner, def): (DefId, DefId),
     sources: &[FactSource<'_>],
-    target: FactTarget,
+    (target, label): (FactTarget, &str),
     at: NodeRef<'_>,
     diags: &mut DiagBuf,
 ) -> StageResult<Body> {
@@ -163,7 +176,10 @@ pub fn check_fact_list(
     let rec = ck.b.refs_record(&[list]);
     let value = ck.b.emit(Tag::NewData, NONE, rec, facts_ty, at.index());
     let root = ck.b.close_block(blk, Some(value), facts_ty, at.index());
-    ck.finish_body(root)
+    let mut body = ck.finish_body(root)?;
+    body.kind = BodyKind::Fact;
+    body.label = label.into();
+    Ok(body)
 }
 
 /// `annot.fact.block-on.direct`, `annot.metadata.eval-as-fact`: the fact

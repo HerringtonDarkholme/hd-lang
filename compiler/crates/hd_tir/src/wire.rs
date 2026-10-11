@@ -233,6 +233,7 @@ pub fn write_body(
     for st in &b.strings {
         w.str(st);
     }
+    w.str(&b.label);
     // Locations last, outside the hashed prefix: moving a body in its file
     // changes node indices, not the body (cache.md §5.3).
     let hashed = u32::try_from(w.bytes.len()).expect("body over 4 GiB");
@@ -314,6 +315,7 @@ pub fn read_body(
     for _ in 0..r.count() {
         b.strings.push(r.str().into());
     }
+    b.label = r.str().into();
     b.syn = col(&mut r).into_iter().map(NodeIdx::from_raw).collect();
     b.local_syn = col(&mut r).into_iter().map(NodeIdx::from_raw).collect();
     if !r.ok() || b.data.len() != b.tags.len() || b.ty.len() != b.tags.len() {

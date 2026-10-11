@@ -2288,7 +2288,7 @@ impl Em<'_> {
             // category, then the message when it is not empty
             // (`flow.panic.report`).
             "panic" => {
-                crate::rt::write_lit(&mut self.a, "panic: ");
+                self.a.call(Sym::Helper(Helper::PanicHead));
                 self.load(args[0])?;
                 self.a.call(Sym::Helper(Helper::StrToBuf));
                 self.a.call(crate::rt::stderr_import());
@@ -4898,6 +4898,11 @@ fn emit_body(
             em.providers.push((k, ls));
         }
     }
+    let facts = (sub == 0 && erased.is_none() && b.kind == BodyKind::Fact).then(|| FactCell {
+        key,
+        results: results.clone(),
+    });
+    let outer = facts.as_ref().map(|cell| cell.enter(&mut em.a, &b.label));
     let root = b.sub_root[sub as usize];
     em.ctrl.push(Ctl::Plain);
     em.block_into(root, None)?;
@@ -4908,8 +4913,71 @@ fn emit_body(
         }
     } else {
         em.load_as(tail, &results)?;
+        if let (Some(cell), Some(outer)) = (facts, outer) {
+            cell.leave(&mut em.a, outer);
+        }
     }
     Ok(em.a.finish(results))
+}
+
+/// The storage of one facts body's value (`annot.fact.eval.lazy`): a
+/// global per Wasm value of the result, and a flag that says the body has
+/// run. The body runs once, on its first read; every later read returns
+/// the stored value.
+struct FactCell {
+    key: Hash128,
+    results: Vec<VT>,
+}
+
+impl FactCell {
+    /// The global holding result `k`, or the flag past the last one.
+    fn global(&self, k: usize) -> GSym {
+        match self.results.get(k) {
+            Some(v) => GSym::Binding(self.key, u32_of(k), v.dflt()),
+            None => GSym::Binding(self.key, u32_of(k), VT::I32),
+        }
+    }
+
+    /// The start of the body: a read after the first returns the stored
+    /// value. Otherwise the panic reports name `label` until the body ends
+    /// (`annot.fact.eval.panic-runtime`). Returns the local that holds the
+    /// facts being evaluated around this body.
+    fn enter(&self, a: &mut Asm, label: &str) -> u32 {
+        a.global_get(self.global(self.results.len()));
+        a.if_();
+        for (k, v) in self.results.iter().enumerate() {
+            a.global_get(self.global(k));
+            a.conv(&v.dflt(), v);
+        }
+        a.s().return_();
+        a.end();
+        let outer = a.local(VT::rn(WTy::Bytes));
+        a.global_get(crate::rt::fact_global());
+        a.set(outer);
+        a.call(Sym::Helper(Helper::Lit(label.as_bytes().to_vec())));
+        a.global_set(crate::rt::fact_global());
+        outer
+    }
+
+    /// The end of the body, with its result on the stack: stores it, and
+    /// returns to the facts being evaluated around this one, if any.
+    fn leave(&self, a: &mut Asm, outer: u32) {
+        let held: Vec<u32> = self.results.iter().map(|v| a.local(v.clone())).collect();
+        for l in held.iter().rev() {
+            a.set(*l);
+        }
+        for (k, l) in held.iter().enumerate() {
+            a.get(*l);
+            a.global_set(self.global(k));
+        }
+        a.i32(1);
+        a.global_set(self.global(self.results.len()));
+        a.get(outer);
+        a.global_set(crate::rt::fact_global());
+        for l in &held {
+            a.get(*l);
+        }
+    }
 }
 
 /// The provider of key `k` from a closure call's context (the parameters

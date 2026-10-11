@@ -67,6 +67,12 @@ pub struct FactLines<'t> {
     /// Per variant, per member position: the member's declared type, which
     /// a typed fact checks against (`annot.typed-fact.declared-type`).
     member_tys: Vec<Vec<Ty>>,
+    /// What the type's, each variant's and each member's facts are attached
+    /// to, as `Shape`, `Shape.Circle` and `Shape.Circle.radius`, which a
+    /// panic in a fact names (`annot.fact.eval.panic-runtime`).
+    type_label: String,
+    variant_labels: Vec<String>,
+    member_labels: Vec<Vec<String>>,
 }
 
 impl<'t> FactLines<'t> {
@@ -97,6 +103,16 @@ impl<'t> FactLines<'t> {
                 .map_or(FactTarget::Other, |t| FactTarget::Field(*t)),
             Slot::Type | Slot::Variant(_) => FactTarget::Other,
         }
+    }
+
+    /// The label of the place a slot's facts attach to.
+    fn label(&self, s: Slot) -> &str {
+        let found = match s {
+            Slot::Type => None,
+            Slot::Variant(v) => self.variant_labels.get(v),
+            Slot::Member(v, m) => self.member_labels.get(v).and_then(|ms| ms.get(m)),
+        };
+        found.map_or(self.type_label.as_str(), String::as_str)
     }
 
     fn slots(&self) -> Vec<(Slot, &[FactSource<'t>])> {
@@ -245,8 +261,10 @@ pub fn declaration_facts<'t>(
     };
     let mut out = FactLines {
         of_type: values(decl),
+        type_label: cx.names.text(item.name).to_owned(),
         ..FactLines::default()
     };
+    (out.variant_labels, out.member_labels) = place_labels(cx, item, &out.type_label);
     for (variant, members) in member_sites(item, decl) {
         out.variants.push(variant.map(values).unwrap_or_default());
         out.member_tys
@@ -258,6 +276,33 @@ pub fn declaration_facts<'t>(
         edit_facts(cx, item, &mut out, &crate::derive::member_lines(src, block));
     }
     out
+}
+
+/// The labels of the variants and members of the data type or enum `item`
+/// named `ty`, in declaration order.
+fn place_labels(cx: &BodyCx<'_>, item: &Item, ty: &str) -> (Vec<String>, Vec<Vec<String>>) {
+    let names = &cx.names;
+    let label =
+        |parent: &str, field: &hd_resolve::Field| format!("{parent}.{}", names.text(field.name));
+    match &item.data {
+        ItemData::Data(fields) => (
+            vec![ty.to_owned()],
+            vec![fields.iter().map(|f| label(ty, f)).collect()],
+        ),
+        ItemData::Enum { variants, .. } => {
+            let labels: Vec<String> = variants
+                .iter()
+                .map(|v| format!("{ty}.{}", names.text(v.name)))
+                .collect();
+            let members = variants
+                .iter()
+                .zip(&labels)
+                .map(|(v, parent)| v.fields.iter().map(|f| label(parent, f)).collect())
+                .collect();
+            (labels, members)
+        }
+        _ => (Vec::new(), Vec::new()),
+    }
 }
 
 /// The slot a member line named `name` edits in `item`: `Self`, a field
@@ -356,7 +401,7 @@ pub fn fact_bodies(
                     cx,
                     (owner, def),
                     sources,
-                    facts.target(slot),
+                    (facts.target(slot), facts.label(slot)),
                     decl,
                     &mut scratch,
                 )?;

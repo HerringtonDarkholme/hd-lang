@@ -1204,12 +1204,20 @@ pub fn link(
         scan(c, &mut todo);
     }
     let mut wakes = false;
+    // A program that evaluates facts names them in its panic reports
+    // (`annot.fact.eval.panic-runtime`); any other program's reports are
+    // the plain ones, so it pays nothing.
+    let facts = all.iter().any(|(_, c, _)| {
+        c.relocs
+            .iter()
+            .any(|(_, r)| matches!(r, Reloc::Global(g) if *g == rt::fact_global()))
+    });
     loop {
         while let Some(h) = todo.pop() {
             if helpers.contains_key(&h) {
                 continue;
             }
-            let c = rt::helper_code(&h)?;
+            let c = rt::helper_code(&h, facts)?;
             scan(&c, &mut todo);
             helpers.insert(h, c);
         }

@@ -443,6 +443,10 @@ pub struct Body {
     pub consts: Vec<(Ty, u64)>,
     /// The body's string literals, by `string` constant.
     pub strings: Vec<Box<str>>,
+    /// What a `Fact` body's facts are attached to (`Point`, `Point.x`, a
+    /// function's name), which a panic while it runs names
+    /// (`annot.fact.eval.panic-runtime`); empty for any other kind.
+    pub label: Box<str>,
 }
 
 impl Body {
@@ -470,6 +474,7 @@ impl Body {
             susp: vec![],
             consts: vec![],
             strings: vec![],
+            label: "".into(),
         }
     }
 
@@ -1051,6 +1056,13 @@ pub fn print(b: &Body) -> String {
         }
         let _ = writeln!(o, ".");
     }
+    if !b.label.is_empty() {
+        let _ = write!(o, "label ");
+        for x in b.label.bytes() {
+            let _ = write!(o, "{x:02x}");
+        }
+        let _ = writeln!(o, ".");
+    }
     for (t, bits) in &b.consts {
         let _ = writeln!(o, "const {} {bits}", t.0);
     }
@@ -1167,7 +1179,7 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                     hook_site: v[3],
                 });
             }
-            "str" => {
+            "str" | "label" => {
                 let hex = f.get(1).copied().unwrap_or(".").trim_end_matches('.');
                 let bytes: Option<Vec<u8>> = (0..hex.len() / 2)
                     .map(|i| u8::from_str_radix(hex.get(2 * i..2 * i + 2)?, 16).ok())
@@ -1175,7 +1187,11 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                 let text = bytes
                     .and_then(|v| String::from_utf8(v).ok())
                     .ok_or_else(|| e("bad string".into()))?;
-                b.strings.push(text.into());
+                if f[0] == "label" {
+                    b.label = text.into();
+                } else {
+                    b.strings.push(text.into());
+                }
             }
             "extra" => b.extra = nums(1)?,
             "const" => {
