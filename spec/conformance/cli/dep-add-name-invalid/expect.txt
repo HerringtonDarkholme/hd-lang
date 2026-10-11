@@ -1,0 +1,11 @@
+# The package's name 9tools gives no key that source can write as dep.NAME,
+# so hd add refuses it, writes nothing, and its message suggests --name.
+run: hd add --format json ./9tools
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-requirement","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+run: hd remove 9tools
+exit: 101
+run: hd add --name tools ./9tools
+stdout: tools = { path = "9tools" }
+run: hd run
+stdout: 42

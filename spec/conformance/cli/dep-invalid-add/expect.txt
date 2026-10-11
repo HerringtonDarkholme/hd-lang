@@ -1,12 +1,16 @@
-# Each requirement breaks a manifest rule, so hd add rejects it before it fetches.
-run: hd add --format json json github.com/acme/json@v2.1.0
+# Each target breaks a manifest rule, so hd add rejects it before it fetches.
+# A github.com host path needs an owner and a repository.
+run: hd add --format json github.com/acme@2.1.0
 exit: 101
 stdout-json: [{"kind":"diagnostic","code":"invalid-requirement","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
-run: hd add json github.com/acme@2.1.0
+# On another host, the repository part must end in .git.
+run: hd add example.com/shop/json@1.0.0
 exit: 101
-run: hd add json example.com/shop/json@1.0.0
+run: hd add --name 9json github.com/acme/json@2.1.0
 exit: 101
-run: hd add 9json github.com/acme/json@2.1.0
+# The old form's first word is the target github.com/json, which names no
+# repository, so nothing is fetched or written.
+run: hd add json github.com/acme/json@2.1.0
 exit: 101
 no-file: hd.sum
 run: hd check

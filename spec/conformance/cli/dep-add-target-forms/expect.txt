@@ -1,0 +1,36 @@
+# The runner gives git no network, so a well-formed fetched target fails at
+# the fetch, after hd add has read it. A malformed one fails before any fetch.
+# OWNER/REPO, with or without a package directory, is a github.com host path.
+run: hd add --format json acme/json@2.1.0
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"fetch-failed","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+run: hd add --format json acme/tools/lint@2.3.0
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"fetch-failed","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+# A host path whose first segment holds a dot.
+run: hd add --format json git.example.com/shop/billing.git@0.4.2
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"fetch-failed","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+# Pasted repository URLs.
+run: hd add --format json https://github.com/acme/json.git@2.1.0
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"fetch-failed","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+run: hd add --format json git@github.com:acme/json.git@2.1.0
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"fetch-failed","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+run: hd add --format json ssh://git@github.com/acme/json@2.1.0
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"fetch-failed","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+# On a host other than github.com, a URL's last segment gains .git ...
+run: hd add --format json https://git.example.com/shop/billing@0.4.2
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"fetch-failed","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+# ... but a host path is taken as written, and this one lacks the .git.
+run: hd add --format json git.example.com/shop/billing@0.4.2
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-requirement","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+# A lone word is a github.com host path with no repository segment.
+run: hd add --format json json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-requirement","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+no-file: hd.sum

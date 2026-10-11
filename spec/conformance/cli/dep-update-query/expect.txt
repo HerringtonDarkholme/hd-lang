@@ -1,0 +1,16 @@
+# hd update NAME@QUERY takes the queries of hd add. The runner gives git no
+# network, so json's fails at the fetch.
+run: hd update --format json json@main
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"fetch-failed","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+run: hd update --format json json@v2.3
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"fetch-failed","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+# A path requirement takes no query.
+run: hd update --format json money@1.0.0
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-requirement","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+# A NAME that is no key of either table is an error.
+run: hd update nosuch@1.0.0
+exit: 101
+no-file: hd.sum

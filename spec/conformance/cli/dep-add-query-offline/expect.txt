@@ -1,0 +1,25 @@
+# Every query form is accepted, a leading v too. The runner gives git no
+# network, so each fails at the fetch; for every query but an exact version,
+# the message also suggests an exact version.
+run: hd add --format json acme/json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"fetch-failed","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+run: hd add --format json acme/json@latest
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"fetch-failed","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+run: hd add --format json acme/json@v2.1.0
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"fetch-failed","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+run: hd add --format json acme/json@2
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"fetch-failed","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+run: hd add --format json acme/json@v2.1
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"fetch-failed","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+run: hd add --format json acme/json@main
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"fetch-failed","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+run: hd add --format json acme/json@9a1b2c3
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"fetch-failed","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+no-file: hd.sum

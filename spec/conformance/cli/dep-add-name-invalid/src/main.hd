@@ -1,0 +1,4 @@
+use dep.tools.{answer}
+
+pub fn main() -> void $ Console:
+    println(answer())

@@ -1,0 +1,2 @@
+pub fn cents(euros: i32) -> i32:
+    euros * 100

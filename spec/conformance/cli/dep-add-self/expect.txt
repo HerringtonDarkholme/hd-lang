@@ -1,0 +1,12 @@
+# A package cannot require itself.
+run: hd add --format json .
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-requirement","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+run: hd remove shop
+exit: 101
+# A path target takes no query.
+run: hd add --format json ./money@1.0.0
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-requirement","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+run: hd remove money
+exit: 101

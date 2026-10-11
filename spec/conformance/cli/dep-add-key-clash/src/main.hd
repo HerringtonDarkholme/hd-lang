@@ -1,0 +1,5 @@
+use dep.money.{cents}
+use dep.money2.{mills}
+
+pub fn main() -> void $ Console:
+    println(cents(1) + mills(1))

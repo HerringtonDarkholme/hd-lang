@@ -1,0 +1,5 @@
+use dep.money_utils.{cents}
+use dep.tax.{vat}
+
+pub fn main() -> void $ Console:
+    println(vat(cents(12)))

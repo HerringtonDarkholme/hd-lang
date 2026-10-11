@@ -1,0 +1,2 @@
+pub fn mills(euros: i32) -> i32:
+    euros * 1000

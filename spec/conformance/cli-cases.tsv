@@ -40,7 +40,7 @@ json-file-single	cli.json.diagnostic.file,cli.file.check-test
 release-wraps	cli.profile.release,cli.profile.test,cli.exit.test-failure,cli.profile.default,cli.profile.pipeline.release,cli.profile.pipeline.unobservable,cli.profile.pipeline.limits,cli.profile.pipeline.one
 release-test-checked	cli.profile.release.file,cli.profile.test.release,cli.profile.release.commands,cli.exit.test-failure,cli.profile.pipeline.release,cli.profile.pipeline.limits,cli.profile.pipeline.one
 dep-missing-sum	cli.dep.missing-sum,cli.dep.no-sum-write,cli.dep.remove,cli.json.lines.build,cli.exit.hd-failure,cli.dep.verify,cli.dep.missing-sum.manifest,cli.dep.verify.manifest,cli.dep.no-prompt,cli.dep.edit
-dep-invalid-add	cli.dep.add.check,cli.dep.invalid,cli.dep.unchanged-on-error,cli.json.commands,cli.dep.repo-url,cli.dep.git,cli.dep.tag,cli.dep.no-prompt,cli.dep.add,cli.dep.add.lower,cli.dep.add.lower.selection,cli.dep.select,cli.dep.no-question
+dep-invalid-add	cli.dep.add.check,cli.dep.invalid,cli.dep.unchanged-on-error,cli.json.commands,cli.dep.repo-url,cli.dep.git,cli.dep.tag,cli.dep.no-prompt,cli.dep.add.target,cli.dep.add.lower,cli.dep.add.lower.selection,cli.dep.select,cli.dep.no-question,cli.dep.target.github,cli.dep.key.name-flag
 dep-invalid-manifest	cli.dep.invalid,cli.json.diagnostic.file
 dep-outside-package	cli.dep.package-only
 exe-main-unlisted	cli.exe.main-unlisted,cli.json.diagnostic.fields
@@ -62,7 +62,7 @@ dbg-uses	cli.dbg.run
 clean-build	cli.clean.build,cli.clean.build.none,cli.clean.exit,cli.build.output,cli.clean.no-question
 clean-outside-package	cli.clean.build.package-only,cli.clean.exit
 clean-workspace	cli.clean.build.workspace
-dep-dev-invalid-add	cli.dep.add.dev,cli.dep.add.check,cli.dep.add.other-table,cli.dep.remove,cli.dep.edit.empty-table,cli.dep.unchanged-on-error
+dep-dev-invalid-add	cli.dep.add.dev,cli.dep.add.check,cli.dep.add.other-table,cli.dep.remove,cli.dep.edit.empty-table,cli.dep.unchanged-on-error,cli.dep.key.name-flag
 dep-dev-remove	cli.dep.remove,cli.dep.dev-selected
 test-every-case	cli.test.every-case,cli.exit.test-failure,cli.test.env.cwd,cli.json.test.result
 dep-key-collision	cli.dep.invalid,cli.json.diagnostic.file
@@ -101,3 +101,13 @@ json-diagnostic-fixes	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix
 fmt-check	cli.fmt.package,cli.fmt.meaning,cli.fmt.idempotent,cli.fmt.check,cli.fmt.no-check
 fmt-syntax-error	cli.fmt.syntax-error,cli.fmt.file,cli.fmt.check,cli.exit.hd-failure
 check-summary	cli.check.summary-mode,cli.check.output-options,cli.check.report.stream,cli.check.report.summary,cli.check.summary-mode.line,cli.check.summary-mode.order,cli.exit.hd-failure,cli.exit.success
+dep-add-path-target	cli.dep.add.target,cli.dep.target.order,cli.dep.target.path,cli.dep.key.inferred,cli.dep.key.same,cli.dep.add.several,cli.dep.add.report,cli.dep.path,cli.dep.remove
+dep-add-name-flag	cli.dep.key.name-flag,cli.dep.key.name-flag.one,cli.dep.add.report,cli.dep.unchanged-on-error,cli.exit.hd-failure
+dep-add-name-invalid	cli.dep.key.inferred,cli.dep.key.inferred.invalid,cli.dep.key.name-flag,cli.dep.unchanged-on-error,cli.json.commands
+dep-add-key-clash	cli.dep.key.clash,cli.dep.key.name-flag,cli.dep.unchanged-on-error,cli.dep.add.report,cli.json.commands
+dep-add-other-table	cli.dep.add.other-table,cli.dep.key.clash.other-table,cli.dep.key.inferred,cli.dep.add.dev,cli.dep.unchanged-on-error
+dep-add-several-fail	cli.dep.add.several,cli.dep.no-library,cli.dep.unchanged-on-error,cli.dep.add.report,cli.json.commands
+dep-add-self	cli.dep.target.self,cli.dep.target.split,cli.dep.target.path.no-query,cli.dep.unchanged-on-error,cli.json.commands
+dep-add-target-forms	cli.dep.target.order,cli.dep.target.github,cli.dep.target.url,cli.dep.target.url.git-suffix,cli.dep.target.split,cli.dep.add.check,cli.dep.invalid,cli.dep.no-prompt,cli.dep.unchanged-on-error,cli.json.commands
+dep-add-query-offline	cli.dep.query.order,cli.dep.query.latest,cli.dep.query.v-prefix,cli.dep.query.exact,cli.dep.query.partial,cli.dep.query.revision,cli.dep.query.network,cli.dep.query.offline,cli.dep.no-prompt,cli.dep.unchanged-on-error
+dep-update-query	cli.dep.update.query,cli.dep.update.query.path,cli.dep.update.dev,cli.dep.query.v-prefix,cli.dep.no-prompt,cli.dep.unchanged-on-error,cli.json.commands

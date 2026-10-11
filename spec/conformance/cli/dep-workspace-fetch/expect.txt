@@ -2,7 +2,7 @@
 # that edit a requirement run in a member.
 run: hd fetch --format json
 stdout-json: [{"kind":"summary","errors":0,"status":0}]
-run: hd add json github.com/acme/json@2.1.0
+run: hd add acme/json@2.1.0
 exit: 101
 run: hd update
 exit: 101

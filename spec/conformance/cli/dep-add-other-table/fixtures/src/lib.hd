@@ -1,0 +1,2 @@
+pub fn sample() -> i32:
+    7

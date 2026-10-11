@@ -1,0 +1,13 @@
+# Two path targets in one command. Each key is its package's name, with
+# - turned into _, and hd add prints each key's new line of hd.toml.
+run: hd add ./money-utils ./tax
+stdout: money_utils = { path = "money-utils" }
+stdout: tax = { path = "tax" }
+no-file: hd.sum
+run: hd run
+stdout: 1440
+# The same package again keeps its key and its requirement.
+run: hd add ./tax
+stdout: tax = { path = "tax" }
+run: hd remove money_utils
+run: hd remove tax

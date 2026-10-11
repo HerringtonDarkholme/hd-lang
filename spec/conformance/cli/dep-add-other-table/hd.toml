@@ -1,0 +1,8 @@
+[package]
+name = "shop"
+
+[dependencies]
+money = { path = "money" }
+
+[dev-dependencies]
+fixtures = { path = "fixtures" }

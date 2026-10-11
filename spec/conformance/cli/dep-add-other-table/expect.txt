@@ -1,0 +1,11 @@
+# The inferred key fixtures is in [dev-dependencies], so hd add without
+# --dev refuses it, and its message also suggests --name.
+run: hd add ./fixtures
+exit: 101
+no-file: hd.sum
+# The reverse case: money is in [dependencies].
+run: hd add --dev ./money
+exit: 101
+no-file: hd.sum
+run: hd run
+stdout: 1200

@@ -1,0 +1,11 @@
+# --name takes one target only; with two it is a usage error that writes nothing.
+run: hd add --name cash ./money-utils ./tax
+exit: 101
+no-file: hd.sum
+run: hd remove cash
+exit: 101
+# --name picks the key in place of the package's name.
+run: hd add --name cash ./money-utils
+stdout: cash = { path = "money-utils" }
+run: hd run
+stdout: 1200
