@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2592 | 229 | 24 | 2845 |
+| 2597 | 224 | 24 | 2845 |
 
 ## By Chapter
 
@@ -17,12 +17,12 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
 | `lang/02-grammar.md` | 205 | 10 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 100 | 1 | 0 | 101 |
-| `lang/04-type-system.md` | 319 | 33 | 0 | 352 |
+| `lang/04-type-system.md` | 320 | 32 | 0 | 352 |
 | `lang/05-expressions.md` | 257 | 20 | 0 | 277 |
 | `lang/06-control-flow.md` | 139 | 14 | 4 | 157 |
 | `lang/07-functions.md` | 119 | 11 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 113 | 9 | 1 | 123 |
-| `lang/09-traits.md` | 326 | 31 | 2 | 359 |
+| `lang/09-traits.md` | 329 | 28 | 2 | 359 |
 | `lang/10-modules.md` | 222 | 31 | 5 | 258 |
 | `lang/11-requirements-and-suspension.md` | 231 | 20 | 8 | 259 |
 | `lang/14-annotations.md` | 123 | 28 | 2 | 153 |
@@ -35,7 +35,7 @@ fixture; unsupported surface records progress without failing.
 | `std/error.md` | 14 | 0 | 0 | 14 |
 | `std/format.md` | 7 | 1 | 0 | 8 |
 | `std/fs.md` | 3 | 1 | 0 | 4 |
-| `std/hash.md` | 8 | 1 | 0 | 9 |
+| `std/hash.md` | 9 | 0 | 0 | 9 |
 | `std/host.md` | 2 | 0 | 0 | 2 |
 | `std/http.md` | 2 | 0 | 0 | 2 |
 | `std/iter.md` | 23 | 1 | 1 | 25 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 97 | 5 | 3 | 105 |
 | `runtime/valid` | 899 | 11 | 19 | 929 |
-| `typing/invalid` | 890 | 184 | 1 | 1075 |
+| `typing/invalid` | 895 | 179 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -91,7 +91,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 96 |
+| `fail:no-diagnostic` | 92 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
@@ -114,7 +114,7 @@ compiler stage that first declined the case.
 | `fail:unknown-trait` | 7 |
 | `fail:unknown-type` | 3 |
 | `fail:unknown-variant` | 1 |
-| `fail:unused-local-binding` | 6 |
+| `fail:unused-local-binding` | 5 |
 | `unsupported:Body` | 5 |
 | `unsupported:Collect` | 5 |
 | `unsupported:Link` | 3 |
@@ -234,7 +234,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (96)</summary>
+<details><summary><code>fail:no-diagnostic</code> (92)</summary>
 
 - `typing/invalid/tuple-map-key.hd`
 - `typing/invalid/private-type-leak.hd`
@@ -298,14 +298,10 @@ compiler stage that first declined the case.
 - `typing/invalid/typed-fact-concrete-pattern-mismatch.hd`
 - `typing/invalid/generic-inference-variance-conflict.hd`
 - `typing/invalid/generic-inference-optional-conflict.hd`
-- `typing/invalid/list-float-map-key.hd`
 - `typing/invalid/race-empty-list-literal.hd`
 - `typing/invalid/row-slot-bare-explicit-argument.hd`
 - `typing/warnings/unsigned-comparison-countdown.hd`
 - `typing/warnings/unsigned-comparison-explicit.hd`
-- `typing/invalid/impl-target-key-bound-not-implied.hd`
-- `typing/invalid/signature-key-bound-not-implied.hd`
-- `typing/invalid/field-key-bound-not-implied.hd`
 - `typing/invalid/inspectable-requirement-function-type.hd`
 - `typing/invalid/inspectable-requirement-provider-scope.hd`
 - `typing/invalid/nested-local-annotation-bare-trait.hd`
@@ -538,11 +534,10 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unused-local-binding</code> (6)</summary>
+<details><summary><code>fail:unused-local-binding</code> (5)</summary>
 
 - `typing/invalid/least-type-weakening-variance.hd`
 - `typing/invalid/closure-parameter-without-type.hd`
-- `typing/invalid/mut-map-key.hd`
 - `typing/invalid/all-function-value.hd`
 - `typing/invalid/range-float-bound.hd`
 - `typing/invalid/local-annotation-bare-trait.hd`
@@ -2149,6 +2144,7 @@ typing/invalid/facts-of-local-binding.hd
 typing/invalid/facts-of-method.hd
 typing/invalid/facts-of-type-name.hd
 typing/invalid/facts-of-without-import.hd
+typing/invalid/field-key-bound-not-implied.hd
 typing/invalid/field-reference.hd
 typing/invalid/float-literal-map-key.hd
 typing/invalid/float-literal-range.hd
@@ -2216,6 +2212,7 @@ typing/invalid/impl-method-generic-bound-changed.hd
 typing/invalid/impl-method-generic-bound-dropped.hd
 typing/invalid/impl-method-generic-bounds-reordered.hd
 typing/invalid/impl-method-generic-count.hd
+typing/invalid/impl-target-key-bound-not-implied.hd
 typing/invalid/impl-target-row-extension.hd
 typing/invalid/implicit-data-equality.hd
 typing/invalid/implicit-data-ordering.hd
@@ -2281,6 +2278,7 @@ typing/invalid/let-readonly-fresh-literal.hd
 typing/invalid/let-refutable-literal-field.hd
 typing/invalid/let-refutable-without-else.hd
 typing/invalid/list-call-not-callable.hd
+typing/invalid/list-float-map-key.hd
 typing/invalid/list-helper-callback-row.hd
 typing/invalid/list-index-negative-literal.hd
 typing/invalid/list-index-signed.hd
@@ -2365,6 +2363,7 @@ typing/invalid/module-path-private-std-function.hd
 typing/invalid/module-qualified-without-use.hd
 typing/invalid/mut-any-bound-readonly-argument.hd
 typing/invalid/mut-iterator-iterable-bound.hd
+typing/invalid/mut-map-key.hd
 typing/invalid/mut-on-primitive-annotation.hd
 typing/invalid/mut-on-primitive-generic-optional.hd
 typing/invalid/mut-on-primitive-optional.hd
@@ -2624,6 +2623,7 @@ typing/invalid/sibling-module-trait-name-not-imported.hd
 typing/invalid/sibling-module-trait-not-imported.hd
 typing/invalid/sibling-module-type-not-imported.hd
 typing/invalid/sign-fallback-no-instantiation.hd
+typing/invalid/signature-key-bound-not-implied.hd
 typing/invalid/signed-exponent.hd
 typing/invalid/signed-integer-exponent.hd
 typing/invalid/single-file-self-use.hd

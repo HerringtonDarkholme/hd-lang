@@ -210,6 +210,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let segs = self.segments(n);
         let mut args = Vec::new();
+        let mut arg_nodes = Vec::new();
         let mut row = None;
         // A trait value's associated-type bindings (`dyn Supplier[Item = i32]`).
         let mut bound = Vec::new();
@@ -226,6 +227,7 @@ impl Ck<'_, '_> {
                     }
                 } else if a.kind().is_type() {
                     args.push(self.ty_node(a)?);
+                    arg_nodes.push(a);
                 }
             }
         }
@@ -324,12 +326,71 @@ impl Ck<'_, '_> {
             });
             return Ok(t);
         }
-        if def == self.cx.names.known.map
-            && let Some(k) = args.first()
-        {
-            self.check_map_key(*k, n)?;
+        let t = self.ctor(def, &args)?;
+        self.check_written_bounds(t, def, (&arg_nodes, n))?;
+        Ok(t)
+    }
+
+    /// A written type meets the declared bounds of its constructor's
+    /// parameters (`types.generic.bound`, `types.map-key.declared-bound`):
+    /// one error at the argument that misses a bound. A `mut` map key is
+    /// `invalid-map-key` instead (`types.map-key.no-mut`), and an argument
+    /// the written type did not fix waits for inference.
+    fn check_written_bounds(
+        &mut self,
+        t: Ty,
+        def: DefId,
+        (arg_nodes, whole): (&[NodeRef<'_>], NodeRef<'_>),
+    ) -> StageResult<()> {
+        let pool = self.pool();
+        let TyData::Adt { def: d, args } = pool.get(t) else {
+            return Ok(());
+        };
+        if d != def {
+            return Ok(());
         }
-        self.ctor(def, &args)
+        let Some(item) = self.cx.lookup.item(def) else {
+            return Ok(());
+        };
+        let args = pool.list_items(args);
+        for (i, g) in item.generics.iter().enumerate() {
+            let Some(&a) = args.get(i) else { continue };
+            let at = arg_nodes.get(i).copied().unwrap_or(whole);
+            if def == self.cx.names.known.map && i == 0 && matches!(pool.get(a), TyData::Mut(_)) {
+                let msg = format!(
+                    "{} is a `mut` map key type; a map key type is not `mut`",
+                    self.show(a)
+                );
+                self.err(Code::InvalidMapKey, at, &msg);
+                continue;
+            }
+            for b in &g.bounds {
+                let b = pool.subst(*b, &|p: ParamRef| {
+                    (p.owner == def)
+                        .then(|| args.get(usize::from(p.index)).copied())
+                        .flatten()
+                });
+                let TyData::TraitValue {
+                    def: trait_,
+                    args: targs,
+                    ..
+                } = pool.get(b)
+                else {
+                    continue;
+                };
+                let before = self.diags.len();
+                let tref = hd_types::solver::TraitRef {
+                    trait_,
+                    self_ty: a,
+                    args: targs,
+                };
+                self.require_ref(tref, at)?;
+                if self.diags.len() != before {
+                    break;
+                }
+            }
+        }
+        Ok(())
     }
 
     /// `Map[K < Eq & Hash, V]` (types.map-key.declared-bound): one error

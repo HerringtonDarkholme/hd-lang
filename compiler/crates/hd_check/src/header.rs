@@ -275,7 +275,14 @@ impl<'a> ItemCheck<'_, 'a> {
                 | ItemData::Enum { .. }
                 | ItemData::Newtype(_)
         );
+        // A method's `self` is the impl's or trait's own target, checked
+        // once at the header.
+        let skip_self = matches!(&it.data, ItemData::Method { sig, .. }
+            if sig.params.first().is_some_and(|p| self.cx.names.text(p.0) == "self"));
         for (i, t) in tys.into_iter().enumerate() {
+            if skip_self && i == 0 {
+                continue;
+            }
             let slot = if positional {
                 u32::try_from(i + 1).unwrap_or(0)
             } else {
@@ -515,6 +522,18 @@ impl<'a> ItemCheck<'_, 'a> {
                     }
                     for (i, g) in target.generics.iter().enumerate() {
                         let Some(&a) = args_v.get(i) else { continue };
+                        // `types.map-key.no-mut`: a `mut` key is its own error.
+                        if def == self.cx.names.known.map
+                            && i == 0
+                            && matches!(pool.get(a), TyData::Mut(_))
+                        {
+                            let message = format!(
+                                "{} is a `mut` map key type; a map key type is not `mut`",
+                                self.show(a)
+                            );
+                            self.report(slot, Code::InvalidMapKey, message);
+                            continue;
+                        }
                         for b in &g.bounds {
                             let b = pool.subst(*b, &|p: ParamRef| {
                                 (p.owner == def)
@@ -528,6 +547,8 @@ impl<'a> ItemCheck<'_, 'a> {
                                     self.cx.names.display_name(self.item)
                                 );
                                 self.report(slot, Code::UnsatisfiedTraitBound, message);
+                                // One error per argument that misses a bound.
+                                break;
                             }
                         }
                     }

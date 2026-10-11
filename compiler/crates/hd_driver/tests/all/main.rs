@@ -58,6 +58,7 @@ mod list_spread_run;
 mod literals;
 mod local_items_run;
 mod map_duplicates_run;
+mod map_key_bounds;
 mod map_run;
 mod match_cascade;
 mod method_choice;

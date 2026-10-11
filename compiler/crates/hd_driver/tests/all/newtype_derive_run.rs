@@ -221,14 +221,15 @@ impl Pairing for string:
 type Tag(string)
 ";
     assert_eq!(codes_of(pairing), vec![Code::NewtypeDerivationSelf]);
+    // `Map[Self, i32]` needs `Self < Eq & Hash` (types.map-key.declared-bound).
     let keyed = "\
-trait Index:
+trait Index < Eq & Hash:
     fn by(self) -> Map[Self, i32]
 
 impl Index for string:
     fn by(self) -> Map[string, i32]: {self: 0}
 
-@derive(Index)
+@derive(Eq, Hash, Index)
 type Tag(string)
 ";
     assert_eq!(codes_of(keyed), vec![Code::NewtypeDerivationSelf]);

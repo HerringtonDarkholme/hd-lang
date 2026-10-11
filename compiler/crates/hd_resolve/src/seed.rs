@@ -68,7 +68,20 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             item("never", vec![], ItemData::Alias(Ty::NEVER));
             item("void", vec![], ItemData::Alias(Ty::VOID));
             item("List", gens(names, &["T"]), ItemData::Data(vec![]));
-            item("Map", gens(names, &["K", "V"]), ItemData::Data(vec![]));
+            // `Map[K < Eq & Hash, V]` (types.map-key.declared-bound).
+            let mut map_gens = gens(names, &["K", "V"]);
+            map_gens[0].bound = Some(names.known.eq);
+            map_gens[0].bounds = [names.known.eq, names.known.hash]
+                .into_iter()
+                .map(|def| {
+                    pool.intern_ty(&TyData::TraitValue {
+                        def,
+                        args: TyList::EMPTY,
+                        bindings: vec![],
+                    })
+                })
+                .collect();
+            item("Map", map_gens, ItemData::Data(vec![]));
             let opt = names.item(module, "Option");
             let t = param(names, opt, 0);
             item(
