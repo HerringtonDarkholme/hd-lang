@@ -1147,6 +1147,28 @@ mod tests {
         let dir = TempDir::new();
         let path = fifo(&dir);
         let mut reader = fifo_reader(&path);
+        // Fill before arming the deadline. Backpressure must not depend on
+        // the tested writer making progress during its short wall budget.
+        let mut setup_writer =
+            fifo_peer_writer(&path, Instant::now() + Duration::from_secs(2)).unwrap();
+        let fill_until = Instant::now() + Duration::from_secs(2);
+        let marker = [b'p'; 8 * 1024];
+        let mut filled = 0;
+        loop {
+            assert!(
+                Instant::now() < fill_until,
+                "fixture pipe reaches backpressure"
+            );
+            match setup_writer.write(&marker) {
+                Ok(0) => panic!("fixture pipe stopped accepting bytes"),
+                Ok(n) => filled += n,
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,
+                Err(error) => panic!("prefilling fixture pipe: {error}"),
+            }
+        }
+        drop(setup_writer);
+        assert!(filled > 0);
         let payload = vec![b'x'; 4 * 1024 * 1024];
         let start = Instant::now();
         assert_time_limit(limited(
@@ -1161,11 +1183,14 @@ mod tests {
         loop {
             match reader.read(&mut buffer) {
                 Ok(0) => break, // The operation closed its only writer on timeout.
-                Ok(n) => written += n,
+                Ok(n) => {
+                    assert!(buffer[..n].iter().all(|byte| *byte == b'p'));
+                    written += n;
+                }
                 Err(err) => panic!("reader should reach EOF, not retain a writer: {err}"),
             }
         }
-        assert!(written > 0 && written < payload.len());
+        assert_eq!(written, filled, "no tested or background writer adds bytes");
     }
 
     #[cfg(unix)]

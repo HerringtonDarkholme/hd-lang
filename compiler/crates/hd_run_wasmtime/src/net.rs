@@ -1161,20 +1161,29 @@ mod tests {
         assert!(client.worker.is_none());
         assert!(client.known.is_empty());
         assert!(client.closed.is_empty());
-        let (reply, _result) = mpsc::channel();
         // The receiver is owned by the worker's closure. It disconnects only
         // after State::serve has returned and cleared every owned socket.
-        // This proves cleanup without racing another test for a freed port.
-        assert!(
-            requests
+        // Bounded production teardown may detach a delayed owner; observe
+        // its eventual acknowledgment rather than assuming an immediate join.
+        let until = Instant::now() + Duration::from_secs(2);
+        loop {
+            let (reply, _result) = mpsc::channel();
+            if requests
                 .send(Request {
                     op: Op::Close(1),
                     reply,
                     deadline: None,
                 })
-                .is_err(),
-            "stopped socket owner has dropped its receiver"
-        );
+                .is_err()
+            {
+                return;
+            }
+            assert!(
+                Instant::now() < until,
+                "stopped socket owner drops its receiver"
+            );
+            thread::sleep(Duration::from_millis(1));
+        }
     }
 
     #[test]

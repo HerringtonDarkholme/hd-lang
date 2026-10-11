@@ -604,6 +604,15 @@ Focused dev verification passes 127 runtime units, 25 core-provider tests and 12
 The unused `socket2` all-features flag is removed; no dependency or unsafe code is added.
 Other post-start Process I/O failures and output-cap failures still return `Other`; their result policy remains a follow-up.
 
+Fixture cleanup bounds HTTP accept, request reads and response writes, including partial-write progress.
+Deadline fixtures release and join their servers before assertions, including failure paths.
+A backpressured-response regression checks the writer's whole-operation budget.
+The FIFO fixture fills its pipe before arming the deadline; it no longer assumes short-budget write progress.
+Socket-owner cleanup assertions allow bounded acknowledgment after production teardown detaches a delayed owner.
+The single ABI listener port handoff remains a documented lease race; cleanup checks do not rebind released ports.
+Detached OS DNS/stdin reads and Windows-native execution remain separately unverified or OS-limited.
+Focused dev verification passes 128 runtime units, 18 HTTP tests and 12 socket tests.
+
 ## 19. Test Runner
 
 ### 19.1 Building

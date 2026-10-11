@@ -1425,12 +1425,16 @@ mod tests {
         // mode. Explicitly normalize fixture sockets so read timeouts bound
         // blocking reads instead of racing the arrival of request bytes.
         stream.set_nonblocking(false).unwrap();
-        stream
-            .set_read_timeout(Some(Duration::from_secs(2)))
-            .unwrap();
+        let until = Instant::now() + Duration::from_secs(2);
         let mut bytes = Vec::new();
         let mut buf = [0; 8192];
         loop {
+            let remaining = until.saturating_duration_since(Instant::now());
+            assert!(
+                !remaining.is_zero(),
+                "request completes within fixture budget"
+            );
+            stream.set_read_timeout(Some(remaining)).unwrap();
             let n = stream.read(&mut buf).unwrap();
             assert_ne!(n, 0);
             bytes.extend_from_slice(&buf[..n]);
@@ -1451,16 +1455,69 @@ mod tests {
         }
     }
 
+    fn write_response(stream: &mut TcpStream, bytes: &[u8]) -> std::io::Result<()> {
+        write_response_with_budget(stream, bytes, Duration::from_secs(2))
+    }
+
+    fn write_response_with_budget(
+        stream: &mut TcpStream,
+        mut bytes: &[u8],
+        budget: Duration,
+    ) -> std::io::Result<()> {
+        // Bound the whole response, not each partial write independently.
+        let until = Instant::now() + budget;
+        while !bytes.is_empty() {
+            let remaining = until.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    "response exceeds fixture budget",
+                ));
+            }
+            stream.set_write_timeout(Some(remaining))?;
+            match stream.write(bytes) {
+                Ok(0) => {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::WriteZero,
+                        "fixture response socket closed",
+                    ));
+                }
+                Ok(written) => bytes = &bytes[written..],
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(())
+    }
+
     fn server(response: Vec<u8>) -> (String, std::thread::JoinHandle<Vec<u8>>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let url = format!("http://{}/path?q=1", listener.local_addr().unwrap());
         let thread = std::thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
+            let mut stream = bounded_accept(&listener);
             let request = read_request(&mut stream);
-            stream.write_all(&response).unwrap();
+            write_response(&mut stream, &response).unwrap();
             request
         });
         (url, thread)
+    }
+
+    #[test]
+    fn response_fixture_bounds_backpressured_writes() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let _peer = bounded_accept(&listener);
+        let socket = socket2::Socket::from(client);
+        socket.set_send_buffer_size(4096).unwrap();
+        let mut stream: TcpStream = socket.into();
+        let payload = vec![0; 16 * 1024 * 1024];
+        let start = Instant::now();
+        let result = write_response_with_budget(&mut stream, &payload, Duration::from_millis(30));
+        assert!(start.elapsed() < Duration::from_secs(2));
+        assert!(matches!(
+            result.unwrap_err().kind(),
+            std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock
+        ));
     }
 
     fn non_listening_socket() -> Socket {
@@ -1834,11 +1891,14 @@ mod tests {
         target.set_nonblocking(true).unwrap();
         let target_url = format!("http://{}/not-granted", target.local_addr().unwrap());
         let server = std::thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
+            let mut stream = bounded_accept(&listener);
             read_request(&mut stream);
-            write!(
-                stream,
-                "HTTP/1.1 302 Found\r\nLocation: {target_url}\r\nContent-Length: 0\r\n\r\n"
+            write_response(
+                &mut stream,
+                format!(
+                    "HTTP/1.1 302 Found\r\nLocation: {target_url}\r\nContent-Length: 0\r\n\r\n"
+                )
+                .as_bytes(),
             )
             .unwrap();
         });
@@ -1863,7 +1923,7 @@ mod tests {
         let address = listener.local_addr().unwrap();
         let (release, receive) = std::sync::mpsc::channel();
         let server = std::thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
+            let mut stream = bounded_accept(&listener);
             read_request(&mut stream);
             let _ = receive.recv_timeout(Duration::from_secs(2));
         });
@@ -1872,12 +1932,15 @@ mod tests {
             worker: Some(spawn_worker().unwrap()),
         };
         let started = Instant::now();
-        let encoded = client.send(r.done(), &Grants::default()).unwrap();
-        assert_eq!(encoded.done(), [1, 5]);
+        let encoded = client.send(r.done(), &Grants::default());
         drop(client);
-        assert!(started.elapsed() < Duration::from_secs(1));
+        let elapsed = started.elapsed();
         let _ = release.send(());
-        server.join().unwrap();
+        let joined = server.join();
+        // Release and join even when the deadline wins before accept/read.
+        joined.unwrap();
+        assert_eq!(encoded.unwrap().done(), [1, 5]);
+        assert!(elapsed < Duration::from_secs(1));
     }
 
     #[test]
@@ -1896,13 +1959,11 @@ mod tests {
         let (arrived, arrival) = std::sync::mpsc::channel();
         let (release, released) = std::sync::mpsc::channel();
         let server = std::thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
+            let mut stream = bounded_accept(&listener);
             read_request(&mut stream);
             arrived.send(()).unwrap();
             released.recv_timeout(Duration::from_secs(2)).unwrap();
-            stream
-                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
-                .unwrap();
+            write_response(&mut stream, b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").unwrap();
         });
         let first_request = request("GET", &format!("http://{address}/"), &vec![], &[], 2000);
         let first_reply = std::thread::spawn(move || {
@@ -1966,7 +2027,7 @@ mod tests {
         let address = listener.local_addr().unwrap();
         let (release, released) = std::sync::mpsc::channel();
         let server = std::thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
+            let mut stream = bounded_accept(&listener);
             stream
                 .set_read_timeout(Some(Duration::from_secs(1)))
                 .unwrap();
@@ -1979,14 +2040,14 @@ mod tests {
             worker: Some(spawn_worker().unwrap()),
         };
         let started = Instant::now();
-        assert_eq!(
-            client.send(r.done(), &Grants::default()).unwrap().done(),
-            [1, 5]
-        );
+        let encoded = client.send(r.done(), &Grants::default());
         drop(client);
-        assert!(started.elapsed() < Duration::from_secs(1));
+        let elapsed = started.elapsed();
         let _ = release.send(());
-        server.join().unwrap();
+        let joined = server.join();
+        joined.unwrap();
+        assert_eq!(encoded.unwrap().done(), [1, 5]);
+        assert!(elapsed < Duration::from_secs(1));
     }
 
     #[test]
@@ -2114,7 +2175,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(stream.peer_addr().unwrap(), good);
-        let (accepted, _) = working.accept().unwrap();
+        let accepted = bounded_accept(&working);
         drop(accepted);
         drop(refused);
     }
@@ -2139,13 +2200,13 @@ mod tests {
             // Accepted sockets may inherit O_NONBLOCK on Darwin; reads
             // below intentionally use a blocking socket with a timeout.
             stream.set_nonblocking(false).unwrap();
-            stream
-                .set_write_timeout(Some(Duration::from_secs(1)))
-                .unwrap();
             let request = read_request(&mut stream); // Also bounds reads to two seconds.
-            stream
-                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nabc")
-                .unwrap();
+            write_response_with_budget(
+                &mut stream,
+                b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nabc",
+                Duration::from_secs(1),
+            )
+            .unwrap();
             request
         });
         // Keep all sixteen distinct ports bound but non-listening until
@@ -2317,23 +2378,11 @@ mod tests {
     fn program_deadline_caps_headers_body_tls_and_final_worker_drop() {
         for (tls, partial_body) in [(false, false), (false, true), (true, false)] {
             let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-            listener.set_nonblocking(true).unwrap();
             let address = listener.local_addr().unwrap();
             let (release, released) = std::sync::mpsc::channel();
             let (ready, arrived) = std::sync::mpsc::channel();
             let server = std::thread::spawn(move || {
-                let until = Instant::now() + Duration::from_secs(2);
-                let mut stream = loop {
-                    match listener.accept() {
-                        Ok((stream, _)) => break stream,
-                        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                            assert!(Instant::now() < until, "request reaches loopback fixture");
-                            std::thread::sleep(Duration::from_millis(1));
-                        }
-                        Err(error) => panic!("accept: {error}"),
-                    }
-                };
-                stream.set_nonblocking(false).unwrap();
+                let mut stream = bounded_accept(&listener);
                 if tls {
                     stream
                         .set_read_timeout(Some(Duration::from_secs(2)))
@@ -2342,9 +2391,11 @@ mod tests {
                 } else {
                     read_request(&mut stream);
                     if partial_body {
-                        stream
-                            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nx")
-                            .unwrap();
+                        write_response(
+                            &mut stream,
+                            b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nx",
+                        )
+                        .unwrap();
                     }
                 }
                 ready.send(()).unwrap();
@@ -2362,26 +2413,29 @@ mod tests {
                 worker: Some(spawn_worker().unwrap()),
             };
             let start = Instant::now();
-            let error = client
-                .send_until(
-                    request.done(),
-                    &Grants::default(),
-                    Some(start + Duration::from_millis(100)),
-                )
-                .err()
-                .expect("program deadline traps");
+            let outcome = client.send_until(
+                request.done(),
+                &Grants::default(),
+                Some(start + Duration::from_millis(100)),
+            );
+            drop(client);
+            let elapsed = start.elapsed();
+            let ready = arrived.recv_timeout(Duration::from_secs(1));
+            let _ = release.send(());
+            let joined = server.join();
+            // Cleanup precedes assertions, including a missing connection
+            // or fixture phase when the program deadline fires early.
+            joined.unwrap();
+            ready.unwrap();
+            let error = outcome.err().expect("program deadline traps");
             assert!(matches!(
                 error.downcast_ref::<Stop>(),
                 Some(Stop::TimeLimit)
             ));
-            arrived.recv_timeout(Duration::from_secs(1)).unwrap();
-            drop(client);
             assert!(
-                start.elapsed() < Duration::from_millis(500),
+                elapsed < Duration::from_millis(500),
                 "caller and final drop use program budget"
             );
-            release.send(()).unwrap();
-            server.join().unwrap();
         }
     }
 
@@ -2399,7 +2453,7 @@ mod tests {
             read_request(&mut stream);
             ready.send(()).unwrap();
             let _ = released.recv_timeout(Duration::from_secs(2));
-            let _ = stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+            let _ = write_response(&mut stream, b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
         });
         let first_request = request("GET", &format!("http://{address}/"), &vec![], &[], 1000);
         let mut first = Client {
@@ -2450,9 +2504,7 @@ mod tests {
             read_request(&mut stream);
             ready.send(()).unwrap();
             let _ = released.recv_timeout(Duration::from_secs(2));
-            stream
-                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
-                .unwrap();
+            write_response(&mut stream, b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").unwrap();
         });
         let first_request = request("GET", &format!("http://{address}/"), &vec![], &[], 1000);
         let first_reply = std::thread::spawn(move || {
