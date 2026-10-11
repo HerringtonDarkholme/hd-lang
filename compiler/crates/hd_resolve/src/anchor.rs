@@ -11,7 +11,7 @@
 //! Slots: 0 is the item's header; for functions, methods, data and enum
 //! items slot `1 + i` is the `i`-th written type position, in the order
 //! stage B checks them (parameters then result, or fields in order); a
-//! newtype's slot 1 is its base type.
+//! newtype's slot 1 is its base type and an alias's its target.
 
 use std::collections::HashMap;
 
@@ -187,7 +187,7 @@ pub(crate) fn collect(
                 let mut slot = 1;
                 cx.fields(h.def, Src::child(n, SyntaxKind::Block), &mut slot, n);
             }
-            HeadKind::Newtype => {
+            HeadKind::Newtype | HeadKind::Alias => {
                 if let Some(base) = n.children().find(|c| c.kind().is_type()) {
                     let a = cx.at(n, 0, base, false);
                     cx.push(h.def, 1, a);
@@ -234,7 +234,6 @@ pub(crate) fn collect(
                     cx.sig(def, f, f, member);
                 }
             }
-            HeadKind::Alias => {}
         }
         if matches!(h.kind, HeadKind::Data | HeadKind::Enum | HeadKind::Newtype) {
             derived(&mut cx, names, h, items, index, start);

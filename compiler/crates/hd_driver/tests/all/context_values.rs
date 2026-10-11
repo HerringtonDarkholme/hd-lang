@@ -65,10 +65,10 @@ fn output_in(store: &MemoryStore, name: &str, main: &str) -> String {
 }
 
 const TAGS: &str = "
-trait Tag:
+pub trait Tag:
     fn name(self) -> string
 
-trait Log:
+pub trait Log:
     fn tag(self) -> string
 
 data Named:

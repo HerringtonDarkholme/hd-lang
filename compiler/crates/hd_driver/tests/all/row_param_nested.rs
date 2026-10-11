@@ -25,9 +25,9 @@ fn analyzed(main: &str) -> Output {
 }
 
 const DECLS: &str = "\
-trait Db
+pub trait Db
 
-trait Clock
+pub trait Clock
 
 fn db_handler() -> void $ Db:
     pass
@@ -35,7 +35,7 @@ fn db_handler() -> void $ Db:
 fn db_clock_handler() -> void $ Db + Clock:
     pass
 
-data Holder[T]:
+pub data Holder[T]:
     item: T
 
 fn run_all[$R](xs: List[fn() -> void $ R]) -> void $ R:

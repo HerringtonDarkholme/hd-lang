@@ -1,6 +1,6 @@
 # M4c: a `main` returning `.Err` writes the error's `Display` text to
 # standard error and exits with status 1 (module.entry.err-stderr).
-data Oops:
+pub data Oops:
     what: string
 
 impl Display for Oops:

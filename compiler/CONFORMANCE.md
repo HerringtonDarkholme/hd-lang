@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2657 | 167 | 21 | 2845 |
+| 2663 | 161 | 21 | 2845 |
 
 ## By Chapter
 
@@ -21,9 +21,9 @@ fixture; unsupported surface records progress without failing.
 | `lang/05-expressions.md` | 261 | 16 | 0 | 277 |
 | `lang/06-control-flow.md` | 140 | 13 | 4 | 157 |
 | `lang/07-functions.md` | 120 | 10 | 0 | 130 |
-| `lang/08-data-and-enums.md` | 113 | 9 | 1 | 123 |
+| `lang/08-data-and-enums.md` | 114 | 8 | 1 | 123 |
 | `lang/09-traits.md` | 342 | 15 | 2 | 359 |
-| `lang/10-modules.md` | 223 | 30 | 5 | 258 |
+| `lang/10-modules.md` | 228 | 25 | 5 | 258 |
 | `lang/11-requirements-and-suspension.md` | 239 | 12 | 8 | 259 |
 | `lang/14-annotations.md` | 144 | 9 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 99 | 3 | 3 | 105 |
 | `runtime/valid` | 903 | 10 | 16 | 929 |
-| `typing/invalid` | 949 | 125 | 1 | 1075 |
+| `typing/invalid` | 955 | 119 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -89,7 +89,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:no-common-type` | 2 |
-| `fail:no-diagnostic` | 60 |
+| `fail:no-diagnostic` | 54 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-import` | 1 |
 | `fail:private-main` | 4 |
@@ -216,15 +216,12 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (60)</summary>
+<details><summary><code>fail:no-diagnostic</code> (54)</summary>
 
-- `typing/invalid/private-type-leak.hd`
-- `typing/invalid/private-type-embedded-in-public-data.hd`
 - `typing/warnings/unreachable-code.hd`
 - `typing/invalid/unknown-annotation-member.hd`
 - `typing/invalid/nonhost-entry-requirement.hd`
 - `typing/warnings/variant-binding-name-mismatch.hd`
-- `typing/invalid/private-requirement-row.hd`
 - `typing/invalid/suspension-forbidden-context.hd`
 - `typing/invalid/nondisplay-entry-error.hd`
 - `typing/warnings/unreachable-after-infinite-loop.hd`
@@ -268,9 +265,6 @@ compiler stage that first declined the case.
 - `typing/warnings/unused-debug-text.hd`
 - `typing/invalid/assoc-call-parameter-two-bounds.hd`
 - `typing/invalid/dyn-self-parameter-unavailable.hd`
-- `typing/invalid/private-type-leak-data-field.hd`
-- `typing/invalid/private-type-leak-enum-payload.hd`
-- `typing/invalid/private-type-leak-trait-bound.hd`
 - `typing/invalid/uninhabited-binding.hd`
 - `typing/invalid/trait-assoc-call-self-undetermined.hd`
 - `typing/invalid/entry-point-parameters.hd`
@@ -2422,8 +2416,14 @@ typing/invalid/private-own-method-beside-promoted.hd
 typing/invalid/private-own-method-nothing-visible.hd
 typing/invalid/private-package-name.hd
 typing/invalid/private-promoted-method-nothing-visible.hd
+typing/invalid/private-requirement-row.hd
 typing/invalid/private-std-function.hd
 typing/invalid/private-std-type.hd
+typing/invalid/private-type-embedded-in-public-data.hd
+typing/invalid/private-type-leak-data-field.hd
+typing/invalid/private-type-leak-enum-payload.hd
+typing/invalid/private-type-leak-trait-bound.hd
+typing/invalid/private-type-leak.hd
 typing/invalid/promoted-field-assignment-readonly.hd
 typing/invalid/promoted-field-conflict-at-declaration.hd
 typing/invalid/promoted-method-conflict-at-declaration.hd

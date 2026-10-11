@@ -84,6 +84,7 @@ mod pipe_placeholder;
 mod power_run;
 mod privacy;
 mod private_main;
+mod private_type_leak;
 mod promotion;
 mod provider_keys_run;
 mod qualified_variants;

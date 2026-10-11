@@ -71,10 +71,10 @@ fn output_in(store: &MemoryStore, name: &str, main: &str) -> String {
 }
 
 const TAGS: &str = "
-trait Tag:
+pub trait Tag:
     fn name(self) -> string
 
-trait Log:
+pub trait Log:
     fn tag(self) -> string
 
 data Named:
@@ -270,15 +270,15 @@ pub fn top() -> string $ Tag + Log:
 #[test]
 fn an_inferred_generic_key_keeps_its_type_arguments() {
     let decls = "
-trait Repo[T]:
+pub trait Repo[T]:
     fn count(self) -> i32
 
-trait Store:
+pub trait Store:
     type Item
     fn load(self) -> Self::Item
 
-data User: pass
-data Post: pass
+pub data User: pass
+pub data Post: pass
 data UserRepo: pass
 
 impl Repo[User] for UserRepo:

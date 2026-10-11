@@ -249,6 +249,10 @@ impl<'a> ItemCheck<'_, 'a> {
     }
 
     fn item(&mut self, it: &Item) -> StageResult<()> {
+        let exposed = self.exposed(it);
+        if exposed {
+            self.header_leaks(it);
+        }
         // Where the signature's row keys start in `tys`.
         let mut keys_from = usize::MAX;
         let tys: Vec<Ty> = match &it.data {
@@ -268,6 +272,13 @@ impl<'a> ItemCheck<'_, 'a> {
             ItemData::Alias(t) | ItemData::Newtype(t) => vec![*t],
             ItemData::Trait(_) | ItemData::AssocType { .. } => vec![],
         };
+        // The positions that other modules can see: every position of a
+        // function or enum, but of data only the `pub` fields and the
+        // embedded fields (`module.vis.signature.coverage`).
+        let open: Vec<bool> = match &it.data {
+            ItemData::Data(fs) => fs.iter().map(|f| f.public || f.embedded).collect(),
+            _ => vec![true; tys.len()],
+        };
         // Slot 0 is the header; written types of functions, data and
         // enums have their own (`anchor`).
         let positional = matches!(
@@ -277,6 +288,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 | ItemData::Data(_)
                 | ItemData::Enum { .. }
                 | ItemData::Newtype(_)
+                | ItemData::Alias(_)
         );
         // A method's `self` is the impl's or trait's own target, checked
         // once at the header.
@@ -293,6 +305,9 @@ impl<'a> ItemCheck<'_, 'a> {
             };
             if i >= keys_from {
                 self.check_key(t, slot);
+            }
+            if exposed && open.get(i).copied().unwrap_or(true) {
+                self.leak(t, slot);
             }
             self.check_ty(t, slot)?;
         }
@@ -326,6 +341,127 @@ impl<'a> ItemCheck<'_, 'a> {
             self.delegation(*self_ty, tv, *by)?;
         }
         Ok(())
+    }
+
+    /// Whether the item is part of what other modules see: a `pub`
+    /// declaration, a member of a `pub` trait, or a `pub` inherent method of
+    /// a type that is itself visible. An implementation is not a declaration
+    /// of its own, and its signature is its trait's.
+    fn exposed(&self, it: &Item) -> bool {
+        let lookup = self.cx.lookup;
+        match &it.data {
+            ItemData::Impl { .. } => false,
+            ItemData::AssocType { owner, .. } => lookup.item(*owner).is_some_and(|o| o.public),
+            ItemData::Method { owner, .. } => match lookup.item(*owner).map(|o| &o.data) {
+                Some(ItemData::Trait(_)) => it.public,
+                Some(ItemData::Impl {
+                    trait_, self_ty, ..
+                }) if *trait_ == DefId::NONE => {
+                    it.public
+                        && !matches!(self.pool().get(*self_ty),
+                            TyData::Adt { def, .. } if self.is_private(def))
+                }
+                _ => false,
+            },
+            _ => it.public,
+        }
+    }
+
+    /// Whether `def` is a declaration of the module that no other module
+    /// can use.
+    fn is_private(&self, def: DefId) -> bool {
+        self.cx.lookup.item(def).is_some_and(|i| !i.public)
+    }
+
+    /// The first module-private declaration that the written type `t`
+    /// reaches, nested types, arguments and requirement keys included.
+    fn private_in(&self, t: Ty) -> Option<DefId> {
+        let pool = self.pool();
+        let any = |ts: &[Ty]| ts.iter().find_map(|&x| self.private_in(x));
+        let keys = |row: RowId| any(&pool.row_data(row).keys);
+        match pool.get(t) {
+            TyData::Adt { def, args } => self
+                .is_private(def)
+                .then_some(def)
+                .or_else(|| any(pool.list_items(args))),
+            TyData::TraitValue {
+                def,
+                args,
+                bindings,
+            } => self.is_private(def).then_some(def).or_else(|| {
+                any(pool.list_items(args))
+                    .or_else(|| bindings.iter().find_map(|b| self.private_in(b.1)))
+            }),
+            TyData::Assoc {
+                trait_,
+                self_ty,
+                args,
+                ..
+            } => self
+                .is_private(trait_)
+                .then_some(trait_)
+                .or_else(|| self.private_in(self_ty))
+                .or_else(|| any(pool.list_items(args))),
+            TyData::Option(i) | TyData::Mut(i) => self.private_in(i),
+            TyData::Tuple { elems, rest } => {
+                any(pool.list_items(elems)).or_else(|| rest.and_then(|r| self.private_in(r)))
+            }
+            TyData::Fn {
+                params,
+                result,
+                row,
+                ..
+            } => any(pool.list_items(params))
+                .or_else(|| self.private_in(result))
+                .or_else(|| keys(row)),
+            TyData::Row(row) | TyData::Context(row) => keys(row),
+            _ => None,
+        }
+    }
+
+    /// A written type of a public signature may not reach a module-private
+    /// declaration (`module.vis.signature`): one error for the position, at
+    /// the first such declaration.
+    fn leak(&mut self, t: Ty, slot: u32) {
+        let Some(def) = self.private_in(t) else {
+            return;
+        };
+        let message = format!(
+            "`{}` is private, so the public `{}` cannot name it in its signature",
+            self.cx.names.display_name(def),
+            self.cx.names.display_name(self.item)
+        );
+        self.report(slot, Code::PrivateTypeLeak, message);
+    }
+
+    /// The bounds, defaults and supertraits of a public declaration's
+    /// header, each a position of its own at the header.
+    fn header_leaks(&mut self, it: &Item) {
+        let mut tys: Vec<Ty> = Vec::new();
+        let mut gens = |gs: &[Generic]| {
+            for g in gs {
+                tys.extend(g.bounds.iter().copied());
+                tys.extend(g.default);
+            }
+        };
+        gens(&it.generics);
+        match &it.data {
+            ItemData::Fn(s) | ItemData::Method { sig: s, .. } => gens(&s.generics),
+            _ => {}
+        }
+        match &it.data {
+            ItemData::Trait(t) => tys.extend(t.supers.iter().copied()),
+            ItemData::AssocType {
+                bounds, default, ..
+            } => {
+                tys.extend(bounds.iter().copied());
+                tys.extend(*default);
+            }
+            _ => {}
+        }
+        for t in tys {
+            self.leak(t, 0);
+        }
     }
 
     /// An impl's target must implement each supertrait of its trait

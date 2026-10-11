@@ -1122,6 +1122,7 @@ pub fn mentioned_defs(pool: &InternPool, items: &[Item], exports: &[Export]) -> 
         gens(&s.generics, tys);
         tys.extend(s.params.iter().map(|p| p.1));
         tys.push(s.ret);
+        tys.extend(pool.row_data(s.row).keys);
     };
     for it in items {
         gens(&it.generics, &mut tys);
