@@ -636,12 +636,24 @@ impl Ck<'_, '_> {
             _ => None,
         };
         if op == TokenKind::KwIs {
-            // `expr.is.value-operand`: both operands have identity.
+            // `expr.is.value-operand`: both operands have identity. The
+            // first that has none is the one error, so the second operand
+            // adds no knock-on report.
             for (t, at) in [(at, n), (ct, rn)] {
                 if !self.has_identity(t)? {
                     let msg = format!("{} has no identity to compare with `is`", self.show(t));
                     self.err(Code::IdentityRequiresReferences, at, &msg);
+                    return Ok(self.b.emit(Tag::Is, a.0, c.0, Ty::BOOL, n.index()));
                 }
+            }
+            // `expr.is.compatible`, `expr.is.incompatible`.
+            if !self.identity_compatible(at, ct)? {
+                let msg = format!(
+                    "`is` compares {} with {}, which are not compatible reference types",
+                    self.show(at),
+                    self.show(ct)
+                );
+                self.err(Code::IncompatibleIdentityOperands, rn, &msg);
             }
             return Ok(self.b.emit(Tag::Is, a.0, c.0, Ty::BOOL, n.index()));
         }
@@ -935,12 +947,40 @@ impl Ck<'_, '_> {
         if self.strip_mut(t) == Ty::NEVER {
             return Ok(true);
         }
+        // An open literal class is a number, which has no identity.
+        if matches!(pool.get(t), TyData::Infer(_))
+            && self
+                .infer
+                .kind_of(pool, t)
+                .and_then(VarKind::literal_default)
+                .is_some()
+        {
+            return Ok(false);
+        }
         let tref = TraitRef {
             trait_: self.cx.names.known.any_ref,
             self_ty: t,
             args: hd_types::TyList::EMPTY,
         };
         Ok(!matches!(self.solve(tref)?, Answer::Fails(_)))
+    }
+
+    /// Whether two `is` operands, both with identity, have compatible
+    /// types (`expr.is.compatible`): equal once `mut` is removed at every
+    /// level, which unification does, or one is a trait value or `Any` type
+    /// that the other converts to. A match fixes the types' open variables.
+    fn identity_compatible(&mut self, l: Ty, r: Ty) -> StageResult<bool> {
+        let pool = self.pool();
+        let (l, r) = (self.strip_mut(l), self.strip_mut(r));
+        if l == Ty::NEVER || r == Ty::NEVER {
+            return Ok(true);
+        }
+        let snap = self.infer.snapshot();
+        if self.infer.unify(pool, l, r).is_ok() {
+            return Ok(true);
+        }
+        self.infer.rollback(snap);
+        Ok(self.erases_into(l, r)? || self.erases_into(r, l)?)
     }
 
     /// Whether `t` coerces into the trait value `target` because it

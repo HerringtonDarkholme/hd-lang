@@ -42,6 +42,7 @@ mod function_reference_lowered;
 mod function_references;
 mod generics_determinism;
 mod header_goals;
+mod identity_operands;
 mod identity_run;
 mod impl_universe;
 mod incremental;

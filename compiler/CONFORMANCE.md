@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2578 | 243 | 24 | 2845 |
+| 2588 | 233 | 24 | 2845 |
 
 ## By Chapter
 
@@ -17,8 +17,8 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
 | `lang/02-grammar.md` | 205 | 10 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 100 | 1 | 0 | 101 |
-| `lang/04-type-system.md` | 317 | 35 | 0 | 352 |
-| `lang/05-expressions.md` | 245 | 32 | 0 | 277 |
+| `lang/04-type-system.md` | 319 | 33 | 0 | 352 |
+| `lang/05-expressions.md` | 253 | 24 | 0 | 277 |
 | `lang/06-control-flow.md` | 139 | 14 | 4 | 157 |
 | `lang/07-functions.md` | 119 | 11 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 113 | 9 | 1 | 123 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 97 | 5 | 3 | 105 |
 | `runtime/valid` | 899 | 11 | 19 | 929 |
-| `typing/invalid` | 876 | 198 | 1 | 1075 |
+| `typing/invalid` | 886 | 188 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -83,7 +83,6 @@ compiler stage that first declined the case.
 | `fail:duplicate-argument` | 1 |
 | `fail:duplicate-data-pattern-field` | 1 |
 | `fail:duplicate-trait-member` | 1 |
-| `fail:identity-requires-references` | 9 |
 | `fail:implicit-narrowing` | 1 |
 | `fail:invalid-test-statement` | 1 |
 | `fail:invalid-token` | 2 |
@@ -92,7 +91,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 3 |
 | `fail:mutable-impl-target` | 1 |
-| `fail:no-diagnostic` | 99 |
+| `fail:no-diagnostic` | 98 |
 | `fail:nonlocal-impl` | 1 |
 | `fail:orphan-impl` | 1 |
 | `fail:overlapping-impl` | 1 |
@@ -182,20 +181,6 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:identity-requires-references</code> (9)</summary>
-
-- `typing/invalid/primitive-identity.hd`
-- `typing/invalid/unbounded-generic-identity.hd`
-- `typing/invalid/tuple-identity.hd`
-- `typing/invalid/string-identity.hd`
-- `typing/invalid/closure-identity.hd`
-- `typing/invalid/named-function-identity.hd`
-- `typing/invalid/function-field-identity.hd`
-- `typing/invalid/enum-identity.hd`
-- `typing/invalid/optional-identity.hd`
-
-</details>
-
 <details><summary><code>fail:implicit-narrowing</code> (1)</summary>
 
 - `typing/invalid/no-widening-list-literal.hd`
@@ -250,7 +235,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (99)</summary>
+<details><summary><code>fail:no-diagnostic</code> (98)</summary>
 
 - `typing/invalid/tuple-map-key.hd`
 - `typing/invalid/private-type-leak.hd`
@@ -268,7 +253,6 @@ compiler stage that first declined the case.
 - `typing/invalid/generic-supertrait-upcast-mismatch.hd`
 - `typing/invalid/enum-default-requires-provider.hd`
 - `typing/invalid/duplicate-literal-match-arm.hd`
-- `typing/invalid/incompatible-identity-operands.hd`
 - `typing/invalid/function-typed-field-method-call.hd`
 - `typing/invalid/inspectable-requirement-key.hd`
 - `typing/invalid/inspectable-user-implementation.hd`
@@ -2000,6 +1984,7 @@ typing/invalid/child-trait-redeclares-supertrait-member.hd
 typing/invalid/child-trait-redeclares-transitive-supertrait-member.hd
 typing/invalid/closure-argument-type-mismatch.hd
 typing/invalid/closure-escapes-provider-scope.hd
+typing/invalid/closure-identity.hd
 typing/invalid/closure-inferred-row-missing-requirement.hd
 typing/invalid/closure-not-inspectable.hd
 typing/invalid/closure-row-key-collision.hd
@@ -2135,6 +2120,7 @@ typing/invalid/empty-list-without-context.hd
 typing/invalid/empty-literal-generic-field-unsolved.hd
 typing/invalid/empty-map-without-context.hd
 typing/invalid/enum-bound-bare-trait.hd
+typing/invalid/enum-identity.hd
 typing/invalid/enum-match-missing-variant.hd
 typing/invalid/enum-payload-bare-trait.hd
 typing/invalid/enum-shared-constructor-payload.hd
@@ -2196,6 +2182,7 @@ typing/invalid/from-no-fitting-instantiation.hd
 typing/invalid/from-trait-value-target.hd
 typing/invalid/function-anyref-bound.hd
 typing/invalid/function-equality.hd
+typing/invalid/function-field-identity.hd
 typing/invalid/function-identity-against-any.hd
 typing/invalid/function-result-type-mismatch.hd
 typing/invalid/function-type-non-tuple-inputs.hd
@@ -2242,6 +2229,7 @@ typing/invalid/impl-target-row-extension.hd
 typing/invalid/implicit-data-equality.hd
 typing/invalid/implicit-data-ordering.hd
 typing/invalid/implicit-narrowing-i64.hd
+typing/invalid/incompatible-identity-operands.hd
 typing/invalid/index-missing.hd
 typing/invalid/index-set-missing.hd
 typing/invalid/index-set-string.hd
@@ -2401,6 +2389,7 @@ typing/invalid/mutable-impl-target.hd
 typing/invalid/mutable-provider-install-readonly-field.hd
 typing/invalid/mutable-provider-install-readonly-value.hd
 typing/invalid/mutual-recursion-omitted-results.hd
+typing/invalid/named-function-identity.hd
 typing/invalid/negative-literal-exponent.hd
 typing/invalid/nested-optional-needs-some.hd
 typing/invalid/newtype-bound-bare-trait.hd
@@ -2435,6 +2424,7 @@ typing/invalid/operator-rhs-default-mismatch.hd
 typing/invalid/operator-trait-needs-import.hd
 typing/invalid/option-invariant.hd
 typing/invalid/optional-generic-payload-weakening.hd
+typing/invalid/optional-identity.hd
 typing/invalid/optional-match-missing-none.hd
 typing/invalid/optional-payload-mutable-outer.hd
 typing/invalid/optional-payload-weakening.hd
@@ -2477,6 +2467,7 @@ typing/invalid/prelude-shadow-renamed-use.hd
 typing/invalid/prelude-shadow-result-generic.hd
 typing/invalid/prelude-shadow-usize-alias.hd
 typing/invalid/prelude-shadow.hd
+typing/invalid/primitive-identity.hd
 typing/invalid/println-direct-forbidden-context-rule.hd
 typing/invalid/println-in-defer.hd
 typing/invalid/println-without-console.hd
@@ -2652,6 +2643,7 @@ typing/invalid/spread-pattern-required.hd
 typing/invalid/std-child-path-through-parent.hd
 typing/invalid/str-prefix-before-data.hd
 typing/invalid/strengthened-missing-bound.hd
+typing/invalid/string-identity.hd
 typing/invalid/string-index-assignment.hd
 typing/invalid/string-index-signed.hd
 typing/invalid/string-pad-signed-width.hd
@@ -2720,6 +2712,7 @@ typing/invalid/transitive-uninitialized-binding.hd
 typing/invalid/tuple-binding-non-tuple.hd
 typing/invalid/tuple-bound-non-tuple.hd
 typing/invalid/tuple-element-assignment.hd
+typing/invalid/tuple-identity.hd
 typing/invalid/tuple-inherent-impl.hd
 typing/invalid/tuple-no-inherent-member.hd
 typing/invalid/tuple-option-parameter-bare-trait.hd
@@ -2748,6 +2741,7 @@ typing/invalid/u32-to-usize-binding.hd
 typing/invalid/unary-minus-string.hd
 typing/invalid/unary-plus-i32-literal-range.hd
 typing/invalid/unavailable-trait-method-not-found.hd
+typing/invalid/unbounded-generic-identity.hd
 typing/invalid/unconstrained-impl-parameter-unused.hd
 typing/invalid/unconstrained-impl-parameter.hd
 typing/invalid/unit-pattern-non-void.hd
