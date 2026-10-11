@@ -1,4 +1,5 @@
 //! CLI flag routing and observable Wasmtime limit failures, using raw Wasm.
+//! The tests that run Wasmtime need the `wasmtime` feature.
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
@@ -66,6 +67,7 @@ fn module(init: &[u8]) -> Vec<u8> {
     module
 }
 
+#[cfg(feature = "wasmtime")]
 #[test]
 fn prebuilt_deadline_interrupts_busy_init() {
     let dir = work("busy-init");
@@ -80,6 +82,7 @@ fn prebuilt_deadline_interrupts_busy_init() {
     );
 }
 
+#[cfg(feature = "wasmtime")]
 #[test]
 fn heap_growth_and_initial_memory_fail_as_panics() {
     let dir = work("heap");
@@ -116,6 +119,7 @@ fn compiler_memory_reports_once_on_check_json_stream() {
     assert!(output.stderr.is_empty(), "{output:?}");
 }
 
+#[cfg(feature = "wasmtime")]
 #[test]
 fn explicit_compiler_limit_overrides_invalid_environment() {
     let dir = work("env-override");
@@ -136,6 +140,7 @@ fn explicit_compiler_limit_overrides_invalid_environment() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("HD_MAX_MEMORY"));
 }
 
+#[cfg(feature = "wasmtime")]
 #[test]
 fn source_file_and_package_run_route_program_limits() {
     let samples = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../samples");
@@ -159,6 +164,7 @@ fn source_file_and_package_run_route_program_limits() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("panic: heap-exhausted:"));
 }
 
+#[cfg(feature = "wasmtime")]
 #[test]
 fn invalid_runtime_forms_fail_but_program_words_are_not_parsed() {
     let dir = work("separator");
@@ -200,4 +206,24 @@ fn node_limits_warn_without_enforcement_until_w5() {
     assert_eq!(warning.matches("warning:").count(), 2, "{warning}");
     assert!(warning.contains("--max-heap is ignored on Node until W5"));
     assert!(warning.contains("--time-limit is ignored on Node until W5"));
+}
+
+#[cfg(not(feature = "wasmtime"))]
+#[test]
+fn wasmtime_is_refused_without_the_feature() {
+    let dir = work("no-wasmtime");
+    std::fs::write(dir.join("main.wasm"), module(&[])).unwrap();
+    let mut command = hd(&dir);
+    command.args(["--engine", "wasmtime", "main.wasm"]);
+    let output = bounded(command);
+    let message = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(101), "{output:?}");
+    assert!(message.contains("no wasmtime engine"), "{message}");
+    assert!(message.contains("--features wasmtime"), "{message}");
+    let mut command = hd(&dir);
+    command.env("HD_ENGINE", "wasmtime").arg("main.wasm");
+    let output = bounded(command);
+    let message = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(101), "{output:?}");
+    assert!(message.contains("HD_ENGINE: this build of hd has no wasmtime engine"));
 }

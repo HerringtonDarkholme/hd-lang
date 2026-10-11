@@ -15,4 +15,5 @@ mod test_bodies;
 mod test_cmd;
 mod test_env;
 mod tests_block_items;
+#[cfg(feature = "wasmtime")]
 mod wasmtime_engine;

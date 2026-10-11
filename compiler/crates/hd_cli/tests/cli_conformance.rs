@@ -14,6 +14,8 @@
 //! Node/Wasmtime fixture runs at identical paths, judging by Wasmtime. Program
 //! and test commands both select the engine. Selected modes never rewrite the
 //! report; comparison excludes setup commands and explicit-engine steps.
+//! Both Wasmtime modes need `hd` built with `--features wasmtime`; without it
+//! they are refused.
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -38,14 +40,23 @@ enum EngineMode {
 
 impl EngineMode {
     fn parse(value: Option<&str>) -> Result<Self, String> {
-        match value {
-            None | Some("" | "node") => Ok(Self::Default),
-            Some("wasmtime-only") => Ok(Self::WasmtimeOnly),
-            Some("wasmtime") => Ok(Self::Compare),
-            Some(value) => Err(format!(
-                "unknown HD_CONFORMANCE_ENGINE={value:?}; use node, wasmtime or wasmtime-only"
-            )),
+        let mode = match value {
+            None | Some("" | "node") => Self::Default,
+            Some("wasmtime-only") => Self::WasmtimeOnly,
+            Some("wasmtime") => Self::Compare,
+            Some(value) => {
+                return Err(format!(
+                    "unknown HD_CONFORMANCE_ENGINE={value:?}; use node, wasmtime or wasmtime-only"
+                ));
+            }
+        };
+        if matches!(mode, Self::WasmtimeOnly | Self::Compare) && !cfg!(feature = "wasmtime") {
+            return Err(format!(
+                "HD_CONFORMANCE_ENGINE={} needs an hd with the wasmtime engine; rerun with --features wasmtime",
+                value.unwrap_or_default()
+            ));
         }
+        Ok(mode)
     }
 
     fn forced_engine(self) -> Option<&'static str> {
@@ -1128,14 +1139,17 @@ fn engine_mode_parser_rejects_unknown_modes() {
         EngineMode::parse(Some("node")).unwrap(),
         EngineMode::Default
     );
-    assert_eq!(
-        EngineMode::parse(Some("wasmtime-only")).unwrap(),
-        EngineMode::WasmtimeOnly
-    );
-    assert_eq!(
-        EngineMode::parse(Some("wasmtime")).unwrap(),
-        EngineMode::Compare
-    );
+    for (name, mode) in [
+        ("wasmtime-only", EngineMode::WasmtimeOnly),
+        ("wasmtime", EngineMode::Compare),
+    ] {
+        let parsed = EngineMode::parse(Some(name));
+        if cfg!(feature = "wasmtime") {
+            assert_eq!(parsed.unwrap(), mode);
+        } else {
+            assert!(parsed.unwrap_err().contains("--features wasmtime"));
+        }
+    }
     assert!(
         EngineMode::parse(Some("wasmtiem"))
             .unwrap_err()

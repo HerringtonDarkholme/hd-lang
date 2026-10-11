@@ -6,6 +6,12 @@ license.workspace = true
 rust-version.workspace = true
 description = "The one driver: the task graph of one compile run over the caller's sources, cache store, executor and clock"
 
+[features]
+# Runs the tests that compare against the wasmtime engine. A dev-dependency
+# cannot be optional, so the test-only `hd_run_wasmtime` is an optional
+# dependency; the library itself never uses it.
+wasmtime = ["dep:hd_run_wasmtime"]
+
 [dependencies]
 hd_base = { path = "../hd_base" }
 hd_cache = { path = "../hd_cache" }
@@ -16,6 +22,7 @@ hd_intern = { path = "../hd_intern" }
 hd_mono = { path = "../hd_mono" }
 hd_project = { path = "../hd_project" }
 hd_resolve = { path = "../hd_resolve" }
+hd_run_wasmtime = { path = "../hd_run_wasmtime", optional = true }
 hd_sched = { path = "../hd_sched", features = ["threads"] }
 hd_structure = { path = "../hd_structure" }
 hd_syntax = { path = "../hd_syntax" }
@@ -27,5 +34,4 @@ hd_wasm = { path = "../hd_wasm" }
 workspace = true
 
 [dev-dependencies]
-hd_run_wasmtime = { path = "../hd_run_wasmtime" }
 hd_run = { path = "../hd_run" }

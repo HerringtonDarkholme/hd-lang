@@ -914,10 +914,8 @@ fn run(
                 let test_env = &test_env;
                 let session = &session;
                 let mut builder = std::thread::Builder::new();
-                if options.engine == crate::engine::EngineKind::Wasmtime {
-                    builder = builder.stack_size(hd_run_wasmtime::thread_stack(
-                        &hd_run_wasmtime::EngineConfig::pipeline(options.release),
-                    ));
+                if let Some(size) = options.engine.worker_stack(options.release) {
+                    builder = builder.stack_size(size);
                 }
                 let worker = builder.spawn_scoped(s, move || {
                     let r = session.run(
@@ -1226,34 +1224,37 @@ mod tests {
         assert_eq!(default.engine, EngineKind::Node);
         assert!(!default.release);
         assert_eq!(default.limits, ProgramLimits::default());
-        let native = parse_with_engine(
-            &words(&[
-                "tests/check.hd",
-                "--engine",
-                "wasmtime",
-                "--release",
-                "--max-heap=2M",
-                "--time-limit",
-                "0ms",
-            ]),
-            EngineKind::Node,
-        )
-        .unwrap();
-        assert_eq!(native.engine, EngineKind::Wasmtime);
-        assert!(native.release);
-        assert_eq!(
-            native.limits,
-            ProgramLimits {
-                heap_bytes: Some(2 * 1024 * 1024),
-                wall_ms: Some(0)
-            }
-        );
-        let explicit = parse_with_engine(
-            &words(&["--engine=wasmtime", "--engine=node"]),
-            EngineKind::Wasmtime,
-        )
-        .unwrap();
-        assert_eq!(explicit.engine, EngineKind::Node);
+        #[cfg(feature = "wasmtime")]
+        {
+            let native = parse_with_engine(
+                &words(&[
+                    "tests/check.hd",
+                    "--engine",
+                    "wasmtime",
+                    "--release",
+                    "--max-heap=2M",
+                    "--time-limit",
+                    "0ms",
+                ]),
+                EngineKind::Node,
+            )
+            .unwrap();
+            assert_eq!(native.engine, EngineKind::Wasmtime);
+            assert!(native.release);
+            assert_eq!(
+                native.limits,
+                ProgramLimits {
+                    heap_bytes: Some(2 * 1024 * 1024),
+                    wall_ms: Some(0)
+                }
+            );
+            let explicit = parse_with_engine(
+                &words(&["--engine=wasmtime", "--engine=node"]),
+                EngineKind::Wasmtime,
+            )
+            .unwrap();
+            assert_eq!(explicit.engine, EngineKind::Node);
+        }
         for words in [
             words(&["--engine=unknown"]),
             words(&["--engine"]),

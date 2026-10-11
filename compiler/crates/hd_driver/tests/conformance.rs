@@ -12,6 +12,7 @@
 //! `wasmtime-only` never launches Node for entries or test programs.
 //! Test outcomes are compared without their nondeterministic elapsed time.
 //! Neither mode rewrites the report or falls back after a wasmtime error.
+//! Both need the `wasmtime` feature (`cargo test --features wasmtime`).
 //! `HD_CONFORMANCE_TIER=lang|std` selects that tier's runtime cases for
 //! timing, without rewriting the report or checking the full pass list.
 
@@ -20,8 +21,8 @@ use std::fmt::Write as _;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use hd_base::Stage;
@@ -542,6 +543,12 @@ impl Ran {
     }
 }
 
+// The wasmtime half of the engine modes. Without the feature the modes are
+// refused (`EngineMode::from_value`), so `no_wasmtime.rs` never runs.
+#[cfg_attr(feature = "wasmtime", path = "conformance/wasmtime.rs")]
+#[cfg_attr(not(feature = "wasmtime"), path = "conformance/no_wasmtime.rs")]
+mod wasmtime;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum EngineMode {
     Node,
@@ -551,12 +558,18 @@ enum EngineMode {
 
 impl EngineMode {
     fn from_value(value: Option<&str>) -> Self {
-        match value {
+        let mode = match value {
             None | Some("" | "node") => Self::Node,
             Some("wasmtime") => Self::Compare,
             Some("wasmtime-only") => Self::WasmtimeOnly,
             Some(other) => panic!("unknown HD_CONFORMANCE_ENGINE: {other}"),
-        }
+        };
+        assert!(
+            mode == Self::Node || cfg!(feature = "wasmtime"),
+            "HD_CONFORMANCE_ENGINE={} needs the wasmtime engine; rerun with --features wasmtime",
+            value.unwrap_or_default()
+        );
+        mode
     }
 }
 
@@ -577,14 +590,24 @@ fn engine_selection_is_explicit() {
     for value in [None, Some(""), Some("node")] {
         assert_eq!(EngineMode::from_value(value), EngineMode::Node);
     }
-    assert_eq!(
-        EngineMode::from_value(Some("wasmtime")),
-        EngineMode::Compare
-    );
-    assert_eq!(
-        EngineMode::from_value(Some("wasmtime-only")),
-        EngineMode::WasmtimeOnly
-    );
+    #[cfg(feature = "wasmtime")]
+    {
+        assert_eq!(
+            EngineMode::from_value(Some("wasmtime")),
+            EngineMode::Compare
+        );
+        assert_eq!(
+            EngineMode::from_value(Some("wasmtime-only")),
+            EngineMode::WasmtimeOnly
+        );
+    }
+}
+
+#[cfg(not(feature = "wasmtime"))]
+#[test]
+#[should_panic(expected = "rerun with --features wasmtime")]
+fn wasmtime_modes_are_refused_without_the_feature() {
+    EngineMode::from_value(Some("wasmtime"));
 }
 
 #[test]
@@ -646,55 +669,7 @@ fn run_program(
     if mode == EngineMode::Node {
         return Ok(node.expect("Node mode ran Node"));
     }
-    let setup = hd_run::HostSetup {
-        providers: Vec::new(),
-        grants: hd_run::Grants::default(),
-        limits: hd_run::Limits::default(),
-        args: Vec::new(),
-        program: String::new(),
-    };
-    let config = hd_run_wasmtime::EngineConfig::default();
-    let profile = hd_run_wasmtime::RuntimeProfile::from_name(profile.unwrap_or("default"))
-        .map_err(std::io::Error::other)?;
-    let started = Instant::now();
-    let result = hd_run_wasmtime::run_captured_with_profile(config, profile, wasm, &setup);
-    {
-        let mut stats = RUNTIME_STATS.lock().expect("runtime stats lock");
-        let stats = stats.entry(tier(case)).or_default();
-        stats.wasmtime_elapsed += started.elapsed();
-        stats.wasmtime_programs.insert(case.path.clone());
-    }
-    let w = result.map_err(|error| std::io::Error::other(format!("wasmtime: {error}")))?;
-    let w = Ran {
-        stdout: w.stdout,
-        stderr: w.stderr,
-        status: Some(i32::from(w.status)),
-    };
-    let Some(node) = node else { return Ok(w) };
-    if (&w.stdout, &w.stderr, w.status) == (&node.stdout, &node.stderr, node.status) {
-        RUNTIME_STATS
-            .lock()
-            .expect("runtime stats lock")
-            .entry(tier(case))
-            .or_default()
-            .matches += 1;
-    } else {
-        let line = |r: &Ran| {
-            format!(
-                "{:?} out {:?} err {:?}",
-                r.status,
-                String::from_utf8_lossy(&r.stdout),
-                String::from_utf8_lossy(&r.stderr)
-            )
-        };
-        WASMTIME_DIFFS.lock().expect("diffs lock").push(format!(
-            "{}\n  node     {}\n  wasmtime {}",
-            case.path,
-            line(&node),
-            line(&w)
-        ));
-    }
-    Ok(w)
+    wasmtime::run_program(case, wasm, profile, node)
 }
 
 /// Execution durations are sums across workers, not elapsed suite wall
@@ -846,101 +821,6 @@ struct TestRun {
     failed: bool,
 }
 
-fn native_test_results(
-    wasm: &[u8],
-    runs: &[(&hd_driver::TestCase, (u32, u32))],
-) -> Result<Vec<hd_run_wasmtime::testing::CaseRun>, String> {
-    use hd_run_wasmtime::{
-        NativeBodyRunner, RuntimeProfile, TestEngine, TestEnvironment, TestHostKind,
-        TestPoolConfig,
-        testing::{TestCase, execute_case},
-    };
-    static ENGINE: OnceLock<Result<TestEngine, String>> = OnceLock::new();
-    let engine = ENGINE
-        .get_or_init(|| {
-            let workers =
-                u32::try_from(workers()).map_err(|_| "too many test workers".to_owned())?;
-            TestEngine::new(
-                hd_run_wasmtime::EngineConfig::default(),
-                TestPoolConfig {
-                    workers,
-                    shrink_spares: workers,
-                    max_memory_bytes: u64::MAX,
-                },
-            )
-        })
-        .as_ref()
-        .map_err(Clone::clone)?;
-    let module = engine.compile(wasm)?;
-    let host_kind = |test: &hd_driver::TestCase| {
-        if test.file.starts_with("tests/$doc") {
-            TestHostKind::Doc(RuntimeProfile::Default)
-        } else if test.file.starts_with("tests/") {
-            TestHostKind::Integration
-        } else {
-            TestHostKind::Unit
-        }
-    };
-    let kind = host_kind(runs[0].0);
-    if runs.iter().any(|(test, _)| host_kind(test) != kind) {
-        return Err("a conformance test program mixes host kinds".into());
-    }
-    let prepared = engine.prepare(&module, kind)?;
-    let environment = TestEnvironment {
-        cwd: std::env::current_dir().map_err(|e| e.to_string())?,
-        program: String::new(),
-        children: Vec::new(),
-    };
-    let mut results = Vec::new();
-    for (test, (export, init)) in runs {
-        let case = TestCase {
-            test: *export,
-            init: *init,
-            kind: test.kind.clone(),
-            ..TestCase::default()
-        };
-        let mut runner = NativeBodyRunner::new(
-            prepared.clone(),
-            case.clone(),
-            environment.clone(),
-            hd_run::HostSetup {
-                providers: Vec::new(),
-                grants: hd_run::Grants::default(),
-                limits: hd_run::Limits::default(),
-                args: Vec::new(),
-                program: String::new(),
-            },
-        );
-        execute_case(&case, &mut runner, &mut |result| results.push(result))?;
-    }
-    Ok(results)
-}
-
-fn compare_test_results(
-    case: &Case,
-    node: &[hd_run_wasmtime::testing::CaseRun],
-    native: &[hd_run_wasmtime::testing::CaseRun],
-) {
-    let matches = node
-        .iter()
-        .zip(native)
-        .filter(|(n, w)| n.equivalent(w))
-        .count();
-    let comparisons = node.len().max(native.len());
-    {
-        let mut stats = RUNTIME_STATS.lock().expect("runtime stats lock");
-        let stats = stats.entry(tier(case)).or_default();
-        stats.test_matches += matches;
-        stats.test_comparisons += comparisons;
-    }
-    if matches != comparisons {
-        WASMTIME_DIFFS.lock().expect("diffs lock").push(format!(
-            "{} test outcomes (timing excluded)\n  node     {node:?}\n  wasmtime {native:?}",
-            case.path,
-        ));
-    }
-}
-
 /// The verdict of a build that reports an error: unsupported when the
 /// first error is `unsupported`, else a failure with its code.
 fn build_error(built: &Output) -> Option<Verdict> {
@@ -1012,28 +892,7 @@ fn run_tests(case: &Case, built: &Output, serial: usize, run: &mut TestRun) -> R
     let stdout = if mode == EngineMode::Node {
         node.expect("Node mode ran Node")
     } else {
-        let started = Instant::now();
-        let result = native_test_results(wasm, &runs);
-        {
-            let mut stats = RUNTIME_STATS.lock().expect("runtime stats lock");
-            let stats = stats.entry(tier(case)).or_default();
-            stats.wasmtime_elapsed += started.elapsed();
-            *stats.wasmtime_harness.entry(case.path.clone()).or_default() += 1;
-        }
-        let results = result.map_err(|e| Verdict::Crash(format!("wasmtime tests: {e}")))?;
-        if let Some(node) = &node {
-            let parsed = node
-                .lines()
-                .map(hd_run_wasmtime::testing::CaseRun::from_json_line)
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| Verdict::Crash(format!("Node test protocol: {e}")))?;
-            compare_test_results(case, &parsed, &results);
-        }
-        results
-            .iter()
-            .map(hd_run_wasmtime::testing::CaseRun::to_json_line)
-            .collect::<Vec<_>>()
-            .join("\n")
+        wasmtime::test_stdout(case, wasm, &runs, node.as_deref())?
     };
     // One line per case, or per row of an `it_each` case, whose `test`
     // field names its case's export; a table with no rows has one line
@@ -1675,9 +1534,7 @@ fn run_all(cases: &[Case], store: &MemoryStore) -> Vec<Verdict> {
             let builder = if engine_mode() == EngineMode::Node {
                 builder
             } else {
-                builder.stack_size(hd_run_wasmtime::thread_stack(
-                    &hd_run_wasmtime::EngineConfig::default(),
-                ))
+                builder.stack_size(wasmtime::worker_stack())
             };
             builder
                 .spawn_scoped(scope, || {

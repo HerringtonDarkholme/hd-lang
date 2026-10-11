@@ -2,8 +2,9 @@
 //! `format_f64_fixed`, `parse_f64`, `string_lower`, `string_upper`; spec 04 `types.display.*`, std `num` fixed-point
 //! text): the host's text against Rust's own float printing, which is an
 //! independent shortest round-trip and an exact fixed-point writer, then
-//! the same texts through compiled programs. The wasmtime host's text
-//! (`hd_run_wasmtime::prim`) must equal the Node host's on every sample.
+//! the same texts through compiled programs. With the `wasmtime` feature,
+//! the wasmtime host's text (`hd_run_wasmtime::prim`) must equal the Node
+//! host's on every sample.
 
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
@@ -11,6 +12,7 @@ use std::process::{Command, Stdio};
 
 use hd_driver::{Executor, Goal, Host, NoClock, build};
 use hd_project::MemorySources;
+#[cfg(feature = "wasmtime")]
 use hd_run_wasmtime::prim;
 use hd_sched::SerialOrder;
 
@@ -270,6 +272,7 @@ fn shortest_text_of_f64_matches_rust() {
     assert_eq!(got.len(), values.len());
     for (x, text) in values.iter().zip(&got) {
         assert_eq!(*text, display_f64(*x), "bits {:x}", x.to_bits());
+        #[cfg(feature = "wasmtime")]
         assert_eq!(
             *text,
             prim::shortest_f64(*x),
@@ -298,6 +301,7 @@ fn shortest_text_of_f32_matches_rust() {
     assert_eq!(got.len(), values.len());
     for (x, text) in values.iter().zip(&got) {
         assert_eq!(*text, display_f32(*x), "bits {:x}", x.to_bits());
+        #[cfg(feature = "wasmtime")]
         assert_eq!(
             *text,
             prim::shortest_f32(*x),
@@ -340,13 +344,16 @@ fn fixed_text_matches_rust() {
             "bits {:x}, {digits} digits",
             x.to_bits()
         );
-        let places = u32::try_from(*digits).expect("small");
-        assert_eq!(
-            *text,
-            prim::fixed(*x, places),
-            "wasmtime, bits {:x}, {digits} digits",
-            x.to_bits()
-        );
+        #[cfg(feature = "wasmtime")]
+        {
+            let places = u32::try_from(*digits).expect("small");
+            assert_eq!(
+                *text,
+                prim::fixed(*x, places),
+                "wasmtime, bits {:x}, {digits} digits",
+                x.to_bits()
+            );
+        }
     }
 }
 
@@ -588,12 +595,15 @@ fn parse_matches_rust() {
     for (text, bits) in texts.iter().zip(&got) {
         let want: f64 = text.parse().expect("Rust reads the text");
         assert_eq!(*bits, format!("{:x}", want.to_bits()), "parse {text}");
-        let wasmtime = prim::parse(text).expect("in the grammar");
-        assert_eq!(
-            *bits,
-            format!("{:x}", wasmtime.to_bits()),
-            "wasmtime, parse {text}"
-        );
+        #[cfg(feature = "wasmtime")]
+        {
+            let wasmtime = prim::parse(text).expect("in the grammar");
+            assert_eq!(
+                *bits,
+                format!("{:x}", wasmtime.to_bits()),
+                "wasmtime, parse {text}"
+            );
+        }
     }
 }
 
@@ -631,11 +641,15 @@ fn case_mapping_of_host_matches_unicode() {
         requests.push(format!("upper {}", hex(text)));
     }
     let got = host_text(&requests);
-    for (k, (text, lower, upper)) in cases.iter().enumerate() {
+    for (k, (_, lower, upper)) in cases.iter().enumerate() {
         assert_eq!(got[2 * k], hex(lower), "lower, case {k}");
         assert_eq!(got[2 * k + 1], hex(upper), "upper, case {k}");
-        assert_eq!(prim::lower(text), *lower, "wasmtime lower, case {k}");
-        assert_eq!(prim::upper(text), *upper, "wasmtime upper, case {k}");
+        #[cfg(feature = "wasmtime")]
+        {
+            let text = cases[k].0;
+            assert_eq!(prim::lower(text), *lower, "wasmtime lower, case {k}");
+            assert_eq!(prim::upper(text), *upper, "wasmtime upper, case {k}");
+        }
     }
 }
 
