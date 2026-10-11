@@ -687,9 +687,19 @@ fn run_profile_with_guards<P, G>(
 
 #[cfg(test)]
 mod tests {
-    use super::{EngineConfig, WasmtimeEngine};
+    use super::{EngineConfig, OptLevel, WasmtimeEngine};
     use hd_cache::MemoryStore;
     use hd_run::Engine;
+
+    /// M41: the build profile selects the Cranelift pipeline. Dev stays
+    /// unoptimized (`hd test`, conformance); release optimizes
+    /// (`hd run --release`).
+    #[test]
+    fn profile_selects_cranelift_pipeline() {
+        assert_eq!(EngineConfig::pipeline(false).cranelift_opt, OptLevel::None);
+        assert_eq!(EngineConfig::pipeline(true).cranelift_opt, OptLevel::Speed);
+        assert_eq!(EngineConfig::default(), EngineConfig::pipeline(false));
+    }
 
     fn malformed_reply_module(
         module: &str,

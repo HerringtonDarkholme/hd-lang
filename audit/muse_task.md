@@ -56,17 +56,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
 
-### M41. Cranelift `Speed` for `hd run --release` on wasmtime
-
-Your M32 recommendation was to keep `OptLevel::None` for `hd test` and
-conformance, and use `Speed` for `hd run --release`. Implement exactly
-that: the engine config takes the build profile, and the release
-profile selects `Speed`. Files: `crates/hd_run_wasmtime/src/**` and the
-wasmtime engine path in `crates/hd_cli/src/engine/wasmtime.rs` (only to
-pass the profile). Done when `cargo test -q -p hd_run_wasmtime` passes,
-the wasmtime-only conformance verdicts are unchanged, and the commit body
-has `hd run` and `hd run --release` times on two micro benchmarks.
-
 ### M42. Split `net.rs` in the wasmtime host
 
 `crates/hd_run_wasmtime/src/net.rs` is 1798 lines. Split it into a
