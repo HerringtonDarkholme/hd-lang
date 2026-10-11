@@ -1,13 +1,17 @@
 //! Process-heap accounting for compilation, not a resident-memory limit.
+//! Tracking and its reporter are enabled only when a compiler cap is requested.
+//! The safe allocator wrapper still reserves metadata even when disabled.
 //! Tracking remains enabled while a guest runs so frees cannot unbalance the
-//! counter. The CLI finishes compiler enforcement at guest entry: it runs one
-//! program and never compiles again, and guest workers/caches may retain native
-//! allocations beyond teardown. Temporary suspension remains available for
+//! counter. The CLI finishes compiler enforcement at the first guest entry,
+//! because guest workers/caches may retain native allocations beyond teardown.
+//! Later workspace-member compilation is an owner-deferred lifecycle issue.
+//! Temporary suspension remains available for
 //! accounting probes. The external safe allocator reports
 //! successful allocations before returning them to the compiler. If the system
 //! allocator itself fails first, Rust's OOM handler can abort before our callback.
 
 use std::cell::Cell;
+use std::ffi::OsString;
 use std::io::Write;
 use std::marker::PhantomData;
 use std::rc::Rc;
@@ -90,9 +94,26 @@ fn remove_bytes(counter: &AtomicU64, bytes: usize) {
     });
 }
 
-/// Call before collecting arguments. Allocation metadata distinguishes earlier,
-/// untracked allocations, so their eventual frees do not decrement this counter.
-pub(crate) fn startup() -> Result<(), &'static str> {
+/// Inspect only global options, before collecting the retained arguments. Values
+/// after `--` belong to the guest and must not enable compiler accounting.
+fn requested(args: impl IntoIterator<Item = OsString>, environment: bool) -> bool {
+    environment
+        || args
+            .into_iter()
+            .take_while(|arg| arg != "--")
+            .any(|arg| arg == "--max-memory" || arg.to_string_lossy().starts_with("--max-memory="))
+}
+
+/// Call before collecting arguments. Disabled invocations install no tracker
+/// and start no reporter. Allocation metadata distinguishes earlier, untracked
+/// allocations, so their eventual frees do not decrement the counter.
+pub(crate) fn startup(
+    args: impl IntoIterator<Item = OsString>,
+    environment: bool,
+) -> Result<(), &'static str> {
+    if !requested(args, environment) {
+        return Ok(());
+    }
     AllocationRegistry::set_global_tracker(Tracker)
         .map_err(|_| "cannot install compiler memory tracker")?;
     AllocationRegistry::enable_tracking();
@@ -373,7 +394,24 @@ mod tests {
         let Ok(mode) = std::env::var("HD_MEMORY_CAP_UNIT_CHILD") else {
             return;
         };
-        startup().unwrap();
+        if mode == "disabled" {
+            startup([OsString::from("check"), OsString::from("file.hd")], false).unwrap();
+            assert!(EMERGENCY_THREAD.get().is_none());
+            assert!(REPORT.get().is_none());
+            assert!(!ARMED.load(Ordering::SeqCst));
+            let allocation = std::hint::black_box(vec![0u8; 512 * 1024]);
+            assert_eq!(LIVE.load(Ordering::SeqCst), 0);
+            drop(allocation);
+            assert_eq!(LIVE.load(Ordering::SeqCst), 0);
+            return;
+        }
+        // This allocation predates tracker setup. Freeing it must never
+        // subtract bytes belonging to a later tracked allocation.
+        let earlier = std::hint::black_box(vec![0u8; 32 * 1024]);
+        startup([OsString::from("--max-memory=128K")], false).unwrap();
+        let before = LIVE.load(Ordering::SeqCst);
+        drop(earlier);
+        assert_eq!(LIVE.load(Ordering::SeqCst), before);
         arm(Some(128 * 1024), mode == "json", true);
         if mode == "retained-guest" {
             let guest = enter_guest();
@@ -435,6 +473,24 @@ mod tests {
         }
         let _allocation = std::hint::black_box(vec![0u8; 512 * 1024]);
         panic!("over-cap allocation returned to compiler");
+    }
+
+    #[test]
+    fn no_limit_keeps_tracking_and_reporter_disabled() {
+        let output = child("disabled");
+        assert!(output.status.success(), "{output:?}");
+        assert!(output.stderr.is_empty(), "{output:?}");
+    }
+
+    #[test]
+    fn only_global_compiler_caps_request_tracking() {
+        let words = |args: &[&str]| args.iter().map(OsString::from).collect::<Vec<_>>();
+        assert!(!requested(words(&["check", "file.hd"]), false));
+        assert!(!requested(words(&["run", "--max-heap=1G"]), false));
+        assert!(!requested(words(&["run", "--", "--max-memory=1G"]), false));
+        assert!(requested(words(&["check", "--max-memory", "1G"]), false));
+        assert!(requested(words(&["check", "--max-memory=1G"]), false));
+        assert!(requested(words(&["check", "file.hd"]), true));
     }
 
     #[test]

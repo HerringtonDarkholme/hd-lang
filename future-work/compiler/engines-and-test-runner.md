@@ -577,7 +577,7 @@ The owner approved full gates once on the completed M24 tree, before its push, o
 Owner direction now forbids `--release`, including gates and lint checks.
 Native Windows/Linux execution and the owner-deferred workspace compilation split remain unverified or deferred, not fixed by this review.
 
-A prepared allocator fix conditionally enables the tracker and reporter.
+The allocator fix conditionally enables the tracker and reporter.
 It recognizes global compiler caps and `HD_MAX_MEMORY`, but not guest arguments after `--`.
 Thirteen focused dev-profile allocator tests pass, including disabled tracking,
 pre-existing untracked frees, stage diagnostics and retained guest allocations.

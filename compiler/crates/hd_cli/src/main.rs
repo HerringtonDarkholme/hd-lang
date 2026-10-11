@@ -62,7 +62,10 @@ fn usage() -> ExitCode {
 }
 
 fn main() -> ExitCode {
-    if let Err(error) = memory_cap::startup() {
+    if let Err(error) = memory_cap::startup(
+        std::env::args_os().skip(1),
+        std::env::var_os("HD_MAX_MEMORY").is_some(),
+    ) {
         return fail(error);
     }
     let arguments: Vec<OsString> = std::env::args_os().skip(1).collect();
