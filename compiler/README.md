@@ -38,7 +38,7 @@ the crate manifests. The design links explain each crate's intended boundary.
 | `hd_stdpack` | Build-time standard-library packer; `hd_base`, `hd_driver`, `hd_project` | [Build order, slice 4](../future-work/compiler/build-order.md#9-build-order) |
 | `hd_web` | Browser adapter and stepping execution; `hd_base`, `hd_cache`, `hd_driver`, `hd_project`, `hd_run`, `hd_sched` | [Browser runner](../future-work/compiler/engines-and-test-runner.md#184-the-browser-runner), [playground](../future-work/compiler/commands.md#79-the-playground) |
 | `hd_testkit` | Determinism and incremental-test support; `hd_base`, `hd_driver`, `hd_sched` | [Testing the checker](../future-work/compiler/type-checking.md#14-testing), [systems measurements](../future-work/compiler/build-order.md#92-systems-measurements-per-slice) |
-| `hd_cli` | Native `hd` binary, disk sources/cache, threaded execution, and Node/V8 engine; `hd_cache`, `hd_driver`, `hd_project`, `hd_run`, `hd_sched` | [Command flows](../future-work/compiler/commands.md) |
+| `hd_cli` | Native `hd` binary, disk sources/cache, threaded execution, and Node/V8 engine, plus `hd_run_wasmtime` with the `wasmtime` feature; `hd_cache`, `hd_driver`, `hd_project`, `hd_run`, `hd_sched` | [Command flows](../future-work/compiler/commands.md) |
 
 In dependency order, the main path is:
 
@@ -108,6 +108,38 @@ to `build/debug/NAME.wasm` (`build/release/` with `--release`), and
 command line exits with status 101. `--release` is accepted but selects only
 the output directory; there is no separate release pipeline yet.
 
+## Wasmtime Engine
+
+Node is the default engine. The in-process wasmtime engine
+(`--engine wasmtime`, `HD_ENGINE=wasmtime`) is the `wasmtime` cargo feature
+of `hd_cli`, off by default, because wasmtime and cranelift are most of a
+cold build (a dev `hd` build is about 8 s without them and 27 s with them).
+`hd_run_wasmtime` is also outside the workspace's `default-members`, so plain
+`cargo build`, `cargo test` and `cargo clippy` never compile it.
+
+```sh
+cargo build --bin hd                       # Node only
+cargo build --bin hd --features wasmtime   # Node and wasmtime
+```
+
+An `hd` built without the feature refuses the engine when it reads the name,
+with `this build of hd has no wasmtime engine; rebuild with --features
+wasmtime`. It never falls back to Node.
+
+The tests that need wasmtime run only with the feature. `hd_driver` has a
+`wasmtime` feature of its own for them: the wasmtime modes of its
+conformance test (`HD_CONFORMANCE_ENGINE=wasmtime` and `wasmtime-only`) and
+the float text comparison. The wasmtime modes of `cli_conformance` need an
+`hd` built with the feature. Without it those modes are refused and the
+other tests run unchanged.
+
+```sh
+cargo test --workspace --all-features      # everything, as CI runs it
+cargo test --features wasmtime             # default members plus wasmtime
+cargo test -p hd_run_wasmtime              # the wasmtime crate alone
+HD_CONFORMANCE_ENGINE=wasmtime cargo test --features wasmtime -p hd_driver --test conformance
+```
+
 ## Inspection Examples
 
 The driver examples use in-memory sources and caches, so they do not populate
@@ -143,7 +175,9 @@ cargo run -p hd_syntax --example parse_check -- --tree samples/hello/hello.hd
   disagreements with this compiler are listed in
   [`KNOWN_FAILURES.tsv`](KNOWN_FAILURES.tsv).
 
-From `compiler/`, run the Rust workspace tests with `cargo test --workspace`.
+From `compiler/`, `cargo test` runs the default members, which leave out
+`hd_run_wasmtime` and the tests that need it. `cargo test --workspace
+--all-features` runs everything (see [Wasmtime Engine](#wasmtime-engine)).
 Only update checked-in output after reviewing the diff:
 
 ```sh
@@ -159,8 +193,8 @@ HD_UPDATE_GOLDEN=1 cargo test -p hd_driver --test all checker::std_bodies_match_
 The repository hook is [`.githooks/pre-commit`](../.githooks/pre-commit).
 `pnpm install --frozen-lockfile` runs the root `prepare` script, which sets
 `core.hooksPath` to `.githooks`. When staged Rust or compiler manifest files
-change, the hook runs `cargo fmt --all --check` and workspace Clippy with
-warnings denied. It does nothing for a documentation-only commit.
+change, the hook runs `cargo fmt --all --check` and workspace Clippy with all
+features and warnings denied. It does nothing for a documentation-only commit.
 
 ## Disk Cache
 

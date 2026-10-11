@@ -20,6 +20,10 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Every Rust command builds the whole workspace with all features, so CI
+  # covers the wasmtime engine that a plain `cargo build` leaves out (the
+  # `wasmtime` feature is off by default; compiler/README.md).
+  #
   # The Rust jobs run side by side, so the check takes as long as the
   # slowest one. Each restores third-party build output only (the
   # workspace's own crates and test binaries are not cached; they were
@@ -47,7 +51,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Lint
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
       - name: Build browser-safe syntax crate
         run: cargo build -p hd_syntax --target wasm32-unknown-unknown
@@ -78,10 +82,10 @@ jobs:
           workspaces: compiler
 
       - name: Build release compiler
-        run: cargo build --release --bin hd
+        run: cargo build --release --workspace --all-features --bin hd
 
       - name: Test
-        run: cargo test --release --workspace -- --skip specification_conformance_does_not_regress
+        run: cargo test --release --workspace --all-features -- --skip specification_conformance_does_not_regress
 
   # Split from the tests so the longest suite overlaps with the rest.
   conformance:
@@ -107,7 +111,7 @@ jobs:
           workspaces: compiler
 
       - name: New compiler conformance gate
-        run: cargo test --release -p hd_driver --test conformance
+        run: cargo test --release --workspace --all-features --test conformance
 
   # The TypeScript prototype's checks (pnpm run check, its perf gate and
   # the playground end-to-end run) are off: the prototype is a frozen test
