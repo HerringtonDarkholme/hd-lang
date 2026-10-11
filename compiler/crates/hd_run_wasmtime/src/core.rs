@@ -246,10 +246,30 @@ fn run_process_at(
     }
     let Spawned {
         mut child,
-        mut stdin,
-        mut stdout,
-        mut stderr,
+        stdin,
+        stdout,
+        stderr,
     } = spawn_process(name, argv, cwd)?;
+    run_process_workers(
+        &mut child,
+        (stdin, stdout, stderr),
+        input,
+        output_limit,
+        deadline,
+        &mut PipeWorkers::default(),
+    )
+}
+
+type ProcessPipes = (Box<dyn WritePipe>, Box<dyn ReadPipe>, Box<dyn ReadPipe>);
+
+fn run_process_workers(
+    child: &mut Process,
+    (mut stdin, mut stdout, mut stderr): ProcessPipes,
+    input: &[u8],
+    output_limit: usize,
+    deadline: Option<Instant>,
+    workers: &mut PipeWorkers,
+) -> io::Result<(Vec<u8>, Vec<u8>, i64)> {
     let count = std::sync::atomic::AtomicUsize::new(0);
     let cancelled = std::sync::atomic::AtomicBool::new(false);
     std::thread::scope(|scope| {
@@ -260,19 +280,29 @@ fn run_process_at(
         let out_count = &count;
         let err_count = &count;
         let stop = &cancelled;
-        let out = scope.spawn(move || drain(&mut *stdout, out_count, &out_tx, output_limit, stop));
-        let err = scope.spawn(move || drain(&mut *stderr, err_count, &err_tx, output_limit, stop));
-        let writer = scope.spawn(move || {
-            let result = feed_input(&mut *stdin, input, stop);
-            let _ = input_tx.send(ReadEvent::Done);
-            result
-        });
+        let out = workers
+            .spawn(scope, "hd-process-stdout", move || {
+                drain(&mut *stdout, out_count, &out_tx, output_limit, stop)
+            })
+            .map_err(|error| cancel_worker_start(error, child, stop))?;
+        let err = workers
+            .spawn(scope, "hd-process-stderr", move || {
+                drain(&mut *stderr, err_count, &err_tx, output_limit, stop)
+            })
+            .map_err(|error| cancel_worker_start(error, child, stop))?;
+        let writer = workers
+            .spawn(scope, "hd-process-stdin", move || {
+                let result = feed_input(&mut *stdin, input, stop);
+                let _ = input_tx.send(ReadEvent::Done);
+                result
+            })
+            .map_err(|error| cancel_worker_start(error, child, stop))?;
         drop(tx);
         // A reader reports overflow immediately; kill before joining
         // readers, otherwise a child with infinite output would hang.
         // Also stop all three pipe workers: descendants can retain the
         // quiet pipes even after the direct child exits.
-        let result = wait_process_and_pipes(&mut child, &rx, &cancelled, deadline);
+        let result = wait_process_and_pipes(child, &rx, &cancelled, deadline);
         let input_result = writer
             .join()
             .map_err(|_| io::Error::other("stdin thread panicked"))?;
@@ -291,6 +321,54 @@ fn run_process_at(
         input_result?;
         Ok((out?, err?, status))
     })
+}
+
+#[derive(Default)]
+struct PipeWorkers {
+    #[cfg(test)]
+    attempts: usize,
+    #[cfg(test)]
+    fail_at: Option<usize>,
+}
+
+impl PipeWorkers {
+    // Production keeps this factory stateless; tests count and fail starts.
+    #[cfg_attr(not(test), allow(clippy::unused_self))]
+    fn spawn<'scope, 'env, F, T>(
+        &mut self,
+        scope: &'scope std::thread::Scope<'scope, 'env>,
+        name: &str,
+        work: F,
+    ) -> io::Result<std::thread::ScopedJoinHandle<'scope, T>>
+    where
+        F: FnOnce() -> T + Send + 'scope,
+        T: Send + 'scope,
+    {
+        #[cfg(test)]
+        {
+            self.attempts += 1;
+            if self.fail_at == Some(self.attempts) {
+                return Err(io::Error::other("injected pipe-worker creation failure"));
+            }
+        }
+        std::thread::Builder::new()
+            .name(name.into())
+            .spawn_scoped(scope, work)
+    }
+}
+
+fn cancel_worker_start(
+    error: io::Error,
+    child: &mut Process,
+    cancelled: &std::sync::atomic::AtomicBool,
+) -> io::Error {
+    // A scoped join happens automatically on return. Stop every existing
+    // reader/writer and reap the child BEFORE that teardown can begin.
+    // Pipe cancellation also handles quiet pipes retained by descendants.
+    cancelled.store(true, std::sync::atomic::Ordering::Relaxed);
+    let _ = kill_process(child);
+    let _ = wait_process(child);
+    error
 }
 
 /// Keep checking the child even after every stdio pipe has closed. A child
@@ -890,13 +968,58 @@ mod tests {
 
     #[cfg(unix)]
     mod unix {
-        use super::super::{
-            process_error, run_process, run_process_with_limit, run_process_with_limit_and_deadline,
-        };
+        use super::super::{process_error, run_process, run_process_with_limit};
         use std::io;
 
         fn shell(script: &str) -> Vec<String> {
             vec!["-c".into(), script.into()]
+        }
+
+        #[test]
+        fn worker_creation_failures_cancel_and_reap_before_scope_teardown() {
+            use super::super::{PipeWorkers, Spawned, run_process_workers, spawn_process};
+            use nix::sys::wait::{WaitPidFlag, waitpid};
+            use nix::unistd::Pid;
+
+            for fail_at in 1..=3 {
+                // Quiet stdout/stderr force existing readers to wait. The
+                // independent finite child lifetime bounds a broken teardown,
+                // without a program deadline masking the creation failure.
+                let Spawned {
+                    mut child,
+                    stdin,
+                    stdout,
+                    stderr,
+                } = spawn_process("/bin/sh", &shell("exec sleep 2"), None).unwrap();
+                let pid = Pid::from_raw(i32::try_from(child.id()).unwrap());
+                let mut workers = PipeWorkers {
+                    attempts: 0,
+                    fail_at: Some(fail_at),
+                };
+                let result = run_process_workers(
+                    &mut child,
+                    (stdin, stdout, stderr),
+                    &[],
+                    1024,
+                    None,
+                    &mut workers,
+                );
+                // Observe reaping before cleanup so cleanup cannot make the
+                // assertion pass. Always release the fixture before asserting.
+                let reaped = waitpid(pid, Some(WaitPidFlag::WNOHANG));
+                let _ = child.kill();
+                let _ = child.wait();
+                assert_eq!(workers.attempts, fail_at);
+                assert_eq!(
+                    result.unwrap_err().to_string(),
+                    "injected pipe-worker creation failure"
+                );
+                assert_eq!(
+                    reaped,
+                    Err(nix::errno::Errno::ECHILD),
+                    "worker {fail_at}: setup failure must reap before returning"
+                );
+            }
         }
 
         #[test]
@@ -1083,51 +1206,105 @@ mod tests {
             assert!(start.elapsed() < std::time::Duration::from_secs(1));
         }
 
+        fn ready_process<T>(
+            args: &[String],
+            exited: bool,
+            decode: impl FnOnce(&[u8]) -> io::Result<T>,
+        ) -> io::Result<(super::super::Spawned, T)> {
+            use super::super::spawn_process;
+            use std::io::Read;
+            use std::time::{Duration, Instant};
+
+            let mut spawned = spawn_process("/bin/sh", args, None)?;
+            let until = Instant::now() + Duration::from_secs(2);
+            let ready = (|| {
+                let mut bytes = Vec::new();
+                let mut buffer = [0u8; 64];
+                loop {
+                    if Instant::now() >= until {
+                        return Err(io::ErrorKind::TimedOut.into());
+                    }
+                    match spawned.stdout.read(&mut buffer) {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            bytes.extend_from_slice(&buffer[..n]);
+                            if bytes.len() > 64 {
+                                return Err(io::ErrorKind::InvalidData.into());
+                            }
+                        }
+                        Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                        Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                            std::thread::sleep(Duration::from_millis(5));
+                        }
+                        Err(error) => return Err(error),
+                    }
+                }
+                if exited {
+                    while spawned.child.try_wait()?.is_none() {
+                        if Instant::now() >= until {
+                            return Err(io::ErrorKind::TimedOut.into());
+                        }
+                        std::thread::sleep(Duration::from_millis(5));
+                    }
+                }
+                decode(&bytes)
+            })();
+            match ready {
+                Ok(value) => Ok((spawned, value)),
+                Err(error) => {
+                    // Cleanup precedes every setup assertion and scoped join.
+                    let _ = spawned.child.kill();
+                    let _ = spawned.child.wait();
+                    Err(error)
+                }
+            }
+        }
+
         #[test]
         fn deadline_kills_and_reaps_a_term_ignoring_child_after_all_pipes_close() {
-            let pid_file = std::env::temp_dir().join(format!(
-                "hd-process-deadline-child-{}-{}.pid",
-                std::process::id(),
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_nanos()
-            ));
-            let script = "trap '' TERM; printf '%s' \"$$\" > \"$1\"; \
-                          exec 0<&- 1>&- 2>&-; while :; do :; done";
-            let args = vec![
-                "-c".into(),
-                script.into(),
-                "hd-deadline-test".into(),
-                pid_file.to_str().unwrap().into(),
-            ];
+            use super::super::{PipeWorkers, Spawned, run_process_workers};
+            let args = shell(
+                "trap '' TERM; exec 0<&- 2>&-; printf 'ready\\n'; \
+                 exec 1>&-; while :; do :; done",
+            );
+            // The marker follows stdin/stderr closure; stdout EOF proves its
+            // closure too. No deadline runs while the child is starting.
+            let (spawned, ()) = ready_process(&args, false, |bytes| {
+                if bytes == b"ready\n" {
+                    Ok(())
+                } else {
+                    Err(io::ErrorKind::InvalidData.into())
+                }
+            })
+            .expect("TERM-ignoring fixture closes all pipes before its setup bound");
+            let pid = nix::unistd::Pid::from_raw(i32::try_from(spawned.child.id()).unwrap());
             let start = std::time::Instant::now();
             let deadline = start + std::time::Duration::from_millis(250);
             let (tx, rx) = std::sync::mpsc::channel();
             let worker = std::thread::spawn(move || {
-                let result = run_process_with_limit_and_deadline(
-                    "/bin/sh",
-                    &args,
+                let Spawned {
+                    mut child,
+                    stdin,
+                    stdout,
+                    stderr,
+                } = spawned;
+                let result = run_process_workers(
+                    &mut child,
+                    (stdin, stdout, stderr),
                     &[],
                     8192,
                     Some(deadline),
+                    &mut PipeWorkers::default(),
                 );
                 let _ = tx.send(result);
             });
             let result = rx.recv_timeout(std::time::Duration::from_secs(2));
-            let pid = nix::unistd::Pid::from_raw(
-                std::fs::read_to_string(&pid_file)
-                    .unwrap()
-                    .parse::<i32>()
-                    .unwrap(),
-            );
             // On regression, release this test's child before joining the
             // worker, so failure cannot leave a TERM-ignoring busy loop behind.
             if result.is_err() {
                 let _ = nix::sys::signal::kill(pid, nix::sys::signal::Signal::SIGKILL);
             }
             worker.join().unwrap();
-            std::fs::remove_file(pid_file).unwrap();
             assert_eq!(result.unwrap().unwrap_err().kind(), io::ErrorKind::TimedOut);
             assert!(start.elapsed() < std::time::Duration::from_secs(1));
             assert_eq!(
@@ -1139,6 +1316,7 @@ mod tests {
 
         #[test]
         fn deadline_cancels_inherited_quiet_pipes_after_the_direct_child_exits() {
+            use super::super::{PipeWorkers, Spawned, run_process_workers};
             let pid_file = std::env::temp_dir().join(format!(
                 "hd-process-deadline-descendant-{}-{}.pid",
                 std::process::id(),
@@ -1150,35 +1328,62 @@ mod tests {
             let args = vec![
                 "-c".into(),
                 "exec 3<&0; sleep 30 0<&3 1>/dev/null & \
-                 printf '%s' \"$!\" > \"$1\"; exit 0"
+                 printf '%s' \"$!\" > \"$1\"; printf '%s\\n' \"$!\"; exit 0"
                     .into(),
                 "hd-deadline-test".into(),
                 pid_file.to_str().unwrap().into(),
             ];
+            // The PID travels on stdout. Its EOF plus try_wait proves the
+            // direct child has exited while the descendant retains quiet
+            // stdin/stderr. The file is only a setup-failure cleanup fallback.
+            let setup = ready_process(&args, true, |bytes| {
+                let pid = std::str::from_utf8(bytes)
+                    .ok()
+                    .and_then(|text| text.trim().parse::<i32>().ok())
+                    .filter(|pid| *pid > 1)
+                    .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidData))?;
+                Ok(nix::unistd::Pid::from_raw(pid))
+            });
+            if setup.is_err()
+                && let Some(pid) = std::fs::read_to_string(&pid_file)
+                    .ok()
+                    .and_then(|text| text.parse::<i32>().ok())
+                    .filter(|pid| *pid > 1)
+            {
+                let _ = nix::sys::signal::kill(
+                    nix::unistd::Pid::from_raw(pid),
+                    nix::sys::signal::Signal::SIGKILL,
+                );
+            }
+            if setup.is_err() {
+                let _ = std::fs::remove_file(&pid_file);
+            }
+            let (spawned, pid) =
+                setup.expect("inherited-pipe fixture exits before its setup bound");
             let start = std::time::Instant::now();
             let deadline = start + std::time::Duration::from_millis(250);
             let (tx, rx) = std::sync::mpsc::channel();
             let worker = std::thread::spawn(move || {
-                let result = run_process_with_limit_and_deadline(
-                    "/bin/sh",
-                    &args,
+                let Spawned {
+                    mut child,
+                    stdin,
+                    stdout,
+                    stderr,
+                } = spawned;
+                let result = run_process_workers(
+                    &mut child,
+                    (stdin, stdout, stderr),
                     &vec![0; 262_144],
                     8192,
                     Some(deadline),
+                    &mut PipeWorkers::default(),
                 );
                 let _ = tx.send(result);
             });
             let result = rx.recv_timeout(std::time::Duration::from_secs(2));
             // The descendant is intentionally independent of the direct
             // child. Release the fixture even if cancellation regresses.
-            let pid = std::fs::read_to_string(&pid_file)
-                .unwrap()
-                .parse::<i32>()
-                .unwrap();
-            let _ = nix::sys::signal::kill(
-                nix::unistd::Pid::from_raw(pid),
-                nix::sys::signal::Signal::SIGKILL,
-            );
+            let _ = nix::sys::signal::kill(pid, nix::sys::signal::Signal::SIGKILL);
             worker.join().unwrap();
             std::fs::remove_file(pid_file).unwrap();
             assert_eq!(result.unwrap().unwrap_err().kind(), io::ErrorKind::TimedOut);

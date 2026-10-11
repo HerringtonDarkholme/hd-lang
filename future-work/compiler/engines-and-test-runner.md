@@ -545,7 +545,7 @@ Status: source review; fixes below remain pending until verified and pushed.
 This review changes no language or library rules.
 It covers commits `3707b290`, `43993c72`, `91337f6f`, `0f319ffc`,
 `0613e39f`, `3459768f`, `ec517898`, and W4's current integration.
-The feedback is in [Muse's queue](../../audit/muse_task.md#m24-review-your-own-wasmtime-work-m18-m22a-review-then-fixes).
+The feedback is in [Muse's queue](../../audit/muse_task.md).
 
 | Feedback | Assessment and evidence | Action |
 | --- | --- | --- |
@@ -572,9 +572,25 @@ The currently used socket2 APIs need no `all` feature.
 
 Fix order: conditional allocator setup; native Fs/Process/Net errors and BOM preservation;
 fallible Process workers and bounded fixtures; explicit reply/wake/control boundaries.
-Each code fix gets focused regressions and dev-profile commit gates.
+Each code fix gets focused dev regressions and lint checks.
+The owner approved full gates once on the completed M24 tree, before its push, on 2026-10-11.
 Owner direction now forbids `--release`, including gates and lint checks.
 Native Windows/Linux execution and the owner-deferred workspace compilation split remain unverified or deferred, not fixed by this review.
+
+A prepared allocator fix conditionally enables the tracker and reporter.
+It recognizes global compiler caps and `HD_MAX_MEMORY`, but not guest arguments after `--`.
+Thirteen focused dev-profile allocator tests pass, including disabled tracking,
+pre-existing untracked frees, stage diagnostics and retained guest allocations.
+Full dev-profile gate results remain pending.
+The first full dev run reproduced both Process fixture startup races.
+Their deadlines preceded child readiness, allowing expiry before PID-file creation.
+The runtime unit suite passed 123 tests and failed those two setup assertions.
+Driver conformance passed; the observed failures do not establish a production timeout defect.
+The Process fix uses fallible pipe-worker creation and cleanup before scoped joins.
+Both deadline fixtures prove readiness before arming their unchanged 250ms budget.
+Eleven focused Unix dev-profile tests pass, including all three injected worker-start failures.
+Focused tests and workspace lint checks pass for this separate runtime fix.
+Full gates remain pending on the completed M24 tree.
 
 ## 19. Test Runner
 
