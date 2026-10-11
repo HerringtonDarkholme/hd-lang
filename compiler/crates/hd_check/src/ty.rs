@@ -19,6 +19,9 @@ pub(crate) enum Named {
     Module(u32),
     /// Bound by a failed `use`: an earlier error, stay quiet.
     Poison,
+    /// A module path to a declaration its module does not export: reported
+    /// when the path was resolved.
+    Missing,
 }
 
 /// What a written name must be: a type, or a trait (a requirement key,
@@ -57,6 +60,30 @@ impl Ck<'_, '_> {
             BindingKind::Poison => Some(Named::Poison),
             _ => None,
         }
+    }
+
+    /// `module.Item` as the base of a member (`cmp.Ordering.Equal`,
+    /// `text.StringBuilder::new`): the module's declaration, `Missing` once
+    /// the unknown or private member is reported, or `None` when `n` is not
+    /// a name through a module.
+    pub(crate) fn module_item(&mut self, n: NodeRef<'_>) -> Option<Named> {
+        if n.kind() != SyntaxKind::FieldExpr {
+            return None;
+        }
+        let base = n.children().next()?;
+        if base.kind() != SyntaxKind::NameExpr || self.find_local(self.sym_of(base)).is_some() {
+            return None;
+        }
+        let text = self.cx.src.text(self.cx.src.first(base)).to_owned();
+        let Some(Named::Module(m)) = self.scope_name(&text) else {
+            return None;
+        };
+        let name = self.cx.src.text(self.cx.src.last(n)).to_owned();
+        let Some(def) = self.export(m, &name) else {
+            self.missing_export(m, &name, n);
+            return Some(Named::Missing);
+        };
+        Some(Named::Item(def))
     }
 
     /// Whether a module-level name was bound by a failed `use`.

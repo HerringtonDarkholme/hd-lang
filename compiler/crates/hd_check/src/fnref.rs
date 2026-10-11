@@ -118,6 +118,7 @@ impl Ck<'_, '_> {
         if matches!(base.kind(), SyntaxKind::NameExpr | SyntaxKind::TypeArgsExpr)
             && (base.kind() == SyntaxKind::TypeArgsExpr
                 || self.find_local(self.sym_of(base)).is_none())
+            || base.kind() == SyntaxKind::FieldExpr
         {
             let (bnode, explicit) = if base.kind() == SyntaxKind::TypeArgsExpr {
                 let Some(inner) = base.children().next() else {
@@ -134,14 +135,20 @@ impl Ck<'_, '_> {
                 (base, vec![])
             };
             let text = self.cx.src.text(self.cx.src.first(bnode)).to_owned();
-            if let Some(p) = self.type_param(&text) {
-                return self.type_ref(p, &name, method_targs, want, n);
-            }
-            if let Some(p) = Prim::ALL.iter().find(|p| p.name() == text) {
-                return self.type_ref(Ty::prim(*p), &name, method_targs, want, n);
-            }
-            match self.scope_name(&text) {
+            let named = if bnode.kind() == SyntaxKind::FieldExpr {
+                self.module_item(bnode)
+            } else {
+                if let Some(p) = self.type_param(&text) {
+                    return self.type_ref(p, &name, method_targs, want, n);
+                }
+                if let Some(p) = Prim::ALL.iter().find(|p| p.name() == text) {
+                    return self.type_ref(Ty::prim(*p), &name, method_targs, want, n);
+                }
+                self.scope_name(&text)
+            };
+            match named {
                 Some(Named::Poison) => return Ok(self.poison_value(n)),
+                Some(Named::Missing) => return Ok((Ref(NONE), Ty::NEVER)),
                 Some(Named::Module(m)) => {
                     let Some(def) = self.export(m, &name) else {
                         self.missing_export(m, &name, n);
@@ -151,7 +158,12 @@ impl Ck<'_, '_> {
                         let sig = sig.clone();
                         return self.item_value(def, &sig, method_targs, want, n);
                     }
-                    return unsupported("a module member value that is not a function");
+                    if let Some(v) = self.declaration_value(def, &name, want, n)? {
+                        return Ok(v);
+                    }
+                    let msg = format!("`{name}` is not a value");
+                    self.err(Code::UnknownName, n, &msg);
+                    return Ok((Ref(NONE), Ty::NEVER));
                 }
                 Some(Named::Item(def)) => match self.kind_of_item(def) {
                     Some(HeadKind::Trait) => {

@@ -243,30 +243,47 @@ impl Ck<'_, '_> {
             return Ok(self.poison_value(n));
         }
         if let Some(Named::Item(def)) = self.scope_name(&text)
-            && let Some(item) = self.cx.lookup.item(def)
+            && let Some(v) = self.declaration_value(def, &text, want, n)?
         {
+            return Ok(v);
+        }
+        let msg = format!("`{text}` is not defined");
+        self.err(Code::UnknownName, n, &msg);
+        Ok((Ref(NONE), Ty::NEVER))
+    }
+
+    /// The declaration `def`, written as `name`, used as a value: a
+    /// function, or a data type without fields. A type is an error
+    /// (`names.type-as-value`); `None` for any other declaration.
+    pub(crate) fn declaration_value(
+        &mut self,
+        def: DefId,
+        name: &str,
+        want: Option<Ty>,
+        n: NodeRef<'_>,
+    ) -> StageResult<Option<(Ref, Ty)>> {
+        if let Some(item) = self.cx.lookup.item(def) {
             if let ItemData::Fn(sig) = &item.data {
                 let sig = sig.clone();
-                return self.item_value(def, &sig, &[], want, n);
+                return self.item_value(def, &sig, &[], want, n).map(Some);
             }
             if let ItemData::Data(fields) = &item.data
                 && fields.is_empty()
             {
                 let t = self.ctor(def, &[])?;
                 let rec = self.b.refs_record(&[]);
-                return Ok((self.b.emit(Tag::NewData, NONE, rec, t, n.index()), t));
+                return Ok(Some((
+                    self.b.emit(Tag::NewData, NONE, rec, t, n.index()),
+                    t,
+                )));
             }
         }
-        if let Some(Named::Item(def)) = self.scope_name(&text)
-            && self.kind_of_item(def).is_some_and(HeadKind::is_type)
-        {
-            let msg = format!("`{text}` is a type, not a value");
+        if self.kind_of_item(def).is_some_and(HeadKind::is_type) {
+            let msg = format!("`{name}` is a type, not a value");
             self.err(Code::TypeUsedAsValue, n, &msg);
-            return Ok((Ref(NONE), Ty::NEVER));
+            return Ok(Some((Ref(NONE), Ty::NEVER)));
         }
-        let msg = format!("`{text}` is not defined");
-        self.err(Code::UnknownName, n, &msg);
-        Ok((Ref(NONE), Ty::NEVER))
+        Ok(None)
     }
 
     /// `f::[T]` as a value, or a member's `Owner::name::[T]`.
@@ -1719,19 +1736,26 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
         n: NodeRef<'_>,
     ) -> StageResult<Option<(Ref, Ty)>> {
-        let text = self.cx.src.text(self.cx.src.first(base)).to_owned();
-        match self.scope_name(&text) {
+        let named = if base.kind() == SyntaxKind::FieldExpr {
+            self.module_item(base)
+        } else {
+            let text = self.cx.src.text(self.cx.src.first(base)).to_owned();
+            self.scope_name(&text)
+        };
+        match named {
             Some(Named::Poison) => Ok(Some(self.poison_value(n))),
+            Some(Named::Missing) => Ok(Some((Ref(NONE), Ty::NEVER))),
             Some(Named::Module(m)) => {
                 let Some(def) = self.export(m, name) else {
                     self.missing_export(m, name, n);
                     return Ok(Some((Ref(NONE), Ty::NEVER)));
                 };
-                if let Some(ItemData::Fn(sig)) = self.cx.lookup.item(def).map(|i| &i.data) {
-                    let sig = sig.clone();
-                    return self.item_value(def, &sig, &[], None, n).map(Some);
+                if let Some(v) = self.declaration_value(def, name, want, n)? {
+                    return Ok(Some(v));
                 }
-                unsupported("a module member value that is not a function")
+                let msg = format!("`{name}` is not a value");
+                self.err(Code::UnknownName, n, &msg);
+                Ok(Some((Ref(NONE), Ty::NEVER)))
             }
             Some(Named::Item(def)) if self.is_enum_head(def) => {
                 let t = self.ctor(def, &[])?;
@@ -1901,10 +1925,12 @@ impl Ck<'_, '_> {
             return unsupported("a member call without a base");
         };
         let name = self.cx.src.text(self.cx.src.last(callee)).to_owned();
-        // Static forms: a type, a type parameter, a trait or a module.
+        // Static forms: a type, a type parameter, a trait or a module,
+        // each also through a module (`text.StringBuilder::new()`).
         if matches!(base.kind(), SyntaxKind::NameExpr | SyntaxKind::TypeArgsExpr)
             && (base.kind() == SyntaxKind::TypeArgsExpr
                 || self.find_local(self.sym_of(base)).is_none())
+            || base.kind() == SyntaxKind::FieldExpr
         {
             let (bnode, explicit) = if base.kind() == SyntaxKind::TypeArgsExpr {
                 let Some(inner) = base.children().next() else {
@@ -1921,16 +1947,22 @@ impl Ck<'_, '_> {
                 (base, vec![])
             };
             let text = self.cx.src.text(self.cx.src.first(bnode)).to_owned();
-            if let Some(p) = self.type_param(&text) {
-                self.method_targs = method_targs;
-                return self.static_on_type(p, &name, args, (n, bang), true, want);
-            }
-            if let Some(p) = Prim::ALL.iter().find(|p| p.name() == text) {
-                self.method_targs = method_targs;
-                return self.static_on_type(Ty::prim(*p), &name, args, (n, bang), false, want);
-            }
-            match self.scope_name(&text) {
+            let named = if bnode.kind() == SyntaxKind::FieldExpr {
+                self.module_item(bnode)
+            } else {
+                if let Some(p) = self.type_param(&text) {
+                    self.method_targs = method_targs;
+                    return self.static_on_type(p, &name, args, (n, bang), true, want);
+                }
+                if let Some(p) = Prim::ALL.iter().find(|p| p.name() == text) {
+                    self.method_targs = method_targs;
+                    return self.static_on_type(Ty::prim(*p), &name, args, (n, bang), false, want);
+                }
+                self.scope_name(&text)
+            };
+            match named {
                 Some(Named::Poison) => return Ok(self.poison_value(n)),
+                Some(Named::Missing) => return Ok((Ref(NONE), Ty::NEVER)),
                 Some(Named::Module(m)) => {
                     let Some(def) = self.export(m, &name) else {
                         self.missing_export(m, &name, callee);

@@ -1020,9 +1020,9 @@ impl Ck<'_, '_> {
             return unsupported("a field without a base");
         };
         let name = self.cx.src.text(self.cx.src.last(n)).to_owned();
-        // `Type.Variant`, `module.item`.
-        if base.kind() == SyntaxKind::NameExpr
-            && self.find_local(self.sym_of(*base)).is_none()
+        // `Type.Variant`, `module.item`, `module.Type.Variant`.
+        if (base.kind() == SyntaxKind::NameExpr && self.find_local(self.sym_of(*base)).is_none()
+            || base.kind() == SyntaxKind::FieldExpr)
             && let Some(v) = self.static_member_value(*base, &name, want, n)?
         {
             return Ok(v);
