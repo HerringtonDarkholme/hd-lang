@@ -1,0 +1,11 @@
+# acme/json's package is named json, but the key json already requires the
+# directory vendored. hd add never replaces it; its message suggests --name.
+run: hd add --format json acme/json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-requirement","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+no-file: hd.sum
+# A free key adds it.
+run: hd add --name json2 acme/json
+stdout: json2 = "github.com/acme/json@2.2.0"
+run: hd run
+stdout: 221

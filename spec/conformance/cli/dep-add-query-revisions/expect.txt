@@ -1,0 +1,30 @@
+# A branch selects the pseudo-version of its head. main's head follows
+# v2.2.0, so its pseudo-version is 2.2.1-0.TIME-HASH.
+run: hd add acme/json@main
+stdout: json = "github.com/acme/json@2.2.1-0.20260921191320-2fdefeb96853" # commit 2fdefeb96853 has no version tag
+run: hd run
+stdout: 221
+# feature branches off v2.1.0, its newest ancestor tag.
+run: hd add acme/json@feature
+stdout: json = "github.com/acme/json@2.1.1-0.20260921201320-9e70ed27c3d1" # commit 9e70ed27c3d1 has no version tag
+stdout: lowered json 2.2.1-0.20260921191320-2fdefeb96853 -> 2.1.1-0.20260921201320-9e70ed27c3d1
+# A commit that carries a version tag selects that version: b4ca4da is the
+# commit of the annotated tag v2.1.1.
+run: hd add acme/json@b4ca4da
+stdout: json = "github.com/acme/json@2.1.1"
+# A prefix of an untagged commit's hash selects its pseudo-version.
+run: hd add acme/json@2fdefeb
+stdout: json = "github.com/acme/json@2.2.1-0.20260921191320-2fdefeb96853" # commit 2fdefeb96853 has no version tag
+# The head of next carries v3.0.0-rc.1.
+run: hd add acme/json@next
+stdout: json = "github.com/acme/json@3.0.0-rc.1"
+# A pseudo-version selects itself.
+run: hd add acme/json@2.1.1-0.20260921201320-9e70ed27c3d1
+stdout: json = "github.com/acme/json@2.1.1-0.20260921201320-9e70ed27c3d1" # commit 9e70ed27c3d1 has no version tag
+stdout: lowered json 3.0.0-rc.1 -> 2.1.1-0.20260921201320-9e70ed27c3d1
+# No branch and no commit hash.
+run: hd add --format json acme/json@nosuch
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-version","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+run: hd run
+stdout: 215

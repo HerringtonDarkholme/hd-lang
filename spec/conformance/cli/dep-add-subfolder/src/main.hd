@@ -1,0 +1,4 @@
+use dep.lint.{lint}
+
+pub fn main() -> void $ Console:
+    println(lint())

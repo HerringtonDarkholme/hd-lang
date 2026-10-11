@@ -1,0 +1,20 @@
+# acme/json has the tags v1.0.0 to v2.2.0 and v3.0.0-rc.1, and commits
+# after v2.2.0. No query selects the newest release, 2.2.0: a pre-release
+# and an untagged commit are no release. The key json comes from the
+# package's hd.toml.
+run: hd add acme/json
+stdout: json = "github.com/acme/json@2.2.0"
+file: hd.sum
+run: hd run
+stdout: 220
+# An exact version with a v lowers the requirement, and says so after its line.
+run: hd add acme/json@v2.0.0
+stdout: json = "github.com/acme/json@2.0.0"
+stdout: lowered json 2.2.0 -> 2.0.0
+run: hd run
+stdout: 200
+# latest selects the newest release too; JSON mode prints no target line.
+run: hd add --format json acme/json@latest
+stdout-json: [{"kind":"summary","errors":0,"status":0}]
+run: hd run
+stdout: 220

@@ -1,0 +1,135 @@
+# A git fast-import stream (spec/conformance/README.md, Local Remotes).
+# Fixed identities and dates make every commit hash the same on each run.
+commit refs/heads/main
+mark :1
+author Fixture <fixture@example.com> 1790000000 +0000
+committer Fixture <fixture@example.com> 1790000000 +0000
+data <<END
+json 1.0.0
+END
+M 644 inline hd.toml
+data <<END
+[package]
+name = "json"
+END
+M 644 inline src/lib.hd
+data <<END
+pub fn version() -> i32:
+    100
+END
+
+reset refs/tags/v1.0.0
+from :1
+
+commit refs/heads/main
+mark :2
+author Fixture <fixture@example.com> 1790003600 +0000
+committer Fixture <fixture@example.com> 1790003600 +0000
+data <<END
+json 2.0.0
+END
+M 644 inline src/lib.hd
+data <<END
+pub fn version() -> i32:
+    200
+END
+
+reset refs/tags/v2.0.0
+from :2
+
+commit refs/heads/main
+mark :3
+author Fixture <fixture@example.com> 1790007200 +0000
+committer Fixture <fixture@example.com> 1790007200 +0000
+data <<END
+json 2.1.0
+END
+M 644 inline src/lib.hd
+data <<END
+pub fn version() -> i32:
+    210
+END
+
+reset refs/tags/v2.1.0
+from :3
+
+commit refs/heads/main
+mark :4
+author Fixture <fixture@example.com> 1790010800 +0000
+committer Fixture <fixture@example.com> 1790010800 +0000
+data <<END
+json 2.1.1
+END
+M 644 inline src/lib.hd
+data <<END
+pub fn version() -> i32:
+    211
+END
+
+tag v2.1.1
+from :4
+tagger Fixture <fixture@example.com> 1790010800 +0000
+data <<END
+v2.1.1
+END
+
+commit refs/heads/main
+mark :5
+author Fixture <fixture@example.com> 1790014400 +0000
+committer Fixture <fixture@example.com> 1790014400 +0000
+data <<END
+json 2.2.0
+END
+M 644 inline src/lib.hd
+data <<END
+pub fn version() -> i32:
+    220
+END
+
+reset refs/tags/v2.2.0
+from :5
+
+commit refs/heads/main
+mark :6
+author Fixture <fixture@example.com> 1790018000 -0400
+committer Fixture <fixture@example.com> 1790018000 -0400
+data <<END
+json after 2.2.0
+END
+M 644 inline src/lib.hd
+data <<END
+pub fn version() -> i32:
+    221
+END
+
+commit refs/heads/feature
+mark :7
+author Fixture <fixture@example.com> 1790021600 +0000
+committer Fixture <fixture@example.com> 1790021600 +0000
+data <<END
+json feature off 2.1.0
+END
+from :3
+M 644 inline src/lib.hd
+data <<END
+pub fn version() -> i32:
+    215
+END
+
+commit refs/heads/next
+mark :8
+author Fixture <fixture@example.com> 1790025200 +0000
+committer Fixture <fixture@example.com> 1790025200 +0000
+data <<END
+json 3.0.0-rc.1
+END
+from :5
+M 644 inline src/lib.hd
+data <<END
+pub fn version() -> i32:
+    300
+END
+
+reset refs/tags/v3.0.0-rc.1
+from :8
+

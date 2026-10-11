@@ -1,0 +1,8 @@
+# acme/pdf has no version tag (release-1 is none), so hd add requires the
+# pseudo-version of the head of its default branch, main. The commit's UTC
+# committer time and its hash make the pseudo-version, and the printed line
+# says the commit has no version tag.
+run: hd add acme/pdf
+stdout: pdf = "github.com/acme/pdf@0.0.0-20260921151320-f68e35e42ca5" # commit f68e35e42ca5 has no version tag
+run: hd run
+stdout: 2

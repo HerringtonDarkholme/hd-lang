@@ -1,0 +1,4 @@
+use dep.beta.{beta}
+
+pub fn main() -> void $ Console:
+    println(beta())

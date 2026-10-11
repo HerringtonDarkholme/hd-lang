@@ -1,0 +1,4 @@
+use dep.pdf.{pages}
+
+pub fn main() -> void $ Console:
+    println(pages())

@@ -1,0 +1,18 @@
+# hd update NAME@QUERY sets the requirement to the version the query
+# selects, raising it ...
+run: hd update json@2.2
+stdout: json: 2.0.0 -> 2.2.0
+# ... or lowering it, as hd add does.
+run: hd update json@v2.1.0
+stdout: lowered json 2.2.0 -> 2.1.0
+run: hd update json@main
+stdout: json: 2.1.0 -> 2.2.1-0.20260921191320-2fdefeb96853
+run: hd run
+stdout: 221
+run: hd update json@2.0
+stdout: lowered json 2.2.1-0.20260921191320-2fdefeb96853 -> 2.0.0
+# Without a query, hd update moves to the newest release on the line.
+run: hd update json
+stdout: json: 2.0.0 -> 2.2.0
+run: hd run
+stdout: 220

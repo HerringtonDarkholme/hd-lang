@@ -1,0 +1,4 @@
+use dep.fmt.{fmt}
+
+pub fn main() -> void $ Console:
+    println(fmt())

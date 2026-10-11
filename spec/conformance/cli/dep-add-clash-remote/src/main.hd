@@ -1,0 +1,5 @@
+use dep.json.{old}
+use dep.json2.{version}
+
+pub fn main() -> void $ Console:
+    println(old() + version())

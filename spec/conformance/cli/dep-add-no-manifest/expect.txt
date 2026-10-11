@@ -1,0 +1,14 @@
+# The root of acme/tools holds no hd.toml, so it is no package; the message
+# lists the packages below it, fmt/ and lint/. Nothing is written.
+run: hd add --format json acme/tools
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-requirement","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+no-file: hd.sum
+run: hd add acme/tools
+exit: 101
+no-file: hd.sum
+# One of the listed packages.
+run: hd add acme/tools/fmt
+stdout: fmt = "github.com/acme/tools/fmt@0.1.0"
+run: hd run
+stdout: 10

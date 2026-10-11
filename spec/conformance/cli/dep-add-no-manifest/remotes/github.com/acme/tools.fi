@@ -1,0 +1,72 @@
+# A git fast-import stream (spec/conformance/README.md, Local Remotes).
+# Fixed identities and dates make every commit hash the same on each run.
+commit refs/heads/main
+mark :1
+author Fixture <fixture@example.com> 1790000000 +0000
+committer Fixture <fixture@example.com> 1790000000 +0000
+data <<END
+tools: lint 1.1.0 and fmt 0.1.0
+END
+M 644 inline README.md
+data <<END
+Two packages.
+END
+M 644 inline lint/hd.toml
+data <<END
+[package]
+name = "lint"
+END
+M 644 inline lint/src/lib.hd
+data <<END
+pub fn lint() -> i32:
+    110
+END
+M 644 inline fmt/hd.toml
+data <<END
+[package]
+name = "fmt"
+END
+M 644 inline fmt/src/lib.hd
+data <<END
+pub fn fmt() -> i32:
+    10
+END
+
+reset refs/tags/v1.0.0
+from :1
+
+reset refs/tags/lint/v1.1.0
+from :1
+
+reset refs/tags/fmt/v0.1.0
+from :1
+
+commit refs/heads/main
+mark :2
+author Fixture <fixture@example.com> 1790003600 +0000
+committer Fixture <fixture@example.com> 1790003600 +0000
+data <<END
+lint 1.2.0
+END
+M 644 inline lint/src/lib.hd
+data <<END
+pub fn lint() -> i32:
+    120
+END
+
+reset refs/tags/lint/v1.2.0
+from :2
+
+commit refs/heads/main
+mark :3
+author Fixture <fixture@example.com> 1790007200 +0000
+committer Fixture <fixture@example.com> 1790007200 +0000
+data <<END
+lint after 1.2.0
+END
+M 644 inline lint/src/lib.hd
+data <<END
+pub fn lint() -> i32:
+    121
+END
+

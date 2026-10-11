@@ -1,0 +1,11 @@
+# lint lives in the directory lint/ of acme/tools, so its versions are the
+# tags lint/vX.Y.Z; v1.0.0 and fmt/v0.1.0 are not its tags.
+run: hd add acme/tools/lint
+stdout: lint = "github.com/acme/tools/lint@1.2.0"
+run: hd run
+stdout: 120
+# main's head follows lint/v1.2.0, so that tag is its pseudo-version's base.
+run: hd add acme/tools/lint@main
+stdout: lint = "github.com/acme/tools/lint@1.2.1-0.20260921161320-3370a34f0634" # commit 3370a34f0634 has no version tag
+run: hd run
+stdout: 121

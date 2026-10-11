@@ -3171,7 +3171,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 86 | 26 | 0 | 112 |
+| 107 | 16 | 0 | 123 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3191,8 +3191,27 @@ cli/clean-workspace
 cli/dbg-uses
 cli/dbg-value-forms
 cli/dbg-values
+cli/dep-add-clash-remote
+cli/dep-add-inferred-key
+cli/dep-add-latest
+cli/dep-add-name-flag
+cli/dep-add-name-invalid
+cli/dep-add-no-manifest
 cli/dep-add-other-table
+cli/dep-add-path-target
+cli/dep-add-pre-release
+cli/dep-add-query-offline
+cli/dep-add-query-revisions
+cli/dep-add-query-versions
+cli/dep-add-self
+cli/dep-add-several-fail
+cli/dep-add-several-remote
+cli/dep-add-subfolder
+cli/dep-add-target-forms
+cli/dep-add-untagged
+cli/dep-dev-invalid-add
 cli/dep-dev-remove
+cli/dep-invalid-add
 cli/dep-invalid-manifest
 cli/dep-key-collision
 cli/dep-missing-sum
@@ -3202,6 +3221,8 @@ cli/dep-outside-package
 cli/dep-package-cycle
 cli/dep-path-local
 cli/dep-path-no-package
+cli/dep-update-query
+cli/dep-update-query-remote
 cli/dep-workspace-fetch
 cli/derivation-lines-agree
 cli/dev-dependency-cyclic-integration

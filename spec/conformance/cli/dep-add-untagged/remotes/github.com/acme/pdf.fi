@@ -1,0 +1,36 @@
+# A git fast-import stream (spec/conformance/README.md, Local Remotes).
+# Fixed identities and dates make every commit hash the same on each run.
+commit refs/heads/main
+mark :1
+author Fixture <fixture@example.com> 1790000000 +0000
+committer Fixture <fixture@example.com> 1790000000 +0000
+data <<END
+pdf start
+END
+M 644 inline hd.toml
+data <<END
+[package]
+name = "pdf"
+END
+M 644 inline src/lib.hd
+data <<END
+pub fn pages() -> i32:
+    1
+END
+
+reset refs/tags/release-1
+from :1
+
+commit refs/heads/main
+mark :2
+author Fixture <fixture@example.com> 1790003600 +0530
+committer Fixture <fixture@example.com> 1790003600 +0530
+data <<END
+pdf more pages
+END
+M 644 inline src/lib.hd
+data <<END
+pub fn pages() -> i32:
+    2
+END
+

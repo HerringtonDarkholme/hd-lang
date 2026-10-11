@@ -1,0 +1,4 @@
+use dep.left_pad.{width}
+
+pub fn main() -> void $ Console:
+    println(width())

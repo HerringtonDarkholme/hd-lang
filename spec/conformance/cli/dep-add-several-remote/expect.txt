@@ -1,0 +1,15 @@
+# acme/nosuch has no repository, so the whole command fails: json is not
+# added either.
+run: hd add --format json acme/json acme/nosuch
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"fetch-failed","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+no-file: hd.sum
+run: hd remove json
+exit: 101
+# Both targets land in one change, and each prints its line in order.
+run: hd add acme/json@2.1 acme/left-pad
+stdout: json = "github.com/acme/json@2.1.1"
+stdout: left_pad = "github.com/acme/left-pad@1.0.0"
+file: hd.sum
+run: hd run
+stdout: 219

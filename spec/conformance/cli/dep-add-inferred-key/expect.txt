@@ -1,0 +1,5 @@
+# The package's name is left-pad, so its key is left_pad.
+run: hd add acme/left-pad
+stdout: left_pad = "github.com/acme/left-pad@1.0.0"
+run: hd run
+stdout: 8

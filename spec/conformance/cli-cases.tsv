@@ -111,3 +111,14 @@ dep-add-self	cli.dep.target.self,cli.dep.target.split,cli.dep.target.path.no-que
 dep-add-target-forms	cli.dep.target.order,cli.dep.target.github,cli.dep.target.url,cli.dep.target.url.git-suffix,cli.dep.target.split,cli.dep.add.check,cli.dep.invalid,cli.dep.no-prompt,cli.dep.unchanged-on-error,cli.json.commands
 dep-add-query-offline	cli.dep.query.order,cli.dep.query.latest,cli.dep.query.v-prefix,cli.dep.query.exact,cli.dep.query.partial,cli.dep.query.revision,cli.dep.query.network,cli.dep.query.offline,cli.dep.no-prompt,cli.dep.unchanged-on-error
 dep-update-query	cli.dep.update.query,cli.dep.update.query.path,cli.dep.update.dev,cli.dep.query.v-prefix,cli.dep.no-prompt,cli.dep.unchanged-on-error,cli.json.commands
+dep-add-latest	cli.dep.add.target,cli.dep.target.github,cli.dep.query.latest,cli.dep.query.tags,cli.dep.query.v-prefix,cli.dep.query.exact,cli.dep.key.inferred,cli.dep.key.same,cli.dep.add.lower,cli.dep.add.report,cli.dep.add.report.order,cli.dep.select,cli.dep.tidy,cli.dep.repo-url,cli.dep.git,cli.dep.tag,cli.json.lines.build
+dep-add-pre-release	cli.dep.query.latest.pre-release,cli.dep.add.report,cli.dep.key.inferred
+dep-add-untagged	cli.dep.query.latest.untagged,cli.dep.query.latest.note,cli.dep.query.tags,cli.dep.add.report.pseudo,cli.dep.pseudo,cli.dep.no-code
+dep-add-query-versions	cli.dep.query.partial,cli.dep.query.v-prefix,cli.dep.query.exact,cli.dep.query.unknown,cli.dep.unknown-version,cli.dep.key.same,cli.dep.add.lower,cli.dep.add.report.order,cli.dep.unchanged-on-error,cli.json.commands
+dep-add-query-revisions	cli.dep.query.order,cli.dep.query.revision,cli.dep.query.revision.tagged,cli.dep.query.exact,cli.dep.query.unknown,cli.dep.query.network,cli.dep.add.report.pseudo,cli.dep.add.report.order,cli.dep.add.lower,cli.dep.pseudo,cli.dep.pseudo.base,cli.dep.pseudo.base.ancestor
+dep-add-subfolder	cli.dep.target.github,cli.dep.query.tags,cli.dep.query.revision,cli.dep.pseudo.base,cli.dep.add.report.pseudo,cli.dep.tag
+dep-add-no-manifest	cli.dep.target.no-manifest,cli.dep.unchanged-on-error,cli.json.commands
+dep-add-inferred-key	cli.dep.key.inferred,cli.dep.add.report
+dep-add-several-remote	cli.dep.add.several,cli.dep.add.report,cli.dep.no-prompt,cli.dep.unchanged-on-error,cli.json.commands
+dep-update-query-remote	cli.dep.update.query,cli.dep.update,cli.dep.update.release,cli.dep.query.partial,cli.dep.query.v-prefix,cli.dep.query.revision,cli.dep.add.lower,cli.dep.select,cli.dep.tidy
+dep-add-clash-remote	cli.dep.key.clash,cli.dep.key.name-flag,cli.dep.key.inferred,cli.dep.unchanged-on-error,cli.json.commands

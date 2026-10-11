@@ -1,0 +1,6 @@
+# Every tag of acme/beta is a pre-release, so no query selects the
+# greatest pre-release.
+run: hd add acme/beta
+stdout: beta = "github.com/acme/beta@0.2.0-rc.2"
+run: hd run
+stdout: 2

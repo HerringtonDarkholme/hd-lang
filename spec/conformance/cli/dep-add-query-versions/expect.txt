@@ -1,0 +1,22 @@
+# acme/json has the tags v1.0.0, v2.0.0, v2.1.0, v2.1.1, v2.2.0 and
+# v3.0.0-rc.1. A partial query selects the newest release it matches.
+run: hd add acme/json@2.1
+stdout: json = "github.com/acme/json@2.1.1"
+run: hd add acme/json@2
+stdout: json = "github.com/acme/json@2.2.0"
+# With no 3.x release, it selects the newest 3.x pre-release. The key keeps
+# its package, on another compatibility line.
+run: hd add acme/json@v3
+stdout: json = "github.com/acme/json@3.0.0-rc.1"
+run: hd add acme/json@v2.1.0
+stdout: json = "github.com/acme/json@2.1.0"
+stdout: lowered json 3.0.0-rc.1 -> 2.1.0
+# A query that selects no version is an error, and writes nothing.
+run: hd add --format json acme/json@2.9
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-version","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+run: hd add --format json acme/json@9.0.0
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-version","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+run: hd run
+stdout: 210
