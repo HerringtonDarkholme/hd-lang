@@ -381,3 +381,77 @@ worker and mark the case crashed; capture stdio per case; recycle
 workers periodically (every few hundred cases) as cheap insurance
 against V8 heap growth. A poorer alternative is batching several cases
 per spawn; it keeps the boot tax and complicates failure attribution.
+
+## `hd test` on Node: worker estimate
+
+M40 measurement (2026-10-11): whether `hd test` on the Node engine
+starts one `node` process per test module, per case or per run, and
+what a long-lived worker would save. No code was changed; per the job
+terms (gain over 2x on a realistic package, change inside the Node
+engine files) this stays a report.
+
+### Granularity: one process per worker-chunk per test program
+
+Neither per module, per case nor per run. `test_cmd.rs` `run` splits
+each test program's cases round-robin over `workers =
+jobs.min(cases).max(1)` threads and calls `TestSession::run` once per
+chunk (`engine.rs`); Node's `run` is `node::run_cases`, which spawns
+one `node host/test.mjs` process per call. The outer loop over test
+programs (unit program, each integration file, each doc test) is
+sequential; a program's chunks run in parallel. So each program costs
+`min(jobs, cases)` processes. With the default 8 jobs that degrades to
+one process per case whenever a program has at most 8 cases, which
+small integration files and doc tests usually do. Verified with a
+`node` counting wrapper on scratch packages: 1 program × 1 case → 1
+process; 1 × 80 → 8; 20 × 2 → 40; the 20 programs run sequentially.
+
+### Method and conditions
+
+Dev `hd` binary, scratch packages outside the repo, a `PATH` wrapper
+around `node` logging start/end per spawn, scratch `HD_CACHE`, min of
+3 walls. Shared machine at load roughly 10-18 (other agents running
+full suites), so absolute walls are approximate; the process counts
+and the serial sums are exact. Reuses M38's boot figures (empty `node`
+30 ms, host load ~5 ms).
+
+### Cost split
+
+Per-process fixed cost F ≈ 70-110 ms end to end: node boot, `core.mjs`
+parse, the test supervisor's `Worker` thread spawn, one
+`WebAssembly.compile` per program, and `hd`'s scratch setup (host
+files, wasm, config) plus teardown. Per instance-run c ≈ 1-2 ms
+(fresh instantiate, body, one report line). Derived from single-chunk
+durations: 1 case ≈ 108 ms, 10 cases ≈ 126 ms, property instances ≈
+2 ms each.
+
+### Shapes (wall min, processes, serial node sum, worker estimate)
+
+| package | wall | procs | serial node | est. worker wall | gain |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 program × 1 trivial case | ~100 ms | 1 | ~108 ms | ~90 ms | ~1.2x |
+| 1 program × 80 trivial cases | ~200 ms | 8 | ~1012 ms | ~120 ms | ~1.7x |
+| 20 programs × 2 trivial cases | ~2.0 s | 40 | ~2890 ms | ~0.2 s | ~10x |
+| mixed realistic with property (7 results, 3 programs) | 358 ms | 5 | 388 ms | ~170 ms | ~2.1x |
+| 1 program, 2×100-case props + 20 rows | ~300 ms | 3 | ~600 ms | ~235 ms | ~1.3x |
+
+Worker arithmetic: run-phase serial work drops from `P×F + C×c` to
+`C×c` plus one boot per pool worker; build time (hd side, per
+program) is unchanged. The >2x rows are the ones whose bodies are
+trivially small (F dominates) or whose programs are degenerately many;
+the realistic rows (real bodies, property tests) sit at ~1.3-2.1x,
+inside the noise of this shared machine. The gain condition is not
+met on a realistic package, so nothing is implemented.
+
+### If revisited: what must stay identical
+
+A pool behind `TestSession` (`node.rs`, `engine.rs`) reusing one
+worker per test thread across programs, with a worker entry reusing
+`test.mjs`'s case loop: supervisor timeouts (kill + `time-limit`),
+property examples/regression/shrink/discard accounting, `it_each`
+rows, snapshot and regression files, per-case temp dirs, seeds,
+grants, and `Process` children configs. Per-program `cwd` is safe to
+`chdir` between programs (threads join per program, so no case runs
+concurrently across a switch), but it varies by workspace member, so
+workers need cwd affinity, and `us` timing in JSON output must
+not drift. That is an M39-sized-or-larger change with full
+verdict-parity risk, not a small Node-only tweak — hence report only.

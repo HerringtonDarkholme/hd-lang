@@ -55,13 +55,3 @@ commit that finishes it. When the queue is empty, report that and wait.
 (Owner, 2026-10-11: Codex is offline; a weaker Muse is back temporarily.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
-
-### M40. Measure the same worker idea for `hd test` on Node
-
-Find out whether `hd test` on the Node engine starts one `node` process per
-test module, per case or per run (`compiler/crates/hd_cli/src/test_cmd.rs`,
-`engine/`). Measure a test-heavy package (for example the std tests or
-`spec/conformance` std test fixtures) and estimate the gain of a long-lived
-worker. Report in `future-work/compiler/wasmtime-perf.md`. Implement it only
-if the gain is over 2x on a realistic package and the change stays inside
-the Node engine files; otherwise report only.
