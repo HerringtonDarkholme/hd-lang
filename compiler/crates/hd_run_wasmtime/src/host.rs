@@ -31,7 +31,7 @@ use wasmtime::{Caller, FuncType, Linker, Memory, Val, ValType};
 use crate::codec::Enc;
 use crate::prim;
 use crate::reactor::{Line, NS_PER_MS, Reactor, Work, now_ns};
-use crate::{core, fs};
+use crate::{core, fs, http, net};
 
 /// Where a run's standard streams go: the process's own, or buffers a
 /// caller reads afterwards.
@@ -100,6 +100,8 @@ pub struct Host {
     program: String,
     grants: Grants,
     noticed: HashSet<String>,
+    http: http::Client,
+    net: net::Client,
 }
 
 impl Host {
@@ -116,7 +118,16 @@ impl Host {
             program,
             grants,
             noticed: HashSet::new(),
+            http: http::Client::default(),
+            net: net::Client::default(),
         }
+    }
+
+    /// Releases the run's sockets and HTTP worker guard at its end, even
+    /// when the caller keeps the ended instance alive.
+    pub fn close(&mut self) {
+        self.net.stop();
+        self.http = http::Client::default();
     }
 
     /// Writes the held standard output.
@@ -226,6 +237,12 @@ enum Kind {
         finish: bool,
     },
     ProcessStart,
+    HttpStart,
+    Net {
+        method: &'static str,
+        input: Option<usize>,
+        close: bool,
+    },
     NeverFinish,
     RandomNext,
     RandomFill,
@@ -255,6 +272,34 @@ enum Kind {
 
 impl Kind {
     fn of(module: &str, name: &str) -> Option<Kind> {
+        if module == "hd:Net" {
+            for &method in net::CLOSE {
+                if name == method {
+                    return Some(Kind::Net {
+                        method,
+                        input: None,
+                        close: true,
+                    });
+                }
+            }
+            let (method, suffix) = name.rsplit_once('.')?;
+            let method = *net::METHODS.iter().find(|m| **m == method)?;
+            let input = match method {
+                "lookup" => Some(0),
+                "connect" | "listen" | "bind_udp" | "TcpStream.write" => Some(1),
+                "UdpSocket.send_to" => Some(2),
+                _ => None,
+            };
+            return match suffix {
+                "start" => Some(Kind::Net {
+                    method,
+                    input,
+                    close: false,
+                }),
+                "finish" => Some(Kind::NeverFinish),
+                _ => None,
+            };
+        }
         if let Some((key, methods)) = match module {
             "hd:FsRead" => Some(("FsRead", fs::READ)),
             "hd:FsWrite" => Some(("FsWrite", fs::WRITE)),
@@ -277,6 +322,8 @@ impl Kind {
             };
         }
         Some(match (module, name) {
+            ("hd:Http", "send.start") => Kind::HttpStart,
+            ("hd:Http", "send.finish") => Kind::NeverFinish,
             ("hd:Process", "run.start") => Kind::ProcessStart,
             ("hd:Process", "run.finish") => Kind::NeverFinish,
             ("hd:Random", "next_u64") => Kind::RandomNext,
@@ -365,6 +412,33 @@ fn call(kind: Kind, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::
             let b = bytes(caller, int_arg(params, 0)?)?;
             let e = core::process(&b, &caller.data().grants)?;
             Ret::Pair(0, result_len(put(caller, &e)?)?)
+        }
+        Kind::HttpStart => {
+            let b = bytes(caller, int_arg(params, 0)?)?;
+            let host = caller.data_mut();
+            let e = host.http.send(&b, &host.grants)?;
+            Ret::Pair(0, result_len(put(caller, &e)?)?)
+        }
+        Kind::Net {
+            method,
+            input,
+            close,
+        } => {
+            let args = (0..params.len())
+                .map(|i| int_arg(params, i))
+                .collect::<wasmtime::Result<Vec<_>>>()?;
+            let b = match input {
+                Some(i) => bytes(caller, int_arg(params, i)?)?,
+                None => Vec::new(),
+            };
+            let host = caller.data_mut();
+            let e = host.net.call(method, &args, &b, &host.grants)?;
+            let len = put(caller, &e)?;
+            if close {
+                Ret::Int(len)
+            } else {
+                Ret::Pair(0, result_len(len)?)
+            }
         }
         Kind::RandomNext => {
             let b: [u8; 8] = core::random(8)?

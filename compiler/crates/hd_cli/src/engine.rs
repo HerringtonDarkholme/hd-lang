@@ -2,9 +2,9 @@
 //! default) or wasmtime in-process (`hd_run_wasmtime`), chosen by
 //! `--engine NAME` or else `HD_ENGINE`. wasmtime runs the default
 //! profile's `Console`, `ConsoleInput`, `Clock`, `Args`, `Env`, `FsRead`,
-//! `FsWrite`, `Process`, `Random` and `Sys`; a
+//! `FsWrite`, `Process`, `Random`, `Sys`, `Http`, `Net` and their handle traits; a
 //! program that imports another host trait is refused with a message that
-//! names it (engines-and-test-runner.md §18.8, "As Built (W2)").
+//! names it (engines-and-test-runner.md §18, W2/W3).
 
 use std::ffi::OsString;
 

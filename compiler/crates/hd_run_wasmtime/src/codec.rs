@@ -85,6 +85,11 @@ impl<'a> Dec<'a> {
         Ok(bytes)
     }
 
+    pub fn zz(&mut self) -> wasmtime::Result<i64> {
+        let value = self.leb()?;
+        Ok(i64::from_le_bytes((value >> 1).to_le_bytes()) ^ -i64::try_from(value & 1).unwrap_or(0))
+    }
+
     pub fn str(&mut self) -> wasmtime::Result<String> {
         Ok(String::from_utf8_lossy(self.bytes()?).into_owned())
     }
@@ -120,6 +125,7 @@ mod tests {
             let decoded =
                 i64::from_le_bytes((v >> 1).to_le_bytes()) ^ -i64::try_from(v & 1).expect("bit");
             assert_eq!(decoded, n);
+            assert_eq!(Dec::new(e.done()).zz().expect("signed integer"), n);
         }
         for bad in [&[128][..], &[3, b'a'][..], &[255; 11][..]] {
             let err = Dec::new(bad).bytes().expect_err("truncated arguments");

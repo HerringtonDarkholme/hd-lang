@@ -43,14 +43,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-### M19. Implement: Http And Net On wasmtime (W3, #245, Code)
-
-After M18. Port `compiler/host/http.mjs` and `net.mjs` per §20.4 (client
-threads, no async runtime): grant checks per request and per redirect,
-the `Host` header (see commit abbd5395), timeouts, TCP/UDP handles.
-Same files and rules as M18. Tests must use local servers only, never
-the network.
-
 ### M20. Fix: Show A Prompt Before Reading Input (#277, Code)
 
 Both engines hold stdout until stderr is written or the run ends, so a
@@ -91,4 +83,13 @@ code changes.
 
 ## Questions
 
-(none open)
+### M19 Q1. Node closed UDP handles
+
+A UDP send after close must return `Disposed`, even when its destination
+is denied or invalid. Node instead returns the address/grant error first.
+A loopback probe confirms this; Diagnostic Notes records its encoded result.
+
+May M19 also edit `compiler/host/core.mjs` and `net.mjs` to check the
+handle's existence and closed state before destination validation?
+The worker would expose a metadata-only check, with no socket access;
+each real send would still check its destination grant before sending.

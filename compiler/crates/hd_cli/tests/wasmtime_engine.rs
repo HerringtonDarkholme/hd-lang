@@ -328,10 +328,10 @@ pub fn main!() -> void $ Console + FsRead:
     assert!(denied.stdout.is_empty());
 }
 
-/// Startup refuses every totally denied core provider on either engine,
+/// Startup refuses every totally denied native provider on either engine,
 /// including Random, whose methods have no per-call scope checks.
 #[test]
-fn core_providers_follow_total_denial_on_both_engines() {
+fn native_providers_follow_total_denial_on_both_engines() {
     fn section(module: &mut Vec<u8>, id: u8, bytes: &[u8]) {
         module.push(id);
         module.push(u8::try_from(bytes.len()).expect("small section"));
@@ -352,6 +352,8 @@ fn core_providers_follow_total_denial_on_both_engines() {
         ("Process", "run.start", &[0x7f][..], &[0x7f, 0x7f][..]),
         ("Random", "next_u64", &[][..], &[0x7e][..]),
         ("Sys", "os", &[][..], &[0x7f][..]),
+        ("Http", "send.start", &[0x7f][..], &[0x7f, 0x7f][..]),
+        ("Net", "lookup.start", &[0x7f][..], &[0x7f, 0x7f][..]),
     ] {
         let mut module = b"\0asm\x01\0\0\0".to_vec();
         let mut types = vec![3, 0x60, u8::try_from(params.len()).unwrap()];

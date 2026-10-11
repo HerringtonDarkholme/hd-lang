@@ -300,6 +300,71 @@ with SHA-256 `abe5f22751445776579828facd8bce6d7ae7d29dd2cf56f8bad906556f883c1a`.
 W1 reported 5,209 bytes; these current before and after modules are
 byte-identical.
 
+### 18.9 As Built (W3, #245): Http And Net Providers
+
+W3 adds `Http`, `Net`, `TcpStream`, `TcpListener` and `UdpSocket`
+to the wasmtime default profile. Node remains the default engine.
+The import signatures and generated program code remain unchanged.
+
+Http uses one lazily started shared client thread and synchronous channel
+replies. Each redirect rechecks the target's host and port before DNS or I/O.
+The ten-redirect limit, method rewrites and whole-chain deadline follow
+the Node provider.
+
+Pinned `ureq 3.4.2` supplies TCP, TLS and response-body framing.
+A plaintext transport adapter preserves raw header spelling, ordering,
+repeats and Latin-1 values on both TCP and TLS connections.
+It writes the original request headers and body, preserving explicit
+framing and the URL-derived or caller-supplied `Host` header.
+Proxies, connection reuse and automatic decompression are disabled.
+
+The resolver hands every address to the connector through hop-local
+state, bypassing ureq's bounded resolver result.
+One absolute deadline covers DNS, candidate connections, TLS and the
+whole response body, including time spent waiting for the shared worker.
+
+Net uses a separate lazy worker for each host instance.
+That worker owns safe nonblocking `std::net` sockets configured through
+`socket2`, with queued arrivals and retained EOF or error states.
+Handles retain their closed state, and each UDP destination receives its
+own grant check.
+
+Hostname connections alternate deduplicated resolver families, preferring
+the first returned family.
+Nonfinal attempts receive 250 milliseconds, matching
+[Node's family-selection timeout](https://nodejs.org/download/release/v24.21.0/docs/api/net.html#netgetdefaultautoselectfamilyattempttimeout).
+The final or sole attempt waits for completion or host cancellation.
+
+Every network operation completes inside `.start`, returning status zero
+and an encoded result, as on Node.
+The `.finish` imports reject stale operations as `host-contract`.
+Ending a run stops its Net worker and releases its shared Http worker
+guard, even when an embedding retains the ended instance.
+
+The network suites contain 18 Http and 11 Net tests, using local servers
+only. Twenty-five compare both engines; four separately check decided
+spec behavior or retained-instance cleanup.
+
+Certificate-failure tests compare the error category, not provider-specific
+TLS messages. The original 23 core parity tests remain unchanged.
+Twenty-three Http and nine Net unit tests cover internal protocol and lifecycle
+edges. Native validation runs on macOS.
+
+The Windows cross-check currently stops while building `ring`, because
+`x86_64-w64-mingw32-gcc` is unavailable; native Windows execution is unverified.
+DNS cancellation and observed Node/spec discrepancies are recorded in
+[Diagnostic Notes](../../audit/compiler/diagnostic-notes.md).
+
+Driver conformance on the current checker runs 131 runtime programs on
+both engines: 130 match exactly, and the documented unbounded-recursion
+case differs. Five runtime-profile programs remain on Node.
+The prior W2 run's 129 programs and 128 matches are recorded above.
+
+Fresh Node and wasmtime caches still produce the identical 5,210-byte
+hello module, with SHA-256
+`abe5f22751445776579828facd8bce6d7ae7d29dd2cf56f8bad906556f883c1a`.
+The macOS release binary is 22,244,944 bytes, including W3's dependencies.
+
 ## 19. Test Runner
 
 ### 19.1 Building
@@ -596,7 +661,10 @@ decision):
 | Crate | Version | Size | Why |
 | --- | --- | --- | --- |
 | `wasmtime` | 49.0 (stable; CLI spike used 49.0.2) | L (~100 transitive crates, Cranelift) | the engine; sync `Linker`/`Store`/epoch APIs cover §20.2-20.4 with no async runtime |
-| `ureq` | 3.4 | M (rustls, no Tokio) | blocking HTTP matching the sync model; manual redirects for grant rechecks |
+| `ureq` | 3.4.2, pinned | M (rustls, no Tokio) | blocking HTTP matching the sync model; manual redirects for grant rechecks; the raw-header adapter uses its unversioned transport API |
+| `url` | 2 | M (IDNA and Unicode tables) | URL parsing and relative redirects, including authority and default-port grant checks |
+| `socket2` | 0.6 | S | safe nonblocking TCP connect and listener/UDP setup, with platform socket options |
+| `rustls` | 0.23, already transitive | no second TLS stack | identify certificate errors wrapped by the HTTP transport |
 | `serde_json` | 1.0 | S | test-runner JSON lines and JSON configs (Q6) |
 | `num-bigint` | 0.5 | S | `float.mjs` decimal scaling (Q3) |
 | `getrandom` | 0.4 | XS | `hd:Random` without RNG state |
@@ -605,7 +673,7 @@ decision):
 | `nix` | 0.31.3 | S, Unix only | safe POSIX spawn and wait wrappers, avoiding `Command`'s implicit shell fallback |
 | `windows-sys` | 0.61 | already transitive, Windows only | filesystem flags and native error constants; no unsafe calls |
 
-Everything else is `std`. Deliberately absent: Tokio (no async host
+All remaining provider operations use `std`. Deliberately absent: Tokio (no async host
 calls), reqwest/hyper (async runtimes or larger trees than `ureq` for
 the same buffered semantics), `rand` (no distribution sampling; seeds
 are discussed in Q4), TLS crates beyond what `ureq` pulls (Net is

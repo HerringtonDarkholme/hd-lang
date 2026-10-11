@@ -16,7 +16,8 @@
 //!
 //! The host traits of the default profile that run here are `Console`,
 //! `ConsoleInput`, `Clock`, `Args`, `Env`, `FsRead`, `FsWrite`, `Process`,
-//! `Random`, `Sys`, the `hd:rt` runtime imports and the `hd:prim` primitives.
+//! `Random`, `Sys`, `Http`, `Net`, their handle traits, the `hd:rt` runtime
+//! imports and the `hd:prim` primitives.
 //! A module that imports any other is refused at
 //! load with a message naming it; `hd` runs those on Node.
 
@@ -24,6 +25,8 @@ mod codec;
 mod core;
 mod fs;
 mod host;
+mod http;
+mod net;
 pub mod prim;
 mod reactor;
 
@@ -228,6 +231,7 @@ impl WasmtimeInstance {
     /// Ends the run with status `status`, writing the held output.
     fn end(&mut self, status: i32) -> Outcome {
         self.store.data_mut().flush();
+        self.store.data_mut().close();
         let code = u8::try_from(status & 0xff).unwrap_or(1);
         let o = Outcome::Exit(code);
         self.done = Some(o.clone());
@@ -442,11 +446,11 @@ mod tests {
     fn refuses_what_is_not_wasm_and_imports_not_on_wasmtime() {
         let e = WasmtimeEngine::new(EngineConfig::default()).expect("engine");
         assert!(e.load(b"not wasm", &MemoryStore::default()).is_err());
-        // A module that imports `hd:Http` `send.start` (the next port).
+        // The test-runner providers have not been ported yet.
         let mut m = b"\0asm\x01\0\0\0".to_vec();
         m.extend([1, 4, 1, 0x60, 0, 0]);
-        let module = b"hd:Http";
-        let name = b"send.start";
+        let module = b"hd:TestRunner";
+        let name = b"temp_dir";
         let mut body = vec![1, u8::try_from(module.len()).expect("len")];
         body.extend(module);
         body.push(u8::try_from(name.len()).expect("len"));
@@ -459,7 +463,7 @@ mod tests {
             panic!("an import not on wasmtime loads");
         };
         assert!(
-            msg.contains("`Http`") && msg.contains("not yet on wasmtime"),
+            msg.contains("`TestRunner`") && msg.contains("not yet on wasmtime"),
             "{msg}"
         );
     }
