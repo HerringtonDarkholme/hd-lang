@@ -412,7 +412,7 @@ fn run_job[$R](providers: $.Context[$ R], job: fn() -> void $ R) -> void:
 /// `Tag` must not lend its code to one whose `read` also needs `Log`.
 #[test]
 fn one_body_under_two_rows_shares_no_code() {
-    let store = MemoryStore::default();
+    let store = crate::warm_store();
     let first = format!(
         "{TAGS}
 fn read() -> i32 $ Tag: 42

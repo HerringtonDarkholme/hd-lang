@@ -4,7 +4,6 @@
 //! extends it, `dyn Error` (trait.downcast.ordinary). The match over the
 //! result is exhaustive over `.Some` and `.None` (#178).
 
-use hd_cache::MemoryStore;
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, build};
 use hd_project::MemorySources;
@@ -13,7 +12,7 @@ use hd_sched::SerialOrder;
 fn codes(main: &str) -> Vec<Code> {
     let mut src = MemorySources::default();
     src.insert("main.hd", main);
-    let store = MemoryStore::default();
+    let store = crate::warm_store();
     let host = Host {
         render_tir: &[],
         sources: &src,

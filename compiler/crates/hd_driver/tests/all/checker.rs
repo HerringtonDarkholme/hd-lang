@@ -7,7 +7,7 @@
 use std::path::{Path, PathBuf};
 
 use hd_base::Stage;
-use hd_cache::MemoryStore;
+use hd_cache::{CacheStore, MemoryStore};
 use hd_diag::Code;
 use hd_driver::{
     Dependency, Executor, Goal, Host, NoClock, Output, Packages, build, build_packages,
@@ -57,13 +57,22 @@ fn analyze_std(render: &[&str]) -> Output {
 }
 
 fn program(main: &str) -> Output {
+    build_program(main, &crate::warm_store())
+}
+
+/// `program` with its own empty store, for the tests that read the
+/// build's report, which a cache hit leaves empty.
+fn cold_program(main: &str) -> Output {
+    build_program(main, &MemoryStore::default())
+}
+
+fn build_program(main: &str, store: &dyn CacheStore) -> Output {
     let mut src = MemorySources::default();
     src.insert("main.hd", main);
-    let store = MemoryStore::default();
     let host = Host {
         render_tir: &[],
         sources: &src,
-        store: &store,
+        store,
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };
@@ -156,7 +165,7 @@ fn renamed_uses_resolve_in_bodies() {
 /// non-entry module's top level is requirement-free.
 #[test]
 fn top_level_statements_are_checked_in_order() {
-    let ok = program(
+    let ok = cold_program(
         "limit := +10\n\nfn below(n: i32) -> bool:\n    n < limit\n\npub fn main() -> void $ Console:\n    println(below(3))\n",
     );
     assert!(
@@ -168,7 +177,7 @@ fn top_level_statements_are_checked_in_order() {
         ok.render()
     );
     assert_eq!(ok.report.body_failed, 0, "{:?}", ok.report.body_failures);
-    let late = program(
+    let late = cold_program(
         "first := apply(first_name)\nlet names: List[string] = [\"Ada\"]\n\nfn apply(callback: fn() -> string) -> string:\n    callback()\n\nfn first_name() -> string:\n    names[0]\n\npub fn main() -> void $ Console:\n    println(first)\n",
     );
     assert!(
@@ -209,7 +218,7 @@ fn top_level_statements_are_checked_in_order() {
 /// `module.init.binding`), with `f(x)`, `f!(x)` or as a value.
 #[test]
 fn top_level_function_values_are_callable() {
-    let out = program(
+    let out = cold_program(
         "twice := fn(n: i32) -> i32:\n    n * +2\n\nfetch := fn!(n: i32) -> i32:\n    n\n\npub fn main!() -> void $ Console:\n    println(twice(+3))\n    println(fetch!(+4))\n    pending := fetch(+5)\n    println(pending!())\n",
     );
     assert!(
@@ -228,7 +237,7 @@ fn top_level_function_values_are_callable() {
 /// `provider-value-type-mismatch` expects.
 #[test]
 fn with_blocks_provide_requirements() {
-    let out = program(
+    let out = cold_program(
         "use std.console.BufferConsole\n\nfn show() -> void:\n    let mut console = BufferConsole.new()\n    $.with(Console = console):\n        println(1)\n\npub fn main() -> void $ Console:\n    show()\n",
     );
     assert!(
@@ -237,7 +246,7 @@ fn with_blocks_provide_requirements() {
         out.render()
     );
     assert_eq!(out.report.body_failed, 0, "{:?}", out.report.body_failures);
-    let out = program(
+    let out = cold_program(
         "fn show() -> void:\n    $.with(Console = 5):\n        println(1)\n\npub fn main() -> void $ Console:\n    show()\n",
     );
     assert!(
@@ -250,7 +259,7 @@ fn with_blocks_provide_requirements() {
 /// Pipes and comprehensions check (an Emit stub may stop the build).
 #[test]
 fn pipes_and_comprehensions_check() {
-    let out = program(
+    let out = cold_program(
         "fn add(a: i32, b: i32) -> i32:\n    a + b\n\npub fn main() -> void $ Console:\n    xs := [+1, 2, 3, 4]\n    y := 3 |> add(_, 1)\n    evens := [for x in xs if x % 2 == 0 => x * 10]\n    m := {for x in xs => \"$x\": x + y}\n    println(evens.len() + m.len())\n",
     );
     assert!(
@@ -259,7 +268,7 @@ fn pipes_and_comprehensions_check() {
         out.render()
     );
     assert_eq!(out.report.body_failed, 0, "{:?}", out.report.body_failures);
-    let out = program(
+    let out = cold_program(
         "fn add(a: i32, b: i32) -> i32:\n    a + b\n\npub fn main() -> void $ Console:\n    println(add(_, 1))\n",
     );
     assert!(
@@ -305,14 +314,14 @@ fn a_missing_requirement_is_an_error() {
 #[test]
 fn row_polymorphic_callbacks() {
     const CALL: &str = "fn call[T, $R](f: fn() -> T $ R) -> T $ R:\n    f()\n\n";
-    let ok = program(&format!(
+    let ok = cold_program(&format!(
         "{CALL}pub fn main() -> void $ Console:\n    n := call(fn() -> i32: 7)\n    call(fn() -> void: println(n))\n"
     ));
     assert!(codes(&ok).is_empty(), "{}", ok.render());
     // Each call's instance gets its row's providers; the closure reads
     // its own from the context the call passes.
     assert!(ok.wasm.is_some(), "{:?}", ok.report.body_failures);
-    let bad = program(&format!(
+    let bad = cold_program(&format!(
         "{CALL}pub fn quiet() -> void:\n    call(fn() -> void: println(1))\n\npub fn main() -> void $ Console:\n    quiet()\n"
     ));
     assert!(
@@ -321,7 +330,7 @@ fn row_polymorphic_callbacks() {
         bad.render()
     );
     // A closure fits a wider expected row, never a narrower one.
-    let narrow = program(
+    let narrow = cold_program(
         "fn run(f: fn() -> void) -> void:\n    f()\n\npub fn main() -> void $ Console:\n    run(fn() -> void: println(1))\n",
     );
     assert!(

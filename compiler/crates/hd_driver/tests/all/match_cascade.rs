@@ -3,7 +3,6 @@
 //! bindings they declare, and no `nonexhaustive-match` (#178). A scrutinee
 //! that checks still gets the exhaustiveness check.
 
-use hd_cache::MemoryStore;
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, build};
 use hd_project::MemorySources;
@@ -12,7 +11,7 @@ use hd_sched::SerialOrder;
 fn codes(main: &str) -> Vec<Code> {
     let mut src = MemorySources::default();
     src.insert("main.hd", main);
-    let store = MemoryStore::default();
+    let store = crate::warm_store();
     let host = Host {
         render_tir: &[],
         sources: &src,

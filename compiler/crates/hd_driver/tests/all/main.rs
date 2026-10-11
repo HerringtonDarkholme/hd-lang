@@ -100,3 +100,35 @@ mod typeid_of;
 mod vararg_value_run;
 mod variant_value_run;
 mod void_unit_run;
+
+/// One content-addressed store shared by every test that only checks what
+/// a build produces: std compiles once for the process.
+pub struct Shared(&'static hd_cache::MemoryStore);
+
+pub fn warm_store() -> Shared {
+    static STORE: std::sync::OnceLock<hd_cache::MemoryStore> = std::sync::OnceLock::new();
+    Shared(STORE.get_or_init(hd_cache::MemoryStore::default))
+}
+
+impl std::ops::Deref for Shared {
+    type Target = hd_cache::MemoryStore;
+    fn deref(&self) -> &hd_cache::MemoryStore {
+        self.0
+    }
+}
+
+impl hd_cache::CacheStore for Shared {
+    fn get(
+        &self,
+        kind: hd_cache::EntryKind,
+        key: &hd_base::Hash128,
+    ) -> Option<std::sync::Arc<[u8]>> {
+        self.0.get(kind, key)
+    }
+    fn put(&self, kind: hd_cache::EntryKind, key: &hd_base::Hash128, bytes: &[u8]) {
+        self.0.put(kind, key, bytes);
+    }
+    fn touch(&self, kind: hd_cache::EntryKind, key: &hd_base::Hash128) {
+        self.0.touch(kind, key);
+    }
+}

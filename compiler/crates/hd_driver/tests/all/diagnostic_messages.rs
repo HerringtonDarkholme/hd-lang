@@ -2,7 +2,6 @@
 //! parser gave it, and an import the module does not give with the module
 //! and the name, never the code twice.
 
-use hd_cache::MemoryStore;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
@@ -10,7 +9,7 @@ use hd_sched::SerialOrder;
 fn analyze(main: &str) -> Output {
     let mut src = MemorySources::default();
     src.insert("main.hd", main);
-    let store = MemoryStore::default();
+    let store = crate::warm_store();
     let host = Host {
         render_tir: &[],
         sources: &src,

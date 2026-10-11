@@ -330,7 +330,7 @@ fn grow[T](n: i32) -> i32:
 /// builds share one store and must not share that code.
 #[test]
 fn an_edit_that_changes_an_inferred_row_misses_its_callers_code() {
-    let store = MemoryStore::default();
+    let store = crate::warm_store();
     let program = |inner: &str| {
         format!(
             "{TAGS}

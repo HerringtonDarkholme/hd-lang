@@ -11,7 +11,6 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use hd_cache::MemoryStore;
 use hd_driver::{Executor, Goal, Host, NoClock, build};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
@@ -67,7 +66,7 @@ impl Case {
         }
         let mut src = MemorySources::default();
         src.insert("main.hd", &main);
-        let store = MemoryStore::default();
+        let store = crate::warm_store();
         let host = Host {
             render_tir: &[],
             sources: &src,

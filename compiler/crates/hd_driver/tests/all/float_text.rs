@@ -9,7 +9,6 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use hd_cache::MemoryStore;
 use hd_driver::{Executor, Goal, Host, NoClock, build};
 use hd_project::MemorySources;
 use hd_run_wasmtime::prim;
@@ -356,7 +355,7 @@ fn fixed_text_matches_rust() {
 fn run_tests(name: &str, src: &str) -> Vec<String> {
     let mut sources = MemorySources::default();
     sources.insert("main.hd", src);
-    let store = MemoryStore::default();
+    let store = crate::warm_store();
     let host = Host {
         render_tir: &[],
         sources: &sources,

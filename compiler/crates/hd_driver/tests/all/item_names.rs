@@ -1,7 +1,6 @@
 //! Diagnostics name items as the user writes them (`Eq`), not by their
 //! stable internal path (`std/cmp/Eq`).
 
-use hd_cache::MemoryStore;
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
@@ -10,7 +9,7 @@ use hd_sched::SerialOrder;
 fn analyze(main: &str) -> Output {
     let mut src = MemorySources::default();
     src.insert("main.hd", main);
-    let store = MemoryStore::default();
+    let store = crate::warm_store();
     let host = Host {
         render_tir: &[],
         sources: &src,

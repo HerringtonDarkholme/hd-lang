@@ -5,7 +5,6 @@
 //! silent. The single-file forms are also conformance fixtures; the
 //! other-module rules need two modules.
 
-use hd_cache::MemoryStore;
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
@@ -16,7 +15,7 @@ fn analyze(files: &[(&str, &str)]) -> Output {
     for (path, text) in files {
         src.insert(path, text);
     }
-    let store = MemoryStore::default();
+    let store = crate::warm_store();
     let host = Host {
         render_tir: &[],
         sources: &src,

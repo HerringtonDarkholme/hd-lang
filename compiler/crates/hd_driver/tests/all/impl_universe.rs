@@ -7,7 +7,6 @@
 //! same holds for a goal with known arguments whose proof reads an
 //! unowned row (a misplaced impl) that only one closure holds.
 
-use hd_cache::MemoryStore;
 use hd_driver::{Executor, Goal, Host, NoClock, build};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
@@ -61,7 +60,7 @@ fn analyze(executor: Executor, a_first: bool) -> String {
     };
     src.insert(fa, A);
     src.insert(fb, B);
-    let store = MemoryStore::default();
+    let store = crate::warm_store();
     let host = Host {
         render_tir: &[],
         sources: &src,
@@ -130,7 +129,7 @@ fn analyze_misplaced(executor: Executor, with_first: bool) -> String {
     };
     src.insert(fw, TAG_WITH);
     src.insert("without/main.hd", TAG_WITHOUT);
-    let store = MemoryStore::default();
+    let store = crate::warm_store();
     let host = Host {
         render_tir: &[],
         sources: &src,
@@ -206,7 +205,7 @@ fn each_closure_gets_its_own_answer_in_any_order_and_thread_count() {
 fn analyze_one(text: &str) -> String {
     let mut src = MemorySources::default();
     src.insert("main.hd", text);
-    let store = MemoryStore::default();
+    let store = crate::warm_store();
     let host = Host {
         render_tir: &[],
         sources: &src,

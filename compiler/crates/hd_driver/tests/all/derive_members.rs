@@ -279,7 +279,7 @@ data Label:
 pub fn main() -> void:
     pass
 ";
-    let store = MemoryStore::default();
+    let store = crate::warm_store();
     let mut src = MemorySources::default();
     src.insert("app/main.hd", main);
     src.insert("lib/show.hd", &lib("Quiet { out: \"\" }"));

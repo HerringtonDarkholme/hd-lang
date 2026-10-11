@@ -34,7 +34,7 @@ fn build_program(store: &MemoryStore, main: &str) -> Output {
 }
 
 fn run(name: &str, main: &str) -> String {
-    let store = MemoryStore::default();
+    let store = crate::warm_store();
     let out = build_program(&store, main);
     let wasm = out.wasm.as_ref().expect("wasm");
     let path =

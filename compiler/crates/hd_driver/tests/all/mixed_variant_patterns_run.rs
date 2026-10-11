@@ -8,7 +8,6 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use hd_cache::MemoryStore;
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
@@ -17,7 +16,7 @@ use hd_sched::SerialOrder;
 fn built(main: &str, goal: &Goal) -> Output {
     let mut src = MemorySources::default();
     src.insert("main.hd", main);
-    let store = MemoryStore::default();
+    let store = crate::warm_store();
     let host = Host {
         render_tir: &[],
         sources: &src,

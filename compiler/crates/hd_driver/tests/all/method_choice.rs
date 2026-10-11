@@ -7,7 +7,6 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use hd_cache::MemoryStore;
 use hd_diag::{Code, Severity};
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
@@ -35,7 +34,7 @@ fn build_files(files: &[(&str, &str)], goal: &Goal) -> Output {
     for (name, text) in files {
         src.insert(name, text);
     }
-    let store = MemoryStore::default();
+    let store = crate::warm_store();
     let host = Host {
         render_tir: &[],
         sources: &src,
