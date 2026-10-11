@@ -8,15 +8,15 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2550 | 252 | 43 | 2845 |
+| 2552 | 252 | 41 | 2845 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
 | `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
-| `lang/02-grammar.md` | 203 | 11 | 1 | 215 |
-| `lang/03-names-and-scopes.md` | 99 | 1 | 1 | 101 |
+| `lang/02-grammar.md` | 204 | 11 | 0 | 215 |
+| `lang/03-names-and-scopes.md` | 100 | 1 | 0 | 101 |
 | `lang/04-type-system.md` | 314 | 38 | 0 | 352 |
 | `lang/05-expressions.md` | 245 | 32 | 0 | 277 |
 | `lang/06-control-flow.md` | 139 | 14 | 4 | 157 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 97 | 5 | 3 | 105 |
-| `runtime/valid` | 876 | 15 | 38 | 929 |
+| `runtime/valid` | 878 | 15 | 36 | 929 |
 | `typing/invalid` | 873 | 201 | 1 | 1075 |
 | `typing/valid` | 406 | 8 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -117,7 +117,7 @@ compiler stage that first declined the case.
 | `fail:unknown-type` | 3 |
 | `fail:unknown-variant` | 1 |
 | `fail:unused-local-binding` | 6 |
-| `unsupported:Body` | 7 |
+| `unsupported:Body` | 5 |
 | `unsupported:Collect` | 5 |
 | `unsupported:Link` | 3 |
 | `unsupported:RunCase` | 28 |
@@ -584,15 +584,13 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (7)</summary>
+<details><summary><code>unsupported:Body</code> (5)</summary>
 
-- `runtime/valid/binding-expressions.hd`
 - `typing/invalid/for-over-non-iterable.hd`
 - `runtime/valid/tuple-impl-target.hd`
 - `typing/valid/type-default-trait-method.hd`
 - `runtime/valid/shared-enum-data-computed-once.hd`
 - `runtime/valid/iterator-list-sum.hd`
-- `runtime/valid/binding-chain-with-suite.hd`
 
 </details>
 
@@ -1069,7 +1067,9 @@ runtime/valid/bang-call-and-prefix-not.hd
 runtime/valid/bang-call-arguments-before-body.hd
 runtime/valid/bang-call-explicit-type-arguments.hd
 runtime/valid/bare-marker-decorator.hd
+runtime/valid/binding-chain-with-suite.hd
 runtime/valid/binding-expression-tuple-value.hd
+runtime/valid/binding-expressions.hd
 runtime/valid/blanket-impl-dynamic-and-bound.hd
 runtime/valid/blanket-impl-for-list.hd
 runtime/valid/block-on-inside-driver.hd

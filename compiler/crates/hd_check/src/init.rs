@@ -321,6 +321,18 @@ impl Ck<'_, '_> {
             self.stmt(s)?;
             return Ok(());
         };
+        self.top_binding(s, pat, ty_node, rhs).map(|_| ())
+    }
+
+    /// One top-level binding: a global set from its initializer. A chain
+    /// declares its inner binding first and returns the global it declared.
+    fn top_binding(
+        &mut self,
+        s: NodeRef<'_>,
+        pat: NodeRef<'_>,
+        ty_node: Option<NodeRef<'_>>,
+        rhs: NodeRef<'_>,
+    ) -> StageResult<(DefId, Ty)> {
         if pat.kind() != SyntaxKind::BindingPattern || pat.children().next().is_some() {
             return unsupported("a top-level binding with a pattern");
         }
@@ -334,11 +346,26 @@ impl Ck<'_, '_> {
         };
         let text = self.cx.src.text(nt).to_owned();
         let name = self.cx.names.syms.intern(&text);
+        let chain = (s.kind() == SyntaxKind::ExprStmt && rhs.kind() == SyntaxKind::BindingExpr)
+            .then(|| {
+                let mut inner = rhs.children();
+                inner.next().zip(inner.next())
+            })
+            .flatten();
         let annot = match ty_node {
             Some(t) => Some(self.ty_node(t)?),
             None => None,
         };
-        let (r, t) = self.expr(rhs, annot)?;
+        // `grammar.stmt.chain`: `a := b := e` binds `b` to `e`, then `a` to
+        // the value of that binding, in order.
+        let (r, t) = match chain {
+            Some((inner_pat, inner_rhs)) => {
+                let (def, ty) = self.top_binding(s, inner_pat, None, inner_rhs)?;
+                let a = self.b.refs_record(&[Ref(def.raw())]);
+                (self.b.emit(Tag::GlobalGet, a, NONE, ty, rhs.index()), ty)
+            }
+            None => self.expr(rhs, annot)?,
+        };
         let (r, t) = match annot {
             Some(a) => (self.coerce(r, t, a, rhs, "binding"), a),
             None => (r, t),
@@ -369,7 +396,7 @@ impl Ck<'_, '_> {
         );
         let a = self.b.refs_record(&[Ref(def.raw())]);
         self.b.emit(Tag::GlobalSet, a, r.0, Ty::VOID, s.index());
-        Ok(())
+        Ok((def, t))
     }
 
     /// An enum's shared constructor data (`data.shared.module-init`): each

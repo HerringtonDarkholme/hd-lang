@@ -244,9 +244,8 @@ impl Ck<'_, '_> {
                 let [pat, rhs] = kids.as_slice() else {
                     return unsupported("this binding form");
                 };
-                if rhs.kind() == SyntaxKind::BindingExpr {
-                    return unsupported("a binding chain");
-                }
+                // `grammar.stmt.chain`: a chain `a := b := e` is `a := (b := e)`;
+                // `let_pattern` checks the inner binding through this same arm.
                 // `names.bind.no-redeclare`, `names.scope.duplicate`.
                 let name = (pat.kind() == SyntaxKind::BindingPattern).then(|| self.sym_of(*pat));
                 if let Some(name) = name

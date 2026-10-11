@@ -276,7 +276,7 @@ fn not_implemented_stops_a_build() {
     let mut s = MemorySources::default();
     s.insert(
         "main.hd",
-        "pub fn main() -> void $ Console:\n    a := b := 1\n    println(a)\n",
+        "pub fn main() -> void $ Console:\n    println(0xFFFFFFFFFFFFFFFFF)\n",
     );
     let r = run(
         &MemoryStore::default(),
