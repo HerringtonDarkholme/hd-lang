@@ -56,15 +56,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
 
-### M42. Split `net.rs` in the wasmtime host
-
-`crates/hd_run_wasmtime/src/net.rs` is 1798 lines. Split it into a
-`net/` module the way M36 split `http.rs`: one file per concern, code
-moved verbatim, visibility tightened, and no file over about 600 lines.
-Done when `cargo test -q -p hd_run_wasmtime` (net parity included) passes
-and the wasmtime-only conformance verdicts are unchanged. Files:
-`crates/hd_run_wasmtime/src/net.rs` and `crates/hd_run_wasmtime/src/net/**`.
-
 ### M43. Split `fs.rs` in the wasmtime host
 
 The same for `crates/hd_run_wasmtime/src/fs.rs` (1501 lines): an `fs/`
