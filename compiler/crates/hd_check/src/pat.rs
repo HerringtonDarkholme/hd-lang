@@ -653,7 +653,13 @@ impl Ck<'_, '_> {
         // `names.scope.recursive-closure`: a closure initializer's body may
         // call the name being bound, which is a local before the body.
         let (r, t, own) = match name {
-            Some(name) if rhs.kind() == SyntaxKind::ClosureExpr => {
+            // `fn.recursion.closure.binding`: only a statement-form binding
+            // grants the self-name; a chain member does not.
+            Some(name)
+                if rhs.kind() == SyntaxKind::ClosureExpr
+                    && (at.kind() == SyntaxKind::LetStmt
+                        || self.stmt_binding == Some(at.index())) =>
+            {
                 self.check_local_name(name, pat);
                 let mut parts = self.closure_parts(rhs)?;
                 parts.name = Some(name);

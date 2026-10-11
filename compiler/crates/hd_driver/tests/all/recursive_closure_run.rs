@@ -185,3 +185,58 @@ pub fn main() -> void $ Console:
         out.render()
     );
 }
+
+/// A chain member is not the statement form `fn.recursion.closure.binding`
+/// names, so its closure body cannot see the name: `names.scope.not-in-initializer`.
+fn assert_unknown_name(name: &str, main: &str) {
+    let out = built(main);
+    assert_eq!(
+        out.diags.code,
+        vec![Code::UnknownName],
+        "{name}: {}",
+        out.render()
+    );
+}
+
+#[test]
+fn a_two_link_chain_closure_cannot_see_its_own_name() {
+    let main = "\
+pub fn main() -> void $ Console:
+    a := b := fn(n: i32) -> i32:
+        if n == 0: 0
+        else: n + b(n - 1)
+    println(a(3) + b(3))
+";
+    assert_unknown_name("two-link", main);
+}
+
+#[test]
+fn a_three_link_chain_hides_every_chain_name_in_the_closure() {
+    for own in ["a", "b", "c"] {
+        let main = format!(
+            "\
+pub fn main() -> void $ Console:
+    a := b := c := fn(n: i32) -> i32:
+        if n == 0: 0
+        else: n + {own}(n - 1)
+    println(a(3) + b(3) + c(3))
+"
+        );
+        assert_unknown_name(own, &main);
+    }
+}
+
+#[test]
+fn a_chain_closure_may_call_an_outer_function_of_the_same_name() {
+    let main = "\
+fn b(n: i32) -> i32:
+    n * 10
+
+pub fn main() -> void $ Console:
+    a := b := fn(n: i32) -> i32:
+        b(n) + 1
+    println(a(3) + b(3))
+";
+    // The outer `b` is shadowed only after the initializer: 31 + 31.
+    assert_eq!(output_of("chain-outer-name", main), "62\n");
+}

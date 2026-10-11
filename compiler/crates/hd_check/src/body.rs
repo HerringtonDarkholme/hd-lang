@@ -187,6 +187,10 @@ pub(crate) struct Ck<'a, 'c> {
     pub uninit: std::collections::HashSet<LocalId>,
     /// The `:=` bindings declared so far, with their scope's depth.
     pub bound: Vec<(LocalId, usize)>,
+    /// The statement-form `:=` binding being checked: the one `ExprStmt`
+    /// child that may grant its closure a self-name
+    /// (`fn.recursion.closure.binding`). A chain member is not it.
+    pub stmt_binding: Option<hd_base::NodeIdx>,
     /// What the condition just checked leaves on its true and false paths.
     pub cond_flow: Option<crate::init::CondFlow>,
     /// The node of each literal constant, for range diagnostics, and
@@ -323,6 +327,7 @@ pub(crate) fn new_ck<'a, 'c>(
         defer_subs: 0,
         uninit: std::collections::HashSet::new(),
         bound: Vec::new(),
+        stmt_binding: None,
         cond_flow: None,
         forbidden: (kind == BodyKind::Default).then_some("a default or fact expression"),
         lit_nodes: Vec::new(),
@@ -1566,6 +1571,7 @@ impl Ck<'_, '_> {
                 let Some(e) = kids.first() else {
                     return Ok(Ty::VOID);
                 };
+                self.stmt_binding = (e.kind() == SyntaxKind::BindingExpr).then(|| e.index());
                 let (_, t) = self.expr(*e, Some(Ty::VOID))?;
                 let t = self.infer.shallow(self.pool(), t);
                 if self.must_use(t) {
