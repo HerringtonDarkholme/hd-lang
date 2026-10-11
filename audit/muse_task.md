@@ -55,3 +55,43 @@ commit that finishes it. When the queue is empty, report that and wait.
 (Owner, 2026-10-11: Codex is offline; a weaker Muse is back temporarily.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
+
+### M41. Cranelift `Speed` for `hd run --release` on wasmtime
+
+Your M32 recommendation was to keep `OptLevel::None` for `hd test` and
+conformance, and use `Speed` for `hd run --release`. Implement exactly
+that: the engine config takes the build profile, and the release
+profile selects `Speed`. Files: `crates/hd_run_wasmtime/src/**` and the
+wasmtime engine path in `crates/hd_cli/src/engine/wasmtime.rs` (only to
+pass the profile). Done when `cargo test -q -p hd_run_wasmtime` passes,
+the wasmtime-only conformance verdicts are unchanged, and the commit body
+has `hd run` and `hd run --release` times on two micro benchmarks.
+
+### M42. Split `net.rs` in the wasmtime host
+
+`crates/hd_run_wasmtime/src/net.rs` is 1798 lines. Split it into a
+`net/` module the way M36 split `http.rs`: one file per concern, code
+moved verbatim, visibility tightened, and no file over about 600 lines.
+Done when `cargo test -q -p hd_run_wasmtime` (net parity included) passes
+and the wasmtime-only conformance verdicts are unchanged. Files:
+`crates/hd_run_wasmtime/src/net.rs` and `crates/hd_run_wasmtime/src/net/**`.
+
+### M43. Split `fs.rs` in the wasmtime host
+
+The same for `crates/hd_run_wasmtime/src/fs.rs` (1501 lines): an `fs/`
+module, code moved verbatim, no file over about 600 lines, tests and
+verdicts unchanged. Files: `crates/hd_run_wasmtime/src/fs.rs` and
+`crates/hd_run_wasmtime/src/fs/**`.
+
+### M44. Review Codex's M24 commits (#292)
+
+Codex's last job, M24 (commits 53f476b4..8895174b), was a self-review
+of the wasmtime host plus Linux CI fixes. Read those commits and the
+code they touch, and list concrete problems: unsafe assumptions, error
+text copied from Node instead of the spec's panic and diagnostic forms,
+places that ignore a spec rule, tests that prove less than their name
+says, and dead code. Write the list, with file:line and a suggested fix
+for each, as a new section "Review of M24" in
+`future-work/compiler/wasmtime-perf.md`, or a new file
+`future-work/compiler/wasmtime-review.md` if that fits better. No code
+changes in this job.
