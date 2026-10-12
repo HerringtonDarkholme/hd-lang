@@ -1027,8 +1027,28 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// `module.prelude.no-shadow`: a local value, closure parameter or
+    /// top-level binding does not bind a prelude name. The binding still
+    /// introduces the name afterwards.
+    pub(crate) fn check_prelude_shadow(&mut self, name: Symbol, at: NodeRef<'_>) {
+        let text = self.cx.names.text(name);
+        let in_tests = self
+            .cx
+            .tests
+            .as_ref()
+            .is_some_and(|t| t.blocks.iter().any(|b| b.lo <= self.at && self.at < b.hi));
+        let bound = (hd_resolve::is_prelude_name(text)
+            && self.cx.scope_at(self.at).bound_from_outside(name))
+            || (in_tests && hd_resolve::is_test_prelude_name(text));
+        if bound {
+            let msg = format!("`{text}` shadows a prelude name");
+            self.err(Code::PreludeNameShadow, at, &msg);
+        }
+    }
+
     pub(crate) fn bind_local(&mut self, name: Symbol, t: Ty, at: NodeRef<'_>) -> LocalId {
         self.check_local_name(name, at);
+        self.check_prelude_shadow(name, at);
         let l = self.b.local(t, name, local_flags::ASSIGNED, at.index());
         self.scopes.last_mut().expect("scope").insert(name, l);
         self.user_locals.push(l);

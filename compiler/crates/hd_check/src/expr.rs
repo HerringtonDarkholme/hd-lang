@@ -2574,6 +2574,7 @@ impl Ck<'_, '_> {
                         .unwrap_or_else(|| self.infer.fresh(pool, VarKind::General)),
                 };
                 let sym = self.cx.names.syms.intern(&name);
+                self.check_prelude_shadow(sym, p);
                 let l = self
                     .b
                     .local(t, sym, hd_tir::ir::local_flags::PARAM, p.index());

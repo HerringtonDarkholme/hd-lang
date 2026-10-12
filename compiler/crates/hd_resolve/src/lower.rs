@@ -58,6 +58,18 @@ pub const PRELUDE: &[(&str, &[&str])] = &[
 /// in test code, but no declaration of a module may take their place.
 const TEST_PRELUDE: &[(&str, &[&str])] = &[("std.testing", &["it"])];
 
+/// Whether `name` is a prelude name (`module.prelude.no-shadow`).
+#[must_use]
+pub fn is_prelude_name(name: &str) -> bool {
+    PRELUDE.iter().any(|(_, list)| list.contains(&name))
+}
+
+/// Whether `name` is a prelude name of test code only.
+#[must_use]
+pub fn is_test_prelude_name(name: &str) -> bool {
+    TEST_PRELUDE.iter().any(|(_, list)| list.contains(&name))
+}
+
 /// The modules the prelude's names come from: each module's folder gets an
 /// edge to theirs (`module.prelude.fixed-uses`).
 #[must_use]

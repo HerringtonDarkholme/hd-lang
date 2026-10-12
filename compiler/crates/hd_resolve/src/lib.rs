@@ -33,8 +33,8 @@ pub use iface::{
 pub use known::KnownItems;
 pub use lower::{
     Cx, FolderOut, Head, Kinds, LocalItem, LocalSite, ModIn, ModOut, PRELUDE, UseDecl, World,
-    body_nodes, build_folder, heads, local_at, local_items, prelude_modules, test_use_decls,
-    tests_items, traitless_block, use_decls,
+    body_nodes, build_folder, heads, is_prelude_name, is_test_prelude_name, local_at, local_items,
+    prelude_modules, test_use_decls, tests_items, traitless_block, use_decls,
 };
 pub use view::Src;
 
@@ -110,6 +110,15 @@ impl ModuleScope {
         self.use_row.push(use_row);
         self.index.insert(name, row);
     }
+    /// Whether `name` is bound here by the prelude or a `use`, not by a
+    /// declaration of the module itself.
+    #[must_use]
+    pub fn bound_from_outside(&self, name: Symbol) -> bool {
+        self.index
+            .get(&name)
+            .is_some_and(|&r| self.origin[r as usize] != Origin::Own)
+    }
+
     #[must_use]
     pub fn lookup(&self, name: Symbol) -> Option<Binding> {
         self.index.get(&name).map(|&r| self.binding[r as usize])

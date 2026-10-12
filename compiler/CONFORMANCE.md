@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2668 | 156 | 21 | 2845 |
+| 2669 | 155 | 21 | 2845 |
 
 ## By Chapter
 
@@ -23,7 +23,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/07-functions.md` | 120 | 10 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 114 | 8 | 1 | 123 |
 | `lang/09-traits.md` | 343 | 14 | 2 | 359 |
-| `lang/10-modules.md` | 232 | 21 | 5 | 258 |
+| `lang/10-modules.md` | 233 | 20 | 5 | 258 |
 | `lang/11-requirements-and-suspension.md` | 240 | 11 | 8 | 259 |
 | `lang/14-annotations.md` | 144 | 9 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 99 | 3 | 3 | 105 |
 | `runtime/valid` | 903 | 10 | 16 | 929 |
-| `typing/invalid` | 960 | 114 | 1 | 1075 |
+| `typing/invalid` | 961 | 113 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -92,7 +92,7 @@ compiler stage that first declined the case.
 | `fail:no-diagnostic` | 48 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-import` | 1 |
-| `fail:private-main` | 4 |
+| `fail:private-main` | 3 |
 | `fail:re-export-loop` | 1 |
 | `fail:readonly-root` | 1 |
 | `fail:runtime-exit` | 3 |
@@ -282,10 +282,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:private-main</code> (4)</summary>
+<details><summary><code>fail:private-main</code> (3)</summary>
 
 - `typing/invalid/unresolved-generic-return-placeholder.hd`
-- `typing/invalid/prelude-shadow-hash-local.hd`
 - `typing/invalid/unused-cold-suspension.hd`
 - `typing/invalid/trailing-block-ineligible.hd`
 
@@ -2403,6 +2402,7 @@ typing/invalid/possibly-uninitialized-binding.hd
 typing/invalid/power-float-widths.hd
 typing/invalid/power-mixed-numeric-types.hd
 typing/invalid/prelude-shadow-console-parameter.hd
+typing/invalid/prelude-shadow-hash-local.hd
 typing/invalid/prelude-shadow-println-function.hd
 typing/invalid/prelude-shadow-renamed-use.hd
 typing/invalid/prelude-shadow-result-generic.hd

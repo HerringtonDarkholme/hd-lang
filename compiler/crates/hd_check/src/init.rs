@@ -351,6 +351,7 @@ impl Ck<'_, '_> {
         };
         let text = self.cx.src.text(nt).to_owned();
         let name = self.cx.names.syms.intern(&text);
+        self.check_prelude_shadow(name, pat);
         let chain = (s.kind() == SyntaxKind::ExprStmt && rhs.kind() == SyntaxKind::BindingExpr)
             .then(|| {
                 let mut inner = rhs.children();
@@ -537,9 +538,18 @@ impl Ck<'_, '_> {
             };
             self.scopes.push(HashMap::new());
             for (k, r) in out.iter().enumerate() {
-                let l = self.bind_local(params[k].0, params[k].1, e);
                 // A shared constructor parameter is a field, not a local.
-                self.user_locals.pop();
+                self.check_local_name(params[k].0, e);
+                let l = self.b.local(
+                    params[k].1,
+                    params[k].0,
+                    hd_tir::ir::local_flags::ASSIGNED,
+                    e.index(),
+                );
+                self.scopes
+                    .last_mut()
+                    .expect("scope")
+                    .insert(params[k].0, l);
                 self.b.set(l, *r, e.index());
             }
             let (r, t) = self.expr(e, Some(params[i].1))?;

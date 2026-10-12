@@ -668,6 +668,7 @@ impl Ck<'_, '_> {
                         || self.stmt_binding == Some(at.index())) =>
             {
                 self.check_local_name(name, pat);
+                self.check_prelude_shadow(name, pat);
                 let mut parts = self.closure_parts(rhs)?;
                 parts.name = Some(name);
                 parts.reassignable = at.kind() != SyntaxKind::BindingExpr;

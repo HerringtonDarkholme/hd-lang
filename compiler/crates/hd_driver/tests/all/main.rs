@@ -85,6 +85,7 @@ mod optional_join_run;
 mod pipe_bare_steps;
 mod pipe_placeholder;
 mod power_run;
+mod prelude_binding_shadow;
 mod privacy;
 mod private_main;
 mod private_type_leak;
