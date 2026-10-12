@@ -252,6 +252,9 @@ pub(crate) struct Ck<'a, 'c> {
     pub written_row: Option<NodeRefIdx>,
     /// Declaring a `let` pattern's names: whether it has an annotation.
     pub let_view: Option<bool>,
+    /// Set when `declare_pattern` rejected a pattern; its arm then takes
+    /// no part in the reachability and exhaustiveness checks.
+    pub pattern_rejected: bool,
     /// The locals the source binds by name, for `unused-local-binding`.
     pub user_locals: Vec<LocalId>,
     /// Whether the body read a name that a failed `use` poisoned, or a
@@ -434,6 +437,7 @@ pub(crate) fn new_ck<'a, 'c>(
         fn_body: None,
         written_row: None,
         let_view: None,
+        pattern_rejected: false,
         user_locals: Vec::new(),
         norm_depth: 0,
         pre_args: Vec::new(),

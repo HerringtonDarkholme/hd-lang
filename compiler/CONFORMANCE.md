@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2757 | 72 | 16 | 2845 |
+| 2761 | 68 | 16 | 2845 |
 
 ## By Chapter
 
@@ -19,7 +19,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
 | `lang/04-type-system.md` | 341 | 11 | 0 | 352 |
 | `lang/05-expressions.md` | 272 | 5 | 0 | 277 |
-| `lang/06-control-flow.md` | 144 | 9 | 4 | 157 |
+| `lang/06-control-flow.md` | 148 | 5 | 4 | 157 |
 | `lang/07-functions.md` | 123 | 7 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 118 | 5 | 0 | 123 |
 | `lang/09-traits.md` | 349 | 10 | 0 | 359 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 916 | 1 | 12 | 929 |
-| `typing/invalid` | 1012 | 62 | 1 | 1075 |
+| `typing/invalid` | 1016 | 58 | 1 | 1075 |
 | `typing/valid` | 414 | 1 | 0 | 415 |
 | `typing/warnings` | 12 | 8 | 0 | 20 |
 
@@ -75,9 +75,7 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:bare-variant-pattern` | 3 |
 | `fail:duplicate-argument` | 1 |
-| `fail:duplicate-data-pattern-field` | 1 |
 | `fail:missing-required-field` | 2 |
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 2 |
@@ -98,23 +96,9 @@ compiler stage that first declined the case.
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 11 |
 
-<details><summary><code>fail:bare-variant-pattern</code> (3)</summary>
-
-- `typing/invalid/bare-variant-pattern-in-match.hd`
-- `typing/invalid/bare-some-call-pattern.hd`
-- `typing/invalid/bare-ok-call-pattern.hd`
-
-</details>
-
 <details><summary><code>fail:duplicate-argument</code> (1)</summary>
 
 - `typing/invalid/nonfinal-spread.hd`
-
-</details>
-
-<details><summary><code>fail:duplicate-data-pattern-field</code> (1)</summary>
-
-- `typing/invalid/duplicate-data-pattern-field.hd`
 
 </details>
 
@@ -1671,9 +1655,12 @@ typing/invalid/bang-call-outside-suspension.hd
 typing/invalid/bare-err-is-unknown-name.hd
 typing/invalid/bare-none-is-unknown-name.hd
 typing/invalid/bare-none-pattern.hd
+typing/invalid/bare-ok-call-pattern.hd
 typing/invalid/bare-ok-is-unknown-name.hd
 typing/invalid/bare-parameter-impl-target.hd
+typing/invalid/bare-some-call-pattern.hd
 typing/invalid/bare-some-is-unknown-name.hd
+typing/invalid/bare-variant-pattern-in-match.hd
 typing/invalid/bare-variant-pattern.hd
 typing/invalid/binding-expression-redeclaration.hd
 typing/invalid/binding-on-non-trait.hd
@@ -1830,6 +1817,7 @@ typing/invalid/duplicate-associated-binding-two-bounds.hd
 typing/invalid/duplicate-associated-binding.hd
 typing/invalid/duplicate-binding-in-one-pattern.hd
 typing/invalid/duplicate-bool-match-arm.hd
+typing/invalid/duplicate-data-pattern-field.hd
 typing/invalid/duplicate-declaration-fact.hd
 typing/invalid/duplicate-fact.hd
 typing/invalid/duplicate-field-declaration.hd

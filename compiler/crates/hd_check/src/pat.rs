@@ -108,6 +108,7 @@ impl Ck<'_, '_> {
                 if self.variant_fields(t, self.cx.src.text(nt)).is_some() {
                     let msg = format!("write `.{}` or a qualified name", self.cx.src.text(nt));
                     self.err(Code::BareVariantPattern, p, &msg);
+                    self.pattern_rejected = true;
                     return Ok(());
                 }
                 return self.bind_pattern_name(p, name, t, binds);
@@ -258,7 +259,8 @@ impl Ck<'_, '_> {
                 {
                     let msg = format!("write `.{name}` or a qualified name");
                     self.err(Code::BareVariantPattern, p, &msg);
-                    return Ok(());
+                    self.pattern_rejected = true;
+                    return self.declare_poisoned_fields(p, binds);
                 }
                 let Some((_, fields)) = self.variant_fields(t, &name) else {
                     if matches!(pool.get(inner), TyData::Infer(_)) {
@@ -311,6 +313,13 @@ impl Ck<'_, '_> {
                     if seen.contains(&fname) {
                         let msg = format!("`{fname}` appears twice in this pattern");
                         self.err(Code::DuplicateDataPatternField, f, &msg);
+                        self.pattern_rejected = true;
+                        if let Some(sub) = f.children().next() {
+                            self.declare_pattern(sub, Ty::POISON, binds)?;
+                        } else {
+                            let name = self.cx.names.syms.intern(&fname);
+                            self.bind_pattern_name(f, name, Ty::POISON, binds)?;
+                        }
                         continue;
                     }
                     seen.push(fname.clone());
@@ -829,6 +838,7 @@ impl Ck<'_, '_> {
         self.join_site(want, |this, result| {
             let mut rows = Vec::new();
             let mut arms = Vec::new();
+            let mut rejected_arms: Vec<bool> = Vec::new();
             let mut all_never = true;
             let arm_nodes: Vec<NodeRef<'_>> = n
                 .children()
@@ -840,7 +850,10 @@ impl Ck<'_, '_> {
                 };
                 this.scopes.push(HashMap::new());
                 let mut binds = Vec::new();
+                let outer_rejected = std::mem::replace(&mut this.pattern_rejected, false);
                 this.declare_pattern(pat, st, &mut binds)?;
+                let rejected = std::mem::replace(&mut this.pattern_rejected, outer_rejected);
+                rejected_arms.push(rejected);
                 let guard = match Src::child(*arm, SyntaxKind::MatchGuard) {
                     Some(g) => {
                         let Some(ge) = g.children().next() else {
@@ -874,8 +887,8 @@ impl Ck<'_, '_> {
             // An arm that could not name its variants poisoned the type.
             let failed = failed || this.infer.resolve(this.pool(), st) == Ty::POISON;
             if !failed {
-                this.check_exhaustive(n, &rows, st);
-                this.check_reachable(&rows, st);
+                this.check_exhaustive(n, &rows, &rejected_arms, st);
+                this.check_reachable(&rows, &rejected_arms, st);
             }
             let db = this.b.open_block();
             this.decide(&rows, 0, sr, st)?;
@@ -1465,9 +1478,14 @@ impl Ck<'_, '_> {
             .any(|v| v < min || v > max)
     }
 
-    fn check_reachable(&mut self, rows: &[Row<'_>], t: Ty) {
+    fn check_reachable(&mut self, rows: &[Row<'_>], rejected: &[bool], t: Ty) {
         let mut before: Vec<Vec<P>> = Vec::new();
-        for r in rows {
+        for (r, rej) in rows.iter().zip(rejected) {
+            // A rejected pattern has reported its error: its arm neither
+            // is reported nor hides the arms after it.
+            if *rej {
+                continue;
+            }
             let p = self.to_p(r.pat, t);
             // An arm with an out-of-type bound is already an error.
             if !self.useful(&before, std::slice::from_ref(&p), &[t], 0)
@@ -1487,11 +1505,12 @@ impl Ck<'_, '_> {
     }
 
     /// `nonexhaustive-match` when some value matches no unguarded arm.
-    fn check_exhaustive(&mut self, n: NodeRef<'_>, rows: &[Row<'_>], t: Ty) {
+    fn check_exhaustive(&mut self, n: NodeRef<'_>, rows: &[Row<'_>], rejected: &[bool], t: Ty) {
         let m: Vec<Vec<P>> = rows
             .iter()
-            .filter(|r| r.guard.is_none())
-            .map(|r| vec![self.to_p(r.pat, t)])
+            .zip(rejected)
+            .filter(|(r, _)| r.guard.is_none())
+            .map(|(r, rej)| vec![if *rej { P::Wild } else { self.to_p(r.pat, t) }])
             .collect();
         if self.useful(&m, &[P::Wild], &[t], 0) {
             let missing = self.ctors(t).map_or_else(
