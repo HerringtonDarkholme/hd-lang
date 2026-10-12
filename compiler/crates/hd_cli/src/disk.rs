@@ -215,6 +215,7 @@ impl Program {
             profile: None,
             single_file: self.single_file,
             build_profile: BuildProfile::Checked,
+            doc_scopes: false,
         }
     }
 }

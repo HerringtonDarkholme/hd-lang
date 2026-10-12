@@ -58,3 +58,28 @@ fn suggestions(module: &str, item: &str, in_module: &[&Row]) -> Vec<String> {
     names.dedup();
     crate::rank(names, &format!("std.{module}.{item}"))
 }
+
+/// The reference link of a standard library item (`cli.doc.link.external`):
+/// the link `hd doc std.MODULE.ITEM` prints. `module` is the full module
+/// path (`std.text`), `item` is `name` or `Type.name`. An item the
+/// reference lists under another module of `std` is found by its name when
+/// that name is unique.
+pub(crate) fn link(module: &str, item: &str) -> Option<&'static str> {
+    let short = module.strip_prefix("std.").unwrap_or("");
+    let named = |e: &&Row| e.2 == item || format!("{}.{}", e.1, e.2) == item;
+    if let Some(e) = STD_ENTRIES.iter().find(|e| e.0 == short && named(e)) {
+        return Some(e.5);
+    }
+    let mut all = STD_ENTRIES.iter().filter(named);
+    let first = all.next()?;
+    all.all(|e| e.5 == first.5).then_some(first.5)
+}
+
+/// Whether `module` (`std.text`) is a module of the standard library
+/// reference.
+pub(crate) fn has_module(module: &str) -> bool {
+    module == "std"
+        || module
+            .strip_prefix("std.")
+            .is_some_and(|m| STD_ENTRIES.iter().any(|e| e.0 == m))
+}

@@ -157,6 +157,44 @@ impl ModuleScope {
     }
 }
 
+/// What a name of a module's scope stands for, spelled for readers outside
+/// the run's tables (`hd doc` links).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Named {
+    /// A declared item, by its declaring module and its name.
+    Item { module: String, name: String },
+    /// A module, by its path.
+    Module(String),
+}
+
+impl ModuleScope {
+    /// The names this scope binds to one item or module, as text. Names
+    /// that are ambiguous or poisoned bind nothing readable and are left out.
+    #[must_use]
+    pub fn named(&self, names: &iface::Names<'_>) -> Vec<(String, Named)> {
+        self.name
+            .iter()
+            .zip(&self.binding)
+            .filter_map(|(&n, b)| {
+                let target = match b.kind {
+                    BindingKind::Item | BindingKind::Prelude => {
+                        let d = DefId::from_raw(b.value);
+                        Named::Item {
+                            module: names.module_of(d),
+                            name: names.display_name(d).to_owned(),
+                        }
+                    }
+                    BindingKind::Module => {
+                        Named::Module(self.modules.get(b.value as usize)?.clone())
+                    }
+                    BindingKind::Ambiguous | BindingKind::Poison => return None,
+                };
+                Some((names.text(n).to_owned(), target))
+            })
+            .collect()
+    }
+}
+
 /// The use worklist's state per export (§3.15).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]

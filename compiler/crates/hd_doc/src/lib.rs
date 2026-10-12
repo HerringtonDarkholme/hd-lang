@@ -10,6 +10,7 @@
 mod html;
 mod impls;
 mod items;
+mod links;
 mod lookup;
 mod stdref;
 
@@ -18,6 +19,10 @@ use std::fmt::Write as _;
 use std::sync::Arc;
 
 use items::{Item, Section};
+use links::{Links, Site};
+
+pub use hd_resolve::Named;
+pub use links::BrokenLink;
 
 /// One documented module.
 pub struct Module<'a> {
@@ -39,6 +44,13 @@ pub struct Package<'a> {
     pub ifaces: &'a [(String, Arc<[u8]>)],
     /// `--private`: the private items and members too (`cli.doc.private`).
     pub private: bool,
+    /// The scope of each module, by its full path (`pkg`'s root module is
+    /// the package's `root`): what `` [`NAME`] `` links resolve in
+    /// (`cli.doc.link.scope`). Empty leaves every link as written.
+    pub scopes: &'a [(String, Vec<(String, Named)>)],
+    /// The package's dependencies: each key after `dep.` and the root
+    /// module of its package.
+    pub deps: &'a [(String, String)],
 }
 
 /// One output file, by its path below the output directory.
@@ -128,6 +140,16 @@ fn with_examples(doc: &str, base: &str, counts: &mut HashMap<String, usize>) -> 
     out.join("\n")
 }
 
+/// One entry of a list of links: the code shown, where it links to in the
+/// Markdown and in the HTML page, and its summary in each form.
+struct Entry {
+    code: String,
+    md_href: String,
+    html_href: String,
+    md: String,
+    html: String,
+}
+
 /// The two forms of one page, built together.
 #[derive(Default)]
 struct Page {
@@ -149,12 +171,14 @@ impl Page {
             html::escape(code)
         );
     }
-    fn text(&mut self, md: &str) {
+    /// Documentation text, in its Markdown form and in the form the HTML
+    /// page renders (their links differ in the extension of the pages).
+    fn text(&mut self, md: &str, html: &str) {
         if md.trim().is_empty() {
             return;
         }
         let _ = writeln!(self.md, "{md}\n");
-        self.html.push_str(&html::blocks(md));
+        self.html.push_str(&html::blocks(html));
     }
     fn signature(&mut self, sig: &str) {
         let _ = writeln!(self.md, "```hd\n{sig}\n```\n");
@@ -164,25 +188,27 @@ impl Page {
             html::escape(sig)
         );
     }
-    /// A list of links: (code, Markdown target, HTML target, summary).
-    fn links(&mut self, entries: &[(String, String, String, String)]) {
+    /// A list of links to items and modules, each with its summary.
+    fn links(&mut self, entries: &[Entry]) {
         if entries.is_empty() {
             return;
         }
         self.html.push_str("<ul>\n");
-        for (code, md_href, html_href, summary) in entries {
-            let tail = if summary.is_empty() {
-                String::new()
-            } else {
-                format!(": {summary}")
+        for e in entries {
+            let tail = |summary: &str| {
+                if summary.is_empty() {
+                    String::new()
+                } else {
+                    format!(": {summary}")
+                }
             };
-            let _ = writeln!(self.md, "- [`{code}`]({md_href}){tail}");
+            let _ = writeln!(self.md, "- [`{}`]({}){}", e.code, e.md_href, tail(&e.md));
             let _ = writeln!(
                 self.html,
                 "<li><a href=\"{}\"><code>{}</code></a>{}</li>",
-                html::escape(html_href),
-                html::escape(code),
-                html::inline(&tail)
+                html::escape(&e.html_href),
+                html::escape(&e.code),
+                html::inline(&tail(&e.html))
             );
         }
         self.md.push('\n');
@@ -201,35 +227,68 @@ impl Page {
         self.md.push('\n');
         self.html.push_str("</ul>\n");
     }
-    fn section(
-        &mut self,
-        level: usize,
-        s: &Section,
-        base: &str,
-        counts: &mut HashMap<String, usize>,
-    ) {
+    fn section(&mut self, level: usize, s: &Section, base: &str, cx: &mut Cx<'_, '_>) {
         self.heading(level, "", &s.anchor, Some(&s.anchor));
         self.signature(&s.signature);
-        self.text(&with_examples(
-            &s.doc,
-            &format!("{base}.{}", s.anchor),
-            counts,
-        ));
+        let doc = with_examples(&s.doc, &format!("{base}.{}", s.anchor), cx.counts);
+        let (md, html) = cx.both(&doc);
+        self.text(&md, &html);
         self.lines(&s.impls);
     }
 }
 
+/// What a module page is built against.
+struct Cx<'a, 'b> {
+    counts: &'a mut HashMap<String, usize>,
+    /// The links of the package; `None` copies link text unchanged.
+    links: Option<&'a Links<'b>>,
+    module: String,
+    /// The directory the text is read from, and the page it is on.
+    dir: String,
+    here: Option<String>,
+}
+
+impl Cx<'_, '_> {
+    /// A documentation text with its links resolved, for the Markdown page
+    /// and for the HTML page.
+    fn both(&self, text: &str) -> (String, String) {
+        let Some(links) = self.links else {
+            return (text.to_owned(), text.to_owned());
+        };
+        let at = |ext| Site {
+            module: &self.module,
+            dir: &self.dir,
+            here: self.here.as_deref(),
+            ext,
+        };
+        (
+            links.resolve(text, &at("md")),
+            links.resolve(text, &at("html")),
+        )
+    }
+}
+
+/// The path of the directory of a page stem: `shop` for `shop/cart`.
+fn dir_of(stem: &str) -> String {
+    stem.rsplit_once('/')
+        .map_or_else(String::new, |(d, _)| d.to_owned())
+}
+
 /// One module's page (`cli.doc.page`, `cli.doc.item`), and its module
-/// documentation's summary.
-fn module_page(m: &Module<'_>, p: &Package<'_>, impl_lines: &impls::ImplLines) -> (Page, String) {
+/// documentation's summary. `dir` is where the text is read from, which is
+/// the page's own directory unless the page is copied elsewhere
+/// (`llms-full.txt`); `links` resolves `` [`NAME`] ``.
+fn module_page(
+    m: &Module<'_>,
+    p: &Package<'_>,
+    impl_lines: &impls::ImplLines,
+    links: Option<&Links<'_>>,
+    in_place: bool,
+) -> (Page, String) {
     let parse = hd_syntax::parse(m.text.as_bytes());
     let module_doc = hd_syntax::module_doc_text(m.text, &parse.tokens);
     let mut items: Vec<Item> = items::items(m.text, &parse, p.private);
-    let full = if m.path.is_empty() {
-        p.root.to_owned()
-    } else {
-        format!("{}.{}", p.root, m.path)
-    };
+    let full = module_path(p, m.path);
     for it in &mut items {
         if let Some(lines) = it
             .type_name
@@ -242,36 +301,76 @@ fn module_page(m: &Module<'_>, p: &Package<'_>, impl_lines: &impls::ImplLines) -
     let name = shown_name(m.path);
     let base = format!("doc {name}");
     let mut counts = HashMap::new();
+    let stem = page_stem(m.path);
+    let mut cx = Cx {
+        counts: &mut counts,
+        links,
+        module: full.clone(),
+        dir: if in_place {
+            dir_of(&stem)
+        } else {
+            String::new()
+        },
+        here: in_place.then_some(stem),
+    };
     let mut page = Page::default();
     page.heading(1, "Module ", name, None);
-    page.text(&with_examples(&module_doc, &base, &mut counts));
+    let doc = with_examples(&module_doc, &base, cx.counts);
+    let (md, html) = cx.both(&doc);
+    page.text(&md, &html);
     let entries: Vec<_> = items
         .iter()
         .map(|it| {
             let a = &it.section.anchor;
-            (
-                a.clone(),
-                format!("#{a}"),
-                format!("#{a}"),
-                summary(&it.section.doc),
-            )
+            let (md, html) = cx.both(&summary(&it.section.doc));
+            Entry {
+                code: a.clone(),
+                md_href: format!("#{a}"),
+                html_href: format!("#{a}"),
+                md,
+                html,
+            }
         })
         .collect();
     page.links(&entries);
     for it in &items {
-        page.section(2, &it.section, &base, &mut counts);
+        page.section(2, &it.section, &base, &mut cx);
         for member in &it.members {
-            page.section(3, member, &base, &mut counts);
+            page.section(3, member, &base, &mut cx);
         }
     }
     (page, summary(&module_doc))
 }
 
+/// The documentation pages and the links they could not resolve.
+pub struct Rendered {
+    pub files: Vec<DocFile>,
+    /// Each link that names no documented item, once
+    /// (`cli.doc.link.broken`). The pages are complete all the same.
+    pub broken: Vec<BrokenLink>,
+}
+
+/// `text`, a module's summary, with its links resolved from the output
+/// directory in the pages of `ext`.
+fn from_root(links: &Links<'_>, text: &str, module: &str, ext: &str) -> String {
+    links.resolve(
+        text,
+        &Site {
+            module,
+            dir: "",
+            here: None,
+            ext,
+        },
+    )
+}
+
 /// Every output file of `hd doc` (`cli.doc.files`): each module's pages,
 /// the entry page, `llms.txt` and `llms-full.txt`.
 #[must_use]
-pub fn render(p: &Package<'_>) -> Vec<DocFile> {
+pub fn render(p: &Package<'_>) -> Rendered {
     let impl_lines = impls::impl_lines(p.root, p.ifaces);
+    let links = Links::new(p);
+    let links = (!p.scopes.is_empty()).then_some(&links);
     let mut modules: Vec<&Module<'_>> = p.modules.iter().collect();
     // `cli.doc.llms-full`: the root module first, the others in path order.
     modules.sort_by(|a, b| (!a.path.is_empty(), a.path).cmp(&(!b.path.is_empty(), b.path)));
@@ -282,28 +381,38 @@ pub fn render(p: &Package<'_>) -> Vec<DocFile> {
     let mut full = String::new();
     let mut root_summary = String::new();
     for m in &modules {
-        let (page, sum) = module_page(m, p, &impl_lines);
+        let (page, sum) = module_page(m, p, &impl_lines, links, true);
         let stem = page_stem(m.path);
         let name = shown_name(m.path);
+        let module = module_path(p, m.path);
+        let (sum_md, sum_html) = match links {
+            Some(l) => (
+                from_root(l, &sum, &module, "md"),
+                from_root(l, &sum, &module, "html"),
+            ),
+            None => (sum.clone(), sum),
+        };
         if m.path.is_empty() {
-            root_summary.clone_from(&sum);
+            root_summary.clone_from(&sum_md);
         }
-        let tail = if sum.is_empty() {
+        let tail = if sum_md.is_empty() {
             String::new()
         } else {
-            format!(": {sum}")
+            format!(": {sum_md}")
         };
         let _ = writeln!(llms_modules, "- [{name}]({stem}.md){tail}");
-        entries.push((
-            name.to_owned(),
-            format!("{stem}.md"),
-            format!("{stem}.html"),
-            sum,
-        ));
+        entries.push(Entry {
+            code: name.to_owned(),
+            md_href: format!("{stem}.md"),
+            html_href: format!("{stem}.html"),
+            md: sum_md,
+            html: sum_html,
+        });
         if !full.is_empty() {
             full.push('\n');
         }
-        full.push_str(&page.md);
+        // The pages of `llms-full.txt` are read from the output directory.
+        full.push_str(&module_page(m, p, &impl_lines, links, false).0.md);
         let title = format!("Module {name} - {}", p.name);
         files.push(DocFile {
             path: format!("{stem}.md"),
@@ -338,7 +447,19 @@ pub fn render(p: &Package<'_>) -> Vec<DocFile> {
         path: "llms-full.txt".to_owned(),
         text: full,
     });
-    files
+    Rendered {
+        files,
+        broken: links.map_or_else(Vec::new, Links::broken),
+    }
+}
+
+/// A module's full path: the package's `root` for the root module.
+fn module_path(p: &Package<'_>, path: &str) -> String {
+    if path.is_empty() {
+        p.root.to_owned()
+    } else {
+        format!("{}.{path}", p.root)
+    }
 }
 
 /// What `hd doc NAME` prints (`cli.doc.name`): the Markdown of one item's

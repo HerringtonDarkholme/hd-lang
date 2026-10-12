@@ -234,3 +234,69 @@ fn inherent_methods(s: &Src<'_>, node: NodeRef<'_>, private: bool) -> Vec<(Strin
         })
         .collect()
 }
+
+/// A declaration of a module as the link check sees it: whether it is
+/// `pub`, and its members by name with whether each is shown without
+/// `--private`.
+pub(crate) struct Declared {
+    pub name: String,
+    pub public: bool,
+    pub members: Vec<(String, bool)>,
+}
+
+/// Every top-level declaration of a module source, private ones included,
+/// with the members a link may name: fields, variants, trait methods and
+/// the methods of inherent `impl` blocks.
+pub(crate) fn declared(text: &str, parse: &Parse) -> Vec<Declared> {
+    let s = Src {
+        text,
+        toks: &parse.tokens,
+    };
+    let mut out: Vec<Declared> = Vec::new();
+    let mut methods: Vec<(String, String, bool)> = Vec::new();
+    for node in parse.tree.root().children() {
+        if node.kind() == SyntaxKind::ImplDecl {
+            let Some((None, Some(target))) =
+                hd_syntax::ImplDecl::cast(node).map(hd_syntax::ImplDecl::header_types)
+            else {
+                continue;
+            };
+            let Some(owner) = s.name(target) else {
+                continue;
+            };
+            for m in members(node) {
+                if m.kind() == SyntaxKind::FnDecl
+                    && let Some(name) = s.name(m)
+                {
+                    methods.push((owner.clone(), name, s.is_pub(m)));
+                }
+            }
+            continue;
+        }
+        if Decl::cast(node).is_none() {
+            continue;
+        }
+        let Some(name) = s.name(node) else { continue };
+        let mut shown = Vec::new();
+        for m in members(node) {
+            if let Some(member) = s.name(m) {
+                let public = match m.kind() {
+                    SyntaxKind::DataField => s.is_pub(m),
+                    _ => true,
+                };
+                shown.push((member, public));
+            }
+        }
+        out.push(Declared {
+            name,
+            public: s.is_pub(node),
+            members: shown,
+        });
+    }
+    for (owner, name, public) in methods {
+        if let Some(d) = out.iter_mut().find(|d| d.name == owner) {
+            d.members.push((name, public));
+        }
+    }
+    out
+}

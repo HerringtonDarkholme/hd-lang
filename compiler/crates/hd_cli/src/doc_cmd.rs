@@ -9,12 +9,12 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use hd_diag::Severity;
+use hd_diag::{Code, Severity};
 use hd_driver::{BuildProfile, Goal};
 use hd_project::{Role, SourceSet as _, module_below, role_of};
 
 use crate::report::{self, Diag, Reporter};
-use crate::{build_goal, disk, fail, package_of_cwd};
+use crate::{build_goal_with, disk, fail, package_of_cwd};
 
 struct Options {
     json: bool,
@@ -108,22 +108,29 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
 fn document(root: &Path, o: &Options, rep: &mut Reporter) -> Result<(), ExitCode> {
     let mut program = disk::load_package(root, "main").map_err(|e| rep.fail(&e))?;
     program.only_program("");
-    let out = build_goal(&program, &Goal::Analyze, BuildProfile::Checked, rep)?;
+    let out = build_goal_with(&program, &Goal::Analyze, BuildProfile::Checked, true, rep)?;
     let texts =
         module_texts(&program.sources, &program.entries, o.private).map_err(|e| rep.fail(&e))?;
     let modules = modules_of(&texts);
     let root_ident = hd_project::package_ident(&program.package);
+    let deps = dependency_roots(&program);
     let package = hd_doc::Package {
         name: &program.package,
         root: &root_ident,
         modules: &modules,
         ifaces: &out.ifaces,
         private: o.private,
+        scopes: &out.scopes,
+        deps: &deps,
     };
     if let Some(name) = &o.name {
         return print_name(&program, &package, &out, name, rep);
     }
-    let files = hd_doc::render(&package);
+    let rendered = hd_doc::render(&package);
+    for b in &rendered.broken {
+        rep.diag(&broken_link(&program, b));
+    }
+    let files = rendered.files;
     // `cli.doc.dir`: `build/doc`, or `--out DIR` below the working directory.
     let dir = o
         .out
@@ -143,6 +150,47 @@ fn document(root: &Path, o: &Options, rep: &mut Reporter) -> Result<(), ExitCode
         open(&dir.join("index.html"), rep);
     }
     Ok(())
+}
+
+/// The dependencies' keys with the root module of each package.
+fn dependency_roots(program: &disk::Program) -> Vec<(String, String)> {
+    program
+        .requires
+        .iter()
+        .filter_map(|(key, i)| {
+            let dep = program.deps.get(usize::from(*i).checked_sub(1)?)?;
+            Some((key.clone(), hd_project::package_ident(&dep.name)))
+        })
+        .collect()
+}
+
+/// The warning for a link that names no documented item
+/// (`cli.doc.link.broken`), at the source file of its module.
+fn broken_link(program: &disk::Program, b: &hd_doc::BrokenLink) -> Diag {
+    let why = if b.private {
+        "is private and not documented"
+    } else {
+        "names no item"
+    };
+    let mut diag = Diag::new(
+        Some(Code::BrokenDocLink),
+        Severity::Warning,
+        &format!("the link `[`{}`]` {why}", b.name),
+    );
+    let root = hd_project::package_ident(&program.package);
+    let module = b
+        .module
+        .strip_prefix(&root)
+        .map(|m| m.trim_start_matches('.'));
+    let file = program.sources.list().into_iter().find_map(|e| {
+        let path = &e.path;
+        (path.starts_with("src/") && Some(module_below(path).as_str()) == module)
+            .then(|| program.sources.display(path))
+    });
+    if let Some(file) = file {
+        diag = diag.at(&file, None);
+    }
+    diag
 }
 
 /// The (module path, text) of each module `hd doc` documents in `sources`
@@ -217,6 +265,8 @@ fn print_name(
                 modules: &modules,
                 ifaces: &out.ifaces,
                 private: false,
+                scopes: &[],
+                deps: &[],
             };
             let prefix = format!("dep.{key}.");
             if item.is_empty() {

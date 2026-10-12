@@ -273,6 +273,9 @@ pub struct Output {
     pub report: PipelineReport,
     /// Each built folder interface's blob, by folder path.
     pub ifaces: Vec<(String, Arc<[u8]>)>,
+    /// With [`Packages::doc_scopes`], each module of the root package with
+    /// the names its scope binds: its own declarations and its `use`s.
+    pub scopes: Vec<(String, Vec<(String, hd_resolve::Named)>)>,
     /// Readable TIR of the bodies a `Host::render_tir` named, by item path.
     pub tir_text: std::collections::BTreeMap<String, String>,
     /// A test run's selected cases, in content order.
@@ -625,6 +628,9 @@ pub struct Packages<'a> {
     /// `cli.profile.release`). Every other goal is checked: a test run
     /// keeps the test profile (`cli.profile.test`, `cli.profile.test.release`).
     pub build_profile: BuildProfile,
+    /// Whether the output holds each root-package module's scope
+    /// ([`Output::scopes`]), which `hd doc` resolves its links in.
+    pub doc_scopes: bool,
 }
 
 /// The root package's key: its name, and the traits of a runtime profile
@@ -875,6 +881,11 @@ fn build_packages_inner(
         .iter()
         .filter_map(|f| Some((f.path.clone(), run.iface_of(f.id)?.blob.clone())))
         .collect();
+    let scopes = if packages.doc_scopes {
+        run.doc_scopes()
+    } else {
+        Vec::new()
+    };
     let cases = run.test_cases();
     let uses = run
         .skim
@@ -901,6 +912,7 @@ fn build_packages_inner(
         counters,
         report,
         ifaces,
+        scopes,
         tir_text: std::mem::take(&mut *lock(&run.tir_text)),
         pool_items: run.pool.len(),
         memo: run.memo.stats(),
@@ -1755,6 +1767,23 @@ impl Run<'_> {
         }];
         let out = hd_resolve::build_folder(&cx, &mods, Some(own), stage, diags)?;
         Ok(out.modules.into_iter().next())
+    }
+
+    /// The scope of each module of the root package, as text (`hd doc`
+    /// links): the module's own declarations and the names its `use`s bind.
+    fn doc_scopes(&self) -> Vec<(String, Vec<(String, hd_resolve::Named)>)> {
+        let names = self.names();
+        let mut out = Vec::new();
+        for (m, module) in self.table.modules.iter().enumerate() {
+            if module.package != 0 || !self.parse_of(m).is_ok() {
+                continue;
+            }
+            let lowered = self.lower_module(m, Stage::ModulePrep, &mut DiagBuf::default());
+            if let Ok(Some(o)) = lowered {
+                out.push((module.path.clone(), o.scope.named(&names)));
+            }
+        }
+        out
     }
 
     /// Every interface of a folder's closure (its own included).

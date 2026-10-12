@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use hd_cache::MemoryStore;
-use hd_driver::{Executor, Goal, Host, NoClock, build};
+use hd_driver::{Executor, Goal, Host, NoClock, Packages, build_packages};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
-use super::{DocFile, Module, Package, lookup, page_stem, render, summary};
+use super::{DocFile, Module, Named, Package, lookup, page_stem, render, summary};
 
 const LIB: &str = "\
 ## Tools for the shop.
@@ -68,7 +68,15 @@ pub fn slugify(title: string) -> string:
     title
 ";
 
-fn ifaces(sources: &[(&str, &str)]) -> Vec<(String, Arc<[u8]>)> {
+type Ifaces = Vec<(String, Arc<[u8]>)>;
+type Scopes = Vec<(String, Vec<(String, Named)>)>;
+
+fn ifaces(sources: &[(&str, &str)]) -> Ifaces {
+    built(sources).0
+}
+
+/// The interfaces and module scopes of a package named `shop`.
+fn built(sources: &[(&str, &str)]) -> (Ifaces, Scopes) {
     let mut src = MemorySources::default();
     for (path, text) in sources {
         src.insert(path, text);
@@ -81,9 +89,13 @@ fn ifaces(sources: &[(&str, &str)]) -> Vec<(String, Arc<[u8]>)> {
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };
-    let out = build(&host, "shop", &Goal::Analyze);
+    let packages = Packages {
+        doc_scopes: true,
+        ..Packages::default()
+    };
+    let out = build_packages(&host, "shop", &packages, &Goal::Analyze);
     assert!(!out.diags.has_errors(), "{}", out.render());
-    out.ifaces
+    (out.ifaces, out.scopes)
 }
 
 fn file<'a>(files: &'a [DocFile], path: &str) -> &'a str {
@@ -95,7 +107,7 @@ fn file<'a>(files: &'a [DocFile], path: &str) -> &'a str {
 }
 
 fn site(private: bool) -> Vec<DocFile> {
-    let ifaces = ifaces(&[("src/lib.hd", LIB), ("src/text.hd", TEXT)]);
+    let (ifaces, scopes) = built(&[("src/lib.hd", LIB), ("src/text.hd", TEXT)]);
     let modules = [
         Module {
             path: "text",
@@ -112,7 +124,10 @@ fn site(private: bool) -> Vec<DocFile> {
         modules: &modules,
         ifaces: &ifaces,
         private,
+        scopes: &scopes,
+        deps: &[],
     })
+    .files
 }
 
 #[test]
@@ -227,6 +242,8 @@ fn name(private: bool, name: &str) -> Result<String, Vec<String>> {
             modules: &modules,
             ifaces: &ifaces,
             private,
+            scopes: &[],
+            deps: &[],
         },
         name,
     )
@@ -299,4 +316,192 @@ fn name_prints_a_std_entry() {
         "{split}"
     );
     assert_eq!(split, name(false, "std.text.string.split").unwrap());
+}
+
+const LINK_LIB: &str = "\
+## The shop. See [`total`], [`Cart`], [`Cart.add`], [`std.text.split`], [`nothing`].
+
+use pkg.cart.{Cart}
+
+## Sums a [`helper`] result, not `[`plain`]` or [`a link`](x.md).
+pub fn total() -> i32:
+    helper()
+
+fn helper() -> i32: 1
+";
+
+const LINK_CART: &str = "\
+## Carts, summed by [`total`].
+
+use pkg.{total}
+
+## A cart.
+pub data Cart:
+    pub n: i32
+
+impl Cart:
+    ## Adds one to a [`Cart`] with [`Cart.n`].
+    pub fn add(self) -> Cart: self
+";
+
+const LINK_DEEP: &str = "\
+## Deep. See [`total`], [`Cart.add`], [`cart.Cart`] and [`pkg.cart`].
+
+use pkg.{total}
+use pkg.cart
+use pkg.cart.{Cart}
+";
+
+fn link_files(private: bool) -> super::Rendered {
+    let sources = [
+        ("src/lib.hd", LINK_LIB),
+        ("src/cart.hd", LINK_CART),
+        ("src/shop/deep.hd", LINK_DEEP),
+    ];
+    let (ifaces, scopes) = built(&sources);
+    let modules = [
+        Module {
+            path: "",
+            text: LINK_LIB,
+        },
+        Module {
+            path: "cart",
+            text: LINK_CART,
+        },
+        Module {
+            path: "shop.deep",
+            text: LINK_DEEP,
+        },
+    ];
+    render(&Package {
+        name: "shop",
+        root: "shop",
+        modules: &modules,
+        ifaces: &ifaces,
+        private,
+        scopes: &scopes,
+        deps: &[],
+    })
+}
+
+#[test]
+fn a_link_to_an_item_of_the_same_module_is_its_anchor() {
+    let out = link_files(false);
+    let pkg = file(&out.files, "pkg.md");
+    assert!(
+        pkg.contains(
+            "See [`total`](#total), [`Cart`](cart.md#Cart), [`Cart.add`](cart.md#Cart.add)"
+        ),
+        "{pkg}"
+    );
+    let html = file(&out.files, "pkg.html");
+    assert!(
+        html.contains("<a href=\"#total\"><code>total</code></a>"),
+        "{html}"
+    );
+    assert!(
+        html.contains("<a href=\"cart.html#Cart.add\"><code>Cart.add</code></a>"),
+        "{html}"
+    );
+}
+
+#[test]
+fn a_name_from_a_use_links_to_the_page_of_its_module() {
+    let out = link_files(false);
+    let cart = file(&out.files, "cart.md");
+    assert!(
+        cart.contains("summed by [`total`](pkg.md#total)."),
+        "{cart}"
+    );
+    assert!(
+        cart.contains("Adds one to a [`Cart`](#Cart) with [`Cart.n`](#Cart)."),
+        "{cart}"
+    );
+    let html = file(&out.files, "cart.html");
+    assert!(
+        html.contains("<a href=\"pkg.html#total\"><code>total</code></a>"),
+        "{html}"
+    );
+    // The entry page and the lists link with the same paths.
+    let summary = file(&out.files, "llms.txt");
+    assert!(
+        summary.contains("- [cart](cart.md): Carts, summed by [`total`](pkg.md#total)."),
+        "{summary}"
+    );
+}
+
+#[test]
+fn links_from_a_nested_module_page_climb_out() {
+    let out = link_files(false);
+    let deep = file(&out.files, "shop/deep.md");
+    assert!(
+        deep.contains(
+            "See [`total`](../pkg.md#total), [`Cart.add`](../cart.md#Cart.add), [`cart.Cart`](../cart.md#Cart) and [`pkg.cart`](../cart.md)."
+        ),
+        "{deep}"
+    );
+    let html = file(&out.files, "shop/deep.html");
+    assert!(
+        html.contains("<a href=\"../cart.html#Cart.add\">"),
+        "{html}"
+    );
+    // `llms-full.txt` is read from the output directory.
+    let full = file(&out.files, "llms-full.txt");
+    assert!(full.contains("[`total`](pkg.md#total)"), "{full}");
+    assert!(
+        full.contains("Adds one to a [`Cart`](cart.md#Cart)"),
+        "{full}"
+    );
+    assert!(!full.contains("](../"), "{full}");
+}
+
+#[test]
+fn a_std_name_links_to_the_reference() {
+    let out = link_files(false);
+    let pkg = file(&out.files, "pkg.md");
+    assert!(
+        pkg.contains("[`std.text.split`](spec/std/text.md#r-std-text.string.split)"),
+        "{pkg}"
+    );
+    let html = file(&out.files, "pkg.html");
+    assert!(
+        html.contains("<a href=\"spec/std/text.md#r-std-text.string.split\">"),
+        "{html}"
+    );
+}
+
+#[test]
+fn a_broken_or_private_name_is_plain_code_and_one_warning() {
+    let out = link_files(false);
+    let pkg = file(&out.files, "pkg.md");
+    assert!(
+        pkg.contains("`nothing`") && !pkg.contains("[`nothing`]"),
+        "{pkg}"
+    );
+    assert!(pkg.contains("Sums a `helper` result"), "{pkg}");
+    // Markdown with a target, and a link that is not a name, are untouched.
+    assert!(
+        pkg.contains("not `[`plain`]` or [`a link`](x.md)."),
+        "{pkg}"
+    );
+    let broken: Vec<(&str, &str, bool)> = out
+        .broken
+        .iter()
+        .map(|b| (b.module.as_str(), b.name.as_str(), b.private))
+        .collect();
+    assert_eq!(
+        broken,
+        [("shop", "nothing", false), ("shop", "helper", true)],
+        "{broken:?}"
+    );
+    assert!(out.files.iter().any(|f| f.path == "pkg.html"));
+}
+
+#[test]
+fn a_private_name_links_when_private_items_are_documented() {
+    let out = link_files(true);
+    let pkg = file(&out.files, "pkg.md");
+    assert!(pkg.contains("Sums a [`helper`](#helper) result"), "{pkg}");
+    let names: Vec<&str> = out.broken.iter().map(|b| b.name.as_str()).collect();
+    assert_eq!(names, ["nothing"]);
 }

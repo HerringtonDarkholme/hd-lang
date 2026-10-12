@@ -6,6 +6,7 @@
 mod check_cmd;
 mod dbg;
 mod deps;
+mod doc_links;
 mod doc_name;
 mod doc_tests;
 mod host_traits;

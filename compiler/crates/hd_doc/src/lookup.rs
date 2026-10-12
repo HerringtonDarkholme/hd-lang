@@ -84,7 +84,7 @@ pub(crate) fn lookup(p: &Package<'_>, name: &str) -> Result<String, Vec<String>>
         let modules = p.modules.iter().map(|m| shown_name(m.path).to_owned());
         return Err(rank(modules.collect(), name));
     };
-    let (page, _) = module_page(module, p, &impls::impl_lines(p.root, p.ifaces));
+    let (page, _) = module_page(module, p, &impls::impl_lines(p.root, p.ifaces), None, true);
     if k == parts.len() {
         return Ok(page.md);
     }

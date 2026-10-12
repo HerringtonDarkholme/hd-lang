@@ -289,6 +289,18 @@ pub(crate) fn build_goal(
     profile: BuildProfile,
     rep: &mut Reporter,
 ) -> Result<Output, ExitCode> {
+    build_goal_with(program, goal, profile, false, rep)
+}
+
+/// [`build_goal`], with `doc_scopes` asking for each module's scope in the
+/// output (`hd doc` resolves its links in them).
+pub(crate) fn build_goal_with(
+    program: &disk::Program,
+    goal: &Goal,
+    profile: BuildProfile,
+    doc_scopes: bool,
+    rep: &mut Reporter,
+) -> Result<Output, ExitCode> {
     if rep.diags(&program.problems) {
         return Err(rep.finish(HD_FAILURE));
     }
@@ -303,6 +315,7 @@ pub(crate) fn build_goal(
     };
     let packages = hd_driver::Packages {
         build_profile: profile,
+        doc_scopes,
         ..program.packages()
     };
     let out: Output = memory_cap::build_packages(&host, &program.package, &packages, goal);
