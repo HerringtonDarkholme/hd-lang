@@ -136,6 +136,52 @@ impl Ck<'_, '_> {
         Some(self.cx.names.text(item.name).to_owned())
     }
 
+    /// How `dbg` prints a reference to a named function
+    /// (`module.dbg.value.function`): `<fn name(..) -> ..>`.
+    fn function_text(&mut self, r: Ref, t: Ty) -> Option<String> {
+        let name = self.named_function(r)?;
+        if !matches!(self.pool().get(t), TyData::Fn { .. }) {
+            return None;
+        }
+        let shown = self.show(t);
+        Some(format!(
+            "<fn {name}{}>",
+            shown.strip_prefix("fn").unwrap_or(&shown)
+        ))
+    }
+
+    /// `std.format.dbg_text(value, width)` written out: the text of `r`,
+    /// of type `t`, as `dbg` prints it after `width` columns of its line.
+    pub(crate) fn dbg_text(&mut self, r: Ref, t: Ty, width: usize, n: NodeRef<'_>) -> Ref {
+        if let Some(text) = self.function_text(r, t) {
+            return self.b.const_str(&text);
+        }
+        let usize = Ty::prim(hd_types::Prim::Usize);
+        let width = self
+            .b
+            .const_value(usize, u64::try_from(width).unwrap_or(u64::MAX));
+        let show = self.dbg_show_ref(t, n);
+        self.dbg_support("dbg_layout", &[t], &[width, r, show], Ty::STRING, n)
+    }
+
+    /// The value line of a REPL input that is one expression
+    /// (`cli.repl.value`): `r` as `dbg` prints it, then ` : ` and its
+    /// type as diagnostics show types, which counts against the line's
+    /// 80 columns. It is written after the input's `dbg` lines, to the
+    /// same debug output (`cli.dbg.repl`). A `void` or `never` expression
+    /// has no value to show.
+    pub(crate) fn repl_value(&mut self, r: Ref, t: Ty, n: NodeRef<'_>) {
+        let t = self.zonk(t);
+        let t = self.strip_mut(t);
+        if t == Ty::VOID || t == Ty::NEVER {
+            return;
+        }
+        let ty = self.show(t);
+        let text = self.dbg_text(r, t, ty.chars().count() + 3, n);
+        let ty = self.b.const_str(&ty);
+        self.dbg_support("repl_value", &[], &[text, ty], Ty::VOID, n);
+    }
+
     /// A direct `dbg` call with only positional arguments.
     pub(crate) fn dbg_call(&mut self, args: &Args<'_>, n: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
         let location = self.dbg_location(n);
@@ -151,17 +197,12 @@ impl Ck<'_, '_> {
             let t = self.strip_mut(t);
             let head = format!("{location}: {}", self.dbg_source(*e));
             let head = self.b.const_str(&head);
-            let line = match self.named_function(r) {
-                Some(name) if matches!(self.pool().get(t), TyData::Fn { .. }) => {
-                    let shown = self.show(t);
-                    let text = format!("<fn {name}{}>", shown.strip_prefix("fn").unwrap_or(&shown));
-                    let text = self.b.const_str(&text);
-                    self.dbg_support("dbg_opaque", &[t], &[head, r, text], t, n)
-                }
-                _ => {
-                    let show = self.dbg_show_ref(t, n);
-                    self.dbg_support("dbg_one", &[t], &[head, r, show], t, n)
-                }
+            let line = if let Some(text) = self.function_text(r, t) {
+                let text = self.b.const_str(&text);
+                self.dbg_support("dbg_opaque", &[t], &[head, r, text], t, n)
+            } else {
+                let show = self.dbg_show_ref(t, n);
+                self.dbg_support("dbg_one", &[t], &[head, r, show], t, n)
             };
             printed.push(line);
             types.push(t);

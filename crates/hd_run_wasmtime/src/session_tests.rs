@@ -1,7 +1,8 @@
 //! The wasmtime session (repl-plan.md job S1): inputs the driver builds
 //! with `Goal::ReplInput` (job C4) run one after another in one store. A
 //! later input sees an earlier input's declarations and top-level bindings
-//! by name (job C5).
+//! by name (job C5). An input that is one expression shows its value, and
+//! an input's top level may make bang calls (job C6).
 
 use hd_run::{HostSetup, Outcome};
 
@@ -220,5 +221,100 @@ fn a_function_sees_a_later_change_to_an_earlier_binding() {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
         }
         assert_eq!(text(&io.out), "3\n");
+    });
+}
+
+/// `cli.repl.value`: an input that is one expression shows its value as
+/// `dbg` prints it, then ` : ` and its type, on the debug output.
+#[test]
+fn an_expression_input_shows_its_value_and_type() {
+    with_session(|session, io| {
+        let mut repl = repl(session);
+        assert_eq!(repl.input("[3, 6]\n"), Outcome::Exit(0));
+        assert_eq!(text(&io.err), "[3, 6] : List[usize]\n");
+        assert_eq!(text(&io.out), "");
+    });
+}
+
+/// `cli.repl.value`: a value whose type implements neither `Display` nor
+/// `Debug` shows too, field by field; a binding shows nothing, and a
+/// later input shows it by name.
+#[test]
+fn a_value_without_debug_shows_too() {
+    let inputs = [
+        "data Point:\n    pub x: i32\n    pub y: i32\n",
+        "Point { x: +1, y: -2 }\n",
+        "origin := Point { x: +0, y: +0 }\n",
+        "origin\n",
+    ];
+    with_session(|session, io| {
+        let mut repl = repl(session);
+        for input in inputs {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        assert_eq!(
+            text(&io.err),
+            "Point { x: 1, y: -2 } : Point\nPoint { x: 0, y: 0 } : Point\n"
+        );
+    });
+}
+
+/// An input of statements shows nothing of its own: its output is the
+/// output its statements write. A `void` call shows no value either.
+#[test]
+fn a_statement_input_shows_nothing_extra() {
+    let inputs = [
+        "let total = +1\n",
+        "total = total + +2\n",
+        "println(total)\n",
+        "for i in [+1, +2]:\n    println(i)\n",
+    ];
+    with_session(|session, io| {
+        let mut repl = repl(session);
+        for input in inputs {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        assert_eq!(text(&io.out), "3\n1\n2\n");
+        assert_eq!(text(&io.err), "");
+    });
+}
+
+/// `cli.dbg.repl`: the `dbg` lines of an input print before its value
+/// line.
+#[test]
+fn dbg_lines_print_before_the_value_line() {
+    let in1 = "fn twice(x: i32) -> i32:\n    dbg(x)\n    x * +2\n";
+    let in2 = "twice(+21) + twice(+1)\n";
+    with_session(|session, io| {
+        let mut repl = repl(session);
+        assert_eq!(repl.input(in1), Outcome::Exit(0), "{}", text(&io.err));
+        assert_eq!(repl.input(in2), Outcome::Exit(0), "{}", text(&io.err));
+        assert_eq!(
+            text(&io.err),
+            "repl#1:2:5: x = 21\nrepl#1:2:5: x = 1\n44 : i32\n"
+        );
+    });
+}
+
+/// An input's top level is a driver context, as `main!`'s body is: its
+/// bang calls are polled to completion under the default profile.
+#[test]
+fn an_input_makes_bang_calls_at_top_level() {
+    let manifest = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml");
+    let inputs = [
+        "use std.time.{sleep, Duration}\n".to_owned(),
+        "sleep!(Duration.milliseconds(+1))\n".to_owned(),
+        "use std.fs.{read_text}\nuse std.path.{Path}\n".to_owned(),
+        format!("text := read_text!(Path(\"{manifest}\")).unwrap_or(\"\")\n"),
+        "println(text.contains(\"hd_run_wasmtime\"))\n".to_owned(),
+        format!("read_text!(Path(\"{manifest}/missing\")).is_ok()\n"),
+    ];
+    with_session(|session, io| {
+        let mut repl = repl(session);
+        for input in &inputs {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        assert_eq!(text(&io.out), "true\n");
+        assert_eq!(text(&io.err), "false : bool\n");
     });
 }

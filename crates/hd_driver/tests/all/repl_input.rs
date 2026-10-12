@@ -5,7 +5,9 @@
 //! with each earlier input's top-level names nested in it. So only the
 //! newest input is checked, emitted and linked. A later input reads and
 //! assigns an earlier input's top-level bindings by name
-//! (`cli.repl.declarations.bindings`, job C5).
+//! (`cli.repl.declarations.bindings`, job C5). An input that is one
+//! expression writes its value line, and an input's top level is a driver
+//! context (job C6).
 
 use hd_cache::{CacheStore, OverlayStore};
 use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, Session, build_packages};
@@ -351,4 +353,95 @@ fn a_program_is_unaffected() {
     };
     let out = build_packages(&host, "app", &Packages::default(), &Goal::Analyze);
     assert!(out.diags.is_empty(), "{}", out.render());
+}
+
+/// Whether `needle` occurs in `wasm`, as a string constant's bytes do.
+fn holds(wasm: &[u8], needle: &str) -> bool {
+    wasm.windows(needle.len()).any(|w| w == needle.as_bytes())
+}
+
+/// Whether an input module writes a value line (`cli.repl.value`).
+fn shows_a_value(wasm: &[u8]) -> bool {
+    function_names(wasm)
+        .iter()
+        .any(|f| f.starts_with("std/format/repl_value#"))
+}
+
+/// `cli.repl.value`: an input that is one expression writes its value as
+/// `dbg` prints it, then its type, which the module holds as diagnostics
+/// show it: the literal's default `usize`, a function's signature, and no
+/// `mut`.
+#[test]
+fn an_expression_input_writes_its_value_line() {
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    let out = repl.input(1, "[3, 6]\n");
+    let wasm = out.wasm.as_deref().expect("a module");
+    assert!(shows_a_value(wasm), "{:?}", function_names(wasm));
+    assert!(holds(wasm, "List[usize]"));
+    repl.input(2, "fn twice(x: i32) -> i32:\n    x * +2\n");
+    let out = repl.input(3, "twice\n");
+    let wasm = out.wasm.as_deref().expect("a module");
+    assert!(holds(wasm, "<fn twice(i32) -> i32>"));
+    assert!(holds(wasm, "fn(i32) -> i32"));
+    repl.input(4, "let names: mut List[string] = []\n");
+    let out = repl.input(5, "names\n");
+    let wasm = out.wasm.as_deref().expect("a module");
+    assert!(holds(wasm, "List[string]") && !holds(wasm, "mut List"));
+}
+
+/// An input of declarations and statements writes no value line, nor
+/// does a `void` call or an expression after a declaration.
+#[test]
+fn other_inputs_write_no_value_line() {
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    for (n, text) in [
+        "xs := [+1, +2]\n",
+        "let total = +0\n",
+        "total = total + xs[0]\n",
+        "println(total)\n",
+        "fn half(x: i32) -> i32:\n    x / +2\n\nhalf(+4)\n",
+        "fn more() -> i32:\n    +1\n",
+    ]
+    .iter()
+    .enumerate()
+    {
+        let n = u32::try_from(n + 1).expect("inputs");
+        let out = repl.input(n, text);
+        let wasm = out.wasm.as_deref().expect("a module");
+        assert!(!shows_a_value(wasm), "repl#{n}");
+    }
+}
+
+/// An input's top level is a driver context, as `main!`'s body is: it
+/// may make bang calls. A program's top level still may not
+/// (`module.init.script-not-driver`).
+#[test]
+fn an_input_may_make_bang_calls_at_top_level() {
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    let text = "use std.time.{sleep, Duration}\n\nsleep!(Duration.milliseconds(+1))\n";
+    repl.input(1, text);
+    let mut src = MemorySources::default();
+    src.insert("src/main.hd", text);
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let goal = Goal::Program {
+        entry: "main".into(),
+    };
+    let out = build_packages(&host, "app", &Packages::default(), &goal);
+    assert!(
+        out.render().contains("bang-call-outside-suspension"),
+        "{}",
+        out.render()
+    );
 }

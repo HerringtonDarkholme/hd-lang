@@ -279,26 +279,54 @@ pub fn init_statements(root: NodeRef<'_>) -> Vec<NodeRef<'_>> {
         .collect()
 }
 
+/// The statement of a REPL input that is one expression, whose value the
+/// REPL shows (`cli.repl.value`): the input's only top-level item, an
+/// expression statement that binds nothing. An input of declarations or
+/// other statements shows nothing of its own.
+fn shown_statement<'t>(cx: &BodyCx<'_>, stmts: &[NodeRef<'t>]) -> Option<NodeRef<'t>> {
+    let [s] = stmts else { return None };
+    let only = cx.src.root().children().count() == 1;
+    let binds = s
+        .children()
+        .next()
+        .is_none_or(|e| e.kind() == SyntaxKind::BindingExpr);
+    (only && s.kind() == SyntaxKind::ExprStmt && !binds).then_some(*s)
+}
+
 /// The global that holds one variant's shared field (`data.shared.not-stored`).
 #[must_use]
 pub fn shared_global(names: &hd_resolve::Names<'_>, variant: DefId, field: &str) -> DefId {
     names.member(variant, hd_intern::PathKind::Hidden, field)
 }
 
-/// Checks a module's top-level statements as its `Init` body. `entry`:
-/// the entry module, whose top level may use an inferred entry row
-/// (`module.init.script-row`); any other module's is requirement-free
-/// (`module.init.requirement-free`). Returns the body and each
-/// statement's summary: its facts and its first instruction.
+/// Whose top level [`check_init`] checks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TopLevel {
+    /// A module that is not the entry: requirement-free
+    /// (`module.init.requirement-free`).
+    Module,
+    /// A program's entry module: an inferred entry row
+    /// (`module.init.script-row`).
+    Entry,
+    /// A REPL input: an inferred row too, and a driver context, as
+    /// `main!`'s body is, so it may make bang calls. An input that is one
+    /// expression shows its value (`cli.repl.value`).
+    Input,
+}
+
+/// Checks a module's top-level statements as its `Init` body. Returns
+/// the body and each statement's summary: its facts and its first
+/// instruction.
 pub fn check_init(
     cx: &BodyCx<'_>,
     item: DefId,
     module: &str,
     stmts: &[NodeRef<'_>],
-    entry: bool,
+    top: TopLevel,
     diags: &mut DiagBuf,
 ) -> StageResult<(Body, Vec<StmtSummary>)> {
     let pool = cx.names.pool;
+    let entry = top != TopLevel::Module;
     let row = if entry {
         // An inferred row: every key is available at the top level.
         pool.row(&RowData {
@@ -323,6 +351,10 @@ pub fn check_init(
     );
     ck.module_init = Some(module.to_owned());
     ck.forbidden = (!entry).then_some("a module's initialization");
+    if top == TopLevel::Input {
+        ck.suspends = vec![true];
+        ck.shown = shown_statement(cx, stmts).map(|s| (s.index(), None));
+    }
     let blk = ck.b.open_block();
     // A body that M1 checks for a statement may read a later binding. An
     // annotated one has its type before its statement runs, so that read
@@ -340,6 +372,9 @@ pub fn check_init(
         // A binding takes its initializer's type, and no later statement
         // changes it (`types.literal.local.statement`).
         ck.close_literals(start);
+        if let Some((_, Some((r, t)))) = ck.shown.take() {
+            ck.repl_value(r, t, *s);
+        }
         let span = cx.src.span(*s);
         per_stmt.push(StmtSummary {
             first_inst,

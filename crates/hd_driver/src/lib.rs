@@ -3078,7 +3078,14 @@ impl Run<'_> {
                     && self.skim_of(m).public_main.is_none()));
         if !stmts.is_empty() || empty_script {
             let item = hd_check::default_body_def(&names, names.item(&module.path, "init"), "init");
-            match hd_check::init::check_init(&cx, item, &module.path, &stmts, entry, &mut diags) {
+            let top = if input {
+                hd_check::init::TopLevel::Input
+            } else if entry {
+                hd_check::init::TopLevel::Entry
+            } else {
+                hd_check::init::TopLevel::Module
+            };
+            match hd_check::init::check_init(&cx, item, &module.path, &stmts, top, &mut diags) {
                 Ok((b, facts)) => {
                     lock(&self.report).body_ok += 1;
                     init_facts = facts;
@@ -5819,6 +5826,32 @@ impl Env<'_> {
             .filter(|b| matches!(b.kind, hd_tir::BodyKind::Default | hd_tir::BodyKind::Fact))
     }
 
+    /// Whether a module's `Init` body suspends: a REPL input's top level
+    /// is a driver context, so it suspends where it awaits outside its
+    /// closures. No other top level awaits.
+    fn init_suspends(&self, def: DefId) -> bool {
+        let Some((b, _)) = self.p.bodies.get(&def) else {
+            return false;
+        };
+        let awaits = |t: &hd_tir::Tag| {
+            matches!(
+                t,
+                hd_tir::Tag::Await
+                    | hd_tir::Tag::AwaitValue
+                    | hd_tir::Tag::AwaitAll
+                    | hd_tir::Tag::AwaitRace
+            )
+        };
+        if b.kind != hd_tir::BodyKind::Init || !b.tags.iter().any(awaits) {
+            return false;
+        }
+        let subs = b.inst_subs();
+        b.tags
+            .iter()
+            .zip(subs)
+            .any(|(t, sub)| awaits(t) && sub == 0)
+    }
+
     /// The row keys of a module init, which has no signature. An entry
     /// module's init has an inferred entry row (`module.init.script-row`),
     /// so its keys are those of the callees its top level calls.
@@ -5831,7 +5864,7 @@ impl Env<'_> {
         }
         let mut keys: Vec<Ty> = Vec::new();
         for (i, tag) in b.tags.iter().enumerate() {
-            if *tag != hd_tir::Tag::Call {
+            if !matches!(tag, hd_tir::Tag::Call | hd_tir::Tag::Await) {
                 continue;
             }
             let Some(hd_tir::Callee::Item { def: callee, targs }) =
@@ -5879,7 +5912,10 @@ impl ProgramEnv for Env<'_> {
             .map(|s| s.params.iter().map(|p| p.1).collect())
     }
     fn suspends(&self, def: DefId) -> bool {
-        self.sig(def).is_some_and(|s| s.suspends)
+        match self.sig(def) {
+            Some(s) => s.suspends,
+            None => self.init_suspends(def),
+        }
     }
     fn row_keys(&self, def: DefId, args: TyList) -> Vec<Ty> {
         let Some(s) = self.sig(def) else {

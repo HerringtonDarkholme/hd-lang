@@ -389,6 +389,9 @@ identical bytes.
 | S2 | Stop: an interrupt flag read by the epoch callback | Test: a loop input stopped from another thread; the next input runs; earlier values remain |
 | S3 | Cancel: the `hd.cancel` export through the root's `Part::Cancel` | Test: a waiting input is cancelled, its `defer` runs, the session continues (`cli.repl.cancel`) |
 | C9 | `hd` on a terminal opens the REPL (wasmtime build): reading with continuation, commands, transcript, `repl#n` diagnostics, Ctrl-C wiring. Gates: Q1, Q4, Q5 | In-process session tests per `cli.repl.*` rule; one pseudo-terminal smoke test; `hd help` unchanged |
+| C9a | Syntax highlighting at the prompt (owner, low priority): rustyline `Highlighter` colouring `hd_syntax` lexer tokens with the website's token classes | Test: a highlighted line keeps its text when ANSI codes are stripped; keywords, strings and comments get distinct colours |
+| C9b | Tab completion, only if cheap (owner, lowest priority): rustyline `Completer` over keywords and the session scope's names (`lib.hd` plus earlier inputs) | Test: `pri<Tab>` offers `price` after it is declared; keywords complete |
+| C9c | Optional, lowest priority: `name.<Tab>` for a bare session binding lists its fields and inherent methods (binding types from C5, `hd_check::conflicts::inherent_methods`); no trait methods, no compound expressions | Test: `log.<Tab>` on a `List[string]` binding offers `push`; a `data` binding offers its fields |
 | C10 | Package mode and workspace mode scopes | Tests for `cli.repl.package.*`, `cli.repl.outside`, `cli.workspace.repl` |
 | C11 | `long-session` run on the session API: 1,000 inputs, RSS every 50 | Numbers against Q3's answer; the O(session TIR) term measured |
 

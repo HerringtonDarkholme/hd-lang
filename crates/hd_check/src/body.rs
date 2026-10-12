@@ -236,6 +236,9 @@ pub(crate) struct Ck<'a, 'c> {
     pub module_init: Option<String>,
     /// The top-level statement being checked.
     pub init_stmt: usize,
+    /// A REPL input that is one expression: that statement, then its
+    /// value and type once checked (`cli.repl.value`).
+    pub shown: Option<(hd_base::NodeIdx, Option<(Ref, Ty)>)>,
     /// What this body reads and calls (module initialization).
     pub facts: crate::init::InitFacts,
     /// A pipe's value while its step is checked (`_`).
@@ -437,6 +440,7 @@ pub(crate) fn new_ck<'a, 'c>(
         lit_arg: None,
         module_init: None,
         init_stmt: 0,
+        shown: None,
         facts: crate::init::InitFacts::default(),
         placeholder: None,
         pipe_arg: None,
@@ -2365,6 +2369,12 @@ impl Ck<'_, '_> {
                     return Ok(Ty::VOID);
                 };
                 self.stmt_binding = (e.kind() == SyntaxKind::BindingExpr).then(|| e.index());
+                // A REPL input's value is shown, not discarded.
+                if self.shown.is_some_and(|(at, _)| at == s.index()) {
+                    let (r, t) = self.expr(*e, None)?;
+                    self.shown = Some((s.index(), Some((r, t))));
+                    return Ok(if t == Ty::NEVER { Ty::NEVER } else { Ty::VOID });
+                }
                 let (_, t) = self.expr(*e, Some(Ty::VOID))?;
                 let t = self.infer.shallow(self.pool(), t);
                 if self.must_use(t) {

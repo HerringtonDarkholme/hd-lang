@@ -691,6 +691,13 @@ fn dbg_done[T](printed: T) -> void:
 fn dbg_here(head: string) -> void:
     dbg_write(head)
 
+# The REPL's value line (spec/cli/command-line.md#r-cli.repl.value): `text`,
+# the value as `dbg` prints it, then ` : ` and its type. It goes to the debug
+# output, after the input's `dbg` lines (r-cli.dbg.repl), and needs no
+# requirement. The checker calls it for an input that is one expression.
+fn repl_value(text: string, ty: string) -> void:
+    dbg_write("$text : $ty")
+
 # A part whose type implements `Debug`, inside a generated printer.
 fn dbg_nested[T < Debug](value: T, out: mut DebugWriter) -> void:
     value.debug(out)
