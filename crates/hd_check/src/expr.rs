@@ -2224,7 +2224,10 @@ impl Ck<'_, '_> {
                     pool.list_items(args).first().copied().unwrap_or(Ty::POISON),
                 )
             }
-            TyData::Infer(_) => return unsupported("a `for` over a value whose type is not known"),
+            // An infer-typed source, such as an open numeric literal, goes
+            // through the general `Iterable` call below: the solver waits
+            // while the literal is open, and reports `unsatisfied-trait-bound`
+            // when nothing fixes it to an iterable type.
             // Every std range is `Iterable[T] for Range[T]` (and `RangeFrom`).
             TyData::Adt { def, args }
                 if def == self.cx.names.known.range || def == self.cx.names.known.range_from =>

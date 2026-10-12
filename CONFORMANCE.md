@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2787 | 42 | 16 | 2845 |
+| 2788 | 42 | 15 | 2845 |
 
 ## By Chapter
 
@@ -19,7 +19,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
 | `lang/04-type-system.md` | 345 | 7 | 0 | 352 |
 | `lang/05-expressions.md` | 273 | 4 | 0 | 277 |
-| `lang/06-control-flow.md` | 148 | 5 | 4 | 157 |
+| `lang/06-control-flow.md` | 149 | 5 | 3 | 157 |
 | `lang/07-functions.md` | 126 | 4 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 120 | 3 | 0 | 123 |
 | `lang/09-traits.md` | 352 | 7 | 0 | 359 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 917 | 0 | 12 | 929 |
-| `typing/invalid` | 1039 | 35 | 1 | 1075 |
+| `typing/invalid` | 1040 | 35 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 13 | 7 | 0 | 20 |
 
@@ -84,7 +84,6 @@ compiler stage that first declined the case.
 | `fail:unknown-data-field` | 2 |
 | `fail:unknown-module` | 1 |
 | `fail:unknown-name` | 3 |
-| `unsupported:Body` | 1 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 11 |
 
@@ -172,12 +171,6 @@ compiler stage that first declined the case.
 - `typing/invalid/parameter-default-later-parameter.hd`
 - `typing/invalid/default-later-parameter-earlier-twin.hd`
 - `typing/invalid/variant-pattern-unknown-field.hd`
-
-</details>
-
-<details><summary><code>unsupported:Body</code> (1)</summary>
-
-- `typing/invalid/for-over-non-iterable.hd`
 
 </details>
 
@@ -1845,6 +1838,7 @@ typing/invalid/folder-cycle-facade.hd
 typing/invalid/folder-cycle-nested.hd
 typing/invalid/for-binding-arity.hd
 typing/invalid/for-binding-not-visible-in-else.hd
+typing/invalid/for-over-non-iterable.hd
 typing/invalid/for-over-string.hd
 typing/invalid/for-refutable-pattern.hd
 typing/invalid/foreign-inherent-impl.hd
