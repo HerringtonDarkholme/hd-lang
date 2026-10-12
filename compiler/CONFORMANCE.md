@@ -8,22 +8,22 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2761 | 68 | 16 | 2845 |
+| 2769 | 60 | 16 | 2845 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
 | `lang/01-lexical-structure.md` | 145 | 0 | 0 | 145 |
-| `lang/02-grammar.md` | 213 | 2 | 0 | 215 |
+| `lang/02-grammar.md` | 214 | 1 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
-| `lang/04-type-system.md` | 341 | 11 | 0 | 352 |
-| `lang/05-expressions.md` | 272 | 5 | 0 | 277 |
+| `lang/04-type-system.md` | 342 | 10 | 0 | 352 |
+| `lang/05-expressions.md` | 273 | 4 | 0 | 277 |
 | `lang/06-control-flow.md` | 148 | 5 | 4 | 157 |
-| `lang/07-functions.md` | 123 | 7 | 0 | 130 |
+| `lang/07-functions.md` | 124 | 6 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 118 | 5 | 0 | 123 |
-| `lang/09-traits.md` | 349 | 10 | 0 | 359 |
-| `lang/10-modules.md` | 244 | 10 | 4 | 258 |
+| `lang/09-traits.md` | 350 | 9 | 0 | 359 |
+| `lang/10-modules.md` | 245 | 9 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 250 | 1 | 8 | 259 |
 | `lang/14-annotations.md` | 146 | 7 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
@@ -33,8 +33,8 @@ fixture; unsupported surface records progress without failing.
 | `std/digest.md` | 2 | 0 | 0 | 2 |
 | `std/encoding.md` | 3 | 0 | 0 | 3 |
 | `std/error.md` | 14 | 0 | 0 | 14 |
-| `std/format.md` | 7 | 1 | 0 | 8 |
-| `std/fs.md` | 3 | 1 | 0 | 4 |
+| `std/format.md` | 8 | 0 | 0 | 8 |
+| `std/fs.md` | 4 | 0 | 0 | 4 |
 | `std/hash.md` | 9 | 0 | 0 | 9 |
 | `std/host.md` | 2 | 0 | 0 | 2 |
 | `std/http.md` | 2 | 0 | 0 | 2 |
@@ -63,9 +63,9 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 195 | 0 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
-| `runtime/valid` | 916 | 1 | 12 | 929 |
-| `typing/invalid` | 1016 | 58 | 1 | 1075 |
-| `typing/valid` | 414 | 1 | 0 | 415 |
+| `runtime/valid` | 917 | 0 | 12 | 929 |
+| `typing/invalid` | 1022 | 52 | 1 | 1075 |
+| `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 12 | 8 | 0 | 20 |
 
 ## Failure Buckets
@@ -75,32 +75,22 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:duplicate-argument` | 1 |
 | `fail:missing-required-field` | 2 |
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:no-diagnostic` | 34 |
 | `fail:pattern-arity` | 1 |
-| `fail:private-import` | 1 |
 | `fail:private-main` | 1 |
 | `fail:re-export-loop` | 1 |
-| `fail:readonly-root` | 1 |
-| `fail:trait-used-as-type` | 1 |
 | `fail:type-mismatch` | 5 |
 | `fail:unknown-data-field` | 2 |
 | `fail:unknown-import` | 1 |
-| `fail:unknown-method` | 5 |
+| `fail:unknown-method` | 2 |
 | `fail:unknown-module` | 1 |
-| `fail:unknown-name` | 6 |
+| `fail:unknown-name` | 5 |
 | `unsupported:Body` | 1 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 11 |
-
-<details><summary><code>fail:duplicate-argument</code> (1)</summary>
-
-- `typing/invalid/nonfinal-spread.hd`
-
-</details>
 
 <details><summary><code>fail:missing-required-field</code> (2)</summary>
 
@@ -169,12 +159,6 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:private-import</code> (1)</summary>
-
-- `typing/invalid/private-std-name-in-group.hd`
-
-</details>
-
 <details><summary><code>fail:private-main</code> (1)</summary>
 
 - `typing/invalid/trailing-block-ineligible.hd`
@@ -184,18 +168,6 @@ compiler stage that first declined the case.
 <details><summary><code>fail:re-export-loop</code> (1)</summary>
 
 - `typing/invalid/pub-use-loop.hd`
-
-</details>
-
-<details><summary><code>fail:readonly-root</code> (1)</summary>
-
-- `typing/invalid/callable-value-short-binding-store.hd`
-
-</details>
-
-<details><summary><code>fail:trait-used-as-type</code> (1)</summary>
-
-- `typing/invalid/callback-parameter-bare-trait.hd`
 
 </details>
 
@@ -222,11 +194,8 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-method</code> (5)</summary>
+<details><summary><code>fail:unknown-method</code> (2)</summary>
 
-- `runtime/valid/memory-fs-directories.hd`
-- `typing/valid/std-types-debug.hd`
-- `typing/invalid/literal-var-method-missing.hd`
 - `typing/invalid/iterator-sum-non-numeric.hd`
 - `typing/invalid/list-sum-non-numeric.hd`
 
@@ -238,10 +207,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-name</code> (6)</summary>
+<details><summary><code>fail:unknown-name</code> (5)</summary>
 
 - `typing/invalid/parameter-default-later-parameter.hd`
-- `typing/invalid/positional-after-spread.hd`
 - `typing/invalid/default-later-parameter-earlier-twin.hd`
 - `typing/invalid/variant-pattern-unknown-field.hd`
 - `typing/invalid/misplaced-test-case.hd`
@@ -1153,6 +1121,7 @@ runtime/valid/map-sys.hd
 runtime/valid/match-arm-binding-reuse.hd
 runtime/valid/match-guards.hd
 runtime/valid/member-line-list-expression.hd
+runtime/valid/memory-fs-directories.hd
 runtime/valid/memory-fs.hd
 runtime/valid/method-call-never-selects-field.hd
 runtime/valid/method-receiver-before-arguments.hd
@@ -1695,6 +1664,8 @@ typing/invalid/call-missing-requirement.hd
 typing/invalid/callable-value-arguments.hd
 typing/invalid/callable-value-no-update.hd
 typing/invalid/callable-value-readonly-parameter.hd
+typing/invalid/callable-value-short-binding-store.hd
+typing/invalid/callback-parameter-bare-trait.hd
 typing/invalid/cancel-readonly-suspension.hd
 typing/invalid/cannot-infer-type.hd
 typing/invalid/cast-literal-out-of-range.hd
@@ -2089,6 +2060,7 @@ typing/invalid/literal-suffix-suspending.hd
 typing/invalid/literal-suffix-unmarked.hd
 typing/invalid/literal-trait-value-no-one-fit.hd
 typing/invalid/literal-var-int-to-float.hd
+typing/invalid/literal-var-method-missing.hd
 typing/invalid/literal-var-range-bound-conflict.hd
 typing/invalid/literal-var-structure-conflict.hd
 typing/invalid/literal-var-top-level-undecided.hd
@@ -2188,6 +2160,7 @@ typing/invalid/none-to-any.hd
 typing/invalid/none-without-expected-type.hd
 typing/invalid/nonexhaustive-bool-match.hd
 typing/invalid/nonexhaustive-match.hd
+typing/invalid/nonfinal-spread.hd
 typing/invalid/nonfinal-vararg-declaration.hd
 typing/invalid/nonfinal-vararg-then-parameter.hd
 typing/invalid/nonhost-entry-requirement.hd
@@ -2246,6 +2219,7 @@ typing/invalid/pipe-suspending-bare-step.hd
 typing/invalid/pipe-suspending-method-reference.hd
 typing/invalid/placeholder-outside-pipe.hd
 typing/invalid/plain-break-in-value-loop.hd
+typing/invalid/positional-after-spread.hd
 typing/invalid/positional-spread-duplicates-vararg.hd
 typing/invalid/positional-spread-without-vararg.hd
 typing/invalid/possibly-uninitialized-binding.hd
@@ -2274,6 +2248,7 @@ typing/invalid/private-package-name.hd
 typing/invalid/private-promoted-method-nothing-visible.hd
 typing/invalid/private-requirement-row.hd
 typing/invalid/private-std-function.hd
+typing/invalid/private-std-name-in-group.hd
 typing/invalid/private-std-type.hd
 typing/invalid/private-type-embedded-in-public-data.hd
 typing/invalid/private-type-leak-data-field.hd
@@ -2960,6 +2935,7 @@ typing/valid/std-derivation-types-debug.hd
 typing/valid/std-host-types-debug.hd
 typing/valid/std-joined-types-debug.hd
 typing/valid/std-reexported-child-item.hd
+typing/valid/std-types-debug.hd
 typing/valid/stored-suspension-driving.hd
 typing/valid/string-bytes.hd
 typing/valid/string-prefix-generic.hd
