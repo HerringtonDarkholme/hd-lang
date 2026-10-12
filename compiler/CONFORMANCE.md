@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2689 | 138 | 18 | 2845 |
+| 2691 | 137 | 17 | 2845 |
 
 ## By Chapter
 
@@ -21,9 +21,9 @@ fixture; unsupported surface records progress without failing.
 | `lang/05-expressions.md` | 264 | 13 | 0 | 277 |
 | `lang/06-control-flow.md` | 141 | 12 | 4 | 157 |
 | `lang/07-functions.md` | 120 | 10 | 0 | 130 |
-| `lang/08-data-and-enums.md` | 114 | 8 | 1 | 123 |
+| `lang/08-data-and-enums.md` | 115 | 8 | 0 | 123 |
 | `lang/09-traits.md` | 348 | 11 | 0 | 359 |
-| `lang/10-modules.md` | 233 | 20 | 5 | 258 |
+| `lang/10-modules.md` | 234 | 19 | 5 | 258 |
 | `lang/11-requirements-and-suspension.md` | 244 | 7 | 8 | 259 |
 | `lang/14-annotations.md` | 144 | 9 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 100 | 2 | 3 | 105 |
-| `runtime/valid` | 910 | 5 | 14 | 929 |
+| `runtime/valid` | 912 | 4 | 13 | 929 |
 | `typing/invalid` | 969 | 105 | 1 | 1075 |
 | `typing/valid` | 412 | 3 | 0 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -84,7 +84,6 @@ compiler stage that first declined the case.
 | `fail:duplicate-data-pattern-field` | 1 |
 | `fail:invalid-test-statement` | 1 |
 | `fail:invalid-token` | 2 |
-| `fail:missing-entry-point` | 1 |
 | `fail:missing-required-field` | 2 |
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 2 |
@@ -111,7 +110,7 @@ compiler stage that first declined the case.
 | `fail:unsatisfied-trait-bound` | 1 |
 | `fail:unused-local-binding` | 2 |
 | `unsupported:Body` | 1 |
-| `unsupported:Collect` | 3 |
+| `unsupported:Collect` | 2 |
 | `unsupported:Link` | 3 |
 | `unsupported:RunCase` | 11 |
 
@@ -176,12 +175,6 @@ compiler stage that first declined the case.
 
 - `parse/invalid/leading-tuple-index-does-not-continue.hd`
 - `parse/invalid/backslash-line-continuation.hd`
-
-</details>
-
-<details><summary><code>fail:missing-entry-point</code> (1)</summary>
-
-- `runtime/valid/script-empty-run.hd`
 
 </details>
 
@@ -434,10 +427,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Collect</code> (3)</summary>
+<details><summary><code>unsupported:Collect</code> (2)</summary>
 
 - `runtime/valid/init-group-order.hd`
-- `runtime/valid/shared-enum-data-computed-once.hd`
 - `runtime/valid/init-group-statements-by-identity.hd`
 
 </details>
@@ -1570,6 +1562,7 @@ runtime/valid/row-variable-binds-union.hd
 runtime/valid/row-variable-plus-key.hd
 runtime/valid/same-line-suite-body-forms.hd
 runtime/valid/same-line-suite-boundaries.hd
+runtime/valid/script-empty-run.hd
 runtime/valid/script-top-level-runs.hd
 runtime/valid/scripted-input.hd
 runtime/valid/scripted-process.hd
@@ -1585,6 +1578,7 @@ runtime/valid/serde-std-writes.hd
 runtime/valid/serde-variant-member-facts.hd
 runtime/valid/serde-writer-first-error.hd
 runtime/valid/set-basics.hd
+runtime/valid/shared-enum-data-computed-once.hd
 runtime/valid/shared-enum-data-defaults.hd
 runtime/valid/shared-enum-fact-evaluation.hd
 runtime/valid/shared-mutable-child-no-invariants.hd

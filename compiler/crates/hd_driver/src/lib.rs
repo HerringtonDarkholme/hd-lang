@@ -2342,18 +2342,25 @@ impl Run<'_> {
                 .partition(|s| hd_check::tests::is_registration(&src, *s));
         }
         let mut init_facts = Vec::new();
-        if !stmts.is_empty() {
-            // A test program has no entry module: every top level is
-            // requirement-free.
-            let entry_name = match &self.goal {
-                Goal::Program { entry } => Some(entry.as_str()),
-                Goal::Tests { .. } => None,
-                Goal::Analyze | Goal::CheckTests => Some("main"),
-            };
-            let entry = module.package == 0
-                && entry_name.is_some_and(|e| {
-                    module.path == format!("{}.{e}", hd_project::package_ident(&self.package))
-                });
+        // A test program has no entry module: every top level is
+        // requirement-free.
+        let entry_name = match &self.goal {
+            Goal::Program { entry } => Some(entry.as_str()),
+            Goal::Tests { .. } => None,
+            Goal::Analyze | Goal::CheckTests => Some("main"),
+        };
+        let entry = module.package == 0
+            && entry_name.is_some_and(|e| {
+                module.path == format!("{}.{e}", hd_project::package_ident(&self.package))
+            });
+        // `module.init.script-empty`: a program's entry module with no
+        // public `main` is a script even with no statements, and its empty
+        // init is the whole program.
+        let empty_script = entry
+            && stmts.is_empty()
+            && matches!(self.goal, Goal::Program { .. })
+            && self.skim_of(m).public_main.is_none();
+        if !stmts.is_empty() || empty_script {
             let item = hd_check::default_body_def(&names, names.item(&module.path, "init"), "init");
             match hd_check::init::check_init(&cx, item, &module.path, &stmts, entry, &mut diags) {
                 Ok((b, facts)) => {
@@ -3640,7 +3647,13 @@ impl Run<'_> {
             .collect();
         let reports: Vec<Option<(DefId, TyList)>> = roots
             .iter()
-            .map(|(d, _)| self.report_fn(p, env.ret(*d).unwrap_or(Ty::VOID)))
+            .map(|(d, _)| {
+                // A script has no `main`, so there is no result to report.
+                if script {
+                    return None;
+                }
+                self.report_fn(p, env.ret(*d).unwrap_or(Ty::VOID))
+            })
             .collect();
         for r in reports.iter().flatten() {
             if !extra.contains(r) {

@@ -50,7 +50,7 @@ fn private_main_with_i32_result_runs_from_a_test() {
 }
 
 #[test]
-fn private_main_alone_warns_and_is_no_entry() {
+fn private_main_alone_warns_and_is_an_empty_script() {
     let text = "fn main() -> void:\n    pass\n";
     let analyzed = run(text, &Goal::Analyze);
     assert!(!analyzed.diags.has_errors(), "{}", analyzed.render());
@@ -65,12 +65,33 @@ fn private_main_alone_warns_and_is_no_entry() {
             entry: "main".into(),
         },
     );
-    assert!(
-        codes(&program).contains(&"missing-entry-point"),
-        "{}",
-        program.render()
+    // `module.init.script-empty`: with no statements it is an empty script.
+    assert!(!program.diags.has_errors(), "{}", program.render());
+    assert!(program.wasm.is_some(), "{}", program.render());
+}
+
+#[test]
+fn entry_module_with_only_a_helper_builds_an_empty_script() {
+    let program = run(
+        "fn helper() -> i32:\n    1\n",
+        &Goal::Program {
+            entry: "main".into(),
+        },
     );
-    assert!(program.wasm.is_none());
+    assert!(!program.diags.has_errors(), "{}", program.render());
+    assert!(program.wasm.is_some(), "{}", program.render());
+}
+
+#[test]
+fn entry_module_with_only_statements_builds_a_script() {
+    let program = run(
+        "x := 40 + 2\nprintln(x)\n",
+        &Goal::Program {
+            entry: "main".into(),
+        },
+    );
+    assert!(!program.diags.has_errors(), "{}", program.render());
+    assert!(program.wasm.is_some(), "{}", program.render());
 }
 
 #[test]
@@ -81,15 +102,7 @@ fn private_main_i32_in_a_program_owes_no_termination() {
             entry: "main".into(),
         },
     );
-    assert_eq!(
-        codes(&program)
-            .iter()
-            .filter(|c| **c == "missing-entry-point")
-            .count(),
-        1,
-        "{}",
-        program.render()
-    );
+    assert!(!program.diags.has_errors(), "{}", program.render());
     assert!(
         !program.render().contains("unsupported"),
         "{}",

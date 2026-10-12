@@ -227,6 +227,47 @@ fn script_runs_its_top_level_statements() {
     assert_eq!(hd_run(&cache("hd-cache-script"), &file), "42\n");
 }
 
+/// `module.init.script-empty`: an entry module with no `main` and no
+/// top-level statements runs, prints nothing, and exits 0; `hd check`
+/// stays clean.
+#[test]
+fn empty_script_runs_and_exits_zero() {
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-empty-script");
+    let file = dir.join("empty.hd");
+    std::fs::write(&file, "fn helper() -> i32:\n    1\n").expect("write");
+    let out = hd(&cache("hd-cache-empty-script"))
+        .arg(&file)
+        .output()
+        .expect("run hd");
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    assert!(out.stdout.is_empty() && out.stderr.is_empty(), "{out:?}");
+    let out = hd(&cache("hd-cache-empty-script"))
+        .arg("check")
+        .arg(&file)
+        .output()
+        .expect("run hd");
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+}
+
+/// `module.init.script-empty` does not cover an executable table whose
+/// module does not exist: that stays `missing-entry-point`.
+#[test]
+fn executable_naming_a_missing_module_stays_an_error() {
+    let dir = tree(
+        "hd-forms-exe-missing",
+        &[
+            (
+                "hd.toml",
+                "[package]\nname = \"shop\"\n\n[[executable]]\nname = \"gone\"\nmodule = \"tools.gone\"\n",
+            ),
+            ("src/lib.hd", "pub fn one() -> i32:\n    +1\n"),
+        ],
+    );
+    let r = ran(&dir, &["check"]);
+    assert_ne!(r.code, Some(0), "{}", r.err);
+    assert!(r.err.contains("missing-entry-point"), "{}", r.err);
+}
+
 /// Outside any package, `hd FILE` builds FILE alone: a broken sibling
 /// in the same directory is not part of the program (cli.file.run).
 #[test]
