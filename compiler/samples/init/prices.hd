@@ -1,5 +1,5 @@
 markup := +5
-let mut calls: i32 = 0
+let calls: i32 = 0
 
 pub fn price_of(sku: string) -> i32:
     calls = calls + 1

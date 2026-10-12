@@ -106,7 +106,7 @@ fn with_prelude(rest: &str) -> String {
 #[test]
 fn type_facts_run_once_on_the_first_read() {
     let main = with_prelude(
-        "let mut evaluations = +0
+        "let evaluations = +0
 
 fn style(prefix: string) -> Style:
     evaluations = evaluations + 1
@@ -134,7 +134,7 @@ pub fn main() -> void $ Console:
 #[test]
 fn function_facts_run_once_on_the_first_read() {
     let main = with_prelude(
-        "let mut evaluations = +0
+        "let evaluations = +0
 
 fn style(prefix: string) -> Style:
     evaluations = evaluations + 1
@@ -167,8 +167,8 @@ pub fn main() -> void $ Console:
 #[test]
 fn different_facts_are_evaluated_independently() {
     let main = with_prelude(
-        "let mut first = +0
-let mut second = +0
+        "let first = +0
+let second = +0
 
 fn style_a(prefix: string) -> Style:
     first = first + 1

@@ -381,7 +381,7 @@ impl Ck<'_, '_> {
             .direct_tokens()
             .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut))
         {
-            self.let_mut_name(t, annot.is_some(), pat);
+            self.let_mut_binding(t, annot.is_some(), pat);
             t
         } else if annot.is_none() {
             self.readonly_view(t)

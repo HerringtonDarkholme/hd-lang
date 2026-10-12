@@ -221,7 +221,7 @@ impl Probe for Point by Structure:
 #[test]
 fn list_expression_runs_once_when_first_read() {
     let main = with_prelude(
-        "let mut evaluations = +0
+        "let evaluations = +0
 
 fn counted() -> List[dyn Any]:
     evaluations = evaluations + 1

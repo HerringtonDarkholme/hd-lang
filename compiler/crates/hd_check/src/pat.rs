@@ -704,20 +704,7 @@ impl Ck<'_, '_> {
                 .direct_tokens()
                 .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut))
         {
-            let lit = matches!(
-                self.infer.kind_of(pool, t),
-                Some(VarKind::IntLit | VarKind::SignedIntLit | VarKind::FloatLit)
-            );
-            match pool.get(self.strip_mut(t)) {
-                _ if lit => self.err(Code::MutOnPrimitive, pat, "`let mut` on a primitive value"),
-                TyData::Prim(_) => {
-                    self.err(Code::MutOnPrimitive, pat, "`let mut` on a primitive value");
-                }
-                TyData::Tuple { .. } => {
-                    self.err(Code::MutOnTuple, pat, "`let mut` on a tuple");
-                }
-                _ => self.let_mut_name(t, annot.is_some(), pat),
-            }
+            self.let_mut_binding(t, annot.is_some(), pat);
         } else if pat.kind() == SyntaxKind::BindingPattern && annot.is_none() {
             // `x := e` and `let x = e` bind the readonly view
             // (types.bind.short, types.bind.let-readonly).

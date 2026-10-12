@@ -8,7 +8,7 @@ use hd_diag::Code;
 use hd_resolve::ItemData;
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::ir::{Ref, Tag};
-use hd_types::{ParamRef, Ty, TyData};
+use hd_types::{ParamRef, Ty, TyData, VarKind};
 
 use crate::body::Ck;
 
@@ -377,6 +377,28 @@ impl Ck<'_, '_> {
         match pool.get(r) {
             TyData::Option(i) => self.is_composite(i),
             _ => self.is_composite(r),
+        }
+    }
+
+    /// A plain `let mut name` binding of type `t`, local or top-level: a
+    /// primitive or tuple is its own error, anything else follows
+    /// `let_mut_name` (types.bind.let-mut-primitive,
+    /// types.bind.let-mut-tuple).
+    pub(crate) fn let_mut_binding(&mut self, t: Ty, annotated: bool, at: NodeRef<'_>) {
+        let pool = self.pool();
+        let lit = matches!(
+            self.infer.kind_of(pool, t),
+            Some(VarKind::IntLit | VarKind::SignedIntLit | VarKind::FloatLit)
+        );
+        match pool.get(self.strip_mut(t)) {
+            _ if lit => self.err(Code::MutOnPrimitive, at, "`let mut` on a primitive value"),
+            TyData::Prim(_) => {
+                self.err(Code::MutOnPrimitive, at, "`let mut` on a primitive value");
+            }
+            TyData::Tuple { .. } => {
+                self.err(Code::MutOnTuple, at, "`let mut` on a tuple");
+            }
+            _ => self.let_mut_name(t, annotated, at),
         }
     }
 
