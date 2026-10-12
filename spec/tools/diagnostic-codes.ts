@@ -10,7 +10,7 @@ import { knownCodes } from "./spec-prose.ts";
 const REPO_ROOT = resolve(import.meta.dirname, "..", "..");
 const README = resolve(REPO_ROOT, "spec", "README.md");
 const CASES = resolve(REPO_ROOT, "spec", "conformance", "cases.tsv");
-export const OUTPUT = resolve(REPO_ROOT, "compiler", "crates", "hd_diag", "src", "codes.rs");
+export const OUTPUT = resolve(REPO_ROOT, "crates", "hd_diag", "src", "codes.rs");
 
 export type DiagnosticPhase = "parse" | "type" | "runtime";
 

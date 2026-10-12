@@ -3,7 +3,7 @@
 Repro for `audit/compiler/wasmtime-audit-2026-10-10.md`:
 
 ```sh
-WASMTIME=/path/to/wasmtime sh compiler/bench/wasmtime/run.sh
+WASMTIME=/path/to/wasmtime sh bench/wasmtime/run.sh
 ```
 
 Builds the six `bench/runtime/progs/` programs, the `fib`/`data`/`std_types`

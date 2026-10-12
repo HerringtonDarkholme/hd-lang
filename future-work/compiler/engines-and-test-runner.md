@@ -157,7 +157,7 @@ and runs programs in-process behind a switch; Node stays the default.
   `[capabilities]` table) are resolved and the startup refusal checked
   before either engine runs, and the wasmtime providers ask the same
   `hd_run::Grants`.
-- **Host.** `hd_run_wasmtime/src/host.rs` ports `compiler/host/core.mjs`
+- **Host.** `hd_run_wasmtime/src/host.rs` ports `host/core.mjs`
   for `hd:rt` (`block`, `abort`, `stderr`), `hd:prim` (`prim.rs` ports
   `float.mjs`: Burger and Dybvig shortest text and exact fixed-point text
   over a small big integer; `parse_f64` checks the grammar and uses
@@ -976,9 +976,9 @@ test-suspension root prerequisite above.
 
 ## 20. Porting The Node Host To Rust (M3, 2026-10-10)
 
-The host today is `compiler/host/*.mjs` (core, float, http, net, test,
+The host today is `host/*.mjs` (core, float, http, net, test,
 profiles, run; 2156 lines). It moves behind
-`compiler/crates/hd_run_wasmtime` as wasmtime `Linker` definitions plus a
+`crates/hd_run_wasmtime` as wasmtime `Linker` definitions plus a
 reactor, reusing two crates that already exist: `hd_host_abi` (the
 capability tables, codecs, import names, handles) and `hd_run` (the
 `Engine`/`Instance` traits, `Grants`, the test-runner model). The
@@ -1134,7 +1134,7 @@ budgeted). No code changes.
 
 ### 21.1 TestRunner and PropertyRunner providers
 
-Port of the provider side of `compiler/host/test.mjs` (the supervisor
+Port of the provider side of `host/test.mjs` (the supervisor
 process model goes away; §21.5): `row(count)`, `report_timeout(millis)`,
 `snapshot_check(len)`, `temp_dir()`, and `start/cases/shrink/examples`
 plus `record(value)` / `show(len)`, as sync `Linker` functions over the

@@ -1,4 +1,4 @@
-//! `hd test` on `compiler/samples/testing` (M4c): exact output and exit
+//! `hd test` on `samples/testing` (M4c): exact output and exit
 //! status of passing, failing, panicking and ignored cases, a body whose
 //! `?` returns an error (`module.testing.err-print`),
 //! `--filter`, a warm second run, and the same output on one thread and

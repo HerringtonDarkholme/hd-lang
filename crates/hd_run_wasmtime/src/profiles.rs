@@ -1,5 +1,5 @@
 //! Explicit conformance fixture providers, never enabled by the default host.
-//! Their boundary values match `compiler/host/profiles.mjs`; the ordinary
+//! Their boundary values match `host/profiles.mjs`; the ordinary
 //! Console provider already supplies the `pending-write` behavior. The
 //! `disposed-file` and `pending-gate` providers follow the spec's Runtime
 //! Profiles (`spec/conformance/README.md`); Node has no providers for them

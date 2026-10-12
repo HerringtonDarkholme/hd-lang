@@ -5,12 +5,12 @@ machine (the script prints `uptime` at start and end), 5 runs each,
 p50 (median of 5) and p95 (max of 5).
 
 ```sh
-node compiler/bench/compare/run.mjs [WORK_DIR]
+node bench/compare/run.mjs [WORK_DIR]
 ```
 
 The TS prototype is `node bin/hd.js` from the repo (`src/`); the new one
-is `compiler/target/release/hd` (build it first with
-`cargo build --release -p hd_cli` from `compiler/`).
+is `target/release/hd` (build it first with
+`cargo build --release -p hd_cli` from the repository root).
 
 Inputs in `inputs/`: `tiny.hd` (the footprint tiny program), `mid.hd`
 (the `bench/math` kernel fixed so both compilers accept it: `let`

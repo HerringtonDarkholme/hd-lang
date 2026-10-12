@@ -1,5 +1,5 @@
 //! The host primitives of std (`hd:prim`; spec/std/README.md, "Standard
-//! Library Primitives"), as `compiler/host/float.mjs` writes them, so a
+//! Library Primitives"), as `host/float.mjs` writes them, so a
 //! program prints the same text on wasmtime as on Node:
 //!
 //! - `shortest`: the Display text of a float at its own width

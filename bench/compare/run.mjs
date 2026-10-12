@@ -5,9 +5,9 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO = resolve(HERE, "..", "..", "..");
+const REPO = resolve(HERE, "..", "..");
 const TS_HD = ["node", "--experimental-strip-types", join(REPO, "bin", "hd.js")];
-const NEW_HD = join(REPO, "compiler", "target", "release", "hd");
+const NEW_HD = join(REPO, "target", "release", "hd");
 const RUNS = 5;
 const TIMEOUT_MS = 60_000;
 
@@ -88,7 +88,7 @@ const row = (o) => `${o.p50.toFixed(0)} / ${o.p95.toFixed(0)}`;
 function main() {
   console.log(`# hd compare: TS prototype vs new compiler`);
   console.log(`\nLoad at start: ${loadavg()}`);
-  console.log(`Repo: ${REPO}\nTS: \`node bin/hd.js\` (src/)\nNew: \`compiler/target/release/hd\``);
+  console.log(`Repo: ${REPO}\nTS: \`node bin/hd.js\` (src/)\nNew: \`target/release/hd\``);
   console.log(`\nMethod: ${RUNS} runs each; p50 = median of ${RUNS}, p95 = max of ${RUNS}.`);
   console.log(
     `Cold TS = \`rm -rf build\` before each run; warm TS = build dir reused after one warmup.`,
@@ -238,7 +238,7 @@ function main() {
   // Skips (single probing runs, not timed).
   console.log(`## Skips (what each compiler rejects)\n`);
   const benchFiles = ["tokenizer", "math", "records", "traits"].map(
-    (b) => `compiler/bench/${b}/main.hd`,
+    (b) => `bench/${b}/main.hd`,
   );
   for (const f of benchFiles) {
     const src = readFileSync(join(REPO, f), "utf8");

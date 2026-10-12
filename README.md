@@ -149,6 +149,7 @@ blocks, and `@error`.
 
 Read the [guide](guide/README.md), take the
 [Language Tour](guide/LANGUAGE_TOUR.md), and use the
-[specification](spec/README.md) for the exact rules. The toy compiler is in
-[src](src/README.md), its standard library in [lib/std](lib/std/), and the
-roadmap in [future-work](future-work/README.md).
+[specification](spec/README.md) for the exact rules. The Rust compiler is
+the Cargo workspace at the repository root ([docs/compiler.md](docs/compiler.md)).
+The toy compiler is in [src](src/README.md), the standard library in
+[lib/std](lib/std/), and the roadmap in [future-work](future-work/README.md).

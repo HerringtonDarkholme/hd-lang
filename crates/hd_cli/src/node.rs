@@ -1,6 +1,6 @@
 //! Node as an `hd_run::Engine` (build-order.md §22: until wasmtime is an
 //! approved dependency, `hd run` and `hd test` run on V8 through Node).
-//! The JS host (`compiler/host/*.mjs`) is embedded, so the binary is
+//! The JS host (`host/*.mjs`) is embedded, so the binary is
 //! relocatable.
 
 use std::fmt::Write as _;

@@ -1,4 +1,4 @@
-//! Doc tests on `compiler/samples/doctests`: `hd test` runs each fenced
+//! Doc tests on `samples/doctests`: `hd test` runs each fenced
 //! `hd` block of a `##` comment as a program of its own beside the
 //! integration test file (`cli.test.doc.default`, `cli.test.program`),
 //! names it `doc <module>.<item>[i]` (`cli.test.doc.name`), reports it at

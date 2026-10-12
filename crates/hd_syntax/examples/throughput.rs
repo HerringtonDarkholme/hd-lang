@@ -34,7 +34,7 @@ fn measure(mut operation: impl FnMut(), bytes: usize) -> f64 {
 fn main() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .nth(3)
+        .nth(2)
         .expect("repository root")
         .join("lib/std");
     let mut paths = Vec::new();

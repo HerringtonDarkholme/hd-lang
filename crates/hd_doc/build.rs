@@ -291,7 +291,7 @@ fn read_module(module: &str, text: &str, out: &mut Vec<Entry>) {
 
 fn main() {
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default();
-    let dir = Path::new(&manifest).join("../../../spec/std");
+    let dir = Path::new(&manifest).join("../../spec/std");
     println!("cargo::rerun-if-changed={}", dir.display());
     let mut files: Vec<_> = std::fs::read_dir(&dir)
         .into_iter()

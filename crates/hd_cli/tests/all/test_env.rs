@@ -148,7 +148,7 @@ fn seed_takes_a_whole_number() {
     }
 }
 
-/// The JS host's side (`compiler/host/core.mjs`): `tempDir()` makes the
+/// The JS host's side (`host/core.mjs`): `tempDir()` makes the
 /// case's directory on its first call and returns the same path after
 /// (`std-testing.runner.temp-dir`, `std-testing.temp-dir.same`), the
 /// host holds the case's program path and no arguments

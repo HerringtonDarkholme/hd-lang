@@ -123,7 +123,7 @@ must cross through its `Serialize` and `Deserialize`
 ([`module.boundary.serialize.exact`](../../spec/lang/10-modules.md#r-module.boundary.serialize.exact)),
 which the boundary does not call yet, so such a method stops at Link.
 The conformance runner gives the run host a profile by name, and
-`compiler/host/profiles.mjs`, which `hd` does not embed, supplies its
+`host/profiles.mjs`, which `hd` does not embed, supplies its
 providers.
 
 ### 17.2 Import Shapes
@@ -174,7 +174,7 @@ argument), a string result is written in the exchange buffer as a string
 (§17.4) and decoded by the same `Dec` helper a provider's result uses, and
 a scalar result (`parse_f64`) is the import's own result. A program that never calls one has no such import, so its
 size is unchanged. Six are lowered: `format_f64`, `format_f32`,
-`format_f64_fixed`, `string_lower`, `string_upper`, and `parse_f64`. The JS host (`compiler/host/float.mjs`, imported by
+`format_f64_fixed`, `string_lower`, `string_upper`, and `parse_f64`. The JS host (`host/float.mjs`, imported by
 `core.mjs`) writes their text from the exact significand and exponent with
 `BigInt`, so no result depends on `Number.prototype.toString` or
 `toFixed`:
@@ -204,7 +204,7 @@ size is unchanged. Six are lowered: `format_f64`, `format_f32`,
   linked, writes the same text in Rust, and `float_text.rs` is the test it
   must pass.
 
-`compiler/crates/hd_driver/tests/float_text.rs` checks the host text of
+`crates/hd_driver/tests/float_text.rs` checks the host text of
 about 13,000 `f64`, 5,600 `f32` and 14,000 fixed-point cases against Rust's
 own `{:e}` and `{:.N}` printing.
 
@@ -263,7 +263,7 @@ type description, so it needs no field names:
 type as a `BTy` (its parts and Wasm layout, no pool) and generates one
 encoder `(off, values...) -> off'` and one decoder `(off) -> (values...,
 off')` per `BTy`, as `rt` helpers, so methods that cross the same type
-share them. The JS host (`compiler/host/core.mjs`) writes the same bytes
+share them. The JS host (`host/core.mjs`) writes the same bytes
 with its `Enc` and `Dec` classes.
 
 - **Integers.** Unsigned LEB128; signed ones zigzag first. A value wider
@@ -418,7 +418,7 @@ the variant index and the path.
   write the run's grant and its `Args.program` (the FILE or NAME the
   command ran) into the run host's configuration; `hd test` writes each
   case's grant into the test host's. Every provider of
-  `compiler/host/core.mjs` asks `createGrant`'s checks before it touches
+  `host/core.mjs` asks `createGrant`'s checks before it touches
   a resource, and `rename!` checks both paths
   ([`cli.cap.scope.rename`](../../spec/cli/command-line.md#r-cli.cap.scope.rename)).
   The test runner's `Process` provider starts the package's executables
@@ -427,13 +427,13 @@ the variant index and the path.
   in the package directory.
 - **As built (task #222), `Http` on Node.** `send!` finishes inside its
   `.start`: the program's thread hands the request to a client thread
-  (`compiler/host/http.mjs`) and waits on a shared flag, as `Process.run!`
+  (`host/http.mjs`) and waits on a shared flag, as `Process.run!`
   waits on its child, so `block_on` never needs the event loop. The
   client checks the grant for the URL and for each redirect target
   ([`cli.cap.scope.redirect`](../../spec/cli/command-line.md#r-cli.cap.scope.redirect))
   before it connects.
 - **As built (task #222), `Net` on Node.** Each instance has a client
-  thread of its own (`compiler/host/net.mjs`) that holds its sockets and
+  thread of its own (`host/net.mjs`) that holds its sockets and
   is stopped when the instance ends. Every operation finishes inside its
   `.start`, as `Http.send!` does: `read!`, `accept!` and `receive!` hold
   the program until data, a connection or a datagram arrives. The

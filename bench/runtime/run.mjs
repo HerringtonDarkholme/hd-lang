@@ -1,11 +1,11 @@
 // Q22: runtime of new-compiler programs vs hand-written JS on the same Node.
 //
 // For each program in progs/: build the .hd with `hd build`, run the .wasm
-// through the checked-in host runner (compiler/host/run.mjs), run the .js
+// through the checked-in host runner (host/run.mjs), run the .js
 // directly, 1 warmup + 5 measured runs each, p50/p95. Prints a markdown
 // report to stdout. Fails loudly when hd and JS outputs differ.
 //
-// Usage: node compiler/bench/runtime/run.mjs [workdir] [--release]
+// Usage: node bench/runtime/run.mjs [workdir] [--release]
 // With --release, programs are built with `hd build --release` and the
 // release-profile Wasm is timed; otherwise the debug profile.
 import { execFileSync } from "node:child_process";
@@ -15,9 +15,9 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO = resolve(HERE, "..", "..", "..");
-const NEW_HD = join(REPO, "compiler", "target", "release", "hd");
-const RUNNER = join(REPO, "compiler", "host", "run.mjs");
+const REPO = resolve(HERE, "..", "..");
+const NEW_HD = join(REPO, "target", "release", "hd");
+const RUNNER = join(REPO, "host", "run.mjs");
 const RUNS = 5;
 const TIMEOUT_MS = 300_000;
 
@@ -122,8 +122,8 @@ function main() {
 
   console.log(`# Runtime vs Node`);
   console.log(``);
-  console.log(`- hd commit: \`${hash}\`; binary: \`compiler/target/release/hd build\` (${profile} profile)`);
-  console.log(`- runner: \`node ${nodeVersion()} compiler/host/run.mjs\` for hd, \`node\` directly for JS`);
+  console.log(`- hd commit: \`${hash}\`; binary: \`target/release/hd build\` (${profile} profile)`);
+  console.log(`- runner: \`node ${nodeVersion()} host/run.mjs\` for hd, \`node\` directly for JS`);
   console.log(`- method: build once per program; 1 warmup + ${RUNS} measured runs each; p50 = median, p95 = max`);
   console.log(`- outputs verified equal before timing (checksum printed by each program)`);
   console.log(``);

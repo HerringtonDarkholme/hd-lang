@@ -8,7 +8,7 @@ use hd_syntax::{HeaderKind, SyntaxKind, lex, parse, skeleton_from_layout, skim};
 fn repository_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .nth(3)
+        .nth(2)
         .expect("hd_syntax is nested below the repository root")
         .to_path_buf()
 }
@@ -83,12 +83,7 @@ fn valid_sources() -> Vec<PathBuf> {
             .replace('\\', "/");
         !rejects.contains(&relative) && !SPEC_CONFLICTS.contains(&relative.as_str())
     });
-    for directory in [
-        "lib/std",
-        "examples",
-        "compiler/samples",
-        "compiler/tests/parse-gaps",
-    ] {
+    for directory in ["lib/std", "examples", "samples", "tests/parse-gaps"] {
         hd_files(&root.join(directory), &mut files);
     }
     files.sort();
@@ -98,10 +93,7 @@ fn valid_sources() -> Vec<PathBuf> {
 #[test]
 fn parse_gap_repros_parse_clean() {
     let mut files = Vec::new();
-    hd_files(
-        &repository_root().join("compiler/tests/parse-gaps"),
-        &mut files,
-    );
+    hd_files(&repository_root().join("tests/parse-gaps"), &mut files);
     assert!(files.len() >= 17, "parse-gap repros missing");
     for path in files {
         let source = fs::read_to_string(&path).expect("read repro");
@@ -282,8 +274,8 @@ fn skim_and_full_parse_agree_on_skeletons() {
 #[test]
 fn parse_phase_conformance() {
     let root = repository_root();
-    let known_text = fs::read_to_string(root.join("compiler/KNOWN_FAILURES.tsv"))
-        .expect("compiler/KNOWN_FAILURES.tsv");
+    let known_text =
+        fs::read_to_string(root.join("KNOWN_FAILURES.tsv")).expect("KNOWN_FAILURES.tsv");
     let known: BTreeMap<&str, &str> = known_text
         .lines()
         .skip(1)

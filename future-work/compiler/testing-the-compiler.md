@@ -100,7 +100,7 @@ edits in a scripted session that recheck more than one module.
 - **CLI tier against the binary.** The CLI cases (`cli-cases.tsv`) run
   in `hd_cli/tests/cli_conformance.rs` against the built `hd` binary
   (`CARGO_BIN_EXE_hd`), with their own pass list in the last section of
-  `compiler/CONFORMANCE.md` (`## CLI Conformance`). The driver suite no
+  `CONFORMANCE.md` (`## CLI Conformance`). The driver suite no
   longer lists CLI cases and keeps that section when it rewrites the
   report.
 - **Against the frozen prototype.** Run both on the conformance suite and

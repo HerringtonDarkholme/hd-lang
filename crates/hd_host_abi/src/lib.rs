@@ -6,7 +6,7 @@
 //! The table mirrors std's capability traits in `lib/std`. `hd_wasm`
 //! generates the hd-side provider stubs of the default profile from it.
 //! The wasmtime host (`hd_run_wasmtime`) and the JS host
-//! (`compiler/host/core.mjs`) are written by hand against it; the
+//! (`host/core.mjs`) are written by hand against it; the
 //! generators of §17.1 are not written yet.
 
 use hd_base::{NotImplemented, Stage, StageResult};
@@ -633,7 +633,7 @@ mod tests {
 
     #[test]
     fn every_std_intrinsic_key_has_a_lowering() {
-        let std = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../lib/std");
+        let std = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../lib/std");
         let mut stack = vec![std];
         let mut keys = Vec::new();
         while let Some(dir) = stack.pop() {
@@ -666,7 +666,7 @@ mod tests {
 
     #[test]
     fn table_mirrors_std_capability_traits() {
-        let std = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../lib/std");
+        let std = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../lib/std");
         for t in TABLE.iter().chain(RUNNERS).chain(HANDLES) {
             let (module, name) = t.std_path.rsplit_once('.').expect("path");
             let file = std.join(format!(

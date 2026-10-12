@@ -22,7 +22,7 @@ concurrency:
 jobs:
   # Every Rust command builds the whole workspace with all features, so CI
   # covers the wasmtime engine that a plain `cargo build` leaves out (the
-  # `wasmtime` feature is off by default; compiler/README.md).
+  # `wasmtime` feature is off by default; docs/compiler.md).
   #
   # The Rust jobs run side by side, so the check takes as long as the
   # slowest one. Each restores third-party build output only (the
@@ -32,17 +32,12 @@ jobs:
     name: Rust format and lint
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: compiler
     steps:
       - name: Check out
         uses: actions/checkout@v5
 
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2.9.2
-        with:
-          workspaces: compiler
 
       - name: Install browser target
         run: rustup target add wasm32-unknown-unknown
@@ -63,9 +58,6 @@ jobs:
     name: Rust tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: compiler
     steps:
       - name: Check out
         uses: actions/checkout@v5
@@ -78,8 +70,6 @@ jobs:
 
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2.9.2
-        with:
-          workspaces: compiler
 
       - name: Build release compiler
         run: cargo build --release --workspace --all-features --bin hd
@@ -92,9 +82,6 @@ jobs:
     name: Driver conformance
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: compiler
     steps:
       - name: Check out
         uses: actions/checkout@v5
@@ -107,8 +94,6 @@ jobs:
 
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2.9.2
-        with:
-          workspaces: compiler
 
       - name: New compiler conformance gate
         run: cargo test --release --workspace --all-features --test conformance

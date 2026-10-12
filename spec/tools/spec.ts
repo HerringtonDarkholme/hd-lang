@@ -101,7 +101,7 @@ export function run(
     if (options.positional.length > 0) throw new UsageError("coverage takes no arguments");
     const corpus = loadCorpus(roots.spec);
     const passes = options.flags.has("--compiler")
-      ? compilerPassList(readFileSync(resolve(roots.repo, "compiler", "CONFORMANCE.md"), "utf8"))
+      ? compilerPassList(readFileSync(resolve(roots.repo, "CONFORMANCE.md"), "utf8"))
       : undefined;
     const result = coverage(corpus, buildIndex(corpus, roots.repo), passes);
     try {

@@ -2,7 +2,7 @@
 //
 // Usage: node --experimental-strip-types test/perf/micro/run.ts
 //
-// Each hd program is built with the Rust `hd` (`compiler/target/release/hd
+// Each hd program is built with the Rust `hd` (`target/release/hd
 // build --release`) in a scratch package, which reports the release Wasm
 // size; the binary is built with cargo first when it is missing. Timing
 // then runs the program's entry point seven times on Node (compile
@@ -27,11 +27,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createHost } from "../../../compiler/host/core.mjs";
+import { createHost } from "../../../host/core.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..", "..", "..");
-const HD = join(ROOT, "compiler", "target", "release", "hd");
+const HD = join(ROOT, "target", "release", "hd");
 const CASES = ["fib", "sum", "string-build", "map", "sort"] as const;
 const RUNS = 7;
 
@@ -44,7 +44,7 @@ function hdBinary(): string {
   if (!existsSync(HD)) {
     console.log("building the release hd binary (one time)...");
     const build = spawnSync("cargo", ["build", "--release", "-p", "hd_cli"], {
-      cwd: join(ROOT, "compiler"),
+      cwd: ROOT,
       encoding: "utf8",
     });
     if (build.status !== 0 || !existsSync(HD))

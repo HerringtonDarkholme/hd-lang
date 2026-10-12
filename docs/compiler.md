@@ -1,12 +1,12 @@
 # The hd Compiler
 
-This directory contains the new Rust compiler. It compiles hd source through
-typed IR to Wasm, then runs the module with V8 through Node. The TypeScript
-compiler in `src/` is a behavior checklist during the transition, not a
-library used by these crates.
+The Rust compiler is the Cargo workspace at the repository root. It
+compiles hd source through typed IR to Wasm, then runs the module with V8
+through Node. The TypeScript compiler in `src/` is a behavior checklist
+during the transition, not a library used by these crates.
 
-Rust commands below run from `compiler/`. The workspace pins its toolchain in
-[`rust-toolchain.toml`](rust-toolchain.toml).
+Rust commands below run from the repository root. The workspace pins its
+toolchain in [`rust-toolchain.toml`](../rust-toolchain.toml).
 
 ## Crate Graph
 
@@ -172,12 +172,12 @@ cargo run -p hd_syntax --example parse_check -- --tree samples/hello/hello.hd
   `crates/hd_driver/tests/tir/`.
 - CLI compile/run samples are in `samples/` and exercised by
   `crates/hd_cli/tests/all/run.rs`.
-- The implementation-neutral suite is in `../spec/conformance/`; temporary
+- The implementation-neutral suite is in `spec/conformance/`; temporary
   disagreements with this compiler are listed in
-  [`KNOWN_FAILURES.tsv`](KNOWN_FAILURES.tsv).
+  [`KNOWN_FAILURES.tsv`](../KNOWN_FAILURES.tsv).
 
-From `compiler/`, `cargo test` runs the default members, which leave out
-`hd_run_wasmtime` and the tests that need it. `cargo test --workspace
+From the repository root, `cargo test` runs the default members, which
+leave out `hd_run_wasmtime` and the tests that need it. `cargo test --workspace
 --all-features` runs everything (see [Wasmtime Engine](#wasmtime-engine)).
 Only update checked-in output after reviewing the diff:
 

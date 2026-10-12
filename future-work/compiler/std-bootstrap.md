@@ -4,7 +4,7 @@
 | --- | --- |
 | Status | Research inventory only; nothing in this file is accepted behavior beyond the cited spec and design records. |
 | Scope | What M3 and M4c implemented to make compiler-supplied and `lib/std` interfaces available to programs, plus the pack work still ahead. |
-| Sources | [`lib/std`](../../lib/std), [Prelude](../../spec/lang/10-modules.md#prelude), [Standard Library Primitives](../../spec/std/README.md#standard-library-primitives), [Intrinsic Methods](../../spec/lang/09-traits.md#intrinsic-methods), [`hd_host_abi`](../../compiler/crates/hd_host_abi/src/lib.rs) |
+| Sources | [`lib/std`](../../lib/std), [Prelude](../../spec/lang/10-modules.md#prelude), [Standard Library Primitives](../../spec/std/README.md#standard-library-primitives), [Intrinsic Methods](../../spec/lang/09-traits.md#intrinsic-methods), [`hd_host_abi`](../../crates/hd_host_abi/src/lib.rs) |
 | Inventory date | 2026-10-07, after M4c `4c4b3b92` |
 
 ## Prelude

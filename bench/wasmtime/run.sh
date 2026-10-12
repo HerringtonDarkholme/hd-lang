@@ -4,11 +4,11 @@
 # the current `hd`, validate every module with the wasmtime CLI (GC flags
 # on), and time wasmtime vs Node on the host-free ones.
 #
-# Usage: HD_BIN=... WASMTIME=... sh compiler/bench/wasmtime/run.sh [workdir]
-# Defaults: HD_BIN=compiler/target/release/hd (must already be built).
+# Usage: HD_BIN=... WASMTIME=... sh bench/wasmtime/run.sh [workdir]
+# Defaults: HD_BIN=target/release/hd (must already be built).
 # WASMTIME must point at a wasmtime CLI (spike used v49.0.2).
 set -eu
-REPO=$(cd "$(dirname "$0")/../../.." && pwd)
+REPO=$(cd "$(dirname "$0")/../.." && pwd)
 HD_BIN=${HD_BIN:-"$REPO/compiler/target/release/hd"}
 : "${WASMTIME:?set WASMTIME to a wasmtime CLI binary}"
 WORK=${1:-$(mktemp -d hd-wasmtime-XXXXXX)}

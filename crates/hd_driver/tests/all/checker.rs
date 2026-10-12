@@ -37,7 +37,7 @@ fn walk(root: &Path, dir: &Path, out: &mut MemorySources) {
 }
 
 fn std_sources() -> MemorySources {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../lib/std");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../lib/std");
     let mut s = MemorySources::default();
     walk(&root, &root, &mut s);
     s

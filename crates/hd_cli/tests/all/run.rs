@@ -1,4 +1,4 @@
-//! `hd run` and `hd build` on the samples in `compiler/samples`, on V8,
+//! `hd run` and `hd build` on the samples in `samples`, on V8,
 //! with the disk cache in a test directory: a second run is warm.
 
 use std::path::{Path, PathBuf};

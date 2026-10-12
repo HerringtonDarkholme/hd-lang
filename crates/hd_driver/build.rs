@@ -23,7 +23,7 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<(String, PathBuf)>) {
 
 fn main() {
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default();
-    let root = Path::new(&manifest).join("../../../lib/std");
+    let root = Path::new(&manifest).join("../../lib/std");
     let root = root.canonicalize().unwrap_or(root);
     println!("cargo::rerun-if-changed={}", root.display());
     let mut files = Vec::new();

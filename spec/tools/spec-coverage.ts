@@ -31,7 +31,7 @@ export function compilerPassList(report: string): Set<string> {
   const match = /<!-- pass-list-start -->\s*```text\n([\s\S]*?)\n```\s*<!-- pass-list-end -->/.exec(
     report,
   );
-  if (!match) throw new Error("compiler/CONFORMANCE.md has no pass list");
+  if (!match) throw new Error("CONFORMANCE.md has no pass list");
   return new Set(match[1]!.split(/\r?\n/).filter((line) => line !== ""));
 }
 

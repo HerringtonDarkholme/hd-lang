@@ -1,4 +1,4 @@
-//! M4d's samples through the driver (`compiler/samples/init`, `suspend`
+//! M4d's samples through the driver (`samples/init`, `suspend`
 //! and `defer`): module initialization, suspension state machines and the
 //! `defer` exit ladder build, a second build is warm, and the Wasm is
 //! byte-identical across the serial and pool executors. Their output on V8

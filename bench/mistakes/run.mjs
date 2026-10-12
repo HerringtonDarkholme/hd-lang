@@ -7,15 +7,15 @@
 // mistake's line. Files with a `tests:` block (the test-code mistake kinds)
 // are checked with `hd check --tests --format json` instead.
 //
-// Usage: node compiler/bench/mistakes/run.mjs
+// Usage: node bench/mistakes/run.mjs
 import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO = resolve(HERE, "..", "..", "..");
-const NEW_HD = join(REPO, "compiler", "target", "release", "hd");
+const REPO = resolve(HERE, "..", "..");
+const NEW_HD = join(REPO, "target", "release", "hd");
 const TIMEOUT_MS = 120_000;
 
 function gitHash() {

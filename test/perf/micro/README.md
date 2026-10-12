@@ -10,7 +10,7 @@ node --experimental-strip-types test/perf/micro/run.ts
 ```
 
 The runner builds each hd program with the Rust `hd`
-(`compiler/target/release/hd build --release`, built with cargo when
+(`target/release/hd build --release`, built with cargo when
 missing) in a scratch package (which reports the release Wasm size), then
 times seven runs of its entry point on Node, compile excluded, and prints
 the minimum. The Python and Node programs time themselves the same way,

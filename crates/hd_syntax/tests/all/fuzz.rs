@@ -82,7 +82,7 @@ const PIECES: &[&str] = &[
 
 #[test]
 fn mutated_std_sources_parse_without_panic_and_round_trip() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../lib/std");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../lib/std");
     let mut sources: Vec<String> = std::fs::read_dir(&root)
         .expect("lib/std")
         .flatten()

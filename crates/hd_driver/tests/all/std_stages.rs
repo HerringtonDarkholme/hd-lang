@@ -31,7 +31,7 @@ fn walk(root: &Path, dir: &Path, out: &mut MemorySources, n: &mut usize) {
 
 #[test]
 fn every_stage_runs_on_std() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../lib/std");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../lib/std");
     let mut s = MemorySources::default();
     let mut files = 0;
     walk(&root, &root, &mut s, &mut files);

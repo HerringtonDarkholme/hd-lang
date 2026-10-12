@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 const file = process.argv[2];
 if (!file) {
-  console.error("usage: node compiler/bench/wasm-size.mjs FILE.wasm");
+  console.error("usage: node bench/wasm-size.mjs FILE.wasm");
   process.exit(2);
 }
 

@@ -84,7 +84,7 @@ struct Fixture {
 }
 
 fn root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
 fn suite_root() -> PathBuf {
@@ -751,7 +751,7 @@ fn report_runtime(cases: &[Case], results: &[Verdict], elapsed: Duration) {
 /// Profiles").
 ///
 /// Entry runs go through one long-lived Node worker per conformance
-/// worker thread (`compiler/host/conformance-worker.mjs`), started once.
+/// worker thread (`host/conformance-worker.mjs`), started once.
 /// Each case gets a fresh host; the worker never reuses one. A case that
 /// kills its worker restarts it and reports a plain runtime failure, the
 /// same verdict a fresh process's non-zero exit gives. The test harness
@@ -1809,7 +1809,7 @@ fn specification_conformance_does_not_regress() {
         return;
     }
     let report = std::fs::read_to_string(report_path())
-        .expect("compiler/CONFORMANCE.md; run with HD_UPDATE_CONFORMANCE=1");
+        .expect("CONFORMANCE.md; run with HD_UPDATE_CONFORMANCE=1");
     let baseline = pass_list(&report);
     assert!(!baseline.is_empty(), "the checked-in pass list is empty");
     let current: BTreeSet<&str> = cases

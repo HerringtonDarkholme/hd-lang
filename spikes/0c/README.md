@@ -25,7 +25,7 @@ Results are written to `out/results.json`; the checked-in report was rendered
 with:
 
 ```sh
-cargo run --release -- report out/results.json ../../../future-work/compiler/spike-0c-results.md
+cargo run --release -- report out/results.json ../../future-work/compiler/spike-0c-results.md
 ```
 
 Generated `.wasm` inputs are kept in `out/modules/`. Each JSON row records

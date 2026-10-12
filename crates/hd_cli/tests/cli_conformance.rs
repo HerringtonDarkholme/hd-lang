@@ -6,7 +6,7 @@
 //!
 //! A case that needs a host service the sandbox lacks is unsupported, not
 //! failed. Cases recorded as passing in the "CLI Conformance" section of
-//! `compiler/CONFORMANCE.md` may not regress. Set `HD_UPDATE_CONFORMANCE=1`
+//! `CONFORMANCE.md` may not regress. Set `HD_UPDATE_CONFORMANCE=1`
 //! to rewrite that section. `HD_CONFORMANCE_ONLY=a,b` runs the cases whose
 //! name contains one of the parts and prints each verdict.
 //! `HD_CONFORMANCE_ENGINE=wasmtime-only` selects Wasmtime for program commands
@@ -599,7 +599,7 @@ fn parse_expect(text: &str) -> Result<Vec<Step>, String> {
 // -------------------------------------------------------------- running
 
 fn suite_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../spec/conformance")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../spec/conformance")
 }
 
 fn report_path() -> PathBuf {
@@ -1194,7 +1194,7 @@ fn cli_conformance_does_not_regress() {
     }
     let results = run_all(&all, mode);
     if mode == EngineMode::Default && std::env::var_os("HD_UPDATE_CONFORMANCE").is_some() {
-        let old = std::fs::read_to_string(report_path()).expect("compiler/CONFORMANCE.md");
+        let old = std::fs::read_to_string(report_path()).expect("CONFORMANCE.md");
         let head = old
             .split_once(HEADING)
             .map_or(old.as_str(), |(head, _)| head);
@@ -1204,7 +1204,7 @@ fn cli_conformance_does_not_regress() {
         return;
     }
     let report = std::fs::read_to_string(report_path())
-        .expect("compiler/CONFORMANCE.md; run with HD_UPDATE_CONFORMANCE=1");
+        .expect("CONFORMANCE.md; run with HD_UPDATE_CONFORMANCE=1");
     let baseline = pass_list(&report);
     assert!(
         !baseline.is_empty(),

@@ -31,7 +31,7 @@ fn walk(root: &Path, dir: &Path, out: &mut MemorySources) {
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let default = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../lib/std");
+    let default = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../lib/std");
     let root = args.first().map_or(default, PathBuf::from);
     let package = args.get(1).map_or("std", String::as_str);
     let mut sources = MemorySources::default();
