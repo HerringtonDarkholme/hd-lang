@@ -15,7 +15,7 @@
 //! becomes an internal `unsupported` diagnostic, which is an error.
 //! `analyze_package` runs the same code and only reports the counts.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use hd_base::wire::{Reader, Writer};
@@ -25,7 +25,7 @@ use hd_cache::{
     parse_key, prog_key, toolchain_key,
 };
 use hd_check::BodyCx;
-use hd_check::stages::{ModuleFacts, init_order, test_overlay};
+use hd_check::stages::{ModuleFacts, test_overlay};
 use hd_check::structure::FactBodies;
 use hd_diag::{Code, DiagBuf, Severity};
 use hd_intern::{PathTable, ShardedInterner};
@@ -411,6 +411,7 @@ type BodyOut = (
     DiagBuf,
     Vec<Item>,
     Vec<hd_check::results::Inferred>,
+    hd_check::init::InitSummary,
 );
 
 /// What a module's derivations add to its `check` entry: the derived
@@ -449,6 +450,17 @@ struct ProgramTables {
     /// The program's self-recursive enums (`hd_mono::layout::recursive_enums`),
     /// found once on the first layout that asks.
     recursive_enums: OnceLock<std::collections::HashSet<DefId>>,
+}
+
+/// One run of a module cycle's initialization (`InitOrder`, spec 10
+/// `module.init.cycle.step`): statements `start..end` of `module`, which
+/// run one after another, and their instructions in its `Init` body.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct InitRun {
+    module: String,
+    start: u32,
+    end: u32,
+    insts: std::ops::Range<u32>,
 }
 
 struct CollectOut {
@@ -538,6 +550,9 @@ struct Run<'a> {
     tests: Vec<OnceLock<TestsOut>>,
     /// Per module, in a test run: the registrations its check entry holds.
     regs: Vec<OnceLock<Vec<hd_check::tests::TestReg>>>,
+    /// Per folder: `InitOrder`'s runs, one list per module cycle of the
+    /// folder whose statements sit in several modules.
+    init_runs: Vec<OnceLock<Vec<Vec<InitRun>>>>,
     program: OnceLock<ProgramTables>,
     collect: OnceLock<CollectOut>,
     wasm: OnceLock<Vec<u8>>,
@@ -738,6 +753,7 @@ fn build_packages_inner(
         check: (0..n).map(|_| OnceLock::new()).collect(),
         tests: (0..n).map(|_| OnceLock::new()).collect(),
         regs: (0..n).map(|_| OnceLock::new()).collect(),
+        init_runs: (0..nf).map(|_| OnceLock::new()).collect(),
         program: OnceLock::new(),
         collect: OnceLock::new(),
         wasm: OnceLock::new(),
@@ -1215,16 +1231,6 @@ impl Run<'_> {
         let facts = ModuleFacts {
             path: self.table.modules[m].path.clone(),
             has_tests_block: sk.bodies.iter().any(|b| b.kind == HeaderKind::Tests),
-            top_level_statements: sk
-                .bodies
-                .iter()
-                .filter(|b| b.kind == HeaderKind::Control && b.header_indent == 0)
-                .count(),
-            impls: sk
-                .bodies
-                .iter()
-                .filter(|b| b.kind == HeaderKind::Impl && b.header_indent == 0)
-                .count(),
         };
         let main_header = |public: bool| {
             sk.bodies
@@ -1396,9 +1402,7 @@ impl Run<'_> {
                 .filter_map(|c| iface_task[c.idx()])
                 .collect();
             let hc = sp.add(TaskKind::HeaderCheck(f.raw()), &closure);
-            let io = sp.add(TaskKind::InitOrder(f.raw()), &[t]);
             sp.edge(hc, pr);
-            sp.edge(io, pr);
         }
         let all: Vec<TaskId> = iface_task.iter().flatten().copied().collect();
         let coh = sp.add(TaskKind::Coherence, &all);
@@ -1851,35 +1855,180 @@ impl Run<'_> {
         }
     }
 
-    /// `InitOrder(F)` (§4.13.10). Its statement order is a `graph` part
-    /// keyed by `init_key`, so a warm run with no change to what it reads
-    /// reads it (cache.md, "Part keys"). What it reads is each module's
-    /// facts, which stand in for the init summary until the checker writes
-    /// one.
+    /// `InitOrder(F)` (§4.13.10; spec 10 "Order Inside A Cycle"): the
+    /// statement order of each module cycle of the folder whose statements
+    /// sit in several modules, from the modules' init summaries, or
+    /// `top-level-read-before-initialization` where the statements wait on
+    /// each other (`module.init.cycle.stuck`). The order is a `graph` part
+    /// keyed by `init_key` over the summaries, so a warm run with no change
+    /// to what it reads reads it (cache.md, "Part keys").
     fn init_order(&self, fi: usize) {
         let folder = &self.table.folders[fi];
-        let mut facts: Vec<&ModuleFacts> = folder
-            .modules
+        let names = self.names();
+        let mut cycles: Vec<Vec<(usize, &[u8])>> = Vec::new();
+        for cycle in self.folder_cycles(fi) {
+            let mut sums = Vec::new();
+            for m in cycle {
+                let Some(Some(c)) = self.check[m].get() else {
+                    self.blocked(Stage::InitOrder);
+                    return;
+                };
+                // A module with errors stops the build before collection.
+                if c.has_errors {
+                    sums.clear();
+                    break;
+                }
+                let Some(sections) = split_sections(&c.entry) else {
+                    self.blocked(Stage::InitOrder);
+                    return;
+                };
+                sums.push((m, sections.get(5).copied().unwrap_or(&[])));
+            }
+            if !sums.is_empty() {
+                cycles.push(sums);
+            }
+        }
+        let summaries: Vec<(&str, Hash128)> = cycles
             .iter()
-            .map(|m| &self.skim_of(m.idx()).facts)
-            .collect();
-        facts.sort_by(|a, b| a.path.cmp(&b.path));
-        let summaries: Vec<(&str, Hash128)> = facts
-            .iter()
-            .map(|f| (f.path.as_str(), facts_hash(f)))
+            .flatten()
+            .map(|(m, b)| {
+                let mut k = hd_base::StableHasher::new("init-summary");
+                k.bytes(b);
+                (self.table.modules[*m].path.as_str(), k.finish())
+            })
             .collect();
         let key = init_key(self.toolchain, &folder.path, &summaries);
         if let Some(sections) = self.lookup(EntryKind::Graph, key)
-            && sections.first().and_then(|b| decode_order(b)).is_some()
+            && let Some(runs) = sections.first().and_then(|b| decode_runs(b))
         {
+            let _ = self.init_runs[fi].set(runs);
             lock(&self.report).ok(Stage::InitOrder);
             return;
         }
         self.computed(Stage::InitOrder);
-        let r = init_order(&folder.path, &facts);
-        if let Some(order) = self.stage(Stage::InitOrder, r) {
-            self.put(EntryKind::Graph, key, &[&encode_order(&order)]);
+        let mut out = Vec::new();
+        let mut stuck = false;
+        for cycle in &cycles {
+            let mut sums = Vec::new();
+            for (m, b) in cycle {
+                let Some(sum) = decode_summary(b, &names, &self.lines(*m)) else {
+                    self.stage::<()>(
+                        Stage::InitOrder,
+                        Err(NotImplemented::new(
+                            Stage::InitOrder,
+                            "a module's init summary did not decode",
+                        )),
+                    );
+                    return;
+                };
+                sums.push(sum);
+            }
+            let refs: Vec<&hd_check::init::InitSummary> = sums.iter().collect();
+            match hd_check::stages::cycle_order(&refs) {
+                hd_check::stages::CycleOrder::Steps(steps) => {
+                    let runs = hd_check::stages::runs(&steps)
+                        .into_iter()
+                        .map(|(i, r)| {
+                            let stmts = &sums[i].stmts;
+                            let lo = if r.start == 0 {
+                                0
+                            } else {
+                                stmts[r.start].first_inst
+                            };
+                            let hi = stmts.get(r.end).map_or(u32::MAX, |s| s.first_inst);
+                            InitRun {
+                                module: self.table.modules[cycle[i].0].path.clone(),
+                                start: u32_of(r.start),
+                                end: u32_of(r.end),
+                                insts: lo..hi,
+                            }
+                        })
+                        .collect();
+                    out.push(runs);
+                }
+                hd_check::stages::CycleOrder::Stuck {
+                    at: (i, k),
+                    waits_on,
+                } => {
+                    stuck = true;
+                    let st = &sums[i].stmts[k];
+                    let late = names
+                        .paths
+                        .segment(hd_base::PathId::from_raw(waits_on.raw()))
+                        .to_owned();
+                    let msg = format!(
+                        "this statement reads `{late}` before its initialization: the statements of its module cycle wait on each other"
+                    );
+                    let span = Span {
+                        file: self.table.modules[cycle[i].0].file,
+                        lo: st.lo,
+                        hi: st.hi,
+                    };
+                    lock(&self.diags).error(Code::TopLevelReadBeforeInitialization, span, &msg);
+                }
+            }
         }
+        // An initialization cycle is reported again by every run.
+        if !stuck {
+            self.put(EntryKind::Graph, key, &[&encode_runs(&out)]);
+        }
+        let _ = self.init_runs[fi].set(out);
+        lock(&self.report).ok(Stage::InitOrder);
+    }
+
+    /// The modules each module uses directly, by index, itself left out.
+    fn use_edges(&self, m: usize) -> Vec<usize> {
+        let mut v: Vec<usize> = self
+            .skim_of(m)
+            .uses
+            .iter()
+            .filter_map(|u| self.table.module_of_use(u))
+            .map(hd_base::ModuleId::idx)
+            .filter(|x| *x != m)
+            .collect();
+        v.sort_unstable();
+        v.dedup();
+        v
+    }
+
+    /// The module cycles of folder `fi` whose statements sit in several
+    /// modules, each in module identity order (`module.init.cycle`). A
+    /// cycle never leaves its folder (`module.init.use-graph`), and only a
+    /// checked module's summary counts its statements.
+    fn folder_cycles(&self, fi: usize) -> Vec<Vec<usize>> {
+        let folder = FolderId::from_raw(u32_of(fi));
+        let mods = &self.table.folders[fi].modules;
+        if mods.len() < 2 {
+            return Vec::new();
+        }
+        let mut edges: Vec<Vec<usize>> = vec![Vec::new(); self.table.modules.len()];
+        for m in mods {
+            edges[m.idx()] = self
+                .use_edges(m.idx())
+                .into_iter()
+                .filter(|w| self.table.modules[*w].folder == folder)
+                .collect();
+        }
+        let starts: Vec<usize> = mods.iter().map(|m| m.idx()).collect();
+        let (groups, _) = strongly_connected(&edges, &starts);
+        let initializes = |m: usize| match self.check[m].get() {
+            Some(Some(c)) => split_sections(&c.entry)
+                .and_then(|s| s.get(5).map(|b| summary_statements(b) > 0))
+                .unwrap_or(false),
+            _ => false,
+        };
+        groups
+            .into_iter()
+            .filter(|g| g.len() > 1 && g.iter().filter(|m| initializes(**m)).count() > 1)
+            .map(|mut g| {
+                g.sort_by(|a, b| {
+                    self.table.modules[*a]
+                        .path
+                        .cmp(&self.table.modules[*b].path)
+                });
+                g
+            })
+            .collect()
     }
 
     /// Counts a `graph` part this run computed instead of reading.
@@ -2759,7 +2908,11 @@ impl Run<'_> {
         bodies.extend(derived.bodies);
         lock(&self.report).ok(Stage::Body);
         let inferred = hd_check::results::inferred(&cx);
-        let _ = self.body[m].set(Some((bodies, diags, derived.items, inferred)));
+        let folder = module.folder;
+        let same_folder =
+            |d: DefId| self.table.folder_of_module(&names.module_of(d)) == Some(folder);
+        let summary = hd_check::init::summary(&cx, init_facts, &same_folder);
+        let _ = self.body[m].set(Some((bodies, diags, derived.items, inferred, summary)));
     }
 
     /// Stage B (§4.10.1) over the module's items that `HeaderCheck` cannot
@@ -3249,9 +3402,10 @@ impl Run<'_> {
 
     /// `ModuleFinish(m)`: writes the `check` entry. Sections: diagnostics;
     /// meta (the module's TIR content hash, which `prog_key` reads); the
-    /// module's items; TIR, one record per body.
+    /// module's items; TIR, one record per body; a test run's
+    /// registrations; the init summary, which `InitOrder` reads.
     fn module_finish(&self, m: usize) {
-        let (Some(Some(prep)), Some(Some((bodies, bdiags, derived, inferred)))) =
+        let (Some(Some(prep)), Some(Some((bodies, bdiags, derived, inferred, summary)))) =
             (self.prep[m].get(), self.body[m].get())
         else {
             self.blocked(Stage::ModuleFinish);
@@ -3288,6 +3442,19 @@ impl Run<'_> {
             content.hash(hd_tir::wire::tir_hash(&bytes));
             tw.blob(&bytes);
         }
+        // A module with errors has no TIR, so no statement to order.
+        let empty = hd_check::init::InitSummary::default();
+        let summary = encode_summary(
+            if diags.has_errors() { &empty } else { summary },
+            &names,
+            &lines,
+        );
+        // The init order of a module cycle reads the summary, and the
+        // program runs that order: the summary is part of the content
+        // `prog_key` reads.
+        let mut sh = hd_base::StableHasher::new("init-summary");
+        sh.bytes(&summary);
+        content.hash(sh.finish());
         let mut meta = Writer::default();
         meta.hash(content.finish());
         // A test run's case items join the module's items, and its
@@ -3326,7 +3493,14 @@ impl Run<'_> {
             }
         };
         let Some(key) = self.check_key(m) else { return };
-        let sections: [&[u8]; 5] = [&dw.bytes, &meta.bytes, &items, &tw.bytes, &rw.bytes];
+        let sections: [&[u8]; 6] = [
+            &dw.bytes,
+            &meta.bytes,
+            &items,
+            &tw.bytes,
+            &rw.bytes,
+            &summary,
+        ];
         self.put(EntryKind::Check, key, &sections);
         lock(&self.counters)
             .modules_checked
@@ -3383,10 +3557,15 @@ impl Run<'_> {
 
     fn package_result(&self, sp: &dyn Spawn) {
         lock(&self.report).ok(Stage::PackageResult);
+        // `InitOrder(F)` reads the init summaries of the folder's modules,
+        // so it runs once they are checked.
+        let orders: Vec<TaskId> = (0..self.table.folders.len())
+            .map(|f| sp.add(TaskKind::InitOrder(u32_of(f)), &[]))
+            .collect();
         match &self.goal {
             Goal::Program { .. } | Goal::Tests { .. } => {
                 if !lock(&self.diags).has_errors() {
-                    sp.add(TaskKind::Ext(ExtTask::Collect), &[]);
+                    sp.add(TaskKind::Ext(ExtTask::Collect), &orders);
                 }
             }
             Goal::Analyze | Goal::CheckTests => {
@@ -3459,6 +3638,29 @@ impl Run<'_> {
                 members.push((fid, fi));
             }
         }
+        // A module cycle's runs that split a module's init: one body per
+        // run (`module.init.cycle.step`).
+        for cycles in self.init_runs.iter().filter_map(OnceLock::get) {
+            for runs in cycles {
+                for r in runs {
+                    let init =
+                        hd_check::default_body_def(&names, names.item(&r.module, "init"), "init");
+                    let def = self.run_def(runs, r, &|_| init);
+                    if def == init {
+                        continue;
+                    }
+                    let Some((whole, tir)) = bodies.get(&init) else {
+                        continue;
+                    };
+                    let body = hd_check::init::init_segment(whole, def, r.insts.clone());
+                    let mut k = hd_base::StableHasher::new("init-run");
+                    k.hash(*tir);
+                    k.u32(r.start);
+                    k.u32(r.end);
+                    bodies.insert(def, (body, k.finish()));
+                }
+            }
+        }
         let (universe, extra) = self.universes.intern(&members);
         lock(&self.counters).tir_decoded.extend(decoded);
         let _ = self.program.set(ProgramTables {
@@ -3506,6 +3708,10 @@ impl Run<'_> {
     /// A program's roots are `main` (with its report), or for a test run
     /// each running case (engines-and-test-runner.md §19.1).
     fn collect(&self, sp: &dyn Spawn) {
+        // `InitOrder` may have found an initialization cycle.
+        if lock(&self.diags).has_errors() {
+            return;
+        }
         let names = self.names();
         let (entry_key, roots) = match &self.goal {
             Goal::Program { entry } => {
@@ -3621,24 +3827,34 @@ impl Run<'_> {
         let mut per_module: Vec<Vec<DefId>> = Vec::new();
         let mut all_inits: Vec<DefId> = Vec::new();
         for m in &root_modules {
-            let order = match self.group_init_order(m, &has_init) {
+            let defs = match self.group_init_order(m, &init_of, &has_init) {
                 Ok(o) => o,
                 Err(e) => {
                     self.stage::<()>(Stage::Collect, Err(e));
                     return;
                 }
             };
-            let defs: Vec<DefId> = order
-                .iter()
-                .map(|m| init_of(m))
-                .filter(|d| p.bodies.contains_key(d))
-                .collect();
             for d in &defs {
                 if !all_inits.contains(d) {
                     all_inits.push(*d);
                 }
             }
             per_module.push(defs);
+        }
+        // The entry module's init is one body: a script polls it last with
+        // its entry providers, and only it may `block_on`.
+        if matches!(self.goal, Goal::Program { .. }) && has_init(&entry_key) {
+            let whole = init_of(&entry_key);
+            if !all_inits.contains(&whole) || (script && all_inits.last() != Some(&whole)) {
+                self.stage::<()>(
+                    Stage::Collect,
+                    Err(NotImplemented::new(
+                        Stage::Collect,
+                        "an entry module whose statements run among its module cycle's",
+                    )),
+                );
+                return;
+            }
         }
         // Extra roots: the other cases, then each distinct report function.
         let mut extra: Vec<(DefId, TyList)> = roots[1..]
@@ -3931,87 +4147,26 @@ impl Run<'_> {
         }
     }
 
-    /// The modules the entry module reaches, in initialization order
-    /// (spec/lang/10-modules.md, "Initialization Order"): each
-    /// initialization group (a strongly connected component of the use
-    /// graph) after the groups it uses; among ready groups, the one with
-    /// the least module identity first; inside a group, by module path.
+    /// The init bodies the entry module reaches, in initialization order
+    /// (spec/lang/10-modules.md, "Initialization Order"): each module
+    /// cycle (a strongly connected component of the use graph) after the
+    /// cycles it uses (`module.init.cycle.once`); among ready cycles, the
+    /// one with the least module identity first
+    /// (`module.init.cycle.ready-order`). Inside a cycle whose statements
+    /// sit in several modules, `InitOrder`'s runs: a module's whole init
+    /// when its statements run together, else one body per run.
     fn group_init_order(
         &self,
         entry: &str,
+        init_of: &dyn Fn(&str) -> DefId,
         has_init: &dyn Fn(&str) -> bool,
-    ) -> hd_base::StageResult<Vec<String>> {
+    ) -> hd_base::StageResult<Vec<DefId>> {
         let Some(start) = self.table.module(entry) else {
             return Ok(Vec::new());
         };
         let n = self.table.modules.len();
-        let edges: Vec<Vec<usize>> = (0..n)
-            .map(|m| {
-                let mut v: Vec<usize> = self
-                    .skim_of(m)
-                    .uses
-                    .iter()
-                    .filter_map(|u| self.table.module_of_use(u))
-                    .map(hd_base::ModuleId::idx)
-                    .filter(|x| *x != m)
-                    .collect();
-                v.sort_unstable();
-                v.dedup();
-                v
-            })
-            .collect();
-        // Tarjan's strongly connected components over the reachable graph.
-        let mut index = vec![usize::MAX; n];
-        let mut low = vec![0; n];
-        let mut on = vec![false; n];
-        let mut stack = Vec::new();
-        let mut comp = vec![usize::MAX; n];
-        let mut groups: Vec<Vec<usize>> = Vec::new();
-        let mut counter = 0;
-        // Iterative DFS: (node, next edge).
-        let mut work = vec![(start.idx(), 0usize)];
-        index[start.idx()] = counter;
-        low[start.idx()] = counter;
-        counter += 1;
-        stack.push(start.idx());
-        on[start.idx()] = true;
-        while let Some(&mut (v, ref mut e)) = work.last_mut() {
-            if let Some(&w) = edges[v].get(*e) {
-                *e += 1;
-                if index[w] == usize::MAX {
-                    index[w] = counter;
-                    low[w] = counter;
-                    counter += 1;
-                    stack.push(w);
-                    on[w] = true;
-                    work.push((w, 0));
-                } else if on[w] {
-                    low[v] = low[v].min(index[w]);
-                }
-                continue;
-            }
-            work.pop();
-            if let Some(&(u, _)) = work.last() {
-                low[u] = low[u].min(low[v]);
-            }
-            if low[v] == index[v] {
-                let mut g = Vec::new();
-                while let Some(w) = stack.pop() {
-                    on[w] = false;
-                    comp[w] = groups.len();
-                    g.push(w);
-                    if w == v {
-                        break;
-                    }
-                }
-                g.sort_by(|a, b| {
-                    self.table.modules[*a]
-                        .path
-                        .cmp(&self.table.modules[*b].path)
-                });
-                groups.push(g);
-            }
-        }
+        let edges: Vec<Vec<usize>> = (0..n).map(|m| self.use_edges(m)).collect();
+        let (groups, comp) = strongly_connected(&edges, &[start.idx()]);
         // Kahn's order over the groups: dependencies first, ties by the
         // least module identity.
         let mut deps: Vec<std::collections::BTreeSet<usize>> =
@@ -4025,7 +4180,13 @@ impl Run<'_> {
                 }
             }
         }
-        let name = |g: usize| self.table.modules[groups[g][0]].path.clone();
+        let name = |g: usize| {
+            groups[g]
+                .iter()
+                .map(|m| self.table.modules[*m].path.as_str())
+                .min()
+                .unwrap_or("")
+        };
         let mut done = vec![false; groups.len()];
         let mut out = Vec::new();
         for _ in 0..groups.len() {
@@ -4036,23 +4197,44 @@ impl Run<'_> {
                 break;
             };
             done[next] = true;
-            let with_init: Vec<&usize> = groups[next]
+            let mut paths: Vec<&str> = groups[next]
                 .iter()
-                .filter(|m| has_init(&self.table.modules[**m].path))
+                .map(|m| self.table.modules[*m].path.as_str())
                 .collect();
-            if with_init.len() > 1 {
-                return Err(NotImplemented::new(
-                    Stage::Collect,
-                    "statement order inside a multi-module initialization group (`InitOrder`)",
-                ));
+            paths.sort_unstable();
+            if paths.iter().filter(|p| has_init(p)).count() < 2 {
+                out.extend(paths.iter().filter(|p| has_init(p)).map(|p| init_of(p)));
+                continue;
             }
-            out.extend(
-                groups[next]
-                    .iter()
-                    .map(|m| self.table.modules[*m].path.clone()),
-            );
+            let folder = self.table.modules[groups[next][0]].folder;
+            let runs = self.init_runs[folder.idx()]
+                .get()
+                .and_then(|cycles| {
+                    cycles.iter().find(|c| {
+                        c.first()
+                            .is_some_and(|r| paths.contains(&r.module.as_str()))
+                    })
+                })
+                .ok_or_else(|| {
+                    NotImplemented::new(Stage::Collect, "a module cycle without its init order")
+                })?;
+            out.extend(runs.iter().map(|r| self.run_def(runs, r, init_of)));
         }
         Ok(out)
+    }
+
+    /// The body that runs `r`, one of a cycle's `runs`: its module's whole
+    /// init when it is the module's one run, else the run's own body.
+    fn run_def(&self, runs: &[InitRun], r: &InitRun, init_of: &dyn Fn(&str) -> DefId) -> DefId {
+        let init = init_of(&r.module);
+        if runs.iter().filter(|x| x.module == r.module).count() == 1 {
+            return init;
+        }
+        self.names().member(
+            init,
+            hd_intern::PathKind::Hidden,
+            &format!("run{}", r.start),
+        )
     }
 
     fn emit(&self, slot: usize) {
@@ -4264,6 +4446,98 @@ impl Lines<'_> {
     }
 }
 
+/// A module's init summary in its `check` entry: the statement count
+/// first, which `InitOrder` peeks, then the path table, then the rows.
+/// Each set is written in path order, so the bytes are a function of the
+/// summary.
+fn encode_summary(
+    sum: &hd_check::init::InitSummary,
+    names: &Names<'_>,
+    lines: &Lines<'_>,
+) -> Vec<u8> {
+    let mut t = hd_types::wire::TableWriter::new(names.pool, names.paths, names.syms);
+    let mut body = Writer::default();
+    let set = |t: &mut hd_types::wire::TableWriter<'_>, w: &mut Writer, s: &HashSet<DefId>| {
+        let mut v: Vec<DefId> = s.iter().copied().collect();
+        v.sort_by_cached_key(|d| names.path(*d));
+        w.len_of(&v);
+        for d in v {
+            w.u32(t.def(d));
+        }
+    };
+    body.len_of(&sum.stmts);
+    for st in &sum.stmts {
+        body.u32(st.first_inst);
+        lines.write(&mut body, st.lo);
+        lines.write(&mut body, st.hi);
+        set(&mut t, &mut body, &st.facts.reads);
+        set(&mut t, &mut body, &st.facts.calls);
+    }
+    body.len_of(&sum.globals);
+    for (d, at) in &sum.globals {
+        body.u32(t.def(*d));
+        body.u32(*at);
+    }
+    body.len_of(&sum.fns);
+    for (d, f) in &sum.fns {
+        body.u32(t.def(*d));
+        set(&mut t, &mut body, &f.reads);
+        set(&mut t, &mut body, &f.calls);
+    }
+    let mut w = Writer::default();
+    w.len_of(&sum.stmts);
+    t.write(&mut w);
+    w.bytes.extend_from_slice(&body.bytes);
+    w.bytes
+}
+
+/// The statement count of an encoded init summary; 0 for none.
+fn summary_statements(b: &[u8]) -> usize {
+    if b.is_empty() {
+        return 0;
+    }
+    Reader::new(b).count()
+}
+
+fn decode_summary(
+    b: &[u8],
+    names: &Names<'_>,
+    lines: &Lines<'_>,
+) -> Option<hd_check::init::InitSummary> {
+    let mut r = Reader::new(b);
+    let _ = r.count();
+    let t = hd_types::wire::Tables::read(&mut r, names.pool, names.paths, names.syms)?;
+    let set = |r: &mut Reader<'_>| -> Option<HashSet<DefId>> {
+        (0..r.count()).map(|_| t.def(r.u32())).collect()
+    };
+    let mut sum = hd_check::init::InitSummary::default();
+    for _ in 0..r.count() {
+        let first_inst = r.u32();
+        let lo = lines.read(&mut r);
+        let hi = lines.read(&mut r);
+        let reads = set(&mut r)?;
+        let calls = set(&mut r)?;
+        sum.stmts.push(hd_check::init::StmtSummary {
+            first_inst,
+            lo,
+            hi,
+            facts: hd_check::init::InitFacts { reads, calls },
+        });
+    }
+    for _ in 0..r.count() {
+        let d = t.def(r.u32())?;
+        sum.globals.push((d, r.u32()));
+    }
+    for _ in 0..r.count() {
+        let d = t.def(r.u32())?;
+        let reads = set(&mut r)?;
+        let calls = set(&mut r)?;
+        sum.fns
+            .push((d, hd_check::init::InitFacts { reads, calls }));
+    }
+    r.ok().then_some(sum)
+}
+
 /// A module's test registrations, as its test-role `check` entry holds them.
 fn encode_regs(regs: &[hd_check::tests::TestReg], w: &mut Writer, lines: &Lines<'_>) {
     let opt = |w: &mut Writer, s: &Option<String>| match s {
@@ -4303,37 +4577,98 @@ fn decode_regs(r: &mut Reader<'_>, lines: &Lines<'_>) -> Vec<hd_check::tests::Te
     out
 }
 
-/// A module's part of `init_key`: every fact `InitOrder` reads. The
-/// destructuring names each field, so a new fact cannot miss the key.
-fn facts_hash(f: &ModuleFacts) -> Hash128 {
-    let ModuleFacts {
-        path,
-        has_tests_block,
-        top_level_statements,
-        impls,
-    } = f;
-    let mut k = hd_base::StableHasher::new("init-facts");
-    k.str(path);
-    k.u8(u8::from(*has_tests_block));
-    k.u64(u64::try_from(*top_level_statements).unwrap_or(u64::MAX));
-    k.u64(u64::try_from(*impls).unwrap_or(u64::MAX));
-    k.finish()
-}
-
-/// `InitOrder`'s statement order for one folder.
-fn encode_order(order: &[String]) -> Vec<u8> {
+/// `InitOrder`'s runs for one folder: one list per module cycle.
+fn encode_runs(cycles: &[Vec<InitRun>]) -> Vec<u8> {
     let mut w = Writer::default();
-    w.len_of(order);
-    for s in order {
-        w.str(s);
+    w.len_of(cycles);
+    for runs in cycles {
+        w.len_of(runs);
+        for r in runs {
+            w.str(&r.module);
+            w.u32(r.start);
+            w.u32(r.end);
+            w.u32(r.insts.start);
+            w.u32(r.insts.end);
+        }
     }
     w.bytes
 }
 
-fn decode_order(b: &[u8]) -> Option<Vec<String>> {
+fn decode_runs(b: &[u8]) -> Option<Vec<Vec<InitRun>>> {
     let mut r = Reader::new(b);
-    let order = (0..r.count()).map(|_| r.str().to_owned()).collect();
-    r.ok().then_some(order)
+    let cycles = (0..r.count())
+        .map(|_| {
+            (0..r.count())
+                .map(|_| InitRun {
+                    module: r.str().to_owned(),
+                    start: r.u32(),
+                    end: r.u32(),
+                    insts: r.u32()..r.u32(),
+                })
+                .collect()
+        })
+        .collect();
+    r.ok().then_some(cycles)
+}
+
+/// Tarjan's strongly connected components of the graph `edges` reaches
+/// from `starts`, each as it completes, so a component comes after every
+/// component it reaches; and each node's component (`usize::MAX` when
+/// unreached).
+fn strongly_connected(edges: &[Vec<usize>], starts: &[usize]) -> (Vec<Vec<usize>>, Vec<usize>) {
+    let n = edges.len();
+    let mut index = vec![usize::MAX; n];
+    let mut low = vec![0; n];
+    let mut on = vec![false; n];
+    let mut stack = Vec::new();
+    let mut comp = vec![usize::MAX; n];
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+    let mut counter = 0;
+    for &s in starts {
+        if index[s] != usize::MAX {
+            continue;
+        }
+        // Iterative DFS: (node, next edge).
+        let mut work = vec![(s, 0usize)];
+        index[s] = counter;
+        low[s] = counter;
+        counter += 1;
+        stack.push(s);
+        on[s] = true;
+        while let Some(&mut (v, ref mut e)) = work.last_mut() {
+            if let Some(&w) = edges[v].get(*e) {
+                *e += 1;
+                if index[w] == usize::MAX {
+                    index[w] = counter;
+                    low[w] = counter;
+                    counter += 1;
+                    stack.push(w);
+                    on[w] = true;
+                    work.push((w, 0));
+                } else if on[w] {
+                    low[v] = low[v].min(index[w]);
+                }
+                continue;
+            }
+            work.pop();
+            if let Some(&(u, _)) = work.last() {
+                low[u] = low[u].min(low[v]);
+            }
+            if low[v] == index[v] {
+                let mut g = Vec::new();
+                while let Some(w) = stack.pop() {
+                    on[w] = false;
+                    comp[w] = groups.len();
+                    g.push(w);
+                    if w == v {
+                        break;
+                    }
+                }
+                groups.push(g);
+            }
+        }
+    }
+    (groups, comp)
 }
 
 /// The overlaps of a coherence run, each reported impl as its folder's

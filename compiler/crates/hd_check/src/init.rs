@@ -51,6 +51,98 @@ pub struct InitFacts {
     pub calls: HashSet<DefId>,
 }
 
+/// One top-level statement of a module's init summary.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct StmtSummary {
+    /// The first instruction the statement added to the `Init` body: the
+    /// statement's instructions in the root block are those from here to
+    /// the next statement's first.
+    pub first_inst: u32,
+    /// The statement's source bytes.
+    pub lo: u32,
+    pub hi: u32,
+    pub facts: InitFacts,
+}
+
+/// A module's init summary (checking-and-tir.md §4.13.10): what
+/// `InitOrder` reads of a checked module to order the statements of its
+/// module cycle (spec 10 `module.init.cycle.dependency`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct InitSummary {
+    /// The top-level executable statements, in source order.
+    pub stmts: Vec<StmtSummary>,
+    /// Each top-level binding and the statement that initializes it.
+    pub globals: Vec<(DefId, u32)>,
+    /// What each body of the module reaches directly, when anything.
+    pub fns: Vec<(DefId, InitFacts)>,
+}
+
+/// The init summary of the module `cx` checked: its statements, its
+/// bindings, and its bodies' facts. Only the calls `keep` accepts stay: a
+/// module cycle never leaves its folder (`module.init.use-graph`), so a
+/// call out of it reaches no binding of the cycle.
+#[must_use]
+pub fn summary(
+    cx: &BodyCx<'_>,
+    mut stmts: Vec<StmtSummary>,
+    keep: &dyn Fn(DefId) -> bool,
+) -> InitSummary {
+    let init = cx.init.borrow();
+    let mut globals: Vec<(DefId, u32)> = init
+        .globals
+        .values()
+        .map(|g| (g.def, u32::try_from(g.stmt).expect("statements")))
+        .collect();
+    globals.sort_by_cached_key(|(d, s)| (*s, cx.names.path(*d)));
+    for s in &mut stmts {
+        s.facts.calls.retain(|d| keep(*d));
+    }
+    let mut fns: Vec<(DefId, InitFacts)> = init
+        .facts
+        .iter()
+        .map(|(d, f)| {
+            let calls = f.calls.iter().copied().filter(|c| keep(*c)).collect();
+            (
+                *d,
+                InitFacts {
+                    reads: f.reads.clone(),
+                    calls,
+                },
+            )
+        })
+        .filter(|(_, f)| !f.reads.is_empty() || !f.calls.is_empty())
+        .collect();
+    fns.sort_by_cached_key(|(d, _)| cx.names.path(*d));
+    InitSummary {
+        stmts,
+        globals,
+        fns,
+    }
+}
+
+/// One run of a split `Init` body (spec 10 `module.init.cycle.step`):
+/// `body` with only the root-block instructions in `insts`, the
+/// instructions of a run of consecutive statements, under the item
+/// `item`. The other statements' instructions stay, unreached.
+#[must_use]
+pub fn init_segment(body: &Body, item: DefId, insts: std::ops::Range<u32>) -> Body {
+    let mut b = body.clone();
+    b.item = item;
+    let root = b.sub_root[0] as usize;
+    let at = b.data[root][0] as usize;
+    let kids: Vec<u32> = b
+        .record(b.data[root][0])
+        .iter()
+        .copied()
+        .filter(|k| insts.contains(k))
+        .collect();
+    // The record shrinks in place; the words past its new length are
+    // never read.
+    b.extra[at] = u32::try_from(kids.len()).expect("record");
+    b.extra[at + 1..at + 1 + kids.len()].copy_from_slice(&kids);
+    b
+}
+
 /// A module's top-level bindings and the facts its bodies recorded.
 #[derive(Default)]
 pub struct ModuleInit {
@@ -96,7 +188,7 @@ pub fn shared_global(names: &hd_resolve::Names<'_>, variant: DefId, field: &str)
 /// the entry module, whose top level may use an inferred entry row
 /// (`module.init.script-row`); any other module's is requirement-free
 /// (`module.init.requirement-free`). Returns the body and each
-/// statement's facts.
+/// statement's summary: its facts and its first instruction.
 pub fn check_init(
     cx: &BodyCx<'_>,
     item: DefId,
@@ -104,7 +196,7 @@ pub fn check_init(
     stmts: &[NodeRef<'_>],
     entry: bool,
     diags: &mut DiagBuf,
-) -> StageResult<(Body, Vec<InitFacts>)> {
+) -> StageResult<(Body, Vec<StmtSummary>)> {
     let pool = cx.names.pool;
     let row = if entry {
         // An inferred row: every key is available at the top level.
@@ -142,11 +234,18 @@ pub fn check_init(
     for (i, s) in stmts.iter().enumerate() {
         ck.init_stmt = i;
         let start = ck.infer.var_count();
+        let first_inst = u32::try_from(ck.b.body_mut().tags.len()).expect("insts");
         ck.top_level(*s).map_err(|e| e.at(cx.src.span(*s)))?;
         // A binding takes its initializer's type, and no later statement
         // changes it (`types.literal.local.statement`).
         ck.close_literals(start);
-        per_stmt.push(std::mem::take(&mut ck.facts));
+        let span = cx.src.span(*s);
+        per_stmt.push(StmtSummary {
+            first_inst,
+            lo: span.lo,
+            hi: span.hi,
+            facts: std::mem::take(&mut ck.facts),
+        });
         // The statement's bindings as another body reads them: a body M1
         // checks for a call further down sees the types decided so far.
         let pool = ck.pool();
@@ -764,7 +863,7 @@ impl Ck<'_, '_> {
 pub fn definite_init(
     cx: &BodyCx<'_>,
     stmts: &[NodeRef<'_>],
-    per_stmt: &[InitFacts],
+    per_stmt: &[StmtSummary],
     diags: &mut DiagBuf,
 ) {
     let init = cx.init.borrow();
@@ -793,7 +892,7 @@ pub fn definite_init(
             }
         }
     }
-    for (i, f) in per_stmt.iter().enumerate() {
+    for (i, f) in per_stmt.iter().map(|s| &s.facts).enumerate() {
         let worst = f
             .reads
             .iter()
