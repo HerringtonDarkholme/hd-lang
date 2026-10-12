@@ -55,3 +55,27 @@ commit that finishes it. When the queue is empty, report that and wait.
 (Owner, 2026-10-11: Codex is offline; a weaker Muse is back temporarily.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
+
+### M48. Split `lib.rs` in the wasmtime host
+
+`crates/hd_run_wasmtime/src/lib.rs` is 1079 lines. Move its parts into
+modules the way M36/M46 did (engine setup, running a program, guards and
+limits, public re-exports), code moved verbatim, visibility tightened, no
+file over about 600 lines, `lib.rs` left as module declarations and the
+public surface. Tests and wasmtime-only conformance verdicts unchanged.
+Files: `crates/hd_run_wasmtime/src/**`.
+
+### M49. Split `testing.rs` in the wasmtime host
+
+The same for `crates/hd_run_wasmtime/src/testing.rs` (753 lines). Files:
+`crates/hd_run_wasmtime/src/testing.rs` and `crates/hd_run_wasmtime/src/testing/**`.
+
+### M50. Finish the flaky `run::fetch_with_path_requirements_only_has_nothing_to_do`
+
+Your M30 namespaced scratch directories per process, but the test still
+failed once under heavy load with a missing temp file (after #315,
+2026-10-11). Run it 100 times while `cargo test -q -p hd_driver --test
+conformance` runs, capture the failing call, and fix the cause in test code.
+Files: `compiler/crates/hd_cli/tests/all/run.rs` and
+`compiler/crates/hd_testkit/src/lib.rs`. Done when 100 runs in a row pass
+under that load; put the cause in the commit body.
