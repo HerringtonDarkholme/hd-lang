@@ -65,6 +65,7 @@ impl Parser<'_> {
             }
             let before = self.pos();
             self.stmt_errored = false;
+            self.bound_keywords.clear();
             self.item(Place::Top);
             self.statement_end();
             if self.pos() == before && self.layout().is_none() && !self.at_eof() {
@@ -107,9 +108,6 @@ impl Parser<'_> {
             if let Some((code, message)) = old {
                 self.error(code, message);
                 self.recover_line();
-                if self.eat_layout(Layout::Newline) && self.at_layout(Layout::Indent) {
-                    self.stray_skip();
-                }
                 return;
             }
         }
@@ -121,7 +119,7 @@ impl Parser<'_> {
                     Code::SyntaxError,
                     "a 'tests:' block may appear only at module top level",
                 );
-                self.skip_item();
+                self.recover_line();
             }
             return;
         }
@@ -143,39 +141,6 @@ impl Parser<'_> {
             }
             _ => false,
         }
-    }
-
-    /// An item and its indented body, as junk.
-    fn skip_item(&mut self) {
-        self.recover_line();
-        if self.eat_layout(Layout::Newline) && self.at_layout(Layout::Indent) {
-            self.stray_skip();
-        }
-    }
-
-    /// Skips an indented region without reporting.
-    fn stray_skip(&mut self) {
-        let marker = self.start();
-        let mut depth = 0_u32;
-        loop {
-            match self.layout() {
-                Some(Layout::Indent) => depth += 1,
-                Some(Layout::Dedent) => {
-                    depth -= 1;
-                    if depth == 0 {
-                        self.bump();
-                        break;
-                    }
-                }
-                _ => {}
-            }
-            if self.at_eof() {
-                break;
-            }
-            self.bump();
-        }
-        self.complete(marker, SyntaxKind::Error);
-        self.suite_closed = true;
     }
 
     /// The current token starts a declaration (after decorators and `pub`).
@@ -730,7 +695,7 @@ impl Parser<'_> {
         if self.at(TokenKind::Colon) {
             // A variant takes no block.
             self.expected("a line ending after an enum variant");
-            self.skip_item();
+            self.recover_line();
         }
         self.complete(marker, SyntaxKind::EnumVariant);
     }
@@ -986,7 +951,7 @@ impl Parser<'_> {
                         Code::SyntaxError,
                         "a 'tests:' block may appear only at module top level",
                     );
-                    p.skip_item();
+                    p.recover_line();
                 } else {
                     p.item(Place::Tests);
                 }

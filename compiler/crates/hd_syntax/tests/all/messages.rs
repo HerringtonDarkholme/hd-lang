@@ -318,7 +318,7 @@ const ROWS: &[(&str, &str, &str)] = &[
         "expected a member name after '.', found '0'",
     ),
     (
-        "fn f():\n\tpass\n",
+        "fn f():\npass\n",
         "syntax-error",
         "expected an indented suite, found a line that is not indented deeper",
     ),

@@ -176,6 +176,9 @@ pub(crate) struct Parser<'t> {
     suite_inline: bool,
     nesting: u32,
     attached: Vec<bool>,
+    /// Reserved words the current top-level item tried to bind with `:=`:
+    /// after that one error, the word reads as the name it was meant as.
+    bound_keywords: Vec<TokenKind>,
 }
 
 impl<'t> Parser<'t> {
@@ -184,6 +187,12 @@ impl<'t> Parser<'t> {
             .iter()
             .map(|diagnostic| (diagnostic.primary.lo, diagnostic.primary.hi))
             .collect();
+        spans.extend(
+            lexed
+                .iter()
+                .filter(|diagnostic| diagnostic.code == Code::TabWhitespace)
+                .filter_map(|diagnostic| tabbed_indentation(src, diagnostic.primary.lo)),
+        );
         spans.sort_unstable();
         Self {
             src,
@@ -204,6 +213,7 @@ impl<'t> Parser<'t> {
             suite_inline: false,
             nesting: 0,
             attached: vec![false; toks.com_kind.len()],
+            bound_keywords: Vec::new(),
         }
     }
 
@@ -288,6 +298,12 @@ impl<'t> Parser<'t> {
     pub(crate) fn bump(&mut self) {
         match self.cur.peek() {
             TokenOrLayout::Token(token) => {
+                // A token the lexer rejected is the statement's first error.
+                if !self.lexed.is_empty()
+                    && self.lexed_covers(self.toks.start[token.raw() as usize])
+                {
+                    self.stmt_errored = true;
+                }
                 self.events.push(Event::Token(token));
                 self.suite_closed = false;
                 self.cur.bump();
@@ -557,12 +573,13 @@ impl<'t> Parser<'t> {
     pub(crate) fn indented_body(&mut self) {
         self.eat_layout(Layout::Newline);
         self.eat_layout(Layout::Indent);
-        self.statements();
+        self.statements(false);
         self.eat_layout(Layout::Dedent);
     }
 
-    /// Statements until the block's `DEDENT`.
-    pub(crate) fn statements(&mut self) {
+    /// Statements until the block's `DEDENT`. With `first_reported`, the
+    /// first one already carries an error.
+    pub(crate) fn statements(&mut self, mut first_reported: bool) {
         loop {
             match self.layout() {
                 Some(Layout::Dedent) => break,
@@ -580,7 +597,8 @@ impl<'t> Parser<'t> {
                 break;
             }
             let before = self.pos();
-            self.stmt_errored = false;
+            self.stmt_errored = first_reported;
+            first_reported = false;
             self.statement();
             self.statement_end();
             if self.pos() == before && self.layout().is_none() && !self.at_eof() {
@@ -589,31 +607,76 @@ impl<'t> Parser<'t> {
         }
     }
 
-    /// After a statement: its `NEWLINE`, unless it ended in a suite.
+    /// After a statement: its `NEWLINE`, unless it ended in a suite. A
+    /// statement that reported an error also takes the lines its error
+    /// left unread (`grammar.recovery.statement`).
     pub(crate) fn statement_end(&mut self) {
-        if self.eat_layout(Layout::Newline) {
-            return;
-        }
-        if self.suite_closed && !self.suite_inline
+        let ended = self.eat_layout(Layout::Newline)
+            || self.suite_closed && !self.suite_inline
             || self.at_layout(Layout::Dedent)
             || self.at_layout(Layout::Indent)
-            || self.at_eof()
-        {
-            return;
+            || self.at_eof();
+        if !ended {
+            self.expected("a line ending");
+            self.recover_line();
+            self.eat_layout(Layout::Newline);
         }
-        self.expected("a line ending");
-        self.recover_line();
-        self.eat_layout(Layout::Newline);
+        if self.stmt_errored {
+            self.skip_fallout();
+        }
     }
 
-    /// An `INDENT` no suite opened: one error, then its lines are read as
-    /// part of the current suite.
+    /// The rest of a statement that already reported: the indented body
+    /// its header would have opened and the `else` lines that continue
+    /// it, skipped without a second report. A later statement at this
+    /// level reports its own errors.
+    fn skip_fallout(&mut self) {
+        loop {
+            if self.at_layout(Layout::Indent) {
+                self.skip_indented();
+            } else if self.at(TokenKind::KwElse) {
+                self.recover_line();
+                self.eat_layout(Layout::Newline);
+            } else {
+                return;
+            }
+        }
+    }
+
+    /// Skips an indented region, `INDENT` to its `DEDENT`, into an `Error`
+    /// node.
+    fn skip_indented(&mut self) {
+        let marker = self.start();
+        let mut depth = 0_u32;
+        loop {
+            match self.layout() {
+                Some(Layout::Indent) => depth += 1,
+                Some(Layout::Dedent) => {
+                    depth -= 1;
+                    if depth == 0 {
+                        self.bump();
+                        break;
+                    }
+                }
+                _ => {}
+            }
+            if self.at_eof() {
+                break;
+            }
+            self.bump();
+        }
+        self.complete(marker, SyntaxKind::Error);
+        self.suite_closed = true;
+    }
+
+    /// An `INDENT` no suite opened: one error, which is its first line's,
+    /// then its lines are read as part of the current suite.
     pub(crate) fn stray_indent(&mut self) {
         self.stmt_errored = false;
         self.error(Code::SyntaxError, "unexpected indentation");
         let marker = self.start();
         self.bump();
-        self.statements();
+        self.statements(true);
         self.eat_layout(Layout::Dedent);
         self.complete(marker, SyntaxKind::Error);
     }
@@ -695,6 +758,32 @@ impl<'t> Parser<'t> {
             }
         }
     }
+}
+
+/// A tab at `at` inside a line's indentation: the span from it through the
+/// line's first token, whose column the tab left undefined. The layout read
+/// there (a missing suite, a stray indent, a dedent to no level) is the
+/// tab's fallout, not a second error.
+fn tabbed_indentation(src: &str, at: u32) -> Option<(u32, u32)> {
+    let bytes = src.as_bytes();
+    let at = usize::try_from(at).ok()?;
+    let blank = |byte: &u8| matches!(byte, b' ' | b'\t');
+    let line = &bytes[..at.min(bytes.len())];
+    if !line
+        .iter()
+        .rev()
+        .take_while(|byte| !matches!(byte, b'\n' | b'\r'))
+        .all(blank)
+    {
+        return None;
+    }
+    let first = at
+        + bytes
+            .get(at..)?
+            .iter()
+            .take_while(|byte| blank(byte))
+            .count();
+    Some((u32_of(at), u32_of(first + 1)))
 }
 
 fn diag(code: Code, lo: u32, hi: u32, message: impl Into<String>) -> Diagnostic {

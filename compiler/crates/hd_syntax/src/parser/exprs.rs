@@ -118,16 +118,34 @@ impl Parser<'_> {
         done
     }
 
+    /// `name := expr`, the name being the current token.
+    fn binding_expr(&mut self, ctx: Ctx) -> Done {
+        let marker = self.start();
+        self.token_node(SyntaxKind::BindingPattern);
+        self.bump(); // :=
+        let inner = if ctx == Ctx::Rhs { Ctx::Closed } else { ctx };
+        self.expr(inner);
+        self.complete(marker, SyntaxKind::BindingExpr)
+    }
+
     fn expr_inner(&mut self, ctx: Ctx) -> Done {
         if matches!(self.current(), Some(TokenKind::Ident | TokenKind::RawIdent))
             && self.nth(1) == Some(TokenKind::ColonEq)
         {
-            let marker = self.start();
-            self.token_node(SyntaxKind::BindingPattern);
-            self.bump(); // :=
-            let inner = if ctx == Ctx::Rhs { Ctx::Closed } else { ctx };
-            self.expr(inner);
-            return self.complete(marker, SyntaxKind::BindingExpr);
+            return self.binding_expr(ctx);
+        }
+        if let Some(kind) = self.current()
+            && kind.is_keyword()
+            && self.nth(1) == Some(TokenKind::ColonEq)
+        {
+            // grammar.tests.keyword: a reserved word never names a binding.
+            let word = self.nth_text(0);
+            self.error(
+                Code::SyntaxError,
+                &format!("'{word}' is a reserved word, so it cannot name a binding"),
+            );
+            self.bound_keywords.push(kind);
+            return self.binding_expr(ctx);
         }
         if self.suite_start() {
             let bad = match ctx {
@@ -535,22 +553,29 @@ impl Parser<'_> {
 
     // ----------------------------------------------------------- operators
 
+    /// `grammar.expr.range.inclusive-needs-end`, reported at the `..=`:
+    /// what follows it may already be the next line.
+    fn missing_range_end(&mut self, operator: usize) {
+        self.error_at(
+            Code::SyntaxError,
+            operator,
+            "an inclusive range needs an end bound: write 'a..=b'",
+        );
+    }
+
     fn range_expr(&mut self) -> Done {
         if matches!(
             self.current(),
             Some(TokenKind::DotDot | TokenKind::DotDotEq)
         ) {
             let marker = self.start();
+            let operator = self.pos();
             let inclusive = self.at(TokenKind::DotDotEq);
             self.bump();
             if self.can_begin_operand() {
                 self.binary(0);
             } else if inclusive {
-                // grammar.expr.range.inclusive-needs-end
-                self.error(
-                    Code::SyntaxError,
-                    "an inclusive range needs an end bound: write 'a..=b'",
-                );
+                self.missing_range_end(operator);
             }
             return self.complete(marker, SyntaxKind::RangeExpr);
         }
@@ -560,15 +585,13 @@ impl Parser<'_> {
             Some(TokenKind::DotDot | TokenKind::DotDotEq)
         ) {
             let marker = self.precede(lhs);
+            let operator = self.pos();
             let inclusive = self.at(TokenKind::DotDotEq);
             self.bump();
             if self.can_begin_operand() {
                 self.binary(0);
             } else if inclusive {
-                self.error(
-                    Code::SyntaxError,
-                    "an inclusive range needs an end bound: write 'a..=b'",
-                );
+                self.missing_range_end(operator);
             }
             let done = self.complete(marker, SyntaxKind::RangeExpr);
             if matches!(
@@ -879,6 +902,12 @@ impl Parser<'_> {
     // ------------------------------------------------------------ primary
 
     fn primary(&mut self) -> Done {
+        if self
+            .current()
+            .is_some_and(|kind| self.bound_keywords.contains(&kind))
+        {
+            return self.token_node(SyntaxKind::NameExpr);
+        }
         match self.current() {
             Some(
                 TokenKind::Number

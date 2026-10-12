@@ -4,11 +4,15 @@ use hd_diag::Code;
 
 use super::items::Place;
 use super::{Ctx, Parser};
-use crate::{Layout, SyntaxKind, TokenKind};
+use crate::{SyntaxKind, TokenKind};
 
 impl Parser<'_> {
     /// One statement of an indented suite, local declarations included.
     pub(crate) fn statement(&mut self) {
+        if self.keyword_as_name() {
+            self.simple_statement(Ctx::Stmt);
+            return;
+        }
         if self.at(TokenKind::KwTests) {
             // grammar.tests.top-level
             self.error(
@@ -16,9 +20,6 @@ impl Parser<'_> {
                 "a 'tests:' block may appear only at module top level",
             );
             self.recover_line();
-            if self.eat_layout(Layout::Newline) && self.at_layout(Layout::Indent) {
-                self.stray_indent_quiet();
-            }
             return;
         }
         if self.declaration_start() {
@@ -34,29 +35,23 @@ impl Parser<'_> {
                 "a call accepts only one trailing callback block",
             );
             self.recover_line();
-            if self.eat_layout(Layout::Newline) && self.at_layout(Layout::Indent) {
-                self.stray_indent_quiet();
-            }
             return;
         }
         self.simple_statement(Ctx::Stmt);
     }
 
+    /// A reserved word that a `:=` binds, or that an earlier failed
+    /// binding in this item named (`grammar.tests.keyword`).
+    fn keyword_as_name(&mut self) -> bool {
+        self.current().is_some_and(|kind| {
+            kind.is_keyword()
+                && (self.bound_keywords.contains(&kind) || self.nth(1) == Some(TokenKind::ColonEq))
+        })
+    }
+
     /// A same-line suite body.
     pub(crate) fn inline_statement(&mut self, ctx: Ctx) {
         self.simple_statement(ctx);
-    }
-
-    /// An indented region read as junk, without a second report.
-    fn stray_indent_quiet(&mut self) {
-        let marker = self.start();
-        self.bump();
-        let errored = self.stmt_errored;
-        self.statements();
-        self.stmt_errored = errored;
-        self.eat_layout(Layout::Dedent);
-        self.complete(marker, SyntaxKind::Error);
-        self.suite_closed = true;
     }
 
     fn rhs(ctx: Ctx) -> Ctx {

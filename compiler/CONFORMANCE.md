@@ -8,17 +8,17 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2711 | 118 | 16 | 2845 |
+| 2725 | 104 | 16 | 2845 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
-| `lang/01-lexical-structure.md` | 140 | 5 | 0 | 145 |
-| `lang/02-grammar.md` | 205 | 10 | 0 | 215 |
+| `lang/01-lexical-structure.md` | 145 | 0 | 0 | 145 |
+| `lang/02-grammar.md` | 212 | 3 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
 | `lang/04-type-system.md` | 332 | 20 | 0 | 352 |
-| `lang/05-expressions.md` | 266 | 11 | 0 | 277 |
+| `lang/05-expressions.md` | 268 | 9 | 0 | 277 |
 | `lang/06-control-flow.md` | 143 | 10 | 4 | 157 |
 | `lang/07-functions.md` | 123 | 7 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 116 | 7 | 0 | 123 |
@@ -60,7 +60,7 @@ fixture; unsupported surface records progress without failing.
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
-| `parse/invalid` | 181 | 14 | 0 | 195 |
+| `parse/invalid` | 195 | 0 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 916 | 1 | 12 | 929 |
@@ -80,7 +80,6 @@ compiler stage that first declined the case.
 | `fail:cannot-infer-type` | 4 |
 | `fail:duplicate-argument` | 1 |
 | `fail:duplicate-data-pattern-field` | 1 |
-| `fail:invalid-token` | 2 |
 | `fail:missing-required-field` | 2 |
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 2 |
@@ -91,8 +90,6 @@ compiler stage that first declined the case.
 | `fail:private-main` | 1 |
 | `fail:re-export-loop` | 1 |
 | `fail:readonly-root` | 1 |
-| `fail:syntax-error` | 10 |
-| `fail:tab-whitespace` | 2 |
 | `fail:trait-used-as-type` | 1 |
 | `fail:type-mismatch` | 13 |
 | `fail:unknown-data-field` | 2 |
@@ -142,13 +139,6 @@ compiler stage that first declined the case.
 <details><summary><code>fail:duplicate-data-pattern-field</code> (1)</summary>
 
 - `typing/invalid/duplicate-data-pattern-field.hd`
-
-</details>
-
-<details><summary><code>fail:invalid-token</code> (2)</summary>
-
-- `parse/invalid/leading-tuple-index-does-not-continue.hd`
-- `parse/invalid/backslash-line-continuation.hd`
 
 </details>
 
@@ -254,28 +244,6 @@ compiler stage that first declined the case.
 <details><summary><code>fail:readonly-root</code> (1)</summary>
 
 - `typing/invalid/callable-value-short-binding-store.hd`
-
-</details>
-
-<details><summary><code>fail:syntax-error</code> (10)</summary>
-
-- `parse/invalid/old-and-operator.hd`
-- `parse/invalid/unparenthesized-result-row.hd`
-- `parse/invalid/old-where-clause.hd`
-- `parse/invalid/mut-function-type.hd`
-- `parse/invalid/mut-closure-literal.hd`
-- `parse/invalid/reserved-word-suffix.hd`
-- `parse/invalid/pipe-step-trailing-block.hd`
-- `parse/invalid/trailing-block-in-same-line-suite.hd`
-- `parse/invalid/for-bare-name-list.hd`
-- `parse/invalid/range-inclusive-no-end.hd`
-
-</details>
-
-<details><summary><code>fail:tab-whitespace</code> (2)</summary>
-
-- `parse/invalid/tab-indentation.hd`
-- `parse/invalid/tab-in-function-body.hd`
 
 </details>
 
@@ -403,6 +371,7 @@ compiler stage that first declined the case.
 <!-- pass-list-start -->
 ```text
 parse/invalid/associated-binding-outside-bound.hd
+parse/invalid/backslash-line-continuation.hd
 parse/invalid/bare-binding-list.hd
 parse/invalid/bare-carriage-return.hd
 parse/invalid/bare-hex-prefix.hd
@@ -442,6 +411,7 @@ parse/invalid/float-bare-leading-point.hd
 parse/invalid/float-separator-after-exponent-marker.hd
 parse/invalid/float-separator-before-point.hd
 parse/invalid/float-trailing-separator.hd
+parse/invalid/for-bare-name-list.hd
 parse/invalid/for-mut-name.hd
 parse/invalid/for-pattern-mut.hd
 parse/invalid/function-type-mutable-permission.hd
@@ -456,6 +426,7 @@ parse/invalid/invalid-escape.hd
 parse/invalid/keyword-type-as-parameter-type.hd
 parse/invalid/leading-dot-after-open-same-line-suite.hd
 parse/invalid/leading-operator-does-not-continue.hd
+parse/invalid/leading-tuple-index-does-not-continue.hd
 parse/invalid/let-bare-list.hd
 parse/invalid/let-list-one-name.hd
 parse/invalid/let-mut-bare-list.hd
@@ -467,6 +438,8 @@ parse/invalid/mid-file-bom.hd
 parse/invalid/module-documentation-second-block.hd
 parse/invalid/multi-binding-in-list.hd
 parse/invalid/multi-binding-nested.hd
+parse/invalid/mut-closure-literal.hd
+parse/invalid/mut-function-type.hd
 parse/invalid/mut-non-self-parameter.hd
 parse/invalid/mutable-embedded-field.hd
 parse/invalid/mutable-field-modifier.hd
@@ -482,6 +455,7 @@ parse/invalid/nested-tests-block.hd
 parse/invalid/non-nfc-identifier.hd
 parse/invalid/numeric-member-access-float.hd
 parse/invalid/numeric-member-access.hd
+parse/invalid/old-and-operator.hd
 parse/invalid/old-bound-operator-generic.hd
 parse/invalid/old-bound-operator-impl.hd
 parse/invalid/old-bound-operator-supertrait.hd
@@ -495,6 +469,7 @@ parse/invalid/old-row-separator-in-context.hd
 parse/invalid/old-row-separator-in-type.hd
 parse/invalid/old-row-separator-type-argument.hd
 parse/invalid/old-struct-declaration.hd
+parse/invalid/old-where-clause.hd
 parse/invalid/optional-question-pattern.hd
 parse/invalid/out-of-range-unicode-escape.hd
 parse/invalid/parenthesized-row.hd
@@ -502,6 +477,7 @@ parse/invalid/pipe-leading-dot-after-bare-step.hd
 parse/invalid/pipe-leading-dot-expression-rule.hd
 parse/invalid/pipe-leading-dot-line.hd
 parse/invalid/pipe-leading-line-open-suite.hd
+parse/invalid/pipe-step-trailing-block.hd
 parse/invalid/placeholder-in-ordinary-type.hd
 parse/invalid/positional-after-named-argument.hd
 parse/invalid/positional-after-named.hd
@@ -523,6 +499,7 @@ parse/invalid/radix-literal-quote-suffix.hd
 parse/invalid/radix-literal-suffix-without-separator.hd
 parse/invalid/range-chained.hd
 parse/invalid/range-glued-to-spread.hd
+parse/invalid/range-inclusive-no-end.hd
 parse/invalid/range-pattern-char-bound.hd
 parse/invalid/raw-character-literal.hd
 parse/invalid/raw-identifier-around-other-text.hd
@@ -534,6 +511,7 @@ parse/invalid/repeated-numeric-separator.hd
 parse/invalid/reserved-word-interpolation.hd
 parse/invalid/reserved-word-member-name.hd
 parse/invalid/reserved-word-prefix.hd
+parse/invalid/reserved-word-suffix.hd
 parse/invalid/return-binding-ends-in-suite.hd
 parse/invalid/row-alias-and-operator.hd
 parse/invalid/row-parameter-bound.hd
@@ -555,10 +533,13 @@ parse/invalid/suffix-after-separator.hd
 parse/invalid/suffixed-literal-pattern.hd
 parse/invalid/surrogate-unicode-escape.hd
 parse/invalid/tab-between-tokens.hd
+parse/invalid/tab-in-function-body.hd
 parse/invalid/tab-in-string-literal.hd
+parse/invalid/tab-indentation.hd
 parse/invalid/tests-as-identifier.hd
 parse/invalid/tests-block-in-function.hd
 parse/invalid/trailing-block-in-brackets.hd
+parse/invalid/trailing-block-in-same-line-suite.hd
 parse/invalid/trailing-block-same-line-body.hd
 parse/invalid/trailing-integer-separator.hd
 parse/invalid/trait-parameter-without-type.hd
@@ -573,6 +554,7 @@ parse/invalid/type-name-brackets-without-marker.hd
 parse/invalid/unclosed-delimiter-suppresses-fallout.hd
 parse/invalid/unclosed-delimiter.hd
 parse/invalid/unmatched-delimiter.hd
+parse/invalid/unparenthesized-result-row.hd
 parse/invalid/use-declaration-needs-root.hd
 parse/invalid/vararg-default-before-ellipsis.hd
 parse/invalid/vararg-ellipsis-after-type.hd
