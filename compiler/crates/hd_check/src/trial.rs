@@ -90,6 +90,7 @@ impl Ck<'_, '_> {
         // local, whose number a later local reuses.
         let locals = c.tir.locals as usize;
         self.local_generics.retain(|l, _| l.idx() < locals);
+        self.local_forms.retain(|l, _| l.idx() < locals);
         self.generic_recheck.retain(|l| l.idx() < locals);
         self.b.body_mut().local_flags[..c.flags.len()].copy_from_slice(&c.flags);
         self.infer.rollback_trial(c.infer);

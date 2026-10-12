@@ -2530,6 +2530,8 @@ impl Ck<'_, '_> {
             name: None,
             reassignable: false,
             generic: None,
+            upto: None,
+            form: None,
         })
     }
 
@@ -2557,6 +2559,8 @@ impl Ck<'_, '_> {
             name: None,
             reassignable: false,
             generic: None,
+            upto: None,
+            form: None,
         };
         self.closure_of(block, &parts, Some(want))
     }
@@ -2636,6 +2640,7 @@ impl Ck<'_, '_> {
             for (i, p) in pl
                 .children()
                 .filter(|c| c.kind() == SyntaxKind::Parameter)
+                .take(parts.upto.unwrap_or(usize::MAX))
                 .enumerate()
             {
                 let toks = &self.cx.src.parse.tokens;
@@ -2687,6 +2692,9 @@ impl Ck<'_, '_> {
                 local_flags::ASSIGNED | local_flags::SHORT
             };
             let l = self.b.local(t, name, flags, n.index());
+            if let Some(f) = &parts.form {
+                self.local_forms.insert(l, f.clone());
+            }
             // The scope around the parameters' is the declaration's.
             let at = self.scopes.len() - 2;
             self.scopes[at].insert(name, l);
@@ -3206,4 +3214,10 @@ pub(crate) struct ClosureParts<'t> {
     /// A generic local function's own type parameters: its name is
     /// instantiated at each use, never read as one closure value.
     pub generic: Option<crate::local::LocalGeneric>,
+    /// Only the first this many parameters are the closure's: a local
+    /// function's default is a closure of the earlier parameters.
+    pub upto: Option<usize>,
+    /// A local function's parameter names and default closures, kept for
+    /// its calls (`fn.default.omit`, named arguments).
+    pub form: Option<crate::local::LocalForm>,
 }

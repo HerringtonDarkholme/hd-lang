@@ -76,6 +76,7 @@ mod let_pattern_mut_run;
 mod list_invalidation_run;
 mod list_spread_run;
 mod literals;
+mod local_fn_default_run;
 mod local_items_run;
 mod map_duplicates_run;
 mod map_key_bounds;

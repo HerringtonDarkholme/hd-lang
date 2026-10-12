@@ -60,7 +60,7 @@ fn node(name: &str, wasm: &[u8], script: &str, args: &[String]) -> std::process:
 }
 
 /// The standard output of a program that must build and succeed.
-fn output_of(name: &str, main: &str) -> String {
+pub(crate) fn output_of(name: &str, main: &str) -> String {
     let out = program(main);
     assert!(out.diags.is_empty(), "{name}: {}", out.render());
     let ran = node(name, &out.wasm.expect("wasm"), "run.mjs", &[]);
@@ -73,7 +73,7 @@ fn output_of(name: &str, main: &str) -> String {
 }
 
 /// The rendered diagnostics of a program that must not build.
-fn errors_of(main: &str) -> String {
+pub(crate) fn errors_of(main: &str) -> String {
     let out = program(main);
     assert!(out.wasm.is_none(), "the program must not build");
     out.render()

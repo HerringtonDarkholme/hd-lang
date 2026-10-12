@@ -180,6 +180,11 @@ pub(crate) struct Ck<'a, 'c> {
     /// The next call's default bodies: callee, type arguments and the
     /// values before the first argument (a receiver).
     pub default_owner: Option<(DefId, TyList, Vec<Ref>)>,
+    /// The next call's defaults when the callee is a local function.
+    pub local_defaults: Option<crate::local::LocalDefaults>,
+    /// The parameter names and default closures of the local functions
+    /// declared so far, by their name's local.
+    pub local_forms: HashMap<LocalId, crate::local::LocalForm>,
     /// Whether the body or closure being checked suspends (a driver
     /// context for bang calls).
     pub suspends: Vec<bool>,
@@ -192,6 +197,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// suspend in: a default or fact expression, or a non-entry module's
     /// initialization (`req.drive.block-on.forbidden-contexts`).
     pub forbidden: Option<&'static str>,
+    /// The `suspends` depth of the default expression being checked: a bang
+    /// call there is `suspension-forbidden-context`, not a call outside any
+    /// suspension (`fn.default.suspends`).
+    pub default_depth: usize,
     /// The `:=` bindings that a path to this point may have skipped
     /// (`names.definite.skipped`).
     pub uninit: std::collections::HashSet<LocalId>,
@@ -385,6 +394,8 @@ pub(crate) fn new_ck<'a, 'c>(
         method_targs: Vec::new(),
         in_explicit_targs: false,
         default_owner: None,
+        local_defaults: None,
+        local_forms: HashMap::new(),
         suspends: vec![false],
         defer_base: None,
         defer_subs: 0,
@@ -393,6 +404,7 @@ pub(crate) fn new_ck<'a, 'c>(
         stmt_binding: None,
         cond_flow: None,
         forbidden: (kind == BodyKind::Default).then_some("a default or fact expression"),
+        default_depth: 1,
         lit_nodes: Vec::new(),
         neg_nodes: Vec::new(),
         read_poison_name: false,

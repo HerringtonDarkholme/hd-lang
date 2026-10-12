@@ -443,6 +443,15 @@ impl Ck<'_, '_> {
             SyntaxKind::NameExpr => {
                 let s = self.sym_of(callee);
                 if let Some((l, d)) = self.find_local(s) {
+                    let form = self.local_forms.get(&l).cloned();
+                    if let Some(form) = form {
+                        let vars = self.local_generic_vars(l, &[], callee);
+                        let (f, ft) = match &vars {
+                            Some(v) => self.local_generic_inst(l, v, callee),
+                            None => self.read_local(l, d, callee),
+                        };
+                        return self.call_value_form(f, ft, args, n, bang, Some((&form, vars)));
+                    }
                     let (f, ft) = self.read_local(l, d, callee);
                     return self.call_value(f, ft, args, n, bang);
                 }
@@ -486,8 +495,17 @@ impl Ck<'_, '_> {
                 }
                 // `f::[T](..)` of a generic local function.
                 if let Some(l) = self.local_generic_named(inner) {
-                    let (f, ft) = self.local_generic_value(l, &explicit, callee);
-                    return self.call_value(f, ft, args, n, bang);
+                    let vars = self.local_generic_vars(l, &explicit, callee);
+                    let (f, ft) = match &vars {
+                        Some(v) => self.local_generic_inst(l, v, callee),
+                        None => (Ref(NONE), Ty::NEVER),
+                    };
+                    return match self.local_forms.get(&l).cloned() {
+                        Some(form) => {
+                            self.call_value_form(f, ft, args, n, bang, Some((&form, vars)))
+                        }
+                        None => self.call_value(f, ft, args, n, bang),
+                    };
                 }
                 let segs = self.segments_expr(inner);
                 if segs.first().is_some_and(|s| self.is_poison_name(s)) {
@@ -638,6 +656,21 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         bang: bool,
     ) -> StageResult<(Ref, Ty)> {
+        self.call_value_form(f, ft, args, n, bang, None)
+    }
+
+    /// A call of a function value, or of a local function by its name
+    /// (`form`, with its type arguments if generic): the call then takes
+    /// named arguments and omits parameters that have defaults.
+    pub(crate) fn call_value_form(
+        &mut self,
+        f: Ref,
+        ft: Ty,
+        args: &Args<'_>,
+        n: NodeRef<'_>,
+        bang: bool,
+        form: Option<(&crate::local::LocalForm, Option<Vec<Ty>>)>,
+    ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         // A callee that already failed has been reported.
         if f.0 == NONE && ft == Ty::NEVER {
@@ -687,11 +720,26 @@ impl Ck<'_, '_> {
             self.err(Code::NotCallable, n, &msg);
             return Ok((Ref(NONE), Ty::NEVER));
         };
-        if !args.named.is_empty() {
+        let form = form.filter(|_| inputs == Inputs::Fixed);
+        if !args.named.is_empty() && form.is_none() {
             return unsupported("named arguments to a function value");
         }
         let ps = pool.list_items(params);
-        let refs = if inputs == Inputs::Tuple {
+        let refs = if let Some((form, vars)) = form {
+            let formals: Vec<(Symbol, Ty)> =
+                form.names.iter().copied().zip(ps.iter().copied()).collect();
+            let defaults: Vec<bool> = form.defaults.iter().map(Option::is_some).collect();
+            let formals = Formals {
+                params: &formals,
+                defaults: &defaults,
+                variadic: false,
+            };
+            self.local_defaults = Some(crate::local::LocalDefaults {
+                defaults: form.defaults.clone(),
+                vars,
+            });
+            self.check_args(&formals, 0, args, n, &form.name)?
+        } else if inputs == Inputs::Tuple {
             match self.tuple_inputs_args(ft, ps[0], args, n)? {
                 Some(refs) => refs,
                 None => return Ok((Ref(NONE), Ty::NEVER)),
@@ -859,6 +907,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<Vec<Ref>> {
         // The callee's default bodies, taken before any argument is checked.
         let owner = self.default_owner.take();
+        let local = self.local_defaults.take();
         let rest = formals.params.get(skip..).unwrap_or(&[]);
         let variadic = formals.variadic && !rest.is_empty();
         if variadic && args.trailing.is_some() {
@@ -1043,6 +1092,24 @@ impl Ck<'_, '_> {
             match s {
                 Some(r) => out.push(r),
                 None if formals.defaults.get(skip + i).copied().unwrap_or(false) => {
+                    // A local function's default is a closure of the
+                    // earlier values, called after every argument.
+                    if let Some(ld) = &local {
+                        let Some(Some(hidden)) = ld.defaults.get(skip + i) else {
+                            return unsupported("a default argument of this callee");
+                        };
+                        let Some((l, d)) = self.find_local(*hidden) else {
+                            return unsupported("a default argument of this callee");
+                        };
+                        let (c, _) = match &ld.vars {
+                            Some(v) => self.local_generic_inst(l, v, n),
+                            None => self.read_local(l, d, n),
+                        };
+                        let t = self.normalize_deep(rest[i].1)?;
+                        let earlier = self.b.refs_record(&out);
+                        out.push(self.b.emit(Tag::CallValue, c.0, earlier, t, n.index()));
+                        continue;
+                    }
                     // `DefaultCall` of the parameter's default body, after
                     // every explicit argument, over the earlier values
                     // (checking-and-tir.md "Default calls").
@@ -1631,6 +1698,16 @@ impl Ck<'_, '_> {
                 "a `defer` suite cannot suspend",
             );
         } else if !self.suspends.last().copied().unwrap_or(false) {
+            if self.forbidden == Some("a default or fact expression")
+                && self.suspends.len() == self.default_depth
+            {
+                self.err(
+                    Code::SuspensionForbiddenContext,
+                    n,
+                    "a default cannot suspend",
+                );
+                return;
+            }
             self.err(
                 Code::BangCallOutsideSuspension,
                 n,

@@ -49,6 +49,26 @@ pub(crate) struct LocalGeneric {
     pub caps: Option<Vec<LocalId>>,
 }
 
+/// A local function's parameters as its calls see them: the names, for
+/// named arguments, and each default's hidden closure.
+#[derive(Clone, Debug)]
+pub(crate) struct LocalForm {
+    pub name: String,
+    pub names: Vec<hd_base::Symbol>,
+    /// The hidden local holding the closure of each parameter's default,
+    /// over the earlier parameters (`fn.default.eval`).
+    pub defaults: Vec<Option<hd_base::Symbol>>,
+}
+
+/// The defaults of the local function a call is checking arguments for.
+#[derive(Clone, Debug)]
+pub(crate) struct LocalDefaults {
+    pub defaults: Vec<Option<hd_base::Symbol>>,
+    /// A generic local function's type arguments at this call, which its
+    /// default closures are instantiated at too.
+    pub vars: Option<Vec<Ty>>,
+}
+
 impl Ck<'_, '_> {
     /// A local type, trait or impl declaration statement.
     pub(crate) fn local_decl(&mut self, s: NodeRef<'_>) -> StageResult<()> {
@@ -157,13 +177,6 @@ impl Ck<'_, '_> {
             }
         }
         let params = Src::child(n, SyntaxKind::ParameterList);
-        if params
-            .iter()
-            .flat_map(|p| p.children())
-            .any(|p| Src::child(p, SyntaxKind::DefaultValue).is_some())
-        {
-            return self.gap(n, "a local function with a parameter default");
-        }
         // `names.local-fn.rules`: a local value's duplicate rule.
         if self.scopes.last().is_some_and(|m| m.contains_key(&name)) {
             let msg = format!("`{}` is already bound in this scope", src.text(t));
@@ -172,7 +185,7 @@ impl Ck<'_, '_> {
         let Some(body) = Src::child(n, SyntaxKind::Block) else {
             return unsupported("a local function without a body");
         };
-        let parts = ClosureParts {
+        let mut parts = ClosureParts {
             params,
             ret: n
                 .children()
@@ -183,10 +196,41 @@ impl Ck<'_, '_> {
             name: Some(name),
             reassignable: false,
             generic: None,
+            upto: None,
+            form: None,
         };
-        if let Some(gl) = generics {
-            return self.generic_local_fn(n, gl, parts);
+        let param_nodes: Vec<NodeRef<'_>> = params
+            .iter()
+            .flat_map(|p| p.children())
+            .filter(|c| c.kind() == SyntaxKind::Parameter)
+            .collect();
+        self.default_order(&param_nodes);
+        let mut form = LocalForm {
+            name: src.text(t).to_owned(),
+            names: Vec::new(),
+            defaults: vec![None; param_nodes.len()],
+        };
+        for (i, p) in param_nodes.iter().enumerate() {
+            let pname = p
+                .name(toks)
+                .map_or_else(|| format!("${i}"), |t| src.text(t).to_owned());
+            form.names.push(self.cx.names.syms.intern(&pname));
         }
+        if let Some(gl) = generics {
+            return self.generic_local_fn(n, gl, parts, form, &param_nodes);
+        }
+        // `fn.default.eval`: each default is a closure of the earlier
+        // parameters, declared before the function, so it sees the
+        // enclosing locals as the function does.
+        for (i, p) in param_nodes.iter().enumerate() {
+            let Some(e) = Self::default_expr(*p) else {
+                continue;
+            };
+            let hidden = self.hidden_default(&form.name, form.names[i]);
+            self.default_closure(*p, i, hidden, e, params, None)?;
+            form.defaults[i] = Some(hidden);
+        }
+        parts.form = Some(form);
         let (r, ft, own) = self.closure_with(n, &parts, None)?;
         let Some(l) = own else {
             return unsupported("a local function without its name");
@@ -204,6 +248,8 @@ impl Ck<'_, '_> {
         n: NodeRef<'t>,
         gl: NodeRef<'t>,
         mut parts: ClosureParts<'t>,
+        mut form: LocalForm,
+        param_nodes: &[NodeRef<'t>],
     ) -> StageResult<()> {
         let src = self.cx.src;
         let toks = &src.parse.tokens;
@@ -278,8 +324,33 @@ impl Ck<'_, '_> {
             recursive: false,
             caps: None,
         });
+        // `fn.default.eval`: each default is a generic closure of the
+        // earlier parameters over the function's type parameters.
+        let generic = parts.generic.clone();
+        for (i, p) in param_nodes.iter().enumerate() {
+            let Some(e) = Self::default_expr(*p) else {
+                continue;
+            };
+            let hidden = self.hidden_default(&form.name, form.names[i]);
+            self.default_closure(*p, i, hidden, e, parts.params, generic.clone())?;
+            form.defaults[i] = Some(hidden);
+        }
+        parts.form = Some(form);
+        self.generic_closure(n, &mut parts)?;
+        self.gens.truncate(in_scope);
+        Ok(())
+    }
+
+    /// The closure of a generic local function, checked once, and its
+    /// entry in `local_generics`.
+    fn generic_closure(
+        &mut self,
+        n: NodeRef<'_>,
+        parts: &mut ClosureParts<'_>,
+    ) -> StageResult<LocalId> {
+        let pool = self.pool();
         let cp = self.checkpoint();
-        let (mut r, mut ft, mut own) = self.closure_with(n, &parts, None)?;
+        let (mut r, mut ft, mut own) = self.closure_with(n, parts, None)?;
         // A closure in the body used the function before its captures
         // were known: the body is checked again knowing them.
         if let Some(l) = own
@@ -291,9 +362,8 @@ impl Ck<'_, '_> {
             if let Some(g) = &mut parts.generic {
                 g.caps = Some(caps);
             }
-            (r, ft, own) = self.closure_with(n, &parts, None)?;
+            (r, ft, own) = self.closure_with(n, parts, None)?;
         }
-        self.gens.truncate(in_scope);
         let Some(l) = own else {
             return unsupported("a local function without its name");
         };
@@ -317,6 +387,98 @@ impl Ck<'_, '_> {
         let body = self.b.body_mut();
         body.local_ty[l.idx()] = ft;
         body.sub_flags[sub] |= sub_flags::GENERIC;
+        Ok(l)
+    }
+
+    /// The expression of a parameter's default, if it has one.
+    fn default_expr(p: NodeRef<'_>) -> Option<NodeRef<'_>> {
+        Src::child(p, SyntaxKind::DefaultValue).and_then(|d| d.children().next())
+    }
+
+    /// The name of the hidden local holding a default's closure. It starts
+    /// with `_`, which no read is warned about, and has a `.`, which no
+    /// name written in source has.
+    fn hidden_default(&self, func: &str, param: hd_base::Symbol) -> hd_base::Symbol {
+        let p = self.cx.names.text(param).to_owned();
+        self.cx.names.syms.intern(&format!("_default.{func}.{p}"))
+    }
+
+    /// `fn.default.order-final-function`: after the first parameter with a
+    /// default, every following non-vararg parameter has one, but for a
+    /// final parameter of function type.
+    fn default_order(&mut self, params: &[NodeRef<'_>]) {
+        let toks = &self.cx.src.parse.tokens;
+        let mut defaulted = false;
+        for (i, p) in params.iter().enumerate() {
+            if Self::default_expr(*p).is_some() {
+                defaulted = true;
+                continue;
+            }
+            let exempt = p.direct_token(toks, TokenKind::Ellipsis).is_some()
+                || (i + 1 == params.len()
+                    && Src::type_child(*p).is_some_and(|t| t.kind() == SyntaxKind::FunctionType));
+            if defaulted && !exempt {
+                let name = p.name(toks).map_or("a parameter", |t| self.cx.src.text(t));
+                let msg =
+                    format!("`{name}` follows a parameter with a default, so it needs one too");
+                self.err(Code::DefaultOrder, *p, &msg);
+            }
+        }
+    }
+
+    /// The default of parameter `i`, declared as the closure `hidden` of
+    /// the parameters before it. A default is requirement-free
+    /// (`fn.default.requirement-free`): it checks like a default body,
+    /// and its row is empty.
+    fn default_closure<'t>(
+        &mut self,
+        p: NodeRef<'t>,
+        i: usize,
+        hidden: hd_base::Symbol,
+        expr: NodeRef<'t>,
+        params: Option<NodeRef<'t>>,
+        generic: Option<LocalGeneric>,
+    ) -> StageResult<()> {
+        let pool = self.pool();
+        let mut parts = ClosureParts {
+            params,
+            ret: Src::type_child(p),
+            row: None,
+            body: expr,
+            suspends: false,
+            name: Some(hidden),
+            reassignable: false,
+            generic,
+            upto: Some(i),
+            form: None,
+        };
+        let saved = self.forbidden.replace("a default or fact expression");
+        let saved_depth = std::mem::replace(&mut self.default_depth, self.suspends.len() + 1);
+        let checked = if parts.generic.is_some() {
+            self.generic_closure(p, &mut parts)
+        } else {
+            self.closure_with(p, &parts, None).and_then(|(r, ft, own)| {
+                let Some(l) = own else {
+                    return unsupported("a default without its name");
+                };
+                self.b.body_mut().local_ty[l.idx()] = ft;
+                self.b.set(l, r, p.index());
+                Ok(l)
+            })
+        };
+        self.forbidden = saved;
+        self.default_depth = saved_depth;
+        let l = checked?;
+        let ft = self.b.local_ty(l);
+        if let TyData::Fn { row, .. } = pool.get(self.infer.resolve(pool, ft))
+            && row != hd_types::RowId::EMPTY
+        {
+            self.err(
+                Code::RequirementInDefault,
+                expr,
+                "a default cannot use a provider",
+            );
+        }
         Ok(())
     }
 
@@ -341,9 +503,20 @@ impl Ck<'_, '_> {
         explicit: &[Ty],
         n: NodeRef<'_>,
     ) -> (Ref, Ty) {
-        let Some(g) = self.local_generics.get(&l).cloned() else {
-            return (Ref(NONE), Ty::NEVER);
-        };
+        match self.local_generic_vars(l, explicit, n) {
+            Some(vars) => self.local_generic_inst(l, &vars, n),
+            None => (Ref(NONE), Ty::NEVER),
+        }
+    }
+
+    /// The type arguments of a use of the generic local function `l`.
+    pub(crate) fn local_generic_vars(
+        &mut self,
+        l: LocalId,
+        explicit: &[Ty],
+        n: NodeRef<'_>,
+    ) -> Option<Vec<Ty>> {
+        let g = self.local_generics.get(&l).cloned()?;
         let pool = self.pool();
         if explicit.len() > g.params.len() {
             let msg = format!(
@@ -368,7 +541,6 @@ impl Ck<'_, '_> {
                 (p.owner == owner).then(|| vars.get(k).copied()).flatten()
             })
         };
-        let ft = inst(self.infer.resolve(pool, g.fn_ty));
         for (i, &v) in vars.iter().enumerate() {
             if i >= explicit.len() {
                 let d = g.defaults[i].map(inst);
@@ -392,6 +564,28 @@ impl Ck<'_, '_> {
                 }
             }
         }
+        Some(vars)
+    }
+
+    /// A closure of the generic local function `l` at `vars`.
+    pub(crate) fn local_generic_inst(
+        &mut self,
+        l: LocalId,
+        vars: &[Ty],
+        n: NodeRef<'_>,
+    ) -> (Ref, Ty) {
+        let Some(g) = self.local_generics.get(&l).cloned() else {
+            return (Ref(NONE), Ty::NEVER);
+        };
+        let pool = self.pool();
+        let (owner, first) = (self.gen_owner, g.first);
+        let inst = |t: Ty| {
+            pool.subst(t, &|p: ParamRef| {
+                let k = usize::from(p.index.checked_sub(first)?);
+                (p.owner == owner).then(|| vars.get(k).copied()).flatten()
+            })
+        };
+        let ft = inst(self.infer.resolve(pool, g.fn_ty));
         // Its captures cross every closure open around this use; inside
         // its own body they are its own.
         let nested = self
@@ -410,7 +604,7 @@ impl Ck<'_, '_> {
         {
             e.recursive = true;
         }
-        let list = pool.list(&vars);
+        let list = pool.list(vars);
         let rec = self.b.words_record(&[0, 0, u32::from(first), list.0]);
         (self.b.emit(Tag::Closure, g.sub, rec, ft, n.index()), ft)
     }
