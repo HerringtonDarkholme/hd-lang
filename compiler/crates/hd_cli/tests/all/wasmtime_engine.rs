@@ -174,32 +174,75 @@ fn test_reports_list_the_same_panic_frames() {
          it(\"runs out\"):\n        boom()\n",
     );
     let out = both(&dir, &["test", "main.hd"]);
-    // A single file's package is named by its directory, which varies.
-    let lines: Vec<String> = text(&out.stdout)
-        .lines()
-        .map(|l| {
-            l.split_once("/main/").map_or(l.to_owned(), |(head, f)| {
-                let at = head.rfind(' ').map_or(0, |k| k + 1);
-                format!("{}{f}", &head[..at])
-            })
-        })
-        .collect();
+    // A single file's functions are named after its stem.
     assert_eq!(
-        lines,
+        text(&out.stdout).lines().collect::<Vec<_>>(),
         [
             "PANIC main.hd:8: picks past the end",
             "    panic: index-out-of-bounds: list index out of bounds",
-            "    main.hd:2 pick",
-            "    main.hd:9 $test0",
+            "    main.hd:2 main.pick",
+            "    main.hd:9 test \"picks past the end\"",
             "    repro: hd test main.hd --filter \"picks past the end\"",
             "PANIC main.hd:11: runs out",
             "    panic: explicit-panic: out of stock",
-            "    main.hd:5 boom",
-            "    main.hd:12 $test1",
+            "    main.hd:5 main.boom",
+            "    main.hd:12 test \"runs out\"",
             "    repro: hd test main.hd --filter \"runs out\"",
             "test result: FAILED. 0 passed; 2 failed; 0 ignored",
         ]
     );
+}
+
+/// A recursion that exhausts the stack reports a few lines on both
+/// engines: its repeated frames, and its cycle of two, print once with a
+/// count. The counts follow each engine's stack size, so they may differ.
+#[test]
+fn both_engines_collapse_an_endless_recursion() {
+    let dir = program(
+        "recursion",
+        "fn forever(n: i32) -> i32:\n    forever(n + 1) + 1\n\n\
+         fn ping(n: i32) -> i32:\n    pong(n + 1) + 1\n\n\
+         fn pong(n: i32) -> i32:\n    ping(n + 1) + 1\n\n\
+         tests:\n    it(\"never stops\"):\n        forever(+0)\n\n    \
+         it(\"plays ping pong\"):\n        ping(+0)\n",
+    );
+    let report = |engine: &str| {
+        let mut c = hd(&dir);
+        c.env("HD_ENGINE", engine);
+        let out = run(c, &["test", "main.hd"], "");
+        let stdout = text(&out.stdout);
+        assert!(stdout.len() < 2000, "{engine}: {stdout}");
+        stdout
+            .lines()
+            .map(|l| match l.split_once(" repeated ") {
+                Some((what, _)) if what.trim_start().starts_with("...") => {
+                    format!("{what} repeated N more times")
+                }
+                _ => l.to_owned(),
+            })
+            .collect::<Vec<_>>()
+    };
+    let node = report("node");
+    assert_eq!(
+        node,
+        [
+            "PANIC main.hd:11: never stops",
+            "    panic: stack-exhausted: the call stack ran out; check for recursion that never ends",
+            "    main.hd:2 main.forever",
+            "    ... frame repeated N more times",
+            "    main.hd:12 test \"never stops\"",
+            "    repro: hd test main.hd --filter \"never stops\"",
+            "PANIC main.hd:14: plays ping pong",
+            "    panic: stack-exhausted: the call stack ran out; check for recursion that never ends",
+            "    main.hd:8 main.pong",
+            "    main.hd:5 main.ping",
+            "    ... last 2 frames repeated N more times",
+            "    main.hd:15 test \"plays ping pong\"",
+            "    repro: hd test main.hd --filter \"plays ping pong\"",
+            "test result: FAILED. 0 passed; 2 failed; 0 ignored",
+        ]
+    );
+    assert_eq!(report("wasmtime"), node);
 }
 
 #[test]

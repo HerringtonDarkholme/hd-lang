@@ -271,6 +271,12 @@ pub struct Output {
     /// Per file, its module's `check` entry, which [`Output::positions`]
     /// reads.
     checks: Vec<Option<Arc<[u8]>>>,
+    /// Per file, its module's path as a panic frame names it
+    /// (`cli.test.report.frame`), which [`Output::positions`] reads.
+    printed: Vec<String>,
+    /// Each selected test case's body, by its stable item path
+    /// (`shop/$test0`), with the case's registered name.
+    test_bodies: Vec<(String, String)>,
     /// The module roots that differ from their package's identifier, each
     /// with that identifier (`ModuleTable::renamed_roots`).
     pub renamed: Vec<(String, String)>,
@@ -345,7 +351,15 @@ impl Output {
     /// with those of the command's other programs.
     #[must_use]
     pub fn positions(&self, pool: &mut PositionPool) -> Positions {
-        Positions::new(pool, &self.modules, &self.files, &self.texts, &self.checks)
+        Positions::new(
+            pool,
+            &self.modules,
+            &self.files,
+            &self.texts,
+            &self.checks,
+            &self.printed,
+            &self.test_bodies,
+        )
     }
 
     fn file_name(&self, s: Span) -> String {
@@ -930,6 +944,13 @@ fn build_packages_inner(
                     .map(|c| Arc::clone(&c.entry))
             })
             .collect(),
+        printed: run
+            .table
+            .modules
+            .iter()
+            .map(|m| run.frame_module(&m.path))
+            .collect(),
+        test_bodies: run.test_bodies(),
         renamed: run.table.renamed_roots(),
         counters,
         report,
@@ -1101,6 +1122,41 @@ impl Run<'_> {
             syms: &self.syms,
             known: &self.known,
         }
+    }
+
+    /// A module's path as its declarations print (trait.typeid.name.*): a
+    /// single-file program's module by the file's stem
+    /// (trait.typeid.name.single-file), any other package's by its
+    /// manifest name with `-` written `_` (trait.typeid.name.package),
+    /// though its module root may be disambiguated
+    /// (`module.package.identity-part`).
+    fn printed_module(&self, module: &str) -> String {
+        let table = &self.table;
+        let (root, below) = module.split_once('.').unwrap_or((module, ""));
+        let Some(package) = table.roots.iter().position(|r| r == root) else {
+            return module.to_owned();
+        };
+        if package == 0 && self.single_file {
+            return below.to_owned();
+        }
+        let ident = hd_project::package_ident(&table.packages[package]);
+        if below.is_empty() {
+            ident
+        } else {
+            format!("{ident}.{below}")
+        }
+    }
+
+    /// A module's path as a panic frame names its functions
+    /// (`cli.test.report.frame`): as its declarations print, without the
+    /// `$tests` or `$tasks` segment of a test or task module, which no
+    /// source spells, so `tests/cart.hd` is `shop.cart`.
+    fn frame_module(&self, module: &str) -> String {
+        self.printed_module(module)
+            .split('.')
+            .filter(|s| !matches!(*s, "$tests" | "$tasks"))
+            .collect::<Vec<_>>()
+            .join(".")
     }
 
     fn analyze(&self) -> bool {
@@ -4286,6 +4342,20 @@ impl Run<'_> {
         out
     }
 
+    /// Each body of the test plan, by its stable item path, with its
+    /// case's registered name: what a panic frame in the body names.
+    fn test_bodies(&self) -> Vec<(String, String)> {
+        let names = self.names();
+        self.test_plan()
+            .into_iter()
+            .filter_map(|(m, r)| {
+                let body = r.body.as_ref()?;
+                let item = names.item(&self.table.modules[m].path, body);
+                Some((names.path(item), r.name))
+            })
+            .collect()
+    }
+
     /// The test plan as `Output::tests` lists it: running cases get their
     /// `hd.test.i` and `hd.init.j` exports, in the order `collect` roots them.
     fn test_cases(&self) -> Vec<TestCase> {
@@ -5327,25 +5397,7 @@ impl ProgramEnv for Env<'_> {
         {
             return name.to_owned();
         }
-        let table = &self.run.table;
-        let (root, below) = module.split_once('.').unwrap_or((&module, ""));
-        let Some(package) = table.roots.iter().position(|r| r == root) else {
-            return format!("{module}.{name}");
-        };
-        // A single-file program prints its file's stem, the module below
-        // the root package (trait.typeid.name.single-file).
-        if package == 0 && self.run.single_file {
-            return format!("{below}.{name}");
-        }
-        // A package prints its manifest name, with `-` written `_`
-        // (trait.typeid.name.package), though its module root may be
-        // disambiguated (`module.package.identity-part`).
-        let ident = hd_project::package_ident(&table.packages[package]);
-        if below.is_empty() {
-            format!("{ident}.{name}")
-        } else {
-            format!("{ident}.{below}.{name}")
-        }
+        format!("{}.{name}", self.run.printed_module(&module))
     }
     fn describe(&self, def: DefId) -> String {
         self.run.names().path(def)

@@ -16,7 +16,7 @@ stdout:     the case completed, but it expects the panic `index-out-of-bounds`
 stdout:     repro: hd test src/lib.hd --filter "fails when the expected panic never comes"
 stdout: PANIC src/lib.hd:32: fails on a panic of another category
 stdout:     panic: explicit-panic: not an index error
-stdout:     src/lib.hd:33 shop/$test4
+stdout:     src/lib.hd:33 test "fails on a panic of another category"
 stdout:     repro: hd test src/lib.hd --filter "fails on a panic of another category"
 stdout: test result: FAILED. 2 passed; 4 failed; 0 ignored
 run: hd test --format json --filter body

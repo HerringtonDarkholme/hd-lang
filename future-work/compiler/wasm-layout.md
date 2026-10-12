@@ -684,3 +684,25 @@ raise the cap as an owner question if reports get unwieldy.
 - Q4 cost: unbounded recursion prints about 27,000 frames on Node and
   131,000 on wasmtime (4 MiB stack). That is the owner question Q4
   anticipated.
+
+**As built (#104, #105, 2026-10-12).** Owner decisions.
+
+- A frame prints the hd name, not the stable path. `name` and
+  `hd.names` keep stable paths (`path#sub`), which key the `check`
+  entry's bodies. The CLI maps a path to a name only when it prints a
+  frame, so dev and release builds print the same names and the module
+  does not grow. The name is the module's printed path, then the
+  function. The path follows `trait.typeid.name.*`: the package name
+  with `-` written `_`, or a single file's stem. A test or task
+  module drops its `$tests` or `$tasks` segment. A method prints its
+  impl's type, without generic arguments, then the method
+  (`std.collections.List.remove_at`). A hidden segment, such as a
+  default body, is left out. A test case's body prints
+  `test "NAME"`, with the registered name. `hd test FILE` outside a
+  package now marks the program single-file (`cli.file.check-test`).
+- Repeated frames collapse in the text report. A frame repeated right
+  after itself prints once, then `... frame repeated N more times`. A
+  cycle of up to eight frames prints once, then
+  `... last K frames repeated N more times`. At each frame the cycle
+  that covers the most frames wins. So unbounded recursion prints a
+  few lines on both engines; the engines still capture every frame.

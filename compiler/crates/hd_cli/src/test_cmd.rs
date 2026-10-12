@@ -301,9 +301,10 @@ struct Frames {
 }
 
 impl Frames {
-    /// A trap's frames as `FILE:LINE FUNCTION` lines, panic site first.
-    /// A frame outside compiled hd code, or in a body the run did not
-    /// check, is left out.
+    /// A trap's frames as `FILE:LINE FUNCTION` lines, panic site first,
+    /// each function named as hd names it. A frame outside compiled hd
+    /// code, or in a body the run did not check, is left out, and repeated
+    /// frames are collapsed ([`collapse`]).
     fn lines(&self, wasm: &[u8], raw: &[(u32, u32)], src: &disk::DiskSources) -> Vec<String> {
         if raw.is_empty() {
             return Vec::new();
@@ -314,7 +315,7 @@ impl Frames {
         else {
             return Vec::new();
         };
-        table
+        let lines: Vec<String> = table
             .anchor(raw)
             .into_iter()
             .filter_map(|a| {
@@ -333,10 +334,52 @@ impl Frames {
                     Some(m) => format!("{m}/{file}"),
                     None => file,
                 };
-                Some(format!("{file}:{line} {}", a.item))
+                Some(format!("{file}:{line} {}", self.positions.name(&a.item)))
             })
-            .collect()
+            .collect();
+        collapse(&lines)
     }
+}
+
+/// The longest cycle of frames [`collapse`] looks for.
+const FRAME_CYCLE: usize = 8;
+
+/// Frames with each run of repeats printed once: a frame repeated right
+/// after itself, then `... frame repeated N more times`; a cycle of up to
+/// [`FRAME_CYCLE`] frames repeated right after itself (A B A B), then
+/// `... last K frames repeated N more times`. So a recursion that never
+/// ends reports a few lines. At each frame the cycle that covers the most
+/// frames wins, the shorter on a tie.
+fn collapse(frames: &[String]) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < frames.len() {
+        // The best cycle at `i`: its length, its repeats after the first.
+        let mut best = (1, 0);
+        for k in 1..=FRAME_CYCLE.min((frames.len() - i) / 2) {
+            let block = &frames[i..i + k];
+            let repeats = frames[i + k..]
+                .chunks_exact(k)
+                .take_while(|c| *c == block)
+                .count();
+            if repeats > 0 && k * (repeats + 1) > best.0 * (best.1 + 1) {
+                best = (k, repeats);
+            }
+        }
+        let (k, repeats) = best;
+        out.extend_from_slice(&frames[i..i + k]);
+        if repeats > 0 {
+            let what = if k == 1 {
+                "frame".to_owned()
+            } else {
+                format!("last {k} frames")
+            };
+            let times = if repeats == 1 { "time" } else { "times" };
+            out.push(format!("... {what} repeated {repeats} more {times}"));
+        }
+        i += k * (repeats + 1);
+    }
+    out
 }
 
 /// A selected case: its program, the case as the driver lists it, and a
@@ -433,6 +476,10 @@ fn test_one(
     crate::memory_cap::rearm();
     let rep = &mut report.rep;
     let mut program = disk::load_package(root, "main").map_err(|e| rep.fail(&e))?;
+    // `cli.file.check-test`: outside any package, FILE is tested as a
+    // single-file program, whose declarations print under the file's stem
+    // (`trait.typeid.name.single-file`), in its frames too.
+    program.single_file = disk::package_root(root).is_none();
     if rep.diags(&program.problems) {
         return Err(rep.finish(HD_FAILURE));
     }
@@ -1293,7 +1340,42 @@ fn shell_quoted(word: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{TempDirs, TestCase, base_seed, parse_with_engine, repro, shell_quoted};
+    use super::{TempDirs, TestCase, base_seed, collapse, parse_with_engine, repro, shell_quoted};
+
+    #[test]
+    fn repeated_frames_collapse_into_a_count() {
+        let frames = |s: &str| s.split(' ').map(str::to_owned).collect::<Vec<_>>();
+        assert_eq!(collapse(&frames("a b c")), frames("a b c"));
+        assert_eq!(
+            collapse(&frames("p a a a a t")),
+            ["p", "a", "... frame repeated 3 more times", "t"]
+        );
+        assert_eq!(
+            collapse(&frames("a a b")),
+            ["a", "... frame repeated 1 more time", "b"]
+        );
+        assert_eq!(
+            collapse(&frames("x a b a b a b a t")),
+            [
+                "x",
+                "a",
+                "b",
+                "... last 2 frames repeated 2 more times",
+                "a",
+                "t"
+            ]
+        );
+        // The cycle covers more frames than the repeat inside it.
+        assert_eq!(
+            collapse(&frames("a a b a a b a a b")),
+            ["a", "a", "b", "... last 3 frames repeated 2 more times"]
+        );
+        let deep = vec!["f".to_owned(); 20_000];
+        assert_eq!(
+            collapse(&deep),
+            ["f", "... frame repeated 19999 more times"]
+        );
+    }
 
     #[test]
     fn test_engine_pipeline_and_limits_have_independent_selection() {

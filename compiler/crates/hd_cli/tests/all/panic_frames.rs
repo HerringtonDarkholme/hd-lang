@@ -5,6 +5,12 @@
 //! `panic`, never inside the runtime's stub; a panic in std code starts in
 //! std. A passing run and the JSON report show no frames, and a comment
 //! edit moves the reported lines without a rebuild of the code.
+//!
+//! A frame names its function as hd names it: the package name with `-`
+//! written `_` (a single file's stem), the module path, then the function,
+//! a method after its type's name; a test case's body is `test "NAME"`
+//! (trait.typeid.name.package, trait.typeid.name.single-file). Repeated
+//! frames print once, then how many more times they repeat.
 
 use std::path::Path;
 use std::process::{Command, Output};
@@ -78,20 +84,20 @@ fn a_panic_lists_its_frames_panic_site_first() {
         "\
 PANIC src/lib.hd:20: sums prices
     panic: assertion-failed: total is 10
-    <std>/testing.hd:594 std/testing/assert
-    src/lib.hd:7 shop/total
-    src/lib.hd:21 shop/$test1
+    <std>/testing.hd:594 std.testing.assert
+    src/lib.hd:7 shop.total
+    src/lib.hd:21 test \"sums prices\"
     repro: hd test src/lib.hd --filter \"sums prices\"
 PANIC src/lib.hd:23: runs out
     panic: explicit-panic: out of stock
-    src/lib.hd:11 shop/boom
-    src/lib.hd:24 shop/$test2
+    src/lib.hd:11 shop.boom
+    src/lib.hd:24 test \"runs out\"
     repro: hd test src/lib.hd --filter \"runs out\"
 PANIC src/lib.hd:26: drops past the end
     panic: index-out-of-bounds: list remove_at index 5 out of bounds for length 2
-    <std>/collections.hd:49 std/collections/impl [ T ] List [ T ].remove_at
-    src/lib.hd:14 shop/drop_far
-    src/lib.hd:28 shop/$test3
+    <std>/collections.hd:49 std.collections.List.remove_at
+    src/lib.hd:14 shop.drop_far
+    src/lib.hd:28 test \"drops past the end\"
     repro: hd test src/lib.hd --filter \"drops past the end\"
 test result: FAILED. 1 passed; 3 failed; 0 ignored
 ",
@@ -131,15 +137,15 @@ fn a_comment_edit_moves_the_reported_lines() {
         let out = hd(root, &["test", "--filter", "runs out"]);
         text(&out.stdout)
             .lines()
-            .filter(|l| l.contains(" shop/"))
+            .filter(|l| l.starts_with("    src/"))
             .map(str::to_owned)
             .collect::<Vec<_>>()
     };
     assert_eq!(
         frames(&root),
         [
-            "    src/lib.hd:11 shop/boom",
-            "    src/lib.hd:24 shop/$test2"
+            "    src/lib.hd:11 shop.boom",
+            "    src/lib.hd:24 test \"runs out\""
         ]
     );
     let edited = LIB.replace("fn boom()", "# Runs out.\n\nfn boom()");
@@ -147,10 +153,168 @@ fn a_comment_edit_moves_the_reported_lines() {
     assert_eq!(
         frames(&root),
         [
-            "    src/lib.hd:13 shop/boom",
-            "    src/lib.hd:26 shop/$test2"
+            "    src/lib.hd:13 shop.boom",
+            "    src/lib.hd:26 test \"runs out\""
         ]
     );
+}
+
+/// A method names its type, then itself, after its module's path: an
+/// inherent method and a trait's method alike. A package name's `-` is
+/// written `_`, and an integration test's module has no `$tests` segment.
+#[test]
+fn a_method_frame_names_its_type_and_module() {
+    let root = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-frames-methods");
+    std::fs::create_dir_all(root.join("src")).expect("src");
+    std::fs::create_dir_all(root.join("tests")).expect("tests");
+    std::fs::write(root.join("hd.toml"), "[package]\nname = \"corner-shop\"\n").expect("hd.toml");
+    std::fs::write(
+        root.join("src/cart.hd"),
+        "\
+pub data Cart:
+    pub items: List[i32]
+
+impl Cart:
+    pub fn take(self, i: usize) -> i32:
+        self.items[i]
+
+impl Display for Cart:
+    fn to_string(self) -> string:
+        panic(\"no display\")
+
+tests:
+    use std.testing.assert
+
+    it(\"takes past the end\"):
+        let c = Cart { items: [1] }
+        c.take(4)
+
+    it(\"shows\"):
+        let c = Cart { items: [1] }
+        assert(\"${c}\" == \"\", \"shown\")
+",
+    )
+    .expect("cart");
+    std::fs::write(
+        root.join("tests/flow.hd"),
+        "\
+use pkg.cart.Cart
+
+fn first(c: Cart) -> i32:
+    c.take(2)
+
+it(\"flows\"):
+    first(Cart { items: [] })
+",
+    )
+    .expect("flow");
+    let out = hd(&root, &["test"]);
+    assert_eq!(
+        text(&out.stdout),
+        "\
+PANIC src/cart.hd:15: takes past the end
+    panic: index-out-of-bounds: list index out of bounds
+    src/cart.hd:6 corner_shop.cart.Cart.take
+    src/cart.hd:17 test \"takes past the end\"
+    repro: hd test src/cart.hd --filter \"takes past the end\"
+PANIC src/cart.hd:19: shows
+    panic: explicit-panic: no display
+    src/cart.hd:10 corner_shop.cart.Cart.to_string
+    src/cart.hd:21 test \"shows\"
+    repro: hd test src/cart.hd --filter \"shows\"
+PANIC tests/flow.hd:6: flows
+    panic: index-out-of-bounds: list index out of bounds
+    src/cart.hd:6 corner_shop.cart.Cart.take
+    tests/flow.hd:4 corner_shop.flow.first
+    tests/flow.hd:7 test \"flows\"
+    repro: hd test tests/flow.hd --filter \"flows\"
+test result: FAILED. 0 passed; 3 failed; 0 ignored
+",
+        "{}",
+        text(&out.stderr)
+    );
+}
+
+const RECURSION: &str = "\
+fn depth(n: i32) -> i32:
+    if n == 0:
+        panic(\"bottom\")
+    depth(n - 1) + 1
+
+fn forever(n: i32) -> i32:
+    forever(n + 1) + 1
+
+fn ping(n: i32) -> i32:
+    pong(n + 1) + 1
+
+fn pong(n: i32) -> i32:
+    ping(n + 1) + 1
+
+tests:
+    it(\"goes five deep\"):
+        depth(+5)
+
+    it(\"never stops\"):
+        forever(+0)
+
+    it(\"plays ping pong\"):
+        ping(+0)
+";
+
+/// A single file outside any package names its functions after its stem.
+/// A frame repeated right after itself prints once, then its count; so
+/// does a cycle of frames; so a recursion that exhausts the stack reports
+/// a few lines, not one per call.
+#[test]
+fn a_single_file_names_its_stem_and_recursion_collapses() {
+    let root = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-frames-recursion");
+    std::fs::write(root.join("deep.hd"), RECURSION).expect("deep.hd");
+    let out = hd(&root, &["test", "deep.hd"]);
+    let report = text(&out.stdout);
+    // The stack's depth varies with the engine and its stack size.
+    let counted: Vec<String> = report
+        .lines()
+        .map(|l| match l.split_once(" repeated ") {
+            Some((what, n))
+                if n.split(' ')
+                    .next()
+                    .and_then(|n| n.parse::<u32>().ok())
+                    .is_some_and(|n| n > 100) =>
+            {
+                format!("{what} repeated N more times")
+            }
+            _ => l.to_owned(),
+        })
+        .collect();
+    assert_eq!(
+        counted,
+        [
+            "PANIC deep.hd:16: goes five deep",
+            "    panic: explicit-panic: bottom",
+            "    deep.hd:3 deep.depth",
+            "    deep.hd:4 deep.depth",
+            "    ... frame repeated 4 more times",
+            "    deep.hd:17 test \"goes five deep\"",
+            "    repro: hd test deep.hd --filter \"goes five deep\"",
+            "PANIC deep.hd:19: never stops",
+            "    panic: stack-exhausted: the call stack ran out; check for recursion that never ends",
+            "    deep.hd:7 deep.forever",
+            "    ... frame repeated N more times",
+            "    deep.hd:20 test \"never stops\"",
+            "    repro: hd test deep.hd --filter \"never stops\"",
+            "PANIC deep.hd:22: plays ping pong",
+            "    panic: stack-exhausted: the call stack ran out; check for recursion that never ends",
+            "    deep.hd:13 deep.pong",
+            "    deep.hd:10 deep.ping",
+            "    ... last 2 frames repeated N more times",
+            "    deep.hd:23 test \"plays ping pong\"",
+            "    repro: hd test deep.hd --filter \"plays ping pong\"",
+            "test result: FAILED. 0 passed; 3 failed; 0 ignored",
+        ],
+        "{}",
+        text(&out.stderr)
+    );
+    assert!(report.len() < 2000, "{report}");
 }
 
 /// The custom sections of a module, by name, in order.
