@@ -19,17 +19,20 @@
 //!   per (method, owner's arguments, walker) serves every derivation and
 //!   call site that sees that `Structure`. Each handle is one more hidden
 //!   method of the owner with no parameter (`structure handle V`,
-//!   `structure handle V M`), which the traversals call: its closures are
-//!   instantiated once per owner, not once per walker. A `Facts` value is
-//!   a call of the facts body that the checker wrote for its slot, or
-//!   empty.
+//!   `structure handle V M`), which the traversals call. Its body has kind
+//!   `Handle`, so codegen builds the handle once per owner instance, on
+//!   the first call, and every later call returns that same value
+//!   (`annot.handle.constants`). A `Facts` value is a call of the facts
+//!   body that the checker wrote for its slot, or empty, so a member's
+//!   facts are read when its handle is first built (`annot.fact.eval.lazy`).
 //! - **A tuple type, at codegen** ([`supplied`]): the trait solver's
 //!   `Structure` row answers a concrete tuple with `Builtin(Structure)`,
 //!   and collection asks for one method's body at that tuple type
 //!   ([`tuple_target`], `annot.tuple.*`). The body is the trait method's
 //!   instance at the tuple, keyed by the tuple type like any instance. A
 //!   tuple has no implementation to hold hidden methods, so its handles are
-//!   built where the traversal passes them.
+//!   built where the traversal passes them, at each pass. A tuple member
+//!   has no facts (`annot.tuple.members`), so this costs allocations only.
 //!
 //! The handles and information values are values of `std.structure`'s
 //! declarations (`lib/std/structure.hd`), built field by field; their
@@ -315,9 +318,11 @@ pub fn derivation(cx: &Cx<'_, '_>, target: &Target, owner: DefId) -> StageResult
             }
         }
     }
-    // Each handle's own body.
+    // Each handle's own body, which builds the handle once per instance
+    // (`BodyKind::Handle`).
     for h in handles {
         let mut g = Gen::new(cx, target.ty, h.def, Handles::Methods(owner));
+        g.b = TirBuilder::new(h.def, BodyKind::Handle);
         let blk = g.b.open_block();
         let v = &target.vars[h.var];
         let x = match h.mem {
@@ -422,9 +427,9 @@ struct Gen<'a, 'n> {
 }
 
 /// One handle of a derivation (`annot.handle.constants`): a hidden method
-/// of the `Structure`'s owner with no parameter that builds it, so a
-/// handle's closures are instantiated once per owner, not once per
-/// walker.
+/// of the `Structure`'s owner with no parameter that builds it once per
+/// owner instance, so every walker and every traversal gets the same
+/// value.
 #[derive(Clone, Copy, PartialEq)]
 struct Handle {
     var: usize,

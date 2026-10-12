@@ -565,7 +565,7 @@ encoding.
 ```rust
 pub struct TirBody {                    // one body in the module result; the worker's TirColumns has the same fields as Vecs
     pub item: DefId,
-    pub kind: BodyKind,                 // u8: Fn | Init | TestCase | Fact | Default | DeriveInstance
+    pub kind: BodyKind,                 // u8: Fn | Init | TestCase | Fact | Default | DeriveInstance | Handle
     // instructions (§3.9.3), by Inst
     pub tags:  Col<TirTag>,             // 1 B
     pub data:  Col<[u32; 2]>,           // 8 B; operands, meaning set by the tag

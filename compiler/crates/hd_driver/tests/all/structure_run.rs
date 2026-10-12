@@ -572,3 +572,168 @@ pub fn main() -> void $ Console:
         assert_eq!(again.wasm, out.wasm);
     }
 }
+
+/// Templates that keep the information of every handle a traversal passes
+/// (`annot.handle.escape`): `Seen` through `walk`, `Listed` through
+/// `describe`. A handle's `info` is a field of the handle, so the same
+/// handle gives the same `info` value under `is`.
+const KEEPERS: &str = "\
+use std.structure.{Structure, Field, Variant, Walker, Describer, Member, VariantInfo}
+
+data Keeper:
+    pub variants: mut List[VariantInfo]
+    pub members: mut List[Member]
+
+impl[S] Walker[S] for Keeper:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        self.variants.push(v.info)
+        .Ok(())
+
+    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.members.push(h.info)
+        .Ok(())
+
+impl[S] Describer[S] for Keeper:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        self.variants.push(v.info)
+        .Ok(())
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        self.members.push(h.info)
+        .Ok(())
+
+trait Seen:
+    fn seen(self) -> Keeper
+
+impl[T] Seen for T by Structure:
+    fn seen(self) -> Keeper:
+        let k: mut Keeper = Keeper { variants: [], members: [] }
+        _ := Structure::walk(self, k)
+        k
+
+trait Listed:
+    fn listed() -> Keeper
+
+impl[T] Listed for T by Structure:
+    fn listed() -> Keeper:
+        let k: mut Keeper = Keeper { variants: [], members: [] }
+        _ := T::describe(k)
+        k
+";
+
+/// `annot.handle.constants`, `annot.handle.escape`: each member and
+/// variant has one handle. Two walks of different values, a `describe` by
+/// a second derivation and a JSON encode in between all see the same
+/// instances, and another variant's handle is another instance.
+#[test]
+fn every_traversal_passes_the_same_handle_instances() {
+    let main = format!(
+        "{KEEPERS}
+use std.json.encode
+use std.serde.Serialize
+
+@derive(Seen, Listed, Serialize)
+data Order:
+    id: i64
+    customer: string
+
+@derive(Seen)
+enum Step:
+    Go(first: i32)
+    Halt(code: i32)
+
+pub fn main() -> void $ Console:
+    first := Order {{ id: 1, customer: \"Ada\" }}.seen()
+    println(encode(Order {{ id: 2, customer: \"Bo\" }}))
+    second := Order {{ id: 3, customer: \"Cy\" }}.seen()
+    listed := Order::listed()
+    println(\"${{first.variants[0] is second.variants[0]}} ${{first.members[0] is second.members[0]}} ${{first.members[1] is second.members[1]}}\")
+    println(\"${{first.variants[0] is listed.variants[0]}} ${{first.members[1] is listed.members[1]}} ${{first.members[0] is first.members[1]}}\")
+    go := Step.Go(1).seen()
+    again := Step.Go(2).seen()
+    halt := Step.Halt(3).seen()
+    println(\"${{go.variants[0] is again.variants[0]}} ${{go.members[0] is again.members[0]}} ${{go.variants[0] is halt.variants[0]}}\")
+"
+    );
+    assert_eq!(
+        output_of("handle-constants", &main),
+        "{\"id\":2,\"customer\":\"Bo\"}\ntrue true true\ntrue true false\ntrue true false\n"
+    );
+}
+
+/// `annot.fact.eval.lazy`, `annot.fact.eval.unread`: a member's or
+/// variant's facts run once, when a traversal first builds the handle
+/// that carries them, even if no template reads them; later traversals
+/// reuse the handle and run nothing.
+#[test]
+fn member_facts_run_once_when_the_handle_is_first_built() {
+    let main = format!(
+        "{KEEPERS}
+let evaluations = +0
+
+data Style:
+    prefix: string = \"\"
+
+fn style(prefix: string) -> Style:
+    evaluations = evaluations + 1
+    Style {{ prefix: prefix }}
+
+@derive(Seen, Listed)
+data Point:
+    @style(\"x_\")
+    x: i64
+    y: i64
+
+@derive(Seen)
+enum Shape:
+    @style(\"dot_\")
+    Dot
+    Line(length: i64)
+
+pub fn main() -> void $ Console:
+    point := Point {{ x: 1, y: 2 }}
+    println(evaluations)
+    _ := point.seen()
+    println(evaluations)
+    _ := Point {{ x: 3, y: 4 }}.seen()
+    _ := Point::listed()
+    println(evaluations)
+    _ := Shape.Line(1).seen()
+    println(evaluations)
+    _ := Shape.Dot.seen()
+    _ := Shape.Dot.seen()
+    println(evaluations)
+"
+    );
+    assert_eq!(output_of("handle-facts-once", &main), "0\n1\n1\n1\n2\n");
+}
+
+/// `annot.handle.constants` for a generic owner: one handle per
+/// instantiation, so `Box[i32]` and `Box[string]` have two, and each is
+/// shared by every value of its instantiation.
+#[test]
+fn a_generic_owner_has_one_handle_per_instantiation() {
+    let main = format!(
+        "{KEEPERS}
+data Box[T]:
+    value: T
+
+impl[T] Seen for Box[T] by Structure
+
+pub fn main() -> void $ Console:
+    ints := Box {{ value: +1 }}.seen()
+    more := Box {{ value: +2 }}.seen()
+    strs := Box {{ value: \"a\" }}.seen()
+    other := Box {{ value: \"b\" }}.seen()
+    println(\"${{ints.members[0] is more.members[0]}} ${{strs.members[0] is other.members[0]}} ${{ints.members[0] is strs.members[0]}} ${{ints.variants[0] is strs.variants[0]}}\")
+"
+    );
+    assert_eq!(
+        output_of("handle-generic", &main),
+        "true true false false\n"
+    );
+}

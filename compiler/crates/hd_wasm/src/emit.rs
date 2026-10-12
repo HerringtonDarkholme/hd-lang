@@ -5014,11 +5014,21 @@ fn emit_body(
             em.providers.push((k, ls));
         }
     }
-    let facts = (sub == 0 && erased.is_none() && b.kind == BodyKind::Fact).then(|| FactCell {
-        key,
-        results: results.clone(),
-    });
-    let outer = facts.as_ref().map(|cell| cell.enter(&mut em.a, &b.label));
+    // A facts body and a structure handle's body build their value once
+    // per instance (`annot.fact.eval.lazy`, `annot.handle.constants`).
+    let fact = match b.kind {
+        BodyKind::Fact => Some(Some(&*b.label)),
+        BodyKind::Handle => Some(None),
+        _ => None,
+    };
+    let once = fact
+        .filter(|_| sub == 0 && erased.is_none())
+        .map(|fact| OnceCell {
+            key,
+            results: results.clone(),
+            fact,
+        });
+    let outer = once.as_ref().map(|cell| cell.enter(&mut em.a));
     let root = b.sub_root[sub as usize];
     em.ctrl.push(Ctl::Plain);
     em.block_into(root, None)?;
@@ -5029,23 +5039,26 @@ fn emit_body(
         }
     } else {
         em.load_as(tail, &results)?;
-        if let (Some(cell), Some(outer)) = (facts, outer) {
+        if let (Some(cell), Some(outer)) = (once, outer) {
             cell.leave(&mut em.a, outer);
         }
     }
     Ok(em.a.finish(results))
 }
 
-/// The storage of one facts body's value (`annot.fact.eval.lazy`): a
+/// The storage of a body whose value is built once per instance: a
 /// global per Wasm value of the result, and a flag that says the body has
-/// run. The body runs once, on its first read; every later read returns
-/// the stored value.
-struct FactCell {
+/// run. The body runs on its first call; every later call returns the
+/// stored value. That is a facts body (`annot.fact.eval.lazy`), whose
+/// `fact` labels its panics, or a structure handle's body
+/// (`annot.handle.constants`), whose `fact` is `None`.
+struct OnceCell<'b> {
     key: Hash128,
     results: Vec<VT>,
+    fact: Option<&'b str>,
 }
 
-impl FactCell {
+impl OnceCell<'_> {
     /// The global holding result `k`, or the flag past the last one.
     fn global(&self, k: usize) -> GSym {
         match self.results.get(k) {
@@ -5054,11 +5067,12 @@ impl FactCell {
         }
     }
 
-    /// The start of the body: a read after the first returns the stored
-    /// value. Otherwise the panic reports name `label` until the body ends
-    /// (`annot.fact.eval.panic-runtime`). Returns the local that holds the
-    /// facts being evaluated around this body.
-    fn enter(&self, a: &mut Asm, label: &str) -> u32 {
+    /// The start of the body: a call after the first returns the stored
+    /// value. Otherwise, for a facts body, the panic reports name its label
+    /// until the body ends (`annot.fact.eval.panic-runtime`), and the
+    /// result is the local that holds the facts being evaluated around
+    /// this body.
+    fn enter(&self, a: &mut Asm) -> Option<u32> {
         a.global_get(self.global(self.results.len()));
         a.if_();
         for (k, v) in self.results.iter().enumerate() {
@@ -5067,6 +5081,7 @@ impl FactCell {
         }
         a.s().return_();
         a.end();
+        let label = self.fact?;
         let outer = a.local(VT::rn(WTy::Bytes));
         a.global_get(crate::rt::fact_global());
         a.set(outer);
@@ -5074,12 +5089,13 @@ impl FactCell {
         a.global_set(crate::rt::fact_global());
         // A facts body is a forbidden context (`req.drive.block-on.fact-contexts`).
         crate::rt::forbid_by(a, 1);
-        outer
+        Some(outer)
     }
 
     /// The end of the body, with its result on the stack: stores it, and
-    /// returns to the facts being evaluated around this one, if any.
-    fn leave(&self, a: &mut Asm, outer: u32) {
+    /// for a facts body returns to the facts being evaluated around this
+    /// one, if any.
+    fn leave(&self, a: &mut Asm, outer: Option<u32>) {
         let held: Vec<u32> = self.results.iter().map(|v| a.local(v.clone())).collect();
         for l in held.iter().rev() {
             a.set(*l);
@@ -5090,9 +5106,11 @@ impl FactCell {
         }
         a.i32(1);
         a.global_set(self.global(self.results.len()));
-        a.get(outer);
-        a.global_set(crate::rt::fact_global());
-        crate::rt::forbid_by(a, -1);
+        if let Some(outer) = outer {
+            a.get(outer);
+            a.global_set(crate::rt::fact_global());
+            crate::rt::forbid_by(a, -1);
+        }
         for l in &held {
             a.get(*l);
         }

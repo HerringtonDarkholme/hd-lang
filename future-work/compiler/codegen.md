@@ -302,12 +302,20 @@ cancel function (§14.6).
   walker's type known at each instance, every `w.member(h, value)` call is
   direct, so a derived `encode` is straight-line code
   ([`annot.walk.members`](../../spec/lang/14-annotations.md#r-annot.walk.members)).
-  Member handles are constant globals (§15.4).
+  Member handles are built once per owner instance and held in globals,
+  like facts (see "The derivation's own `Structure`" below).
 - **The derivation's own `Structure` (#119, #253).** Each derivation sees
   a `Structure` for its target, generated as ordinary TIR in the target
   module (`hd_check/src/structure.rs`): the bodies of `facts`, `name`,
-  `walk`, `describe` and `build`, plus one hidden method per handle whose
-  closures instantiate once per owner. The owner is the data type or enum
+  `walk`, `describe` and `build`, plus one hidden method per handle. A
+  handle's body has kind `Handle`: emission gives it the facts getter's
+  storage (globals plus a flag, without the panic label or the
+  forbidden-context counter), so the handle is built on the first call
+  per owner instance and every later call returns the same value
+  ([`annot.handle.constants`](../../spec/lang/14-annotations.md#r-annot.handle.constants)).
+  Building it reads its facts, so a member fact runs when its handle is
+  first built ([`annot.fact.eval.lazy`](../../spec/lang/14-annotations.md#r-annot.fact.eval.lazy)).
+  The owner is the data type or enum
   for the declaration's `Structure`, generated once per module and shared
   by every derivation without member lines; a derivation block with
   member lines owns its own (`annot.structure.per-derivation`). A derive

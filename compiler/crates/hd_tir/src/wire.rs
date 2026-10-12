@@ -19,13 +19,14 @@ use hd_types::{InternPool, Ty, TyList};
 
 use crate::ir::{Body, BodyKind, CaptureMode, ChoiceKind, Tag};
 
-const KINDS: [BodyKind; 6] = [
+const KINDS: [BodyKind; 7] = [
     BodyKind::Fn,
     BodyKind::Init,
     BodyKind::TestCase,
     BodyKind::Fact,
     BodyKind::Default,
     BodyKind::DeriveInstance,
+    BodyKind::Handle,
 ];
 
 /// Where a word of `extra` holds an ID.

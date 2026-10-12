@@ -384,6 +384,10 @@ pub enum BodyKind {
     Fact,
     Default,
     DeriveInstance,
+    /// A structure handle's body (`annot.handle.constants`): no
+    /// parameter, and its value is built once per instance, on the first
+    /// call, then returned again by every later call.
+    Handle,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1175,6 +1179,7 @@ fn kind_of(s: &str) -> Result<BodyKind, String> {
         "Fact" => BodyKind::Fact,
         "Default" => BodyKind::Default,
         "DeriveInstance" => BodyKind::DeriveInstance,
+        "Handle" => BodyKind::Handle,
         _ => return Err(format!("bad body kind `{s}`")),
     })
 }
