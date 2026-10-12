@@ -609,7 +609,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       : plain;
     const typeId = this.dataByName.get("TypeId")!.index;
     const resultType = `(ref null $d${typeId})`;
-    const value = (key: string): string => `(struct.new $d${typeId} ${key})`;
+    const value = (key: string): string => `(struct.new $d${typeId} ${key} ${key})`;
     return `(if (result ${resultType}) (ref.is_null (local.get $self)) (then ${value(plain)}) (else (if (result ${resultType}) (ref.test (ref i31) (local.get $self)) (then ${value(nested)}) (else ${forwarded}))))`;
   }
 
@@ -682,9 +682,11 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
         )
         .reduce((left, right) => `(call ${this.stringFunction("concat")} ${left} ${right})`);
       const typeId = this.dataByName.get("TypeId")!.index;
-      const body = builtin.outerMut
-        ? `(struct.new $d${typeId} (if (result (ref null $hd.string)) (ref.test (ref i31) (local.get $self)) (then (call ${this.stringFunction("concat")} ${this.emitStringLiteral("mut ")} ${key})) (else ${key})))`
-        : `(struct.new $d${typeId} ${key})`;
+      // The key and the printable name coincide in this compiler.
+      const shown = builtin.outerMut
+        ? `(if (result (ref null $hd.string)) (ref.test (ref i31) (local.get $self)) (then (call ${this.stringFunction("concat")} ${this.emitStringLiteral("mut ")} ${key})) (else ${key}))`
+        : key;
+      const body = `(struct.new $d${typeId} ${shown} ${shown})`;
       const parameters = method.parameters.map(
         (parameter, index) => `(param $a${index} ${this.slotWatType(parameter)})`,
       );

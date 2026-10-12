@@ -2497,13 +2497,15 @@ impl Em<'_> {
     /// Pushes the `TypeId` of `t` (trait.typeid.*): the std data type
     /// `TypeId` (`ty`, `runtime_type`'s result) over `t`'s printable name.
     fn push_type_id(&mut self, t: Ty, ty: Ty) -> StageResult<()> {
-        let (st, name) = self.type_id_parts(t, ty)?;
-        crate::rt::push_type_id(&mut self.a, &st, &name);
+        let (st, key, shown) = self.type_id_parts(t, ty)?;
+        crate::rt::push_type_id(&mut self.a, &st, &key, &shown);
         Ok(())
     }
 
-    /// The struct of the `TypeId` type `ty` and the key of `t`'s identity.
-    fn type_id_parts(&self, t: Ty, ty: Ty) -> StageResult<(WTy, String)> {
+    /// The struct of the `TypeId` type `ty`, the key of `t`'s identity,
+    /// and its printable name (trait.typeid.name). The two strings are one
+    /// data segment when they are equal.
+    fn type_id_parts(&self, t: Ty, ty: Ty) -> StageResult<(WTy, String, String)> {
         let ty = match self.pool().get(ty) {
             TyData::Mut(x) => x,
             _ => ty,
@@ -2511,10 +2513,15 @@ impl Em<'_> {
         let Shape::Data { ty: st, fields } = self.lay.shape(ty)? else {
             return unsupported("a `TypeId` that is not a data value");
         };
-        if !matches!(&fields[..], [(0, vs)] if *vs == [VT::r(WTy::Bytes), VT::I64]) {
-            return unsupported("a `TypeId` that is not its key string");
+        let string = [VT::r(WTy::Bytes), VT::I64];
+        if !matches!(&fields[..], [(0, k), (2, n)] if *k == string && *n == string) {
+            return unsupported("a `TypeId` that is not its key and name strings");
         }
-        Ok((st, hd_mono::type_name(self.pool(), self.env(), t)))
+        Ok((
+            st,
+            hd_mono::type_name(self.pool(), self.env(), t),
+            hd_mono::printed_type_name(self.pool(), self.env(), t),
+        ))
     }
 
     /// `downcast_val::[T](value)`, `value.downcast::[T]()` and
@@ -2563,7 +2570,7 @@ impl Em<'_> {
         let Some(id_ty) = self.env().ret(rt) else {
             return unsupported("a `runtime_type` without its result");
         };
-        let (st, _) = self.type_id_parts(target, id_ty)?;
+        let (st, _, _) = self.type_id_parts(target, id_ty)?;
         // The payload, then its recorded type's key against `T`'s.
         let p = self.a.local(VT::Eq);
         self.comp(recv, 0, &VT::Eq)?;
@@ -4252,9 +4259,13 @@ impl<'a> Em<'a> {
             if let TargetKind::Builtin { self_ty, .. } = t.kind {
                 let path = (self.lay.path)(*m);
                 if path.rsplit(['.', '/']).next() == Some("runtime_type") {
-                    let (ty, name) = self.type_id_parts(self_ty, t.ret)?;
-                    self.a
-                        .ref_func(Sym::Helper(Helper::RuntimeType { sig, ty, name }));
+                    let (ty, name, shown) = self.type_id_parts(self_ty, t.ret)?;
+                    self.a.ref_func(Sym::Helper(Helper::RuntimeType {
+                        sig,
+                        ty,
+                        name,
+                        shown,
+                    }));
                 } else {
                     self.a.ref_func(Sym::Helper(Helper::Unlowered {
                         sig,

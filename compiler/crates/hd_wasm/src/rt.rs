@@ -327,8 +327,14 @@ pub enum Helper {
     },
     /// `Inspectable.runtime_type`'s slot in a vtable built at a concrete
     /// type (trait.inspect.dynamic): the `TypeId` (`ty`) whose key is
-    /// `name`, the erased value's recorded type.
-    RuntimeType { sig: WTy, ty: WTy, name: String },
+    /// `name` and whose printable name is `shown`, the erased value's
+    /// recorded type.
+    RuntimeType {
+        sig: WTy,
+        ty: WTy,
+        name: String,
+        shown: String,
+    },
     /// `(n)`: marks the `n` handles in the exchange buffer as completed.
     WakeMark,
     /// `(h) -> i32`: whether handle `h` completed; clears its slot.
@@ -621,11 +627,17 @@ impl Helper {
                 enc_wty(payload, w);
                 inner.encode(w);
             }
-            Helper::RuntimeType { sig, ty, name } => {
+            Helper::RuntimeType {
+                sig,
+                ty,
+                name,
+                shown,
+            } => {
                 w.u8(25);
                 enc_wty(sig, w);
                 enc_wty(ty, w);
                 w.str(name);
+                w.str(shown);
             }
             Helper::WakeMark => w.u8(13),
             Helper::WakeTake => w.u8(14),
@@ -822,6 +834,7 @@ impl Helper {
                 sig: dec_wty(r)?,
                 ty: dec_wty(r)?,
                 name: r.str().to_owned(),
+                shown: r.str().to_owned(),
             },
             13 => Helper::WakeMark,
             14 => Helper::WakeTake,
@@ -1371,12 +1384,17 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
             a.call(Sym::Helper((**inner).clone()));
             a.finish(results.clone())
         }
-        Helper::RuntimeType { sig, ty, name } => {
+        Helper::RuntimeType {
+            sig,
+            ty,
+            name,
+            shown,
+        } => {
             let WTy::Func(params, results) = sig else {
                 return unsupported("a `runtime_type` slot without a signature");
             };
             let mut a = Asm::new(params.clone());
-            push_type_id(&mut a, ty, name);
+            push_type_id(&mut a, ty, name, shown);
             a.finish(results.clone())
         }
         Helper::WakeMark => wake_mark(),
@@ -1593,11 +1611,13 @@ pub(crate) fn write_lit(a: &mut Asm, text: &str) {
     a.call(stderr_import());
 }
 
-/// Pushes a `TypeId`, the std data type `st` over its key string, whose
-/// key is `name` (trait.typeid.name).
-pub fn push_type_id(a: &mut Asm, st: &WTy, name: &str) {
-    a.call(Sym::Helper(Helper::Lit(name.as_bytes().to_vec())));
-    a.i64(i64::try_from(name.len()).unwrap_or(0) << 32);
+/// Pushes a `TypeId`, the std data type `st` over its key string `key`
+/// (the identity) and its printable name `shown` (trait.typeid.name).
+pub fn push_type_id(a: &mut Asm, st: &WTy, key: &str, shown: &str) {
+    for text in [key, shown] {
+        a.call(Sym::Helper(Helper::Lit(text.as_bytes().to_vec())));
+        a.i64(i64::try_from(text.len()).unwrap_or(0) << 32);
+    }
     a.struct_new(st);
 }
 

@@ -157,6 +157,9 @@ pub struct Program {
     /// A single-file program's FILE as the command line wrote it
     /// (`cli.json.diagnostic.file`).
     pub as_written: Option<String>,
+    /// Whether it is a single-file program, alone without an `hd.toml`
+    /// (`trait.typeid.name.single-file`).
+    pub single_file: bool,
     /// The `[capabilities]` table of its package, the valid keys
     /// (`cli.cap.source.package`); empty outside a package.
     pub capabilities: Vec<(String, Grant)>,
@@ -204,6 +207,7 @@ impl Program {
             entries: self.entries.clone(),
             dev_requires: self.dev_requires.clone(),
             profile: None,
+            single_file: self.single_file,
         }
     }
 }
@@ -619,6 +623,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
         dev_requires: Vec::new(),
         deps: Vec::new(),
         problems: Vec::new(),
+        single_file: alone,
         as_written,
         capabilities: match package_root(root) {
             Some(r) => capabilities(&r)?,
@@ -650,6 +655,7 @@ pub fn load_stdin(text: &str) -> Result<Program, String> {
         dev_requires: Vec::new(),
         deps: Vec::new(),
         problems: Vec::new(),
+        single_file: true,
         as_written: None,
         capabilities: Vec::new(),
         package_dir: None,
@@ -681,6 +687,7 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
         dev_requires,
         deps,
         problems,
+        single_file: false,
         as_written: None,
         capabilities: capabilities(root)?,
         package_dir: Some(root.to_path_buf()),

@@ -85,6 +85,9 @@ pub trait ProgramEnv: LayoutEnv {
     /// a prelude name as written, any other declaration by its absolute
     /// qualified name.
     fn type_name(&self, def: DefId) -> String;
+    /// The same declaration as it prints (trait.typeid.name.*): a package
+    /// root by its manifest name, a single-file program's by nothing.
+    fn printed_name(&self, def: DefId) -> String;
     /// The item's stable path, for diagnostics.
     fn describe(&self, def: DefId) -> String;
     /// Where selection reads impls: owner lookup over the whole program's
@@ -319,7 +322,8 @@ pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList,
 }
 
 /// The printable name of `t`'s runtime identity (trait.typeid.name.*),
-/// which a `TypeId` holds as its key. Equality of `TypeId`s compares keys
+/// which a `TypeId` holds as its key (its printable name is
+/// [`printed_type_name`]). Equality of `TypeId`s compares keys
 /// (`lib/std/inspect.hd`), so the name spells exactly what runtime
 /// identity compares (trait.identity.*): each declaration by its qualified
 /// name, applied to its arguments; an inner `mut`, never the outer one;
@@ -331,8 +335,31 @@ pub fn type_name(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> String {
         _ => t,
     };
     let mut out = String::new();
-    name_into(pool, env, t, &mut out, usize::MAX);
+    name_into(pool, env, false, t, &mut out, usize::MAX);
     out
+}
+
+/// The printable name of `t` (trait.typeid.name.*): what `Display` for a
+/// `TypeId` prints. It spells `t` as `type_name` does, but each
+/// declaration by its printable name, so two types of different identity
+/// can print alike.
+#[must_use]
+pub fn printed_type_name(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> String {
+    let t = match pool.get(t) {
+        TyData::Mut(x) => x,
+        _ => t,
+    };
+    let mut out = String::new();
+    name_into(pool, env, true, t, &mut out, usize::MAX);
+    out
+}
+
+fn def_name(env: &dyn ProgramEnv, printed: bool, def: DefId) -> String {
+    if printed {
+        env.printed_name(def)
+    } else {
+        env.type_name(def)
+    }
 }
 
 /// The longest type a diagnostic prints in full, in bytes; a longer one is
@@ -345,7 +372,7 @@ pub const SHOWN_TYPE_MAX: usize = 120;
 #[must_use]
 pub fn shown_type(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> String {
     let mut out = String::new();
-    name_into(pool, env, t, &mut out, SHOWN_TYPE_MAX);
+    name_into(pool, env, false, t, &mut out, SHOWN_TYPE_MAX);
     if out.len() > SHOWN_TYPE_MAX {
         let mut cut = SHOWN_TYPE_MAX;
         while !out.is_char_boundary(cut) {
@@ -358,7 +385,14 @@ pub fn shown_type(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> String {
 }
 
 /// Spells `t` into `out`, and stops once `out` is longer than `limit`.
-fn name_into(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut String, limit: usize) {
+fn name_into(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    printed: bool,
+    t: Ty,
+    out: &mut String,
+    limit: usize,
+) {
     if out.len() > limit {
         return;
     }
@@ -370,14 +404,14 @@ fn name_into(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut String, l
             if k > 0 {
                 out.push_str(sep);
             }
-            name_into(pool, env, *x, out, limit);
+            name_into(pool, env, printed, *x, out, limit);
         }
     };
     match pool.get(t) {
         TyData::Prim(p) => out.push_str(p.name()),
         TyData::Never => out.push_str("never"),
         TyData::Adt { def, args } => {
-            out.push_str(&env.type_name(def));
+            out.push_str(&def_name(env, printed, def));
             if !pool.list_items(args).is_empty() {
                 out.push('[');
                 list(pool.list_items(args), ", ", out);
@@ -391,7 +425,7 @@ fn name_into(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut String, l
             args,
             bindings,
         } => {
-            out.push_str(&env.type_name(def));
+            out.push_str(&def_name(env, printed, def));
             let args = pool.list_items(args);
             if !args.is_empty() || !bindings.is_empty() {
                 out.push('[');
@@ -400,10 +434,10 @@ fn name_into(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut String, l
                     if k > 0 || !args.is_empty() {
                         out.push_str(", ");
                     }
-                    let n = env.type_name(*a);
+                    let n = def_name(env, printed, *a);
                     out.push_str(n.rsplit('.').next().unwrap_or(&n));
                     out.push_str(" = ");
-                    name_into(pool, env, *b, out, limit);
+                    name_into(pool, env, printed, *b, out, limit);
                 }
                 out.push(']');
             }
@@ -416,18 +450,18 @@ fn name_into(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut String, l
                 if !elems.is_empty() {
                     out.push_str(", ");
                 }
-                name_into(pool, env, r, out, limit);
+                name_into(pool, env, printed, r, out, limit);
                 out.push_str("...");
             }
             out.push(')');
         }
         TyData::Option(i) => {
-            name_into(pool, env, i, out, limit);
+            name_into(pool, env, printed, i, out, limit);
             out.push('?');
         }
         TyData::Mut(i) => {
             out.push_str("mut ");
-            name_into(pool, env, i, out, limit);
+            name_into(pool, env, printed, i, out, limit);
         }
         // Not inspectable (trait.inspectable.not.*), but a diagnostic
         // spells them, and a typed fact's identity names its pattern's
@@ -442,7 +476,7 @@ fn name_into(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut String, l
             out.push_str(if suspends { "fn!(" } else { "fn(" });
             list(pool.list_items(params), ", ", out);
             out.push_str(") -> ");
-            name_into(pool, env, result, out, limit);
+            name_into(pool, env, printed, result, out, limit);
             let keys = pool.row_data(row).keys;
             if !keys.is_empty() {
                 out.push_str(" $ ");
@@ -461,8 +495,8 @@ fn name_into(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut String, l
         }
         TyData::Assoc { assoc, self_ty, .. } => {
             out.push('<');
-            name_into(pool, env, self_ty, out, limit);
-            let n = env.type_name(assoc);
+            name_into(pool, env, printed, self_ty, out, limit);
+            let n = def_name(env, printed, assoc);
             out.push_str(">.");
             out.push_str(n.rsplit('.').next().unwrap_or(&n));
         }

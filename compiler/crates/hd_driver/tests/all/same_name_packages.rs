@@ -162,3 +162,41 @@ fn same_named_declarations_stay_apart() {
     assert!(text.contains("type-mismatch"), "{text}");
     assert!(!text.contains('$'), "{text}");
 }
+
+/// Two packages of one name print alike but have two identities
+/// (`trait.typeid.name.package`, `trait.typeid.equality`): the second is
+/// `money.Coin`, not `money$2.Coin`.
+#[test]
+fn same_named_packages_print_alike_and_compare_unequal() {
+    let store = MemoryStore::default();
+    let (a, b) = (money(100, 1), money(1000, 2));
+    let main = root(
+        "use dep.euro.{Coin as Euro}\nuse dep.yen.{Coin as Yen}\nuse std.inspect.TypeId\n\n\
+         pub fn main() -> void $ Console:\n\
+         \x20   println(\"${TypeId::of::[Euro]()} ${TypeId::of::[Yen]()}\")\n\
+         \x20   println(\"${TypeId::of::[Euro]() == TypeId::of::[Yen]()}\")\n\
+         \x20   println(\"${TypeId::of::[List[Yen?]]()}\")\n",
+    );
+    let out = ok(run(
+        &store,
+        &main,
+        &[("euro", "/w/a", &a), ("yen", "/w/b", &b)],
+    ));
+    let path = hd_testkit::Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), "same-name-packages.wasm");
+    std::fs::write(&path, out.wasm.expect("wasm")).expect("write wasm");
+    let ran = std::process::Command::new("node")
+        .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
+        .arg(&path)
+        .output()
+        .expect("node");
+    let _ = std::fs::remove_file(&path);
+    assert!(
+        ran.status.success(),
+        "{}",
+        String::from_utf8_lossy(&ran.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(ran.stdout).expect("UTF-8"),
+        "money.Coin money.Coin\nfalse\nList[money.Coin?]\n"
+    );
+}

@@ -14,12 +14,14 @@ use std.format.DebugWriter
 pub trait Inspectable:
     fn runtime_type(self) -> TypeId
 
-# A type's canonical printable name, which identifies the type because the
-# prototype compiles one module.
+# `key` is the type's identity, which `Eq` compares; `name` is its canonical
+# printable name (trait.typeid.name), which `Display` prints. Two types of
+# different identity can print alike, as two packages that share a name do.
 ## The runtime identity of an inspectable type.
 ## See [module.prelude.inspect](../../spec/lang/10-modules.md#r-module.prelude.inspect).
 pub data TypeId:
     key: string
+    name: string
 
 impl TypeId:
     ## The `TypeId` of `T`.
@@ -30,7 +32,7 @@ impl Eq for TypeId:
     fn eq(self, other: TypeId) -> bool: self.key == other.key
 
 impl Display for TypeId:
-    fn to_string(self) -> string: self.key
+    fn to_string(self) -> string: self.name
 
 # `Debug` for this module's public types (r-std-format.debug.std-types),
 # written by hand with the builder calls that `@derive(Debug)` generates
@@ -38,4 +40,4 @@ impl Display for TypeId:
 # declaration has no effect in the prototype.
 impl Debug for TypeId:
     fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_struct("TypeId").field("key", self.key).finish()
+        out.debug_struct("TypeId").field("key", self.key).field("name", self.name).finish()

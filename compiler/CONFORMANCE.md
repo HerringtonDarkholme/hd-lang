@@ -3135,7 +3135,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 108 | 15 | 0 | 123 |
+| 109 | 14 | 0 | 123 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3246,6 +3246,7 @@ cli/test-timeout
 cli/test-unit-fakes
 cli/toolchain-too-old
 cli/typeid-package-name
+cli/typeid-single-file
 cli/wasm-cap-flags-only
 cli/wasm-invalid
 cli/wasm-run-built

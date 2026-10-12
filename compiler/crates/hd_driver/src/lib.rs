@@ -508,6 +508,9 @@ struct Run<'a> {
     host: &'a Host<'a>,
     observer: Option<&'a dyn StageObserver>,
     package: String,
+    /// Whether the root package is a single-file program
+    /// ([`Packages::single_file`]).
+    single_file: bool,
     goal: Goal,
     /// The host capability traits of the run's runtime profile, by item
     /// path ([`Packages::profile`]).
@@ -601,6 +604,10 @@ pub struct Packages<'a> {
     /// selects the default profile, whose traits the host ABI table lists
     /// (`module.profile.default`).
     pub profile: Option<Vec<String>>,
+    /// Whether the root package is a single-file program, whose
+    /// declarations print under the file's stem instead of the package
+    /// name (`trait.typeid.name.single-file`).
+    pub single_file: bool,
 }
 
 /// The root package's key: its name, and the traits of a runtime profile
@@ -723,6 +730,7 @@ fn build_packages_inner(
         host,
         observer,
         package: package.to_owned(),
+        single_file: packages.single_file,
         goal: goal.clone(),
         texts,
         pool: InternPool::new(),
@@ -5098,6 +5106,35 @@ impl ProgramEnv for Env<'_> {
         // that shares its name with an earlier one keeps its own module
         // root here (`module.package.identity-part`).
         format!("{}.{name}", module.replace('-', "_"))
+    }
+    fn printed_name(&self, def: DefId) -> String {
+        let names = self.run.names();
+        let (module, name) = (names.module_of(def), names.display_name(def));
+        if hd_resolve::PRELUDE
+            .iter()
+            .any(|(m, ns)| *m == module && ns.contains(&name))
+        {
+            return name.to_owned();
+        }
+        let table = &self.run.table;
+        let (root, below) = module.split_once('.').unwrap_or((&module, ""));
+        let Some(package) = table.roots.iter().position(|r| r == root) else {
+            return format!("{module}.{name}");
+        };
+        // A single-file program prints its file's stem, the module below
+        // the root package (trait.typeid.name.single-file).
+        if package == 0 && self.run.single_file {
+            return format!("{below}.{name}");
+        }
+        // A package prints its manifest name, with `-` written `_`
+        // (trait.typeid.name.package), though its module root may be
+        // disambiguated (`module.package.identity-part`).
+        let ident = hd_project::package_ident(&table.packages[package]);
+        if below.is_empty() {
+            format!("{ident}.{name}")
+        } else {
+            format!("{ident}.{below}.{name}")
+        }
     }
     fn describe(&self, def: DefId) -> String {
         self.run.names().path(def)

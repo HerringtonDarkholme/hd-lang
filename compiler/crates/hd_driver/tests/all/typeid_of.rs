@@ -10,11 +10,15 @@ use std::process::Command;
 use hd_testkit::Scratch;
 
 use hd_diag::Code;
-use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
+use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, build_packages};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
 fn run_goal(main: &str, goal: &Goal) -> Output {
+    run_named("app", &Packages::default(), main, goal)
+}
+
+fn run_named(package: &str, packages: &Packages<'_>, main: &str, goal: &Goal) -> Output {
     let mut src = MemorySources::default();
     src.insert("main.hd", main);
     let store = crate::warm_store();
@@ -25,7 +29,7 @@ fn run_goal(main: &str, goal: &Goal) -> Output {
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };
-    build(&host, "app", goal)
+    build_packages(&host, package, packages, goal)
 }
 
 fn errors(src: &str) -> Vec<Code> {
@@ -138,7 +142,13 @@ fn qualified_call_errors_are_reported() {
 
 /// The standard output of a program that must build and succeed.
 fn output_of(name: &str, main: &str) -> String {
-    let out = run_goal(
+    output_in(name, "app", &Packages::default(), main)
+}
+
+fn output_in(name: &str, package: &str, packages: &Packages<'_>, main: &str) -> String {
+    let out = run_named(
+        package,
+        packages,
         main,
         &Goal::Program {
             entry: "main".into(),
@@ -197,5 +207,47 @@ pub fn main() -> void $ Console:
     assert_eq!(
         output_of("identity", main),
         "true\nfalse\nfalse\ntrue false\ntrue\ntrue\nfalse\nList[app.main.User]\n"
+    );
+}
+
+const NAMES: &str = "\
+use std.inspect.TypeId
+
+data User:
+    name: string
+
+pub fn main() -> void $ Console:
+    println(\"${TypeId::of::[User]()}\")
+    println(\"${TypeId::of::[User?]()}\")
+    println(\"${TypeId::of::[List[mut User]]()}\")
+    println(\"${TypeId::of::[mut User]()}\")
+    println(\"${TypeId::of::[(User, i32)]()}\")
+    println(\"${TypeId::of::[Map[string, User?]]()}\")
+";
+
+/// A package prints its manifest name with each `-` written `_`
+/// (trait.typeid.name.package), then the module and the name, with `T?`,
+/// inner `mut`, tuples and `, ` as the name table says.
+#[test]
+fn a_package_prints_its_name_with_underscores() {
+    assert_eq!(
+        output_in("package", "acme-shop", &Packages::default(), NAMES),
+        "acme_shop.main.User\nacme_shop.main.User?\nList[mut acme_shop.main.User]\n\
+         acme_shop.main.User\n(acme_shop.main.User, i32)\nMap[string, acme_shop.main.User?]\n"
+    );
+}
+
+/// A single-file program prints its file's stem, then the name
+/// (trait.typeid.name.single-file).
+#[test]
+fn a_single_file_program_prints_its_stem() {
+    let packages = Packages {
+        single_file: true,
+        ..Packages::default()
+    };
+    assert_eq!(
+        output_in("single-file", "app", &packages, NAMES),
+        "main.User\nmain.User?\nList[mut main.User]\nmain.User\n(main.User, i32)\n\
+         Map[string, main.User?]\n"
     );
 }
