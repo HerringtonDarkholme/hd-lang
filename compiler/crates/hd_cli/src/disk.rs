@@ -183,10 +183,15 @@ impl Program {
     /// Narrows the sources to one program's: the library, the executables
     /// and `entry_file` (`cli.check.default`, `module.test.code`). Test
     /// code and the other tasks are no part of a program that `hd run` or
-    /// `hd build` builds.
+    /// `hd build` builds. A task's program also has the shared task
+    /// modules, its own copy of them (`cli.task.shared-copy`); no other
+    /// program does (`cli.task.not-shipped`).
     pub fn only_program(&mut self, entry_file: &str) {
+        let task = hd_project::role_of(entry_file) == Role::Task;
         self.sources.retain(|path| {
-            path == entry_file || matches!(hd_project::role_of(path), Role::Lib | Role::Exe)
+            path == entry_file
+                || matches!(hd_project::role_of(path), Role::Lib | Role::Exe)
+                || (task && shared_task_module(path))
         });
     }
 
@@ -212,6 +217,12 @@ impl Program {
             build_profile: BuildProfile::Checked,
         }
     }
+}
+
+/// Whether a package-relative file is a shared task module: below a
+/// subdirectory of `tasks` (`cli.task.shared`).
+fn shared_task_module(file: &str) -> bool {
+    matches!(hd_project::Root::of(file), (hd_project::Root::Task, rest) if rest.contains('/'))
 }
 
 /// A package directory's manifest, if it has one.

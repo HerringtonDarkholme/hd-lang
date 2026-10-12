@@ -990,6 +990,125 @@ fn a_program_leaves_test_code_out() {
     assert_eq!(r.code, Some(0), "{}", r.err);
 }
 
+/// A package `app` with a library, `src/main.hd`, and the given files.
+fn app(name: &str, files: &[(&str, &str)]) -> Scratch {
+    let dir = scratch(name);
+    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"app\"\n").expect("write");
+    let mut all = vec![(
+        "src/main.hd",
+        "pub fn main() -> void $ Console:\n    println(\"main\")\n",
+    )];
+    all.extend_from_slice(files);
+    for (file, text) in all {
+        let path = dir.join(file);
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
+        std::fs::write(path, text).expect("write");
+    }
+    dir
+}
+
+const SHARED_ZIP: &str = "pub fn zip() -> string:\n    \"zip\"\n";
+const USES_ZIP: &str =
+    "use self.shared.zip.{zip}\n\npub fn main() -> void $ Console:\n    println(zip())\n";
+
+/// `cli.task.shared`, `cli.task.root-file`, `cli.task.no-path`: a task
+/// uses a shared task module through `self`, and a library module
+/// `src/tasks/zip.hd` coexists with it.
+#[test]
+fn a_task_uses_a_shared_task_module() {
+    let dir = app(
+        "hd-forms-task-shared",
+        &[
+            ("tasks/shared/zip.hd", SHARED_ZIP),
+            ("tasks/build.hd", USES_ZIP),
+            ("src/tasks/zip.hd", "pub fn zip() -> string:\n    \"lib\"\n"),
+        ],
+    );
+    let r = ran(&dir, &["run", "build"]);
+    assert_eq!((r.code, r.out.as_str()), (Some(0), "zip\n"), "{}", r.err);
+    let r = ran(&dir, &["run"]);
+    assert_eq!((r.code, r.out.as_str()), (Some(0), "main\n"), "{}", r.err);
+}
+
+/// `cli.task.shared-copy`, `cli.task.shared-unused`: each task has its own
+/// copy of a shared module, whose top-level statements run once per task,
+/// and a declaration one task uses gets no unused warning.
+#[test]
+fn tasks_get_their_own_copy_of_a_shared_module() {
+    let shared = "let log: mut List[string] = []\nlog.push(\"init\")\n\npub fn size() -> usize:\n    log.len()\n\npub fn grow() -> usize:\n    log.push(\"more\")\n    log.len()\n";
+    let first =
+        "use self.shared.count.{grow}\n\npub fn main() -> void $ Console:\n    println(grow())\n";
+    let second =
+        "use self.shared.count.{size}\n\npub fn main() -> void $ Console:\n    println(size())\n";
+    let dir = app(
+        "hd-forms-task-copy",
+        &[
+            ("tasks/shared/count.hd", shared),
+            ("tasks/first.hd", first),
+            ("tasks/second.hd", second),
+        ],
+    );
+    let r = ran(&dir, &["run", "first"]);
+    assert_eq!((r.code, r.out.as_str()), (Some(0), "2\n"), "{}", r.err);
+    let r = ran(&dir, &["run", "second"]);
+    assert_eq!((r.code, r.out.as_str()), (Some(0), "1\n"), "{}", r.err);
+    let r = ran(&dir, &["check", "--all"]);
+    assert_eq!(r.code, Some(0), "{}", r.err);
+    assert!(r.err.contains("warnings: 0"), "{}", r.err);
+}
+
+/// `cli.task.super`, `cli.task.above-root`: `super` in a task, and in a
+/// shared task module above `tasks`, is `unknown-module`.
+#[test]
+fn super_above_the_tasks_root_is_unknown_module() {
+    let dir = app(
+        "hd-forms-task-super",
+        &[
+            ("tasks/shared/zip.hd", SHARED_ZIP),
+            (
+                "tasks/build.hd",
+                "use super.shared.zip.{zip}\n\npub fn main() -> void $ Console:\n    println(zip())\n",
+            ),
+        ],
+    );
+    let r = ran(&dir, &["run", "build"]);
+    assert_eq!(r.code, Some(101));
+    assert!(r.err.contains("unknown-module"), "{}", r.err);
+    let dir = app(
+        "hd-forms-task-above",
+        &[
+            (
+                "tasks/shared/up.hd",
+                "use super.super.x.{y}\n\npub fn zip() -> string:\n    \"z\"\n",
+            ),
+            (
+                "tasks/build.hd",
+                "use self.shared.up.{zip}\n\npub fn main() -> void $ Console:\n    println(zip())\n",
+            ),
+        ],
+    );
+    let r = ran(&dir, &["run", "build"]);
+    assert_eq!(r.code, Some(101));
+    assert!(r.err.contains("unknown-module"), "{}", r.err);
+}
+
+/// `cli.task.not-shipped`: a shared task module is no part of the
+/// executables' program, even one that does not compile.
+#[test]
+fn a_shared_task_module_is_not_shipped() {
+    let dir = app(
+        "hd-forms-task-not-shipped",
+        &[(
+            "tasks/shared/broken.hd",
+            "pub fn main() -> void:\n    _ := missing\n",
+        )],
+    );
+    let r = ran(&dir, &["run"]);
+    assert_eq!((r.code, r.out.as_str()), (Some(0), "main\n"), "{}", r.err);
+    let r = ran(&dir, &["build"]);
+    assert_eq!(r.code, Some(0), "{}", r.err);
+}
+
 /// `cli.command.help`, `cli.command.help.command`: the command list names
 /// every command, and one command's help names its flags.
 #[test]
