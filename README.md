@@ -145,6 +145,23 @@ blocks, and `@error`.
   `defer`.
 - **Swift and Kotlin:** `T?` optionals.
 
+## Install
+
+hd is installed from source for now. You need the Rust toolchain
+([rustup](https://rustup.rs); the repository pins its version in
+`rust-toolchain.toml`), git (used to fetch dependencies), and Node.js
+(programs run on Node by default).
+
+```sh
+git clone https://github.com/HerringtonDarkholme/hd-lang
+cd hd-lang
+cargo install --path crates/hd_cli
+```
+
+This puts `hd` in `~/.cargo/bin`. To run programs without Node, build with
+the wasmtime engine, `cargo install --path crates/hd_cli --features wasmtime`,
+and choose it with `hd --engine wasmtime ...` or `HD_ENGINE=wasmtime`.
+
 ## Start
 
 Read the [guide](guide/README.md), take the
