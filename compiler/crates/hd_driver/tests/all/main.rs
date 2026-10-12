@@ -87,6 +87,7 @@ mod match_cascade;
 mod member_line_lists_run;
 mod method_choice;
 mod misplaced_derivation;
+mod mixed_signedness;
 mod mixed_variant_patterns_run;
 mod module_case_collision;
 mod module_member_run;

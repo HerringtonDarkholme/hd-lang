@@ -1378,8 +1378,30 @@ impl Ck<'_, '_> {
             }
             let (want_s, got_s) = self.show_pair(want, got);
             let msg = format!("in {what}: expected {want_s}, found {got_s}");
-            self.err(Code::TypeMismatch, n, &msg);
+            // `types.num.binary.no-mix`, `expr.range.bound.signedness`: a
+            // signed and an unsigned integer operand do not mix.
+            let code =
+                if matches!(what, "operand" | "range bound") && self.mixes_signedness(got, want) {
+                    Code::MixedSignedness
+                } else {
+                    Code::TypeMismatch
+                };
+            self.err(code, n, &msg);
         }
+    }
+
+    /// Whether one of two types is a signed and the other an unsigned
+    /// integer primitive.
+    pub(crate) fn mixes_signedness(&self, a: Ty, b: Ty) -> bool {
+        let pool = self.pool();
+        let prim = |t: Ty| {
+            let t = self.strip_mut(self.infer.resolve(pool, t));
+            match pool.get(t) {
+                TyData::Prim(p) if p.is_integer() => Some(p),
+                _ => None,
+            }
+        };
+        matches!((prim(a), prim(b)), (Some(x), Some(y)) if x.is_unsigned() != y.is_unsigned())
     }
 
     /// Whether `want` is a narrower numeric type than `got` in the same

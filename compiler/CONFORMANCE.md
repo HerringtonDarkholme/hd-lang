@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2735 | 94 | 16 | 2845 |
+| 2739 | 90 | 16 | 2845 |
 
 ## By Chapter
 
@@ -17,8 +17,8 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 145 | 0 | 0 | 145 |
 | `lang/02-grammar.md` | 213 | 2 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
-| `lang/04-type-system.md` | 336 | 16 | 0 | 352 |
-| `lang/05-expressions.md` | 269 | 8 | 0 | 277 |
+| `lang/04-type-system.md` | 337 | 15 | 0 | 352 |
+| `lang/05-expressions.md` | 270 | 7 | 0 | 277 |
 | `lang/06-control-flow.md` | 144 | 9 | 4 | 157 |
 | `lang/07-functions.md` | 123 | 7 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 116 | 7 | 0 | 123 |
@@ -41,7 +41,7 @@ fixture; unsupported surface records progress without failing.
 | `std/iter.md` | 24 | 1 | 0 | 25 |
 | `std/json.md` | 19 | 0 | 0 | 19 |
 | `std/net.md` | 1 | 0 | 0 | 1 |
-| `std/num.md` | 16 | 2 | 0 | 18 |
+| `std/num.md` | 18 | 0 | 0 | 18 |
 | `std/ops.md` | 13 | 0 | 0 | 13 |
 | `std/option.md` | 3 | 0 | 0 | 3 |
 | `std/path.md` | 2 | 0 | 0 | 2 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 916 | 1 | 12 | 929 |
-| `typing/invalid` | 990 | 84 | 1 | 1075 |
+| `typing/invalid` | 994 | 80 | 1 | 1075 |
 | `typing/valid` | 414 | 1 | 0 | 415 |
 | `typing/warnings` | 12 | 8 | 0 | 20 |
 
@@ -89,7 +89,7 @@ compiler stage that first declined the case.
 | `fail:re-export-loop` | 1 |
 | `fail:readonly-root` | 1 |
 | `fail:trait-used-as-type` | 1 |
-| `fail:type-mismatch` | 13 |
+| `fail:type-mismatch` | 9 |
 | `fail:unknown-data-field` | 2 |
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 5 |
@@ -231,18 +231,14 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (13)</summary>
+<details><summary><code>fail:type-mismatch</code> (9)</summary>
 
-- `typing/invalid/mixed-signedness.hd`
 - `typing/invalid/variance-representation-change.hd`
 - `typing/invalid/derived-generic-bound.hd`
 - `typing/invalid/contravariant-representation-change.hd`
 - `typing/invalid/function-result-representation-change.hd`
-- `typing/invalid/range-mixed-signedness.hd`
 - `typing/invalid/no-widening-operator.hd`
 - `typing/invalid/no-widening-float.hd`
-- `typing/invalid/num-abs-diff-unsigned.hd`
-- `typing/invalid/num-bit-count-u32.hd`
 - `typing/invalid/mixed-width-operands-no-widening.hd`
 - `typing/invalid/usize-u32-operand.hd`
 - `typing/invalid/derived-eq-bound-unmet-data-argument.hd`
@@ -2182,6 +2178,7 @@ typing/invalid/missing-supertrait-implementation.hd
 typing/invalid/missing-trait-method.hd
 typing/invalid/mixed-derived-law.hd
 typing/invalid/mixed-numeric-power.hd
+typing/invalid/mixed-signedness.hd
 typing/invalid/module-file-and-directory-module.hd
 typing/invalid/module-path-missing-member.hd
 typing/invalid/module-path-private-member.hd
@@ -2238,6 +2235,8 @@ typing/invalid/nonfinal-vararg-then-parameter.hd
 typing/invalid/nonhost-entry-requirement.hd
 typing/invalid/nonlocal-impl.hd
 typing/invalid/nonnumeric-unary-plus.hd
+typing/invalid/num-abs-diff-unsigned.hd
+typing/invalid/num-bit-count-u32.hd
 typing/invalid/num-bound-newtype.hd
 typing/invalid/num-sealed-impl.hd
 typing/invalid/num-sealed-user-number.hd
@@ -2350,6 +2349,7 @@ typing/invalid/race-empty-list-literal.hd
 typing/invalid/race-no-tasks.hd
 typing/invalid/range-float-bound.hd
 typing/invalid/range-full-not-iterable.hd
+typing/invalid/range-mixed-signedness.hd
 typing/invalid/range-pattern-bound-range.hd
 typing/invalid/range-pattern-covered.hd
 typing/invalid/range-pattern-empty.hd

@@ -768,6 +768,7 @@ impl Ck<'_, '_> {
             return self.operator_trait_call(prim, (a, at), (c, ct), n, rn);
         }
         if self.numeric(at) || (ats == Ty::BOOL && bool_ops) {
+            let mixed = !shift && self.mixes_signedness(at, ct);
             if shift {
                 let _ = self.unsigned_count(ct, rn, "a shift count", true);
             } else {
@@ -779,7 +780,15 @@ impl Ck<'_, '_> {
                 let msg = format!("bitwise operators take integers, not {}", self.show(at));
                 self.err(Code::TypeMismatch, n, &msg);
             }
-            let result = if cmp { Ty::BOOL } else { at };
+            // A mixed pair is reported at its operand; the result is not
+            // checked again, so it adds no knock-on report.
+            let result = if mixed {
+                Ty::POISON
+            } else if cmp {
+                Ty::BOOL
+            } else {
+                at
+            };
             return Ok(self.b.prim(prim as u32, &[a, c], result, n.index()));
         }
         // Strings: `+` and `==` are built in; others go through traits.
