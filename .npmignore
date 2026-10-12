@@ -1,7 +1,0 @@
-# The npm package ships only dist/, built by `pnpm run build:npm` (run by
-# prepack): compiled JavaScript for bin/ and src/, the standard library, the
-# runtime .wat files, and the spec chapters `hd explain` reads.
-# npm always adds package.json and README.md.
-*
-!dist/
-!dist/**

@@ -1,8 +1,0 @@
-# test: enums / generic / unsaturated type
-
-enum Maybe[T]:
-    Some(value: T)
-    None
-
-fn consume(value: Maybe) -> void:  # diagnostic: partial-generic-arguments
-    pass

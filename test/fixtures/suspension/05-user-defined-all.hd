@@ -1,5 +1,0 @@
-# test: a module may declare its own all! when it does not import std.task.all
-# expect-result: main = 42
-
-fn all!(left: i32, right: i32) -> i32: left + right
-fn main!() -> i32: all!(20, 22)

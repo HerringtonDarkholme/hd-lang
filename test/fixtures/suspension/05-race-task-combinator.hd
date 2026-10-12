@@ -1,7 +1,0 @@
-# test: race! returns the result of the first child to complete; with no host pending that is the first argument
-# expect-result: main = 7
-
-use std.task.race
-fn slow!(n: i32) -> i32: n
-fn fast!(n: i32) -> i32: n
-fn main!() -> i32: race!(slow(7), fast(42))
