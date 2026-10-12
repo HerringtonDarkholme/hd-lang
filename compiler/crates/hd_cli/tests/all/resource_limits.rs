@@ -1,5 +1,6 @@
 //! CLI flag routing and observable Wasmtime limit failures, using raw Wasm.
 //! The tests that run Wasmtime need the `wasmtime` feature.
+use std::fmt::Write as _;
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
@@ -117,6 +118,59 @@ fn compiler_memory_reports_once_on_check_json_stream() {
     );
     assert!(text.contains("starting compiler"), "{text}");
     assert!(output.stderr.is_empty(), "{output:?}");
+}
+
+/// `cli.memory.cap`, `cli.memory.cap.error`: in a workspace `hd test`, the
+/// first member's tests disarm the compiler cap for their run; the second
+/// member's compile is limited again. Member `a` alone fits in 32 MiB
+/// (about 17 MiB); `b`'s 10000 functions need about 68 MiB to compile.
+#[test]
+fn compiler_memory_cap_limits_each_workspace_members_compile() {
+    let dir = work("memory-members");
+    let test = "pub fn one() -> i32:\n    1\n\ntests:\n    use std.testing.assert_equal\n\n    it(\"adds\"):\n        assert_equal(one(), 1, reason=\"one\")\n";
+    let mut big = String::new();
+    for i in 0..10_000 {
+        writeln!(big, "pub fn g{i}(x: i32) -> i32:\n    x + {i}\n").unwrap();
+    }
+    big.push_str(&test[test.find("tests:").unwrap()..]);
+    for (path, text) in [
+        ("hd.toml", "[workspace]\nmembers = [\"a\", \"b\"]\n"),
+        ("a/hd.toml", "[package]\nname = \"a\"\n"),
+        ("a/src/lib.hd", test),
+        ("b/hd.toml", "[package]\nname = \"b\"\n"),
+        ("b/src/lib.hd", &big.replace("one()", "g0(1)")),
+    ] {
+        let file = dir.join(path);
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::write(file, text).unwrap();
+    }
+    // Each run gets a cold cache, so no run reuses another's compile.
+    let run = |cache: &str, args: &[&str]| {
+        let mut command = hd(&dir);
+        command
+            .env("HD_CACHE", dir.join(cache))
+            .args(["test", "--jobs", "1"])
+            .args(args);
+        bounded(command)
+    };
+    let output = run("cache-a", &["-p", "a", "--max-memory=32M"]);
+    assert!(output.status.success(), "{output:?}");
+    let output = run("cache-tight", &["--max-memory=32M"]);
+    assert_eq!(output.status.code(), Some(101), "{output:?}");
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(error.lines().count(), 1, "{error}");
+    assert!(
+        error.starts_with(
+            "error: memory-limit: compiler memory limit of 33554432 bytes exceeded while "
+        ),
+        "{error}"
+    );
+    let output = run("cache-generous", &["--max-memory=256M"]);
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "test result: ok. 2 passed; 0 failed; 0 ignored\n"
+    );
 }
 
 #[cfg(feature = "wasmtime")]

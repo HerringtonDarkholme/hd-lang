@@ -2,9 +2,11 @@
 //! Tracking and its reporter are enabled only when a compiler cap is requested.
 //! The safe allocator wrapper still reserves metadata even when disabled.
 //! Tracking remains enabled while a guest runs so frees cannot unbalance the
-//! counter. The CLI finishes compiler enforcement at the first guest entry,
-//! because guest workers/caches may retain native allocations beyond teardown.
-//! Later workspace-member compilation is an owner-deferred lifecycle issue.
+//! counter. Guest entry disarms compiler enforcement, because guest workers
+//! and caches may retain native allocations beyond teardown. A command that
+//! compiles again after a guest ran (`hd test` over several workspace members)
+//! rearms with [`rearm`] before that compile; the bytes the guest phase left
+//! live are then excluded from the compiler's count (see [`rearm`]).
 //! Temporary suspension remains available for
 //! accounting probes. The external safe allocator reports
 //! successful allocations before returning them to the compiler. If the system
@@ -33,6 +35,12 @@ static SUSPENSIONS: AtomicUsize = AtomicUsize::new(0);
 static TRIPPED: AtomicBool = AtomicBool::new(false);
 static REPORT_READY: AtomicBool = AtomicBool::new(false);
 static FAILURE_STAGE: AtomicUsize = AtomicUsize::new(STARTUP);
+// Live bytes that are not compiler memory: what earlier guest phases left
+// live. The compiler's count is `LIVE - GUEST_RETAINED`; zero until a guest
+// phase ends with a rearm, so a single-program command never changes it.
+static GUEST_RETAINED: AtomicU64 = AtomicU64::new(0);
+// The compiler's count when the latest guest phase began.
+static GUEST_ENTRY: AtomicU64 = AtomicU64::new(0);
 static EMERGENCY_THREAD: OnceLock<std::thread::Thread> = OnceLock::new();
 static REPORT: OnceLock<Report> = OnceLock::new();
 // Wasmtime's private compilation pool has no observer hook. An explicit stage
@@ -231,7 +239,8 @@ fn diagnostic(limit: u64, label: &str, json: bool) -> Vec<u8> {
 fn enforce(live: u64) {
     if !ARMED.load(Ordering::SeqCst)
         || SUSPENSIONS.load(Ordering::SeqCst) != 0
-        || live <= LIMIT.load(Ordering::SeqCst)
+        || live.saturating_sub(GUEST_RETAINED.load(Ordering::SeqCst))
+            <= LIMIT.load(Ordering::SeqCst)
     {
         return;
     }
@@ -388,11 +397,41 @@ pub(crate) fn suspend() -> Suspension {
 }
 
 /// Finish the compiler phase before guest initialization. Unlike a temporary
-/// suspension, this never rearms: native guest-origin worker/cache allocations
-/// retained after teardown must not become compiler memory-limit errors.
+/// suspension, dropping the guard never rearms: native guest-origin
+/// worker/cache allocations retained after teardown must not become compiler
+/// memory-limit errors. Only [`rearm`], before a further compile, rearms.
 pub(crate) fn enter_guest() -> Suspension {
-    ARMED.store(false, Ordering::SeqCst);
+    if ARMED.swap(false, Ordering::SeqCst) {
+        let live = LIVE.load(Ordering::SeqCst);
+        GUEST_ENTRY.store(
+            live.saturating_sub(GUEST_RETAINED.load(Ordering::SeqCst)),
+            Ordering::SeqCst,
+        );
+    }
     suspend()
+}
+
+/// Start a further compile phase after a guest ran: rearm the cap that
+/// [`enter_guest`] disarmed. Does nothing without a cap, or while still armed.
+///
+/// Baseline: the bytes that went live between guest entry and now are taken
+/// as the guest's, and excluded from the compiler's count from here on. So
+/// the next compile starts from at most the compiler's own count at guest
+/// entry, which never exceeded the cap. Compiler memory freed during the guest
+/// phase lowers the count as usual. When retained guest memory is freed later,
+/// the count drops by it too, so the compiler gains at most that much slack.
+pub(crate) fn rearm() {
+    if REPORT.get().is_none() || ARMED.load(Ordering::SeqCst) {
+        return;
+    }
+    let live = LIVE.load(Ordering::SeqCst);
+    let entry = GUEST_ENTRY.load(Ordering::SeqCst);
+    let retained = GUEST_RETAINED.load(Ordering::SeqCst);
+    if live.saturating_sub(retained) > entry {
+        GUEST_RETAINED.store(live - entry, Ordering::SeqCst);
+    }
+    ARMED.store(true, Ordering::SeqCst);
+    enforce(LIVE.load(Ordering::SeqCst));
 }
 
 impl Drop for Suspension {
@@ -478,6 +517,20 @@ mod tests {
             drop(retained);
             assert_eq!(LIVE.load(Ordering::SeqCst), before);
             return;
+        }
+        if mode == "rearm" {
+            let guest = enter_guest();
+            let _retained = std::hint::black_box(vec![0u8; 512 * 1024]);
+            drop(guest);
+            rearm();
+            assert!(ARMED.load(Ordering::SeqCst));
+            // The retained guest bytes exceed the cap on their own; they are
+            // not the next compile's. Rearming did not trip, and a small
+            // compiler allocation fits.
+            drop(std::hint::black_box(vec![0u8; 16 * 1024]));
+            let _stage = stage("Body");
+            let _allocation = std::hint::black_box(vec![0u8; 512 * 1024]);
+            panic!("over-cap allocation after rearm returned to compiler");
         }
         if mode == "suspended" {
             let suspension = suspend();
@@ -578,6 +631,16 @@ mod tests {
         let output = child("retained-guest");
         assert!(output.status.success(), "{output:?}");
         assert!(output.stderr.is_empty(), "{output:?}");
+    }
+
+    #[test]
+    fn rearm_excludes_retained_guest_bytes_and_limits_the_next_compile() {
+        let output = child("rearm");
+        assert_eq!(output.status.code(), Some(101), "{output:?}");
+        let error = String::from_utf8(output.stderr).unwrap();
+        assert_eq!(error.lines().count(), 1, "{error}");
+        assert!(error.contains("while checking bodies"), "{error}");
+        assert!(!error.contains("preparing compilation"), "{error}");
     }
 
     #[test]

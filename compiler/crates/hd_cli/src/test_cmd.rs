@@ -374,6 +374,9 @@ fn test_one(
     o: &Options,
     report: &mut Report,
 ) -> Result<(), ExitCode> {
+    // An earlier member's tests disarmed the compiler memory cap
+    // (`cli.memory.cap`); this member's builds are limited again.
+    crate::memory_cap::rearm();
     let rep = &mut report.rep;
     let mut program = disk::load_package(root, "main").map_err(|e| rep.fail(&e))?;
     if rep.diags(&program.problems) {
