@@ -199,6 +199,8 @@ impl Clock for NoClock {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Executor {
     Serial(SerialOrder),
+    /// Needs the `threads` feature.
+    #[cfg(feature = "threads")]
     Pool(usize),
 }
 
@@ -883,6 +885,7 @@ fn build_packages_inner(
     let exec = |id: TaskId, kind: TaskKind, sp: &dyn Spawn| run.exec(id, kind, sp);
     let left = match host.executor {
         Executor::Serial(order) => SerialScheduler { order }.run(&mut g, &exec),
+        #[cfg(feature = "threads")]
         Executor::Pool(threads) => hd_sched::pool::run_pool(g, threads, &exec).1,
     };
     if left > 0 {

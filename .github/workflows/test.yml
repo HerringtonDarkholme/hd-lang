@@ -48,8 +48,8 @@ jobs:
       - name: Lint
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
-      - name: Build browser-safe syntax crate
-        run: cargo build -p hd_syntax --target wasm32-unknown-unknown
+      - name: Build browser-safe crates
+        run: cargo build -p hd_syntax -p hd_web --target wasm32-unknown-unknown
 
   # CI tests in release for speed (owner, 2026-10-11: dev took 26 min,
   # release 6). Local gates stay in the dev profile, where debug

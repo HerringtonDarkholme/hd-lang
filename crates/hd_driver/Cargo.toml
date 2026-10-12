@@ -7,6 +7,10 @@ rust-version.workspace = true
 description = "The one driver: the task graph of one compile run over the caller's sources, cache store, executor and clock"
 
 [features]
+# Lets `Executor::Pool` run the graph on a rayon thread pool. Without it the
+# driver is serial only, which is what the browser build uses.
+threads = ["hd_sched/threads"]
+default = ["threads"]
 # Runs the tests that compare against the wasmtime engine. A dev-dependency
 # cannot be optional, so the test-only `hd_run_wasmtime` is an optional
 # dependency; the library itself never uses it.
@@ -23,7 +27,7 @@ hd_mono = { path = "../hd_mono" }
 hd_project = { path = "../hd_project" }
 hd_resolve = { path = "../hd_resolve" }
 hd_run_wasmtime = { path = "../hd_run_wasmtime", optional = true }
-hd_sched = { path = "../hd_sched", features = ["threads"] }
+hd_sched = { path = "../hd_sched" }
 hd_structure = { path = "../hd_structure" }
 hd_syntax = { path = "../hd_syntax" }
 hd_tir = { path = "../hd_tir" }
