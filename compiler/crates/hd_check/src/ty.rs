@@ -291,6 +291,20 @@ impl Ck<'_, '_> {
                 }));
             }
         }
+        // `types.generic.too-long`: no more arguments than parameters, in a
+        // type, an alias or a trait alike.
+        if let Some(item) = self.cx.lookup.item(def) {
+            let max = item.generics.iter().filter(|g| !g.row).count();
+            if args.len() > max {
+                let msg = format!(
+                    "`{}` takes {max} type arguments, not {}",
+                    self.cx.names.display_name(def),
+                    args.len()
+                );
+                self.err(Code::ArgumentCount, n, &msg);
+                return Ok(Ty::POISON);
+            }
+        }
         if self.kind_of_item(def) == Some(HeadKind::Trait) {
             if role == NameRole::Type {
                 // A bare trait name in a type position

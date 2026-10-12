@@ -717,14 +717,25 @@ impl Resolver<'_, '_> {
         }
     }
 
+    /// The number of generic parameters a trait declares.
+    fn trait_arity(&self, tr: DefId) -> Option<usize> {
+        if let Some(g) = self.own_traits.get(&tr) {
+            return Some(g.iter().filter(|g| !g.row).count());
+        }
+        self.item(tr)
+            .map(|item| item.generics.iter().filter(|g| !g.row).count())
+    }
+
     /// A written type constructor's arguments with the omitted trailing
     /// ones filled from the declaration's defaults
     /// (`types.generic.default.written`): `Outcome[string]` is
     /// `Result[string, AppError]` for `type Outcome[T, E = AppError]`.
     ///
     /// The second result names the first type parameter left without an
-    /// argument that has no default (`types.generic.default.written-missing`).
-    fn fill_type_args(&self, def: DefId, args: &[Ty]) -> (Vec<Ty>, Option<String>) {
+    /// argument that has no default (`types.generic.default.written-missing`);
+    /// the third is the number of parameters the declaration has
+    /// (`types.generic.too-long`).
+    fn fill_type_args(&self, def: DefId, args: &[Ty]) -> (Vec<Ty>, Option<String>, Option<usize>) {
         let pool = self.cx.names.pool;
         let fill = |generics: &[Generic]| {
             let filled = fill_type_args(pool, def, generics, args);
@@ -733,7 +744,7 @@ impl Resolver<'_, '_> {
                 .skip(filled.len())
                 .find(|g| !g.row && g.default.is_none())
                 .map(|g| self.cx.names.text(g.name).to_owned());
-            (filled, missing)
+            (filled, missing, Some(generics.len()))
         };
         if let Some(g) = self.own_types.borrow().get(&def) {
             return fill(g);
@@ -751,7 +762,7 @@ impl Resolver<'_, '_> {
         });
         match iface.as_ref().and_then(|i| i.item(def)) {
             Some(item) => fill(&item.generics),
-            None => (args.to_vec(), None),
+            None => (args.to_vec(), None, None),
         }
     }
 
@@ -1359,6 +1370,12 @@ impl Lower<'_, '_, '_> {
         }
         let (mut args, written, _) = self.type_args(n, gn);
         args.retain(|a| !matches!(self.names.pool.get(*a), TyData::Row(_)));
+        if let Some(max) = self.r.trait_arity(def)
+            && args.len() > max
+        {
+            self.too_many_args(def, max, args.len(), span);
+            return None;
+        }
         let args = self
             .r
             .fill_trait_args(def, self.names.pool.list(&args), self_ty);
@@ -1556,7 +1573,12 @@ impl Lower<'_, '_, '_> {
             kind,
             HeadKind::Alias | HeadKind::Data | HeadKind::Enum | HeadKind::Newtype
         ) {
-            let (f, missing) = self.r.fill_type_args(def, args);
+            let (f, missing, arity) = self.r.fill_type_args(def, args);
+            // `types.generic.too-long`: no more arguments than parameters.
+            if let Some(max) = arity.filter(|max| args.len() > *max) {
+                self.too_many_args(def, max, args.len(), span);
+                return Ty::POISON;
+            }
             // An alias leaves the parameter unfilled in its body; a data
             // type's own check reports it
             // (`types.generic.default.written-missing`).
@@ -1637,6 +1659,16 @@ impl Lower<'_, '_, '_> {
                 Ty::POISON
             }
         }
+    }
+
+    /// `types.generic.too-long`: a written type or trait with more
+    /// arguments than its declaration has parameters.
+    fn too_many_args(&mut self, def: DefId, max: usize, got: usize, span: Span) {
+        let msg = format!(
+            "`{}` takes {max} type arguments, not {got}",
+            self.names.display_name(def)
+        );
+        self.diags.error(Code::ArgumentCount, span, &msg);
     }
 
     fn named(&mut self, n: NodeRef<'_>, gn: &Gen) -> Ty {

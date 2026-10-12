@@ -134,6 +134,7 @@ mod tuple_template_bounds;
 mod type_arity_written_run;
 mod type_default_written_run;
 mod type_name_forms_run;
+mod type_too_long_run;
 mod typed_facts;
 mod typeid_of;
 mod unread_facts;
