@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2743 | 86 | 16 | 2845 |
+| 2747 | 82 | 16 | 2845 |
 
 ## By Chapter
 
@@ -18,10 +18,10 @@ fixture; unsupported surface records progress without failing.
 | `lang/02-grammar.md` | 213 | 2 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
 | `lang/04-type-system.md` | 341 | 11 | 0 | 352 |
-| `lang/05-expressions.md` | 270 | 7 | 0 | 277 |
+| `lang/05-expressions.md` | 272 | 5 | 0 | 277 |
 | `lang/06-control-flow.md` | 144 | 9 | 4 | 157 |
 | `lang/07-functions.md` | 123 | 7 | 0 | 130 |
-| `lang/08-data-and-enums.md` | 116 | 7 | 0 | 123 |
+| `lang/08-data-and-enums.md` | 118 | 5 | 0 | 123 |
 | `lang/09-traits.md` | 349 | 10 | 0 | 359 |
 | `lang/10-modules.md` | 241 | 13 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 245 | 6 | 8 | 259 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 916 | 1 | 12 | 929 |
-| `typing/invalid` | 998 | 76 | 1 | 1075 |
+| `typing/invalid` | 1002 | 72 | 1 | 1075 |
 | `typing/valid` | 414 | 1 | 0 | 415 |
 | `typing/warnings` | 12 | 8 | 0 | 20 |
 
@@ -75,7 +75,6 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:argument-count` | 4 |
 | `fail:bare-variant-pattern` | 3 |
 | `fail:duplicate-argument` | 1 |
 | `fail:duplicate-data-pattern-field` | 1 |
@@ -100,15 +99,6 @@ compiler stage that first declined the case.
 | `unsupported:Body` | 1 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 11 |
-
-<details><summary><code>fail:argument-count</code> (4)</summary>
-
-- `typing/invalid/variant-duplicate-argument.hd`
-- `typing/invalid/duplicate-argument.hd`
-- `typing/invalid/unknown-named-argument.hd`
-- `typing/invalid/variant-unknown-payload-field.hd`
-
-</details>
 
 <details><summary><code>fail:bare-variant-pattern</code> (3)</summary>
 
@@ -1857,6 +1847,7 @@ typing/invalid/downcast-result-readonly.hd
 typing/invalid/downcast-target-not-inspectable.hd
 typing/invalid/downcast-value-type-target.hd
 typing/invalid/drive-readonly-suspension.hd
+typing/invalid/duplicate-argument.hd
 typing/invalid/duplicate-associated-binding-two-bounds.hd
 typing/invalid/duplicate-associated-binding.hd
 typing/invalid/duplicate-binding-in-one-pattern.hd
@@ -2619,6 +2610,7 @@ typing/invalid/unit-test-real-clock.hd
 typing/invalid/unknown-associated-type.hd
 typing/invalid/unknown-dep-module.hd
 typing/invalid/unknown-literal-suffix.hd
+typing/invalid/unknown-named-argument.hd
 typing/invalid/unknown-package-name.hd
 typing/invalid/unknown-panic-category.hd
 typing/invalid/unknown-pkg-module.hd
@@ -2648,8 +2640,10 @@ typing/invalid/vararg-rest-distinct.hd
 typing/invalid/variance-contravariant-target-result.hd
 typing/invalid/variance-covariant-target-parameter.hd
 typing/invalid/variance-position.hd
+typing/invalid/variant-duplicate-argument.hd
 typing/invalid/variant-pattern-missing-payload.hd
 typing/invalid/variant-result-owner.hd
+typing/invalid/variant-unknown-payload-field.hd
 typing/invalid/written-type-too-many-arguments.hd
 typing/valid/adapter-callback-captured-provider.hd
 typing/valid/all-tuple-result.hd

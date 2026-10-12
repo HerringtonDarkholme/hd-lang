@@ -91,6 +91,7 @@ mod mixed_signedness;
 mod mixed_variant_patterns_run;
 mod module_case_collision;
 mod module_member_run;
+mod named_argument_errors;
 mod nested_interpolation_run;
 mod nested_optional_run;
 mod newtype_derive_run;

@@ -1049,6 +1049,9 @@ impl Ck<'_, '_> {
             };
             self.spread_arg(s, &tys, at, &mut slots, args)?;
         }
+        // A bad named argument already put the call in error, so a slot
+        // it was meant to fill is not also an arity error.
+        let mut named_bad = false;
         for (pname, e) in &args.named {
             let Some(i) = rest
                 .iter()
@@ -1056,11 +1059,13 @@ impl Ck<'_, '_> {
             else {
                 let msg = format!("`{name}` has no parameter `{pname}`");
                 self.err(Code::UnknownNamedArgument, *e, &msg);
+                named_bad = true;
                 continue;
             };
             if slots[i].is_some() {
                 let msg = format!("`{pname}` is given twice");
                 self.err(Code::DuplicateArgument, *e, &msg);
+                named_bad = true;
                 continue;
             }
             let mut w = self.normalize_deep(rest[i].1)?;
@@ -1148,8 +1153,10 @@ impl Ck<'_, '_> {
                     out.push(self.b.emit(Tag::DefaultCall, a, bw, t, n.index()));
                 }
                 None => {
-                    let msg = format!("`{name}` takes {} arguments", rest.len());
-                    self.err(Code::ArgumentCount, n, &msg);
+                    if !named_bad {
+                        let msg = format!("`{name}` takes {} arguments", rest.len());
+                        self.err(Code::ArgumentCount, n, &msg);
+                    }
                     break;
                 }
             }
@@ -2137,6 +2144,7 @@ impl Ck<'_, '_> {
         let names = self.variant_field_names(t, name);
         let mut slots: Vec<Option<Ref>> = vec![None; fields.len()];
         let mut extra = false;
+        let mut named_bad = false;
         for (i, e) in args.positional.iter().enumerate() {
             let ft = fields.get(i).copied();
             let (r, rt) = self.expr(*e, ft)?;
@@ -2149,13 +2157,20 @@ impl Ck<'_, '_> {
             let Some(i) = names.iter().position(|x| x == fname) else {
                 let msg = format!("no field `{fname}` of variant `{name}`");
                 self.err(Code::UnknownDataField, *e, &msg);
+                named_bad = true;
                 continue;
             };
             let ft = fields[i];
+            if slots[i].is_some() {
+                let msg = format!("`{fname}` is given twice");
+                self.err(Code::DuplicateArgument, *e, &msg);
+                named_bad = true;
+                continue;
+            }
             let (r, rt) = self.expr(*e, Some(ft))?;
             slots[i] = Some(self.coerce(r, rt, ft, *e, "payload"));
         }
-        if extra || slots.iter().any(Option::is_none) {
+        if extra || (!named_bad && slots.iter().any(Option::is_none)) {
             let msg = format!("`{name}` takes {} values", fields.len());
             self.err(Code::ArgumentCount, n, &msg);
         }
