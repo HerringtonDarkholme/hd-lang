@@ -2110,10 +2110,7 @@ impl Em<'_> {
 
     /// Adds `by` to the forbidden-context counter.
     fn forbid(&mut self, by: i32) {
-        self.a.global_get(crate::rt::forbid_global());
-        self.a.i32(by);
-        self.a.s().i32_add();
-        self.a.global_set(crate::rt::forbid_global());
+        crate::rt::forbid_by(&mut self.a, by);
     }
 
     /// An omitted argument (`fn.default.eval`, codegen.md §13.13): a
@@ -4122,7 +4119,12 @@ impl<'a> Em<'a> {
             self.a.get(*f);
             self.a.if_();
             self.open(Ctl::Plain);
+            // A `defer` suite is a forbidden context
+            // (`req.drive.block-on.indirect`): `block_on` reached from it
+            // panics. The suite cannot leave early, so the count balances.
+            self.forbid(1);
             self.block_into(*s, None)?;
+            self.forbid(-1);
             self.ctrl.pop();
             self.a.end();
         }
@@ -4956,6 +4958,8 @@ impl FactCell {
         a.set(outer);
         a.call(Sym::Helper(Helper::Lit(label.as_bytes().to_vec())));
         a.global_set(crate::rt::fact_global());
+        // A facts body is a forbidden context (`req.drive.block-on.fact-contexts`).
+        crate::rt::forbid_by(a, 1);
         outer
     }
 
@@ -4974,6 +4978,7 @@ impl FactCell {
         a.global_set(self.global(self.results.len()));
         a.get(outer);
         a.global_set(crate::rt::fact_global());
+        crate::rt::forbid_by(a, -1);
         for l in &held {
             a.get(*l);
         }
@@ -5587,15 +5592,14 @@ pub fn entry(
     main: DefId,
     key: hd_base::Hash128,
     inits: &[hd_base::Hash128],
+    entry_init: Option<hd_base::Hash128>,
     report: Option<hd_base::Hash128>,
 ) -> StageResult<Vec<(String, Helper)>> {
+    // Only the entry module's own init may use `block_on`
+    // (`req.drive.block-on.forbidden-contexts`).
+    let inits = inits.iter().map(|k| (*k, Some(*k) != entry_init)).collect();
     Ok(vec![
-        (
-            "hd.init".into(),
-            Helper::EntryInit {
-                inits: inits.to_vec(),
-            },
-        ),
+        ("hd.init".into(), Helper::EntryInit { inits }),
         (
             "hd.poll".into(),
             root_poll(pool, env, path, main, key, report)?,
@@ -5616,7 +5620,12 @@ pub fn script_entry(
     key: hd_base::Hash128,
     inits: &[hd_base::Hash128],
 ) -> StageResult<Vec<(String, Helper)>> {
-    let others: Vec<hd_base::Hash128> = inits.iter().copied().filter(|k| *k != key).collect();
+    let others: Vec<(hd_base::Hash128, bool)> = inits
+        .iter()
+        .copied()
+        .filter(|k| *k != key)
+        .map(|k| (k, true))
+        .collect();
     Ok(vec![
         ("hd.init".into(), Helper::EntryInit { inits: others }),
         (
@@ -5641,7 +5650,11 @@ pub fn test_entry(
     for (j, ks) in inits.iter().enumerate() {
         out.push((
             format!("hd.init.{j}"),
-            Helper::EntryInit { inits: ks.clone() },
+            // The module under test is not an entry module
+            // (`module.init.tests.no-entry`), so every init is forbidden.
+            Helper::EntryInit {
+                inits: ks.iter().map(|k| (*k, true)).collect(),
+            },
         ));
     }
     for (i, (def, key, report)) in cases.iter().enumerate() {

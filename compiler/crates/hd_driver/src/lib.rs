@@ -469,6 +469,8 @@ enum Roots {
     Main {
         def: DefId,
         key: Hash128,
+        /// The entry module's own init, the one init that may `block_on`.
+        entry_init: Option<Hash128>,
         report: Option<Hash128>,
     },
     /// A script: its init, which runs its top-level statements after the
@@ -3670,6 +3672,7 @@ impl Run<'_> {
             Goal::Program { .. } => Roots::Main {
                 def: root,
                 key: collected.table.key[0],
+                entry_init: key_of_init(&init_of(&entry_key)),
                 report: reports[0].as_ref().and_then(key_of_extra),
             },
             _ => Roots::Tests {
@@ -4146,13 +4149,19 @@ impl Run<'_> {
         let names = self.names();
         let path = |d: DefId| names.path(d);
         let exports = match &c.roots {
-            Roots::Main { def, key, report } => hd_wasm::entry(
+            Roots::Main {
+                def,
+                key,
+                entry_init,
+                report,
+            } => hd_wasm::entry(
                 &self.pool,
                 &env,
                 &path,
                 *def,
                 *key,
                 &c.collected.inits,
+                *entry_init,
                 *report,
             ),
             Roots::Script { def, key } => {

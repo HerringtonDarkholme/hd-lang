@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2675 | 149 | 21 | 2845 |
+| 2676 | 148 | 21 | 2845 |
 
 ## By Chapter
 
@@ -19,7 +19,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/03-names-and-scopes.md` | 100 | 1 | 0 | 101 |
 | `lang/04-type-system.md` | 327 | 25 | 0 | 352 |
 | `lang/05-expressions.md` | 261 | 16 | 0 | 277 |
-| `lang/06-control-flow.md` | 140 | 13 | 4 | 157 |
+| `lang/06-control-flow.md` | 141 | 12 | 4 | 157 |
 | `lang/07-functions.md` | 120 | 10 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 114 | 8 | 1 | 123 |
 | `lang/09-traits.md` | 345 | 12 | 2 | 359 |
@@ -62,7 +62,7 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 99 | 3 | 3 | 105 |
+| `runtime/panic` | 100 | 2 | 3 | 105 |
 | `runtime/valid` | 903 | 10 | 16 | 929 |
 | `typing/invalid` | 967 | 107 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
@@ -95,7 +95,7 @@ compiler stage that first declined the case.
 | `fail:private-main` | 3 |
 | `fail:re-export-loop` | 1 |
 | `fail:readonly-root` | 1 |
-| `fail:runtime-exit` | 3 |
+| `fail:runtime-exit` | 2 |
 | `fail:stdout` | 1 |
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
@@ -298,9 +298,8 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:runtime-exit</code> (3)</summary>
+<details><summary><code>fail:runtime-exit</code> (2)</summary>
 
-- `runtime/panic/defer-block-on-indirect.hd`
 - `runtime/panic/list-view-reversed.hd`
 - `runtime/panic/list-view-index-out-of-bounds.hd`
 
@@ -802,6 +801,7 @@ runtime/panic/char-to-digit-radix-low.hd
 runtime/panic/cli-duplicate-option.hd
 runtime/panic/cmp-clamp-reversed.hd
 runtime/panic/compound-assign-map-missing-key.hd
+runtime/panic/defer-block-on-indirect.hd
 runtime/panic/defer-cancels-active-ancestor.hd
 runtime/panic/deque-invalidated.hd
 runtime/panic/doc-test-failing-assert.hd

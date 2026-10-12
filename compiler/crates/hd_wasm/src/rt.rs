@@ -155,6 +155,14 @@ pub fn forbid_global() -> GSym {
     GSym::Rt("forbid".into(), VT::I32)
 }
 
+/// Adds `by` to the forbidden-context counter.
+pub fn forbid_by(a: &mut Asm, by: i32) {
+    a.global_get(forbid_global());
+    a.i32(by);
+    a.s().i32_add();
+    a.global_set(forbid_global());
+}
+
 /// The entry's pending root suspension, for `main!` or a test body.
 /// Completion releases the root so a retained test instance can run again.
 #[must_use]
@@ -356,8 +364,10 @@ pub enum Helper {
         keys: u32,
         provs: Vec<u32>,
     },
-    /// `hd.init`: every reachable group's init, in order.
-    EntryInit { inits: Vec<Hash128> },
+    /// `hd.init`: every reachable group's init, in order. A flagged init
+    /// belongs to a non-entry module and runs as a forbidden context
+    /// (`req.drive.block-on.forbidden-contexts`).
+    EntryInit { inits: Vec<(Hash128, bool)> },
     /// `hd.poll`: builds the default profile's providers and runs `main`,
     /// or polls `main!`'s root (`bang` is its `$Suspend_L`); `-1` while
     /// pending, else the exit status.
@@ -671,8 +681,9 @@ impl Helper {
             Helper::EntryInit { inits } => {
                 w.u8(18);
                 w.len_of(inits);
-                for k in inits {
+                for (k, forbid) in inits {
                     w.hash(*k);
+                    w.u8(u8::from(*forbid));
                 }
             }
             Helper::EntryPoll {
@@ -839,7 +850,7 @@ impl Helper {
                 }
             }
             18 => Helper::EntryInit {
-                inits: (0..r.count()).map(|_| r.hash()).collect(),
+                inits: (0..r.count()).map(|_| (r.hash(), r.u8() != 0)).collect(),
             },
             19 => Helper::EntryWake,
             9 => Helper::Adapter {
@@ -1459,8 +1470,14 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
         }
         Helper::EntryInit { inits } => {
             let mut a = Asm::new(vec![]);
-            for k in inits {
+            for (k, forbid) in inits {
+                if *forbid {
+                    forbid_by(&mut a, 1);
+                }
                 a.call(Sym::Inst(*k));
+                if *forbid {
+                    forbid_by(&mut a, -1);
+                }
             }
             a.finish(vec![])
         }

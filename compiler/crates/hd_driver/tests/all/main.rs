@@ -45,6 +45,7 @@ mod failed_use;
 mod float_patterns_run;
 mod float_run;
 mod float_text;
+mod forbidden_context_run;
 mod function_reference_builtin_methods;
 mod function_reference_lowered;
 mod function_references;
