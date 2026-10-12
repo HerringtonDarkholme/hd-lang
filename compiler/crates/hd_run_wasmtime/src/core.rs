@@ -963,15 +963,16 @@ mod tests {
                     &mut workers,
                 );
                 // Observe reaping before cleanup so cleanup cannot make the
-                // assertion pass. Always release the fixture before asserting.
+                // assertion pass. Bind the observations to locals, release
+                // the fixture, and only then assert, so a failure cannot
+                // leave the `sleep 2` child unreaped by this test.
                 let reaped = waitpid(pid, Some(WaitPidFlag::WNOHANG));
+                let observed_attempts = workers.attempts;
+                let observed_error = result.unwrap_err().to_string();
                 let _ = child.kill();
                 let _ = child.wait();
-                assert_eq!(workers.attempts, fail_at);
-                assert_eq!(
-                    result.unwrap_err().to_string(),
-                    "injected pipe-worker creation failure"
-                );
+                assert_eq!(observed_attempts, fail_at);
+                assert_eq!(observed_error, "injected pipe-worker creation failure");
                 assert_eq!(
                     reaped,
                     Err(nix::errno::Errno::ECHILD),

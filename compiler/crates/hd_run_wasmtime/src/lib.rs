@@ -797,6 +797,42 @@ mod tests {
                 request.done(),
                 vec![ValType::I32, ValType::F64],
             ),
+            (
+                "hd:Process",
+                "run.start",
+                marker.as_slice(),
+                vec![ValType::I32],
+            ),
+            (
+                "hd:Http",
+                "send.start",
+                marker.as_slice(),
+                vec![ValType::I32],
+            ),
+            (
+                "hd:Net",
+                "connect.start",
+                marker.as_slice(),
+                vec![ValType::I32],
+            ),
+            (
+                "hd:Clock",
+                "sleep.start",
+                marker.as_slice(),
+                vec![ValType::I32],
+            ),
+            (
+                "hd:ConsoleInput",
+                "read_line.start",
+                marker.as_slice(),
+                vec![ValType::I32],
+            ),
+            (
+                "hd:rt",
+                "block",
+                marker.as_slice(),
+                vec![ValType::I32, ValType::I32],
+            ),
         ] {
             let wasm = malformed_reply_module(module, name, payload, &results);
             let program = engine.load(&wasm, &MemoryStore::default()).unwrap();
@@ -820,8 +856,9 @@ mod tests {
                 )
                 .unwrap();
             assert_eq!(instance.init(), Outcome::Exit(3), "{module} {name}");
-            // Console start must not even enqueue work that was silently
-            // lost at teardown; stdout emptiness alone cannot prove this.
+            // A rejected shape must cause no provider effects at all, not
+            // merely empty output: no queued work, no process spawn, no
+            // sleep armed, no reader thread, no socket opened.
             assert!(!instance.store.data().waiting(), "{module} {name}");
             assert!(out.take().is_empty(), "{module} {name}");
             let error = String::from_utf8(err.take()).unwrap();
@@ -938,8 +975,9 @@ mod tests {
         use hd_run::{HostSetup, Instance, Outcome};
         use std::task::Poll;
         use wasm_encoder::{
-            BlockType, CodeSection, ExportKind, ExportSection, Function, FunctionSection,
-            Instruction as I, Module as Wasm, TypeSection, ValType,
+            BlockType, CodeSection, ConstExpr, ExportKind, ExportSection, Function,
+            FunctionSection, GlobalSection, GlobalType, Instruction as I, Module as Wasm,
+            TypeSection, ValType,
         };
 
         let mut types = TypeSection::new();
@@ -948,6 +986,15 @@ mod tests {
         types.ty().function([ValType::I32], []);
         let mut functions = FunctionSection::new();
         functions.function(0).function(1).function(2);
+        let mut globals = GlobalSection::new();
+        globals.global(
+            GlobalType {
+                val_type: ValType::I32,
+                mutable: true,
+                shared: false,
+            },
+            &ConstExpr::i32_const(0),
+        );
         let mut exports = ExportSection::new();
         exports.export("hd.init", ExportKind::Func, 0);
         exports.export("hd.poll", ExportKind::Func, 1);
@@ -955,10 +1002,17 @@ mod tests {
         let mut init = Function::new([]);
         init.instruction(&I::End);
         let mut poll = Function::new([]);
-        poll.instruction(&I::I32Const(7)).instruction(&I::End);
+        poll.instruction(&I::GlobalGet(0))
+            .instruction(&I::I32Const(7))
+            .instruction(&I::I32Add)
+            .instruction(&I::End);
         let mut wake = Function::new([]);
-        // An empty delivery still invokes hd.wake with count zero.
-        wake.instruction(&I::LocalGet(0))
+        // An empty delivery still invokes hd.wake with count zero: the
+        // marker proves the call happened, and the absent trap proves the
+        // count was zero.
+        wake.instruction(&I::I32Const(5))
+            .instruction(&I::GlobalSet(0))
+            .instruction(&I::LocalGet(0))
             .instruction(&I::If(BlockType::Empty))
             .instruction(&I::Unreachable)
             .instruction(&I::End)
@@ -968,6 +1022,7 @@ mod tests {
         let mut wasm = Wasm::new();
         wasm.section(&types)
             .section(&functions)
+            .section(&globals)
             .section(&exports)
             .section(&code);
         let engine = WasmtimeEngine::new(EngineConfig::default()).unwrap();
@@ -993,7 +1048,7 @@ mod tests {
             .unwrap();
         assert_eq!(instance.init(), Outcome::Exit(0));
         instance.wake(&[]);
-        assert_eq!(instance.poll(), Poll::Ready(Outcome::Exit(7)));
+        assert_eq!(instance.poll(), Poll::Ready(Outcome::Exit(12)));
     }
 
     #[test]

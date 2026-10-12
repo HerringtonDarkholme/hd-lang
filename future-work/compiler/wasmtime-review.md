@@ -25,6 +25,10 @@ host: correctness of verdicts first, fixture robustness second.
    assert on the locals (the `waitpid`-before-cleanup proof is
    preserved, since the observation already happened).
 
+   Fixed (M45): the test binds `waitpid`, `attempts`, and the error
+   string to locals, releases the fixture (`kill`/`wait`), then asserts
+   on the locals.
+
 2. Fixture budget assert races the read it guards
    (`compiler/crates/hd_run_wasmtime/src/http/test_support.rs:44-47`).
    `read_request` asserts the 2 s budget remains, then calls
@@ -33,6 +37,9 @@ host: correctness of verdicts first, fixture robustness second.
    the "request completes within fixture budget" message. Bounded either
    way (no hang), but the failure misdirects. Fix: map the read error
    to a panic carrying the budget message.
+
+   Fixed (M45): non-`Interrupted` read errors panic with the budget
+   message; `Interrupted` retries inside the same budget check.
 
 3. `empty_wake_batch_does_not_require_an_exchange_buffer` does not prove
    invocation (`compiler/crates/hd_run_wasmtime/src/lib.rs:937-997`).
@@ -45,6 +52,10 @@ host: correctness of verdicts first, fixture robustness second.
    `Exit(85)` test next door does for its batch), or narrow the
    comment to what `Exit(7)`-without-trap proves.
 
+   Fixed (M45): the guest sets a mutable-global marker inside `wake`
+   and `poll` returns marker + 7 (`Exit(12)`), so the exit code proves
+   invocation; the non-trapping `If` still proves the count was zero.
+
 4. `malformed_reply_shapes_fail_before_output_or_filesystem_effects`
    covers 3 of 12+ import kinds
    (`compiler/crates/hd_run_wasmtime/src/lib.rs:760-843`). The six table
@@ -55,6 +66,10 @@ host: correctness of verdicts first, fixture robustness second.
    untested. The ordering guarantee is generic, so this is coverage
    debt, not a suspected bug. Fix: extend the table (the harness makes
    each row cheap) or scope the name to the representative set.
+
+   Fixed (M45): the table grows from 6 to 12 rows, adding
+   `Process/run.start`, `Http/send.start`, `Net/connect.start`,
+   `Clock/sleep.start`, `ConsoleInput/read_line.start`, and `rt/block`.
 
 5. Workspace members after the first compile untracked under
    `--max-memory` (`compiler/crates/hd_cli/src/memory_cap.rs:390-396`,

@@ -44,7 +44,13 @@ pub(crate) fn read_request(stream: &mut TcpStream) -> Vec<u8> {
             "request completes within fixture budget"
         );
         stream.set_read_timeout(Some(remaining)).unwrap();
-        let n = stream.read(&mut buf).unwrap();
+        let n = loop {
+            match stream.read(&mut buf) {
+                Ok(n) => break n,
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(error) => panic!("request completes within fixture budget: {error}"),
+            }
+        };
         assert_ne!(n, 0);
         bytes.extend_from_slice(&buf[..n]);
         if let Some(end) = header_end(&bytes) {
