@@ -2212,6 +2212,68 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// `module.dbg.debug-hint`: whether `e` is a call of the prelude
+    /// function `debug`, by declaration identity and not by spelling.
+    fn is_prelude_debug_call(&self, e: NodeRef<'_>) -> bool {
+        let call = match e.kind() {
+            SyntaxKind::CallExpr => e,
+            SyntaxKind::TrailingCallExpr => {
+                match e.children().find(|c| c.kind() == SyntaxKind::CallExpr) {
+                    Some(c) => c,
+                    None => return false,
+                }
+            }
+            _ => return false,
+        };
+        let Some(mut callee) = call.children().next() else {
+            return false;
+        };
+        if callee.kind() == SyntaxKind::TypeArgsExpr {
+            let Some(inner) = callee.children().next() else {
+                return false;
+            };
+            callee = inner;
+        }
+        if callee.kind() == SyntaxKind::SuspendExpr {
+            let Some(inner) = callee.children().next() else {
+                return false;
+            };
+            callee = inner;
+        }
+        let debug_def = self.cx.names.item("std.format", "debug");
+        let at = self.cx.src.span(callee).lo;
+        match callee.kind() {
+            SyntaxKind::NameExpr => {
+                let sym = self
+                    .cx
+                    .names
+                    .syms
+                    .intern(self.cx.src.text(self.cx.src.first(callee)));
+                if self.find_local(sym).is_some() {
+                    return false;
+                }
+                if hd_resolve::local_at(self.cx.locals, sym, at).is_some() {
+                    return false;
+                }
+                let scope = self.cx.scope_at(at);
+                match scope.lookup(sym) {
+                    Some(b) if b.kind == hd_resolve::BindingKind::Item => {
+                        DefId::from_raw(b.value) == debug_def
+                    }
+                    _ => false,
+                }
+            }
+            SyntaxKind::FieldExpr | SyntaxKind::PathExpr => {
+                let segs = self.segments_expr(callee);
+                match self.resolve_path(&segs) {
+                    Some(def) => def == debug_def,
+                    None => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
     fn stmt_node(&mut self, s: NodeRef<'_>) -> StageResult<Ty> {
         self.charge()?;
         let kids: Vec<NodeRef<'_>> = s.children().collect();
@@ -2229,6 +2291,18 @@ impl Ck<'_, '_> {
                         self.show(t)
                     );
                     self.err(Code::DiscardedMustUseValue, *e, &msg);
+                }
+                // `module.dbg.debug-hint`: an expression statement that
+                // calls the prelude function `debug` discards its text.
+                if self.is_prelude_debug_call(*e) {
+                    let span = self.cx.src.span(*e);
+                    self.diags.push(
+                        Code::UnusedDebugText,
+                        hd_diag::Severity::Warning,
+                        span,
+                        "a `debug(...)` statement discards its text; use `dbg(...)` to print it",
+                        None,
+                    );
                 }
                 return Ok(if t == Ty::NEVER { Ty::NEVER } else { Ty::VOID });
             }

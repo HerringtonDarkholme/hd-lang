@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2781 | 48 | 16 | 2845 |
+| 2782 | 47 | 16 | 2845 |
 
 ## By Chapter
 
@@ -23,7 +23,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/07-functions.md` | 126 | 4 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 120 | 3 | 0 | 123 |
 | `lang/09-traits.md` | 352 | 7 | 0 | 359 |
-| `lang/10-modules.md` | 247 | 7 | 4 | 258 |
+| `lang/10-modules.md` | 248 | 6 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 250 | 1 | 8 | 259 |
 | `lang/14-annotations.md` | 146 | 7 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
@@ -66,7 +66,7 @@ fixture; unsupported surface records progress without failing.
 | `runtime/valid` | 917 | 0 | 12 | 929 |
 | `typing/invalid` | 1034 | 40 | 1 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
-| `typing/warnings` | 12 | 8 | 0 | 20 |
+| `typing/warnings` | 13 | 7 | 0 | 20 |
 
 ## Failure Buckets
 
@@ -78,7 +78,7 @@ compiler stage that first declined the case.
 | `fail:missing-required-field` | 2 |
 | `fail:missing-requirement` | 1 |
 | `fail:missing-supertrait-implementation` | 2 |
-| `fail:no-diagnostic` | 33 |
+| `fail:no-diagnostic` | 32 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-main` | 1 |
 | `fail:re-export-loop` | 1 |
@@ -110,7 +110,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (33)</summary>
+<details><summary><code>fail:no-diagnostic</code> (32)</summary>
 
 - `typing/warnings/unreachable-code.hd`
 - `typing/invalid/unknown-annotation-member.hd`
@@ -140,7 +140,6 @@ compiler stage that first declined the case.
 - `typing/invalid/ambiguous-requirement-key-solution.hd`
 - `typing/invalid/module-named-pkg.hd`
 - `typing/invalid/script-test-init-requirement.hd`
-- `typing/warnings/unused-debug-text.hd`
 - `typing/invalid/assoc-call-parameter-two-bounds.hd`
 - `typing/invalid/uninhabited-binding.hd`
 - `typing/invalid/trait-assoc-call-self-undetermined.hd`
@@ -3009,6 +3008,7 @@ typing/warnings/private-main.hd
 typing/warnings/redundant-let-mut.hd
 typing/warnings/same-line-let-list-unused.hd
 typing/warnings/unused-after-rejected-trials.hd
+typing/warnings/unused-debug-text.hd
 typing/warnings/unused-local-binding.hd
 typing/warnings/unused-nested-optional-binding.hd
 ```
