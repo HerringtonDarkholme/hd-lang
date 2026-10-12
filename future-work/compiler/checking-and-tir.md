@@ -194,7 +194,13 @@ row parameter the body uses outside its own `$.with` blocks.
   capture nothing and execute nothing
   (`names.local-type.static`); a local `fn` lowers as a named
   `Closure` value with closure captures and a self-visible name
-  (`fn.local.capture-rules`, unlike anonymous closures); a local
+  (`fn.local.capture-rules`, unlike anonymous closures). A generic
+  local `fn` is checked once over its own type parameters, which
+  continue the body owner's parameter numbers; its sub-body is
+  generic (`sub_flags::GENERIC`), its defining `Closure` makes no
+  value, and each use is a `Closure` that names its type arguments
+  and takes the declaration's captures, which collection instantiates
+  like any generic item (`fn.type.generic.*` for a use as a value); a local
   `impl` emits no item and captures nothing
   (`names.local-impl.static`, `names.local-impl.no-capture`) — it
   extends the lexical impl-table overlay to the suite's end, so

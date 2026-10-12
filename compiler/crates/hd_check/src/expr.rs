@@ -2529,6 +2529,7 @@ impl Ck<'_, '_> {
                 .is_some(),
             name: None,
             reassignable: false,
+            generic: None,
         })
     }
 
@@ -2555,6 +2556,7 @@ impl Ck<'_, '_> {
             suspends,
             name: None,
             reassignable: false,
+            generic: None,
         };
         self.closure_of(block, &parts, Some(want))
     }
@@ -2691,6 +2693,16 @@ impl Ck<'_, '_> {
             l
         });
         let mark = self.b.open_sub(&params);
+        // A generic local function's name: what its uses instantiate, over
+        // its type so far (the written result and row), for a recursive
+        // call in its body.
+        if let (Some(l), Some(g)) = (own, &parts.generic) {
+            let mut g = g.clone();
+            g.sub = mark.sub().raw();
+            g.fn_ty = self.b.local_ty(l);
+            g.open = true;
+            self.local_generics.insert(l, g);
+        }
         self.subs.push(OpenSub {
             mark,
             depth: self.scopes.len() - 1,
@@ -3191,4 +3203,7 @@ pub(crate) struct ClosureParts<'t> {
     /// Whether that local is a `let` binding, which `=` may reassign
     /// (`fn.recursion.closure.let`), not a `:=` or a local function.
     pub reassignable: bool,
+    /// A generic local function's own type parameters: its name is
+    /// instantiated at each use, never read as one closure value.
+    pub generic: Option<crate::local::LocalGeneric>,
 }

@@ -406,6 +406,17 @@ pub mod local_flags {
     pub const SHORT: u8 = 64;
 }
 
+/// Sub-body flags (u8).
+pub mod sub_flags {
+    /// A generic local function's body (`fn.local.declare` with its own
+    /// type parameters), checked once over them. Its defining `Closure`
+    /// (record: capture start, capture count) makes no value. Each use is
+    /// a `Closure` of the same sub whose record adds the index of the
+    /// function's first own type parameter and its type arguments; that
+    /// value's code is the body's instance at those arguments.
+    pub const GENERIC: u8 = 1;
+}
+
 /// A suspension point's side record (16 bytes).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(C)]
@@ -485,6 +496,59 @@ impl Body {
         &self.extra[at as usize + 1..at as usize + 1 + n]
     }
 
+    /// Whether sub-body `sub` is a generic local function's
+    /// ([`sub_flags::GENERIC`]).
+    #[must_use]
+    pub fn sub_is_generic(&self, sub: usize) -> bool {
+        self.sub_flags
+            .get(sub)
+            .is_some_and(|f| f & sub_flags::GENERIC != 0)
+    }
+
+    /// Whether `Closure` instruction `i` instantiates a generic local
+    /// function: its record holds the instantiation
+    /// ([`sub_flags::GENERIC`]).
+    #[must_use]
+    pub fn is_instantiation(&self, i: usize) -> bool {
+        self.tags[i] == Tag::Closure && self.record(self.data[i][1]).len() == 4
+    }
+
+    /// Each instruction's sub-body: the one whose root block holds it,
+    /// directly or through nested blocks. A block's members precede it,
+    /// so one backward pass settles every instruction.
+    #[must_use]
+    pub fn inst_subs(&self) -> Vec<u32> {
+        let n = self.len();
+        let mut owner = vec![NONE; n];
+        for (i, tag) in self.tags.iter().enumerate() {
+            if *tag == Tag::Block {
+                for &c in self.record(self.data[i][0]) {
+                    if let Some(o) = owner.get_mut(c as usize) {
+                        *o = u32::try_from(i).expect("insts");
+                    }
+                }
+            }
+        }
+        let mut root_of = vec![NONE; n];
+        for (k, &r) in self.sub_root.iter().enumerate() {
+            if let Some(x) = root_of.get_mut(r as usize) {
+                *x = u32::try_from(k).expect("subs");
+            }
+        }
+        let mut out = vec![0; n];
+        for i in (0..n).rev() {
+            let o = owner[i] as usize;
+            out[i] = if root_of[i] != NONE {
+                root_of[i]
+            } else if o < n {
+                out[o]
+            } else {
+                0
+            };
+        }
+        out
+    }
+
     /// The value operands of instruction `i` that compute one result from
     /// values and own no block, label or local (an erased body outlines
     /// such an instruction, codegen.md §13.5.1), in the order emission
@@ -557,6 +621,14 @@ pub struct LoopMark(pub LabelId);
 pub struct Slot(u32);
 #[derive(Clone, Copy, Debug)]
 pub struct SubMark(SubId, u32);
+
+impl SubMark {
+    /// The sub-body this mark opened.
+    #[must_use]
+    pub fn sub(self) -> SubId {
+        self.0
+    }
+}
 
 /// What the checker calls (§4.13.11 "The Builder API"). `TirBuilder`
 /// implements it; a discarding sink implements it for no-emit mode.

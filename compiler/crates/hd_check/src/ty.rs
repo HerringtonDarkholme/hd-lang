@@ -561,7 +561,7 @@ impl Ck<'_, '_> {
         })
     }
 
-    fn ty_node_as(&mut self, n: NodeRef<'_>, role: NameRole) -> StageResult<Ty> {
+    pub(crate) fn ty_node_as(&mut self, n: NodeRef<'_>, role: NameRole) -> StageResult<Ty> {
         let pool = self.pool();
         let first = |me: &mut Self, n: NodeRef<'_>| -> StageResult<Ty> {
             match n.children().find(|c| c.kind().is_type()) {

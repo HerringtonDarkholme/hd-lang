@@ -736,6 +736,10 @@ impl Em<'_> {
                 self.store(i)?;
             }
             Tag::NewMap => self.map_literal(i, &self.rec(bw), ty)?,
+            // A generic local function's defining closure makes no value;
+            // each use instantiates it (`sub_flags::GENERIC`).
+            Tag::Closure
+                if self.b.sub_is_generic(a as usize) && !self.b.is_instantiation(i as usize) => {}
             Tag::Closure => self.closure(i, bw, ty)?,
             // No captures: a bound reference is a `Closure` (§13.11).
             Tag::ItemRef => self.closure_value(i, 0..0, ty)?,
@@ -3741,9 +3745,13 @@ pub fn signature(
     }
 }
 
-/// The `Closure` instruction whose body is sub-body `sub`.
+/// The defining `Closure` instruction of sub-body `sub`, not an
+/// instantiation of a generic local function.
 fn closure_of(b: &Body, sub: u16) -> StageResult<usize> {
-    match (0..b.len()).find(|&i| b.tags[i] == Tag::Closure && b.data[i][0] == u32::from(sub)) {
+    let defining = |i: usize| {
+        b.tags[i] == Tag::Closure && b.data[i][0] == u32::from(sub) && !b.is_instantiation(i)
+    };
+    match (0..b.len()).find(|&i| defining(i)) {
         Some(ci) => Ok(ci),
         None => unsupported("a closure body without its closure"),
     }

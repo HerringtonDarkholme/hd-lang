@@ -86,6 +86,11 @@ impl Ck<'_, '_> {
 
     pub(crate) fn rollback(&mut self, c: Checkpoint) {
         self.b.rollback(c.tir);
+        // A generic local function declared in the trial is gone with its
+        // local, whose number a later local reuses.
+        let locals = c.tir.locals as usize;
+        self.local_generics.retain(|l, _| l.idx() < locals);
+        self.generic_recheck.retain(|l| l.idx() < locals);
         self.b.body_mut().local_flags[..c.flags.len()].copy_from_slice(&c.flags);
         self.infer.rollback_trial(c.infer);
         self.diags.truncate(c.diags);

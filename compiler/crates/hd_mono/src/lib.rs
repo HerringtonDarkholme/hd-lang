@@ -1639,8 +1639,9 @@ impl Cx<'_> {
             }
             Sub::Body(_) | Sub::Adapter => {}
         }
+        let hidden = hidden_insts(body, sub);
         for i in 0..body.len() {
-            if only.is_some_and(|o| o != i) {
+            if only.is_some_and(|o| o != i) || hidden.as_ref().is_some_and(|h| h[i]) {
                 continue;
             }
             let ty = s(body.ty[i]);
@@ -1775,7 +1776,29 @@ impl Cx<'_> {
                 }
                 Tag::Closure => {
                     let sub_k = u16::try_from(a).expect("subs");
-                    let key = self.push(item, Sub::Body(sub_k), args, id)?;
+                    let inst = body.is_instantiation(i);
+                    // A generic local function's defining closure makes
+                    // no value; each use instantiates it (`sub_flags::GENERIC`).
+                    if body.sub_is_generic(usize::from(sub_k)) && !inst {
+                        continue;
+                    }
+                    let targs = if inst {
+                        // Its own parameters follow the instance's: the
+                        // arguments before them are this instance's, those
+                        // of sibling local functions' slots unused.
+                        let rec = body.record(b);
+                        let owner = env.generics_owner(item);
+                        let base = env.parent(owner).map_or(0, |p| p.1) + rec[2] as usize;
+                        let cur = pool.list_items(args);
+                        let mut v: Vec<Ty> = (0..base)
+                            .map(|j| cur.get(j).copied().unwrap_or(Ty::VOID))
+                            .collect();
+                        v.extend(pool.list_items(TyList(rec[3])).iter().copied().map(s));
+                        pool.list(&v)
+                    } else {
+                        args
+                    };
+                    let key = self.push(item, Sub::Body(sub_k), targs, id)?;
                     calls.insert(ix, Target::Closure(key));
                 }
                 // A function reference is a closure whose code is the
@@ -1873,6 +1896,62 @@ impl Cx<'_> {
         self.out.callee_reps[id.idx()] = reps.finish();
         Ok(())
     }
+}
+
+/// The instructions an instance of `sub` does not reach: those inside a
+/// generic local function's body (`sub_flags::GENERIC`) that is neither
+/// `sub` nor a sub enclosing it, so the instance's arguments bind none of
+/// that function's own type parameters. `None` when the body has no
+/// generic local function.
+fn hidden_insts(body: &Body, sub: Sub) -> Option<Vec<bool>> {
+    let n = body.sub_root.len();
+    if !(0..n).any(|k| body.sub_is_generic(k)) {
+        return None;
+    }
+    let subs = body.inst_subs();
+    // A sub's parent is the sub holding its defining closure, opened
+    // before it, so it has the smaller number.
+    let mut parent = vec![0usize; n];
+    for (i, &s) in subs.iter().enumerate() {
+        if body.tags[i] == Tag::Closure && !body.is_instantiation(i) {
+            let k = body.data[i][0] as usize;
+            if k < n && (s as usize) < k {
+                parent[k] = s as usize;
+            }
+        }
+    }
+    let k = match sub {
+        Sub::Body(k) => usize::from(k).min(n - 1),
+        _ => 0,
+    };
+    let mut visible = vec![false; n];
+    let mut c = k;
+    loop {
+        visible[c] = true;
+        if c == 0 {
+            break;
+        }
+        c = parent[c];
+    }
+    let hidden_sub: Vec<bool> = (0..n)
+        .map(|s| {
+            let mut c = s;
+            loop {
+                if body.sub_is_generic(c) && !visible[c] {
+                    return true;
+                }
+                if c == 0 {
+                    return false;
+                }
+                c = parent[c];
+            }
+        })
+        .collect();
+    Some(
+        subs.iter()
+            .map(|&s| hidden_sub.get(s as usize).copied().unwrap_or(false))
+            .collect(),
+    )
 }
 
 /// Whether a body may run other code: a call of any form, or a map

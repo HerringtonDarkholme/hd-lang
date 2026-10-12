@@ -293,6 +293,19 @@ pub(crate) struct Ck<'a, 'c> {
     /// Calls of open rows under a written row: each edge and that row,
     /// checked once the open rows are solved.
     pub row_waits: Vec<(crate::results::RowEdge, RowId)>,
+    /// The generic local functions declared so far, by their name's local
+    /// (`sub_flags::GENERIC`): a read of one instantiates it.
+    pub local_generics: HashMap<LocalId, crate::local::LocalGeneric>,
+    /// The owner of the body's type parameters, whose parameter numbers a
+    /// generic local function's own parameters continue
+    /// (`hd_mono::subst`).
+    pub gen_owner: DefId,
+    /// The next free parameter number of `gen_owner`.
+    pub next_gen: u16,
+    /// The generic local functions used from a closure inside their own
+    /// body before their captures were known: each body is checked again
+    /// with them.
+    pub generic_recheck: Vec<LocalId>,
 }
 
 /// A node index kept for a later diagnostic.
@@ -411,6 +424,10 @@ pub(crate) fn new_ck<'a, 'c>(
         module: cx.names.module_node(item),
         registering: false,
         row_waits: Vec::new(),
+        local_generics: HashMap::new(),
+        gen_owner: env,
+        next_gen: 0,
+        generic_recheck: Vec::new(),
     };
     // No local declaration holds byte 0: every local impl starts hidden.
     ck.move_to(0);
@@ -484,7 +501,9 @@ pub(crate) fn new_ck<'a, 'c>(
         None => it.generics.clone(),
     };
     ck.add_generics(env, 0, &gs);
-    // The environment is frozen from here: its memo key, once per body.
+    ck.next_gen = u16::try_from(gs.len()).unwrap_or(u16::MAX);
+    // The environment is frozen from here: its memo key, once per body (a
+    // generic local function's bounds renew it).
     ck.env.key = Some(cx.global.env_key(&ck.env));
     ck
 }
@@ -1009,6 +1028,10 @@ impl Ck<'_, '_> {
 
     /// Reads a local, capturing it into every open closure it crosses.
     pub(crate) fn read_local(&mut self, l: LocalId, depth: usize, n: NodeRef<'_>) -> (Ref, Ty) {
+        // A generic local function is instantiated at each use.
+        if self.local_generics.contains_key(&l) {
+            return self.local_generic_value(l, &[], n);
+        }
         // `names.definite.reject`: reported once per binding.
         if self.uninit.remove(&l) {
             self.err(
@@ -2660,6 +2683,28 @@ impl Ck<'_, '_> {
             let nw = z.words();
             self.b.body_mut().extra[at..at + nw.len()].copy_from_slice(&nw);
         }
+        // A generic local function's instantiation takes the captures of
+        // its defining closure, known once that closure is closed
+        // (`sub_flags::GENERIC`).
+        {
+            let body = self.b.body_mut();
+            let mut caps = HashMap::new();
+            for i in 0..n {
+                if body.tags[i] == Tag::Closure && !body.is_instantiation(i) {
+                    let r = body.record(body.data[i][1]);
+                    caps.insert(body.data[i][0], (r[0], r[1]));
+                }
+            }
+            for i in 0..n {
+                if body.is_instantiation(i)
+                    && let Some(&(start, len)) = caps.get(&body.data[i][0])
+                {
+                    let at = body.data[i][1] as usize;
+                    body.extra[at + 1] = start;
+                    body.extra[at + 2] = len;
+                }
+            }
+        }
         // Types and type lists kept in records.
         for i in 0..n {
             let tag = self.b.body_mut().tags[i];
@@ -2682,6 +2727,7 @@ impl Ck<'_, '_> {
                 }
                 Tag::ItemRef => bw as usize + 1,
                 Tag::DefaultCall => a as usize + 2,
+                Tag::Closure if self.b.body_mut().is_instantiation(i) => bw as usize + 4,
                 _ => continue,
             };
             let l = TyList(self.b.body_mut().extra[list_at]);

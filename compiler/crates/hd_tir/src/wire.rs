@@ -53,6 +53,9 @@ fn id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
                 .collect()
         }
         Tag::DefaultCall => vec![IdWord::Def(a as usize + 1), IdWord::List(a as usize + 2)],
+        // A generic local function's instantiation: its type arguments
+        // are the record's fourth word (`sub_flags::GENERIC`).
+        Tag::Closure if b.is_instantiation(i) => vec![IdWord::List(b.data[i][1] as usize + 4)],
         Tag::ItemRef => vec![
             IdWord::Def(a as usize + 1),
             IdWord::List(b.data[i][1] as usize + 1),

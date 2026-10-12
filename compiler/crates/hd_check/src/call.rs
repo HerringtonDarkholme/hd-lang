@@ -318,6 +318,9 @@ impl Ck<'_, '_> {
         if inner.kind() == SyntaxKind::PathExpr {
             return self.path_value(inner, want, &explicit);
         }
+        if let Some(l) = self.local_generic_named(inner) {
+            return Ok(self.local_generic_value(l, &explicit, n));
+        }
         let segs = self.segments_expr(inner);
         if segs.first().is_some_and(|s| self.is_poison_name(s)) {
             return Ok(self.poison_value(n));
@@ -332,6 +335,15 @@ impl Ck<'_, '_> {
             return self.item_value(def, &sig, &explicit, want, n);
         }
         unsupported("a type with arguments used as a value")
+    }
+
+    /// The generic local function a name expression names, if it does.
+    fn local_generic_named(&self, e: NodeRef<'_>) -> Option<hd_base::LocalId> {
+        if e.kind() != SyntaxKind::NameExpr {
+            return None;
+        }
+        let (l, _) = self.find_local(self.sym_of(e))?;
+        self.local_generics.contains_key(&l).then_some(l)
     }
 
     /// The member's own type arguments: the written ones, the trailing
@@ -471,6 +483,11 @@ impl Ck<'_, '_> {
                     for t in tl.children().filter(|c| c.kind().is_type()) {
                         explicit.push(self.explicit_targ(t)?);
                     }
+                }
+                // `f::[T](..)` of a generic local function.
+                if let Some(l) = self.local_generic_named(inner) {
+                    let (f, ft) = self.local_generic_value(l, &explicit, callee);
+                    return self.call_value(f, ft, args, n, bang);
                 }
                 let segs = self.segments_expr(inner);
                 if segs.first().is_some_and(|s| self.is_poison_name(s)) {
