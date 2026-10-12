@@ -2056,7 +2056,23 @@ impl Lower<'_, '_, '_> {
                     // A bound that names no trait is already reported. It
                     // stays as poison, so that the parameter satisfies
                     // every trait and adds no second error.
-                    bounds.push(self.trait_value(b, gn, me).unwrap_or(Ty::POISON));
+                    let bound = self.trait_value(b, gn, me).unwrap_or(Ty::POISON);
+                    // `Structure` is named only inside a template, never as
+                    // a parameter bound (`annot.structure.named-positions`).
+                    if self.r.frozen.is_none()
+                        && !self.in_std()
+                        && matches!(
+                            self.names.pool.get(bound),
+                            TyData::TraitValue { def, .. } if def == self.names.known.structure
+                        )
+                    {
+                        self.diags.error(
+                            Code::StructureOutsideTemplate,
+                            self.src.span(b),
+                            "`Structure` may be named only inside a template",
+                        );
+                    }
+                    bounds.push(bound);
                 }
                 if let Some(me) = me {
                     let resolved: Vec<Ty> = bounds
