@@ -4822,6 +4822,11 @@ impl hd_resolve::World for Run<'_> {
     fn usable(&self, module: &str) -> bool {
         self.table.usable(module)
     }
+    fn test_only(&self, module: &str) -> bool {
+        self.table
+            .module(module)
+            .is_some_and(|m| self.table.modules[m.idx()].role == hd_project::Role::Test)
+    }
     fn iface(&self, folder: u32) -> Option<Arc<FolderIface>> {
         self.iface_of(FolderId::from_raw(folder))
     }

@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2788 | 42 | 15 | 2845 |
+| 2790 | 40 | 15 | 2845 |
 
 ## By Chapter
 
@@ -23,7 +23,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/07-functions.md` | 126 | 4 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 120 | 3 | 0 | 123 |
 | `lang/09-traits.md` | 352 | 7 | 0 | 359 |
-| `lang/10-modules.md` | 252 | 2 | 4 | 258 |
+| `lang/10-modules.md` | 253 | 1 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 250 | 1 | 8 | 259 |
 | `lang/14-annotations.md` | 146 | 7 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
@@ -52,7 +52,7 @@ fixture; unsupported surface records progress without failing.
 | `std/serde.md` | 8 | 0 | 0 | 8 |
 | `std/sys.md` | 1 | 0 | 0 | 1 |
 | `std/task.md` | 7 | 0 | 0 | 7 |
-| `std/testing.md` | 38 | 1 | 0 | 39 |
+| `std/testing.md` | 39 | 0 | 0 | 39 |
 | `std/text.md` | 35 | 0 | 0 | 35 |
 | `std/time.md` | 17 | 0 | 0 | 17 |
 
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 917 | 0 | 12 | 929 |
-| `typing/invalid` | 1040 | 35 | 0 | 1075 |
+| `typing/invalid` | 1042 | 33 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 13 | 7 | 0 | 20 |
 
@@ -76,13 +76,11 @@ compiler stage that first declined the case.
 | Bucket | Cases |
 | --- | ---: |
 | `fail:missing-required-field` | 2 |
-| `fail:missing-requirement` | 1 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:no-diagnostic` | 29 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-main` | 1 |
 | `fail:unknown-data-field` | 2 |
-| `fail:unknown-module` | 1 |
 | `fail:unknown-name` | 3 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 11 |
@@ -91,12 +89,6 @@ compiler stage that first declined the case.
 
 - `typing/invalid/data-literal-unknown-field.hd`
 - `typing/invalid/data-field-shorthand-unknown-name.hd`
-
-</details>
-
-<details><summary><code>fail:missing-requirement</code> (1)</summary>
-
-- `typing/invalid/hd-run-outside-integration.hd`
 
 </details>
 
@@ -157,12 +149,6 @@ compiler stage that first declined the case.
 
 - `typing/invalid/tuple-index-out-of-range.hd`
 - `typing/invalid/default-body-self-field.hd`
-
-</details>
-
-<details><summary><code>fail:unknown-module</code> (1)</summary>
-
-- `typing/invalid/non-test-code-uses-test-module.hd`
 
 </details>
 
@@ -1891,6 +1877,7 @@ typing/invalid/guarded-catch-all-not-exhaustive.hd
 typing/invalid/guarded-match-not-exhaustive.hd
 typing/invalid/hand-written-hash-beside-derived-eq.hd
 typing/invalid/handle-fact-pattern-mismatch.hd
+typing/invalid/hd-run-outside-integration.hd
 typing/invalid/hd-run-requires-process.hd
 typing/invalid/heterogeneous-list-bool-int.hd
 typing/invalid/heterogeneous-list.hd
@@ -2116,6 +2103,7 @@ typing/invalid/no-widening-return.hd
 typing/invalid/nominal-map-key.hd
 typing/invalid/non-entry-top-level-println.hd
 typing/invalid/non-literal-test-name.hd
+typing/invalid/non-test-code-uses-test-module.hd
 typing/invalid/nondisplay-entry-error.hd
 typing/invalid/none-beside-values-needs-expected-type.hd
 typing/invalid/none-branch-needs-expected-type.hd

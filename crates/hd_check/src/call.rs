@@ -1459,6 +1459,17 @@ impl Ck<'_, '_> {
         if def == self.cx.names.known.dbg {
             self.note_dbg(n, true);
         }
+        // `std-testing.hd-run.integration-only`: a call of `hd_run!`
+        // outside an integration test module is an error, reported here
+        // rather than as the requirement its row would need.
+        if def == self.cx.names.item("std.testing", "hd_run") && !self.in_integration_test() {
+            self.err(
+                Code::TestOnlyUse,
+                n,
+                "`hd_run!` runs a package executable, so only an integration test module may call it",
+            );
+            return Ok((Ref(NONE), Ty::POISON));
+        }
         let name = self.cx.names.text(item.name).to_owned();
         self.check_forbidden_call(def, &name, n);
         // A registration function is called only by a test registration

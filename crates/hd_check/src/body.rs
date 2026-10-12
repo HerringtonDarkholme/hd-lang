@@ -1176,6 +1176,17 @@ impl Ck<'_, '_> {
             .is_some_and(|t| t.blocks.iter().any(|b| b.lo <= self.at && self.at < b.hi))
     }
 
+    /// Whether the module being checked is an integration test module:
+    /// test code under the test root (`module.test.integration`,
+    /// `module.testing.kind-decides`).
+    pub(crate) fn in_integration_test(&self) -> bool {
+        hd_project::role_of(self.cx.file_name) == hd_project::Role::Test
+            && matches!(
+                hd_project::Root::of(self.cx.file_name).0,
+                hd_project::Root::Test
+            )
+    }
+
     /// `module.prelude.no-shadow`: a local value, closure parameter or
     /// top-level binding does not bind a prelude name. The binding still
     /// introduces the name afterwards.

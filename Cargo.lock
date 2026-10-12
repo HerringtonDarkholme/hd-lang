@@ -549,6 +549,7 @@ dependencies = [
  "hd_base",
  "hd_diag",
  "hd_intern",
+ "hd_project",
  "hd_resolve",
  "hd_structure",
  "hd_syntax",

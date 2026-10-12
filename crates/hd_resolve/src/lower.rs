@@ -94,6 +94,10 @@ pub trait World {
     /// Whether a `use` may name the module: it exists and is not its own
     /// program (`module.path.main-no-use`).
     fn usable(&self, module: &str) -> bool;
+    /// Whether `module` is test-only code (a test module or an integration
+    /// test module), which non-test code may not use
+    /// (`module.test.non-test-use.test-module`).
+    fn test_only(&self, module: &str) -> bool;
     fn iface(&self, folder: u32) -> Option<Arc<FolderIface>>;
 }
 
@@ -681,7 +685,15 @@ impl Resolver<'_, '_> {
                 })
         };
         if f != self.cx.folder {
-            let i = self.cx.world.iface(f).ok_or(Code::UnknownModule)?;
+            let Some(i) = self.cx.world.iface(f) else {
+                // A test-only module has no interface outside a test
+                // build; naming it from non-test code is test-only-use,
+                // not unknown-module (`module.test.non-test-use`).
+                if self.cx.world.test_only(module) {
+                    return Err(Code::TestOnlyUse);
+                }
+                return Err(Code::UnknownModule);
+            };
             return frozen(&i);
         }
         if let Some(i) = &self.frozen {
@@ -1165,6 +1177,7 @@ fn export_failure(code: Code, name: &str, module: &str) -> String {
         Code::PrivateImport => format!("'{name}' is private to module '{module}'"),
         Code::UnknownModule => format!("no module named '{module}'"),
         Code::ReExportLoop => format!("re-export loop through `{name}`"),
+        Code::TestOnlyUse => format!("`{module}` is test-only code, which only test code may use"),
         _ => format!("module '{module}' declares no '{name}'"),
     }
 }
