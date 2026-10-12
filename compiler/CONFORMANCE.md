@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2751 | 78 | 16 | 2845 |
+| 2752 | 77 | 16 | 2845 |
 
 ## By Chapter
 
@@ -23,7 +23,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/07-functions.md` | 123 | 7 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 118 | 5 | 0 | 123 |
 | `lang/09-traits.md` | 349 | 10 | 0 | 359 |
-| `lang/10-modules.md` | 243 | 11 | 4 | 258 |
+| `lang/10-modules.md` | 244 | 10 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 245 | 6 | 8 | 259 |
 | `lang/14-annotations.md` | 146 | 7 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 916 | 1 | 12 | 929 |
-| `typing/invalid` | 1006 | 68 | 1 | 1075 |
+| `typing/invalid` | 1007 | 67 | 1 | 1075 |
 | `typing/valid` | 414 | 1 | 0 | 415 |
 | `typing/warnings` | 12 | 8 | 0 | 20 |
 
@@ -95,7 +95,7 @@ compiler stage that first declined the case.
 | `fail:unknown-module` | 1 |
 | `fail:unknown-name` | 6 |
 | `fail:unknown-trait` | 4 |
-| `fail:unknown-type` | 2 |
+| `fail:unknown-type` | 1 |
 | `unsupported:Body` | 1 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 11 |
@@ -276,10 +276,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-type</code> (2)</summary>
+<details><summary><code>fail:unknown-type</code> (1)</summary>
 
 - `typing/invalid/row-parameter-as-type.hd`
-- `typing/invalid/fn-constructor-needs-import.hd`
 
 </details>
 
@@ -1935,6 +1934,7 @@ typing/invalid/float-literal-range.hd
 typing/invalid/float-map-key.hd
 typing/invalid/float-misses-ord-bound.hd
 typing/invalid/float-ord-bound.hd
+typing/invalid/fn-constructor-needs-import.hd
 typing/invalid/fn-row-argument-unknown-trait.hd
 typing/invalid/folder-cycle-facade.hd
 typing/invalid/folder-cycle-nested.hd

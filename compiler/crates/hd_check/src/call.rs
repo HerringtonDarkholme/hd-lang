@@ -698,6 +698,14 @@ impl Ck<'_, '_> {
         if f.0 == NONE && ft == Ty::NEVER {
             return Ok((f, ft));
         }
+        // A callee of a type that failed to resolve has been reported; its
+        // arguments are still checked.
+        if self.infer.resolve(pool, ft) == Ty::POISON {
+            for e in &args.positional {
+                self.expr(*e, Some(Ty::POISON))?;
+            }
+            return Ok((Ref(NONE), Ty::POISON));
+        }
         let full = ft;
         let ft = self.infer.resolve(pool, ft);
         let ft = match pool.get(ft) {
