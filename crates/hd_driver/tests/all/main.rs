@@ -2,6 +2,7 @@
 //! compiler from relinking and from starting a process for each file.
 //! `conformance.rs` stays a separate target (CI runs it on its own).
 
+mod annotation_member_names;
 mod arity_generic_run;
 mod assoc_types;
 mod assoc_validation;
@@ -56,6 +57,7 @@ mod function_reference_builtin_methods;
 mod function_reference_lowered;
 mod function_references;
 mod generic_local_fn_run;
+mod generic_member_call;
 mod generic_shared_data_run;
 mod generics_determinism;
 mod header_goals;

@@ -572,6 +572,44 @@ impl Lower<'_, '_, '_> {
             .error(Code::InvalidMemberLine, self.src.span(line), why);
     }
 
+    /// Whether a member line's name is a direct member of its target (a
+    /// whole variant for enums), or `Self` (`annot.line.name`,
+    /// `annot.line.enum`). Unresolvable targets and non-name lines are
+    /// left to other checks.
+    fn line_names_member(
+        &self,
+        first: hd_base::TokenIdx,
+        target: Option<(DefId, HeadKind)>,
+        items: &HashMap<DefId, &Item>,
+    ) -> bool {
+        if self.src.tkind(first) == Some(TokenKind::KwSelfType) {
+            return true;
+        }
+        if !matches!(
+            self.src.tkind(first),
+            Some(TokenKind::Ident | TokenKind::RawIdent)
+        ) {
+            return true;
+        }
+        let Some((def, _)) = target else {
+            return true;
+        };
+        let Some(item) = items.get(&def) else {
+            return true;
+        };
+        let name = self.src.text(first);
+        match &item.data {
+            ItemData::Data(fields) => fields.iter().any(|f| {
+                let n = self.names.text(f.name);
+                n == name || name.strip_prefix('_') == Some(n)
+            }),
+            ItemData::Enum { variants, .. } => {
+                variants.iter().any(|v| self.names.text(v.name) == name)
+            }
+            _ => true,
+        }
+    }
+
     /// The members of a derivation block's `Name = [values]` line.
     fn check_member_line(
         &mut self,
@@ -593,6 +631,22 @@ impl Lower<'_, '_, '_> {
                 _ => false,
             });
         self.check_line_form(line, is_variant, traitless);
+        // `annot.line.name`, `annot.line.enum`: the name is a direct
+        // member of the target (a whole variant for enums), or `Self`.
+        if !self.line_names_member(first, target, items) {
+            let name = self.src.text(first).to_owned();
+            let target_name = target.and_then(|(d, _)| items.get(&d)).map_or_else(
+                || "the target".to_owned(),
+                |i| self.names.text(i.name).to_owned(),
+            );
+            let msg = if target.is_some_and(|(_, hk)| hk == HeadKind::Enum) {
+                format!("`{name}` is not a variant of `{target_name}`")
+            } else {
+                format!("`{name}` is not a member of `{target_name}`")
+            };
+            self.diags
+                .error(Code::UnknownAnnotationMember, self.src.span(line), &msg);
+        }
         // Fact targets are checked in a block with no trait.
         if !traitless {
             return;

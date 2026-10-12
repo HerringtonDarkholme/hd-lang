@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2806 | 24 | 15 | 2845 |
+| 2809 | 21 | 15 | 2845 |
 
 ## By Chapter
 
@@ -25,7 +25,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/09-traits.md` | 354 | 5 | 0 | 359 |
 | `lang/10-modules.md` | 253 | 1 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 250 | 1 | 8 | 259 |
-| `lang/14-annotations.md` | 148 | 5 | 0 | 153 |
+| `lang/14-annotations.md` | 151 | 2 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
 | `std/collections.md` | 29 | 0 | 0 | 29 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 917 | 0 | 12 | 929 |
-| `typing/invalid` | 1051 | 24 | 0 | 1075 |
+| `typing/invalid` | 1054 | 21 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 20 | 0 | 0 | 20 |
 
@@ -75,19 +75,16 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:no-diagnostic` | 22 |
+| `fail:no-diagnostic` | 19 |
 | `fail:unknown-name` | 2 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 11 |
 
-<details><summary><code>fail:no-diagnostic</code> (22)</summary>
+<details><summary><code>fail:no-diagnostic</code> (19)</summary>
 
-- `typing/invalid/unknown-annotation-member.hd`
 - `typing/invalid/suspension-forbidden-context.hd`
 - `typing/invalid/generic-supertrait-upcast-mismatch.hd`
 - `typing/invalid/trait-resolution-depth.hd`
-- `typing/invalid/member-line-payload-member.hd`
-- `typing/invalid/generic-member-call.hd`
 - `typing/invalid/structure-without-use.hd`
 - `typing/invalid/intrinsic-method-user.hd`
 - `typing/invalid/operator-function-left-exact.hd`
@@ -1822,6 +1819,7 @@ typing/invalid/generic-inference-conflict.hd
 typing/invalid/generic-inference-numeric-widening.hd
 typing/invalid/generic-inference-supertrait-widening.hd
 typing/invalid/generic-inference-trait-value.hd
+typing/invalid/generic-member-call.hd
 typing/invalid/generic-provider-key-collision-nested.hd
 typing/invalid/generic-provider-key-collision-spread.hd
 typing/invalid/generic-readonly-argument-to-mut-parameter.hd
@@ -1998,6 +1996,7 @@ typing/invalid/match-arm-misses-expected-type.hd
 typing/invalid/match-guard-type-mismatch.hd
 typing/invalid/member-line-not-list.hd
 typing/invalid/member-line-outside-block.hd
+typing/invalid/member-line-payload-member.hd
 typing/invalid/method-bound-bare-trait.hd
 typing/invalid/method-type-parameter-reuses-impl-parameter.hd
 typing/invalid/method-without-requirement-clause.hd
@@ -2475,6 +2474,7 @@ typing/invalid/uninhabited-binding.hd
 typing/invalid/unit-pattern-non-void.hd
 typing/invalid/unit-test-missing-requirement.hd
 typing/invalid/unit-test-real-clock.hd
+typing/invalid/unknown-annotation-member.hd
 typing/invalid/unknown-associated-type.hd
 typing/invalid/unknown-dep-module.hd
 typing/invalid/unknown-literal-suffix.hd
