@@ -38,6 +38,8 @@ mod profiles;
 mod property;
 mod reactor;
 mod run;
+#[cfg(test)]
+mod session_link_tests;
 mod test_engine;
 pub mod testing;
 mod testing_files;

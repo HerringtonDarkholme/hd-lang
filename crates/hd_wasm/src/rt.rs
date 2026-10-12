@@ -170,6 +170,13 @@ pub fn root_global() -> GSym {
     GSym::Rt("root".into(), VT::rn(crate::layout::task_base()))
 }
 
+/// Every runtime global: what a session's first module defines for the
+/// modules after it (`LinkMode::Session`).
+#[must_use]
+pub fn runtime_globals() -> [GSym; 4] {
+    [wake_table(), fact_global(), forbid_global(), root_global()]
+}
+
 /// The host runtime's `abort` import (runtime-and-host.md §17.2).
 #[must_use]
 pub fn abort_import() -> Sym {

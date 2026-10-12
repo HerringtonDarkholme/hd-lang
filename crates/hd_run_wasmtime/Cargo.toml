@@ -34,6 +34,10 @@ workspace = true
 
 [dev-dependencies]
 wasm-encoder = "=0.258.3"
+# Session-link tests (repl-plan.md C1) link modules with hd_wasm and run them here.
+hd_base = { path = "../hd_base" }
+hd_mono = { path = "../hd_mono" }
+hd_wasm = { path = "../hd_wasm" }
 
 [target.'cfg(windows)'.dependencies]
 interprocess = { version = "=2.4.4", default-features = false }

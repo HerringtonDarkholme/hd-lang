@@ -1156,6 +1156,93 @@ fn subtype(r: &Resolved) -> SubType {
     }
 }
 
+/// How `link` closes a module over the symbols its code names.
+#[derive(Clone, Copy, Debug, Default)]
+pub enum LinkMode<'a> {
+    /// One closed program: every instance, part and global the code names
+    /// is defined here; the only imports are host functions; the module
+    /// defines its memory and exports it with the entry functions.
+    #[default]
+    Program,
+    /// One module of a session that grows a module at a time, such as a
+    /// REPL input (repl-plan.md §2.3). A symbol an earlier module of the
+    /// session owns becomes an import; each instance, part and global this
+    /// module defines is exported under its session key (`func_key`,
+    /// `global_key`), so a later module can import it. Every import and
+    /// export of the session lives in the Wasm module `SESSION_MODULE`.
+    Session(&'a Externs),
+}
+
+/// A function's Wasm parameters and results.
+pub type Signature = (Vec<VT>, Vec<VT>);
+
+/// What the earlier modules of a session export, for `LinkMode::Session`.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Externs {
+    /// This module is the session's first: it defines and exports the
+    /// memory and every runtime global (`rt::runtime_globals`), named or
+    /// not, so that every later module imports them.
+    pub first: bool,
+    /// The instances and parts (`Sym::Inst`, `Sym::Part`) earlier modules
+    /// export, with their Wasm parameters and results.
+    pub funcs: BTreeMap<Sym, Signature>,
+    /// The globals earlier modules export: bindings, canonical values,
+    /// witnesses and witness fields. Runtime globals need no entry: a
+    /// module that is not the first always imports them.
+    pub globals: BTreeSet<GSym>,
+}
+
+/// The Wasm module name of every session import (`LinkMode::Session`). A
+/// host registers each session module's exports under this name.
+pub const SESSION_MODULE: &str = "hd.s";
+
+/// The session key of the memory: the name it is exported under today.
+pub const MEMORY_KEY: &str = "hd.x";
+
+/// The session key of a function: `inst.<key>` for an instance and
+/// `inst.<key>.body`, `.poll` or `.cancel` for a part, the instance key
+/// as 32 lowercase hex digits. `None` for an import or a helper: each
+/// module links its own helpers.
+#[must_use]
+pub fn func_key(s: &Sym) -> Option<String> {
+    match s {
+        Sym::Inst(k) => Some(format!("inst.{:032x}", k.0)),
+        Sym::Part(k, p) => {
+            let p = match p {
+                Part::Body => "body",
+                Part::Poll => "poll",
+                Part::Cancel => "cancel",
+            };
+            Some(format!("inst.{:032x}.{p}", k.0))
+        }
+        Sym::Import { .. } | Sym::Helper(_) => None,
+    }
+}
+
+/// The session key of a global, hashes as 32 lowercase hex digits:
+/// `bind.<path>.<component>`, `rt.<name>`, `canon.<type>`,
+/// `wit.<family>.<args>` and `witf.<family>.<body>`. The value type is not
+/// in the key; instantiation checks it against the import's type.
+#[must_use]
+pub fn global_key(g: &GSym) -> String {
+    match g {
+        GSym::Binding(h, c, _) => format!("bind.{:032x}.{c}", h.0),
+        GSym::Rt(n, _) => format!("rt.{n}"),
+        GSym::Canon(h, _) => format!("canon.{:032x}", h.0),
+        GSym::Witness(f, a, _) => format!("wit.{:032x}.{:032x}", f.0, a.0),
+        GSym::WitnessField(f, e, _) => format!("witf.{:032x}.{:032x}", f.0, e.0),
+    }
+}
+
+/// A global `link` defines as a constant: a witness, a witness field, a
+/// canonical value. Any other global is a mutable, defaultable cell.
+fn constant_global(g: &GSym) -> bool {
+    matches!(
+        g,
+        GSym::Witness(..) | GSym::WitnessField(..) | GSym::Canon(_, VT::Ref(..))
+    )
+}
+
 /// `Link(P)`: helpers, index assignment, the type section, the literal
 /// pool, globals, relocation patching (codegen.md §13.10). Inputs are in
 /// content order, so the bytes are deterministic. `exports` are the entry
@@ -1163,14 +1250,25 @@ fn subtype(r: &Resolved) -> SubType {
 /// instances' item paths for the dev `name` section. Every module gets the
 /// `hd.lines` table (wasm-layout.md §15.9); a `release` build gets the
 /// compact `hd.names` in place of the `name` section (codegen.md §13.10
-/// step 9, §13.17).
+/// step 9, §13.17). `mode` says which symbols are imported (`LinkMode`).
+///
+/// In a session module, function indices are the host imports, the
+/// session function imports, the helpers, then this module's functions;
+/// global indices are the session global imports, the literal cells, then
+/// this module's globals. The memory, when imported, is still exported as
+/// `hd.x`, so a host reads every module's memory by the same name.
 pub fn link(
     codes: &[(Hash128, Code)],
     names: &[String],
     exports: &[(String, Helper)],
     witnesses: &hd_mono::Witnesses,
     release: bool,
+    mode: LinkMode<'_>,
 ) -> StageResult<Vec<u8>> {
+    let ext = match mode {
+        LinkMode::Program => None,
+        LinkMode::Session(e) => Some(e),
+    };
     // Every function body: instances, then their parts.
     let mut all: Vec<(Sym, &Code, String)> = Vec::new();
     for ((k, c), n) in codes.iter().zip(names) {
@@ -1183,6 +1281,8 @@ pub fn link(
     let mut helpers: BTreeMap<Helper, Code> = BTreeMap::new();
     let mut imports: BTreeSet<(String, String, Vec<VT>, Vec<VT>)> = BTreeSet::new();
     let mut gsyms: BTreeSet<GSym> = BTreeSet::new();
+    // The instances and parts the code calls or takes a reference to.
+    let mut calls: BTreeSet<Sym> = BTreeSet::new();
     // `hd.wake` joins the exports only when the program can wait on a host
     // handle, that is, when `WakeTake` is reachable from its code; a program
     // that never suspends links no wake runtime (suspension.md §14.4).
@@ -1211,7 +1311,10 @@ pub fn link(
                 Reloc::Global(g) => {
                     gsyms.insert(g.clone());
                 }
-                _ => {}
+                Reloc::Func(s @ (Sym::Inst(_) | Sym::Part(..))) => {
+                    calls.insert(s.clone());
+                }
+                Reloc::Type(_) => {}
             }
         }
     };
@@ -1246,6 +1349,39 @@ pub fn link(
         .iter()
         .filter(|e| e.1 != Helper::EntryWake || wakes)
         .collect();
+    // A session's first module owns every runtime global; a later module
+    // imports the ones it names. Any other global is imported when an
+    // earlier module exports it, and defined and exported here otherwise.
+    if ext.is_some_and(|e| e.first) {
+        gsyms.extend(rt::runtime_globals());
+    }
+    let imported = |g: &GSym| match (ext, g) {
+        (None, _) => false,
+        (Some(e), GSym::Rt(..)) => !e.first,
+        (Some(e), g) => e.globals.contains(g),
+    };
+    // Functions earlier session modules define: the calls and the witness
+    // thunks this module names but does not define.
+    let mut ext_funcs: Vec<(Sym, &Signature)> = Vec::new();
+    if let Some(e) = ext {
+        for g in gsyms.iter().filter(|g| !imported(g)) {
+            if let GSym::Witness(family, args, _) = g
+                && let Some(w) = witnesses
+                    .witnesses
+                    .iter()
+                    .find(|w| w.0 == *family && w.1 == *args)
+            {
+                calls.extend(w.2.iter().flatten().map(|k| Sym::Inst(*k)));
+            }
+        }
+        let defined: BTreeSet<&Sym> = all.iter().map(|a| &a.0).collect();
+        for s in calls.iter().filter(|s| !defined.contains(s)) {
+            let Some(sig) = e.funcs.get(s) else {
+                return unsupported(format!("a call to {s:?}, which no session module defines"));
+            };
+            ext_funcs.push((s.clone(), sig));
+        }
+    }
     // Literals: one passive segment, deduplicated by content.
     let mut lits: BTreeMap<Vec<u8>, (u32, u32)> = BTreeMap::new();
     let mut data = Vec::new();
@@ -1277,6 +1413,43 @@ pub fn link(
         );
         nfuncs += 1;
     }
+    for (s, (params, results)) in &ext_funcs {
+        let t = types.of(&WTy::Func(params.clone(), results.clone()));
+        let key = func_key(s).expect("an instance or a part");
+        imps.import(SESSION_MODULE, &key, EntityType::Function(t));
+        func_idx.insert(s.clone(), nfuncs);
+        nfuncs += 1;
+    }
+    // Linear memory is the exchange buffer (wasm-layout.md §15.4); every
+    // module has it, so any helper that touches it validates.
+    let memory = MemoryType {
+        minimum: 1,
+        maximum: None,
+        memory64: false,
+        shared: false,
+        page_size_log2: None,
+    };
+    let import_memory = ext.is_some_and(|e| !e.first);
+    if import_memory {
+        imps.import(SESSION_MODULE, MEMORY_KEY, EntityType::Memory(memory));
+    }
+    let mut global_idx: BTreeMap<GSym, u32> = BTreeMap::new();
+    for g in gsyms.iter().filter(|g| imported(g)) {
+        let constant = constant_global(g);
+        let vt = if constant {
+            g.vt().clone()
+        } else {
+            g.vt().dflt()
+        };
+        let ty = GlobalType {
+            val_type: types.val(&vt),
+            mutable: !constant,
+            shared: false,
+        };
+        imps.import(SESSION_MODULE, &global_key(g), EntityType::Global(ty));
+        global_idx.insert(g.clone(), u32::try_from(global_idx.len()).expect("globals"));
+    }
+    let nglobal_imports = global_idx.len();
     let mut bodies: Vec<&Code> = Vec::new();
     for (h, c) in &helpers {
         func_idx.insert(Sym::Helper(h.clone()), nfuncs);
@@ -1305,12 +1478,27 @@ pub fn link(
             },
             &ConstExpr::ref_null(HeapType::Concrete(t)),
         );
-        lit_global.insert(bytes.clone(), u32::try_from(i).expect("globals"));
+        lit_global.insert(
+            bytes.clone(),
+            u32::try_from(nglobal_imports + i).expect("globals"),
+        );
     }
-    let mut global_idx: BTreeMap<GSym, u32> = BTreeMap::new();
-    let code_of: HashMap<Hash128, &Code> = codes.iter().map(|(k, c)| (*k, c)).collect();
+    // A witness thunk's signature: its code here, or what an earlier
+    // session module exports.
+    let mut sig_of: HashMap<Hash128, (&[VT], &[VT])> = codes
+        .iter()
+        .map(|(k, c)| (*k, (c.params.as_slice(), c.results.as_slice())))
+        .collect();
+    for (s, (params, results)) in &ext_funcs {
+        if let Sym::Inst(k) = s {
+            sig_of.insert(*k, (params.as_slice(), results.as_slice()));
+        }
+    }
     for g in &gsyms {
-        if let Some(init) = witness_init(g, &code_of, witnesses, &func_idx, &mut types)? {
+        if global_idx.contains_key(g) {
+            continue;
+        }
+        if let Some(init) = witness_init(g, &sig_of, witnesses, &func_idx, &mut types)? {
             globals.global(
                 GlobalType {
                     val_type: types.val(g.vt()),
@@ -1416,16 +1604,21 @@ pub fn link(
         export_sec.export(name, ExportKind::Func, f);
     }
     let mut mems = MemorySection::new();
-    // Linear memory is the exchange buffer (wasm-layout.md §15.4); every
-    // module declares it, so any helper that touches it validates.
-    mems.memory(MemoryType {
-        minimum: 1,
-        maximum: None,
-        memory64: false,
-        shared: false,
-        page_size_log2: None,
-    });
-    export_sec.export("hd.x", ExportKind::Memory, 0);
+    if !import_memory {
+        mems.memory(memory);
+    }
+    export_sec.export(MEMORY_KEY, ExportKind::Memory, 0);
+    if ext.is_some() {
+        for (s, _, _) in &all {
+            let key = func_key(s).expect("an instance or a part");
+            export_sec.export(&key, ExportKind::Func, func_idx[s]);
+        }
+        for (g, &i) in &global_idx {
+            if !imported(g) {
+                export_sec.export(&global_key(g), ExportKind::Global, i);
+            }
+        }
+    }
     let mut elems = ElementSection::new();
     if !declared.is_empty() {
         let fs: Vec<u32> = declared.into_iter().collect();
@@ -1435,7 +1628,9 @@ pub fn link(
     module.section(&types.sec);
     module.section(&imps);
     module.section(&funcs);
-    module.section(&mems);
+    if !import_memory {
+        module.section(&mems);
+    }
     module.section(&globals);
     module.section(&export_sec);
     module.section(&elems);
@@ -1446,7 +1641,9 @@ pub fn link(
     module.section(&ds);
     let nh = u32::try_from(helpers.len()).expect("helpers");
     let ni = u32::try_from(imports.len()).expect("imports");
-    let first = ni + nh;
+    // The session function imports follow the host imports.
+    let nx = u32::try_from(ext_funcs.len()).expect("imports");
+    let first = ni + nx + nh;
     module.section(&line_table(&all, first));
     if release {
         module.section(&compact_names(&all, first));
@@ -1460,10 +1657,20 @@ pub fn link(
             &format!("{module_name}/{name}"),
         );
     }
+    for (k, (s, _)) in ext_funcs.iter().enumerate() {
+        let key = func_key(s).expect("an instance or a part");
+        fnames.append(
+            ni + u32::try_from(k).expect("k"),
+            &format!("{SESSION_MODULE}/{key}"),
+        );
+    }
     for (k, h) in helper_list.iter().enumerate() {
         let text = format!("{h:?}");
         let short: String = text.chars().take(60).collect();
-        fnames.append(ni + u32::try_from(k).expect("k"), &format!("rt:{short}"));
+        fnames.append(
+            ni + nx + u32::try_from(k).expect("k"),
+            &format!("rt:{short}"),
+        );
     }
     for (k, (_, _, n)) in all.iter().enumerate() {
         fnames.append(first + u32::try_from(k).expect("k"), n);
@@ -1529,7 +1736,7 @@ fn compact_names(all: &[(Sym, &Code, String)], first: u32) -> wasm_encoder::Cust
 /// index. `None` for any other global.
 fn witness_init(
     g: &GSym,
-    code_of: &HashMap<Hash128, &Code>,
+    sig_of: &HashMap<Hash128, (&[VT], &[VT])>,
     witnesses: &hd_mono::Witnesses,
     func_idx: &BTreeMap<Sym, u32>,
     types: &mut Types,
@@ -1560,11 +1767,13 @@ fn witness_init(
             for thunks in fields {
                 let mut sigs = Vec::new();
                 for k in thunks {
-                    let (Some(f), Some(c)) = (func_idx.get(&Sym::Inst(*k)), code_of.get(k)) else {
+                    let (Some(f), Some((params, results))) =
+                        (func_idx.get(&Sym::Inst(*k)), sig_of.get(k))
+                    else {
                         return unsupported("a witness thunk without code");
                     };
                     ins.push(Instruction::RefFunc(*f));
-                    sigs.push(VT::r(WTy::Func(c.params.clone(), c.results.clone())));
+                    sigs.push(VT::r(WTy::Func(params.to_vec(), results.to_vec())));
                 }
                 let ops = types.of(&WTy::Struct {
                     fields: sigs,
@@ -1585,7 +1794,11 @@ fn witness_init(
 
 #[cfg(test)]
 mod tests {
-    use super::{Code, Group, Reloc, Types, VT, WTy};
+    use super::{
+        Code, Externs, GSym, Group, Hash128, LinkMode, MEMORY_KEY, Reloc, SESSION_MODULE, Sym,
+        Types, VT, WTy, func_key, global_key, link, rt,
+    };
+    use crate::asm::Asm;
     use std::sync::Arc;
 
     /// `{next: (ref null $F)}` and `$F = (eqref) -> (ref null $S)`, one group.
@@ -1636,5 +1849,143 @@ mod tests {
         assert_eq!(t.of(&WTy::Rec(g.clone(), 0).unrolled()), s);
         assert_eq!(WTy::Rec(g, 0).fields(), [VT::rn(WTy::Rec(group(), 1))]);
         assert_eq!(t.n, 2);
+    }
+
+    /// Session module A: instance `a(x: i32) -> i32` returning `x + g`, with
+    /// `g` a binding A defines. Session module B: instance `b() -> i32`
+    /// that sets `g` to 40 and returns `a(2)`, importing both.
+    fn session_pair() -> (Vec<u8>, Vec<u8>, Hash128, Hash128, GSym) {
+        let (ka, kb) = (Hash128(0xa), Hash128(0xb));
+        let g = GSym::Binding(Hash128(0x9), 0, VT::I32);
+        let mut a = Asm::new(vec![VT::I32]);
+        a.raw_get(0);
+        a.global_get(g.clone());
+        a.s().i32_add();
+        let mut b = Asm::new(vec![]);
+        b.i32(40);
+        b.global_set(g.clone());
+        b.i32(2);
+        b.call(Sym::Inst(ka));
+        let none = hd_mono::Witnesses::default();
+        let first = Externs {
+            first: true,
+            ..Externs::default()
+        };
+        let wa = link(
+            &[(ka, a.finish(vec![VT::I32]))],
+            &["a".into()],
+            &[],
+            &none,
+            false,
+            LinkMode::Session(&first),
+        )
+        .expect("link A");
+        let later = Externs {
+            first: false,
+            funcs: [(Sym::Inst(ka), (vec![VT::I32], vec![VT::I32]))].into(),
+            globals: [g.clone()].into(),
+        };
+        let wb = link(
+            &[(kb, b.finish(vec![VT::I32]))],
+            &["b".into()],
+            &[],
+            &none,
+            false,
+            LinkMode::Session(&later),
+        )
+        .expect("link B");
+        (wa, wb, ka, kb, g)
+    }
+
+    /// A module's imports as `module/name`, and its export names.
+    fn imports_exports(wasm: &[u8]) -> (Vec<String>, Vec<String>) {
+        wasmparser::Validator::new()
+            .validate_all(wasm)
+            .expect("the module validates");
+        let (mut imports, mut exports) = (Vec::new(), Vec::new());
+        for payload in wasmparser::Parser::new(0).parse_all(wasm) {
+            match payload.expect("payload") {
+                wasmparser::Payload::ImportSection(r) => {
+                    for i in r.into_imports() {
+                        let i = i.expect("import");
+                        imports.push(format!("{}/{}", i.module, i.name));
+                    }
+                }
+                wasmparser::Payload::ExportSection(r) => {
+                    for e in r {
+                        exports.push(e.expect("export").name.to_owned());
+                    }
+                }
+                _ => {}
+            }
+        }
+        (imports, exports)
+    }
+
+    #[test]
+    fn a_session_module_imports_what_an_earlier_one_exports() {
+        let (wa, wb, ka, kb, g) = session_pair();
+        let fa = func_key(&Sym::Inst(ka)).expect("key");
+        let fb = func_key(&Sym::Inst(kb)).expect("key");
+        let bind = global_key(&g);
+        assert_eq!(fa, format!("inst.{:032x}", 0xa));
+        assert_eq!(bind, format!("bind.{:032x}.0", 0x9));
+        // The first module owns memory and the runtime globals.
+        let (imports, exports) = imports_exports(&wa);
+        assert!(imports.is_empty(), "{imports:?}");
+        let mut want = vec![MEMORY_KEY.to_owned(), fa.clone(), bind.clone()];
+        want.extend(rt::runtime_globals().iter().map(global_key));
+        let mut got = exports.clone();
+        got.sort();
+        want.sort();
+        assert_eq!(got, want);
+        // A later module imports them and exports only what it defines.
+        let (imports, exports) = imports_exports(&wb);
+        assert_eq!(
+            imports,
+            [
+                format!("{SESSION_MODULE}/{fa}"),
+                format!("{SESSION_MODULE}/{MEMORY_KEY}"),
+                format!("{SESSION_MODULE}/{bind}"),
+            ]
+        );
+        assert_eq!(exports, [MEMORY_KEY.to_owned(), fb]);
+    }
+
+    #[test]
+    fn a_session_module_refuses_a_call_no_module_defines() {
+        let mut b = Asm::new(vec![]);
+        b.i32(2);
+        b.call(Sym::Inst(Hash128(0xa)));
+        let err = link(
+            &[(Hash128(0xb), b.finish(vec![VT::I32]))],
+            &["b".into()],
+            &[],
+            &hd_mono::Witnesses::default(),
+            false,
+            LinkMode::Session(&Externs::default()),
+        );
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn a_program_imports_no_symbol_and_exports_only_its_entries() {
+        let mut a = Asm::new(vec![VT::I32]);
+        a.raw_get(0);
+        a.global_get(GSym::Binding(Hash128(0x9), 0, VT::I32));
+        a.s().i32_add();
+        let wasm = link(
+            &[(Hash128(0xa), a.finish(vec![VT::I32]))],
+            &["a".into()],
+            &[],
+            &hd_mono::Witnesses::default(),
+            false,
+            LinkMode::Program,
+        )
+        .expect("link");
+        assert_eq!(
+            imports_exports(&wasm),
+            (Vec::new(), vec![MEMORY_KEY.to_owned()])
+        );
     }
 }

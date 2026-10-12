@@ -708,9 +708,12 @@ name = "hd_run_wasmtime"
 version = "0.0.0"
 dependencies = [
  "getrandom 0.4.3",
+ "hd_base",
  "hd_cache",
  "hd_host_abi",
+ "hd_mono",
  "hd_run",
+ "hd_wasm",
  "hostname",
  "interprocess",
  "libc",
@@ -804,6 +807,7 @@ dependencies = [
  "hd_tir",
  "hd_types",
  "wasm-encoder 0.261.0",
+ "wasmparser 0.261.0",
 ]
 
 [[package]]

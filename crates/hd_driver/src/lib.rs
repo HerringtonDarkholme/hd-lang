@@ -4798,6 +4798,7 @@ impl Run<'_> {
                 &entry,
                 &c.collected.witnesses,
                 self.build_profile == BuildProfile::Release,
+                hd_wasm::LinkMode::Program,
             ),
         ) else {
             return;
