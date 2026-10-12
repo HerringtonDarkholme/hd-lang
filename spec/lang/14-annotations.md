@@ -1196,8 +1196,8 @@ fn key_for(style: Style, m: Member) -> string:
 3. r[annot.fact.member-metadata] A member's or variant's declaration facts are its member metadata. Those are the values that its decorators attach, in source order, as the type's derivation block with no trait edits them.
 4. r[annot.fact.payload] A payload member's declaration facts are the values of the decorators before its payload parameter.
 5. r[annot.fact.shared] Declaration facts are seen by every derivation of the type. A derivation block's member lines edit them for that block only.
-6. r[annot.fact.eval.lazy] A fact expression is evaluated once, at run time, when the program first reads the fact, like a lazily initialized global.
-7. r[annot.fact.eval.unread] A fact that the program never reads is never evaluated.
+6. r[annot.fact.eval.lazy] A fact expression is evaluated once per program, at run time. A type-level fact is evaluated when the program first reads it, like a lazily initialized global. A member or variant fact is evaluated when a traversal first builds the handle (`Member`, `VariantInfo`) that carries it.
+7. r[annot.fact.eval.unread] A type-level fact that the program never reads is never evaluated. A member or variant fact whose handle is never built is never evaluated.
 8. r[annot.fact.requirement-free] A fact expression must be requirement-free, as defined for [default values](07-functions.md#default-values).
 9. r[annot.fact.value] A fact may hold any value that a global may hold.
 10. r[annot.fact.eval.panic-runtime] A panic while a fact or metadata expression is evaluated is a runtime panic at the read that started the evaluation. Its report names the fact and the original panic category. Panic: `fact-evaluation-failed`.
