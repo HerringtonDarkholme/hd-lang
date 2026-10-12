@@ -71,6 +71,44 @@ pub fn input_bindings(cx: &BodyCx<'_>) -> Vec<InputBinding> {
     out.into_iter().map(|(_, b)| b).collect()
 }
 
+/// The functions and types of a REPL input whose names an earlier input
+/// bound as top-level bindings (`cli.repl.redeclare.binding`,
+/// `cli.repl.redeclare.type`). The folder interface cannot see those
+/// names: the bindings come from the earlier inputs' checks.
+pub fn earlier_binding_clashes(
+    cx: &BodyCx<'_>,
+    heads: &[hd_resolve::Head<'_>],
+    diags: &mut DiagBuf,
+) {
+    let init = cx.init.borrow();
+    for h in heads
+        .iter()
+        .filter(|h| h.kind != hd_resolve::HeadKind::Impl && h.local.is_none() && h.test.is_none())
+    {
+        let Some(by) = init
+            .earlier
+            .contains_key(&h.name)
+            .then(|| init.declared_by.get(&h.name))
+            .flatten()
+        else {
+            continue;
+        };
+        let (code, hint) = if h.kind.is_type() || h.kind == hd_resolve::HeadKind::Trait {
+            (Code::DuplicateType, "give the new one another name")
+        } else {
+            (
+                Code::DuplicateBinding,
+                "give it another name, or bind a `let` and assign it",
+            )
+        };
+        let msg = format!(
+            "`{}` is already declared by {by}; {hint}",
+            cx.names.text(h.name)
+        );
+        diags.error(code, hd_resolve::head_name_span(&cx.src, h), &msg);
+    }
+}
+
 /// What a condition leaves on its two paths: the `:=` bindings that may
 /// be uninitialized after it is true, and after it is false
 /// (`names.definite.path`, `names.definite.merge`).
@@ -190,6 +228,10 @@ pub struct ModuleInit {
     /// and no initialization order involves them. The module's own
     /// bindings come first.
     pub earlier: HashMap<Symbol, InputBinding>,
+    /// For a REPL input: what declared each name its session holds, by
+    /// name (`src/lib.hd` or `repl#N`). A top-level binding of the input
+    /// repeats none of them (`cli.repl.redeclare.binding`).
+    pub declared_by: HashMap<Symbol, String>,
     pub facts: HashMap<DefId, InitFacts>,
     /// The methods of the module's own trait impls, by trait; built on
     /// first use (`module.init.definite.dispatch`).
@@ -200,9 +242,13 @@ impl ModuleInit {
     /// The state of a REPL input before its check: the earlier inputs'
     /// bindings and nothing of its own.
     #[must_use]
-    pub fn after(earlier: HashMap<Symbol, InputBinding>) -> ModuleInit {
+    pub fn after(
+        earlier: HashMap<Symbol, InputBinding>,
+        declared_by: HashMap<Symbol, String>,
+    ) -> ModuleInit {
         ModuleInit {
             earlier,
+            declared_by,
             ..ModuleInit::default()
         }
     }
@@ -506,6 +552,13 @@ impl Ck<'_, '_> {
         let text = self.cx.src.text(nt).to_owned();
         let name = self.cx.names.syms.intern(&text);
         self.check_prelude_shadow(name, pat);
+        let by = self.cx.init.borrow().declared_by.get(&name).cloned();
+        if let Some(by) = by {
+            let msg = format!(
+                "`{text}` is already declared by {by}; give it another name, or bind a `let` and assign it"
+            );
+            self.err(Code::DuplicateBinding, pat, &msg);
+        }
         let chain = (s.kind() == SyntaxKind::ExprStmt && rhs.kind() == SyntaxKind::BindingExpr)
             .then(|| {
                 let mut inner = rhs.children();

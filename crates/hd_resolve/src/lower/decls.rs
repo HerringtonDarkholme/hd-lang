@@ -81,9 +81,41 @@ impl Folder<'_, '_> {
                         self.names.text(h.name)
                     );
                     diags.error(Code::DuplicateModuleName, m.src.span(h.node), &msg);
+                    continue;
                 }
+                self.session_redeclared(m, h, diags);
             }
         }
+    }
+
+    /// An input of a session declares no name the session holds already
+    /// (`cli.repl.redeclare.binding`, `cli.repl.redeclare.type`), reported
+    /// on the declaration's name. Shadowing the prelude is not redeclaring.
+    fn session_redeclared(&self, m: &ModIn<'_>, h: &Head<'_>, diags: &mut DiagBuf) {
+        let Some(session) = &m.session else { return };
+        let Some(&row) = session.scope.index.get(&h.name) else {
+            return;
+        };
+        if session.scope.origin[row as usize] == crate::Origin::Prelude {
+            return;
+        }
+        let Some(by) = session.declared_by.get(&h.name) else {
+            return;
+        };
+        let (code, hint) = if h.kind.is_type() || h.kind == HeadKind::Trait {
+            (Code::DuplicateType, "give the new one another name")
+        } else {
+            (
+                Code::DuplicateBinding,
+                "give it another name, or bind a `let` and assign it",
+            )
+        };
+        let msg = format!(
+            "`{}` is already declared by {by}; {hint}",
+            self.names.text(h.name)
+        );
+        let span = super::head_name_span(&m.src, h);
+        diags.error(code, span, &msg);
     }
 
     /// A child trait declares no member named like a member of any of its

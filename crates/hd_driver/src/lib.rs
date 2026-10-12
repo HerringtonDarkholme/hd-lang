@@ -2154,9 +2154,17 @@ impl Run<'_> {
                     hd_resolve::SessionScope {
                         scope: lib.scope.clone(),
                         kinds: lib.kinds.clone(),
+                        declared_by: lib
+                            .scope
+                            .name
+                            .iter()
+                            .zip(&lib.scope.origin)
+                            .filter(|(_, o)| **o != hd_resolve::Origin::Prelude)
+                            .map(|(&n, _)| (n, "src/lib.hd".to_owned()))
+                            .collect(),
                     }
                 });
-            for &(_, k) in self.earlier_inputs(m) {
+            for &(number, k) in self.earlier_inputs(m) {
                 let module = &self.table.modules[k];
                 let Some(iface) = self.iface_of(module.folder) else {
                     continue;
@@ -2169,6 +2177,7 @@ impl Run<'_> {
                     };
                     inner.bind(e.name, b, hd_resolve::Origin::Use, u32::MAX);
                     out.kinds.insert(e.def, e.kind);
+                    out.declared_by.insert(e.name, format!("repl#{number}"));
                 }
                 out.scope = out.scope.overlay(&inner);
             }
@@ -2992,6 +3001,7 @@ impl Run<'_> {
             methods: std::cell::OnceCell::new(),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::after(
                 self.earlier_bindings(m),
+                self.declared_by(m),
             )),
             results: std::cell::RefCell::default(),
             dbg_refs: std::cell::RefCell::default(),
@@ -3003,6 +3013,7 @@ impl Run<'_> {
             file_name: &self.table.files[m],
         };
         let mut diags = DiagBuf::default();
+        hd_check::init::earlier_binding_clashes(&cx, &heads, &mut diags);
         // The `tests:` block's use and header diagnostics, which no folder
         // interface reports.
         diags.append(&lowered.test_diags);
@@ -3516,6 +3527,27 @@ impl Run<'_> {
             dbg,
             bindings,
         )));
+    }
+
+    /// What declared each name REPL input `m` sees: `src/lib.hd`, or the
+    /// earlier input that declared it, bindings included
+    /// (`cli.repl.redeclare.binding`). Empty for any other module.
+    fn declared_by(&self, m: usize) -> HashMap<hd_base::Symbol, String> {
+        let names = self.names();
+        let mut out = self
+            .session_scope(m)
+            .map(|s| s.declared_by.clone())
+            .unwrap_or_default();
+        for &(number, k) in self.earlier_inputs(m) {
+            for b in self.input_bindings[k].get().into_iter().flatten() {
+                let name = names
+                    .paths
+                    .segment(hd_base::PathId::from_raw(b.def.raw()))
+                    .to_owned();
+                out.insert(names.syms.intern(&name), format!("repl#{number}"));
+            }
+        }
+        out
     }
 
     /// The top-level bindings of the inputs before REPL input `m`, by name,

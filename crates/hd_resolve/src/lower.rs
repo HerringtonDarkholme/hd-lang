@@ -362,6 +362,18 @@ fn decl_kind(src: &Src<'_>, n: NodeRef<'_>) -> Option<(HeadKind, TokenKind)> {
     })
 }
 
+/// The span of a declaration's name, else of the whole declaration.
+#[must_use]
+pub fn head_name_span(src: &Src<'_>, h: &Head<'_>) -> Span {
+    decl_kind(src, h.node)
+        .and_then(|(_, kw)| {
+            h.node
+                .name(&src.parse.tokens)
+                .or_else(|| src.name_after(h.node, kw))
+        })
+        .map_or_else(|| src.span(h.node), |t| src.token_span(t))
+}
+
 /// The name token of a member of a trait, an implementation or a block: a
 /// function or an associated type.
 fn member_name(src: &Src<'_>, f: NodeRef<'_>) -> Option<hd_base::TokenIdx> {
@@ -589,6 +601,9 @@ pub struct ModIn<'t> {
 pub struct SessionScope {
     pub scope: ModuleScope,
     pub kinds: Kinds,
+    /// What declared each of those names: `src/lib.hd` or `repl#N`
+    /// (`cli.repl.redeclare.binding`, `cli.repl.redeclare.type`).
+    pub declared_by: HashMap<Symbol, String>,
 }
 
 /// One module's result: all its items (private ones included), its scope

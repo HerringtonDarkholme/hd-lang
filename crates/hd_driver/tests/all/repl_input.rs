@@ -256,3 +256,99 @@ fn a_later_input_is_checked_again_after_another_earlier_input() {
     assert!(text.contains("type-mismatch"), "{text}");
     assert!(out.wasm.is_none());
 }
+
+/// Builds `text` as input `n` of a session holding `first` as input 1 and
+/// returns its diagnostics.
+fn redeclared(first: &str, text: &str) -> String {
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    repl.input(1, first);
+    let out = repl.build(2, text);
+    let text = out.render();
+    assert!(out.wasm.is_none(), "{first:?} then {text:?}");
+    text
+}
+
+/// `cli.repl.redeclare.binding`: an input declares no function or
+/// top-level binding that an earlier input declared, whichever kinds.
+#[test]
+fn an_input_does_not_redeclare_a_function_or_binding() {
+    let f = "fn price() -> i32:\n    +1\n";
+    for (first, text) in [
+        (f, "fn price() -> i32:\n    +2\n"),
+        ("rate := +3\n", "fn rate() -> i32:\n    +2\n"),
+        ("let count = +1\n", "fn count() -> i32:\n    +2\n"),
+        (f, "price := +2\n"),
+        ("rate := +3\n", "rate := +4\n"),
+        ("rate := +3\n", "let rate = +4\n"),
+        ("let count = +1\n", "let count = +2\n"),
+        ("let count = +1\n", "count := +2\n"),
+    ] {
+        let text = redeclared(first, text);
+        assert_eq!(text.matches("duplicate-binding").count(), 1, "{text}");
+        assert!(text.contains("is already declared by repl#1"), "{text}");
+    }
+}
+
+/// `cli.repl.redeclare.type`: nor a type, trait, or type alias.
+#[test]
+fn an_input_does_not_redeclare_a_type() {
+    for (first, text) in [
+        ("data Point:\n    x: i32\n", "data Point:\n    y: i32\n"),
+        ("enum Dir:\n    Up\n    Down\n", "data Dir:\n    y: i32\n"),
+        (
+            "trait Shape:\n    fn area(self) -> i32\n",
+            "trait Shape:\n    fn size(self) -> i32\n",
+        ),
+        ("type Id = i32\n", "type Id = i64\n"),
+    ] {
+        let text = redeclared(first, text);
+        assert_eq!(text.matches("duplicate-type").count(), 1, "{text}");
+        assert!(text.contains("is already declared by repl#1"), "{text}");
+    }
+}
+
+/// A `src/lib.hd` name is a name of the session too: one name, one
+/// declaration.
+#[test]
+fn an_input_does_not_redeclare_a_library_name() {
+    let text = redeclared("println(bonus())\n", "fn bonus() -> i32:\n    +1\n");
+    assert!(text.contains("duplicate-binding"), "{text}");
+    assert!(text.contains("declared by src/lib.hd"), "{text}");
+}
+
+/// A `let` binding is assigned, not declared again; a panicked input's
+/// names stay free (`cli.repl.panic.binding`).
+#[test]
+fn assignment_and_the_names_of_a_panicked_input_are_fine() {
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    repl.input(1, "let count = +1\n");
+    repl.input(2, "count = count + 1\n");
+    let out = repl.build(3, "fn lost() -> i32:\n    +2\n\nlost_total := +5\n");
+    assert!(out.diags.is_empty(), "{}", out.render());
+    repl.forget(3);
+    repl.input(4, "fn lost() -> i32:\n    +3\n\nlost_total := +6\n");
+}
+
+/// A program is a plain module: the same names in two inputs do not
+/// matter there.
+#[test]
+fn a_program_is_unaffected() {
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut src = MemorySources::default();
+    src.insert("src/lib.hd", LIB);
+    src.insert("src/other.hd", "fn bonus() -> i32:\n    +1\n");
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let out = build_packages(&host, "app", &Packages::default(), &Goal::Analyze);
+    assert!(out.diags.is_empty(), "{}", out.render());
+}
