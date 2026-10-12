@@ -711,6 +711,17 @@ impl Ck<'_, '_> {
         if general(self, at) && self.numeric(ct) && !shift {
             self.expect(at, ct, n, "operand");
         }
+        // `expr.op.primitive.types`: a primitive left operand with a
+        // non-primitive right operand is the operator trait's call, so
+        // `impl Mul[Money] for i64` fits `i64(3) * price`. A literal left
+        // operand takes the class's width first
+        // (`expr.op.left-literal.join`), which only its default can be
+        // here, as an implementation alone never names a width.
+        let trait_left = !cmp && self.primitive_left(at) && self.nominal(ct);
+        if trait_left {
+            let at = self.zonk(at);
+            return self.operator_trait_call(prim, (a, at), (c, ct), n, rn);
+        }
         if self.numeric(at) || (ats == Ty::BOOL && bool_ops) {
             if shift {
                 let _ = self.unsigned_count(ct, rn, "a shift count", true);
@@ -741,7 +752,50 @@ impl Ck<'_, '_> {
             }
             return Ok(v);
         }
-        // Everything else is the operator trait's method.
+        self.operator_trait_call(prim, (a, at), (c, ct), n, rn)
+    }
+
+    /// Whether an operand is a primitive number or character, or a
+    /// number literal whose width is still open.
+    fn primitive_left(&self, t: Ty) -> bool {
+        let pool = self.pool();
+        let t = self.strip_mut(t);
+        match pool.get(t) {
+            TyData::Prim(p) => p.is_integer() || p.is_float() || p == Prim::Char,
+            TyData::Infer(_) => self
+                .infer
+                .kind_of(pool, t)
+                .and_then(VarKind::literal_default)
+                .is_some(),
+            _ => false,
+        }
+    }
+
+    /// Whether a type is a declared or structural type rather than a
+    /// primitive, an open variable, or a type parameter.
+    fn nominal(&self, t: Ty) -> bool {
+        let pool = self.pool();
+        let t = self.strip_mut(t);
+        matches!(
+            pool.get(t),
+            TyData::Adt { .. }
+                | TyData::Tuple { .. }
+                | TyData::Option(_)
+                | TyData::Fn { .. }
+                | TyData::TraitValue { .. }
+        )
+    }
+
+    /// `a op b` as the operator trait's method (`expr.op.desugar`), once
+    /// the built-in rules do not type it.
+    fn operator_trait_call(
+        &mut self,
+        prim: PrimOp,
+        (a, at): (Ref, Ty),
+        (c, ct): (Ref, Ty),
+        n: NodeRef<'_>,
+        rn: NodeRef<'_>,
+    ) -> StageResult<Ref> {
         let k = self.cx.names.known;
         let (tr, trait_name, method) = match prim {
             PrimOp::Add => (k.add, "Add", "add"),

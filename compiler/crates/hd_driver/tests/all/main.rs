@@ -88,6 +88,7 @@ mod module_member_run;
 mod nested_interpolation_run;
 mod nested_optional_run;
 mod newtype_derive_run;
+mod operator_left_primitive_run;
 mod optional_join_run;
 mod pipe_bare_steps;
 mod pipe_placeholder;
