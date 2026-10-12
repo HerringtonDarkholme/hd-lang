@@ -1,7 +1,7 @@
 # Compiler benchmark inputs
 
 These programs exercise the current compiler subset with inputs larger and
-more varied than `samples/`. Run a checked-in case from the repository root:
+more varied than `examples/`. Run a checked-in case from the repository root:
 
 ```sh
 cargo run --release -p hd_cli -- bench/tokenizer/main.hd

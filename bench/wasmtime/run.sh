@@ -31,7 +31,7 @@ build_sample() {
   name=$1
   dir=$WORK/sample-$name
   rm -rf "$dir"; mkdir -p "$dir"
-  cp -r "$REPO/compiler/samples/$name/"* "$dir/"
+  cp -r "$REPO/examples/$name/"* "$dir/"
   (cd "$dir" && HD_CACHE="$CACHE" "$HD_BIN" build >/dev/null)
   find "$dir/build/debug" -name '*.wasm'
 }

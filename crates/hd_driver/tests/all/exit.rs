@@ -1,4 +1,4 @@
-//! The phase-1 exit program (`samples/exit`) through the driver:
+//! The phase-1 exit program (`examples/exit`) through the driver:
 //! std bodies reach emission, a second run is warm, and the Wasm is
 //! byte-identical across the serial and pool executors. Its output on V8
 //! is checked by `hd_cli`'s `run` tests.
@@ -11,7 +11,7 @@ use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
 fn sources() -> MemorySources {
-    let file = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../samples/exit/main.hd");
+    let file = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/exit/main.hd");
     let mut s = MemorySources::default();
     s.insert(
         "main.hd",

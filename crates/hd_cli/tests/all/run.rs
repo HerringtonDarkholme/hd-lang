@@ -1,4 +1,4 @@
-//! `hd run` and `hd build` on the samples in `samples`, on V8,
+//! `hd run` and `hd build` on the samples in `examples`, on V8,
 //! with the disk cache in a test directory: a second run is warm.
 
 use std::path::{Path, PathBuf};
@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use hd_testkit::Scratch;
 
 fn samples() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../samples")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples")
 }
 
 fn cache(name: &str) -> Scratch {

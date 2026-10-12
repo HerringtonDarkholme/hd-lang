@@ -1,5 +1,7 @@
 # Spike 0c: Representation Benchmark Results
 
+The harness that produced these results (`spikes/0c`) was removed from the repository; it lives in git history before the commit that closes issue #146.
+
 Recorded `2026-10-07T17:37:09Z` on `Darwin mingyangs-macbook-pro.taile9cb8a.ts.net 25.6.0 Darwin Kernel Version 25.6.0: Fri Jul 31 19:18:53 PDT 2026; root:xnu-12377.161.14~5/RELEASE_ARM64_T6031 arm64`. Load: `13:37  9 users, load averages: 12.11 12.01 12.98`. Toolchain: `rustc 1.97.1 (8bab26f4f 2026-07-14)`, Wasmtime 49.0.2, Node v24.19.0 / V8 13.6.233.17-node.51. The saved run is exploratory: 3 runtime sample(s), 1 warm-up(s), and 1 compile sample(s) per row. V8 through Node is the primary engine; the Wasmtime column is included only for E1, whose rule names cast cost on Wasmtime.
 
 Times are p50/p95. With one compile sample, compile p50 and p95 are necessarily equal. Missing experiments are recorded instead of extrapolated; the 10,000 x 200-byte E10 fixed-literal compile was stopped after it saturated one core for more than 40 minutes and peaked near 9 GB RSS.

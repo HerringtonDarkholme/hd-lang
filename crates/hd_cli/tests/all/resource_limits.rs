@@ -197,7 +197,7 @@ fn explicit_compiler_limit_overrides_invalid_environment() {
 #[cfg(feature = "wasmtime")]
 #[test]
 fn source_file_and_package_run_route_program_limits() {
-    let samples = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../samples");
+    let samples = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
     let dir = work("source-routes");
     let mut command = hd(&dir);
     command

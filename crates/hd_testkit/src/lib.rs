@@ -149,7 +149,7 @@ mod tests {
 
     fn sample(dir: &str) -> MemorySources {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../samples")
+            .join("../../examples")
             .join(dir);
         let mut s = MemorySources::default();
         let mut stack: Vec<PathBuf> = vec![root.clone()];

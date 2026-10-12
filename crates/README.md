@@ -93,9 +93,9 @@ work on the package whose `hd.toml` is at or above the working directory:
 
 ```sh
 cargo build -p hd_cli
-./target/debug/hd samples/hello/hello.hd
-(cd samples/fib && ../../target/debug/hd run)
-(cd samples/fib && ../../target/debug/hd build)
+./target/debug/hd examples/hello/hello.hd
+(cd examples/fib && ../../target/debug/hd run)
+(cd examples/fib && ../../target/debug/hd build)
 ```
 
 `hd FILE.hd` and `hd run` compile and execute with Node/V8. `hd run` runs the
@@ -148,17 +148,17 @@ the CLI disk cache.
 
 ```sh
 # Report every pipeline stage reached by a package.
-cargo run -p hd_driver --example stages -- samples/hello app
+cargo run -p hd_driver --example stages -- examples/hello app
 
 # Time a generated package: N functions per folder, then thread count.
 cargo run --release -p hd_driver --example bench -- 20 1
 
 # Print selected checked TIR paths.
-cargo run -p hd_driver --example tir -- samples/hello hello app/hello/main
+cargo run -p hd_driver --example tir -- examples/hello hello app/hello/main
 
 # Parse a file or directory; add --tree to print the green tree.
-cargo run -p hd_syntax --example parse_check -- samples/hello
-cargo run -p hd_syntax --example parse_check -- --tree samples/hello/hello.hd
+cargo run -p hd_syntax --example parse_check -- examples/hello
+cargo run -p hd_syntax --example parse_check -- --tree examples/hello/hello.hd
 ```
 
 ## Tests And Snapshots
@@ -170,7 +170,7 @@ cargo run -p hd_syntax --example parse_check -- --tree samples/hello/hello.hd
 - Checker, runtime, incremental, and standard-library stage tests are under
   `crates/hd_driver/tests/`. Golden TIR is in
   `crates/hd_driver/tests/tir/`.
-- CLI compile/run samples are in `samples/` and exercised by
+- CLI compile/run samples are in `examples/` and exercised by
   `crates/hd_cli/tests/all/run.rs`.
 - The implementation-neutral suite is in `spec/conformance/`; temporary
   disagreements with this compiler are listed in
@@ -213,7 +213,7 @@ that `obj` directory. For disposable development runs, make the target
 unambiguous:
 
 ```sh
-HD_CACHE=/private/tmp/hd-cache ./target/debug/hd samples/hello/hello.hd
+HD_CACHE=/private/tmp/hd-cache ./target/debug/hd examples/hello/hello.hd
 rm -rf /private/tmp/hd-cache/obj
 ```
 

@@ -1,4 +1,4 @@
-//! `hd test` on `samples/testing` (M4c): exact output and exit
+//! `hd test` on `examples/testing` (M4c): exact output and exit
 //! status of passing, failing, panicking and ignored cases, a body whose
 //! `?` returns an error (`module.testing.err-print`),
 //! `--filter`, a warm second run, and the same output on one thread and
@@ -10,7 +10,7 @@ use std::process::{Command, Output};
 use hd_testkit::Scratch;
 
 fn package() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../samples/testing")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/testing")
 }
 
 fn cache(name: &str) -> Scratch {

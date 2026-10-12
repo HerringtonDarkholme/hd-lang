@@ -1,4 +1,4 @@
-//! M4d's samples through the driver (`samples/init`, `suspend`
+//! M4d's samples through the driver (`examples/init`, `suspend`
 //! and `defer`): module initialization, suspension state machines and the
 //! `defer` exit ladder build, a second build is warm, and the Wasm is
 //! byte-identical across the serial and pool executors. Their output on V8
@@ -12,7 +12,7 @@ use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
 fn sources(dir: &str, files: &[&str]) -> MemorySources {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../samples");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
     let mut s = MemorySources::default();
     for f in files {
         let text = std::fs::read_to_string(root.join(dir).join(f)).expect("sample");

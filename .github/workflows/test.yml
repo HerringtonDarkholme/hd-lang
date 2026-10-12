@@ -22,7 +22,7 @@ concurrency:
 jobs:
   # Every Rust command builds the whole workspace with all features, so CI
   # covers the wasmtime engine that a plain `cargo build` leaves out (the
-  # `wasmtime` feature is off by default; docs/compiler.md).
+  # `wasmtime` feature is off by default; crates/README.md).
   #
   # The Rust jobs run side by side, so the check takes as long as the
   # slowest one. Each restores third-party build output only (the

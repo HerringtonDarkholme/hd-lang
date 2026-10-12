@@ -11,7 +11,7 @@ use std::process::{Command, Output, Stdio};
 use hd_testkit::Scratch;
 
 fn samples() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../samples")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples")
 }
 
 fn work(name: &str) -> Scratch {

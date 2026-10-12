@@ -67,9 +67,9 @@ const SPEC_CONFLICTS: &[&str] = &[
     "cli/fmt-syntax-error/src/lib.hd",
 ];
 
-/// Every source the parser must accept: `lib/std`, `examples/`, the
-/// samples, the parse-gap repros, and every conformance source but the
-/// parse-phase rejects.
+/// Every source the parser must accept: `lib/std`, `examples/` (single
+/// files, dogfood programs, and sample packages), the parse-gap repros, and
+/// every conformance source but the parse-phase rejects.
 fn valid_sources() -> Vec<PathBuf> {
     let root = repository_root();
     let rejects = parse_reported();
@@ -83,7 +83,7 @@ fn valid_sources() -> Vec<PathBuf> {
             .replace('\\', "/");
         !rejects.contains(&relative) && !SPEC_CONFLICTS.contains(&relative.as_str())
     });
-    for directory in ["lib/std", "examples", "samples", "tests/parse-gaps"] {
+    for directory in ["lib/std", "examples", "crates/hd_syntax/tests/parse-gaps"] {
         hd_files(&root.join(directory), &mut files);
     }
     files.sort();
@@ -93,7 +93,10 @@ fn valid_sources() -> Vec<PathBuf> {
 #[test]
 fn parse_gap_repros_parse_clean() {
     let mut files = Vec::new();
-    hd_files(&repository_root().join("tests/parse-gaps"), &mut files);
+    hd_files(
+        &repository_root().join("crates/hd_syntax/tests/parse-gaps"),
+        &mut files,
+    );
     assert!(files.len() >= 17, "parse-gap repros missing");
     for path in files {
         let source = fs::read_to_string(&path).expect("read repro");
@@ -237,7 +240,9 @@ fn skim_and_full_parse_agree_on_skeletons() {
     let mut files = Vec::new();
     let root = repository_root();
     hd_files(&root.join("lib/std"), &mut files);
-    hd_files(&root.join("examples"), &mut files);
+    hd_files(&root.join("examples/dogfood"), &mut files);
+    files.push(root.join("examples/core.hd"));
+    files.push(root.join("examples/suspension.hd"));
     for path in files {
         let source = fs::read_to_string(&path).expect("read");
         let skimmed: Vec<(HeaderKind, u32, u32)> = skim(source.as_bytes())
