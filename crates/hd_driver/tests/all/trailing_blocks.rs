@@ -125,6 +125,15 @@ pub fn main() -> void $ Console:
     assert_eq!(run(&out, "closures"), "statement\n10\n31\n42\n4\n");
 }
 
+/// A trailing block for a callee whose final parameter is not a
+/// zero-argument function is `trailing-block-ineligible`, not an argument
+/// count (spec 02 `grammar.call.trailing-block.eligible`).
+#[test]
+fn trailing_block_for_a_non_function_final_parameter_is_ineligible() {
+    let main = "fn total(items: List[i32]) -> usize: items.len()\n\nfn run() -> void:\n    _count := total([1, 2]):\n        pass\n";
+    assert_eq!(errors(main), vec![Code::TrailingBlockIneligible]);
+}
+
 /// A trailing block for an `fn!` parameter is a suspending closure, so it
 /// may make bang calls (`fn.trailing.suspending`,
 /// `fn.trailing.suspending.body`); one for a plain `fn` parameter may not.

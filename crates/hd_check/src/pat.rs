@@ -242,7 +242,18 @@ impl Ck<'_, '_> {
                     }
                     (None, None) => {
                         if elems.len() != subs.len() {
-                            self.err(Code::PatternArity, p, "the tuple has another size");
+                            // A `let` tuple pattern needs a tuple of the
+                            // same arity (`flow.let.tuple-arity`).
+                            if self.let_view.is_some() {
+                                let msg = format!(
+                                    "the pattern binds {} names but the tuple has {} elements",
+                                    subs.len(),
+                                    elems.len()
+                                );
+                                self.err(Code::TypeMismatch, p, &msg);
+                            } else {
+                                self.err(Code::PatternArity, p, "the tuple has another size");
+                            }
                             return self.declare_poisoned(&subs, binds);
                         }
                         for (s, et) in subs.iter().zip(elems) {

@@ -270,6 +270,16 @@ pub fn main() -> void $ Console:
 }
 
 #[test]
+fn let_tuple_pattern_needs_the_same_arity() {
+    // `flow.let.tuple-arity`: a `let` tuple pattern against a tuple of
+    // another size is a type mismatch, not a pattern arity.
+    let bad = "fn f() -> i32:\n    let (first, _second) = (1, 2, 3)\n    first\n";
+    assert_eq!(codes_of(bad), [Code::TypeMismatch]);
+    let ok = "fn f(pair: (i32, i32)) -> i32:\n    let (first, _second) = pair\n    first\n";
+    assert!(codes_of(ok).is_empty());
+}
+
+#[test]
 fn selection_past_the_tuple_is_unknown() {
     // Tuples have no inherent members: past-the-end selection is a
     // method-resolution failure (`trait.own.inherent.std.no-tuple`),

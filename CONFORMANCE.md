@@ -8,18 +8,18 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2797 | 33 | 15 | 2845 |
+| 2799 | 31 | 15 | 2845 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
 | `lang/01-lexical-structure.md` | 145 | 0 | 0 | 145 |
-| `lang/02-grammar.md` | 214 | 1 | 0 | 215 |
+| `lang/02-grammar.md` | 215 | 0 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
 | `lang/04-type-system.md` | 345 | 7 | 0 | 352 |
 | `lang/05-expressions.md` | 274 | 3 | 0 | 277 |
-| `lang/06-control-flow.md` | 150 | 4 | 3 | 157 |
+| `lang/06-control-flow.md` | 151 | 3 | 3 | 157 |
 | `lang/07-functions.md` | 126 | 4 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 122 | 1 | 0 | 123 |
 | `lang/09-traits.md` | 354 | 5 | 0 | 359 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 917 | 0 | 12 | 929 |
-| `typing/invalid` | 1049 | 26 | 0 | 1075 |
+| `typing/invalid` | 1051 | 24 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 13 | 7 | 0 | 20 |
 
@@ -76,8 +76,6 @@ compiler stage that first declined the case.
 | Bucket | Cases |
 | --- | ---: |
 | `fail:no-diagnostic` | 29 |
-| `fail:pattern-arity` | 1 |
-| `fail:private-main` | 1 |
 | `fail:unknown-name` | 2 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 11 |
@@ -113,18 +111,6 @@ compiler stage that first declined the case.
 - `typing/invalid/script-test-init-requirement.hd`
 - `typing/invalid/assoc-call-parameter-two-bounds.hd`
 - `typing/invalid/trait-assoc-call-self-undetermined.hd`
-
-</details>
-
-<details><summary><code>fail:pattern-arity</code> (1)</summary>
-
-- `typing/invalid/tuple-binding-arity.hd`
-
-</details>
-
-<details><summary><code>fail:private-main</code> (1)</summary>
-
-- `typing/invalid/trailing-block-ineligible.hd`
 
 </details>
 
@@ -2410,6 +2396,7 @@ typing/invalid/tests-block-use-leak.hd
 typing/invalid/top-level-defer.hd
 typing/invalid/top-level-let-annotation-type-mismatch.hd
 typing/invalid/top-level-return.hd
+typing/invalid/trailing-block-ineligible.hd
 typing/invalid/trait-associated-reference-unsolved-self.hd
 typing/invalid/trait-generic-instantiations-unrelated.hd
 typing/invalid/trait-impl-method-missing-result-type.hd
@@ -2440,6 +2427,7 @@ typing/invalid/trait-value-unbound-associated-type.hd
 typing/invalid/trait-value-unrelated-bound.hd
 typing/invalid/trait-variance-marker.hd
 typing/invalid/transitive-uninitialized-binding.hd
+typing/invalid/tuple-binding-arity.hd
 typing/invalid/tuple-binding-non-tuple.hd
 typing/invalid/tuple-bound-non-tuple.hd
 typing/invalid/tuple-element-assignment.hd

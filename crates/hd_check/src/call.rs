@@ -793,7 +793,11 @@ impl Ck<'_, '_> {
         } else if args.spread.is_some() {
             self.spread_value_args(ps, args, n)?
         } else {
-            let given = args.positional.len() + usize::from(args.trailing.is_some());
+            // A trailing block fills the final parameter, so it counts
+            // as an argument only when the callee can take it.
+            let takes =
+                args.trailing.is_some() && self.trailing_takes(ps.last().copied()).is_some();
+            let given = args.positional.len() + usize::from(takes);
             if ps.len() != given {
                 let msg = format!("the function takes {} arguments", ps.len());
                 self.err(Code::ArgumentCount, n, &msg);
@@ -808,9 +812,17 @@ impl Ck<'_, '_> {
                 });
             }
             if let Some(block) = args.trailing {
-                let w = self.trailing_param(ps.last().copied(), "the function value")?;
+                // A block the callee cannot take is still checked, against
+                // the poison type, but fills nothing.
+                let w = self.trailing_param(
+                    if takes { ps.last().copied() } else { None },
+                    "the function value",
+                    n,
+                );
                 let (r, t) = self.trailing_closure(block, w)?;
-                refs.push(self.coerce(r, t, w, block, "argument"));
+                if takes {
+                    refs.push(self.coerce(r, t, w, block, "argument"));
+                }
             }
             refs
         };
@@ -905,24 +917,35 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// The type of the final parameter `last` that a trailing block fills,
-    /// which must be a zero-argument function type (`fn.trailing.form`,
-    /// `grammar.call.trailing-block.eligible`). No diagnostic code names a
-    /// callee without one yet (audit/compiler/diagnostic-notes.md), so it
-    /// stays a stop.
-    fn trailing_param(&mut self, last: Option<Ty>, name: &str) -> StageResult<Ty> {
+    /// The final parameter a trailing block fills, when it is a
+    /// zero-argument function type (`fn.trailing.form`,
+    /// `grammar.call.trailing-block.eligible`).
+    fn trailing_takes(&self, last: Option<Ty>) -> Option<Ty> {
         let pool = self.pool();
-        if let Some(t) = last {
-            let r = self.infer.resolve(pool, t);
-            if let TyData::Fn { params, .. } = pool.get(self.strip_mut(r))
-                && pool.list_items(params).is_empty()
-            {
-                return Ok(t);
-            }
+        let t = last?;
+        let r = self.infer.resolve(pool, t);
+        if let TyData::Fn { params, .. } = pool.get(self.strip_mut(r))
+            && pool.list_items(params).is_empty()
+        {
+            Some(t)
+        } else {
+            None
         }
-        unsupported(format!(
+    }
+
+    /// The type of the final parameter `last` that a trailing block fills
+    /// (see [`Self::trailing_takes`]). Any other callee is
+    /// `trailing-block-ineligible`, reported at the call; checking
+    /// continues against the poison type.
+    fn trailing_param(&mut self, last: Option<Ty>, name: &str, n: NodeRef<'_>) -> Ty {
+        if let Some(t) = self.trailing_takes(last) {
+            return t;
+        }
+        let msg = format!(
             "a trailing block for `{name}`, whose final parameter is not a zero-argument function"
-        ))
+        );
+        self.err(Code::TrailingBlockIneligible, n, &msg);
+        Ty::POISON
     }
 
     /// Checks arguments against parameters (positional, then named by
@@ -948,7 +971,11 @@ impl Ck<'_, '_> {
         let mut slots: Vec<Option<Ref>> = vec![None; rest.len()];
         // A trailing block supplies the final parameter, so positional
         // arguments fill the ones before it (`fn.trailing.arguments`).
-        let room = rest.len() - usize::from(args.trailing.is_some() && !rest.is_empty());
+        // A block the callee cannot take fills nothing.
+        let takes = args.trailing.is_some()
+            && !rest.is_empty()
+            && self.trailing_takes(rest.last().map(|p| p.1)).is_some();
+        let room = rest.len() - usize::from(takes);
         if !variadic && args.positional.len() > room {
             let msg = format!("`{name}` takes {} arguments", rest.len());
             self.err(Code::ArgumentCount, n, &msg);
@@ -1103,19 +1130,28 @@ impl Ck<'_, '_> {
             ));
         }
         if let Some(block) = args.trailing {
-            let w = match rest.last() {
-                Some(p) => Some(self.normalize_deep(p.1)?),
-                None => None,
-            };
-            let w = self.trailing_param(w, name)?;
-            let last = rest.len() - 1;
-            if slots[last].is_some() {
-                let pname = self.cx.names.text(rest[last].0).to_owned();
-                let msg = format!("`{pname}` is given twice");
-                self.err(Code::DuplicateArgument, block, &msg);
+            // A block the callee cannot take is still checked, against
+            // the poison type, but fills nothing (and cannot collide
+            // with a positional argument).
+            let takes = self.trailing_takes(rest.last().map(|p| p.1)).is_some();
+            if takes {
+                let w = match rest.last() {
+                    Some(p) => Some(self.normalize_deep(p.1)?),
+                    None => None,
+                };
+                let w = self.trailing_param(w, name, block);
+                let last = rest.len() - 1;
+                if slots[last].is_some() {
+                    let pname = self.cx.names.text(rest[last].0).to_owned();
+                    let msg = format!("`{pname}` is given twice");
+                    self.err(Code::DuplicateArgument, block, &msg);
+                } else {
+                    let (r, t) = self.trailing_closure(block, w)?;
+                    slots[last] = Some(self.coerce(r, t, w, block, "argument"));
+                }
             } else {
-                let (r, t) = self.trailing_closure(block, w)?;
-                slots[last] = Some(self.coerce(r, t, w, block, "argument"));
+                let w = self.trailing_param(None, name, n);
+                self.trailing_closure(block, w)?;
             }
         }
         // A vararg nothing supplied collects no arguments.
