@@ -14,7 +14,8 @@
 //!    errors, 2 malformed request.
 //! 3. `hd_output(kind)` and `hd_output_len(kind)` give the address and length
 //!    of the response: kind 0 is the JSON text, kind 1 the program's bytes
-//!    (length 0 when there is no program).
+//!    (length 0 when there is no program), kind 2 the program's WebAssembly
+//!    text (length 0 unless the request's goal was wat).
 //!
 //! An address stays valid until the next call. Memory may grow during any
 //! call, so JS takes a fresh view of `memory.buffer` after each one.
@@ -30,6 +31,7 @@ struct State {
     input: Vec<u8>,
     json: Vec<u8>,
     wasm: Vec<u8>,
+    wat: Vec<u8>,
 }
 
 thread_local! {
@@ -56,21 +58,23 @@ pub extern "C" fn hd_compile() -> u32 {
             input,
             json,
             wasm,
+            wat,
         } = s;
         let response = wire::respond(session, input);
         *json = response.json.into_bytes();
         *wasm = response.wasm;
+        *wat = response.wat.into_bytes();
         response.status
     })
 }
 
-/// The address of output `kind` (0 JSON, 1 wasm); null for another kind.
+/// The address of output `kind` (0 JSON, 1 wasm, 2 WAT); null for another kind.
 #[unsafe(no_mangle)]
 pub extern "C" fn hd_output(kind: u32) -> *const u8 {
     STATE.with_borrow(|s| output(s, kind).map_or(std::ptr::null(), <[u8]>::as_ptr))
 }
 
-/// The length of output `kind` (0 JSON, 1 wasm); 0 for another kind.
+/// The length of output `kind` (0 JSON, 1 wasm, 2 WAT); 0 for another kind.
 #[unsafe(no_mangle)]
 pub extern "C" fn hd_output_len(kind: u32) -> usize {
     STATE.with_borrow(|s| output(s, kind).map_or(0, <[u8]>::len))
@@ -80,6 +84,7 @@ fn output(s: &State, kind: u32) -> Option<&[u8]> {
     match kind {
         0 => Some(&s.json),
         1 => Some(&s.wasm),
+        2 => Some(&s.wat),
         _ => None,
     }
 }

@@ -1,8 +1,7 @@
 // Runs the compile-and-run pipelines the worker uses, bundled for the browser
 // with the same esbuild options and Node shims as the playground build. Run,
 // Check and Test go through the Rust compiler's wasm (rust-runner.ts), which
-// the test builds first when it is missing; the WAT view still goes through
-// the prototype compiler (runner.ts).
+// the test builds first when it is missing, and so does the WAT view.
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -889,53 +888,52 @@ test("each tour snippet runs and tests as its page says; each edit breaks it as 
   }
 });
 
-test("the WAT of a program is the module Run instantiates", async () => {
-  const project = single('pub fn main() -> void $ Console:\n    println("hi")\n');
-  const shown = await runner.watProject(project);
+test("the WAT of a program is the module the compiler printed", async () => {
+  const shown = await rust.watProject(
+    single('pub fn main() -> void $ Console:\n    println("hi")\n'),
+  );
   assert.equal(shown.status, "ok", shown.summary);
   assert.equal(shown.module?.origin, "program");
   assert.match(shown.module!.wat, /^\(module\n/);
-  assert.match(shown.module!.wat, /\(func \(export "main"\) \(param \$provider0 externref\)/);
-  const modules: Runner.CompiledModule[] = [];
-  const ran = await runner.runProject(project, "run", undefined, (module) => modules.push(module));
-  assert.equal(ran.status, "ok", ran.summary);
-  assert.deepEqual(modules, [shown.module]);
-  assert.deepEqual(runner.watFromRun(ran, modules[0]), { ...shown, diagnostics: ran.diagnostics });
-  const checked: Runner.CompiledModule[] = [];
-  await runner.runProject(project, "check", undefined, (module) => checked.push(module));
-  assert.deepEqual(checked, [], "Check compiles no module");
+  // The name section gives the entry function its name.
+  assert.match(shown.module!.wat, /\(func \$playground\/main\/main#0 /);
+  assert.match(shown.module!.wat, /\(export "hd\.init"/);
 });
 
 test("the WAT view shows diagnostics when compilation fails", async () => {
-  const broken = single('pub fn main() -> void:\n    let x: i32 = "no"\n');
-  const shown = await runner.watProject(broken);
+  const shown = await rust.watProject(single('pub fn main() -> void:\n    let x: i32 = "no"\n'));
   assert.equal(shown.status, "compile-error");
   assert.equal(shown.module, undefined);
-  assert.deepEqual(located(shown), ["src/main.hd:2:18:type-mismatch"]);
-  const ran = await runner.runProject(broken, "run");
-  assert.equal(runner.watFromRun(ran, undefined)?.status, "compile-error");
-  const unlinked = await runner.watProject({
+  assert.deepEqual(located(shown), [
+    "src/main.hd:2:9:unused-local-binding",
+    "src/main.hd:2:18:type-mismatch",
+  ]);
+  const unlinked = await rust.watProject({
     files: { "src/main.hd": "use pkg.gone.{X}\n" },
     main: "src/main.hd",
   });
   assert.equal(unlinked.status, "compile-error");
 });
 
-test("without main, the WAT is the last module Run compiled", async () => {
-  const project = single('x := 20\nprintln("start")\nx + 1\nx * 2\n');
-  assert.equal((await runner.watProject(project)).status, "not-run");
-  const modules: Runner.CompiledModule[] = [];
-  const ran = await runner.runProject(project, "run", undefined, (module) => modules.push(module));
-  assert.equal(ran.status, "ok", ran.summary);
-  assert.equal(modules.length, 1);
-  const [module] = modules;
-  assert.equal(module!.origin, "top-level");
-  assert.equal(module!.count, 4, "each of the four inputs compiles a module");
-  assert.match(module!.wat, /\(export "main"\)/);
-  const declarationsOnly = await runner.watProject(
-    single('fn f() -> i32: 1\ntests:\n    it("t"):\n        pass\n'),
-  );
-  assert.equal(declarationsOnly.status, "ok", "declarations with tests compile as one module");
+test("the WAT of every example is a module, or the errors that stop it", async () => {
+  const { EXAMPLES } = await bundled<{ EXAMPLES: readonly Example[] }>("examples.ts");
+  for (const { id, project } of EXAMPLES) {
+    const shown = await rust.watProject(project);
+    const ran = await run(project, "run");
+    if (ran.status === "compile-error") {
+      assert.equal(shown.status, "compile-error", id);
+      continue;
+    }
+    assert.equal(shown.status, "ok", `${id}: ${shown.summary}`);
+    assert.match(shown.module!.wat, /^\(module/, id);
+    assert.match(shown.module!.wat, /\(func \$playground\/main\//, id);
+  }
+});
+
+test("without main, the WAT is the script's module", async () => {
+  const shown = await rust.watProject(single('x := 20\nprintln("start")\nx + 1\nx * 2\n'));
+  assert.equal(shown.status, "ok", shown.summary);
+  assert.match(shown.module!.wat, /^\(module/);
 });
 
 test("the crypto shim matches node:crypto", async () => {

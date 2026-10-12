@@ -24,9 +24,11 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURE = join(root, "spec", "conformance", "runtime", "valid", "println-console-stdout.hd");
 
 // The plan's 3.2 MB raw came from the `stages` example, which reads std
-// from disk; the real compiler embeds std's 0.51 MB of source (§2).
-const RAW_LIMIT = 4e6;
-const GZIP_LIMIT = 1.3e6;
+// from disk; the real compiler embeds std's 0.51 MB of source (§2). W8's
+// wasmprinter added 0.49 MB raw and 0.13 MB gzip (3.90 -> 4.39 MB, 1.25 ->
+// 1.39 MB), so the gates are 0.5 MB and 0.15 MB higher than W3's.
+const RAW_LIMIT = 4.5e6;
+const GZIP_LIMIT = 1.45e6;
 const RAW_FLOOR = 2e6;
 
 /** Compiles `request` and times the call. */
@@ -64,6 +66,11 @@ const stdout = execFileSync(process.execPath, [join(root, "host", "run.mjs"), pr
 const expected = [...text.matchAll(/^# expect-stdout: (.*)$/gm)].map((m) => `${m[1]}\n`).join("");
 assert.equal(stdout, expected);
 console.log(`run: ${JSON.stringify(stdout)}`);
+
+const printed = compile(exports, encodeRequest({ "src/main.hd": text }, "src/main.hd", GOAL.wat));
+assert.equal(printed.status, STATUS.ok);
+assert.ok(printed.wat.startsWith("(module"), printed.wat.slice(0, 40));
+assert.deepEqual(printed.wasm, cold.wasm);
 
 const broken = compile(
   exports,

@@ -6,8 +6,9 @@
 // reports what `hd test` would. The worker loads one runner, so the
 // compiler and its in-memory store live as long as the worker.
 //
-// The WAT view and the REPL panel stay on the prototype compiler
-// (runner.ts) until W8 and W7.
+// The WAT view's module is the program the compiler built for Run, printed
+// by the compiler wasm (the wat goal, output kind 2). The REPL panel stays
+// on the prototype compiler (runner.ts) until W7.
 
 import { judge, runCases, type CaseRecord, type Verdict } from "../../../host/cases.mjs";
 import { createWebHost, memoryFiles, unboundTraits } from "../../../host/web.mjs";
@@ -23,7 +24,7 @@ import {
   type WireTest,
 } from "./compiler-wire.ts";
 import type { Project } from "./project.ts";
-import type { RunDiagnostic, RunResult } from "./runner.ts";
+import type { RunDiagnostic, RunResult, WatResult } from "./runner.ts";
 
 /** The modes the Rust compiler serves. */
 export type RustMode = "run" | "check" | "test";
@@ -36,6 +37,8 @@ export interface RustRunner {
     mode: RustMode,
     onStdout?: (line: string, debug?: boolean) => void,
   ): Promise<RunResult>;
+  /** The WebAssembly text of the module Run would build for `project`. */
+  watProject(project: Project): Promise<WatResult>;
 }
 
 /** The program's `Args.program`, as `hd run` gives a package's executable name. */
@@ -348,5 +351,39 @@ export function createRustRunner(bytes: Promise<BufferSource> | BufferSource): R
     }
   }
 
-  return { ready, runProject };
+  async function watProject(project: Project): Promise<WatResult> {
+    let exports: CompilerExports;
+    try {
+      exports = await compiler;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        status: "failure",
+        diagnostics: [],
+        summary: `the compiler did not load: ${message}`,
+      };
+    }
+    const compiled = compileRequest(exports, encodeRequest(project.files, project.main, GOAL.wat));
+    if (compiled.status === STATUS.malformed)
+      return {
+        status: "failure",
+        diagnostics: [],
+        summary: `the compiler refused the request: ${compiled.json.error}`,
+      };
+    const diagnostics = (compiled.json.diagnostics ?? []).map((diagnostic) =>
+      toRunDiagnostic(diagnostic, project.main),
+    );
+    if (compiled.status === STATUS.errors)
+      return { status: "compile-error", diagnostics, summary: "compilation failed" };
+    if (compiled.wat === "")
+      return { status: "failure", diagnostics, summary: "no module to show" };
+    return {
+      status: "ok",
+      module: { wat: compiled.wat, origin: "program", count: 1 },
+      diagnostics,
+      summary: "",
+    };
+  }
+
+  return { ready, runProject, watProject };
 }

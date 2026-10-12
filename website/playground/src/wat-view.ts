@@ -5,8 +5,12 @@ import { diagnosticList, element } from "./output.ts";
 import type { RunDiagnostic, WatResult } from "./runner.ts";
 import { tokenizeWat } from "./wat.ts";
 
-/** The view renders at most this many lines; Copy and Download give the full text. */
-const MAX_WAT_LINES = 5000;
+/**
+ * The view renders at most this many lines; Copy and Download give the full
+ * text. The project's own functions follow the runtime's, which can be
+ * thousands of lines, and the largest example is about 8,900.
+ */
+const MAX_WAT_LINES = 10_000;
 
 const escapeHtml = (text: string): string =>
   text.replace(/[&<>]/g, (char) => (char === "&" ? "&amp;" : char === "<" ? "&lt;" : "&gt;"));
@@ -72,7 +76,6 @@ export class WatPanel {
     const { module } = result;
     if (result.status !== "ok" || !module) {
       this.text = undefined;
-      if (result.status === "not-run") return this.message(result.summary);
       const errors = result.diagnostics.filter(({ severity }) => severity === "error").length;
       const heading =
         result.status === "compile-error"

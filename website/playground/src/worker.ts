@@ -5,19 +5,13 @@
 //
 // Run, Check and Test go to the Rust compiler (rust-runner.ts), whose
 // wasm, hd_web.wasm, sits beside this script; the worker loads it once and
-// says it is ready after that. The WAT view and the REPL stay on the
-// prototype compiler (runner.ts) for now: the view compiles the project
-// with it until W8.
+// says it is ready after that. The WAT view's module comes from the same
+// wasm (the wat goal). The REPL stays on the prototype compiler (runner.ts)
+// for now.
 
 import { respond, ReplSession, type ReplReply } from "../../../src/repl.ts";
 import type { Project } from "./project.ts";
-import {
-  PLAYGROUND_HOST,
-  watProject,
-  type RunMode,
-  type RunResult,
-  type WatResult,
-} from "./runner.ts";
+import { PLAYGROUND_HOST, type RunMode, type RunResult, type WatResult } from "./runner.ts";
 import { createRustRunner } from "./rust-runner.ts";
 
 export type WorkerRequest =
@@ -69,7 +63,7 @@ scope.onmessage = async ({ data: request }) => {
     const result = await rust.runProject(project, mode, onStdout);
     scope.postMessage({ kind: "result", id, result });
   } else if (request.kind === "wat") {
-    const result = await watProject(request.project);
+    const result = await rust.watProject(request.project);
     scope.postMessage({ kind: "wat", id: request.id, result });
   } else if (request.kind === "repl") {
     const reply = await respond(session, request.input);

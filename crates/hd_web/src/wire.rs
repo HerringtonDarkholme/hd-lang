@@ -2,9 +2,12 @@
 //! functions so native tests cover it.
 //!
 //! A request is bytes: the file count, then each file's path and text, then
-//! the entry path, then one goal byte (0 run, 1 check, 2 test). Counts and
-//! string lengths are unsigned LEB128 (at most 32 bits); strings are UTF-8.
-//! Nothing may follow the goal byte.
+//! the entry path, then one goal byte (0 run, 1 check, 2 test, 3 wat). Counts
+//! and string lengths are unsigned LEB128 (at most 32 bits); strings are
+//! UTF-8. Nothing may follow the goal byte. Goal 3 compiles as goal 0 does,
+//! then prints the program as WebAssembly text with `wasmprinter`; the text
+//! is output kind 2 (`hd_output(2)`), empty for every other goal and when
+//! there is no program. The JSON and the program bytes answer as for run.
 //!
 //! A response is JSON text, written by hand (rule 2.2.4: no serde), plus the
 //! programs' bytes when there are any. A compiled request answers
@@ -33,6 +36,8 @@ pub struct Request {
     pub files: Vec<(String, String)>,
     pub entry: String,
     pub goal: Goal,
+    /// Goal byte 3: compile as run, then print the program.
+    pub wat: bool,
 }
 
 /// Why a request did not decode.
@@ -46,6 +51,8 @@ pub struct Response {
     /// The programs one after another; empty when the compile produced
     /// none.
     pub wasm: Vec<u8>,
+    /// The WAT goal's text of the program; empty for every other goal.
+    pub wat: String,
 }
 
 /// Decodes `request` and compiles it in `session`.
@@ -58,22 +65,42 @@ pub fn respond(session: &mut Session, request: &[u8]) -> Response {
             } else {
                 STATUS_OK
             };
+            let wasm: Vec<u8> = result
+                .programs
+                .iter()
+                .filter_map(|p| p.wasm.as_deref())
+                .flatten()
+                .copied()
+                .collect();
+            let mut wat = String::new();
+            if req.wat && !wasm.is_empty() {
+                match wasmprinter::print_bytes(&wasm) {
+                    Ok(text) => wat = text,
+                    Err(e) => {
+                        return Response {
+                            status: STATUS_MALFORMED,
+                            json: format!(
+                                "{{\"error\":{}}}",
+                                quote(&format!("the module did not print: {e}"))
+                            ),
+                            wasm,
+                            wat,
+                        };
+                    }
+                }
+            }
             Response {
                 status,
                 json: encode_result(&result, req.goal),
-                wasm: result
-                    .programs
-                    .iter()
-                    .filter_map(|p| p.wasm.as_deref())
-                    .flatten()
-                    .copied()
-                    .collect(),
+                wasm,
+                wat,
             }
         }
         Err(WireError(reason)) => Response {
             status: STATUS_MALFORMED,
             json: format!("{{\"error\":{}}}", quote(reason)),
             wasm: Vec::new(),
+            wat: String::new(),
         },
     }
 }
@@ -89,8 +116,9 @@ pub fn decode_request(bytes: &[u8]) -> Result<Request, WireError> {
         files.push((path, text));
     }
     let entry = r.string()?;
-    let goal = match r.byte()? {
-        0 => Goal::Run,
+    let byte = r.byte()?;
+    let goal = match byte {
+        0 | 3 => Goal::Run,
         1 => Goal::Check,
         2 => Goal::Test,
         _ => return Err(WireError("unknown goal byte")),
@@ -98,7 +126,12 @@ pub fn decode_request(bytes: &[u8]) -> Result<Request, WireError> {
     if r.at != bytes.len() {
         return Err(WireError("bytes after the goal byte"));
     }
-    Ok(Request { files, entry, goal })
+    Ok(Request {
+        files,
+        entry,
+        goal,
+        wat: byte == 3,
+    })
 }
 
 struct Reader<'a> {
@@ -277,6 +310,7 @@ mod tests {
                 ],
                 entry: "src/main.hd".into(),
                 goal: Goal::Test,
+                wat: false,
             }
         );
     }
@@ -295,7 +329,7 @@ mod tests {
             Err(WireError("bytes after the goal byte"))
         );
         let mut goal = good.clone();
-        *goal.last_mut().unwrap() = 3;
+        *goal.last_mut().unwrap() = 4;
         assert_eq!(decode_request(&goal), Err(WireError("unknown goal byte")));
         // A count past 32 bits, a length past the end, and bad UTF-8.
         assert!(decode_request(&[0xff, 0xff, 0xff, 0xff, 0x7f]).is_err());
@@ -323,6 +357,32 @@ mod tests {
             (STATUS_OK, "{\"diagnostics\":[]}")
         );
         assert_eq!(&r.wasm[..4], b"\0asm");
+    }
+
+    #[test]
+    fn the_wat_goal_prints_the_program() {
+        let mut session = Session::new();
+        let files = [(
+            "src/main.hd",
+            "pub fn main() -> void $ Console:\n    println(42)\n",
+        )];
+        let r = respond(&mut session, &request(&files, "src/main.hd", 3));
+        assert_eq!(
+            (r.status, r.json.as_str()),
+            (STATUS_OK, "{\"diagnostics\":[]}")
+        );
+        assert_eq!(&r.wasm[..4], b"\0asm");
+        assert!(r.wat.starts_with("(module"), "{}", &r.wat[..40]);
+        // Only the wat goal prints.
+        let run = respond(&mut session, &request(&files, "src/main.hd", 0));
+        assert!(run.wat.is_empty());
+        // A broken file has no program to print.
+        let bad = respond(
+            &mut session,
+            &request(&[("main.hd", "x := \"a\\b\" + 1\n")], "main.hd", 3),
+        );
+        assert_eq!(bad.status, STATUS_ERRORS);
+        assert!(bad.wat.is_empty());
     }
 
     #[test]

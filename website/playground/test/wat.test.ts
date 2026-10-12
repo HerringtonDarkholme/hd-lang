@@ -1,8 +1,17 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import test from "node:test";
 
+import {
+  GOAL,
+  STATUS,
+  compileRequest,
+  encodeRequest,
+  type CompilerExports,
+} from "../src/compiler-wire.ts";
 import { tokenizeWat, type WatTokenKind } from "../src/wat.ts";
 
 const root = resolve(import.meta.dirname, "../../..");
@@ -117,6 +126,20 @@ test("unterminated input still covers every character", () => {
   }
 });
 
+test("quoted names", () => {
+  assert.deepEqual(styled('(func $"std/impl Display for usize#0" (;3;) (type 2))'), [
+    "paren:(",
+    "keyword:func",
+    'name:$"std/impl Display for usize#0"',
+    "comment:(;3;)",
+    "paren:(",
+    "keyword:type",
+    "number:2",
+    "paren:))",
+  ]);
+  assert.deepEqual(styled('$"open'), ['name:$"open']);
+});
+
 test("tokens concatenate back to the runtime WAT files", async () => {
   const runtime = resolve(root, "src/emitter/runtime");
   const kinds = new Set<WatTokenKind>();
@@ -128,4 +151,31 @@ test("tokens concatenate back to the runtime WAT files", async () => {
   }
   for (const kind of ["keyword", "instruction", "type", "name", "number", "paren"] as const)
     assert.ok(kinds.has(kind), kind);
+});
+
+test("tokens concatenate back to the text the compiler wasm prints", async () => {
+  // The WAT view shows what the wat goal of crates/hd_web prints with
+  // wasmprinter; the wasm is a build output, built when a checkout has none.
+  const wasm = resolve(import.meta.dirname, "../assets/hd_web.wasm");
+  if (!existsSync(wasm))
+    execFileSync(process.execPath, [resolve(root, "scripts/build-web-compiler.js")], {
+      stdio: "inherit",
+    });
+  const { instance } = await WebAssembly.instantiate(await readFile(wasm), {});
+  const source = 'pub fn main() -> void $ Console:\n    println("hi")\n';
+  const compiled = compileRequest(
+    instance.exports as unknown as CompilerExports,
+    encodeRequest({ "src/main.hd": source }, "src/main.hd", GOAL.wat),
+  );
+  assert.equal(compiled.status, STATUS.ok);
+  const text = compiled.wat;
+  assert.ok(text.startsWith("(module"), text.slice(0, 40));
+  assert.match(text, /\(func \$playground\/main\/main#0 /);
+  const tokens = tokenizeWat(text);
+  assert.equal(tokens.map(({ text: value }) => value).join(""), text);
+  assert.ok(
+    tokens.some(({ kind, text: value }) => kind === "name" && value === "$playground/main/main#0"),
+  );
+  // A quoted name is one token, never a bare `$` and a string.
+  assert.ok(!tokens.some(({ kind, text: value }) => kind === "name" && value === "$"));
 });

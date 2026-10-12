@@ -138,6 +138,14 @@ export function tokenizeWat(text: string): WatToken[] {
         index += text[index] === "\\" ? 2 : 1;
       if (text[index] === '"') index += 1;
       push("string", text.slice(start, index));
+    } else if (char === "$" && text[index + 1] === '"') {
+      // A quoted name, `$"std/format/impl Display for usize.to_string#0"`,
+      // which wasmprinter writes for names that are not plain identifiers.
+      index += 2;
+      while (index < text.length && text[index] !== '"' && text[index] !== "\n")
+        index += text[index] === "\\" ? 2 : 1;
+      if (text[index] === '"') index += 1;
+      push("name", text.slice(start, index));
     } else if (ID_CHAR.test(char)) {
       while (index < text.length && ID_CHAR.test(text[index]!)) index += 1;
       const word = text.slice(start, index);

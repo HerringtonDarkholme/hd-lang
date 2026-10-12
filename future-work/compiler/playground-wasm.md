@@ -71,20 +71,26 @@ when the std pack writer exists.
 ### 3.1 Compiler API (`hd_web`)
 
 ```ts
-type Goal = "run" | "check" | "test";
+type Goal = "run" | "check" | "test" | "wat";
 interface CompileRequest {
   files: Record<string, string>;  // "src/main.hd" -> text (playground paths as they are)
   entry: string;                  // "src/main.hd"
   goal: Goal;
 }
 interface CompileResult {
-  wasm?: Uint8Array;              // run and test, when there are no errors; test: the programs one after another
+  wat?: string;                   // goal "wat": the program as WebAssembly text (wasmprinter); output kind 2
+  wasm?: Uint8Array;              // run, wat and test, when there are no errors; test: the programs one after another
   diagnostics: RunDiagnostic[];   // path, code, severity, message, line, column, endLine, endColumn
   programs?: { file: string | null; size: number }[];  // goal "test": the unit-test program, then each tests/ file's
   tests?: TestCase[];             // goal "test": hd_driver::TestCase (program, name, file, line, kind, ignore, expectPanic, unsupported, seed, run: [test, init]), in hd test's report order
 }
 ```
 
+- `wat` compiles as `run` (goal byte 3), then `hd_web` prints the
+  program with `wasmprinter` (no default features: no validation, no
+  component model). The text is output kind 2, read with the existing
+  `hd_output(2)` and `hd_output_len(2)`; it is empty for every other
+  goal. Names come from the name section `hd_wasm` writes.
 - `run` is `Goal::Program { entry }`. A file without `main` compiles as
   a script, `Roots::Script`, whose top-level statements run as its init.
   `check` is `Goal::Analyze`, which is `hd check`. `test` builds the

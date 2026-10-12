@@ -3,11 +3,12 @@
 // count, each file's path and text, the entry path, then one goal byte;
 // counts and lengths are unsigned LEB128 and strings UTF-8
 // (crates/hd_web/src/wire.rs). The response is JSON text plus the program's
-// bytes. The playground's Rust runner and the Node smoke test
+// bytes; the wat goal compiles as run and also answers the program's
+// WebAssembly text, output kind 2. The playground's Rust runner and the Node smoke test
 // (scripts/test-web-compiler.js) share this module.
 
 /** The goal byte of a request. */
-export const GOAL = { run: 0, check: 1, test: 2 } as const;
+export const GOAL = { run: 0, check: 1, test: 2, wat: 3 } as const;
 /** `hd_compile`'s status: compiled, compiled with errors, or a request that did not decode. */
 export const STATUS = { ok: 0, errors: 1, malformed: 2 } as const;
 
@@ -76,6 +77,8 @@ export interface Compiled {
   readonly json: WireResponse;
   /** The programs one after another; empty when the compile produced none. */
   readonly wasm: Uint8Array;
+  /** The wat goal's text of the program; empty for every other goal. */
+  readonly wat: string;
 }
 
 /** The bytes of each of the test goal's programs, in order. */
@@ -135,5 +138,6 @@ export function compileRequest(exports: CompilerExports, request: Uint8Array): C
     status,
     json: JSON.parse(new TextDecoder().decode(output(0))) as WireResponse,
     wasm: output(1),
+    wat: new TextDecoder().decode(output(2)),
   };
 }

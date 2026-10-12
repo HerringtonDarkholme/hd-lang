@@ -236,20 +236,20 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
     await module.waitFor();
     const text = (await module.textContent()) ?? "";
     assert.ok(text.startsWith("(module"), text.slice(0, 40));
-    assert.match(text, /\(func \(export "main"\) \(param \$provider0 externref\)/);
+    assert.match(text, /\(func \$playground\/main\/main#0 /);
     for (const kind of ["keyword", "instruction", "type", "name", "string", "number"])
       assert.ok((await page.locator(`.wat-code .wat-${kind}`).count()) > 0, kind);
-    const main = page.locator(".wat-line", { hasText: '(export "main")' }).first();
+    const main = page.locator(".wat-line", { hasText: "(func $playground/main/main#0 " }).first();
     assert.equal(await main.locator(".wat-keyword").first().textContent(), "func");
     if (screenshots) await page.screenshot({ path: join(screenshots, "desktop-wat.png") });
     await page.click("#wat-copy");
     await page.getByText("WAT copied").waitFor();
     const copied = await page.evaluate(() => navigator.clipboard.readText());
     assert.ok(copied.startsWith("(module"));
-    // The view shows at most the first 5,000 lines; the copy has them all.
+    // The view shows at most the first 10,000 lines; the copy has them all.
     const copiedLines = copied.replace(/\n$/, "").split("\n").length;
-    assert.equal(await page.locator(".wat-line").count(), Math.min(copiedLines, 5000));
-    assert.equal(await page.locator(".wat-truncated").isVisible(), copiedLines > 5000);
+    assert.equal(await page.locator(".wat-line").count(), Math.min(copiedLines, 10_000));
+    assert.equal(await page.locator(".wat-truncated").isVisible(), copiedLines > 10_000);
     const [download] = await Promise.all([
       page.waitForEvent("download"),
       page.click("#wat-download"),
@@ -261,7 +261,10 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
     await page.locator("#wat .outcome.failed").waitFor();
     assert.equal(await page.locator(".wat-code").count(), 0);
     assert.equal(
-      await page.locator("#wat .diagnostic .location").textContent(),
+      await page
+        .locator("#wat .diagnostic", { hasText: "type-mismatch" })
+        .locator(".location")
+        .textContent(),
       "src/main.hd:2:18",
     );
     assert.equal(await page.locator("#wat-copy").isDisabled(), true);
@@ -276,17 +279,39 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
     await page.context().close();
   });
 
-  // Run is on the Rust compiler and the WAT view still on the prototype,
-  // which has no module for top-level code (playground-wasm.md §7, W8).
-  await step("without main, the WAT view asks for a Run; Run runs the script", async () => {
+  await step("the WAT view shows the module of every example", async () => {
     const page = await openPage();
-    await page.selectOption("#examples", "top-level");
     await page.click("#view-wat");
-    await page.getByText("Run the project to see the last one").waitFor();
-    await page.click("#view-output");
-    await page.click("#run");
-    await page.locator(".outcome.passed").waitFor();
-    assert.equal(await page.locator(".stdout").count(), 0);
+    const ids = await page
+      .locator("#examples option")
+      .evaluateAll((options) =>
+        options
+          .map((option) => (option as HTMLOptionElement).value)
+          .filter((value) => value !== ""),
+      );
+    assert.ok(ids.length >= 15, `${ids.length} examples`);
+    let previous = "";
+    for (const id of ids) {
+      await page.selectOption("#examples", id);
+      // The view changes to the new example's module, or to the errors that
+      // stop it.
+      await page.waitForFunction((before) => {
+        const view = document.querySelector("#wat");
+        const shown = view?.querySelector(".wat-code, .outcome.failed");
+        return shown !== null && shown !== undefined && shown.textContent !== before;
+      }, previous);
+      const failed = await page.locator("#wat .outcome.failed").count();
+      if (failed > 0) {
+        assert.equal(id, "missing-provider", `${id} does not compile`);
+        previous = (await page.locator("#wat .outcome.failed").textContent()) ?? "";
+        continue;
+      }
+      const text = (await page.locator(".wat-code").textContent()) ?? "";
+      previous = text;
+      assert.ok(text.startsWith("(module"), `${id}: ${text.slice(0, 40)}`);
+      // The entry module's functions by name.
+      assert.match(text, /\(func \$playground\/main\//, id);
+    }
     await page.context().close();
   });
 

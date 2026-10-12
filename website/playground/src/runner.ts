@@ -9,14 +9,8 @@
 // to, for the playground's WAT view.
 
 import { DEFAULT_PROFILE_TRAITS } from "../../../src/checker/standard-library.ts";
-import {
-  analyze,
-  compileToWasm,
-  instantiate,
-  type HostSuspensionCall,
-} from "../../../src/compiler.ts";
+import { analyze, instantiate, type HostSuspensionCall } from "../../../src/compiler.ts";
 import type { Diagnostic, SourceSpan } from "../../../src/diagnostics.ts";
-import { emitWat } from "../../../src/emitter/index.ts";
 import type { HirFunction, HirTrait } from "../../../src/hir.ts";
 import { linkPackage, type LinkedPackage, type PackageDiagnostic } from "../../../src/package.ts";
 import { parse } from "../../../src/parser/index.ts";
@@ -91,11 +85,8 @@ export interface CompiledModule {
 }
 
 export interface WatResult {
-  /**
-   * `ok`: `module` is set. `not-run`: top-level code without `main` compiles
-   * its modules only as Run evaluates it, so there is no module until then.
-   */
-  readonly status: "ok" | "compile-error" | "not-run" | "failure";
+  /** `ok`: `module` is set. */
+  readonly status: "ok" | "compile-error" | "failure";
   readonly module?: CompiledModule;
   readonly diagnostics: readonly RunDiagnostic[];
   readonly summary: string;
@@ -284,58 +275,6 @@ export async function runProject(
     const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
     return finish("failure", diagnostics, `${message} (in ${current})`);
   }
-}
-
-/**
- * The WAT of the module `project` compiles to, without running it. Top-level
- * code without `main` has no single module (see `WatResult`); the worker
- * answers for it from the last run.
- */
-export async function watProject(project: Project): Promise<WatResult> {
-  const linked = linkPackage(project.files, project.main);
-  const linkDiagnostics = linked.diagnostics.map(toRunDiagnostic);
-  if (!linked.source || hasErrors(linkDiagnostics))
-    return { status: "compile-error", diagnostics: linkDiagnostics, summary: "compilation failed" };
-  if (topLevelInputs(linked))
-    return {
-      status: "not-run",
-      diagnostics: [],
-      summary:
-        "Without main, Run compiles one module for each top-level input it evaluates. Run the project to see the last one.",
-    };
-  const analysis = analyze(linked.source, { parse: joinedParse(linked) });
-  const diagnostics = analysis.diagnostics.map((diagnostic: Diagnostic) =>
-    toRunDiagnostic(linked.locate(diagnostic)),
-  );
-  if (!analysis.hir || hasErrors(diagnostics))
-    return { status: "compile-error", diagnostics, summary: "compilation failed" };
-  try {
-    // Assembling validates the WAT, as a run would. The WAT is the module a
-    // run assembles, with its panic sites' debug-location lines.
-    const { wat } = await compileToWasm({
-      wat: emitWat(analysis.hir, { sites: [] }),
-      hir: analysis.hir,
-      diagnostics: analysis.diagnostics,
-    });
-    return { status: "ok", module: { wat, origin: "program", count: 1 }, diagnostics, summary: "" };
-  } catch (error) {
-    const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-    return { status: "failure", diagnostics, summary: message };
-  }
-}
-
-/**
- * What the WAT view shows after a run or test: its compile errors, or the
- * module it compiled. Undefined when neither applies, such as after Check.
- */
-export function watFromRun(
-  result: RunResult,
-  module: CompiledModule | undefined,
-): WatResult | undefined {
-  if (result.status === "compile-error")
-    return { status: "compile-error", diagnostics: result.diagnostics, summary: result.summary };
-  if (!module) return undefined;
-  return { status: "ok", module, diagnostics: result.diagnostics, summary: "" };
 }
 
 /**

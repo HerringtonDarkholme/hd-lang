@@ -44,6 +44,7 @@ Chromium; `CHROME_PATH` selects one. The playground steps are in
   Console output streams into the output panel. Runtime panics are reported
   with their panic code. A run longer than 15 seconds is stopped, and
   **Stop** ends a run early.
+
 - **Check** (Ctrl+Shift+Enter) type-checks only, with the same semantics as
   Run: a file without `main` is checked input by input, as the REPL would
   check it, without running anything. Diagnostics show `path:line:column`
@@ -57,26 +58,22 @@ Chromium; `CHROME_PATH` selects one. The playground steps are in
   module, so top-level code must type-check as module initialization.
 - **WAT**, beside **Output** in the output pane, shows the WebAssembly text
   of the module the project compiles to:
-  - for a program, the module Run and Test instantiate. The prototype
-    compiler emits this text itself (`emitWat`), and Binaryen assembles it
-    into the Wasm binary without optimization passes, so the text is the
-    module the runtime executes; there is no optimized variant to show.
-    `hd build --wat FILE` prints the same text;
-  - without `main`, Run compiles one module for each top-level input it
-    evaluates, since REPL semantics runs each input as its own program. The
-    view shows the last module the run compiled and says how many there
-    were. Before the first Run, it asks for one;
+  - the module Run instantiates, as the Rust compiler built it. The compiler
+    wasm prints it with `wasmprinter` (the `wat` goal of `hd_web`), so the
+    text is the binary the runtime executes, with the names of its name
+    section; there is no optimized variant to show. A file without `main`
+    shows the script's module;
   - when compilation fails, the view shows the diagnostics, which jump to
     their source positions, instead of an old module.
 
   The view is generated on demand. The page asks the worker for the text only
   while the view is open, and refreshes it after an edit, a run, or a test.
-  The worker keeps the text of the module its last run or test compiled, so
-  opening the view after a run compiles nothing. Highlighting comes from a
+  Highlighting comes from a
   small tokenizer, [`src/wat.ts`](src/wat.ts), tested in
   [`test/wat.test.ts`](test/wat.test.ts). Lines are numbered. The view
-  renders at most 5,000 lines; **Copy** and **Download .wat** give the full
+  renders at most 10,000 lines; **Copy** and **Download .wat** give the full
   text.
+
 - Files: `+` adds a module, double-click renames one, and `×` deletes one.
   `▸` makes a module the entry module, which is marked `main`.
 - **Share** copies a link that holds the whole project in the URL hash:
@@ -87,6 +84,7 @@ Chromium; `CHROME_PATH` selects one. The playground steps are in
   base64url is RFC 4648 section 5 without padding. The page reads the hash on
   load and on `hashchange`. When there is no hash, the last project is
   restored from `localStorage`.
+
 - **Examples** bundles programs from [`../../examples`](../../examples),
   [`../../spec/conformance/runtime/valid`](../../spec/conformance/runtime/valid), and
   [`examples/`](examples) as text, so the menu shows the files the test suites
@@ -109,8 +107,7 @@ cases with `runSelected` from [`src/test-runner.ts`](../../src/test-runner.ts),
 the runner `hd run` and `hd test` use. It binds `Console`, and the
 `Clock` and `Random` providers of [`src/web-host.ts`](../../src/web-host.ts),
 the ones `hd run` uses. It also reports the module
-a run compiled, and `watProject` compiles a project's module without running
-it, for the WAT view. Without `main`, it feeds the
+a run compiled, for the REPL panel. Without `main`, it feeds the
 entry module's top-level inputs (`splitInputs` in
 [`src/repl-input.ts`](../../src/repl-input.ts)) to a `ReplSession`, whose
 `compiledModule()` gives the WAT of the last module it compiled.

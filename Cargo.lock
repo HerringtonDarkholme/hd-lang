@@ -815,6 +815,7 @@ dependencies = [
  "hd_driver",
  "hd_project",
  "hd_sched",
+ "wasmprinter 0.261.0",
 ]
 
 [[package]]
@@ -1667,6 +1668,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasmprinter"
+version = "0.261.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86a21c9e3325655ba02de3e645bc8357a8b3651a2e3ada25b6dbc37560deb9b7"
+dependencies = [
+ "anyhow",
+ "termcolor",
+ "wasmparser 0.261.0",
+]
+
+[[package]]
 name = "wasmtime"
 version = "49.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1729,7 +1741,7 @@ dependencies = [
  "target-lexicon",
  "wasm-encoder 0.258.3",
  "wasmparser 0.258.3",
- "wasmprinter",
+ "wasmprinter 0.258.3",
  "wasmtime-internal-component-util",
  "wasmtime-internal-core",
 ]
