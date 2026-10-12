@@ -472,6 +472,48 @@ pub struct ModuleTable {
     by_path: BTreeMap<String, ModuleId>,
 }
 
+/// The first path component of `file` that its module identity uses but
+/// that is no identifier (`module.path.identifier`): `mod.hd` is special,
+/// `src/lib.hd` is the root itself, and the `$tests`/`$tasks` segments are
+/// the compiler's own. A flat file is no module, so it has none.
+fn invalid_module_component(file: &str) -> Option<String> {
+    let (root, rest) = Root::of(file);
+    if root == Root::Flat {
+        return None;
+    }
+    let stem = rest.strip_suffix(".hd").unwrap_or(rest);
+    if root == Root::Source && stem == "lib" {
+        return None;
+    }
+    let mut segs: Vec<&str> = stem.split('/').collect();
+    if segs.last() == Some(&"mod") {
+        segs.pop();
+    }
+    segs.into_iter()
+        .find(|s| !is_module_ident(s))
+        .map(str::to_owned)
+}
+
+/// Whether `comp` is an NFC identifier under the source identifier rules.
+/// A `$` names the compiler's own segments (`$tests`, `$tasks`, doc-test
+/// files), which no source spells, so they are exempt.
+fn is_module_ident(comp: &str) -> bool {
+    use unicode_ident::{is_xid_continue, is_xid_start};
+    use unicode_normalization::UnicodeNormalization;
+    if comp.contains('$') {
+        return true;
+    }
+    if comp.is_empty() || !comp.nfc().eq(comp.chars()) {
+        return false;
+    }
+    let mut chars = comp.chars();
+    let first = chars.next().expect("nonempty");
+    if first != '_' && !is_xid_start(first) {
+        return false;
+    }
+    chars.all(|c| c == '_' || is_xid_continue(c))
+}
+
 /// A package-relative file's module path: its package's identifier, then
 /// `module_below`.
 #[must_use]
@@ -644,6 +686,16 @@ impl ModuleTable {
                         "`src/mod.hd` is reserved: the package root module is `src/lib.hd`; rename it `src/lib.hd`"
                             .to_owned(),
                     ));
+                } else if pi == 0 && (e.path == "src/pkg.hd" || e.path == "src/pkg/mod.hd") {
+                    // `module.path.reserved-pkg`.
+                    t.problems.push((
+                        file,
+                        Code::ReservedModuleName,
+                        format!(
+                            "`{}` is reserved: `pkg` names the package root module `src/lib.hd`",
+                            e.path
+                        ),
+                    ));
                 } else if beside {
                     // `module.test.integration.beside-dir`, `cli.task.beside-dir`.
                     t.problems.push((
@@ -651,6 +703,20 @@ impl ModuleTable {
                         Code::DuplicateModuleName,
                         format!(
                             "`{}` lies beside the directory `{stem}/`, and both are one module; move it to `{stem}/mod.hd`",
+                            e.path
+                        ),
+                    ));
+                } else if role_of(&e.path) == Role::Lib
+                    && let Some(bad) = invalid_module_component(&e.path)
+                {
+                    // `module.path.identifier`: test code keeps its file
+                    // names (integration programs have no module path), so
+                    // only library modules are checked.
+                    t.problems.push((
+                        file,
+                        Code::InvalidModulePath,
+                        format!(
+                            "`{}` is not a module path: `{bad}` is not an identifier",
                             e.path
                         ),
                     ));
@@ -1133,15 +1199,23 @@ mod tests {
         assert!(collisions(&["src/foo.hd", "src/bar.hd", "src/a/foo.hd"]).is_empty());
     }
 
-    /// Composed and decomposed spellings of one name are one module.
+    /// Composed and decomposed spellings of one name are one module. The
+    /// decomposed spelling is also no NFC identifier
+    /// (`module.path.identifier`).
     #[test]
     fn composed_and_decomposed_names_collide() {
         assert_eq!(
             collisions(&["src/caf\u{e9}.hd", "src/cafe\u{301}.hd"]),
-            [(
-                "src/caf\u{e9}.hd".to_owned(),
-                hd_diag::Code::DuplicateModuleName
-            )]
+            [
+                (
+                    "src/cafe\u{301}.hd".to_owned(),
+                    hd_diag::Code::InvalidModulePath
+                ),
+                (
+                    "src/caf\u{e9}.hd".to_owned(),
+                    hd_diag::Code::DuplicateModuleName
+                )
+            ]
         );
     }
 

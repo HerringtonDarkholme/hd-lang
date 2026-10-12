@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2783 | 46 | 16 | 2845 |
+| 2785 | 44 | 16 | 2845 |
 
 ## By Chapter
 
@@ -23,7 +23,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/07-functions.md` | 126 | 4 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 120 | 3 | 0 | 123 |
 | `lang/09-traits.md` | 352 | 7 | 0 | 359 |
-| `lang/10-modules.md` | 248 | 6 | 4 | 258 |
+| `lang/10-modules.md` | 250 | 4 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 250 | 1 | 8 | 259 |
 | `lang/14-annotations.md` | 146 | 7 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 917 | 0 | 12 | 929 |
-| `typing/invalid` | 1035 | 39 | 1 | 1075 |
+| `typing/invalid` | 1037 | 37 | 1 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 13 | 7 | 0 | 20 |
 
@@ -78,7 +78,7 @@ compiler stage that first declined the case.
 | `fail:missing-required-field` | 2 |
 | `fail:missing-requirement` | 1 |
 | `fail:missing-supertrait-implementation` | 2 |
-| `fail:no-diagnostic` | 31 |
+| `fail:no-diagnostic` | 29 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-main` | 1 |
 | `fail:re-export-loop` | 1 |
@@ -110,7 +110,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (31)</summary>
+<details><summary><code>fail:no-diagnostic</code> (29)</summary>
 
 - `typing/warnings/unreachable-code.hd`
 - `typing/invalid/unknown-annotation-member.hd`
@@ -138,11 +138,9 @@ compiler stage that first declined the case.
 - `typing/invalid/contravariant-inferred-private-result.hd`
 - `typing/invalid/contravariant-inferred-invariant-result.hd`
 - `typing/invalid/ambiguous-requirement-key-solution.hd`
-- `typing/invalid/module-named-pkg.hd`
 - `typing/invalid/script-test-init-requirement.hd`
 - `typing/invalid/assoc-call-parameter-two-bounds.hd`
 - `typing/invalid/trait-assoc-call-self-undetermined.hd`
-- `typing/invalid/module-path-not-identifier.hd`
 
 </details>
 
@@ -2091,7 +2089,9 @@ typing/invalid/mixed-numeric-power.hd
 typing/invalid/mixed-signedness.hd
 typing/invalid/mixed-width-operands-no-widening.hd
 typing/invalid/module-file-and-directory-module.hd
+typing/invalid/module-named-pkg.hd
 typing/invalid/module-path-missing-member.hd
+typing/invalid/module-path-not-identifier.hd
 typing/invalid/module-path-private-member.hd
 typing/invalid/module-path-private-std-function.hd
 typing/invalid/module-qualified-without-use.hd
