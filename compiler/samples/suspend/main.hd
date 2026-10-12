@@ -15,7 +15,9 @@ pub fn main!() -> void $ Console + Clock:
     let log: mut List[string] = []
     sleep!(Duration::milliseconds(2))
     println("slept")
-    let (a, b) = all!(work(1, 20, log), work(2, 5, log))
+    # The 245ms gap keeps task 2 first even when timer wakes coalesce
+    # under load; a 15ms gap reordered the log (issue #55).
+    let (a, b) = all!(work(1, 250, log), work(2, 5, log))
     println("all $a $b")
     w := race!(work(3, 5, log), work(4, 500, log))
     println("race $w")
