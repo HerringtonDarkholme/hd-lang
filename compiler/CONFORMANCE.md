@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2679 | 145 | 21 | 2845 |
+| 2680 | 144 | 21 | 2845 |
 
 ## By Chapter
 
@@ -17,7 +17,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 139 | 6 | 0 | 145 |
 | `lang/02-grammar.md` | 205 | 10 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 100 | 1 | 0 | 101 |
-| `lang/04-type-system.md` | 328 | 24 | 0 | 352 |
+| `lang/04-type-system.md` | 329 | 23 | 0 | 352 |
 | `lang/05-expressions.md` | 261 | 16 | 0 | 277 |
 | `lang/06-control-flow.md` | 141 | 12 | 4 | 157 |
 | `lang/07-functions.md` | 120 | 10 | 0 | 130 |
@@ -65,7 +65,7 @@ fixture; unsupported surface records progress without failing.
 | `runtime/panic` | 100 | 2 | 3 | 105 |
 | `runtime/valid` | 906 | 7 | 16 | 929 |
 | `typing/invalid` | 967 | 107 | 1 | 1075 |
-| `typing/valid` | 408 | 6 | 1 | 415 |
+| `typing/valid` | 409 | 5 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -104,7 +104,7 @@ compiler stage that first declined the case.
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 5 |
 | `fail:unknown-module` | 1 |
-| `fail:unknown-name` | 7 |
+| `fail:unknown-name` | 6 |
 | `fail:unknown-trait` | 5 |
 | `fail:unknown-type` | 3 |
 | `fail:unknown-variant` | 1 |
@@ -386,9 +386,8 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-name</code> (7)</summary>
+<details><summary><code>fail:unknown-name</code> (6)</summary>
 
-- `typing/valid/numeric-types.hd`
 - `typing/invalid/parameter-default-later-parameter.hd`
 - `typing/invalid/positional-after-spread.hd`
 - `typing/invalid/default-later-parameter-earlier-twin.hd`
@@ -2969,6 +2968,7 @@ typing/valid/num-traits.hd
 typing/valid/numeric-corners.hd
 typing/valid/numeric-literal-adopts-width.hd
 typing/valid/numeric-literal-left-operand.hd
+typing/valid/numeric-types.hd
 typing/valid/numeric-widening-and-display-list.hd
 typing/valid/ok-err-are-not-prelude-names.hd
 typing/valid/operator-bitwise-user.hd

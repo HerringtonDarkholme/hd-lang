@@ -1319,6 +1319,58 @@ mod tests {
     }
 
     #[test]
+    fn radix_prefixes_lex_in_both_cases_with_a_separator() {
+        for source in [
+            "0b1010",
+            "0B1010",
+            "0o755",
+            "0O755",
+            "0xCAFE",
+            "0Xcafe",
+            "0b_1010_0110",
+            "0B_1",
+            "0o_7_5",
+            "0O_7",
+            "0x_FF_FF_00",
+            "0X_a",
+        ] {
+            let lexed = lex(source.as_bytes());
+            assert!(
+                lexed.diagnostics.is_empty(),
+                "{source}: {:?}",
+                lexed.diagnostics
+            );
+            assert_eq!(lexed.tokens.kind, [TokenKind::Number], "{source}");
+        }
+    }
+
+    #[test]
+    fn a_bad_radix_literal_is_an_error() {
+        let cases = [
+            ("0o8", "syntax-error"),
+            ("0O8", "syntax-error"),
+            ("0x", "syntax-error"),
+            ("0X", "syntax-error"),
+            ("0b2", "syntax-error"),
+            ("0B2", "syntax-error"),
+            ("0b1z", "syntax-error"),
+            ("0b12", "syntax-error"),
+            ("0x1fs", "syntax-error"),
+            ("0x_", "invalid-token"),
+            ("0b__1", "invalid-token"),
+            ("0O7_", "invalid-token"),
+        ];
+        for (source, code) in cases {
+            let lexed = lex(source.as_bytes());
+            assert!(
+                lexed.diagnostics.iter().any(|d| d.code.as_str() == code),
+                "{source}: {:?}",
+                lexed.diagnostics
+            );
+        }
+    }
+
+    #[test]
     fn records_comment_only_lines_and_tabs() {
         let source = "# plain\n    # indented\n\tname\n";
         let lexed = lex(source.as_bytes());

@@ -100,6 +100,7 @@ mod private_type_leak;
 mod promotion;
 mod provider_keys_run;
 mod qualified_variants;
+mod radix_literals_run;
 mod range_patterns;
 mod raw_identifier_run;
 mod recursive_closure_run;

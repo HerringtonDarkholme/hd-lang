@@ -16,11 +16,27 @@ use crate::body::{Ck, unsupported};
 use crate::call::Args;
 use crate::expr::{normalize_line_endings, strip_piece};
 
+/// The radix and digits of a prefixed integer literal (`lex.int.forms`):
+/// the prefix letter is case-insensitive.
+pub(crate) fn radix_digits(text: &str) -> Option<(u32, &str)> {
+    let b = text.as_bytes();
+    if b.len() < 2 || b[0] != b'0' {
+        return None;
+    }
+    let radix = match b[1] {
+        b'x' | b'X' => 16,
+        b'b' | b'B' => 2,
+        b'o' | b'O' => 8,
+        _ => return None,
+    };
+    Some((radix, &text[2..]))
+}
+
 /// Splits a number token into its digits and its literal suffix
 /// (`lex.suffix.form`, `lex.suffix.exponent`). Radix literals have none.
 pub(crate) fn split_suffix(text: &str) -> (&str, &str) {
     let b = text.as_bytes();
-    if b.len() > 1 && b[0] == b'0' && matches!(b[1], b'x' | b'b' | b'o') {
+    if radix_digits(text).is_some() {
         return (text, "");
     }
     let mut i = 0;

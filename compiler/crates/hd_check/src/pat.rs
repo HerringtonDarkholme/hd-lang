@@ -601,12 +601,8 @@ impl Ck<'_, '_> {
     fn bound_value(&self, b: Bound) -> Option<i128> {
         let text = self.cx.src.text(b.tok);
         let text = crate::literals::split_suffix(text).0.replace('_', "");
-        let v = if let Some(h) = text.strip_prefix("0x") {
-            i128::from_str_radix(h, 16).ok()?
-        } else if let Some(h) = text.strip_prefix("0b") {
-            i128::from_str_radix(h, 2).ok()?
-        } else if let Some(h) = text.strip_prefix("0o") {
-            i128::from_str_radix(h, 8).ok()?
+        let v = if let Some((radix, digits)) = crate::literals::radix_digits(&text) {
+            i128::from_str_radix(digits, radix).ok()?
         } else {
             text.parse::<i128>().ok()?
         };

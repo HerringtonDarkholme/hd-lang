@@ -379,12 +379,8 @@ impl Ck<'_, '_> {
                     text
                 }
                 .replace('_', "");
-                let int = if let Some(h) = text.strip_prefix("0x") {
-                    u64::from_str_radix(h, 16).ok()
-                } else if let Some(b) = text.strip_prefix("0b") {
-                    u64::from_str_radix(b, 2).ok()
-                } else if let Some(o) = text.strip_prefix("0o") {
-                    u64::from_str_radix(o, 8).ok()
+                let int = if let Some((radix, digits)) = crate::literals::radix_digits(&text) {
+                    u64::from_str_radix(digits, radix).ok()
                 } else {
                     text.parse::<u64>().ok()
                 };
