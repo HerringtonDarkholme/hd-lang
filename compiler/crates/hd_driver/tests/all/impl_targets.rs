@@ -139,7 +139,7 @@ fn a_constructor_target_over_a_parameter_is_valid() {
 #[test]
 fn a_derivation_template_is_no_bare_parameter_target() {
     accepts_main(
-        "use std.structure.{Structure, Field, Variant, Walker}\n\ntrait Encode:\n    fn encode(self) -> string\n\nimpl Encode for i64:\n    fn encode(self) -> string:\n        \"$self\"\n\nimpl[T] Encode for T by Structure:\n    fn encode(self) -> string:\n        \"\"\n",
+        "use std.structure.{Structure, Field, Variant, Walker}\n\ntrait Encode:\n    fn encode(self) -> string\n\nimpl Encode for i64:\n    fn encode(self) -> string:\n        \"$self\"\n\ndata Sink:\n    n: i32\n\nimpl[S] Walker[S] for Sink:\n    type Error = never\n\n    fn variant(mut self, v: Variant[S]) -> Result[void, never]:\n        .Ok(())\n\n    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:\n        self.n = self.n + 1\n        .Ok(())\n\nimpl[T] Encode for T by Structure:\n    fn encode(self) -> string:\n        let mut w = Sink { n: 0 }\n        _ := Structure::walk(self, w)\n        \"\"\n",
     );
 }
 

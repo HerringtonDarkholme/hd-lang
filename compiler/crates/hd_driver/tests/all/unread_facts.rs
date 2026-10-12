@@ -181,6 +181,8 @@ fn two_derivations_report_a_declaration_fact_once() {
 
 impl[T] Other for T by Structure:
     fn other(self) -> string:
+        let mut w = Prober { out: \"\" }
+        _ := Structure::walk(self, w)
         T::name()
 
 data A:

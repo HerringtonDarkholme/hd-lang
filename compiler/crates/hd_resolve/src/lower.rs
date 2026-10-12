@@ -4340,6 +4340,27 @@ fn derivation_nodes(
         .collect()
 }
 
+/// Whether a template's body calls `walk`, `describe`, or `build`
+/// (`annot.template.body`): a call whose callee ends in one of those names.
+fn template_reads_structure(src: &Src<'_>, imp: NodeRef<'_>) -> bool {
+    imp.descendants()
+        .filter(|c| c.kind() == SyntaxKind::CallExpr)
+        .filter_map(|c| c.children().next())
+        .map(|callee| {
+            if callee.kind() == SyntaxKind::TypeArgsExpr {
+                callee.children().next().unwrap_or(callee)
+            } else {
+                callee
+            }
+        })
+        .any(|callee| {
+            src.tokens(callee)
+                .filter(|t| matches!(src.tkind(*t), Some(TokenKind::Ident | TokenKind::RawIdent)))
+                .last()
+                .is_some_and(|t| matches!(src.text(t), "walk" | "describe" | "build"))
+        })
+}
+
 /// The placement rules of derivation syntax (`annot.template.module`,
 /// `annot.block.module`, `annot.block.newtype.error`,
 /// `annot.line.placement-blocks`, `annot.no-trait.*`), each reported once on
@@ -4375,6 +4396,25 @@ fn placement(
         };
         if let Some(msg) = msg {
             diags.error(Code::MisplacedDerivation, src.span(h.node), msg);
+        }
+        // A template needs a body in which a method calls `walk`,
+        // `describe` or `build` (`annot.template.body`). A misplaced one
+        // is already one error.
+        if msg.is_none()
+            && matches!(
+                &it.data,
+                ItemData::Impl {
+                    kind: ImplKind::Template | ImplKind::TupleTemplate,
+                    ..
+                }
+            )
+            && !template_reads_structure(src, h.node)
+        {
+            diags.error(
+                Code::MarkerTemplate,
+                src.span(h.node),
+                "a template must have a body that calls `walk`, `describe`, or `build`",
+            );
         }
         let traitless = *trait_ == DefId::NONE && by.is_some_and(|b| names.text(b) == "Structure");
         // A type has at most one derivation block with no trait, so a

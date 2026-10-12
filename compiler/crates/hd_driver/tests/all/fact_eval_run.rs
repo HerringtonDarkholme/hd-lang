@@ -78,7 +78,7 @@ fn panic_of(name: &str, main: &str) -> (String, String) {
 /// function, and a `Label` derivation that reads the type-level fact
 /// through `T::facts()`.
 const PRELUDE: &str = "use std.annotation.facts_of
-use std.structure.Structure
+use std.structure.{Structure, Field, Variant, Walker}
 
 data Style:
     prefix: string = \"\"
@@ -89,8 +89,23 @@ fn no_prefix() -> string:
 trait Label:
     fn label(self) -> string
 
+data Sink:
+    n: i32
+
+impl[S] Walker[S] for Sink:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.n = self.n + 1
+        .Ok(())
+
 impl[T] Label for T by Structure:
     fn label(self) -> string:
+        let mut w = Sink { n: 0 }
+        _ := Structure::walk(self, w)
         match T::facts().find::[Style]():
             .Some(found) => found.prefix
             .None => \"none\"

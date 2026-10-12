@@ -257,6 +257,8 @@ fn self_line_takes_a_list_expression() {
 
 impl[T] Label for T by Structure:
     fn label(self) -> string:
+        let mut w = Prober { out: \"\" }
+        _ := Structure::walk(self, w)
         match T::facts().find::[Note]():
             .Some(found) => found.text
             .None => \"none\"
