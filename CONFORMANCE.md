@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2782 | 47 | 16 | 2845 |
+| 2783 | 46 | 16 | 2845 |
 
 ## By Chapter
 
@@ -17,7 +17,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 145 | 0 | 0 | 145 |
 | `lang/02-grammar.md` | 214 | 1 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
-| `lang/04-type-system.md` | 344 | 8 | 0 | 352 |
+| `lang/04-type-system.md` | 345 | 7 | 0 | 352 |
 | `lang/05-expressions.md` | 273 | 4 | 0 | 277 |
 | `lang/06-control-flow.md` | 148 | 5 | 4 | 157 |
 | `lang/07-functions.md` | 126 | 4 | 0 | 130 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 917 | 0 | 12 | 929 |
-| `typing/invalid` | 1034 | 40 | 1 | 1075 |
+| `typing/invalid` | 1035 | 39 | 1 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 13 | 7 | 0 | 20 |
 
@@ -78,7 +78,7 @@ compiler stage that first declined the case.
 | `fail:missing-required-field` | 2 |
 | `fail:missing-requirement` | 1 |
 | `fail:missing-supertrait-implementation` | 2 |
-| `fail:no-diagnostic` | 32 |
+| `fail:no-diagnostic` | 31 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-main` | 1 |
 | `fail:re-export-loop` | 1 |
@@ -110,7 +110,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (32)</summary>
+<details><summary><code>fail:no-diagnostic</code> (31)</summary>
 
 - `typing/warnings/unreachable-code.hd`
 - `typing/invalid/unknown-annotation-member.hd`
@@ -141,7 +141,6 @@ compiler stage that first declined the case.
 - `typing/invalid/module-named-pkg.hd`
 - `typing/invalid/script-test-init-requirement.hd`
 - `typing/invalid/assoc-call-parameter-two-bounds.hd`
-- `typing/invalid/uninhabited-binding.hd`
 - `typing/invalid/trait-assoc-call-self-undetermined.hd`
 - `typing/invalid/module-path-not-identifier.hd`
 
@@ -2541,6 +2540,7 @@ typing/invalid/unavailable-trait-method-not-found.hd
 typing/invalid/unbounded-generic-identity.hd
 typing/invalid/unconstrained-impl-parameter-unused.hd
 typing/invalid/unconstrained-impl-parameter.hd
+typing/invalid/uninhabited-binding.hd
 typing/invalid/unit-pattern-non-void.hd
 typing/invalid/unit-test-missing-requirement.hd
 typing/invalid/unit-test-real-clock.hd

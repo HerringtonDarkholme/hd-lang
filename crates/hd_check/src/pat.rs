@@ -675,6 +675,9 @@ impl Ck<'_, '_> {
             .map(|nt| self.cx.names.syms.intern(self.cx.src.text(nt)));
         // `names.scope.recursive-closure`: a closure initializer's body may
         // call the name being bound, which is a local before the body.
+        // A `never` from error recovery already reported, so only a clean
+        // initializer can be an uninhabited binding.
+        let diags_before = self.diags.len();
         let (r, t, own) = match name {
             // `fn.recursion.closure.binding`: only a statement-form binding
             // grants the self-name; a chain member does not.
@@ -731,6 +734,18 @@ impl Ck<'_, '_> {
             let Some(name) = name else {
                 return unsupported("a binding pattern without a name");
             };
+            // `types.bind.never`: a binding without an annotation whose
+            // initializer has type `never` could never be read.
+            if annot.is_none()
+                && self.diags.len() == diags_before
+                && self.infer.resolve(self.pool(), t) == Ty::NEVER
+            {
+                let msg = format!(
+                    "`{}` has no value to bind: the initializer has type `never`, which has no value",
+                    self.cx.names.text(name)
+                );
+                self.err(Code::UninhabitedBinding, pat, &msg);
+            }
             let l = match own {
                 Some(l) => {
                     self.b.body_mut().local_ty[l.idx()] = t;
