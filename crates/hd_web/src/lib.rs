@@ -9,7 +9,9 @@
 
 use hd_cache::MemoryStore;
 use hd_driver::diagnostics::{Diag, from_output};
-use hd_driver::{Counters, Executor, Host, NoClock, Packages, TestCase, build_packages};
+use hd_driver::{
+    Counters, Executor, Host, NoClock, Packages, TestCase, build_packages, test_programs,
+};
 use hd_project::{MemorySources, Root, in_program, module_below};
 use hd_sched::SerialOrder;
 
@@ -43,14 +45,29 @@ pub enum Goal {
 
 /// What one compile produced.
 pub struct CompileResult {
-    /// The program, for Run and Test, when no diagnostic is an error.
-    pub wasm: Option<Vec<u8>>,
-    /// In content order, with the files as the playground named them.
+    /// The programs, when no diagnostic is an error: Run's one program;
+    /// for Test, the unit-test program, then each integration test file's,
+    /// each built on its own as `hd test` builds them
+    /// ([`hd_driver::test_programs`]). Check builds none.
+    pub programs: Vec<Program>,
+    /// In content order, with the files as the playground named them; a
+    /// diagnostic two test programs share is listed once.
     pub diagnostics: Vec<Diag>,
-    /// For Test, the selected cases in content order.
-    pub tests: Vec<TestCase>,
-    /// What the run did: tasks, and store hits and misses.
+    /// For Test, the selected cases of every program, ordered by file and
+    /// line as `hd test` reports them (`cli.test.report.order`), each with
+    /// its program's index in [`CompileResult::programs`].
+    pub tests: Vec<(usize, TestCase)>,
+    /// What the first build did: tasks, and store hits and misses.
     pub counters: Counters,
+}
+
+/// One program of a compile.
+pub struct Program {
+    /// For Test, the integration test file it is; `None` for Run's program
+    /// and the unit-test program.
+    pub file: Option<String>,
+    /// `None` when the build made no module.
+    pub wasm: Option<Vec<u8>>,
 }
 
 /// One playground worker's state.
@@ -92,46 +109,79 @@ impl Session {
             }
             count += 1;
         }
-        let (sources, goal) = match goal {
-            Goal::Run => (
-                &program,
-                hd_driver::Goal::Program {
-                    entry: module_below(entry),
-                },
-            ),
-            Goal::Check => (&self.sources, hd_driver::Goal::Analyze),
-            Goal::Test => (
-                &self.sources,
-                hd_driver::Goal::Tests {
-                    module: None,
-                    filter: None,
-                },
-            ),
-        };
-        let host = Host {
-            render_tir: &[],
-            sources,
-            store: &self.store,
-            clock: &NoClock,
-            executor: Executor::Serial(SerialOrder::Priority),
-        };
         // One file outside the `src` layout is a single-file program, as
         // `hd FILE.hd` builds a file with no `hd.toml` above it.
         let packages = Packages {
             single_file: count == 1 && Root::of(entry).0 == Root::Flat,
             ..Packages::default()
         };
-        let out = build_packages(&host, PACKAGE, &packages, &goal);
+        // Each build: its integration test file, its sources and its goal.
+        let builds: Vec<(Option<String>, MemorySources, hd_driver::Goal)> = match goal {
+            Goal::Run => vec![(
+                None,
+                program,
+                hd_driver::Goal::Program {
+                    entry: module_below(entry),
+                },
+            )],
+            Goal::Check => vec![(None, self.sources.clone(), hd_driver::Goal::Analyze)],
+            Goal::Test => test_programs(PACKAGE, &self.sources, None, &|_| false)
+                .into_iter()
+                .map(|t| {
+                    let mut sources = self.sources.clone();
+                    sources.retain(|p| t.keep.iter().any(|k| k == p));
+                    let goal = hd_driver::Goal::Tests {
+                        module: t.module,
+                        filter: None,
+                    };
+                    (t.file, sources, goal)
+                })
+                .collect(),
+        };
+        let mut result = CompileResult {
+            programs: Vec::new(),
+            diagnostics: Vec::new(),
+            tests: Vec::new(),
+            counters: Counters::default(),
+        };
+        let mut built = Vec::new();
+        for (file, sources, goal) in &builds {
+            let host = Host {
+                render_tir: &[],
+                sources,
+                store: &self.store,
+                clock: &NoClock,
+                executor: Executor::Serial(SerialOrder::Priority),
+            };
+            let out = build_packages(&host, PACKAGE, &packages, goal);
+            for d in from_output(&out, None) {
+                if !result.diagnostics.contains(&d) {
+                    result.diagnostics.push(d);
+                }
+            }
+            let index = built.len();
+            if index == 0 {
+                result.counters = out.counters;
+            }
+            result
+                .tests
+                .extend(out.tests.into_iter().map(|case| (index, case)));
+            built.push((file.clone(), out.wasm));
+        }
         // No host writes the entries back yet, so their list only grows.
         self.store.drain_new();
         if self.store.bytes() > STORE_CAP_BYTES {
             self.store = MemoryStore::default();
         }
-        CompileResult {
-            diagnostics: from_output(&out, None),
-            wasm: out.wasm,
-            tests: out.tests,
-            counters: out.counters,
+        if goal != Goal::Check && !result.diagnostics.iter().any(Diag::is_error) {
+            result.programs = built
+                .into_iter()
+                .map(|(file, wasm)| Program { file, wasm })
+                .collect();
         }
+        result
+            .tests
+            .sort_by(|(_, a), (_, b)| (&a.file, a.line).cmp(&(&b.file, b.line)));
+        result
     }
 }

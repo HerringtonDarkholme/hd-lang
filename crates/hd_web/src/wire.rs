@@ -7,9 +7,11 @@
 //! Nothing may follow the goal byte.
 //!
 //! A response is JSON text, written by hand (rule 2.2.4: no serde), plus the
-//! program's bytes when there are any. A compiled request answers
-//! `{"diagnostics":[...]}`, with `"tests":[...]` added for the test goal; a
-//! malformed one answers `{"error":"..."}`.
+//! programs' bytes when there are any. A compiled request answers
+//! `{"diagnostics":[...]}`, with `"programs":[...]` and `"tests":[...]`
+//! added for the test goal; a malformed one answers `{"error":"..."}`. The
+//! test goal's programs (the unit-test program, then each integration test
+//! file's) follow one another in the bytes, each as long as its `size`.
 
 use std::fmt::Write as _;
 
@@ -41,7 +43,8 @@ pub struct WireError(pub &'static str);
 pub struct Response {
     pub status: u32,
     pub json: String,
-    /// Empty when the compile produced no program.
+    /// The programs one after another; empty when the compile produced
+    /// none.
     pub wasm: Vec<u8>,
 }
 
@@ -58,7 +61,13 @@ pub fn respond(session: &mut Session, request: &[u8]) -> Response {
             Response {
                 status,
                 json: encode_result(&result, req.goal),
-                wasm: result.wasm.unwrap_or_default(),
+                wasm: result
+                    .programs
+                    .iter()
+                    .filter_map(|p| p.wasm.as_deref())
+                    .flatten()
+                    .copied()
+                    .collect(),
             }
         }
         Err(WireError(reason)) => Response {
@@ -141,8 +150,12 @@ impl Reader<'_> {
 }
 
 /// The JSON text of a compile: its diagnostics, and for the test goal its
-/// cases (`run` is `[test, init]`, the case's `hd.test.i` and `hd.init.j`
-/// export numbers, or null for a case that cannot run).
+/// programs (`file`, the integration test file or null for the unit-test
+/// program, and `size`, its byte count) and its cases (`program`, the index
+/// of the case's program; `seed`, a property case's base seed
+/// (`cli.test.seed`), else null; `run`, `[test, init]`, the case's
+/// `hd.test.i` and `hd.init.j` export numbers, or null for a case that
+/// cannot run).
 #[must_use]
 pub fn encode_result(result: &CompileResult, goal: Goal) -> String {
     let mut s = String::from("{\"diagnostics\":[");
@@ -165,8 +178,20 @@ pub fn encode_result(result: &CompileResult, goal: Goal) -> String {
     }
     s.push(']');
     if goal == Goal::Test {
-        s.push_str(",\"tests\":[");
-        for (n, t) in result.tests.iter().enumerate() {
+        s.push_str(",\"programs\":[");
+        for (n, p) in result.programs.iter().enumerate() {
+            if n > 0 {
+                s.push(',');
+            }
+            let _ = write!(
+                s,
+                "{{\"file\":{},\"size\":{}}}",
+                opt_str(p.file.as_deref()),
+                p.wasm.as_ref().map_or(0, Vec::len)
+            );
+        }
+        s.push_str("],\"tests\":[");
+        for (n, (program, t)) in result.tests.iter().enumerate() {
             if n > 0 {
                 s.push(',');
             }
@@ -175,7 +200,7 @@ pub fn encode_result(result: &CompileResult, goal: Goal) -> String {
                 .map_or_else(|| "null".to_owned(), |(i, j)| format!("[{i},{j}]"));
             let _ = write!(
                 s,
-                "{{\"name\":{},\"file\":{},\"line\":{},\"kind\":{},\"ignore\":{},\"expectPanic\":{},\"unsupported\":{},\"run\":{run}}}",
+                "{{\"program\":{program},\"name\":{},\"file\":{},\"line\":{},\"kind\":{},\"ignore\":{},\"expectPanic\":{},\"unsupported\":{},\"seed\":{},\"run\":{run}}}",
                 quote(&t.name),
                 quote(&t.file),
                 t.line,
@@ -183,6 +208,8 @@ pub fn encode_result(result: &CompileResult, goal: Goal) -> String {
                 opt_str(t.ignore.as_deref()),
                 opt_str(t.expect_panic.as_deref()),
                 opt_str(t.unsupported.as_deref()),
+                t.base_seed(None)
+                    .map_or_else(|| "null".to_owned(), |n| n.to_string()),
             );
         }
         s.push(']');
@@ -322,13 +349,38 @@ mod tests {
         let tests = "fn add(a: i32, b: i32) -> i32:\n    a + b\n\ntests:\n    use std.testing.assert_equal\n\n    it(\"adds\"):\n        assert_equal(add(1, 2), 3, reason=\"sum\")\n";
         let r = respond(&mut session, &request(&[("main.hd", tests)], "main.hd", 2));
         assert_eq!(r.status, STATUS_OK, "{}", r.json);
+        let size = r.wasm.len();
         assert!(
-            r.json.starts_with(
-                "{\"diagnostics\":[],\"tests\":[{\"name\":\"adds\",\"file\":\"main.hd\",\"line\":7,\"kind\":\"it\",\"ignore\":null,\"expectPanic\":null,\"unsupported\":null,\"run\":["
-            ),
+            r.json.starts_with(&format!(
+                "{{\"diagnostics\":[],\"programs\":[{{\"file\":null,\"size\":{size}}}],\"tests\":[{{\"program\":0,\"name\":\"adds\",\"file\":\"main.hd\",\"line\":7,\"kind\":\"it\",\"ignore\":null,\"expectPanic\":null,\"unsupported\":null,\"seed\":null,\"run\":["
+            )),
             "{}",
             r.json
         );
+        assert_eq!(&r.wasm[..4], b"\0asm");
+    }
+
+    #[test]
+    fn each_test_program_has_its_size_and_its_bytes() {
+        let lib = "pub fn add(a: i32, b: i32) -> i32:\n    a + b\n\ntests:\n    it(\"adds\"):\n        pass\n";
+        let it = "use pkg.{add}\nuse std.testing.assert_equal\n\nit(\"sums\"):\n    assert_equal(add(1, 2), 3, reason=\"sum\")\n";
+        let files = [("src/lib.hd", lib), ("tests/sums.hd", it)];
+        let r = respond(&mut Session::new(), &request(&files, "src/lib.hd", 2));
+        assert_eq!(r.status, STATUS_OK, "{}", r.json);
+        let sizes: Vec<usize> = r
+            .json
+            .split("\"size\":")
+            .skip(1)
+            .map(|rest| rest[..rest.find('}').unwrap()].parse().unwrap())
+            .collect();
+        assert_eq!(sizes.len(), 2, "{}", r.json);
+        assert!(
+            r.json.contains("{\"file\":\"tests/sums.hd\",\"size\":"),
+            "{}",
+            r.json
+        );
+        assert_eq!(sizes.iter().sum::<usize>(), r.wasm.len());
+        assert_eq!(&r.wasm[sizes[0]..sizes[0] + 4], b"\0asm");
     }
 
     #[test]

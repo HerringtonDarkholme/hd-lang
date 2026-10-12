@@ -32,17 +32,60 @@ export interface WireDiagnostic {
   readonly endColumn: number | null;
 }
 
-/** A compiled request answers `diagnostics`; a malformed one answers `error`. */
+/**
+ * One program of the test goal: the unit-test program (`file` null), or an
+ * integration test file's; its bytes follow the earlier programs'.
+ */
+export interface WireProgram {
+  readonly file: string | null;
+  readonly size: number;
+}
+
+/** One test case of the test goal, in the order `hd test` reports them. */
+export interface WireTest {
+  /** The index of its program. */
+  readonly program: number;
+  readonly name: string;
+  readonly file: string;
+  readonly line: number;
+  /** `it`, `it_each`, `it_prop` or `it_prop_with`. */
+  readonly kind: string;
+  readonly ignore: string | null;
+  readonly expectPanic: string | null;
+  /** Why the case cannot run yet. */
+  readonly unsupported: string | null;
+  /** A property case's base seed, as `hd test` gives it. */
+  readonly seed: number | null;
+  /** Its `hd.test.i` and `hd.init.j` export numbers; null when it cannot run. */
+  readonly run: readonly [number, number] | null;
+}
+
+/**
+ * A compiled request answers `diagnostics`, and for the test goal its
+ * `programs` and `tests`; a malformed one answers `error`.
+ */
 export interface WireResponse {
   readonly diagnostics?: readonly WireDiagnostic[];
+  readonly programs?: readonly WireProgram[];
+  readonly tests?: readonly WireTest[];
   readonly error?: string;
 }
 
 export interface Compiled {
   readonly status: number;
   readonly json: WireResponse;
-  /** Empty when the compile produced no program. */
+  /** The programs one after another; empty when the compile produced none. */
   readonly wasm: Uint8Array;
+}
+
+/** The bytes of each of the test goal's programs, in order. */
+export function programBytes(compiled: Compiled): Uint8Array[] {
+  let at = 0;
+  return (compiled.json.programs ?? []).map(({ size }) => {
+    const bytes = compiled.wasm.subarray(at, at + size);
+    at += size;
+    return bytes;
+  });
 }
 
 function leb(out: number[], n: number): void {

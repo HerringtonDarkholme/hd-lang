@@ -1,0 +1,80 @@
+// Hand-written declarations for the public exports of cases.mjs that the
+// TypeScript side uses.
+
+import type { Host, Sink } from "./core.mjs";
+
+/** The files of a test run: temporary directories, snapshots, regression streams. */
+export interface TestFiles {
+  join(dir: string, name: string): string;
+  /** The text, or `null` when there is no such file. */
+  read(path: string): string | null;
+  /** Writes the file, making its directory. */
+  write(path: string, text: string): void;
+  remove(dir: string): void;
+}
+
+/** One case of a run's configuration (test.mjs has the format). */
+export interface CaseConfig {
+  test: number;
+  init: number;
+  kind: string;
+  tempDir: string | null;
+  seed: number | null;
+  grants: Record<string, false | string[]>;
+  snapshot?: { dir: string; shown?: string | null; slug: string; update: boolean } | null;
+  regression?: { file: string; shown?: string } | null;
+}
+
+export interface RunConfig {
+  program: string;
+  args: string[];
+  programs?: null;
+  cases: CaseConfig[];
+}
+
+/** One result: a case's, or a row's with `row` and `rows`. An empty table has no `status`. */
+export interface CaseRecord {
+  test: number;
+  row?: number;
+  rows?: number;
+  status?: number;
+  trapped?: boolean;
+  stdout?: string;
+  stderr?: string;
+  us?: number;
+  frames?: [number, number][];
+  /** A failed property case's shrunk input. */
+  input?: string;
+}
+
+export interface RunCasesOptions {
+  module: WebAssembly.Module;
+  config: RunConfig;
+  createHost(sink: Sink, env: Record<string, unknown>): Host;
+  files: TestFiles;
+  notify(message: { type: string }): void;
+  emit(record: CaseRecord): void;
+}
+
+export function runCases(
+  options: RunCasesOptions,
+  start?: { case: number; row: number; rows: number },
+): Promise<void>;
+
+export interface Panic {
+  category: string;
+  message: string;
+  debug: string[];
+}
+
+export function panicOf(stderr: string): Panic;
+
+export type Verdict =
+  | { outcome: "passed" }
+  | { outcome: "failed"; message: string }
+  | ({ outcome: "panicked" } & Panic);
+
+export function judge(
+  record: { status: number; trapped: boolean; stderr: string },
+  expectPanic: string | null,
+): Verdict;

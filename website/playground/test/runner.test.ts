@@ -1,8 +1,8 @@
 // Runs the compile-and-run pipelines the worker uses, bundled for the browser
-// with the same esbuild options and Node shims as the playground build. Run
-// and Check go through the Rust compiler's wasm (rust-runner.ts), which the
-// test builds first when it is missing; Test and the WAT view still go
-// through the prototype compiler (runner.ts).
+// with the same esbuild options and Node shims as the playground build. Run,
+// Check and Test go through the Rust compiler's wasm (rust-runner.ts), which
+// the test builds first when it is missing; the WAT view still goes through
+// the prototype compiler (runner.ts).
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -61,7 +61,7 @@ before(async () => {
   rust = createRustRunner(await readFile(COMPILER_WASM));
 });
 
-/** Run or Check, as the worker serves them. */
+/** Run, Check or Test, as the worker serves them. */
 const run = (
   project: Project,
   mode: RustMode,
@@ -465,13 +465,13 @@ test("Test runs the test cases, with or without main", async () => {
     '    it("adds"):',
     '        assert_equal(1 + 1, 2, reason="sum")',
   ].join("\n");
-  const tested = await runner.runProject(single(source), "test");
+  const tested = await run(single(source), "test");
   assert.equal(tested.status, "ok", tested.summary);
   assert.equal(tested.summary, "1 test passed");
   assert.deepEqual(tested.stdout, []);
   const ran = await run(single(source), "run");
   assert.deepEqual(ran.stdout, ["main runs only for Run"]);
-  const none = await runner.runProject(single("pub fn main() -> void: pass\n"), "test");
+  const none = await run(single("pub fn main() -> void: pass\n"), "test");
   assert.equal(none.status, "failure");
   assert.equal(
     none.summary,
@@ -479,13 +479,15 @@ test("Test runs the test cases, with or without main", async () => {
   );
 });
 
+// The summaries name no source line: a panic's position needs the source
+// positions the playground does not have yet (playground-wasm.md §5).
 test("Test judges it_each rows, expected panics, and ignored cases as hd test does", async () => {
   const test = async (lines: readonly string[]) => {
-    const result = await runner.runProject(single(lines.join("\n")), "test");
-    return `${result.status}: ${result.summary}`;
+    const result = await run(single(lines.join("\n")), "test");
+    return [`${result.status}: ${result.summary}`, ...result.stdout];
   };
   const header = ["use std.testing.{assert, it_each}", "", "tests:"];
-  assert.equal(
+  assert.deepEqual(
     await test([
       ...header,
       '    it_each("positive", [1, 2, 3], body=fn!(value: i32):',
@@ -496,25 +498,154 @@ test("Test judges it_each rows, expected panics, and ignored cases as hd test do
       '    it("waits", ignore="slow"):',
       "        pass",
     ]),
-    "ok: 4 tests passed, 1 ignored",
+    ["ok: 4 tests passed, 1 ignored", "IGNORED src/main.hd:9: waits (slow)"],
   );
-  assert.equal(
+  assert.deepEqual(
     await test([
       ...header,
       '    it_each("small", [1, 5], body=fn!(value: i32):',
       '        assert(value < 3, reason="rows are small")',
       "    )",
     ]),
-    'panic: src/main.hd:5:9: assertion-failed: rows are small in test case "small"',
+    [
+      'panic: assertion-failed: rows are small in test case "small[1]"',
+      "PANIC src/main.hd:4: small[1]",
+      "    panic: assertion-failed: rows are small",
+    ],
   );
-  assert.equal(
+  assert.deepEqual(
     await test([
       ...header,
       '    it("panics", expect_panic="index-out-of-bounds"):',
       "        pass",
     ]),
-    'failure: test "panics" expecting panic index-out-of-bounds failed',
+    [
+      'failure: test case "panics" failed: the case completed, but it expects the panic `index-out-of-bounds`',
+      "FAIL src/main.hd:4: panics",
+      "    the case completed, but it expects the panic `index-out-of-bounds`",
+    ],
   );
+});
+
+/**
+ * The `tests` example with cases added: a failing case, a failing
+ * `it_each` row, and a passing and a failing property case. `hd test` on
+ * this file passes 7 cases and fails these 3, with the same shrunk input.
+ */
+async function testsExample(): Promise<string> {
+  const text = await readFile(join(playground, "examples/tests.hd"), "utf8");
+  const added = [
+    "        _ := first([])",
+    "",
+    '    it("joins with a dash"):',
+    '        assert_equal(slug("A B"), "a_b", reason="joined")',
+    "",
+    '    it_each("keeps each word", ["hd", "Hd"], body=fn!(word: string):',
+    '        assert_equal(slug(word), word, reason="unchanged")',
+    "    )",
+    "",
+    '    it_prop("a slug has no spaces", prop=fn!(word: string):',
+    '        assert(!slug(word).contains(" "), reason="no spaces")',
+    "    )",
+    "",
+    '    it_prop("a number stays small", prop=fn!(n: i16):',
+    '        assert(i32(n) < 100, reason="small")',
+    "    )",
+  ].join("\n");
+  return text
+    .replace(
+      "use std.testing.{assert_equal, it_each, snapshot}",
+      "use std.testing.{assert, assert_equal, it_each, it_prop, snapshot}",
+    )
+    .replace("        _ := first([])", added);
+}
+
+test("Test passes and fails the cases hd test passes and fails", async () => {
+  const passing = await run(
+    single(await readFile(join(playground, "examples/tests.hd"), "utf8")),
+    "test",
+  );
+  assert.deepEqual([passing.status, passing.summary, ...passing.stdout], ["ok", "5 tests passed"]);
+
+  const result = await run(single(await testsExample()), "test");
+  assert.equal(result.status, "panic");
+  assert.equal(
+    result.summary,
+    'assertion-failed: joined: actual "a-b", expected "a_b" in test case "joins with a dash"; 3 of 10 tests failed',
+  );
+  // hd test's report of the same file, without its frames and repro lines.
+  assert.deepEqual(result.stdout, [
+    "PANIC src/main.hd:18: joins with a dash",
+    '    panic: assertion-failed: joined: actual "a-b", expected "a_b"',
+    "PANIC src/main.hd:21: keeps each word[1]",
+    '    panic: assertion-failed: unchanged: actual "hd", expected "Hd"',
+    "PANIC src/main.hd:29: a number stays small",
+    "    panic: assertion-failed: small",
+    "    input: 100",
+  ]);
+});
+
+// Each file directly under tests/ is its own program, as hd test builds it
+// (spec/lang/10-modules.md#r-module.test.integration.program).
+test("Test builds each integration test file as a program of its own", async () => {
+  const files = {
+    "src/lib.hd": [
+      "pub fn add(a: i32, b: i32) -> i32:",
+      "    a + b",
+      "",
+      "tests:",
+      '    it("adds"):',
+      "        pass",
+    ].join("\n"),
+    "tests/sums.hd": [
+      "use pkg.{add}",
+      "use std.host.Args",
+      "use std.testing.assert_equal",
+      "",
+      'it("adds through the public API"):',
+      '    assert_equal(add(1, 2), 3, reason="sum")',
+      "",
+      'it("is named by its file"):',
+      '    assert_equal($.use(Args).program(), "tests/sums.hd", reason="its program")',
+    ].join("\n"),
+    "tests/more.hd": [
+      "use pkg.{add}",
+      "use std.testing.assert_equal",
+      "",
+      'it("adds again"):',
+      '    assert_equal(add(2, 2), 5, reason="wrong on purpose")',
+    ].join("\n"),
+  };
+  const result = await run({ files, main: "src/lib.hd" }, "test");
+  assert.equal(
+    result.summary,
+    'assertion-failed: wrong on purpose: actual 4, expected 5 in test case "adds again"',
+  );
+  assert.deepEqual(result.stdout, [
+    "PANIC tests/more.hd:4: adds again",
+    "    panic: assertion-failed: wrong on purpose: actual 4, expected 5",
+  ]);
+});
+
+// The playground has no disk: a snapshot file is recorded in memory for the
+// run, and a case's temporary directory is a path there.
+test("Test records snapshot files in memory and gives each case a directory", async () => {
+  const result = await run(
+    single(
+      [
+        "use std.testing.{assert, snapshot_file, temp_dir}",
+        "",
+        "tests:",
+        '    it("records a snapshot"):',
+        '        snapshot_file("hello")',
+        "",
+        '    it("has a directory"):',
+        '        assert(temp_dir().to_string() != "", reason="a path")',
+      ].join("\n"),
+    ),
+    "test",
+  );
+  assert.deepEqual([result.status, result.summary, ...result.stdout], ["ok", "2 tests passed"]);
 });
 
 // A `*_test.hd` file is a test module: Test links it and runs its top-level
@@ -545,12 +676,12 @@ test("Test runs the test cases of _test.hd modules", async () => {
     "src/helpers_test.hd": ["pub fn overdue() -> i32: 31"].join("\n"),
   };
   const project = { files, main: "src/main.hd" };
-  const tested = await runner.runProject(project, "test");
+  const tested = await run(project, "test");
   assert.equal(tested.summary, "2 tests passed");
   const ran = await run(project, "run");
   assert.deepEqual([ran.summary, ...ran.stdout], ["exited normally", "5"]);
 
-  const failing = await runner.runProject(
+  const failing = await run(
     {
       ...project,
       files: {
@@ -562,16 +693,21 @@ test("Test runs the test cases of _test.hd modules", async () => {
   );
   assert.equal(
     failing.summary,
-    'src/billing_test.hd:6:5: assertion-failed: one day late: actual 5, expected 4 in test case "charges a fee after 30 days"',
+    'assertion-failed: one day late: actual 5, expected 4 in test case "charges a fee after 30 days"',
   );
-  const misplaced = await runner.runProject(
+  const misplaced = await run(
     {
       ...project,
       files: { ...files, "src/helpers_test.hd": 'tests:\n    it("x"):\n        pass\n' },
     },
     "test",
   );
-  assert.deepEqual(located(misplaced), ["src/helpers_test.hd:1:1:misplaced-tests-block"]);
+  // The replaced helpers_test.hd no longer declares `overdue`, so the use
+  // of it is reported too.
+  assert.deepEqual(located(misplaced), [
+    "src/billing_test.hd:2:23:unknown-import",
+    "src/helpers_test.hd:1:1:misplaced-tests-block",
+  ]);
   // Run leaves test modules out, so a use of one from other code names a
   // module the program does not have.
   const leaked = await run(
@@ -585,7 +721,7 @@ test("Test runs the test cases of _test.hd modules", async () => {
     "run",
   );
   assert.deepEqual(located(leaked), ["src/billing.hd:1:1:unknown-module"]);
-  const mistyped = await runner.runProject(
+  const mistyped = await run(
     {
       ...project,
       files: { ...files, "src/helpers_test.hd": 'pub fn overdue() -> i32: "31"\n' },
@@ -611,7 +747,7 @@ test("a suspending main! reports its Result", async () => {
 });
 
 test("Test runs the test cases of a file without main", async () => {
-  const result = await runner.runProject(
+  const result = await run(
     single(
       [
         "use std.testing.assert_equal",
@@ -629,7 +765,7 @@ test("Test runs the test cases of a file without main", async () => {
   assert.equal(result.status, "panic");
   assert.equal(
     result.summary,
-    'src/main.hd:8:9: assertion-failed: wrong: actual 2, expected 3 in test case "fails"',
+    'assertion-failed: wrong: actual 2, expected 3 in test case "fails"',
   );
 });
 
@@ -702,8 +838,7 @@ test("the bundled examples run and check", async () => {
     assert.deepEqual(checked.stdout, [], example.id);
   }
   const tested = async (id: string): Promise<string> =>
-    (await runner.runProject(EXAMPLES.find((example) => example.id === id)!.project, "test"))
-      .summary;
+    (await run(EXAMPLES.find((example) => example.id === id)!.project, "test")).summary;
   assert.equal(await tested("tests"), "5 tests passed");
   assert.equal(await tested("effects-in-signature"), "1 test passed");
   assert.equal(await tested("derive"), "1 test passed");
@@ -730,14 +865,14 @@ test("each tour snippet runs and tests as its page says; each edit breaks it as 
       assert.deepEqual(result.stdout, page.output, page.source);
     }
     if (page.tests) {
-      const result = await runner.runProject(tourProject(page), "test");
+      const result = await run(tourProject(page), "test");
       assert.equal(result.status, "ok", `${page.source}: ${result.summary}`);
       assert.equal(result.summary, page.tests, page.source);
     }
     const { edit } = page;
     if (!edit) continue;
     if (edit.failure !== undefined) {
-      const tested = await runner.runProject(tourProject(page, editedCode(page)), "test");
+      const tested = await run(tourProject(page, editedCode(page)), "test");
       assert.ok(["failure", "panic"].includes(tested.status), `${page.source}: the edit passes`);
       assert.ok(tested.summary.includes(edit.failure), `${page.source}: ${tested.summary}`);
       continue;

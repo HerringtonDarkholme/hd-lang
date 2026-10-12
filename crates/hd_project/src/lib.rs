@@ -48,6 +48,11 @@ impl MemorySources {
         self.files
             .insert(path.to_owned(), Arc::from(text.as_bytes()));
     }
+
+    /// Keeps the files whose path `keep` accepts.
+    pub fn retain(&mut self, keep: impl Fn(&str) -> bool) {
+        self.files.retain(|p, _| keep(p));
+    }
 }
 
 impl SourceSet for MemorySources {

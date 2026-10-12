@@ -22,8 +22,10 @@ const CORE: &str = include_str!("../../../host/core.mjs");
 const NODE: &str = include_str!("../../../host/node.mjs");
 /// `hd run`: one instance, `hd.init` then `hd.poll`.
 const RUN: &str = include_str!("../../../host/run.mjs");
-/// `hd test`: one fresh instance per case.
+/// `hd test`: the worker thread the cases run in, and its supervisor.
 const TEST: &str = include_str!("../../../host/test.mjs");
+/// The case loop `test.mjs` runs: one fresh instance per case.
+const CASES: &str = include_str!("../../../host/cases.mjs");
 /// The `Http` provider's client thread.
 const HTTP: &str = include_str!("../../../host/http.mjs");
 /// The `Net` provider's client thread, which holds the sockets.
@@ -91,6 +93,7 @@ impl Scratch {
             ("node.mjs", NODE),
             ("run.mjs", RUN),
             ("test.mjs", TEST),
+            ("cases.mjs", CASES),
             ("http.mjs", HTTP),
             ("net.mjs", NET),
             ("float.mjs", FLOAT),

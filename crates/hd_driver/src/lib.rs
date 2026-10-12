@@ -256,6 +256,94 @@ pub struct TestCase {
     pub run: Option<(u32, u32)>,
 }
 
+impl TestCase {
+    /// A property test case's base seed (`cli.test.seed`): `flag` (`hd
+    /// test --seed N`, `cli.test.seed.flag`) when given, else a hash of the
+    /// case's name (64-bit FNV-1a, kept non-negative), so the same name
+    /// gives the same seed on every run. Other cases draw nothing and have
+    /// none.
+    #[must_use]
+    pub fn base_seed(&self, flag: Option<i64>) -> Option<i64> {
+        if !matches!(self.kind.as_str(), "it_prop" | "it_prop_with") {
+            return None;
+        }
+        Some(flag.unwrap_or_else(|| {
+            let hash = self.name.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| {
+                (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3)
+            });
+            i64::try_from(hash >> 1).unwrap_or(i64::MAX)
+        }))
+    }
+}
+
+/// Whether a package-relative file is an integration test file
+/// (`module.test.integration`): a file directly under `tests/`.
+#[must_use]
+pub fn integration_test_file(path: &str) -> bool {
+    path.strip_prefix("tests/")
+        .is_some_and(|rest| !rest.contains('/'))
+}
+
+/// One program of a test run (engines-and-test-runner.md §19.1), built on
+/// its own: the unit-test program, or an integration test file
+/// (`module.test.integration`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TestProgram {
+    /// The integration test file; `None` for the unit-test program.
+    pub file: Option<String>,
+    /// The files its build links: FILE's module or the integration test
+    /// file with what it uses (`cli.package.file`), else every file but
+    /// those under `tests/`.
+    pub keep: Vec<String>,
+    /// The module whose cases it selects ([`Goal::Tests`]).
+    pub module: Option<String>,
+}
+
+/// The programs a test run of `package` builds over `sources`: the
+/// unit-test program unless `only` (`hd test FILE`) is an integration test
+/// file; then each integration test file, or `only` alone when it is one.
+/// When `only` is another file, a file under `tests/` is a program only if
+/// `doc(path)` says it is a doc test of `only`'s (`module.test.doc.program`).
+#[must_use]
+pub fn test_programs(
+    package: &str,
+    sources: &dyn SourceSet,
+    only: Option<&str>,
+    doc: &dyn Fn(&str) -> bool,
+) -> Vec<TestProgram> {
+    let paths: Vec<String> = sources.list().into_iter().map(|e| e.path).collect();
+    let mut out = Vec::new();
+    if !only.is_some_and(integration_test_file) {
+        out.push(TestProgram {
+            file: None,
+            keep: match only {
+                Some(f) => use_closure(package, sources, f),
+                None => paths
+                    .iter()
+                    .filter(|p| !p.starts_with("tests/"))
+                    .cloned()
+                    .collect(),
+            },
+            module: only.map(|f| hd_project::module_path(package, f)),
+        });
+    }
+    for p in &paths {
+        let wanted = match only {
+            Some(f) if integration_test_file(f) => p == f,
+            Some(_) => doc(p),
+            None => integration_test_file(p),
+        };
+        if wanted {
+            out.push(TestProgram {
+                file: Some(p.clone()),
+                keep: use_closure(package, sources, p),
+                module: Some(hd_project::module_path(package, p)),
+            });
+        }
+    }
+    out
+}
+
 /// The result of a run.
 pub struct Output {
     pub wasm: Option<Vec<u8>>,

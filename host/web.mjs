@@ -1,8 +1,8 @@
 // The browser layer of the JS host: what the playground binds over the
 // platform-neutral core (core.mjs). The core already answers `Console`,
-// `Clock`, `Random` and `Args`; this layer adds `Http`, sent with the
-// browser and granted to the page's own origin alone
-// (spec/std/http.md#playground). Every other platform trait (`FsRead`,
+// `Clock`, `Random`, `Args` and most of `TestRunner`; this layer adds
+// `TestRunner.temp_dir` and `Http`, sent with the browser and granted to
+// the page's own origin alone (spec/std/http.md#playground). Every other platform trait (`FsRead`,
 // `FsWrite`, `Process`, `Net`, `Env`, `Sys`, `ConsoleInput`) stays unbound,
 // so a runner refuses a module that imports one before it instantiates it
 // (`unboundTraits`).
@@ -112,13 +112,43 @@ function httpImports({ argsOf, ready }) {
   };
 }
 
+// `hd:TestRunner`: the temp directory of a case, a path in the run's
+// in-memory files (`memoryFiles`); the core has the other hooks.
+function testRunnerImports({ env, put }) {
+  return { temp_dir: () => put(new Enc().str(env.tempDir ?? "/tmp")) };
+}
+
 const webLayer = {
-  providers: ({ argsOf, ready }) => ({ imports: { "hd:Http": httpImports({ argsOf, ready }) } }),
+  providers: ({ env, argsOf, ready, put }) => ({
+    imports: {
+      "hd:Http": httpImports({ argsOf, ready }),
+      "hd:TestRunner": testRunnerImports({ env, put }),
+    },
+  }),
 };
 
 // One host per instance in the browser; `sink` and `env` are
-// `createCoreHost`'s.
+// `createCoreHost`'s. A test run passes its `memoryFiles()` as `env.files`.
 export const createWebHost = (sink, env = {}) => createCoreHost(sink, env, webLayer);
+
+// The files of one test run in the browser (cases.mjs): kept in memory and
+// gone with the run, since the playground has no disk
+// (playground-wasm.md §5).
+export function memoryFiles() {
+  const texts = new Map();
+  return {
+    join: (dir, name) => `${dir}/${name}`,
+    read: (path) => texts.get(path) ?? null,
+    write: (path, text) => {
+      texts.set(path, text);
+    },
+    remove: (dir) => {
+      for (const path of [...texts.keys()]) {
+        if (path === dir || path.startsWith(`${dir}/`)) texts.delete(path);
+      }
+    },
+  };
+}
 
 // The traits a compiled module imports that `host` does not bind, by name
 // and in import order: `hd:FsRead` gives `FsRead`. A runner refuses such a

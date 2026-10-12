@@ -78,16 +78,19 @@ interface CompileRequest {
   goal: Goal;
 }
 interface CompileResult {
-  wasm?: Uint8Array;              // run and test, when there are no errors
+  wasm?: Uint8Array;              // run and test, when there are no errors; test: the programs one after another
   diagnostics: RunDiagnostic[];   // path, code, severity, message, line, column, endLine, endColumn
-  tests?: TestCase[];             // goal "test": hd_driver::TestCase (name, file, line, kind, ignore, expectPanic, unsupported, run: [test, init])
+  programs?: { file: string | null; size: number }[];  // goal "test": the unit-test program, then each tests/ file's
+  tests?: TestCase[];             // goal "test": hd_driver::TestCase (program, name, file, line, kind, ignore, expectPanic, unsupported, seed, run: [test, init]), in hd test's report order
 }
 ```
 
 - `run` is `Goal::Program { entry }`. A file without `main` compiles as
   a script, `Roots::Script`, whose top-level statements run as its init.
-  `check` is `Goal::Analyze`, which is `hd check`. `test` is
-  `Goal::Tests { module: None, filter: None }`.
+  `check` is `Goal::Analyze`, which is `hd check`. `test` builds the
+  programs `hd test` builds (`hd_driver::test_programs`): the unit-test
+  program, then each integration test file as its own program, each a
+  `Goal::Tests` build.
 - `hd_project::Root::of` already maps `src/`, `tests/` and `tasks/`
   paths, so playground paths pass through unchanged. `hd_web` turns the
   entry file into its module path.

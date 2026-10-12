@@ -25,7 +25,8 @@ tests:
 
 # Press Test. Then drop the padding: change `pad(abs % 100)` to
 # `abs % 100`, so $10.00 prints as "10.0", and press Test again:
-#     property test "parsing a printed price gives it back" (seed …) failed
+#     assertion-failed: round trip: actual Option.None,
+#     expected Option.Some(Price { cents: -1000 })
 # The property also catches i32 MIN, which hand-picked examples would never
 # try: `0 - cents` overflows there, so `print` works in `i64`.
 
@@ -59,7 +60,7 @@ fn parse(text: string) -> Price?:
 ```edit
 replace:     "$sign${abs / 100}.${pad(abs % 100)}"
 with:     "$sign${abs / 100}.${abs % 100}"
-failure: property test "parsing a printed price gives it back"
+failure: assertion-failed: round trip
 ```
 
 ```tests

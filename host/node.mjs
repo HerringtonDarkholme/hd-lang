@@ -1,7 +1,7 @@
 // The Node layer of the JS host: the providers that touch the machine
 // (`FsRead`, `FsWrite`, `Process`, `Net`, `Http`, `Env`, `Sys`,
-// `ConsoleInput`, and the test runner's snapshot and temp-directory
-// hooks), added to the platform-neutral core (core.mjs) through its
+// `ConsoleInput`, the test runner's temp-directory hook, and the files of
+// a test run), added to the platform-neutral core (core.mjs) through its
 // `layer` parameter. `createHost` is what `run.mjs`, `test.mjs` and the
 // conformance worker call; the grant and the host-name check are what the
 // client threads (`http.mjs`, `net.mjs`) share.
@@ -568,33 +568,21 @@ function processImports({ argsOf, grant, env, ready }) {
   });
 }
 
-// `hd:TestRunner`: the snapshot files and the temp directory of a case
-// (std-testing.snapshot-file.*, std-testing.runner.temp-dir); the core
-// has the row and timeout hooks.
-function testRunnerImports({ env, put, st, text }) {
-  // Snapshot files of the case (std-testing.snapshot-file.*).
-  const snapshotCheck = (actual) => {
-    const s = env.snapshot;
-    st.snapshots += 1;
-    if (!s) return "no snapshot file: this run names no snapshot directory";
-    // An `it_each` row's slug adds the row's index
-    // (std-testing.snapshot-file.row).
-    const slug = s.slug + (env.runner?.slugSuffix() ?? "");
-    const file = join(s.dir, `${slug}-${st.snapshots}.snap`);
-    const shown = s.shown ? `${s.shown}/${slug}-${st.snapshots}.snap` : file;
-    if (existsSync(file)) {
-      const expected = readFileSync(file, "utf8");
-      if (expected === actual) return "";
-      if (!s.update) {
-        return `the text differs from the snapshot file ${shown}: expected ${JSON.stringify(expected)}, actual ${JSON.stringify(actual)}; run \`hd test --update\` to record it`;
-      }
-    } else if (!s.update) {
-      return `the snapshot file ${shown} is missing; run \`hd test --update\` to record it`;
-    }
-    mkdirSync(s.dir, { recursive: true });
-    writeFileSync(file, actual);
-    return "";
-  };
+// The files of a test run on disk (cases.mjs): the case's temporary
+// directories, its snapshot files and its regression streams.
+export const nodeFiles = {
+  join,
+  read: (path) => (existsSync(path) ? readFileSync(path, "utf8") : null),
+  write: (path, text) => {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, text);
+  },
+  remove: (dir) => rmSync(dir, { recursive: true, force: true }),
+};
+
+// `hd:TestRunner`: the temp directory of a case
+// (std-testing.runner.temp-dir); the core has the other hooks.
+function testRunnerImports({ env, put, st }) {
   const tempDir = () => {
     if (!env.tempDir) {
       // A run without a configured directory makes its own.
@@ -607,7 +595,6 @@ function testRunnerImports({ env, put, st, text }) {
   };
   return {
     imports: {
-      snapshot_check: (len) => put(new Enc().str(snapshotCheck(text(len)))),
       temp_dir: () => put(new Enc().str(tempDir())),
     },
     tempDir,
@@ -625,6 +612,7 @@ export const createGrant = (limits = {}) => createCoreGrant(limits, resolveTarge
 // machine, and what releases them.
 const nodeLayer = {
   resolveTarget,
+  files: nodeFiles,
   providers: ({ env, sink, st, grant, flush, put, ready, text, argsOf }) => {
     // `Net` and its socket handles (spec/std/net.md) on a client thread of
     // this instance's own, which holds its sockets; `close` stops it.
@@ -647,7 +635,7 @@ const nodeLayer = {
       },
       finish: never,
     });
-    const testRunner = testRunnerImports({ env, put, st, text });
+    const testRunner = testRunnerImports({ env, put, st });
     return {
       imports: {
         "hd:ConsoleInput": consoleInputImports({ env, flush, ready }),

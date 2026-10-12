@@ -1,6 +1,7 @@
 // Hand-written declarations for the public exports of web.mjs that the
 // TypeScript side uses.
 
+import type { TestFiles } from "./cases.mjs";
 import type { CoreEnv, Host, Sink } from "./core.mjs";
 
 export type { Host, Sink } from "./core.mjs";
@@ -19,5 +20,10 @@ export type BrowserAnswer =
   | { error: string; text: string };
 
 export function browserSend(request: BrowserRequest): BrowserAnswer;
-export function createWebHost(sink: Sink, env?: CoreEnv): Host;
+/** A test case's `tempDir` and the run's `files` add to `CoreEnv`. */
+export function createWebHost(
+  sink: Sink,
+  env?: CoreEnv & { tempDir?: string | null; files?: TestFiles },
+): Host;
+export function memoryFiles(): TestFiles;
 export function unboundTraits(module: WebAssembly.Module, host: Host): string[];

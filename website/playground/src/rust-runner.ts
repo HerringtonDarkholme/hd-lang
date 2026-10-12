@@ -1,26 +1,32 @@
-// Check and Run on the Rust compiler (playground-wasm.md §3, W5). The
-// compiler wasm of crates/hd_web compiles the project; Run instantiates
+// Check, Run and Test on the Rust compiler (playground-wasm.md §3, W5, W6).
+// The compiler wasm of crates/hd_web compiles the project; Run instantiates
 // the program with the browser host, host/web.mjs, as `hd run` does on
-// Node with host/node.mjs. The worker loads one runner, so the compiler and
-// its in-memory store live as long as the worker.
+// Node with host/node.mjs. Test runs each case with the case loop that
+// `hd test` runs on Node (host/cases.mjs), over the browser host, and
+// reports what `hd test` would. The worker loads one runner, so the
+// compiler and its in-memory store live as long as the worker.
 //
-// Test, the WAT view and the REPL panel stay on the prototype compiler
-// (runner.ts) until W6, W8 and W7.
+// The WAT view and the REPL panel stay on the prototype compiler
+// (runner.ts) until W8 and W7.
 
-import { createWebHost, unboundTraits } from "../../../host/web.mjs";
+import { judge, runCases, type CaseRecord, type Verdict } from "../../../host/cases.mjs";
+import { createWebHost, memoryFiles, unboundTraits } from "../../../host/web.mjs";
 import {
   GOAL,
   STATUS,
   compileRequest,
   encodeRequest,
+  programBytes,
+  type Compiled,
   type CompilerExports,
   type WireDiagnostic,
+  type WireTest,
 } from "./compiler-wire.ts";
 import type { Project } from "./project.ts";
 import type { RunDiagnostic, RunResult } from "./runner.ts";
 
-/** The modes the Rust compiler serves so far. */
-export type RustMode = "run" | "check";
+/** The modes the Rust compiler serves. */
+export type RustMode = "run" | "check" | "test";
 
 export interface RustRunner {
   /** Settles once the compiler wasm is instantiated, or failed to be. */
@@ -73,6 +79,168 @@ function lineStream(each: (line: string) => void): { write(text: string): void; 
   };
 }
 
+type Finish = (
+  status: RunResult["status"],
+  diagnostics: readonly RunDiagnostic[],
+  summary: string,
+) => RunResult;
+
+/** `count` and the noun, plural unless it is one: `1 test`, `2 tests`. */
+const tests = (count: number): string => `${count} ${count === 1 ? "test" : "tests"}`;
+
+/**
+ * The lines `hd test` prints for a result other than a pass
+ * (engines-and-test-runner.md §19.5), without the repro command, which
+ * names a file on disk, and without frames, which need the source
+ * positions the playground does not have yet (playground-wasm.md §5).
+ */
+function reportLines(at: string, name: string, verdict: Verdict, input?: string): string[] {
+  const indent = (text: string): string[] => text.split("\n").map((line) => `    ${line}`);
+  const shown = input === undefined ? [] : [`    input: ${input}`];
+  if (verdict.outcome === "failed")
+    return [`FAIL ${at}: ${name}`, ...indent(verdict.message), ...shown];
+  if (verdict.outcome === "panicked")
+    return [
+      `PANIC ${at}: ${name}`,
+      `    panic: ${verdict.category}${verdict.message === "" ? "" : `: ${verdict.message}`}`,
+      ...verdict.debug.map((line) => `    ${line}`),
+      ...shown,
+    ];
+  return [];
+}
+
+/**
+ * Test: runs every case of every test program as `hd test` does, a fresh
+ * instance per case and per row, with the property runner and shrinking
+ * of host/cases.mjs. A case running past its `timeout` while it waits is
+ * cut at its deadline; one that never yields is cut only by the
+ * playground's run limit. Snapshot and regression files live in memory
+ * for the run (playground-wasm.md §5). The output lists each case that did
+ * not pass as `hd test` prints it; the summary counts the passes, or names
+ * the first failure.
+ */
+async function runTests(
+  compiled: Compiled,
+  diagnostics: readonly RunDiagnostic[],
+  emit: (line: string) => void,
+  finish: Finish,
+): Promise<RunResult> {
+  const cases = compiled.json.tests ?? [];
+  if (cases.length === 0)
+    return finish(
+      "failure",
+      diagnostics,
+      "nothing to test: add a `tests:` block or a `_test.hd` module with `it(...)` test cases",
+    );
+  const programs = compiled.json.programs ?? [];
+  const bytes = programBytes(compiled);
+  const files = memoryFiles();
+  // Each case's result records, by its index in `cases`.
+  const records: CaseRecord[][] = cases.map(() => []);
+  const runs = (test: WireTest): boolean =>
+    test.run !== null && test.ignore === null && test.unsupported === null;
+  for (const [index, program] of programs.entries()) {
+    const own = cases.flatMap((test, at) => (test.program === index && runs(test) ? [at] : []));
+    if (own.length === 0) continue;
+    const module = await WebAssembly.compile(bytes[index] as BufferSource);
+    const missing = unboundTraits(module, createWebHost({ out() {}, err() {} }));
+    if (missing.length > 0)
+      return finish(
+        "failure",
+        diagnostics,
+        `${program.file ?? "the tests"} needs ${missing.join(" and ")}, which the playground does not provide; run it with hd test`,
+      );
+    // The case of each `hd.test.i` export of this program.
+    const byExport = new Map(own.map((at) => [cases[at]!.run![0], at]));
+    await runCases({
+      module,
+      config: {
+        // An integration test's `Args.program` is its file
+        // (cli.test.env.args.program).
+        program: program.file ?? "",
+        args: [],
+        programs: null,
+        cases: own.map((at) => {
+          const test = cases[at]!;
+          return {
+            test: test.run![0],
+            init: test.run![1],
+            kind: test.kind,
+            tempDir: `/tmp/hd-test/${at}`,
+            seed: test.seed,
+            grants: {},
+            snapshot: { dir: `/__snapshots__/${at}`, slug: "case", update: true },
+            regression: test.seed === null ? null : { file: `/__regressions__/${at}` },
+          };
+        }),
+      },
+      createHost: (sink, env) => createWebHost(sink, { ...env, files }),
+      files,
+      // No supervisor: the playground's run limit stops a body that never
+      // yields.
+      notify: () => undefined,
+      emit: (record) => {
+        const at = byExport.get(record.test);
+        if (at !== undefined) records[at]!.push(record);
+      },
+    });
+  }
+
+  let passed = 0;
+  let failed = 0;
+  let ignored = 0;
+  let unsupported = 0;
+  let first: { status: RunResult["status"]; summary: string } | undefined;
+  for (const [at, test] of cases.entries()) {
+    const where = `${test.file}:${test.line}`;
+    // What `hd test` knows without running the case.
+    if (test.unsupported === null && test.ignore !== null) {
+      ignored += 1;
+      emit(`IGNORED ${where}: ${test.name} (${test.ignore})`);
+      continue;
+    }
+    if (test.unsupported !== null || test.run === null) {
+      unsupported += 1;
+      const what = test.unsupported ?? "a case without a checked body";
+      emit(`UNSUPPORTED ${where}: ${test.name} (${what} cannot run yet)`);
+      continue;
+    }
+    for (const record of records[at]!) {
+      // An empty table reports nothing (std-testing.it-each).
+      if (record.status === undefined) continue;
+      // An `it_each` row is named `name[i]` (std-testing.it-each.name).
+      const name = record.row === undefined ? test.name : `${test.name}[${record.row}]`;
+      const verdict = judge(
+        { status: record.status, trapped: record.trapped ?? false, stderr: record.stderr ?? "" },
+        test.expectPanic,
+      );
+      if (verdict.outcome === "passed") {
+        passed += 1;
+        continue;
+      }
+      failed += 1;
+      reportLines(where, name, verdict, record.input).forEach((line) => emit(line));
+      first ??=
+        verdict.outcome === "panicked"
+          ? {
+              status: "panic",
+              summary: `${verdict.category}${verdict.message === "" ? "" : `: ${verdict.message}`} in test case "${name}"`,
+            }
+          : {
+              status: "failure",
+              summary: `test case "${name}" failed: ${verdict.message.split("\n")[0]}`,
+            };
+    }
+  }
+  const others = [
+    ignored > 0 ? `, ${ignored} ignored` : "",
+    unsupported > 0 ? `, ${unsupported} unsupported` : "",
+  ].join("");
+  if (first === undefined) return finish("ok", diagnostics, `${tests(passed)} passed${others}`);
+  const more = failed > 1 ? `; ${failed} of ${tests(passed + failed)} failed` : "";
+  return finish(first.status, diagnostics, `${first.summary}${more}`);
+}
+
 /**
  * A runner over the compiler wasm `bytes` (the file
  * `pnpm run build:web-compiler` writes); it instantiates them once.
@@ -98,11 +266,7 @@ export function createRustRunner(bytes: Promise<BufferSource> | BufferSource): R
       stdout.push(line);
       onStdout(line, debug);
     };
-    const finish = (
-      status: RunResult["status"],
-      diagnostics: readonly RunDiagnostic[],
-      summary: string,
-    ): RunResult => ({
+    const finish: Finish = (status, diagnostics, summary) => ({
       status,
       diagnostics,
       stdout,
@@ -127,6 +291,14 @@ export function createRustRunner(bytes: Promise<BufferSource> | BufferSource): R
     if (compiled.status === STATUS.errors)
       return finish("compile-error", diagnostics, "compilation failed");
     if (mode === "check") return finish("ok", diagnostics, "no errors");
+    if (mode === "test") {
+      try {
+        return await runTests(compiled, diagnostics, emit, finish);
+      } catch (error) {
+        const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+        return finish("failure", diagnostics, message);
+      }
+    }
     if (compiled.wasm.length === 0) return finish("failure", diagnostics, "no program to run");
 
     const who = declaresMain(project.files[project.main] ?? "") ? "main" : "the program";

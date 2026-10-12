@@ -508,10 +508,7 @@ fn test_one(
         })
         .collect();
     program.sources.retain(|p| !untested.iter().any(|u| u == p));
-    let integration_file = |p: &str| {
-        p.strip_prefix("tests/")
-            .is_some_and(|rest| !rest.contains('/'))
-    };
+    let integration_file = hd_driver::integration_test_file;
     let docs = if file.is_some_and(integration_file) {
         Vec::new()
     } else {
@@ -522,21 +519,16 @@ fn test_one(
     }
     // The programs: the unit-test program unless FILE is an integration
     // test file; each integration test file, or FILE alone; each doc test.
-    let mut specs: Vec<(Option<String>, Option<&Doc>)> = Vec::new();
-    if !file.is_some_and(integration_file) {
-        specs.push((None, None));
-    }
-    for e in program.sources.list() {
-        let doc = docs.iter().find(|d| d.path == e.path);
-        let wanted = match file {
-            Some(f) if integration_file(f) => e.path == f,
-            Some(_) => doc.is_some(),
-            None => integration_file(&e.path),
-        };
-        if wanted {
-            specs.push((Some(e.path), doc));
-        }
-    }
+    let specs: Vec<(hd_driver::TestProgram, Option<&Doc>)> =
+        hd_driver::test_programs(&program.package, &program.sources, file, &|p| {
+            docs.iter().any(|d| d.path == p)
+        })
+        .into_iter()
+        .map(|t| {
+            let doc = docs.iter().find(|d| Some(&d.path) == t.file.as_ref());
+            (t, doc)
+        })
+        .collect();
     let store = DiskStore { root: cache_dir() };
     let clock = Wall(Instant::now());
     let executor = if o.jobs == 1 {
@@ -551,23 +543,10 @@ fn test_one(
     // The programs' modules, each kept once for their panic frames.
     let mut positions = hd_driver::PositionPool::default();
     let mut diags: Vec<report::Diag> = Vec::new();
-    for (path, doc) in &specs {
+    for (spec, doc) in &specs {
+        let path = &spec.file;
         let mut sources = program.sources.clone();
-        match path {
-            // `cli.package.file`: FILE's module, linked with what it uses.
-            None => {
-                if let Some(f) = file {
-                    let keep = hd_driver::use_closure(package, &sources, f);
-                    sources.retain(|p| keep.iter().any(|k| k == p));
-                } else {
-                    sources.retain(|p| !p.starts_with("tests/"));
-                }
-            }
-            Some(p) => {
-                let keep = hd_driver::use_closure(package, &sources, p);
-                sources.retain(|q| keep.iter().any(|k| k == q));
-            }
-        }
+        sources.retain(|p| spec.keep.iter().any(|k| k == p));
         let host = Host {
             render_tir: &[],
             sources: &sources,
@@ -575,12 +554,8 @@ fn test_one(
             clock: &clock,
             executor,
         };
-        let module = match path {
-            Some(p) => Some(hd_project::module_path(package, p)),
-            None => file.map(|f| hd_project::module_path(package, f)),
-        };
         let goal = Goal::Tests {
-            module,
+            module: spec.module.clone(),
             filter: o.filter.clone(),
         };
         let mut out = build_packages(&host, package, &packages, &goal);
@@ -813,22 +788,6 @@ fn slug(name: &str) -> String {
     out
 }
 
-/// A property test case's base seed (`cli.test.seed`): `--seed N` when
-/// given (`cli.test.seed.flag`), else a hash of the case's name (64-bit
-/// FNV-1a, kept non-negative), so the same name gives the same seed on
-/// every run. Other cases draw nothing and have none.
-fn base_seed(case: &TestCase, flag: Option<i64>) -> Option<i64> {
-    if !matches!(case.kind.as_str(), "it_prop" | "it_prop_with") {
-        return None;
-    }
-    Some(flag.unwrap_or_else(|| {
-        let hash = case.name.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| {
-            (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3)
-        });
-        i64::try_from(hash >> 1).unwrap_or(i64::MAX)
-    }))
-}
-
 /// The temporary directories of one test program's run
 /// (`cli.test.env.temp-dir`): a fresh root of this process below the
 /// system's temporary directory, and in it one directory per case, which
@@ -889,7 +848,7 @@ fn run(
     report: &mut Report,
 ) -> Result<(), ExitCode> {
     let cases: Vec<TestCase> = selected.iter().map(|s| s.case.clone()).collect();
-    let seeds: Vec<Option<i64>> = cases.iter().map(|c| base_seed(c, env.seed)).collect();
+    let seeds: Vec<Option<i64>> = cases.iter().map(|c| c.base_seed(env.seed)).collect();
     let plan = TestPlan::new(
         cases
             .iter()
@@ -1340,7 +1299,7 @@ fn shell_quoted(word: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{TempDirs, TestCase, base_seed, collapse, parse_with_engine, repro, shell_quoted};
+    use super::{TempDirs, TestCase, collapse, parse_with_engine, repro, shell_quoted};
 
     #[test]
     fn repeated_frames_collapse_into_a_count() {
@@ -1449,19 +1408,19 @@ mod tests {
     #[test]
     fn a_property_case_has_a_base_seed_from_its_name() {
         let a = case("sorts any list", "it_prop");
-        let seed = base_seed(&a, None).expect("a property case");
+        let seed = a.base_seed(None).expect("a property case");
         assert!(seed >= 0);
         assert_eq!(
-            base_seed(&a, None),
+            a.base_seed(None),
             Some(seed),
             "the same name, the same seed"
         );
         assert_ne!(
-            base_seed(&case("sorts any vec", "it_prop_with"), None),
+            case("sorts any vec", "it_prop_with").base_seed(None),
             Some(seed)
         );
-        assert_eq!(base_seed(&a, Some(7)), Some(7));
-        assert_eq!(base_seed(&case("adds", "it"), Some(7)), None);
+        assert_eq!(a.base_seed(Some(7)), Some(7));
+        assert_eq!(case("adds", "it").base_seed(Some(7)), None);
         assert_eq!(
             repro(&a, &a.name, Some(7)),
             "hd test tests/props.hd --filter \"sorts any list\" --seed 7"

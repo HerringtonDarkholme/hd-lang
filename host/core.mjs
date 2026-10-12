@@ -360,11 +360,34 @@ function propertyRunnerImports({ env, put, text }) {
   };
 }
 
-// `hd:TestRunner`: the hooks every host has (the Node layer adds
-// `snapshot_check` and `temp_dir`, which touch files).
-function testRunnerImports({ env, st }) {
+// `hd:TestRunner`: the hooks every host has (a platform layer adds
+// `temp_dir`). Snapshot files are read and written through `files`
+// (cases.mjs describes it): the disk on Node, memory in the playground.
+function testRunnerImports({ env, st, put, text, files }) {
+  // Snapshot files of the case (std-testing.snapshot-file.*).
+  const snapshotCheck = (actual) => {
+    const s = env.snapshot;
+    st.snapshots += 1;
+    if (!s || !files) return "no snapshot file: this run names no snapshot directory";
+    // An `it_each` row's slug adds the row's index
+    // (std-testing.snapshot-file.row).
+    const slug = s.slug + (env.runner?.slugSuffix() ?? "");
+    const file = files.join(s.dir, `${slug}-${st.snapshots}.snap`);
+    const shown = s.shown ? `${s.shown}/${slug}-${st.snapshots}.snap` : file;
+    const expected = files.read(file);
+    if (expected !== null) {
+      if (expected === actual) return "";
+      if (!s.update) {
+        return `the text differs from the snapshot file ${shown}: expected ${JSON.stringify(expected)}, actual ${JSON.stringify(actual)}; run \`hd test --update\` to record it`;
+      }
+    } else if (!s.update) {
+      return `the snapshot file ${shown} is missing; run \`hd test --update\` to record it`;
+    }
+    files.write(file, actual);
+    return "";
+  };
   return {
-    // The test runner (`env.runner`, test.mjs) picks the row an `it_each`
+    // The test runner (`env.runner`, cases.mjs) picks the row an `it_each`
     // case runs; without one, row 0. Timeouts run under no limit here.
     row: (count) => (env.runner ? env.runner.row(count) : 0),
     // The runner fails a body that runs longer than its timeout: here at
@@ -375,6 +398,7 @@ function testRunnerImports({ env, st }) {
       st.deadline = performance.now() + st.timeoutMs;
       env.runner?.timeout?.(st.timeoutMs);
     },
+    snapshot_check: (len) => put(new Enc().str(snapshotCheck(text(len)))),
   };
 }
 
@@ -387,9 +411,10 @@ function testRunnerImports({ env, st }) {
 // of a property test (Test Environments, cli.test.seed), its `snapshot`
 // files (`dir`, `shown`, `slug`, `update`), the test runner's
 // `programs`, the package's executables and tasks by name
-// (cli.test.process), and its `runner`, the hooks through which
+// (cli.test.process), its `runner`, the hooks through which
 // `TestRunner.row` and `PropertyRunner` reach it (`row`, `slugSuffix`,
-// `start`, `record`, `show`; test.mjs).
+// `start`, `record`, `show`; cases.mjs), and `files`, where its snapshot
+// files are when the platform layer's `files` is not where they are.
 export function createCoreHost(sink, env = {}, layer = null) {
   const args = env.args ?? [];
   const program = env.program ?? "";
@@ -482,7 +507,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
     "hd:Clock": clockImports({ pending, finish }),
     "hd:Random": randomImports({ put }),
     "hd:Args": argsImports({ put, program, args }),
-    "hd:TestRunner": testRunnerImports({ env, st }),
+    "hd:TestRunner": testRunnerImports({ env, st, put, text, files: env.files ?? layer?.files }),
     "hd:PropertyRunner": propertyRunnerImports({ env, put, text }),
   };
 
