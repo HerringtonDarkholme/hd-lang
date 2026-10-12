@@ -62,6 +62,15 @@ Your M30 namespaced scratch directories per process, but the test still
 failed once under heavy load with a missing temp file (after #315,
 2026-10-11). Run it 100 times while `cargo test -q -p hd_driver --test
 conformance` runs, capture the failing call, and fix the cause in test code.
+Orchestrator diagnosis (CI log of f6e9a7e1, 2026-10-11): `hd remove` failed
+with `.../target/tmp/hd-cache-forms-<pid>/tmp/<scratch>: No such file or
+directory`. `run.rs`'s helper `cache("hd-cache-forms")` hands every test in
+the process the SAME `Scratch` path, and `Scratch::unmade` clears it at
+creation and removes it on drop, so one test wipes the cache another test is
+using. Give each use its own cache (a unique name per call, for example a
+process-wide counter in hd_testkit), or one shared cache that no test
+clears; check every other shared `cache(...)` name in the hd_cli tests for
+the same pattern.
 Files: `compiler/crates/hd_cli/tests/all/run.rs` and
 `compiler/crates/hd_testkit/src/lib.rs`. Done when 100 runs in a row pass
 under that load; put the cause in the commit body.
