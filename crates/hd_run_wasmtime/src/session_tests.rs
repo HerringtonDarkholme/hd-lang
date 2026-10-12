@@ -1,6 +1,7 @@
 //! The wasmtime session (repl-plan.md job S1): inputs the driver builds
 //! with `Goal::ReplInput` (job C4) run one after another in one store. A
-//! later input sees an earlier input's declarations by name.
+//! later input sees an earlier input's declarations and top-level bindings
+//! by name (job C5).
 
 use hd_run::{HostSetup, Outcome};
 
@@ -106,26 +107,12 @@ fn text(stream: &Shared) -> String {
 
 /// `cli.repl.panic.mutations`, the spec's `log` example: input 1 binds
 /// the mutable list `log`; input 2 pushes to it and then panics; input 3
-/// sees the push. Reading `log` by name from a later input is job C5, so
-/// input 1 also declares the functions that reach it, which later inputs
-/// call by name.
+/// sees the push.
 #[test]
 fn a_panicking_input_keeps_its_changes_to_earlier_values() {
-    let in1 = "\
-let log: mut List[string] = []
-
-fn record_then_read(entries: mut List[string]) -> string:
-    entries.push(\"started\")
-    entries[5]
-
-fn record() -> string:
-    record_then_read(log)
-
-fn entries() -> string:
-    \"${log.len()}: ${log.join(\", \")}\"
-";
-    let in2 = "line := record()\n";
-    let in3 = "println(entries())\n";
+    let in1 = "let log: mut List[string] = []\n";
+    let in2 = "log.push(\"started\")\nline := log[5]\n";
+    let in3 = "println(\"${log.len()}: ${log.join(\", \")}\")\n";
     with_session(|session, io| {
         let mut repl = repl(session);
         assert_eq!(repl.input(in1), Outcome::Exit(0), "{}", text(&io.err));
@@ -191,19 +178,21 @@ fn an_input_writes_its_output_once() {
     });
 }
 
-/// The spec's Redefinition example without its redeclaration
-/// (`cli.repl.declarations.bindings` through a function: a later input
-/// reading `rate` by name is job C5). Each input calls the functions of
-/// earlier ones by name.
+/// `cli.repl.declarations.bindings`, the spec's Redefinition example
+/// without its redeclaration: input 2's function reads input 1's `rate`,
+/// and `count`, bound with `let`, is assigned by the input after it and
+/// read by the one after that.
 #[test]
-fn later_inputs_call_earlier_inputs_functions() {
+fn later_inputs_read_and_assign_earlier_bindings() {
     let inputs = [
-        "rate := +3\n\nfn price(n: i32) -> i32:\n    n * rate\n",
-        "fn total() -> i32:\n    price(+2)\n",
-        "println(total())\n",
-        "fn doubled() -> i32:\n    total() * +2\n",
+        "rate := +3\n",
+        "fn price(n: i32) -> i32:\n    n * rate\n",
+        "println(price(+2))\n",
+        "fn doubled() -> i32:\n    price(+2) * +2\n",
         "println(doubled())\n",
-        "let count = +1\ncount = count + price(+1)\nprintln(count)\n",
+        "let count = +1\n",
+        "count = count + price(+1)\n",
+        "println(count)\n",
     ];
     with_session(|session, io| {
         let mut repl = repl(session);
@@ -211,5 +200,25 @@ fn later_inputs_call_earlier_inputs_functions() {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
         }
         assert_eq!(text(&io.out), "6\n12\n4\n");
+    });
+}
+
+/// The `prices` example of live-execution.md §2.2, with std's `Map`
+/// stored by index: a function of input 2 reads the map input 1 binds,
+/// after input 3 stored into it.
+#[test]
+fn a_function_sees_a_later_change_to_an_earlier_binding() {
+    let inputs = [
+        "let prices: mut Map[string, u32] = {}\n",
+        "fn price(item: string) -> u32:\n    prices.get(item).unwrap_or(+0)\n",
+        "prices[\"tea\"] = +3\n",
+        "println(price(\"tea\"))\n",
+    ];
+    with_session(|session, io| {
+        let mut repl = repl(session);
+        for input in inputs {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        assert_eq!(text(&io.out), "3\n");
     });
 }

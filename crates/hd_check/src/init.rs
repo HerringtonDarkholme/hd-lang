@@ -34,6 +34,43 @@ pub struct Global {
     pub short: bool,
 }
 
+impl Global {
+    /// The binding as a REPL input's interface carries it.
+    #[must_use]
+    pub fn binding(&self) -> InputBinding {
+        InputBinding {
+            def: self.def,
+            ty: self.ty,
+            short: self.short,
+        }
+    }
+}
+
+/// A top-level binding as a REPL input's interface carries it for later
+/// inputs (`cli.repl.declarations.bindings`): its item, whose path names
+/// its storage, its final type, and whether it was bound with `:=`, so not
+/// reassignable.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InputBinding {
+    pub def: DefId,
+    pub ty: Ty,
+    pub short: bool,
+}
+
+/// The top-level bindings of the module `cx` checked, as its input
+/// interface carries them, in statement order.
+#[must_use]
+pub fn input_bindings(cx: &BodyCx<'_>) -> Vec<InputBinding> {
+    let init = cx.init.borrow();
+    let mut out: Vec<(usize, InputBinding)> = init
+        .globals
+        .values()
+        .map(|g| (g.stmt, g.binding()))
+        .collect();
+    out.sort_by_cached_key(|(s, b)| (*s, cx.names.path(b.def)));
+    out.into_iter().map(|(_, b)| b).collect()
+}
+
 /// What a condition leaves on its two paths: the `:=` bindings that may
 /// be uninitialized after it is true, and after it is false
 /// (`names.definite.path`, `names.definite.merge`).
@@ -147,10 +184,28 @@ pub fn init_segment(body: &Body, item: DefId, insts: std::ops::Range<u32>) -> Bo
 #[derive(Default)]
 pub struct ModuleInit {
     pub globals: HashMap<Symbol, Global>,
+    /// For a REPL input: the top-level bindings of the earlier inputs, by
+    /// name, from their input interfaces (`cli.repl.declarations.bindings`).
+    /// They ran before this input, so every body and statement sees them,
+    /// and no initialization order involves them. The module's own
+    /// bindings come first.
+    pub earlier: HashMap<Symbol, InputBinding>,
     pub facts: HashMap<DefId, InitFacts>,
     /// The methods of the module's own trait impls, by trait; built on
     /// first use (`module.init.definite.dispatch`).
     impl_methods: Option<HashMap<DefId, Vec<(Symbol, DefId)>>>,
+}
+
+impl ModuleInit {
+    /// The state of a REPL input before its check: the earlier inputs'
+    /// bindings and nothing of its own.
+    #[must_use]
+    pub fn after(earlier: HashMap<Symbol, InputBinding>) -> ModuleInit {
+        ModuleInit {
+            earlier,
+            ..ModuleInit::default()
+        }
+    }
 }
 
 /// The top-level executable statements of a module, in source order. An
@@ -748,7 +803,16 @@ impl Ck<'_, '_> {
 
     /// A top-level binding read from any body of the module.
     pub(crate) fn global_get(&mut self, name: Symbol, n: NodeRef<'_>) -> Option<(Ref, Ty)> {
-        let g = self.cx.init.borrow().globals.get(&name).copied()?;
+        let (own, earlier) = {
+            let init = self.cx.init.borrow();
+            (
+                init.globals.get(&name).copied(),
+                init.earlier.get(&name).copied(),
+            )
+        };
+        if own.is_none() && earlier.is_none() {
+            return None;
+        }
         // A template body names no top-level binding
         // (`module.package.template-private.no-binding`).
         if self.in_template.is_some() {
@@ -759,6 +823,14 @@ impl Ck<'_, '_> {
             self.err(Code::TemplateNamesBinding, n, &msg);
             return Some(self.poison_value(n));
         }
+        let Some(g) = own else {
+            // An earlier REPL input's binding (`cli.repl.declarations.bindings`)
+            // is initialized already: any statement or body sees it, and
+            // reading it orders nothing in this module's initialization.
+            let g = earlier?;
+            let a = self.b.refs_record(&[Ref(g.def.raw())]);
+            return Some((self.b.emit(Tag::GlobalGet, a, NONE, g.ty, n.index()), g.ty));
+        };
         // Inside the init body, a binding is visible from its statement on.
         if self.module_init.is_some() && g.stmt >= self.init_stmt {
             return None;

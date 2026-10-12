@@ -2507,12 +2507,20 @@ impl Ck<'_, '_> {
         match lhs.kind() {
             SyntaxKind::NameExpr => {
                 let name = self.sym_of(*lhs);
-                let global = self.cx.init.borrow().globals.get(&name).copied();
+                // The module's own binding, else an earlier REPL input's
+                // (`cli.repl.declarations.bindings`).
+                let global = {
+                    let init = self.cx.init.borrow();
+                    init.globals
+                        .get(&name)
+                        .map(crate::init::Global::binding)
+                        .or_else(|| init.earlier.get(&name).copied())
+                };
                 if self.find_local(name).is_none()
-                    && let Some(g) = global
+                    && let Some(crate::init::InputBinding { def, ty, short }) = global
                 {
                     // A mutable top-level binding (`GlobalSet`).
-                    if g.short {
+                    if short {
                         let msg = format!(
                             "`{}` is bound with `:=`; use `let` to reassign it",
                             self.cx.names.text(name)
@@ -2522,9 +2530,9 @@ impl Ck<'_, '_> {
                     if compound.is_some() {
                         return unsupported("compound assignment to a top-level binding");
                     }
-                    let (r, t) = self.expr(*rhs, Some(g.ty))?;
-                    let v = self.coerce(r, t, g.ty, *rhs, "assignment");
-                    let a = self.b.refs_record(&[Ref(g.def.raw())]);
+                    let (r, t) = self.expr(*rhs, Some(ty))?;
+                    let v = self.coerce(r, t, ty, *rhs, "assignment");
+                    let a = self.b.refs_record(&[Ref(def.raw())]);
                     self.b.emit(Tag::GlobalSet, a, v.0, Ty::VOID, s.index());
                     return Ok(());
                 }

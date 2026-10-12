@@ -26,6 +26,7 @@ use hd_cache::{
     parse_key, prog_key, toolchain_key,
 };
 use hd_check::BodyCx;
+use hd_check::init::InputBinding;
 use hd_check::stages::{ModuleFacts, test_overlay};
 use hd_check::structure::FactBodies;
 use hd_diag::{Code, DiagBuf, Severity};
@@ -552,6 +553,7 @@ type BodyOut = (
     Vec<hd_check::results::Inferred>,
     hd_check::init::InitSummary,
     Vec<hd_check::DbgRef>,
+    Vec<InputBinding>,
 );
 
 /// What a module's derivations add to its `check` entry: the derived
@@ -733,6 +735,13 @@ struct Run<'a> {
     session_scopes: Vec<OnceLock<Arc<hd_resolve::SessionScope>>>,
     /// The REPL input modules of the root package.
     repl_inputs: OnceLock<ReplInputs>,
+    /// Per REPL input: its input interface's top-level bindings, read from
+    /// its `check` entry (`cli.repl.declarations.bindings`).
+    input_bindings: Vec<OnceLock<Vec<InputBinding>>>,
+    /// Per module: the task after which its `check` entry is read, its
+    /// `ModulePrep` on a hit and its `ModuleFinish` on a miss. A later REPL
+    /// input's bodies wait for it, since they read its bindings.
+    check_task: Vec<OnceLock<TaskId>>,
     diags: Mutex<DiagBuf>,
     report: Mutex<PipelineReport>,
     counters: Mutex<Counters>,
@@ -1004,6 +1013,8 @@ fn build_packages_inner(
         lib_scope: OnceLock::new(),
         session_scopes: (0..n).map(|_| OnceLock::new()).collect(),
         repl_inputs: OnceLock::new(),
+        input_bindings: (0..n).map(|_| OnceLock::new()).collect(),
+        check_task: (0..n).map(|_| OnceLock::new()).collect(),
         diags: Mutex::new(DiagBuf::default()),
         report: Mutex::new(PipelineReport {
             package: package.to_owned(),
@@ -1729,6 +1740,7 @@ impl Run<'_> {
                 }
             }
         }
+        let mut prep_task: Vec<Option<TaskId>> = vec![None; self.table.modules.len()];
         for (m, module) in self.table.modules.iter().enumerate() {
             if module.package != 0 && !reached[module.folder.idx()] {
                 continue;
@@ -1737,8 +1749,31 @@ impl Run<'_> {
                 .iter()
                 .filter_map(|c| iface_task[c.idx()])
                 .collect();
-            let prep = sp.add(TaskKind::ModulePrep(u32_of(m)), &deps);
+            // A REPL input's task is held until its edges from the
+            // earlier inputs' are in.
+            let kind = TaskKind::ModulePrep(u32_of(m));
+            let prep = if self.repl_number(m).is_some() {
+                sp.add_held(kind, &deps)
+            } else {
+                sp.add(kind, &deps)
+            };
             sp.edge(prep, pr);
+            prep_task[m] = Some(prep);
+        }
+        // A REPL input's bodies read the earlier inputs' bindings from their
+        // `check` entries: its `ModulePrep` waits for theirs, which name the
+        // task that reads each entry (`check_task`).
+        for &(_, m) in &self.repl_inputs().sorted {
+            for &(_, k) in self.earlier_inputs(m) {
+                if let (Some(from), Some(to)) = (prep_task[k], prep_task[m]) {
+                    sp.edge(from, to);
+                }
+            }
+        }
+        for &(_, m) in &self.repl_inputs().sorted {
+            if let Some(prep) = prep_task[m] {
+                sp.release(prep);
+            }
         }
         sp.release(pr);
     }
@@ -2614,6 +2649,11 @@ impl Run<'_> {
         {
             closure.push(("$lib", self.skim_of(lib).token_hash));
         }
+        // Nor does one carry an earlier input's bindings, whose types come
+        // from its statements (`cli.repl.declarations.bindings`).
+        for &(_, k) in self.earlier_inputs(m) {
+            closure.push(("$input", self.skim_of(k).token_hash));
+        }
         // A dependency's module is checked against the root's profile, so
         // its key holds both packages.
         let package = if module.package == 0 {
@@ -2720,13 +2760,21 @@ impl Run<'_> {
     /// `TestOverlay(m)` (scheduler.md §6.1).
     fn module_prep(&self, id: TaskId, m: u32, sp: &dyn Spawn) {
         let mi = m as usize;
+        let body = self.module_prep_now(id, mi, sp);
+        let _ = self.check_task[mi].set(body.unwrap_or(id));
+    }
+
+    /// `module_prep`; the module's `ModuleFinish` task when it checks
+    /// the module's bodies.
+    fn module_prep_now(&self, id: TaskId, mi: usize, sp: &dyn Spawn) -> Option<TaskId> {
+        let m = u32_of(mi);
         let Some(key) = self.check_key(mi) else {
             for s in [Stage::ModulePrep, Stage::Body, Stage::ModuleFinish] {
                 self.blocked(s);
             }
             let _ = self.prep[mi].set(None);
             let _ = self.check[mi].set(None);
-            return;
+            return None;
         };
         lock(&self.counters)
             .check_keys
@@ -2740,12 +2788,12 @@ impl Run<'_> {
                 }
                 let _ = self.prep[mi].set(None);
                 let _ = self.check[mi].set(None);
-                return;
+                return None;
             }
             lock(&self.report).ok(Stage::ModulePrep);
             self.read_check(mi, &sections, Arc::from(join_sections(&sections)));
             let _ = self.prep[mi].set(None);
-            return;
+            return None;
         }
         if !self.parses(mi) {
             for s in [Stage::ModulePrep, Stage::Body, Stage::ModuleFinish] {
@@ -2753,7 +2801,7 @@ impl Run<'_> {
             }
             let _ = self.prep[mi].set(None);
             let _ = self.check[mi].set(None);
-            return;
+            return None;
         }
         let mut scratch = DiagBuf::default();
         let items = self
@@ -2764,20 +2812,27 @@ impl Run<'_> {
             self.blocked(Stage::ModuleFinish);
             let _ = self.prep[mi].set(None);
             let _ = self.check[mi].set(None);
-            return;
+            return None;
         };
         let _ = self.prep[mi].set(Some(PrepOut {
             items,
             diags: DiagBuf::default(),
         }));
-        let Some(pr) = self.graph.get().map(|g| g.package_result) else {
-            return;
-        };
-        let body = sp.add(TaskKind::Body(m), &[id]);
+        let pr = self.graph.get().map(|g| g.package_result)?;
+        // A REPL input's bodies read the earlier inputs' bindings.
+        let deps: Vec<TaskId> = std::iter::once(id)
+            .chain(
+                self.earlier_inputs(mi)
+                    .iter()
+                    .filter_map(|&(_, k)| self.check_task[k].get().copied()),
+            )
+            .collect();
+        let body = sp.add(TaskKind::Body(m), &deps);
         let finish = sp.add(TaskKind::ModuleFinish(m), &[body]);
         let overlay = sp.add(TaskKind::TestOverlay(m), &[id]);
         sp.edge(finish, pr);
         sp.edge(overlay, pr);
+        Some(finish)
     }
 
     /// Whether the module's bytes parse without a diagnostic: a `parse`
@@ -2935,7 +2990,9 @@ impl Run<'_> {
             global: &self.memo,
             solver: &solver,
             methods: std::cell::OnceCell::new(),
-            init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
+            init: std::cell::RefCell::new(hd_check::init::ModuleInit::after(
+                self.earlier_bindings(m),
+            )),
             results: std::cell::RefCell::default(),
             dbg_refs: std::cell::RefCell::default(),
             locals: &locals,
@@ -3444,7 +3501,39 @@ impl Run<'_> {
             |d: DefId| self.table.folder_of_module(&names.module_of(d)) == Some(folder);
         let summary = hd_check::init::summary(&cx, init_facts, &same_folder);
         let dbg = cx.dbg_refs.take();
-        let _ = self.body[m].set(Some((bodies, diags, derived.items, inferred, summary, dbg)));
+        // A REPL input's interface carries its bindings for later inputs.
+        let bindings = if input {
+            hd_check::init::input_bindings(&cx)
+        } else {
+            Vec::new()
+        };
+        let _ = self.body[m].set(Some((
+            bodies,
+            diags,
+            derived.items,
+            inferred,
+            summary,
+            dbg,
+            bindings,
+        )));
+    }
+
+    /// The top-level bindings of the inputs before REPL input `m`, by name,
+    /// from their input interfaces; a newer input's name wins. Empty for
+    /// any other module.
+    fn earlier_bindings(&self, m: usize) -> HashMap<hd_base::Symbol, InputBinding> {
+        let names = self.names();
+        let mut out = HashMap::new();
+        for &(_, k) in self.earlier_inputs(m) {
+            for b in self.input_bindings[k].get().into_iter().flatten() {
+                let name = names
+                    .paths
+                    .segment(hd_base::PathId::from_raw(b.def.raw()))
+                    .to_owned();
+                out.insert(names.syms.intern(&name), *b);
+            }
+        }
+        out
     }
 
     /// Stage B (§4.10.1) over the module's items that `HeaderCheck` cannot
@@ -3962,8 +4051,10 @@ impl Run<'_> {
     /// module's items; TIR, one record per body; a test run's
     /// registrations; the init summary, which `InitOrder` reads.
     fn module_finish(&self, m: usize) {
-        let (Some(Some(prep)), Some(Some((bodies, bdiags, derived, inferred, summary, dbg)))) =
-            (self.prep[m].get(), self.body[m].get())
+        let (
+            Some(Some(prep)),
+            Some(Some((bodies, bdiags, derived, inferred, summary, dbg, bindings))),
+        ) = (self.prep[m].get(), self.body[m].get())
         else {
             self.blocked(Stage::ModuleFinish);
             let _ = self.check[m].set(None);
@@ -4060,7 +4151,7 @@ impl Run<'_> {
             lines.write(&mut gw, r.span.hi);
             gw.u8(u8::from(r.call));
         }
-        let sections: [&[u8]; 7] = [
+        let mut sections: Vec<&[u8]> = vec![
             &dw.bytes,
             &meta.bytes,
             &items,
@@ -4069,6 +4160,22 @@ impl Run<'_> {
             &summary,
             &gw.bytes,
         ];
+        // A REPL input's interface: its top-level bindings, which later
+        // inputs read and assign (`cli.repl.declarations.bindings`). A
+        // module with errors joins no session, so it binds nothing.
+        let input_iface;
+        if self.repl_number(m).is_some() {
+            let keep: &[InputBinding] = if diags.has_errors() { &[] } else { bindings };
+            input_iface = match encode_bindings(keep, &names) {
+                Ok(x) => x,
+                Err(e) => {
+                    self.stage::<()>(Stage::ModuleFinish, Err(e));
+                    let _ = self.check[m].set(None);
+                    return;
+                }
+            };
+            sections.push(&input_iface);
+        }
         self.put(EntryKind::Check, key, &sections);
         lock(&self.counters)
             .modules_checked
@@ -4202,6 +4309,10 @@ impl Run<'_> {
             }
         }
         let _ = self.dbg_refs[m].set(dbg);
+        if let Some(b) = sections.get(7) {
+            let bindings = decode_bindings(b, &self.names()).unwrap_or_default();
+            let _ = self.input_bindings[m].set(bindings);
+        }
         let content = Reader::new(meta).hash();
         let _ = self.check[m].set(Some(CheckOut {
             entry,
@@ -5273,6 +5384,37 @@ fn decode_summary(
             .push((d, hd_check::init::InitFacts { reads, calls }));
     }
     r.ok().then_some(sum)
+}
+
+/// A REPL input's top-level bindings in its `check` entry (its input
+/// interface): the type tables, then each binding's item, type and `:=`
+/// flag, in statement order.
+fn encode_bindings(bindings: &[InputBinding], names: &Names<'_>) -> StageResult<Vec<u8>> {
+    let mut t = hd_types::wire::TableWriter::new(names.pool, names.paths, names.syms);
+    let mut body = Writer::default();
+    body.len_of(bindings);
+    for b in bindings {
+        body.u32(t.def(b.def));
+        body.u32(t.ty(b.ty)?);
+        body.u8(u8::from(b.short));
+    }
+    let mut w = Writer::default();
+    t.write(&mut w);
+    w.bytes.extend_from_slice(&body.bytes);
+    Ok(w.bytes)
+}
+
+fn decode_bindings(b: &[u8], names: &Names<'_>) -> Option<Vec<InputBinding>> {
+    let mut r = Reader::new(b);
+    let t = hd_types::wire::Tables::read(&mut r, names.pool, names.paths, names.syms)?;
+    let mut out = Vec::new();
+    for _ in 0..r.count() {
+        let def = t.def(r.u32())?;
+        let ty = t.ty(r.u32())?;
+        let short = r.u8() != 0;
+        out.push(InputBinding { def, ty, short });
+    }
+    r.ok().then_some(out)
 }
 
 /// A module's test registrations, as its test-role `check` entry holds them.

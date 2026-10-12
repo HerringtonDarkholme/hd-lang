@@ -605,7 +605,10 @@ impl Ck<'_, '_> {
         }
         let Some(def) = self.resolve_path(&segs) else {
             let sym = self.cx.names.syms.intern(first);
-            let global = self.cx.init.borrow().globals.contains_key(&sym);
+            let global = {
+                let init = self.cx.init.borrow();
+                init.globals.contains_key(&sym) || init.earlier.contains_key(&sym)
+            };
             if self.scope_name(first).is_none() && !global {
                 let msg = format!("`{first}` is not defined");
                 self.err(Code::UnknownName, *arg, &msg);
