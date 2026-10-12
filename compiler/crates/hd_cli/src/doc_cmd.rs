@@ -1,7 +1,9 @@
 //! `hd doc [--private] [--out DIR] [--open] [--format json] [-p NAME]`
 //! (`cli.doc.*`): checks the package as `hd check` does, and when that
 //! reports no error writes its documentation pages, HTML and Markdown
-//! together, with `hd_doc`. `hd doc NAME` is not implemented yet.
+//! together, with `hd_doc`. `hd doc NAME` (`cli.doc.name`) checks the
+//! package the same way, then prints one item, module or standard library
+//! entry to standard output and writes no file.
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -92,11 +94,6 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
         Err(e) => return fail(&e),
     };
     let mut rep = Reporter::stdout(o.json);
-    if let Some(name) = &o.name {
-        return rep.fail(&format!(
-            "`hd doc {name}` prints one item, which is not implemented yet; `hd doc` writes every page"
-        ));
-    }
     let root = match package_root(&o.packages) {
         Ok(r) => r,
         Err(e) => return rep.fail(&e),
@@ -112,39 +109,21 @@ fn document(root: &Path, o: &Options, rep: &mut Reporter) -> Result<(), ExitCode
     let mut program = disk::load_package(root, "main").map_err(|e| rep.fail(&e))?;
     program.only_program("");
     let out = build_goal(&program, &Goal::Analyze, BuildProfile::Checked, rep)?;
-    let mut texts: Vec<(String, String)> = Vec::new();
-    for entry in program.sources.list() {
-        let path = &entry.path;
-        if !path.starts_with("src/") {
-            continue;
-        }
-        let module = module_below(path);
-        // `cli.doc.main`: an executable's module is no library module, so
-        // it has a page only with `--private`.
-        let library = role_of(path) == Role::Lib && !program.entries.contains(&module);
-        if !(library || (o.private && role_of(path) == Role::Exe)) {
-            continue;
-        }
-        let Some(bytes) = program.sources.read(path) else {
-            return Err(rep.fail(&format!(
-                "{}: cannot be read",
-                program.sources.display(path)
-            )));
-        };
-        texts.push((module, String::from_utf8_lossy(&bytes).into_owned()));
-    }
-    let modules: Vec<hd_doc::Module<'_>> = texts
-        .iter()
-        .map(|(path, text)| hd_doc::Module { path, text })
-        .collect();
+    let texts =
+        module_texts(&program.sources, &program.entries, o.private).map_err(|e| rep.fail(&e))?;
+    let modules = modules_of(&texts);
     let root_ident = hd_project::package_ident(&program.package);
-    let files = hd_doc::render(&hd_doc::Package {
+    let package = hd_doc::Package {
         name: &program.package,
         root: &root_ident,
         modules: &modules,
         ifaces: &out.ifaces,
         private: o.private,
-    });
+    };
+    if let Some(name) = &o.name {
+        return print_name(&program, &package, &out, name, rep);
+    }
+    let files = hd_doc::render(&package);
     // `cli.doc.dir`: `build/doc`, or `--out DIR` below the working directory.
     let dir = o
         .out
@@ -164,6 +143,131 @@ fn document(root: &Path, o: &Options, rep: &mut Reporter) -> Result<(), ExitCode
         open(&dir.join("index.html"), rep);
     }
     Ok(())
+}
+
+/// The (module path, text) of each module `hd doc` documents in `sources`
+/// (`cli.doc.items`): the library modules, and with `main` also the
+/// executables' (`cli.doc.main`).
+fn module_texts(
+    sources: &disk::DiskSources,
+    entries: &[String],
+    main: bool,
+) -> Result<Vec<(String, String)>, String> {
+    let mut texts = Vec::new();
+    for entry in sources.list() {
+        let path = &entry.path;
+        if !path.starts_with("src/") {
+            continue;
+        }
+        let module = module_below(path);
+        // `cli.doc.main`: an executable's module is no library module, so
+        // it has a page only with `--private`.
+        let library = role_of(path) == Role::Lib && !entries.contains(&module);
+        if !(library || (main && role_of(path) == Role::Exe)) {
+            continue;
+        }
+        let Some(bytes) = sources.read(path) else {
+            return Err(format!("{}: cannot be read", sources.display(path)));
+        };
+        texts.push((module, String::from_utf8_lossy(&bytes).into_owned()));
+    }
+    Ok(texts)
+}
+
+fn modules_of(texts: &[(String, String)]) -> Vec<hd_doc::Module<'_>> {
+    texts
+        .iter()
+        .map(|(path, text)| hd_doc::Module { path, text })
+        .collect()
+}
+
+/// `hd doc NAME` (`cli.doc.name`): prints the section, page or entry
+/// NAME names to standard output. A NAME under `dep.KEY.` is looked up in
+/// that dependency's `pub` items only (`cli.doc.name.dependency`).
+fn print_name(
+    program: &disk::Program,
+    package: &hd_doc::Package<'_>,
+    out: &hd_driver::Output,
+    name: &str,
+    rep: &mut Reporter,
+) -> Result<(), ExitCode> {
+    let found = match name.strip_prefix("dep.") {
+        None => hd_doc::lookup(package, name),
+        Some(rest) => {
+            let (key, item) = rest.split_once('.').unwrap_or((rest, ""));
+            let Some(dep) = program
+                .requires
+                .iter()
+                .find(|(k, _)| k == key)
+                .and_then(|(_, i)| program.deps.get(usize::from(*i).checked_sub(1)?))
+            else {
+                let keys: Vec<String> = program
+                    .requires
+                    .iter()
+                    .map(|(k, _)| format!("dep.{k}"))
+                    .collect();
+                return Err(missing(name, &keys, rep));
+            };
+            let texts = module_texts(&dep.sources, &[], false).map_err(|e| rep.fail(&e))?;
+            let modules = modules_of(&texts);
+            let root = hd_project::package_ident(&dep.name);
+            let dep_package = hd_doc::Package {
+                name: &dep.name,
+                root: &root,
+                modules: &modules,
+                ifaces: &out.ifaces,
+                private: false,
+            };
+            let prefix = format!("dep.{key}.");
+            if item.is_empty() {
+                Err(vec![format!("{prefix}pkg")])
+            } else {
+                dependency_item(&dep_package, item)
+                    .map_err(|c| c.into_iter().map(|n| format!("{prefix}{n}")).collect())
+            }
+        }
+    };
+    match found {
+        Ok(text) => {
+            print!("{text}");
+            Ok(())
+        }
+        Err(candidates) => Err(missing(name, &candidates, rep)),
+    }
+}
+
+/// An item of a dependency, named from its root module: `dep.json.parse`
+/// is `parse` of the dependency's `pkg`, and `dep.json.text.slugify` is
+/// the module `text`.
+fn dependency_item(dep: &hd_doc::Package<'_>, item: &str) -> Result<String, Vec<String>> {
+    let modules = hd_doc::lookup(dep, item);
+    let Err(mut candidates) = modules else {
+        return modules;
+    };
+    match hd_doc::lookup(dep, &format!("pkg.{item}")) {
+        Ok(text) => Ok(text),
+        Err(root) => {
+            candidates.extend(
+                root.into_iter()
+                    .map(|n| n.strip_prefix("pkg.").map_or(n.clone(), str::to_owned)),
+            );
+            candidates.dedup();
+            Err(candidates)
+        }
+    }
+}
+
+/// `cli.doc.name.missing`: the error for a NAME that names nothing, with
+/// the closest documented names.
+fn missing(name: &str, candidates: &[String], rep: &mut Reporter) -> ExitCode {
+    let tail = if candidates.is_empty() {
+        String::new()
+    } else {
+        format!("; candidates: {}", candidates.join(", "))
+    };
+    rep.fail(&format!(
+        "`hd doc {name}`: no documented item has this name{tail}"
+    ))
 }
 
 /// `cli.doc.open`: opens the entry page with the platform's default

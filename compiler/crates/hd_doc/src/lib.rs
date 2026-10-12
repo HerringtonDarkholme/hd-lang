@@ -10,6 +10,8 @@
 mod html;
 mod impls;
 mod items;
+mod lookup;
+mod stdref;
 
 use std::collections::HashMap;
 use std::fmt::Write as _;
@@ -338,6 +340,15 @@ pub fn render(p: &Package<'_>) -> Vec<DocFile> {
     });
     files
 }
+
+/// What `hd doc NAME` prints (`cli.doc.name`): the Markdown of one item's
+/// section, of a whole module page, or of a standard library entry. `Err`
+/// holds the names to suggest when NAME names nothing documented.
+pub fn lookup(p: &Package<'_>, name: &str) -> Result<String, Vec<String>> {
+    lookup::lookup(p, name)
+}
+
+use lookup::rank;
 
 #[cfg(test)]
 mod tests;

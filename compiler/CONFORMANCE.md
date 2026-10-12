@@ -3129,7 +3129,7 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 116 | 7 | 0 | 123 |
+| 118 | 5 | 0 | 123 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
@@ -3193,7 +3193,9 @@ cli/dev-dependency-tests-block
 cli/doc-broken-link
 cli/doc-check-error
 cli/doc-index-module
+cli/doc-name
 cli/doc-outside-package
+cli/doc-private
 cli/entry-err-chain
 cli/entry-err-display
 cli/exe-main-unlisted

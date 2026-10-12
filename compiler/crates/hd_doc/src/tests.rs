@@ -5,7 +5,7 @@ use hd_driver::{Executor, Goal, Host, NoClock, build};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
-use super::{DocFile, Module, Package, page_stem, render, summary};
+use super::{DocFile, Module, Package, lookup, page_stem, render, summary};
 
 const LIB: &str = "\
 ## Tools for the shop.
@@ -205,4 +205,98 @@ fn private_items_and_members() {
     assert!(pkg.contains("    price: i32\n```"), "{pkg}");
     assert!(pkg.contains("### `Line.secret`"), "{pkg}");
     assert!(!pkg.contains("private fields omitted"), "{pkg}");
+}
+
+/// `hd doc NAME` over the same package as `site`.
+fn name(private: bool, name: &str) -> Result<String, Vec<String>> {
+    let ifaces = ifaces(&[("src/lib.hd", LIB), ("src/text.hd", TEXT)]);
+    let modules = [
+        Module {
+            path: "text",
+            text: TEXT,
+        },
+        Module {
+            path: "",
+            text: LIB,
+        },
+    ];
+    lookup(
+        &Package {
+            name: "shop",
+            root: "shop",
+            modules: &modules,
+            ifaces: &ifaces,
+            private,
+        },
+        name,
+    )
+}
+
+#[test]
+fn name_prints_an_item_section() {
+    assert_eq!(
+        name(false, "text.slugify").unwrap(),
+        "## `slugify`\n\n```hd\npub fn slugify(title: string) -> string\n```\n\nTurns a title into a slug.\n"
+    );
+    // An item's section holds its members, and stops at the next item.
+    let line = name(false, "pkg.Line").unwrap();
+    assert!(line.starts_with("## `Line`\n"), "{line}");
+    assert!(line.contains("### `Line.new`"), "{line}");
+    assert!(!line.contains("## `Show`"), "{line}");
+    // A member's section stops at the next heading of its level.
+    let new = name(false, "pkg.Line.new").unwrap();
+    assert!(new.starts_with("### `Line.new`\n"), "{new}");
+    assert!(new.contains("Makes a line."), "{new}");
+    assert!(
+        !new.contains("## `Show`") && !new.contains("<a id"),
+        "{new}"
+    );
+}
+
+#[test]
+fn name_prints_a_whole_module_page() {
+    let files = site(false);
+    assert_eq!(name(false, "pkg").unwrap(), file(&files, "pkg.md"));
+    assert_eq!(name(false, "text").unwrap(), file(&files, "text.md"));
+}
+
+#[test]
+fn name_hides_private_items_without_private() {
+    let missing = name(false, "pkg.helper").unwrap_err();
+    assert!(missing.contains(&"pkg.total".to_owned()), "{missing:?}");
+    assert!(!missing.contains(&"pkg.helper".to_owned()), "{missing:?}");
+    let shown = name(true, "pkg.helper").unwrap();
+    assert!(shown.starts_with("## `helper`\n"), "{shown}");
+    assert!(name(false, "pkg.Line.secret").is_err());
+    assert!(name(true, "pkg.Line.secret").is_ok());
+}
+
+#[test]
+fn name_suggests_in_each_space() {
+    assert_eq!(name(false, "shop").unwrap_err(), ["pkg", "text"]);
+    let items = name(false, "text.slug").unwrap_err();
+    assert_eq!(items, ["text.slugify"]);
+    let std_items = name(false, "std.text.nope").unwrap_err();
+    assert!(!std_items.is_empty() && std_items.iter().all(|n| n.starts_with("std.text.")));
+    let std_modules = name(false, "std.tex").unwrap_err();
+    assert!(
+        std_modules.contains(&"std.text".to_owned()),
+        "{std_modules:?}"
+    );
+    assert!(name(false, "std.text").is_err());
+}
+
+#[test]
+fn name_prints_a_std_entry() {
+    let split = name(false, "std.text.split").unwrap();
+    assert!(
+        split.starts_with("```hd\nsplit(self, separator: string) -> List[string]\n```\n\n"),
+        "{split}"
+    );
+    assert!(split.contains("retains empty pieces"), "{split}");
+    assert!(
+        split.ends_with("Reference: [std.text.split](spec/std/text.md#r-std-text.string.split)\n"),
+        "{split}"
+    );
+    assert_eq!(split, name(false, "std.text.string.split").unwrap());
 }
