@@ -3,6 +3,7 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use hd_testkit::Scratch;
 
@@ -330,7 +331,15 @@ struct Ran {
 }
 
 fn ran(dir: &Path, args: &[&str]) -> Ran {
-    let output = hd(&cache("hd-cache-forms"))
+    // One cache per call, not one per process: every call clears its
+    // cache first, so a shared name deletes the cache (including
+    // in-progress `tmp` scratch directories) out from under another
+    // test's running child, failing it with whatever syscall loses
+    // the race (`ENOENT`, ...). The counter keeps calls in one test
+    // binary apart; the process id keeps binaries apart, as before.
+    static CACHES: AtomicU64 = AtomicU64::new(0);
+    let unique = CACHES.fetch_add(1, Ordering::Relaxed);
+    let output = hd(&cache(&format!("hd-cache-forms-{unique}")))
         .current_dir(dir)
         .args(args)
         .output()
