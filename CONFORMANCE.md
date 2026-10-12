@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2792 | 38 | 15 | 2845 |
+| 2794 | 36 | 15 | 2845 |
 
 ## By Chapter
 
@@ -18,11 +18,11 @@ fixture; unsupported surface records progress without failing.
 | `lang/02-grammar.md` | 214 | 1 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
 | `lang/04-type-system.md` | 345 | 7 | 0 | 352 |
-| `lang/05-expressions.md` | 273 | 4 | 0 | 277 |
+| `lang/05-expressions.md` | 274 | 3 | 0 | 277 |
 | `lang/06-control-flow.md` | 149 | 5 | 3 | 157 |
 | `lang/07-functions.md` | 126 | 4 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 120 | 3 | 0 | 123 |
-| `lang/09-traits.md` | 353 | 6 | 0 | 359 |
+| `lang/09-traits.md` | 354 | 5 | 0 | 359 |
 | `lang/10-modules.md` | 253 | 1 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 250 | 1 | 8 | 259 |
 | `lang/14-annotations.md` | 147 | 6 | 0 | 153 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 917 | 0 | 12 | 929 |
-| `typing/invalid` | 1044 | 31 | 0 | 1075 |
+| `typing/invalid` | 1046 | 29 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 13 | 7 | 0 | 20 |
 
@@ -79,7 +79,6 @@ compiler stage that first declined the case.
 | `fail:no-diagnostic` | 29 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-main` | 1 |
-| `fail:unknown-data-field` | 2 |
 | `fail:unknown-name` | 3 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 11 |
@@ -134,13 +133,6 @@ compiler stage that first declined the case.
 <details><summary><code>fail:private-main</code> (1)</summary>
 
 - `typing/invalid/trailing-block-ineligible.hd`
-
-</details>
-
-<details><summary><code>fail:unknown-data-field</code> (2)</summary>
-
-- `typing/invalid/tuple-index-out-of-range.hd`
-- `typing/invalid/default-body-self-field.hd`
 
 </details>
 
@@ -1675,6 +1667,7 @@ typing/invalid/decorator-target-kind.hd
 typing/invalid/decorator-target-member-line.hd
 typing/invalid/decorator-target-newtype.hd
 typing/invalid/default-body-inherent-method.hd
+typing/invalid/default-body-self-field.hd
 typing/invalid/default-names-later-beside-forward-bound.hd
 typing/invalid/default-tuple-element-without-default.hd
 typing/invalid/defer-bang-call-cold-twin.hd
@@ -2458,6 +2451,7 @@ typing/invalid/tuple-binding-non-tuple.hd
 typing/invalid/tuple-bound-non-tuple.hd
 typing/invalid/tuple-element-assignment.hd
 typing/invalid/tuple-identity.hd
+typing/invalid/tuple-index-out-of-range.hd
 typing/invalid/tuple-inherent-impl.hd
 typing/invalid/tuple-map-key.hd
 typing/invalid/tuple-no-inherent-member.hd

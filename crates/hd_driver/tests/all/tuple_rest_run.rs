@@ -271,14 +271,17 @@ pub fn main() -> void $ Console:
 
 #[test]
 fn selection_past_the_tuple_is_unknown() {
+    // Tuples have no inherent members: past-the-end selection is a
+    // method-resolution failure (`trait.own.inherent.std.no-tuple`),
+    // not an unknown field.
     let fixed = "\
 fn f(t: (i32, i32)) -> i32: t._2
 ";
-    assert_eq!(codes_of(fixed), [Code::UnknownDataField]);
+    assert_eq!(codes_of(fixed), [Code::UnknownMethod]);
     let rest = "\
 fn f(t: (i32, List[i32]...)) -> i32: t._2
 ";
-    assert_eq!(codes_of(rest), [Code::UnknownDataField]);
+    assert_eq!(codes_of(rest), [Code::UnknownMethod]);
     let inside = "\
 fn f(t: (i32, i32)) -> i32: t._1
 ";

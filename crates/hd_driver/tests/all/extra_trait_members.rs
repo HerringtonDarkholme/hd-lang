@@ -64,6 +64,15 @@ fn a_supertrait_method_in_a_subtrait_impl_is_extra() {
 }
 
 #[test]
+fn a_default_body_naming_an_implementor_field_is_an_unknown_method() {
+    // Fields of an implementing type are not accessible in a default
+    // body, even when every implementor declares them (spec 09
+    // `trait.default.no-self-members`).
+    let bad = "trait Greeter:\n    fn name(self) -> string\n\n    fn tag(self) -> string:\n        self.email\n\ndata User:\n    email: string\n\nimpl Greeter for User:\n    fn name(self) -> string: self.email\n";
+    assert_eq!(errors(bad), vec![Code::UnknownMethod]);
+}
+
+#[test]
 fn a_default_method_may_be_overridden() {
     let good = "trait Greet:\n    fn name(self) -> string\n    fn hello(self) -> string: self.name()\n\ndata P: pass\n\nimpl Greet for P:\n    fn name(self) -> string: \"p\"\n    fn hello(self) -> string: \"hi\"\n";
     assert_eq!(errors(good), vec![]);

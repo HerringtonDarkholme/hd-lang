@@ -1284,8 +1284,11 @@ impl Ck<'_, '_> {
                 .copied()
                 .or_else(|| rest.filter(|_| i == items.len()))
             else {
-                let msg = format!("no field `{name}` on {}", self.show(bt));
-                self.err(Code::UnknownDataField, n, &msg);
+                // Tuples have no inherent members: a member no trait
+                // supplies is a method-resolution failure
+                // (`trait.own.inherent.std.no-tuple`).
+                let msg = format!("no method `{name}` on {}", self.show(bt));
+                self.err(Code::UnknownMethod, n, &msg);
                 return Ok((Ref(NONE), Ty::NEVER));
             };
             let idx = u32::try_from(i).unwrap_or(0);
@@ -1303,8 +1306,28 @@ impl Ck<'_, '_> {
         if matches!(pool.get(inner), TyData::Infer(_)) {
             return self.gap(n, "a field of a value whose type is not yet known");
         }
-        let msg = format!("no field `{name}` on {}", self.show(bt));
-        self.err(Code::UnknownDataField, n, &msg);
+        // In a trait's default body, `self` is the trait itself, whose
+        // members resolve as methods: naming one there that neither the
+        // trait nor a supertrait declares is `unknown-method`
+        // (`trait.default.no-self-members`).
+        let trait_self = match pool.get(inner) {
+            TyData::Param(p) => {
+                p.index == 0
+                    && self
+                        .cx
+                        .lookup
+                        .item(p.owner)
+                        .is_some_and(|i| matches!(i.data, ItemData::Trait(_)))
+            }
+            _ => false,
+        };
+        if trait_self {
+            let msg = format!("no method `{name}` on {}", self.show(bt));
+            self.err(Code::UnknownMethod, n, &msg);
+        } else {
+            let msg = format!("no field `{name}` on {}", self.show(bt));
+            self.err(Code::UnknownDataField, n, &msg);
+        }
         Ok((Ref(NONE), Ty::NEVER))
     }
 
