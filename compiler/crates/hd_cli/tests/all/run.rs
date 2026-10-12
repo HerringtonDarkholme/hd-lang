@@ -1470,6 +1470,129 @@ fn p_selects_workspace_members_from_anywhere() {
     assert!(r.err.contains("`-p nope` names no member"), "{}", r.err);
 }
 
+/// A workspace of members `web` (executable `serve`, task `seed`) and `api`
+/// (task `seed`, and task `audit`).
+fn run_workspace(name: &str) -> Scratch {
+    let say = |text: &str| format!("pub fn main() -> void $ Console:\n    println(\"{text}\")\n");
+    tree(
+        name,
+        &[
+            ("hd.toml", "[workspace]\nmembers = [\"web\", \"api\"]\n"),
+            (
+                "web/hd.toml",
+                "[package]\nname = \"web\"\n\n[[executable]]\nname = \"serve\"\nmodule = \"serve\"\n",
+            ),
+            ("web/src/serve.hd", &say("serving")),
+            ("web/tasks/seed.hd", &say("seeded web")),
+            ("api/hd.toml", "[package]\nname = \"api\"\n"),
+            ("api/tasks/seed.hd", &say("seeded api")),
+            ("api/tasks/audit.hd", &say("audited")),
+        ],
+    )
+}
+
+/// `cli.workspace.run-name`: `hd run NAME` runs the one member executable
+/// or task of that name.
+#[test]
+fn workspace_run_name_runs_the_one_member_with_it() {
+    let dir = run_workspace("hd-forms-ws-run-name");
+    let r = ran(&dir, &["run", "serve"]);
+    assert_eq!(
+        (r.code, r.out.as_str()),
+        (Some(0), "serving\n"),
+        "{}",
+        r.err
+    );
+    let r = ran(&dir, &["run", "audit"]);
+    assert_eq!(
+        (r.code, r.out.as_str()),
+        (Some(0), "audited\n"),
+        "{}",
+        r.err
+    );
+}
+
+/// `cli.workspace.run-ambiguous`: several members have NAME, so the error
+/// lists them.
+#[test]
+fn workspace_run_name_in_several_members_lists_them() {
+    let dir = run_workspace("hd-forms-ws-run-ambiguous");
+    let r = ran(&dir, &["run", "seed"]);
+    assert_eq!(r.code, Some(101));
+    assert!(
+        r.err.contains("`seed`") && r.err.contains("web, api"),
+        "{}",
+        r.err
+    );
+}
+
+/// `cli.workspace.run-missing`: no member has NAME.
+#[test]
+fn workspace_run_name_in_no_member_is_an_error() {
+    let dir = run_workspace("hd-forms-ws-run-missing");
+    let r = ran(&dir, &["run", "nope"]);
+    assert_eq!(r.code, Some(101));
+    assert!(
+        r.err.contains("no member") && r.err.contains("`nope`"),
+        "{}",
+        r.err
+    );
+}
+
+/// `cli.workspace.run-bare`: bare `hd run` lists each member's executables
+/// and tasks.
+#[test]
+fn workspace_bare_run_lists_executables_and_tasks() {
+    let dir = run_workspace("hd-forms-ws-run-bare");
+    let r = ran(&dir, &["run"]);
+    assert_eq!(r.code, Some(101));
+    assert!(r.err.contains("web: serve, seed"), "{}", r.err);
+    assert!(r.err.contains("api: "), "{}", r.err);
+    assert!(
+        r.err.contains("seed") && r.err.contains("audit"),
+        "{}",
+        r.err
+    );
+}
+
+/// `cli.workspace.select.anywhere`, `.repeat`, `.unknown` on `hd run`:
+/// `-p NAME` picks the member, even for an ambiguous NAME, from the root or
+/// inside another member; repeated flags narrow the search; an unknown NAME
+/// is an error.
+#[test]
+fn workspace_run_selects_members_with_p() {
+    let dir = run_workspace("hd-forms-ws-run-select");
+    let r = ran(&dir, &["run", "-p", "api", "seed"]);
+    assert_eq!(
+        (r.code, r.out.as_str()),
+        (Some(0), "seeded api\n"),
+        "{}",
+        r.err
+    );
+    let r = ran(&dir.join("web"), &["run", "--package", "api", "seed"]);
+    assert_eq!(
+        (r.code, r.out.as_str()),
+        (Some(0), "seeded api\n"),
+        "{}",
+        r.err
+    );
+    let r = ran(&dir, &["run", "-p", "web", "-p", "api", "serve"]);
+    assert_eq!(
+        (r.code, r.out.as_str()),
+        (Some(0), "serving\n"),
+        "{}",
+        r.err
+    );
+    let r = ran(&dir, &["run", "-p", "web", "-p", "api", "seed"]);
+    assert_eq!(r.code, Some(101));
+    assert!(r.err.contains("web, api"), "{}", r.err);
+    let r = ran(&dir, &["run", "-p", "api", "serve"]);
+    assert_eq!(r.code, Some(101), "{}", r.out);
+    let r = ran(&dir, &["run", "-p", "nope", "seed"]);
+    assert_eq!(r.code, Some(101));
+    assert!(r.err.contains("`-p nope` names no member"), "{}", r.err);
+}
+
 /// `module.manifest.source-root`: `[source] root` moves the source root;
 /// its files are modules as `src`'s would be, and every path `hd` prints
 /// is the one on disk.
