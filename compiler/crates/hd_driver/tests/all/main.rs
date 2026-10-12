@@ -86,6 +86,7 @@ mod map_key_bounds;
 mod map_run;
 mod match_cascade;
 mod member_line_lists_run;
+mod method_bound_unmet;
 mod method_choice;
 mod misplaced_derivation;
 mod mixed_signedness;

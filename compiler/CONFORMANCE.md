@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2779 | 50 | 16 | 2845 |
+| 2781 | 48 | 16 | 2845 |
 
 ## By Chapter
 
@@ -28,7 +28,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/14-annotations.md` | 146 | 7 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
-| `std/collections.md` | 28 | 1 | 0 | 29 |
+| `std/collections.md` | 29 | 0 | 0 | 29 |
 | `std/console.md` | 7 | 0 | 0 | 7 |
 | `std/digest.md` | 2 | 0 | 0 | 2 |
 | `std/encoding.md` | 3 | 0 | 0 | 3 |
@@ -38,7 +38,7 @@ fixture; unsupported surface records progress without failing.
 | `std/hash.md` | 9 | 0 | 0 | 9 |
 | `std/host.md` | 2 | 0 | 0 | 2 |
 | `std/http.md` | 2 | 0 | 0 | 2 |
-| `std/iter.md` | 24 | 1 | 0 | 25 |
+| `std/iter.md` | 25 | 0 | 0 | 25 |
 | `std/json.md` | 19 | 0 | 0 | 19 |
 | `std/net.md` | 1 | 0 | 0 | 1 |
 | `std/num.md` | 18 | 0 | 0 | 18 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 917 | 0 | 12 | 929 |
-| `typing/invalid` | 1032 | 42 | 1 | 1075 |
+| `typing/invalid` | 1034 | 40 | 1 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 12 | 8 | 0 | 20 |
 
@@ -84,7 +84,6 @@ compiler stage that first declined the case.
 | `fail:re-export-loop` | 1 |
 | `fail:unknown-data-field` | 2 |
 | `fail:unknown-import` | 1 |
-| `fail:unknown-method` | 2 |
 | `fail:unknown-module` | 1 |
 | `fail:unknown-name` | 3 |
 | `unsupported:Body` | 1 |
@@ -177,13 +176,6 @@ compiler stage that first declined the case.
 <details><summary><code>fail:unknown-import</code> (1)</summary>
 
 - `typing/invalid/use-through-pub-use-loop.hd`
-
-</details>
-
-<details><summary><code>fail:unknown-method</code> (2)</summary>
-
-- `typing/invalid/iterator-sum-non-numeric.hd`
-- `typing/invalid/list-sum-non-numeric.hd`
 
 </details>
 
@@ -1987,6 +1979,7 @@ typing/invalid/iterator-chain-iterator-arg.hd
 typing/invalid/iterator-filter-callback-row.hd
 typing/invalid/iterator-map-callback-row.hd
 typing/invalid/iterator-step-private.hd
+typing/invalid/iterator-sum-non-numeric.hd
 typing/invalid/iterator-take-negative-literal.hd
 typing/invalid/json-decode-not-derived.hd
 typing/invalid/json-encode-not-derived.hd
@@ -2021,6 +2014,7 @@ typing/invalid/list-parameter-bare-trait.hd
 typing/invalid/list-slice-negative-literal.hd
 typing/invalid/list-slice-signed-bound.hd
 typing/invalid/list-spread-non-list.hd
+typing/invalid/list-sum-non-numeric.hd
 typing/invalid/list-view-assignment.hd
 typing/invalid/list-view-negative-literal.hd
 typing/invalid/literal-dependent-no-backward-annotation.hd

@@ -2589,7 +2589,12 @@ impl Ck<'_, '_> {
             self.err(Code::PrivateMember, n, &msg);
         } else {
             let hidden = self.unavailable_traits_of(t, name);
-            if hidden.is_empty() {
+            let snap = self.infer.snapshot();
+            let unmet = self.unmet_inherent_bound(t, name);
+            self.infer.rollback(snap);
+            if let Some(unmet) = unmet {
+                self.err(Code::UnsatisfiedTraitBound, n, &unmet);
+            } else if hidden.is_empty() {
                 self.err(Code::UnknownMethod, n, msg);
             } else {
                 let names = self.cx.names.display_names(&hidden).join("`, `");
@@ -2636,6 +2641,76 @@ impl Ck<'_, '_> {
         found
     }
 
+    /// The first bound of `impl_def`'s generics, at `vars`, that fails:
+    /// the type it constrains and the bound.
+    fn unmet_impl_bound(&mut self, impl_def: DefId, vars: &[Ty]) -> Option<(Ty, Ty)> {
+        let pool = self.pool();
+        let item = self.cx.lookup.item(impl_def)?;
+        for (i, g) in item.generics.iter().enumerate() {
+            for b in &g.bounds {
+                let b = subst_owner(pool, impl_def, vars, *b);
+                if let TyData::TraitValue { def: tr, args, .. } = pool.get(b) {
+                    let ty = self.infer.resolve(pool, vars[i]);
+                    let tref = TraitRef {
+                        trait_: tr,
+                        self_ty: ty,
+                        args,
+                    };
+                    if matches!(self.solve(tref), Ok(hd_types::solver::Answer::Fails(_))) {
+                        return Some((ty, b));
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// The one inherent method `name` whose impl matches `t` but whose
+    /// bound fails, described for `unsatisfied-trait-bound`; `None` when
+    /// there is no such method or several.
+    fn unmet_inherent_bound(&mut self, t: Ty, name: &str) -> Option<String> {
+        let pool = self.pool();
+        let sym = self.cx.names.syms.intern(name);
+        let cands = self.method_index().inherent.get(&sym).cloned()?;
+        let t = match pool.get(self.infer.shallow(pool, t)) {
+            TyData::Mut(i) => i,
+            _ => t,
+        };
+        let mut found = None;
+        for (impl_def, method) in cands {
+            if self.hidden.contains(&impl_def) || !self.method_visible(method) {
+                continue;
+            }
+            let item = self.cx.lookup.item(impl_def)?;
+            let ItemData::Impl { self_ty, .. } = &item.data else {
+                continue;
+            };
+            let self_ty = *self_ty;
+            let n = item.generics.len();
+            let vars: Vec<Ty> = (0..n)
+                .map(|_| self.infer.fresh(pool, VarKind::General))
+                .collect();
+            let head = subst_owner(pool, impl_def, &vars, self_ty);
+            let snap = self.infer.snapshot();
+            if self.infer.unify(pool, head, t).is_ok()
+                && let Some((ty, bound)) = self.unmet_impl_bound(impl_def, &vars)
+            {
+                if found.is_some() {
+                    self.infer.rollback(snap);
+                    return None;
+                }
+                found = Some(format!(
+                    "the method `{name}` of {} needs {} to satisfy {}",
+                    self.show(t),
+                    self.show(ty),
+                    self.show(bound)
+                ));
+            }
+            self.infer.rollback(snap);
+        }
+        found
+    }
+
     fn inherent_where(
         &mut self,
         t: Ty,
@@ -2669,22 +2744,7 @@ impl Ck<'_, '_> {
             let snap = self.infer.snapshot();
             if self.infer.unify(pool, head, t).is_ok() {
                 // The impl's bounds must hold (`impl[T < Eq] List[T]`).
-                let mut ok = true;
-                for (i, g) in item.generics.iter().enumerate() {
-                    for b in &g.bounds {
-                        let b = subst_owner(pool, impl_def, &vars, *b);
-                        if let TyData::TraitValue { def: tr, args, .. } = pool.get(b) {
-                            let tref = TraitRef {
-                                trait_: tr,
-                                self_ty: self.infer.resolve(pool, vars[i]),
-                                args,
-                            };
-                            if matches!(self.solve(tref), Ok(hd_types::solver::Answer::Fails(_))) {
-                                ok = false;
-                            }
-                        }
-                    }
-                }
+                let ok = self.unmet_impl_bound(impl_def, &vars).is_none();
                 if ok {
                     return Some((method, impl_def, vars));
                 }
