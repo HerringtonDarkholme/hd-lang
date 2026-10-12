@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2692 | 136 | 17 | 2845 |
+| 2693 | 135 | 17 | 2845 |
 
 ## By Chapter
 
@@ -52,7 +52,7 @@ fixture; unsupported surface records progress without failing.
 | `std/serde.md` | 8 | 0 | 0 | 8 |
 | `std/sys.md` | 1 | 0 | 0 | 1 |
 | `std/task.md` | 7 | 0 | 0 | 7 |
-| `std/testing.md` | 37 | 2 | 0 | 39 |
+| `std/testing.md` | 38 | 1 | 0 | 39 |
 | `std/text.md` | 35 | 0 | 0 | 35 |
 | `std/time.md` | 17 | 0 | 0 | 17 |
 
@@ -65,7 +65,7 @@ fixture; unsupported surface records progress without failing.
 | `runtime/panic` | 100 | 2 | 3 | 105 |
 | `runtime/valid` | 913 | 3 | 13 | 929 |
 | `typing/invalid` | 969 | 105 | 1 | 1075 |
-| `typing/valid` | 412 | 3 | 0 | 415 |
+| `typing/valid` | 413 | 2 | 0 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -97,7 +97,7 @@ compiler stage that first declined the case.
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-used-as-type` | 1 |
-| `fail:type-mismatch` | 16 |
+| `fail:type-mismatch` | 15 |
 | `fail:unknown-data-field` | 2 |
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 5 |
@@ -317,7 +317,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (16)</summary>
+<details><summary><code>fail:type-mismatch</code> (15)</summary>
 
 - `typing/invalid/mixed-signedness.hd`
 - `typing/invalid/variance-representation-change.hd`
@@ -330,7 +330,6 @@ compiler stage that first declined the case.
 - `typing/invalid/no-widening-float.hd`
 - `typing/invalid/num-abs-diff-unsigned.hd`
 - `typing/invalid/num-bit-count-u32.hd`
-- `typing/valid/test-runner-every-registration-form.hd`
 - `typing/invalid/literal-operand-range-wide.hd`
 - `typing/invalid/mixed-width-operands-no-widening.hd`
 - `typing/invalid/usize-u32-operand.hd`
@@ -3080,6 +3079,7 @@ typing/valid/task-retry-row.hd
 typing/valid/temp-dir-integration.hd
 typing/valid/test-body-uses-test-runner.hd
 typing/valid/test-runner-capabilities.hd
+typing/valid/test-runner-every-registration-form.hd
 typing/valid/test-timeout-call.hd
 typing/valid/test-timeout-duration.hd
 typing/valid/three-embedded-fields.hd

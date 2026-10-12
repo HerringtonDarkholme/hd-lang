@@ -511,12 +511,12 @@ pub fn it_each[A, T < Termination, $R](name: string, rows: List[A], ignore: stri
 
 ## Registers one property test case, whose inputs `T`'s `Arbitrary` draws.
 ## See [module.testing.reg.calls](../../spec/lang/10-modules.md#r-module.testing.reg.calls).
-pub fn it_prop[T < Arbitrary & Debug, R < Termination](name: string, ignore: string? = .None, expect_panic: string? = .None, timeout: Duration? = .None, cases: usize = 100, shrink: usize = 500, examples: List[T] = [], prop: fn!(T) -> R) -> void:
+pub fn it_prop[T < Arbitrary & Debug, R < Termination, $Q](name: string, ignore: string? = .None, expect_panic: string? = .None, timeout: Duration? = .None, cases: usize = 100, shrink: usize = 500, examples: List[T] = [], prop: fn!(T) -> R $ Q) -> void $ Q:
     panic("std.testing: it_prop registers a test case only in test position")
 
 ## Registers one property test case, whose inputs `gen` draws.
 ## See [module.testing.reg.calls](../../spec/lang/10-modules.md#r-module.testing.reg.calls).
-pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None, expect_panic: string? = .None, timeout: Duration? = .None, cases: usize = 100, shrink: usize = 500, examples: List[T] = [], prop: fn!(T) -> R) -> void:
+pub fn it_prop_with[T < Debug, R < Termination, $Q](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None, expect_panic: string? = .None, timeout: Duration? = .None, cases: usize = 100, shrink: usize = 500, examples: List[T] = [], prop: fn!(T) -> R $ Q) -> void $ Q:
     panic("std.testing: it_prop_with registers a test case only in test position")
 
 # The body of an `it_each` test case (spec/std/testing.md#table-test-rows).
@@ -537,7 +537,7 @@ fn each_case![A, T, $R](rows: List[A], body: fn!(A) -> T $ R) -> T $ R + TestRun
 # example the case names or draws the input with `T`'s `Arbitrary` from a
 # fresh `Choices`, shows the input's `Debug` text, and runs `prop`
 # (r-std-testing.runner.show-before-body).
-fn prop_case![T < Arbitrary & Debug, R](cases: usize, shrink: usize, examples: List[T], prop: fn!(T) -> R) -> R $ PropertyRunner:
+fn prop_case![T < Arbitrary & Debug, R, $Q](cases: usize, shrink: usize, examples: List[T], prop: fn!(T) -> R $ Q) -> R $ Q + PropertyRunner:
     let mut runner = $.use(PropertyRunner)
     current := runner.start(cases, shrink, examples.len())
     value := match current.example:
@@ -547,7 +547,7 @@ fn prop_case![T < Arbitrary & Debug, R](cases: usize, shrink: usize, examples: L
     prop!(value)
 
 # The same for `it_prop_with`, which draws the input with `gen`.
-fn prop_with_case![T < Debug, R](gen: fn(mut Choices) -> T, cases: usize, shrink: usize, examples: List[T], prop: fn!(T) -> R) -> R $ PropertyRunner:
+fn prop_with_case![T < Debug, R, $Q](gen: fn(mut Choices) -> T, cases: usize, shrink: usize, examples: List[T], prop: fn!(T) -> R $ Q) -> R $ Q + PropertyRunner:
     let mut runner = $.use(PropertyRunner)
     current := runner.start(cases, shrink, examples.len())
     value := match current.example:

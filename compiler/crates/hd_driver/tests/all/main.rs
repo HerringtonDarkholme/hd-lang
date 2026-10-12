@@ -127,6 +127,7 @@ mod supertrait_calls_run;
 mod suspending_closures_run;
 mod test_plan;
 mod test_registration_spellings;
+mod test_runner_registration_rows;
 mod trailing_blocks;
 mod trials;
 mod try_hint_run;
