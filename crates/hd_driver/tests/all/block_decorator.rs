@@ -85,6 +85,41 @@ impl Loud by Structure:
 }
 
 #[test]
+fn cached_rebuild_keeps_the_warning() {
+    // A cache hit re-emitted the folder's stage-A diagnostics as errors,
+    // so a second `hd check` failed; the warning must survive a rebuild
+    // on a warm store.
+    let src = format!(
+        "use std.structure.Structure
+
+{STYLE}
+data Loud:
+    id: i64
+
+@style(prefix=\"l_\")
+impl Loud by Structure:
+    id += [\"key\"]
+"
+    );
+    let mut sources = MemorySources::default();
+    sources.insert("main.hd", &src);
+    let store = MemoryStore::default();
+    for _ in 0..2 {
+        let out = build_with(&sources, &store);
+        assert!(errors(&out).is_empty(), "{}", out.render());
+        assert_eq!(
+            warnings(&out),
+            vec![(
+                Code::UnusedDerivationFact,
+                offset_of(&src, "@style(prefix=\"l_\")")
+            )],
+            "{}",
+            out.render()
+        );
+    }
+}
+
+#[test]
 fn standard_value_before_derivation_block_warns_too() {
     let src = "use std.structure.Structure
 

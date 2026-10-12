@@ -522,8 +522,9 @@ struct PrepOut {
     diags: DiagBuf,
 }
 
-/// A folder's stage-A diagnostics, with the module each belongs to.
-type IfaceDiags = Vec<(usize, Code, hd_resolve::anchor::Anchor, String)>;
+/// A folder's stage-A diagnostics, with the module each belongs to and
+/// the severity each was reported with (a cache hit re-emits them).
+type IfaceDiags = Vec<(usize, Code, Severity, hd_resolve::anchor::Anchor, String)>;
 
 /// A module's TIR and body diagnostics after `Body(m)`, the hidden
 /// methods its derivations add (checking-and-tir.md §4.13.9), and the
@@ -1704,11 +1705,12 @@ impl Run<'_> {
             .collect()
     }
 
-    /// Re-emits a folder's stage-A diagnostics against this run's files.
+    /// Re-emits a folder's stage-A diagnostics against this run's files,
+    /// with the severity each was reported with.
     fn emit_iface_diags(&self, fi: usize, diags: &IfaceDiags) {
         let folder = &self.table.folders[fi];
         let mut d = lock(&self.diags);
-        for (m, code, anchor, msg) in diags {
+        for (m, code, severity, anchor, msg) in diags {
             let Some(mid) = folder.modules.get(*m) else {
                 continue;
             };
@@ -1722,7 +1724,7 @@ impl Run<'_> {
                 lo: 0,
                 hi: 0,
             });
-            d.push(*code, Severity::Error, span, msg, None);
+            d.push(*code, *severity, span, msg, None);
         }
     }
 
@@ -1861,6 +1863,7 @@ impl Run<'_> {
                 (
                     m,
                     diags.code[i],
+                    diags.severity[i],
                     hd_resolve::anchor::of_span(&self.src(folder.modules[m].idx()), sp.lo, sp.hi),
                     diags.get_text(diags.message[i]).to_owned(),
                 )
@@ -5167,9 +5170,10 @@ fn decode_header_findings(b: &[u8], items: &[Item]) -> Option<Vec<hd_check::head
 fn encode_iface_diags(d: &IfaceDiags) -> Vec<u8> {
     let mut w = Writer::default();
     w.len_of(d);
-    for (m, code, a, msg) in d {
+    for (m, code, severity, a, msg) in d {
         w.u32(u32_of(*m));
         w.str(code.as_str());
+        w.u8(u8::from(*severity == Severity::Warning));
         for v in [a.decl, a.member, a.tok, a.count] {
             w.u32(v);
         }
@@ -5184,13 +5188,18 @@ fn decode_iface_diags(b: &[u8]) -> Option<IfaceDiags> {
     for _ in 0..r.count() {
         let m = r.u32() as usize;
         let code = Code::from_name(r.str()).unwrap_or(Code::Unsupported);
+        let severity = if r.u8() == 0 {
+            Severity::Error
+        } else {
+            Severity::Warning
+        };
         let a = hd_resolve::anchor::Anchor {
             decl: r.u32(),
             member: r.u32(),
             tok: r.u32(),
             count: r.u32(),
         };
-        out.push((m, code, a, r.str().to_owned()));
+        out.push((m, code, severity, a, r.str().to_owned()));
     }
     r.ok().then_some(out)
 }
