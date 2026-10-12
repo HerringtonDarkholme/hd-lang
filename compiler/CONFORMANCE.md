@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2772 | 57 | 16 | 2845 |
+| 2774 | 55 | 16 | 2845 |
 
 ## By Chapter
 
@@ -22,7 +22,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/06-control-flow.md` | 148 | 5 | 4 | 157 |
 | `lang/07-functions.md` | 125 | 5 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 118 | 5 | 0 | 123 |
-| `lang/09-traits.md` | 350 | 9 | 0 | 359 |
+| `lang/09-traits.md` | 352 | 7 | 0 | 359 |
 | `lang/10-modules.md` | 245 | 9 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 250 | 1 | 8 | 259 |
 | `lang/14-annotations.md` | 146 | 7 | 0 | 153 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 917 | 0 | 12 | 929 |
-| `typing/invalid` | 1025 | 49 | 1 | 1075 |
+| `typing/invalid` | 1027 | 47 | 1 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 12 | 8 | 0 | 20 |
 
@@ -82,7 +82,6 @@ compiler stage that first declined the case.
 | `fail:pattern-arity` | 1 |
 | `fail:private-main` | 1 |
 | `fail:re-export-loop` | 1 |
-| `fail:type-mismatch` | 2 |
 | `fail:unknown-data-field` | 2 |
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 2 |
@@ -168,13 +167,6 @@ compiler stage that first declined the case.
 <details><summary><code>fail:re-export-loop</code> (1)</summary>
 
 - `typing/invalid/pub-use-loop.hd`
-
-</details>
-
-<details><summary><code>fail:type-mismatch</code> (2)</summary>
-
-- `typing/invalid/derived-generic-bound.hd`
-- `typing/invalid/derived-eq-bound-unmet-data-argument.hd`
 
 </details>
 
@@ -1766,7 +1758,9 @@ typing/invalid/derived-arbitrary-tuned-member-not-arbitrary.hd
 typing/invalid/derived-default-member-not-default.hd
 typing/invalid/derived-default-no-variant.hd
 typing/invalid/derived-default-several-variants.hd
+typing/invalid/derived-eq-bound-unmet-data-argument.hd
 typing/invalid/derived-eq-enum-payload-missing-trait.hd
+typing/invalid/derived-generic-bound.hd
 typing/invalid/derived-hash-field-not-hash.hd
 typing/invalid/derived-hash-without-eq.hd
 typing/invalid/derived-total-order-float.hd

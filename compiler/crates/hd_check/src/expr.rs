@@ -868,7 +868,11 @@ impl Ck<'_, '_> {
         if matches!(prim, PrimOp::Lt | PrimOp::Le | PrimOp::Gt | PrimOp::Ge) {
             return self.ordering((a, at), (c, ct), prim, n, rn);
         }
-        if !self.op_fits(tr, at, Some(ct))? {
+        if let Some(info) = self.op_failure(tr, at, Some(ct))? {
+            if let Some(msg) = self.unmet_derived_bound(&info) {
+                self.err(Code::MissingDerivedBound, n, &msg);
+                return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()));
+            }
             let msg = format!(
                 "{} does not implement `{trait_name}` for this operand",
                 self.show(at)
@@ -1013,13 +1017,24 @@ impl Ck<'_, '_> {
     /// operand of type `at` and a right operand of type `ct`
     /// (`expr.op.no-impl`).
     pub(crate) fn op_fits(&mut self, tr: DefId, at: Ty, ct: Option<Ty>) -> StageResult<bool> {
+        Ok(self.op_failure(tr, at, ct)?.is_none())
+    }
+
+    /// Why no implementation of operator trait `tr` fits, or `None` when
+    /// one does or the answer waits.
+    pub(crate) fn op_failure(
+        &mut self,
+        tr: DefId,
+        at: Ty,
+        ct: Option<Ty>,
+    ) -> StageResult<Option<Box<hd_types::solver::FailInfo>>> {
         let pool = self.pool();
         let t = self.strip_mut(at);
         if matches!(
             pool.get(t),
             TyData::Infer(_) | TyData::Poison | TyData::Never
         ) {
-            return Ok(true);
+            return Ok(None);
         }
         let n_trait = self.cx.lookup.item(tr).map_or(0, |i| i.generics.len());
         let mut args: Vec<Ty> = (0..n_trait)
@@ -1036,7 +1051,25 @@ impl Ck<'_, '_> {
             self_ty: t,
             args: pool.list(&args),
         };
-        Ok(!matches!(self.solve(tref)?, Answer::Fails(_)))
+        Ok(match self.solve(tref)? {
+            Answer::Fails(info) => Some(info),
+            _ => None,
+        })
+    }
+
+    /// The type argument and bound that a derived implementation's
+    /// failure lacks (`trait.derive.bound-unmet`), when the outermost
+    /// implementation tried was derived.
+    pub(crate) fn unmet_derived_bound(&self, info: &hd_types::solver::FailInfo) -> Option<String> {
+        let first = info.chain.first()?;
+        if !matches!(first.origin, hd_types::solver::ImplOrigin::Derived { .. }) {
+            return None;
+        }
+        Some(format!(
+            "{} does not implement {}, which the derived implementation requires of its type argument",
+            self.show(info.leaf.self_ty),
+            self.cx.names.display_name(info.leaf.trait_)
+        ))
     }
 
     /// `a < b` and the other relational operators on non-primitive
@@ -1052,7 +1085,11 @@ impl Ck<'_, '_> {
     ) -> StageResult<Ref> {
         let pool = self.pool();
         let tr = self.cx.names.known.partial_ord;
-        if !self.op_fits(tr, at, Some(ct))? {
+        if let Some(info) = self.op_failure(tr, at, Some(ct))? {
+            if let Some(msg) = self.unmet_derived_bound(&info) {
+                self.err(Code::MissingDerivedBound, n, &msg);
+                return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()));
+            }
             let msg = format!("{} does not implement `PartialOrd`", self.show(at));
             self.err(Code::TypeMismatch, n, &msg);
             return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()));
