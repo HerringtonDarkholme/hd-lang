@@ -132,6 +132,7 @@ mod try_hint_run;
 mod tuple_rest_run;
 mod tuple_structure;
 mod tuple_template_bounds;
+mod type_arity_signature_run;
 mod type_arity_written_run;
 mod type_default_written_run;
 mod type_name_forms_run;

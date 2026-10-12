@@ -802,30 +802,6 @@ impl<'a> ItemCheck<'_, 'a> {
             TyData::Adt { def, args } => {
                 let args_v = pool.list_items(args);
                 if let Some(target) = self.cx.lookup.item(def) {
-                    // `types.generic.default.written-missing`: a slot left
-                    // out of a written type needs a default.
-                    let slots: Vec<&Generic> = target.generics.iter().filter(|g| !g.row).collect();
-                    // `types.generic.too-long`: no more arguments than parameters.
-                    if args_v.len() > slots.len() {
-                        let message = format!(
-                            "`{}` takes {} type arguments, not {}",
-                            self.cx.names.display_name(def),
-                            slots.len(),
-                            args_v.len()
-                        );
-                        self.report(slot, Code::ArgumentCount, message);
-                    }
-                    if let Some(g) = slots
-                        .get(args_v.len()..)
-                        .and_then(|rest| rest.iter().find(|g| g.default.is_none()))
-                    {
-                        let message = format!(
-                            "`{}` is written without its parameter `{}`, which has no default",
-                            self.cx.names.display_name(def),
-                            self.cx.names.text(g.name)
-                        );
-                        self.report(slot, Code::PartialGenericArguments, message);
-                    }
                     let mut missed = false;
                     for (i, g) in target.generics.iter().enumerate() {
                         let Some(&a) = args_v.get(i) else { continue };

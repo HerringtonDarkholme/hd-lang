@@ -1579,10 +1579,9 @@ impl Lower<'_, '_, '_> {
                 self.too_many_args(def, max, args.len(), span);
                 return Ty::POISON;
             }
-            // An alias leaves the parameter unfilled in its body; a data
-            // type's own check reports it
+            // A parameter left without an argument or a default
             // (`types.generic.default.written-missing`).
-            if let (HeadKind::Alias, Some(param)) = (kind, missing) {
+            if let Some(param) = missing {
                 let msg = format!(
                     "`{}` is written without its parameter `{param}`, which has no default",
                     self.names.display_name(def)
@@ -3613,9 +3612,9 @@ impl Lower<'_, '_, '_> {
         out
     }
 
-    /// The declared parameters of a data type, enum or newtype that
-    /// declares a type-argument default, recorded for the written types
-    /// that omit it (`types.generic.default.written`). The item's own
+    /// The declared parameters of a data type, enum or newtype, recorded
+    /// for the written types that count or fill them
+    /// (`types.generic.too-long`, `types.generic.default.written`). The item's own
     /// lowering reports their diagnostics, so these are dropped.
     fn record_defaults(&mut self, h: &Head<'_>) {
         self.at = self.src.span(h.node).lo;
@@ -3661,25 +3660,20 @@ impl Lower<'_, '_, '_> {
     }
 }
 
-/// Whether `h` is a data type, enum or newtype that declares a
-/// type-argument default.
-fn declares_default(h: &Head<'_>) -> bool {
+/// Whether `h` is a data type, enum or newtype, whose parameters are
+/// recorded before any signature is lowered.
+fn declares_params(h: &Head<'_>) -> bool {
     matches!(h.kind, HeadKind::Data | HeadKind::Enum | HeadKind::Newtype)
-        && Src::child(h.node, SyntaxKind::GenericParameterList).is_some_and(|gl| {
-            gl.children().any(|g| {
-                g.kind() == SyntaxKind::GenericParameter
-                    && Src::child(g, SyntaxKind::TypeDefault).is_some()
-            })
-        })
 }
 
 /// Lowers every alias of the folder before any other header, each after
 /// the aliases its declaration names, whatever the declaration order
 /// (resolution-and-interfaces.md, "Row aliases and context types in
-/// interfaces"). A data type that declares a type-argument default takes
-/// part in that order, for its generic parameters alone: a written type
-/// fills its omitted arguments from them (`types.generic.default.written`),
-/// so an alias that names it comes after the aliases its defaults name.
+/// interfaces"). Every data type, enum and newtype takes part in that
+/// order, for its generic parameters alone: a written type counts its
+/// arguments against them (`types.generic.too-long`) and fills the omitted
+/// ones from their defaults (`types.generic.default.written`), so an alias
+/// that names it comes after the aliases its defaults name.
 /// An alias that expands to itself is `alias-cycle`, reported once per
 /// cycle, on its declaration that comes first in the source
 /// (`types.alias.cycle.reported`). Returns each module's alias items and
@@ -3695,7 +3689,7 @@ fn lower_aliases(
     for (mi, hs) in all_heads.iter().enumerate() {
         sites.extend(
             hs.iter()
-                .filter(|h| h.kind == HeadKind::Alias || declares_default(h))
+                .filter(|h| h.kind == HeadKind::Alias || declares_params(h))
                 .map(|h| (mi, h)),
         );
     }
