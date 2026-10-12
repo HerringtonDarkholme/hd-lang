@@ -54,7 +54,13 @@ impl Ck<'_, '_> {
         if let Some(l) = hd_resolve::local_at(self.cx.locals, sym, self.at) {
             return Some(Named::Item(l.def));
         }
-        let b = self.cx.scope_at(self.at).lookup(sym)?;
+        let Some(b) = self.cx.scope_at(self.at).lookup(sym) else {
+            // A prelude name of test code (`module.prelude.test-only`).
+            if self.in_tests_block() {
+                return hd_resolve::test_prelude_item(&self.cx.names, name).map(Named::Item);
+            }
+            return None;
+        };
         match b.kind {
             BindingKind::Item => Some(Named::Item(DefId::from_raw(b.value))),
             BindingKind::Module => Some(Named::Module(b.value)),

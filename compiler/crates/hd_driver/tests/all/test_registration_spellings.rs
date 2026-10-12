@@ -112,3 +112,33 @@ fn a_renamed_call_outside_test_position_is_misplaced() {
     let text = out.render();
     assert!(text.contains("misplaced-test-case"), "{text}");
 }
+
+const IT_PRELUDE_MISUSE: &str = "\
+tests:
+    fn helper() -> void:
+        it(\"in a helper\"):
+            pass
+
+    fn register() -> void:
+        make := it
+
+    it(\"outer\"):
+        it(\"inner\"):
+            pass
+";
+
+#[test]
+fn the_prelude_it_outside_test_position_is_misplaced_once_per_use() {
+    let out = run(&[("m.hd", IT_PRELUDE_MISUSE)]);
+    let text = out.render();
+    assert_eq!(text.matches("misplaced-test-case").count(), 3, "{text}");
+    assert!(!text.contains("unknown-name"), "{text}");
+}
+
+#[test]
+fn a_registration_in_a_tests_block_stays_clean() {
+    let out = run(&[("m.hd", "tests:\n    it(\"adds\"):\n        pass\n")]);
+    let text = out.render();
+    assert!(!text.contains("misplaced-test-case"), "{text}");
+    assert_eq!(names(&out), ["adds"], "{text}");
+}

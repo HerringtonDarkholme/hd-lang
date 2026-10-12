@@ -1163,16 +1163,20 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// Whether the code being checked lies in a `tests:` block.
+    pub(crate) fn in_tests_block(&self) -> bool {
+        self.cx
+            .tests
+            .as_ref()
+            .is_some_and(|t| t.blocks.iter().any(|b| b.lo <= self.at && self.at < b.hi))
+    }
+
     /// `module.prelude.no-shadow`: a local value, closure parameter or
     /// top-level binding does not bind a prelude name. The binding still
     /// introduces the name afterwards.
     pub(crate) fn check_prelude_shadow(&mut self, name: Symbol, at: NodeRef<'_>) {
         let text = self.cx.names.text(name);
-        let in_tests = self
-            .cx
-            .tests
-            .as_ref()
-            .is_some_and(|t| t.blocks.iter().any(|b| b.lo <= self.at && self.at < b.hi));
+        let in_tests = self.in_tests_block();
         let bound = (hd_resolve::is_prelude_name(text)
             && self.cx.scope_at(self.at).bound_from_outside(name))
             || (in_tests && hd_resolve::is_test_prelude_name(text));

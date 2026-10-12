@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2777 | 52 | 16 | 2845 |
+| 2779 | 50 | 16 | 2845 |
 
 ## By Chapter
 
@@ -23,7 +23,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/07-functions.md` | 126 | 4 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 120 | 3 | 0 | 123 |
 | `lang/09-traits.md` | 352 | 7 | 0 | 359 |
-| `lang/10-modules.md` | 245 | 9 | 4 | 258 |
+| `lang/10-modules.md` | 247 | 7 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 250 | 1 | 8 | 259 |
 | `lang/14-annotations.md` | 146 | 7 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 917 | 0 | 12 | 929 |
-| `typing/invalid` | 1030 | 44 | 1 | 1075 |
+| `typing/invalid` | 1032 | 42 | 1 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 12 | 8 | 0 | 20 |
 
@@ -86,7 +86,7 @@ compiler stage that first declined the case.
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 2 |
 | `fail:unknown-module` | 1 |
-| `fail:unknown-name` | 5 |
+| `fail:unknown-name` | 3 |
 | `unsupported:Body` | 1 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 11 |
@@ -193,13 +193,11 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-name</code> (5)</summary>
+<details><summary><code>fail:unknown-name</code> (3)</summary>
 
 - `typing/invalid/parameter-default-later-parameter.hd`
 - `typing/invalid/default-later-parameter-earlier-twin.hd`
 - `typing/invalid/variant-pattern-unknown-field.hd`
-- `typing/invalid/misplaced-test-case.hd`
-- `typing/invalid/test-case-as-value.hd`
 
 </details>
 
@@ -2087,6 +2085,7 @@ typing/invalid/member-line-outside-block.hd
 typing/invalid/method-bound-bare-trait.hd
 typing/invalid/method-type-parameter-reuses-impl-parameter.hd
 typing/invalid/method-without-requirement-clause.hd
+typing/invalid/misplaced-test-case.hd
 typing/invalid/missing-associated-type-binding.hd
 typing/invalid/missing-mutable-edge.hd
 typing/invalid/missing-required-data-field.hd
@@ -2456,6 +2455,7 @@ typing/invalid/test-body-error-not-display.hd
 typing/invalid/test-body-optional-result.hd
 typing/invalid/test-body-string-error.hd
 typing/invalid/test-body-uses-property-runner.hd
+typing/invalid/test-case-as-value.hd
 typing/invalid/test-module-name-not-imported.hd
 typing/invalid/test-module-tests-block.hd
 typing/invalid/test-option-not-literal.hd
