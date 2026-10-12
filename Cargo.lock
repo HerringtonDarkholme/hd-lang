@@ -631,6 +631,7 @@ dependencies = [
  "hd_tir",
  "hd_types",
  "hd_wasm",
+ "wasmparser 0.261.0",
 ]
 
 [[package]]
@@ -710,9 +711,12 @@ dependencies = [
  "getrandom 0.4.3",
  "hd_base",
  "hd_cache",
+ "hd_driver",
  "hd_host_abi",
  "hd_mono",
+ "hd_project",
  "hd_run",
+ "hd_sched",
  "hd_wasm",
  "hostname",
  "interprocess",

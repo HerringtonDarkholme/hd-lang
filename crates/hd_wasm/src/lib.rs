@@ -1192,6 +1192,33 @@ pub struct Externs {
     pub globals: BTreeSet<GSym>,
 }
 
+impl Externs {
+    /// Adds what a session module linked from `codes` holds for the modules
+    /// after it: each instance and part with its signature, which it
+    /// exports, and each global its code names, which it exports unless an
+    /// earlier module does. Runtime globals are left out, since every later
+    /// module imports them. The module after it is not the first.
+    pub fn add_module(&mut self, codes: &[(Hash128, Code)]) {
+        self.first = false;
+        for (k, c) in codes {
+            let mut add = |s: Sym, c: &Code| {
+                for (_, r) in &c.relocs {
+                    if let Reloc::Global(g) = r
+                        && !matches!(g, GSym::Rt(..))
+                    {
+                        self.globals.insert(g.clone());
+                    }
+                }
+                self.funcs.insert(s, (c.params.clone(), c.results.clone()));
+            };
+            add(Sym::Inst(*k), c);
+            for (p, pc) in &c.parts {
+                add(Sym::Part(*k, *p), pc);
+            }
+        }
+    }
+}
+
 /// The Wasm module name of every session import (`LinkMode::Session`). A
 /// host registers each session module's exports under this name.
 pub const SESSION_MODULE: &str = "hd.s";

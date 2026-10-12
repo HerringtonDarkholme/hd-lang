@@ -272,6 +272,24 @@ pub struct Collected {
     /// The witnesses of generic methods called through trait values
     /// (codegen.md §13.5.1), which link writes.
     pub witnesses: Witnesses,
+    /// With a [`Session`], the instances the collection reaches that an
+    /// earlier module of the session already defines: they are not in
+    /// `table`, and the module imports them. Empty without a session.
+    pub externs: BTreeSet<Hash128>,
+}
+
+/// What the earlier modules of a session already hold, such as the inputs
+/// before a REPL input (repl-plan.md §2.2): collection stops at their
+/// instances and leaves out the inits they ran.
+#[derive(Clone, Copy)]
+pub struct Session<'a> {
+    /// Whether an earlier module defines and exports the instance with this
+    /// key. A reached one is recorded in `Collected::externs` and neither
+    /// joins the table nor is scanned: its callees are that module's.
+    pub known: &'a dyn Fn(Hash128) -> bool,
+    /// Whether an earlier module ran the init body whose instance has this
+    /// key. Such an init is left out of `Collected::inits`.
+    pub inits_run: &'a dyn Fn(Hash128) -> bool,
 }
 
 impl Collected {
@@ -843,6 +861,9 @@ struct Cx<'a> {
     work: Vec<InstId>,
     /// Erased bodies, `dyn` call pairs and their thunks (§13.5.1).
     witness: erased::WitnessCx,
+    session: Option<Session<'a>>,
+    /// The instances `session` already holds, by request, with their keys.
+    externs: HashMap<(DefId, Sub, TyList), Hash128>,
 }
 
 /// Collection stopped at an instantiation limit (codegen.md §13.4):
@@ -892,6 +913,22 @@ impl Cx<'_> {
         if let Some(id) = table.get(item, sub, args) {
             return Ok(table.key[id.idx()]);
         }
+        // An instance an earlier session module holds is that module's,
+        // callees included: it is an extern, never pushed or scanned.
+        let mut computed = None;
+        if let Some(session) = self.session {
+            if let Some(&key) = self.externs.get(&(item, sub, args)) {
+                return Ok(key);
+            }
+            let key = self.key(item, sub, args);
+            if (session.known)(key) {
+                self.externs.insert((item, sub, args), key);
+                self.out.externs.insert(key);
+                return Ok(key);
+            }
+            computed = Some(key);
+        }
+        let table = &self.out.table;
         let chain = if parent == InstId::NONE {
             0
         } else {
@@ -907,7 +944,10 @@ impl Cx<'_> {
         if depth > u32::from(MAX_DEPTH) || chain > MAX_CHAIN {
             return Err(self.stop_too_deep(item, args, parent, depth, chain));
         }
-        let key = self.key(item, sub, args);
+        let key = match computed {
+            Some(key) => key,
+            None => self.key(item, sub, args),
+        };
         let depth = u8::try_from(depth).expect("within MAX_DEPTH");
         let (id, _) = self.out.table.push(item, sub, args, depth, parent, key);
         self.work.push(id);
@@ -2111,7 +2151,9 @@ fn note_data(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut BTreeSet<
 /// Collection from `root` (codegen.md §13.1) and the init bodies `inits`
 /// of the groups it reaches, in initialization order: every reachable
 /// instance, each call's target, the imports and data types; or the stop
-/// at an instantiation limit.
+/// at an instantiation limit. With a `session`, collection stops at the
+/// instances earlier modules hold (`Collected::externs`) and leaves out
+/// the inits they ran; without one, it collects the whole program.
 pub fn collect(
     pool: &InternPool,
     env: &dyn ProgramEnv,
@@ -2119,6 +2161,7 @@ pub fn collect(
     root: DefId,
     inits: &[DefId],
     extra: &[(DefId, TyList)],
+    session: Option<Session<'_>>,
 ) -> StageResult<Result<Collected, TooDeep>> {
     let mut cx = Cx {
         pool,
@@ -2136,6 +2179,8 @@ pub fn collect(
         out: Collected::default(),
         work: Vec::new(),
         witness: erased::WitnessCx::default(),
+        session,
+        externs: HashMap::new(),
     };
     if let Err(e) = cx.run(root, inits, extra) {
         return match cx.too_deep.take() {
@@ -2154,6 +2199,11 @@ impl Cx<'_> {
     fn run(&mut self, root: DefId, inits: &[DefId], extra: &[(DefId, TyList)]) -> StageResult<()> {
         self.push(root, Sub::Body(0), TyList::EMPTY, InstId::NONE)?;
         for i in inits {
+            if let Some(session) = self.session
+                && (session.inits_run)(self.key(*i, Sub::Body(0), TyList::EMPTY))
+            {
+                continue;
+            }
             let k = self.push(*i, Sub::Body(0), TyList::EMPTY, InstId::NONE)?;
             self.out.inits.push(k);
         }

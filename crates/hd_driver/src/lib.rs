@@ -15,7 +15,7 @@
 //! becomes an internal `unsupported` diagnostic, which is an error.
 //! `analyze_package` runs the same code and only reports the counts.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock};
 
 pub use hd_base::BuildProfile;
@@ -387,6 +387,11 @@ pub struct Output {
     /// The trait solver's memo hits and misses over the run (a counter;
     /// with several threads it varies from run to run).
     pub memo: hd_types::solver::MemoStats,
+    /// With [`Packages::session`] and a linked module: what the module adds
+    /// to the session, its exports and the inits it runs. Once the module
+    /// has run, the caller adds it ([`Session::add`]) before building the
+    /// next module; a module that failed adds nothing.
+    pub session_added: Option<Session>,
 }
 
 impl Output {
@@ -690,6 +695,10 @@ struct Run<'a> {
     program: OnceLock<ProgramTables>,
     collect: OnceLock<CollectOut>,
     wasm: OnceLock<Vec<u8>>,
+    /// The session this run links one more module of ([`Packages::session`]).
+    session: Option<&'a Session>,
+    /// What this run's module adds to that session ([`Output::session_added`]).
+    session_added: OnceLock<Session>,
     diags: Mutex<DiagBuf>,
     report: Mutex<PipelineReport>,
     counters: Mutex<Counters>,
@@ -750,6 +759,46 @@ pub struct Packages<'a> {
     /// Whether the output holds each root-package module's scope
     /// ([`Output::scopes`]), which `hd doc` resolves its links in.
     pub doc_scopes: bool,
+    /// For a `Goal::Program`: build one more module of this session
+    /// instead of a closed program (repl-plan.md §2.2). Collection stops at
+    /// the instances earlier modules export and leaves out the inits they
+    /// ran; the module links in `hd_wasm::LinkMode::Session`. Its link is
+    /// not cached, since it depends on the session.
+    pub session: Option<&'a Session>,
+}
+
+/// What the modules a session built so far hold, for the build of its next
+/// module ([`Packages::session`]), such as the inputs before a REPL input.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Session {
+    /// What those modules export: their instances, parts and globals, and
+    /// whether the next module is the session's first.
+    pub externs: hd_wasm::Externs,
+    /// The keys of the init bodies' instances those modules ran.
+    pub inits_run: BTreeSet<Hash128>,
+}
+
+impl Session {
+    /// A session with no module yet: the next module is its first.
+    #[must_use]
+    pub fn start() -> Session {
+        Session {
+            externs: hd_wasm::Externs {
+                first: true,
+                ..hd_wasm::Externs::default()
+            },
+            inits_run: BTreeSet::new(),
+        }
+    }
+
+    /// Adds what a module that ran adds ([`Output::session_added`]); the
+    /// next module is not the first.
+    pub fn add(&mut self, added: Session) {
+        self.externs.first = false;
+        self.externs.funcs.extend(added.externs.funcs);
+        self.externs.globals.extend(added.externs.globals);
+        self.inits_run.extend(added.inits_run);
+    }
 }
 
 /// The root package's key: its name, and the traits of a runtime profile
@@ -916,6 +965,8 @@ fn build_packages_inner(
         program: OnceLock::new(),
         collect: OnceLock::new(),
         wasm: OnceLock::new(),
+        session: packages.session,
+        session_added: OnceLock::new(),
         diags: Mutex::new(DiagBuf::default()),
         report: Mutex::new(PipelineReport {
             package: package.to_owned(),
@@ -995,6 +1046,7 @@ fn build_packages_inner(
     } else {
         run.wasm.get().cloned()
     };
+    let session_added = wasm.as_ref().and_then(|_| run.session_added.get().cloned());
     let ifaces = run
         .table
         .folders
@@ -1052,6 +1104,7 @@ fn build_packages_inner(
         tir_text: std::mem::take(&mut *lock(&run.tir_text)),
         pool_items: run.pool.len(),
         memo: run.memo.stats(),
+        session_added,
     }
 }
 
@@ -4158,7 +4211,9 @@ impl Run<'_> {
             &entry_key,
             &modules,
         );
-        if let Some(sections) = self.lookup(EntryKind::Link, pkey)
+        // A session module's link depends on the session: it is not cached.
+        if self.session.is_none()
+            && let Some(sections) = self.lookup(EntryKind::Link, pkey)
             && let Some(w) = sections.first()
         {
             lock(&self.report).ok(Stage::Collect);
@@ -4277,9 +4332,26 @@ impl Run<'_> {
                 extra.push(*r);
             }
         }
+        let known = |k: Hash128| {
+            self.session
+                .is_some_and(|s| s.externs.funcs.contains_key(&hd_wasm::Sym::Inst(k)))
+        };
+        let inits_run = |k: Hash128| self.session.is_some_and(|s| s.inits_run.contains(&k));
+        let session = self.session.map(|_| hd_mono::Session {
+            known: &known,
+            inits_run: &inits_run,
+        });
         let Some(collected) = self.stage(
             Stage::Collect,
-            hd_mono::collect(&self.pool, &env, &TableSolver, root, &all_inits, &extra),
+            hd_mono::collect(
+                &self.pool,
+                &env,
+                &TableSolver,
+                root,
+                &all_inits,
+                &extra,
+                session,
+            ),
         ) else {
             return;
         };
@@ -4296,11 +4368,14 @@ impl Run<'_> {
                 .position(|x| x == r)
                 .and_then(|i| collected.extra.get(i).copied())
         };
+        // An init's instance, when this module runs it: a session leaves
+        // out the inits earlier modules ran.
         let key_of_init = |d: &DefId| {
-            all_inits
-                .iter()
-                .position(|x| x == d)
-                .and_then(|i| collected.inits.get(i).copied())
+            collected
+                .table
+                .get(*d, hd_mono::Sub::Body(0), TyList::EMPTY)
+                .map(|id| collected.table.key[id.idx()])
+                .filter(|k| collected.inits.contains(k))
         };
         let plan = match &self.goal {
             Goal::Program { .. } if script => Roots::Script {
@@ -4793,6 +4868,10 @@ impl Run<'_> {
         let Some(entry) = self.stage(Stage::Link, exports) else {
             return;
         };
+        let mode = match self.session {
+            Some(s) => hd_wasm::LinkMode::Session(&s.externs),
+            None => hd_wasm::LinkMode::Program,
+        };
         let Some(wasm) = self.stage(
             Stage::Link,
             hd_wasm::link(
@@ -4801,12 +4880,20 @@ impl Run<'_> {
                 &entry,
                 &c.collected.witnesses,
                 self.build_profile == BuildProfile::Release,
-                hd_wasm::LinkMode::Program,
+                mode,
             ),
         ) else {
             return;
         };
-        self.put(EntryKind::Link, c.prog_key, &[&wasm]);
+        match self.session {
+            Some(_) => {
+                let mut added = Session::default();
+                added.externs.add_module(&codes);
+                added.inits_run.extend(c.collected.inits.iter().copied());
+                let _ = self.session_added.set(added);
+            }
+            None => self.put(EntryKind::Link, c.prog_key, &[&wasm]),
+        }
         let _ = self.wasm.set(wasm);
     }
 }
