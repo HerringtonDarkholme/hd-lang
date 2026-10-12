@@ -1829,9 +1829,24 @@ impl Ck<'_, '_> {
         let mut ty = Ty::VOID;
         let mut tail = None;
         let mut diverged = false;
+        // Whether a listed diverging statement already ran in this suite:
+        // every later statement is unreachable
+        // (`flow.unreachable.def`, `flow.unreachable.infinite-loop`). It
+        // is still checked (`flow.unreachable.checked`); only the warning
+        // (`flow.unreachable.warning`) is new.
+        let mut dead = false;
         for (i, s) in stmts.iter().copied().enumerate() {
             let last = i + 1 == stmts.len();
             self.move_to(self.cx.src.span(s).lo);
+            if dead {
+                self.diags.push(
+                    Code::UnreachableCode,
+                    hd_diag::Severity::Warning,
+                    self.cx.src.span(s),
+                    "this statement is unreachable",
+                    None,
+                );
+            }
             if last && value && s.kind() == SyntaxKind::ExprStmt {
                 let Some(e) = s.children().next() else {
                     return unsupported("an empty expression statement");
@@ -1879,6 +1894,13 @@ impl Ck<'_, '_> {
             }
             let t = self.stmt(s)?;
             diverged |= t == Ty::NEVER;
+            if matches!(
+                s.kind(),
+                SyntaxKind::ReturnStmt | SyntaxKind::BreakStmt | SyntaxKind::ContinueStmt
+            ) || self.infinite_loop(s)
+            {
+                dead = true;
+            }
             if last && diverged {
                 ty = Ty::NEVER;
             }
@@ -1910,6 +1932,39 @@ impl Ck<'_, '_> {
             ty = Ty::NEVER;
         }
         Ok((tail, ty))
+    }
+
+    /// Whether `s` is an infinite loop no `break` targets
+    /// (`flow.unreachable.infinite-loop`): `while true`, or `while
+    /// (true)`, whose body has no break. Mirrors the `flow.while.infinite`
+    /// typing in `while_expr`.
+    fn infinite_loop(&self, s: NodeRef<'_>) -> bool {
+        let w = if s.kind() == SyntaxKind::WhileExpr {
+            s
+        } else if s.kind() == SyntaxKind::ExprStmt {
+            match s.children().next() {
+                Some(w) if w.kind() == SyntaxKind::WhileExpr => w,
+                _ => return false,
+            }
+        } else {
+            return false;
+        };
+        let Some(cond) = w.children().next() else {
+            return false;
+        };
+        let Some(body) = Src::child(w, SyntaxKind::Block) else {
+            return false;
+        };
+        let mut lit = cond;
+        while lit.kind() == SyntaxKind::ParenExpr {
+            let Some(inner) = lit.children().next() else {
+                return false;
+            };
+            lit = inner;
+        }
+        lit.kind() == SyntaxKind::LiteralExpr
+            && self.cx.src.tkind(self.cx.src.first(lit)) == Some(TokenKind::KwTrue)
+            && !Self::has_break(body)
     }
 
     /// Whether a block's last statement leaves (`return`, `panic`-like

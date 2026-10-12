@@ -2199,7 +2199,7 @@ impl Ck<'_, '_> {
         Ok(())
     }
 
-    fn has_break(n: NodeRef<'_>) -> bool {
+    pub(crate) fn has_break(n: NodeRef<'_>) -> bool {
         n.children().any(|c| match c.kind() {
             SyntaxKind::BreakStmt => true,
             SyntaxKind::WhileExpr | SyntaxKind::ForExpr | SyntaxKind::ClosureExpr => false,

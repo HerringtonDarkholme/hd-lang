@@ -205,7 +205,6 @@ fn reverse(list: Node?) -> Node?:
                 out = .Some(Node { value: node.value, next: out })
                 at = node.next
             .None => return out
-    out
 
 fn first(list: Node?) -> i32:
     match list:
@@ -316,7 +315,6 @@ fn walk(link: dyn Link) -> string:
                 out = out + \">\" + l.label()
                 at = l.next()
             .None => return out
-    out
 
 data Pair:
     left: (Pair?, Pair?, string, i32)
