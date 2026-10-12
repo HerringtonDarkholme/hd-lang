@@ -5,6 +5,7 @@
 mod arity_generic_run;
 mod assoc_types;
 mod assoc_validation;
+mod bare_trait_body;
 mod binding_chain_run;
 mod block_decorator;
 mod call_place_run;

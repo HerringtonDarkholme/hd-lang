@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2673 | 151 | 21 | 2845 |
+| 2675 | 149 | 21 | 2845 |
 
 ## By Chapter
 
@@ -22,7 +22,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/06-control-flow.md` | 140 | 13 | 4 | 157 |
 | `lang/07-functions.md` | 120 | 10 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 114 | 8 | 1 | 123 |
-| `lang/09-traits.md` | 343 | 14 | 2 | 359 |
+| `lang/09-traits.md` | 345 | 12 | 2 | 359 |
 | `lang/10-modules.md` | 233 | 20 | 5 | 258 |
 | `lang/11-requirements-and-suspension.md` | 244 | 7 | 8 | 259 |
 | `lang/14-annotations.md` | 144 | 9 | 0 | 153 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 99 | 3 | 3 | 105 |
 | `runtime/valid` | 903 | 10 | 16 | 929 |
-| `typing/invalid` | 965 | 109 | 1 | 1075 |
+| `typing/invalid` | 967 | 107 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -89,7 +89,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:no-common-type` | 2 |
-| `fail:no-diagnostic` | 46 |
+| `fail:no-diagnostic` | 45 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-import` | 1 |
 | `fail:private-main` | 3 |
@@ -110,7 +110,7 @@ compiler stage that first declined the case.
 | `fail:unknown-type` | 3 |
 | `fail:unknown-variant` | 1 |
 | `fail:unsatisfied-trait-bound` | 1 |
-| `fail:unused-local-binding` | 3 |
+| `fail:unused-local-binding` | 2 |
 | `unsupported:Body` | 4 |
 | `unsupported:Collect` | 3 |
 | `unsupported:Link` | 3 |
@@ -216,7 +216,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (46)</summary>
+<details><summary><code>fail:no-diagnostic</code> (45)</summary>
 
 - `typing/warnings/unreachable-code.hd`
 - `typing/invalid/unknown-annotation-member.hd`
@@ -250,7 +250,6 @@ compiler stage that first declined the case.
 - `typing/invalid/row-slot-bare-explicit-argument.hd`
 - `typing/warnings/unsigned-comparison-countdown.hd`
 - `typing/warnings/unsigned-comparison-explicit.hd`
-- `typing/invalid/nested-local-annotation-bare-trait.hd`
 - `typing/invalid/contravariant-inferred-private-result.hd`
 - `typing/invalid/contravariant-inferred-invariant-result.hd`
 - `typing/invalid/ambiguous-requirement-key-solution.hd`
@@ -439,11 +438,10 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unused-local-binding</code> (3)</summary>
+<details><summary><code>fail:unused-local-binding</code> (2)</summary>
 
 - `typing/invalid/closure-parameter-without-type.hd`
 - `typing/invalid/range-float-bound.hd`
-- `typing/invalid/local-annotation-bare-trait.hd`
 
 </details>
 
@@ -2256,6 +2254,7 @@ typing/invalid/literal-var-range-bound-conflict.hd
 typing/invalid/literal-var-structure-conflict.hd
 typing/invalid/literal-var-top-level-undecided.hd
 typing/invalid/literal-var-tuple-fallback.hd
+typing/invalid/local-annotation-bare-trait.hd
 typing/invalid/local-annotation-row-unknown-trait.hd
 typing/invalid/local-data-later-declaration.hd
 typing/invalid/local-data-reuses-type-parameter.hd
@@ -2320,6 +2319,7 @@ typing/invalid/mutable-provider-install-readonly-value.hd
 typing/invalid/mutual-recursion-omitted-results.hd
 typing/invalid/named-function-identity.hd
 typing/invalid/negative-literal-exponent.hd
+typing/invalid/nested-local-annotation-bare-trait.hd
 typing/invalid/nested-optional-needs-some.hd
 typing/invalid/newtype-bound-bare-trait.hd
 typing/invalid/newtype-derivation-block.hd

@@ -294,6 +294,14 @@ impl Ck<'_, '_> {
             }
         }
         if self.kind_of_item(def) == Some(HeadKind::Trait) {
+            if role == NameRole::Type {
+                // A bare trait name in a type position
+                // (`types.trait.value.dyn-required`); the fix is `dyn`.
+                let name = self.cx.names.display_name(def);
+                let msg = format!("`{name}` is a trait, not a type");
+                self.err(Code::TraitUsedAsType, n, &msg);
+                return Ok(Ty::POISON);
+            }
             // A written trait value omits its defaulted trailing arguments
             // (`types.generic.default.written`); no `Self` is known here.
             let args = match self.cx.lookup.item(def) {
