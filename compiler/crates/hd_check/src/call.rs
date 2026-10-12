@@ -1343,6 +1343,26 @@ impl Ck<'_, '_> {
         }
         match &item.data {
             ItemData::Fn(sig) => {
+                if item
+                    .intrinsic
+                    .is_some_and(|k| self.cx.names.text(k) == "task_all")
+                    && !explicit.is_empty()
+                {
+                    self.err(
+                        Code::TypeMismatch,
+                        n,
+                        "`all` takes no type arguments; its result type is the tuple of its tasks",
+                    );
+                    return Ok((Ref(NONE), Ty::NEVER));
+                }
+                if def == self.cx.names.known.race && race_has_no_tasks(args) {
+                    self.err(
+                        Code::ArgumentCount,
+                        n,
+                        "`race` needs at least one task, and this call passes none",
+                    );
+                    return Ok((Ref(NONE), Ty::NEVER));
+                }
                 let sig = self.with_result(def, sig.clone());
                 let vars = self.fresh_generics(&sig, explicit, n);
                 let inst = |t: Ty| subst_owner(pool, def, &vars, t);
@@ -1598,6 +1618,14 @@ impl Ck<'_, '_> {
                 Code::TypeMismatch,
                 s,
                 "`all` takes its tasks as direct arguments, not as a spread",
+            );
+            return Ok((Ref(NONE), Ty::NEVER));
+        }
+        if let Some((_, e)) = args.named.first() {
+            self.err(
+                Code::TypeMismatch,
+                *e,
+                "`all` takes its tasks as positional arguments, not named ones",
             );
             return Ok((Ref(NONE), Ty::NEVER));
         }
@@ -3632,6 +3660,22 @@ impl Ck<'_, '_> {
             let _ = self.infer.unify(pool, result, want);
         }
         Ok(())
+    }
+}
+
+/// A `race!` call written with no task: no argument at all, or the
+/// task list passed by name as an empty list literal
+/// (`req.combinator.race-empty`, `.race-empty-literal`).
+fn race_has_no_tasks(args: &Args<'_>) -> bool {
+    if args.spread.is_some() || !args.positional.is_empty() || args.trailing.is_some() {
+        return false;
+    }
+    match args.named.as_slice() {
+        [] => true,
+        [(name, e)] => {
+            name == "tasks" && e.kind() == SyntaxKind::ListExpr && e.children().next().is_none()
+        }
+        _ => false,
     }
 }
 

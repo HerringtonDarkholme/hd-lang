@@ -222,6 +222,21 @@ impl Ck<'_, '_> {
         {
             return Ok(self.bad_facts_target(n, "it is called, not used as a value"));
         }
+        // `all` is only the callee of a direct call (`req.combinator.all-direct`).
+        if self
+            .cx
+            .lookup
+            .item(def)
+            .and_then(|i| i.intrinsic)
+            .is_some_and(|k| self.cx.names.text(k) == "task_all")
+        {
+            self.err(
+                Code::TypeMismatch,
+                n,
+                "`all` is only the callee of a direct call, not a function value",
+            );
+            return Ok((Ref(NONE), Ty::NEVER));
+        }
         let sig = self.with_result(def, sig.clone());
         let vars = self.fresh_generics(&sig, explicit, n);
         let m = Member {

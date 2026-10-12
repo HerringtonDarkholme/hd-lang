@@ -12,6 +12,7 @@ mod cancel_suspension_run;
 mod char_escapes_run;
 mod checker;
 mod collect_default_run;
+mod combinator_call_forms;
 mod context_values;
 mod copy_assign_run;
 mod copy_update_run;

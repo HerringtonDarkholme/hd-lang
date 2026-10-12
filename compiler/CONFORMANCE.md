@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2669 | 155 | 21 | 2845 |
+| 2673 | 151 | 21 | 2845 |
 
 ## By Chapter
 
@@ -24,7 +24,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/08-data-and-enums.md` | 114 | 8 | 1 | 123 |
 | `lang/09-traits.md` | 343 | 14 | 2 | 359 |
 | `lang/10-modules.md` | 233 | 20 | 5 | 258 |
-| `lang/11-requirements-and-suspension.md` | 240 | 11 | 8 | 259 |
+| `lang/11-requirements-and-suspension.md` | 244 | 7 | 8 | 259 |
 | `lang/14-annotations.md` | 144 | 9 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 99 | 3 | 3 | 105 |
 | `runtime/valid` | 903 | 10 | 16 | 929 |
-| `typing/invalid` | 961 | 113 | 1 | 1075 |
+| `typing/invalid` | 965 | 109 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -75,7 +75,7 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:argument-count` | 6 |
+| `fail:argument-count` | 5 |
 | `fail:bang-call-outside-suspension` | 2 |
 | `fail:bare-variant-pattern` | 3 |
 | `fail:boundary-private-field` | 1 |
@@ -89,7 +89,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:no-common-type` | 2 |
-| `fail:no-diagnostic` | 48 |
+| `fail:no-diagnostic` | 46 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-import` | 1 |
 | `fail:private-main` | 3 |
@@ -110,20 +110,19 @@ compiler stage that first declined the case.
 | `fail:unknown-type` | 3 |
 | `fail:unknown-variant` | 1 |
 | `fail:unsatisfied-trait-bound` | 1 |
-| `fail:unused-local-binding` | 4 |
+| `fail:unused-local-binding` | 3 |
 | `unsupported:Body` | 4 |
 | `unsupported:Collect` | 3 |
 | `unsupported:Link` | 3 |
 | `unsupported:RunCase` | 11 |
 
-<details><summary><code>fail:argument-count</code> (6)</summary>
+<details><summary><code>fail:argument-count</code> (5)</summary>
 
 - `runtime/valid/map-grow-and-remove.hd`
 - `typing/invalid/variant-duplicate-argument.hd`
 - `typing/invalid/duplicate-argument.hd`
 - `typing/invalid/unknown-named-argument.hd`
 - `typing/invalid/variant-unknown-payload-field.hd`
-- `typing/invalid/all-explicit-type-arguments.hd`
 
 </details>
 
@@ -217,7 +216,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (48)</summary>
+<details><summary><code>fail:no-diagnostic</code> (46)</summary>
 
 - `typing/warnings/unreachable-code.hd`
 - `typing/invalid/unknown-annotation-member.hd`
@@ -246,10 +245,8 @@ compiler stage that first declined the case.
 - `typing/invalid/error-marker-outside.hd`
 - `typing/invalid/function-type-rest-not-list.hd`
 - `typing/invalid/vararg-type-not-collection.hd`
-- `typing/invalid/race-no-tasks.hd`
 - `typing/invalid/generic-inference-variance-conflict.hd`
 - `typing/invalid/generic-inference-optional-conflict.hd`
-- `typing/invalid/race-empty-list-literal.hd`
 - `typing/invalid/row-slot-bare-explicit-argument.hd`
 - `typing/warnings/unsigned-comparison-countdown.hd`
 - `typing/warnings/unsigned-comparison-explicit.hd`
@@ -442,10 +439,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unused-local-binding</code> (4)</summary>
+<details><summary><code>fail:unused-local-binding</code> (3)</summary>
 
 - `typing/invalid/closure-parameter-without-type.hd`
-- `typing/invalid/all-function-value.hd`
 - `typing/invalid/range-float-bound.hd`
 - `typing/invalid/local-annotation-bare-trait.hd`
 
@@ -1794,6 +1790,8 @@ typing/invalid/alias-cycle.hd
 typing/invalid/alias-inherent-impl.hd
 typing/invalid/alias-unknown-target.hd
 typing/invalid/all-bang-child.hd
+typing/invalid/all-explicit-type-arguments.hd
+typing/invalid/all-function-value.hd
 typing/invalid/all-non-suspend-argument.hd
 typing/invalid/all-spread-argument.hd
 typing/invalid/ambiguous-associated-binding.hd
@@ -2453,6 +2451,8 @@ typing/invalid/public-method-without-requirement-clause.hd
 typing/invalid/public-test-item.hd
 typing/invalid/qualified-string-prefix-call.hd
 typing/invalid/qualified-string-prefix.hd
+typing/invalid/race-empty-list-literal.hd
+typing/invalid/race-no-tasks.hd
 typing/invalid/range-full-not-iterable.hd
 typing/invalid/range-pattern-bound-range.hd
 typing/invalid/range-pattern-covered.hd

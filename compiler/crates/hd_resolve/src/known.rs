@@ -77,6 +77,8 @@ pub struct KnownItems {
     // std.task
     pub suspend: DefId,
     pub block_on: DefId,
+    /// `std.task.race`, whose call needs a task (`req.combinator.race-empty`).
+    pub race: DefId,
     pub println: DefId,
     // std.annotation, std.testing
     pub annotate: DefId,
@@ -198,6 +200,7 @@ impl KnownItems {
             error: item("std.error", "Error"),
             suspend,
             block_on: item("std.task", "block_on"),
+            race: item("std.task", "race"),
             println: item("std.console", "println"),
             annotate: item("std.annotation", "annotate"),
             testing_module: module("std.testing"),
