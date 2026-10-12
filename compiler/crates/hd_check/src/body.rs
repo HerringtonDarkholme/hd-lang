@@ -218,6 +218,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// The node of each literal constant, for range diagnostics, and
     /// whether a `-` negated it.
     pub lit_nodes: Vec<(Ref, hd_base::NodeIdx, bool)>,
+    /// The constants of decimal literals larger than `u64::MAX`, clamped
+    /// to the maximum where parsed: never in range
+    /// (`types.literal.int-range`).
+    pub overflow_lits: Vec<Ref>,
     /// Each `-` applied to a number whose type was still open, with its
     /// operand type: checked once the type is final
     /// (`expr.arith.unary-minus`).
@@ -412,6 +416,7 @@ pub(crate) fn new_ck<'a, 'c>(
         forbidden: (kind == BodyKind::Default).then_some("a default or fact expression"),
         default_depth: 1,
         lit_nodes: Vec::new(),
+        overflow_lits: Vec::new(),
         neg_nodes: Vec::new(),
         read_poison_name: false,
         absorbed: Vec::new(),
@@ -995,19 +1000,10 @@ impl Ck<'_, '_> {
                 continue;
             }
             // A decimal integer larger than u64::MAX was clamped to the
-            // maximum at the literal; the source text still shows it never
-            // fit its type (`types.literal.int-range`).
-            let span = self.cx.src.span(node);
-            let source = self.cx.src.text;
-            let lo = usize::try_from(span.lo).unwrap_or(0).min(source.len());
-            let hi = usize::try_from(span.hi)
-                .unwrap_or(0)
-                .clamp(lo, source.len());
-            let raw = source.get(lo..hi).unwrap_or("");
-            let digits = raw.trim_start_matches(['-', '+']).replace('_', "");
-            let overflow = !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit());
-            if overflow && crate::literals::exceeds_u64(&digits) {
-                let msg = format!("literal {digits} does not fit {}", p.name());
+            // maximum where parsed, so it is out of range whatever its
+            // type resolved to (`types.literal.int-range`).
+            if !self.overflow_lits.is_empty() && self.overflow_lits.contains(&r) {
+                let msg = format!("integer literal out of range for {}", p.name());
                 self.err(Code::IntegerLiteralRange, node, &msg);
                 continue;
             }

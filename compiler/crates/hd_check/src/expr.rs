@@ -398,11 +398,14 @@ impl Ck<'_, '_> {
                     (self.b.const_value(lt, v), lt)
                 } else if crate::literals::decimal_digits(&text) {
                     // An integer too large for u64 stays an integer,
-                    // clamped to the maximum: `check_literal_ranges`
-                    // reports `integer-literal-range` from the source
-                    // text (`types.literal.int-range`).
+                    // clamped to the maximum; the overflow bit travels
+                    // with the constant so `check_literal_ranges`
+                    // reports `integer-literal-range`
+                    // (`types.literal.int-range`).
                     let lt = self.infer.fresh(pool, VarKind::IntLit);
-                    (self.b.const_value(lt, u64::MAX), lt)
+                    let r = self.b.const_value(lt, u64::MAX);
+                    self.overflow_lits.push(r);
+                    (r, lt)
                 } else if let Ok(f) = text.parse::<f64>() {
                     let ft = self.infer.fresh(pool, VarKind::FloatLit);
                     (self.b.const_value(ft, f.to_bits()), ft)
@@ -576,10 +579,15 @@ impl Ck<'_, '_> {
             Some(TokenKind::Plus) => (r, t),
             Some(TokenKind::Minus) => {
                 if let Some((ct, bits)) = self.b.const_of(r) {
+                    let overflowed = self.overflow_lits.contains(&r);
                     self.lit_nodes.retain(|x| x.0 != r);
+                    self.overflow_lits.retain(|x| *x != r);
                     let v = self.negated_bits(ct, bits);
                     let nr = self.b.const_value(ct, v);
                     self.lit_nodes.push((nr, n.index(), true));
+                    if overflowed {
+                        self.overflow_lits.push(nr);
+                    }
                     (nr, t)
                 } else {
                     self.neg_nodes.push((t, n.index()));
