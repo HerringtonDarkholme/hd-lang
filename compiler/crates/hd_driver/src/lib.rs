@@ -2339,7 +2339,7 @@ impl Run<'_> {
         if module.role == Role::Test {
             (test_stmts, stmts) = stmts
                 .into_iter()
-                .partition(|s| hd_check::tests::is_registration(&src, *s));
+                .partition(|s| hd_check::tests::is_registration(&cx, *s));
         }
         let mut init_facts = Vec::new();
         // A test program has no entry module: every top level is

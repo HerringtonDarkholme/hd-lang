@@ -106,7 +106,7 @@ pub(crate) fn has_try(n: NodeRef<'_>) -> bool {
 /// its call node, the registration function's name, and its trailing
 /// block, if any.
 fn registration<'t>(
-    src: &Src<'_>,
+    cx: &BodyCx<'_>,
     s: NodeRef<'t>,
 ) -> Option<(NodeRef<'t>, String, Option<NodeRef<'t>>)> {
     let e = (s.kind() == SyntaxKind::ExprStmt)
@@ -120,9 +120,73 @@ fn registration<'t>(
         SyntaxKind::CallExpr => (e, None),
         _ => return None,
     };
-    let kind = src.text(src.last(call.children().next()?)).to_owned();
-    matches!(kind.as_str(), "it" | "it_each" | "it_prop" | "it_prop_with")
-        .then_some((call, kind, block))
+    let kind = registration_kind(cx, call.children().next()?)?;
+    Some((call, kind.to_owned(), block))
+}
+
+/// The registration function that a call's callee names, by declaration
+/// identity and not by spelling (`module.testing.reg.identity`): a bare or
+/// renamed name, or `module.name` through a module. `None` when the callee
+/// is any other function, including a local one that happens to be named
+/// `it`.
+fn registration_kind(cx: &BodyCx<'_>, callee: NodeRef<'_>) -> Option<&'static str> {
+    let src = &cx.src;
+    let at = src.span(callee).lo;
+    let scope = cx.scope_at(at);
+    let def = match callee.kind() {
+        SyntaxKind::NameExpr => {
+            let sym = cx.names.syms.intern(src.text(src.first(callee)));
+            if hd_resolve::local_at(cx.locals, sym, at).is_some() {
+                return None;
+            }
+            match scope.lookup(sym) {
+                Some(b) if b.kind == hd_resolve::BindingKind::Item => DefId::from_raw(b.value),
+                Some(_) => return None,
+                // A prelude name of test code, which registration
+                // statements are (`module.prelude.test-only`).
+                None => hd_resolve::test_prelude_item(&cx.names, src.text(src.first(callee)))?,
+            }
+        }
+        SyntaxKind::FieldExpr => {
+            let base = callee.children().next()?;
+            if base.kind() != SyntaxKind::NameExpr {
+                return None;
+            }
+            let sym = cx.names.syms.intern(src.text(src.first(base)));
+            if hd_resolve::local_at(cx.locals, sym, at).is_some() {
+                return None;
+            }
+            let b = scope.lookup(sym)?;
+            if b.kind != hd_resolve::BindingKind::Module {
+                return None;
+            }
+            let module = scope.modules.get(b.value as usize)?;
+            let name = cx.names.syms.intern(src.text(src.last(callee)));
+            cx.lookup
+                .ifaces
+                .iter()
+                .find_map(|f| f.export(module, name))
+                .map(|e| e.def)?
+        }
+        _ => return None,
+    };
+    let known = &cx.names.known;
+    if def == known.it_each {
+        Some("it_each")
+    } else if def == known.it_prop {
+        Some("it_prop")
+    } else if def == known.it_prop_with {
+        Some("it_prop_with")
+    } else if cx
+        .lookup
+        .item(def)
+        .and_then(|i| i.intrinsic)
+        .is_some_and(|k| cx.names.text(k) == "test_case")
+    {
+        Some("it")
+    } else {
+        None
+    }
 }
 
 /// Whether a top-level statement is a test registration call: in a test
@@ -130,8 +194,8 @@ fn registration<'t>(
 /// test case, as in a `tests:` block (`module.testing.test-position`),
 /// and is not a module initialization statement.
 #[must_use]
-pub fn is_registration(src: &Src<'_>, s: NodeRef<'_>) -> bool {
-    registration(src, s).is_some()
+pub fn is_registration(cx: &BodyCx<'_>, s: NodeRef<'_>) -> bool {
+    registration(cx, s).is_some()
 }
 
 /// Checks the statements in test position of `module`
@@ -155,7 +219,7 @@ pub fn check_tests(
     let mut tables: HashSet<String> = HashSet::new();
     let src = &cx.src;
     for s in stmts.iter().copied() {
-        let Some((call, kind, block)) = registration(src, s) else {
+        let Some((call, kind, block)) = registration(cx, s) else {
             diags.error(
                 Code::InvalidTestStatement,
                 src.span(s),

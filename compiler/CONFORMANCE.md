@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2691 | 137 | 17 | 2845 |
+| 2692 | 136 | 17 | 2845 |
 
 ## By Chapter
 
@@ -23,7 +23,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/07-functions.md` | 120 | 10 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 115 | 8 | 0 | 123 |
 | `lang/09-traits.md` | 348 | 11 | 0 | 359 |
-| `lang/10-modules.md` | 234 | 19 | 5 | 258 |
+| `lang/10-modules.md` | 235 | 18 | 5 | 258 |
 | `lang/11-requirements-and-suspension.md` | 244 | 7 | 8 | 259 |
 | `lang/14-annotations.md` | 144 | 9 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 100 | 2 | 3 | 105 |
-| `runtime/valid` | 912 | 4 | 13 | 929 |
+| `runtime/valid` | 913 | 3 | 13 | 929 |
 | `typing/invalid` | 969 | 105 | 1 | 1075 |
 | `typing/valid` | 412 | 3 | 0 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -82,7 +82,6 @@ compiler stage that first declined the case.
 | `fail:cannot-infer-type` | 4 |
 | `fail:duplicate-argument` | 1 |
 | `fail:duplicate-data-pattern-field` | 1 |
-| `fail:invalid-test-statement` | 1 |
 | `fail:invalid-token` | 2 |
 | `fail:missing-required-field` | 2 |
 | `fail:missing-requirement` | 3 |
@@ -162,12 +161,6 @@ compiler stage that first declined the case.
 <details><summary><code>fail:duplicate-data-pattern-field</code> (1)</summary>
 
 - `typing/invalid/duplicate-data-pattern-field.hd`
-
-</details>
-
-<details><summary><code>fail:invalid-test-statement</code> (1)</summary>
-
-- `runtime/valid/test-registration-renamed-import.hd`
 
 </details>
 
@@ -1673,6 +1666,7 @@ runtime/valid/test-module-top-level-cases.hd
 runtime/valid/test-module-uses-test-module.hd
 runtime/valid/test-registration-qualified-call.hd
 runtime/valid/test-registration-qualified-prop.hd
+runtime/valid/test-registration-renamed-import.hd
 runtime/valid/test-timeout-options.hd
 runtime/valid/tests-block-items.hd
 runtime/valid/tests-block-use-shadow.hd

@@ -126,6 +126,7 @@ mod structure_run;
 mod supertrait_calls_run;
 mod suspending_closures_run;
 mod test_plan;
+mod test_registration_spellings;
 mod trailing_blocks;
 mod trials;
 mod try_hint_run;

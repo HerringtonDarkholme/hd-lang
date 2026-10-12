@@ -70,6 +70,16 @@ pub fn is_test_prelude_name(name: &str) -> bool {
     TEST_PRELUDE.iter().any(|(_, list)| list.contains(&name))
 }
 
+/// The declaration that a prelude name of test code names
+/// (`module.prelude.test-only`): the callee of an unbound `it` in test code.
+#[must_use]
+pub fn test_prelude_item(names: &Names<'_>, name: &str) -> Option<DefId> {
+    TEST_PRELUDE
+        .iter()
+        .find(|(_, list)| list.contains(&name))
+        .map(|(module, _)| names.item(module, name))
+}
+
 /// The modules the prelude's names come from: each module's folder gets an
 /// edge to theirs (`module.prelude.fixed-uses`).
 #[must_use]
