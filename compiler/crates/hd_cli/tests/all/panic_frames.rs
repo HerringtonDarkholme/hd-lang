@@ -88,7 +88,7 @@ PANIC src/lib.hd:23: runs out
     src/lib.hd:24 shop/$test2
     repro: hd test src/lib.hd --filter \"runs out\"
 PANIC src/lib.hd:26: drops past the end
-    panic: index-out-of-bounds
+    panic: index-out-of-bounds: list remove_at index 5 out of bounds for length 2
     <std>/collections.hd:49 std/collections/impl [ T ] List [ T ].remove_at
     src/lib.hd:14 shop/drop_far
     src/lib.hd:28 shop/$test3

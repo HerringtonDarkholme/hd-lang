@@ -3123,12 +3123,13 @@ The CLI tier (`spec/conformance/cli-cases.tsv`) runs in
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 118 | 5 | 0 | 123 |
+| 123 | 0 | 0 | 123 |
 
 `HD_UPDATE_CONFORMANCE=1` replaces this list with every CLI case that passes.
 
 <!-- cli-pass-list-start -->
 ```text
+cli/ambiguous-import
 cli/build-instantiation-too-deep
 cli/build-library-only
 cli/build-output
@@ -3140,6 +3141,7 @@ cli/check-summary
 cli/clean-build
 cli/clean-outside-package
 cli/clean-workspace
+cli/command-help
 cli/dbg-release
 cli/dbg-uses
 cli/dbg-value-forms
@@ -3187,7 +3189,9 @@ cli/dev-dependency-tests-block
 cli/doc-broken-link
 cli/doc-check-error
 cli/doc-index-module
+cli/doc-main-page
 cli/doc-name
+cli/doc-out
 cli/doc-outside-package
 cli/doc-private
 cli/entry-err-chain
@@ -3236,6 +3240,7 @@ cli/task-name-clash
 cli/test-err-report
 cli/test-every-case
 cli/test-integration-env
+cli/test-outcomes
 cli/test-report
 cli/test-snapshot-file
 cli/test-tasks

@@ -117,6 +117,8 @@ pub struct UseDecl {
     pub span: Span,
     /// Why the path's root names no module path; `path` is then as written.
     pub root_error: Option<UseRootError>,
+    /// The path's first segment as written, before `path` resolved it.
+    pub written_root: String,
 }
 
 impl UseDecl {
@@ -218,6 +220,7 @@ fn use_decl(src: &Src<'_>, item: NodeRef<'_>, roots: &UseRoots, tests: bool) -> 
         (None, None, [root, name]) if root == "dep" => Some(name.clone()),
         _ => alias,
     };
+    let written_root = path.first().cloned().unwrap_or_default();
     let (path, root_error) = match absolute {
         Ok(abs) => (abs, None),
         Err(e) => (path, Some(e)),
@@ -229,6 +232,7 @@ fn use_decl(src: &Src<'_>, item: NodeRef<'_>, roots: &UseRoots, tests: bool) -> 
         alias,
         span: src.span(item),
         root_error,
+        written_root,
     }
 }
 
@@ -1046,7 +1050,10 @@ fn bind_uses(
                     .and_then(Result::ok);
                 if r.module_exists(&module) {
                     if as_decl.is_some() {
-                        let msg = format!("`{module}` is ambiguous");
+                        let msg = format!(
+                            "'{last}' names both the module '{last}' and a declaration of module '{}'; rename one",
+                            u.written_root
+                        );
                         diags.error(Code::AmbiguousImport, u.span, &msg);
                         bind_poison(scope, local, use_origin(u), row);
                         continue;
