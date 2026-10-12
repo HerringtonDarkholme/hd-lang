@@ -2172,7 +2172,7 @@ impl Ck<'_, '_> {
                         None,
                         args,
                         n,
-                        bang,
+                        (bang, want),
                     );
                 }
                 _ => {
@@ -2205,7 +2205,7 @@ impl Ck<'_, '_> {
                     None,
                     args,
                     n,
-                    bang,
+                    (bang, want),
                 );
             }
         }
@@ -2256,7 +2256,7 @@ impl Ck<'_, '_> {
             None,
             args,
             n,
-            bang,
+            (bang, None),
         )
     }
 
@@ -2884,7 +2884,7 @@ impl Ck<'_, '_> {
                     Some((recv, choice)),
                     args,
                     n,
-                    bang,
+                    (bang, want),
                 )
             }
             None => {
@@ -2931,7 +2931,7 @@ impl Ck<'_, '_> {
         recv: Option<(Ref, (ChoiceKind, u32))>,
         args: &Args<'_>,
         n: NodeRef<'_>,
-        bang: bool,
+        (bang, want): (bool, Option<Ty>),
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let TraitTarget {
@@ -2993,6 +2993,7 @@ impl Ck<'_, '_> {
             )
             .to_owned();
         refs.extend(self.check_args(&formals, skip, args, n, &method_name)?);
+        self.fill_method_defaults(&sig, &vars, &inst, want)?;
         self.bounds_of(&sig, &vars, &inst, n)?;
         // At an opt-in, or in a tuple template's plan, a `walk`,
         // `describe` or `build` call's walker, describer or source type

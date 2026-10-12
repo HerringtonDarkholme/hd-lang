@@ -131,6 +131,7 @@ mod try_hint_run;
 mod tuple_rest_run;
 mod tuple_structure;
 mod tuple_template_bounds;
+mod type_default_written_run;
 mod type_name_forms_run;
 mod typed_facts;
 mod typeid_of;

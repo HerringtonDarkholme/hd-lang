@@ -182,13 +182,11 @@ impl Ck<'_, '_> {
             return unsupported(format!("the type {}", self.cx.names.path(def)));
         };
         let n = item.generics.len();
-        let mut args = args.to_vec();
+        // An omitted trailing argument takes its default with the earlier
+        // arguments substituted (`types.generic.default.written`).
+        let mut args = hd_resolve::fill_type_args(self.cx.names.pool, def, &item.generics, args);
         while args.len() < n {
-            let d = item.generics.get(args.len()).and_then(|g| g.default);
-            args.push(match d {
-                Some(t) => t,
-                None => self.infer.fresh(pool, VarKind::General),
-            });
+            args.push(self.infer.fresh(pool, VarKind::General));
         }
         Ok(match &item.data {
             ItemData::Alias(body) => pool.subst(*body, &|p: ParamRef| {

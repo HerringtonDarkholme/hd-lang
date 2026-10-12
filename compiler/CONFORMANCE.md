@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2683 | 141 | 21 | 2845 |
+| 2685 | 140 | 20 | 2845 |
 
 ## By Chapter
 
@@ -17,12 +17,12 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 139 | 6 | 0 | 145 |
 | `lang/02-grammar.md` | 205 | 10 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 100 | 1 | 0 | 101 |
-| `lang/04-type-system.md` | 329 | 23 | 0 | 352 |
+| `lang/04-type-system.md` | 330 | 22 | 0 | 352 |
 | `lang/05-expressions.md` | 263 | 14 | 0 | 277 |
 | `lang/06-control-flow.md` | 141 | 12 | 4 | 157 |
 | `lang/07-functions.md` | 120 | 10 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 114 | 8 | 1 | 123 |
-| `lang/09-traits.md` | 346 | 11 | 2 | 359 |
+| `lang/09-traits.md` | 347 | 11 | 1 | 359 |
 | `lang/10-modules.md` | 233 | 20 | 5 | 258 |
 | `lang/11-requirements-and-suspension.md` | 244 | 7 | 8 | 259 |
 | `lang/14-annotations.md` | 144 | 9 | 0 | 153 |
@@ -65,7 +65,7 @@ fixture; unsupported surface records progress without failing.
 | `runtime/panic` | 100 | 2 | 3 | 105 |
 | `runtime/valid` | 907 | 6 | 16 | 929 |
 | `typing/invalid` | 968 | 106 | 1 | 1075 |
-| `typing/valid` | 410 | 4 | 1 | 415 |
+| `typing/valid` | 412 | 3 | 0 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
 ## Failure Buckets
@@ -100,7 +100,7 @@ compiler stage that first declined the case.
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-used-as-type` | 1 |
 | `fail:type-mismatch` | 17 |
-| `fail:unknown-data-field` | 3 |
+| `fail:unknown-data-field` | 2 |
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 5 |
 | `fail:unknown-module` | 1 |
@@ -110,7 +110,7 @@ compiler stage that first declined the case.
 | `fail:unknown-variant` | 1 |
 | `fail:unsatisfied-trait-bound` | 1 |
 | `fail:unused-local-binding` | 2 |
-| `unsupported:Body` | 4 |
+| `unsupported:Body` | 3 |
 | `unsupported:Collect` | 3 |
 | `unsupported:Link` | 3 |
 | `unsupported:RunCase` | 11 |
@@ -353,10 +353,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-data-field</code> (3)</summary>
+<details><summary><code>fail:unknown-data-field</code> (2)</summary>
 
 - `typing/invalid/tuple-index-out-of-range.hd`
-- `typing/valid/type-default-declarations.hd`
 - `typing/invalid/default-body-self-field.hd`
 
 </details>
@@ -431,11 +430,10 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (4)</summary>
+<details><summary><code>unsupported:Body</code> (3)</summary>
 
 - `typing/invalid/for-over-non-iterable.hd`
 - `runtime/valid/tuple-impl-target.hd`
-- `typing/valid/type-default-trait-method.hd`
 - `runtime/valid/iterator-list-sum.hd`
 
 </details>
@@ -3118,7 +3116,9 @@ typing/valid/tuple-template.hd
 typing/valid/tuple-trait-bound.hd
 typing/valid/tuple-trait-rest.hd
 typing/valid/type-default-calls.hd
+typing/valid/type-default-declarations.hd
 typing/valid/type-default-function-value.hd
+typing/valid/type-default-trait-method.hd
 typing/valid/type-level-fact-without-template.hd
 typing/valid/type-parameter-shadows-module-name.hd
 typing/valid/typed-derivation-build.hd

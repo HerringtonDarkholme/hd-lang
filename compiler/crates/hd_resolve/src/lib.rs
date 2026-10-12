@@ -27,7 +27,7 @@ pub use iface::{
     Export, Field, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item, ItemData, Lookup,
     LookupDecls, Names, TraitData, Variant, declares_assoc_function, decode_items,
     decode_private_names, deep_hash, encode_items, encode_private_names, fill_trait_args,
-    folder_iface, impl_table, interface_items, mentioned_defs, show_ty, show_ty_in,
+    fill_type_args, folder_iface, impl_table, interface_items, mentioned_defs, show_ty, show_ty_in,
     show_ty_rows_in,
 };
 pub use known::KnownItems;

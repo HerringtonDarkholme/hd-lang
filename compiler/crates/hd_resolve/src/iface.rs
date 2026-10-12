@@ -243,6 +243,33 @@ pub fn fill_trait_args(
     pool.list(&v)
 }
 
+/// A written type constructor's arguments with the omitted trailing
+/// parameters filled from their defaults, in declaration order, each with
+/// the earlier arguments substituted (`types.generic.default.written`,
+/// `types.generic.default.bare`). `generics` are the declaration's
+/// parameters, position for position with its arguments.
+///
+/// The result is shorter than `generics` where a slot has no default, or a
+/// poisoned one (an error reported elsewhere): the caller keeps its own
+/// handling of a missing argument.
+#[must_use]
+pub fn fill_type_args(pool: &InternPool, def: DefId, generics: &[Generic], args: &[Ty]) -> Vec<Ty> {
+    let mut v = args.to_vec();
+    for g in generics.iter().skip(args.len()) {
+        let Some(d) = g.default else { break };
+        if pool.has_poison(d) {
+            break;
+        }
+        let t = pool.subst(d, &|p: ParamRef| {
+            (p.owner == def)
+                .then(|| v.get(usize::from(p.index)).copied())
+                .flatten()
+        });
+        v.push(t);
+    }
+    v
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FnSig {
     pub generics: Vec<Generic>,

@@ -24,7 +24,7 @@ use hd_types::{
 
 use crate::iface::{
     Export, Field, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item, ItemData, Names,
-    TraitData, Variant, fill_trait_args, show_ty,
+    TraitData, Variant, fill_trait_args, fill_type_args, show_ty,
 };
 use crate::known::KnownItems;
 use crate::variance::{self, Seen};
@@ -619,6 +619,12 @@ struct Resolver<'a, 'b> {
     /// defaults whatever the declaration order, and a private trait (which
     /// a frozen interface leaves out) is filled as while it was built.
     own_traits: HashMap<DefId, Vec<Generic>>,
+    /// The declared parameters of the folder's own aliases and of its data
+    /// types, enums and newtypes that declare a default, so a written type
+    /// fills its omitted trailing arguments from them (`fill_type_args`).
+    /// They are recorded by [`lower_aliases`], each after the aliases and
+    /// data types its declaration names.
+    own_types: RefCell<HashMap<DefId, Vec<Generic>>>,
     /// The supertraits of the traits of the modules being lowered, as
     /// trait-value types over each trait's `Self`, lowered before any
     /// other header, so a projection or a binding finds the trait that
@@ -708,6 +714,32 @@ impl Resolver<'_, '_> {
         match self.item(tr) {
             Some(item) => fill_trait_args(pool, tr, &item.generics, args, self_ty),
             None => args,
+        }
+    }
+
+    /// A written type constructor's arguments with the omitted trailing
+    /// ones filled from the declaration's defaults
+    /// (`types.generic.default.written`): `Outcome[string]` is
+    /// `Result[string, AppError]` for `type Outcome[T, E = AppError]`.
+    fn fill_type_args(&self, def: DefId, args: &[Ty]) -> Vec<Ty> {
+        let pool = self.cx.names.pool;
+        if let Some(g) = self.own_types.borrow().get(&def) {
+            return fill_type_args(pool, def, g, args);
+        }
+        if let Some(i) = self.seeds.get(&def) {
+            return fill_type_args(pool, def, &i.generics, args);
+        }
+        let module = self.cx.names.module_of(def);
+        let iface = self.cx.world.module_folder(&module).and_then(|f| {
+            if f == self.cx.folder {
+                self.frozen.clone()
+            } else {
+                self.cx.world.iface(f)
+            }
+        });
+        match iface.as_ref().and_then(|i| i.item(def)) {
+            Some(item) => fill_type_args(pool, def, &item.generics, args),
+            None => args.to_vec(),
         }
     }
 
@@ -1505,6 +1537,18 @@ impl Lower<'_, '_, '_> {
                 });
             }
         }
+        // A written type omits its defaulted trailing arguments
+        // (`types.generic.default.written`, `types.generic.default.bare`).
+        let filled;
+        let args = if matches!(
+            kind,
+            HeadKind::Alias | HeadKind::Data | HeadKind::Enum | HeadKind::Newtype
+        ) {
+            filled = self.r.fill_type_args(def, args);
+            filled.as_slice()
+        } else {
+            args
+        };
         match kind {
             HeadKind::Alias => {
                 let t = self.expand_alias(def, args, span);
@@ -3466,14 +3510,23 @@ impl Lower<'_, '_, '_> {
         };
         let rows = generics.iter().map(|g| g.row).collect();
         self.r.aliases.borrow_mut().insert(h.def, (rows, t));
+        self.r
+            .own_types
+            .borrow_mut()
+            .insert(h.def, generics.clone());
         let mut it = Item::new(h.def, h.name, h.public, ItemData::Alias(t));
         it.generics = generics;
         out.push(it);
     }
 
-    /// The folder aliases (by index in `index`) that the declaration `n`
-    /// names, other than through its own generic parameters.
-    fn named_aliases(&mut self, n: NodeRef<'_>, index: &HashMap<DefId, usize>) -> Vec<usize> {
+    /// The folder declarations (by index in `index`) that the part `scan`
+    /// of the declaration `n` names, other than through its own generic
+    /// parameters.
+    fn named_in_order(
+        &mut self,
+        (n, scan): (NodeRef<'_>, NodeRef<'_>),
+        index: &HashMap<DefId, usize>,
+    ) -> Vec<usize> {
         let params: Vec<&str> = Src::child(n, SyntaxKind::GenericParameterList)
             .iter()
             .flat_map(|gl| gl.children())
@@ -3482,7 +3535,7 @@ impl Lower<'_, '_, '_> {
             .map(|t| self.src.text(t))
             .collect();
         let mut out = Vec::new();
-        for c in n
+        for c in scan
             .descendants()
             .filter(|c| c.kind() == SyntaxKind::NamedType)
         {
@@ -3493,7 +3546,7 @@ impl Lower<'_, '_, '_> {
             if (segs.len() == 1 && params.contains(&first.as_str())) || self.is_poisoned(first) {
                 continue;
             }
-            if let Some((d, HeadKind::Alias)) = self.resolve_path(&segs, self.src.span(c))
+            if let Some((d, _)) = self.resolve_path(&segs, self.src.span(c))
                 && let Some(&i) = index.get(&d)
             {
                 out.push(i);
@@ -3502,6 +3555,21 @@ impl Lower<'_, '_, '_> {
         out.sort_unstable();
         out.dedup();
         out
+    }
+
+    /// The declared parameters of a data type, enum or newtype that
+    /// declares a type-argument default, recorded for the written types
+    /// that omit it (`types.generic.default.written`). The item's own
+    /// lowering reports their diagnostics, so these are dropped.
+    fn record_defaults(&mut self, h: &Head<'_>) {
+        self.at = self.src.span(h.node).lo;
+        self.outer = h
+            .local
+            .map(|l| enclosing_generics(&self.src, l.top, self.at))
+            .unwrap_or_default();
+        let gl = Src::child(h.node, SyntaxKind::GenericParameterList);
+        let generics = self.generics(gl, h.def, 0, &mut Gen::default());
+        self.r.own_types.borrow_mut().insert(h.def, generics);
     }
 
     /// `$.Context[$ Row]` (`req.context.row`): a context type indexed by
@@ -3537,13 +3605,29 @@ impl Lower<'_, '_, '_> {
     }
 }
 
+/// Whether `h` is a data type, enum or newtype that declares a
+/// type-argument default.
+fn declares_default(h: &Head<'_>) -> bool {
+    matches!(h.kind, HeadKind::Data | HeadKind::Enum | HeadKind::Newtype)
+        && Src::child(h.node, SyntaxKind::GenericParameterList).is_some_and(|gl| {
+            gl.children().any(|g| {
+                g.kind() == SyntaxKind::GenericParameter
+                    && Src::child(g, SyntaxKind::TypeDefault).is_some()
+            })
+        })
+}
+
 /// Lowers every alias of the folder before any other header, each after
 /// the aliases its declaration names, whatever the declaration order
 /// (resolution-and-interfaces.md, "Row aliases and context types in
-/// interfaces"). An alias that expands to itself is `alias-cycle`,
-/// reported once per cycle, on its declaration that comes first in the
-/// source (`types.alias.cycle.reported`). Returns each module's alias
-/// items and the first unsupported form met.
+/// interfaces"). A data type that declares a type-argument default takes
+/// part in that order, for its generic parameters alone: a written type
+/// fills its omitted arguments from them (`types.generic.default.written`),
+/// so an alias that names it comes after the aliases its defaults name.
+/// An alias that expands to itself is `alias-cycle`, reported once per
+/// cycle, on its declaration that comes first in the source
+/// (`types.alias.cycle.reported`). Returns each module's alias items and
+/// the first unsupported form met.
 fn lower_aliases(
     r: &Resolver<'_, '_>,
     mods: &[ModIn<'_>],
@@ -3555,7 +3639,7 @@ fn lower_aliases(
     for (mi, hs) in all_heads.iter().enumerate() {
         sites.extend(
             hs.iter()
-                .filter(|h| h.kind == HeadKind::Alias)
+                .filter(|h| h.kind == HeadKind::Alias || declares_default(h))
                 .map(|h| (mi, h)),
         );
     }
@@ -3587,14 +3671,20 @@ fn lower_aliases(
                 at: mods[mi].src.span(h.node).lo,
                 outer: Vec::new(),
             };
-            low.named_aliases(h.node, &index)
+            let scan = match h.kind {
+                HeadKind::Alias => Some(h.node),
+                _ => Src::child(h.node, SyntaxKind::GenericParameterList),
+            };
+            scan.map_or_else(Vec::new, |scan| low.named_in_order((h.node, scan), &index))
         })
         .collect();
+    let is_alias = |i: usize| sites[i].1.kind == HeadKind::Alias;
     let mut out: Vec<Vec<Item>> = (0..mods.len()).map(|_| Vec::new()).collect();
     let mut unsupported = None;
     for comp in components(&edges) {
-        let cyclic = comp.len() > 1 || edges[comp[0]].contains(&comp[0]);
-        let first = comp.iter().copied().min().unwrap_or(0);
+        let cyclic = comp.iter().any(|&i| is_alias(i))
+            && (comp.len() > 1 || edges[comp[0]].contains(&comp[0]));
+        let first = comp.iter().copied().filter(|&i| is_alias(i)).min();
         for &i in &comp {
             let (mi, h) = sites[i];
             let ModScopes {
@@ -3608,7 +3698,7 @@ fn lower_aliases(
                 _ => (&*scope, &mut *diags),
             };
             let src = mods[mi].src;
-            if cyclic && i == first {
+            if cyclic && Some(i) == first {
                 let names = r.cx.names;
                 let others: Vec<String> = comp
                     .iter()
@@ -3626,6 +3716,8 @@ fn lower_aliases(
                 };
                 diags.error(Code::AliasCycle, src.span(h.node), &msg);
             }
+            let mut dropped = DiagBuf::default();
+            let alias = h.kind == HeadKind::Alias;
             let mut low = Lower {
                 r,
                 names: r.cx.names,
@@ -3633,15 +3725,19 @@ fn lower_aliases(
                 module: &mods[mi].path,
                 scope,
                 kinds: &*kinds,
-                diags,
+                diags: if alias { diags } else { &mut dropped },
                 unsupported: None,
                 locals: &locals[mi],
                 at: 0,
                 outer: Vec::new(),
             };
-            low.alias_item(h, cyclic, &mut out[mi]);
-            if unsupported.is_none() {
-                unsupported = low.unsupported.take();
+            if alias {
+                low.alias_item(h, cyclic, &mut out[mi]);
+                if unsupported.is_none() {
+                    unsupported = low.unsupported.take();
+                }
+            } else {
+                low.record_defaults(h);
             }
         }
     }
@@ -4280,6 +4376,7 @@ pub fn build_folder(
         aliases: RefCell::new(HashMap::new()),
         seeds: HashMap::new(),
         own_traits: HashMap::new(),
+        own_types: RefCell::new(HashMap::new()),
         own_supers: HashMap::new(),
     };
     for (m, hs) in mods.iter().zip(&all_heads) {

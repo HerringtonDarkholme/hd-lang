@@ -326,7 +326,7 @@ impl Ck<'_, '_> {
             recv.map(|r| (r, (ChoiceKind::Impl, impl_def.raw()))),
             args,
             n,
-            bang,
+            (bang, want),
         )?;
         if let Some(w) = want.filter(|w| *w != Ty::VOID) {
             self.coerce(r, t, w, n, "result");
