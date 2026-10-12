@@ -3095,7 +3095,7 @@ impl Ck<'_, '_> {
                         // The receiver is the only place a trait value can
                         // supply `Self` (trait.dyn.member.self).
                         for e in &args.positional {
-                            self.expr(*e, None)?;
+                            self.expr(*e, Some(Ty::POISON))?;
                         }
                         let msg = format!(
                             "`{name}` names `Self` outside its receiver, which is unavailable on a trait value"
@@ -3107,7 +3107,7 @@ impl Ck<'_, '_> {
                     // An associated function has no receiver for a trait
                     // value to dispatch on (trait.dyn.member.assoc-function).
                     for e in &args.positional {
-                        self.expr(*e, None)?;
+                        self.expr(*e, Some(Ty::POISON))?;
                     }
                     let msg = format!(
                         "`{name}` is an associated function, which is unavailable on a trait value"

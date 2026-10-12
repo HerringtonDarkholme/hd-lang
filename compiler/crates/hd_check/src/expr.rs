@@ -2595,6 +2595,7 @@ impl Ck<'_, '_> {
             });
         // Expected inputs of an arity not known here give no parameter
         // its type (`fn.type.ctor.inputs`).
+        let poisoned = want.is_some_and(|w| self.infer.resolve(pool, w) == Ty::POISON);
         let (wparams, wret) = match wanted {
             Some(TyData::Fn {
                 params,
@@ -2615,10 +2616,10 @@ impl Ck<'_, '_> {
         // its final value and `return` operands, and starts over when an
         // optional one widens the result (`join_site`).
         if parts.ret.is_some() {
-            return self.closure_body(n, parts, &wparams, None);
+            return self.closure_body(n, parts, (&wparams, poisoned), None);
         }
         self.join_site(wret, |this, ret| {
-            this.closure_body(n, parts, &wparams, Some(ret))
+            this.closure_body(n, parts, (&wparams, poisoned), Some(ret))
         })
     }
 
@@ -2628,7 +2629,7 @@ impl Ck<'_, '_> {
         &mut self,
         n: NodeRef<'_>,
         parts: &ClosureParts<'_>,
-        wparams: &[Ty],
+        (wparams, poisoned): (&[Ty], bool),
         ret: Option<Ty>,
     ) -> StageResult<(Ref, Ty, Option<hd_base::LocalId>)> {
         let pool = self.pool();
@@ -2649,10 +2650,23 @@ impl Ck<'_, '_> {
                     .map_or_else(|| format!("${i}"), |t| self.cx.src.text(t).to_owned());
                 let t = match Src::type_child(p) {
                     Some(tn) => self.ty_node(tn)?,
-                    None => wparams
-                        .get(i)
-                        .copied()
-                        .unwrap_or_else(|| self.infer.fresh(pool, VarKind::General)),
+                    None => {
+                        if let Some(t) = wparams.get(i).copied() {
+                            t
+                        } else {
+                            // `fn.closure.needs-annotation`: the poisoned
+                            // type keeps the body from reporting more. A
+                            // poisoned expectation already has its error.
+                            if !poisoned {
+                                self.err(
+                                    Code::ClosureParameterNeedsAnnotation,
+                                    p,
+                                    "a closure parameter needs a type annotation here",
+                                );
+                            }
+                            Ty::POISON
+                        }
+                    }
                 };
                 let sym = self.cx.names.syms.intern(&name);
                 self.check_prelude_shadow(sym, p);

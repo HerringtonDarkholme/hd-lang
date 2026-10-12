@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2702 | 127 | 16 | 2845 |
+| 2703 | 126 | 16 | 2845 |
 
 ## By Chapter
 
@@ -20,7 +20,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/04-type-system.md` | 331 | 21 | 0 | 352 |
 | `lang/05-expressions.md` | 264 | 13 | 0 | 277 |
 | `lang/06-control-flow.md` | 142 | 11 | 4 | 157 |
-| `lang/07-functions.md` | 121 | 9 | 0 | 130 |
+| `lang/07-functions.md` | 122 | 8 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 116 | 7 | 0 | 123 |
 | `lang/09-traits.md` | 348 | 11 | 0 | 359 |
 | `lang/10-modules.md` | 239 | 15 | 4 | 258 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 100 | 2 | 3 | 105 |
 | `runtime/valid` | 916 | 1 | 12 | 929 |
-| `typing/invalid` | 974 | 100 | 1 | 1075 |
+| `typing/invalid` | 975 | 99 | 1 | 1075 |
 | `typing/valid` | 414 | 1 | 0 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -104,7 +104,7 @@ compiler stage that first declined the case.
 | `fail:unknown-trait` | 4 |
 | `fail:unknown-type` | 2 |
 | `fail:unknown-variant` | 1 |
-| `fail:unused-local-binding` | 2 |
+| `fail:unused-local-binding` | 1 |
 | `unsupported:Body` | 1 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 11 |
@@ -379,9 +379,8 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unused-local-binding</code> (2)</summary>
+<details><summary><code>fail:unused-local-binding</code> (1)</summary>
 
-- `typing/invalid/closure-parameter-without-type.hd`
 - `typing/invalid/range-float-bound.hd`
 
 </details>
@@ -1825,6 +1824,7 @@ typing/invalid/closure-escapes-provider-scope.hd
 typing/invalid/closure-identity.hd
 typing/invalid/closure-inferred-row-missing-requirement.hd
 typing/invalid/closure-not-inspectable.hd
+typing/invalid/closure-parameter-without-type.hd
 typing/invalid/closure-returns-without-common-type.hd
 typing/invalid/closure-row-key-collision.hd
 typing/invalid/closure-row-unknown-trait.hd
