@@ -3,7 +3,7 @@
 # Rules exercised include std-fs.entry.size, std-fs.memory.decl,
 # std-fs.memory.no-host, std-fs.memory.error.is-directory,
 # std-fs.memory.error.not-directory, and std-fs.memory.error.not-empty.
-use std.fs.{Entry, EntryKind, FsError, MemoryFs}
+use std.fs.{Entry, EntryKind, FsError, FsRead, FsWrite, MemoryFs}
 use std.path.Path
 fn listed!(files: MemoryFs, path: string) -> List[Entry]:
     match files.list_dir!(Path(path)):

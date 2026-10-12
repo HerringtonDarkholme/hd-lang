@@ -8,7 +8,7 @@ use std.random.SeededRandom
 use std.resource.ResourceError
 use std.testing.RunOutput
 use std.text.{EscapeError, StringBuilder, Utf8Error}
-use std.time.{Duration, Instant, ManualClock, Timestamp, s}
+use std.time.{Clock, Duration, Instant, ManualClock, Timestamp, s}
 
 fn shown[T < Debug](value: T) -> string:
     debug(value)
