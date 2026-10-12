@@ -156,7 +156,14 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                     ],
                 },
             );
-            item("PollContext", vec![], ItemData::Data(vec![]));
+            // Only the host runtime and `std.task` construct one
+            // (req.poll-context.construction): the private field makes a
+            // data literal elsewhere the ordinary private-member error alone
+            // (the default keeps `missing-required-field` out).
+            let mut private = field(names, "waker", Ty::VOID);
+            private.public = false;
+            private.has_default = true;
+            item("PollContext", vec![], ItemData::Data(vec![private]));
             item("Waker", vec![], ItemData::Data(vec![]));
             let block_on = names.item(module, "block_on");
             let t = param(names, block_on, 0);
