@@ -1310,6 +1310,23 @@ fn generic_arguments_and_parameters_have_a_kind() {
     }
 }
 
+/// A parameter used in the other kind's position is one
+/// `generic-kind-mismatch` (`req.row.param.unmarked`, `.as-type`,
+/// `.no-data.error`, `.no-newtype`).
+#[test]
+fn generic_parameter_used_in_the_other_kind_is_a_kind_mismatch() {
+    assert_eq!(item_codes("fn f[$R]() -> void $ R: pass"), [], "marked");
+    for bad in [
+        "data Job[R]:\n    run: fn() -> void $ R",
+        "trait Runner[R]:\n    fn run(self, job: fn() -> void $ R) -> void",
+        "type Task[R](fn() -> void $ R)",
+        "fn run[R](job: fn() -> void $ R) -> void: job()",
+        "fn keep[$R](value: R) -> void: pass",
+    ] {
+        assert_eq!(item_codes(bad), [Code::GenericKindMismatch], "{bad}");
+    }
+}
+
 /// A written type has no more arguments than its declaration has type
 /// parameters (`types.generic.too-long`).
 #[test]

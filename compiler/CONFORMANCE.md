@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2752 | 77 | 16 | 2845 |
+| 2757 | 72 | 16 | 2845 |
 
 ## By Chapter
 
@@ -24,7 +24,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/08-data-and-enums.md` | 118 | 5 | 0 | 123 |
 | `lang/09-traits.md` | 349 | 10 | 0 | 359 |
 | `lang/10-modules.md` | 244 | 10 | 4 | 258 |
-| `lang/11-requirements-and-suspension.md` | 245 | 6 | 8 | 259 |
+| `lang/11-requirements-and-suspension.md` | 250 | 1 | 8 | 259 |
 | `lang/14-annotations.md` | 146 | 7 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 916 | 1 | 12 | 929 |
-| `typing/invalid` | 1007 | 67 | 1 | 1075 |
+| `typing/invalid` | 1012 | 62 | 1 | 1075 |
 | `typing/valid` | 414 | 1 | 0 | 415 |
 | `typing/warnings` | 12 | 8 | 0 | 20 |
 
@@ -94,8 +94,6 @@ compiler stage that first declined the case.
 | `fail:unknown-method` | 5 |
 | `fail:unknown-module` | 1 |
 | `fail:unknown-name` | 6 |
-| `fail:unknown-trait` | 4 |
-| `fail:unknown-type` | 1 |
 | `unsupported:Body` | 1 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 11 |
@@ -264,21 +262,6 @@ compiler stage that first declined the case.
 - `typing/invalid/variant-pattern-unknown-field.hd`
 - `typing/invalid/misplaced-test-case.hd`
 - `typing/invalid/test-case-as-value.hd`
-
-</details>
-
-<details><summary><code>fail:unknown-trait</code> (4)</summary>
-
-- `typing/invalid/row-parameter-on-data.hd`
-- `typing/invalid/row-parameter-on-trait.hd`
-- `typing/invalid/row-parameter-on-newtype.hd`
-- `typing/invalid/row-parameter-unmarked.hd`
-
-</details>
-
-<details><summary><code>fail:unknown-type</code> (1)</summary>
-
-- `typing/invalid/row-parameter-as-type.hd`
 
 </details>
 
@@ -2423,9 +2406,14 @@ typing/invalid/row-extension-without-provider.hd
 typing/invalid/row-inference-conflict.hd
 typing/invalid/row-inference-unavailable-provider.hd
 typing/invalid/row-kind-mismatch.hd
+typing/invalid/row-parameter-as-type.hd
 typing/invalid/row-parameter-in-context.hd
 typing/invalid/row-parameter-marked-on-data.hd
+typing/invalid/row-parameter-on-data.hd
+typing/invalid/row-parameter-on-newtype.hd
+typing/invalid/row-parameter-on-trait.hd
 typing/invalid/row-parameter-propagates-callback-requirement.hd
+typing/invalid/row-parameter-unmarked.hd
 typing/invalid/row-slot-bare-alias-argument.hd
 typing/invalid/row-slot-bare-context.hd
 typing/invalid/row-slot-bare-function-type.hd

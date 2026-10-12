@@ -1178,6 +1178,10 @@ struct Gen {
     /// its (default-filled) arguments.
     tys: Vec<(Symbol, Ty, Vec<BoundRef>)>,
     rows: Vec<(Symbol, RowParamRef)>,
+    /// Where each type parameter's name is declared.
+    decls: Vec<(Symbol, Span)>,
+    /// The header declares no row parameter (`req.row.param.no-data`).
+    type_kinded: bool,
     self_ty: Option<Ty>,
     self_trait: Option<DefId>,
     /// Type parameters written with a bound list (types.generic.no-mut-t).
@@ -1196,6 +1200,9 @@ struct Lower<'a, 'r, 'x> {
     kinds: &'a Kinds,
     diags: &'a mut DiagBuf,
     unsupported: Option<String>,
+    /// Type parameters already reported as used in a row: one error per
+    /// parameter, at its first use.
+    kind_reported: HashSet<u32>,
     /// The module's block-local declarations.
     locals: &'a [LocalItem],
     /// The byte where the header being lowered is declared: the local
@@ -1462,6 +1469,9 @@ impl Lower<'_, '_, '_> {
                 data.params.push(*p);
                 continue;
             }
+            if segs.len() == 1 && self.type_param_in_row(c, &segs[0].0, gn) {
+                continue;
+            }
             if segs.first().is_some_and(|s| self.is_poisoned(&s.0)) {
                 continue;
             }
@@ -1476,6 +1486,46 @@ impl Lower<'_, '_, '_> {
             }
         }
         self.names.pool.row(&data)
+    }
+
+    /// `req.row.param.unmarked`, `req.row.param.no-data.error`: a
+    /// type-kinded parameter written in a row. A function's or
+    /// implementation's parameter gets a fix-it adding `$`. Reports
+    /// whether `name` is such a parameter.
+    fn type_param_in_row(&mut self, c: NodeRef<'_>, name: &str, gn: &Gen) -> bool {
+        let Some(decl) = gn
+            .decls
+            .iter()
+            .rev()
+            .find(|(s, _)| self.names.text(*s) == name)
+            .map(|(_, sp)| *sp)
+        else {
+            return false;
+        };
+        if !self.kind_reported.insert(decl.lo) {
+            return true;
+        }
+        let span = self.src.span(c);
+        if gn.type_kinded {
+            let msg = format!(
+                "`{name}` is a type parameter, and a data type, enum, trait or newtype declares no row parameter"
+            );
+            self.diags.error(Code::GenericKindMismatch, span, &msg);
+        } else {
+            let msg =
+                format!("`{name}` is a type parameter used in a row: declare it as `${name}`");
+            self.diags.error(Code::GenericKindMismatch, span, &msg);
+            let at = Span {
+                hi: decl.lo,
+                ..decl
+            };
+            self.diags.add_fix(
+                &format!("declare `{name}` as a row parameter"),
+                hd_diag::FixSafety::Exact,
+                &[(at, "$")],
+            );
+        }
+        true
     }
 
     /// An alias written in a row (`req.row.alias.expand`): a row alias
@@ -1696,6 +1746,13 @@ impl Lower<'_, '_, '_> {
                 .find(|(s, _, _)| self.names.text(*s) == first)
             {
                 return *t;
+            }
+            if gn.rows.iter().any(|(s, _)| self.names.text(*s) == first) {
+                let msg = format!(
+                    "`{first}` is a row parameter, not a type: write it in a row after `$`, as in `$ {first}`"
+                );
+                self.diags.error(Code::GenericKindMismatch, span, &msg);
+                return Ty::POISON;
             }
             if first == "never" {
                 return Ty::NEVER;
@@ -1960,7 +2017,8 @@ impl Lower<'_, '_, '_> {
     /// `req.row.param.no-data.marked`: the generic parameters of a data
     /// type, an enum, a trait or a newtype are type-kinded, so none is
     /// marked `$`.
-    fn type_kinded(&mut self, gl: Option<NodeRef<'_>>) {
+    fn type_kinded(&mut self, gl: Option<NodeRef<'_>>, gn: &mut Gen) {
+        gn.type_kinded = true;
         if self.r.frozen.is_some() {
             return;
         }
@@ -1999,6 +2057,7 @@ impl Lower<'_, '_, '_> {
                 continue;
             };
             let name = self.sym(self.src.text(t));
+            let name_span = self.src.token_span(t);
             if self.r.frozen.is_none() {
                 self.prelude_shadow(*g, self.src.text(t));
             }
@@ -2028,6 +2087,7 @@ impl Lower<'_, '_, '_> {
                     .pool
                     .intern_ty(&TyData::Param(ParamRef { owner, index }));
                 gn.tys.push((name, t, Vec::new()));
+                gn.decls.push((name, name_span));
                 gn.pending.push(t);
             }
             let mut generic = Generic::plain(name);
@@ -3352,7 +3412,7 @@ impl Lower<'_, '_, '_> {
             ..Gen::default()
         };
         let gl = Src::child(h.node, SyntaxKind::GenericParameterList);
-        self.type_kinded(gl);
+        self.type_kinded(gl, &mut gn);
         let generics = self.generics(gl, h.def, 1, &mut gn);
         (self_ty, gn, generics)
     }
@@ -3419,7 +3479,7 @@ impl Lower<'_, '_, '_> {
             }
             HeadKind::Data => {
                 let mut gn = Gen::default();
-                self.type_kinded(gl);
+                self.type_kinded(gl, &mut gn);
                 let generics = self.generics(gl, h.def, 0, &mut gn);
                 let fields = self.fields(block, &gn);
                 if self.r.frozen.is_none() {
@@ -3436,7 +3496,7 @@ impl Lower<'_, '_, '_> {
             }
             HeadKind::Enum => {
                 let mut gn = Gen::default();
-                self.type_kinded(gl);
+                self.type_kinded(gl, &mut gn);
                 let generics = self.generics(gl, h.def, 0, &mut gn);
                 let shared_params = Src::child(n, SyntaxKind::ParameterList);
                 let nodes: Vec<NodeRef<'_>> = shared_params
@@ -3538,7 +3598,7 @@ impl Lower<'_, '_, '_> {
             HeadKind::Alias => self.alias_item(h, false, out),
             HeadKind::Newtype => {
                 let mut gn = Gen::default();
-                self.type_kinded(gl);
+                self.type_kinded(gl, &mut gn);
                 let generics = self.generics(gl, h.def, 0, &mut gn);
                 let t = self.ty(n.children().find(|c| c.kind().is_type()), &gn);
                 // `@derive` on a newtype names implementations from the
@@ -3741,6 +3801,7 @@ fn lower_aliases(
                 kinds: &s.kinds,
                 diags: &mut scratch,
                 unsupported: None,
+                kind_reported: HashSet::new(),
                 locals: &locals[mi],
                 at: mods[mi].src.span(h.node).lo,
                 outer: Vec::new(),
@@ -3801,6 +3862,7 @@ fn lower_aliases(
                 kinds: &*kinds,
                 diags: if alias { diags } else { &mut dropped },
                 unsupported: None,
+                kind_reported: HashSet::new(),
                 locals: &locals[mi],
                 at: 0,
                 outer: Vec::new(),
@@ -4585,6 +4647,7 @@ pub fn build_folder(
                     kinds: &kinds,
                     diags,
                     unsupported: None,
+                    kind_reported: HashSet::new(),
                     locals: &locals,
                     at: 0,
                     outer: Vec::new(),
@@ -4659,6 +4722,7 @@ pub fn build_folder(
                 kinds: &o.kinds,
                 diags,
                 unsupported: None,
+                kind_reported: HashSet::new(),
                 locals: &[],
                 at: 0,
                 outer: Vec::new(),
@@ -4747,6 +4811,7 @@ fn own_trait_generics(
                 kinds: &s.kinds,
                 diags: &mut scratch,
                 unsupported: None,
+                kind_reported: HashSet::new(),
                 locals: &locals,
                 at: m.src.span(h.node).lo,
                 outer: Vec::new(),
@@ -5011,6 +5076,7 @@ fn own_trait_supers(
                 kinds: &s.kinds,
                 diags: &mut scratch,
                 unsupported: None,
+                kind_reported: HashSet::new(),
                 locals: &locals,
                 at: m.src.span(h.node).lo,
                 outer: Vec::new(),
