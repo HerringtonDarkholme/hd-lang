@@ -64,7 +64,9 @@ export const FEATURES: readonly Feature[] = [
     marks: ["$.with(Mailer=outbox):  # ← Clock is missing"],
     output: {
       caption: "hd check",
-      lines: ["main.hd:9:9: missing-requirement: call to 'welcome' requires Clock"],
+      lines: [
+        "main.hd:9:9: missing-requirement: this needs `$ Clock`, which the enclosing function's row does not name",
+      ],
       kind: "error",
       source: "check",
     },

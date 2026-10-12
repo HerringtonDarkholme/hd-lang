@@ -25,7 +25,7 @@ pub fn main() -> void $ Console:
         println(email.unwrap_or("no email on file"))  # ← you decide what "none" means
 
 # Change the last line to `println(email.lower())` and Run:
-#     unknown-method: type 'string?' has no supported method 'lower'
+#     unknown-method: no method `lower` on string?
 
 # ── plumbing ──
 data User:
@@ -42,7 +42,7 @@ fn team() -> List[User]:
 ```edit
 replace:         println(email.unwrap_or("no email on file"))  # ← you decide what "none" means
 with:         println(email.lower())
-error: unknown-method: type 'string?' has no supported method 'lower'
+error: unknown-method: no method `lower` on string?
 ```
 
 ```output

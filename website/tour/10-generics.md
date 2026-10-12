@@ -26,7 +26,7 @@ pub fn main() -> void $ Console:
 
 # Change the first key to `fn(order): order` and Run. An
 # order has no ordering, and the call is where it fails:
-#     unsatisfied-trait-bound: type 'mut Order' does not implement Ord, required by the bound on 'K' of 'top_by'
+#     unsatisfied-trait-bound: Order does not implement Ord
 
 # ── plumbing ──
 data Order:
@@ -37,7 +37,7 @@ data Order:
 ```edit
 replace:     println(top_by(orders, fn(order): order.cents).id)  # ← K is i32
 with:     println(top_by(orders, fn(order): order).id)
-error: unsatisfied-trait-bound: type 'mut Order' does not implement Ord, required by the bound on 'K' of 'top_by'
+error: unsatisfied-trait-bound: Order does not implement Ord
 ```
 
 ```output

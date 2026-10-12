@@ -26,7 +26,7 @@ fn send_all[E < Email](outbox: List[E]) -> void $ Console:
         println("${email.subject()} | ${email.body()}")
 
 # Delete the `fn subject` line of the impl and Run:
-#     missing-trait-method: Shipped does not implement Email.subject
+#     missing-trait-method: the implementation does not write `subject`
 
 # ── plumbing ──
 data Shipped:
@@ -40,7 +40,7 @@ pub fn main() -> void $ Console:
 ```edit
 replace:     fn subject(self) -> string: "Order ${self.order} has shipped"
 with:
-error: missing-trait-method: Shipped does not implement Email.subject
+error: missing-trait-method: the implementation does not write `subject`
 ```
 
 ```output

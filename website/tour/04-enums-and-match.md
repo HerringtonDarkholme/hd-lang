@@ -31,7 +31,7 @@ enum OrderStatus:
     # Refunded(cents: i32)
 
 # Uncomment `Refunded` above and Run:
-#     nonexhaustive-match: match does not cover: Refunded
+#     nonexhaustive-match: no arm matches Refunded
 # Or delete the `@derive(Eq)` line and Run:
 #     type-mismatch: type 'OrderStatus' does not implement Eq
 
@@ -45,7 +45,7 @@ pub fn main() -> void $ Console:
 ```edit
 replace:     # Refunded(cents: i32)
 with:     Refunded(cents: i32)
-error: nonexhaustive-match: match does not cover: Refunded
+error: nonexhaustive-match: no arm matches Refunded
 ```
 
 ```output

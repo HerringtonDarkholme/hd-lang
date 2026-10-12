@@ -21,7 +21,7 @@ pub fn main() -> void $ Console:
 
 # `fee` in pricing.hd has no `pub`. Ask for it anyway: change the
 # first line to `use pkg.pricing.{Line, total, fee}` and Run:
-#     private-import: 'fee' is private to module 'pricing'; mark it 'pub'
+#     private-import: 'fee' is private to module 'playground.pricing'
 ```
 
 ```hd src/pricing.hd
@@ -42,7 +42,7 @@ fn fee(subtotal: i32) -> i32:
 ```edit
 replace: use pkg.pricing.{Line, total}  # ← the names this file takes from pricing.hd
 with: use pkg.pricing.{Line, total, fee}
-error: private-import: 'fee' is private to module 'pricing'; mark it 'pub'
+error: private-import: 'fee' is private to module 'playground.pricing'
 ```
 
 ```output

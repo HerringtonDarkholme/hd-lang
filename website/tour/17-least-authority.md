@@ -18,7 +18,7 @@ pub fn main!() -> void $ Console:  # ← the console, and nothing else
 
 # Swap in the helper that also keeps a copy on disk: change the call
 # to `invoice_text_saved!(1042, 2449)` and Run:
-#     missing-requirement: call to 'invoice_text_saved' requires FsWrite
+#     missing-requirement: this needs `$ FsWrite`, which the enclosing function's row does not name
 
 # ── plumbing ──
 use std.fs.{FsWrite, write_text}
@@ -36,7 +36,7 @@ fn invoice_text_saved!(number: i32, cents: i32) -> string $ FsWrite:
 ```edit
 replace:     println(invoice_text(1042, 2449))
 with:     println(invoice_text_saved!(1042, 2449))
-error: missing-requirement: call to 'invoice_text_saved' requires FsWrite
+error: missing-requirement: this needs `$ FsWrite`, which the enclosing function's row does not name
 ```
 
 ```output

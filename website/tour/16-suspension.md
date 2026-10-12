@@ -27,7 +27,7 @@ pub fn main!() -> void $ Console:
 
 # Delete the `!` from `fn dashboard!` and Run. A function that waits
 # can't pretend it doesn't:
-#     bang-call-outside-suspension: a bang call requires a suspending driver context
+#     bang-call-outside-suspension: a bang call needs a suspending function or closure
 
 # ── plumbing ──
 use std.task.all
@@ -46,7 +46,7 @@ fn fetch_unpaid!(user: string) -> i32 $ Clock:
 ```edit
 replace: fn dashboard!(user: string) -> string $ Clock:
 with: fn dashboard(user: string) -> string $ Clock:
-error: bang-call-outside-suspension: a bang call requires a suspending driver context
+error: bang-call-outside-suspension: a bang call needs a suspending function or closure
 ```
 
 ```output

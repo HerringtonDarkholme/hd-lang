@@ -848,8 +848,8 @@ test("the bundled examples run and check", async () => {
  */
 const EDITS_ACCEPTED = new Set<string>([]);
 
-// The tour pages name each edit's error as the prototype compiler worded
-// it; the Rust compiler reports the same code in its own words.
+// The tour pages name each edit's error as the Rust compiler words it
+// (website/src/learn-check.ts checks the words); this test checks the code.
 test("each tour snippet runs and tests as its page says; each edit breaks it as named", async () => {
   const pages = loadTour(resolve(playground, "../.."));
   assert.ok(pages.length > 0);

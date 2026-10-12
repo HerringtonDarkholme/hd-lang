@@ -1,38 +1,50 @@
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { availableParallelism, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
-import { runHd } from "../../test/hd-in-process.ts";
 import { createMarkdown, fencedBlocks } from "./markdown.ts";
 import { editedCode, TOUR_MAIN, type TourPage } from "./tour-pages.ts";
 
 /** The learn page's source; every ```hd block in it must parse. */
 export const LEARN_PAGE = "guide/LEARN_IN_10_MINUTES.md";
 
-/** The repository root, where the compiler command runs. */
+/** The repository root, where `cargo` builds `hd`. */
 const REPO_DIR = resolve(import.meta.dirname, "../..");
+
+/** The `hd` binary that `cargo build -p hd_cli` writes in the dev profile. */
+const HD_BINARY = join(REPO_DIR, "target", "debug", process.platform === "win32" ? "hd.exe" : "hd");
 
 /**
  * The compiler, called through the conformance command contract
  * (spec/conformance/README.md, Command Contract): $HD_TEST_COMMAND, else the
- * repository compiler.
+ * repository's Rust `hd`, built with `cargo build -p hd_cli` when missing.
  */
-function compilerCommand(): string[] {
-  const text = process.env.HD_TEST_COMMAND ?? "node --experimental-strip-types bin/hd.js";
-  return [...text.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map((m) => m[1] ?? m[2] ?? m[3]!);
+export function compilerCommand(): string[] {
+  const text = process.env.HD_TEST_COMMAND;
+  if (text !== undefined)
+    return [...text.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map((m) => m[1] ?? m[2] ?? m[3]!);
+  if (!existsSync(HD_BINARY))
+    execFileSync("cargo", ["build", "-p", "hd_cli"], { cwd: REPO_DIR, stdio: "inherit" });
+  return [HD_BINARY];
 }
 
-/** The located diagnostic lines of a failed command, without the file name. */
+/**
+ * The located diagnostic lines of a failed command, without the file name:
+ * `error: FILE:3:5: code: message` gives `3:5: code: message`. A diagnostic
+ * in a file of the package tree keeps its path in the tree, such as
+ * `src/pricing.hd:3:5: ...`.
+ */
 function errorLines(
   output: { readonly stdout: string; readonly stderr: string },
   file: string,
-  tree: string | undefined,
   fallback: string,
 ): string[] {
   const lines = `${output.stdout}\n${output.stderr}`.split("\n").flatMap((line) => {
-    if (line.startsWith(`${file}:`)) return [line.slice(file.length + 1)];
-    if (tree && line.startsWith(`${tree}/`)) return [line.slice(tree.length + 1)];
+    const located = line.replace(/^(?:error|warning): /, "");
+    if (located.startsWith(`${file}:`)) return [located.slice(file.length + 1)];
+    if (/^[\w./-]+\.hd:\d+:\d+: /.test(located)) return [located];
     return [];
   });
   const crash = output.stderr.trim().split("\n")[0] || fallback;
@@ -40,29 +52,18 @@ function errorLines(
 }
 
 /**
- * Runs `IMPL ACTION [OPTION]... FILE`; resolves to the located diagnostic
- * lines without the file name, or none on exit 0. With `tree`, a directory
- * that holds the other files of FILE's package at the package path
- * `TOUR_MAIN`, FILE runs in this repository's compiler through the
- * adapter's package tree option (an `hd` command line has none), and a
- * diagnostic in a tree file keeps its path in the tree, such as
- * `src/pricing.hd:3:5: ...`.
+ * Runs `hd ACTION [OPTION]... [FILE]`; resolves to the located diagnostic
+ * lines without the file name, or none on exit 0. With `tree`, a package
+ * directory (its `hd.toml` and the files of the page), the command runs
+ * there on the package as a whole and FILE is not passed.
  */
 function compilerErrors(action: readonly string[], file: string, tree?: string): Promise<string[]> {
-  if (tree) {
-    return runHd(
-      [...action, file],
-      { cwd: REPO_DIR },
-      { packageTree: { directory: tree, path: TOUR_MAIN } },
-    ).then((result) =>
-      result.status === 0 ? [] : errorLines(result, file, tree, `exit status ${result.status}`),
-    );
-  }
   const [program, ...args] = compilerCommand();
+  const argv = [...args, ...action, ...(tree ? [] : [file])];
   return new Promise((complete) => {
-    execFile(program!, [...args, ...action, file], { cwd: REPO_DIR }, (error, stdout, stderr) => {
+    execFile(program!, argv, { cwd: tree ?? REPO_DIR }, (error, stdout, stderr) => {
       if (!error) return complete([]);
-      complete(errorLines({ stdout, stderr }, file, tree, error.message.split("\n")[0]!));
+      complete(errorLines({ stdout, stderr }, file, error.message.split("\n")[0]!));
     });
   });
 }
@@ -83,7 +84,7 @@ async function inParallel<T>(jobs: readonly (() => Promise<T>)[]): Promise<T[]> 
   return results;
 }
 
-/** Returns one message per ```hd block of `path` that the compiler's `parse` rejects. */
+/** Returns one message per ```hd block of `path` that `hd fmt --check` rejects as not parsing. */
 export async function checkHdBlocksParse(root: string, path: string): Promise<string[]> {
   const markdown = await readFile(`${root}/${path}`, "utf8");
   const blocks = fencedBlocks(createMarkdown(), markdown).filter((block) => block.info === "hd");
@@ -94,7 +95,7 @@ export async function checkHdBlocksParse(root: string, path: string): Promise<st
       blocks.map((block, index) => async () => {
         const file = join(scratch, `block-${index}.hd`);
         await writeFile(file, block.code);
-        return compilerErrors(["parse"], file);
+        return compilerErrors(["fmt", "--check"], file);
       }),
     );
     return blocks.flatMap((block, index) =>
@@ -109,7 +110,7 @@ export async function checkHdBlocksParse(root: string, path: string): Promise<st
 
 /**
  * Returns one message per problem with a tour page: its snippet does not
- * type-check (`IMPL check --tests FILE`, in a package tree when the page has
+ * type-check (`hd check --tests FILE`, in a package when the page has
  * several files), its edit does not give the error it
  * names, a `failure:` edit does not type-check, or the snippet does not quote
  * the edit's error or failure in a comment. The command contract has no
@@ -125,11 +126,16 @@ export async function checkTourSnippets(pages: readonly TourPage[]): Promise<str
     if (paths.length === 0) return compilerErrors(["check", "--tests"], file);
     // The snippet is src/main.hd of a package that holds the page's other files.
     const tree = join(scratch, `${page.number}-${name}-tree`);
-    for (const path of paths) {
+    const files = {
+      [TOUR_MAIN]: code,
+      ...page.files,
+      "hd.toml": '[package]\nname = "playground"\n',
+    };
+    for (const [path, text] of Object.entries(files)) {
       await mkdir(dirname(join(tree, path)), { recursive: true });
-      await writeFile(join(tree, path), page.files[path]!);
+      await writeFile(join(tree, path), text);
     }
-    return compilerErrors(["check", "--tests"], file, tree);
+    return compilerErrors(["check", "--tests"], TOUR_MAIN, tree);
   };
   const snippet = (page: TourPage) => async (): Promise<string[]> =>
     (await check(page, page.code, "snippet")).map((error) => `${page.source}: snippet: ${error}`);

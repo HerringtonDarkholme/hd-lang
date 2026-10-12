@@ -22,13 +22,13 @@ pub fn main() -> void $ Console:
 
 # Make the body's last line `"free"` and Run. The error is
 # in the body, not at the callers:
-#     type-mismatch: expected i32, found string
+#     type-mismatch: in result: expected i32, found string
 ```
 
 ```edit
 replace:     if express: base * 2 else: base
 with:     "free"
-error: type-mismatch: expected i32, found string
+error: type-mismatch: in result: expected i32, found string
 ```
 
 ```output

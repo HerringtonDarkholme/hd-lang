@@ -26,7 +26,7 @@ pub fn main() -> void $ Console:
 
 # Change `discounted(_, 10)` to `discounted(10)` and Run. A step never
 # guesses where the value goes:
-#     pipe-step-needs-placeholder: a pipe step other than a bare name or path needs '_' to mark the piped value, as in 'f(_, y)'
+#     pipe-step-needs-placeholder: write `_` where the piped value goes
 
 # ── plumbing ──
 fn discounted(cents: i32, percent: i32) -> i32:
@@ -42,7 +42,7 @@ fn format_cents(cents: i32) -> string:
 ```edit
 replace:         |> discounted(_, 10)  # ← `_` is where the value goes
 with:         |> discounted(10)
-error: pipe-step-needs-placeholder: a pipe step other than a bare name or path needs '_' to mark the piped value, as in 'f(_, y)'
+error: pipe-step-needs-placeholder: write `_` where the piped value goes
 ```
 
 ```output

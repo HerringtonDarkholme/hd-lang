@@ -10,7 +10,7 @@ import { loadCorpus } from "../spec/tools/spec-corpus.ts";
 import { glossary, glossaryMarkdown } from "../spec/tools/spec-glossary.ts";
 import { buildOptions, buildPlayground } from "./playground/build.ts";
 import { renderHome } from "./src/home.ts";
-import { renderLayout, REPL_SCRIPT } from "./src/layout.ts";
+import { renderLayout } from "./src/layout.ts";
 import { checkHdBlocksParse, checkTourSnippets, LEARN_PAGE } from "./src/learn-check.ts";
 import { checkLinks } from "./src/links.ts";
 import { buildGrammarIndex, type GrammarIndex } from "./src/ebnf.ts";
@@ -46,18 +46,11 @@ interface BuildOptions {
 
 interface BuildResult {
   readonly pages: number;
-  /** Whether the site includes the playground, which the tour and the REPL panel need. */
+  /** Whether the site includes the playground, which the tour needs. */
   readonly playground: boolean;
   /** The ```ebnf rule index the pages were rendered with. */
   readonly grammar: GrammarIndex;
 }
-
-/**
- * Whether pages get the REPL panel and their snippets its Try in REPL
- * buttons. Off until the Rust compiler has a REPL (#17): the playground's
- * worker no longer runs one.
- */
-const REPL_PANEL: boolean = false;
 
 /** The chapter whose rule definitions are canonical when a rule is restated elsewhere. */
 const GRAMMAR_CHAPTER = "spec/lang/02-grammar.md";
@@ -99,11 +92,10 @@ function playgroundUrl(base: string): (code: string) => string {
 }
 
 /**
- * Bundles a page script from website/client/ into the site's assets: the
- * REPL panel (repl.ts), which is small, or the tour's editor (tour.ts). The
- * compiler worker each starts comes from the playground build.
+ * Bundles the tour's editor script (website/client/tour.ts) into the site's
+ * assets. The compiler worker it starts comes from the playground build.
  */
-async function bundleClient(name: "repl" | "tour", outfile: string): Promise<void> {
+async function bundleClient(name: "tour", outfile: string): Promise<void> {
   await esbuild.build(
     buildOptions({
       entryPoints: [join(WEBSITE_DIR, "client", `${name}.ts`)],
@@ -179,11 +171,7 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
   if (playgroundDist === undefined) await buildPlayground(join(outDir, PLAYGROUND_APP_DIR));
   else if (playground)
     await cp(playgroundDist, join(outDir, PLAYGROUND_APP_DIR), { recursive: true });
-  if (playground)
-    await Promise.all([
-      ...(REPL_PANEL ? [bundleClient("repl", join(outDir, REPL_SCRIPT))] : []),
-      bundleClient("tour", join(outDir, TOUR_SCRIPT)),
-    ]);
+  if (playground) await bundleClient("tour", join(outDir, TOUR_SCRIPT));
 
   const md = createMarkdown();
   const linkErrors: string[] = [];
@@ -245,7 +233,6 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
         headings: env.headings,
         source: entry.generated ? undefined : entry.source,
         shape: home ? "home" : "docs",
-        repl: REPL_PANEL && playground,
       }),
     );
   }
@@ -261,7 +248,6 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
       body: playgroundBody(base, playground),
       headings: [],
       shape: playground ? "app" : "wide",
-      repl: REPL_PANEL && playground,
     }),
   );
   search.push({ title: "Playground", page: "Playground", url: siteLink(base, PLAYGROUND_PAGE) });

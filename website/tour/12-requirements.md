@@ -31,7 +31,7 @@ tests:
 
 # Press Test to run the test. Then delete ` $ Console` from the
 # first line and Run. A public function can't hide what it touches:
-#     missing-requirement: call to 'println' requires Console
+#     missing-requirement: this needs `$ Console`, which the enclosing function's row does not name
 
 # ── plumbing ──
 use std.console.BufferConsole
@@ -49,7 +49,7 @@ pub fn main() -> void $ Console:
 ```edit
 replace: pub fn remind_unpaid(invoices: List[Invoice]) -> void $ Console:  # ← its whole reach
 with: pub fn remind_unpaid(invoices: List[Invoice]) -> void:
-error: missing-requirement: call to 'println' requires Console
+error: missing-requirement: this needs `$ Console`, which the enclosing function's row does not name
 ```
 
 ```output

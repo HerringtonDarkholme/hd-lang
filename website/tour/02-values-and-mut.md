@@ -26,7 +26,7 @@ pub fn main() -> void $ Console:
     println(receipt(order))
 
 # Delete `mut` from apply_discount's parameter and Run:
-#     readonly-root: field 'total_cents' cannot be assigned through readonly type 'Order'
+#     readonly-root: Order is a readonly view; mutation needs `mut` access
 
 # ── plumbing ──
 data Order:
@@ -37,7 +37,7 @@ data Order:
 ```edit
 replace: fn apply_discount(order: mut Order, percent: i32) -> void:  # ← changes the order
 with: fn apply_discount(order: Order, percent: i32) -> void:
-error: readonly-root: field 'total_cents' cannot be assigned through readonly type 'Order'
+error: readonly-root: Order is a readonly view; mutation needs `mut` access
 ```
 
 ```output

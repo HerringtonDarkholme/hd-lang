@@ -4,13 +4,13 @@
 
 import type { Project } from "./project.ts";
 import type { RunMode, RunResult, WatResult } from "./runner.ts";
-import type { ReplReply, WorkerMessage, WorkerRequest } from "./worker.ts";
+import type { WorkerMessage, WorkerRequest } from "./worker.ts";
 
 const TIME_LIMIT_MS = 15_000;
 
 export type Interrupted = "stopped" | "timeout";
 
-type Answer = Extract<WorkerMessage, { kind: "result" | "wat" | "repl" }>;
+type Answer = Extract<WorkerMessage, { kind: "result" | "wat" }>;
 
 interface Pending {
   readonly id: number;
@@ -34,7 +34,6 @@ export class CompilerClient {
   private nextId = 1;
   private pending: Pending | undefined;
   private readonly options: CompilerClientOptions;
-  private replQueue: Promise<unknown> = Promise.resolve();
   /** A WAT request in progress; a run waits for it instead of stopping it. */
   private watRequest: Promise<unknown> | undefined;
   private runs = 0;
@@ -135,20 +134,6 @@ export class CompilerClient {
     } finally {
       this.watRequest = undefined;
     }
-  }
-
-  /** Sends one REPL input or `:` command, after any earlier one; the worker has no REPL until #17. */
-  repl(input: string): Promise<ReplReply | Interrupted> {
-    const next = this.replQueue.then(() => this.replNow(input));
-    this.replQueue = next.catch(() => undefined);
-    return next;
-  }
-
-  private async replNow(input: string): Promise<ReplReply | Interrupted> {
-    const answer = await this.send({ kind: "repl", id: this.nextId++, input });
-    if (typeof answer === "string") return answer;
-    if (answer.kind !== "repl") throw new Error(`unexpected ${answer.kind} answer`);
-    return answer.reply;
   }
 
   stop(): void {

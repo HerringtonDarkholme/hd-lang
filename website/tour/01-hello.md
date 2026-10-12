@@ -20,13 +20,13 @@ pub fn main() -> void $ Console:  # ← may print, and nothing else
     println("Hello, $customer! Your order has shipped.")
 
 # Delete `$ Console` from main's signature and Run:
-#     missing-requirement: call to 'println' requires Console
+#     missing-requirement: this needs `$ Console`, which the enclosing function's row does not name
 ```
 
 ```edit
 replace: pub fn main() -> void $ Console:  # ← may print, and nothing else
 with: pub fn main() -> void:
-error: missing-requirement: call to 'println' requires Console
+error: missing-requirement: this needs `$ Console`, which the enclosing function's row does not name
 ```
 
 ```output

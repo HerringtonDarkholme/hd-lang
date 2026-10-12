@@ -93,16 +93,11 @@ async function openPage(
 }
 
 try {
-  await step("the REPL panel and its Try in REPL buttons stay hidden until #17", async () => {
+  await step("whole programs link to the playground, snippets have no button", async () => {
     const { page, workers } = await openPage("guide/learn-in-10-minutes.html");
-    assert.equal(await page.locator("#repl-toggle").count(), 0, "no REPL toggle");
-    assert.equal(await page.locator("#repl-panel").count(), 0, "no REPL panel");
-    await page.keyboard.press("Control+Backquote");
-    assert.equal(await page.locator("#repl-panel").count(), 0, "Ctrl+` opens nothing");
     const snippet = page.locator(".code-block", { hasText: "fn greet(name: string)" }).first();
     await snippet.hover();
-    assert.equal(await snippet.locator(".try-repl").isVisible(), false);
-    // Whole programs keep their playground link.
+    assert.equal(await snippet.locator(".try-link").count(), 0);
     const program = page.locator(".code-block", { hasText: "pub fn main!()" }).first();
     const link = program.locator("a.try-playground");
     assert.equal(await link.textContent(), "Open in playground");

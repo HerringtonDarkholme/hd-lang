@@ -5,8 +5,8 @@ import footnote from "markdown-it-footnote";
 
 import { isErrorExample, RULE_ID, ruleIdAnchor } from "../../spec/tools/spec-prose.ts";
 import { classify } from "./highlight.ts";
-import { parse } from "../../src/parser/index.ts";
 import { type GrammarIndex, ruleAnchor, ruleTarget, tokenizeEbnf } from "./ebnf.ts";
+import { parsesAsHd } from "./syntax-check.ts";
 
 /** A heading found while rendering, used for the page outline and search. */
 export interface Heading {
@@ -57,26 +57,6 @@ export function inlineCode(text: string): string {
   return escapeHtml(text).replaceAll(/`([^`]+)`/g, "<code>$1</code>");
 }
 
-const parsesCache = new Map<string, boolean>();
-
-/**
- * Whether the compiler's parser accepts `code` as a complete source file. The
- * site runs its examples on this compiler (the REPL and the playground), so it
- * asks the same parser in process; one CLI call per block would be too slow.
- */
-function parsesAsHd(code: string): boolean {
-  let parses = parsesCache.get(code);
-  if (parses === undefined) {
-    try {
-      parses = parse(code).program !== undefined;
-    } catch {
-      parses = false;
-    }
-    parsesCache.set(code, parses);
-  }
-  return parses;
-}
-
 // hd constructs that do not occur in the prose, diagnostics, and file
 // listings that the sources also put in ```text fences.
 const HD_MARKERS =
@@ -84,12 +64,12 @@ const HD_MARKERS =
 
 /**
  * Whether a fenced block holds hd source. ```hd always does; a ```text block
- * does when the compiler's parser accepts it or it contains an hd construct.
+ * does when it contains an hd construct or the compiler's parser accepts it.
  */
 function isHdBlock(info: string, code: string): boolean {
   if (info === "hd") return true;
   if (info !== "text") return false;
-  return parsesAsHd(code) || HD_MARKERS.test(code) || isErrorExample(code);
+  return HD_MARKERS.test(code) || isErrorExample(code) || parsesAsHd(code);
 }
 
 /** A line an error example marks as rejected: it ends in `# error` or `# error: CODE`. */
@@ -250,22 +230,15 @@ function markRulesAndCallouts(tokens: Token[], env: RenderEnv, TokenClass: typeo
   }
 }
 
-/** Whether `code` declares `main`, which makes it a whole program rather than REPL input. */
+/** Whether `code` declares `main`, which makes it a whole program the playground can run. */
 function isWholeProgram(code: string): boolean {
   return /^(?:pub\s+)?fn\s+main!?\s*\(/m.test(code);
 }
 
-/**
- * The action on a code block that parses. A snippet gets a "Try in REPL"
- * button, which the REPL panel script reveals and handles; it evaluates the
- * snippet as REPL input. A whole program cannot be REPL input, because the
- * REPL supplies its own `main`, so it links to the playground instead.
- */
+/** The action on a code block that parses: a whole program links to the playground. */
 function tryAction(code: string, env: RenderEnv): string {
-  if (!parsesAsHd(code)) return "";
-  if (isWholeProgram(code))
-    return `<a class="try-link try-playground" href="${escapeHtml(env.playgroundUrl(code))}">Open in playground</a>`;
-  return '<button type="button" class="try-link try-repl" title="Evaluate this code in the REPL panel">Try in REPL</button>';
+  if (!isWholeProgram(code) || !parsesAsHd(code)) return "";
+  return `<a class="try-link try-playground" href="${escapeHtml(env.playgroundUrl(code))}">Open in playground</a>`;
 }
 
 // markdown-it types the render environment loosely; every render here passes a RenderEnv.

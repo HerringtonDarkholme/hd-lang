@@ -24,13 +24,13 @@ pub fn main() -> void $ Console:
 
 # Delete `host: "api.shop.example"` so the first literal
 # reads `HttpConfig {}`, and Run:
-#     missing-required-field: missing required field 'host'
+#     missing-required-field: `host` is required in `HttpConfig`
 ```
 
 ```edit
 replace:     production := HttpConfig { host: "api.shop.example" }
 with:     production := HttpConfig {}
-error: missing-required-field: missing required field 'host'
+error: missing-required-field: `host` is required in `HttpConfig`
 ```
 
 ```output

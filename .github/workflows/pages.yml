@@ -46,7 +46,12 @@ jobs:
       - name: Build the playground's compiler
         run: pnpm run -s build:web-compiler
 
-      # The REPL, website, and playground tests gate the deploy; they are not
+      # The tour and learn-page checks run snippets through the Rust `hd`
+      # (website/src/learn-check.ts), which test:ui and website:build use.
+      - name: Build hd
+        run: cargo build -p hd_cli
+
+      # The website and playground tests gate the deploy; they are not
       # part of `pnpm run check`.
       - name: UI tests
         run: pnpm run test:ui
