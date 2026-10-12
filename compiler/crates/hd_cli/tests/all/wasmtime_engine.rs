@@ -212,7 +212,7 @@ fn both_engines_collapse_an_endless_recursion() {
         let out = run(c, &["test", "main.hd"], "");
         let stdout = text(&out.stdout);
         assert!(stdout.len() < 2000, "{engine}: {stdout}");
-        stdout
+        let lines = stdout
             .lines()
             .map(|l| match l.split_once(" repeated ") {
                 Some((what, _)) if what.trim_start().starts_with("...") => {
@@ -220,7 +220,14 @@ fn both_engines_collapse_an_endless_recursion() {
                 }
                 _ => l.to_owned(),
             })
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.contains("... last 2 frames repeated")),
+            "{engine}: {stdout}"
+        );
+        fold_cycle(lines, &["main.ping", "main.pong"])
     };
     let node = report("node");
     assert_eq!(
@@ -234,15 +241,32 @@ fn both_engines_collapse_an_endless_recursion() {
             "    repro: hd test main.hd --filter \"never stops\"",
             "PANIC main.hd:14: plays ping pong",
             "    panic: stack-exhausted: the call stack ran out; check for recursion that never ends",
-            "    main.hd:8 main.pong",
-            "    main.hd:5 main.ping",
-            "    ... last 2 frames repeated N more times",
+            "    <cycle>",
             "    main.hd:15 test \"plays ping pong\"",
             "    repro: hd test main.hd --filter \"plays ping pong\"",
             "test result: FAILED. 0 passed; 2 failed; 0 ignored",
         ]
     );
     assert_eq!(report("wasmtime"), node);
+}
+
+/// Which frame of a cycle sits innermost when the stack runs out depends
+/// on the engine's stack size, so the frames of a collapsed cycle and its
+/// count line fold into one marker line before comparing.
+fn fold_cycle(lines: Vec<String>, cycle: &[&str]) -> Vec<String> {
+    let in_cycle = |l: &str| {
+        let t = l.trim_start();
+        t.starts_with("... last ") || cycle.iter().any(|f| t.ends_with(&format!(" {f}")))
+    };
+    let mut out: Vec<String> = Vec::new();
+    for l in lines {
+        if !in_cycle(&l) {
+            out.push(l);
+        } else if out.last().is_none_or(|p| p != "    <cycle>") {
+            out.push("    <cycle>".to_owned());
+        }
+    }
+    out
 }
 
 #[test]

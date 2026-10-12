@@ -286,6 +286,13 @@ fn a_single_file_names_its_stem_and_recursion_collapses() {
             _ => l.to_owned(),
         })
         .collect();
+    assert!(
+        counted
+            .iter()
+            .any(|l| l.contains("... last 2 frames repeated")),
+        "{report}"
+    );
+    let counted = fold_cycle(counted, &["deep.ping", "deep.pong"]);
     assert_eq!(
         counted,
         [
@@ -304,9 +311,7 @@ fn a_single_file_names_its_stem_and_recursion_collapses() {
             "    repro: hd test deep.hd --filter \"never stops\"",
             "PANIC deep.hd:22: plays ping pong",
             "    panic: stack-exhausted: the call stack ran out; check for recursion that never ends",
-            "    deep.hd:13 deep.pong",
-            "    deep.hd:10 deep.ping",
-            "    ... last 2 frames repeated N more times",
+            "    <cycle>",
             "    deep.hd:23 test \"plays ping pong\"",
             "    repro: hd test deep.hd --filter \"plays ping pong\"",
             "test result: FAILED. 0 passed; 3 failed; 0 ignored",
@@ -315,6 +320,25 @@ fn a_single_file_names_its_stem_and_recursion_collapses() {
         text(&out.stderr)
     );
     assert!(report.len() < 2000, "{report}");
+}
+
+/// Which frame of a cycle sits innermost when the stack runs out depends
+/// on the engine's stack size, so the frames of a collapsed cycle and its
+/// count line fold into one marker line before comparing.
+fn fold_cycle(lines: Vec<String>, cycle: &[&str]) -> Vec<String> {
+    let in_cycle = |l: &str| {
+        let t = l.trim_start();
+        t.starts_with("... last ") || cycle.iter().any(|f| t.ends_with(&format!(" {f}")))
+    };
+    let mut out: Vec<String> = Vec::new();
+    for l in lines {
+        if !in_cycle(&l) {
+            out.push(l);
+        } else if out.last().is_none_or(|p| p != "    <cycle>") {
+            out.push("    <cycle>".to_owned());
+        }
+    }
+    out
 }
 
 /// The custom sections of a module, by name, in order.
