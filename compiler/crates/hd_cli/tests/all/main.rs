@@ -14,6 +14,7 @@ mod panic_frames;
 mod property_tests;
 mod resource_limits;
 mod run;
+mod spread_position;
 mod test_bodies;
 mod test_cmd;
 mod test_env;
