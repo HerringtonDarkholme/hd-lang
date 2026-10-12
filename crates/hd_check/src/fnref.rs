@@ -213,7 +213,7 @@ impl Ck<'_, '_> {
                 .unwrap_or_default();
             let msg = format!("`{name}` is called only as a test registration in test position");
             self.err(Code::MisplacedTestCase, n, &msg);
-            return Ok((Ref(NONE), Ty::NEVER));
+            return Ok((Ref(NONE), Ty::POISON));
         }
         // `facts_of` is only the callee of a direct call (`annot.facts-of.target.error`).
         if self
@@ -238,7 +238,7 @@ impl Ck<'_, '_> {
                 n,
                 "`all` is only the callee of a direct call, not a function value",
             );
-            return Ok((Ref(NONE), Ty::NEVER));
+            return Ok((Ref(NONE), Ty::POISON));
         }
         let sig = self.with_result(def, sig.clone());
         let vars = self.fresh_generics(&sig, explicit, n);
@@ -300,7 +300,7 @@ impl Ck<'_, '_> {
                 self.cx.names.display_name(tr)
             );
             self.err(Code::UnknownMethod, n, &msg);
-            return Ok((Ref(NONE), Ty::NEVER));
+            return Ok((Ref(NONE), Ty::POISON));
         };
         while trait_args.len() < n_trait {
             trait_args.push(self.infer.fresh(pool, VarKind::General));
@@ -819,7 +819,7 @@ impl Ck<'_, '_> {
                 self.show(self.strip_mut(rt))
             );
             self.err(Code::UnknownMethod, n, &msg);
-            return Ok((Ref(NONE), Ty::NEVER));
+            return Ok((Ref(NONE), Ty::POISON));
         }
         self.note_call(m.def);
         // `fn.ref.bound.mut`.

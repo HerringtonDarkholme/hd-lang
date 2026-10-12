@@ -214,7 +214,7 @@ impl Ck<'_, '_> {
                     )
                 );
                 self.err(Code::TypeMismatch, n, &msg);
-                Ok((Ref(NONE), Ty::NEVER))
+                Ok((Ref(NONE), Ty::POISON))
             }
             several => {
                 let msg = format!(
@@ -229,7 +229,7 @@ impl Ck<'_, '_> {
                     )
                 );
                 self.err(Code::AmbiguousMethod, n, &msg);
-                Ok((Ref(NONE), Ty::NEVER))
+                Ok((Ref(NONE), Ty::POISON))
             }
         };
         self.pre_args.truncate(pre);

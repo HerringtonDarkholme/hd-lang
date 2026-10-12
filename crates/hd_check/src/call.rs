@@ -257,7 +257,7 @@ impl Ck<'_, '_> {
         }
         let msg = format!("`{text}` is not defined");
         self.err(Code::UnknownName, n, &msg);
-        Ok((Ref(NONE), Ty::NEVER))
+        Ok((Ref(NONE), Ty::POISON))
     }
 
     /// The declaration `def`, written as `name`, used as a value: a
@@ -295,7 +295,7 @@ impl Ck<'_, '_> {
             };
             let msg = format!("`{name}` is {what}, not a value");
             self.err(Code::TypeUsedAsValue, n, &msg);
-            return Ok(Some((Ref(NONE), Ty::NEVER)));
+            return Ok(Some((Ref(NONE), Ty::POISON)));
         }
         Ok(None)
     }
@@ -328,7 +328,7 @@ impl Ck<'_, '_> {
         let Some(def) = self.resolve_path(&segs) else {
             let msg = format!("`{}` is not defined", segs.join("."));
             self.err(Code::UnknownName, n, &msg);
-            return Ok((Ref(NONE), Ty::NEVER));
+            return Ok((Ref(NONE), Ty::POISON));
         };
         if let Some(ItemData::Fn(sig)) = self.cx.lookup.item(def).map(|i| &i.data) {
             let sig = sig.clone();
@@ -626,12 +626,12 @@ impl Ck<'_, '_> {
                 return Ok(v);
             }
             if matches!(self.infer.resolve(self.pool(), t), Ty::POISON | Ty::NEVER) {
-                return Ok((Ref(NONE), Ty::NEVER));
+                return Ok((Ref(NONE), self.infer.resolve(self.pool(), t)));
             }
         }
         let msg = format!("`{name}` is a type, not a value");
         self.err(Code::TypeUsedAsValue, n, &msg);
-        Ok((Ref(NONE), Ty::NEVER))
+        Ok((Ref(NONE), Ty::POISON))
     }
 
     /// `i64(x)`: a numeric conversion.
@@ -1468,7 +1468,7 @@ impl Ck<'_, '_> {
         if !registering && self.is_registration_fn(def) {
             let msg = format!("`{name}` is called only as a test registration in test position");
             self.err(Code::MisplacedTestCase, n, &msg);
-            return Ok((Ref(NONE), Ty::NEVER));
+            return Ok((Ref(NONE), Ty::POISON));
         }
         if def == self.cx.names.known.snapshot {
             self.check_snapshot_expect(args);
@@ -1485,7 +1485,7 @@ impl Ck<'_, '_> {
                         n,
                         "`all` takes no type arguments; its result type is the tuple of its tasks",
                     );
-                    return Ok((Ref(NONE), Ty::NEVER));
+                    return Ok((Ref(NONE), Ty::POISON));
                 }
                 if def == self.cx.names.known.race && race_has_no_tasks(args) {
                     self.err(
@@ -1493,7 +1493,7 @@ impl Ck<'_, '_> {
                         n,
                         "`race` needs at least one task, and this call passes none",
                     );
-                    return Ok((Ref(NONE), Ty::NEVER));
+                    return Ok((Ref(NONE), Ty::POISON));
                 }
                 let sig = self.with_result(def, sig.clone());
                 let vars = self.fresh_generics(&sig, explicit, n);
@@ -1982,7 +1982,7 @@ impl Ck<'_, '_> {
             _ => {
                 let msg = format!("`.{name}` needs an expected enum type");
                 self.err(Code::MissingContextualEnumType, v, &msg);
-                return Ok((Ref(NONE), Ty::NEVER));
+                return Ok((Ref(NONE), Ty::POISON));
             }
         };
         self.variant_by_name(enum_ty, &name, args, at)
@@ -2040,18 +2040,18 @@ impl Ck<'_, '_> {
         };
         match named {
             Some(Named::Poison) => Ok(Some(self.poison_value(n))),
-            Some(Named::Missing) => Ok(Some((Ref(NONE), Ty::NEVER))),
+            Some(Named::Missing) => Ok(Some((Ref(NONE), Ty::POISON))),
             Some(Named::Module(m)) => {
                 let Some(def) = self.export(m, name) else {
                     self.missing_export(m, name, n);
-                    return Ok(Some((Ref(NONE), Ty::NEVER)));
+                    return Ok(Some((Ref(NONE), Ty::POISON)));
                 };
                 if let Some(v) = self.declaration_value(def, name, want, n)? {
                     return Ok(Some(v));
                 }
                 let msg = format!("`{name}` is not a value");
                 self.err(Code::UnknownName, n, &msg);
-                Ok(Some((Ref(NONE), Ty::NEVER)))
+                Ok(Some((Ref(NONE), Ty::POISON)))
             }
             Some(Named::Item(def)) if self.is_enum_head(def) => {
                 let t = self.ctor(def, &[])?;
@@ -2093,7 +2093,7 @@ impl Ck<'_, '_> {
                     fields.len()
                 );
                 self.err(Code::UnsaturatedEnumConstructor, n, &msg);
-                return Some((Ref(NONE), Ty::NEVER));
+                return Some((Ref(NONE), Ty::POISON));
             }
         }
         let payload = fields[0];
@@ -2266,11 +2266,11 @@ impl Ck<'_, '_> {
             };
             match named {
                 Some(Named::Poison) => return Ok(self.poison_value(n)),
-                Some(Named::Missing) => return Ok((Ref(NONE), Ty::NEVER)),
+                Some(Named::Missing) => return Ok((Ref(NONE), Ty::POISON)),
                 Some(Named::Module(m)) => {
                     let Some(def) = self.export(m, &name) else {
                         self.missing_export(m, &name, callee);
-                        return Ok((Ref(NONE), Ty::NEVER));
+                        return Ok((Ref(NONE), Ty::POISON));
                     };
                     return self.call_item(def, &explicit, args, n, bang, want);
                 }
@@ -2380,7 +2380,7 @@ impl Ck<'_, '_> {
                         names.join(" and ")
                     );
                     self.err(Code::AmbiguousMethod, n, &msg);
-                    return Ok((Ref(NONE), Ty::NEVER));
+                    return Ok((Ref(NONE), Ty::POISON));
                 }
                 Some(Hit::Choice {
                     trait_,
@@ -2418,7 +2418,7 @@ impl Ck<'_, '_> {
                 _ => {
                     let msg = format!("no method `{name}` on {}", self.show(t));
                     self.no_method(t, name, n, &msg);
-                    return Ok((Ref(NONE), Ty::NEVER));
+                    return Ok((Ref(NONE), Ty::POISON));
                 }
             }
         }
@@ -2451,7 +2451,7 @@ impl Ck<'_, '_> {
         }
         let msg = format!("no method `{name}` on {}", self.show(t));
         self.no_method(t, name, n, &msg);
-        Ok((Ref(NONE), Ty::NEVER))
+        Ok((Ref(NONE), Ty::POISON))
     }
 
     /// `Trait::method(args)`: the self type comes from the arguments; the
@@ -2477,7 +2477,7 @@ impl Ck<'_, '_> {
                 self.cx.names.display_name(tr)
             );
             self.err(Code::UnknownMethod, n, &msg);
-            return Ok((Ref(NONE), Ty::NEVER));
+            return Ok((Ref(NONE), Ty::POISON));
         };
         // Inside a template, `Structure::f(..)` and `Trait::f(..)` of the
         // derived trait have the template's `T` as `Self`
@@ -3034,7 +3034,7 @@ impl Ck<'_, '_> {
                     path.join(".")
                 );
                 self.err(Code::AmbiguousMethod, n, &msg);
-                return Ok((Ref(NONE), Ty::NEVER));
+                return Ok((Ref(NONE), Ty::POISON));
             }
             let (recv, rt) = self.walk_path(recv, rt, &path, n);
             return self.method_on(recv, rt, name, args, (n, bang), want);
@@ -3054,7 +3054,7 @@ impl Ck<'_, '_> {
                     names.join(" and ")
                 );
                 self.err(Code::AmbiguousMethod, n, &msg);
-                Ok((Ref(NONE), Ty::NEVER))
+                Ok((Ref(NONE), Ty::POISON))
             }
             Some(Hit::Choice {
                 trait_,
@@ -3121,7 +3121,7 @@ impl Ck<'_, '_> {
                 if !has_self {
                     let msg = format!("`{name}` is an associated function, not a method");
                     self.err(Code::UnknownMethod, n, &msg);
-                    return Ok((Ref(NONE), Ty::NEVER));
+                    return Ok((Ref(NONE), Ty::POISON));
                 }
                 self.check_receiver(params[0].1, rt, n);
                 let mut refs = vec![recv];
@@ -3256,7 +3256,7 @@ impl Ck<'_, '_> {
                 };
                 let msg = format!("no method `{name}` on {}{advice}", self.show(rt));
                 self.no_method(rt, name, n, &msg);
-                Ok((Ref(NONE), Ty::NEVER))
+                Ok((Ref(NONE), Ty::POISON))
             }
         }
     }

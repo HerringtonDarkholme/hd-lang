@@ -1354,7 +1354,7 @@ impl Ck<'_, '_> {
         let (br, bt) = self.expr(*base, None)?;
         // A base that already failed, such as a type name written where a
         // value is needed, leaves nothing to index.
-        if br.0 == NONE && bt == Ty::NEVER {
+        if br.0 == NONE && matches!(bt, Ty::NEVER | Ty::POISON) {
             return Ok((br, bt));
         }
         let builtin = self.index_kind(bt);
