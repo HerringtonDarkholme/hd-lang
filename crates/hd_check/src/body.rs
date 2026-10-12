@@ -1726,6 +1726,18 @@ impl Ck<'_, '_> {
                 });
                 Ok(None)
             }
+            Answer::Overflow => {
+                // `trait.bound.depth.limit`: the proof needs a bound
+                // deeper than 64, whether or not a deeper proof would
+                // succeed.
+                let msg = format!(
+                    "the proof that {} implements {} needs more than 64 nested bounds",
+                    self.show(tref.self_ty),
+                    self.cx.names.display_name(tref.trait_)
+                );
+                self.err(Code::TraitResolutionDepth, at, &msg);
+                Ok(None)
+            }
             Answer::OutOfFuel => unsupported("the solver's fuel ran out (limit diagnostic)"),
             other => unsupported(format!("solver answer {other:?}")),
         }

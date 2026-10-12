@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2809 | 21 | 15 | 2845 |
+| 2810 | 20 | 15 | 2845 |
 
 ## By Chapter
 
@@ -22,7 +22,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/06-control-flow.md` | 154 | 0 | 3 | 157 |
 | `lang/07-functions.md` | 126 | 4 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 123 | 0 | 0 | 123 |
-| `lang/09-traits.md` | 354 | 5 | 0 | 359 |
+| `lang/09-traits.md` | 355 | 4 | 0 | 359 |
 | `lang/10-modules.md` | 253 | 1 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 250 | 1 | 8 | 259 |
 | `lang/14-annotations.md` | 151 | 2 | 0 | 153 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 917 | 0 | 12 | 929 |
-| `typing/invalid` | 1054 | 21 | 0 | 1075 |
+| `typing/invalid` | 1055 | 20 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 20 | 0 | 0 | 20 |
 
@@ -75,16 +75,15 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:no-diagnostic` | 19 |
+| `fail:no-diagnostic` | 18 |
 | `fail:unknown-name` | 2 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 11 |
 
-<details><summary><code>fail:no-diagnostic</code> (19)</summary>
+<details><summary><code>fail:no-diagnostic</code> (18)</summary>
 
 - `typing/invalid/suspension-forbidden-context.hd`
 - `typing/invalid/generic-supertrait-upcast-mismatch.hd`
-- `typing/invalid/trait-resolution-depth.hd`
 - `typing/invalid/structure-without-use.hd`
 - `typing/invalid/intrinsic-method-user.hd`
 - `typing/invalid/operator-function-left-exact.hd`
@@ -2412,6 +2411,7 @@ typing/invalid/trait-parameter-bound-bare-trait.hd
 typing/invalid/trait-qualified-supertrait-call.hd
 typing/invalid/trait-qualified-supertrait-reference.hd
 typing/invalid/trait-reference-unsolved-self.hd
+typing/invalid/trait-resolution-depth.hd
 typing/invalid/trait-value-binding-mismatch.hd
 typing/invalid/trait-value-impl-target.hd
 typing/invalid/trait-value-self-default.hd

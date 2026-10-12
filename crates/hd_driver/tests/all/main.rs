@@ -150,6 +150,7 @@ mod test_registration_spellings;
 mod test_runner_registration_rows;
 mod tests_block_shape;
 mod trailing_blocks;
+mod trait_resolution_depth;
 mod trials;
 mod try_hint_run;
 mod tuple_rest_run;

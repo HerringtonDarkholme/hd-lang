@@ -651,7 +651,7 @@ impl MemoKey {
 /// set (§7.1 "Children are entry indices").
 pub const BODY_ENTRY: u32 = 1 << 31;
 
-/// Levels a goal asked at depth 0 may use: depths 0 to 64 (§7.2, §7.3).
+/// Levels a goal asked at depth 1 may use: depths 1 to 64 (§7.2, §7.3).
 const LEVELS: u32 = 65;
 
 /// The height of a cycle: no depth suffices (§7.3 point 4).
@@ -1627,7 +1627,7 @@ impl<'s, 'a> Search<'s, 'a> {
         }
     }
 
-    /// Asks one goal at `depth` (0 at the use): the memo first, else the
+    /// Asks one goal at `depth` (1 at the use): the memo first, else the
     /// goal is computed and its entry published (rule TS-4). `memo` false
     /// asks without a lookup or an entry.
     fn goal(&mut self, ask: Ask, depth: u32, root: bool, memo: bool) -> StageResult<Outcome> {
@@ -2590,7 +2590,7 @@ impl Solver for TableSolver {
                 bindings,
                 mut_,
             } => Ok(s
-                .goal(Ask::Implements(*tref, *mut_), 0, true, bindings.is_empty())?
+                .goal(Ask::Implements(*tref, *mut_), 1, true, bindings.is_empty())?
                 .answer),
             Goal::Instantiations {
                 self_ty,
@@ -2598,7 +2598,7 @@ impl Solver for TableSolver {
                 mut_,
             } => {
                 let ask = Ask::Instantiations(strip_outer_mut(pool, *self_ty), *trait_, *mut_);
-                Ok(s.goal(ask, 0, true, true)?.answer)
+                Ok(s.goal(ask, 1, true, true)?.answer)
             }
             Goal::Methods {
                 receiver, traits, ..
@@ -4300,7 +4300,7 @@ mod tests {
 
     /// §7.3: whether a goal overflows depends on the goal and the depth of
     /// its use, never on which ask computed it first: `Box` nested `n` deep
-    /// over `i32` holds up to 64 and overflows from 65, in any order, in
+    /// over `i32` holds up to 63 and overflows from 64, in any order, in
     /// one body (whose `AtLeast` entries are reused or improved) or across
     /// bodies.
     #[test]
@@ -4323,8 +4323,8 @@ mod tests {
                 solve_body(g, &tables, &env, cx, &implements(show_of(n)))
             })
             .collect();
-        assert!(matches!(fresh[64], Answer::Holds { .. }), "{:?}", fresh[64]);
-        assert_eq!(fresh[65], Answer::Overflow);
+        assert!(matches!(fresh[63], Answer::Holds { .. }), "{:?}", fresh[63]);
+        assert_eq!(fresh[64], Answer::Overflow);
         let orders = [
             [10, 70, 64, 65, 66, 63, 70, 1],
             [70, 66, 65, 64, 10, 63, 1, 70],
