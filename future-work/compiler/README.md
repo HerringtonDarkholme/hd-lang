@@ -34,3 +34,4 @@ unit tests on V8; phase 2 completes language and command coverage.
 - [footprint.md](footprint.md): where the code stands, one row per design-doc section (real, skeleton or missing), with totals per doc, 2026-10-07.
 - [reconciliation.md](reconciliation.md): code against design at b4c14e39: the top 10 issues for compiling end to end through the designed architecture, gaps, divergences, duplicate paths, layering, cost-model contradictions, proposed design changes and footprint corrections, 2026-10-07.
 - [live-execution.md](live-execution.md): live execution: the REPL session model, redefinition, the execution journal, replay and resume (design, not decided).
+- [repl-plan.md](repl-plan.md): the REPL on the Rust compiler (#17): where each live-execution piece lives in the crates, the per-input cost, owner questions and the step plan, 2026-10-12.
