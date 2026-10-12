@@ -1382,26 +1382,29 @@ hd> read_text!("notes.txt")   # reads ./notes.txt
 hd> rate := +3
 hd> fn price(n: i32) -> i32: n * rate          # reads an earlier input's binding
 hd> fn total() -> i32: price(+2)
-hd> fn price(n: i32) -> i32: n * rate + 1      # shadows price; reports that total still uses the earlier price
 hd> total()
 6 : i32
-hd> price(+2)
-7 : i32
+hd> fn price(n: i32) -> i32: n * rate + 1      # error: duplicate-binding, price is already declared
+hd> let count = +1
+hd> count = count + 1                          # a `let` binding is assigned, not declared again
 ```
 
 1. r[cli.repl.declarations.bindings] A declaration in an input may read and use the top-level bindings of earlier inputs.
-2. r[cli.repl.redefine.shadow] A name that an input declares again shadows the earlier declaration for later inputs. Earlier items, closures, and values keep the earlier declaration.
-3. r[cli.repl.redefine.shadow.report] When earlier items still use the shadowed declaration, the REPL reports which ones.
+2. r[cli.repl.redeclare.binding] An input must not declare a function or top-level binding whose name an earlier input of the session declared. Error: `duplicate-binding`.
+3. r[cli.repl.redeclare.type] An input must not declare a type, trait, or type alias whose name an earlier input of the session declared. Error: `duplicate-type`.
 4. r[cli.repl.redefine.impl] An implementation in an input that overlaps an implementation of an earlier input is an error, as in one module. Error: `overlapping-impl`.
 
-> **Note.** A redefined `data` or `enum` type is a new type. A value made
-> before the redefinition keeps the earlier type, and the REPL shows which
-> input declared it.
+> **Note.** To change a declaration, edit it in a file and start a new
+> session, or give the new declaration another name. An input that
+> panicked declared nothing, by
+> [`cli.repl.panic.binding`](#r-cli.repl.panic.binding), so its names stay
+> free.
 
-> **Why.** Shadowing is what GHCi, OCaml, Scala, Kotlin, and Swift
-> REPLs do. Every earlier item stays checked against exactly what it
-> calls, so no input changes the type of another, by
-> [`cli.repl.input-types`](#r-cli.repl.input-types).
+> **Why.** A session is one scope, as a module is, so a name means one
+> declaration. Shadowing would leave earlier items and values tied to a
+> declaration that can no longer be named: a value of an old `Point` would
+> fail against the new `Point`, and the old type would keep its
+> implementations.
 
 ### Interrupting An Input
 

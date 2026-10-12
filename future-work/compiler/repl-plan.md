@@ -285,6 +285,16 @@ Each gap is an owner question in §5. In short:
 
 ## 5. Owner Questions
 
+**Decided 2026-10-12** (the questions below are kept for the record):
+
+- Q1: bare `hd` on a terminal opens the REPL; piped text runs a program; no `hd repl`. The guide, bench and design text that say `hd repl` are outdated (W1).
+- Q2: an input's top level may make bang calls (a driver context, like `main!`'s body).
+- Q3: accept about 72 KiB per kept input now (the bench bound follows the page size); later, rebuild the session from the journal past a limit.
+- Q4: the CLI REPL runs on wasmtime only.
+- Q5: add `rustyline`. Interrupting a running input (Ctrl-C while it computes) is still open: `rustyline` covers the prompt only.
+- Q8a: inputs live outside every package folder. Q8c: the recorder sits at the host call sites. Q8d: design questions 1 and 4 are answered by the spec. Q8e: the playground keeps one worker; Stop rebuilds from the journal (W2 dropped).
+- Q8b, replaced: **no redefinition at all.** An input must not redeclare a name an earlier input declared: `duplicate-type` for types, traits and aliases, `duplicate-binding` for functions and bindings (`cli.repl.redeclare.*`, spec edit of 2026-10-12, replacing `cli.repl.redefine.shadow` and `.shadow.report`). Shadowing, the stale-caller note and origin-marked types (C7) are gone.
+
 1. **Command name and scripted sessions.** The spec opens the REPL with
    bare `hd` on a terminal, and piped stdin runs a program
    (`cli.stdin.program`). The guide, the bench and two design files say
@@ -368,7 +378,7 @@ identical bytes.
 | C4 | `Goal::ReplInput` with a synthetic module per input outside package folders; scope = `lib.hd`'s private scope overlaid by earlier inputs (`ModuleScope::overlay`); panicked inputs leave the source set | Driver test: 6 inputs of the spec's Redefinition example each build a module; `modules_checked` lists only the newest input |
 | C5 | Top-level bindings in input interfaces; declarations read earlier bindings through imported globals | Tests for `cli.repl.declarations.bindings` and the `prices` example of live-execution.md §2.2 |
 | C6 | Input kinds: an expression input lowers to `dbg_text` plus a type text; mixed declarations and statements; driver context at top level. Gate: Q2 | Tests: `[3, 6] : List[usize]`; the value forms of §3.3; `cli.dbg.repl` order |
-| C7 | Stale-caller note and origin-marked types | Test: redefining `price` names `total`; a shadowed `Point` prints `Point (input 3)` |
+| C7 | Dropped (no redefinition): instead, `cli.repl.redeclare.binding` and `.type`, reporting `duplicate-binding` / `duplicate-type` for a name an earlier input declared | Tests: redeclaring `price`, a binding and a `data` type each fail with the right code; a panicked input's names stay free |
 | C8 | Prelude module (input 0) with runtime globals, memory and common `dbg_text` instances, cached per toolchain | The `1 + 2` input module is under 2 KB; first-input latency reported |
 
 ### wasmtime Session And CLI
@@ -394,7 +404,7 @@ identical bytes.
 | Job | Work | Done check |
 | --- | --- | --- |
 | W1 | Docs: live-execution.md corrections (Q8), the playground README's REPL section, guide and bench text (after Q1) | `pnpm run website:build` passes; `grep -rn "hd repl" guide bench future-work website/playground` finds only this plan |
-| W2 | Split the playground into a compiler worker and a program worker; Run, Check, Test unchanged | `website:e2e` passes; after a Stop, the next Run's counters show store hits |
+| W2 | Dropped (owner: one worker; Stop rebuilds from the journal) | n/a |
 | W3 | `hd_web` REPL exports and wire format | `hd_web` tests compile the Redefinition example and return modules, types and the note |
 | W4 | JS host: per-input linking in `core.mjs`, recorder and replayer with the `hd_run` row format | Node test: one session gives the same transcript on wasmtime and Node; a journal recorded on one replays on the other |
 | W5 | The REPL panel and Try in REPL buttons; Stop as cancel, then terminate and rebuild after 250 ms | `website:e2e` REPL cases: value, panic, Stop of a loop with the session restored |
