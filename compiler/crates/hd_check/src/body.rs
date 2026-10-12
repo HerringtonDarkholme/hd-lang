@@ -1387,6 +1387,16 @@ impl Ck<'_, '_> {
                 return true;
             }
             let (want_s, got_s) = self.show_pair(want, got);
+            // `types.variance.no-insertion`, `fn.type.variance-repr.excluded`:
+            // variance would allow the conversion, but an element would
+            // change representation.
+            if self.repr_change(got, want, 0) {
+                let msg = format!(
+                    "in {what}: expected {want_s}, found {got_s}; variance never changes an element's representation, so convert the element yourself"
+                );
+                self.err(Code::VarianceRepresentationChange, n, &msg);
+                return true;
+            }
             let msg = format!("in {what}: expected {want_s}, found {got_s}");
             // `types.num.binary.no-mix`, `expr.range.bound.signedness`: a
             // signed and an unsigned integer operand do not mix.
@@ -1444,6 +1454,105 @@ impl Ck<'_, '_> {
             && (w.is_integer() || w.is_float())
             && family(g) == family(w)
             && width(w) < width(g)
+    }
+
+    /// Whether `got` would convert to `want` by variance if one element
+    /// did not change representation: a covariant or contravariant type
+    /// argument, a function parameter or a function result that converts
+    /// only by trait-value construction or optional injection
+    /// (`types.variance.no-insertion`).
+    fn repr_change(&mut self, got: Ty, want: Ty, depth: u32) -> bool {
+        let pool = self.pool();
+        if depth > 8 {
+            return false;
+        }
+        let got = self.norm_ty(got);
+        let got = self.strip_mut(self.infer.resolve(pool, got));
+        let want = self.norm_ty(want);
+        let want = self.strip_mut(self.infer.resolve(pool, want));
+        // `from` meets `to` in a position: equal (`Some(false)`), or
+        // convertible only by a representation change (`Some(true)`).
+        let pair = |this: &mut Self, from: Ty, to: Ty| -> Option<bool> {
+            if this.can_unify(from, to) {
+                return Some(false);
+            }
+            if this.elem_converts(from, to) {
+                return Some(true);
+            }
+            this.repr_change(from, to, depth + 1).then_some(true)
+        };
+        match (pool.get(got), pool.get(want)) {
+            (TyData::Adt { def, args: xs }, TyData::Adt { def: d2, args: ys }) if def == d2 => {
+                let vs = self.declared_variances(def);
+                let (xs, ys) = (pool.list_items(xs), pool.list_items(ys));
+                let mut changed = false;
+                for (j, (x, y)) in xs.iter().zip(ys.iter()).enumerate() {
+                    let step = match vs.get(j).copied().unwrap_or(0) {
+                        1 => pair(self, *x, *y),
+                        -1 => pair(self, *y, *x),
+                        _ => self.can_unify(*x, *y).then_some(false),
+                    };
+                    match step {
+                        Some(c) => changed |= c,
+                        None => return false,
+                    }
+                }
+                changed
+            }
+            (
+                TyData::Fn {
+                    params: xp,
+                    result: xr,
+                    ..
+                },
+                TyData::Fn {
+                    params: yp,
+                    result: yr,
+                    ..
+                },
+            ) => {
+                let (xp, yp) = (pool.list_items(xp), pool.list_items(yp));
+                if xp.len() != yp.len() {
+                    return false;
+                }
+                let mut changed = false;
+                for (x, y) in xp.iter().zip(yp.iter()) {
+                    match pair(self, *y, *x) {
+                        Some(c) => changed |= c,
+                        None => return false,
+                    }
+                }
+                match pair(self, xr, yr) {
+                    Some(c) => changed | c,
+                    None => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
+    /// Whether a value of type `from` converts to `to` only by building a
+    /// trait value it implements, or by one optional injection.
+    fn elem_converts(&mut self, from: Ty, to: Ty) -> bool {
+        let pool = self.pool();
+        let from = self.infer.resolve(pool, from);
+        let from = self.strip_mut(from);
+        let to = self.infer.resolve(pool, to);
+        let to = self.strip_mut(to);
+        match pool.get(to) {
+            TyData::TraitValue { def, args, .. }
+                if !matches!(pool.get(from), TyData::TraitValue { .. } | TyData::Poison) =>
+            {
+                let tref = TraitRef {
+                    trait_: def,
+                    self_ty: from,
+                    args,
+                };
+                matches!(self.solve(tref), Ok(Answer::Holds { .. }))
+            }
+            TyData::Option(inner) => self.injects_into(from, to) && self.can_unify(from, inner),
+            _ => false,
+        }
     }
 
     /// Whether two types can unify, with no lasting effect.

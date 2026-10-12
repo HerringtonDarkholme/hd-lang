@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2769 | 60 | 16 | 2845 |
+| 2772 | 57 | 16 | 2845 |
 
 ## By Chapter
 
@@ -17,10 +17,10 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 145 | 0 | 0 | 145 |
 | `lang/02-grammar.md` | 214 | 1 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
-| `lang/04-type-system.md` | 342 | 10 | 0 | 352 |
+| `lang/04-type-system.md` | 344 | 8 | 0 | 352 |
 | `lang/05-expressions.md` | 273 | 4 | 0 | 277 |
 | `lang/06-control-flow.md` | 148 | 5 | 4 | 157 |
-| `lang/07-functions.md` | 124 | 6 | 0 | 130 |
+| `lang/07-functions.md` | 125 | 5 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 118 | 5 | 0 | 123 |
 | `lang/09-traits.md` | 350 | 9 | 0 | 359 |
 | `lang/10-modules.md` | 245 | 9 | 4 | 258 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 917 | 0 | 12 | 929 |
-| `typing/invalid` | 1022 | 52 | 1 | 1075 |
+| `typing/invalid` | 1025 | 49 | 1 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 12 | 8 | 0 | 20 |
 
@@ -82,7 +82,7 @@ compiler stage that first declined the case.
 | `fail:pattern-arity` | 1 |
 | `fail:private-main` | 1 |
 | `fail:re-export-loop` | 1 |
-| `fail:type-mismatch` | 5 |
+| `fail:type-mismatch` | 2 |
 | `fail:unknown-data-field` | 2 |
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 2 |
@@ -171,12 +171,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (5)</summary>
+<details><summary><code>fail:type-mismatch</code> (2)</summary>
 
-- `typing/invalid/variance-representation-change.hd`
 - `typing/invalid/derived-generic-bound.hd`
-- `typing/invalid/contravariant-representation-change.hd`
-- `typing/invalid/function-result-representation-change.hd`
 - `typing/invalid/derived-eq-bound-unmet-data-argument.hd`
 
 </details>
@@ -1704,6 +1701,7 @@ typing/invalid/continue-outside-loop.hd
 typing/invalid/contravariant-enum-requirement-row.hd
 typing/invalid/contravariant-method-requirement-row.hd
 typing/invalid/contravariant-method-result.hd
+typing/invalid/contravariant-representation-change.hd
 typing/invalid/copy-assignment-ordinary-field.hd
 typing/invalid/copy-into-ordinary-field.hd
 typing/invalid/copy-update-private-field-other-module.hd
@@ -1898,6 +1896,7 @@ typing/invalid/function-anyref-bound.hd
 typing/invalid/function-equality.hd
 typing/invalid/function-field-identity.hd
 typing/invalid/function-identity-against-any.hd
+typing/invalid/function-result-representation-change.hd
 typing/invalid/function-result-type-mismatch.hd
 typing/invalid/function-type-non-tuple-inputs.hd
 typing/invalid/function-type-orphan-impl.hd
@@ -2591,6 +2590,7 @@ typing/invalid/vararg-rest-distinct.hd
 typing/invalid/variance-contravariant-target-result.hd
 typing/invalid/variance-covariant-target-parameter.hd
 typing/invalid/variance-position.hd
+typing/invalid/variance-representation-change.hd
 typing/invalid/variant-duplicate-argument.hd
 typing/invalid/variant-pattern-missing-payload.hd
 typing/invalid/variant-result-owner.hd

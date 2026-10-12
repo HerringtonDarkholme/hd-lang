@@ -341,9 +341,9 @@ impl Probe for Point by Structure:
 }
 
 #[test]
-fn a_list_of_another_element_type_is_a_type_mismatch() {
+fn a_list_of_another_element_type_is_a_representation_change() {
     one_error(
-        Code::TypeMismatch,
+        Code::VarianceRepresentationChange,
         &format!(
             "{COUNT}
 data Point:
