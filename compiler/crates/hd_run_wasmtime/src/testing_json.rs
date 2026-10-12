@@ -60,6 +60,23 @@ impl CaseRun {
         } else {
             None
         };
+        let frames = match object.get("frames") {
+            None => Vec::new(),
+            Some(v) => v
+                .as_array()
+                .ok_or("test result frames must be an array")?
+                .iter()
+                .map(|pair| {
+                    let n = |i: usize| {
+                        pair.get(i)
+                            .and_then(Value::as_u64)
+                            .and_then(|n| u32::try_from(n).ok())
+                    };
+                    n(0).zip(n(1))
+                        .ok_or("a test result frame must be two u32 numbers")
+                })
+                .collect::<Result<_, _>>()?,
+        };
         Ok(Self {
             test,
             status,
@@ -70,6 +87,7 @@ impl CaseRun {
             row,
             input,
             panic: None,
+            frames,
         })
     }
 
@@ -96,11 +114,20 @@ impl CaseRun {
             )
             .expect("write string");
         }
+        if !self.frames.is_empty() {
+            let frames: Vec<String> = self
+                .frames
+                .iter()
+                .map(|(f, off)| format!("[{f},{off}]"))
+                .collect();
+            write!(line, ",\"frames\":[{}]", frames.join(",")).expect("write string");
+        }
         line.push('}');
         line
     }
 
-    /// All existing JSON-observable fields except measured microseconds.
+    /// All existing JSON-observable fields except measured microseconds and
+    /// raw frames, whose depth differs by engine on an exhausted stack.
     /// Structured panic metadata is not part of the legacy Node protocol.
     #[must_use]
     pub fn equivalent(&self, other: &Self) -> bool {
@@ -130,6 +157,7 @@ mod tests {
             row: Some((1, 2)),
             input: Some("x".into()),
             panic: None,
+            frames: vec![(4, 120), (9, 77)],
         };
         assert_eq!(
             CaseRun::from_json_line(&result.to_json_line()).expect("round trip"),
@@ -137,6 +165,7 @@ mod tests {
         );
         let mut different = result.clone();
         different.us += 1;
+        different.frames.clear();
         assert!(result.equivalent(&different));
         different.input = None;
         assert!(!result.equivalent(&different));

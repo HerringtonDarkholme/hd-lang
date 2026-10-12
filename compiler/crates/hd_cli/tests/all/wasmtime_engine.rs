@@ -162,6 +162,46 @@ fn panics_report_and_end_with_status_3() {
     );
 }
 
+/// `cli.test.report.frame`: both engines report a panic's frames, read
+/// from their backtraces through the module's line table, the same way.
+#[test]
+fn test_reports_list_the_same_panic_frames() {
+    let dir = program(
+        "frames",
+        "fn pick(xs: List[i32], i: usize) -> i32:\n    xs[i]\n\n\
+         fn boom() -> void:\n    panic(\"out of stock\")\n\n\
+         tests:\n    it(\"picks past the end\"):\n        pick([1, 2], 5)\n\n    \
+         it(\"runs out\"):\n        boom()\n",
+    );
+    let out = both(&dir, &["test", "main.hd"]);
+    // A single file's package is named by its directory, which varies.
+    let lines: Vec<String> = text(&out.stdout)
+        .lines()
+        .map(|l| {
+            l.split_once("/main/").map_or(l.to_owned(), |(head, f)| {
+                let at = head.rfind(' ').map_or(0, |k| k + 1);
+                format!("{}{f}", &head[..at])
+            })
+        })
+        .collect();
+    assert_eq!(
+        lines,
+        [
+            "PANIC main.hd:8: picks past the end",
+            "    panic: index-out-of-bounds: list index out of bounds",
+            "    main.hd:2 pick",
+            "    main.hd:9 $test0",
+            "    repro: hd test main.hd --filter \"picks past the end\"",
+            "PANIC main.hd:11: runs out",
+            "    panic: explicit-panic: out of stock",
+            "    main.hd:5 boom",
+            "    main.hd:12 $test1",
+            "    repro: hd test main.hd --filter \"runs out\"",
+            "test result: FAILED. 0 passed; 2 failed; 0 ignored",
+        ]
+    );
+}
+
 #[test]
 fn args_and_program() {
     let dir = program(

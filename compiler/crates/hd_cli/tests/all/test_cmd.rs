@@ -37,9 +37,13 @@ fn text(b: &[u8]) -> String {
 const ALL: &str = "\
 PANIC cart.hd:50: sums a discount wrong
     panic: assertion-failed: ten less two: actual 8, expected 7
+    <std>/testing.hd:602 std/testing/check_equal
+    cart.hd:51 checkout/cart/$test3
     repro: hd test cart.hd --filter \"sums a discount wrong\"
 PANIC cart.hd:53: finds the cheapest of none
     panic: index-out-of-bounds: list index out of bounds
+    cart.hd:18 checkout/cart/cheapest
+    cart.hd:54 checkout/cart/$test4
     repro: hd test cart.hd --filter \"finds the cheapest of none\"
 FAIL cart.hd:59: expects a panic that never comes
     the case completed, but it expects the panic `assertion-failed`
@@ -47,6 +51,8 @@ FAIL cart.hd:59: expects a panic that never comes
 IGNORED cart.hd:62: waits for a slow price service (needs the price service)
 PANIC cart.hd:65: adds two and two
     panic: assertion-failed: two and two make five
+    <std>/testing.hd:594 std/testing/assert
+    cart.hd:66 checkout/cart/$test8
     repro: hd test cart.hd --filter \"adds two and two\"
 FAIL cart.hd:68: parses quantities
     not a quantity: lots
@@ -90,6 +96,8 @@ fn filter_selects_cases() {
         text(&out.stdout),
         "PANIC cart.hd:53: finds the cheapest of none\n    \
          panic: index-out-of-bounds: list index out of bounds\n    \
+         cart.hd:18 checkout/cart/cheapest\n    \
+         cart.hd:54 checkout/cart/$test4\n    \
          repro: hd test cart.hd --filter \"finds the cheapest of none\"\n\
          test result: FAILED. 0 passed; 1 failed; 0 ignored\n"
     );

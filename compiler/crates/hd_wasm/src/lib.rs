@@ -594,6 +594,10 @@ pub struct Code {
     pub results: Vec<VT>,
     pub body: Vec<u8>,
     pub relocs: Vec<(u32, Reloc)>,
+    /// The offset of each call that starts a new anchor, with the anchor:
+    /// the index of the TIR instruction in its item's body
+    /// (wasm-layout.md §15.9, codegen.md §13.8 "Positions"). Sorted.
+    pub lines: Vec<(u32, u32)>,
     /// A suspending instance's other functions (suspension.md §14.1).
     pub parts: Vec<(Part, Code)>,
 }
@@ -856,6 +860,11 @@ impl Code {
                 }
             }
         }
+        w.len_of(&self.lines);
+        for &(off, at) in &self.lines {
+            w.u32(off);
+            w.u32(at);
+        }
         w.len_of(&self.parts);
         for (p, c) in &self.parts {
             w.u8(p.tag());
@@ -904,6 +913,7 @@ impl Code {
             }
             relocs.push((at, reloc));
         }
+        let lines = (0..r.count()).map(|_| (r.u32(), r.u32())).collect();
         let mut parts = Vec::new();
         let n = r.count();
         if depth > 0 && n != 0 {
@@ -918,6 +928,7 @@ impl Code {
             results,
             body,
             relocs,
+            lines,
             parts,
         })
     }
@@ -1149,12 +1160,16 @@ fn subtype(r: &Resolved) -> SubType {
 /// pool, globals, relocation patching (codegen.md §13.10). Inputs are in
 /// content order, so the bytes are deterministic. `exports` are the entry
 /// functions (`hd.init`, `hd.poll`, `hd.wake`); `names` are the
-/// instances' item paths for the dev `name` section.
+/// instances' item paths for the dev `name` section. Every module gets the
+/// `hd.lines` table (wasm-layout.md §15.9); a `release` build gets the
+/// compact `hd.names` in place of the `name` section (codegen.md §13.10
+/// step 9, §13.17).
 pub fn link(
     codes: &[(Hash128, Code)],
     names: &[String],
     exports: &[(String, Helper)],
     witnesses: &hd_mono::Witnesses,
+    release: bool,
 ) -> StageResult<Vec<u8>> {
     // Every function body: instances, then their parts.
     let mut all: Vec<(Sym, &Code, String)> = Vec::new();
@@ -1429,10 +1444,16 @@ pub fn link(
     let mut ds = DataSection::new();
     ds.passive(data);
     module.section(&ds);
-    // The dev pipeline's standard `name` section (codegen.md §13.10 step 9).
-    let mut fnames = wasm_encoder::NameMap::new();
     let nh = u32::try_from(helpers.len()).expect("helpers");
     let ni = u32::try_from(imports.len()).expect("imports");
+    let first = ni + nh;
+    module.section(&line_table(&all, first));
+    if release {
+        module.section(&compact_names(&all, first));
+        return Ok(module.finish());
+    }
+    // The dev pipeline's standard `name` section (codegen.md §13.10 step 9).
+    let mut fnames = wasm_encoder::NameMap::new();
     for (k, (module_name, name, _, _)) in imports.iter().enumerate() {
         fnames.append(
             u32::try_from(k).expect("k"),
@@ -1445,12 +1466,61 @@ pub fn link(
         fnames.append(ni + u32::try_from(k).expect("k"), &format!("rt:{short}"));
     }
     for (k, (_, _, n)) in all.iter().enumerate() {
-        fnames.append(ni + nh + u32::try_from(k).expect("k"), n);
+        fnames.append(first + u32::try_from(k).expect("k"), n);
     }
     let mut ns = wasm_encoder::NameSection::new();
     ns.functions(&fnames);
     module.section(&ns);
     Ok(module.finish())
+}
+
+/// The `hd.lines` section (wasm-layout.md §15.9): for each function with
+/// anchored calls, by function index, its rows as (offset from the previous
+/// row's, anchor). An offset counts from the start of the function's body,
+/// its locals included; an anchor is a TIR instruction index in the body
+/// of the item that the function's name names.
+fn line_table(all: &[(Sym, &Code, String)], first: u32) -> wasm_encoder::CustomSection<'static> {
+    use wasm_encoder::Encode;
+    let rows: Vec<(u32, &[(u32, u32)])> = all
+        .iter()
+        .enumerate()
+        .filter(|(_, (_, c, _))| !c.lines.is_empty())
+        .map(|(k, (_, c, _))| (first + u32::try_from(k).expect("k"), c.lines.as_slice()))
+        .collect();
+    let mut data = Vec::new();
+    u32::try_from(rows.len()).expect("rows").encode(&mut data);
+    for (f, lines) in rows {
+        f.encode(&mut data);
+        u32::try_from(lines.len()).expect("lines").encode(&mut data);
+        let mut last = 0;
+        for &(off, at) in lines {
+            (off - last).encode(&mut data);
+            at.encode(&mut data);
+            last = off;
+        }
+    }
+    wasm_encoder::CustomSection {
+        name: "hd.lines".into(),
+        data: data.into(),
+    }
+}
+
+/// The `hd.names` section of a release build (wasm-layout.md §15.5): each
+/// compiled function's index and the name the `name` section would give it.
+fn compact_names(all: &[(Sym, &Code, String)], first: u32) -> wasm_encoder::CustomSection<'static> {
+    use wasm_encoder::Encode;
+    let mut data = Vec::new();
+    u32::try_from(all.len())
+        .expect("functions")
+        .encode(&mut data);
+    for (k, (_, _, n)) in all.iter().enumerate() {
+        (first + u32::try_from(k).expect("k")).encode(&mut data);
+        n.as_str().encode(&mut data);
+    }
+    wasm_encoder::CustomSection {
+        name: "hd.names".into(),
+        data: data.into(),
+    }
 }
 
 /// The constant initializer of a witness global (codegen.md §13.5.1):
@@ -1537,6 +1607,7 @@ mod tests {
             results: vec![],
             body: vec![0; 5],
             relocs: vec![(0, Reloc::Type(WTy::Rec(group(), 1)))],
+            lines: vec![(0, 7)],
             parts: vec![],
         };
         assert_eq!(Code::decode(&code.encode()), Some(code));
@@ -1545,6 +1616,7 @@ mod tests {
             results: vec![],
             body: vec![],
             relocs: vec![],
+            lines: vec![],
             parts: vec![],
         };
         assert_eq!(Code::decode(&stray.encode()), None);

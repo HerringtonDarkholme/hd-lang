@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::task::Poll;
 
 use hd_run::{Instance, Outcome, StartError};
-use wasmtime::{Store, Trap, TypedFunc};
+use wasmtime::{Store, Trap, TypedFunc, WasmBacktrace};
 
 use crate::host::{Control, Host, Stop, complete, deadlock, deliver_batch};
 use crate::limits;
@@ -23,6 +23,10 @@ pub struct WasmtimeInstance {
     /// A property keeps successful instances and their host state between bodies.
     pub(crate) close_on_end: bool,
     pub(crate) last_trapped: bool,
+    /// The last Wasm trap's frames, innermost first: function index and
+    /// module byte offset, which a test report symbolizes
+    /// (wasm-layout.md §15.9).
+    pub(crate) last_frames: Vec<(u32, u32)>,
 }
 
 impl WasmtimeInstance {
@@ -37,6 +41,7 @@ impl WasmtimeInstance {
             done: None,
             close_on_end: true,
             last_trapped: false,
+            last_frames: Vec::new(),
         }
     }
 
@@ -76,6 +81,7 @@ impl WasmtimeInstance {
             done: None,
             close_on_end: true,
             last_trapped: false,
+            last_frames: Vec::new(),
         })
     }
 }
@@ -122,6 +128,16 @@ impl WasmtimeInstance {
             return self.end(0);
         }
         self.last_trapped = true;
+        // A guest trap has frames; a host stop (a time limit, a broken host
+        // contract, an exhausted heap) has none, as on the Node host.
+        self.last_frames = match (e.downcast_ref::<Trap>(), e.downcast_ref::<WasmBacktrace>()) {
+            (Some(_), Some(trace)) if !limits::is_heap_exhausted(e) => trace
+                .frames()
+                .iter()
+                .filter_map(|f| Some((f.func_index(), u32::try_from(f.module_offset()?).ok()?)))
+                .collect(),
+            _ => Vec::new(),
+        };
         let host = self.store.data_mut();
         host.flush();
         if limits::is_heap_exhausted(e) {

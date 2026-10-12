@@ -288,6 +288,8 @@ tests:
         "\
 PANIC src/lib.hd:11: fails loudly
     panic: assertion-failed: double: actual 6, expected 7
+    <std>/testing.hd:602 std/testing/check_equal
+    src/lib.hd:12 probe/$test1
     src/lib.hd:2:5: x = 3
     repro: hd test src/lib.hd --filter \"fails loudly\"
 test result: FAILED. 1 passed; 1 failed; 0 ignored

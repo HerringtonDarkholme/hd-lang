@@ -68,6 +68,20 @@ class HostContract extends Error {}
 // (std-testing.option.timeout-any-duration, flow.panic.time-limit).
 class TimeLimit extends Error {}
 
+// A trap's stack holds every Wasm frame, not V8's default ten: a panic
+// report lists them all (cli.test.report.frame). A stack is captured only
+// when an error is made, so a run that never traps pays nothing.
+Error.stackTraceLimit = Infinity;
+
+// The Wasm frames of a trap's stack, innermost first, as [function index,
+// module byte offset] pairs from V8's `wasm-function[i]:0xOFF`; the test
+// command maps them through the module's line table (wasm-layout.md §15.9).
+const wasmFrames = (e) =>
+  Array.from(String(e.stack ?? "").matchAll(/wasm-function\[(\d+)\]:0x([0-9a-f]+)/g), (m) => [
+    Number(m[1]),
+    parseInt(m[2], 16),
+  ]);
+
 // The panic report of a body that overran its timeout of `ms`
 // milliseconds.
 export const timeLimitReport = (ms) =>
@@ -1040,13 +1054,14 @@ export function createHost(sink, env = {}) {
   if (env.providers) Object.assign(imports, env.providers({ put, Enc }));
 
   // Runs `init`, then polls `poll` to completion. Returns the status (3
-  // for a trap) and whether the instance trapped.
+  // for a trap), whether the instance trapped, and a Wasm trap's frames.
   const run = async (instance, init, poll) => {
     st.memory = instance.exports["hd.x"] ?? null;
     const ex = instance.exports;
     let status = 0;
     let trapped = false;
     let ended = false;
+    let frames = [];
     try {
       ex[init]();
       status = ex[poll]();
@@ -1078,7 +1093,10 @@ export function createHost(sink, env = {}) {
         // stack-exhausted panic. Other RangeErrors are host bugs and rethrow.
         sink.err("panic: stack-exhausted: the call stack ran out; check for recursion that never ends\n");
         st.reported = true;
-      } else if (!(e instanceof WebAssembly.RuntimeError) && !(e instanceof Deadlock)) {
+        frames = wasmFrames(e);
+      } else if (e instanceof WebAssembly.RuntimeError) {
+        frames = wasmFrames(e);
+      } else if (!(e instanceof Deadlock)) {
         throw e;
       }
       // A panic stub wrote its report; any other trap is an internal error.
@@ -1093,8 +1111,9 @@ export function createHost(sink, env = {}) {
       sink.err(timeLimitReport(st.timeoutMs));
       status = 3;
       trapped = true;
+      frames = [];
     }
-    return { status, trapped, ended };
+    return { status, trapped, ended, frames };
   };
 
   // Removes a directory the host made for itself, and closes its sockets.

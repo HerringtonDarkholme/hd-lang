@@ -129,6 +129,7 @@ impl BodyRunner for NativeBodyRunner {
         };
         instance.store.data_mut().flush();
         let mut trapped = instance.last_trapped;
+        let frames = std::mem::take(&mut instance.last_frames);
         let status = match outcome {
             Outcome::Exit(status) => i64::from(status),
             Outcome::Panic(report) => {
@@ -150,6 +151,7 @@ impl BodyRunner for NativeBodyRunner {
             stderr: String::from_utf8_lossy(&self.err.take()).into_owned(),
             us: u64::try_from(start.elapsed().as_micros()).unwrap_or(u64::MAX),
             panic: None,
+            frames,
         };
         if trapped || status != 0 || ended {
             self.instance = None;

@@ -203,6 +203,7 @@ fn execute_property(
     result.status = 0;
     result.trapped = false;
     result.panic = None;
+    result.frames.clear();
     result.us = total;
     emit(result);
     Ok(())

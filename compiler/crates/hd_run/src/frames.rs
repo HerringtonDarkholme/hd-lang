@@ -1,0 +1,233 @@
+//! A panic's frames (wasm-layout.md §15.9): the engine's backtrace, as
+//! function index and module byte offset per frame, mapped through the
+//! module's `hd.lines` rows to an anchor, a TIR instruction in the body of
+//! the item the function compiles. The caller resolves anchors to
+//! `FILE:LINE` against the current sources (`cli.test.report.frame`).
+//!
+//! The table is read only on a trap, never on a clean run. A function's
+//! name comes from the `name` section, or from `hd.names` in a release
+//! build, which omits `name`.
+
+use std::collections::HashMap;
+
+use crate::imports::{Bytes, all_sections, import_kinds};
+
+/// A frame of an engine's backtrace: function index, module byte offset.
+pub type RawFrame = (u32, u32);
+
+/// A frame that lands on an anchored call.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Anchored {
+    /// The stable path of the item whose body holds the anchor: the
+    /// function's name (`path#sub`) without its `#sub` suffix.
+    pub item: String,
+    /// The anchor: the TIR instruction's index in the item's body.
+    pub inst: u32,
+}
+
+/// A module's line table, parsed once and shared by every case of a test
+/// program (§15.9, Q2).
+#[derive(Clone, Debug, Default)]
+pub struct LineTable {
+    /// The number of imported functions: the index of the first function
+    /// with a body.
+    imports: u32,
+    /// The module offset of each function body, by defined function.
+    starts: Vec<u32>,
+    names: HashMap<u32, String>,
+    /// Per function index, its rows: offset in its body, anchor; sorted.
+    rows: HashMap<u32, Vec<(u32, u32)>>,
+}
+
+impl LineTable {
+    /// Reads the table of a module; a module without `hd.lines` has no rows.
+    pub fn parse(wasm: &[u8]) -> Result<LineTable, String> {
+        let sections = all_sections(wasm)?;
+        let imports = u32::try_from(import_kinds(wasm)?.iter().filter(|i| i.2 == 0).count())
+            .map_err(|e| e.to_string())?;
+        let mut t = LineTable {
+            imports,
+            ..LineTable::default()
+        };
+        for (id, start, body) in sections {
+            match id {
+                10 => {
+                    let mut r = Bytes { b: body, at: 0 };
+                    for _ in 0..r.len()? {
+                        let size = r.len()?;
+                        t.starts
+                            .push(u32::try_from(start + r.at).map_err(|e| e.to_string())?);
+                        r.at = r.at.checked_add(size).ok_or("a body is too long")?;
+                    }
+                }
+                0 => {
+                    let mut r = Bytes { b: body, at: 0 };
+                    match r.name()?.as_str() {
+                        "name" => t.names_section(&mut r)?,
+                        "hd.names" => {
+                            for _ in 0..r.len()? {
+                                let f = num(&mut r)?;
+                                t.names.insert(f, r.name()?);
+                            }
+                        }
+                        "hd.lines" => {
+                            for _ in 0..r.len()? {
+                                let f = num(&mut r)?;
+                                let mut rows = Vec::new();
+                                let mut off = 0u32;
+                                for _ in 0..r.len()? {
+                                    off = off
+                                        .checked_add(num(&mut r)?)
+                                        .ok_or("a row offset is too large")?;
+                                    rows.push((off, num(&mut r)?));
+                                }
+                                t.rows.insert(f, rows);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(t)
+    }
+
+    /// The function names of a `name` section (subsection 1).
+    fn names_section(&mut self, r: &mut Bytes<'_>) -> Result<(), String> {
+        while r.at < r.b.len() {
+            let id = r.byte()?;
+            let size = r.len()?;
+            let end = r.at.checked_add(size).ok_or("a subsection is too long")?;
+            if id == 1 {
+                for _ in 0..r.len()? {
+                    let f = num(r)?;
+                    self.names.insert(f, r.name()?);
+                }
+            }
+            r.at = end;
+        }
+        Ok(())
+    }
+
+    /// The frames that land on an anchored call, innermost first. A frame
+    /// belongs to the row with the greatest offset at or below its address
+    /// (§15.9, Q1). A frame in a function without rows, such as a runtime
+    /// helper or a panic stub, is not reported, so an explicit panic's
+    /// first frame is the call of its stub.
+    #[must_use]
+    pub fn anchor(&self, frames: &[RawFrame]) -> Vec<Anchored> {
+        frames
+            .iter()
+            .filter_map(|&(f, addr)| {
+                let rows = self.rows.get(&f)?;
+                let start = *self.starts.get(f.checked_sub(self.imports)? as usize)?;
+                let at = addr.checked_sub(start)?;
+                let k = rows.partition_point(|&(off, _)| off <= at).checked_sub(1)?;
+                let name = self.names.get(&f)?;
+                let item = name
+                    .rsplit_once('#')
+                    .map_or(name.as_str(), |(item, _)| item);
+                Some(Anchored {
+                    item: item.to_owned(),
+                    inst: rows[k].1,
+                })
+            })
+            .collect()
+    }
+}
+
+fn num(r: &mut Bytes<'_>) -> Result<u32, String> {
+    u32::try_from(r.leb()?).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Anchored, LineTable};
+
+    fn leb(out: &mut Vec<u8>, mut v: u32) {
+        loop {
+            let b = u8::try_from(v & 0x7f).expect("seven bits");
+            v >>= 7;
+            if v == 0 {
+                out.push(b);
+                return;
+            }
+            out.push(b | 0x80);
+        }
+    }
+
+    fn section(m: &mut Vec<u8>, id: u8, body: &[u8]) {
+        m.push(id);
+        leb(m, u32::try_from(body.len()).expect("len"));
+        m.extend(body);
+    }
+
+    fn custom(m: &mut Vec<u8>, name: &str, data: &[u8]) {
+        let mut body = Vec::new();
+        leb(&mut body, u32::try_from(name.len()).expect("len"));
+        body.extend(name.bytes());
+        body.extend(data);
+        section(m, 0, &body);
+    }
+
+    /// One imported function (index 0) and two bodies (1 and 2) of ten
+    /// bytes each; function 2 has rows at offsets 3 and 7.
+    fn module(names: &str) -> Vec<u8> {
+        let mut m = b"\0asm\x01\0\0\0".to_vec();
+        section(&mut m, 2, &[1, 1, b'm', 1, b'f', 0, 0]);
+        let mut code = vec![2];
+        for _ in 0..2 {
+            code.push(10);
+            code.extend([0; 10]);
+        }
+        section(&mut m, 10, &code);
+        custom(&mut m, "hd.lines", &[1, 2, 2, 3, 5, 4, 9]);
+        let mut entries = vec![2, 1, 1, b'g', 2];
+        entries.push(u8::try_from("app/main/f#0".len()).expect("len"));
+        entries.extend(b"app/main/f#0");
+        if names == "name" {
+            let mut sub = vec![1];
+            leb(&mut sub, u32::try_from(entries.len()).expect("len"));
+            sub.extend(&entries);
+            custom(&mut m, "name", &sub);
+        } else {
+            custom(&mut m, "hd.names", &entries);
+        }
+        m
+    }
+
+    #[test]
+    fn frames_map_to_the_greatest_row_at_or_below_them() {
+        for names in ["name", "hd.names"] {
+            let m = module(names);
+            let t = LineTable::parse(&m).expect("parses");
+            // Function 2's body starts after function 1's ten bytes.
+            let start = t.starts[1];
+            let at = |inst| Anchored {
+                item: "app/main/f".into(),
+                inst,
+            };
+            assert_eq!(
+                t.anchor(&[
+                    (0, 0),
+                    (1, t.starts[0] + 4),
+                    (2, start + 2),
+                    (2, start + 3),
+                    (2, start + 6),
+                    (2, start + 9),
+                ]),
+                [at(5), at(5), at(9)]
+            );
+        }
+    }
+
+    #[test]
+    fn a_module_without_a_table_maps_no_frame() {
+        let mut m = b"\0asm\x01\0\0\0".to_vec();
+        section(&mut m, 10, &[1, 2, 0, 0x0b]);
+        let t = LineTable::parse(&m).expect("parses");
+        assert!(t.anchor(&[(0, 9)]).is_empty());
+        assert!(LineTable::parse(b"nope").is_err());
+    }
+}

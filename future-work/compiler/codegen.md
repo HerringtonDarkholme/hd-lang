@@ -1464,11 +1464,12 @@ numbering, packs and filtered test programs are the largest for latency.
    `hd.sites` and `hd.lines` hold anchors here; `hd build` resolves them
    to positions in the file it writes (§13.8, "Positions").
 
-**M4b metadata boundary (M4b gap 5).** The current link writes the dev
-`name` section only. It writes no `hd.sites`, `hd.lines`, `hd.folds` or
-`hd.runtime`, and performs no byte-identical-function fold. Panic stubs
-therefore carry no recoverable site metadata yet; steps 1, 8 and 9 remain
-required.
+**M4b metadata boundary (M4b gap 5).** The current link writes
+`hd.lines` and the dev `name` section, or `hd.names` in a release build
+(#16, wasm-layout.md §15.9). It writes no `hd.sites`, `hd.folds` or
+`hd.runtime`, and performs no byte-identical-function fold. A panic's
+site is its stub caller's `hd.lines` row; steps 1, 8 and the rest of 9
+remain required.
 
 ```text
 link_key = prog_key (§11.3), and on a prog_key miss

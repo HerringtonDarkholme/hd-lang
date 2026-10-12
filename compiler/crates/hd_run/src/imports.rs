@@ -4,13 +4,13 @@
 //! `cli.wasm.not-hd.detect`).
 
 /// A reader over a module's bytes.
-struct Bytes<'a> {
-    b: &'a [u8],
-    at: usize,
+pub(crate) struct Bytes<'a> {
+    pub(crate) b: &'a [u8],
+    pub(crate) at: usize,
 }
 
 impl Bytes<'_> {
-    fn byte(&mut self) -> Result<u8, String> {
+    pub(crate) fn byte(&mut self) -> Result<u8, String> {
         let v = *self.b.get(self.at).ok_or("the module ends early")?;
         self.at += 1;
         Ok(v)
@@ -18,7 +18,7 @@ impl Bytes<'_> {
 
     /// An unsigned or signed LEB128 number; only its length matters for a
     /// signed one, which is skipped.
-    fn leb(&mut self) -> Result<u64, String> {
+    pub(crate) fn leb(&mut self) -> Result<u64, String> {
         let mut v = 0u64;
         for shift in (0..64).step_by(7) {
             let byte = self.byte()?;
@@ -30,11 +30,11 @@ impl Bytes<'_> {
         Err("a number is too long".to_owned())
     }
 
-    fn len(&mut self) -> Result<usize, String> {
+    pub(crate) fn len(&mut self) -> Result<usize, String> {
         usize::try_from(self.leb()?).map_err(|e| e.to_string())
     }
 
-    fn name(&mut self) -> Result<String, String> {
+    pub(crate) fn name(&mut self) -> Result<String, String> {
         let n = self.len()?;
         let end = self.at.checked_add(n).ok_or("a name is too long")?;
         let s = self.b.get(self.at..end).ok_or("the module ends early")?;
@@ -60,8 +60,12 @@ impl Bytes<'_> {
     }
 }
 
-/// The body of each section of a Wasm module with id `want`, in order.
-fn sections(wasm: &[u8], want: u8) -> Result<Vec<&[u8]>, String> {
+/// A section of a Wasm module: its id, the module offset of its body, and
+/// the body.
+pub(crate) type Section<'a> = (u8, usize, &'a [u8]);
+
+/// Each section of a Wasm module, in order.
+pub(crate) fn all_sections(wasm: &[u8]) -> Result<Vec<Section<'_>>, String> {
     if wasm.get(..8) != Some(b"\0asm\x01\0\0\0") {
         return Err("not a Wasm module".to_owned());
     }
@@ -72,23 +76,40 @@ fn sections(wasm: &[u8], want: u8) -> Result<Vec<&[u8]>, String> {
         let size = r.len()?;
         let end = r.at.checked_add(size).ok_or("a section is too long")?;
         let body = wasm.get(r.at..end).ok_or("the module ends early")?;
-        if id == want {
-            out.push(body);
-        }
+        out.push((id, r.at, body));
         r.at = end;
     }
     Ok(out)
 }
 
+/// The body of each section of a Wasm module with id `want`, in order.
+fn sections(wasm: &[u8], want: u8) -> Result<Vec<&[u8]>, String> {
+    Ok(all_sections(wasm)?
+        .into_iter()
+        .filter(|s| s.0 == want)
+        .map(|s| s.2)
+        .collect())
+}
+
 /// Each import of a Wasm module, as (module, name), in order.
 pub fn module_imports(wasm: &[u8]) -> Result<Vec<(String, String)>, String> {
+    Ok(import_kinds(wasm)?
+        .into_iter()
+        .map(|(module, name, _)| (module, name))
+        .collect())
+}
+
+/// Each import of a Wasm module, as (module, name, kind), in order; kind 0
+/// is a function.
+pub(crate) fn import_kinds(wasm: &[u8]) -> Result<Vec<(String, String, u8)>, String> {
     let mut out = Vec::new();
     for body in sections(wasm, 2)? {
         let mut r = Bytes { b: body, at: 0 };
         for _ in 0..r.len()? {
             let module = r.name()?;
             let name = r.name()?;
-            match r.byte()? {
+            let kind = r.byte()?;
+            match kind {
                 // A function: a type index.
                 0x00 => {
                     r.leb()?;
@@ -109,7 +130,7 @@ pub fn module_imports(wasm: &[u8]) -> Result<Vec<(String, String)>, String> {
                 }
                 k => return Err(format!("an import of unknown kind {k}")),
             }
-            out.push((module, name));
+            out.push((module, name, kind));
         }
     }
     Ok(out)

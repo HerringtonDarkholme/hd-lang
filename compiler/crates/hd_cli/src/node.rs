@@ -172,6 +172,9 @@ pub struct CaseRun {
     /// A failed property's shrunk input, as `Debug` shows it
     /// (`std-testing.prop.report`).
     pub input: Option<String>,
+    /// A Wasm trap's frames, innermost first: function index and module
+    /// byte offset (wasm-layout.md §15.9).
+    pub frames: Vec<(u32, u32)>,
 }
 
 impl CaseRun {
@@ -395,7 +398,13 @@ fn parse_case(line: &str) -> Option<CaseRun> {
     while !s.is_empty() {
         let (key, rest) = json_str(s.trim_start())?;
         let rest = rest.trim_start().strip_prefix(':')?.trim_start();
-        let rest = if rest.starts_with('"') {
+        let rest = if rest.starts_with('[') {
+            let (frames, rest) = json_frames(rest)?;
+            if key == "frames" {
+                r.frames = frames;
+            }
+            rest
+        } else if rest.starts_with('"') {
             let (v, rest) = json_str(rest)?;
             match key.as_str() {
                 "stdout" => r.stdout = v,
@@ -424,6 +433,29 @@ fn parse_case(line: &str) -> Option<CaseRun> {
             .unwrap_or(rest.trim_start());
     }
     Some(r)
+}
+
+/// A JSON array of number pairs at the start of `s`, `[[1,2],[3,4]]`, and
+/// the rest after it.
+fn json_frames(s: &str) -> Option<(Vec<(u32, u32)>, &str)> {
+    let mut rest = s.strip_prefix('[')?.trim_start();
+    let mut out = Vec::new();
+    loop {
+        if let Some(after) = rest.strip_prefix(']') {
+            return Some((out, after));
+        }
+        let pair = rest
+            .trim_start_matches(',')
+            .trim_start()
+            .strip_prefix('[')?;
+        let end = pair.find(']')?;
+        let (f, off) = pair[..end].split_once(',')?;
+        out.push((f.trim().parse().ok()?, off.trim().parse().ok()?));
+        rest = pair[end + 1..].trim_start();
+        if let Some(after) = rest.strip_prefix(',') {
+            rest = after.trim_start();
+        }
+    }
 }
 
 /// A JSON string at the start of `s`, decoded, and the rest after it.
@@ -533,5 +565,11 @@ mod tests {
         assert_eq!(failed.input.as_deref(), Some("Point { x: 50 }"));
         let empty = parse_case(r#"{"test":2,"row":0,"rows":0}"#).expect("parses");
         assert!(empty.last());
+        let trapped = parse_case(
+            r#"{"test":1,"status":3,"trapped":true,"stdout":"","stderr":"","us":1,"frames":[[12,4096],[7,300]]}"#,
+        )
+        .expect("parses");
+        assert_eq!(trapped.frames, [(12, 4096), (7, 300)]);
+        assert_eq!(trapped.us, 1);
     }
 }

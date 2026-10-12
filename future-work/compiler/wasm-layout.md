@@ -654,3 +654,33 @@ from the `check` entry when writing files. Q4: cap the frame list?
 A `stack-exhausted` backtrace can hold thousands of frames; the spec
 names no cap. Recommended: print all frames the rule asks for, and
 raise the cap as an owner question if reports get unwieldy.
+
+**As built (#16, 2026-10-12).** Q1 to Q4 took the recommended answers.
+
+- Emission records a row at each call that starts a new anchor; calls
+  in a row at one anchor share it. Every panic site is a stub call, so
+  call rows cover them all.
+- `hd.lines` holds, per function, its rows as (offset delta, TIR
+  instruction index). The item comes from the function's name, so the
+  table repeats no path. A release build writes `hd.names` and drops
+  `name`; a dev build keeps `name` and writes no `hd.names`.
+- No `hd.sites` is written. The category and message still travel in
+  the stub's report, and a stub has no rows, so the first anchored
+  frame is already the stub's caller. `hd.sites` would only repeat
+  `hd.lines` rows; it returns when categories move into globals.
+- `hd_driver::Positions` resolves an anchor on the first trap of a
+  program: the module's `check` entry gives the TIR syntax node, and a
+  parse of the file the run read gives the line. One `PositionPool`
+  keeps each module once for all programs of an `hd test` run.
+- Node reports V8 frames in its result lines, with
+  `Error.stackTraceLimit = Infinity`. wasmtime reports `WasmBacktrace`
+  frames; its frame limit is preallocated per trap, so it is set to
+  `max_wasm_stack / 16`, which no stack can exceed. Both give a caller
+  frame the offset of its call, so the `<=` rule is exact.
+- Only guest traps have frames. A host stop (time limit, host contract,
+  exhausted heap, deadlock) prints none, on both engines.
+- `hd build` writes the rows anchored, unresolved: nothing outside
+  `hd test` prints frames yet.
+- Q4 cost: unbounded recursion prints about 27,000 frames on Node and
+  131,000 on wasmtime (4 MiB stack). That is the owner question Q4
+  anticipated.

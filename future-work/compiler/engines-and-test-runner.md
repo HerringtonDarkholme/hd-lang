@@ -881,6 +881,8 @@ prerequisites are missing. The current emitter exports functions and
 It writes no `hd.sites`, `hd.lines` or `hd.names` tables.
 W4 therefore retains existing panic output; §21.5 awaits compiler work.
 This deferral does not establish symbolized-frame coverage.
+#16 later added the line table and frames on both engines
+(wasm-layout.md §15.9, "As built").
 
 The Node property runner creates a fresh instance for every body run.
 The recorded §19.4 design instead retains the instance after a pass.

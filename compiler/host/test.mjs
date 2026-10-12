@@ -41,10 +41,10 @@
 // panic, and starts a new worker at the next row or case.
 //
 // One JSON line per result goes to standard output: its case's `test`
-// index, then `status`, `trapped`, its captured output and its time. A row
-// line also has `row` and `rows`; an empty table is one line with
-// `"rows":0` and no result. A property's line adds the shrunk input's text
-// as `input` when it fails.
+// index, then `status`, `trapped`, its captured output and its time. A
+// trapped run's line adds its Wasm `frames`. A row line also has `row` and
+// `rows`; an empty table is one line with `"rows":0` and no result. A
+// property's line adds the shrunk input's text as `input` when it fails.
 import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync, writeSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { isMainThread, parentPort, Worker, workerData } from "node:worker_threads";
@@ -53,6 +53,21 @@ import { createHost, EndCase, timeLimitReport } from "./core.mjs";
 // How long past a deadline the supervisor waits for a body to end on its
 // own before it stops the worker.
 const GRACE_MS = 50;
+
+// Writes all of `text` to standard output. A pipe takes a long line, such
+// as one with many frames, in several writes, and refuses a write while
+// it is full.
+function writeOut(text) {
+  const buf = Buffer.from(text);
+  let at = 0;
+  while (at < buf.length) {
+    try {
+      at += writeSync(1, buf, at, buf.length - at);
+    } catch (e) {
+      if (e.code !== "EAGAIN") throw e;
+    }
+  }
+}
 
 // The wall clock, comparable across threads.
 const now = () => performance.timeOrigin + performance.now();
@@ -105,17 +120,17 @@ async function supervise(module, config) {
           us: Math.round((ms + GRACE_MS) * 1000),
         };
         if (at.row !== null && at.rows !== null) {
-          writeSync(1, JSON.stringify({ test: c.test, row: at.row, rows: at.rows, ...line }) + "\n");
+          writeOut(JSON.stringify({ test: c.test, row: at.row, rows: at.rows, ...line }) + "\n");
           next(at.row + 1 < at.rows ? { case: at.ci, row: at.row + 1, rows: at.rows } : { case: at.ci + 1, row: 0, rows: 0 });
         } else {
-          writeSync(1, JSON.stringify(line) + "\n");
+          writeOut(JSON.stringify(line) + "\n");
           next({ case: at.ci + 1, row: 0, rows: 0 });
         }
       };
       worker.on("message", (m) => {
         if (stopped) return;
         if (m.type === "line") {
-          writeSync(1, m.text);
+          writeOut(m.text);
         } else if (m.type === "case") {
           clear();
           at = { ci: m.ci, row: null, rows: null };
@@ -177,16 +192,18 @@ async function runOnce(c, k, runner) {
   );
   const t0 = performance.now();
   const instance = await WebAssembly.instantiate(module, host.imports);
-  const { status, trapped, ended } = await host.run(instance, `hd.init.${c.init}`, `hd.test.${c.test}`);
+  const { status, trapped, ended, frames } = await host.run(instance, `hd.init.${c.init}`, `hd.test.${c.test}`);
   parentPort.postMessage({ type: "done" });
   host.close();
   if (dir) rmSync(dir, { recursive: true, force: true });
   const us = Math.round((performance.now() - t0) * 1000);
-  return { status, trapped, ended, stdout, stderr, us };
+  return { status, trapped, ended, stdout, stderr, us, frames };
 }
 
 const emit = (line) => parentPort.postMessage({ type: "line", text: JSON.stringify(line) + "\n" });
 
+// A trapped run's line adds its Wasm frames, [function, offset] pairs
+// innermost first, when the trap had any.
 const result = (c, r, extra = {}) => ({
   test: c.test,
   ...extra,
@@ -195,6 +212,7 @@ const result = (c, r, extra = {}) => ({
   stdout: r.stdout,
   stderr: r.stderr,
   us: r.us,
+  ...(r.trapped && r.frames?.length ? { frames: r.frames } : {}),
 });
 
 // What one run of a property case did: the draws it recorded, its input's

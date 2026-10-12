@@ -496,7 +496,24 @@ impl Em<'_> {
         self.lay.env.build_profile() == BuildProfile::Release
     }
 
+    /// Emits instruction `i`, which anchors the calls it writes when it has
+    /// a source position (wasm-layout.md §15.9).
     fn inst(&mut self, i: u32) -> StageResult<()> {
+        let outer = self.a.at;
+        if self
+            .b
+            .syn
+            .get(i as usize)
+            .is_some_and(|n| *n != NodeIdx::NONE)
+        {
+            self.a.at = Some(i);
+        }
+        let r = self.inst_code(i);
+        self.a.at = outer;
+        r
+    }
+
+    fn inst_code(&mut self, i: u32) -> StageResult<()> {
         if let Some(&Target::Open(k)) = self.calls.get(&i)
             && self.b.tags[i as usize] != Tag::SwitchTag
         {

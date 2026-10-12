@@ -283,6 +283,60 @@ struct Built {
     /// What its `Args.program` returns: the test case's file relative to
     /// the package directory (`cli.test.env.args.program`).
     program: String,
+    /// What names its panics' frames, when it was built.
+    frames: Option<Frames>,
+}
+
+/// What names one program's panic frames (`cli.test.report.frame`): its
+/// sources' positions, and its line table, read on the program's first
+/// trap and shared by every case after it (wasm-layout.md §15.9, Q2).
+struct Frames {
+    positions: hd_driver::Positions,
+    table: std::sync::OnceLock<Option<hd_run::frames::LineTable>>,
+    /// A doc test's program: its path, its source file, and the source
+    /// line of each of its lines (`cli.test.doc.location`).
+    doc: Option<(String, String, Vec<u32>)>,
+    /// A workspace member's directory, which its files start with.
+    member: Option<String>,
+}
+
+impl Frames {
+    /// A trap's frames as `FILE:LINE FUNCTION` lines, panic site first.
+    /// A frame outside compiled hd code, or in a body the run did not
+    /// check, is left out.
+    fn lines(&self, wasm: &[u8], raw: &[(u32, u32)], src: &disk::DiskSources) -> Vec<String> {
+        if raw.is_empty() {
+            return Vec::new();
+        }
+        let Some(table) = self
+            .table
+            .get_or_init(|| hd_run::frames::LineTable::parse(wasm).ok())
+        else {
+            return Vec::new();
+        };
+        table
+            .anchor(raw)
+            .into_iter()
+            .filter_map(|a| {
+                let (file, line) = self.positions.line(&a.item, a.inst)?;
+                let (file, line) = match &self.doc {
+                    Some((path, source, lines)) if path == file => (
+                        source.clone(),
+                        line.checked_sub(1)
+                            .and_then(|i| lines.get(i as usize))
+                            .copied()
+                            .unwrap_or(1),
+                    ),
+                    _ => (src.display(file), line),
+                };
+                let file = match &self.member {
+                    Some(m) => format!("{m}/{file}"),
+                    None => file,
+                };
+                Some(format!("{file}:{line} {}", a.item))
+            })
+            .collect()
+    }
 }
 
 /// A selected case: its program, the case as the driver lists it, and a
@@ -447,6 +501,8 @@ fn test_one(
     let package = &program.package;
     let mut built: Vec<Built> = Vec::new();
     let mut selected: Vec<Selected> = Vec::new();
+    // The programs' modules, each kept once for their panic frames.
+    let mut positions = hd_driver::PositionPool::default();
     let mut diags: Vec<report::Diag> = Vec::new();
     for (path, doc) in &specs {
         let mut sources = program.sources.clone();
@@ -480,7 +536,7 @@ fn test_one(
             module,
             filter: o.filter.clone(),
         };
-        let out = build_packages(&host, package, &packages, &goal);
+        let mut out = build_packages(&host, package, &packages, &goal);
         let mut found = report::from_output(&out, None);
         // `module.test.doc.compile-fail`: it never runs, and passes only
         // when compiling it reports its code.
@@ -525,6 +581,7 @@ fn test_one(
                 wasm: None,
                 cwd: None,
                 program: String::new(),
+                frames: None,
             });
             continue;
         }
@@ -539,7 +596,7 @@ fn test_one(
                 diags.push(x);
             }
         }
-        for mut case in out.tests {
+        for mut case in std::mem::take(&mut out.tests) {
             if let Some(d) = doc {
                 case.file.clone_from(&d.file);
                 case.line = u32::try_from(d.line(case.line as usize)).unwrap_or(u32::MAX);
@@ -557,10 +614,17 @@ fn test_one(
             (Some(p), None) => p.clone(),
             (None, _) => String::new(),
         };
+        let frames = Frames {
+            positions: out.positions(&mut positions),
+            table: std::sync::OnceLock::new(),
+            doc: doc.map(|d| (d.path.clone(), d.file.clone(), d.test.lines.clone())),
+            member: member.map(str::to_owned),
+        };
         built.push(Built {
             wasm: out.wasm,
             cwd: path.as_ref().map(|_| root.to_path_buf()),
             program: program.sources.display(&shown),
+            frames: Some(frames),
         });
     }
     if let Some(m) = member {
@@ -601,6 +665,7 @@ fn test_one(
         seed: o.seed,
         update: o.update,
         filter: o.filter.as_deref(),
+        sources: &program.sources,
     };
     // `cli.test.builds-executables`: when an integration test or a doc
     // test can start a program, the package's executables and tasks are
@@ -666,6 +731,9 @@ struct RunEnv<'a> {
     /// `--filter PATTERN` (`cli.test.filter`), which also selects the rows
     /// of an `it_each` case by their names `name[i]`.
     filter: Option<&'a str>,
+    /// The package's files, which name a panic frame's file as a case's
+    /// file is named.
+    sources: &'a disk::DiskSources,
 }
 
 /// Whether row `row` of the `it_each` case `name` is selected: its name
@@ -970,7 +1038,13 @@ fn run(
                         if let Some(input) = &c.input {
                             report.inputs.insert(k.clone(), input.clone());
                         }
-                        let r = judge(&cases[i], &c);
+                        let frames = match (&prog.frames, &prog.wasm) {
+                            (Some(f), Some(wasm)) if c.trapped => {
+                                f.lines(wasm, &c.frames, env.sources)
+                            }
+                            _ => Vec::new(),
+                        };
+                        let r = judge(&cases[i], &c, frames);
                         report.release(&cases, &seeds, cursor.finish(k, r));
                     }
                     Err(e) => {
@@ -989,7 +1063,7 @@ fn run(
 
 /// A finished case's outcome (`module.testing.pass`, `module.testing.fail`,
 /// `module.testing.expect-panic-fail`).
-fn judge(case: &TestCase, run: &CaseRun) -> CaseResult {
+fn judge(case: &TestCase, run: &CaseRun, frames: Vec<String>) -> CaseResult {
     if run.trapped {
         let (category, message) = panic_of(&run.stderr);
         if case.expect_panic.as_deref() == Some(category.as_str()) {
@@ -999,6 +1073,7 @@ fn judge(case: &TestCase, run: &CaseRun) -> CaseResult {
             category,
             message,
             debug: debug_lines(&run.stderr),
+            frames,
         };
     }
     if let Some(want) = &case.expect_panic {
@@ -1103,6 +1178,7 @@ impl Report {
                     category,
                     message,
                     debug,
+                    frames,
                 } => {
                     self.failed += 1;
                     let panic = if message.is_empty() {
@@ -1111,6 +1187,10 @@ impl Report {
                         format!("panic: {category}: {message}")
                     };
                     let _ = writeln!(t, "PANIC {at}: {name}\n    {panic}");
+                    // `cli.test.report.frame`: the frames follow the panic.
+                    for f in &frames {
+                        let _ = writeln!(t, "    {f}");
+                    }
                     for l in debug.lines() {
                         let _ = writeln!(t, "    {l}");
                     }

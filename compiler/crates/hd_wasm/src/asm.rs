@@ -19,6 +19,12 @@ pub struct Asm {
     /// What each parameter holds, when it is declared defaultable (a
     /// suspending body's resume arguments, suspension.md §14.1).
     param_logical: Vec<VT>,
+    /// The TIR instruction being emitted, the anchor of each call written
+    /// meanwhile; `None` outside an instruction with a source position.
+    pub at: Option<u32>,
+    /// Per call written at an anchor: its offset and the anchor, the
+    /// code entry's `lines` (wasm-layout.md §15.9).
+    lines: Vec<(u32, u32)>,
 }
 
 #[must_use]
@@ -82,6 +88,19 @@ impl Asm {
             .push((u32::try_from(self.out.len()).expect("offset"), r));
         padded(&mut self.out, 0);
     }
+    /// Records the call about to be written at the current anchor. A
+    /// frame's address maps to the greatest recorded offset at or below it
+    /// (wasm-layout.md §15.9, Q1), so a call at the anchor of the row
+    /// before it needs no row of its own.
+    fn line(&mut self) {
+        let Some(at) = self.at else {
+            return;
+        };
+        if self.lines.last().is_none_or(|&(_, last)| last != at) {
+            self.lines
+                .push((u32::try_from(self.out.len()).expect("offset"), at));
+        }
+    }
     fn gc(&mut self, op: u8) {
         self.out.push(0xfb);
         self.out.push(op);
@@ -135,6 +154,7 @@ impl Asm {
         self.s().br_if(d);
     }
     pub fn call(&mut self, s: Sym) {
+        self.line();
         self.out.push(0x10);
         self.slot(Reloc::Func(s));
     }
@@ -143,6 +163,7 @@ impl Asm {
         self.slot(Reloc::Func(s));
     }
     pub fn call_ref(&mut self, t: &WTy) {
+        self.line();
         self.out.push(0x14);
         self.slot(Reloc::Type(t.clone()));
     }
@@ -279,6 +300,11 @@ impl Asm {
             results,
             body: head,
             relocs,
+            lines: self
+                .lines
+                .into_iter()
+                .map(|(off, at)| (off + shift, at))
+                .collect(),
             parts: Vec::new(),
         }
     }

@@ -146,6 +146,14 @@ pub(crate) fn wasmtime_config(config: EngineConfig) -> wasmtime::Config {
         .collector(wasmtime::Collector::Copying)
         .gc_heap_initial_size(config.gc_heap_initial)
         .epoch_interruption(true)
+        // A panic report lists every frame (cli.test.report.frame), not
+        // wasmtime's default twenty. A frame takes at least 16 bytes of the
+        // Wasm stack (a return address and a frame pointer), so this bound
+        // drops none. A backtrace is taken only on a trap, into a vector of
+        // this capacity.
+        .wasm_backtrace_max_frames(std::num::NonZeroUsize::new(
+            (config.max_wasm_stack / 16).max(1),
+        ))
         .max_wasm_stack(config.max_wasm_stack)
         // No fiber runs Wasm (no async support); wasmtime still checks
         // the Wasm stack against this size.

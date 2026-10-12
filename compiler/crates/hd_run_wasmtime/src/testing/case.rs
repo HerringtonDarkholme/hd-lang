@@ -42,6 +42,9 @@ pub struct BodyResult {
     pub stderr: String,
     pub us: u64,
     pub panic: Option<PanicInfo>,
+    /// A Wasm trap's frames, innermost first: function index and module
+    /// byte offset (wasm-layout.md §15.9).
+    pub frames: Vec<(u32, u32)>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -55,6 +58,9 @@ pub struct CaseRun {
     pub row: Option<(u32, u32)>,
     pub input: Option<String>,
     pub panic: Option<PanicInfo>,
+    /// A Wasm trap's frames, innermost first: function index and module
+    /// byte offset (wasm-layout.md §15.9).
+    pub frames: Vec<(u32, u32)>,
 }
 
 impl CaseRun {
@@ -74,6 +80,7 @@ impl CaseRun {
             row: None,
             input: None,
             panic: body.panic,
+            frames: body.frames,
         }
     }
 }

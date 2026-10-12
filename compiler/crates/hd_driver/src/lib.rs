@@ -46,6 +46,7 @@ use hd_types::{InternPool, Ty, TyData, TyList};
 use hd_wasm::Code as WasmCode;
 
 pub mod bench;
+mod positions;
 mod report;
 
 include!(concat!(env!("OUT_DIR"), "/std_files.rs"));
@@ -140,6 +141,7 @@ fn sources_hash(sources: &dyn SourceSet) -> Hash128 {
 }
 
 pub use hd_base::Stage;
+pub use positions::{PositionPool, Positions};
 pub use report::{Counters, PipelineReport, Tally};
 
 /// The compiler build id: `build.rs` hashes the compiler crates' sources.
@@ -266,6 +268,9 @@ pub struct Output {
     pub uses: Vec<Vec<usize>>,
     /// Per file, its module's path.
     pub modules: Vec<String>,
+    /// Per file, its module's `check` entry, which [`Output::positions`]
+    /// reads.
+    checks: Vec<Option<Arc<[u8]>>>,
     /// The module roots that differ from their package's identifier, each
     /// with that identifier (`ModuleTable::renamed_roots`).
     pub renamed: Vec<(String, String)>,
@@ -333,6 +338,14 @@ impl Output {
             .and_then(|_| self.texts.get(s.file.idx()))
             .map_or((1, 1), |text| line_column(text.as_bytes(), s.lo as usize));
         (file, line, column)
+    }
+
+    /// What resolves the anchors of the built program's line table to
+    /// files and lines (wasm-layout.md §15.9), its modules kept in `pool`
+    /// with those of the command's other programs.
+    #[must_use]
+    pub fn positions(&self, pool: &mut PositionPool) -> Positions {
+        Positions::new(pool, &self.modules, &self.files, &self.texts, &self.checks)
     }
 
     fn file_name(&self, s: Span) -> String {
@@ -908,6 +921,15 @@ fn build_packages_inner(
         texts: run.texts.clone(),
         uses,
         modules: run.table.modules.iter().map(|m| m.path.clone()).collect(),
+        checks: run
+            .check
+            .iter()
+            .map(|c| {
+                c.get()
+                    .and_then(Option::as_ref)
+                    .map(|c| Arc::clone(&c.entry))
+            })
+            .collect(),
         renamed: run.table.renamed_roots(),
         counters,
         report,
@@ -4552,7 +4574,13 @@ impl Run<'_> {
         };
         let Some(wasm) = self.stage(
             Stage::Link,
-            hd_wasm::link(&codes, &fnames, &entry, &c.collected.witnesses),
+            hd_wasm::link(
+                &codes,
+                &fnames,
+                &entry,
+                &c.collected.witnesses,
+                self.build_profile == BuildProfile::Release,
+            ),
         ) else {
             return;
         };

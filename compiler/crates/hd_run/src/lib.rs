@@ -5,6 +5,7 @@
 //! (live-execution.md §4). No engine lives here: wasmtime is in
 //! `hd_run_wasmtime`, the browser's in `hd_web`.
 
+pub mod frames;
 mod grant;
 mod imports;
 pub mod journal;

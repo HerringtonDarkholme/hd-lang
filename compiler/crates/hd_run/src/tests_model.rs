@@ -59,6 +59,9 @@ pub enum CaseResult {
         /// The `dbg` lines the case wrote before it panicked, which the
         /// report shows with the failure (`cli.dbg.test`).
         debug: String,
+        /// Its symbolized frames, `FILE:LINE FUNCTION`, panic site first
+        /// (`cli.test.report.frame`).
+        frames: Vec<String>,
     },
     TimedOut,
     /// `ignore` (`module.testing.option.ignore`), with its reason.
