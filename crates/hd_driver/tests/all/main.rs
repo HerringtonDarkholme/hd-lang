@@ -130,6 +130,7 @@ mod same_name_packages;
 mod sealed_rows;
 mod sealed_user_impls;
 mod session_collect;
+mod session_store;
 mod slicing_run;
 mod spread_args_run;
 mod std_interfaces;

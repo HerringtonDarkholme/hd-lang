@@ -122,6 +122,47 @@ impl CacheStore for MemoryStore {
     fn touch(&self, _: EntryKind, _: &Hash128) {}
 }
 
+/// A session's store (repl-plan.md §6, C3): reads look in its own memory
+/// first and fall through to the inner store; writes stay in memory, so
+/// per-input entries never reach the inner (disk) store.
+pub struct OverlayStore<'a> {
+    inner: &'a dyn CacheStore,
+    memory: MemoryStore,
+}
+
+impl<'a> OverlayStore<'a> {
+    #[must_use]
+    pub fn new(inner: &'a dyn CacheStore) -> Self {
+        Self {
+            inner,
+            memory: MemoryStore::default(),
+        }
+    }
+    /// The session-only entries written so far.
+    #[must_use]
+    pub fn memory(&self) -> &MemoryStore {
+        &self.memory
+    }
+}
+
+impl CacheStore for OverlayStore<'_> {
+    fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
+        self.memory
+            .get(kind, key)
+            .or_else(|| self.inner.get(kind, key))
+    }
+    fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
+        self.memory.put(kind, key, bytes);
+    }
+    /// Only an entry the inner store holds needs a touch; a memory entry
+    /// has no age to refresh.
+    fn touch(&self, kind: EntryKind, key: &Hash128) {
+        if self.memory.get(kind, key).is_none() {
+            self.inner.touch(kind, key);
+        }
+    }
+}
+
 /// The 64-byte entry header (data-structures.md §3.20), little-endian.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EntryHeader {
@@ -372,8 +413,8 @@ pub fn verify_entry(stored: &[u8], recomputed: &[u8]) -> StageResult<bool> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CacheStore, EntryKind, EntryStat, MemoryStore, decode_entry, encode_entry, plan_eviction,
-        shard_of,
+        CacheStore, EntryKind, EntryStat, MemoryStore, OverlayStore, decode_entry, encode_entry,
+        plan_eviction, shard_of,
     };
     use hd_base::Hash128;
 
@@ -409,6 +450,29 @@ mod tests {
         assert!(s.drain_new().is_empty());
         s.put(EntryKind::Iface, &Hash128(2), b"yz");
         assert_eq!(s.bytes(), 3);
+    }
+
+    #[test]
+    fn overlay_reads_through_and_writes_to_memory() {
+        let inner = MemoryStore::default();
+        inner.put(EntryKind::Iface, &Hash128(1), b"disk");
+        let o = OverlayStore::new(&inner);
+        assert_eq!(
+            o.get(EntryKind::Iface, &Hash128(1)).as_deref(),
+            Some(&b"disk"[..])
+        );
+        o.put(EntryKind::Iface, &Hash128(1), b"mem");
+        o.put(EntryKind::Check, &Hash128(2), b"new");
+        assert_eq!(
+            o.get(EntryKind::Iface, &Hash128(1)).as_deref(),
+            Some(&b"mem"[..])
+        );
+        assert_eq!(inner.len(), 1);
+        assert_eq!(
+            inner.get(EntryKind::Iface, &Hash128(1)).as_deref(),
+            Some(&b"disk"[..])
+        );
+        assert_eq!(o.memory().len(), 2);
     }
 
     #[test]
