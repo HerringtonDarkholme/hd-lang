@@ -89,3 +89,19 @@ fn a_template_that_describes_stays_clean() {
     );
     assert_eq!(check(&src), []);
 }
+
+#[test]
+fn a_template_naming_a_top_level_binding_is_reported_once() {
+    let src = format!(
+        "{COUNTER}\nprefix := \"The \"\n\nimpl[T] Named for T by Structure:\n    fn title() -> string:\n        let mut d = MemberCount {{ count: 0 }}\n        _ := T::describe(d)\n        prefix + Structure::name()\n"
+    );
+    assert_eq!(check(&src), [Code::TemplateNamesBinding]);
+}
+
+#[test]
+fn a_binding_read_by_an_ordinary_function_stays_clean() {
+    let src = format!(
+        "{COUNTER}\nprefix := \"The \"\n\nfn label() -> string:\n    prefix + \"x\"\n\nimpl[T] Named for T by Structure:\n    fn title() -> string:\n        let mut d = MemberCount {{ count: 0 }}\n        _ := T::describe(d)\n        Structure::name()\n"
+    );
+    assert_eq!(check(&src), []);
+}

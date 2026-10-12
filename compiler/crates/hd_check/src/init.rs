@@ -742,6 +742,16 @@ impl Ck<'_, '_> {
     /// A top-level binding read from any body of the module.
     pub(crate) fn global_get(&mut self, name: Symbol, n: NodeRef<'_>) -> Option<(Ref, Ty)> {
         let g = self.cx.init.borrow().globals.get(&name).copied()?;
+        // A template body names no top-level binding
+        // (`module.package.template-private.no-binding`).
+        if self.in_template {
+            let msg = format!(
+                "a template body cannot name the top-level binding `{}`",
+                self.cx.names.text(name)
+            );
+            self.err(Code::TemplateNamesBinding, n, &msg);
+            return Some(self.poison_value(n));
+        }
         // Inside the init body, a binding is visible from its statement on.
         if self.module_init.is_some() && g.stmt >= self.init_stmt {
             return None;

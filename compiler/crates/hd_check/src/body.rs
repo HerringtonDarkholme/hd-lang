@@ -325,6 +325,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// body before their captures were known: each body is checked again
     /// with them.
     pub generic_recheck: Vec<LocalId>,
+    /// Whether the body is a `by Structure` template's, which names no
+    /// top-level binding (`module.package.template-private.no-binding`).
+    pub in_template: bool,
 }
 
 /// A node index kept for a later diagnostic.
@@ -452,6 +455,7 @@ pub(crate) fn new_ck<'a, 'c>(
         gen_owner: env,
         next_gen: 0,
         generic_recheck: Vec::new(),
+        in_template: false,
     };
     // No local declaration holds byte 0: every local impl starts hidden.
     ck.move_to(0);
@@ -479,6 +483,7 @@ pub(crate) fn new_ck<'a, 'c>(
                     kind,
                     hd_resolve::ImplKind::Template | hd_resolve::ImplKind::TupleTemplate
                 ) {
+                    ck.in_template = true;
                     let st = cx.names.known.structure;
                     for (def, args) in [(st, TyList::EMPTY), (*trait_, *trait_args)] {
                         let tv = pool.intern_ty(&TyData::TraitValue {
