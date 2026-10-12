@@ -249,6 +249,10 @@ pub(crate) struct Ck<'a, 'c> {
     pub loop_else: Option<(NodeRefIdx, Ty)>,
     /// The function body block, for `missing-return-value`.
     pub fn_body: Option<NodeRefIdx>,
+    /// The tail expression of the function body block, when it is an `if`
+    /// without `else`: that `if` is `missing-return-value`, not a value
+    /// `if` (`flow.if.value.else` reports every other value position).
+    pub fn_body_tail: Option<hd_base::NodeIdx>,
     /// The function header's written requirement row, which a
     /// `missing-requirement` shows with its expansion
     /// (`req.row.alias.diagnostics.expanded`).
@@ -439,6 +443,7 @@ pub(crate) fn new_ck<'a, 'c>(
         bare_step: false,
         loop_else: None,
         fn_body: None,
+        fn_body_tail: None,
         written_row: None,
         let_view: None,
         pattern_rejected: false,
@@ -1820,7 +1825,18 @@ impl Ck<'_, '_> {
                 let Some(e) = s.children().next() else {
                     return unsupported("an empty expression statement");
                 };
-                let (r, t) = self.expr(e, want)?;
+                // A function-body tail that is an `if` without `else` is
+                // `missing-return-value`, so that `if` does not also
+                // report `flow.if.value.else`. Any other tail expression
+                // leaves the marker as it was.
+                let tail_if = (e.kind() == SyntaxKind::IfExpr
+                    && Src::child(e, SyntaxKind::ElseClause).is_none()
+                    && self.fn_body == Some(block.index()))
+                .then(|| e.index());
+                let saved_tail = std::mem::replace(&mut self.fn_body_tail, tail_if);
+                let checked = self.expr(e, want);
+                self.fn_body_tail = saved_tail;
+                let (r, t) = checked?;
                 // A last expression that cannot complete is a statement.
                 if self.infer.shallow(self.pool(), t) == Ty::NEVER {
                     diverged = true;

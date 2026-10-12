@@ -2006,6 +2006,16 @@ impl Ck<'_, '_> {
         let (c, ct) = self.expr(cond, Some(Ty::BOOL))?;
         self.expect(ct, Ty::BOOL, cond, "condition");
         let (when_true, when_false) = self.take_cond_flow(cond);
+        // `flow.if.value.else`: an `if` used where a value is required
+        // must have an `else`. A function-body tail is exempt: there the
+        // fallthrough is `missing-return-value`.
+        if clause.is_none() && want != Some(Ty::VOID) && self.fn_body_tail != Some(e.index()) {
+            self.err(
+                Code::TypeMismatch,
+                e,
+                "an `if` used as a value needs an `else`, for the value when the condition is false",
+            );
+        }
         // A value `if` needs an `else`; without one it is a statement.
         let want = if clause.is_none() {
             Some(Ty::VOID)

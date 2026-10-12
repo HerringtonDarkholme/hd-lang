@@ -713,12 +713,10 @@ test("the bundled examples run and check", async () => {
 });
 
 /**
- * Tour edits the Rust compiler does not reject yet. `speed := if c: "x"`
- * is accepted with type `void` and prints `()`, though
- * spec/lang/06-control-flow.md#r-flow.if.value.else requires an `else`.
- * When the compiler rejects it, this test fails until the entry goes.
+ * Tour edits the Rust compiler does not reject yet, by page. Empty while
+ * every documented edit breaks as its page says.
  */
-const EDITS_ACCEPTED = new Set(["website/tour/07-expressions.md"]);
+const EDITS_ACCEPTED = new Set<string>([]);
 
 // The tour pages name each edit's error as the prototype compiler worded
 // it; the Rust compiler reports the same code in its own words.
