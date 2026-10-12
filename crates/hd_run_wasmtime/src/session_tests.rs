@@ -2,7 +2,8 @@
 //! with `Goal::ReplInput` (job C4) run one after another in one store. A
 //! later input sees an earlier input's declarations and top-level bindings
 //! by name (job C5). An input that is one expression shows its value, and
-//! an input's top level may make bang calls (job C6).
+//! an input's top level may make bang calls (job C6). A session that
+//! starts with its prelude (job C8) runs it first, as input 0.
 
 use hd_run::{HostSetup, Outcome};
 
@@ -98,6 +99,32 @@ fn repl(session: &mut WasmtimeSession) -> Repl<'_> {
         session,
         built: hd_driver::Session::start(),
         files: hd_project::MemorySources::default(),
+        next: 0,
+    }
+}
+
+/// A session that starts as the REPL does: its prelude runs first and
+/// owns the memory and runtime globals; inputs import what it holds.
+fn repl_with_prelude(session: &mut WasmtimeSession) -> Repl<'_> {
+    let store = hd_cache::MemoryStore::default();
+    let files = hd_project::MemorySources::default();
+    let host = hd_driver::Host {
+        render_tir: &[],
+        sources: &files,
+        store: &store,
+        clock: &hd_driver::NoClock,
+        executor: hd_driver::Executor::Serial(hd_sched::SerialOrder::Priority),
+    };
+    let out = hd_driver::build_repl_prelude(&host, hd_driver::BuildProfile::Checked);
+    assert!(out.diags.is_empty(), "{}", out.render());
+    let wasm = out.wasm.expect("the prelude");
+    assert_eq!(session.run_input(&wasm), Ok(Outcome::Exit(0)));
+    let mut built = hd_driver::Session::start();
+    built.add(out.session_added.expect("what the prelude adds"));
+    Repl {
+        session,
+        built,
+        files,
         next: 0,
     }
 }
@@ -316,5 +343,43 @@ fn an_input_makes_bang_calls_at_top_level() {
         }
         assert_eq!(text(&io.out), "true\n");
         assert_eq!(text(&io.err), "false : bool\n");
+    });
+}
+
+/// Over the prelude, inputs show values of the types it holds and of
+/// others, and the session still resets the runtime globals the prelude
+/// owns after a panic inside `defer` (`cli.repl.panic`).
+#[test]
+fn inputs_run_over_the_prelude() {
+    let panics = "\
+fn cleanup(xs: List[i32]) -> void:
+    defer:
+        _ := xs[3]
+    pass
+
+cleanup([+1])
+";
+    with_session(|session, io| {
+        let mut repl = repl_with_prelude(session);
+        assert_eq!(text(&io.out), "");
+        assert_eq!(text(&io.err), "");
+        for (input, shown) in [
+            ("1 + 2\n", "3 : usize\n"),
+            ("[3, 6]\n", "[3, 6] : List[usize]\n"),
+            ("\"tea\"\n", "\"tea\" : string\n"),
+            ("[+1, -2]\n", "[1, -2] : List[i32]\n"),
+            ("Option.Some(1.5)\n", "Option.Some(1.5) : f64?\n"),
+        ] {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+            assert_eq!(text(&io.err), shown);
+        }
+        assert_eq!(repl.input(panics), Outcome::Exit(3));
+        assert_eq!(
+            text(&io.err),
+            "panic: index-out-of-bounds: list index out of bounds\n"
+        );
+        assert_eq!(repl.input("println(\"after\")\n"), Outcome::Exit(0));
+        assert_eq!(text(&io.out), "after\n");
+        assert_eq!(text(&io.err), "");
     });
 }

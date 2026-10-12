@@ -806,36 +806,64 @@ fn take_groups(t: WTy, out: &mut Vec<Arc<Group>>) {
     }
 }
 
+/// The bytes `body` writes, ID-free: first the table of the recursion
+/// groups its types name (`Table`), then what it writes.
+fn encode_grouped(body: &dyn Fn(&mut Writer)) -> Vec<u8> {
+    let ((), found) = with_table(Table::Find(Vec::new(), HashSet::new()), || {
+        body(&mut Writer::default());
+    });
+    let Table::Find(roots, _) = found else {
+        unreachable!("the table set above")
+    };
+    let groups = groups_after_parts(roots, &|_| false);
+    let at: HashMap<Hash128, u32> = groups
+        .iter()
+        .enumerate()
+        .map(|(k, g)| (g.hash, u32::try_from(k).expect("groups")))
+        .collect();
+    let (bytes, _) = with_table(Table::Enc(at), || {
+        let mut w = Writer::default();
+        w.len_of(&groups);
+        for g in &groups {
+            w.len_of(&g.members);
+            for m in g.iter() {
+                m.encode(&mut w);
+            }
+        }
+        body(&mut w);
+        w.bytes
+    });
+    bytes
+}
+
+/// Reads what `encode_grouped` wrote: the group table, then `body`;
+/// `None` when malformed.
+fn decode_grouped<T>(bytes: &[u8], body: impl FnOnce(&mut Reader<'_>) -> Option<T>) -> Option<T> {
+    let mut r = Reader::new(bytes);
+    let (c, _) = with_table(Table::Dec(Vec::new()), || {
+        for _ in 0..r.count() {
+            let n = u32::try_from(r.count()).ok()?;
+            let members: Vec<WTy> = (0..n)
+                .map(|_| WTy::decode_in(&mut r, 0, Some(n)))
+                .collect::<Option<_>>()?;
+            let g = Group::new(members);
+            TABLE.with(|c| {
+                if let Some(Table::Dec(groups)) = c.borrow_mut().as_mut() {
+                    groups.push(g);
+                }
+            });
+        }
+        body(&mut r)
+    });
+    r.ok().then_some(c?)
+}
+
 impl Code {
     /// The code entry's bytes (codegen.md §13.8): ID-free. First the
     /// table of its recursion groups (`Table`), then the entry.
     #[must_use]
     pub fn encode(&self) -> Vec<u8> {
-        let ((), found) = with_table(Table::Find(Vec::new(), HashSet::new()), || {
-            self.encode_into(&mut Writer::default());
-        });
-        let Table::Find(roots, _) = found else {
-            unreachable!("the table set above")
-        };
-        let groups = groups_after_parts(roots, &|_| false);
-        let at: HashMap<Hash128, u32> = groups
-            .iter()
-            .enumerate()
-            .map(|(k, g)| (g.hash, u32::try_from(k).expect("groups")))
-            .collect();
-        let (bytes, _) = with_table(Table::Enc(at), || {
-            let mut w = Writer::default();
-            w.len_of(&groups);
-            for g in &groups {
-                w.len_of(&g.members);
-                for m in g.iter() {
-                    m.encode(&mut w);
-                }
-            }
-            self.encode_into(&mut w);
-            w.bytes
-        });
-        bytes
+        encode_grouped(&|w| self.encode_into(w))
     }
 
     fn encode_into(&self, w: &mut Writer) {
@@ -875,23 +903,7 @@ impl Code {
     /// Decodes a code entry; `None` when malformed (a cache miss).
     #[must_use]
     pub fn decode(bytes: &[u8]) -> Option<Code> {
-        let mut r = Reader::new(bytes);
-        let (c, _) = with_table(Table::Dec(Vec::new()), || {
-            for _ in 0..r.count() {
-                let n = u32::try_from(r.count()).ok()?;
-                let members: Vec<WTy> = (0..n)
-                    .map(|_| WTy::decode_in(&mut r, 0, Some(n)))
-                    .collect::<Option<_>>()?;
-                let g = Group::new(members);
-                TABLE.with(|c| {
-                    if let Some(Table::Dec(groups)) = c.borrow_mut().as_mut() {
-                        groups.push(g);
-                    }
-                });
-            }
-            Self::decode_from(&mut r, 0)
-        });
-        r.ok().then_some(c?)
+        decode_grouped(bytes, |r| Self::decode_from(r, 0))
     }
 
     fn decode_from(r: &mut Reader<'_>, depth: u8) -> Option<Code> {
@@ -1216,6 +1228,50 @@ impl Externs {
                 add(Sym::Part(*k, *p), pc);
             }
         }
+    }
+}
+
+impl Externs {
+    /// The bytes of what a session's modules export, ID-free, as a code
+    /// entry's are (`Code::encode`), for a cached session module such as
+    /// a REPL session's prelude.
+    #[must_use]
+    pub fn encode(&self) -> Vec<u8> {
+        encode_grouped(&|w| {
+            w.u8(u8::from(self.first));
+            w.u32(u32::try_from(self.funcs.len()).expect("functions"));
+            for (s, (params, results)) in &self.funcs {
+                s.encode(w);
+                encode_vts(params, w);
+                encode_vts(results, w);
+            }
+            w.u32(u32::try_from(self.globals.len()).expect("globals"));
+            for g in &self.globals {
+                g.encode(w);
+            }
+        })
+    }
+
+    /// Decodes `Externs::encode`'s bytes; `None` when malformed.
+    #[must_use]
+    pub fn decode(bytes: &[u8]) -> Option<Externs> {
+        decode_grouped(bytes, |r| {
+            let first = r.u8() != 0;
+            let mut funcs = BTreeMap::new();
+            for _ in 0..r.count() {
+                let s = Sym::decode(r)?;
+                funcs.insert(s, (decode_vts(r, 0)?, decode_vts(r, 0)?));
+            }
+            let mut globals = BTreeSet::new();
+            for _ in 0..r.count() {
+                globals.insert(GSym::decode(r)?);
+            }
+            Some(Externs {
+                first,
+                funcs,
+                globals,
+            })
+        })
     }
 }
 

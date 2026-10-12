@@ -7,10 +7,14 @@
 //! assigns an earlier input's top-level bindings by name
 //! (`cli.repl.declarations.bindings`, job C5). An input that is one
 //! expression writes its value line, and an input's top level is a driver
-//! context (job C6).
+//! context (job C6). A session starts with its prelude, input 0, which
+//! holds what showing a value needs, so small inputs stay small (job C8).
 
 use hd_cache::{CacheStore, OverlayStore};
-use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, Session, build_packages};
+use hd_driver::{
+    BuildProfile, Executor, Goal, Host, NoClock, Output, Packages, Session, build_packages,
+    build_repl_prelude,
+};
 use hd_project::{MemorySources, repl_file};
 use hd_sched::SerialOrder;
 
@@ -444,4 +448,114 @@ fn an_input_may_make_bang_calls_at_top_level() {
         "{}",
         out.render()
     );
+}
+
+/// Builds the session's prelude over `store` and adds it to `repl`'s
+/// session, as a session that starts does once the prelude has run.
+fn start_with_prelude(repl: &mut Repl<'_>, store: &dyn CacheStore) -> Output {
+    let host = Host {
+        render_tir: &[],
+        sources: &repl.src,
+        store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let out = build_repl_prelude(&host, BuildProfile::Checked);
+    assert!(out.diags.is_empty(), "{}", out.render());
+    repl.session
+        .add(out.session_added.clone().expect("what the prelude adds"));
+    out
+}
+
+/// A module's imports and exports as (module, name), (name); validates it
+/// first.
+fn imports_and_exports(wasm: &[u8]) -> (Vec<(String, String)>, Vec<String>) {
+    wasmparser::Validator::new()
+        .validate_all(wasm)
+        .expect("the module validates");
+    let mut imports = Vec::new();
+    let mut exports = Vec::new();
+    for payload in wasmparser::Parser::new(0).parse_all(wasm) {
+        match payload.expect("payload") {
+            wasmparser::Payload::ImportSection(r) => {
+                for i in r.into_imports() {
+                    let i = i.expect("import");
+                    imports.push((i.module.to_owned(), i.name.to_owned()));
+                }
+            }
+            wasmparser::Payload::ExportSection(r) => {
+                for e in r {
+                    exports.push(e.expect("export").name.to_owned());
+                }
+            }
+            _ => {}
+        }
+    }
+    (imports, exports)
+}
+
+/// The prelude owns the session's memory and runtime globals, and the
+/// first real input imports them with what its value line calls instead
+/// of linking its own copies: a `1 + 2` input stays under 2 KB (it is
+/// about 9 KB without the prelude), and so does `[3, 6]`.
+#[test]
+fn the_first_input_links_against_the_prelude() {
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    let prelude = start_with_prelude(&mut repl, &inner);
+    let (imports, exports) = imports_and_exports(prelude.wasm.as_deref().expect("a module"));
+    assert!(imports.iter().all(|(m, _)| m != hd_wasm::SESSION_MODULE));
+    assert!(exports.iter().any(|e| e == hd_wasm::MEMORY_KEY));
+    for g in hd_wasm::rt::runtime_globals() {
+        let key = hd_wasm::global_key(&g);
+        assert!(exports.contains(&key), "{key}");
+    }
+    for (n, text) in ["1 + 2\n", "[3, 6]\n"].iter().enumerate() {
+        let n = u32::try_from(n + 1).expect("inputs");
+        let out = repl.input(n, text);
+        let wasm = out.wasm.as_deref().expect("a module");
+        assert!(wasm.len() < 2048, "repl#{n} is {} bytes", wasm.len());
+        let (imports, _) = imports_and_exports(wasm);
+        let session = |f: &dyn Fn(&str) -> bool| {
+            imports
+                .iter()
+                .any(|(m, i)| m == hd_wasm::SESSION_MODULE && f(i))
+        };
+        assert!(session(&|i| i == hd_wasm::MEMORY_KEY), "{imports:?}");
+        assert!(session(&|i| i.starts_with("inst.")), "{imports:?}");
+        let names = function_names(wasm);
+        assert!(
+            names.iter().all(|f| !f.starts_with("std/")),
+            "repl#{n}: {names:?}"
+        );
+    }
+}
+
+/// The prelude is the same for every session of a toolchain: the second
+/// session reads it from the store, with no stage run, and adds the same
+/// to its session.
+#[test]
+fn the_prelude_is_cached_per_toolchain() {
+    let store = hd_cache::MemoryStore::default();
+    let mut first = repl(&store);
+    let built = start_with_prelude(&mut first, &store);
+    assert_eq!(built.counters.misses.get("link"), Some(&1));
+    let mut second = repl(&store);
+    let cached = start_with_prelude(&mut second, &store);
+    assert_eq!(cached.counters.hits.get("link"), Some(&1));
+    assert!(cached.counters.modules_checked.is_empty());
+    assert_eq!(cached.wasm, built.wasm);
+    assert_eq!(cached.session_added, built.session_added);
+    // Another build profile is another prelude.
+    let host = Host {
+        render_tir: &[],
+        sources: &second.src,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let release = build_repl_prelude(&host, BuildProfile::Release);
+    assert_eq!(release.counters.misses.get("link"), Some(&1));
+    assert_ne!(release.wasm, built.wasm);
 }

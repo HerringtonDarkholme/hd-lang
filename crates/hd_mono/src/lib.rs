@@ -2153,7 +2153,10 @@ fn note_data(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut BTreeSet<
 /// instance, each call's target, the imports and data types; or the stop
 /// at an instantiation limit. With a `session`, collection stops at the
 /// instances earlier modules hold (`Collected::externs`) and leaves out
-/// the inits they ran; without one, it collects the whole program.
+/// the inits they ran; without one, it collects the whole program. `refs`
+/// are function references the module holds though its code takes none:
+/// each item's adapter instance at its type arguments, as a REPL
+/// session's prelude holds them for later inputs (repl-plan.md job C8).
 pub fn collect(
     pool: &InternPool,
     env: &dyn ProgramEnv,
@@ -2161,6 +2164,7 @@ pub fn collect(
     root: DefId,
     inits: &[DefId],
     extra: &[(DefId, TyList)],
+    refs: &[(DefId, TyList)],
     session: Option<Session<'_>>,
 ) -> StageResult<Result<Collected, TooDeep>> {
     let mut cx = Cx {
@@ -2182,7 +2186,7 @@ pub fn collect(
         session,
         externs: HashMap::new(),
     };
-    if let Err(e) = cx.run(root, inits, extra) {
+    if let Err(e) = cx.run(root, inits, extra, refs) {
         return match cx.too_deep.take() {
             Some(t) => Ok(Err(t)),
             None => Err(e),
@@ -2196,7 +2200,13 @@ pub fn collect(
 }
 
 impl Cx<'_> {
-    fn run(&mut self, root: DefId, inits: &[DefId], extra: &[(DefId, TyList)]) -> StageResult<()> {
+    fn run(
+        &mut self,
+        root: DefId,
+        inits: &[DefId],
+        extra: &[(DefId, TyList)],
+        refs: &[(DefId, TyList)],
+    ) -> StageResult<()> {
         self.push(root, Sub::Body(0), TyList::EMPTY, InstId::NONE)?;
         for i in inits {
             if let Some(session) = self.session
@@ -2213,6 +2223,9 @@ impl Cx<'_> {
         for (d, args) in extra {
             let t = self.target(*d, *args, InstId::NONE)?;
             self.out.extra.push(t.key);
+        }
+        for (d, args) in refs {
+            self.push(*d, Sub::Adapter, *args, InstId::NONE)?;
         }
         // Breadth-first in push order (codegen.md §13.4): the first
         // instance over a limit is the same on every run.

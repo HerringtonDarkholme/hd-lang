@@ -245,7 +245,8 @@ pub enum Goal {
     /// each earlier input's top-level names nested in it
     /// (`cli.repl.package.lib`). With [`Packages::session`], it links as
     /// one more module of that session, so only it is checked, emitted
-    /// and linked.
+    /// and linked. Input 0 is the session's prelude, which
+    /// [`build_repl_prelude`] builds.
     ReplInput { input: u32 },
 }
 
@@ -806,7 +807,8 @@ pub struct Packages<'a> {
     /// instead of a closed program (repl-plan.md §2.2). Collection stops at
     /// the instances earlier modules export and leaves out the inits they
     /// ran; the module links in `hd_wasm::LinkMode::Session`. Its link is
-    /// not cached, since it depends on the session.
+    /// not cached, since it depends on the session, except the prelude's
+    /// ([`build_repl_prelude`]), which every session starts with.
     pub session: Option<&'a Session>,
 }
 
@@ -842,6 +844,99 @@ impl Session {
         self.externs.globals.extend(added.externs.globals);
         self.inits_run.extend(added.inits_run);
     }
+
+    /// A cache section: the externs' bytes, then the inits run.
+    fn encode(&self) -> Vec<u8> {
+        let mut w = Writer::default();
+        w.blob(&self.externs.encode());
+        w.u32(u32_of(self.inits_run.len()));
+        for k in &self.inits_run {
+            w.hash(*k);
+        }
+        w.bytes
+    }
+
+    fn decode(bytes: &[u8]) -> Option<Session> {
+        let mut r = Reader::new(bytes);
+        let externs = hd_wasm::Externs::decode(r.blob())?;
+        let inits_run = (0..r.count()).map(|_| r.hash()).collect();
+        (r.ok() && r.at_end()).then_some(Session { externs, inits_run })
+    }
+}
+
+/// The REPL session's prelude (repl-plan.md §2.3, job C8): input 0, the
+/// session's first module. It owns the memory and the runtime globals and
+/// holds what a value-showing input needs (`cli.repl.value`), so a later
+/// input imports those instances instead of linking its own copies: the
+/// value line, and `dbg`'s layout and printer, a function reference
+/// included, for each primitive type and the lists in `PRELUDE_LISTS`.
+/// Its one statement does nothing when it runs.
+const REPL_PRELUDE: &str = "\
+# The REPL session's prelude (hd_driver::REPL_PRELUDE).
+pass
+";
+
+/// The package the prelude is the one file of: it reads only std, so it
+/// is the same for every session of one toolchain and build profile.
+const PRELUDE_PACKAGE: &str = "repl";
+
+/// The element types of the lists the prelude shows: those of number
+/// literals written bare or with `+`, and `string`. Each list costs the
+/// prelude about 1.5 KB; a list of another type is shown by the input's
+/// own copy of its instances.
+const PRELUDE_LISTS: [hd_types::Prim; 4] = [
+    hd_types::Prim::Usize,
+    hd_types::Prim::I32,
+    hd_types::Prim::F64,
+    hd_types::Prim::String,
+];
+
+/// The instances the prelude holds besides its init's
+/// ([`build_repl_prelude`]), by item and type arguments.
+#[derive(Default)]
+struct PreludeRoots {
+    /// The calls: `repl_value`, and `dbg_layout` at each type.
+    calls: Vec<(DefId, TyList)>,
+    /// The function references, as adapters: `dbg_show` at each type.
+    refs: Vec<(DefId, TyList)>,
+}
+
+/// The prelude's cache key: per toolchain and build profile, since its
+/// source is the compiler's.
+fn prelude_key(toolchain: Hash128, pipeline: Hash128, profile: BuildProfile) -> Hash128 {
+    prog_key(toolchain, pipeline, profile, "repl:prelude", &[])
+}
+
+/// Builds the REPL session's prelude, input 0, for a session in
+/// `profile`, or reads it from `host.store`, where it is cached per
+/// toolchain. It owns the session's memory and runtime globals and holds
+/// the instances that showing a value needs (`cli.repl.value`), so small
+/// inputs stay small. A session that starts runs it first, then adds its
+/// [`Output::session_added`] to [`Session::start`], and builds its inputs,
+/// numbered from 1, over that session. `host.sources` is not read.
+#[must_use]
+pub fn build_repl_prelude(host: &Host<'_>, profile: BuildProfile) -> Output {
+    let mut sources = MemorySources::default();
+    sources.insert(&hd_project::repl_file(0), REPL_PRELUDE);
+    let host = Host {
+        render_tir: host.render_tir,
+        sources: &sources,
+        store: host.store,
+        clock: host.clock,
+        executor: host.executor,
+    };
+    let start = Session::start();
+    let packages = Packages {
+        build_profile: profile,
+        session: Some(&start),
+        ..Packages::default()
+    };
+    build_packages(
+        &host,
+        PRELUDE_PACKAGE,
+        &packages,
+        &Goal::ReplInput { input: 0 },
+    )
 }
 
 /// The root package's key: its name, and the traits of a runtime profile
@@ -1062,27 +1157,30 @@ fn build_packages_inner(
         };
         lock(&run.diags).error(*code, span, message);
     }
-    let mut g = TaskGraph::default();
-    let mut skims = Vec::new();
-    for i in 0..n {
-        skims.push(g.add(TaskKind::Skim(u32::try_from(i).expect("files")), &[]));
-        if matches!(goal, Goal::Analyze | Goal::CheckTests) {
-            g.add(TaskKind::Parse(u32::try_from(i).expect("files")), &[]);
+    // A cached prelude needs none of the stages.
+    if !run.cached_prelude() {
+        let mut g = TaskGraph::default();
+        let mut skims = Vec::new();
+        for i in 0..n {
+            skims.push(g.add(TaskKind::Skim(u32::try_from(i).expect("files")), &[]));
+            if matches!(goal, Goal::Analyze | Goal::CheckTests) {
+                g.add(TaskKind::Parse(u32::try_from(i).expect("files")), &[]);
+            }
         }
-    }
-    g.add(TaskKind::FolderGraph, &skims);
-    let exec = |id: TaskId, kind: TaskKind, sp: &dyn Spawn| run.exec(id, kind, sp);
-    let left = match host.executor {
-        Executor::Serial(order) => SerialScheduler { order }.run(&mut g, &exec),
-        #[cfg(feature = "threads")]
-        Executor::Pool(threads) => hd_sched::pool::run_pool(g, threads, &exec).1,
-    };
-    if left > 0 {
-        run.stop(
-            Stage::PackageResult,
-            &format!("{left} tasks never became ready"),
-            None,
-        );
+        g.add(TaskKind::FolderGraph, &skims);
+        let exec = |id: TaskId, kind: TaskKind, sp: &dyn Spawn| run.exec(id, kind, sp);
+        let left = match host.executor {
+            Executor::Serial(order) => SerialScheduler { order }.run(&mut g, &exec),
+            #[cfg(feature = "threads")]
+            Executor::Pool(threads) => hd_sched::pool::run_pool(g, threads, &exec).1,
+        };
+        if left > 0 {
+            run.stop(
+                Stage::PackageResult,
+                &format!("{left} tasks never became ready"),
+                None,
+            );
+        }
     }
     let _finish = ObservedStage::new(observer, Stage::PackageResult);
     let mut counters = lock(&run.counters).clone();
@@ -1461,6 +1559,60 @@ impl Run<'_> {
 
     fn blocked(&self, s: Stage) {
         lock(&self.report).blocked(s);
+    }
+
+    /// Whether this run builds a REPL session's prelude
+    /// ([`build_repl_prelude`]): input 0, the first module of a session.
+    fn prelude(&self) -> bool {
+        matches!(self.goal, Goal::ReplInput { input: 0 })
+            && self.session.is_some_and(|s| *s == Session::start())
+    }
+
+    /// For the prelude: reads it from the store, its module and what it
+    /// adds to the session; whether it was there.
+    fn cached_prelude(&self) -> bool {
+        if !self.prelude() {
+            return false;
+        }
+        let key = prelude_key(self.toolchain, self.pipeline, self.build_profile);
+        let Some(sections) = self.lookup(EntryKind::Link, key) else {
+            return false;
+        };
+        let (Some(wasm), Some(added)) = (
+            sections.first(),
+            sections.get(1).and_then(|b| Session::decode(b)),
+        ) else {
+            return false;
+        };
+        let _ = self.wasm.set(wasm.clone());
+        let _ = self.session_added.set(added);
+        lock(&self.report).ok(Stage::Collect);
+        true
+    }
+
+    /// The prelude's roots besides its init: what an input that is one
+    /// expression reaches (`hd_check`'s `repl_value` and `dbg_text`).
+    fn prelude_roots(&self) -> PreludeRoots {
+        let names = self.names();
+        let format = |n: &str| names.item("std.format", n);
+        let pool = &self.pool;
+        let lists = PRELUDE_LISTS.iter().map(|p| {
+            pool.intern_ty(&TyData::Adt {
+                def: self.known.list,
+                args: pool.list(&[Ty::prim(*p)]),
+            })
+        });
+        let types: Vec<Ty> = hd_types::Prim::ALL
+            .iter()
+            .map(|p| Ty::prim(*p))
+            .chain(lists)
+            .collect();
+        let mut calls = vec![(format("repl_value"), TyList::EMPTY)];
+        let layout = format("dbg_layout");
+        calls.extend(types.iter().map(|t| (layout, pool.list(&[*t]))));
+        let show = format("dbg_show");
+        let refs = types.iter().map(|t| (show, pool.list(&[*t]))).collect();
+        PreludeRoots { calls, refs }
     }
 
     fn lookup(&self, kind: EntryKind, key: Hash128) -> Option<Vec<Vec<u8>>> {
@@ -4704,6 +4856,12 @@ impl Run<'_> {
                 extra.push(*r);
             }
         }
+        let prelude = if self.prelude() {
+            self.prelude_roots()
+        } else {
+            PreludeRoots::default()
+        };
+        extra.extend(prelude.calls);
         let known = |k: Hash128| {
             self.session
                 .is_some_and(|s| s.externs.funcs.contains_key(&hd_wasm::Sym::Inst(k)))
@@ -4722,6 +4880,7 @@ impl Run<'_> {
                 root,
                 &all_inits,
                 &extra,
+                &prelude.refs,
                 session,
             ),
         ) else {
@@ -5262,6 +5421,10 @@ impl Run<'_> {
                 let mut added = Session::default();
                 added.externs.add_module(&codes);
                 added.inits_run.extend(c.collected.inits.iter().copied());
+                if self.prelude() {
+                    let key = prelude_key(self.toolchain, self.pipeline, self.build_profile);
+                    self.put(EntryKind::Link, key, &[&wasm, &added.encode()]);
+                }
                 let _ = self.session_added.set(added);
             }
             None => self.put(EntryKind::Link, c.prog_key, &[&wasm]),
