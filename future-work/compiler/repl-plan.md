@@ -148,6 +148,37 @@ The bench target for `long-session` is growth of at most 10 MB from input
 input. The estimate is two to four times that. Job R1 measures it before
 anything else is built (§5 Q3).
 
+Job R1 measured it (wasmtime 49.0.2 as `hd_run_wasmtime` configures it, GC
+on, copying collector, epoch interruption; Apple Silicon, 16 KiB pages,
+machine under load; 1,000 inputs of about 25 lines each: a struct type, an
+`array.new_data`, two functions, imports of the prelude's memory, global
+and function; one `Store`):
+
+| Case | RSS per input | Compile | Instantiate |
+| --- | --- | --- | --- |
+| compile each input, dev (`OptLevel::None`) | 72 KiB (90 KiB over inputs 1-100, 70 KiB over 100-1,000) | 0.43 ms | 8 us |
+| compile each input, release (`OptLevel::Speed`) | 72 KiB | 0.50 ms | 7 us |
+| compile once, instantiate 1,000 times | 0.6 KiB | none | under 1 us |
+| compile each input, drop the module at once (no instance) | 0.5 KiB after warm-up | 0.43 ms | none |
+| compile each input, `memory_init_cow(false)` | 56 KiB | 0.43 ms | 6 us |
+| the same plus no address map, unwind info or backtrace | 55 KiB | 0.41 ms | 6 us |
+
+The bound does not hold: a kept instance costs 0.6 KiB, but the compiled
+module its instance keeps alive costs about 70 KiB, six times the 11 KiB
+allowed and above the 20 to 40 KiB estimate. The cost is the code mapping
+(an image of text, read-only data and metadata, rounded to 16 KiB pages),
+not the instance, the GC heap or the shared memory; compile time and
+optimization level do not change it. Engine settings cut at most a fifth
+(`memory_init_cow(false)`, about 56 KiB), and a pooling allocator only
+sizes instances, which are not the cost. Compile time (about 0.5 ms) and
+instantiate time (under 10 us) are no concern. So Q3 should take the
+fallback, but 64 KiB per input is not enough on this machine (72 KiB
+measured). Linux uses 4 KiB pages and may fit; that is unmeasured. A
+`Store` never frees an instance, so a dead input's module cannot be dropped
+inside a session. What lowers the cost is fewer modules: batch several
+inputs into one module (the "compile once" row shows instances alone are
+cheap), or rebuild the `Store` from the journal when the bound is passed.
+
 Shared linear memory matters: each module that defines its own `hd.x`
 gets a 64 KiB page and, on wasmtime, a large virtual reservation. Input
 modules import the prelude's memory.
