@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2728 | 101 | 16 | 2845 |
+| 2735 | 94 | 16 | 2845 |
 
 ## By Chapter
 
@@ -17,12 +17,12 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 145 | 0 | 0 | 145 |
 | `lang/02-grammar.md` | 213 | 2 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
-| `lang/04-type-system.md` | 332 | 20 | 0 | 352 |
-| `lang/05-expressions.md` | 268 | 9 | 0 | 277 |
-| `lang/06-control-flow.md` | 143 | 10 | 4 | 157 |
+| `lang/04-type-system.md` | 336 | 16 | 0 | 352 |
+| `lang/05-expressions.md` | 269 | 8 | 0 | 277 |
+| `lang/06-control-flow.md` | 144 | 9 | 4 | 157 |
 | `lang/07-functions.md` | 123 | 7 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 116 | 7 | 0 | 123 |
-| `lang/09-traits.md` | 348 | 11 | 0 | 359 |
+| `lang/09-traits.md` | 349 | 10 | 0 | 359 |
 | `lang/10-modules.md` | 241 | 13 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 245 | 6 | 8 | 259 |
 | `lang/14-annotations.md` | 144 | 9 | 0 | 153 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 916 | 1 | 12 | 929 |
-| `typing/invalid` | 983 | 91 | 1 | 1075 |
+| `typing/invalid` | 990 | 84 | 1 | 1075 |
 | `typing/valid` | 414 | 1 | 0 | 415 |
 | `typing/warnings` | 12 | 8 | 0 | 20 |
 
@@ -77,13 +77,11 @@ compiler stage that first declined the case.
 | --- | ---: |
 | `fail:argument-count` | 4 |
 | `fail:bare-variant-pattern` | 3 |
-| `fail:cannot-infer-type` | 4 |
 | `fail:duplicate-argument` | 1 |
 | `fail:duplicate-data-pattern-field` | 1 |
 | `fail:missing-required-field` | 2 |
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 2 |
-| `fail:no-common-type` | 2 |
 | `fail:no-diagnostic` | 38 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-import` | 1 |
@@ -99,7 +97,6 @@ compiler stage that first declined the case.
 | `fail:unknown-name` | 6 |
 | `fail:unknown-trait` | 4 |
 | `fail:unknown-type` | 2 |
-| `fail:unknown-variant` | 1 |
 | `unsupported:Body` | 1 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 11 |
@@ -118,15 +115,6 @@ compiler stage that first declined the case.
 - `typing/invalid/bare-variant-pattern-in-match.hd`
 - `typing/invalid/bare-some-call-pattern.hd`
 - `typing/invalid/bare-ok-call-pattern.hd`
-
-</details>
-
-<details><summary><code>fail:cannot-infer-type</code> (4)</summary>
-
-- `typing/invalid/none-to-any.hd`
-- `typing/invalid/none-without-expected-type.hd`
-- `typing/invalid/eq-contextual-both-operands.hd`
-- `typing/invalid/any-bare-none.hd`
 
 </details>
 
@@ -161,13 +149,6 @@ compiler stage that first declined the case.
 
 - `typing/invalid/derive-error-trait.hd`
 - `typing/invalid/derived-ord-without-partial-ord.hd`
-
-</details>
-
-<details><summary><code>fail:no-common-type</code> (2)</summary>
-
-- `typing/invalid/none-beside-values-needs-expected-type.hd`
-- `typing/invalid/none-branch-needs-expected-type.hd`
 
 </details>
 
@@ -321,12 +302,6 @@ compiler stage that first declined the case.
 
 - `typing/invalid/row-parameter-as-type.hd`
 - `typing/invalid/fn-constructor-needs-import.hd`
-
-</details>
-
-<details><summary><code>fail:unknown-variant</code> (1)</summary>
-
-- `typing/invalid/some-pattern-nonoptional.hd`
 
 </details>
 
@@ -1706,6 +1681,7 @@ typing/invalid/ambiguous-projection.hd
 typing/invalid/ambiguous-row-pattern.hd
 typing/invalid/ambiguous-trait-method.hd
 typing/invalid/annotate-before-function.hd
+typing/invalid/any-bare-none.hd
 typing/invalid/any-exposes-no-methods.hd
 typing/invalid/anyref-rejects-enum.hd
 typing/invalid/anyref-rejects-primitive.hd
@@ -1938,6 +1914,7 @@ typing/invalid/enum-payload-bare-trait.hd
 typing/invalid/enum-shared-constructor-payload.hd
 typing/invalid/enum-shared-field-assignment.hd
 typing/invalid/eprintln-without-console.hd
+typing/invalid/eq-contextual-both-operands.hd
 typing/invalid/erase-readonly-to-mut-inspectable.hd
 typing/invalid/error-argument-identifier.hd
 typing/invalid/error-argument-number.hd
@@ -2250,6 +2227,10 @@ typing/invalid/nominal-map-key.hd
 typing/invalid/non-entry-top-level-println.hd
 typing/invalid/non-literal-test-name.hd
 typing/invalid/nondisplay-entry-error.hd
+typing/invalid/none-beside-values-needs-expected-type.hd
+typing/invalid/none-branch-needs-expected-type.hd
+typing/invalid/none-to-any.hd
+typing/invalid/none-without-expected-type.hd
 typing/invalid/nonexhaustive-bool-match.hd
 typing/invalid/nonexhaustive-match.hd
 typing/invalid/nonfinal-vararg-declaration.hd
@@ -2505,6 +2486,7 @@ typing/invalid/single-file-self-use.hd
 typing/invalid/slice-assignment.hd
 typing/invalid/snapshot-file-needs-test-runner.hd
 typing/invalid/snapshot-non-literal-expect.hd
+typing/invalid/some-pattern-nonoptional.hd
 typing/invalid/spelled-function-type-not-inspectable.hd
 typing/invalid/spread-pattern-arity.hd
 typing/invalid/spread-pattern-fixed-tuple.hd

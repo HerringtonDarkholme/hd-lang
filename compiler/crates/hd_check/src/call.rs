@@ -1938,28 +1938,37 @@ impl Ck<'_, '_> {
                 TyData::Mut(i) => i,
                 _ => w,
             });
-        let result = self.cx.names.known.result;
         let enum_ty = match w.map(|w| pool.get(w)) {
             Some(TyData::Option(_) | TyData::Adt { .. }) => w.unwrap_or(Ty::POISON),
-            _ => match name.as_str() {
-                "Some" | "None" => {
-                    let t = self.infer.fresh(pool, VarKind::General);
-                    pool.intern_ty(&TyData::Option(t))
+            // A poisoned expectation already reported its error.
+            Some(TyData::Poison) => return Ok((Ref(NONE), Ty::POISON)),
+            // An open expectation may still resolve to an optional or a
+            // `Result` from the context around the call. A join site's own
+            // variable is no expectation (`types.lct.contextual.error`).
+            Some(TyData::Infer(_))
+                if !want.is_some_and(|w| self.joins.is_site(w))
+                    && matches!(name.as_str(), "Some" | "None" | "Ok" | "Err") =>
+            {
+                match name.as_str() {
+                    "Some" | "None" => {
+                        let t = self.infer.fresh(pool, VarKind::General);
+                        pool.intern_ty(&TyData::Option(t))
+                    }
+                    _ => {
+                        let a = self.infer.fresh(pool, VarKind::General);
+                        let b = self.infer.fresh(pool, VarKind::General);
+                        pool.intern_ty(&TyData::Adt {
+                            def: self.cx.names.known.result,
+                            args: pool.list(&[a, b]),
+                        })
+                    }
                 }
-                "Ok" | "Err" => {
-                    let a = self.infer.fresh(pool, VarKind::General);
-                    let b = self.infer.fresh(pool, VarKind::General);
-                    pool.intern_ty(&TyData::Adt {
-                        def: result,
-                        args: pool.list(&[a, b]),
-                    })
-                }
-                _ => {
-                    let msg = format!("`.{name}` needs an expected enum type");
-                    self.err(Code::MissingContextualEnumType, v, &msg);
-                    return Ok((Ref(NONE), Ty::NEVER));
-                }
-            },
+            }
+            _ => {
+                let msg = format!("`.{name}` needs an expected enum type");
+                self.err(Code::MissingContextualEnumType, v, &msg);
+                return Ok((Ref(NONE), Ty::NEVER));
+            }
         };
         self.variant_by_name(enum_ty, &name, args, at)
     }

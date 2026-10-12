@@ -428,6 +428,34 @@ fn checker_errors_are_reported() {
             Code::MissingContextualEnumType,
         ),
         (
+            "pub fn main() -> void $ Console:\n    v := .None\n    println(1)\n",
+            Code::MissingContextualEnumType,
+        ),
+        (
+            "pub fn main() -> void $ Console:\n    v := .Ok(1)\n    println(1)\n",
+            Code::MissingContextualEnumType,
+        ),
+        (
+            "pub fn main() -> void $ Console:\n    values := [1, .None]\n    println(1)\n",
+            Code::MissingContextualEnumType,
+        ),
+        (
+            "pub fn main() -> void $ Console:\n    v := if true: 1 else: .None\n    println(1)\n",
+            Code::MissingContextualEnumType,
+        ),
+        (
+            "pub fn main() -> void $ Console:\n    let v: dyn Any = .None\n    println(1)\n",
+            Code::MissingContextualEnumType,
+        ),
+        (
+            "pub fn main() -> void $ Console:\n    println(.None == .None)\n    println(1)\n",
+            Code::MissingContextualEnumType,
+        ),
+        (
+            "fn f(v: i32) -> i32:\n    match v:\n        .Some(p) => p\n        _ => 0\n\npub fn main() -> void $ Console:\n    println(f(1))\n",
+            Code::MissingContextualEnumType,
+        ),
+        (
             "fn f(a: i32, b: i32) -> i32:\n    a + b\n\npub fn main() -> void $ Console:\n    println(f(1, c = 2))\n",
             Code::UnknownNamedArgument,
         ),
@@ -1309,4 +1337,23 @@ fn a_used_module_does_not_bring_in_its_children() {
         item_codes("use std.testing\n\nfn f(x: testing.arbitrary.With) -> i32: 0"),
         [Code::UnknownImport]
     );
+}
+
+/// A leading-dot variant with an expected enum type, or beside an
+/// operand that gives one, checks clean (`types.option.none-context`,
+/// `types.result.ok-context`, `expr.eq.contextual-operand`).
+#[test]
+fn contextual_variants_with_an_expected_type_are_clean() {
+    for ok in [
+        "fn f() -> i32?:\n    let v: i32? = .None\n    v",
+        "fn f() -> i32?:\n    .Some(1)",
+        "fn f() -> Result[i32, string]:\n    .Ok(1)",
+        "fn take(v: i32?) -> bool: true\nfn f() -> bool:\n    take(.None)",
+        "fn f(c: bool) -> i32?:\n    if c: 1 else: .None",
+        "fn f() -> List[i32?]:\n    [1, .None]",
+        "fn f(o: i32?) -> i32:\n    match o:\n        .Some(p) => p\n        .None => 0",
+        "fn f(o: i32?) -> bool:\n    .None == o",
+    ] {
+        assert_eq!(item_codes(ok), [], "{ok}");
+    }
 }

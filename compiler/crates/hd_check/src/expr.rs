@@ -654,8 +654,29 @@ impl Ck<'_, '_> {
             };
             return Ok((self.b.emit(tag, a.0, blk.0, Ty::BOOL, n.index()), Ty::BOOL));
         }
-        let (a, at) = self.expr(*l, None)?;
-        let (c, ct) = self.expr(*r, Some(at))?;
+        // `expr.eq.contextual-operand`: a contextual variant on the left of
+        // `==` or `!=` takes the right operand's type; `expr.eq.contextual-both`:
+        // with a contextual variant on both sides neither has one.
+        let contextual = |e: NodeRef<'_>| {
+            e.kind() == SyntaxKind::VariantExpr
+                || (e.kind() == SyntaxKind::CallExpr
+                    && e.children()
+                        .next()
+                        .is_some_and(|c| c.kind() == SyntaxKind::VariantExpr))
+        };
+        let eq_op = matches!(op, TokenKind::EqEq | TokenKind::NotEq);
+        let left_want = if eq_op && contextual(*l) && !contextual(*r) {
+            Some(self.infer.fresh(self.pool(), VarKind::General))
+        } else {
+            None
+        };
+        let (a, at) = self.expr(*l, left_want)?;
+        let right_want = if left_want.is_none() && eq_op && contextual(*l) {
+            Ty::POISON
+        } else {
+            at
+        };
+        let (c, ct) = self.expr(*r, Some(right_want))?;
         let v = self.binary_values(op, (a, at), (c, ct), n, *r)?;
         let t = self.b.ty_of(v);
         Ok((v, t))

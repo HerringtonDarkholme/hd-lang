@@ -271,6 +271,17 @@ impl Ck<'_, '_> {
                         self.infer.rebind(pool, inner, Ty::POISON);
                         return self.declare_poisoned_fields(p, binds);
                     }
+                    // `flow.match.contextual`: a non-enum subject has no
+                    // variants to name.
+                    let enum_like = matches!(
+                        pool.get(self.infer.resolve(pool, inner)),
+                        TyData::Option(_) | TyData::Adt { .. }
+                    );
+                    if !enum_like {
+                        let msg = format!("`.{name}` needs an enum subject, not {}", self.show(t));
+                        self.err(Code::MissingContextualEnumType, p, &msg);
+                        return self.declare_poisoned_fields(p, binds);
+                    }
                     let msg = format!("no variant `.{name}` of {}", self.show(t));
                     self.err(Code::UnknownVariant, p, &msg);
                     return Ok(());
