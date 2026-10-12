@@ -1204,6 +1204,19 @@ impl Ck<'_, '_> {
                 .b
                 .coerce(Coercion::ToTraitValue, NONE, r, want, n.index());
         }
+        // A suspending function value weakens to its lowered constructor
+        // type, which then meets `want` as any function value does
+        // (`fn.type.suspend.weaken`); the reverse is not implicit. A
+        // lowered type that cannot fit is reported against the value's
+        // own type.
+        if let Some(lowered) = self.suspend_ctor(gs, ws)
+            && self.can_unify(lowered, ws)
+        {
+            let r = self
+                .b
+                .coerce(Coercion::SuspendFnToCtor, NONE, r, lowered, n.index());
+            return self.coerce(r, lowered, target, n, what);
+        }
         let before = self.diags.len();
         self.expect(got, want, n, what);
         // A row parameter inside a type argument takes its solution from
@@ -1230,6 +1243,41 @@ impl Ck<'_, '_> {
             self.fit_row(gr, wr, n, what);
         }
         r
+    }
+
+    /// The lowered constructor type of the suspending function type `got`,
+    /// `fn(A) -> mut Suspend[T] $ R` for `fn!(A) -> T $ R`, when `want` is
+    /// an ordinary function type (`fn.type.suspend.weaken`,
+    /// `fn.type.suspend.ctor`).
+    fn suspend_ctor(&self, got: Ty, want: Ty) -> Option<Ty> {
+        let pool = self.pool();
+        let TyData::Fn {
+            params,
+            result,
+            row,
+            suspends: true,
+            inputs,
+        } = pool.get(self.infer.shallow(pool, got))
+        else {
+            return None;
+        };
+        let TyData::Fn {
+            suspends: false, ..
+        } = pool.get(self.infer.shallow(pool, want))
+        else {
+            return None;
+        };
+        let suspend = pool.intern_ty(&TyData::Adt {
+            def: self.cx.names.known.suspend,
+            args: pool.list(&[result]),
+        });
+        Some(pool.intern_ty(&TyData::Fn {
+            params,
+            result: pool.intern_ty(&TyData::Mut(suspend)),
+            row,
+            suspends: false,
+            inputs,
+        }))
     }
 
     pub(crate) fn expect(&mut self, got: Ty, want: Ty, n: NodeRef<'_>, what: &str) {

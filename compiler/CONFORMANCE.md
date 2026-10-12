@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2696 | 134 | 15 | 2845 |
+| 2697 | 133 | 15 | 2845 |
 
 ## By Chapter
 
@@ -24,7 +24,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/08-data-and-enums.md` | 115 | 8 | 0 | 123 |
 | `lang/09-traits.md` | 348 | 11 | 0 | 359 |
 | `lang/10-modules.md` | 238 | 17 | 3 | 258 |
-| `lang/11-requirements-and-suspension.md` | 244 | 7 | 8 | 259 |
+| `lang/11-requirements-and-suspension.md` | 245 | 6 | 8 | 259 |
 | `lang/14-annotations.md` | 144 | 9 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 100 | 2 | 3 | 105 |
-| `runtime/valid` | 915 | 3 | 11 | 929 |
+| `runtime/valid` | 916 | 2 | 11 | 929 |
 | `typing/invalid` | 970 | 104 | 1 | 1075 |
 | `typing/valid` | 413 | 2 | 0 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -97,7 +97,7 @@ compiler stage that first declined the case.
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-used-as-type` | 1 |
-| `fail:type-mismatch` | 15 |
+| `fail:type-mismatch` | 14 |
 | `fail:unknown-data-field` | 2 |
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 5 |
@@ -315,13 +315,12 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (15)</summary>
+<details><summary><code>fail:type-mismatch</code> (14)</summary>
 
 - `typing/invalid/mixed-signedness.hd`
 - `typing/invalid/variance-representation-change.hd`
 - `typing/invalid/derived-generic-bound.hd`
 - `typing/invalid/contravariant-representation-change.hd`
-- `runtime/valid/suspending-function-values.hd`
 - `typing/invalid/function-result-representation-change.hd`
 - `typing/invalid/range-mixed-signedness.hd`
 - `typing/invalid/no-widening-operator.hd`
@@ -1632,6 +1631,7 @@ runtime/valid/suspending-calls-in-branches.hd
 runtime/valid/suspending-calls-in-loops.hd
 runtime/valid/suspending-closure-captures.hd
 runtime/valid/suspending-closure-requirement-row.hd
+runtime/valid/suspending-function-values.hd
 runtime/valid/suspending-generic-method.hd
 runtime/valid/suspending-match-guards.hd
 runtime/valid/suspending-result-propagation.hd

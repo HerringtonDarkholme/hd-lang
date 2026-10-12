@@ -2868,9 +2868,13 @@ impl Em<'_> {
             self.vtable_value(&table, key, &fv)?;
             return self.store(i);
         }
+        // A suspending function value's code already returns its cold
+        // `mut Suspend[T]` (`Lay::code_ty`), so its closure is the
+        // lowered constructor's closure unchanged.
         if kind == Coercion::Weaken as u32
             || kind == Coercion::Variance as u32
             || kind == Coercion::RowSubsume as u32
+            || kind == Coercion::SuspendFnToCtor as u32
         {
             self.load_as(v, &want)?;
             return self.store(i);

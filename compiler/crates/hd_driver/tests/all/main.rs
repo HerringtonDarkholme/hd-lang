@@ -126,6 +126,7 @@ mod stored_fn_call;
 mod structure_run;
 mod supertrait_calls_run;
 mod suspending_closures_run;
+mod suspending_fn_weaken_run;
 mod test_plan;
 mod test_registration_spellings;
 mod test_runner_registration_rows;
