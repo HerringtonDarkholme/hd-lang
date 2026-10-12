@@ -7,6 +7,9 @@ import { join, resolve } from "node:path";
 
 export const repoRoot = resolve(import.meta.dirname, "../../..");
 export const specRoot = resolve(repoRoot, "spec");
+/** The default implementation when HD_FUZZ_COMMAND is unset: the Rust `hd`
+ * under the command contract, built when missing. */
+export const defaultCompiler: readonly string[] = [join(repoRoot, "scripts", "hd-conformance.sh")];
 
 /**
  * `run` is the contract's `IMPL FILE`, which runs FILE as a single file; every

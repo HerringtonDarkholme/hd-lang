@@ -109,7 +109,7 @@ The log is used to audit the compiler's diagnostics and the docs.
 
 This rule does **not** apply to:
 - specification text and conformance fixtures;
-- the compiler prototype itself (`src/`).
+- the compiler itself (the Rust crates in `crates/`).
 
 Those tasks use the normal model. Owner direction, 2026-09-29, revised
 the same day to split implementation from probing (batch 13, Q11).

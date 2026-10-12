@@ -216,7 +216,7 @@ Sources were fetched on 2026-10-06; links are under [Sources](#sources).
 | Deterministic providers: `MemoryFs`, `MapEnv`, `ScriptedProcess`, ... | [Unit Test Providers](../spec/std/testing.md#unit-test-providers) | specified |
 | Cancelling must abort a known HTTP request | [`req.cancel.external-abort`](../spec/lang/11-requirements-and-suspension.md#r-req.cancel.external-abort) | specified, nothing to abort yet |
 | Host wait maps to the component-model async ABI | [`req.host-wait.leaf`](../spec/lang/11-requirements-and-suspension.md#r-req.host-wait.abi) | specified |
-| Prototype bridge: one generic import per method; structured results cross as node trees; strings one byte per call (F-558); host answers synchronously, and a pending answer busy-polls (F-555) | [src/README.md](../src/README.md), `src/commands/default-profile.ts` | implemented |
+| Prototype bridge: one generic import per method; structured results cross as node trees; strings one byte per call (F-558); host answers synchronously, and a pending answer busy-polls (F-555) | `src/README.md`, `src/commands/default-profile.ts` (deleted with the prototype) | implemented |
 | Archived `Http.send!` sketch with `ScriptedHttp` | STDLIB draft, 2026-09-26 (git `b37c8fbc`); [STDLIB_PLAN HTTP Client](STDLIB_PLAN.md#http-client) | "stands" |
 
 ## The Two-Level Model

@@ -7,10 +7,6 @@ settings:
 importers:
 
   .:
-    dependencies:
-      binaryen:
-        specifier: 132.0.0
-        version: 132.0.0
     devDependencies:
       '@codemirror/commands':
         specifier: 6.11.1
@@ -603,10 +599,6 @@ packages:
   argparse@3.0.2:
     resolution: {integrity: sha512-mFdDM6WqWKraGLsVb+C9CahPnzTXOefAOLq3jYcca2YZ8bEWpr++Tzj+zSaKW9+X9L5uSxcm1AZ3Y6aZJ09OhQ==}
 
-  binaryen@132.0.0:
-    resolution: {integrity: sha512-4Usg7yEvwO3FMso3Oov6qkOOHSod1IEv+boKkh77kTljM+eNBouqCTbqWswGzbG+vDNO/b/v2C4gfEh1WgB9Lg==}
-    hasBin: true
-
   codemirror@6.0.2:
     resolution: {integrity: sha512-VhydHotNW5w1UGK0Qj96BwSk/Zqbp9WbnyK2W/eVMv4QyF41INRGpjUhFJY7/uDNuudSc33a/PKr4iDqRduvHw==}
 
@@ -1008,8 +1000,6 @@ snapshots:
     optional: true
 
   argparse@3.0.2: {}
-
-  binaryen@132.0.0: {}
 
   codemirror@6.0.2:
     dependencies:

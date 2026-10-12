@@ -11,6 +11,7 @@ import { join } from "node:path";
 
 import {
   classify,
+  defaultCompiler,
   invoke,
   loadInventory,
   mapParallel,
@@ -20,9 +21,9 @@ import {
 } from "./common.ts";
 import { Generator, loadGrammar, render } from "./generate.ts";
 
-let compiler = splitCommand(
-  process.env.HD_FUZZ_COMMAND ?? "node --experimental-strip-types bin/hd.js",
-);
+let compiler = process.env.HD_FUZZ_COMMAND
+  ? splitCommand(process.env.HD_FUZZ_COMMAND)
+  : [...defaultCompiler];
 let seed = "g1";
 let cases = 4000;
 let show = 30;

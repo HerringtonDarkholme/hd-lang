@@ -3,7 +3,7 @@
 // program that holds a second mistake. It judges nothing; the `mistakes`
 // metric does that.
 //
-// Usage: node --experimental-strip-types test/metrics/mistakes/check-corpus.ts
+// Usage: node --experimental-strip-types bench/metrics/mistakes/check-corpus.ts
 //          [--hd "COMMAND"] [NAME...]
 
 import { writeFileSync } from "node:fs";
@@ -16,7 +16,7 @@ import { makeTempDir, removeAllTempDirs } from "../lib/tmp.ts";
 const args = process.argv.slice(2);
 const hdAt = args.indexOf("--hd");
 const hd = parseHdCommand(
-  hdAt >= 0 ? args[hdAt + 1]! : "node --experimental-strip-types bin/hd.js",
+  hdAt >= 0 ? args[hdAt + 1]! : "target/release/hd",
   join(import.meta.dirname, "..", "..", ".."),
 );
 const names = args.filter((arg, index) => index !== hdAt && index !== hdAt + 1);

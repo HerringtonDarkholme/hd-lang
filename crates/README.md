@@ -2,8 +2,8 @@
 
 The Rust compiler is the Cargo workspace at the repository root. It
 compiles hd source through typed IR to Wasm, then runs the module with V8
-through Node. The TypeScript compiler in `src/` is a behavior checklist
-during the transition, not a library used by these crates.
+through Node. It is the only compiler: the TypeScript prototype in `src/`
+was deleted on 2026-10-12 (#145).
 
 Rust commands below run from the repository root. The workspace pins its
 toolchain in [`rust-toolchain.toml`](../rust-toolchain.toml).
@@ -156,7 +156,8 @@ cargo run --release -p hd_driver --example bench -- 20 1
 # Print selected checked TIR paths.
 cargo run -p hd_driver --example tir -- examples/hello hello app/hello/main
 
-# Parse a file or directory; add --tree to print the green tree.
+# Parse a file or directory; add --tree to print the green tree. It prints
+# each diagnostic as hd check does and exits 101 when any file has one.
 cargo run -p hd_syntax --example parse_check -- examples/hello
 cargo run -p hd_syntax --example parse_check -- --tree examples/hello/hello.hd
 ```

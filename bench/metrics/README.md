@@ -14,8 +14,8 @@ The owner's rules (2026-10-06) shape every script:
   live in temporary directories, removed at the end of the run.
 - **Neutral.** A script takes the `hd` to test as a command and runs it as
   a child process. It imports no compiler code.
-- **No prototype baselines.** The frozen prototype only smoke-tests the
-  scripts. No target comes from its numbers.
+- **No prototype baselines.** No target comes from the retired TypeScript
+  prototype's numbers.
 
 ## Running
 
@@ -32,7 +32,8 @@ pnpm run metrics -- --only long-run-memory --long # the 10-minute soak
 ```
 
 - `--hd COMMAND` is the `hd` under test. The default is
-  `node --experimental-strip-types bin/hd.js`, the prototype. A word of the
+  `target/release/hd`, the Rust compiler; build it first with
+  `cargo build --release -p hd_cli`. A word of the
   command that names an existing file is made absolute, so relative paths
   work from the repository root. `HD_METRICS_COMMAND` also sets it.
 - `--keep-temp` keeps the temporary directories, for debugging a script.
@@ -94,8 +95,8 @@ Notes on the choices:
   `check-cost` prices the checks with the pipeline fixed; `dev-speed`
   guards how slow dev code may run with the profile fixed. Work under
   50 ms is within noise and fails. Both report n/a for an
-  implementation whose `hd help test` names no `--release`, such as the
-  frozen prototype, which has one pipeline
+  implementation whose `hd help test` names no `--release`, one with a
+  single pipeline
   ([`cli.profile.pipeline.one`](../../spec/cli/command-line.md#r-cli.profile.pipeline.one)).
 - **`recheck-precision`** reads `modules_checked`, a number in the summary
   object of `hd check --format json`: the modules the run type-checked
@@ -105,7 +106,7 @@ Notes on the choices:
   fix with a list of edits, each a `span` with 1-based `line` and `column`
   (UTF-16), an optional 0-based `offset`, and a `replacement`. With no
   `fix`, a `fixes` list of exactly one entry counts. This is the shape the
-  prototype's [src/README.md](../../src/README.md) documents;
+  retired TypeScript prototype documented;
   [`cli.json.diagnostic.fields`](../../spec/cli/command-line.md#r-cli.json.diagnostic.fields)
   names no fix-it field yet.
 - **`mistakes`** checks with `hd check --tests FILE`, so a mistake inside a
@@ -175,7 +176,7 @@ Notes on the choices:
 | `proptest-perf` | `hd test` of 3 `it_prop` properties over derived `Arbitrary` types, at 100 and 2,100 `cases`; a failing property with `shrink=500` against `shrink=0` | ≥ 100k cases/s; shrink ≤ 1 s | never |
 | `unit-test-perf` | warm `hd test` of 100 and 1,000 generated unit tests, half in `tests:` blocks, half in `_test.hd` modules | 1,000 tests ≤ 1 s; ≤ 1 ms per test | never |
 | `integration-test-perf` | warm `hd test` with 0, 2 and 10 `tests/` programs that use `temp_dir()` and the real file system; 2 and 10 doc tests | ≤ 20 ms setup per program and per doc test; total sublinear in programs | never |
-| `runtime` | the test/perf/micro cases minus a no-work program, 7 runs after a warm-up, median, p10 and p90; Node runs each case's `main` self-timed | geomean ≤ 1.5x Node; each case ≤ 3x | never |
+| `runtime` | the bench/micro cases minus a no-work program, 7 runs after a warm-up, median, p10 and p90; Node runs each case's `main` self-timed | geomean ≤ 1.5x Node; each case ≤ 3x | never |
 | `allocations` | V8 bytes allocated per iteration of a counted loop and an iterator chain, from 1,000 to 1,000,000 iterations | 0 allocations (< 1 B/iter); ≤ 1 allocation (≤ 32 B/iter) | programs that do not run on Node |
 | `size-startup-heap` | release Wasm size of a tiny program and of the micro cases; start to first output; peak RSS of two micro cases beyond a no-work program, against Node | tiny ≤ 2 KB; ≤ 5 ms; ≤ 2x Node | size: no `.wasm` written; heap: no `/usr/bin/time` |
 | `host-call-overhead` | a loop of `println`, `read_text!` or `FsRead.list_dir!` minus the same loop without the call | ≤ 1 µs; ≤ 10 µs; ≤ 5 µs | never |
@@ -200,7 +201,7 @@ Notes on the choices:
   test. Runs interleave after a warm-up run of each, and the value is the
   median of the paired differences.
 - **Node comparisons** are self-timing JavaScript programs, as in
-  test/perf/micro: each warms up 3 times and times 7 runs in its own
+  bench/micro: each warms up 3 times and times 7 runs in its own
   process. So Node is measured warm, and hd by process differences; the
   ratio favors Node by its JIT warm-up. Python, when installed, is a note
   in `runtime`.
@@ -267,14 +268,14 @@ fn negate(ready: bool) -> bool:
   starts another line, and `# fixed-lines: N` replaces N lines. No metric
   reads it; it lets a reviewer confirm the program holds no other mistake.
 - Log rows left out: runtime failures, mistakes inside `lib/std` or the std
-  loader, prototype bugs that the specification makes valid code, and
+  loader, compiler bugs that the specification makes valid code, and
   mistakes that need a package layout or a host.
 
 To see what an `hd` reports for each program, and whether each fixed
 variant checks clean:
 
 ```sh
-node --experimental-strip-types test/metrics/mistakes/check-corpus.ts [--hd "COMMAND"] [NAME...]
+node --experimental-strip-types bench/metrics/mistakes/check-corpus.ts [--hd "COMMAND"] [NAME...]
 ```
 
 ## Pathological Cases
@@ -301,7 +302,7 @@ size^k` from scale 2 to scale 4, where start-up is the median check of a
 one-line program. k ≤ 1.3 counts as near-linear. When the work beyond
 start-up stays under 100 ms at scale 4, growth is within noise and passes.
 
-To print one program: `node --experimental-strip-types test/metrics/pathological/cases.ts CASE SCALE`.
+To print one program: `node --experimental-strip-types bench/metrics/pathological/cases.ts CASE SCALE`.
 
 ## Layout
 
@@ -321,8 +322,8 @@ To print one program: `node --experimental-strip-types test/metrics/pathological
 | `lib/deps.ts` | the local remote that counts fetches, and a dependent package |
 | `lib/trace.ts` | `strace` file-call tracing and its parser |
 | `mistakes/`, `pathological/` | the corpora |
-| `metrics.test.ts` | unit tests of the helpers, part of `pnpm test`: `node --test --experimental-strip-types test/metrics/metrics.test.ts`. They start no process. |
-| `integration/` | opt-in tests that start processes, outside the `pnpm test` glob: `node --test --experimental-strip-types 'test/metrics/integration/*.test.ts'` |
+| `metrics.test.ts` | unit tests of the helpers, part of `pnpm test`: `node --test --experimental-strip-types bench/metrics/metrics.test.ts`. They start no process. |
+| `integration/` | opt-in tests that start processes, outside the `pnpm test` glob: `node --test --experimental-strip-types 'bench/metrics/integration/*.test.ts'` |
 
 CPU time and peak RSS come from `/usr/bin/time -l` on macOS and `-v` on
 Linux, written to a temporary file with `-o`. Each run starts in its own

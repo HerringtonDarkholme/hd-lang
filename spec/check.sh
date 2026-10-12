@@ -7,8 +7,9 @@ repo_dir=$(CDPATH= cd -- "$spec_dir/.." && pwd)
 manifest="$spec_dir/conformance/cases.tsv"
 examples="$spec_dir/conformance/examples.tsv"
 # The compiler, called only through the command contract
-# (conformance/README.md): HD_TEST_COMMAND, else the repository compiler.
-compiler=${HD_TEST_COMMAND:-"node --experimental-strip-types \"$repo_dir/bin/hd.js\""}
+# (conformance/README.md): HD_TEST_COMMAND, else the Rust hd, built when
+# missing (scripts/hd-conformance.sh).
+compiler=${HD_TEST_COMMAND:-"\"$repo_dir/scripts/hd-conformance.sh\""}
 
 fail() {
     printf '%s\n' "spec check failed: $*" >&2

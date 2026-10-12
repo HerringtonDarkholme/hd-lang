@@ -15,9 +15,8 @@ action at a distance.
 ## Order
 
 1. **New compiler** (owner decision, 2026-10-06). The owner writes a new
-   compiler and CLI. The prototype in [`src/`](../src/README.md) is frozen
-   as a test oracle: bug fixes and spec-sync fixes only, no new features
-   and no performance work. Its state is recorded in the
+   compiler and CLI. The TypeScript prototype (`src/`) was frozen as a
+   test oracle, then deleted on 2026-10-12 (#145). Its state is recorded in the
    [baseline report](../audit/compiler/baseline-2026-10-06.md). These
    move to the new compiler: the CLI redesign including `hd doc`, Wasm
    size, value-layout specialization (batch 37,
@@ -25,9 +24,9 @@ action at a distance.
    caching checked std, and the specializing iterator design.
 2. **Conformance coverage.** Fixtures cite only about a third of the spec's
    rules. New fixtures serve both compilers. Thinnest first: data and enums,
-   serde, then traits and modules. A fixture the prototype fails
-   gets a prototype fix or a tagged
-   [known failure](../test/portable/KNOWN_FAILURES.tsv) row.
+   serde, then traits and modules. A fixture the Rust compiler fails
+   gets a fix or a
+   [known failure](../KNOWN_FAILURES.tsv) row.
 3. **Error-code revamp,** task #101, done (owner, 2026-10-06): the new
    compiler takes its codes from the
    [Diagnostics](../spec/README.md#diagnostics) table.

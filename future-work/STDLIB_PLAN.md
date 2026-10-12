@@ -24,7 +24,7 @@ and [`std.cli`](../spec/std/cli.md), and spec passes 86 and 87 applied
 sketch below is still a proposal for the owner. The spec reconcile pass
 (task #257) keeps decisions that wait for a design in
 [Decided, Not Yet Applied](#decided-not-yet-applied). A decided gap that
-the prototype still has is in [src/KNOWN_ISSUES.md](../src/KNOWN_ISSUES.md).
+the prototype had was in `src/KNOWN_ISSUES.md`, deleted with the prototype.
 
 Under review: the stdlib tier ([spec/std/](../spec/std/README.md)), the
 library itself ([lib/std/](../lib/std/)), the host rules of
@@ -863,7 +863,7 @@ Standard library references, one per column:
 hd sources: the deleted design record, `git show ed7fbfc5^:future-work/STDLIB.md`;
 [lib/std/structure.hd](../lib/std/structure.hd);
 [lib/std/task.hd](../lib/std/task.hd);
-[src/host-functions.ts](../src/host-functions.ts).
+`src/host-functions.ts` (deleted with the prototype).
 
 ## Parse Log
 

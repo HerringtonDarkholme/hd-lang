@@ -329,12 +329,9 @@ describe("pillar 2 helpers", () => {
   });
 
   it("takes node_modules as the toolchain of a Node hd", () => {
+    // Any script of this repository stands in for an hd written for Node.
     const root = join(import.meta.dirname, "..", "..");
-    const toolchain = toolchainOf([
-      "node",
-      "--experimental-strip-types",
-      join(root, "bin", "hd.js"),
-    ]);
+    const toolchain = toolchainOf(["node", join(root, "scripts", "test-web-compiler.js")]);
     assert.equal(toolchain.kind, "node_modules");
   });
 });
@@ -391,7 +388,7 @@ describe("pillar 3 helpers", () => {
   it("turns each micro case into a self-timing Node program", () => {
     const root = join(import.meta.dirname, "..", "..");
     for (const name of MICRO_CASES) {
-      const source = readFileSync(join(root, "test", "perf", "micro", `${name}.js`), "utf8");
+      const source = readFileSync(join(root, "bench", "micro", `${name}.js`), "utf8");
       assert.match(
         nodeBody(source),
         /console\.log\(JSON\.stringify\(\{ ms: measure\(main\) \}\)\);\n$/,

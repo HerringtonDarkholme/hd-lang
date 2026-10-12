@@ -95,7 +95,7 @@ edits in a scripted session that recheck more than one module.
 
 - **Portable conformance suite.** The new compiler answers the command
   contract (`hd parse`, `hd check`, `hd test`, exit codes, `code:` in
-  diagnostics; [portable README](../../test/portable/README.md)). Its own
+  diagnostics; the portable README, deleted with the prototype). Its own
   `KNOWN_FAILURES.tsv` is the spec sync, as the prototype's is.
 - **CLI tier against the binary.** The CLI cases (`cli-cases.tsv`) run
   in `hd_cli/tests/cli_conformance.rs` against the built `hd` binary

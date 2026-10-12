@@ -6,7 +6,7 @@ lookups, and sorting 100k items. Every program checks its own result, so
 dead-code elimination cannot skip the work.
 
 ```sh
-node --experimental-strip-types test/perf/micro/run.ts
+node --experimental-strip-types bench/micro/run.ts
 ```
 
 The runner builds each hd program with the Rust `hd`
@@ -20,4 +20,4 @@ A case's hd file spells `-` as `_` (`string-build` → `string_build.hd`),
 since hd module paths are identifiers.
 
 The latest measurements are in the
-[baseline report](../../../audit/compiler/baseline-2026-10-06.md#62-runtime-microbenchmarks).
+[baseline report](../../audit/compiler/baseline-2026-10-06.md#62-runtime-microbenchmarks).

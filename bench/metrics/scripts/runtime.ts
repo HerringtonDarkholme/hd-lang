@@ -1,6 +1,6 @@
 // runtime: how fast user programs run, against Node.
 //
-// The cases are the microbenchmarks of test/perf/micro: recursive fib(30),
+// The cases are the microbenchmarks of bench/micro: recursive fib(30),
 // the sum of 1..10M, building a string of 100k parts, a map with 100k
 // inserts and lookups, and sorting 100k items. Each checks its own result.
 // hd: each case is built as an executable (lib/artifact.ts), next to a
@@ -37,7 +37,7 @@ const TIMEOUT_MS = 60_000;
 const GEOMEAN_LIMIT = 1.5;
 const CASE_LIMIT = 3;
 
-/** The cases of test/perf/micro, as their JavaScript and Python files name them. */
+/** The cases of bench/micro, as their JavaScript and Python files name them. */
 export const MICRO_CASES = ["fib", "sum", "string-build", "map", "sort"] as const;
 
 /** A program with no work, to subtract start-up from each case. */
@@ -47,8 +47,7 @@ export const BASELINE_PROGRAM = [
   "",
 ].join("\n");
 
-const microDir = (context: MetricContext): string =>
-  join(context.repoRoot, "test", "perf", "micro");
+const microDir = (context: MetricContext): string => join(context.repoRoot, "bench", "micro");
 
 /** The hd source of a micro case; hd module paths spell `-` as `_`. */
 export const microSource = (context: MetricContext, name: string): string =>

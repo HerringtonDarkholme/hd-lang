@@ -1,6 +1,6 @@
 ---
 name: spec-update
-description: Apply owner decisions that are decided but not yet applied, end to end - spec text in the spec/STYLE.md format with rule IDs, in the language tier or the stdlib tier (spec/std/), README diagnostics, conformance fixtures and indexes, a rule inventory diff, the toy prototype in src/ or a KNOWN_FAILURES.tsv entry, known-issues and open-issues cleanup, guide and website examples, the full check suite, and a fast-forward push. Use when the owner says a decision is final and should go into the specification. Anything ambiguous goes back to the owner as a question.
+description: Apply owner decisions that are decided but not yet applied, end to end - spec text in the spec/STYLE.md format with rule IDs, in the language tier or the stdlib tier (spec/std/), README diagnostics, conformance fixtures and indexes, a rule inventory diff, the Rust compiler in crates/ or a KNOWN_FAILURES.tsv entry, open-issues cleanup, guide and website examples, the full check suite, and a fast-forward push. Use when the owner says a decision is final and should go into the specification. Anything ambiguous goes back to the owner as a question.
 ---
 
 # Spec Update
@@ -12,7 +12,7 @@ and win over anything here.
 ## Purpose
 
 Turn a recorded owner decision into accepted language behavior: the spec
-says it, fixtures test it, the prototype does it or records the gap, and
+says it, fixtures test it, the compiler does it or records the gap, and
 nothing else in the repo contradicts it. This is the one skill that edits
 the spec, and it adds exactly what the decision says, no more.
 
@@ -37,7 +37,7 @@ the spec, and it adds exactly what the decision says, no more.
 1. **Read the decision and its scope.** Quote the decision text. List every
    spec section, diagnostic, fixture, and example it touches (`grep` the
    spec, including `spec/std/`, `spec/conformance/`, `guide/`, `website/` (including
-   `website/playground/`), `src/`, and `test/`). If the text leaves a rule
+   `website/playground/`), `crates/`, and `lib/std/`). If the text leaves a rule
    open, stop and ask the owner.
    Never fill a gap with a default.
 2. **Work in a worktree** on a new branch from `origin/main`, and keep the
@@ -91,7 +91,7 @@ the spec, and it adds exactly what the decision says, no more.
    `cases.tsv` and `examples.tsv` consistent: one `cases.tsv` row per
    fixture, one `examples.tsv` row per `text` fence. Fixtures stay
    implementation-neutral. The spec owns their format; never shape one to
-   the prototype.
+   the compiler.
    - A fixture's tier is the tier of its `specification` column: a path
      under `std/` is stdlib, any other is language. There is no other
      tier marker.
@@ -116,17 +116,12 @@ the spec, and it adds exactly what the decision says, no more.
    up as lost. The diff fails when an added ID appears in the history of
    the numbered or stdlib chapters: that ID was retired before, so choose
    another.
-8. **Update the prototype.** Implement the decision in `src/` with tests.
-   When it is too large for this change, add the new fixtures to
-   `test/portable/KNOWN_FAILURES.tsv` (`path`, `reason`, and the decision
-   or finding ID), as the existing rows do. Never change the spec to match
-   the prototype.
-9. **Clean up the issue lists.** Remove the decision's question from
-   `future-work/OPEN_ISSUES.md`. In `src/KNOWN_ISSUES.md`, delete a finding
-   only when it no longer reproduces and a `grep` of the repo shows no other
-   reference. Recount its known-failure tag table from
-   `KNOWN_FAILURES.tsv`, and list an applied decision the prototype does not
-   follow yet.
+8. **Update the compiler.** Implement the decision in the Rust compiler
+   (`crates/`) with tests. When it is too large for this change, list the
+   new fixtures the compiler fails in the root `KNOWN_FAILURES.tsv`, as the
+   existing rows do. Never change the spec to match the compiler.
+9. **Clean up the issue list.** Remove the decision's question from
+   `future-work/OPEN_ISSUES.md`.
 10. **Update everything that shows the behavior.** Examples and prose in
    `guide/`, the website, the playground's examples, and `future-work/`
    design records (mark the decision applied, with a spec link).
@@ -135,28 +130,22 @@ the spec, and it adds exactly what the decision says, no more.
 
     | The change touches | Run |
     | --- | --- |
-    | only `spec/`, `guide/`, `future-work/`, fixtures, or indexes | `bash spec/check.sh`, `node --experimental-strip-types test/run-portable.ts --changed`, and `pnpm run website:build` |
-    | also `src/`, `lib/std/`, `test/`, or `bin/` | the row above, plus `test/run-portable.ts --phase parse\|type\|runtime` and `node --test` on each test file the change touches |
+    | only `spec/`, `guide/`, `future-work/`, fixtures, or indexes | `bash spec/check.sh`, `cargo test -q --test conformance`, and `pnpm run website:build` |
+    | also `crates/` or `lib/std/` | the row above, plus `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo test -q` |
     | the website or playground code | also `pnpm run website:e2e` |
 
-    `--changed` runs only the conformance cases whose fixture differs from
-    `origin/main`, so a spec-only pass never reruns the whole suite. Run
-    `git fetch origin` and rebase on `origin/main` first: against a stale
-    `origin/main`, `--changed` also selects every fixture other agents
-    changed since. While
-    iterating on prototype code, run one phase
-    (`test/run-portable.ts --phase parse|type|runtime`). Never run the full
-    `pnpm run check`: the merge subagent runs it once per merge.
+    Run `git fetch origin` and rebase on `origin/main` first. Never run the
+    full `pnpm run check`: the merge subagent runs it once per merge.
 
-12. **Integrate.** Make logical commits (spec and fixtures, prototype,
+12. **Integrate.** Make logical commits (spec and fixtures, compiler,
     issue-list cleanup, docs), each message naming the decision and the rule
     anchors. Rebase on `origin/main`, rerun the checks if the rebase touched the same files,
     and push as a fast-forward. Never force-push.
 
 ## Output
 
-- Commits on `main` with the spec, README, fixtures, indexes, prototype or
-  `KNOWN_FAILURES.tsv`, known and open issues, and docs changes.
+- Commits on `main` with the spec, README, fixtures, indexes, compiler or
+  `KNOWN_FAILURES.tsv`, open issues, and docs changes.
 - A final message to the caller: the decisions applied, the new and
   retired rule IDs, the diagnostics added or removed, the conformance
   counts (passing out of total), anything recorded as a known failure, the
@@ -169,7 +158,7 @@ the spec, and it adds exactly what the decision says, no more.
 - Ambiguity goes back to the owner, never a guess.
 - No rule, diagnostic, or example disappears unless the decision removes
   it, and the inventory diff proves it.
-- The spec leads and the prototype follows.
+- The spec leads and the compiler follows.
 - No language-tier rule, example, or fixture depends on `spec/std/`.
 - Never rename headings or anchors, and never reuse a retired rule ID.
 
@@ -178,7 +167,6 @@ the spec, and it adds exactly what the decision says, no more.
 - The decision is in the spec, in the tier the tier test gives, with rule
   IDs; named in the commit message; and out of `OPEN_ISSUES.md`.
 - Fixtures cover each new rule and diagnostic, and both indexes agree.
-- The prototype implements it, or `KNOWN_FAILURES.tsv` records the gap and
-  the tag table in `src/KNOWN_ISSUES.md` is recounted.
+- The compiler implements it, or `KNOWN_FAILURES.tsv` records the gap.
 - All checks in step 11 pass, and the commits are pushed as a
   fast-forward.

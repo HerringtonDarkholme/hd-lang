@@ -17,7 +17,7 @@ outside `spec/` to run the suite.
 - **CLI case:** one row of `cli-cases.tsv`. It names a directory under `cli/`
   that holds input files and an `expect.txt`. See [CLI Cases](#cli-cases).
 - **Implementation under test:** a command prefix, such as `hd` or
-  `node --experimental-strip-types bin/hd.js`. The runner appends an action,
+  `scripts/hd-conformance.sh`, the repository's Rust `hd`. The runner appends an action,
   if any, options, and the fixture path. See [Command Contract](#command-contract).
 - **Runner:** the tool that reads `cases.tsv`, invokes the implementation,
   and judges each case by the rules below.

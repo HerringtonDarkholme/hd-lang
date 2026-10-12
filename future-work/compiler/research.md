@@ -1022,7 +1022,7 @@ The back half (lowering, Wasm emission, the host interface) slots between
 
 The portable suite runs any `hd` that answers `parse`, `check` and `test`
 with exit codes and `code:` diagnostics
-([portable README](../../test/portable/README.md)). By the 2026-10-06
+(the portable README, deleted with the prototype). By the 2026-10-06
 baseline it selects 261 parse cases and 1,389 type cases
 ([baseline](../../audit/compiler/baseline-2026-10-06.md#21-full-run)).
 
@@ -1094,7 +1094,7 @@ the question texts stay for their reasoning.
    its own diagnostic as the Day 1 list asks.
 6. **`modules_checked` in the JSON summary.** The metrics harness reads it,
    but the CLI spec does not define it
-   ([metrics README](../../test/metrics/README.md#pillar-1-metrics)).
+   ([metrics README](../../bench/metrics/README.md#pillar-1-metrics)).
    Recommendation: specify it.
 7. **`host_wait!` and the Component Model.** The spec rule
    [`req.host-wait.leaf`](../../spec/lang/11-requirements-and-suspension.md#r-req.host-wait.abi)

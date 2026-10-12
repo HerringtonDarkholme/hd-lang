@@ -47,7 +47,7 @@ cp -r /path/to/hd-lang/editors/hd_nvim/ftdetect /path/to/hd-lang/editors/hd_nvim
 
 ## What It Highlights
 
-- Reserved words, copied from `KEYWORDS` in `src/lexer.ts`, and the
+- Reserved words, copied from `KEYWORDS` in `website/src/highlight.ts`, and the
   contextual words `use`, `as`, `by`, and `$.use` / `$.with`.
 - `true`, `false`, and numbers with `_` separators and a suffix, as in
   `1_500ms`, plus `0x`, `0o`, and `0b` literals.

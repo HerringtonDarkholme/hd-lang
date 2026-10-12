@@ -10,7 +10,7 @@ contract.
 ## Invocation
 
 - An implementation is a command prefix, such as
-  `node --experimental-strip-types bin/hd.js` or `other-hd`.
+  `scripts/hd-conformance.sh` or `other-hd`.
 - The fuzzer passes an absolute `FILE`, and `--tests` to `check` so that it
   covers test code; it passes no other options.
 - The fuzzer runs every command from the repository root, so relative command

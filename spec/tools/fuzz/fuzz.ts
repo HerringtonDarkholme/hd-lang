@@ -15,6 +15,7 @@ import { validateBuild, wasmToolsAvailable } from "./adapters/wasm.ts";
 import {
   type Action,
   classify,
+  defaultCompiler,
   hash,
   hasEntryPoint,
   type Inventory,
@@ -106,7 +107,9 @@ function parseOptions(args: readonly string[]): Options {
   }
   if (compilers.length === 0)
     compilers.push(
-      splitCommand(process.env.HD_FUZZ_COMMAND ?? "node --experimental-strip-types bin/hd.js"),
+      process.env.HD_FUZZ_COMMAND
+        ? splitCommand(process.env.HD_FUZZ_COMMAND)
+        : [...defaultCompiler],
     );
   if (compilers.some((command) => command.length === 0))
     throw new Error("compiler command must not be empty");

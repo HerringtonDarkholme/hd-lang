@@ -52,7 +52,7 @@ function firstLine(text: string): string {
 /**
  * `build` may write its module into the working directory, so it runs inside
  * the case's own scratch directory. Command words that name files relative to
- * the repository root (such as `bin/hd.js`) are made absolute first.
+ * the repository root (such as `target/debug/hd`) are made absolute first.
  */
 function absoluteCommand(command: readonly string[]): string[] {
   return command.map((word) =>

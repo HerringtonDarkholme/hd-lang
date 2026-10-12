@@ -11,7 +11,7 @@
 //
 // Options:
 //   --compiler "CMD"   implementation command prefix (default: $HD_TEST_COMMAND,
-//                      else `node --experimental-strip-types bin/hd.js`)
+//                      else the Rust `hd` through scripts/hd-conformance.sh)
 //   --adapter MODULE   run each command through MODULE's `createAdapter`
 //                      in this process instead of spawning --compiler
 //   --manifest PATH    selection manifest: one case path per line. Only the
@@ -153,7 +153,7 @@ const specRoot = resolve(import.meta.dirname, "..");
 const defaultCases = resolve(specRoot, "conformance/cases.tsv");
 const defaultCliCases = resolve(specRoot, "conformance/cli-cases.tsv");
 const cliIndexHeader = "case\trules";
-const defaultCommand = "node --experimental-strip-types bin/hd.js";
+const defaultCommand = [resolve(specRoot, "../scripts/hd-conformance.sh")];
 const timeoutMs = 10_000;
 const indexHeader = "path\tphase\texpectation\tspecification";
 const packageRoles = new Set(["library", "root-application"]);
@@ -186,7 +186,9 @@ function splitCommand(value: string): string[] {
 }
 
 function parseOptions(args: readonly string[]): Options {
-  let command = splitCommand(process.env.HD_TEST_COMMAND ?? defaultCommand);
+  let command = process.env.HD_TEST_COMMAND
+    ? splitCommand(process.env.HD_TEST_COMMAND)
+    : defaultCommand;
   let adapter: string | undefined;
   let jobs = Number(process.env.HD_TEST_JOBS ?? Math.min(8, availableParallelism()));
   let cases = defaultCases;
@@ -215,7 +217,7 @@ function parseOptions(args: readonly string[]): Options {
   if (command.length === 0) throw new UsageError("compiler command must not be empty");
   if (!Number.isInteger(jobs) || jobs < 1) throw new UsageError("jobs must be a positive integer");
   // A CLI case runs the command in another directory, so a relative path to a
-  // file in the command, such as `bin/hd.js`, must name that file absolutely.
+  // file in the command, such as `target/debug/hd`, must name that file absolutely.
   command = command.map((word) => (word.includes("/") && existsSync(word) ? resolve(word) : word));
   return {
     adapter,

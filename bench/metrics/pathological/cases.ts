@@ -5,7 +5,7 @@
 // in `describe`; scales 1 and 2 feed the scaling check, where check time
 // must grow near-linearly with size.
 //
-// Usage: node --experimental-strip-types test/metrics/pathological/cases.ts CASE SCALE
+// Usage: node --experimental-strip-types bench/metrics/pathological/cases.ts CASE SCALE
 // prints one program, for reading or for trying a case by hand.
 
 export interface PathologicalCase {

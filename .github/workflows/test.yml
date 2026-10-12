@@ -116,14 +116,12 @@ jobs:
       - name: New compiler conformance gate
         run: cargo test --release --workspace --all-features --test conformance
 
-  # The TypeScript prototype's checks (pnpm run check, its perf gate and
-  # the playground end-to-end run) are off: the prototype is a frozen test
-  # oracle and the Rust compiler is the product (owner, 2026-10-07). Only the
-  # specification's own check stays.
+  # The specification's own check. It drives the Rust hd through
+  # scripts/hd-conformance.sh, which builds it in the dev profile.
   spec:
     name: Specification check
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Check out
         uses: actions/checkout@v5
@@ -139,6 +137,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2.9.2
 
       - name: Spec check
         run: bash spec/check.sh

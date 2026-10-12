@@ -41,3 +41,11 @@ benchmark does not yet measure:
 ```sh
 cargo run --release --manifest-path bench/profile-signature/Cargo.toml -- 200 signature
 ```
+
+Two Node tools drive the Rust `hd` as a child process:
+
+- [`metrics/`](metrics/README.md): the goal-metric scripts
+  (`pnpm run metrics`), judged against the targets in
+  [goals.md](../future-work/compiler/goals.md);
+- [`micro/`](micro/README.md): runtime microbenchmarks of the same programs
+  in hd, Python and Node.

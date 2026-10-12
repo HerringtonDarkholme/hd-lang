@@ -28,7 +28,7 @@ current TypeScript compiler is only its first target.
 ## Running
 
 ```sh
-# Default implementation: HD_FUZZ_COMMAND, else "node --experimental-strip-types bin/hd.js".
+# Default implementation: HD_FUZZ_COMMAND, else the Rust hd (scripts/hd-conformance.sh).
 node --experimental-strip-types spec/tools/fuzz/fuzz.ts --seed 1 --cases 5000 --jobs 8 --out /tmp/fuzz-out
 
 # Another implementation.
@@ -37,7 +37,7 @@ node --experimental-strip-types spec/tools/fuzz/fuzz.ts --compiler "other-hd" --
 
 # N-way comparison: give --compiler more than once. This enables the cross-impl fuzzer.
 node --experimental-strip-types spec/tools/fuzz/fuzz.ts \
-  --compiler "node --experimental-strip-types bin/hd.js" --compiler "other-hd" --seed 1
+  --compiler "scripts/hd-conformance.sh" --compiler "other-hd" --seed 1
 
 # Optional Wasm backend adapter (build + Binaryen validation).
 node --experimental-strip-types spec/tools/fuzz/fuzz.ts --adapter wasm --seed 1
@@ -48,7 +48,7 @@ node --experimental-strip-types spec/tools/fuzz/fuzz.ts --replay path/to/case.hd
 
 The command runs from the repository root, so relative command paths resolve
 there. `spec/tools/fuzz/forward.sh` is a trivial second "implementation" that
-forwards to `bin/hd.js`. Use it to check that cross-impl mode reports zero
+forwards to `scripts/hd-conformance.sh`. Use it to check that cross-impl mode reports zero
 disagreements.
 
 ### Options
@@ -112,7 +112,7 @@ files under `spec/conformance/`, so adding a fixture can change the inputs.
 - `spec/check.sh` runs only the import gate.
 - `pnpm run fuzz:smoke` runs the `parse`,
   `contract`, and `phase` fuzzers with 100 cases each against
-  `node --experimental-strip-types bin/hd.js`. It takes about 45 s. Only
+  the Rust `hd` (`scripts/hd-conformance.sh`). It takes about 15 s. Only
   `phase` can fail it (`--fail-on phase`). The `parse` and `contract`
   signatures are known implementation findings, so they are reported, not
   gated. It is not part of `pnpm run check`; CI runs it as its own step,
@@ -143,10 +143,9 @@ contract, so it is as portable as the fuzzer.
 
 Save each triaged example as a portable fixture (`# test:`, `# expect:`,
 `# diagnostic:`, or `# panic:` markers) in `spec/conformance/`, and index
-it in `spec/conformance/cases.tsv`. While the prototype fails it, also list
-it in `test/portable/KNOWN_FAILURES.tsv` with its finding ID. A prototype
-bug that no fixture can show gets a line in
-[src/KNOWN_ISSUES.md](../../../src/KNOWN_ISSUES.md), and a spec ambiguity
+it in `spec/conformance/cases.tsv`. While the Rust compiler fails it, also
+list it in the root `KNOWN_FAILURES.tsv`. A compiler bug that no fixture can
+show gets a GitHub issue, and a spec ambiguity
 gets a question in
 [future-work/OPEN_ISSUES.md](../../../future-work/OPEN_ISSUES.md). Classes:
 implementation bug, spec ambiguity, or correct handling (discarded).

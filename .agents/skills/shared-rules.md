@@ -8,8 +8,8 @@ starting, and reread it before committing.
 1. The owner decides every design question. An agent researches,
    stress-tests, compares, and asks. It never picks an option on the owner's
    behalf, and never records a decision the owner did not state. Only the
-   `spec-update` skill edits a spec chapter, numbered or in `spec/std/`, or
-   the prototype in `src/`, and only to apply a decision the owner made.
+   `spec-update` skill edits a spec chapter, numbered or in `spec/std/`,
+   and only to apply a decision the owner made.
    The other skills write reports and questions.
 2. A recommendation is allowed only where the skill says so, and it is
    labeled **Recommendation** and kept apart from the facts.
@@ -86,12 +86,11 @@ Library" states the tier test and where each kind of rule goes.
 ## Examples
 
 - Keep examples short: the smallest code that shows the point.
-- Write hd examples in `text` fences and check each one with the compiler:
-  `hd debug parse FILE`, which is
-  `node --experimental-strip-types bin/hd.js debug parse FILE` from the repo
-  root. A line that uses syntax no chapter specifies ends in
+- Write hd examples in `text` fences and check each one with the compiler's
+  parser: `scripts/hd-conformance.sh parse FILE` from the repo root (it
+  builds the parser when missing). A line that uses syntax no chapter specifies ends in
   `# hypothetical syntax`. Record every result in a Parse Log.
-- The compiler is a toy and lags the spec. When it rejects syntax that a
+- The compiler lags the spec in places. When it rejects syntax that a
   chapter specifies, cite the chapter and say so in the Parse Log.
 - Code in other languages goes in its own fence (`rust`, `swift`, ...) and
   is not parsed.
@@ -112,7 +111,7 @@ blocks.forEach((m, i) => {
   writeFileSync(file, m[1]);
   let result = "parse";
   try {
-    execFileSync("node", ["--experimental-strip-types", "bin/hd.js", "debug", "parse", file], { stdio: "pipe" });
+    execFileSync("scripts/hd-conformance.sh", ["parse", file], { stdio: "pipe" });
   } catch (error) {
     result = `${error.stdout}${error.stderr}`.trim().replaceAll(`${file}:`, "line ").replaceAll("\n", "; ");
   }
@@ -125,7 +124,7 @@ blocks.forEach((m, i) => {
 
 - Fixtures, fuzzers, and test tooling stay implementation-neutral. The spec
   owns the fixture format ([spec/conformance](../../spec/conformance/README.md)).
-  The prototype in `src/` is a toy; never shape a fixture to its behavior.
+  Never shape a fixture to the compiler's behavior.
 
 ## Git And Safety
 
@@ -138,11 +137,10 @@ blocks.forEach((m, i) => {
 - Before a push that touches Markdown, run `bash spec/check.sh` and
   `pnpm run website:build`.
 - Run only the checks a change needs. A spec-, docs-, or fixture-only
-  change needs `bash spec/check.sh`, `node --experimental-strip-types
-  test/run-portable.ts --changed`, and `pnpm run website:build`, not the full
-  `pnpm run check`. A change to `src/`, `lib/std/`, `test/`, or `bin/`
-  adds `--changed` or `--phase parse|type|runtime` and `node --test` on the
-  test files it touches.
+  change needs `bash spec/check.sh` and `pnpm run website:build`, not the
+  full `pnpm run check`. A change to `crates/` or `lib/std/` adds
+  `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and
+  `cargo test`.
 - Worker agents never run the full `pnpm run check`. Only the merge
   subagent runs it, with `pnpm run test:ui` (REPL, website, playground),
   once per merge.
@@ -163,6 +161,6 @@ blocks.forEach((m, i) => {
 When the task is writing hd programs, follow AGENTS.md "Writing hd Code:
 Model Choice And A Feedback Log". Examples: `lib/std`, examples,
 playground code, and hd test files. It does not apply to spec text,
-fixtures, or `src/`. Log every syntax, type, API or semantic mistake in
+fixtures, or the compiler. Log every syntax, type, API or semantic mistake in
 `audit/hd-writing-log.md`.
 

@@ -2,7 +2,7 @@
 // how much heap they need, against Node.
 //
 // - Size: the release Wasm file of a tiny program that prints one line,
-//   and, in the note, of each test/perf/micro case.
+//   and, in the note, of each bench/micro case.
 // - Start-up: the tiny program run 10 times after a warm-up; the time from
 //   starting the process to its first byte of output, median. It includes
 //   the start-up of whatever runs the module, such as `hd FILE.wasm`.
@@ -137,10 +137,7 @@ async function heapLines(context: MetricContext): Promise<TargetResult[]> {
       const program = await buildProgram(context.hd, microSource(context, name), `heap-${name}`);
       const hd = (await peakRss(program.argv, program.dir, name)) - base.hd;
       const file = join(nodeDir, `${name}.mjs`);
-      const source = readFileSync(
-        join(context.repoRoot, "test", "perf", "micro", `${name}.js`),
-        "utf8",
-      );
+      const source = readFileSync(join(context.repoRoot, "bench", "micro", `${name}.js`), "utf8");
       writeFileSync(file, nodeOnce(source));
       const node =
         (await peakRss([process.execPath, file], nodeDir, `node ${name}.mjs`)) - base.node;

@@ -1,7 +1,7 @@
 // dev-speed: how slow code from the dev pipeline may run, with the profile
 // fixed.
 //
-// The cases are the `runtime` micro cases (test/perf/micro), each turned
+// The cases are the `runtime` micro cases (bench/micro), each turned
 // into a test case: the case's `main` becomes a plain function that a
 // `tests:` block calls. `hd test` may use the dev pipeline, and `hd test
 // --release` uses the optimized one; both keep the test profile

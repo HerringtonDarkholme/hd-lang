@@ -159,8 +159,8 @@ Detailed design: [README.md](README.md)
   storage interface without a file system, checking must also work on one
   thread, and the host interface has a JS implementation.
 
-- The prototype in [`src/`](../../src/README.md) is frozen as a test oracle
-  ([Roadmap](../ROADMAP.md#order)); the new compiler starts now.
+- The TypeScript prototype (`src/`) was frozen as a test oracle
+  ([Roadmap](../ROADMAP.md#order)), then deleted on 2026-10-12 (#145).
   See [Prototype Baselines](#prototype-baselines-to-beat-2026-10-06).
 - Multiple backends: **Wasm** and **Cranelift** first, **LLVM** and **JS**
   at low priority. See [Toolchain-Wide Features](#toolchain-wide-features).
@@ -236,7 +236,7 @@ Owner rules for these metrics:
   such as applying a fix-it, happen in a temporary copy.
 - **No prototype baselines.** The frozen prototype is not a baseline and
   shapes no target ("no need to think about it").
-- **Neutral tooling.** Scripts live under `test/metrics/` and take any
+- **Neutral tooling.** Scripts live under `bench/metrics/` and take any
   `hd` binary.
 
 ### Pillar 1: Single-agent development cost (proxies)
@@ -621,7 +621,7 @@ The numbers come from the frozen prototype and were taken on a shared,
 loaded machine. Treat the ratios as rough; the order of magnitude is the
 reliable part.
 
-**Runtime (Arena pillar 3).** `node --experimental-strip-types test/perf/micro/run.ts`,
+**Runtime (Arena pillar 3).** `node --experimental-strip-types bench/micro/run.ts`,
 medians in ms, release builds, after the P1e/P1f string fixes:
 
 | case | hd | Node | Python | hd vs Node | Wasm size |
@@ -728,7 +728,7 @@ variables of [Open Literal Width](../../spec/lang/04-type-system.md#open-literal
 3. Unify in O(α). Detect a conflict at union time, with the stored blame span.
 4. Sweep only what is open: a has-vars bit on interned types, and a per-body list of nodes whose types hold variables. The end-of-body sweep walks only that list.
 5. Keep obligations in an append-only list of (node, kind). After the fallback, process each once and patch the result into a side table, with no argument re-check.
-6. For speculation, push union-find bindings on a trail (an undo log), and roll back by popping it. Never copy checker state (the prototype's F-626 in [src/KNOWN_ISSUES.md](../../src/KNOWN_ISSUES.md)).
+6. For speculation, push union-find bindings on a trail (an undo log), and roll back by popping it. Never copy checker state (the prototype's F-626 in `src/KNOWN_ISSUES.md`, deleted with the prototype).
 7. Bodies are independent: check the top-level body first, then function bodies in any order, in parallel or lazily. An edit re-checks only its body.
 8. Queue a generic instantiation that meets an open variable until after the sweep, then deduplicate it through the instantiation cache by concrete types. Codegen sees only concrete types.
 9. The cost is O(n·α) per body, and nothing extra for a literal with an expected type.

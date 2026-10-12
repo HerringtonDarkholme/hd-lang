@@ -23,8 +23,8 @@ Compiler:
 
 - [New Compiler: Architecture Notes](compiler/goals.md) holds
   the owner's goals for the new compiler and CLI, and implementation
-  notes carried over from the prototype's records. The prototype in
-  [`src/`](../src/README.md) is frozen as a test oracle.
+  notes carried over from the prototype's records. The TypeScript
+  prototype (`src/`) was deleted on 2026-10-12 (#145); git history keeps it.
 
 Research and direction outside the specification:
 

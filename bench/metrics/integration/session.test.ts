@@ -1,7 +1,7 @@
 // Integration tests of the metric harness: they start real processes, so
-// they stay out of `pnpm test`, whose glob takes only test/metrics/*.test.ts.
+// they stay out of `pnpm test`, whose glob takes only bench/metrics/*.test.ts.
 // Run them with:
-//   node --test --experimental-strip-types 'test/metrics/integration/*.test.ts'
+//   node --test --experimental-strip-types 'bench/metrics/integration/*.test.ts'
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";

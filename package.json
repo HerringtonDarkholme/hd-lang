@@ -1,37 +1,26 @@
 {
   "name": "hd-lang",
   "version": "0.0.3",
-  "bin": {
-    "hd": "./dist/bin/hd.js"
-  },
+  "private": true,
   "type": "module",
   "scripts": {
-    "build:npm": "node scripts/build-npm.js",
     "build:web-compiler": "node scripts/build-web-compiler.js",
-    "prepack": "pnpm run build:npm",
     "check": "pnpm run check:types && pnpm run lint && pnpm run format:check && pnpm test && bash spec/check.sh",
     "check:types": "tsc --noEmit && tsc --noEmit -p website/playground",
-    "format": "oxfmt --write 'src/**/*.ts' 'test/**/*.ts' 'spec/**/*.ts' 'bin/**/*.js' 'scripts/**/*.js' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'website/playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
-    "format:check": "oxfmt --check 'src/**/*.ts' 'test/**/*.ts' 'spec/**/*.ts' 'bin/**/*.js' 'scripts/**/*.js' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'website/playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
+    "format": "oxfmt --write 'spec/**/*.ts' 'bench/**/*.ts' 'scripts/**/*.js' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'website/playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
+    "format:check": "oxfmt --check 'spec/**/*.ts' 'bench/**/*.ts' 'scripts/**/*.js' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'website/playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
     "lint": "oxlint .",
-    "test": "pnpm run test:portable && node --test --experimental-strip-types 'test/*.test.ts' 'test/metrics/*.test.ts' 'spec/tools/*.test.ts'",
+    "test": "node --test --experimental-strip-types 'bench/metrics/*.test.ts' 'spec/tools/*.test.ts'",
     "test:all": "pnpm test && pnpm run test:ui",
-    "test:ui": "node --test --experimental-strip-types 'test/ui/*.test.ts' 'website/test/*.test.ts' 'website/playground/test/**/*.test.ts'",
-    "fuzz:smoke": "node --experimental-strip-types spec/tools/fuzz/fuzz.ts --compiler \"node --experimental-strip-types bin/hd.js\" --fuzzer parse,contract,phase --fail-on phase --seed smoke --cases 100",
-    "perf:check": "node --experimental-strip-types test/perf/inference/gate.ts",
-    "metrics": "node --experimental-strip-types test/metrics/run.ts",
+    "test:ui": "node --test --experimental-strip-types 'website/test/*.test.ts' 'website/playground/test/**/*.test.ts'",
+    "fuzz:smoke": "node --experimental-strip-types spec/tools/fuzz/fuzz.ts --fuzzer parse,contract,phase --fail-on phase --seed smoke --cases 100",
+    "metrics": "node --experimental-strip-types bench/metrics/run.ts",
     "test:web-compiler": "pnpm run -s build:web-compiler && node scripts/test-web-compiler.js",
-    "test:portable": "node --experimental-strip-types test/run-portable.ts",
-    "toolchain:gate": "node --experimental-strip-types src/toolchain-gate.ts",
-    "hd": "node --experimental-strip-types src/cli.ts",
     "spec": "node --experimental-strip-types spec/tools/spec.ts",
     "website:build": "node --experimental-strip-types website/build.ts",
     "website:dev": "node --experimental-strip-types website/serve.ts",
     "website:e2e": "node --experimental-strip-types website/e2e.ts",
     "prepare": "git config core.hooksPath .githooks || true"
-  },
-  "dependencies": {
-    "binaryen": "132.0.0"
   },
   "devDependencies": {
     "@codemirror/commands": "6.11.1",

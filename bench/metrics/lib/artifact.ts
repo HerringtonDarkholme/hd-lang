@@ -9,7 +9,7 @@
 // differences.
 //
 // The Node comparisons are self-timing JavaScript programs, as in
-// test/perf/micro: each warms up in its process, times its own runs, and
+// bench/micro: each warms up in its process, times its own runs, and
 // prints one JSON line.
 
 import { accessSync, constants, readFileSync, statSync, writeFileSync } from "node:fs";

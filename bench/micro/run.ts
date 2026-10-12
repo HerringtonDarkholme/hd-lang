@@ -1,6 +1,6 @@
 // Runtime microbenchmarks: the same small program in hd, Python, and Node.
 //
-// Usage: node --experimental-strip-types test/perf/micro/run.ts
+// Usage: node --experimental-strip-types bench/micro/run.ts
 //
 // Each hd program is built with the Rust `hd` (`target/release/hd
 // build --release`) in a scratch package, which reports the release Wasm
@@ -27,10 +27,10 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createHost } from "../../../host/node.mjs";
+import { createHost } from "../../host/node.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(HERE, "..", "..", "..");
+const ROOT = join(HERE, "..", "..");
 const HD = join(ROOT, "target", "release", "hd");
 const CASES = ["fib", "sum", "string-build", "map", "sort"] as const;
 const RUNS = 7;

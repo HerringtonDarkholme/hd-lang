@@ -1865,7 +1865,7 @@ conformance index, and lists rules with no fixture, per component.
 
 ## 15. Prototype Failures And The Rules That Prevent Them
 
-From [src/KNOWN_ISSUES.md](../../src/KNOWN_ISSUES.md), its history, the
+From `src/KNOWN_ISSUES.md` (deleted with the prototype), its history, the
 [checker audit](../../audit/compiler/checker-2026-10-04.md) and the
 [findings](../../audit/compiler/findings-2026-10-04.md):
 

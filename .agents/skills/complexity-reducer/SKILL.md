@@ -86,7 +86,7 @@ File: `future-work/<AREA>_SIMPLIFICATION.md`, linked from
 `future-work/README.md`. Sections, in order:
 
 1. Title and a status line ("simplification review, YYYY-MM-DD; changes
-   no decision, spec text, or prototype code"), with links to the area.
+   no decision, spec text, or compiler code"), with links to the area.
 2. Summary table: rank, cut, what absorbs it, items removed, cost, and
    soundness (*holds*, *holds with condition*, or *opens a hole*).
 3. Inventory of the area.
@@ -98,7 +98,7 @@ File: `future-work/<AREA>_SIMPLIFICATION.md`, linked from
 ## Hard Rules
 
 - Never apply a cut: do not edit the spec, a design record, fixtures, or
-  `src/`.
+  the compiler.
 - Every cut names an absorbing rule that already exists. A cut that needs a
   new mechanism is a design option, and goes to `brainstorm` or to an owner
   question instead.

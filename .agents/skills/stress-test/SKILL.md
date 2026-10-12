@@ -1,6 +1,6 @@
 ---
 name: stress-test
-description: Stress-test an hd design record (a set of owner decisions) by translating real code from well-known libraries into it, parsing every example with the compiler, and ranking what breaks as questions for the owner. Use when a design record in future-work/ has new or revised decisions and should be tried against realistic code before it reaches the spec. Writes a report under future-work/; never decides or edits decisions, spec, or prototype.
+description: Stress-test an hd design record (a set of owner decisions) by translating real code from well-known libraries into it, parsing every example with the compiler, and ranking what breaks as questions for the owner. Use when a design record in future-work/ has new or revised decisions and should be tried against realistic code before it reaches the spec. Writes a report under future-work/; never decides or edits decisions, spec, or compiler.
 ---
 
 # Stress Test
@@ -74,7 +74,7 @@ File: `future-work/<TOPIC>_STRESS_TEST.md`, or `<TOPIC>_STRESS_TEST_<N>.md`
 for round N. Sections, in order:
 
 1. Title and a status line: "design review, YYYY-MM-DD; changes no
-   decision, design record, spec text, or prototype code", with links to
+   decision, design record, spec text, or compiler code", with links to
    the decisions and spec sections under test.
 2. Contents.
 3. Surface Being Tested, and the variants if any.
@@ -96,7 +96,7 @@ report is removed once its decisions are in the specification.
 ## Hard Rules
 
 - Never edit a design record's decisions, a spec chapter, a fixture, or
-  `src/`. Findings about them go in the report.
+  the compiler. Findings about them go in the report.
 - Never mark a candidate fix as chosen. At most say which candidates the
   evidence favors, labeled as such.
 - Every hd block is parsed and logged. No unparsed example ships.

@@ -1,8 +1,8 @@
 // Reading and applying fix-its from `--format json` diagnostics.
 //
 // The CLI specification's diagnostic object (cli.json.diagnostic.fields)
-// names no fix-it field yet. These metrics read the shape the prototype's
-// src/README.md documents, which an `hd` can adopt:
+// names no fix-it field yet. These metrics read the shape the retired
+// TypeScript prototype documented, which an `hd` can adopt:
 //
 //   "fix": { "message": "...", "edits": [
 //     { "span": { "start": { "line": 2, "column": 5, "offset": 19 },

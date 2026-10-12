@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import test from "node:test";
 
@@ -140,19 +140,6 @@ test("quoted names", () => {
   assert.deepEqual(styled('$"open'), ['name:$"open']);
 });
 
-test("tokens concatenate back to the runtime WAT files", async () => {
-  const runtime = resolve(root, "src/emitter/runtime");
-  const kinds = new Set<WatTokenKind>();
-  for (const name of (await readdir(runtime)).filter((file) => file.endsWith(".wat"))) {
-    const text = await readFile(resolve(runtime, name), "utf8");
-    const tokens = tokenizeWat(text);
-    assert.equal(tokens.map(({ text: value }) => value).join(""), text, name);
-    for (const { kind } of tokens) kinds.add(kind);
-  }
-  for (const kind of ["keyword", "instruction", "type", "name", "number", "paren"] as const)
-    assert.ok(kinds.has(kind), kind);
-});
-
 test("tokens concatenate back to the text the compiler wasm prints", async () => {
   // The WAT view shows what the wat goal of crates/hd_web prints with
   // wasmprinter; the wasm is a build output, built when a checkout has none.
@@ -173,6 +160,9 @@ test("tokens concatenate back to the text the compiler wasm prints", async () =>
   assert.match(text, /\(func \$playground\/main\/main#0 /);
   const tokens = tokenizeWat(text);
   assert.equal(tokens.map(({ text: value }) => value).join(""), text);
+  const kinds = new Set<WatTokenKind>(tokens.map(({ kind }) => kind));
+  for (const kind of ["keyword", "instruction", "type", "name", "number", "paren"] as const)
+    assert.ok(kinds.has(kind), kind);
   assert.ok(
     tokens.some(({ kind, text: value }) => kind === "name" && value === "$playground/main/main#0"),
   );

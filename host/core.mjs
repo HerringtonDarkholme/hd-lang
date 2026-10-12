@@ -227,8 +227,7 @@ export class Dec {
 // A synchronous sleep of `ms` milliseconds. Where `SharedArrayBuffer`
 // exists and the context may block (Node, a worker), it waits with
 // `Atomics.wait`. Elsewhere (a page that is not cross-origin isolated, or a
-// browser's main thread) it spins until the deadline, as
-// `src/web-host.ts`'s `wait` does.
+// browser's main thread) it spins until the deadline.
 function sleeper() {
   if (typeof SharedArrayBuffer === "function") {
     const cell = new Int32Array(new SharedArrayBuffer(4));

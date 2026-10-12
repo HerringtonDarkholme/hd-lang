@@ -1,8 +1,8 @@
 // Running the `hd` under test: command parsing, timing, CPU time and peak RSS.
 //
 // The implementation under test is a command prefix, such as `hd` or
-// `node --experimental-strip-types bin/hd.js`. Nothing here imports the
-// prototype; every measurement goes through a child process.
+// `target/release/hd`. Nothing here imports compiler code; every
+// measurement goes through a child process.
 
 import { execFile, spawn } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";

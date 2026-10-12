@@ -1,4 +1,4 @@
-// The single-mistake corpus in test/metrics/mistakes/.
+// The single-mistake corpus in bench/metrics/mistakes/.
 //
 // Each program holds exactly one mistake, taken from audit/hd-writing-log.md.
 // Its header comments say what the mistake is and which code the

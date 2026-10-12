@@ -1,7 +1,7 @@
 // The metric runner: runs the selected metric scripts against one `hd` and
 // judges each target. See README.md.
 //
-// Usage: node --experimental-strip-types test/metrics/run.ts
+// Usage: node --experimental-strip-types bench/metrics/run.ts
 //          [--hd "COMMAND"] [--only NAME[,NAME...]] [--pillar N] [--list] [--keep-temp]
 //          [--suite] [--max] [--long]
 //
@@ -17,7 +17,7 @@ import { keepTempDirs, removeAllTempDirs } from "./lib/tmp.ts";
 import { METRICS } from "./scripts/index.ts";
 
 const REPO_ROOT = join(import.meta.dirname, "..", "..");
-const DEFAULT_HD = "node --experimental-strip-types bin/hd.js";
+const DEFAULT_HD = "target/release/hd";
 
 const STATUS_LABEL = { pass: "PASS", fail: "FAIL", "n/a": "N/A " } as const;
 
