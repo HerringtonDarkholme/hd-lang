@@ -46,43 +46,55 @@ impl WasmtimeInstance {
     }
 
     pub(crate) fn from_instance(
-        mut store: Store<Host>,
+        store: Store<Host>,
         engine: Arc<wasmtime::Engine>,
         instance: wasmtime::Instance,
         init_name: &str,
         poll_name: &str,
     ) -> Result<Self, StartError> {
-        store.data_mut().memory = instance.get_memory(&mut store, "hd.x");
+        let mut this = Self::stopped(store, engine);
+        this.enter(instance, init_name, poll_name)?;
+        Ok(this)
+    }
+
+    /// Makes `instance`, in this store, the one that `init`, `poll` and
+    /// `wake` drive, through its exports `init_name`, `poll_name` and
+    /// `hd.wake`; the run it starts has not ended. A session enters each
+    /// input this way.
+    pub(crate) fn enter(
+        &mut self,
+        instance: wasmtime::Instance,
+        init_name: &str,
+        poll_name: &str,
+    ) -> Result<(), StartError> {
+        let store = &mut self.store;
+        store.data_mut().memory = instance.get_memory(&mut *store, "hd.x");
         let export = |store: &mut Store<Host>, name: &str| {
             instance
                 .get_func(&mut *store, name)
                 .ok_or_else(|| StartError::Engine(format!("the module has no export `{name}`")))
         };
-        let init = export(&mut store, init_name)?
-            .typed::<(), ()>(&store)
+        let init = export(store, init_name)?
+            .typed::<(), ()>(&*store)
             .map_err(|e| StartError::Engine(format!("`{init_name}`: {e}")))?;
-        let poll = export(&mut store, poll_name)?
-            .typed::<(), i32>(&store)
+        let poll = export(store, poll_name)?
+            .typed::<(), i32>(&*store)
             .map_err(|e| StartError::Engine(format!("`{poll_name}`: {e}")))?;
-        let wake = match instance.get_func(&mut store, "hd.wake") {
+        let wake = match instance.get_func(&mut *store, "hd.wake") {
             Some(f) => Some(
-                f.typed::<i32, ()>(&store)
+                f.typed::<i32, ()>(&*store)
                     .map_err(|e| StartError::Engine(format!("`hd.wake`: {e}")))?,
             ),
             None => None,
         };
-        Ok(WasmtimeInstance {
-            store,
-            _engine: engine,
-            init: Some(init),
-            instance: Some(instance),
-            poll: Some(poll),
-            wake,
-            done: None,
-            close_on_end: true,
-            last_trapped: false,
-            last_frames: Vec::new(),
-        })
+        self.init = Some(init);
+        self.instance = Some(instance);
+        self.poll = Some(poll);
+        self.wake = wake;
+        self.done = None;
+        self.last_trapped = false;
+        self.last_frames.clear();
+        Ok(())
     }
 }
 

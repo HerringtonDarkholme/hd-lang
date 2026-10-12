@@ -91,7 +91,7 @@ fn a_session_module_calls_an_earlier_module_and_shares_its_state() {
 
 /// Builds the script module `entry` over `files` through the driver, as
 /// one more module of `session`; returns the module and what it adds.
-fn session_module(
+pub(crate) fn session_module(
     files: &[(&str, &str)],
     entry: &str,
     session: &hd_driver::Session,

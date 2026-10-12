@@ -1261,6 +1261,18 @@ pub fn global_key(g: &GSym) -> String {
     }
 }
 
+/// Whether a session module's export `name` is a session key (the memory,
+/// `func_key` or `global_key`), which a host registers under
+/// `SESSION_MODULE` for later modules. The entry exports (`hd.init`,
+/// `hd.poll`, `hd.wake`), which every module of a session has, are not.
+#[must_use]
+pub fn is_session_key(name: &str) -> bool {
+    name == MEMORY_KEY
+        || ["inst.", "bind.", "rt.", "canon.", "wit.", "witf."]
+            .iter()
+            .any(|p| name.starts_with(p))
+}
+
 /// A global `link` defines as a constant: a witness, a witness field, a
 /// canonical value. Any other global is a mutable, defaultable cell.
 fn constant_global(g: &GSym) -> bool {

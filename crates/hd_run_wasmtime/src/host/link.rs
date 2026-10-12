@@ -29,7 +29,28 @@ pub fn define(
     module: &wasmtime::Module,
     profile: RuntimeProfile,
 ) -> Result<(), String> {
-    define_with(linker, module, |module, name| {
+    define_with(
+        linker,
+        module.imports(),
+        &mut HashSet::new(),
+        |module, name| Kind::with_profile(module, name, profile),
+    )
+}
+
+/// Defines the host imports of a session input (repl-plan.md §2.3) in the
+/// session's one linker: every import of `module` but its session imports
+/// (`hd_wasm::SESSION_MODULE`), which earlier inputs' exports satisfy, and
+/// those an earlier input already defined (`defined`).
+pub(crate) fn define_session(
+    linker: &mut Linker<Host>,
+    module: &wasmtime::Module,
+    profile: RuntimeProfile,
+    defined: &mut HashSet<(String, String)>,
+) -> Result<(), String> {
+    let host = module
+        .imports()
+        .filter(|i| i.module() != hd_wasm::SESSION_MODULE);
+    define_with(linker, host, defined, |module, name| {
         Kind::with_profile(module, name, profile)
     })
 }
@@ -39,22 +60,27 @@ pub(crate) fn define_test(
     module: &wasmtime::Module,
     kind: crate::test_engine::TestHostKind,
 ) -> Result<(), String> {
-    define_with(linker, module, |module, name| {
-        Kind::with_test(module, name, kind)
-    })
+    define_with(
+        linker,
+        module.imports(),
+        &mut HashSet::new(),
+        |module, name| Kind::with_test(module, name, kind),
+    )
 }
 
-fn define_with(
+fn define_with<'m>(
     linker: &mut Linker<Host>,
-    module: &wasmtime::Module,
+    imports: impl Iterator<Item = wasmtime::ImportType<'m>>,
+    defined: &mut HashSet<(String, String)>,
     kind_of: impl Fn(&str, &str) -> Option<Kind>,
 ) -> Result<(), String> {
-    let mut defined = HashSet::new();
-    for import in module.imports() {
+    for import in imports {
         let (m, n) = (import.module(), import.name());
         // Wasm permits repeated imports. Node reuses the same property;
-        // the linker likewise needs only one definition for that name.
-        if !defined.insert((m.to_owned(), n.to_owned())) {
+        // the linker likewise needs only one definition for that name, and
+        // a session's linker one for all its inputs.
+        let key = (m.to_owned(), n.to_owned());
+        if defined.contains(&key) {
             continue;
         }
         let Some(kind) = kind_of(m, n) else {
@@ -94,6 +120,7 @@ fn define_with(
                 },
             )
             .map_err(|e| e.to_string())?;
+        defined.insert(key);
     }
     Ok(())
 }

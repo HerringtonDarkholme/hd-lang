@@ -28,8 +28,8 @@ mod reply;
 mod state;
 
 pub use kind::supported;
-pub(crate) use link::define_test;
 pub use link::{deadlock, define, unsupported_message};
+pub(crate) use link::{define_session, define_test};
 pub use reply::complete;
 pub(crate) use reply::deliver_batch;
 pub use state::{Host, HostIo};

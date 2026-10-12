@@ -291,7 +291,7 @@ Each gap is an owner question in §5. In short:
 - Q2: an input's top level may make bang calls (a driver context, like `main!`'s body).
 - Q3: accept about 72 KiB per kept input now (the bench bound follows the page size); later, rebuild the session from the journal past a limit.
 - Q4: the CLI REPL runs on wasmtime only.
-- Q5: add `rustyline`. Interrupting a running input (Ctrl-C while it computes) is still open: `rustyline` covers the prompt only.
+- Q5: add `rustyline` (Ctrl-C at the prompt) and `ctrlc` (SIGINT while an input runs, for Stop and Cancel).
 - Q8a: inputs live outside every package folder. Q8c: the recorder sits at the host call sites. Q8d: design questions 1 and 4 are answered by the spec. Q8e: the playground keeps one worker; Stop rebuilds from the journal (W2 dropped).
 - Q8b, replaced: **no redefinition at all.** An input must not redeclare a name an earlier input declared: `duplicate-type` for types, traits and aliases, `duplicate-binding` for functions and bindings (`cli.repl.redeclare.*`, spec edit of 2026-10-12, replacing `cli.repl.redefine.shadow` and `.shadow.report`). Shadowing, the stale-caller note and origin-marked types (C7) are gone.
 

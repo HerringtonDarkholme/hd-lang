@@ -9,6 +9,8 @@ rust-version.workspace = true
 hd_cache = { path = "../hd_cache" }
 hd_host_abi = { path = "../hd_host_abi" }
 hd_run = { path = "../hd_run" }
+# Session inputs (repl-plan.md §2.3): the session module name and keys.
+hd_wasm = { path = "../hd_wasm" }
 getrandom = "0.4"
 hostname = "0.4"
 libc = "0.2"
@@ -41,7 +43,6 @@ hd_driver = { path = "../hd_driver", default-features = false }
 hd_mono = { path = "../hd_mono" }
 hd_project = { path = "../hd_project" }
 hd_sched = { path = "../hd_sched" }
-hd_wasm = { path = "../hd_wasm" }
 
 [target.'cfg(windows)'.dependencies]
 interprocess = { version = "=2.4.4", default-features = false }

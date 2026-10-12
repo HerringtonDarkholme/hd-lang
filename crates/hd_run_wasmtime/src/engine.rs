@@ -59,8 +59,8 @@ pub fn thread_stack(config: &EngineConfig) -> usize {
 
 pub struct WasmtimeEngine {
     pub config: EngineConfig,
-    engine: Arc<wasmtime::Engine>,
-    profile: crate::profiles::RuntimeProfile,
+    pub(crate) engine: Arc<wasmtime::Engine>,
+    pub(crate) profile: crate::profiles::RuntimeProfile,
 }
 
 impl WasmtimeEngine {
