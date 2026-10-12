@@ -83,7 +83,14 @@ const plain = (list) => ({
     .filter((c) => c !== "")
     .map((c) => {
       const [test, init, kind] = c.split(":");
-      return { test: Number(test), init: Number(init), kind: kind ?? "it", tempDir: null, seed: null, grants: {} };
+      return {
+        test: Number(test),
+        init: Number(init),
+        kind: kind ?? "it",
+        tempDir: null,
+        seed: null,
+        grants: {},
+      };
     }),
 });
 function configOf(spec) {
@@ -97,7 +104,9 @@ async function supervise(module, config) {
   let start = { case: 0, row: 0, rows: 0 };
   while (start.case < config.cases.length) {
     start = await new Promise((next, fail) => {
-      const worker = new Worker(new URL(import.meta.url), { workerData: { module, config, start } });
+      const worker = new Worker(new URL(import.meta.url), {
+        workerData: { module, config, start },
+      });
       // What the worker runs: its case, the row of a table and its count,
       // and the current run's timeout.
       let at = { ci: start.case, row: start.row > 0 ? start.row : null, rows: start.rows || null };
@@ -121,7 +130,11 @@ async function supervise(module, config) {
         };
         if (at.row !== null && at.rows !== null) {
           writeOut(JSON.stringify({ test: c.test, row: at.row, rows: at.rows, ...line }) + "\n");
-          next(at.row + 1 < at.rows ? { case: at.ci, row: at.row + 1, rows: at.rows } : { case: at.ci + 1, row: 0, rows: 0 });
+          next(
+            at.row + 1 < at.rows
+              ? { case: at.ci, row: at.row + 1, rows: at.rows }
+              : { case: at.ci + 1, row: 0, rows: 0 },
+          );
         } else {
           writeOut(JSON.stringify(line) + "\n");
           next({ case: at.ci + 1, row: 0, rows: 0 });
@@ -192,7 +205,11 @@ async function runOnce(c, k, runner) {
   );
   const t0 = performance.now();
   const instance = await WebAssembly.instantiate(module, host.imports);
-  const { status, trapped, ended, frames } = await host.run(instance, `hd.init.${c.init}`, `hd.test.${c.test}`);
+  const { status, trapped, ended, frames } = await host.run(
+    instance,
+    `hd.init.${c.init}`,
+    `hd.test.${c.test}`,
+  );
   parentPort.postMessage({ type: "done" });
   host.close();
   if (dir) rmSync(dir, { recursive: true, force: true });
@@ -375,7 +392,7 @@ async function shrink(failing, attempt, budget) {
   while (improved && left > 0) {
     improved = false;
     for (const k of [8, 4, 2, 1]) {
-      for (let i = 0; i + k <= best.run.draws.length && left > 0; ) {
+      for (let i = 0; i + k <= best.run.draws.length && left > 0;) {
         const s = best.run.draws;
         if (await tryStream([...s.slice(0, i), ...s.slice(i + k)])) improved = true;
         else i += 1;

@@ -42,7 +42,7 @@ function split(value, width) {
   }
   const fraction = bits & ((1n << BigInt(mantissa)) - 1n);
   const biased = Number((bits >> BigInt(mantissa)) & ((1n << BigInt(expBits)) - 1n));
-  const negative = (bits >> BigInt(mantissa + expBits)) !== 0n;
+  const negative = bits >> BigInt(mantissa + expBits) !== 0n;
   const min = 1 - bias - mantissa;
   if (biased === 0) return { negative, f: fraction, e: min, min, hidden: 1n << BigInt(mantissa) };
   return {
@@ -137,7 +137,8 @@ export function shortest(value, width) {
   const exponent = k - 1;
   if (exponent >= -6 && exponent < 21) {
     if (exponent < 0) return `${sign}0.${"0".repeat(-exponent - 1)}${ds}`;
-    const whole = ds.length > exponent + 1 ? ds.slice(0, exponent + 1) : ds.padEnd(exponent + 1, "0");
+    const whole =
+      ds.length > exponent + 1 ? ds.slice(0, exponent + 1) : ds.padEnd(exponent + 1, "0");
     const rest = ds.slice(exponent + 1);
     return `${sign}${whole}.${rest === "" ? "0" : rest}`;
   }

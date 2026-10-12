@@ -64,7 +64,8 @@ export function resolvePath(path) {
 // Whether `host` is a name or an IP address
 // (std-net.error.invalid-address).
 export function validHost(host) {
-  const name = /^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\.?$/;
+  const name =
+    /^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\.?$/;
   return isIP(host) !== 0 || name.test(host);
 }
 
@@ -121,12 +122,20 @@ const fsErr = (e, path, variant) => {
 };
 const fsFail = (e, path, err) => {
   const v = FS_CODES[err?.code];
-  return v === undefined ? e.leb(1).leb(FS.Other).str(String(err?.message ?? err)) : fsErr(e, path, v);
+  return v === undefined
+    ? e
+        .leb(1)
+        .leb(FS.Other)
+        .str(String(err?.message ?? err))
+    : fsErr(e, path, v);
 };
 // An `Entry`: path, kind, size.
 const entry = (e, path, st) => {
   const kind = st.isSymbolicLink() ? KIND.Symlink : st.isDirectory() ? KIND.Directory : KIND.File;
-  return e.str(path).leb(kind).leb(kind === KIND.Directory ? 0 : st.size);
+  return e
+    .str(path)
+    .leb(kind)
+    .leb(kind === KIND.Directory ? 0 : st.size);
 };
 // A waiting method's `.start`/`.finish` pair from one table.
 const waiting = (ops) => {
@@ -244,7 +253,6 @@ function consoleInputImports({ env, flush, ready }) {
     "read_line.finish": never,
   };
 }
-
 
 // The host system's four reads (std-sys.*). The grant covers each by
 // its method's name (cli.cap.scope.sys); a refused or unanswerable
@@ -526,7 +534,12 @@ function processImports({ argsOf, grant, env, ready }) {
       });
     } else {
       try {
-        r = spawnSync(name, argv, { input, cwd: process.cwd(), env: process.env, maxBuffer: 1 << 30 });
+        r = spawnSync(name, argv, {
+          input,
+          cwd: process.cwd(),
+          env: process.env,
+          maxBuffer: 1 << 30,
+        });
       } catch (error) {
         if (name === "") return e.leb(1).leb(PROC.NotFound);
         return e.leb(1).leb(PROC.Other).str(String(error.message));
@@ -539,11 +552,7 @@ function processImports({ argsOf, grant, env, ready }) {
       return e.leb(1).leb(PROC.Other).str(String(r.error.message));
     }
     const status = r.status ?? 128;
-    return e
-      .leb(0)
-      .str(r.stdout.toString("utf8"))
-      .str(r.stderr.toString("utf8"))
-      .zz(status);
+    return e.leb(0).str(r.stdout.toString("utf8")).str(r.stderr.toString("utf8")).zz(status);
   };
   return waiting({
     run: {

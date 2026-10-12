@@ -107,16 +107,19 @@ export function buildOptions(
   };
 }
 
-/** The compiler wasm `pnpm run build:web-compiler` writes; absent until then. */
-const COMPILER_WASM = join(playground, "assets", "hd_web.wasm");
+/** The compiler wasm `pnpm run build:web-compiler` writes; Run and Check need it. */
+export const COMPILER_WASM = join(playground, "assets", "hd_web.wasm");
 
 async function copyStatic(outDir: string): Promise<void> {
+  if (!existsSync(COMPILER_WASM))
+    throw new Error(
+      `${COMPILER_WASM} is missing: run \`pnpm run build:web-compiler\` before building the playground`,
+    );
   await rm(outDir, { recursive: true, force: true });
   await mkdir(join(outDir, "assets"), { recursive: true });
   await copyFile(join(playground, "index.html"), join(outDir, "index.html"));
   // Next to worker.js, which loads it relative to its own URL.
-  if (existsSync(COMPILER_WASM))
-    await copyFile(COMPILER_WASM, join(outDir, "assets", "hd_web.wasm"));
+  await copyFile(COMPILER_WASM, join(outDir, "assets", "hd_web.wasm"));
 }
 
 /** Writes a production build of the playground to `outDir`: index.html and assets/. */

@@ -1,11 +1,16 @@
-// The compiler worker: Binaryen and the prototype compiler run here so the
-// page stays responsive, and a runaway program can be stopped by terminating
-// the worker. The playground sends it projects; the website's REPL panel
-// sends it REPL inputs, which one `ReplSession` per worker answers.
+// The compiler worker: the compilers run here so the page stays responsive,
+// and a runaway program can be stopped by terminating the worker. The
+// playground sends it projects; the website's REPL panel sends it REPL
+// inputs, which one `ReplSession` per worker answers.
 //
-// The worker keeps the module the last run or test compiled, so the WAT view
-// can show it without compiling again. For top-level code without `main`,
-// that module is the only one the view can show.
+// Run and Check go to the Rust compiler (rust-runner.ts), whose wasm,
+// hd_web.wasm, sits beside this script; the worker loads it once and says
+// it is ready after that. Test, the WAT view and the REPL stay on the
+// prototype compiler (runner.ts) for now.
+//
+// The worker keeps the module the last test compiled, so the WAT view can
+// show it without compiling again. A Run on the Rust compiler keeps none:
+// the view compiles the project with the prototype compiler until W8.
 
 import { respond, ReplSession, type ReplReply } from "../../../src/repl.ts";
 import type { Project } from "./project.ts";
@@ -19,6 +24,7 @@ import {
   type RunResult,
   type WatResult,
 } from "./runner.ts";
+import { createRustRunner } from "./rust-runner.ts";
 
 export type WorkerRequest =
   | {
@@ -53,8 +59,14 @@ interface WorkerScope {
 }
 
 const scope = self as unknown as WorkerScope;
+const rust = createRustRunner(
+  fetch(new URL("./hd_web.wasm", import.meta.url)).then((response) => {
+    if (!response.ok) throw new Error(`hd_web.wasm: HTTP ${response.status}`);
+    return response.arrayBuffer();
+  }),
+);
 let session = new ReplSession({}, undefined, PLAYGROUND_HOST);
-/** What the WAT view shows for the project the last run or test compiled. */
+/** What the WAT view shows for the project the last test compiled. */
 let lastRun: { readonly key: string; readonly wat: WatResult } | undefined;
 
 const projectKey = (project: Project): string =>
@@ -66,14 +78,16 @@ const projectKey = (project: Project): string =>
 scope.onmessage = async ({ data: request }) => {
   if (request.kind === "project") {
     const { id, mode, project } = request;
+    const onStdout = (line: string, debug?: boolean): void =>
+      scope.postMessage({ kind: "stdout", id, line, ...(debug ? { debug } : {}) });
+    if (mode !== "test") {
+      const result = await rust.runProject(project, mode, onStdout);
+      scope.postMessage({ kind: "result", id, result });
+      return;
+    }
     let module: CompiledModule | undefined;
-    const result = await runProject(
-      project,
-      mode,
-      (line, debug) => scope.postMessage({ kind: "stdout", id, line, ...(debug ? { debug } : {}) }),
-      (compiled) => (module = compiled),
-    );
-    const wat = mode === "check" ? undefined : watFromRun(result, module);
+    const result = await runProject(project, mode, onStdout, (compiled) => (module = compiled));
+    const wat = watFromRun(result, module);
     if (wat) lastRun = { key: projectKey(project), wat };
     scope.postMessage({ kind: "result", id, result });
   } else if (request.kind === "wat") {
@@ -90,4 +104,4 @@ scope.onmessage = async ({ data: request }) => {
     scope.postMessage({ kind: "restored", id: request.id, count });
   }
 };
-scope.postMessage({ kind: "ready" });
+void rust.ready.then(() => scope.postMessage({ kind: "ready" }));

@@ -14,7 +14,9 @@ export interface CoreEnv {
   grants?: Record<string, false | string[]>;
   seed?: number | null;
   runner?: unknown;
-  providers?: ((io: { put: (e: unknown) => number; Enc: unknown }) => Record<string, unknown>) | null;
+  providers?:
+    | ((io: { put: (e: unknown) => number; Enc: unknown }) => Record<string, unknown>)
+    | null;
 }
 
 export interface RunResult {

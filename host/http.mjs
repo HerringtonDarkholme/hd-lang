@@ -40,7 +40,12 @@ const TLS_CODES = new Set([
 // The `HttpError` of a failed connection to `host`.
 const failure = (e, host) => {
   const code = e?.code ?? "";
-  if (code === "ENOTFOUND" || code === "EAI_AGAIN" || code === "EAI_NODATA" || code === "EAI_FAIL") {
+  if (
+    code === "ENOTFOUND" ||
+    code === "EAI_AGAIN" ||
+    code === "EAI_NODATA" ||
+    code === "EAI_FAIL"
+  ) {
     return err("Dns", host);
   }
   if (TLS_CODES.has(code) || code.startsWith("ERR_TLS") || code.startsWith("ERR_SSL")) {
@@ -68,7 +73,8 @@ const once = (url, method, headers, body, ms) =>
     // A body is sent with its length, as `fetch` sends a byte body,
     // unless the request gives its own framing.
     const framed = headers.some(([n]) => /^(content-length|transfer-encoding)$/i.test(n));
-    const sized = body.length && !framed ? [...headers, ["Content-Length", String(body.length)]] : headers;
+    const sized =
+      body.length && !framed ? [...headers, ["Content-Length", String(body.length)]] : headers;
     // Headers go to Node as a raw list, which keeps repeated names in
     // order but makes Node skip its own `Host`; an HTTP/1.1 request
     // needs one (RFC 9112 3.2), so the URL's authority supplies it unless

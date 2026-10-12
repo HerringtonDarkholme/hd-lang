@@ -33,13 +33,17 @@ const fail = (variant, text) => ({ error: [variant, text] });
 // of `host` (std-net.error.*).
 const failure = (e, address, host) => {
   const code = e?.code ?? "";
-  if (code === "ENOTFOUND" || code === "EAI_AGAIN" || code === "EAI_NODATA" || code === "EAI_FAIL") {
+  if (
+    code === "ENOTFOUND" ||
+    code === "EAI_AGAIN" ||
+    code === "EAI_NODATA" ||
+    code === "EAI_FAIL"
+  ) {
     return fail("Dns", host);
   }
   if (code === "ECONNREFUSED" || code === "EADDRINUSE") return fail("Refused", address);
   return fail("Other", String(e?.message ?? e));
 };
-
 
 // A queue of arrivals that a later operation waits for: data chunks, a
 // connection, a datagram; or the end or an error, which stays.
@@ -166,7 +170,9 @@ const ops = {
   receive: async ({ h, max }) => {
     const got = await h.inbox.next();
     if (got === null) return failure(h.inbox.end?.error ?? "the socket stopped", "", "");
-    return { ok: { bytes: got.msg.subarray(0, max), host: got.rinfo.address, port: got.rinfo.port } };
+    return {
+      ok: { bytes: got.msg.subarray(0, max), host: got.rinfo.address, port: got.rinfo.port },
+    };
   },
   close: ({ h }) => {
     if (h.kind === "stream") h.socket.end();

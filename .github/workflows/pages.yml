@@ -34,6 +34,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Run and Check in the playground compile with the Rust compiler's
+      # wasm, which the UI tests and the website build need
+      # (playground-wasm.md §7, W5). Set up as test.yml's lint job does.
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2.9.2
+
+      - name: Install browser target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Build the playground's compiler
+        run: pnpm run -s build:web-compiler
+
       # The REPL, website, and playground tests gate the deploy; they are not
       # part of `pnpm run check`.
       - name: UI tests

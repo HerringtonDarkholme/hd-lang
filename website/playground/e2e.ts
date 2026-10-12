@@ -92,8 +92,9 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
   );
 
   await step("Ctrl+Enter runs; a type error jumps to its line", async () => {
+    // `count` is read, so the type error is the only diagnostic.
     const source =
-      'pub fn main() -> void $ Console:\n    println("start")\n    let count: i32 = "three"\n';
+      'pub fn main() -> void $ Console:\n    println("start")\n    let count: i32 = "three"\n    println(count)\n';
     const page = await openPage(code(source));
     await page.click(".cm-content");
     await page.keyboard.press("Control+Enter");
@@ -137,7 +138,7 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
     await page.locator(".outcome.panic").waitFor();
     assert.match(
       (await outcome(page).textContent()) ?? "",
-      /integer-division-by-zero: runtime panic in main/,
+      /integer-division-by-zero: division by zero/,
     );
     assert.match((await page.locator(".stdout").textContent()) ?? "", /average of 10 over 2: 5/);
     await page.context().close();
@@ -180,16 +181,13 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
     await page.context().close();
   });
 
-  await step("without main, Run prints top-level expression values", async () => {
-    const source = 'x := 21\nprintln("start")\nx * 2\n[x, x + 1]\n';
+  await step("without main, Run runs the top-level statements as a script", async () => {
+    const source = 'x := 21\nprintln("start")\nprintln(x * 2)\n[x, x + 1]\n';
     const page = await openPage(code(source));
     await page.click("#run");
     await page.locator(".outcome.passed").waitFor();
-    assert.equal(
-      await page.locator(".stdout").textContent(),
-      "start\n42 : usize\n[21, 22] : List[usize]\n",
-    );
-    assert.match((await outcome(page).textContent()) ?? "", /ran 4 top-level inputs/);
+    assert.equal(await page.locator(".stdout").textContent(), "start\n42\n");
+    assert.match((await outcome(page).textContent()) ?? "", /exited normally/);
     await page.context().close();
   });
 
@@ -278,20 +276,17 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
     await page.context().close();
   });
 
-  await step("without main, the WAT view shows the last module Run compiled", async () => {
+  // Run is on the Rust compiler and the WAT view still on the prototype,
+  // which has no module for top-level code (playground-wasm.md §7, W8).
+  await step("without main, the WAT view asks for a Run; Run runs the script", async () => {
     const page = await openPage();
     await page.selectOption("#examples", "top-level");
     await page.click("#view-wat");
     await page.getByText("Run the project to see the last one").waitFor();
-    await page.click("#run");
-    await page.locator(".wat-code").waitFor();
-    assert.match(
-      (await page.locator(".wat-code").textContent()) ?? "",
-      /^\(module[\s\S]*\(export "main"\)/,
-    );
     await page.click("#view-output");
+    await page.click("#run");
     await page.locator(".outcome.passed").waitFor();
-    assert.match((await page.locator(".stdout").textContent()) ?? "", /\[7, 12\] : List\[i32\]/);
+    assert.equal(await page.locator(".stdout").count(), 0);
     await page.context().close();
   });
 

@@ -113,7 +113,9 @@ export function createGrant(limits = {}, resolveTarget = (path) => path) {
       }),
     // cli.cap.scope.env, .process, .sys.
     coversName: (key, name) =>
-      check(key, (e) => (key === "Env" && e.endsWith("*") ? name.startsWith(e.slice(0, -1)) : e === name)),
+      check(key, (e) =>
+        key === "Env" && e.endsWith("*") ? name.startsWith(e.slice(0, -1)) : e === name,
+      ),
   };
 }
 
@@ -358,7 +360,6 @@ function propertyRunnerImports({ env, put, text }) {
   };
 }
 
-
 // `hd:TestRunner`: the hooks every host has (the Node layer adds
 // `snapshot_check` and `temp_dir`, which touch files).
 function testRunnerImports({ env, st }) {
@@ -534,7 +535,9 @@ export function createCoreHost(sink, env = {}, layer = null) {
         // V8 reports a guest stack overflow as a RangeError ("Maximum call
         // stack size exceeded"), not a WebAssembly.RuntimeError; it is the
         // stack-exhausted panic. Other RangeErrors are host bugs and rethrow.
-        sink.err("panic: stack-exhausted: the call stack ran out; check for recursion that never ends\n");
+        sink.err(
+          "panic: stack-exhausted: the call stack ran out; check for recursion that never ends\n",
+        );
         st.reported = true;
         frames = wasmFrames(e);
       } else if (e instanceof WebAssembly.RuntimeError) {

@@ -160,10 +160,5 @@ for (;;) {
   if (msg === null) break;
   const { header, wasm, stdinText } = msg;
   const { status, stdoutStr, stderrStr } = await runEntry(header, wasm, stdinText);
-  writeFrame(
-    header.id,
-    status,
-    Buffer.from(stdoutStr, "utf8"),
-    Buffer.from(stderrStr, "utf8"),
-  );
+  writeFrame(header.id, status, Buffer.from(stdoutStr, "utf8"), Buffer.from(stderrStr, "utf8"));
 }
