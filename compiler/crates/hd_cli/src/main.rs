@@ -95,16 +95,9 @@ fn main() -> ExitCode {
     }
     let compiling = compiles(command, &arguments);
     if compiling {
-        let memory = match memory {
-            Some(bytes) => Some(bytes),
-            None => match std::env::var_os("HD_MAX_MEMORY") {
-                Some(value) => match value.to_str().map(engine::parse_size) {
-                    Some(Ok(bytes)) => Some(bytes),
-                    Some(Err(error)) => return fail(&format!("HD_MAX_MEMORY: {error}")),
-                    None => return fail("HD_MAX_MEMORY is not a valid SIZE"),
-                },
-                None => None,
-            },
+        let memory = match memory_limit(memory) {
+            Ok(memory) => memory,
+            Err(error) => return fail(&error),
         };
         let json = (0..arguments.len())
             .take_while(|i| arguments[*i] != "--")
@@ -195,6 +188,21 @@ fn compiler_memory_flag(args: &[OsString]) -> Result<(Vec<OsString>, Option<u64>
         }
     }
     Ok((words, memory))
+}
+
+/// `cli.memory.cap`: `--max-memory` wins; otherwise `HD_MAX_MEMORY` fills in.
+fn memory_limit(flag: Option<u64>) -> Result<Option<u64>, String> {
+    match flag {
+        Some(bytes) => Ok(Some(bytes)),
+        None => match std::env::var_os("HD_MAX_MEMORY") {
+            Some(value) => match value.to_str().map(engine::parse_size) {
+                Some(Ok(bytes)) => Ok(Some(bytes)),
+                Some(Err(error)) => Err(format!("HD_MAX_MEMORY: {error}")),
+                None => Err("HD_MAX_MEMORY is not a valid SIZE".to_string()),
+            },
+            None => Ok(None),
+        },
+    }
 }
 
 fn has_extension(word: &OsString, ext: &str) -> bool {
@@ -488,16 +496,9 @@ fn run_stdin_command(memory: Option<u64>) -> ExitCode {
         Ok(engine) => engine,
         Err(error) => return fail(&error),
     };
-    let memory = match memory {
-        Some(bytes) => Some(bytes),
-        None => match std::env::var_os("HD_MAX_MEMORY") {
-            Some(value) => match value.to_str().map(engine::parse_size) {
-                Some(Ok(bytes)) => Some(bytes),
-                Some(Err(error)) => return fail(&format!("HD_MAX_MEMORY: {error}")),
-                None => return fail("HD_MAX_MEMORY is not a valid SIZE"),
-            },
-            None => None,
-        },
+    let memory = match memory_limit(memory) {
+        Ok(memory) => memory,
+        Err(error) => return fail(&error),
     };
     memory_cap::arm(memory, false, true);
     let mut rep = Reporter::stderr(false);
