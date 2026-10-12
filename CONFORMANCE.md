@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2790 | 40 | 15 | 2845 |
+| 2792 | 38 | 15 | 2845 |
 
 ## By Chapter
 
@@ -22,10 +22,10 @@ fixture; unsupported surface records progress without failing.
 | `lang/06-control-flow.md` | 149 | 5 | 3 | 157 |
 | `lang/07-functions.md` | 126 | 4 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 120 | 3 | 0 | 123 |
-| `lang/09-traits.md` | 352 | 7 | 0 | 359 |
+| `lang/09-traits.md` | 353 | 6 | 0 | 359 |
 | `lang/10-modules.md` | 253 | 1 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 250 | 1 | 8 | 259 |
-| `lang/14-annotations.md` | 146 | 7 | 0 | 153 |
+| `lang/14-annotations.md` | 147 | 6 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
 | `std/collections.md` | 29 | 0 | 0 | 29 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 917 | 0 | 12 | 929 |
-| `typing/invalid` | 1042 | 33 | 0 | 1075 |
+| `typing/invalid` | 1044 | 31 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 13 | 7 | 0 | 20 |
 
@@ -76,7 +76,6 @@ compiler stage that first declined the case.
 | Bucket | Cases |
 | --- | ---: |
 | `fail:missing-required-field` | 2 |
-| `fail:missing-supertrait-implementation` | 2 |
 | `fail:no-diagnostic` | 29 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-main` | 1 |
@@ -89,13 +88,6 @@ compiler stage that first declined the case.
 
 - `typing/invalid/data-literal-unknown-field.hd`
 - `typing/invalid/data-field-shorthand-unknown-name.hd`
-
-</details>
-
-<details><summary><code>fail:missing-supertrait-implementation</code> (2)</summary>
-
-- `typing/invalid/derive-error-trait.hd`
-- `typing/invalid/derived-ord-without-partial-ord.hd`
 
 </details>
 
@@ -1698,6 +1690,7 @@ typing/invalid/derive-and-block-overlap.hd
 typing/invalid/derive-before-function.hd
 typing/invalid/derive-before-trait.hd
 typing/invalid/derive-beside-written-impl.hd
+typing/invalid/derive-error-trait.hd
 typing/invalid/derive-member-not-derivable.hd
 typing/invalid/derive-newtype-base-missing-trait.hd
 typing/invalid/derive-unknown-trait.hd
@@ -1712,6 +1705,7 @@ typing/invalid/derived-eq-enum-payload-missing-trait.hd
 typing/invalid/derived-generic-bound.hd
 typing/invalid/derived-hash-field-not-hash.hd
 typing/invalid/derived-hash-without-eq.hd
+typing/invalid/derived-ord-without-partial-ord.hd
 typing/invalid/derived-total-order-float.hd
 typing/invalid/diamond-same-depth-conflict.hd
 typing/invalid/discarded-optional-result.hd

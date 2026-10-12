@@ -3471,7 +3471,30 @@ impl Run<'_> {
             {
                 continue;
             }
-            let Some(template) = template_of(&names, cx.lookup, *trait_) else {
+            let Some(template) = hd_resolve::lower::template_of(&names, cx.lookup, *trait_) else {
+                // `@derive` of a trait with no template derives nothing
+                // (`annot.derive.other`, `annot.derive.error-trait`).
+                // A newtype derives through its base type instead, with
+                // no template (`trait.derive.newtype.*`).
+                if *kind == hd_resolve::ImplKind::Derived
+                    && let ItemData::Impl { self_ty, .. } = &it.data
+                    && let TyData::Adt { def, .. } = names.pool.get(*self_ty)
+                    && !cx
+                        .lookup
+                        .own
+                        .iter()
+                        .any(|i| i.def == def && matches!(i.data, ItemData::Newtype(_)))
+                    && let Some(span) = hd_resolve::lower::derive_span(
+                        &names, cx.scope, &cx.src, heads, def, *trait_,
+                    )
+                {
+                    let name = names.display_name(*trait_);
+                    diags.error(
+                        Code::UnderivableTrait,
+                        span,
+                        &format!("`{name}` has no template and cannot be derived"),
+                    );
+                }
                 continue;
             };
             let Some(tm) = self.table.module(&names.module_of(template)) else {
@@ -5812,21 +5835,4 @@ fn derivation_facts<'t>(
             .ok()?;
     derived.bodies.extend(bodies);
     Some(own)
-}
-
-/// The derivation template of `trait_` (`annot.template.form`), among a
-/// module's own items, then the interfaces it sees.
-/// A template declared outside its trait's module is rejected
-/// (`misplaced-derivation`) and derives nothing.
-fn template_of(names: &Names<'_>, lookup: &Lookup<'_>, trait_: DefId) -> Option<DefId> {
-    let is = |it: &&Item| {
-        matches!(&it.data, ItemData::Impl { trait_: t, kind: hd_resolve::ImplKind::Template, .. } if *t == trait_)
-            && !hd_resolve::lower::misplaced_template(names, &names.module_of(it.def), it)
-    };
-    lookup
-        .own
-        .iter()
-        .find(is)
-        .or_else(|| lookup.ifaces.iter().find_map(|f| f.items.iter().find(is)))
-        .map(|it| it.def)
 }

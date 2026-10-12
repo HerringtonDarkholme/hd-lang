@@ -586,17 +586,37 @@ impl<'a> ItemCheck<'_, 'a> {
     }
 
     /// An impl's target must implement each supertrait of its trait
-    /// (`trait.super.impl-bounds`).
+    /// (`trait.super.impl-bounds`). A derived implementation of a trait
+    /// with no template derives nothing: `@derive` reports
+    /// `underivable-trait` for it (`annot.derive.other`), so no
+    /// supertrait error follows.
     fn supertraits(&mut self, it: &Item) -> StageResult<()> {
         let ItemData::Impl {
             trait_,
             trait_args,
             self_ty,
+            kind,
             ..
         } = &it.data
         else {
             return Ok(());
         };
+        // A newtype derives through its base type instead, with no
+        // template (`trait.derive.newtype.*`).
+        let newtype = match self.pool().get(*self_ty) {
+            TyData::Adt { def, .. } => self
+                .cx
+                .lookup
+                .item(def)
+                .is_some_and(|i| matches!(i.data, ItemData::Newtype(_))),
+            _ => false,
+        };
+        if *kind == ImplKind::Derived
+            && !newtype
+            && hd_resolve::lower::template_of(&self.cx.names, self.cx.lookup, *trait_).is_none()
+        {
+            return Ok(());
+        }
         for s in self.supers(*trait_, *trait_args, *self_ty) {
             if self.fails(*self_ty, s)? {
                 let message = format!(

@@ -2,7 +2,9 @@
 //! `Hash` needs `Eq`, `PartialOrd` needs `Eq`, and `Ord` needs `Eq` and
 //! `PartialOrd`, all in the same `@derive` list, and a derived related trait never sits beside a
 //! hand-written one. Each `@derive` line that breaks a rule is one
-//! `mixed-derived-law`.
+//! `mixed-derived-law`, which replaces the supertrait error, and a trait
+//! with no template is one `underivable-trait` (spec 14
+//! `annot.derive.other`).
 
 use hd_cache::MemoryStore;
 use hd_diag::Code;
@@ -93,11 +95,19 @@ data Key:
     name: string
 ";
     let out = analyze(src);
-    let laws = codes(&out)
-        .into_iter()
-        .filter(|c| *c == Code::MixedDerivedLaw)
-        .count();
-    assert_eq!(laws, 1);
+    assert_eq!(codes(&out), vec![Code::MixedDerivedLaw]);
+}
+
+#[test]
+fn derive_trait_without_template_is_one_underivable_trait() {
+    let src = "use std.error.Error
+
+@derive(Error)
+enum LoadError:
+    Missing
+";
+    let out = analyze(src);
+    assert_eq!(codes(&out), vec![Code::UnderivableTrait]);
 }
 
 #[test]

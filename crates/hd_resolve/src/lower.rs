@@ -23,7 +23,7 @@ use hd_types::{
 };
 
 use crate::iface::{
-    Export, Field, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item, ItemData, Names,
+    Export, Field, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item, ItemData, Lookup, Names,
     TraitData, Variant, fill_trait_args, fill_type_args, show_ty,
 };
 use crate::known::KnownItems;
@@ -4394,17 +4394,25 @@ fn related_traits(known: &KnownItems, a: DefId, b: DefId) -> bool {
 /// `trait.derive.related.no-mix`), each `@derive` line reported once. A line
 /// breaks a rule when it lacks a needed trait, or when one of its traits is
 /// related to a trait the module hand-writes for the same type. A line with
-/// an unresolved name is skipped: its name already has an error.
+/// an unresolved name is skipped: its name already has an error. A line
+/// that breaks a rule derives nothing: its error replaces every later
+/// error for its implementations (`trait.derive.related.replaces`), in the
+/// interface and in every later lowering of the module, which sees the
+/// same lines. `report` is false for those later lowerings, whose errors
+/// the interface already holds. Returns whether any implementation was
+/// dropped.
 fn related_derives(
     names: &Names<'_>,
-    items: &[Item],
+    items: &mut Vec<Item>,
     index: &ItemIndex,
     heads: &[Head<'_>],
     scope: &ModuleScope,
     src: &Src<'_>,
     diags: &mut DiagBuf,
-) {
+    report: bool,
+) -> bool {
     let known = names.known;
+    let mut broken: Vec<(DefId, Vec<DefId>)> = Vec::new();
     for h in heads {
         let written: Vec<DefId> = index
             .impls_for(items, h.def)
@@ -4448,14 +4456,95 @@ fn related_derives(
                 .iter()
                 .any(|&t| written.iter().any(|&w| related_traits(known, t, w)));
             if short || mixed {
-                diags.error(
-                    Code::MixedDerivedLaw,
-                    src.span(d),
-                    "`@derive` must list the traits a derived trait needs, and cannot mix with hand-written related traits",
-                );
+                if report {
+                    diags.error(
+                        Code::MixedDerivedLaw,
+                        src.span(d),
+                        "`@derive` must list the traits a derived trait needs, and cannot mix with hand-written related traits",
+                    );
+                }
+                broken.push((h.def, traits));
             }
         }
     }
+    if broken.is_empty() {
+        return false;
+    }
+    items.retain(|it| {
+        let ItemData::Impl {
+            trait_,
+            self_ty,
+            kind: ImplKind::Derived,
+            ..
+        } = &it.data
+        else {
+            return true;
+        };
+        let TyData::Adt { def, .. } = names.pool.get(*self_ty) else {
+            return true;
+        };
+        !broken
+            .iter()
+            .any(|(ty, traits)| *ty == def && traits.contains(trait_))
+    });
+    true
+}
+
+/// The derivation template of `trait_` (`annot.template.form`), among a
+/// module's own items, then the interfaces it sees.
+/// A template declared outside its trait's module is rejected
+/// (`misplaced-derivation`) and derives nothing.
+#[must_use]
+pub fn template_of(names: &Names<'_>, lookup: &Lookup<'_>, trait_: DefId) -> Option<DefId> {
+    let is = |it: &&Item| {
+        matches!(&it.data, ItemData::Impl { trait_: t, kind: ImplKind::Template, .. } if *t == trait_)
+            && !misplaced_template(names, &names.module_of(it.def), it)
+    };
+    lookup
+        .own
+        .iter()
+        .find(is)
+        .or_else(|| lookup.ifaces.iter().find_map(|f| f.items.iter().find(is)))
+        .map(|it| it.def)
+}
+
+/// The `@derive` line of `ty`'s declaration that names `trait_`, if one
+/// resolves: its span, for `underivable-trait` (`annot.derive.other`,
+/// `annot.derive.error-trait`).
+#[must_use]
+pub fn derive_span(
+    names: &Names<'_>,
+    scope: &ModuleScope,
+    src: &Src<'_>,
+    heads: &[Head<'_>],
+    ty: DefId,
+    trait_: DefId,
+) -> Option<Span> {
+    for h in heads.iter().filter(|h| h.def == ty) {
+        for d in h
+            .node
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::Decorator)
+        {
+            let (name, args) = decorator_line(src, d)?;
+            if name != "derive" {
+                continue;
+            }
+            for a in args {
+                let resolved = match scope.lookup(names.syms.intern(&a)) {
+                    Some(Binding {
+                        kind: BindingKind::Item,
+                        value,
+                    }) => DefId::from_raw(value),
+                    _ => continue,
+                };
+                if resolved == trait_ {
+                    return Some(src.span(d));
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Whether an impl item is a derivation block: `by Structure` on a trait, or
@@ -4776,10 +4865,24 @@ pub fn build_folder(
                 t.methods.push((s.name, s.def));
             }
         }
-        let index = ItemIndex::new(names, &items);
+        let mut index = ItemIndex::new(names, &items);
         if r.frozen.is_none() {
             placement(names, &m.path, &items, &index, hs, &m.src, diags);
-            related_derives(names, &items, &index, hs, &scope, &m.src, diags);
+        }
+        let dropped = related_derives(
+            names,
+            &mut items,
+            &index,
+            hs,
+            &scope,
+            &m.src,
+            diags,
+            r.frozen.is_none(),
+        );
+        if dropped {
+            // Broken `@derive` lines drop their derived implementations
+            // above, moving every later item: rebuild their index.
+            index = ItemIndex::new(names, &items);
         }
         let anchors = crate::anchor::collect(names, &m.src, hs, &items, &index);
         let blocks = derivation_nodes(names, &items, &index, hs);
