@@ -9,7 +9,10 @@ use crate::profiles::{self, RuntimeProfile};
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Kind {
     Test(TestMethod),
-    Fixture(profiles::Method),
+    Fixture {
+        method: profiles::Method,
+        finish: bool,
+    },
     Fs {
         key: &'static str,
         method: &'static str,
@@ -81,6 +84,10 @@ impl Kind {
                 [status, value] => integer(status) && integer(value),
                 _ => false,
             },
+            Self::Fixture { method, finish } if !finish && method.is_waiting() => match results {
+                [status, value] => integer(status) && integer(value),
+                _ => false,
+            },
             _ => match results {
                 [value] => integer(value),
                 _ => false,
@@ -117,7 +124,18 @@ impl Kind {
         Self::with_profile(module, name, kind.profile())
     }
     pub(crate) fn with_profile(module: &str, name: &str, profile: RuntimeProfile) -> Option<Self> {
-        Self::of(module, name).or_else(|| profile.method(module, name).map(Self::Fixture))
+        Self::of(module, name)
+            .or_else(|| {
+                profile
+                    .waiting(module, name)
+                    .map(|(method, finish)| Self::Fixture { method, finish })
+            })
+            .or_else(|| {
+                profile.method(module, name).map(|method| Self::Fixture {
+                    method,
+                    finish: false,
+                })
+            })
     }
 
     fn of(module: &str, name: &str) -> Option<Kind> {

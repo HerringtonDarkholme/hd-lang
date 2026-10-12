@@ -1,6 +1,11 @@
 //! Explicit conformance fixture providers, never enabled by the default host.
 //! Their boundary values match `compiler/host/profiles.mjs`; the ordinary
-//! Console provider already supplies the `pending-write` behavior.
+//! Console provider already supplies the `pending-write` behavior. The
+//! `disposed-file` and `pending-gate` providers follow the spec's Runtime
+//! Profiles (`spec/conformance/README.md`); Node has no providers for them
+//! yet either, so the spec text is the reference.
+
+use std::collections::BTreeMap;
 
 use crate::codec::Enc;
 
@@ -14,6 +19,8 @@ pub enum RuntimeProfile {
     SpecialFloatHost,
     SerdeVault,
     PendingWrite,
+    DisposedFile,
+    PendingGate,
 }
 
 impl RuntimeProfile {
@@ -25,6 +32,8 @@ impl RuntimeProfile {
             "special-float-host" => Ok(Self::SpecialFloatHost),
             "serde-vault" => Ok(Self::SerdeVault),
             "pending-write" => Ok(Self::PendingWrite),
+            "disposed-file" => Ok(Self::DisposedFile),
+            "pending-gate" => Ok(Self::PendingGate),
             _ => Err(format!("no runtime profile named {name}")),
         }
     }
@@ -37,6 +46,27 @@ impl RuntimeProfile {
             _ => None,
         }
     }
+
+    /// A suspending fixture call: the logical method and whether it is the
+    /// `.finish` half of its `.start`/`.finish` pair.
+    pub(crate) fn waiting(self, module: &str, name: &str) -> Option<(Method, bool)> {
+        let (method, finish) = match (self, module, name) {
+            (Self::DisposedFile, "hd:Files", "open.start") => (Method::FilesOpen, false),
+            (Self::DisposedFile, "hd:Files", "open.finish") => (Method::FilesOpen, true),
+            (Self::DisposedFile, "hd:FileHandle", "read.start") => (Method::FileHandleRead, false),
+            (Self::DisposedFile, "hd:FileHandle", "read.finish") => (Method::FileHandleRead, true),
+            (Self::DisposedFile, "hd:FileHandle", "close.start") => {
+                (Method::FileHandleClose, false)
+            }
+            (Self::DisposedFile, "hd:FileHandle", "close.finish") => {
+                (Method::FileHandleClose, true)
+            }
+            (Self::PendingGate, "hd:Gate", "wait.start") => (Method::GateWait, false),
+            (Self::PendingGate, "hd:Gate", "wait.finish") => (Method::GateWait, true),
+            _ => return None,
+        };
+        Some((method, finish))
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -44,6 +74,21 @@ pub(crate) enum Method {
     GaugeLevel,
     SensorReading,
     VaultKeep,
+    FilesOpen,
+    FileHandleRead,
+    FileHandleClose,
+    GateWait,
+}
+
+impl Method {
+    /// Whether the method runs as a `.start`/`.finish` pair rather than one
+    /// call.
+    pub(crate) fn is_waiting(self) -> bool {
+        !matches!(
+            self,
+            Method::GaugeLevel | Method::SensorReading | Method::VaultKeep
+        )
+    }
 }
 
 pub(crate) enum Reply {
@@ -55,6 +100,58 @@ pub(crate) enum Reply {
 #[derive(Default)]
 pub(crate) struct State {
     readings: u8,
+    /// `disposed-file` handles by number: whether each is still open.
+    files: BTreeMap<i32, bool>,
+    next_file: i32,
+}
+
+impl State {
+    /// A fresh open `disposed-file` handle number, never reused.
+    pub(crate) fn open_file(&mut self) -> i32 {
+        self.next_file = self.next_file.wrapping_add(1);
+        if self.next_file == 0 {
+            self.next_file = 1;
+        }
+        self.files.insert(self.next_file, true);
+        self.next_file
+    }
+
+    /// `read!` of the handle: `.Ok("")` while open, `.Err(Disposed)` after
+    /// its close. An unknown number is a guest bug.
+    pub(crate) fn read_file(&self, file: i32) -> Result<Vec<u8>, String> {
+        match self.files.get(&file) {
+            Some(true) => {
+                let mut encoded = Enc::default();
+                encoded.leb(0).str("");
+                Ok(encoded.into_bytes())
+            }
+            Some(false) => Ok(disposed()),
+            None => Err(format!("no disposed-file handle numbered {file}")),
+        }
+    }
+
+    /// `close` of the handle: `.Ok(())` once, `.Err(Disposed)` after.
+    pub(crate) fn close_file(&mut self, file: i32) -> Result<Vec<u8>, String> {
+        match self.files.get_mut(&file) {
+            Some(open @ true) => {
+                *open = false;
+                let mut encoded = Enc::default();
+                encoded.leb(0);
+                Ok(encoded.into_bytes())
+            }
+            Some(false) => Ok(disposed()),
+            None => Err(format!("no disposed-file handle numbered {file}")),
+        }
+    }
+}
+
+/// `.Err(ResourceError.Disposed)`: `Operation` is variant 0, `Disposed`
+/// variant 1 (`std.resource`), crossed as unsigned LEB128 like every
+/// `Result` error (`fs::api`).
+fn disposed() -> Vec<u8> {
+    let mut encoded = Enc::default();
+    encoded.leb(1).leb(1);
+    encoded.into_bytes()
 }
 
 impl State {
@@ -77,6 +174,12 @@ impl State {
             // memory. The generated guest decoder enforces its boundary;
             // this deliberately transparent provider does not read or copy it.
             Method::VaultKeep => return Reply::EchoLength(length),
+            Method::FilesOpen
+            | Method::FileHandleRead
+            | Method::FileHandleClose
+            | Method::GateWait => {
+                unreachable!("waiting fixture methods run as .start/.finish, never one call")
+            }
         }
         Reply::Encoded(encoded)
     }

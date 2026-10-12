@@ -33,6 +33,14 @@ pub enum Work {
     Timer,
     /// `ConsoleInput.read_line`: the line, once it is delivered.
     Read(Option<Line>),
+    /// `disposed-file` `open!`: allocates its handle at `.finish`.
+    FixtureOpen,
+    /// `disposed-file` `read!` of the file handle: decided at `.finish`.
+    FixtureRead { file: i32 },
+    /// `disposed-file` `close` of the file handle: decided at `.finish`.
+    FixtureClose { file: i32 },
+    /// `pending-gate` `wait!`: never completes, dropped at cancel.
+    Gate,
 }
 
 pub struct Op {
@@ -102,6 +110,28 @@ impl Reactor {
     /// A sleep of `ms` milliseconds.
     pub fn sleep(&mut self, ms: i64) -> i32 {
         self.start(Some(now_ns() + i128::from(ms) * NS_PER_MS), Work::Timer)
+    }
+
+    /// A `disposed-file` `open!`, `read!`, or `close`: each completes at
+    /// once, and its `.finish` decides the result from the provider state.
+    pub fn fixture_open(&mut self) -> i32 {
+        self.start(Some(now_ns()), Work::FixtureOpen)
+    }
+
+    /// A `disposed-file` `read!` of the file handle.
+    pub fn fixture_read(&mut self, file: i32) -> i32 {
+        self.start(Some(now_ns()), Work::FixtureRead { file })
+    }
+
+    /// A `disposed-file` `close` of the file handle.
+    pub fn fixture_close(&mut self, file: i32) -> i32 {
+        self.start(Some(now_ns()), Work::FixtureClose { file })
+    }
+
+    /// A `pending-gate` `wait!`: pending until its cancel drops it, so it
+    /// has no deadline and no delivery.
+    pub fn gate(&mut self) -> i32 {
+        self.start(None, Work::Gate)
     }
 
     /// A read of the next line of standard input.
@@ -338,5 +368,18 @@ mod tests {
         let mut out = Vec::new();
         assert!(r.wait());
         assert_eq!(r.due(&mut out), [h]);
+    }
+
+    #[test]
+    fn gate_stays_pending_until_its_cancel_drops_it() {
+        let mut r = Reactor::new(None);
+        let h = r.gate();
+        assert!(r.waiting(), "the wait is pending");
+        let mut out = Vec::new();
+        assert!(r.due(&mut out).is_empty(), "the wait never completes");
+        assert!(r.waiting(), "still pending");
+        let op = r.remove(h).expect("the cancel drops the wait");
+        assert!(matches!(op.work, Work::Gate));
+        assert!(!r.waiting(), "nothing pending");
     }
 }

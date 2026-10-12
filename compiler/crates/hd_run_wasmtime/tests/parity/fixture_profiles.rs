@@ -38,10 +38,12 @@ fn profile_names_are_explicit_and_unknown_profiles_are_errors() {
         ("special-float-host", RuntimeProfile::SpecialFloatHost),
         ("serde-vault", RuntimeProfile::SerdeVault),
         ("pending-write", RuntimeProfile::PendingWrite),
+        ("disposed-file", RuntimeProfile::DisposedFile),
+        ("pending-gate", RuntimeProfile::PendingGate),
     ] {
         assert_eq!(RuntimeProfile::from_name(name), Ok(expected));
     }
-    for name in ["", "disposed-file", "pending-gate", "other"] {
+    for name in ["", "other"] {
         assert_eq!(
             RuntimeProfile::from_name(name),
             Err(format!("no runtime profile named {name}"))
@@ -57,6 +59,8 @@ fn default_and_unrelated_profiles_reject_fixture_imports_at_load() {
         RuntimeProfile::SpecialFloatHost,
         RuntimeProfile::SerdeVault,
         RuntimeProfile::PendingWrite,
+        RuntimeProfile::DisposedFile,
+        RuntimeProfile::PendingGate,
     ]
     .map(|profile| {
         (
@@ -284,4 +288,232 @@ fn pending_write_uses_the_standard_pending_console_provider() {
         I::Call(abort),
     ]);
     assert_profile(program, RuntimeProfile::PendingWrite);
+}
+
+/// Asserts the top of the stack equals 1, trapping otherwise.
+fn assert_one(program: &mut Program, local: u32) {
+    program.instructions(&[
+        I::LocalGet(local),
+        I::I32Const(1),
+        I::I32Ne,
+        I::If(BlockType::Empty),
+        I::Unreachable,
+        I::End,
+    ]);
+}
+
+/// A waiting fixture import and the profile that owns it.
+type WaitingImport<'a> = (
+    &'a str,
+    &'a str,
+    &'a [ValType],
+    &'a [ValType],
+    RuntimeProfile,
+);
+
+#[test]
+fn waiting_fixture_imports_are_profile_gated() {
+    use ValType::I32;
+    let pair = [I32, I32];
+    let one = [I32];
+    let imports: &[WaitingImport<'_>] = &[
+        (
+            "hd:Files",
+            "open.start",
+            &[],
+            &pair,
+            RuntimeProfile::DisposedFile,
+        ),
+        (
+            "hd:Files",
+            "open.finish",
+            &one,
+            &one,
+            RuntimeProfile::DisposedFile,
+        ),
+        (
+            "hd:FileHandle",
+            "read.start",
+            &one,
+            &pair,
+            RuntimeProfile::DisposedFile,
+        ),
+        (
+            "hd:FileHandle",
+            "read.finish",
+            &one,
+            &one,
+            RuntimeProfile::DisposedFile,
+        ),
+        (
+            "hd:FileHandle",
+            "close.start",
+            &one,
+            &pair,
+            RuntimeProfile::DisposedFile,
+        ),
+        (
+            "hd:FileHandle",
+            "close.finish",
+            &one,
+            &one,
+            RuntimeProfile::DisposedFile,
+        ),
+        (
+            "hd:Gate",
+            "wait.start",
+            &[],
+            &pair,
+            RuntimeProfile::PendingGate,
+        ),
+        (
+            "hd:Gate",
+            "wait.finish",
+            &one,
+            &one,
+            RuntimeProfile::PendingGate,
+        ),
+    ];
+    let engines = [
+        RuntimeProfile::Default,
+        RuntimeProfile::MisbehavingHost,
+        RuntimeProfile::SpecialFloatHost,
+        RuntimeProfile::SerdeVault,
+        RuntimeProfile::PendingWrite,
+        RuntimeProfile::DisposedFile,
+        RuntimeProfile::PendingGate,
+    ]
+    .map(|profile| {
+        (
+            profile,
+            WasmtimeEngine::new_with_profile(EngineConfig::default(), profile).unwrap(),
+        )
+    });
+    for (module, name, params, results, required) in imports {
+        for (profile, engine) in &engines {
+            let mut program = Program::new();
+            program.import(module, name, params, results);
+            let (wasm, _) = program.finish(7);
+            let result = engine.load(&wasm, &MemoryStore::default());
+            if *profile == *required {
+                assert!(result.is_ok(), "{profile:?} accepts {module} {name}");
+            } else {
+                let Err(hd_run::LoadError::Engine(message)) = result else {
+                    panic!("{profile:?} unexpectedly accepts {module} {name}");
+                };
+                assert!(message.contains(module) && message.contains(name));
+            }
+        }
+    }
+}
+
+/// Drives one `disposed-file` operation: `.start`, one wake, `.finish`,
+/// then hex-dumps the result bytes from the exchange buffer, expecting
+/// `want` there.
+fn drive_op(
+    program: &mut Program,
+    start: u32,
+    finish: u32,
+    block: u32,
+    arg: Option<i32>,
+    want: &[u8],
+) {
+    let mut body = Vec::new();
+    if let Some(file) = arg {
+        body.push(I::I32Const(file));
+    }
+    body.extend([I::Call(start), I::LocalSet(2), I::LocalSet(1)]);
+    program.instructions(&body);
+    assert_one(program, 1);
+    program.instructions(&[I::Call(block), I::LocalSet(0)]);
+    assert_one(program, 0);
+    program.instructions(&[I::LocalGet(2), I::Call(finish), I::LocalSet(0)]);
+    program.dump();
+    program.expected.push(want.to_vec());
+}
+
+#[test]
+fn disposed_file_open_read_close_then_reports_disposed() {
+    use ValType::I32;
+    let pair = [I32, I32];
+    let one = [I32];
+    let mut program = Program::new();
+    let open_start = program.import("hd:Files", "open.start", &[], &pair);
+    let open_finish = program.import("hd:Files", "open.finish", &one, &one);
+    let read_start = program.import("hd:FileHandle", "read.start", &one, &pair);
+    let read_finish = program.import("hd:FileHandle", "read.finish", &one, &one);
+    let close_start = program.import("hd:FileHandle", "close.start", &one, &pair);
+    let close_finish = program.import("hd:FileHandle", "close.finish", &one, &one);
+    let block = program.import("hd:rt", "block", &[], &one);
+    // A fresh instance allocates handle 1; the reported bytes are the
+    // unsigned LEB128 handle number, then the `Result` encodings below it.
+    drive_op(&mut program, open_start, open_finish, block, None, &[1]);
+    drive_op(
+        &mut program,
+        read_start,
+        read_finish,
+        block,
+        Some(1),
+        &[0, 0],
+    );
+    drive_op(
+        &mut program,
+        close_start,
+        close_finish,
+        block,
+        Some(1),
+        &[0],
+    );
+    drive_op(
+        &mut program,
+        read_start,
+        read_finish,
+        block,
+        Some(1),
+        &[1, 1],
+    );
+    drive_op(
+        &mut program,
+        close_start,
+        close_finish,
+        block,
+        Some(1),
+        &[1, 1],
+    );
+    let (wasm, expected) = program.finish(7);
+    assert_eq!(
+        expected, "01\n0000\n00\n0101\n0101\n",
+        "open, .Ok(\"\"), .Ok(()), then .Err(Disposed) twice"
+    );
+    let captured = run_captured_with_profile(
+        EngineConfig::default(),
+        RuntimeProfile::DisposedFile,
+        &wasm,
+        &setup(),
+    )
+    .expect("disposed-file runs");
+    assert_eq!(captured.status, 7);
+    assert_eq!(captured.stdout, b"core-parity\n");
+    assert_eq!(captured.stderr, expected.as_bytes());
+}
+
+#[test]
+fn pending_gate_wait_stays_pending_until_abort() {
+    use ValType::I32;
+    let pair = [I32, I32];
+    let mut program = Program::new();
+    let start = program.import("hd:Gate", "wait.start", &[], &pair);
+    let abort = program.import("hd:rt", "abort", &[I32], &[]);
+    program.instructions(&[
+        I::Call(start),
+        I::LocalSet(1),
+        I::I32Const(1),
+        I::I32Ne,
+        I::If(BlockType::Empty),
+        I::Unreachable,
+        I::End,
+        I::LocalGet(1),
+        I::Call(abort),
+    ]);
+    assert_profile(program, RuntimeProfile::PendingGate);
 }

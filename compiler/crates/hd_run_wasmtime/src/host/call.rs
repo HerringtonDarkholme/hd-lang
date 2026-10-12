@@ -79,17 +79,70 @@ pub(crate) fn call(
                 }
             }
         }
-        Kind::Fixture(method) => {
-            let length = if matches!(method, profiles::Method::VaultKeep) {
-                int_arg(params, 0)?
-            } else {
-                0
+        Kind::Fixture {
+            method,
+            finish: true,
+        } => {
+            let h = handle(int_arg(params, 0)?);
+            let Some(op) = caller.data_mut().reactor.remove(h) else {
+                return Err(
+                    Stop::Contract("a finish of an operation that is not pending".into()).into(),
+                );
             };
-            match caller.data_mut().fixture.call(method, length) {
-                profiles::Reply::Encoded(encoded) => Ret::encoded(encoded),
-                profiles::Reply::EchoLength(length) => Ret::int(length),
-            }
+            let bytes = match (method, op.work) {
+                (profiles::Method::FilesOpen, Work::FixtureOpen) => {
+                    let id = caller.data_mut().fixture.open_file();
+                    let mut encoded = Enc::default();
+                    encoded.leb(u64::try_from(id).unwrap_or(u64::MAX));
+                    encoded.into_bytes()
+                }
+                (profiles::Method::FileHandleRead, Work::FixtureRead { file }) => caller
+                    .data_mut()
+                    .fixture
+                    .read_file(file)
+                    .map_err(Stop::Contract)?,
+                (profiles::Method::FileHandleClose, Work::FixtureClose { file }) => caller
+                    .data_mut()
+                    .fixture
+                    .close_file(file)
+                    .map_err(Stop::Contract)?,
+                _ => {
+                    return Err(Stop::Contract(
+                        "a finish of an operation that is not completed".into(),
+                    )
+                    .into());
+                }
+            };
+            Ret::bytes(bytes)
         }
+        Kind::Fixture {
+            method,
+            finish: false,
+        } => match method {
+            profiles::Method::FilesOpen => Ret::pair(1, caller.data_mut().reactor.fixture_open()),
+            profiles::Method::FileHandleRead => {
+                let file = handle(int_arg(params, 0)?);
+                Ret::pair(1, caller.data_mut().reactor.fixture_read(file))
+            }
+            profiles::Method::FileHandleClose => {
+                let file = handle(int_arg(params, 0)?);
+                Ret::pair(1, caller.data_mut().reactor.fixture_close(file))
+            }
+            profiles::Method::GateWait => Ret::pair(1, caller.data_mut().reactor.gate()),
+            profiles::Method::GaugeLevel
+            | profiles::Method::SensorReading
+            | profiles::Method::VaultKeep => {
+                let length = if matches!(method, profiles::Method::VaultKeep) {
+                    int_arg(params, 0)?
+                } else {
+                    0
+                };
+                match caller.data_mut().fixture.call(method, length) {
+                    profiles::Reply::Encoded(encoded) => Ret::encoded(encoded),
+                    profiles::Reply::EchoLength(length) => Ret::int(length),
+                }
+            }
+        },
         Kind::Fs { finish: true, .. } | Kind::NeverFinish => {
             return Err(
                 Stop::Contract("a finish of an operation that is not pending".into()).into(),
