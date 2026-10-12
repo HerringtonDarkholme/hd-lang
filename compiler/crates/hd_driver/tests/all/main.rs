@@ -144,6 +144,7 @@ mod unsolved_scrutinee;
 mod vararg_value_run;
 mod variant_value_run;
 mod void_unit_run;
+mod waiting_impl_run;
 
 /// One content-addressed store shared by every test that only checks what
 /// a build produces: std compiles once for the process.

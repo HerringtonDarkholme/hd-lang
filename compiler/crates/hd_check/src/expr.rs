@@ -1162,7 +1162,10 @@ impl Ck<'_, '_> {
             return Ok(v);
         }
         let (r, bt) = self.expr(*base, None)?;
-        let bt = self.infer.resolve(pool, bt);
+        let mut bt = self.infer.resolve(pool, bt);
+        if matches!(pool.get(bt), TyData::Infer(_)) && self.learn_waiting(bt)? {
+            bt = self.infer.resolve(pool, bt);
+        }
         let inner = match pool.get(bt) {
             TyData::Mut(i) => i,
             _ => bt,

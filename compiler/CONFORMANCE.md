@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2686 | 139 | 20 | 2845 |
+| 2689 | 138 | 18 | 2845 |
 
 ## By Chapter
 
@@ -18,11 +18,11 @@ fixture; unsupported surface records progress without failing.
 | `lang/02-grammar.md` | 205 | 10 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
 | `lang/04-type-system.md` | 330 | 22 | 0 | 352 |
-| `lang/05-expressions.md` | 263 | 14 | 0 | 277 |
+| `lang/05-expressions.md` | 264 | 13 | 0 | 277 |
 | `lang/06-control-flow.md` | 141 | 12 | 4 | 157 |
 | `lang/07-functions.md` | 120 | 10 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 114 | 8 | 1 | 123 |
-| `lang/09-traits.md` | 347 | 11 | 1 | 359 |
+| `lang/09-traits.md` | 348 | 11 | 0 | 359 |
 | `lang/10-modules.md` | 233 | 20 | 5 | 258 |
 | `lang/11-requirements-and-suspension.md` | 244 | 7 | 8 | 259 |
 | `lang/14-annotations.md` | 144 | 9 | 0 | 153 |
@@ -38,7 +38,7 @@ fixture; unsupported surface records progress without failing.
 | `std/hash.md` | 9 | 0 | 0 | 9 |
 | `std/host.md` | 2 | 0 | 0 | 2 |
 | `std/http.md` | 2 | 0 | 0 | 2 |
-| `std/iter.md` | 23 | 1 | 1 | 25 |
+| `std/iter.md` | 24 | 1 | 0 | 25 |
 | `std/json.md` | 19 | 0 | 0 | 19 |
 | `std/net.md` | 1 | 0 | 0 | 1 |
 | `std/num.md` | 16 | 2 | 0 | 18 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 100 | 2 | 3 | 105 |
-| `runtime/valid` | 907 | 6 | 16 | 929 |
+| `runtime/valid` | 910 | 5 | 14 | 929 |
 | `typing/invalid` | 969 | 105 | 1 | 1075 |
 | `typing/valid` | 412 | 3 | 0 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -99,7 +99,7 @@ compiler stage that first declined the case.
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-used-as-type` | 1 |
-| `fail:type-mismatch` | 17 |
+| `fail:type-mismatch` | 16 |
 | `fail:unknown-data-field` | 2 |
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 5 |
@@ -110,7 +110,7 @@ compiler stage that first declined the case.
 | `fail:unknown-variant` | 1 |
 | `fail:unsatisfied-trait-bound` | 1 |
 | `fail:unused-local-binding` | 2 |
-| `unsupported:Body` | 3 |
+| `unsupported:Body` | 1 |
 | `unsupported:Collect` | 3 |
 | `unsupported:Link` | 3 |
 | `unsupported:RunCase` | 11 |
@@ -331,7 +331,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (17)</summary>
+<details><summary><code>fail:type-mismatch</code> (16)</summary>
 
 - `typing/invalid/mixed-signedness.hd`
 - `typing/invalid/variance-representation-change.hd`
@@ -339,7 +339,6 @@ compiler stage that first declined the case.
 - `typing/invalid/contravariant-representation-change.hd`
 - `runtime/valid/suspending-function-values.hd`
 - `typing/invalid/function-result-representation-change.hd`
-- `runtime/valid/intrinsic-method-calls.hd`
 - `typing/invalid/range-mixed-signedness.hd`
 - `typing/invalid/no-widening-operator.hd`
 - `typing/invalid/no-widening-float.hd`
@@ -429,11 +428,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:Body</code> (3)</summary>
+<details><summary><code>unsupported:Body</code> (1)</summary>
 
 - `typing/invalid/for-over-non-iterable.hd`
-- `runtime/valid/tuple-impl-target.hd`
-- `runtime/valid/iterator-list-sum.hd`
 
 </details>
 
@@ -1226,6 +1223,7 @@ runtime/valid/integration-test-public-view.hd
 runtime/valid/interpolation-display-order.hd
 runtime/valid/interpolation-expression-spacing.hd
 runtime/valid/interpolation-forms.hd
+runtime/valid/intrinsic-method-calls.hd
 runtime/valid/it-body-by-name.hd
 runtime/valid/it-each-options.hd
 runtime/valid/it-each-propagation.hd
@@ -1235,6 +1233,7 @@ runtime/valid/iterator-chain-iterable.hd
 runtime/valid/iterator-drives-loops.hd
 runtime/valid/iterator-flat-map.hd
 runtime/valid/iterator-from-fn.hd
+runtime/valid/iterator-list-sum.hd
 runtime/valid/iterator-search-count.hd
 runtime/valid/iterator-shape-versus-value-changes.hd
 runtime/valid/iterator-single-pass.hd
@@ -1719,6 +1718,7 @@ runtime/valid/try-operand-expected-type.hd
 runtime/valid/tuple-bound-vararg-call.hd
 runtime/valid/tuple-derived-order.hd
 runtime/valid/tuple-element-permission.hd
+runtime/valid/tuple-impl-target.hd
 runtime/valid/tuple-ordering-nan-unordered.hd
 runtime/valid/tuple-rebuild.hd
 runtime/valid/tuple-rest-derived.hd

@@ -95,7 +95,15 @@ pub(crate) enum Hit {
     },
     /// Methods of two or more traits (`trait.resolve.ambiguous`).
     Ambiguous(Vec<DefId>),
+    /// A method of the one trait the receiver may implement, whose impl
+    /// waits for inference to fix the receiver: the call is typed by the
+    /// trait's signature and its impl is chosen once the receiver is known.
+    Pending { trait_: DefId, method: DefId },
 }
+
+/// The choice of a trait method call whose impl waits for inference,
+/// replaced when the body is finished.
+pub(crate) const PENDING_CHOICE: (ChoiceKind, u32) = (ChoiceKind::Builtin, u32::MAX - 1);
 
 /// A trait method with its `Self` and the trait's arguments.
 pub(crate) struct TraitTarget {
@@ -1439,7 +1447,11 @@ impl Ck<'_, '_> {
                             };
                             if waiting {
                                 self.note_impl_use(tr, None);
-                                self.pending.push((tref, n.index()));
+                                self.pending.push(crate::body::PendingGoal {
+                                    tref,
+                                    at: n.index(),
+                                    kind: crate::body::Waiting::Bound,
+                                });
                             } else {
                                 self.require_ref(tref, n)?;
                             }
@@ -1689,6 +1701,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> (Ref, Ty) {
         let pool = self.pool();
+        let ret = self.open_projections(ret, n);
         if bang {
             self.check_bang(suspends, n);
         }
@@ -1709,6 +1722,79 @@ impl Ck<'_, '_> {
             self.b.body_mut().tags[r.0 as usize] = Tag::Await;
         }
         (r, ret)
+    }
+
+    /// `t` with each projection whose self type inference has not fixed
+    /// replaced by a fresh variable: a pending goal fixes it once that
+    /// type is known, so the rest of the statement can use the result.
+    fn open_projections(&mut self, t: Ty, n: NodeRef<'_>) -> Ty {
+        let pool = self.pool();
+        let t = self.infer.resolve(pool, t);
+        if !pool.has_assoc(t) || !pool.has_infer(t) {
+            return t;
+        }
+        let list = |me: &mut Self, l: TyList| {
+            let v: Vec<Ty> = pool
+                .list_items(l)
+                .iter()
+                .map(|x| me.open_projections(*x, n))
+                .collect();
+            pool.list(&v)
+        };
+        let d = match pool.get(t) {
+            TyData::Assoc {
+                assoc,
+                trait_,
+                self_ty,
+                args,
+            } => {
+                let self_ty = self.strip_mut(self_ty);
+                if !pool.has_infer(self_ty) {
+                    return t;
+                }
+                let n_trait = self.cx.lookup.item(trait_).map_or(0, |i| i.generics.len());
+                let mut av = pool.list_items(args).to_vec();
+                while av.len() < n_trait {
+                    av.push(self.infer.fresh(pool, VarKind::General));
+                }
+                let var = self.infer.fresh(pool, VarKind::General);
+                self.pending.push(crate::body::PendingGoal {
+                    tref: TraitRef {
+                        trait_,
+                        self_ty,
+                        args: pool.list(&av),
+                    },
+                    at: n.index(),
+                    kind: crate::body::Waiting::Project { assoc, var },
+                });
+                return var;
+            }
+            TyData::Adt { def, args } => TyData::Adt {
+                def,
+                args: list(self, args),
+            },
+            TyData::Tuple { elems, rest } => TyData::Tuple {
+                elems: list(self, elems),
+                rest,
+            },
+            TyData::Option(i) => TyData::Option(self.open_projections(i, n)),
+            TyData::Mut(i) => TyData::Mut(self.open_projections(i, n)),
+            TyData::Fn {
+                params,
+                result,
+                row,
+                suspends,
+                inputs,
+            } => TyData::Fn {
+                params: list(self, params),
+                result: self.open_projections(result, n),
+                row,
+                suspends,
+                inputs,
+            },
+            _ => return t,
+        };
+        pool.intern_ty(&d)
     }
 
     // ------------------------------------------------------------ variants
@@ -2517,6 +2603,9 @@ impl Ck<'_, '_> {
             TyData::Mut(i) => i,
             _ => t,
         };
+        if matches!(pool.get(t), TyData::Infer(_)) && self.learn_waiting(t)? {
+            return self.resolve_method(rt, name);
+        }
         if let Some((method, impl_def, impl_args)) = self.find_inherent(t, name) {
             return Ok(Some(Hit::Inherent {
                 method,
@@ -2621,9 +2710,7 @@ impl Ck<'_, '_> {
         };
         let cands = match self.solve_goal(&goal)? {
             Answer::Candidates(c) => c,
-            Answer::Stalled { .. } => {
-                return unsupported("a trait method whose impl waits for inference");
-            }
+            Answer::Stalled { .. } => return self.waiting_trait(t, &builtin, traits),
             Answer::OutOfFuel => {
                 return unsupported("the solver's fuel ran out (limit diagnostic)");
             }
@@ -2664,6 +2751,40 @@ impl Ck<'_, '_> {
         }))
     }
 
+    /// The method of a receiver whose impl waits for inference: the one
+    /// trait among `traits` the receiver may still implement. Its impl is
+    /// chosen once the receiver is known, by a pending call goal.
+    fn waiting_trait(
+        &mut self,
+        t: Ty,
+        builtin: &[(DefId, DefId, Vec<Ty>)],
+        traits: &[(DefId, DefId)],
+    ) -> StageResult<Option<Hit>> {
+        let mut open: Vec<DefId> = builtin.iter().map(|b| b.0).collect();
+        for &(tr, _) in traits {
+            if open.contains(&tr) {
+                continue;
+            }
+            let goal = Goal::Instantiations {
+                self_ty: t,
+                trait_: tr,
+                mut_: false,
+            };
+            match self.solve_goal(&goal)? {
+                Answer::Fails(_) => {}
+                Answer::Candidates(c) if c.is_empty() => {}
+                _ => open.push(tr),
+            }
+        }
+        match open.as_slice() {
+            [tr] => Ok(traits
+                .iter()
+                .find(|(x, _)| x == tr)
+                .map(|&(trait_, method)| Hit::Pending { trait_, method })),
+            _ => unsupported("a method of several traits whose impl waits for inference"),
+        }
+    }
+
     /// `recv.name(args)`.
     fn method_on(
         &mut self,
@@ -2686,7 +2807,9 @@ impl Ck<'_, '_> {
         let hit = self.resolve_method(rt, name)?;
         if matches!(
             hit,
-            None | Some(Hit::Trait { .. } | Hit::Choice { .. } | Hit::Ambiguous(_))
+            None | Some(
+                Hit::Trait { .. } | Hit::Choice { .. } | Hit::Pending { .. } | Hit::Ambiguous(_)
+            )
         ) && let Some(path) = self.promoted_method_path(rt, name)
         {
             // A trait candidate beside the promoted one: neither wins
@@ -2738,6 +2861,26 @@ impl Ck<'_, '_> {
                     args,
                     (n, bang),
                     want,
+                )
+            }
+            Some(Hit::Pending { trait_, method }) => {
+                let t = self.strip_mut(self.infer.resolve(pool, rt));
+                if let Some(&(s, st)) = self.sig_of(method)?.params.first()
+                    && self.cx.names.text(s) == "self"
+                {
+                    self.check_receiver(st, rt, n);
+                }
+                self.trait_method_call(
+                    TraitTarget {
+                        trait_,
+                        method,
+                        self_ty: t,
+                        args: vec![],
+                    },
+                    Some((recv, PENDING_CHOICE)),
+                    args,
+                    n,
+                    (bang, want),
                 )
             }
             Some(Hit::Inherent {
@@ -3006,17 +3149,17 @@ impl Ck<'_, '_> {
             self.structure_calls.push((method, w));
         }
         self.check_row(sig.row, n);
-        let choice = if let Some((_, c)) = recv {
-            c
-        } else {
-            let st = self.infer.resolve(pool, self_ty);
-            let tref = TraitRef {
-                trait_,
-                self_ty: st,
-                args: pool.list(&targs),
-            };
-            let ev = self.require_ref(tref, n)?;
-            self.choice_of(ev.as_ref())
+        let choice = match recv {
+            Some((_, c)) if c != PENDING_CHOICE => c,
+            _ => {
+                let st = self.infer.resolve(pool, self_ty);
+                let tref = TraitRef {
+                    trait_,
+                    self_ty: st,
+                    args: pool.list(&targs),
+                };
+                self.call_choice(tref, method, n)?
+            }
         };
         let ret = self.normalize_deep(inst(sig.ret))?;
         let mut all = targs.clone();
@@ -3546,6 +3689,25 @@ impl Ck<'_, '_> {
             return None;
         };
         (tr == *trait_ || tr == self.cx.names.known.structure).then_some(*self_ty)
+    }
+
+    /// The impl choice of a trait method call: the evidence of `tref`, or,
+    /// when that waits for inference, [`PENDING_CHOICE`] and a pending
+    /// call goal that learns the trait's arguments once the receiver is
+    /// known.
+    pub(crate) fn call_choice(
+        &mut self,
+        tref: TraitRef,
+        method: DefId,
+        n: NodeRef<'_>,
+    ) -> StageResult<(ChoiceKind, u32)> {
+        let before = self.pending.len();
+        let ev = self.require_ref(tref, n)?;
+        if let Some(p) = self.pending.get_mut(before) {
+            p.kind = crate::body::Waiting::Call { method };
+            return Ok(PENDING_CHOICE);
+        }
+        Ok(self.choice_of(ev.as_ref()))
     }
 
     /// The callee choice a solver answer names (checking-and-tir.md,

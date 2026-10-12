@@ -162,8 +162,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// Row parameters by name: the impl's, then the function's.
     pub row_gens: Vec<(Symbol, hd_types::RowParamRef)>,
     pub subs: Vec<OpenSub>,
-    /// Bounds on types not yet known at their use: solved at the end.
-    pub pending: Vec<(TraitRef, NodeRefIdx)>,
+    /// Goals on types not yet known at their use: bounds are solved at
+    /// the end of the body, calls and projections also at the end of
+    /// their statement.
+    pub pending: Vec<PendingGoal>,
     /// Type parameters an argument of type `never` was passed for, with no
     /// earlier error to have left that `never`: one that nothing else
     /// solves is `never` at the end of the body.
@@ -295,6 +297,40 @@ pub(crate) struct Ck<'a, 'c> {
 
 /// A node index kept for a later diagnostic.
 pub(crate) type NodeRefIdx = hd_base::NodeIdx;
+
+/// Which literals of a waiting goal take their defaults before it is
+/// solved again at the end of the body.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Defaults {
+    /// None: the statement's literal classes have their types already.
+    None,
+    /// The receiver's.
+    Receiver,
+    /// The trait arguments' too.
+    All,
+}
+
+/// A goal that waited for inference, with the node it arose at.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct PendingGoal {
+    pub tref: TraitRef,
+    pub at: NodeRefIdx,
+    pub kind: Waiting,
+}
+
+/// What a waiting goal decides once its types are known.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Waiting {
+    /// A bound: only whether it holds, checked at the end of the body.
+    Bound,
+    /// The impl of a call of the trait method `method`: what it learns
+    /// fixes the trait's arguments, and the call's choice is settled from
+    /// it.
+    Call { method: DefId },
+    /// The projection `assoc` of the goal's trait, which `var` stands
+    /// for until then. A failure is the call's bound's to report.
+    Project { assoc: DefId, var: Ty },
+}
 
 /// The checker of one body: the item whose parameters and bounds are in
 /// scope (`env`), the TIR item and kind, its result and row.
@@ -1387,7 +1423,11 @@ impl Ck<'_, '_> {
                 Ok(None)
             }
             Answer::Stalled { .. } => {
-                self.pending.push((tref, at.index()));
+                self.pending.push(PendingGoal {
+                    tref,
+                    at: at.index(),
+                    kind: Waiting::Bound,
+                });
                 Ok(None)
             }
             Answer::OutOfFuel => unsupported("the solver's fuel ran out (limit diagnostic)"),
@@ -1603,15 +1643,256 @@ impl Ck<'_, '_> {
         let start = self.infer.var_count();
         let open = self.open_params.len();
         let refs = self.ref_params.len();
+        let waiting = self.pending.len();
         let r = self.stmt_node(s).map_err(|e| e.at(span));
         // A `break` value joins with the loop's other values, so its class
         // stays open until the join (`types.literal.local.form.join-open`).
         if s.kind() != SyntaxKind::BreakStmt {
+            // A class that met the result of a call whose impl waits takes
+            // that result's type when the impl is chosen: the other
+            // classes take their defaults first, which may choose it.
+            let held = self.waiting_results(waiting);
+            if !held.is_empty() {
+                self.close_literals_but(start, &held);
+                if r.is_ok() {
+                    self.settle_waiting(waiting).map_err(|e| e.at(span))?;
+                }
+            }
             self.close_literals(start);
         }
         self.close_open_params(open);
         self.close_ref_params(refs);
+        if r.is_ok() {
+            self.settle_waiting(waiting).map_err(|e| e.at(span))?;
+        }
         r
+    }
+
+    /// A call whose receiver is known at the end of the body but whose
+    /// impl still waits: several instantiations of its trait fit it
+    /// (`trait.resolve.many-apply`).
+    fn ambiguous_call(&mut self, g: PendingGoal, method: DefId) -> StageResult<()> {
+        let pool = self.pool();
+        let self_ty = self.infer.resolve(pool, g.tref.self_ty);
+        let goal = Goal::Instantiations {
+            self_ty,
+            trait_: g.tref.trait_,
+            mut_: false,
+        };
+        let shown = match self.solve_goal(&goal)? {
+            Answer::Candidates(c) => c
+                .iter()
+                .map(|c| {
+                    self.show(pool.intern_ty(&TyData::TraitValue {
+                        def: g.tref.trait_,
+                        args: c.args,
+                        bindings: vec![],
+                    }))
+                })
+                .collect::<Vec<_>>()
+                .join(", "),
+            _ => self.cx.names.display_name(g.tref.trait_).to_string(),
+        };
+        let name = self
+            .cx
+            .lookup
+            .item(method)
+            .map_or("", |i| self.cx.names.text(i.name));
+        let msg = format!(
+            "{}: {shown} fit this call: write `{}::[..]::{name}(..)` to choose one",
+            self.show(self_ty),
+            self.cx.names.display_name(g.tref.trait_),
+        );
+        let node = self.cx.src.parse.tree.node(g.at);
+        self.err(Code::AmbiguousMethod, node, &msg);
+        Ok(())
+    }
+
+    /// A member asked of a value whose type a waiting call or projection
+    /// goal fixes: that goal's receiver takes its literal defaults now, as
+    /// a literal receiver does, and the goal is solved again for what it
+    /// learns. A failure is reported where the goal settles. Whether `t`
+    /// is known now.
+    pub(crate) fn learn_waiting(&mut self, t: Ty) -> StageResult<bool> {
+        let pool = self.pool();
+        let root = self.infer.shallow(pool, t);
+        let fixes = |me: &Self, g: &PendingGoal| match g.kind {
+            Waiting::Bound => false,
+            Waiting::Call { .. } => pool
+                .list_items(g.tref.args)
+                .iter()
+                .any(|a| me.infer.shallow(pool, *a) == root),
+            Waiting::Project { var, .. } => me.infer.shallow(pool, var) == root,
+        };
+        let goals: Vec<PendingGoal> = self
+            .pending
+            .iter()
+            .filter(|g| fixes(self, g))
+            .copied()
+            .collect();
+        if goals.is_empty() {
+            return Ok(false);
+        }
+        let here = self.at;
+        for g in goals {
+            let _ = self.zonk(g.tref.self_ty);
+            self.settle_goal(g, Defaults::None, false)?;
+        }
+        self.move_to(here);
+        Ok(!matches!(
+            pool.get(self.infer.shallow(pool, t)),
+            TyData::Infer(_)
+        ))
+    }
+
+    /// The types that the call and projection goals pending since
+    /// `waiting` fix: the trait's arguments and the projections.
+    fn waiting_results(&self, waiting: usize) -> Vec<Ty> {
+        let pool = self.pool();
+        let mut out = Vec::new();
+        for g in self.pending.get(waiting..).unwrap_or_default() {
+            match g.kind {
+                Waiting::Bound => {}
+                Waiting::Call { .. } => out.extend(
+                    pool.list_items(g.tref.args)
+                        .iter()
+                        .map(|a| self.infer.shallow(pool, *a)),
+                ),
+                Waiting::Project { var, .. } => out.push(self.infer.shallow(pool, var)),
+            }
+        }
+        out
+    }
+
+    /// The call and projection goals that waited since `waiting`, solved
+    /// again now that the statement's literal classes have their types
+    /// (`types.literal.local.class.open`); one that still waits is solved
+    /// again at the end of the body.
+    fn settle_waiting(&mut self, waiting: usize) -> StageResult<()> {
+        if !self
+            .pending
+            .get(waiting..)
+            .is_some_and(|p| p.iter().any(|g| g.kind != Waiting::Bound))
+        {
+            return Ok(());
+        }
+        let here = self.at;
+        let goals = self.pending.split_off(waiting);
+        for g in goals {
+            if g.kind == Waiting::Bound || !self.settle_goal(g, Defaults::None, true)? {
+                self.pending.push(g);
+            }
+        }
+        self.move_to(here);
+        Ok(())
+    }
+
+    /// Solves a goal that waited for inference, with the local impls known
+    /// where it arose; `Ok(false)` when it still waits. At the end of the
+    /// body its literals take their defaults first, as `defaults` says. A
+    /// call or projection goal that holds learns what it fixes: the
+    /// trait's arguments, and the projection's type. A goal that fails is
+    /// `unsatisfied-trait-bound`, reported by its call or bound only, and
+    /// only when `report`.
+    fn settle_goal(
+        &mut self,
+        g: PendingGoal,
+        defaults: Defaults,
+        report: bool,
+    ) -> StageResult<bool> {
+        let pool = self.pool();
+        let tref = if defaults == Defaults::None {
+            g.tref
+        } else {
+            let self_ty = self.zonk(g.tref.self_ty);
+            if pool.has_poison(self_ty) {
+                return Ok(true);
+            }
+            // A bound's unknown arguments are poison; a call's arguments
+            // stay open for what the goal learns.
+            let args = if g.kind == Waiting::Bound {
+                self.zonk_list(g.tref.args)
+            } else {
+                if defaults == Defaults::All {
+                    self.zonk_list(g.tref.args);
+                }
+                g.tref.args
+            };
+            TraitRef {
+                trait_: g.tref.trait_,
+                self_ty,
+                args,
+            }
+        };
+        let resolve = |me: &mut Self, t: Ty| {
+            let t = me.infer.resolve(pool, t);
+            me.norm_ty(t)
+        };
+        let self_ty = resolve(self, tref.self_ty);
+        let args: Vec<Ty> = pool
+            .list_items(tref.args)
+            .iter()
+            .map(|a| resolve(self, *a))
+            .collect();
+        let tref = TraitRef {
+            trait_: tref.trait_,
+            self_ty,
+            args: pool.list(&args),
+        };
+        let node = self.cx.src.parse.tree.node(g.at);
+        self.move_to(self.cx.src.span(node).lo);
+        match self.solve(tref)? {
+            Answer::Holds { learned, .. } => {
+                if g.kind == Waiting::Bound {
+                    return Ok(true);
+                }
+                for (v, t) in learned {
+                    let var = pool.intern_ty(&TyData::Infer(v));
+                    let _ = self.infer.unify(pool, var, t);
+                }
+                if let Waiting::Project { assoc, var } = g.kind {
+                    let self_ty = self.infer.resolve(pool, tref.self_ty);
+                    let args: Vec<Ty> = pool
+                        .list_items(tref.args)
+                        .iter()
+                        .map(|a| self.infer.resolve(pool, *a))
+                        .collect();
+                    let proj = pool.intern_ty(&TyData::Assoc {
+                        assoc,
+                        trait_: tref.trait_,
+                        self_ty,
+                        args: pool.list(&args),
+                    });
+                    let got = self.normalize_deep(proj)?;
+                    if matches!(pool.get(got), TyData::Assoc { .. }) && defaults != Defaults::All {
+                        return Ok(false);
+                    }
+                    if self.infer.unify(pool, var, got).is_err() && report {
+                        let msg = format!(
+                            "in result: expected {}, found {}",
+                            self.show(var),
+                            self.show(got)
+                        );
+                        self.err(Code::TypeMismatch, node, &msg);
+                    }
+                }
+                Ok(true)
+            }
+            Answer::Fails(_) => {
+                if report && !matches!(g.kind, Waiting::Project { .. }) {
+                    let msg = format!(
+                        "{} does not implement {}",
+                        self.show(tref.self_ty),
+                        self.cx.names.display_name(tref.trait_)
+                    );
+                    self.err(Code::UnsatisfiedTraitBound, node, &msg);
+                }
+                Ok(true)
+            }
+            Answer::Stalled { .. } => Ok(false),
+            Answer::OutOfFuel => unsupported("the solver's fuel ran out (limit diagnostic)"),
+            other => unsupported(format!("solver answer {other:?}")),
+        }
     }
 
     /// `types.literal.local.class.open`: a literal class that met no type
@@ -1621,6 +1902,12 @@ impl Ck<'_, '_> {
     /// paths join across statements
     /// (`types.literal.local.form.function-return.statements`).
     pub(crate) fn close_literals(&mut self, start: usize) {
+        self.close_literals_but(start, &[]);
+    }
+
+    /// [`Self::close_literals`] but for the classes of `held`, which are
+    /// [`InferTable::shallow`] types.
+    fn close_literals_but(&mut self, start: usize, held: &[Ty]) {
         let pool = self.pool();
         let joins: Vec<Ty> = self
             .rets
@@ -1628,7 +1915,8 @@ impl Ck<'_, '_> {
             .map(|r| self.infer.shallow(pool, *r))
             .collect();
         for (t, k) in self.infer.open_literals_since(pool, start) {
-            if joins.contains(&self.infer.shallow(pool, t)) {
+            let root = self.infer.shallow(pool, t);
+            if joins.contains(&root) || held.contains(&root) {
                 continue;
             }
             if let Some(d) = k.literal_default() {
@@ -2173,8 +2461,10 @@ impl Ck<'_, '_> {
         choice: (hd_tir::ir::ChoiceKind, u32),
     ) -> StageResult<(hd_tir::ir::ChoiceKind, u32)> {
         let pool = self.pool();
-        if choice.0 != hd_tir::ir::ChoiceKind::Builtin
-            || !matches!(pool.get(self_ty), TyData::Adt { .. } | TyData::Tuple { .. })
+        let waited = choice == crate::call::PENDING_CHOICE;
+        if !waited
+            && (choice.0 != hd_tir::ir::ChoiceKind::Builtin
+                || !matches!(pool.get(self_ty), TyData::Adt { .. } | TyData::Tuple { .. }))
         {
             return Ok(choice);
         }
@@ -2185,11 +2475,15 @@ impl Ck<'_, '_> {
             self_ty,
             args: pool.list(&items[..n.min(items.len())]),
         };
+        // A call whose impl waited takes whatever evidence there is now;
+        // with none, an error was reported or a type stayed unknown.
         Ok(match self.solve(tref)? {
             Answer::Holds {
                 evidence: ev @ hd_types::solver::Evidence::Impl { .. },
                 ..
             } => self.choice_of(Some(&ev)),
+            Answer::Holds { evidence: ev, .. } if waited => self.choice_of(Some(&ev)),
+            _ if waited => (hd_tir::ir::ChoiceKind::Builtin, 0),
             _ => choice,
         })
     }
@@ -2231,30 +2525,31 @@ impl Ck<'_, '_> {
                 let _ = self.infer.unify(pool, v, Ty::NEVER);
             }
         }
-        // Bounds that waited for inference.
-        let pending = std::mem::take(&mut self.pending);
-        for (tref, at) in pending {
-            let tref = TraitRef {
-                trait_: tref.trait_,
-                self_ty: self.zonk(tref.self_ty),
-                args: self.zonk_list(tref.args),
-            };
-            if pool.has_poison(tref.self_ty) {
-                continue;
+        // Goals that waited for inference, with the defaults in. A bound's
+        // evidence is chosen again per instance at collection. What one
+        // call goal learns may decide another, so a pass that settled any
+        // is followed by another; what still waits then is left to the
+        // types that stayed unknown (`cannot-infer-type`).
+        let mut defaults = Defaults::Receiver;
+        while !self.pending.is_empty() {
+            let mut settled = false;
+            for g in std::mem::take(&mut self.pending) {
+                if self.settle_goal(g, defaults, true)? {
+                    settled = true;
+                } else {
+                    self.pending.push(g);
+                }
             }
-            // Solved with the local impls known where the goal arose.
-            let node = self.cx.src.parse.tree.node(at);
-            self.move_to(self.cx.src.span(node).lo);
-            // Its evidence is chosen again per instance at collection; a
-            // bound that fails once the defaults are in is an error.
-            if let Answer::Fails(_) = self.solve(tref)? {
-                let msg = format!(
-                    "{} does not implement {}",
-                    self.show(tref.self_ty),
-                    self.cx.names.display_name(tref.trait_)
-                );
-                let node = self.cx.src.parse.tree.node(at);
-                self.err(Code::UnsatisfiedTraitBound, node, &msg);
+            if !settled {
+                if defaults == Defaults::All {
+                    break;
+                }
+                defaults = Defaults::All;
+            }
+        }
+        for g in std::mem::take(&mut self.pending) {
+            if let Waiting::Call { method } = g.kind {
+                self.ambiguous_call(g, method)?;
             }
         }
         self.opt_in_obligations()?;

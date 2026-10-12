@@ -384,7 +384,9 @@ impl Ck<'_, '_> {
             }
             // One trait with several instantiations: its arguments come
             // from the expected type, and the bound check picks the impl.
-            Some(Hit::Choice { trait_, method, .. }) => {
+            // A method whose impl waits for inference: the same, the
+            // bound check leaving its goal pending.
+            Some(Hit::Choice { trait_, method, .. } | Hit::Pending { trait_, method }) => {
                 let (self_ty, args, method) = trait_member(self, trait_, method, vec![]);
                 let sig = self.sig_of(method)?;
                 let vars = self.fresh_generics(&sig, explicit, n);
@@ -570,8 +572,7 @@ impl Ck<'_, '_> {
                 self_ty: self.infer.resolve(pool, *self_ty),
                 args: pool.list(args),
             };
-            let ev = self.require_ref(tref, n)?;
-            *choice = Some(self.choice_of(ev.as_ref()));
+            *choice = Some(self.call_choice(tref, m.def, n)?);
         }
         let m = &*m;
         let inst = |x: Ty| inst(pool, m, x);
