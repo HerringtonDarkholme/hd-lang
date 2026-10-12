@@ -204,6 +204,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// call there is `suspension-forbidden-context`, not a call outside any
     /// suspension (`fn.default.suspends`).
     pub default_depth: usize,
+    /// While a default expression is checked against an empty row: whether
+    /// its `requirement-in-default` is reported yet.
+    pub default_row: Option<bool>,
     /// The `:=` bindings that a path to this point may have skipped
     /// (`names.definite.skipped`).
     pub uninit: std::collections::HashSet<LocalId>,
@@ -421,6 +424,7 @@ pub(crate) fn new_ck<'a, 'c>(
         cond_flow: None,
         forbidden: (kind == BodyKind::Default).then_some("a default or fact expression"),
         default_depth: 1,
+        default_row: None,
         lit_nodes: Vec::new(),
         overflow_lits: Vec::new(),
         neg_nodes: Vec::new(),
@@ -824,6 +828,7 @@ pub fn check_default(
     );
     // A default is looked up where it is written (`trait.impl.local.lookup`).
     ck.move_to(cx.src.span(expr).lo);
+    ck.default_row = Some(false);
     let blk = ck.b.open_block();
     for (n, t) in params {
         let l = ck.b.local(t, n, local_flags::PARAM, expr.index());

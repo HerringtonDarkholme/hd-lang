@@ -17,7 +17,7 @@ use hd_types::lookup::OWN_TABLE;
 use hd_types::solver::{Evidence, PlanStep};
 use hd_types::{RowData, RowId, Ty};
 
-use crate::body::{BodyCx, Ck, new_ck, unsupported};
+use crate::body::{BodyCx, Ck, RowFrame, new_ck, unsupported};
 
 type Set = std::collections::HashSet<hd_base::LocalId>;
 
@@ -651,7 +651,14 @@ impl Ck<'_, '_> {
                     .insert(params[k].0, l);
                 self.b.set(l, *r, e.index());
             }
-            let (r, t) = self.expr(e, Some(params[i].1))?;
+            // A shared default is requirement-free
+            // (`data.shared.default.requirement-free`).
+            self.rows.push(RowFrame::Declared(RowId::EMPTY));
+            let saved = self.default_row.replace(false);
+            let checked = self.expr(e, Some(params[i].1));
+            self.default_row = saved;
+            self.rows.pop();
+            let (r, t) = checked?;
             self.scopes.pop();
             out.push(self.coerce(r, t, params[i].1, e, "default"));
         }

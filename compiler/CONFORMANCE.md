@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2774 | 55 | 16 | 2845 |
+| 2777 | 52 | 16 | 2845 |
 
 ## By Chapter
 
@@ -20,8 +20,8 @@ fixture; unsupported surface records progress without failing.
 | `lang/04-type-system.md` | 344 | 8 | 0 | 352 |
 | `lang/05-expressions.md` | 273 | 4 | 0 | 277 |
 | `lang/06-control-flow.md` | 148 | 5 | 4 | 157 |
-| `lang/07-functions.md` | 125 | 5 | 0 | 130 |
-| `lang/08-data-and-enums.md` | 118 | 5 | 0 | 123 |
+| `lang/07-functions.md` | 126 | 4 | 0 | 130 |
+| `lang/08-data-and-enums.md` | 120 | 3 | 0 | 123 |
 | `lang/09-traits.md` | 352 | 7 | 0 | 359 |
 | `lang/10-modules.md` | 245 | 9 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 250 | 1 | 8 | 259 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 917 | 0 | 12 | 929 |
-| `typing/invalid` | 1027 | 47 | 1 | 1075 |
+| `typing/invalid` | 1030 | 44 | 1 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 12 | 8 | 0 | 20 |
 
@@ -76,9 +76,9 @@ compiler stage that first declined the case.
 | Bucket | Cases |
 | --- | ---: |
 | `fail:missing-required-field` | 2 |
-| `fail:missing-requirement` | 3 |
+| `fail:missing-requirement` | 1 |
 | `fail:missing-supertrait-implementation` | 2 |
-| `fail:no-diagnostic` | 34 |
+| `fail:no-diagnostic` | 33 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-main` | 1 |
 | `fail:re-export-loop` | 1 |
@@ -98,10 +98,8 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:missing-requirement</code> (3)</summary>
+<details><summary><code>fail:missing-requirement</code> (1)</summary>
 
-- `typing/invalid/parameter-default-requires-provider.hd`
-- `typing/invalid/data-default-requires-provider.hd`
 - `typing/invalid/hd-run-outside-integration.hd`
 
 </details>
@@ -113,7 +111,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (34)</summary>
+<details><summary><code>fail:no-diagnostic</code> (33)</summary>
 
 - `typing/warnings/unreachable-code.hd`
 - `typing/invalid/unknown-annotation-member.hd`
@@ -122,7 +120,6 @@ compiler stage that first declined the case.
 - `typing/warnings/unreachable-after-infinite-loop.hd`
 - `typing/warnings/variant-binding-names-swapped.hd`
 - `typing/invalid/generic-supertrait-upcast-mismatch.hd`
-- `typing/invalid/enum-default-requires-provider.hd`
 - `typing/invalid/trait-resolution-depth.hd`
 - `typing/invalid/member-line-payload-member.hd`
 - `typing/invalid/generic-member-call.hd`
@@ -1716,6 +1713,7 @@ typing/invalid/covariant-suspending-method-parameter.hd
 typing/invalid/covariant-trait-argument-parameter.hd
 typing/invalid/data-bound-bare-trait.hd
 typing/invalid/data-default-reads-other-field.hd
+typing/invalid/data-default-requires-provider.hd
 typing/invalid/data-field-bare-trait.hd
 typing/invalid/data-field-default-type-mismatch.hd
 typing/invalid/data-field-shorthand-duplicate.hd
@@ -1820,6 +1818,7 @@ typing/invalid/empty-map-without-context.hd
 typing/invalid/entry-point-parameters.hd
 typing/invalid/entry-result-not-termination.hd
 typing/invalid/enum-bound-bare-trait.hd
+typing/invalid/enum-default-requires-provider.hd
 typing/invalid/enum-identity.hd
 typing/invalid/enum-match-missing-variant.hd
 typing/invalid/enum-payload-bare-trait.hd
@@ -2195,6 +2194,7 @@ typing/invalid/overlapping-tuple-impl.hd
 typing/invalid/overload.hd
 typing/invalid/parameter-bare-trait.hd
 typing/invalid/parameter-default-order.hd
+typing/invalid/parameter-default-requires-provider.hd
 typing/invalid/parameter-default-type-mismatch.hd
 typing/invalid/parent-declaration-not-in-child.hd
 typing/invalid/part-trait-method-beside-method-promoted-into-part.hd

@@ -220,3 +220,66 @@ pub fn main() -> void $ Console:
 ";
     assert_eq!(output_of("generic-owner", main), "1 3 2\n");
 }
+
+/// A default's row is empty (`data.default.requirement-free`,
+/// `fn.default.requirement-free`, `data.shared.default.requirement-free`):
+/// each kind of default reports `requirement-in-default`, once.
+#[test]
+fn a_default_that_needs_a_provider_is_requirement_in_default() {
+    let prelude = "\
+trait Clock:
+    fn now(self) -> i32
+
+fn current_time() -> i32 $ Clock:
+    $.use(Clock).now()
+
+";
+    for (name, tail) in [
+        ("data", "data Event:\n    time: i32 = $.use(Clock).now()\n"),
+        (
+            "parameter",
+            "fn stamp(time: i32 = current_time()) -> i32 $ Clock:\n    time\n",
+        ),
+        (
+            "enum",
+            "enum Status(time: i32 = current_time()):\n    Unknown -> Status()\n",
+        ),
+    ] {
+        let rendered = built(&format!("{prelude}{tail}")).render();
+        assert_eq!(
+            rendered.matches("requirement-in-default").count(),
+            1,
+            "{name}: {rendered}"
+        );
+        assert!(
+            !rendered.contains("missing-requirement"),
+            "{name}: {rendered}"
+        );
+    }
+}
+
+/// Pure code, and a call of a requirement-free function, stay clean in
+/// every kind of default.
+#[test]
+fn a_requirement_free_default_is_clean() {
+    let out = built(
+        "\
+fn base() -> i32: 7
+
+data Event:
+    time: i32 = base() + 1
+    tag: i32 = 3
+
+fn stamp(time: i32 = base()) -> i32:
+    time
+
+enum Status(time: i32 = base()):
+    Unknown -> Status()
+
+pub fn main() -> void:
+    _a := stamp()
+    _b := Event {}
+",
+    );
+    assert!(out.diags.is_empty(), "{}", out.render());
+}

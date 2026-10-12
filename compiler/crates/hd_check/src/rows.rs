@@ -296,6 +296,24 @@ impl Ck<'_, '_> {
         false
     }
 
+    /// A requirement the body cannot name. In a default body, whose row is
+    /// empty, it is `requirement-in-default`, once for the default
+    /// (`data.default.requirement-free`, `fn.default.requirement-free`).
+    fn missing_requirement(&mut self, n: NodeRef<'_>, msg: &str) {
+        match self.default_row {
+            Some(true) => {}
+            Some(false) => {
+                self.default_row = Some(true);
+                self.err(
+                    Code::RequirementInDefault,
+                    n,
+                    "a default cannot use a provider",
+                );
+            }
+            None => self.err(Code::MissingRequirement, n, msg),
+        }
+    }
+
     /// A key the body uses must be available (`req.row.set.call`):
     /// `missing-requirement` otherwise.
     pub(crate) fn require_key(&mut self, key: Ty, n: NodeRef<'_>) {
@@ -313,7 +331,7 @@ impl Ck<'_, '_> {
                     "this needs `$ {shown}`, which the enclosing function's row does not name{note}"
                 )
             };
-            self.err(Code::MissingRequirement, n, &msg);
+            self.missing_requirement(n, &msg);
         }
     }
 
@@ -406,7 +424,7 @@ impl Ck<'_, '_> {
                 let msg = format!(
                     "this needs the row `$ {name}`, which the enclosing function's row does not name"
                 );
-                self.err(Code::MissingRequirement, n, &msg);
+                self.missing_requirement(n, &msg);
             }
         }
     }
