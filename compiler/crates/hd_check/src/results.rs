@@ -51,6 +51,8 @@ enum State {
 struct Omits {
     ret: bool,
     row: bool,
+    /// The callable's declaration.
+    at: NodeIdx,
 }
 
 /// A call of a private callable whose row is still open, from the body of
@@ -99,6 +101,9 @@ pub struct Results {
     /// the module's top-level statements' calls of open rows.
     module_diags: DiagBuf,
     reported: Vec<DefId>,
+    /// The callables a template named without a declared result type,
+    /// each reported once (`module.package.template-private.result`).
+    template_named: Vec<DefId>,
     /// Whether a body with an inferred result or a cycle reported an error.
     errors: bool,
 }
@@ -123,6 +128,31 @@ impl Results {
     #[must_use]
     pub fn has_errors(&self) -> bool {
         self.errors
+    }
+
+    /// A template names `def`: a private callable with an omitted result
+    /// type follows the public signature rules, so it is an error, once at
+    /// its declaration (`module.package.template-private.result`).
+    fn template_names(&mut self, cx: &BodyCx<'_>, def: DefId) {
+        let Some(omits) = self.omits.get(&def).copied().filter(|o| o.ret) else {
+            return;
+        };
+        if self.template_named.contains(&def) {
+            return;
+        }
+        self.template_named.push(def);
+        let node = cx.src.parse.tree.node(omits.at);
+        let (span, name) = match node
+            .name(&cx.src.parse.tokens)
+            .or_else(|| cx.src.name_after(node, TokenKind::KwFn))
+        {
+            Some(t) => (cx.src.token_span(t), cx.src.text(t)),
+            None => (cx.src.span(node), "this function"),
+        };
+        let msg = format!(
+            "`{name}` is named by a template, so it follows the public signature rules: write its result type"
+        );
+        self.module_diags.error(Code::MissingResultType, span, &msg);
     }
 
     /// One report per cycle, at its member first in source order.
@@ -435,6 +465,7 @@ pub fn omitted_results(cx: &BodyCx<'_>, bodies: &[(DefId, NodeRef<'_>)]) {
         let omits = Omits {
             ret: Src::type_child(node).is_none(),
             row: Src::child(node, SyntaxKind::RequirementRow).is_none(),
+            at: node.index(),
         };
         if !omits.ret && !omits.row {
             continue;
@@ -639,6 +670,9 @@ impl Ck<'_, '_> {
     /// reads as empty here; a call of it records an edge
     /// (`Ck::callee_row`).
     pub(crate) fn with_result(&self, def: DefId, mut sig: FnSig) -> FnSig {
+        if self.in_template {
+            self.cx.results.borrow_mut().template_names(self.cx, def);
+        }
         if let Some(s) = seen(self.cx, def, false) {
             if let Some(ret) = s.ret {
                 sig.ret = ret;

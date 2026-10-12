@@ -3043,6 +3043,9 @@ impl Run<'_> {
         if !init_facts.is_empty() {
             hd_check::init::definite_init(&cx, &stmts, &init_facts, &mut diags);
         }
+        // The reports that template bodies left for the module: they are
+        // checked after the first sweep took the module's reports.
+        diags.append(&hd_check::results::module_diags(&cx));
         self.private_headers(&cx, &heads, &mut diags);
         self.profile_boundaries(&cx, &heads, &mut diags);
         self.entry_points(m, &cx, &heads, &mut diags);

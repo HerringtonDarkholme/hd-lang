@@ -105,3 +105,42 @@ fn a_binding_read_by_an_ordinary_function_stays_clean() {
     );
     assert_eq!(check(&src), []);
 }
+
+const HELPER_TEMPLATE: &str = "impl[T] Named for T by Structure:
+    fn title() -> string:
+        let mut d = MemberCount { count: 0 }
+        _ := T::describe(d)
+        titled(Structure::name(), d.count)
+";
+
+#[test]
+fn a_template_helper_without_a_result_type_is_reported_once() {
+    let src = format!(
+        "{COUNTER}\nfn titled(name: string, count: i32):\n    \"The ${{name}}/${{count}}\"\n\n{HELPER_TEMPLATE}"
+    );
+    assert_eq!(check(&src), [Code::MissingResultType]);
+}
+
+#[test]
+fn two_calls_of_one_template_helper_report_it_once() {
+    let src = format!(
+        "{COUNTER}\nfn titled(name: string, count: i32):\n    \"The ${{name}}/${{count}}\"\n\nimpl[T] Named for T by Structure:\n    fn title() -> string:\n        let mut d = MemberCount {{ count: 0 }}\n        _ := T::describe(d)\n        titled(Structure::name(), d.count) + titled(\"x\", 1)\n"
+    );
+    assert_eq!(check(&src), [Code::MissingResultType]);
+}
+
+#[test]
+fn a_template_helper_with_a_result_type_stays_clean() {
+    let src = format!(
+        "{COUNTER}\nfn titled(name: string, count: i32) -> string:\n    \"The ${{name}}/${{count}}\"\n\n{HELPER_TEMPLATE}"
+    );
+    assert_eq!(check(&src), []);
+}
+
+#[test]
+fn a_helper_without_a_result_type_outside_a_template_stays_clean() {
+    let src = format!(
+        "{COUNTER}\nfn titled(name: string, count: i32):\n    \"The ${{name}}/${{count}}\"\n\nfn label() -> string:\n    titled(\"x\", 1)\n"
+    );
+    assert_eq!(check(&src), []);
+}

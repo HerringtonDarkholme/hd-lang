@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2747 | 82 | 16 | 2845 |
+| 2751 | 78 | 16 | 2845 |
 
 ## By Chapter
 
@@ -23,9 +23,9 @@ fixture; unsupported surface records progress without failing.
 | `lang/07-functions.md` | 123 | 7 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 118 | 5 | 0 | 123 |
 | `lang/09-traits.md` | 349 | 10 | 0 | 359 |
-| `lang/10-modules.md` | 241 | 13 | 4 | 258 |
+| `lang/10-modules.md` | 243 | 11 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 245 | 6 | 8 | 259 |
-| `lang/14-annotations.md` | 144 | 9 | 0 | 153 |
+| `lang/14-annotations.md` | 146 | 7 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
 | `std/collections.md` | 28 | 1 | 0 | 29 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 916 | 1 | 12 | 929 |
-| `typing/invalid` | 1002 | 72 | 1 | 1075 |
+| `typing/invalid` | 1006 | 68 | 1 | 1075 |
 | `typing/valid` | 414 | 1 | 0 | 415 |
 | `typing/warnings` | 12 | 8 | 0 | 20 |
 
@@ -81,7 +81,7 @@ compiler stage that first declined the case.
 | `fail:missing-required-field` | 2 |
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 2 |
-| `fail:no-diagnostic` | 38 |
+| `fail:no-diagnostic` | 34 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-import` | 1 |
 | `fail:private-main` | 1 |
@@ -142,7 +142,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (38)</summary>
+<details><summary><code>fail:no-diagnostic</code> (34)</summary>
 
 - `typing/warnings/unreachable-code.hd`
 - `typing/invalid/unknown-annotation-member.hd`
@@ -153,8 +153,6 @@ compiler stage that first declined the case.
 - `typing/invalid/generic-supertrait-upcast-mismatch.hd`
 - `typing/invalid/enum-default-requires-provider.hd`
 - `typing/invalid/trait-resolution-depth.hd`
-- `typing/invalid/structure-outside-template.hd`
-- `typing/invalid/marker-template.hd`
 - `typing/invalid/member-line-payload-member.hd`
 - `typing/invalid/generic-member-call.hd`
 - `typing/warnings/derivation-line-drift.hd`
@@ -180,8 +178,6 @@ compiler stage that first declined the case.
 - `typing/invalid/uninhabited-binding.hd`
 - `typing/invalid/trait-assoc-call-self-undetermined.hd`
 - `typing/invalid/module-path-not-identifier.hd`
-- `typing/invalid/template-helper-missing-result.hd`
-- `typing/invalid/template-names-binding.hd`
 
 </details>
 
@@ -2147,6 +2143,7 @@ typing/invalid/local-value-reuses-type-parameter.hd
 typing/invalid/lowercase-list-type.hd
 typing/invalid/main-not-importable.hd
 typing/invalid/marker-bound-unproven.hd
+typing/invalid/marker-template.hd
 typing/invalid/match-arm-after-catch-all.hd
 typing/invalid/match-arm-misses-expected-type.hd
 typing/invalid/match-guard-type-mismatch.hd
@@ -2498,6 +2495,7 @@ typing/invalid/string-prefix-value-narrowing.hd
 typing/invalid/string-repeat-negative-literal.hd
 typing/invalid/string-slice-negative-offset.hd
 typing/invalid/structure-implementation.hd
+typing/invalid/structure-outside-template.hd
 typing/invalid/supertrait-binding-conflict.hd
 typing/invalid/supertrait-binding-mismatch.hd
 typing/invalid/supertrait-binding-unknown.hd
@@ -2508,6 +2506,8 @@ typing/invalid/suspending-data-field-default.hd
 typing/invalid/suspending-parameter-default.hd
 typing/invalid/suspension-constructor-to-bang-function.hd
 typing/invalid/task-retry-row-missing.hd
+typing/invalid/template-helper-missing-result.hd
+typing/invalid/template-names-binding.hd
 typing/invalid/test-body-error-not-display.hd
 typing/invalid/test-body-optional-result.hd
 typing/invalid/test-body-string-error.hd
