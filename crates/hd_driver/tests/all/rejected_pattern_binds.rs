@@ -64,6 +64,14 @@ fn duplicate_field_binds_the_alias() {
 }
 
 #[test]
+fn unknown_variant_field_binds_its_value() {
+    let got = codes(
+        "enum Choice:\n    Pair(left: i32, right: i32)\n\nfn f(choice: Choice) -> i32:\n    match choice:\n        Choice.Pair(missing=value, right=other) => value\n",
+    );
+    assert_eq!(got, vec![Code::UnknownDataField]);
+}
+
+#[test]
 fn correct_pattern_binds_with_its_type() {
     let got = codes(
         "fn f(o: i32?) -> i32:\n    match o:\n        .Some(number) => number\n        .None => 0\n",

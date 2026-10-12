@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2796 | 34 | 15 | 2845 |
+| 2797 | 33 | 15 | 2845 |
 
 ## By Chapter
 
@@ -19,7 +19,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
 | `lang/04-type-system.md` | 345 | 7 | 0 | 352 |
 | `lang/05-expressions.md` | 274 | 3 | 0 | 277 |
-| `lang/06-control-flow.md` | 149 | 5 | 3 | 157 |
+| `lang/06-control-flow.md` | 150 | 4 | 3 | 157 |
 | `lang/07-functions.md` | 126 | 4 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 122 | 1 | 0 | 123 |
 | `lang/09-traits.md` | 354 | 5 | 0 | 359 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 917 | 0 | 12 | 929 |
-| `typing/invalid` | 1048 | 27 | 0 | 1075 |
+| `typing/invalid` | 1049 | 26 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 13 | 7 | 0 | 20 |
 
@@ -78,7 +78,7 @@ compiler stage that first declined the case.
 | `fail:no-diagnostic` | 29 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-main` | 1 |
-| `fail:unknown-name` | 3 |
+| `fail:unknown-name` | 2 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 11 |
 
@@ -128,11 +128,10 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-name</code> (3)</summary>
+<details><summary><code>fail:unknown-name</code> (2)</summary>
 
 - `typing/invalid/parameter-default-later-parameter.hd`
 - `typing/invalid/default-later-parameter-earlier-twin.hd`
-- `typing/invalid/variant-pattern-unknown-field.hd`
 
 </details>
 
@@ -2532,6 +2531,7 @@ typing/invalid/variance-position.hd
 typing/invalid/variance-representation-change.hd
 typing/invalid/variant-duplicate-argument.hd
 typing/invalid/variant-pattern-missing-payload.hd
+typing/invalid/variant-pattern-unknown-field.hd
 typing/invalid/variant-result-owner.hd
 typing/invalid/variant-unknown-payload-field.hd
 typing/invalid/written-type-too-many-arguments.hd

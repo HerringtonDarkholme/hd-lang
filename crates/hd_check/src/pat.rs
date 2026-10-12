@@ -75,6 +75,12 @@ struct RangeBounds {
     inclusive: bool,
 }
 
+/// A variant pattern's sub-patterns by field position (`None` for an
+/// omitted named field), with the named fields the variant does not
+/// declare: their names and sub-patterns, for the caller to report and
+/// bind to the poison type.
+type VariantSubs<'t> = (Vec<Option<NodeRef<'t>>>, Vec<(String, NodeRef<'t>)>);
+
 impl Ck<'_, '_> {
     /// Declares the bindings of a pattern against a type, checking the
     /// pattern's shape. `binds` maps binding nodes to their locals.
@@ -288,7 +294,12 @@ impl Ck<'_, '_> {
                     self.err(Code::UnknownVariant, p, &msg);
                     return Ok(());
                 };
-                let subs = self.variant_subpatterns(p, t, &name)?;
+                let (subs, unknown) = self.variant_subpatterns(p, t, &name)?;
+                for (fname, sub) in unknown {
+                    let msg = format!("no field `{fname}` of variant `{name}`");
+                    self.err(Code::UnknownDataField, sub, &msg);
+                    self.declare_pattern(sub, Ty::POISON, binds)?;
+                }
                 if subs.len() != fields.len() {
                     self.err(
                         Code::PatternArity,
@@ -460,22 +471,23 @@ impl Ck<'_, '_> {
     }
 
     /// The sub-patterns of a variant pattern, by field position (`None`
-    /// for an omitted named field).
+    /// for an omitted named field), with the named fields the variant
+    /// does not declare (see [`VariantSubs`]).
     fn variant_subpatterns<'t>(
         &self,
         p: NodeRef<'t>,
         t: Ty,
         name: &str,
-    ) -> StageResult<Vec<Option<NodeRef<'t>>>> {
+    ) -> StageResult<VariantSubs<'t>> {
         let Some(al) = Src::child(p, SyntaxKind::PatternArgumentList) else {
-            return Ok(vec![]);
+            return Ok((vec![], vec![]));
         };
         let kids: Vec<NodeRef<'t>> = al.children().collect();
         if kids.iter().any(|k| k.kind() == SyntaxKind::SpreadPattern) {
             return unsupported("a variant pattern with a rest");
         }
         if kids.iter().all(|k| k.kind() != SyntaxKind::NamedPattern) {
-            return Ok(kids.into_iter().map(Some).collect());
+            return Ok((kids.into_iter().map(Some).collect(), vec![]));
         }
         // Positional sub-patterns fill fields by position, named ones by
         // the variant's field names (data.enum.payload.order).
@@ -494,7 +506,7 @@ impl Ck<'_, '_> {
         };
         let sym = self.cx.names.syms.intern(name);
         let Some(v) = variants.iter().find(|v| v.name == sym) else {
-            return Ok(vec![]);
+            return Ok((vec![], vec![]));
         };
         let positional = kids
             .iter()
@@ -503,17 +515,23 @@ impl Ck<'_, '_> {
         // Extra positional sub-patterns stay in the list, so the caller
         // reports the arity.
         let mut out = vec![None; v.fields.len().max(positional)];
+        let mut unknown: Vec<(String, NodeRef<'t>)> = Vec::new();
         let mut filled = vec![false; out.len()];
         for (i, k) in kids.into_iter().enumerate() {
             let (slot, sub) = if i < positional {
                 (Some(i), Some(k))
             } else if k.kind() == SyntaxKind::NamedPattern {
-                let fname = self
-                    .cx
-                    .names
-                    .syms
-                    .intern(self.cx.src.text(self.cx.src.first(k)));
-                let slot = v.fields.iter().position(|f| f.name == fname);
+                let fname = self.cx.src.text(self.cx.src.first(k));
+                let slot = v
+                    .fields
+                    .iter()
+                    .position(|f| f.name == self.cx.names.syms.intern(fname));
+                // A named field the variant does not declare is reported
+                // by the caller; its sub-pattern binds to the poison type
+                // so its uses stay silent.
+                if slot.is_none() {
+                    unknown.push((fname.to_owned(), k.children().next().unwrap_or(k)));
+                }
                 (slot, k.children().next().or(Some(k)))
             } else {
                 // A positional pattern after a named one: `pattern-order`
@@ -527,7 +545,7 @@ impl Ck<'_, '_> {
             }
             out[slot] = sub;
         }
-        Ok(out)
+        Ok((out, unknown))
     }
 
     /// A literal pattern's value.
@@ -1034,7 +1052,7 @@ impl Ck<'_, '_> {
                         // Reported when the pattern was declared.
                         continue;
                     };
-                    let subs = self.variant_subpatterns(p, t, &name)?;
+                    let (subs, _) = self.variant_subpatterns(p, t, &name)?;
                     let ok = self.b.open_block();
                     let is_option = matches!(
                         pool.get(match pool.get(self.infer.resolve(pool, t)) {
@@ -1206,7 +1224,10 @@ impl Ck<'_, '_> {
                     .variant_fields(t, &name)
                     .map(|f| f.1)
                     .unwrap_or_default();
-                let subs = self.variant_subpatterns(p, t, &name).unwrap_or_default();
+                let subs = self
+                    .variant_subpatterns(p, t, &name)
+                    .map(|s| s.0)
+                    .unwrap_or_default();
                 let args = (0..fields.len())
                     .map(|k| self.to_p(subs.get(k).copied().flatten(), fields[k]))
                     .collect();
