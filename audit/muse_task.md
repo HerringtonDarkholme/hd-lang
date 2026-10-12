@@ -56,15 +56,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
 
-### M48. Split `lib.rs` in the wasmtime host
-
-`crates/hd_run_wasmtime/src/lib.rs` is 1079 lines. Move its parts into
-modules the way M36/M46 did (engine setup, running a program, guards and
-limits, public re-exports), code moved verbatim, visibility tightened, no
-file over about 600 lines, `lib.rs` left as module declarations and the
-public surface. Tests and wasmtime-only conformance verdicts unchanged.
-Files: `crates/hd_run_wasmtime/src/**`.
-
 ### M49. Split `testing.rs` in the wasmtime host
 
 The same for `crates/hd_run_wasmtime/src/testing.rs` (753 lines). Files:
