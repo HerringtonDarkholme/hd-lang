@@ -74,7 +74,7 @@ pub fn respond(session: &mut Session, request: &[u8]) -> Response {
                 .collect();
             let mut wat = String::new();
             if req.wat && !wasm.is_empty() {
-                match wasmprinter::print_bytes(&wasm) {
+                match print_wat(&wasm) {
                     Ok(text) => wat = text,
                     Err(e) => {
                         return Response {
@@ -257,6 +257,18 @@ fn opt_str(s: Option<&str>) -> String {
 
 fn opt_num(n: Option<usize>) -> String {
     n.map_or_else(|| "null".to_owned(), |n| n.to_string())
+}
+
+/// The module's text, folded (`(if (ref.is_null (global.get 3)) ...)`)
+/// rather than one instruction per line, so each operand sits inside the
+/// instruction that consumes it.
+fn print_wat(wasm: &[u8]) -> Result<String, String> {
+    let mut text = String::new();
+    wasmprinter::Config::new()
+        .fold_instructions(true)
+        .print(wasm, &mut wasmprinter::PrintFmtWrite(&mut text))
+        .map_err(|e| e.to_string())?;
+    Ok(text)
 }
 
 #[cfg(test)]
