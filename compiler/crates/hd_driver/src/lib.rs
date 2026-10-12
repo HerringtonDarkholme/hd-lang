@@ -2903,7 +2903,15 @@ impl Run<'_> {
                     .find(|c| {
                         cx.src
                             .tokens(*c)
-                            .filter(|t| cx.src.tkind(*t) == Some(hd_syntax::TokenKind::Ident))
+                            .filter(|t| {
+                                matches!(
+                                    cx.src.tkind(*t),
+                                    Some(
+                                        hd_syntax::TokenKind::Ident
+                                            | hd_syntax::TokenKind::RawIdent
+                                    )
+                                )
+                            })
                             .last()
                             .is_some_and(|t| cx.src.text(t) == wanted)
                     })

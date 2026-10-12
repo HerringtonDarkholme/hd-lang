@@ -8,13 +8,13 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2676 | 148 | 21 | 2845 |
+| 2677 | 147 | 21 | 2845 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
-| `lang/01-lexical-structure.md` | 137 | 8 | 0 | 145 |
+| `lang/01-lexical-structure.md` | 138 | 7 | 0 | 145 |
 | `lang/02-grammar.md` | 205 | 10 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 100 | 1 | 0 | 101 |
 | `lang/04-type-system.md` | 327 | 25 | 0 | 352 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 100 | 2 | 3 | 105 |
-| `runtime/valid` | 903 | 10 | 16 | 929 |
+| `runtime/valid` | 904 | 9 | 16 | 929 |
 | `typing/invalid` | 967 | 107 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -105,7 +105,7 @@ compiler stage that first declined the case.
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 5 |
 | `fail:unknown-module` | 1 |
-| `fail:unknown-name` | 8 |
+| `fail:unknown-name` | 7 |
 | `fail:unknown-trait` | 5 |
 | `fail:unknown-type` | 3 |
 | `fail:unknown-variant` | 1 |
@@ -394,7 +394,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-name</code> (8)</summary>
+<details><summary><code>fail:unknown-name</code> (7)</summary>
 
 - `typing/valid/numeric-types.hd`
 - `typing/invalid/parameter-default-later-parameter.hd`
@@ -403,7 +403,6 @@ compiler stage that first declined the case.
 - `typing/invalid/variant-pattern-unknown-field.hd`
 - `typing/invalid/misplaced-test-case.hd`
 - `typing/invalid/test-case-as-value.hd`
-- `runtime/valid/raw-identifiers-as-names.hd`
 
 </details>
 
@@ -1515,6 +1514,7 @@ runtime/valid/range-inclusive-field.hd
 runtime/valid/range-iteration.hd
 runtime/valid/range-pattern-exclusive-to.hd
 runtime/valid/range-pattern-run.hd
+runtime/valid/raw-identifiers-as-names.hd
 runtime/valid/raw-identifiers.hd
 runtime/valid/readonly-root-generic-mutable-path.hd
 runtime/valid/recursive-data-types.hd

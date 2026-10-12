@@ -1218,6 +1218,8 @@ fn to_u32(value: usize) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::{CommentKind, LineFlags, TokenKind, lex};
+    use hd_base::TokenIdx;
+    use hd_diag::Code;
 
     #[test]
     fn lexes_losslessly() {
@@ -1230,6 +1232,31 @@ mod tests {
             [CommentKind::Doc, CommentKind::Plain]
         );
         assert!(lexed.tokens.kind.contains(&TokenKind::KwFn));
+    }
+
+    #[test]
+    fn a_raw_identifier_is_one_token_even_for_a_reserved_word() {
+        let source = "`type` `name` `_x` `\u{e9}t\u{e9}`";
+        let lexed = lex(source.as_bytes());
+        assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
+        assert_eq!(lexed.tokens.kind, [TokenKind::RawIdent; 4]);
+        let first = TokenIdx::from_raw(0);
+        assert_eq!(lexed.tokens.text(first, source), "`type`");
+    }
+
+    #[test]
+    fn a_bad_raw_identifier_is_an_invalid_token() {
+        for source in ["``", "`x", "`1a`", "`a b`", "`_`"] {
+            let lexed = lex(source.as_bytes());
+            assert!(
+                lexed
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.code == Code::InvalidToken),
+                "{source}: {:?}",
+                lexed.diagnostics
+            );
+        }
     }
 
     #[test]

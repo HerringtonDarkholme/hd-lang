@@ -33,7 +33,12 @@ impl<'a> Src<'a> {
         if self.tkind(t).is_none() {
             return "";
         }
-        self.parse.tokens.text(t, self.text)
+        let text = self.parse.tokens.text(t, self.text);
+        if self.parse.tokens.kind(t) == TokenKind::RawIdent {
+            // A raw identifier's name is the text between the backticks.
+            return text.trim_matches('`');
+        }
+        text
     }
     /// The tokens of a node, in order.
     pub fn tokens(&self, n: NodeRef<'_>) -> impl Iterator<Item = TokenIdx> + use<'a> {
@@ -52,7 +57,7 @@ impl<'a> Src<'a> {
         for t in self.tokens(n) {
             match self.tkind(t) {
                 Some(k) if k == kw => seen = true,
-                Some(TokenKind::Ident) if seen => return Some(t),
+                Some(TokenKind::Ident | TokenKind::RawIdent) if seen => return Some(t),
                 _ => {}
             }
         }
@@ -61,7 +66,7 @@ impl<'a> Src<'a> {
     #[must_use]
     pub fn first_ident(&self, n: NodeRef<'_>) -> Option<TokenIdx> {
         self.tokens(n)
-            .find(|t| self.tkind(*t) == Some(TokenKind::Ident))
+            .find(|t| matches!(self.tkind(*t), Some(TokenKind::Ident | TokenKind::RawIdent)))
     }
     #[must_use]
     pub fn is_pub(&self, n: NodeRef<'_>) -> bool {

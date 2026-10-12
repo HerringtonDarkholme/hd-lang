@@ -178,7 +178,9 @@ fn use_decl(src: &Src<'_>, item: NodeRef<'_>, roots: &UseRoots, tests: bool) -> 
             .filter_map(|ui| {
                 let toks: Vec<_> = ui
                     .direct_tokens()
-                    .filter(|t| src.tkind(*t) == Some(TokenKind::Ident))
+                    .filter(|t| {
+                        matches!(src.tkind(*t), Some(TokenKind::Ident | TokenKind::RawIdent))
+                    })
                     .collect();
                 let first = *toks.first()?;
                 let alias = (toks.len() >= 3 && src.text(toks[1]) == "as")

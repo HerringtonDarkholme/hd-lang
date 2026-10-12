@@ -100,6 +100,7 @@ mod promotion;
 mod provider_keys_run;
 mod qualified_variants;
 mod range_patterns;
+mod raw_identifier_run;
 mod recursive_closure_run;
 mod recursive_layouts;
 mod related_traits;
