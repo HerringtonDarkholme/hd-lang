@@ -144,3 +144,11 @@ fn a_helper_without_a_result_type_outside_a_template_stays_clean() {
     );
     assert_eq!(check(&src), []);
 }
+
+#[test]
+fn a_user_function_named_build_does_not_make_a_template() {
+    let src = format!(
+        "{TAGGED}\nfn build() -> string:\n    \"x\"\n\nimpl[T] Tagged for T by Structure:\n    fn tag(self) -> string:\n        build()\n"
+    );
+    assert_eq!(check(&src), [Code::MarkerTemplate]);
+}

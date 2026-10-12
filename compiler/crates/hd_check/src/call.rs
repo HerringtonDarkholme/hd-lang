@@ -3289,6 +3289,12 @@ impl Ck<'_, '_> {
         // At an opt-in, or in a tuple template's plan, a `walk`,
         // `describe` or `build` call's walker, describer or source type
         // carries the member obligations.
+        if let Some(imp) = self.in_template
+            && trait_ == self.cx.names.known.structure
+            && matches!(method_name.as_str(), "walk" | "describe" | "build")
+        {
+            crate::results::note_structure_read(self.cx, imp);
+        }
         if (self.opt_in.is_some() || self.plan_sink.is_some())
             && trait_ == self.cx.names.known.structure
             && let Some(&w) = vars.first()

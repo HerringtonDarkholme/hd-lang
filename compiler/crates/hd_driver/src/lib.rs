@@ -3043,6 +3043,35 @@ impl Run<'_> {
         if !init_facts.is_empty() {
             hd_check::init::definite_init(&cx, &stmts, &init_facts, &mut diags);
         }
+        // A template needs a body in which a method calls `walk`,
+        // `describe` or `build` of `Structure` (`annot.template.body`). A
+        // misplaced template is already one error, and a body that did not
+        // finish says nothing about its calls.
+        if failed.is_none() {
+            for h in heads
+                .iter()
+                .filter(|h| h.kind == hd_resolve::HeadKind::Impl)
+            {
+                let Some(it) = lookup.item(h.def) else {
+                    continue;
+                };
+                if matches!(
+                    &it.data,
+                    ItemData::Impl {
+                        kind: hd_resolve::ImplKind::Template | hd_resolve::ImplKind::TupleTemplate,
+                        ..
+                    }
+                ) && !hd_resolve::lower::misplaced_template(&names, &module.path, it)
+                    && !hd_check::results::reads_structure(&cx, h.def)
+                {
+                    diags.error(
+                        Code::MarkerTemplate,
+                        src.span(h.node),
+                        "a template must have a body that calls `walk`, `describe`, or `build`",
+                    );
+                }
+            }
+        }
         // The reports that template bodies left for the module: they are
         // checked after the first sweep took the module's reports.
         diags.append(&hd_check::results::module_diags(&cx));

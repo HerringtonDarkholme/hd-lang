@@ -104,6 +104,9 @@ pub struct Results {
     /// The callables a template named without a declared result type,
     /// each reported once (`module.package.template-private.result`).
     template_named: Vec<DefId>,
+    /// The templates with a method that calls `walk`, `describe` or
+    /// `build` of `Structure` (`annot.template.body`).
+    structure_reads: std::collections::HashSet<DefId>,
     /// Whether a body with an inferred result or a cycle reported an error.
     errors: bool,
 }
@@ -670,7 +673,7 @@ impl Ck<'_, '_> {
     /// reads as empty here; a call of it records an edge
     /// (`Ck::callee_row`).
     pub(crate) fn with_result(&self, def: DefId, mut sig: FnSig) -> FnSig {
-        if self.in_template {
+        if self.in_template.is_some() {
             self.cx.results.borrow_mut().template_names(self.cx, def);
         }
         if let Some(s) = seen(self.cx, def, false) {
@@ -685,4 +688,17 @@ impl Ck<'_, '_> {
         }
         sig
     }
+}
+
+/// Notes that the template `imp` calls `Structure`'s `walk`, `describe` or
+/// `build` (`annot.template.body`).
+pub(crate) fn note_structure_read(cx: &BodyCx<'_>, imp: DefId) {
+    cx.results.borrow_mut().structure_reads.insert(imp);
+}
+
+/// Whether a method of the template `imp` calls `Structure`'s `walk`,
+/// `describe` or `build`.
+#[must_use]
+pub fn reads_structure(cx: &BodyCx<'_>, imp: DefId) -> bool {
+    cx.results.borrow().structure_reads.contains(&imp)
 }

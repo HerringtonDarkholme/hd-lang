@@ -744,7 +744,7 @@ impl Ck<'_, '_> {
         let g = self.cx.init.borrow().globals.get(&name).copied()?;
         // A template body names no top-level binding
         // (`module.package.template-private.no-binding`).
-        if self.in_template {
+        if self.in_template.is_some() {
             let msg = format!(
                 "a template body cannot name the top-level binding `{}`",
                 self.cx.names.text(name)
