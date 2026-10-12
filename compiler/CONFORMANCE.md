@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2701 | 128 | 16 | 2845 |
+| 2702 | 127 | 16 | 2845 |
 
 ## By Chapter
 
@@ -19,7 +19,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
 | `lang/04-type-system.md` | 331 | 21 | 0 | 352 |
 | `lang/05-expressions.md` | 264 | 13 | 0 | 277 |
-| `lang/06-control-flow.md` | 141 | 12 | 4 | 157 |
+| `lang/06-control-flow.md` | 142 | 11 | 4 | 157 |
 | `lang/07-functions.md` | 121 | 9 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 116 | 7 | 0 | 123 |
 | `lang/09-traits.md` | 348 | 11 | 0 | 359 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 100 | 2 | 3 | 105 |
 | `runtime/valid` | 916 | 1 | 12 | 929 |
-| `typing/invalid` | 973 | 101 | 1 | 1075 |
+| `typing/invalid` | 974 | 100 | 1 | 1075 |
 | `typing/valid` | 414 | 1 | 0 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -88,7 +88,7 @@ compiler stage that first declined the case.
 | `fail:no-diagnostic` | 44 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-import` | 1 |
-| `fail:private-main` | 3 |
+| `fail:private-main` | 2 |
 | `fail:re-export-loop` | 1 |
 | `fail:readonly-root` | 1 |
 | `fail:runtime-exit` | 2 |
@@ -244,10 +244,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:private-main</code> (3)</summary>
+<details><summary><code>fail:private-main</code> (2)</summary>
 
 - `typing/invalid/unresolved-generic-return-placeholder.hd`
-- `typing/invalid/unused-cold-suspension.hd`
 - `typing/invalid/trailing-block-ineligible.hd`
 
 </details>
@@ -2683,6 +2682,7 @@ typing/invalid/unknown-value-name.hd
 typing/invalid/unknown-variant.hd
 typing/invalid/unsaturated-enum-constructor.hd
 typing/invalid/unsigned-negation.hd
+typing/invalid/unused-cold-suspension.hd
 typing/invalid/use-alias-original-name-unbound.hd
 typing/invalid/use-module-and-root-declaration.hd
 typing/invalid/use-without-provider.hd

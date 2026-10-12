@@ -883,7 +883,28 @@ impl Ck<'_, '_> {
                 body.local_syn[l.idx()],
             );
             let text = self.cx.names.text(name);
-            if flags & local_flags::READ != 0 || text.starts_with('_') {
+            if flags & local_flags::READ != 0 {
+                continue;
+            }
+            // flow.unused.must-use: an unread suspension binding is an
+            // error, whatever its name; `Result` and `T?` stay warnings.
+            let lt = self.b.local_ty(l);
+            if self.must_use_in(lt, true) == Some(true) {
+                let span = self.cx.src.span(self.cx.src.parse.tree.node(at));
+                let msg = format!(
+                    "`{text}` binds a {} value that is never read; handle it or write `_ := ...`",
+                    self.show(lt)
+                );
+                self.diags.push(
+                    Code::DiscardedMustUseValue,
+                    hd_diag::Severity::Error,
+                    span,
+                    &msg,
+                    None,
+                );
+                continue;
+            }
+            if text.starts_with('_') {
                 continue;
             }
             let msg = format!("`{text}` is never read; name it `_{text}` to keep it");
@@ -1708,6 +1729,14 @@ impl Ck<'_, '_> {
 
     /// `flow.must-use.discard`: `Result[T, E]`, `T?` and `mut Suspend[T]`.
     pub(crate) fn must_use(&self, t: Ty) -> bool {
+        self.must_use_in(t, false).is_some()
+    }
+
+    /// [`Self::must_use`] with the kind: `Some(true)` for a suspension.
+    /// With `any_view` a suspension counts without `mut`, for a binding
+    /// (`flow.unused.must-use`: the readonly view of `:=` and `let` does
+    /// not lift the obligation).
+    fn must_use_in(&self, t: Ty, any_view: bool) -> Option<bool> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
         let (inner, is_mut) = match pool.get(t) {
@@ -1715,11 +1744,14 @@ impl Ck<'_, '_> {
             _ => (t, false),
         };
         match pool.get(inner) {
-            TyData::Option(_) => true,
-            TyData::Adt { def, .. } => {
-                def == self.cx.names.known.result || (is_mut && def == self.cx.names.known.suspend)
+            TyData::Option(_) => Some(false),
+            TyData::Adt { def, .. } if def == self.cx.names.known.result => Some(false),
+            TyData::Adt { def, .. }
+                if (is_mut || any_view) && def == self.cx.names.known.suspend =>
+            {
+                Some(true)
             }
-            _ => false,
+            _ => None,
         }
     }
 
