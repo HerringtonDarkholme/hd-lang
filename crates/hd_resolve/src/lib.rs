@@ -32,9 +32,10 @@ pub use iface::{
 };
 pub use known::KnownItems;
 pub use lower::{
-    Cx, FolderOut, Head, Kinds, LocalItem, LocalSite, ModIn, ModOut, PRELUDE, UseDecl, World,
-    body_nodes, build_folder, heads, is_prelude_name, is_test_prelude_name, local_at, local_items,
-    prelude_modules, test_prelude_item, test_use_decls, tests_items, traitless_block, use_decls,
+    Cx, FolderOut, Head, Kinds, LocalItem, LocalSite, ModIn, ModOut, PRELUDE, SessionScope,
+    UseDecl, World, body_nodes, build_folder, heads, is_prelude_name, is_test_prelude_name,
+    local_at, local_items, prelude_modules, test_prelude_item, test_use_decls, tests_items,
+    traitless_block, use_decls,
 };
 pub use view::Src;
 

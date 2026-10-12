@@ -576,6 +576,19 @@ pub struct ModIn<'t> {
     /// the items of its `tests:` block are then items of the module, which
     /// only the block sees. A folder interface never holds them.
     pub tests: bool,
+    /// For a REPL input (repl-plan.md §2.2): the session scope its own
+    /// scope is nested in. Every top-level declaration and `use` of the
+    /// input is then exported, so later inputs see it whatever its `pub`.
+    pub session: Option<Arc<SessionScope>>,
+}
+
+/// The names a REPL input sees besides its own: `src/lib.hd`'s scope, its
+/// private declarations included (`cli.repl.package.lib`), with each
+/// earlier input's top-level names nested in it, the newest last.
+#[derive(Clone, Debug, Default)]
+pub struct SessionScope {
+    pub scope: ModuleScope,
+    pub kinds: Kinds,
 }
 
 /// One module's result: all its items (private ones included), its scope
@@ -657,6 +670,9 @@ struct Resolver<'a, 'b> {
     /// declares its associated type (trait.binding.name-reach) whatever
     /// the declaration order.
     own_supers: HashMap<DefId, Vec<Ty>>,
+    /// The REPL inputs being lowered ([`ModIn::session`]): no `use` names
+    /// one, yet each exports its own names.
+    inputs: HashSet<String>,
 }
 
 impl Resolver<'_, '_> {
@@ -669,7 +685,7 @@ impl Resolver<'_, '_> {
             .cx
             .world
             .module_folder(module)
-            .filter(|_| self.cx.world.usable(module))
+            .filter(|_| self.cx.world.usable(module) || self.inputs.contains(module))
         else {
             return Err(Code::UnknownModule);
         };
@@ -973,6 +989,12 @@ fn scope_of(
         }
     }
     bind_uses(r, &mut scope, &mut kinds, uses, diags);
+    if let Some(outer) = &m.session {
+        scope = outer.scope.overlay(&scope);
+        for (d, k) in &outer.kinds {
+            kinds.entry(*d).or_insert(*k);
+        }
+    }
     prelude(r, m, heads, &mut scope, &mut kinds, diags);
     (scope, kinds)
 }
@@ -4693,6 +4715,11 @@ pub fn build_folder(
         own_traits: HashMap::new(),
         own_types: RefCell::new(HashMap::new()),
         own_supers: HashMap::new(),
+        inputs: mods
+            .iter()
+            .filter(|m| m.session.is_some())
+            .map(|m| m.path.clone())
+            .collect(),
     };
     for (m, hs) in mods.iter().zip(&all_heads) {
         for h in hs {
@@ -4702,9 +4729,11 @@ pub fn build_folder(
             // A local declaration is no module member (`names.local-type.static`),
             // and no other module sees a test item (`names.tests.inside-only`).
             if h.local.is_none() && h.test.is_none() {
-                r.own
-                    .entry((m.path.clone(), h.name))
-                    .or_insert((h.def, h.kind, h.public));
+                r.own.entry((m.path.clone(), h.name)).or_insert((
+                    h.def,
+                    h.kind,
+                    h.public || m.session.is_some(),
+                ));
             }
             if let Some(gl) = Src::child(h.node, SyntaxKind::GenericParameterList) {
                 let toks = &m.src.parse.tokens;
@@ -4758,7 +4787,7 @@ pub fn build_folder(
         }
     }
     for (m, us) in mods.iter().zip(&all_uses) {
-        for u in us.iter().filter(|u| u.public) {
+        for u in us.iter().filter(|u| u.public || m.session.is_some()) {
             let module = u.module();
             for g in u.group.iter().flatten() {
                 let local = names.syms.intern(g.alias.as_deref().unwrap_or(&g.name));
@@ -4932,7 +4961,7 @@ pub fn build_folder(
                 .filter(|((mp, _), (_, _, p))| mp == &m.path && *p)
                 .map(|((_, n), _)| *n)
                 .collect();
-            for u in us.iter().filter(|u| u.public) {
+            for u in us.iter().filter(|u| u.public || m.session.is_some()) {
                 for g in u.group.iter().flatten() {
                     publics.push(names.syms.intern(g.alias.as_deref().unwrap_or(&g.name)));
                 }

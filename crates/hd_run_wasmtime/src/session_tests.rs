@@ -1,13 +1,9 @@
 //! The wasmtime session (repl-plan.md job S1): inputs the driver builds
-//! as session modules run one after another in one store. The driver's
-//! input goal is job C4, so each input here is a package file that later
-//! inputs reach through `use pkg.<input>`. A package module's init must be
-//! requirement-free, so an input whose top level calls the host is not
-//! kept as a file of the later inputs' builds.
+//! with `Goal::ReplInput` (job C4) run one after another in one store. A
+//! later input sees an earlier input's declarations by name.
 
 use hd_run::{HostSetup, Outcome};
 
-use crate::session_link_tests::session_module;
 use crate::{EngineConfig, HostIo, Shared, WasmtimeEngine, WasmtimeSession, thread_stack};
 
 /// A session's standard output and error, read after each input.
@@ -50,42 +46,46 @@ fn with_session(body: impl FnOnce(&mut WasmtimeSession, &Streams) + Send) {
 }
 
 /// The inputs that ran without a panic, as the driver's session and as
-/// package files, and the session they run in.
+/// the `repl#N` files of the next input's build, and the session they run
+/// in.
 struct Repl<'s> {
     session: &'s mut WasmtimeSession,
     built: hd_driver::Session,
-    files: Vec<(String, String)>,
+    files: hd_project::MemorySources,
+    next: u32,
 }
 
 impl Repl<'_> {
-    /// Builds input `name` over the earlier inputs and runs it. An input
+    /// Builds the next input over the earlier ones and runs it. An input
     /// that ends with status 0 joins the session; one that panics leaves
     /// it as it was (`cli.repl.panic.binding`).
-    fn input(&mut self, name: &str, text: &str) -> Outcome {
-        self.run(name, text, true)
-    }
-
-    /// Like `input`, for an input whose top level calls the host: later
-    /// inputs cannot use it.
-    fn statement(&mut self, name: &str, text: &str) -> Outcome {
-        self.run(name, text, false)
-    }
-
-    fn run(&mut self, name: &str, text: &str, keep: bool) -> Outcome {
-        let mut files: Vec<(&str, &str)> = self
-            .files
-            .iter()
-            .map(|(p, t)| (p.as_str(), t.as_str()))
-            .collect();
-        let path = format!("{name}.hd");
-        files.push((&path, text));
-        let (wasm, added) = session_module(&files, name, &self.built);
+    fn input(&mut self, text: &str) -> Outcome {
+        self.next += 1;
+        let n = self.next;
+        let file = hd_project::repl_file(n);
+        self.files.insert(&file, text);
+        let store = hd_cache::MemoryStore::default();
+        let host = hd_driver::Host {
+            render_tir: &[],
+            sources: &self.files,
+            store: &store,
+            clock: &hd_driver::NoClock,
+            executor: hd_driver::Executor::Serial(hd_sched::SerialOrder::Priority),
+        };
+        let packages = hd_driver::Packages {
+            session: Some(&self.built),
+            ..hd_driver::Packages::default()
+        };
+        let goal = hd_driver::Goal::ReplInput { input: n };
+        let out = hd_driver::build_packages(&host, "app", &packages, &goal);
+        assert!(out.diags.is_empty(), "{file}: {}", out.render());
+        let wasm = out.wasm.expect("a module");
         let outcome = self.session.run_input(&wasm).expect("the input runs");
         if outcome == Outcome::Exit(0) {
-            self.built.add(added);
-            if keep {
-                self.files.push((path, text.to_owned()));
-            }
+            self.built
+                .add(out.session_added.expect("what the input adds"));
+        } else {
+            self.files.retain(|p| p != file);
         }
         outcome
     }
@@ -95,7 +95,8 @@ fn repl(session: &mut WasmtimeSession) -> Repl<'_> {
     Repl {
         session,
         built: hd_driver::Session::start(),
-        files: Vec::new(),
+        files: hd_project::MemorySources::default(),
+        next: 0,
     }
 }
 
@@ -106,7 +107,8 @@ fn text(stream: &Shared) -> String {
 /// `cli.repl.panic.mutations`, the spec's `log` example: input 1 binds
 /// the mutable list `log`; input 2 pushes to it and then panics; input 3
 /// sees the push. Reading `log` by name from a later input is job C5, so
-/// input 1 also declares the functions that reach it.
+/// input 1 also declares the functions that reach it, which later inputs
+/// call by name.
 #[test]
 fn a_panicking_input_keeps_its_changes_to_earlier_values() {
     let in1 = "\
@@ -116,33 +118,23 @@ fn record_then_read(entries: mut List[string]) -> string:
     entries.push(\"started\")
     entries[5]
 
-pub fn record() -> string:
+fn record() -> string:
     record_then_read(log)
 
-pub fn entries() -> string:
+fn entries() -> string:
     \"${log.len()}: ${log.join(\", \")}\"
 ";
-    let in2 = "use pkg.in1.{record}\n\nline := record()\n";
-    let in3 = "use pkg.in1.{entries}\n\nprintln(entries())\n";
+    let in2 = "line := record()\n";
+    let in3 = "println(entries())\n";
     with_session(|session, io| {
         let mut repl = repl(session);
-        assert_eq!(
-            repl.input("in1", in1),
-            Outcome::Exit(0),
-            "{}",
-            text(&io.err)
-        );
-        assert_eq!(repl.input("in2", in2), Outcome::Exit(3));
+        assert_eq!(repl.input(in1), Outcome::Exit(0), "{}", text(&io.err));
+        assert_eq!(repl.input(in2), Outcome::Exit(3));
         assert_eq!(
             text(&io.err),
             "panic: index-out-of-bounds: list index out of bounds\n"
         );
-        assert_eq!(
-            repl.statement("in3", in3),
-            Outcome::Exit(0),
-            "{}",
-            text(&io.err)
-        );
+        assert_eq!(repl.input(in3), Outcome::Exit(0), "{}", text(&io.err));
         assert_eq!(text(&io.out), "1: started\n");
     });
 }
@@ -164,24 +156,14 @@ cleanup([+1])
     let in3 = "println(\"after\")\n";
     with_session(|session, io| {
         let mut repl = repl(session);
-        assert_eq!(
-            repl.statement("in1", in1),
-            Outcome::Exit(0),
-            "{}",
-            text(&io.err)
-        );
+        assert_eq!(repl.input(in1), Outcome::Exit(0), "{}", text(&io.err));
         assert_eq!(text(&io.out), "ready\n");
-        assert_eq!(repl.input("in2", in2), Outcome::Exit(3));
+        assert_eq!(repl.input(in2), Outcome::Exit(3));
         assert_eq!(
             text(&io.err),
             "panic: index-out-of-bounds: list index out of bounds\n"
         );
-        assert_eq!(
-            repl.statement("in3", in3),
-            Outcome::Exit(0),
-            "{}",
-            text(&io.err)
-        );
+        assert_eq!(repl.input(in3), Outcome::Exit(0), "{}", text(&io.err));
         assert_eq!(text(&io.out), "after\n");
         assert_eq!(text(&io.err), "");
     });
@@ -191,40 +173,43 @@ cleanup([+1])
 /// later inputs, which call a function of an earlier one, repeat none.
 #[test]
 fn an_input_writes_its_output_once() {
-    let in1 = "pub fn twice(x: i32) -> i32:\n    x * +2\n";
+    let in1 = "fn twice(x: i32) -> i32:\n    x * +2\n";
     let in2 = "println(\"one\")\n";
-    let in3 = "use pkg.in1.{twice}\n\nprintln(twice(+21))\n";
-    let in4 = "use pkg.in1.{twice}\n\nprintln(twice(+1))\n";
+    let in3 = "println(twice(+21))\n";
+    let in4 = "println(twice(+1))\n";
     with_session(|session, io| {
         let mut repl = repl(session);
-        assert_eq!(
-            repl.input("in1", in1),
-            Outcome::Exit(0),
-            "{}",
-            text(&io.err)
-        );
+        assert_eq!(repl.input(in1), Outcome::Exit(0), "{}", text(&io.err));
         assert_eq!(text(&io.out), "");
-        assert_eq!(
-            repl.statement("in2", in2),
-            Outcome::Exit(0),
-            "{}",
-            text(&io.err)
-        );
+        assert_eq!(repl.input(in2), Outcome::Exit(0), "{}", text(&io.err));
         assert_eq!(text(&io.out), "one\n");
-        assert_eq!(
-            repl.statement("in3", in3),
-            Outcome::Exit(0),
-            "{}",
-            text(&io.err)
-        );
+        assert_eq!(repl.input(in3), Outcome::Exit(0), "{}", text(&io.err));
         assert_eq!(text(&io.out), "42\n");
-        assert_eq!(
-            repl.statement("in4", in4),
-            Outcome::Exit(0),
-            "{}",
-            text(&io.err)
-        );
+        assert_eq!(repl.input(in4), Outcome::Exit(0), "{}", text(&io.err));
         assert_eq!(text(&io.out), "2\n");
         assert_eq!(text(&io.err), "");
+    });
+}
+
+/// The spec's Redefinition example without its redeclaration
+/// (`cli.repl.declarations.bindings` through a function: a later input
+/// reading `rate` by name is job C5). Each input calls the functions of
+/// earlier ones by name.
+#[test]
+fn later_inputs_call_earlier_inputs_functions() {
+    let inputs = [
+        "rate := +3\n\nfn price(n: i32) -> i32:\n    n * rate\n",
+        "fn total() -> i32:\n    price(+2)\n",
+        "println(total())\n",
+        "fn doubled() -> i32:\n    total() * +2\n",
+        "println(doubled())\n",
+        "let count = +1\ncount = count + price(+1)\nprintln(count)\n",
+    ];
+    with_session(|session, io| {
+        let mut repl = repl(session);
+        for input in inputs {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        assert_eq!(text(&io.out), "6\n12\n4\n");
     });
 }

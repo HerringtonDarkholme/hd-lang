@@ -120,6 +120,7 @@ mod recursive_layouts;
 mod rejected_pattern_binds;
 mod related_traits;
 mod release_profile_run;
+mod repl_input;
 mod row_aliases;
 mod row_invariant_nested;
 mod row_param_nested;

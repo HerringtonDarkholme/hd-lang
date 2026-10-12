@@ -235,6 +235,17 @@ pub enum Goal {
     /// into its test-role `check` entry, as a test run checks them
     /// (`hd check --tests`, `cli.check.tests`).
     CheckTests,
+    /// The `input`th input of a REPL session (repl-plan.md §2.2): the root
+    /// package's synthetic file `repl#N` ([`hd_project::repl_file`]), a
+    /// module outside every package folder, polled as a script. The
+    /// sources hold the session's earlier inputs as `repl#K` files, `K`
+    /// below `input`, without the inputs that panicked
+    /// (`cli.repl.panic.binding`). An input sees `src/lib.hd`'s scope with
+    /// each earlier input's top-level names nested in it
+    /// (`cli.repl.package.lib`). With [`Packages::session`], it links as
+    /// one more module of that session, so only it is checked, emitted
+    /// and linked.
+    ReplInput { input: u32 },
 }
 
 /// A test case as the test plan lists it (§19.2), in content order.
@@ -633,6 +644,22 @@ type TestsOut = (Vec<Item>, Vec<hd_check::tests::TestReg>);
 /// §3.9); `None` for a template whose body does not check.
 type PlanCell = Arc<OnceLock<Option<Arc<[MemberStep]>>>>;
 
+/// `src/lib.hd` lowered for a REPL session: its scope, its kinds, and its
+/// private items, which no interface carries.
+struct LibScope {
+    scope: hd_resolve::ModuleScope,
+    kinds: hd_resolve::Kinds,
+    private: Vec<Item>,
+}
+
+/// The REPL input modules of a run ([`Goal::ReplInput`]).
+struct ReplInputs {
+    /// (number, module), by number.
+    sorted: Vec<(u32, usize)>,
+    /// Each module's number, if it is an input.
+    numbers: Vec<Option<u32>>,
+}
+
 struct Run<'a> {
     host: &'a Host<'a>,
     observer: Option<&'a dyn StageObserver>,
@@ -699,6 +726,13 @@ struct Run<'a> {
     session: Option<&'a Session>,
     /// What this run's module adds to that session ([`Output::session_added`]).
     session_added: OnceLock<Session>,
+    /// `src/lib.hd`'s scope, kinds and items, lowered once for the REPL
+    /// inputs' session scopes (`cli.repl.package.lib`).
+    lib_scope: OnceLock<Option<LibScope>>,
+    /// Per REPL input: the session scope its own scope is nested in.
+    session_scopes: Vec<OnceLock<Arc<hd_resolve::SessionScope>>>,
+    /// The REPL input modules of the root package.
+    repl_inputs: OnceLock<ReplInputs>,
     diags: Mutex<DiagBuf>,
     report: Mutex<PipelineReport>,
     counters: Mutex<Counters>,
@@ -941,7 +975,7 @@ fn build_packages_inner(
         profile,
         pipeline,
         build_profile: match goal {
-            Goal::Program { .. } => packages.build_profile,
+            Goal::Program { .. } | Goal::ReplInput { .. } => packages.build_profile,
             Goal::Tests { .. } | Goal::Analyze | Goal::CheckTests => BuildProfile::Checked,
         },
         fetched: std::iter::once(false)
@@ -967,6 +1001,9 @@ fn build_packages_inner(
         wasm: OnceLock::new(),
         session: packages.session,
         session_added: OnceLock::new(),
+        lib_scope: OnceLock::new(),
+        session_scopes: (0..n).map(|_| OnceLock::new()).collect(),
+        repl_inputs: OnceLock::new(),
         diags: Mutex::new(DiagBuf::default()),
         report: Mutex::new(PipelineReport {
             package: package.to_owned(),
@@ -1494,6 +1531,9 @@ impl Run<'_> {
         if test_code && testing_elsewhere {
             uses.push("std.testing".to_owned());
         }
+        // A REPL input sees `src/lib.hd` and the earlier inputs through
+        // its session scope, so their folders join its closure.
+        uses.extend(self.session_modules(m));
         // The prelude's fixed uses (`module.prelude.fixed-uses`).
         if module != "std.core" {
             uses.extend(hd_resolve::prelude_modules().into_iter().map(str::to_owned));
@@ -1896,7 +1936,17 @@ impl Run<'_> {
                 diags.error(Code::Unsupported, span, &msg);
             }
         }
-        let items = hd_resolve::interface_items(&all);
+        // A REPL input's interface carries every item it declares, for
+        // later inputs, which see them whatever their `pub`.
+        let input = folder
+            .modules
+            .iter()
+            .any(|m| self.repl_number(m.idx()).is_some());
+        let items = if input {
+            all
+        } else {
+            hd_resolve::interface_items(&all)
+        };
         let blob = match hd_resolve::encode_items(&names, &items, &out.exports) {
             Ok(b) => b,
             Err(e) => {
@@ -1971,7 +2021,125 @@ impl Run<'_> {
             src: self.src(m),
             seeds,
             tests: false,
+            session: self.session_scope(m),
         }
+    }
+
+    /// The number of the REPL input module `m` is, if it is one
+    /// ([`Goal::ReplInput`]).
+    fn repl_number(&self, m: usize) -> Option<u32> {
+        self.repl_inputs().numbers[m]
+    }
+
+    fn repl_inputs(&self) -> &ReplInputs {
+        self.repl_inputs.get_or_init(|| {
+            let numbers: Vec<Option<u32>> = (0..self.table.modules.len())
+                .map(|k| {
+                    (self.table.modules[k].package == 0)
+                        .then(|| hd_project::repl_input(&self.table.files[k]))
+                        .flatten()
+                })
+                .collect();
+            let mut sorted: Vec<(u32, usize)> = numbers
+                .iter()
+                .enumerate()
+                .filter_map(|(k, n)| Some(((*n)?, k)))
+                .collect();
+            sorted.sort_unstable();
+            ReplInputs { sorted, numbers }
+        })
+    }
+
+    /// The root package's `src/lib.hd`, if it has one.
+    fn lib_module(&self) -> Option<usize> {
+        self.table
+            .sources
+            .iter()
+            .position(|(p, file)| *p == 0 && file == "src/lib.hd")
+    }
+
+    /// The inputs before REPL input `m`, in order; none for any other
+    /// module.
+    fn earlier_inputs(&self, m: usize) -> &[(u32, usize)] {
+        let sorted = &self.repl_inputs().sorted;
+        let n = self
+            .repl_number(m)
+            .map_or(0, |n| sorted.partition_point(|(k, _)| *k < n));
+        &sorted[..n]
+    }
+
+    /// The modules REPL input `m` sees through its session scope:
+    /// `src/lib.hd`, then the earlier inputs in order. None for any other
+    /// module.
+    fn session_modules(&self, m: usize) -> Vec<String> {
+        if self.repl_number(m).is_none() {
+            return Vec::new();
+        }
+        let earlier = self.earlier_inputs(m).iter().map(|(_, k)| *k);
+        self.lib_module()
+            .into_iter()
+            .chain(earlier)
+            .map(|k| self.table.modules[k].path.clone())
+            .collect()
+    }
+
+    /// `src/lib.hd` lowered against its frozen interface, once per run.
+    fn lib_scope(&self) -> Option<&LibScope> {
+        self.lib_scope
+            .get_or_init(|| {
+                let lib = self.lib_module()?;
+                let o = self
+                    .lower_module(lib, Stage::ModulePrep, &mut DiagBuf::default())
+                    .ok()??;
+                let private = o
+                    .items
+                    .into_iter()
+                    .filter(|i| !i.public && !matches!(i.data, ItemData::Impl { .. }))
+                    .collect();
+                Some(LibScope {
+                    scope: o.scope,
+                    kinds: o.kinds,
+                    private,
+                })
+            })
+            .as_ref()
+    }
+
+    /// The session scope of REPL input `m` (`cli.repl.package.lib`):
+    /// `src/lib.hd`'s scope, with the top-level names of each earlier input
+    /// nested in it, the newest last. An input exports every top-level
+    /// name it declares or uses (`hd_resolve::ModIn::session`), so its
+    /// interface's exports are those names.
+    fn session_scope(&self, m: usize) -> Option<Arc<hd_resolve::SessionScope>> {
+        self.repl_number(m)?;
+        let scope = self.session_scopes[m].get_or_init(|| {
+            let mut out = self
+                .lib_scope()
+                .map_or_else(hd_resolve::SessionScope::default, |lib| {
+                    hd_resolve::SessionScope {
+                        scope: lib.scope.clone(),
+                        kinds: lib.kinds.clone(),
+                    }
+                });
+            for &(_, k) in self.earlier_inputs(m) {
+                let module = &self.table.modules[k];
+                let Some(iface) = self.iface_of(module.folder) else {
+                    continue;
+                };
+                let mut inner = hd_resolve::ModuleScope::default();
+                for e in iface.exports.iter().filter(|e| e.module == module.path) {
+                    let b = hd_resolve::Binding {
+                        kind: hd_resolve::BindingKind::Item,
+                        value: e.def.raw(),
+                    };
+                    inner.bind(e.name, b, hd_resolve::Origin::Use, u32::MAX);
+                    out.kinds.insert(e.def, e.kind);
+                }
+                out.scope = out.scope.overlay(&inner);
+            }
+            Arc::new(out)
+        });
+        Some(Arc::clone(scope))
     }
 
     /// One module's items (private ones included), scope and kinds,
@@ -2439,6 +2607,13 @@ impl Run<'_> {
             ));
         }
         closure.extend(templates.iter().map(|(p, h)| (p.as_str(), *h)));
+        // A REPL input sees `src/lib.hd`'s private declarations, which no
+        // interface carries (`cli.repl.package.lib`).
+        if self.repl_number(m).is_some()
+            && let Some(lib) = self.lib_module()
+        {
+            closure.push(("$lib", self.skim_of(lib).token_hash));
+        }
         // A dependency's module is checked against the root's profile, so
         // its key holds both packages.
         let package = if module.package == 0 {
@@ -2704,7 +2879,14 @@ impl Run<'_> {
         let closure = self.closure(module.folder);
         let ifaces: Vec<Arc<FolderIface>> =
             closure.iter().filter_map(|f| self.iface_of(*f)).collect();
-        let lookup = Lookup::new(&prep.items, ifaces.iter().map(AsRef::as_ref).collect());
+        // A REPL input also sees `src/lib.hd`'s private items
+        // (`cli.repl.package.lib`), which no interface carries.
+        let input = self.repl_number(m).is_some();
+        let own: std::borrow::Cow<'_, [Item]> = match self.lib_scope().filter(|_| input) {
+            Some(lib) => prep.items.iter().chain(&lib.private).cloned().collect(),
+            None => std::borrow::Cow::Borrowed(&prep.items),
+        };
+        let lookup = Lookup::new(&own, ifaces.iter().map(AsRef::as_ref).collect());
         let names = self.names();
         let own_impls: Vec<&Item> = prep
             .items
@@ -2806,23 +2988,26 @@ impl Run<'_> {
         }
         let mut init_facts = Vec::new();
         // A test program has no entry module: every top level is
-        // requirement-free.
+        // requirement-free. Every REPL input is an entry, whichever input
+        // the run builds: its top level runs as the input does.
         let entry_name = match &self.goal {
             Goal::Program { entry } => Some(entry.as_str()),
-            Goal::Tests { .. } => None,
+            Goal::Tests { .. } | Goal::ReplInput { .. } => None,
             Goal::Analyze | Goal::CheckTests => Some("main"),
         };
-        let entry = module.package == 0
-            && entry_name.is_some_and(|e| {
-                module.path == format!("{}.{e}", hd_project::package_ident(&self.package))
-            });
+        let entry = input
+            || (module.package == 0
+                && entry_name.is_some_and(|e| {
+                    module.path == format!("{}.{e}", hd_project::package_ident(&self.package))
+                }));
         // `module.init.script-empty`: a program's entry module with no
         // public `main` is a script even with no statements, and its empty
-        // init is the whole program.
-        let empty_script = entry
-            && stmts.is_empty()
-            && matches!(self.goal, Goal::Program { .. })
-            && self.skim_of(m).public_main.is_none();
+        // init is the whole program. A REPL input is always one.
+        let empty_script = stmts.is_empty()
+            && (input
+                || (entry
+                    && matches!(self.goal, Goal::Program { .. })
+                    && self.skim_of(m).public_main.is_none()));
         if !stmts.is_empty() || empty_script {
             let item = hd_check::default_body_def(&names, names.item(&module.path, "init"), "init");
             match hd_check::init::check_init(&cx, item, &module.path, &stmts, entry, &mut diags) {
@@ -4034,7 +4219,7 @@ impl Run<'_> {
             .collect();
         self.dbg_in_release();
         match &self.goal {
-            Goal::Program { .. } | Goal::Tests { .. } => {
+            Goal::Program { .. } | Goal::ReplInput { .. } | Goal::Tests { .. } => {
                 if !lock(&self.diags).has_errors() {
                     sp.add(TaskKind::Ext(ExtTask::Collect), &orders);
                 }
@@ -4190,6 +4375,14 @@ impl Run<'_> {
                 let root = names.item(&entry_module, "main");
                 (entry_module, vec![(root, String::new())])
             }
+            // An input is a script: its init is the root.
+            Goal::ReplInput { input } => {
+                let entry_module =
+                    hd_project::module_path(&self.package, &hd_project::repl_file(*input));
+                let root =
+                    hd_check::default_body_def(&names, names.item(&entry_module, "init"), "init");
+                (entry_module, vec![(root, String::new())])
+            }
             Goal::Tests { module, filter } => {
                 let cases: Vec<(DefId, String)> = self
                     .test_plan()
@@ -4266,7 +4459,11 @@ impl Run<'_> {
             .is_none_or(|m| self.skim_of(m).public_main.is_some());
         let has_main =
             p.bodies.contains_key(&main) && (public || !matches!(self.goal, Goal::Program { .. }));
-        let script = matches!(self.goal, Goal::Program { .. }) && !has_main;
+        let script = match self.goal {
+            Goal::Program { .. } => !has_main,
+            Goal::ReplInput { .. } => true,
+            Goal::Tests { .. } | Goal::Analyze | Goal::CheckTests => false,
+        };
         let root = if script { init_of(&entry_key) } else { main };
         if !p.bodies.contains_key(&root) {
             let span = Span {
@@ -4322,7 +4519,9 @@ impl Run<'_> {
         }
         // The entry module's init is one body: a script polls it last with
         // its entry providers, and only it may `block_on`.
-        if matches!(self.goal, Goal::Program { .. }) && has_init(&entry_key) {
+        if matches!(self.goal, Goal::Program { .. } | Goal::ReplInput { .. })
+            && has_init(&entry_key)
+        {
             let whole = init_of(&entry_key);
             if !all_inits.contains(&whole) || (script && all_inits.last() != Some(&whole)) {
                 self.stage::<()>(
@@ -4401,7 +4600,7 @@ impl Run<'_> {
                 .filter(|k| collected.inits.contains(k))
         };
         let plan = match &self.goal {
-            Goal::Program { .. } if script => Roots::Script {
+            Goal::Program { .. } | Goal::ReplInput { .. } if script => Roots::Script {
                 def: root,
                 key: collected.table.key[0],
             },

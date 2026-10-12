@@ -89,6 +89,11 @@ pub enum Root {
     Test,
     /// `tasks` (`cli.task.file`).
     Task,
+    /// A REPL input (repl-plan.md §2.2): the synthetic file `repl#N` of
+    /// the session's `N`th input, outside every package folder. It is its
+    /// own module and its own folder, and its relative lookup starts at
+    /// the package root module, as `src/lib.hd`'s does (`cli.repl.package.lib`).
+    Repl,
     /// A package without that layout, as std or a single-file program:
     /// its files sit directly under the package directory.
     Flat,
@@ -98,7 +103,9 @@ impl Root {
     /// The root of a package-relative file, and the file's path below it.
     #[must_use]
     pub fn of(file: &str) -> (Root, &str) {
-        if let Some(rest) = file.strip_prefix("src/") {
+        if repl_input(file).is_some() {
+            (Root::Repl, file)
+        } else if let Some(rest) = file.strip_prefix("src/") {
             (Root::Source, rest)
         } else if let Some(rest) = file.strip_prefix("tests/") {
             (Root::Test, rest)
@@ -117,9 +124,28 @@ impl Root {
         match self {
             Root::Test => Some("$tests"),
             Root::Task => Some("$tasks"),
-            Root::Source | Root::Flat => None,
+            Root::Source | Root::Flat | Root::Repl => None,
         }
     }
+}
+
+/// The number `N` of a REPL input's synthetic file `repl#N`
+/// ([`Root::Repl`]), counted from 1. No file on disk has this name: a
+/// source file's name ends in `.hd`.
+#[must_use]
+pub fn repl_input(file: &str) -> Option<u32> {
+    let n = file.strip_prefix("repl#")?;
+    if n.starts_with('0') || !n.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    n.parse().ok().filter(|n| *n > 0)
+}
+
+/// The synthetic file of a session's `n`th input, as diagnostics name it
+/// (`repl#3:1:5`).
+#[must_use]
+pub fn repl_file(n: u32) -> String {
+    format!("repl#{n}")
 }
 
 /// The identifier form of a package name, which module paths start with:
@@ -201,6 +227,10 @@ pub fn rename_roots(text: &str, renamed: &[(String, String)]) -> String {
 /// `main`.
 #[must_use]
 pub fn module_below(file: &str) -> String {
+    // A REPL input's segment is the compiler's own, which no source spells.
+    if let Some(n) = repl_input(file) {
+        return format!("$repl{n}");
+    }
     let (root, rest) = Root::of(file);
     let stem = rest.strip_suffix(".hd").unwrap_or(rest);
     let mut segs: Vec<&str> = root.segment().into_iter().collect();
@@ -220,6 +250,7 @@ fn is_root_file(file: &str) -> bool {
     match Root::of(file) {
         (Root::Source, rest) => rest == "lib.hd" || rest == "main.hd",
         (Root::Test | Root::Task, rest) => !rest.contains('/'),
+        (Root::Repl, _) => true,
         (Root::Flat, _) => false,
     }
 }
@@ -483,7 +514,7 @@ pub struct ModuleTable {
 /// the compiler's own. A flat file is no module, so it has none.
 fn invalid_module_component(file: &str) -> Option<String> {
     let (root, rest) = Root::of(file);
-    if root == Root::Flat {
+    if matches!(root, Root::Flat | Root::Repl) {
         return None;
     }
     let stem = rest.strip_suffix(".hd").unwrap_or(rest);
@@ -672,7 +703,7 @@ impl ModuleTable {
                 // folder holds test code (`module.cycle.test-code`).
                 let folder = if !executable && role_of(&e.path) == Role::Test {
                     format!("{root}.$tests")
-                } else if mod_file || dirs.contains(stem) {
+                } else if mod_file || dirs.contains(stem) || repl_input(&e.path).is_some() {
                     path.clone()
                 } else {
                     folder_of(&path).to_owned()
@@ -834,8 +865,12 @@ impl ModuleTable {
         // dev dependency, a unit test module those that do not depend back
         // on the package, other code none (`module.test.dev-dependency`,
         // `module.test.cyclic-dev-unit`, `cli.task.dev-dependencies`).
-        let unit_test = Root::of(&self.files[m.idx()]).0 == Root::Source;
+        let root = Root::of(&self.files[m.idx()]).0;
+        let unit_test = root == Root::Source;
         let access = match module.role {
+            // A REPL session may use the dev dependencies
+            // (`cli.repl.package.dependencies`).
+            _ if root == Root::Repl => DevAccess::All,
             Role::Task => DevAccess::All,
             Role::Test if unit_test => DevAccess::Unit,
             Role::Test => DevAccess::All,
