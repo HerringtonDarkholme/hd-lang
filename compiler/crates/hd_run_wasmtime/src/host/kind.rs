@@ -1,0 +1,214 @@
+use wasmtime::ValType;
+
+use super::Stop;
+use crate::fs::{READ, WRITE};
+use crate::net::{CLOSE, METHODS};
+use crate::profiles::{self, RuntimeProfile};
+
+/// The imports that run on wasmtime.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Kind {
+    Test(TestMethod),
+    Fixture(profiles::Method),
+    Fs {
+        key: &'static str,
+        method: &'static str,
+        finish: bool,
+    },
+    ProcessStart,
+    HttpStart,
+    Net {
+        method: &'static str,
+        input: Option<usize>,
+        close: bool,
+    },
+    NeverFinish,
+    RandomNext,
+    RandomFill,
+    Sys(&'static str),
+    Block,
+    Abort,
+    Stderr,
+    FormatF64,
+    FormatF32,
+    FormatFixed,
+    Lower,
+    Upper,
+    ParseF64,
+    WriteLineStart,
+    WriteLineFinish,
+    ReadLineStart,
+    ReadLineFinish,
+    Now,
+    Monotonic,
+    SleepStart,
+    SleepFinish,
+    Program,
+    ArgsList,
+    EnvGet,
+    EnvNames,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum TestMethod {
+    Row,
+    Timeout,
+    Snapshot,
+    TempDir,
+    Start,
+    Record,
+    Show,
+}
+
+impl Kind {
+    /// Reject malformed result shapes before executing any provider effects.
+    /// Integer width compatibility is retained; floats/references are never
+    /// silently filled with integer values.
+    pub(crate) fn validate_results(self, results: &[ValType]) -> wasmtime::Result<()> {
+        let integer = |ty: &ValType| matches!(ty, ValType::I32 | ValType::I64);
+        let valid = match self {
+            Self::Test(TestMethod::Timeout | TestMethod::Record | TestMethod::Show)
+            | Self::Abort
+            | Self::Stderr => results.is_empty(),
+            Self::ParseF64 => matches!(results, [ValType::F64]),
+            Self::Fs { finish: false, .. }
+            | Self::ProcessStart
+            | Self::HttpStart
+            | Self::Net { close: false, .. }
+            | Self::WriteLineStart
+            | Self::ReadLineStart
+            | Self::SleepStart => match results {
+                [status, value] => integer(status) && integer(value),
+                _ => false,
+            },
+            _ => match results {
+                [value] => integer(value),
+                _ => false,
+            },
+        };
+        if valid {
+            Ok(())
+        } else {
+            Err(Stop::Contract(format!("the import {self:?} has an unexpected signature")).into())
+        }
+    }
+    pub(crate) fn with_test(
+        module: &str,
+        name: &str,
+        kind: crate::test_engine::TestHostKind,
+    ) -> Option<Self> {
+        let test = match (module, name) {
+            ("hd:TestRunner", "row") => Some(TestMethod::Row),
+            ("hd:TestRunner", "report_timeout") => Some(TestMethod::Timeout),
+            ("hd:TestRunner", "snapshot_check") => Some(TestMethod::Snapshot),
+            ("hd:TestRunner", "temp_dir") => Some(TestMethod::TempDir),
+            ("hd:PropertyRunner", "start") => Some(TestMethod::Start),
+            ("hd:PropertyRunner", "record") => Some(TestMethod::Record),
+            ("hd:PropertyRunner", "show") => Some(TestMethod::Show),
+            _ => None,
+        };
+        if let Some(method) = test {
+            return Some(Self::Test(method));
+        }
+        if kind == crate::test_engine::TestHostKind::Unit && !matches!(module, "hd:rt" | "hd:prim")
+        {
+            return None;
+        }
+        Self::with_profile(module, name, kind.profile())
+    }
+    pub(crate) fn with_profile(module: &str, name: &str, profile: RuntimeProfile) -> Option<Self> {
+        Self::of(module, name).or_else(|| profile.method(module, name).map(Self::Fixture))
+    }
+
+    fn of(module: &str, name: &str) -> Option<Kind> {
+        if module == "hd:Net" {
+            for &method in CLOSE {
+                if name == method {
+                    return Some(Kind::Net {
+                        method,
+                        input: None,
+                        close: true,
+                    });
+                }
+            }
+            let (method, suffix) = name.rsplit_once('.')?;
+            let method = *METHODS.iter().find(|m| **m == method)?;
+            let input = match method {
+                "lookup" => Some(0),
+                "connect" | "listen" | "bind_udp" | "TcpStream.write" => Some(1),
+                "UdpSocket.send_to" => Some(2),
+                _ => None,
+            };
+            return match suffix {
+                "start" => Some(Kind::Net {
+                    method,
+                    input,
+                    close: false,
+                }),
+                "finish" => Some(Kind::NeverFinish),
+                _ => None,
+            };
+        }
+        if let Some((key, methods)) = match module {
+            "hd:FsRead" => Some(("FsRead", READ)),
+            "hd:FsWrite" => Some(("FsWrite", WRITE)),
+            _ => None,
+        } {
+            let (method, suffix) = name.rsplit_once('.')?;
+            let method = *methods.iter().find(|m| **m == method)?;
+            return match suffix {
+                "start" => Some(Kind::Fs {
+                    key,
+                    method,
+                    finish: false,
+                }),
+                "finish" => Some(Kind::Fs {
+                    key,
+                    method,
+                    finish: true,
+                }),
+                _ => None,
+            };
+        }
+        Some(match (module, name) {
+            ("hd:Http", "send.start") => Kind::HttpStart,
+            ("hd:Http", "send.finish") => Kind::NeverFinish,
+            ("hd:Process", "run.start") => Kind::ProcessStart,
+            ("hd:Process", "run.finish") => Kind::NeverFinish,
+            ("hd:Random", "next_u64") => Kind::RandomNext,
+            ("hd:Random", "fill") => Kind::RandomFill,
+            ("hd:Sys", "os") => Kind::Sys("os"),
+            ("hd:Sys", "arch") => Kind::Sys("arch"),
+            ("hd:Sys", "hostname") => Kind::Sys("hostname"),
+            ("hd:Sys", "cpu_count") => Kind::Sys("cpu_count"),
+            ("hd:rt", "block") => Kind::Block,
+            ("hd:rt", "abort") => Kind::Abort,
+            ("hd:rt", "stderr") => Kind::Stderr,
+            ("hd:prim", "format_f64") => Kind::FormatF64,
+            ("hd:prim", "format_f32") => Kind::FormatF32,
+            ("hd:prim", "format_f64_fixed") => Kind::FormatFixed,
+            ("hd:prim", "string_lower") => Kind::Lower,
+            ("hd:prim", "string_upper") => Kind::Upper,
+            ("hd:prim", "parse_f64") => Kind::ParseF64,
+            ("hd:Console", "write_line.start") => Kind::WriteLineStart,
+            ("hd:Console", "write_line.finish") => Kind::WriteLineFinish,
+            ("hd:ConsoleInput", "read_line.start") => Kind::ReadLineStart,
+            ("hd:ConsoleInput", "read_line.finish") => Kind::ReadLineFinish,
+            ("hd:Clock", "now") => Kind::Now,
+            ("hd:Clock", "monotonic") => Kind::Monotonic,
+            ("hd:Clock", "sleep.start") => Kind::SleepStart,
+            ("hd:Clock", "sleep.finish") => Kind::SleepFinish,
+            ("hd:Args", "program") => Kind::Program,
+            ("hd:Args", "list") => Kind::ArgsList,
+            ("hd:Env", "get") => Kind::EnvGet,
+            ("hd:Env", "names") => Kind::EnvNames,
+            _ => return None,
+        })
+    }
+}
+
+/// Whether an import runs on wasmtime.
+#[must_use]
+pub fn supported(module: &str, name: &str, profile: RuntimeProfile) -> bool {
+    Kind::with_profile(module, name, profile).is_some()
+}
