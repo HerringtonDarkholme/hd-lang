@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2739 | 90 | 16 | 2845 |
+| 2743 | 86 | 16 | 2845 |
 
 ## By Chapter
 
@@ -17,7 +17,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 145 | 0 | 0 | 145 |
 | `lang/02-grammar.md` | 213 | 2 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
-| `lang/04-type-system.md` | 337 | 15 | 0 | 352 |
+| `lang/04-type-system.md` | 341 | 11 | 0 | 352 |
 | `lang/05-expressions.md` | 270 | 7 | 0 | 277 |
 | `lang/06-control-flow.md` | 144 | 9 | 4 | 157 |
 | `lang/07-functions.md` | 123 | 7 | 0 | 130 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 916 | 1 | 12 | 929 |
-| `typing/invalid` | 994 | 80 | 1 | 1075 |
+| `typing/invalid` | 998 | 76 | 1 | 1075 |
 | `typing/valid` | 414 | 1 | 0 | 415 |
 | `typing/warnings` | 12 | 8 | 0 | 20 |
 
@@ -89,7 +89,7 @@ compiler stage that first declined the case.
 | `fail:re-export-loop` | 1 |
 | `fail:readonly-root` | 1 |
 | `fail:trait-used-as-type` | 1 |
-| `fail:type-mismatch` | 9 |
+| `fail:type-mismatch` | 5 |
 | `fail:unknown-data-field` | 2 |
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 5 |
@@ -231,16 +231,12 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (9)</summary>
+<details><summary><code>fail:type-mismatch</code> (5)</summary>
 
 - `typing/invalid/variance-representation-change.hd`
 - `typing/invalid/derived-generic-bound.hd`
 - `typing/invalid/contravariant-representation-change.hd`
 - `typing/invalid/function-result-representation-change.hd`
-- `typing/invalid/no-widening-operator.hd`
-- `typing/invalid/no-widening-float.hd`
-- `typing/invalid/mixed-width-operands-no-widening.hd`
-- `typing/invalid/usize-u32-operand.hd`
 - `typing/invalid/derived-eq-bound-unmet-data-argument.hd`
 
 </details>
@@ -2179,6 +2175,7 @@ typing/invalid/missing-trait-method.hd
 typing/invalid/mixed-derived-law.hd
 typing/invalid/mixed-numeric-power.hd
 typing/invalid/mixed-signedness.hd
+typing/invalid/mixed-width-operands-no-widening.hd
 typing/invalid/module-file-and-directory-module.hd
 typing/invalid/module-path-missing-member.hd
 typing/invalid/module-path-private-member.hd
@@ -2217,7 +2214,9 @@ typing/invalid/nil-is-unknown-name.hd
 typing/invalid/no-fit-candidate.hd
 typing/invalid/no-widening-argument.hd
 typing/invalid/no-widening-assignment.hd
+typing/invalid/no-widening-float.hd
 typing/invalid/no-widening-list-literal.hd
+typing/invalid/no-widening-operator.hd
 typing/invalid/no-widening-range-bounds.hd
 typing/invalid/no-widening-return.hd
 typing/invalid/nominal-map-key.hd
@@ -2642,6 +2641,7 @@ typing/invalid/user-anyval-implementation.hd
 typing/invalid/user-map-key-bound.hd
 typing/invalid/user-suspend-implementation.hd
 typing/invalid/usize-to-u32-argument.hd
+typing/invalid/usize-u32-operand.hd
 typing/invalid/vararg-function-value-arity.hd
 typing/invalid/vararg-function-value-list.hd
 typing/invalid/vararg-rest-distinct.hd

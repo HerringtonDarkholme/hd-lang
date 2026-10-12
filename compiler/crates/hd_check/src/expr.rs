@@ -768,11 +768,11 @@ impl Ck<'_, '_> {
             return self.operator_trait_call(prim, (a, at), (c, ct), n, rn);
         }
         if self.numeric(at) || (ats == Ty::BOOL && bool_ops) {
-            let mixed = !shift && self.mixes_signedness(at, ct);
+            let mut mixed = false;
             if shift {
                 let _ = self.unsigned_count(ct, rn, "a shift count", true);
             } else {
-                self.expect(ct, at, rn, "operand");
+                mixed = self.expect(ct, at, rn, "operand");
             }
             // `expr.bit.non-integer-no-impl`: bitwise operators and shifts
             // take integers.
@@ -780,7 +780,7 @@ impl Ck<'_, '_> {
                 let msg = format!("bitwise operators take integers, not {}", self.show(at));
                 self.err(Code::TypeMismatch, n, &msg);
             }
-            // A mixed pair is reported at its operand; the result is not
+            // A mismatched pair is reported at its operand; the result is not
             // checked again, so it adds no knock-on report.
             let result = if mixed {
                 Ty::POISON

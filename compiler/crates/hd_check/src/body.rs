@@ -1356,10 +1356,11 @@ impl Ck<'_, '_> {
         }))
     }
 
-    pub(crate) fn expect(&mut self, got: Ty, want: Ty, n: NodeRef<'_>, what: &str) {
+    /// Reports a mismatch and returns whether it did.
+    pub(crate) fn expect(&mut self, got: Ty, want: Ty, n: NodeRef<'_>, what: &str) -> bool {
         let pool = self.pool();
         if got == Ty::NEVER || want == Ty::NEVER {
-            return;
+            return false;
         }
         let (got, want) = (self.norm_ty(got), self.norm_ty(want));
         let snap = self.infer.snapshot();
@@ -1374,7 +1375,7 @@ impl Ck<'_, '_> {
                     self.show(got)
                 );
                 self.err(Code::ImplicitNarrowing, n, &msg);
-                return;
+                return true;
             }
             let (want_s, got_s) = self.show_pair(want, got);
             let msg = format!("in {what}: expected {want_s}, found {got_s}");
@@ -1387,7 +1388,9 @@ impl Ck<'_, '_> {
                     Code::TypeMismatch
                 };
             self.err(code, n, &msg);
+            return true;
         }
+        false
     }
 
     /// Whether one of two types is a signed and the other an unsigned

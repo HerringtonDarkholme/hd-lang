@@ -94,3 +94,20 @@ fn a_mixed_result_adds_no_second_report() {
         [Code::MixedSignedness]
     );
 }
+
+#[test]
+fn a_width_mismatch_reports_one_type_mismatch() {
+    for src in [
+        "fn f(a: i16, b: i64) -> i64:\n    a + b\n",
+        "fn f(a: i16, b: i64) -> void:\n    let x: i64 = a + b\n    _ := x\n",
+        "fn f(a: f32, b: f64) -> f64:\n    a * b\n",
+        "fn f(a: u32, b: usize) -> usize:\n    a + b\n",
+    ] {
+        assert_eq!(check(src), [Code::TypeMismatch], "{src}");
+    }
+}
+
+#[test]
+fn an_explicit_cast_widens_cleanly() {
+    assert_eq!(check("fn f(a: i16, b: i64) -> i64:\n    i64(a) + b\n"), []);
+}
