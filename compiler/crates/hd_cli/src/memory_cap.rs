@@ -685,7 +685,10 @@ mod tests {
         let flag = std::sync::Arc::clone(&ready);
         let reporter = std::thread::spawn(move || {
             wait.recv().unwrap();
-            std::thread::park();
+            // Spend the token if `recv` left one. A plain `park` would block
+            // forever when `recv` already spent it, which is not the race
+            // under test.
+            std::thread::park_timeout(std::time::Duration::ZERO);
             await_report(&flag);
             done.send(()).unwrap();
         });
