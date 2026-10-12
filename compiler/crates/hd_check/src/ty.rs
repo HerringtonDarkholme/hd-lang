@@ -25,7 +25,8 @@ pub(crate) enum Named {
 }
 
 /// What a written name must be: a type, or a trait (a requirement key,
-/// a `dyn` type). It decides the code of a name that reaches nothing.
+/// a `dyn` type). It decides the code of a name that reaches nothing,
+/// and a trait role rejects a name that reaches a type.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum NameRole {
     Type,
@@ -368,6 +369,14 @@ impl Ck<'_, '_> {
             }
         }
         let t = self.ctor(def, &args)?;
+        // Where a trait goes, only a row alias stands besides a trait: any
+        // other type, a type alias among them, is no trait
+        // (`req.key.traits`, `req.row.alias.type-alias.key`).
+        if role == NameRole::Trait && !matches!(pool.get(t), TyData::Row(_) | TyData::Poison) {
+            let msg = format!("no trait named `{}`: not a trait", segs.join("."));
+            self.err(Code::UnknownTrait, n, &msg);
+            return Ok(Ty::POISON);
+        }
         self.check_written_bounds(t, def, (&arg_nodes, n))?;
         Ok(t)
     }

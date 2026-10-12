@@ -1472,24 +1472,16 @@ impl Lower<'_, '_, '_> {
     }
 
     /// An alias written in a row (`req.row.alias.expand`): a row alias
-    /// stands for its keys, which the row flattens in; an alias of one
-    /// trait value is that key (`req.row.alias.one-key`).
+    /// stands for its keys, which the row flattens in. A type alias names
+    /// a type, never a key (`req.row.alias.type-alias.key`).
     fn alias_in_row(&mut self, c: NodeRef<'_>, def: DefId, gn: &Gen, data: &mut RowData) {
         let (args, _, _) = self.type_args(c, gn);
         let span = self.src.span(c);
         let t = self.expand_alias(def, &args, span);
-        let pool = self.names.pool;
         let name = self.names.display_name(def).to_owned();
-        match pool.get(t) {
-            TyData::Row(_) | TyData::TraitValue { .. } => data.keys.push(t),
+        match self.names.pool.get(t) {
+            TyData::Row(_) => data.keys.push(t),
             TyData::Poison => {}
-            TyData::Mut(inner) if matches!(pool.get(inner), TyData::TraitValue { .. }) => {
-                let msg = format!(
-                    "`{name}` is `{}`, but a key has no `mut`: its trait decides the provider's access",
-                    show_ty(&self.names, t)
-                );
-                self.diags.error(Code::MutAliasKey, span, &msg);
-            }
             _ => {
                 let msg = format!("no trait named `{name}`: not a trait");
                 self.diags.error(Code::UnknownTrait, span, &msg);

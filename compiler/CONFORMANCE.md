@@ -2489,7 +2489,6 @@ typing/invalid/row-alias-cycle.hd
 typing/invalid/row-alias-explicit-type-argument.hd
 typing/invalid/row-alias-generic-kind.hd
 typing/invalid/row-alias-in-use.hd
-typing/invalid/row-alias-mut-key.hd
 typing/invalid/row-alias-type-argument.hd
 typing/invalid/row-alias-unknown-key.hd
 typing/invalid/row-extension-keeps-other-keys.hd
@@ -2643,6 +2642,7 @@ typing/invalid/tuple-trait-user-impl.hd
 typing/invalid/tuple-vararg-arity.hd
 typing/invalid/tuple-vararg-no-auto-spread.hd
 typing/invalid/two-payload-variant-as-function-value.hd
+typing/invalid/type-alias-as-key.hd
 typing/invalid/type-argument-list-too-long.hd
 typing/invalid/type-default-impl-mismatch.hd
 typing/invalid/type-default-kind.hd
