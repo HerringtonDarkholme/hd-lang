@@ -857,7 +857,7 @@ impl Code {
             Self::MissingSupertraitImplementation => Phase::Type,
             Self::MissingTraitMethod => Phase::Type,
             Self::MixedDerivedLaw => Phase::Type,
-            Self::MixedScriptIdentifier => Phase::Type,
+            Self::MixedScriptIdentifier => Phase::Parse,
             Self::MixedSignedness => Phase::Type,
             Self::MultiLinePipeStep => Phase::Type,
             Self::MutOnPrimitive => Phase::Type,

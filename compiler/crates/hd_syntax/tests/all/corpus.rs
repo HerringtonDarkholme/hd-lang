@@ -35,8 +35,10 @@ fn corpus() -> Vec<PathBuf> {
     files
 }
 
-/// Conformance cases whose expected diagnostic comes from the parser.
-fn parse_rejects() -> BTreeSet<String> {
+/// Conformance cases whose expected diagnostic comes from the parser,
+/// errors and warnings alike: a lexer or grammar warning is a diagnostic
+/// too, so its fixture cannot parse clean.
+fn parse_reported() -> BTreeSet<String> {
     let root = repository_root();
     let cases = fs::read_to_string(root.join("spec/conformance/cases.tsv")).expect("cases.tsv");
     cases
@@ -46,7 +48,11 @@ fn parse_rejects() -> BTreeSet<String> {
             let columns: Vec<&str> = row.split('\t').collect();
             let syntax = columns
                 .get(2)
-                .and_then(|expected| expected.strip_prefix("reject:"))
+                .and_then(|expected| {
+                    expected
+                        .strip_prefix("reject:")
+                        .or_else(|| expected.strip_prefix("warn:"))
+                })
                 .and_then(Code::from_name)
                 .is_some_and(Code::is_syntax);
             syntax.then(|| columns[0].to_owned())
@@ -66,7 +72,7 @@ const SPEC_CONFLICTS: &[&str] = &[
 /// parse-phase rejects.
 fn valid_sources() -> Vec<PathBuf> {
     let root = repository_root();
-    let rejects = parse_rejects();
+    let rejects = parse_reported();
     let mut files = Vec::new();
     hd_files(&root.join("spec/conformance"), &mut files);
     files.retain(|path| {

@@ -341,6 +341,27 @@ fn parse_case(case: &Case, text: &str) -> Verdict {
                 ))
             }
         }
+        expectation if expectation.starts_with("warn:") => {
+            let expected = expectation.trim_start_matches("warn:");
+            let no_errors = parsed
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.severity != Severity::Error);
+            let line = marker_line(text, "warning");
+            let found = parsed.diagnostics.iter().any(|diagnostic| {
+                diagnostic.severity == Severity::Warning
+                    && diagnostic.code.as_str() == expected
+                    && line.is_none_or(|line| byte_line(text, diagnostic.primary.lo) == line)
+            });
+            if no_errors && found {
+                Verdict::Pass
+            } else {
+                Verdict::Fail(parsed.diagnostics.first().map_or_else(
+                    || "no-diagnostic".to_owned(),
+                    |d| d.code.as_str().to_owned(),
+                ))
+            }
+        }
         _ => Verdict::Fail("unsupported-expectation".to_owned()),
     }
 }

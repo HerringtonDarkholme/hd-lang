@@ -8,13 +8,13 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2708 | 121 | 16 | 2845 |
+| 2709 | 120 | 16 | 2845 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
-| `lang/01-lexical-structure.md` | 139 | 6 | 0 | 145 |
+| `lang/01-lexical-structure.md` | 140 | 5 | 0 | 145 |
 | `lang/02-grammar.md` | 205 | 10 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
 | `lang/04-type-system.md` | 332 | 20 | 0 | 352 |
@@ -66,7 +66,7 @@ fixture; unsupported surface records progress without failing.
 | `runtime/valid` | 916 | 1 | 12 | 929 |
 | `typing/invalid` | 978 | 96 | 1 | 1075 |
 | `typing/valid` | 414 | 1 | 0 | 415 |
-| `typing/warnings` | 11 | 9 | 0 | 20 |
+| `typing/warnings` | 12 | 8 | 0 | 20 |
 
 ## Failure Buckets
 
@@ -85,7 +85,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:no-common-type` | 2 |
-| `fail:no-diagnostic` | 44 |
+| `fail:no-diagnostic` | 43 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-import` | 1 |
 | `fail:private-main` | 1 |
@@ -181,7 +181,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (44)</summary>
+<details><summary><code>fail:no-diagnostic</code> (43)</summary>
 
 - `typing/warnings/unreachable-code.hd`
 - `typing/invalid/unknown-annotation-member.hd`
@@ -218,7 +218,6 @@ compiler stage that first declined the case.
 - `typing/invalid/contravariant-inferred-invariant-result.hd`
 - `typing/invalid/ambiguous-requirement-key-solution.hd`
 - `typing/invalid/module-named-pkg.hd`
-- `typing/warnings/mixed-script-identifier.hd`
 - `typing/invalid/script-test-init-requirement.hd`
 - `typing/warnings/unused-debug-text.hd`
 - `typing/invalid/assoc-call-parameter-two-bounds.hd`
@@ -3106,6 +3105,7 @@ typing/warnings/derivation-block-decorator-std.hd
 typing/warnings/derivation-block-decorator.hd
 typing/warnings/let-list-redundant-mut.hd
 typing/warnings/let-mut-optional-payload.hd
+typing/warnings/mixed-script-identifier.hd
 typing/warnings/private-main-suspending.hd
 typing/warnings/private-main.hd
 typing/warnings/redundant-let-mut.hd
