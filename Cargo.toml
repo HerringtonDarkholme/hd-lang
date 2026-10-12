@@ -32,3 +32,14 @@ match_same_arms = "allow"
 # ~178 s at opt-level 0; owner, 2026-10-11, task #299).
 [profile.dev]
 opt-level = 1
+
+# The playground's compiler wasm (`cargo build -p hd_web --target
+# wasm32-unknown-unknown --profile web`; scripts/build-web-compiler.js).
+# Only that build selects it (playground-wasm.md §4).
+[profile.web]
+inherits = "release"
+lto = true
+codegen-units = 1
+opt-level = "s"
+panic = "abort"
+strip = true

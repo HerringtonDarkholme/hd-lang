@@ -31,10 +31,23 @@ jobs:
   lint:
     name: Rust format and lint
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Check out
         uses: actions/checkout@v5
+
+      # The web compiler smoke test runs on Node.
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: package.json
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2.9.2
@@ -50,6 +63,11 @@ jobs:
 
       - name: Build browser-safe crates
         run: cargo build -p hd_syntax -p hd_web --target wasm32-unknown-unknown
+
+      # LTO build, then compile and run a fixture through
+      # the exports, with the size gate (playground-wasm.md §7, W3).
+      - name: Web compiler smoke test and size gate
+        run: pnpm run -s test:web-compiler
 
   # CI tests in release for speed (owner, 2026-10-11: dev took 26 min,
   # release 6). Local gates stay in the dev profile, where debug

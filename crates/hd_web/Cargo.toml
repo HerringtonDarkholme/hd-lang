@@ -5,14 +5,17 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
+# cdylib is the playground's compiler wasm (`--profile web`); rlib keeps
+# the crate usable from tests and other crates.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 hd_cache = { path = "../hd_cache" }
+hd_diag = { path = "../hd_diag" }
 hd_project = { path = "../hd_project" }
 hd_sched = { path = "../hd_sched" }
 hd_driver = { path = "../hd_driver", default-features = false }
 
 [lints]
 workspace = true
-
-[dev-dependencies]
-hd_diag = { path = "../hd_diag" }

@@ -1,16 +1,26 @@
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 //! `hd_web`: the playground's compiler (design-overview.md §2.1;
 //! playground-wasm.md §3.1). A [`Session`] is one worker's state: the
 //! playground's files and one in-memory cache store, kept across compiles
 //! so an edit recompiles only what it changed. Each compile is one serial
 //! driver run with a clock that reads zero, since `Instant::now()` panics
-//! on wasm32. The wasm exports are a later step.
+//! on wasm32. On wasm32 the crate exports four functions over that session
+//! (the `exports` module); [`wire`] holds their request and response format.
 
 use hd_cache::MemoryStore;
 use hd_driver::diagnostics::{Diag, from_output};
 use hd_driver::{Counters, Executor, Host, NoClock, Packages, TestCase, build_packages};
 use hd_project::{MemorySources, Root, in_program, module_below};
 use hd_sched::SerialOrder;
+
+pub mod wire;
+
+// Owner decision 2026-10-12 (playground-wasm.md §6, Q1): the wasm exports
+// carry `#[unsafe(no_mangle)]`. This module is the only exception to the
+// crate's `deny(unsafe_code)`, and it has no `unsafe` blocks.
+#[cfg(target_arch = "wasm32")]
+#[allow(unsafe_code)]
+mod exports;
 
 /// The playground package's name, which its declarations print under.
 pub const PACKAGE: &str = "playground";

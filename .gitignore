@@ -48,6 +48,9 @@ yarn-error.log*
 # Rust
 target/
 
+# The playground's compiler wasm (scripts/build-web-compiler.js)
+website/playground/assets/hd_web.wasm
+
 # Native builds and compiler outputs
 *.o
 *.obj

@@ -4,6 +4,7 @@
 //
 // Every URL in the output is relative, so it works at any base path.
 
+import { existsSync } from "node:fs";
 import { copyFile, mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -106,10 +107,16 @@ export function buildOptions(
   };
 }
 
+/** The compiler wasm `pnpm run build:web-compiler` writes; absent until then. */
+const COMPILER_WASM = join(playground, "assets", "hd_web.wasm");
+
 async function copyStatic(outDir: string): Promise<void> {
   await rm(outDir, { recursive: true, force: true });
-  await mkdir(outDir, { recursive: true });
+  await mkdir(join(outDir, "assets"), { recursive: true });
   await copyFile(join(playground, "index.html"), join(outDir, "index.html"));
+  // Next to worker.js, which loads it relative to its own URL.
+  if (existsSync(COMPILER_WASM))
+    await copyFile(COMPILER_WASM, join(outDir, "assets", "hd_web.wasm"));
 }
 
 /** Writes a production build of the playground to `outDir`: index.html and assets/. */

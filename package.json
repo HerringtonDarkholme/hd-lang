@@ -7,6 +7,7 @@
   "type": "module",
   "scripts": {
     "build:npm": "node scripts/build-npm.js",
+    "build:web-compiler": "node scripts/build-web-compiler.js",
     "prepack": "pnpm run build:npm",
     "check": "pnpm run check:types && pnpm run lint && pnpm run format:check && pnpm test && bash spec/check.sh",
     "check:types": "tsc --noEmit && tsc --noEmit -p website/playground",
@@ -19,6 +20,7 @@
     "fuzz:smoke": "node --experimental-strip-types spec/tools/fuzz/fuzz.ts --compiler \"node --experimental-strip-types bin/hd.js\" --fuzzer parse,contract,phase --fail-on phase --seed smoke --cases 100",
     "perf:check": "node --experimental-strip-types test/perf/inference/gate.ts",
     "metrics": "node --experimental-strip-types test/metrics/run.ts",
+    "test:web-compiler": "pnpm run -s build:web-compiler && node scripts/test-web-compiler.js",
     "test:portable": "node --experimental-strip-types test/run-portable.ts",
     "toolchain:gate": "node --experimental-strip-types src/toolchain-gate.ts",
     "hd": "node --experimental-strip-types src/cli.ts",
