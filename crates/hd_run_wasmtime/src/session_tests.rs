@@ -383,3 +383,31 @@ cleanup([+1])
         assert_eq!(text(&io.err), "");
     });
 }
+
+/// `cli.repl.stop`: a loop input stopped from another thread ends as a
+/// panicking input does; earlier values stay and the next input runs.
+#[test]
+fn a_stopped_loop_input_ends_and_the_session_goes_on() {
+    with_session(|session, io| {
+        let stopper = session.stopper();
+        let mut repl = repl(session);
+        assert_eq!(repl.input("let kept = 7\n"), Outcome::Exit(0));
+        // No input runs: harmless, and it does not stop the next input.
+        stopper.stop();
+        assert_eq!(repl.input("println(kept)\n"), Outcome::Exit(0));
+        assert_eq!(text(&io.out), "7\n");
+        let handle = std::thread::spawn({
+            let stopper = stopper.clone();
+            move || {
+                std::thread::sleep(std::time::Duration::from_millis(300));
+                stopper.stop();
+            }
+        });
+        assert_eq!(repl.input("while true:\n    pass\n"), Outcome::Exit(3));
+        handle.join().expect("the stopping thread");
+        assert_eq!(text(&io.err), "stopped\n");
+        assert_eq!(repl.input("println(kept + 1)\n"), Outcome::Exit(0));
+        assert_eq!(text(&io.out), "8\n");
+        assert_eq!(text(&io.err), "");
+    });
+}

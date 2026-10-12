@@ -164,6 +164,7 @@ impl WasmtimeInstance {
                     let report = host.time_limit_report();
                     host.err(&report);
                 }
+                Stop::Interrupted => host.err("stopped\n"),
                 Stop::Internal(m) => host.err(&format!("internal error: {m}\n")),
                 Stop::Deadlock => {}
                 Stop::EndCase => unreachable!("handled before panic reporting"),

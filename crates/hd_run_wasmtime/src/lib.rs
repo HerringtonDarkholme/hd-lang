@@ -64,7 +64,7 @@ pub(crate) use run::Shared;
 pub use run::{
     Captured, run, run_captured, run_captured_with_profile, run_with_guards, run_with_profile,
 };
-pub use session::WasmtimeSession;
+pub use session::{Stopper, WasmtimeSession};
 pub use test_engine::{
     NamedProgram, NativeBodyRunner, PreparedTest, TestEngine, TestEnvironment, TestHostKind,
     TestModule, TestPoolConfig,

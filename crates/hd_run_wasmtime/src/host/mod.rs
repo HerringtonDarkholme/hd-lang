@@ -45,6 +45,8 @@ pub enum Stop {
     HeapExhausted,
     /// The program's wall-clock deadline has elapsed.
     TimeLimit,
+    /// The session's stop handle was used: an interrupted REPL input.
+    Interrupted,
     /// A bug in std or the host.
     Internal(String),
     /// Property exhaustion is successful early termination, not a panic.
@@ -58,6 +60,7 @@ impl std::fmt::Display for Stop {
             Stop::Deadlock => f.write_str("deadlock"),
             Stop::HeapExhausted => f.write_str("the exchange buffer cannot grow"),
             Stop::TimeLimit => f.write_str("the program exceeded its time limit"),
+            Stop::Interrupted => f.write_str("stopped"),
             Stop::EndCase => f.write_str("the property has no remaining cases"),
         }
     }

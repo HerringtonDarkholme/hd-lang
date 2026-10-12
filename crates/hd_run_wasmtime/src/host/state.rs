@@ -53,6 +53,9 @@ pub struct Host {
     pub(crate) testing: Option<crate::testing::State>,
     pub(crate) environment: Option<crate::test_engine::TestEnvironment>,
     base_deadline: Option<Instant>,
+    /// A session's stop flag: set from another thread, read at every
+    /// deadline check and epoch tick.
+    pub(crate) interrupt: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
     pub(crate) memory_bytes: u64,
     timeout_millis: Option<i64>,
     pub(crate) output_overflow: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
@@ -89,6 +92,7 @@ impl Host {
             testing: None,
             environment: None,
             base_deadline: deadline,
+            interrupt: None,
             memory_bytes,
             timeout_millis: None,
             output_overflow: None,
@@ -132,6 +136,13 @@ impl Host {
     }
 
     pub fn check_deadline(&self) -> wasmtime::Result<()> {
+        if self
+            .interrupt
+            .as_ref()
+            .is_some_and(|flag| flag.load(std::sync::atomic::Ordering::Relaxed))
+        {
+            return Err(Stop::Interrupted.into());
+        }
         if self
             .deadline
             .is_some_and(|deadline| Instant::now() >= deadline)

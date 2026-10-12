@@ -180,7 +180,7 @@ pub(crate) fn new_store(
         StartError::Engine(format!("cannot create the wasmtime store: {error:#}"))
     })?;
     store.limiter(|host| &mut host.heap);
-    if store.data().deadline().is_some() {
+    if store.data().deadline().is_some() || store.data().interrupt.is_some() {
         deadline::register(engine).map_err(StartError::Engine)?;
         store.epoch_deadline_callback(|cx| {
             cx.data().check_deadline()?;

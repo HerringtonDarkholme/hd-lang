@@ -19,6 +19,7 @@
 
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use hd_run::{HostSetup, Instance, Outcome, StartError};
 use hd_wasm::{MEMORY_KEY, SESSION_MODULE, global_key, is_session_key};
@@ -48,12 +49,29 @@ pub struct WasmtimeSession {
     runtime: Vec<Global>,
     config: EngineConfig,
     profile: RuntimeProfile,
+    /// Set by a `Stopper`; the store's epoch callback reads it.
+    flag: Arc<AtomicBool>,
+}
+
+/// Stops the input a `WasmtimeSession` is running (`cli.repl.stop`). It is
+/// `Send + Sync` and cheap to clone, for a Ctrl-C handler on another
+/// thread. The running input traps at the next epoch tick (about ten
+/// milliseconds) or host call and ends as a panicking input does, reported
+/// as `stopped`. A stop while no input runs does nothing: the flag clears
+/// when the next input starts.
+#[derive(Clone)]
+pub struct Stopper(Arc<AtomicBool>);
+
+impl Stopper {
+    pub fn stop(&self) {
+        self.0.store(true, Ordering::Relaxed);
+    }
 }
 
 impl WasmtimeEngine {
     /// A session with no input yet, its standard streams on `io`.
     pub fn session(&self, setup: &HostSetup, io: HostIo) -> Result<WasmtimeSession, StartError> {
-        let host = Host::new(
+        let mut host = Host::new(
             io,
             setup.args.clone(),
             setup.program.clone(),
@@ -61,6 +79,8 @@ impl WasmtimeEngine {
             setup.limits.wall_ms,
             setup.limits.memory_bytes,
         );
+        let flag = Arc::new(AtomicBool::new(false));
+        host.interrupt = Some(Arc::clone(&flag));
         let mut run =
             WasmtimeInstance::stopped(new_store(&self.engine, host)?, Arc::clone(&self.engine));
         // Sockets and HTTP clients outlive an input: a later input may use
@@ -74,6 +94,7 @@ impl WasmtimeEngine {
             runtime: Vec::new(),
             config: self.config,
             profile: self.profile,
+            flag,
         })
     }
 }
@@ -86,6 +107,7 @@ impl WasmtimeSession {
     /// run: one wasmtime refuses, an import not on wasmtime yet, or a
     /// session import no earlier input exports. Such an input does not run.
     pub fn run_input(&mut self, wasm: &[u8]) -> Result<Outcome, String> {
+        self.flag.store(false, Ordering::Relaxed);
         let module = self.load(wasm)?;
         // A panic or standard error of an earlier input does not hide this
         // one's internal error.
@@ -95,7 +117,10 @@ impl WasmtimeSession {
             Ok(instance) => instance,
             Err(error)
                 if limits::is_heap_exhausted(&error)
-                    || matches!(error.downcast_ref::<Stop>(), Some(Stop::TimeLimit)) =>
+                    || matches!(
+                        error.downcast_ref::<Stop>(),
+                        Some(Stop::TimeLimit | Stop::Interrupted)
+                    ) =>
             {
                 self.run.done = None;
                 let outcome = self.run.trapped(&error);
@@ -127,6 +152,12 @@ impl WasmtimeSession {
             self.reset()?;
         }
         Ok(outcome)
+    }
+
+    /// A handle that stops the running input from another thread.
+    #[must_use]
+    pub fn stopper(&self) -> Stopper {
+        Stopper(Arc::clone(&self.flag))
     }
 
     /// Compiles an input, or names the first import that does not run on
