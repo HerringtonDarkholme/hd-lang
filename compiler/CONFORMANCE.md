@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2703 | 126 | 16 | 2845 |
+| 2704 | 125 | 16 | 2845 |
 
 ## By Chapter
 
@@ -18,7 +18,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/02-grammar.md` | 205 | 10 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
 | `lang/04-type-system.md` | 331 | 21 | 0 | 352 |
-| `lang/05-expressions.md` | 264 | 13 | 0 | 277 |
+| `lang/05-expressions.md` | 265 | 12 | 0 | 277 |
 | `lang/06-control-flow.md` | 142 | 11 | 4 | 157 |
 | `lang/07-functions.md` | 122 | 8 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 116 | 7 | 0 | 123 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 100 | 2 | 3 | 105 |
 | `runtime/valid` | 916 | 1 | 12 | 929 |
-| `typing/invalid` | 975 | 99 | 1 | 1075 |
+| `typing/invalid` | 976 | 98 | 1 | 1075 |
 | `typing/valid` | 414 | 1 | 0 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -104,7 +104,6 @@ compiler stage that first declined the case.
 | `fail:unknown-trait` | 4 |
 | `fail:unknown-type` | 2 |
 | `fail:unknown-variant` | 1 |
-| `fail:unused-local-binding` | 1 |
 | `unsupported:Body` | 1 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 11 |
@@ -376,12 +375,6 @@ compiler stage that first declined the case.
 <details><summary><code>fail:unknown-variant</code> (1)</summary>
 
 - `typing/invalid/some-pattern-nonoptional.hd`
-
-</details>
-
-<details><summary><code>fail:unused-local-binding</code> (1)</summary>
-
-- `typing/invalid/range-float-bound.hd`
 
 </details>
 
@@ -2401,6 +2394,7 @@ typing/invalid/qualified-string-prefix-call.hd
 typing/invalid/qualified-string-prefix.hd
 typing/invalid/race-empty-list-literal.hd
 typing/invalid/race-no-tasks.hd
+typing/invalid/range-float-bound.hd
 typing/invalid/range-full-not-iterable.hd
 typing/invalid/range-pattern-bound-range.hd
 typing/invalid/range-pattern-covered.hd

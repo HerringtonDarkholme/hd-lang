@@ -839,6 +839,23 @@ impl Ck<'_, '_> {
         Ok(v)
     }
 
+    /// Whether a type is an integer type, an integer literal's variable,
+    /// or a parameter bounded by `Integer`. A still-open variable passes.
+    fn integer_like(&self, t: Ty) -> bool {
+        let pool = self.pool();
+        let t = self.infer.shallow(pool, self.strip_mut(t));
+        match pool.get(t) {
+            TyData::Prim(p) => p.is_integer(),
+            TyData::Infer(_) => !matches!(self.infer.kind_of(pool, t), Some(VarKind::FloatLit)),
+            TyData::Param(_) => (0..self.env.clause_self.len()).any(|i| {
+                self.env.clause_self[i] == t
+                    && self.env.clause_trait[i] == self.cx.names.known.integer
+            }),
+            TyData::Never | TyData::Poison => true,
+            _ => false,
+        }
+    }
+
     /// Whether a type is floating-point, or a floating literal's variable.
     fn float_like(&self, t: Ty) -> bool {
         let pool = self.pool();
@@ -2947,8 +2964,10 @@ impl Ck<'_, '_> {
         };
         let et = self.infer.fresh(pool, VarKind::General);
         let mut refs = Vec::new();
+        let mut bound_tys = Vec::new();
         for f in &fields {
             let (r, t) = self.expr(*f, Some(et))?;
+            bound_tys.push(t);
             refs.push(self.coerce(r, t, et, *f, "range bound"));
         }
         // Bounds that are all literals take the expected element type.
@@ -2961,6 +2980,17 @@ impl Ck<'_, '_> {
                 .is_some_and(|k| k.literal_default().is_some())
         {
             self.expect(e, bw, fields[0], "range bound");
+        }
+        // `expr.range.bound.integer`: the element type is an integer type.
+        // The one error lands on the first bound that is not.
+        if !self.integer_like(et)
+            && let Some(i) = bound_tys.iter().position(|t| !self.integer_like(*t))
+        {
+            let msg = format!(
+                "a range bound must have an integer type, found {}",
+                self.show(bound_tys[i])
+            );
+            self.err(Code::TypeMismatch, fields[i], &msg);
         }
         if def != known.range_from {
             refs.push(self.b.const_value(Ty::BOOL, u64::from(inclusive)));
