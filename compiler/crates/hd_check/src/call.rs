@@ -2808,9 +2808,15 @@ impl Ck<'_, '_> {
                     let st = pool.intern_ty(&TyData::Mut(self.strip_mut(rt)));
                     self.check_receiver(st, rt, n);
                 }
+                // The spec's declared parameter name, so a named argument
+                // matches (`module.method.normative`).
+                let pname = match op {
+                    IntrinsicOp::MapGet | IntrinsicOp::MapRemove => "key",
+                    _ => "value",
+                };
                 let ps: Vec<(Symbol, Ty)> = params
                     .iter()
-                    .map(|t| (self.cx.names.syms.intern("value"), *t))
+                    .map(|t| (self.cx.names.syms.intern(pname), *t))
                     .collect();
                 let mut refs = vec![recv];
                 let mut full = vec![(self.cx.names.syms.intern("self"), rt)];

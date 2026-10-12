@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2678 | 146 | 21 | 2845 |
+| 2679 | 145 | 21 | 2845 |
 
 ## By Chapter
 
@@ -17,7 +17,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 139 | 6 | 0 | 145 |
 | `lang/02-grammar.md` | 205 | 10 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 100 | 1 | 0 | 101 |
-| `lang/04-type-system.md` | 327 | 25 | 0 | 352 |
+| `lang/04-type-system.md` | 328 | 24 | 0 | 352 |
 | `lang/05-expressions.md` | 261 | 16 | 0 | 277 |
 | `lang/06-control-flow.md` | 141 | 12 | 4 | 157 |
 | `lang/07-functions.md` | 120 | 10 | 0 | 130 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 100 | 2 | 3 | 105 |
-| `runtime/valid` | 905 | 8 | 16 | 929 |
+| `runtime/valid` | 906 | 7 | 16 | 929 |
 | `typing/invalid` | 967 | 107 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -75,7 +75,7 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:argument-count` | 5 |
+| `fail:argument-count` | 4 |
 | `fail:bang-call-outside-suspension` | 2 |
 | `fail:bare-variant-pattern` | 3 |
 | `fail:boundary-private-field` | 1 |
@@ -115,9 +115,8 @@ compiler stage that first declined the case.
 | `unsupported:Link` | 3 |
 | `unsupported:RunCase` | 11 |
 
-<details><summary><code>fail:argument-count</code> (5)</summary>
+<details><summary><code>fail:argument-count</code> (4)</summary>
 
-- `runtime/valid/map-grow-and-remove.hd`
 - `typing/invalid/variant-duplicate-argument.hd`
 - `typing/invalid/duplicate-argument.hd`
 - `typing/invalid/unknown-named-argument.hd`
@@ -1315,6 +1314,7 @@ runtime/valid/loop-iteration-cells.hd
 runtime/valid/manual-clock.hd
 runtime/valid/map-args-env.hd
 runtime/valid/map-get-or.hd
+runtime/valid/map-grow-and-remove.hd
 runtime/valid/map-index-reads-value.hd
 runtime/valid/map-is-empty.hd
 runtime/valid/map-iteration-order.hd
