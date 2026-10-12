@@ -162,6 +162,7 @@ mod typeid_of;
 mod unreachable_code;
 mod unread_facts;
 mod unread_must_use_binding;
+mod unsigned_comparison;
 mod unsolved_call_parameter;
 mod unsolved_scrutinee;
 mod vararg_value_run;

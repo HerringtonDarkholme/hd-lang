@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use hd_base::DefId;
 use hd_base::StageResult;
-use hd_diag::Code;
+use hd_diag::{Code, Severity};
 use hd_intern::PathKind;
 use hd_resolve::{ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
@@ -677,9 +677,107 @@ impl Ck<'_, '_> {
             at
         };
         let (c, ct) = self.expr(*r, Some(right_want))?;
+        if matches!(
+            op,
+            TokenKind::Lt | TokenKind::LtEq | TokenKind::Gt | TokenKind::GtEq
+        ) {
+            self.warn_unsigned_zero(op, *l, at, *r, ct, n);
+        }
         let v = self.binary_values(op, (a, at), (c, ct), n, *r)?;
         let t = self.b.ty_of(v);
         Ok((v, t))
+    }
+
+    /// Whether a node is an unsuffixed integer literal with the value
+    /// zero, in any radix (`expr.ord.unsigned-zero.literal`).
+    fn zero_literal(&self, n: NodeRef<'_>) -> bool {
+        if n.kind() != SyntaxKind::LiteralExpr {
+            return false;
+        }
+        let first = self.cx.src.first(n);
+        if self.cx.src.tkind(first) != Some(TokenKind::Number) {
+            return false;
+        }
+        let text = self.cx.src.text(first);
+        let (digits, suffix) = crate::literals::split_suffix(text);
+        if !suffix.is_empty() {
+            return false;
+        }
+        let digits = digits.replace('_', "");
+        if let Some((radix, rest)) = crate::literals::radix_digits(&digits) {
+            return u64::from_str_radix(rest, radix).ok() == Some(0);
+        }
+        crate::literals::decimal_digits(&digits) && digits.parse::<u64>().ok() == Some(0)
+    }
+
+    /// Whether a type is an unsigned integer type at the comparison
+    /// (`expr.ord.unsigned-zero.binding-type`).
+    fn unsigned_now(&self, t: Ty) -> Option<Prim> {
+        let pool = self.pool();
+        match pool.get(self.strip_mut(t)) {
+            TyData::Prim(p) if p.is_unsigned() => Some(p),
+            _ => None,
+        }
+    }
+
+    /// `expr.ord.unsigned-zero`: `t >= 0`, `0 <= t`, `t < 0` and `0 > t`
+    /// with an unsigned `t` warn `unsigned-comparison-always`; the
+    /// program still compiles.
+    fn warn_unsigned_zero(
+        &mut self,
+        op: TokenKind,
+        l: NodeRef<'_>,
+        at: Ty,
+        r: NodeRef<'_>,
+        ct: Ty,
+        n: NodeRef<'_>,
+    ) {
+        // Whether `t` is the left operand, and whether the form is
+        // always true.
+        let (t_left, t_node, t_ty, always) = match op {
+            TokenKind::GtEq if self.zero_literal(r) => (true, l, at, true),
+            TokenKind::LtEq if self.zero_literal(l) => (false, r, ct, true),
+            TokenKind::Lt if self.zero_literal(r) => (true, l, at, false),
+            TokenKind::Gt if self.zero_literal(l) => (false, r, ct, false),
+            _ => return,
+        };
+        let Some(p) = self.unsigned_now(t_ty) else {
+            return;
+        };
+        let span = self.cx.src.span(t_node);
+        let name = self
+            .cx
+            .src
+            .text
+            .get(span.lo as usize..span.hi as usize)
+            .unwrap_or("the value");
+        let op_text = match op {
+            TokenKind::GtEq => ">=",
+            TokenKind::LtEq => "<=",
+            TokenKind::Lt => "<",
+            _ => ">",
+        };
+        let ordering = if always {
+            "always true"
+        } else {
+            "always false"
+        };
+        let form = if t_left {
+            format!("{name} {op_text} 0")
+        } else {
+            format!("0 {op_text} {name}")
+        };
+        let mut msg = format!("`{name}` is unsigned, so `{form}` is {ordering}");
+        if p == Prim::Usize {
+            msg.push_str("; consider a signed literal such as `+10` or another condition");
+        }
+        self.diags.push(
+            Code::UnsignedComparisonAlways,
+            Severity::Warning,
+            self.cx.src.span(n),
+            &msg,
+            None,
+        );
     }
 
     /// Applies a binary operator to two checked operands.
