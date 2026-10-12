@@ -239,6 +239,33 @@ fn a_comment_edit_reuses_the_check_and_moves_its_positions() {
     assert_eq!(warm.wasm, fresh.wasm);
 }
 
+/// A documentation-only edit, of an item's or the module's `##` lines,
+/// changes no interface hash: comments stay out of the API text
+/// (commands.md §7.7), so no interface is rebuilt and no module that uses
+/// the edited one is rechecked. The edited module's own bodies are, since
+/// its `check` key keeps documentation lines (their attachment is checked).
+#[test]
+fn a_doc_edit_keeps_every_interface_hash() {
+    let serial = Executor::Serial(SerialOrder::Priority);
+    let geo = format!(
+        "## Shapes.\n\n{}",
+        GEO.replace("pub fn make(", "## Makes a point.\npub fn make(")
+    );
+    let store = MemoryStore::default();
+    let cold = ok(&store, &program(DATA_MAIN, &geo), serial);
+    let edited = geo.replace("## Shapes.", "## Points and shapes.").replace(
+        "## Makes a point.",
+        "## Makes a point from x and y.\n##\n## ```hd\n## p := make(1, 2)\n## ```",
+    );
+    let warm = ok(&store, &program(DATA_MAIN, &edited), serial);
+    let c = &warm.counters;
+    assert!(c.ifaces_built.is_empty(), "{:?}", c.ifaces_built);
+    assert_eq!(c.modules_checked, ["demo.geo.shapes"]);
+    assert_eq!(c.iface_blobs, cold.counters.iface_blobs);
+    assert_eq!(c.deep_hashes, cold.counters.deep_hashes);
+    assert_eq!(warm.ifaces, cold.ifaces);
+}
+
 /// A comment between a documentation comment and its item detaches it: the
 /// `check` key ignores comments, so the parse proof finds the error.
 #[test]

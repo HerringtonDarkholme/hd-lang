@@ -1,11 +1,13 @@
 #![forbid(unsafe_code)]
 
+mod docs;
 mod green;
 mod layout;
 mod lexer;
 mod parser;
 mod skim;
 
+pub use docs::{doc_text, module_doc_text};
 pub use green::*;
 pub use layout::{Layout, LayoutCursor, SuiteKind, TokenOrLayout};
 pub use lexer::{CommentKind, Lexed, LineFlags, TokenBuf, TokenKind, lex};

@@ -19,6 +19,7 @@ hd_cache = { path = "../hd_cache", features = ["disk"] }
 hd_check = { path = "../hd_check" }
 hd_deps = { path = "../hd_deps" }
 hd_diag = { path = "../hd_diag" }
+hd_doc = { path = "../hd_doc" }
 hd_driver ={ path = "../hd_driver" }
 hd_fmt = { path = "../hd_fmt" }
 hd_project = { path = "../hd_project" }

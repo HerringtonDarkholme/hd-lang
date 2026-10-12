@@ -669,42 +669,9 @@ impl<'t> Parser<'t> {
             return;
         }
         let start = self.toks.start[at];
-        let column = self.column(at);
-        let mut index = self.toks.com_end.partition_point(|&end| end <= start);
-        let mut next = start;
-        while index > 0 {
-            let comment = index - 1;
-            if self.toks.com_kind[comment] != CommentKind::Doc {
-                break;
-            }
-            let lo = self.toks.com_start[comment] as usize;
-            let hi = self.toks.com_end[comment] as usize;
-            let gap = &self.src.as_bytes()[hi..next as usize];
-            let lines = gap.split(|byte| *byte == b'\n').count();
-            if lines != 2 || !gap.iter().all(u8::is_ascii_whitespace) {
-                break;
-            }
-            let line = self.toks.line_of(u32_of(lo));
-            let own = self.toks.line_start[line] as usize
-                + usize::from(self.toks.line_indent[line])
-                == lo;
-            if !own || self.toks.line_indent[line] != column {
-                break;
-            }
+        let column = crate::docs::column_of(self.src, self.toks, start);
+        for comment in crate::docs::attached_above(self.src, self.toks, start, column) {
             self.attached[comment] = true;
-            next = u32_of(lo);
-            index -= 1;
-        }
-    }
-
-    fn column(&self, at: usize) -> u16 {
-        let line = self.toks.line_of(self.toks.start[at]);
-        let line_start = self.toks.line_start[line];
-        let before = &self.src.as_bytes()[line_start as usize..self.toks.start[at] as usize];
-        if before.iter().all(|byte| *byte == b' ') {
-            self.toks.line_indent[line]
-        } else {
-            u16::MAX
         }
     }
 

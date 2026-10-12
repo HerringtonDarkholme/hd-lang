@@ -564,6 +564,7 @@ dependencies = [
  "hd_check",
  "hd_deps",
  "hd_diag",
+ "hd_doc",
  "hd_driver",
  "hd_fmt",
  "hd_project",
@@ -597,7 +598,14 @@ name = "hd_doc"
 version = "0.0.0"
 dependencies = [
  "hd_base",
+ "hd_cache",
+ "hd_driver",
+ "hd_intern",
+ "hd_project",
  "hd_resolve",
+ "hd_sched",
+ "hd_syntax",
+ "hd_types",
 ]
 
 [[package]]

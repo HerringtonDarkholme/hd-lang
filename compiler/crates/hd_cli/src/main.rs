@@ -10,6 +10,7 @@ mod check_cmd;
 mod clean_cmd;
 mod dep_cmd;
 mod disk;
+mod doc_cmd;
 mod engine;
 mod fmt_cmd;
 mod help;
@@ -37,6 +38,7 @@ const USAGE: &str = "usage:
   hd run [--release] [--format json] [--cap NAME=VALUE]... [NAME]
   hd build [--release] [--format json] [FILE.hd]
   hd check [FILE.hd] [--tests | --all] [--format json]
+  hd doc [--private] [--out DIR] [--open] [--format json]
   hd new [--app | --lib] [--pages] [--vcs none] [PATH]
   hd clean [--cache]
   hd add [--dev] [--name NAME] TARGET[@QUERY]...
@@ -103,7 +105,11 @@ fn main() -> ExitCode {
             .take_while(|i| arguments[*i] != "--")
             .filter_map(|i| report::format_flag(&arguments, i))
             .any(|flag| matches!(flag, Ok((true, _))));
-        memory_cap::arm(memory, json, !matches!(command, "build" | "check" | "test"));
+        memory_cap::arm(
+            memory,
+            json,
+            !matches!(command, "build" | "check" | "test" | "doc"),
+        );
     } else if memory.is_some() {
         return fail("--max-memory applies to checking, building and running programs");
     }
@@ -133,6 +139,7 @@ fn main() -> ExitCode {
         ("run", rest) => run_command(rest),
         ("build", rest) => build_command(rest),
         ("check", rest) => check_cmd::command(rest),
+        ("doc", rest) => doc_cmd::command(rest),
         _ if arguments
             .iter()
             .take_while(|a| *a != "--")
@@ -154,7 +161,7 @@ fn main() -> ExitCode {
 /// Follow command dispatch: a source argument to `fmt` is not a program run.
 fn compiles(command: &str, arguments: &[OsString]) -> bool {
     match command {
-        "run" | "build" | "check" | "test" => true,
+        "run" | "build" | "check" | "test" | "doc" => true,
         "help" | "--help" | "new" | "clean" | "add" | "update" | "remove" | "fetch" | "fmt" => {
             false
         }
@@ -276,7 +283,7 @@ fn profile_of(release: bool) -> BuildProfile {
 /// Builds `goal` in `profile` over a program's sources and reports its
 /// manifest's and the compiler's diagnostics. Warnings are shown; only
 /// errors stop the command, which then ends with status 101.
-fn build_goal(
+pub(crate) fn build_goal(
     program: &disk::Program,
     goal: &Goal,
     profile: BuildProfile,
