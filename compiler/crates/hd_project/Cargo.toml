@@ -10,6 +10,7 @@ hd_base = { path = "../hd_base" }
 hd_diag = { path = "../hd_diag" }
 hd_syntax = { path = "../hd_syntax" }
 toml = "0.9"
+unicode-normalization = "0.1"
 
 [lints]
 workspace = true

@@ -664,6 +664,7 @@ dependencies = [
  "hd_diag",
  "hd_syntax",
  "toml",
+ "unicode-normalization",
 ]
 
 [[package]]

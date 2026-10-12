@@ -461,6 +461,30 @@ pub fn module_path(package: &str, file: &str) -> String {
 }
 
 /// A package-relative file's module path below the module root `root`.
+/// A module path with each dot-separated component case-folded and then
+/// NFC-normalized (`module.path.case-collision`). Folding is the full
+/// lowercase mapping plus the folds that differ from it (`ß` to `ss`,
+/// final sigma and long s to their plain forms); the `unicode-normalization`
+/// crate supplies NFC.
+fn folded_path(path: &str) -> String {
+    use unicode_normalization::UnicodeNormalization;
+    path.split('.')
+        .map(|part| {
+            let mut folded = String::new();
+            for c in part.chars() {
+                match c {
+                    '\u{df}' | '\u{1e9e}' => folded.push_str("ss"),
+                    '\u{17f}' => folded.push('s'),
+                    '\u{3c2}' => folded.push('\u{3c3}'),
+                    _ => folded.extend(c.to_lowercase()),
+                }
+            }
+            folded.nfc().collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join(".")
+}
+
 fn rooted_path(root: &str, file: &str) -> String {
     let below = module_below(file);
     if below.is_empty() {
@@ -537,6 +561,7 @@ impl ModuleTable {
             ..Self::default()
         };
         let mut folders: BTreeMap<String, (u16, Vec<ModuleId>)> = BTreeMap::new();
+        let mut folded_seen: BTreeMap<String, usize> = BTreeMap::new();
         for (pi, p) in packages.iter().enumerate() {
             let pi = u16::try_from(pi).expect("packages");
             let mut entries = p.sources.list();
@@ -611,9 +636,23 @@ impl ModuleTable {
                         ),
                     ));
                 }
+                let key = folded_path(&path);
+                let earlier = folded_seen.get(&key).copied();
+                folded_seen.entry(key).or_insert(t.modules.len());
                 match t.by_path.entry(path.clone()) {
                     std::collections::btree_map::Entry::Vacant(v) => {
                         v.insert(id);
+                        if let Some(first) = earlier {
+                            // `module.path.case-collision`.
+                            t.problems.push((
+                                file,
+                                Code::DuplicateModuleName,
+                                format!(
+                                    "`{}` and `{}` collide after case folding and NFC normalization, so both name one module",
+                                    t.sources[first].1, e.path
+                                ),
+                            ));
+                        }
                     }
                     std::collections::btree_map::Entry::Occupied(o) => {
                         // `module.path.unique`; a file reported above, as
@@ -1035,6 +1074,63 @@ mod tests {
     use super::{
         FolderGraph, MemorySources, ModuleTable, PackageIn, Scope, UseRootError, parse_manifest,
     };
+
+    fn collisions(files: &[&str]) -> Vec<(String, hd_diag::Code)> {
+        let mut s = MemorySources::default();
+        for f in files {
+            s.insert(f, "");
+        }
+        let t = ModuleTable::discover("shop", &s);
+        t.problems
+            .iter()
+            .map(|(f, c, _)| (t.files[f.idx()].clone(), *c))
+            .collect()
+    }
+
+    /// `module.path.case-collision`: paths that differ only by case.
+    #[test]
+    fn paths_that_differ_by_case_collide() {
+        let dup = hd_diag::Code::DuplicateModuleName;
+        assert_eq!(
+            collisions(&["src/Foo.hd", "src/foo.hd"]),
+            [("src/foo.hd".to_owned(), dup)]
+        );
+        assert_eq!(
+            collisions(&["src/a/B/c.hd", "src/a/b/c.hd"]),
+            [("src/a/b/c.hd".to_owned(), dup)]
+        );
+        assert_eq!(
+            collisions(&["tests/Foo.hd", "tests/foo.hd"]),
+            [("tests/foo.hd".to_owned(), dup)]
+        );
+        assert_eq!(
+            collisions(&["src/Dir/mod.hd", "src/dir/x.hd", "src/dir.hd"]),
+            [("src/dir.hd".to_owned(), dup)]
+        );
+        assert_eq!(
+            collisions(&["src/Stra\u{df}e.hd", "src/strasse.hd"]),
+            [("src/strasse.hd".to_owned(), dup)]
+        );
+        assert!(collisions(&["src/foo.hd", "src/bar.hd", "src/a/foo.hd"]).is_empty());
+    }
+
+    /// Composed and decomposed spellings of one name are one module.
+    #[test]
+    fn composed_and_decomposed_names_collide() {
+        assert_eq!(
+            collisions(&["src/caf\u{e9}.hd", "src/cafe\u{301}.hd"]),
+            [(
+                "src/caf\u{e9}.hd".to_owned(),
+                hd_diag::Code::DuplicateModuleName
+            )]
+        );
+    }
+
+    /// An exact duplicate keeps one error, not two.
+    #[test]
+    fn a_file_beside_its_mod_file_is_one_error() {
+        assert_eq!(collisions(&["src/x.hd", "src/x/mod.hd"]).len(), 1);
+    }
 
     #[test]
     fn folders_order_closure_and_cycles() {
