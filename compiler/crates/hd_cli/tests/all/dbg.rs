@@ -294,3 +294,147 @@ test result: FAILED. 1 passed; 1 failed; 0 ignored
 "
     );
 }
+
+const RELEASE_MAIN: &str = "\
+pub fn main() -> void $ Console:
+    dbg(1)
+    let show: fn((i32,)) -> void = dbg
+    show((2,))
+    println(3)
+";
+
+/// A release build rejects a `dbg` call and a `dbg` function value in the
+/// package, writes no output file, and `hd run --release` runs nothing
+/// (`module.dbg.release`, `cli.dbg.release`).
+#[test]
+fn release_rejects_dbg_and_builds_and_runs_nothing() {
+    let dir = scratch("hd-dbg-release-root");
+    std::fs::write(dir.join("src/main.hd"), RELEASE_MAIN).expect("write");
+    let built = hd(&dir, &["build", "--release"]);
+    assert_eq!(built.code, Some(101), "{}", built.err);
+    assert_eq!(
+        built.err.matches("dbg-in-release").count(),
+        2,
+        "{}",
+        built.err
+    );
+    assert!(built.err.contains("src/main.hd:2:5: dbg-in-release"));
+    assert!(built.err.contains("src/main.hd:3:36: dbg-in-release"));
+    assert!(!dir.join("build/release/probe.wasm").exists());
+    let ran = hd(&dir, &["run", "--release"]);
+    assert_eq!(ran.code, Some(101), "{}", ran.err);
+    assert_eq!(ran.out, "");
+    // A second run reads the cached check and gives the same answer.
+    let again = hd(&dir, &["build", "--release"]);
+    assert_eq!(again.err, built.err);
+}
+
+/// The call's fix-it deletes its whole statement; the function value has
+/// none (`module.dbg.release.delete`).
+#[test]
+fn release_fix_deletes_the_call_statement_only() {
+    let dir = scratch("hd-dbg-release-fix");
+    std::fs::write(dir.join("src/main.hd"), RELEASE_MAIN).expect("write");
+    let built = hd(&dir, &["build", "--release", "--format", "json"]);
+    let lines: Vec<&str> = built.out.lines().collect();
+    assert_eq!(lines.len(), 3, "{}", built.out);
+    let delete = "\"fixes\":[{\"message\":\"delete the `dbg` statement\",\"edits\":[{\"file\":\"src/main.hd\",\"start\":33,\"end\":44,\"text\":\"\"}]}]";
+    assert!(lines[0].contains(delete), "{}", lines[0]);
+    assert!(lines[1].contains("\"fixes\":[]"), "{}", lines[1]);
+}
+
+/// A debug build accepts `dbg` and prints its lines to standard error
+/// (`module.dbg.release.debug-build`).
+#[test]
+fn debug_build_accepts_dbg() {
+    let dir = scratch("hd-dbg-release-debug");
+    std::fs::write(dir.join("src/main.hd"), RELEASE_MAIN).expect("write");
+    let ran = hd(&dir, &["run"]);
+    assert_eq!(ran.code, Some(0), "{}", ran.err);
+    assert_eq!(ran.out, "3\n");
+    assert!(ran.err.contains("src/main.hd:2:5"), "{}", ran.err);
+    assert!(!ran.err.contains("dbg-in-release"));
+}
+
+/// `hd --release FILE` rejects the call and runs nothing (`cli.dbg.release.file`).
+#[test]
+fn release_file_rejects_dbg() {
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-dbg-release-file");
+    std::fs::write(dir.join("one.hd"), RELEASE_MAIN).expect("write");
+    let ran = hd(&dir, &["--release", "one.hd"]);
+    assert_eq!(ran.code, Some(101), "{}", ran.err);
+    assert_eq!(ran.out, "");
+    assert!(ran.err.contains("dbg-in-release"), "{}", ran.err);
+}
+
+/// `hd test --release` builds in the test profile, which accepts `dbg`
+/// (`cli.dbg.test-release`).
+#[test]
+fn test_release_accepts_dbg() {
+    let dir = scratch("hd-dbg-release-test");
+    std::fs::write(
+        dir.join("src/lib.hd"),
+        "\
+pub fn double(x: i32) -> i32:
+    dbg(x)
+    x * 2
+
+tests:
+    use std.testing.assert_equal
+
+    it(\"doubles\"):
+        assert_equal(double(2), 4, reason=\"double\")
+",
+    )
+    .expect("write");
+    let ran = hd(&dir, &["test", "--release"]);
+    assert_eq!(ran.code, Some(0), "{}{}", ran.out, ran.err);
+    assert!(!ran.err.contains("dbg-in-release"));
+}
+
+fn put(dir: &Path, rel: &str, text: &str) {
+    let path = dir.join(rel);
+    std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
+    std::fs::write(path, text).expect("write");
+}
+
+/// A path dependency and a workspace member that the root reaches are the
+/// user's own code (`module.dbg.own-code`).
+#[test]
+fn release_rejects_dbg_in_path_dependencies_and_workspace_members() {
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-dbg-release-ws");
+    put(
+        &dir,
+        "hd.toml",
+        "[workspace]\nmembers = [\"app\", \"tool\"]\n",
+    );
+    put(
+        &dir,
+        "app/hd.toml",
+        "[package]\nname = \"app\"\n\n[dependencies]\ntool = { path = \"../tool\" }\n",
+    );
+    put(
+        &dir,
+        "app/src/main.hd",
+        "use dep.tool.{twice}\n\npub fn main() -> void $ Console:\n    println(twice(2))\n",
+    );
+    put(&dir, "tool/hd.toml", "[package]\nname = \"tool\"\n");
+    put(
+        &dir,
+        "tool/src/lib.hd",
+        "pub fn twice(x: i32) -> i32:\n    dbg(x)\n    x * 2\n",
+    );
+    let app = dir.join("app");
+    let release = hd(&app, &["build", "--release"]);
+    assert_eq!(release.code, Some(101), "{}", release.err);
+    assert_eq!(
+        release.err.matches("dbg-in-release").count(),
+        1,
+        "{}",
+        release.err
+    );
+    assert!(release.err.contains("tool"), "{}", release.err);
+    let debug = hd(&app, &["run"]);
+    assert_eq!(debug.code, Some(0), "{}", debug.err);
+    assert_eq!(debug.out, "4\n");
+}

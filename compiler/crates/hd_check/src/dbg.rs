@@ -22,9 +22,31 @@ use hd_types::{Ty, TyData};
 use crate::body::Ck;
 use crate::call::Args;
 
+/// A reference to `dbg` in source: the call, or the path used as a value
+/// (`module.dbg.release`). It holds the same in every build profile, so
+/// the profile decides what it means, not the checker.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DbgRef {
+    pub span: hd_base::Span,
+    /// A call, whose fix-it deletes the statement.
+    pub call: bool,
+}
+
 const FORMAT: &str = "std.format";
 
 impl Ck<'_, '_> {
+    /// Notes a reference to `dbg` at `n`; a body checked twice notes it once.
+    pub(crate) fn note_dbg(&self, n: NodeRef<'_>, call: bool) {
+        let r = DbgRef {
+            span: self.cx.src.span(n),
+            call,
+        };
+        let mut refs = self.cx.dbg_refs.borrow_mut();
+        if !refs.contains(&r) {
+            refs.push(r);
+        }
+    }
+
     fn format_fn(&self, name: &str) -> DefId {
         self.cx.names.item(FORMAT, name)
     }

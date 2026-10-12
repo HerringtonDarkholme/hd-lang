@@ -271,6 +271,7 @@ fn build_sources(
                 identity: name.clone(),
                 sources,
                 requires: Vec::new(),
+                fetched: false,
             })
             .collect(),
         profile: profile(fixture),

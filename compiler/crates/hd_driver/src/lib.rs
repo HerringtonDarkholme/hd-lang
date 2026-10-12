@@ -413,6 +413,7 @@ type BodyOut = (
     Vec<Item>,
     Vec<hd_check::results::Inferred>,
     hd_check::init::InitSummary,
+    Vec<hd_check::DbgRef>,
 );
 
 /// What a module's derivations add to its `check` entry: the derived
@@ -535,6 +536,9 @@ struct Run<'a> {
     pipeline: Hash128,
     /// The build profile emitted code follows ([`Packages::build_profile`]).
     build_profile: BuildProfile,
+    /// Per package, in the table's order: whether it is fetched, so not
+    /// the user's own code (`module.dbg.own-code`).
+    fetched: Vec<bool>,
     skim: Vec<OnceLock<SkimOut>>,
     parse: Vec<OnceLock<Parse>>,
     graph: OnceLock<GraphOut>,
@@ -556,6 +560,8 @@ struct Run<'a> {
     tests: Vec<OnceLock<TestsOut>>,
     /// Per module, in a test run: the registrations its check entry holds.
     regs: Vec<OnceLock<Vec<hd_check::tests::TestReg>>>,
+    /// Each module's references to `dbg` (`module.dbg.release`).
+    dbg_refs: Vec<OnceLock<Vec<hd_check::DbgRef>>>,
     /// Per folder: `InitOrder`'s runs, one list per module cycle of the
     /// folder whose statements sit in several modules.
     init_runs: Vec<OnceLock<Vec<Vec<InitRun>>>>,
@@ -586,6 +592,10 @@ pub struct Dependency<'a> {
     pub sources: &'a dyn SourceSet,
     /// Its own requirements, as in [`Packages::requires`].
     pub requires: Vec<(String, u16)>,
+    /// Whether it is a package fetched for a version requirement. Every
+    /// other dependency is the user's own code, which a release build
+    /// holds to `module.dbg.release` (`module.dbg.own-code`).
+    pub fetched: bool,
 }
 
 /// The packages around a build's root package.
@@ -760,6 +770,10 @@ fn build_packages_inner(
             Goal::Program { .. } => packages.build_profile,
             Goal::Tests { .. } | Goal::Analyze | Goal::CheckTests => BuildProfile::Checked,
         },
+        fetched: std::iter::once(false)
+            .chain(packages.deps.iter().map(|d| d.fetched))
+            .chain(std::iter::once(false))
+            .collect(),
         skim: (0..n).map(|_| OnceLock::new()).collect(),
         parse: (0..n).map(|_| OnceLock::new()).collect(),
         graph: OnceLock::new(),
@@ -772,6 +786,7 @@ fn build_packages_inner(
         check: (0..n).map(|_| OnceLock::new()).collect(),
         tests: (0..n).map(|_| OnceLock::new()).collect(),
         regs: (0..n).map(|_| OnceLock::new()).collect(),
+        dbg_refs: (0..n).map(|_| OnceLock::new()).collect(),
         init_runs: (0..nf).map(|_| OnceLock::new()).collect(),
         program: OnceLock::new(),
         collect: OnceLock::new(),
@@ -2479,6 +2494,7 @@ impl Run<'_> {
             methods: std::cell::OnceCell::new(),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             results: std::cell::RefCell::default(),
+            dbg_refs: std::cell::RefCell::default(),
             locals: &locals,
             tests: lowered.tests.as_ref().map(|scope| hd_check::TestsView {
                 blocks: &blocks,
@@ -2931,7 +2947,8 @@ impl Run<'_> {
         let same_folder =
             |d: DefId| self.table.folder_of_module(&names.module_of(d)) == Some(folder);
         let summary = hd_check::init::summary(&cx, init_facts, &same_folder);
-        let _ = self.body[m].set(Some((bodies, diags, derived.items, inferred, summary)));
+        let dbg = cx.dbg_refs.take();
+        let _ = self.body[m].set(Some((bodies, diags, derived.items, inferred, summary, dbg)));
     }
 
     /// Stage B (§4.10.1) over the module's items that `HeaderCheck` cannot
@@ -3224,6 +3241,7 @@ impl Run<'_> {
                 methods: std::cell::OnceCell::new(),
                 init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
                 results: std::cell::RefCell::default(),
+                dbg_refs: std::cell::RefCell::default(),
                 locals: &tlocals,
                 tests: None,
                 file_name: &self.table.files[tm],
@@ -3324,6 +3342,7 @@ impl Run<'_> {
             methods: std::cell::OnceCell::new(),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             results: std::cell::RefCell::default(),
+            dbg_refs: std::cell::RefCell::default(),
             locals: &tlocals,
             tests: None,
             file_name: &self.table.files[tm],
@@ -3424,7 +3443,7 @@ impl Run<'_> {
     /// module's items; TIR, one record per body; a test run's
     /// registrations; the init summary, which `InitOrder` reads.
     fn module_finish(&self, m: usize) {
-        let (Some(Some(prep)), Some(Some((bodies, bdiags, derived, inferred, summary)))) =
+        let (Some(Some(prep)), Some(Some((bodies, bdiags, derived, inferred, summary, dbg)))) =
             (self.prep[m].get(), self.body[m].get())
         else {
             self.blocked(Stage::ModuleFinish);
@@ -3512,13 +3531,24 @@ impl Run<'_> {
             }
         };
         let Some(key) = self.check_key(m) else { return };
-        let sections: [&[u8]; 6] = [
+        // The references to `dbg`, whichever the profile: a release build
+        // reads them (`module.dbg.release`), so they stay out of the TIR
+        // content hash and the entry holds one answer for every profile.
+        let mut gw = Writer::default();
+        gw.len_of(dbg);
+        for r in dbg {
+            lines.write(&mut gw, r.span.lo);
+            lines.write(&mut gw, r.span.hi);
+            gw.u8(u8::from(r.call));
+        }
+        let sections: [&[u8]; 7] = [
             &dw.bytes,
             &meta.bytes,
             &items,
             &tw.bytes,
             &rw.bytes,
             &summary,
+            &gw.bytes,
         ];
         self.put(EntryKind::Check, key, &sections);
         lock(&self.counters)
@@ -3527,6 +3557,79 @@ impl Run<'_> {
         lock(&self.report).ok(Stage::ModuleFinish);
         let owned: Vec<Vec<u8>> = sections.iter().map(|s| s.to_vec()).collect();
         self.read_check(m, &owned, Arc::from(join_sections(&owned)));
+    }
+
+    /// `module.dbg.release`: a release build rejects each reference to
+    /// `dbg` in the user's own code, with the call's statement deleted by
+    /// the fix-it. The references are the same in every profile, so this
+    /// reads them from the `check` entries here, where the profile is known,
+    /// and no entry depends on it. Only a program goal builds in release
+    /// (`Run::build_profile`); a test run keeps the test profile.
+    fn dbg_in_release(&self) {
+        if self.build_profile != BuildProfile::Release {
+            return;
+        }
+        let std = self.table.packages.len() - 1;
+        for (m, module) in self.table.modules.iter().enumerate() {
+            let package = usize::from(module.package);
+            if package == std || self.fetched.get(package).copied().unwrap_or(false) {
+                continue;
+            }
+            let Some(refs) = self.dbg_refs[m].get() else {
+                continue;
+            };
+            for r in refs {
+                let what = if r.call { "call" } else { "use" };
+                let msg =
+                    format!("`dbg` is for debug builds; a release build rejects this {what} of it");
+                let mut diags = lock(&self.diags);
+                diags.error(Code::DbgInRelease, r.span, &msg);
+                if r.call
+                    && let Some(del) = self.statement_deletion(m, r.span)
+                {
+                    diags.add_fix(
+                        "delete the `dbg` statement",
+                        hd_diag::FixSafety::Suggestion,
+                        &[(del, "")],
+                    );
+                }
+            }
+        }
+    }
+
+    /// The span to delete to remove the statement that is the call at
+    /// `call`: the whole line when the statement is alone on it. `None` when
+    /// the call is no statement of its own, so deleting it would change types.
+    fn statement_deletion(&self, m: usize, call: Span) -> Option<Span> {
+        let src = self.src(m);
+        let stmt = src.root().descendants().find(|n| {
+            n.kind() == hd_syntax::SyntaxKind::ExprStmt
+                && n.children().next().is_some_and(|c| src.span(c) == call)
+        })?;
+        let span = src.span(stmt);
+        let text = self.texts[m].as_bytes();
+        let (mut lo, mut hi) = (span.lo as usize, span.hi as usize);
+        let line = text[..lo]
+            .iter()
+            .rposition(|&b| b == b'\n')
+            .map_or(0, |i| i + 1);
+        let alone_before = text[line..lo].iter().all(|b| matches!(b, b' ' | b'\t'));
+        let rest = text[hi..]
+            .iter()
+            .position(|&b| b == b'\n')
+            .unwrap_or(text.len() - hi);
+        let alone_after = text[hi..hi + rest]
+            .iter()
+            .all(|b| matches!(b, b' ' | b'\t' | b'\r'));
+        if alone_before && alone_after {
+            lo = line;
+            hi = (hi + rest + 1).min(text.len());
+        }
+        Some(Span {
+            file: span.file,
+            lo: u32_of(lo),
+            hi: u32_of(hi),
+        })
     }
 
     /// Reads diagnostics and the meta section; the rest waits for `Collect`.
@@ -3566,6 +3669,20 @@ impl Run<'_> {
             .map(|b| decode_regs(&mut Reader::new(b), &lines))
             .unwrap_or_default();
         let _ = self.regs[m].set(regs);
+        let mut dbg = Vec::new();
+        if let Some(b) = sections.get(6) {
+            let mut r = Reader::new(b);
+            for _ in 0..r.count() {
+                let (lo, hi) = (lines.read(&mut r), lines.read(&mut r));
+                let call = r.u8() != 0;
+                let file = FileId::from_raw(u32_of(m));
+                dbg.push(hd_check::DbgRef {
+                    span: Span { file, lo, hi },
+                    call,
+                });
+            }
+        }
+        let _ = self.dbg_refs[m].set(dbg);
         let content = Reader::new(meta).hash();
         let _ = self.check[m].set(Some(CheckOut {
             entry,
@@ -3581,6 +3698,7 @@ impl Run<'_> {
         let orders: Vec<TaskId> = (0..self.table.folders.len())
             .map(|f| sp.add(TaskKind::InitOrder(u32_of(f)), &[]))
             .collect();
+        self.dbg_in_release();
         match &self.goal {
             Goal::Program { .. } | Goal::Tests { .. } => {
                 if !lock(&self.diags).has_errors() {

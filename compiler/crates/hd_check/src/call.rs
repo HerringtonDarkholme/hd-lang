@@ -1419,6 +1419,9 @@ impl Ck<'_, '_> {
             return unsupported("a call of an item outside the closure");
         };
         self.note_call(def);
+        if def == self.cx.names.known.dbg {
+            self.note_dbg(n, true);
+        }
         let name = self.cx.names.text(item.name).to_owned();
         self.check_forbidden_call(def, &name, n);
         // A registration function is called only by a test registration

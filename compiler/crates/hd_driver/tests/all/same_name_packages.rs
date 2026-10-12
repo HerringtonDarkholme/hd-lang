@@ -64,6 +64,7 @@ fn run(store: &MemoryStore, main: &MemorySources, deps: &[(&str, &str, &MemorySo
                 identity: (*identity).to_owned(),
                 sources: *sources,
                 requires: Vec::new(),
+                fetched: false,
             })
             .collect(),
         ..Packages::default()

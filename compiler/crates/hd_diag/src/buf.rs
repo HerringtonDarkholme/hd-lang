@@ -106,6 +106,27 @@ impl DiagBuf {
         true
     }
 
+    /// Attaches a fix-it to the diagnostic pushed last: its title and the
+    /// edits that apply it, each a span and the text that replaces it.
+    pub fn add_fix(&mut self, title: &str, safety: FixSafety, edits: &[(Span, &str)]) {
+        let Some(row) = self.fixes.last_mut() else {
+            return;
+        };
+        row.len += 1;
+        let title = self.text(title);
+        let start = u32::try_from(self.edits.len()).expect("edits");
+        self.fix_title.push(title);
+        self.fix_safety.push(safety);
+        self.fix_edits.push(Range32::new(
+            start,
+            u32::try_from(edits.len()).expect("edits"),
+        ));
+        for (span, text) in edits {
+            let text = self.text(text);
+            self.edits.push(FixEdit { span: *span, text });
+        }
+    }
+
     /// Error-severity diagnostic with no root key.
     pub fn error(&mut self, code: Code, primary: Span, message: &str) {
         self.push(code, Severity::Error, primary, message, None);

@@ -49,6 +49,7 @@ fn analyze_with_dependency(main: &str, ext: &str) -> Output {
             identity: "ext".to_owned(),
             sources: &dep,
             requires: Vec::new(),
+            fetched: false,
         }],
         ..Packages::default()
     };

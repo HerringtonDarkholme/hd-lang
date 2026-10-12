@@ -13,6 +13,7 @@ mod collide;
 pub mod conflicts;
 mod conform;
 mod dbg;
+pub use dbg::DbgRef;
 pub mod delegate;
 pub mod derive;
 mod dupfacts;

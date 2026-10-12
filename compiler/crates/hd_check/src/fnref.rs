@@ -200,6 +200,9 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
+        if def == self.cx.names.known.dbg {
+            self.note_dbg(n, false);
+        }
         // A registration function is never a value (`module.testing.direct-call`).
         if self.is_registration_fn(def) {
             let name = self

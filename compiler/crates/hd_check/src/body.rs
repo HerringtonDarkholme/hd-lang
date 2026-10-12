@@ -44,6 +44,9 @@ pub struct BodyCx<'a> {
     pub init: std::cell::RefCell<crate::init::ModuleInit>,
     /// The module's private callables with omitted result types (M1).
     pub results: std::cell::RefCell<crate::results::Results>,
+    /// Every reference to `dbg` the module's bodies make, which a release
+    /// build rejects in the user's own code (`module.dbg.release`).
+    pub dbg_refs: std::cell::RefCell<Vec<crate::dbg::DbgRef>>,
     /// The module's block-local declarations, lifted to hidden items
     /// (checking-and-tir.md "Local items lift to hidden module items").
     pub locals: &'a [hd_resolve::LocalItem],

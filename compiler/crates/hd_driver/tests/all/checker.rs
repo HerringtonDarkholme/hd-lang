@@ -774,6 +774,7 @@ fn a_dependency_diagnostic_is_located_in_its_file() {
             identity: "ext".to_owned(),
             sources: &dep,
             requires: Vec::new(),
+            fetched: false,
         }],
         ..Packages::default()
     };

@@ -202,6 +202,7 @@ impl Program {
                     identity: d.identity.clone(),
                     sources: &d.sources,
                     requires: d.requires.clone(),
+                    fetched: false,
                 })
                 .collect(),
             entries: self.entries.clone(),
