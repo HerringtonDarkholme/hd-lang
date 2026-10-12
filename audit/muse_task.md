@@ -55,10 +55,3 @@ commit that finishes it. When the queue is empty, report that and wait.
 (Owner, 2026-10-11: Codex is offline; a weaker Muse is back temporarily.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
-
-### M47. Split `host.rs` and `test_engine.rs`
-
-The same for `crates/hd_run_wasmtime/src/host.rs` (1121 lines) and
-`test_engine.rs` (1066 lines): modules with files of at most about 600
-lines, code moved verbatim, tests and verdicts unchanged. One commit per
-file.
