@@ -48,7 +48,7 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync, writeSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { isMainThread, parentPort, Worker, workerData } from "node:worker_threads";
-import { createHost, EndCase, timeLimitReport } from "./core.mjs";
+import { createHost, EndCase, timeLimitReport } from "./node.mjs";
 
 // How long past a deadline the supervisor waits for a body to end on its
 // own before it stops the worker.

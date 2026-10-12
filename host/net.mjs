@@ -1,5 +1,5 @@
 // The default profile's sockets (spec/std/net.md): a worker thread that
-// `core.mjs` starts on a program's first `Net` call, and that owns every
+// `node.mjs` starts on a program's first `Net` call, and that owns every
 // socket the program opens. The program's thread posts each operation on
 // `port` and waits on `flag`; this thread does it, posts the outcome back,
 // and wakes it. So each operation finishes inside its `.start` call, as a
@@ -15,7 +15,7 @@ import dgram from "node:dgram";
 import { promises as dns } from "node:dns";
 import net from "node:net";
 import { workerData } from "node:worker_threads";
-import { validHost } from "./core.mjs";
+import { validHost } from "./node.mjs";
 
 // Open handles by number; a closed one stays, marked, so each later
 // operation on it is `Disposed`.

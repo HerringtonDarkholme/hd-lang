@@ -1,7 +1,7 @@
 // Long-lived Node worker for driver conformance entry runs (M39).
 //
 // One process per conformance worker thread, started once. It loads the
-// host (`core.mjs`, `profiles.mjs`) once and takes cases over stdin, one
+// host (`node.mjs`, `profiles.mjs`) once and takes cases over stdin, one
 // framed message per case: a 4-byte big-endian header length, the header
 // JSON, then the wasm bytes and the stdin text. The header is
 // `{"id","wasmLen","profile","args","stdinLen"}`: the case's serial as
@@ -34,7 +34,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createHost } from "./core.mjs";
+import { createHost } from "./node.mjs";
 import { providers } from "./profiles.mjs";
 
 const IN = 0;

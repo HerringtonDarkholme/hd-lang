@@ -15,8 +15,11 @@ use hd_run::{Engine, Grants, HostSetup, Instance, Limit, LoadError, Outcome, Sta
 
 use crate::report::quote;
 
-/// The JS host: the import object and the entry driver.
+/// The JS host's platform-neutral core: the import object and the entry
+/// driver.
 const CORE: &str = include_str!("../../../host/core.mjs");
+/// The JS host's Node layer: the providers that touch the machine.
+const NODE: &str = include_str!("../../../host/node.mjs");
 /// `hd run`: one instance, `hd.init` then `hd.poll`.
 const RUN: &str = include_str!("../../../host/run.mjs");
 /// `hd test`: one fresh instance per case.
@@ -85,6 +88,7 @@ impl Scratch {
         std::fs::create_dir_all(&s.0).map_err(|e| format!("{}: {e}", s.0.display()))?;
         for (name, text) in [
             ("core.mjs", CORE),
+            ("node.mjs", NODE),
             ("run.mjs", RUN),
             ("test.mjs", TEST),
             ("http.mjs", HTTP),

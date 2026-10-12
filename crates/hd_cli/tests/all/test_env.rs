@@ -148,7 +148,7 @@ fn seed_takes_a_whole_number() {
     }
 }
 
-/// The JS host's side (`host/core.mjs`): `tempDir()` makes the
+/// The JS host's side (`host/node.mjs`): `tempDir()` makes the
 /// case's directory on its first call and returns the same path after
 /// (`std-testing.runner.temp-dir`, `std-testing.temp-dir.same`), the
 /// host holds the case's program path and no arguments
@@ -156,8 +156,8 @@ fn seed_takes_a_whole_number() {
 /// agree with `hd_run::Grants` (`cli.cap.scope.*`).
 #[test]
 fn the_js_host_holds_the_case_environment() {
-    let core = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/core.mjs");
-    let core = std::fs::canonicalize(core).expect("core.mjs");
+    let core = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/node.mjs");
+    let core = std::fs::canonicalize(core).expect("node.mjs");
     let work = tmp("hd-env-js");
     let _ = std::fs::remove_dir_all(&work);
     std::fs::create_dir_all(work.join("pkg/fixtures")).expect("pkg");

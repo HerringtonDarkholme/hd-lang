@@ -1,5 +1,5 @@
 // The default profile's HTTP client (std-http.send.*): a worker thread
-// that `core.mjs` starts on a program's first `Http.send!`. The program's
+// that `node.mjs` starts on a program's first `Http.send!`. The program's
 // thread posts each request on `port` and waits on `flag`; this thread
 // makes the request with `node:http` or `node:https`, posts the outcome
 // back, and wakes it. So a request finishes inside its `.start` call, as a
@@ -19,7 +19,7 @@
 import http from "node:http";
 import https from "node:https";
 import { workerData } from "node:worker_threads";
-import { createGrant } from "./core.mjs";
+import { createGrant } from "./node.mjs";
 
 // The provider's default timeout (std-http.request.defaults).
 const DEFAULT_TIMEOUT_MS = 30_000;

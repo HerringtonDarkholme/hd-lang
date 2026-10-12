@@ -6,7 +6,7 @@
 // conformance runner's configuration may name a fixture's runtime
 // `profile` instead, whose providers profiles.mjs holds.
 import { readFileSync, writeSync } from "node:fs";
-import { createHost } from "./core.mjs";
+import { createHost } from "./node.mjs";
 
 const bytes = readFileSync(process.argv[2]);
 const spec = process.argv[3] ?? "";

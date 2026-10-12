@@ -27,7 +27,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createHost } from "../../../host/core.mjs";
+import { createHost } from "../../../host/node.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..", "..", "..");
@@ -81,7 +81,7 @@ function buildRelease(hd: string, scratch: string): { bytes: Buffer; size: numbe
  * excluded: the module compiles once, each run instantiates fresh and
  * times only init-to-completion. */
 async function timeHd(wasm: Buffer): Promise<number> {
-  const module = await WebAssembly.compile(wasm);
+  const module = await WebAssembly.compile(new Uint8Array(wasm));
   const times: number[] = [];
   for (let run = 0; run < RUNS; run++) {
     let errors = "";
