@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2785 | 44 | 16 | 2845 |
+| 2787 | 42 | 16 | 2845 |
 
 ## By Chapter
 
@@ -23,7 +23,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/07-functions.md` | 126 | 4 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 120 | 3 | 0 | 123 |
 | `lang/09-traits.md` | 352 | 7 | 0 | 359 |
-| `lang/10-modules.md` | 250 | 4 | 4 | 258 |
+| `lang/10-modules.md` | 252 | 2 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 250 | 1 | 8 | 259 |
 | `lang/14-annotations.md` | 146 | 7 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 917 | 0 | 12 | 929 |
-| `typing/invalid` | 1037 | 37 | 1 | 1075 |
+| `typing/invalid` | 1039 | 35 | 1 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 13 | 7 | 0 | 20 |
 
@@ -81,9 +81,7 @@ compiler stage that first declined the case.
 | `fail:no-diagnostic` | 29 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-main` | 1 |
-| `fail:re-export-loop` | 1 |
 | `fail:unknown-data-field` | 2 |
-| `fail:unknown-import` | 1 |
 | `fail:unknown-module` | 1 |
 | `fail:unknown-name` | 3 |
 | `unsupported:Body` | 1 |
@@ -156,22 +154,10 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:re-export-loop</code> (1)</summary>
-
-- `typing/invalid/pub-use-loop.hd`
-
-</details>
-
 <details><summary><code>fail:unknown-data-field</code> (2)</summary>
 
 - `typing/invalid/tuple-index-out-of-range.hd`
 - `typing/invalid/default-body-self-field.hd`
-
-</details>
-
-<details><summary><code>fail:unknown-import</code> (1)</summary>
-
-- `typing/invalid/use-through-pub-use-loop.hd`
 
 </details>
 
@@ -2255,6 +2241,7 @@ typing/invalid/property-input-not-debug.hd
 typing/invalid/provider-scope-unknown-trait.hd
 typing/invalid/provider-spread-of-non-context.hd
 typing/invalid/provider-value-type-mismatch.hd
+typing/invalid/pub-use-loop.hd
 typing/invalid/pub-use-private-declaration.hd
 typing/invalid/public-function-missing-result-type.hd
 typing/invalid/public-method-missing-result-type.hd
@@ -2564,6 +2551,7 @@ typing/invalid/unsigned-negation.hd
 typing/invalid/unused-cold-suspension.hd
 typing/invalid/use-alias-original-name-unbound.hd
 typing/invalid/use-module-and-root-declaration.hd
+typing/invalid/use-through-pub-use-loop.hd
 typing/invalid/use-without-provider.hd
 typing/invalid/user-anyref-implementation.hd
 typing/invalid/user-anyval-implementation.hd

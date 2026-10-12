@@ -599,6 +599,11 @@ pub struct FolderOut {
     /// The interface's private-name index: each top-level declaration
     /// without `pub`, as (module path, name), sorted (§4.9).
     pub private_names: Vec<(String, Symbol)>,
+    /// Names no use can reach through this folder: each public name whose
+    /// `pub use` chain returns to a `pub use` it passed
+    /// (`module.pub-use.chain.loop`), as (module path, name), sorted. A
+    /// use through another folder reads them as a loop, quietly.
+    pub loop_names: Vec<(String, Symbol)>,
 }
 
 /// What one resolution needs from the run.
@@ -617,6 +622,9 @@ struct Resolver<'a, 'b> {
     pub_uses: HashMap<(String, Symbol), (String, Symbol)>,
     memo: RefCell<HashMap<(String, Symbol), Res>>,
     visiting: RefCell<HashSet<(String, Symbol)>>,
+    /// Re-export loops already reported, each as its cycle's sorted nodes,
+    /// so a loop is one error (`module.pub-use.chain.loop`).
+    loops_reported: RefCell<HashSet<Vec<(String, Symbol)>>>,
     /// Associated type names of this folder's traits, from their heads.
     trait_assoc: HashMap<DefId, Vec<Symbol>>,
     /// The declared variance markers of the folder's own declarations.
@@ -666,6 +674,8 @@ impl Resolver<'_, '_> {
                 .map(|e| (e.def, e.kind))
                 .ok_or(if i.is_private(module, name) {
                     Code::PrivateImport
+                } else if i.loop_names.contains(&(module.to_owned(), name)) {
+                    Code::ReExportLoop
                 } else {
                     Code::UnknownImport
                 })
@@ -699,6 +709,56 @@ impl Resolver<'_, '_> {
         };
         self.memo.borrow_mut().insert(key, r);
         r
+    }
+
+    /// Whether `module` lives in the folder being lowered: only then did
+    /// the lookup above follow this folder's own `pub use` chain.
+    fn is_own_folder(&self, module: &str) -> bool {
+        self.cx.world.module_folder(module) == Some(self.cx.folder)
+    }
+
+    /// The `pub use` cycle reachable from `key`, if following the chain
+    /// returns to a link it passed (`module.pub-use.chain.loop`): the
+    /// cycle's nodes in a canonical order, whatever link the walk starts
+    /// from.
+    fn export_cycle(&self, key: &(String, Symbol)) -> Option<Vec<(String, Symbol)>> {
+        let mut at = key.clone();
+        let mut seen: HashMap<(String, Symbol), usize> = HashMap::new();
+        let mut chain: Vec<(String, Symbol)> = Vec::new();
+        while chain.len() <= self.pub_uses.len() {
+            if let Some(&start) = seen.get(&at) {
+                let mut cycle = chain[start..].to_vec();
+                cycle.sort_by(|a, b| {
+                    (a.0.as_str(), self.cx.names.text(a.1))
+                        .cmp(&(b.0.as_str(), self.cx.names.text(b.1)))
+                });
+                return Some(cycle);
+            }
+            seen.insert(at.clone(), chain.len());
+            let next = self.pub_uses.get(&at)?.clone();
+            chain.push(at);
+            at = next;
+        }
+        None
+    }
+
+    /// Reports a re-export loop once per cycle, at `span`. A loop through
+    /// another folder was reported when its interface was built, so its
+    /// uses stay quiet here.
+    fn report_loop(&self, diags: &mut DiagBuf, span: hd_base::Span, module: &str, name: Symbol) {
+        if !self.is_own_folder(module) {
+            return;
+        }
+        let key = (module.to_owned(), name);
+        let fresh = match self.export_cycle(&key) {
+            Some(cycle) => self.loops_reported.borrow_mut().insert(cycle),
+            // No cycle in this folder's chain: report, as before.
+            None => true,
+        };
+        if fresh {
+            let msg = format!("re-export loop through `{}`", self.cx.names.text(name));
+            diags.error(Code::ReExportLoop, span, &msg);
+        }
     }
 
     /// An item of another folder or a seed, for kinds and alias bodies.
@@ -1027,6 +1087,11 @@ fn bind_uses(
                             bind_item(scope, local, d, origin, row);
                             kinds.insert(d, k);
                         }
+                        Err(Code::ReExportLoop) => {
+                            r.report_loop(diags, g.span, &module, sym);
+                            let local = names.syms.intern(g.alias.as_deref().unwrap_or(&g.name));
+                            bind_poison(scope, local, use_origin(u), row);
+                        }
                         Err(code) => {
                             let msg = export_failure(code, &g.name, &module);
                             diags.error(code, g.span, &msg);
@@ -1081,8 +1146,12 @@ fn bind_uses(
                         .export(&parent, names.syms.intern(last))
                         .err()
                         .unwrap_or(Code::UnknownImport);
-                    let msg = export_failure(code, last, &parent);
-                    diags.error(code, u.span, &msg);
+                    if code == Code::ReExportLoop {
+                        r.report_loop(diags, u.span, &parent, names.syms.intern(last));
+                    } else {
+                        let msg = export_failure(code, last, &parent);
+                        diags.error(code, u.span, &msg);
+                    }
                     bind_poison(scope, local, use_origin(u), row);
                 }
             }
@@ -1095,6 +1164,7 @@ fn export_failure(code: Code, name: &str, module: &str) -> String {
     match code {
         Code::PrivateImport => format!("'{name}' is private to module '{module}'"),
         Code::UnknownModule => format!("no module named '{module}'"),
+        Code::ReExportLoop => format!("re-export loop through `{name}`"),
         _ => format!("module '{module}' declares no '{name}'"),
     }
 }
@@ -1309,6 +1379,12 @@ impl Lower<'_, '_, '_> {
         let (last, _) = segs.last()?;
         match self.r.export(&module, self.sym(last)) {
             Ok(x) => Some(x),
+            Err(Code::ReExportLoop) => {
+                let sym = self.sym(last);
+                let r = self.r;
+                r.report_loop(&mut *self.diags, span, &module, sym);
+                None
+            }
             Err(code) => {
                 let msg = export_failure(code, last, &module);
                 self.diags.error(code, span, &msg);
@@ -4506,6 +4582,7 @@ pub fn build_folder(
         pub_uses: HashMap::new(),
         memo: RefCell::new(HashMap::new()),
         visiting: RefCell::new(HashSet::new()),
+        loops_reported: RefCell::new(HashSet::new()),
         trait_assoc: HashMap::new(),
         variances: HashMap::new(),
         row_params: HashMap::new(),
@@ -4594,6 +4671,7 @@ pub fn build_folder(
         modules: Vec::new(),
         exports: Vec::new(),
         private_names: Vec::new(),
+        loop_names: Vec::new(),
     };
     let mut scopes: Vec<ModScopes> = mods
         .iter()
@@ -4755,12 +4833,12 @@ pub fn build_folder(
                         kind,
                     }),
                     Err(Code::ReExportLoop) => {
+                        out.loop_names.push((m.path.clone(), name));
                         let span = us
                             .iter()
                             .find(|u| u.public)
                             .map_or(m.src.span(m.src.root()), |u| u.span);
-                        let msg = format!("re-export loop through `{}`", names.text(name));
-                        diags.error(Code::ReExportLoop, span, &msg);
+                        r.report_loop(diags, span, &m.path, name);
                     }
                     Err(_) => {}
                 }
@@ -4776,6 +4854,8 @@ pub fn build_folder(
             .map(|(key, _)| key.clone())
             .collect();
         out.private_names
+            .sort_by(|a, b| (a.0.as_str(), names.text(a.1)).cmp(&(b.0.as_str(), names.text(b.1))));
+        out.loop_names
             .sort_by(|a, b| (a.0.as_str(), names.text(a.1)).cmp(&(b.0.as_str(), names.text(b.1))));
     }
     match unsupported {

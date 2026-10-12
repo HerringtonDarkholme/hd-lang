@@ -1682,6 +1682,9 @@ impl Run<'_> {
             && let Some(private) = sections
                 .get(3)
                 .and_then(|b| hd_resolve::decode_private_names(&names, b))
+            && let Some(looped) = sections
+                .get(4)
+                .and_then(|b| hd_resolve::decode_private_names(&names, b))
             && let Some(mentions) = self.mentions(fid, &items, &exports)
         {
             let mut iface = hd_resolve::folder_iface(
@@ -1693,6 +1696,7 @@ impl Run<'_> {
             );
             iface.spans = spans_of(&iface.items, &rows);
             iface.private_names = private.into_iter().collect();
+            iface.loop_names = looped.into_iter().collect();
             self.emit_iface_diags(fi, &diags);
             self.note_iface(&folder.path, &iface, false);
             lock(&self.report).ok(Stage::FolderIface);
@@ -1786,7 +1790,8 @@ impl Run<'_> {
             .collect();
         let asec = hd_resolve::anchor::encode(&rows);
         let psec = hd_resolve::encode_private_names(&names, &out.private_names);
-        self.put(EntryKind::Iface, key, &[&blob, &dsec, &asec, &psec]);
+        let lsec = hd_resolve::encode_private_names(&names, &out.loop_names);
+        self.put(EntryKind::Iface, key, &[&blob, &dsec, &asec, &psec, &lsec]);
         let Some(mentions) = self.mentions(fid, &items, &out.exports) else {
             self.blocked(Stage::FolderIface);
             let _ = self.iface[fi].set(None);
@@ -1796,6 +1801,7 @@ impl Run<'_> {
             hd_resolve::folder_iface(&folder.path, items, out.exports, Arc::from(blob), &mentions);
         iface.spans = spans_of(&iface.items, &rows);
         iface.private_names = out.private_names.into_iter().collect();
+        iface.loop_names = out.loop_names.into_iter().collect();
         lock(&self.diags).append(&diags);
         self.note_iface(&folder.path, &iface, true);
         lock(&self.report).ok(Stage::FolderIface);

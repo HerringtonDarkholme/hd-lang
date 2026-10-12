@@ -640,6 +640,12 @@ pub struct FolderIface {
     /// failed export lookup that finds a row is `private-import`. Outside
     /// every hash; diagnostics only.
     pub private_names: std::collections::HashSet<(String, Symbol)>,
+    /// Names no use can reach through this folder: each public name whose
+    /// `pub use` chain loops (`module.pub-use.chain.loop`), as (module
+    /// path, name). A failed export lookup that finds a row is
+    /// `re-export-loop`, reported where the loop was built, quietly
+    /// through other folders. Outside every hash; diagnostics only.
+    pub loop_names: std::collections::HashSet<(String, Symbol)>,
 }
 
 impl FolderIface {
@@ -1272,6 +1278,7 @@ pub fn folder_iface(
         deep_hash,
         spans: HashMap::new(),
         private_names: std::collections::HashSet::new(),
+        loop_names: std::collections::HashSet::new(),
     }
 }
 
