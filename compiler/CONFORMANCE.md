@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2710 | 119 | 16 | 2845 |
+| 2711 | 118 | 16 | 2845 |
 
 ## By Chapter
 
@@ -19,7 +19,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
 | `lang/04-type-system.md` | 332 | 20 | 0 | 352 |
 | `lang/05-expressions.md` | 266 | 11 | 0 | 277 |
-| `lang/06-control-flow.md` | 142 | 11 | 4 | 157 |
+| `lang/06-control-flow.md` | 143 | 10 | 4 | 157 |
 | `lang/07-functions.md` | 123 | 7 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 116 | 7 | 0 | 123 |
 | `lang/09-traits.md` | 348 | 11 | 0 | 359 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 916 | 1 | 12 | 929 |
-| `typing/invalid` | 979 | 95 | 1 | 1075 |
+| `typing/invalid` | 980 | 94 | 1 | 1075 |
 | `typing/valid` | 414 | 1 | 0 | 415 |
 | `typing/warnings` | 12 | 8 | 0 | 20 |
 
@@ -85,7 +85,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:no-common-type` | 2 |
-| `fail:no-diagnostic` | 42 |
+| `fail:no-diagnostic` | 41 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-import` | 1 |
 | `fail:private-main` | 1 |
@@ -181,7 +181,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (42)</summary>
+<details><summary><code>fail:no-diagnostic</code> (41)</summary>
 
 - `typing/warnings/unreachable-code.hd`
 - `typing/invalid/unknown-annotation-member.hd`
@@ -191,7 +191,6 @@ compiler stage that first declined the case.
 - `typing/warnings/variant-binding-names-swapped.hd`
 - `typing/invalid/generic-supertrait-upcast-mismatch.hd`
 - `typing/invalid/enum-default-requires-provider.hd`
-- `typing/invalid/duplicate-literal-match-arm.hd`
 - `typing/invalid/trait-resolution-depth.hd`
 - `typing/invalid/structure-outside-template.hd`
 - `typing/invalid/marker-template.hd`
@@ -1923,6 +1922,7 @@ typing/invalid/duplicate-function-fact.hd
 typing/invalid/duplicate-generic-embedded-name.hd
 typing/invalid/duplicate-impl-member.hd
 typing/invalid/duplicate-inherent-member.hd
+typing/invalid/duplicate-literal-match-arm.hd
 typing/invalid/duplicate-supertrait.hd
 typing/invalid/duplicate-test-name.hd
 typing/invalid/duplicate-trait-member.hd

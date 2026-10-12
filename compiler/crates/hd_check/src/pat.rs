@@ -1102,6 +1102,20 @@ impl Ck<'_, '_> {
 
     // ------------------------------------------------------------ exhaustiveness
 
+    /// The scalar value of a char literal pattern, decoding escapes.
+    fn char_value(&self, p: NodeRef<'_>) -> Option<u32> {
+        let raw = self.cx.src.text(self.cx.src.first(p));
+        let inner = raw.strip_prefix('\'').unwrap_or(raw);
+        let inner = inner.strip_suffix('\'').unwrap_or(inner);
+        let mut pieces = Vec::new();
+        crate::expr::decode_piece(inner, &mut pieces);
+        let ch = match pieces.as_slice() {
+            [crate::expr::Piece::Text(s)] => s.chars().next(),
+            _ => inner.chars().next(),
+        };
+        ch.map(u32::from)
+    }
+
     fn to_p(&self, p: Option<NodeRef<'_>>, t: Ty) -> P {
         let Some(p) = p else { return P::Wild };
         match p.kind() {
@@ -1112,6 +1126,15 @@ impl Ck<'_, '_> {
             SyntaxKind::LiteralPattern => match self.cx.src.tkind(self.cx.src.first(p)) {
                 Some(TokenKind::KwTrue) => P::Ctor("true".into(), vec![]),
                 Some(TokenKind::KwFalse) => P::Ctor("false".into(), vec![]),
+                // A char literal against a char subject is one scalar
+                // value, so a repeated one is unreachable; against any
+                // other subject it stays opaque (`flow.match.cover`).
+                Some(TokenKind::Char)
+                    if matches!(self.pool().get(self.strip(t)), TyData::Prim(Prim::Char)) =>
+                {
+                    self.char_value(p)
+                        .map_or(P::Lit, |v| P::Int(i128::from(v), i128::from(v)))
+                }
                 Some(first) if self.int_range(t).is_some() => {
                     let neg = first == TokenKind::Minus;
                     let tok = if neg {

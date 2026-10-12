@@ -33,7 +33,7 @@ pub(crate) enum Piece {
     Name(String),
 }
 
-fn decode_piece(raw: &str, out: &mut Vec<Piece>) {
+pub(crate) fn decode_piece(raw: &str, out: &mut Vec<Piece>) {
     let raw = &normalize_line_endings(raw);
     let mut text = String::new();
     let mut chars = raw.chars().peekable();
