@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2704 | 125 | 16 | 2845 |
+| 2705 | 124 | 16 | 2845 |
 
 ## By Chapter
 
@@ -20,7 +20,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/04-type-system.md` | 331 | 21 | 0 | 352 |
 | `lang/05-expressions.md` | 265 | 12 | 0 | 277 |
 | `lang/06-control-flow.md` | 142 | 11 | 4 | 157 |
-| `lang/07-functions.md` | 122 | 8 | 0 | 130 |
+| `lang/07-functions.md` | 123 | 7 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 116 | 7 | 0 | 123 |
 | `lang/09-traits.md` | 348 | 11 | 0 | 359 |
 | `lang/10-modules.md` | 239 | 15 | 4 | 258 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 100 | 2 | 3 | 105 |
 | `runtime/valid` | 916 | 1 | 12 | 929 |
-| `typing/invalid` | 976 | 98 | 1 | 1075 |
+| `typing/invalid` | 977 | 97 | 1 | 1075 |
 | `typing/valid` | 414 | 1 | 0 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -88,7 +88,7 @@ compiler stage that first declined the case.
 | `fail:no-diagnostic` | 44 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-import` | 1 |
-| `fail:private-main` | 2 |
+| `fail:private-main` | 1 |
 | `fail:re-export-loop` | 1 |
 | `fail:readonly-root` | 1 |
 | `fail:runtime-exit` | 2 |
@@ -243,9 +243,8 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:private-main</code> (2)</summary>
+<details><summary><code>fail:private-main</code> (1)</summary>
 
-- `typing/invalid/unresolved-generic-return-placeholder.hd`
 - `typing/invalid/trailing-block-ineligible.hd`
 
 </details>
@@ -2674,6 +2673,7 @@ typing/invalid/unknown-string-prefix.hd
 typing/invalid/unknown-test-option.hd
 typing/invalid/unknown-value-name.hd
 typing/invalid/unknown-variant.hd
+typing/invalid/unresolved-generic-return-placeholder.hd
 typing/invalid/unsaturated-enum-constructor.hd
 typing/invalid/unsigned-negation.hd
 typing/invalid/unused-cold-suspension.hd

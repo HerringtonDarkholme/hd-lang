@@ -33,6 +33,7 @@ pub(crate) struct Checkpoint {
     pre_args: usize,
     open_params: usize,
     ref_params: usize,
+    call_params: usize,
     joins: usize,
     restarts: usize,
     widen: usize,
@@ -71,6 +72,7 @@ impl Ck<'_, '_> {
             pre_args: self.pre_args.len(),
             open_params: self.open_params.len(),
             ref_params: self.ref_params.len(),
+            call_params: self.call_params.len(),
             joins: self.joins.mark(),
             restarts: self.restarts.len(),
             widen: self.widen.len(),
@@ -102,6 +104,7 @@ impl Ck<'_, '_> {
         self.pre_args.truncate(c.pre_args);
         self.open_params.truncate(c.open_params);
         self.ref_params.truncate(c.ref_params);
+        self.call_params.truncate(c.call_params);
         self.joins.rollback(c.joins);
         self.restarts.truncate(c.restarts);
         self.widen.truncate(c.widen);

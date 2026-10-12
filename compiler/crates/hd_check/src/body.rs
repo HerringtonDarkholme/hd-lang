@@ -272,6 +272,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// Function Values): variable, its default, and the reference.
     /// Decided at the end of the statement.
     pub ref_params: Vec<(Ty, Option<Ty>, NodeRefIdx)>,
+    /// A call's type variables, closed at the end of the body, when the
+    /// impls and loops that wait on them are settled.
+    pub call_params: Vec<(Ty, NodeRefIdx)>,
     /// Checking a template's method at a derivation opt-in: the opt-in
     /// (`annot.template.checked`).
     pub opt_in: Option<&'c crate::derive::OptIn>,
@@ -428,6 +431,7 @@ pub(crate) fn new_ck<'a, 'c>(
         pre_args: Vec::new(),
         open_params: Vec::new(),
         ref_params: Vec::new(),
+        call_params: Vec::new(),
         opt_in: None,
         structure_calls: Vec::new(),
         plan_sink: None,
@@ -2670,6 +2674,7 @@ impl Ck<'_, '_> {
                 self.ambiguous_call(g, method)?;
             }
         }
+        self.close_call_params(0);
         self.opt_in_obligations()?;
         self.tuple_plan_steps()?;
         for i in 0..n {

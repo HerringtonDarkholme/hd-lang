@@ -614,8 +614,8 @@ impl Ck<'_, '_> {
     /// Steps 7 to 9 of a reference's instantiation for the variables
     /// recorded since `start`: an unsolved one takes its default, else it
     /// is `cannot-infer-type` (once per reference) and stands for poison.
-    /// A reference whose use is already an error at the reference itself,
-    /// such as a mismatch with its expected type, gets no second error.
+    /// A use that already has an error inside it, such as a rejected
+    /// argument or a mismatch with its expected type, gets no second error.
     pub(crate) fn close_ref_params(&mut self, start: usize) {
         if self.ref_params.len() <= start {
             return;
@@ -629,9 +629,35 @@ impl Ck<'_, '_> {
                 let _ = self.infer.unify(pool, *v, *d);
             }
         }
+        self.close_unsolved(open.into_iter().map(|(v, _, at)| (v, at)).collect());
+    }
+
+    /// Closes the variables of the call parameters recorded since
+    /// `start`, once the body's waiting impls are settled.
+    pub(crate) fn close_call_params(&mut self, start: usize) {
+        if self.call_params.len() > start {
+            let open = self.call_params.split_off(start);
+            self.close_unsolved(open);
+        }
+    }
+
+    /// An unsolved variable is `cannot-infer-type` (once per use) and
+    /// then stands for poison.
+    fn close_unsolved(&mut self, open: Vec<(Ty, crate::body::NodeRefIdx)>) {
+        let pool = self.pool();
         let mut reported = None;
-        for (v, _, at) in open {
+        for (v, at) in open {
             if !self.unsolved(v) {
+                continue;
+            }
+            // A parameter only `never` arguments met is decided at the
+            // end of the body (`types.lct.never.all`).
+            let root = self.infer.shallow(pool, v);
+            if self
+                .never_args
+                .iter()
+                .any(|&w| self.infer.shallow(pool, w) == root)
+            {
                 continue;
             }
             if reported != Some(at) {
@@ -639,14 +665,18 @@ impl Ck<'_, '_> {
                 let node = self.cx.src.parse.tree.node(at);
                 let span = self.cx.src.span(node);
                 let failed = (0..self.diags.len()).any(|i| {
-                    self.diags.severity[i] == Severity::Error && self.diags.primary[i] == span
+                    let at = self.diags.primary[i];
+                    self.diags.severity[i] == Severity::Error
+                        && at.file == span.file
+                        && span.lo <= at.lo
+                        && at.hi <= span.hi
                 });
                 if !failed {
                     self.err(
-                    Code::CannotInferType,
-                    node,
-                    "this function reference's type arguments have no solution; give it an expected function type or write them explicitly",
-                );
+                        Code::CannotInferType,
+                        node,
+                        "a type argument here has no solution; write it explicitly or give an expected type",
+                    );
                 }
             }
             self.infer

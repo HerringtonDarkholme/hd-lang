@@ -377,6 +377,28 @@ impl Ck<'_, '_> {
             .collect()
     }
 
+    /// Records a call's type variables for the end of the body: one
+    /// that is still unsolved then, with its default already filled in,
+    /// is `cannot-infer-type` (`types.generic.default.unsolved`).
+    /// A call with an argument that is already an error, or has type
+    /// `never` because of one, reports nothing more: that error stands
+    /// for the whole call.
+    pub(crate) fn open_call_params(&mut self, vars: &[Ty], refs: &[Ref], n: NodeRef<'_>) {
+        let pool = self.pool();
+        let poisoned = refs.iter().any(|r| {
+            r.as_inst().is_none_or(|i| {
+                let t = self.b.body_mut().ty[i.0 as usize];
+                t == Ty::NEVER || pool.has_poison(t)
+            })
+        });
+        if poisoned {
+            return;
+        }
+        for &v in vars {
+            self.call_params.push((v, n.index()));
+        }
+    }
+
     // ------------------------------------------------------------ calls
 
     pub(crate) fn call(
@@ -1512,6 +1534,7 @@ impl Ck<'_, '_> {
                 // Parameters named only in bounds, then defaults (§2.4
                 // steps 7 and 8); a bound naming one still open waits.
                 let open = self.infer_through_bounds(def, &sig, &vars, n)?;
+                self.open_call_params(&vars, &refs, n);
                 let waits = |b: Ty| {
                     open.iter()
                         .any(|&k| crate::trial::names_param(pool, b, def, k))
@@ -2291,6 +2314,7 @@ impl Ck<'_, '_> {
             };
             let refs = self.check_args(&formals, 0, args, n, name)?;
             self.fill_method_defaults(&sig, &vars, &inst, want)?;
+            self.open_call_params(&vars, &refs, n);
             self.bounds_of(&sig, &vars, &inst, n)?;
             self.inherent_row(method, &sig, (impl_def, &impl_args), &vars, n)?;
             let mut targs = impl_args.clone();
@@ -3019,6 +3043,7 @@ impl Ck<'_, '_> {
                 };
                 refs.extend(self.check_args(&formals, 1, args, n, name)?);
                 self.fill_method_defaults(&sig, &vars, &inst, want)?;
+                self.open_call_params(&vars, &refs, n);
                 // `h.fact::[D]()` on a structure handle reads a typed fact
                 // (annot.handle.fact.typed): `D` is matched against the
                 // member's type, not bounded by `Inspectable`.
@@ -3235,6 +3260,7 @@ impl Ck<'_, '_> {
             .to_owned();
         refs.extend(self.check_args(&formals, skip, args, n, &method_name)?);
         self.fill_method_defaults(&sig, &vars, &inst, want)?;
+        self.open_call_params(&vars, &refs, n);
         self.bounds_of(&sig, &vars, &inst, n)?;
         // At an opt-in, or in a tuple template's plan, a `walk`,
         // `describe` or `build` call's walker, describer or source type

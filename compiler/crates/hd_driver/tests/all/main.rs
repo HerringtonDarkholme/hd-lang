@@ -151,6 +151,7 @@ mod typed_facts;
 mod typeid_of;
 mod unread_facts;
 mod unread_must_use_binding;
+mod unsolved_call_parameter;
 mod unsolved_scrutinee;
 mod vararg_value_run;
 mod variant_value_run;
