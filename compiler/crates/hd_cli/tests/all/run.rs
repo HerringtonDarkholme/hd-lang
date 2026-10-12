@@ -218,6 +218,56 @@ fn warning_and_error_print_severity_location_code_and_message() {
     );
 }
 
+/// `cli.stdin.program`: with no arguments and piped standard input, `hd`
+/// runs the input as a single-file program.
+#[test]
+fn stdin_runs_as_a_single_file_program() {
+    use std::io::Write as _;
+    use std::process::Stdio;
+    let mut child = hd(&cache("hd-cache-stdin"))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("run hd");
+    child
+        .stdin
+        .take()
+        .expect("stdin")
+        .write_all(b"pub fn main() -> void $ Console:\n    println(1)\n")
+        .expect("write stdin");
+    let out = child.wait_with_output().expect("hd output");
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "1\n");
+    assert!(out.stderr.is_empty(), "{out:?}");
+}
+
+/// `cli.stdin.program` reports a broken stdin program as `main.hd`.
+#[test]
+fn stdin_reports_errors_as_main_hd() {
+    use std::io::Write as _;
+    use std::process::Stdio;
+    let mut child = hd(&cache("hd-cache-stdin-error"))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("run hd");
+    child
+        .stdin
+        .take()
+        .expect("stdin")
+        .write_all(b"pub fn main() -> void $ Console:\n    println(missing)\n")
+        .expect("write stdin");
+    let out = child.wait_with_output().expect("hd output");
+    assert!(!out.status.success(), "{out:?}");
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("main.hd") && err.contains("unknown-name"),
+        "{err}"
+    );
+}
+
 /// A script is an entry module with top-level statements and no `main`:
 /// its statements are the whole program (module.init.script).
 #[test]

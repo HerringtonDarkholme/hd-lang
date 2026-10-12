@@ -629,6 +629,34 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
     })
 }
 
+/// A single-file program read from standard input (`cli.stdin.program`):
+/// the text as a synthetic `main.hd`, alone as a file with no `hd.toml`
+/// above it is: no package sources, requirements, or capabilities.
+pub fn load_stdin(text: &str) -> Result<Program, String> {
+    let root = std::env::current_dir().unwrap_or(PathBuf::from("."));
+    let package = package_name(&root)?;
+    let mut sources = DiskSources {
+        root,
+        files: Vec::new(),
+        src: None,
+        synthetic: Vec::new(),
+    };
+    sources.add_synthetic("main.hd", text);
+    Ok(Program {
+        sources,
+        package,
+        entry: module_below("main.hd"),
+        requires: Vec::new(),
+        dev_requires: Vec::new(),
+        deps: Vec::new(),
+        problems: Vec::new(),
+        as_written: None,
+        capabilities: Vec::new(),
+        package_dir: None,
+        entries: Vec::new(),
+    })
+}
+
 /// The whole package at `root`, with the packages it requires, and the
 /// package-relative file `entry` as its entry module.
 pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {

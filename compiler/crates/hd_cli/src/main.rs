@@ -20,6 +20,7 @@ mod report;
 mod test_cmd;
 
 use std::ffi::OsString;
+use std::io::IsTerminal as _;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Instant;
@@ -75,7 +76,13 @@ fn main() -> ExitCode {
         Err(error) => return fail(&error),
     };
     let Some(command) = arguments.first().and_then(|c| c.to_str()) else {
-        return usage();
+        // `cli.stdin.program`: without a terminal, `hd` with no arguments
+        // runs standard input as a single-file program. A terminal keeps
+        // the current behavior.
+        if std::io::stdin().is_terminal() {
+            return usage();
+        }
+        return run_stdin_command(memory);
     };
     // Help performs no compilation and should not arm compiler enforcement.
     let asks_help = arguments[1..]
@@ -445,6 +452,51 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
             &w.caps,
             &w.program_args,
             (w.engine, w.release, w.limits),
+            &mut rep,
+        ),
+        Err(code) => code,
+    }
+}
+
+/// `hd` with no arguments and piped standard input (`cli.stdin.program`):
+/// standard input as a single-file program, as `hd FILE` runs FILE. The
+/// engine comes from `HD_ENGINE`, as without `--engine`; no other flags
+/// exist to give.
+fn run_stdin_command(memory: Option<u64>) -> ExitCode {
+    let mut text = String::new();
+    if let Err(e) = std::io::Read::read_to_string(&mut std::io::stdin(), &mut text) {
+        return fail(&format!("standard input: {e}"));
+    }
+    let engine = match engine::from_env() {
+        Ok(engine) => engine,
+        Err(error) => return fail(&error),
+    };
+    let memory = match memory {
+        Some(bytes) => Some(bytes),
+        None => match std::env::var_os("HD_MAX_MEMORY") {
+            Some(value) => match value.to_str().map(engine::parse_size) {
+                Some(Ok(bytes)) => Some(bytes),
+                Some(Err(error)) => return fail(&format!("HD_MAX_MEMORY: {error}")),
+                None => return fail("HD_MAX_MEMORY is not a valid SIZE"),
+            },
+            None => None,
+        },
+    };
+    memory_cap::arm(memory, false, true);
+    let mut rep = Reporter::stderr(false);
+    let program = match disk::load_stdin(&text) {
+        Ok(p) => p,
+        Err(e) => return rep.fail(&e),
+    };
+    match compile(&program, &mut rep) {
+        Ok(wasm) => execute(
+            &wasm,
+            "main.hd",
+            &program.capabilities,
+            program.package_dir.as_deref(),
+            &[],
+            &[],
+            (engine, false, engine::ProgramLimits::default()),
             &mut rep,
         ),
         Err(code) => code,
