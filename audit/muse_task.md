@@ -56,11 +56,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 Jobs are small and each names the files it may change. If a job turns out
 bigger than described, stop, push nothing, and report what you found.)
 
-### M49. Split `testing.rs` in the wasmtime host
-
-The same for `crates/hd_run_wasmtime/src/testing.rs` (753 lines). Files:
-`crates/hd_run_wasmtime/src/testing.rs` and `crates/hd_run_wasmtime/src/testing/**`.
-
 ### M50. Finish the flaky `run::fetch_with_path_requirements_only_has_nothing_to_do`
 
 Your M30 namespaced scratch directories per process, but the test still
