@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2706 | 123 | 16 | 2845 |
+| 2708 | 121 | 16 | 2845 |
 
 ## By Chapter
 
@@ -28,7 +28,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/14-annotations.md` | 144 | 9 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
-| `std/collections.md` | 26 | 3 | 0 | 29 |
+| `std/collections.md` | 28 | 1 | 0 | 29 |
 | `std/console.md` | 7 | 0 | 0 | 7 |
 | `std/digest.md` | 2 | 0 | 0 | 2 |
 | `std/encoding.md` | 3 | 0 | 0 | 3 |
@@ -62,7 +62,7 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 100 | 2 | 3 | 105 |
+| `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 916 | 1 | 12 | 929 |
 | `typing/invalid` | 978 | 96 | 1 | 1075 |
 | `typing/valid` | 414 | 1 | 0 | 415 |
@@ -91,7 +91,6 @@ compiler stage that first declined the case.
 | `fail:private-main` | 1 |
 | `fail:re-export-loop` | 1 |
 | `fail:readonly-root` | 1 |
-| `fail:runtime-exit` | 2 |
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-used-as-type` | 1 |
@@ -258,13 +257,6 @@ compiler stage that first declined the case.
 <details><summary><code>fail:readonly-root</code> (1)</summary>
 
 - `typing/invalid/callable-value-short-binding-store.hd`
-
-</details>
-
-<details><summary><code>fail:runtime-exit</code> (2)</summary>
-
-- `runtime/panic/list-view-reversed.hd`
-- `runtime/panic/list-view-index-out-of-bounds.hd`
 
 </details>
 
@@ -762,7 +754,9 @@ runtime/panic/list-set-u64-beyond-u32.hd
 runtime/panic/list-slice-out-of-range.hd
 runtime/panic/list-slice-reversed.hd
 runtime/panic/list-sum-overflow.hd
+runtime/panic/list-view-index-out-of-bounds.hd
 runtime/panic/list-view-invalidated.hd
+runtime/panic/list-view-reversed.hd
 runtime/panic/list-windows-size.hd
 runtime/panic/literal-var-fallback-overflow.hd
 runtime/panic/manual-clock-negative-sleep.hd

@@ -31,7 +31,7 @@ impl[T] List[T]:
     pub fn insert(mut self, index: usize, value: T) -> void:
         size := self.len()
         if index > size:
-            panic_with("index-out-of-bounds", "")
+            panic_with("index-out-of-bounds", "list insert index ${index} out of bounds for length ${size}")
         self.push(value)
         let at: usize = size
         while at > index:
@@ -46,7 +46,7 @@ impl[T] List[T]:
     pub fn remove_at(mut self, index: usize) -> T:
         size := self.len()
         if index >= size:
-            panic_with("index-out-of-bounds", "")
+            panic_with("index-out-of-bounds", "list remove_at index ${index} out of bounds for length ${size}")
         removed := self[index]
         let at: usize = index
         while at + 1 < size:
@@ -67,7 +67,7 @@ impl[T] List[T]:
     ## See [std-collections.view](../../spec/std/collections.md#r-std-collections.view).
     pub fn view(self, start: usize, end: usize) -> ListView[T]:
         if end > self.len() || start > end:
-            panic_with("index-out-of-bounds", "")
+            panic_with("index-out-of-bounds", "list view start ${start} end ${end} out of bounds for length ${self.len()}")
         ListView::[T] { items: self, start: start, end: end, len: self.len() }
 
     ## Returns a new list with `transform` applied to each element, in order.
@@ -453,8 +453,9 @@ impl[T] Index[usize] for ListView[T]:
     type Out = T
     fn index(self, key: usize) -> T:
         self.check()
-        if key >= self.end - self.start:
-            panic_with("index-out-of-bounds", "")
+        len := self.end - self.start
+        if key >= len:
+            panic_with("index-out-of-bounds", "list view index ${key} out of bounds for length ${len}")
         self.items[self.start + key]
 
 impl[T] Iterable[T] for ListView[T]:
