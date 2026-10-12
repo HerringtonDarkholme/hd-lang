@@ -191,6 +191,15 @@ pub(crate) fn literal_text(src: &hd_resolve::Src<'_>, n: NodeRef<'_>) -> Option<
 impl Ck<'_, '_> {
     pub(crate) fn expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         let span = self.cx.src.span(n);
+        // An expectation poisoned by an error already reported absorbs the
+        // expression: its unsolved types are not a second error. A block
+        // is left out, so its unrelated statements still report.
+        if let Some(w) = want
+            && self.infer.resolve(self.pool(), w) == Ty::POISON
+            && !matches!(n.kind(), SyntaxKind::Block)
+        {
+            self.absorbed.push(span);
+        }
         let (r, t) = self.expr_node(n, want).map_err(|e| e.at(span))?;
         // A projection whose base inference has since fixed (a generic
         // call's `S::Item`) is used by its normal form.

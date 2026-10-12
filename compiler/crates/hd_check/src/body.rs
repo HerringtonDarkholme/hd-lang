@@ -241,6 +241,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// error): its poison types come from that error, not from a failed
     /// inference.
     pub read_poison_name: bool,
+    /// The source spans of expressions checked against a poisoned expected
+    /// type: the error that poisoned it is already reported, so the end of
+    /// the body does not report their unsolved types again.
+    pub absorbed: Vec<hd_base::Span>,
     /// Nested projection normalizations, against binding cycles.
     pub norm_depth: u32,
     /// Arguments of an instantiation choice inferred once, before its
@@ -343,6 +347,7 @@ pub(crate) fn new_ck<'a, 'c>(
         lit_nodes: Vec::new(),
         neg_nodes: Vec::new(),
         read_poison_name: false,
+        absorbed: Vec::new(),
         lit_arg: None,
         module_init: None,
         init_stmt: 0,
@@ -2351,6 +2356,14 @@ impl Ck<'_, '_> {
                     && at != hd_base::NodeIdx::NONE
                 {
                     let node = self.cx.src.parse.tree.node(at);
+                    let span = self.cx.src.span(node);
+                    if self
+                        .absorbed
+                        .iter()
+                        .any(|a| a.file == span.file && a.lo <= span.lo && span.hi <= a.hi)
+                    {
+                        continue;
+                    }
                     self.err(Code::CannotInferType, node, "annotate this value's type");
                     break;
                 }

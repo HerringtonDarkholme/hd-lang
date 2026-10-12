@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2685 | 140 | 20 | 2845 |
+| 2686 | 139 | 20 | 2845 |
 
 ## By Chapter
 
@@ -16,7 +16,7 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `lang/01-lexical-structure.md` | 139 | 6 | 0 | 145 |
 | `lang/02-grammar.md` | 205 | 10 | 0 | 215 |
-| `lang/03-names-and-scopes.md` | 100 | 1 | 0 | 101 |
+| `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
 | `lang/04-type-system.md` | 330 | 22 | 0 | 352 |
 | `lang/05-expressions.md` | 263 | 14 | 0 | 277 |
 | `lang/06-control-flow.md` | 141 | 12 | 4 | 157 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 100 | 2 | 3 | 105 |
 | `runtime/valid` | 907 | 6 | 16 | 929 |
-| `typing/invalid` | 968 | 106 | 1 | 1075 |
+| `typing/invalid` | 969 | 105 | 1 | 1075 |
 | `typing/valid` | 412 | 3 | 0 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -106,7 +106,7 @@ compiler stage that first declined the case.
 | `fail:unknown-module` | 1 |
 | `fail:unknown-name` | 6 |
 | `fail:unknown-trait` | 5 |
-| `fail:unknown-type` | 3 |
+| `fail:unknown-type` | 2 |
 | `fail:unknown-variant` | 1 |
 | `fail:unsatisfied-trait-bound` | 1 |
 | `fail:unused-local-binding` | 2 |
@@ -403,10 +403,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:unknown-type</code> (3)</summary>
+<details><summary><code>fail:unknown-type</code> (2)</summary>
 
 - `typing/invalid/row-parameter-as-type.hd`
-- `typing/invalid/sibling-module-alias-not-imported.hd`
 - `typing/invalid/fn-constructor-needs-import.hd`
 
 </details>
@@ -2561,6 +2560,7 @@ typing/invalid/shared-enum-readonly-collection.hd
 typing/invalid/shared-enum-variant-without-constructor.hd
 typing/invalid/shift-count-signed.hd
 typing/invalid/short-binding-readonly-root.hd
+typing/invalid/sibling-module-alias-not-imported.hd
 typing/invalid/sibling-module-binding-not-visible.hd
 typing/invalid/sibling-module-function-not-imported.hd
 typing/invalid/sibling-module-private-field.hd

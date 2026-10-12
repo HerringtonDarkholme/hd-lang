@@ -92,6 +92,7 @@ mod operator_left_primitive_run;
 mod optional_join_run;
 mod pipe_bare_steps;
 mod pipe_placeholder;
+mod poisoned_expectation;
 mod poll_context_construction;
 mod power_run;
 mod prelude_binding_shadow;
