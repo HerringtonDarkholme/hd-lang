@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2705 | 124 | 16 | 2845 |
+| 2706 | 123 | 16 | 2845 |
 
 ## By Chapter
 
@@ -17,7 +17,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 139 | 6 | 0 | 145 |
 | `lang/02-grammar.md` | 205 | 10 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
-| `lang/04-type-system.md` | 331 | 21 | 0 | 352 |
+| `lang/04-type-system.md` | 332 | 20 | 0 | 352 |
 | `lang/05-expressions.md` | 265 | 12 | 0 | 277 |
 | `lang/06-control-flow.md` | 142 | 11 | 4 | 157 |
 | `lang/07-functions.md` | 123 | 7 | 0 | 130 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 100 | 2 | 3 | 105 |
 | `runtime/valid` | 916 | 1 | 12 | 929 |
-| `typing/invalid` | 977 | 97 | 1 | 1075 |
+| `typing/invalid` | 978 | 96 | 1 | 1075 |
 | `typing/valid` | 414 | 1 | 0 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
 
@@ -95,7 +95,7 @@ compiler stage that first declined the case.
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-used-as-type` | 1 |
-| `fail:type-mismatch` | 14 |
+| `fail:type-mismatch` | 13 |
 | `fail:unknown-data-field` | 2 |
 | `fail:unknown-import` | 1 |
 | `fail:unknown-method` | 5 |
@@ -296,7 +296,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:type-mismatch</code> (14)</summary>
+<details><summary><code>fail:type-mismatch</code> (13)</summary>
 
 - `typing/invalid/mixed-signedness.hd`
 - `typing/invalid/variance-representation-change.hd`
@@ -308,7 +308,6 @@ compiler stage that first declined the case.
 - `typing/invalid/no-widening-float.hd`
 - `typing/invalid/num-abs-diff-unsigned.hd`
 - `typing/invalid/num-bit-count-u32.hd`
-- `typing/invalid/literal-operand-range-wide.hd`
 - `typing/invalid/mixed-width-operands-no-widening.hd`
 - `typing/invalid/usize-u32-operand.hd`
 - `typing/invalid/derived-eq-bound-unmet-data-argument.hd`
@@ -2174,6 +2173,7 @@ typing/invalid/literal-first-use-other-body.hd
 typing/invalid/literal-first-use-range.hd
 typing/invalid/literal-integer-into-float.hd
 typing/invalid/literal-operand-negation-unsigned.hd
+typing/invalid/literal-operand-range-wide.hd
 typing/invalid/literal-payload-pattern-nonexhaustive.hd
 typing/invalid/literal-receiver-params-differ.hd
 typing/invalid/literal-several-fit-bound.hd

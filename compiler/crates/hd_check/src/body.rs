@@ -994,6 +994,23 @@ impl Ck<'_, '_> {
                 self.err(code, node, &msg);
                 continue;
             }
+            // A decimal integer larger than u64::MAX was clamped to the
+            // maximum at the literal; the source text still shows it never
+            // fit its type (`types.literal.int-range`).
+            let span = self.cx.src.span(node);
+            let source = self.cx.src.text;
+            let lo = usize::try_from(span.lo).unwrap_or(0).min(source.len());
+            let hi = usize::try_from(span.hi)
+                .unwrap_or(0)
+                .clamp(lo, source.len());
+            let raw = source.get(lo..hi).unwrap_or("");
+            let digits = raw.trim_start_matches(['-', '+']).replace('_', "");
+            let overflow = !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit());
+            if overflow && crate::literals::exceeds_u64(&digits) {
+                let msg = format!("literal {digits} does not fit {}", p.name());
+                self.err(Code::IntegerLiteralRange, node, &msg);
+                continue;
+            }
             let ok = match p {
                 Prim::I8 => i8::try_from(v).is_ok(),
                 Prim::I16 => i16::try_from(v).is_ok(),

@@ -396,6 +396,13 @@ impl Ck<'_, '_> {
                 if let Some(v) = int {
                     let lt = self.infer.fresh(pool, VarKind::IntLit);
                     (self.b.const_value(lt, v), lt)
+                } else if crate::literals::decimal_digits(&text) {
+                    // An integer too large for u64 stays an integer,
+                    // clamped to the maximum: `check_literal_ranges`
+                    // reports `integer-literal-range` from the source
+                    // text (`types.literal.int-range`).
+                    let lt = self.infer.fresh(pool, VarKind::IntLit);
+                    (self.b.const_value(lt, u64::MAX), lt)
                 } else if let Ok(f) = text.parse::<f64>() {
                     let ft = self.infer.fresh(pool, VarKind::FloatLit);
                     (self.b.const_value(ft, f.to_bits()), ft)

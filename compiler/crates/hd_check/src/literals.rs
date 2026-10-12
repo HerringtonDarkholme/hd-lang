@@ -32,6 +32,29 @@ pub(crate) fn radix_digits(text: &str) -> Option<(u32, &str)> {
     Some((radix, &text[2..]))
 }
 
+/// Plain decimal digits, underscores allowed: true for an undecorated
+/// base-10 integer, which may be larger than u64 can hold
+/// (`types.literal.int-range`).
+pub(crate) fn decimal_digits(text: &str) -> bool {
+    !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit() || b == b'_')
+}
+
+/// Whether decimal integer text exceeds `u64::MAX`, ignoring underscores,
+/// an optional leading sign, and leading zeros.
+pub(crate) fn exceeds_u64(text: &str) -> bool {
+    let text = text.strip_prefix(['-', '+']).unwrap_or(text);
+    let digits: String = text
+        .bytes()
+        .filter(|b| *b != b'_')
+        .map(|b| b as char)
+        .collect();
+    let digits = digits.trim_start_matches('0');
+    if digits.len() != 20 {
+        return digits.len() > 20;
+    }
+    digits > "18446744073709551615"
+}
+
 /// Splits a number token into its digits and its literal suffix
 /// (`lex.suffix.form`, `lex.suffix.exponent`). Radix literals have none.
 pub(crate) fn split_suffix(text: &str) -> (&str, &str) {
