@@ -1663,7 +1663,7 @@ impl Ck<'_, '_> {
         self.check_literal_visible(def, n);
         let mut targs = Vec::new();
         for t in &targ_nodes {
-            targs.push(self.ty_node(*t)?);
+            targs.push(self.explicit_targ(*t)?);
         }
         let explicit = targs.len();
         while targs.len() < item.generics.len() {

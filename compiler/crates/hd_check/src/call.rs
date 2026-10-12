@@ -304,7 +304,7 @@ impl Ck<'_, '_> {
         let mut explicit = Vec::new();
         if let Some(tl) = Src::child(n, SyntaxKind::TypeArgumentList) {
             for t in tl.children().filter(|c| c.kind().is_type()) {
-                explicit.push(self.ty_node(t)?);
+                explicit.push(self.explicit_targ(t)?);
             }
         }
         if inner.kind() == SyntaxKind::PathExpr {
@@ -461,7 +461,7 @@ impl Ck<'_, '_> {
                 let mut explicit = Vec::new();
                 if let Some(tl) = Src::child(callee, SyntaxKind::TypeArgumentList) {
                     for t in tl.children().filter(|c| c.kind().is_type()) {
-                        explicit.push(self.ty_node(t)?);
+                        explicit.push(self.explicit_targ(t)?);
                     }
                 }
                 let segs = self.segments_expr(inner);
@@ -2005,7 +2005,7 @@ impl Ck<'_, '_> {
                 let mut ex = Vec::new();
                 if let Some(tl) = Src::child(base, SyntaxKind::TypeArgumentList) {
                     for t in tl.children().filter(|c| c.kind().is_type()) {
-                        ex.push(self.ty_node(t)?);
+                        ex.push(self.explicit_targ(t)?);
                     }
                 }
                 (inner, ex)
@@ -2107,6 +2107,7 @@ impl Ck<'_, '_> {
                 variadic: sig.variadic,
             };
             let refs = self.check_args(&formals, 0, args, n, name)?;
+            self.fill_method_defaults(&sig, &vars, &inst, want)?;
             self.bounds_of(&sig, &vars, &inst, n)?;
             self.inherent_row(method, &sig, (impl_def, &impl_args), &vars, n)?;
             let mut targs = impl_args.clone();

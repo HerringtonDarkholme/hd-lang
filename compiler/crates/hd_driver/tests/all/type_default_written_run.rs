@@ -32,7 +32,7 @@ fn built(main: &str, goal: &Goal) -> Output {
 }
 
 /// The standard output of a program that must build and succeed.
-fn output_of(name: &str, main: &str) -> String {
+pub(crate) fn output_of(name: &str, main: &str) -> String {
     let out = built(
         main,
         &Goal::Program {
@@ -61,7 +61,7 @@ fn output_of(name: &str, main: &str) -> String {
 }
 
 /// The diagnostic codes of a program checked without running.
-fn codes_of(main: &str) -> Vec<Code> {
+pub(crate) fn codes_of(main: &str) -> Vec<Code> {
     let out = built(main, &Goal::Analyze);
     out.diags
         .content_order()

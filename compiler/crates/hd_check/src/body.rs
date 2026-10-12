@@ -171,6 +171,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// A member call's explicit method type arguments (`x.f::[T]()`),
     /// taken by the method's instantiation.
     pub method_targs: Vec<Ty>,
+    /// Inside an explicit type-argument list of an expression, where a
+    /// named type may omit arguments the expression infers
+    /// (`h.fact::[MaxLen]()`); a written type elsewhere infers nothing.
+    pub in_explicit_targs: bool,
     /// The next call's default bodies: callee, type arguments and the
     /// values before the first argument (a receiver).
     pub default_owner: Option<(DefId, TyList, Vec<Ref>)>,
@@ -326,6 +330,7 @@ pub(crate) fn new_ck<'a, 'c>(
         pending: Vec::new(),
         never_args: Vec::new(),
         method_targs: Vec::new(),
+        in_explicit_targs: false,
         default_owner: None,
         suspends: vec![false],
         defer_base: None,

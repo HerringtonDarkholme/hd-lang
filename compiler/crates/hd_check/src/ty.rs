@@ -332,6 +332,27 @@ impl Ck<'_, '_> {
             });
             return Ok(t);
         }
+        // A written type infers nothing: a slot it omits needs a default
+        // (`types.generic.default.written-missing`).
+        if !self.in_explicit_targs
+            && let Some(item) = self.cx.lookup.item(def)
+        {
+            let filled = hd_resolve::fill_type_args(self.cx.names.pool, def, &item.generics, &args);
+            if let Some(g) = item
+                .generics
+                .iter()
+                .skip(filled.len())
+                .find(|g| !g.row && g.default.is_none())
+            {
+                let msg = format!(
+                    "`{}` is written without its parameter `{}`, which has no default",
+                    self.cx.names.display_name(def),
+                    self.cx.names.text(g.name)
+                );
+                self.err(Code::PartialGenericArguments, n, &msg);
+                return Ok(Ty::POISON);
+            }
+        }
         let t = self.ctor(def, &args)?;
         self.check_written_bounds(t, def, (&arg_nodes, n))?;
         Ok(t)
@@ -505,6 +526,15 @@ impl Ck<'_, '_> {
     /// The type a type node names.
     pub(crate) fn ty_node(&mut self, n: NodeRef<'_>) -> StageResult<Ty> {
         self.ty_node_as(n, NameRole::Type)
+    }
+
+    /// A type written in an explicit type-argument list of an expression:
+    /// the expression infers the arguments it leaves out.
+    pub(crate) fn explicit_targ(&mut self, n: NodeRef<'_>) -> StageResult<Ty> {
+        let outer = std::mem::replace(&mut self.in_explicit_targs, true);
+        let t = self.ty_node(n);
+        self.in_explicit_targs = outer;
+        t
     }
 
     /// The type a requirement key names: a trait.

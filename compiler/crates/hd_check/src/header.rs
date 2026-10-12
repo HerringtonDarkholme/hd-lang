@@ -826,8 +826,21 @@ impl<'a> ItemCheck<'_, 'a> {
                         );
                         self.report(slot, Code::PartialGenericArguments, message);
                     }
+                    let mut missed = false;
                     for (i, g) in target.generics.iter().enumerate() {
                         let Some(&a) = args_v.get(i) else { continue };
+                        // A default filled from an argument that already
+                        // missed its bound repeats that error.
+                        if missed
+                            && g.default.is_some_and(|d| {
+                                a == pool.subst(d, &|p: ParamRef| {
+                                    (p.owner == def)
+                                        .then(|| args_v.get(usize::from(p.index)).copied())?
+                                })
+                            })
+                        {
+                            continue;
+                        }
                         // `types.map-key.no-mut`: a `mut` key is its own error.
                         if def == self.cx.names.known.map
                             && i == 0
@@ -853,6 +866,7 @@ impl<'a> ItemCheck<'_, 'a> {
                                     self.cx.names.display_name(self.item)
                                 );
                                 self.report(slot, Code::UnsatisfiedTraitBound, message);
+                                missed = true;
                                 // One error per argument that misses a bound.
                                 break;
                             }

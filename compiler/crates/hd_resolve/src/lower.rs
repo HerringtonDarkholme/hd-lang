@@ -721,13 +721,25 @@ impl Resolver<'_, '_> {
     /// ones filled from the declaration's defaults
     /// (`types.generic.default.written`): `Outcome[string]` is
     /// `Result[string, AppError]` for `type Outcome[T, E = AppError]`.
-    fn fill_type_args(&self, def: DefId, args: &[Ty]) -> Vec<Ty> {
+    ///
+    /// The second result names the first type parameter left without an
+    /// argument that has no default (`types.generic.default.written-missing`).
+    fn fill_type_args(&self, def: DefId, args: &[Ty]) -> (Vec<Ty>, Option<String>) {
         let pool = self.cx.names.pool;
+        let fill = |generics: &[Generic]| {
+            let filled = fill_type_args(pool, def, generics, args);
+            let missing = generics
+                .iter()
+                .skip(filled.len())
+                .find(|g| !g.row && g.default.is_none())
+                .map(|g| self.cx.names.text(g.name).to_owned());
+            (filled, missing)
+        };
         if let Some(g) = self.own_types.borrow().get(&def) {
-            return fill_type_args(pool, def, g, args);
+            return fill(g);
         }
         if let Some(i) = self.seeds.get(&def) {
-            return fill_type_args(pool, def, &i.generics, args);
+            return fill(&i.generics);
         }
         let module = self.cx.names.module_of(def);
         let iface = self.cx.world.module_folder(&module).and_then(|f| {
@@ -738,8 +750,8 @@ impl Resolver<'_, '_> {
             }
         });
         match iface.as_ref().and_then(|i| i.item(def)) {
-            Some(item) => fill_type_args(pool, def, &item.generics, args),
-            None => args.to_vec(),
+            Some(item) => fill(&item.generics),
+            None => (args.to_vec(), None),
         }
     }
 
@@ -1544,7 +1556,19 @@ impl Lower<'_, '_, '_> {
             kind,
             HeadKind::Alias | HeadKind::Data | HeadKind::Enum | HeadKind::Newtype
         ) {
-            filled = self.r.fill_type_args(def, args);
+            let (f, missing) = self.r.fill_type_args(def, args);
+            // An alias leaves the parameter unfilled in its body; a data
+            // type's own check reports it
+            // (`types.generic.default.written-missing`).
+            if let (HeadKind::Alias, Some(param)) = (kind, missing) {
+                let msg = format!(
+                    "`{}` is written without its parameter `{param}`, which has no default",
+                    self.names.display_name(def)
+                );
+                self.diags.error(Code::PartialGenericArguments, span, &msg);
+                return Ty::POISON;
+            }
+            filled = f;
             filled.as_slice()
         } else {
             args
