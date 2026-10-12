@@ -34,6 +34,7 @@ pub(crate) enum Piece {
 }
 
 fn decode_piece(raw: &str, out: &mut Vec<Piece>) {
+    let raw = &normalize_line_endings(raw);
     let mut text = String::new();
     let mut chars = raw.chars().peekable();
     while let Some(c) = chars.next() {
@@ -82,6 +83,17 @@ fn decode_piece(raw: &str, out: &mut Vec<Piece>) {
     }
     if !text.is_empty() {
         out.push(Piece::Text(text));
+    }
+}
+
+/// The text with each CRLF line ending as one line feed
+/// (`lex.multiline.line-feed`). A bare carriage return is a lexical error
+/// and never reaches here.
+pub(crate) fn normalize_line_endings(raw: &str) -> std::borrow::Cow<'_, str> {
+    if raw.contains("\r\n") {
+        std::borrow::Cow::Owned(raw.replace("\r\n", "\n"))
+    } else {
+        std::borrow::Cow::Borrowed(raw)
     }
 }
 

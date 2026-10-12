@@ -17,6 +17,7 @@ mod combinator_call_forms;
 mod context_values;
 mod copy_assign_run;
 mod copy_update_run;
+mod crlf_run;
 mod declaration_checks;
 mod default_args_run;
 mod delegation_run;

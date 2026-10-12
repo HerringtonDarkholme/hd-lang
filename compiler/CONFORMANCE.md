@@ -8,13 +8,13 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2677 | 147 | 21 | 2845 |
+| 2678 | 146 | 21 | 2845 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
-| `lang/01-lexical-structure.md` | 138 | 7 | 0 | 145 |
+| `lang/01-lexical-structure.md` | 139 | 6 | 0 | 145 |
 | `lang/02-grammar.md` | 205 | 10 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 100 | 1 | 0 | 101 |
 | `lang/04-type-system.md` | 327 | 25 | 0 | 352 |
@@ -63,7 +63,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/invalid` | 181 | 14 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 100 | 2 | 3 | 105 |
-| `runtime/valid` | 904 | 9 | 16 | 929 |
+| `runtime/valid` | 905 | 8 | 16 | 929 |
 | `typing/invalid` | 967 | 107 | 1 | 1075 |
 | `typing/valid` | 408 | 6 | 1 | 415 |
 | `typing/warnings` | 11 | 9 | 0 | 20 |
@@ -96,7 +96,6 @@ compiler stage that first declined the case.
 | `fail:re-export-loop` | 1 |
 | `fail:readonly-root` | 1 |
 | `fail:runtime-exit` | 2 |
-| `fail:stdout` | 1 |
 | `fail:syntax-error` | 10 |
 | `fail:tab-whitespace` | 2 |
 | `fail:trait-used-as-type` | 1 |
@@ -302,12 +301,6 @@ compiler stage that first declined the case.
 
 - `runtime/panic/list-view-reversed.hd`
 - `runtime/panic/list-view-index-out-of-bounds.hd`
-
-</details>
-
-<details><summary><code>fail:stdout</code> (1)</summary>
-
-- `runtime/valid/crlf-line-endings.hd`
 
 </details>
 
@@ -1006,6 +999,7 @@ runtime/valid/copy-update-shallow.hd
 runtime/valid/copy-update-skips-defaults.hd
 runtime/valid/copy-update-source-order-observed.hd
 runtime/valid/covariant-readonly-weakening.hd
+runtime/valid/crlf-line-endings.hd
 runtime/valid/data-and-enum-declaration-forms.hd
 runtime/valid/data-expression-forms.hd
 runtime/valid/data-field-defaults.hd

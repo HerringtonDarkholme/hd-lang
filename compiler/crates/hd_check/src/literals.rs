@@ -14,7 +14,7 @@ use hd_types::{Ty, TyData, VarKind};
 
 use crate::body::{Ck, unsupported};
 use crate::call::Args;
-use crate::expr::strip_piece;
+use crate::expr::{normalize_line_endings, strip_piece};
 
 /// Splits a number token into its digits and its literal suffix
 /// (`lex.suffix.form`, `lex.suffix.exponent`). Radix literals have none.
@@ -52,6 +52,7 @@ enum Raw {
 /// Splits raw text at its `$name` references. A backslash keeps the next
 /// character as text, so `\$x` is not a reference, and `$5` is text.
 fn split_raw(raw: &str, out: &mut Vec<Raw>) {
+    let raw = &normalize_line_endings(raw);
     let mut text = String::new();
     let mut chars = raw.chars().peekable();
     while let Some(c) = chars.next() {
