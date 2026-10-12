@@ -545,7 +545,7 @@ Status: implemented and verified; this review establishes no new accepted langua
 This review changes no language or library rules.
 It covers commits `3707b290`, `43993c72`, `91337f6f`, `0f319ffc`,
 `0613e39f`, `3459768f`, `ec517898`, and W4's current integration.
-The feedback is in [Muse's queue](../../audit/muse_task.md).
+The feedback went to Muse as job M24 (git history of `audit/muse_task.md`; Muse jobs are now GitHub issues labeled `muse`).
 
 | Feedback | Assessment and evidence | Action |
 | --- | --- | --- |
