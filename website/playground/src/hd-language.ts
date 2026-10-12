@@ -1,6 +1,7 @@
-// hd syntax support for CodeMirror. Token classes come from the repository's
-// own highlighter (src/highlight.ts, also used by the REPL): the stream
-// parser only replays `classify(line)` spans, so both agree by construction.
+// hd syntax support for CodeMirror. Token classes come from the website's
+// highlighter (website/src/highlight.ts, which also colors the site's code
+// blocks): the stream parser only replays `classify(line)` spans, so both
+// agree by construction.
 
 import { EditorSelection, Prec, type Extension } from "@codemirror/state";
 import {
@@ -13,7 +14,7 @@ import {
 import { keymap, type Command } from "@codemirror/view";
 import { tagHighlighter, tags, type Tag } from "@lezer/highlight";
 
-import { classify, type TokenClass } from "../../../src/highlight.ts";
+import { classify, type TokenClass } from "../../src/highlight.ts";
 
 export type StyledClass = Exclude<TokenClass, "plain">;
 

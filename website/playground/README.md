@@ -1,81 +1,81 @@
 # hd Playground
 
-A browser playground for hd-lang. It edits, checks, and runs hd programs
-entirely in the browser with the prototype compiler in [`../../src`](../../src),
-which emits Wasm GC through Binaryen. It is part of the website: the website
-build emits it as static files at `playground/`, and the site's
-**Playground** page (`playground.html`) frames it.
+A browser playground for hd-lang. It edits, checks, tests, and runs hd
+programs entirely in the browser with the Rust compiler: the
+[`hd_web`](../../crates/hd_web) crate built for `wasm32-unknown-unknown`,
+the same front end, checker, and Wasm GC emitter as `hd`. It is part of
+the website: the website build emits it as static files at `playground/`,
+and the site's **Playground** page (`playground.html`) frames it.
 
 ```sh
-pnpm run website:build   # writes website/dist/, with the playground at playground/
-pnpm run website:dev     # serves http://localhost:4173/playground/, rebuilt on change
-pnpm run website:e2e     # after a build: drives the site, then the playground
+pnpm run build:web-compiler   # writes assets/hd_web.wasm (not committed)
+pnpm run website:build        # writes website/dist/, with the playground at playground/
+pnpm run website:dev          # serves http://localhost:4173/playground/, rebuilt on change
+pnpm run website:e2e          # after a build: drives the site, then the playground
 ```
 
-Every URL in the playground build is relative, so it works at `/` and under
-a sub-path such as `/hd-lang/playground/`. The e2e run serves the site under
-`/hd-lang/`, the GitHub Pages base. It needs a local Chrome, Edge, or
-Chromium; `CHROME_PATH` selects one. The playground steps are in
-[`e2e.ts`](e2e.ts). The browser needs WebAssembly GC: Chrome 119, Firefox
-120, Safari 18.2, or later.
+The build needs `assets/hd_web.wasm`; `pnpm run build:web-compiler` builds
+it with the `web` cargo profile. Every URL in the playground build is
+relative, so it works at `/` and under a sub-path such as
+`/hd-lang/playground/`. The e2e run serves the site under `/hd-lang/`, the
+GitHub Pages base. It needs a local Chrome, Edge, or Chromium; `CHROME_PATH`
+selects one. The playground steps are in [`e2e.ts`](e2e.ts). The browser
+needs WebAssembly GC: Chrome 119, Firefox 120, Safari 18.2, or later.
 
 ## Features
 
 - CodeMirror 6 editor. Highlighting replays `classify(line)` from
-  [`src/highlight.ts`](../../src/highlight.ts), the highlighter the REPL uses.
-  There is one token classifier, and
-  [`test/highlight.test.ts`](test/highlight.test.ts) checks that the editor's
-  classes match it.
+  [`website/src/highlight.ts`](../src/highlight.ts), the highlighter that
+  also colors the site's code blocks. There is one token classifier, and
+  [`test/highlight.test.ts`](test/highlight.test.ts) checks that the
+  editor's classes match it and that its keywords are the reserved words of
+  the Rust lexer (`keyword` in
+  [`crates/hd_syntax/src/lexer.rs`](../../crates/hd_syntax/src/lexer.rs)).
 - **Run** (Ctrl+Enter or Cmd+Enter) compiles the project and runs it:
   - when the entry module declares `main`, Run calls `pub fn main`, as
     `hd run` does. A `main` that returns an `ExitCode` other than 0, or an
     `.Err`, is reported as a failure with its exit code;
-  - without `main`, Run evaluates the entry module with REPL semantics
-    ([`src/repl.ts`](../../src/repl.ts), the session `hd repl` uses). Each
-    top-level input runs in order: declarations join the session, statements
-    run, and each expression prints its value and type as the REPL prints
-    them, such as `42 : i32`. The first rejected input stops the run, and its
-    diagnostic points at the file's line. As in the REPL, declarations cannot
-    see top-level bindings. The other modules of a multi-file project become
-    the session's first declarations;
-  - a file without `main` whose top level holds only declarations runs its
+  - without `main`, the entry file runs as a script, as `hd FILE` runs one:
+    its top-level statements run in order and print only what they print.
+    A file that holds only declarations runs nothing; **Test** runs its
     test cases.
 
-  Console output streams into the output panel. Runtime panics are reported
-  with their panic code. A run longer than 15 seconds is stopped, and
-  **Stop** ends a run early.
+  Console output streams into the output panel; `dbg` lines show marked as
+  debug output. Runtime panics are reported with their panic code. A run
+  longer than 15 seconds is stopped, and **Stop** ends a run early.
 
-- **Check** (Ctrl+Shift+Enter) type-checks only, with the same semantics as
-  Run: a file without `main` is checked input by input, as the REPL would
-  check it, without running anything. Diagnostics show `path:line:column`
-  and the diagnostic code. Clicking one jumps to it, and the editor
-  underlines it.
-- **Test** runs the test cases of the `tests:` block, as `hd test` does,
-  whether or not the entry module declares `main`. It judges them with the
-  CLI's runner, [`src/test-runner.ts`](../../src/test-runner.ts): each test
-  case, and each `it_each` row, runs in a fresh program instance, and
-  `ignore`, `expect_panic`, and `timeout` apply. It checks the file as a
-  module, so top-level code must type-check as module initialization.
+- **Check** (Ctrl+Shift+Enter) type-checks the whole project without running
+  anything. Diagnostics show `path:line:column` and the diagnostic code.
+  Clicking one jumps to it, and the editor underlines it.
+- **Test** runs the test cases, as `hd test` does, whether or not the entry
+  module declares `main`: the `tests:` blocks, `*_test.hd` test modules, and
+  each program under `tests/`. Each test case, and each `it_each` row, runs
+  in a fresh program instance, with the property runner and shrinking of
+  `hd test` ([`host/cases.mjs`](../../host/cases.mjs), shared with the
+  Node runner). `ignore`, `expect_panic`, and `timeout` apply. The output
+  lists each case that did not pass as `hd test` prints it.
 - **WAT**, beside **Output** in the output pane, shows the WebAssembly text
-  of the module the project compiles to:
-  - the module Run instantiates, as the Rust compiler built it. The compiler
-    wasm prints it with `wasmprinter` (the `wat` goal of `hd_web`), so the
-    text is the binary the runtime executes, with the names of its name
-    section; there is no optimized variant to show. A file without `main`
-    shows the script's module;
-  - when compilation fails, the view shows the diagnostics, which jump to
-    their source positions, instead of an old module.
+  of the module Run instantiates. The compiler wasm prints it with
+  `wasmprinter` (the `wat` goal of `hd_web`), so the text is the binary the
+  runtime executes, with the names of its name section. A file without
+  `main` shows the script's module. When compilation fails, the view shows
+  the diagnostics, which jump to their source positions, instead of an old
+  module.
 
   The view is generated on demand. The page asks the worker for the text only
   while the view is open, and refreshes it after an edit, a run, or a test.
-  Highlighting comes from a
-  small tokenizer, [`src/wat.ts`](src/wat.ts), tested in
-  [`test/wat.test.ts`](test/wat.test.ts). Lines are numbered. The view
-  renders at most 10,000 lines; **Copy** and **Download .wat** give the full
-  text.
+  Highlighting comes from a small tokenizer, [`src/wat.ts`](src/wat.ts),
+  tested in [`test/wat.test.ts`](test/wat.test.ts). Lines are numbered. The
+  view renders at most 10,000 lines; **Copy** and **Download .wat** give the
+  full text.
 
 - Files: `+` adds a module, double-click renames one, and `×` deletes one.
-  `▸` makes a module the entry module, which is marked `main`.
+  `▸` makes a module the entry module, which is marked `main`. A file path
+  starts with `src/`, `tests/`, or `tasks/`, continues with identifier
+  segments separated by `/`, and ends in `.hd`
+  ([`src/project.ts`](src/project.ts)). The compiler reports anything else
+  wrong with a path, such as a reserved word or `src/mod.hd`, as a
+  diagnostic.
 - **Share** copies a link that holds the whole project in the URL hash:
   - `#code=<base64url of the UTF-8 source>` for a single `src/main.hd`;
   - `#project=<base64url of UTF-8 JSON {"files": {path: source}, "main": path}>`
@@ -89,11 +89,11 @@ Chromium; `CHROME_PATH` selects one. The playground steps are in
   [`../../spec/conformance/runtime/valid`](../../spec/conformance/runtime/valid), and
   [`examples/`](examples) as text, so the menu shows the files the test suites
   run. [`examples/top-level.hd`](examples/top-level.hd) has no `main` and
-  shows Run's REPL semantics. The playground's own examples show recent
-  language features: closures, `i64` and `u8`, `tests:` blocks with `it`,
-  `it_each`, and `snapshot`, `ExitCode`, literal suffixes, `@derive`, and
-  mutable requirement traits.
-  [`test/runner.test.ts`](test/runner.test.ts) runs every example.
+  runs as a script. The playground's own examples show recent language
+  features: closures, `i64` and `u8`, `tests:` blocks with `it`, `it_each`,
+  and `snapshot`, `ExitCode`, literal suffixes, `@derive`, and mutable
+  requirement traits. [`test/runner.test.ts`](test/runner.test.ts) runs
+  every example.
 - Light and dark themes follow `prefers-color-scheme`. The layout stacks the
   editor and output on narrow screens.
 
@@ -101,136 +101,61 @@ Chromium; `CHROME_PATH` selects one. The playground steps are in
 
 `src/main.ts` runs the page. `src/worker.ts` runs the compiler in a module
 Web Worker, so a long compile or an endless loop never blocks the page.
-Stopping a run terminates the worker. `src/runner.ts` holds the pipeline:
-link, `analyze`, then `instantiate` and run the entry export or the test
-cases with `runSelected` from [`src/test-runner.ts`](../../src/test-runner.ts),
-the runner `hd run` and `hd test` use. It binds `Console`, and the
-`Clock` and `Random` providers of [`src/web-host.ts`](../../src/web-host.ts),
-the ones `hd run` uses. It also reports the module
-a run compiled, for the REPL panel. Without `main`, it feeds the
-entry module's top-level inputs (`splitInputs` in
-[`src/repl-input.ts`](../../src/repl-input.ts)) to a `ReplSession`, whose
-`compiledModule()` gives the WAT of the last module it compiled.
-`src/compiler-client.ts` is the page side of the worker, shared with the
-website's REPL panel. The compiler's two Node
-dependencies get browser versions in `build.ts`:
+Stopping a run terminates the worker. `src/compiler-client.ts` is the page
+side of the worker, shared with the website's tour.
 
-- the emitter's `.wat` runtime files, read with `node:fs`, are embedded as
-  strings;
-- `node:crypto`'s `createHash("sha256")`, which names functions for traces,
-  is replaced by a small synchronous SHA-256 ([`src/shims/crypto.ts`](src/shims/crypto.ts)).
+The worker fetches `hd_web.wasm`, which sits beside `worker.js`, and loads
+it once. [`src/rust-runner.ts`](src/rust-runner.ts) holds the pipeline:
 
-Binaryen's published JavaScript build already runs in browsers. It makes up most of the
-14.6 MB worker bundle, which the page loads in the background.
+1. [`src/compiler-wire.ts`](src/compiler-wire.ts) encodes the project's
+   files, the entry path, and a goal (run, check, test, or wat) into one
+   request to the wasm's exports, and decodes the JSON answer: diagnostics,
+   test cases, and the program's bytes or WebAssembly text. The standard
+   library is inside the wasm.
+2. Run instantiates the program with the browser host,
+   [`host/web.mjs`](../../host/web.mjs), the browser layer over the same
+   host core `hd run` uses on Node. Before it instantiates a program, it
+   refuses one that imports a platform trait the browser cannot provide.
+3. Test runs each case with the case loop of
+   [`host/cases.mjs`](../../host/cases.mjs) over the same browser host.
+
+The results are `RunResult` and `WatResult`
+([`src/runner.ts`](src/runner.ts)), which the output panel, the WAT view,
+and the tour show. The worker bundle holds only this glue, about 26 KB;
+the compiler is the separate `hd_web.wasm`, about 4.4 MB raw and 1.4 MB
+gzip.
 
 ## The Website REPL Panel
 
-Every page of the website has a REPL panel docked at the bottom. **›\_ REPL**
-or Ctrl+\` opens it over the page; Esc or Ctrl+\` closes it. It is the same
-REPL as `hd repl`, with the same commands (`:type EXPR`, `:source`,
-`:reset`, `:help`; `:quit` and Ctrl+D on an empty line close the panel):
-
-- the panel script, [`../client/repl.ts`](../client/repl.ts),
-  reads input with `needsMoreInput` from
-  [`src/repl-input.ts`](../../src/repl-input.ts): Enter evaluates, while a line
-  ending in `:` or an open bracket continues and an empty line ends a block.
-  Shift+Enter always adds a line, Tab indents, and Up and Down recall
-  history, which is kept in `localStorage`. Input, echoed input, values, and
-  `:type` results are highlighted with `classify` from
-  [`src/highlight.ts`](../../src/highlight.ts); errors show in red with their
-  `line:column` in the input;
-- the session runs in this playground's `worker.js`, through
-  `CompilerClient`. The worker answers each input with `respond` from
-  [`src/repl.ts`](../../src/repl.ts), the function the terminal REPL calls. The
-  panel script is about 13 KB. The 14.6 MB worker loads only when the panel
-  first opens;
-- **Stop** ends an input that runs too long, and so does the 15-second
-  limit. The client replays the inputs the old worker had accepted into the
-  new one, so the session survives;
-- a code block that parses gets a **Try in REPL** button. It opens the panel
-  and evaluates the block's inputs in order, so declarations join the
-  session and statements and expressions run. A block that declares `main`
-  is a whole program, which the REPL cannot take because it supplies its own
-  `main`. Such a block gets a smaller **Open in playground** link instead.
-
-`pnpm run website:build` builds the playground and bundles the panel together.
-`pnpm run website:e2e` drives the panel in a headless Chromium after the
-build.
+The website's REPL panel and its **Try in REPL** buttons are hidden until
+the Rust compiler has a REPL (#17); `REPL_PANEL` in
+[`../build.ts`](../build.ts) turns them back on. Until then the worker
+answers each REPL request that the REPL is not available, and whole
+programs on the site keep their **Open in playground** link.
 
 ## Packages and Modules
 
-The prototype compiler checks one module at a time. Multi-file projects go
-through the package linker, [`src/package.ts`](../../src/package.ts). The linker
-resolves uses between the package's files, then joins the modules reachable
-from the entry into one program in initialization order. It maps each
-diagnostic back to its file and line. The same linker serves single-file
-projects.
-
-What works, relative to [10-modules.md](../../spec/lang/10-modules.md):
-
-- path-inferred modules under `src/`. `src/a/b.hd` is module `a.b`, and
-  `src/a/mod.hd` is module `a`. Paths must be identifiers, and two paths may
-  not name the same module after case folding;
-- `use pkg.a.b.{X, Y}` and `use pkg.a.b.X`, renaming with
-  `use pkg.a.b.{X as Z}`, and module namespace uses: after `use pkg.a.b`
-  (or `use pkg.a.b as ab`), `b.X` names `X` in a type, an expression, a
-  data expression, a pattern such as `b.Status.Done`, and an associated
-  call such as `b.X::new()`. A path to a private or missing declaration is
-  `private-import` or `unknown-import`;
-- relative uses, as in `use self.types.{User}` and
-  `use super.shared.{Email}`, which start at the file's own module;
-- each module keeps its own top-level names: two modules may declare the
-  same name, and the linker joins one of them under a hidden spelling. A
-  module sees another module's declaration only through a `use`: naming it
-  bare is `unknown-name`, `unknown-type`, or `unknown-trait`, with a hint
-  that gives the `use` line;
-- `pub use` re-exports, typically in `mod.hd`;
-- uses of missing modules, missing declarations, and private declarations
-  are rejected. Files of one folder may use each other in a loop, but
-  folders that depend on each other in a loop are `folder-cycle`; uses in
-  test code make no folder edge;
-- modules are initialized after the modules they use, with ready modules in
-  lexicographic order. Modules that use each other in a loop join in
-  lexicographic order, not by the dependencies of their statements. Only
-  modules reachable from the entry are linked;
-- standard-library uses (`use std.testing.assert_equal`) may repeat across
-  modules;
-- test modules: a `*_test.hd` file holds its test cases at top level and
-  may use public declarations package-wide. Test links every test module, and
-  Run links none unless test code uses it. A test module joins the program
-  as a `tests:` block, so it must not hold its own (`misplaced-tests-block`),
-  and code outside test code must not use it (`test-only-use`). Integration
-  test modules under `tests/` are not supported.
-
-The linker's own diagnostic codes are `invalid-module-path`,
-`reserved-module-name`, `duplicate-module-name`, `unknown-module`,
-`unknown-import`, and `private-import`.
-
-Not supported yet:
-
-- Test case names are shared,
-  so two modules cannot name a test case alike (`duplicate-test-name`).
-- There are no dependencies (`dep.<name>`) and no `hd.toml` manifest.
+A playground project is one package, built as `hd` builds a package
+([10-modules.md](../../spec/lang/10-modules.md)): path-inferred modules
+under `src/` (`src/a/b.hd` is module `a.b`, `src/a/mod.hd` is module `a`,
+and `src/lib.hd` is the root module), uses between them, test modules
+(`*_test.hd`), and integration test programs under `tests/`. The entry
+module is the one marked `main`. Diagnostics name the file and line they
+come from. There are no dependencies (`dep.<name>`) and no `hd.toml`
+manifest.
 
 ## Other Limits
 
-The playground runs what the prototype compiler supports; see
-[`../../src/README.md`](../../src/README.md). Beyond that:
-
 - Of the default runtime profile, only the traits a browser can provide are
-  bound: `Console`, `Clock`, and `Random`, also in the REPL panel. A `main`
-  whose row names another, such as `FsRead` or `Args`, checks, but Run stops
-  before running it with "main needs FsRead, which the playground does not
-  provide". The conformance runner's runtime profiles and scenarios are not
-  exposed.
-- `println` and a direct `console.write_line!(...)` call run on the host
-  console and on a program-defined provider such as
-  `std.console.BufferConsole`. `println` drives its `write_line!` with
-  `block_on`, which also works inside `main!` or a test body: there it
-  drives only its own write. A
-  pending `write_line!` is driven until it finishes, as `block_on` does,
-  and one that returns `.Err` makes `println` panic with `explicit-panic`.
-- A suspending `main!` that returns a `Result` is not judged: its `.Err` is
-  reported as a normal exit.
+  bound: `Console`, `Clock`, `Random`, `Args`, and `Http`, which reaches the
+  page's own origin alone
+  ([std/http.md](../../spec/std/http.md#playground)). A `main` whose row
+  names another, such as `FsRead`, checks, but Run stops before running it
+  with "main needs FsRead, which the playground does not provide".
+- A runtime panic's report has no source frames yet: the frames need the
+  compiler's source positions, which the playground does not ask for.
+- A test case's `timeout` cuts a case that waits; a body that never yields
+  is cut only by the 15-second run limit. Snapshot and regression files
+  live in memory for one run.
 - Triple-quoted multi-line strings compile, but the highlighter works line
   by line, so it does not color their later lines as string text.

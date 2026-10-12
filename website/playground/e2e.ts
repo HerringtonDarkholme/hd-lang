@@ -12,7 +12,7 @@ import { join } from "node:path";
 
 import type { Browser, Locator, Page } from "playwright-core";
 
-import { classify } from "../../src/highlight.ts";
+import { classify } from "../src/highlight.ts";
 import { encodeBase64Url } from "./src/share.ts";
 
 interface PlaygroundE2e {
@@ -54,6 +54,49 @@ async function sameOriginHttp(
   await page.click("#run");
   await page.locator(".outcome.passed").waitFor();
   assert.equal(await page.locator(".stdout").textContent(), "status 200\nno example.com\n");
+  await page.context().close();
+}
+
+/** Opens a program in the editor and checks its token classes against `classify`. */
+async function editorClassesMatch(open: (source: string) => Promise<Page>): Promise<void> {
+  const source = [
+    'println("total ${count + 1} for $name")  # note',
+    'raw := r"C:\\dir\\${x}"',
+    "fn read!(path: string) -> List[Map[string, i64]] $ Files:",
+    "    ok := !done && (ready || `match`) != false",
+    "use pkg.a.{B as C}",
+    "fn make[T](value: T) -> T: value",
+    "big := 1_000i64 + 0xFF + 2.5e3",
+  ].join("\n");
+  const page = await open(source);
+  const lines = await page.$$eval(".cm-line", (nodes) =>
+    nodes.map((line) => {
+      const runs: [string, string][] = [];
+      const walk = (node: Node, className: string): void => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const last = runs.at(-1);
+          if (last && last[1] === className) last[0] += node.textContent;
+          else runs.push([node.textContent ?? "", className]);
+          return;
+        }
+        const own = [...(node as Element).classList].find((name) => name.startsWith("hd-"));
+        for (const child of node.childNodes) walk(child, own ?? className);
+      };
+      for (const child of line.childNodes) walk(child, "");
+      return runs.filter(([text]) => text !== "");
+    }),
+  );
+  const expected = source.split("\n").map((line) => {
+    const runs: [string, string][] = [];
+    for (const { text, kind } of classify(line)) {
+      const className = kind === "plain" ? "" : `hd-${kind}`;
+      const last = runs.at(-1);
+      if (last && last[1] === className) last[0] += text;
+      else runs.push([text, className]);
+    }
+    return runs;
+  });
+  assert.deepEqual(lines, expected);
   await page.context().close();
 }
 
@@ -315,47 +358,9 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
     await page.context().close();
   });
 
-  await step("editor token classes match classify", async () => {
-    const source = [
-      'println("total ${count + 1} for $name")  # note',
-      'raw := r"C:\\dir\\${x}"',
-      "fn read!(path: string) -> List[Map[string, i64]] $ Files:",
-      "    ok := !done && (ready || `match`) != false",
-      "use pkg.a.{B as C}",
-      "fn make[T](value: T) -> T: value",
-      "big := 1_000i64 + 0xFF + 2.5e3",
-    ].join("\n");
-    const page = await openPage(code(source));
-    const lines = await page.$$eval(".cm-line", (nodes) =>
-      nodes.map((line) => {
-        const runs: [string, string][] = [];
-        const walk = (node: Node, className: string): void => {
-          if (node.nodeType === Node.TEXT_NODE) {
-            const last = runs.at(-1);
-            if (last && last[1] === className) last[0] += node.textContent;
-            else runs.push([node.textContent ?? "", className]);
-            return;
-          }
-          const own = [...(node as Element).classList].find((name) => name.startsWith("hd-"));
-          for (const child of node.childNodes) walk(child, own ?? className);
-        };
-        for (const child of line.childNodes) walk(child, "");
-        return runs.filter(([text]) => text !== "");
-      }),
-    );
-    const expected = source.split("\n").map((line) => {
-      const runs: [string, string][] = [];
-      for (const { text, kind } of classify(line)) {
-        const className = kind === "plain" ? "" : `hd-${kind}`;
-        const last = runs.at(-1);
-        if (last && last[1] === className) last[0] += text;
-        else runs.push([text, className]);
-      }
-      return runs;
-    });
-    assert.deepEqual(lines, expected);
-    await page.context().close();
-  });
+  await step("editor token classes match classify", () =>
+    editorClassesMatch((source) => openPage(code(source))),
+  );
 
   await step("dark mode and a phone-width layout", async () => {
     const page = await openPage("", "dark");

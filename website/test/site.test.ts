@@ -284,13 +284,11 @@ describe("website build", () => {
     assert.ok(existsSync(join(outDir, "playground/assets/app.js")));
     const page = await readFile(join(outDir, PLAYGROUND_PAGE), "utf8");
     assert.match(page, /<iframe id="playground-frame" src="\/playground\/"/);
-    // Every page gets the REPL panel, which loads the playground's worker.
+    // The REPL panel is hidden until the Rust compiler has a REPL (#17).
     const chapter = await readFile(join(outDir, "spec/04-type-system.html"), "utf8");
-    assert.match(chapter, /<script type="module" src="\/assets\/repl\.js"><\/script>/);
-    assert.match(
-      chapter,
-      /<body data-base="\/" data-repl-worker="\/playground\/assets\/worker\.js">/,
-    );
+    assert.doesNotMatch(chapter, /repl\.js|data-repl-worker/);
+    assert.match(chapter, /<body data-base="\/">/);
+    assert.ok(!existsSync(join(outDir, "assets/repl.js")));
     // A tour page gets the editor script and the worker it runs code in.
     const tourPage = await readFile(join(outDir, "tour/1-hello/index.html"), "utf8");
     assert.match(tourPage, /<script type="module" src="\/assets\/tour\.js"><\/script>/);
@@ -300,9 +298,6 @@ describe("website build", () => {
       /<script type="application\/json" id="tour-source">\{"src\/main.hd":"# Press Run/,
     );
     assert.ok(existsSync(join(outDir, "assets/tour.js")));
-    const panel = await readFile(join(outDir, "assets/repl.js"), "utf8");
-    assert.ok(panel.length < 100_000, `the panel bundle stays small (${panel.length} bytes)`);
-    assert.doesNotMatch(panel, /binaryen/i, "the compiler stays in the worker");
   });
 
   test("gives snippets Try in REPL and whole programs a playground link", async () => {

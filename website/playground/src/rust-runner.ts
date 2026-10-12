@@ -7,8 +7,7 @@
 // compiler and its in-memory store live as long as the worker.
 //
 // The WAT view's module is the program the compiler built for Run, printed
-// by the compiler wasm (the wat goal, output kind 2). The REPL panel stays
-// on the prototype compiler (runner.ts) until W7.
+// by the compiler wasm (the wat goal, output kind 2).
 
 import { judge, runCases, type CaseRecord, type Verdict } from "../../../host/cases.mjs";
 import { createWebHost, memoryFiles, unboundTraits } from "../../../host/web.mjs";
@@ -379,7 +378,7 @@ export function createRustRunner(bytes: Promise<BufferSource> | BufferSource): R
       return { status: "failure", diagnostics, summary: "no module to show" };
     return {
       status: "ok",
-      module: { wat: compiled.wat, origin: "program", count: 1 },
+      module: { wat: compiled.wat },
       diagnostics,
       summary: "",
     };

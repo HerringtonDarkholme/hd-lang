@@ -46,11 +46,18 @@ interface BuildOptions {
 
 interface BuildResult {
   readonly pages: number;
-  /** Whether the site includes the playground; it also enables the REPL panel. */
+  /** Whether the site includes the playground, which the tour and the REPL panel need. */
   readonly playground: boolean;
   /** The ```ebnf rule index the pages were rendered with. */
   readonly grammar: GrammarIndex;
 }
+
+/**
+ * Whether pages get the REPL panel and their snippets its Try in REPL
+ * buttons. Off until the Rust compiler has a REPL (#17): the playground's
+ * worker no longer runs one.
+ */
+const REPL_PANEL: boolean = false;
 
 /** The chapter whose rule definitions are canonical when a rule is restated elsewhere. */
 const GRAMMAR_CHAPTER = "spec/lang/02-grammar.md";
@@ -174,7 +181,7 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
     await cp(playgroundDist, join(outDir, PLAYGROUND_APP_DIR), { recursive: true });
   if (playground)
     await Promise.all([
-      bundleClient("repl", join(outDir, REPL_SCRIPT)),
+      ...(REPL_PANEL ? [bundleClient("repl", join(outDir, REPL_SCRIPT))] : []),
       bundleClient("tour", join(outDir, TOUR_SCRIPT)),
     ]);
 
@@ -238,7 +245,7 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
         headings: env.headings,
         source: entry.generated ? undefined : entry.source,
         shape: home ? "home" : "docs",
-        repl: playground,
+        repl: REPL_PANEL && playground,
       }),
     );
   }
@@ -254,7 +261,7 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
       body: playgroundBody(base, playground),
       headings: [],
       shape: playground ? "app" : "wide",
-      repl: playground,
+      repl: REPL_PANEL && playground,
     }),
   );
   search.push({ title: "Playground", page: "Playground", url: siteLink(base, PLAYGROUND_PAGE) });

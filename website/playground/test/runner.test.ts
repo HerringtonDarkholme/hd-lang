@@ -1,5 +1,5 @@
 // Runs the compile-and-run pipelines the worker uses, bundled for the browser
-// with the same esbuild options and Node shims as the playground build. Run,
+// with the same esbuild options as the playground build. Run,
 // Check and Test go through the Rust compiler's wasm (rust-runner.ts), which
 // the test builds first when it is missing, and so does the WAT view.
 
@@ -16,17 +16,14 @@ import * as esbuild from "esbuild";
 
 import { editedCode, loadTour, tourProject } from "../../src/tour-pages.ts";
 import { buildOptions, COMPILER_WASM } from "../build.ts";
-import { createHash as shimHash } from "../src/shims/crypto.ts";
 import type { Example } from "../src/examples.ts";
-import type * as Runner from "../src/runner.ts";
-import type { RunResult } from "../src/runner.ts";
+import { formatRunDiagnostic, type RunResult } from "../src/runner.ts";
 import type * as RustRunnerModule from "../src/rust-runner.ts";
 import type { RustMode } from "../src/rust-runner.ts";
 import type { Project } from "../src/project.ts";
 
 const playground = resolve(import.meta.dirname, "..");
 let directory: string;
-let runner: typeof Runner;
 let rust: RustRunnerModule.RustRunner;
 
 /** Bundles `entry` (under src/) as the playground build does and imports it. */
@@ -43,13 +40,12 @@ async function bundled<T>(entry: string): Promise<T> {
     }),
   );
   const bundle = await readFile(outfile, "utf8");
-  assert.doesNotMatch(bundle, /from\s*"node:/, `${entry}: Node APIs are shimmed`);
+  assert.doesNotMatch(bundle, /from\s*"node:/, `${entry}: the bundle needs no Node API`);
   return (await import(pathToFileURL(outfile).href)) as T;
 }
 
 before(async () => {
   directory = await mkdtemp(join(tmpdir(), "hd-playground-"));
-  runner = await bundled<typeof Runner>("runner.ts");
   // The compiler wasm is a build output (not committed); build it when a
   // fresh checkout has none.
   if (!existsSync(COMPILER_WASM))
@@ -127,7 +123,7 @@ test("a type error is reported at its line and column", async () => {
     assert.equal(result.status, "compile-error");
     assert.deepEqual(located(result), ["src/main.hd:3:22:type-mismatch"]);
     assert.equal(
-      runner.formatRunDiagnostic(result.diagnostics[0]!),
+      formatRunDiagnostic(result.diagnostics[0]!),
       "src/main.hd:3:22: type-mismatch: in binding: expected i32, found string",
     );
   }
@@ -771,8 +767,8 @@ test("Test runs the test cases of a file without main", async () => {
 /**
  * What Run gives for each bundled example: its status, its summary, then its
  * console lines. Without `main`, an example runs as a script, so
- * `top-level` prints nothing and `tests` and `effects-in-signature` run
- * nothing; Test runs their test cases.
+ * `top-level` prints what its statements print, and `tests` and
+ * `effects-in-signature` run nothing; Test runs their test cases.
  */
 const EXAMPLE_RUNS: Readonly<Record<string, readonly string[]>> = {
   "effects-in-signature": ["ok", "exited normally"],
@@ -803,7 +799,7 @@ const EXAMPLE_RUNS: Readonly<Record<string, readonly string[]>> = {
   numbers: ["ok", "exited normally", "31536000000", "255"],
   suffixes: ["ok", "exited normally", "width 16px", "3 retry delays"],
   std: ["ok", "exited normally", "skipped 'bob x'", "ADA, CY"],
-  "top-level": ["ok", "exited normally"],
+  "top-level": ["ok", "exited normally", "corner at 3, 4", "sum 7, product 12"],
   inventory: ["ok", "exited normally", "no sofa in stock"],
   "exit-code": ["failure", "main exited with code 1", "2 files changed"],
   panic: ["panic", "integer-division-by-zero: division by zero", "average of 10 over 2: 5"],
@@ -893,7 +889,6 @@ test("the WAT of a program is the module the compiler printed", async () => {
     single('pub fn main() -> void $ Console:\n    println("hi")\n'),
   );
   assert.equal(shown.status, "ok", shown.summary);
-  assert.equal(shown.module?.origin, "program");
   assert.match(shown.module!.wat, /^\(module\n/);
   // The name section gives the entry function its name.
   assert.match(shown.module!.wat, /\(func \$playground\/main\/main#0 /);
@@ -934,13 +929,4 @@ test("without main, the WAT is the script's module", async () => {
   const shown = await rust.watProject(single('x := 20\nprintln("start")\nx + 1\nx * 2\n'));
   assert.equal(shown.status, "ok", shown.summary);
   assert.match(shown.module!.wat, /^\(module/);
-});
-
-test("the crypto shim matches node:crypto", async () => {
-  const { createHash } = await import("node:crypto");
-  for (const text of ["", "abc", "fn main() -> i32: 1", "λ".repeat(100), "x".repeat(1000)])
-    assert.equal(
-      shimHash("sha256").update(text).digest("hex"),
-      createHash("sha256").update(text).digest("hex"),
-    );
 });

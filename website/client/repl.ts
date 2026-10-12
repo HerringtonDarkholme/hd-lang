@@ -8,7 +8,7 @@
 // build exists; the layout then includes it and names the worker on <body>.
 
 import { CompilerClient, type Interrupted } from "../playground/src/compiler-client.ts";
-import { classify } from "../../src/highlight.ts";
+import { classify } from "../src/highlight.ts";
 import {
   backspaceWidth,
   continuationIndent,

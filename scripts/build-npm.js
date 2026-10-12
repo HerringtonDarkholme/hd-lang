@@ -54,6 +54,8 @@ for (const dir of ["bin", "src"]) {
     }
   }
 }
+// src/highlight.ts re-exports the website's highlighter, which the REPL uses.
+await compile(join(root, "website/src/highlight.ts"), join(dist, "website/src/highlight.js"));
 await copyFiles("src/emitter/runtime", (f) => f.endsWith(".wat"));
 await copyFiles("lib/std", () => true);
 await copyFiles("spec/lang", (f) => f.endsWith(".md"));

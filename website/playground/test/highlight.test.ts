@@ -5,7 +5,7 @@ import test from "node:test";
 
 import { highlightTree } from "@lezer/highlight";
 
-import { classify, type TokenClass } from "../../../src/highlight.ts";
+import { classify, KEYWORDS, type TokenClass } from "../../src/highlight.ts";
 import { cssClass, hdHighlighter, hdStreamLanguage, type StyledClass } from "../src/hd-language.ts";
 
 const root = resolve(import.meta.dirname, "../../..");
@@ -137,4 +137,15 @@ test("editor token classes match classify on the examples and runtime fixtures",
     const source = await readFile(resolve(root, path), "utf8");
     assert.deepEqual(editorRuns(source), classifyRuns(source), path);
   }
+});
+
+test("the highlighter's keywords are the Rust lexer's reserved words", async () => {
+  // `fn keyword(text: &str) -> Option<TokenKind>` maps each reserved word
+  // to its token, one `"word" => TokenKind::Kw...` arm per word.
+  const lexer = await readFile(resolve(root, "crates/hd_syntax/src/lexer.rs"), "utf8");
+  const body = /\nfn keyword\(text: &str\) -> Option<TokenKind> \{\n([^]*?)\n\}\n/.exec(lexer);
+  assert.ok(body, "crates/hd_syntax/src/lexer.rs defines fn keyword");
+  const words = [...body[1]!.matchAll(/"([^"]+)" => TokenKind::Kw\w+/g)].map((match) => match[1]!);
+  assert.ok(words.length > 20, `fn keyword lists the reserved words (found ${words.length})`);
+  assert.deepEqual([...KEYWORDS].sort(), words.sort());
 });

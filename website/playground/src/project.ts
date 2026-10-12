@@ -1,5 +1,3 @@
-import { moduleIdentity } from "../../../src/package.ts";
-
 /** A playground project: one package whose modules live under `src/`. */
 export interface Project {
   /** Package path (`src/models/user.hd`) to source text. */
@@ -10,13 +8,21 @@ export interface Project {
 
 export const DEFAULT_MAIN = "src/main.hd";
 
+/**
+ * A package file path, as the editor takes one: `src/`, `tests/` or `tasks/`,
+ * then one or more identifier segments separated by `/`, then `.hd`. The
+ * compiler checks the rest (reserved words, `mod.hd`, names that fold alike)
+ * and reports it as a diagnostic.
+ */
+const PACKAGE_PATH = /^(?:src|tests|tasks)(?:\/[\p{ID_Start}_][\p{ID_Continue}_]*)+\.hd$/u;
+
 /** Why `path` cannot name a package file, or undefined when it can. */
 export function pathProblem(
   path: string,
   project?: Project,
   renaming?: string,
 ): string | undefined {
-  if (moduleIdentity(path) === undefined)
+  if (!PACKAGE_PATH.test(path))
     return "use src/<name>.hd with identifier names, like src/models/user.hd";
   if (project && path !== renaming && path in project.files) return `${path} already exists`;
   return undefined;

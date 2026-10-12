@@ -4,7 +4,7 @@ import markdownIt, { type MarkdownIt, type Token } from "markdown-it";
 import footnote from "markdown-it-footnote";
 
 import { isErrorExample, RULE_ID, ruleIdAnchor } from "../../spec/tools/spec-prose.ts";
-import { classify } from "../../src/highlight.ts";
+import { classify } from "./highlight.ts";
 import { parse } from "../../src/parser/index.ts";
 import { type GrammarIndex, ruleAnchor, ruleTarget, tokenizeEbnf } from "./ebnf.ts";
 

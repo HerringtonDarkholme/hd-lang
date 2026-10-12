@@ -1,8 +1,9 @@
-# Try an idea with no `main`: every expression prints its value and type.
+# Try an idea with no `main`: the file runs as a script, its statements in
+# order, and prints what they print.
 data Point:
     x: i32
     y: i32
 
 corner := Point { x: 3, y: 4 }
-corner  # ← prints: Point { x: 3, y: 4 } : Point
-[corner.x + corner.y, corner.x * corner.y]
+println("corner at ${corner.x}, ${corner.y}")
+println("sum ${corner.x + corner.y}, product ${corner.x * corner.y}")
