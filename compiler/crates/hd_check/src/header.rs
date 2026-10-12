@@ -410,6 +410,28 @@ impl<'a> ItemCheck<'_, 'a> {
             }
             self.check_ty(t, slot)?;
         }
+        // The bounds the item writes are written types too
+        // (`trait.bound.no-implied.positions`); they report at the header.
+        let gens: &[Generic] = match &it.data {
+            ItemData::Fn(s) | ItemData::Method { sig: s, .. } => &s.generics,
+            _ => &it.generics,
+        };
+        for b in gens.iter().filter(|g| !g.row).flat_map(|g| &g.bounds) {
+            self.check_bound(*b)?;
+        }
+        match &it.data {
+            ItemData::Trait(t) => {
+                for s in &t.supers {
+                    self.check_bound(*s)?;
+                }
+            }
+            ItemData::Impl { trait_args, .. } => {
+                for a in self.pool().list_items(*trait_args) {
+                    self.check_ty(*a, 0)?;
+                }
+            }
+            _ => {}
+        }
         let ItemData::Impl {
             trait_,
             trait_args,
@@ -757,6 +779,22 @@ impl<'a> ItemCheck<'_, 'a> {
         Ok(())
     }
 
+    /// A written bound: the types in its arguments and bindings are
+    /// written types (`trait.bound.no-implied.positions`). Its own
+    /// arguments may be left to defaults, so only they are checked.
+    fn check_bound(&mut self, b: Ty) -> StageResult<()> {
+        let pool = self.pool();
+        if let TyData::TraitValue { args, bindings, .. } = pool.get(b) {
+            for &a in pool.list_items(args) {
+                self.check_ty(a, 0)?;
+            }
+            for (_, t) in bindings {
+                self.check_ty(t, 0)?;
+            }
+        }
+        Ok(())
+    }
+
     /// Written types against their declared bounds (`trait.bound.no-implied`).
     fn check_ty(&mut self, t: Ty, slot: u32) -> StageResult<()> {
         let pool = self.pool();
@@ -842,6 +880,7 @@ impl<'a> ItemCheck<'_, 'a> {
                     );
                     self.report(slot, Code::PartialGenericArguments, message);
                 }
+                self.check_bound(t)?;
             }
             TyData::Option(i) | TyData::Mut(i) => self.check_ty(i, slot)?,
             TyData::Tuple { elems, rest } => {
