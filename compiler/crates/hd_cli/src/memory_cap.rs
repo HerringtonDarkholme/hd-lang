@@ -58,6 +58,22 @@ thread_local! {
     static REPORTING_THREAD: Cell<bool> = const { Cell::new(false) };
 }
 
+// Unit tests check accounting balance on their own thread. `LIVE` is
+// process-wide, and libtest's runner thread and the reporter thread allocate
+// at times the test cannot order against. A const `Cell` needs no destructor,
+// so updating it never allocates.
+#[cfg(test)]
+thread_local! {
+    static THREAD_LIVE: Cell<i64> = const { Cell::new(0) };
+}
+
+#[cfg(test)]
+fn count_thread_bytes(bytes: usize, allocated: bool) {
+    let bytes = i64::try_from(bytes).unwrap_or(i64::MAX);
+    let delta = if allocated { bytes } else { -bytes };
+    let _ = THREAD_LIVE.try_with(|n| n.set(n.get().wrapping_add(delta)));
+}
+
 struct Report {
     lines: Vec<Vec<u8>>,
     stream: Option<std::fs::File>,
@@ -67,6 +83,8 @@ struct Tracker;
 
 impl AllocationTracker for Tracker {
     fn allocated(&self, _: usize, _: usize, wrapped_size: usize, _: AllocationGroupId) {
+        #[cfg(test)]
+        count_thread_bytes(wrapped_size, true);
         let live = add_bytes(&LIVE, wrapped_size);
         if !REPORTING_THREAD.try_with(Cell::get).unwrap_or(false) {
             enforce(live);
@@ -81,6 +99,8 @@ impl AllocationTracker for Tracker {
         _: AllocationGroupId,
         _: AllocationGroupId,
     ) {
+        #[cfg(test)]
+        count_thread_bytes(wrapped_size, false);
         remove_bytes(&LIVE, wrapped_size);
     }
 }
@@ -446,6 +466,13 @@ impl Drop for Suspension {
 mod tests {
     use super::*;
 
+    /// Net tracked bytes this thread allocated, counted by the same callbacks
+    /// that update `LIVE`. Exact balance checks use it, because libtest's
+    /// runner thread and the reporter thread can move `LIVE` mid-check.
+    fn thread_live() -> i64 {
+        THREAD_LIVE.with(Cell::get)
+    }
+
     // An isolated process is required: a real allocator limit exits, and the
     // global tracker cannot be reset safely between parallel unit tests.
     // A lost report wakeup leaves the child spinning, so bound every run.
@@ -495,9 +522,9 @@ mod tests {
         // subtract bytes belonging to a later tracked allocation.
         let earlier = std::hint::black_box(vec![0u8; 32 * 1024]);
         startup([OsString::from("--max-memory=128K")], false).unwrap();
-        let before = LIVE.load(Ordering::SeqCst);
+        let before = thread_live();
         drop(earlier);
-        assert_eq!(LIVE.load(Ordering::SeqCst), before);
+        assert_eq!(thread_live(), before);
         if mode == "arm" {
             arm(Some(0), true, true);
             panic!("arming over the cap returned to compiler");
@@ -505,9 +532,9 @@ mod tests {
         arm(Some(128 * 1024), mode == "json", true);
         if mode == "retained-guest" {
             let guest = enter_guest();
-            let before = LIVE.load(Ordering::SeqCst);
+            let before = thread_live();
             let retained = std::hint::black_box(vec![0u8; 512 * 1024]);
-            assert!(LIVE.load(Ordering::SeqCst) >= before + 512 * 1024);
+            assert!(thread_live() >= before + 512 * 1024);
             drop(guest);
             // Native guest allocations can still be held by a detached input,
             // DNS/HTTP worker, or Wasmtime cache after the instance is gone.
@@ -515,7 +542,7 @@ mod tests {
             let later = std::hint::black_box(vec![0u8; 512 * 1024]);
             drop(later);
             drop(retained);
-            assert_eq!(LIVE.load(Ordering::SeqCst), before);
+            assert_eq!(thread_live(), before);
             return;
         }
         if mode == "rearm" {
@@ -534,11 +561,11 @@ mod tests {
         }
         if mode == "suspended" {
             let suspension = suspend();
-            let before = LIVE.load(Ordering::SeqCst);
+            let before = thread_live();
             let allocation = std::hint::black_box(vec![0u8; 512 * 1024]);
-            assert!(LIVE.load(Ordering::SeqCst) >= before + 512 * 1024);
+            assert!(thread_live() >= before + 512 * 1024);
             drop(allocation);
-            assert_eq!(LIVE.load(Ordering::SeqCst), before);
+            assert_eq!(thread_live(), before);
             drop(suspension);
             return;
         }
