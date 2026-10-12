@@ -1,0 +1,9 @@
+# Two mistakes the playground underlines: a wrong type and an unknown name.
+fn total(prices: List[i32]) -> i32:
+    let sum = +0
+    for p in prices:
+        sum = sum + p
+    "total: $sum"
+
+pub fn main() -> void $ Console:
+    println(totl([1, 2, 3]))

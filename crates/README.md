@@ -36,7 +36,7 @@ the crate manifests. The design links explain each crate's intended boundary.
 | `hd_driver` | Owns the task graph and assembles compiler outputs; all core front- and back-half crates | [Pipeline and task graph](../future-work/compiler/design-overview.md#1-overview) |
 | `hd_doc` | Documentation extraction and rendering; `hd_base`, `hd_resolve` | [`hd doc`](../future-work/compiler/commands.md#77-hd-doc) |
 | `hd_stdpack` | Build-time standard-library packer; `hd_base`, `hd_driver`, `hd_project` | [Build order, slice 4](../future-work/compiler/build-order.md#9-build-order) |
-| `hd_web` | Browser adapter and stepping execution; `hd_base`, `hd_cache`, `hd_driver`, `hd_project`, `hd_run`, `hd_sched` | [Browser runner](../future-work/compiler/engines-and-test-runner.md#184-the-browser-runner), [playground](../future-work/compiler/commands.md#79-the-playground) |
+| `hd_web` | Playground compile session over an in-memory store; `hd_cache`, `hd_driver`, `hd_project`, `hd_sched` | [Browser runner](../future-work/compiler/engines-and-test-runner.md#184-the-browser-runner), [playground](../future-work/compiler/commands.md#79-the-playground) |
 | `hd_testkit` | Determinism and incremental-test support; `hd_base`, `hd_driver`, `hd_sched` | [Testing the checker](../future-work/compiler/type-checking.md#14-testing), [systems measurements](../future-work/compiler/build-order.md#92-systems-measurements-per-slice) |
 | `hd_cli` | Native `hd` binary, disk sources/cache, threaded execution, and Node/V8 engine, plus `hd_run_wasmtime` with the `wasmtime` feature; `hd_cache`, `hd_driver`, `hd_project`, `hd_run`, `hd_sched` | [Command flows](../future-work/compiler/commands.md) |
 

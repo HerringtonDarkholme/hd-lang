@@ -6,7 +6,6 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-hd_base = { path = "../hd_base" }
 hd_cache = { path = "../hd_cache" }
 hd_project = { path = "../hd_project" }
 hd_sched = { path = "../hd_sched" }
@@ -14,3 +13,6 @@ hd_driver = { path = "../hd_driver", default-features = false }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+hd_diag = { path = "../hd_diag" }

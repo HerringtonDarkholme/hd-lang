@@ -92,6 +92,16 @@ impl MemoryStore {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+    /// The bytes its entries hold, which a host caps (the store never evicts).
+    #[must_use]
+    pub fn bytes(&self) -> usize {
+        self.entries
+            .lock()
+            .expect("entries")
+            .values()
+            .map(|b| b.len())
+            .sum()
+    }
 }
 
 impl CacheStore for MemoryStore {
@@ -397,6 +407,8 @@ mod tests {
         );
         assert_eq!(s.drain_new().len(), 1);
         assert!(s.drain_new().is_empty());
+        s.put(EntryKind::Iface, &Hash128(2), b"yz");
+        assert_eq!(s.bytes(), 3);
     }
 
     #[test]

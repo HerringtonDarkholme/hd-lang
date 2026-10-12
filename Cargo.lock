@@ -808,8 +808,8 @@ dependencies = [
 name = "hd_web"
 version = "0.0.0"
 dependencies = [
- "hd_base",
  "hd_cache",
+ "hd_diag",
  "hd_driver",
  "hd_project",
  "hd_sched",

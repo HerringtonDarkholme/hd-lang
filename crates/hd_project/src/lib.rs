@@ -238,6 +238,25 @@ pub fn role_of(file: &str) -> Role {
     }
 }
 
+/// Whether a package-relative file belongs to the program whose entry is
+/// `entry_file`: the library, the executables and `entry_file`
+/// (`cli.check.default`, `module.test.code`). Test code and the other
+/// tasks are no part of a program that `hd run` or `hd build` builds. A
+/// task's program also has the shared task modules, its own copy of them
+/// (`cli.task.shared-copy`); no other program does (`cli.task.not-shipped`).
+#[must_use]
+pub fn in_program(entry_file: &str, file: &str) -> bool {
+    file == entry_file
+        || matches!(role_of(file), Role::Lib | Role::Exe)
+        || (role_of(entry_file) == Role::Task && shared_task_module(file))
+}
+
+/// Whether a package-relative file is a shared task module: below a
+/// subdirectory of `tasks` (`cli.task.shared`).
+fn shared_task_module(file: &str) -> bool {
+    matches!(Root::of(file), (Root::Task, rest) if rest.contains('/'))
+}
+
 /// Which files of a package are its modules.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Scope {

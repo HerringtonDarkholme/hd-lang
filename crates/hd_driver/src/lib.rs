@@ -46,6 +46,7 @@ use hd_types::{InternPool, Ty, TyData, TyList};
 use hd_wasm::Code as WasmCode;
 
 pub mod bench;
+pub mod diagnostics;
 mod positions;
 mod report;
 
