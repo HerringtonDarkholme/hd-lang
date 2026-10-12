@@ -1843,6 +1843,11 @@ impl Ck<'_, '_> {
             })
             .collect();
         let mut source = None;
+        // Whether a field of the literal already failed to resolve: an
+        // unknown field, an unknown shorthand name, or a duplicate. The
+        // literal's given/missing accounting cannot be trusted then, so
+        // no missing-required-field follows.
+        let mut failed = false;
         for a in &kids[1..] {
             if a.kind() == SyntaxKind::SpreadExpr {
                 if source.is_some() {
@@ -1875,12 +1880,14 @@ impl Ck<'_, '_> {
             let Some(i) = fields.iter().position(|f| f.name == fname) else {
                 let msg = format!("no field `{}`", self.cx.names.text(fname));
                 self.err(Code::UnknownDataField, *a, &msg);
+                failed = true;
                 continue;
             };
             // `data.literal.duplicate`: a field is given once.
             if seen[i] {
                 let msg = format!("the field `{}` is given twice", self.cx.names.text(fname));
                 self.err(Code::DuplicateField, *a, &msg);
+                failed = true;
             }
             let ft = inst(fields[i].ty);
             let (r, t) = if let Some(e) = a.children().next() {
@@ -1893,6 +1900,7 @@ impl Ck<'_, '_> {
                         let msg = format!("`{text}` is not defined");
                         self.err(Code::UnknownName, *a, &msg);
                     }
+                    failed = true;
                     continue;
                 };
                 self.read_local(l, d, *a)
@@ -1951,6 +1959,9 @@ impl Ck<'_, '_> {
         for (i, f) in fields.iter().enumerate() {
             // `data.update.supplies-all`, `data.update.no-defaults`.
             if !seen[i] && source.is_none() {
+                if failed {
+                    continue;
+                }
                 if f.has_default {
                     // The field's default body, at each construction that
                     // omits it (checking-and-tir.md "Default calls").

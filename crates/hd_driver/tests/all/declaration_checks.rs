@@ -114,6 +114,44 @@ user := User {
 }
 
 #[test]
+fn an_unknown_field_suppresses_the_missing_field_error() {
+    rule(
+        "data Point:
+    x: i32
+
+fn get() -> i32: Point { y: 1 }.x
+",
+        Code::UnknownDataField,
+        "data Point:
+    x: i32
+
+fn get() -> i32: Point { x: 1 }.x
+",
+    );
+}
+
+#[test]
+fn an_unknown_shorthand_suppresses_the_missing_field_error() {
+    rule(
+        "data Point:
+    x: i32
+    y: i32
+
+fn broken(x: i32) -> Point:
+    Point { x, y }
+",
+        Code::UnknownName,
+        "data Point:
+    x: i32
+    y: i32
+
+fn fixed(x: i32, y: i32) -> Point:
+    Point { x, y }
+",
+    );
+}
+
+#[test]
 fn a_shorthand_field_counts_as_given() {
     rule(
         "data Coordinate:

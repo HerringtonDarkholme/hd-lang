@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2794 | 36 | 15 | 2845 |
+| 2796 | 34 | 15 | 2845 |
 
 ## By Chapter
 
@@ -21,7 +21,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/05-expressions.md` | 274 | 3 | 0 | 277 |
 | `lang/06-control-flow.md` | 149 | 5 | 3 | 157 |
 | `lang/07-functions.md` | 126 | 4 | 0 | 130 |
-| `lang/08-data-and-enums.md` | 120 | 3 | 0 | 123 |
+| `lang/08-data-and-enums.md` | 122 | 1 | 0 | 123 |
 | `lang/09-traits.md` | 354 | 5 | 0 | 359 |
 | `lang/10-modules.md` | 253 | 1 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 250 | 1 | 8 | 259 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 917 | 0 | 12 | 929 |
-| `typing/invalid` | 1046 | 29 | 0 | 1075 |
+| `typing/invalid` | 1048 | 27 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 13 | 7 | 0 | 20 |
 
@@ -75,20 +75,12 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:missing-required-field` | 2 |
 | `fail:no-diagnostic` | 29 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-main` | 1 |
 | `fail:unknown-name` | 3 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 11 |
-
-<details><summary><code>fail:missing-required-field</code> (2)</summary>
-
-- `typing/invalid/data-literal-unknown-field.hd`
-- `typing/invalid/data-field-shorthand-unknown-name.hd`
-
-</details>
 
 <details><summary><code>fail:no-diagnostic</code> (29)</summary>
 
@@ -1652,9 +1644,11 @@ typing/invalid/data-default-requires-provider.hd
 typing/invalid/data-field-bare-trait.hd
 typing/invalid/data-field-default-type-mismatch.hd
 typing/invalid/data-field-shorthand-duplicate.hd
+typing/invalid/data-field-shorthand-unknown-name.hd
 typing/invalid/data-literal-field-type-mismatch.hd
 typing/invalid/data-literal-missing-field.hd
 typing/invalid/data-literal-private-field-other-module.hd
+typing/invalid/data-literal-unknown-field.hd
 typing/invalid/data-nominal-same-fields.hd
 typing/invalid/data-pattern-nonexhaustive.hd
 typing/invalid/data-pattern-repeated-field.hd
