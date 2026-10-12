@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2709 | 120 | 16 | 2845 |
+| 2710 | 119 | 16 | 2845 |
 
 ## By Chapter
 
@@ -18,7 +18,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/02-grammar.md` | 205 | 10 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
 | `lang/04-type-system.md` | 332 | 20 | 0 | 352 |
-| `lang/05-expressions.md` | 265 | 12 | 0 | 277 |
+| `lang/05-expressions.md` | 266 | 11 | 0 | 277 |
 | `lang/06-control-flow.md` | 142 | 11 | 4 | 157 |
 | `lang/07-functions.md` | 123 | 7 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 116 | 7 | 0 | 123 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 916 | 1 | 12 | 929 |
-| `typing/invalid` | 978 | 96 | 1 | 1075 |
+| `typing/invalid` | 979 | 95 | 1 | 1075 |
 | `typing/valid` | 414 | 1 | 0 | 415 |
 | `typing/warnings` | 12 | 8 | 0 | 20 |
 
@@ -85,7 +85,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:no-common-type` | 2 |
-| `fail:no-diagnostic` | 43 |
+| `fail:no-diagnostic` | 42 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-import` | 1 |
 | `fail:private-main` | 1 |
@@ -181,7 +181,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (43)</summary>
+<details><summary><code>fail:no-diagnostic</code> (42)</summary>
 
 - `typing/warnings/unreachable-code.hd`
 - `typing/invalid/unknown-annotation-member.hd`
@@ -204,7 +204,6 @@ compiler stage that first declined the case.
 - `typing/invalid/integration-test-tests-block.hd`
 - `typing/invalid/intrinsic-method-user.hd`
 - `typing/invalid/operator-function-left-exact.hd`
-- `typing/invalid/pipe-multi-line-step.hd`
 - `typing/invalid/type-default-bound.hd`
 - `typing/invalid/error-marker-outside.hd`
 - `typing/invalid/function-type-rest-not-list.hd`
@@ -2322,6 +2321,7 @@ typing/invalid/payload-free-enum-equality.hd
 typing/invalid/pipe-brackets-after-bare-step.hd
 typing/invalid/pipe-call-step-without-placeholder.hd
 typing/invalid/pipe-duplicate-placeholder.hd
+typing/invalid/pipe-multi-line-step.hd
 typing/invalid/pipe-placeholder-in-closure.hd
 typing/invalid/pipe-suspending-bare-step.hd
 typing/invalid/pipe-suspending-method-reference.hd

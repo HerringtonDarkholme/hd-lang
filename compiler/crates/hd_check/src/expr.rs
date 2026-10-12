@@ -2342,10 +2342,41 @@ impl Ck<'_, '_> {
 
     /// `a |> f(_, b)`: `a` first, then the step with `a` in the
     /// placeholder's slot (checking-and-tir.md "What The Checker Desugars").
+    /// Whether the pipe step holds an indented suite: a `Block` starting
+    /// on its own line (`expr.pipe.single-line`). Only blanks lie
+    /// between such a block and its line break. A nested pipe's step
+    /// belongs to that pipe, so only its left side is searched.
+    fn pipe_step_suite(&self, step: NodeRef<'_>) -> bool {
+        if step.kind() == SyntaxKind::Block {
+            let span = self.cx.src.span(step);
+            let bytes = self.cx.src.text.as_bytes();
+            let mut start = usize::try_from(span.lo).unwrap_or(0).min(bytes.len());
+            while start > 0 && matches!(bytes[start - 1], b' ' | b'\t' | b'\r') {
+                start -= 1;
+            }
+            if start > 0 && bytes[start - 1] == b'\n' {
+                return true;
+            }
+        }
+        let mut kids = step.children();
+        if step.kind() == SyntaxKind::PipeExpr {
+            return kids.next().is_some_and(|lhs| self.pipe_step_suite(lhs));
+        }
+        kids.any(|child| self.pipe_step_suite(child))
+    }
+
     fn pipe(&mut self, kids: &[NodeRef<'_>], want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         let [lhs, step] = kids else {
             return unsupported("a pipe shape");
         };
+        if self.pipe_step_suite(*step) {
+            self.err(
+                Code::MultiLinePipeStep,
+                *step,
+                "a pipe step must not contain an indented suite",
+            );
+            return Ok(self.poison_value(*step));
+        }
         let v = self.expr(*lhs, None)?;
         if is_bare_path(*step) {
             // `expr.pipe.bare.call`: `value |> path` is the call
