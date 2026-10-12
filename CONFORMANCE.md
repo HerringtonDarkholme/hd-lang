@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2805 | 25 | 15 | 2845 |
+| 2806 | 24 | 15 | 2845 |
 
 ## By Chapter
 
@@ -25,7 +25,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/09-traits.md` | 354 | 5 | 0 | 359 |
 | `lang/10-modules.md` | 253 | 1 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 250 | 1 | 8 | 259 |
-| `lang/14-annotations.md` | 147 | 6 | 0 | 153 |
+| `lang/14-annotations.md` | 148 | 5 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
 | `std/collections.md` | 29 | 0 | 0 | 29 |
@@ -66,7 +66,7 @@ fixture; unsupported surface records progress without failing.
 | `runtime/valid` | 917 | 0 | 12 | 929 |
 | `typing/invalid` | 1051 | 24 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
-| `typing/warnings` | 19 | 1 | 0 | 20 |
+| `typing/warnings` | 20 | 0 | 0 | 20 |
 
 ## Failure Buckets
 
@@ -75,12 +75,12 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:no-diagnostic` | 23 |
+| `fail:no-diagnostic` | 22 |
 | `fail:unknown-name` | 2 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 11 |
 
-<details><summary><code>fail:no-diagnostic</code> (23)</summary>
+<details><summary><code>fail:no-diagnostic</code> (22)</summary>
 
 - `typing/invalid/unknown-annotation-member.hd`
 - `typing/invalid/suspension-forbidden-context.hd`
@@ -88,7 +88,6 @@ compiler stage that first declined the case.
 - `typing/invalid/trait-resolution-depth.hd`
 - `typing/invalid/member-line-payload-member.hd`
 - `typing/invalid/generic-member-call.hd`
-- `typing/warnings/derivation-line-drift.hd`
 - `typing/invalid/structure-without-use.hd`
 - `typing/invalid/intrinsic-method-user.hd`
 - `typing/invalid/operator-function-left-exact.hd`
@@ -2934,6 +2933,7 @@ typing/valid/variant-pattern-lists-payload.hd
 typing/valid/void-unit-alias.hd
 typing/warnings/derivation-block-decorator-std.hd
 typing/warnings/derivation-block-decorator.hd
+typing/warnings/derivation-line-drift.hd
 typing/warnings/let-list-redundant-mut.hd
 typing/warnings/let-mut-optional-payload.hd
 typing/warnings/mixed-script-identifier.hd

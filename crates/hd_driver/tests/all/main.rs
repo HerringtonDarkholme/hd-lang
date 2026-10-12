@@ -23,6 +23,7 @@ mod dbg_release;
 mod declaration_checks;
 mod default_args_run;
 mod delegation_run;
+mod derivation_line_drift;
 mod derive_members;
 mod derive_run;
 mod derived_bound_unmet;

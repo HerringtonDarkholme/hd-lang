@@ -48,6 +48,18 @@ fn kind_bit(name: &str) -> Option<u16> {
 }
 
 /// One decorator line: the called or named function and its form.
+/// A `by` derivation block for the drift check (`annot.line.drift`):
+/// its target, its trait's package, the trait and target names as written,
+/// its member lines, and the impl's span.
+type DriftBlock = (
+    DefId,
+    String,
+    String,
+    String,
+    Vec<(String, bool, Vec<String>)>,
+    Span,
+);
+
 struct Deco<'t> {
     name: String,
     bare: bool,
@@ -425,6 +437,103 @@ impl Lower<'_, '_, '_> {
                 .any(|t| self.src.tkind(t) == Some(TokenKind::KwPass))
     }
 
+    /// The first segment of the dotted path of the module that declares
+    /// `d`: the package (`Names::module`).
+    fn package_of(&self, d: DefId) -> String {
+        self.names
+            .module_of(d)
+            .split('.')
+            .next()
+            .unwrap_or("")
+            .to_owned()
+    }
+
+    /// One member line's drift signature (`annot.line.drift`): the member
+    /// it names, whether it extends (`+=`), and the right side's tokens
+    /// (`pass` for an omit).
+    fn drift_lines(&self, n: NodeRef<'_>) -> Vec<(String, bool, Vec<String>)> {
+        let mut out = Vec::new();
+        let Some(body) = Src::child(n, SyntaxKind::Block) else {
+            return out;
+        };
+        for line in body
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::Derivation)
+        {
+            let mut toks = self.src.tokens(line);
+            let (Some(name), Some(op)) = (toks.next(), toks.next()) else {
+                continue;
+            };
+            if !matches!(
+                self.src.tkind(name),
+                Some(TokenKind::Ident | TokenKind::RawIdent | TokenKind::KwSelfType)
+            ) {
+                continue;
+            }
+            let Some(rhs) = line.children().last() else {
+                continue;
+            };
+            let rhs = if self.is_omit(rhs) {
+                vec!["pass".to_owned()]
+            } else {
+                self.src
+                    .tokens(rhs)
+                    .map(|t| self.src.text(t).to_owned())
+                    .collect()
+            };
+            out.push((
+                self.src.text(name).to_owned(),
+                self.src.tkind(op) == Some(TokenKind::PlusEq),
+                rhs,
+            ));
+        }
+        out
+    }
+
+    /// A `by` derivation block for the drift check: its target, its
+    /// trait's package, the trait and target names as written, its member
+    /// lines, and the block's span.
+    fn collect_drift_block(
+        &self,
+        n: NodeRef<'_>,
+        tys: &[NodeRef<'_>],
+        target: Option<(DefId, HeadKind)>,
+        items: &HashMap<DefId, &Item>,
+        out: &mut Vec<DriftBlock>,
+    ) {
+        let Some((target_def, hk)) = target else {
+            return;
+        };
+        if !matches!(hk, HeadKind::Data | HeadKind::Enum) {
+            return;
+        }
+        let [trait_ty, target_ty] = tys else {
+            return;
+        };
+        let trait_segs = self.segments(*trait_ty);
+        let [(trait_name, _)] = trait_segs.as_slice() else {
+            return;
+        };
+        let target_segs = self.segments(*target_ty);
+        let [(target_name, _)] = target_segs.as_slice() else {
+            return;
+        };
+        let Some((trait_def, item)) = self.scope_item(trait_name, items) else {
+            return;
+        };
+        if !matches!(item.data, ItemData::Trait(_)) {
+            return;
+        }
+        out.push((
+            target_def,
+            self.package_of(trait_def),
+            trait_name.clone(),
+            target_name.clone(),
+            self.drift_lines(n),
+            self.src.span(n),
+        ));
+    }
+
     /// The form of a member line (`annot.line.right.error`,
     /// `annot.line.right.not-list`, `annot.no-trait.no-omit`): `pass` omits
     /// a member by `=` alone, and not in a block with no trait; `Self` and
@@ -530,6 +639,7 @@ impl Lower<'_, '_, '_> {
         blocks: &[hd_base::NodeIdx],
     ) {
         let src = self.src;
+        let mut drift_blocks: Vec<DriftBlock> = Vec::new();
         for n in src.root().children() {
             let top = |k: u16| Place {
                 kind: k,
@@ -652,8 +762,37 @@ impl Lower<'_, '_, '_> {
                             _ => {}
                         }
                     }
+                    if by && !traitless {
+                        self.collect_drift_block(n, &tys, target, items, &mut drift_blocks);
+                    }
                 }
                 _ => {}
+            }
+        }
+        // `annot.line.drift`: derivation blocks for traits of one package
+        // on one type whose member lines differ warn on the later block.
+        // Different lines stay legal: only the warning is new.
+        // (`annot.line.drift.derive`, a block beside a `@derive`, has no
+        // emitter yet: its plain reading also fires on the derive-one and
+        // configure-another programs that `structure_run` builds clean.)
+        for (i, block) in drift_blocks.iter().enumerate() {
+            let (target, package, trait_name, target_name, lines, span) = block;
+            let first = drift_blocks[..i]
+                .iter()
+                .find(|(t, p, _, _, _, _)| t == target && p == package);
+            if let Some((_, _, first_trait, _, first_lines, _)) = first
+                && first_lines != lines
+            {
+                let msg = format!(
+                    "`{trait_name}` configures different member lines for `{target_name}` than `{first_trait}` does"
+                );
+                self.diags.push(
+                    Code::DerivationLineDrift,
+                    Severity::Warning,
+                    *span,
+                    &msg,
+                    None,
+                );
             }
         }
     }
