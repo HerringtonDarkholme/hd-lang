@@ -644,7 +644,7 @@ row_alias_target = "$", requirement_row ;
 2. r[grammar.type-decl.newtype] The parenthesized form declares a nominal single-field newtype.
 3. r[grammar.type-decl.row-alias.dollar] An `=` form whose right side is a row after `$`, as in `type AppRow = $ Db + Cache` or `type NoRow = $()`, declares a row alias.
 4. r[grammar.type-decl.row-alias.bare] A right side that joins keys with `+` but has no `$`, as in `type AppRow = Db + Cache`, parses, and [`req.row.alias.dollar.missing`](11-requirements-and-suspension.md#r-req.row.alias.dollar.missing) rejects it.
-5. r[grammar.type-decl.row-alias.one-key] A right side of one key without `$`, as in `type Store = Db`, is an ordinary `type`, and its use site gives its meaning.
+5. r[grammar.type-decl.alias.bare-trait] A right side of one trait without `$`, as in `type Store = Db`, parses as a type, and [`types.trait.value.dyn-required`](04-type-system.md#r-types.trait.value.dyn-required) rejects it.
 6. r[grammar.type-decl.row-alias.no-and] `&` joins bounds only, so `type Both = $ Db & Cache` is an error. Error: `syntax-error`.
 
 ```text

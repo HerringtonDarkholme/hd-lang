@@ -28,9 +28,9 @@ CLI tier.
 | F-621 | 1 | a library module under test gets an entry row for its top level |
 | F-622 | 1 | `derivation-line-drift` warns on blocks whose member lines agree |
 | F-623 | 3 | the package graph is not modeled, so no `package-cycle` and no dependency back on the root |
-| F-624 | 1 | the checker reports `syntax-error` for a `mut`-target alias used as a requirement key instead of `mut-alias-key` |
 | F-625 | 1 | a `use` inside a `tests:` block leaks to module scope: main's two-argument call resolves to std `assert_equal` and misses its reason parameter, where the block import should win only inside the block |
 | F-626 | 1 | an unread binding of a cold suspension only warns instead of erroring with `discarded-must-use-value` |
+| F-628 | 1 | a type alias of a trait value used as a requirement key resolves to its trait instead of `unknown-trait` |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
 | S1A | 5 | indirect `block_on` and `println` panic at run time instead of a transitive ban; no instantiation depth limit; impl-head projections accepted |
 | S1B | 4 | `hd fmt` and two JSON report fields are missing |
@@ -95,12 +95,6 @@ Correctness and diagnostics:
   build (`module.test.cyclic-dev-unit`, `module.test.cyclic-dev-allowed`).
   `cli/dep-package-cycle`, `cli/dev-dependency-cyclic-unit`, and
   `cli/dev-dependency-cyclic-integration` show it.
-- **F-624**: the checker reports the legacy `syntax-error` on the function
-  line for an alias whose target is written with `mut` used as a
-  requirement key, instead of resolving the alias and reporting
-  `mut-alias-key` on the key use. By `req.row.alias.no-mut`, detecting
-  the `mut` needs the alias resolved, which is a type-phase check.
-  `typing/invalid/row-alias-mut-key.hd` shows it.
 - **F-625**: a `use` inside a `tests:` block leaks to module scope: code
   outside the block resolves the name through the block import instead of
   the module declaration, so a two-argument call to the module's
@@ -112,6 +106,11 @@ Correctness and diagnostics:
   `unused-local-binding` instead of erroring `discarded-must-use-value`.
   By `flow.unused.must-use`, the readonly view of `:=` does not lift the
   must-use obligation. `typing/invalid/unused-cold-suspension.hd` shows it.
+- **F-628**: the checker accepts a type alias of a trait value, such as
+  `type Users = dyn Db`, written as a requirement key and treats it as the
+  key `Db`. By `req.row.alias.type-alias.key`, a type alias names a type,
+  so `$ Users` is `unknown-trait`. `typing/invalid/type-alias-as-key.hd`
+  shows it.
 
 Runtime cost:
 

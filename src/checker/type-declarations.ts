@@ -259,7 +259,7 @@ class AliasExpander {
       if (!substitutions) return [];
       const target = substitute(alias.target, substitutions);
       // A key has no `mut`: access follows the trait
-      // (11-requirements-and-suspension.md#r-req.row.alias.no-mut).
+      // (11-requirements-and-suspension.md#r-req.mut.no-spelling).
       if (mutableInner(target) !== undefined) {
         this.diagnostics.push({
           code: "syntax-error",

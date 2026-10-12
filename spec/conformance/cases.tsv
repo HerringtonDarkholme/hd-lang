@@ -1308,13 +1308,13 @@ runtime/valid/row-alias-runs.hd	runtime	accept	lang/11-requirements-and-suspensi
 typing/valid/row-alias-nested.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.row.alias.nested
 typing/valid/row-alias-generic.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.row.alias.generic.use
 runtime/valid/row-alias-mutable-key.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.alias.access
-typing/valid/row-alias-one-key.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.row.alias.one-key
+typing/valid/row-alias-one-key.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.row.alias.named-key
 typing/valid/row-alias-empty.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.row.alias.empty
 typing/invalid/row-alias-as-type.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.alias.type-or-key
 typing/invalid/row-alias-in-use.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.alias.type-or-key
 typing/invalid/row-alias-binding.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.alias.type-or-key
 typing/valid/row-alias-bare-context.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.context.dollar
-typing/invalid/row-alias-mut-key.hd	type	reject:mut-alias-key	lang/11-requirements-and-suspension.md#r-req.row.alias.no-mut
+typing/invalid/type-alias-as-key.hd	type	reject:unknown-trait	lang/11-requirements-and-suspension.md#r-req.row.alias.type-alias.key
 typing/invalid/row-alias-generic-kind.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.alias.generic.kind
 runtime/valid/installer-function-runs.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.poly.extension
 typing/invalid/cast-literal-out-of-range.hd	type	reject:integer-literal-range	lang/04-type-system.md#r-types.cast.literal-range

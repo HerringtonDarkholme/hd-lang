@@ -1,0 +1,9 @@
+# test: a type alias of a trait value names a type, so it is not a requirement key
+# Spec 11 Row Aliases: req.row.alias.type-alias.key (owner decision on #10, option C).
+
+trait Db
+
+type Users = dyn Db
+
+fn count() -> i32 $ Users:  # diagnostic: unknown-trait
+    0

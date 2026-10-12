@@ -470,14 +470,17 @@ fn get_order() -> string $ AppRow + Clock:
 7. r[req.row.alias.duplicate] A key reached twice, directly or through aliases, occurs once in the row, as [`req.row.set.duplicate`](#r-req.row.set.duplicate) states, and is not diagnosed.
 8. r[req.row.alias.in-rows] A row alias is written only in a row after `$`: in a requirement clause, or in a [row slot](#row-slots), as in `$.Context[$ AppRow]`.
 9. r[req.row.alias.type-or-key] A row alias is row-kinded. Using one as a value type, a bound, a type-kinded argument, or a single key, as in `$.use(AppRow)` or `AppRow=value`, is an error. Error: `generic-kind-mismatch`.
-10. r[req.row.alias.one-key] An ordinary alias of one trait, such as `type Store = Db`, names that trait wherever it is used. So `x: dyn Store` is a `dyn Db` value, and `$ Store` is the key `Db`.
-11. r[req.row.alias.bound-key] A row alias may list a [bound key](#bound-requirement-keys), as in `type UserRow = $ Store[Item = User] + Log`. An ordinary alias of one bound trait, as in `type UserStore = Store[Item = User]`, is that bound key in a row.
-12. r[req.row.alias.access] A key reached through an alias is its trait, so its provider's access follows [`req.mut.trait-access`](#r-req.mut.trait-access).
-13. r[req.row.alias.no-mut] An alias whose target is written with `mut`, as in `type Store = mut Db`, is an error where it is used as a key. The `mut` is visible only after resolving the alias, so a parser cannot detect it: this is a type-phase check. Error: `mut-alias-key`.
-14. r[req.row.alias.generic.marked] A row alias may declare generic parameters, and a row parameter among them is marked `$`, as in `type WithLog[$R] = $ R + Log`.
-15. r[req.row.alias.generic.use] `$ WithLog[$ Clock]` is the row `$ Clock + Log`, and in a function with row parameter `R`, `$ WithLog[$ R]` extends `R` with `Log`.
-16. r[req.row.alias.generic.kind] A row argument for a type-kinded alias parameter, as in `$ Only[$ AppRow]` after `type Only[T] = T`, is an error. Error: `generic-kind-mismatch`.
-17. r[req.row.alias.cycle] A row alias that expands to itself is an [alias cycle](04-type-system.md#r-types.alias.cycle). Error: `alias-cycle`.
+10. r[req.row.alias.type-alias] A right side without `$` declares a type alias, never a key, as in `type Users = dyn Store[Item = User]`. It is usable only where a type is, as in `x: Users`.
+11. r[req.row.alias.type-alias.key] A type alias names a type, so writing one where a trait goes, as in `$ Users`, `$.use(Users)`, `Users=value`, or the bound `T < Users`, is an error. Error: `unknown-trait`.
+12. r[req.row.alias.bare-trait] A bare trait on the right side, as in `type Store = Db`, is a trait in a type position, so [`types.trait.value.dyn-required`](04-type-system.md#r-types.trait.value.dyn-required) rejects it. Error: `trait-used-as-type`.
+13. r[req.row.alias.named-key] A key or a set of keys gets a name only through a row alias, as in `type UserRow = $ Store[Item = User]`, written `$ UserRow` in a row.
+14. r[req.row.alias.bound-key] A row alias may list a [bound key](#bound-requirement-keys), as in `type UserRow = $ Store[Item = User] + Log`.
+15. r[req.row.alias.key-written] `$.use`, a binding in `$.with`, and a bound write the trait itself, as in `$.use(Store[Item = User])`.
+16. r[req.row.alias.access] A key reached through an alias is its trait, so its provider's access follows [`req.mut.trait-access`](#r-req.mut.trait-access).
+17. r[req.row.alias.generic.marked] A row alias may declare generic parameters, and a row parameter among them is marked `$`, as in `type WithLog[$R] = $ R + Log`.
+18. r[req.row.alias.generic.use] `$ WithLog[$ Clock]` is the row `$ Clock + Log`, and in a function with row parameter `R`, `$ WithLog[$ R]` extends `R` with `Log`.
+19. r[req.row.alias.generic.kind] A row argument for a type-kinded alias parameter, as in `$ Only[$ AppRow]` after `type Only[T] = T`, is an error. Error: `generic-kind-mismatch`.
+20. r[req.row.alias.cycle] A row alias that expands to itself is an [alias cycle](04-type-system.md#r-types.alias.cycle). Error: `alias-cycle`.
 
 ```text
 use std.function.Fn
@@ -521,6 +524,11 @@ fn load(rows: AppRow) -> void: pass  # error: generic-kind-mismatch
 
 fn read() -> void $ AppRow:
     _ := $.use(AppRow)  # error: generic-kind-mismatch
+
+type Users = dyn Db
+
+fn count() -> i32 $ Users:  # error: unknown-trait
+    0
 ```
 
 ```text
@@ -538,8 +546,9 @@ type Back = $ Front + Cache
 > adds no new kind of declaration.
 
 > **Why.** With `$` on every row, the declaration shows that a row alias is a
-> row, as each use does. A one-key right side without `$`, as in
-> `type Store = Db`, stays an ordinary alias.
+> row, as each use does. A right side without `$` is always a type, so
+> `type` never declares a trait alias. A key is written as its trait or
+> reached through a row alias, never through a type alias.
 
 > **Note.** A `pub` row alias names only public traits, as
 > [`module.vis.signature.coverage`](10-modules.md#r-module.vis.signature.coverage)
@@ -612,9 +621,9 @@ data Post:
 fn find(id: string) -> User $ Store[Item = User]:
     $.use(Store[Item = User]).load(id)
 
-type UserStore = Store[Item = User]
+type UserRow = $ Store[Item = User]
 
-fn greet(id: string) -> string $ UserStore:
+fn greet(id: string) -> string $ UserRow:
     find(id).name
 
 fn wrong(id: string) -> User $ Store[Item = Post]:

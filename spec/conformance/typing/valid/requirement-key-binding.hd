@@ -1,5 +1,5 @@
-# test: a bound requirement key works in rows, row aliases, row subsumption, and provider scopes
-# Spec 11 Bound Requirement Keys: req.key.binding, req.key.binding.rows, req.key.binding.value; req.row.alias.bound-key; req.with.type.binding (owner decision AT5).
+# test: a bound requirement key works in rows, row aliases, row subsumption, and provider scopes, and a type alias of its trait value is a type
+# Spec 11 Bound Requirement Keys: req.key.binding, req.key.binding.rows, req.key.binding.value; req.row.alias.bound-key, req.row.alias.named-key, req.row.alias.type-alias; req.with.type.binding (owner decision AT5).
 
 trait Store:
     type Item
@@ -19,12 +19,17 @@ impl Store for UserStore:
 
 type Users = dyn Store[Item = User]
 
+type UserRow = $ Store[Item = User]
+
 type AppRow = $ Store[Item = User] + Log
 
-fn find(id: string) -> User $ Store[Item = User]:
-    $.use(Store[Item = User]).load(id)
+fn lookup(store: Users, id: string) -> User:
+    store.load(id)
 
-fn greet(id: string) -> string $ Users:
+fn find(id: string) -> User $ Store[Item = User]:
+    lookup($.use(Store[Item = User]), id)
+
+fn greet(id: string) -> string $ UserRow:
     find(id).name
 
 fn handlers() -> List[fn(string) -> string $ AppRow]:

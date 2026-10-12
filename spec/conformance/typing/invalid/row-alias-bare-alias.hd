@@ -1,5 +1,5 @@
 # test: an alias whose right side names one row alias without $ is rejected, and the fix-it adds $
-# Spec 02 Type Declarations: grammar.type-decl.row-alias.one-key.
+# Spec 11 Row Aliases: req.row.alias.dollar.missing.
 
 trait Db
 
