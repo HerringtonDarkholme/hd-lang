@@ -3,7 +3,7 @@
 use std.resource.ResourceError
 
 pub data IoError:
-    message: string
+    pub message: string
 
 pub trait FileHandle:
     fn read!(mut self) -> Result[string, ResourceError[IoError]]
