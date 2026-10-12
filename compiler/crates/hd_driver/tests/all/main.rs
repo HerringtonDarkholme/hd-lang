@@ -136,6 +136,7 @@ mod suspending_fn_weaken_run;
 mod test_plan;
 mod test_registration_spellings;
 mod test_runner_registration_rows;
+mod tests_block_shape;
 mod trailing_blocks;
 mod trials;
 mod try_hint_run;

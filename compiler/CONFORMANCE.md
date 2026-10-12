@@ -8,14 +8,14 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2725 | 104 | 16 | 2845 |
+| 2728 | 101 | 16 | 2845 |
 
 ## By Chapter
 
 | Group | Pass | Fail | Unsupported | Total |
 | --- | ---: | ---: | ---: | ---: |
 | `lang/01-lexical-structure.md` | 145 | 0 | 0 | 145 |
-| `lang/02-grammar.md` | 212 | 3 | 0 | 215 |
+| `lang/02-grammar.md` | 213 | 2 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
 | `lang/04-type-system.md` | 332 | 20 | 0 | 352 |
 | `lang/05-expressions.md` | 268 | 9 | 0 | 277 |
@@ -23,7 +23,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/07-functions.md` | 123 | 7 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 116 | 7 | 0 | 123 |
 | `lang/09-traits.md` | 348 | 11 | 0 | 359 |
-| `lang/10-modules.md` | 239 | 15 | 4 | 258 |
+| `lang/10-modules.md` | 241 | 13 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 245 | 6 | 8 | 259 |
 | `lang/14-annotations.md` | 144 | 9 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 916 | 1 | 12 | 929 |
-| `typing/invalid` | 980 | 94 | 1 | 1075 |
+| `typing/invalid` | 983 | 91 | 1 | 1075 |
 | `typing/valid` | 414 | 1 | 0 | 415 |
 | `typing/warnings` | 12 | 8 | 0 | 20 |
 
@@ -84,7 +84,7 @@ compiler stage that first declined the case.
 | `fail:missing-requirement` | 3 |
 | `fail:missing-supertrait-implementation` | 2 |
 | `fail:no-common-type` | 2 |
-| `fail:no-diagnostic` | 41 |
+| `fail:no-diagnostic` | 38 |
 | `fail:pattern-arity` | 1 |
 | `fail:private-import` | 1 |
 | `fail:private-main` | 1 |
@@ -171,7 +171,7 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>fail:no-diagnostic</code> (41)</summary>
+<details><summary><code>fail:no-diagnostic</code> (38)</summary>
 
 - `typing/warnings/unreachable-code.hd`
 - `typing/invalid/unknown-annotation-member.hd`
@@ -188,9 +188,6 @@ compiler stage that first declined the case.
 - `typing/invalid/generic-member-call.hd`
 - `typing/warnings/derivation-line-drift.hd`
 - `typing/invalid/structure-without-use.hd`
-- `typing/invalid/duplicate-tests-block.hd`
-- `typing/invalid/test-module-tests-block.hd`
-- `typing/invalid/integration-test-tests-block.hd`
 - `typing/invalid/intrinsic-method-user.hd`
 - `typing/invalid/operator-function-left-exact.hd`
 - `typing/invalid/type-default-bound.hd`
@@ -1907,6 +1904,7 @@ typing/invalid/duplicate-inherent-member.hd
 typing/invalid/duplicate-literal-match-arm.hd
 typing/invalid/duplicate-supertrait.hd
 typing/invalid/duplicate-test-name.hd
+typing/invalid/duplicate-tests-block.hd
 typing/invalid/duplicate-trait-member.hd
 typing/invalid/duplicate-type-level-fact.hd
 typing/invalid/duplicate-variant.hd
@@ -2085,6 +2083,7 @@ typing/invalid/integration-program-use.hd
 typing/invalid/integration-super-above-test-root.hd
 typing/invalid/integration-test-missing-requirement.hd
 typing/invalid/integration-test-private-name.hd
+typing/invalid/integration-test-tests-block.hd
 typing/invalid/integration-tests-root-use.hd
 typing/invalid/interpolation-without-display.hd
 typing/invalid/invalid-map-key.hd
@@ -2542,6 +2541,7 @@ typing/invalid/test-body-optional-result.hd
 typing/invalid/test-body-string-error.hd
 typing/invalid/test-body-uses-property-runner.hd
 typing/invalid/test-module-name-not-imported.hd
+typing/invalid/test-module-tests-block.hd
 typing/invalid/test-option-not-literal.hd
 typing/invalid/test-registration-qualified-duplicate.hd
 typing/invalid/test-registration-renamed-misplaced.hd

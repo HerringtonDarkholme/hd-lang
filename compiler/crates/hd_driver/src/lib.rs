@@ -2557,6 +2557,24 @@ impl Run<'_> {
         // The `tests:` block's use and header diagnostics, which no folder
         // interface reports.
         diags.append(&lowered.test_diags);
+        // `grammar.tests.once`: a file's second and later `tests:` blocks.
+        // `module.test.no-tests-block`: no block of a test module or an
+        // integration test. Each offending block gets one diagnostic.
+        for (i, block) in blocks.iter().enumerate() {
+            if module.role == Role::Test {
+                diags.error(
+                    Code::MisplacedTestsBlock,
+                    *block,
+                    "a test module holds its test cases at top level; it has no `tests:` block",
+                );
+            } else if i > 0 {
+                diags.error(
+                    Code::DuplicateTestsBlock,
+                    *block,
+                    "a file has at most one `tests:` block",
+                );
+            }
+        }
         let mut bodies = Vec::new();
         let mut failed = None;
         // M1 (checking-and-tir.md §4.13.1 "Omitted result types"): the
