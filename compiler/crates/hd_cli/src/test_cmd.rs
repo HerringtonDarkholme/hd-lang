@@ -641,7 +641,8 @@ fn build_programs(
     {
         let mut p = disk::load_package(root, &r.file).map_err(|e| rep.fail(&e))?;
         p.only_program(&r.file);
-        let wasm = crate::compile(&p, rep)?;
+        // `cli.profile.test`: the executables a test run builds are checked.
+        let wasm = crate::compile(&p, hd_driver::BuildProfile::Checked, rep)?;
         let grants = crate::caps::grants(
             &p.capabilities,
             p.package_dir.as_deref().unwrap_or(root),

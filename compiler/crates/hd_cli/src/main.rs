@@ -26,7 +26,7 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 use hd_cache::DiskStore;
-use hd_driver::{Clock, Executor, Goal, Host, Output};
+use hd_driver::{BuildProfile, Clock, Executor, Goal, Host, Output};
 use hd_run::{HostSetup, Outcome};
 
 use crate::report::Reporter;
@@ -255,12 +255,23 @@ pub(crate) fn executor() -> Executor {
     }
 }
 
-/// Builds `goal` over a program's sources and reports its manifest's and
-/// the compiler's diagnostics. Warnings are shown; only errors stop the
-/// command, which then ends with status 101.
+/// The build profile `--release` selects (`cli.profile.default`,
+/// `cli.profile.release`, `cli.profile.release.file`).
+fn profile_of(release: bool) -> BuildProfile {
+    if release {
+        BuildProfile::Release
+    } else {
+        BuildProfile::Checked
+    }
+}
+
+/// Builds `goal` in `profile` over a program's sources and reports its
+/// manifest's and the compiler's diagnostics. Warnings are shown; only
+/// errors stop the command, which then ends with status 101.
 fn build_goal(
     program: &disk::Program,
     goal: &Goal,
+    profile: BuildProfile,
     rep: &mut Reporter,
 ) -> Result<Output, ExitCode> {
     if rep.diags(&program.problems) {
@@ -275,8 +286,11 @@ fn build_goal(
         clock: &clock,
         executor: executor(),
     };
-    let out: Output =
-        memory_cap::build_packages(&host, &program.package, &program.packages(), goal);
+    let packages = hd_driver::Packages {
+        build_profile: profile,
+        ..program.packages()
+    };
+    let out: Output = memory_cap::build_packages(&host, &program.package, &packages, goal);
     let as_written = program.as_written.as_deref().filter(|_| rep.json);
     let mut diags = report::from_output(&out, as_written);
     report::relocate(&mut diags, |f| program.sources.display(f));
@@ -286,12 +300,16 @@ fn build_goal(
     Ok(out)
 }
 
-/// Compiles a program to Wasm bytes, reporting diagnostics.
-fn compile(program: &disk::Program, rep: &mut Reporter) -> Result<Vec<u8>, ExitCode> {
+/// Compiles a program to Wasm bytes in `profile`, reporting diagnostics.
+fn compile(
+    program: &disk::Program,
+    profile: BuildProfile,
+    rep: &mut Reporter,
+) -> Result<Vec<u8>, ExitCode> {
     let goal = Goal::Program {
         entry: program.entry.clone(),
     };
-    match build_goal(program, &goal, rep)?.wasm {
+    match build_goal(program, &goal, profile, rep)?.wasm {
         Some(wasm) => Ok(wasm),
         None => Err(rep.fail("no Wasm produced")),
     }
@@ -410,9 +428,8 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
             i += used;
             continue;
         }
-        // `cli.profile.release.file`: accepted; the release profile is not
-        // in codegen yet, so the build is the debug one (wasmtime compiles
-        // it with its optimized pipeline).
+        // `cli.profile.release.file`: the release profile, and wasmtime's
+        // optimized pipeline (`cli.profile.pipeline.release`).
         if args[i] == "--release" {
             w.release = true;
             i += 1;
@@ -443,7 +460,7 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
         Ok(p) => p,
         Err(e) => return rep.fail(&e),
     };
-    match compile(&program, &mut rep) {
+    match compile(&program, profile_of(w.release), &mut rep) {
         Ok(wasm) => execute(
             &wasm,
             &file.to_string_lossy(),
@@ -488,7 +505,7 @@ fn run_stdin_command(memory: Option<u64>) -> ExitCode {
         Ok(p) => p,
         Err(e) => return rep.fail(&e),
     };
-    match compile(&program, &mut rep) {
+    match compile(&program, BuildProfile::Checked, &mut rep) {
         Ok(wasm) => execute(
             &wasm,
             "main.hd",
@@ -745,7 +762,7 @@ fn run_command(args: &[OsString]) -> ExitCode {
         Err(e) => return rep.fail(&e),
     };
     program.only_program(&chosen.file);
-    let wasm = match compile(&program, &mut rep) {
+    let wasm = match compile(&program, profile_of(w.release), &mut rep) {
         Ok(wasm) => wasm,
         Err(code) => return code,
     };
@@ -912,12 +929,12 @@ fn build_package(root: &Path, release: bool, rep: &mut Reporter) -> Result<(), E
     if executables.is_empty() {
         let mut program = disk::load_package(root, "main").map_err(|e| rep.fail(&e))?;
         program.only_program("");
-        return build_goal(&program, &Goal::Analyze, rep).map(|_| ());
+        return build_goal(&program, &Goal::Analyze, BuildProfile::Checked, rep).map(|_| ());
     }
     for exe in &executables {
         let mut program = disk::load_package(root, &exe.file).map_err(|e| rep.fail(&e))?;
         program.only_program(&exe.file);
-        let wasm = compile(&program, rep)?;
+        let wasm = compile(&program, profile_of(release), rep)?;
         write_module(root, release, false, &exe.name, &wasm).map_err(|e| rep.fail(&e))?;
     }
     Ok(())
@@ -945,7 +962,7 @@ fn build_file(file: &Path, release: bool, rep: &mut Reporter) -> Result<(), Exit
     let rel = disk::listed_path(&root, &rel.to_string_lossy().replace('\\', "/"));
     let mut program = disk::load_package(&root, &rel).map_err(|e| rep.fail(&e))?;
     program.only_program(&rel);
-    let wasm = compile(&program, rep)?;
+    let wasm = compile(&program, profile_of(release), rep)?;
     let stem = full
         .file_stem()
         .map(|s| s.to_string_lossy().into_owned())

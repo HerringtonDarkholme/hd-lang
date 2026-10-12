@@ -18,6 +18,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock};
 
+pub use hd_base::BuildProfile;
 use hd_base::wire::{Reader, Writer};
 use hd_base::{DefId, FileId, FolderId, Hash128, ModuleId, NotImplemented, Span, StageResult};
 use hd_cache::{
@@ -532,6 +533,8 @@ struct Run<'a> {
     toolchain: Hash128,
     package_key: Hash128,
     pipeline: Hash128,
+    /// The build profile emitted code follows ([`Packages::build_profile`]).
+    build_profile: BuildProfile,
     skim: Vec<OnceLock<SkimOut>>,
     parse: Vec<OnceLock<Parse>>,
     graph: OnceLock<GraphOut>,
@@ -608,6 +611,10 @@ pub struct Packages<'a> {
     /// declarations print under the file's stem instead of the package
     /// name (`trait.typeid.name.single-file`).
     pub single_file: bool,
+    /// The build profile of a `Goal::Program` (`cli.profile.default`,
+    /// `cli.profile.release`). Every other goal is checked: a test run
+    /// keeps the test profile (`cli.profile.test`, `cli.profile.test.release`).
+    pub build_profile: BuildProfile,
 }
 
 /// The root package's key: its name, and the traits of a runtime profile
@@ -749,6 +756,10 @@ fn build_packages_inner(
         package_key: root_package_key(package, packages.profile.as_deref()),
         profile,
         pipeline,
+        build_profile: match goal {
+            Goal::Program { .. } => packages.build_profile,
+            Goal::Tests { .. } | Goal::Analyze | Goal::CheckTests => BuildProfile::Checked,
+        },
         skim: (0..n).map(|_| OnceLock::new()).collect(),
         parse: (0..n).map(|_| OnceLock::new()).collect(),
         graph: OnceLock::new(),
@@ -3764,7 +3775,13 @@ impl Run<'_> {
                 _ => {}
             }
         }
-        let pkey = prog_key(self.toolchain, self.pipeline, &entry_key, &modules);
+        let pkey = prog_key(
+            self.toolchain,
+            self.pipeline,
+            self.build_profile,
+            &entry_key,
+            &modules,
+        );
         if let Some(sections) = self.lookup(EntryKind::Link, pkey)
             && let Some(w) = sections.first()
         {
@@ -3968,6 +3985,7 @@ impl Run<'_> {
             reps.hash(collected.callee_reps[id.idx()]);
             let ck = code_key(
                 self.pipeline,
+                self.build_profile,
                 collected.table.key[id.idx()],
                 tir,
                 reps.finish(),
@@ -5174,6 +5192,9 @@ impl ProgramEnv for Env<'_> {
         };
         let method = t.methods.first()?.1;
         Some((eq, method, self.run.known.hash_of))
+    }
+    fn build_profile(&self) -> BuildProfile {
+        self.run.build_profile
     }
     fn dbg_body(&self, item: DefId, key: &str, ty: Ty, debug: bool) -> StageResult<Body> {
         // `dbg`'s printing bodies (spec/lang/10-modules.md "Debug Printing"):

@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 
-use hd_base::{DefId, Hash128, NodeIdx, StableHasher, StageResult};
+use hd_base::{BuildProfile, DefId, Hash128, NodeIdx, StableHasher, StageResult};
 use hd_mono::layout::{CanonMemo, canon, inline_map_key};
 use hd_mono::{
     CallTarget, INFO, ProgramEnv, Target, TargetKind, VTable, erased_args, key_order, subst,
@@ -487,6 +487,13 @@ impl Em<'_> {
     fn panic(&mut self, msg: &str) {
         self.a.call(Sym::Helper(Helper::Panic(msg.to_owned())));
         self.a.s().unreachable();
+    }
+
+    /// Whether this is a release build, whose integer arithmetic wraps and
+    /// whose shift counts are masked (`types.arith.release`,
+    /// `types.arith.shift-count.release`).
+    fn release(&self) -> bool {
+        self.lay.env.build_profile() == BuildProfile::Release
     }
 
     fn inst(&mut self, i: u32) -> StageResult<()> {
@@ -1256,8 +1263,9 @@ impl Em<'_> {
         // A shift's count is any unsigned type (`expr.shift.count-unsigned`).
         // It must be below the shifted value's bit width, checked in its own
         // type before it is brought to the value's width
-        // (`types.arith.shift-count.debug`). A release build (#109) masks it
-        // to the width instead (`types.arith.shift-count.release`).
+        // (`types.arith.shift-count.debug`). A release build masks it to
+        // the width instead (`types.arith.shift-count.release`): Wasm's
+        // shifts mask at 32 and 64 bits, so only a sub-word width needs it.
         let shift = |em: &mut Self| -> StageResult<()> {
             em.comp(ops[0], 0, &vt0[0])?;
             let count = em.vts(em.ty_of(ops[1]))?;
@@ -1268,17 +1276,29 @@ impl Em<'_> {
             em.comp(ops[1], 0, &cv)?;
             em.a.set(n);
             em.a.get(n);
-            if cv == VT::I64 {
-                em.a.i64(i64::from(bits));
-                em.a.s().i64_ge_u();
+            if em.release() {
+                if bits < 32 {
+                    if cv == VT::I64 {
+                        em.a.i64(i64::from(bits) - 1);
+                        em.a.s().i64_and();
+                    } else {
+                        em.a.i32(i32::from(bits) - 1);
+                        em.a.s().i32_and();
+                    }
+                }
             } else {
-                em.a.i32(i32::from(bits));
-                em.a.s().i32_ge_u();
+                if cv == VT::I64 {
+                    em.a.i64(i64::from(bits));
+                    em.a.s().i64_ge_u();
+                } else {
+                    em.a.i32(i32::from(bits));
+                    em.a.s().i32_ge_u();
+                }
+                em.a.if_();
+                em.panic("invalid-shift: shift count out of range");
+                em.a.end();
+                em.a.get(n);
             }
-            em.a.if_();
-            em.panic("invalid-shift: shift count out of range");
-            em.a.end();
-            em.a.get(n);
             match (&cv, wide) {
                 (VT::I32, true) => {
                     em.a.s().i64_extend_i32_u();
@@ -1291,6 +1311,9 @@ impl Em<'_> {
             Ok(())
         };
         match op {
+            PrimOp::Add | PrimOp::Sub | PrimOp::Mul | PrimOp::Neg if self.release() => {
+                self.wrapping(op, ops, bits, signed)?;
+            }
             PrimOp::Add | PrimOp::Sub | PrimOp::Mul | PrimOp::Div | PrimOp::Rem | PrimOp::Neg => {
                 self.checked(op, ops, bits, signed)?;
             }
@@ -1606,12 +1629,41 @@ impl Em<'_> {
         Ok(())
     }
 
+    /// Release-build `+`, `-`, `*` and unary `-` (`types.arith.release`):
+    /// the native operation, which keeps the low 32 or 64 bits, brought back
+    /// to a sub-word type's canonical form by `wrap_to`. Division and
+    /// remainder stay `checked` in every build (`types.arith.always`).
+    fn wrapping(&mut self, op: PrimOp, ops: &[u32], bits: u8, signed: bool) -> StageResult<()> {
+        let wide = bits == 64;
+        let vt = if wide { VT::I64 } else { VT::I32 };
+        if op == PrimOp::Neg {
+            self.a.zero(&vt);
+            self.comp(ops[0], 0, &vt)?;
+        } else {
+            self.comp(ops[0], 0, &vt)?;
+            self.comp(ops[1], 0, &vt)?;
+        }
+        {
+            let mut s = self.a.s();
+            match (op, wide) {
+                (PrimOp::Add, true) => s.i64_add(),
+                (PrimOp::Mul, true) => s.i64_mul(),
+                (_, true) => s.i64_sub(),
+                (PrimOp::Add, false) => s.i32_add(),
+                (PrimOp::Mul, false) => s.i32_mul(),
+                (_, false) => s.i32_sub(),
+            };
+        }
+        self.wrap_to(bits, signed);
+        Ok(())
+    }
+
     /// Checked integer arithmetic (codegen.md §13.15, `types.arith.checked`).
     /// Sub-word widths compute exactly in `i32` and 32-bit widths in `i64`,
     /// each range-checked against the type; 64-bit widths test the native
     /// result. The operands are canonical, and an in-range result is too.
-    /// A release build (#109) drops the overflow test, computes natively,
-    /// and ends with `wrap_to`.
+    /// A release build takes `wrapping` instead, except for division and
+    /// remainder.
     fn checked(&mut self, op: PrimOp, ops: &[u32], bits: u8, signed: bool) -> StageResult<()> {
         let wide = bits == 64;
         // The operands' representation, and the type the exact result fits.
@@ -1742,11 +1794,13 @@ impl Em<'_> {
         self.a.end();
     }
 
-    /// Checked integer power (`expr.power.int.*`, `expr.power.checked`):
+    /// Integer power (`expr.power.int.*`, `expr.power.checked`):
     /// `ops[0] ** ops[1]` by repeated squaring, each product checked in
     /// the base's type. A square is made only while exponent bits remain,
     /// so no checked product exceeds the final magnitude, and a result in
-    /// range never panics. An exponent of zero gives one.
+    /// range never panics. An exponent of zero gives one. A release build
+    /// multiplies natively, keeping the low bits, and wraps the result to
+    /// the type (`types.arith.release`).
     fn int_pow(&mut self, ops: &[u32], bits: u8, signed: bool) -> StageResult<()> {
         let vt = if bits == 64 { VT::I64 } else { VT::I32 };
         let exact = if bits == 32 { VT::I64 } else { vt.clone() };
@@ -1793,7 +1847,7 @@ impl Em<'_> {
             self.a.get(src);
             self.a.set(dst);
         }
-        self.checked_arith(PrimOp::Mul, bits, signed, (x, y, p));
+        self.pow_mul(bits, signed, (x, y, p));
         self.a.get(p);
         self.a.set(acc);
         self.a.end();
@@ -1808,7 +1862,7 @@ impl Em<'_> {
             self.a.get(base);
             self.a.set(dst);
         }
-        self.checked_arith(PrimOp::Mul, bits, signed, (x, y, p));
+        self.pow_mul(bits, signed, (x, y, p));
         self.a.get(p);
         self.a.set(base);
         self.a.br(0);
@@ -1818,7 +1872,27 @@ impl Em<'_> {
         if bits == 32 {
             self.a.s().i32_wrap_i64();
         }
+        if self.release() {
+            self.wrap_to(bits, signed);
+        }
         Ok(())
+    }
+
+    /// `r = x * y` on `int_pow`'s locals: checked, or in a release build
+    /// the native product, whose low bits are the wrapped product's.
+    fn pow_mul(&mut self, bits: u8, signed: bool, (x, y, r): (u32, u32, u32)) {
+        if !self.release() {
+            self.checked_arith(PrimOp::Mul, bits, signed, (x, y, r));
+            return;
+        }
+        self.a.get(x);
+        self.a.get(y);
+        if bits >= 32 {
+            self.a.s().i64_mul();
+        } else {
+            self.a.s().i32_mul();
+        }
+        self.a.set(r);
     }
 
     /// Pushes whether the 64-bit `r = x op y` overflowed: add and subtract

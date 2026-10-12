@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use hd_diag::{Code, Severity};
-use hd_driver::{Dependency, Packages};
+use hd_driver::{BuildProfile, Dependency, Packages};
 use hd_project::{Grant, Manifest, Role, SourceEntry, SourceSet, module_below, parse_manifest};
 
 use crate::report::{Diag, Edit, Fix};
@@ -208,6 +208,7 @@ impl Program {
             dev_requires: self.dev_requires.clone(),
             profile: None,
             single_file: self.single_file,
+            build_profile: BuildProfile::Checked,
         }
     }
 }

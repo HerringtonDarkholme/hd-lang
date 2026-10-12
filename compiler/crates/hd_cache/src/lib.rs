@@ -4,7 +4,7 @@
 //! bytes by `(kind, key)`; every key is `H(tag, fields...)` over content,
 //! never a run ID.
 
-use hd_base::{Hash128, StableHasher};
+use hd_base::{BuildProfile, Hash128, StableHasher};
 
 pub mod store;
 pub use store::{CacheStore, DiskStore, EntryKind, MemoryStore, decode_entry, encode_entry};
@@ -148,18 +148,20 @@ pub fn init_key(toolchain: Hash128, folder: &str, modules: &[(&str, Hash128)]) -
     k.finish()
 }
 
-/// `prog_key = H("prog", toolchain, pipeline, entry, [(module, TIR content
-/// hash)])` (codegen.md §11.3).
+/// `prog_key = H("prog", toolchain, pipeline, profile, entry, [(module,
+/// TIR content hash)])` (codegen.md §11.3).
 #[must_use]
 pub fn prog_key(
     toolchain: Hash128,
     pipeline: Hash128,
+    profile: BuildProfile,
     entry: &str,
     modules: &[(&str, Hash128)],
 ) -> Hash128 {
     let mut k = StableHasher::new("prog");
     k.hash(toolchain);
     k.hash(pipeline);
+    k.str(profile.name());
     k.str(entry);
     for (m, h) in modules {
         k.str(m);
@@ -168,17 +170,19 @@ pub fn prog_key(
     k.finish()
 }
 
-/// `code_key = H("code", pipeline, instance key, TIR hash, callee
+/// `code_key = H("code", pipeline, profile, instance key, TIR hash, callee
 /// representation summaries)` (codegen.md §13.8; walking skeleton, SK-3).
 #[must_use]
 pub fn code_key(
     pipeline: Hash128,
+    profile: BuildProfile,
     instance: Hash128,
     tir: Hash128,
     callee_reps: Hash128,
 ) -> Hash128 {
     let mut k = StableHasher::new("code");
     k.hash(pipeline);
+    k.str(profile.name());
     k.hash(instance);
     k.hash(tir);
     k.hash(callee_reps);
@@ -193,9 +197,23 @@ mod tests {
     fn keys_change_with_each_field() {
         let tc = toolchain_key("hd 0", "wasm32-gc", "");
         let (dev, opt) = (Hash128(10), Hash128(11));
-        let a = code_key(dev, Hash128(1), Hash128(2), Hash128(3));
-        assert_ne!(a, code_key(dev, Hash128(1), Hash128(2), Hash128(4)));
-        assert_ne!(a, code_key(opt, Hash128(1), Hash128(2), Hash128(3)));
+        let (checked, release) = (BuildProfile::Checked, BuildProfile::Release);
+        let a = code_key(dev, checked, Hash128(1), Hash128(2), Hash128(3));
+        assert_ne!(
+            a,
+            code_key(dev, checked, Hash128(1), Hash128(2), Hash128(4))
+        );
+        assert_ne!(
+            a,
+            code_key(opt, checked, Hash128(1), Hash128(2), Hash128(3))
+        );
+        assert_ne!(
+            a,
+            code_key(dev, release, Hash128(1), Hash128(2), Hash128(3))
+        );
+        let modules = [("pkg.main", Hash128(1))];
+        let p = prog_key(tc, dev, checked, "pkg.main", &modules);
+        assert_ne!(p, prog_key(tc, dev, release, "pkg.main", &modules));
         let c = check_key(
             tc,
             Hash128(9),

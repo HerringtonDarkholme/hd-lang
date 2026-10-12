@@ -111,6 +111,7 @@ mod raw_identifier_run;
 mod recursive_closure_run;
 mod recursive_layouts;
 mod related_traits;
+mod release_profile_run;
 mod row_aliases;
 mod row_invariant_nested;
 mod row_param_nested;

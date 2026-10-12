@@ -435,10 +435,11 @@ each step, panicking with `iterator-invalidated`
 
 | Check | Debug and test | Release |
 | --- | --- | --- |
-| integer overflow (`+`, `-`, `*`, unary `-`, narrowing conversions) | panics `integer-overflow` | wraps |
-| `INT_MIN / -1`, `INT_MIN % -1` | panics `integer-overflow` | wraps; Wasm's `div_s` would trap, so release needs a test too |
-| division by zero | Wasm traps; the trap maps to `integer-division-by-zero` | same |
-| shift by the width or more | panics `invalid-shift` | same; Wasm masks the count |
+| integer overflow (`+`, `-`, `*`, `**`, unary `-`) | panics `integer-overflow` | wraps |
+| `INT_MIN / -1` | panics `integer-overflow`; at 64 bits it is tested before `div_s`, which would trap | same |
+| `INT_MIN % -1` | zero | same |
+| division by zero | panics `integer-division-by-zero` | same |
+| shift by the width or more | panics `invalid-shift` | masks the count to the width; Wasm masks at 32 and 64 bits, a sub-word width masks explicitly |
 | list index | std's index method compares with the length, `index-out-of-bounds` | same; the backing array is longer than the list |
 | string byte index | compares with the view's length, `index-out-of-bounds`; the array may be longer than the view, so the engine's check is not enough | same |
 | use of a closed handle | panics with the use site | not emitted; the host provider still refuses a closed handle |
@@ -457,12 +458,10 @@ pipelines, and the pipeline is separate from the profile:
 - The **profile** is observable: checked (debug, test) or wrapping
   (release). It decides overflow and shift checks and the debug-only
   checks ([`cli.profile.test`](../../spec/cli/command-line.md#r-cli.profile.test)).
-- **Gap: `--release` currently changes no code.** `hd build --release`
-  selects only the output folder (`build/release`); the emitter takes no
-  profile, so release Wasm is identical to debug, checks included (Q24
-  measured equal ratios). The checked-vs-wrapping table above and the
-  S17 release-mode rules describe the intended profile, not the built
-  one.
+- The driver takes the profile as a build input (`Packages::build_profile`,
+  checked for every goal but a program), and the emitter reads it through
+  `ProgramEnv::build_profile`. `code_key` and `prog_key` hold it, so a
+  debug and a release build never share code (#15).
 - The **pipeline** is not observable: dev or optimized. It decides which
   optimization passes run and the Cranelift setting. A program's output,
   panic categories and sites, effect order, `is` and type ids are the

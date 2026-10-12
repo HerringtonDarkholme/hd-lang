@@ -105,8 +105,9 @@ that NAME names; `hd run FILE` is an error. `hd build` writes each executable
 to `build/debug/NAME.wasm` (`build/release/` with `--release`), and
 `hd build FILE.hd` writes `build/debug/files/STEM.wasm`. Outside a package,
 `hd run` and `hd build` are errors that suggest `hd new`. Every rejected
-command line exits with status 101. `--release` is accepted but selects only
-the output directory; there is no separate release pipeline yet.
+command line exits with status 101. `--release` selects the release profile,
+whose integer arithmetic wraps and whose shift counts are masked; `hd test
+--release` stays checked.
 
 ## Wasmtime Engine
 

@@ -67,6 +67,31 @@ id!(SubId);
 id!(CaptureId);
 id!(LabelId);
 
+/// A build's profile (`cli.profile.*`): what integer overflow and an
+/// invalid shift count do. The debug and test profiles are both checked
+/// (`types.arith.checked`); the release profile wraps and masks
+/// (`types.arith.release`, `types.arith.shift-count.release`). Emitted
+/// code depends on it, so it is part of every code and program key.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum BuildProfile {
+    /// The debug and test profiles: overflow and invalid shifts panic.
+    #[default]
+    Checked,
+    /// The release profile: overflow wraps, a shift count is masked.
+    Release,
+}
+
+impl BuildProfile {
+    /// The profile's name in cache keys.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Checked => "checked",
+            Self::Release => "release",
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Span {
     pub file: FileId,

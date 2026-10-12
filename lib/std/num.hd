@@ -540,11 +540,12 @@ fn int_max[N < Integer]() -> N:
     ~int_min::[N]()
 
 
-# Returns `n` when `low <= n <= high`. Otherwise the checked sum of the
-# largest `i64` and one panics with integer overflow.
+# Returns `n` when `low <= n <= high`. Otherwise it panics with integer
+# overflow, in every build (r-trait.num.from-i64-checked): a release build
+# wraps `+`, so the panic is explicit.
 fn fit(n: i64, low: i64, high: i64) -> i64:
     if n < low || n > high:
-        return i64_max() + 1
+        panic_with("integer-overflow", "integer overflow")
     n
 
 # `i64` literals take their type from context, so the bound is a function.
@@ -577,3 +578,9 @@ impl Debug for ParseNumberError:
             .Empty => out.write("ParseNumberError.Empty")
             .InvalidDigit(position) => out.debug_tuple("ParseNumberError.InvalidDigit").named_field("position", position).finish()
             .OutOfRange => out.write("ParseNumberError.OutOfRange")
+
+# The checked runtime panic of `category`, such as `integer-overflow`,
+# showing `message`; it does not return.
+@intrinsic("panic")
+fn panic_with(category: string, message: string) -> void:
+    panic("intrinsic")

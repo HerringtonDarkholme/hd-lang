@@ -14,7 +14,9 @@ pub mod passes;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
-use hd_base::{DefId, Hash128, InstId, NodeIdx, NotImplemented, StableHasher, Stage, StageResult};
+use hd_base::{
+    BuildProfile, DefId, Hash128, InstId, NodeIdx, NotImplemented, StableHasher, Stage, StageResult,
+};
 use hd_tir::ir::{Body, Callee, ChoiceKind, Coercion, IntrinsicOp, Tag};
 use hd_types::solver::{
     BodyMemo, ConcreteTraitRef, Declarations, GlobalMemo, ImplRef, ImplUniverseId, Impls, ParamEnv,
@@ -120,6 +122,9 @@ pub trait ProgramEnv: LayoutEnv {
     /// §13.12): the `Eq` trait, its method (which has no vtable slot, as it
     /// names `Self`) and `std.hash.hash_of`.
     fn map_key_items(&self) -> Option<(DefId, DefId, DefId)>;
+    /// The build's profile (`cli.profile.*`), which decides whether
+    /// emitted integer arithmetic checks overflow and shift counts.
+    fn build_profile(&self) -> BuildProfile;
 }
 
 /// The A1 class `REF` as a type argument: a reserved canonical
