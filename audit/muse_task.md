@@ -1,10 +1,12 @@
 # Muse
 
-Muse's work queue (owner, 2026-10-10: one task file, `audit/muse_task.md`;
-the older `opus_task.md` and `kimi_task.md` are gone, and
-git history keeps them). The orchestrating session adds jobs here. Do
-them top to bottom, one commit per job, and delete a job's section in the
-commit that finishes it. When the queue is empty, report that and wait.
+Muse's work queue. Since 2026-10-11 (owner) the jobs are GitHub issues
+labeled `muse` in HerringtonDarkholme/hd-lang; this file keeps only how to
+work. List them with `gh issue list --label muse --state open`, read one with
+`gh issue view N`, and do them lowest number first, one commit per job. End
+the commit body with `Fixes #N` so the push closes the issue. If a job is
+blocked or bigger than described, comment on the issue (`gh issue comment N`)
+instead of pushing. When no `muse` issue is open, report that and wait.
 
 ## How To Work
 
@@ -52,25 +54,6 @@ commit that finishes it. When the queue is empty, report that and wait.
 
 ## Jobs
 
-(Owner, 2026-10-11: Codex is offline; a weaker Muse is back temporarily.
-Jobs are small and each names the files it may change. If a job turns out
-bigger than described, stop, push nothing, and report what you found.)
-
-### M50. Finish the flaky `run::fetch_with_path_requirements_only_has_nothing_to_do`
-
-Your M30 namespaced scratch directories per process, but the test still
-failed once under heavy load with a missing temp file (after #315,
-2026-10-11). Run it 100 times while `cargo test -q -p hd_driver --test
-conformance` runs, capture the failing call, and fix the cause in test code.
-Orchestrator diagnosis (CI log of f6e9a7e1, 2026-10-11): `hd remove` failed
-with `.../target/tmp/hd-cache-forms-<pid>/tmp/<scratch>: No such file or
-directory`. `run.rs`'s helper `cache("hd-cache-forms")` hands every test in
-the process the SAME `Scratch` path, and `Scratch::unmade` clears it at
-creation and removes it on drop, so one test wipes the cache another test is
-using. Give each use its own cache (a unique name per call, for example a
-process-wide counter in hd_testkit), or one shared cache that no test
-clears; check every other shared `cache(...)` name in the hd_cli tests for
-the same pattern.
-Files: `compiler/crates/hd_cli/tests/all/run.rs` and
-`compiler/crates/hd_testkit/src/lib.rs`. Done when 100 runs in a row pass
-under that load; put the cause in the commit body.
+Jobs are GitHub issues labeled `muse`. Priority labels P1..P4 order them
+when several are open; otherwise take the lowest number. Old job numbers
+(M##) are mapped in `audit/task-issue-map.md`.
