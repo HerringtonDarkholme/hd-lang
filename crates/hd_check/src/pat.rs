@@ -10,7 +10,7 @@
 use std::collections::HashMap;
 
 use hd_base::{LocalId, NodeIdx, StageResult};
-use hd_diag::Code;
+use hd_diag::{Code, Severity};
 use hd_resolve::{ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{IntrinsicOp, NONE, PrimOp, Ref, Tag, TirSink};
@@ -318,6 +318,44 @@ impl Ck<'_, '_> {
                         "the variant has another number of fields",
                     );
                     return Ok(());
+                }
+                // `flow.match.payload.name-mismatch`: a positional bare
+                // binding that equals a different payload field's name
+                // warns; the binding itself is still legal.
+                {
+                    let fnames = self.variant_field_names(t, &name);
+                    for (i, s) in subs.iter().enumerate() {
+                        let (Some(s), Some(fname)) = (s, fnames.get(i)) else {
+                            continue;
+                        };
+                        if s.kind() != SyntaxKind::BindingPattern || s.children().next().is_some() {
+                            continue;
+                        }
+                        let Some(nt) = s.direct_tokens().find(|t| {
+                            matches!(
+                                self.cx.src.tkind(*t),
+                                Some(TokenKind::Ident | TokenKind::RawIdent)
+                            )
+                        }) else {
+                            continue;
+                        };
+                        let bound = self.cx.src.text(nt);
+                        if bound == *fname
+                            || !fnames.iter().enumerate().any(|(j, n)| j != i && n == bound)
+                        {
+                            continue;
+                        }
+                        let msg = format!(
+                            "`{bound}` is also a field of `{name}`; the field in this position is `{fname}`"
+                        );
+                        self.diags.push(
+                            Code::VariantBindingNameMismatch,
+                            Severity::Warning,
+                            self.cx.src.span(*s),
+                            &msg,
+                            None,
+                        );
+                    }
                 }
                 for (s, ft) in subs.iter().zip(fields) {
                     if let Some(s) = s {

@@ -166,6 +166,7 @@ mod unsolved_call_parameter;
 mod unsolved_scrutinee;
 mod vararg_value_run;
 mod variance_representation;
+mod variant_binding_names;
 mod variant_value_run;
 mod void_unit_run;
 mod waiting_impl_run;

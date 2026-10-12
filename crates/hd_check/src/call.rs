@@ -2235,7 +2235,7 @@ impl Ck<'_, '_> {
     }
 
     /// A variant's payload field names (`0`, `1`... when positional).
-    fn variant_field_names(&self, t: Ty, name: &str) -> Vec<String> {
+    pub(crate) fn variant_field_names(&self, t: Ty, name: &str) -> Vec<String> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
         let t = match pool.get(t) {

@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2801 | 29 | 15 | 2845 |
+| 2803 | 27 | 15 | 2845 |
 
 ## By Chapter
 
@@ -19,9 +19,9 @@ fixture; unsupported surface records progress without failing.
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
 | `lang/04-type-system.md` | 345 | 7 | 0 | 352 |
 | `lang/05-expressions.md` | 274 | 3 | 0 | 277 |
-| `lang/06-control-flow.md` | 153 | 1 | 3 | 157 |
+| `lang/06-control-flow.md` | 154 | 0 | 3 | 157 |
 | `lang/07-functions.md` | 126 | 4 | 0 | 130 |
-| `lang/08-data-and-enums.md` | 122 | 1 | 0 | 123 |
+| `lang/08-data-and-enums.md` | 123 | 0 | 0 | 123 |
 | `lang/09-traits.md` | 354 | 5 | 0 | 359 |
 | `lang/10-modules.md` | 253 | 1 | 4 | 258 |
 | `lang/11-requirements-and-suspension.md` | 250 | 1 | 8 | 259 |
@@ -66,7 +66,7 @@ fixture; unsupported surface records progress without failing.
 | `runtime/valid` | 917 | 0 | 12 | 929 |
 | `typing/invalid` | 1051 | 24 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
-| `typing/warnings` | 15 | 5 | 0 | 20 |
+| `typing/warnings` | 17 | 3 | 0 | 20 |
 
 ## Failure Buckets
 
@@ -75,17 +75,15 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:no-diagnostic` | 27 |
+| `fail:no-diagnostic` | 25 |
 | `fail:unknown-name` | 2 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 11 |
 
-<details><summary><code>fail:no-diagnostic</code> (27)</summary>
+<details><summary><code>fail:no-diagnostic</code> (25)</summary>
 
 - `typing/invalid/unknown-annotation-member.hd`
-- `typing/warnings/variant-binding-name-mismatch.hd`
 - `typing/invalid/suspension-forbidden-context.hd`
-- `typing/warnings/variant-binding-names-swapped.hd`
 - `typing/invalid/generic-supertrait-upcast-mismatch.hd`
 - `typing/invalid/trait-resolution-depth.hd`
 - `typing/invalid/member-line-payload-member.hd`
@@ -2951,6 +2949,8 @@ typing/warnings/unused-after-rejected-trials.hd
 typing/warnings/unused-debug-text.hd
 typing/warnings/unused-local-binding.hd
 typing/warnings/unused-nested-optional-binding.hd
+typing/warnings/variant-binding-name-mismatch.hd
+typing/warnings/variant-binding-names-swapped.hd
 ```
 <!-- pass-list-end -->
 
