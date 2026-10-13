@@ -20,8 +20,16 @@ fn work(name: &str) -> Scratch {
 
 fn hd(dir: &Path) -> Command {
     let mut c = Command::new(env!("CARGO_BIN_EXE_hd"));
+    // The cache goes under the test temp dir, never next to `dir`: some
+    // runs use the repository's `examples/` folders.
+    let name = dir
+        .file_name()
+        .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
     c.current_dir(dir)
-        .env("HD_CACHE", dir.with_extension("cache"))
+        .env(
+            "HD_CACHE",
+            Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("wasmtime-cache-{name}")),
+        )
         .env_remove("HD_ENGINE");
     c
 }
