@@ -362,6 +362,9 @@ pub fn check_init(
     // unknown name.
     for (i, s) in stmts.iter().enumerate() {
         ck.declare_annotated(i, *s);
+        if let Some(name) = ck.binding_name(*s) {
+            ck.later_names.entry(name).or_insert(i);
+        }
     }
     let mut per_stmt = Vec::new();
     for (i, s) in stmts.iter().enumerate() {
@@ -462,6 +465,29 @@ impl Ck<'_, '_> {
     /// Declares statement `i`'s binding ahead of its statement when it is
     /// a simple `let` with a type annotation that resolves without error;
     /// the statement declares it again when it runs.
+    /// The name a top-level statement binds, for a plain `name` pattern.
+    fn binding_name(&mut self, s: NodeRef<'_>) -> Option<Symbol> {
+        let first = s.children().next()?;
+        let pat = match s.kind() {
+            SyntaxKind::LetStmt => first,
+            SyntaxKind::ExprStmt if first.kind() == SyntaxKind::BindingExpr => {
+                first.children().next()?
+            }
+            _ => return None,
+        };
+        if pat.kind() != SyntaxKind::BindingPattern || pat.children().next().is_some() {
+            return None;
+        }
+        let nt = pat.direct_tokens().find(|t| {
+            matches!(
+                self.cx.src.tkind(*t),
+                Some(TokenKind::Ident | TokenKind::RawIdent)
+            )
+        })?;
+        let text = self.cx.src.text(nt).to_owned();
+        Some(self.cx.names.syms.intern(&text))
+    }
+
     fn declare_annotated(&mut self, i: usize, s: NodeRef<'_>) {
         if s.kind() != SyntaxKind::LetStmt {
             return;
@@ -898,6 +924,23 @@ impl Ck<'_, '_> {
                 init.earlier.get(&name).copied(),
             )
         };
+        // A statement, or a closure it creates, that names a binding a
+        // later statement declares reads it before its initialization
+        // (`module.init.definite`); the binding has no type yet.
+        if self.module_init.is_some()
+            && own.is_none_or(|g| g.stmt > self.init_stmt)
+            && self
+                .later_names
+                .get(&name)
+                .is_some_and(|s| *s > self.init_stmt)
+        {
+            let msg = format!(
+                "`{}` is bound by a later statement, so this statement reads it before its initialization",
+                self.cx.names.text(name)
+            );
+            self.err(Code::TopLevelReadBeforeInitialization, n, &msg);
+            return Some(self.poison_value(n));
+        }
         if own.is_none() && earlier.is_none() {
             return None;
         }

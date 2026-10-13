@@ -242,6 +242,10 @@ pub(crate) struct Ck<'a, 'c> {
     pub module_init: Option<String>,
     /// The top-level statement being checked.
     pub init_stmt: usize,
+    /// The simple bindings the module's top-level statements declare, by
+    /// the first statement that does: a read of one from an earlier
+    /// statement is a read before initialization.
+    pub later_names: std::collections::HashMap<hd_base::Symbol, usize>,
     /// A REPL input that is one expression: that statement, then its
     /// value and type once checked (`cli.repl.value`).
     pub shown: Option<(hd_base::NodeIdx, Option<(Ref, Ty)>)>,
@@ -446,6 +450,7 @@ pub(crate) fn new_ck<'a, 'c>(
         lit_arg: None,
         module_init: None,
         init_stmt: 0,
+        later_names: std::collections::HashMap::new(),
         shown: None,
         facts: crate::init::InitFacts::default(),
         placeholder: None,

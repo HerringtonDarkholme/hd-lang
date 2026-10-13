@@ -185,6 +185,44 @@ fn top_level_statements_are_checked_in_order() {
         "{}",
         late.render()
     );
+    // A closure, or a plain statement, that names a binding declared
+    // below it reads it before initialization; a name nothing declares
+    // stays unknown, and a local of the same name is not the binding.
+    for (text, want) in [
+        (
+            "f := fn() -> i32:\n    later\nlater := +1\n",
+            Some(Code::TopLevelReadBeforeInitialization),
+        ),
+        (
+            "x := later\nlater := +1\n",
+            Some(Code::TopLevelReadBeforeInitialization),
+        ),
+        (
+            "f := fn() -> i32:\n    nope\nlater := +1\n",
+            Some(Code::UnknownName),
+        ),
+        (
+            "f := fn(later: i32) -> i32:\n    later\nlater := +1\n",
+            None,
+        ),
+    ] {
+        let out = cold_program(&format!(
+            "{text}\npub fn main() -> void $ Console:\n    println(1)\n"
+        ));
+        match want {
+            Some(code) => {
+                assert!(codes(&out).contains(&code), "{text}: {}", out.render());
+                if code == Code::TopLevelReadBeforeInitialization {
+                    assert!(
+                        !codes(&out).contains(&Code::UnknownName),
+                        "{}",
+                        out.render()
+                    );
+                }
+            }
+            None => assert_eq!(out.diags.len(), 0, "{text}: {}", out.render()),
+        }
+    }
     let mut src = MemorySources::default();
     src.insert("lib.hd", "println(1)\n\npub fn one() -> i32:\n    1\n");
     src.insert(
