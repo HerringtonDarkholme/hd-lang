@@ -393,3 +393,83 @@ fn release_builds_name_functions_in_hd_names() {
     assert_eq!(custom_sections(&release), ["hd.lines", "hd.names"]);
     assert!(hd_run::frames::LineTable::parse(&release).is_ok());
 }
+
+/// The function names of a module's `name` section.
+fn function_names(wasm: &[u8]) -> Vec<String> {
+    fn leb(b: &[u8], at: &mut usize) -> usize {
+        let mut v = 0;
+        let mut shift = 0;
+        loop {
+            let byte = b[*at];
+            *at += 1;
+            v |= usize::from(byte & 0x7f) << shift;
+            if byte & 0x80 == 0 {
+                return v;
+            }
+            shift += 7;
+        }
+    }
+    let mut out = Vec::new();
+    let mut at = 8;
+    while at < wasm.len() {
+        let id = wasm[at];
+        at += 1;
+        let size = leb(wasm, &mut at);
+        let end = at + size;
+        let mut p = at;
+        if id == 0 {
+            let n = leb(wasm, &mut p);
+            if &wasm[p..p + n] == b"name" {
+                p += n;
+                while p < end {
+                    let sub = wasm[p];
+                    p += 1;
+                    let len = leb(wasm, &mut p);
+                    let sub_end = p + len;
+                    if sub == 1 {
+                        let count = leb(wasm, &mut p);
+                        for _ in 0..count {
+                            leb(wasm, &mut p);
+                            let n = leb(wasm, &mut p);
+                            out.push(text(&wasm[p..p + n]));
+                            p += n;
+                        }
+                    }
+                    p = sub_end;
+                }
+            }
+        }
+        at = end;
+    }
+    out
+}
+
+/// Runtime helpers are named by kind (`rt:entry_poll`, `rt:lit#3`), never
+/// by a `Debug` dump: no `{`, `[` or `Hash128`, at most 64 characters, and
+/// unique within the module.
+#[test]
+fn runtime_helper_names_are_short_and_readable() {
+    let root = package(
+        "hd-frames-helper-names",
+        "pub fn main() -> void $ Console:\n    println(\"hello, world\")\n    println(7)\n",
+    );
+    std::fs::rename(root.join("src/lib.hd"), root.join("src/main.hd")).expect("main");
+    let out = hd(&root, &["build"]);
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    let wasm = std::fs::read(root.join("build/debug/shop.wasm")).expect("wasm");
+    let names = function_names(&wasm);
+    let rt: Vec<&String> = names.iter().filter(|n| n.starts_with("rt:")).collect();
+    assert!(rt.iter().any(|n| n.as_str() == "rt:entry_poll"), "{rt:?}");
+    assert!(rt.iter().any(|n| n.starts_with("rt:lit#")), "{rt:?}");
+    assert!(rt.iter().any(|n| n.starts_with("rt:host_")), "{rt:?}");
+    for name in &rt {
+        assert!(
+            !name.contains(['{', '[']) && !name.contains("Hash128") && name.len() <= 64,
+            "{name}"
+        );
+    }
+    let mut sorted = rt.clone();
+    sorted.sort();
+    sorted.dedup();
+    assert_eq!(sorted.len(), rt.len(), "a helper name repeats: {rt:?}");
+}

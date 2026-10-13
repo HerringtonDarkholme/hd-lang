@@ -2310,6 +2310,74 @@ fn wake_take() -> Code {
     a.finish(vec![VT::I32])
 }
 
+impl Helper {
+    /// The helper's name in the `name` section: its kind in snake case and,
+    /// for a host call, the method it reaches. Never a `Debug` dump; the
+    /// caller adds an index when two helpers share a name.
+    pub(crate) fn short_name(&self) -> String {
+        let plain = |s: &str| -> String {
+            s.chars()
+                .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))
+                .take(24)
+                .collect()
+        };
+        match self {
+            Helper::Lit(_) => "lit".into(),
+            Helper::IntToStr { wide, signed } => format!(
+                "int_to_str({}{})",
+                if *signed { "i" } else { "u" },
+                if *wide { 64 } else { 32 }
+            ),
+            Helper::StrEq => "str_eq".into(),
+            Helper::StrToBuf => "str_to_buf".into(),
+            Helper::Panic(_) => "panic".into(),
+            Helper::PanicStr => "panic_str".into(),
+            Helper::PanicHead => "panic_head".into(),
+            Helper::ListStep { .. } => "list_step".into(),
+            Helper::MapHash { .. } => "map_hash".into(),
+            Helper::MapFind { .. } => "map_find".into(),
+            Helper::MapPut { .. } => "map_put".into(),
+            Helper::MapGrow { .. } => "map_grow".into(),
+            Helper::MapStep { .. } => "map_step".into(),
+            Helper::HostCold { poll, .. } => match &**poll {
+                Helper::HostPoll { module, method, .. } => {
+                    format!("host_cold({}.{})", plain(module), plain(method))
+                }
+                _ => "host_cold".into(),
+            },
+            Helper::HostPoll { module, method, .. } => {
+                format!("host_poll({}.{})", plain(module), plain(method))
+            }
+            Helper::HostCall { module, method, .. } => {
+                format!("host_call({}.{})", plain(module), plain(method))
+            }
+            Helper::HostPrim { name, .. } => format!("host_prim({})", plain(name)),
+            Helper::Enc(_) => "enc".into(),
+            Helper::Dec(_) => "dec".into(),
+            Helper::LebPut => "leb_put".into(),
+            Helper::LebGet => "leb_get".into(),
+            Helper::PowF64 => "pow_f64".into(),
+            Helper::RemF64 => "rem_f64".into(),
+            Helper::Fit => "fit".into(),
+            Helper::HostCancel { .. } => "host_cancel".into(),
+            Helper::Unlowered { .. } => "unlowered".into(),
+            Helper::HandleSlot { inner, .. } => format!("handle_slot({})", inner.short_name()),
+            Helper::RuntimeType { .. } => "runtime_type".into(),
+            Helper::WakeMark => "wake_mark".into(),
+            Helper::WakeTake => "wake_take".into(),
+            Helper::RaceCold { .. } => "race_cold".into(),
+            Helper::RacePoll { .. } => "race_poll".into(),
+            Helper::RaceCancel { .. } => "race_cancel".into(),
+            Helper::Adapter { .. } => "adapter".into(),
+            Helper::EntryInit { .. } => "entry_init".into(),
+            Helper::EntryPoll { .. } => "entry_poll".into(),
+            Helper::EntryWake => "entry_wake".into(),
+            Helper::EntryCancel => "entry_cancel".into(),
+            Helper::EntryCall { .. } => "entry_call".into(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Helper, helper_code, owner_global, root_global};

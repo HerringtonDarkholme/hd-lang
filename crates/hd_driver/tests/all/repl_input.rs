@@ -147,6 +147,34 @@ fn function_names(wasm: &[u8]) -> Vec<String> {
     out
 }
 
+/// Runtime helpers are named by kind, never by a `Debug` dump: no `{`, `[`
+/// or `Hash128`, at most 64 characters, and unique within the module.
+#[test]
+fn runtime_helper_names_are_short_and_readable() {
+    let inner = crate::warm_store();
+    let overlay = OverlayStore::new(&inner);
+    let mut repl = repl(&overlay);
+    let mut helpers = 0;
+    for (i, text) in INPUTS.iter().enumerate() {
+        let n = u32::try_from(i + 1).expect("inputs");
+        let out = repl.input(n, text);
+        let names = function_names(out.wasm.as_deref().expect("a module"));
+        let rt: Vec<&String> = names.iter().filter(|f| f.starts_with("rt:")).collect();
+        helpers += rt.len();
+        for name in &rt {
+            assert!(
+                !name.contains(['{', '[', ' ']) && !name.contains("Hash128") && name.len() <= 64,
+                "repl#{n}: {name}"
+            );
+        }
+        let mut sorted = rt.clone();
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(sorted.len(), rt.len(), "repl#{n}: a helper name repeats");
+    }
+    assert!(helpers > 0, "no runtime helper was checked");
+}
+
 #[test]
 fn each_input_is_one_module_and_rechecks_only_itself() {
     // A build that leaves `src/lib.hd` and std checked in the inner

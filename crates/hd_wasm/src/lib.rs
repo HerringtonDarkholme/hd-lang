@@ -1769,13 +1769,20 @@ pub fn link(
             &format!("{SESSION_MODULE}/{key}"),
         );
     }
+    // A name that two helpers share (or any literal, panic stub or codec)
+    // takes its index among the helpers as a suffix.
+    let mut seen: HashMap<String, u32> = HashMap::new();
+    for h in &helper_list {
+        *seen.entry(helper_base(h)).or_default() += 1;
+    }
     for (k, h) in helper_list.iter().enumerate() {
-        let text = format!("{h:?}");
-        let short: String = text.chars().take(60).collect();
-        fnames.append(
-            ni + nx + u32::try_from(k).expect("k"),
-            &format!("rt:{short}"),
-        );
+        let base = helper_base(h);
+        let name = if seen[&base] > 1 || matches!(h, Helper::Lit(_) | Helper::Panic(_)) {
+            format!("rt:{base}#{k}")
+        } else {
+            format!("rt:{base}")
+        };
+        fnames.append(ni + nx + u32::try_from(k).expect("k"), &name);
     }
     for (k, (_, _, n)) in all.iter().enumerate() {
         fnames.append(first + u32::try_from(k).expect("k"), n);
@@ -1784,6 +1791,11 @@ pub fn link(
     ns.functions(&fnames);
     module.section(&ns);
     Ok(module.finish())
+}
+
+/// A helper's readable name, cut so the final name stays within 64 characters.
+fn helper_base(h: &Helper) -> String {
+    h.short_name().chars().take(48).collect()
 }
 
 /// The `hd.lines` section (wasm-layout.md §15.9): for each function with
