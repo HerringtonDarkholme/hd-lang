@@ -47,6 +47,8 @@ struct Script {
     history: Vec<String>,
     /// Called with each line before it is handed out.
     on_line: Option<OnLine>,
+    /// What Tab completes, which the session updates.
+    names: super::complete::Names,
 }
 
 impl Script {
@@ -69,6 +71,9 @@ impl Lines for Script {
     }
     fn remember(&mut self, line: &str) {
         self.history.push(line.to_owned());
+    }
+    fn names(&self) -> super::complete::Names {
+        self.names.clone()
     }
 }
 
@@ -920,4 +925,35 @@ fn completeness_follows_the_parser() {
     ] {
         assert!(!is_complete(part), "{part:?}");
     }
+}
+
+/// Tab offers the names of the inputs that joined the session, the package's
+/// own names after a reload, and not those of an input that panicked.
+#[test]
+fn completion_follows_the_session_s_inputs() {
+    let dir = package(
+        "complete",
+        &[("src/lib.hd", "pub fn libname() -> i32: 1\n")],
+    );
+    let mut script = Script::of(&[
+        "fn price(n: i32) -> i32: n",
+        "let dropped = panic(\"no\")",
+        ":help",
+    ]);
+    let names = script.names.clone();
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let seen_in = Arc::clone(&seen);
+    script.on_line = Some(Box::new(move |line| {
+        if line == ":help" {
+            let mut seen = seen_in.lock().expect("lock");
+            for prefix in ["pri", "dro", "lib"] {
+                seen.push(super::complete::complete(&names, prefix, prefix.len()).1);
+            }
+        }
+    }));
+    session_in(&dir, script, |_| {});
+    let seen = seen.lock().expect("lock").clone();
+    assert_eq!(seen[0], ["price", "println"]);
+    assert!(seen[1].is_empty(), "{:?}", seen[1]);
+    assert_eq!(seen[2], ["libname"]);
 }

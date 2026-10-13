@@ -617,6 +617,7 @@ dependencies = [
  "hd_driver",
  "hd_fmt",
  "hd_project",
+ "hd_resolve",
  "hd_run",
  "hd_run_wasmtime",
  "hd_sched",

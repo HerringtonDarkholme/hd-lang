@@ -33,11 +33,13 @@ use std::time::Instant;
 
 use hd_cache::DiskStore;
 use hd_driver::{BuildProfile, Goal, Host};
+use hd_project::SourceSet;
 use hd_run::{HostSetup, Outcome};
 use hd_run_wasmtime::{EngineConfig, HostIo, Rebuilder, Stopper, WasmtimeEngine, WasmtimeSession};
 
 use crate::{HD_FAILURE, Wall, disk, report};
 
+mod complete;
 mod highlight;
 
 /// The prompt of an input's first line, and of each line that continues it.
@@ -91,6 +93,10 @@ pub(crate) trait Lines {
     fn read(&mut self, prompt: &str, initial: &str) -> Line;
     /// Remembers a line for the session's history (no history file).
     fn remember(&mut self, line: &str);
+    /// The names that Tab completes, which the session keeps up to date.
+    fn names(&self) -> complete::Names {
+        complete::Names::default()
+    }
 }
 
 /// The terminal's line editor, with the session's history in memory.
@@ -108,6 +114,13 @@ impl Lines for Editor {
 
     fn remember(&mut self, line: &str) {
         let _ = self.0.add_history_entry(line);
+    }
+
+    fn names(&self) -> complete::Names {
+        self.0
+            .helper()
+            .map(highlight::Helper::names)
+            .unwrap_or_default()
     }
 }
 
@@ -174,6 +187,7 @@ pub(crate) fn run(
     on_start: impl FnOnce(Stopper),
 ) -> Result<(), String> {
     let config = EngineConfig::pipeline(false);
+    let names = lines.names();
     let cwd = cwd.to_path_buf();
     let (send_input, inputs) = mpsc::channel::<Request>();
     let (send_done, done) = mpsc::channel::<()>();
@@ -188,6 +202,7 @@ pub(crate) fn run(
                 program,
                 journal_cap,
                 streams,
+                names,
                 &send_start,
                 &inputs,
                 &send_done,
@@ -340,6 +355,7 @@ fn serve(
     program: disk::Program,
     journal_cap: usize,
     streams: Streams,
+    names: complete::Names,
     started: &mpsc::Sender<Result<Stopper, String>>,
     inputs: &mpsc::Receiver<Request>,
     done: &mpsc::Sender<()>,
@@ -372,7 +388,7 @@ fn serve(
             return;
         }
     };
-    let mut repl = Repl::new(session, cwd, program);
+    let mut repl = Repl::new(session, cwd, program, names);
     if let Err(e) = repl.start() {
         let _ = writeln!(diags, "error: the session's prelude: {e}");
         return;
@@ -403,6 +419,8 @@ struct Repl {
     /// The text of each input that ran, the prelude as input 0, which a
     /// rebuild builds again.
     texts: BTreeMap<u32, String>,
+    /// The names Tab completes: `src/lib.hd`'s and the kept inputs'.
+    names: complete::Names,
 }
 
 /// Builds the session's prelude, or reads it from the cache.
@@ -460,7 +478,12 @@ fn build_input(
 }
 
 impl Repl {
-    fn new(session: WasmtimeSession, cwd: PathBuf, program: disk::Program) -> Repl {
+    fn new(
+        session: WasmtimeSession,
+        cwd: PathBuf,
+        program: disk::Program,
+        names: complete::Names,
+    ) -> Repl {
         Repl {
             session,
             built: hd_driver::Session::start(),
@@ -471,6 +494,7 @@ impl Repl {
             },
             next: 0,
             texts: BTreeMap::new(),
+            names,
         }
     }
 
@@ -488,7 +512,19 @@ impl Repl {
         }
         self.built
             .add(out.session_added.ok_or("it adds nothing to the session")?);
+        self.publish_package_names();
         Ok(())
+    }
+
+    /// Reads `src/lib.hd`'s top-level names for Tab, when a package is open.
+    fn publish_package_names(&self) {
+        let lib = self
+            .program
+            .package_dir
+            .as_ref()
+            .and_then(|_| self.program.sources.read("src/lib.hd"));
+        let text = lib.as_deref().map(String::from_utf8_lossy);
+        self.names.set_package(text.as_deref());
     }
 
     /// Builds `text` as the next input over the earlier ones and runs it.
@@ -519,6 +555,7 @@ impl Repl {
         match outcome {
             Ok(Outcome::Exit(0)) => {
                 self.built.add(added);
+                self.names.add_input(self.next, text);
                 true
             }
             // A panic, a stop or a cancel, reported by the session, or a
@@ -606,10 +643,12 @@ impl Repl {
         }
         for n in rebuilt.skipped.iter().chain(&rebuilt.dropped) {
             self.texts.remove(n);
+            self.names.drop_input(*n);
             self.program
                 .sources
                 .remove_synthetic(&hd_project::repl_file(*n));
         }
+        self.publish_package_names();
         let kept = rebuilt.kept.iter().filter(|n| **n != 0).count();
         let _ = writeln!(
             diags,

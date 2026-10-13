@@ -9,6 +9,8 @@ use std::borrow::Cow;
 use std::io::IsTerminal;
 
 use hd_syntax::TokenKind as T;
+
+use super::complete::{Names, complete};
 use rustyline::completion::Completer;
 use rustyline::highlight::{CmdKind, Highlighter};
 use rustyline::hint::Hinter;
@@ -52,20 +54,39 @@ pub(crate) fn color_enabled() -> bool {
     std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none()
 }
 
-/// The rustyline helper: colours the input line when `color` is set.
+/// The rustyline helper: colours the input line when `color` is set, and
+/// completes names from those the session declares.
 pub(crate) struct Helper {
     color: bool,
+    names: Names,
 }
 
 impl Helper {
     pub(crate) fn new(color: bool) -> Self {
-        Self { color }
+        Self {
+            color,
+            names: Names::default(),
+        }
+    }
+
+    /// The names the helper completes from, for the session to update.
+    pub(crate) fn names(&self) -> Names {
+        self.names.clone()
     }
 }
 
 impl rustyline::Helper for Helper {}
 impl Completer for Helper {
     type Candidate = String;
+
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        _ctx: &rustyline::Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<String>)> {
+        Ok(complete(&self.names, line, pos))
+    }
 }
 impl Hinter for Helper {
     type Hint = String;
