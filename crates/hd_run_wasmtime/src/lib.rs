@@ -41,6 +41,7 @@ mod profiles;
 mod property;
 mod reactor;
 mod run;
+pub mod scenario;
 mod session;
 #[cfg(test)]
 mod session_link_tests;

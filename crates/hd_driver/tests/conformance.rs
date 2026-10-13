@@ -760,15 +760,26 @@ fn run_wasm(wasm: &[u8], serial: usize, profile: Option<&str>) -> std::io::Resul
     ENTRY_WORKER.with(|slot| {
         let mut slot = slot.borrow_mut();
         ensure_worker(&mut slot)?;
-        if let Ok(ran) = worker_run(slot.as_mut().expect("entry worker"), wasm, serial, profile) {
+        if let Ok(ran) = worker_run(
+            slot.as_mut().expect("entry worker"),
+            wasm,
+            serial,
+            profile,
+            None,
+        ) {
             Ok(ran)
         } else {
             *slot = None;
             if ensure_worker(&mut slot).is_err() {
                 return Err(std::io::Error::other("node entry worker failed to start"));
             }
-            if let Ok(ran) = worker_run(slot.as_mut().expect("entry worker"), wasm, serial, profile)
-            {
+            if let Ok(ran) = worker_run(
+                slot.as_mut().expect("entry worker"),
+                wasm,
+                serial,
+                profile,
+                None,
+            ) {
                 Ok(ran)
             } else {
                 *slot = None;
@@ -860,13 +871,23 @@ fn json_string(text: &str, out: &mut String) {
     out.push('"');
 }
 
-fn request_header(serial: usize, wasm_len: usize, profile: Option<&str>) -> Vec<u8> {
+fn request_header(
+    serial: usize,
+    wasm_len: usize,
+    profile: Option<&str>,
+    scenario: Option<&str>,
+) -> Vec<u8> {
     let mut header = String::from("{\"id\":");
     header.push_str(&serial.to_string());
     header.push_str(",\"wasmLen\":");
     header.push_str(&wasm_len.to_string());
     header.push_str(",\"profile\":");
     match profile {
+        Some(name) => json_string(name, &mut header),
+        None => header.push_str("null"),
+    }
+    header.push_str(",\"scenario\":");
+    match scenario {
         Some(name) => json_string(name, &mut header),
         None => header.push_str("null"),
     }
@@ -927,8 +948,9 @@ fn worker_run(
     wasm: &[u8],
     serial: usize,
     profile: Option<&str>,
+    scenario: Option<&str>,
 ) -> std::io::Result<Ran> {
-    let header = request_header(serial, wasm.len(), profile);
+    let header = request_header(serial, wasm.len(), profile, scenario);
     let expected = serial;
     worker
         .stdin
@@ -1223,18 +1245,20 @@ fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usi
     if let Some(stage) = first_unsupported(&checked.report, false) {
         return Verdict::Unsupported(stage);
     }
-    if has_runtime_harness(&fixture.text) && !profile_entry(&fixture.text) {
+    // `pending-first-poll` without test cases runs the ordinary entry
+    // below, twice; every other replacing scenario drives its own steps.
+    let ordinary_pending = pending_first_poll(&fixture.text)
+        && !fixture
+            .text
+            .lines()
+            .any(|line| line.starts_with("tests:") || line.starts_with("## "));
+    if has_runtime_harness(&fixture.text) && !profile_entry(&fixture.text) && !ordinary_pending {
         let verdict = if tree_tests_harness(fixture) {
             tree_tests_case(case, fixture, store, serial)
         } else if plain_tests(&fixture.text) {
             tests_case(case, fixture, store, serial)
         } else {
-            // Among them every scenario but `pending-first-poll`, which
-            // needs program exports no build emits (a cancel of the root
-            // suspension, a call of `cleanup_ran`, a held or intercepted
-            // call, a second driver), and `pending-first-poll` with test
-            // cases, since the test hosts take no runtime profile.
-            return Verdict::Unsupported("RunCase".to_owned());
+            return scenario_case(case, fixture, store, serial);
         };
         if verdict != Verdict::Pass || expected_stdout(&fixture.text).is_none() {
             return verdict;
@@ -1292,6 +1316,94 @@ fn entry_verdict(
         Ok(run) => run,
         Err(error) => return Verdict::Crash(error.to_string()),
     };
+    judge_run(case, fixture, &run)
+}
+
+/// A runtime scenario that replaces the execution steps: builds the
+/// entry with `Goal::Scenario` and drives the scenario's own steps on
+/// both engines, then judges the drive like an entry run.
+fn scenario_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize) -> Verdict {
+    let scenario = directive(&fixture.text, "fixture-runtime-scenario");
+    // `pending-first-poll` with test cases runs under the test hosts,
+    // which take no runtime profile; `reentrant-poll` still waits for
+    // its intercept import.
+    if scenario == Some("pending-first-poll") || scenario == Some("reentrant-poll") {
+        return Verdict::Unsupported("RunCase".to_owned());
+    }
+    let hold = match scenario {
+        // An owned-but-unfinished root is the whole point: holding the
+        // root itself keeps it pending with no call running beneath it.
+        Some("competing-drivers") => Some("main".to_owned()),
+        _ => directive(&fixture.text, "fixture-runtime-pending-function").map(str::to_owned),
+    };
+    let built = build_fixture(
+        fixture,
+        store,
+        &Goal::Scenario {
+            entry: "main".to_owned(),
+            hold,
+        },
+    );
+    if built.diags.has_errors() {
+        let index = first_error(&built);
+        if built.diags.code[index].as_str() == "unsupported" {
+            return Verdict::Unsupported(
+                first_unsupported(&built.report, true).unwrap_or_else(|| "Build".to_owned()),
+            );
+        }
+        return Verdict::Fail(built.diags.code[index].as_str().to_owned());
+    }
+    let Some(wasm) = built.wasm else {
+        return Verdict::Unsupported("Link".to_owned());
+    };
+    let profile = directive(&fixture.text, "fixture-runtime-profile");
+    let scenario = scenario.unwrap_or("cancellation-cleanup");
+    let run = match scenario_run(case, &wasm, serial, profile, scenario) {
+        Ok(run) => run,
+        Err(error) => return Verdict::Crash(error.to_string()),
+    };
+    judge_run(case, fixture, &run)
+}
+
+/// Drives a scenario's own steps on both engines and compares them, as
+/// `run_program` runs and compares an entry.
+fn scenario_run(
+    case: &Case,
+    wasm: &[u8],
+    serial: usize,
+    profile: Option<&str>,
+    scenario: &str,
+) -> std::io::Result<Ran> {
+    let mode = engine_mode();
+    let node = if mode == EngineMode::WasmtimeOnly {
+        None
+    } else {
+        let started = Instant::now();
+        let ran = ENTRY_WORKER.with(|slot| {
+            let mut slot = slot.borrow_mut();
+            ensure_worker(&mut slot)?;
+            worker_run(
+                slot.as_mut().expect("entry worker"),
+                wasm,
+                serial,
+                profile,
+                Some(scenario),
+            )
+        });
+        let mut stats = RUNTIME_STATS.lock().expect("runtime stats lock");
+        let stats = stats.entry(tier(case)).or_default();
+        stats.node_elapsed += started.elapsed();
+        stats.node_programs.insert(case.path.clone());
+        let ran = ran?;
+        Some(ran)
+    };
+    if mode == EngineMode::Node {
+        return Ok(node.expect("Node mode ran Node"));
+    }
+    wasmtime::drive_scenario(case, wasm, profile, scenario, node)
+}
+
+fn judge_run(case: &Case, fixture: &Fixture, run: &Ran) -> Verdict {
     let stdout = String::from_utf8_lossy(&run.stdout);
     let stderr = String::from_utf8_lossy(&run.stderr);
     if let Some(expected) = case.expectation.strip_prefix("panic:") {
@@ -1406,14 +1518,25 @@ fn pending_first_poll_runs_the_entry_again_with_pending_writes() {
 }
 
 #[test]
-fn scenarios_that_replace_execution_stay_unsupported() {
+fn scenarios_that_replace_execution_drive_or_stay_unsupported() {
     assert!(!replacing_scenario(PENDING_WRITES));
     assert!(!replacing_scenario("pub fn main!() -> void: pass\n"));
-    for name in [
-        "cancellation-cleanup",
-        "competing-drivers",
-        "reentrant-poll",
-    ] {
+    // The cancellation program never pends, so its drive fails the
+    // first step; the competing drive traps, which the `accept`
+    // expectation fails. Only `reentrant-poll` still waits for its
+    // import.
+    for name in ["cancellation-cleanup", "competing-drivers"] {
+        let text = format!(
+            "# fixture-runtime-scenario: {name}\nfn ready!() -> i32: 42\n\npub fn main!() -> void:\n    _ := ready!()\n\npub fn cleanup_ran() -> bool: true\n"
+        );
+        assert!(replacing_scenario(&text));
+        assert_eq!(
+            unit_runtime(&text, "accept", 3),
+            Verdict::Fail("runtime-exit".to_owned())
+        );
+    }
+    {
+        let name = "reentrant-poll";
         let text = format!(
             "# fixture-runtime-scenario: {name}\nfn ready!() -> i32: 42\n\npub fn main!() -> void:\n    _ := ready!()\n\npub fn cleanup_ran() -> bool: true\n"
         );

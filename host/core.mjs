@@ -540,8 +540,9 @@ export function createCoreHost(sink, env = {}, layer = null) {
     imports[module] = { ...imports[module], ...table };
   }
 
-  // A runtime profile's own providers (`env.providers`, profiles.mjs).
-  if (env.providers) Object.assign(imports, env.providers({ put, Enc }));
+  // A runtime profile's own providers (`env.providers`, profiles.mjs):
+  // `pending` registers a wait the driver wakes, `finish` drops one.
+  if (env.providers) Object.assign(imports, env.providers({ put, Enc, pending, finish }));
 
   // Points the host at `instance`'s memory, for a driver that calls the
   // exports itself instead of `run` (a scenario's drivers): reports and

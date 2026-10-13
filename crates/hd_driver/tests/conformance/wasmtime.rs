@@ -65,6 +65,78 @@ pub fn run_program(
     Ok(w)
 }
 
+/// Drives a runtime scenario on wasmtime and, when Node drove it too
+/// (`node`), compares the two. A wasmtime failure is an error, never a
+/// Node fallback.
+pub fn drive_scenario(
+    case: &Case,
+    wasm: &[u8],
+    profile: Option<&str>,
+    scenario: &str,
+    node: Option<Ran>,
+) -> std::io::Result<Ran> {
+    use hd_run_wasmtime::scenario::{Scenario, drive_scenario};
+
+    let setup = hd_run::HostSetup {
+        providers: Vec::new(),
+        grants: hd_run::Grants::default(),
+        limits: hd_run::Limits::default(),
+        args: Vec::new(),
+        program: String::new(),
+    };
+    let config = hd_run_wasmtime::EngineConfig::default();
+    let profile = hd_run_wasmtime::RuntimeProfile::from_name(profile.unwrap_or("default"))
+        .map_err(std::io::Error::other)?;
+    let scenario = match scenario {
+        "cancellation-cleanup" => Scenario::CancellationCleanup,
+        "competing-drivers" => Scenario::CompetingDrivers,
+        name => {
+            return Err(std::io::Error::other(format!(
+                "wasmtime drives no runtime scenario '{name}'"
+            )));
+        }
+    };
+    let started = Instant::now();
+    let result = drive_scenario(config, profile, wasm, &setup, scenario);
+    {
+        let mut stats = RUNTIME_STATS.lock().expect("runtime stats lock");
+        let stats = stats.entry(tier(case)).or_default();
+        stats.wasmtime_elapsed += started.elapsed();
+        stats.wasmtime_programs.insert(case.path.clone());
+    }
+    let w = result.map_err(|error| std::io::Error::other(format!("wasmtime: {error}")))?;
+    let w = Ran {
+        stdout: w.stdout,
+        stderr: w.stderr,
+        status: Some(w.status),
+    };
+    let Some(node) = node else { return Ok(w) };
+    if (&w.stdout, &w.stderr, w.status) == (&node.stdout, &node.stderr, node.status) {
+        RUNTIME_STATS
+            .lock()
+            .expect("runtime stats lock")
+            .entry(tier(case))
+            .or_default()
+            .matches += 1;
+    } else {
+        let line = |r: &Ran| {
+            format!(
+                "{:?} out {:?} err {:?}",
+                r.status,
+                String::from_utf8_lossy(&r.stdout),
+                String::from_utf8_lossy(&r.stderr)
+            )
+        };
+        WASMTIME_DIFFS.lock().expect("diffs lock").push(format!(
+            "{}\n  node     {}\n  wasmtime {}",
+            case.path,
+            line(&node),
+            line(&w)
+        ));
+    }
+    Ok(w)
+}
+
 /// Runs the test cases `runs` on wasmtime and returns their result lines
 /// as the Node host prints them. When Node ran them too (`node`, its
 /// output), the outcomes are compared, timing excluded.

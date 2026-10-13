@@ -234,7 +234,15 @@ pub enum Goal {
     /// with the scenario exports (`hd.cancel`), which drives a runtime
     /// scenario instead of running to completion. The runner builds it,
     /// never the CLI.
-    Scenario { entry: String },
+    Scenario {
+        entry: String,
+        /// The suspending function a scenario holds pending: every poll
+        /// of its suspension answers pending without running its body
+        /// (the `fixture-runtime-pending-function` directive, or `main`
+        /// for `competing-drivers`, whose owned-but-unfinished root is
+        /// the whole point).
+        hold: Option<String>,
+    },
     /// Every stage over a package; "not implemented" is counted.
     Analyze,
     /// `Analyze`, with each module's `tests:` blocks checked as test code
@@ -3761,7 +3769,7 @@ impl Run<'_> {
         // requirement-free. Every REPL input is an entry, whichever input
         // the run builds: its top level runs as the input does.
         let entry_name = match &self.goal {
-            Goal::Program { entry } | Goal::Scenario { entry } => Some(entry.as_str()),
+            Goal::Program { entry } | Goal::Scenario { entry, .. } => Some(entry.as_str()),
             Goal::Tests { .. } | Goal::ReplInput { .. } => None,
             Goal::Analyze | Goal::CheckTests => Some("main"),
         };
@@ -5661,6 +5669,22 @@ impl Run<'_> {
         }
     }
 
+    /// The scenario hold target: the `hold` function's item, when the
+    /// program checks its body. Held polls are stubbed at emission and
+    /// never touch the code cache, so a held build shares nothing with
+    /// an unheld one.
+    fn scenario_hold(&self, p: &ProgramTables) -> Option<DefId> {
+        let Goal::Scenario { entry, hold } = &self.goal else {
+            return None;
+        };
+        let name = hold.as_ref()?;
+        let def = self.names().item(
+            &format!("{}.{entry}", hd_project::package_ident(&self.package)),
+            name,
+        );
+        self.body_of(p, def).is_some().then_some(def)
+    }
+
     /// `Collect` (codegen.md §11.3): `prog_key`, then instances, then code
     /// keys; hits are looked up here, and only misses become `Emit` tasks.
     /// A program's roots are `main` (with its report), or for a test run
@@ -5672,7 +5696,7 @@ impl Run<'_> {
         }
         let names = self.names();
         let (entry_key, roots) = match &self.goal {
-            Goal::Program { entry } | Goal::Scenario { entry } => {
+            Goal::Program { entry } | Goal::Scenario { entry, .. } => {
                 let entry_module = format!("{}.{entry}", hd_project::package_ident(&self.package));
                 let root = names.item(&entry_module, "main");
                 (entry_module, vec![(root, String::new())])
@@ -5723,8 +5747,12 @@ impl Run<'_> {
             }
         }
         // A scenario links different exports (`hd.cancel`) from a program
-        // of the same entry, so its link key names the goal.
+        // of the same entry, so its link key names the goal; a hold
+        // changes the held call's code, so the key names it too.
         let keyed_entry = match &self.goal {
+            Goal::Scenario {
+                hold: Some(name), ..
+            } => format!("scenario:hold={name}:{entry_key}"),
             Goal::Scenario { .. } => format!("scenario:{entry_key}"),
             _ => entry_key.clone(),
         };
@@ -5990,6 +6018,7 @@ impl Run<'_> {
         let mut code_keys = Vec::new();
         let codes: Vec<OnceLock<WasmCode>> = order.iter().map(|_| OnceLock::new()).collect();
         let mut misses = Vec::new();
+        let held = self.scenario_hold(p);
         for (slot, id) in order.iter().enumerate() {
             let item = collected.table.item[id.idx()];
             let tir = self.body_of(p, item).map_or(Hash128(0), |b| b.1);
@@ -6005,6 +6034,12 @@ impl Run<'_> {
                 reps.finish(),
             );
             code_keys.push(ck);
+            // A held call's stub is per build, never cached: it always
+            // emits, and no other build may read it.
+            if held.is_some_and(|d| d == item) {
+                misses.push(slot);
+                continue;
+            }
             match self
                 .lookup(EntryKind::Code, ck)
                 .and_then(|s| s.first().and_then(|b| WasmCode::decode(b)))
@@ -6333,6 +6368,9 @@ impl Run<'_> {
         let ret = env.ret(item).unwrap_or(Ty::VOID);
         let path = |d: DefId| names.path(d);
         let calls = &c.collected.calls[id.idx()];
+        // A held call emits its pending stub here, and the stub never
+        // reaches the code cache (collect misses it on purpose).
+        let held = self.scenario_hold(p).is_some_and(|d| d == item);
         let r = match sub {
             hd_mono::Sub::Body(k) => {
                 let body = self.body_of(p, item).map(|b| &b.0);
@@ -6348,6 +6386,7 @@ impl Run<'_> {
                         ret,
                         calls,
                         c.collected.table.key[id.idx()],
+                        held,
                     ),
                     None => Err(NotImplemented::new(Stage::Emit, "an instance without TIR")),
                 }
@@ -6393,7 +6432,9 @@ impl Run<'_> {
         let Some(code) = self.stage(Stage::Emit, r) else {
             return;
         };
-        self.put(EntryKind::Code, c.code_keys[slot], &[&code.encode()]);
+        if !held {
+            self.put(EntryKind::Code, c.code_keys[slot], &[&code.encode()]);
+        }
         lock(&self.counters).emitted += 1;
         let _ = c.codes[slot].set(code);
     }

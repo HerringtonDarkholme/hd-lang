@@ -24,6 +24,16 @@ pub fn test_stdout(
     Err(Verdict::Crash(MISSING.to_owned()))
 }
 
+pub fn drive_scenario(
+    _case: &Case,
+    _wasm: &[u8],
+    _profile: Option<&str>,
+    _scenario: &str,
+    _node: Option<Ran>,
+) -> std::io::Result<Ran> {
+    Err(std::io::Error::other(MISSING))
+}
+
 /// No guest runs, so a worker thread keeps the default stack.
 pub fn worker_stack() -> usize {
     0

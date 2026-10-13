@@ -19,10 +19,13 @@ pub struct WasmtimeInstance {
     instance: Option<wasmtime::Instance>,
     poll: Option<TypedFunc<i32, i32>>,
     wake: Option<TypedFunc<i32, ()>>,
-    /// `hd.cancel`, which only a session's input exports: a stop request
-    /// that arrives while the input waits on the host cancels its root
-    /// suspension through it (`cli.repl.cancel`).
+    /// `hd.cancel`, when the module links it: a stop request that arrives
+    /// while the input waits on the host cancels its root suspension
+    /// through it (`cli.repl.cancel`); scenario builds link it to cancel
+    /// the entry instead.
     cancel: Option<TypedFunc<(), ()>>,
+    /// A scenario's `hd.scenario.cleanup`, when the module links it.
+    cleanup: Option<TypedFunc<(), i32>>,
     /// How the run ended, once it has.
     pub(crate) done: Option<Outcome>,
     /// A property keeps successful instances and their host state between bodies.
@@ -52,6 +55,7 @@ impl WasmtimeInstance {
             poll: None,
             wake: None,
             cancel: None,
+            cleanup: None,
             done: None,
             close_on_end: true,
             last_trapped: false,
@@ -102,23 +106,67 @@ impl WasmtimeInstance {
             ),
             None => None,
         };
-        let cancel = match instance.get_func(&mut *store, "hd.cancel") {
-            Some(f) => Some(
-                f.typed::<(), ()>(&*store)
-                    .map_err(|e| StartError::Engine(format!("`hd.cancel`: {e}")))?,
-            ),
-            None => None,
-        };
         self.init = Some(init);
         self.instance = Some(instance);
         self.poll = Some(poll);
         self.wake = wake;
-        self.cancel = cancel;
+        // A scenario's further exports, when the module links them: only
+        // scenario builds carry them, so their absence is not an error.
+        self.cancel = optional_typed(store, instance, "hd.cancel")?;
+        self.cleanup = optional_typed(store, instance, "hd.scenario.cleanup")?;
         self.done = None;
         self.last_trapped = false;
         self.last_frames.clear();
         self.halt = None;
         Ok(())
+    }
+}
+
+/// A scenario export, when the module links it: only scenario builds
+/// carry `hd.cancel` and `hd.scenario.cleanup`, so absence is not an
+/// error here, only a missing driver step later.
+fn optional_typed<Params, Results>(
+    store: &mut Store<Host>,
+    instance: wasmtime::Instance,
+    name: &str,
+) -> Result<Option<TypedFunc<Params, Results>>, StartError>
+where
+    Params: wasmtime::WasmParams,
+    Results: wasmtime::WasmResults,
+{
+    instance
+        .get_func(&mut *store, name)
+        .map(|f| {
+            f.typed(&*store)
+                .map_err(|e| StartError::Engine(format!("`{name}`: {e}")))
+        })
+        .transpose()
+}
+
+impl WasmtimeInstance {
+    /// One `hd.poll` with the driver's own context: the status, or the
+    /// trap that ended the drive.
+    pub(crate) fn poll_with(&mut self, ctx: i32) -> Result<i32, wasmtime::Error> {
+        self.poll
+            .as_ref()
+            .expect("a scenario module has hd.poll")
+            .call(&mut self.store, ctx)
+    }
+
+    /// One `hd.cancel`: the end of a trap, if cancelling trapped.
+    pub(crate) fn cancel_root(&mut self) -> Result<(), wasmtime::Error> {
+        self.cancel
+            .as_ref()
+            .expect("a scenario module has hd.cancel")
+            .call(&mut self.store, ())
+    }
+
+    /// One `hd.scenario.cleanup`: the cleanup result, or the end of a trap.
+    pub(crate) fn cleanup_call(&mut self) -> Result<i32, wasmtime::Error> {
+        self.cleanup
+            .as_ref()
+            .expect("a scenario module has hd.scenario.cleanup")
+            .call(&mut self.store, ())
     }
 }
 

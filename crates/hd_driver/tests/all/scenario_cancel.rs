@@ -28,6 +28,7 @@ fn built(main: &str, goal: &Goal) -> Output {
 fn scenario() -> Goal {
     Goal::Scenario {
         entry: "main".into(),
+        hold: None,
     }
 }
 

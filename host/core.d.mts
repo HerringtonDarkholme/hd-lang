@@ -17,7 +17,14 @@ export interface CoreEnv {
   seed?: number | null;
   runner?: unknown;
   providers?:
-    | ((io: { put: (e: unknown) => number; Enc: unknown }) => Record<string, unknown>)
+    | ((
+        io: {
+          put: (e: unknown) => number;
+          Enc: unknown;
+          pending: (at: number, done: (() => void) | null) => [number, number];
+          finish: (h: number) => void;
+        },
+      ) => Record<string, unknown>)
     | null;
 }
 

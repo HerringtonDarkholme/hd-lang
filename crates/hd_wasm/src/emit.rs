@@ -4803,9 +4803,10 @@ pub fn emit(
     ret: Ty,
     calls: &HashMap<u32, Target>,
     key: Hash128,
+    held: bool,
 ) -> StageResult<Code> {
     emit_body(
-        pool, env, path, layouts, b, sub, args, ret, calls, key, None,
+        pool, env, path, layouts, b, sub, args, ret, calls, key, None, held,
     )
 }
 
@@ -4839,6 +4840,7 @@ pub fn emit_erased(
         calls,
         key,
         Some(*family),
+        false,
     )
 }
 
@@ -4938,6 +4940,7 @@ fn emit_body(
     calls: &HashMap<u32, Target>,
     key: Hash128,
     erased: Option<Hash128>,
+    held: bool,
 ) -> StageResult<Code> {
     let lay = Lay::new(pool, env, path, layouts);
     let s = |t: Ty| subst(pool, env, b.item, args, t);
@@ -4951,7 +4954,7 @@ fn emit_body(
         if erased.is_some() {
             return unsupported("a suspending generic method called through a trait value");
         }
-        return emit_suspending(&lay, b, sub, args, ret, calls, key);
+        return emit_suspending(&lay, b, sub, args, ret, calls, key, held);
     }
     let (mut params, results, plocals) = signature(&lay, b, sub, args, ret)?;
     if erased.is_some() {
@@ -5420,6 +5423,7 @@ fn emit_suspending(
     ret: Ty,
     calls: &HashMap<u32, Target>,
     key: Hash128,
+    held: bool,
 ) -> StageResult<Code> {
     let (pool, env) = (lay.pool, lay.env);
     let s = |t: Ty| subst(pool, env, b.item, args, t);
@@ -5600,58 +5604,70 @@ fn emit_suspending(
     }
     a.get(f);
     let cold = a.finish(vec![VT::r(base.clone())]);
-    // f$poll: the runtime checks, then the body over the frame.
-    let mut a = Asm::new(vec![VT::Eq]);
-    let f = a.local(VT::r(ft.clone()));
-    let tmp: Vec<u32> = dres.iter().map(|v| a.local(v.clone())).collect();
-    let nf = a.local(VT::rn(base.clone()));
-    a.get(0);
-    a.ref_cast(&ft, false);
-    a.set(f);
-    flag_checks(&mut a, f, &ft, true);
-    a.get(f);
-    a.get(f);
-    a.struct_get(&ft, F_FLAGS);
-    a.i32(ACTIVE);
-    a.s().i32_or();
-    a.struct_set(&ft, F_FLAGS);
-    a.get(f);
-    for v in &logical[1..] {
-        a.zero(&v.dflt());
-    }
-    a.call(Sym::Part(key, Part::Body));
-    a.set(nf);
-    for l in tmp.iter().rev() {
-        a.set(*l);
-    }
-    a.get(f);
-    a.get(f);
-    a.struct_get(&ft, F_FLAGS);
-    a.i32(!ACTIVE);
-    a.s().i32_and();
-    a.struct_set(&ft, F_FLAGS);
-    a.raw_get(nf);
-    a.s().ref_is_null();
-    a.if_();
-    a.get(f);
-    a.get(f);
-    a.struct_get(&ft, F_FLAGS);
-    a.i32(DONE);
-    a.s().i32_or();
-    a.struct_set(&ft, F_FLAGS);
-    a.i32(1);
-    for l in &tmp {
-        a.raw_get(*l);
-    }
-    a.s().return_();
-    a.end();
-    a.i32(0);
-    for v in &dres {
-        a.zero(v);
-    }
-    let mut pres = vec![VT::I32];
-    pres.extend(dres.iter().cloned());
-    let poll_code = a.finish(pres);
+    // f$poll: the runtime checks, then the body over the frame. A held
+    // call answers every poll with pending, without running its body.
+    let poll_code = if held {
+        let mut a = Asm::new(vec![VT::Eq]);
+        a.i32(0);
+        for v in &dres {
+            a.zero(v);
+        }
+        let mut pres = vec![VT::I32];
+        pres.extend(dres.iter().cloned());
+        a.finish(pres)
+    } else {
+        let mut a = Asm::new(vec![VT::Eq]);
+        let f = a.local(VT::r(ft.clone()));
+        let tmp: Vec<u32> = dres.iter().map(|v| a.local(v.clone())).collect();
+        let nf = a.local(VT::rn(base.clone()));
+        a.get(0);
+        a.ref_cast(&ft, false);
+        a.set(f);
+        flag_checks(&mut a, f, &ft, true);
+        a.get(f);
+        a.get(f);
+        a.struct_get(&ft, F_FLAGS);
+        a.i32(ACTIVE);
+        a.s().i32_or();
+        a.struct_set(&ft, F_FLAGS);
+        a.get(f);
+        for v in &logical[1..] {
+            a.zero(&v.dflt());
+        }
+        a.call(Sym::Part(key, Part::Body));
+        a.set(nf);
+        for l in tmp.iter().rev() {
+            a.set(*l);
+        }
+        a.get(f);
+        a.get(f);
+        a.struct_get(&ft, F_FLAGS);
+        a.i32(!ACTIVE);
+        a.s().i32_and();
+        a.struct_set(&ft, F_FLAGS);
+        a.raw_get(nf);
+        a.s().ref_is_null();
+        a.if_();
+        a.get(f);
+        a.get(f);
+        a.struct_get(&ft, F_FLAGS);
+        a.i32(DONE);
+        a.s().i32_or();
+        a.struct_set(&ft, F_FLAGS);
+        a.i32(1);
+        for l in &tmp {
+            a.raw_get(*l);
+        }
+        a.s().return_();
+        a.end();
+        a.i32(0);
+        for v in &dres {
+            a.zero(v);
+        }
+        let mut pres = vec![VT::I32];
+        pres.extend(dres.iter().cloned());
+        a.finish(pres)
+    };
     // f$cancel (§14.6): a frame that never waited only gets marked.
     let mut a = Asm::new(vec![VT::Eq]);
     let f = a.local(VT::r(ft.clone()));
@@ -5680,6 +5696,35 @@ fn emit_suspending(
         a.s().drop();
     }
     let cancel = a.finish(vec![]);
+    // A held body never runs: a direct caller passes a null frame on the
+    // fresh path, so build the frame through the cold constructor and
+    // hand it back as the pending child; on resume hand the same frame
+    // back again. Stored and root calls reach the held poll stub above.
+    let body = if held && sub == 0 {
+        let mut a = Asm::new_dflt(logical.clone());
+        let f = a.local(VT::rn(ft.clone()));
+        a.get(0);
+        a.s().ref_is_null();
+        a.if_();
+        for j in 1..u32_of(logical.len()) {
+            a.get(j);
+        }
+        a.call(Sym::Inst(key));
+        a.ref_cast(&ft, false);
+        a.set(f);
+        a.else_();
+        a.get(0);
+        a.ref_cast(&ft, false);
+        a.set(f);
+        a.end();
+        for v in &dres {
+            a.zero(v);
+        }
+        a.raw_get(f);
+        a.finish(bres.clone())
+    } else {
+        body
+    };
     let mut code = cold;
     code.parts = vec![
         (Part::Body, body),

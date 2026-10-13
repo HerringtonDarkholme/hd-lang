@@ -35,6 +35,18 @@ export function providers(name, io) {
     // pending on its first poll and writes the line on its second.
     case "pending-write":
       return {};
+    // `trait Gate: fn wait!(self) -> void`, never resolving: every poll
+    // stays pending, dropped when the suspension is cancelled.
+    case "pending-gate":
+      return {
+        "hd:Gate": {
+          "wait.start": () => io.pending(Infinity, null),
+          "wait.finish": (h) => {
+            io.finish(h);
+            return 0;
+          },
+        },
+      };
     default:
       throw new Error(`no runtime profile named ${name}`);
   }

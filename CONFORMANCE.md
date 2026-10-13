@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2814 | 16 | 15 | 2845 |
+| 2824 | 16 | 5 | 2845 |
 
 ## By Chapter
 
@@ -19,12 +19,12 @@ fixture; unsupported surface records progress without failing.
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
 | `lang/04-type-system.md` | 347 | 5 | 0 | 352 |
 | `lang/05-expressions.md` | 276 | 1 | 0 | 277 |
-| `lang/06-control-flow.md` | 154 | 0 | 3 | 157 |
+| `lang/06-control-flow.md` | 157 | 0 | 0 | 157 |
 | `lang/07-functions.md` | 128 | 2 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 123 | 0 | 0 | 123 |
 | `lang/09-traits.md` | 355 | 4 | 0 | 359 |
 | `lang/10-modules.md` | 253 | 1 | 4 | 258 |
-| `lang/11-requirements-and-suspension.md` | 250 | 1 | 8 | 259 |
+| `lang/11-requirements-and-suspension.md` | 257 | 1 | 1 | 259 |
 | `lang/14-annotations.md` | 151 | 2 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
@@ -62,8 +62,8 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `parse/invalid` | 195 | 0 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 102 | 0 | 3 | 105 |
-| `runtime/valid` | 917 | 0 | 12 | 929 |
+| `runtime/panic` | 103 | 0 | 2 | 105 |
+| `runtime/valid` | 926 | 0 | 3 | 929 |
 | `typing/invalid` | 1059 | 16 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 20 | 0 | 0 | 20 |
@@ -77,7 +77,7 @@ compiler stage that first declined the case.
 | --- | ---: |
 | `fail:no-diagnostic` | 16 |
 | `unsupported:Link` | 4 |
-| `unsupported:RunCase` | 11 |
+| `unsupported:RunCase` | 1 |
 
 <details><summary><code>fail:no-diagnostic</code> (16)</summary>
 
@@ -109,19 +109,9 @@ compiler stage that first declined the case.
 
 </details>
 
-<details><summary><code>unsupported:RunCase</code> (11)</summary>
+<details><summary><code>unsupported:RunCase</code> (1)</summary>
 
-- `runtime/valid/cancellation-unwinds-nested-frames.hd`
-- `runtime/valid/cancellation-unwinds-suspending-closure.hd`
-- `runtime/panic/competing-suspension-drivers.hd`
 - `runtime/panic/reentrant-suspension-poll.hd`
-- `runtime/valid/cancellation-runs-defer.hd`
-- `runtime/valid/cancellation-runs-dynamic-method-defer.hd`
-- `runtime/valid/cancellation-cleanup-order.hd`
-- `runtime/valid/cancellation-skips-unreached-defer.hd`
-- `runtime/valid/cancellation-lifo-across-three-frames.hd`
-- `runtime/valid/cancellation-loop-and-branch-scopes.hd`
-- `runtime/valid/cancellation-provider-scope-cleanup.hd`
 
 </details>
 
@@ -454,6 +444,7 @@ runtime/panic/char-to-digit-radix-high.hd
 runtime/panic/char-to-digit-radix-low.hd
 runtime/panic/cli-duplicate-option.hd
 runtime/panic/cmp-clamp-reversed.hd
+runtime/panic/competing-suspension-drivers.hd
 runtime/panic/compound-assign-map-missing-key.hd
 runtime/panic/defer-block-on-indirect.hd
 runtime/panic/defer-cancels-active-ancestor.hd
@@ -594,6 +585,15 @@ runtime/valid/call-rest-inference.hd
 runtime/valid/callable-values-run.hd
 runtime/valid/callee-and-operand-evaluation-order.hd
 runtime/valid/cancel-cold-and-completed-suspension.hd
+runtime/valid/cancellation-cleanup-order.hd
+runtime/valid/cancellation-lifo-across-three-frames.hd
+runtime/valid/cancellation-loop-and-branch-scopes.hd
+runtime/valid/cancellation-provider-scope-cleanup.hd
+runtime/valid/cancellation-runs-defer.hd
+runtime/valid/cancellation-runs-dynamic-method-defer.hd
+runtime/valid/cancellation-skips-unreached-defer.hd
+runtime/valid/cancellation-unwinds-nested-frames.hd
+runtime/valid/cancellation-unwinds-suspending-closure.hd
 runtime/valid/candidate-closure-selection-reversed.hd
 runtime/valid/candidate-closure-selection.hd
 runtime/valid/candidate-scope-isolation-reversed.hd

@@ -25,6 +25,7 @@ fn built(main: &str) -> Output {
         "app",
         &Goal::Scenario {
             entry: "main".into(),
+            hold: None,
         },
     )
 }

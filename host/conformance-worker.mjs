@@ -4,10 +4,12 @@
 // host (`node.mjs`, `profiles.mjs`) once and takes cases over stdin, one
 // framed message per case: a 4-byte big-endian header length, the header
 // JSON, then the wasm bytes and the stdin text. The header is
-// `{"id","wasmLen","profile","args","stdinLen"}`: the case's serial as
-// `id`, the wasm byte count, the fixture's runtime profile name or null,
-// the program arguments (always empty in conformance) and the stdin byte
-// count (always empty in conformance, accepted for protocol completeness).
+// `{"id","wasmLen","profile","scenario","args","stdinLen"}`: the case's
+// serial as `id`, the wasm byte count, the fixture's runtime profile name
+// or null, the runtime scenario name or null (driven by `runScenario`
+// instead of `run`), the program arguments (always empty in conformance)
+// and the stdin byte count (always empty in conformance, accepted for
+// protocol completeness).
 // It returns one framed message per case over stdout: a 4-byte big-endian
 // header length, the header JSON `{"id","status","stdoutLen","stderrLen"}`,
 // then the stdout and stderr bytes.
@@ -94,6 +96,32 @@ function writeFrame(id, status, stdout, stderr) {
   writeAll(OUT, stderr);
 }
 
+// Drives one scenario case with a fresh host: the scenario's own steps
+// over the scenario exports, not `run` to completion. Returns the status
+// the verdict reads: 0 for a cleanup that ran, 3 for a competing poll's
+// trap (as a trapped run reports), 1 for any other failure.
+function runScenario(header, host, instance) {
+  host.prime(instance);
+  const ex = instance.exports;
+  ex["hd.init"]();
+  if (header.scenario === "cancellation-cleanup") {
+    if (ex["hd.poll"](0) !== -1) return 1;
+    ex["hd.cancel"]();
+    return ex["hd.scenario.cleanup"]() === 1 ? 0 : 1;
+  }
+  if (header.scenario === "competing-drivers") {
+    if (ex["hd.poll"](0) !== -1) return 1;
+    try {
+      ex["hd.poll"](1);
+    } catch (e) {
+      if (e instanceof WebAssembly.RuntimeError) return 3;
+      throw e;
+    }
+    return 1;
+  }
+  throw new Error(`unknown runtime scenario '${header.scenario}'`);
+}
+
 // Runs one entry case with a fresh host and returns its status and its
 // captured standard output and error, as `run.mjs` would write them.
 async function runEntry(header, wasm, stdinText) {
@@ -127,6 +155,10 @@ async function runEntry(header, wasm, stdinText) {
       },
     );
     const { instance } = await WebAssembly.instantiate(wasm, host.imports);
+    if (header.scenario) {
+      const status = runScenario(header, host, instance);
+      return { status, stdoutStr, stderrStr };
+    }
     const { status } = await host.run(instance, "hd.init", "hd.poll");
     return { status, stdoutStr, stderrStr };
   } catch (e) {
