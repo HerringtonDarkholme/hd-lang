@@ -13,6 +13,10 @@
 //! Test outcomes are compared without their nondeterministic elapsed time.
 //! Neither mode rewrites the report or falls back after a wasmtime error.
 //! Both need the `wasmtime` feature (`cargo test --features wasmtime`).
+//! `HD_CONFORMANCE_PIPELINE=optimized` builds every case through the
+//! optimized pipeline (`passes::OPTIMIZED`) instead of the dev one, with
+//! the checked build profile, and never rewrites the report; the cases
+//! that pass today must still pass. `dev` is the default.
 //! `HD_CONFORMANCE_TIER=lang|std` selects that tier's runtime cases for
 //! timing, without rewriting the report or checking the full pass list.
 
@@ -275,6 +279,7 @@ fn build_sources(
             })
             .collect(),
         profile: profile(fixture),
+        optimized: optimized_pipeline(),
         ..Packages::default()
     };
     build_packages(&host, "fixture", &packages, goal)
@@ -608,6 +613,16 @@ fn selection_env(name: &str) -> Option<String> {
         Ok(value) => Some(value),
         Err(std::env::VarError::NotPresent) => None,
         Err(std::env::VarError::NotUnicode(_)) => panic!("{name} must contain valid UTF-8"),
+    }
+}
+
+/// Whether `HD_CONFORMANCE_PIPELINE=optimized` selects the optimized
+/// pipeline for every build.
+fn optimized_pipeline() -> bool {
+    match selection_env("HD_CONFORMANCE_PIPELINE").as_deref() {
+        None | Some("" | "dev") => false,
+        Some("optimized") => true,
+        Some(other) => panic!("unknown HD_CONFORMANCE_PIPELINE: {other}"),
     }
 }
 
@@ -1920,7 +1935,10 @@ fn specification_conformance_does_not_regress() {
         print_filtered(&cases, &results, &store);
         return;
     }
-    if std::env::var_os("HD_UPDATE_CONFORMANCE").is_some() && mode == EngineMode::Node {
+    if std::env::var_os("HD_UPDATE_CONFORMANCE").is_some()
+        && mode == EngineMode::Node
+        && !optimized_pipeline()
+    {
         let mut report = render_report(&cases, &results);
         if let Ok(old) = std::fs::read_to_string(report_path())
             && let Some((_, cli)) = old.split_once(CLI_HEADING)

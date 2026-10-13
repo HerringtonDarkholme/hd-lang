@@ -997,6 +997,8 @@ struct Run<'a> {
     pipeline: Hash128,
     /// The build profile emitted code follows ([`Packages::build_profile`]).
     build_profile: BuildProfile,
+    /// Whether the optimized pipeline runs ([`Packages::optimized`]).
+    optimized: bool,
     /// Per package, in the table's order: whether it is fetched, so not
     /// the user's own code (`module.dbg.own-code`).
     fetched: Vec<bool>,
@@ -1114,6 +1116,11 @@ pub struct Packages<'a> {
     /// `cli.profile.release`). Every other goal is checked: a test run
     /// keeps the test profile (`cli.profile.test`, `cli.profile.test.release`).
     pub build_profile: BuildProfile,
+    /// Whether the optimized pipeline (`passes::OPTIMIZED`) runs instead of
+    /// the dev one (`cli.profile.pipeline.one`). `--release` selects it for
+    /// a program, and `hd test --release` for a test run, whose build
+    /// profile stays checked. It is part of every code key.
+    pub optimized: bool,
     /// Whether the output holds each root-package module's scope
     /// ([`Output::scopes`]), which `hd doc` resolves its links in.
     pub doc_scopes: bool,
@@ -1401,7 +1408,12 @@ fn build_packages_inner(
     let std_hash = sources_hash(&std);
     let n = table.modules.len();
     let nf = table.folders.len();
-    let pipeline = hd_mono::passes::validate(&hd_mono::passes::DEV).unwrap_or_default();
+    let pipeline = hd_mono::passes::validate(if packages.optimized {
+        &hd_mono::passes::OPTIMIZED
+    } else {
+        &hd_mono::passes::DEV
+    })
+    .unwrap_or_default();
     let paths = PathTable::new();
     let known = hd_resolve::KnownItems::new(&paths);
     let profile = packages.profile.clone().unwrap_or_else(|| {
@@ -1433,6 +1445,7 @@ fn build_packages_inner(
         package_key: root_package_key(package, packages.profile.as_deref()),
         profile,
         pipeline,
+        optimized: packages.optimized,
         build_profile: match goal {
             Goal::Program { .. } | Goal::ReplInput { .. } => packages.build_profile,
             Goal::Tests { .. } | Goal::Scenario { .. } | Goal::Analyze | Goal::CheckTests => {
@@ -7386,6 +7399,9 @@ impl ProgramEnv for Env<'_> {
     }
     fn build_profile(&self) -> BuildProfile {
         self.run.build_profile
+    }
+    fn optimized(&self) -> bool {
+        self.run.optimized
     }
     fn dbg_body(&self, item: DefId, key: &str, ty: Ty, debug: bool) -> StageResult<Body> {
         // `dbg`'s printing bodies (spec/lang/10-modules.md "Debug Printing"):

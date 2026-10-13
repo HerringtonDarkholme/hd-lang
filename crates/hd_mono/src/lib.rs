@@ -125,6 +125,10 @@ pub trait ProgramEnv: LayoutEnv {
     /// The build's profile (`cli.profile.*`), which decides whether
     /// emitted integer arithmetic checks overflow and shift counts.
     fn build_profile(&self) -> BuildProfile;
+    /// Whether the build runs the optimized pipeline
+    /// ([`passes::OPTIMIZED`]) instead of the dev one: collection and
+    /// emission read it to pick optimizations such as known-closure calls.
+    fn optimized(&self) -> bool;
 }
 
 /// The A1 class `REF` as a type argument: a reserved canonical

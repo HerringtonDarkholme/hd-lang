@@ -536,7 +536,12 @@ fn test_one(
     } else {
         Executor::Pool(o.jobs)
     };
-    let packages = program.packages();
+    // `cli.profile.pipeline.one`: `--release` selects the optimized
+    // pipeline; the profile stays checked.
+    let packages = hd_driver::Packages {
+        optimized: o.release,
+        ..program.packages()
+    };
     let package = &program.package;
     let mut built: Vec<Built> = Vec::new();
     let mut selected: Vec<Selected> = Vec::new();
@@ -703,6 +708,7 @@ fn test_one(
             root,
             &program.package,
             o.engine,
+            o.release,
             &mut report.rep,
         )?)
     } else {
@@ -719,6 +725,7 @@ fn build_programs(
     root: &Path,
     package: &str,
     engine: crate::engine::EngineKind,
+    optimized: bool,
     rep: &mut report::Reporter,
 ) -> Result<TestPrograms, ExitCode> {
     let mut list = Vec::new();
@@ -729,7 +736,7 @@ fn build_programs(
         let mut p = disk::load_package(root, &r.file).map_err(|e| rep.fail(&e))?;
         p.only_program(&r.file);
         // `cli.profile.test`: the executables a test run builds are checked.
-        let wasm = crate::compile(&p, hd_driver::BuildProfile::Checked, rep)?;
+        let wasm = crate::compile_in(&p, (hd_driver::BuildProfile::Checked, optimized), rep)?;
         let grants = crate::caps::grants(
             &p.capabilities,
             p.package_dir.as_deref().unwrap_or(root),

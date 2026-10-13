@@ -214,6 +214,7 @@ impl Program {
             profile: None,
             single_file: self.single_file,
             build_profile: BuildProfile::Checked,
+            optimized: false,
             doc_scopes: false,
             session: None,
         }

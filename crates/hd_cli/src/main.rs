@@ -322,6 +322,26 @@ pub(crate) fn build_goal_with(
     doc_scopes: bool,
     rep: &mut Reporter,
 ) -> Result<Output, ExitCode> {
+    build_goal_in(
+        program,
+        goal,
+        (profile, profile == BuildProfile::Release),
+        doc_scopes,
+        rep,
+    )
+}
+
+/// [`build_goal_with`], with the pipeline chosen apart from the profile:
+/// `hd test --release` builds checked and runs the optimized pipeline
+/// (`cli.profile.pipeline.one`). `profile_and_pipeline` is the build
+/// profile and whether the pipeline is the optimized one.
+pub(crate) fn build_goal_in(
+    program: &disk::Program,
+    goal: &Goal,
+    (profile, optimized): (BuildProfile, bool),
+    doc_scopes: bool,
+    rep: &mut Reporter,
+) -> Result<Output, ExitCode> {
     if rep.diags(&program.problems) {
         return Err(rep.finish(HD_FAILURE));
     }
@@ -336,6 +356,7 @@ pub(crate) fn build_goal_with(
     };
     let packages = hd_driver::Packages {
         build_profile: profile,
+        optimized,
         doc_scopes,
         ..program.packages()
     };
@@ -355,10 +376,19 @@ fn compile(
     profile: BuildProfile,
     rep: &mut Reporter,
 ) -> Result<Vec<u8>, ExitCode> {
+    compile_in(program, (profile, profile == BuildProfile::Release), rep)
+}
+
+/// [`compile`], with the pipeline chosen apart from the profile.
+fn compile_in(
+    program: &disk::Program,
+    pipeline: (BuildProfile, bool),
+    rep: &mut Reporter,
+) -> Result<Vec<u8>, ExitCode> {
     let goal = Goal::Program {
         entry: program.entry.clone(),
     };
-    match build_goal(program, &goal, profile, rep)?.wasm {
+    match build_goal_in(program, &goal, pipeline, false, rep)?.wasm {
         Some(wasm) => Ok(wasm),
         None => Err(rep.fail("no Wasm produced")),
     }

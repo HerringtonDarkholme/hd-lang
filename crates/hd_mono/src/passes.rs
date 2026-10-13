@@ -60,8 +60,14 @@ pub struct PassSpec {
     pub run: fn(&mut InstanceCx, &mut Fuel) -> StageResult<PassOutcome>,
 }
 
-fn not_yet(_: &mut InstanceCx, _: &mut Fuel) -> StageResult<PassOutcome> {
-    Err(NotImplemented::new(Stage::Emit, "optimizing TIR pass"))
+/// A declared pass with no body yet changes nothing (tiering.md §6): it
+/// reports `Skipped`, after the one fuel step every pass pays to run.
+fn not_yet(_: &mut InstanceCx, fuel: &mut Fuel) -> StageResult<PassOutcome> {
+    if fuel.charge(1) {
+        Ok(PassOutcome::Skipped)
+    } else {
+        Err(NotImplemented::new(Stage::Emit, "pass budget"))
+    }
 }
 
 fn liveness(cx: &mut InstanceCx, _: &mut Fuel) -> StageResult<PassOutcome> {
@@ -213,7 +219,17 @@ pub fn validate(p: &Pipeline) -> Result<hd_base::Hash128, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{DEV, OPTIMIZED, Pipeline, validate};
+    use super::{DEV, InstanceCx, OPTIMIZED, PASSES, PassOutcome, Pipeline, validate};
+    use hd_base::Fuel;
+
+    #[test]
+    fn declared_passes_without_a_body_are_skipped_not_errors() {
+        for p in PASSES.iter().filter(|p| p.name != "liveness") {
+            let mut cx = InstanceCx { gate: u8::MAX };
+            let out = (p.run)(&mut cx, &mut Fuel::new(8));
+            assert!(matches!(out, Ok(PassOutcome::Skipped)), "{}", p.name);
+        }
+    }
 
     #[test]
     fn both_pipelines_validate_and_a_bad_order_fails() {
