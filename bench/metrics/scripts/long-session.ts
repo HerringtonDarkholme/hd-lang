@@ -103,7 +103,9 @@ export const longSession: Metric = {
     const target = `≤ ${formatValue(bound, "MB")}`;
     if ((await run("cargo", ["--version"])) === undefined)
       return [notApplicable(NAME, label, target, "no cargo to run the in-process session test")];
-    context.log(`${NAME}: ${INPUTS} inputs in steps of ${STEP}, in process (${page / 1024} KiB pages)`);
+    context.log(
+      `${NAME}: ${INPUTS} inputs in steps of ${STEP}, in process (${page / 1024} KiB pages)`,
+    );
     const result = await runProcess(
       [
         "cargo",
@@ -137,7 +139,8 @@ export const longSession: Metric = {
       `build per input ${ms(at(STEP))} at ${STEP}, ${ms(last)} at ${last.inputs}; ` +
       `${page / 1024} KiB pages`;
     const growth = growthFrom(samples, BASELINE_INPUT);
-    if (Number.isNaN(growth)) return [failed(NAME, label, target, "no sample at the baseline input")];
+    if (Number.isNaN(growth))
+      return [failed(NAME, label, target, "no sample at the baseline input")];
     return [judge(NAME, label, growth, bound, "MB", "at-most", detail)];
   },
 };

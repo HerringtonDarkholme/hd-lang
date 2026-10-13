@@ -129,14 +129,7 @@ export function citationsIn(
 
 /** Every file refs scans, repository-relative and sorted. */
 function scannedFiles(repoRoot: string): string[] {
-  const roots = [
-    "spec",
-    "guide",
-    "lib/std",
-    "future-work",
-    "crates",
-    "KNOWN_FAILURES.tsv",
-  ];
+  const roots = ["spec", "guide", "lib/std", "future-work", "crates", "KNOWN_FAILURES.tsv"];
   const files: string[] = [];
   const walk = (path: string): void => {
     let stats;
