@@ -234,3 +234,36 @@ the `Speed` pipeline) and V8 (`node host/run.mjs`), p50 of 5 runs after
    cheaper GC funcref read is a cargo fetch plus a source read; moving
    the pin touches the whole engine. **Recommendation:** one read-only
    check before any E2 work, no pin change inside #53.
+
+## 6. Result of job 6 (D: wasmtime's inliner), 2026-10-13
+
+Not shipped. Measured on wasmtime 49.0.2 with `hd run --release
+--engine wasmtime` after A1 and A2, a dev `hd` binary, load average 6 to
+9, median of 10 runs per cell, wall time including the compile.
+
+| Program | Inliner off | `InterModuleAndIntraGc` | `Inlining::Yes` |
+| --- | --- | --- | --- |
+| closures | 1084 ms | about 1085 ms (0%) | 991 ms (-8.6%) |
+| int-loop | 983 ms | | 1002 ms (+1.9%) |
+| list-sort | 465 ms | | 487 ms (+4.7%) |
+| map-count | 31 ms | | 48 ms (+56%) |
+| string-build | 184 ms | | 195 ms (+6.1%) |
+| trait-dispatch | 671 ms | | 683 ms (+1.9%) |
+
+- The mode named in the plan, `InterModuleAndIntraGc`, did nothing for
+  the bench: hd's release Wasm does not qualify for its intra-module
+  inlining. Only `Inlining::Yes` inlines, and it gains on the closures
+  bench alone.
+- The rest of the runtime suite gets slower, 2% to 6%, and the compile
+  grows (map-count, mostly compile: +17 ms; an `hd test --release` of a
+  four-case package: user time 0.04 s to 0.07 s).
+- With `Yes`, every wasmtime panic report in a release `hd test` lost all
+  its frames: the four panic cases (assert in std, explicit panic, index
+  out of bounds, a panic inside a `map` closure) went from 3 to 8 frame
+  lines each to none, not just the inlined ones. Dev is unchanged.
+
+The T1 rule (at least 5% on the closures bench and the runtime suite
+without a compile regression) fails on the suite, the compile time and
+the frame lists, so inlining stays off. Owner Q4 is answered: leave
+wasmtime inlining off. Re-measure after a wasmtime move or after job 7 if
+the closures bench still lags V8.
