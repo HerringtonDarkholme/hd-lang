@@ -12,8 +12,8 @@
 
 use hd_cache::{CacheStore, OverlayStore};
 use hd_driver::{
-    BuildProfile, Executor, Goal, Host, NoClock, Output, Packages, Session, build_packages,
-    build_repl_prelude,
+    BuildProfile, Dependency, Executor, Goal, Host, NoClock, Output, Packages, Session,
+    build_packages, build_repl_prelude,
 };
 use hd_project::{MemorySources, repl_file};
 use hd_sched::SerialOrder;
@@ -36,11 +36,13 @@ const INPUTS: [&str; 9] = [
 ];
 
 /// A session: the package's files, the inputs that joined it, and what
-/// their modules export.
+/// their modules export; with `dep`, the package requires the package
+/// `money` of those files.
 struct Repl<'s> {
     src: MemorySources,
     store: &'s dyn CacheStore,
     session: Session,
+    dep: Option<&'s MemorySources>,
 }
 
 impl Repl<'_> {
@@ -54,8 +56,21 @@ impl Repl<'_> {
             clock: &NoClock,
             executor: Executor::Serial(SerialOrder::Priority),
         };
+        let deps: Vec<Dependency<'_>> = self
+            .dep
+            .iter()
+            .map(|sources| Dependency {
+                name: "money".to_owned(),
+                identity: "/w/money".to_owned(),
+                sources: *sources,
+                requires: Vec::new(),
+                fetched: false,
+            })
+            .collect();
         let packages = Packages {
             session: Some(&self.session),
+            requires: deps.iter().map(|_| ("money".to_owned(), 1)).collect(),
+            deps,
             ..Packages::default()
         };
         build_packages(&host, "app", &packages, &Goal::ReplInput { input: n })
@@ -86,6 +101,7 @@ fn repl(store: &dyn CacheStore) -> Repl<'_> {
         src,
         store,
         session: Session::start(),
+        dep: None,
     }
 }
 
@@ -558,4 +574,78 @@ fn the_prelude_is_cached_per_toolchain() {
     let release = build_repl_prelude(&host, BuildProfile::Release);
     assert_eq!(release.counters.misses.get("link"), Some(&1));
     assert_ne!(release.wasm, built.wasm);
+}
+
+/// A session is one scope, as a module is (`cli.repl.package.lib`): a
+/// later input uses the private fields and methods of an earlier input's
+/// type as its own module's, constructing it included.
+#[test]
+fn an_input_sees_the_private_members_of_earlier_inputs() {
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    repl.input(
+        1,
+        "data Point:\n    x: i32\n    y: i32\n\nimpl Point:\n    fn sum(self) -> i32:\n        self.x + self.y\n",
+    );
+    repl.input(2, "p := Point { x: +12, y: +23 }\n");
+    repl.input(3, "println(p.sum() + p.x)\n");
+    repl.input(4, "moved := Point { ...p, x: +1 }\n");
+}
+
+/// The session acts as code inside `src/lib.hd` (`cli.repl.package.lib`):
+/// an input reads, constructs and calls the private members of its types.
+#[test]
+fn an_input_sees_the_private_members_of_the_library() {
+    let lib = "data Secret:\n    code: i32\n\nimpl Secret:\n    fn twice(self) -> i32:\n        self.code * +2\n\nfn secret() -> Secret:\n    Secret { code: +7 }\n";
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    repl.src.insert("src/lib.hd", lib);
+    repl.input(1, "println(secret().code + secret().twice())\n");
+    repl.input(2, "s := Secret { code: +1 }\n");
+}
+
+/// Security check: the session is `src/lib.hd`'s scope only. The private
+/// members of the package's other modules and of its dependencies stay
+/// private to an input, as they are to `src/lib.hd`.
+#[test]
+fn other_modules_and_dependencies_keep_their_private_members() {
+    let util = "pub data Boxed:\n    v: i32\n\nimpl Boxed:\n    fn peek(self) -> i32:\n        self.v\n\npub fn boxed() -> Boxed:\n    Boxed { v: +1 }\n";
+    let mut money = MemorySources::default();
+    money.insert(
+        "src/lib.hd",
+        "pub data Coin:\n    cents: i32\n\npub fn coin() -> Coin:\n    Coin { cents: +5 }\n",
+    );
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    repl.src.insert("src/util.hd", util);
+    repl.dep = Some(&money);
+    repl.input(
+        1,
+        "use self.util.{Boxed, boxed}\nuse dep.money.{Coin, coin}\n",
+    );
+    for (n, text) in [
+        (2, "boxed().v\n"),
+        (3, "boxed().peek()\n"),
+        (4, "Boxed { v: +2 }\n"),
+        (5, "coin().cents\n"),
+        (6, "Coin { cents: +2 }\n"),
+    ] {
+        let out = repl.build(n, text);
+        let codes: Vec<&str> = out.diags.code.iter().map(|c| c.as_str()).collect();
+        assert_eq!(codes, ["private-member"], "{text:?}: {}", out.render());
+        repl.forget(n);
+    }
+}
+
+/// A single use binds its name for later inputs too, as a grouped one does.
+#[test]
+fn a_single_use_reaches_later_inputs() {
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    repl.input(1, "use std.cmp.max\nuse std.cmp.min as least\n");
+    repl.input(2, "println(max(+1, +2) + least(+3, +4))\n");
 }

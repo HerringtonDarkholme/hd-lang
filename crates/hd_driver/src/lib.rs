@@ -2289,7 +2289,29 @@ impl Run<'_> {
             .collect()
     }
 
+    /// The trie nodes of the modules of REPL input `m`'s session
+    /// ([`hd_check::BodyCx::session`]): the input, `src/lib.hd` and the
+    /// earlier inputs. Never another module of the package or a
+    /// dependency's, whose private members stay private
+    /// (`cli.repl.package.lib` names only `src/lib.hd`). Empty for any
+    /// other module.
+    fn session_nodes(&self, m: usize) -> Vec<hd_base::PathId> {
+        if self.repl_number(m).is_none() {
+            return Vec::new();
+        }
+        let names = self.names();
+        let own = &self.table.modules[m].path;
+        std::iter::once(own)
+            .chain(&self.session_modules(m))
+            .map(|p| names.module(p))
+            .collect()
+    }
+
     /// `src/lib.hd` lowered against its frozen interface, once per run.
+    /// Only a REPL input's tasks call it: the input's closure holds the
+    /// library's folder, so its interface is built first. Another module's
+    /// task may run before that interface and would fix the result at
+    /// `None` for the whole run.
     fn lib_scope(&self) -> Option<&LibScope> {
         self.lib_scope
             .get_or_init(|| {
@@ -3116,8 +3138,11 @@ impl Run<'_> {
             closure.iter().filter_map(|f| self.iface_of(*f)).collect();
         // A REPL input also sees `src/lib.hd`'s private items
         // (`cli.repl.package.lib`), which no interface carries.
+        // Only an input asks: its closure holds `src/lib.hd`'s folder, so
+        // that interface is built by now ([`Self::lib_scope`]).
         let input = self.repl_number(m).is_some();
-        let own: std::borrow::Cow<'_, [Item]> = match self.lib_scope().filter(|_| input) {
+        let lib = if input { self.lib_scope() } else { None };
+        let own: std::borrow::Cow<'_, [Item]> = match lib {
             Some(lib) => prep.items.iter().chain(&lib.private).cloned().collect(),
             None => std::borrow::Cow::Borrowed(&prep.items),
         };
@@ -3161,6 +3186,7 @@ impl Run<'_> {
             .collect();
         let solver = TableSolver;
         let locals = hd_resolve::local_items(&heads);
+        let session = self.session_nodes(m);
         let cx = BodyCx {
             names,
             src,
@@ -3182,6 +3208,7 @@ impl Run<'_> {
                 scope,
             }),
             file_name: &self.table.files[m],
+            session: &session,
         };
         let mut diags = DiagBuf::default();
         hd_check::init::earlier_binding_clashes(&cx, &heads, &mut diags);
@@ -4063,6 +4090,7 @@ impl Run<'_> {
                 locals: &tlocals,
                 tests: None,
                 file_name: &self.table.files[tm],
+                session: &[],
             };
             found.extend(self.check_opt_ins(&tcx, &theads, &opts, &mut derived));
         }
@@ -4164,6 +4192,7 @@ impl Run<'_> {
             locals: &tlocals,
             tests: None,
             file_name: &self.table.files[tm],
+            session: &[],
         };
         let ItemData::Impl { methods, .. } = &lookup.item(template)?.data else {
             return None;

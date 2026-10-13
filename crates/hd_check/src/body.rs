@@ -55,6 +55,12 @@ pub struct BodyCx<'a> {
     pub file_name: &'a str,
     /// When the module's test code is checked, its `tests:` block.
     pub tests: Option<TestsView<'a>>,
+    /// For a REPL input: the modules of its session, the input itself,
+    /// `src/lib.hd` and the earlier inputs. A session is one scope, as a
+    /// module is (`cli.repl.package.lib`), so a member one of them declares
+    /// is visible to the input's bodies as their own module's. Empty for
+    /// any other module.
+    pub session: &'a [hd_base::PathId],
 }
 
 /// A module's `tests:` block, when its items are checked: its extent (a

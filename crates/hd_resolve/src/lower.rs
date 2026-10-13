@@ -1208,6 +1208,39 @@ fn bind_uses(
     }
 }
 
+/// The names `u` exports from its module `m`, each as (local name,
+/// module, declared name): the grouped names of a `pub use`. A REPL input
+/// ([`ModIn::session`]) exports every name its uses bind to a declaration,
+/// so a single use's name reaches later inputs as a grouped one's does. A
+/// single use that names a module binds no declaration.
+fn reexports(r: &Resolver<'_, '_>, m: &ModIn<'_>, u: &UseDecl) -> Vec<(Symbol, String, Symbol)> {
+    let names = &r.cx.names;
+    let session = m.session.is_some();
+    if let Some(group) = &u.group {
+        if !(u.public || session) {
+            return Vec::new();
+        }
+        let module = u.module();
+        return group
+            .iter()
+            .map(|g| {
+                let local = names.syms.intern(g.alias.as_deref().unwrap_or(&g.name));
+                (local, module.clone(), names.syms.intern(&g.name))
+            })
+            .collect();
+    }
+    let Some((last, parent)) = u.path.split_last() else {
+        return Vec::new();
+    };
+    if !session || u.root_error.is_some() || parent.is_empty() || r.module_exists(&u.module()) {
+        return Vec::new();
+    }
+    let local = names
+        .syms
+        .intern(u.alias.as_deref().unwrap_or(last.as_str()));
+    vec![(local, parent.join("."), names.syms.intern(last))]
+}
+
 /// What the user reads when `module` does not give `name` to an import.
 fn export_failure(code: Code, name: &str, module: &str) -> String {
     match code {
@@ -4802,14 +4835,9 @@ pub fn build_folder(
         }
     }
     for (m, us) in mods.iter().zip(&all_uses) {
-        for u in us.iter().filter(|u| u.public || m.session.is_some()) {
-            let module = u.module();
-            for g in u.group.iter().flatten() {
-                let local = names.syms.intern(g.alias.as_deref().unwrap_or(&g.name));
-                r.pub_uses.insert(
-                    (m.path.clone(), local),
-                    (module.clone(), names.syms.intern(&g.name)),
-                );
+        for u in us {
+            for (local, module, name) in reexports(&r, m, u) {
+                r.pub_uses.insert((m.path.clone(), local), (module, name));
             }
         }
     }
@@ -4976,10 +5004,8 @@ pub fn build_folder(
                 .filter(|((mp, _), (_, _, p))| mp == &m.path && *p)
                 .map(|((_, n), _)| *n)
                 .collect();
-            for u in us.iter().filter(|u| u.public || m.session.is_some()) {
-                for g in u.group.iter().flatten() {
-                    publics.push(names.syms.intern(g.alias.as_deref().unwrap_or(&g.name)));
-                }
+            for u in us {
+                publics.extend(reexports(&r, m, u).into_iter().map(|(local, _, _)| local));
             }
             for name in publics {
                 if !seen.insert((m.path.clone(), name)) {

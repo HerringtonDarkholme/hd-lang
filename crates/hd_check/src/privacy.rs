@@ -24,16 +24,26 @@ impl<'a> Ck<'a, '_> {
         }
     }
 
+    /// Whether `d` is declared in the body's module, which for a body of a
+    /// REPL input is any module of its session ([`BodyCx::session`]).
+    ///
+    /// [`BodyCx::session`]: crate::body::BodyCx::session
+    fn declared_here(&self, d: DefId) -> bool {
+        let names = &self.cx.names;
+        let session = self.cx.session;
+        names.declared_in(d, self.module)
+            || (session.contains(&self.module) && session.contains(&names.module_node(d)))
+    }
+
     /// Whether the body's module may use a member of `owner`: the member
     /// is `pub` or `owner` is declared there (`names.visible.field-method`).
     fn member_visible(&self, owner: DefId, public: bool) -> bool {
-        public || self.cx.names.declared_in(owner, self.module)
+        public || self.declared_here(owner)
     }
 
     /// Whether the body's module may call the inherent method `method`.
     pub(crate) fn method_visible(&self, method: DefId) -> bool {
-        self.cx.names.declared_in(method, self.module)
-            || self.cx.lookup.item(method).is_some_and(|i| i.public)
+        self.declared_here(method) || self.cx.lookup.item(method).is_some_and(|i| i.public)
     }
 
     /// A use of the own field `name` of `t`: an error when the field is

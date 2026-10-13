@@ -214,6 +214,22 @@ fn a_function_is_not_declared_again() {
     assert_eq!(lines[1], "2 : i32");
 }
 
+/// A session is one scope, as a module is: a later input constructs an
+/// earlier input's type and reads its private fields.
+#[test]
+fn a_later_input_uses_an_earlier_type_s_private_fields() {
+    let t = session(&[
+        "data Point:",
+        "    x: i32",
+        "    y: i32",
+        "",
+        "p := Point { x: 12, y: 23 }",
+        "p",
+        "p.x + p.y",
+    ]);
+    assert_eq!(t.out, "Point { x: 12, y: 23 } : Point\n35 : i32\n");
+}
+
 /// `cli.repl.redeclare.type`: nor a type an earlier input declared.
 #[test]
 fn a_type_is_not_declared_again() {
