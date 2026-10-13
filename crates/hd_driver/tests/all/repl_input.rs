@@ -682,6 +682,35 @@ fn a_single_use_reaches_later_inputs() {
     repl.input(2, "println(max(+1, +2) + least(+3, +4))\n");
 }
 
+/// A use that names a module binds it for later inputs too
+/// (`cli.repl.uses.other`), under its alias when it has one.
+#[test]
+fn a_module_use_reaches_later_inputs() {
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    repl.input(1, "use std.path\nuse std.cmp as c\n");
+    repl.input(
+        2,
+        "println(path.Path(\"a\").join(\"b\").parent().is_some())\n",
+    );
+    repl.input(3, "println(c.max(+1, +2))\n");
+}
+
+/// `cli.repl.redeclare.binding`: a later input binds no name that an
+/// earlier module use bound.
+#[test]
+fn an_input_does_not_redeclare_a_module_name() {
+    for (first, text) in [
+        ("use std.path\n", "fn path() -> i32:\n    +2\n"),
+        ("use std.path as p\n", "p := +2\n"),
+    ] {
+        let text = redeclared(first, text);
+        assert_eq!(text.matches("duplicate-binding").count(), 1, "{text}");
+        assert!(text.contains("is already declared by repl#1"), "{text}");
+    }
+}
+
 /// A session is one module for implementation placement (`trait.own.*`):
 /// an input implements a trait or adds methods for a type that an earlier
 /// input or `src/lib.hd` declares, and a later input calls them.

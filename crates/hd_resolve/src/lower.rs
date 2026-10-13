@@ -642,6 +642,9 @@ pub struct FolderOut {
     /// (`module.pub-use.chain.loop`), as (module path, name), sorted. A
     /// use through another folder reads them as a loop, quietly.
     pub loop_names: Vec<(String, Symbol)>,
+    /// For each REPL input ([`ModIn::session`]): the modules its `use`s
+    /// bind, as (module path, local name, used module path), sorted.
+    pub module_uses: Vec<(String, String, String)>,
 }
 
 /// What one resolution needs from the run.
@@ -4951,6 +4954,7 @@ pub fn build_folder(
         exports: Vec::new(),
         private_names: Vec::new(),
         loop_names: Vec::new(),
+        module_uses: Vec::new(),
     };
     let mut scopes: Vec<ModScopes> = mods
         .iter()
@@ -5140,6 +5144,23 @@ pub fn build_folder(
         out.exports.sort_by(|a, b| {
             (a.module.as_str(), names.text(a.name)).cmp(&(b.module.as_str(), names.text(b.name)))
         });
+        for (m, o) in mods.iter().zip(&out.modules) {
+            if m.session.is_none() {
+                continue;
+            }
+            let sc = &o.scope;
+            for ((&name, b), origin) in sc.name.iter().zip(&sc.binding).zip(&sc.origin) {
+                if b.kind != BindingKind::Module || *origin != Origin::Use {
+                    continue;
+                }
+                if let Some(target) = sc.modules.get(b.value as usize) {
+                    let local = names.text(name).to_owned();
+                    out.module_uses
+                        .push((m.path.clone(), local, target.clone()));
+                }
+            }
+        }
+        out.module_uses.sort();
         out.private_names = r
             .own
             .iter()

@@ -646,6 +646,12 @@ pub struct FolderIface {
     /// `re-export-loop`, reported where the loop was built, quietly
     /// through other folders. Outside every hash; diagnostics only.
     pub loop_names: std::collections::HashSet<(String, Symbol)>,
+    /// The modules a REPL input's `use`s name, as (input module path,
+    /// local name, module path): what the input leaves in the session
+    /// besides its exports (`cli.repl.uses.other`). Empty for any other
+    /// folder. Part of the API hash when not empty, since later inputs
+    /// resolve names through it.
+    pub module_uses: Vec<(String, String, String)>,
 }
 
 impl FolderIface {
@@ -682,6 +688,34 @@ pub fn encode_private_names(names: &Names<'_>, rows: &[(String, Symbol)]) -> Vec
         w.str(names.text(*name));
     }
     w.bytes
+}
+
+/// The module-use section of an interface entry: (input module path,
+/// local name, module path) rows.
+#[must_use]
+pub fn encode_module_uses(rows: &[(String, String, String)]) -> Vec<u8> {
+    let mut w = Writer::default();
+    w.len_of(rows);
+    for (module, local, target) in rows {
+        w.str(module);
+        w.str(local);
+        w.str(target);
+    }
+    w.bytes
+}
+
+/// Reads [`encode_module_uses`].
+#[must_use]
+pub fn decode_module_uses(b: &[u8]) -> Option<Vec<(String, String, String)>> {
+    let mut r = Reader::new(b);
+    let mut out = Vec::new();
+    for _ in 0..r.count() {
+        let module = r.str().to_owned();
+        let local = r.str().to_owned();
+        let target = r.str().to_owned();
+        out.push((module, local, target));
+    }
+    r.ok().then_some(out)
 }
 
 /// Reads [`encode_private_names`].
@@ -1254,6 +1288,7 @@ pub fn folder_iface(
     exports: Vec<Export>,
     blob: Arc<[u8]>,
     mentions: &[(String, Hash128)],
+    module_uses: Vec<(String, String, String)>,
 ) -> FolderIface {
     let by_def = items
         .iter()
@@ -1265,7 +1300,13 @@ pub fn folder_iface(
         .enumerate()
         .map(|(i, e)| ((e.module.clone(), e.name), i))
         .collect();
-    let api_hash = hd_base::hash128(&blob);
+    let api_hash = if module_uses.is_empty() {
+        hd_base::hash128(&blob)
+    } else {
+        let mut bytes = blob.to_vec();
+        bytes.extend_from_slice(&encode_module_uses(&module_uses));
+        hd_base::hash128(&bytes)
+    };
     let deep_hash = deep_hash(api_hash, mentions);
     FolderIface {
         folder: folder.to_owned(),
@@ -1279,6 +1320,7 @@ pub fn folder_iface(
         spans: HashMap::new(),
         private_names: std::collections::HashSet::new(),
         loop_names: std::collections::HashSet::new(),
+        module_uses,
     }
 }
 

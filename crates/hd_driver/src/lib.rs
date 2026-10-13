@@ -2257,11 +2257,16 @@ impl Run<'_> {
         let asec = hd_resolve::anchor::encode(&rows);
         let psec = hd_resolve::encode_private_names(&names, &out.private_names);
         let lsec = hd_resolve::encode_private_names(&names, &out.loop_names);
-        self.put(EntryKind::Iface, key, &[&blob, &dsec, &asec, &psec, &lsec]);
+        let usec = hd_resolve::encode_module_uses(&out.module_uses);
+        self.put(
+            EntryKind::Iface,
+            key,
+            &[&blob, &dsec, &asec, &psec, &lsec, &usec],
+        );
         self.keep_input(
             folder.modules[0].idx(),
             |e| &mut e.iface,
-            || vec![blob.clone(), dsec, asec, psec, lsec],
+            || vec![blob.clone(), dsec, asec, psec, lsec, usec.clone()],
         );
         let Some(mentions) = self.mentions(fid, &items, &out.exports) else {
             self.blocked(Stage::FolderIface);
@@ -2273,8 +2278,14 @@ impl Run<'_> {
             |e| &mut e.mentions,
             || mentions.clone(),
         );
-        let mut iface =
-            hd_resolve::folder_iface(&folder.path, items, out.exports, Arc::from(blob), &mentions);
+        let mut iface = hd_resolve::folder_iface(
+            &folder.path,
+            items,
+            out.exports,
+            Arc::from(blob),
+            &mentions,
+            out.module_uses,
+        );
         iface.spans = spans_of(&iface.items, &rows);
         iface.private_names = out.private_names.into_iter().collect();
         iface.loop_names = out.loop_names.into_iter().collect();
@@ -2297,7 +2308,7 @@ impl Run<'_> {
         let names = self.names();
         let (blob, dsec) = (sections.first()?, sections.get(1)?);
         let (items, exports) = hd_resolve::decode_items(&names, blob)?;
-        let (Some(diags), Some(rows), Some(private), Some(looped)) = (
+        let (Some(diags), Some(rows), Some(private), Some(looped), Some(module_uses)) = (
             decode_iface_diags(dsec),
             sections.get(2).and_then(|b| hd_resolve::anchor::decode(b)),
             sections
@@ -2306,6 +2317,9 @@ impl Run<'_> {
             sections
                 .get(4)
                 .and_then(|b| hd_resolve::decode_private_names(&names, b)),
+            sections
+                .get(5)
+                .and_then(|b| hd_resolve::decode_module_uses(b)),
         ) else {
             return None;
         };
@@ -2319,6 +2333,7 @@ impl Run<'_> {
             exports,
             Arc::from(blob.as_slice()),
             &mentions,
+            module_uses,
         );
         iface.spans = spans_of(&iface.items, &rows);
         iface.private_names = private.into_iter().collect();
@@ -2586,6 +2601,18 @@ impl Run<'_> {
                     inner.bind(e.name, b, hd_resolve::Origin::Use, u32::MAX);
                     out.kinds.insert(e.def, e.kind);
                     out.declared_by.insert(e.name, format!("repl#{number}"));
+                }
+                let names = self.names();
+                for (_, local, path) in &iface.module_uses {
+                    let name = names.syms.intern(local);
+                    let value = u32::try_from(inner.modules.len()).unwrap_or(u32::MAX);
+                    inner.modules.push(path.clone());
+                    let b = hd_resolve::Binding {
+                        kind: hd_resolve::BindingKind::Module,
+                        value,
+                    };
+                    inner.bind(name, b, hd_resolve::Origin::Use, u32::MAX);
+                    out.declared_by.insert(name, format!("repl#{number}"));
                 }
                 out.scope.nest(&inner);
             }

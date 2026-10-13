@@ -593,6 +593,18 @@ fn relative_paths_resolve_from_the_working_directory() {
     assert_eq!(t.out, "true : bool\n");
 }
 
+/// `cli.repl.uses.other`: a use that names a module reaches later inputs.
+#[test]
+fn a_module_use_reaches_later_inputs() {
+    let t = session(&[
+        "use std.path as p",
+        "p.Path(\"a\").join(\"b\").parent().is_some()",
+        "p := 1",
+    ]);
+    assert!(t.out.starts_with("true : bool\n"), "{}", t.out);
+    assert!(t.out.contains("duplicate-binding"), "{}", t.out);
+}
+
 /// `cli.repl.outside`: outside any package the session uses only `std`.
 #[test]
 fn outside_a_package_only_std_is_used() {
