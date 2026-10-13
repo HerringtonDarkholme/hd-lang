@@ -31,6 +31,8 @@ export type RustMode = "run" | "check" | "test";
 export interface RustRunner {
   /** Settles once the compiler wasm is instantiated, or failed to be. */
   readonly ready: Promise<void>;
+  /** The compiler wasm's exports, which the worker's REPL shares (repl-host.ts). */
+  readonly compiler: Promise<CompilerExports>;
   runProject(
     project: Project,
     mode: RustMode,
@@ -384,5 +386,5 @@ export function createRustRunner(bytes: Promise<BufferSource> | BufferSource): R
     };
   }
 
-  return { ready, runProject, watProject };
+  return { ready, compiler, runProject, watProject };
 }

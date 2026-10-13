@@ -4,10 +4,13 @@
 // Run, Check and Test go to the Rust compiler (rust-runner.ts), whose
 // wasm, hd_web.wasm, sits beside this script; the worker loads it once and
 // says it is ready after that. The WAT view's module comes from the same
-// wasm (the wat goal).
+// wasm (the wat goal). The REPL's requests (`repl-*`) go to repl-host.ts,
+// which runs the compiler's REPL session and the JS session that runs its
+// modules in this worker too.
 
 import type { Project } from "./project.ts";
 import type { RunMode, RunResult, WatResult } from "./runner.ts";
+import { createReplHost, type ReplMessage, type ReplRequest } from "./repl-host.ts";
 import { createRustRunner } from "./rust-runner.ts";
 
 export type WorkerRequest =
@@ -18,7 +21,8 @@ export type WorkerRequest =
       readonly project: Project;
     }
   /** The WAT of the module `project` compiles to; replies `wat`. */
-  | { readonly kind: "wat"; readonly id: number; readonly project: Project };
+  | { readonly kind: "wat"; readonly id: number; readonly project: Project }
+  | ReplRequest;
 
 export type WorkerMessage =
   | { readonly kind: "ready" }
@@ -29,11 +33,12 @@ export type WorkerMessage =
       readonly debug?: boolean;
     }
   | { readonly kind: "result"; readonly id: number; readonly result: RunResult }
-  | { readonly kind: "wat"; readonly id: number; readonly result: WatResult };
+  | { readonly kind: "wat"; readonly id: number; readonly result: WatResult }
+  | ReplMessage;
 
 interface WorkerScope {
   onmessage: ((event: MessageEvent<WorkerRequest>) => void) | null;
-  postMessage(message: WorkerMessage): void;
+  postMessage(message: WorkerMessage, transfer?: Transferable[]): void;
 }
 
 const scope = self as unknown as WorkerScope;
@@ -44,14 +49,20 @@ const rust = createRustRunner(
   }),
 );
 
+const repl = createReplHost(rust.compiler, (message, transfer) =>
+  scope.postMessage(message, transfer),
+);
+
 scope.onmessage = async ({ data: request }) => {
-  if (request.kind === "project") {
+  if (request.kind.startsWith("repl-")) {
+    await repl.handle(request as ReplRequest);
+  } else if (request.kind === "project") {
     const { id, mode, project } = request;
     const onStdout = (line: string, debug?: boolean): void =>
       scope.postMessage({ kind: "stdout", id, line, ...(debug ? { debug } : {}) });
     const result = await rust.runProject(project, mode, onStdout);
     scope.postMessage({ kind: "result", id, result });
-  } else {
+  } else if (request.kind === "wat") {
     const result = await rust.watProject(request.project);
     scope.postMessage({ kind: "wat", id: request.id, result });
   }

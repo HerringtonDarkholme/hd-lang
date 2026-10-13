@@ -165,10 +165,15 @@ export function encodeReplStart(files: Readonly<Record<string, string>>): Uint8A
   return Uint8Array.from(header(files, "", GOAL.replStart));
 }
 
-/** Builds `text` as the REPL session's next input. */
-export function encodeReplInput(text: string): Uint8Array {
+/**
+ * Builds `text` as the REPL session's next input: input `number`, which
+ * must be greater than every earlier module's, or else one after the last
+ * module. The playground numbers its inputs itself, so a rebuild keeps them.
+ */
+export function encodeReplInput(text: string, number?: number): Uint8Array {
   const out = header({}, "", GOAL.replInput);
   string(out, text);
+  if (number !== undefined) leb(out, number);
   return Uint8Array.from(out);
 }
 

@@ -289,19 +289,42 @@ impl Session {
     }
 
     /// Builds `text` as the session's next input (`Goal::ReplInput`) over
-    /// the inputs that joined. An input that does not build is dropped at
-    /// once; one that builds waits for its outcome.
+    /// the inputs that joined, numbered one after the last module built. An
+    /// input that does not build is dropped at once; one that builds waits
+    /// for its outcome.
     ///
     /// # Errors
     ///
     /// No session started, or the last module still waits for its outcome.
     pub fn repl_input(&mut self, text: &str) -> Result<ReplBuild, ReplError> {
+        let last = self.repl.as_ref().ok_or_else(no_session)?.last;
+        self.repl_input_as(last + 1, text)
+    }
+
+    /// Builds `text` as the session's input `number`, as [`repl_input`]
+    /// does. A host that numbers its inputs itself passes the number, so a
+    /// session it rebuilds in a fresh worker keeps the numbers that its
+    /// diagnostics, `dbg` lines and journal already show: it builds the
+    /// kept inputs again with their old numbers, skipping the dropped ones.
+    ///
+    /// [`repl_input`]: Session::repl_input
+    ///
+    /// # Errors
+    ///
+    /// No session started, the last module still waits for its outcome, or
+    /// `number` does not come after the last module built.
+    pub fn repl_input_as(&mut self, number: u32, text: &str) -> Result<ReplBuild, ReplError> {
         let repl = self.repl.as_mut().ok_or_else(no_session)?;
         if let Some((n, _)) = &repl.waiting {
             return Err(ReplError(format!("module {n} has no outcome yet")));
         }
-        repl.last += 1;
-        let number = repl.last;
+        if number <= repl.last {
+            let last = repl.last;
+            return Err(ReplError(format!(
+                "input {number} does not come after module {last}"
+            )));
+        }
+        repl.last = number;
         let file = repl_file(number);
         repl.sources.insert(&file, text);
         let host = Host {

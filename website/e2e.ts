@@ -19,6 +19,7 @@ import { chromium, type Page } from "playwright-core";
 
 import { PAGES_BASE } from "./build.ts";
 import { playgroundSteps } from "./playground/e2e.ts";
+import { replSteps } from "./playground/e2e-repl.ts";
 import { encodeBase64Url } from "./playground/src/share.ts";
 import { browserPath } from "./playground/test/chrome.ts";
 import { PLAYGROUND_APP_DIR, PLAYGROUND_PAGE } from "./src/pages.ts";
@@ -93,16 +94,17 @@ async function openPage(
 }
 
 try {
-  await step("whole programs link to the playground, snippets have no button", async () => {
+  await step("whole programs link to the playground, snippets get Try in REPL", async () => {
     const { page, workers } = await openPage("guide/learn-in-10-minutes.html");
     const snippet = page.locator(".code-block", { hasText: "fn greet(name: string)" }).first();
     await snippet.hover();
-    assert.equal(await snippet.locator(".try-link").count(), 0);
+    assert.equal(await snippet.locator(".try-repl").isVisible(), true);
+    assert.equal(await page.locator("#repl-toggle").isVisible(), true);
     const program = page.locator(".code-block", { hasText: "pub fn main!()" }).first();
     const link = program.locator("a.try-playground");
     assert.equal(await link.textContent(), "Open in playground");
     assert.match((await link.getAttribute("href")) ?? "", /playground\.html#code=/);
-    assert.deepEqual(workers, [], "a page without code to run loads no worker");
+    assert.deepEqual(workers, [], "the REPL's worker loads only when the panel opens");
     await page.context().close();
   });
   await step("spec rule IDs, callouts, and error examples fit light, dark, and phone", async () => {
@@ -425,6 +427,13 @@ try {
     base: `${PAGES_BASE}${PLAYGROUND_APP_DIR}/`,
     step,
     screenshots: SCREENSHOTS,
+  });
+  await replSteps({
+    browser,
+    origin,
+    siteBase: PAGES_BASE,
+    base: `${PAGES_BASE}${PLAYGROUND_APP_DIR}/`,
+    step,
   });
   console.log(`${passed} passed`);
 } finally {

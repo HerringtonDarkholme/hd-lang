@@ -1,5 +1,5 @@
 // The playground page: file tabs, the editor, run/check/share, and the
-// output pane with its Output and WAT views.
+// output pane with its Output, WAT and REPL views.
 
 import "./style.css";
 
@@ -8,10 +8,12 @@ import { EditorView } from "@codemirror/view";
 
 import { CompilerClient } from "./compiler-client.ts";
 import { editorExtensions, offsetOf, withDiagnostics } from "./editor.ts";
+import { cssClass, type StyledClass } from "./hd-language.ts";
 import { DEFAULT_EXAMPLE, EXAMPLES } from "./examples.ts";
 import { OutputPanel } from "./output.ts";
 import { asProject, DEFAULT_MAIN, orderedPaths, pathProblem, type Project } from "./project.ts";
 import type { RunDiagnostic, RunMode } from "./runner.ts";
+import { ReplPanel } from "./repl-panel.ts";
 import { projectFromHash, projectHash } from "./share.ts";
 import { WatPanel } from "./wat-view.ts";
 
@@ -28,6 +30,8 @@ const tabs = byId<HTMLElement>("tabs");
 const status = byId<HTMLElement>("status");
 const outputViewButton = byId<HTMLButtonElement>("view-output");
 const watViewButton = byId<HTMLButtonElement>("view-wat");
+const replViewButton = byId<HTMLButtonElement>("view-repl");
+const replStopButton = byId<HTMLButtonElement>("repl-stop");
 const clearButton = byId<HTMLButtonElement>("clear");
 const watCopyButton = byId<HTMLButtonElement>("wat-copy");
 const watDownloadButton = byId<HTMLButtonElement>("wat-download");
@@ -41,6 +45,10 @@ let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let running = false;
 // The WAT view asks the worker for the module only while the view is open.
 let watOpen = false;
+let shown: "output" | "wat" | "repl" = "output";
+// The REPL view's panel, made when the view first opens; its worker is its
+// own, so Run and Stop of a run never end the session.
+let repl: ReplPanel | undefined;
 /** The project whose module the view shows, as JSON, and whether it may be out of date. */
 let watShown: string | undefined;
 let watStale = true;
@@ -317,16 +325,39 @@ async function execute(mode: RunMode): Promise<void> {
   }
 }
 
-function showView(next: "output" | "wat"): void {
+function showView(next: "output" | "wat" | "repl"): void {
+  shown = next;
   watOpen = next === "wat";
-  outputViewButton.setAttribute("aria-selected", String(!watOpen));
+  outputViewButton.setAttribute("aria-selected", String(next === "output"));
   watViewButton.setAttribute("aria-selected", String(watOpen));
-  byId("output").hidden = watOpen;
+  replViewButton.setAttribute("aria-selected", String(next === "repl"));
+  byId("output").hidden = next !== "output";
   byId("wat").hidden = !watOpen;
+  byId("repl").hidden = next !== "repl";
   clearButton.hidden = watOpen;
   watCopyButton.hidden = !watOpen;
   watDownloadButton.hidden = !watOpen;
+  replStopButton.hidden = next !== "repl" || !replBusy;
+  if (next === "repl") openRepl().focus();
   void refreshWat();
+}
+
+let replBusy = false;
+
+/** The REPL view's panel; the session's package is the editor's files. */
+function openRepl(): ReplPanel {
+  repl ??= new ReplPanel(byId("repl"), {
+    files: () => project().files,
+    reloadHelp: "rebuild the session over the editor's files as they are now",
+    tokenClass: (kind) => cssClass(kind as StyledClass),
+    onBusy: (busy) => {
+      replBusy = busy;
+      replStopButton.hidden = shown !== "repl" || !busy;
+    },
+    onStatus: setStatus,
+  });
+  repl.load();
+  return repl;
 }
 
 /** The project changed: refresh an open WAT view after `delay` ms. */
@@ -444,9 +475,11 @@ checkButton.addEventListener("click", () => void execute("check"));
 testButton.addEventListener("click", () => void execute("test"));
 stopButton.addEventListener("click", () => compiler.stop());
 shareButton.addEventListener("click", () => void share());
-clearButton.addEventListener("click", () => output.clear());
+clearButton.addEventListener("click", () => (shown === "repl" ? repl?.clear() : output.clear()));
+replStopButton.addEventListener("click", () => repl?.stop());
 outputViewButton.addEventListener("click", () => showView("output"));
 watViewButton.addEventListener("click", () => showView("wat"));
+replViewButton.addEventListener("click", () => showView("repl"));
 watCopyButton.addEventListener("click", () => void copyWat());
 watDownloadButton.addEventListener("click", downloadWat);
 window.addEventListener("hashchange", () => void loadFromHash());

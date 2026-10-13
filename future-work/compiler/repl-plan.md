@@ -238,8 +238,7 @@ panics and stops. The journal arrives with `:reload` (jobs J1 and J2).
    page reload restores by rebuild, newest 10 sessions kept.
 6. **Share links** with the journal when it compresses to 16 KiB or less.
 7. **The panel and Try in REPL buttons**, deleted in 59680542 and
-   rebuilt. `website/playground/README.md:128-134` still describes the
-   removed `REPL_PANEL` flag; job W1 fixes it.
+   rebuilt in job W5 (the playground README's "The REPL").
 
 ### 3.3 Checklist From The TS REPL
 
@@ -467,7 +466,7 @@ identical bytes.
 | W2 | Dropped (owner: one worker; Stop rebuilds from the journal) | n/a |
 | W3 | `hd_web` REPL exports and wire format | Done: goal bytes 4 to 6 over the four exports (playground-wasm.md §3.1); `hd_web` tests build the Redefinition example without redeclaration, one module per input with its session keys. No type text or note: the value line goes to stdout, and redeclaring is an error |
 | W4 | JS host: per-input linking in `core.mjs`, recorder and replayer with the `hd_run` row format | Done: `createSession` in `host/core.mjs` (`createNodeSession`, `createWebSession`) links each input to earlier inputs' session keys under `hd.s`, records at the import call sites with `host/journal.mjs`, and rebuilds as J2 does. `hd_run_wasmtime`'s `a_session_runs_and_replays_the_same_on_node` runs one session on both engines with the same transcript, and each journal replays on the other into the same bytes; `repl-session.test.ts` and `journal.test.ts` cover the rest |
-| W5 | The REPL panel and Try in REPL buttons; Stop as cancel, then terminate and rebuild after 250 ms | `website:e2e` REPL cases: value, panic, Stop of a loop with the session restored |
+| W5 | The REPL panel and Try in REPL buttons; Stop as cancel, then terminate and rebuild after 250 ms | Done: the playground's REPL view and the site's docked panel (`repl-panel.ts`) over `repl-host.ts` in the compiler worker; the page numbers inputs and `hd_web`'s repl input takes the number, so a rebuild in a fresh worker keeps them. `website:e2e` (`e2e-repl.ts`): value, binding, panic, Stop of a loop restored from the journal, Stop of a sleep cancelled with its `defer`, `:reload`, `:quit`, Try in REPL; `repl-host.test.ts` covers the worker protocol |
 | W6 | IndexedDB sessions and share links | e2e: a reload restores the session; a link with a journal shows the sender's output |
 
 Order and slack: R1, C1 to C5 and S1 need no answer and can start now.

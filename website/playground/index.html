@@ -81,8 +81,20 @@
             >
               WAT
             </button>
+            <button
+              id="view-repl"
+              class="view"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="repl"
+              title="A REPL over this project: its inputs see src/lib.hd"
+            >
+              REPL
+            </button>
           </div>
           <div class="view-actions">
+            <button id="repl-stop" type="button" class="quiet" hidden>■ Stop</button>
             <button id="clear" type="button" class="quiet">Clear</button>
             <button id="wat-copy" type="button" class="quiet" hidden disabled>Copy</button>
             <button id="wat-download" type="button" class="quiet" hidden disabled>
@@ -92,6 +104,7 @@
         </div>
         <div id="output" class="output" role="tabpanel" aria-labelledby="view-output"></div>
         <div id="wat" class="output wat" role="tabpanel" aria-labelledby="view-wat" hidden></div>
+        <div id="repl" class="output repl-view" role="tabpanel" aria-labelledby="view-repl" hidden></div>
       </section>
     </main>
     <noscript>The playground needs JavaScript and a browser with WebAssembly GC.</noscript>

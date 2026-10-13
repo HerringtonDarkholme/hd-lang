@@ -62,6 +62,9 @@ describe("website build", () => {
     const playground = await readFile(join(outDir, PLAYGROUND_PAGE), "utf8");
     assert.match(playground, /playground is not part of this build/);
     assert.ok(!existsSync(join(outDir, "playground")));
+    // Without the playground's worker there is no REPL panel.
+    assert.doesNotMatch(types, /repl\.js|data-repl-worker/);
+    assert.ok(!existsSync(join(outDir, "assets/repl.js")));
   });
 
   test("renders rule IDs, callouts, rule tables, and error examples", async () => {
@@ -278,8 +281,16 @@ describe("website build", () => {
     assert.ok(existsSync(join(outDir, "playground/assets/app.js")));
     const page = await readFile(join(outDir, PLAYGROUND_PAGE), "utf8");
     assert.match(page, /<iframe id="playground-frame" src="\/playground\/"/);
+    // A page gets the REPL panel, whose worker is the playground's.
     const chapter = await readFile(join(outDir, "spec/04-type-system.html"), "utf8");
-    assert.match(chapter, /<body data-base="\/">/);
+    assert.match(chapter, /<script type="module" src="\/assets\/repl\.js"><\/script>/);
+    assert.match(
+      chapter,
+      /<body data-base="\/" data-repl-worker="\/playground\/assets\/worker\.js">/,
+    );
+    assert.ok(existsSync(join(outDir, "assets/repl.js")));
+    // The playground page has its own REPL view, so no docked panel.
+    assert.doesNotMatch(page, /repl\.js|data-repl-worker/);
     // A tour page gets the editor script and the worker it runs code in.
     const tourPage = await readFile(join(outDir, "tour/1-hello/index.html"), "utf8");
     assert.match(tourPage, /<script type="module" src="\/assets\/tour\.js"><\/script>/);
@@ -291,14 +302,16 @@ describe("website build", () => {
     assert.ok(existsSync(join(outDir, "assets/tour.js")));
   });
 
-  test("gives whole programs a playground link and snippets none", async () => {
+  test("gives snippets Try in REPL and whole programs a playground link", async () => {
     const outDir = join(scratch, "pages");
     const learn = await readFile(join(outDir, "guide/learn-in-10-minutes.html"), "utf8");
     const hello = /<code class="language-hd">([^]*?)<\/code><\/pre>(.*?)<\/div>/.exec(learn);
     assert.ok(hello, "the first hd block renders");
     assert.match(hello[1]!, /hello, hd-lang/);
-    assert.equal(hello[2], "", "a snippet has no action");
-    assert.doesNotMatch(learn, /Try in REPL|try-repl/);
+    assert.equal(
+      hello[2],
+      '<button type="button" class="try-link try-repl" title="Run this code in the REPL panel">Try in REPL</button>',
+    );
     const links = [
       ...learn.matchAll(
         /class="try-link try-playground" href="\/hd-lang\/playground\.html#code=([A-Za-z0-9_-]+)"/g,

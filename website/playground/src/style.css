@@ -572,3 +572,130 @@ button.quiet {
 .wat-paren {
   color: var(--tok-operator);
 }
+
+/* The REPL view (src/repl-panel.ts): the transcript, then the input line. */
+.output.repl-view {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.output.repl-view[hidden] {
+  display: none;
+}
+
+.repl {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.repl-log,
+.repl-input-row {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-variant-ligatures: none;
+  line-height: 1.5;
+  tab-size: 4;
+}
+
+.repl-log {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 14px 0;
+}
+
+.repl-log pre {
+  margin: 0;
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.repl-log .repl-echo {
+  margin-top: 6px;
+}
+
+.repl-echo-prompt,
+.repl-prompt,
+.repl-number,
+.repl-note,
+.repl-debug {
+  color: var(--muted);
+}
+
+.repl-number {
+  float: right;
+  padding-left: 12px;
+  font-size: 11px;
+  user-select: none;
+}
+
+.repl-error {
+  color: var(--error);
+}
+
+.repl-warning {
+  color: var(--warning);
+}
+
+.repl-input-row {
+  display: flex;
+  gap: 8px;
+  padding: 8px 14px 12px;
+  border-top: 1px solid var(--border);
+}
+
+.repl-prompt {
+  margin: 0;
+  font: inherit;
+  user-select: none;
+}
+
+.repl-editor {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.repl-highlight,
+.repl-input {
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  letter-spacing: normal;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 0;
+}
+
+.repl-highlight {
+  pointer-events: none;
+  color: var(--fg);
+}
+
+.repl-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  resize: none;
+  color: transparent;
+  caret-color: var(--fg);
+  background: transparent;
+  outline: none;
+}
+
+.repl-input::placeholder {
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.repl-input::selection {
+  color: transparent;
+  background: var(--selection);
+}

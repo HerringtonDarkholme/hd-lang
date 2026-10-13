@@ -69,6 +69,9 @@ needs WebAssembly GC: Chrome 119, Firefox 120, Safari 18.2, or later.
   view renders at most 10,000 lines; **Copy** and **Download .wat** give the
   full text.
 
+- **REPL**, the third view of the output pane, is a REPL session over the
+  project, as bare `hd` opens one in a package (see [The REPL](#the-repl)).
+
 - Files: `+` adds a module, double-click renames one, and `×` deletes one.
   `▸` makes a module the entry module, which is marked `main`. A file path
   starts with `src/`, `tests/`, or `tasks/`, continues with identifier
@@ -121,17 +124,70 @@ it once. [`src/rust-runner.ts`](src/rust-runner.ts) holds the pipeline:
 
 The results are `RunResult` and `WatResult`
 ([`src/runner.ts`](src/runner.ts)), which the output panel, the WAT view,
-and the tour show. The worker bundle holds only this glue, about 26 KB;
-the compiler is the separate `hd_web.wasm`, about 4.4 MB raw and 1.4 MB
-gzip.
+and the tour show. The worker bundle holds only this glue and the REPL's
+session and journal code, about 50 KB raw and 19 KB gzip; the compiler is
+the separate `hd_web.wasm`, about 4.6 MB raw and 1.4 MB gzip.
 
-## The Website REPL Panel
+## The REPL
 
-The website's REPL panel and its **Try in REPL** buttons are hidden until
-the Rust compiler has a REPL (#17); `REPL_PANEL` in
-[`../build.ts`](../build.ts) turns them back on. Until then the worker
-answers each REPL request that the REPL is not available, and whole
-programs on the site keep their **Open in playground** link.
+The playground's **REPL** view and the website's docked panel (**›\_ REPL**
+at the bottom of every docs page, or Ctrl+\`) are one panel,
+[`src/repl-panel.ts`](src/repl-panel.ts), over a REPL session on the Rust
+compiler (`cli.repl.*` in the spec, repl-plan.md job W5):
+
+- Input: Enter runs an input; a line that ends in `:`, an open bracket, a
+  `"""` string or a line of an indented block continues it, and an empty
+  line ends a block, as at the terminal
+  ([`src/repl-input.ts`](src/repl-input.ts)). Shift+Enter adds a line, Tab
+  indents, Backspace in leading spaces removes one level, and Up and Down
+  recall earlier inputs (history in memory, for the page's life).
+- Output: each input is echoed with its number, `repl#N`, as its
+  diagnostics and `dbg` lines name it. Standard output shows as written,
+  value lines included (`[3, 6] : List[usize]`); `dbg` lines show muted;
+  a panic, `cancelled` and diagnostics show as errors.
+- The session's package is the project's files in the playground (its
+  inputs see `src/lib.hd`, `cli.repl.package.lib`), and none on the
+  website. Inputs entered while one runs wait their turn.
+- Commands: `:help` lists them. `:reload` rebuilds the session from its
+  journal over the editor's files as they are now (on the website, over the
+  same empty package), and reports what it skipped and dropped as `hd`
+  does. `:quit`, `:q`, `:exit` and Ctrl+D on an empty line end the
+  session; the next input starts a new one, numbered from 1, and the
+  website's panel closes.
+- **Stop** first asks the worker to cancel the input, which ends an input
+  waiting on the host at once: its `defer` suites run and it ends
+  `cancelled` (`cli.repl.cancel`). An input that computes never reads that
+  message, so after 250 ms the page terminates the worker, starts a fresh
+  one and rebuilds the session from the journal (`cli.repl.rebuild`): each
+  kept input is built again under its old number and replayed with every
+  host call served from the journal. The stopped input is not in the
+  journal, so its changes are lost; the panel says so, and reports the
+  inputs the rebuild skipped (cancelled earlier) and dropped, as `hd`
+  reports `:reload`.
+
+How the pieces fit:
+
+- The session runs in a playground compiler worker
+  ([`src/worker.ts`](src/worker.ts)): the compiler's REPL session (the
+  `repl*` goals of `hd_web`) and the JS session that runs each input's
+  module ([`host/web.mjs`](../../host/web.mjs) `createWebSession`) sit side
+  by side in [`src/repl-host.ts`](src/repl-host.ts). The playground's REPL
+  view has its own worker, so Run and its Stop never end the session.
+- The worker protocol: `repl-start` (files) answers `started`;
+  `repl-input` (number, text) streams `repl-out` messages and answers
+  `ran`, with the session's journal; `repl-stop` cancels; `repl-rebuild`
+  (files, journal, each input's text) answers `rebuilt` with what it kept,
+  skipped and dropped; `repl-quit` answers `ended`. The page side is
+  [`src/repl-client.ts`](src/repl-client.ts). It numbers the inputs and
+  keeps the files, texts and latest journal a fresh worker needs.
+- [`test/repl-host.test.ts`](test/repl-host.test.ts) drives the worker
+  protocol on Node, a terminated worker included;
+  [`e2e-repl.ts`](e2e-repl.ts) drives the view and the docked panel in
+  Chromium.
+- A code block on the website that parses gets **Try in REPL**, which opens
+  the panel and runs the block's top-level items as inputs, one by one, so
+  each expression shows its value. A block that declares `main` gets
+  **Open in playground** instead.
 
 ## Packages and Modules
 

@@ -10,7 +10,7 @@ import { loadCorpus } from "../spec/tools/spec-corpus.ts";
 import { glossary, glossaryMarkdown } from "../spec/tools/spec-glossary.ts";
 import { buildOptions, buildPlayground } from "./playground/build.ts";
 import { renderHome } from "./src/home.ts";
-import { renderLayout } from "./src/layout.ts";
+import { renderLayout, REPL_SCRIPT } from "./src/layout.ts";
 import { checkHdBlocksParse, checkTourSnippets, LEARN_PAGE } from "./src/learn-check.ts";
 import { checkLinks } from "./src/links.ts";
 import { buildGrammarIndex, type GrammarIndex } from "./src/ebnf.ts";
@@ -92,10 +92,11 @@ function playgroundUrl(base: string): (code: string) => string {
 }
 
 /**
- * Bundles the tour's editor script (website/client/tour.ts) into the site's
- * assets. The compiler worker it starts comes from the playground build.
+ * Bundles a page script from website/client/ into the site's assets: the
+ * REPL panel (repl.ts) or the tour's editor (tour.ts). The compiler worker
+ * each starts comes from the playground build.
  */
-async function bundleClient(name: "tour", outfile: string): Promise<void> {
+async function bundleClient(name: "repl" | "tour", outfile: string): Promise<void> {
   await esbuild.build(
     buildOptions({
       entryPoints: [join(WEBSITE_DIR, "client", `${name}.ts`)],
@@ -171,7 +172,11 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
   if (playgroundDist === undefined) await buildPlayground(join(outDir, PLAYGROUND_APP_DIR));
   else if (playground)
     await cp(playgroundDist, join(outDir, PLAYGROUND_APP_DIR), { recursive: true });
-  if (playground) await bundleClient("tour", join(outDir, TOUR_SCRIPT));
+  if (playground)
+    await Promise.all([
+      bundleClient("repl", join(outDir, REPL_SCRIPT)),
+      bundleClient("tour", join(outDir, TOUR_SCRIPT)),
+    ]);
 
   const md = createMarkdown();
   const linkErrors: string[] = [];
@@ -233,6 +238,7 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
         headings: env.headings,
         source: entry.generated ? undefined : entry.source,
         shape: home ? "home" : "docs",
+        repl: playground,
       }),
     );
   }

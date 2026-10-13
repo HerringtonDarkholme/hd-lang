@@ -70,7 +70,7 @@ export class CompilerClient {
           this.options.onReady?.();
         } else if (data.id === this.pending?.id) {
           if (data.kind === "stdout") this.pending.onStdout(data.line, data.debug);
-          else this.settle(data);
+          else if (data.kind === "result" || data.kind === "wat") this.settle(data);
         }
       });
     });
@@ -85,7 +85,7 @@ export class CompilerClient {
   }
 
   private async send(
-    request: WorkerRequest,
+    request: Extract<WorkerRequest, { kind: "project" | "wat" }>,
     onStdout: (line: string, debug?: boolean) => void = () => undefined,
   ): Promise<Answer | Interrupted> {
     this.start();

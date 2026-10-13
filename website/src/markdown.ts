@@ -235,10 +235,17 @@ function isWholeProgram(code: string): boolean {
   return /^(?:pub\s+)?fn\s+main!?\s*\(/m.test(code);
 }
 
-/** The action on a code block that parses: a whole program links to the playground. */
+/**
+ * The action on a code block that parses. A snippet gets a Try in REPL
+ * button, which the REPL panel script reveals and handles: it runs the
+ * snippet's top-level items as REPL inputs. A whole program links to the
+ * playground instead, since a REPL input cannot declare `main`.
+ */
 function tryAction(code: string, env: RenderEnv): string {
-  if (!isWholeProgram(code) || !parsesAsHd(code)) return "";
-  return `<a class="try-link try-playground" href="${escapeHtml(env.playgroundUrl(code))}">Open in playground</a>`;
+  if (!parsesAsHd(code)) return "";
+  if (isWholeProgram(code))
+    return `<a class="try-link try-playground" href="${escapeHtml(env.playgroundUrl(code))}">Open in playground</a>`;
+  return '<button type="button" class="try-link try-repl" title="Run this code in the REPL panel">Try in REPL</button>';
 }
 
 // markdown-it types the render environment loosely; every render here passes a RenderEnv.

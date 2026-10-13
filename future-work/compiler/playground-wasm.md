@@ -127,7 +127,7 @@ module of the session; JS links and runs the modules (W4).
 | Goal byte | Request after the goal byte | Response JSON | Output kind 1 |
 | --- | --- | --- | --- |
 | 4 repl start | nothing; the files are the session's package, entry empty | `{"diagnostics","input":0,"sessionKeys"}` | the prelude |
-| 5 repl input | the input's text; no files, entry empty | `{"diagnostics","input":N,"sessionKeys"}` | input N's module, when it built |
+| 5 repl input | the input's text, then optionally its number N; no files, entry empty | `{"diagnostics","input":N,"sessionKeys"}` | input N's module, when it built |
 | 6 repl outcome | module number, then outcome byte (0 joined, 1 dropped); no files, entry empty | `{"diagnostics":[],"input":N,"joined"}` | empty |
 
 - Repl start drops any earlier session and builds the prelude
@@ -136,7 +136,12 @@ module of the session; JS links and runs the modules (W4).
   fails every input, as on the CLI.
 - Repl input builds `repl#N` with `Goal::ReplInput` over the inputs
   that joined; diagnostics name `repl#N`. An input that does not build
-  is dropped at once (status 1, no bytes); its number stays used.
+  is dropped at once (status 1, no bytes); its number stays used. N is
+  the request's number when it gives one, which must be greater than
+  every earlier module's, else one more than the last. The playground
+  numbers its inputs itself (W5), so a session rebuilt in a fresh worker
+  builds its kept inputs again under their old numbers, and the
+  diagnostics, `dbg` lines and journal keep the numbers the page shows.
 - `sessionKeys` are the module's exports that
   `hd_wasm::is_session_key` accepts. JS registers them under `hd.s` for
   later modules. The entry exports are not among them.

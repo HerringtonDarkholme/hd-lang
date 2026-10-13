@@ -13,7 +13,7 @@
 //! | 2 | test | the same | none |
 //! | 3 | wat | the same | none |
 //! | 4 | repl start | the files the session acts in (its package); entry empty | none |
-//! | 5 | repl input | none; entry empty | the input's text (a string) |
+//! | 5 | repl input | none; entry empty | the input's text (a string), then optionally its number |
 //! | 6 | repl outcome | none; entry empty | the module's number, then one outcome byte |
 //!
 //! Goal 3 compiles as goal 0 does, then prints the program as WebAssembly
@@ -33,7 +33,10 @@
 //!
 //! - Repl start drops any earlier REPL session and builds the new one's
 //!   prelude, module 0. Repl input builds the next input, `repl#N`, over
-//!   the inputs that joined. Both answer
+//!   the inputs that joined. N is the number the request gives, which must
+//!   be greater than every module's before it, or else one more than the
+//!   last module's; a host that rebuilds a session builds its kept inputs
+//!   again under their old numbers. Both answer
 //!   `{"diagnostics":[...],"input":N,"sessionKeys":[...]}` and the module
 //!   in the bytes (output kind 1), or no bytes and status 1 when it does
 //!   not build; such an input is dropped at once. `sessionKeys` are the
@@ -81,8 +84,9 @@ pub enum Action {
     Compile { goal: Goal, wat: bool },
     /// Goal byte 4: start a REPL session over the request's files.
     ReplStart,
-    /// Goal byte 5: build the REPL session's next input.
-    ReplInput { text: String },
+    /// Goal byte 5: build the REPL session's next input, numbered
+    /// `number`, or one after the last module.
+    ReplInput { text: String, number: Option<u32> },
     /// Goal byte 6: module `input` ended with status 0 (`joined`), or not.
     ReplOutcome { input: u32, joined: bool },
 }
@@ -111,7 +115,11 @@ pub fn respond(session: &mut Session, request: &[u8]) -> Response {
     match req.action {
         Action::Compile { goal, wat } => compile(session, req.files, &req.entry, goal, wat),
         Action::ReplStart => repl_build(session.repl_start(req.files)),
-        Action::ReplInput { text } => repl_build(session.repl_input(&text)),
+        Action::ReplInput { text, number: None } => repl_build(session.repl_input(&text)),
+        Action::ReplInput {
+            text,
+            number: Some(number),
+        } => repl_build(session.repl_input_as(number, &text)),
         Action::ReplOutcome { input, joined } => match session.repl_outcome(input, joined) {
             Ok(()) => Response {
                 status: STATUS_OK,
@@ -217,7 +225,18 @@ pub fn decode_request(bytes: &[u8]) -> Result<Request, WireError> {
             wat: false,
         },
         4 => Action::ReplStart,
-        5 => Action::ReplInput { text: r.string()? },
+        5 => {
+            let text = r.string()?;
+            let number = if r.at == bytes.len() {
+                None
+            } else {
+                Some(
+                    u32::try_from(r.leb()?)
+                        .map_err(|_| WireError("number does not fit 32 bits"))?,
+                )
+            };
+            Action::ReplInput { text, number }
+        }
         6 => {
             let input =
                 u32::try_from(r.leb()?).map_err(|_| WireError("number does not fit 32 bits"))?;
@@ -615,7 +634,17 @@ mod tests {
         assert_eq!(
             decode_request(&repl_input("1 + 2\n")).unwrap().action,
             Action::ReplInput {
-                text: "1 + 2\n".into()
+                text: "1 + 2\n".into(),
+                number: None
+            }
+        );
+        let mut numbered = repl_input("1 + 2\n");
+        leb(&mut numbered, 300);
+        assert_eq!(
+            decode_request(&numbered).unwrap().action,
+            Action::ReplInput {
+                text: "1 + 2\n".into(),
+                number: Some(300)
             }
         );
         assert_eq!(
@@ -626,6 +655,8 @@ mod tests {
             }
         );
         let bad = |bytes: &[u8]| decode_request(bytes).unwrap_err().0;
+        numbered.push(0);
+        assert_eq!(bad(&numbered), "bytes after the request's last field");
         assert_eq!(bad(&repl_outcome(1, 2)), "unknown outcome byte");
         assert_eq!(
             bad(&request(&[], "src/main.hd", 4)),
@@ -694,6 +725,27 @@ mod tests {
         );
         assert!(unknown.json.ends_with("\"input\":2,\"sessionKeys\":[]}"));
         assert!(unknown.wasm.is_empty());
+
+        // A numbered input keeps its number, which only goes up.
+        let mut numbered = repl_input("y\n");
+        leb(&mut numbered, 7);
+        let seven = respond(&mut session, &numbered);
+        assert!(
+            seven
+                .json
+                .starts_with("{\"diagnostics\":[{\"path\":\"repl#7\""),
+            "{}",
+            seven.json
+        );
+        let after = respond(&mut session, &repl_input("1\n"));
+        assert!(after.json.contains("\"input\":8,"), "{}", after.json);
+        respond(&mut session, &repl_outcome(8, 0));
+        let mut again = repl_input("1\n");
+        leb(&mut again, 8);
+        assert_eq!(
+            respond(&mut session, &again).json,
+            "{\"error\":\"input 8 does not come after module 8\"}"
+        );
     }
 
     #[test]

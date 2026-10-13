@@ -1,5 +1,12 @@
 import { escapeHtml, inlineCode, type Heading } from "./markdown.ts";
-import { navSections, PAGES, PLAYGROUND_PAGE, REPOSITORY_URL, type PageSource } from "./pages.ts";
+import {
+  navSections,
+  PAGES,
+  PLAYGROUND_APP_DIR,
+  PLAYGROUND_PAGE,
+  REPOSITORY_URL,
+  type PageSource,
+} from "./pages.ts";
 
 /**
  * The page shells:
@@ -35,7 +42,15 @@ interface LayoutInput {
   readonly nav?: string;
   /** Module scripts the page loads, as paths under the base. */
   readonly scripts?: readonly string[];
+  /**
+   * Adds the bottom REPL panel, which needs the playground build: its
+   * compiler worker loads when the panel first opens.
+   */
+  readonly repl?: boolean;
 }
+
+/** The site asset that runs the REPL panel; website/build.ts bundles it. */
+export const REPL_SCRIPT = "assets/repl.js";
 
 /**
  * The site's faces, Inter and JetBrains Mono, as an HTML attribute value.
@@ -182,11 +197,18 @@ export function renderLayout(input: LayoutInput): string {
 <link rel="stylesheet" href="${FONTS_URL}">
 <link rel="stylesheet" href="${base}assets/style.css">
 <link rel="icon" href="${base}assets/favicon.svg" type="image/svg+xml">
-<script src="${base}assets/site.js" defer></script>${(input.scripts ?? [])
+<script src="${base}assets/site.js" defer></script>${[
+    ...(input.repl ? [REPL_SCRIPT] : []),
+    ...(input.scripts ?? []),
+  ]
     .map((script) => `\n<script type="module" src="${base}${script}"></script>`)
     .join("")}
 </head>
-<body data-base="${escapeHtml(base)}">
+<body data-base="${escapeHtml(base)}"${
+    input.repl
+      ? ` data-repl-worker="${escapeHtml(`${base}${PLAYGROUND_APP_DIR}/assets/worker.js`)}"`
+      : ""
+  }>
 <a class="skip-link" href="#content">Skip to content</a>
 <header class="topbar">
   <div class="topbar-inner">
