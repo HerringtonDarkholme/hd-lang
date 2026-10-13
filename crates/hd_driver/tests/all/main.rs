@@ -56,6 +56,7 @@ mod forbidden_context_run;
 mod function_reference_builtin_methods;
 mod function_reference_lowered;
 mod function_references;
+mod generic_inference_join;
 mod generic_local_fn_run;
 mod generic_member_call;
 mod generic_shared_data_run;

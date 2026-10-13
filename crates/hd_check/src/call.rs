@@ -133,6 +133,99 @@ pub(crate) struct Formals<'a> {
     pub defaults: &'a [bool],
     /// Whether the final parameter is a vararg (`fn.vararg.form`).
     pub variadic: bool,
+    /// Per parameter: the inferred type parameters it names, by generic
+    /// index, so the inference join checks arguments that share one
+    /// (`types.generic.infer.join.other-conflict`).
+    pub inferred: &'a [Vec<usize>],
+}
+
+/// Whether a pre-instantiation formal type is a bare occurrence of type
+/// parameter `i` of `owner`, with at most an outer permission on it.
+/// Wrapped occurrences (`Tree[T]`) unify through the parameter instead and
+/// never join here.
+fn bare_param(pool: hd_types::Types<'_>, t: Ty, owner: DefId, i: usize) -> bool {
+    let t = match pool.get(t) {
+        TyData::Mut(inner) => inner,
+        _ => t,
+    };
+    matches!(
+        pool.get(t),
+        TyData::Param(p) if p.owner == owner && p.index as usize == i
+    )
+}
+
+/// Per-formal inferred generic indices for the join check: a formal joins
+/// every group for a type parameter of `owner` it names bare, unless an
+/// explicit argument was written for it. `sig` must align with `formals`;
+/// any extra formal joins nothing. `_` placeholders count as explicit and
+/// keep today's behavior.
+fn inferred_formals(
+    ck: &Ck,
+    owner: DefId,
+    sig: &FnSig,
+    explicit: &[Ty],
+    formals: &[(Symbol, Ty)],
+) -> Vec<Vec<usize>> {
+    let pool = ck.pool();
+    formals
+        .iter()
+        .zip(sig.params.iter())
+        .map(|(_, (_, s))| {
+            (0..sig.generics.len())
+                .filter(|&i| explicit.get(i).is_none() && bare_param(pool, *s, owner, i))
+                .collect()
+        })
+        .chain(std::iter::repeat_with(Vec::new))
+        .take(formals.len())
+        .collect()
+}
+
+/// Records this argument's type for each inferred generic its formal names
+/// and reports whether it conflicts with an earlier one for the same
+/// generic (`types.generic.infer.join.other-conflict`).
+fn join_arg(
+    ck: &mut Ck,
+    groups: Option<&[usize]>,
+    first: &mut HashMap<usize, Ty>,
+    mark: hd_diag::DiagMark,
+    t: Ty,
+    e: NodeRef<'_>,
+    what: &str,
+) -> bool {
+    // Literals take the solved type (`types.generic.infer.join.literal`,
+    // and string injection): they never constrain the join either way.
+    // Parentheses do not change the value.
+    let mut bare = e;
+    while bare.kind() == SyntaxKind::ParenExpr {
+        let Some(inner) = bare.children().next() else {
+            break;
+        };
+        bare = inner;
+    }
+    if matches!(
+        bare.kind(),
+        SyntaxKind::LiteralExpr | SyntaxKind::StringExpr | SyntaxKind::PlaceholderExpr
+    ) {
+        return false;
+    }
+    // One failed expression is one diagnostic: once this call has an error,
+    // later arguments keep their own checking but join no further.
+    if ck.diags.errors_since(mark) > 0 {
+        return false;
+    }
+    let Some(gs) = groups else {
+        return false;
+    };
+    for g in gs {
+        if let Some(&prev) = first.get(g) {
+            if ck.infer_other_conflict(prev, t, e, what) {
+                return true;
+            }
+        } else {
+            first.insert(*g, t);
+        }
+    }
+    false
 }
 
 /// Where a positional spread stands among the parameters not yet given.
@@ -759,10 +852,14 @@ impl Ck<'_, '_> {
             let formals: Vec<(Symbol, Ty)> =
                 form.names.iter().copied().zip(ps.iter().copied()).collect();
             let defaults: Vec<bool> = form.defaults.iter().map(Option::is_some).collect();
+            // Reached only through explicit type arguments: every formal is
+            // fixed, and the join check stays off.
+            let inferred: Vec<Vec<usize>> = vec![Vec::new(); formals.len()];
             let formals = Formals {
                 params: &formals,
                 defaults: &defaults,
                 variadic: false,
+                inferred: &inferred,
             };
             self.local_defaults = Some(crate::local::LocalDefaults {
                 defaults: form.defaults.clone(),
@@ -784,10 +881,14 @@ impl Ck<'_, '_> {
                 .map(|(i, t)| (self.cx.names.syms.intern(&format!("${i}")), *t))
                 .collect();
             let defaults = vec![false; ps.len()];
+            // Function values keep today's behavior: without a declaration
+            // there is no explicit/inferred split to read.
+            let inferred: Vec<Vec<usize>> = vec![Vec::new(); formals.len()];
             let formals = Formals {
                 params: &formals,
                 defaults: &defaults,
                 variadic: true,
+                inferred: &inferred,
             };
             self.check_args(&formals, 0, args, n, "the function value")?
         } else if args.spread.is_some() {
@@ -969,6 +1070,10 @@ impl Ck<'_, '_> {
         // A vararg is the final parameter; the fixed ones come before it.
         let nfixed = rest.len() - usize::from(variadic);
         let mut slots: Vec<Option<Ref>> = vec![None; rest.len()];
+        // The first argument type seen for each inferred generic: later
+        // arguments for the same generic must meet it by the join.
+        let mut join_first: HashMap<usize, Ty> = HashMap::new();
+        let join_mark = self.diags.mark();
         // A trailing block supplies the final parameter, so positional
         // arguments fill the ones before it (`fn.trailing.arguments`).
         // A block the callee cannot take fills nothing.
@@ -1034,22 +1139,31 @@ impl Ck<'_, '_> {
             {
                 w = Some(self.normalize_deep(p.1)?);
             }
+            let what = if rest
+                .get(i)
+                .is_some_and(|p| matches!(pool.get(p.1), TyData::Infer(_)))
+            {
+                "inferred argument"
+            } else {
+                "argument"
+            };
             let r = match w {
                 Some(w) if rejoin && self.infer_join_conflict(w, t, *e) => r,
-                Some(w) => self.coerce(
-                    r,
-                    t,
-                    w,
-                    *e,
-                    if rest
-                        .get(i)
-                        .is_some_and(|p| matches!(pool.get(p.1), TyData::Infer(_)))
-                    {
-                        "inferred argument"
+                Some(w) => {
+                    if join_arg(
+                        self,
+                        formals.inferred.get(skip + i).map(Vec::as_slice),
+                        &mut join_first,
+                        join_mark,
+                        t,
+                        *e,
+                        what,
+                    ) {
+                        r
                     } else {
-                        "argument"
-                    },
-                ),
+                        self.coerce(r, t, w, *e, what)
+                    }
+                }
                 None => r,
             };
             if i < room
@@ -1117,17 +1231,24 @@ impl Ck<'_, '_> {
                 slots[i] = Some(r);
                 continue;
             }
-            slots[i] = Some(self.coerce(
-                r,
+            let what2 = if matches!(pool.get(rest[i].1), TyData::Infer(_)) {
+                "inferred argument"
+            } else {
+                "argument"
+            };
+            if join_arg(
+                self,
+                formals.inferred.get(skip + i).map(Vec::as_slice),
+                &mut join_first,
+                join_mark,
                 t,
-                w,
                 *e,
-                if matches!(pool.get(rest[i].1), TyData::Infer(_)) {
-                    "inferred argument"
-                } else {
-                    "argument"
-                },
-            ));
+                what2,
+            ) {
+                slots[i] = Some(r);
+                continue;
+            }
+            slots[i] = Some(self.coerce(r, t, w, *e, what2));
         }
         if let Some(block) = args.trailing {
             // A block the callee cannot take is still checked, against
@@ -1579,10 +1700,12 @@ impl Ck<'_, '_> {
                     }
                 }
                 self.default_owner = Some((def, pool.list(&vars), vec![]));
+                let inferred = inferred_formals(self, def, &sig, explicit, &params);
                 let formals = Formals {
                     params: &params,
                     defaults: &sig.defaults,
                     variadic: sig.variadic,
+                    inferred: &inferred,
                 };
                 let refs = self.check_args(&formals, 0, args, n, &name)?;
                 // A rejected argument makes the call an error value, so
@@ -2386,10 +2509,12 @@ impl Ck<'_, '_> {
             let mut all = impl_args.clone();
             all.extend(&vars);
             self.default_owner = Some((method, pool.list(&all), vec![]));
+            let inferred = inferred_formals(self, method, &sig, &explicit, &params);
             let formals = Formals {
                 params: &params,
                 defaults: &sig.defaults,
                 variadic: sig.variadic,
+                inferred: &inferred,
             };
             let refs = self.check_args(&formals, 0, args, n, name)?;
             self.fill_method_defaults(&sig, &vars, &inst, want)?;
@@ -3175,10 +3300,12 @@ impl Ck<'_, '_> {
                 let mut all = impl_args.clone();
                 all.extend(&vars);
                 self.default_owner = Some((method, pool.list(&all), vec![recv]));
+                let inferred = inferred_formals(self, method, &sig, &explicit, &params);
                 let formals = Formals {
                     params: &params,
                     defaults: &sig.defaults,
                     variadic: sig.variadic,
+                    inferred: &inferred,
                 };
                 refs.extend(self.check_args(&formals, 1, args, n, name)?);
                 self.fill_method_defaults(&sig, &vars, &inst, want)?;
@@ -3226,10 +3353,13 @@ impl Ck<'_, '_> {
                 let mut refs = vec![recv];
                 let mut full = vec![(self.cx.names.syms.intern("self"), rt)];
                 full.extend(ps);
+                // Builtin signatures are fixed: the join check stays off.
+                let inferred: Vec<Vec<usize>> = vec![Vec::new(); full.len()];
                 let formals = Formals {
                     params: &full,
                     defaults: &[],
                     variadic: false,
+                    inferred: &inferred,
                 };
                 refs.extend(self.check_args(&formals, 1, args, n, name)?);
                 let rec = self.b.refs_record(&refs);
@@ -3401,10 +3531,12 @@ impl Ck<'_, '_> {
             }
             _ => 0,
         };
+        let inferred = inferred_formals(self, method, &sig, &explicit, &params);
         let formals = Formals {
             params: &params,
             defaults: &sig.defaults,
             variadic: sig.variadic,
+            inferred: &inferred,
         };
         let method_name = self
             .cx

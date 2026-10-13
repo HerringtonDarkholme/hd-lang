@@ -648,4 +648,69 @@ impl Ck<'_, '_> {
         self.err(Code::NoCommonType, n, &msg);
         true
     }
+
+    /// Whether two argument types meet by the inference join: outer
+    /// permissions may weaken, but everything inside must already match in
+    /// both directions. A `mut` inside the type, an option layer, or two
+    /// different constructors conflict, even where unification or one
+    /// direction's permission fit would pass.
+    fn infer_join_compatible(&mut self, a: Ty, b: Ty) -> bool {
+        let pool = self.pool();
+        let (a, b) = (self.infer.resolve(pool, a), self.infer.resolve(pool, b));
+        // Anything still generic takes whatever the rest of checking gives
+        // it: only fully ground pairs meet here. In particular this keeps
+        // existentials, placeholders, and projections on today's behavior.
+        if pool.has_infer(a)
+            || pool.has_infer(b)
+            || pool.has_param(a)
+            || pool.has_param(b)
+            || pool.has_canon(a)
+            || pool.has_canon(b)
+            || pool.has_assoc(a)
+            || pool.has_assoc(b)
+        {
+            return true;
+        }
+        // Poison and divergence are reported elsewhere, if at all.
+        if matches!(pool.get(a), TyData::Poison | TyData::Never)
+            || matches!(pool.get(b), TyData::Poison | TyData::Never)
+        {
+            return true;
+        }
+        let strip = |t: Ty| match pool.get(t) {
+            TyData::Mut(i) => i,
+            _ => t,
+        };
+        let (a, b) = (strip(a), strip(b));
+        // Function types carry invariant rows and their own subtyping: the
+        // join never meets them.
+        if matches!(pool.get(a), TyData::Fn { .. }) || matches!(pool.get(b), TyData::Fn { .. }) {
+            return true;
+        }
+        self.can_unify(a, b) && self.perm_fits(a, b, true, 0) && self.perm_fits(b, a, true, 0)
+    }
+
+    /// `type-mismatch` (`types.generic.infer.join.other-conflict`): any
+    /// other conflict between the arguments' types for one inferred type
+    /// parameter. Reports at the later argument and returns whether it did;
+    /// the caller then skips its own coercion. Trait-value pairs belong to
+    /// `infer_join_conflict`, which runs first.
+    pub(crate) fn infer_other_conflict(
+        &mut self,
+        want: Ty,
+        got: Ty,
+        n: NodeRef<'_>,
+        what: &str,
+    ) -> bool {
+        if self.infer_join_compatible(want, got) {
+            return false;
+        }
+        let msg = format!(
+            "in {what}: expected {}, found {}; the arguments for one type parameter may differ only by outer permission: write a conversion, as in `max(i64(small), large)`",
+            self.show(want),
+            self.show(got)
+        );
+        self.err(Code::TypeMismatch, n, &msg);
+        true
+    }
 }

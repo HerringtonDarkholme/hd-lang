@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2810 | 20 | 15 | 2845 |
+| 2812 | 18 | 15 | 2845 |
 
 ## By Chapter
 
@@ -17,7 +17,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/01-lexical-structure.md` | 145 | 0 | 0 | 145 |
 | `lang/02-grammar.md` | 215 | 0 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
-| `lang/04-type-system.md` | 345 | 7 | 0 | 352 |
+| `lang/04-type-system.md` | 347 | 5 | 0 | 352 |
 | `lang/05-expressions.md` | 276 | 1 | 0 | 277 |
 | `lang/06-control-flow.md` | 154 | 0 | 3 | 157 |
 | `lang/07-functions.md` | 126 | 4 | 0 | 130 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 917 | 0 | 12 | 929 |
-| `typing/invalid` | 1055 | 20 | 0 | 1075 |
+| `typing/invalid` | 1057 | 18 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 20 | 0 | 0 | 20 |
 
@@ -75,12 +75,12 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:no-diagnostic` | 18 |
+| `fail:no-diagnostic` | 16 |
 | `fail:unknown-name` | 2 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 11 |
 
-<details><summary><code>fail:no-diagnostic</code> (18)</summary>
+<details><summary><code>fail:no-diagnostic</code> (16)</summary>
 
 - `typing/invalid/suspension-forbidden-context.hd`
 - `typing/invalid/generic-supertrait-upcast-mismatch.hd`
@@ -91,8 +91,6 @@ compiler stage that first declined the case.
 - `typing/invalid/error-marker-outside.hd`
 - `typing/invalid/function-type-rest-not-list.hd`
 - `typing/invalid/vararg-type-not-collection.hd`
-- `typing/invalid/generic-inference-variance-conflict.hd`
-- `typing/invalid/generic-inference-optional-conflict.hd`
 - `typing/invalid/row-slot-bare-explicit-argument.hd`
 - `typing/invalid/contravariant-inferred-private-result.hd`
 - `typing/invalid/contravariant-inferred-invariant-result.hd`
@@ -1816,8 +1814,10 @@ typing/invalid/generic-function-value-argument-unsolved.hd
 typing/invalid/generic-function-value-without-arguments.hd
 typing/invalid/generic-inference-conflict.hd
 typing/invalid/generic-inference-numeric-widening.hd
+typing/invalid/generic-inference-optional-conflict.hd
 typing/invalid/generic-inference-supertrait-widening.hd
 typing/invalid/generic-inference-trait-value.hd
+typing/invalid/generic-inference-variance-conflict.hd
 typing/invalid/generic-member-call.hd
 typing/invalid/generic-provider-key-collision-nested.hd
 typing/invalid/generic-provider-key-collision-spread.hd
