@@ -290,6 +290,18 @@ fn passing_bodies_retain_globals_without_reinitialization_and_clear_output() {
     assert!(runner.instance.is_none());
 }
 
+/// `hd test` records no journal: only a REPL session does.
+#[test]
+fn a_test_body_records_no_journal() {
+    let engine = engine();
+    let mut runner = runner(&engine, &wasm(Body::Counter, false), Limits::default());
+    let state = State::new(case());
+    state.begin_body(0, 0);
+    assert_eq!(runner.run_body(state, false).unwrap().stderr, "1");
+    let instance = runner.instance.as_ref().expect("a retained instance");
+    assert!(instance.store.data().journal.is_none());
+}
+
 #[test]
 fn replacement_bodies_and_rows_get_fresh_globals() {
     let engine = engine();

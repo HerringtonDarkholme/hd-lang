@@ -60,6 +60,9 @@ pub struct Host {
     timeout_millis: Option<i64>,
     pub(crate) output_overflow: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
     pub(crate) output_budget: Option<(std::sync::Arc<std::sync::atomic::AtomicUsize>, usize)>,
+    /// A REPL session's journal (live-execution.md §4), which every host
+    /// call and driver event is recorded in; `None` for every other run.
+    pub(crate) journal: Option<hd_run::journal::Recorder>,
 }
 
 impl Host {
@@ -97,6 +100,7 @@ impl Host {
             timeout_millis: None,
             output_overflow: None,
             output_budget: None,
+            journal: None,
         }
     }
 

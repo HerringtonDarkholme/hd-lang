@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::task::Poll;
 
+use hd_run::journal::End;
 use hd_run::{Instance, Outcome, StartError};
 use wasmtime::{Store, Trap, TypedFunc, WasmBacktrace};
 
@@ -31,6 +32,9 @@ pub struct WasmtimeInstance {
     /// module byte offset, which a test report symbolizes
     /// (wasm-layout.md §15.9).
     pub(crate) last_frames: Vec<(u32, u32)>,
+    /// Whether a session's stop ended the run: `Stopped` while Wasm ran,
+    /// `Cancelled` while it waited. For the input's `End` row.
+    pub(crate) halt: Option<End>,
 }
 
 impl WasmtimeInstance {
@@ -47,6 +51,7 @@ impl WasmtimeInstance {
             close_on_end: true,
             last_trapped: false,
             last_frames: Vec::new(),
+            halt: None,
         }
     }
 
@@ -107,6 +112,7 @@ impl WasmtimeInstance {
         self.done = None;
         self.last_trapped = false;
         self.last_frames.clear();
+        self.halt = None;
         Ok(())
     }
 }
@@ -177,7 +183,10 @@ impl WasmtimeInstance {
                     let report = host.time_limit_report();
                     host.err(&report);
                 }
-                Stop::Interrupted => host.err("stopped\n"),
+                Stop::Interrupted => {
+                    host.err("stopped\n");
+                    self.halt = Some(End::Stopped);
+                }
                 Stop::Internal(m) => host.err(&format!("internal error: {m}\n")),
                 Stop::Deadlock => {}
                 Stop::EndCase => unreachable!("handled before panic reporting"),
@@ -217,6 +226,10 @@ impl WasmtimeInstance {
         if let Some(flag) = &self.store.data().interrupt {
             flag.store(false, std::sync::atomic::Ordering::Relaxed);
         }
+        if let Some(journal) = self.store.data_mut().journal.as_mut() {
+            journal.cancel();
+        }
+        self.halt = Some(End::Cancelled);
         if let Err(error) = cancel.call(&mut self.store, ()) {
             return self.trapped(&error);
         }
@@ -233,6 +246,9 @@ impl WasmtimeInstance {
     fn step(&mut self) -> Poll<Outcome> {
         if let Err(error) = self.store.data().check_deadline() {
             return Poll::Ready(self.trapped(&error));
+        }
+        if let Some(journal) = self.store.data_mut().journal.as_mut() {
+            journal.poll();
         }
         match self
             .poll
@@ -288,6 +304,9 @@ impl Instance for WasmtimeInstance {
         let Some(wake) = self.wake.clone().filter(|_| self.done.is_none()) else {
             return;
         };
+        if let Some(journal) = self.store.data_mut().journal.as_mut() {
+            journal.wake(handles);
+        }
         let n = match deliver_batch(&mut self.store, handles) {
             Ok(count) => count,
             Err(error) => {

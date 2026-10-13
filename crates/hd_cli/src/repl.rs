@@ -46,6 +46,13 @@ an empty line ends it.
 Ctrl-C clears the line, or stops the input that runs.
 ";
 
+/// Said once, after the input in which the session's journal of host
+/// calls passed its cap (live-execution.md §4.6): recording stopped, so
+/// the session cannot be rebuilt (`cli.repl.rebuild`). The session itself
+/// goes on.
+const JOURNAL_FULL: &str =
+    "note: the session's record of host calls is full, so this session can no longer be rebuilt";
+
 /// What reading one line at a prompt gave.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum Line {
@@ -124,20 +131,23 @@ pub(crate) fn command() -> ExitCode {
             eprintln!("warning: Ctrl-C cannot stop an input: {e}");
         }
     };
-    match run(&mut Editor(editor), program, streams, on_start) {
+    let cap = hd_run::journal::SESSION_CAP;
+    match run(&mut Editor(editor), program, streams, cap, on_start) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => crate::fail(&e),
     }
 }
 
 /// The session loop: reads inputs from `lines` until its end or `:quit`,
-/// and runs each in a session over `program`. `on_start` gets the
-/// session's stopper before the first input. `Err` is a session that could
-/// not start or whose thread ended.
+/// and runs each in a session over `program`, whose journal holds at most
+/// `journal_cap` bytes. `on_start` gets the session's stopper before the
+/// first input. `Err` is a session that could not start or whose thread
+/// ended.
 pub(crate) fn run(
     lines: &mut dyn Lines,
     program: disk::Program,
     streams: Streams,
+    journal_cap: usize,
     on_start: impl FnOnce(Stopper),
 ) -> Result<(), String> {
     let config = EngineConfig::pipeline(false);
@@ -147,7 +157,17 @@ pub(crate) fn run(
     let thread = std::thread::Builder::new()
         .name("hd-repl".into())
         .stack_size(hd_run_wasmtime::thread_stack(&config))
-        .spawn(move || serve(config, program, streams, &send_start, &inputs, &send_done))
+        .spawn(move || {
+            serve(
+                config,
+                program,
+                journal_cap,
+                streams,
+                &send_start,
+                &inputs,
+                &send_done,
+            );
+        })
         .map_err(|e| format!("the session thread: {e}"))?;
     let stopper = started
         .recv()
@@ -291,6 +311,7 @@ fn continuation_indent(text: &str) -> String {
 fn serve(
     config: EngineConfig,
     program: disk::Program,
+    journal_cap: usize,
     streams: Streams,
     started: &mpsc::Sender<Result<Stopper, String>>,
     inputs: &mpsc::Receiver<String>,
@@ -314,7 +335,8 @@ fn serve(
         })
     });
     let session = match session {
-        Ok(session) => {
+        Ok(mut session) => {
+            session.set_journal_cap(journal_cap);
             let _ = started.send(Ok(session.stopper()));
             session
         }
@@ -376,7 +398,7 @@ impl Repl {
         let Some(wasm) = &out.wasm else {
             return Err(out.render());
         };
-        match self.session.run_input(wasm)? {
+        match self.session.run_input(0, "", wasm)? {
             Outcome::Exit(0) => {}
             other => return Err(format!("it ended with {other:?}")),
         }
@@ -392,14 +414,14 @@ impl Repl {
         self.next += 1;
         let file = hd_project::repl_file(self.next);
         self.program.sources.add_synthetic(&file, text);
-        if !self.build_and_run(&file, diags) {
+        if !self.build_and_run(&file, text, diags) {
             self.program.sources.remove_synthetic(&file);
         }
     }
 
-    /// Whether the input `file` built and ended with status 0, so it joins
-    /// the session.
-    fn build_and_run(&mut self, file: &str, diags: &mut dyn Write) -> bool {
+    /// Whether the input `file`, of the text `text`, built and ended with
+    /// status 0, so it joins the session.
+    fn build_and_run(&mut self, file: &str, text: &str, diags: &mut dyn Write) -> bool {
         let clock = Wall(Instant::now());
         let host = Host {
             render_tir: &[],
@@ -427,7 +449,11 @@ impl Repl {
             let _ = writeln!(diags, "error: {file}: no Wasm produced");
             return false;
         };
-        match self.session.run_input(&wasm) {
+        let outcome = self.session.run_input(self.next, text, &wasm);
+        if self.session.take_journal_notice() {
+            let _ = writeln!(diags, "{JOURNAL_FULL}");
+        }
+        match outcome {
             Ok(Outcome::Exit(0)) => {
                 self.built.add(added);
                 true

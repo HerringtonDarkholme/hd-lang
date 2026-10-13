@@ -108,7 +108,7 @@ impl Repl<'_> {
 
     /// Builds the next input over the earlier ones: its file, its module
     /// and what it adds to the session.
-    fn build(&mut self, text: &str) -> (String, Vec<u8>, hd_driver::Session) {
+    fn build(&mut self, text: &str) -> Built {
         self.next += 1;
         let n = self.next;
         let file = hd_project::repl_file(n);
@@ -130,19 +130,38 @@ impl Repl<'_> {
         assert!(out.diags.is_empty(), "{file}: {}", out.render());
         let wasm = out.wasm.expect("a module");
         let added = out.session_added.expect("what the input adds");
-        (file, wasm, added)
+        Built {
+            number: n,
+            source: text.to_owned(),
+            file,
+            wasm,
+            added,
+        }
     }
 
     /// Runs a built input. One that ends with status 0 joins the session.
-    fn run(&mut self, (file, wasm, added): (String, Vec<u8>, hd_driver::Session)) -> Outcome {
-        let outcome = self.session.run_input(&wasm).expect("the input runs");
+    fn run(&mut self, built: Built) -> Outcome {
+        let outcome = self
+            .session
+            .run_input(built.number, &built.source, &built.wasm)
+            .expect("the input runs");
         if outcome == Outcome::Exit(0) {
-            self.built.add(added);
+            self.built.add(built.added);
         } else {
-            self.files.retain(|p| p != file);
+            self.files.retain(|p| p != built.file);
         }
         outcome
     }
+}
+
+/// An input built for a session: its number, text, file, module and what
+/// it adds to the session.
+struct Built {
+    number: u32,
+    source: String,
+    file: String,
+    wasm: Vec<u8>,
+    added: hd_driver::Session,
 }
 
 fn repl(session: &mut WasmtimeSession) -> Repl<'_> {
@@ -169,7 +188,7 @@ fn repl_with_prelude(session: &mut WasmtimeSession) -> Repl<'_> {
     let out = hd_driver::build_repl_prelude(&host, hd_driver::BuildProfile::Checked);
     assert!(out.diags.is_empty(), "{}", out.render());
     let wasm = out.wasm.expect("the prelude");
-    assert_eq!(session.run_input(&wasm), Ok(Outcome::Exit(0)));
+    assert_eq!(session.run_input(0, "", &wasm), Ok(Outcome::Exit(0)));
     let mut built = hd_driver::Session::start();
     built.add(out.session_added.expect("what the prelude adds"));
     Repl {
@@ -569,5 +588,265 @@ all!(sleep(Duration.seconds(+30)), boom())
             "panic: index-out-of-bounds: list index out of bounds\n"
         );
         assert!(!repl.session.pending(), "the timer is still pending");
+    });
+}
+
+/// The journal's rows, decoded, as kind and method: what a test compares.
+fn journal_shape(session: &WasmtimeSession) -> Vec<String> {
+    use hd_run::journal::Event;
+    let (rows, valid) = hd_run::journal::read(session.journal().expect("recording"));
+    assert_eq!(valid, session.journal().expect("recording").len());
+    hd_run::journal::decode(&rows)
+        .expect("the rows decode")
+        .iter()
+        .map(|event| match event {
+            Event::Header { .. } => "header".to_owned(),
+            Event::Input { number, .. } => format!("input {number}"),
+            Event::Call { module, name, .. } => format!("call {module} {name}"),
+            Event::Finish { .. } => "finish".to_owned(),
+            Event::Wake { .. } => "wake".to_owned(),
+            Event::Block { .. } => "block".to_owned(),
+            Event::Abort { .. } => "abort".to_owned(),
+            Event::Cancel { .. } => "cancel".to_owned(),
+            Event::End(end) => format!("end {end:?}"),
+        })
+        .collect()
+}
+
+/// The session's journal holds a row per host call of each input, between
+/// the input's `Input` and `End` rows, in the order they happened: its
+/// clock reading, the handle a sleep waits on, woken and then finished,
+/// a line written and the panic report, both by digest.
+#[test]
+fn a_session_journal_records_each_input_s_host_calls_in_order() {
+    use hd_run::journal::{Event, Request, Value};
+    let inputs = [
+        "use std.time.{now, sleep, Duration}\n",
+        "a := now()\n",
+        "sleep!(Duration.milliseconds(+1))\n",
+        "println(\"hi\")\n",
+        "x := [+1][3]\n",
+    ];
+    with_session(|session, io| {
+        let mut repl = repl(session);
+        let before = std::time::SystemTime::now();
+        for input in &inputs[..4] {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        assert_eq!(repl.input(inputs[4]), Outcome::Exit(3));
+        assert_eq!(text(&io.out), "hi\n");
+        assert_eq!(
+            journal_shape(repl.session),
+            [
+                "header",
+                "input 1",
+                "end Exit(0)",
+                "input 2",
+                "call hd:Clock now",
+                "end Exit(0)",
+                "input 3",
+                "call hd:Clock sleep.start",
+                "wake",
+                "finish",
+                "end Exit(0)",
+                "input 4",
+                "call hd:Console write_line.start",
+                "block",
+                "finish",
+                "end Exit(0)",
+                "input 5",
+                "call hd:rt stderr",
+                "end Trapped",
+            ]
+        );
+        let (rows, _) = hd_run::journal::read(repl.session.journal().expect("recording"));
+        let events = hd_run::journal::decode(&rows).expect("the rows decode");
+        let Event::Input { number, source, .. } = &events[3] else {
+            panic!("{:?}", events[3]);
+        };
+        assert_eq!(
+            (*number, *source),
+            (2, hd_base::hash128(inputs[1].as_bytes()).0)
+        );
+        let since = |t: std::time::SystemTime| {
+            let ms = t
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("after 1970")
+                .as_millis();
+            i64::try_from(ms).expect("ms")
+        };
+        let Event::Call {
+            request,
+            value: Value::Int(ms),
+            result: None,
+            ..
+        } = &events[4]
+        else {
+            panic!("{:?}", events[4]);
+        };
+        assert_eq!(request, &Request::Args(Vec::new()));
+        assert!((since(before)..=since(std::time::SystemTime::now())).contains(ms));
+        let Event::Call {
+            value: Value::Pair(1, handle),
+            ..
+        } = &events[7]
+        else {
+            panic!("{:?}", events[7]);
+        };
+        let handle = u32::try_from(*handle).expect("a handle");
+        assert!(matches!(&events[8], Event::Wake { handles, .. } if handles == &[handle]));
+        assert!(matches!(&events[9], Event::Finish { handle: h, .. } if *h == handle));
+        // `println("hi")` writes `hi`: its length then its bytes, 3 bytes.
+        let Event::Call { request, .. } = &events[12] else {
+            panic!("{:?}", events[12]);
+        };
+        assert_eq!(request, &Request::Args(vec![2, b'h', b'i']));
+        assert!(matches!(
+            &events[17],
+            Event::Call {
+                request: Request::Digest { .. },
+                ..
+            }
+        ));
+    });
+}
+
+/// A clock reading costs one `Call` row: kind, index, length, method,
+/// request length, reply tag, the value, and the checksum. `now` is
+/// milliseconds since 1970, six bytes of LEB128; `monotonic` milliseconds
+/// since the host started, one to three.
+#[test]
+fn a_clock_reading_costs_one_small_row() {
+    with_session(|session, io| {
+        let mut repl = repl(session);
+        let inputs = [
+            "use std.time.{now, Clock, Instant}\n",
+            "a := now()\nb := now()\n",
+            "fn mono() -> Instant $ Clock:\n    $.use(Clock).monotonic()\n",
+            "c := mono()\nd := mono()\n",
+        ];
+        for input in inputs {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        let (rows, _) = hd_run::journal::read(repl.session.journal().expect("recording"));
+        let framed = |row: &hd_run::journal::Row| {
+            let mut bytes = Vec::new();
+            hd_run::journal::append(&mut bytes, row);
+            bytes.len()
+        };
+        let calls: Vec<usize> = rows
+            .iter()
+            .filter(|r| r.kind == hd_run::journal::RowKind::Call)
+            .map(framed)
+            .collect();
+        println!("clock rows, the first naming its method: {calls:?}");
+        // The second of each pair names no method.
+        assert_eq!(calls.len(), 4, "{calls:?}");
+        assert_eq!(calls[1], 1 + 1 + 1 + (1 + 1 + 1 + 6) + 4);
+        assert!(
+            (1 + 1 + 1 + (1 + 1 + 1 + 1) + 4..=12).contains(&calls[3]),
+            "{calls:?}"
+        );
+    });
+}
+
+/// `hd run` on wasmtime records no journal: only a session does.
+#[test]
+fn a_program_run_records_no_journal() {
+    use hd_run::{Engine, Instance};
+    let main = "use std.time.{now, Clock}\n\npub fn main() -> void $ Console + Clock:\n    println(now().unix_milliseconds() > 0)\n";
+    let mut src = hd_project::MemorySources::default();
+    src.insert("main.hd", main);
+    let store = hd_cache::MemoryStore::default();
+    let host = hd_driver::Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &hd_driver::NoClock,
+        executor: hd_driver::Executor::Serial(hd_sched::SerialOrder::Priority),
+    };
+    let goal = hd_driver::Goal::Program {
+        entry: "main".into(),
+    };
+    let out = hd_driver::build_packages(&host, "app", &hd_driver::Packages::default(), &goal);
+    assert!(out.diags.is_empty(), "{}", out.render());
+    let wasm = out.wasm.expect("a module");
+    let config = EngineConfig::default();
+    std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .stack_size(thread_stack(&config))
+            .spawn_scoped(scope, move || {
+                let engine = WasmtimeEngine::new(config).expect("engine");
+                let module = engine
+                    .load(&wasm, &hd_cache::MemoryStore::default())
+                    .expect("loads");
+                let out = Shared::default();
+                let io = HostIo {
+                    out: Box::new(out.clone()),
+                    err: Box::new(std::io::sink()),
+                    input: None,
+                };
+                let setup = HostSetup {
+                    providers: Vec::new(),
+                    grants: hd_run::Grants::default(),
+                    limits: hd_run::Limits::default(),
+                    args: Vec::new(),
+                    program: "main".into(),
+                };
+                let mut run = engine.instantiate_with(&module, &setup, io).expect("runs");
+                assert_eq!(run.init(), Outcome::Exit(0));
+                assert_eq!(hd_run::drive(&mut run, usize::MAX), Outcome::Exit(0));
+                assert_eq!(text(&out), "true\n");
+                assert!(run.store.data().journal.is_none());
+            })
+            .expect("spawn")
+            .join()
+            .expect("the run thread");
+    });
+}
+
+/// The cost of recording on a host-call-heavy input: 10,000 clock
+/// readings, with the session's journal and without it. Run it with
+/// `cargo test -p hd_run_wasmtime clock_loop -- --ignored --nocapture`.
+#[test]
+#[ignore = "a measurement, not a check"]
+fn clock_loop_recording_overhead() {
+    use std::time::{Duration, Instant};
+    let reads = "\
+fn reads() -> i64 $ Clock:
+    let sum: i64 = 0
+    for _ in 0..10000:
+        sum = sum + now().unix_milliseconds()
+    sum
+";
+    with_session(|session, io| {
+        let mut repl = repl(session);
+        assert_eq!(repl.input("use std.time.{now, Clock}\n"), Outcome::Exit(0));
+        assert_eq!(repl.input(reads), Outcome::Exit(0), "{}", text(&io.err));
+        let (mut on, mut off) = (Vec::new(), Vec::new());
+        for round in 0..40 {
+            let recording = round % 2 == 0;
+            repl.session.record(recording);
+            let built = repl.build("_ := reads()\n");
+            let start = Instant::now();
+            assert_eq!(repl.run(built), Outcome::Exit(0), "{}", text(&io.err));
+            let took = start.elapsed();
+            if recording {
+                let bytes = repl.session.journal().expect("recording").len();
+                assert!(bytes > 10_000 * 12, "{bytes}");
+                on.push(took);
+            } else {
+                off.push(took);
+            }
+        }
+        let median = |v: &mut Vec<Duration>| {
+            v.sort();
+            v[v.len() / 2]
+        };
+        let (on, off) = (median(&mut on), median(&mut off));
+        println!(
+            "10,000 clock reads per input, median of 20: recording {on:?}, not recording {off:?}, {:.0} ns per read",
+            (on.as_secs_f64() - off.as_secs_f64()) * 1e9 / 10_000.0
+        );
     });
 }

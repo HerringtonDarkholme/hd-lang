@@ -87,15 +87,17 @@ fn session_in(
     script: Script,
     on_start: impl FnOnce(hd_run_wasmtime::Stopper),
 ) -> Transcript {
-    session_with(dir, script, on_start, None)
+    session_with(dir, script, on_start, None, hd_run::journal::SESSION_CAP)
 }
 
-/// `session_in`, with the guest's standard output in `stdout` when given.
+/// `session_in`, with the guest's standard output in `stdout` when given
+/// and a journal of at most `journal_cap` bytes.
 fn session_with(
     dir: &Path,
     mut script: Script,
     on_start: impl FnOnce(hd_run_wasmtime::Stopper),
     stdout: Option<&Buffer>,
+    journal_cap: usize,
 ) -> Transcript {
     let err = Buffer::default();
     let out = stdout.cloned().unwrap_or_else(|| err.clone());
@@ -108,7 +110,7 @@ fn session_with(
         diags: Box::new(err.clone()),
     };
     let program = disk::load_session(dir).expect("the session's scope");
-    run(&mut script, program, streams, on_start).expect("the session ends");
+    run(&mut script, program, streams, journal_cap, on_start).expect("the session ends");
     Transcript {
         out: err.text(),
         script,
@@ -165,7 +167,13 @@ fn dbg_lines_come_before_the_value_line() {
         "",
         "next(+5)",
     ]);
-    let t = session_with(&dir, script, |_| {}, Some(&stdout));
+    let t = session_with(
+        &dir,
+        script,
+        |_| {},
+        Some(&stdout),
+        hd_run::journal::SESSION_CAP,
+    );
     assert_eq!(stdout.text(), "out\n");
     assert_eq!(t.out, "repl#2:2:5: x = 5\n6 : i32\n");
 }
@@ -703,6 +711,25 @@ fn diagnostics_name_the_input_and_line() {
         "{}",
         t.out
     );
+}
+
+/// Past its journal's cap the REPL says once, after the input that passed
+/// it, that the session can no longer be rebuilt; the session goes on
+/// (live-execution.md §4.6). The cap here is 200 bytes: the prelude, the
+/// `use` and the first clock reading fit; the next input passes it.
+#[test]
+fn a_full_journal_is_noted_once() {
+    let dir = Scratch::new(SCRATCH, &format!("repl-journal-{}", unique()));
+    let script = Script::of(&[
+        "use std.time.{now}",
+        "a := now()",
+        "b := now()",
+        "c := now()",
+        "d := now()",
+        "+7",
+    ]);
+    let t = session_with(&dir, script, |_| {}, None, 200);
+    assert_eq!(t.out, format!("{}\n7 : i32\n", super::JOURNAL_FULL));
 }
 
 /// The parser decides when an input is whole.

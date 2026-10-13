@@ -24,11 +24,20 @@
 //! its root suspension by `req.cancel.steps`: its `defer` suites run and
 //! it is `cancelled` (`cli.repl.cancel`). Either way it then ends as a
 //! panicking input does, and the host operations it left are dropped.
+//!
+//! The session records a journal in memory (live-execution.md §4, job
+//! J1): an `Input` row as each input starts, a row for each of its host
+//! calls, written where the host dispatches imports, its `Wake` and
+//! `Cancel` driver events, and an `End` row with how it ended. It is the
+//! record a rebuild serves host results from (`cli.repl.rebuild`). Past
+//! `hd_run::journal::SESSION_CAP` recording stops; the REPL then says once
+//! that the session can no longer be rebuilt (`take_journal_notice`).
 
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use hd_run::journal::{End, Recorder, SESSION_CAP};
 use hd_run::{HostSetup, Instance, Outcome, StartError};
 use hd_wasm::{MEMORY_KEY, SESSION_MODULE, global_key, is_session_key};
 use wasmtime::{Extern, Global, Linker, Val};
@@ -104,6 +113,11 @@ impl WasmtimeEngine {
         );
         let flag = Arc::new(AtomicBool::new(false));
         host.interrupt = Some(Arc::clone(&flag));
+        let execution = crate::core::random(16)
+            .ok()
+            .and_then(|b| <[u8; 16]>::try_from(b).ok())
+            .map_or(0, u128::from_le_bytes);
+        host.journal = Some(Recorder::new(SESSION_CAP, execution));
         let mut run =
             WasmtimeInstance::stopped(new_store(&self.engine, host)?, Arc::clone(&self.engine));
         // Sockets and HTTP clients outlive an input: a later input may use
@@ -123,20 +137,43 @@ impl WasmtimeEngine {
 }
 
 impl WasmtimeSession {
-    /// Runs the input module `wasm` to its end and answers how it ended,
-    /// as `hd run` would: status 0, a program's own status, or 3 after a
+    /// Runs the input module `wasm`, numbered `number` in the session, of
+    /// the source text `source`, to its end and answers how it ended, as
+    /// `hd run` would: status 0, a program's own status, or 3 after a
     /// panic, which is reported on standard error. Its standard output is
     /// written before this returns. `Err` is a module the session cannot
     /// run: one wasmtime refuses, an import not on wasmtime yet, or a
     /// session import no earlier input exports. Such an input does not run.
-    pub fn run_input(&mut self, wasm: &[u8]) -> Result<Outcome, String> {
+    pub fn run_input(&mut self, number: u32, source: &str, wasm: &[u8]) -> Result<Outcome, String> {
         self.flag.store(false, Ordering::Relaxed);
         let module = self.load(wasm)?;
         // A panic or standard error of an earlier input does not hide this
         // one's internal error.
         self.run.store.data_mut().reported = false;
         define_session(&mut self.linker, &module, self.profile, &mut self.hosts)?;
-        let instance = match self.linker.instantiate(&mut self.run.store, &module) {
+        if let Some(journal) = self.run.store.data_mut().journal.as_mut() {
+            journal.input(number, source.as_bytes(), wasm);
+        }
+        self.run.halt = None;
+        self.run.last_trapped = false;
+        let result = self.execute(&module);
+        let end = match (&result, self.run.halt) {
+            (Ok(_), Some(halt)) => halt,
+            (Ok(Outcome::Exit(_)), None) if self.run.last_trapped => End::Trapped,
+            (Ok(Outcome::Exit(status)), None) => End::Exit(*status),
+            (Ok(Outcome::Panic(_)), None) => End::Trapped,
+            (Ok(Outcome::Internal(_)) | Err(_), _) => End::Failed,
+        };
+        if let Some(journal) = self.run.store.data_mut().journal.as_mut() {
+            journal.end(end);
+        }
+        result
+    }
+
+    /// Instantiates and runs an input whose host imports the linker
+    /// defines.
+    fn execute(&mut self, module: &wasmtime::Module) -> Result<Outcome, String> {
+        let instance = match self.linker.instantiate(&mut self.run.store, module) {
             Ok(instance) => instance,
             Err(error)
                 if limits::is_heap_exhausted(&error)
@@ -165,6 +202,7 @@ impl WasmtimeSession {
             Outcome::Panic(report) => {
                 let host = self.run.store.data_mut();
                 host.err(&format!("panic: {}: {}\n", report.category, report.message));
+                self.run.last_trapped = true;
                 Outcome::Exit(3)
             }
             other => other,
@@ -177,10 +215,44 @@ impl WasmtimeSession {
         Ok(outcome)
     }
 
+    /// The session's journal so far, or `None` once recording stopped at
+    /// its cap.
+    #[must_use]
+    pub fn journal(&self) -> Option<&[u8]> {
+        self.run.store.data().journal.as_ref()?.journal()
+    }
+
+    /// Changes the journal's cap, `hd_run::journal::SESSION_CAP` until
+    /// then; a journal already past it stops at its next row.
+    pub fn set_journal_cap(&mut self, cap: usize) {
+        if let Some(journal) = self.run.store.data_mut().journal.as_mut() {
+            journal.set_cap(cap);
+        }
+    }
+
+    /// True once, after the input in which the journal passed its cap and
+    /// recording stopped: the REPL then says that the session can no
+    /// longer be rebuilt.
+    pub fn take_journal_notice(&mut self) -> bool {
+        self.run
+            .store
+            .data_mut()
+            .journal
+            .as_mut()
+            .is_some_and(Recorder::take_notice)
+    }
+
     /// Whether a host operation is pending in the session's reactor.
     #[cfg(test)]
     pub(crate) fn pending(&self) -> bool {
         self.run.store.data().waiting()
+    }
+
+    /// Starts a new journal, or with `on` false records none from now on:
+    /// for measuring what recording costs.
+    #[cfg(test)]
+    pub(crate) fn record(&mut self, on: bool) {
+        self.run.store.data_mut().journal = on.then(|| Recorder::new(SESSION_CAP, 0));
     }
 
     /// A handle that stops or cancels the running input from another

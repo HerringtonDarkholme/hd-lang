@@ -1,10 +1,11 @@
 use std::collections::HashSet;
 
+use hd_run::journal::{self, Recorder};
 use wasmtime::{FuncType, Linker, Val, ValType};
 
 use super::Stop;
 use super::call::call;
-use super::kind::Kind;
+use super::kind::{Kind, Record};
 use super::reply::{Ret, Value, int_val, put_bytes};
 use super::state::Host;
 use crate::profiles::RuntimeProfile;
@@ -90,6 +91,12 @@ fn define_with<'m>(
             return Err(format!("the import `{m}` `{n}` is not a function"));
         };
         let results: Vec<ValType> = ty.results().collect();
+        let site = Site {
+            index: defined.len(),
+            record: kind.record(),
+            module: key.0.clone(),
+            name: key.1.clone(),
+        };
         linker
             .func_new(
                 m,
@@ -97,7 +104,13 @@ fn define_with<'m>(
                 FuncType::clone(&ty),
                 move |mut caller, params, out| {
                     kind.validate_results(&results)?;
+                    if let Some(journal) = caller.data_mut().journal.as_mut() {
+                        site.begin(journal, params);
+                    }
                     let Ret { value, payload } = call(kind, &mut caller, params)?;
+                    if let Some(journal) = caller.data_mut().journal.as_mut() {
+                        site.record(journal, params, &value, payload.as_deref());
+                    }
                     match (value, out) {
                         (Value::Void, []) => {}
                         (Value::Int(v), [one]) => *one = int_val(&results[0], v),
@@ -123,6 +136,77 @@ fn define_with<'m>(
         defined.insert(key);
     }
     Ok(())
+}
+
+/// One defined import, as a session's journal records its calls: the
+/// recorder sits here, where every host import is dispatched
+/// (repl-plan.md §5 Q8c). `index` is unique in its linker.
+struct Site {
+    index: usize,
+    record: Record,
+    module: String,
+    name: String,
+}
+
+impl Site {
+    /// Starts a call's row with its scalar parameters; the exchange buffer
+    /// bytes it reads follow through `reply::bytes`.
+    fn begin(&self, journal: &mut Recorder, params: &[Val]) {
+        if self.record != Record::Call {
+            return;
+        }
+        journal.begin();
+        for param in params {
+            match param {
+                Val::I32(v) => journal.int_arg(i64::from(*v)),
+                Val::I64(v) => journal.int_arg(*v),
+                Val::F32(bits) => journal.float_arg(u64::from(*bits)),
+                Val::F64(bits) => journal.float_arg(*bits),
+                _ => {}
+            }
+        }
+    }
+
+    /// Writes the row of a call that returned `value` and `payload`.
+    fn record(
+        &self,
+        journal: &mut Recorder,
+        params: &[Val],
+        value: &Value,
+        payload: Option<&[u8]>,
+    ) {
+        let value = match *value {
+            Value::Void => journal::Value::Void,
+            Value::Int(v) => journal::Value::Int(v),
+            Value::F64(v) => journal::Value::F64(v.to_bits()),
+            Value::Pair(status, v) => journal::Value::Pair(status, v),
+        };
+        // The handle a `.finish` or `abort` names; no live one is negative.
+        let handle = || {
+            params
+                .first()
+                .and_then(|p| match p {
+                    Val::I32(v) => u32::try_from(*v).ok(),
+                    Val::I64(v) => u32::try_from(*v).ok(),
+                    _ => None,
+                })
+                .unwrap_or(u32::MAX)
+        };
+        match self.record {
+            Record::Skip => {}
+            Record::Call => journal.call(self.index, &self.module, &self.name, value, payload),
+            Record::Finish => journal.finish(handle(), value, payload),
+            Record::Block => {
+                let handles: Vec<u32> = payload
+                    .unwrap_or_default()
+                    .chunks_exact(4)
+                    .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+                    .collect();
+                journal.block(&handles);
+            }
+            Record::Abort => journal.abort(handle()),
+        }
+    }
 }
 
 /// The error of an import that does not run on wasmtime yet.

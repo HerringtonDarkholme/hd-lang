@@ -66,19 +66,22 @@ pub(crate) fn put_bytes(
     Ok(i64::try_from(bytes.len()).unwrap_or(i64::MAX))
 }
 
-/// The exchange buffer's first `len` bytes.
+/// The exchange buffer's first `len` bytes: a host call's argument.
 pub(crate) fn bytes(caller: &mut Caller<'_, Host>, len: i64) -> wasmtime::Result<Vec<u8>> {
     let Some(memory) = caller.data().memory else {
         return Err(Stop::Contract("the module has no exchange buffer".into()).into());
     };
     let data = memory.data(&*caller);
-    usize::try_from(len)
+    let bytes = usize::try_from(len)
         .ok()
         .and_then(|n| data.get(..n))
         .map(<[u8]>::to_vec)
-        .ok_or_else(|| {
-            Stop::Contract("an argument length is past the exchange buffer".into()).into()
-        })
+        .ok_or_else(|| Stop::Contract("an argument length is past the exchange buffer".into()))?;
+    // The call's request, in a session's journal.
+    if let Some(journal) = caller.data_mut().journal.as_mut() {
+        journal.bytes_arg(&bytes);
+    }
+    Ok(bytes)
 }
 
 pub(crate) fn text(caller: &mut Caller<'_, Host>, len: i64) -> wasmtime::Result<String> {

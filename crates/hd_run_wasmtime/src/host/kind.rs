@@ -63,7 +63,39 @@ pub(crate) enum TestMethod {
     Show,
 }
 
+/// Which journal row a call of an import writes (live-execution.md §4.2).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Record {
+    /// None: the `hd:prim` functions answer from their arguments alone, so
+    /// a replay computes them again.
+    Skip,
+    Call,
+    Finish,
+    Block,
+    Abort,
+}
+
 impl Kind {
+    pub(crate) fn record(self) -> Record {
+        match self {
+            Self::FormatF64
+            | Self::FormatF32
+            | Self::FormatFixed
+            | Self::Lower
+            | Self::Upper
+            | Self::ParseF64 => Record::Skip,
+            Self::Block => Record::Block,
+            Self::Abort => Record::Abort,
+            Self::Fixture { finish: true, .. }
+            | Self::Fs { finish: true, .. }
+            | Self::NeverFinish
+            | Self::WriteLineFinish
+            | Self::ReadLineFinish
+            | Self::SleepFinish => Record::Finish,
+            _ => Record::Call,
+        }
+    }
+
     /// Reject malformed result shapes before executing any provider effects.
     /// Integer width compatibility is retained; floats/references are never
     /// silently filled with integer values.
