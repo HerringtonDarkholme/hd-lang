@@ -417,6 +417,11 @@ pub enum Helper {
     /// its `$Task` prefix, as `Suspend.cancel` does; a scenario-only
     /// export, and a no-op when no root is pending.
     EntryCancel,
+    /// `hd.scenario.cleanup`: calls the scenario's top-level cleanup
+    /// function in the same instance; its `bool` comes back as an `i32`.
+    /// A scenario-only export, emitted only when the entry module
+    /// declares the function.
+    EntryCall { func: Hash128 },
 }
 
 fn enc_wty(t: &WTy, w: &mut Writer) {
@@ -764,6 +769,10 @@ impl Helper {
             }
             Helper::EntryWake => w.u8(19),
             Helper::EntryCancel => w.u8(37),
+            Helper::EntryCall { func } => {
+                w.u8(38);
+                w.hash(*func);
+            }
         }
     }
 
@@ -897,6 +906,7 @@ impl Helper {
             },
             19 => Helper::EntryWake,
             37 => Helper::EntryCancel,
+            38 => Helper::EntryCall { func: r.hash() },
             9 => Helper::Adapter {
                 sig: dec_wty(r)?,
                 self_vts: decode_vts(r, 0)?,
@@ -1684,6 +1694,11 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
             a.call(Sym::Helper(Helper::WakeMark));
             a.finish(vec![])
         }
+        Helper::EntryCall { func } => {
+            let mut a = Asm::new(vec![]);
+            a.call(Sym::Inst(*func));
+            a.finish(vec![VT::I32])
+        }
         Helper::EntryCancel => {
             // The root global holds a `$Suspend_L` frame, whose `$Task`
             // prefix carries the cancel function first; a null root (no
@@ -2416,5 +2431,17 @@ mod tests {
         Helper::EntryCancel.encode(&mut w);
         let mut r = Reader::new(&w.bytes);
         assert_eq!(Helper::decode(&mut r), Some(Helper::EntryCancel));
+    }
+
+    /// The scenario cleanup call round-trips through the code cache.
+    #[test]
+    fn entry_call_encodes_and_decodes() {
+        use super::{Reader, Writer};
+
+        let helper = Helper::EntryCall { func: Hash128(7) };
+        let mut w = Writer::default();
+        helper.encode(&mut w);
+        let mut r = Reader::new(&w.bytes);
+        assert_eq!(Helper::decode(&mut r), Some(helper));
     }
 }

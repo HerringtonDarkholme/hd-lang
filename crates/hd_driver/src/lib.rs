@@ -650,6 +650,9 @@ enum Roots {
         /// The entry module's own init, the one init that may `block_on`.
         entry_init: Option<Hash128>,
         report: Option<Hash128>,
+        /// The entry module's top-level cleanup function, called by
+        /// `hd.scenario.cleanup`; `None` when it declares none.
+        cleanup: Option<Hash128>,
     },
 }
 
@@ -4866,6 +4869,14 @@ impl Run<'_> {
             .iter()
             .map(|(d, _)| (*d, TyList::EMPTY))
             .collect();
+        // A scenario's cleanup function is an extra root, so its instance
+        // is collected even though no case calls it.
+        if matches!(self.goal, Goal::Scenario { .. }) {
+            let def = names.item(&entry_key, "cleanup_ran");
+            if p.bodies.contains_key(&def) {
+                extra.push((def, TyList::EMPTY));
+            }
+        }
         let reports: Vec<Option<(DefId, TyList)>> = roots
             .iter()
             .map(|(d, _)| {
@@ -4951,6 +4962,14 @@ impl Run<'_> {
                 key: collected.table.key[0],
                 entry_init: key_of_init(&init_of(&entry_key)),
                 report: reports[0].as_ref().and_then(key_of_extra),
+                cleanup: {
+                    let def = names.item(&entry_key, "cleanup_ran");
+                    if p.bodies.contains_key(&def) {
+                        key_of_extra(&(def, TyList::EMPTY))
+                    } else {
+                        None
+                    }
+                },
             },
             _ => Roots::Tests {
                 cases: roots
@@ -5433,6 +5452,7 @@ impl Run<'_> {
                 key,
                 entry_init,
                 report,
+                cleanup,
             } => hd_wasm::scenario_entry(
                 &self.pool,
                 &env,
@@ -5442,6 +5462,7 @@ impl Run<'_> {
                 &c.collected.inits,
                 *entry_init,
                 *report,
+                *cleanup,
             ),
         };
         let Some(entry) = self.stage(Stage::Link, exports) else {

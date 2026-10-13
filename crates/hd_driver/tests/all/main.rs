@@ -134,6 +134,7 @@ mod rows_determinism;
 mod runtime;
 mod same_name_packages;
 mod scenario_cancel;
+mod scenario_cleanup;
 mod sealed_rows;
 mod sealed_user_impls;
 mod session_collect;
