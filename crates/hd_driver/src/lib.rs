@@ -230,6 +230,11 @@ pub enum Goal {
         module: Option<String>,
         filter: Option<String>,
     },
+    /// A scenario program: the package's entry `main` or `main!` built
+    /// with the scenario exports (`hd.cancel`), which drives a runtime
+    /// scenario instead of running to completion. The runner builds it,
+    /// never the CLI.
+    Scenario { entry: String },
     /// Every stage over a package; "not implemented" is counted.
     Analyze,
     /// `Analyze`, with each module's `tests:` blocks checked as test code
@@ -636,6 +641,15 @@ enum Roots {
     Tests {
         cases: Vec<(DefId, Hash128, Option<Hash128>)>,
         inits: Vec<Vec<Hash128>>,
+    },
+    /// A scenario's `main`, its report and the inits it reaches: like
+    /// `Main`, but linked with the scenario exports.
+    Scenario {
+        def: DefId,
+        key: Hash128,
+        /// The entry module's own init, the one init that may `block_on`.
+        entry_init: Option<Hash128>,
+        report: Option<Hash128>,
     },
 }
 
@@ -1080,7 +1094,9 @@ fn build_packages_inner(
         pipeline,
         build_profile: match goal {
             Goal::Program { .. } | Goal::ReplInput { .. } => packages.build_profile,
-            Goal::Tests { .. } | Goal::Analyze | Goal::CheckTests => BuildProfile::Checked,
+            Goal::Tests { .. } | Goal::Scenario { .. } | Goal::Analyze | Goal::CheckTests => {
+                BuildProfile::Checked
+            }
         },
         fetched: std::iter::once(false)
             .chain(packages.deps.iter().map(|d| d.fetched))
@@ -3211,7 +3227,7 @@ impl Run<'_> {
         // requirement-free. Every REPL input is an entry, whichever input
         // the run builds: its top level runs as the input does.
         let entry_name = match &self.goal {
-            Goal::Program { entry } => Some(entry.as_str()),
+            Goal::Program { entry } | Goal::Scenario { entry } => Some(entry.as_str()),
             Goal::Tests { .. } | Goal::ReplInput { .. } => None,
             Goal::Analyze | Goal::CheckTests => Some("main"),
         };
@@ -4521,7 +4537,10 @@ impl Run<'_> {
             .collect();
         self.dbg_in_release();
         match &self.goal {
-            Goal::Program { .. } | Goal::ReplInput { .. } | Goal::Tests { .. } => {
+            Goal::Program { .. }
+            | Goal::ReplInput { .. }
+            | Goal::Tests { .. }
+            | Goal::Scenario { .. } => {
                 if !lock(&self.diags).has_errors() {
                     sp.add(TaskKind::Ext(ExtTask::Collect), &orders);
                 }
@@ -4672,7 +4691,7 @@ impl Run<'_> {
         }
         let names = self.names();
         let (entry_key, roots) = match &self.goal {
-            Goal::Program { entry } => {
+            Goal::Program { entry } | Goal::Scenario { entry } => {
                 let entry_module = format!("{}.{entry}", hd_project::package_ident(&self.package));
                 let root = names.item(&entry_module, "main");
                 (entry_module, vec![(root, String::new())])
@@ -4722,11 +4741,17 @@ impl Run<'_> {
                 _ => {}
             }
         }
+        // A scenario links different exports (`hd.cancel`) from a program
+        // of the same entry, so its link key names the goal.
+        let keyed_entry = match &self.goal {
+            Goal::Scenario { .. } => format!("scenario:{entry_key}"),
+            _ => entry_key.clone(),
+        };
         let pkey = prog_key(
             self.toolchain,
             self.pipeline,
             self.build_profile,
-            &entry_key,
+            &keyed_entry,
             &modules,
         );
         // A session module's link depends on the session: it is not cached.
@@ -4759,10 +4784,10 @@ impl Run<'_> {
             .iter()
             .position(|module| module.path == entry_key)
             .is_none_or(|m| self.skim_of(m).public_main.is_some());
-        let has_main =
-            p.bodies.contains_key(&main) && (public || !matches!(self.goal, Goal::Program { .. }));
+        let has_main = p.bodies.contains_key(&main)
+            && (public || !matches!(self.goal, Goal::Program { .. } | Goal::Scenario { .. }));
         let script = match self.goal {
-            Goal::Program { .. } => !has_main,
+            Goal::Program { .. } | Goal::Scenario { .. } => !has_main,
             Goal::ReplInput { .. } => true,
             Goal::Tests { .. } | Goal::Analyze | Goal::CheckTests => false,
         };
@@ -4909,11 +4934,19 @@ impl Run<'_> {
                 .filter(|k| collected.inits.contains(k))
         };
         let plan = match &self.goal {
-            Goal::Program { .. } | Goal::ReplInput { .. } if script => Roots::Script {
+            Goal::Program { .. } | Goal::ReplInput { .. } | Goal::Scenario { .. } if script => {
+                Roots::Script {
+                    def: root,
+                    key: collected.table.key[0],
+                }
+            }
+            Goal::Program { .. } => Roots::Main {
                 def: root,
                 key: collected.table.key[0],
+                entry_init: key_of_init(&init_of(&entry_key)),
+                report: reports[0].as_ref().and_then(key_of_extra),
             },
-            Goal::Program { .. } => Roots::Main {
+            Goal::Scenario { .. } => Roots::Scenario {
                 def: root,
                 key: collected.table.key[0],
                 entry_init: key_of_init(&init_of(&entry_key)),
@@ -5395,6 +5428,21 @@ impl Run<'_> {
             Roots::Tests { cases, inits } => {
                 hd_wasm::test_entry(&self.pool, &env, &path, cases, inits)
             }
+            Roots::Scenario {
+                def,
+                key,
+                entry_init,
+                report,
+            } => hd_wasm::scenario_entry(
+                &self.pool,
+                &env,
+                &path,
+                *def,
+                *key,
+                &c.collected.inits,
+                *entry_init,
+                *report,
+            ),
         };
         let Some(entry) = self.stage(Stage::Link, exports) else {
             return;

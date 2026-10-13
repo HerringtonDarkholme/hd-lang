@@ -34,7 +34,9 @@ use wasm_encoder::{
     ValType,
 };
 
-pub use emit::{emit, emit_adapter, emit_erased, emit_thunk, entry, script_entry, test_entry};
+pub use emit::{
+    emit, emit_adapter, emit_erased, emit_thunk, entry, scenario_entry, script_entry, test_entry,
+};
 pub use rt::Helper;
 
 /// A Wasm value type, with references to structural type descriptors.

@@ -13,6 +13,7 @@ use crate::asm::Asm;
 use crate::boundary::BTy;
 use crate::layout::{
     ACTIVE, CANCELLED, DONE, F_CANCEL, F_FLAGS, F_POLL, F_SAVED, F_STATE, cancel_fn, storage,
+    task_base,
 };
 use crate::{Code, GSym, Sym, VT, WTy, decode_vts, encode_vts, unsupported};
 
@@ -395,6 +396,10 @@ pub enum Helper {
     },
     /// `hd.wake(n)`: marks the completed handles.
     EntryWake,
+    /// `hd.cancel`: cancels the entry's pending root suspension through
+    /// its `$Task` prefix, as `Suspend.cancel` does; a scenario-only
+    /// export, and a no-op when no root is pending.
+    EntryCancel,
 }
 
 fn enc_wty(t: &WTy, w: &mut Writer) {
@@ -741,6 +746,7 @@ impl Helper {
                 }
             }
             Helper::EntryWake => w.u8(19),
+            Helper::EntryCancel => w.u8(37),
         }
     }
 
@@ -873,6 +879,7 @@ impl Helper {
                 inits: (0..r.count()).map(|_| (r.hash(), r.u8() != 0)).collect(),
             },
             19 => Helper::EntryWake,
+            37 => Helper::EntryCancel,
             9 => Helper::Adapter {
                 sig: dec_wty(r)?,
                 self_vts: decode_vts(r, 0)?,
@@ -1607,6 +1614,26 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
             a.call(Sym::Helper(Helper::WakeMark));
             a.finish(vec![])
         }
+        Helper::EntryCancel => {
+            // The root global holds a `$Suspend_L` frame, whose `$Task`
+            // prefix carries the cancel function first; a null root (no
+            // poll yet, or a completed root) cancels nothing.
+            let mut a = Asm::new(vec![]);
+            let base = task_base();
+            let root = a.local(VT::rn(base.clone()));
+            a.global_get(root_global());
+            a.set(root);
+            a.get(root);
+            a.s().ref_is_null();
+            a.if_();
+            a.s().return_();
+            a.end();
+            a.get(root);
+            a.get(root);
+            a.struct_get(&base, F_CANCEL);
+            a.call_ref(&cancel_fn());
+            a.finish(vec![])
+        }
     })
 }
 
@@ -2242,5 +2269,44 @@ mod tests {
     #[test]
     fn completed_reported_entry_releases_root_before_reporting_its_results() {
         assert_poll_tail(true);
+    }
+
+    /// `hd.cancel` calls the pending root's cancel function through its
+    /// `$Task` prefix, and returns at once when no root is pending.
+    #[test]
+    fn entry_cancel_calls_the_root_cancel_or_nothing() {
+        use super::F_CANCEL;
+        use crate::layout::{cancel_fn, task_base};
+
+        let code = helper_code(&Helper::EntryCancel, false).unwrap();
+        let base = task_base();
+        let mut expected = Asm::new(vec![]);
+        let root = expected.local(VT::rn(base.clone()));
+        expected.global_get(root_global());
+        expected.set(root);
+        expected.get(root);
+        expected.s().ref_is_null();
+        expected.if_();
+        expected.s().return_();
+        expected.end();
+        expected.get(root);
+        expected.get(root);
+        expected.struct_get(&base, F_CANCEL);
+        expected.call_ref(&cancel_fn());
+        let expected = expected.finish(vec![]);
+        assert_eq!(code.body, expected.body);
+        assert_eq!(code.relocs, expected.relocs);
+        assert_eq!(code.results, expected.results);
+    }
+
+    /// The scenario-only cancel helper round-trips through the code cache.
+    #[test]
+    fn entry_cancel_encodes_and_decodes() {
+        use super::{Reader, Writer};
+
+        let mut w = Writer::default();
+        Helper::EntryCancel.encode(&mut w);
+        let mut r = Reader::new(&w.bytes);
+        assert_eq!(Helper::decode(&mut r), Some(Helper::EntryCancel));
     }
 }
