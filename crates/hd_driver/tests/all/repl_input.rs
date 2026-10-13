@@ -1150,3 +1150,60 @@ fn a_fact_type_repeated_across_two_blocks_is_a_duplicate() {
     r.input(2, traitless);
     r.input(3, "impl Eq for Row by Structure:\n    total += [+5]\n");
 }
+
+/// The `Severity::Warning` codes of a build.
+fn warning_codes(out: &Output) -> Vec<String> {
+    out.diags
+        .content_order()
+        .into_iter()
+        .filter(|i| out.diags.severity[*i] == hd_diag::Severity::Warning)
+        .map(|i| out.diags.code[i].as_str().to_owned())
+        .collect()
+}
+
+/// Derivation blocks for one type in different inputs whose member lines
+/// differ warn `derivation-line-drift` on the later block, as within one
+/// module (`annot.line.drift`); the warning does not stop the input.
+#[test]
+fn blocks_across_inputs_with_different_lines_drift() {
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let decl = "data Row:\n    total: i32 = 0\n    id: i32 = 0\n";
+    let eq = "impl Eq for Row by Structure:\n    total = pass\n";
+    let hash = "impl Hash for Row by Structure:\n    id = pass\n";
+    let same = "impl Hash for Row by Structure:\n    total = pass\n";
+    // Different lines warn on the later block, which still joins.
+    let mut r = repl(&store);
+    r.input(1, decl);
+    r.input(2, eq);
+    let out = r.build(3, hash);
+    assert!(!out.diags.has_errors(), "{}", out.render());
+    assert_eq!(
+        warning_codes(&out),
+        ["derivation-line-drift"],
+        "{}",
+        out.render()
+    );
+    assert!(out.wasm.is_some(), "{}", out.render());
+    r.session
+        .add(out.session_added.clone().expect("what the input adds"));
+    let out = r.build(4, "println(+1)\n");
+    assert!(!out.diags.has_errors(), "{}", out.render());
+    assert!(out.wasm.is_some(), "{}", out.render());
+    // Identical lines do not warn.
+    let mut r = repl(&store);
+    r.input(1, decl);
+    r.input(2, eq);
+    let out = r.build(3, same);
+    assert!(out.diags.is_empty(), "{}", out.render());
+    // As one module.
+    let mut one = repl(&store);
+    let out = one.build(1, &format!("{decl}\n{eq}\n{hash}"));
+    assert!(!out.diags.has_errors(), "{}", out.render());
+    assert_eq!(
+        warning_codes(&out),
+        ["derivation-line-drift"],
+        "{}",
+        out.render()
+    );
+}
