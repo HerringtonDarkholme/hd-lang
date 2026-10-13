@@ -1,12 +1,12 @@
 std/console/println (Fn)
-  local $0 value: println#0 flags=33
+  local $0 value: T flags=33
   local $1 console: mut Console flags=3
   local $2 call: mut Suspend[Result[(), ConsoleError]] flags=3
   %0 = ProviderGet #0 : mut Console
   %1 = LocalSet $1 %0 : ()
   %2 = LocalGet $1 : mut Console
-  %3 = LocalGet $0 : println#0
-  %4 = Call std/format/Display.to_string for println#0 [] via Bound (%3) : string
+  %3 = LocalGet $0 : T
+  %4 = Call std/format/Display.to_string for T [] via Bound (%3) : string
   %5 = Interp [%4] : string
   %6 = Call std/console/Console.write_line for Console [] via TraitValue (%2, %5) : mut Suspend[Result[(), ConsoleError]]
   %7 = LocalSet $2 %6 : ()

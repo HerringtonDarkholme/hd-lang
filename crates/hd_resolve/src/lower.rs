@@ -2247,6 +2247,11 @@ impl Lower<'_, '_, '_> {
                     .error(Code::DuplicateBinding, self.src.span(*g), &msg);
             }
             let index = offset + u16::try_from(i).unwrap_or(u16::MAX);
+            self.names.paths.set_param_name(
+                hd_base::PathId::from_raw(owner.raw()),
+                index,
+                self.src.text(t),
+            );
             let row = g
                 .direct_token(&self.src.parse.tokens, TokenKind::Dollar)
                 .is_some();
@@ -3582,6 +3587,9 @@ impl Lower<'_, '_, '_> {
             owner: h.def,
             index: 0,
         }));
+        self.names
+            .paths
+            .set_param_name(hd_base::PathId::from_raw(h.def.raw()), 0, "Self");
         let mut gn = Gen {
             self_ty: Some(self_ty),
             self_trait: Some(h.def),

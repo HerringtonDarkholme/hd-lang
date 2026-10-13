@@ -399,5 +399,8 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             p.intrinsic = Some(sym(names, key));
         }
     }
+    for it in &out {
+        names.record_params(it);
+    }
     out
 }

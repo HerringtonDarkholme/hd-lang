@@ -152,7 +152,7 @@ fn made() -> void:
         ("app/main/stepper", ": fn(mut Counter, i32) -> ()"),
         ("app/main/maker", ": fn() -> Counter"),
         ("app/main/factory", ": fn() -> Counter"),
-        ("app/main/labels", ": fn(labels#0) -> string"),
+        ("app/main/labels", ": fn(T) -> string"),
         ("app/main/picker", ": fn(Counter, i32) -> i32"),
         ("app/main/loader", ": fn!(Store, i32) -> i32"),
         ("app/main/counted", ": fn(i32) -> i32"),

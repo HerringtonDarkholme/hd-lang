@@ -133,6 +133,32 @@ impl Names<'_> {
     pub fn display_name(&self, d: DefId) -> &str {
         self.paths.segment(PathId::from_raw(d.raw()))
     }
+    /// Records the names an item's own type and row parameters are
+    /// written with, for [`show_ty`]: a trait's `Self` is parameter 0 and
+    /// its declared parameters follow.
+    pub fn record_params(&self, item: &Item) {
+        let owner = PathId::from_raw(item.def.raw());
+        let (generics, offset) = match &item.data {
+            ItemData::Fn(sig) | ItemData::Method { sig, .. } => (sig.generics.as_slice(), 0),
+            ItemData::Trait(_) => {
+                self.paths.set_param_name(owner, 0, "Self");
+                (item.generics.as_slice(), 1)
+            }
+            _ => (item.generics.as_slice(), 0),
+        };
+        for (i, g) in generics.iter().enumerate() {
+            let index = offset + u16::try_from(i).unwrap_or(u16::MAX);
+            self.paths.set_param_name(owner, index, self.text(g.name));
+        }
+    }
+    /// A declared parameter as its user writes it (`T`), or by position
+    /// where no declaration was recorded.
+    #[must_use]
+    pub fn param_name(&self, owner: DefId, index: u16) -> String {
+        self.paths
+            .param_name(PathId::from_raw(owner.raw()), index)
+            .unwrap_or_else(|| format!("{}#{index}", self.display_name(owner)))
+    }
     /// [`Self::display_name`] of each item of one message; items that would
     /// print the same name are qualified by their module (`std.cmp.Eq`).
     #[must_use]
@@ -1122,7 +1148,9 @@ pub fn decode_items(names: &Names<'_>, bytes: &[u8]) -> Option<(Vec<Item>, Vec<E
     let t = Tables::read(&mut r, names.pool, names.paths, names.syms)?;
     let mut items = Vec::new();
     for _ in 0..r.count() {
-        items.push(get_item(&mut r, &t)?);
+        let item = get_item(&mut r, &t)?;
+        names.record_params(&item);
+        items.push(item);
     }
     let mut exports = Vec::new();
     for _ in 0..r.count() {
@@ -1520,7 +1548,7 @@ fn show_ty_opts(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty, rows: bool)
                 show_ty_opts(names, pool, result, rows)
             )
         }
-        TyData::Param(p) => format!("{}#{}", seg(p.owner), p.index),
+        TyData::Param(p) => names.param_name(p.owner, p.index),
         TyData::Assoc { assoc, self_ty, .. } => {
             format!(
                 "{}::{}",
@@ -1546,7 +1574,7 @@ fn show_row_in(names: &Names<'_>, pool: hd_types::Types<'_>, r: hd_types::RowId)
     let mut ps: Vec<String> = d
         .params
         .iter()
-        .map(|p| format!("{}#{}", names.display_name(p.owner), p.index))
+        .map(|p| names.param_name(p.owner, p.index))
         .collect();
     ps.sort();
     parts.extend(ps);

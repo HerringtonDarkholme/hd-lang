@@ -65,3 +65,43 @@ fn an_unknown_import_names_the_module_and_the_name() {
         errors(&out)
     );
 }
+
+/// The first message of a run's errors.
+fn first_error(src: &str) -> String {
+    errors(&analyze(src)).swap_remove(0)
+}
+
+#[test]
+fn a_function_type_parameter_prints_as_written() {
+    let msg = first_error("fn use_it[T](x: T) -> i32:\n    x\n");
+    assert!(msg.ends_with("expected i32, found T"), "{msg}");
+}
+
+#[test]
+fn an_impl_and_method_parameter_print_as_written() {
+    let src =
+        "data Box[T]:\n    v: T\n\nimpl[T] Box[T]:\n    fn get[U](self, u: U) -> T:\n        u\n";
+    let msg = first_error(src);
+    assert!(msg.ends_with("expected T, found U"), "{msg}");
+}
+
+#[test]
+fn a_trait_self_and_its_associated_type_print_without_ids() {
+    let src = "trait Index:\n    type Out\n    fn at(self) -> Self::Out\n    fn me(self) -> i32:\n        self\n";
+    let msg = first_error(src);
+    assert!(msg.ends_with("expected i32, found Self"), "{msg}");
+}
+
+#[test]
+fn a_generic_type_from_std_prints_its_arguments_as_written() {
+    let msg = first_error("fn pick[K, V](m: Map[K, V]) -> i32:\n    m\n");
+    assert!(msg.ends_with("expected i32, found Map[K, V]"), "{msg}");
+}
+
+#[test]
+fn a_parameter_of_an_enum_prints_as_written() {
+    let src = "enum Pair[A, B]:\n    Left(A)\n    Right(B)\n\nfn pr[A, B](p: Pair[A, B]) -> i32:\n    p\n";
+    let msg = first_error(src);
+    assert!(msg.ends_with("expected i32, found Pair[A, B]"), "{msg}");
+    assert!(!msg.contains('#'), "{msg}");
+}

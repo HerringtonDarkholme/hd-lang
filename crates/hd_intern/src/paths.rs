@@ -61,6 +61,9 @@ pub struct PathTable {
     hash: AppendVec<Hash128>,
     def_module: AppendVec<ModuleId>,
     append: Mutex<()>,
+    /// The names declared type and row parameters are written with, by
+    /// owner and position, for messages (the trie holds no parameter nodes).
+    param_names: Mutex<HashMap<(u32, u16), Box<str>>>,
     index: [PathIndex; SHARDS],
 }
 
@@ -73,6 +76,7 @@ impl Default for PathTable {
             hash: AppendVec::new(),
             def_module: AppendVec::new(),
             append: Mutex::new(()),
+            param_names: Mutex::new(HashMap::new()),
             index: std::array::from_fn(|_| Mutex::new(HashMap::new())),
         }
     }
@@ -115,6 +119,21 @@ impl PathTable {
             p = self.intern(p, PathKind::Module, seg);
         }
         DefId::from_raw(self.intern(p, PathKind::Item, item).raw())
+    }
+
+    /// Records that parameter `index` of `owner` is written `name`.
+    pub fn set_param_name(&self, owner: PathId, index: u16, name: &str) {
+        self.param_names
+            .lock()
+            .expect("param names")
+            .insert((owner.raw(), index), name.into());
+    }
+
+    /// The name parameter `index` of `owner` is written with, if recorded.
+    #[must_use]
+    pub fn param_name(&self, owner: PathId, index: u16) -> Option<String> {
+        let names = self.param_names.lock().expect("param names");
+        names.get(&(owner.raw(), index)).map(ToString::to_string)
     }
 
     #[must_use]
