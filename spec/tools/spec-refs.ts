@@ -4,8 +4,8 @@
 // such as `data.embed.width`. A bare ID counts only when it is a rule ID now,
 // or was one in the history of the chapters, so a field access in a comment
 // is not mistaken for a citation. Sources are read as text: Markdown prose
-// outside code fences, hd and TypeScript comments, and TSV rows. Nothing
-// under src/ is imported.
+// outside code fences, hd, TypeScript and Rust comments, and TSV rows.
+// Nothing outside spec/ is imported.
 import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, relative, resolve } from "node:path";
@@ -14,9 +14,9 @@ import { allRules, type Corpus } from "./spec-corpus.ts";
 import { CHAPTER_HISTORY_PATHS } from "./spec-prose.ts";
 
 /** Where a citation lives; the first four are gated by spec/check.sh. */
-type Area = "spec" | "fixtures" | "guide" | "lib-std" | "records" | "src";
+type Area = "spec" | "fixtures" | "guide" | "lib-std" | "records" | "crates";
 const GATED_AREAS: ReadonlySet<Area> = new Set(["spec", "fixtures", "guide", "lib-std"]);
-const AREAS: readonly Area[] = ["spec", "fixtures", "guide", "lib-std", "records", "src"];
+const AREAS: readonly Area[] = ["spec", "fixtures", "guide", "lib-std", "records", "crates"];
 
 export interface Citation {
   /** Repository-relative path. */
@@ -52,8 +52,8 @@ export function areaOf(file: string): Area | undefined {
   if (file.startsWith("guide/")) return file.endsWith(".md") ? "guide" : undefined;
   if (file.startsWith("lib/std/")) return file.endsWith(".hd") ? "lib-std" : undefined;
   if (file.startsWith("future-work/")) return file.endsWith(".md") ? "records" : undefined;
-  if (file === "test/portable/KNOWN_FAILURES.tsv") return "records";
-  if (file.startsWith("src/")) return /\.(?:ts|md)$/.test(file) ? "src" : undefined;
+  if (file === "KNOWN_FAILURES.tsv") return "records";
+  if (file.startsWith("crates/")) return /\.(?:rs|md)$/.test(file) ? "crates" : undefined;
   return undefined;
 }
 
@@ -74,7 +74,7 @@ function citableLines(file: string, text: string): string[] {
   }
   if (file.endsWith(".hd"))
     return lines.map((line) => line.slice(Math.max(0, line.indexOf("#"))).replace(/^[^#].*$/, ""));
-  if (file.endsWith(".ts")) {
+  if (file.endsWith(".ts") || file.endsWith(".rs")) {
     let block = false;
     return lines.map((line) => {
       const trimmed = line.trim();
@@ -134,8 +134,8 @@ function scannedFiles(repoRoot: string): string[] {
     "guide",
     "lib/std",
     "future-work",
-    "src",
-    "test/portable/KNOWN_FAILURES.tsv",
+    "crates",
+    "KNOWN_FAILURES.tsv",
   ];
   const files: string[] = [];
   const walk = (path: string): void => {

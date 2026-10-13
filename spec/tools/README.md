@@ -1,8 +1,8 @@
 # Spec Text Tools
 
 These tools read the specification, the fixtures, and the records as text.
-They import only Node built-ins and `spec/`, never `src/`, so they serve any
-implementation. The one exception is an adapter module that
+They import only Node built-ins and `spec/`, never an implementation's
+source, so they serve any implementation. The one exception is an adapter module that
 `run-conformance.ts --adapter` names on its command line.
 
 | File | Purpose |
@@ -46,8 +46,9 @@ case that selects a runner option fails.
 
 `run` must stop a command that passes `timeoutMs` and resolve with
 `timedOut: true`, and must keep serving later commands. `status` is the
-exit status, or null for a command that did not finish. The repository's
-own adapter is [`test/hd-adapter.ts`](../../test/hd-adapter.ts).
+exit status, or null for a command that did not finish. The repository
+has no in-process adapter; it runs the Rust `hd` as a command through
+`scripts/hd-conformance.sh`.
 
 ## Fixture Phase Audit
 
@@ -120,8 +121,8 @@ exit 1, and `--list` prints each one.
 
 `refs RULE-ID` lists every place that cites a rule: Markdown prose in
 `spec/`, `guide/`, and `future-work/`, fixture comments and the index
-files, `test/portable/KNOWN_FAILURES.tsv`, `lib/std` comments, and `src/`
-comments. A citation is a `#r-<id>` anchor or a bare rule ID.
+files, the root `KNOWN_FAILURES.tsv`, `lib/std` comments, and comments in
+the Rust compiler under `crates/`. A citation is a `#r-<id>` anchor or a bare rule ID.
 
 ```sh
 pnpm run spec refs data.embed.width
@@ -137,7 +138,7 @@ such as `retired in commit 35a38958 "Spec pass 42: remove shapes; ..."`.
 | Where | A dead citation |
 | --- | --- |
 | `spec/`, fixtures, `guide/`, `lib/std` | fails, and `spec/check.sh` fails |
-| `future-work/`, `KNOWN_FAILURES.tsv`, `src/` | warns |
+| `future-work/`, `KNOWN_FAILURES.tsv`, `crates/` | warns |
 | a line that records history, such as "(since retired)" | is allowed |
 
 A bare ID counts only when it is a rule ID now or was one in the chapters'

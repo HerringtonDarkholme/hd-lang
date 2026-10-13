@@ -1338,10 +1338,11 @@ echo 'println(1 + 2)' | hd    # prints 3
 12. r[cli.repl.host.args] In a session, `Args` gives an empty program name and no program arguments.
 13. r[cli.repl.host.once] Each input's host calls happen once, when the input runs. A later input never repeats an earlier input's file writes, reads, clock readings, or random draws.
 14. r[cli.repl.value] The REPL shows an expression input's value as [`dbg`](../lang/10-modules.md#debug-values) prints it, then ` : ` and its type, as in `[3, 6] : List[usize]`. So a value of a type without `Display` or `Debug` shows too.
-15. r[cli.repl.panic] When an input panics, the REPL reports the panic, and the session continues with the next input.
-16. r[cli.repl.panic.binding] An input that panics adds no binding to the session.
-17. r[cli.repl.panic.mutations] Changes that the input made before the panic, to values that earlier inputs bound, remain. So do its host calls, by [`cli.repl.host.once`](#r-cli.repl.host.once).
-18. r[cli.repl.panic.declarations] An input that panics adds no declaration to the session either.
+15. r[cli.repl.value.stream] The REPL writes the value line to standard output, after the input's own output and its `dbg` lines.
+16. r[cli.repl.panic] When an input panics, the REPL reports the panic, and the session continues with the next input.
+17. r[cli.repl.panic.binding] An input that panics adds no binding to the session.
+18. r[cli.repl.panic.mutations] Changes that the input made before the panic, to values that earlier inputs bound, remain. So do its host calls, by [`cli.repl.host.once`](#r-cli.repl.host.once).
+19. r[cli.repl.panic.declarations] An input that panics adds no declaration to the session either.
 
 ```sh
 hd> let log: mut List[string] = []
@@ -1402,7 +1403,7 @@ hd> count = count + 1                          # a `let` binding is assigned, no
 
 > **Why.** A session is one scope, as a module is, so a name means one
 > declaration. Shadowing would leave earlier items and values tied to a
-> declaration that can no longer be named: a value of an old `Point` would
+> declaration that can no longer be named. A value of an old `Point` would
 > fail against the new `Point`, and the old type would keep its
 > implementations.
 
@@ -1416,6 +1417,13 @@ hd> count = count + 1                          # a `let` binding is assigned, no
 > [`cli.repl.panic.declarations`](#r-cli.repl.panic.declarations), and
 > [`cli.repl.panic.mutations`](#r-cli.repl.panic.mutations) apply: the
 > input adds nothing, and its earlier changes and host calls remain.
+
+### Commands
+
+1. r[cli.repl.command] An input that starts with `:` is a REPL command, not hd code.
+2. r[cli.repl.command.help] `:help` lists the commands.
+3. r[cli.repl.command.quit] `:quit`, `:q` and `:exit` end the session, as end of input at an empty prompt does.
+4. r[cli.repl.command.reload] `:reload` reads the package's files again and rebuilds the session by [`cli.repl.rebuild`](#r-cli.repl.rebuild).
 
 ### Rebuilding A Session
 

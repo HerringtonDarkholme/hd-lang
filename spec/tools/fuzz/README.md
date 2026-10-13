@@ -1,7 +1,7 @@
 # hd-lang fuzzer (implementation-neutral)
 
-This fuzzer tests any hd-lang implementation through its command line. The
-current TypeScript compiler is only its first target.
+This fuzzer tests any hd-lang implementation through its command line. Its
+default target is the Rust `hd`, run through `scripts/hd-conformance.sh`.
 
 ## Portability rules
 

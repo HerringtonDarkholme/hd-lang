@@ -209,7 +209,7 @@ test("refs finds anchors and bare IDs in prose and comments, not code", () => {
     'const url = "#r-data.embed.width";',
   ].join("\n");
   assert.deepEqual(
-    citationsIn("src/x.ts", source, "src", isRuleId).map((c) => [c.line, c.form]),
+    citationsIn("crates/x.rs", source, "crates", isRuleId).map((c) => [c.line, c.form]),
     [
       [1, "id"],
       [2, "anchor"],
