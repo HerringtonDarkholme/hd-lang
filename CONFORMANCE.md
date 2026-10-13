@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2824 | 16 | 5 | 2845 |
+| 2825 | 16 | 4 | 2845 |
 
 ## By Chapter
 
@@ -24,7 +24,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/08-data-and-enums.md` | 123 | 0 | 0 | 123 |
 | `lang/09-traits.md` | 355 | 4 | 0 | 359 |
 | `lang/10-modules.md` | 253 | 1 | 4 | 258 |
-| `lang/11-requirements-and-suspension.md` | 257 | 1 | 1 | 259 |
+| `lang/11-requirements-and-suspension.md` | 258 | 1 | 0 | 259 |
 | `lang/14-annotations.md` | 151 | 2 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
@@ -62,7 +62,7 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `parse/invalid` | 195 | 0 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 103 | 0 | 2 | 105 |
+| `runtime/panic` | 104 | 0 | 1 | 105 |
 | `runtime/valid` | 926 | 0 | 3 | 929 |
 | `typing/invalid` | 1059 | 16 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
@@ -77,7 +77,6 @@ compiler stage that first declined the case.
 | --- | ---: |
 | `fail:no-diagnostic` | 16 |
 | `unsupported:Link` | 4 |
-| `unsupported:RunCase` | 1 |
 
 <details><summary><code>fail:no-diagnostic</code> (16)</summary>
 
@@ -106,12 +105,6 @@ compiler stage that first declined the case.
 - `runtime/valid/boundary-derived-round-trip.hd`
 - `runtime/panic/boundary-deserialize-error.hd`
 - `runtime/valid/boundary-redacted-round-trip.hd`
-
-</details>
-
-<details><summary><code>unsupported:RunCase</code> (1)</summary>
-
-- `runtime/panic/reentrant-suspension-poll.hd`
 
 </details>
 
@@ -502,6 +495,7 @@ runtime/panic/println-in-default-indirect.hd
 runtime/panic/race-empty-at-run-time.hd
 runtime/panic/range-from-overflow.hd
 runtime/panic/reentrant-cancel.hd
+runtime/panic/reentrant-suspension-poll.hd
 runtime/panic/removed-map-iterator-invalidated.hd
 runtime/panic/result-expect-err.hd
 runtime/panic/rng-int-empty-range.hd

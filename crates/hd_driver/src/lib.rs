@@ -216,6 +216,17 @@ pub struct Host<'a> {
     pub executor: Executor,
 }
 
+/// A scenario's held call (issue #56): the suspending function whose
+/// polls the build stubs, so the driver owns an unfinished root.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ScenarioHold {
+    /// The suspending function to hold, by its top-level name.
+    pub func: String,
+    /// Whether the stub leaves the frame flagged active, so the next
+    /// same-driver poll reports `suspension-reentrant-poll` (`reentrant-poll`).
+    pub active: bool,
+}
+
 /// What a run is for.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Goal {
@@ -236,12 +247,13 @@ pub enum Goal {
     /// never the CLI.
     Scenario {
         entry: String,
-        /// The suspending function a scenario holds pending: every poll
-        /// of its suspension answers pending without running its body
-        /// (the `fixture-runtime-pending-function` directive, or `main`
-        /// for `competing-drivers`, whose owned-but-unfinished root is
-        /// the whole point).
-        hold: Option<String>,
+        /// The suspending function a scenario holds: every poll of its
+        /// suspension answers pending without running its body (the
+        /// `fixture-runtime-pending-function` directive, or `main` for
+        /// `competing-drivers`, whose owned-but-unfinished root is the
+        /// whole point, and for `reentrant-poll`, whose frame the next
+        /// same-driver poll must find active).
+        hold: Option<ScenarioHold>,
     },
     /// Every stage over a package; "not implemented" is counted.
     Analyze,
@@ -5682,20 +5694,20 @@ impl Run<'_> {
         }
     }
 
-    /// The scenario hold target: the `hold` function's item, when the
+    /// The scenario hold target: the held function's item, when the
     /// program checks its body. Held polls are stubbed at emission and
     /// never touch the code cache, so a held build shares nothing with
     /// an unheld one.
-    fn scenario_hold(&self, p: &ProgramTables) -> Option<DefId> {
+    fn scenario_hold(&self, p: &ProgramTables) -> Option<(DefId, bool)> {
         let Goal::Scenario { entry, hold } = &self.goal else {
             return None;
         };
-        let name = hold.as_ref()?;
+        let held = hold.as_ref()?;
         let def = self.names().item(
             &format!("{}.{entry}", hd_project::package_ident(&self.package)),
-            name,
+            &held.func,
         );
-        self.body_of(p, def).is_some().then_some(def)
+        self.body_of(p, def).is_some().then_some((def, held.active))
     }
 
     /// `Collect` (codegen.md §11.3): `prog_key`, then instances, then code
@@ -5761,11 +5773,15 @@ impl Run<'_> {
         }
         // A scenario links different exports (`hd.cancel`) from a program
         // of the same entry, so its link key names the goal; a hold
-        // changes the held call's code, so the key names it too.
+        // changes the held call's code, so the key names it too, stub
+        // variant included.
         let keyed_entry = match &self.goal {
             Goal::Scenario {
-                hold: Some(name), ..
-            } => format!("scenario:hold={name}:{entry_key}"),
+                hold: Some(held), ..
+            } => format!(
+                "scenario:hold={}:active={}:{}",
+                held.func, held.active, entry_key
+            ),
             Goal::Scenario { .. } => format!("scenario:{entry_key}"),
             _ => entry_key.clone(),
         };
@@ -6049,7 +6065,7 @@ impl Run<'_> {
             code_keys.push(ck);
             // A held call's stub is per build, never cached: it always
             // emits, and no other build may read it.
-            if held.is_some_and(|d| d == item) {
+            if held.is_some_and(|(d, _)| d == item) {
                 misses.push(slot);
                 continue;
             }
@@ -6381,9 +6397,15 @@ impl Run<'_> {
         let ret = env.ret(item).unwrap_or(Ty::VOID);
         let path = |d: DefId| names.path(d);
         let calls = &c.collected.calls[id.idx()];
-        // A held call emits its pending stub here, and the stub never
-        // reaches the code cache (collect misses it on purpose).
-        let held = self.scenario_hold(p).is_some_and(|d| d == item);
+        // A held call emits its stub here, and the stub never reaches
+        // the code cache (collect misses it on purpose).
+        let held = self.scenario_hold(p).and_then(|(d, active)| {
+            (d == item).then_some(if active {
+                hd_wasm::HoldStub::Active
+            } else {
+                hd_wasm::HoldStub::Pending
+            })
+        });
         let r = match sub {
             hd_mono::Sub::Body(k) => {
                 let body = self.body_of(p, item).map(|b| &b.0);
@@ -6445,7 +6467,7 @@ impl Run<'_> {
         let Some(code) = self.stage(Stage::Emit, r) else {
             return;
         };
-        if !held {
+        if held.is_none() {
             self.put(EntryKind::Code, c.code_keys[slot], &[&code.encode()]);
         }
         lock(&self.counters).emitted += 1;

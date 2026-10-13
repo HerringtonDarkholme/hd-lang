@@ -4795,6 +4795,19 @@ impl<'a> Em<'a> {
     }
 }
 
+/// How a scenario hold stubs a suspending call's poll (issue #56): the
+/// stub answers pending without running the body, so the driver owns an
+/// unfinished root. `Active` additionally leaves the frame flagged
+/// active, so the next poll reports `suspension-reentrant-poll` through
+/// the real flag check.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HoldStub {
+    /// Answer pending with the flags untouched.
+    Pending,
+    /// Answer pending with the frame flagged active.
+    Active,
+}
+
 /// `Emit(inst)`: walks the generic TIR of sub-body `sub` under the
 /// instance's arguments. A suspending function's instance (suspension.md
 /// §14.1) emits its cold constructor as the code entry and `f$body`,
@@ -4810,7 +4823,7 @@ pub fn emit(
     ret: Ty,
     calls: &HashMap<u32, Target>,
     key: Hash128,
-    held: bool,
+    held: Option<HoldStub>,
 ) -> StageResult<Code> {
     emit_body(
         pool, env, path, layouts, b, sub, args, ret, calls, key, None, held,
@@ -4847,7 +4860,7 @@ pub fn emit_erased(
         calls,
         key,
         Some(*family),
-        false,
+        None,
     )
 }
 
@@ -4947,7 +4960,7 @@ fn emit_body(
     calls: &HashMap<u32, Target>,
     key: Hash128,
     erased: Option<Hash128>,
-    held: bool,
+    held: Option<HoldStub>,
 ) -> StageResult<Code> {
     let lay = Lay::new(pool, env, path, layouts);
     let s = |t: Ty| subst(pool, env, b.item, args, t);
@@ -5430,7 +5443,7 @@ fn emit_suspending(
     ret: Ty,
     calls: &HashMap<u32, Target>,
     key: Hash128,
-    held: bool,
+    held: Option<HoldStub>,
 ) -> StageResult<Code> {
     let (pool, env) = (lay.pool, lay.env);
     let s = |t: Ty| subst(pool, env, b.item, args, t);
@@ -5612,9 +5625,23 @@ fn emit_suspending(
     a.get(f);
     let cold = a.finish(vec![VT::r(base.clone())]);
     // f$poll: the runtime checks, then the body over the frame. A held
-    // call answers every poll with pending, without running its body.
-    let poll_code = if held {
+    // call answers every poll with pending, without running its body; an
+    // active hold leaves the frame flagged active, so the next poll
+    // reports re-entry through the real flag check.
+    let poll_code = if let Some(kind) = held {
         let mut a = Asm::new(vec![VT::Eq]);
+        if kind == HoldStub::Active {
+            let f = a.local(VT::r(ft.clone()));
+            a.get(0);
+            a.ref_cast(&ft, false);
+            a.set(f);
+            a.get(f);
+            a.get(f);
+            a.struct_get(&ft, F_FLAGS);
+            a.i32(ACTIVE);
+            a.s().i32_or();
+            a.struct_set(&ft, F_FLAGS);
+        }
         a.i32(0);
         for v in &dres {
             a.zero(v);
@@ -5707,7 +5734,7 @@ fn emit_suspending(
     // fresh path, so build the frame through the cold constructor and
     // hand it back as the pending child; on resume hand the same frame
     // back again. Stored and root calls reach the held poll stub above.
-    let body = if held && sub == 0 {
+    let body = if held.is_some() && sub == 0 {
         let mut a = Asm::new_dflt(logical.clone());
         let f = a.local(VT::rn(ft.clone()));
         a.get(0);

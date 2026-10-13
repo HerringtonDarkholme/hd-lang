@@ -98,8 +98,9 @@ function writeFrame(id, status, stdout, stderr) {
 
 // Drives one scenario case with a fresh host: the scenario's own steps
 // over the scenario exports, not `run` to completion. Returns the status
-// the verdict reads: 0 for a cleanup that ran, 3 for a competing poll's
-// trap (as a trapped run reports), 1 for any other failure.
+// the verdict reads: 0 for a cleanup that ran, 3 for a competing or
+// reentrant poll's trap (as a trapped run reports), 1 for any other
+// failure.
 function runScenario(header, host, instance) {
   host.prime(instance);
   const ex = instance.exports;
@@ -113,6 +114,16 @@ function runScenario(header, host, instance) {
     if (ex["hd.poll"](0) !== -1) return 1;
     try {
       ex["hd.poll"](1);
+    } catch (e) {
+      if (e instanceof WebAssembly.RuntimeError) return 3;
+      throw e;
+    }
+    return 1;
+  }
+  if (header.scenario === "reentrant-poll") {
+    if (ex["hd.poll"](0) !== -1) return 1;
+    try {
+      ex["hd.poll"](0);
     } catch (e) {
       if (e instanceof WebAssembly.RuntimeError) return 3;
       throw e;

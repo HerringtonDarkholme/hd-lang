@@ -35,7 +35,8 @@ use wasm_encoder::{
 };
 
 pub use emit::{
-    emit, emit_adapter, emit_erased, emit_thunk, entry, scenario_entry, script_entry, test_entry,
+    HoldStub, emit, emit_adapter, emit_erased, emit_thunk, entry, scenario_entry, script_entry,
+    test_entry,
 };
 pub use rt::Helper;
 

@@ -35,7 +35,8 @@ use hd_base::Stage;
 use hd_cache::MemoryStore;
 use hd_diag::Severity;
 use hd_driver::{
-    Dependency, Executor, Goal, Host, NoClock, Output, Packages, PipelineReport, build_packages,
+    Dependency, Executor, Goal, Host, NoClock, Output, Packages, PipelineReport, ScenarioHold,
+    build_packages,
 };
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
@@ -1340,16 +1341,29 @@ fn entry_verdict(
 fn scenario_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize) -> Verdict {
     let scenario = directive(&fixture.text, "fixture-runtime-scenario");
     // `pending-first-poll` with test cases runs under the test hosts,
-    // which take no runtime profile; `reentrant-poll` still waits for
-    // its intercept import.
-    if scenario == Some("pending-first-poll") || scenario == Some("reentrant-poll") {
+    // which take no runtime profile.
+    if scenario == Some("pending-first-poll") {
         return Verdict::Unsupported("RunCase".to_owned());
     }
     let hold = match scenario {
         // An owned-but-unfinished root is the whole point: holding the
         // root itself keeps it pending with no call running beneath it.
-        Some("competing-drivers") => Some("main".to_owned()),
-        _ => directive(&fixture.text, "fixture-runtime-pending-function").map(str::to_owned),
+        // `reentrant-poll` leaves that frame active, so the next
+        // same-driver poll reports re-entry.
+        Some("competing-drivers") => Some(ScenarioHold {
+            func: "main".to_owned(),
+            active: false,
+        }),
+        Some("reentrant-poll") => Some(ScenarioHold {
+            func: "main".to_owned(),
+            active: true,
+        }),
+        _ => {
+            directive(&fixture.text, "fixture-runtime-pending-function").map(|name| ScenarioHold {
+                func: name.to_owned(),
+                active: false,
+            })
+        }
     };
     let built = build_fixture(
         fixture,
@@ -1537,10 +1551,13 @@ fn scenarios_that_replace_execution_drive_or_stay_unsupported() {
     assert!(!replacing_scenario(PENDING_WRITES));
     assert!(!replacing_scenario("pub fn main!() -> void: pass\n"));
     // The cancellation program never pends, so its drive fails the
-    // first step; the competing drive traps, which the `accept`
-    // expectation fails. Only `reentrant-poll` still waits for its
-    // import.
-    for name in ["cancellation-cleanup", "competing-drivers"] {
+    // first step; the competing and reentrant drives trap, which the
+    // `accept` expectation fails.
+    for name in [
+        "cancellation-cleanup",
+        "competing-drivers",
+        "reentrant-poll",
+    ] {
         let text = format!(
             "# fixture-runtime-scenario: {name}\nfn ready!() -> i32: 42\n\npub fn main!() -> void:\n    _ := ready!()\n\npub fn cleanup_ran() -> bool: true\n"
         );
@@ -1548,17 +1565,6 @@ fn scenarios_that_replace_execution_drive_or_stay_unsupported() {
         assert_eq!(
             unit_runtime(&text, "accept", 3),
             Verdict::Fail("runtime-exit".to_owned())
-        );
-    }
-    {
-        let name = "reentrant-poll";
-        let text = format!(
-            "# fixture-runtime-scenario: {name}\nfn ready!() -> i32: 42\n\npub fn main!() -> void:\n    _ := ready!()\n\npub fn cleanup_ran() -> bool: true\n"
-        );
-        assert!(replacing_scenario(&text));
-        assert_eq!(
-            unit_runtime(&text, "accept", 3),
-            Verdict::Unsupported("RunCase".to_owned())
         );
     }
     // The test hosts take no runtime profile, so the scenario's run of

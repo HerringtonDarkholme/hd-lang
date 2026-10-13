@@ -16,11 +16,15 @@ pub enum Scenario {
     /// Poll pending as one driver, then poll as another: passes when the
     /// second poll raises `suspension-competing-driver`.
     CompetingDrivers,
+    /// Poll pending, then poll again as the same driver: the held root
+    /// stayed active, so the second poll raises
+    /// `suspension-reentrant-poll`.
+    ReentrantPoll,
 }
 
 /// What a scenario drive captured: the streams, and the status the
-/// verdict reads (0 for a cleanup that ran, 3 for a competing poll's
-/// trap as a trapped run reports, 1 for any other failure).
+/// verdict reads (0 for a cleanup that ran, 3 for a competing or
+/// reentrant poll's trap as a trapped run reports, 1 for any other failure).
 pub struct ScenarioRan {
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
@@ -112,6 +116,17 @@ fn drive(
                 Err(e) => return Ok(trapped(&mut inst, &e)),
             }
             match inst.poll_with(1) {
+                Ok(_) => Ok(1),
+                Err(e) => Ok(trapped(&mut inst, &e)),
+            }
+        }
+        Scenario::ReentrantPoll => {
+            match inst.poll_with(0) {
+                Ok(-1) => {}
+                Ok(_) => return Ok(1),
+                Err(e) => return Ok(trapped(&mut inst, &e)),
+            }
+            match inst.poll_with(0) {
                 Ok(_) => Ok(1),
                 Err(e) => Ok(trapped(&mut inst, &e)),
             }

@@ -90,6 +90,7 @@ pub fn drive_scenario(
     let scenario = match scenario {
         "cancellation-cleanup" => Scenario::CancellationCleanup,
         "competing-drivers" => Scenario::CompetingDrivers,
+        "reentrant-poll" => Scenario::ReentrantPoll,
         name => {
             return Err(std::io::Error::other(format!(
                 "wasmtime drives no runtime scenario '{name}'"
