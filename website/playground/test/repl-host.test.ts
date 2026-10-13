@@ -229,9 +229,10 @@ test("a rebuild over edited files drops the first input that no longer builds", 
   assert.match(rebuilt.diagnostics[0]!, /^error: repl#2:1:8: unknown-name: /);
   await w.input(4, "base * ratio()\n");
   assert.deepEqual(w.printed(), ["30 : usize\n", ""]);
-  // A package file that does not parse fails every input after the prelude.
+  // A library that does not parse fails only the inputs that name it
+  // (lib.hd loads lazily, #159): input 1 stays, input 4 is dropped.
   const broken = await w.rebuildIn(w, { "src/lib.hd": "fn ratio( -> usize: 3\n" });
-  assert.deepEqual([broken.ok, broken.kept, broken.dropped], [true, [0], [1, 4]]);
+  assert.deepEqual([broken.ok, broken.kept, broken.dropped], [true, [0, 1], [4]]);
   assert.match(broken.diagnostics[0]!, /^error: src\/lib\.hd:1:/);
   // Quit ends a session; a start begins a new one.
   assert.deepEqual(await w.send({ kind: "repl-quit" }), { type: "ended" });
