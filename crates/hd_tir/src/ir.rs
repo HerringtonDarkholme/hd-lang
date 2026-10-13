@@ -408,6 +408,10 @@ pub mod local_flags {
     pub const PARAM: u8 = 32;
     /// A `:=` binding, which `=` cannot reassign.
     pub const SHORT: u8 = 64;
+    /// A parameter of the function whose default is being checked, at or
+    /// after the default's own: named, but not yet visible
+    /// (`fn.default.later-parameter`). A read is an error.
+    pub const NOT_YET: u8 = 128;
 }
 
 /// Sub-body flags (u8).

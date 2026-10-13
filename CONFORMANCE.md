@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2812 | 18 | 15 | 2845 |
+| 2814 | 16 | 15 | 2845 |
 
 ## By Chapter
 
@@ -20,7 +20,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/04-type-system.md` | 347 | 5 | 0 | 352 |
 | `lang/05-expressions.md` | 276 | 1 | 0 | 277 |
 | `lang/06-control-flow.md` | 154 | 0 | 3 | 157 |
-| `lang/07-functions.md` | 126 | 4 | 0 | 130 |
+| `lang/07-functions.md` | 128 | 2 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 123 | 0 | 0 | 123 |
 | `lang/09-traits.md` | 355 | 4 | 0 | 359 |
 | `lang/10-modules.md` | 253 | 1 | 4 | 258 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 102 | 0 | 3 | 105 |
 | `runtime/valid` | 917 | 0 | 12 | 929 |
-| `typing/invalid` | 1057 | 18 | 0 | 1075 |
+| `typing/invalid` | 1059 | 16 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 20 | 0 | 0 | 20 |
 
@@ -76,7 +76,6 @@ compiler stage that first declined the case.
 | Bucket | Cases |
 | --- | ---: |
 | `fail:no-diagnostic` | 16 |
-| `fail:unknown-name` | 2 |
 | `unsupported:Link` | 4 |
 | `unsupported:RunCase` | 11 |
 
@@ -98,13 +97,6 @@ compiler stage that first declined the case.
 - `typing/invalid/script-test-init-requirement.hd`
 - `typing/invalid/assoc-call-parameter-two-bounds.hd`
 - `typing/invalid/trait-assoc-call-self-undetermined.hd`
-
-</details>
-
-<details><summary><code>fail:unknown-name</code> (2)</summary>
-
-- `typing/invalid/parameter-default-later-parameter.hd`
-- `typing/invalid/default-later-parameter-earlier-twin.hd`
 
 </details>
 
@@ -1634,6 +1626,7 @@ typing/invalid/decorator-target-member-line.hd
 typing/invalid/decorator-target-newtype.hd
 typing/invalid/default-body-inherent-method.hd
 typing/invalid/default-body-self-field.hd
+typing/invalid/default-later-parameter-earlier-twin.hd
 typing/invalid/default-names-later-beside-forward-bound.hd
 typing/invalid/default-tuple-element-without-default.hd
 typing/invalid/defer-bang-call-cold-twin.hd
@@ -2109,6 +2102,7 @@ typing/invalid/overlapping-option-impl.hd
 typing/invalid/overlapping-tuple-impl.hd
 typing/invalid/overload.hd
 typing/invalid/parameter-bare-trait.hd
+typing/invalid/parameter-default-later-parameter.hd
 typing/invalid/parameter-default-order.hd
 typing/invalid/parameter-default-requires-provider.hd
 typing/invalid/parameter-default-type-mismatch.hd

@@ -2913,16 +2913,29 @@ impl Ck<'_, '_> {
         let mut ptys = Vec::new();
         self.scopes.push(HashMap::new());
         if let Some(pl) = parts.params {
+            let upto = parts.upto.unwrap_or(usize::MAX);
             for (i, p) in pl
                 .children()
                 .filter(|c| c.kind() == SyntaxKind::Parameter)
-                .take(parts.upto.unwrap_or(usize::MAX))
                 .enumerate()
             {
                 let toks = &self.cx.src.parse.tokens;
                 let name = p
                     .name(toks)
                     .map_or_else(|| format!("${i}"), |t| self.cx.src.text(t).to_owned());
+                // A default sees the earlier parameters only. The others
+                // are named, so an enclosing local of the same name is not
+                // read by mistake (`fn.default.later-parameter`).
+                if i >= upto {
+                    let t = match Src::type_child(p) {
+                        Some(tn) => self.ty_node(tn)?,
+                        None => Ty::POISON,
+                    };
+                    let sym = self.cx.names.syms.intern(&name);
+                    let l = self.b.local(t, sym, local_flags::NOT_YET, p.index());
+                    self.scopes.last_mut().expect("scope").insert(sym, l);
+                    continue;
+                }
                 let t = match Src::type_child(p) {
                     Some(tn) => self.ty_node(tn)?,
                     None => {

@@ -854,6 +854,16 @@ pub fn check_default(
         let l = ck.b.local(t, n, local_flags::PARAM, expr.index());
         ck.scopes[0].insert(n, l);
     }
+    // The parameter itself and the later ones are named but not visible
+    // (`fn.default.later-parameter`).
+    if let (_, Some(sig)) = (&item.data, item.sig())
+        && let Some(i) = sig.params.iter().position(|p| p.0 == sym)
+    {
+        for &(n, t) in &sig.params[i..] {
+            let l = ck.b.local(t, n, local_flags::NOT_YET, expr.index());
+            ck.scopes[0].insert(n, l);
+        }
+    }
     let (r, t) = ck.expr(expr, Some(ty))?;
     let r = ck.coerce(r, t, ty, expr, "default");
     let root = ck.b.close_block(blk, Some(r), ty, expr.index());
@@ -1118,6 +1128,15 @@ impl Ck<'_, '_> {
         // A generic local function is instantiated at each use.
         if self.local_generics.contains_key(&l) {
             return self.local_generic_value(l, &[], n);
+        }
+        // `fn.default.later-parameter`: a default names a parameter at or
+        // after its own.
+        if self.b.body_mut().local_flags[l.idx()] & local_flags::NOT_YET != 0 {
+            let name = self.cx.names.text(self.b.body_mut().local_name[l.idx()]);
+            let msg =
+                format!("`{name}` is a later parameter, so it is not visible in this default");
+            self.err(Code::BindingNotYetVisible, n, &msg);
+            return self.poison_value(n);
         }
         // `names.definite.reject`: reported once per binding.
         if self.uninit.remove(&l) {

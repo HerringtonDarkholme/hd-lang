@@ -156,3 +156,40 @@ pub fn main() -> void:
     );
     assert!(errors.contains("argument-count"), "{errors}");
 }
+
+#[test]
+fn a_default_naming_a_later_parameter_is_not_yet_visible() {
+    // `fn.default.later-parameter`: the name is the later parameter, not
+    // the enclosing local of the same name.
+    let errors = errors_of(
+        "\
+pub fn main() -> void $ Console:
+    finish := 5
+    fn span(start: i32 = finish, finish: i32 = 10) -> i32: finish - start
+    println(span())
+",
+    );
+    assert!(errors.contains("binding-not-yet-visible"), "{errors}");
+    // A parameter's default naming itself is no earlier parameter either.
+    let own = errors_of(
+        "\
+pub fn main() -> void $ Console:
+    fn one(x: i32 = x) -> i32: x
+    println(one())
+",
+    );
+    assert!(own.contains("binding-not-yet-visible"), "{own}");
+}
+
+#[test]
+fn a_default_naming_an_earlier_parameter_is_accepted() {
+    // `fn.default.scope`: the earlier parameter wins over an outer local.
+    let main = "\
+pub fn main() -> void $ Console:
+    first := 100
+    fn span(first: i32 = 1, second: i32 = first) -> i32: first + second
+    println(span())
+    println(first)
+";
+    assert_eq!(output_of("default-earlier", main), "2\n100\n");
+}
