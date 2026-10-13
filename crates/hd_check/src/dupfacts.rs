@@ -26,6 +26,7 @@ use hd_types::{RowId, Ty, TyData};
 
 use crate::body::{BodyCx, new_ck};
 use crate::facts::{FactSource, FactTarget};
+use crate::structure::{FactLines, Slot};
 
 /// One fact of a place: its value's node, whether it is a decorator's
 /// value, and whether a repeat it makes is reported by the check at hand.
@@ -37,16 +38,24 @@ struct Elem<'t> {
 
 /// Reports every concrete type that the facts `elems` of one place repeat,
 /// at the later value, where that value has `report` set. The values are
-/// typed as the declaration `owner`'s code against `target`.
+/// typed as the declaration `owner`'s code against `target`. With `prior`,
+/// the types of facts that earlier layers left there count as earlier
+/// values, and the types of `elems` that check are returned. Without
+/// `diags` nothing is reported.
 fn report_repeats(
     cx: &BodyCx<'_>,
     owner: DefId,
     target: FactTarget,
-    elems: &[Elem<'_>],
-    diags: &mut DiagBuf,
-) {
-    if elems.len() < 2 || !elems.iter().any(|e| e.report) {
-        return;
+    (elems, prior): (&[Elem<'_>], Option<&[Ty]>),
+    diags: Option<&mut DiagBuf>,
+) -> Vec<Ty> {
+    let needed = if prior.is_some() {
+        !elems.is_empty()
+    } else {
+        elems.len() >= 2 && elems.iter().any(|e| e.report)
+    };
+    if !needed {
+        return Vec::new();
     }
     let def = cx.names.member(owner, PathKind::Hidden, "duplicate facts");
     let local = hd_types::LocalPool::new();
@@ -61,12 +70,17 @@ fn report_repeats(
         &mut scratch,
     );
     let mut seen: HashMap<Ty, u32> = HashMap::new();
+    for ty in prior.unwrap_or_default() {
+        *seen.entry(*ty).or_insert(0) += 1;
+    }
     let mut found = Vec::new();
+    let mut types = Vec::new();
     for e in elems {
         ck.move_to(cx.src.span(e.node).lo);
         let Some(ty) = ck.fact_type(e.node, (target, owner), e.single) else {
             continue;
         };
+        types.push(ty);
         let count = seen.entry(ty).or_insert(0);
         *count += 1;
         if *count == 2 && e.report {
@@ -77,9 +91,102 @@ fn report_repeats(
             found.push((e.node, msg));
         }
     }
-    for (node, msg) in found {
-        diags.error(Code::DuplicateFact, cx.src.span(node), &msg);
+    if let Some(diags) = diags {
+        for (node, msg) in found {
+            diags.error(Code::DuplicateFact, cx.src.span(node), &msg);
+        }
     }
+    types
+}
+
+/// The facts of `sources` that are known before the program runs: values,
+/// and the elements of list literals, where an element is reported if it
+/// lies in `mine`. Only a literal's own elements are known: a list
+/// expression, and what a spread brings into a literal, hold facts only
+/// when the program runs, so a repeat among them is not found
+/// (`annot.line.duplicate`). No source here holds another body's facts.
+fn literal_elems<'t>(
+    cx: &BodyCx<'t>,
+    sources: &[FactSource<'t>],
+    mine: Option<hd_base::Span>,
+) -> Vec<Elem<'t>> {
+    let mut elems = Vec::new();
+    for source in sources {
+        match *source {
+            FactSource::Value(node) => elems.push(Elem {
+                node,
+                single: true,
+                report: false,
+            }),
+            FactSource::List(list) if list.kind() == SyntaxKind::ListExpr => {
+                for node in list
+                    .children()
+                    .filter(|e| e.kind() != SyntaxKind::SpreadExpr)
+                {
+                    let at = cx.src.span(node);
+                    elems.push(Elem {
+                        node,
+                        single: false,
+                        report: mine.is_some_and(|m| m.lo <= at.lo && at.hi <= m.hi),
+                    });
+                }
+            }
+            FactSource::List(_) | FactSource::Body(..) => {}
+        }
+    }
+    elems
+}
+
+/// The concrete types of the facts that each slot of a data type or enum
+/// holds, in order, after the layers so far.
+pub type SlotTypes = Vec<(Slot, Vec<Ty>)>;
+
+/// The types of the declaration facts `view` of the type `data`, which
+/// module `cx` declares, in `cx`.
+#[must_use]
+pub fn declaration_types(cx: &BodyCx<'_>, data: DefId, view: &FactLines<'_>) -> SlotTypes {
+    view.slots()
+        .into_iter()
+        .map(|(slot, sources)| {
+            let elems = literal_elems(cx, sources, None);
+            let types = report_repeats(cx, data, view.target(slot), (&elems, Some(&[])), None);
+            (slot, types)
+        })
+        .collect()
+}
+
+/// The types that each slot holds once the member lines of the derivation
+/// block `h` (module `cx`'s) of a type that another module declares edit
+/// the `prior` ones (`annot.line.extend`, `annot.line.replace`). With
+/// `diags`, a line that repeats a type its slot already holds is reported
+/// at its element (`annot.line.duplicate`, `duplicate-fact`). `None` when
+/// `h` is no block of a data type or enum.
+pub fn layer_types<'t>(
+    cx: &BodyCx<'t>,
+    h: &Head<'t>,
+    prior: &SlotTypes,
+    diags: Option<&mut DiagBuf>,
+) -> Option<SlotTypes> {
+    let (view, replaced) = crate::structure::layer_facts(cx, h.def, h.node)?;
+    let mine = cx.src.span(h.node);
+    let mut diags = diags;
+    let mut out = SlotTypes::new();
+    for (slot, sources) in view.slots() {
+        let held: &[Ty] = match prior.iter().find(|(s, _)| *s == slot) {
+            Some((_, types)) if !replaced.contains(&slot) => types,
+            _ => &[],
+        };
+        let elems = literal_elems(cx, sources, Some(mine));
+        let new = report_repeats(
+            cx,
+            h.def,
+            view.target(slot),
+            (&elems, Some(held)),
+            diags.as_deref_mut(),
+        );
+        out.push((slot, [held, new.as_slice()].concat()));
+    }
+    Some(out)
 }
 
 /// The nodes of the declaration `n` that decorators may precede: itself,
@@ -129,7 +236,7 @@ pub fn check_duplicate_facts<'t>(
                 report: true,
             })
             .collect();
-        report_repeats(cx, h.def, target, &elems, diags);
+        report_repeats(cx, h.def, target, (&elems, None), Some(diags));
     }
     if h.kind == HeadKind::Impl {
         derivation_repeats(cx, heads, h, diags);
@@ -184,36 +291,13 @@ fn derivation_repeats<'t>(cx: &BodyCx<'t>, heads: &[Head<'t>], h: &Head<'t>, dia
     view.retarget(cx, data, pool.list_items(args));
     let mine = cx.src.span(h.node);
     for (slot, sources) in view.slots() {
-        let mut elems = Vec::new();
-        for source in sources {
-            match *source {
-                FactSource::Value(node) => elems.push(Elem {
-                    node,
-                    single: true,
-                    report: false,
-                }),
-                // Only a literal's own elements are known here: a list
-                // expression, and what a spread brings into a literal, hold
-                // facts only when the program runs, so a repeat among them
-                // is not found (`annot.line.duplicate`).
-                FactSource::List(list) if list.kind() != SyntaxKind::ListExpr => {}
-                // No source here holds another body's facts.
-                FactSource::Body(..) => {}
-                FactSource::List(list) => {
-                    for node in list
-                        .children()
-                        .filter(|e| e.kind() != SyntaxKind::SpreadExpr)
-                    {
-                        let at = cx.src.span(node);
-                        elems.push(Elem {
-                            node,
-                            single: false,
-                            report: mine.lo <= at.lo && at.hi <= mine.hi,
-                        });
-                    }
-                }
-            }
-        }
-        report_repeats(cx, h.def, view.target(slot), &elems, diags);
+        let elems = literal_elems(cx, sources, Some(mine));
+        report_repeats(
+            cx,
+            h.def,
+            view.target(slot),
+            (&elems, None),
+            Some(&mut *diags),
+        );
     }
 }

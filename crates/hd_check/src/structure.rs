@@ -295,6 +295,28 @@ pub fn declaration_facts<'t>(
 /// enum.
 #[must_use]
 pub fn block_facts<'t>(cx: &BodyCx<'t>, owner: DefId, node: NodeRef<'t>) -> Option<FactLines<'t>> {
+    block_view(cx, owner, node, true).map(|(facts, _)| facts)
+}
+
+/// The facts that the member lines of the derivation block `node` write
+/// by themselves, as [`block_facts`] but with a `=` line dropping the
+/// lines before it (`annot.line.replace`); also the slots such a line
+/// replaces, whose earlier facts the block drops.
+#[must_use]
+pub fn layer_facts<'t>(
+    cx: &BodyCx<'t>,
+    owner: DefId,
+    node: NodeRef<'t>,
+) -> Option<(FactLines<'t>, Vec<Slot>)> {
+    block_view(cx, owner, node, false)
+}
+
+fn block_view<'t>(
+    cx: &BodyCx<'t>,
+    owner: DefId,
+    node: NodeRef<'t>,
+    keep_all: bool,
+) -> Option<(FactLines<'t>, Vec<Slot>)> {
     let pool = cx.names.pool;
     let ItemData::Impl {
         by: Some(_),
@@ -328,12 +350,24 @@ pub fn block_facts<'t>(cx: &BodyCx<'t>, owner: DefId, node: NodeRef<'t>) -> Opti
             l.list
                 .is_none_or(|list| !hd_resolve::facts::never_a_list(list.kind()))
         })
-        // Every line is kept, so a `=` line does not drop the lines before it.
-        .map(|l| MemberLine { extend: true, ..l })
+        .collect();
+    let replaced: Vec<Slot> = lines
+        .iter()
+        .filter(|l| !l.extend && l.list.is_some())
+        .filter_map(|l| line_slot(cx, target, l.name))
+        .collect();
+    // With `keep_all`, every line is kept, so a `=` line does not drop the
+    // lines before it.
+    let lines: Vec<MemberLine<'t>> = lines
+        .into_iter()
+        .map(|l| MemberLine {
+            extend: keep_all || l.extend,
+            ..l
+        })
         .collect();
     edit_facts(cx, target, &mut out, &lines);
     out.retarget(cx, data, pool.list_items(args));
-    Some(out)
+    Some((out, if keep_all { Vec::new() } else { replaced }))
 }
 
 /// The facts left when the member `lines` of a block in another module of

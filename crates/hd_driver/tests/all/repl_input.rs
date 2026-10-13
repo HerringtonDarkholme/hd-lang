@@ -1068,3 +1068,85 @@ fn a_later_derivation_sees_an_input_s_block_with_no_trait() {
     let codes: Vec<&str> = out.diags.code.iter().map(|c| c.as_str()).collect();
     assert_eq!(codes, ["overlapping-impl"], "{}", out.render());
 }
+
+/// The codes of the diagnostics of REPL input `n` with source `text`.
+fn input_codes(repl: &mut Repl<'_>, n: u32, text: &str) -> Vec<String> {
+    let out = repl.build(n, text);
+    out.diags
+        .code
+        .iter()
+        .map(|c| c.as_str().to_owned())
+        .collect()
+}
+
+/// A type's fact of one concrete type may not repeat across inputs, as
+/// within one module: the declaration's and a later block's, or a block
+/// with no trait's and a derivation block's (`annot.line.duplicate`).
+#[test]
+fn a_fact_type_repeated_across_inputs_is_a_duplicate() {
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let decl = "data Row:\n    @\"cents\"\n    total: i32\n    id: i32\n";
+    let block =
+        "use std.structure.Structure\n\nimpl Row by Structure:\n    total += [\"checked\"]\n";
+    // The declaration and a later input's block with no trait.
+    let mut r = repl(&store);
+    r.input(1, decl);
+    assert_eq!(
+        input_codes(&mut r, 2, block),
+        ["duplicate-fact"],
+        "across inputs"
+    );
+    // As one module.
+    let mut one = repl(&store);
+    assert_eq!(
+        input_codes(&mut one, 1, &format!("{decl}\n{block}")),
+        ["duplicate-fact"],
+        "one module"
+    );
+    // Distinct fact types are fine, on the same and on another member.
+    let mut r = repl(&store);
+    r.input(1, decl);
+    r.input(
+        2,
+        "use std.structure.Structure\n\nimpl Row by Structure:\n    total += [+5]\n    id += [\"checked\"]\n",
+    );
+    // A `=` line drops the declaration's fact first.
+    let mut r = repl(&store);
+    r.input(1, decl);
+    r.input(
+        2,
+        "use std.structure.Structure\n\nimpl Row by Structure:\n    total = [\"checked\"]\n",
+    );
+}
+
+/// A block with no trait in one input and a derivation block in a later
+/// one write facts of one type (`annot.no-trait.then-blocks`).
+#[test]
+fn a_fact_type_repeated_across_two_blocks_is_a_duplicate() {
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let decl = "data Row:\n    total: i32\n";
+    let traitless =
+        "use std.structure.Structure\n\nimpl Row by Structure:\n    total += [\"cents\"]\n";
+    let derived = "impl Eq for Row by Structure:\n    total += [\"checked\"]\n";
+    let mut r = repl(&store);
+    r.input(1, decl);
+    r.input(2, traitless);
+    assert_eq!(
+        input_codes(&mut r, 3, derived),
+        ["duplicate-fact"],
+        "across inputs"
+    );
+    let mut one = repl(&store);
+    assert_eq!(
+        input_codes(&mut one, 1, &format!("{decl}\n{traitless}\n{derived}")),
+        ["duplicate-fact"],
+        "one module"
+    );
+    // A distinct fact type is fine.
+    let mut r = repl(&store);
+    r.input(1, decl);
+    r.input(2, traitless);
+    r.input(3, "impl Eq for Row by Structure:\n    total += [+5]\n");
+}

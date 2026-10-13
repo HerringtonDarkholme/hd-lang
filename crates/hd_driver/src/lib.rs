@@ -3928,6 +3928,7 @@ impl Run<'_> {
         }
         for h in &heads {
             hd_check::check_duplicate_facts(&cx, &heads, h, &mut diags);
+            self.foreign_repeats(m, (&cx, &heads, &impls), h, &mut diags);
         }
         if !init_facts.is_empty() {
             hd_check::init::definite_init(&cx, &stmts, &init_facts, &mut diags);
@@ -4412,6 +4413,96 @@ impl Run<'_> {
         .ok()?;
         derived.bodies.extend(bodies);
         Some(own)
+    }
+
+    /// The repeats that the member lines of the block `h` of module `m`
+    /// make in a type that another module of the REPL session declares:
+    /// the facts of its declaration, edited by the block with no trait
+    /// when another module holds it, then by `h`, as within one module
+    /// (`annot.line.duplicate`). Each earlier layer is typed in its own
+    /// module, which `h`'s lines then repeat (`duplicate-fact`).
+    fn foreign_repeats<'t>(
+        &self,
+        m: usize,
+        (cx, heads, impls): (&BodyCx<'t>, &[hd_resolve::Head<'t>], &ImplView<'_>),
+        h: &hd_resolve::Head<'t>,
+        diags: &mut DiagBuf,
+    ) {
+        let names = self.names();
+        let pool = cx.names.pool;
+        let Some(ItemData::Impl {
+            by: Some(_),
+            self_ty,
+            ..
+        }) = cx.lookup.item(h.def).map(|i| &i.data)
+        else {
+            return;
+        };
+        let TyData::Adt { def: data, .. } = pool.get(*self_ty) else {
+            return;
+        };
+        if heads.iter().any(|x| x.def == data)
+            || !cx.session.contains(&names.module_node(data))
+            || hd_check::derive::member_lines(&cx.src, h.node).is_empty()
+        {
+            return;
+        }
+        let Some(dm) = self
+            .table
+            .module(&names.module_of(data))
+            .map(hd_base::ModuleId::idx)
+        else {
+            return;
+        };
+        let Some(mut prior) = self
+            .in_module(m, dm, (&[], impls.own), |dcx, dheads| {
+                let item = dcx.lookup.item(data)?;
+                let node = dheads.iter().find(|x| x.def == data)?.node;
+                let view = hd_check::structure::declaration_facts(
+                    dcx,
+                    item,
+                    node,
+                    traitless(dcx, dheads, data),
+                );
+                Some(hd_check::declaration_types(dcx, data, &view))
+            })
+            .flatten()
+        else {
+            return;
+        };
+        // The block with no trait is a layer of its own when it is another
+        // module's, and not `h` itself.
+        let block = cx
+            .lookup
+            .own
+            .iter()
+            .chain(cx.lookup.ifaces.iter().flat_map(|f| &f.items))
+            .find(|it| {
+                traitless_for(pool, it, data) && cx.session.contains(&names.module_node(it.def))
+            })
+            .filter(|it| it.def != h.def);
+        if let Some(block) = block
+            && let Some(bm) = self
+                .table
+                .module(&names.module_of(block.def))
+                .map(hd_base::ModuleId::idx)
+            && bm != dm
+        {
+            let layer = |bcx: &BodyCx<'_>, bheads: &[hd_resolve::Head<'_>]| {
+                let bh = bheads.iter().find(|x| x.def == block.def)?;
+                hd_check::layer_types(bcx, bh, &prior, None)
+            };
+            let layered = if bm == m {
+                layer(cx, heads)
+            } else {
+                self.in_module(m, bm, (&[], impls.own), layer).flatten()
+            };
+            let Some(layered) = layered else {
+                return;
+            };
+            prior = layered;
+        }
+        hd_check::layer_types(cx, h, &prior, Some(diags));
     }
 
     /// The declaration facts bodies of `data`, which another module of
