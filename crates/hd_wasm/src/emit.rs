@@ -5733,26 +5733,31 @@ pub fn entry(
     main: DefId,
     key: hd_base::Hash128,
     inits: &[hd_base::Hash128],
-    entry_init: Option<hd_base::Hash128>,
+    entry_inits: &[hd_base::Hash128],
     report: Option<hd_base::Hash128>,
 ) -> StageResult<Vec<(String, Helper)>> {
-    // Only the entry module's own init may use `block_on`
+    // Only the entry module's own init bodies may use `block_on`
     // (`req.drive.block-on.forbidden-contexts`).
-    let inits = inits.iter().map(|k| (*k, Some(*k) != entry_init)).collect();
+    let inits = inits
+        .iter()
+        .map(|k| (*k, !entry_inits.contains(k)))
+        .collect();
     Ok(vec![
         ("hd.init".into(), Helper::EntryInit { inits }),
         (
             "hd.poll".into(),
-            root_poll(pool, env, path, main, key, report)?,
+            root_poll(pool, env, path, main, key, report, Vec::new())?,
         ),
         ("hd.wake".into(), Helper::EntryWake),
     ])
 }
 
 /// The entry exports of a script (module.init.script): `hd.init` runs the
-/// reachable groups' inits except the script's own, which is last, since
-/// every reachable group is a dependency of it. `hd.poll` runs that init
-/// with its entry providers, then exits with 0 as `main` with no result.
+/// reachable groups' inits before the script's first own init body `key`.
+/// `hd.poll` runs that body with its entry providers, then the inits after
+/// it in order: the script's own bodies `own` (its runs, when its module
+/// cycle's statements split it) with the entry providers, the others as
+/// forbidden contexts. It then exits with 0 as `main` with no result.
 pub fn script_entry(
     pool: &InternPool,
     env: &dyn ProgramEnv,
@@ -5760,18 +5765,23 @@ pub fn script_entry(
     init: DefId,
     key: hd_base::Hash128,
     inits: &[hd_base::Hash128],
+    own: &[hd_base::Hash128],
 ) -> StageResult<Vec<(String, Helper)>> {
-    let others: Vec<(hd_base::Hash128, bool)> = inits
-        .iter()
-        .copied()
-        .filter(|k| *k != key)
-        .map(|k| (k, true))
-        .collect();
+    let (before, after): (Vec<_>, Vec<_>) = match inits.iter().position(|k| *k == key) {
+        Some(at) => (inits[..at].to_vec(), inits[at + 1..].to_vec()),
+        // An init this build does not run, as an earlier REPL input's.
+        None => (
+            inits.iter().copied().filter(|k| !own.contains(k)).collect(),
+            own.iter().copied().filter(|k| *k != key).collect(),
+        ),
+    };
+    let before = before.into_iter().map(|k| (k, true)).collect();
+    let after = after.into_iter().map(|k| (k, !own.contains(&k))).collect();
     Ok(vec![
-        ("hd.init".into(), Helper::EntryInit { inits: others }),
+        ("hd.init".into(), Helper::EntryInit { inits: before }),
         (
             "hd.poll".into(),
-            root_poll(pool, env, path, init, key, None)?,
+            root_poll(pool, env, path, init, key, None, after)?,
         ),
         ("hd.wake".into(), Helper::EntryWake),
     ])
@@ -5801,7 +5811,7 @@ pub fn test_entry(
     for (i, (def, key, report)) in cases.iter().enumerate() {
         out.push((
             format!("hd.test.{i}"),
-            root_poll(pool, env, path, *def, *key, *report)?,
+            root_poll(pool, env, path, *def, *key, *report, Vec::new())?,
         ));
     }
     out.push(("hd.wake".into(), Helper::EntryWake));
@@ -5820,11 +5830,11 @@ pub fn scenario_entry(
     main: DefId,
     key: hd_base::Hash128,
     inits: &[hd_base::Hash128],
-    entry_init: Option<hd_base::Hash128>,
+    entry_inits: &[hd_base::Hash128],
     report: Option<hd_base::Hash128>,
     cleanup: Option<hd_base::Hash128>,
 ) -> StageResult<Vec<(String, Helper)>> {
-    let mut out = entry(pool, env, path, main, key, inits, entry_init, report)?;
+    let mut out = entry(pool, env, path, main, key, inits, entry_inits, report)?;
     out.push(("hd.cancel".into(), Helper::EntryCancel));
     if let Some(func) = cleanup {
         out.push(("hd.scenario.cleanup".into(), Helper::EntryCall { func }));
@@ -5833,7 +5843,9 @@ pub fn scenario_entry(
 }
 
 /// The poll export of one root: its row's default providers, then the
-/// root's call or poll, then its report.
+/// root's call or poll, then the inits `then` that follow a script's first
+/// own body (flagged when forbidden, else run with the same providers),
+/// then its report.
 fn root_poll(
     pool: &InternPool,
     env: &dyn ProgramEnv,
@@ -5841,6 +5853,7 @@ fn root_poll(
     main: DefId,
     key: hd_base::Hash128,
     report: Option<hd_base::Hash128>,
+    then: Vec<(hd_base::Hash128, bool)>,
 ) -> StageResult<Helper> {
     let shared = Layouts::default();
     let lay = Lay::new(pool, env, path, &shared);
@@ -5900,12 +5913,20 @@ fn root_poll(
     } else {
         None
     };
+    // A script's top level is not a suspension driver
+    // (`module.init.script-not-driver`).
+    if bang.is_some() && !then.is_empty() {
+        return unsupported(
+            "a suspending script whose module cycle runs after its first statement",
+        );
+    }
     Ok(Helper::EntryPoll {
         main: key,
         providers,
         results: u32_of(results.len()),
         bang,
         report: report.map(|k| (k, results)),
+        then,
     })
 }
 

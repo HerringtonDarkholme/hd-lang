@@ -646,13 +646,20 @@ enum Roots {
     Main {
         def: DefId,
         key: Hash128,
-        /// The entry module's own init, the one init that may `block_on`.
-        entry_init: Option<Hash128>,
+        /// The entry module's own init bodies, the inits that may
+        /// `block_on`: its whole init, or its runs in a module cycle.
+        entry_inits: Vec<Hash128>,
         report: Option<Hash128>,
     },
-    /// A script: its init, which runs its top-level statements after the
-    /// other inits it reaches.
-    Script { def: DefId, key: Hash128 },
+    /// A script: its first own init body, which runs with its entry
+    /// providers after the inits before it. `own` holds every own body:
+    /// its whole init, or its runs in a module cycle. The inits after the
+    /// first then run in order, the own ones with the entry providers.
+    Script {
+        def: DefId,
+        key: Hash128,
+        own: Vec<Hash128>,
+    },
     /// Each running case (item, instance, report), and per test module
     /// the inits it reaches.
     Tests {
@@ -664,8 +671,9 @@ enum Roots {
     Scenario {
         def: DefId,
         key: Hash128,
-        /// The entry module's own init, the one init that may `block_on`.
-        entry_init: Option<Hash128>,
+        /// The entry module's own init bodies, the inits that may
+        /// `block_on`: its whole init, or its runs in a module cycle.
+        entry_inits: Vec<Hash128>,
         report: Option<Hash128>,
         /// The entry module's top-level cleanup function, called by
         /// `hd.scenario.cleanup`; `None` when it declares none.
@@ -5232,6 +5240,11 @@ impl Run<'_> {
         }
         let mut per_module: Vec<Vec<DefId>> = Vec::new();
         let mut all_inits: Vec<DefId> = Vec::new();
+        // The entry module's own init bodies, in order: its whole init, or
+        // one body per run when its module cycle's statements split it.
+        // Only they may `block_on`, and a script runs them with its entry
+        // providers.
+        let mut own: Vec<DefId> = Vec::new();
         for m in &root_modules {
             let defs = match self.group_init_order(m, &init_of, &has_init) {
                 Ok(o) => o,
@@ -5240,30 +5253,21 @@ impl Run<'_> {
                     return;
                 }
             };
-            for d in &defs {
+            for (d, module) in &defs {
                 if !all_inits.contains(d) {
                     all_inits.push(*d);
+                    if *module == entry_key {
+                        own.push(*d);
+                    }
                 }
             }
-            per_module.push(defs);
+            per_module.push(defs.into_iter().map(|(d, _)| d).collect());
         }
-        // The entry module's init is one body: a script polls it last with
-        // its entry providers, and only it may `block_on`.
-        if matches!(self.goal, Goal::Program { .. } | Goal::ReplInput { .. })
-            && has_init(&entry_key)
-        {
-            let whole = init_of(&entry_key);
-            if !all_inits.contains(&whole) || (script && all_inits.last() != Some(&whole)) {
-                self.stage::<()>(
-                    Stage::Collect,
-                    Err(NotImplemented::new(
-                        Stage::Collect,
-                        "an entry module whose statements run among its module cycle's",
-                    )),
-                );
-                return;
-            }
-        }
+        // A script's root is its first own body; the rest run after it.
+        let root = match own.first() {
+            Some(first) if script => *first,
+            _ => root,
+        };
         // Extra roots: the other cases, then each distinct report function.
         let mut extra: Vec<(DefId, TyList)> = roots[1..]
             .iter()
@@ -5344,23 +5348,25 @@ impl Run<'_> {
                 .map(|id| collected.table.key[id.idx()])
                 .filter(|k| collected.inits.contains(k))
         };
+        let entry_inits: Vec<Hash128> = own.iter().filter_map(key_of_init).collect();
         let plan = match &self.goal {
             Goal::Program { .. } | Goal::ReplInput { .. } | Goal::Scenario { .. } if script => {
                 Roots::Script {
                     def: root,
                     key: collected.table.key[0],
+                    own: entry_inits,
                 }
             }
             Goal::Program { .. } => Roots::Main {
                 def: root,
                 key: collected.table.key[0],
-                entry_init: key_of_init(&init_of(&entry_key)),
+                entry_inits,
                 report: reports[0].as_ref().and_then(key_of_extra),
             },
             Goal::Scenario { .. } => Roots::Scenario {
                 def: root,
                 key: collected.table.key[0],
-                entry_init: key_of_init(&init_of(&entry_key)),
+                entry_inits,
                 report: reports[0].as_ref().and_then(key_of_extra),
                 cleanup: {
                     let def = names.item(&entry_key, "cleanup_ran");
@@ -5628,13 +5634,14 @@ impl Run<'_> {
     /// one with the least module identity first
     /// (`module.init.cycle.ready-order`). Inside a cycle whose statements
     /// sit in several modules, `InitOrder`'s runs: a module's whole init
-    /// when its statements run together, else one body per run.
+    /// when its statements run together, else one body per run. Each body
+    /// comes with its module's path.
     fn group_init_order(
         &self,
         entry: &str,
         init_of: &dyn Fn(&str) -> DefId,
         has_init: &dyn Fn(&str) -> bool,
-    ) -> hd_base::StageResult<Vec<DefId>> {
+    ) -> hd_base::StageResult<Vec<(DefId, &str)>> {
         let Some(start) = self.table.module(entry) else {
             return Ok(Vec::new());
         };
@@ -5689,7 +5696,12 @@ impl Run<'_> {
                 .collect();
             paths.sort_unstable();
             if paths.iter().filter(|p| has_init(p)).count() < 2 {
-                out.extend(paths.iter().filter(|p| has_init(p)).map(|p| init_of(p)));
+                out.extend(
+                    paths
+                        .iter()
+                        .filter(|p| has_init(p))
+                        .map(|p| (init_of(p), *p)),
+                );
                 continue;
             }
             let folder = self.table.modules[groups[next][0]].folder;
@@ -5704,7 +5716,10 @@ impl Run<'_> {
                 .ok_or_else(|| {
                     NotImplemented::new(Stage::Collect, "a module cycle without its init order")
                 })?;
-            out.extend(runs.iter().map(|r| self.run_def(runs, r, init_of)));
+            out.extend(
+                runs.iter()
+                    .map(|r| (self.run_def(runs, r, init_of), r.module.as_str())),
+            );
         }
         Ok(out)
     }
@@ -5841,7 +5856,7 @@ impl Run<'_> {
             Roots::Main {
                 def,
                 key,
-                entry_init,
+                entry_inits,
                 report,
             } => hd_wasm::entry(
                 &self.pool,
@@ -5850,11 +5865,11 @@ impl Run<'_> {
                 *def,
                 *key,
                 &c.collected.inits,
-                *entry_init,
+                entry_inits,
                 *report,
             ),
-            Roots::Script { def, key } => {
-                hd_wasm::script_entry(&self.pool, &env, &path, *def, *key, &c.collected.inits)
+            Roots::Script { def, key, own } => {
+                hd_wasm::script_entry(&self.pool, &env, &path, *def, *key, &c.collected.inits, own)
             }
             Roots::Tests { cases, inits } => {
                 hd_wasm::test_entry(&self.pool, &env, &path, cases, inits)
@@ -5862,7 +5877,7 @@ impl Run<'_> {
             Roots::Scenario {
                 def,
                 key,
-                entry_init,
+                entry_inits,
                 report,
                 cleanup,
             } => hd_wasm::scenario_entry(
@@ -5872,7 +5887,7 @@ impl Run<'_> {
                 *def,
                 *key,
                 &c.collected.inits,
-                *entry_init,
+                entry_inits,
                 *report,
                 *cleanup,
             ),

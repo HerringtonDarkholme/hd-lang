@@ -4,7 +4,9 @@
 //! `module.init.cycle.earliest`), splitting a module's statements where
 //! another module's must run between them; statements that wait on each
 //! other are `top-level-read-before-initialization`
-//! (`module.init.cycle.stuck`). Programs build through the driver and run
+//! (`module.init.cycle.stuck`). The entry module follows the same order:
+//! its statements, split or not, keep the entry's rights, and a script's
+//! run with its entry providers. Programs build through the driver and run
 //! on V8 (`host/run.mjs`).
 
 use std::path::Path;
@@ -54,6 +56,17 @@ fn build_in(store: &MemoryStore, src: &MemorySources) -> Output {
 }
 
 fn run_wasm(name: &str, wasm: &[u8]) -> String {
+    let ran = node_run(name, wasm);
+    assert!(
+        ran.status.success(),
+        "{name}: {}",
+        String::from_utf8_lossy(&ran.stderr)
+    );
+    String::from_utf8(ran.stdout).expect("UTF-8")
+}
+
+/// Runs `wasm` on V8 and returns how it exited.
+fn node_run(name: &str, wasm: &[u8]) -> std::process::Output {
     let path = Scratch::unmade(
         env!("CARGO_TARGET_TMPDIR"),
         &format!("init-cycle-{name}.wasm"),
@@ -65,17 +78,22 @@ fn run_wasm(name: &str, wasm: &[u8]) -> String {
         .output()
         .expect("node");
     let _ = std::fs::remove_file(&path);
-    assert!(
-        ran.status.success(),
-        "{name}: {}",
-        String::from_utf8_lossy(&ran.stderr)
-    );
-    String::from_utf8(ran.stdout).expect("UTF-8")
+    ran
 }
 
 /// Builds cold, then warm from the same store, and runs the program: the
 /// warm build reads `InitOrder`'s part and links the same Wasm.
 fn run(name: &str, files: &[(&str, &str)]) -> String {
+    run_wasm(name, &build_twice(name, files))
+}
+
+/// Like [`run`], but returns how the program exited, for one that fails.
+fn run_status(name: &str, files: &[(&str, &str)]) -> std::process::Output {
+    node_run(name, &build_twice(name, files))
+}
+
+/// Builds cold, then warm from the same store; both link the same Wasm.
+fn build_twice(name: &str, files: &[(&str, &str)]) -> Vec<u8> {
     let store = MemoryStore::default();
     let src = sources(files);
     let cold = build_in(&store, &src);
@@ -85,7 +103,7 @@ fn run(name: &str, files: &[(&str, &str)]) -> String {
     assert!(warm.diags.is_empty(), "{name}: {}", warm.render());
     assert_eq!(warm.counters.computed("InitOrder"), 0, "{name}");
     assert_eq!(warm.wasm.as_deref(), Some(linked.as_slice()), "{name}");
-    run_wasm(name, &linked)
+    linked
 }
 
 /// `main` prints `value`, then the recorded lines.
@@ -251,4 +269,75 @@ pub fn main() -> void $ Console:
             "{shown}"
         );
     }
+}
+
+#[test]
+fn an_entry_module_in_a_cycle_runs_its_statements_around_another_modules() {
+    // The entry module `pkg.main` orders before `pkg.zed`: its first
+    // statement runs first, its second waits on zed's `h`, so zed's `h`
+    // splits the entry module's statements; zed's `record` comes last,
+    // after every earlier ready statement.
+    let main = "use pkg.zed.{zed_value}
+use pkg.log.{record, recorded}
+
+record(\"main first\")
+let m = zed_value() + 1
+record(\"main m ${m}\")
+
+pub fn seed() -> i32:
+    +10
+
+pub fn main() -> void $ Console:
+    println(m)
+    for line in recorded():
+        println(line)
+";
+    let zed = "use pkg.main.{seed}
+use pkg.log.{record}
+
+let h = seed() * 2
+record(\"zed h ${h}\")
+
+pub fn zed_value() -> i32:
+    h
+";
+    let out = run("entry", &[("main.hd", main), ("zed.hd", zed)]);
+    assert_eq!(out, "21\nmain first\nmain m 21\nzed h 20\n");
+}
+
+#[test]
+fn a_script_in_a_cycle_runs_its_statements_among_another_modules() {
+    // The script's second statement waits on zed's `h`, so zed's first
+    // statement runs between the script's; zed's last statement is ready
+    // only after the script's last, so it runs after the script's
+    // statements, and its panic shows that it ran.
+    let main = "use pkg.zed.{zed_value}
+
+println(\"main first\")
+let m = zed_value() + 1
+println(\"main m ${m}\")
+
+pub fn seed() -> i32:
+    +10
+
+pub fn main_value() -> i32:
+    m
+";
+    let zed = "use pkg.main.{seed, main_value}
+
+let h = seed() * 2
+let done = main_value()
+panic(\"zed after ${done}\")
+
+pub fn zed_value() -> i32:
+    h
+";
+    let ran = run_status("script", &[("main.hd", main), ("zed.hd", zed)]);
+    assert!(!ran.status.success(), "script: the panic exits non-zero");
+    assert_eq!(
+        String::from_utf8_lossy(&ran.stdout),
+        "main first\nmain m 21\n"
+    );
+    let stderr = String::from_utf8_lossy(&ran.stderr);
+    assert!(stderr.contains("zed after 21"), "script: {stderr}");
 }

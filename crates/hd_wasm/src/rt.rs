@@ -410,6 +410,10 @@ pub enum Helper {
         /// The `std.rt` result function's instance, which turns the
         /// root's result into the exit status; `None` for `void`.
         report: Option<(Hash128, Vec<VT>)>,
+        /// A script's inits after its first own body, in order: a flagged
+        /// one runs as a forbidden context, an unflagged one is another of
+        /// the script's own bodies and runs with the same providers.
+        then: Vec<(Hash128, bool)>,
     },
     /// `hd.wake(n)`: marks the completed handles.
     EntryWake,
@@ -738,6 +742,7 @@ impl Helper {
                 results,
                 bang,
                 report,
+                then,
             } => {
                 w.u8(10);
                 w.hash(*main);
@@ -765,6 +770,11 @@ impl Helper {
                         encode_vts(vts, w);
                     }
                     None => w.u8(0),
+                }
+                w.len_of(then);
+                for (k, forbid) in then {
+                    w.hash(*k);
+                    w.u8(u8::from(*forbid));
                 }
             }
             Helper::EntryWake => w.u8(19),
@@ -939,12 +949,14 @@ impl Helper {
                 } else {
                     None
                 };
+                let then = (0..r.count()).map(|_| (r.hash(), r.u8() != 0)).collect();
                 Helper::EntryPoll {
                     main,
                     providers,
                     results,
                     bang,
                     report,
+                    then,
                 }
             }
             _ => return None,
@@ -1558,6 +1570,7 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
             results,
             bang,
             report,
+            then,
         } => {
             // Parameter 0 is the driver's `PollContext`, one `hd.poll`
             // caller among drivers that share the instance. A plain entry
@@ -1590,6 +1603,22 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
                     } else {
                         for _ in 0..*results {
                             a.s().drop();
+                        }
+                        // A script's later inits: its own bodies, which
+                        // share the first's row and result, and the
+                        // others, as forbidden contexts.
+                        for (k, forbid) in then {
+                            if *forbid {
+                                forbid_by(&mut a, 1);
+                                a.call(Sym::Inst(*k));
+                                forbid_by(&mut a, -1);
+                            } else {
+                                build(&mut a);
+                                a.call(Sym::Inst(*k));
+                                for _ in 0..*results {
+                                    a.s().drop();
+                                }
+                            }
                         }
                         a.i32(0);
                     }
@@ -2305,6 +2334,7 @@ mod tests {
                 results: u32::try_from(results.len()).unwrap(),
                 bang: Some((base.clone(), poll.clone())),
                 report: report.then_some((report_key, results)),
+                then: vec![],
             },
             false,
         )
@@ -2385,6 +2415,7 @@ mod tests {
                 results: 0,
                 bang: Some((base, poll)),
                 report: None,
+                then: vec![],
             },
             false,
         )
