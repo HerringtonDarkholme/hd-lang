@@ -4920,7 +4920,8 @@ impl Run<'_> {
     /// `ModuleFinish(m)`: writes the `check` entry. Sections: diagnostics;
     /// meta (the module's TIR content hash, which `prog_key` reads); the
     /// module's items; TIR, one record per body; a test run's
-    /// registrations; the init summary, which `InitOrder` reads.
+    /// registrations; the init summary, which `InitOrder` reads; the `dbg`
+    /// references; and each body's frame name (`positions`).
     fn module_finish(&self, m: usize) {
         let (
             Some(Some(prep)),
@@ -5022,6 +5023,15 @@ impl Run<'_> {
             lines.write(&mut gw, r.span.hi);
             gw.u8(u8::from(r.call));
         }
+        let mut fw = Writer::default();
+        let body_items: Vec<DefId> = keep.iter().map(|b| b.item).collect();
+        positions::write_frame_names(&mut fw, &self.paths, &body_items, &|d| {
+            let item = all_items.iter().find(|i| i.def == d)?;
+            let ItemData::Impl { self_ty, .. } = &item.data else {
+                return None;
+            };
+            Some(positions::self_type_name(&names, &item.generics, *self_ty))
+        });
         let mut sections: Vec<&[u8]> = vec![
             &dw.bytes,
             &meta.bytes,
@@ -5030,6 +5040,7 @@ impl Run<'_> {
             &rw.bytes,
             &summary,
             &gw.bytes,
+            &fw.bytes,
         ];
         // A REPL input's interface: its top-level bindings, which later
         // inputs read and assign (`cli.repl.declarations.bindings`). A
@@ -5181,7 +5192,7 @@ impl Run<'_> {
             }
         }
         let _ = self.dbg_refs[m].set(dbg);
-        if let Some(b) = sections.get(7) {
+        if let Some(b) = sections.get(8) {
             let bindings = decode_bindings(b, &self.names()).unwrap_or_default();
             let _ = self.input_bindings[m].set(bindings);
         }

@@ -17,12 +17,12 @@
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
-use hd_base::wire::Reader;
+use hd_base::wire::{Reader, Writer};
 use hd_base::{DefId, FileId, NodeIdx, PathId};
 use hd_intern::{PathKind, PathTable, ShardedInterner};
-use hd_resolve::Src;
+use hd_resolve::{Generic, Names, Src, show_ty};
 use hd_syntax::{Parse, parse};
-use hd_types::InternPool;
+use hd_types::{InternPool, Ty, TyData};
 
 /// What resolves anchors for one built program: each of its modules, by
 /// module path, with the path its frames print; and its test cases'
@@ -57,7 +57,7 @@ struct Module {
 }
 
 /// A body of a module: its syntax node per instruction, and its name in
-/// the module (`List.remove_at`).
+/// the module (`List.remove_at`), from the module's frame-name record.
 struct Body {
     syn: Vec<NodeIdx>,
     name: String,
@@ -193,15 +193,14 @@ impl ModuleSource {
             PathTable::new(),
             ShardedInterner::default(),
         );
+        let mut names = read_frame_names(sections.get(7)?)?;
         let mut bodies = HashMap::new();
         let mut r = Reader::new(sections.get(3)?);
         for _ in 0..r.count() {
             let b = hd_tir::wire::read_body(r.blob(), &pool, &paths, &syms)?;
-            let body = Body {
-                syn: b.syn,
-                name: name_in_module(&paths, b.item),
-            };
-            bodies.insert(path_of(&paths, b.item), body);
+            let path = path_of(&paths, b.item);
+            let name = names.remove(&path)?;
+            bodies.insert(path, Body { syn: b.syn, name });
         }
         Some(Module {
             bodies,
@@ -214,88 +213,83 @@ fn path_of(paths: &PathTable, d: DefId) -> String {
     paths.display(PathId::from_raw(d.raw())).to_string()
 }
 
-/// An item's name in its module: its segments below the module, joined by
-/// `.`. An impl's segment is its type's name (`impl [ T ] List [ T ]` is
-/// `List`), and a hidden segment, such as a default argument's body or a
-/// block-local scope, is left out, so its frames name their declaration.
-fn name_in_module(paths: &PathTable, d: DefId) -> String {
-    let mut segs = Vec::new();
-    let mut p = PathId::from_raw(d.raw());
-    while let Some(q) = p.get() {
-        match paths.kind(q) {
-            PathKind::Package | PathKind::Module => break,
-            PathKind::Hidden => {}
-            PathKind::Impl => segs.push(impl_type(paths.segment(q))),
-            PathKind::Item | PathKind::Member | PathKind::Variant => {
-                segs.push(paths.segment(q).to_owned());
+/// Writes the frame names of a module's bodies, a section of its `check`
+/// entry: per body, its stable path and the segments of its name in the
+/// module (`["List", "remove_at"]`). An item's segment is its name, an
+/// impl's is the name of the type it is for (`impl [ T ] List [ T ]` is
+/// `List`, as `impl_type` names it from the impl's item), and a hidden segment,
+/// such as a default argument's body or a block-local scope, is left out,
+/// so its frames name their declaration. The names come from the items the
+/// checker built, so no spelling of a path segment decides them.
+pub(crate) fn write_frame_names(
+    w: &mut Writer,
+    paths: &PathTable,
+    items: &[DefId],
+    impl_type: &dyn Fn(DefId) -> Option<String>,
+) {
+    w.len_of(items);
+    for &item in items {
+        let mut segs = Vec::new();
+        let mut p = PathId::from_raw(item.raw());
+        while let Some(q) = p.get() {
+            match paths.kind(q) {
+                PathKind::Package | PathKind::Module => break,
+                PathKind::Hidden => {}
+                PathKind::Impl => {
+                    segs.push(impl_type(DefId::from_raw(q.raw())).unwrap_or_default());
+                }
+                PathKind::Item | PathKind::Member | PathKind::Variant => {
+                    segs.push(paths.segment(q).to_owned());
+                }
             }
+            p = paths.parent(q);
         }
-        p = paths.parent(q);
+        segs.reverse();
+        w.str(&path_of(paths, item));
+        w.len_of(&segs);
+        for s in &segs {
+            w.str(s);
+        }
     }
-    segs.reverse();
-    segs.join(".")
 }
 
-/// The type an impl segment implements for, by its name without generic
-/// arguments. A segment is the impl's head as tokens joined by spaces
-/// (`impl [ T < Eq ] Eq for List [ T ]`, `derive Eq for Cart`), with ` #N`
-/// after a repeated head: the type follows the last `for` outside
-/// brackets, or else the keyword and the impl's generic parameters, and
-/// ends at a delegation's `by`. A named type prints its last path segment,
-/// `T?` prints `Option`, and any other type, such as a tuple, prints as
-/// written.
-fn impl_type(seg: &str) -> String {
-    let mut toks: Vec<&str> = seg.split(' ').collect();
-    if toks.len() > 1 && toks.last().is_some_and(|t| t.starts_with('#')) {
-        toks.pop();
+/// The frame names [`write_frame_names`] wrote, by body path.
+fn read_frame_names(bytes: &[u8]) -> Option<HashMap<String, String>> {
+    let mut r = Reader::new(bytes);
+    let mut names = HashMap::new();
+    for _ in 0..r.count() {
+        let path = r.str().to_owned();
+        let segs: Vec<&str> = (0..r.count()).map(|_| r.str()).collect();
+        names.insert(path, segs.join("."));
     }
-    // Each token's bracket depth before it.
-    let mut depth = 0i32;
-    let depths: Vec<i32> = toks
-        .iter()
-        .map(|t| {
-            let d = depth;
-            match *t {
-                "[" | "(" => depth += 1,
-                "]" | ")" => depth -= 1,
-                _ => {}
+    r.ok().then_some(names)
+}
+
+/// The name an impl's type goes by in a frame, without generic arguments:
+/// a declared type by its name, `T?` as `Option`, a parameter by the name
+/// the impl gives it (`generics`), and a tuple by its elements' names. Any
+/// other type, such as a function, prints as a type does.
+pub(crate) fn self_type_name(names: &Names<'_>, generics: &[Generic], ty: Ty) -> String {
+    let pool = names.pool.types();
+    match pool.get(ty) {
+        TyData::Adt { def, .. } => names.display_name(def).to_owned(),
+        TyData::Option(_) => "Option".to_owned(),
+        TyData::Param(p) => generics
+            .get(usize::from(p.index))
+            .map_or_else(|| show_ty(names, ty), |g| names.text(g.name).to_owned()),
+        TyData::Tuple { elems, rest: None } => {
+            let items = pool.list_items(elems);
+            if items.is_empty() {
+                return "void".to_owned();
             }
-            d
-        })
-        .collect();
-    let top = |i: usize, word: &str| depths[i] == 0 && toks[i] == word;
-    let start = if let Some(i) = (0..toks.len()).rev().find(|&i| top(i, "for")) {
-        i + 1
-    } else {
-        // The keyword, then the impl's generic parameters, if any.
-        let mut i = 1;
-        if toks.get(i) == Some(&"[") {
-            while i < toks.len() && !(depths[i] == 1 && toks[i] == "]") {
-                i += 1;
-            }
-            i += 1;
+            let each: Vec<String> = items
+                .iter()
+                .map(|t| self_type_name(names, generics, *t))
+                .collect();
+            format!("({})", each.join(", "))
         }
-        i
-    };
-    let end = (start..toks.len())
-        .find(|&i| top(i, "by"))
-        .unwrap_or(toks.len());
-    let ty = toks.get(start..end).unwrap_or_default();
-    // `T?` is an `Option`, whose arguments are left out like any other's.
-    if end > start && toks[end - 1] == "?" && depths[end - 1] == 0 {
-        return "Option".to_owned();
+        _ => show_ty(names, ty),
     }
-    // A named type: a path, then its arguments, if any.
-    let path: Vec<&str> = ty.iter().take_while(|t| **t != "[").copied().collect();
-    let ident = |t: &str| t.chars().all(|c| c.is_alphanumeric() || c == '_');
-    let named = path
-        .iter()
-        .enumerate()
-        .all(|(i, t)| if i % 2 == 0 { ident(t) } else { *t == "." });
-    if named && path.len() % 2 == 1 {
-        return path.last().copied().unwrap_or_default().to_owned();
-    }
-    ty.concat().replace(',', ", ").replace("->", " -> ")
 }
 
 /// A test case's name as an hd string literal writes it.
@@ -314,25 +308,53 @@ fn quoted(name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{impl_type, quoted};
+    use hd_base::wire::Writer;
+    use hd_base::{DefId, PathId};
+    use hd_intern::{PathKind, PathTable};
 
+    use super::{quoted, read_frame_names, write_frame_names};
+
+    /// A body's frame name comes from the item the impl segment names, not
+    /// from how the segment spells its head: these segments are not impl
+    /// heads at all, and the names still follow the recorded types.
     #[test]
-    fn an_impl_names_the_type_it_implements_for() {
-        for (seg, ty) in [
-            ("impl [ T ] List [ T ]", "List"),
-            ("impl Cart", "Cart"),
-            ("impl [ T < Eq ] Eq for List [ T ]", "List"),
-            ("impl Eq for Parsed #2", "Parsed"),
-            ("impl Describe for Service by Logger", "Service"),
-            ("impl [ T < Eq ] Eq for T ?", "Option"),
-            ("impl Show for model . User", "User"),
-            ("derive Eq for Cart", "Cart"),
-            ("error Display for FsError", "FsError"),
-            ("impl ( i32 , i32 )", "(i32, i32)"),
-            ("impl Display for fn ( ) -> i32", "fn() -> i32"),
-        ] {
-            assert_eq!(impl_type(seg), ty, "{seg}");
-        }
+    fn a_frame_name_comes_from_the_record_not_the_segment_spelling() {
+        let paths = PathTable::new();
+        let module = paths.item("pkg", "m", "x");
+        let m = PathId::from_raw(module.raw())
+            .get()
+            .map(|p| paths.parent(p));
+        let m = m.expect("module");
+        let def = |parent: PathId, kind: PathKind, seg: &str| {
+            let id = paths.intern(parent, kind, seg);
+            (id, DefId::from_raw(id.raw()))
+        };
+        let (generic, generic_impl) = def(m, PathKind::Impl, "??? generic spelling ???");
+        let (_, generic_method) = def(generic, PathKind::Member, "remove_at");
+        let (derived, derived_impl) = def(m, PathKind::Impl, "something else #2");
+        let (_, derived_method) = def(derived, PathKind::Member, "eq");
+        let (inherent, inherent_impl) = def(m, PathKind::Impl, "impl Cart");
+        let (_, inherent_method) = def(inherent, PathKind::Member, "total");
+        let (_, free) = def(m, PathKind::Item, "run");
+        let record = |d: DefId| -> Option<String> {
+            [
+                (generic_impl, "List"),
+                (derived_impl, "Cart"),
+                (inherent_impl, "Cart"),
+            ]
+            .iter()
+            .find(|(i, _)| *i == d)
+            .map(|(_, t)| (*t).to_owned())
+        };
+        let items = [generic_method, derived_method, inherent_method, free];
+        let mut w = Writer::default();
+        write_frame_names(&mut w, &paths, &items, &record);
+        let names = read_frame_names(&w.bytes).expect("record");
+        let of = |d: DefId| names[&super::path_of(&paths, d)].clone();
+        assert_eq!(of(generic_method), "List.remove_at");
+        assert_eq!(of(derived_method), "Cart.eq");
+        assert_eq!(of(inherent_method), "Cart.total");
+        assert_eq!(of(free), "run");
     }
 
     #[test]
