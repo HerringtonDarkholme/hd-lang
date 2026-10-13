@@ -39,9 +39,11 @@ const FIXTURE = join(root, "spec", "conformance", "runtime", "valid", "println-c
 // and 0.04 MB gzip (4.39 -> 4.51 MB, 1.39 -> 1.42 MB); the playground's REPL
 // panel will use it, so the raw gate is 4.7 MB. The REPL goals (W3) added
 // 11 KB raw and 5 KB gzip (4.550 -> 4.560 MB, 1.436 -> 1.440 MB), within
-// both gates.
+// both gates. The REPL's session-as-one-module rules for derivations, facts
+// and drift (#159, f101ce35 onward) took gzip to 1.454 MB, so the gzip gate
+// is 1.5 MB.
 const RAW_LIMIT = 4.7e6;
-const GZIP_LIMIT = 1.45e6;
+const GZIP_LIMIT = 1.5e6;
 const RAW_FLOOR = 2e6;
 
 /** Compiles `request` and times the call. */

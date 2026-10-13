@@ -301,6 +301,29 @@ fn a_type_is_not_declared_again() {
 /// earlier input or of `src/lib.hd` is `overlapping-impl`, as in one
 /// module, and the first one stays.
 #[test]
+fn an_earlier_input_s_warning_is_shown_once() {
+    let t = session(&[
+        "fn f() -> i32:",
+        "    let unused = 1",
+        "    +2",
+        "",
+        "f()",
+        "f() + 1",
+    ]);
+    assert_eq!(
+        t.out.matches("unused-local-binding").count(),
+        1,
+        "{}",
+        t.out
+    );
+    assert!(
+        t.out.contains("2 : i32") && t.out.contains("3 : i32"),
+        "{}",
+        t.out
+    );
+}
+
+#[test]
 fn a_second_impl_is_an_error() {
     let named = "trait Named:\n    fn name(self) -> string\n\ndata Tag:\n    pub x: i32\n\nimpl Named for Tag:\n    fn name(self) -> string: \"lib\"\n";
     let dir = package("repl-impl", &[("src/lib.hd", named)]);

@@ -148,6 +148,18 @@ impl Diag {
     }
 }
 
+/// What a REPL input shows of its build's diagnostics: every error, since
+/// any error stops the input, but only the warnings located in the input
+/// itself (`file`, such as `repl#3`). An earlier input's or the package's
+/// warnings were shown when that code was built.
+#[must_use]
+pub fn for_input(diags: Vec<Diag>, file: &str) -> Vec<Diag> {
+    diags
+        .into_iter()
+        .filter(|d| d.is_error() || d.file.as_deref() == Some(file))
+        .collect()
+}
+
 /// The diagnostics of a compiler run, in content order. `as_written`
 /// replaces the file of a single-file program (`cli.json.diagnostic.file`).
 #[must_use]

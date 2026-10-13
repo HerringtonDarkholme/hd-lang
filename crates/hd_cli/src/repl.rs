@@ -461,7 +461,8 @@ fn build_input(
     };
     let goal = Goal::ReplInput { input: number };
     let out = hd_driver::build_packages(&host, &program.package, &packages, &goal);
-    let mut found = report::from_output(&out, None);
+    let file = hd_project::repl_file(number);
+    let mut found = hd_driver::diagnostics::for_input(report::from_output(&out, None), &file);
     report::relocate(&mut found, |f| program.sources.display(f));
     for d in &found {
         let _ = writeln!(diags, "{}", d.text());
@@ -470,7 +471,6 @@ fn build_input(
         return None;
     }
     let (Some(wasm), Some(added)) = (out.wasm, out.session_added) else {
-        let file = hd_project::repl_file(number);
         let _ = writeln!(diags, "error: {file}: no Wasm produced");
         return None;
     };

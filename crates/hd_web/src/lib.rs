@@ -386,7 +386,8 @@ fn no_session() -> ReplError {
 /// A REPL build's answer from the driver's output, and what the module
 /// adds to the session once it ran; `None` when it did not build.
 fn finish(input: u32, out: hd_driver::Output) -> (ReplBuild, Option<hd_driver::Session>) {
-    let mut diagnostics = from_output(&out, None);
+    let mut diagnostics =
+        hd_driver::diagnostics::for_input(from_output(&out, None), &repl_file(input));
     let mut build = ReplBuild {
         input,
         wasm: None,
