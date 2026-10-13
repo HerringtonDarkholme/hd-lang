@@ -14,6 +14,7 @@ import { OutputPanel } from "./output.ts";
 import { asProject, DEFAULT_MAIN, orderedPaths, pathProblem, type Project } from "./project.ts";
 import type { RunDiagnostic, RunMode } from "./runner.ts";
 import { ReplPanel } from "./repl-panel.ts";
+import { isShareHash } from "./repl-state.ts";
 import { projectFromHash, projectHash } from "./share.ts";
 import { WatPanel } from "./wat-view.ts";
 
@@ -32,6 +33,7 @@ const outputViewButton = byId<HTMLButtonElement>("view-output");
 const watViewButton = byId<HTMLButtonElement>("view-wat");
 const replViewButton = byId<HTMLButtonElement>("view-repl");
 const replStopButton = byId<HTMLButtonElement>("repl-stop");
+const replShareButton = byId<HTMLButtonElement>("repl-share");
 const clearButton = byId<HTMLButtonElement>("clear");
 const watCopyButton = byId<HTMLButtonElement>("wat-copy");
 const watDownloadButton = byId<HTMLButtonElement>("wat-download");
@@ -338,6 +340,7 @@ function showView(next: "output" | "wat" | "repl"): void {
   watCopyButton.hidden = !watOpen;
   watDownloadButton.hidden = !watOpen;
   replStopButton.hidden = next !== "repl" || !replBusy;
+  replShareButton.hidden = next !== "repl";
   if (next === "repl") openRepl().focus();
   void refreshWat();
 }
@@ -345,9 +348,16 @@ function showView(next: "output" | "wat" | "repl"): void {
 let replBusy = false;
 
 /** The REPL view's panel; the session's package is the editor's files. */
-function openRepl(): ReplPanel {
+function openRepl(shared?: string): ReplPanel {
+  const fresh = repl === undefined;
   repl ??= new ReplPanel(byId("repl"), {
     files: () => project().files,
+    // One saved session per project, named by its files.
+    storageKey: `playground:${Object.keys(project(false).files).sort().join(",")}`,
+    onSharedFiles: (files) => {
+      const shared = asProject({ files, main: DEFAULT_MAIN });
+      if (shared) load(shared);
+    },
     reloadHelp: "rebuild the session over the editor's files as they are now",
     tokenClass: (kind) => cssClass(kind as StyledClass),
     onBusy: (busy) => {
@@ -356,6 +366,8 @@ function openRepl(): ReplPanel {
     },
     onStatus: setStatus,
   });
+  // A shared session link opens before the saved session would.
+  if (fresh && shared) repl.openShared(shared);
   repl.load();
   return repl;
 }
@@ -477,6 +489,7 @@ stopButton.addEventListener("click", () => compiler.stop());
 shareButton.addEventListener("click", () => void share());
 clearButton.addEventListener("click", () => (shown === "repl" ? repl?.clear() : output.clear()));
 replStopButton.addEventListener("click", () => repl?.stop());
+replShareButton.addEventListener("click", () => void repl?.share());
 outputViewButton.addEventListener("click", () => showView("output"));
 watViewButton.addEventListener("click", () => showView("wat"));
 replViewButton.addEventListener("click", () => showView("repl"));
@@ -512,3 +525,8 @@ if (framed()) {
 
 if (!loadFromHash()) load(stored() ?? DEFAULT_EXAMPLE.project);
 setStatus("Loading the compiler…");
+// A #repl= link opens the REPL view on the sender's session.
+if (isShareHash(location.hash)) {
+  openRepl(location.hash);
+  showView("repl");
+}

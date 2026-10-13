@@ -8,6 +8,15 @@ import { classify } from "../../src/highlight.ts";
 import { ReplClient, type ReplStopped } from "./repl-client.ts";
 import type { ReplFiles, ReplRan, ReplRebuilt } from "./repl-host.ts";
 import {
+  forgetState,
+  loadState,
+  saveState,
+  type SessionState,
+  sessionFromHash,
+  shareLink,
+  type TranscriptEntry,
+} from "./repl-state.ts";
+import {
   backspaceWidth,
   continuationIndent,
   INDENT_UNIT,
@@ -22,6 +31,13 @@ export interface ReplPanelOptions {
   readonly files?: () => ReplFiles;
   /** What `:reload` does here, for `:help`. */
   readonly reloadHelp?: string;
+  /**
+   * Where the session is saved across reloads (IndexedDB): one key per
+   * playground project, one for the site. No key, no saving.
+   */
+  readonly storageKey?: string;
+  /** Called with the files of a shared session before it is rebuilt, so the host can show them. */
+  readonly onSharedFiles?: (files: ReplFiles) => void;
   /** The CSS class of a highlighted token of `kind`. */
   readonly tokenClass: (kind: string) => string;
   /** Called when an input starts and stops running, for a Stop button. */
@@ -82,6 +98,13 @@ export class ReplPanel {
   /** Inputs run one after another, in the order they were entered. */
   private queue: Promise<void> = Promise.resolve();
   private waiting = 0;
+  /** The transcript as saved and shared: every line the panel shows. */
+  private transcript: TranscriptEntry[] = [];
+  /** The saved session, read when the panel is built; undefined without one. */
+  private stored: Promise<SessionState | undefined> = Promise.resolve(undefined);
+  private resumed = false;
+  private saving: Promise<unknown> = Promise.resolve();
+  private tooBigNoted = false;
 
   constructor(parent: HTMLElement, options: ReplPanelOptions) {
     this.options = options;
@@ -110,20 +133,156 @@ export class ReplPanel {
     parent.append(this.element);
     this.note(WELCOME);
     this.render();
+    if (options.storageKey) this.stored = loadState(options.storageKey);
   }
 
-  /** Loads the worker, so the first input does not wait for the compiler. */
+  /**
+   * Loads the worker, so the first input does not wait for the compiler.
+   * The first time, a session saved for this page is rebuilt from its journal.
+   */
   load(): void {
     if (!this.client.started) this.status("Loading the compiler…");
     this.client.load();
+    if (this.resumed || !this.options.storageKey) return;
+    this.resumed = true;
+    this.enqueue(async () => {
+      const saved = await this.stored;
+      if (saved && !this.client.started) await this.resume(saved, "restored");
+      else this.status("REPL ready");
+    });
+  }
+
+  /** Runs `body` after the inputs before it; a failure is reported like an input's. */
+  private enqueue(body: () => Promise<void>): Promise<void> {
+    this.waiting += 1;
+    const run = this.queue.then(body).finally(() => {
+      this.waiting -= 1;
+      this.scroll();
+    });
+    this.queue = run.catch((error: unknown) => {
+      this.line("repl-error", `error: ${error instanceof Error ? error.message : String(error)}`);
+      this.status("REPL unavailable");
+    });
+    return this.queue;
+  }
+
+  /** Shows `state`'s transcript and rebuilds its session from its journal. */
+  private async resume(state: SessionState, done: string): Promise<void> {
+    this.wipe();
+    for (const entry of state.transcript) {
+      if (entry.c === "repl-echo") this.echo(entry.t, entry.n);
+      else this.line(entry.c, entry.t);
+    }
+    for (const [, text] of state.inputs) this.remember(text);
+    this.client.adopt(state);
+    this.status("Restoring the session…");
+    this.rebuilt(await this.client.rebuild(), done);
+    this.status("REPL ready");
+    this.persist();
+  }
+
+  /**
+   * Opens a shared session (`#repl=` link): the sender's transcript with the
+   * session rebuilt from the journal, so no host call repeats; a link with
+   * inputs only runs them live.
+   */
+  openShared(hash: string): void {
+    this.resumed = true;
+    this.load();
+    void this.enqueue(async () => {
+      this.status("Opening the shared session…");
+      const state = await sessionFromHash(hash);
+      if (!state) {
+        this.line("repl-error", "error: the shared session link is damaged, so it was not opened");
+        this.status("REPL ready");
+        return;
+      }
+      this.options.onSharedFiles?.(state.files);
+      if (state.journal !== null) {
+        if (this.client.started) await this.client.quit();
+        await this.resume(state, "restored from a shared link");
+        return;
+      }
+      await this.client.quit();
+      this.wipe();
+      this.note(
+        "shared link: it carried the inputs only, so their outputs are recomputed and host calls run again",
+      );
+      const started = await this.client.start(state.files);
+      for (const line of started.diagnostics) this.line(this.severity(line), line);
+      if (!started.ok) {
+        this.line("repl-error", `error: ${started.error ?? "the session did not start"}`);
+        return;
+      }
+      for (const [, text] of [...state.inputs].sort((a, b) => a[0] - b[0])) {
+        this.remember(text);
+        await this.evaluate(text);
+      }
+      this.status("REPL ready");
+    });
+  }
+
+  /** The session as it is now, for saving and sharing; undefined when none runs. */
+  private snapshot(): SessionState | undefined {
+    const state = this.client.state();
+    if (!state || this.client.needsRebuild) return undefined;
+    return { ...state, transcript: this.transcript };
+  }
+
+  /** Saves the session after an input; one line says when it is too big. */
+  private persist(): void {
+    const key = this.options.storageKey;
+    if (!key) return;
+    const state = this.snapshot();
+    this.saving = this.saving.then(async () => {
+      if (!state) {
+        await forgetState(key);
+        return;
+      }
+      if ((await saveState(key, state)) === "too-big" && !this.tooBigNoted) {
+        this.tooBigNoted = true;
+        this.note("note: the session is too big to save, so a reload starts a new one");
+      }
+    });
+  }
+
+  /** Copies a link to the session and says what it carries. */
+  async share(): Promise<void> {
+    const state = this.snapshot();
+    if (!state) {
+      this.note("no session yet; run an input first, then share it");
+      return;
+    }
+    const link = await shareLink(state);
+    const url = `${location.origin}${location.pathname}${location.search}${link.hash}`;
+    let copied = true;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      copied = false;
+    }
+    const carries = link.outputs
+      ? "inputs and outputs"
+      : "inputs only; the session's record is too long for a link, so outputs are recomputed when it opens";
+    this.note(
+      `${copied ? "link copied" : "link"} (${link.hash.length} characters, ${carries})${link.long ? "; it is long, and some apps cut long links" : ""}`,
+    );
+    if (!copied) this.note(url);
   }
 
   focus(): void {
     this.input.focus();
   }
 
+  /** The Clear button: empties the transcript, and the saved one with it. */
   clear(): void {
+    this.wipe();
+    this.persist();
+  }
+
+  private wipe(): void {
     this.log.replaceChildren();
+    this.transcript = [];
   }
 
   /** Stops the input that runs (the Stop button). */
@@ -246,6 +405,7 @@ export class ReplPanel {
   private line(className: string, text: string): HTMLPreElement {
     const node = element("pre", className, text);
     this.log.append(node);
+    this.transcript.push({ c: className, t: text });
     return node;
   }
 
@@ -264,6 +424,9 @@ export class ReplPanel {
     });
     if (number !== undefined) node.append(element("span", "repl-number", `repl#${number}`));
     this.log.append(node);
+    this.transcript.push(
+      number === undefined ? { c: "repl-echo", t: text } : { c: "repl-echo", t: text, n: number },
+    );
   }
 
   private scroll(): void {
@@ -310,15 +473,20 @@ export class ReplPanel {
             "an empty line ends it. Shift+Enter adds a line.",
             "  :help         this text",
             `  :reload       ${this.options.reloadHelp ?? "rebuild the session from its record"}`,
+            "  :share        copy a link that reopens this session with its outputs",
             "  :quit, :q     end the session; the next input starts a new one (also Ctrl+D on an empty line)",
             "Stop cancels an input that waits; an input that computes is stopped, and the session is rebuilt without it.",
           ].join("\n"),
         );
         return;
+      case ":share":
+        await this.share();
+        return;
       case ":quit":
       case ":q":
       case ":exit":
         await this.client.quit();
+        this.persist();
         this.note("session ended; the next input starts a new one");
         this.options.onQuit?.();
         return;
@@ -330,6 +498,7 @@ export class ReplPanel {
         this.status("Rebuilding the session…");
         this.rebuilt(await this.client.rebuild(this.options.files?.() ?? {}), "reloaded");
         this.status("REPL ready");
+        this.persist();
         return;
       default:
         this.line("repl-error", `error: unknown command \`${command}\`; :help lists the commands`);
@@ -397,6 +566,7 @@ export class ReplPanel {
       this.status("Restoring the session…");
       this.rebuilt(await this.client.rebuild(), "restored");
       this.status("REPL ready");
+      this.persist();
       return;
     }
     for (const line of answer.diagnostics) this.line(this.severity(line), line);
@@ -406,10 +576,11 @@ export class ReplPanel {
         "note: the session's record of host calls is full, so this session can no longer be rebuilt",
       );
     this.status(this.waiting > 1 ? "Running…" : "REPL ready");
+    this.persist();
   }
 
   /** Reports a rebuild as `hd` reports `:reload`. */
-  private rebuilt(rebuilt: ReplRebuilt, done: "reloaded" | "restored"): void {
+  private rebuilt(rebuilt: ReplRebuilt, done: string): void {
     for (const n of rebuilt.skipped)
       this.note(
         `note: repl#${n} was stopped, so the rebuild skipped it; its changes are not restored`,

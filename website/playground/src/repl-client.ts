@@ -138,6 +138,39 @@ export class ReplClient {
     this.journal = journal;
   }
 
+  /** What a reload or a share link keeps of the session; undefined when none runs. */
+  state():
+    | {
+        files: ReplFiles;
+        inputs: [number, string][];
+        next: number;
+        journal: Uint8Array | null;
+      }
+    | undefined {
+    if (!this.started) return undefined;
+    const inputs = [...this.sources].filter(([number]) => number !== 0);
+    return { files: this.files, inputs, next: this.next, journal: this.journal };
+  }
+
+  /**
+   * Takes a saved session as this one, to be rebuilt by `rebuild()` in the
+   * worker: the files, the inputs' texts and numbers and the journal.
+   */
+  adopt(saved: {
+    files: ReplFiles;
+    inputs: readonly (readonly [number, string])[];
+    next: number;
+    journal: Uint8Array | null;
+  }): void {
+    this.reset();
+    this.files = saved.files;
+    this.sources.set(0, "");
+    for (const [number, text] of saved.inputs) this.sources.set(number, text);
+    this.journal = saved.journal;
+    this.next = saved.next;
+    this.lost = true;
+  }
+
   /** Starts a session over `files` (its package), dropping any earlier one. */
   async start(files: ReplFiles): Promise<ReplStarted> {
     this.reset();

@@ -63,6 +63,50 @@ async function running(page: Page, number: number): Promise<void> {
   await page.locator("#repl-stop").waitFor({ state: "visible" });
 }
 
+/** Waits until the page has saved a session with at least `count` inputs. */
+async function saved(page: Page, count: number): Promise<void> {
+  const inputs = (): Promise<number> =>
+    page.evaluate(
+      () =>
+        new Promise<number>((resolve) => {
+          const open = indexedDB.open("hd-repl", 1);
+          open.onupgradeneeded = () => open.result.createObjectStore("sessions");
+          open.onerror = () => resolve(0);
+          open.onsuccess = () => {
+            const db = open.result;
+            const all = db.transaction("sessions").objectStore("sessions").getAll();
+            all.onerror = () => resolve(0);
+            all.onsuccess = () => {
+              db.close();
+              resolve(
+                Math.max(0, ...(all.result as { inputs: unknown[] }[]).map((s) => s.inputs.length)),
+              );
+            };
+          };
+        }),
+    );
+  const deadline = Date.now() + FIRST_REPLY_MS;
+  while ((await inputs()) < count) {
+    assert.ok(Date.now() < deadline, `the session with ${count} inputs was never saved`);
+    await page.waitForTimeout(100);
+  }
+}
+
+/** Waits until the transcript shows `count` output lines that read `text`. */
+async function showsTimes(repl: Locator, text: string, count: number): Promise<void> {
+  const lines = repl.locator(".repl-out", { hasText: new RegExp(`^${text}$`) });
+  const deadline = Date.now() + FIRST_REPLY_MS;
+  while ((await lines.count()) < count) {
+    assert.ok(Date.now() < deadline, `${text} was shown ${await lines.count()} times`);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
+
+/** The text of the last transcript line of `kind`. */
+async function lastLine(repl: Locator, kind: string): Promise<string> {
+  return (await repl.locator(`.repl-${kind}`).last().innerText()).trim();
+}
+
 export async function replSteps(options: ReplE2e): Promise<void> {
   const { browser, origin, siteBase, base, step } = options;
 
@@ -177,4 +221,135 @@ export async function replSteps(options: ReplE2e): Promise<void> {
     await panel.waitFor({ state: "hidden" });
     await context.close();
   });
+
+  const DRAW = /^\d+ : u64$/;
+
+  await step("a reload restores the session: its transcript and bindings", async () => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const first = await context.newPage();
+    first.on("pageerror", (error) => console.error("page error:", error.message));
+    await first.goto(`${origin}${base}`);
+    await first.locator("#view-repl").click();
+    const panel = first.locator("#repl");
+    await enter(panel, "use std.random.rng");
+    await enter(panel, "let draw = rng().next_u64()");
+    await enter(panel, "draw");
+    await shows(panel, "out", DRAW);
+    const drawn = await lastLine(panel, "out");
+    await saved(first, 3);
+    await first.reload();
+    await first.locator("#view-repl").click();
+    await shows(panel, "note", "restored: 3 inputs replayed");
+    // The earlier output is on screen, and the binding reads the same draw.
+    assert.equal(await lastLine(panel, "out"), drawn);
+    await enter(panel, "draw");
+    await showsTimes(panel, drawn, 2);
+    // Up recalls an input of the saved session.
+    await panel.locator(".repl-input").press("ArrowUp");
+    assert.equal(await panel.locator(".repl-input").inputValue(), "draw");
+    await context.close();
+  });
+
+  await step("the site panel restores its session after a reload", async () => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const site = await context.newPage();
+    site.on("pageerror", (error) => console.error("page error:", error.message));
+    const url = `${origin}${siteBase}guide/learn-in-10-minutes.html`;
+    await site.goto(url);
+    await site.locator("#repl-toggle").click();
+    const panel = site.locator("#repl-panel");
+    await enter(panel, "let kept = 7 * 6");
+    await saved(site, 1);
+    await site.reload();
+    await site.locator("#repl-toggle").click();
+    await shows(panel, "note", "restored: 1 input replayed");
+    await enter(panel, "kept");
+    await shows(panel, "out", "42 : usize");
+    await context.close();
+  });
+
+  await step("blocked storage starts a fresh session", async () => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    await context.addInitScript(() => {
+      Object.defineProperty(window, "indexedDB", {
+        get() {
+          throw new DOMException("blocked", "SecurityError");
+        },
+      });
+    });
+    const page = await context.newPage();
+    page.on("pageerror", (error) => console.error("page error:", error.message));
+    await page.goto(`${origin}${base}`);
+    await page.locator("#view-repl").click();
+    const panel = page.locator("#repl");
+    await enter(panel, "let one = 1");
+    await enter(panel, "one + 1");
+    await shows(panel, "out", "2 : usize");
+    await context.close();
+  });
+
+  await step("a share link reopens the sender's session with its outputs", async () => {
+    const sender = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    await sender.grantPermissions(["clipboard-read", "clipboard-write"], { origin });
+    const page = await sender.newPage();
+    page.on("pageerror", (error) => console.error("page error:", error.message));
+    await page.goto(`${origin}${base}`);
+    await page.locator("#view-repl").click();
+    const panel = page.locator("#repl");
+    await enter(panel, "use std.random.rng");
+    await enter(panel, "let draw = rng().next_u64()");
+    await enter(panel, "draw");
+    await shows(panel, "out", DRAW);
+    const drawn = await lastLine(panel, "out");
+    await page.locator("#repl-share").click();
+    await shows(panel, "note", /^link copied \(\d+ characters, inputs and outputs\)$/);
+    const link = await page.evaluate(() => navigator.clipboard.readText());
+    assert.match(link, /#repl=[zj]\./);
+
+    // A fresh browser context has no saved session. A re-run would draw again.
+    const recipient = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const opened = await recipient.newPage();
+    opened.on("pageerror", (error) => console.error("page error:", error.message));
+    await opened.goto(link);
+    const shared = opened.locator("#repl");
+    await shows(shared, "note", "restored from a shared link: 3 inputs replayed");
+    assert.equal(await lastLine(shared, "out"), drawn);
+    await enter(shared, "draw");
+    await showsTimes(shared, drawn, 2);
+    await recipient.close();
+
+    // A damaged link says so.
+    const damaged = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const broken = await damaged.newPage();
+    await broken.goto(`${origin}${base}#repl=z.AAAA`);
+    await shows(
+      broken.locator("#repl"),
+      "error",
+      "error: the shared session link is damaged, so it was not opened",
+    );
+    await damaged.close();
+
+    // Past the link limit, the link carries the inputs only.
+    await enter(panel, `let blob = "${randomText(14_000)}"`);
+    await page.locator("#repl-share").click();
+    await shows(panel, "note", /inputs only; the session's record is too long for a link/);
+    const bare = await page.evaluate(() => navigator.clipboard.readText());
+    const again = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const reopened = await again.newPage();
+    await reopened.goto(bare);
+    const rerun = reopened.locator("#repl");
+    await shows(rerun, "note", /^shared link: it carried the inputs only/);
+    await shows(rerun, "out", DRAW);
+    assert.notEqual(await lastLine(rerun, "out"), drawn, "the draw was recomputed");
+    await again.close();
+    await sender.close();
+  });
+}
+
+/** `count` characters no compressor shrinks much. */
+function randomText(count: number): string {
+  const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let out = "";
+  for (let i = 0; i < count; i += 1) out += alphabet[Math.floor(Math.random() * 64)];
+  return out;
 }

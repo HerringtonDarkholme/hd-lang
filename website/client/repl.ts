@@ -9,6 +9,7 @@
 // build exists; the layout then includes it and names the worker on <body>.
 
 import { ReplPanel } from "../playground/src/repl-panel.ts";
+import { isShareHash } from "../playground/src/repl-state.ts";
 
 function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -59,6 +60,9 @@ class DockedRepl {
     close.setAttribute("aria-label", "Close the REPL");
     actions.append(
       this.stopButton,
+      button("Share", "Copy a link that reopens this session with its outputs", () => {
+        void this.repl.share();
+      }),
       button("Clear", "Clear the output (Ctrl+L)", () => this.repl.clear()),
       close,
     );
@@ -66,6 +70,7 @@ class DockedRepl {
     panel.append(header);
     this.repl = new ReplPanel(panel, {
       workerUrl,
+      storageKey: "site",
       tokenClass: (kind) => `hl-${kind}`,
       reloadHelp: "rebuild the session from its record",
       onBusy: (busy) => {
@@ -92,6 +97,11 @@ class DockedRepl {
         this.setOpen(panel.hidden !== false);
       }
     });
+    // A shared session link opens the panel on the sender's session.
+    if (isShareHash(location.hash)) {
+      this.repl.openShared(location.hash);
+      this.setOpen(true);
+    }
     document.addEventListener("click", (event) => {
       const target = event.target instanceof Element ? event.target.closest(".try-repl") : null;
       const code = target?.closest(".code-block")?.querySelector("pre code")?.textContent;
