@@ -787,6 +787,54 @@ fn a_package_without_lib_uses_its_modules_but_not_main() {
     assert!(lines[1].starts_with("error: repl#3:1:"), "{}", t.out);
 }
 
+/// A package file that does not check stops no input that does not reach
+/// it: the session builds `src/lib.hd`, the modules it uses, and what the
+/// inputs use (`cli.repl.package.lib`, `cli.repl.uses.other`), never
+/// `src/main.hd` or a module nothing uses.
+#[test]
+fn a_broken_file_the_session_never_reaches_stops_no_input() {
+    let dir = package(
+        "repl-broken-main",
+        &[
+            (
+                "src/lib.hd",
+                "use self.util.{double}\n\nfn bonus() -> i32: double(+7)\n",
+            ),
+            ("src/util.hd", "pub fn double(x: i32) -> i32: x * +2\n"),
+            (
+                "src/main.hd",
+                "pub fn main() -> void $ Console:\n    let n: i32 = \"no\"\n",
+            ),
+            ("src/junk.hd", "pub fn junk() -> i32: \"no\"\n"),
+            ("src/broken/mod.hd", "fn (\n"),
+        ],
+    );
+    let t = session_in(&dir, Script::of(&["1 + 2", "bonus()"]), |_| {});
+    assert_eq!(t.out, "3 : usize\n14 : i32\n");
+}
+
+/// A session loads `src/lib.hd` when an input first names one of its
+/// names: a library that does not check stops only such an input, with
+/// the library's error. After the library is fixed, `:reload` rebuilds
+/// the session and the input runs.
+#[test]
+fn a_broken_lib_stops_only_the_inputs_that_name_it() {
+    let t = reload_after_editing(
+        "repl-broken-lib",
+        "fn bonus() -> i32: \"seven\"\n",
+        "fn bonus() -> i32: +7\n",
+        &["1 + 2", "x := +5", "x + bonus()", ":reload", "x + bonus()"],
+    );
+    let (live, rest) = t.out.split_at(t.out.find("error: ").expect("an error"));
+    assert_eq!(live, "3 : usize\n");
+    assert!(rest.starts_with("error: src/lib.hd:1:"), "{}", t.out);
+    assert!(
+        rest.ends_with("reloaded: 2 inputs replayed\n12 : i32\n"),
+        "{}",
+        t.out
+    );
+}
+
 /// `cli.repl.package.dependencies`: the session may use the package's
 /// dependencies and its dev dependencies.
 #[test]

@@ -248,7 +248,9 @@ pub enum Goal {
     /// below `input`, without the inputs that panicked
     /// (`cli.repl.panic.binding`). An input sees `src/lib.hd`'s scope with
     /// each earlier input's top-level names nested in it
-    /// (`cli.repl.package.lib`). With [`Packages::session`], it links as
+    /// (`cli.repl.package.lib`), from the first input that names one of
+    /// the library's names on. The run reads and builds only what the
+    /// input reaches. With [`Packages::session`], it links as
     /// one more module of that session, so only it is checked, emitted
     /// and linked. Input 0 is the session's prelude, which
     /// [`build_repl_prelude`] builds.
@@ -640,6 +642,95 @@ struct CollectOut {
     layouts: hd_wasm::layout::Layouts,
 }
 
+/// Module `m`'s skim: its text's skim, with the module paths it uses,
+/// `session` among them, the session modules of a REPL input
+/// ([`session_uses`]).
+fn skim_module(table: &ModuleTable, m: usize, text: &str, session: Vec<String>) -> SkimOut {
+    let sk = skim(text.as_bytes());
+    let module = &table.modules[m].path;
+    let roots = table.use_roots(ModuleId::from_raw(u32_of(m)));
+    let mut uses = written_uses(text, &sk.uses, &roots);
+    // A `tests:` block's uses into another package, such as a dev
+    // dependency (`module.test.dev-dependency.in-tests`): the block is
+    // checked with its module, so their folders join its closure. They
+    // cannot close a folder cycle of this package, unlike its uses of
+    // this package, which make no edge (`module.cycle.test-code`).
+    let package = table.modules[m].package;
+    for b in sk.bodies.iter().filter(|b| b.kind == HeaderKind::Tests) {
+        let block = text
+            .get(b.body_start as usize..b.body_end as usize)
+            .unwrap_or("");
+        for line in block.lines() {
+            let Some(rest) = line.trim().strip_prefix("use ") else {
+                continue;
+            };
+            let path = rest.split(".{").next().unwrap_or(rest);
+            let path = path.split(" as ").next().unwrap_or(path).trim();
+            let segs: Vec<&str> = path.split('.').collect();
+            if let Ok(abs) = roots.absolute_in_tests(&segs) {
+                let abs = abs.join(".");
+                let other = table
+                    .module_of_use(&abs)
+                    .is_some_and(|t| table.modules[t.idx()].package != package);
+                if other {
+                    uses.push(abs);
+                }
+            }
+        }
+    }
+    // Test code has the prelude's `std.testing` row
+    // (`module.prelude.test-only`), and its test cases run bodies of
+    // `std.testing` (`case_timeout` for a `timeout`), so that folder
+    // joins its closure; std's own test code makes no such edge.
+    let test_code = table.modules[m].role == hd_project::Role::Test
+        || sk.bodies.iter().any(|b| b.kind == HeaderKind::Tests);
+    let testing_elsewhere = table
+        .module_of_use("std.testing")
+        .is_some_and(|t| table.modules[t.idx()].package != package);
+    if test_code && testing_elsewhere {
+        uses.push("std.testing".to_owned());
+    }
+    // A REPL input sees `src/lib.hd`, once its session holds it, and the
+    // earlier inputs through its session scope, so their folders join its
+    // closure. It uses the library and the input just before it: that
+    // input uses the one before, so the closure, and every key and order
+    // over it, is the same as with a use of each earlier input, at one
+    // edge per input instead of one per pair of inputs.
+    uses.extend(session);
+    // The prelude's fixed uses (`module.prelude.fixed-uses`).
+    if module != "std.core" {
+        uses.extend(hd_resolve::prelude_modules().into_iter().map(str::to_owned));
+    }
+    let facts = ModuleFacts {
+        path: table.modules[m].path.clone(),
+        has_tests_block: sk.bodies.iter().any(|b| b.kind == HeaderKind::Tests),
+    };
+    let main_header = |public: bool| {
+        sk.bodies
+            .iter()
+            .filter(|b| b.kind == HeaderKind::Function && b.header_indent == 0)
+            .find(|b| {
+                let header = text
+                    .get(b.header_start as usize..b.body_start as usize)
+                    .unwrap_or("");
+                main_visibility(header) == Some(public)
+            })
+            .map(|b| (b.header_start, b.body_start))
+    };
+    let public_main = main_header(true);
+    let private_main = main_header(false);
+    SkimOut {
+        source_hash: sk.source_hash,
+        api_text_hash: sk.api_text_hash,
+        token_hash: sk.token_hash,
+        code_lines: sk.code_lines,
+        uses,
+        facts,
+        public_main,
+        private_main,
+    }
+}
+
 /// The roots a program's exports poll.
 enum Roots {
     /// `main`, its report and the inits it reaches.
@@ -697,12 +788,175 @@ struct LibScope {
     private: Vec<Item>,
 }
 
-/// The REPL input modules of a run ([`Goal::ReplInput`]).
+/// The REPL input modules of a run ([`Goal::ReplInput`]), and which of
+/// them see `src/lib.hd`.
 struct ReplInputs {
     /// (number, module), by number.
     sorted: Vec<(u32, usize)>,
     /// Each module's number, if it is an input.
     numbers: Vec<Option<u32>>,
+    /// The input this run builds, by module; `None` for the prelude, which
+    /// is no input of a package ([`build_repl_prelude`]), and every other
+    /// goal.
+    input: Option<usize>,
+    /// The root package's `src/lib.hd`, if it has one.
+    lib: Option<usize>,
+    /// Per module: whether it is an input whose session holds `src/lib.hd`
+    /// (`cli.repl.package.lib`). A session loads the library lazily: from
+    /// the first input that names one of its names on, so a session whose
+    /// library does not build still evaluates an input that never names it
+    /// ([`ReplInputs::new`]).
+    with_lib: Vec<bool>,
+}
+
+impl ReplInputs {
+    /// The REPL inputs among `table`'s modules, for a run of `goal`. An
+    /// input's session holds `src/lib.hd` when an earlier input's does, or
+    /// when one of the input's identifiers is a name the library declares
+    /// ([`lib_names`]). `text` reads a module's text; only the library's
+    /// and the inputs' are read, and only while no input holds the library.
+    fn new(table: &ModuleTable, goal: &Goal, text: &mut dyn FnMut(usize) -> Arc<str>) -> Self {
+        let n = table.modules.len();
+        let numbers: Vec<Option<u32>> = (0..n)
+            .map(|k| {
+                (table.modules[k].package == 0)
+                    .then(|| hd_project::repl_input(&table.files[k]))
+                    .flatten()
+            })
+            .collect();
+        let mut sorted: Vec<(u32, usize)> = numbers
+            .iter()
+            .enumerate()
+            .filter_map(|(k, n)| Some(((*n)?, k)))
+            .collect();
+        sorted.sort_unstable();
+        let built = match goal {
+            Goal::ReplInput { input } => Some(*input),
+            _ => None,
+        };
+        let input = built.and_then(|b| sorted.iter().find(|(n, _)| *n == b).map(|(_, k)| *k));
+        let lib = table
+            .sources
+            .iter()
+            .position(|(p, file)| *p == 0 && file == "src/lib.hd");
+        let mut with_lib = vec![false; n];
+        if let (Some(lib), Some(built)) = (lib, built) {
+            let mut names: Option<HashSet<String>> = None;
+            let mut joined = false;
+            for &(_, k) in sorted.iter().take_while(|(number, _)| *number <= built) {
+                if !joined {
+                    let names = names.get_or_insert_with(|| lib_names(&text(lib)));
+                    joined = names_any(&text(k), names);
+                }
+                with_lib[k] = joined;
+            }
+        }
+        ReplInputs {
+            sorted,
+            numbers,
+            input,
+            lib,
+            with_lib,
+        }
+    }
+}
+
+/// The names that make an input need `src/lib.hd`: the library's
+/// top-level names, and the name of each of its functions and methods, as
+/// a method of a library trait implemented for a std type is called by
+/// its name alone (`names.member.trait-available`). From its tokens, so
+/// a library that does not parse or check still has them.
+fn lib_names(text: &str) -> HashSet<String> {
+    hd_syntax::top_level_names(text)
+        .into_iter()
+        .chain(hd_syntax::function_names(text))
+        .collect()
+}
+
+/// Whether an identifier of `text` is one of `names`.
+fn names_any(text: &str, names: &HashSet<String>) -> bool {
+    let lexed = hd_syntax::lex(text.as_bytes());
+    let tokens = &lexed.tokens;
+    (0..tokens.len()).any(|i| {
+        tokens.kind[i] == hd_syntax::TokenKind::Ident
+            && text
+                .get(tokens.start[i] as usize..tokens.end[i] as usize)
+                .is_some_and(|w| names.contains(w))
+    })
+}
+
+/// The module texts of a REPL input's build: the modules the input
+/// reaches from its own module, through its uses and its session's
+/// (`cli.repl.package.lib`, `cli.repl.uses.other`), and each module of
+/// another package's folder it reaches. Every other text is empty and
+/// never read, so a root-package folder the input reaches holds only its
+/// reached modules for the run ([`Run::builds_module`]): an implementation
+/// in a module that no reached module uses is not in the session, as one
+/// in a folder outside the input's closure is not. Also each reached
+/// module's skim, which the walk computes anyway. `None` when the run
+/// builds no input of `repl`.
+fn repl_texts(
+    table: &ModuleTable,
+    repl: &ReplInputs,
+    text: &mut dyn FnMut(usize) -> Arc<str>,
+) -> Option<ModuleTexts> {
+    let start = repl.input?;
+    let n = table.modules.len();
+    let mut texts: Vec<Arc<str>> = vec![Arc::from(""); n];
+    let mut skims: Vec<Option<SkimOut>> = (0..n).map(|_| None).collect();
+    let mut stack = vec![start];
+    while let Some(m) = stack.pop() {
+        if skims[m].is_some() {
+            continue;
+        }
+        texts[m] = text(m);
+        let s = skim_module(table, m, &texts[m], session_uses(table, repl, m));
+        for u in &s.uses {
+            if let Some(id) = table.module_of_use(u) {
+                stack.push(id.idx());
+            }
+        }
+        // Another package's folder is read whole: std and a dependency
+        // rely on the impls of every module of a folder they reach.
+        let module = &table.modules[m];
+        if module.package != 0 {
+            let folder = &table.folders[module.folder.idx()];
+            stack.extend(folder.modules.iter().map(|k| k.idx()));
+        }
+        skims[m] = Some(s);
+    }
+    let reached = Some(skims.iter().map(Option::is_some).collect());
+    Some(ModuleTexts {
+        texts,
+        skims,
+        reached,
+    })
+}
+
+/// The module texts a run reads, by module: an unread module's is empty.
+struct ModuleTexts {
+    texts: Vec<Arc<str>>,
+    /// The skims computed while reading, by module.
+    skims: Vec<Option<SkimOut>>,
+    /// Per module, whether it was read; `None` when every module was.
+    reached: Option<Vec<bool>>,
+}
+
+/// The modules REPL input `m` uses for its session scope: `src/lib.hd`,
+/// when its session holds it, and the input just before it. None for any
+/// other module.
+fn session_uses(table: &ModuleTable, repl: &ReplInputs, m: usize) -> Vec<String> {
+    let Some(number) = repl.numbers[m] else {
+        return Vec::new();
+    };
+    let at = repl.sorted.partition_point(|(k, _)| *k < number);
+    let last = at.checked_sub(1).map(|i| repl.sorted[i].1);
+    repl.lib
+        .filter(|_| repl.with_lib[m])
+        .into_iter()
+        .chain(last)
+        .map(|k| table.modules[k].path.clone())
+        .collect()
 }
 
 struct Run<'a> {
@@ -783,7 +1037,11 @@ struct Run<'a> {
     /// Per REPL input: the session scope its own scope is nested in.
     session_scopes: Vec<OnceLock<Arc<hd_resolve::SessionScope>>>,
     /// The REPL input modules of the root package.
-    repl_inputs: OnceLock<ReplInputs>,
+    repl_inputs: ReplInputs,
+    /// For a REPL input's build, per module: whether the run read it, as
+    /// the input reaches it ([`repl_texts`]); `None` for every other run,
+    /// which reads them all.
+    reached: Option<Vec<bool>>,
     /// Per REPL input: its input interface's top-level bindings, read from
     /// its `check` entry (`cli.repl.declarations.bindings`).
     input_bindings: Vec<OnceLock<Vec<InputBinding>>>,
@@ -1103,18 +1361,34 @@ fn build_packages_inner(
         .collect()
     };
     let mut table = ModuleTable::discover_all(&ins);
-    let texts: Vec<Arc<str>> = table
-        .sources
-        .iter()
-        .map(|(pi, p)| {
+    let mut read: Vec<Option<Arc<str>>> = vec![None; table.modules.len()];
+    let mut text = |m: usize| -> Arc<str> {
+        let found = read[m].get_or_insert_with(|| {
+            let (pi, p) = &table.sources[m];
             let set = ins[usize::from(*pi)].sources;
             Arc::from(
                 set.read(p)
                     .map(|b| String::from_utf8_lossy(&b).into_owned())
                     .unwrap_or_default(),
             )
-        })
-        .collect();
+        });
+        Arc::clone(found)
+    };
+    let repl_inputs = ReplInputs::new(&table, goal, &mut text);
+    // A REPL input reads only the modules it reaches; every other run reads
+    // them all.
+    let ModuleTexts {
+        texts,
+        skims,
+        reached,
+    } = repl_texts(&table, &repl_inputs, &mut text).unwrap_or_else(|| {
+        let n = table.modules.len();
+        ModuleTexts {
+            texts: (0..n).map(&mut text).collect(),
+            skims: (0..n).map(|_| None).collect(),
+            reached: None,
+        }
+    });
     let folder_cycles = recover_folder_cycles(&mut table, &texts);
     let std_hash = sources_hash(&std);
     let n = table.modules.len();
@@ -1161,7 +1435,10 @@ fn build_packages_inner(
             .chain(packages.deps.iter().map(|d| d.fetched))
             .chain(std::iter::once(false))
             .collect(),
-        skim: (0..n).map(|_| OnceLock::new()).collect(),
+        skim: skims
+            .into_iter()
+            .map(|s| s.map_or_else(OnceLock::new, OnceLock::from))
+            .collect(),
         parse: (0..n).map(|_| OnceLock::new()).collect(),
         graph: OnceLock::new(),
         iface: (0..nf).map(|_| OnceLock::new()).collect(),
@@ -1184,7 +1461,8 @@ fn build_packages_inner(
         kept: OnceLock::new(),
         lib_scope: OnceLock::new(),
         session_scopes: (0..n).map(|_| OnceLock::new()).collect(),
-        repl_inputs: OnceLock::new(),
+        repl_inputs,
+        reached,
         input_bindings: (0..n).map(|_| OnceLock::new()).collect(),
         check_task: (0..n).map(|_| OnceLock::new()).collect(),
         diags: Mutex::new(DiagBuf::default()),
@@ -1724,92 +2002,7 @@ impl Run<'_> {
     }
 
     fn skim_now(&self, m: usize) -> SkimOut {
-        let text = &self.texts[m];
-        let sk = skim(text.as_bytes());
-        let module = &self.table.modules[m].path;
-        let roots = self.table.use_roots(ModuleId::from_raw(u32_of(m)));
-        let mut uses = written_uses(text, &sk.uses, &roots);
-        // A `tests:` block's uses into another package, such as a dev
-        // dependency (`module.test.dev-dependency.in-tests`): the block is
-        // checked with its module, so their folders join its closure. They
-        // cannot close a folder cycle of this package, unlike its uses of
-        // this package, which make no edge (`module.cycle.test-code`).
-        let package = self.table.modules[m].package;
-        for b in sk.bodies.iter().filter(|b| b.kind == HeaderKind::Tests) {
-            let block = text
-                .get(b.body_start as usize..b.body_end as usize)
-                .unwrap_or("");
-            for line in block.lines() {
-                let Some(rest) = line.trim().strip_prefix("use ") else {
-                    continue;
-                };
-                let path = rest.split(".{").next().unwrap_or(rest);
-                let path = path.split(" as ").next().unwrap_or(path).trim();
-                let segs: Vec<&str> = path.split('.').collect();
-                if let Ok(abs) = roots.absolute_in_tests(&segs) {
-                    let abs = abs.join(".");
-                    let other = self
-                        .table
-                        .module_of_use(&abs)
-                        .is_some_and(|t| self.table.modules[t.idx()].package != package);
-                    if other {
-                        uses.push(abs);
-                    }
-                }
-            }
-        }
-        // Test code has the prelude's `std.testing` row
-        // (`module.prelude.test-only`), and its test cases run bodies of
-        // `std.testing` (`case_timeout` for a `timeout`), so that folder
-        // joins its closure; std's own test code makes no such edge.
-        let test_code = self.table.modules[m].role == hd_project::Role::Test
-            || sk.bodies.iter().any(|b| b.kind == HeaderKind::Tests);
-        let testing_elsewhere = self
-            .table
-            .module_of_use("std.testing")
-            .is_some_and(|t| self.table.modules[t.idx()].package != package);
-        if test_code && testing_elsewhere {
-            uses.push("std.testing".to_owned());
-        }
-        // A REPL input sees `src/lib.hd` and the earlier inputs through
-        // its session scope, so their folders join its closure. It uses
-        // the library and the input just before it: that input uses the
-        // one before, so the closure, and every key and order over it, is
-        // the same as with a use of each earlier input, at one edge per
-        // input instead of one per pair of inputs.
-        uses.extend(self.session_uses(m));
-        // The prelude's fixed uses (`module.prelude.fixed-uses`).
-        if module != "std.core" {
-            uses.extend(hd_resolve::prelude_modules().into_iter().map(str::to_owned));
-        }
-        let facts = ModuleFacts {
-            path: self.table.modules[m].path.clone(),
-            has_tests_block: sk.bodies.iter().any(|b| b.kind == HeaderKind::Tests),
-        };
-        let main_header = |public: bool| {
-            sk.bodies
-                .iter()
-                .filter(|b| b.kind == HeaderKind::Function && b.header_indent == 0)
-                .find(|b| {
-                    let header = text
-                        .get(b.header_start as usize..b.body_start as usize)
-                        .unwrap_or("");
-                    main_visibility(header) == Some(public)
-                })
-                .map(|b| (b.header_start, b.body_start))
-        };
-        let public_main = main_header(true);
-        let private_main = main_header(false);
-        SkimOut {
-            source_hash: sk.source_hash,
-            api_text_hash: sk.api_text_hash,
-            token_hash: sk.token_hash,
-            code_lines: sk.code_lines,
-            uses,
-            facts,
-            public_main,
-            private_main,
-        }
+        skim_module(&self.table, m, &self.texts[m], self.session_uses(m))
     }
 
     fn skim(&self, m: usize) {
@@ -1874,11 +2067,25 @@ impl Run<'_> {
             .collect();
         let graph = FolderGraph::build(&self.table, &uses);
         lock(&self.report).ok(Stage::FolderGraph);
+        // A REPL input's build builds only its closure (`Run::builds`).
+        let scope = self
+            .repl_inputs
+            .input
+            .map(|m| graph.closure[self.table.modules[m].folder.idx()].clone());
+        let builds = |f: FolderId| scope.as_ref().is_none_or(|s| s.contains(f));
+        let builds_module = |m: usize| {
+            builds(self.table.modules[m].folder) && self.reached.as_ref().is_none_or(|r| r[m])
+        };
         // `cli.exe.unselected-main`: a public `main` under the source root
         // of a module no executable names is an ordinary function.
         for (m, module) in self.table.modules.iter().enumerate() {
             let source = self.table.files[m].starts_with("src/");
-            if module.package != 0 || module.entry || module.role != Role::Lib || !source {
+            if module.package != 0
+                || module.entry
+                || module.role != Role::Lib
+                || !source
+                || !builds_module(m)
+            {
                 continue;
             }
             if let Some((lo, hi)) = self.skim_of(m).public_main {
@@ -1899,7 +2106,7 @@ impl Run<'_> {
         // `module.entry.private-main.warn`: a `main` or `main!` that is not
         // `pub` in an entry module is an ordinary function.
         for (m, module) in self.table.modules.iter().enumerate() {
-            if !self.entry_module(m) {
+            if !self.entry_module(m) || !builds_module(m) {
                 continue;
             }
             if let Some((lo, hi)) = self.skim_of(m).private_main {
@@ -1918,7 +2125,9 @@ impl Run<'_> {
             }
         }
         for c in &graph.cycles {
-            if c.iter().any(|f| self.table.folders[f.idx()].package != 0) {
+            if c.iter()
+                .any(|f| self.table.folders[f.idx()].package != 0 || !builds(*f))
+            {
                 continue;
             }
             let names: Vec<&str> = c
@@ -1951,7 +2160,7 @@ impl Run<'_> {
                 .collect()
         });
         let mut iface_task: Vec<Option<TaskId>> = vec![None; self.table.folders.len()];
-        for &f in order.iter().filter(|f| !kept[f.idx()]) {
+        for &f in order.iter().filter(|f| !kept[f.idx()] && builds(**f)) {
             // A folder read from the session has no task: a folder that
             // uses one waits for the tasks of the folders it reaches.
             let mut deps: Vec<TaskId> = Vec::new();
@@ -1986,8 +2195,8 @@ impl Run<'_> {
         // std modules its folders reach are checked to TIR too.
         let mut reached = hd_project::FolderSet::with_capacity(self.table.folders.len());
         if !self.analyze() {
-            for module in &self.table.modules {
-                if module.package == 0 {
+            for (m, module) in self.table.modules.iter().enumerate() {
+                if module.package == 0 && builds_module(m) {
                     reached.union(&g.closure[module.folder.idx()]);
                 }
             }
@@ -1995,6 +2204,7 @@ impl Run<'_> {
         let mut prep_task: Vec<Option<TaskId>> = vec![None; self.table.modules.len()];
         for (m, module) in self.table.modules.iter().enumerate() {
             if (module.package != 0 && !reached.contains(module.folder))
+                || !builds_module(m)
                 || kept[module.folder.idx()]
             {
                 continue;
@@ -2412,30 +2622,43 @@ impl Run<'_> {
     }
 
     fn repl_inputs(&self) -> &ReplInputs {
-        self.repl_inputs.get_or_init(|| {
-            let numbers: Vec<Option<u32>> = (0..self.table.modules.len())
-                .map(|k| {
-                    (self.table.modules[k].package == 0)
-                        .then(|| hd_project::repl_input(&self.table.files[k]))
-                        .flatten()
-                })
-                .collect();
-            let mut sorted: Vec<(u32, usize)> = numbers
-                .iter()
-                .enumerate()
-                .filter_map(|(k, n)| Some(((*n)?, k)))
-                .collect();
-            sorted.sort_unstable();
-            ReplInputs { sorted, numbers }
-        })
+        &self.repl_inputs
     }
 
     /// The root package's `src/lib.hd`, if it has one.
     fn lib_module(&self) -> Option<usize> {
-        self.table
-            .sources
-            .iter()
-            .position(|(p, file)| *p == 0 && file == "src/lib.hd")
+        self.repl_inputs.lib
+    }
+
+    /// Whether REPL input `m`'s session holds `src/lib.hd`
+    /// ([`ReplInputs::with_lib`]): only then is the library built for it,
+    /// and only then does it see the library's names.
+    fn with_lib(&self, m: usize) -> bool {
+        self.repl_inputs.with_lib[m]
+    }
+
+    /// The library, for REPL input `m`, when its session holds it.
+    fn session_lib(&self, m: usize) -> Option<usize> {
+        self.lib_module().filter(|_| self.with_lib(m))
+    }
+
+    /// Whether this run builds folder `f`: a REPL input's build builds the
+    /// folders the input's closure holds (`cli.repl.uses.other`), so a
+    /// broken module it never reaches does not stop it; every other run
+    /// builds them all.
+    fn builds(&self, f: FolderId) -> bool {
+        match (self.repl_inputs.input, self.graph.get()) {
+            (Some(m), Some(g)) => g.graph.closure[self.table.modules[m].folder.idx()].contains(f),
+            _ => true,
+        }
+    }
+
+    /// Whether this run builds module `m`: a module of a folder it builds,
+    /// which a REPL input's build also reached ([`repl_texts`]). A module
+    /// of such a folder that the input does not reach is empty for the run,
+    /// as are its items.
+    fn builds_module(&self, m: usize) -> bool {
+        self.builds(self.table.modules[m].folder) && self.reached.as_ref().is_none_or(|r| r[m])
     }
 
     /// The inputs before REPL input `m`, in order; none for any other
@@ -2449,14 +2672,14 @@ impl Run<'_> {
     }
 
     /// The modules REPL input `m` sees through its session scope:
-    /// `src/lib.hd`, then the earlier inputs in order. None for any other
-    /// module.
+    /// `src/lib.hd`, when its session holds it, then the earlier inputs in
+    /// order. None for any other module.
     fn session_modules(&self, m: usize) -> Vec<String> {
         if self.repl_number(m).is_none() {
             return Vec::new();
         }
         let earlier = self.earlier_inputs(m).iter().map(|(_, k)| *k);
-        self.lib_module()
+        self.session_lib(m)
             .into_iter()
             .chain(earlier)
             .map(|k| self.table.modules[k].path.clone())
@@ -2502,19 +2725,10 @@ impl Run<'_> {
         }
     }
 
-    /// The modules REPL input `m` uses for its session scope:
-    /// `src/lib.hd` and the input just before it. None for any other
-    /// module.
+    /// The modules REPL input `m` uses for its session scope
+    /// ([`session_uses`]).
     fn session_uses(&self, m: usize) -> Vec<String> {
-        if self.repl_number(m).is_none() {
-            return Vec::new();
-        }
-        let last = self.earlier_inputs(m).last().map(|(_, k)| *k);
-        self.lib_module()
-            .into_iter()
-            .chain(last)
-            .map(|k| self.table.modules[k].path.clone())
-            .collect()
+        session_uses(&self.table, &self.repl_inputs, m)
     }
 
     /// The trie nodes of the modules of REPL input `m`'s session
@@ -2536,10 +2750,11 @@ impl Run<'_> {
     }
 
     /// `src/lib.hd` lowered against its frozen interface, once per run.
-    /// Only a REPL input's tasks call it: the input's closure holds the
-    /// library's folder, so its interface is built first. Another module's
-    /// task may run before that interface and would fix the result at
-    /// `None` for the whole run.
+    /// Only the tasks of a REPL input whose session holds the library call
+    /// it ([`Run::with_lib`]): the input's closure holds the library's
+    /// folder, so its interface is built first. Another module's task may
+    /// run before that interface and would fix the result at `None` for the
+    /// whole run.
     fn lib_scope(&self) -> Option<&LibScope> {
         self.lib_scope
             .get_or_init(|| {
@@ -2569,23 +2784,26 @@ impl Run<'_> {
     fn session_scope(&self, m: usize) -> Option<Arc<hd_resolve::SessionScope>> {
         self.repl_number(m)?;
         let scope = self.session_scopes[m].get_or_init(|| {
-            let mut out = self
-                .lib_scope()
-                .map_or_else(hd_resolve::SessionScope::default, |lib| {
-                    hd_resolve::SessionScope {
-                        scope: lib.scope.clone(),
-                        kinds: lib.kinds.clone(),
-                        declared_by: lib
-                            .scope
-                            .name
-                            .iter()
-                            .zip(&lib.scope.origin)
-                            .filter(|(_, o)| **o != hd_resolve::Origin::Prelude)
-                            .map(|(&n, _)| (n, "src/lib.hd".to_owned()))
-                            .collect(),
-                        modules: Vec::new(),
-                    }
-                });
+            let lib = if self.with_lib(m) {
+                self.lib_scope()
+            } else {
+                None
+            };
+            let mut out = lib.map_or_else(hd_resolve::SessionScope::default, |lib| {
+                hd_resolve::SessionScope {
+                    scope: lib.scope.clone(),
+                    kinds: lib.kinds.clone(),
+                    declared_by: lib
+                        .scope
+                        .name
+                        .iter()
+                        .zip(&lib.scope.origin)
+                        .filter(|(_, o)| **o != hd_resolve::Origin::Prelude)
+                        .map(|(&n, _)| (n, "src/lib.hd".to_owned()))
+                        .collect(),
+                    modules: Vec::new(),
+                }
+            });
             out.modules = self.session_modules(m);
             for &(number, k) in self.earlier_inputs(m) {
                 let module = &self.table.modules[k];
@@ -2988,9 +3206,15 @@ impl Run<'_> {
     /// `Coherence`: the overlap check (§4.12.3) over the impl heads of
     /// every interface of the program graph, std's included.
     fn coherence(&self) {
+        // Every folder the run builds: a REPL input's program is its
+        // closure ([`Run::builds`]).
+        let built: Vec<FolderId> = (0..self.table.folders.len())
+            .map(|f| FolderId::from_raw(u32_of(f)))
+            .filter(|f| self.builds(*f))
+            .collect();
         let mut all = Vec::new();
-        for f in 0..self.table.folders.len() {
-            let Some(i) = self.iface_of(FolderId::from_raw(u32_of(f))) else {
+        for &f in &built {
+            let Some(i) = self.iface_of(f) else {
                 self.blocked(Stage::Coherence);
                 return;
             };
@@ -3002,8 +3226,8 @@ impl Run<'_> {
         let key = {
             let mut k = hd_base::StableHasher::new("coh");
             k.hash(self.toolchain);
-            for (f, i) in self.table.folders.iter().zip(&all) {
-                k.str(&f.path);
+            for (f, i) in built.iter().zip(&all) {
+                k.str(&self.table.folders[f.idx()].path);
                 k.hash(i.deep_hash);
             }
             k.finish()
@@ -3123,9 +3347,7 @@ impl Run<'_> {
         closure.extend(templates.iter().map(|(p, h)| (p.as_str(), *h)));
         // A REPL input sees `src/lib.hd`'s private declarations, which no
         // interface carries (`cli.repl.package.lib`).
-        if self.repl_number(m).is_some()
-            && let Some(lib) = self.lib_module()
-        {
+        if let Some(lib) = self.session_lib(m) {
             closure.push(("$lib", self.skim_of(lib).token_hash));
         }
         // Nor does one carry an earlier input's bindings, whose types come
@@ -3415,10 +3637,15 @@ impl Run<'_> {
             closure.iter().filter_map(|f| self.iface_of(*f)).collect();
         // A REPL input also sees `src/lib.hd`'s private items
         // (`cli.repl.package.lib`), which no interface carries.
-        // Only an input asks: its closure holds `src/lib.hd`'s folder, so
-        // that interface is built by now ([`Self::lib_scope`]).
+        // Only an input whose session holds the library asks: its closure
+        // holds `src/lib.hd`'s folder, so that interface is built by now
+        // ([`Self::lib_scope`]).
         let input = self.repl_number(m).is_some();
-        let lib = if input { self.lib_scope() } else { None };
+        let lib = if self.with_lib(m) {
+            self.lib_scope()
+        } else {
+            None
+        };
         let own: std::borrow::Cow<'_, [Item]> = match lib {
             Some(lib) => prep.items.iter().chain(&lib.private).cloned().collect(),
             None => std::borrow::Cow::Borrowed(&prep.items),
@@ -4715,9 +4942,10 @@ impl Run<'_> {
         }
         let ifaces: Vec<Arc<FolderIface>> =
             closure.iter().filter_map(|fo| self.iface_of(*fo)).collect();
-        let lib = match self.repl_number(tm) {
-            Some(_) => self.lib_scope().map_or(&[][..], |l| l.private.as_slice()),
-            None => &[],
+        let lib = if self.with_lib(tm) {
+            self.lib_scope().map_or(&[][..], |l| l.private.as_slice())
+        } else {
+            &[]
         };
         let held: HashSet<DefId> = own.iter().map(|o| o.def).collect();
         let items: Vec<Item> = own
@@ -5210,7 +5438,7 @@ impl Run<'_> {
         // so it runs once they are checked.
         let kept = self.kept.get();
         let orders: Vec<TaskId> = (0..self.table.folders.len())
-            .filter(|f| !kept.is_some_and(|k| k[*f]))
+            .filter(|f| !kept.is_some_and(|k| k[*f]) && self.builds(FolderId::from_raw(u32_of(*f))))
             .map(|f| sp.add(TaskKind::InitOrder(u32_of(f)), &[]))
             .collect();
         self.dbg_in_release();
@@ -5248,7 +5476,7 @@ impl Run<'_> {
         let mut decoded = Vec::new();
         for m in 0..self.table.modules.len() {
             let Some(Some(c)) = self.check[m].get() else {
-                if self.table.modules[m].package != 0 {
+                if self.table.modules[m].package != 0 || !self.builds_module(m) {
                     continue;
                 }
                 return None;
@@ -5487,7 +5715,7 @@ impl Run<'_> {
             let counted = module.package == 0 || usize::from(module.package) != std;
             match self.check[m].get() {
                 Some(Some(c)) if counted => modules.push((module.path.as_str(), c.content)),
-                _ if module.package == 0 => {
+                _ if module.package == 0 && self.builds_module(m) => {
                     self.blocked(Stage::Collect);
                     return;
                 }

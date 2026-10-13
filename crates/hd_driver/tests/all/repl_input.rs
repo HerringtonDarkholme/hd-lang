@@ -180,7 +180,7 @@ fn each_input_is_one_module_and_rechecks_only_itself() {
     // A build that leaves `src/lib.hd` and std checked in the inner
     // store, as an earlier session leaves the disk cache.
     let inner = crate::warm_store();
-    repl(&inner).input(1, "use std.cmp.{max}\n\nprintln(max(+1, +0))\n");
+    repl(&inner).input(1, "use std.cmp.{max}\n\nprintln(max(bonus(), +0))\n");
     let overlay = OverlayStore::new(&inner);
     let mut repl = repl(&overlay);
     // The session's functions, each emitted by the first input that
@@ -1234,4 +1234,125 @@ fn blocks_across_inputs_with_different_lines_drift() {
         "{}",
         out.render()
     );
+}
+
+/// The modules of the package that a build checked: std's depend on what
+/// the shared warm store holds already.
+fn package_checked(out: &Output) -> Vec<&str> {
+    out.counters
+        .modules_checked
+        .iter()
+        .map(String::as_str)
+        .filter(|m| m.starts_with("app"))
+        .collect()
+}
+
+/// A source set that records the files a build reads.
+struct Reading<'s> {
+    inner: &'s MemorySources,
+    read: std::sync::Mutex<Vec<String>>,
+}
+
+impl hd_project::SourceSet for Reading<'_> {
+    fn list(&self) -> Vec<hd_project::SourceEntry> {
+        self.inner.list()
+    }
+    fn read(&self, path: &str) -> Option<std::sync::Arc<[u8]>> {
+        self.read.lock().expect("reads").push(path.to_owned());
+        self.inner.read(path)
+    }
+}
+
+/// A package file that does not check, `src/main.hd` or a module no input
+/// uses, stops no input: an input builds only the modules it reaches
+/// (`cli.repl.package.lib`, `cli.repl.uses.other`), and reads no other.
+#[test]
+fn a_broken_module_no_input_reaches_is_never_read() {
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    repl.src.insert(
+        "src/main.hd",
+        "pub fn main() -> void:\n    let n: i32 = \"no\"\n",
+    );
+    repl.src
+        .insert("src/junk.hd", "pub fn junk() -> i32:\n    \"no\"\n\nfn (\n");
+    repl.src
+        .insert("src/util.hd", "pub fn double(x: i32) -> i32:\n    x * +2\n");
+    let out = repl.input(1, "1 + 2\n");
+    assert_eq!(package_checked(&out), ["app.$repl1"]);
+    repl.input(2, "bonus() + +1\n");
+    repl.input(3, "use self.util.{double}\n");
+    repl.src.insert(&repl_file(4), "double(bonus())\n");
+    let reading = Reading {
+        inner: &repl.src,
+        read: std::sync::Mutex::default(),
+    };
+    let host = Host {
+        render_tir: &[],
+        sources: &reading,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let packages = Packages {
+        session: Some(&repl.session),
+        ..Packages::default()
+    };
+    let out = build_packages(&host, "app", &packages, &Goal::ReplInput { input: 4 });
+    assert!(out.diags.is_empty(), "{}", out.render());
+    let read = reading.read.into_inner().expect("reads");
+    for file in ["src/lib.hd", "src/util.hd", "repl#3", "repl#4"] {
+        assert!(read.iter().any(|r| r == file), "{file}: {read:?}");
+    }
+    for file in ["src/main.hd", "src/junk.hd"] {
+        assert!(!read.iter().any(|r| r == file), "{file}: {read:?}");
+    }
+}
+
+/// A session loads `src/lib.hd` lazily: an input that names none of its
+/// names neither builds it nor sees it, so a library that does not check
+/// stops only the first input that names it, with the library's error.
+/// Once the library is fixed, the session rebuilt over it, as `:reload`
+/// rebuilds it, runs that input.
+#[test]
+fn a_broken_library_stops_only_the_inputs_that_name_it() {
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    repl.src
+        .insert("src/lib.hd", "fn bonus() -> i32:\n    \"ten\"\n");
+    let out = repl.input(1, "1 + 2\n");
+    assert_eq!(package_checked(&out), ["app.$repl1"]);
+    repl.input(2, "x := +5\n");
+    let out = repl.build(3, "x + bonus()\n");
+    assert!(out.diags.has_errors(), "{}", out.render());
+    assert!(
+        out.render().starts_with("error: src/lib.hd:"),
+        "{}",
+        out.render()
+    );
+    repl.forget(3);
+    repl.input(4, "x * +2\n");
+    // Fixed, and rebuilt from its inputs.
+    repl.src.insert("src/lib.hd", LIB);
+    repl.session = Session::start();
+    repl.input(1, "1 + 2\n");
+    repl.input(2, "x := +5\n");
+    repl.input(4, "x * +2\n");
+    repl.input(5, "x + bonus()\n");
+}
+
+/// A method of a library trait, implemented for a std type, is named by
+/// the method alone, and loads the library too: the session sees the
+/// trait (`names.member.trait-available`).
+#[test]
+fn a_library_trait_s_method_loads_the_library() {
+    let lib = "trait Twice:\n    fn twice(self) -> i32\n\nimpl Twice for i32:\n    fn twice(self) -> i32:\n        self * +2\n";
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    repl.src.insert("src/lib.hd", lib);
+    repl.input(1, "n := +3\n");
+    repl.input(2, "println(n.twice())\n");
 }

@@ -7,10 +7,9 @@
 //! thread. A keystroke lexes only the line being edited.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::ops::Range;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use hd_syntax::{TokenBuf, TokenKind as T};
+use hd_syntax::TokenKind as T;
 
 /// The words that are keywords in every place (the lexer's keyword table),
 /// and `use`, which is one in a use declaration.
@@ -44,13 +43,19 @@ impl Names {
 
     /// Replaces the names of `src/lib.hd` with those declared by `text`.
     pub(crate) fn set_package(&self, text: Option<&str>) {
-        self.sets().package = text.map(declared).unwrap_or_default().into_iter().collect();
+        self.sets().package = text
+            .map(hd_syntax::top_level_names)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
     }
 
     /// Records the names that the input `number`, which joined the session,
     /// declares.
     pub(crate) fn add_input(&self, number: u32, text: &str) {
-        self.sets().inputs.insert(number, declared(text));
+        self.sets()
+            .inputs
+            .insert(number, hd_syntax::top_level_names(text));
     }
 
     /// Forgets the names of the input `number`.
@@ -139,93 +144,6 @@ fn inside_text(head: &str, at: usize) -> bool {
             _ => false,
         }
     })
-}
-
-/// The top-level names that `text` declares: functions, bindings, types,
-/// traits, and the names a `use` brings in. A line lexed once, no parse.
-fn declared(text: &str) -> Vec<String> {
-    let lexed = hd_syntax::lex(text.as_bytes());
-    let tokens = &lexed.tokens;
-    let col0 = |i: usize| {
-        let lo = tokens.start[i] as usize;
-        lo == 0 || text.as_bytes()[lo - 1] == b'\n'
-    };
-    // The tokens of each top-level declaration: from a token at the start
-    // of a line outside brackets, up to the next one.
-    let mut heads = Vec::new();
-    let mut depth = 0usize;
-    for i in 0..tokens.len() {
-        if depth == 0 && col0(i) {
-            heads.push(i);
-        }
-        let kind = tokens.kind[i];
-        if kind.is_open_delimiter() || kind == T::StrHead {
-            depth += 1;
-        } else if kind.is_close_delimiter() || kind == T::StrTail {
-            depth = depth.saturating_sub(1);
-        }
-    }
-    heads.push(tokens.len());
-    let mut out = Vec::new();
-    for pair in heads.windows(2) {
-        declaration(text, tokens, pair[0]..pair[1], &mut out);
-    }
-    out
-}
-
-/// The names that one top-level declaration, the tokens `range`, brings in.
-fn declaration(text: &str, tokens: &TokenBuf, range: Range<usize>, out: &mut Vec<String>) {
-    let kind = |i: usize| (i < range.end).then(|| tokens.kind[i]);
-    let word = |i: usize| {
-        let (lo, hi) = (tokens.start[i] as usize, tokens.end[i] as usize);
-        text.get(lo..hi).unwrap_or("")
-    };
-    let mut at = range.start;
-    // Past `pub` and annotations such as `@derive(Eq)`.
-    loop {
-        match kind(at) {
-            Some(T::KwPub) => at += 1,
-            Some(T::At) => {
-                at += 1;
-                while matches!(kind(at), Some(T::Ident | T::Dot)) {
-                    at += 1;
-                }
-                if kind(at) == Some(T::LParen) {
-                    let mut depth = 0;
-                    while let Some(k) = kind(at) {
-                        depth += usize::from(k == T::LParen);
-                        depth -= usize::from(k == T::RParen);
-                        at += 1;
-                        if depth == 0 {
-                            break;
-                        }
-                    }
-                }
-            }
-            _ => break,
-        }
-    }
-    let name = |i: usize, out: &mut Vec<String>| {
-        if kind(i) == Some(T::Ident) {
-            out.push(word(i).to_owned());
-        }
-    };
-    match kind(at) {
-        Some(T::KwFn | T::KwType | T::KwData | T::KwEnum | T::KwTrait) => name(at + 1, out),
-        Some(T::KwLet) => name(at + 1 + usize::from(kind(at + 1) == Some(T::KwMut)), out),
-        Some(T::Ident) if word(at) == "use" && kind(at + 1) == Some(T::Ident) => {
-            for i in at + 1..range.end {
-                let next_is = |k: T| kind(i + 1) == Some(k);
-                let before_as = next_is(T::Ident) && word(i + 1) == "as";
-                let root = i == at + 1 && matches!(word(i), "pkg" | "std" | "dep");
-                if !(before_as || next_is(T::Dot) || root || matches!(word(i), "as" | "super")) {
-                    name(i, out);
-                }
-            }
-        }
-        Some(T::Ident) if kind(at + 1) == Some(T::ColonEq) => name(at, out),
-        _ => {}
-    }
 }
 
 #[cfg(test)]

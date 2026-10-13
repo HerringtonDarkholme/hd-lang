@@ -140,6 +140,39 @@ fn a_session_sees_the_package_library() {
     joined(&mut s, "n := secret() * 2\n", &mut keys);
 }
 
+/// A package file that does not check stops only the inputs that reach
+/// it: `src/main.hd` and a module nothing uses never, and `src/lib.hd`
+/// only from the first input that names one of its names, with the
+/// library's error. A session started over the fixed library runs it.
+#[test]
+fn a_broken_package_file_stops_only_the_inputs_that_reach_it() {
+    let main = "pub fn main() -> void $ Console:\n    println(missing)\n";
+    let junk = "fn (\n";
+    let broken = "fn secret() -> i32: \"seven\"\n";
+    let (mut s, mut keys) = started(&[
+        ("src/lib.hd", broken),
+        ("src/main.hd", main),
+        ("src/junk.hd", junk),
+    ]);
+    joined(&mut s, "1 + 2\n", &mut keys);
+    joined(&mut s, "n := +3\n", &mut keys);
+    let named = s.repl_input("n + secret()\n").expect("input");
+    assert!(named.wasm.is_none());
+    let found = errors(&named);
+    assert!(
+        !found.is_empty() && found.iter().all(|e| e.starts_with("error: src/lib.hd:")),
+        "{found:?}"
+    );
+    let fixed = "fn secret() -> i32: +7\n";
+    let (mut s, mut keys) = started(&[
+        ("src/lib.hd", fixed),
+        ("src/main.hd", main),
+        ("src/junk.hd", junk),
+    ]);
+    joined(&mut s, "n := +3\n", &mut keys);
+    joined(&mut s, "n + secret()\n", &mut keys);
+}
+
 #[test]
 fn a_request_out_of_turn_is_refused() {
     let mut s = Session::new();
