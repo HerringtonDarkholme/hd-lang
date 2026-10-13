@@ -218,6 +218,11 @@ pub enum Target {
     Dyn,
     /// A closure's code instance.
     Closure(Hash128),
+    /// At a `CallValue` of the optimized pipeline: the callee is a closure
+    /// value made in the same sub-body, whose code instance this is
+    /// (closure-calls.md, option A1). Emission calls it directly, the
+    /// value passed as the environment, instead of reading the code field.
+    KnownClosure(Hash128),
     /// A map operation on a key that is not inline
     /// (`layout::inline_map_key`): `hash_of` and `Eq.eq` at the key type
     /// (codegen.md §13.12).
@@ -1968,6 +1973,9 @@ impl Cx<'_> {
                 _ => {}
             }
         }
+        if env.optimized() && only.is_none() {
+            known_closures(body, hidden.as_deref(), &mut calls);
+        }
         if sub == Sub::Body(0) {
             self.hash_signature(item, args, &mut reps);
         }
@@ -2036,6 +2044,69 @@ fn hidden_insts(body: &Body, sub: Sub) -> Option<Vec<bool>> {
             .map(|&s| hidden_sub.get(s as usize).copied().unwrap_or(false))
             .collect(),
     )
+}
+
+/// Option A1 of closure-calls.md, in the optimized pipeline: each
+/// `CallValue` whose callee is a closure value made in the same sub-body
+/// records `Target::KnownClosure` with that value's code instance. The
+/// callee is a `Closure` or `ItemRef` itself, or a local whose only write
+/// is one `LocalSet` of one: not a parameter, never written through `mut`
+/// or from a closure. The value and the callee have the same type, so the
+/// code instance has the signature a `call_ref` would use. A closure made
+/// in an enclosing sub-body is left indirect: its key there may be under
+/// other type arguments than this instance's.
+fn known_closures(body: &Body, hidden: Option<&[bool]>, calls: &mut HashMap<u32, Target>) {
+    use hd_tir::ir::local_flags::{CAPTURED_ASSIGNED, MUTATED, PARAM};
+    if !body.tags.contains(&Tag::CallValue) {
+        return;
+    }
+    // Per local: how many `LocalSet`s write it, and the last one's value.
+    let mut sets: Vec<(u32, u32)> = vec![(0, u32::MAX); body.local_flags.len()];
+    for (i, tag) in body.tags.iter().enumerate() {
+        if *tag == Tag::LocalSet
+            && let Some(s) = sets.get_mut(body.data[i][0] as usize)
+        {
+            *s = (s.0 + 1, body.data[i][1]);
+        }
+    }
+    let inst = |word: u32| hd_tir::ir::Ref(word).as_inst().map(|x| x.0 as usize);
+    let subs = body.inst_subs();
+    for i in 0..body.len() {
+        if body.tags[i] != Tag::CallValue || hidden.is_some_and(|h| h[i]) {
+            continue;
+        }
+        let ix = u32::try_from(i).expect("insts");
+        let Some(callee) = inst(body.data[i][0]) else {
+            continue;
+        };
+        let mut made = callee;
+        if body.tags[made] == Tag::LocalGet {
+            let l = body.data[made][0] as usize;
+            let flags = body.local_flags.get(l).copied().unwrap_or(PARAM);
+            let Some(&(1, value)) = sets.get(l) else {
+                continue;
+            };
+            let Some(v) = inst(value) else {
+                continue;
+            };
+            if flags & (PARAM | MUTATED | CAPTURED_ASSIGNED) != 0 {
+                continue;
+            }
+            made = v;
+        }
+        if !matches!(body.tags[made], Tag::Closure | Tag::ItemRef)
+            || subs[made] != subs[i]
+            || body.ty[made] != body.ty[callee]
+        {
+            continue;
+        }
+        if let (false, Some(&Target::Closure(key))) = (
+            calls.contains_key(&ix),
+            calls.get(&u32::try_from(made).expect("insts")),
+        ) {
+            calls.insert(ix, Target::KnownClosure(key));
+        }
+    }
 }
 
 /// Whether a body may run other code: a call of any form, or a map

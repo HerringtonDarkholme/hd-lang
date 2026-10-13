@@ -616,9 +616,16 @@ impl Em<'_> {
                 }
                 let callee = self.ty_of(a);
                 self.push_ctx(callee)?;
-                self.a.get(f);
-                self.a.struct_get(&base, 0);
-                self.a.call_ref(&code);
+                // A closure collection resolved (the optimized pipeline's
+                // A1) is a direct call of its code; any other reads the
+                // code from the value.
+                if let Some(&Target::KnownClosure(key)) = self.calls.get(&i) {
+                    self.a.call(Sym::Inst(key));
+                } else {
+                    self.a.get(f);
+                    self.a.struct_get(&base, 0);
+                    self.a.call_ref(&code);
+                }
                 self.store_from(i, &rs.clone())?;
             }
             Tag::Interp => {

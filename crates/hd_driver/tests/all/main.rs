@@ -78,6 +78,7 @@ mod int_widths_run;
 mod intrinsic_methods;
 mod item_names;
 mod key_assoc_function_run;
+mod known_closure_calls;
 mod least_common_type_run;
 mod let_mut_module_level;
 mod let_pattern_mut_run;
