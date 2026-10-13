@@ -15,7 +15,7 @@
 //! becomes an internal `unsupported` diagnostic, which is an error.
 //! `analyze_package` runs the same code and only reports the counts.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock};
 
 pub use hd_base::BuildProfile;
@@ -587,7 +587,7 @@ struct CheckOut {
 /// The program as `Collect` decoded it.
 struct ProgramTables {
     items: HashMap<DefId, Item>,
-    bodies: HashMap<DefId, (Body, Hash128)>,
+    bodies: Bodies,
     /// Where each impl's row lives: its folder's table.
     impl_rows: HashMap<DefId, ImplRef>,
     /// The program's impl universe: every folder of the program. A build
@@ -599,6 +599,19 @@ struct ProgramTables {
     /// found once on the first layout that asks.
     recursive_enums: OnceLock<std::collections::HashSet<DefId>>,
 }
+
+/// The program's TIR bodies ([`Run::body_of`]). An earlier REPL input's
+/// are decoded on first use: its init ran in its own build, so a later
+/// input reads its bodies only for an instance no earlier input holds,
+/// and a build does not decode the whole session.
+struct Bodies {
+    eager: HashMap<DefId, (Body, Hash128)>,
+    /// Per earlier input the session holds, by its module's path node:
+    /// the module, and its bodies once decoded.
+    kept: HashMap<hd_base::PathId, (usize, KeptBodies)>,
+}
+
+type KeptBodies = OnceLock<HashMap<DefId, (Body, Hash128)>>;
 
 /// One run of a module cycle's initialization (`InitOrder`, spec 10
 /// `module.init.cycle.step`): statements `start..end` of `module`, which
@@ -746,6 +759,12 @@ struct Run<'a> {
     session: Option<&'a Session>,
     /// What this run's module adds to that session ([`Output::session_added`]).
     session_added: OnceLock<Session>,
+    /// The entries of the REPL input this run builds, as it reads or
+    /// writes them, for [`Session::inputs`].
+    input_entries: Mutex<InputEntries>,
+    /// Per folder: whether it is an earlier REPL input's, read from the
+    /// session ([`Run::read_kept`]), so it has no task.
+    kept: OnceLock<Vec<bool>>,
     /// `src/lib.hd`'s scope, kinds and items, lowered once for the REPL
     /// inputs' session scopes (`cli.repl.package.lib`).
     lib_scope: OnceLock<Option<LibScope>>,
@@ -838,6 +857,25 @@ pub struct Session {
     pub externs: hd_wasm::Externs,
     /// The keys of the init bodies' instances those modules ran.
     pub inits_run: BTreeSet<Hash128>,
+    /// Each REPL input's entries, by number. The build of a later input
+    /// reads an earlier input here instead of computing its keys over the
+    /// inputs before it and reading the store, so it does not redo the
+    /// session's earlier inputs (repl-plan.md §4).
+    inputs: BTreeMap<u32, InputEntries>,
+}
+
+/// The sections of a REPL input's `iface`, header `graph` and `check`
+/// entries, as its build read or wrote them ([`Session::inputs`]). An
+/// input's entries never change in its session: its text, `src/lib.hd`
+/// and the inputs before it are fixed until a rebuild starts a new one.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct InputEntries {
+    iface: Option<Vec<Vec<u8>>>,
+    /// The other folders its interface names, with their deep hashes,
+    /// which are fixed for the session too.
+    mentions: Option<Vec<(String, Hash128)>>,
+    header: Option<Vec<Vec<u8>>>,
+    check: Option<Vec<Vec<u8>>>,
 }
 
 impl Session {
@@ -850,6 +888,7 @@ impl Session {
                 ..hd_wasm::Externs::default()
             },
             inits_run: BTreeSet::new(),
+            inputs: BTreeMap::new(),
         }
     }
 
@@ -860,6 +899,7 @@ impl Session {
         self.externs.funcs.extend(added.externs.funcs);
         self.externs.globals.extend(added.externs.globals);
         self.inits_run.extend(added.inits_run);
+        self.inputs.extend(added.inputs);
     }
 
     /// A cache section: the externs' bytes, then the inits run.
@@ -877,7 +917,11 @@ impl Session {
         let mut r = Reader::new(bytes);
         let externs = hd_wasm::Externs::decode(r.blob())?;
         let inits_run = (0..r.count()).map(|_| r.hash()).collect();
-        (r.ok() && r.at_end()).then_some(Session { externs, inits_run })
+        (r.ok() && r.at_end()).then_some(Session {
+            externs,
+            inits_run,
+            inputs: BTreeMap::new(),
+        })
     }
 }
 
@@ -1124,6 +1168,8 @@ fn build_packages_inner(
         wasm: OnceLock::new(),
         session: packages.session,
         session_added: OnceLock::new(),
+        input_entries: Mutex::default(),
+        kept: OnceLock::new(),
         lib_scope: OnceLock::new(),
         session_scopes: (0..n).map(|_| OnceLock::new()).collect(),
         repl_inputs: OnceLock::new(),
@@ -1714,8 +1760,12 @@ impl Run<'_> {
             uses.push("std.testing".to_owned());
         }
         // A REPL input sees `src/lib.hd` and the earlier inputs through
-        // its session scope, so their folders join its closure.
-        uses.extend(self.session_modules(m));
+        // its session scope, so their folders join its closure. It uses
+        // the library and the input just before it: that input uses the
+        // one before, so the closure, and every key and order over it, is
+        // the same as with a use of each earlier input, at one edge per
+        // input instead of one per pair of inputs.
+        uses.extend(self.session_uses(m));
         // The prelude's fixed uses (`module.prelude.fixed-uses`).
         if module != "std.core" {
             uses.extend(hd_resolve::prelude_modules().into_iter().map(str::to_owned));
@@ -1881,12 +1931,33 @@ impl Run<'_> {
             package_result: pr,
         });
         let g = &self.graph.get().expect("set above").graph;
+        // The earlier REPL inputs are the session's, read here: they get
+        // no task, so a build's tasks do not grow with the session.
+        let kept = self.kept.get_or_init(|| {
+            (0..self.table.folders.len())
+                .map(|fi| self.read_kept(fi))
+                .collect()
+        });
         let mut iface_task: Vec<Option<TaskId>> = vec![None; self.table.folders.len()];
-        for &f in &order {
-            let deps: Vec<TaskId> = g.uses[f.idx()]
-                .iter()
-                .filter_map(|u| iface_task[u.idx()])
-                .collect();
+        for &f in order.iter().filter(|f| !kept[f.idx()]) {
+            // A folder read from the session has no task: a folder that
+            // uses one waits for the tasks of the folders it reaches.
+            let mut deps: Vec<TaskId> = Vec::new();
+            for u in &g.uses[f.idx()] {
+                if kept[u.idx()] {
+                    for c in g.closure[u.idx()].iter() {
+                        if let Some(t) = iface_task[c.idx()]
+                            && !deps.contains(&t)
+                        {
+                            deps.push(t);
+                        }
+                    }
+                } else if let Some(t) = iface_task[u.idx()]
+                    && !deps.contains(&t)
+                {
+                    deps.push(t);
+                }
+            }
             let t = sp.add(TaskKind::FolderIface(f.raw()), &deps);
             iface_task[f.idx()] = Some(t);
             let closure: Vec<TaskId> = g.closure[f.idx()]
@@ -1901,19 +1972,19 @@ impl Run<'_> {
         sp.edge(coh, pr);
         // A program's collection crosses packages (codegen.md §13.2): the
         // std modules its folders reach are checked to TIR too.
-        let mut reached = vec![false; self.table.folders.len()];
+        let mut reached = hd_project::FolderSet::with_capacity(self.table.folders.len());
         if !self.analyze() {
             for module in &self.table.modules {
                 if module.package == 0 {
-                    for c in g.closure[module.folder.idx()].iter() {
-                        reached[c.idx()] = true;
-                    }
+                    reached.union(&g.closure[module.folder.idx()]);
                 }
             }
         }
         let mut prep_task: Vec<Option<TaskId>> = vec![None; self.table.modules.len()];
         for (m, module) in self.table.modules.iter().enumerate() {
-            if module.package != 0 && !reached[module.folder.idx()] {
+            if (module.package != 0 && !reached.contains(module.folder))
+                || kept[module.folder.idx()]
+            {
                 continue;
             }
             let deps: Vec<TaskId> = g.closure[module.folder.idx()]
@@ -1933,13 +2004,17 @@ impl Run<'_> {
         }
         // A REPL input's bodies read the earlier inputs' bindings from their
         // `check` entries: its `ModulePrep` waits for theirs, which name the
-        // task that reads each entry (`check_task`).
-        for &(_, m) in &self.repl_inputs().sorted {
-            for &(_, k) in self.earlier_inputs(m) {
-                if let (Some(from), Some(to)) = (prep_task[k], prep_task[m]) {
-                    sp.edge(from, to);
-                }
-            }
+        // task that reads each entry (`check_task`). An edge from the input
+        // just before is enough, since that one waits for the one before
+        // it; an input read from the session has no task.
+        let preps: Vec<TaskId> = self
+            .repl_inputs()
+            .sorted
+            .iter()
+            .filter_map(|&(_, m)| prep_task[m])
+            .collect();
+        for pair in preps.windows(2) {
+            sp.edge(pair[0], pair[1]);
         }
         for &(_, m) in &self.repl_inputs().sorted {
             if let Some(prep) = prep_task[m] {
@@ -2064,32 +2139,11 @@ impl Run<'_> {
         );
         let names = self.names();
         if let Some(sections) = self.lookup(EntryKind::Iface, key)
-            && let (Some(blob), Some(dsec)) = (sections.first(), sections.get(1))
-            && let Some((items, exports)) = hd_resolve::decode_items(&names, blob)
-            && let Some(diags) = decode_iface_diags(dsec)
-            && let Some(rows) = sections.get(2).and_then(|b| hd_resolve::anchor::decode(b))
-            && let Some(private) = sections
-                .get(3)
-                .and_then(|b| hd_resolve::decode_private_names(&names, b))
-            && let Some(looped) = sections
-                .get(4)
-                .and_then(|b| hd_resolve::decode_private_names(&names, b))
-            && let Some(mentions) = self.mentions(fid, &items, &exports)
+            && let Some(mentions) = self.iface_hit(fi, &sections, None)
         {
-            let mut iface = hd_resolve::folder_iface(
-                &folder.path,
-                items,
-                exports,
-                Arc::from(blob.as_slice()),
-                &mentions,
-            );
-            iface.spans = spans_of(&iface.items, &rows);
-            iface.private_names = private.into_iter().collect();
-            iface.loop_names = looped.into_iter().collect();
-            self.emit_iface_diags(fi, &diags);
-            self.note_iface(&folder.path, &iface, false);
-            lock(&self.report).ok(Stage::FolderIface);
-            let _ = self.iface[fi].set(Some(Arc::new(iface)));
+            let m = folder.modules[0].idx();
+            self.keep_input(m, |e| &mut e.iface, || sections);
+            self.keep_input(m, |e| &mut e.mentions, || mentions);
             return;
         }
         for m in &folder.modules {
@@ -2192,11 +2246,21 @@ impl Run<'_> {
         let psec = hd_resolve::encode_private_names(&names, &out.private_names);
         let lsec = hd_resolve::encode_private_names(&names, &out.loop_names);
         self.put(EntryKind::Iface, key, &[&blob, &dsec, &asec, &psec, &lsec]);
+        self.keep_input(
+            folder.modules[0].idx(),
+            |e| &mut e.iface,
+            || vec![blob.clone(), dsec, asec, psec, lsec],
+        );
         let Some(mentions) = self.mentions(fid, &items, &out.exports) else {
             self.blocked(Stage::FolderIface);
             let _ = self.iface[fi].set(None);
             return;
         };
+        self.keep_input(
+            folder.modules[0].idx(),
+            |e| &mut e.mentions,
+            || mentions.clone(),
+        );
         let mut iface =
             hd_resolve::folder_iface(&folder.path, items, out.exports, Arc::from(blob), &mentions);
         iface.spans = spans_of(&iface.items, &rows);
@@ -2206,6 +2270,89 @@ impl Run<'_> {
         self.note_iface(&folder.path, &iface, true);
         lock(&self.report).ok(Stage::FolderIface);
         let _ = self.iface[fi].set(Some(Arc::new(iface)));
+    }
+
+    /// Sets folder `fi`'s interface from the sections of its `iface`
+    /// entry and the deep hashes of the folders it names: `mentions`, or
+    /// else this run's interfaces'. Returns those, if the sections decode.
+    fn iface_hit(
+        &self,
+        fi: usize,
+        sections: &[Vec<u8>],
+        mentions: Option<&[(String, Hash128)]>,
+    ) -> Option<Vec<(String, Hash128)>> {
+        let folder = &self.table.folders[fi];
+        let names = self.names();
+        let (blob, dsec) = (sections.first()?, sections.get(1)?);
+        let (items, exports) = hd_resolve::decode_items(&names, blob)?;
+        let (Some(diags), Some(rows), Some(private), Some(looped)) = (
+            decode_iface_diags(dsec),
+            sections.get(2).and_then(|b| hd_resolve::anchor::decode(b)),
+            sections
+                .get(3)
+                .and_then(|b| hd_resolve::decode_private_names(&names, b)),
+            sections
+                .get(4)
+                .and_then(|b| hd_resolve::decode_private_names(&names, b)),
+        ) else {
+            return None;
+        };
+        let mentions = match mentions {
+            Some(m) => m.to_vec(),
+            None => self.mentions(folder.id, &items, &exports)?,
+        };
+        let mut iface = hd_resolve::folder_iface(
+            &folder.path,
+            items,
+            exports,
+            Arc::from(blob.as_slice()),
+            &mentions,
+        );
+        iface.spans = spans_of(&iface.items, &rows);
+        iface.private_names = private.into_iter().collect();
+        iface.loop_names = looped.into_iter().collect();
+        self.emit_iface_diags(fi, &diags);
+        self.note_iface(&folder.path, &iface, false);
+        lock(&self.report).ok(Stage::FolderIface);
+        let _ = self.iface[fi].set(Some(Arc::new(iface)));
+        Some(mentions)
+    }
+
+    /// Reads folder `fi` from the session when it is an earlier REPL
+    /// input's ([`Session::inputs`]): its interface, its header findings,
+    /// its init order (one module, so no cycle) and its module's check,
+    /// with no task, no key and no store read. Whether it did.
+    fn read_kept(&self, fi: usize) -> bool {
+        let Some(kept) = self.kept_folder(fi) else {
+            return false;
+        };
+        let (Some(iface), Some(mentions), Some(header), Some(check)) = (
+            kept.iface.as_deref(),
+            kept.mentions.as_deref(),
+            kept.header.as_ref().and_then(|h| h.first()),
+            kept.check.as_deref(),
+        ) else {
+            return false;
+        };
+        if self.iface_hit(fi, iface, Some(mentions)).is_none() {
+            return false;
+        }
+        let fid = self.table.folders[fi].id;
+        let Some(found) = self
+            .iface_of(fid)
+            .and_then(|own| decode_header_findings(header, &own.items))
+        else {
+            return false;
+        };
+        lock(&self.report).ok(Stage::HeaderCheck);
+        self.emit_findings(&found);
+        let _ = self.init_runs[fi].set(Vec::new());
+        lock(&self.report).ok(Stage::InitOrder);
+        let m = self.table.folders[fi].modules[0].idx();
+        lock(&self.report).ok(Stage::ModulePrep);
+        self.read_check(m, check, Arc::from(join_sections(check)));
+        let _ = self.prep[m].set(None);
+        true
     }
 
     fn note_iface(&self, path: &str, iface: &FolderIface, built: bool) {
@@ -2285,6 +2432,60 @@ impl Run<'_> {
         self.lib_module()
             .into_iter()
             .chain(earlier)
+            .map(|k| self.table.modules[k].path.clone())
+            .collect()
+    }
+
+    /// The entries REPL input `m` left in the session, when it is an input
+    /// before the one this run builds ([`Session::inputs`]).
+    fn kept_input(&self, m: usize) -> Option<&InputEntries> {
+        let n = self.repl_number(m)?;
+        match self.goal {
+            Goal::ReplInput { input } if input != n => self.session?.inputs.get(&n),
+            _ => None,
+        }
+    }
+
+    /// [`Run::kept_input`] for folder `fi`, which an input has to itself.
+    fn kept_folder(&self, fi: usize) -> Option<&InputEntries> {
+        match self.table.folders[fi].modules.as_slice() {
+            [m] => self.kept_input(m.idx()),
+            _ => None,
+        }
+    }
+
+    /// Whether module `m` is an earlier REPL input read from the session
+    /// ([`Run::read_kept`]).
+    fn is_kept(&self, m: usize) -> bool {
+        self.kept
+            .get()
+            .is_some_and(|k| k[self.table.modules[m].folder.idx()])
+    }
+
+    /// Records an entry of the REPL input this run builds, when module `m`
+    /// is that input ([`Session::inputs`]).
+    fn keep_input<T>(
+        &self,
+        m: usize,
+        part: fn(&mut InputEntries) -> &mut Option<T>,
+        value: impl FnOnce() -> T,
+    ) {
+        if matches!(self.goal, Goal::ReplInput { input } if self.repl_number(m) == Some(input)) {
+            *part(&mut lock(&self.input_entries)) = Some(value());
+        }
+    }
+
+    /// The modules REPL input `m` uses for its session scope:
+    /// `src/lib.hd` and the input just before it. None for any other
+    /// module.
+    fn session_uses(&self, m: usize) -> Vec<String> {
+        if self.repl_number(m).is_none() {
+            return Vec::new();
+        }
+        let last = self.earlier_inputs(m).last().map(|(_, k)| *k);
+        self.lib_module()
+            .into_iter()
+            .chain(last)
             .map(|k| self.table.modules[k].path.clone())
             .collect()
     }
@@ -2374,7 +2575,7 @@ impl Run<'_> {
                     out.kinds.insert(e.def, e.kind);
                     out.declared_by.insert(e.name, format!("repl#{number}"));
                 }
-                out.scope = out.scope.overlay(&inner);
+                out.scope.nest(&inner);
             }
             Arc::new(out)
         });
@@ -2513,6 +2714,7 @@ impl Run<'_> {
         {
             lock(&self.report).ok(Stage::HeaderCheck);
             self.emit_findings(&found);
+            self.keep_input(folder.modules[0].idx(), |e| &mut e.header, || sections);
             return;
         }
         self.computed(Stage::HeaderCheck);
@@ -2542,11 +2744,9 @@ impl Run<'_> {
         let Some(findings) = self.stage(Stage::HeaderCheck, r) else {
             return;
         };
-        self.put(
-            EntryKind::Graph,
-            key,
-            &[&encode_header_findings(&findings, &own.items)],
-        );
+        let bytes = encode_header_findings(&findings, &own.items);
+        self.put(EntryKind::Graph, key, &[&bytes]);
+        self.keep_input(folder.modules[0].idx(), |e| &mut e.header, || vec![bytes]);
         self.emit_findings(&findings);
     }
 
@@ -2786,12 +2986,29 @@ impl Run<'_> {
             .iter()
             .map(|&(n, k)| (self.table.modules[k].path.as_str(), n))
             .collect();
+        // The interfaces that carry each impl, in folder order, so a key
+        // reads those instead of every interface of the program.
+        let mut holders: HashMap<DefId, Vec<&FolderIface>> = HashMap::new();
+        for i in &all {
+            for it in &i.items {
+                if matches!(it.data, ItemData::Impl { .. }) {
+                    holders.entry(it.def).or_default().push(i);
+                }
+            }
+        }
+        let carrying = |d: DefId| -> Vec<&FolderIface> {
+            holders
+                .get(&d)
+                .cloned()
+                .unwrap_or_else(|| all.iter().map(AsRef::as_ref).collect())
+        };
         // Content order (§4.12.3): the later impl is the one reported. What
         // `@error` generates ranks first, so a hand-written impl beside it
         // is the one reported (spec 14 `annot.error.hand-written`); a
         // `@derive` ranks after written impls, a derivation block after both.
         let order = |d: DefId| {
-            let rank = all
+            let carriers = carrying(d);
+            let rank = carriers
                 .iter()
                 .find_map(|i| i.item(d))
                 .map_or(1, |it| match &it.data {
@@ -2809,7 +3026,7 @@ impl Run<'_> {
                     } => 3,
                     _ => 1,
                 });
-            let at = all
+            let at = carriers
                 .iter()
                 .find_map(|i| i.spans.get(&(d, 0)))
                 .map_or((0, 0, 0), |(_, a)| (a.decl, a.member, a.tok));
@@ -4515,6 +4732,7 @@ impl Run<'_> {
 
     /// Reads diagnostics and the meta section; the rest waits for `Collect`.
     fn read_check(&self, m: usize, sections: &[Vec<u8>], entry: Arc<[u8]>) {
+        self.keep_input(m, |e| &mut e.check, || sections.to_vec());
         let (Some(d), Some(meta)) = (sections.first(), sections.get(1)) else {
             let _ = self.check[m].set(None);
             return;
@@ -4580,7 +4798,9 @@ impl Run<'_> {
         lock(&self.report).ok(Stage::PackageResult);
         // `InitOrder(F)` reads the init summaries of the folder's modules,
         // so it runs once they are checked.
+        let kept = self.kept.get();
         let orders: Vec<TaskId> = (0..self.table.folders.len())
+            .filter(|f| !kept.is_some_and(|k| k[*f]))
             .map(|f| sp.add(TaskKind::InitOrder(u32_of(f)), &[]))
             .collect();
         self.dbg_in_release();
@@ -4613,6 +4833,7 @@ impl Run<'_> {
         let names = self.names();
         let mut items = HashMap::new();
         let mut bodies = HashMap::new();
+        let mut kept = HashMap::new();
         let mut decoded = Vec::new();
         for m in 0..self.table.modules.len() {
             let Some(Some(c)) = self.check[m].get() else {
@@ -4627,6 +4848,13 @@ impl Run<'_> {
             let sections = split_sections(&c.entry)?;
             for it in hd_resolve::decode_items(&names, sections.get(2)?)?.0 {
                 items.insert(it.def, it);
+            }
+            if self.is_kept(m) {
+                kept.insert(
+                    names.module(&self.table.modules[m].path),
+                    (m, OnceLock::new()),
+                );
+                continue;
             }
             let mut r = Reader::new(sections.get(3)?);
             for _ in 0..r.count() {
@@ -4690,13 +4918,60 @@ impl Run<'_> {
         lock(&self.counters).tir_decoded.extend(decoded);
         let _ = self.program.set(ProgramTables {
             items,
-            bodies,
+            bodies: Bodies {
+                eager: bodies,
+                kept,
+            },
             impl_rows,
             universe,
             extra,
             recursive_enums: OnceLock::new(),
         });
         self.program.get()
+    }
+
+    /// The TIR body of `def`, and its content hash, decoding an earlier
+    /// REPL input's bodies on first use ([`Bodies`]).
+    fn body_of<'p>(&self, p: &'p ProgramTables, def: DefId) -> Option<&'p (Body, Hash128)> {
+        if let Some(b) = p.bodies.eager.get(&def) {
+            return Some(b);
+        }
+        if p.bodies.kept.is_empty() {
+            return None;
+        }
+        let mut at = hd_base::PathId::from_raw(def.raw());
+        while at.get().is_some()
+            && !matches!(
+                self.paths.kind(at),
+                hd_intern::PathKind::Module | hd_intern::PathKind::Package
+            )
+        {
+            at = self.paths.parent(at);
+        }
+        let (m, cell) = p.bodies.kept.get(&at)?;
+        cell.get_or_init(|| self.decode_bodies(*m)).get(&def)
+    }
+
+    /// Module `m`'s TIR bodies, from its `check` entry.
+    fn decode_bodies(&self, m: usize) -> HashMap<DefId, (Body, Hash128)> {
+        let mut out = HashMap::new();
+        let Some(Some(c)) = self.check[m].get() else {
+            return out;
+        };
+        let Some(section) = split_sections(&c.entry).and_then(|s| s.get(3).copied()) else {
+            return out;
+        };
+        let mut r = Reader::new(section);
+        for _ in 0..r.count() {
+            let bytes = r.blob();
+            if let Some(b) = hd_tir::wire::read_body(bytes, &self.pool, &self.paths, &self.syms) {
+                out.insert(b.item, (b, hd_tir::wire::tir_hash(bytes)));
+            }
+        }
+        lock(&self.counters)
+            .tir_decoded
+            .push(self.table.modules[m].path.clone());
+        out
     }
 
     /// Every folder's impls, by folder id: the program's tables.
@@ -4832,7 +5107,7 @@ impl Run<'_> {
             .iter()
             .position(|module| module.path == entry_key)
             .is_none_or(|m| self.skim_of(m).public_main.is_some());
-        let has_main = p.bodies.contains_key(&main)
+        let has_main = self.body_of(p, main).is_some()
             && (public || !matches!(self.goal, Goal::Program { .. } | Goal::Scenario { .. }));
         let script = match self.goal {
             Goal::Program { .. } | Goal::Scenario { .. } => !has_main,
@@ -4840,7 +5115,7 @@ impl Run<'_> {
             Goal::Tests { .. } | Goal::Analyze | Goal::CheckTests => false,
         };
         let root = if script { init_of(&entry_key) } else { main };
-        if !p.bodies.contains_key(&root) {
+        if self.body_of(p, root).is_none() {
             let span = Span {
                 file: FileId::from_raw(u32::MAX),
                 lo: 0,
@@ -4862,7 +5137,11 @@ impl Run<'_> {
             impls: Impls::Owned(&view),
             sealed: self.known.sealed(),
         };
-        let has_init = |m: &str| p.bodies.contains_key(&init_of(m));
+        // An earlier REPL input's init ran in its own build: collection
+        // would leave it out (`Session::inits_run`), so it is left out
+        // here, before its bodies are decoded.
+        let kept_module = |m: &str| self.table.module(m).is_some_and(|k| self.is_kept(k.idx()));
+        let has_init = |m: &str| !kept_module(m) && self.body_of(p, init_of(m)).is_some();
         // The init groups each root module reaches, in order, and their union.
         let mut root_modules: Vec<String> = Vec::new();
         for (_, m) in &roots {
@@ -4918,7 +5197,7 @@ impl Run<'_> {
         // is collected even though no case calls it.
         if matches!(self.goal, Goal::Scenario { .. }) {
             let def = names.item(&entry_key, "cleanup_ran");
-            if p.bodies.contains_key(&def) {
+            if self.body_of(p, def).is_some() {
                 extra.push((def, TyList::EMPTY));
             }
         }
@@ -5009,7 +5288,7 @@ impl Run<'_> {
                 report: reports[0].as_ref().and_then(key_of_extra),
                 cleanup: {
                     let def = names.item(&entry_key, "cleanup_ran");
-                    if p.bodies.contains_key(&def) {
+                    if self.body_of(p, def).is_some() {
                         key_of_extra(&(def, TyList::EMPTY))
                     } else {
                         None
@@ -5057,7 +5336,7 @@ impl Run<'_> {
         let mut misses = Vec::new();
         for (slot, id) in order.iter().enumerate() {
             let item = collected.table.item[id.idx()];
-            let tir = p.bodies.get(&item).map_or(Hash128(0), |b| b.1);
+            let tir = self.body_of(p, item).map_or(Hash128(0), |b| b.1);
             let mut reps = hd_base::StableHasher::new("code-deps");
             reps.hash(self.toolchain);
             reps.hash(layouts);
@@ -5306,16 +5585,28 @@ impl Run<'_> {
                 .min()
                 .unwrap_or("")
         };
-        let mut done = vec![false; groups.len()];
+        // Each group's count of dependencies not yet ordered, and the
+        // groups that wait on it; the ready groups by name.
+        let mut waiting: Vec<usize> = deps.iter().map(std::collections::BTreeSet::len).collect();
+        let mut users: Vec<Vec<usize>> = vec![Vec::new(); groups.len()];
+        for (g, ds) in deps.iter().enumerate() {
+            for &d in ds {
+                users[d].push(g);
+            }
+        }
+        let mut ready: std::collections::BinaryHeap<std::cmp::Reverse<(&str, usize)>> = (0..groups
+            .len())
+            .filter(|g| waiting[*g] == 0)
+            .map(|g| std::cmp::Reverse((name(g), g)))
+            .collect();
         let mut out = Vec::new();
-        for _ in 0..groups.len() {
-            let Some(next) = (0..groups.len())
-                .filter(|g| !done[*g] && deps[*g].iter().all(|d| done[*d]))
-                .min_by_key(|g| name(*g))
-            else {
-                break;
-            };
-            done[next] = true;
+        while let Some(std::cmp::Reverse((_, next))) = ready.pop() {
+            for &u in &users[next] {
+                waiting[u] -= 1;
+                if waiting[u] == 0 {
+                    ready.push(std::cmp::Reverse((name(u), u)));
+                }
+            }
             let mut paths: Vec<&str> = groups[next]
                 .iter()
                 .map(|m| self.table.modules[*m].path.as_str())
@@ -5379,7 +5670,7 @@ impl Run<'_> {
         let calls = &c.collected.calls[id.idx()];
         let r = match sub {
             hd_mono::Sub::Body(k) => {
-                let body = p.bodies.get(&item).map(|b| &b.0);
+                let body = self.body_of(p, item).map(|b| &b.0);
                 match c.collected.supplied_body(&self.pool, item, args).or(body) {
                     Some(body) => hd_wasm::emit(
                         &self.pool,
@@ -5401,7 +5692,7 @@ impl Run<'_> {
                 hd_wasm::emit_adapter(&self.pool, &env, &path, &c.layouts, item, args, calls)
             }
             // A generic method's erased body and its thunks (§13.5.1).
-            hd_mono::Sub::Erased | hd_mono::Sub::Thunk(_) => match p.bodies.get(&item) {
+            hd_mono::Sub::Erased | hd_mono::Sub::Thunk(_) => match self.body_of(p, item) {
                 Some((body, _)) if sub == hd_mono::Sub::Erased => hd_wasm::emit_erased(
                     &self.pool,
                     &env,
@@ -5535,6 +5826,15 @@ impl Run<'_> {
                 let mut added = Session::default();
                 added.externs.add_module(&codes);
                 added.inits_run.extend(c.collected.inits.iter().copied());
+                let entries = std::mem::take(&mut *lock(&self.input_entries));
+                if let Goal::ReplInput { input } = self.goal
+                    && input != 0
+                    && entries.iface.is_some()
+                    && entries.header.is_some()
+                    && entries.check.is_some()
+                {
+                    added.inputs.insert(input, entries);
+                }
                 if self.prelude() {
                     let key = prelude_key(self.toolchain, self.pipeline, self.build_profile);
                     self.put(EntryKind::Link, key, &[&wasm, &added.encode()]);
@@ -6096,9 +6396,8 @@ impl Env<'_> {
     /// parameter's or field's declared type. A facts body is one that takes
     /// no parameter.
     fn default_body(&self, def: DefId) -> Option<&Body> {
-        self.p
-            .bodies
-            .get(&def)
+        self.run
+            .body_of(self.p, def)
             .map(|b| &b.0)
             .filter(|b| matches!(b.kind, hd_tir::BodyKind::Default | hd_tir::BodyKind::Fact))
     }
@@ -6107,7 +6406,7 @@ impl Env<'_> {
     /// is a driver context, so it suspends where it awaits outside its
     /// closures. No other top level awaits.
     fn init_suspends(&self, def: DefId) -> bool {
-        let Some((b, _)) = self.p.bodies.get(&def) else {
+        let Some((b, _)) = self.run.body_of(self.p, def) else {
             return false;
         };
         let awaits = |t: &hd_tir::Tag| {
@@ -6133,7 +6432,7 @@ impl Env<'_> {
     /// module's init has an inferred entry row (`module.init.script-row`),
     /// so its keys are those of the callees its top level calls.
     fn init_keys(&self, def: DefId) -> Vec<Ty> {
-        let Some((b, _)) = self.p.bodies.get(&def) else {
+        let Some((b, _)) = self.run.body_of(self.p, def) else {
             return Vec::new();
         };
         if b.kind != hd_tir::BodyKind::Init {
@@ -6159,7 +6458,7 @@ impl Env<'_> {
 
 impl ProgramEnv for Env<'_> {
     fn body(&self, def: DefId) -> Option<&Body> {
-        self.p.bodies.get(&def).map(|b| &b.0)
+        self.run.body_of(self.p, def).map(|b| &b.0)
     }
     fn bounded(&self, def: DefId) -> Option<Vec<bool>> {
         self.sig(def)

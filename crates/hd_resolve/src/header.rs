@@ -53,7 +53,7 @@ impl<'a> Universe<'a> {
         for tr in traits {
             let mut heads: Vec<(DefId, Ty, TyList)> = Vec::new();
             let mut list: Vec<&&Item> = self.impls[tr].iter().collect();
-            list.sort_by_key(|i| order(i.def));
+            list.sort_by_cached_key(|i| order(i.def));
             let mut reported = std::collections::HashSet::new();
             // A tuple template implements the trait for every tuple type,
             // so an implementation written for a tuple overlaps it

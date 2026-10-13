@@ -640,6 +640,31 @@ fn other_modules_and_dependencies_keep_their_private_members() {
     }
 }
 
+/// A build reads the earlier inputs from the session, not from the store,
+/// and gives them no task but their skim: its store reads and its other
+/// tasks are the same at input 12 as at input 3 (repl-plan.md §4).
+#[test]
+fn a_build_reads_the_earlier_inputs_from_the_session() {
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    let mut work = Vec::new();
+    for n in 1..=12 {
+        let out = repl.input(n, &format!("w{n} := +{n}\n"));
+        // Store reads, hit or miss: the warm store is shared by tests.
+        let mut reads = out.counters.hits.clone();
+        for (kind, n) in &out.counters.misses {
+            *reads.entry(kind).or_default() += n;
+        }
+        let mut tasks = out.counters.tasks.clone();
+        tasks.remove("Skim");
+        work.push((reads, tasks));
+    }
+    assert_eq!(work[2], work[11]);
+    // Input 12 still reads input 1's binding.
+    repl.input(13, "println(w1 + w12)\n");
+}
+
 /// A single use binds its name for later inputs too, as a grouped one does.
 #[test]
 fn a_single_use_reaches_later_inputs() {
@@ -800,4 +825,38 @@ fn the_newer_input_s_implementation_is_the_overlapping_one() {
         "{}",
         out.render()
     );
+}
+
+/// An earlier input read from the session has no task, so a later
+/// input's interface waits for the modules that input reaches: here
+/// `src/util.hd`, which only input 1 uses. On the pool a task runs as soon
+/// as its dependencies are done.
+#[test]
+fn a_later_input_waits_for_the_modules_an_earlier_input_uses() {
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut src = MemorySources::default();
+    src.insert("src/util.hd", "pub fn double(x: i32) -> i32: x * +2\n");
+    let mut repl = Repl {
+        src,
+        store: &store,
+        session: Session::start(),
+        dep: None,
+    };
+    repl.input(1, "use self.util.{double}\n");
+    repl.src.insert(&repl_file(2), "println(double(+4))\n");
+    let host = Host {
+        render_tir: &[],
+        sources: &repl.src,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Pool(4),
+    };
+    let packages = Packages {
+        session: Some(&repl.session),
+        ..Packages::default()
+    };
+    let out = build_packages(&host, "app", &packages, &Goal::ReplInput { input: 2 });
+    assert!(out.diags.is_empty(), "{}", out.render());
+    assert!(out.wasm.is_some(), "{:?}", out.report);
 }

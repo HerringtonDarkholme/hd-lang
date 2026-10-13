@@ -131,18 +131,25 @@ impl ModuleScope {
     #[must_use]
     pub fn overlay(&self, inner: &ModuleScope) -> ModuleScope {
         let mut out = self.clone();
-        let base = u32::try_from(out.modules.len()).expect("scope modules");
-        out.modules.extend(inner.modules.iter().cloned());
+        out.nest(inner);
+        out
+    }
+
+    /// Nests `inner` in this scope in place, as [`ModuleScope::overlay`]
+    /// does, at the cost of `inner`'s names only.
+    pub fn nest(&mut self, inner: &ModuleScope) {
+        let base = u32::try_from(self.modules.len()).expect("scope modules");
+        self.modules.extend(inner.modules.iter().cloned());
         for (r, &name) in inner.name.iter().enumerate() {
-            if !out.index.contains_key(&name) {
-                let row = u32::try_from(out.name.len()).expect("scope rows");
-                out.name.push(name);
-                out.binding.push(inner.binding[r]);
-                out.origin.push(inner.origin[r]);
-                out.use_row.push(inner.use_row[r]);
-                out.index.insert(name, row);
+            if !self.index.contains_key(&name) {
+                let row = u32::try_from(self.name.len()).expect("scope rows");
+                self.name.push(name);
+                self.binding.push(inner.binding[r]);
+                self.origin.push(inner.origin[r]);
+                self.use_row.push(inner.use_row[r]);
+                self.index.insert(name, row);
             }
-            let row = out.index[&name];
+            let row = self.index[&name];
             let mut b = inner.binding[r];
             match b.kind {
                 BindingKind::Module => b.value += base,
@@ -150,11 +157,10 @@ impl ModuleScope {
                 _ => {}
             }
             let at = row as usize;
-            out.binding[at] = b;
-            out.origin[at] = inner.origin[r];
-            out.use_row[at] = inner.use_row[r];
+            self.binding[at] = b;
+            self.origin[at] = inner.origin[r];
+            self.use_row[at] = inner.use_row[r];
         }
-        out
     }
 }
 

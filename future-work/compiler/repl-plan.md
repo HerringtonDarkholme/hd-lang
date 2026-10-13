@@ -273,43 +273,53 @@ wasmtime long_session_plain -- --ignored --nocapture`, dev profile; Apple
 Silicon, 16 KiB pages, machine under load; 1,000 inputs through `Goal::ReplInput`
 and `WasmtimeSession::run_input`, each showing `1000000 + i`; the mixed run
 adds a function every tenth input and a read of it after). Build and run are
-the mean of the 50 inputs before the row; RSS is the process's, by `ps`:
+the mean of the 50 inputs before the row; RSS is the process's, by `ps`.
+Issue #17 ran the plain session again after making a build read the earlier
+inputs from the session (fresh `HD_CACHE` each run):
 
-| Input | RSS | Build per input | Run per input | Journal |
-| --- | --- | --- | --- | --- |
-| 50 | 53 MiB | 16.6 ms | 1.5 ms | 3.3 KB |
-| 100 | 59 MiB | 21.7 ms | 1.5 ms | 6.7 KB |
-| 200 | 68 MiB | 38.8 ms | 1.6 ms | 13 KB |
-| 400 | 94 MiB | 122 ms | 1.6 ms | 27 KB |
-| 600 | 92 MiB | 316 ms | 1.7 ms | 41 KB |
-| 800 | 127 MiB | 571 ms | 1.7 ms | 54 KB |
-| 1,000 | 174 MiB | 925 ms | 1.7 ms | 68 KB |
+| Input | RSS (C11) | Build per input (C11) | RSS (#17) | Build per input (#17) | Run per input (C11) | Journal |
+| --- | --- | --- | --- | --- | --- | --- |
+| 50 | 53 MiB | 16.6 ms | 53 MiB | 13.0 ms | 1.5 ms | 3.3 KB |
+| 100 | 59 MiB | 21.7 ms | 58 MiB | 13.9 ms | 1.5 ms | 6.7 KB |
+| 200 | 68 MiB | 38.8 ms | 67 MiB | 14.8 ms | 1.6 ms | 13 KB |
+| 400 | 94 MiB | 122 ms | 83 MiB | 17.3 ms | 1.6 ms | 27 KB |
+| 600 | 92 MiB | 316 ms | 101 MiB | 19.4 ms | 1.7 ms | 41 KB |
+| 800 | 127 MiB | 571 ms | 118 MiB | 22.0 ms | 1.7 ms | 54 KB |
+| 1,000 | 174 MiB | 925 ms | 136 MiB | 25.5 ms | 1.7 ms | 68 KB |
 
-The mixed run is within 3% on every column (169 MiB, 950 ms at 1,000).
+The mixed run is within 3% on every column (169 MiB, 950 ms at 1,000, C11).
+#17's run takes 21 seconds instead of 5.5 minutes.
 
-- Memory: 113 MiB from input 100 to 1,000, about 129 KiB per kept input,
-  against Q3's 72 KiB (and the 64.8 MiB bound `long-session` now uses). R1's
-  code mapping is about 72 KiB of it; the rest is the compiler side (kept
-  modules, check entries, interner and session data) and allocator
-  fragmentation, not split further. RSS is not monotone (88 MiB at 500
-  after 107 MiB at 450).
-- Run time is flat (about 1.6 ms, instantiate included). The journal is
+- Memory: C11 grew 113 MiB from input 100 to 1,000, about 129 KiB per kept
+  input, against Q3's 72 KiB (and the 64.8 MiB bound `long-session` now
+  uses); #17 grows 78 MiB, about 89 KiB per input. R1's code mapping is
+  about 72 KiB of it; the rest is the compiler side (kept modules, check
+  entries, interner and session data) and allocator fragmentation, not
+  split further. #17 keeps each input's entries in the session (about
+  4 KiB per input), yet the total fell, most likely because a build no
+  longer allocates per pair of inputs. RSS is not monotone.
+- Run time is flat (about 1.6 ms, instantiate included; 1.5 ms on every
+  row of #17's run). The journal is
   68 bytes per input (hashes only): 66 KiB for 1,000 inputs, no concern.
-- Build time per input is superlinear: 17 ms at 50, 925 ms at 1,000 (55
-  times for 20 times the inputs; the whole run takes 5 minutes). A sample
-  of the session thread at input 700 puts about half of the build-stage time
-  in `Run::lookup` (a `DiskStore::get`, one file open per earlier module per
-  build), about a quarter in `group_init_orders` inside `Run::collect` (a
-  `BTreeSet` walk over the session's modules), about a tenth in
-  `folder_iface`, and under 3% each in `check_key` hashing (C5's token
-  hashes) and `template_hashes`. TIR decoding in `program()` and the scope
-  rebuild do not show. So the dominant term is the per-build cache lookups
-  of every earlier input, then the init-order grouping.
-- Cheap fix, not done here: look the earlier inputs' entries up in memory
-  (the session already holds them) instead of through the disk store, and
-  group init orders once per added input instead of once per build. A
-  follow-up task, since 1,000 inputs at 1 s each is already past what a
-  user types, but a pasted script is not.
+- C11's build time per input was superlinear: 17 ms at 50, 925 ms at
+  1,000. A sample at input 700 put about half of it in `Run::lookup` (a
+  `DiskStore::get` per earlier module), a quarter in `group_init_order`,
+  a tenth in `folder_iface`. Each earlier input used every input before
+  it, so keys, closures, task edges and the init-order walk were per pair
+  of inputs, and every earlier input cost store reads and five tasks.
+- #17 (25.5 ms at 1,000, 2.0 times input 50): an input that joins the
+  session leaves its `iface`, header and `check` entries and its interface's
+  mentions in `hd_driver::Session`; a later build reads each earlier input
+  from there in `FolderGraph`, with no key, store read or task. An input
+  uses `src/lib.hd` and the input just before it, which gives the same
+  closures and orders at one edge per input. `group_init_order` is Kahn's
+  order with a heap; an earlier input's init (which ran) is left out of it
+  and its TIR is decoded only if collection asks for it; coherence keys
+  read the interfaces that carry the impl; the session scope nests each
+  input in place. What still grows, about 10 µs per input: decoding each
+  earlier input's interface and check entry, its skim, and the program
+  tables over every module. The serial scheduler (`HD_JOBS=1`) still picks
+  each task by a scan of the ready tasks.
 - Linux (4 KiB pages) is unmeasured; `long-session` scales its bound by
   `getconf PAGESIZE`.
 
@@ -438,7 +448,7 @@ identical bytes.
 | C9b | Tab completion, only if cheap (owner, lowest priority): rustyline `Completer` over keywords and the session scope's names (`lib.hd` plus earlier inputs) | Test: `pri<Tab>` offers `price` after it is declared; keywords complete |
 | C9c | Optional, lowest priority: `name.<Tab>` for a bare session binding lists its fields and inherent methods (binding types from C5, `hd_check::conflicts::inherent_methods`); no trait methods, no compound expressions | Test: `log.<Tab>` on a `List[string]` binding offers `push`; a `data` binding offers its fields |
 | C10 | Package mode and workspace mode scopes | Tests for `cli.repl.package.*`, `cli.repl.outside`, `cli.workspace.repl` |
-| C11 | `long-session` run on the session API: 1,000 inputs, RSS every 50 | Done: numbers in §2.3. Memory is 129 KiB per input, above Q3's 72 KiB; build time is superlinear (lookups, init-order grouping) |
+| C11 | `long-session` run on the session API: 1,000 inputs, RSS every 50 | Done: numbers in §4. Memory is 129 KiB per input, above Q3's 72 KiB; build time was superlinear (lookups, init-order grouping), near flat since #17 (13 ms at 50, 26 ms at 1,000; 89 KiB per input) |
 
 ### Journal And Rebuild
 
