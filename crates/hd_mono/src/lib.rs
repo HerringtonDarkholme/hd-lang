@@ -1576,7 +1576,8 @@ impl Cx<'_> {
     }
 
     /// Whether option A2 (closure-calls.md §3.1) may copy `def`, and which
-    /// of its parameters its own body calls: `None` for a body over
+    /// of its parameters its body calls, itself or in a closure it creates
+    /// (`Flow::called_under` sub 0): `None` for a body over
     /// [`COPY_MAX_INSTS`], an intrinsic, a suspending function, or one that
     /// calls no parameter.
     fn copyable(&mut self, def: DefId) -> Option<Vec<bool>> {
@@ -1591,14 +1592,9 @@ impl Cx<'_> {
             })
             .and_then(|body| {
                 let flow = Flow::new(body);
-                let mut called = vec![false; flow.params.len()];
-                for i in 0..body.len() {
-                    if body.tags[i] == Tag::CallValue
-                        && let Some(p) = flow.param(body, body.data[i][0])
-                    {
-                        called[p as usize] = true;
-                    }
-                }
+                let called: Vec<bool> = (0..flow.params.len())
+                    .map(|p| flow.called_under(u32::try_from(p).expect("params"), 0))
+                    .collect();
                 called.contains(&true).then_some(called)
             });
         self.copyable.insert(def, c.clone());
@@ -1606,12 +1602,14 @@ impl Cx<'_> {
     }
 
     /// How many copies (A2) nest at `id`: 0 for a plain instance, else one
-    /// more than at the instance that requested it.
+    /// more than at the instance that requested it. A sub-body that carries
+    /// its copy's known closures (the `Closure` case of `Cx::scan`) is part
+    /// of that copy, not one more.
     fn copy_depth(&self, mut id: InstId) -> u32 {
         let table = &self.out.table;
         let mut d = 0;
         while id != InstId::NONE && !table.known[id.idx()].is_empty() {
-            d += 1;
+            d += u32::from(table.sub[id.idx()] == Sub::Body(0));
             id = table.parent[id.idx()];
         }
         d
@@ -1619,11 +1617,12 @@ impl Cx<'_> {
 
     /// Option A2 of closure-calls.md at the call `at.at` of `def`: the copy
     /// of `def` specialized on the closure literals the call passes for
-    /// parameters `def`'s own body calls. A literal is a value made in the
-    /// call's sub-body (`Flow::made`) or, in a copy, a parameter its caller
-    /// passes a literal for, passed on unchanged: a copy that passes it to
-    /// itself finds itself. Its type must be the parameter's at the copy's
-    /// arguments. A callee over the size bound, a copy past
+    /// parameters `def` calls, in its body or in a closure it creates. A
+    /// literal is a value made in the call's sub-body (`Flow::made`) or, in
+    /// a copy or a closure that carries its known closures, a parameter its
+    /// caller passes a literal for, passed on unchanged: a copy that passes
+    /// it to itself finds itself. Its type must be the parameter's at the
+    /// copy's arguments. A callee over the size bound, a copy past
     /// [`COPY_MAX_DEPTH`], or no literal leaves the plain instance.
     ///
     /// A call outside the instance's own sub-body that passes a parameter
@@ -2094,7 +2093,26 @@ impl Cx<'_> {
                     } else {
                         args
                     };
-                    let key = self.push(item, Sub::Body(sub_k), targs, id)?;
+                    // Option A2 (closure-calls.md §3.1): a closure that a
+                    // specialized instance creates carries the known
+                    // closures its body calls, so those calls are direct
+                    // there too. One outside the instance's own sub-body is
+                    // never emitted here: the instance that emits it
+                    // decides what it carries.
+                    let carried: Vec<(u32, Hash128)> = match &flow {
+                        Some(flow) if !known.is_empty() => {
+                            if !matches!(sub, Sub::Body(k) if u32::from(k) == flow.subs[i]) {
+                                continue;
+                            }
+                            known
+                                .iter()
+                                .filter(|&&(p, _)| flow.called_under(p, u32::from(sub_k)))
+                                .copied()
+                                .collect()
+                        }
+                        _ => Vec::new(),
+                    };
+                    let key = self.push_known(item, Sub::Body(sub_k), targs, &carried, id)?;
                     calls.insert(ix, Target::Closure(key));
                 }
                 // A function reference is a closure whose code is the
@@ -2181,7 +2199,7 @@ impl Cx<'_> {
             }
         }
         if let Some(flow) = &flow {
-            known_closures(body, flow, hidden.as_deref(), &known, &mut calls);
+            known_closures(body, flow, sub, hidden.as_deref(), &known, &mut calls);
         }
         if sub == Sub::Body(0) {
             self.hash_signature(item, args, &mut reps);
@@ -2270,6 +2288,13 @@ struct Flow {
     /// The item's own parameter locals, in parameter order: those of sub 0,
     /// as `hd_wasm`'s `signature` lists them.
     params: Vec<u32>,
+    /// Per sub-body, the sub holding its defining closure (0 for sub 0).
+    parent: Vec<u32>,
+    /// Per sub-body, whether it is a generic local function's body.
+    generic: Vec<bool>,
+    /// Each call of an item parameter (`Flow::param`): the parameter's
+    /// index and the sub-body the call is in.
+    param_calls: Vec<(u32, u32)>,
 }
 
 impl Flow {
@@ -2295,11 +2320,61 @@ impl Flow {
             .filter(|&l| body.local_flags[l] & PARAM != 0 && !in_sub[l])
             .map(|l| u32::try_from(l).expect("locals"))
             .collect();
-        Self {
-            sets,
-            subs: body.inst_subs(),
-            params,
+        let subs = body.inst_subs();
+        // A sub's parent is the sub holding its defining closure, opened
+        // before it, so it has the smaller number (as in `hidden_insts`).
+        let n = body.sub_root.len();
+        let mut parent = vec![0u32; n];
+        for (i, &s) in subs.iter().enumerate() {
+            if body.tags[i] == Tag::Closure && !body.is_instantiation(i) {
+                let k = body.data[i][0] as usize;
+                if k < n && s < body.data[i][0] {
+                    parent[k] = s;
+                }
+            }
         }
+        let mut flow = Self {
+            sets,
+            subs,
+            params,
+            parent,
+            generic: (0..n).map(|k| body.sub_is_generic(k)).collect(),
+            param_calls: Vec::new(),
+        };
+        for i in 0..body.len() {
+            if body.tags[i] == Tag::CallValue
+                && let Some(p) = flow.param(body, body.data[i][0])
+            {
+                flow.param_calls.push((p, flow.subs[i]));
+            }
+        }
+        flow
+    }
+
+    /// Whether item parameter `p` is called in sub-body `k` or in a sub
+    /// nested in it, with no generic local function's body on the way: the
+    /// calls an instance of `k` specialized on `p` makes direct, itself or
+    /// through the sub-bodies it creates (closure-calls.md §3.1).
+    fn called_under(&self, p: u32, k: u32) -> bool {
+        self.param_calls.iter().any(|&(q, s)| {
+            if q != p {
+                return false;
+            }
+            let mut c = s as usize;
+            loop {
+                if self.generic.get(c).copied().unwrap_or(true) {
+                    return false;
+                }
+                if c == k as usize {
+                    return true;
+                }
+                let up = self.parent[c] as usize;
+                if c == 0 || up >= c {
+                    return false;
+                }
+                c = up;
+            }
+        })
     }
 
     /// The `Closure` or `ItemRef` instruction whose value the operand
@@ -2332,11 +2407,12 @@ impl Flow {
     }
 
     /// The index of the item parameter that operand `word` reads, when it
-    /// is a `LocalGet` in sub-body 0 of a parameter nothing writes.
+    /// is a `LocalGet` of a parameter nothing writes: in sub-body 0, or in a
+    /// sub-body that captures it.
     fn param(&self, body: &Body, word: u32) -> Option<u32> {
         use hd_tir::ir::local_flags::{ASSIGNED, CAPTURED_ASSIGNED, MUTATED};
         let g = hd_tir::ir::Ref(word).as_inst()?.0 as usize;
-        if body.tags[g] != Tag::LocalGet || self.subs[g] != 0 {
+        if body.tags[g] != Tag::LocalGet {
             return None;
         }
         let l = body.data[g][0];
@@ -2352,13 +2428,15 @@ impl Flow {
 /// `CallValue` whose callee is a known closure records
 /// `Target::KnownClosure` with its code instance. The callee is a value made
 /// in the same sub-body (`Flow::made`, A1), or, in an instance specialized
-/// on `known` (A2), a parameter its caller always passes that literal for.
-/// The value and the callee have the same type (the caller checked it for
-/// a parameter), so the code instance has the signature a `call_ref`
-/// would use.
+/// on `known` (A2), a parameter its caller always passes that literal for:
+/// read in the instance's own sub-body `sub`, its body or a closure that
+/// carries it. The value and the callee have the same type (the caller
+/// checked it for a parameter), so the code instance has the signature a
+/// `call_ref` would use.
 fn known_closures(
     body: &Body,
     flow: &Flow,
+    sub: Sub,
     hidden: Option<&[bool]>,
     known: &[(u32, Hash128)],
     calls: &mut HashMap<u32, Target>,
@@ -2377,7 +2455,9 @@ fn known_closures(
                 Some(&Target::Closure(key)) => key,
                 _ => continue,
             }
-        } else if let Some(p) = flow.param(body, callee) {
+        } else if let Some(p) = flow.param(body, callee)
+            && matches!(sub, Sub::Body(k) if u32::from(k) == flow.subs[i])
+        {
             match known.iter().find(|k| k.0 == p) {
                 Some(&(_, key)) => key,
                 None => continue,

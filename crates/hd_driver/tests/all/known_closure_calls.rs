@@ -3,8 +3,8 @@
 //! directly or through a local bound once, is a direct `call` of the
 //! closure's code (A1). A small callee that calls a parameter gets one copy
 //! per closure literal passed for it, and inside the copy that call is
-//! direct too (A2). The dev pipeline keeps `call_ref`. Both run the same on
-//! V8 (`host/run.mjs`).
+//! direct too, as it is in the closures the copy creates (A2). The dev
+//! pipeline keeps `call_ref`. Both run the same on V8 (`host/run.mjs`).
 
 use std::path::Path;
 use std::process::Command;
@@ -394,4 +394,128 @@ fn copies_stop_at_depth_two() {
     );
     assert_eq!(run("depth-dev", &dev), "9\n");
     assert_eq!(run("depth-opt", &opt), "9\n");
+}
+
+/// The std adapters call the user's closure inside the step closure they
+/// pass to `from_fn`: the copy's step closure carries the literal, so that
+/// call is direct. A function reference counts as a literal. Only `next`,
+/// which reads the `step` field, keeps a `call_ref`.
+const ADAPTERS: &str = "\
+fn double(x: i32) -> i32:
+    x * 2
+
+fn total(items: List[i32]) -> i32:
+    items.iter().map(fn(x): x * 3 + 1).filter(fn(x): x % 2 == 0).fold(0, fn(a, x): a + x)
+
+fn refs(items: List[i32]) -> i32:
+    items.iter().map(double).fold(0, fn(a, x): a + x)
+
+pub fn main() -> void $ Console:
+    println(total([+1, +2, +3, +4, +5]))
+    println(refs([+1, +2, +3, +4]))
+";
+
+#[test]
+fn closures_a_copy_creates_call_its_known_literals_directly() {
+    let dev = wasm_of(ADAPTERS, false);
+    let opt = wasm_of(ADAPTERS, true);
+    let iter = "std/iter/impl [ T ] Iterator [ T ]";
+    assert_eq!(calls_in(&dev, &format!("{iter}.map#1")).1, 1, "dev");
+    for step in ["map#1", "filter#1"] {
+        let copies = copies_of(&opt, &format!("{iter}.{step}"));
+        assert!(!copies.is_empty(), "{step} is carried");
+        for c in &copies {
+            assert_eq!(calls_in(&opt, c).1, 0, "{c}");
+        }
+    }
+    assert_eq!(
+        copies_of(&opt, &format!("{iter}.map#1")).len(),
+        2,
+        "per literal"
+    );
+    assert!(
+        !has(&opt, &format!("{iter}.map#1")),
+        "no plain step closure"
+    );
+    assert_eq!(run("adapters-dev", &dev), "30\n20\n");
+    assert_eq!(run("adapters-opt", &opt), "30\n20\n");
+}
+
+/// A function that wraps its parameter in a new closure and recurses makes
+/// a new literal at each level: the depth bound ends the copies, and the
+/// plain instance takes over past it.
+const WRAPPING: &str = "\
+fn wrap(g: fn(i32) -> i32, n: i32, x: i32) -> i32:
+    if n == 0:
+        g(x)
+    else:
+        wrap(fn(y: i32) -> i32: g(y) + 1, n - 1, x)
+
+pub fn main() -> void $ Console:
+    println(wrap(fn(x: i32) -> i32: x * 10, +5, +1))
+";
+
+#[test]
+fn wrapping_recursion_stops_at_the_depth_bound() {
+    let dev = wasm_of(WRAPPING, false);
+    let opt = wasm_of(WRAPPING, true);
+    let copies = copies_of(&opt, "app/main/wrap#0");
+    assert!(
+        (1..=4).contains(&copies.len()),
+        "bounded copies: {copies:?}"
+    );
+    assert!(
+        has(&opt, "app/main/wrap#0"),
+        "the plain instance past the bound"
+    );
+    assert_eq!(run("wrap-dev", &dev), "15\n");
+    assert_eq!(run("wrap-opt", &opt), "15\n");
+}
+
+/// Closures a copy creates may escape it, returned or stored in data, and
+/// still call the literal directly; a closure nested in one carries it too.
+const ESCAPING: &str = "\
+fn double(x: i32) -> i32:
+    x * 2
+
+fn doubled(f: fn(i32) -> i32) -> fn(i32) -> i32:
+    fn(x: i32) -> i32: f(x) * 2
+
+data Holder:
+    run: fn(i32) -> i32
+
+fn hold(f: fn(i32) -> i32) -> Holder:
+    Holder { run: fn(x: i32) -> i32: f(x) - 1 }
+
+fn nested(f: fn(i32) -> i32) -> fn(i32) -> i32:
+    let outer = fn(x: i32) -> i32:
+        let inner = fn(y: i32) -> i32: f(y) + f(x)
+        inner(x + 1)
+    outer
+
+pub fn main() -> void $ Console:
+    let d = doubled(fn(x: i32) -> i32: x + 1)
+    println(d(+20))
+    let h = hold(fn(x: i32) -> i32: x * 3)
+    println((h.run)(+7))
+    let fs = [doubled(double), doubled(fn(x: i32) -> i32: x - 4)]
+    println(fs[0](+3) + fs[1](+3))
+    println(nested(fn(x: i32) -> i32: x * x)(+2))
+";
+
+#[test]
+fn closures_escaping_a_copy_keep_their_direct_calls() {
+    let dev = wasm_of(ESCAPING, false);
+    let opt = wasm_of(ESCAPING, true);
+    let carried = copies_of(&opt, "app/main/doubled#1");
+    assert_eq!(carried.len(), 3, "one per literal: {carried:?}");
+    for c in carried
+        .iter()
+        .chain(&copies_of(&opt, "app/main/hold#1"))
+        .chain(&copies_of(&opt, "app/main/nested#2"))
+    {
+        assert_eq!(calls_in(&opt, c).1, 0, "{c}");
+    }
+    assert_eq!(run("escape-dev", &dev), "42\n20\n10\n13\n");
+    assert_eq!(run("escape-opt", &opt), "42\n20\n10\n13\n");
 }
