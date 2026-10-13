@@ -7,8 +7,10 @@ use std::collections::VecDeque;
 use std::io::Write;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
-use hd_run_wasmtime::HostIo;
+use hd_run::Outcome;
+use hd_run_wasmtime::{EngineConfig, HostIo};
 use hd_testkit::Scratch;
 
 use super::{Line, Lines, Streams, is_complete, run};
@@ -956,4 +958,136 @@ fn completion_follows_the_session_s_inputs() {
     assert_eq!(seen[0], ["price", "println"]);
     assert!(seen[1].is_empty(), "{:?}", seen[1]);
     assert_eq!(seen[2], ["libname"]);
+}
+
+/// The text of input `index` of a long session. Even inputs bind
+/// `w{index} := +(1000000 + index)` and odd inputs show `w{index - 1} + 1`,
+/// so every input shows the value `1000000 + index`, which marks how far
+/// the session got. With `mix`, every tenth input is a function that reads
+/// the binding two inputs earlier, and the odd input after a function shows
+/// a call of it instead, so declarations and later reads join the session.
+fn long_input(index: u32, mix: bool) -> String {
+    let mark = 1_000_000 + index;
+    if mix && index % 10 == 4 {
+        format!("fn g{index}(n: i32) -> i32: n + w{}", index - 2)
+    } else if mix && index % 10 == 5 {
+        format!("g{}(+1) + w{}", index - 1, index - 3)
+    } else if index.is_multiple_of(2) {
+        format!("w{index} := +{mark}")
+    } else {
+        format!("w{} + 1", index - 1)
+    }
+}
+
+/// The process's resident memory in KiB, by `ps`.
+fn resident_kib() -> u64 {
+    let out = std::process::Command::new("ps")
+        .args(["-o", "rss=", "-p", &std::process::id().to_string()])
+        .output()
+        .expect("ps");
+    String::from_utf8_lossy(&out.stdout)
+        .trim()
+        .parse()
+        .expect("ps prints the RSS in KiB")
+}
+
+/// Runs 1,000 inputs through the session API the REPL uses (`build_input`
+/// over the kept session, then `run_input`), and prints one line every 50
+/// inputs: the process RSS, the build and run time of the input just done,
+/// the mean of the 50 before it, and the journal size. `bench/metrics`'s
+/// `long-session` runs this test and reads the lines.
+fn long_session(mix: bool) {
+    const INPUTS: u32 = 1000;
+    const STEP: u32 = 50;
+    let dir = Scratch::new(SCRATCH, &format!("repl-long-{}", unique()));
+    let program = disk::load_session(&dir).expect("the session's scope");
+    let config = EngineConfig::pipeline(false);
+    let stack = hd_run_wasmtime::thread_stack(&config);
+    let thread = std::thread::Builder::new()
+        .stack_size(stack)
+        .spawn(move || {
+            let sink = Buffer::default();
+            let io = HostIo {
+                out: Box::new(sink.clone()),
+                err: Box::new(sink.clone()),
+                input: None,
+            };
+            let setup = hd_run::HostSetup {
+                providers: Vec::new(),
+                grants: hd_run::Grants::default(),
+                limits: hd_run::Limits::default(),
+                args: Vec::new(),
+                program: String::new(),
+            };
+            let session = hd_run_wasmtime::WasmtimeEngine::new(config)
+                .expect("engine")
+                .session(&setup, io)
+                .expect("session");
+            let mut repl = super::Repl::new(
+                session,
+                dir.to_path_buf(),
+                program,
+                super::complete::Names::default(),
+            );
+            repl.start().expect("the prelude");
+            println!("LONG-SESSION-START rss_kib={}", resident_kib());
+            let (mut build_sum, mut run_sum) = (0.0f64, 0.0f64);
+            for index in 0..INPUTS {
+                let text = long_input(index, mix);
+                repl.next += 1;
+                let file = hd_project::repl_file(repl.next);
+                repl.program.sources.add_synthetic(&file, &text);
+                let mut diags = Vec::new();
+                let start = Instant::now();
+                let result = super::build_input(
+                    &repl.program,
+                    &repl.store,
+                    &repl.built,
+                    repl.next,
+                    &mut diags,
+                );
+                let build = start.elapsed().as_secs_f64();
+                let (wasm, added) = result.unwrap_or_else(|| {
+                    panic!("input {index} {text:?}: {}", String::from_utf8_lossy(&diags))
+                });
+                repl.texts.insert(repl.next, text.clone());
+                let start = Instant::now();
+                let outcome = repl.session.run_input(repl.next, &text, &wasm);
+                let run = start.elapsed().as_secs_f64();
+                assert!(matches!(outcome, Ok(Outcome::Exit(0))), "input {index}");
+                repl.built.add(added);
+                repl.names.add_input(repl.next, &text);
+                build_sum += build;
+                run_sum += run;
+                if (index + 1) % STEP == 0 {
+                    println!(
+                        "LONG-SESSION inputs={} rss_kib={} build_us={:.0} run_us={:.0} mean_build_us={:.0} mean_run_us={:.0} journal={}",
+                        index + 1,
+                        resident_kib(),
+                        build * 1e6,
+                        run * 1e6,
+                        build_sum / f64::from(STEP) * 1e6,
+                        run_sum / f64::from(STEP) * 1e6,
+                        repl.session.journal().map_or(0, <[u8]>::len),
+                    );
+                    (build_sum, run_sum) = (0.0, 0.0);
+                }
+            }
+        })
+        .expect("the session thread");
+    thread.join().expect("the session ran");
+}
+
+/// The metric's inputs: bindings and reads, each showing `1000000 + index`.
+#[test]
+#[ignore = "a measurement; bench/metrics long-session runs it"]
+fn long_session_plain() {
+    long_session(false);
+}
+
+/// Declarations and bindings read later mixed in.
+#[test]
+#[ignore = "a measurement; bench/metrics long-session runs it"]
+fn long_session_mixed() {
+    long_session(true);
 }

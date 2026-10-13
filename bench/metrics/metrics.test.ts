@@ -33,7 +33,7 @@ import { assemble, FILES } from "./scripts/errors-per-run.ts";
 import { newErrors } from "./scripts/fixit-safety.ts";
 import { METRICS } from "./scripts/index.ts";
 import { under } from "./scripts/io-per-check.ts";
-import { growthFrom, replInput, replSteps } from "./scripts/long-session.ts";
+import { growthBound, growthFrom, parseSamples, replInput } from "./scripts/long-session.ts";
 import { conformanceCounts, tsvRows } from "./scripts/conformance.ts";
 import { reachEveryModule, stdModules, stdNamesIn } from "./scripts/dead-code.ts";
 import { applyEdit, difference, newEditState, outcome } from "./scripts/incremental-soundness.ts";
@@ -319,13 +319,23 @@ describe("pillar 2 helpers", () => {
   it("marks every REPL input with its own index", () => {
     assert.equal(replInput(0), "w0 := +1000000");
     assert.equal(replInput(7), "w6 + 1");
-    const steps = replSteps(120, 50);
-    assert.equal(steps.length, 3);
-    assert.equal(steps[2]!.input.split("\n").filter(Boolean).length, 20);
-    assert.ok(steps[0]!.done("1000049 : i32\n"));
-    assert.ok(!steps[0]!.done("1000048 : i32\n"));
-    assert.equal(growthFrom([5, 9, 12, 10], 1), 3);
-    assert.ok(Number.isNaN(growthFrom([5], 1)));
+  });
+
+  it("reads the session test's samples and bounds the growth by page size", () => {
+    const samples = parseSamples(
+      [
+        "LONG-SESSION-START rss_kib=48704",
+        "LONG-SESSION inputs=100 rss_kib=1000 build_us=5 run_us=6 mean_build_us=7 mean_run_us=8 journal=9",
+        "LONG-SESSION inputs=150 rss_kib=1500 build_us=5 run_us=6 mean_build_us=70 mean_run_us=8 journal=9",
+      ].join("\n"),
+    );
+    assert.equal(samples.length, 2);
+    assert.equal(samples[1]!.rssBytes, 1500 * 1024);
+    assert.equal(samples[1]!.buildUs, 70);
+    assert.equal(growthFrom(samples, 100), 500 * 1024);
+    assert.ok(Number.isNaN(growthFrom(samples, 50)));
+    assert.equal(growthBound(100, 1000, 16384), 900 * 72 * 1024);
+    assert.equal(growthBound(100, 1000, 4096), 900 * 18 * 1024);
   });
 
   it("takes node_modules as the toolchain of a Node hd", () => {
