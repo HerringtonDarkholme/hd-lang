@@ -11,11 +11,13 @@
 //! 1. `p = hd_input(len)` sizes the request buffer; JS writes `len` request
 //!    bytes (the format is in [`crate::wire`]) at `p`.
 //! 2. `status = hd_compile()` runs the request: 0 compiled, 1 compiled with
-//!    errors, 2 malformed request.
+//!    errors, 2 malformed request (or a REPL request that does not fit the
+//!    session's state).
 //! 3. `hd_output(kind)` and `hd_output_len(kind)` give the address and length
-//!    of the response: kind 0 is the JSON text, kind 1 the program's bytes
-//!    (length 0 when there is no program), kind 2 the program's WebAssembly
-//!    text (length 0 unless the request's goal was wat).
+//!    of the response: kind 0 is the JSON text, kind 1 the program's bytes,
+//!    or a REPL request's module (length 0 when there is none), kind 2 the
+//!    program's WebAssembly text (length 0 unless the request's goal was
+//!    wat).
 //!
 //! An address stays valid until the next call. Memory may grow during any
 //! call, so JS takes a fresh view of `memory.buffer` after each one.

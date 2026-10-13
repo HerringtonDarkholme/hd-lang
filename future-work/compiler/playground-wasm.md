@@ -71,7 +71,7 @@ when the std pack writer exists.
 ### 3.1 Compiler API (`hd_web`)
 
 ```ts
-type Goal = "run" | "check" | "test" | "wat";
+type Goal = "run" | "check" | "test" | "wat" | "replStart" | "replInput" | "replOutcome";
 interface CompileRequest {
   files: Record<string, string>;  // "src/main.hd" -> text (playground paths as they are)
   entry: string;                  // "src/main.hd"
@@ -118,6 +118,41 @@ exports are `hd_input(len) -> ptr`, `hd_compile() -> status`,
 buffers the crate owns, so Rust needs no raw-pointer `unsafe` blocks.
 The only unsafe is the `#[unsafe(no_mangle)]` attribute, which the owner
 approved (Q1).
+
+**REPL goals** (repl-plan.md job W3, #17). Three more goal bytes drive
+one REPL session per worker, `hd_web::Session::repl_start`,
+`repl_input` and `repl_outcome`. Each request builds or settles one
+module of the session; JS links and runs the modules (W4).
+
+| Goal byte | Request after the goal byte | Response JSON | Output kind 1 |
+| --- | --- | --- | --- |
+| 4 repl start | nothing; the files are the session's package, entry empty | `{"diagnostics","input":0,"sessionKeys"}` | the prelude |
+| 5 repl input | the input's text; no files, entry empty | `{"diagnostics","input":N,"sessionKeys"}` | input N's module, when it built |
+| 6 repl outcome | module number, then outcome byte (0 joined, 1 dropped); no files, entry empty | `{"diagnostics":[],"input":N,"joined"}` | empty |
+
+- Repl start drops any earlier session and builds the prelude
+  (`build_repl_prelude`). The files act as the package: the session
+  sees `src/lib.hd` (`cli.repl.package.lib`). A broken package file
+  fails every input, as on the CLI.
+- Repl input builds `repl#N` with `Goal::ReplInput` over the inputs
+  that joined; diagnostics name `repl#N`. An input that does not build
+  is dropped at once (status 1, no bytes); its number stays used.
+- `sessionKeys` are the module's exports that
+  `hd_wasm::is_session_key` accepts. JS registers them under `hd.s` for
+  later modules. The entry exports are not among them.
+- **Outcomes travel as their own request.** A module that built waits
+  until JS reports how it ended. Outcome byte 0 means status 0: the
+  module joins (`hd_driver::Session::add`), and later inputs see its
+  names. Byte 1 covers a failed instantiation, a panic, a stop or
+  cancel, and a nonzero status. The input then adds nothing and its
+  file leaves the source set (`cli.repl.panic.binding`). A prelude
+  that does not join ends the session.
+- While a module waits, another repl input is refused. So is an
+  outcome for another module, or any REPL request before a start.
+  These answer status 2 with `{"error"}`, as a malformed request does.
+- The value line needs no field: the module writes it to stdout
+  (`cli.repl.value.stream`). Redeclaration is an error
+  (`cli.repl.redeclare.*`), so there is no stale-caller note.
 
 **Worker.** `worker.ts` keeps its message protocol (`project`, `wat`,
 `stdout`, `result`). `runner.ts` is replaced by a `rust-runner.ts` that

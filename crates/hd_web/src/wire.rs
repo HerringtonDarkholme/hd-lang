@@ -2,12 +2,24 @@
 //! functions so native tests cover it.
 //!
 //! A request is bytes: the file count, then each file's path and text, then
-//! the entry path, then one goal byte (0 run, 1 check, 2 test, 3 wat). Counts
-//! and string lengths are unsigned LEB128 (at most 32 bits); strings are
-//! UTF-8. Nothing may follow the goal byte. Goal 3 compiles as goal 0 does,
-//! then prints the program as WebAssembly text with `wasmprinter`; the text
-//! is output kind 2 (`hd_output(2)`), empty for every other goal and when
-//! there is no program. The JSON and the program bytes answer as for run.
+//! the entry path, then one goal byte, then the goal's own fields. Counts,
+//! numbers and string lengths are unsigned LEB128 (at most 32 bits);
+//! strings are UTF-8. Nothing may follow the goal's fields.
+//!
+//! | Goal byte | Goal | Files and entry | Fields after the goal byte |
+//! | --- | --- | --- | --- |
+//! | 0 | run | the playground's files; the file Run builds | none |
+//! | 1 | check | the same | none |
+//! | 2 | test | the same | none |
+//! | 3 | wat | the same | none |
+//! | 4 | repl start | the files the session acts in (its package); entry empty | none |
+//! | 5 | repl input | none; entry empty | the input's text (a string) |
+//! | 6 | repl outcome | none; entry empty | the module's number, then one outcome byte |
+//!
+//! Goal 3 compiles as goal 0 does, then prints the program as WebAssembly
+//! text with `wasmprinter`; the text is output kind 2 (`hd_output(2)`),
+//! empty for every other goal and when there is no program. The JSON and
+//! the program bytes answer as for run.
 //!
 //! A response is JSON text, written by hand (rule 2.2.4: no serde), plus the
 //! programs' bytes when there are any. A compiled request answers
@@ -15,12 +27,35 @@
 //! added for the test goal; a malformed one answers `{"error":"..."}`. The
 //! test goal's programs (the unit-test program, then each integration test
 //! file's) follow one another in the bytes, each as long as its `size`.
+//!
+//! **REPL goals** (repl-plan.md job W3) drive the session's REPL session
+//! ([`Session::repl_start`]), one module per request:
+//!
+//! - Repl start drops any earlier REPL session and builds the new one's
+//!   prelude, module 0. Repl input builds the next input, `repl#N`, over
+//!   the inputs that joined. Both answer
+//!   `{"diagnostics":[...],"input":N,"sessionKeys":[...]}` and the module
+//!   in the bytes (output kind 1), or no bytes and status 1 when it does
+//!   not build; such an input is dropped at once. `sessionKeys` are the
+//!   module's exports that the host registers under `hd.s` for later
+//!   modules (`hd_wasm::is_session_key`).
+//! - The host links and runs a module that built, then reports how it
+//!   ended with repl outcome: outcome byte 0 when it ended with status 0,
+//!   so it joins the session; 1 for any other end (it did not
+//!   instantiate, it panicked, it was stopped or cancelled, or it ended
+//!   with another status), so it adds nothing. A prelude that does not
+//!   join ends the session. The answer is
+//!   `{"diagnostics":[],"input":N,"joined":true|false}`, no bytes.
+//! - The session builds nothing more until the waiting module's outcome
+//!   arrives. A REPL request that does not fit the session's state (no
+//!   session, a module still waiting, an outcome for another module)
+//!   answers status 2 and `{"error":"..."}`, as a malformed request does.
 
 use std::fmt::Write as _;
 
 use hd_driver::diagnostics::{Diag, quote};
 
-use crate::{CompileResult, Goal, Session};
+use crate::{CompileResult, Goal, ReplBuild, ReplError, Session};
 
 /// `hd_compile`'s status: compiled, and no diagnostic is an error.
 pub const STATUS_OK: u32 = 0;
@@ -35,9 +70,21 @@ pub struct Request {
     /// Playground paths and their texts, in request order.
     pub files: Vec<(String, String)>,
     pub entry: String,
-    pub goal: Goal,
-    /// Goal byte 3: compile as run, then print the program.
-    pub wat: bool,
+    pub action: Action,
+}
+
+/// What a request asks for, by its goal byte.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Action {
+    /// Goal bytes 0 to 3; `wat` (byte 3) compiles as run, then prints the
+    /// program.
+    Compile { goal: Goal, wat: bool },
+    /// Goal byte 4: start a REPL session over the request's files.
+    ReplStart,
+    /// Goal byte 5: build the REPL session's next input.
+    ReplInput { text: String },
+    /// Goal byte 6: module `input` ended with status 0 (`joined`), or not.
+    ReplOutcome { input: u32, joined: bool },
 }
 
 /// Why a request did not decode.
@@ -55,53 +102,92 @@ pub struct Response {
     pub wat: String,
 }
 
-/// Decodes `request` and compiles it in `session`.
+/// Decodes `request` and runs it in `session`.
 pub fn respond(session: &mut Session, request: &[u8]) -> Response {
-    match decode_request(request) {
-        Ok(req) => {
-            let result = session.compile(req.files, &req.entry, req.goal);
-            let status = if result.diagnostics.iter().any(Diag::is_error) {
-                STATUS_ERRORS
-            } else {
-                STATUS_OK
-            };
-            let wasm: Vec<u8> = result
-                .programs
-                .iter()
-                .filter_map(|p| p.wasm.as_deref())
-                .flatten()
-                .copied()
-                .collect();
-            let mut wat = String::new();
-            if req.wat && !wasm.is_empty() {
-                match print_wat(&wasm) {
-                    Ok(text) => wat = text,
-                    Err(e) => {
-                        return Response {
-                            status: STATUS_MALFORMED,
-                            json: format!(
-                                "{{\"error\":{}}}",
-                                quote(&format!("the module did not print: {e}"))
-                            ),
-                            wasm,
-                            wat,
-                        };
-                    }
-                }
-            }
-            Response {
-                status,
-                json: encode_result(&result, req.goal),
-                wasm,
-                wat,
+    let req = match decode_request(request) {
+        Ok(req) => req,
+        Err(WireError(reason)) => return refused(reason),
+    };
+    match req.action {
+        Action::Compile { goal, wat } => compile(session, req.files, &req.entry, goal, wat),
+        Action::ReplStart => repl_build(session.repl_start(req.files)),
+        Action::ReplInput { text } => repl_build(session.repl_input(&text)),
+        Action::ReplOutcome { input, joined } => match session.repl_outcome(input, joined) {
+            Ok(()) => Response {
+                status: STATUS_OK,
+                json: format!("{{\"diagnostics\":[],\"input\":{input},\"joined\":{joined}}}"),
+                wasm: Vec::new(),
+                wat: String::new(),
+            },
+            Err(ReplError(reason)) => refused(&reason),
+        },
+    }
+}
+
+/// A request that did not decode or does not fit the session's state.
+fn refused(reason: &str) -> Response {
+    Response {
+        status: STATUS_MALFORMED,
+        json: format!("{{\"error\":{}}}", quote(reason)),
+        wasm: Vec::new(),
+        wat: String::new(),
+    }
+}
+
+/// Compiles goal bytes 0 to 3.
+fn compile(
+    session: &mut Session,
+    files: Vec<(String, String)>,
+    entry: &str,
+    goal: Goal,
+    print: bool,
+) -> Response {
+    let result = session.compile(files, entry, goal);
+    let wasm: Vec<u8> = result
+        .programs
+        .iter()
+        .filter_map(|p| p.wasm.as_deref())
+        .flatten()
+        .copied()
+        .collect();
+    let mut wat = String::new();
+    if print && !wasm.is_empty() {
+        match print_wat(&wasm) {
+            Ok(text) => wat = text,
+            Err(e) => {
+                return Response {
+                    wasm,
+                    ..refused(&format!("the module did not print: {e}"))
+                };
             }
         }
-        Err(WireError(reason)) => Response {
-            status: STATUS_MALFORMED,
-            json: format!("{{\"error\":{}}}", quote(reason)),
-            wasm: Vec::new(),
+    }
+    Response {
+        status: status(&result.diagnostics),
+        json: encode_result(&result, goal),
+        wasm,
+        wat,
+    }
+}
+
+fn status(diagnostics: &[Diag]) -> u32 {
+    if diagnostics.iter().any(Diag::is_error) {
+        STATUS_ERRORS
+    } else {
+        STATUS_OK
+    }
+}
+
+/// Answers a REPL start or input: the JSON, and the module's bytes.
+fn repl_build(result: Result<ReplBuild, ReplError>) -> Response {
+    match result {
+        Ok(build) => Response {
+            status: status(&build.diagnostics),
+            json: encode_repl(&build),
+            wasm: build.wasm.unwrap_or_default(),
             wat: String::new(),
         },
+        Err(ReplError(reason)) => refused(&reason),
     }
 }
 
@@ -117,20 +203,46 @@ pub fn decode_request(bytes: &[u8]) -> Result<Request, WireError> {
     }
     let entry = r.string()?;
     let byte = r.byte()?;
-    let goal = match byte {
-        0 | 3 => Goal::Run,
-        1 => Goal::Check,
-        2 => Goal::Test,
+    let action = match byte {
+        0 | 3 => Action::Compile {
+            goal: Goal::Run,
+            wat: byte == 3,
+        },
+        1 => Action::Compile {
+            goal: Goal::Check,
+            wat: false,
+        },
+        2 => Action::Compile {
+            goal: Goal::Test,
+            wat: false,
+        },
+        4 => Action::ReplStart,
+        5 => Action::ReplInput { text: r.string()? },
+        6 => {
+            let input =
+                u32::try_from(r.leb()?).map_err(|_| WireError("number does not fit 32 bits"))?;
+            let joined = match r.byte()? {
+                0 => true,
+                1 => false,
+                _ => return Err(WireError("unknown outcome byte")),
+            };
+            Action::ReplOutcome { input, joined }
+        }
         _ => return Err(WireError("unknown goal byte")),
     };
     if r.at != bytes.len() {
-        return Err(WireError("bytes after the goal byte"));
+        return Err(WireError("bytes after the request's last field"));
+    }
+    if byte >= 4 && !entry.is_empty() {
+        return Err(WireError("a REPL request has no entry"));
+    }
+    if byte >= 5 && !files.is_empty() {
+        return Err(WireError("a REPL input or outcome carries no files"));
     }
     Ok(Request {
         files,
         entry,
-        goal,
-        wat: byte == 3,
+        action,
     })
 }
 
@@ -191,25 +303,8 @@ impl Reader<'_> {
 /// cannot run).
 #[must_use]
 pub fn encode_result(result: &CompileResult, goal: Goal) -> String {
-    let mut s = String::from("{\"diagnostics\":[");
-    for (n, d) in result.diagnostics.iter().enumerate() {
-        if n > 0 {
-            s.push(',');
-        }
-        let _ = write!(
-            s,
-            "{{\"path\":{},\"code\":{},\"severity\":\"{}\",\"message\":{},\"line\":{},\"column\":{},\"endLine\":{},\"endColumn\":{}}}",
-            opt_str(d.file.as_deref()),
-            opt_str(d.code.map(hd_diag::Code::as_str)),
-            d.severity_word(),
-            quote(&d.message),
-            opt_num(d.line),
-            opt_num(d.column),
-            opt_num(d.end_line),
-            opt_num(d.end_column),
-        );
-    }
-    s.push(']');
+    let mut s = String::from("{\"diagnostics\":");
+    push_diagnostics(&mut s, &result.diagnostics);
     if goal == Goal::Test {
         s.push_str(",\"programs\":[");
         for (n, p) in result.programs.iter().enumerate() {
@@ -249,6 +344,47 @@ pub fn encode_result(result: &CompileResult, goal: Goal) -> String {
     }
     s.push('}');
     s
+}
+
+/// The JSON text of a REPL start or input: its diagnostics, the module's
+/// number (`input`) and its session keys (`sessionKeys`, empty when it did
+/// not build).
+#[must_use]
+pub fn encode_repl(build: &ReplBuild) -> String {
+    let mut s = String::from("{\"diagnostics\":");
+    push_diagnostics(&mut s, &build.diagnostics);
+    let _ = write!(s, ",\"input\":{},\"sessionKeys\":[", build.input);
+    for (n, key) in build.session_keys.iter().enumerate() {
+        if n > 0 {
+            s.push(',');
+        }
+        s.push_str(&quote(key));
+    }
+    s.push_str("]}");
+    s
+}
+
+/// Appends `diagnostics` as a JSON array.
+fn push_diagnostics(s: &mut String, diagnostics: &[Diag]) {
+    s.push('[');
+    for (n, d) in diagnostics.iter().enumerate() {
+        if n > 0 {
+            s.push(',');
+        }
+        let _ = write!(
+            s,
+            "{{\"path\":{},\"code\":{},\"severity\":\"{}\",\"message\":{},\"line\":{},\"column\":{},\"endLine\":{},\"endColumn\":{}}}",
+            opt_str(d.file.as_deref()),
+            opt_str(d.code.map(hd_diag::Code::as_str)),
+            d.severity_word(),
+            quote(&d.message),
+            opt_num(d.line),
+            opt_num(d.column),
+            opt_num(d.end_line),
+            opt_num(d.end_column),
+        );
+    }
+    s.push(']');
 }
 
 fn opt_str(s: Option<&str>) -> String {
@@ -321,8 +457,10 @@ mod tests {
                     ("src/a.hd".into(), long),
                 ],
                 entry: "src/main.hd".into(),
-                goal: Goal::Test,
-                wat: false,
+                action: Action::Compile {
+                    goal: Goal::Test,
+                    wat: false,
+                },
             }
         );
     }
@@ -338,10 +476,10 @@ mod tests {
         long.push(0);
         assert_eq!(
             decode_request(&long),
-            Err(WireError("bytes after the goal byte"))
+            Err(WireError("bytes after the request's last field"))
         );
         let mut goal = good.clone();
-        *goal.last_mut().unwrap() = 4;
+        *goal.last_mut().unwrap() = 7;
         assert_eq!(decode_request(&goal), Err(WireError("unknown goal byte")));
         // A count past 32 bits, a length past the end, and bad UTF-8.
         assert!(decode_request(&[0xff, 0xff, 0xff, 0xff, 0x7f]).is_err());
@@ -453,6 +591,109 @@ mod tests {
         );
         assert_eq!(sizes.iter().sum::<usize>(), r.wasm.len());
         assert_eq!(&r.wasm[sizes[0]..sizes[0] + 4], b"\0asm");
+    }
+
+    /// A REPL input's request: no files, no entry, goal 5, the text.
+    fn repl_input(text: &str) -> Vec<u8> {
+        let mut out = request(&[], "", 5);
+        string(&mut out, text);
+        out
+    }
+
+    /// A REPL outcome's request: goal 6, the module, the outcome byte.
+    fn repl_outcome(input: usize, outcome: u8) -> Vec<u8> {
+        let mut out = request(&[], "", 6);
+        leb(&mut out, input);
+        out.push(outcome);
+        out
+    }
+
+    #[test]
+    fn repl_requests_decode() {
+        let start = request(&[("src/lib.hd", "x := 1\n")], "", 4);
+        assert_eq!(decode_request(&start).unwrap().action, Action::ReplStart);
+        assert_eq!(
+            decode_request(&repl_input("1 + 2\n")).unwrap().action,
+            Action::ReplInput {
+                text: "1 + 2\n".into()
+            }
+        );
+        assert_eq!(
+            decode_request(&repl_outcome(300, 1)).unwrap().action,
+            Action::ReplOutcome {
+                input: 300,
+                joined: false
+            }
+        );
+        let bad = |bytes: &[u8]| decode_request(bytes).unwrap_err().0;
+        assert_eq!(bad(&repl_outcome(1, 2)), "unknown outcome byte");
+        assert_eq!(
+            bad(&request(&[], "src/main.hd", 4)),
+            "a REPL request has no entry"
+        );
+        let mut with_file = request(&[("a.hd", "x")], "", 5);
+        string(&mut with_file, "1\n");
+        assert_eq!(bad(&with_file), "a REPL input or outcome carries no files");
+        let mut trailing = repl_outcome(1, 0);
+        trailing.push(0);
+        assert_eq!(bad(&trailing), "bytes after the request's last field");
+        let good = repl_outcome(1, 0);
+        for end in 0..good.len() {
+            assert!(decode_request(&good[..end]).is_err(), "{end}");
+        }
+    }
+
+    #[test]
+    fn a_repl_session_answers_modules_and_outcomes() {
+        let mut session = Session::new();
+        let refused = respond(&mut session, &repl_input("1\n"));
+        assert_eq!(refused.status, STATUS_MALFORMED);
+        assert_eq!(
+            refused.json,
+            "{\"error\":\"no REPL session: start one first\"}"
+        );
+
+        let prelude = respond(&mut session, &request(&[], "", 4));
+        assert_eq!(prelude.status, STATUS_OK, "{}", prelude.json);
+        assert!(
+            prelude
+                .json
+                .starts_with("{\"diagnostics\":[],\"input\":0,\"sessionKeys\":[\""),
+            "{}",
+            &prelude.json[..80]
+        );
+        assert!(prelude.json.contains("\"hd.x\""));
+        assert_eq!(&prelude.wasm[..4], b"\0asm");
+        let waiting = respond(&mut session, &repl_input("1\n"));
+        assert_eq!(waiting.json, "{\"error\":\"module 0 has no outcome yet\"}");
+        let joined = respond(&mut session, &repl_outcome(0, 0));
+        assert_eq!(
+            (joined.status, joined.json.as_str()),
+            (
+                STATUS_OK,
+                "{\"diagnostics\":[],\"input\":0,\"joined\":true}"
+            )
+        );
+        assert!(joined.wasm.is_empty());
+
+        let input = respond(&mut session, &repl_input("x := 20\n"));
+        assert_eq!(input.status, STATUS_OK, "{}", input.json);
+        assert!(input.json.contains("\"input\":1,\"sessionKeys\":[\""));
+        assert!(input.json.contains("\"bind."), "{}", input.json);
+        assert_eq!(&input.wasm[..4], b"\0asm");
+        let dropped = respond(&mut session, &repl_outcome(1, 1));
+        assert!(dropped.json.ends_with("\"joined\":false}"));
+        let unknown = respond(&mut session, &repl_input("x\n"));
+        assert_eq!(unknown.status, STATUS_ERRORS);
+        assert!(
+            unknown
+                .json
+                .starts_with("{\"diagnostics\":[{\"path\":\"repl#2\",\"code\":\"unknown-name\""),
+            "{}",
+            unknown.json
+        );
+        assert!(unknown.json.ends_with("\"input\":2,\"sessionKeys\":[]}"));
+        assert!(unknown.wasm.is_empty());
     }
 
     #[test]

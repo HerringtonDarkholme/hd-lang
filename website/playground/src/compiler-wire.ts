@@ -1,14 +1,35 @@
 // The request and response of the playground's compiler wasm, the four
 // exports of crates/hd_web (playground-wasm.md §3.1). A request is the file
-// count, each file's path and text, the entry path, then one goal byte;
-// counts and lengths are unsigned LEB128 and strings UTF-8
-// (crates/hd_web/src/wire.rs). The response is JSON text plus the program's
-// bytes; the wat goal compiles as run and also answers the program's
-// WebAssembly text, output kind 2. The playground's Rust runner and the Node smoke test
+// count, each file's path and text, the entry path, then one goal byte and
+// the goal's own fields; counts, numbers and lengths are unsigned LEB128 and
+// strings UTF-8 (crates/hd_web/src/wire.rs). The response is JSON text plus
+// the program's bytes; the wat goal compiles as run and also answers the
+// program's WebAssembly text, output kind 2. The REPL goals build one module
+// of a REPL session per request (encodeReplStart, encodeReplInput,
+// encodeReplOutcome). The playground's Rust runner and the Node smoke test
 // (scripts/test-web-compiler.js) share this module.
 
-/** The goal byte of a request. */
-export const GOAL = { run: 0, check: 1, test: 2, wat: 3 } as const;
+/**
+ * The goal byte of a request. `replStart` starts a REPL session over the
+ * files and builds its prelude, module 0; `replInput` builds the next input;
+ * `replOutcome` reports how the waiting module ended.
+ */
+export const GOAL = {
+  run: 0,
+  check: 1,
+  test: 2,
+  wat: 3,
+  replStart: 4,
+  replInput: 5,
+  replOutcome: 6,
+} as const;
+/**
+ * The outcome byte of a `replOutcome` request: the module ended with status
+ * 0, so it joins the session; or it ended any other way (it did not
+ * instantiate, panicked, was stopped or ended with another status), so it
+ * adds nothing.
+ */
+export const OUTCOME = { joined: 0, dropped: 1 } as const;
 /** `hd_compile`'s status: compiled, compiled with errors, or a request that did not decode. */
 export const STATUS = { ok: 0, errors: 1, malformed: 2 } as const;
 
@@ -63,12 +84,24 @@ export interface WireTest {
 
 /**
  * A compiled request answers `diagnostics`, and for the test goal its
- * `programs` and `tests`; a malformed one answers `error`.
+ * `programs` and `tests`; a malformed one, or a REPL request that does not
+ * fit the session's state, answers `error`. A REPL start or input answers
+ * `input` and `sessionKeys`, with the module in the bytes when it built; a
+ * REPL outcome answers `input` and `joined`.
  */
 export interface WireResponse {
   readonly diagnostics?: readonly WireDiagnostic[];
   readonly programs?: readonly WireProgram[];
   readonly tests?: readonly WireTest[];
+  /** The REPL module's number: 0 for the prelude, then `repl#N`'s N. */
+  readonly input?: number;
+  /**
+   * The module's exports that the host registers under `hd.s` for later
+   * modules once it joined; empty when it did not build.
+   */
+  readonly sessionKeys?: readonly string[];
+  /** Whether the module the outcome reported joined the session. */
+  readonly joined?: boolean;
   readonly error?: string;
 }
 
@@ -99,26 +132,51 @@ function leb(out: number[], n: number): void {
   } while (n !== 0);
 }
 
+function string(out: number[], text: string): void {
+  const bytes = new TextEncoder().encode(text);
+  leb(out, bytes.length);
+  for (const byte of bytes) out.push(byte);
+}
+
+/** The files, entry and goal byte that every request starts with. */
+function header(files: Readonly<Record<string, string>>, entry: string, goal: number): number[] {
+  const out: number[] = [];
+  leb(out, Object.keys(files).length);
+  for (const [path, text] of Object.entries(files)) {
+    string(out, path);
+    string(out, text);
+  }
+  string(out, entry);
+  out.push(goal);
+  return out;
+}
+
 /** The request bytes for `files` (path to text), built for `goal` from `entry`. */
 export function encodeRequest(
   files: Readonly<Record<string, string>>,
   entry: string,
   goal: number,
 ): Uint8Array {
-  const out: number[] = [];
-  const encoder = new TextEncoder();
-  const string = (text: string): void => {
-    const bytes = encoder.encode(text);
-    leb(out, bytes.length);
-    for (const byte of bytes) out.push(byte);
-  };
-  leb(out, Object.keys(files).length);
-  for (const [path, text] of Object.entries(files)) {
-    string(path);
-    string(text);
-  }
-  string(entry);
-  out.push(goal);
+  return Uint8Array.from(header(files, entry, goal));
+}
+
+/** Starts a REPL session whose package is `files` (`src/lib.hd` when present). */
+export function encodeReplStart(files: Readonly<Record<string, string>>): Uint8Array {
+  return Uint8Array.from(header(files, "", GOAL.replStart));
+}
+
+/** Builds `text` as the REPL session's next input. */
+export function encodeReplInput(text: string): Uint8Array {
+  const out = header({}, "", GOAL.replInput);
+  string(out, text);
+  return Uint8Array.from(out);
+}
+
+/** Reports how module `input` ended: `OUTCOME.joined` after status 0, else `OUTCOME.dropped`. */
+export function encodeReplOutcome(input: number, outcome: number): Uint8Array {
+  const out = header({}, "", GOAL.replOutcome);
+  leb(out, input);
+  out.push(outcome);
   return Uint8Array.from(out);
 }
 

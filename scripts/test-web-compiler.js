@@ -3,8 +3,10 @@
 // it), compiles a conformance fixture through the four exports (the
 // playground's own wire module, compiler-wire.ts), runs the
 // program with host/run.mjs as `hd run` on Node does, and checks its
-// stdout. Then the size gate: an LTO build that shrinks (a panicking call
-// such as `Instant::now()` deletes everything after it) fails the floor.
+// stdout. Then a two-input REPL session through the REPL goals (built
+// only: linking and running them is the JS host's, W4). Then the size
+// gate: an LTO build that shrinks (a panicking call such as
+// `Instant::now()` deletes everything after it) fails the floor.
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -14,8 +16,12 @@ import { fileURLToPath } from "node:url";
 
 import {
   GOAL,
+  OUTCOME,
   STATUS,
   compileRequest,
+  encodeReplInput,
+  encodeReplOutcome,
+  encodeReplStart,
   encodeRequest,
 } from "../website/playground/src/compiler-wire.ts";
 import { COMPILER_WASM, formatBytes, sizes } from "./build-web-compiler.js";
@@ -29,7 +35,9 @@ const FIXTURE = join(root, "spec", "conformance", "runtime", "valid", "println-c
 // 1.39 MB), so the gates are 0.5 MB and 0.15 MB higher than W3's. The REPL
 // session support in the driver and linker (#17, C2-C8) added 0.12 MB raw
 // and 0.04 MB gzip (4.39 -> 4.51 MB, 1.39 -> 1.42 MB); the playground's REPL
-// panel will use it, so the raw gate is 4.7 MB.
+// panel will use it, so the raw gate is 4.7 MB. The REPL goals (W3) added
+// 11 KB raw and 5 KB gzip (4.550 -> 4.560 MB, 1.436 -> 1.440 MB), within
+// both gates.
 const RAW_LIMIT = 4.7e6;
 const GZIP_LIMIT = 1.45e6;
 const RAW_FLOOR = 2e6;
@@ -85,6 +93,37 @@ assert.equal(broken.wasm.length, 0);
 const malformed = compile(exports, Uint8Array.of(1));
 assert.equal(malformed.status, STATUS.malformed);
 assert.deepEqual(malformed.json, { error: "request ends early" });
+
+// A REPL session: the prelude, then two inputs, each reported as joined.
+const wasmMagic = [0, 0x61, 0x73, 0x6d];
+const prelude = compile(exports, encodeReplStart({ "src/lib.hd": "fn base() -> i32: +40\n" }));
+assert.equal(prelude.status, STATUS.ok, JSON.stringify(prelude.json));
+assert.equal(prelude.json.input, 0);
+assert.ok(prelude.json.sessionKeys.includes("hd.x"), "the prelude exports the memory");
+assert.deepEqual([...prelude.wasm.subarray(0, 4)], wasmMagic);
+let keys = prelude.json.sessionKeys.length;
+const joined = compile(exports, encodeReplOutcome(0, OUTCOME.joined));
+assert.deepEqual(joined.json, { diagnostics: [], input: 0, joined: true });
+for (const [n, text] of [
+  [1, "n := base() + 2\n"],
+  [2, "n * 2\n"],
+]) {
+  const input = compile(exports, encodeReplInput(text));
+  assert.equal(input.status, STATUS.ok, JSON.stringify(input.json));
+  assert.equal(input.json.input, n);
+  assert.deepEqual([...input.wasm.subarray(0, 4)], wasmMagic);
+  keys += input.json.sessionKeys.length;
+  assert.equal(compile(exports, encodeReplOutcome(n, OUTCOME.joined)).status, STATUS.ok);
+}
+const redeclared = compile(exports, encodeReplInput("n := 1\n"));
+assert.equal(redeclared.status, STATUS.errors);
+assert.equal(redeclared.json.diagnostics[0].path, "repl#3");
+assert.equal(redeclared.wasm.length, 0);
+const early = compile(exports, encodeReplOutcome(9, OUTCOME.joined));
+assert.equal(early.status, STATUS.malformed);
+console.log(
+  `repl: prelude ${prelude.wasm.length} B, ${keys} session keys, cold ${prelude.ms.toFixed(0)} ms`,
+);
 
 assert.ok(raw <= RAW_LIMIT, `raw ${formatBytes(raw)} is over ${formatBytes(RAW_LIMIT)}`);
 assert.ok(gzip <= GZIP_LIMIT, `gzip ${formatBytes(gzip)} is over ${formatBytes(GZIP_LIMIT)}`);

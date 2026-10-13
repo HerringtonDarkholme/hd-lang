@@ -465,7 +465,7 @@ identical bytes.
 | --- | --- | --- |
 | W1 | Docs: live-execution.md corrections (Q8), the playground README's REPL section, guide and bench text (after Q1) | `pnpm run website:build` passes; `grep -rn "hd repl" guide bench future-work website/playground` finds only this plan |
 | W2 | Dropped (owner: one worker; Stop rebuilds from the journal) | n/a |
-| W3 | `hd_web` REPL exports and wire format | `hd_web` tests compile the Redefinition example and return modules, types and the note |
+| W3 | `hd_web` REPL exports and wire format | Done: goal bytes 4 to 6 over the four exports (playground-wasm.md §3.1); `hd_web` tests build the Redefinition example without redeclaration, one module per input with its session keys. No type text or note: the value line goes to stdout, and redeclaring is an error |
 | W4 | JS host: per-input linking in `core.mjs`, recorder and replayer with the `hd_run` row format | Node test: one session gives the same transcript on wasmtime and Node; a journal recorded on one replays on the other |
 | W5 | The REPL panel and Try in REPL buttons; Stop as cancel, then terminate and rebuild after 250 ms | `website:e2e` REPL cases: value, panic, Stop of a loop with the session restored |
 | W6 | IndexedDB sessions and share links | e2e: a reload restores the session; a link with a journal shows the sender's output |
