@@ -1,7 +1,10 @@
-//! Known closure calls (closure-calls.md, option A1, #53): in the optimized
-//! pipeline, a call of a closure value made in the same body, directly or
-//! through a local bound once, is a direct `call` of the closure's code. The
-//! dev pipeline keeps `call_ref`. Both run the same on V8 (`host/run.mjs`).
+//! Known closure calls (closure-calls.md, options A1 and A2, #53): in the
+//! optimized pipeline, a call of a closure value made in the same body,
+//! directly or through a local bound once, is a direct `call` of the
+//! closure's code (A1). A small callee that calls a parameter gets one copy
+//! per closure literal passed for it, and inside the copy that call is
+//! direct too (A2). The dev pipeline keeps `call_ref`. Both run the same on
+//! V8 (`host/run.mjs`).
 
 use std::path::Path;
 use std::process::Command;
@@ -39,6 +42,38 @@ fn wasm_of(main: &str, optimized: bool) -> Vec<u8> {
     );
     assert!(out.diags.is_empty(), "{}", out.render());
     out.wasm.expect("wasm")
+}
+
+/// The debug names of the functions a module defines.
+fn names_in(wasm: &[u8]) -> Vec<String> {
+    let mut names = Vec::new();
+    for payload in wasmparser::Parser::new(0).parse_all(wasm) {
+        if let wasmparser::Payload::CustomSection(c) = payload.expect("payload")
+            && let wasmparser::KnownCustom::Name(r) = c.as_known()
+        {
+            for n in r {
+                if let wasmparser::Name::Function(m) = n.expect("name") {
+                    names.extend(m.into_iter().map(|f| f.expect("name").name.to_owned()));
+                }
+            }
+        }
+    }
+    names
+}
+
+/// The names of the copies (A2) of the instance named `plain`: `plain`
+/// then `+` and a key prefix.
+fn copies_of(wasm: &[u8], plain: &str) -> Vec<String> {
+    let prefix = format!("{plain}+");
+    names_in(wasm)
+        .into_iter()
+        .filter(|n| n.starts_with(&prefix))
+        .collect()
+}
+
+/// Whether the module holds the plain instance named `name`.
+fn has(wasm: &[u8], name: &str) -> bool {
+    names_in(wasm).iter().any(|n| n == name)
 }
 
 /// The `call` and `call_ref` counts in the body of the function whose
@@ -190,4 +225,173 @@ fn a_suspending_closure_is_constructed_directly_and_polled_as_before() {
     assert_eq!(opt_calls, dev_calls + 1, "one direct call more");
     assert_eq!(run("susp-dev", &dev), "42\n");
     assert_eq!(run("susp-opt", &opt), "42\n");
+}
+
+/// `apply_twice` calls its parameter in its own body: the optimized
+/// pipeline copies it for the literal, and the copy calls the literal's
+/// code directly. The plain instance is not built, as no call needs it.
+const SPECIALIZED: &str = "\
+fn apply_twice(f: fn(i32) -> i32, x: i32) -> i32:
+    f(f(x))
+
+fn run() -> i32:
+    apply_twice(fn(x: i32) -> i32: x + 1, +5)
+
+pub fn main() -> void $ Console:
+    println(run())
+";
+
+#[test]
+fn a_callee_is_copied_per_literal_and_calls_it_directly_in_the_copy() {
+    let dev = wasm_of(SPECIALIZED, false);
+    let opt = wasm_of(SPECIALIZED, true);
+    let plain = "app/main/apply_twice#0";
+    assert_eq!(calls_in(&dev, plain), (0, 2), "dev");
+    assert!(copies_of(&dev, plain).is_empty(), "dev makes no copy");
+    let copies = copies_of(&opt, plain);
+    assert_eq!(copies.len(), 1, "{copies:?}");
+    assert_eq!(calls_in(&opt, &copies[0]), (2, 0), "optimized");
+    assert!(!has(&opt, plain), "no caller needs the plain instance");
+    assert_eq!(run("copy-dev", &dev), "7\n");
+    assert_eq!(run("copy-opt", &opt), "7\n");
+}
+
+/// A callee over 64 TIR instructions is never copied: its call of the
+/// parameter stays a `call_ref` in the plain instance. `small`, of the same
+/// shape, is.
+const OVER_BOUND: &str = "\
+fn small(f: fn(i32) -> i32, x: i32) -> i32:
+    let a1 = x * 3 + 1
+    f(a1 % 1000)
+
+fn big(f: fn(i32) -> i32, x: i32) -> i32:
+    let a1 = x * 3 + 1
+    let a2 = a1 * 3 + 2
+    let a3 = a2 * 3 + 3
+    let a4 = a3 * 3 + 4
+    let a5 = a4 * 3 + 5
+    let a6 = a5 % 1000 + 6
+    let a7 = a6 * 3 + 7
+    let a8 = a7 * 3 + 8
+    let a9 = a8 * 3 + 9
+    let a10 = a9 % 1000 + 10
+    let a11 = a10 * 3 + 11
+    let a12 = a11 * 3 + 12
+    let a13 = a12 * 3 + 13
+    let a14 = a13 % 1000 + 14
+    let a15 = a14 * 3 + 15
+    let a16 = a15 * 3 + 16
+    let a17 = a16 * 3 + 17
+    let a18 = a17 % 1000 + 18
+    let a19 = a18 * 3 + 19
+    let a20 = a19 * 3 + 20
+    f(a20 % 1000)
+
+pub fn main() -> void $ Console:
+    println(big(fn(x: i32) -> i32: x + 1, +5))
+    println(small(fn(x: i32) -> i32: x + 1, +5))
+";
+
+#[test]
+fn a_callee_over_the_size_bound_keeps_its_call_ref() {
+    let dev = wasm_of(OVER_BOUND, false);
+    let opt = wasm_of(OVER_BOUND, true);
+    let plain = "app/main/big#0";
+    assert!(copies_of(&opt, plain).is_empty(), "no copy");
+    assert_eq!(calls_in(&opt, plain).1, 1, "optimized");
+    assert_eq!(
+        copies_of(&opt, "app/main/small#0").len(),
+        1,
+        "small is copied"
+    );
+    assert_eq!(run("bound-over-dev", &dev), run("bound-over-opt", &opt));
+}
+
+/// A copy that passes its literal on to itself calls itself: one copy, and
+/// no plain instance.
+const PASS_THROUGH: &str = "\
+fn repeat(f: fn(i32) -> i32, n: i32, x: i32) -> i32:
+    if n == 0:
+        x
+    else:
+        repeat(f, n - 1, f(x))
+
+pub fn main() -> void $ Console:
+    println(repeat(fn(x: i32) -> i32: x * 2, +3, +1))
+";
+
+#[test]
+fn a_copy_passing_its_literal_on_to_itself_is_one_copy() {
+    let dev = wasm_of(PASS_THROUGH, false);
+    let opt = wasm_of(PASS_THROUGH, true);
+    let plain = "app/main/repeat#0";
+    let copies = copies_of(&opt, plain);
+    assert_eq!(copies.len(), 1, "{copies:?}");
+    assert!(!has(&opt, plain), "no plain instance");
+    assert_eq!(calls_in(&opt, &copies[0]).1, 0, "every call is direct");
+    assert_eq!(run("pass-dev", &dev), "8\n");
+    assert_eq!(run("pass-opt", &opt), "8\n");
+}
+
+/// Two literals make two copies; one literal passed twice, through a local
+/// bound once, makes one.
+const LITERALS: &str = "\
+fn apply(f: fn(i32) -> i32, x: i32) -> i32:
+    f(x)
+
+fn two() -> i32:
+    apply(fn(x: i32) -> i32: x + 1, +1) + apply(fn(x: i32) -> i32: x * 10, +2)
+
+fn same() -> i32:
+    let inc = fn(x: i32) -> i32: x + 100
+    apply(inc, +1) + apply(inc, +2)
+
+pub fn main() -> void $ Console:
+    println(two())
+    println(same())
+";
+
+#[test]
+fn two_literals_make_two_copies_and_one_literal_twice_makes_one() {
+    let dev = wasm_of(LITERALS, false);
+    let opt = wasm_of(LITERALS, true);
+    let copies = copies_of(&opt, "app/main/apply#0");
+    assert_eq!(copies.len(), 3, "{copies:?}");
+    for c in &copies {
+        assert_eq!(calls_in(&opt, c), (1, 0), "{c}");
+    }
+    assert_eq!(run("lits-dev", &dev), "22\n203\n");
+    assert_eq!(run("lits-opt", &opt), "22\n203\n");
+}
+
+/// A copy may request one more copy for a literal it passes on; past that
+/// depth the callee is the plain instance, with its `call_ref`.
+const DEPTH: &str = "\
+fn third(f: fn(i32) -> i32, x: i32) -> i32:
+    f(x) + 3
+
+fn second(f: fn(i32) -> i32, x: i32) -> i32:
+    f(x) + third(f, x)
+
+fn first(f: fn(i32) -> i32, x: i32) -> i32:
+    f(x) + second(f, x)
+
+pub fn main() -> void $ Console:
+    println(first(fn(x: i32) -> i32: x + 1, +1))
+";
+
+#[test]
+fn copies_stop_at_depth_two() {
+    let dev = wasm_of(DEPTH, false);
+    let opt = wasm_of(DEPTH, true);
+    assert_eq!(copies_of(&opt, "app/main/first#0").len(), 1);
+    assert_eq!(copies_of(&opt, "app/main/second#0").len(), 1);
+    assert!(copies_of(&opt, "app/main/third#0").is_empty());
+    assert_eq!(
+        calls_in(&opt, "app/main/third#0").1,
+        1,
+        "plain past the depth"
+    );
+    assert_eq!(run("depth-dev", &dev), "9\n");
+    assert_eq!(run("depth-opt", &opt), "9\n");
 }

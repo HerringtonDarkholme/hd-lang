@@ -6484,12 +6484,20 @@ impl Run<'_> {
             let Some(code) = c.codes[slot].get() else {
                 return;
             };
-            codes.push((c.collected.table.key[id.idx()], code.clone()));
-            fnames.push(format!(
+            let key = c.collected.table.key[id.idx()];
+            codes.push((key, code.clone()));
+            let fname = format!(
                 "{}#{}",
                 self.names().path(c.collected.table.item[id.idx()]),
                 c.collected.table.sub[id.idx()]
-            ));
+            );
+            // A copy specialized on known closures (closure-calls.md, A2)
+            // is told from its plain instance by its key.
+            fnames.push(if c.collected.table.known[id.idx()].is_empty() {
+                fname
+            } else {
+                format!("{fname}+{:08x}", key.0 >> 96)
+            });
         }
         let folders = self.program_folders();
         let arity = p.arity();

@@ -360,7 +360,9 @@ impl Cx<'_> {
         // An erased body an earlier session module holds is registered
         // once too: this module may still write the witness that names it.
         let fresh = self.out.table.get(item, Sub::Erased, args).is_none()
-            && !self.externs.contains_key(&(item, Sub::Erased, args));
+            && !self
+                .externs
+                .contains_key(&(item, Sub::Erased, args, Hash128(0)));
         let key = self.push(item, Sub::Erased, args, parent)?;
         if fresh {
             let ph = |d: DefId| env.path_hash(d);

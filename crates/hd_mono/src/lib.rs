@@ -871,8 +871,38 @@ struct Cx<'a> {
     /// Erased bodies, `dyn` call pairs and their thunks (§13.5.1).
     witness: erased::WitnessCx,
     session: Option<Session<'a>>,
-    /// The instances `session` already holds, by request, with their keys.
-    externs: HashMap<(DefId, Sub, TyList), Hash128>,
+    /// The instances `session` already holds, by request and the digest of
+    /// its known closures (`layout::known_digest`), with their keys.
+    externs: HashMap<(DefId, Sub, TyList, Hash128), Hash128>,
+    /// Per callee item, whether option A2 may copy it: `None` when not,
+    /// else which of its parameters its own body calls (closure-calls.md
+    /// §3.1). Built once per item.
+    copyable: HashMap<DefId, Option<Vec<bool>>>,
+}
+
+/// A call that option A2 may specialize, in the instance being scanned.
+struct Site<'b> {
+    body: &'b Body,
+    flow: &'b Flow,
+    /// The call instruction.
+    at: usize,
+    /// The scanned instance's sub-body.
+    sub: Sub,
+    /// The scanned instance's known closures.
+    known: &'b [(u32, Hash128)],
+    /// The scanned instance's targets so far: the call's operands precede
+    /// it, so theirs are in.
+    calls: &'b HashMap<u32, Target>,
+}
+
+/// What option A2 does at a call.
+enum Specialize {
+    /// Call this copy.
+    Copy(CallTarget),
+    /// Call the plain instance.
+    Plain,
+    /// Record nothing (`Cx::copy_target`).
+    Skip,
 }
 
 /// Collection stopped at an instantiation limit (codegen.md §13.4):
@@ -918,20 +948,34 @@ impl Cx<'_> {
         args: TyList,
         parent: InstId,
     ) -> StageResult<Hash128> {
+        self.push_known(item, sub, args, &[], parent)
+    }
+
+    /// [`Self::push`] of the instance specialized on `known` (option A2 of
+    /// closure-calls.md), or of the plain one when `known` is empty.
+    fn push_known(
+        &mut self,
+        item: DefId,
+        sub: Sub,
+        args: TyList,
+        known: &[(u32, Hash128)],
+        parent: InstId,
+    ) -> StageResult<Hash128> {
         let table = &self.out.table;
-        if let Some(id) = table.get(item, sub, args) {
+        if let Some(id) = table.get_known(item, sub, args, known) {
             return Ok(table.key[id.idx()]);
         }
         // An instance an earlier session module holds is that module's,
         // callees included: it is an extern, never pushed or scanned.
         let mut computed = None;
+        let digest = layout::known_digest(known);
         if let Some(session) = self.session {
-            if let Some(&key) = self.externs.get(&(item, sub, args)) {
+            if let Some(&key) = self.externs.get(&(item, sub, args, digest)) {
                 return Ok(key);
             }
-            let key = self.key(item, sub, args);
+            let key = layout::known_key(self.key(item, sub, args), known);
             if (session.known)(key) {
-                self.externs.insert((item, sub, args), key);
+                self.externs.insert((item, sub, args, digest), key);
                 self.out.externs.insert(key);
                 return Ok(key);
             }
@@ -955,10 +999,13 @@ impl Cx<'_> {
         }
         let key = match computed {
             Some(key) => key,
-            None => self.key(item, sub, args),
+            None => layout::known_key(self.key(item, sub, args), known),
         };
         let depth = u8::try_from(depth).expect("within MAX_DEPTH");
-        let (id, _) = self.out.table.push(item, sub, args, depth, parent, key);
+        let (id, _) = self
+            .out
+            .table
+            .push(item, sub, args, known, depth, parent, key);
         self.work.push(id);
         Ok(key)
     }
@@ -1528,6 +1575,137 @@ impl Cx<'_> {
         })
     }
 
+    /// Whether option A2 (closure-calls.md §3.1) may copy `def`, and which
+    /// of its parameters its own body calls: `None` for a body over
+    /// [`COPY_MAX_INSTS`], an intrinsic, a suspending function, or one that
+    /// calls no parameter.
+    fn copyable(&mut self, def: DefId) -> Option<Vec<bool>> {
+        if let Some(c) = self.copyable.get(&def) {
+            return c.clone();
+        }
+        let env = self.env;
+        let c = env
+            .body(def)
+            .filter(|b| {
+                b.len() <= COPY_MAX_INSTS && env.intrinsic(def).is_none() && !env.suspends(def)
+            })
+            .and_then(|body| {
+                let flow = Flow::new(body);
+                let mut called = vec![false; flow.params.len()];
+                for i in 0..body.len() {
+                    if body.tags[i] == Tag::CallValue
+                        && let Some(p) = flow.param(body, body.data[i][0])
+                    {
+                        called[p as usize] = true;
+                    }
+                }
+                called.contains(&true).then_some(called)
+            });
+        self.copyable.insert(def, c.clone());
+        c
+    }
+
+    /// How many copies (A2) nest at `id`: 0 for a plain instance, else one
+    /// more than at the instance that requested it.
+    fn copy_depth(&self, mut id: InstId) -> u32 {
+        let table = &self.out.table;
+        let mut d = 0;
+        while id != InstId::NONE && !table.known[id.idx()].is_empty() {
+            d += 1;
+            id = table.parent[id.idx()];
+        }
+        d
+    }
+
+    /// Option A2 of closure-calls.md at the call `at.at` of `def`: the copy
+    /// of `def` specialized on the closure literals the call passes for
+    /// parameters `def`'s own body calls. A literal is a value made in the
+    /// call's sub-body (`Flow::made`) or, in a copy, a parameter its caller
+    /// passes a literal for, passed on unchanged: a copy that passes it to
+    /// itself finds itself. Its type must be the parameter's at the copy's
+    /// arguments. A callee over the size bound, a copy past
+    /// [`COPY_MAX_DEPTH`], or no literal leaves the plain instance.
+    ///
+    /// A call outside the instance's own sub-body that passes a parameter
+    /// on is skipped: this instance never emits it, and the sub-body that
+    /// does may be a copy that resolves it to itself.
+    fn copy_target(
+        &mut self,
+        at: &Site<'_>,
+        def: DefId,
+        targs: TyList,
+        id: InstId,
+    ) -> StageResult<Specialize> {
+        let Some(called) = self.copyable(def) else {
+            return Ok(Specialize::Plain);
+        };
+        let (pool, env) = (self.pool, self.env);
+        let params = env.params(def).unwrap_or_default();
+        let (body, flow) = (at.body, at.flow);
+        let rec = body.record(body.data[at.at][1]);
+        let args = &rec[..rec.len().saturating_sub(3)];
+        if args.len() != called.len() || params.len() != called.len() {
+            return Ok(Specialize::Plain);
+        }
+        let own = match at.sub {
+            Sub::Body(k) => u32::from(k) == flow.subs[at.at],
+            _ => true,
+        };
+        let mut found = Vec::new();
+        for (p, &w) in args.iter().enumerate() {
+            if !called[p] {
+                continue;
+            }
+            if let Some(made) = flow.made(body, w, at.at) {
+                if let Some(&Target::Closure(k)) =
+                    at.calls.get(&u32::try_from(made).expect("insts"))
+                {
+                    found.push((p, k, w));
+                }
+            } else if let Some(q) = flow.param(body, w) {
+                if !own {
+                    return Ok(Specialize::Skip);
+                }
+                if let Some(&(_, k)) = at.known.iter().find(|k| k.0 == q) {
+                    found.push((p, k, w));
+                }
+            }
+        }
+        if found.is_empty() {
+            return Ok(Specialize::Plain);
+        }
+        let own_from = env.parent(def).map_or(0, |p| p.1);
+        let cargs = self.classify(def, pool.list_items(targs), own_from)?;
+        let (item, iargs) = (self.out.table.item[id.idx()], self.out.table.args[id.idx()]);
+        let known: Vec<(u32, Hash128)> = found
+            .into_iter()
+            .filter(|&(p, _, w)| {
+                subst(pool, env, def, cargs, params[p])
+                    == subst(pool, env, item, iargs, value_ty(body, w))
+            })
+            .map(|(p, k, _)| (u32::try_from(p).expect("params"), k))
+            .collect();
+        if known.is_empty()
+            || (self
+                .out
+                .table
+                .get_known(def, Sub::Body(0), cargs, &known)
+                .is_none()
+                && self.copy_depth(id) >= COPY_MAX_DEPTH)
+        {
+            return Ok(Specialize::Plain);
+        }
+        let key = self.push_known(def, Sub::Body(0), cargs, &known, id)?;
+        let ret = env.ret(def).unwrap_or(Ty::VOID);
+        Ok(Specialize::Copy(CallTarget {
+            key,
+            item: def,
+            args: cargs,
+            ret: subst(pool, env, def, cargs, ret),
+            kind: TargetKind::Instance,
+        }))
+    }
+
     /// What a code entry reads of a call's target: the callee's identity,
     /// instance and signature (walking skeleton, SK-3).
     fn hash_target(&mut self, t: &CallTarget, reps: &mut StableHasher) {
@@ -1729,6 +1907,16 @@ impl Cx<'_> {
             Sub::Body(_) | Sub::Adapter => {}
         }
         let hidden = hidden_insts(body, sub);
+        // Options A1 and A2 (closure-calls.md) run in the optimized
+        // pipeline only, and never in a thunk.
+        let flow = (env.optimized()
+            && only.is_none()
+            && body
+                .tags
+                .iter()
+                .any(|t| matches!(t, Tag::Call | Tag::CallValue)))
+        .then(|| Flow::new(body));
+        let known = self.out.table.known[id.idx()].clone();
         for i in 0..body.len() {
             if only.is_some_and(|o| o != i) || hidden.as_ref().is_some_and(|h| h[i]) {
                 continue;
@@ -1768,7 +1956,26 @@ impl Cx<'_> {
                         Callee::Item { def, targs } => {
                             let targs: Vec<Ty> =
                                 pool.list_items(targs).iter().copied().map(s).collect();
-                            self.target(def, pool.list(&targs), id)?
+                            let targs = pool.list(&targs);
+                            let copy = match &flow {
+                                Some(flow) if body.tags[i] == Tag::Call => {
+                                    let at = Site {
+                                        body,
+                                        flow,
+                                        at: i,
+                                        sub,
+                                        known: &known,
+                                        calls: &calls,
+                                    };
+                                    self.copy_target(&at, def, targs, id)?
+                                }
+                                _ => Specialize::Plain,
+                            };
+                            match copy {
+                                Specialize::Copy(t) => t,
+                                Specialize::Plain => self.target(def, targs, id)?,
+                                Specialize::Skip => continue,
+                            }
                         }
                         Callee::TraitMethod {
                             trait_,
@@ -1973,8 +2180,8 @@ impl Cx<'_> {
                 _ => {}
             }
         }
-        if env.optimized() && only.is_none() {
-            known_closures(body, hidden.as_deref(), &mut calls);
+        if let Some(flow) = &flow {
+            known_closures(body, flow, hidden.as_deref(), &known, &mut calls);
         }
         if sub == Sub::Body(0) {
             self.hash_signature(item, args, &mut reps);
@@ -2046,66 +2253,139 @@ fn hidden_insts(body: &Body, sub: Sub) -> Option<Vec<bool>> {
     )
 }
 
-/// Option A1 of closure-calls.md, in the optimized pipeline: each
-/// `CallValue` whose callee is a closure value made in the same sub-body
-/// records `Target::KnownClosure` with that value's code instance. The
-/// callee is a `Closure` or `ItemRef` itself, or a local whose only write
-/// is one `LocalSet` of one: not a parameter, never written through `mut`
-/// or from a closure. The value and the callee have the same type, so the
-/// code instance has the signature a `call_ref` would use. A closure made
-/// in an enclosing sub-body is left indirect: its key there may be under
-/// other type arguments than this instance's.
-fn known_closures(body: &Body, hidden: Option<&[bool]>, calls: &mut HashMap<u32, Target>) {
-    use hd_tir::ir::local_flags::{CAPTURED_ASSIGNED, MUTATED, PARAM};
-    if !body.tags.contains(&Tag::CallValue) {
-        return;
-    }
-    // Per local: how many `LocalSet`s write it, and the last one's value.
-    let mut sets: Vec<(u32, u32)> = vec![(0, u32::MAX); body.local_flags.len()];
-    for (i, tag) in body.tags.iter().enumerate() {
-        if *tag == Tag::LocalSet
-            && let Some(s) = sets.get_mut(body.data[i][0] as usize)
-        {
-            *s = (s.0 + 1, body.data[i][1]);
+/// The callee bodies option A2 copies (closure-calls.md §3.1) hold at most
+/// this many TIR instructions, their sub-bodies included (owner Q2).
+const COPY_MAX_INSTS: usize = 64;
+
+/// How many copies may nest: a copy requested from inside a copy is the
+/// last (closure-calls.md §3.1); past it, calls use the plain instance.
+const COPY_MAX_DEPTH: u32 = 2;
+
+/// What options A1 and A2 of closure-calls.md read of a body's data flow.
+struct Flow {
+    /// Per local: how many `LocalSet`s write it, and the last one's value.
+    sets: Vec<(u32, u32)>,
+    /// Each instruction's sub-body (`Body::inst_subs`).
+    subs: Vec<u32>,
+    /// The item's own parameter locals, in parameter order: those of sub 0,
+    /// as `hd_wasm`'s `signature` lists them.
+    params: Vec<u32>,
+}
+
+impl Flow {
+    fn new(body: &Body) -> Self {
+        use hd_tir::ir::local_flags::PARAM;
+        let mut sets: Vec<(u32, u32)> = vec![(0, u32::MAX); body.local_flags.len()];
+        for (i, tag) in body.tags.iter().enumerate() {
+            if *tag == Tag::LocalSet
+                && let Some(s) = sets.get_mut(body.data[i][0] as usize)
+            {
+                *s = (s.0 + 1, body.data[i][1]);
+            }
+        }
+        let mut in_sub = vec![false; body.local_flags.len()];
+        for r in body.sub_params.iter().skip(1) {
+            for &l in body.record(r.start) {
+                if let Some(x) = in_sub.get_mut(l as usize) {
+                    *x = true;
+                }
+            }
+        }
+        let params = (0..body.local_flags.len())
+            .filter(|&l| body.local_flags[l] & PARAM != 0 && !in_sub[l])
+            .map(|l| u32::try_from(l).expect("locals"))
+            .collect();
+        Self {
+            sets,
+            subs: body.inst_subs(),
+            params,
         }
     }
-    let inst = |word: u32| hd_tir::ir::Ref(word).as_inst().map(|x| x.0 as usize);
-    let subs = body.inst_subs();
+
+    /// The `Closure` or `ItemRef` instruction whose value the operand
+    /// `word` of instruction `at` is, made in `at`'s sub-body: the operand
+    /// itself, or a local whose only write is one `LocalSet` of it, not a
+    /// parameter and never written through `mut` or from a closure. It has
+    /// the operand's type. A closure made in an enclosing sub-body does not
+    /// count: its key there may be under other type arguments than this
+    /// instance's.
+    fn made(&self, body: &Body, word: u32, at: usize) -> Option<usize> {
+        use hd_tir::ir::local_flags::{CAPTURED_ASSIGNED, MUTATED, PARAM};
+        let inst = |word: u32| hd_tir::ir::Ref(word).as_inst().map(|x| x.0 as usize);
+        let operand = inst(word)?;
+        let mut made = operand;
+        if body.tags[made] == Tag::LocalGet {
+            let l = body.data[made][0] as usize;
+            let flags = body.local_flags.get(l).copied().unwrap_or(PARAM);
+            let &(1, value) = self.sets.get(l)? else {
+                return None;
+            };
+            if flags & (PARAM | MUTATED | CAPTURED_ASSIGNED) != 0 {
+                return None;
+            }
+            made = inst(value)?;
+        }
+        (matches!(body.tags[made], Tag::Closure | Tag::ItemRef)
+            && self.subs[made] == self.subs[at]
+            && body.ty[made] == body.ty[operand])
+            .then_some(made)
+    }
+
+    /// The index of the item parameter that operand `word` reads, when it
+    /// is a `LocalGet` in sub-body 0 of a parameter nothing writes.
+    fn param(&self, body: &Body, word: u32) -> Option<u32> {
+        use hd_tir::ir::local_flags::{ASSIGNED, CAPTURED_ASSIGNED, MUTATED};
+        let g = hd_tir::ir::Ref(word).as_inst()?.0 as usize;
+        if body.tags[g] != Tag::LocalGet || self.subs[g] != 0 {
+            return None;
+        }
+        let l = body.data[g][0];
+        let p = self.params.iter().position(|&x| x == l)?;
+        let flags = body.local_flags[l as usize];
+        let written = self.sets.get(l as usize).is_some_and(|s| s.0 != 0);
+        (flags & (ASSIGNED | MUTATED | CAPTURED_ASSIGNED) == 0 && !written)
+            .then(|| u32::try_from(p).expect("params"))
+    }
+}
+
+/// Options A1 and A2 of closure-calls.md, in the optimized pipeline: each
+/// `CallValue` whose callee is a known closure records
+/// `Target::KnownClosure` with its code instance. The callee is a value made
+/// in the same sub-body (`Flow::made`, A1), or, in an instance specialized
+/// on `known` (A2), a parameter its caller always passes that literal for.
+/// The value and the callee have the same type (the caller checked it for
+/// a parameter), so the code instance has the signature a `call_ref`
+/// would use.
+fn known_closures(
+    body: &Body,
+    flow: &Flow,
+    hidden: Option<&[bool]>,
+    known: &[(u32, Hash128)],
+    calls: &mut HashMap<u32, Target>,
+) {
     for i in 0..body.len() {
         if body.tags[i] != Tag::CallValue || hidden.is_some_and(|h| h[i]) {
             continue;
         }
         let ix = u32::try_from(i).expect("insts");
-        let Some(callee) = inst(body.data[i][0]) else {
+        if calls.contains_key(&ix) {
+            continue;
+        }
+        let callee = body.data[i][0];
+        let key = if let Some(made) = flow.made(body, callee, i) {
+            match calls.get(&u32::try_from(made).expect("insts")) {
+                Some(&Target::Closure(key)) => key,
+                _ => continue,
+            }
+        } else if let Some(p) = flow.param(body, callee) {
+            match known.iter().find(|k| k.0 == p) {
+                Some(&(_, key)) => key,
+                None => continue,
+            }
+        } else {
             continue;
         };
-        let mut made = callee;
-        if body.tags[made] == Tag::LocalGet {
-            let l = body.data[made][0] as usize;
-            let flags = body.local_flags.get(l).copied().unwrap_or(PARAM);
-            let Some(&(1, value)) = sets.get(l) else {
-                continue;
-            };
-            let Some(v) = inst(value) else {
-                continue;
-            };
-            if flags & (PARAM | MUTATED | CAPTURED_ASSIGNED) != 0 {
-                continue;
-            }
-            made = v;
-        }
-        if !matches!(body.tags[made], Tag::Closure | Tag::ItemRef)
-            || subs[made] != subs[i]
-            || body.ty[made] != body.ty[callee]
-        {
-            continue;
-        }
-        if let (false, Some(&Target::Closure(key))) = (
-            calls.contains_key(&ix),
-            calls.get(&u32::try_from(made).expect("insts")),
-        ) {
-            calls.insert(ix, Target::KnownClosure(key));
-        }
+        calls.insert(ix, Target::KnownClosure(key));
     }
 }
 
@@ -2261,6 +2541,7 @@ pub fn collect(
         witness: erased::WitnessCx::default(),
         session,
         externs: HashMap::new(),
+        copyable: HashMap::new(),
     };
     if let Err(e) = cx.run(root, inits, extra, refs) {
         return match cx.too_deep.take() {

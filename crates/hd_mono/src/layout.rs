@@ -732,19 +732,57 @@ pub fn instance_key(
     h.finish()
 }
 
+/// The known closures of a specialized instance (closure-calls.md, option
+/// A2): per parameter index the instance's caller always passes one closure
+/// literal for, that literal's code instance key, sorted by index. Empty
+/// for every other instance.
+pub type Known = Box<[(u32, Hash128)]>;
+
+/// The table's index word for `known`: 0 when empty, so a plain instance
+/// keeps its identity.
+pub(crate) fn known_digest(known: &[(u32, Hash128)]) -> Hash128 {
+    if known.is_empty() {
+        return Hash128(0);
+    }
+    let mut h = StableHasher::new("known");
+    h.u32(u32::try_from(known.len()).expect("known"));
+    for &(p, k) in known {
+        h.u32(p);
+        h.hash(k);
+    }
+    h.finish()
+}
+
+/// A specialized instance's key: its plain instance key, then its known
+/// closures (A2's key component). Each literal is an identity, its code
+/// instance key, never a hash of its body. An empty `known` is the plain
+/// key itself.
+#[must_use]
+pub fn known_key(plain: Hash128, known: &[(u32, Hash128)]) -> Hash128 {
+    if known.is_empty() {
+        return plain;
+    }
+    let mut h = StableHasher::new("inst-known");
+    h.hash(plain);
+    h.hash(known_digest(known));
+    h.finish()
+}
+
 /// The per-program instance table (data-structures.md §3.22).
 #[derive(Default, Debug)]
 pub struct InstanceTable {
     pub item: Vec<DefId>,
     pub sub: Vec<Sub>,
     pub args: Vec<TyList>,
+    /// The known closures of a specialized instance; empty for a plain one.
+    pub known: Vec<Known>,
     /// The nesting depth of the instance's deepest type argument (§13.4).
     pub depth: Vec<u8>,
     /// The instance that first requested it, `NONE` for a root. Collection
     /// is breadth-first, so the parents spell a shortest chain from a root.
     pub parent: Vec<InstId>,
     pub key: Vec<Hash128>,
-    index: std::collections::HashMap<(DefId, Sub, TyList), InstId>,
+    index: std::collections::HashMap<(DefId, Sub, TyList, Hash128), InstId>,
 }
 
 /// The instantiation limits (§13.4): the nesting depth of an instance's
@@ -756,7 +794,22 @@ impl InstanceTable {
     /// The instance of `item`'s code `sub` at `args`, if collected.
     #[must_use]
     pub fn get(&self, item: DefId, sub: Sub, args: TyList) -> Option<InstId> {
-        self.index.get(&(item, sub, args)).copied()
+        self.get_known(item, sub, args, &[])
+    }
+
+    /// The instance of `item`'s code `sub` at `args` specialized on
+    /// `known` (plain when empty), if collected.
+    #[must_use]
+    pub fn get_known(
+        &self,
+        item: DefId,
+        sub: Sub,
+        args: TyList,
+        known: &[(u32, Hash128)],
+    ) -> Option<InstId> {
+        self.index
+            .get(&(item, sub, args, known_digest(known)))
+            .copied()
     }
 
     /// Pushes an instance once; returns its id and whether it was new.
@@ -766,21 +819,24 @@ impl InstanceTable {
         item: DefId,
         sub: Sub,
         args: TyList,
+        known: &[(u32, Hash128)],
         depth: u8,
         parent: InstId,
         key: Hash128,
     ) -> (InstId, bool) {
-        if let Some(id) = self.get(item, sub, args) {
+        if let Some(id) = self.get_known(item, sub, args, known) {
             return (id, false);
         }
         let id = InstId::from_raw(u32::try_from(self.item.len()).expect("instances"));
         self.item.push(item);
         self.sub.push(sub);
         self.args.push(args);
+        self.known.push(known.into());
         self.depth.push(depth);
         self.parent.push(parent);
         self.key.push(key);
-        self.index.insert((item, sub, args), id);
+        self.index
+            .insert((item, sub, args, known_digest(known)), id);
         (id, true)
     }
 
@@ -818,7 +874,7 @@ impl InstanceTable {
 mod tests {
     use super::{
         A1Class, CanonMemo, InstanceTable, KeyArg, LayoutClass, LayoutEnv, StdKind, Sub, ValType,
-        a1_class, instance_key, layout_of,
+        a1_class, instance_key, known_key, layout_of,
     };
     use hd_base::{DefId, Hash128, InstId};
     use hd_types::{InternPool, Ty, TyData, TyList};
@@ -1169,13 +1225,24 @@ mod tests {
         let last = instance_key(&p, &ph, m, push, Sub::Body(u16::MAX), &[]);
         assert_ne!(last, instance_key(&p, &ph, m, push, Sub::Adapter, &[]));
         let mut t = InstanceTable::default();
-        let (root, new) = t.push(push, body, TyList::EMPTY, 0, InstId::NONE, a);
+        let (root, new) = t.push(push, body, TyList::EMPTY, &[], 0, InstId::NONE, a);
         assert!(new);
-        assert!(!t.push(push, body, TyList::EMPTY, 0, InstId::NONE, a).1);
+        assert!(!t.push(push, body, TyList::EMPTY, &[], 0, InstId::NONE, a).1);
         assert_eq!(t.get(push, body, TyList::EMPTY), Some(root));
         // The chain counts requests from the root.
-        let (inner, _) = t.push(push, Sub::Body(1), TyList::EMPTY, 0, root, c);
+        let (inner, _) = t.push(push, Sub::Body(1), TyList::EMPTY, &[], 0, root, c);
         assert_eq!(t.chain_len(root), 0);
         assert_eq!(t.chain_len(inner), 1);
+        // A specialized instance (A2) sits beside the plain one; the same
+        // known closures find it again, other ones make another.
+        let k1 = [(2, Hash128(11))];
+        let k2 = [(2, Hash128(12))];
+        assert_eq!(known_key(a, &[]), a);
+        assert_ne!(known_key(a, &k1), known_key(a, &k2));
+        let (copy, new) = t.push(push, body, TyList::EMPTY, &k1, 0, root, known_key(a, &k1));
+        assert!(new && copy != root);
+        assert_eq!(t.get_known(push, body, TyList::EMPTY, &k1), Some(copy));
+        assert_eq!(t.get_known(push, body, TyList::EMPTY, &k2), None);
+        assert_eq!(t.get(push, body, TyList::EMPTY), Some(root));
     }
 }
