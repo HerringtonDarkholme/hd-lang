@@ -25,7 +25,7 @@ use std::sync::Arc;
 
 use hd_run::Outcome;
 use hd_run::journal::{End, Recorder};
-use hd_run::replay::{RecordedInput, Replay, recorded};
+use hd_run::replay::{Recorded, RecordedInput, Replay, recorded};
 use wasmtime::Linker;
 
 use super::WasmtimeSession;
@@ -76,6 +76,35 @@ impl WasmtimeSession {
             );
         };
         let record = recorded(bytes)?;
+        self.rebuild_record(&record, cap, rebuilder)
+    }
+
+    /// Rebuilds the session from another session's `journal`: one the JS
+    /// host recorded, which must replay here as the session's own does.
+    #[cfg(test)]
+    pub(crate) fn rebuild_from(
+        &mut self,
+        journal: &[u8],
+        rebuilder: &mut dyn Rebuilder,
+    ) -> Result<Rebuilt, String> {
+        let cap = self
+            .run
+            .store
+            .data()
+            .journal
+            .as_ref()
+            .map_or(hd_run::journal::SESSION_CAP, Recorder::cap);
+        self.rebuild_record(&recorded(journal)?, cap, rebuilder)
+    }
+
+    /// Rebuilds the session from `record`, with a journal of at most `cap`
+    /// bytes from then on.
+    fn rebuild_record(
+        &mut self,
+        record: &Recorded,
+        cap: usize,
+        rebuilder: &mut dyn Rebuilder,
+    ) -> Result<Rebuilt, String> {
         self.restart(Recorder::new(cap, record.execution))?;
         let mut rebuilt = Rebuilt::default();
         // The kept inputs, built, for a second start.

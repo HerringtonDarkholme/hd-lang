@@ -11,6 +11,9 @@ use hd_run::{HostSetup, Outcome};
 
 use crate::{EngineConfig, HostIo, Shared, WasmtimeEngine, WasmtimeSession, thread_stack};
 
+#[path = "session_parity_tests.rs"]
+mod parity;
+
 /// A session's standard output and error, read after each input.
 struct Streams {
     out: Shared,

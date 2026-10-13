@@ -33,6 +33,7 @@ import { dirname, basename, join, resolve } from "node:path";
 import {
   createCoreHost,
   createGrant as createCoreGrant,
+  createSession,
   Deadlock,
   Dec,
   EndCase,
@@ -667,3 +668,8 @@ const nodeLayer = {
 // One host per instance on Node; `sink` and `env` are `createCoreHost`'s.
 // `env.stdin` is a file descriptor, or `null` for a closed standard input.
 export const createHost = (sink, env = {}) => createCoreHost(sink, env, nodeLayer);
+
+// A REPL session on Node (core.mjs `createSession`); `sink` and `env` are
+// `createHost`'s.
+export const createNodeSession = (sink, env = {}, options = {}) =>
+  createSession(sink, env, nodeLayer, options);

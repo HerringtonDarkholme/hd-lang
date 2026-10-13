@@ -11,7 +11,7 @@
 // call synchronously, so `send` uses a synchronous `XMLHttpRequest`, which a
 // worker still allows.
 
-import { createCoreHost, Enc, HostContract } from "./core.mjs";
+import { createCoreHost, createSession, Enc, HostContract } from "./core.mjs";
 
 // `Method`'s variants (std.http), by index, as the wire names them.
 const METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
@@ -130,6 +130,11 @@ const webLayer = {
 // One host per instance in the browser; `sink` and `env` are
 // `createCoreHost`'s. A test run passes its `memoryFiles()` as `env.files`.
 export const createWebHost = (sink, env = {}) => createCoreHost(sink, env, webLayer);
+
+// A REPL session in the browser (core.mjs `createSession`), over the same
+// providers as a run.
+export const createWebSession = (sink, env = {}, options = {}) =>
+  createSession(sink, env, webLayer, options);
 
 // The files of one test run in the browser (cases.mjs): kept in memory and
 // gone with the run, since the playground has no disk

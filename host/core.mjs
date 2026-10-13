@@ -30,7 +30,22 @@
 // - The driver: an init export, then a poll export until it is not -1;
 //   while it is pending, the host waits for completions in its event loop
 //   and hands them over with `hd.wake(n)`. A pending root with nothing
+//   pending is a deadlock.
+// - A REPL session (`createSession`) runs each input's module as an entry
+//   in one growing set of instances, records a journal of its host calls
+//   at the import call sites, and rebuilds itself from a journal
+//   (journal.mjs), as `hd_run_wasmtime`'s session does.
 import { shortest, fixed, lower, upper, parse } from "./float.mjs";
+import {
+  Diverged,
+  Recorder,
+  Replay,
+  SESSION_CAP,
+  callArgs,
+  importTypes,
+  ran,
+  recorded,
+} from "./journal.mjs";
 
 export class Deadlock extends Error {}
 
@@ -290,16 +305,16 @@ function primImports({ put, text }) {
 }
 
 // `hd:Console`: one line per `write_line`, completed at once.
-function consoleImports({ text, pending, finish, view, st }) {
+function consoleImports({ text, pending, finish, put, st }) {
   return {
     "write_line.start": (len) => {
       const line = text(len);
       return pending(performance.now(), () => st.out.push(line + "\n"));
     },
+    // `.Ok(())`.
     "write_line.finish": (h) => {
       finish(h);
-      view(1)[0] = 0;
-      return 1;
+      return put(Uint8Array.of(0));
     },
   };
 }
@@ -437,19 +452,22 @@ export function createCoreHost(sink, env = {}, layer = null) {
     out: [],
     ops: new Map(),
     noticed: new Set(),
+    payload: null,
   };
   const view = (len) => new Uint8Array(st.memory.buffer, 0, len);
   // A copy of the argument bytes, which a result may overwrite.
   const argsOf = (len) => new Dec(Uint8Array.from(view(len)));
   const text = (len) => decodeUtf8(view(len));
-  // Writes an encoded result at offset 0, growing the buffer to fit, and
-  // returns its length (§17.3).
+  // Writes an encoded result (or its bytes) at offset 0, growing the
+  // buffer to fit, and returns its length (§17.3). A session's recorder
+  // reads the bytes back as the call's result (`st.payload`).
   const put = (e) => {
-    const bytes = e.done();
+    const bytes = e instanceof Uint8Array ? e : e.done();
     if (bytes.length > st.memory.buffer.byteLength) {
       st.memory.grow(Math.ceil((bytes.length - st.memory.buffer.byteLength) / 65536));
     }
     new Uint8Array(st.memory.buffer, 0, bytes.length).set(bytes);
+    st.payload = bytes;
     return bytes.length;
   };
   // A waiting method that finished at once (§17.2): status 0, the length.
@@ -506,7 +524,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
   const imports = {
     "hd:rt": rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, until, overran }),
     "hd:prim": primImports({ put, text }),
-    "hd:Console": consoleImports({ text, pending, finish, view, st }),
+    "hd:Console": consoleImports({ text, pending, finish, put, st }),
     "hd:Clock": clockImports({ pending, finish }),
     "hd:Random": randomImports({ put }),
     "hd:Args": argsImports({ put, program, args }),
@@ -536,26 +554,52 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // for a trap), whether the instance trapped, and a Wasm trap's frames.
   // The run is one driver, context 0: a scenario's further drivers poll
   // the exports with their own contexts instead of this loop.
-  const run = async (instance, init, poll) => {
+  //
+  // A REPL session passes `driver`, its hooks: `poll()` before each poll;
+  // `replaying()`, true while wakes come from a record, and then
+  // `served()`, which writes the recorded wake's handles and returns their
+  // count; `woke(n)` before each wake; `wait(ms)`, a wait that a stop
+  // request ends at once; and `stopping()`, which answers how a stop
+  // request ends a waiting input: null for none, else `cancelled` (it calls
+  // `hd.cancel`) or `stopped`.
+  const run = async (instance, init, poll, driver = null) => {
     prime(instance);
     const ex = instance.exports;
     let status = 0;
     let trapped = false;
     let ended = false;
     let frames = [];
+    const wait = (ms) => driver?.wait(ms) ?? new Promise((r) => setTimeout(r, ms));
     try {
       ex[init]();
+      driver?.poll();
       status = ex[poll](0);
       while (status === -1) {
-        const n = complete();
-        if (n === 0) {
-          const d = nextDeadline();
-          if (d === null) deadlock();
-          await new Promise((r) => setTimeout(r, Math.max(0, until(d) - performance.now())));
-          if (overran()) throw new TimeLimit();
-          continue;
+        let n;
+        if (driver?.replaying()) n = driver.served();
+        else {
+          n = complete();
+          if (n === 0) {
+            const d = nextDeadline();
+            if (d === null) deadlock();
+            await wait(Math.max(0, until(d) - performance.now()));
+            if (overran()) throw new TimeLimit();
+            const stop = driver?.stopping(Boolean(ex["hd.cancel"]));
+            if (stop) {
+              if (stop === "cancelled") ex["hd.cancel"]();
+              flush();
+              sink.err(`${stop}\n`);
+              st.reported = true;
+              status = 3;
+              trapped = true;
+              break;
+            }
+            continue;
+          }
         }
+        driver?.woke(n);
         ex["hd.wake"](n);
+        driver?.poll();
         status = ex[poll](0);
       }
     } catch (e) {
@@ -579,6 +623,8 @@ export function createCoreHost(sink, env = {}, layer = null) {
         frames = wasmFrames(e);
       } else if (e instanceof WebAssembly.RuntimeError) {
         frames = wasmFrames(e);
+      } else if (e instanceof Diverged) {
+        st.reported = true;
       } else if (!(e instanceof Deadlock)) {
         throw e;
       }
@@ -603,5 +649,462 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // scratch directory).
   const close = () => platform?.close?.();
 
-  return { imports, run, prime, close, args, program, grant, seed, tempDir: platform?.tempDir };
+  // What a REPL session reaches past the import object: the instance
+  // state, the result writer, the deadlock report and the output.
+  const core = { st, put, deadlock, flush };
+
+  return {
+    imports,
+    run,
+    prime,
+    close,
+    args,
+    program,
+    grant,
+    seed,
+    tempDir: platform?.tempDir,
+    core,
+  };
+}
+
+// --- REPL sessions ------------------------------------------------------
+
+// The Wasm module that a session's input imports earlier inputs' exports
+// from, and the session key of the memory (`hd_wasm::SESSION_MODULE`,
+// `MEMORY_KEY`).
+const SESSION_MODULE = "hd.s";
+const MEMORY_KEY = "hd.x";
+// The runtime globals every input shares (`hd_wasm::rt::runtime_globals`).
+const RUNTIME_GLOBALS = new Set(["rt.wake", "rt.fact", "rt.forbid", "rt.root", "rt.owner"]);
+
+// Whether an input's export is a session key (`hd_wasm::is_session_key`):
+// the memory, a function or a global; not the entry exports.
+export const isSessionKey = (name) =>
+  name === MEMORY_KEY || /^(inst|bind|rt|canon|wit|witf)\./.test(name);
+
+// Which journal row a call of an import writes (`Kind::record` in
+// hd_run_wasmtime): none for `hd:prim`, which answers from its arguments
+// alone, so a replay computes it again.
+function recordOf(module, name) {
+  if (module === "hd:prim") return "skip";
+  if (module === "hd:rt" && (name === "block" || name === "abort")) return name;
+  return name.endsWith(".finish") ? "finish" : "call";
+}
+
+// The imports whose first parameter is the length of the exchange buffer
+// bytes they read (`Kind::input`).
+const READS_ARGS = new Set([
+  "hd:TestRunner snapshot_check",
+  "hd:PropertyRunner show",
+  "hd:Process run.start",
+  "hd:Http send.start",
+  "hd:rt stderr",
+  "hd:rt stdout",
+  "hd:prim string_lower",
+  "hd:prim string_upper",
+  "hd:prim parse_f64",
+  "hd:Console write_line.start",
+  "hd:Env get",
+]);
+const NET_READS = { lookup: 0, connect: 1, listen: 1, bind_udp: 1, "TcpStream.write": 1 };
+
+// The parameter that holds the length of the exchange buffer bytes a call
+// reads, with its scalar parameters the call's request; null for none.
+function readsArgs(module, name) {
+  const method = name.endsWith(".start") ? name.slice(0, -".start".length) : null;
+  if (module === "hd:Net") return NET_READS[method] ?? (method === "UdpSocket.send_to" ? 2 : null);
+  if (module === "hd:FsRead" || module === "hd:FsWrite") return method === null ? null : 0;
+  return READS_ARGS.has(`${module} ${name}`) ? 0 : null;
+}
+
+// A reply value as a Wasm result of type `type`: a narrower integer keeps
+// its low bits.
+function resultOf(v, type) {
+  if (type === "i64") return BigInt.asIntN(64, BigInt(v));
+  if (type === "f64" || type === "f32") return Number(v);
+  return Number(BigInt.asIntN(32, BigInt(v)));
+}
+
+// A host import's reply as the journal holds it, from the JS value it
+// returned and its result types.
+function replyOf(ret, results) {
+  if (ret === undefined) return { tag: 0 };
+  if (Array.isArray(ret)) return { tag: 3, v: Number(ret[0]) | 0, w: Number(ret[1]) | 0 };
+  if (results[0] === "f64" || results[0] === "f32") {
+    const dv = new DataView(new ArrayBuffer(8));
+    dv.setFloat64(0, Number(ret), true);
+    return { tag: 2, v: dv.getBigUint64(0, true) };
+  }
+  return { tag: 1, v: typeof ret === "bigint" ? ret : BigInt(Math.trunc(Number(ret))) };
+}
+
+// The JS value of a served reply, for an import with result types
+// `results`.
+function servedValue(value, results) {
+  switch (value.tag) {
+    case 0:
+      return undefined;
+    case 1:
+      return resultOf(value.v, results[0]);
+    case 2: {
+      const dv = new DataView(new ArrayBuffer(8));
+      dv.setBigUint64(0, value.v, true);
+      return dv.getFloat64(0, true);
+    }
+    default:
+      return [resultOf(value.v, results[0]), resultOf(value.w, results[1])];
+  }
+}
+
+// The handle a `.finish` or `abort` names; no live one is negative.
+const handleParam = (args) => {
+  const h = Number(args[0]);
+  return Number.isInteger(h) && h >= 0 && h <= 0xffffffff ? h : 0xffffffff;
+};
+
+// A REPL session (repl-plan.md job W4): the instances of every input that
+// ran, sharing the first one's memory, as `hd_run_wasmtime`'s
+// `WasmtimeSession` holds them. `sink`, `env` and `layer` are
+// `createCoreHost`'s: one host serves every input.
+//
+// - `input(number, source, wasm)` runs the input module `wasm`, numbered
+//   `number`, of the text `source`, as `hd run` runs an entry: `hd.init`,
+//   then `hd.poll` and `hd.wake` until it ends. It imports the session
+//   keys of every earlier input that ended with status 0 from `hd.s`, and
+//   the host imports. It answers `{ status, end, joined, error }`: status
+//   0 joins the session, so the caller reports the outcome to the compiler
+//   (W3's repl-outcome request); a panicking input ends with status 3,
+//   its report on standard error. `error` names why a module cannot run;
+//   a module the host cannot link does not start (`end` null).
+// - After an input that did not end with status 0, the session drops the
+//   host operations it left pending and sets the runtime globals back to
+//   their initial values, so the next input starts as the first did
+//   (`cli.repl.panic`).
+// - The session records a journal of every input's host calls
+//   (journal.mjs) at the import call sites; `journal()` returns it, or null
+//   once it passed its cap. `rebuild(rebuilder, journal)` starts the
+//   instances again and replays the journal's inputs with every host result
+//   served from it (`cli.repl.host.once`) and nothing printed. It skips
+//   stopped and cancelled inputs (`cli.repl.rebuild.stopped`) and drops the
+//   first input that no longer builds or asks for what its record does not
+//   hold, with every later one (`cli.repl.rebuild.prefix`).
+//   `rebuilder.build(number)` returns `{ source, wasm }` (or throws the
+//   reason it no longer builds), and `rebuilder.replayed(number, joined)`
+//   hears each input replayed. It answers `{ kept, skipped, dropped,
+//   reason }`.
+// - `stop()` cancels the input that waits on the host: it calls the
+//   input's `hd.cancel`, so its `defer` suites run, and the input ends as
+//   a panicking input does, `cancelled` (`cli.repl.cancel`). An input that
+//   computes cannot hear it; the page terminates the worker and rebuilds.
+export function createSession(sink, env = {}, layer = null, options = {}) {
+  // Output is dropped while a rebuild replays (`cli.repl.host.once`).
+  let muted = false;
+  const host = createCoreHost(
+    {
+      out: (text) => muted || sink.out(text),
+      err: (text) => muted || sink.err(text),
+    },
+    env,
+    layer,
+  );
+  const { st, put, deadlock, flush } = host.core;
+  const execution = crypto.getRandomValues(new Uint8Array(16));
+  let recorder = new Recorder(options.journalCap ?? SESSION_CAP, execution);
+  let replay = null;
+  // The session keys of the inputs that ended with status 0, whether one
+  // of them is the memory, and the runtime globals among them.
+  let keys = {};
+  let memory = false;
+  let runtime = [];
+  // The host calls made, not served from a record.
+  let calls = 0;
+  // A stop request, the wait it ends, and how it ended the input.
+  let stopped = false;
+  let wakeWait = null;
+  let halt = null;
+
+  const handlesAt = (n) => {
+    const words = new DataView(st.memory.buffer);
+    return Array.from({ length: n }, (_, i) => words.getUint32(4 * i, true));
+  };
+  const handleBytes = (handles) => {
+    const out = new Uint8Array(4 * handles.length);
+    handles.forEach((h, i) => new DataView(out.buffer).setUint32(4 * i, h, true));
+    return out;
+  };
+  // A call's arguments as the journal holds them: its scalar parameters,
+  // then the exchange buffer bytes it reads.
+  const requestOf = (args, params, reads) => {
+    if (reads === null) return callArgs(args, params, null);
+    const len = Number(args[reads]);
+    if (!(len >= 0 && len <= st.memory.buffer.byteLength)) {
+      throw new HostContract("an argument length is past the exchange buffer");
+    }
+    return callArgs(args, params, new Uint8Array(st.memory.buffer, 0, len));
+  };
+  // Answers a call of a replayed input from its record; a call the record
+  // does not hold next throws `Diverged`, which ends the input.
+  const serve = (record, module, name, args, request) => {
+    switch (record) {
+      case "call":
+        return replay.call(module, name, request);
+      case "finish":
+        return replay.finish(handleParam(args));
+      case "abort":
+        replay.abort(handleParam(args));
+        return { value: { tag: 0 }, result: null };
+      default: {
+        const handles = replay.block();
+        // The first run's block found nothing pending either.
+        if (handles === null) deadlock();
+        const result = handles.length ? handleBytes(handles) : null;
+        return { value: { tag: 1, v: BigInt(handles.length) }, result };
+      }
+    }
+  };
+  // The import `module` `name` of type `type`, as a session calls it: the
+  // recorder and the replayer sit here, where every host call is made.
+  const site = (module, name, f, type) => {
+    const record = recordOf(module, name);
+    if (record === "skip") return f;
+    const reads = readsArgs(module, name);
+    const params = type?.params ?? [];
+    const results = type?.results ?? [];
+    // A replayed call is recorded again, so the new journal holds it.
+    const write = (args, request, value, result) => {
+      if (record === "call") recorder.call(module, name, request, value, result);
+      else if (record === "finish") recorder.finish(handleParam(args), value, result);
+      else if (record === "abort") recorder.abort(handleParam(args));
+      else recorder.block(handlesAt(Number(value.v)));
+    };
+    return (...args) => {
+      const request = record === "call" ? requestOf(args, params, reads) : null;
+      if (replay) {
+        const { value, result } = serve(record, module, name, args, request);
+        if (result) put(result);
+        write(args, request, value, result);
+        return servedValue(value, results);
+      }
+      calls += 1;
+      st.payload = null;
+      const ret = f(...args);
+      const value = replyOf(ret, results);
+      write(args, request, value, st.payload);
+      return ret;
+    };
+  };
+  const sites = new Map();
+
+  const driver = {
+    poll: () => {
+      recorder.poll();
+      replay?.poll();
+    },
+    replaying: () => replay !== null,
+    served: () => {
+      // A replayed input waits when its record wakes it next.
+      if (!replay.wakeNext()) deadlock();
+      const handles = replay.wake();
+      if (handles.length) put(handleBytes(handles));
+      return handles.length;
+    },
+    woke: (n) => recorder.wake(handlesAt(n)),
+    wait: (ms) =>
+      new Promise((resolve) => {
+        if (stopped) {
+          resolve();
+          return;
+        }
+        const timer = setTimeout(resolve, ms);
+        wakeWait = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+      }).finally(() => {
+        wakeWait = null;
+      }),
+    stopping: (cancels) => {
+      if (!stopped) return null;
+      stopped = false;
+      if (!cancels) {
+        halt = { kind: "stopped" };
+        return "stopped";
+      }
+      recorder.cancel();
+      halt = { kind: "cancelled" };
+      return "cancelled";
+    },
+  };
+
+  // After an input that did not end with status 0: drops the host
+  // operations it left pending, then sets every runtime global the inputs
+  // share back to its initial value.
+  const reset = () => {
+    st.ops.clear();
+    for (const g of runtime) {
+      const v = g.value;
+      g.value = typeof v === "bigint" ? 0n : typeof v === "number" ? 0 : null;
+    }
+  };
+  // Adds the session keys `instance` exports, for later inputs to import;
+  // every input exports the memory, and the first one's is the session's.
+  const add = (instance) => {
+    for (const [name, value] of Object.entries(instance.exports)) {
+      if (!isSessionKey(name) || (name === MEMORY_KEY && memory)) continue;
+      memory ||= name === MEMORY_KEY;
+      if (RUNTIME_GLOBALS.has(name) && !runtime.includes(value)) runtime.push(value);
+      keys[name] = value;
+    }
+  };
+
+  // Links an input's module: its host imports through their call sites,
+  // and its session imports from the keys so far. Null and the reason for
+  // a host import this host does not have.
+  const link = (module, wasm) => {
+    const types = importTypes(wasm);
+    const object = { [SESSION_MODULE]: keys };
+    for (const { module: m, name, kind } of WebAssembly.Module.imports(module)) {
+      if (m === SESSION_MODULE) continue;
+      const f = host.imports[m]?.[name];
+      if (kind !== "function" || typeof f !== "function") {
+        return { error: `the import \`${m}\` \`${name}\` is not in this host` };
+      }
+      const key = `${m}\0${name}`;
+      if (!sites.has(key)) sites.set(key, site(m, name, f, types.get(key)));
+      object[m] ??= {};
+      object[m][name] = sites.get(key);
+    }
+    return { object };
+  };
+
+  const runInput = async (number, source, wasm) => {
+    stopped = false;
+    halt = null;
+    let module;
+    try {
+      module = await WebAssembly.compile(wasm);
+    } catch (e) {
+      return { status: null, end: null, joined: false, error: String(e?.message ?? e) };
+    }
+    const { object, error } = link(module, wasm);
+    if (error) return { status: null, end: null, joined: false, error };
+    // A panic or standard error of an earlier input does not hide this
+    // one's internal error.
+    st.reported = false;
+    recorder.input(number, source, wasm);
+    let outcome;
+    try {
+      const instance = await WebAssembly.instantiate(module, object);
+      const { status, trapped } = await host.run(instance, "hd.init", "hd.poll", driver);
+      const end = halt ?? (trapped ? { kind: "trapped" } : { kind: "exit", status });
+      const joined = status === 0 && !trapped;
+      if (joined) add(instance);
+      outcome = { status, end, joined, error: null };
+    } catch (e) {
+      flush();
+      outcome = { status: null, end: { kind: "failed" }, joined: false };
+      outcome.error = String(e?.message ?? e);
+    }
+    if (!outcome.joined) reset();
+    recorder.end(outcome.end);
+    return outcome;
+  };
+
+  // Starts the instances again with a journal that starts as `journal`,
+  // over the same host; every input is forgotten.
+  const restart = (journal) => {
+    flush();
+    st.ops.clear();
+    st.reported = false;
+    st.memory = null;
+    recorder = journal;
+    replay = null;
+    muted = false;
+    keys = {};
+    memory = false;
+    runtime = [];
+  };
+
+  // Runs `input` again, of the text `source` built as `wasm`, with its host
+  // calls and wakes served from its record and its output dropped. Throws
+  // the divergence: it asked for what the record does not hold, or ended
+  // otherwise.
+  const replayInput = async (input, source, wasm) => {
+    replay = new Replay(input);
+    muted = true;
+    let outcome;
+    try {
+      outcome = await runInput(input.number, source, wasm);
+    } finally {
+      muted = false;
+    }
+    const served = replay;
+    replay = null;
+    if (outcome.end === null) throw new Error(`input ${input.number} cannot run: ${outcome.error}`);
+    served.end(outcome.end, input.end);
+    return outcome;
+  };
+
+  const rebuild = async (rebuilder, journal = recorder.journal()) => {
+    if (journal === null) {
+      throw new Error("the session's record of host calls is full, so it cannot be rebuilt");
+    }
+    const record = recorded(journal);
+    const cap = recorder.cap;
+    restart(new Recorder(cap, record.execution));
+    const rebuilt = { kept: [], skipped: [], dropped: [], reason: null };
+    const kept = [];
+    let ranAndDropped = false;
+    for (const [at, input] of record.inputs.entries()) {
+      if (input.end?.kind === "stopped" || input.end?.kind === "cancelled") {
+        rebuilt.skipped.push(input.number);
+        continue;
+      }
+      let built;
+      let outcome;
+      try {
+        built = await rebuilder.build(input.number);
+        if (!ran(input, built.source)) {
+          throw new Error(`input ${input.number} is not the text the session ran`);
+        }
+        ranAndDropped = true;
+        outcome = await replayInput(input, built.source, built.wasm);
+        ranAndDropped = false;
+      } catch (e) {
+        rebuilt.dropped = record.inputs.slice(at).map((i) => i.number);
+        rebuilt.reason = String(e?.message ?? e);
+        break;
+      }
+      await rebuilder.replayed?.(input.number, outcome.joined);
+      rebuilt.kept.push(input.number);
+      kept.push([input, built]);
+    }
+    if (ranAndDropped) {
+      restart(new Recorder(cap, record.execution));
+      for (const [input, { source, wasm }] of kept) {
+        try {
+          await replayInput(input, source, wasm);
+        } catch (e) {
+          throw new Error(`the rebuild did not repeat itself: ${e.message}`);
+        }
+      }
+    }
+    return rebuilt;
+  };
+
+  return {
+    input: runInput,
+    rebuild,
+    // A copy of the journal so far, or null once it passed its cap.
+    journal: () => recorder.journal()?.slice() ?? null,
+    setJournalCap: (cap) => recorder.setCap(cap),
+    // True once, after the input in which the journal passed its cap.
+    takeJournalNotice: () => recorder.takeNotice(),
+    stop: () => {
+      stopped = true;
+      wakeWait?.();
+    },
+    hostCalls: () => calls,
+    close: () => host.close(),
+  };
 }

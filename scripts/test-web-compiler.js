@@ -3,8 +3,9 @@
 // it), compiles a conformance fixture through the four exports (the
 // playground's own wire module, compiler-wire.ts), runs the
 // program with host/run.mjs as `hd run` on Node does, and checks its
-// stdout. Then a two-input REPL session through the REPL goals (built
-// only: linking and running them is the JS host's, W4). Then the size
+// stdout. Then a two-input REPL session through the REPL goals, each
+// module run in the JS host's session (host/core.mjs, W4) before its
+// outcome goes back to the compiler. Then the size
 // gate: an LTO build that shrinks (a panicking call such as
 // `Instant::now()` deletes everything after it) fails the floor.
 
@@ -25,6 +26,7 @@ import {
   encodeRequest,
 } from "../website/playground/src/compiler-wire.ts";
 import { COMPILER_WASM, formatBytes, sizes } from "./build-web-compiler.js";
+import { createNodeSession } from "../host/node.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURE = join(root, "spec", "conformance", "runtime", "valid", "println-console-stdout.hd");
@@ -94,13 +96,24 @@ const malformed = compile(exports, Uint8Array.of(1));
 assert.equal(malformed.status, STATUS.malformed);
 assert.deepEqual(malformed.json, { error: "request ends early" });
 
-// A REPL session: the prelude, then two inputs, each reported as joined.
+// A REPL session: the prelude, then two inputs, each run in the JS host's
+// session and reported as joined.
+let replOut = "";
+const session = createNodeSession({
+  out: (text) => {
+    replOut += text;
+  },
+  err: (text) => {
+    replOut += text;
+  },
+});
 const wasmMagic = [0, 0x61, 0x73, 0x6d];
 const prelude = compile(exports, encodeReplStart({ "src/lib.hd": "fn base() -> i32: +40\n" }));
 assert.equal(prelude.status, STATUS.ok, JSON.stringify(prelude.json));
 assert.equal(prelude.json.input, 0);
 assert.ok(prelude.json.sessionKeys.includes("hd.x"), "the prelude exports the memory");
 assert.deepEqual([...prelude.wasm.subarray(0, 4)], wasmMagic);
+assert.equal((await session.input(0, "", prelude.wasm)).joined, true);
 let keys = prelude.json.sessionKeys.length;
 const joined = compile(exports, encodeReplOutcome(0, OUTCOME.joined));
 assert.deepEqual(joined.json, { diagnostics: [], input: 0, joined: true });
@@ -113,8 +126,11 @@ for (const [n, text] of [
   assert.equal(input.json.input, n);
   assert.deepEqual([...input.wasm.subarray(0, 4)], wasmMagic);
   keys += input.json.sessionKeys.length;
+  assert.equal((await session.input(n, text, input.wasm)).joined, true, replOut);
   assert.equal(compile(exports, encodeReplOutcome(n, OUTCOME.joined)).status, STATUS.ok);
 }
+assert.equal(replOut, "84 : i32\n");
+session.close();
 const redeclared = compile(exports, encodeReplInput("n := 1\n"));
 assert.equal(redeclared.status, STATUS.errors);
 assert.equal(redeclared.json.diagnostics[0].path, "repl#3");

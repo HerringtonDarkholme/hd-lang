@@ -2,9 +2,9 @@
 // TypeScript side uses.
 
 import type { TestFiles } from "./cases.mjs";
-import type { CoreEnv, Host, Sink } from "./core.mjs";
+import type { CoreEnv, Host, Session, Sink } from "./core.mjs";
 
-export type { Host, Sink } from "./core.mjs";
+export type { Host, Session, Sink } from "./core.mjs";
 
 export interface BrowserRequest {
   method: string;
@@ -25,5 +25,11 @@ export function createWebHost(
   sink: Sink,
   env?: CoreEnv & { tempDir?: string | null; files?: TestFiles },
 ): Host;
+/** A REPL session in the browser, over the providers of `createWebHost`. */
+export function createWebSession(
+  sink: Sink,
+  env?: CoreEnv,
+  options?: { journalCap?: number },
+): Session;
 export function memoryFiles(): TestFiles;
 export function unboundTraits(module: WebAssembly.Module, host: Host): string[];
