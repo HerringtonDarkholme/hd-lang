@@ -18,6 +18,10 @@ pub struct WasmtimeInstance {
     instance: Option<wasmtime::Instance>,
     poll: Option<TypedFunc<i32, i32>>,
     wake: Option<TypedFunc<i32, ()>>,
+    /// `hd.cancel`, which only a session's input exports: a stop request
+    /// that arrives while the input waits on the host cancels its root
+    /// suspension through it (`cli.repl.cancel`).
+    cancel: Option<TypedFunc<(), ()>>,
     /// How the run ended, once it has.
     pub(crate) done: Option<Outcome>,
     /// A property keeps successful instances and their host state between bodies.
@@ -38,6 +42,7 @@ impl WasmtimeInstance {
             instance: None,
             poll: None,
             wake: None,
+            cancel: None,
             done: None,
             close_on_end: true,
             last_trapped: false,
@@ -87,10 +92,18 @@ impl WasmtimeInstance {
             ),
             None => None,
         };
+        let cancel = match instance.get_func(&mut *store, "hd.cancel") {
+            Some(f) => Some(
+                f.typed::<(), ()>(&*store)
+                    .map_err(|e| StartError::Engine(format!("`hd.cancel`: {e}")))?,
+            ),
+            None => None,
+        };
         self.init = Some(init);
         self.instance = Some(instance);
         self.poll = Some(poll);
         self.wake = wake;
+        self.cancel = cancel;
         self.done = None;
         self.last_trapped = false;
         self.last_frames.clear();
@@ -180,6 +193,36 @@ impl WasmtimeInstance {
             };
             host.err(&format!("internal error: {text}\n"));
         }
+        self.finish(Control::Trap {
+            close: self.close_on_end,
+        })
+    }
+
+    /// Ends the run after `error` from the host wait, where the root
+    /// suspension is pending and no Wasm runs. A session's stop request
+    /// then cancels the root (`cli.repl.cancel`), so its `defer` suites
+    /// run, and the input ends as a panicking input does, reported as
+    /// `cancelled`. Any other error, or a stop of a module without
+    /// `hd.cancel`, is a trap.
+    fn interrupted(&mut self, error: &wasmtime::Error) -> Outcome {
+        let Some(cancel) = self
+            .cancel
+            .clone()
+            .filter(|_| matches!(error.downcast_ref::<Stop>(), Some(Stop::Interrupted)))
+        else {
+            return self.trapped(error);
+        };
+        // The request is spent on this cancel: the `defer` suites it runs
+        // may call the host. Another request during them stops them.
+        if let Some(flag) = &self.store.data().interrupt {
+            flag.store(false, std::sync::atomic::Ordering::Relaxed);
+        }
+        if let Err(error) = cancel.call(&mut self.store, ()) {
+            return self.trapped(&error);
+        }
+        self.last_trapped = true;
+        self.last_frames.clear();
+        self.store.data_mut().err("cancelled\n");
         self.finish(Control::Trap {
             close: self.close_on_end,
         })
@@ -280,7 +323,7 @@ impl Instance for WasmtimeInstance {
                 Ok(handles) => return handles,
                 // The run is over; the next poll returns how.
                 Err(e) => {
-                    self.trapped(&e);
+                    self.interrupted(&e);
                     return vec![0];
                 }
             }
@@ -288,7 +331,7 @@ impl Instance for WasmtimeInstance {
                 Ok(true) => {}
                 Ok(false) => return Vec::new(),
                 Err(error) => {
-                    self.trapped(&error);
+                    self.interrupted(&error);
                     return vec![0];
                 }
             }

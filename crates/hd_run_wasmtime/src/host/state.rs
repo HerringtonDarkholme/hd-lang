@@ -221,7 +221,9 @@ impl Host {
     /// Waits for the next completion; `false` when nothing is pending.
     pub fn wait(&self) -> wasmtime::Result<bool> {
         self.check_deadline()?;
-        let waiting = self.reactor.wait_until(self.deadline);
+        let waiting = self
+            .reactor
+            .wait_until(self.deadline, self.interrupt.as_deref());
         self.check_deadline()?;
         Ok(waiting)
     }

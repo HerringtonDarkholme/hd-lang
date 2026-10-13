@@ -5,18 +5,17 @@
 //!
 //! Two threads share the work. The main thread reads inputs at the prompt
 //! ([`Lines`]: rustyline on a terminal, a script in tests) and waits while
-//! an input runs; Ctrl-C then stops the input through its session's
-//! [`Stopper`] (`cli.repl.stop`). The session thread, with the stack a
+//! an input runs; Ctrl-C then interrupts the input through its session's
+//! [`Stopper`]: an input that computes is stopped (`cli.repl.stop`), and
+//! one that waits on the host is cancelled at once, running its `defer`
+//! suites (`cli.repl.cancel`). The session picks which by the input's
+//! state. The session thread, with the stack a
 //! guest needs, owns the [`WasmtimeSession`]: it builds and runs the
 //! session's prelude first, while the prompt already waits for the first
 //! line, then builds each input as `repl#N` with `Goal::ReplInput` and runs
 //! it. An input that ends with status 0 joins the session; one that fails
 //! to build, panics or is stopped adds nothing (`cli.repl.panic.binding`,
 //! `cli.repl.panic.declarations`).
-//!
-//! Interrupting an input that waits on the host (`cli.repl.cancel`, job
-//! S3) is not done yet: Ctrl-C during a host wait stops the input at its
-//! next host call or epoch tick, which may be after the wait ends.
 
 use std::io::Write;
 use std::process::ExitCode;
@@ -117,9 +116,9 @@ pub(crate) fn command() -> ExitCode {
         diags: Box::new(std::io::stderr()),
     };
     // Ctrl-C reaches the process as SIGINT only while an input runs: at the
-    // prompt the line editor reads it as a key. The handler stops the input
-    // that runs and never ends the process; a stop while none runs is
-    // dropped when the next input starts.
+    // prompt the line editor reads it as a key. The handler stops or
+    // cancels the input that runs and never ends the process; a stop while
+    // none runs is dropped when the next input starts.
     let on_start = |stopper: Stopper| {
         if let Err(e) = ctrlc::set_handler(move || stopper.stop()) {
             eprintln!("warning: Ctrl-C cannot stop an input: {e}");
@@ -433,8 +432,8 @@ impl Repl {
                 self.built.add(added);
                 true
             }
-            // A panic or a stop, reported by the session, or a program's
-            // own exit status.
+            // A panic, a stop or a cancel, reported by the session, or a
+            // program's own exit status.
             Ok(Outcome::Exit(_)) => false,
             Ok(Outcome::Panic(p)) => {
                 let _ = writeln!(diags, "panic: {}: {}", p.category, p.message);

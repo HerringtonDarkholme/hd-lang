@@ -16,6 +16,14 @@
 //! calls are never made again (`cli.repl.host.once`). The session resets
 //! the runtime state a panic can leave set, so the next input starts as
 //! the first did (`cli.repl.panic`).
+//!
+//! A `Stopper` interrupts the input that runs (job S2 and S3). While Wasm
+//! runs, the input traps at the next epoch tick or host call and is
+//! `stopped` (`cli.repl.stop`). While it waits on the host, the wait wakes
+//! at once and the session calls the input's `hd.cancel`, which cancels
+//! its root suspension by `req.cancel.steps`: its `defer` suites run and
+//! it is `cancelled` (`cli.repl.cancel`). Either way it then ends as a
+//! panicking input does, and the host operations it left are dropped.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -29,6 +37,7 @@ use crate::engine::{EngineConfig, WasmtimeEngine, new_store};
 use crate::host::{Host, HostIo, Stop, define_session, supported, unsupported_message};
 use crate::instance::WasmtimeInstance;
 use crate::profiles::RuntimeProfile;
+use crate::reactor::Waker;
 use crate::{cache, limits};
 
 /// A REPL session: the instances of every input that ran, in one store.
@@ -49,22 +58,29 @@ pub struct WasmtimeSession {
     runtime: Vec<Global>,
     config: EngineConfig,
     profile: RuntimeProfile,
-    /// Set by a `Stopper`; the store's epoch callback reads it.
+    /// Set by a `Stopper`; the store's epoch callback, every host call and
+    /// the host's wait read it.
     flag: Arc<AtomicBool>,
 }
 
-/// Stops the input a `WasmtimeSession` is running (`cli.repl.stop`). It is
-/// `Send + Sync` and cheap to clone, for a Ctrl-C handler on another
-/// thread. The running input traps at the next epoch tick (about ten
-/// milliseconds) or host call and ends as a panicking input does, reported
-/// as `stopped`. A stop while no input runs does nothing: the flag clears
-/// when the next input starts.
+/// Interrupts the input a `WasmtimeSession` is running. It is `Send +
+/// Sync` and cheap to clone, for a Ctrl-C handler on another thread. An
+/// input that computes traps at the next epoch tick (about ten
+/// milliseconds) or host call, reported as `stopped` (`cli.repl.stop`).
+/// An input that waits on the host is cancelled at once, its `defer`
+/// suites run, reported as `cancelled` (`cli.repl.cancel`). Either way it
+/// ends as a panicking input does. A stop while no input runs does
+/// nothing: the flag clears when the next input starts.
 #[derive(Clone)]
-pub struct Stopper(Arc<AtomicBool>);
+pub struct Stopper {
+    flag: Arc<AtomicBool>,
+    waker: Waker,
+}
 
 impl Stopper {
     pub fn stop(&self) {
-        self.0.store(true, Ordering::Relaxed);
+        self.flag.store(true, Ordering::Relaxed);
+        self.waker.wake();
     }
 }
 
@@ -154,10 +170,20 @@ impl WasmtimeSession {
         Ok(outcome)
     }
 
-    /// A handle that stops the running input from another thread.
+    /// Whether a host operation is pending in the session's reactor.
+    #[cfg(test)]
+    pub(crate) fn pending(&self) -> bool {
+        self.run.store.data().waiting()
+    }
+
+    /// A handle that stops or cancels the running input from another
+    /// thread.
     #[must_use]
     pub fn stopper(&self) -> Stopper {
-        Stopper(Arc::clone(&self.flag))
+        Stopper {
+            flag: Arc::clone(&self.flag),
+            waker: self.run.store.data().reactor.waker(),
+        }
     }
 
     /// Compiles an input, or names the first import that does not run on
@@ -210,15 +236,22 @@ impl WasmtimeSession {
         Ok(())
     }
 
-    /// After an input that did not end with status 0: sets every runtime
-    /// global the session's inputs share back to its initial value. A
-    /// panic can leave them set: the forbidden-context counter after a
-    /// panic inside `defer` or a facts body (so the next input's `println`
-    /// would panic), the facts label, the entry's root suspension and the
-    /// wake table. Before the first input that ends with status 0 there are
-    /// none: the next input defines its own.
+    /// After an input that did not end with status 0: drops the host
+    /// operations it left pending, a panicking or stopped input's or a
+    /// timer a cancel did not abort, so none wakes a later input or hides
+    /// its deadlock. Inputs run one at a time and one that ends with
+    /// status 0 has finished every operation it started, so each one left
+    /// is this input's.
+    ///
+    /// Then sets every runtime global the session's inputs share back to
+    /// its initial value. A panic can leave them set: the forbidden-context
+    /// counter after a panic inside `defer` or a facts body (so the next
+    /// input's `println` would panic), the facts label, the entry's root
+    /// suspension and the wake table. Before the first input that ends with
+    /// status 0 there are none: the next input defines its own.
     fn reset(&mut self) -> Result<(), String> {
         let store = &mut self.run.store;
+        store.data_mut().reactor.drop_all();
         for global in &self.runtime {
             let ty = global.ty(&*store);
             let initial = Val::default_for_ty(ty.content())

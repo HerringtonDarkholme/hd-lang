@@ -414,8 +414,8 @@ pub enum Helper {
     /// `hd.wake(n)`: marks the completed handles.
     EntryWake,
     /// `hd.cancel`: cancels the entry's pending root suspension through
-    /// its `$Task` prefix, as `Suspend.cancel` does; a scenario-only
-    /// export, and a no-op when no root is pending.
+    /// its `$Task` prefix, as `Suspend.cancel` does; a no-op when no root
+    /// is pending. Only scenario builds and REPL inputs export it.
     EntryCancel,
     /// `hd.scenario.cleanup`: calls the scenario's top-level cleanup
     /// function in the same instance; its `bool` comes back as an `i32`.

@@ -8,6 +8,7 @@
 
 use std::collections::{BTreeMap, VecDeque};
 use std::io::BufRead;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Sender, channel};
 use std::sync::{Arc, Condvar, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
@@ -55,6 +56,19 @@ pub struct Op {
 struct Inbox {
     lines: Mutex<VecDeque<Line>>,
     ready: Condvar,
+}
+
+/// Wakes a reactor's wait from another thread, for a session's stop
+/// request: the waiter then reads the request's flag, which `wait_until`
+/// checks under the same lock, so the wake is never lost.
+#[derive(Clone)]
+pub struct Waker(Arc<Inbox>);
+
+impl Waker {
+    pub fn wake(&self) {
+        let _lines = self.0.lines.lock().unwrap_or_else(PoisonError::into_inner);
+        self.0.ready.notify_all();
+    }
 }
 
 pub struct Reactor {
@@ -250,11 +264,18 @@ impl Reactor {
     /// is pending, a deadlock.
     #[cfg(test)]
     pub fn wait(&self) -> bool {
-        self.wait_until(None)
+        self.wait_until(None, None)
     }
 
-    /// Like `wait`, but wakes no later than the program's wall deadline.
-    pub fn wait_until(&self, limit: Option<Instant>) -> bool {
+    /// The handle that wakes `wait_until` from another thread.
+    pub fn waker(&self) -> Waker {
+        Waker(Arc::clone(&self.inbox))
+    }
+
+    /// Like `wait`, but wakes no later than the program's wall deadline,
+    /// and at once when `interrupt` is set, before or during the wait, by
+    /// a thread that then uses `waker`.
+    pub fn wait_until(&self, limit: Option<Instant>, interrupt: Option<&AtomicBool>) -> bool {
         if !self.waiting() {
             return false;
         }
@@ -269,7 +290,7 @@ impl Reactor {
             .lines
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
-        if !lines.is_empty() {
+        if !lines.is_empty() || interrupt.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
             return true;
         }
         // The guard is dropped as soon as the wait ends; a spurious wakeup
@@ -298,6 +319,15 @@ impl Reactor {
     pub fn remove(&mut self, h: i32) -> Option<Op> {
         self.reads.retain(|r| *r != h);
         self.ops.remove(&h)
+    }
+
+    /// Ends every operation, as `abort` ends one: a session's input that
+    /// did not end with status 0 may leave some, and none of them may wake
+    /// a later input or keep its wait from being a deadlock. A line already
+    /// asked of the reader thread is kept for the next read.
+    pub fn drop_all(&mut self) {
+        self.reads.clear();
+        self.ops.clear();
     }
 }
 

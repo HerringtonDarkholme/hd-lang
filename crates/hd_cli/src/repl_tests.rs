@@ -365,6 +365,64 @@ fn a_stopped_input_ends_and_the_session_goes_on() {
     assert_eq!(t.out, "stopped\n8 : usize\n");
 }
 
+/// `cli.repl.cancel`: Ctrl-C while an input waits on the host cancels it
+/// at once; its `defer` runs, it ends as a panicking input does, and the
+/// next input sees what the `defer` changed.
+#[test]
+fn a_waiting_input_is_cancelled_and_the_session_goes_on() {
+    use std::sync::atomic::{AtomicU8, Ordering};
+    use std::time::{Duration, Instant};
+    // 1 once the waiting input is sent, 2 once the next input is read.
+    let phase = Arc::new(AtomicU8::new(0));
+    let mut script = Script::of(&[
+        "use std.time.{sleep, Duration}",
+        "let log: mut List[string] = []",
+        "fn nap!() -> void:",
+        "    defer:",
+        "        log.push(\"cleanup\")",
+        "    sleep!(Duration.seconds(+30))",
+        "",
+        "nap!()",
+        "log",
+    ]);
+    let seen = Arc::clone(&phase);
+    script.on_line = Some(Box::new(move |line: &str| match line {
+        "nap!()" => seen.store(1, Ordering::SeqCst),
+        "log" => {
+            seen.store(2, Ordering::SeqCst);
+            // Past the stopping thread's last stop, which the next input's
+            // start clears.
+            std::thread::sleep(Duration::from_millis(300));
+        }
+        _ => {}
+    }));
+    let dir = Scratch::new(SCRATCH, "repl-cancel");
+    let mut stopping = None;
+    let started = Instant::now();
+    let t = session_in(&dir, script, |stopper| {
+        // Ctrl-C while the input waits, as the handler calls it: a stop
+        // before the input starts is dropped, so it repeats.
+        stopping = Some(std::thread::spawn(move || {
+            while phase.load(Ordering::SeqCst) < 2 {
+                if phase.load(Ordering::SeqCst) == 1 {
+                    stopper.stop();
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+        }));
+    });
+    stopping
+        .expect("started")
+        .join()
+        .expect("the stopping thread");
+    assert!(
+        started.elapsed() < Duration::from_secs(20),
+        "the prompt waited for the timer: {:?}",
+        started.elapsed()
+    );
+    assert_eq!(t.out, "cancelled\n[\"cleanup\"] : List[string]\n");
+}
+
 /// `cli.repl.host.once`: an input's host calls happen once, when it runs;
 /// a later input that calls an earlier one's function repeats none.
 #[test]

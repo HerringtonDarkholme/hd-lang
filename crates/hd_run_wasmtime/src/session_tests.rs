@@ -63,6 +63,27 @@ impl Repl<'_> {
     /// that ends with status 0 joins the session; one that panics leaves
     /// it as it was (`cli.repl.panic.binding`).
     fn input(&mut self, text: &str) -> Outcome {
+        let built = self.build(text);
+        self.run(built)
+    }
+
+    /// Builds `text` as the next input, then runs it while another thread
+    /// stops it `ms` milliseconds after it starts.
+    fn input_stopped_after(&mut self, text: &str, stopper: &crate::Stopper, ms: u64) -> Outcome {
+        let built = self.build(text);
+        let stopper = stopper.clone();
+        let handle = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(ms));
+            stopper.stop();
+        });
+        let outcome = self.run(built);
+        handle.join().expect("the stopping thread");
+        outcome
+    }
+
+    /// Builds the next input over the earlier ones: its file, its module
+    /// and what it adds to the session.
+    fn build(&mut self, text: &str) -> (String, Vec<u8>, hd_driver::Session) {
         self.next += 1;
         let n = self.next;
         let file = hd_project::repl_file(n);
@@ -83,10 +104,15 @@ impl Repl<'_> {
         let out = hd_driver::build_packages(&host, "app", &packages, &goal);
         assert!(out.diags.is_empty(), "{file}: {}", out.render());
         let wasm = out.wasm.expect("a module");
+        let added = out.session_added.expect("what the input adds");
+        (file, wasm, added)
+    }
+
+    /// Runs a built input. One that ends with status 0 joins the session.
+    fn run(&mut self, (file, wasm, added): (String, Vec<u8>, hd_driver::Session)) -> Outcome {
         let outcome = self.session.run_input(&wasm).expect("the input runs");
         if outcome == Outcome::Exit(0) {
-            self.built
-                .add(out.session_added.expect("what the input adds"));
+            self.built.add(added);
         } else {
             self.files.retain(|p| p != file);
         }
@@ -385,7 +411,9 @@ cleanup([+1])
 }
 
 /// `cli.repl.stop`: a loop input stopped from another thread ends as a
-/// panicking input does; earlier values stay and the next input runs.
+/// panicking input does; earlier values stay and the next input runs. It
+/// computes, so it is stopped, not cancelled, though its module exports
+/// `hd.cancel`.
 #[test]
 fn a_stopped_loop_input_ends_and_the_session_goes_on() {
     with_session(|session, io| {
@@ -396,18 +424,128 @@ fn a_stopped_loop_input_ends_and_the_session_goes_on() {
         stopper.stop();
         assert_eq!(repl.input("println(kept)\n"), Outcome::Exit(0));
         assert_eq!(text(&io.out), "7\n");
-        let handle = std::thread::spawn({
-            let stopper = stopper.clone();
-            move || {
-                std::thread::sleep(std::time::Duration::from_millis(300));
-                stopper.stop();
-            }
-        });
-        assert_eq!(repl.input("while true:\n    pass\n"), Outcome::Exit(3));
-        handle.join().expect("the stopping thread");
+        assert_eq!(
+            repl.input_stopped_after("while true:\n    pass\n", &stopper, 300),
+            Outcome::Exit(3)
+        );
         assert_eq!(text(&io.err), "stopped\n");
         assert_eq!(repl.input("println(kept + 1)\n"), Outcome::Exit(0));
         assert_eq!(text(&io.out), "8\n");
         assert_eq!(text(&io.err), "");
+    });
+}
+
+/// `cli.repl.cancel`: an input that waits on the host is cancelled at
+/// once by `req.cancel.steps`, so its `defer` runs; it ends as a
+/// panicking input does: it adds no declaration, its `defer`'s change to
+/// an earlier binding stays (`cli.repl.panic.mutations`), and the next
+/// input runs.
+#[test]
+fn a_waiting_input_is_cancelled_and_its_defer_runs() {
+    let nap = "\
+fn nap!() -> void:
+    defer:
+        log.push(\"cleanup\")
+    sleep!(Duration.seconds(+30))
+
+nap!()
+";
+    with_session(|session, io| {
+        let stopper = session.stopper();
+        let mut repl = repl(session);
+        for input in [
+            "use std.time.{sleep, Duration}\n",
+            "let log: mut List[string] = []\n",
+        ] {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        let started = std::time::Instant::now();
+        assert_eq!(
+            repl.input_stopped_after(nap, &stopper, 200),
+            Outcome::Exit(3)
+        );
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(10),
+            "the cancel waited for the timer: {:?}",
+            started.elapsed()
+        );
+        assert_eq!(text(&io.err), "cancelled\n");
+        // `nap` was not declared (`cli.repl.panic.declarations`).
+        assert_eq!(
+            repl.input("fn nap() -> string:\n    log.join(\", \")\n"),
+            Outcome::Exit(0),
+            "{}",
+            text(&io.err)
+        );
+        assert_eq!(repl.input("println(nap())\n"), Outcome::Exit(0));
+        assert_eq!(text(&io.out), "cleanup\n");
+        assert_eq!(text(&io.err), "");
+    });
+}
+
+/// A cancelled input's timer goes with it: it does not wake a later
+/// input's own `sleep!`, which still lasts its whole duration.
+#[test]
+fn a_cancelled_input_leaves_no_timer_behind() {
+    with_session(|session, io| {
+        let stopper = session.stopper();
+        let mut repl = repl(session);
+        assert_eq!(
+            repl.input("use std.time.{sleep, Duration}\n"),
+            Outcome::Exit(0),
+            "{}",
+            text(&io.err)
+        );
+        let cancelled = std::time::Instant::now();
+        assert_eq!(
+            repl.input_stopped_after("sleep!(Duration.milliseconds(+1500))\n", &stopper, 100),
+            Outcome::Exit(3)
+        );
+        assert_eq!(text(&io.err), "cancelled\n");
+        assert!(!repl.session.pending(), "the cancelled timer is pending");
+        // The cancelled timer would be due during this input's wait.
+        let started = std::time::Instant::now();
+        assert_eq!(
+            repl.input("sleep!(Duration.milliseconds(+2000))\nprintln(\"woke\")\n"),
+            Outcome::Exit(0),
+            "{}",
+            text(&io.err)
+        );
+        let slept = started.elapsed();
+        assert!(
+            started.duration_since(cancelled) < std::time::Duration::from_millis(1500),
+            "the second input started after the first's timer was due"
+        );
+        assert!(
+            slept >= std::time::Duration::from_secs(2),
+            "woken early: {slept:?}"
+        );
+        assert_eq!(text(&io.out), "woke\n");
+        assert_eq!(text(&io.err), "");
+    });
+}
+
+/// An input that panics while its timer is pending leaves no host
+/// operation behind, which could wake a later input or keep its wait from
+/// being a deadlock.
+#[test]
+fn a_panicking_input_leaves_no_operation_pending() {
+    let input = "\
+use std.task.{all}
+use std.time.{sleep, Duration}
+
+fn boom!() -> void:
+    _ := [+1][3]
+
+all!(sleep(Duration.seconds(+30)), boom())
+";
+    with_session(|session, io| {
+        let mut repl = repl(session);
+        assert_eq!(repl.input(input), Outcome::Exit(3));
+        assert_eq!(
+            text(&io.err),
+            "panic: index-out-of-bounds: list index out of bounds\n"
+        );
+        assert!(!repl.session.pending(), "the timer is still pending");
     });
 }

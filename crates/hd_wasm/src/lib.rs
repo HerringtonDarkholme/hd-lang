@@ -1380,6 +1380,14 @@ pub fn link(
     let mut gsyms: BTreeSet<GSym> = BTreeSet::new();
     // The instances and parts the code calls or takes a reference to.
     let mut calls: BTreeSet<Sym> = BTreeSet::new();
+    // A session module also exports `hd.cancel`, which cancels its entry's
+    // root suspension when the host interrupts a wait (`cli.repl.cancel`).
+    // A program never exports it.
+    let cancel = [("hd.cancel".to_owned(), Helper::EntryCancel)];
+    let exports: Vec<&(String, Helper)> = exports
+        .iter()
+        .chain(cancel.iter().filter(|_| ext.is_some()))
+        .collect();
     // `hd.wake` joins the exports only when the program can wait on a host
     // handle, that is, when `WakeTake` is reachable from its code; a program
     // that never suspends links no wake runtime (suspension.md §14.4).
@@ -1443,7 +1451,7 @@ pub fn link(
         todo.push(Helper::EntryWake);
     }
     let exports: Vec<&(String, Helper)> = exports
-        .iter()
+        .into_iter()
         .filter(|e| e.1 != Helper::EntryWake || wakes)
         .collect();
     // A session's first module owns every runtime global; a later module
@@ -2027,16 +2035,23 @@ mod tests {
         let bind = global_key(&g);
         assert_eq!(fa, format!("inst.{:032x}", 0xa));
         assert_eq!(bind, format!("bind.{:032x}.0", 0x9));
-        // The first module owns memory and the runtime globals.
+        // The first module owns memory and the runtime globals. Every
+        // session module exports `hd.cancel` (`cli.repl.cancel`).
         let (imports, exports) = imports_exports(&wa);
         assert!(imports.is_empty(), "{imports:?}");
-        let mut want = vec![MEMORY_KEY.to_owned(), fa.clone(), bind.clone()];
+        let mut want = vec![
+            MEMORY_KEY.to_owned(),
+            fa.clone(),
+            bind.clone(),
+            "hd.cancel".to_owned(),
+        ];
         want.extend(rt::runtime_globals().iter().map(global_key));
         let mut got = exports.clone();
         got.sort();
         want.sort();
         assert_eq!(got, want);
-        // A later module imports them and exports only what it defines.
+        // A later module imports them, and the root its `hd.cancel` reads,
+        // and exports only what it defines.
         let (imports, exports) = imports_exports(&wb);
         assert_eq!(
             imports,
@@ -2044,9 +2059,10 @@ mod tests {
                 format!("{SESSION_MODULE}/{fa}"),
                 format!("{SESSION_MODULE}/{MEMORY_KEY}"),
                 format!("{SESSION_MODULE}/{bind}"),
+                format!("{SESSION_MODULE}/{}", global_key(&rt::root_global())),
             ]
         );
-        assert_eq!(exports, [MEMORY_KEY.to_owned(), fb]);
+        assert_eq!(exports, ["hd.cancel".to_owned(), MEMORY_KEY.to_owned(), fb]);
     }
 
     #[test]
