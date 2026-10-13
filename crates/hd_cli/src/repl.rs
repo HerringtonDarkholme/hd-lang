@@ -16,8 +16,17 @@
 //! it. An input that ends with status 0 joins the session; one that fails
 //! to build, panics or is stopped adds nothing (`cli.repl.panic.binding`,
 //! `cli.repl.panic.declarations`).
+//!
+//! `:reload` reads the session's scope from disk again and rebuilds the
+//! session over it from its journal (`cli.repl.rebuild`,
+//! `WasmtimeSession::rebuild`): each input is built again from its text
+//! and run again with its host calls served from the journal. The inputs
+//! that still build and replay are kept; the REPL reports each stopped
+//! input the rebuild skipped and the first input it dropped.
 
+use std::collections::{BTreeMap, HashMap};
 use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::mpsc;
 use std::time::Instant;
@@ -25,7 +34,7 @@ use std::time::Instant;
 use hd_cache::DiskStore;
 use hd_driver::{BuildProfile, Goal, Host};
 use hd_run::{HostSetup, Outcome};
-use hd_run_wasmtime::{EngineConfig, HostIo, Stopper, WasmtimeEngine, WasmtimeSession};
+use hd_run_wasmtime::{EngineConfig, HostIo, Rebuilder, Stopper, WasmtimeEngine, WasmtimeSession};
 
 use crate::{HD_FAILURE, Wall, disk, report};
 
@@ -42,6 +51,7 @@ Type a declaration, a statement or an expression; an expression shows its value 
 An input continues while it is incomplete, after a `:` header or an open bracket;
 an empty line ends it.
   :help         this text
+  :reload       read the package's files again and rebuild the session over them
   :quit, :q     end the session (also Ctrl-D at an empty prompt)
 Ctrl-C clears the line, or stops the input that runs.
 ";
@@ -52,6 +62,14 @@ Ctrl-C clears the line, or stops the input that runs.
 /// goes on.
 const JOURNAL_FULL: &str =
     "note: the session's record of host calls is full, so this session can no longer be rebuilt";
+
+/// What the prompt hands the session thread.
+enum Request {
+    /// An input's text, its lines joined.
+    Input(String),
+    /// `:reload`: the package's files changed on disk.
+    Reload,
+}
 
 /// What reading one line at a prompt gave.
 #[derive(Debug, PartialEq, Eq)]
@@ -132,26 +150,29 @@ pub(crate) fn command() -> ExitCode {
         }
     };
     let cap = hd_run::journal::SESSION_CAP;
-    match run(&mut Editor(editor), program, streams, cap, on_start) {
+    match run(&mut Editor(editor), &cwd, program, streams, cap, on_start) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => crate::fail(&e),
     }
 }
 
 /// The session loop: reads inputs from `lines` until its end or `:quit`,
-/// and runs each in a session over `program`, whose journal holds at most
-/// `journal_cap` bytes. `on_start` gets the session's stopper before the
+/// and runs each in a session over `program`, loaded from `cwd`, whose
+/// journal holds at most `journal_cap` bytes. `:reload` loads the session's
+/// scope from `cwd` again. `on_start` gets the session's stopper before the
 /// first input. `Err` is a session that could not start or whose thread
 /// ended.
 pub(crate) fn run(
     lines: &mut dyn Lines,
+    cwd: &Path,
     program: disk::Program,
     streams: Streams,
     journal_cap: usize,
     on_start: impl FnOnce(Stopper),
 ) -> Result<(), String> {
     let config = EngineConfig::pipeline(false);
-    let (send_input, inputs) = mpsc::channel::<String>();
+    let cwd = cwd.to_path_buf();
+    let (send_input, inputs) = mpsc::channel::<Request>();
     let (send_done, done) = mpsc::channel::<()>();
     let (send_start, started) = mpsc::channel::<Result<Stopper, String>>();
     let thread = std::thread::Builder::new()
@@ -160,6 +181,7 @@ pub(crate) fn run(
         .spawn(move || {
             serve(
                 config,
+                cwd,
                 program,
                 journal_cap,
                 streams,
@@ -174,8 +196,8 @@ pub(crate) fn run(
         .map_err(|_| "the session thread ended".to_owned())??;
     on_start(stopper);
     let mut result = Ok(());
-    while let Some(text) = read_input(lines) {
-        if send_input.send(text).is_err() || done.recv().is_err() {
+    while let Some(request) = read_input(lines) {
+        if send_input.send(request).is_err() || done.recv().is_err() {
             result = Err("the session ended".to_owned());
             break;
         }
@@ -188,9 +210,9 @@ pub(crate) fn run(
     result
 }
 
-/// Reads the next input to run: its lines, joined. An empty input and a
-/// command are handled here. `None` ends the session.
-fn read_input(lines: &mut dyn Lines) -> Option<String> {
+/// Reads the next input to run, its lines joined, or `:reload`. An empty
+/// input and the other commands are handled here. `None` ends the session.
+fn read_input(lines: &mut dyn Lines) -> Option<Request> {
     loop {
         let first = match lines.read(PROMPT, "") {
             Line::Text(text) => text,
@@ -207,6 +229,7 @@ fn read_input(lines: &mut dyn Lines) -> Option<String> {
                 print!("{HELP}");
                 continue;
             }
+            ":reload" => return Some(Request::Reload),
             _ => {}
         }
         let mut text = first;
@@ -229,7 +252,7 @@ fn read_input(lines: &mut dyn Lines) -> Option<String> {
             }
         };
         if ended {
-            return Some(text);
+            return Some(Request::Input(text));
         }
     }
 }
@@ -310,11 +333,12 @@ fn continuation_indent(text: &str) -> String {
 /// runs each input that arrives, answering on `done` after each.
 fn serve(
     config: EngineConfig,
+    cwd: PathBuf,
     program: disk::Program,
     journal_cap: usize,
     streams: Streams,
     started: &mpsc::Sender<Result<Stopper, String>>,
-    inputs: &mpsc::Receiver<String>,
+    inputs: &mpsc::Receiver<Request>,
     done: &mpsc::Sender<()>,
 ) {
     let Streams { io, mut diags } = streams;
@@ -345,13 +369,16 @@ fn serve(
             return;
         }
     };
-    let mut repl = Repl::new(session, program);
+    let mut repl = Repl::new(session, cwd, program);
     if let Err(e) = repl.start() {
         let _ = writeln!(diags, "error: the session's prelude: {e}");
         return;
     }
-    for text in inputs {
-        repl.input(&text, &mut *diags);
+    for request in inputs {
+        match request {
+            Request::Input(text) => repl.input(&text, &mut *diags),
+            Request::Reload => repl.reload(&mut *diags),
+        }
         let _ = diags.flush();
         if done.send(()).is_err() {
             return;
@@ -364,40 +391,94 @@ fn serve(
 struct Repl {
     session: WasmtimeSession,
     built: hd_driver::Session,
+    /// Where the session started, which `:reload` loads its scope from.
+    cwd: PathBuf,
     program: disk::Program,
     store: DiskStore,
     /// The number of the last input read (`repl#N`).
     next: u32,
+    /// The text of each input that ran, the prelude as input 0, which a
+    /// rebuild builds again.
+    texts: BTreeMap<u32, String>,
+}
+
+/// Builds the session's prelude, or reads it from the cache.
+fn build_prelude(program: &disk::Program, store: &DiskStore) -> hd_driver::Output {
+    let clock = Wall(Instant::now());
+    let host = Host {
+        render_tir: &[],
+        sources: &program.sources,
+        store,
+        clock: &clock,
+        executor: crate::executor(),
+    };
+    hd_driver::build_repl_prelude(&host, BuildProfile::Checked)
+}
+
+/// Builds the input `number`, whose file is in `program`'s sources, over
+/// the session `built`, and writes its diagnostics, named
+/// `repl#N:LINE:COL`, to `diags`. `None` when it does not build.
+fn build_input(
+    program: &disk::Program,
+    store: &DiskStore,
+    built: &hd_driver::Session,
+    number: u32,
+    diags: &mut dyn Write,
+) -> Option<(Vec<u8>, hd_driver::Session)> {
+    let clock = Wall(Instant::now());
+    let host = Host {
+        render_tir: &[],
+        sources: &program.sources,
+        store,
+        clock: &clock,
+        executor: crate::executor(),
+    };
+    let packages = hd_driver::Packages {
+        build_profile: BuildProfile::Checked,
+        session: Some(built),
+        ..program.packages()
+    };
+    let goal = Goal::ReplInput { input: number };
+    let out = hd_driver::build_packages(&host, &program.package, &packages, &goal);
+    let mut found = report::from_output(&out, None);
+    report::relocate(&mut found, |f| program.sources.display(f));
+    for d in &found {
+        let _ = writeln!(diags, "{}", d.text());
+    }
+    if found.iter().any(report::Diag::is_error) {
+        return None;
+    }
+    let (Some(wasm), Some(added)) = (out.wasm, out.session_added) else {
+        let file = hd_project::repl_file(number);
+        let _ = writeln!(diags, "error: {file}: no Wasm produced");
+        return None;
+    };
+    Some((wasm, added))
 }
 
 impl Repl {
-    fn new(session: WasmtimeSession, program: disk::Program) -> Repl {
+    fn new(session: WasmtimeSession, cwd: PathBuf, program: disk::Program) -> Repl {
         Repl {
             session,
             built: hd_driver::Session::start(),
+            cwd,
             program,
             store: DiskStore {
                 root: crate::cache_dir(),
             },
             next: 0,
+            texts: BTreeMap::new(),
         }
     }
 
     /// Builds the session's prelude, or reads it from the cache, and runs
     /// it as input 0.
     fn start(&mut self) -> Result<(), String> {
-        let clock = Wall(Instant::now());
-        let host = Host {
-            render_tir: &[],
-            sources: &self.program.sources,
-            store: &self.store,
-            clock: &clock,
-            executor: crate::executor(),
-        };
-        let out = hd_driver::build_repl_prelude(&host, BuildProfile::Checked);
+        let out = build_prelude(&self.program, &self.store);
         let Some(wasm) = &out.wasm else {
             return Err(out.render());
         };
+        self.texts.insert(0, String::new());
         match self.session.run_input(0, "", wasm)? {
             Outcome::Exit(0) => {}
             other => return Err(format!("it ended with {other:?}")),
@@ -422,33 +503,12 @@ impl Repl {
     /// Whether the input `file`, of the text `text`, built and ended with
     /// status 0, so it joins the session.
     fn build_and_run(&mut self, file: &str, text: &str, diags: &mut dyn Write) -> bool {
-        let clock = Wall(Instant::now());
-        let host = Host {
-            render_tir: &[],
-            sources: &self.program.sources,
-            store: &self.store,
-            clock: &clock,
-            executor: crate::executor(),
-        };
-        let packages = hd_driver::Packages {
-            build_profile: BuildProfile::Checked,
-            session: Some(&self.built),
-            ..self.program.packages()
-        };
-        let goal = Goal::ReplInput { input: self.next };
-        let out = hd_driver::build_packages(&host, &self.program.package, &packages, &goal);
-        let mut found = report::from_output(&out, None);
-        report::relocate(&mut found, |f| self.program.sources.display(f));
-        for d in &found {
-            let _ = writeln!(diags, "{}", d.text());
-        }
-        if found.iter().any(report::Diag::is_error) {
-            return false;
-        }
-        let (Some(wasm), Some(added)) = (out.wasm, out.session_added) else {
-            let _ = writeln!(diags, "error: {file}: no Wasm produced");
+        let Some((wasm, added)) =
+            build_input(&self.program, &self.store, &self.built, self.next, diags)
+        else {
             return false;
         };
+        self.texts.insert(self.next, text.to_owned());
         let outcome = self.session.run_input(self.next, text, &wasm);
         if self.session.take_journal_notice() {
             let _ = writeln!(diags, "{JOURNAL_FULL}");
@@ -469,6 +529,153 @@ impl Repl {
                 let _ = writeln!(diags, "error: {file}: {e}");
                 false
             }
+        }
+    }
+}
+
+impl Repl {
+    /// `:reload`: loads the session's scope from disk again, so edited
+    /// package files are read anew, and rebuilds the session over it from
+    /// its journal (`cli.repl.rebuild`). It reports each stopped input the
+    /// rebuild skipped (`.stopped`) and the first input it dropped
+    /// (`.prefix`). A session whose journal is full, or a package whose
+    /// manifest is broken, is left as it was.
+    fn reload(&mut self, diags: &mut dyn Write) {
+        if self.session.journal().is_none() {
+            let _ = writeln!(
+                diags,
+                "error: the session's record of host calls is full, so it cannot be rebuilt"
+            );
+            return;
+        }
+        let program = match disk::load_session(&self.cwd) {
+            Ok(program) => program,
+            Err(e) => {
+                let _ = writeln!(diags, "error: {e}");
+                return;
+            }
+        };
+        for d in &program.problems {
+            let _ = writeln!(diags, "{}", d.text());
+        }
+        if program.problems.iter().any(report::Diag::is_error) {
+            return;
+        }
+        self.program = program;
+        self.built = hd_driver::Session::start();
+        let mut again = Again {
+            program: &mut self.program,
+            built: &mut self.built,
+            store: &self.store,
+            texts: &self.texts,
+            added: HashMap::new(),
+            diagnostics: Vec::new(),
+        };
+        let rebuilt = self.session.rebuild(&mut again);
+        let diagnostics = std::mem::take(&mut again.diagnostics);
+        let rebuilt = match rebuilt {
+            Ok(rebuilt) => rebuilt,
+            Err(e) => {
+                let _ = writeln!(diags, "error: the rebuild: {e}");
+                return;
+            }
+        };
+        for n in &rebuilt.skipped {
+            let _ = writeln!(
+                diags,
+                "note: {} was stopped, so the rebuild skipped it; its changes are not restored",
+                hd_project::repl_file(*n)
+            );
+        }
+        if let (Some(first), Some(reason)) = (rebuilt.dropped.first(), &rebuilt.reason) {
+            let file = hd_project::repl_file(*first);
+            if diagnostics.is_empty() {
+                let _ = writeln!(diags, "error: {file} does not replay: {reason}");
+            } else {
+                let _ = diags.write_all(&diagnostics);
+            }
+            let later = rebuilt.dropped.len() - 1;
+            let _ = writeln!(
+                diags,
+                "note: the rebuild dropped {file} and the {later} input{} after it",
+                if later == 1 { "" } else { "s" }
+            );
+        }
+        for n in rebuilt.skipped.iter().chain(&rebuilt.dropped) {
+            self.texts.remove(n);
+            self.program
+                .sources
+                .remove_synthetic(&hd_project::repl_file(*n));
+        }
+        let kept = rebuilt.kept.iter().filter(|n| **n != 0).count();
+        let _ = writeln!(
+            diags,
+            "reloaded: {kept} input{} replayed",
+            if kept == 1 { "" } else { "s" }
+        );
+    }
+}
+
+/// A rebuild's builder: it builds each input again from its text, over
+/// the package as it is on disk now; input 0 is the prelude.
+struct Again<'r> {
+    program: &'r mut disk::Program,
+    built: &'r mut hd_driver::Session,
+    store: &'r DiskStore,
+    texts: &'r BTreeMap<u32, String>,
+    /// What each input built adds to the session once it is replayed.
+    added: HashMap<u32, hd_driver::Session>,
+    /// The diagnostics of the input that no longer builds.
+    diagnostics: Vec<u8>,
+}
+
+impl Rebuilder for Again<'_> {
+    fn build(&mut self, number: u32) -> Result<(String, Vec<u8>), String> {
+        let text = self
+            .texts
+            .get(&number)
+            .ok_or_else(|| format!("the text of input {number} is gone"))?
+            .clone();
+        let (wasm, added) = if number == 0 {
+            let out = build_prelude(self.program, self.store);
+            let Some(wasm) = out.wasm else {
+                return Err(out.render());
+            };
+            (wasm, out.session_added)
+        } else {
+            let file = hd_project::repl_file(number);
+            self.program.sources.add_synthetic(&file, &text);
+            let mut diagnostics = Vec::new();
+            let built = build_input(
+                self.program,
+                self.store,
+                self.built,
+                number,
+                &mut diagnostics,
+            );
+            let Some((wasm, added)) = built else {
+                self.program.sources.remove_synthetic(&file);
+                let reason = String::from_utf8_lossy(&diagnostics).trim_end().to_owned();
+                self.diagnostics = diagnostics;
+                return Err(reason);
+            };
+            (wasm, Some(added))
+        };
+        if let Some(added) = added {
+            self.added.insert(number, added);
+        }
+        Ok((text, wasm))
+    }
+
+    fn replayed(&mut self, number: u32, joined: bool) {
+        let added = self.added.remove(&number);
+        match added {
+            Some(added) if joined => self.built.add(added),
+            _ if number != 0 => self
+                .program
+                .sources
+                .remove_synthetic(&hd_project::repl_file(number)),
+            _ => {}
         }
     }
 }

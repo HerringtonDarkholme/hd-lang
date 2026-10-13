@@ -29,7 +29,8 @@
 //! J1): an `Input` row as each input starts, a row for each of its host
 //! calls, written where the host dispatches imports, its `Wake` and
 //! `Cancel` driver events, and an `End` row with how it ended. It is the
-//! record a rebuild serves host results from (`cli.repl.rebuild`). Past
+//! record a rebuild serves host results from (`cli.repl.rebuild`, job J2,
+//! `session_rebuild.rs`). Past
 //! `hd_run::journal::SESSION_CAP` recording stops; the REPL then says once
 //! that the session can no longer be rebuilt (`take_journal_notice`).
 
@@ -48,6 +49,10 @@ use crate::instance::WasmtimeInstance;
 use crate::profiles::RuntimeProfile;
 use crate::reactor::Waker;
 use crate::{cache, limits};
+
+#[path = "session_rebuild.rs"]
+mod rebuild;
+pub use rebuild::{Rebuilder, Rebuilt};
 
 /// A REPL session: the instances of every input that ran, in one store.
 /// Like the `Engine` methods, it runs on a thread with at least
@@ -145,12 +150,28 @@ impl WasmtimeSession {
     /// run: one wasmtime refuses, an import not on wasmtime yet, or a
     /// session import no earlier input exports. Such an input does not run.
     pub fn run_input(&mut self, number: u32, source: &str, wasm: &[u8]) -> Result<Outcome, String> {
+        self.run_ended(number, source, wasm).0
+    }
+
+    /// Runs an input as `run_input` does, and answers how it ended too, as
+    /// its `End` row says: `None` for an input that did not start.
+    fn run_ended(
+        &mut self,
+        number: u32,
+        source: &str,
+        wasm: &[u8],
+    ) -> (Result<Outcome, String>, Option<End>) {
         self.flag.store(false, Ordering::Relaxed);
-        let module = self.load(wasm)?;
+        let module = match self.load(wasm) {
+            Ok(module) => module,
+            Err(e) => return (Err(e), None),
+        };
         // A panic or standard error of an earlier input does not hide this
         // one's internal error.
         self.run.store.data_mut().reported = false;
-        define_session(&mut self.linker, &module, self.profile, &mut self.hosts)?;
+        if let Err(e) = define_session(&mut self.linker, &module, self.profile, &mut self.hosts) {
+            return (Err(e), None);
+        }
         if let Some(journal) = self.run.store.data_mut().journal.as_mut() {
             journal.input(number, source.as_bytes(), wasm);
         }
@@ -167,7 +188,7 @@ impl WasmtimeSession {
         if let Some(journal) = self.run.store.data_mut().journal.as_mut() {
             journal.end(end);
         }
-        result
+        (result, Some(end))
     }
 
     /// Instantiates and runs an input whose host imports the linker
@@ -240,6 +261,12 @@ impl WasmtimeSession {
             .journal
             .as_mut()
             .is_some_and(Recorder::take_notice)
+    }
+
+    /// The host calls the session made, not served from a record.
+    #[cfg(test)]
+    pub(crate) fn host_calls(&self) -> u64 {
+        self.run.store.data().calls
     }
 
     /// Whether a host operation is pending in the session's reactor.

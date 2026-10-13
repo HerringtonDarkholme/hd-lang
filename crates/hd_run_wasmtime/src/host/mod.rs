@@ -51,6 +51,9 @@ pub enum Stop {
     Internal(String),
     /// Property exhaustion is successful early termination, not a panic.
     EndCase,
+    /// A replayed input asked the host for what its record does not hold;
+    /// the replay keeps the message.
+    Diverged,
 }
 
 impl std::fmt::Display for Stop {
@@ -62,6 +65,7 @@ impl std::fmt::Display for Stop {
             Stop::TimeLimit => f.write_str("the program exceeded its time limit"),
             Stop::Interrupted => f.write_str("stopped"),
             Stop::EndCase => f.write_str("the property has no remaining cases"),
+            Stop::Diverged => f.write_str("the replay diverged from its record"),
         }
     }
 }

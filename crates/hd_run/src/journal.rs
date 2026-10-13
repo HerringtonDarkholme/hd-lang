@@ -1,7 +1,8 @@
 //! The execution journal (live-execution.md §4): rows, their framing, a
 //! torn-tail-tolerant reader, the payload of each row kind and a
 //! [`Recorder`] that an engine's host import dispatch writes rows through.
-//! Replay and resume (§5, §6) are not built.
+//! [`crate::replay`] serves a recorded input's host calls again (§5);
+//! resume (§6) is not built.
 //!
 //! `journal = Header Row*`; `Row = kind: u8, index: uleb, len: uleb,
 //! payload, crc32: u32`.
@@ -230,6 +231,34 @@ pub enum Request {
     Digest { len: u64, digest: u64 },
 }
 
+impl Request {
+    /// The request a `Call` row holds for the arguments `args`.
+    #[must_use]
+    pub fn of(args: &[u8]) -> Request {
+        if args.len() <= 8 {
+            Request::Args(args.to_vec())
+        } else {
+            Request::Digest {
+                len: args.len() as u64,
+                digest: request_digest(args),
+            }
+        }
+    }
+}
+
+/// Appends an integer parameter to a call's arguments: the uleb of its
+/// two's complement bits. Then come float parameters ([`put_float_arg`])
+/// in their order among the parameters, and last the exchange buffer bytes
+/// the call reads, as they are.
+pub fn put_int_arg(args: &mut Vec<u8>, v: i64) {
+    put_uleb(args, u64::from_le_bytes(v.to_le_bytes()));
+}
+
+/// Appends a float parameter to a call's arguments: its IEEE 754 bits.
+pub fn put_float_arg(args: &mut Vec<u8>, bits: u64) {
+    args.extend_from_slice(&bits.to_le_bytes());
+}
+
 /// How an input ended, in its `End` row.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum End {
@@ -440,16 +469,15 @@ fn put_handles(out: &mut Vec<u8>, handles: &[u32]) {
 }
 
 /// Writes one execution's journal in memory, as its host calls and driver
-/// events happen (§4.1): the engine's import dispatch calls [`begin`],
-/// the argument methods and then one of [`call`], [`finish`], [`block`]
-/// or [`abort`] per host call; its driver loop calls [`poll`], [`wake`]
-/// and [`cancel`]; a REPL session [`input`] and [`end`] around each input.
+/// events happen (§4.1): the engine's import dispatch calls one of
+/// [`call`], [`finish`], [`block`] or [`abort`] per host call; its driver
+/// loop calls [`poll`], [`wake`] and [`cancel`]; a REPL session [`input`]
+/// and [`end`] around each input.
 ///
 /// Past its cap, recording stops for good and the journal is dropped: the
 /// execution can no longer be rebuilt. [`take_notice`] then answers true
 /// once, for the one message that says so.
 ///
-/// [`begin`]: Recorder::begin
 /// [`call`]: Recorder::call
 /// [`finish`]: Recorder::finish
 /// [`block`]: Recorder::block
@@ -471,10 +499,6 @@ pub struct Recorder {
     sites: Vec<u32>,
     /// The number of methods named so far.
     methods: u32,
-    /// The arguments of the call between `begin` and its row.
-    request: Vec<u8>,
-    /// Whether a call's arguments are being collected.
-    collecting: bool,
     /// The payload of the row being written.
     row: Vec<u8>,
     /// The polls of the input that runs, for `Wake` and `Cancel` rows.
@@ -502,8 +526,6 @@ impl Recorder {
             next: 0,
             sites: Vec::new(),
             methods: 0,
-            request: Vec::new(),
-            collecting: false,
             row: Vec::new(),
             polls: 0,
             state: State::On,
@@ -518,6 +540,12 @@ impl Recorder {
     #[must_use]
     pub fn journal(&self) -> Option<&[u8]> {
         (self.state == State::On).then_some(&self.bytes)
+    }
+
+    /// The most bytes the journal may hold.
+    #[must_use]
+    pub fn cap(&self) -> usize {
+        self.cap
     }
 
     /// Changes the cap; a journal already past it stops at its next row.
@@ -535,45 +563,19 @@ impl Recorder {
         }
     }
 
-    /// Starts a host call: its arguments follow.
-    pub fn begin(&mut self) {
-        self.request.clear();
-        self.collecting = self.state == State::On;
-    }
-
-    /// An integer parameter of the call.
-    pub fn int_arg(&mut self, v: i64) {
-        if self.collecting {
-            put_uleb(&mut self.request, u64::from_le_bytes(v.to_le_bytes()));
-        }
-    }
-
-    /// A float parameter of the call, as its IEEE 754 bits.
-    pub fn float_arg(&mut self, bits: u64) {
-        if self.collecting {
-            self.request.extend_from_slice(&bits.to_le_bytes());
-        }
-    }
-
-    /// Exchange buffer bytes the call read as its argument.
-    pub fn bytes_arg(&mut self, bytes: &[u8]) {
-        if self.collecting {
-            self.request.extend_from_slice(bytes);
-        }
-    }
-
-    /// A host call that returned `value` and, when given, `result` bytes
-    /// in the exchange buffer, through the engine's call site `site` for
-    /// the import `module` `name`.
+    /// A host call with the arguments `request` (see [`put_int_arg`]) that
+    /// returned `value` and, when given, `result` bytes in the exchange
+    /// buffer, through the engine's call site `site` for the import
+    /// `module` `name`.
     pub fn call(
         &mut self,
         site: usize,
         module: &str,
         name: &str,
+        request: &[u8],
         value: Value,
         result: Option<&[u8]>,
     ) {
-        self.collecting = false;
         if self.state != State::On {
             return;
         }
@@ -593,11 +595,11 @@ impl Recorder {
             }
             n => put_uleb(row, u64::from(n - 1)),
         }
-        put_uleb(row, self.request.len() as u64);
-        if self.request.len() <= 8 {
-            row.extend_from_slice(&self.request);
+        put_uleb(row, request.len() as u64);
+        if request.len() <= 8 {
+            row.extend_from_slice(request);
         } else {
-            row.extend_from_slice(&request_digest(&self.request).to_le_bytes());
+            row.extend_from_slice(&request_digest(request).to_le_bytes());
         }
         put_reply(row, value, result);
         self.push(RowKind::Call);
@@ -605,7 +607,6 @@ impl Recorder {
 
     /// A `.finish(handle)` call that returned `value` and `result`.
     pub fn finish(&mut self, handle: u32, value: Value, result: Option<&[u8]>) {
-        self.collecting = false;
         if self.state == State::On {
             put_uleb(&mut self.row, u64::from(handle));
             put_reply(&mut self.row, value, result);
@@ -615,7 +616,6 @@ impl Recorder {
 
     /// An `hd:rt` `block` call that returned `handles`.
     pub fn block(&mut self, handles: &[u32]) {
-        self.collecting = false;
         if self.state == State::On {
             put_handles(&mut self.row, handles);
             self.push(RowKind::Block);
@@ -624,7 +624,6 @@ impl Recorder {
 
     /// An `hd:rt` `abort(handle)` call.
     pub fn abort(&mut self, handle: u32) {
-        self.collecting = false;
         if self.state == State::On {
             put_uleb(&mut self.row, u64::from(handle));
             self.push(RowKind::Abort);
@@ -692,7 +691,6 @@ impl Recorder {
             self.state = State::Off { told: false };
             self.bytes = Vec::new();
             self.sites = Vec::new();
-            self.request = Vec::new();
             self.row = Vec::new();
             return;
         }

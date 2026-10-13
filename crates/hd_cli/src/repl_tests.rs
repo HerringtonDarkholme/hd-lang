@@ -110,7 +110,7 @@ fn session_with(
         diags: Box::new(err.clone()),
     };
     let program = disk::load_session(dir).expect("the session's scope");
-    run(&mut script, program, streams, journal_cap, on_start).expect("the session ends");
+    run(&mut script, dir, program, streams, journal_cap, on_start).expect("the session ends");
     Transcript {
         out: err.text(),
         script,
@@ -727,9 +727,170 @@ fn a_full_journal_is_noted_once() {
         "c := now()",
         "d := now()",
         "+7",
+        ":reload",
     ]);
     let t = session_with(&dir, script, |_| {}, None, 200);
-    assert_eq!(t.out, format!("{}\n7 : i32\n", super::JOURNAL_FULL));
+    assert_eq!(
+        t.out,
+        format!(
+            "{}\n7 : i32\nerror: the session's record of host calls is full, so it cannot be rebuilt\n",
+            super::JOURNAL_FULL
+        )
+    );
+}
+
+/// `cli.repl.rebuild` and `cli.repl.host.once`: `:reload` runs the inputs
+/// again with their host results served from the journal. The clock is
+/// not read again, so `t` is the same; the file is not read again; the
+/// line is not printed again.
+#[test]
+fn reload_repeats_no_host_call() {
+    let t = session(&[
+        "use std.time.{now}",
+        "use std.fs.{read_text}",
+        "use std.path.{Path}",
+        "t := now().unix_milliseconds()",
+        "t",
+        "size := read_text!(Path(\"Cargo.toml\")).unwrap_or(\"\").len()",
+        "println(\"once\")",
+        ":reload",
+        "t",
+        "size > 0",
+    ]);
+    let lines: Vec<&str> = t.out.lines().collect();
+    assert_eq!(lines.len(), 5, "{}", t.out);
+    assert!(lines[0].ends_with(" : i64"), "{}", t.out);
+    assert_eq!(
+        lines[1..4],
+        ["once", "reloaded: 7 inputs replayed", lines[0]]
+    );
+    assert_eq!(lines[4], "true : bool");
+}
+
+/// A package `shop` whose `lib.hd` the test edits when the script hands
+/// out `:reload`, as a user edits it before typing it.
+fn reload_after_editing(
+    name: &str,
+    lib: &'static str,
+    edited: &'static str,
+    lines: &[&str],
+) -> Transcript {
+    let dir = package(name, &[("src/lib.hd", lib)]);
+    let file = dir.join("src/lib.hd");
+    let mut script = Script::of(lines);
+    script.on_line = Some(Box::new(move |line: &str| {
+        if line == ":reload" {
+            std::fs::write(&file, edited).expect("edits lib.hd");
+        }
+    }));
+    session_in(&dir, script, |_| {})
+}
+
+/// `cli.repl.rebuild.prefix`: after `lib.hd`'s `price` is renamed,
+/// `:reload` keeps the input before the first that no longer checks,
+/// reports that input's diagnostic, and drops it and the input after it.
+#[test]
+fn reload_drops_from_the_first_input_that_no_longer_checks() {
+    let t = reload_after_editing(
+        "repl-reload-check",
+        "fn price(n: i32) -> i32: n * +2\n",
+        "fn cost(n: i32) -> i32: n * +2\n",
+        &["rate := +10", "price(+3)", "rate + +1", ":reload", "rate"],
+    );
+    let (live, reload) = t.out.split_at(t.out.find("error: ").expect("an error"));
+    assert_eq!(live, "6 : i32\n11 : i32\n");
+    assert!(
+        reload.starts_with("error: repl#2:1:1: unknown-name"),
+        "{}",
+        t.out
+    );
+    assert!(
+        reload.ends_with(
+            "note: the rebuild dropped repl#2 and the 1 input after it\nreloaded: 1 input replayed\n10 : i32\n"
+        ),
+        "{}",
+        t.out
+    );
+}
+
+/// `cli.repl.rebuild.prefix`: after `price` changes what it computes, the
+/// input that shows it still checks but writes another value, so it is
+/// dropped with the input after it; the input before it is kept.
+#[test]
+fn reload_drops_from_the_first_input_that_replays_otherwise() {
+    let t = reload_after_editing(
+        "repl-reload-diverge",
+        "fn price(n: i32) -> i32: n * +2\n",
+        "fn price(n: i32) -> i32: n * +3\n",
+        &[
+            "rate := +10",
+            "price(+3)",
+            "rate + +1",
+            ":reload",
+            "rate",
+            "price(+3)",
+        ],
+    );
+    assert_eq!(
+        t.out,
+        "6 : i32\n11 : i32\n\
+         error: repl#2 does not replay: input 2 called hd:rt stderr with other arguments than before\n\
+         note: the rebuild dropped repl#2 and the 1 input after it\n\
+         reloaded: 1 input replayed\n\
+         10 : i32\n9 : i32\n"
+    );
+}
+
+/// `cli.repl.rebuild.stopped`: `:reload` skips a stopped input and says
+/// so; its change to `kept`, made before the stop, is not restored.
+#[test]
+fn reload_skips_and_reports_a_stopped_input() {
+    use std::sync::atomic::{AtomicU8, Ordering};
+    use std::time::Duration;
+    // 1 once the loop input is sent, 2 once `:reload` is read.
+    let phase = Arc::new(AtomicU8::new(0));
+    let mut script = Script::of(&[
+        "let kept = 7",
+        "while true:",
+        "    kept = 8",
+        "",
+        ":reload",
+        "kept",
+    ]);
+    let seen = Arc::clone(&phase);
+    script.on_line = Some(Box::new(move |line: &str| match line {
+        "" => seen.store(1, Ordering::SeqCst),
+        ":reload" => {
+            seen.store(2, Ordering::SeqCst);
+            // Past the stopping thread's last stop, which the next input's
+            // start clears.
+            std::thread::sleep(Duration::from_millis(300));
+        }
+        _ => {}
+    }));
+    let dir = Scratch::new(SCRATCH, "repl-reload-stop");
+    let mut stopping = None;
+    let t = session_in(&dir, script, |stopper| {
+        stopping = Some(std::thread::spawn(move || {
+            while phase.load(Ordering::SeqCst) < 2 {
+                if phase.load(Ordering::SeqCst) == 1 {
+                    stopper.stop();
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+        }));
+    });
+    stopping
+        .expect("started")
+        .join()
+        .expect("the stopping thread");
+    assert_eq!(
+        t.out,
+        "stopped\n\
+         note: repl#2 was stopped, so the rebuild skipped it; its changes are not restored\n\
+         reloaded: 1 input replayed\n\
+         7 : usize\n"
+    );
 }
 
 /// The parser decides when an input is whole.

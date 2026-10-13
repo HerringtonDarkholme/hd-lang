@@ -9,6 +9,7 @@ pub mod frames;
 mod grant;
 mod imports;
 pub mod journal;
+pub mod replay;
 pub mod tests_model;
 
 pub use grant::{GrantValue, Grants, Limit, env_notice, resolve_path};

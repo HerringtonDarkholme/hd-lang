@@ -14,7 +14,7 @@ pub struct WasmtimeInstance {
     /// Keep the ticker's weak registration alive for the entire instance.
     /// Store owns Wasmtime's internal Engine clone, not this outer Arc; an
     /// embedding may drop `WasmtimeEngine` while its instance is still running.
-    _engine: Arc<wasmtime::Engine>,
+    engine: Arc<wasmtime::Engine>,
     init: Option<TypedFunc<(), ()>>,
     instance: Option<wasmtime::Instance>,
     poll: Option<TypedFunc<i32, i32>>,
@@ -38,10 +38,15 @@ pub struct WasmtimeInstance {
 }
 
 impl WasmtimeInstance {
+    /// The engine the store belongs to.
+    pub(crate) fn engine(&self) -> &Arc<wasmtime::Engine> {
+        &self.engine
+    }
+
     pub(crate) fn stopped(store: Store<Host>, engine: Arc<wasmtime::Engine>) -> Self {
         Self {
             store,
-            _engine: engine,
+            engine,
             init: None,
             instance: None,
             poll: None,
@@ -188,7 +193,7 @@ impl WasmtimeInstance {
                     self.halt = Some(End::Stopped);
                 }
                 Stop::Internal(m) => host.err(&format!("internal error: {m}\n")),
-                Stop::Deadlock => {}
+                Stop::Deadlock | Stop::Diverged => {}
                 Stop::EndCase => unreachable!("handled before panic reporting"),
             }
         } else if let Some(Trap::StackOverflow) = e.downcast_ref::<Trap>() {
@@ -241,14 +246,38 @@ impl WasmtimeInstance {
         })
     }
 
+    /// The wake a replayed input's record holds where it waits now; a
+    /// record that holds none there is a divergence, which ends the run.
+    fn replayed_wake(&mut self) -> Vec<u32> {
+        let host = self.store.data_mut();
+        let woken = host
+            .check_deadline()
+            .and_then(|()| match host.replay.as_mut() {
+                Some(replay) => replay.wake().map_err(|_| Stop::Diverged.into()),
+                None => Err(Stop::Internal("a wake served with no replay".into()).into()),
+            });
+        match woken {
+            Ok(handles) => handles,
+            // The run is over; the next poll returns how.
+            Err(error) => {
+                self.trapped(&error);
+                vec![0]
+            }
+        }
+    }
+
     /// One `hd.poll` as the run's driver, context 0: the status,
     /// pending, or the end of a trap.
     fn step(&mut self) -> Poll<Outcome> {
         if let Err(error) = self.store.data().check_deadline() {
             return Poll::Ready(self.trapped(&error));
         }
-        if let Some(journal) = self.store.data_mut().journal.as_mut() {
+        let host = self.store.data_mut();
+        if let Some(journal) = host.journal.as_mut() {
             journal.poll();
+        }
+        if let Some(replay) = host.replay.as_mut() {
+            replay.poll();
         }
         match self
             .poll
@@ -257,7 +286,13 @@ impl WasmtimeInstance {
             .call(&mut self.store, 0_i32)
         {
             Ok(-1) => {
-                if self.store.data().waiting() {
+                // A replayed input waits when its record wakes it next.
+                let host = self.store.data();
+                let waiting = host
+                    .replay
+                    .as_ref()
+                    .map_or_else(|| host.waiting(), hd_run::replay::Replay::wake_next);
+                if waiting {
                     Poll::Pending
                 } else {
                     let e = deadlock(self.store.data_mut());
@@ -336,6 +371,9 @@ impl Instance for WasmtimeInstance {
     /// Waits for at least one completion. The returned batch is delivered
     /// only by wake; no exchange-buffer preload is required or performed.
     fn completed(&mut self) -> Vec<u32> {
+        if self.store.data().replay.is_some() {
+            return self.replayed_wake();
+        }
         loop {
             match complete(&mut self.store) {
                 Ok(handles) if handles.is_empty() => {}

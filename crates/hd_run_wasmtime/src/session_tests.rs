@@ -5,6 +5,8 @@
 //! an input's top level may make bang calls (job C6). A session that
 //! starts with its prelude (job C8) runs it first, as input 0.
 
+use std::collections::BTreeMap;
+
 use hd_run::{HostSetup, Outcome};
 
 use crate::{EngineConfig, HostIo, Shared, WasmtimeEngine, WasmtimeSession, thread_stack};
@@ -17,6 +19,14 @@ struct Streams {
 
 /// Runs `body` with a new session, on a thread with the stack it needs.
 fn with_session(body: impl FnOnce(&mut WasmtimeSession, &Streams) + Send) {
+    with_session_input(None, body);
+}
+
+/// `with_session`, with `input` as the session's standard input.
+fn with_session_input(
+    input: Option<&'static [u8]>,
+    body: impl FnOnce(&mut WasmtimeSession, &Streams) + Send,
+) {
     let config = EngineConfig::default();
     std::thread::scope(|scope| {
         std::thread::Builder::new()
@@ -30,7 +40,7 @@ fn with_session(body: impl FnOnce(&mut WasmtimeSession, &Streams) + Send) {
                 let io = HostIo {
                     out: Box::new(streams.out.clone()),
                     err: Box::new(streams.err.clone()),
-                    input: None,
+                    input: input.map(|b| Box::new(b) as Box<dyn std::io::BufRead + Send>),
                 };
                 let setup = HostSetup {
                     providers: Vec::new(),
@@ -56,6 +66,100 @@ struct Repl<'s> {
     built: hd_driver::Session,
     files: hd_project::MemorySources,
     next: u32,
+    /// The text of each input that ran, for a rebuild.
+    texts: BTreeMap<u32, String>,
+    /// The build cache every build of the session shares, so a rebuild of
+    /// unchanged inputs compiles nothing again.
+    store: hd_cache::MemoryStore,
+}
+
+/// Builds `file`, the input `number`, over the session `built`.
+fn build_input(
+    files: &hd_project::MemorySources,
+    store: &hd_cache::MemoryStore,
+    built: &hd_driver::Session,
+    number: u32,
+) -> hd_driver::Output {
+    let host = hd_driver::Host {
+        render_tir: &[],
+        sources: files,
+        store,
+        clock: &hd_driver::NoClock,
+        executor: hd_driver::Executor::Serial(hd_sched::SerialOrder::Priority),
+    };
+    let packages = hd_driver::Packages {
+        session: Some(built),
+        ..hd_driver::Packages::default()
+    };
+    let goal = hd_driver::Goal::ReplInput { input: number };
+    hd_driver::build_packages(&host, "app", &packages, &goal)
+}
+
+/// Builds the session's prelude.
+fn build_prelude(store: &hd_cache::MemoryStore) -> hd_driver::Output {
+    let files = hd_project::MemorySources::default();
+    let host = hd_driver::Host {
+        render_tir: &[],
+        sources: &files,
+        store,
+        clock: &hd_driver::NoClock,
+        executor: hd_driver::Executor::Serial(hd_sched::SerialOrder::Priority),
+    };
+    hd_driver::build_repl_prelude(&host, hd_driver::BuildProfile::Checked)
+}
+
+/// A rebuild's builder over a test session's texts: input 0 is the
+/// prelude.
+struct Again<'r> {
+    files: &'r mut hd_project::MemorySources,
+    built: &'r mut hd_driver::Session,
+    store: &'r hd_cache::MemoryStore,
+    texts: &'r BTreeMap<u32, String>,
+    /// What each input built adds to the session once it is replayed.
+    added: std::collections::HashMap<u32, hd_driver::Session>,
+    /// The time spent building.
+    building: std::time::Duration,
+}
+
+impl crate::Rebuilder for Again<'_> {
+    fn build(&mut self, number: u32) -> Result<(String, Vec<u8>), String> {
+        let started = std::time::Instant::now();
+        let (text, out) = if number == 0 {
+            (String::new(), build_prelude(self.store))
+        } else {
+            let text = self
+                .texts
+                .get(&number)
+                .ok_or_else(|| format!("no text for input {number}"))?
+                .clone();
+            self.files.insert(&hd_project::repl_file(number), &text);
+            (
+                text,
+                build_input(self.files, self.store, self.built, number),
+            )
+        };
+        self.building += started.elapsed();
+        if !out.diags.is_empty() {
+            let file = hd_project::repl_file(number);
+            self.files.retain(|p| p != file);
+            return Err(out.render());
+        }
+        let (Some(wasm), Some(added)) = (out.wasm, out.session_added) else {
+            return Err(format!("input {number} built no module"));
+        };
+        self.added.insert(number, added);
+        Ok((text, wasm))
+    }
+
+    fn replayed(&mut self, number: u32, joined: bool) {
+        let added = self.added.remove(&number);
+        if joined {
+            self.built.add(added.expect("built before it is replayed"));
+        } else {
+            let file = hd_project::repl_file(number);
+            self.files.retain(|p| p != file);
+        }
+    }
 }
 
 impl Repl<'_> {
@@ -113,20 +217,7 @@ impl Repl<'_> {
         let n = self.next;
         let file = hd_project::repl_file(n);
         self.files.insert(&file, text);
-        let store = hd_cache::MemoryStore::default();
-        let host = hd_driver::Host {
-            render_tir: &[],
-            sources: &self.files,
-            store: &store,
-            clock: &hd_driver::NoClock,
-            executor: hd_driver::Executor::Serial(hd_sched::SerialOrder::Priority),
-        };
-        let packages = hd_driver::Packages {
-            session: Some(&self.built),
-            ..hd_driver::Packages::default()
-        };
-        let goal = hd_driver::Goal::ReplInput { input: n };
-        let out = hd_driver::build_packages(&host, "app", &packages, &goal);
+        let out = build_input(&self.files, &self.store, &self.built, n);
         assert!(out.diags.is_empty(), "{file}: {}", out.render());
         let wasm = out.wasm.expect("a module");
         let added = out.session_added.expect("what the input adds");
@@ -141,6 +232,7 @@ impl Repl<'_> {
 
     /// Runs a built input. One that ends with status 0 joins the session.
     fn run(&mut self, built: Built) -> Outcome {
+        self.texts.insert(built.number, built.source.clone());
         let outcome = self
             .session
             .run_input(built.number, &built.source, &built.wasm)
@@ -151,6 +243,40 @@ impl Repl<'_> {
             self.files.retain(|p| p != built.file);
         }
         outcome
+    }
+}
+
+impl Repl<'_> {
+    /// Rebuilds the session from its journal over the inputs' texts, as
+    /// `:reload` does; it forgets the inputs the rebuild skipped or
+    /// dropped.
+    fn rebuild(&mut self) -> crate::Rebuilt {
+        self.rebuild_timed().0
+    }
+
+    /// `rebuild`, with the part of its time spent building the inputs.
+    fn rebuild_timed(&mut self) -> (crate::Rebuilt, std::time::Duration) {
+        self.built = hd_driver::Session::start();
+        self.files = hd_project::MemorySources::default();
+        let mut again = Again {
+            files: &mut self.files,
+            built: &mut self.built,
+            store: &self.store,
+            texts: &self.texts,
+            added: std::collections::HashMap::new(),
+            building: std::time::Duration::ZERO,
+        };
+        let rebuilt = self
+            .session
+            .rebuild(&mut again)
+            .expect("the session rebuilds");
+        let building = again.building;
+        for n in rebuilt.skipped.iter().chain(&rebuilt.dropped) {
+            self.texts.remove(n);
+            let file = hd_project::repl_file(*n);
+            self.files.retain(|p| p != file);
+        }
+        (rebuilt, building)
     }
 }
 
@@ -170,6 +296,8 @@ fn repl(session: &mut WasmtimeSession) -> Repl<'_> {
         built: hd_driver::Session::start(),
         files: hd_project::MemorySources::default(),
         next: 0,
+        texts: BTreeMap::new(),
+        store: hd_cache::MemoryStore::default(),
     }
 }
 
@@ -177,15 +305,7 @@ fn repl(session: &mut WasmtimeSession) -> Repl<'_> {
 /// owns the memory and runtime globals; inputs import what it holds.
 fn repl_with_prelude(session: &mut WasmtimeSession) -> Repl<'_> {
     let store = hd_cache::MemoryStore::default();
-    let files = hd_project::MemorySources::default();
-    let host = hd_driver::Host {
-        render_tir: &[],
-        sources: &files,
-        store: &store,
-        clock: &hd_driver::NoClock,
-        executor: hd_driver::Executor::Serial(hd_sched::SerialOrder::Priority),
-    };
-    let out = hd_driver::build_repl_prelude(&host, hd_driver::BuildProfile::Checked);
+    let out = build_prelude(&store);
     assert!(out.diags.is_empty(), "{}", out.render());
     let wasm = out.wasm.expect("the prelude");
     assert_eq!(session.run_input(0, "", &wasm), Ok(Outcome::Exit(0)));
@@ -194,8 +314,10 @@ fn repl_with_prelude(session: &mut WasmtimeSession) -> Repl<'_> {
     Repl {
         session,
         built,
-        files,
+        files: hd_project::MemorySources::default(),
         next: 0,
+        texts: BTreeMap::from([(0, String::new())]),
+        store,
     }
 }
 
@@ -847,6 +969,160 @@ fn reads() -> i64 $ Clock:
         println!(
             "10,000 clock reads per input, median of 20: recording {on:?}, not recording {off:?}, {:.0} ns per read",
             (on.as_secs_f64() - off.as_secs_f64()) * 1e9 / 10_000.0
+        );
+    });
+}
+
+/// The `Input` rows of the session's journal, by number.
+fn journal_inputs(session: &WasmtimeSession) -> Vec<u32> {
+    let record = hd_run::replay::recorded(session.journal().expect("recording")).expect("reads");
+    record.inputs.iter().map(|i| i.number).collect()
+}
+
+/// `cli.repl.rebuild` and `cli.repl.host.once`: a session that read the
+/// clock, a file and standard input is rebuilt with every host result
+/// served from its journal. No host call is made again, nothing is
+/// printed again, the file's new text is not read, and the bindings are
+/// the same. The session then goes on live, recording after the replayed
+/// inputs.
+#[test]
+fn a_rebuilt_session_repeats_no_host_call() {
+    let path = std::env::temp_dir().join(format!("hd-rebuild-{}.txt", std::process::id()));
+    std::fs::write(&path, "first text").expect("writes");
+    let inputs = [
+        "use std.time.{now}\nuse std.fs.{read_text}\nuse std.path.{Path}\nuse std.console.{read_line}\n".to_owned(),
+        "started := now().unix_milliseconds()\n".to_owned(),
+        format!(
+            "text := read_text!(Path(\"{}\")).unwrap_or(\"\")\n",
+            path.display()
+        ),
+        "answer := read_line!()\n".to_owned(),
+        "println(\"read ${text}\")\n".to_owned(),
+    ];
+    let shown = ["started\n", "text\n", "answer\n"];
+    with_session_input(Some(b"typed line\n"), |session, io| {
+        let mut repl = repl_with_prelude(session);
+        for input in &inputs {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        assert_eq!(text(&io.out), "read first text\n");
+        let mut before = String::new();
+        for input in shown {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+            before.push_str(&text(&io.err));
+        }
+        assert!(
+            before.ends_with("\"first text\" : string\nResult.Ok(Option.Some(\"typed line\")) : Result[string?, ConsoleError]\n"),
+            "{before}"
+        );
+        std::fs::write(&path, "second text").expect("writes");
+        let calls = repl.session.host_calls();
+        let rebuilt = repl.rebuild();
+        assert_eq!(
+            rebuilt,
+            crate::Rebuilt {
+                kept: (0..=8).collect(),
+                ..crate::Rebuilt::default()
+            }
+        );
+        assert_eq!(repl.session.host_calls(), calls, "a host call repeated");
+        assert_eq!(text(&io.out), "");
+        assert_eq!(text(&io.err), "");
+        assert_eq!(journal_inputs(repl.session), (0..=8).collect::<Vec<_>>());
+        let mut after = String::new();
+        for input in shown {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+            after.push_str(&text(&io.err));
+        }
+        assert_eq!(after, before);
+        assert_eq!(journal_inputs(repl.session), (0..=11).collect::<Vec<_>>());
+    });
+    let _ = std::fs::remove_file(&path);
+}
+
+/// `cli.repl.rebuild.stopped` and `.prefix`: a rebuild skips a stopped
+/// and a cancelled input, so the stopped input's change to `kept` is lost.
+/// The first input that then asks the host for something else, the one
+/// that shows `kept`, is dropped with every later input. It ran before it
+/// diverged, so the rebuild starts again to undo its change too.
+#[test]
+fn a_rebuild_skips_stopped_inputs_and_drops_from_the_first_divergence() {
+    with_session(|session, io| {
+        let stopper = session.stopper();
+        let mut repl = repl(session);
+        for input in ["use std.time.{sleep, Duration}\n", "let kept = 7\n"] {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        assert_eq!(
+            repl.input_stopped_after("kept = 8\nwhile true:\n    pass\n", &stopper, 300),
+            Outcome::Exit(3)
+        );
+        assert_eq!(
+            repl.input_stopped_waiting("sleep!(Duration.seconds(+30))\n", &stopper),
+            Outcome::Exit(3)
+        );
+        assert_eq!(text(&io.err), "stopped\ncancelled\n");
+        for input in ["1 + 1\n", "kept = kept + 1\nprintln(kept)\n", "2 + 2\n"] {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        assert_eq!(text(&io.err), "2 : usize\n4 : usize\n");
+        assert_eq!(text(&io.out), "9\n");
+        let rebuilt = repl.rebuild();
+        assert_eq!(rebuilt.kept, [1, 2, 5]);
+        assert_eq!(rebuilt.skipped, [3, 4]);
+        assert_eq!(rebuilt.dropped, [6, 7]);
+        assert_eq!(
+            rebuilt.reason.as_deref(),
+            Some("input 6 called hd:Console write_line.start with other arguments than before")
+        );
+        assert_eq!(text(&io.err), "");
+        assert_eq!(text(&io.out), "");
+        assert_eq!(repl.input("kept\n"), Outcome::Exit(0));
+        assert_eq!(text(&io.err), "7 : usize\n");
+        assert_eq!(journal_inputs(repl.session), [1, 2, 5, 8]);
+    });
+}
+
+/// A rebuild of a long session: 200 inputs that each add to a binding,
+/// every tenth showing it, rebuilt from the journal. The build cache is
+/// warm, as it is for `:reload` of unchanged inputs. Run it with
+/// `cargo test -p hd_run_wasmtime long_session -- --nocapture` for the
+/// times.
+#[test]
+fn a_long_session_rebuild_is_timed() {
+    use std::time::Instant;
+    let inputs: Vec<String> = (0..200)
+        .map(|i| match i {
+            0 => "let total = 0\n".to_owned(),
+            i if i % 10 == 0 => "total\n".to_owned(),
+            i => format!("total = total + {i}\n"),
+        })
+        .collect();
+    with_session(|session, io| {
+        let mut repl = repl_with_prelude(session);
+        let started = Instant::now();
+        for input in &inputs {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        let live = started.elapsed();
+        let shown = text(&io.err);
+        let calls = repl.session.host_calls();
+        let started = Instant::now();
+        let (rebuilt, building) = repl.rebuild_timed();
+        let took = started.elapsed();
+        assert_eq!(rebuilt.kept.len(), 201);
+        assert!(rebuilt.dropped.is_empty(), "{:?}", rebuilt.reason);
+        assert_eq!(repl.session.host_calls(), calls);
+        assert_eq!(text(&io.err), "");
+        assert_eq!(repl.input("total\n"), Outcome::Exit(0));
+        let total: usize = (1..200).filter(|i| i % 10 != 0).sum();
+        assert_eq!(text(&io.err), format!("{total} : usize\n"));
+        assert_eq!(shown.lines().count(), 19);
+        println!(
+            "200 inputs: built and run live in {live:?}; rebuilt from the journal in {took:?} ({:?} per input), of which building {building:?} and replaying {:?} ({:?} per input)",
+            took / 201,
+            took.saturating_sub(building),
+            took.saturating_sub(building) / 201
         );
     });
 }

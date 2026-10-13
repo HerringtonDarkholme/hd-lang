@@ -96,6 +96,27 @@ impl Kind {
         }
     }
 
+    /// The parameter that holds the length of the exchange buffer bytes a
+    /// call reads as its argument (`call.rs` reads them), if it reads any.
+    /// With the scalar parameters they are the call's request, which a
+    /// journal records and a replay compares.
+    pub(crate) fn input(self) -> Option<usize> {
+        match self {
+            Self::Test(TestMethod::Snapshot | TestMethod::Show)
+            | Self::Fs { finish: false, .. }
+            | Self::ProcessStart
+            | Self::HttpStart
+            | Self::Stderr
+            | Self::Lower
+            | Self::Upper
+            | Self::ParseF64
+            | Self::WriteLineStart
+            | Self::EnvGet => Some(0),
+            Self::Net { input, .. } => input,
+            _ => None,
+        }
+    }
+
     /// Reject malformed result shapes before executing any provider effects.
     /// Integer width compatibility is retained; floats/references are never
     /// silently filled with integer values.

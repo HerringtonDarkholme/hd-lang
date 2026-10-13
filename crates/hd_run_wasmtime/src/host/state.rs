@@ -63,6 +63,16 @@ pub struct Host {
     /// A REPL session's journal (live-execution.md §4), which every host
     /// call and driver event is recorded in; `None` for every other run.
     pub(crate) journal: Option<hd_run::journal::Recorder>,
+    /// While a session's rebuild replays an input: the record its host
+    /// calls and wakes are served from, instead of being made again
+    /// (`cli.repl.host.once`).
+    pub(crate) replay: Option<hd_run::replay::Replay>,
+    /// Whether standard output and error are dropped: a replayed input's
+    /// output was shown when it first ran.
+    pub(crate) muted: bool,
+    /// The host calls made, not served from a replay's record, but for the
+    /// `hd:prim` functions: what a session's tests count.
+    pub(crate) calls: u64,
 }
 
 impl Host {
@@ -101,7 +111,36 @@ impl Host {
             output_overflow: None,
             output_budget: None,
             journal: None,
+            replay: None,
+            muted: false,
+            calls: 0,
         }
+    }
+
+    /// A host with no streams, arguments or grant, which holds a store's
+    /// place while its host moves to another store.
+    pub(crate) fn placeholder() -> Host {
+        let io = HostIo {
+            out: Box::new(std::io::sink()),
+            err: Box::new(std::io::sink()),
+            input: None,
+        };
+        Host::new(io, Vec::new(), String::new(), Grants::default(), None, 0)
+    }
+
+    /// Readies this host for a new store, as a session's rebuild makes one:
+    /// the store's memory and heap are new, nothing is pending, and the
+    /// journal starts again as `journal`. The streams, standard input, open
+    /// sockets and HTTP clients stay: they are the world outside the store.
+    pub(crate) fn restart(&mut self, journal: hd_run::journal::Recorder) {
+        self.flush();
+        self.memory = None;
+        self.reported = false;
+        self.heap = crate::limits::HeapBudget::new(self.memory_bytes);
+        self.reactor.drop_all();
+        self.journal = Some(journal);
+        self.replay = None;
+        self.muted = false;
     }
 
     pub fn deadline(&self) -> Option<Instant> {
@@ -201,7 +240,9 @@ impl Host {
 
     /// Writes the held standard output.
     pub fn flush(&mut self) {
-        if !self.out.is_empty() {
+        if self.muted {
+            self.out.clear();
+        } else if !self.out.is_empty() {
             let _ = self.out_stream.write_all(&self.out);
             let _ = self.out_stream.flush();
             self.out.clear();
@@ -211,6 +252,9 @@ impl Host {
     /// Writes `text` to standard error, after the held output.
     pub fn err(&mut self, text: &str) {
         self.flush();
+        if self.muted {
+            return;
+        }
         let _ = self.err_stream.write_all(text.as_bytes());
         let _ = self.err_stream.flush();
     }

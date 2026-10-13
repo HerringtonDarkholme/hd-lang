@@ -1,12 +1,12 @@
 use std::collections::HashSet;
 
 use hd_run::journal::{self, Recorder};
-use wasmtime::{FuncType, Linker, Val, ValType};
+use wasmtime::{Caller, FuncType, Linker, Val, ValType};
 
 use super::Stop;
 use super::call::call;
 use super::kind::{Kind, Record};
-use super::reply::{Ret, Value, int_val, put_bytes};
+use super::reply::{Ret, Value, bytes, int_arg, int_val, put_bytes};
 use super::state::Host;
 use crate::profiles::RuntimeProfile;
 
@@ -94,6 +94,7 @@ fn define_with<'m>(
         let site = Site {
             index: defined.len(),
             record: kind.record(),
+            input: kind.input(),
             module: key.0.clone(),
             name: key.1.clone(),
         };
@@ -104,12 +105,31 @@ fn define_with<'m>(
                 FuncType::clone(&ty),
                 move |mut caller, params, out| {
                     kind.validate_results(&results)?;
+                    let host = caller.data();
+                    let replaying = host.replay.is_some() && site.record != Record::Skip;
+                    let args =
+                        if site.record == Record::Call && (replaying || host.journal.is_some()) {
+                            // A recording whose arguments cannot be read records
+                            // nothing: the call fails at the same read.
+                            match site.args(&mut caller, params) {
+                                Ok(args) => Some(args),
+                                Err(error) if replaying => return Err(error),
+                                Err(_) => None,
+                            }
+                        } else {
+                            None
+                        };
+                    let Ret { value, payload } = if replaying {
+                        site.serve(&mut caller, params, args.as_deref())?
+                    } else {
+                        if site.record != Record::Skip {
+                            caller.data_mut().calls += 1;
+                        }
+                        call(kind, &mut caller, params)?
+                    };
                     if let Some(journal) = caller.data_mut().journal.as_mut() {
-                        site.begin(journal, params);
-                    }
-                    let Ret { value, payload } = call(kind, &mut caller, params)?;
-                    if let Some(journal) = caller.data_mut().journal.as_mut() {
-                        site.record(journal, params, &value, payload.as_deref());
+                        let args = args.as_deref().unwrap_or_default();
+                        site.record(journal, params, args, &value, payload.as_deref());
                     }
                     match (value, out) {
                         (Value::Void, []) => {}
@@ -138,40 +158,102 @@ fn define_with<'m>(
     Ok(())
 }
 
-/// One defined import, as a session's journal records its calls: the
-/// recorder sits here, where every host import is dispatched
-/// (repl-plan.md §5 Q8c). `index` is unique in its linker.
+/// One defined import, as a session's journal records its calls and a
+/// rebuild's replay serves them: the recorder and the replayer sit here,
+/// where every host import is dispatched (repl-plan.md §5 Q8c). `index` is
+/// unique in its linker.
 struct Site {
     index: usize,
     record: Record,
+    /// The parameter that holds the length of the exchange buffer bytes
+    /// the call reads (`Kind::input`).
+    input: Option<usize>,
     module: String,
     name: String,
 }
 
+/// The handle a `.finish` or `abort` names; no live one is negative.
+fn handle_param(params: &[Val]) -> u32 {
+    params
+        .first()
+        .and_then(|p| match p {
+            Val::I32(v) => u32::try_from(*v).ok(),
+            Val::I64(v) => u32::try_from(*v).ok(),
+            _ => None,
+        })
+        .unwrap_or(u32::MAX)
+}
+
 impl Site {
-    /// Starts a call's row with its scalar parameters; the exchange buffer
-    /// bytes it reads follow through `reply::bytes`.
-    fn begin(&self, journal: &mut Recorder, params: &[Val]) {
-        if self.record != Record::Call {
-            return;
-        }
-        journal.begin();
+    /// The call's arguments as a journal holds them: its scalar
+    /// parameters, then the exchange buffer bytes it reads.
+    fn args(&self, caller: &mut Caller<'_, Host>, params: &[Val]) -> wasmtime::Result<Vec<u8>> {
+        let mut args = Vec::new();
         for param in params {
             match param {
-                Val::I32(v) => journal.int_arg(i64::from(*v)),
-                Val::I64(v) => journal.int_arg(*v),
-                Val::F32(bits) => journal.float_arg(u64::from(*bits)),
-                Val::F64(bits) => journal.float_arg(*bits),
+                Val::I32(v) => journal::put_int_arg(&mut args, i64::from(*v)),
+                Val::I64(v) => journal::put_int_arg(&mut args, *v),
+                Val::F32(bits) => journal::put_float_arg(&mut args, u64::from(*bits)),
+                Val::F64(bits) => journal::put_float_arg(&mut args, *bits),
                 _ => {}
             }
         }
+        if let Some(i) = self.input {
+            args.extend(bytes(caller, int_arg(params, i)?)?);
+        }
+        Ok(args)
     }
 
-    /// Writes the row of a call that returned `value` and `payload`.
+    /// Answers a call of a replayed input from its record instead of making
+    /// it. A call the record does not hold next is a divergence, which
+    /// stops the input; the replay keeps its message.
+    fn serve(
+        &self,
+        caller: &mut Caller<'_, Host>,
+        params: &[Val],
+        args: Option<&[u8]>,
+    ) -> wasmtime::Result<Ret> {
+        let host = caller.data_mut();
+        host.check_deadline()?;
+        let replay = host
+            .replay
+            .as_mut()
+            .ok_or_else(|| Stop::Internal("a call served with no replay".into()))?;
+        let served_ret = |(value, payload): (journal::Value, Option<Vec<u8>>)| Ret {
+            value: match value {
+                journal::Value::Void => Value::Void,
+                journal::Value::Int(v) => Value::Int(v),
+                journal::Value::F64(bits) => Value::F64(f64::from_bits(bits)),
+                journal::Value::Pair(status, v) => Value::Pair(status, v),
+            },
+            payload,
+        };
+        let served = match self.record {
+            Record::Skip => {
+                return Err(Stop::Internal("an `hd:prim` call is never served".into()).into());
+            }
+            Record::Call => replay
+                .call(&self.module, &self.name, args.unwrap_or_default())
+                .map(served_ret),
+            Record::Finish => replay.finish(handle_param(params)).map(served_ret),
+            Record::Abort => replay.abort(handle_param(params)).map(|()| Ret::void()),
+            Record::Block => match replay.block() {
+                Ok(Some(handles)) => return Ret::batch(&handles),
+                // The first run's block found nothing pending either.
+                Ok(None) => return Err(deadlock(host)),
+                Err(message) => Err(message),
+            },
+        };
+        served.map_err(|_| Stop::Diverged.into())
+    }
+
+    /// Writes the row of a call with the arguments `args` that returned
+    /// `value` and `payload`.
     fn record(
         &self,
         journal: &mut Recorder,
         params: &[Val],
+        args: &[u8],
         value: &Value,
         payload: Option<&[u8]>,
     ) {
@@ -181,21 +263,12 @@ impl Site {
             Value::F64(v) => journal::Value::F64(v.to_bits()),
             Value::Pair(status, v) => journal::Value::Pair(status, v),
         };
-        // The handle a `.finish` or `abort` names; no live one is negative.
-        let handle = || {
-            params
-                .first()
-                .and_then(|p| match p {
-                    Val::I32(v) => u32::try_from(*v).ok(),
-                    Val::I64(v) => u32::try_from(*v).ok(),
-                    _ => None,
-                })
-                .unwrap_or(u32::MAX)
-        };
         match self.record {
             Record::Skip => {}
-            Record::Call => journal.call(self.index, &self.module, &self.name, value, payload),
-            Record::Finish => journal.finish(handle(), value, payload),
+            Record::Call => {
+                journal.call(self.index, &self.module, &self.name, args, value, payload);
+            }
+            Record::Finish => journal.finish(handle_param(params), value, payload),
             Record::Block => {
                 let handles: Vec<u32> = payload
                     .unwrap_or_default()
@@ -204,7 +277,7 @@ impl Site {
                     .collect();
                 journal.block(&handles);
             }
-            Record::Abort => journal.abort(handle()),
+            Record::Abort => journal.abort(handle_param(params)),
         }
     }
 }

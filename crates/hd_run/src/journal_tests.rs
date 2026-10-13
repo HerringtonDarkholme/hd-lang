@@ -1,4 +1,7 @@
-use super::{End, Event, Recorder, Request, Row, RowKind, Value, append, crc32, decode, read};
+use super::{
+    End, Event, Recorder, Request, Row, RowKind, Value, append, crc32, decode, put_float_arg,
+    put_int_arg, read,
+};
 
 #[test]
 fn rows_round_trip_and_a_torn_tail_is_cut() {
@@ -41,14 +44,26 @@ fn rows_round_trip_and_a_torn_tail_is_cut() {
 fn recorded_rows_decode_in_order() {
     let mut r = Recorder::new(1 << 20, 7);
     r.input(1, b"now()\n", b"\0asm");
-    r.begin();
-    r.call(3, "hd:Clock", "now", Value::Int(1_700_000_000_000), None);
-    r.begin();
-    r.int_arg(5);
-    r.bytes_arg(b"a line longer than eight bytes");
-    r.call(0, "hd:Console", "write_line.start", Value::Pair(1, 9), None);
-    r.begin();
-    r.call(3, "hd:Clock", "now", Value::Int(-1), None);
+    r.call(
+        3,
+        "hd:Clock",
+        "now",
+        &[],
+        Value::Int(1_700_000_000_000),
+        None,
+    );
+    let mut line = Vec::new();
+    put_int_arg(&mut line, 5);
+    line.extend_from_slice(b"a line longer than eight bytes");
+    r.call(
+        0,
+        "hd:Console",
+        "write_line.start",
+        &line,
+        Value::Pair(1, 9),
+        None,
+    );
+    r.call(3, "hd:Clock", "now", &[], Value::Int(-1), None);
     r.block(&[9]);
     r.poll();
     r.poll();
@@ -58,12 +73,13 @@ fn recorded_rows_decode_in_order() {
     r.cancel();
     r.end(End::Cancelled);
     r.input(2, b"x\n", b"\0asm");
-    r.begin();
-    r.float_arg(2.5f64.to_bits());
+    let mut half = Vec::new();
+    put_float_arg(&mut half, 2.5f64.to_bits());
     r.call(
         1,
         "hd:prim",
         "format_f64",
+        &half,
         Value::F64(0.5f64.to_bits()),
         Some(b"0.5"),
     );
@@ -150,11 +166,9 @@ fn recorded_rows_decode_in_order() {
 #[test]
 fn a_clock_read_row_is_small() {
     let mut r = Recorder::new(1 << 20, 0);
-    r.begin();
-    r.call(0, "hd:Clock", "monotonic", Value::Int(1), None);
+    r.call(0, "hd:Clock", "monotonic", &[], Value::Int(1), None);
     let before = r.journal().expect("recording").len();
-    r.begin();
-    r.call(0, "hd:Clock", "monotonic", Value::Int(5_000), None);
+    r.call(0, "hd:Clock", "monotonic", &[], Value::Int(5_000), None);
     let row = r.journal().expect("recording").len() - before;
     assert_eq!(row, 1 + 1 + 1 + (1 + 1 + 1 + 2) + 4);
 }
@@ -166,13 +180,11 @@ fn past_the_cap_recording_stops_with_one_notice() {
     let mut r = Recorder::new(80, 0);
     assert!(!r.take_notice());
     for _ in 0..3 {
-        r.begin();
-        r.call(0, "hd:Clock", "now", Value::Int(1), None);
+        r.call(0, "hd:Clock", "now", &[], Value::Int(1), None);
     }
     assert!(r.journal().is_some());
     for _ in 0..10 {
-        r.begin();
-        r.call(0, "hd:Clock", "now", Value::Int(1), None);
+        r.call(0, "hd:Clock", "now", &[], Value::Int(1), None);
     }
     assert_eq!(r.journal(), None);
     assert!(r.take_notice());
