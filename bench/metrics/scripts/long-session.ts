@@ -11,9 +11,9 @@
 // process RSS, the build and run time of the input just done and the
 // journal size. The growth is the largest RSS from input 100 on, minus the
 // RSS at input 100.
-// Target (repl-plan.md Q3): at most 72 KiB per kept input on 16 KiB pages,
+// Target (owner, 2026-10-13): under 100 KiB per kept input on 16 KiB pages,
 // scaled by the page size (the code mapping of each input's module is
-// rounded to pages), so 64.8 MiB from input 100 to input 1,000 on 16 KiB
+// rounded to pages), so 87.9 MiB from input 100 to input 1,000 on 16 KiB
 // pages and a quarter of that on 4 KiB pages (unmeasured on Linux).
 // n/a: without cargo.
 
@@ -30,8 +30,8 @@ const STEP = 50;
 const BASELINE_INPUT = 100;
 const MARK = 1_000_000;
 const TEST_TIMEOUT_MS = 30 * 60_000;
-/** Q3's accepted cost of a kept input, measured on 16 KiB pages. */
-const KIB_PER_INPUT_16K = 72;
+/** The owner's accepted cost of a kept input (2026-10-13), on 16 KiB pages. */
+const KIB_PER_INPUT_16K = 100;
 const DEFAULT_PAGE = 16 * 1024;
 
 /** One line of the test's output: the state after `inputs` inputs. */
@@ -66,7 +66,7 @@ export function parseSamples(text: string): Sample[] {
   return samples;
 }
 
-/** The bound on growth from input `from` to input `to`: Q3's cost per input, scaled by the page size. */
+/** The bound on growth from input `from` to input `to`: the accepted cost per input, scaled by the page size. */
 export function growthBound(from: number, to: number, pageBytes: number): number {
   return (to - from) * KIB_PER_INPUT_16K * 1024 * (pageBytes / DEFAULT_PAGE);
 }

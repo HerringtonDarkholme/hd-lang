@@ -334,8 +334,8 @@ describe("pillar 2 helpers", () => {
     assert.equal(samples[1]!.buildUs, 70);
     assert.equal(growthFrom(samples, 100), 500 * 1024);
     assert.ok(Number.isNaN(growthFrom(samples, 50)));
-    assert.equal(growthBound(100, 1000, 16384), 900 * 72 * 1024);
-    assert.equal(growthBound(100, 1000, 4096), 900 * 18 * 1024);
+    assert.equal(growthBound(100, 1000, 16384), 900 * 100 * 1024);
+    assert.equal(growthBound(100, 1000, 4096), 900 * 25 * 1024);
   });
 
   it("takes node_modules as the toolchain of a Node hd", () => {

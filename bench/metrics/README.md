@@ -118,7 +118,7 @@ Notes on the choices:
 | Script | Measures | Target | n/a when |
 | --- | --- | --- | --- |
 | `resources` | CPU time and peak RSS of `hd check`, `hd test` and `hd build` on the small, 10k and 50k packages, each cold (fresh copy, empty `HD_CACHE`) then warm; one line per run | warm check of 10k lines ≤ 0.2 CPU-s and ≤ 50 MB; every other run completes within its timeout | no `/usr/bin/time` |
-| `long-session` | RSS of one REPL session over 1,000 inputs, sampled with `ps` every 50 inputs, driven in process by `cargo test -p hd_cli --features wasmtime long_session_plain -- --ignored` (the session API the REPL uses; the `--hd` command is not run) | growth from input 100 to 1,000 ≤ 72 KiB per input on 16 KiB pages, scaled by the page size (repl-plan.md Q3) | no cargo |
+| `long-session` | RSS of one REPL session over 1,000 inputs, sampled with `ps` every 50 inputs, driven in process by `cargo test -p hd_cli --features wasmtime long_session_plain -- --ignored` (the session API the REPL uses; the `--hd` command is not run) | growth from input 100 to 1,000 under 100 KiB per input on 16 KiB pages, scaled by the page size (owner, 2026-10-13) | no cargo |
 | `startup` | wall time, CPU time and peak RSS of `hd --version` (or `hd version`, else `hd help`) and of `hd check empty.hd`, median of 5 | ≤ 20 ms; ≤ 10 MB | CPU and RSS lines: no `/usr/bin/time` |
 | `concurrency` | N = 1, 4, 16 (and 64 with `--max`) `hd check` processes at once, each in its own copy of the small package, one shared empty `HD_CACHE` | p95 ≤ 1.5x of N = 1 up to N = cores; total CPU sublinear in N | CPU line: no `/usr/bin/time` |
 | `disk` | files `hd check`, `hd test` and `hd build` add to the small package, plus the toolchain | ≤ 10 MB | never |
@@ -135,7 +135,7 @@ Notes on the choices:
   150 s at 50k. A command is skipped, as a failing line, at a size above
   one where it timed out. Every command is skipped at a size where
   `hd check` timed out, since test and build type-check too.
-- **Bounds this harness proposes.** `long-session` allows 72 KiB per kept input
+- **Bounds this harness proposes.** `long-session` allows 100 KiB per kept input
   (scaled by the page size), and `concurrency` scales its bound past the core count to
   1.5x × N / cores. The owner may change both.
 - **`suite-cpu`** counts the conformance runner's own CPU time with the
@@ -146,9 +146,9 @@ Notes on the choices:
 - **`long-session`** runs the REPL's session in the `hd_cli` test, since bare
   `hd` needs a terminal. Its inputs each show the value 1000000 + i
   (`cli.repl.value`). It takes cargo, the `wasmtime` feature and minutes
-  (the build time of an input grows with the session, repl-plan.md §2.3),
+  (since #17's C12 an input's build time stays nearly flat, repl-plan.md §4),
   and prints the per-input build and run time and the journal size with
-  each RSS sample. The bound is Q3's 72 KiB per kept input, measured on 16
+  each RSS sample. The bound is 100 KiB per kept input (owner, 2026-10-13), on 16
   KiB pages and scaled by `getconf PAGESIZE`; the Linux figure is
   unmeasured. `long_session_mixed` adds declarations and later reads.
 - **Toolchain.** When a file the `--hd` command names lies in a Node
