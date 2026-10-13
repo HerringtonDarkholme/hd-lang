@@ -38,6 +38,8 @@ use hd_run_wasmtime::{EngineConfig, HostIo, Rebuilder, Stopper, WasmtimeEngine, 
 
 use crate::{HD_FAILURE, Wall, disk, report};
 
+mod highlight;
+
 /// The prompt of an input's first line, and of each line that continues it.
 const PROMPT: &str = "hd> ";
 const CONTINUE: &str = "... ";
@@ -92,7 +94,7 @@ pub(crate) trait Lines {
 }
 
 /// The terminal's line editor, with the session's history in memory.
-struct Editor(rustyline::DefaultEditor);
+struct Editor(rustyline::Editor<highlight::Helper, rustyline::history::DefaultHistory>);
 
 impl Lines for Editor {
     fn read(&mut self, prompt: &str, initial: &str) -> Line {
@@ -132,10 +134,11 @@ pub(crate) fn command() -> ExitCode {
         return rep.finish(HD_FAILURE);
     }
     let config = rustyline::Config::builder().auto_add_history(false).build();
-    let editor = match rustyline::DefaultEditor::with_config(config) {
+    let mut editor = match rustyline::Editor::with_config(config) {
         Ok(editor) => editor,
         Err(e) => return crate::fail(&format!("the terminal: {e}")),
     };
+    editor.set_helper(Some(highlight::Helper::new(highlight::color_enabled())));
     let streams = Streams {
         io: HostIo::process(),
         diags: Box::new(std::io::stderr()),
