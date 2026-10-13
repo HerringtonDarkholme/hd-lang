@@ -963,6 +963,18 @@ pub fn stderr_import() -> Sym {
     }
 }
 
+/// The host runtime's stdout import: the REPL's value line, which needs
+/// no `Console` requirement.
+#[must_use]
+pub fn stdout_import() -> Sym {
+    Sym::Import {
+        module: "hd:rt".into(),
+        name: "stdout".into(),
+        params: vec![VT::I32],
+        results: vec![],
+    }
+}
+
 /// The host runtime's `block` import (suspension.md §14.9).
 #[must_use]
 pub fn block_import() -> Sym {
@@ -1724,10 +1736,15 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
 
 /// Writes a fixed text to standard error through the runtime import.
 pub(crate) fn write_lit(a: &mut Asm, text: &str) {
+    write_lit_to(a, text, stderr_import());
+}
+
+/// Writes the literal `text` through the runtime import `write`.
+pub(crate) fn write_lit_to(a: &mut Asm, text: &str, write: Sym) {
     a.call(Sym::Helper(Helper::Lit(text.as_bytes().to_vec())));
     a.i64(i64::try_from(text.len()).unwrap_or(0) << 32);
     a.call(Sym::Helper(Helper::StrToBuf));
-    a.call(stderr_import());
+    a.call(write);
 }
 
 /// Pushes a `TypeId`, the std data type `st` over its key string `key`

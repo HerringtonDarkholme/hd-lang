@@ -21,7 +21,8 @@
 // - `hd:rt` `block()` waits synchronously for at least one completion,
 //   writes the completed handles to the exchange buffer and returns their
 //   count; `stderr(len)` writes the buffer's first `len` bytes to standard
-//   error.
+//   error; `stdout(len)` holds them with the console's output (the REPL's
+//   value line).
 // - Each provider asks the grant before it touches a resource
 //   (cli.host.default-profile.granted); a refused call returns the
 //   method's `NotGranted` result, or `.None` and a notice for `Env.get`
@@ -264,6 +265,9 @@ function rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, un
         sleep(Math.max(0, until(d) - performance.now()));
         if (overran()) throw new TimeLimit();
       }
+    },
+    stdout: (len) => {
+      st.out.push(decodeUtf8(view(len)));
     },
     abort: (h) => {
       st.ops.delete(h);

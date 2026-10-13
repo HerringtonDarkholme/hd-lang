@@ -133,7 +133,7 @@ providers.
 | scalars only, never waits | one function with Wasm parameters and results | `hd:Clock` `now_ms() -> i64` |
 | structured values, never waits | `(len: i32) -> i32`: arguments in the exchange buffer, result length back | `hd:Env` `get` |
 | may wait | `name.start(len) -> (i32 status, i32 value)`, then `name.finish(h) -> i32` | `hd:FsRead` `read_text.start`, `read_text.finish` |
-| runtime | `hd:rt` `block() -> i32`, `abort(h)`, `stderr(len)` | |
+| runtime | `hd:rt` `block() -> i32`, `abort(h)`, `stderr(len)`, `stdout(len)` | |
 
 A `.start` call returns two values (Codex re-review N-B3). Status `0`
 means the operation finished at once: the result is in the buffer and

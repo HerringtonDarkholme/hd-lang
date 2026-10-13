@@ -452,8 +452,12 @@ pub fn handle_trait(std_path: &str) -> Option<&'static HostTrait> {
 pub const RUNTIME_MODULES: &[&str] = &["hd:rt", "hd:TestRunner", "hd:PropertyRunner", "hd:hook"];
 
 /// The runtime's own imports (§17.2).
-pub const RUNTIME_IMPORTS: &[(&str, &str)] =
-    &[("hd:rt", "block"), ("hd:rt", "abort"), ("hd:rt", "stderr")];
+pub const RUNTIME_IMPORTS: &[(&str, &str)] = &[
+    ("hd:rt", "block"),
+    ("hd:rt", "abort"),
+    ("hd:rt", "stderr"),
+    ("hd:rt", "stdout"),
+];
 
 /// How the compiler supplies an `@intrinsic("key")` body of std
 /// (std-bootstrap.md, "Primitive Functions"; codegen.md §12.2).
@@ -498,6 +502,7 @@ pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("dbg", Lowering::Compiler),
     ("dbg_text", Lowering::Compiler),
     ("dbg_write", Lowering::Compiler),
+    ("repl_write", Lowering::Compiler),
     ("dbg_show", Lowering::Compiler),
     ("format_f64", Lowering::HostPrimitive("format_f64")),
     ("format_f32", Lowering::HostPrimitive("format_f32")),

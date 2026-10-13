@@ -32,6 +32,7 @@ pub(crate) enum Kind {
     Block,
     Abort,
     Stderr,
+    Stdout,
     FormatF64,
     FormatF32,
     FormatFixed,
@@ -107,6 +108,7 @@ impl Kind {
             | Self::ProcessStart
             | Self::HttpStart
             | Self::Stderr
+            | Self::Stdout
             | Self::Lower
             | Self::Upper
             | Self::ParseF64
@@ -125,7 +127,8 @@ impl Kind {
         let valid = match self {
             Self::Test(TestMethod::Timeout | TestMethod::Record | TestMethod::Show)
             | Self::Abort
-            | Self::Stderr => results.is_empty(),
+            | Self::Stderr
+            | Self::Stdout => results.is_empty(),
             Self::ParseF64 => matches!(results, [ValType::F64]),
             Self::Fs { finish: false, .. }
             | Self::ProcessStart
@@ -255,6 +258,7 @@ impl Kind {
             ("hd:rt", "block") => Kind::Block,
             ("hd:rt", "abort") => Kind::Abort,
             ("hd:rt", "stderr") => Kind::Stderr,
+            ("hd:rt", "stdout") => Kind::Stdout,
             ("hd:prim", "format_f64") => Kind::FormatF64,
             ("hd:prim", "format_f32") => Kind::FormatF32,
             ("hd:prim", "format_f64_fixed") => Kind::FormatFixed,

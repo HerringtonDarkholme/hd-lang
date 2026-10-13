@@ -2415,6 +2415,15 @@ impl Em<'_> {
                 crate::rt::write_lit(&mut self.a, "\n");
                 Ok(())
             }
+            // The REPL's value line (`cli.repl.value.stream`), to standard
+            // output through the runtime, which needs no `Console`.
+            "repl_write" => {
+                self.load(args[0])?;
+                self.a.call(Sym::Helper(Helper::StrToBuf));
+                self.a.call(crate::rt::stdout_import());
+                crate::rt::write_lit_to(&mut self.a, "\n", crate::rt::stdout_import());
+                Ok(())
+            }
             // std's `list_truncate(list, len)`: the list keeps its first
             // `len` items. Its callers checked the bounds.
             "list_truncate" => {

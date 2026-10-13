@@ -81,7 +81,7 @@ impl Lines for Script {
 
 /// What a session wrote: its transcript, the guest's standard output and
 /// error with the REPL's diagnostics in one stream, as a terminal shows
-/// them. The value lines go to standard error, as `dbg` lines do.
+/// them. The value lines go to standard output (`cli.repl.value.stream`).
 struct Transcript {
     out: String,
     script: Script,
@@ -161,7 +161,8 @@ fn an_expression_shows_its_value_and_type() {
 }
 
 /// `cli.dbg.repl`: an input's `dbg` lines print before its value line.
-/// The guest's standard output stays its own stream.
+/// The `dbg` lines are on standard error; standard output holds the
+/// input's own output and its value line.
 #[test]
 fn dbg_lines_come_before_the_value_line() {
     let dir = Scratch::new(SCRATCH, "repl-dbg");
@@ -181,8 +182,41 @@ fn dbg_lines_come_before_the_value_line() {
         Some(&stdout),
         hd_run::journal::SESSION_CAP,
     );
-    assert_eq!(stdout.text(), "out\n");
-    assert_eq!(t.out, "repl#2:2:5: x = 5\n6 : i32\n");
+    assert_eq!(stdout.text(), "out\n6 : i32\n");
+    assert_eq!(t.out, "repl#2:2:5: x = 5\n");
+}
+
+/// `cli.repl.value.stream`: one input writes its own output, a `dbg` line
+/// and its value line. On one terminal (both streams in one buffer) they
+/// come in that order.
+#[test]
+fn output_then_dbg_then_value_on_one_terminal() {
+    let t = session(&[
+        "fn show(x: i32) -> i32:",
+        "    println(\"out\")",
+        "    dbg(x)",
+        "    x + +1",
+        "",
+        "show(+5)",
+    ]);
+    assert_eq!(t.out, "out\nrepl#1:3:5: x = 5\n6 : i32\n");
+}
+
+/// `cli.repl.value.stream`: the value line is on standard output and
+/// nothing else is; standard error stays empty.
+#[test]
+fn the_value_line_is_on_standard_output_alone() {
+    let dir = Scratch::new(SCRATCH, "repl-value-stdout");
+    let stdout = Buffer::default();
+    let t = session_with(
+        &dir,
+        Script::of(&["[3, 6]", "1 + 2"]),
+        |_| {},
+        Some(&stdout),
+        hd_run::journal::SESSION_CAP,
+    );
+    assert_eq!(stdout.text(), "[3, 6] : List[usize]\n3 : usize\n");
+    assert_eq!(t.out, "");
 }
 
 /// `cli.repl.input-types`: each input is checked on its own; `x := 21`
@@ -841,7 +875,7 @@ fn reload_drops_from_the_first_input_that_replays_otherwise() {
     assert_eq!(
         t.out,
         "6 : i32\n11 : i32\n\
-         error: repl#2 does not replay: input 2 called hd:rt stderr with other arguments than before\n\
+         error: repl#2 does not replay: input 2 called hd:rt stdout with other arguments than before\n\
          note: the rebuild dropped repl#2 and the 1 input after it\n\
          reloaded: 1 input replayed\n\
          10 : i32\n9 : i32\n"

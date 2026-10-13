@@ -1159,6 +1159,7 @@ impl Cx<'_> {
                     | "panic"
                     | "entry_write"
                     | "dbg_write"
+                    | "repl_write"
                     | "list_truncate"
                     | "bytes_len"
                     | "bytes_at"

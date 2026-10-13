@@ -400,6 +400,13 @@ fn an_expression_input_writes_its_value_line() {
     let wasm = out.wasm.as_deref().expect("a module");
     assert!(shows_a_value(wasm), "{:?}", function_names(wasm));
     assert!(holds(wasm, "List[usize]"));
+    // The value line goes to standard output (`cli.repl.value.stream`),
+    // through the runtime's `stdout` import, not `Console`.
+    let (imports, _) = imports_and_exports(wasm);
+    assert!(
+        imports.contains(&("hd:rt".to_owned(), "stdout".to_owned())),
+        "{imports:?}"
+    );
     repl.input(2, "fn twice(x: i32) -> i32:\n    x * +2\n");
     let out = repl.input(3, "twice\n");
     let wasm = out.wasm.as_deref().expect("a module");

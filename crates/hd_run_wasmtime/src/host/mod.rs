@@ -3,8 +3,9 @@
 //!
 //! - `hd:rt`: `block()` waits for at least one completion and writes the
 //!   completed handles to the exchange buffer; `stderr(len)` writes the
-//!   buffer's first `len` bytes to standard error; `abort(h)` drops an
-//!   operation.
+//!   buffer's first `len` bytes to standard error; `stdout(len)` holds them
+//!   with `Console`'s standard output (the REPL's value line);
+//!   `abort(h)` drops an operation.
 //! - `hd:prim`: the float text, parsing and case mapping of `prim.rs`.
 //! - `hd:Console` `write_line` is pending at once and writes its line when
 //!   it completes; `hd:ConsoleInput` `read_line` is pending until a thread

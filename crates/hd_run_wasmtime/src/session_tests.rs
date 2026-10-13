@@ -444,14 +444,15 @@ fn a_function_sees_a_later_change_to_an_earlier_binding() {
 }
 
 /// `cli.repl.value`: an input that is one expression shows its value as
-/// `dbg` prints it, then ` : ` and its type, on the debug output.
+/// `dbg` prints it, then ` : ` and its type, on standard output
+/// (`cli.repl.value.stream`).
 #[test]
 fn an_expression_input_shows_its_value_and_type() {
     with_session(|session, io| {
         let mut repl = repl(session);
         assert_eq!(repl.input("[3, 6]\n"), Outcome::Exit(0));
-        assert_eq!(text(&io.err), "[3, 6] : List[usize]\n");
-        assert_eq!(text(&io.out), "");
+        assert_eq!(text(&io.out), "[3, 6] : List[usize]\n");
+        assert_eq!(text(&io.err), "");
     });
 }
 
@@ -472,7 +473,7 @@ fn a_value_without_debug_shows_too() {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
         }
         assert_eq!(
-            text(&io.err),
+            text(&io.out),
             "Point { x: 1, y: -2 } : Point\nPoint { x: 0, y: 0 } : Point\n"
         );
     });
@@ -508,10 +509,8 @@ fn dbg_lines_print_before_the_value_line() {
         let mut repl = repl(session);
         assert_eq!(repl.input(in1), Outcome::Exit(0), "{}", text(&io.err));
         assert_eq!(repl.input(in2), Outcome::Exit(0), "{}", text(&io.err));
-        assert_eq!(
-            text(&io.err),
-            "repl#1:2:5: x = 21\nrepl#1:2:5: x = 1\n44 : i32\n"
-        );
+        assert_eq!(text(&io.err), "repl#1:2:5: x = 21\nrepl#1:2:5: x = 1\n");
+        assert_eq!(text(&io.out), "44 : i32\n");
     });
 }
 
@@ -533,8 +532,8 @@ fn an_input_makes_bang_calls_at_top_level() {
         for input in &inputs {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
         }
-        assert_eq!(text(&io.out), "true\n");
-        assert_eq!(text(&io.err), "false : bool\n");
+        assert_eq!(text(&io.out), "true\nfalse : bool\n");
+        assert_eq!(text(&io.err), "");
     });
 }
 
@@ -563,7 +562,8 @@ cleanup([+1])
             ("Option.Some(1.5)\n", "Option.Some(1.5) : f64?\n"),
         ] {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
-            assert_eq!(text(&io.err), shown);
+            assert_eq!(text(&io.out), shown);
+            assert_eq!(text(&io.err), "");
         }
         assert_eq!(repl.input(panics), Outcome::Exit(3));
         assert_eq!(
@@ -1009,7 +1009,7 @@ fn a_rebuilt_session_repeats_no_host_call() {
         let mut before = String::new();
         for input in shown {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
-            before.push_str(&text(&io.err));
+            before.push_str(&text(&io.out));
         }
         assert!(
             before.ends_with("\"first text\" : string\nResult.Ok(Option.Some(\"typed line\")) : Result[string?, ConsoleError]\n"),
@@ -1032,7 +1032,7 @@ fn a_rebuilt_session_repeats_no_host_call() {
         let mut after = String::new();
         for input in shown {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
-            after.push_str(&text(&io.err));
+            after.push_str(&text(&io.out));
         }
         assert_eq!(after, before);
         assert_eq!(journal_inputs(repl.session), (0..=11).collect::<Vec<_>>());
@@ -1065,8 +1065,8 @@ fn a_rebuild_skips_stopped_inputs_and_drops_from_the_first_divergence() {
         for input in ["1 + 1\n", "kept = kept + 1\nprintln(kept)\n", "2 + 2\n"] {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
         }
-        assert_eq!(text(&io.err), "2 : usize\n4 : usize\n");
-        assert_eq!(text(&io.out), "9\n");
+        assert_eq!(text(&io.out), "2 : usize\n9\n4 : usize\n");
+        assert_eq!(text(&io.err), "");
         let rebuilt = repl.rebuild();
         assert_eq!(rebuilt.kept, [1, 2, 5]);
         assert_eq!(rebuilt.skipped, [3, 4]);
@@ -1078,7 +1078,7 @@ fn a_rebuild_skips_stopped_inputs_and_drops_from_the_first_divergence() {
         assert_eq!(text(&io.err), "");
         assert_eq!(text(&io.out), "");
         assert_eq!(repl.input("kept\n"), Outcome::Exit(0));
-        assert_eq!(text(&io.err), "7 : usize\n");
+        assert_eq!(text(&io.out), "7 : usize\n");
         assert_eq!(journal_inputs(repl.session), [1, 2, 5, 8]);
     });
 }
@@ -1105,7 +1105,7 @@ fn a_long_session_rebuild_is_timed() {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
         }
         let live = started.elapsed();
-        let shown = text(&io.err);
+        let shown = text(&io.out);
         let calls = repl.session.host_calls();
         let started = Instant::now();
         let (rebuilt, building) = repl.rebuild_timed();
@@ -1116,7 +1116,7 @@ fn a_long_session_rebuild_is_timed() {
         assert_eq!(text(&io.err), "");
         assert_eq!(repl.input("total\n"), Outcome::Exit(0));
         let total: usize = (1..200).filter(|i| i % 10 != 0).sum();
-        assert_eq!(text(&io.err), format!("{total} : usize\n"));
+        assert_eq!(text(&io.out), format!("{total} : usize\n"));
         assert_eq!(shown.lines().count(), 19);
         println!(
             "200 inputs: built and run live in {live:?}; rebuilt from the journal in {took:?} ({:?} per input), of which building {building:?} and replaying {:?} ({:?} per input)",

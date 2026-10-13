@@ -248,6 +248,13 @@ pub(crate) fn call(
             host.err(&t);
             Ret::void()
         }
+        // Held with `Console`'s output, so a later `stderr` write puts it
+        // first.
+        Kind::Stdout => {
+            let t = text(caller, int_arg(params, 0)?)?;
+            caller.data_mut().out.extend_from_slice(t.as_bytes());
+            Ret::void()
+        }
         Kind::Block => loop {
             let handles = complete(caller)?;
             if !handles.is_empty() {
