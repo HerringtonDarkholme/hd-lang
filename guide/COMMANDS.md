@@ -140,11 +140,15 @@ src/main.hd:1:1: function pkg.main.main
   pub fn main() -> void $ Console
 ```
 
-`hd` with no arguments opens the interactive session; each line is
-evaluated and printed with its type:
+`hd` with no arguments on a terminal opens the interactive session; each
+line is evaluated and printed with its type. Text piped into `hd` runs as
+a program instead, so a session cannot be scripted through standard input.
+An input may not redeclare a name an earlier input declared
+(`duplicate-binding`, `duplicate-type`); to change a declaration, start a
+new session or give the new one another name.
 
 ```sh
-$ hd repl
+$ hd
 1 + 2
 3 : usize
 ```

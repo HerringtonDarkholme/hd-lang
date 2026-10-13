@@ -2,7 +2,11 @@
 
 Part of the [compiler design](README.md).
 
-Status: Design, not decided, 2026-10-07.
+Status: Design, not decided, 2026-10-07. Corrected 2026-10-12 to the owner's
+decisions in [repl-plan.md](repl-plan.md) §5 (Q8): marked
+**[Decided 2026-10-12]** in place. Where an unmarked section still says
+"shadowing", the marked note wins: the spec now forbids redefinition
+([`cli.repl.redeclare.*`](../../spec/cli/command-line.md)).
 
 ## Summary
 
@@ -20,19 +24,19 @@ by-product that lets it rebuild.
 | --- | --- |
 | What is a session? | Its inputs (source text), a live program instance, and a journal |
 | How does an input run? | Checked against the earlier inputs' interfaces, compiled to one small Wasm module, linked into the session's one `Store`, run once |
-| Redefinition? | **Shadowing**, as OCaml, GHCi, Scala, Kotlin and Swift do. Earlier code and values keep the old item. The REPL prints a note naming the earlier items that still use it |
+| Redefinition? | ~~**Shadowing**, as OCaml, GHCi, Scala, Kotlin and Swift do. Earlier code and values keep the old item. The REPL prints a note naming the earlier items that still use it~~ **[Decided 2026-10-12: none.]** An input must not redeclare a name an earlier input declared: `duplicate-type` for types, traits and aliases, `duplicate-binding` for functions and bindings (`cli.repl.redeclare.*`). No shadowing, no stale-caller note |
 | What is journaled? | Host-call results, wake batches, cancellations, and an input marker per input. Nothing else is nondeterministic ([`req.determinism.depends`](../../spec/lang/11-requirements-and-suspension.md#r-req.determinism.depends)) |
 | Where is it recorded? | In the host, by a wrapper around the providers and the driver loop. **No compiled hooks are needed**, so the same debug or release binary can be recorded and replayed |
 | When does the REPL replay? | Only to rebuild: a browser Stop of a busy input, a page reload, a share link, and `:reload` after the package's files change |
 | What if a rebuild diverges? | The rebuild keeps the longest prefix of inputs that checks and replays identically. The first divergent input and every later one are dropped and reported. Host calls are never repeated live |
-| First release | The REPL with shadowing, the in-memory journal, rebuild on Stop, reload and `:reload`, and playground persistence and share links |
+| First release | The REPL ~~with shadowing~~ **[Decided 2026-10-12: with no redefinition]**, the in-memory journal, rebuild on Stop, reload and `:reload`, and playground persistence and share links |
 | Later | `hd run --record` and `--replay` as public flags, resume (durable execution), hot reload, notebooks, simulation testing, deterministic stops by metering |
 
 Three findings matter most:
 
 1. **The prototype's REPL already is a replay design, done badly.** It
    reruns the whole session as one program for each input, with a host
-   answer list (`src/repl.ts`). That costs O(n²) over a session. After a
+   answer list (the deleted TypeScript prototype's `src/repl.ts`; **[2026-10-12: the TypeScript compiler is deleted, the Rust workspace is the only compiler]**). That costs O(n²) over a session. After a
    divergence it calls the host live, which repeats effects. The
    playground's Stop re-sends the inputs to a new worker with no
    answers at all, so host calls happen twice. The new design keeps the
@@ -124,13 +128,13 @@ Session
 
 ### 2.2 Checking One Input
 
-Each input is a synthetic file `repl#n` in folder `src`, checked as top-level
+Each input is a synthetic file `repl#n`, ~~in folder `src`~~ **[Decided 2026-10-12: outside every package folder (repl-plan.md §5 Q8a)]**, checked as top-level
 statements and declarations of a one-input module (commands.md §7.8).
 The scope is a stack:
 
 ```text
 lookup(name):
-    input n-1's interface, then n-2's, ..., then input 1's     newest first: shadowing
+    input n-1's interface, then n-2's, ..., then input 1's     newest first (**[2026-10-12]** no name appears twice, so order only matters for uses)
     then the uses that earlier inputs declared
     then lib.hd's private scope, then std's prelude
 ```
@@ -200,11 +204,14 @@ repl#4.wasm       imports price, dbg_text[u32]
   groups), so a value built in input 1 flows into input 4 unchanged.
   The emitter's canonical type order (wasm-layout.md §15.3) makes the
   same hd layout give the same rec group in every module.
-- **Runtime type ids** (for `dyn Any` and type witnesses,
+- ~~**Runtime type ids** (for `dyn Any` and type witnesses,
   wasm-layout.md §15.2) are assigned session-wide and append-only, so a
-  shadowed type and its replacement get different ids.
-- **Direct imports, not the hot-reload table.** With shadowing, a call
-  always goes to one fixed item, so a direct `call` to an imported
+  shadowed type and its replacement get different ids.~~ **[Decided
+  2026-10-12: no runtime type-id table, and no redefinition at all.]** A
+  type is declared once per session, so no id needs to tell two
+  versions of a name apart.
+- **Direct imports, not the hot-reload table.** With no redefinition
+  **[2026-10-12]**, a call always goes to one fixed item, so a direct `call` to an imported
   function is enough. The funcref table of engines-and-test-runner.md
   §18.5 stays off. It is only needed for late binding (§3.3).
 - **Cache.** An input module's `code` and `link` entries are keyed by its
@@ -214,6 +221,12 @@ repl#4.wasm       imports price, dbg_text[u32]
   the first `1 + 2` would emit and compile the formatting code of std.
 
 ## 3. Redefinition Semantics
+
+> **[Decided 2026-10-12] Superseded.** The owner chose no redefinition at
+> all: an input must not redeclare a name an earlier input declared
+> (`duplicate-type`, `duplicate-binding`; `cli.repl.redeclare.*`). This
+> section is kept as the record of the options weighed. Shadowing, the
+> stale-caller note and origin-marked types (§3.3) are gone.
 
 ### 3.1 The Options
 
@@ -253,6 +266,8 @@ asked for** (`:reload` of package files, §5.4). There, divergence is
 reported, not hidden.
 
 ### 3.3 Recommendation: Shadowing, With A Note
+
+**[Decided 2026-10-12: not adopted; see the note under §3. The text below is the old recommendation.]**
 
 Shadowing (option A), for every kind of declaration:
 
@@ -334,7 +349,7 @@ so engine NaN differences cannot reach the host.
 
 **The simplification the framing missed:** because all of this crosses
 the embedding API (runtime-and-host.md §17.9), the recorder is a host
-wrapper. It needs **no `hd:hook` imports and no special build**. A
+wrapper **[Decided 2026-10-12: it sits at the host call sites]**. It needs **no `hd:hook` imports and no special build**. A
 release binary recorded in production replays bit for bit with the same
 bytes. The reserved hook points (suspension.md §14.7) stay for tracing
 and for exploring interleavings below the wake level.
@@ -411,7 +426,7 @@ The journal reader, writer, recorder and replayer live in `hd_run`
 
 | Context | Storage |
 | --- | --- |
-| `hd repl` | memory, for the session's life (first release); `build/.hd/repl/` for saved sessions (Later) |
+| ~~`hd repl`~~ **[2026-10-12: bare `hd` on a terminal]** | memory, for the session's life (first release); `build/.hd/repl/` for saved sessions (Later) |
 | playground and website REPL | IndexedDB, written after each input (§8) |
 | `hd run --record FILE` (Later) | the named file; blobs beside it |
 | durable resume (Later) | a file written ahead of each effect (§6.3) |
@@ -656,7 +671,8 @@ It costs a decrement and a branch per loop iteration in session builds
 
 ### 8.1 The Same Model In A Worker
 
-The playground's two workers (commands.md §7.9) map onto the session:
+~~The playground's two workers (commands.md §7.9) map onto the session:~~
+**[Decided 2026-10-12: the playground keeps one worker; Stop rebuilds from the journal (repl-plan.md §5 Q8e). The split below is the old two-worker plan.]**
 
 | Piece | Lives in |
 | --- | --- |
@@ -792,7 +808,7 @@ buffer into the journal. No compiled code changes.
 | --- | --- | --- |
 | per-input modules in one `Store`, the session linker, the prelude | first release | replaces the rerun-the-session prototype |
 | input interfaces; declarations that see earlier bindings | first release | removes the prototype's restriction |
-| shadowing with stale-caller notes and origin-marked types | first release | open question 1 |
+| ~~shadowing with stale-caller notes and origin-marked types~~ | ~~first release~~ | **[Decided 2026-10-12: dropped; no redefinition (`cli.repl.redeclare.*`)]** |
 | `Recorder` and `Replayer` in the wasmtime host and the JS glue | first release | internal; the REPL needs them |
 | in-memory journal (CLI), IndexedDB journal (browser) | first release | |
 | rebuild on browser Stop, page reload, share link and `:reload` | first release | longest-prefix rule |
@@ -841,7 +857,7 @@ are not applied.
 | Where | Change |
 | --- | --- |
 | `spec/cli/command-line.md`, REPL | new rule `cli.repl.declarations.bindings`: a declaration in an input may use the top-level bindings of earlier inputs |
-| same | new rules `cli.repl.redefine.shadow` (a name declared again shadows the earlier one for later inputs; earlier items and values keep it) and `cli.repl.redefine.impl` (an impl that overlaps an earlier input's impl is the usual overlap error) |
+| same | ~~new rules `cli.repl.redefine.shadow`~~ **[2026-10-12: replaced by `cli.repl.redeclare.binding` and `.type`]** (a name declared again shadows the earlier one for later inputs; earlier items and values keep it) and `cli.repl.redefine.impl` (an impl that overlaps an earlier input's impl is the usual overlap error) |
 | same | extend `cli.repl.panic.binding` to declarations: a panicking input adds no declaration either |
 | same | new rules `cli.repl.cancel` (interrupting an input that waits cancels it by `req.cancel`; it then ends as a panic does) and `cli.repl.stop` (interrupting a running input ends it as a panic does) |
 | same | new rules `cli.repl.rebuild` and `cli.repl.rebuild.prefix`: a session may be rebuilt by running its inputs again with host results served from its record; host calls are not repeated; an input that does not check or makes a different host call ends the rebuild, and it and later inputs are dropped and reported |
@@ -876,7 +892,14 @@ are not applied.
 
 ## 12. Open Questions For The Owner
 
-1. **Redefinition: shadowing or late binding?** Shadowing keeps earlier
+**[Decided 2026-10-12]** Question 1 is answered by the spec: no redefinition
+(`cli.repl.redeclare.*`). Question 4 is answered by the spec as well:
+`cli.repl.stop` and `cli.repl.rebuild.stopped` let a rebuild lose a
+stopped input's changes. Question 2 is decided in repl-plan.md §5 Q3 (about
+72 KiB per kept input now; rebuild from the journal past a limit later).
+Question 3 stays open.
+
+1. **[Answered 2026-10-12: neither; no redefinition.] Redefinition: shadowing or late binding?** Shadowing keeps earlier
    functions calling the old definition, with a note that names them.
    Late binding makes callers see a fixed function at once when its
    signature is unchanged, at the cost of a funcref table call and a
@@ -894,7 +917,7 @@ are not applied.
    and new big features are on hold. **Recommendation:** keep them Later
    as public flags; use the mechanism internally (REPL rebuilds, and a
    cross-engine conformance test).
-4. **May a rebuild lose a stopped input's changes?** The alternative is
+4. **[Answered 2026-10-12 by the spec.] May a rebuild lose a stopped input's changes?** The alternative is
    metered code, so stops happen only at journaled points and replay
    exactly. It costs a decrement and a branch per loop iteration in
    session builds, and it is also the fuel that simulation testing
@@ -904,7 +927,7 @@ are not applied.
 
 ## Sources
 
-- The prototype: `src/repl.ts` (`ReplSession.run`, its host answer list
+- The prototype (deleted 2026-10-12 with the TypeScript compiler): `src/repl.ts` (`ReplSession.run`, its host answer list
   and divergence handling) and `website/playground/README.md` (REPL
   semantics without `main`; the Stop behaviour).
 - wasmtime `Store` documentation, on instances not freed before the

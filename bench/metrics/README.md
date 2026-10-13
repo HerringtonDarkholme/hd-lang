@@ -118,7 +118,7 @@ Notes on the choices:
 | Script | Measures | Target | n/a when |
 | --- | --- | --- | --- |
 | `resources` | CPU time and peak RSS of `hd check`, `hd test` and `hd build` on the small, 10k and 50k packages, each cold (fresh copy, empty `HD_CACHE`) then warm; one line per run | warm check of 10k lines ≤ 0.2 CPU-s and ≤ 50 MB; every other run completes within its timeout | no `/usr/bin/time` |
-| `long-session` | RSS of one `hd repl` session over 1,000 inputs, sampled with `ps` every 50 inputs; without such a REPL, peak RSS over 50 rechecks after edits | growth from input 100 (or recheck 10) ≤ 10 MB | no REPL and no `/usr/bin/time` |
+| `long-session` | RSS of one REPL session (bare `hd` on a terminal) over 1,000 inputs, sampled with `ps` every 50 inputs; without such a REPL, peak RSS over 50 rechecks after edits | growth from input 100 (or recheck 10) ≤ 10 MB | no REPL and no `/usr/bin/time` |
 | `startup` | wall time, CPU time and peak RSS of `hd --version` (or `hd version`, else `hd help`) and of `hd check empty.hd`, median of 5 | ≤ 20 ms; ≤ 10 MB | CPU and RSS lines: no `/usr/bin/time` |
 | `concurrency` | N = 1, 4, 16 (and 64 with `--max`) `hd check` processes at once, each in its own copy of the small package, one shared empty `HD_CACHE` | p95 ≤ 1.5x of N = 1 up to N = cores; total CPU sublinear in N | CPU line: no `/usr/bin/time` |
 | `disk` | files `hd check`, `hd test` and `hd build` add to the small package, plus the toolchain | ≤ 10 MB | never |
@@ -145,7 +145,7 @@ Notes on the choices:
   time includes `/usr/bin/time`'s own start, about 1 ms.
 - **`long-session`** feeds the REPL inputs that each show the value
   1000000 + i (`cli.repl.value`), so the run knows how far the session
-  got. A REPL "reads standard input" when `hd repl` fed `1 + 2` shows 3.
+  got. A REPL "reads standard input" when the probe (still written for the old `hd repl`) shows 3 for `1 + 2`. Bare `hd` with piped text runs a program, so this probe finds no REPL until the metric drives a session on a terminal.
 - **Toolchain.** When a file the `--hd` command names lies in a Node
   package with `node_modules`, that folder is the toolchain, and the `disk`
   line says so. Otherwise it is the program on PATH and the files the
