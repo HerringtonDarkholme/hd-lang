@@ -17,6 +17,8 @@ mod help;
 mod memory_cap;
 mod new_cmd;
 mod node;
+#[cfg(feature = "wasmtime")]
+mod repl;
 mod report;
 mod test_cmd;
 
@@ -78,11 +80,15 @@ fn main() -> ExitCode {
         Err(error) => return fail(&error),
     };
     let Some(command) = arguments.first().and_then(|c| c.to_str()) else {
-        // `cli.stdin.program`: without a terminal, `hd` with no arguments
-        // runs standard input as a single-file program. A terminal keeps
-        // the current behavior.
+        // `cli.repl.open.terminal`: `hd` with no arguments on a terminal
+        // opens the REPL. `cli.stdin.program`: without a terminal, it runs
+        // standard input as a single-file program.
         if std::io::stdin().is_terminal() {
-            return usage();
+            return if memory.is_some() {
+                usage()
+            } else {
+                repl_command()
+            };
         }
         return run_stdin_command(memory);
     };
@@ -156,6 +162,21 @@ fn main() -> ExitCode {
         }
         _ => usage(),
     }
+}
+
+/// `hd` on a terminal (`cli.repl.open.terminal`): the REPL, which runs on
+/// wasmtime only.
+#[cfg(feature = "wasmtime")]
+fn repl_command() -> ExitCode {
+    repl::command()
+}
+
+/// `hd` on a terminal, in a build without wasmtime, which the REPL needs.
+#[cfg(not(feature = "wasmtime"))]
+fn repl_command() -> ExitCode {
+    fail(
+        "the REPL runs on wasmtime, and this build of hd has none; rebuild with `--features wasmtime`",
+    )
 }
 
 /// Follow command dispatch: a source argument to `fmt` is not a program run.

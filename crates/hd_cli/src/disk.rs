@@ -46,6 +46,14 @@ impl DiskSources {
             .push((path.to_owned(), Arc::from(text.as_bytes())));
     }
 
+    /// Removes a file that `add_synthetic` added, such as a REPL input
+    /// that did not join its session.
+    #[cfg(feature = "wasmtime")]
+    pub fn remove_synthetic(&mut self, path: &str) {
+        self.files.retain(|e| e.path != path);
+        self.synthetic.retain(|(p, _)| p != path);
+    }
+
     /// A listed path as it is on disk, relative to the package directory.
     pub fn display(&self, path: &str) -> String {
         match (&self.src, path.strip_prefix("src/")) {
@@ -662,6 +670,43 @@ pub fn load_stdin(text: &str) -> Result<Program, String> {
         entries: Vec::new(),
     })
 }
+
+/// The scope of a REPL session started in `cwd`: the package of package
+/// mode, whose `src/lib.hd`, modules and dependencies the session uses
+/// (`cli.repl.package.*`), or outside any package, and at a workspace
+/// root, no sources: the session uses only `std` (`cli.repl.outside`,
+/// `cli.workspace.repl`). The session's inputs are added as synthetic
+/// `repl#N` files.
+#[cfg(feature = "wasmtime")]
+pub fn load_session(cwd: &Path) -> Result<Program, String> {
+    if let Some(root) = package_root(cwd) {
+        return load_package(&root, "src/lib.hd");
+    }
+    Ok(Program {
+        sources: DiskSources {
+            root: cwd.to_path_buf(),
+            files: Vec::new(),
+            src: None,
+            synthetic: Vec::new(),
+        },
+        package: SESSION_PACKAGE.to_owned(),
+        entry: String::new(),
+        requires: Vec::new(),
+        dev_requires: Vec::new(),
+        deps: Vec::new(),
+        problems: Vec::new(),
+        single_file: false,
+        as_written: None,
+        capabilities: Vec::new(),
+        package_dir: None,
+        entries: Vec::new(),
+    })
+}
+
+/// The package name of a REPL session outside any package. Its inputs are
+/// files of no folder, so the name never meets a directory's.
+#[cfg(feature = "wasmtime")]
+const SESSION_PACKAGE: &str = "repl";
 
 /// The whole package at `root`, with the packages it requires, and the
 /// package-relative file `entry` as its entry module.

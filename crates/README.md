@@ -127,6 +127,11 @@ An `hd` built without the feature refuses the engine when it reads the name,
 with `this build of hd has no wasmtime engine; rebuild with --features
 wasmtime`. It never falls back to Node.
 
+The REPL (`hd` with no arguments on a terminal, `hd_cli/src/repl.rs`) runs on
+wasmtime only, so its line editor (`rustyline`) and Ctrl-C handler (`ctrlc`)
+come with the feature too. An `hd` without it says the REPL needs wasmtime
+and exits with status 101; piped standard input still runs as a program.
+
 The tests that need wasmtime run only with the feature. `hd_driver` has a
 `wasmtime` feature of its own for them: the wasmtime modes of its
 conformance test (`HD_CONFORMANCE_ENGINE=wasmtime` and `wasmtime-only`) and
