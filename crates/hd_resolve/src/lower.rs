@@ -4690,18 +4690,18 @@ fn derivation_nodes(
 /// `annot.block.module`, `annot.block.newtype.error`,
 /// `annot.line.placement-blocks`, `annot.no-trait.*`), each reported once on
 /// the block or member. `extra` holds the targets of blocks that sit in
-/// another module of the session.
+/// another module of the session, and `blocked` the types that another
+/// module of the session gives a derivation block with no trait.
 fn placement(
     names: &Names<'_>,
     session: &[PathId],
-    (items, extra): (&[Item], &[Item]),
+    (items, extra, mut blocked): (&[Item], &[Item], HashSet<DefId>),
     index: &ItemIndex,
     heads: &[Head<'_>],
     src: &Src<'_>,
     diags: &mut DiagBuf,
 ) {
     // The types that already have their one derivation block with no trait.
-    let mut blocked = HashSet::new();
     for h in heads.iter().filter(|h| h.kind == HeadKind::Impl) {
         let Some(it) = index.get(items, h.def) else {
             continue;
@@ -4828,6 +4828,41 @@ fn session_targets(
         };
         if let Some(target) = iface.item(def) {
             out.push(target.clone());
+        }
+    }
+    out
+}
+
+/// The types to which an earlier module of the REPL input `module`'s
+/// session gives its one derivation block with no trait, so a block in the
+/// input is a second one (`annot.no-trait.unique`,
+/// `cli.repl.redefine.impl`). Empty for any other module.
+fn session_blocks(r: &Resolver<'_, '_>, module: &str) -> HashSet<DefId> {
+    let names = &r.cx.names;
+    let mut out = HashSet::new();
+    for m in r.session_modules.get(module).into_iter().flatten() {
+        let Some(iface) =
+            r.cx.world
+                .module_folder(m)
+                .and_then(|f| r.cx.world.iface(f))
+        else {
+            continue;
+        };
+        let node = names.module(m);
+        for it in &iface.items {
+            if let ItemData::Impl {
+                trait_,
+                by: Some(by),
+                self_ty,
+                ..
+            } = &it.data
+                && *trait_ == DefId::NONE
+                && names.text(*by) == "Structure"
+                && names.module_node(it.def) == node
+                && let TyData::Adt { def, .. } = names.pool.get(*self_ty)
+            {
+                out.insert(def);
+            }
         }
     }
     out
@@ -5050,7 +5085,16 @@ pub fn build_folder(
         if r.frozen.is_none() {
             let session = session_paths(names, &m.path, &r.session_modules);
             let extra = session_targets(&r, &items, &index, &session);
-            placement(names, &session, (&items, &extra), &index, hs, &m.src, diags);
+            let blocked = session_blocks(&r, &m.path);
+            placement(
+                names,
+                &session,
+                (&items, &extra, blocked),
+                &index,
+                hs,
+                &m.src,
+                diags,
+            );
         }
         let dropped = related_derives(
             names,

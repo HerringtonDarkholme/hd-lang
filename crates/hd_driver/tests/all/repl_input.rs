@@ -972,3 +972,99 @@ fn an_input_does_not_derive_for_another_module_s_type() {
         "impl Eq for Local by Structure\nimpl Enc for Local by Structure\n",
     );
 }
+
+/// `src/lib.hd` for the member-line tests: a `Column` fact and a `Columns`
+/// template whose walker writes each member's column name, its `Column`
+/// fact or else its own name.
+const COLUMNS: &str = "use std.structure.{Structure, Field, Variant, Walker}
+
+data Column:
+    name: string
+
+fn column(name: string) -> Column:
+    Column { name: name }
+
+trait Columns:
+    fn columns(self) -> string
+
+data Header:
+    out: string
+
+impl[S] Walker[S] for Header:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        name := match h.info.facts.find::[Column]():
+            .Some(c) => c.name
+            .None => h.info.name
+        self.out = self.out + name + \";\"
+        .Ok(())
+
+impl[T] Columns for T by Structure:
+    fn columns(self) -> string:
+        let mut w = Header { out: \"\" }
+        _ := Structure::walk(self, w)
+        w.out
+
+data Tag:
+    x: i32
+";
+
+/// A derivation block's member lines edit the facts of an earlier input's
+/// type as within one module (`annot.block.lines`, `annot.line.extend`,
+/// `annot.line.replace`, `annot.line.omit`).
+#[test]
+fn an_input_s_member_lines_edit_an_earlier_type_s_facts() {
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    repl.src.insert("src/lib.hd", COLUMNS);
+    repl.input(
+        1,
+        "data Row:\n    @column(\"row_id\")\n    id: i32\n    total: i32\n    cache: i32 = +0\n",
+    );
+    repl.input(
+        2,
+        "use std.structure.Structure\n\nimpl Columns for Row by Structure:\n    total = [column(\"sum_total\")]\n\nimpl Hash for Row by Structure:\n    cache = pass\n",
+    );
+    let out = repl.input(3, "println(Row { id: +1, total: +2 }.columns())\n");
+    let wasm = out.wasm.as_deref().expect("wasm");
+    assert!(holds(wasm, "row_id") && holds(wasm, "sum_total"));
+}
+
+/// A block with no trait in one input writes declaration facts of an
+/// earlier type that a later input's derivation sees
+/// (`annot.no-trait.declaration-facts`, `annot.no-trait.then-blocks`).
+#[test]
+fn a_later_derivation_sees_an_input_s_block_with_no_trait() {
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    repl.src.insert("src/lib.hd", COLUMNS);
+    repl.input(
+        1,
+        "data Row:\n    @column(\"row_id\")\n    id: i32\n    total: i32\n",
+    );
+    repl.input(
+        2,
+        "use std.structure.Structure\n\nimpl Row by Structure:\n    total += [column(\"sum_total\")]\n",
+    );
+    repl.input(3, "impl Columns for Row by Structure\n");
+    let out = repl.input(4, "println(Row { id: +1, total: +2 }.columns())\n");
+    let wasm = out.wasm.as_deref().expect("wasm");
+    assert!(holds(wasm, "row_id") && holds(wasm, "sum_total"));
+    // Both blocks in one input, for a type of the library.
+    repl.input(
+        5,
+        "impl Tag by Structure:\n    x += [column(\"tag_x\")]\n\nimpl Columns for Tag by Structure\n",
+    );
+    let out = repl.input(6, "println(Tag { x: +1 }.columns())\n");
+    assert!(holds(out.wasm.as_deref().expect("wasm"), "tag_x"));
+    // A type has one block with no trait in the whole session.
+    let out = repl.build(7, "impl Row by Structure:\n    id += [+1]\n");
+    let codes: Vec<&str> = out.diags.code.iter().map(|c| c.as_str()).collect();
+    assert_eq!(codes, ["overlapping-impl"], "{}", out.render());
+}

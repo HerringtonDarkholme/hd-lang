@@ -336,6 +336,55 @@ pub fn block_facts<'t>(cx: &BodyCx<'t>, owner: DefId, node: NodeRef<'t>) -> Opti
     Some(out)
 }
 
+/// The facts left when the member `lines` of a block in another module of
+/// a REPL session edit the facts that `base` builds for the data type or
+/// enum `item`, as within one module (`annot.no-trait.after-decorators`,
+/// `annot.no-trait.then-blocks`, `annot.line.extend`). A slot holds a call
+/// of its base body, at `args`, where it holds the declaration's own
+/// sources within one module: those are nodes of another source. The
+/// member types are over `item`'s own parameters. Returns the slots the
+/// lines edit.
+#[must_use]
+pub fn layered_facts<'t>(
+    cx: &BodyCx<'_>,
+    item: &Item,
+    (base, args): (&FactBodies, TyList),
+    lines: &[MemberLine<'t>],
+) -> (FactLines<'t>, Vec<Slot>) {
+    let tys: Vec<Vec<Ty>> = match &item.data {
+        ItemData::Data(fields) => vec![fields.iter().map(|f| f.ty).collect()],
+        ItemData::Enum { variants, .. } => variants
+            .iter()
+            .map(|v| v.fields.iter().map(|f| f.ty).collect())
+            .collect(),
+        _ => Vec::new(),
+    };
+    let call = |def: &Option<DefId>| -> Vec<FactSource<'t>> {
+        def.iter().map(|d| FactSource::Body(*d, args)).collect()
+    };
+    let mut out = FactLines {
+        of_type: call(&base.of_type),
+        variants: (0..tys.len())
+            .map(|v| call(base.variants.get(v).unwrap_or(&None)))
+            .collect(),
+        members: tys
+            .iter()
+            .enumerate()
+            .map(|(v, ms)| {
+                (0..ms.len())
+                    .map(|m| call(base.members.get(v).and_then(|b| b.get(m)).unwrap_or(&None)))
+                    .collect()
+            })
+            .collect(),
+        member_tys: tys,
+        type_label: cx.names.text(item.name).to_owned(),
+        ..FactLines::default()
+    };
+    (out.variant_labels, out.member_labels) = place_labels(cx, item, &out.type_label);
+    let edited = edit_facts(cx, item, &mut out, lines);
+    (out, edited)
+}
+
 /// The labels of the variants and members of the data type or enum `item`
 /// named `ty`, in declaration order.
 fn place_labels(cx: &BodyCx<'_>, item: &Item, ty: &str) -> (Vec<String>, Vec<Vec<String>>) {
@@ -416,13 +465,13 @@ pub fn edit_facts<'t>(
 }
 
 /// The facts bodies of `facts`, hidden methods of `owner` with no
-/// parameter, checked in the target's module `cx` and reported at `decl`
-/// (`annot.fact.read`). With `only`, a slot outside its edited slots
-/// reuses its base's body; without, every slot with a fact gets one. A
-/// fact that does not check declines them all.
+/// parameter, named after their slots with `prefix` before, checked in
+/// `cx` and reported at `decl` (`annot.fact.read`). With `only`, a slot
+/// outside its edited slots reuses its base's body; without, every slot
+/// with a fact gets one. A fact that does not check declines them all.
 pub fn fact_bodies(
     cx: &BodyCx<'_>,
-    owner: DefId,
+    (owner, prefix): (DefId, &str),
     (facts, decl): (&FactLines<'_>, NodeRef<'_>),
     only: Option<(&[Slot], &FactBodies)>,
 ) -> StageResult<(FactBodies, Vec<Body>)> {
@@ -439,13 +488,16 @@ pub fn fact_bodies(
     let mut bodies = Vec::new();
     for (slot, sources) in facts.slots() {
         let (name, base) = match slot {
-            Slot::Type => ("type facts".to_owned(), only.and_then(|o| o.1.of_type)),
+            Slot::Type => (
+                format!("{prefix}type facts"),
+                only.and_then(|o| o.1.of_type),
+            ),
             Slot::Variant(v) => (
-                format!("variant facts {v}"),
+                format!("{prefix}variant facts {v}"),
                 only.and_then(|o| o.1.variants.get(v).copied().flatten()),
             ),
             Slot::Member(v, m) => (
-                format!("member facts {v} {m}"),
+                format!("{prefix}member facts {v} {m}"),
                 only.and_then(|o| o.1.members.get(v)?.get(m).copied().flatten()),
             ),
         };
@@ -527,6 +579,14 @@ fn param(cx: &BodyCx<'_>, owner: DefId, index: usize) -> Ty {
     }))
 }
 
+/// `owner`'s own type parameters, as the arguments of a body over them.
+#[must_use]
+pub fn own_args(cx: &BodyCx<'_>, owner: DefId) -> TyList {
+    let n = cx.lookup.item(owner).map_or(0, |i| i.generics.len());
+    let own: Vec<Ty> = (0..n).map(|i| param(cx, owner, i)).collect();
+    cx.names.pool.list(&own)
+}
+
 /// The arguments of the `Structure` owner's parameters in `opt`'s
 /// instance: the derivation's own parameters, or the target's arguments
 /// for the declaration's `Structure`.
@@ -534,9 +594,7 @@ fn param(cx: &BodyCx<'_>, owner: DefId, index: usize) -> Ty {
 pub fn owner_args(cx: &BodyCx<'_>, opt: &OptIn) -> TyList {
     let pool = cx.names.pool;
     if opt.structure_owner() == opt.impl_ {
-        let n = cx.lookup.item(opt.impl_).map_or(0, |i| i.generics.len());
-        let own: Vec<Ty> = (0..n).map(|i| param(cx, opt.impl_, i)).collect();
-        return pool.list(&own);
+        return own_args(cx, opt.impl_);
     }
     match pool.get(opt.target) {
         TyData::Adt { args, .. } => args,

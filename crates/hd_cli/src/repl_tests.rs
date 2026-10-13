@@ -395,6 +395,71 @@ fn a_later_input_derives_for_an_earlier_type() {
     assert_eq!(t.out, "true : bool\nfalse : bool\nfalse : bool\n");
 }
 
+/// A session is one module for member lines too (`annot.block.lines`,
+/// `annot.no-trait.then-blocks`): a block with no trait in one input and a
+/// later input's derivation block edit an earlier input's type, and the
+/// derived columns show both. `total` keeps its declaration fact under the
+/// added ones, `id` is renamed, and `cache` is left out.
+#[test]
+fn later_inputs_edit_an_earlier_type_s_facts() {
+    let lib = r#"use std.structure.{Structure, Field, Variant, Walker}
+
+data Column:
+    name: string
+
+fn column(name: string) -> Column:
+    Column { name: name }
+
+trait Columns:
+    fn columns(self) -> string
+
+data Header:
+    out: string
+
+impl[S] Walker[S] for Header:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        name := match h.info.facts.find::[Column]():
+            .Some(c) => c.name
+            .None => h.info.name
+        self.out = "${self.out}${name}/${h.info.facts.items.len()};"
+        .Ok(())
+
+impl[T] Columns for T by Structure:
+    fn columns(self) -> string:
+        let mut w = Header { out: "" }
+        _ := Structure::walk(self, w)
+        w.out
+"#;
+    let dir = package("repl-member-lines", &[("src/lib.hd", lib)]);
+    let script = Script::of(&[
+        "data Row:",
+        "    @column(\"row_id\")",
+        "    id: i32",
+        "    @\"cents\"",
+        "    total: i32",
+        "    cache: i32 = +0",
+        "",
+        "use std.structure.Structure",
+        "",
+        "impl Row by Structure:",
+        "    total += [column(\"sum_total\")]",
+        "",
+        "impl Columns for Row by Structure:",
+        "    id = [column(\"key\")]",
+        "    total += [true]",
+        "    cache = pass",
+        "",
+        "Row { id: +1, total: +2 }.columns()",
+    ]);
+    let t = session_in(&dir, script, |_| {});
+    assert_eq!(t.out, "\"key/1;sum_total/3;\" : string\n");
+}
+
 /// A later input implements `src/lib.hd`'s trait for an earlier input's
 /// type, and a generic function of the library finds that implementation.
 #[test]

@@ -4309,7 +4309,13 @@ impl Run<'_> {
                 let facts = if heads.iter().any(|h| h.def == opt.data) {
                     derivation_facts(cx, heads, (&opt, &lines), &mut decl, &mut derived)
                 } else {
-                    self.foreign_facts(m, (cx, impls), &opt, &lines, (&mut decl, &mut derived))
+                    self.foreign_facts(
+                        m,
+                        (cx, heads, impls),
+                        &opt,
+                        &lines,
+                        (&mut decl, &mut derived),
+                    )
                 };
                 groups.entry(tm.idx()).or_default().push((i, opt, facts));
             }
@@ -4367,37 +4373,119 @@ impl Run<'_> {
     }
 
     /// The facts bodies of a derivation whose target `opt.data` another
-    /// module of the REPL session declares, checked in that module. `None`
-    /// when a fact is not generated yet, and for a derivation whose member
-    /// lines or whose type's block with no trait sit in module `m`, which
-    /// edit the facts of a source this module's check does not hold.
-    fn foreign_facts(
+    /// module of the REPL session declares, as within one module: the
+    /// type's declaration facts, built once per type into `decl` by
+    /// [`Self::session_decl`]; and when the derivation's member `lines`
+    /// edit them, the edited slots' own bodies, checked here in module
+    /// `m`, whose context, heads and impl view are `cx`, `heads` and
+    /// `impls`. `None` when a fact is not generated yet.
+    fn foreign_facts<'t>(
         &self,
         m: usize,
-        (cx, impls): (&BodyCx<'_>, &ImplView<'_>),
+        (cx, heads, impls): (&BodyCx<'t>, &[hd_resolve::Head<'t>], &ImplView<'_>),
         opt: &hd_check::derive::OptIn,
-        lines: &[hd_check::derive::MemberLine<'_>],
+        lines: &[hd_check::derive::MemberLine<'t>],
         (decl, derived): (&mut HashMap<DefId, Option<FactBodies>>, &mut Derived),
     ) -> Option<FactBodies> {
-        let pool = cx.names.pool;
-        let edits_here = cx.lookup.own.iter().any(|it| {
-            matches!(&it.data, ItemData::Impl { trait_, by: Some(_), self_ty, .. }
-                if *trait_ == DefId::NONE
-                    && matches!(pool.get(*self_ty), TyData::Adt { def, .. } if def == opt.data))
-        });
-        if !lines.is_empty() || edits_here {
-            return None;
+        let data = opt.data;
+        let base = decl
+            .entry(data)
+            .or_insert_with(|| self.session_decl(m, (cx, heads, impls), data, derived))
+            .clone()?;
+        if !opt.lines {
+            return Some(base);
         }
-        let dm = self.table.module(&self.names().module_of(opt.data))?.idx();
-        self.in_module(m, dm, (&[], impls.own), |dcx, dheads| {
-            derivation_facts(dcx, dheads, (opt, &[]), decl, derived)
+        let pool = cx.names.pool;
+        let item = cx.lookup.item(data)?;
+        let TyData::Adt { args, .. } = pool.get(opt.target) else {
+            return None;
+        };
+        let (mut view, edited) = hd_check::structure::layered_facts(cx, item, (&base, args), lines);
+        view.retarget(cx, data, pool.list_items(args));
+        let block = heads.iter().find(|h| h.def == opt.impl_)?.node;
+        let (own, bodies) = hd_check::structure::fact_bodies(
+            cx,
+            (opt.impl_, ""),
+            (&view, block),
+            Some((&edited, &base)),
+        )
+        .ok()?;
+        derived.bodies.extend(bodies);
+        Some(own)
+    }
+
+    /// The declaration facts bodies of `data`, which another module of
+    /// REPL input `m`'s session declares (`annot.fact.shared`): built in
+    /// its own module, then edited by the type's block with no trait when
+    /// another module of the session holds that block, as within one
+    /// module (`annot.no-trait.declaration-facts`). That block's bodies
+    /// are hidden methods of `data` too, apart from the declaration's own,
+    /// which a derivation in the type's module already calls. `None` when
+    /// a fact is not generated yet.
+    fn session_decl<'t>(
+        &self,
+        m: usize,
+        (cx, heads, impls): (&BodyCx<'t>, &[hd_resolve::Head<'t>], &ImplView<'_>),
+        data: DefId,
+        derived: &mut Derived,
+    ) -> Option<FactBodies> {
+        let names = self.names();
+        let dm = self.table.module(&names.module_of(data))?.idx();
+        let base = self
+            .in_module(m, dm, (&[], impls.own), |dcx, dheads| {
+                declaration_bodies(dcx, dheads, data, derived)
+            })
+            .flatten()?;
+        // The type has at most one block with no trait
+        // (`annot.no-trait.unique`), in a module of the session
+        // (`annot.no-trait.module`).
+        let pool = cx.names.pool;
+        let block = cx
+            .lookup
+            .own
+            .iter()
+            .chain(cx.lookup.ifaces.iter().flat_map(|f| &f.items))
+            .find(|it| {
+                traitless_for(pool, it, data) && cx.session.contains(&names.module_node(it.def))
+            });
+        let Some(block) = block else {
+            return Some(base);
+        };
+        let bm = self.table.module(&names.module_of(block.def))?.idx();
+        if bm == dm {
+            return Some(base);
+        }
+        let layer = |bcx: &BodyCx<'_>, bheads: &[hd_resolve::Head<'_>], derived: &mut Derived| {
+            let node = bheads.iter().find(|h| h.def == block.def)?.node;
+            let lines = hd_check::derive::member_lines(&bcx.src, node);
+            let item = bcx.lookup.item(data)?;
+            let args = hd_check::structure::own_args(bcx, data);
+            let (view, edited) =
+                hd_check::structure::layered_facts(bcx, item, (&base, args), &lines);
+            let (b, bodies) = hd_check::structure::fact_bodies(
+                bcx,
+                (data, "block "),
+                (&view, node),
+                Some((&edited, &base)),
+            )
+            .ok()?;
+            derived.bodies.extend(bodies);
+            Some(b)
+        };
+        if bm == m {
+            return layer(cx, heads, derived);
+        }
+        self.in_module(m, bm, (&[], impls.own), |bcx, bheads| {
+            layer(bcx, bheads, derived)
         })
         .flatten()
     }
 
     /// Runs `f` in the context of module `tm`, as module `m` sees it: its
     /// scope, source and heads, with `own` (module `m`'s items and impls)
-    /// and `tm`'s items as the items. `None` when `tm` does not lower.
+    /// and `tm`'s items as the items, and for a REPL input `tm`,
+    /// `src/lib.hd`'s private items, as its own bodies see them
+    /// (`cli.repl.package.lib`). `None` when `tm` does not lower.
     fn in_module<R>(
         &self,
         m: usize,
@@ -4422,7 +4510,17 @@ impl Run<'_> {
         }
         let ifaces: Vec<Arc<FolderIface>> =
             closure.iter().filter_map(|fo| self.iface_of(*fo)).collect();
-        let items: Vec<Item> = own.iter().chain(&tmod.items).cloned().collect();
+        let lib = match self.repl_number(tm) {
+            Some(_) => self.lib_scope().map_or(&[][..], |l| l.private.as_slice()),
+            None => &[],
+        };
+        let held: HashSet<DefId> = own.iter().map(|o| o.def).collect();
+        let items: Vec<Item> = own
+            .iter()
+            .chain(&tmod.items)
+            .chain(lib.iter().filter(|i| !held.contains(&i.def)))
+            .cloned()
+            .collect();
         let lookup = Lookup::new(&items, ifaces.iter().map(AsRef::as_ref).collect());
         let (folders, universe, extra) = self.closure_impls(&closure);
         let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
@@ -4946,7 +5044,12 @@ impl Run<'_> {
             let node = names.module(&self.table.modules[m].path);
             let mut foreign = false;
             for it in hd_resolve::decode_items(&names, sections.get(2)?)?.0 {
-                foreign |= names.module_node(it.def) != node;
+                // A derivation block for another module's type holds that
+                // type's facts bodies, which no item lists.
+                let derives = matches!(&it.data, ItemData::Impl { by: Some(_), self_ty, .. }
+                    if matches!(names.pool.get(*self_ty), TyData::Adt { def, .. }
+                        if names.module_node(def) != node));
+                foreign |= derives || names.module_node(it.def) != node;
                 items.insert(it.def, it);
             }
             if self.is_kept(m) {
@@ -6884,10 +6987,10 @@ fn add_derived_methods(names: &Names<'_>, items: &mut Vec<Item>, derived: &[Item
 
 /// The facts bodies of the `Structure` that `opt` sees (annotations,
 /// "Facts"), checked in the target's module `cx`: the declaration facts
-/// of its data type or enum, edited by the type's block with no trait,
-/// built once per type into `decl`; and when the derivation's member
-/// `lines` edit them, the edited slots' own bodies. New bodies join
-/// `derived`. `None` when a fact is not generated yet.
+/// of its data type or enum, built once per type into `decl` by
+/// [`declaration_bodies`]; and when the derivation's member `lines` edit
+/// them, the edited slots' own bodies. New bodies join `derived`. `None`
+/// when a fact is not generated yet.
 fn derivation_facts<'t>(
     cx: &BodyCx<'t>,
     heads: &[hd_resolve::Head<'t>],
@@ -6898,44 +7001,73 @@ fn derivation_facts<'t>(
     decl: &mut HashMap<DefId, Option<FactBodies>>,
     derived: &mut Derived,
 ) -> Option<FactBodies> {
-    let head = |d: DefId| heads.iter().find(|h| h.def == d).map(|h| h.node);
     let pool = cx.names.pool;
     let data = opt.data;
-    let item = cx.lookup.item(data)?;
-    let node = head(data)?;
-    let traitless = cx
-        .lookup
-        .own
-        .iter()
-        .find(|it| {
-            matches!(&it.data, ItemData::Impl { trait_, by: Some(_), self_ty, .. }
-                if *trait_ == DefId::NONE
-                    && matches!(pool.get(*self_ty), TyData::Adt { def, .. } if def == data))
-        })
-        .and_then(|it| head(it.def));
-    let facts = hd_check::structure::declaration_facts(cx, item, node, traitless);
     let base = decl
         .entry(data)
-        .or_insert_with(|| {
-            let (b, bodies) =
-                hd_check::structure::fact_bodies(cx, data, (&facts, node), None).ok()?;
-            derived.bodies.extend(bodies);
-            Some(b)
-        })
+        .or_insert_with(|| declaration_bodies(cx, heads, data, derived))
         .clone()?;
     if !opt.lines {
         return Some(base);
     }
-    let mut view = facts;
+    let item = cx.lookup.item(data)?;
+    let node = heads.iter().find(|h| h.def == data)?.node;
+    let mut view =
+        hd_check::structure::declaration_facts(cx, item, node, traitless(cx, heads, data));
     let edited = hd_check::structure::edit_facts(cx, item, &mut view, lines);
     // The derivation's bodies are in its own scope, where the target is
     // the data type or enum at the derivation's arguments.
     if let TyData::Adt { args, .. } = pool.get(opt.target) {
         view.retarget(cx, data, pool.list_items(args));
     }
-    let (own, bodies) =
-        hd_check::structure::fact_bodies(cx, opt.impl_, (&view, node), Some((&edited, &base)))
-            .ok()?;
+    let (own, bodies) = hd_check::structure::fact_bodies(
+        cx,
+        (opt.impl_, ""),
+        (&view, node),
+        Some((&edited, &base)),
+    )
+    .ok()?;
     derived.bodies.extend(bodies);
     Some(own)
+}
+
+/// The node of the derivation block with no trait for `data` among the
+/// items of module `cx`, if it has one.
+fn traitless<'t>(
+    cx: &BodyCx<'t>,
+    heads: &[hd_resolve::Head<'t>],
+    data: DefId,
+) -> Option<hd_syntax::NodeRef<'t>> {
+    let it = cx
+        .lookup
+        .own
+        .iter()
+        .find(|it| traitless_for(cx.names.pool, it, data))?;
+    heads.iter().find(|h| h.def == it.def).map(|h| h.node)
+}
+
+/// Whether `it` is a derivation block with no trait for `data`.
+fn traitless_for(pool: &InternPool, it: &Item, data: DefId) -> bool {
+    matches!(&it.data, ItemData::Impl { trait_, by: Some(_), self_ty, .. }
+        if *trait_ == DefId::NONE
+            && matches!(pool.get(*self_ty), TyData::Adt { def, .. } if def == data))
+}
+
+/// The declaration facts bodies of the data type or enum `data`, which
+/// module `cx` declares (`annot.fact.shared`): its decorators, edited by
+/// its block with no trait when `cx` holds that block. New bodies join
+/// `derived`. `None` when a fact is not generated yet.
+fn declaration_bodies<'t>(
+    cx: &BodyCx<'t>,
+    heads: &[hd_resolve::Head<'t>],
+    data: DefId,
+    derived: &mut Derived,
+) -> Option<FactBodies> {
+    let item = cx.lookup.item(data)?;
+    let node = heads.iter().find(|h| h.def == data)?.node;
+    let facts = hd_check::structure::declaration_facts(cx, item, node, traitless(cx, heads, data));
+    let (b, bodies) =
+        hd_check::structure::fact_bodies(cx, (data, ""), (&facts, node), None).ok()?;
+    derived.bodies.extend(bodies);
+    Some(b)
 }

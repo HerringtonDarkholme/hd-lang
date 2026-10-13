@@ -83,6 +83,11 @@ pub enum FactSource<'t> {
     Value(NodeRef<'t>),
     /// A member line's right side: a list of facts (`annot.line.right-typed`).
     List(NodeRef<'t>),
+    /// The facts that another facts body builds, called at these instance
+    /// arguments: the declaration facts that the member lines of a block
+    /// in another module of a REPL session edit, whose nodes are in that
+    /// other module's source.
+    Body(DefId, TyList),
 }
 
 /// The target a list of facts attaches to, which a typed fact's pattern
@@ -150,6 +155,18 @@ pub fn check_fact_list(
                     spreads.push(u32::try_from(refs.len()).unwrap_or(0));
                     refs.push(r);
                 }
+                continue;
+            }
+            // Another body's facts, spread in place: a call of it, like
+            // the `Structure`'s own, and its items.
+            FactSource::Body(def, targs) => {
+                let a = ck.b.refs_record(&[Ref(def.raw()), Ref(targs.0)]);
+                let earlier = ck.b.refs_record(&[]);
+                let call =
+                    ck.b.emit(Tag::DefaultCall, a, earlier, facts_ty, at.index());
+                let items = ck.b.emit(Tag::Field, call.0, 0, items_ty, at.index());
+                spreads.push(u32::try_from(refs.len()).unwrap_or(0));
+                refs.push(items);
                 continue;
             }
         };

@@ -197,6 +197,8 @@ fn derivation_repeats<'t>(cx: &BodyCx<'t>, heads: &[Head<'t>], h: &Head<'t>, dia
                 // facts only when the program runs, so a repeat among them
                 // is not found (`annot.line.duplicate`).
                 FactSource::List(list) if list.kind() != SyntaxKind::ListExpr => {}
+                // No source here holds another body's facts.
+                FactSource::Body(..) => {}
                 FactSource::List(list) => {
                     for node in list
                         .children()
