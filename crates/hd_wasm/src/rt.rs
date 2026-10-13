@@ -171,11 +171,26 @@ pub fn root_global() -> GSym {
     GSym::Rt("root".into(), VT::rn(crate::layout::task_base()))
 }
 
+/// The driver that owns the pending root, as its `hd.poll` context plus
+/// one; zero is unowned. The first poll claims the root; a live root
+/// answers only its owner, so a second driver's poll reports
+/// `suspension-competing-driver`.
+#[must_use]
+pub fn owner_global() -> GSym {
+    GSym::Rt("owner".into(), VT::I32)
+}
+
 /// Every runtime global: what a session's first module defines for the
 /// modules after it (`LinkMode::Session`).
 #[must_use]
-pub fn runtime_globals() -> [GSym; 4] {
-    [wake_table(), fact_global(), forbid_global(), root_global()]
+pub fn runtime_globals() -> [GSym; 5] {
+    [
+        wake_table(),
+        fact_global(),
+        forbid_global(),
+        root_global(),
+        owner_global(),
+    ]
 }
 
 /// The host runtime's `abort` import (runtime-and-host.md §17.2).
@@ -382,9 +397,11 @@ pub enum Helper {
     /// belongs to a non-entry module and runs as a forbidden context
     /// (`req.drive.block-on.forbidden-contexts`).
     EntryInit { inits: Vec<(Hash128, bool)> },
-    /// `hd.poll`: builds the default profile's providers and runs `main`,
-    /// or polls `main!`'s root (`bang` is its `$Suspend_L`); `-1` while
-    /// pending, else the exit status.
+    /// `hd.poll(ctx)`: builds the default profile's providers and runs
+    /// `main`, or polls `main!`'s root (`bang` is its `$Suspend_L`) with
+    /// the driver's `PollContext`; `-1` while pending, else the exit
+    /// status. The first poll claims the root for its driver; a live root
+    /// answers only its owner.
     EntryPoll {
         main: Hash128,
         providers: Vec<(WTy, Vec<Helper>)>,
@@ -1520,7 +1537,11 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
             bang,
             report,
         } => {
-            let mut a = Asm::new(vec![]);
+            // Parameter 0 is the driver's `PollContext`, one `hd.poll`
+            // caller among drivers that share the instance. A plain entry
+            // ignores it; a suspending root answers only its owner.
+            let mut a = Asm::new(vec![VT::I32]);
+            let ctx = 0;
             let build = |a: &mut Asm| {
                 for (vt, slots) in providers {
                     a.ref_null_eq();
@@ -1529,6 +1550,13 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
                     }
                     a.struct_new(vt);
                 }
+            };
+            // A release of the root also releases its driver.
+            let release = |a: &mut Asm, base: &WTy| {
+                a.ref_null(base);
+                a.global_set(root_global());
+                a.i32(0);
+                a.global_set(owner_global());
             };
             match bang {
                 None => {
@@ -1555,10 +1583,54 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
                     build(&mut a);
                     a.call(Sym::Inst(*main));
                     a.global_set(root_global());
+                    // The first poll claims the root for its driver.
+                    a.get(ctx);
+                    a.i32(1);
+                    a.s().i32_add();
+                    a.global_set(owner_global());
                     a.end();
                     a.global_get(root_global());
                     a.ref_cast(base, false);
                     a.set(root);
+                    // A live root answers only its owner. An active root is
+                    // a recursive poll, whatever the driver; a finished root
+                    // is invalid, whatever the driver; only then does a
+                    // foreign driver compete. The root's own checks hold the
+                    // same codes behind its poll.
+                    a.get(root);
+                    a.struct_get(base, F_FLAGS);
+                    a.i32(ACTIVE);
+                    a.s().i32_and();
+                    a.if_();
+                    a.call(Sym::Helper(Helper::Panic(
+                        "suspension-reentrant-poll: a suspension was polled or cancelled while active"
+                            .into(),
+                    )));
+                    a.s().unreachable();
+                    a.end();
+                    a.get(root);
+                    a.struct_get(base, F_FLAGS);
+                    a.i32(DONE | CANCELLED);
+                    a.s().i32_and();
+                    a.if_();
+                    a.call(Sym::Helper(Helper::Panic(
+                        "suspension-invalid-state: a completed or cancelled suspension was polled"
+                            .into(),
+                    )));
+                    a.s().unreachable();
+                    a.end();
+                    a.global_get(owner_global());
+                    a.get(ctx);
+                    a.i32(1);
+                    a.s().i32_add();
+                    a.s().i32_ne();
+                    a.if_();
+                    a.call(Sym::Helper(Helper::Panic(
+                        "suspension-competing-driver: a suspension was polled by a driver that does not own it"
+                            .into(),
+                    )));
+                    a.s().unreachable();
+                    a.end();
                     a.get(root);
                     a.get(root);
                     a.struct_get(base, F_POLL);
@@ -1579,8 +1651,7 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
                         // A completed entry no longer owns this suspension.
                         // The next property body creates a fresh root while
                         // retaining the rest of its instance's state.
-                        a.ref_null(base);
-                        a.global_set(root_global());
+                        release(&mut a, base);
                         for (l, (have, want)) in tmp.iter().zip(prs[1..].iter().zip(want)) {
                             a.get(*l);
                             a.conv(have, want);
@@ -1597,8 +1668,7 @@ pub fn helper_code(h: &Helper, facts: bool) -> StageResult<Code> {
                         a.set(ready);
                         a.get(ready);
                         a.if_();
-                        a.ref_null(base);
-                        a.global_set(root_global());
+                        release(&mut a, base);
                         a.end();
                         a.get(ready);
                         a.i32(1);
@@ -2181,7 +2251,7 @@ fn wake_take() -> Code {
 
 #[cfg(test)]
 mod tests {
-    use super::{Helper, helper_code, root_global};
+    use super::{Helper, helper_code, owner_global, root_global};
     use crate::asm::Asm;
     use crate::{Reloc, Sym, VT};
     use hd_base::Hash128;
@@ -2215,7 +2285,7 @@ mod tests {
                     .then_some(*offset + 5)
             })
             .expect("root call_ref");
-        let mut expected = Asm::new(vec![]);
+        let mut expected = Asm::new(vec![VT::I32]);
         expected.local(VT::r(base.clone()));
         if report {
             let first = expected.local(VT::I64);
@@ -2231,6 +2301,8 @@ mod tests {
             expected.if_();
             expected.ref_null(&base);
             expected.global_set(root_global());
+            expected.i32(0);
+            expected.global_set(owner_global());
             expected.get(first);
             expected.get(second);
             expected.call(Sym::Inst(report_key));
@@ -2244,6 +2316,8 @@ mod tests {
             expected.if_();
             expected.ref_null(&base);
             expected.global_set(root_global());
+            expected.i32(0);
+            expected.global_set(owner_global());
             expected.end();
             expected.get(ready);
             expected.i32(1);
@@ -2264,6 +2338,40 @@ mod tests {
     #[test]
     fn completed_void_entry_releases_root_but_pending_entry_retains_it() {
         assert_poll_tail(false);
+    }
+
+    /// `hd.poll` takes the driver's context, claims the root for it on
+    /// the first poll, and panics `suspension-competing-driver` for a
+    /// foreign driver of a live root.
+    #[test]
+    fn entry_poll_claims_the_root_for_its_context() {
+        let (base, poll) = crate::layout::suspend_base(&[]);
+        let code = helper_code(
+            &Helper::EntryPoll {
+                main: Hash128(1),
+                providers: vec![],
+                results: 0,
+                bang: Some((base, poll)),
+                report: None,
+            },
+            false,
+        )
+        .unwrap();
+        assert_eq!(code.params, vec![VT::I32]);
+        assert!(
+            code.relocs.iter().any(|(_, r)| matches!(
+                r,
+                Reloc::Func(Sym::Helper(Helper::Panic(msg)))
+                    if msg.starts_with("suspension-competing-driver")
+            )),
+            "{code:?}"
+        );
+        assert!(
+            code.relocs
+                .iter()
+                .any(|(_, r)| matches!(r, Reloc::Global(g) if *g == owner_global())),
+            "{code:?}"
+        );
     }
 
     #[test]

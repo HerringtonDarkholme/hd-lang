@@ -16,6 +16,7 @@ mod checker;
 mod closure_parameter_annotation;
 mod collect_default_run;
 mod combinator_call_forms;
+mod competing_drivers;
 mod context_values;
 mod copy_assign_run;
 mod copy_update_run;

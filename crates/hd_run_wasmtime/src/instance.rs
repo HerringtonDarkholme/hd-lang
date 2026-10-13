@@ -16,7 +16,7 @@ pub struct WasmtimeInstance {
     _engine: Arc<wasmtime::Engine>,
     init: Option<TypedFunc<(), ()>>,
     instance: Option<wasmtime::Instance>,
-    poll: Option<TypedFunc<(), i32>>,
+    poll: Option<TypedFunc<i32, i32>>,
     wake: Option<TypedFunc<i32, ()>>,
     /// How the run ended, once it has.
     pub(crate) done: Option<Outcome>,
@@ -78,7 +78,7 @@ impl WasmtimeInstance {
             .typed::<(), ()>(&*store)
             .map_err(|e| StartError::Engine(format!("`{init_name}`: {e}")))?;
         let poll = export(store, poll_name)?
-            .typed::<(), i32>(&*store)
+            .typed::<i32, i32>(&*store)
             .map_err(|e| StartError::Engine(format!("`{poll_name}`: {e}")))?;
         let wake = match instance.get_func(&mut *store, "hd.wake") {
             Some(f) => Some(
@@ -185,7 +185,8 @@ impl WasmtimeInstance {
         })
     }
 
-    /// One `hd.poll`: the status, pending, or the end of a trap.
+    /// One `hd.poll` as the run's driver, context 0: the status,
+    /// pending, or the end of a trap.
     fn step(&mut self) -> Poll<Outcome> {
         if let Err(error) = self.store.data().check_deadline() {
             return Poll::Ready(self.trapped(&error));
@@ -194,7 +195,7 @@ impl WasmtimeInstance {
             .poll
             .as_ref()
             .expect("a live instance has hd.poll")
-            .call(&mut self.store, ())
+            .call(&mut self.store, 0_i32)
         {
             Ok(-1) => {
                 if self.store.data().waiting() {
@@ -263,7 +264,7 @@ impl Instance for WasmtimeInstance {
         let Some(instance) = self.instance else {
             return Poll::Ready(Outcome::Internal("the instance has no live exports".into()));
         };
-        let poll = match instance.get_typed_func::<(), i32>(&mut self.store, &name) {
+        let poll = match instance.get_typed_func::<i32, i32>(&mut self.store, &name) {
             Ok(poll) => poll,
             Err(error) => return Poll::Ready(Outcome::Internal(format!("`{name}`: {error}"))),
         };

@@ -521,10 +521,19 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // A runtime profile's own providers (`env.providers`, profiles.mjs).
   if (env.providers) Object.assign(imports, env.providers({ put, Enc }));
 
+  // Points the host at `instance`'s memory, for a driver that calls the
+  // exports itself instead of `run` (a scenario's drivers): reports and
+  // codecs read the exchange buffer through it.
+  const prime = (instance) => {
+    st.memory = instance.exports["hd.x"] ?? null;
+  };
+
   // Runs `init`, then polls `poll` to completion. Returns the status (3
   // for a trap), whether the instance trapped, and a Wasm trap's frames.
+  // The run is one driver, context 0: a scenario's further drivers poll
+  // the exports with their own contexts instead of this loop.
   const run = async (instance, init, poll) => {
-    st.memory = instance.exports["hd.x"] ?? null;
+    prime(instance);
     const ex = instance.exports;
     let status = 0;
     let trapped = false;
@@ -532,7 +541,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
     let frames = [];
     try {
       ex[init]();
-      status = ex[poll]();
+      status = ex[poll](0);
       while (status === -1) {
         const n = complete();
         if (n === 0) {
@@ -543,7 +552,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
           continue;
         }
         ex["hd.wake"](n);
-        status = ex[poll]();
+        status = ex[poll](0);
       }
     } catch (e) {
       flush();
@@ -590,5 +599,5 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // scratch directory).
   const close = () => platform?.close?.();
 
-  return { imports, run, close, args, program, grant, seed, tempDir: platform?.tempDir };
+  return { imports, run, prime, close, args, program, grant, seed, tempDir: platform?.tempDir };
 }

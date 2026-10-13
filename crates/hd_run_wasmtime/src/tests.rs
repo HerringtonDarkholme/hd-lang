@@ -27,10 +27,11 @@ fn malformed_reply_module(
     types.ty().function([ValType::I32], results.iter().copied());
     types.ty().function([], []);
     types.ty().function([], [ValType::I32]);
+    types.ty().function([ValType::I32], [ValType::I32]);
     let mut imports = ImportSection::new();
     imports.import(module, name, EntityType::Function(0));
     let mut functions = FunctionSection::new();
-    functions.function(1).function(2);
+    functions.function(1).function(3);
     let mut memory = MemorySection::new();
     memory.memory(MemoryType {
         minimum: 1,
@@ -191,7 +192,7 @@ fn wake_delivers_the_supplied_batch_without_a_completed_preload() {
 
     let mut types = TypeSection::new();
     types.ty().function([], []);
-    types.ty().function([], [ValType::I32]);
+    types.ty().function([ValType::I32], [ValType::I32]);
     types.ty().function([ValType::I32], []);
     let mut functions = FunctionSection::new();
     functions.function(0).function(1).function(2);
@@ -292,7 +293,7 @@ fn empty_wake_batch_does_not_require_an_exchange_buffer() {
 
     let mut types = TypeSection::new();
     types.ty().function([], []);
-    types.ty().function([], [ValType::I32]);
+    types.ty().function([ValType::I32], [ValType::I32]);
     types.ty().function([ValType::I32], []);
     let mut functions = FunctionSection::new();
     functions.function(0).function(1).function(2);

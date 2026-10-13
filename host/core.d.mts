@@ -29,6 +29,7 @@ export interface RunResult {
 export interface Host {
   imports: WebAssembly.Imports;
   run(instance: WebAssembly.Instance, init: string, poll: string): Promise<RunResult>;
+  prime(instance: WebAssembly.Instance): void;
   close(): void;
   args: string[];
   program: string;

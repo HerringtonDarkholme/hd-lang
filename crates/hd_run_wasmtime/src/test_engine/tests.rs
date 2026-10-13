@@ -63,7 +63,7 @@ fn wasm(body: Body, standard: bool) -> Vec<u8> {
         _ => 1,
     };
     let mut functions = FunctionSection::new();
-    functions.function(0).function(1).function(1);
+    functions.function(0).function(5).function(5);
     let mut globals = GlobalSection::new();
     globals.global(
         GlobalType {
