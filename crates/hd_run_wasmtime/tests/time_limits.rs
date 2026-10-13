@@ -29,11 +29,11 @@ enum Program {
 fn module(program: Program) -> Vec<u8> {
     let mut types = TypeSection::new();
     types.ty().function([], []); // init
-    types.ty().function([], [ValType::I32]); // poll/block
+    types.ty().function([], [ValType::I32]); // block
     types
         .ty()
         .function([ValType::I64], [ValType::I32, ValType::I32]); // sleep.start
-    types.ty().function([ValType::I32], [ValType::I32]); // finish
+    types.ty().function([ValType::I32], [ValType::I32]); // finish, poll(ctx)
     types.ty().function([], [ValType::I32, ValType::I32]); // read_line.start
     let mut imports = ImportSection::new();
     let waiting = matches!(
@@ -54,7 +54,7 @@ fn module(program: Program) -> Vec<u8> {
         0
     };
     let mut functions = FunctionSection::new();
-    functions.function(0).function(1);
+    functions.function(0).function(3);
     let mut memory = MemorySection::new();
     memory.memory(MemoryType {
         minimum: 1,

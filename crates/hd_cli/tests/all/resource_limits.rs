@@ -42,10 +42,11 @@ fn bounded(mut command: Command) -> Output {
 }
 
 fn module(init: &[u8]) -> Vec<u8> {
-    // Two functions: () -> (), () -> i32; one initial 64 KiB memory.
+    // Two functions: `hd.init` () -> (), `hd.poll` (i32) -> i32; one
+    // initial 64 KiB memory.
     let mut module = b"\0asm\x01\0\0\0".to_vec();
     for (id, body) in [
-        (1, vec![2, 0x60, 0, 0, 0x60, 0, 1, 0x7f]),
+        (1, vec![2, 0x60, 0, 0, 0x60, 1, 0x7f, 1, 0x7f]),
         (3, vec![2, 0, 1]),
         (5, vec![1, 0, 1]),
         (

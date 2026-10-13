@@ -463,7 +463,8 @@ fn native_providers_follow_total_denial_on_both_engines() {
         types.extend(params);
         types.push(u8::try_from(results.len()).unwrap());
         types.extend(results);
-        types.extend([0x60, 0, 0, 0x60, 0, 1, 0x7f]);
+        // `hd.init` () -> (), `hd.poll(ctx)` (i32) -> i32.
+        types.extend([0x60, 0, 0, 0x60, 1, 0x7f, 1, 0x7f]);
         section(&mut module, 1, &types);
         let mut imports = vec![1];
         string(&mut imports, &format!("hd:{key}"));

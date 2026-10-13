@@ -287,7 +287,8 @@ impl Program {
         self.body.push(I::End);
         let dump_type = self.ty(&[ValType::I32], &[]);
         let init_type = self.ty(&[], &[]);
-        let poll_type = self.ty(&[], &[ValType::I32]);
+        // `hd.poll(ctx)` takes the driver's context.
+        let poll_type = self.ty(&[ValType::I32], &[ValType::I32]);
         let mut functions = FunctionSection::new();
         functions
             .function(dump_type)
