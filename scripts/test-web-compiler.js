@@ -26,8 +26,11 @@ const FIXTURE = join(root, "spec", "conformance", "runtime", "valid", "println-c
 // The plan's 3.2 MB raw came from the `stages` example, which reads std
 // from disk; the real compiler embeds std's 0.51 MB of source (§2). W8's
 // wasmprinter added 0.49 MB raw and 0.13 MB gzip (3.90 -> 4.39 MB, 1.25 ->
-// 1.39 MB), so the gates are 0.5 MB and 0.15 MB higher than W3's.
-const RAW_LIMIT = 4.5e6;
+// 1.39 MB), so the gates are 0.5 MB and 0.15 MB higher than W3's. The REPL
+// session support in the driver and linker (#17, C2-C8) added 0.12 MB raw
+// and 0.04 MB gzip (4.39 -> 4.51 MB, 1.39 -> 1.42 MB); the playground's REPL
+// panel will use it, so the raw gate is 4.7 MB.
+const RAW_LIMIT = 4.7e6;
 const GZIP_LIMIT = 1.45e6;
 const RAW_FLOOR = 2e6;
 
