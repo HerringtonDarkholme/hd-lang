@@ -4303,14 +4303,23 @@ pub fn traitless_block(src: &Src<'_>, n: NodeRef<'_>) -> bool {
         .is_some_and(|w| *w == "Structure")
 }
 
+/// Whether `a` and `b` are declared in the same module, where all the
+/// modules of `session` count as one: for a REPL input, the input itself,
+/// `src/lib.hd` and the earlier inputs ([`SessionScope::modules`]). Empty
+/// for a program and any other module.
+fn same_module(names: &Names<'_>, session: &[PathId], a: DefId, b: DefId) -> bool {
+    let (x, y) = (names.module_node(a), names.module_node(b));
+    x == y || (session.contains(&x) && session.contains(&y))
+}
+
 /// Whether an item is a template whose trait is declared in another module
-/// (`annot.template.module`).
+/// (`annot.template.module`), a session counting as one module.
 #[must_use]
-pub fn misplaced_template(names: &Names<'_>, module: &str, it: &Item) -> bool {
+pub fn misplaced_template(names: &Names<'_>, session: &[PathId], it: &Item) -> bool {
     matches!(
         &it.data,
         ItemData::Impl { trait_, kind: ImplKind::Template | ImplKind::TupleTemplate, .. }
-            if *trait_ != DefId::NONE && names.module_of(*trait_) != module
+            if *trait_ != DefId::NONE && !same_module(names, session, it.def, *trait_)
     )
 }
 
@@ -4362,21 +4371,23 @@ impl ItemIndex {
 /// targets a newtype (`annot.block.newtype.error`) or, with no trait, any
 /// target but a data type or enum with an unbounded header
 /// (`annot.no-trait.target`, `annot.no-trait.generic.error`). `items` are
-/// the items of `module`. Rejected blocks stay out of the derivation checks.
+/// the items of the block's module; a target in another module of `session`
+/// is not among them and goes unchecked here. Rejected blocks stay out of
+/// the derivation checks.
 #[must_use]
 pub fn misplaced_block(
     names: &Names<'_>,
-    module: &str,
+    session: &[PathId],
     items: &[Item],
     it: &Item,
 ) -> Option<&'static str> {
-    misplaced_block_in(names, module, &|d| items.iter().find(|i| i.def == d), it)
+    misplaced_block_in(names, session, &|d| items.iter().find(|i| i.def == d), it)
 }
 
 /// `misplaced_block`, with `item` finding an item of `module` by `DefId`.
 fn misplaced_block_in<'a>(
     names: &Names<'_>,
-    module: &str,
+    session: &[PathId],
     item: &dyn Fn(DefId) -> Option<&'a Item>,
     it: &Item,
 ) -> Option<&'static str> {
@@ -4397,7 +4408,7 @@ fn misplaced_block_in<'a>(
     let TyData::Adt { def, args } = pool.get(*self_ty) else {
         return traitless.then_some("a derivation block with no trait targets a data type or enum");
     };
-    if names.module_of(def) != module {
+    if !same_module(names, session, it.def, def) {
         return Some("a derivation block belongs in the module that declares its target");
     }
     let target = item(def)?;
@@ -4583,10 +4594,15 @@ fn related_derives(
 /// A template declared outside its trait's module is rejected
 /// (`misplaced-derivation`) and derives nothing.
 #[must_use]
-pub fn template_of(names: &Names<'_>, lookup: &Lookup<'_>, trait_: DefId) -> Option<DefId> {
+pub fn template_of(
+    names: &Names<'_>,
+    session: &[PathId],
+    lookup: &Lookup<'_>,
+    trait_: DefId,
+) -> Option<DefId> {
     let is = |it: &&Item| {
         matches!(&it.data, ItemData::Impl { trait_: t, kind: ImplKind::Template, .. } if *t == trait_)
-            && !misplaced_template(names, &names.module_of(it.def), it)
+            && !misplaced_template(names, session, it)
     };
     lookup
         .own
@@ -4670,11 +4686,12 @@ fn derivation_nodes(
 /// The placement rules of derivation syntax (`annot.template.module`,
 /// `annot.block.module`, `annot.block.newtype.error`,
 /// `annot.line.placement-blocks`, `annot.no-trait.*`), each reported once on
-/// the block or member.
+/// the block or member. `extra` holds the targets of blocks that sit in
+/// another module of the session.
 fn placement(
     names: &Names<'_>,
-    module: &str,
-    items: &[Item],
+    session: &[PathId],
+    (items, extra): (&[Item], &[Item]),
     index: &ItemIndex,
     heads: &[Head<'_>],
     src: &Src<'_>,
@@ -4695,10 +4712,19 @@ fn placement(
         else {
             continue;
         };
-        let msg = if misplaced_template(names, module, it) {
+        let msg = if misplaced_template(names, session, it) {
             Some("a template belongs in the module that declares its trait")
         } else {
-            misplaced_block_in(names, module, &|d| index.get(items, d), it)
+            misplaced_block_in(
+                names,
+                session,
+                &|d| {
+                    index
+                        .get(items, d)
+                        .or_else(|| extra.iter().find(|i| i.def == d))
+                },
+                it,
+            )
         };
         if let Some(msg) = msg {
             diags.error(Code::MisplacedDerivation, src.span(h.node), msg);
@@ -4745,6 +4771,63 @@ fn placement(
             );
         }
     }
+}
+
+/// The modules of the REPL input `module`'s session, the input included, as
+/// paths; empty for any other module.
+fn session_paths(
+    names: &Names<'_>,
+    module: &str,
+    sessions: &HashMap<String, Vec<String>>,
+) -> Vec<PathId> {
+    let Some(mods) = sessions.get(module) else {
+        return Vec::new();
+    };
+    std::iter::once(module)
+        .chain(mods.iter().map(String::as_str))
+        .map(|m| names.module(m))
+        .collect()
+}
+
+/// The declarations, in other modules of the session, that the derivation
+/// blocks of `items` target: a block's target is checked where it is
+/// declared (`annot.block.newtype.error`, `annot.no-trait.target`).
+fn session_targets(
+    r: &Resolver<'_, '_>,
+    items: &[Item],
+    index: &ItemIndex,
+    session: &[PathId],
+) -> Vec<Item> {
+    let names = &r.cx.names;
+    let mut out: Vec<Item> = Vec::new();
+    if session.is_empty() {
+        return out;
+    }
+    for it in items {
+        let ItemData::Impl { self_ty, .. } = &it.data else {
+            continue;
+        };
+        let TyData::Adt { def, .. } = names.pool.get(*self_ty) else {
+            continue;
+        };
+        if index.get(items, def).is_some()
+            || out.iter().any(|i| i.def == def)
+            || !derivation_block(names, it)
+        {
+            continue;
+        }
+        let Some(iface) =
+            r.cx.world
+                .module_folder(&names.module_of(def))
+                .and_then(|f| r.cx.world.iface(f))
+        else {
+            continue;
+        };
+        if let Some(target) = iface.item(def) {
+            out.push(target.clone());
+        }
+    }
+    out
 }
 
 /// Resolves and lowers the modules of one folder (§4.10 steps 1 to 4).
@@ -4961,7 +5044,9 @@ pub fn build_folder(
         }
         let mut index = ItemIndex::new(names, &items);
         if r.frozen.is_none() {
-            placement(names, &m.path, &items, &index, hs, &m.src, diags);
+            let session = session_paths(names, &m.path, &r.session_modules);
+            let extra = session_targets(&r, &items, &index, &session);
+            placement(names, &session, (&items, &extra), &index, hs, &m.src, diags);
         }
         let dropped = related_derives(
             names,

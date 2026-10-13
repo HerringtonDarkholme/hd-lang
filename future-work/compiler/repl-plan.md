@@ -349,6 +349,8 @@ Each gap is an owner question in §5. In short:
 - Q5: add `rustyline` (Ctrl-C at the prompt) and `ctrlc` (SIGINT while an input runs, for Stop and Cancel).
 - Q8a: inputs live outside every package folder. Q8c: the recorder sits at the host call sites. Q8d: design questions 1 and 4 are answered by the spec. Q8e: the playground keeps one worker; Stop rebuilds from the journal (W2 dropped).
 - Q8b, replaced: **no redefinition at all.** An input must not redeclare a name an earlier input declared: `duplicate-type` for types, traits and aliases, `duplicate-binding` for functions and bindings (`cli.repl.redeclare.*`, spec edit of 2026-10-12, replacing `cli.repl.redefine.shadow` and `.shadow.report`). Shadowing, the stale-caller note and origin-marked types (C7) are gone.
+- Late `Debug` and `Display`, **2026-10-13:** accepted and documented. A session counts as one module, so an input may implement `Debug` or `Display` for an earlier input's type. An implementation added after a type's value was already shown does not change the printer already built for it: code compiled earlier and the `dbg_show` instances the session holds keep printing the type field by field. A type not yet shown uses the new implementation.
+- Derivation blocks and templates, **2026-10-13:** a session counts as one module for `annot.block.module` and `annot.template.module` too. An input may write `impl Hash for Point by Structure` for a type that `src/lib.hd` or an earlier input declares, and a later input uses the derived implementation. Other `src/` modules and dependencies keep the rule.
 
 1. **Command name and scripted sessions.** The spec opens the REPL with
    bare `hd` on a terminal, and piped stdin runs a program

@@ -867,3 +867,79 @@ fn a_later_input_waits_for_the_modules_an_earlier_input_uses() {
     assert!(out.diags.is_empty(), "{}", out.render());
     assert!(out.wasm.is_some(), "{:?}", out.report);
 }
+
+/// A session is one module for derivation blocks and templates
+/// (`annot.block.module`, `annot.template.module`): a block in a later
+/// input derives for a type that an earlier input or `src/lib.hd`
+/// declares, a template in an input is for a trait of the library, and a
+/// later input uses what they derive.
+#[test]
+fn an_input_derives_for_an_earlier_input_s_or_the_library_s_type() {
+    let lib = "use std.structure.{Structure, Field, Variant, Describer}\n\ntrait Named:\n    fn title() -> string\n\ndata MemberCount:\n    count: i32\n\nimpl[S] Describer[S] for MemberCount:\n    type Error = never\n\n    fn variant(mut self, v: Variant[S]) -> Result[void, never]:\n        .Ok(())\n\n    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:\n        self.count = self.count + 1\n        .Ok(())\n\ndata Tag:\n    pub x: i32\n";
+    let template = "use std.structure.Structure\n\nimpl[T] Named for T by Structure:\n    fn title() -> string:\n        let mut d = MemberCount { count: 0 }\n        _ := T::describe(d)\n        \"${Structure::name()}/${d.count}\"\n";
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    repl.src.insert("src/lib.hd", lib);
+    repl.input(
+        1,
+        "data Point:\n    pub x: i32\n    pub y: i32\n\n@derive(Eq)\ndata Pair:\n    pub a: i32\n",
+    );
+    repl.input(2, template);
+    repl.input(
+        3,
+        "use std.structure.Structure\n\nimpl Eq for Point by Structure\nimpl Hash for Point by Structure\nimpl Named for Point by Structure\nimpl Named for Tag by Structure\nimpl Hash for Pair by Structure\n",
+    );
+    let p = "println(\"${Point { x: +1, y: +2 } == Point { x: +1, y: +2 }} ${Point::title()} ${Tag::title()} ${Pair { a: +1 } == Pair { a: +1 }}\")\n";
+    let out = repl.input(4, p);
+    assert!(out.wasm.is_some(), "{}", out.render());
+}
+
+/// Derivation placement keeps its rule for the package's other modules
+/// and its dependencies: an input is not their module.
+#[test]
+fn an_input_does_not_derive_for_another_module_s_type() {
+    let util =
+        "pub trait Shown:\n    fn shown(self) -> string\n\npub data Boxed:\n    pub v: i32\n";
+    let mut money = MemorySources::default();
+    money.insert("src/lib.hd", "pub data Coin:\n    pub cents: i32\n");
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    repl.src.insert("src/util.hd", util);
+    repl.dep = Some(&money);
+    let first = "use std.structure.{Structure, Field, Variant, Describer}\nuse self.util.{Shown, Boxed}\nuse dep.money.{Coin}\n\ndata Local:\n    pub n: i32\n\ntrait Enc:\n    fn enc() -> string\n\ndata Count:\n    count: i32\n\nimpl[S] Describer[S] for Count:\n    type Error = never\n\n    fn variant(mut self, v: Variant[S]) -> Result[void, never]:\n        .Ok(())\n\n    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:\n        self.count = self.count + 1\n        .Ok(())\n\nimpl[T] Enc for T by Structure:\n    fn enc() -> string:\n        let mut d = Count { count: 0 }\n        _ := T::describe(d)\n        \"${d.count}\"\n";
+    repl.input(1, first);
+    for (n, text, code) in [
+        // The trait and the target both belong to other modules.
+        (2, "impl Eq for Boxed by Structure\n", "nonlocal-impl"),
+        (3, "impl Eq for Coin by Structure\n", "orphan-impl"),
+        // The input's own trait derives for another module's type.
+        (
+            4,
+            "impl Enc for Boxed by Structure\n",
+            "misplaced-derivation",
+        ),
+        (
+            5,
+            "impl Enc for Coin by Structure\n",
+            "misplaced-derivation",
+        ),
+        // A template for another module's trait.
+        (
+            6,
+            "impl[T] Shown for T by Structure:\n    fn shown(self) -> string:\n        T::name()\n",
+            "misplaced-derivation",
+        ),
+    ] {
+        let out = repl.build(n, text);
+        let codes: Vec<&str> = out.diags.code.iter().map(|c| c.as_str()).collect();
+        assert_eq!(codes, [code], "{text:?}: {}", out.render());
+        repl.forget(n);
+    }
+    // The input's own type may derive.
+    repl.input(
+        7,
+        "impl Eq for Local by Structure\nimpl Enc for Local by Structure\n",
+    );
+}

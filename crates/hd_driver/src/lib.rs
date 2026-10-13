@@ -609,6 +609,10 @@ struct Bodies {
     /// Per earlier input the session holds, by its module's path node:
     /// the module, and its bodies once decoded.
     kept: HashMap<hd_base::PathId, (usize, KeptBodies)>,
+    /// The earlier inputs that derive for a type another module of the
+    /// session declares: their bodies include hidden methods under that
+    /// type's path, which its own module's entry does not hold.
+    deriving: Vec<hd_base::PathId>,
 }
 
 type KeptBodies = OnceLock<HashMap<DefId, (Body, Hash128)>>;
@@ -2733,12 +2737,17 @@ impl Run<'_> {
             hidden: &[],
             plans: Some(self),
         };
+        let session = match folder.modules.as_slice() {
+            [m] => self.session_nodes(m.idx()),
+            _ => Vec::new(),
+        };
         let cx = hd_check::header::HeaderCx {
             names,
             lookup: &lookup,
             impls: &impls,
             global: &self.memo,
             solver: &TableSolver,
+            session: &session,
         };
         let r = hd_check::header::stage_b(&cx, &own.items);
         let Some(findings) = self.stage(Stage::HeaderCheck, r) else {
@@ -3906,7 +3915,7 @@ impl Run<'_> {
                         kind: hd_resolve::ImplKind::Template | hd_resolve::ImplKind::TupleTemplate,
                         ..
                     }
-                ) && !hd_resolve::lower::misplaced_template(&names, &module.path, it)
+                ) && !hd_resolve::lower::misplaced_template(&names, cx.session, it)
                     && !hd_check::results::reads_structure(&cx, h.def)
                 {
                     diags.error(
@@ -4021,6 +4030,7 @@ impl Run<'_> {
             impls: cx.impls,
             global: cx.global,
             solver: cx.solver,
+            session: cx.session,
         };
         let Ok(findings) = hd_check::header::private_items(&hcx, cx.lookup.own) else {
             return;
@@ -4061,6 +4071,7 @@ impl Run<'_> {
             impls: cx.impls,
             global: cx.global,
             solver: cx.solver,
+            session: cx.session,
         };
         for it in cx.lookup.own.iter().filter(|it| traits.contains(&it.def)) {
             let Ok(findings) = hd_check::header::boundary(&hcx, it) else {
@@ -4108,6 +4119,7 @@ impl Run<'_> {
             impls: cx.impls,
             global: cx.global,
             solver: cx.solver,
+            session: cx.session,
         };
         for h in heads.iter().filter(|h| {
             h.kind == hd_resolve::HeadKind::Fn
@@ -4205,17 +4217,12 @@ impl Run<'_> {
                 continue;
             }
             // A rejected block (`misplaced-derivation`) derives nothing.
-            if hd_resolve::lower::misplaced_block(
-                &names,
-                &names.module_of(it.def),
-                cx.lookup.own,
-                it,
-            )
-            .is_some()
-            {
+            if hd_resolve::lower::misplaced_block(&names, cx.session, cx.lookup.own, it).is_some() {
                 continue;
             }
-            let Some(template) = hd_resolve::lower::template_of(&names, cx.lookup, *trait_) else {
+            let Some(template) =
+                hd_resolve::lower::template_of(&names, cx.session, cx.lookup, *trait_)
+            else {
                 // `@derive` of a trait with no template derives nothing
                 // (`annot.derive.other`, `annot.derive.error-trait`).
                 // A newtype derives through its base type instead, with
@@ -4264,7 +4271,11 @@ impl Run<'_> {
                     .map(|b| hd_check::derive::member_lines(&cx.src, b))
                     .unwrap_or_default();
                 opt.lines = !lines.is_empty();
-                let facts = derivation_facts(cx, heads, (&opt, &lines), &mut decl, &mut derived);
+                let facts = if heads.iter().any(|h| h.def == opt.data) {
+                    derivation_facts(cx, heads, (&opt, &lines), &mut decl, &mut derived)
+                } else {
+                    self.foreign_facts(m, (cx, impls), &opt, &lines, (&mut decl, &mut derived))
+                };
                 groups.entry(tm.idx()).or_default().push((i, opt, facts));
             }
         }
@@ -4274,58 +4285,12 @@ impl Run<'_> {
                 found.extend(self.check_opt_ins(cx, heads, &opts, &mut derived));
                 continue;
             }
-            let Some(tmod) = self.template_mods[tm].get_or_init(|| {
-                self.lower_module(tm, Stage::Body, &mut DiagBuf::default())
-                    .ok()
-                    .flatten()
-            }) else {
-                continue;
-            };
-            let module = &self.table.modules[m];
-            let mut closure = self.closure(module.folder);
-            for f in self.closure(self.table.modules[tm].folder) {
-                if !closure.contains(&f) {
-                    closure.push(f);
-                }
+            let own = cx.lookup.own;
+            if let Some(f) = self.in_module(m, tm, (own, impls.own), |tcx, theads| {
+                self.check_opt_ins(tcx, theads, &opts, &mut derived)
+            }) {
+                found.extend(f);
             }
-            let ifaces: Vec<Arc<FolderIface>> =
-                closure.iter().filter_map(|f| self.iface_of(*f)).collect();
-            let items: Vec<Item> = cx.lookup.own.iter().chain(&tmod.items).cloned().collect();
-            let lookup = Lookup::new(&items, ifaces.iter().map(AsRef::as_ref).collect());
-            let (folders, universe, extra) = self.closure_impls(&closure);
-            let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
-            let view = ImplView {
-                paths: &self.paths,
-                owners: self.owners(),
-                own: impls.own,
-                folders: &folders,
-                universe,
-                extra: &extra,
-                arity: &arity,
-                hidden: &[],
-                plans: Some(self),
-            };
-            let src = self.src(tm);
-            let theads = hd_resolve::heads(&names, &src, &self.table.modules[tm].path, false);
-            let tlocals = hd_resolve::local_items(&theads);
-            let tcx = BodyCx {
-                names,
-                src,
-                scope: &tmod.scope,
-                lookup: &lookup,
-                impls: &view,
-                global: &self.memo,
-                solver: &TableSolver,
-                methods: std::cell::OnceCell::new(),
-                init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
-                results: std::cell::RefCell::default(),
-                dbg_refs: std::cell::RefCell::default(),
-                locals: &tlocals,
-                tests: None,
-                file_name: &self.table.files[tm],
-                session: &[],
-            };
-            found.extend(self.check_opt_ins(&tcx, &theads, &opts, &mut derived));
         }
         // A derived newtype's base type must implement the trait.
         let hcx = hd_check::header::HeaderCx {
@@ -4334,6 +4299,7 @@ impl Run<'_> {
             impls: cx.impls,
             global: cx.global,
             solver: cx.solver,
+            session: cx.session,
         };
         if let Ok(fs) = hd_check::header::derived_newtypes(&hcx, cx.lookup.own) {
             for f in fs {
@@ -4363,6 +4329,101 @@ impl Run<'_> {
             }
         }
         derived
+    }
+
+    /// The facts bodies of a derivation whose target `opt.data` another
+    /// module of the REPL session declares, checked in that module. `None`
+    /// when a fact is not generated yet, and for a derivation whose member
+    /// lines or whose type's block with no trait sit in module `m`, which
+    /// edit the facts of a source this module's check does not hold.
+    fn foreign_facts(
+        &self,
+        m: usize,
+        (cx, impls): (&BodyCx<'_>, &ImplView<'_>),
+        opt: &hd_check::derive::OptIn,
+        lines: &[hd_check::derive::MemberLine<'_>],
+        (decl, derived): (&mut HashMap<DefId, Option<FactBodies>>, &mut Derived),
+    ) -> Option<FactBodies> {
+        let pool = cx.names.pool;
+        let edits_here = cx.lookup.own.iter().any(|it| {
+            matches!(&it.data, ItemData::Impl { trait_, by: Some(_), self_ty, .. }
+                if *trait_ == DefId::NONE
+                    && matches!(pool.get(*self_ty), TyData::Adt { def, .. } if def == opt.data))
+        });
+        if !lines.is_empty() || edits_here {
+            return None;
+        }
+        let dm = self.table.module(&self.names().module_of(opt.data))?.idx();
+        self.in_module(m, dm, (&[], impls.own), |dcx, dheads| {
+            derivation_facts(dcx, dheads, (opt, &[]), decl, derived)
+        })
+        .flatten()
+    }
+
+    /// Runs `f` in the context of module `tm`, as module `m` sees it: its
+    /// scope, source and heads, with `own` (module `m`'s items and impls)
+    /// and `tm`'s items as the items. `None` when `tm` does not lower.
+    fn in_module<R>(
+        &self,
+        m: usize,
+        tm: usize,
+        (own, own_impls): (&[Item], Option<&hd_types::solver::ImplTable>),
+        f: impl for<'a> FnOnce(&BodyCx<'a>, &[hd_resolve::Head<'a>]) -> R,
+    ) -> Option<R> {
+        let names = self.names();
+        let tmod = self.template_mods[tm]
+            .get_or_init(|| {
+                self.lower_module(tm, Stage::Body, &mut DiagBuf::default())
+                    .ok()
+                    .flatten()
+            })
+            .as_ref()?;
+        let module = &self.table.modules[m];
+        let mut closure = self.closure(module.folder);
+        for fo in self.closure(self.table.modules[tm].folder) {
+            if !closure.contains(&fo) {
+                closure.push(fo);
+            }
+        }
+        let ifaces: Vec<Arc<FolderIface>> =
+            closure.iter().filter_map(|fo| self.iface_of(*fo)).collect();
+        let items: Vec<Item> = own.iter().chain(&tmod.items).cloned().collect();
+        let lookup = Lookup::new(&items, ifaces.iter().map(AsRef::as_ref).collect());
+        let (folders, universe, extra) = self.closure_impls(&closure);
+        let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
+        let view = ImplView {
+            paths: &self.paths,
+            owners: self.owners(),
+            own: own_impls,
+            folders: &folders,
+            universe,
+            extra: &extra,
+            arity: &arity,
+            hidden: &[],
+            plans: Some(self),
+        };
+        let src = self.src(tm);
+        let theads = hd_resolve::heads(&names, &src, &self.table.modules[tm].path, false);
+        let tlocals = hd_resolve::local_items(&theads);
+        let session = self.session_nodes(tm);
+        let tcx = BodyCx {
+            names,
+            src,
+            scope: &tmod.scope,
+            lookup: &lookup,
+            impls: &view,
+            global: &self.memo,
+            solver: &TableSolver,
+            methods: std::cell::OnceCell::new(),
+            init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
+            results: std::cell::RefCell::default(),
+            dbg_refs: std::cell::RefCell::default(),
+            locals: &tlocals,
+            tests: None,
+            file_name: &self.table.files[tm],
+            session: &session,
+        };
+        Some(f(&tcx, &theads))
     }
 
     /// A tuple template's member steps (trait-solver.md §3.9): its
@@ -4834,6 +4895,7 @@ impl Run<'_> {
         let mut items = HashMap::new();
         let mut bodies = HashMap::new();
         let mut kept = HashMap::new();
+        let mut deriving = Vec::new();
         let mut decoded = Vec::new();
         for m in 0..self.table.modules.len() {
             let Some(Some(c)) = self.check[m].get() else {
@@ -4846,14 +4908,17 @@ impl Run<'_> {
                 return None;
             }
             let sections = split_sections(&c.entry)?;
+            let node = names.module(&self.table.modules[m].path);
+            let mut foreign = false;
             for it in hd_resolve::decode_items(&names, sections.get(2)?)?.0 {
+                foreign |= names.module_node(it.def) != node;
                 items.insert(it.def, it);
             }
             if self.is_kept(m) {
-                kept.insert(
-                    names.module(&self.table.modules[m].path),
-                    (m, OnceLock::new()),
-                );
+                kept.insert(node, (m, OnceLock::new()));
+                if foreign {
+                    deriving.push(node);
+                }
                 continue;
             }
             let mut r = Reader::new(sections.get(3)?);
@@ -4921,6 +4986,7 @@ impl Run<'_> {
             bodies: Bodies {
                 eager: bodies,
                 kept,
+                deriving,
             },
             impl_rows,
             universe,
@@ -4948,8 +5014,18 @@ impl Run<'_> {
         {
             at = self.paths.parent(at);
         }
-        let (m, cell) = p.bodies.kept.get(&at)?;
-        cell.get_or_init(|| self.decode_bodies(*m)).get(&def)
+        let own = p
+            .bodies
+            .kept
+            .get(&at)
+            .and_then(|(m, cell)| cell.get_or_init(|| self.decode_bodies(*m)).get(&def));
+        // A hidden method of a type that a later input derived for.
+        own.or_else(|| {
+            p.bodies.deriving.iter().find_map(|node| {
+                let (m, cell) = p.bodies.kept.get(node)?;
+                cell.get_or_init(|| self.decode_bodies(*m)).get(&def)
+            })
+        })
     }
 
     /// Module `m`'s TIR bodies, from its `check` entry.

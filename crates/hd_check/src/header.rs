@@ -29,6 +29,10 @@ pub struct HeaderCx<'a> {
     pub impls: &'a ImplView<'a>,
     pub global: &'a GlobalMemo,
     pub solver: &'a dyn Solver,
+    /// For a REPL input: the modules of its session, which count as one
+    /// module for derivation templates ([`crate::BodyCx::session`]). Empty
+    /// otherwise.
+    pub session: &'a [hd_base::PathId],
 }
 
 /// One problem stage B found: the item, a code and a message.
@@ -613,7 +617,13 @@ impl<'a> ItemCheck<'_, 'a> {
         };
         if *kind == ImplKind::Derived
             && !newtype
-            && hd_resolve::lower::template_of(&self.cx.names, self.cx.lookup, *trait_).is_none()
+            && hd_resolve::lower::template_of(
+                &self.cx.names,
+                self.cx.session,
+                self.cx.lookup,
+                *trait_,
+            )
+            .is_none()
         {
             return Ok(());
         }

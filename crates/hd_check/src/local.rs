@@ -141,6 +141,7 @@ impl Ck<'_, '_> {
             impls: &view,
             global: self.cx.global,
             solver: self.cx.solver,
+            session: self.cx.session,
         };
         for f in crate::header::local_supertraits(&hcx, it)? {
             self.err(f.code, s, &f.message);

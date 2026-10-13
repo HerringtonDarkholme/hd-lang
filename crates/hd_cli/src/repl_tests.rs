@@ -369,6 +369,32 @@ fn a_later_input_implements_for_an_earlier_type() {
     );
 }
 
+/// A session is one module for derivation blocks too
+/// (`annot.block.module`): a later input derives `Eq` and `Hash` for an
+/// earlier input's type, and the input after compares and hashes values.
+#[test]
+fn a_later_input_derives_for_an_earlier_type() {
+    let t = session(&[
+        "data Point:",
+        "    pub x: i32",
+        "    pub y: i32",
+        "",
+        "use std.structure.Structure",
+        "use std.collections.Set",
+        "",
+        "impl Eq for Point by Structure",
+        "impl Hash for Point by Structure",
+        "",
+        "a := Point { x: +1, y: +2 }",
+        "a == Point { x: +1, y: +2 }",
+        "a == Point { x: +1, y: +3 }",
+        "let seen: mut Set[Point] = Set::new()",
+        "_ := seen.insert(a)",
+        "seen.insert(Point { x: +1, y: +2 })",
+    ]);
+    assert_eq!(t.out, "true : bool\nfalse : bool\nfalse : bool\n");
+}
+
 /// A later input implements `src/lib.hd`'s trait for an earlier input's
 /// type, and a generic function of the library finds that implementation.
 #[test]
