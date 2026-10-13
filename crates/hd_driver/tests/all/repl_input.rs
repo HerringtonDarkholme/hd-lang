@@ -649,3 +649,155 @@ fn a_single_use_reaches_later_inputs() {
     repl.input(1, "use std.cmp.max\nuse std.cmp.min as least\n");
     repl.input(2, "println(max(+1, +2) + least(+3, +4))\n");
 }
+
+/// A session is one module for implementation placement (`trait.own.*`):
+/// an input implements a trait or adds methods for a type that an earlier
+/// input or `src/lib.hd` declares, and a later input calls them.
+#[test]
+fn an_input_implements_for_an_earlier_input_s_or_the_library_s_type() {
+    let lib = "trait Named:\n    fn name(self) -> string\n\ndata Tag:\n    pub x: i32\n";
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    repl.src.insert("src/lib.hd", lib);
+    repl.input(1, "data Point:\n    pub x: i32\n    pub y: i32\n");
+    repl.input(
+        2,
+        "impl Display for Point:\n    fn to_string(self) -> string: \"(${self.x}, ${self.y})\"\n",
+    );
+    repl.input(
+        3,
+        "impl Point:\n    fn sum(self) -> i32:\n        self.x + self.y\n",
+    );
+    repl.input(
+        4,
+        "impl Named for Point:\n    fn name(self) -> string: \"point\"\n",
+    );
+    repl.input(
+        5,
+        "impl Named for Tag:\n    fn name(self) -> string: \"tag\"\n",
+    );
+    repl.input(6, "impl Tag:\n    fn twice(self) -> i32: self.x * +2\n");
+    let p = "p := Point { x: +1, y: +2 }\n\nprintln(\"${p} ${p.sum()} ${p.name()} ${Tag { x: +3 }.name()} ${Tag { x: +3 }.twice()}\")\n";
+    let out = repl.input(7, p);
+    assert!(out.wasm.is_some(), "{}", out.render());
+}
+
+/// Placement keeps its rule for the package's other modules and its
+/// dependencies: an input is not their module.
+#[test]
+fn an_input_does_not_implement_for_another_module_s_type() {
+    let util =
+        "pub trait Shown:\n    fn shown(self) -> string\n\npub data Boxed:\n    pub v: i32\n";
+    let mut money = MemorySources::default();
+    money.insert("src/lib.hd", "pub data Coin:\n    pub cents: i32\n");
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    repl.src.insert("src/util.hd", util);
+    repl.dep = Some(&money);
+    repl.input(
+        1,
+        "use self.util.{Shown, Boxed}\nuse dep.money.{Coin}\n\ndata Local:\n    pub n: i32\n",
+    );
+    for (n, text, code) in [
+        (
+            2,
+            "impl Boxed:\n    fn peek(self) -> i32: self.v\n",
+            "nonlocal-impl",
+        ),
+        (
+            3,
+            "impl Shown for Boxed:\n    fn shown(self) -> string: \"b\"\n",
+            "nonlocal-impl",
+        ),
+        (
+            4,
+            "impl Coin:\n    fn peek(self) -> i32: self.cents\n",
+            "orphan-impl",
+        ),
+        (
+            5,
+            "impl Display for Coin:\n    fn to_string(self) -> string: \"c\"\n",
+            "orphan-impl",
+        ),
+    ] {
+        let out = repl.build(n, text);
+        let codes: Vec<&str> = out.diags.code.iter().map(|c| c.as_str()).collect();
+        assert_eq!(codes, [code], "{text:?}: {}", out.render());
+        repl.forget(n);
+    }
+    // The input's own type may implement the other module's trait.
+    repl.input(
+        6,
+        "impl Shown for Local:\n    fn shown(self) -> string: \"l\"\n",
+    );
+}
+
+/// `cli.repl.redefine.impl`: an implementation that overlaps one of an
+/// earlier input or of `src/lib.hd` is `overlapping-impl`, as in one
+/// module, and the earlier one stays.
+#[test]
+fn an_input_does_not_overlap_an_earlier_implementation() {
+    let lib = "trait Named:\n    fn name(self) -> string\n\ndata Tag:\n    pub x: i32\n\nimpl Named for Tag:\n    fn name(self) -> string: \"lib\"\n";
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    repl.src.insert("src/lib.hd", lib);
+    repl.input(1, "data Point:\n    pub x: i32\n\nimpl Named for Point:\n    fn name(self) -> string: \"one\"\n");
+    for (n, text) in [
+        (
+            2,
+            "impl Named for Tag:\n    fn name(self) -> string: \"repl\"\n",
+        ),
+        (
+            3,
+            "impl Named for Point:\n    fn name(self) -> string: \"two\"\n",
+        ),
+    ] {
+        let out = repl.build(n, text);
+        let codes: Vec<&str> = out.diags.code.iter().map(|c| c.as_str()).collect();
+        assert_eq!(codes, ["overlapping-impl"], "{text:?}: {}", out.render());
+        assert!(
+            out.render().starts_with(&format!("error: repl#{n}:")),
+            "{}",
+            out.render()
+        );
+        repl.forget(n);
+    }
+    repl.input(
+        4,
+        "println(Point { x: +1 }.name() + Tag { x: +1 }.name())\n",
+    );
+}
+
+/// The later implementation is the one reported, by input number: input
+/// 10 comes after input 9.
+#[test]
+fn the_newer_input_s_implementation_is_the_overlapping_one() {
+    let inner = crate::warm_store();
+    let store = OverlayStore::new(&inner);
+    let mut repl = repl(&store);
+    repl.input(
+        1,
+        "trait Named:\n    fn name(self) -> string\n\ndata Point:\n    pub x: i32\n",
+    );
+    for n in 2..9 {
+        repl.input(n, &format!("v{n} := +{n}\n"));
+    }
+    repl.input(
+        9,
+        "impl Named for Point:\n    fn name(self) -> string: \"nine\"\n",
+    );
+    let out = repl.build(
+        10,
+        "impl Named for Point:\n    fn name(self) -> string: \"ten\"\n",
+    );
+    let codes: Vec<&str> = out.diags.code.iter().map(|c| c.as_str()).collect();
+    assert_eq!(codes, ["overlapping-impl"], "{}", out.render());
+    assert!(
+        out.render().starts_with("error: repl#10:"),
+        "{}",
+        out.render()
+    );
+}

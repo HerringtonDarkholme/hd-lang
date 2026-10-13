@@ -604,6 +604,12 @@ pub struct SessionScope {
     /// What declared each of those names: `src/lib.hd` or `repl#N`
     /// (`cli.repl.redeclare.binding`, `cli.repl.redeclare.type`).
     pub declared_by: HashMap<Symbol, String>,
+    /// The paths of the modules the session holds besides the input:
+    /// `src/lib.hd`'s and the earlier inputs'. A session counts as one
+    /// module wherever a rule compares modules, so an implementation in
+    /// the input may have an owner declared in one of them
+    /// ([`impl_placement`]).
+    pub modules: Vec<String>,
 }
 
 /// One module's result: all its items (private ones included), its scope
@@ -688,6 +694,9 @@ struct Resolver<'a, 'b> {
     /// The REPL inputs being lowered ([`ModIn::session`]): no `use` names
     /// one, yet each exports its own names.
     inputs: HashSet<String>,
+    /// For each REPL input being lowered: the other modules of its
+    /// session ([`SessionScope::modules`]).
+    session_modules: HashMap<String, Vec<String>>,
 }
 
 impl Resolver<'_, '_> {
@@ -3066,9 +3075,14 @@ impl Lower<'_, '_, '_> {
         // The package and module that may declare the implementation
         // (`trait.own.*`). The rejected implementation is left out, so no
         // overlap or body error follows it.
+        let session = self
+            .r
+            .session_modules
+            .get(self.module)
+            .map_or(&[][..], Vec::as_slice);
         if let Some(code) = impl_placement(
             &self.names,
-            self.module,
+            (self.module, session),
             (trait_, trait_args, self_ty),
             kind,
         ) {
@@ -4212,10 +4226,14 @@ fn components(edges: &[Vec<usize>]) -> Vec<Vec<usize>> {
 /// inherent implementation is owned by its target alone. `None` for the
 /// standard library, and for what is no implementation of its own: a
 /// template or a derivation block.
+///
+/// `session` holds the modules that count as `module` too: for a REPL
+/// input, `src/lib.hd` and the earlier inputs, since a session is one
+/// module ([`SessionScope::modules`]); empty for any other module.
 #[must_use]
 pub fn impl_placement(
     names: &Names<'_>,
-    module: &str,
+    (module, session): (&str, &[String]),
     (trait_, trait_args, self_ty): (DefId, TyList, Ty),
     kind: ImplKind,
 ) -> Option<Code> {
@@ -4258,7 +4276,7 @@ pub fn impl_placement(
                 .filter_map(ctor_module),
         );
     }
-    if owners.iter().any(|o| o == module) {
+    if owners.iter().any(|o| o == module || session.contains(o)) {
         return None;
     }
     let local = owners.iter().any(|o| o.split('.').next() == Some(package));
@@ -4767,6 +4785,10 @@ pub fn build_folder(
             .iter()
             .filter(|m| m.session.is_some())
             .map(|m| m.path.clone())
+            .collect(),
+        session_modules: mods
+            .iter()
+            .filter_map(|m| Some((m.path.clone(), m.session.as_ref()?.modules.clone())))
             .collect(),
     };
     for (m, hs) in mods.iter().zip(&all_heads) {

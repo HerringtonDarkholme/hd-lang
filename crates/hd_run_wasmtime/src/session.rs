@@ -82,6 +82,13 @@ impl Stopper {
         self.flag.store(true, Ordering::Relaxed);
         self.waker.wake();
     }
+
+    /// Whether the running input waits on the host now, so a stop cancels
+    /// it rather than stopping it.
+    #[must_use]
+    pub fn waiting(&self) -> bool {
+        self.waker.parked()
+    }
 }
 
 impl WasmtimeEngine {

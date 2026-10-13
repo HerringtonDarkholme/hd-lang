@@ -56,6 +56,8 @@ pub struct Op {
 struct Inbox {
     lines: Mutex<VecDeque<Line>>,
     ready: Condvar,
+    /// Set, under `lines`, while a wait sleeps on `ready`.
+    parked: AtomicBool,
 }
 
 /// Wakes a reactor's wait from another thread, for a session's stop
@@ -68,6 +70,12 @@ impl Waker {
     pub fn wake(&self) {
         let _lines = self.0.lines.lock().unwrap_or_else(PoisonError::into_inner);
         self.0.ready.notify_all();
+    }
+
+    /// Whether the reactor's thread sleeps in `wait_until` now, so a wake
+    /// reaches it there: no Wasm runs and no host call is made.
+    pub fn parked(&self) -> bool {
+        self.0.parked.load(Ordering::SeqCst)
     }
 }
 
@@ -306,12 +314,26 @@ impl Reactor {
             (None, Some(limit)) => Some(limit.saturating_duration_since(Instant::now())),
             (timeout, None) => timeout,
         };
-        match timeout {
+        // Set under the lock: a waker that reads it as set takes the lock
+        // only once this thread sleeps, so its wake is never lost.
+        self.inbox.parked.store(true, Ordering::SeqCst);
+        let lines = match timeout {
             Some(timeout) => {
-                drop(self.inbox.ready.wait_timeout(lines, timeout));
+                let (lines, _) = self
+                    .inbox
+                    .ready
+                    .wait_timeout(lines, timeout)
+                    .unwrap_or_else(PoisonError::into_inner);
+                lines
             }
-            None => drop(self.inbox.ready.wait(lines)),
-        }
+            None => self
+                .inbox
+                .ready
+                .wait(lines)
+                .unwrap_or_else(PoisonError::into_inner),
+        };
+        self.inbox.parked.store(false, Ordering::SeqCst);
+        drop(lines);
         true
     }
 

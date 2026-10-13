@@ -248,10 +248,9 @@ fn a_type_is_not_declared_again() {
     );
 }
 
-/// `cli.repl.redefine.impl`: an implementation of an earlier input's or
-/// `src/lib.hd`'s trait for its type is an error, and the first one
-/// stays. An input is a module of its own, so such an implementation is
-/// rejected as `nonlocal-impl` before any overlap is checked.
+/// `cli.repl.redefine.impl`: an implementation that overlaps one of an
+/// earlier input or of `src/lib.hd` is `overlapping-impl`, as in one
+/// module, and the first one stays.
 #[test]
 fn a_second_impl_is_an_error() {
     let named = "trait Named:\n    fn name(self) -> string\n\ndata Tag:\n    pub x: i32\n\nimpl Named for Tag:\n    fn name(self) -> string: \"lib\"\n";
@@ -266,7 +265,7 @@ fn a_second_impl_is_an_error() {
     let lines: Vec<&str> = t.out.lines().collect();
     assert_eq!(lines.len(), 2, "{}", t.out);
     assert!(
-        lines[0].starts_with("error: repl#1:1:1: nonlocal-impl: "),
+        lines[0].starts_with("error: repl#1:1:1: overlapping-impl: "),
         "{}",
         t.out
     );
@@ -287,11 +286,57 @@ fn a_second_impl_is_an_error() {
     let lines: Vec<&str> = t.out.lines().collect();
     assert_eq!(lines.len(), 2, "{}", t.out);
     assert!(
-        lines[0].starts_with("error: repl#2:1:1: nonlocal-impl: "),
+        lines[0].starts_with("error: repl#2:1:1: overlapping-impl: "),
         "{}",
         t.out
     );
     assert_eq!(lines[1], "\"first\" : string");
+}
+
+/// A session is one module for implementation placement: a later input
+/// implements a trait and adds methods for an earlier input's type, and
+/// the input after calls them on a value.
+#[test]
+fn a_later_input_implements_for_an_earlier_type() {
+    let t = session(&[
+        "data Point:",
+        "    pub x: i32",
+        "    pub y: i32",
+        "",
+        "impl Display for Point:",
+        "    fn to_string(self) -> string: \"(${self.x}, ${self.y})\"",
+        "",
+        "impl Point:",
+        "    fn sum(self) -> i32: self.x + self.y",
+        "",
+        "p := Point { x: +12, y: +23 }",
+        "\"${p}\"",
+        "p.sum()",
+        "p.to_string()",
+    ]);
+    assert_eq!(
+        t.out,
+        "\"(12, 23)\" : string\n35 : i32\n\"(12, 23)\" : string\n"
+    );
+}
+
+/// A later input implements `src/lib.hd`'s trait for an earlier input's
+/// type, and a generic function of the library finds that implementation.
+#[test]
+fn a_library_function_finds_an_input_s_implementation() {
+    let lib = "trait Named:\n    fn name(self) -> string\n\nfn greet[T < Named](x: T) -> string:\n    \"hi ${x.name()}\"\n";
+    let dir = package("repl-impl-lib", &[("src/lib.hd", lib)]);
+    let script = Script::of(&[
+        "data Cat:",
+        "    pub age: i32",
+        "",
+        "impl Named for Cat:",
+        "    fn name(self) -> string: \"cat ${self.age}\"",
+        "",
+        "greet(Cat { age: +3 })",
+    ]);
+    let t = session_in(&dir, script, |_| {});
+    assert_eq!(t.out, "\"hi cat 3\" : string\n");
 }
 
 /// `cli.repl.panic`, `.binding`, `.mutations`: the spec's `log` example.
@@ -404,26 +449,22 @@ fn a_waiting_input_is_cancelled_and_the_session_goes_on() {
     let seen = Arc::clone(&phase);
     script.on_line = Some(Box::new(move |line: &str| match line {
         "nap!()" => seen.store(1, Ordering::SeqCst),
-        "log" => {
-            seen.store(2, Ordering::SeqCst);
-            // Past the stopping thread's last stop, which the next input's
-            // start clears.
-            std::thread::sleep(Duration::from_millis(300));
-        }
+        "log" => seen.store(2, Ordering::SeqCst),
         _ => {}
     }));
     let dir = Scratch::new(SCRATCH, "repl-cancel");
     let mut stopping = None;
     let started = Instant::now();
     let t = session_in(&dir, script, |stopper| {
-        // Ctrl-C while the input waits, as the handler calls it: a stop
-        // before the input starts is dropped, so it repeats.
+        // Ctrl-C once the input waits on the host, as the handler calls
+        // it. A stop while its Wasm still runs would stop it instead.
         stopping = Some(std::thread::spawn(move || {
             while phase.load(Ordering::SeqCst) < 2 {
-                if phase.load(Ordering::SeqCst) == 1 {
+                if phase.load(Ordering::SeqCst) == 1 && stopper.waiting() {
                     stopper.stop();
+                    return;
                 }
-                std::thread::sleep(Duration::from_millis(50));
+                std::thread::sleep(Duration::from_millis(1));
             }
         }));
     });

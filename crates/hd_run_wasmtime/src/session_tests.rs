@@ -81,6 +81,31 @@ impl Repl<'_> {
         outcome
     }
 
+    /// Builds `text` as the next input, then runs it while another thread
+    /// stops it once it waits on the host. A stop that came earlier, while
+    /// Wasm runs, would stop the input rather than cancel it.
+    fn input_stopped_waiting(&mut self, text: &str, stopper: &crate::Stopper) -> Outcome {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let built = self.build(text);
+        let stopper = stopper.clone();
+        let ended = Arc::new(AtomicBool::new(false));
+        let seen = Arc::clone(&ended);
+        let handle = std::thread::spawn(move || {
+            while !seen.load(Ordering::SeqCst) {
+                if stopper.waiting() {
+                    stopper.stop();
+                    return;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+        });
+        let outcome = self.run(built);
+        ended.store(true, Ordering::SeqCst);
+        handle.join().expect("the stopping thread");
+        outcome
+    }
+
     /// Builds the next input over the earlier ones: its file, its module
     /// and what it adds to the session.
     fn build(&mut self, text: &str) -> (String, Vec<u8>, hd_driver::Session) {
@@ -460,10 +485,7 @@ nap!()
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
         }
         let started = std::time::Instant::now();
-        assert_eq!(
-            repl.input_stopped_after(nap, &stopper, 200),
-            Outcome::Exit(3)
-        );
+        assert_eq!(repl.input_stopped_waiting(nap, &stopper), Outcome::Exit(3));
         assert!(
             started.elapsed() < std::time::Duration::from_secs(10),
             "the cancel waited for the timer: {:?}",
@@ -498,7 +520,7 @@ fn a_cancelled_input_leaves_no_timer_behind() {
         );
         let cancelled = std::time::Instant::now();
         assert_eq!(
-            repl.input_stopped_after("sleep!(Duration.milliseconds(+1500))\n", &stopper, 100),
+            repl.input_stopped_waiting("sleep!(Duration.milliseconds(+1500))\n", &stopper),
             Outcome::Exit(3)
         );
         assert_eq!(text(&io.err), "cancelled\n");

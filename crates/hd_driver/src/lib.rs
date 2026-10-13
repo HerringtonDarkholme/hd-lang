@@ -2355,8 +2355,10 @@ impl Run<'_> {
                             .filter(|(_, o)| **o != hd_resolve::Origin::Prelude)
                             .map(|(&n, _)| (n, "src/lib.hd".to_owned()))
                             .collect(),
+                        modules: Vec::new(),
                     }
                 });
+            out.modules = self.session_modules(m);
             for &(number, k) in self.earlier_inputs(m) {
                 let module = &self.table.modules[k];
                 let Some(iface) = self.iface_of(module.folder) else {
@@ -2775,6 +2777,15 @@ impl Run<'_> {
         self.computed(Stage::Coherence);
         let names = self.names();
         let u = hd_resolve::Universe::new(names, all.iter().flat_map(|i| i.items.iter()));
+        // A REPL session is one module whose content runs `src/lib.hd`
+        // first, then the inputs by number (`cli.repl.redefine.impl`), so
+        // input 10 sorts after input 9.
+        let inputs: HashMap<&str, u32> = self
+            .repl_inputs()
+            .sorted
+            .iter()
+            .map(|&(n, k)| (self.table.modules[k].path.as_str(), n))
+            .collect();
         // Content order (§4.12.3): the later impl is the one reported. What
         // `@error` generates ranks first, so a hand-written impl beside it
         // is the one reported (spec 14 `annot.error.hand-written`); a
@@ -2802,7 +2813,12 @@ impl Run<'_> {
                 .iter()
                 .find_map(|i| i.spans.get(&(d, 0)))
                 .map_or((0, 0, 0), |(_, a)| (a.decl, a.member, a.tok));
-            let module = names.module_of(d);
+            let mut module = names.module_of(d);
+            if let Some(n) = inputs.get(module.as_str())
+                && let Some(stem) = module.strip_suffix(&n.to_string())
+            {
+                module = format!("{stem}{n:010}");
+            }
             // std first: its impls are the earlier ones.
             let package = u8::from(!module.starts_with("std."));
             format!(
