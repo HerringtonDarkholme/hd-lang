@@ -33,6 +33,9 @@ Research and direction outside the specification:
 - [NonEscapable Types And Lifetimes: Design](NONESCAPE_LIFETIME_DESIGN.md)
   states the round-2 NonEscapable design as numbered rules (#163), with a
   stress-test suite, a checker cost model, and owner questions.
+- [NonEscapable Types And Lifetimes: Adversarial Stress Test](NONESCAPE_LIFETIME_STRESS_TEST.md)
+  attacks recovered write authority, cleanup execution, ordinary locality,
+  function values, frame outputs, and optimizer proofs across twenty cases.
 - [Standard Library Calls](STDLIB_CALLS.md) logs every stdlib design
   choice the owner did not make explicitly, with its status, for the
   stdlib audit.
