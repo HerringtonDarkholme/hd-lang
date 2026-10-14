@@ -1095,7 +1095,7 @@ fn build_file(
         )));
     }
     let full =
-        std::fs::canonicalize(file).map_err(|e| rep.fail(&format!("{}: {e}", file.display())))?;
+        hd_run::canonicalize(file).map_err(|e| rep.fail(&format!("{}: {e}", file.display())))?;
     let dir = full.parent().unwrap_or(Path::new("."));
     let Some(root) = disk::package_root(dir) else {
         return Err(rep.fail(&no_package("build")));

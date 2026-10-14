@@ -157,17 +157,18 @@ fn seed_takes_a_whole_number() {
 #[test]
 fn the_js_host_holds_the_case_environment() {
     let core = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/node.mjs");
-    let core = std::fs::canonicalize(core).expect("node.mjs");
+    let core = hd_run::canonicalize(core).expect("node.mjs");
     let work = tmp("hd-env-js");
     let _ = std::fs::remove_dir_all(&work);
     std::fs::create_dir_all(work.join("pkg/fixtures")).expect("pkg");
-    let work = std::fs::canonicalize(&work).expect("work");
+    let work = hd_run::canonicalize(&work).expect("work");
     let pkg = work.join("pkg");
     let case = work.join("case-0");
     let script = format!(
         r#"
 import {{ existsSync }} from "node:fs";
-import {{ createHost }} from {core};
+import {{ pathToFileURL }} from "node:url";
+const {{ createHost }} = await import(pathToFileURL({core}).href);
 const sink = {{ out() {{}}, err() {{}} }};
 const pkg = {pkg};
 const dir = {case};
@@ -207,9 +208,48 @@ const checks = [
 const failed = checks.filter(([, ok]) => !ok).map(([name]) => name);
 console.log(failed.length ? "failed: " + failed.join(", ") : "ok");
 "#,
-        core = js_str(&format!("file://{}", core.display())),
+        core = js_str(&core.to_string_lossy()),
         pkg = js_str(&pkg.to_string_lossy()),
         case = js_str(&case.to_string_lossy()),
+    );
+    let out = Command::new("node")
+        .args(["--input-type=module", "-e", &script])
+        .output()
+        .expect("run node");
+    assert_eq!(text(&out.stdout), "ok\n", "{}", text(&out.stderr));
+}
+
+/// `cli.cap.scope.path`: a path entry covers the file it names and what is
+/// under the directory it names, whichever separator the host's paths use.
+/// Windows' `\` is tried on every platform with paths already resolved.
+#[test]
+fn a_path_grant_covers_by_the_hosts_separator() {
+    let core = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/core.mjs");
+    let core = hd_run::canonicalize(core).expect("core.mjs");
+    let script = format!(
+        r#"
+import {{ pathToFileURL }} from "node:url";
+const {{ createGrant }} = await import(pathToFileURL({core}).href);
+const win = createGrant({{ FsRead: ["D:\\w\\out\\sub", "D:\\"] }}, (p) => p, "\\");
+const sub = createGrant({{ FsRead: ["D:\\w\\out\\sub"] }}, (p) => p, "\\");
+const posix = createGrant({{ FsRead: ["/w/out/sub"] }}, (p) => p);
+const checks = [
+  ["entry itself", sub.coversPath("FsRead", "D:\\w\\out\\sub")],
+  ["file below", sub.coversPath("FsRead", "D:\\w\\out\\sub\\a.txt")],
+  ["deep below", sub.coversPath("FsRead", "D:\\w\\out\\sub\\x\\y")],
+  ["prefix collision", !sub.coversPath("FsRead", "D:\\w\\out\\subX\\a.txt")],
+  ["sibling", !sub.coversPath("FsRead", "D:\\w\\out\\other")],
+  ["parent", !sub.coversPath("FsRead", "D:\\w\\out")],
+  ["drive root", win.coversPath("FsRead", "D:\\w\\any")],
+  ["other drive", !win.coversPath("FsRead", "E:\\w\\out\\sub\\a")],
+  ["posix below", posix.coversPath("FsRead", "/w/out/sub/a.txt")],
+  ["posix collision", !posix.coversPath("FsRead", "/w/out/subX")],
+  ["posix backslash is a name", !posix.coversPath("FsRead", "/w/out/sub\\a")],
+];
+const failed = checks.filter(([, ok]) => !ok).map(([name]) => name);
+console.log(failed.length ? "failed: " + failed.join(", ") : "ok");
+"#,
+        core = js_str(&core.to_string_lossy()),
     );
     let out = Command::new("node")
         .args(["--input-type=module", "-e", &script])

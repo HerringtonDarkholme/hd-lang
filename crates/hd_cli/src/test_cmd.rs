@@ -180,7 +180,7 @@ fn target(file: Option<&Path>) -> Result<(PathBuf, Option<String>), String> {
     if f.extension().is_none_or(|x| x != "hd") {
         return Err(format!("`{}` is not an .hd file", f.display()));
     }
-    let full = std::fs::canonicalize(f).map_err(|e| format!("{}: {e}", f.display()))?;
+    let full = hd_run::canonicalize(f).map_err(|e| format!("{}: {e}", f.display()))?;
     let dir = full.parent().unwrap_or(Path::new("."));
     let root = disk::package_root(dir).unwrap_or_else(|| dir.to_path_buf());
     let rel = full
@@ -817,7 +817,7 @@ impl TempDirs {
             let dir = base.join(format!("hd-test-{}-{n}", std::process::id()));
             match std::fs::create_dir(&dir) {
                 Ok(()) => {
-                    let real = std::fs::canonicalize(&dir).unwrap_or(dir);
+                    let real = hd_run::canonicalize(&dir).unwrap_or(dir);
                     return Ok(TempDirs(real));
                 }
                 // A leftover of an earlier process with the same id.

@@ -36,7 +36,7 @@ import {
   platform,
   tmpdir,
 } from "node:os";
-import { dirname, basename, join, resolve } from "node:path";
+import { dirname, basename, join, resolve, sep } from "node:path";
 import {
   createCoreHost,
   createGrant as createCoreGrant,
@@ -616,12 +616,13 @@ function testRunnerImports({ env, put, st }) {
 const resolveTarget = (path, cwd = process.cwd()) => resolvePath(resolve(cwd, path));
 
 // The grant with Node's path resolution.
-export const createGrant = (limits = {}) => createCoreGrant(limits, resolveTarget);
+export const createGrant = (limits = {}) => createCoreGrant(limits, resolveTarget, sep);
 
 // The Node layer for `createCoreHost`: the providers that touch the
 // machine, and what releases them.
 const nodeLayer = {
   resolveTarget,
+  sep,
   files: nodeFiles,
   providers: ({ env, sink, st, grant, flush, put, ready, text, argsOf }) => {
     // `Net` and its socket handles (spec/std/net.md) on a client thread of

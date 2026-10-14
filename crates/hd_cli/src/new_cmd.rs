@@ -287,7 +287,7 @@ fn workspace_of(dir: &Path) -> Result<Option<(PathBuf, String)>, String> {
     let Some((root, _)) = disk::workspace_root(parent) else {
         return Ok(None);
     };
-    let full = std::fs::canonicalize(dir).map_err(|e| e.to_string())?;
+    let full = hd_run::canonicalize(dir).map_err(|e| e.to_string())?;
     let rel = full
         .strip_prefix(&root)
         .map_err(|e| e.to_string())?

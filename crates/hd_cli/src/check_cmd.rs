@@ -155,7 +155,7 @@ fn targets(file: Option<&OsString>, packages: &[String]) -> Result<Vec<Target>, 
             path.display()
         ));
     }
-    let full = std::fs::canonicalize(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let full = hd_run::canonicalize(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let dir = full.parent().unwrap_or(Path::new("."));
     match disk::package_root(dir) {
         Some(root) => {

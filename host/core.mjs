@@ -88,8 +88,9 @@ export const timeLimitReport = (ms) =>
 //
 // `resolveTarget(path, cwd)` names the path a scope entry is compared with
 // (cli.cap.scope.path.resolved); the Node layer resolves `..` and symbolic
-// links, and a host with no file system leaves it out.
-export function createGrant(limits = {}, resolveTarget = (path) => path) {
+// links, and a host with no file system leaves it out. `sep` is the
+// separator of the paths it returns and of the entries: "\\" on Windows.
+export function createGrant(limits = {}, resolveTarget = (path) => path, sep = "/") {
   const limit = (key) => (Object.hasOwn(limits, key) ? limits[key] : null);
   const check = (key, covers) => {
     const l = limit(key);
@@ -102,7 +103,7 @@ export function createGrant(limits = {}, resolveTarget = (path) => path) {
     // it names (cli.cap.scope.path); a relative path is from `cwd`.
     coversPath: (key, path, cwd) => {
       const target = resolveTarget(path, cwd);
-      return check(key, (e) => target === e || target.startsWith(e.endsWith("/") ? e : e + "/"));
+      return check(key, (e) => target === e || target.startsWith(e.endsWith(sep) ? e : e + sep));
     },
     // cli.cap.scope.host, .host.forms, cli.cap.scope.net.
     coversHost: (key, host, port = null) =>
@@ -436,7 +437,7 @@ function testRunnerImports({ env, st, put, text, files }) {
 export function createCoreHost(sink, env = {}, layer = null) {
   const args = env.args ?? [];
   const program = env.program ?? "";
-  const grant = createGrant(env.grants ?? {}, layer?.resolveTarget);
+  const grant = createGrant(env.grants ?? {}, layer?.resolveTarget, layer?.sep);
   const seed = env.seed ?? null;
   // The instance's mutable state, shared with the provider functions
   // below: the exchange memory, trap reporting, the test timeout, case

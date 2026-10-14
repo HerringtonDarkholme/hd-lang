@@ -12,7 +12,7 @@ pub mod journal;
 pub mod replay;
 pub mod tests_model;
 
-pub use grant::{GrantValue, Grants, Limit, env_notice, resolve_path};
+pub use grant::{GrantValue, Grants, Limit, canonicalize, env_notice, plain_path, resolve_path};
 pub use imports::{module_exports, module_imports, needs, unknown_import};
 
 use std::task::Poll;

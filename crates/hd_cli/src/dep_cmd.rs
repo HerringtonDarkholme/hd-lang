@@ -89,7 +89,7 @@ impl Target {
             std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
         let manifest = hd_project::parse_manifest(&text).map_err(|e| format!("hd.toml: {e}"))?;
         let (sum_dir, members) = disk::selection_start(&root);
-        let shown = std::fs::canonicalize(&root).unwrap_or_else(|_| root.clone());
+        let shown = hd_run::canonicalize(&root).unwrap_or_else(|_| root.clone());
         Ok(Target {
             command,
             root,
@@ -185,7 +185,7 @@ fn invalid_diags(
     for dir in members {
         let path = dir.join("hd.toml");
         let replaced =
-            edited.filter(|e| std::fs::canonicalize(e.dir).ok() == std::fs::canonicalize(dir).ok());
+            edited.filter(|e| hd_run::canonicalize(e.dir).ok() == hd_run::canonicalize(dir).ok());
         let text = match replaced {
             Some(e) => Ok(e.text.to_owned()),
             None => std::fs::read_to_string(&path).map_err(|e| e.to_string()),
@@ -194,7 +194,7 @@ fn invalid_diags(
             Ok(m) => m,
             Err(e) => return Err(format!("{}: {e}", path.display())),
         };
-        let file = disk::shown_from(shown, &std::fs::canonicalize(&path).unwrap_or(path));
+        let file = disk::shown_from(shown, &hd_run::canonicalize(&path).unwrap_or(path));
         let own = hd_project::problems(&m, disk::TOOLCHAIN);
         for p in &own {
             if p.code == Some(Code::InvalidRequirement) && p.severity == Severity::Error {
@@ -393,7 +393,7 @@ fn untagged_note(host: &HostPath) {
 fn path_plan(target: &Target, text: &str, name: Option<&str>) -> Result<Plan, hd_deps::Failure> {
     let invalid = |m: String| (Some(Code::InvalidRequirement), m);
     let cwd = std::env::current_dir().map_err(|e| (None, e.to_string()))?;
-    let dir = std::fs::canonicalize(cwd.join(text))
+    let dir = hd_run::canonicalize(cwd.join(text))
         .map_err(|_| invalid(format!("the path target `{text}` names no directory")))?;
     if dir == target.shown {
         return Err(invalid(format!(
@@ -490,7 +490,7 @@ fn host_plan(
 /// What an existing requirement requires, read from the package at `root`.
 fn names_of(root: &Path, r: &Requirement) -> Option<Names> {
     if let Some(dir) = &r.path {
-        return std::fs::canonicalize(root.join(dir)).ok().map(Names::Dir);
+        return hd_run::canonicalize(root.join(dir)).ok().map(Names::Dir);
     }
     if r.table {
         return None;
@@ -920,7 +920,7 @@ pub(crate) fn fetch(args: &[OsString]) -> ExitCode {
             "`hd fetch` works on a package, and no `hd.toml` is at or above here; create a package with `hd new`",
         );
     };
-    let shown = std::fs::canonicalize(&shown).unwrap_or(shown);
+    let shown = hd_run::canonicalize(&shown).unwrap_or(shown);
     match invalid_diags(&shown, &members, None) {
         Ok(diags) => {
             if rep.diags(&diags) {

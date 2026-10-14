@@ -478,7 +478,7 @@ mod tests {
             limits: vec![(
                 "FsWrite".into(),
                 Limit::Entries(vec![
-                    fs::canonicalize(&allowed)
+                    hd_run::canonicalize(&allowed)
                         .unwrap()
                         .to_string_lossy()
                         .into_owned(),

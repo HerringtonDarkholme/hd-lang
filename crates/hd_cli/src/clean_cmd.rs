@@ -81,8 +81,8 @@ fn clean_cache() -> Result<Vec<String>, String> {
     let Ok(meta) = std::fs::metadata(&dir) else {
         return Ok(vec![format!("the cache {shown} is empty")]);
     };
-    let real = std::fs::canonicalize(&dir).map_err(|e| format!("{shown}: {e}"))?;
-    let home = std::env::var_os("HOME").and_then(|h| std::fs::canonicalize(h).ok());
+    let real = hd_run::canonicalize(&dir).map_err(|e| format!("{shown}: {e}"))?;
+    let home = std::env::var_os("HOME").and_then(|h| hd_run::canonicalize(h).ok());
     let foreign = |why: &str| {
         Err(format!(
             "{shown} is no hd cache: {why}; `hd clean --cache` removes nothing"

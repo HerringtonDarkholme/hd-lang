@@ -241,9 +241,9 @@ pub fn selection_start(root: &Path) -> (PathBuf, Vec<PathBuf>) {
         return (root.to_path_buf(), vec![root.to_path_buf()]);
     };
     let same = |a: &Path, b: &Path| {
-        std::fs::canonicalize(a)
+        hd_run::canonicalize(a)
             .ok()
-            .is_some_and(|a| std::fs::canonicalize(b).ok() == Some(a))
+            .is_some_and(|a| hd_run::canonicalize(b).ok() == Some(a))
     };
     let mut all = vec![root.to_path_buf()];
     all.extend(members.into_iter().filter(|m| !same(m, root)));
@@ -296,7 +296,7 @@ fn dependencies(root: &Path) -> Result<Dependencies, String> {
     if manifest_of(root)?.is_none() {
         return Ok(Dependencies::default());
     }
-    let canonical = std::fs::canonicalize(root).map_err(|e| e.to_string())?;
+    let canonical = hd_run::canonicalize(root).map_err(|e| e.to_string())?;
     let (sum_dir, members) = selection_start(root);
     let mut problems = Vec::new();
     let sum = read_sum(&sum_dir).unwrap_or_else(|(line, message)| {
@@ -376,7 +376,7 @@ struct Dependencies {
 
 /// A package name for a root without `hd.toml`: its directory's name.
 fn default_name(root: &Path) -> String {
-    let raw = std::fs::canonicalize(root)
+    let raw = hd_run::canonicalize(root)
         .ok()
         .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
         .unwrap_or_default();
@@ -399,7 +399,7 @@ fn default_name(root: &Path) -> String {
 
 /// The nearest directory at or above `start` that holds `hd.toml`.
 fn nearest_manifest(start: &Path) -> Option<PathBuf> {
-    let start = std::fs::canonicalize(start).ok()?;
+    let start = hd_run::canonicalize(start).ok()?;
     start
         .ancestors()
         .find(|d| d.join("hd.toml").is_file())
@@ -442,7 +442,7 @@ fn enclosing_workspace(start: &Path) -> Option<(PathBuf, Vec<PathBuf>)> {
     let (root, members) = workspace_root(package.parent()?)?;
     members
         .iter()
-        .any(|m| std::fs::canonicalize(m).ok().as_ref() == Some(&package))
+        .any(|m| hd_run::canonicalize(m).ok().as_ref() == Some(&package))
         .then_some((root, members))
 }
 
@@ -523,7 +523,7 @@ fn listed(list: &[String], rel: &str) -> bool {
 /// workspace manifest that neither lists it in `members` nor in `exclude`.
 /// The error names that manifest.
 fn unlisted_member(root: &Path) -> Result<Option<Diag>, String> {
-    let root = std::fs::canonicalize(root).map_err(|e| e.to_string())?;
+    let root = hd_run::canonicalize(root).map_err(|e| e.to_string())?;
     for dir in root.ancestors().skip(1) {
         let Some(m) = manifest_of(dir)? else { continue };
         let Some(w) = m.workspace.filter(|_| !m.declares_package) else {
