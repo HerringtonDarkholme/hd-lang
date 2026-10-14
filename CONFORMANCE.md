@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2827 | 14 | 4 | 2845 |
+| 2828 | 13 | 4 | 2845 |
 
 ## By Chapter
 
@@ -18,7 +18,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/02-grammar.md` | 215 | 0 | 0 | 215 |
 | `lang/03-names-and-scopes.md` | 101 | 0 | 0 | 101 |
 | `lang/04-type-system.md` | 347 | 5 | 0 | 352 |
-| `lang/05-expressions.md` | 276 | 1 | 0 | 277 |
+| `lang/05-expressions.md` | 277 | 0 | 0 | 277 |
 | `lang/06-control-flow.md` | 157 | 0 | 0 | 157 |
 | `lang/07-functions.md` | 128 | 2 | 0 | 130 |
 | `lang/08-data-and-enums.md` | 123 | 0 | 0 | 123 |
@@ -64,7 +64,7 @@ fixture; unsupported surface records progress without failing.
 | `parse/valid` | 106 | 0 | 0 | 106 |
 | `runtime/panic` | 104 | 0 | 1 | 105 |
 | `runtime/valid` | 926 | 0 | 3 | 929 |
-| `typing/invalid` | 1061 | 14 | 0 | 1075 |
+| `typing/invalid` | 1062 | 13 | 0 | 1075 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 20 | 0 | 0 | 20 |
 
@@ -75,15 +75,14 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:no-diagnostic` | 14 |
+| `fail:no-diagnostic` | 13 |
 | `unsupported:Link` | 4 |
 
-<details><summary><code>fail:no-diagnostic</code> (14)</summary>
+<details><summary><code>fail:no-diagnostic</code> (13)</summary>
 
 - `typing/invalid/suspension-forbidden-context.hd`
 - `typing/invalid/structure-without-use.hd`
 - `typing/invalid/intrinsic-method-user.hd`
-- `typing/invalid/operator-function-left-exact.hd`
 - `typing/invalid/type-default-bound.hd`
 - `typing/invalid/error-marker-outside.hd`
 - `typing/invalid/function-type-rest-not-list.hd`
@@ -2070,6 +2069,7 @@ typing/invalid/num-trait-needs-import.hd
 typing/invalid/numeric-candidate-no-fit.hd
 typing/invalid/omitted-embedded-part.hd
 typing/invalid/omitted-member-without-default.hd
+typing/invalid/operator-function-left-exact.hd
 typing/invalid/operator-left-literal.hd
 typing/invalid/operator-newtype-no-inherit.hd
 typing/invalid/operator-power-user.hd
