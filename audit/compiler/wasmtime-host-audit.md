@@ -24,8 +24,10 @@ Scope: `crates/hd_run_wasmtime` at `d2e81fa5` (10.4k production lines,
   runtime-and-host.md §17.5, which planned a reactor with real abort.
   The ABI already allows pending results for all of these methods
   (`hd_host_abi` marks them `Wait::May`), so the fix is host-only.
-- Console output is held in memory until exit, a stderr write or a
-  `read_line!`. A program that prints and then waits shows nothing.
+- Console output was held in memory until exit, a stderr write or a
+  `read_line!`, so a program that printed and then waited showed
+  nothing. Fixed by F0: `Host::wait` flushes first, and so does output
+  past 64 KiB.
 - 126 external crates on macOS (147 over all targets). wasmtime brings
   74 of them. `url` alone brings 26 crates that nothing else uses
   (IDNA and ICU4X tables).
@@ -49,7 +51,7 @@ Run with a cold `--features wasmtime` dev build in
 
 | Capability | Mode | Where the work runs | Other tasks while it waits | Deadline | Stop / cancel | Verdict |
 | --- | --- | --- | --- | --- | --- | --- |
-| `Console.write_line!` | completes at once in the reactor (`reactor.rs:128`) | main; bytes go to `Host::out` | not applicable | n/a | n/a | OK, but output is held until exit, stderr or `read_line!` (`host/state.rs:242-260`; flush probe) |
+| `Console.write_line!` | completes at once in the reactor (`reactor.rs:128`) | main; bytes go to `Host::out` | not applicable | n/a | n/a | OK: held output is flushed before every host wait (`Host::wait`) and once it passes 64 KiB (`HELD_OUTPUT_BOUND`, `host/state.rs`); F0 done |
 | `ConsoleInput.read_line!` | suspends: handle, line delivered by a detached reader thread (`reactor.rs:176-211`) | reader thread | run | wait cut (`reactor.rs:286-338`) | wakes the wait; cancel runs `defer` | OK |
 | `Clock.now`, `monotonic` | plain | main | n/a | n/a | n/a | OK |
 | `Clock.sleep!` | suspends: reactor timer (`reactor.rs:133`) | main, parked on a condvar | run | wait cut | wakes; cancel drops the timer | OK |
@@ -143,7 +145,7 @@ row it does not see. Each fix job removes its rows here.
 | [`std-net.cancel.read`](../../spec/std/net.md#r-std-net.cancel.read), [`std-net.close.pending`](../../spec/std/net.md#r-std-net.close.pending) | no `Net` operation is ever pending, so neither can be observed | F2 |
 | [`std-net.close.release`](../../spec/std/net.md#r-std-net.close.release) | `close` shuts down only the write half and keeps the socket (`net/ops.rs:30-33`) | F5 |
 | [`std-host.op.heap`](../../spec/std/host.md#r-std-host.op.heap), [`std-host.op.heap.exhausted`](../../spec/std/host.md#r-std-host.op.heap.exhausted), [`std-host.op.heap.no-other-cap`](../../spec/std/host.md#r-std-host.op.heap.no-other-cap) | `Http` bodies, `Process` output and `Net` inboxes are outside `--max-heap`; `Process` output has its own 1 GiB cap | F7 |
-| [`std-console.host.visible`](../../spec/std/console.md#r-std-console.host.visible) | output is held until exit, a stderr write or `read_line!` (flush probe) | F0 |
+| [`std-console.host.visible`](../../spec/std/console.md#r-std-console.host.visible) | met: flushed before every host wait and past 64 KiB (F0 done) | F0 |
 | [`std-http.url.non-ascii`](../../spec/std/http.md#r-std-http.url.non-ascii), [`std-http.url.no-normalize`](../../spec/std/http.md#r-std-http.url.no-normalize) | `url` maps a non-ASCII host through IDNA instead of returning `InvalidUrl` | F8 |
 | [`std-process.child.signal`](../../spec/std/process.md#r-std-process.child.signal) | a signal-killed child reports 128, without the signal number (`core/pipes.rs:145,149`) | none yet: needs a job |
 
@@ -181,7 +183,7 @@ F1 to F6 need D1 approved. Jobs that depend on a question say so.
 
 | Rank | Job | Done when |
 | --- | --- | --- |
-| F0 | Flush held Console output before every host wait (`Host::wait`, `block`) and past a size bound | flush probe shows `before` 1.5 s ahead of `after`; conformance output bytes unchanged |
+| F0 | Flush held Console output before every host wait (`Host::wait`, `block`) and past a size bound | flush probe shows `before` 1.5 s ahead of `after`; conformance output bytes unchanged; done in the commit "Flush held Console output before host waits" (`tests/console_flush.rs`) |
 | F1 | Reactor completion inbox: any thread delivers `(handle, encoded result)`; `.finish` returns it; `abort` drops a late result; the journal records it at `.finish` | reactor tests: two offloaded ops complete out of order, an aborted op's late result is dropped, a Stop wakes the wait; session replay tests pass |
 | F2 | `Net` async: the worker replies into the reactor and holds several pending operations at once instead of serving one at a time | `race!(accept!, sleep!(500ms))` prints `timeout` at ~0.5 s; `all!(accept!, connect!)` on loopback completes in one program; REPL Ctrl-C during `accept!` prints `cancelled` |
 | F3 | `Process.run!` async: run the existing code on a thread with a cancel flag; cancel kills the child | `all!` probe takes ~1 s in both orders; `race!(run!("sleep", ["5"]), sleep!(100ms))` returns at ~0.1 s and no `sleep` process remains |

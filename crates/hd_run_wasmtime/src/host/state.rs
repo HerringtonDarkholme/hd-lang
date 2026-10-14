@@ -30,6 +30,10 @@ impl HostIo {
     }
 }
 
+/// The most standard output held in memory between flushes: output past
+/// this many bytes is written at once, though the program has not waited.
+pub(crate) const HELD_OUTPUT_BOUND: usize = 64 * 1024;
+
 /// The per-instance host state of the store.
 pub struct Host {
     out_stream: Box<dyn Write + Send>,
@@ -238,6 +242,14 @@ impl Host {
         self.http = http::Client::default();
     }
 
+    /// Writes the held standard output once it passes `HELD_OUTPUT_BOUND`, so
+    /// a program that prints without ever waiting cannot hold it all.
+    pub(crate) fn flush_over_bound(&mut self) {
+        if self.out.len() > HELD_OUTPUT_BOUND {
+            self.flush();
+        }
+    }
+
     /// Writes the held standard output.
     pub fn flush(&mut self) {
         if self.muted {
@@ -267,8 +279,12 @@ impl Host {
     }
 
     /// Waits for the next completion; `false` when nothing is pending.
-    pub fn wait(&self) -> wasmtime::Result<bool> {
+    ///
+    /// Held output reaches its stream first (`std-console.host.visible`),
+    /// so every park of the host, here, shows what the program printed.
+    pub fn wait(&mut self) -> wasmtime::Result<bool> {
         self.check_deadline()?;
+        self.flush();
         let waiting = self
             .reactor
             .wait_until(self.deadline, self.interrupt.as_deref());

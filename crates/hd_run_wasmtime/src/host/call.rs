@@ -252,7 +252,9 @@ pub(crate) fn call(
         // first.
         Kind::Stdout => {
             let t = text(caller, int_arg(params, 0)?)?;
-            caller.data_mut().out.extend_from_slice(t.as_bytes());
+            let host = caller.data_mut();
+            host.out.extend_from_slice(t.as_bytes());
+            host.flush_over_bound();
             Ret::void()
         }
         Kind::Block => loop {
@@ -260,7 +262,7 @@ pub(crate) fn call(
             if !handles.is_empty() {
                 return Ret::batch(&handles);
             }
-            if !caller.data().wait()? {
+            if !caller.data_mut().wait()? {
                 return Err(deadlock(caller.data_mut()));
             }
         },

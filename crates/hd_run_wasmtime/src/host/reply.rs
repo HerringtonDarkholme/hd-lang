@@ -14,9 +14,9 @@ pub fn complete(
     let mut cx = caller.as_context_mut();
     let host = cx.data_mut();
     host.check_deadline()?;
-    Ok(host
-        .reactor
-        .due(&mut host.out)
+    let due = host.reactor.due(&mut host.out);
+    host.flush_over_bound();
+    Ok(due
         .into_iter()
         .map(|handle| u32::from_le_bytes(handle.to_le_bytes()))
         .collect())

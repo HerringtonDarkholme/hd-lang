@@ -432,7 +432,7 @@ impl Instance for WasmtimeInstance {
                     return vec![0];
                 }
             }
-            match self.store.data().wait() {
+            match self.store.data_mut().wait() {
                 Ok(true) => {}
                 Ok(false) => return Vec::new(),
                 Err(error) => {
