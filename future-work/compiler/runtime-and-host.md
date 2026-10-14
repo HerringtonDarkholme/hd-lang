@@ -340,6 +340,11 @@ the variant index and the path.
 
 ### 17.5 Host Calls On wasmtime
 
+> Superseded (2026-10-14) by
+> [wasmtime-host-audit.md §4](../../audit/compiler/wasmtime-host-audit.md#4-async-host-design-tokio):
+> one process-wide `hd-io` runtime, not one per worker, and the wait
+> stays a condvar wait, not a `block_on`.
+
 - Host methods are plain synchronous Rust functions (`Linker::func_wrap`).
   D2 does not turn on wasmtime's async support (mine): with start-and-poll,
   no Wasm call ever waits inside the engine, so no fiber stacks are

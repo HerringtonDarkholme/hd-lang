@@ -1088,7 +1088,10 @@ plain TCP/UDP, as today).
 
 ### 20.6 Questions with a recommendation
 
-- **Q1. Sync host calls only?** Yes (recommended): the Node host already
+- **Q1. Sync host calls only?** Superseded (2026-10-14) by
+  [wasmtime-host-audit.md §4](../../audit/compiler/wasmtime-host-audit.md#4-async-host-design-tokio):
+  waiting host calls return a handle and run on a tokio runtime.
+  Original answer: yes (recommended): the Node host already
   presents synchronous `.start` semantics via worker-thread blocking;
   sync `Linker` functions plus a driver thread preserve them with no
   Tokio. Revisit only if a future capability needs true async I/O

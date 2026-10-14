@@ -1,17 +1,21 @@
-//! The host's pending operations (runtime-and-host.md §17.2, §17.5): each
-//! `.start` that cannot finish at once gets a handle and completes later,
-//! when its time comes (`Clock.sleep`, `Console.write_line`) or when
-//! another thread delivers its result (`ConsoleInput.read_line`, read by
-//! a thread of its own, so the program never blocks inside a host call).
-//! The driver and `hd:rt` `block` wait here for the next completion: a
-//! timer's deadline or a delivery, whichever comes first.
+//! The host's pending operations (runtime-and-host.md §17.2;
+//! wasmtime-host-audit.md §4): each `.start` that cannot finish at once
+//! gets a handle and completes later, when its time comes (`Clock.sleep`,
+//! `Console.write_line`) or when another thread delivers its result into
+//! the inbox: a line of standard input (`ConsoleInput.read_line`, read by
+//! a thread of its own), or the `Done` of an operation offloaded to the
+//! `hd-io` runtime (`io_runtime.rs`). So the program never blocks inside a
+//! host call. The driver and `hd:rt` `block` wait here for the next
+//! completion: a timer's deadline or a delivery, whichever comes first.
 
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::io::BufRead;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Sender, channel};
 use std::sync::{Arc, Condvar, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
+
+use tokio::task::AbortHandle;
 
 /// Nanoseconds since the host first started, the clock of
 /// `performance.now()`.
@@ -25,6 +29,15 @@ pub const NS_PER_MS: i128 = 1_000_000;
 /// One line of standard input without its ending: `Ok(None)` at the end
 /// of input (and every time after), `Err(())` when it cannot be read.
 pub type Line = Result<Option<String>, ()>;
+
+/// What an offloaded operation delivers, for its `.finish` to encode.
+/// Each capability that moves onto the `hd-io` runtime adds its variant
+/// (wasmtime-host-audit.md §5, T2-T7).
+pub enum Done {
+    /// The reactor tests' offloaded operation.
+    #[cfg(test)]
+    Test(u32),
+}
 
 /// What an operation does when it completes.
 pub enum Work {
@@ -42,21 +55,43 @@ pub enum Work {
     FixtureClose { file: i32 },
     /// `pending-gate` `wait!`: never completes, dropped at cancel.
     Gate,
+    /// An operation offloaded to the `hd-io` runtime: its result, once
+    /// its task delivers it.
+    Offloaded(Option<Done>),
 }
 
 pub struct Op {
-    /// When it completes; `None` while a read waits for its line.
+    /// When a timed operation completes; `None` for one that completes on
+    /// a delivery.
     at: Option<i128>,
     pub work: Work,
     completed: bool,
+    /// An offloaded operation's task, until it delivers: aborted when the
+    /// operation ends first.
+    task: Option<AbortHandle>,
 }
 
-/// Lines the reader thread delivered and the reactor has not taken yet.
+/// What other threads delivered and the reactor has not taken yet.
+#[derive(Default)]
+struct Deliveries {
+    /// Lines of standard input, each for the oldest waiting read.
+    lines: VecDeque<Line>,
+    /// Offloaded operations' results, by handle.
+    done: Vec<(i32, Done)>,
+}
+
+impl Deliveries {
+    fn is_empty(&self) -> bool {
+        self.lines.is_empty() && self.done.is_empty()
+    }
+}
+
+/// The deliveries and the condvar that announces them.
 #[derive(Default)]
 struct Inbox {
-    lines: Mutex<VecDeque<Line>>,
+    queue: Mutex<Deliveries>,
     ready: Condvar,
-    /// Set, under `lines`, while a wait sleeps on `ready`.
+    /// Set, under `queue`, while a wait sleeps on `ready`.
     parked: AtomicBool,
 }
 
@@ -68,7 +103,7 @@ pub struct Waker(Arc<Inbox>);
 
 impl Waker {
     pub fn wake(&self) {
-        let _lines = self.0.lines.lock().unwrap_or_else(PoisonError::into_inner);
+        let _queue = self.0.queue.lock().unwrap_or_else(PoisonError::into_inner);
         self.0.ready.notify_all();
     }
 
@@ -82,6 +117,14 @@ impl Waker {
 pub struct Reactor {
     ops: BTreeMap<i32, Op>,
     next_handle: i32,
+    /// The operations not completed yet.
+    open: usize,
+    /// The timed operations not completed yet, by deadline.
+    timers: BTreeSet<(i128, i32)>,
+    /// The operations whose delivery was taken, with when, to complete at
+    /// the next `due`: so `due` looks at these and the timers only, not at
+    /// every pending operation.
+    ready: Vec<(i128, i32)>,
     inbox: Arc<Inbox>,
     /// Standard input, until the reader thread takes it; `None` when it is
     /// closed.
@@ -101,6 +144,9 @@ impl Reactor {
         Reactor {
             ops: BTreeMap::new(),
             next_handle: 1,
+            open: 0,
+            timers: BTreeSet::new(),
+            ready: Vec::new(),
             inbox: Arc::default(),
             input,
             requests: None,
@@ -113,12 +159,17 @@ impl Reactor {
     fn start(&mut self, at: Option<i128>, work: Work) -> i32 {
         let h = self.next_handle;
         self.next_handle = self.next_handle.wrapping_add(1);
+        if let Some(at) = at {
+            self.timers.insert((at, h));
+        }
+        self.open += 1;
         self.ops.insert(
             h,
             Op {
                 at,
                 work,
                 completed: false,
+                task: None,
             },
         );
         h
@@ -156,6 +207,33 @@ impl Reactor {
         self.start(None, Work::Gate)
     }
 
+    /// An operation whose work is `work`, run as a task on the `hd-io`
+    /// runtime, which starts on the first call. The task delivers its
+    /// `Done` into the inbox, to complete at the next `due`; ending the
+    /// operation first (`remove`, `drop_all`) aborts the task, and a
+    /// result it delivered too late is dropped.
+    // Test-only until a capability moves onto the runtime
+    // (wasmtime-host-audit.md §5, T2).
+    #[cfg(test)]
+    pub fn offload<F>(&mut self, work: F) -> Result<i32, String>
+    where
+        F: std::future::Future<Output = Done> + Send + 'static,
+    {
+        let runtime = crate::io_runtime::handle()?;
+        let h = self.start(None, Work::Offloaded(None));
+        let inbox = Arc::clone(&self.inbox);
+        let task = runtime.spawn(async move {
+            let done = work.await;
+            let mut queue = inbox.queue.lock().unwrap_or_else(PoisonError::into_inner);
+            queue.done.push((h, done));
+            inbox.ready.notify_all();
+        });
+        if let Some(op) = self.ops.get_mut(&h) {
+            op.task = Some(task.abort_handle());
+        }
+        Ok(h)
+    }
+
     /// A read of the next line of standard input.
     pub fn read_line(&mut self) -> i32 {
         let h = self.start(None, Work::Read(None));
@@ -176,12 +254,12 @@ impl Reactor {
     fn request(&mut self) {
         if self.requests.is_none() {
             let Some(input) = self.input.take() else {
-                let mut lines = self
+                let mut queue = self
                     .inbox
-                    .lines
+                    .queue
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner);
-                lines.push_back(Ok(None));
+                queue.lines.push_back(Ok(None));
                 return;
             };
             let (tx, rx) = channel::<()>();
@@ -197,8 +275,8 @@ impl Reactor {
                     } else {
                         read_one(&mut *input, &mut ended)
                     };
-                    let mut lines = inbox.lines.lock().unwrap_or_else(PoisonError::into_inner);
-                    lines.push_back(line);
+                    let mut queue = inbox.queue.lock().unwrap_or_else(PoisonError::into_inner);
+                    queue.lines.push_back(line);
                     inbox.ready.notify_all();
                 }
             });
@@ -213,25 +291,37 @@ impl Reactor {
     fn deliver(&mut self, h: i32, line: Line) {
         if let Some(op) = self.ops.get_mut(&h) {
             op.work = Work::Read(Some(line));
-            op.at = Some(now_ns());
+            self.ready.push((now_ns(), h));
         }
     }
 
-    /// Takes the delivered lines, each for the oldest waiting read.
+    /// Takes the deliveries: each line for the oldest waiting read, and
+    /// each result for its operation. A result whose operation has ended,
+    /// aborted while its task ran, is dropped.
     fn take_delivered(&mut self) {
-        let lines: Vec<Line> = {
-            let mut inbox = self
+        let (lines, done) = {
+            let mut queue = self
                 .inbox
-                .lines
+                .queue
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner);
-            inbox.drain(..).collect()
+            let lines: Vec<Line> = queue.lines.drain(..).collect();
+            (lines, std::mem::take(&mut queue.done))
         };
         for line in lines {
             self.in_flight = self.in_flight.saturating_sub(1);
             match self.reads.pop_front() {
                 Some(h) => self.deliver(h, line),
                 None => self.spare.push_back(line),
+            }
+        }
+        for (h, done) in done {
+            if let Some(op) = self.ops.get_mut(&h)
+                && matches!(op.work, Work::Offloaded(None))
+            {
+                op.task = None;
+                op.work = Work::Offloaded(Some(done));
+                self.ready.push((now_ns(), h));
             }
         }
     }
@@ -241,18 +331,20 @@ impl Reactor {
     pub fn due(&mut self, out: &mut Vec<u8>) -> Vec<i32> {
         self.take_delivered();
         let now = now_ns();
-        let mut due: Vec<(i128, i32)> = self
-            .ops
-            .iter()
-            .filter_map(|(h, o)| match o.at {
-                Some(at) if !o.completed && at <= now => Some((at, *h)),
-                _ => None,
-            })
-            .collect();
+        let mut due = std::mem::take(&mut self.ready);
+        while let Some(&(at, h)) = self.timers.first()
+            && at <= now
+        {
+            self.timers.pop_first();
+            due.push((at, h));
+        }
         due.sort_unstable();
         for (_, h) in &due {
-            if let Some(op) = self.ops.get_mut(h) {
+            if let Some(op) = self.ops.get_mut(h)
+                && !op.completed
+            {
                 op.completed = true;
+                self.open -= 1;
                 if let Work::Write(line) = &mut op.work {
                     out.append(line);
                     out.push(b'\n');
@@ -265,7 +357,7 @@ impl Reactor {
     /// Whether an operation has not completed: something can still wake
     /// the program.
     pub fn waiting(&self) -> bool {
-        self.ops.values().any(|o| !o.completed)
+        self.open > 0
     }
 
     /// Waits for the next timer deadline or delivery; `false` when nothing
@@ -287,18 +379,16 @@ impl Reactor {
         if !self.waiting() {
             return false;
         }
-        let deadline = self
-            .ops
-            .values()
-            .filter(|o| !o.completed)
-            .filter_map(|o| o.at)
-            .min();
-        let lines = self
+        if !self.ready.is_empty() {
+            return true;
+        }
+        let deadline = self.timers.first().map(|&(at, _)| at);
+        let queue = self
             .inbox
-            .lines
+            .queue
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
-        if !lines.is_empty() || interrupt.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
+        if !queue.is_empty() || interrupt.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
             return true;
         }
         // The guard is dropped as soon as the wait ends; a spurious wakeup
@@ -317,39 +407,77 @@ impl Reactor {
         // Set under the lock: a waker that reads it as set takes the lock
         // only once this thread sleeps, so its wake is never lost.
         self.inbox.parked.store(true, Ordering::SeqCst);
-        let lines = match timeout {
+        let queue = match timeout {
             Some(timeout) => {
-                let (lines, _) = self
+                let (queue, _) = self
                     .inbox
                     .ready
-                    .wait_timeout(lines, timeout)
+                    .wait_timeout(queue, timeout)
                     .unwrap_or_else(PoisonError::into_inner);
-                lines
+                queue
             }
             None => self
                 .inbox
                 .ready
-                .wait(lines)
+                .wait(queue)
                 .unwrap_or_else(PoisonError::into_inner),
         };
         self.inbox.parked.store(false, Ordering::SeqCst);
-        drop(lines);
+        drop(queue);
         true
     }
 
-    /// Ends an operation at its `.finish` or `abort`.
+    /// Ends an operation at its `.finish` or `abort`. A pending offloaded
+    /// operation's task is aborted, and a result already delivered for it
+    /// is dropped with it.
     pub fn remove(&mut self, h: i32) -> Option<Op> {
         self.reads.retain(|r| *r != h);
-        self.ops.remove(&h)
+        let op = self.ops.remove(&h)?;
+        if !op.completed {
+            self.open -= 1;
+            if let Some(at) = op.at {
+                self.timers.remove(&(at, h));
+            }
+            self.ready.retain(|&(_, r)| r != h);
+        }
+        if let Some(task) = &op.task {
+            task.abort();
+        }
+        Some(op)
     }
 
     /// Ends every operation, as `abort` ends one: a session's input that
     /// did not end with status 0 may leave some, and none of them may wake
     /// a later input or keep its wait from being a deadlock. A line already
-    /// asked of the reader thread is kept for the next read.
+    /// asked of the reader thread is kept for the next read; every
+    /// offloaded task is aborted, and the results delivered are dropped.
     pub fn drop_all(&mut self) {
+        self.abort_tasks();
         self.reads.clear();
         self.ops.clear();
+        self.open = 0;
+        self.timers.clear();
+        self.ready.clear();
+        self.inbox
+            .queue
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .done
+            .clear();
+    }
+
+    fn abort_tasks(&self) {
+        for task in self.ops.values().filter_map(|op| op.task.as_ref()) {
+            task.abort();
+        }
+    }
+}
+
+impl Drop for Reactor {
+    /// The runtime outlives every instance, so an instance's end aborts
+    /// the tasks it left.
+    fn drop(&mut self) {
+        self.abort_tasks();
     }
 }
 
@@ -379,7 +507,168 @@ fn read_one(input: &mut dyn BufRead, ended: &mut bool) -> Line {
 
 #[cfg(test)]
 mod tests {
-    use super::{Reactor, Work};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::time::{Duration, Instant};
+
+    use super::{Done, Reactor, Work};
+    use crate::host::{Control, Host};
+
+    /// Waits until `due` completes something, and returns it.
+    fn next_due(r: &mut Reactor) -> Vec<i32> {
+        let mut out = Vec::new();
+        loop {
+            assert!(r.wait(), "an operation is pending");
+            let done = r.due(&mut out);
+            if !done.is_empty() {
+                return done;
+            }
+        }
+    }
+
+    /// The `.finish` of offloaded operation `h`: the result it delivered.
+    fn finish(r: &mut Reactor, h: i32) -> u32 {
+        match r.remove(h).map(|op| op.work) {
+            Some(Work::Offloaded(Some(Done::Test(n)))) => n,
+            _ => panic!("operation {h} has no result"),
+        }
+    }
+
+    /// An offloaded operation that never completes, and the flag its task
+    /// sets when it is dropped, as an abort drops it.
+    fn pending_task() -> (impl Future<Output = Done> + Send + 'static, Arc<AtomicBool>) {
+        struct Dropped(Arc<AtomicBool>);
+        impl Drop for Dropped {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::SeqCst);
+            }
+        }
+        let dropped = Arc::new(AtomicBool::new(false));
+        let guard = Dropped(Arc::clone(&dropped));
+        let work = async move {
+            let _guard = guard;
+            std::future::pending::<Done>().await
+        };
+        (work, dropped)
+    }
+
+    /// Whether `flag` is set within a generous bound: an abort reaches the
+    /// task on the `hd-io` thread.
+    fn eventually(flag: &AtomicBool) -> bool {
+        let end = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < end {
+            if flag.load(Ordering::SeqCst) {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        false
+    }
+
+    #[test]
+    fn offloaded_ops_complete_out_of_order_with_their_own_results() {
+        let mut r = Reactor::new(None);
+        let (release, gate) = tokio::sync::oneshot::channel::<()>();
+        let slow = r
+            .offload(async move {
+                let _ = gate.await;
+                Done::Test(1)
+            })
+            .expect("offloads");
+        let fast = r.offload(async { Done::Test(2) }).expect("offloads");
+        assert_eq!(next_due(&mut r), [fast], "the later op completes first");
+        assert!(r.waiting(), "the earlier op is still pending");
+        release.send(()).expect("the slow op waits");
+        assert_eq!(next_due(&mut r), [slow]);
+        assert_eq!(finish(&mut r, fast), 2);
+        assert_eq!(finish(&mut r, slow), 1);
+        assert!(!r.waiting(), "nothing pending");
+    }
+
+    #[test]
+    fn an_aborted_ops_late_result_is_dropped() {
+        let mut r = Reactor::new(None);
+        let h = r.offload(async { Done::Test(1) }).expect("offloads");
+        // The task delivers, and the op is aborted before `due` takes it.
+        while r.inbox.queue.lock().expect("inbox").done.is_empty() {
+            assert!(r.wait());
+        }
+        assert!(r.remove(h).is_some(), "the abort ends the op");
+        assert!(!r.waiting());
+        let mut out = Vec::new();
+        assert!(
+            r.due(&mut out).is_empty(),
+            "the late result completes nothing"
+        );
+        assert!(
+            r.inbox.queue.lock().expect("inbox").done.is_empty(),
+            "the late result is dropped"
+        );
+        let next = r.offload(async { Done::Test(2) }).expect("offloads");
+        assert_eq!(next_due(&mut r), [next]);
+        assert_eq!(finish(&mut r, next), 2, "a later op gets its own result");
+    }
+
+    #[test]
+    fn a_stop_wakes_the_wait_while_an_op_is_pending() {
+        let mut r = Reactor::new(None);
+        let (work, _) = pending_task();
+        let h = r.offload(work).expect("offloads");
+        let flag = Arc::new(AtomicBool::new(false));
+        let stopper = {
+            let (flag, waker) = (Arc::clone(&flag), r.waker());
+            // As a session's `Stopper` does, once the wait sleeps.
+            std::thread::spawn(move || {
+                while !waker.parked() {
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+                flag.store(true, Ordering::Relaxed);
+                waker.wake();
+            })
+        };
+        let started = Instant::now();
+        while !flag.load(Ordering::Relaxed) {
+            assert!(r.wait_until(None, Some(&flag)));
+        }
+        stopper.join().expect("the stopper ends");
+        assert!(started.elapsed() < Duration::from_secs(10));
+        assert!(r.waiting(), "the op is still pending");
+        let mut out = Vec::new();
+        assert!(r.due(&mut out).is_empty(), "the wake completes nothing");
+        r.remove(h);
+    }
+
+    #[test]
+    fn control_abort_aborts_a_pending_task() {
+        let mut host = Host::placeholder();
+        let (work, dropped) = pending_task();
+        let h = host.reactor.offload(work).expect("offloads");
+        assert!(host.control(Control::Abort(h)).is_none());
+        assert!(eventually(&dropped), "the task is aborted");
+        assert!(!host.waiting(), "nothing pending");
+    }
+
+    #[test]
+    fn drop_all_aborts_every_pending_task() {
+        let mut r = Reactor::new(None);
+        let (first, first_dropped) = pending_task();
+        let (second, second_dropped) = pending_task();
+        r.offload(first).expect("offloads");
+        r.offload(second).expect("offloads");
+        r.sleep(60_000);
+        r.drop_all();
+        assert!(!r.waiting(), "nothing pending");
+        assert!(eventually(&first_dropped) && eventually(&second_dropped));
+    }
+
+    #[test]
+    fn an_instances_end_aborts_its_tasks() {
+        let mut r = Reactor::new(None);
+        let (work, dropped) = pending_task();
+        r.offload(work).expect("offloads");
+        drop(r);
+        assert!(eventually(&dropped), "the task is aborted");
+    }
 
     #[test]
     fn reads_complete_in_order_and_an_aborted_read_loses_no_line() {

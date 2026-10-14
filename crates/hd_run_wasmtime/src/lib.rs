@@ -33,6 +33,7 @@ mod fs;
 mod host;
 mod http;
 mod instance;
+mod io_runtime;
 mod limits;
 mod native_io;
 mod net;
@@ -60,6 +61,7 @@ pub use engine::{EngineConfig, Module, OptLevel, WasmtimeEngine, thread_stack};
 pub(crate) use engine::{new_store, wasmtime_config};
 pub use host::HostIo;
 pub use instance::WasmtimeInstance;
+pub use io_runtime::io_started;
 pub use profiles::RuntimeProfile;
 pub(crate) use run::Shared;
 pub use run::{
