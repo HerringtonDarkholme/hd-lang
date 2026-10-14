@@ -24,6 +24,7 @@ use crate::layout::{
     F_STATE, Lay, Layouts, M_HASHES, M_KEYS, M_LIVE, M_USED, OptShape, Shape, box_of, cancel_fn,
     ctx_keys, ctx_provs, frame_of, key_id, storage, suspend_base, task_base, witness_ty,
 };
+use crate::lowering::{ClosureCode, Lowering};
 use crate::rt::{Helper, KeyOps, OptForm, block_import, unerase};
 use crate::{Code, GSym, Part, Sym, VT, WTy, unsupported};
 
@@ -618,13 +619,16 @@ impl Em<'_> {
                 self.push_ctx(callee)?;
                 // A closure collection resolved (the optimized pipeline's
                 // A1) is a direct call of its code; any other reads the
-                // code from the value and casts it to its final type.
+                // code from the value, casting an abstract one to its final
+                // type.
                 if let Some(&Target::KnownClosure(key)) = self.calls.get(&i) {
                     self.a.call(Sym::Inst(key));
                 } else {
                     self.a.get(f);
                     self.a.struct_get(&base, 0);
-                    self.a.ref_cast(&code, false);
+                    if self.lay.closure_code() == ClosureCode::Abstract {
+                        self.a.ref_cast(&code, false);
+                    }
                     self.a.call_ref(&code);
                 }
                 self.store_from(i, &rs.clone())?;
@@ -3444,9 +3448,9 @@ impl Em<'_> {
             vec![VT::Eq, VT::rn(ctx_keys()), VT::rn(ctx_provs())],
             self.vts(ot)?,
         );
-        let base = crate::layout::closure_base();
+        let base = crate::layout::closure_base(self.lay.closure_code(), &code);
         let env = WTy::Struct {
-            fields: vec![VT::Func, VT::r(lt.clone()), VT::I32, VT::I32],
+            fields: [base.fields(), vec![VT::r(lt.clone()), VT::I32, VT::I32]].concat(),
             sup: Some(Box::new(base)),
             open: false,
         };
@@ -3754,9 +3758,13 @@ impl Em<'_> {
             vec![VT::Eq, VT::rn(ctx_keys()), VT::rn(ctx_provs())],
             self.vts(ot)?,
         );
-        let base = crate::layout::closure_base();
+        let base = crate::layout::closure_base(self.lay.closure_code(), &code);
         let env = WTy::Struct {
-            fields: vec![VT::Func, VT::r(mt.clone()), VT::I32, VT::I32, VT::I32],
+            fields: [
+                base.fields(),
+                vec![VT::r(mt.clone()), VT::I32, VT::I32, VT::I32],
+            ]
+            .concat(),
             sup: Some(Box::new(base)),
             open: false,
         };
@@ -5805,6 +5813,7 @@ pub fn entry(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     path: &dyn Fn(DefId) -> String,
+    lowering: Lowering,
     main: DefId,
     key: hd_base::Hash128,
     inits: &[hd_base::Hash128],
@@ -5821,7 +5830,7 @@ pub fn entry(
         ("hd.init".into(), Helper::EntryInit { inits }),
         (
             "hd.poll".into(),
-            root_poll(pool, env, path, main, key, report, Vec::new())?,
+            root_poll(pool, env, path, lowering, main, key, report, Vec::new())?,
         ),
         ("hd.wake".into(), Helper::EntryWake),
     ])
@@ -5837,6 +5846,7 @@ pub fn script_entry(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     path: &dyn Fn(DefId) -> String,
+    lowering: Lowering,
     init: DefId,
     key: hd_base::Hash128,
     inits: &[hd_base::Hash128],
@@ -5856,7 +5866,7 @@ pub fn script_entry(
         ("hd.init".into(), Helper::EntryInit { inits: before }),
         (
             "hd.poll".into(),
-            root_poll(pool, env, path, init, key, None, after)?,
+            root_poll(pool, env, path, lowering, init, key, None, after)?,
         ),
         ("hd.wake".into(), Helper::EntryWake),
     ])
@@ -5869,6 +5879,7 @@ pub fn test_entry(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     path: &dyn Fn(DefId) -> String,
+    lowering: Lowering,
     cases: &[(DefId, hd_base::Hash128, Option<hd_base::Hash128>)],
     inits: &[Vec<hd_base::Hash128>],
 ) -> StageResult<Vec<(String, Helper)>> {
@@ -5886,7 +5897,7 @@ pub fn test_entry(
     for (i, (def, key, report)) in cases.iter().enumerate() {
         out.push((
             format!("hd.test.{i}"),
-            root_poll(pool, env, path, *def, *key, *report, Vec::new())?,
+            root_poll(pool, env, path, lowering, *def, *key, *report, Vec::new())?,
         ));
     }
     out.push(("hd.wake".into(), Helper::EntryWake));
@@ -5902,6 +5913,7 @@ pub fn scenario_entry(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     path: &dyn Fn(DefId) -> String,
+    lowering: Lowering,
     main: DefId,
     key: hd_base::Hash128,
     inits: &[hd_base::Hash128],
@@ -5909,7 +5921,17 @@ pub fn scenario_entry(
     report: Option<hd_base::Hash128>,
     cleanup: Option<hd_base::Hash128>,
 ) -> StageResult<Vec<(String, Helper)>> {
-    let mut out = entry(pool, env, path, main, key, inits, entry_inits, report)?;
+    let mut out = entry(
+        pool,
+        env,
+        path,
+        lowering,
+        main,
+        key,
+        inits,
+        entry_inits,
+        report,
+    )?;
     out.push(("hd.cancel".into(), Helper::EntryCancel));
     if let Some(func) = cleanup {
         out.push(("hd.scenario.cleanup".into(), Helper::EntryCall { func }));
@@ -5925,12 +5947,13 @@ fn root_poll(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     path: &dyn Fn(DefId) -> String,
+    lowering: Lowering,
     main: DefId,
     key: hd_base::Hash128,
     report: Option<hd_base::Hash128>,
     then: Vec<(hd_base::Hash128, bool)>,
 ) -> StageResult<Helper> {
-    let shared = Layouts::default();
+    let shared = Layouts::new(lowering);
     let lay = Lay::new(pool, env, path, &shared);
     let mut providers = Vec::new();
     for key in env.row_keys(main, TyList::EMPTY) {

@@ -1016,6 +1016,9 @@ struct Run<'a> {
     pipeline: Hash128,
     /// The pipeline's body-unit passes, which collection applies.
     planner: hd_opt::planner::PipelinePlanner,
+    /// The target's lowering profile, which emission reads
+    /// (opt-pipeline.md §4); its hash is part of `pipeline`.
+    lowering: hd_wasm::Lowering,
     /// The build profile emitted code follows ([`Packages::build_profile`]).
     build_profile: BuildProfile,
     /// Per package, in the table's order: whether it is fetched, so not
@@ -1472,6 +1475,7 @@ fn build_packages_inner(
         profile,
         pipeline,
         planner,
+        lowering: hd_wasm::Lowering::of(packages.target),
         build_profile: match goal {
             Goal::Program { .. } | Goal::ReplInput { .. } => packages.build_profile,
             Goal::Tests { .. } | Goal::Scenario { .. } | Goal::Analyze | Goal::CheckTests => {
@@ -6156,7 +6160,7 @@ impl Run<'_> {
             code_keys,
             prog_key: pkey,
             roots: plan,
-            layouts: hd_wasm::layout::Layouts::default(),
+            layouts: hd_wasm::layout::Layouts::new(self.lowering),
         });
         let link = sp.add_held(TaskKind::Ext(ExtTask::Link), &[]);
         for slot in misses {
@@ -6590,17 +6594,25 @@ impl Run<'_> {
                 &self.pool,
                 &env,
                 &path,
+                self.lowering,
                 *def,
                 *key,
                 &c.collected.inits,
                 entry_inits,
                 *report,
             ),
-            Roots::Script { def, key, own } => {
-                hd_wasm::script_entry(&self.pool, &env, &path, *def, *key, &c.collected.inits, own)
-            }
+            Roots::Script { def, key, own } => hd_wasm::script_entry(
+                &self.pool,
+                &env,
+                &path,
+                self.lowering,
+                *def,
+                *key,
+                &c.collected.inits,
+                own,
+            ),
             Roots::Tests { cases, inits } => {
-                hd_wasm::test_entry(&self.pool, &env, &path, cases, inits)
+                hd_wasm::test_entry(&self.pool, &env, &path, self.lowering, cases, inits)
             }
             Roots::Scenario {
                 def,
@@ -6612,6 +6624,7 @@ impl Run<'_> {
                 &self.pool,
                 &env,
                 &path,
+                self.lowering,
                 *def,
                 *key,
                 &c.collected.inits,

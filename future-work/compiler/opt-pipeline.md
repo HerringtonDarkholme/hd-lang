@@ -27,9 +27,9 @@ E1 and their measurements), [codegen.md](codegen.md) §12 to §13, and
 | Engine choice | `crates/hd_cli/src/engine.rs` `from_env` (:264), `run(kind, release, ..)` (:272); `hd_run_wasmtime` `EngineConfig::pipeline(release)` (`engine.rs` :33) | Chosen after compile, used only to run. `hd build` takes no `--engine` |
 | Conformance | `HD_CONFORMANCE_PIPELINE` (`crates/hd_driver/tests/conformance.rs` :622), `HD_CONFORMANCE_ENGINE` modes (:587) | Compare mode builds once and runs that build on both engines |
 
-Status: jobs (a), (b1), (b2), (c1) and (c2) of §6 are done, so the A1,
-A2, pipeline-choice, engine-choice and conformance rows above describe
-the code before them. A1 and A2 are
+Status: jobs (a), (b1), (b2), (c1), (c2) and (d) of §6 are done, so the
+A1, A2, E1, pipeline-choice, engine-choice and conformance rows above
+describe the code before them. A1 and A2 are
 now the body passes `value_flow`, `devirt_known` and `closure_spec` in
 `hd_opt` (`passes.rs`, `planner.rs`); collection applies their plans by
 rules 1 to 4 of §2.2 and reads no pipeline flag. The build's
@@ -69,6 +69,23 @@ every module a runtime case runs (entries per profile, test programs, doc
 tests, scenario drives: 1041 modules of 1028 cases, up from 180 entry
 modules; the runner's own tests add 7 rows) in one file per target,
 `conformance-wasm-digests-<target>-<level>.tsv`.
+
+After (d), `ClosureCode` is `Typed` for `V8` and `Browser` and `Abstract`
+for `Wasmtime`. `Layouts::new(lowering)` carries the profile to every
+`Lay`; `closure_base(closure, code)`, the closure call in emit.rs and the
+`List.iter()` and `Map.iter()` cursors read it, and the typed form is the
+one before E1 (d2e81fa5). The entry exports (`entry`, `script_entry`,
+`test_entry`, `scenario_entry`) pass it to `root_poll`'s layouts. So the `V8` and `Wasmtime` keys differ and compare mode
+builds each case twice. The `Wasmtime` modules are byte-identical to
+before; 606 of 1048 `V8` modules changed in each level (every one with a
+closure type, test programs included), and hello is byte-identical on
+every target. `closure_code_targets.rs` is the cross-run test of §5: each
+target's build of a closure program runs on Node and, with the `wasmtime`
+feature, on wasmtime, with the same output. Closures bench (p50 of 9, median of three interleaved rounds, load 3.5
+to 7): V8 dev 374 to 358 ms (-4.3%), release 298 to 285 ms (-4.4%),
+Wasm 8712 / 7786 bytes as before E1; wasmtime dev 1684 to 1672 ms,
+release 745 to 738 ms, byte-identical Wasm (noise). Results in
+closure-calls.md §7.
 
 ## 1. Crates And Boundaries
 

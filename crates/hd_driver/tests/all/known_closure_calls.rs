@@ -292,18 +292,17 @@ pub fn main() -> void $ Console:
     println(run())
 ";
 
-/// Every target has the same pipeline content at each level today, so the
-/// same bytes (opt-pipeline.md §3.3), until job (d) gives targets their
-/// own lowering. Each build has its own store, so none is a cache hit.
+/// `V8` and `Browser` have the same pipeline content at each level, so the
+/// same bytes (opt-pipeline.md §3.3); `Wasmtime` stores closure code
+/// differently (`closure_code_targets.rs`). Each build has its own store,
+/// so none is a cache hit.
 #[test]
-fn every_target_builds_the_same_module_at_each_level() {
+fn targets_with_equal_content_build_the_same_module_at_each_level() {
     for level in OptLevel::ALL {
         let fresh = hd_cache::MemoryStore::default;
         let v8 = build_for(SPECIALIZED, EngineTarget::V8, level, &fresh()).wasm;
-        for target in [EngineTarget::Wasmtime, EngineTarget::Browser] {
-            let other = build_for(SPECIALIZED, target, level, &fresh()).wasm;
-            assert_eq!(other, v8, "{target:?} {level:?}");
-        }
+        let browser = build_for(SPECIALIZED, EngineTarget::Browser, level, &fresh()).wasm;
+        assert_eq!(browser, v8, "{level:?}");
     }
 }
 

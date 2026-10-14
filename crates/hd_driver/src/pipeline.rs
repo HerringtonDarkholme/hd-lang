@@ -121,20 +121,26 @@ mod tests {
         );
     }
 
-    /// `V8` and `Wasmtime` share keys while their content is equal, and
-    /// differ once a knob differs.
+    /// `V8` and `Browser` share keys while their content is equal; `V8`
+    /// and `Wasmtime` differ in lowering (closure code), so their keys
+    /// differ; a knob splits a key too.
     #[test]
     fn equal_content_shares_a_key_and_a_knob_splits_it() {
         for level in OptLevel::ALL {
             assert_eq!(
                 key(EngineTarget::V8, level),
+                key(EngineTarget::Browser, level),
+                "{level:?}"
+            );
+            assert_ne!(
+                key(EngineTarget::V8, level),
                 key(EngineTarget::Wasmtime, level),
                 "{level:?}"
             );
-            assert_eq!(
-                key(EngineTarget::V8, level),
-                key(EngineTarget::Browser, level),
-                "{level:?}"
+            // Equal passes, so the lowering alone splits the key.
+            assert!(
+                pipeline(EngineTarget::V8, level)
+                    .same_content(pipeline(EngineTarget::Wasmtime, level))
             );
         }
         let lowering = Lowering::of(EngineTarget::Wasmtime);
@@ -149,8 +155,9 @@ mod tests {
         };
         let v8 = (EngineTarget::V8, OptLevel::Optimized);
         let wasmtime = (EngineTarget::Wasmtime, OptLevel::Optimized);
-        let v8_key = key(v8.0, v8.1);
         let optimized = pipeline(v8.0, v8.1);
+        // Both rows carry one lowering, so only the passes tell them apart.
+        let v8_key = content_key(optimized, lowering).expect("valid");
         assert!(
             check_distinct(&[row(v8, optimized, v8_key), row(wasmtime, &TUNED, tuned)]).is_ok()
         );

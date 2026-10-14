@@ -610,15 +610,17 @@ fn the_prelude_is_cached_per_toolchain() {
     assert_eq!(release.counters.misses.get("link"), Some(&1));
     assert_ne!(release.wasm, built.wasm);
     // The prelude is built for the session's target, in the dev pipeline.
-    // While the targets' pipelines have the same content, so do their keys,
-    // and the `Wasmtime` prelude is the cached one.
+    // `Wasmtime` lowers closures unlike the default target, so its key
+    // differs: its prelude is another entry, cached in its turn.
     let wasmtime = build_repl_prelude(&host, BuildProfile::Checked, EngineTarget::Wasmtime);
     assert_eq!(
         (wasmtime.target, wasmtime.level),
         (EngineTarget::Wasmtime, OptLevel::Dev)
     );
-    assert_eq!(wasmtime.counters.hits.get("link"), Some(&1));
-    assert_eq!(wasmtime.wasm, built.wasm);
+    assert_eq!(wasmtime.counters.misses.get("link"), Some(&1));
+    let again = build_repl_prelude(&host, BuildProfile::Checked, EngineTarget::Wasmtime);
+    assert_eq!(again.counters.hits.get("link"), Some(&1));
+    assert_eq!(again.wasm, wasmtime.wasm);
 }
 
 /// A session is one scope, as a module is (`cli.repl.package.lib`): a

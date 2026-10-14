@@ -10,9 +10,14 @@ use hd_base::{EngineTarget, Hash128, StableHasher};
 /// closure-calls.md).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ClosureCode {
+    /// One closure base per code signature, whose code field has the
+    /// concrete code type; a call reads it and calls it with `call_ref`.
+    /// V8 runs this form fastest (closure-calls.md §7).
+    Typed,
     /// One closure base for every signature, with an abstract `funcref`
-    /// code field; a call casts the code before `call_ref`
-    /// (`layout::closure_base`).
+    /// code field; a call casts the code before `call_ref`. Wasmtime reads
+    /// an abstract field without a type lookup and subtype check
+    /// (closure-calls.md §7).
     Abstract,
 }
 
@@ -21,6 +26,7 @@ impl ClosureCode {
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
+            Self::Typed => "typed",
             Self::Abstract => "abstract",
         }
     }
@@ -33,12 +39,15 @@ pub struct Lowering {
 }
 
 impl Lowering {
-    /// The profile of `target`. Every target lowers alike today; job (d)
-    /// of opt-pipeline.md §6 gives `V8` and `Browser` typed closure code.
+    /// The profile of `target`. `Browser` follows `V8` until another
+    /// browser engine is measured (opt-pipeline.md §7 Q2).
     #[must_use]
     pub const fn of(target: EngineTarget) -> Self {
         match target {
-            EngineTarget::V8 | EngineTarget::Wasmtime | EngineTarget::Browser => Self {
+            EngineTarget::V8 | EngineTarget::Browser => Self {
+                closure_code: ClosureCode::Typed,
+            },
+            EngineTarget::Wasmtime => Self {
                 closure_code: ClosureCode::Abstract,
             },
         }
@@ -56,15 +65,21 @@ impl Lowering {
 
 #[cfg(test)]
 mod tests {
-    use super::Lowering;
+    use super::{ClosureCode, Lowering};
     use hd_base::EngineTarget;
 
     #[test]
-    fn every_target_lowers_alike_today() {
+    fn closure_code_is_abstract_on_wasmtime_only() {
+        let code = |t| Lowering::of(t).closure_code;
+        assert_eq!(code(EngineTarget::V8), ClosureCode::Typed);
+        assert_eq!(code(EngineTarget::Browser), ClosureCode::Typed);
+        assert_eq!(code(EngineTarget::Wasmtime), ClosureCode::Abstract);
+    }
+
+    #[test]
+    fn the_hash_follows_content() {
         let v8 = Lowering::of(EngineTarget::V8);
-        for target in EngineTarget::ALL {
-            assert_eq!(Lowering::of(target), v8, "{target:?}");
-            assert_eq!(Lowering::of(target).hash(), v8.hash(), "{target:?}");
-        }
+        assert_eq!(v8.hash(), Lowering::of(EngineTarget::Browser).hash());
+        assert_ne!(v8.hash(), Lowering::of(EngineTarget::Wasmtime).hash());
     }
 }

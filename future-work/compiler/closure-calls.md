@@ -305,3 +305,8 @@ load average 7 to 10 with spikes. Wasmtime is `hd run [--release]
   on the runtime suite within 3% (four programs are byte-identical,
   list-sort -0.4%), hello +0%. The cost is V8 on the closures bench
   itself, +3% to +6%.
+- Per target since job (d) of #162 (opt-pipeline.md §4): only the
+  `Wasmtime` target uses E1; `V8` and `Browser` keep the typed code
+  field. Closures bench, p50 of 9, median of three interleaved rounds:
+  V8 dev 374 to 358 ms (-4.3%), release 298 to 285 ms (-4.4%); wasmtime
+  dev 1684 to 1672 ms, release 745 to 738 ms (byte-identical Wasm).

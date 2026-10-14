@@ -16,6 +16,7 @@ mod call_place_run;
 mod cancel_suspension_run;
 mod char_escapes_run;
 mod checker;
+mod closure_code_targets;
 mod closure_parameter_annotation;
 mod collect_default_run;
 mod combinator_call_forms;

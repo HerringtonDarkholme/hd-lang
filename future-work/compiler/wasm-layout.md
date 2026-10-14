@@ -75,7 +75,7 @@ found that. The spec allows either form
 | `Result[T, E]` | `multi`: `(i32 tag, dflt(T')..., dflt(E')...)` with slot sharing, where `T'` and `E'` are the payload layouts (see "Identity" and "Defaultable forms" below) | the same fields |
 | tuple | its elements' values within the bound; one immutable box over it | its elements' fields, flattened, or the box |
 | trait value, `Any` | `(eqref, (ref $VT))`; `eqref`, so `is` can use `ref.eq` on the payload | two fields |
-| closure | `(ref $Fn)`: one base struct for every signature, holding the code as an abstract `funcref`; a call casts it to the final `$Code_sig` before `call_ref` (wasmtime reads an abstract funcref field without a subtype check; closure-calls.md §7); one subtype per capture shape | same |
+| closure | per the target's lowering profile (opt-pipeline.md §4). `V8`, `Browser`: `(ref $Fn_sig)`, a base struct holding the code as a typed function reference. `Wasmtime`: `(ref $Fn)`, one base struct for every signature, holding the code as an abstract `funcref`; a call casts it to the final `$Code_sig` before `call_ref` (wasmtime reads an abstract funcref field without a subtype check; closure-calls.md §7). One subtype per capture shape | same |
 | capture-free closure | a constant global of the base type, with no environment | same |
 | `string` | a view of two values, `(ref $bytes, i64 span)`: `$bytes = (array i8)`, immutable, valid UTF-8 in the viewed range; `span` packs `len << 32 \| start` (owner, 2026-10-07: Go-style shared slices; "Strings" below) | two fields, `(mut (ref $bytes))` and `(mut i64)`; in an array, a structure of two arrays |
 | `string?` | `(ref null $bytes, i64)`; a null `bytes` is `.None` | two fields |

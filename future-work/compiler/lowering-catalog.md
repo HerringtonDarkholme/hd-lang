@@ -595,8 +595,13 @@ and `eqref` with a cast after the tag test otherwise.
           (ref.cast (ref $Code_i32_i32) (struct.get $Fn $code (local.get $f))))
 ```
 
-- **Speed:** per call, a load, a cast to the code type, a `call_ref`,
-  and a cast in the callee (skipped when the closure has no capture).
+This is the `Wasmtime` form. `V8` and `Browser` keep the typed form,
+`(type $Fn_i32_i32 (sub (struct (field $code (ref $Code_i32_i32)))))`,
+and call the field without the cast (opt-pipeline.md §4).
+
+- **Speed:** per call, a load, a cast to the code type (`Wasmtime`
+  only), a `call_ref`, and a cast in the callee (skipped when the
+  closure has no capture).
   Per construction, one allocation, plus one per shared cell. A
   capture-free closure is a constant global.
 - **With passes:** the closure specialization schedule removes the call,

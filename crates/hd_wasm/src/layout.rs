@@ -27,6 +27,7 @@ use hd_mono::layout::{CanonMemo, LayoutEnv, StdKind, canon, sccs, value_enums};
 use hd_mono::{ProgramEnv, class_ref, is_class_ref, is_open, key_order, own_count, subst};
 use hd_types::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
 
+use crate::lowering::{ClosureCode, Lowering};
 use crate::{Group, VT, WTy, unsupported};
 
 /// The value bound (§15.1).
@@ -112,9 +113,23 @@ pub struct Lay<'a> {
 
 /// Nominal types' values shared by every `Lay` of one program build, so a
 /// recursion group is laid out once rather than once per instance that
-/// names it. Keys are the run's interned types.
-#[derive(Default)]
-pub struct Layouts(std::sync::Mutex<HashMap<Ty, Vec<VT>>>);
+/// names it. Keys are the run's interned types. It carries the build's
+/// lowering profile (opt-pipeline.md §4), which every `Lay` reads.
+pub struct Layouts {
+    lowering: Lowering,
+    laid: std::sync::Mutex<HashMap<Ty, Vec<VT>>>,
+}
+
+impl Layouts {
+    /// No type laid out yet, for a build lowered by `lowering`.
+    #[must_use]
+    pub fn new(lowering: Lowering) -> Layouts {
+        Layouts {
+            lowering,
+            laid: std::sync::Mutex::default(),
+        }
+    }
+}
 
 /// An enum's value layout: a tag, then shared payload slots (§15.1).
 #[derive(Clone, Debug)]
@@ -202,13 +217,26 @@ pub fn storage(v: &VT) -> VT {
     }
 }
 
-/// The closure base struct (§15.2 "closure"): the code as an abstract
-/// `funcref`, one type for every signature. A call casts the code to its
-/// final function type before `call_ref`: wasmtime reads an abstract
-/// funcref field without the type lookup and subtype check a concrete
-/// one costs (closure-calls.md §1.2, option E1).
+/// The closure base struct of code type `code` (§15.2 "closure"), by the
+/// profile's closure code (closure-calls.md option E1). `Typed`: the code
+/// field has type `code`, one base per signature. `Abstract`: the code is
+/// an abstract `funcref`, one base for every signature, and a call casts
+/// it to `code` before `call_ref`; wasmtime reads such a field without
+/// the type lookup and subtype check a concrete one costs.
 #[must_use]
-pub fn closure_base() -> WTy {
+pub fn closure_base(closure: ClosureCode, code: &WTy) -> WTy {
+    match closure {
+        ClosureCode::Typed => WTy::Struct {
+            fields: vec![VT::r(code.clone())],
+            sup: None,
+            open: true,
+        },
+        ClosureCode::Abstract => abstract_closure_base(),
+    }
+}
+
+/// The `Abstract` closure base, which names no code type.
+fn abstract_closure_base() -> WTy {
     WTy::Struct {
         fields: vec![VT::Func],
         sup: None,
@@ -557,6 +585,12 @@ impl<'a> Lay<'a> {
         }
     }
 
+    /// How the build stores closure code (`Lowering::closure_code`).
+    #[must_use]
+    pub fn closure_code(&self) -> ClosureCode {
+        self.shared.lowering.closure_code
+    }
+
     /// Records a group's types' values, here and for the program: the
     /// whole group under one lock, so another instance sees all of it or
     /// none.
@@ -564,7 +598,7 @@ impl<'a> Lay<'a> {
     /// values (equal ones), so every copy shares one descriptor and
     /// compares by pointer.
     fn record(&self, laid: Vec<(Ty, Vec<VT>)>) {
-        let laid: Vec<(Ty, Vec<VT>)> = match self.shared.0.lock() {
+        let laid: Vec<(Ty, Vec<VT>)> = match self.shared.laid.lock() {
             Ok(mut s) => laid
                 .into_iter()
                 .map(|(t, v)| (t, s.entry(t).or_insert(v).clone()))
@@ -863,9 +897,22 @@ impl<'a> Lay<'a> {
                     }
                 }
             }
-            // One base for every signature: the code type is laid out where
-            // a call or a construction needs it (`shape`).
-            TyData::Fn { .. } => vec![VT::r(closure_base())],
+            // `Abstract` has one base for every signature: the code type is
+            // laid out where a call or a construction needs it (`shape`).
+            TyData::Fn {
+                params,
+                result,
+                suspends,
+                ..
+            } => {
+                let base = match self.closure_code() {
+                    ClosureCode::Typed => {
+                        closure_base(ClosureCode::Typed, &self.code_ty(params, result, suspends)?)
+                    }
+                    ClosureCode::Abstract => abstract_closure_base(),
+                };
+                vec![VT::r(base)]
+            }
             TyData::TraitValue { def, .. } => self.nominal(self.dyn_key(t), Nominal::Dyn, def)?,
             // Per key in key order, its payload and vtable
             // (codegen.md §12.4, "Context values").
@@ -1053,7 +1100,13 @@ impl<'a> Lay<'a> {
         // Laid out by another instance: its whole group was, the same way.
         // The walk itself reads only its own results, so a group another
         // thread is publishing never splits it.
-        if let Some(v) = self.shared.0.lock().ok().and_then(|s| s.get(&t).cloned()) {
+        if let Some(v) = self
+            .shared
+            .laid
+            .lock()
+            .ok()
+            .and_then(|s| s.get(&t).cloned())
+        {
             self.rec.borrow_mut().done.insert(t, v.clone());
             return Ok(v);
         }
@@ -1632,7 +1685,7 @@ impl<'a> Lay<'a> {
             } => {
                 let code = self.code_ty(params, result, suspends)?;
                 Shape::Fn {
-                    base: closure_base(),
+                    base: closure_base(self.closure_code(), &code),
                     code,
                 }
             }
