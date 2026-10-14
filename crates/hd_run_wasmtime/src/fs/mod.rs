@@ -1,13 +1,16 @@
-//! Synchronous filesystem providers with native errors and scoped grants.
-//! Grants are checked against resolved paths before any filesystem access.
-//! Limited Unix calls use nonblocking descriptors and deadline-bounded FIFO
-//! polling. Ordinary filesystem syscalls (including network filesystem access)
-//! may still block inside the kernel; safe std does not cancel them. Limited
-//! Windows named-pipe calls poll immediate I/O without background workers.
-//! No mutation is delegated to a worker that could outlive the deadline.
+//! Filesystem providers with native errors and scoped grants. Grants are
+//! checked against resolved paths before any filesystem access.
+//!
+//! A regular file or a directory runs inline on the program thread, with
+//! the deadline checked before and after (`api::start`). A special file (a
+//! FIFO, a device, a named pipe) can wait on another process, so its call
+//! runs blocking `std::fs` on the `hd-io` blocking pool and `.finish`
+//! delivers the result (`std-fs.special-file`). Aborting it only drops the
+//! result: the spec gives a special file no deadline guarantee beyond "the
+//! program is not blocked" (`std-fs.special-file.deadline`).
 
 pub(crate) mod api;
-/// Unix FIFO deadline coverage; every item is unix-only, like its tests.
+/// Special-file coverage; every item is unix-only, like its tests.
 #[cfg(all(test, unix))]
 pub(crate) mod fifo;
 pub(crate) mod io;
@@ -15,5 +18,4 @@ pub(crate) mod ops;
 #[cfg(test)]
 pub(crate) mod test_support;
 
-pub(crate) use api::{READ, WRITE, read_file_until, write_file_until};
-pub use api::{call, call_until, call_until_at};
+pub(crate) use api::{READ, Start, WRITE, not_run, read_file_until, start, write_file_until};

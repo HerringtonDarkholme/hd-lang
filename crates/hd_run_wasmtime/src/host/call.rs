@@ -144,9 +144,19 @@ pub(crate) fn call(
             }
         },
         Kind::Fs { finish: true, .. } => {
-            return Err(
-                Stop::Contract("a finish of an operation that is not pending".into()).into(),
-            );
+            let h = handle(int_arg(params, 0)?);
+            let Some(op) = caller.data_mut().reactor.remove(h) else {
+                return Err(
+                    Stop::Contract("a finish of an operation that is not pending".into()).into(),
+                );
+            };
+            let Work::Offloaded(Some(Done::Fs(encoded))) = op.work else {
+                return Err(Stop::Contract(
+                    "a finish of an operation that is not completed".into(),
+                )
+                .into());
+            };
+            Ret::encoded(encoded)
         }
         Kind::Fs {
             key,
@@ -154,24 +164,23 @@ pub(crate) fn call(
             finish: false,
         } => {
             let b = bytes(caller, int_arg(params, 0)?)?;
-            let host = caller.data();
-            let e = match &host.environment {
-                Some(environment) => fs::call_until_at(
-                    key,
-                    method,
-                    &b,
-                    &host.grants,
-                    host.deadline(),
-                    &environment.cwd,
-                )?,
-                None => match host.deadline() {
-                    Some(deadline) => {
-                        fs::call_until(key, method, &b, &host.grants, Some(deadline))?
-                    }
-                    None => fs::call(key, method, &b, &host.grants)?,
-                },
+            let host = caller.data_mut();
+            let cwd = match &host.environment {
+                Some(environment) => environment.cwd.clone(),
+                None => std::env::current_dir().map_err(|e| Stop::Internal(e.to_string()))?,
             };
-            Ret::ready(e)?
+            match fs::start(key, method, &b, &host.grants, host.deadline(), &cwd)? {
+                fs::Start::Ready(e) => Ret::ready(e)?,
+                fs::Start::Run(job) => {
+                    match host
+                        .reactor
+                        .offload(async move { Done::Fs(job.run().await) })
+                    {
+                        Ok(h) => Ret::pair(1, h),
+                        Err(error) => Ret::ready(fs::not_run(&error))?,
+                    }
+                }
+            }
         }
         Kind::ProcessStart => {
             let b = bytes(caller, int_arg(params, 0)?)?;

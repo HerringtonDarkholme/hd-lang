@@ -43,6 +43,8 @@ pub enum Done {
     Net(crate::net::Done),
     /// `Http.send!`: the response or the failure.
     Http(crate::http::client::Sent),
+    /// An `Fs` call on a special file: its encoded result.
+    Fs(crate::codec::Enc),
     /// The reactor tests' offloaded operation.
     #[cfg(test)]
     Test(u32),

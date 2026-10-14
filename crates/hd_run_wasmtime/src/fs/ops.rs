@@ -8,6 +8,17 @@ use crate::codec::Enc;
 use super::api::{Failure, check_deadline, entry, error};
 use super::io::{open, read, write};
 
+/// A guest path against the case's directory. An empty argument stays
+/// empty: Node rejects it instead of treating it as the working directory.
+/// Absolute paths are unchanged by join.
+pub(crate) fn at(cwd: &Path, path: &str) -> std::path::PathBuf {
+    if path.is_empty() {
+        std::path::PathBuf::new()
+    } else {
+        cwd.join(path)
+    }
+}
+
 pub(crate) fn run(
     method: &str,
     path: &str,
@@ -18,16 +29,7 @@ pub(crate) fn run(
     cwd: &Path,
 ) -> Result<(), Failure> {
     check_deadline(deadline)?;
-    // Keep an empty argument empty: Node rejects it instead of treating it
-    // as the working directory. Absolute paths are unchanged by join.
-    let at = |p: &str| {
-        if p.is_empty() {
-            std::path::PathBuf::new()
-        } else {
-            cwd.join(p)
-        }
-    };
-    let actual = at(path);
+    let actual = at(cwd, path);
     match method {
         "read_bytes" => {
             e.leb(0).bytes(&read(&actual, deadline)?);
@@ -126,7 +128,7 @@ pub(crate) fn run(
             e.leb(0);
         }
         "rename" => {
-            fs::rename(&actual, at(to.unwrap_or_default()))
+            fs::rename(&actual, at(cwd, to.unwrap_or_default()))
                 .map_err(|err| Failure::new("rename", err))?;
             e.leb(0);
         }

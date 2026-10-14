@@ -1572,3 +1572,177 @@ fn a_rebuilt_session_sends_no_request_again() {
         assert_eq!(text(&io.out), shown);
     });
 }
+
+#[cfg(unix)]
+const FS_INPUTS: [&str; 3] = [
+    "use std.fs.{FsRead}\nuse std.path.Path\nuse std.task.{all, race}\nuse std.time.{Clock, ms, sleep}\n",
+    "fn slurp!(path: string) -> string $ FsRead:\n    match $.use(FsRead).read_bytes!(Path(path)):\n        .Ok(bytes) => \"read ${bytes.len()}\"\n        .Err(e) => \"${e}\"\n",
+    "fn nap!() -> string $ Clock:\n    sleep!(ms(100))\n    \"timeout\"\n",
+];
+
+/// A FIFO in a private directory, removed with the guard.
+#[cfg(unix)]
+struct Fifo(std::path::PathBuf);
+
+#[cfg(unix)]
+impl Fifo {
+    fn new(label: &str) -> Self {
+        let path = fixture_path(label);
+        nix::unistd::mkfifo(
+            &path,
+            nix::sys::stat::Mode::S_IRUSR | nix::sys::stat::Mode::S_IWUSR,
+        )
+        .expect("makes a FIFO");
+        Self(path)
+    }
+
+    fn write(&self, bytes: &[u8]) {
+        write_fifo(&self.0, bytes);
+    }
+}
+
+/// Opens the FIFO for writing, as a writer that lets a waiting read go
+/// on, and writes `bytes`.
+#[cfg(unix)]
+fn write_fifo(path: &std::path::Path, bytes: &[u8]) {
+    use std::io::Write;
+    let mut writer = std::fs::OpenOptions::new()
+        .write(true)
+        .open(path)
+        .expect("opens the writer");
+    writer.write_all(bytes).expect("writes");
+}
+
+#[cfg(unix)]
+impl Drop for Fifo {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+/// `std-fs.special-file` and `std-host.op.wait`: a `race!` of a read of a
+/// FIFO nobody writes against a 100 ms sleep ends with the sleep. The
+/// read's thread lingers (`std-fs.special-file.deadline`) until a writer
+/// closes the FIFO.
+#[cfg(unix)]
+#[test]
+fn a_race_ends_a_fifo_read_at_the_sleep() {
+    use std::time::{Duration, Instant};
+    let fifo = Fifo::new("race-fifo");
+    with_session(|session, io| {
+        let mut repl = repl(session);
+        for input in FS_INPUTS {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        let built = repl.build(&format!("race!(slurp(\"{}\"), nap())\n", fifo.0.display()));
+        let started = Instant::now();
+        assert_eq!(repl.run(built), Outcome::Exit(0), "{}", text(&io.err));
+        let took = started.elapsed();
+        assert_eq!(text(&io.out), "\"timeout\" : string\n");
+        assert!(took < Duration::from_secs(3), "the race waited: {took:?}");
+        assert!(!repl.session.pending(), "the read is still pending");
+    });
+    // The abandoned read opens the FIFO: a writer lets its thread end.
+    fifo.write(b"");
+}
+
+/// `std-fs.special-file`: a read of a FIFO with a writer reads all that
+/// the writer sends, though it arrives after the read started.
+#[cfg(unix)]
+#[test]
+fn a_fifo_read_with_a_writer_reads_everything_in_a_session() {
+    let fifo = Fifo::new("read-fifo");
+    let path = fifo.0.clone();
+    let writer = std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        write_fifo(&path, &vec![b'x'; 200_000]);
+    });
+    with_session(|session, io| {
+        let mut repl = repl(session);
+        for input in FS_INPUTS {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        let shown = repl.input(&format!("slurp!(\"{}\")\n", fifo.0.display()));
+        assert_eq!(shown, Outcome::Exit(0), "{}", text(&io.err));
+        assert_eq!(text(&io.out), "\"read 200000\" : string\n");
+    });
+    writer.join().expect("the writer");
+}
+
+/// `cli.repl.cancel`: a Stop while an input waits on a FIFO read cancels
+/// the input at once.
+#[cfg(unix)]
+#[test]
+fn a_stop_during_a_fifo_read_cancels_the_input() {
+    use std::time::{Duration, Instant};
+    let fifo = Fifo::new("stop-fifo");
+    with_session(|session, io| {
+        let stopper = session.stopper();
+        let mut repl = repl(session);
+        for input in FS_INPUTS {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        let built = repl.build(&format!("x := slurp!(\"{}\")\n", fifo.0.display()));
+        let stopping = {
+            let stopper = stopper.clone();
+            std::thread::spawn(move || {
+                let until = Instant::now() + Duration::from_secs(10);
+                while !stopper.waiting() && Instant::now() < until {
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+                stopper.stop();
+            })
+        };
+        let started = Instant::now();
+        let outcome = repl.run(built);
+        let took = started.elapsed();
+        stopping.join().expect("the stopping thread");
+        assert_eq!(outcome, Outcome::Exit(3));
+        assert_eq!(text(&io.err), "cancelled\n");
+        assert!(
+            took < Duration::from_secs(10),
+            "the cancel waited: {took:?}"
+        );
+        assert!(!repl.session.pending(), "the read is still pending");
+    });
+    fifo.write(b"");
+}
+
+/// `cli.repl.host.once`: a rebuilt session serves a FIFO read from its
+/// journal: the writer is gone, and the read neither waits nor opens the
+/// FIFO again.
+#[cfg(unix)]
+#[test]
+fn a_rebuilt_session_reads_no_fifo_again() {
+    let fifo = Fifo::new("rebuild-fifo");
+    let path = fifo.0.clone();
+    let writer = std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        write_fifo(&path, b"journaled");
+    });
+    let mut inputs: Vec<String> = FS_INPUTS.iter().map(|s| (*s).to_owned()).collect();
+    inputs.push(format!("out := slurp!(\"{}\")\n", fifo.0.display()));
+    inputs.push("out\n".to_owned());
+    with_session(|session, io| {
+        let mut repl = repl_with_prelude(session);
+        for input in &inputs {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        let shown = text(&io.out);
+        assert!(shown.contains("\"read 9\""), "{shown}");
+        let calls = repl.session.host_calls();
+        let rebuilt = repl.rebuild();
+        assert_eq!(
+            rebuilt,
+            crate::Rebuilt {
+                kept: (0..=5).collect(),
+                ..crate::Rebuilt::default()
+            }
+        );
+        assert_eq!(repl.session.host_calls(), calls, "a host call repeated");
+        assert_eq!(text(&io.out), "", "a replayed input printed again");
+        assert_eq!(repl.input("out\n"), Outcome::Exit(0), "{}", text(&io.err));
+        assert_eq!(text(&io.out), shown);
+    });
+    writer.join().expect("the writer");
+}

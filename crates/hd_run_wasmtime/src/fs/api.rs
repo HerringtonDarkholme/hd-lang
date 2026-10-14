@@ -1,14 +1,14 @@
 use std::fs::Metadata;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use hd_run::Grants;
 
 use crate::codec::{Dec, Enc};
 
-use super::io::{open, read, write};
-use super::ops::run;
+use super::io::{is_special, open, read, write};
+use super::ops::{at, run};
 
 pub(crate) const READ: &[&str] = &["read_bytes", "read_text", "list_dir", "stat"];
 pub(crate) const WRITE: &[&str] = &[
@@ -20,33 +20,106 @@ pub(crate) const WRITE: &[&str] = &[
     "rename",
 ];
 
-pub fn call(key: &str, method: &str, bytes: &[u8], grants: &Grants) -> wasmtime::Result<Enc> {
-    call_until(key, method, bytes, grants, None)
+/// The methods that open the path, so that a special file can make them
+/// wait. The others never open it, or fail at once on it.
+const OPENING: &[&str] = &[
+    "read_bytes",
+    "read_text",
+    "write_bytes",
+    "write_text",
+    "append_text",
+];
+
+/// What `.start` of an `Fs` method does.
+pub(crate) enum Start {
+    /// The result, at once: a refusal, an error, or a regular file or a
+    /// directory, which run inline on the program thread.
+    Ready(Enc),
+    /// A special file (`std-fs.special-file`): the call waits on the
+    /// blocking pool, and `.finish` delivers its result.
+    Run(Job),
 }
 
-pub fn call_until(
-    key: &str,
-    method: &str,
-    bytes: &[u8],
-    grants: &Grants,
-    deadline: Option<Instant>,
-) -> wasmtime::Result<Enc> {
-    check_deadline(deadline).map_err(|_| crate::host::Stop::TimeLimit)?;
-    let cwd = std::env::current_dir().map_err(|e| crate::host::Stop::Internal(e.to_string()))?;
-    call_until_at(key, method, bytes, grants, deadline, &cwd)
+/// A call on a special file, ready to run off the program thread.
+pub(crate) struct Job {
+    method: String,
+    path: String,
+    to: Option<String>,
+    payload: Option<Vec<u8>>,
+    cwd: PathBuf,
+}
+
+impl Job {
+    /// Runs the call on the blocking pool and gives its encoded result.
+    ///
+    /// Aborting drops only this future, which discards the result: the
+    /// blocking thread cannot be cancelled, so it lingers until its I/O
+    /// ends, such as a FIFO read until a writer arrives and closes. This
+    /// is within the spec: a special file has no deadline guarantee
+    /// beyond "other tasks run" (`std-fs.special-file.deadline`), and a
+    /// cancelled write may have happened (`std-fs.cancel.write`).
+    pub(crate) async fn run(self) -> Enc {
+        match tokio::task::spawn_blocking(move || self.run_blocking()).await {
+            Ok(encoded) => encoded,
+            Err(error) => error_text(&format!("the file operation failed: {error}")),
+        }
+    }
+
+    /// The call, run on this thread, which waits for the file.
+    pub(crate) fn run_blocking(&self) -> Enc {
+        self.execute(None)
+            .unwrap_or_else(|| error_text("the file operation ran past a deadline"))
+    }
+
+    /// The encoded result, or `None` once the deadline passed.
+    fn execute(&self, deadline: Option<Instant>) -> Option<Enc> {
+        let mut e = Enc::default();
+        let result = run(
+            &self.method,
+            &self.path,
+            self.to.as_deref(),
+            self.payload.as_deref(),
+            &mut e,
+            deadline,
+            &self.cwd,
+        );
+        if check_deadline(deadline).is_err() {
+            return None;
+        }
+        match result {
+            Ok(()) => Some(e),
+            Err(Failure::Deadline) => None,
+            Err(err) => Some(failure(
+                self.to.as_deref().unwrap_or(&self.path),
+                &self.method,
+                &self.path,
+                &err,
+            )),
+        }
+    }
+}
+
+/// The error a `.start` that cannot offload returns.
+pub(crate) fn not_run(error: &str) -> Enc {
+    error_text(error)
+}
+
+fn error_text(text: &str) -> Enc {
+    error(text, 7)
 }
 
 /// Executes relative paths in the case's directory without changing the
 /// process-wide working directory. Encoded paths and errors retain the
-/// guest's original spelling.
-pub fn call_until_at(
+/// guest's original spelling. A regular file or a directory runs here;
+/// anything else (a FIFO, a device, a named pipe) comes back as a `Job`.
+pub(crate) fn start(
     key: &str,
     method: &str,
     bytes: &[u8],
     grants: &Grants,
     deadline: Option<Instant>,
     cwd: &Path,
-) -> wasmtime::Result<Enc> {
+) -> wasmtime::Result<Start> {
     check_deadline(deadline).map_err(|_| crate::host::Stop::TimeLimit)?;
     let mut d = Dec::new(bytes);
     let path = d.str()?;
@@ -57,12 +130,12 @@ pub fn call_until_at(
     };
     for p in std::iter::once(&path).chain(to.iter()) {
         if !grants.covers_path(key, Path::new(p), cwd) {
-            return Ok(error(p, 2));
+            return Ok(Start::Ready(error(p, 2)));
         }
     }
     // Refusal takes precedence over decoding write payloads.
     let payload = if matches!(method, "write_bytes" | "write_text" | "append_text") {
-        Some(d.bytes()?)
+        Some(d.bytes()?.to_vec())
     } else {
         None
     };
@@ -78,17 +151,64 @@ pub fn call_until_at(
     .chain(to.iter().map(|p| (p, "destination path")))
     {
         if p.contains('\0') {
-            return Ok(error(&format!("{name} contains a NUL byte"), 7));
+            return Ok(Start::Ready(error(
+                &format!("{name} contains a NUL byte"),
+                7,
+            )));
         }
     }
-    let mut e = Enc::default();
-    let result = run(method, &path, to.as_deref(), payload, &mut e, deadline, cwd);
-    check_deadline(deadline).map_err(|_| crate::host::Stop::TimeLimit)?;
-    Ok(match result {
-        Ok(()) => e,
-        Err(Failure::Deadline) => return Err(crate::host::Stop::TimeLimit.into()),
-        Err(err) => failure(to.as_deref().unwrap_or(&path), method, &path, &err),
+    let special = OPENING.contains(&method) && is_special(&at(cwd, &path));
+    let job = Job {
+        method: method.to_owned(),
+        path,
+        to,
+        payload,
+        cwd: cwd.to_owned(),
+    };
+    if special {
+        return Ok(Start::Run(job));
+    }
+    job.execute(deadline)
+        .map(Start::Ready)
+        .ok_or_else(|| crate::host::Stop::TimeLimit.into())
+}
+
+/// `start` for a test that waits for a special file on its own thread.
+#[cfg(test)]
+pub(crate) fn call_until_at(
+    key: &str,
+    method: &str,
+    bytes: &[u8],
+    grants: &Grants,
+    deadline: Option<Instant>,
+    cwd: &Path,
+) -> wasmtime::Result<Enc> {
+    Ok(match start(key, method, bytes, grants, deadline, cwd)? {
+        Start::Ready(encoded) => encoded,
+        Start::Run(job) => job.run_blocking(),
     })
+}
+
+#[cfg(test)]
+pub(crate) fn call_until(
+    key: &str,
+    method: &str,
+    bytes: &[u8],
+    grants: &Grants,
+    deadline: Option<Instant>,
+) -> wasmtime::Result<Enc> {
+    let cwd = std::env::current_dir().map_err(|e| crate::host::Stop::Internal(e.to_string()))?;
+    call_until_at(key, method, bytes, grants, deadline, &cwd)
+}
+
+#[cfg(test)]
+pub(crate) fn call(
+    key: &str,
+    method: &str,
+    bytes: &[u8],
+    grants: &Grants,
+) -> wasmtime::Result<Enc> {
+    call_until(key, method, bytes, grants, None)
 }
 
 pub(crate) enum Failure {
@@ -121,10 +241,14 @@ pub(crate) fn check_deadline(deadline: Option<Instant>) -> Result<(), Failure> {
     }
 }
 
-// Runner-owned snapshots/regressions use the same safe, cancellable pipe
-// operations as guest filesystem calls, but retain ordinary Rust I/O errors.
+// Runner-owned snapshots and regressions use the same file operations as
+// guest filesystem calls, but retain ordinary Rust I/O errors. A special
+// file (a FIFO, say) waits on a thread of its own, and the deadline cuts
+// the wait: the thread lingers until its I/O ends
+// (`std-fs.special-file.deadline`).
 pub(crate) fn read_file_until(path: &Path, deadline: Option<Instant>) -> io::Result<Vec<u8>> {
-    read(path, deadline).map_err(file_failure)
+    let owned = path.to_owned();
+    bounded(path, deadline, move || read(&owned, None)).map_err(file_failure)
 }
 
 pub(crate) fn write_file_until(
@@ -132,11 +256,36 @@ pub(crate) fn write_file_until(
     bytes: &[u8],
     deadline: Option<Instant>,
 ) -> io::Result<()> {
-    let result = (|| {
-        let mut file = open(path, true, false, deadline)?;
-        write(&mut file, bytes, deadline)
-    })();
+    let (owned, bytes) = (path.to_owned(), bytes.to_vec());
+    let result = bounded(path, deadline, move || {
+        let mut file = open(&owned, true, false, None)?;
+        write(&mut file, &bytes, None)
+    });
     result.map_err(file_failure)
+}
+
+fn bounded<T: Send + 'static>(
+    path: &Path,
+    deadline: Option<Instant>,
+    work: impl FnOnce() -> Result<T, Failure> + Send + 'static,
+) -> Result<T, Failure> {
+    check_deadline(deadline)?;
+    let Some(limit) = deadline.filter(|_| is_special(path)) else {
+        let result = work()?;
+        check_deadline(deadline)?;
+        return Ok(result);
+    };
+    let (send, receive) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = send.send(work());
+    });
+    match receive.recv_timeout(limit.saturating_duration_since(Instant::now())) {
+        Ok(result) => result,
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Err(Failure::Deadline),
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+            Err(Failure::Message("the file operation failed".into()))
+        }
+    }
 }
 
 fn file_failure(failure: Failure) -> io::Error {

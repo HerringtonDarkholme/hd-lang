@@ -54,8 +54,6 @@ mod testing_files;
 mod testing_json;
 #[cfg(test)]
 mod tests;
-#[cfg(windows)]
-mod windows_pipe;
 
 pub use engine::{EngineConfig, Module, OptLevel, WasmtimeEngine, thread_stack};
 pub(crate) use engine::{new_store, wasmtime_config};
