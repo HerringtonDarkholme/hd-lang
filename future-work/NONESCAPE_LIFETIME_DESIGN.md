@@ -9,6 +9,7 @@
 - [C. Candidate Shapes](#c-candidate-shapes)
 - [D. Annotation Burden](#d-annotation-burden)
 - [E. Owner Questions](#e-owner-questions)
+- [F. Round 2: Revised Design And Stress Tests](#f-round-2-revised-design-and-stress-tests)
 - [Sources](#sources)
 
 ## Status
@@ -911,6 +912,284 @@ They are ordered so that each answer unblocks later ones.
     `'`, which is the character literal.
     **Recommendation: take the established terms.** Choose a sigil only
     if Shape C is chosen.
+
+## F. Round 2: Revised Design And Stress Tests
+
+**Status.** This section is a draft that the orchestrator wrote with the
+owner on 2026-10-14. It replaces sections C and E as the working
+direction, and a follow-up job of #163 will merge it into the rest of
+this file. Every spelling in it is a placeholder.
+
+### F.1 What The Owner Asked For
+
+1. NonEscapable is a category of types.
+2. Lifetimes are part of the semantics and appear in signatures.
+3. A result or a store may depend on any subset of the inputs, and the
+   checker tracks which subset exactly.
+4. The checker raises no false alarms. A default that is stricter than
+   needed counts as a bug.
+5. A struct may hold several handles whose lifetimes are independent.
+6. Signatures stay short: no `local x` and no `T from x`.
+
+### F.2 Core Model
+
+- **A NonEscapable type has lifetime parameters.** This is Rust's model
+  without borrows or exclusivity.
+- **A lifetime is a set of roots.** A root is one of these:
+  - the static scope: a top-level binding or a REPL input;
+  - the caller, for a parameter;
+  - the block whose `defer` closes the handle.
+- **A handle that no `defer` here closes is free.** Its uses decide its
+  lifetime, so a helper may open a handle and return it.
+- **"Outlives" means used or escaping after the block**, as in Rust's
+  non-lexical lifetimes. Being declared outside the block is not enough.
+- **Locals are flow-sensitive.** Fields and container elements take
+  their lifetime from their type's slots.
+- **Closures, `Suspend` values and `dyn` values** each have one inferred
+  slot. Erasing a value to `dyn` joins its slots into one.
+
+### F.3 Notation
+
+| Form | Meaning |
+| --- | --- |
+| `^a Conn` | A `Conn` usable while `a` lives. `a` is a parameter, `self`, a slot path such as `s.u`, a slot, or `static`. |
+| `^a+b Conn` | Usable while both `a` and `b` live. This is a union, like `$ A + B` in rows. |
+| `^() Conn` | Fresh: the value depends on no input. This mirrors the empty row `$()`. |
+| `data S[^c, ^u]` | Declares two lifetime slots. A type that declares none has one implicit slot. |
+| `closing c` | The callee closes this parameter's handle. |
+
+The lifetime is a prefix, as in Rust's `&'a T`. A suffix is ambiguous on
+function types: `fn!() -> void^static` reads as a lifetime on `void`.
+Functions name parameters and paths, never lifetime variables, as Mojo's
+`origin_of(x)` does. `data` declarations declare slots.
+
+### F.4 Elision
+
+| Position | Without `^` |
+| --- | --- |
+| A parameter | Its own lifetime, named by the parameter. |
+| A result with no NonEscapable input | Fresh. |
+| A result with one NonEscapable input | That input. |
+| A method result with a NonEscapable `self` | `self`. |
+| Any other result | An error at the declaration: write `^…`. |
+| Storing one parameter into another | An error at that line, unless the type says so, as in `c: ^self Conn`. |
+
+A lint suggests `^()` when a body never uses its input in the result.
+
+### F.5 Closing
+
+- `closing` is a parameter mode, like Swift's `consuming`. A handle may be
+  closed only through a `closing` parameter or `self`, or through a local
+  the function owns. Closing any other parameter is an error.
+- Calling a closing method inside a `defer` pins every root of its
+  argument to that block.
+- A closing call outside a `defer` is an early close: a later use gives
+  `Disposed` at run time.
+
+### F.6 Stress Tests
+
+The examples use `Conn` for a socket, `Listener`, and `connect!`. They
+leave out `Result` handling.
+
+| # | Source | Verdict |
+| --- | --- | --- |
+| R1 | Rust book `longest` | Works |
+| R2 | Rust book dangling reference | Works |
+| R3 | Rust `ImportantExcerpt` | Works, with nothing written |
+| R4 | Rust `Parser<'c, 's>` | Works with one lifetime |
+| R5 | Rust slice iterator | Works; no lending-iterator problem |
+| R6 | Rustonomicon `evil_feeder` | Works; forced "outlives means used or escaping after" |
+| R7 | Rust `thread::spawn` versus `thread::scope` | Works; forced prefix notation |
+| R8 | Rust non-lexical lifetimes, reassignment | Works |
+| R9 | Rust `TcpListener::accept` | Forced `^()` |
+| S1 | Swift `Span` | Works, as a view over a handle |
+| S2 | Swift `@lifetime(self: copy other)` | Works; `List[Conn]` needs nothing written |
+| S3 | Swift `consuming` close wrapper | Found a hole; forced the `closing` parameter mode |
+| M1 | Mojo `ref [a, b]` | Works |
+| M2 | Mojo struct origin parameter | Works |
+| T1 | Two independent slots | Works |
+| T2 | Swapping two slots | Rejected, as in Rust |
+| T3 | REPL top-level handle | Works: a static root |
+
+**R1. `longest`** (Rust: `fn longest<'a>(x: &'a str, y: &'a str) -> &'a str`).
+
+```hd
+fn longer(a: Conn, b: Conn) -> ^a+b Conn:
+    if a.sent() > b.sent(): a else: b
+```
+
+A caller whose `b` is closed in an inner block cannot carry the result
+out of that block.
+
+**R2. A dangling reference.**
+
+```hd
+fn dangle!() -> Conn:
+    c := connect!("db")
+    defer: c.close!()
+    c                 # error: c is closed when dangle! returns
+```
+
+Without the `defer`, `c` is fresh and may be returned.
+
+**R3. `ImportantExcerpt`** (Rust: `struct ImportantExcerpt<'a> { part: &'a str }`).
+
+```hd
+data Excerpt < NonEscapable:
+    conn: Conn
+
+fn excerpt(c: Conn) -> Excerpt:       # elided: ^c Excerpt
+    Excerpt { conn: c }
+```
+
+**R4. `Parser<'c, 's>`.** Rust needs two lifetimes because the parser
+borrows a temporary `Context`.
+
+```hd
+data Router < NonEscapable:
+    pool: Pool
+
+fn pick(self: Router) -> Conn:         # elided: ^self, the conns the router reaches
+    self.pool.first()
+
+fn route(pool: Pool) -> Conn:
+    Router { pool: pool }.pick()       # the result is ^pool: fine
+```
+
+A lifetime is the set of handles a value reaches, never the life of the
+value itself. So a reference to a context carries no lifetime of its own,
+and most of Rust's two-lifetime examples need only one lifetime here.
+
+**R5. A slice iterator** (Rust: `next(&mut self) -> Option<&'a T>`).
+
+```hd
+data ConnIter < NonEscapable:
+    conns: List[Conn]
+    at: usize
+
+fn next(self: mut ConnIter) -> Conn?   # ^self means the conns, not the iterator
+```
+
+hd has no borrows, so there is no `&mut self` lifetime to keep apart
+from `'a`, and no lending-iterator problem.
+
+**R6. `evil_feeder`** (Rustonomicon: invariance under `&mut`).
+
+```hd
+fn feed[T](slot: mut Box[T], v: T) -> void:
+    slot.value = v
+
+fn main!(ports: List[u16]) -> void:
+    let keep: mut Box[Conn] = Box { value: connect!("a") }
+    for p in ports:
+        tmp := connect!("b", p)
+        defer: tmp.close!()
+        feed(keep, tmp)                # keep becomes ^tmp Box (invariant under mut)
+    keep.value.write!([1])             # error: keep is used after tmp's block
+```
+
+Without the last line, Rust accepts this program, so "outlives" has to
+mean used or escaping after the block.
+
+**R7. `thread::spawn` versus `thread::scope`.**
+
+```hd
+fn mirror!(a: Conn, b: Conn) -> void:
+    all!(pump!(a, b), pump!(b, a))     # fine: the children finish before any defer runs
+
+let JOBS: mut List[fn!() -> void] = []      # a global, so its elements are ^static
+
+fn later(c: Conn) -> void:
+    JOBS.push(fn!(): c.write!([1]))    # error: the closure is ^c, and JOBS needs ^static
+
+fn register(h: ^static fn!() -> void) -> void:
+    JOBS.push(h)                       # fine, like Swift's @escaping
+```
+
+**R8. Reassignment.**
+
+```hd
+fn best(a: Conn, b: Conn) -> ^a Conn:
+    let pick = b
+    pick.write!([0])
+    pick = a
+    pick                               # fine: locals are flow-sensitive
+```
+
+**R9. `accept`.** In Rust an owned result has no lifetime. Here every
+NonEscapable result has a source, so the one-input rule would tie the
+accepted connection to its listener.
+
+```hd
+fn accept!(self: Listener) -> ^() Conn
+```
+
+**S1. A view over a handle** (Swift `Span` with `@lifetime(borrow self)`).
+
+```hd
+fn lines(c: Conn) -> Lines             # elided: ^c Lines
+
+fn first_line!(l: Listener) -> string:
+    c := l.accept!()
+    defer: c.close!()
+    lines(c).next!()                   # fine: string is not NonEscapable
+```
+
+**S2. A mutating store** (Swift `@lifetime(self: copy other)`).
+
+```hd
+fn adopt(self: mut Pool, c: ^self Conn) -> void:
+    self.conns.push(c)
+```
+
+`List[Conn]` itself needs nothing written, because the element type
+carries the lifetime. Swift does not yet support `Array<~Escapable>`.
+
+**S3. A cleanup wrapper** (Swift `consuming func close()`, Rust `drop(self)`).
+
+```hd
+data Session[^c, ^u] < NonEscapable:
+    client: ^c Conn
+    upstream: ^u Conn
+
+fn shutdown!(closing self: Session) -> void:
+    self.client.close!()
+    self.upstream.close!()
+
+fn proxy!(l: Listener) -> Conn:
+    s := Session { client: l.accept!(), upstream: connect!("db") }
+    defer: s.shutdown!()               # a closing call: pins every root of s
+    s.client                           # error
+
+fn handle!(closing c: Conn) -> void:
+    defer: c.close!()                  # legal: the caller handed c over to be closed
+```
+
+Without the `closing` mode, a wrapper that closes its fields would pin
+nothing, and `s.client` would escape while closed.
+
+**M1, M2. Mojo.** `fn pick(a, b) -> ref [a, b] String` is
+`-> ^a+b Conn`. `struct Span[T, origin: Origin]` is
+`data Window[^src]`, and a `ref [self]` result is the elided `^self`.
+
+**T1. Independent slots.**
+
+```hd
+fn client_of(s: Session) -> ^s.c Conn:
+    s.client
+
+fn proxy!(l: Listener) -> Conn:
+    keep := l.accept!()
+    up := connect!("db")
+    defer: up.close!()
+    client_of(Session { client: keep, upstream: up })   # fine: only ^keep comes out
+```
+
+**T2.** `s.client = s.upstream` is an error unless `^c` and `^u` are the
+same lifetime, as in Rust.
+
+**T3.** A REPL input `c := connect!("db")` binds a static root.
+
 
 ## Sources
 
