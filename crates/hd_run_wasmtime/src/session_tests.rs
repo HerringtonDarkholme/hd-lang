@@ -1266,3 +1266,97 @@ fn a_rebuilt_session_runs_no_child_again() {
     });
     let _ = std::fs::remove_file(&path);
 }
+
+/// `cli.repl.cancel` and `std-host.op.wait`: a Stop while an input waits
+/// on `accept!` cancels the input at once.
+#[test]
+fn a_stop_during_accept_cancels_the_input() {
+    use std::time::{Duration, Instant};
+    let port = std::net::TcpListener::bind("127.0.0.1:0")
+        .and_then(|l| l.local_addr())
+        .expect("a free port")
+        .port();
+    let inputs = [
+        "use std.net.{Net, NetError}\n".to_owned(),
+        "fn accept_one!(port: u16) -> string $ Net:\n    let mut net = $.use(Net)\n    let mut listener = match net.listen!(\"127.0.0.1\", port):\n        .Ok(l) => l\n        .Err(e) => return \"${e}\"\n    match listener.accept!():\n        .Ok(_) => \"accepted\"\n        .Err(e) => \"${e}\"\n".to_owned(),
+    ];
+    with_session(|session, io| {
+        let stopper = session.stopper();
+        let mut repl = repl(session);
+        for input in &inputs {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        let built = repl.build(&format!("x := accept_one!({port})\n"));
+        let stopping = {
+            let stopper = stopper.clone();
+            std::thread::spawn(move || {
+                let until = Instant::now() + Duration::from_secs(10);
+                while !stopper.waiting() && Instant::now() < until {
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+                stopper.stop();
+            })
+        };
+        let started = Instant::now();
+        let outcome = repl.run(built);
+        let took = started.elapsed();
+        stopping.join().expect("the stopping thread");
+        assert_eq!(outcome, Outcome::Exit(3));
+        assert_eq!(text(&io.err), "cancelled\n");
+        assert!(
+            took < Duration::from_secs(10),
+            "the cancel waited: {took:?}"
+        );
+        assert!(!repl.session.pending(), "the accept is still pending");
+    });
+}
+
+/// `cli.repl.host.once`: a rebuilt session serves `connect!` and `read!`
+/// from its journal and makes no network call: the server sees one
+/// connection, and the output shown later is the first run's.
+#[test]
+fn a_rebuilt_session_makes_no_network_call() {
+    use std::io::Write;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let server = std::net::TcpListener::bind("127.0.0.1:0").expect("binds");
+    let port = server.local_addr().expect("an address").port();
+    let connections = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&connections);
+    // Detached: it waits in `accept` until the test binary ends.
+    std::thread::spawn(move || {
+        for mut stream in server.incoming().flatten() {
+            counted.fetch_add(1, Ordering::SeqCst);
+            let _ = stream.write_all(b"hi");
+        }
+    });
+    let inputs = [
+        "use std.net.{Net, NetError}\n".to_owned(),
+        "fn fetch!(port: u16) -> string $ Net:\n    let mut net = $.use(Net)\n    let mut stream = match net.connect!(\"127.0.0.1\", port):\n        .Ok(s) => s\n        .Err(e) => return \"${e}\"\n    match stream.read!(100):\n        .Ok(bytes) => \"read ${bytes.len()}\"\n        .Err(e) => \"${e}\"\n".to_owned(),
+        format!("out := fetch!({port})\n"),
+        "out\n".to_owned(),
+    ];
+    with_session(|session, io| {
+        let mut repl = repl_with_prelude(session);
+        for input in &inputs {
+            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
+        }
+        let shown = text(&io.out);
+        assert!(shown.contains("\"read 2\""), "{shown}");
+        assert_eq!(connections.load(Ordering::SeqCst), 1);
+        let calls = repl.session.host_calls();
+        let rebuilt = repl.rebuild();
+        assert_eq!(
+            rebuilt,
+            crate::Rebuilt {
+                kept: (0..=4).collect(),
+                ..crate::Rebuilt::default()
+            }
+        );
+        assert_eq!(repl.session.host_calls(), calls, "a host call repeated");
+        assert_eq!(connections.load(Ordering::SeqCst), 1, "connected again");
+        assert_eq!(text(&io.out), "", "a replayed input printed again");
+        assert_eq!(repl.input("out\n"), Outcome::Exit(0), "{}", text(&io.err));
+        assert_eq!(text(&io.out), shown);
+    });
+}

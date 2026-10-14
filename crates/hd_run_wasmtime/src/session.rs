@@ -357,7 +357,7 @@ impl WasmtimeSession {
     /// status 0 there are none: the next input defines its own.
     fn reset(&mut self) -> Result<(), String> {
         let store = &mut self.run.store;
-        store.data_mut().reactor.drop_all();
+        store.data_mut().drop_pending();
         for global in &self.runtime {
             let ty = global.ty(&*store);
             let initial = Val::default_for_ty(ty.content())

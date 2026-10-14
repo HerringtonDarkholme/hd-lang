@@ -78,7 +78,7 @@ pub(crate) fn covers_lookup(grants: &Grants, host: &str) -> bool {
 mod tests {
     use super::{covers_lookup, valid_host};
     use crate::codec::Enc;
-    use crate::net::client::Client;
+    use crate::net::test_support::Net;
     use hd_run::{Grants, Limit};
 
     #[test]
@@ -111,9 +111,9 @@ mod tests {
         assert!(covers_lookup(&grants, "one.example"));
         assert!(!covers_lookup(&grants, "example"));
         assert!(!covers_lookup(&grants, "one.EXAMPLE"));
-        let mut client = Client::default();
+        let mut net = Net::new();
         for host in ["0:0:0:0:0:0:0:1", "fe80::1%lo0"] {
-            let actual = client
+            let actual = net
                 .call(
                     "lookup",
                     &[i64::try_from(host.len()).unwrap()],

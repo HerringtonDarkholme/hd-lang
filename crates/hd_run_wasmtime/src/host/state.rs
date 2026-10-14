@@ -6,7 +6,7 @@ use hd_run::{Grants, Outcome};
 use wasmtime::Memory;
 
 use super::{Control, Stop};
-use crate::reactor::Reactor;
+use crate::reactor::{Done, Reactor, Work};
 use crate::{http, net};
 
 /// Where a run's standard streams go: the process's own, or buffers a
@@ -141,7 +141,7 @@ impl Host {
         self.memory = None;
         self.reported = false;
         self.heap = crate::limits::HeapBudget::new(self.memory_bytes);
-        self.reactor.drop_all();
+        self.drop_pending();
         self.journal = Some(journal);
         self.replay = None;
         self.muted = false;
@@ -223,14 +223,18 @@ impl Host {
     pub(crate) fn control(&mut self, event: Control) -> Option<Outcome> {
         let (status, close) = match event {
             Control::Abort(handle) => {
-                self.reactor.remove(handle);
+                if let Some(Work::Offloaded(Some(Done::Net(done)))) =
+                    self.reactor.remove(handle).map(|op| op.work)
+                {
+                    self.net.unread(done);
+                }
                 return None;
             }
             Control::Exit { status, close } => (status, close),
             // A trapped run's pending operations can never finish: end
             // them, so a child it started is killed before the run ends.
             Control::Trap { close } => {
-                self.reactor.drop_all();
+                self.drop_pending();
                 (3, close)
             }
         };
@@ -239,6 +243,17 @@ impl Host {
             self.close();
         }
         Some(Outcome::Exit(u8::try_from(status & 0xff).unwrap_or(1)))
+    }
+
+    /// Ends every pending operation (`Reactor::drop_all`). What completed
+    /// reads and receives took stays for the next call on their sockets,
+    /// which outlive a session's input (`std-net.cancel.read`).
+    pub(crate) fn drop_pending(&mut self) {
+        for done in self.reactor.drop_all() {
+            if let Done::Net(done) = done {
+                self.net.unread(done);
+            }
+        }
     }
 
     /// Releases sockets and HTTP worker guards even for a retained instance.

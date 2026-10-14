@@ -275,7 +275,8 @@ impl Program {
     }
 
     /// ABI call with scalar arguments followed by an optional exchange
-    /// buffer argument. Waiting calls must complete synchronously here.
+    /// buffer argument. A waiting call whose `.start` is pending waits in
+    /// `block` and takes its result from `.finish`.
     pub fn abi_call(
         &mut self,
         module: &str,
@@ -308,11 +309,23 @@ impl Program {
         }
         self.instructions(&[I::Call(index), I::LocalSet(0)]);
         if waits {
+            let block = self.import("hd:rt", "block", &[], &[ValType::I32]);
+            let finish = self.import(
+                module,
+                &format!("{method}.finish"),
+                &[ValType::I32],
+                &[ValType::I32],
+            );
             self.instructions(&[
                 I::LocalSet(1),
                 I::LocalGet(1),
                 I::If(BlockType::Empty),
-                I::Unreachable,
+                // The only pending operation, so the first batch holds it.
+                I::Call(block),
+                I::Drop,
+                I::LocalGet(0),
+                I::Call(finish),
+                I::LocalSet(0),
                 I::End,
             ]);
         }

@@ -10,7 +10,7 @@ use crate::codec::Enc;
 use crate::prim;
 use crate::profiles;
 use crate::reactor::{Done, NS_PER_MS, Work, now_ns};
-use crate::{core, fs};
+use crate::{core, fs, net};
 
 pub(crate) fn call(
     kind: Kind,
@@ -238,14 +238,35 @@ pub(crate) fn call(
                 None => Vec::new(),
             };
             let host = caller.data_mut();
-            let e = host
-                .net
-                .call_until(method, &args, &b, &host.grants, host.deadline())?;
-            if close {
-                Ret::encoded(e)
-            } else {
-                Ret::ready(e)?
+            match host.net.start(method, &args, &b, &host.grants)? {
+                net::client::Start::Ready(e) if close => Ret::encoded(e),
+                net::client::Start::Ready(e) => Ret::ready(e)?,
+                net::client::Start::Run(job) => {
+                    let resource = job.resource();
+                    match host
+                        .reactor
+                        .offload(async move { Done::Net(job.run().await) })
+                    {
+                        Ok(h) => Ret::pair(1, h),
+                        Err(error) => Ret::ready(net::client::not_run(&error, resource)?)?,
+                    }
+                }
             }
+        }
+        Kind::NetFinish => {
+            let h = handle(int_arg(params, 0)?);
+            let Some(op) = caller.data_mut().reactor.remove(h) else {
+                return Err(
+                    Stop::Contract("a finish of an operation that is not pending".into()).into(),
+                );
+            };
+            let Work::Offloaded(Some(Done::Net(done))) = op.work else {
+                return Err(Stop::Contract(
+                    "a finish of an operation that is not completed".into(),
+                )
+                .into());
+            };
+            Ret::encoded(caller.data_mut().net.finish(done)?)
         }
         Kind::RandomNext => {
             let b: [u8; 8] = core::random(8)?

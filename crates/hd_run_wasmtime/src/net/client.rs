@@ -1,66 +1,39 @@
-use std::collections::HashSet;
-use std::net::SocketAddr;
+//! The instance's side of `Net`: the socket handle table, and each
+//! operation's `.start` and `.finish` on the program thread.
+
+use std::collections::HashMap;
+use std::net::{Shutdown, SocketAddr};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, Sender};
-use std::thread::{self, JoinHandle};
-use std::time::Instant;
 
 use hd_run::Grants;
 
 use crate::codec::{Dec, Enc};
 use crate::host::Stop;
 
-use super::state::State;
-use super::validate::{at, covers_lookup, valid_host};
-use super::{CLEANUP_TIMEOUT, CLOSE, TICK};
+use super::ops::{Done, Got, Job, Opened, ended};
+use super::socket::{End, Stream, Udp, wrong_kind};
+use super::validate::{at, covers_lookup, ip_literal, valid_host};
 
+/// The sockets an instance opened, by handle.
 #[derive(Default)]
 pub struct Client {
-    pub(crate) worker: Option<Worker>,
-    pub(crate) known: HashSet<i64>,
-    pub(crate) closed: HashSet<i64>,
+    handles: HashMap<i64, Entry>,
+    next_handle: u64,
 }
 
-pub(crate) struct Worker {
-    pub(crate) requests: Sender<Request>,
-    pub(crate) stopped: Arc<AtomicBool>,
-    pub(crate) thread: Option<JoinHandle<()>>,
+enum Entry {
+    Stream(Arc<Stream>),
+    Listener(Arc<tokio::net::TcpListener>),
+    Udp(Arc<Udp>),
+    /// Closed, so every later operation is `Disposed`. A stream keeps its
+    /// socket, with only its write half shut, until the instance ends.
+    Closed(Option<Arc<Stream>>),
 }
 
-pub(crate) struct Request {
-    pub(crate) op: Op,
-    pub(crate) reply: Sender<Outcome>,
-    pub(crate) deadline: Option<Instant>,
-}
-
-pub(crate) enum Op {
-    Lookup(String),
-    Open {
-        method: &'static str,
-        host: String,
-        port: u16,
-    },
-    Read {
-        handle: i64,
-        max: u32,
-    },
-    Write {
-        handle: i64,
-        bytes: Vec<u8>,
-    },
-    Accept(i64),
-    Send {
-        handle: i64,
-        host: String,
-        port: u16,
-        bytes: Vec<u8>,
-    },
-    Receive {
-        handle: i64,
-        max: u32,
-    },
-    Close(i64),
+/// What a `.start` does: complete at once, or wait for `Job`.
+pub(crate) enum Start {
+    Ready(Enc),
+    Run(Job),
 }
 
 pub(crate) enum Value {
@@ -78,7 +51,7 @@ pub(crate) enum Outcome {
     Unknown,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct NetError {
     pub(crate) variant: u64,
     pub(crate) text: String,
@@ -94,37 +67,28 @@ impl NetError {
 }
 
 impl Client {
-    /// Requests owner shutdown and waits up to the bounded cleanup budget.
-    /// A delayed owner finishes releasing sockets after this method returns.
+    /// Closes every socket: the instance has ended. A stream's both
+    /// directions shut first, so its peer reads the end even while an
+    /// aborted task still holds it.
     pub(crate) fn stop(&mut self) {
-        self.worker.take();
-        self.known.clear();
-        self.closed.clear();
-    }
-
-    #[cfg(test)]
-    pub(crate) fn call(
-        &mut self,
-        method: &str,
-        params: &[i64],
-        bytes: &[u8],
-        grants: &Grants,
-    ) -> wasmtime::Result<Enc> {
-        self.call_until(method, params, bytes, grants, None)
-    }
-
-    /// Synchronous guest calls remain bounded by the program's deadline.
-    pub(crate) fn call_until(
-        &mut self,
-        method: &str,
-        params: &[i64],
-        bytes: &[u8],
-        grants: &Grants,
-        deadline: Option<Instant>,
-    ) -> wasmtime::Result<Enc> {
-        if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
-            return Err(Stop::TimeLimit.into());
+        for entry in self.handles.values() {
+            if let Entry::Stream(stream) | Entry::Closed(Some(stream)) = entry {
+                stream.shutdown(Shutdown::Both);
+            }
         }
+        self.handles.clear();
+    }
+
+    /// The `.start` of `method`, or its `close`. Refusals, unknown and
+    /// closed handles, and what the handle already holds complete at once;
+    /// the rest wait as a `Job`.
+    pub(crate) fn start(
+        &mut self,
+        method: &str,
+        params: &[i64],
+        bytes: &[u8],
+        grants: &Grants,
+    ) -> wasmtime::Result<Start> {
         let mut d = Dec::new(bytes);
         let scalar = |i: usize| {
             params
@@ -133,153 +97,213 @@ impl Client {
                 .ok_or_else(|| Stop::Contract(format!("argument {i} is not an integer")))
         };
         let resource = method.contains('.');
-        if resource && !self.known.contains(&scalar(0)?) {
-            return encode(Outcome::Unknown, true);
-        }
+        let ready = |outcome| encode(outcome, resource).map(Start::Ready);
+        let refused = |error| encode(Outcome::Error(error), resource).map(Start::Ready);
         // Closable Handles requires Disposed through every alias before any
-        // destination validation or grant check. Node's metadata-only worker
-        // preflight enforces the same precedence for UDP sends.
-        if resource && self.closed.contains(&scalar(0)?) {
-            return encode(Outcome::Disposed, true);
-        }
-        let op = match method {
-            "lookup" => {
+        // destination validation or grant check.
+        let entry = if resource {
+            match self.handles.get(&scalar(0)?) {
+                None => return ready(Outcome::Unknown),
+                Some(Entry::Closed(_)) => return ready(Outcome::Disposed),
+                Some(entry) => Some(entry),
+            }
+        } else {
+            None
+        };
+        let job = match (method, entry) {
+            ("lookup", _) => {
                 let host = String::from_utf8_lossy(bytes).into_owned();
                 if !valid_host(&host) {
-                    return encode(Outcome::Error(NetError::new(1, host)), false);
+                    return refused(NetError::new(1, host));
                 }
                 if !covers_lookup(grants, &host) {
-                    return encode(Outcome::Error(NetError::new(0, host)), false);
+                    return refused(NetError::new(0, host));
                 }
-                Op::Lookup(host)
+                // Node keeps a literal's spelling rather than formatting
+                // the address through an IPv6 canonicalizer.
+                if ip_literal(&host) {
+                    return ready(Outcome::Ok(Value::Addresses(vec![host])));
+                }
+                Job::Lookup(host)
             }
-            "connect" | "listen" | "bind_udp" => {
+            ("connect" | "listen" | "bind_udp", _) => {
                 let host = d.str()?;
                 let port = port(scalar(0)?)?;
                 if let Some(error) = at(grants, &host, port) {
-                    return encode(Outcome::Error(error), false);
+                    return refused(error);
                 }
-                let method = match method {
-                    "connect" => "connect",
-                    "listen" => "listen",
-                    _ => "bind_udp",
-                };
-                Op::Open { method, host, port }
+                if method == "connect" {
+                    Job::Connect { host, port }
+                } else {
+                    Job::Bind {
+                        udp: method == "bind_udp",
+                        host,
+                        port,
+                    }
+                }
             }
-            "TcpStream.read" => Op::Read {
-                handle: scalar(0)?,
-                max: unsigned(scalar(1)?),
-            },
-            "TcpStream.write" => Op::Write {
-                handle: scalar(0)?,
-                bytes: d.bytes()?.to_vec(),
-            },
-            "TcpListener.accept" => Op::Accept(scalar(0)?),
-            "UdpSocket.send_to" => {
+            ("TcpStream.read", Some(Entry::Stream(stream))) => {
+                let max = unsigned(scalar(1)?);
+                if max == 0 {
+                    return ready(Outcome::Ok(Value::Bytes(Vec::new())));
+                }
+                let mut state = stream.state();
+                if !state.unread.is_empty() {
+                    let n = state.unread.len().min(max);
+                    let bytes = state.unread.drain(..n).collect();
+                    return ready(Outcome::Ok(Value::Bytes(bytes)));
+                }
+                if let Some(end) = state.end.clone() {
+                    return match ended(end) {
+                        Ok(bytes) => ready(Outcome::Ok(Value::Bytes(bytes))),
+                        Err(error) => refused(error),
+                    };
+                }
+                Job::Read {
+                    stream: Arc::clone(stream),
+                    handle: scalar(0)?,
+                    max,
+                }
+            }
+            ("TcpStream.write", Some(Entry::Stream(stream))) => {
+                if matches!(stream.state().end, Some(End::Error(_))) {
+                    return refused(NetError::new(4, "cannot write to a failed TCP stream"));
+                }
+                Job::Write {
+                    stream: Arc::clone(stream),
+                    bytes: d.bytes()?.to_vec(),
+                }
+            }
+            ("TcpListener.accept", Some(Entry::Listener(listener))) => {
+                Job::Accept(Arc::clone(listener))
+            }
+            ("UdpSocket.send_to", Some(entry)) => {
                 let host = d.str()?;
                 let bytes = d.bytes()?.to_vec();
                 let port = port(scalar(1)?)?;
-                // A live send always validates its own destination grant.
+                // A live send always checks its own destination grant.
                 if let Some(error) = at(grants, &host, port) {
-                    return encode(Outcome::Error(error), true);
+                    return refused(error);
                 }
-                Op::Send {
-                    handle: scalar(0)?,
+                let Entry::Udp(socket) = entry else {
+                    return refused(wrong_kind());
+                };
+                Job::Send {
+                    socket: Arc::clone(socket),
                     host,
                     port,
                     bytes,
                 }
             }
-            "UdpSocket.receive" => Op::Receive {
-                handle: scalar(0)?,
-                max: unsigned(scalar(1)?),
-            },
-            "TcpStream.close" | "TcpListener.close" | "UdpSocket.close" => Op::Close(scalar(0)?),
+            ("UdpSocket.receive", Some(Entry::Udp(socket))) => {
+                let max = unsigned(scalar(1)?);
+                if let Some((mut bytes, peer)) = socket.unread().pop_front() {
+                    bytes.truncate(max);
+                    return ready(Outcome::Ok(Value::Datagram(bytes, peer)));
+                }
+                Job::Receive {
+                    socket: Arc::clone(socket),
+                    handle: scalar(0)?,
+                    max,
+                }
+            }
+            ("TcpStream.close" | "TcpListener.close" | "UdpSocket.close", Some(_)) => {
+                self.close(scalar(0)?);
+                return ready(Outcome::Ok(Value::None));
+            }
+            (
+                "TcpStream.read" | "TcpStream.write" | "TcpListener.accept" | "UdpSocket.receive",
+                Some(_),
+            ) => return refused(wrong_kind()),
             _ => return Err(Stop::Contract(format!("unknown Net method {method}")).into()),
         };
-        let outcome = self.request(op, deadline)?;
-        if let Outcome::Ok(Value::Handle(handle)) = &outcome {
-            self.known
-                .insert(i64::try_from(*handle).unwrap_or(i64::MAX));
-        }
-        if CLOSE.contains(&method) && matches!(outcome, Outcome::Ok(Value::None)) {
-            self.closed.insert(scalar(0)?);
-        }
-        encode(outcome, resource)
+        Ok(Start::Run(job))
     }
 
-    fn request(&mut self, op: Op, deadline: Option<Instant>) -> wasmtime::Result<Outcome> {
-        if self.worker.is_none() {
-            self.worker = Some(Worker::new()?);
-        }
-        let worker = self.worker.as_ref().expect("initialized worker");
-        let (reply, result) = mpsc::channel();
-        worker
-            .requests
-            .send(Request {
-                op,
-                reply,
-                deadline,
-            })
-            .map_err(|_| Stop::Internal("the Net worker stopped".into()))?;
-        let outcome = if let Some(deadline) = deadline {
-            match result.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
-                Ok(_) | Err(mpsc::RecvTimeoutError::Timeout) if Instant::now() >= deadline => {
-                    self.stop();
-                    return Err(Stop::TimeLimit.into());
-                }
-                Ok(outcome) => outcome,
-                Err(mpsc::RecvTimeoutError::Disconnected) => {
-                    return Err(Stop::Internal("the Net worker stopped".into()).into());
-                }
-                Err(mpsc::RecvTimeoutError::Timeout) => {
-                    self.stop();
-                    return Err(Stop::TimeLimit.into());
-                }
+    /// `close` keeps a stream's socket and shuts only its write half; a
+    /// listener's or a UDP socket's is dropped.
+    fn close(&mut self, handle: i64) {
+        let closed = match self.handles.remove(&handle) {
+            Some(Entry::Stream(stream)) => {
+                stream.shutdown(Shutdown::Write);
+                Some(stream)
             }
-        } else {
-            result
-                .recv()
-                .map_err(|_| Stop::Internal("the Net worker stopped".into()))?
+            Some(Entry::Closed(stream)) => stream,
+            _ => None,
         };
-        Ok(outcome)
+        self.handles.insert(handle, Entry::Closed(closed));
     }
-}
 
-impl Worker {
-    fn new() -> wasmtime::Result<Self> {
-        let (requests, input) = mpsc::channel();
-        let stopped = Arc::new(AtomicBool::new(false));
-        let stop = Arc::clone(&stopped);
-        let thread = thread::Builder::new()
-            .name("hd-net".into())
-            .spawn(move || State::default().serve(&input, &stop))
-            .map_err(|error| Stop::Internal(format!("could not start the Net worker: {error}")))?;
-        Ok(Self {
-            requests,
-            stopped,
-            thread: Some(thread),
-        })
+    /// The `.finish` of a completed operation: a new socket gets its handle
+    /// here, so handles follow the order the program takes results in.
+    pub(crate) fn finish(&mut self, done: Done) -> wasmtime::Result<Enc> {
+        let outcome = match done.result {
+            Err(error) => Outcome::Error(error),
+            Ok(Got::None) => Outcome::Ok(Value::None),
+            Ok(Got::Addresses(addresses)) => Outcome::Ok(Value::Addresses(addresses)),
+            Ok(Got::Opened(opened)) => Outcome::Ok(Value::Handle(self.open(opened))),
+            Ok(Got::Bytes { bytes, .. }) => Outcome::Ok(Value::Bytes(bytes)),
+            Ok(Got::Datagram {
+                mut bytes,
+                max,
+                peer,
+                ..
+            }) => {
+                bytes.truncate(max);
+                Outcome::Ok(Value::Datagram(bytes, peer))
+            }
+        };
+        encode(outcome, done.resource)
     }
-}
 
-impl Drop for Worker {
-    fn drop(&mut self) {
-        self.stopped.store(true, Ordering::Relaxed);
-        if let Some(thread) = self.thread.take() {
-            let until = Instant::now() + CLEANUP_TIMEOUT;
-            while !thread.is_finished() && Instant::now() < until {
-                thread::sleep(TICK);
+    /// Keeps what a completed `read!` or `receive!` took, when its
+    /// suspension was cancelled before `.finish` returned it, for the next
+    /// call on that handle (`std-net.cancel.read`).
+    pub(crate) fn unread(&mut self, done: Done) {
+        match done.result {
+            Ok(Got::Bytes { handle, bytes }) => {
+                if let Some(Entry::Stream(stream)) = self.handles.get(&handle) {
+                    let mut state = stream.state();
+                    for byte in bytes.into_iter().rev() {
+                        state.unread.push_front(byte);
+                    }
+                }
             }
-            if thread.is_finished() {
-                let _ = thread.join();
+            Ok(Got::Datagram {
+                handle,
+                bytes,
+                peer,
+                ..
+            }) => {
+                if let Some(Entry::Udp(socket)) = self.handles.get(&handle) {
+                    socket.unread().push_front((bytes, peer));
+                }
             }
+            _ => {}
         }
     }
+
+    fn open(&mut self, opened: Opened) -> u64 {
+        self.next_handle += 1;
+        let entry = match opened {
+            Opened::Stream(stream) => Entry::Stream(Arc::new(stream)),
+            Opened::Listener(listener) => Entry::Listener(Arc::new(listener)),
+            Opened::Udp(socket) => Entry::Udp(Arc::new(socket)),
+        };
+        self.handles
+            .insert(i64::try_from(self.next_handle).unwrap_or(i64::MAX), entry);
+        self.next_handle
+    }
 }
 
-fn unsigned(value: i64) -> u32 {
-    u32::from_le_bytes(value.to_le_bytes()[..4].try_into().unwrap_or([0; 4]))
+/// The result of an operation the runtime could not run.
+pub(crate) fn not_run(error: &str, resource: bool) -> wasmtime::Result<Enc> {
+    encode(Outcome::Error(NetError::new(4, error)), resource)
+}
+
+/// A `usize` count from the ABI's unsigned 32-bit value.
+fn unsigned(value: i64) -> usize {
+    u32::from_le_bytes(value.to_le_bytes()[..4].try_into().unwrap_or([0; 4])) as usize
 }
 
 fn port(value: i64) -> wasmtime::Result<u16> {
@@ -332,42 +356,55 @@ fn encode(outcome: Outcome, resource: bool) -> wasmtime::Result<Enc> {
 
 #[cfg(test)]
 mod tests {
-    use super::Client;
-    use crate::codec::Enc;
+    use crate::codec::{Dec, Enc};
     use crate::host::Stop;
-    use crate::net::state::SocketKind;
-    use crate::net::test_support::{
-        assert_owner_stopped, client_with_bound_socket, host_args, opened, owner_requests,
-    };
+    use crate::net::test_support::{Net, Started, host_args, result_bytes};
     use hd_run::{Grants, Limit};
-    use std::collections::VecDeque;
-    use std::io::Read;
-    use std::net::{TcpListener, UdpSocket};
+    use socket2::Socket;
+    use std::io::{Read, Write};
+    use std::net::{Shutdown, TcpListener, TcpStream, UdpSocket};
+    use std::sync::mpsc;
+    use std::thread;
     use std::time::{Duration, Instant};
 
+    fn pending(started: Started) -> i32 {
+        match started {
+            Started::Pending(h) => h,
+            Started::Ready(e) => panic!("completed at once: {:?}", e.done()),
+        }
+    }
+
+    fn ready(started: Started) -> Enc {
+        match started {
+            Started::Ready(e) => e,
+            Started::Pending(h) => panic!("operation {h} waits"),
+        }
+    }
+
+    fn read(net: &mut Net, handle: i64, max: i64) -> Started {
+        net.start("TcpStream.read", &[handle, max], &[], &Grants::default())
+            .unwrap()
+    }
+
     #[test]
-    fn refusal_is_lazy_and_unknown_handles_precede_destination_checks() {
-        let mut client = Client::default();
+    fn refusals_complete_at_once_and_unknown_handles_precede_destination_checks() {
+        let mut net = Net::new();
         let grants = Grants {
             limits: vec![("Net".into(), Limit::Deny)],
         };
         let mut expected = Enc::default();
         expected.leb(1).leb(0).str("127.0.0.1:9");
-        assert_eq!(
-            client
-                .call("connect", &[9, 0], host_args("127.0.0.1").done(), &grants)
-                .unwrap()
-                .done(),
-            expected.done()
-        );
-        assert!(client.worker.is_none());
+        let refused = net
+            .start("connect", &[9, 0], host_args("127.0.0.1").done(), &grants)
+            .unwrap();
+        assert_eq!(ready(refused).done(), expected.done());
         for bytes in [
             host_args("127.0.0.1"),
             host_args("bad host"),
             Enc::default(),
         ] {
-            let error = client
-                .call("UdpSocket.send_to", &[123, 9, 0], bytes.done(), &grants)
+            let error = net
+                .start("UdpSocket.send_to", &[123, 9, 0], bytes.done(), &grants)
                 .err()
                 .unwrap();
             assert_eq!(
@@ -375,143 +412,370 @@ mod tests {
                 "an operation on a handle the host never made"
             );
         }
-        assert!(client.worker.is_none());
-        let error = client
-            .call("TcpStream.close", &[123], &[], &Grants::default())
+        let error = net
+            .start("TcpStream.close", &[123], &[], &Grants::default())
             .err()
             .unwrap();
         assert_eq!(
             error.downcast_ref::<Stop>().unwrap().to_string(),
             "an operation on a handle the host never made"
         );
+        assert!(!net.reactor.waiting(), "nothing waits");
     }
+
     #[test]
-    fn expired_program_deadline_traps_without_starting_net_worker() {
-        let mut client = Client::default();
-        let error = client
-            .call_until(
-                "lookup",
-                &[],
-                b"127.0.0.1",
+    fn tcp_partial_reads_zero_read_eof_and_disposal_are_sticky() {
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = server.local_addr().unwrap().port();
+        let writer = thread::spawn(move || {
+            let (mut socket, _) = server.accept().unwrap();
+            socket
+                .set_read_timeout(Some(Duration::from_secs(10)))
+                .unwrap();
+            socket.write_all(b"abcdef").unwrap();
+            socket.shutdown(Shutdown::Write).unwrap();
+            let mut ack = [0; 1];
+            socket.read_exact(&mut ack).unwrap();
+            assert_eq!(ack, *b"x");
+        });
+        let mut net = Net::new();
+        let handle = net.opened("connect", port);
+        assert_eq!(net.read_n(handle, 2, 2), b"ab");
+        assert!(result_bytes(&ready(read(&mut net, handle, 0))).is_empty());
+        assert_eq!(net.read_n(handle, 4, i64::from(i32::MIN)), b"cdef");
+        for _ in 0..2 {
+            let eof = net
+                .call("TcpStream.read", &[handle, 5], &[], &Grants::default())
+                .unwrap();
+            assert!(result_bytes(&eof).is_empty());
+        }
+        let actual = net
+            .call(
+                "TcpStream.write",
+                &[handle, 0],
+                Enc::default().bytes(b"x").done(),
                 &Grants::default(),
-                Some(Instant::now()),
             )
-            .err()
-            .expect("program deadline traps");
-        assert!(matches!(
-            error.downcast_ref::<Stop>(),
-            Some(Stop::TimeLimit)
-        ));
-        assert!(client.worker.is_none());
+            .unwrap();
+        assert_eq!(
+            actual.done(),
+            &[0],
+            "read EOF does not close the write half"
+        );
+        assert_eq!(
+            net.call("TcpStream.close", &[handle], &[], &Grants::default())
+                .unwrap()
+                .done(),
+            &[0]
+        );
+        for (method, params) in [
+            ("TcpStream.close", vec![handle]),
+            ("TcpStream.read", vec![handle, 1]),
+        ] {
+            assert_eq!(
+                net.call(method, &params, &[], &Grants::default())
+                    .unwrap()
+                    .done(),
+                &[1, 1]
+            );
+        }
+        writer.join().unwrap();
+        net.client.stop();
     }
+
     #[test]
-    fn program_deadline_interrupts_read_and_backpressured_write_and_releases_stream() {
-        for writing in [false, true] {
-            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-            let mut client = Client::default();
-            let handle = opened(
-                &mut client,
+    fn udp_receives_one_datagram_and_zero_max_still_consumes_one() {
+        let peer = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let port = peer.local_addr().unwrap().port();
+        peer.set_read_timeout(Some(Duration::from_secs(10)))
+            .unwrap();
+        let server = thread::spawn(move || {
+            let mut bytes = [0; 16];
+            let (n, from) = peer.recv_from(&mut bytes).unwrap();
+            assert_eq!(&bytes[..n], b"ping");
+            peer.send_to(b"hello", from).unwrap();
+            peer.send_to(b"", from).unwrap();
+            peer.send_to(b"wide", from).unwrap();
+        });
+        let mut net = Net::new();
+        let handle = net.opened("bind_udp", 0);
+        let mut args = host_args("127.0.0.1");
+        args.bytes(b"ping");
+        assert_eq!(
+            net.call(
+                "UdpSocket.send_to",
+                &[handle, i64::from(port), 0],
+                args.done(),
+                &Grants::default()
+            )
+            .unwrap()
+            .done(),
+            &[0]
+        );
+        for (max, bytes) in [
+            (2, &b"he"[..]),
+            (0, &b""[..]),
+            (i64::from(i32::MIN), &b"wide"[..]),
+        ] {
+            let actual = net
+                .call("UdpSocket.receive", &[handle, max], &[], &Grants::default())
+                .unwrap();
+            let mut d = Dec::new(actual.done());
+            assert_eq!(d.leb().unwrap(), 0);
+            assert_eq!(d.bytes().unwrap(), bytes);
+            assert_eq!(d.str().unwrap(), "127.0.0.1");
+            assert_eq!(d.leb().unwrap(), u64::from(port));
+        }
+        server.join().unwrap();
+        net.client.stop();
+    }
+
+    /// `std-net.cancel.read`: a read cancelled while it waits takes nothing,
+    /// and one cancelled after it completed, before its `.finish`, gives
+    /// its bytes back. Either way the next reads return the first bytes.
+    #[test]
+    fn a_cancelled_read_leaves_its_bytes_for_the_next_read() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut net = Net::new();
+        let handle = net.opened("connect", listener.local_addr().unwrap().port());
+        let (mut peer, _) = listener.accept().unwrap();
+        let waiting = pending(read(&mut net, handle, 8));
+        net.abort(waiting);
+        peer.write_all(b"abc").unwrap();
+        assert_eq!(net.read_n(handle, 3, 8), b"abc");
+        let completed = pending(read(&mut net, handle, 8));
+        peer.write_all(b"xyz").unwrap();
+        net.wait_for(completed);
+        net.abort(completed);
+        assert_eq!(result_bytes(&ready(read(&mut net, handle, 2))), b"xy");
+        assert_eq!(result_bytes(&ready(read(&mut net, handle, 8))), b"z");
+        assert!(!net.reactor.waiting());
+        net.client.stop();
+    }
+
+    /// As a read, a receive cancelled after it completed gives its whole
+    /// datagram back for the next receive.
+    #[test]
+    fn a_cancelled_receive_leaves_its_datagram_for_the_next_receive() {
+        let peer = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let mut net = Net::new();
+        let handle = net.opened("bind_udp", 0);
+        let mut args = host_args("127.0.0.1");
+        args.bytes(b"hi");
+        net.call(
+            "UdpSocket.send_to",
+            &[handle, i64::from(peer.local_addr().unwrap().port()), 0],
+            args.done(),
+            &Grants::default(),
+        )
+        .unwrap();
+        let mut bytes = [0; 8];
+        let (_, address) = peer.recv_from(&mut bytes).unwrap();
+        let receive = |net: &mut Net, max: i64| {
+            net.start("UdpSocket.receive", &[handle, max], &[], &Grants::default())
+                .unwrap()
+        };
+        let waiting = pending(receive(&mut net, 8));
+        net.abort(waiting);
+        let completed = pending(receive(&mut net, 1));
+        peer.send_to(b"datagram", address).unwrap();
+        net.wait_for(completed);
+        net.abort(completed);
+        let kept = ready(receive(&mut net, 8));
+        let mut d = Dec::new(kept.done());
+        assert_eq!(d.leb().unwrap(), 0);
+        assert_eq!(d.bytes().unwrap(), b"datagram");
+        net.client.stop();
+    }
+
+    /// `std-host.op.wait`: an accept and a connect to it wait together, so
+    /// both complete.
+    #[test]
+    fn an_accept_and_a_connect_to_it_complete_together() {
+        let port = TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
+        let mut net = Net::new();
+        let listener = net.opened("listen", port);
+        let accept = pending(
+            net.start("TcpListener.accept", &[listener], &[], &Grants::default())
+                .unwrap(),
+        );
+        let connect = pending(
+            net.start(
                 "connect",
-                listener.local_addr().unwrap().port(),
+                &[i64::from(port), 0],
+                host_args("127.0.0.1").done(),
+                &Grants::default(),
+            )
+            .unwrap(),
+        );
+        net.wait_for(accept);
+        net.wait_for(connect);
+        assert_eq!(net.finish(accept).done(), &[0, 2]);
+        assert_eq!(net.finish(connect).done(), &[0, 3]);
+        let mut args = Enc::default();
+        args.bytes(b"ok");
+        net.call("TcpStream.write", &[3, 0], args.done(), &Grants::default())
+            .unwrap();
+        assert_eq!(net.read_n(2, 2, 8), b"ok");
+        net.client.stop();
+    }
+
+    /// An abort ends a waiting accept, receive or backpressured write at
+    /// once, and the socket goes on working.
+    #[test]
+    fn an_abort_ends_a_waiting_accept_receive_or_write_at_once() {
+        let port = TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
+        let mut net = Net::new();
+        let listener = net.opened("listen", port);
+        let udp = net.opened("bind_udp", 0);
+        let accept = pending(
+            net.start("TcpListener.accept", &[listener], &[], &Grants::default())
+                .unwrap(),
+        );
+        let receive = pending(
+            net.start("UdpSocket.receive", &[udp, 8], &[], &Grants::default())
+                .unwrap(),
+        );
+        let start = Instant::now();
+        net.abort(accept);
+        net.abort(receive);
+        assert!(start.elapsed() < Duration::from_secs(1));
+        // The listener still accepts: the connection waited in the kernel.
+        let client = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        assert_eq!(
+            net.call("TcpListener.accept", &[listener], &[], &Grants::default())
+                .unwrap()
+                .done(),
+            &[0, 3]
+        );
+        let stream = net.opened("connect", server.local_addr().unwrap().port());
+        let (peer, _) = server.accept().unwrap();
+        socket2::SockRef::from(&peer)
+            .set_recv_buffer_size(4096)
+            .unwrap();
+        let mut payload = Enc::default();
+        payload.bytes(&vec![b'x'; 16 * 1024 * 1024]);
+        let write = pending(
+            net.start(
+                "TcpStream.write",
+                &[stream, 0],
+                payload.done(),
+                &Grants::default(),
+            )
+            .unwrap(),
+        );
+        let start = Instant::now();
+        net.abort(write);
+        assert!(start.elapsed() < Duration::from_secs(1));
+        assert!(!net.reactor.waiting());
+        drop(client);
+        net.client.stop();
+    }
+
+    /// The instance's end closes a stream whose read still waits, so the
+    /// peer reads the end at once.
+    #[test]
+    fn stop_closes_a_stream_with_a_waiting_read() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut net = Net::new();
+        let handle = net.opened("connect", listener.local_addr().unwrap().port());
+        let (mut peer, _) = listener.accept().unwrap();
+        peer.set_read_timeout(Some(Duration::from_secs(10)))
+            .unwrap();
+        let waiting = pending(read(&mut net, handle, 1));
+        net.client.stop();
+        assert_eq!(peer.read(&mut [0; 1]).unwrap(), 0);
+        net.abort(waiting);
+    }
+
+    #[test]
+    fn closed_udp_send_is_disposed_before_denied_or_invalid_destination() {
+        let mut net = Net::new();
+        let handle = net.opened("bind_udp", 0);
+        assert_eq!(
+            net.call("UdpSocket.close", &[handle], &[], &Grants::default())
+                .unwrap()
+                .done(),
+            &[0]
+        );
+        let denied = Grants {
+            limits: vec![("Net".into(), Limit::Deny)],
+        };
+        for host in ["127.0.0.1", "invalid/host"] {
+            let mut args = host_args(host);
+            args.bytes(b"x");
+            assert_eq!(
+                net.call("UdpSocket.send_to", &[handle, 9, 0], args.done(), &denied)
+                    .unwrap()
+                    .done(),
+                &[1, 1]
             );
-            let (mut peer, _) = listener.accept().unwrap();
-            peer.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
-            let mut payload = Enc::default();
-            if writing {
-                socket2::SockRef::from(&peer)
-                    .set_recv_buffer_size(4096)
-                    .unwrap();
-                payload.bytes(&vec![b'x'; 16 * 1024 * 1024]);
-            }
-            let method = if writing {
-                "TcpStream.write"
-            } else {
-                "TcpStream.read"
-            };
-            let start = Instant::now();
-            let error = client
-                .call_until(
-                    method,
-                    &[handle, 1],
-                    payload.done(),
-                    &Grants::default(),
-                    Some(start + Duration::from_millis(50)),
-                )
-                .err()
-                .expect("program deadline traps");
-            assert!(matches!(
-                error.downcast_ref::<Stop>(),
-                Some(Stop::TimeLimit)
-            ));
-            assert!(
-                client.worker.is_none(),
-                "timeout stops and releases guest's socket owner"
-            );
-            assert!(start.elapsed() < Duration::from_millis(500));
-            if !writing {
-                assert_eq!(
-                    peer.read(&mut [0; 1]).unwrap(),
-                    0,
-                    "read cancellation closes peer stream"
-                );
-            }
         }
     }
+
     #[test]
-    fn program_deadline_interrupts_accept_and_releases_listener_before_returning() {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        listener.set_nonblocking(true).unwrap();
-        let mut client = client_with_bound_socket(SocketKind::Listener {
-            socket: Some(listener),
-            inbox: VecDeque::default(),
-            end: None,
+    fn tcp_reset_is_sticky_after_queued_bytes_are_delivered() {
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = server.local_addr().unwrap().port();
+        let (ack, ready_to_reset) = mpsc::channel();
+        let peer = thread::spawn(move || {
+            let (mut stream, _) = server.accept().unwrap();
+            stream.write_all(b"abc").unwrap();
+            ready_to_reset
+                .recv_timeout(Duration::from_secs(10))
+                .unwrap();
+            let socket = Socket::from(stream);
+            socket.set_linger(Some(Duration::ZERO)).unwrap();
         });
-        let requests = owner_requests(&client);
-        let start = Instant::now();
-        let error = client
-            .call_until(
-                "TcpListener.accept",
-                &[1],
-                &[],
-                &Grants::default(),
-                Some(start + Duration::from_millis(50)),
+        let mut net = Net::new();
+        let handle = net.opened("connect", port);
+        assert_eq!(net.read_n(handle, 3, 3), b"abc");
+        ack.send(()).unwrap();
+        peer.join().unwrap();
+        let first = net
+            .call("TcpStream.read", &[handle, 3], &[], &Grants::default())
+            .unwrap();
+        let mut decoded = Dec::new(first.done());
+        assert_eq!(decoded.leb().unwrap(), 1);
+        assert_eq!(decoded.leb().unwrap(), 0);
+        assert_eq!(decoded.leb().unwrap(), 4);
+        assert!(decoded.str().unwrap().starts_with("read: "));
+        let again = net
+            .call("TcpStream.read", &[handle, 3], &[], &Grants::default())
+            .unwrap();
+        assert_eq!(
+            again.done(),
+            first.done(),
+            "the native read error remains sticky"
+        );
+        let mut args = Enc::default();
+        args.bytes(b"x");
+        let mut expected = Enc::default();
+        expected
+            .leb(1)
+            .leb(0)
+            .leb(4)
+            .str("cannot write to a failed TCP stream");
+        assert_eq!(
+            net.call(
+                "TcpStream.write",
+                &[handle, 0],
+                args.done(),
+                &Grants::default()
             )
-            .err()
-            .expect("program deadline traps");
-        assert!(matches!(
-            error.downcast_ref::<Stop>(),
-            Some(Stop::TimeLimit)
-        ));
-        assert!(start.elapsed() < Duration::from_millis(500));
-        assert_owner_stopped(&client, &requests);
-    }
-    #[test]
-    fn program_deadline_interrupts_receive_and_releases_udp_before_returning() {
-        let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
-        socket.set_nonblocking(true).unwrap();
-        let mut client = client_with_bound_socket(SocketKind::Udp {
-            socket: Some(socket),
-            inbox: VecDeque::default(),
-            end: None,
-            ipv6: false,
-        });
-        let requests = owner_requests(&client);
-        let start = Instant::now();
-        let error = client
-            .call_until(
-                "UdpSocket.receive",
-                &[1, 1],
-                &[],
-                &Grants::default(),
-                Some(start + Duration::from_millis(50)),
-            )
-            .err()
-            .expect("program deadline traps");
-        assert!(matches!(
-            error.downcast_ref::<Stop>(),
-            Some(Stop::TimeLimit)
-        ));
-        assert!(start.elapsed() < Duration::from_millis(500));
-        assert_owner_stopped(&client, &requests);
+            .unwrap()
+            .done(),
+            expected.done()
+        );
+        net.client.stop();
     }
 }

@@ -26,6 +26,7 @@ pub(crate) enum Kind {
         input: Option<usize>,
         close: bool,
     },
+    NetFinish,
     NeverFinish,
     RandomNext,
     RandomFill,
@@ -91,6 +92,7 @@ impl Kind {
             Self::Fixture { finish: true, .. }
             | Self::Fs { finish: true, .. }
             | Self::ProcessFinish
+            | Self::NetFinish
             | Self::NeverFinish
             | Self::WriteLineFinish
             | Self::ReadLineFinish
@@ -221,7 +223,7 @@ impl Kind {
                     input,
                     close: false,
                 }),
-                "finish" => Some(Kind::NeverFinish),
+                "finish" => Some(Kind::NetFinish),
                 _ => None,
             };
         }

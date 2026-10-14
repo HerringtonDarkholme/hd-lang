@@ -1,428 +1,356 @@
-use std::io::{self, Write};
-use std::net::Shutdown;
-use std::sync::atomic::AtomicBool;
-use std::thread;
+//! The `Net` operations that wait, each run as one task on the `hd-io`
+//! runtime (wasmtime-host-audit.md §4.3). Every wait is a tokio readiness
+//! wait, so nothing polls. `read`, `accept` and `receive` take nothing
+//! from the socket until they complete, so aborting one leaves the bytes,
+//! the connection or the datagram in the kernel for the next call
+//! (`std-net.cancel.read`).
 
-use super::TICK;
-use super::client::{NetError, Op, Outcome, Value};
-use super::socket::{cancelled, resolve, socket_error, wrong_kind};
-use super::state::{End, SocketKind, State, stream};
+use std::io;
+use std::net::{Ipv6Addr, Shutdown, SocketAddr};
+use std::sync::Arc;
+
+use super::CHUNK;
+use super::client::NetError;
+use super::socket::{Bound, End, Stream, Udp, bind, connect_attempts, resolve, socket_error};
 use super::validate::ip_literal;
 
-impl State {
-    pub(crate) fn handle_op(&mut self, op: &Op, stop: &AtomicBool) -> Outcome {
-        let number = match op {
-            Op::Read { handle, .. }
-            | Op::Write { handle, .. }
-            | Op::Send { handle, .. }
-            | Op::Receive { handle, .. } => *handle,
-            Op::Accept(handle) | Op::Close(handle) => *handle,
-            _ => unreachable!("a handle operation"),
-        };
-        let Some(handle) = self.handles.get(&number) else {
-            return Outcome::Unknown;
-        };
-        if handle.closed {
-            return Outcome::Disposed;
-        }
-        if let Op::Close(_) = op {
-            let handle = self.handles.get_mut(&number).expect("existing handle");
-            match &mut handle.socket {
-                SocketKind::Stream { socket, .. } => {
-                    let _ = socket.shutdown(Shutdown::Write);
-                }
-                SocketKind::Listener { socket, .. } => {
-                    socket.take();
-                }
-                SocketKind::Udp { socket, .. } => {
-                    socket.take();
-                }
-            }
-            handle.closed = true;
-            return Outcome::Ok(Value::None);
-        }
-        if let Op::Send { host, port, .. } = op {
-            let addresses = match resolve(host, *port, stop, self.deadline) {
-                Ok(a) => a,
-                Err(e) => return Outcome::Error(e),
-            };
-            let SocketKind::Udp {
-                socket: Some(_),
-                ipv6,
-                ..
-            } = &handle.socket
-            else {
-                return wrong_kind();
-            };
-            let address = if ip_literal(host) {
-                addresses.into_iter().next()
-            } else {
-                addresses.into_iter().find(|a| a.is_ipv6() == *ipv6)
-            };
-            let Some(address) = address else {
-                return Outcome::Error(NetError::new(2, host));
-            };
+/// An operation that `.start` checked and that now waits.
+pub(crate) enum Job {
+    Lookup(String),
+    Connect {
+        host: String,
+        port: u16,
+    },
+    Bind {
+        udp: bool,
+        host: String,
+        port: u16,
+    },
+    Read {
+        stream: Arc<Stream>,
+        handle: i64,
+        max: usize,
+    },
+    Write {
+        stream: Arc<Stream>,
+        bytes: Vec<u8>,
+    },
+    Accept(Arc<tokio::net::TcpListener>),
+    Send {
+        socket: Arc<Udp>,
+        host: String,
+        port: u16,
+        bytes: Vec<u8>,
+    },
+    Receive {
+        socket: Arc<Udp>,
+        handle: i64,
+        max: usize,
+    },
+}
 
-            let Op::Send { bytes, .. } = op else {
-                unreachable!()
-            };
-            loop {
-                if cancelled(stop, self.deadline) {
-                    return Outcome::Error(NetError::new(4, "the socket stopped"));
-                }
-                let SocketKind::Udp {
-                    socket: Some(socket),
-                    ..
-                } = &self.handles.get(&number).expect("existing handle").socket
-                else {
-                    unreachable!()
-                };
-                match socket.send_to(bytes, address) {
-                    Ok(_) => return Outcome::Ok(Value::None),
-                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
-                    Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
-                    Err(error) => {
-                        return Outcome::Error(socket_error(
-                            &error,
-                            "send",
-                            Some(address),
-                            host,
-                            *port,
-                        ));
-                    }
-                }
-                self.arrivals(stop);
-                thread::sleep(TICK);
+/// A completed operation, for its `.finish` to encode.
+pub struct Done {
+    /// Whether the result is a handle's, `Result[T, ResourceError[NetError]]`.
+    pub(crate) resource: bool,
+    pub(crate) result: Result<Got, NetError>,
+}
+
+pub(crate) enum Got {
+    None,
+    Addresses(Vec<String>),
+    /// A new socket, which `.finish` puts in the handle table.
+    Opened(Opened),
+    /// A read's bytes from the stream with handle `handle`.
+    Bytes {
+        handle: i64,
+        bytes: Vec<u8>,
+    },
+    /// A whole datagram from the socket with handle `handle`, which
+    /// `.finish` cuts to `max` bytes.
+    Datagram {
+        handle: i64,
+        bytes: Vec<u8>,
+        max: usize,
+        peer: SocketAddr,
+    },
+}
+
+pub(crate) enum Opened {
+    Stream(Stream),
+    Listener(tokio::net::TcpListener),
+    Udp(Udp),
+}
+
+impl Job {
+    /// Whether the operation is a handle's.
+    pub(crate) fn resource(&self) -> bool {
+        !matches!(
+            self,
+            Job::Lookup(_) | Job::Connect { .. } | Job::Bind { .. }
+        )
+    }
+
+    pub(crate) async fn run(self) -> Done {
+        let resource = self.resource();
+        let result = match self {
+            Job::Lookup(host) => lookup(&host).await,
+            Job::Connect { host, port } => connect(&host, port).await,
+            Job::Bind { udp, host, port } => open(udp, &host, port).await,
+            Job::Read {
+                stream,
+                handle,
+                max,
+            } => read(&stream, max)
+                .await
+                .map(|bytes| Got::Bytes { handle, bytes }),
+            Job::Write { stream, bytes } => write(&stream, &bytes).await.map(|()| Got::None),
+            Job::Accept(listener) => match listener.accept().await {
+                Ok((socket, _)) => Ok(Got::Opened(Opened::Stream(Stream::new(socket)))),
+                Err(error) => Err(socket_error(&error, "accept", None, "", 0)),
+            },
+            Job::Send {
+                socket,
+                host,
+                port,
+                bytes,
+            } => send_to(&socket, &host, port, &bytes).await,
+            Job::Receive {
+                socket,
+                handle,
+                max,
+            } => receive(&socket).await.map(|(bytes, peer)| Got::Datagram {
+                handle,
+                bytes,
+                max,
+                peer,
+            }),
+        };
+        Done { resource, result }
+    }
+}
+
+async fn lookup(host: &str) -> Result<Got, NetError> {
+    let addresses = resolve(host, 0).await?;
+    Ok(Got::Addresses(
+        addresses.iter().map(|a| a.ip().to_string()).collect(),
+    ))
+}
+
+/// Tries each candidate in Node's family order, giving every one but the
+/// last 250 ms; the first failure names the error.
+pub(crate) async fn connect(host: &str, port: u16) -> Result<Got, NetError> {
+    let addresses = resolve(host, port).await?;
+    connect_candidates(addresses, host, port)
+        .await
+        .map(|socket| Got::Opened(Opened::Stream(Stream::new(socket))))
+}
+
+pub(crate) async fn connect_candidates(
+    addresses: Vec<SocketAddr>,
+    host: &str,
+    port: u16,
+) -> Result<tokio::net::TcpStream, NetError> {
+    let mut first_error = None;
+    for attempt in connect_attempts(addresses) {
+        let connecting = tokio::net::TcpStream::connect(attempt.address);
+        // A candidate past its time is dropped, which closes it, before the
+        // next family is tried, as Node's automatic-family timer does.
+        let result = match attempt.timeout {
+            Some(timeout) => tokio::time::timeout(timeout, connecting)
+                .await
+                .unwrap_or_else(|_| Err(io::ErrorKind::TimedOut.into())),
+            None => connecting.await,
+        };
+        match result {
+            Ok(socket) => return Ok(socket),
+            Err(error) => {
+                first_error.get_or_insert_with(|| {
+                    socket_error(&error, "connect", Some(attempt.address), host, port)
+                });
             }
         }
-        let mut written = 0;
-        loop {
-            if cancelled(stop, self.deadline) {
-                return Outcome::Error(NetError::new(4, "the socket stopped"));
-            }
-            self.arrivals(stop);
-            let handle = self.handles.get_mut(&number).expect("existing handle");
-            match (op, &mut handle.socket) {
-                (
-                    Op::Read { max, .. },
-                    SocketKind::Stream {
-                        inbox, rest, end, ..
-                    },
-                ) => {
-                    if *max == 0 {
-                        return Outcome::Ok(Value::Bytes(Vec::new()));
-                    }
-                    if rest.is_empty()
-                        && let Some(chunk) = inbox.pop_front()
-                    {
-                        rest.extend(chunk);
-                    }
-                    if !rest.is_empty() {
-                        let n = rest.len().min(*max as usize);
-                        return Outcome::Ok(Value::Bytes(rest.drain(..n).collect()));
-                    }
-                    if let Some(why) = end {
-                        return match why {
-                            End::Eof => Outcome::Ok(Value::Bytes(Vec::new())),
-                            End::Error(error) => Outcome::Error(error.clone()),
-                        };
-                    }
-                }
-                (Op::Write { bytes, .. }, SocketKind::Stream { socket, end, .. }) => {
-                    if matches!(end, Some(End::Error(_))) {
-                        return Outcome::Error(NetError::new(
-                            4,
-                            "cannot write to a failed TCP stream",
-                        ));
-                    }
+    }
+    Err(first_error.unwrap_or_else(|| NetError::new(2, host)))
+}
 
-                    if written == bytes.len() {
-                        return Outcome::Ok(Value::None);
-                    }
-                    match socket.write(&bytes[written..]) {
-                        Ok(0) => {
-                            let error = socket_error(
-                                &io::Error::from(io::ErrorKind::WriteZero),
-                                "write",
-                                None,
-                                "",
-                                0,
-                            );
-                            *end = Some(End::Error(error.clone()));
-                            let _ = socket.shutdown(Shutdown::Both);
-                            return Outcome::Error(error);
-                        }
-                        Ok(n) => {
-                            written += n;
-                            continue;
-                        }
-                        Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
-                        Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
-                        Err(error) => {
-                            let error = socket_error(&error, "write", None, "", 0);
-                            *end = Some(End::Error(error.clone()));
-                            let _ = socket.shutdown(Shutdown::Both);
-                            return Outcome::Error(error);
-                        }
-                    }
-                }
-                (Op::Accept(_), SocketKind::Listener { inbox, end, .. }) => {
-                    if let Some(socket) = inbox.pop_front() {
-                        return self.open(stream(socket));
-                    }
-                    if let Some(error) = end {
-                        return Outcome::Error(error.clone());
-                    }
-                }
-                (Op::Receive { max, .. }, SocketKind::Udp { inbox, end, .. }) => {
-                    if let Some((mut bytes, peer)) = inbox.pop_front() {
-                        bytes.truncate(*max as usize);
-                        return Outcome::Ok(Value::Datagram(bytes, peer));
-                    }
-                    if let Some(error) = end {
-                        return Outcome::Error(error.clone());
-                    }
-                }
-                _ => return wrong_kind(),
+/// `listen!` (`udp` false) or `bind_udp!`, on the first address of `host`;
+/// for UDP, the first of the family the host is written in.
+async fn open(udp: bool, host: &str, port: u16) -> Result<Got, NetError> {
+    let addresses = resolve(host, port).await?;
+    let ipv6 = host
+        .split('%')
+        .next()
+        .is_some_and(|ip| ip.parse::<Ipv6Addr>().is_ok());
+    let Some(address) = addresses.into_iter().find(|a| !udp || a.is_ipv6() == ipv6) else {
+        return Err(NetError::new(2, host));
+    };
+    match bind(udp, address) {
+        Ok(Bound::Listener(listener)) => Ok(Got::Opened(Opened::Listener(listener))),
+        Ok(Bound::Udp(socket)) => Ok(Got::Opened(Opened::Udp(socket))),
+        Err(error) => Err(socket_error(
+            &error,
+            if udp { "bind" } else { "listen" },
+            Some(address),
+            host,
+            port,
+        )),
+    }
+}
+
+/// At least one byte and at most `max`, or an empty list at the end. The
+/// buffer is made only once the socket is readable, so a waiting read
+/// holds none.
+pub(crate) async fn read(stream: &Stream, max: usize) -> Result<Vec<u8>, NetError> {
+    let mut bytes = Vec::new();
+    loop {
+        if let Some(end) = stream.state().end.clone() {
+            return ended(end);
+        }
+        if let Err(error) = stream.socket.readable().await {
+            return Err(stream_failed(stream, &error, "read"));
+        }
+        bytes.resize(max.min(CHUNK), 0);
+        match stream.socket.try_read(&mut bytes) {
+            Ok(0) => {
+                let end = stream.state().end.get_or_insert(End::Eof).clone();
+                return ended(end);
             }
-            thread::sleep(TICK);
+            Ok(n) => {
+                bytes.truncate(n);
+                return Ok(bytes);
+            }
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
+                ) => {}
+            Err(error) => return Err(stream_failed(stream, &error, "read")),
+        }
+    }
+}
+
+pub(crate) fn ended(end: End) -> Result<Vec<u8>, NetError> {
+    match end {
+        End::Eof => Ok(Vec::new()),
+        End::Error(error) => Err(error),
+    }
+}
+
+/// A read's failure, which stays: every later read reports it.
+fn stream_failed(stream: &Stream, error: &io::Error, syscall: &str) -> NetError {
+    let error = socket_error(error, syscall, None, "", 0);
+    let mut state = stream.state();
+    match state.end.get_or_insert_with(|| End::Error(error.clone())) {
+        End::Error(first) => first.clone(),
+        End::Eof => error,
+    }
+}
+
+/// Completes once every byte is written. A failure ends the stream: both
+/// directions shut, and later reads and writes report it.
+async fn write(stream: &Stream, bytes: &[u8]) -> Result<(), NetError> {
+    let mut written = 0;
+    while written < bytes.len() {
+        if let Err(error) = stream.socket.writable().await {
+            return Err(write_failed(stream, &error));
+        }
+        match stream.socket.try_write(&bytes[written..]) {
+            Ok(0) => return Err(write_failed(stream, &io::ErrorKind::WriteZero.into())),
+            Ok(n) => written += n,
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
+                ) => {}
+            Err(error) => return Err(write_failed(stream, &error)),
+        }
+    }
+    Ok(())
+}
+
+fn write_failed(stream: &Stream, error: &io::Error) -> NetError {
+    let error = socket_error(error, "write", None, "", 0);
+    stream.state().end = Some(End::Error(error.clone()));
+    stream.shutdown(Shutdown::Both);
+    error
+}
+
+/// One datagram to the first address of `host`, of the socket's family
+/// unless `host` is an IP address.
+async fn send_to(socket: &Udp, host: &str, port: u16, bytes: &[u8]) -> Result<Got, NetError> {
+    let addresses = resolve(host, port).await?;
+    let address = if ip_literal(host) {
+        addresses.into_iter().next()
+    } else {
+        addresses.into_iter().find(|a| a.is_ipv6() == socket.ipv6)
+    };
+    let Some(address) = address else {
+        return Err(NetError::new(2, host));
+    };
+    match socket.socket.send_to(bytes, address).await {
+        Ok(_) => Ok(Got::None),
+        Err(error) => Err(socket_error(&error, "send", Some(address), host, port)),
+    }
+}
+
+/// The next whole datagram and its sender. As `read`, the buffer is made
+/// only once a datagram is there.
+async fn receive(socket: &Udp) -> Result<(Vec<u8>, SocketAddr), NetError> {
+    let mut bytes = Vec::new();
+    loop {
+        if let Err(error) = socket.socket.readable().await {
+            return Err(socket_error(&error, "recvmsg", None, "", 0));
+        }
+        bytes.resize(CHUNK, 0);
+        match socket.socket.try_recv_from(&mut bytes) {
+            Ok((n, peer)) => {
+                bytes.truncate(n);
+                return Ok((bytes, peer));
+            }
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
+                ) => {}
+            Err(error) => return Err(socket_error(&error, "recvmsg", None, "", 0)),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::codec::{Dec, Enc};
-    use crate::net::Client;
-    use crate::net::client::{Op, Outcome, Request};
-    use crate::net::test_support::{
-        assert_owner_stopped, host_args, opened, owner_requests, read_n, result_bytes,
-    };
-    use hd_run::{Grants, Limit};
-    use socket2::Socket;
-    use std::io::{Read, Write};
-    use std::net::{Shutdown, TcpListener, UdpSocket};
-    use std::sync::mpsc;
-    use std::thread;
-    use std::time::Duration;
+    use super::connect_candidates;
+    use crate::net::test_support::{reserved_refused_port, runtime};
+    use std::net::TcpListener;
 
     #[test]
-    fn tcp_spillover_zero_read_eof_and_disposal_are_sticky() {
+    fn connection_candidates_advance_on_local_refusal_and_keep_the_first_error() {
+        // Keep both established pairs, so their source ports stay reserved
+        // with no listener through every attempt.
+        let (refused_address, _refused) = reserved_refused_port();
+        let (also_refused_address, _also_refused) = reserved_refused_port();
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = server.local_addr().unwrap().port();
-        let writer = thread::spawn(move || {
-            let (mut socket, _) = server.accept().unwrap();
-            socket
-                .set_read_timeout(Some(Duration::from_secs(2)))
-                .unwrap();
-            socket.write_all(b"abcdef").unwrap();
-            socket.shutdown(Shutdown::Write).unwrap();
-            let mut ack = [0; 1];
-            socket.read_exact(&mut ack).unwrap();
-            assert_eq!(ack, *b"x");
-        });
-        let mut client = Client::default();
-        let handle = opened(&mut client, "connect", port);
-        assert_eq!(read_n(&mut client, handle, 2, 2), b"ab");
-        let empty = client
-            .call("TcpStream.read", &[handle, 0], &[], &Grants::default())
-            .unwrap();
-        assert!(result_bytes(&empty).is_empty());
-        assert_eq!(read_n(&mut client, handle, 4, i64::from(i32::MIN)), b"cdef");
-        for _ in 0..2 {
-            let eof = client
-                .call("TcpStream.read", &[handle, 5], &[], &Grants::default())
-                .unwrap();
-            assert!(result_bytes(&eof).is_empty());
-        }
-        let actual = client
-            .call(
-                "TcpStream.write",
-                &[handle, 0],
-                Enc::default().bytes(b"x").done(),
-                &Grants::default(),
-            )
-            .unwrap();
-        assert_eq!(
-            actual.done(),
-            &[0],
-            "read EOF does not close the write half"
-        );
-        assert_eq!(
-            client
-                .call("TcpStream.close", &[handle], &[], &Grants::default())
-                .unwrap()
-                .done(),
-            &[0]
-        );
-        for (method, params) in [
-            ("TcpStream.close", vec![handle]),
-            ("TcpStream.read", vec![handle, 1]),
-        ] {
-            assert_eq!(
-                client
-                    .call(method, &params, &[], &Grants::default())
-                    .unwrap()
-                    .done(),
-                &[1, 1]
-            );
-        }
-        client.stop();
-        writer.join().unwrap();
-    }
-    #[test]
-    fn udp_receives_one_datagram_and_zero_max_still_consumes_one() {
-        let peer = UdpSocket::bind("127.0.0.1:0").unwrap();
-        let port = peer.local_addr().unwrap().port();
-        peer.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
-        let server = thread::spawn(move || {
-            let mut bytes = [0; 16];
-            let (n, from) = peer.recv_from(&mut bytes).unwrap();
-            assert_eq!(&bytes[..n], b"ping");
-            peer.send_to(b"hello", from).unwrap();
-            peer.send_to(b"", from).unwrap();
-            peer.send_to(b"wide", from).unwrap();
-        });
-        let mut client = Client::default();
-        let handle = opened(&mut client, "bind_udp", 0);
-        let requests = owner_requests(&client);
-        let mut args = host_args("127.0.0.1");
-        args.bytes(b"ping");
-        assert_eq!(
-            client
-                .call(
-                    "UdpSocket.send_to",
-                    &[handle, i64::from(port), 0],
-                    args.done(),
-                    &Grants::default()
-                )
-                .unwrap()
-                .done(),
-            &[0]
-        );
-        for (max, bytes) in [
-            (2, &b"he"[..]),
-            (0, &b""[..]),
-            (i64::from(i32::MIN), &b"wide"[..]),
-        ] {
-            let actual = client
-                .call("UdpSocket.receive", &[handle, max], &[], &Grants::default())
-                .unwrap();
-            let mut d = Dec::new(actual.done());
-            assert_eq!(d.leb().unwrap(), 0);
-            assert_eq!(d.bytes().unwrap(), bytes);
-            assert_eq!(d.str().unwrap(), "127.0.0.1");
-            assert_eq!(d.leb().unwrap(), u64::from(port));
-        }
-        server.join().unwrap();
-        client.stop();
-        assert_owner_stopped(&client, &requests);
-    }
-    #[test]
-    fn stop_wakes_a_pending_nonblocking_read_and_joins_the_owner() {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = listener.local_addr().unwrap().port();
-        let mut client = Client::default();
-        let handle = opened(&mut client, "connect", port);
-        let (mut peer, _) = listener.accept().unwrap();
-        peer.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
-        let (reply, result) = mpsc::channel();
-        client
-            .worker
-            .as_ref()
-            .unwrap()
-            .requests
-            .send(Request {
-                op: Op::Read { handle, max: 1 },
-                reply,
-                deadline: None,
-            })
-            .unwrap();
-        client.stop();
-        assert!(matches!(
-            result.recv_timeout(Duration::from_secs(1)),
-            Ok(Outcome::Error(_)) | Err(mpsc::RecvTimeoutError::Disconnected)
-        ));
-        assert_eq!(peer.read(&mut [0; 1]).unwrap(), 0);
-    }
-    #[test]
-    fn closed_udp_send_is_disposed_before_denied_or_invalid_destination() {
-        let mut client = Client::default();
-        let handle = opened(&mut client, "bind_udp", 0);
-        assert_eq!(
-            client
-                .call("UdpSocket.close", &[handle], &[], &Grants::default())
-                .unwrap()
-                .done(),
-            &[0]
-        );
-        let denied = Grants {
-            limits: vec![("Net".into(), Limit::Deny)],
-        };
-        for host in ["127.0.0.1", "invalid/host"] {
-            let mut args = host_args(host);
-            args.bytes(b"x");
-            assert_eq!(
-                client
-                    .call("UdpSocket.send_to", &[handle, 9, 0], args.done(), &denied)
-                    .unwrap()
-                    .done(),
-                &[1, 1]
-            );
-        }
-    }
-    #[test]
-    fn tcp_reset_is_sticky_after_queued_bytes_are_delivered() {
-        let server = TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = server.local_addr().unwrap().port();
-        let (ack, ready) = mpsc::channel();
-        let peer = thread::spawn(move || {
-            let (mut stream, _) = server.accept().unwrap();
-            stream.write_all(b"abc").unwrap();
-            ready.recv_timeout(Duration::from_secs(2)).unwrap();
-            let socket = Socket::from(stream);
-            socket.set_linger(Some(Duration::ZERO)).unwrap();
-        });
-        let mut client = Client::default();
-        let handle = opened(&mut client, "connect", port);
-        assert_eq!(read_n(&mut client, handle, 3, 3), b"abc");
-        ack.send(()).unwrap();
-        peer.join().unwrap();
-        let first = client
-            .call("TcpStream.read", &[handle, 3], &[], &Grants::default())
-            .unwrap();
-        let mut decoded = Dec::new(first.done());
-        assert_eq!(decoded.leb().unwrap(), 1);
-        assert_eq!(decoded.leb().unwrap(), 0);
-        assert_eq!(decoded.leb().unwrap(), 4);
-        assert!(decoded.str().unwrap().starts_with("read: "));
-        let again = client
-            .call("TcpStream.read", &[handle, 3], &[], &Grants::default())
-            .unwrap();
-        assert_eq!(
-            again.done(),
-            first.done(),
-            "the native read error remains sticky"
-        );
-        let mut args = Enc::default();
-        args.bytes(b"x");
-        let mut expected = Enc::default();
-        expected
-            .leb(1)
-            .leb(0)
-            .leb(4)
-            .str("cannot write to a failed TCP stream");
-        assert_eq!(
-            client
-                .call(
-                    "TcpStream.write",
-                    &[handle, 0],
-                    args.done(),
-                    &Grants::default()
-                )
-                .unwrap()
-                .done(),
-            expected.done()
-        );
+        let address = server.local_addr().unwrap();
+        let runtime = runtime();
+        let socket = runtime
+            .block_on(connect_candidates(
+                vec![refused_address, address],
+                "localhost",
+                address.port(),
+            ))
+            .unwrap_or_else(|e| panic!("connection failed: {}", e.text));
+        assert_eq!(socket.peer_addr().unwrap(), address);
+        let (_, _) = server.accept().unwrap();
+        drop(socket);
+        let error = runtime
+            .block_on(connect_candidates(
+                vec![refused_address, also_refused_address],
+                "localhost",
+                address.port(),
+            ))
+            .unwrap_err();
+        assert_eq!(error.variant, 3);
+        assert_eq!(error.text, format!("localhost:{}", address.port()));
     }
 }

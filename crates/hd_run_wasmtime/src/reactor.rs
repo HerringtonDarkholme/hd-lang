@@ -39,6 +39,8 @@ pub type Line = Result<Option<String>, ()>;
 pub enum Done {
     /// `Process.run!`: how the child's run ended.
     Process(crate::core::process::Ran),
+    /// A `Net` operation's result.
+    Net(crate::net::Done),
     /// The reactor tests' offloaded operation.
     #[cfg(test)]
     Test(u32),
@@ -475,11 +477,12 @@ impl Reactor {
     }
 
     /// Ends an operation at its `.finish` or `abort`. A pending offloaded
-    /// operation's task is aborted, and a result already delivered for it
-    /// is dropped with it.
+    /// operation's task is aborted. A result its task delivered, before or
+    /// while the abort ran, comes back in the operation, for a caller
+    /// that keeps what it holds (`std-net.cancel.read`).
     pub fn remove(&mut self, h: i32) -> Option<Op> {
         self.reads.retain(|r| *r != h);
-        let op = self.ops.remove(&h)?;
+        let mut op = self.ops.remove(&h)?;
         if !op.completed {
             self.open -= 1;
             if let Some(at) = op.at {
@@ -487,9 +490,17 @@ impl Reactor {
             }
             self.ready.retain(|&(_, r)| r != h);
         }
-        if let Some(task) = &op.task {
+        if let Some(task) = op.task.take() {
             task.abort();
             task.ended();
+            let mut queue = self
+                .inbox
+                .queue
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            if let Some(i) = queue.done.iter().position(|(r, _)| *r == h) {
+                op.work = Work::Offloaded(Some(queue.done.swap_remove(i).1));
+            }
         }
         Some(op)
     }
@@ -498,20 +509,34 @@ impl Reactor {
     /// did not end with status 0 may leave some, and none of them may wake
     /// a later input or keep its wait from being a deadlock. A line already
     /// asked of the reader thread is kept for the next read; every
-    /// offloaded task is aborted, and the results delivered are dropped.
-    pub fn drop_all(&mut self) {
+    /// offloaded task is aborted. Returns the results the tasks delivered,
+    /// as `remove` does.
+    pub fn drop_all(&mut self) -> Vec<Done> {
         self.abort_tasks();
         self.reads.clear();
-        self.ops.clear();
         self.open = 0;
         self.timers.clear();
         self.ready.clear();
-        self.inbox
-            .queue
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .done
-            .clear();
+        let mut delivered: Vec<Done> = std::mem::take(&mut self.ops)
+            .into_values()
+            .filter_map(|op| match op.work {
+                Work::Offloaded(done) => done,
+                _ => None,
+            })
+            .collect();
+        delivered.extend(
+            std::mem::take(
+                &mut self
+                    .inbox
+                    .queue
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .done,
+            )
+            .into_iter()
+            .map(|(_, done)| done),
+        );
+        delivered
     }
 
     /// Aborts every pending task, then waits until each one's work is
@@ -647,7 +672,13 @@ mod tests {
         while r.inbox.queue.lock().expect("inbox").done.is_empty() {
             assert!(r.wait());
         }
-        assert!(r.remove(h).is_some(), "the abort ends the op");
+        assert!(
+            matches!(
+                r.remove(h).map(|op| op.work),
+                Some(Work::Offloaded(Some(Done::Test(1))))
+            ),
+            "the abort ends the op and hands back its result"
+        );
         assert!(!r.waiting());
         let mut out = Vec::new();
         assert!(
@@ -710,7 +741,7 @@ mod tests {
         r.offload(first).expect("offloads");
         r.offload(second).expect("offloads");
         r.sleep(60_000);
-        r.drop_all();
+        assert!(r.drop_all().is_empty(), "no task delivered");
         assert!(!r.waiting(), "nothing pending");
         assert!(eventually(&first_dropped) && eventually(&second_dropped));
     }

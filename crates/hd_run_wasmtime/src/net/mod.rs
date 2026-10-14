@@ -1,17 +1,18 @@
-//! Per-instance synchronous Net client. One worker owns every socket,
-//! buffers arrivals and preserves the first read end/error.
+//! `Net` on the `hd-io` runtime (wasmtime-host-audit.md §4.3): the
+//! instance keeps a table of its sockets (`client.rs`), and each operation
+//! that waits is one task (`ops.rs`) that delivers into the reactor.
 
 use std::time::Duration;
 
 pub(crate) mod client;
 pub(crate) mod ops;
 pub(crate) mod socket;
-pub(crate) mod state;
 #[cfg(test)]
 pub(crate) mod test_support;
 pub(crate) mod validate;
 
 pub use client::Client;
+pub use ops::Done;
 
 pub(crate) use socket::connect_attempts;
 
@@ -27,7 +28,6 @@ pub(crate) const METHODS: &[&str] = &[
     "UdpSocket.receive",
 ];
 pub(crate) const CLOSE: &[&str] = &["TcpStream.close", "TcpListener.close", "UdpSocket.close"];
-pub(crate) const TICK: Duration = Duration::from_millis(5);
+/// The most bytes one read takes, and the receive buffer.
 pub(crate) const CHUNK: usize = 65536;
 pub(crate) const CONNECT_ATTEMPT_TIMEOUT: Duration = Duration::from_millis(250);
-pub(crate) const CLEANUP_TIMEOUT: Duration = Duration::from_millis(250);

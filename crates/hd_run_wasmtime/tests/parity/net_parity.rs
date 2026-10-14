@@ -172,22 +172,36 @@ fn tcp_listener_accept_write_close_and_disposed_accept() {
             // alongside) the guest engine can take many seconds to compile
             // and bind. The test proves accept/write/close framing, not fast
             // startup; the peer polls until the listener appears.
+            //
+            // The second engine's peer may first reach the first engine's
+            // closed listener: an unrelated test's child can hold it
+            // between its fork and its exec (see `CHILD_SPAWN`). That
+            // listener never accepts, and resets the connection once the
+            // child execs; the peer then connects again.
             let deadline = Instant::now() + Duration::from_secs(20);
-            let mut peer = loop {
-                if let Ok(peer) = TcpStream::connect_timeout(&address, Duration::from_millis(50)) {
-                    break peer;
-                }
+            let bytes = loop {
                 assert!(
                     Instant::now() < deadline,
                     "listener fixture starts before its deadline"
                 );
-                std::thread::sleep(Duration::from_millis(5));
+                let Ok(mut peer) = TcpStream::connect_timeout(&address, Duration::from_millis(50))
+                else {
+                    std::thread::sleep(Duration::from_millis(5));
+                    continue;
+                };
+                peer.set_read_timeout(Some(Duration::from_secs(10)))
+                    .unwrap();
+                let mut bytes = Vec::new();
+                match peer
+                    .write_all(b"x")
+                    .and_then(|()| peer.read_to_end(&mut bytes))
+                {
+                    Ok(_) => break bytes,
+                    Err(error)
+                        if bytes.is_empty() && error.kind() != std::io::ErrorKind::WouldBlock => {}
+                    Err(error) => panic!("the peer's exchange failed: {error}"),
+                }
             };
-            peer.set_read_timeout(Some(Duration::from_secs(10)))
-                .unwrap();
-            peer.write_all(b"x").unwrap();
-            let mut bytes = Vec::new();
-            peer.read_to_end(&mut bytes).unwrap();
             assert_eq!(bytes, b"ack");
         }));
     });
