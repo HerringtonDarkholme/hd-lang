@@ -398,6 +398,13 @@ impl Reactor {
         }
     }
 
+    /// Whether `h` has completed. One `due` call completes every ready
+    /// operation, so a test waiting for several handles checks this first.
+    #[cfg(test)]
+    pub(crate) fn is_completed(&self, h: i32) -> bool {
+        self.ops.get(&h).is_some_and(|op| op.completed)
+    }
+
     /// Completes every due operation, oldest first, writing each
     /// `write_line`'s line to `out`, and returns their handles.
     pub fn due(&mut self, out: &mut Vec<u8>) -> Vec<i32> {

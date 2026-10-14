@@ -25,7 +25,8 @@ pub(crate) fn offload(reactor: &mut Reactor, job: Job) -> i32 {
 /// `block` and `send.finish` do.
 pub(crate) fn finished(reactor: &mut Reactor, h: i32) -> Sent {
     let mut out = Vec::new();
-    while !reactor.due(&mut out).contains(&h) {
+    // An earlier `due` may already have completed `h` with another handle.
+    while !reactor.is_completed(h) && !reactor.due(&mut out).contains(&h) {
         assert!(reactor.wait(), "the request is pending");
     }
     match reactor.remove(h).map(|op| op.work) {
