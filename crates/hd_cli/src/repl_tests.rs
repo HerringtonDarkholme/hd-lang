@@ -152,6 +152,33 @@ fn write_files(dir: &Path, files: &[(&str, &str)]) {
     }
 }
 
+/// A session builds its prelude and every input for wasmtime, the REPL's
+/// only engine, in the dev pipeline (opt-pipeline.md §5).
+#[test]
+fn a_session_builds_for_wasmtime_in_the_dev_pipeline() {
+    let pipeline = crate::Pipeline {
+        target: hd_driver::EngineTarget::Wasmtime,
+        level: hd_driver::OptLevel::Dev,
+    };
+    assert_eq!(super::PIPELINE, pipeline);
+    let dir = Scratch::new(SCRATCH, &format!("repl-pipeline-{}", unique()));
+    let mut program = disk::load_session(&dir).expect("the session's scope");
+    let store = hd_cache::DiskStore {
+        root: crate::cache_dir(),
+    };
+    crate::take_built();
+    let prelude = super::build_prelude(&program, &store);
+    let mut built = hd_driver::Session::start();
+    built.add(prelude.session_added.expect("what the prelude adds"));
+    program
+        .sources
+        .add_synthetic(&hd_project::repl_file(1), "x := +1\n");
+    let mut diags = Vec::new();
+    let input = super::build_input(&program, &store, &built, 1, &mut diags);
+    assert!(input.is_some(), "{}", String::from_utf8_lossy(&diags));
+    assert_eq!(crate::take_built(), [pipeline, pipeline]);
+}
+
 /// `cli.repl.value`: an expression input shows its value as `dbg` prints
 /// it, then ` : ` and its type.
 #[test]
@@ -1209,7 +1236,7 @@ fn long_session(mix: bool) {
     const STEP: u32 = 50;
     let dir = Scratch::new(SCRATCH, &format!("repl-long-{}", unique()));
     let program = disk::load_session(&dir).expect("the session's scope");
-    let config = EngineConfig::pipeline(false);
+    let config = EngineConfig::pipeline(super::PIPELINE.level);
     let stack = hd_run_wasmtime::thread_stack(&config);
     let thread = std::thread::Builder::new()
         .stack_size(stack)

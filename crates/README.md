@@ -129,6 +129,14 @@ An `hd` built without the feature refuses the engine when it reads the name,
 with `this build of hd has no wasmtime engine; rebuild with --features
 wasmtime`. It never falls back to Node.
 
+Every build that runs is tuned for the engine that runs it
+([opt-pipeline.md](../future-work/compiler/opt-pipeline.md) §5): `hd run`,
+`hd FILE`, `hd test` and `hd build` take the engine from `--engine`, else
+`HD_ENGINE`, else Node, so `hd build --engine wasmtime` writes a module
+tuned for wasmtime, which `hd --engine wasmtime FILE.wasm` runs. Every
+target's module runs on every engine; a mismatch costs only speed. The
+REPL builds for wasmtime and `hd_web` for the browser.
+
 The REPL (`hd` with no arguments on a terminal, `hd_cli/src/repl.rs`) runs on
 wasmtime only, so its line editor (`rustyline`) and Ctrl-C handler (`ctrlc`)
 come with the feature too. An `hd` without it says the REPL needs wasmtime
@@ -137,7 +145,10 @@ and exits with status 101; piped standard input still runs as a program.
 The tests that need wasmtime run only with the feature. `hd_driver` has a
 `wasmtime` feature of its own for them: the wasmtime modes of its
 conformance test (`HD_CONFORMANCE_ENGINE=wasmtime` and `wasmtime-only`) and
-the float text comparison. The wasmtime modes of `cli_conformance` need an
+the float text comparison. In those modes each engine runs a build for its
+own target, so the compare mode builds each program for `V8` and for
+`Wasmtime`; CI runs it, and a local run without the variable tests the `V8`
+target on Node only. The wasmtime modes of `cli_conformance` need an
 `hd` built with the feature. Without it those modes are refused and the
 other tests run unchanged.
 

@@ -17,6 +17,8 @@ mod help;
 mod memory_cap;
 mod new_cmd;
 mod node;
+#[cfg(test)]
+mod pipeline_tests;
 #[cfg(feature = "wasmtime")]
 mod repl;
 mod report;
@@ -29,7 +31,7 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 use hd_cache::DiskStore;
-use hd_driver::{BuildProfile, Clock, Executor, Goal, Host, OptLevel, Output};
+use hd_driver::{BuildProfile, Clock, EngineTarget, Executor, Goal, Host, OptLevel, Output};
 use hd_run::{HostSetup, Outcome};
 
 use crate::report::Reporter;
@@ -314,7 +316,8 @@ pub(crate) fn build_goal(
 }
 
 /// [`build_goal`], with `doc_scopes` asking for each module's scope in the
-/// output (`hd doc` resolves its links in them).
+/// output (`hd doc` resolves its links in them). Such a build emits no
+/// module that runs, so it keeps the program's default pipeline.
 pub(crate) fn build_goal_with(
     program: &disk::Program,
     goal: &Goal,
@@ -322,13 +325,12 @@ pub(crate) fn build_goal_with(
     doc_scopes: bool,
     rep: &mut Reporter,
 ) -> Result<Output, ExitCode> {
-    build_goal_in(
-        program,
-        goal,
-        (profile, level_of(profile == BuildProfile::Release)),
-        doc_scopes,
-        rep,
-    )
+    let packages = program.packages();
+    let pipeline = Pipeline {
+        target: packages.target,
+        level: packages.level,
+    };
+    build_goal_in(program, goal, (profile, pipeline), doc_scopes, rep)
 }
 
 /// The optimization level `--release` selects (`cli.profile.pipeline.one`).
@@ -340,14 +342,60 @@ pub(crate) const fn level_of(release: bool) -> OptLevel {
     }
 }
 
+/// The pipeline a build runs (opt-pipeline.md §5): the engine target it is
+/// tuned for and the optimization level.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Pipeline {
+    pub(crate) target: EngineTarget,
+    pub(crate) level: OptLevel,
+}
+
+impl Pipeline {
+    /// The pipeline of a build that `engine` runs: tuned for its target,
+    /// and optimized with `--release` (`cli.profile.pipeline.one`).
+    pub(crate) const fn of(engine: engine::EngineKind, release: bool) -> Self {
+        Self {
+            target: engine.target(),
+            level: level_of(release),
+        }
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The pipeline of each build this thread ran, for the tests that
+    /// check what each command builds with (`pipeline_tests.rs`).
+    static BUILT: std::cell::RefCell<Vec<Pipeline>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Notes the pipeline that built `out`, as the driver reports it.
+#[cfg(test)]
+pub(crate) fn note_built(out: &Output) {
+    BUILT.with_borrow_mut(|built| {
+        built.push(Pipeline {
+            target: out.target,
+            level: out.level,
+        });
+    });
+}
+
+#[cfg(not(test))]
+pub(crate) const fn note_built(_: &Output) {}
+
+/// The pipelines of the builds this thread ran since the last call.
+#[cfg(test)]
+pub(crate) fn take_built() -> Vec<Pipeline> {
+    BUILT.take()
+}
+
 /// [`build_goal_with`], with the pipeline chosen apart from the profile:
 /// `hd test --release` builds checked and runs the optimized pipeline
-/// (`cli.profile.pipeline.one`). `(profile, level)` is the build profile
-/// and the optimization level.
+/// (`cli.profile.pipeline.one`), and every build that runs is tuned for
+/// the engine that runs it.
 pub(crate) fn build_goal_in(
     program: &disk::Program,
     goal: &Goal,
-    (profile, level): (BuildProfile, OptLevel),
+    (profile, pipeline): (BuildProfile, Pipeline),
     doc_scopes: bool,
     rep: &mut Reporter,
 ) -> Result<Output, ExitCode> {
@@ -363,18 +411,15 @@ pub(crate) fn build_goal_in(
         clock: &clock,
         executor: executor(),
     };
-    // Every build path tunes for the default engine's target (`V8`) until
-    // job (c2) of opt-pipeline.md §6 passes in the engine of the run: `hd
-    // run`, `hd FILE`, `hd test` and its executables, and `hd build
-    // --engine`. All targets build the same bytes until job (d).
     let packages = hd_driver::Packages {
         build_profile: profile,
-        target: hd_driver::EngineTarget::default(),
-        level,
+        target: pipeline.target,
+        level: pipeline.level,
         doc_scopes,
         ..program.packages()
     };
     let out: Output = memory_cap::build_packages(&host, &program.package, &packages, goal);
+    note_built(&out);
     let as_written = program.as_written.as_deref().filter(|_| rep.json);
     let mut diags = report::from_output(&out, as_written);
     report::relocate(&mut diags, |f| program.sources.display(f));
@@ -384,29 +429,17 @@ pub(crate) fn build_goal_in(
     Ok(out)
 }
 
-/// Compiles a program to Wasm bytes in `profile`, reporting diagnostics.
+/// Compiles a program to Wasm bytes in `profile` through `pipeline`,
+/// reporting diagnostics.
 fn compile(
     program: &disk::Program,
-    profile: BuildProfile,
-    rep: &mut Reporter,
-) -> Result<Vec<u8>, ExitCode> {
-    compile_in(
-        program,
-        (profile, level_of(profile == BuildProfile::Release)),
-        rep,
-    )
-}
-
-/// [`compile`], with the pipeline chosen apart from the profile.
-fn compile_in(
-    program: &disk::Program,
-    pipeline: (BuildProfile, OptLevel),
+    (profile, pipeline): (BuildProfile, Pipeline),
     rep: &mut Reporter,
 ) -> Result<Vec<u8>, ExitCode> {
     let goal = Goal::Program {
         entry: program.entry.clone(),
     };
-    match build_goal_in(program, &goal, pipeline, false, rep)?.wasm {
+    match build_goal_in(program, &goal, (profile, pipeline), false, rep)?.wasm {
         Some(wasm) => Ok(wasm),
         None => Err(rep.fail("no Wasm produced")),
     }
@@ -415,7 +448,7 @@ fn compile_in(
 /// Runs compiled Wasm and ends with the program's status
 /// (`cli.exit.program`), unless a need is totally denied
 /// (`cli.cap.total.refuse`). `program` is what its `Args.program` returns;
-/// `engine` runs it, with wasmtime's optimized pipeline when `release`.
+/// `engine` runs it, with the engine options of `level`.
 fn execute(
     wasm: &[u8],
     program: &str,
@@ -423,7 +456,7 @@ fn execute(
     table_dir: Option<&Path>,
     flags: &[caps::CapFlag],
     args: &[OsString],
-    (engine, release, limits): (engine::EngineKind, bool, engine::ProgramLimits),
+    (engine, level, limits): (engine::EngineKind, OptLevel, engine::ProgramLimits),
     rep: &mut Reporter,
 ) -> ExitCode {
     if let Some(d) = caps::refusal(wasm, table, flags) {
@@ -457,7 +490,7 @@ fn execute(
             .collect(),
         program: program.to_owned(),
     };
-    match engine::run(engine, release, wasm, &host) {
+    match engine::run(engine, level, wasm, &host) {
         Ok(Outcome::Exit(code)) => rep.finish(code),
         Ok(Outcome::Panic(p)) => {
             eprintln!("panic: {}: {}", p.category, p.message);
@@ -557,7 +590,8 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
         Ok(p) => p,
         Err(e) => return rep.fail(&e),
     };
-    match compile(&program, profile_of(w.release), &mut rep) {
+    let pipeline = Pipeline::of(w.engine, w.release);
+    match compile(&program, (profile_of(w.release), pipeline), &mut rep) {
         Ok(wasm) => execute(
             &wasm,
             &file.to_string_lossy(),
@@ -565,7 +599,7 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
             program.package_dir.as_deref(),
             &w.caps,
             &w.program_args,
-            (w.engine, w.release, w.limits),
+            (w.engine, pipeline.level, w.limits),
             &mut rep,
         ),
         Err(code) => code,
@@ -595,7 +629,8 @@ fn run_stdin_command(memory: Option<u64>) -> ExitCode {
         Ok(p) => p,
         Err(e) => return rep.fail(&e),
     };
-    match compile(&program, BuildProfile::Checked, &mut rep) {
+    let pipeline = Pipeline::of(engine, false);
+    match compile(&program, (BuildProfile::Checked, pipeline), &mut rep) {
         Ok(wasm) => execute(
             &wasm,
             "main.hd",
@@ -603,7 +638,7 @@ fn run_stdin_command(memory: Option<u64>) -> ExitCode {
             program.package_dir.as_deref(),
             &[],
             &[],
-            (engine, false, engine::ProgramLimits::default()),
+            (engine, pipeline.level, engine::ProgramLimits::default()),
             &mut rep,
         ),
         Err(code) => code,
@@ -658,7 +693,7 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
         None,
         &w.caps,
         &w.program_args,
-        (w.engine, w.release, w.limits),
+        (w.engine, level_of(w.release), w.limits),
         &mut rep,
     )
 }
@@ -674,7 +709,8 @@ struct Words {
     program_args: Vec<OsString>,
     /// The members `-p NAME` selects (`cli.workspace.select.anywhere`).
     packages: Vec<String>,
-    /// `--engine NAME`, else `HD_ENGINE`, else Node; only `hd run` takes it.
+    /// `--engine NAME`, else `HD_ENGINE`, else Node: the engine `hd run`
+    /// runs on, and the one whose target `hd run` and `hd build` tune for.
     engine: engine::EngineKind,
     limits: engine::ProgramLimits,
 }
@@ -687,11 +723,7 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         positional: Vec::new(),
         program_args: Vec::new(),
         packages: Vec::new(),
-        engine: if command == "run" {
-            engine::from_env()?
-        } else {
-            engine::EngineKind::Node
-        },
+        engine: engine::from_env()?,
         limits: engine::ProgramLimits::default(),
     };
     let mut i = 0;
@@ -712,9 +744,7 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
             i += used;
             continue;
         }
-        if command == "run"
-            && let Some(e) = engine::engine_flag(args, i)
-        {
+        if let Some(e) = engine::engine_flag(args, i) {
             let (kind, used) = e?;
             w.engine = kind;
             i += used;
@@ -778,6 +808,14 @@ fn is_path(word: &str) -> bool {
 
 /// `hd run [NAME]` (`cli.run.*`).
 fn run_command(args: &[OsString]) -> ExitCode {
+    match std::env::current_dir() {
+        Ok(cwd) => run_in(&cwd, args),
+        Err(e) => fail(&e.to_string()),
+    }
+}
+
+/// [`run_command`] from the working directory `cwd`.
+fn run_in(cwd: &Path, args: &[OsString]) -> ExitCode {
     let w = match words("run", args) {
         Ok(w) => w,
         Err(e) => return fail(&e),
@@ -801,12 +839,12 @@ fn run_command(args: &[OsString]) -> ExitCode {
             )
         });
     }
-    let root = match workspace_member(name.as_deref(), &w.packages) {
+    let root = match workspace_member(cwd, name.as_deref(), &w.packages) {
         Some(Ok(r)) => r,
         Some(Err(e)) => return rep.fail(&e),
-        None => match package_of_cwd("run") {
-            Ok(r) => r,
-            Err(e) => return rep.fail(&e),
+        None => match disk::package_root(cwd) {
+            Some(r) => r,
+            None => return rep.fail(&no_package("run")),
         },
     };
     let package = match disk::package_name(&root) {
@@ -852,7 +890,8 @@ fn run_command(args: &[OsString]) -> ExitCode {
         Err(e) => return rep.fail(&e),
     };
     program.only_program(&chosen.file);
-    let wasm = match compile(&program, profile_of(w.release), &mut rep) {
+    let pipeline = Pipeline::of(w.engine, w.release);
+    let wasm = match compile(&program, (profile_of(w.release), pipeline), &mut rep) {
         Ok(wasm) => wasm,
         Err(code) => return code,
     };
@@ -868,7 +907,7 @@ fn run_command(args: &[OsString]) -> ExitCode {
         program.package_dir.as_deref(),
         &w.caps,
         &w.program_args,
-        (w.engine, w.release, w.limits),
+        (w.engine, pipeline.level, w.limits),
         &mut rep,
     )
 }
@@ -877,11 +916,15 @@ fn run_command(args: &[OsString]) -> ExitCode {
 /// or task `hd run NAME` runs (`cli.workspace.run-name`, `.run-ambiguous`,
 /// `.run-missing`, `.run-bare`, `cli.workspace.select.*`): among the
 /// selected members when flags select some. One selected member runs as a
-/// package does. `None` in plain package mode.
-fn workspace_member(name: Option<&str>, packages: &[String]) -> Option<Result<PathBuf, String>> {
-    let cwd = std::env::current_dir().ok()?;
+/// package does. `None` in plain package mode. `cwd` is the working
+/// directory.
+fn workspace_member(
+    cwd: &Path,
+    name: Option<&str>,
+    packages: &[String],
+) -> Option<Result<PathBuf, String>> {
     let members: Vec<(PathBuf, String)> = if packages.is_empty() {
-        let (ws, members) = disk::workspace_root(&cwd)?;
+        let (ws, members) = disk::workspace_root(cwd)?;
         members
             .into_iter()
             .map(|dir| {
@@ -894,7 +937,7 @@ fn workspace_member(name: Option<&str>, packages: &[String]) -> Option<Result<Pa
             })
             .collect()
     } else {
-        match disk::select_members(&cwd, packages) {
+        match disk::select_members(cwd, packages) {
             Ok(m) => m,
             Err(e) => return Some(Err(e)),
         }
@@ -970,13 +1013,16 @@ fn write_module(
         .map_err(|e| format!("{}: {e}", out.display()))
 }
 
-/// `hd build [FILE]` (`cli.build.*`).
+/// `hd build [FILE]` (`cli.build.*`). Every module is tuned for the engine
+/// `hd run` would choose (`--engine`, else `HD_ENGINE`, else Node), so
+/// `hd FILE.wasm` in the same environment runs it on that engine.
 fn build_command(args: &[OsString]) -> ExitCode {
     let w = match words("build", args) {
         Ok(w) => w,
         Err(e) => return fail(&e),
     };
     let mut rep = Reporter::stdout(w.json);
+    let pipeline = Pipeline::of(w.engine, w.release);
     let built = match w.positional.as_slice() {
         [] if !w.packages.is_empty() => {
             match std::env::current_dir()
@@ -985,7 +1031,7 @@ fn build_command(args: &[OsString]) -> ExitCode {
             {
                 Ok(members) => members
                     .iter()
-                    .try_for_each(|(root, _)| build_package(root, w.release, &mut rep)),
+                    .try_for_each(|(root, _)| build_package(root, (w.release, pipeline), &mut rep)),
                 Err(e) => Err(rep.fail(&e)),
             }
         }
@@ -996,13 +1042,13 @@ fn build_command(args: &[OsString]) -> ExitCode {
             // `cli.workspace.members`: each member in turn.
             Some((_, members)) => members
                 .iter()
-                .try_for_each(|root| build_package(root, w.release, &mut rep)),
+                .try_for_each(|root| build_package(root, (w.release, pipeline), &mut rep)),
             None => match package_of_cwd("build") {
-                Ok(root) => build_package(&root, w.release, &mut rep),
+                Ok(root) => build_package(&root, (w.release, pipeline), &mut rep),
                 Err(e) => Err(rep.fail(&e)),
             },
         },
-        [file] => build_file(Path::new(file), w.release, &mut rep),
+        [file] => build_file(Path::new(file), (w.release, pipeline), &mut rep),
         _ => Err(rep.fail("`hd build` takes at most one FILE")),
     };
     match built {
@@ -1013,7 +1059,11 @@ fn build_command(args: &[OsString]) -> ExitCode {
 
 /// A whole-package `hd build`: each executable to its module; a package with
 /// no executable is checked and writes no `.wasm` file.
-fn build_package(root: &Path, release: bool, rep: &mut Reporter) -> Result<(), ExitCode> {
+fn build_package(
+    root: &Path,
+    (release, pipeline): (bool, Pipeline),
+    rep: &mut Reporter,
+) -> Result<(), ExitCode> {
     let package = disk::package_name(root).map_err(|e| rep.fail(&e))?;
     let executables = disk::executables(root, &package);
     if executables.is_empty() {
@@ -1024,7 +1074,7 @@ fn build_package(root: &Path, release: bool, rep: &mut Reporter) -> Result<(), E
     for exe in &executables {
         let mut program = disk::load_package(root, &exe.file).map_err(|e| rep.fail(&e))?;
         program.only_program(&exe.file);
-        let wasm = compile(&program, profile_of(release), rep)?;
+        let wasm = compile(&program, (profile_of(release), pipeline), rep)?;
         write_module(root, release, false, &exe.name, &wasm).map_err(|e| rep.fail(&e))?;
     }
     Ok(())
@@ -1033,7 +1083,11 @@ fn build_package(root: &Path, release: bool, rep: &mut Reporter) -> Result<(), E
 /// `hd build FILE`: the module of a file of the package, linked with the
 /// rest of it. Its package is the one at or above FILE's directory
 /// (`cli.mode.start`).
-fn build_file(file: &Path, release: bool, rep: &mut Reporter) -> Result<(), ExitCode> {
+fn build_file(
+    file: &Path,
+    (release, pipeline): (bool, Pipeline),
+    rep: &mut Reporter,
+) -> Result<(), ExitCode> {
     if file.extension().is_none_or(|x| x != "hd") {
         return Err(rep.fail(&format!(
             "`{}` is not an .hd file; `hd build` takes a FILE.hd",
@@ -1052,7 +1106,7 @@ fn build_file(file: &Path, release: bool, rep: &mut Reporter) -> Result<(), Exit
     let rel = disk::listed_path(&root, &rel.to_string_lossy().replace('\\', "/"));
     let mut program = disk::load_package(&root, &rel).map_err(|e| rep.fail(&e))?;
     program.only_program(&rel);
-    let wasm = compile(&program, profile_of(release), rep)?;
+    let wasm = compile(&program, (profile_of(release), pipeline), rep)?;
     let stem = full
         .file_stem()
         .map(|s| s.to_string_lossy().into_owned())

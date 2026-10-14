@@ -17,8 +17,8 @@
 use hd_cache::MemoryStore;
 use hd_driver::diagnostics::{Diag, from_output};
 use hd_driver::{
-    BuildProfile, Counters, Executor, Host, NoClock, Packages, TestCase, build_packages,
-    test_programs,
+    BuildProfile, Counters, EngineTarget, Executor, Host, NoClock, OptLevel, Packages, TestCase,
+    build_packages, test_programs,
 };
 use hd_project::{MemorySources, Root, in_program, module_below, repl_file, repl_input};
 use hd_sched::SerialOrder;
@@ -38,6 +38,27 @@ pub const PACKAGE: &str = "playground";
 /// The store size past which a session drops its store: the next compile
 /// is then cold (playground-wasm.md §3.1).
 pub const STORE_CAP_BYTES: usize = 64 << 20;
+
+/// The pipeline of every build (opt-pipeline.md §5): the playground's
+/// programs and REPL modules run in a browser, unoptimized.
+const PIPELINE: (EngineTarget, OptLevel) = (EngineTarget::Browser, OptLevel::Dev);
+
+#[cfg(test)]
+thread_local! {
+    /// The pipeline of each build this thread ran, for the tests that
+    /// check what each request builds with.
+    static BUILT: std::cell::RefCell<Vec<(EngineTarget, OptLevel)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Notes the pipeline that built `out`, as the driver reports it.
+#[cfg(test)]
+fn note_built(out: &hd_driver::Output) {
+    BUILT.with_borrow_mut(|built| built.push((out.target, out.level)));
+}
+
+#[cfg(not(test))]
+const fn note_built(_: &hd_driver::Output) {}
 
 /// What a compile is for: the playground's Run, Check and Test buttons.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -159,10 +180,10 @@ impl Session {
         }
         // One file outside the `src` layout is a single-file program, as
         // `hd FILE.hd` builds a file with no `hd.toml` above it.
-        // The target is the default engine's (`V8`) until job (c2) of
-        // opt-pipeline.md §6 sets `Browser` here and for REPL inputs.
         let packages = Packages {
             single_file: count == 1 && Root::of(entry).0 == Root::Flat,
+            target: PIPELINE.0,
+            level: PIPELINE.1,
             ..Packages::default()
         };
         // Each build: its integration test file, its sources and its goal.
@@ -204,6 +225,7 @@ impl Session {
                 executor: Executor::Serial(SerialOrder::Priority),
             };
             let out = build_packages(&host, PACKAGE, &packages, goal);
+            note_built(&out);
             for d in from_output(&out, None) {
                 if !result.diagnostics.contains(&d) {
                     result.diagnostics.push(d);
@@ -276,7 +298,7 @@ impl Session {
             clock: &NoClock,
             executor: Executor::Serial(SerialOrder::Priority),
         };
-        let out = hd_driver::build_repl_prelude(&host, BuildProfile::Checked);
+        let out = hd_driver::build_repl_prelude(&host, BuildProfile::Checked, PIPELINE.0);
         let (build, added) = finish(0, out);
         self.tidy_store();
         if let Some(added) = added {
@@ -338,6 +360,8 @@ impl Session {
         };
         let packages = Packages {
             build_profile: BuildProfile::Checked,
+            target: PIPELINE.0,
+            level: PIPELINE.1,
             session: Some(&repl.built),
             ..Packages::default()
         };
@@ -388,6 +412,7 @@ fn no_session() -> ReplError {
 /// A REPL build's answer from the driver's output, and what the module
 /// adds to the session once it ran; `None` when it did not build.
 fn finish(input: u32, out: hd_driver::Output) -> (ReplBuild, Option<hd_driver::Session>) {
+    note_built(&out);
     let mut diagnostics =
         hd_driver::diagnostics::for_input(from_output(&out, None), &repl_file(input));
     let mut build = ReplBuild {
@@ -424,4 +449,35 @@ fn session_keys(wasm: &[u8]) -> Vec<String> {
         }
     }
     keys
+}
+
+#[cfg(test)]
+mod pipeline_tests {
+    use super::{BUILT, Goal, Session};
+    use hd_driver::{EngineTarget, OptLevel};
+
+    /// Every build of a session, its Run, Check and Test compiles and its
+    /// REPL modules, is tuned for the browser, unoptimized
+    /// (opt-pipeline.md §5).
+    #[test]
+    fn every_build_is_for_the_browser_in_the_dev_pipeline() {
+        let browser = (EngineTarget::Browser, OptLevel::Dev);
+        let mut session = Session::new();
+        let files = [(
+            "main.hd",
+            "pub fn main() -> void $ Console:\n    println(\"open\")\n\ntests:\n    it(\"runs\"):\n        pass\n",
+        )];
+        BUILT.take();
+        for goal in [Goal::Run, Goal::Check, Goal::Test] {
+            let result = session.compile(files, "main.hd", goal);
+            assert!(result.diagnostics.is_empty(), "{goal:?}");
+            assert_eq!(BUILT.take(), [browser], "{goal:?}");
+        }
+        let prelude = session.repl_start(files).expect("a session");
+        assert!(prelude.wasm.is_some());
+        session.repl_outcome(0, true).expect("the prelude joins");
+        let input = session.repl_input("x := +1\n").expect("an input");
+        assert!(input.diagnostics.is_empty());
+        assert_eq!(BUILT.take(), [browser, browser]);
+    }
 }

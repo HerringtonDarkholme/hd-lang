@@ -33,12 +33,12 @@ pub(crate) struct Session {
 
 impl Session {
     pub(crate) fn new(
-        release: bool,
+        level: hd_driver::OptLevel,
         jobs: usize,
         limits: ProgramLimits,
         programs: Option<&TestPrograms>,
     ) -> Result<Self, String> {
-        let config = hd_run_wasmtime::EngineConfig::pipeline(release);
+        let config = hd_run_wasmtime::EngineConfig::pipeline(level);
         let workers = u32::try_from(jobs).map_err(|_| "too many test workers")?;
         let engine = hd_run_wasmtime::TestEngine::new(
             config,
@@ -158,9 +158,13 @@ fn case_run(case: hd_run_wasmtime::testing::CaseRun) -> CaseRun {
 }
 
 /// Runs a built program to its end with the process's standard streams.
-pub(crate) fn run_program(release: bool, wasm: &[u8], host: &HostSetup) -> Result<Outcome, String> {
+pub(crate) fn run_program(
+    level: hd_driver::OptLevel,
+    wasm: &[u8],
+    host: &HostSetup,
+) -> Result<Outcome, String> {
     hd_run_wasmtime::run_with_guards(
-        hd_run_wasmtime::EngineConfig::pipeline(release),
+        hd_run_wasmtime::EngineConfig::pipeline(level),
         wasm,
         host,
         hd_run_wasmtime::HostIo::process(),
@@ -170,6 +174,6 @@ pub(crate) fn run_program(release: bool, wasm: &[u8], host: &HostSetup) -> Resul
 }
 
 /// The stack a test worker thread needs to host a guest.
-pub(crate) fn worker_stack(release: bool) -> usize {
-    hd_run_wasmtime::thread_stack(&hd_run_wasmtime::EngineConfig::pipeline(release))
+pub(crate) fn worker_stack(level: hd_driver::OptLevel) -> usize {
+    hd_run_wasmtime::thread_stack(&hd_run_wasmtime::EngineConfig::pipeline(level))
 }

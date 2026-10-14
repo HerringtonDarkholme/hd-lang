@@ -12,8 +12,8 @@
 
 use hd_cache::{CacheStore, OverlayStore};
 use hd_driver::{
-    BuildProfile, Dependency, Executor, Goal, Host, NoClock, Output, Packages, Session,
-    build_packages, build_repl_prelude,
+    BuildProfile, Dependency, EngineTarget, Executor, Goal, Host, NoClock, OptLevel, Output,
+    Packages, Session, build_packages, build_repl_prelude,
 };
 use hd_project::{MemorySources, repl_file};
 use hd_sched::SerialOrder;
@@ -511,7 +511,7 @@ fn start_with_prelude(repl: &mut Repl<'_>, store: &dyn CacheStore) -> Output {
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };
-    let out = build_repl_prelude(&host, BuildProfile::Checked);
+    let out = build_repl_prelude(&host, BuildProfile::Checked, EngineTarget::default());
     assert!(out.diags.is_empty(), "{}", out.render());
     repl.session
         .add(out.session_added.clone().expect("what the prelude adds"));
@@ -606,9 +606,19 @@ fn the_prelude_is_cached_per_toolchain() {
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };
-    let release = build_repl_prelude(&host, BuildProfile::Release);
+    let release = build_repl_prelude(&host, BuildProfile::Release, EngineTarget::default());
     assert_eq!(release.counters.misses.get("link"), Some(&1));
     assert_ne!(release.wasm, built.wasm);
+    // The prelude is built for the session's target, in the dev pipeline.
+    // While the targets' pipelines have the same content, so do their keys,
+    // and the `Wasmtime` prelude is the cached one.
+    let wasmtime = build_repl_prelude(&host, BuildProfile::Checked, EngineTarget::Wasmtime);
+    assert_eq!(
+        (wasmtime.target, wasmtime.level),
+        (EngineTarget::Wasmtime, OptLevel::Dev)
+    );
+    assert_eq!(wasmtime.counters.hits.get("link"), Some(&1));
+    assert_eq!(wasmtime.wasm, built.wasm);
 }
 
 /// A session is one scope, as a module is (`cli.repl.package.lib`): a

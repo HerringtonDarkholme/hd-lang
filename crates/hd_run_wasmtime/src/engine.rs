@@ -28,14 +28,15 @@ pub enum OptLevel {
 }
 
 impl EngineConfig {
-    /// The dev pipeline (`hd run`), or with `release` the optimized one.
+    /// The engine options of a build's optimization level
+    /// (opt-pipeline.md §3.1): Cranelift `None` for the dev pipeline
+    /// (`hd run`), `Speed` for the optimized one (`--release`).
     #[must_use]
-    pub fn pipeline(release: bool) -> EngineConfig {
+    pub fn pipeline(level: hd_base::OptLevel) -> EngineConfig {
         EngineConfig {
-            cranelift_opt: if release {
-                OptLevel::Speed
-            } else {
-                OptLevel::None
+            cranelift_opt: match level {
+                hd_base::OptLevel::Dev => OptLevel::None,
+                hd_base::OptLevel::Optimized => OptLevel::Speed,
             },
             max_wasm_stack: 4 << 20,
             gc_heap_initial: 64 << 20,
@@ -45,7 +46,7 @@ impl EngineConfig {
 
 impl Default for EngineConfig {
     fn default() -> Self {
-        EngineConfig::pipeline(false)
+        EngineConfig::pipeline(hd_base::OptLevel::Dev)
     }
 }
 

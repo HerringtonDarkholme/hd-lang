@@ -7,9 +7,18 @@ use hd_run::Engine;
 /// (`hd run --release`).
 #[test]
 fn profile_selects_cranelift_pipeline() {
-    assert_eq!(EngineConfig::pipeline(false).cranelift_opt, OptLevel::None);
-    assert_eq!(EngineConfig::pipeline(true).cranelift_opt, OptLevel::Speed);
-    assert_eq!(EngineConfig::default(), EngineConfig::pipeline(false));
+    assert_eq!(
+        EngineConfig::pipeline(hd_base::OptLevel::Dev).cranelift_opt,
+        OptLevel::None
+    );
+    assert_eq!(
+        EngineConfig::pipeline(hd_base::OptLevel::Optimized).cranelift_opt,
+        OptLevel::Speed
+    );
+    assert_eq!(
+        EngineConfig::default(),
+        EngineConfig::pipeline(hd_base::OptLevel::Dev)
+    );
 }
 
 fn malformed_reply_module(

@@ -186,7 +186,7 @@ pub(crate) fn run(
     journal_cap: usize,
     on_start: impl FnOnce(Stopper),
 ) -> Result<(), String> {
-    let config = EngineConfig::pipeline(false);
+    let config = EngineConfig::pipeline(PIPELINE.level);
     let names = lines.names();
     let cwd = cwd.to_path_buf();
     let (send_input, inputs) = mpsc::channel::<Request>();
@@ -423,6 +423,11 @@ struct Repl {
     names: complete::Names,
 }
 
+/// The pipeline of every module a session builds (opt-pipeline.md §5): the
+/// REPL runs on wasmtime only, unoptimized.
+pub(crate) const PIPELINE: crate::Pipeline =
+    crate::Pipeline::of(crate::engine::EngineKind::Wasmtime, false);
+
 /// Builds the session's prelude, or reads it from the cache.
 fn build_prelude(program: &disk::Program, store: &DiskStore) -> hd_driver::Output {
     let clock = Wall(Instant::now());
@@ -433,7 +438,9 @@ fn build_prelude(program: &disk::Program, store: &DiskStore) -> hd_driver::Outpu
         clock: &clock,
         executor: crate::executor(),
     };
-    hd_driver::build_repl_prelude(&host, BuildProfile::Checked)
+    let out = hd_driver::build_repl_prelude(&host, BuildProfile::Checked, PIPELINE.target);
+    crate::note_built(&out);
+    out
 }
 
 /// Builds the input `number`, whose file is in `program`'s sources, over
@@ -454,15 +461,16 @@ fn build_input(
         clock: &clock,
         executor: crate::executor(),
     };
-    // The target is the default engine's (`V8`) until job (c2) of
-    // opt-pipeline.md §6 sets `Wasmtime`, the REPL's only engine.
     let packages = hd_driver::Packages {
         build_profile: BuildProfile::Checked,
+        target: PIPELINE.target,
+        level: PIPELINE.level,
         session: Some(built),
         ..program.packages()
     };
     let goal = Goal::ReplInput { input: number };
     let out = hd_driver::build_packages(&host, &program.package, &packages, &goal);
+    crate::note_built(&out);
     let file = hd_project::repl_file(number);
     let mut found = hd_driver::diagnostics::for_input(report::from_output(&out, None), &file);
     report::relocate(&mut found, |f| program.sources.display(f));

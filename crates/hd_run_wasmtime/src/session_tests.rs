@@ -108,7 +108,11 @@ fn build_prelude(store: &hd_cache::MemoryStore) -> hd_driver::Output {
         clock: &hd_driver::NoClock,
         executor: hd_driver::Executor::Serial(hd_sched::SerialOrder::Priority),
     };
-    hd_driver::build_repl_prelude(&host, hd_driver::BuildProfile::Checked)
+    hd_driver::build_repl_prelude(
+        &host,
+        hd_driver::BuildProfile::Checked,
+        hd_driver::EngineTarget::default(),
+    )
 }
 
 /// A rebuild's builder over a test session's texts: input 0 is the

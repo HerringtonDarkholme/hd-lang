@@ -161,6 +161,7 @@ cargo install --path crates/hd_cli
 This puts `hd` in `~/.cargo/bin`. To run programs without Node, build with
 the wasmtime engine, `cargo install --path crates/hd_cli --features wasmtime`,
 and choose it with `hd --engine wasmtime ...` or `HD_ENGINE=wasmtime`.
+`hd build` takes the same choice and tunes its Wasm for that engine.
 
 ## Start
 

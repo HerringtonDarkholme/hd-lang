@@ -537,11 +537,12 @@ fn test_one(
         Executor::Pool(o.jobs)
     };
     // `cli.profile.pipeline.one`: `--release` selects the optimized
-    // pipeline; the profile stays checked. The target stays the default
-    // engine's (`V8`) until job (c2) of opt-pipeline.md §6 passes in the
+    // pipeline; the profile stays checked. The programs are tuned for the
     // engine the tests run on.
+    let pipeline = crate::Pipeline::of(o.engine, o.release);
     let packages = hd_driver::Packages {
-        level: crate::level_of(o.release),
+        target: pipeline.target,
+        level: pipeline.level,
         ..program.packages()
     };
     let package = &program.package;
@@ -566,6 +567,7 @@ fn test_one(
             filter: o.filter.clone(),
         };
         let mut out = build_packages(&host, package, &packages, &goal);
+        crate::note_built(&out);
         let mut found = report::from_output(&out, None);
         // `module.test.doc.compile-fail`: it never runs, and passes only
         // when compiling it reports its code.
@@ -709,8 +711,7 @@ fn test_one(
         Some(build_programs(
             root,
             &program.package,
-            o.engine,
-            crate::level_of(o.release),
+            (o.engine, pipeline),
             &mut report.rep,
         )?)
     } else {
@@ -722,12 +723,12 @@ fn test_one(
 /// The package's executables and tasks, built for the test runner's
 /// `Process` provider (`cli.test.process`, `.process.tasks`). Each gets
 /// the package's `[capabilities]` table and no flags, as `hd run NAME`
-/// would (`cli.cap.source.hd-run`).
+/// would (`cli.cap.source.hd-run`). They run on the tests' `engine`, so
+/// they are built with the tests' `pipeline`.
 fn build_programs(
     root: &Path,
     package: &str,
-    engine: crate::engine::EngineKind,
-    level: hd_driver::OptLevel,
+    (engine, pipeline): (crate::engine::EngineKind, crate::Pipeline),
     rep: &mut report::Reporter,
 ) -> Result<TestPrograms, ExitCode> {
     let mut list = Vec::new();
@@ -738,7 +739,7 @@ fn build_programs(
         let mut p = disk::load_package(root, &r.file).map_err(|e| rep.fail(&e))?;
         p.only_program(&r.file);
         // `cli.profile.test`: the executables a test run builds are checked.
-        let wasm = crate::compile_in(&p, (hd_driver::BuildProfile::Checked, level), rep)?;
+        let wasm = crate::compile(&p, (hd_driver::BuildProfile::Checked, pipeline), rep)?;
         let grants = crate::caps::grants(
             &p.capabilities,
             p.package_dir.as_deref().unwrap_or(root),
@@ -929,7 +930,7 @@ fn run(
         let _preparing = crate::memory_cap::stage("Precompile");
         let session = TestSession::new(
             options.engine,
-            options.release,
+            crate::level_of(options.release),
             options.jobs,
             options.limits,
             programs,
@@ -1001,7 +1002,10 @@ fn run(
                 let test_env = &test_env;
                 let session = &session;
                 let mut builder = std::thread::Builder::new();
-                if let Some(size) = options.engine.worker_stack(options.release) {
+                if let Some(size) = options
+                    .engine
+                    .worker_stack(crate::level_of(options.release))
+                {
                     builder = builder.stack_size(size);
                 }
                 let worker = builder.spawn_scoped(s, move || {

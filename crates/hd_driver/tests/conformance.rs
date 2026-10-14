@@ -10,6 +10,10 @@
 //! `HD_CONFORMANCE_ENGINE=wasmtime` compares runtime programs, including
 //! fixture profiles, on both engines and judges by wasmtime.
 //! `wasmtime-only` never launches Node for entries or test programs.
+//! Each engine runs a build tuned for its own target (opt-pipeline.md §5,
+//! Q3): Node runs the `V8` build and wasmtime the `Wasmtime` build, so
+//! compare mode builds each runnable program once per target. The
+//! default, Node, builds for `V8` only.
 //! Test outcomes are compared without their nondeterministic elapsed time.
 //! Neither mode rewrites the report or falls back after a wasmtime error.
 //! Both need the `wasmtime` feature (`cargo test --features wasmtime`).
@@ -18,10 +22,12 @@
 //! the checked build profile, and never rewrites the report; the cases
 //! that pass today must still pass. `dev` is the default.
 //! `HD_CONFORMANCE_WASM_DIGEST=record|check` records the hash of every
-//! Wasm module a runtime case runs, per case and profile, in
-//! `target/conformance-wasm-digests-<pipeline>.tsv`, or compares the run
-//! with that saved file and fails on any difference. It proves a refactor
-//! leaves the emitted code byte-identical; it needs the full runtime suite.
+//! Wasm module a runtime case runs (its entry under each profile, its test
+//! programs and its scenario drive), in
+//! `target/conformance-wasm-digests-<target>-<pipeline>.tsv` for each
+//! target the engine mode builds, or compares the run with those saved
+//! files and fails on any difference. It proves a refactor leaves the
+//! emitted code byte-identical; it needs the full runtime suite.
 //! `HD_CONFORMANCE_TIER=lang|std` selects that tier's runtime cases for
 //! timing, without rewriting the report or checking the full pass list.
 
@@ -40,8 +46,8 @@ use hd_base::Stage;
 use hd_cache::MemoryStore;
 use hd_diag::Severity;
 use hd_driver::{
-    Dependency, Executor, Goal, Host, NoClock, OptLevel, Output, Packages, PipelineReport,
-    ScenarioHold, build_packages,
+    Dependency, EngineTarget, Executor, Goal, Host, NoClock, OptLevel, Output, Packages,
+    PipelineReport, ScenarioHold, build_packages,
 };
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
@@ -252,12 +258,90 @@ fn build_fixture(fixture: &Fixture, store: &MemoryStore, goal: &Goal) -> Output 
 }
 
 /// Builds `sources` as the fixture's package, with the fixture's
-/// dependencies.
+/// dependencies, for the target of the engine that judges the case.
 fn build_sources(
     fixture: &Fixture,
     sources: &MemorySources,
     store: &MemoryStore,
     goal: &Goal,
+) -> Output {
+    build_for(fixture, sources, store, goal, engine_mode().judged_target())
+}
+
+/// A runnable goal's builds: the judged one, for the judging engine's
+/// target, and in compare mode Node's own build for `V8`.
+struct Runnable {
+    out: Output,
+    node: Option<Output>,
+}
+
+impl Runnable {
+    /// The modules the engines run, once the judged build made one.
+    fn modules<'a>(&'a self, judged: &'a [u8]) -> Modules<'a> {
+        Modules {
+            judged,
+            node: match &self.node {
+                None => NodeModule::Judged,
+                Some(Output {
+                    wasm: Some(wasm), ..
+                }) => NodeModule::Own(wasm),
+                Some(_) => NodeModule::Missing,
+            },
+        }
+    }
+}
+
+/// [`build_sources`] for a goal that makes a module to run, built once
+/// more for `V8` in compare mode.
+fn build_runnable(
+    fixture: &Fixture,
+    sources: &MemorySources,
+    store: &MemoryStore,
+    goal: &Goal,
+) -> Runnable {
+    let out = build_sources(fixture, sources, store, goal);
+    let node = (engine_mode() == EngineMode::Compare)
+        .then(|| build_for(fixture, sources, store, goal, EngineTarget::V8));
+    Runnable { out, node }
+}
+
+/// A program as each engine of the mode runs it: the judged module, and
+/// the module Node runs.
+#[derive(Clone, Copy)]
+struct Modules<'a> {
+    judged: &'a [u8],
+    node: NodeModule<'a>,
+}
+
+/// The module Node runs: the judged one in Node mode; in compare mode the
+/// module of its own `V8` build, or none when that build made none.
+#[derive(Clone, Copy)]
+enum NodeModule<'a> {
+    Judged,
+    Own(&'a [u8]),
+    Missing,
+}
+
+impl<'a> Modules<'a> {
+    /// The module Node runs.
+    fn node(self) -> std::io::Result<&'a [u8]> {
+        match self.node {
+            NodeModule::Judged => Ok(self.judged),
+            NodeModule::Own(wasm) => Ok(wasm),
+            NodeModule::Missing => Err(std::io::Error::other(
+                "the V8 build made no module where the Wasmtime build did",
+            )),
+        }
+    }
+}
+
+/// [`build_sources`] for `target`.
+fn build_for(
+    fixture: &Fixture,
+    sources: &MemorySources,
+    store: &MemoryStore,
+    goal: &Goal,
+    target: EngineTarget,
 ) -> Output {
     let host = Host {
         render_tir: &[],
@@ -285,14 +369,8 @@ fn build_sources(
             })
             .collect(),
         profile: profile(fixture),
-        // The default engine's target (`V8`) for every engine mode, until
-        // job (c2) of opt-pipeline.md §6 builds each engine pass for its
-        // own target.
-        level: if optimized_pipeline() {
-            OptLevel::Optimized
-        } else {
-            OptLevel::Dev
-        },
+        target,
+        level: level(),
         ..Packages::default()
     };
     build_packages(&host, "fixture", &packages, goal)
@@ -617,6 +695,17 @@ impl EngineMode {
     }
 }
 
+impl EngineMode {
+    /// The target of the builds this mode judges: wasmtime judges both
+    /// wasmtime modes, so they build for `Wasmtime`; Node builds for `V8`.
+    const fn judged_target(self) -> EngineTarget {
+        match self {
+            Self::Node => EngineTarget::V8,
+            Self::Compare | Self::WasmtimeOnly => EngineTarget::Wasmtime,
+        }
+    }
+}
+
 fn engine_mode() -> EngineMode {
     EngineMode::from_value(selection_env("HD_CONFORMANCE_ENGINE").as_deref())
 }
@@ -639,6 +728,15 @@ fn optimized_pipeline() -> bool {
     }
 }
 
+/// The optimization level of every build, and of wasmtime's engine.
+fn level() -> OptLevel {
+    if optimized_pipeline() {
+        OptLevel::Optimized
+    } else {
+        OptLevel::Dev
+    }
+}
+
 #[test]
 fn engine_selection_is_explicit() {
     for value in [None, Some(""), Some("node")] {
@@ -655,6 +753,42 @@ fn engine_selection_is_explicit() {
             EngineMode::WasmtimeOnly
         );
     }
+}
+
+/// Each engine runs a build tuned for its own target (opt-pipeline.md §5,
+/// Q3): the judged build is for the judging engine's target, and compare
+/// mode builds once more for `V8`, the module Node runs. Both at the
+/// selected level.
+#[test]
+fn each_engine_runs_a_build_for_its_own_target() {
+    assert_eq!(EngineMode::Node.judged_target(), EngineTarget::V8);
+    assert_eq!(EngineMode::Compare.judged_target(), EngineTarget::Wasmtime);
+    assert_eq!(
+        EngineMode::WasmtimeOnly.judged_target(),
+        EngineTarget::Wasmtime
+    );
+    let fixture = unit_fixture("pub fn main() -> void $ Console:\n    println(\"open\")\n");
+    let built = build_runnable(
+        &fixture,
+        &fixture.sources,
+        &MemoryStore::default(),
+        &Goal::Program {
+            entry: "main".to_owned(),
+        },
+    );
+    let mode = engine_mode();
+    assert_eq!(
+        (built.out.target, built.out.level),
+        (mode.judged_target(), level())
+    );
+    let node = built.node.as_ref().map(|n| (n.target, n.level));
+    if mode == EngineMode::Compare {
+        assert_eq!(node, Some((EngineTarget::V8, level())));
+    } else {
+        assert_eq!(node, None);
+    }
+    let wasm = built.out.wasm.as_deref().expect("the entry links");
+    assert!(built.modules(wasm).node().is_ok());
 }
 
 #[cfg(not(feature = "wasmtime"))]
@@ -695,20 +829,44 @@ struct RuntimeStats {
 static RUNTIME_STATS: Mutex<BTreeMap<&str, RuntimeStats>> = Mutex::new(BTreeMap::new());
 static WASMTIME_DIFFS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
-static WASM_DIGESTS: Mutex<BTreeMap<String, String>> = Mutex::new(BTreeMap::new());
+/// Per target, each noted module's digest by case and run.
+static WASM_DIGESTS: Mutex<BTreeMap<&str, BTreeMap<String, String>>> = Mutex::new(BTreeMap::new());
 
-/// Notes the digest of the module `case` runs under `profile`, for
-/// `HD_CONFORMANCE_WASM_DIGEST`.
-fn note_wasm_digest(case: &Case, wasm: &[u8], profile: Option<&str>) {
+/// The name of a target in a digest file's name.
+const fn target_name(target: EngineTarget) -> &'static str {
+    match target {
+        EngineTarget::V8 => "v8",
+        EngineTarget::Wasmtime => "wasmtime",
+        EngineTarget::Browser => "browser",
+    }
+}
+
+/// Notes the digest of the module built for `target` that `case` runs as
+/// `run`: an entry's runtime profile (`-` for none), `tests`, a doc test
+/// `docN`, or `scenario`. For `HD_CONFORMANCE_WASM_DIGEST`.
+fn note_wasm_digest(target: EngineTarget, case: &Case, wasm: &[u8], run: &str) {
     if selection_env("HD_CONFORMANCE_WASM_DIGEST").is_none() {
         return;
     }
     let digest = format!("{:032x}", hd_base::hash128(wasm).0);
-    let key = format!("{}\t{}", case.path, profile.unwrap_or("-"));
+    let key = format!("{}\t{run}", case.path);
     let mut digests = WASM_DIGESTS.lock().expect("digest lock");
+    let digests = digests.entry(target_name(target)).or_default();
     if let Some(old) = digests.insert(key.clone(), digest.clone()) {
         assert_eq!(old, digest, "{key}: one case built two different modules");
     }
+}
+
+/// Notes the modules each engine of the mode runs, each under its target.
+fn note_modules(case: &Case, wasm: Modules<'_>, run: &str) -> std::io::Result<()> {
+    let mode = engine_mode();
+    if mode != EngineMode::WasmtimeOnly {
+        note_wasm_digest(EngineTarget::V8, case, wasm.node()?, run);
+    }
+    if mode != EngineMode::Node {
+        note_wasm_digest(EngineTarget::Wasmtime, case, wasm.judged, run);
+    }
+    Ok(())
 }
 
 /// Records or checks the digests noted by this run
@@ -722,30 +880,34 @@ fn finish_wasm_digests() {
     } else {
         "dev"
     };
-    let file = root().join(format!("target/conformance-wasm-digests-{pipeline}.tsv"));
-    let mut text = String::new();
-    for (key, digest) in WASM_DIGESTS.lock().expect("digest lock").iter() {
-        writeln!(text, "{key}\t{digest}").expect("write to a string");
-    }
-    match mode.as_str() {
-        "record" => std::fs::write(&file, text).expect("write the digest file"),
-        "check" => {
-            let saved = std::fs::read_to_string(&file)
-                .unwrap_or_else(|_| panic!("record {} first", file.display()));
-            let old: BTreeSet<&str> = saved.lines().collect();
-            let new: BTreeSet<&str> = text.lines().collect();
-            let changed: Vec<String> = old
-                .symmetric_difference(&new)
-                .map(|line| (*line).to_owned())
-                .collect();
-            assert!(
-                changed.is_empty(),
-                "Wasm digests differ from {}:\n{}",
-                file.display(),
-                changed.join("\n")
-            );
+    for (target, digests) in WASM_DIGESTS.lock().expect("digest lock").iter() {
+        let file = root().join(format!(
+            "target/conformance-wasm-digests-{target}-{pipeline}.tsv"
+        ));
+        let mut text = String::new();
+        for (key, digest) in digests {
+            writeln!(text, "{key}\t{digest}").expect("write to a string");
         }
-        other => panic!("unknown HD_CONFORMANCE_WASM_DIGEST: {other}"),
+        match mode.as_str() {
+            "record" => std::fs::write(&file, text).expect("write the digest file"),
+            "check" => {
+                let saved = std::fs::read_to_string(&file)
+                    .unwrap_or_else(|_| panic!("record {} first", file.display()));
+                let old: BTreeSet<&str> = saved.lines().collect();
+                let new: BTreeSet<&str> = text.lines().collect();
+                let changed: Vec<String> = old
+                    .symmetric_difference(&new)
+                    .map(|line| (*line).to_owned())
+                    .collect();
+                assert!(
+                    changed.is_empty(),
+                    "Wasm digests differ from {}:\n{}",
+                    file.display(),
+                    changed.join("\n")
+                );
+            }
+            other => panic!("unknown HD_CONFORMANCE_WASM_DIGEST: {other}"),
+        }
     }
 }
 
@@ -753,17 +915,17 @@ fn finish_wasm_digests() {
 /// error, never an implicit Node fallback.
 fn run_program(
     case: &Case,
-    wasm: &[u8],
+    wasm: Modules<'_>,
     serial: usize,
     profile: Option<&str>,
 ) -> std::io::Result<Ran> {
-    note_wasm_digest(case, wasm, profile);
+    note_modules(case, wasm, profile.unwrap_or("-"))?;
     let mode = engine_mode();
     let node = if mode == EngineMode::WasmtimeOnly {
         None
     } else {
         let started = Instant::now();
-        let ran = run_wasm(wasm, serial, profile);
+        let ran = run_wasm(wasm.node()?, serial, profile);
         let mut stats = RUNTIME_STATS.lock().expect("runtime stats lock");
         let stats = stats.entry(tier(case)).or_default();
         stats.node_elapsed += started.elapsed();
@@ -774,7 +936,7 @@ fn run_program(
     if mode == EngineMode::Node {
         return Ok(node.expect("Node mode ran Node"));
     }
-    wasmtime::run_program(case, wasm, profile, node)
+    wasmtime::run_program(case, wasm.judged, profile, node)
 }
 
 /// Execution durations are sums across workers, not elapsed suite wall
@@ -1140,8 +1302,16 @@ fn build_error(built: &Output) -> Option<Verdict> {
 
 /// Runs each case of a `Goal::Tests` build in its own instance and adds
 /// what they did to `run`; `Err` is the case's verdict when the build
-/// cannot run.
-fn run_tests(case: &Case, built: &Output, serial: usize, run: &mut TestRun) -> Result<(), Verdict> {
+/// cannot run. `program` names the build among the case's test programs
+/// (`tests`, or a doc test's `docN`).
+fn run_tests(
+    case: &Case,
+    runnable: &Runnable,
+    program: &str,
+    serial: usize,
+    run: &mut TestRun,
+) -> Result<(), Verdict> {
+    let built = &runnable.out;
     if let Some(verdict) = build_error(built) {
         return Err(verdict);
     }
@@ -1164,6 +1334,8 @@ fn run_tests(case: &Case, built: &Output, serial: usize, run: &mut TestRun) -> R
     let Some(wasm) = &built.wasm else {
         return Err(Verdict::Unsupported("Link".to_owned()));
     };
+    let modules = runnable.modules(wasm);
+    note_modules(case, modules, program).map_err(|e| Verdict::Crash(e.to_string()))?;
     let mode = engine_mode();
     let node = if mode == EngineMode::WasmtimeOnly {
         None
@@ -1172,7 +1344,8 @@ fn run_tests(case: &Case, built: &Output, serial: usize, run: &mut TestRun) -> R
             env!("CARGO_TARGET_TMPDIR"),
             &format!("conformance-{serial}.wasm"),
         );
-        std::fs::write(&path, wasm).map_err(|e| Verdict::Crash(e.to_string()))?;
+        let node_wasm = modules.node().map_err(|e| Verdict::Crash(e.to_string()))?;
+        std::fs::write(&path, node_wasm).map_err(|e| Verdict::Crash(e.to_string()))?;
         let list: Vec<String> = runs
             .iter()
             .map(|(case, (test, init))| format!("{test}:{init}:{}", case.kind))
@@ -1251,8 +1424,9 @@ fn judge_tests(case: &Case, run: &TestRun) -> Verdict {
 /// `test FILE`: each case of the fixture's `tests:` block in its own
 /// instance (spec/conformance/README.md, Runtime Execution steps 2 and 3).
 fn tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize) -> Verdict {
-    let built = build_fixture(
+    let built = build_runnable(
         fixture,
+        &fixture.sources,
         store,
         &Goal::Tests {
             module: None,
@@ -1260,7 +1434,7 @@ fn tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize
         },
     );
     let mut run = TestRun::default();
-    match run_tests(case, &built, serial, &mut run) {
+    match run_tests(case, &built, "tests", serial, &mut run) {
         Ok(()) => judge_tests(case, &run),
         Err(verdict) => verdict,
     }
@@ -1278,15 +1452,16 @@ fn tree_tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: 
     if fixture.text.lines().any(|line| line.starts_with("tests:"))
         || hd_project::role_of(&fixture.primary) == hd_project::Role::Test
     {
-        let built = build_fixture(
+        let built = build_runnable(
             fixture,
+            &fixture.sources,
             store,
             &Goal::Tests {
                 module: Some(hd_project::module_path("fixture", &fixture.primary)),
                 filter: None,
             },
         );
-        if let Err(verdict) = run_tests(case, &built, serial, &mut run) {
+        if let Err(verdict) = run_tests(case, &built, "tests", serial, &mut run) {
             return verdict;
         }
     }
@@ -1297,23 +1472,20 @@ fn tree_tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: 
         let path = format!("tests/$doc{index}.hd");
         let mut sources = fixture.sources.clone();
         sources.insert(&path, &doc.program);
-        let built = build_sources(
-            fixture,
-            &sources,
-            store,
-            &Goal::Tests {
-                module: Some(hd_project::module_path("fixture", &path)),
-                filter: None,
-            },
-        );
+        let goal = Goal::Tests {
+            module: Some(hd_project::module_path("fixture", &path)),
+            filter: None,
+        };
         if let Some(code) = &doc.compile_fail {
+            let built = build_sources(fixture, &sources, store, &goal);
             if !built.diags.code.iter().any(|found| found.as_str() == code) {
                 return build_error(&built)
                     .unwrap_or_else(|| Verdict::Fail("no-diagnostic".to_owned()));
             }
             continue;
         }
-        if let Err(verdict) = run_tests(case, &built, serial, &mut run) {
+        let built = build_runnable(fixture, &sources, store, &goal);
+        if let Err(verdict) = run_tests(case, &built, &format!("doc{index}"), serial, &mut run) {
             return verdict;
         }
     }
@@ -1347,15 +1519,17 @@ fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usi
             return verdict;
         }
     }
-    let built = build_fixture(
+    let runnable = build_runnable(
         fixture,
+        &fixture.sources,
         store,
         &Goal::Program {
             entry: "main".to_owned(),
         },
     );
+    let built = &runnable.out;
     if built.diags.has_errors() {
-        let index = first_error(&built);
+        let index = first_error(built);
         if built.diags.code[index].as_str() == "unsupported" {
             return Verdict::Unsupported(
                 first_unsupported(&built.report, true).unwrap_or_else(|| "Build".to_owned()),
@@ -1371,17 +1545,18 @@ fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usi
         }
         return Verdict::Fail(built.diags.code[index].as_str().to_owned());
     }
-    let Some(wasm) = built.wasm else {
+    let Some(wasm) = &built.wasm else {
         return Verdict::Unsupported("Link".to_owned());
     };
+    let modules = runnable.modules(wasm);
     let profile = directive(&fixture.text, "fixture-runtime-profile");
-    let verdict = entry_verdict(case, fixture, &wasm, serial, profile);
+    let verdict = entry_verdict(case, fixture, modules, serial, profile);
     if verdict == Verdict::Pass && pending_first_poll(&fixture.text) {
         // README "Runtime Scenarios", `pending-first-poll`: after the
         // ordinary run, the entry again under the `console` profile with
         // every `write_line!` pending on its first poll, which is the
         // `pending-write` profile; both runs must succeed.
-        return entry_verdict(case, fixture, &wasm, serial, Some("pending-write"));
+        return entry_verdict(case, fixture, modules, serial, Some("pending-write"));
     }
     verdict
 }
@@ -1391,7 +1566,7 @@ fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usi
 fn entry_verdict(
     case: &Case,
     fixture: &Fixture,
-    wasm: &[u8],
+    wasm: Modules<'_>,
     serial: usize,
     profile: Option<&str>,
 ) -> Verdict {
@@ -1432,16 +1607,18 @@ fn scenario_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: us
             })
         }
     };
-    let built = build_fixture(
+    let runnable = build_runnable(
         fixture,
+        &fixture.sources,
         store,
         &Goal::Scenario {
             entry: "main".to_owned(),
             hold,
         },
     );
+    let built = &runnable.out;
     if built.diags.has_errors() {
-        let index = first_error(&built);
+        let index = first_error(built);
         if built.diags.code[index].as_str() == "unsupported" {
             return Verdict::Unsupported(
                 first_unsupported(&built.report, true).unwrap_or_else(|| "Build".to_owned()),
@@ -1449,12 +1626,12 @@ fn scenario_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: us
         }
         return Verdict::Fail(built.diags.code[index].as_str().to_owned());
     }
-    let Some(wasm) = built.wasm else {
+    let Some(wasm) = &built.wasm else {
         return Verdict::Unsupported("Link".to_owned());
     };
     let profile = directive(&fixture.text, "fixture-runtime-profile");
     let scenario = scenario.unwrap_or("cancellation-cleanup");
-    let run = match scenario_run(case, &wasm, serial, profile, scenario) {
+    let run = match scenario_run(case, runnable.modules(wasm), serial, profile, scenario) {
         Ok(run) => run,
         Err(error) => return Verdict::Crash(error.to_string()),
     };
@@ -1465,22 +1642,24 @@ fn scenario_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: us
 /// `run_program` runs and compares an entry.
 fn scenario_run(
     case: &Case,
-    wasm: &[u8],
+    wasm: Modules<'_>,
     serial: usize,
     profile: Option<&str>,
     scenario: &str,
 ) -> std::io::Result<Ran> {
+    note_modules(case, wasm, "scenario")?;
     let mode = engine_mode();
     let node = if mode == EngineMode::WasmtimeOnly {
         None
     } else {
         let started = Instant::now();
+        let node_wasm = wasm.node()?;
         let ran = ENTRY_WORKER.with(|slot| {
             let mut slot = slot.borrow_mut();
             ensure_worker(&mut slot)?;
             worker_run(
                 slot.as_mut().expect("entry worker"),
-                wasm,
+                node_wasm,
                 serial,
                 profile,
                 Some(scenario),
@@ -1496,7 +1675,7 @@ fn scenario_run(
     if mode == EngineMode::Node {
         return Ok(node.expect("Node mode ran Node"));
     }
-    wasmtime::drive_scenario(case, wasm, profile, scenario, node)
+    wasmtime::drive_scenario(case, wasm.judged, profile, scenario, node)
 }
 
 fn judge_run(case: &Case, fixture: &Fixture, run: &Ran) -> Verdict {
@@ -1587,18 +1766,20 @@ fn pending_first_poll_runs_the_entry_again_with_pending_writes() {
     assert_eq!(unit_runtime(&passing, "accept", 0), Verdict::Pass);
     // The scenario run is the entry under `pending-write`: each write is
     // pending once, then written in call order, and the run succeeds.
-    let built = build_fixture(
-        &unit_fixture(&passing),
+    let fixture = unit_fixture(&passing);
+    let built = build_runnable(
+        &fixture,
+        &fixture.sources,
         &MemoryStore::default(),
         &Goal::Program {
             entry: "main".to_owned(),
         },
     );
-    let wasm = built.wasm.expect("the entry links");
+    let wasm = built.out.wasm.as_deref().expect("the entry links");
     let serial = (1 << 40) + 1;
     let ran = run_program(
         &unit_case("accept", 1),
-        &wasm,
+        built.modules(wasm),
         serial,
         Some("pending-write"),
     )
@@ -1620,17 +1801,18 @@ fn scenarios_that_replace_execution_drive_or_stay_unsupported() {
     // The cancellation program never pends, so its drive fails the
     // first step; the competing and reentrant drives trap, which the
     // `accept` expectation fails.
-    for name in [
-        "cancellation-cleanup",
-        "competing-drivers",
-        "reentrant-poll",
+    // Each program has its own serial, so its digest row is its own.
+    for (serial, name) in [
+        (3, "cancellation-cleanup"),
+        (6, "competing-drivers"),
+        (7, "reentrant-poll"),
     ] {
         let text = format!(
             "# fixture-runtime-scenario: {name}\nfn ready!() -> i32: 42\n\npub fn main!() -> void:\n    _ := ready!()\n\npub fn cleanup_ran() -> bool: true\n"
         );
         assert!(replacing_scenario(&text));
         assert_eq!(
-            unit_runtime(&text, "accept", 3),
+            unit_runtime(&text, "accept", serial),
             Verdict::Fail("runtime-exit".to_owned())
         );
     }

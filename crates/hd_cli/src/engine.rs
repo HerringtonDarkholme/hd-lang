@@ -15,6 +15,7 @@
 use std::ffi::OsString;
 
 use hd_cache::DiskStore;
+use hd_driver::{EngineTarget, OptLevel};
 use hd_run::{HostSetup, Limits, Outcome, run_program};
 
 pub(crate) use crate::node::{CaseRun, HostCase, Snapshot};
@@ -63,7 +64,7 @@ pub(crate) enum TestSession {
 impl TestSession {
     pub(crate) fn new(
         kind: EngineKind,
-        release: bool,
+        level: OptLevel,
         jobs: usize,
         limits: ProgramLimits,
         programs: Option<&TestPrograms>,
@@ -71,7 +72,7 @@ impl TestSession {
         match kind {
             EngineKind::Node => Ok(Self::Node),
             EngineKind::Wasmtime => {
-                wasmtime::Session::new(release, jobs, limits, programs).map(Self::Wasmtime)
+                wasmtime::Session::new(level, jobs, limits, programs).map(Self::Wasmtime)
             }
         }
     }
@@ -222,10 +223,19 @@ pub(crate) enum EngineKind {
 
 impl EngineKind {
     /// The stack a test worker thread needs, when the engine asks for one.
-    pub(crate) fn worker_stack(self, release: bool) -> Option<usize> {
+    pub(crate) fn worker_stack(self, level: OptLevel) -> Option<usize> {
         match self {
             Self::Node => None,
-            Self::Wasmtime => Some(wasmtime::worker_stack(release)),
+            Self::Wasmtime => Some(wasmtime::worker_stack(level)),
+        }
+    }
+
+    /// The target a build that this engine runs is tuned for
+    /// (opt-pipeline.md §5).
+    pub(crate) const fn target(self) -> EngineTarget {
+        match self {
+            Self::Node => EngineTarget::V8,
+            Self::Wasmtime => EngineTarget::Wasmtime,
         }
     }
 }
@@ -269,10 +279,10 @@ pub(crate) fn from_env() -> Result<EngineKind, String> {
 }
 
 /// Runs a built program to its end on `kind`, with the process's standard
-/// streams. `release` selects wasmtime's optimized pipeline.
+/// streams. `level` selects wasmtime's engine options.
 pub(crate) fn run(
     kind: EngineKind,
-    release: bool,
+    level: OptLevel,
     wasm: &[u8],
     host: &HostSetup,
 ) -> Result<Outcome, String> {
@@ -284,7 +294,7 @@ pub(crate) fn run(
             let _guest = crate::memory_cap::enter_guest();
             run_program(&crate::node::NodeEngine, wasm, &store, host).map_err(|e| e.to_string())
         }
-        EngineKind::Wasmtime => wasmtime::run_program(release, wasm, host),
+        EngineKind::Wasmtime => wasmtime::run_program(level, wasm, host),
     }
 }
 

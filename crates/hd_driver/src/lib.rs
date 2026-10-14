@@ -433,6 +433,12 @@ pub struct Output {
     /// has run, the caller adds it ([`Session::add`]) before building the
     /// next module; a module that failed adds nothing.
     pub session_added: Option<Session>,
+    /// The engine target whose pipeline built this output
+    /// ([`Packages::target`]), as the caller asked for it.
+    pub target: EngineTarget,
+    /// The optimization level whose pipeline built this output
+    /// ([`Packages::level`]).
+    pub level: OptLevel,
 }
 
 impl Output {
@@ -1273,14 +1279,15 @@ fn prelude_key(toolchain: Hash128, pipeline: Hash128, profile: BuildProfile) -> 
 }
 
 /// Builds the REPL session's prelude, input 0, for a session in
-/// `profile`, or reads it from `host.store`, where it is cached per
-/// toolchain. It owns the session's memory and runtime globals and holds
+/// `profile` whose modules are tuned for `target` (a session builds in
+/// the dev pipeline), or reads it from `host.store`, where it is cached
+/// per toolchain and pipeline. It owns the session's memory and runtime globals and holds
 /// the instances that showing a value needs (`cli.repl.value`), so small
 /// inputs stay small. A session that starts runs it first, then adds its
 /// [`Output::session_added`] to [`Session::start`], and builds its inputs,
 /// numbered from 1, over that session. `host.sources` is not read.
 #[must_use]
-pub fn build_repl_prelude(host: &Host<'_>, profile: BuildProfile) -> Output {
+pub fn build_repl_prelude(host: &Host<'_>, profile: BuildProfile, target: EngineTarget) -> Output {
     let mut sources = MemorySources::default();
     sources.insert(&hd_project::repl_file(0), REPL_PRELUDE);
     let host = Host {
@@ -1293,6 +1300,7 @@ pub fn build_repl_prelude(host: &Host<'_>, profile: BuildProfile) -> Output {
     let start = Session::start();
     let packages = Packages {
         build_profile: profile,
+        target,
         session: Some(&start),
         ..Packages::default()
     };
@@ -1646,6 +1654,8 @@ fn build_packages_inner(
         pool_items: run.pool.len(),
         memo: run.memo.stats(),
         session_added,
+        target: packages.target,
+        level: packages.level,
     }
 }
 

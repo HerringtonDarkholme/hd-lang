@@ -281,4 +281,15 @@ fn wasmtime_is_refused_without_the_feature() {
     let message = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(101), "{output:?}");
     assert!(message.contains("HD_ENGINE: this build of hd has no wasmtime engine"));
+    // `hd build` resolves its engine as `hd run` does, so it refuses the
+    // same way before it builds anything.
+    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").unwrap();
+    let mut command = hd(&dir);
+    command.args(["build", "--engine", "wasmtime"]);
+    let output = bounded(command);
+    let message = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(101), "{output:?}");
+    assert!(message.contains("no wasmtime engine"), "{message}");
+    assert!(message.contains("--features wasmtime"), "{message}");
+    assert!(!dir.join("build").exists());
 }

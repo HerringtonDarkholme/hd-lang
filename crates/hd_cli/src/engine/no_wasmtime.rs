@@ -35,7 +35,7 @@ pub(crate) enum Session {}
 
 impl Session {
     pub(crate) fn new(
-        _release: bool,
+        _level: hd_driver::OptLevel,
         _jobs: usize,
         _limits: ProgramLimits,
         _programs: Option<&TestPrograms>,
@@ -60,7 +60,7 @@ impl Session {
 }
 
 pub(crate) fn run_program(
-    _release: bool,
+    _level: hd_driver::OptLevel,
     _wasm: &[u8],
     _host: &HostSetup,
 ) -> Result<Outcome, String> {
@@ -68,6 +68,6 @@ pub(crate) fn run_program(
 }
 
 /// No guest runs, so a worker thread keeps the default stack.
-pub(crate) fn worker_stack(_release: bool) -> usize {
+pub(crate) fn worker_stack(_level: hd_driver::OptLevel) -> usize {
     0
 }

@@ -1,10 +1,11 @@
 //! The wasmtime half of the conformance engine modes, built with the
-//! `wasmtime` feature. `no_wasmtime.rs` stands in for it without.
+//! `wasmtime` feature. `no_wasmtime.rs` stands in for it without. The
+//! engine's options follow the selected level (`EngineConfig::pipeline`).
 
 use std::sync::OnceLock;
 use std::time::Instant;
 
-use super::{Case, RUNTIME_STATS, Ran, Verdict, WASMTIME_DIFFS, tier, workers};
+use super::{Case, RUNTIME_STATS, Ran, Verdict, WASMTIME_DIFFS, level, tier, workers};
 
 /// Runs `wasm` on wasmtime and, when Node ran it too (`node`), compares
 /// the two. A wasmtime failure is an error, never a Node fallback.
@@ -21,7 +22,7 @@ pub fn run_program(
         args: Vec::new(),
         program: String::new(),
     };
-    let config = hd_run_wasmtime::EngineConfig::default();
+    let config = hd_run_wasmtime::EngineConfig::pipeline(level());
     let profile = hd_run_wasmtime::RuntimeProfile::from_name(profile.unwrap_or("default"))
         .map_err(std::io::Error::other)?;
     let started = Instant::now();
@@ -84,7 +85,7 @@ pub fn drive_scenario(
         args: Vec::new(),
         program: String::new(),
     };
-    let config = hd_run_wasmtime::EngineConfig::default();
+    let config = hd_run_wasmtime::EngineConfig::pipeline(level());
     let profile = hd_run_wasmtime::RuntimeProfile::from_name(profile.unwrap_or("default"))
         .map_err(std::io::Error::other)?;
     let scenario = match scenario {
@@ -173,7 +174,7 @@ pub fn test_stdout(
 
 /// The stack a conformance worker thread needs to host a guest.
 pub fn worker_stack() -> usize {
-    hd_run_wasmtime::thread_stack(&hd_run_wasmtime::EngineConfig::default())
+    hd_run_wasmtime::thread_stack(&hd_run_wasmtime::EngineConfig::pipeline(level()))
 }
 
 fn native_test_results(
@@ -191,7 +192,7 @@ fn native_test_results(
             let workers =
                 u32::try_from(workers()).map_err(|_| "too many test workers".to_owned())?;
             TestEngine::new(
-                hd_run_wasmtime::EngineConfig::default(),
+                hd_run_wasmtime::EngineConfig::pipeline(level()),
                 TestPoolConfig {
                     workers,
                     shrink_spares: workers,

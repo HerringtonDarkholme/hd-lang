@@ -99,7 +99,7 @@ jobs:
   conformance:
     name: Driver conformance
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Check out
         uses: actions/checkout@v5
@@ -114,6 +114,14 @@ jobs:
         uses: Swatinem/rust-cache@v2.9.2
 
       - name: New compiler conformance gate
+        run: cargo test --release --workspace --all-features --test conformance
+
+      # Every engine: each runs a build tuned for its own target and the
+      # outputs are compared (opt-pipeline.md §5, Q3). Local runs test the
+      # V8 target on Node only.
+      - name: Conformance on Node and wasmtime
+        env:
+          HD_CONFORMANCE_ENGINE: wasmtime
         run: cargo test --release --workspace --all-features --test conformance
 
   # The specification's own check. It drives the Rust hd through

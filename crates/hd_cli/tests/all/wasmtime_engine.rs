@@ -513,3 +513,40 @@ fn stack_exhaustion_is_a_panic() {
         text(&out.stderr)
     );
 }
+
+/// `hd build --engine wasmtime` builds for wasmtime (opt-pipeline.md §5),
+/// and `hd FILE.wasm` runs the module on the engine it was tuned for. A
+/// module of one target runs on every engine, so Node runs it too.
+#[test]
+fn hd_build_takes_the_wasmtime_engine() {
+    let dir = work("build-engine");
+    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("manifest");
+    std::fs::create_dir_all(dir.join("src")).expect("src");
+    std::fs::write(
+        dir.join("src/main.hd"),
+        "pub fn main() -> void $ Console:\n    println(\"open\")\n",
+    )
+    .expect("program");
+    for flags in [
+        &["--engine", "wasmtime"][..],
+        &["--engine=wasmtime", "--release"],
+    ] {
+        let mut args = vec!["build"];
+        args.extend_from_slice(flags);
+        let out = run(hd(&dir), &args, "");
+        assert!(out.status.success(), "{args:?}: {}", text(&out.stderr));
+    }
+    for (engine, module) in [
+        ("wasmtime", "build/debug/shop.wasm"),
+        ("wasmtime", "build/release/shop.wasm"),
+        ("node", "build/debug/shop.wasm"),
+    ] {
+        let out = run(hd(&dir), &["--engine", engine, module], "");
+        assert!(
+            out.status.success(),
+            "{engine} {module}: {}",
+            text(&out.stderr)
+        );
+        assert_eq!(text(&out.stdout), "open\n", "{engine} {module}");
+    }
+}

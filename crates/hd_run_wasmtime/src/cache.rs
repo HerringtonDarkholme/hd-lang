@@ -200,7 +200,8 @@ mod tests {
         let bytes = empty_module();
         let store = MemoryStore::default();
         let default_engine = WasmtimeEngine::new(EngineConfig::default()).unwrap();
-        let release_engine = WasmtimeEngine::new(EngineConfig::pipeline(true)).unwrap();
+        let release_engine =
+            WasmtimeEngine::new(EngineConfig::pipeline(hd_base::OptLevel::Optimized)).unwrap();
         let a = default_engine.load(&bytes, &store).unwrap();
         let b = release_engine.load(&bytes, &store).unwrap();
         assert!(!Arc::ptr_eq(&a.0, &b.0));

@@ -27,8 +27,9 @@ E1 and their measurements), [codegen.md](codegen.md) §12 to §13, and
 | Engine choice | `crates/hd_cli/src/engine.rs` `from_env` (:264), `run(kind, release, ..)` (:272); `hd_run_wasmtime` `EngineConfig::pipeline(release)` (`engine.rs` :33) | Chosen after compile, used only to run. `hd build` takes no `--engine` |
 | Conformance | `HD_CONFORMANCE_PIPELINE` (`crates/hd_driver/tests/conformance.rs` :622), `HD_CONFORMANCE_ENGINE` modes (:587) | Compare mode builds once and runs that build on both engines |
 
-Status: jobs (a), (b1), (b2) and (c1) of §6 are done, so the A1, A2 and
-pipeline-choice rows above describe the code before them. A1 and A2 are
+Status: jobs (a), (b1), (b2), (c1) and (c2) of §6 are done, so the A1,
+A2, pipeline-choice, engine-choice and conformance rows above describe
+the code before them. A1 and A2 are
 now the body passes `value_flow`, `devirt_known` and `closure_spec` in
 `hd_opt` (`passes.rs`, `planner.rs`); collection applies their plans by
 rules 1 to 4 of §2.2 and reads no pipeline flag. The build's
@@ -50,9 +51,24 @@ Job (e) keeps only the measurement and the choice of values. The
 pipeline key is `hd_driver::pipeline::key`: the pass hash (names,
 versions and knob values of the passes, then the link passes; no
 pipeline or target name) combined with `Lowering::hash`. Validator checks
-1 to 4 of §3.2 run once per process and in unit tests. Every build path
-still tunes for the default engine's target, `V8`; each such path has a
-note for job (c2).
+1 to 4 of §3.2 run once per process and in unit tests.
+
+After (c2), every build path of §5 passes its target and level. `hd
+run`, `hd FILE`, standard input, `hd test` (its programs and the
+executables it builds) and `hd build` take the run's engine (`--engine`,
+else `HD_ENGINE`, else Node; `hd build` now takes `--engine` and refuses
+`wasmtime` without the feature with `hd run`'s message) and `--release`
+for the level. The REPL builds for `Wasmtime` and `hd_web` for `Browser`,
+both dev; `build_repl_prelude` takes the session's target.
+`EngineConfig::pipeline` takes `OptLevel`. `Output` reports the target and
+level it was built with, and a test per path runs the real command and
+checks them. The conformance engine modes build for their engine's target:
+Node for `V8`, `wasmtime-only` for `Wasmtime`, and compare mode once per
+target. CI runs the compare pass. `HD_CONFORMANCE_WASM_DIGEST` now notes
+every module a runtime case runs (entries per profile, test programs, doc
+tests, scenario drives: 1041 modules of 1028 cases, up from 180 entry
+modules; the runner's own tests add 7 rows) in one file per target,
+`conformance-wasm-digests-<target>-<level>.tsv`.
 
 ## 1. Crates And Boundaries
 
@@ -330,8 +346,11 @@ pipeline are different things).
 | conformance | per engine run: the Node pass builds for `V8`, the wasmtime pass for `Wasmtime` | `HD_CONFORMANCE_PIPELINE` | Compare mode builds each runtime case once per target, then compares outputs (Q3) |
 | engine options | — | from the level | `EngineConfig::pipeline(release)` takes `OptLevel` |
 
-Conformance today has 929 runtime fixtures. While two targets have equal
-content, their keys are equal and the second build is a cache hit.
+Conformance today has 1034 runtime cases (929 under `runtime/valid`, 105
+under `runtime/panic`); 1028 of them build and run 1041 modules (an entry
+per runtime profile, test programs, doc tests, scenario drives). While
+two targets have equal content, their keys are equal and the second build
+is a cache hit.
 After job (d) they differ, so Compare mode builds each case twice. A
 small cross-run test (closure fixtures built for one target and run on
 the other engine) guards the "valid everywhere" property.

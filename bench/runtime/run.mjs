@@ -7,7 +7,9 @@
 //
 // Usage: node bench/runtime/run.mjs [workdir] [--release]
 // With --release, programs are built with `hd build --release` and the
-// release-profile Wasm is timed; otherwise the debug profile.
+// release-profile Wasm is timed; otherwise the debug profile. Every build
+// passes `--engine node`, so its Wasm is tuned for V8, which runs it here,
+// whatever `HD_ENGINE` or the default engine says.
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -95,7 +97,7 @@ function main() {
     const cache = join(workRoot, `cache-${name}`);
     rmSync(cache, { recursive: true, force: true });
     mkdirSync(cache, { recursive: true });
-    const buildArgs = release ? ["build", "--release"] : ["build"];
+    const buildArgs = ["build", "--engine", "node", ...(release ? ["--release"] : [])];
     const built = sh(NEW_HD, buildArgs, {
       cwd: dir,
       env: { ...process.env, HD_CACHE: cache },
