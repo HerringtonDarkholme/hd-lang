@@ -8,7 +8,7 @@ fixture; unsupported surface records progress without failing.
 
 | Pass | Fail | Unsupported | Total |
 | ---: | ---: | ---: | ---: |
-| 2840 | 1 | 4 | 2845 |
+| 2841 | 0 | 4 | 2845 |
 
 ## By Chapter
 
@@ -24,7 +24,7 @@ fixture; unsupported surface records progress without failing.
 | `lang/08-data-and-enums.md` | 123 | 0 | 0 | 123 |
 | `lang/09-traits.md` | 359 | 0 | 0 | 359 |
 | `lang/10-modules.md` | 254 | 0 | 4 | 258 |
-| `lang/11-requirements-and-suspension.md` | 258 | 1 | 0 | 259 |
+| `lang/11-requirements-and-suspension.md` | 259 | 0 | 0 | 259 |
 | `lang/14-annotations.md` | 153 | 0 | 0 | 153 |
 | `std/cli.md` | 5 | 0 | 0 | 5 |
 | `std/cmp.md` | 14 | 0 | 0 | 14 |
@@ -62,9 +62,9 @@ fixture; unsupported surface records progress without failing.
 | --- | ---: | ---: | ---: | ---: |
 | `parse/invalid` | 195 | 0 | 0 | 195 |
 | `parse/valid` | 106 | 0 | 0 | 106 |
-| `runtime/panic` | 104 | 0 | 1 | 105 |
+| `runtime/panic` | 105 | 0 | 1 | 106 |
 | `runtime/valid` | 926 | 0 | 3 | 929 |
-| `typing/invalid` | 1074 | 1 | 0 | 1075 |
+| `typing/invalid` | 1074 | 0 | 0 | 1074 |
 | `typing/valid` | 415 | 0 | 0 | 415 |
 | `typing/warnings` | 20 | 0 | 0 | 20 |
 
@@ -75,14 +75,7 @@ compiler stage that first declined the case.
 
 | Bucket | Cases |
 | --- | ---: |
-| `fail:no-diagnostic` | 1 |
 | `unsupported:Link` | 4 |
-
-<details><summary><code>fail:no-diagnostic</code> (1)</summary>
-
-- `typing/invalid/suspension-forbidden-context.hd`
-
-</details>
 
 <details><summary><code>unsupported:Link</code> (4)</summary>
 
@@ -424,6 +417,7 @@ runtime/panic/cli-duplicate-option.hd
 runtime/panic/cmp-clamp-reversed.hd
 runtime/panic/competing-suspension-drivers.hd
 runtime/panic/compound-assign-map-missing-key.hd
+runtime/panic/default-block-on-indirect.hd
 runtime/panic/defer-block-on-indirect.hd
 runtime/panic/defer-cancels-active-ancestor.hd
 runtime/panic/deque-invalidated.hd

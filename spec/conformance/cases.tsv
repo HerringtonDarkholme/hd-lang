@@ -252,7 +252,6 @@ typing/invalid/duplicate-inherent-member.hd	type	reject:duplicate-inherent-membe
 typing/invalid/variant-result-owner.hd	type	reject:variant-result-owner	lang/08-data-and-enums.md#r-data.shared.owner
 typing/invalid/duplicate-trait-member.hd	type	reject:duplicate-trait-member	lang/09-traits.md#trait-declarations
 typing/valid/resource-disposed-result.hd	type	accept	lang/10-modules.md#wasm-boundary
-typing/invalid/suspension-forbidden-context.hd	type	reject:suspension-forbidden-context	lang/11-requirements-and-suspension.md#suspending-functions
 typing/valid/reimport-prelude-name.hd	type	accept	lang/10-modules.md#r-module.prelude.same-use
 typing/invalid/prelude-shadow-renamed-use.hd	type	reject:prelude-name-shadow	lang/10-modules.md#r-module.prelude.no-shadow
 typing/invalid/mixed-numeric-power.hd	type	reject:type-mismatch	lang/05-expressions.md#unary-and-binary-operators
@@ -269,6 +268,7 @@ typing/valid/defer-cleanup.hd	type	accept	lang/06-control-flow.md#deferred-clean
 typing/invalid/top-level-defer.hd	type	reject:defer-outside-cleanup-scope	lang/06-control-flow.md#deferred-cleanup
 typing/invalid/defer-suspends.hd	type	reject:suspension-forbidden-context	lang/06-control-flow.md#deferred-cleanup
 runtime/panic/defer-block-on-indirect.hd	runtime	panic:suspension-forbidden-context	lang/06-control-flow.md#r-flow.defer.block-on.indirect
+runtime/panic/default-block-on-indirect.hd	runtime	panic:suspension-forbidden-context	lang/11-requirements-and-suspension.md#r-req.drive.block-on.indirect
 runtime/valid/defer-order.hd	runtime	accept	lang/06-control-flow.md#deferred-cleanup
 runtime/valid/cancellation-runs-defer.hd	runtime	accept	lang/11-requirements-and-suspension.md#cancellation
 runtime/valid/generic-data-embedding.hd	runtime	accept	lang/08-data-and-enums.md#data-embedding
