@@ -1292,10 +1292,13 @@ impl Ck<'_, '_> {
     /// introduces the name afterwards.
     pub(crate) fn check_prelude_shadow(&mut self, name: Symbol, at: NodeRef<'_>) {
         let text = self.cx.names.text(name);
-        let in_tests = self.in_tests_block();
+        // Test prelude names are bound in `tests:` blocks and in whole
+        // test modules and integration test files alike.
+        let in_test_code = self.in_tests_block()
+            || hd_project::role_of(self.cx.file_name) == hd_project::Role::Test;
         let bound = (hd_resolve::is_prelude_name(text)
             && self.cx.scope_at(self.at).bound_from_outside(name))
-            || (in_tests && hd_resolve::is_test_prelude_name(text));
+            || (in_test_code && hd_resolve::is_test_prelude_name(text));
         if bound {
             let msg = format!("`{text}` shadows a prelude name");
             self.err(Code::PreludeNameShadow, at, &msg);

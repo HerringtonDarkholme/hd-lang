@@ -177,3 +177,49 @@ fn prelude_names_used_normally_are_accepted() {
         "fn main() -> i32:\n    let x: Option[i32] = .Some(+1)\n    match x:\n        .Some(v) => v\n        .None => +0\n",
     );
 }
+
+fn files_errors(files: &[(&str, &str)]) -> Vec<(Code, usize, usize)> {
+    let mut src = MemorySources::default();
+    for (path, text) in files {
+        src.insert(path, text);
+    }
+    let store = crate::warm_store();
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let out = build_packages(&host, "app", &Packages::default(), &Goal::Analyze);
+    out.diags
+        .content_order()
+        .into_iter()
+        .filter(|i| out.diags.severity[*i] == hd_diag::Severity::Error)
+        .map(|i| {
+            let (_, line, column) = out.locate(out.diags.primary[i]);
+            (out.diags.code[i], line, column)
+        })
+        .collect()
+}
+
+#[test]
+fn it_is_bound_in_test_modules() {
+    let errors = files_errors(&[
+        ("src/main.hd", "pub fn main() -> void:\n    pass\n"),
+        (
+            "src/main_test.hd",
+            "fn run() -> i32:\n    it := +1\n    it\n",
+        ),
+    ]);
+    assert_eq!(errors, vec![(Code::PreludeNameShadow, 2, 5)]);
+}
+
+#[test]
+fn it_is_bound_in_integration_test_files() {
+    let errors = files_errors(&[
+        ("src/main.hd", "pub fn main() -> void:\n    pass\n"),
+        ("tests/flow.hd", "fn run() -> i32:\n    it := +1\n    it\n"),
+    ]);
+    assert_eq!(errors, vec![(Code::PreludeNameShadow, 2, 5)]);
+}
