@@ -1,5 +1,6 @@
 use super::{NativeBodyRunner, TestEngine, TestEnvironment, TestHostKind, TestPoolConfig};
 use crate::host::HostIo;
+use crate::reactor::{Reactor, Work};
 use crate::testing::{BodyRunner, State, TestCase};
 use crate::{EngineConfig, WasmtimeEngine};
 use hd_cache::MemoryStore;
@@ -26,6 +27,11 @@ enum Body {
     // Runs `/bin/pwd`, which only Unix has.
     #[cfg(unix)]
     ProcessCwd,
+    // Runs `/bin/sleep 1`, which only Unix has.
+    #[cfg(unix)]
+    ProcessSleep,
+    // Computes until interrupted.
+    Busy,
     HeapGrow,
 }
 
@@ -60,7 +66,7 @@ fn wasm(body: Body, standard: bool) -> Vec<u8> {
             2
         }
         #[cfg(unix)]
-        Body::ProcessCwd => {
+        Body::ProcessCwd | Body::ProcessSleep => {
             imports.import("hd:Process", "run.start", EntityType::Function(6));
             imports.import("hd:rt", "block", EntityType::Function(1));
             imports.import("hd:Process", "run.finish", EntityType::Function(5));
@@ -145,23 +151,26 @@ fn wasm(body: Body, standard: bool) -> Vec<u8> {
                 .instruction(&I::Call(1))
                 .instruction(&I::Drop);
         }
+        Body::Busy => busy(&mut poll),
         #[cfg(unix)]
-        Body::ProcessCwd => {
+        Body::ProcessCwd | Body::ProcessSleep => {
             // A pending run waits in `block`, then `.finish` gives its result.
-            poll.instruction(&I::I32Const(i32::try_from(pwd_arguments().len()).unwrap()))
-                .instruction(&I::Call(1))
-                .instruction(&I::LocalSet(2))
-                .instruction(&I::LocalSet(1))
-                .instruction(&I::LocalGet(1))
-                .instruction(&I::If(BlockType::Empty))
-                .instruction(&I::Call(2))
-                .instruction(&I::Drop)
-                .instruction(&I::LocalGet(2))
-                .instruction(&I::Call(3))
-                .instruction(&I::LocalSet(2))
-                .instruction(&I::End)
-                .instruction(&I::LocalGet(2))
-                .instruction(&I::Call(0));
+            poll.instruction(&I::I32Const(
+                i32::try_from(process_arguments(body).len()).unwrap(),
+            ))
+            .instruction(&I::Call(1))
+            .instruction(&I::LocalSet(2))
+            .instruction(&I::LocalSet(1))
+            .instruction(&I::LocalGet(1))
+            .instruction(&I::If(BlockType::Empty))
+            .instruction(&I::Call(2))
+            .instruction(&I::Drop)
+            .instruction(&I::LocalGet(2))
+            .instruction(&I::Call(3))
+            .instruction(&I::LocalSet(2))
+            .instruction(&I::End)
+            .instruction(&I::LocalGet(2))
+            .instruction(&I::Call(0));
         }
     }
     poll.instruction(&I::I32Const(if matches!(body, Body::ExitThree) {
@@ -177,8 +186,8 @@ fn wasm(body: Body, standard: bool) -> Vec<u8> {
     let mut data = DataSection::new();
     data.active(0, &ConstExpr::i32_const(0), *b"?");
     #[cfg(unix)]
-    if matches!(body, Body::ProcessCwd) {
-        data.active(0, &ConstExpr::i32_const(0), pwd_arguments());
+    if matches!(body, Body::ProcessCwd | Body::ProcessSleep) {
+        data.active(0, &ConstExpr::i32_const(0), process_arguments(body));
     }
     let mut module = Wasm::new();
     module
@@ -202,7 +211,7 @@ fn busy(function: &mut Function) {
 
 fn poll_locals(body: Body) -> Vec<(u32, ValType)> {
     #[cfg(unix)]
-    if matches!(body, Body::ProcessCwd) {
+    if matches!(body, Body::ProcessCwd | Body::ProcessSleep) {
         return vec![(2, ValType::I32)];
     }
     let _ = body;
@@ -210,44 +219,90 @@ fn poll_locals(body: Body) -> Vec<(u32, ValType)> {
 }
 
 #[cfg(unix)]
-fn pwd_arguments() -> Vec<u8> {
+fn process_arguments(body: Body) -> Vec<u8> {
     use crate::codec::Enc;
     let mut arguments = Enc::default();
-    arguments.str("/bin/pwd").leb(0).bytes(&[]);
+    if matches!(body, Body::ProcessSleep) {
+        arguments.str("/bin/sleep").leb(1).str("1").bytes(&[]);
+    } else {
+        arguments.str("/bin/pwd").leb(0).bytes(&[]);
+    }
     arguments.done().to_vec()
+}
+
+/// A test environment whose one child, `child`, runs `body`.
+fn environment_with(body: Body, cwd: std::path::PathBuf) -> TestEnvironment {
+    let child = super::NamedProgram::compile(
+        EngineConfig::default(),
+        "child".into(),
+        &wasm(body, true),
+        Grants::default(),
+    )
+    .unwrap();
+    TestEnvironment {
+        cwd,
+        program: "test".into(),
+        children: vec![child],
+    }
+}
+
+fn child_arguments() -> crate::codec::Enc {
+    let mut arguments = crate::codec::Enc::default();
+    arguments.str("child").leb(0).bytes(&[]);
+    arguments
+}
+
+/// Starts the child as `run.start` does.
+fn start_child(
+    environment: &TestEnvironment,
+    deadline: Option<std::time::Instant>,
+) -> super::process::ChildRun {
+    let arguments = child_arguments();
+    match super::start(
+        arguments.done(),
+        &Grants::default(),
+        environment,
+        deadline,
+        64 << 20,
+    )
+    .unwrap()
+    {
+        super::Start::Run(run) => run,
+        super::Start::Ready(_) => panic!("the child starts"),
+    }
+}
+
+/// Waits for the operation `h` and takes its result, as `block` and
+/// `.finish` do.
+#[cfg(unix)]
+fn finished_child(reactor: &mut Reactor, h: i32) -> Option<crate::codec::Enc> {
+    let mut out = Vec::new();
+    // An earlier `due` may already have completed `h` with another handle.
+    while !reactor.is_completed(h) && !reactor.due(&mut out).contains(&h) {
+        assert!(reactor.wait(), "the child is pending");
+    }
+    match reactor.remove(h).map(|op| op.work) {
+        Some(Work::Offloaded(Some(crate::reactor::Done::Child(encoded)))) => encoded,
+        _ => panic!("the child has no result"),
+    }
 }
 
 #[cfg(unix)]
 #[test]
 fn named_child_external_process_uses_case_cwd_without_changing_parent() {
-    use super::{NamedProgram, process};
-    use crate::codec::{Dec, Enc};
+    use crate::codec::Dec;
     use std::time::Instant;
     let owner = State::new(TestCase::default());
     let root = std::path::PathBuf::from(owner.temp_dir().unwrap());
     let parent = std::env::current_dir().unwrap();
-    let child = NamedProgram::compile(
-        EngineConfig::default(),
-        "child".into(),
-        &wasm(Body::ProcessCwd, true),
-        Grants::default(),
-    )
-    .unwrap();
-    let environment = TestEnvironment {
-        cwd: root.clone(),
-        program: "test".into(),
-        children: vec![child],
-    };
-    let mut arguments = Enc::default();
-    arguments.str("child").leb(0).bytes(&[]);
-    let result = process(
-        arguments.done(),
-        &Grants::default(),
+    let environment = environment_with(Body::ProcessCwd, root.clone());
+    let run = start_child(
         &environment,
         Instant::now().checked_add(Duration::from_secs(2)),
-        64 << 20,
-    )
-    .unwrap();
+    );
+    let mut reactor = Reactor::new(None);
+    let h = reactor.offload(run.wait()).unwrap();
+    let result = finished_child(&mut reactor, h).expect("the child ends before its deadline");
     let mut outer = Dec::new(result.done());
     assert_eq!(outer.leb().unwrap(), 0);
     assert_eq!(outer.str().unwrap(), "");
@@ -262,6 +317,73 @@ fn named_child_external_process_uses_case_cwd_without_changing_parent() {
     assert_eq!(inner.str().unwrap(), "");
     assert_eq!(inner.zz().unwrap(), 0);
     assert_eq!(std::env::current_dir().unwrap(), parent);
+}
+
+/// Two children that take about a second each run at the same time, as
+/// `all!(run!(a), run!(b))` starts them: the wait is one second, not two.
+#[cfg(unix)]
+#[test]
+fn two_children_run_at_the_same_time() {
+    use crate::codec::Dec;
+    use std::time::Instant;
+    let environment = environment_with(Body::ProcessSleep, std::env::current_dir().unwrap());
+    let started = Instant::now();
+    let mut reactor = Reactor::new(None);
+    let first = start_child(&environment, None);
+    let second = start_child(&environment, None);
+    let first = reactor.offload(first.wait()).unwrap();
+    let second = reactor.offload(second.wait()).unwrap();
+    for h in [first, second] {
+        let result = finished_child(&mut reactor, h).expect("no deadline");
+        let mut outer = Dec::new(result.done());
+        assert_eq!(outer.leb().unwrap(), 0, "the child ran");
+        assert_eq!(outer.str().unwrap(), "");
+        let nested = outer.str().unwrap();
+        assert_eq!(outer.zz().unwrap(), 0);
+        assert_eq!(Dec::new(nested.as_bytes()).leb().unwrap(), 0);
+    }
+    let elapsed = started.elapsed();
+    assert!(elapsed >= Duration::from_secs(1), "each child sleeps 1 s");
+    assert!(
+        elapsed < Duration::from_millis(1900),
+        "the children ran one after the other: {elapsed:?}"
+    );
+}
+
+/// Aborting the wait ends it at once and interrupts the child's thread,
+/// which does not otherwise end: it computes without a deadline.
+#[test]
+fn aborting_a_waiting_child_ends_its_thread() {
+    use std::sync::atomic::Ordering;
+    use std::time::Instant;
+    let environment = environment_with(Body::Busy, std::env::current_dir().unwrap());
+    let run = start_child(&environment, None);
+    let stop = run.stop_flag();
+    let mut reactor = Reactor::new(None);
+    let h = reactor.offload(run.wait()).unwrap();
+    let sleep = reactor.sleep(100);
+    let mut out = Vec::new();
+    let started = Instant::now();
+    while !reactor.is_completed(sleep) && !reactor.due(&mut out).contains(&sleep) {
+        assert!(reactor.wait(), "the sleep is pending");
+    }
+    assert!(!reactor.is_completed(h), "the child still runs");
+    let op = reactor.remove(h).expect("the wait is pending");
+    assert!(
+        matches!(op.work, Work::Offloaded(None)),
+        "the abort delivers nothing"
+    );
+    assert!(started.elapsed() < Duration::from_secs(5));
+    assert!(stop.load(Ordering::Relaxed), "the child is interrupted");
+    // The thread's host held the other reference to the flag.
+    let ended = Instant::now();
+    while Arc::strong_count(&stop) > 1 {
+        assert!(
+            ended.elapsed() < Duration::from_secs(10),
+            "the child thread did not end"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
 }
 
 fn engine() -> TestEngine {

@@ -39,6 +39,9 @@ pub type Line = Result<Option<String>, ()>;
 pub enum Done {
     /// `Process.run!`: how the child's run ended.
     Process(crate::core::process::Ran),
+    /// `Process.run!` of a test case's named child, run on a thread of its
+    /// own: the encoded result, or `None` for the time-limit trap.
+    Child(Option<crate::codec::Enc>),
     /// A `Net` operation's result.
     Net(crate::net::Done),
     /// `Http.send!`: the response or the failure.

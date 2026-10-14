@@ -11,5 +11,5 @@ pub use engine::{
     NamedProgram, PreparedTest, TestEngine, TestEnvironment, TestHostKind, TestModule,
     TestPoolConfig,
 };
-pub(crate) use process::process;
+pub(crate) use process::{Start, not_run, start};
 pub use runner::NativeBodyRunner;

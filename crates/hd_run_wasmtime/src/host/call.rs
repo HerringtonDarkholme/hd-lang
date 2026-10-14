@@ -187,13 +187,21 @@ pub(crate) fn call(
             let host = caller.data_mut();
             match &host.environment {
                 Some(environment) if host.testing.is_some() => {
-                    Ret::ready(crate::test_engine::process(
+                    match crate::test_engine::start(
                         &b,
                         &host.grants,
                         environment,
                         host.deadline(),
                         host.memory_bytes,
-                    )?)?
+                    )? {
+                        crate::test_engine::Start::Ready(e) => Ret::ready(e)?,
+                        crate::test_engine::Start::Run(run) => {
+                            match host.reactor.offload(run.wait()) {
+                                Ok(h) => Ret::pair(1, h),
+                                Err(error) => Ret::ready(crate::test_engine::not_run(&error))?,
+                            }
+                        }
+                    }
                 }
                 environment => {
                     let cwd = environment.as_ref().map(|e| e.cwd.as_path());
@@ -220,13 +228,20 @@ pub(crate) fn call(
                     Stop::Contract("a finish of an operation that is not pending".into()).into(),
                 );
             };
-            let Work::Offloaded(Some(Done::Process(ran))) = op.work else {
-                return Err(Stop::Contract(
-                    "a finish of an operation that is not completed".into(),
-                )
-                .into());
-            };
-            Ret::encoded(core::process::finish(ran))
+            match op.work {
+                Work::Offloaded(Some(Done::Process(ran))) => {
+                    Ret::encoded(core::process::finish(ran))
+                }
+                // A test child that ran into the time limit ends the case.
+                Work::Offloaded(Some(Done::Child(None))) => return Err(Stop::TimeLimit.into()),
+                Work::Offloaded(Some(Done::Child(Some(encoded)))) => Ret::encoded(encoded),
+                _ => {
+                    return Err(Stop::Contract(
+                        "a finish of an operation that is not completed".into(),
+                    )
+                    .into());
+                }
+            }
         }
         Kind::HttpStart => {
             let b = bytes(caller, int_arg(params, 0)?)?;
