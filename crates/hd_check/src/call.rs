@@ -2617,6 +2617,11 @@ impl Ck<'_, '_> {
                 }
             }
         }
+        // `T::f(args)`, where `T` is a type parameter, resolves `f`
+        // through the bounds of `T`: exactly one trait among the bounds
+        // and their supertraits may declare it
+        // (`trait.assoc-call.parameter`, `trait.assoc-call.parameter.one`).
+        let mut bound_hits = Vec::new();
         for (tr, m) in traits {
             let tref = TraitRef {
                 trait_: tr,
@@ -2630,6 +2635,10 @@ impl Ck<'_, '_> {
                 matches!(self.solve(tref)?, hd_types::solver::Answer::Holds { .. })
             };
             if holds {
+                if is_param {
+                    bound_hits.push((tr, m));
+                    continue;
+                }
                 return self.trait_method_call(
                     TraitTarget {
                         trait_: tr,
@@ -2642,6 +2651,42 @@ impl Ck<'_, '_> {
                     n,
                     (bang, want),
                 );
+            }
+        }
+        if is_param {
+            match bound_hits.as_slice() {
+                // Exactly one bound declares the method: statically
+                // resolved through it (`trait.assoc-call.parameter`).
+                [(tr, m)] => {
+                    let (tr, m) = (*tr, *m);
+                    return self.trait_method_call(
+                        TraitTarget {
+                            trait_: tr,
+                            method: m,
+                            self_ty: t,
+                            args: vec![],
+                        },
+                        None,
+                        args,
+                        n,
+                        (bang, want),
+                    );
+                }
+                // Two or more do: an error (`trait.assoc-call.parameter.one`).
+                [_, _, ..] => {
+                    let names: Vec<String> = bound_hits
+                        .iter()
+                        .map(|(tr, _)| format!("`{}`", self.cx.names.display_name(*tr)))
+                        .collect();
+                    let msg = format!(
+                        "`{}::{name}` is ambiguous: the bounds {} each declare it; write one bound's trait explicitly",
+                        self.show(t),
+                        names.join(" and ")
+                    );
+                    self.err(Code::AmbiguousMethod, n, &msg);
+                    return Ok((Ref(NONE), Ty::POISON));
+                }
+                [] => {}
             }
         }
         let msg = format!("no method `{name}` on {}", self.show(t));
@@ -2677,11 +2722,11 @@ impl Ck<'_, '_> {
         // Inside a template, `Structure::f(..)` and `Trait::f(..)` of the
         // derived trait have the template's `T` as `Self`
         // (`annot.template.qualified-self`).
-        let self_ty = match self.template_self(tr) {
-            Some(t) => t,
-            None => self.infer.fresh(pool, VarKind::General),
+        let (self_ty, track_self) = match self.template_self(tr) {
+            Some(t) => (t, false),
+            None => (self.infer.fresh(pool, VarKind::General), true),
         };
-        self.trait_method_call(
+        let out = self.trait_method_call(
             TraitTarget {
                 trait_: tr,
                 method: m,
@@ -2692,7 +2737,14 @@ impl Ck<'_, '_> {
             args,
             n,
             (bang, None),
-        )
+        );
+        // A `Self` nothing determines reports at the end of the body,
+        // once the arguments and the expected type had their chance
+        // (`trait.assoc-call.trait.undetermined`).
+        if track_self {
+            self.assoc_self.push((self_ty, n.index()));
+        }
+        out
     }
 
     pub(crate) fn sig_of(&self, d: DefId) -> StageResult<FnSig> {

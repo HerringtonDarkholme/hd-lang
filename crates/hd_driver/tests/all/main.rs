@@ -4,6 +4,7 @@
 
 mod annotation_member_names;
 mod arity_generic_run;
+mod assoc_call_qualified;
 mod assoc_types;
 mod assoc_validation;
 mod bare_trait_body;

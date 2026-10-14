@@ -302,6 +302,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// A call's type variables, closed at the end of the body, when the
     /// impls and loops that wait on them are settled.
     pub call_params: Vec<(Ty, NodeRefIdx)>,
+    /// A trait-qualified associated call's `Self`, closed at the end of
+    /// the body: inference from the arguments and the expected type may
+    /// still determine it (`trait.assoc-call.trait.undetermined`).
+    pub assoc_self: Vec<(Ty, NodeRefIdx)>,
     /// Checking a template's method at a derivation opt-in: the opt-in
     /// (`annot.template.checked`).
     pub opt_in: Option<&'c crate::derive::OptIn>,
@@ -468,6 +472,7 @@ pub(crate) fn new_ck<'a, 'c>(
         open_params: Vec::new(),
         ref_params: Vec::new(),
         call_params: Vec::new(),
+        assoc_self: Vec::new(),
         opt_in: None,
         structure_calls: Vec::new(),
         plan_sink: None,
@@ -3208,6 +3213,7 @@ impl Ck<'_, '_> {
             }
         }
         self.close_call_params(0);
+        self.close_assoc_self();
         self.opt_in_obligations()?;
         self.tuple_plan_steps()?;
         for i in 0..n {

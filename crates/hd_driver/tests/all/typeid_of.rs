@@ -80,7 +80,7 @@ fn qualified_calls_resolve_owner_then_member_then_type_arguments() {
         "fn run() -> i32:\n    Box::[string]::pick::[i32](3)\n",
         "fn run() -> Box[i64]:\n    Box::make::[i64](3)\n",
         "fn run() -> Box[string]:\n    Box::[i32]::make::[string](\"x\")\n",
-        "fn run() -> string:\n    Maker::made::[string](\"x\")\n",
+        "fn run() -> string:\n    string::made::[string](\"x\")\n",
     ];
     for c in cases {
         let src = format!("{DECLS}\n{c}");

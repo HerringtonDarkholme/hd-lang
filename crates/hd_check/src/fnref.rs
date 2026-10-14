@@ -684,6 +684,38 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// A trait-qualified associated call's `Self` that inference never
+    /// determined (`trait.assoc-call.trait.undetermined`): an error naming
+    /// the qualified forms, once per call, and then poison, as for
+    /// unsolved call parameters.
+    pub(crate) fn close_assoc_self(&mut self) {
+        let open = std::mem::take(&mut self.assoc_self);
+        let pool = self.pool();
+        for (v, at) in open {
+            if !self.unsolved(v) {
+                continue;
+            }
+            let node = self.cx.src.parse.tree.node(at);
+            let span = self.cx.src.span(node);
+            let failed = (0..self.diags.len()).any(|i| {
+                let cover = self.diags.primary[i];
+                self.diags.severity[i] == Severity::Error
+                    && cover.file == span.file
+                    && span.lo <= cover.lo
+                    && cover.hi <= span.hi
+            });
+            if !failed {
+                self.err(
+                    Code::CannotInferType,
+                    node,
+                    "this call leaves `Self` undetermined; write `Type::f(args)` or `T::f(args)` instead",
+                );
+            }
+            self.infer
+                .rebind(pool, self.infer.shallow(pool, v), Ty::POISON);
+        }
+    }
+
     /// The rest of an unbound reference: fit, bounds, `ItemRef`.
     fn unbound(
         &mut self,
