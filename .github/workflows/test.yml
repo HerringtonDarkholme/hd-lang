@@ -124,7 +124,9 @@ jobs:
         run: cargo clippy -p hd_run_wasmtime -p hd_cli --features hd_cli/wasmtime --all-targets -- -D warnings
 
       - name: Test host crates
-        run: cargo test --release -p hd_run_wasmtime -p hd_cli --features hd_cli/wasmtime
+        # --no-fail-fast: one run reports every failing test binary, not
+        # just the first.
+        run: cargo test --release --no-fail-fast -p hd_run_wasmtime -p hd_cli --features hd_cli/wasmtime
 
   # Split from the tests so the longest suite overlaps with the rest.
   conformance:
