@@ -543,9 +543,14 @@ mod tests {
             program: "tests/report.hd",
             programs: None,
         };
+        // `Path::join` writes the platform separator after the root, so
+        // Windows has `/pkg\__snapshots__` (JSON-escaped below).
+        let sep = if cfg!(windows) { r"\\" } else { "/" };
         assert_eq!(
             host_config(&env, &cases),
-            r#"{"program":"tests/report.hd","args":[],"programs":null,"cases":[{"test":2,"init":1,"kind":"it_prop","tempDir":"/tmp/hd-test-1-0/4","seed":9,"grants":{"Console":false,"FsWrite":["/tmp/a\"b"]},"snapshot":{"dir":"/pkg/__snapshots__/tests.report","shown":"__snapshots__/tests.report","slug":"sums-prices","update":false},"regression":{"file":"/pkg/__regressions__/tests.report/sums-prices","shown":"__regressions__/tests.report/sums-prices"}}]}"#
+            format!(
+                r#"{{"program":"tests/report.hd","args":[],"programs":null,"cases":[{{"test":2,"init":1,"kind":"it_prop","tempDir":"/tmp/hd-test-1-0/4","seed":9,"grants":{{"Console":false,"FsWrite":["/tmp/a\"b"]}},"snapshot":{{"dir":"/pkg{sep}__snapshots__/tests.report","shown":"__snapshots__/tests.report","slug":"sums-prices","update":false}},"regression":{{"file":"/pkg{sep}__regressions__/tests.report/sums-prices","shown":"__regressions__/tests.report/sums-prices"}}}}]}}"#
+            )
         );
     }
 
