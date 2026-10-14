@@ -185,6 +185,8 @@ mod tests {
         ));
     }
 
+    // The flag is read back with fcntl, which has no Windows equivalent.
+    #[cfg(unix)]
     #[test]
     fn bounded_accept_returns_a_blocking_fixture_socket() {
         use nix::fcntl::{FcntlArg, OFlag, fcntl};

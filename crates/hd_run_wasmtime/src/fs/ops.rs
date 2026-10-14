@@ -203,7 +203,7 @@ fn shown_mkdir_failure(failure: Failure, cwd: &Path, original: &str) -> Failure 
 
 #[cfg(test)]
 mod tests {
-    use crate::codec::{Dec, Enc};
+    use crate::codec::Enc;
     use crate::fs::api::error;
     use crate::fs::test_support::{TempDir, invoke};
     use std::fs;
@@ -267,6 +267,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn lists_byte_order_and_reports_symlink_and_directory_sizes() {
+        use crate::codec::Dec;
         use std::os::unix::fs::symlink;
         let dir = TempDir::new();
         fs::write(dir.path("é"), "hello").unwrap();

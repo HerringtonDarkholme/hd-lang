@@ -1,4 +1,4 @@
-use std::fs::{self, File, Metadata, OpenOptions};
+use std::fs::{File, Metadata, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -278,7 +278,7 @@ pub(crate) fn open(
         match options.open(path) {
             Err(err) if write && deadline.is_some() && err.raw_os_error() == Some(libc::ENXIO) => {
                 use std::os::unix::fs::FileTypeExt;
-                if !fs::metadata(path).is_ok_and(|st| st.file_type().is_fifo()) {
+                if !std::fs::metadata(path).is_ok_and(|st| st.file_type().is_fifo()) {
                     return Err(Failure::new("open", err));
                 }
                 check_deadline(deadline)?;
@@ -329,20 +329,13 @@ fn named_pipe_path(path: &str) -> bool {
         .is_some_and(|(server, share)| !server.is_empty() && share.starts_with(r"pipe\"))
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests {
-    #[cfg(windows)]
-    use crate::codec::Enc;
-    #[cfg(windows)]
-    use crate::fs::api::{error, failure};
-    #[cfg(windows)]
-    use crate::fs::test_support::{TempDir, limited};
-    #[cfg(windows)]
+    use crate::fs::api::{Failure, error, failure};
+    use crate::fs::test_support::{TempDir, assert_time_limit, limited};
     use std::fs;
-    #[cfg(windows)]
     use std::time::{Duration, Instant};
 
-    #[cfg(windows)]
     #[test]
     fn named_pipe_namespace_detection_preserves_ordinary_files() {
         for path in [
@@ -365,11 +358,9 @@ mod tests {
             assert!(!super::named_pipe_path(path), "{path}");
         }
     }
-    #[cfg(windows)]
     fn pipe_name(dir: &TempDir) -> String {
         format!(r"\\.\pipe\{}", dir.0.file_name().unwrap().to_string_lossy())
     }
-    #[cfg(windows)]
     #[test]
     fn windows_pipe_idle_read_and_backpressure_stop_at_deadline() {
         use interprocess::os::windows::named_pipe::{PipeListenerOptions, pipe_mode};
@@ -397,7 +388,6 @@ mod tests {
             assert!(start.elapsed() < Duration::from_secs(2));
         }
     }
-    #[cfg(windows)]
     #[test]
     fn windows_pipe_busy_open_is_deadline_bounded() {
         use interprocess::os::windows::named_pipe::{PipeListenerOptions, pipe_mode};
@@ -424,7 +414,6 @@ mod tests {
         ));
         assert!(start.elapsed() < Duration::from_secs(2));
     }
-    #[cfg(windows)]
     #[test]
     fn windows_errors_use_rust_error_categories_and_native_messages() {
         use std::io::ErrorKind;
@@ -446,9 +435,9 @@ mod tests {
             let native = std::io::Error::from_raw_os_error(i32::try_from(code).unwrap());
             assert_eq!(native.kind(), kind);
             let message = format!("open \"to\": {native}");
-            let failure = Failure::new("open", native);
+            let refused = Failure::new("open", native);
             assert_eq!(
-                super::failure("to", "read_text", "to", &failure).done(),
+                failure("to", "read_text", "to", &refused).done(),
                 error(if variant == 7 { &message } else { "to" }, variant).done()
             );
         }
@@ -456,9 +445,9 @@ mod tests {
         let native =
             std::io::Error::from_raw_os_error(i32::try_from(ERROR_SHARING_VIOLATION).unwrap());
         let message = format!("open \"to\": {native}");
-        let failure = Failure::new("open", native);
+        let refused = Failure::new("open", native);
         assert_eq!(
-            super::failure("to", "read_text", "to", &failure).done(),
+            failure("to", "read_text", "to", &refused).done(),
             error(&message, 7).done()
         );
     }

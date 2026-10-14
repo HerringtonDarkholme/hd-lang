@@ -1,8 +1,4 @@
-use super::{
-    NamedProgram, NativeBodyRunner, TestEngine, TestEnvironment, TestHostKind, TestPoolConfig,
-    process,
-};
-use crate::codec::{Dec, Enc};
+use super::{NativeBodyRunner, TestEngine, TestEnvironment, TestHostKind, TestPoolConfig};
 use crate::host::HostIo;
 use crate::testing::{BodyRunner, State, TestCase};
 use crate::{EngineConfig, WasmtimeEngine};
@@ -10,7 +6,7 @@ use hd_cache::MemoryStore;
 use hd_run::{Engine, Grants, HostSetup, Instance, Limits, Outcome};
 use std::io;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use wasm_encoder::{
     BlockType, CodeSection, ConstExpr, DataSection, EntityType, ExportKind, ExportSection,
     Function, FunctionSection, GlobalSection, GlobalType, ImportSection, Instruction as I,
@@ -22,8 +18,13 @@ enum Body {
     Counter,
     Timeout,
     ExitThree,
+    // Blocked on a FIFO, which only Unix has.
+    #[cfg(unix)]
     Snapshot,
+    #[cfg(unix)]
     Regression,
+    // Runs `/bin/pwd`, which only Unix has.
+    #[cfg(unix)]
     ProcessCwd,
     HeapGrow,
 }
@@ -48,14 +49,17 @@ fn wasm(body: Body, standard: bool) -> Vec<u8> {
             imports.import("hd:TestRunner", "report_timeout", EntityType::Function(3));
             2
         }
+        #[cfg(unix)]
         Body::Snapshot => {
             imports.import("hd:TestRunner", "snapshot_check", EntityType::Function(5));
             2
         }
+        #[cfg(unix)]
         Body::Regression => {
             imports.import("hd:PropertyRunner", "start", EntityType::Function(4));
             2
         }
+        #[cfg(unix)]
         Body::ProcessCwd => {
             imports.import("hd:Process", "run.start", EntityType::Function(6));
             imports.import("hd:rt", "block", EntityType::Function(1));
@@ -101,11 +105,7 @@ fn wasm(body: Body, standard: bool) -> Vec<u8> {
         .instruction(&I::GlobalSet(0))
         .instruction(&I::End);
     // `ProcessCwd` keeps a start's status and value in locals 1 and 2.
-    let mut poll = Function::new(if matches!(body, Body::ProcessCwd) {
-        vec![(2, ValType::I32)]
-    } else {
-        vec![]
-    });
+    let mut poll = Function::new(poll_locals(body));
     match body {
         Body::Counter => {
             poll.instruction(&I::GlobalGet(0))
@@ -126,6 +126,7 @@ fn wasm(body: Body, standard: bool) -> Vec<u8> {
             busy(&mut poll);
         }
         Body::ExitThree => {}
+        #[cfg(unix)]
         Body::Snapshot => {
             poll.instruction(&I::I32Const(1))
                 .instruction(&I::Call(1))
@@ -136,6 +137,7 @@ fn wasm(body: Body, standard: bool) -> Vec<u8> {
                 .instruction(&I::MemoryGrow(0))
                 .instruction(&I::Drop);
         }
+        #[cfg(unix)]
         Body::Regression => {
             poll.instruction(&I::I32Const(1))
                 .instruction(&I::I32Const(0))
@@ -143,6 +145,7 @@ fn wasm(body: Body, standard: bool) -> Vec<u8> {
                 .instruction(&I::Call(1))
                 .instruction(&I::Drop);
         }
+        #[cfg(unix)]
         Body::ProcessCwd => {
             // A pending run waits in `block`, then `.finish` gives its result.
             poll.instruction(&I::I32Const(i32::try_from(pwd_arguments().len()).unwrap()))
@@ -173,6 +176,7 @@ fn wasm(body: Body, standard: bool) -> Vec<u8> {
     code.function(&init).function(&poll).function(&selected);
     let mut data = DataSection::new();
     data.active(0, &ConstExpr::i32_const(0), *b"?");
+    #[cfg(unix)]
     if matches!(body, Body::ProcessCwd) {
         data.active(0, &ConstExpr::i32_const(0), pwd_arguments());
     }
@@ -196,7 +200,18 @@ fn busy(function: &mut Function) {
         .instruction(&I::End);
 }
 
+fn poll_locals(body: Body) -> Vec<(u32, ValType)> {
+    #[cfg(unix)]
+    if matches!(body, Body::ProcessCwd) {
+        return vec![(2, ValType::I32)];
+    }
+    let _ = body;
+    vec![]
+}
+
+#[cfg(unix)]
 fn pwd_arguments() -> Vec<u8> {
+    use crate::codec::Enc;
     let mut arguments = Enc::default();
     arguments.str("/bin/pwd").leb(0).bytes(&[]);
     arguments.done().to_vec()
@@ -205,6 +220,9 @@ fn pwd_arguments() -> Vec<u8> {
 #[cfg(unix)]
 #[test]
 fn named_child_external_process_uses_case_cwd_without_changing_parent() {
+    use super::{NamedProgram, process};
+    use crate::codec::{Dec, Enc};
+    use std::time::Instant;
     let owner = State::new(TestCase::default());
     let root = std::path::PathBuf::from(owner.temp_dir().unwrap());
     let parent = std::env::current_dir().unwrap();
